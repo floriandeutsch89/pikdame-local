@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Pik Dame</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- LOBBY -->
+    <section id="lobby" class="screen">
+      <h1>♠ Pik Dame</h1>
+      <p class="subtitle">Offline-Multiplayer Rommé über Hotspot</p>
+      <input id="nameInput" type="text" placeholder="Dein Name" maxlength="16" />
+      <button id="joinBtn" class="btn-primary">Tisch beitreten</button>
+      <button id="startBtn" class="btn-secondary" disabled>Spiel starten (fehlende Plätze = Bots)</button>
+      <div id="lobbyPlayers" class="lobby-players"></div>
+      <p id="connStatus" class="conn-status">Verbinde...</p>
+    </section>
+
+    <!-- SPIELTISCH -->
+    <section id="table" class="screen hidden">
+      <header id="topBar">
+        <div id="roundInfo">Runde –</div>
+        <div id="turnInfo">–</div>
+        <button id="logToggle" class="btn-icon">📜</button>
+      </header>
+
+      <div id="opponents"></div>
+
+      <div id="melds"></div>
+
+      <div id="centerPiles">
+        <div class="pile" id="drawPile">
+          <div class="pile-card back"></div>
+          <span id="drawCount">0</span>
+        </div>
+        <div class="pile" id="discardPile">
+          <div class="pile-card" id="discardTopCard"></div>
+        </div>
+      </div>
+
+      <div id="actionBar">
+        <button id="confirmMeldBtn" class="btn-primary hidden">Auslegen</button>
+        <button id="clearSelectionBtn" class="btn-secondary hidden">Auswahl löschen</button>
+        <div id="hint" class="hint"></div>
+      </div>
+
+      <div id="handWrapper">
+        <div id="hand"></div>
+      </div>
+    </section>
+
+    <!-- RUNDEN-/SPIELENDE -->
+    <section id="resultOverlay" class="overlay hidden">
+      <div class="overlay-card">
+        <h2 id="resultTitle">Rundenende</h2>
+        <div id="resultBody"></div>
+        <button id="resultContinueBtn" class="btn-primary">Weiter</button>
+      </div>
+    </section>
+
+    <!-- LOG -->
+    <div id="logPanel" class="hidden">
+      <div id="logEntries"></div>
+    </div>
+
+  </div>
+
+  <script src="client.js"></script>
+</body>
+</html>
