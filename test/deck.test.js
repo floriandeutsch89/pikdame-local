@@ -10,7 +10,6 @@ test('createDeck liefert exakt 110 Karten (2x52 + 6 Joker)', () => {
   assert.equal(jokers.length, 6);
   const standard = deck.filter((c) => !c.isJoker);
   assert.equal(standard.length, 104);
-  // jede Standardkarte muss genau 2x vorkommen
   const counts = {};
   for (const c of standard) {
     const key = `${c.suit}${c.rank}`;
@@ -45,6 +44,21 @@ test('dealWithGlucksgriff verteilt an 4 Spieler je 15 Karten, Rest bleibt erhalt
   assert.equal(discardPile.length, 1);
 });
 
+test('Glücksgriff kann als Hausregel komplett abgeschaltet werden', () => {
+  const deck = createDeck();
+  const pikDame = deck.find((c) => isPikDame(c));
+  const rest = deck.filter((c) => c !== pikDame);
+  const rigged = [pikDame, ...rest]; // Pik Dame ganz oben - würde sonst oft getroffen
+
+  const players = ['p1', 'p2', 'p3', 'p4'];
+  const { hands, luckyHits } = dealWithGlucksgriff(rigged, players, { glueckgriffEnabled: false });
+
+  assert.equal(luckyHits.length, 0);
+  for (const p of players) {
+    assert.equal(hands[p].length, HAND_SIZE);
+  }
+});
+
 test('Glücksgriff: Pik-Dame/Joker landen sofort beim Spieler, der sie "abhebt"', () => {
   // Deterministisches Mini-Deck: erzwinge, dass die Pik-Dame ganz oben liegt
   const deck = createDeck();
@@ -55,12 +69,6 @@ test('Glücksgriff: Pik-Dame/Joker landen sofort beim Spieler, der sie "abhebt"'
   const players = ['p1', 'p2', 'p3', 'p4'];
   const { hands, luckyHits } = dealWithGlucksgriff(rigged, players);
 
-  // p1 hebt zuerst ab; bei einem 1-Karten-"Schnitt" auf Position 0 ist die
-  // einzig mögliche gezogene Karte die Pik-Dame -> p1 sollte den Glücksgriff
-  // mit nicht-negativer Wahrscheinlichkeit bekommen. Da der Cut zufällig aus
-  // dem gesamten Resthaufen gezogen wird, prüfen wir stattdessen nur die
-  // Invariante: höchstens 1 Glücksgriff pro Spieler und alle Hände bleiben
-  // bei exakt 15 Karten.
   for (const p of players) {
     assert.equal(hands[p].length, HAND_SIZE);
   }

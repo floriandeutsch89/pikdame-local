@@ -19,6 +19,7 @@ function sumValues(cards) {
 const DEFAULT_HOUSE_RULES = {
   handAusDoubles: false,
   strictThreshold: false,
+  glueckgriffEnabled: true,
 };
 
 /**

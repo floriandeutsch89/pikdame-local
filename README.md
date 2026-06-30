@@ -71,17 +71,34 @@ auf `main` (siehe `.github/workflows/ci.yml`), gegen Node 18/20/22.
 |---|---|---|
 | 110 Karten (2×52 + 6 Joker) | `Deck.js` | `createDeck()` |
 | 15 Handkarten, Rest = Nachziehstapel | `Deck.js` | `dealWithGlucksgriff()` |
-| Glücksgriff (Pik-Dame/Joker beim Abheben) | `Deck.js` | Simulierter Cut pro Spieler vor dem regulären Austeilen |
+| Glücksgriff (Pik-Dame/Joker beim Abheben) | `Deck.js` | Simulierter Cut pro Spieler; per Hausregel abschaltbar |
 | Ziehen: Stapel ODER ganzer Ablagestapel (mit Sofort-Auslage-Pflicht) | `GameManager.js` | `drawFromPile`, `drawFromDiscard`, `mustLayOffCardId` |
 | Sätze (gleicher Wert, versch. Farben) | `Rules.js` | `validateSet` |
 | Folgen (≥3 aufeinanderfolgend, gleiche Farbe) | `Rules.js` | `validateRun` |
 | Joker ersetzen jede Karte, austauschbar | `Rules.js` | `tryJokerSwap` |
+| Ausgetauschter Joker bleibt liegen (eigener Ablagebereich, nicht wieder aufnehmbar) | `GameManager.js` | `retiredJokers` |
 | Anlegen an bestehende Auslagen | `Rules.js` | `tryLayOff` |
 | Letzte Karte verdeckt ablegen, Rundenende | `GameManager.js` | `discard()` |
-| Punkte-Tabelle (2-9=5, J/Q/K=10, A/Joker=20, Pik-Dame=100) | `Card.js` | `cardValue()` |
-| Gewinner-/Mitspieler-Abrechnung + Pik-Dame-Strafe | `ScoreBoard.js` | `scoreRound()` |
-| Spielende bei >1000 Punkten | `ScoreBoard.js` | `checkGameOver()` |
+| Punkte-Tabelle (2-9=5, 10/J/Q/K=10, A/Joker=20, Pik-Dame=100) | `Card.js` | `cardValue()` |
+| Gewinner-/Mitspieler-Abrechnung (Pik-Dame zählt einfach, keine Sonderstrafe) | `ScoreBoard.js` | `scoreRound()` |
+| Spielende bei Erreichen/Überschreiten von 1000 Punkten | `ScoreBoard.js` | `checkGameOver()` |
+| Geber rotiert pro Runde, dauerhaft sichtbar | `GameManager.js` | `dealerIndex` / `dealerId` im State |
 | Bots: regelkonform, Kombis erkennen, Pik-Dame/Joker priorisiert loswerden | `Bot.js` | `decideDraw`, `findHandMelds`, `chooseDiscard` |
+
+### Optionale Hausregeln (bei Spielstart wählbar)
+
+| Regel | Standard | Effekt |
+|---|---|---|
+| Glücksgriff | an | Pik-Dame/Joker beim simulierten Abheben sofort auf die Hand |
+| Hand aus zählt doppelt | aus | Geht ein Spieler im allerersten Zug der Runde komplett aus, wird die GESAMTE Rundenwertung aller Spieler (inkl. Minuspunkte) verdoppelt |
+| Über 1000 Punkte zum Gewinnen | aus | Spielende erst bei MEHR als 1000 Punkten (genau 1000 reicht nicht) |
+
+### Lobby-Features
+
+- **Sitzordnung & Geber**: Vor Rundenbeginn frei per ▲▼ umsortierbar, Geber der ersten Runde per ⭐ direkt wählbar (`reorderPlayers`, `setExplicitDealer`).
+- **Teams**: Gespeicherte Gruppen von Spielernamen (`PlayerStore.js`, `data/players.json`) lassen sich erneut anwenden und benennen freie Bot-Plätze entsprechend um.
+- **Reconnect-Robustheit**: Verliert ein Spieler die Verbindung (z. B. wackliger Hotspot), übernimmt automatisch die Bot-Logik für seine Züge, bis er zurück ist (`isBotControlled`).
+- **Statistik-Persistenz**: Nach Spielende (nicht nur Rundenende) werden Partien/Siege/Punkte pro Spielername in `data/players.json` fortgeschrieben.
 
 ## Bewusste Annahmen (in den Regeln nicht 100% spezifiziert)
 
@@ -90,28 +107,24 @@ anpassen (Code-Stellen sind kommentiert):
 
 1. **Ass in Folgen**: zählt nur hoch (...Q-K-A), nicht zusätzlich als 1 vor
    der 2. Anpassbar in `Card.js` (`RANK_ORDER`).
-2. **Punktwert der "10"**: wurde in der Tabelle nicht explizit erwähnt; wird
-   wie 2-9 mit 5 Punkten gewertet (`Card.js`, `cardValue()`).
-3. **Zwei Pik-Damen gleichzeitig auf der Hand**: Sonderstrafe wird pro Karte
-   angewendet (also -200, falls beide Pik-Damen am Rundenende auf einer Hand
-   liegen). Siehe `ScoreBoard.js`.
-4. **Joker-Tausch-Timing**: Ein Spieler kann während seiner eigenen
+2. **Joker-Tausch-Timing**: Ein Spieler kann während seiner eigenen
    Auslegen/Anlegen-Phase einen Tisch-Joker gegen die passende Handkarte
-   tauschen (`swapJoker`). Der gewonnene Joker landet auf der Hand und sollte
-   vom Spieler/Bot idealerweise im selben Zug noch abgeworfen werden.
-5. **Bot-Schwierigkeit**: Die Bot-KI ist heuristisch (greedy Mustererkennung
+   tauschen (`swapJoker`). Der freigewordene Joker bleibt sichtbar liegen und
+   scheidet für den Rest der Runde aus dem Spiel aus.
+3. **Bot-Schwierigkeit**: Die Bot-KI ist heuristisch (greedy Mustererkennung
    für Sätze/Folgen), kein vollständiger Solver. Sie spielt regelkonform und
    verfolgt die vorgegebene Priorität (Pik-Dame/Joker nicht horten), trifft
    aber keine strategisch optimalen Entscheidungen in jeder Lage.
+4. **"Hand aus"**: wird erkannt, wenn die Runde im allerersten Zug der Runde
+   (vor jedem `advanceTurn`) komplett beendet wird - unabhängig davon, welcher
+   Spieler beginnt.
 
 ## Bekannte Grenzen / mögliche Erweiterungen
 
-- Keine Persistenz: Server-Neustart = neue Partie (für Offline-Hotspot-Runden
-  in der Regel kein Problem).
-- Reconnect: Ein Spieler kann mit derselben `playerId` (im `localStorage` des
-  Browsers gespeichert) wieder beitreten und behält seine Hand.
 - Aktuell ein Tisch pro Server-Prozess (kein Multi-Room-Lobby-System) – passend
   für den beschriebenen Hotspot-Use-Case mit max. 4 Spielern.
+- Spielerprofile/Teams werden anhand des Namens (case-insensitive) abgeglichen,
+  nicht über echte Accounts/Logins.
 
 ## Entwicklungs-Workflow
 

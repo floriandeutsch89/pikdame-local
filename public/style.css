@@ -53,6 +53,35 @@ html, body {
 .lobby-players { margin-top: 16px; font-size: 0.9rem; color: #cfe8da; }
 .conn-status { font-size: 0.8rem; color: #9bd; }
 
+.lobby-section {
+  width: 100%; max-width: 320px; text-align: left;
+  background: rgba(0,0,0,0.2); border-radius: 12px; padding: 12px 14px;
+}
+.lobby-section h3 { margin: 0 0 6px; font-size: 0.95rem; }
+.lobby-hint { font-size: 0.72rem; color: #cfe8da; margin: 0 0 8px; }
+.seating-list { display: flex; flex-direction: column; gap: 6px; }
+.seatRow {
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(255,255,255,0.08); border-radius: 8px; padding: 6px 10px;
+  font-size: 0.85rem;
+}
+.seatControls { display: flex; gap: 4px; }
+.seatControls .btn-icon { font-size: 0.9rem; padding: 2px 6px; }
+.seatControls .btn-icon.active { color: var(--accent); }
+.seatControls .btn-icon:disabled { opacity: 0.25; }
+
+#teamSelect {
+  width: 100%; padding: 10px; border-radius: 8px; border: none; margin-bottom: 8px;
+}
+#teamSection .btn-secondary { margin-bottom: 8px; }
+#newTeamDetails { font-size: 0.8rem; color: #cfe8da; }
+#newTeamDetails input { width: 100%; padding: 8px; border-radius: 8px; border: none; margin: 6px 0; }
+
+.rule-toggle { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; margin: 6px 0; }
+.rule-toggle input { width: 18px; height: 18px; }
+
+.reconnectTag { color: #ffd27a; font-weight: 400; font-size: 0.65rem; }
+
 /* ---------- TISCH ---------- */
 #table { height: 100%; }
 

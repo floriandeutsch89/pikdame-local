@@ -15,6 +15,33 @@
       <p class="subtitle">Offline-Multiplayer Rommé über Hotspot</p>
       <input id="nameInput" type="text" placeholder="Dein Name" maxlength="16" />
       <button id="joinBtn" class="btn-primary">Tisch beitreten</button>
+
+      <div id="seatingSection" class="lobby-section hidden">
+        <h3>Sitzordnung &amp; Geber</h3>
+        <p class="lobby-hint">Reihenfolge mit ▲▼ anpassen, ⭐ markiert den Geber der ersten Runde.</p>
+        <div id="seatingList" class="seating-list"></div>
+      </div>
+
+      <div id="teamSection" class="lobby-section hidden">
+        <h3>Teams</h3>
+        <p class="lobby-hint">Gespeicherte Spielergruppen wiederverwenden (benennt freie Bot-Plätze um).</p>
+        <select id="teamSelect"></select>
+        <button id="applyTeamBtn" class="btn-secondary">Team übernehmen</button>
+        <details id="newTeamDetails">
+          <summary>Neues Team speichern</summary>
+          <input id="newTeamName" type="text" placeholder="Team-Name" maxlength="24" />
+          <input id="newTeamMembers" type="text" placeholder="Namen, mit Komma getrennt (max. 4)" maxlength="80" />
+          <button id="saveTeamBtn" class="btn-secondary">Speichern</button>
+        </details>
+      </div>
+
+      <div id="houseRulesSection" class="lobby-section hidden">
+        <h3>Hausregeln</h3>
+        <label class="rule-toggle"><input type="checkbox" id="ruleGlueckgriff" checked /> Glücksgriff beim Abheben</label>
+        <label class="rule-toggle"><input type="checkbox" id="ruleHandAus" /> Hand aus zählt doppelt</label>
+        <label class="rule-toggle"><input type="checkbox" id="ruleStrict1000" /> Über 1000 Punkte zum Gewinnen (genau 1000 reicht nicht)</label>
+      </div>
+
       <button id="startBtn" class="btn-secondary" disabled>Spiel starten (fehlende Plätze = Bots)</button>
       <div id="lobbyPlayers" class="lobby-players"></div>
       <p id="connStatus" class="conn-status">Verbinde...</p>
@@ -24,6 +51,7 @@
     <section id="table" class="screen hidden">
       <header id="topBar">
         <div id="roundInfo">Runde –</div>
+        <div id="dealerInfo">Geber: –</div>
         <div id="turnInfo">–</div>
         <button id="logToggle" class="btn-icon">📜</button>
       </header>

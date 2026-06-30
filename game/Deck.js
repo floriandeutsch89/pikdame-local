@@ -37,28 +37,33 @@ function shuffle(deck) {
  *
  * @param {Array} deck gemischtes, volles Deck (110 Karten)
  * @param {Array} playerIds Reihenfolge der Spieler (Sitzordnung)
+ * @param {{ glueckgriffEnabled?: boolean }} options Hausregel: Glücksgriff
+ *   kann optional komplett abgeschaltet werden (Standard: an).
  * @returns {{ hands: Object<string,Array>, drawPile: Array, discardPile: Array, luckyHits: Array }}
  */
-function dealWithGlucksgriff(deck, playerIds) {
+function dealWithGlucksgriff(deck, playerIds, options = {}) {
+  const glueckgriffEnabled = options.glueckgriffEnabled !== false;
   let remaining = deck.slice();
   const hands = {};
   for (const pid of playerIds) hands[pid] = [];
 
   const luckyHits = []; // Protokoll für UI/Log: { playerId, card }
 
-  // "Glücksgriff": Wir gehen reihum durch die Spieler und simulieren je einen
-  // Abhebe-Schnitt. Trifft ein Spieler auf Pik-Dame/Joker, bekommt er die Karte
-  // sofort und zählt beim normalen Austeilen als "übersprungen" für genau
-  // eine Karte (er bekommt am Ende trotzdem exakt 15 Karten).
-  for (const pid of playerIds) {
-    if (remaining.length === 0) break;
-    const cutIndex = Math.floor(Math.random() * remaining.length);
-    const cutCard = remaining[cutIndex];
-    const isLucky = cutCard.isJoker || isPikDame(cutCard);
-    if (isLucky) {
-      remaining.splice(cutIndex, 1);
-      hands[pid].push(cutCard);
-      luckyHits.push({ playerId: pid, card: cutCard });
+  if (glueckgriffEnabled) {
+    // "Glücksgriff": Wir gehen reihum durch die Spieler und simulieren je einen
+    // Abhebe-Schnitt. Trifft ein Spieler auf Pik-Dame/Joker, bekommt er die Karte
+    // sofort und zählt beim normalen Austeilen als "übersprungen" für genau
+    // eine Karte (er bekommt am Ende trotzdem exakt 15 Karten).
+    for (const pid of playerIds) {
+      if (remaining.length === 0) break;
+      const cutIndex = Math.floor(Math.random() * remaining.length);
+      const cutCard = remaining[cutIndex];
+      const isLucky = cutCard.isJoker || isPikDame(cutCard);
+      if (isLucky) {
+        remaining.splice(cutIndex, 1);
+        hands[pid].push(cutCard);
+        luckyHits.push({ playerId: pid, card: cutCard });
+      }
     }
   }
 

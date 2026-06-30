@@ -14,6 +14,8 @@
   let lastState = null;
   let selectedCardIds = new Set();
   let lastRoundResultShownAt = 0;
+  let knownTeams = [];
+  let knownProfiles = [];
 
   const el = (id) => document.getElementById(id);
 
@@ -66,6 +68,16 @@
     if (msg.type === 'state') {
       lastState = msg.state;
       render();
+      return;
+    }
+    if (msg.type === 'profiles') {
+      knownProfiles = msg.players || [];
+      knownTeams = msg.teams || [];
+      renderTeamSelect();
+      return;
+    }
+    if (msg.type === 'teamCreated') {
+      showHint(`Team "${msg.team.name}" gespeichert.`, false);
     }
   }
 
@@ -130,10 +142,64 @@
         ? '<br>' + lastState.players.map((p) => `${p.name}${p.isBot ? ' (Bot)' : ''}`).join(', ')
         : '');
     el('startBtn').disabled = humanCount === 0;
+
+    const hasJoined = lastState.players.some((p) => p.id === playerId);
+    el('seatingSection').classList.toggle('hidden', !hasJoined || lastState.players.length === 0);
+    el('teamSection').classList.toggle('hidden', !hasJoined);
+    el('houseRulesSection').classList.toggle('hidden', !hasJoined);
+
+    renderSeatingList();
+  }
+
+  function renderSeatingList() {
+    const list = el('seatingList');
+    list.innerHTML = '';
+    lastState.players.forEach((p, idx) => {
+      const row = document.createElement('div');
+      row.className = 'seatRow';
+      const isDealer = p.id === lastState.dealerId;
+      row.innerHTML = `
+        <span class="seatName">${p.name}${p.isBot ? ' 🤖' : ''}</span>
+        <span class="seatControls">
+          <button class="btn-icon seatUp" ${idx === 0 ? 'disabled' : ''} title="Nach oben">▲</button>
+          <button class="btn-icon seatDown" ${idx === lastState.players.length - 1 ? 'disabled' : ''} title="Nach unten">▼</button>
+          <button class="btn-icon seatDealer ${isDealer ? 'active' : ''}" title="Als Geber festlegen">⭐</button>
+        </span>`;
+      row.querySelector('.seatUp').addEventListener('click', () => moveSeat(idx, -1));
+      row.querySelector('.seatDown').addEventListener('click', () => moveSeat(idx, 1));
+      row.querySelector('.seatDealer').addEventListener('click', () => send({ type: 'setDealer', playerId: p.id }));
+      list.appendChild(row);
+    });
+  }
+
+  function moveSeat(idx, dir) {
+    const order = lastState.players.map((p) => p.id);
+    const target = idx + dir;
+    if (target < 0 || target >= order.length) return;
+    [order[idx], order[target]] = [order[target], order[idx]];
+    send({ type: 'reorderSeats', order });
+  }
+
+  function renderTeamSelect() {
+    const select = el('teamSelect');
+    const current = select.value;
+    select.innerHTML = '<option value="">– Team wählen –</option>' +
+      knownTeams.map((t) => `<option value="${t.id}">${t.name} (${t.memberNames.join(', ')})</option>`).join('');
+    if (current) select.value = current;
+  }
+
+  function collectHouseRules() {
+    return {
+      glueckgriffEnabled: el('ruleGlueckgriff').checked,
+      handAusDoubles: el('ruleHandAus').checked,
+      strictThreshold: el('ruleStrict1000').checked,
+    };
   }
 
   function renderTable() {
     el('roundInfo').textContent = `Runde ${lastState.roundNumber}`;
+    const dealer = lastState.players.find((p) => p.id === lastState.dealerId);
+    el('dealerInfo').textContent = `Geber: ${dealer ? dealer.name : '–'}`;
     const cp = lastState.players.find((p) => p.id === lastState.currentPlayerId);
     const isMyTurn = lastState.currentPlayerId === playerId;
     el('turnInfo').textContent = isMyTurn
@@ -148,7 +214,8 @@
       .forEach((p) => {
         const d = document.createElement('div');
         d.className = 'opponent' + (p.id === lastState.currentPlayerId ? ' active' : '');
-        d.innerHTML = `<div class="opName">${p.name}${p.isBot ? ' 🤖' : ''}</div><div class="opCount">${p.handCount} Karten</div>`;
+        const reconnecting = !p.isBot && p.controlledByBot;
+        d.innerHTML = `<div class="opName">${p.name}${p.isBot ? ' 🤖' : ''}${reconnecting ? ' <span class="reconnectTag">⏳ getrennt – Bot übernimmt</span>' : ''}</div><div class="opCount">${p.handCount} Karten</div>`;
         opponentsDiv.appendChild(d);
       });
 
@@ -324,7 +391,32 @@
   });
 
   el('startBtn').addEventListener('click', () => {
-    send({ type: 'startGame' });
+    send({ type: 'startGame', houseRules: collectHouseRules() });
+  });
+
+  el('applyTeamBtn').addEventListener('click', () => {
+    const teamId = el('teamSelect').value;
+    if (!teamId) {
+      showHint('Bitte zuerst ein Team auswählen.', false);
+      return;
+    }
+    send({ type: 'applyTeam', teamId });
+  });
+
+  el('saveTeamBtn').addEventListener('click', () => {
+    const name = el('newTeamName').value.trim();
+    const memberNames = el('newTeamMembers').value
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 4);
+    if (!name || memberNames.length === 0) {
+      showHint('Bitte Team-Namen und mindestens einen Mitgliedsnamen angeben.', false);
+      return;
+    }
+    send({ type: 'createTeam', name, memberNames });
+    el('newTeamName').value = '';
+    el('newTeamMembers').value = '';
   });
 
   el('drawPile').addEventListener('click', () => {
@@ -353,7 +445,8 @@
   });
 
   el('resultContinueBtn').addEventListener('click', () => {
-    send({ type: 'nextRound' });
+    const isGameOver = lastState && lastState.phase === 'gameOver';
+    send({ type: isGameOver ? 'rematch' : 'nextRound' });
     el('resultOverlay').classList.add('hidden');
   });
 
