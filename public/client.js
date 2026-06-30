@@ -78,7 +78,24 @@
     }
     if (msg.type === 'teamCreated') {
       showHint(`Team "${msg.team.name}" gespeichert.`, false);
+      return;
     }
+    if (msg.type === 'gameExport') {
+      downloadJson(msg.record, `pikdame-spielverlauf-${new Date(msg.record.finishedAt).toISOString().slice(0, 19)}.json`);
+      return;
+    }
+  }
+
+  function downloadJson(data, filename) {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   // --- Rendering ---------------------------------------------------------
@@ -333,6 +350,14 @@
 
     const body = el('resultBody');
     body.innerHTML = '';
+
+    if (lastState.lastRoundWasHandAus) {
+      const handAusNote = document.createElement('p');
+      handAusNote.className = 'handAusNote';
+      handAusNote.textContent = '🎉 Hand aus! Die komplette Rundenwertung zählt doppelt.';
+      body.appendChild(handAusNote);
+    }
+
     lastState.players.forEach((p) => {
       const r = lastState.lastRoundResult[p.id];
       const row = document.createElement('div');
@@ -342,6 +367,21 @@
       body.appendChild(row);
     });
 
+    // Rundenstatistiken (Details)
+    if (lastState.lastRoundStats) {
+      const statsTable = document.createElement('table');
+      statsTable.className = 'statsTable';
+      statsTable.innerHTML = `
+        <thead><tr><th>Spieler</th><th>Ausgelegt</th><th>Auf Hand</th><th>♠Q</th><th>🃏</th></tr></thead>
+        <tbody>${lastState.lastRoundStats
+          .map(
+            (s) =>
+              `<tr><td>${s.name}</td><td>${s.laidOutCount}</td><td>${s.handCount}</td><td>${s.pikDameCount}</td><td>${s.jokerInHandCount}</td></tr>`
+          )
+          .join('')}</tbody>`;
+      body.appendChild(statsTable);
+    }
+
     if (isGameOver && lastState.gameOverInfo) {
       const winner = lastState.players.find((p) => p.id === lastState.gameOverInfo.winnerId);
       const winLine = document.createElement('p');
@@ -349,7 +389,8 @@
       body.appendChild(winLine);
     }
 
-    el('resultContinueBtn').textContent = isGameOver ? 'Neues Spiel' : 'Nächste Runde';
+    el('exportGameBtn').classList.toggle('hidden', !(isGameOver && lastState.hasExportableGame));
+    el('resultContinueBtn').textContent = isGameOver ? 'Neue Partie (Rematch)' : 'Nächste Runde';
   }
 
   // --- Interaktion ---------------------------------------------------------
@@ -448,6 +489,10 @@
     const isGameOver = lastState && lastState.phase === 'gameOver';
     send({ type: isGameOver ? 'rematch' : 'nextRound' });
     el('resultOverlay').classList.add('hidden');
+  });
+
+  el('exportGameBtn').addEventListener('click', () => {
+    send({ type: 'exportLastGame' });
   });
 
   // Langes Drücken auf eine Handkarte = direkt abwerfen (Pflicht-Phase: meld)

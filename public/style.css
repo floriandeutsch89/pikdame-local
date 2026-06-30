@@ -188,6 +188,11 @@ html, body {
 .overlay-card h2 { margin-top: 0; }
 .resultRow { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #eee; }
 .resultRow.winner { font-weight: 700; color: #0b5d3b; }
+.handAusNote { background: #fff3cd; color: #7a5b00; border-radius: 8px; padding: 8px 10px; font-size: 0.85rem; margin: 0 0 10px; }
+.statsTable { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.78rem; }
+.statsTable th, .statsTable td { padding: 4px 6px; text-align: center; border-bottom: 1px solid #eee; }
+.statsTable th:first-child, .statsTable td:first-child { text-align: left; }
+#exportGameBtn { margin-top: 10px; background: rgba(11,93,59,0.12); color: #0b5d3b; }
 
 /* ---------- LOG ---------- */
 #logPanel {

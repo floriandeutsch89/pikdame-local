@@ -35,6 +35,8 @@ class GameManager {
     this.turnIndexInRound = 0; // 0 = allererster Zug der laufenden Runde (für "Hand aus")
     this.mustLayOffCardId = null; // gesetzt, wenn kompletter Ablagestapel gezogen wurde
     this.roundNumber = 0;
+    this.roundHistory = []; // vollständige Runde-für-Runde-Aufzeichnung der laufenden Partie
+    this.gameStartedAt = null;
     this.log = [];
   }
 
@@ -153,6 +155,7 @@ class GameManager {
     this.tableMelds = [];
     this.retiredJokers = [];
     this.roundNumber += 1;
+    if (this.roundNumber === 1) this.gameStartedAt = Date.now();
     const deck = shuffle(createDeck());
     const playerIds = this.players.map((p) => p.id);
     const { hands, drawPile, discardPile, luckyHits } = dealWithGlucksgriff(deck, playerIds, {
@@ -385,16 +388,40 @@ class GameManager {
     }));
 
     const over = checkGameOver(this.totals, this.houseRules);
+
+    // Runde in die Verlaufsaufzeichnung der laufenden Partie aufnehmen.
+    this.roundHistory.push({
+      roundNumber: this.roundNumber,
+      dealerId: this.players[this.dealerIndex]?.id || null,
+      winnerId,
+      isHandAus,
+      results: Object.fromEntries(
+        Object.entries(roundResult).map(([pid, r]) => [pid, { roundScore: r.roundScore, breakdown: r.breakdown }])
+      ),
+      totalsAfter: { ...this.totals },
+    });
+
     if (over.gameOver) {
       this.phase = 'gameOver';
       this.gameOverInfo = over;
       this.addLog(`Spiel beendet! Gewinner: ${this.players.find((p) => p.id === over.winnerId)?.name}`);
+
+      this.lastGameRecord = {
+        players: this.players.map((p) => ({ id: p.id, name: p.name, isBot: p.isBot })),
+        rounds: this.roundHistory,
+        finalTotals: this.totals,
+        winnerId: over.winnerId,
+        houseRules: this.houseRules,
+        startedAt: this.gameStartedAt,
+        finishedAt: Date.now(),
+      };
+
       if (this.onGameOver) {
         const results = this.players
           .filter((p) => !p.isBot) // nur echte Spielerprofile persistieren
           .map((p) => ({ name: p.name, score: this.totals[p.id] || 0, won: p.id === over.winnerId }));
         try {
-          this.onGameOver(results);
+          this.onGameOver(results, this.lastGameRecord);
         } catch (e) {
           this.addLog(`Statistik konnte nicht gespeichert werden: ${e.message}`);
         }
@@ -402,6 +429,28 @@ class GameManager {
     } else if (isHandAus) {
       this.addLog(`Hand aus! Die komplette Rundenwertung wird verdoppelt.`);
     }
+    this.broadcastState();
+  }
+
+  /**
+   * Startet eine neue Partie mit denselben (noch vorhandenen) Spielern:
+   * Gesamtpunkte, Rundenzählung und Verlaufsaufzeichnung werden
+   * zurückgesetzt, Sitzplätze/Namen bleiben erhalten.
+   */
+  prepareRematch() {
+    this.totals = {};
+    for (const p of this.players) this.totals[p.id] = 0;
+    this.gameOverInfo = null;
+    this.lastRoundResult = null;
+    this.lastRoundStats = null;
+    this.lastRoundWasHandAus = false;
+    this.roundHistory = [];
+    this.lastGameRecord = null;
+    this.gameStartedAt = null;
+    this.phase = 'lobby';
+    this.roundNumber = 0;
+    this.dealerIndex = 0;
+    this.explicitDealerSet = false;
     this.broadcastState();
   }
 
@@ -518,6 +567,7 @@ class GameManager {
       lastRoundResult: this.lastRoundResult || null,
       lastRoundWasHandAus: this.lastRoundWasHandAus || false,
       lastRoundStats: this.lastRoundStats || null,
+      hasExportableGame: !!this.lastGameRecord,
       gameOverInfo: this.gameOverInfo || null,
       log: this.log.slice(-20),
     };

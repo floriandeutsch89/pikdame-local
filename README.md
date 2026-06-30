@@ -100,6 +100,12 @@ auf `main` (siehe `.github/workflows/ci.yml`), gegen Node 18/20/22.
 - **Reconnect-Robustheit**: Verliert ein Spieler die Verbindung (z. B. wackliger Hotspot), übernimmt automatisch die Bot-Logik für seine Züge, bis er zurück ist (`isBotControlled`).
 - **Statistik-Persistenz**: Nach Spielende (nicht nur Rundenende) werden Partien/Siege/Punkte pro Spielername in `data/players.json` fortgeschrieben.
 
+### Rematch, Rundenstatistiken & Spielverlauf-Export
+
+- **Rematch**: Nach Spielende ("Neue Partie") werden Gesamtpunkte und Rundenzählung zurückgesetzt, Sitzordnung/Namen bleiben erhalten (`prepareRematch()`).
+- **Rundenstatistiken**: Am Rundenende zeigt das Ergebnis-Overlay zusätzlich eine Tabelle mit ausgelegten/verbliebenen Karten, Pik-Damen und Jokern auf der Hand pro Spieler (`lastRoundStats`).
+- **Spielverlauf-Export**: Nach Spielende lässt sich der komplette Runde-für-Runde-Verlauf der Partie als JSON-Datei herunterladen ("📤 Spielverlauf exportieren"). Alle abgeschlossenen Partien werden außerdem dauerhaft in `data/games.json` gespeichert (`GameHistoryStore.js`), um Statistiken über mehrere Partien hinweg auszuwerten.
+
 ## Bewusste Annahmen (in den Regeln nicht 100% spezifiziert)
 
 Diese Punkte wurden sinnvoll interpretiert und lassen sich bei Bedarf leicht

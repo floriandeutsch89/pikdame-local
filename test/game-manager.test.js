@@ -187,6 +187,73 @@ test('onGameOver-Hook wird mit Namen/Score/Sieger-Flag beim Spielende aufgerufen
   assert.equal(florianResult.won, true);
 });
 
+test('finishRound zeichnet jede Runde in roundHistory auf', () => {
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  game.turnPhase = 'meld';
+  game.currentPlayerIndex = 0;
+  game.turnIndexInRound = 1;
+
+  game.players[0].hand = [makeStandardCard('H', '7', 0)];
+  game.players[0].laidOutCards = [makeStandardCard('H', 'A', 0)];
+  game.players[1].hand = [];
+  game.players[1].laidOutCards = [];
+
+  game.discard('p1', game.players[0].hand[0].id);
+
+  assert.equal(game.roundHistory.length, 1);
+  assert.equal(game.roundHistory[0].winnerId, 'p1');
+  assert.ok(game.roundHistory[0].results.p1);
+  assert.ok(game.roundHistory[0].totalsAfter);
+});
+
+test('Beim Spielende wird ein vollständiger lastGameRecord erzeugt und an onGameOver übergeben', () => {
+  const records = [];
+  const game = new (require('../game/GameManager'))(() => {}, {
+    onGameOver: (results, record) => records.push(record),
+  });
+  game.addOrReconnectPlayer('p1', 'Florian');
+  game.addOrReconnectPlayer('p2', 'Anna');
+  game.phase = 'playing';
+  game.turnPhase = 'meld';
+  game.currentPlayerIndex = 0;
+  game.turnIndexInRound = 1;
+  game.totals = { p1: 990, p2: 0 };
+  game.gameStartedAt = Date.now() - 1000;
+
+  game.players[0].hand = [makeStandardCard('H', '7', 0)];
+  game.players[0].laidOutCards = [makeStandardCard('H', 'A', 0)]; // 20 -> 1010
+  game.players[1].hand = [];
+  game.players[1].laidOutCards = [];
+
+  game.discard('p1', game.players[0].hand[0].id);
+
+  assert.equal(records.length, 1);
+  const record = records[0];
+  assert.equal(record.winnerId, 'p1');
+  assert.equal(record.rounds.length, 1);
+  assert.equal(record.players.length, 2);
+  assert.ok(record.finishedAt >= record.startedAt);
+  assert.equal(game.publicState('p1').hasExportableGame, true);
+});
+
+test('prepareRematch setzt Punkte/Verlauf zurück, behält aber die Spieler', () => {
+  const { game } = makeGame(2);
+  game.totals = { p1: 1200, p2: 300 };
+  game.roundHistory = [{ roundNumber: 1 }];
+  game.phase = 'gameOver';
+  game.gameOverInfo = { gameOver: true, winnerId: 'p1' };
+
+  game.prepareRematch();
+
+  assert.equal(game.phase, 'lobby');
+  assert.equal(game.totals.p1, 0);
+  assert.equal(game.totals.p2, 0);
+  assert.equal(game.roundHistory.length, 0);
+  assert.equal(game.gameOverInfo, null);
+  assert.equal(game.players.length, 2); // Spieler bleiben erhalten
+});
+
 test('Hausregel "über 1000 Punkte" wird beim Rundenende berücksichtigt', () => {
   const { game } = makeGame(2);
   game.setHouseRules({ strictThreshold: true });

@@ -10,10 +10,12 @@ const path = require('path');
 const WebSocket = require('ws');
 const GameManager = require('./game/GameManager');
 const { createPlayerStore } = require('./game/PlayerStore');
+const { createGameHistoryStore } = require('./game/GameHistoryStore');
 
 const PORT = process.env.PORT || 8080;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const playerStore = createPlayerStore();
+const gameHistoryStore = createGameHistoryStore();
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -72,7 +74,10 @@ function sendError(ws, error) {
 }
 
 const game = new GameManager(sendTo, {
-  onGameOver: (results) => playerStore.recordGameResult(results),
+  onGameOver: (results, gameRecord) => {
+    playerStore.recordGameResult(results);
+    gameHistoryStore.saveGame(gameRecord);
+  },
 });
 
 function sendProfilesAndTeams(playerId) {
@@ -116,18 +121,16 @@ wss.on('connection', (ws) => {
         break;
       }
       case 'rematch': {
-        // Neue Partie mit denselben (noch verbundenen) Spielern: Gesamtpunkte
-        // und Spielzustand zurücksetzen, Spieler-Slots bleiben erhalten.
-        game.totals = {};
-        for (const p of game.players) game.totals[p.id] = 0;
-        game.gameOverInfo = null;
-        game.lastRoundResult = null;
-        game.lastRoundStats = null;
-        game.phase = 'lobby';
-        game.roundNumber = 0;
-        game.dealerIndex = 0;
-        game.explicitDealerSet = false;
-        game.broadcastState();
+        // Neue Partie mit denselben (noch verbundenen) Spielern.
+        game.prepareRematch();
+        break;
+      }
+      case 'exportLastGame': {
+        if (!game.lastGameRecord) {
+          sendError(ws, 'Es gibt noch keinen abgeschlossenen Spielverlauf zum Exportieren.');
+        } else {
+          sendTo(playerId, { type: 'gameExport', record: game.lastGameRecord });
+        }
         break;
       }
       case 'reorderSeats': {
