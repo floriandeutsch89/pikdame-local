@@ -113,16 +113,11 @@ anpassen (Code-Stellen sind kommentiert):
 - Aktuell ein Tisch pro Server-Prozess (kein Multi-Room-Lobby-System) – passend
   für den beschriebenen Hotspot-Use-Case mit max. 4 Spielern.
 
-## Auf GitHub pushen
+## Entwicklungs-Workflow
 
-Dieses Verzeichnis ist noch nicht mit einem Git-Repository verknüpft. Im
-Projektordner:
+- `main` ist immer deploybar; CI (GitHub Actions) läuft automatisch bei jedem
+  Push/Pull-Request gegen `main` (Tests auf Node 18/20/22).
+- Neue Features/Fixes: Feature-Branch (`feature/...`, `fix/...`, `docs/...`)
+  → Pull Request gegen `main` → CI grün → Merge. Für dieses Solo-Projekt
+  werden PRs zur Nachvollziehbarkeit angelegt, aber direkt selbst gemerged.
 
-```bash
-git init
-git add .
-git commit -m "Pik Dame: initiales Projekt-Setup"
-git branch -M main
-git remote add origin <URL-DEINES-REPOS>
-git push -u origin main
-```
