@@ -9,9 +9,11 @@ const fs = require('fs');
 const path = require('path');
 const WebSocket = require('ws');
 const GameManager = require('./game/GameManager');
+const { createPlayerStore } = require('./game/PlayerStore');
 
 const PORT = process.env.PORT || 8080;
 const PUBLIC_DIR = path.join(__dirname, 'public');
+const playerStore = createPlayerStore();
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -69,7 +71,13 @@ function sendError(ws, error) {
   ws.send(JSON.stringify({ type: 'error', error }));
 }
 
-const game = new GameManager(sendTo);
+const game = new GameManager(sendTo, {
+  onGameOver: (results) => playerStore.recordGameResult(results),
+});
+
+function sendProfilesAndTeams(playerId) {
+  sendTo(playerId, { type: 'profiles', players: playerStore.listPlayers(), teams: playerStore.listTeams() });
+}
 
 wss.on('connection', (ws) => {
   let playerId = null;
@@ -94,6 +102,7 @@ wss.on('connection', (ws) => {
         ws.send(JSON.stringify({ type: 'joined', playerId }));
         game.broadcastState();
         sendTo(playerId, { type: 'state', state: game.publicState(playerId) });
+        sendProfilesAndTeams(playerId);
         break;
       }
       case 'startGame': {
@@ -104,6 +113,67 @@ wss.on('connection', (ws) => {
       }
       case 'nextRound': {
         game.startNewRound();
+        break;
+      }
+      case 'rematch': {
+        // Neue Partie mit denselben (noch verbundenen) Spielern: Gesamtpunkte
+        // und Spielzustand zurücksetzen, Spieler-Slots bleiben erhalten.
+        game.totals = {};
+        for (const p of game.players) game.totals[p.id] = 0;
+        game.gameOverInfo = null;
+        game.lastRoundResult = null;
+        game.lastRoundStats = null;
+        game.phase = 'lobby';
+        game.roundNumber = 0;
+        game.dealerIndex = 0;
+        game.explicitDealerSet = false;
+        game.broadcastState();
+        break;
+      }
+      case 'reorderSeats': {
+        const r = game.reorderPlayers(msg.order || []);
+        if (r && r.error) sendError(ws, r.error);
+        break;
+      }
+      case 'setDealer': {
+        const r = game.setExplicitDealer(msg.playerId);
+        if (r && r.error) sendError(ws, r.error);
+        break;
+      }
+      case 'listProfiles': {
+        sendProfilesAndTeams(playerId);
+        break;
+      }
+      case 'createTeam': {
+        const team = playerStore.createTeam(msg.name, msg.memberNames || []);
+        sendProfilesAndTeams(playerId);
+        sendTo(playerId, { type: 'teamCreated', team });
+        break;
+      }
+      case 'updateTeam': {
+        const team = playerStore.updateTeam(msg.id, { name: msg.name, memberNames: msg.memberNames });
+        if (!team) {
+          sendError(ws, 'Team nicht gefunden.');
+        } else {
+          sendProfilesAndTeams(playerId);
+        }
+        break;
+      }
+      case 'deleteTeam': {
+        playerStore.deleteTeam(msg.id);
+        sendProfilesAndTeams(playerId);
+        break;
+      }
+      case 'applyTeam': {
+        const teams = playerStore.listTeams();
+        const team = teams.find((t) => t.id === msg.teamId);
+        if (!team) {
+          sendError(ws, 'Team nicht gefunden.');
+          break;
+        }
+        game.fillWithBots();
+        const r = game.applyTeamNames(team.memberNames);
+        if (r && r.error) sendError(ws, r.error);
         break;
       }
       case 'drawFromPile': {

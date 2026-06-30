@@ -13,8 +13,9 @@ function nextMeldId() {
 }
 
 class GameManager {
-  constructor(broadcastFn) {
+  constructor(broadcastFn, options = {}) {
     this.broadcast = broadcastFn; // (playerId, message) -> sendet an genau diesen Spieler
+    this.onGameOver = options.onGameOver || null; // (results: {name, score, won}[]) => void
     this.players = []; // { id, name, isBot, hand, connected, laidOutCards }
     this.totals = {};
     this.houseRules = { ...DEFAULT_HOUSE_RULES };
@@ -29,6 +30,7 @@ class GameManager {
     this.retiredJokers = []; // ausgetauschte Joker: dauerhaft raus aus dem Spiel
     this.currentPlayerIndex = 0;
     this.dealerIndex = 0;
+    this.explicitDealerSet = false;
     this.turnPhase = 'draw'; // draw | meld
     this.turnIndexInRound = 0; // 0 = allererster Zug der laufenden Runde (für "Hand aus")
     this.mustLayOffCardId = null; // gesetzt, wenn kompletter Ablagestapel gezogen wurde
@@ -62,6 +64,12 @@ class GameManager {
   markDisconnected(id) {
     const p = this.players.find((pl) => pl.id === id);
     if (p) p.connected = false;
+    // Wenn der getrennte Spieler gerade am Zug ist, übernimmt sofort die
+    // Bot-Logik, statt dass der Tisch blockiert (Reconnect-Robustheit für
+    // wackelige Hotspot-Verbindungen).
+    if (this.phase === 'playing' && this.currentPlayer()?.id === id) {
+      this.maybeRunBotTurn();
+    }
   }
 
   fillWithBots() {
@@ -82,6 +90,63 @@ class GameManager {
     };
   }
 
+  /**
+   * Legt die Sitz-/Zugreihenfolge der aktuellen Spieler frei fest. Nur in der
+   * Lobby möglich (vor dem ersten Rundenstart). orderedIds muss exakt die
+   * Menge der aktuell vorhandenen Spieler-IDs enthalten (Menschen + ggf.
+   * bereits aufgefüllte Bots).
+   */
+  reorderPlayers(orderedIds) {
+    if (this.phase !== 'lobby') {
+      return { error: 'Die Sitzordnung kann nur vor Rundenbeginn geändert werden.' };
+    }
+    if (!Array.isArray(orderedIds) || orderedIds.length !== this.players.length) {
+      return { error: 'Die neue Reihenfolge muss alle aktuellen Plätze enthalten.' };
+    }
+    const byId = new Map(this.players.map((p) => [p.id, p]));
+    const reordered = [];
+    for (const id of orderedIds) {
+      const p = byId.get(id);
+      if (!p) return { error: `Unbekannte Spieler-ID in der Sitzordnung: ${id}` };
+      reordered.push(p);
+    }
+    this.players = reordered;
+    this.broadcastState();
+    return { ok: true };
+  }
+
+  /**
+   * Bestimmt explizit, wer in der nächsten Runde Geber ist (statt der
+   * automatischen Rotation ab Platz 0). Wirkt sich erst auf den nächsten
+   * Aufruf von startNewRound() aus.
+   */
+  setExplicitDealer(playerId) {
+    const idx = this.players.findIndex((p) => p.id === playerId);
+    if (idx === -1) return { error: 'Spieler nicht gefunden.' };
+    this.dealerIndex = idx;
+    this.explicitDealerSet = true;
+    this.broadcastState();
+    return { ok: true };
+  }
+
+  /**
+   * Benennt freie Bot-Plätze der Reihe nach mit den Namen eines gespeicherten
+   * Teams um (reale, verbundene Mitspieler werden nicht angefasst). So lässt
+   * sich eine gespeicherte Spielergruppe für eine Solo-Session mit Bots
+   * wiederverwenden.
+   */
+  applyTeamNames(memberNames) {
+    let i = 0;
+    for (const p of this.players) {
+      if (p.isBot && i < memberNames.length) {
+        p.name = memberNames[i];
+        i += 1;
+      }
+    }
+    this.broadcastState();
+    return { ok: true };
+  }
+
   // --- Rundenstart ---------------------------------------------------------
 
   startNewRound() {
@@ -90,7 +155,9 @@ class GameManager {
     this.roundNumber += 1;
     const deck = shuffle(createDeck());
     const playerIds = this.players.map((p) => p.id);
-    const { hands, drawPile, discardPile, luckyHits } = dealWithGlucksgriff(deck, playerIds);
+    const { hands, drawPile, discardPile, luckyHits } = dealWithGlucksgriff(deck, playerIds, {
+      glueckgriffEnabled: this.houseRules.glueckgriffEnabled,
+    });
 
     for (const p of this.players) {
       p.hand = hands[p.id];
@@ -98,8 +165,11 @@ class GameManager {
     }
     this.drawPile = drawPile;
     this.discardPile = discardPile;
-    // Der Geber rotiert jede Runde reihum; gestartet wird vom Spieler NACH dem Geber.
-    this.dealerIndex = (this.roundNumber - 1) % this.players.length;
+    // Der Geber rotiert jede Runde reihum, beginnend beim explizit gewählten
+    // (oder sonst Platz 0). Gestartet wird vom Spieler NACH dem Geber.
+    if (this.roundNumber > 1) {
+      this.dealerIndex = (this.dealerIndex + 1) % this.players.length;
+    }
     this.currentPlayerIndex = this.players.length > 0 ? (this.dealerIndex + 1) % this.players.length : 0;
     this.turnPhase = 'draw';
     this.turnIndexInRound = 0;
@@ -319,6 +389,16 @@ class GameManager {
       this.phase = 'gameOver';
       this.gameOverInfo = over;
       this.addLog(`Spiel beendet! Gewinner: ${this.players.find((p) => p.id === over.winnerId)?.name}`);
+      if (this.onGameOver) {
+        const results = this.players
+          .filter((p) => !p.isBot) // nur echte Spielerprofile persistieren
+          .map((p) => ({ name: p.name, score: this.totals[p.id] || 0, won: p.id === over.winnerId }));
+        try {
+          this.onGameOver(results);
+        } catch (e) {
+          this.addLog(`Statistik konnte nicht gespeichert werden: ${e.message}`);
+        }
+      }
     } else if (isHandAus) {
       this.addLog(`Hand aus! Die komplette Rundenwertung wird verdoppelt.`);
     }
@@ -345,14 +425,23 @@ class GameManager {
   maybeRunBotTurn() {
     if (this.phase !== 'playing') return;
     const cp = this.currentPlayer();
-    if (!cp || !cp.isBot) return;
+    if (!cp || !this.isBotControlled(cp)) return;
     setTimeout(() => this.runBotTurn(cp.id), 700 + Math.random() * 600);
+  }
+
+  /**
+   * Ein Platz wird von der Bot-Logik gesteuert, wenn es entweder ein echter
+   * Bot ist, ODER ein menschlicher Spieler gerade die Verbindung verloren hat
+   * (Reconnect-Robustheit: der Tisch blockiert nicht, bis er zurückkehrt).
+   */
+  isBotControlled(player) {
+    return !!player && (player.isBot || !player.connected);
   }
 
   runBotTurn(botId) {
     if (this.phase !== 'playing') return;
     const cp = this.currentPlayer();
-    if (!cp || cp.id !== botId || !cp.isBot) return;
+    if (!cp || cp.id !== botId || !this.isBotControlled(cp)) return;
 
     const plan = Bot.decideDraw(cp.hand, this.discardPile, this.tableMelds);
     if (plan.source === 'discardPile' && this.discardPile.length > 0) {
@@ -421,6 +510,7 @@ class GameManager {
         name: p.name,
         isBot: p.isBot,
         connected: p.connected,
+        controlledByBot: this.isBotControlled(p),
         handCount: p.hand.length,
         hand: p.id === forPlayerId ? p.hand : undefined,
       })),

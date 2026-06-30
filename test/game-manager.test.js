@@ -107,6 +107,86 @@ test('"Hand aus" greift NICHT mehr, wenn vorher schon ein Zug beendet wurde', ()
   assert.equal(game.lastRoundResult.p1.roundScore, 20); // kein x2
 });
 
+test('reorderPlayers ändert die Sitz-/Zugreihenfolge (nur in der Lobby)', () => {
+  const { game } = makeGame(4);
+  const result = game.reorderPlayers(['p4', 'p3', 'p2', 'p1']);
+  assert.equal(result.ok, true);
+  assert.deepEqual(game.players.map((p) => p.id), ['p4', 'p3', 'p2', 'p1']);
+});
+
+test('reorderPlayers schlägt außerhalb der Lobby fehl', () => {
+  const { game } = makeGame(4);
+  game.startNewRound();
+  const result = game.reorderPlayers(['p4', 'p3', 'p2', 'p1']);
+  assert.ok(result.error);
+});
+
+test('setExplicitDealer bestimmt den Geber der nächsten Runde direkt', () => {
+  const { game } = makeGame(4);
+  game.setExplicitDealer('p3');
+  game.startNewRound();
+  assert.equal(game.players[game.dealerIndex].id, 'p3');
+  assert.equal(game.currentPlayer().id, 'p4'); // Spieler nach dem Geber startet
+});
+
+test('applyTeamNames benennt nur Bot-Plätze um, verbundene Menschen bleiben unangetastet', () => {
+  const { game } = makeGame(2); // p1, p2 sind Menschen
+  game.fillWithBots(); // bot-1, bot-2 füllen auf
+  game.applyTeamNames(['Anna', 'Tom']);
+  assert.equal(game.players.find((p) => p.id === 'p1').name, 'Spieler 1');
+  assert.equal(game.players.find((p) => p.id === 'bot-1').name, 'Anna');
+  assert.equal(game.players.find((p) => p.id === 'bot-2').name, 'Tom');
+});
+
+test('Reconnect-Robustheit: getrennter Mensch wird beim eigenen Zug von der Bot-Logik gesteuert', () => {
+  const { game } = makeGame(2);
+  game.startNewRound();
+  const startingPlayer = game.currentPlayer();
+  assert.equal(game.isBotControlled(startingPlayer), false);
+
+  game.markDisconnected(startingPlayer.id);
+  assert.equal(game.isBotControlled(startingPlayer), true);
+  assert.equal(game.players.find((p) => p.id === startingPlayer.id).connected, false);
+});
+
+test('publicState markiert getrennte Spieler als controlledByBot', () => {
+  const { game } = makeGame(2);
+  game.startNewRound();
+  game.markDisconnected('p1');
+  const state = game.publicState('p2');
+  const p1State = state.players.find((p) => p.id === 'p1');
+  assert.equal(p1State.controlledByBot, true);
+});
+
+test('onGameOver-Hook wird mit Namen/Score/Sieger-Flag beim Spielende aufgerufen', () => {
+  const calls = [];
+  const sent = [];
+  const game = new (require('../game/GameManager'))((playerId, message) => sent.push({ playerId, message }), {
+    onGameOver: (results) => calls.push(results),
+  });
+  game.addOrReconnectPlayer('p1', 'Florian');
+  game.addOrReconnectPlayer('p2', 'Anna');
+  game.setHouseRules({ strictThreshold: false });
+  game.phase = 'playing';
+  game.turnPhase = 'meld';
+  game.currentPlayerIndex = 0;
+  game.turnIndexInRound = 1;
+  game.totals = { p1: 990, p2: 0 };
+
+  game.players[0].hand = [makeStandardCard('H', '7', 0)]; // letzte Karte, wird abgeworfen
+  game.players[0].laidOutCards = [makeStandardCard('H', 'A', 0)]; // 20 Punkte -> Gesamt 990+20=1010
+  game.players[1].hand = [];
+  game.players[1].laidOutCards = [];
+
+  game.discard('p1', game.players[0].hand[0].id);
+
+  assert.equal(calls.length, 1);
+  const names = calls[0].map((r) => r.name).sort();
+  assert.deepEqual(names, ['Anna', 'Florian']);
+  const florianResult = calls[0].find((r) => r.name === 'Florian');
+  assert.equal(florianResult.won, true);
+});
+
 test('Hausregel "über 1000 Punkte" wird beim Rundenende berücksichtigt', () => {
   const { game } = makeGame(2);
   game.setHouseRules({ strictThreshold: true });
