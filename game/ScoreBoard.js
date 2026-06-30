@@ -8,39 +8,60 @@ function sumValues(cards) {
 }
 
 /**
+ * Hausregeln (alle optional, werden bei Spielbeginn festgelegt):
+ * - handAusDoubles: Geht ein Spieler im ALLERERSTEN Zug der Runde komplett
+ *   aus ("Hand aus"), wird die komplette Rundenwertung aller Spieler
+ *   (inkl. Minuspunkte) verdoppelt.
+ * - strictThreshold: Das Gesamtspiel endet erst, wenn ein Spieler MEHR als
+ *   1000 Punkte hat (genau 1000 reicht nicht). Ist diese Regel AUS, reicht
+ *   bereits das Erreichen von 1000 Punkten (>=) zum Spielende.
+ */
+const DEFAULT_HOUSE_RULES = {
+  handAusDoubles: false,
+  strictThreshold: false,
+};
+
+/**
  * Berechnet die Rundenwertung.
  *
  * @param {string} winnerId Spieler, der zuerst alle Karten losgeworden ist
  * @param {Object} players  { [playerId]: { laidOutCards: Card[], handCards: Card[] } }
+ * @param {Object} options  { isHandAus?: boolean, houseRules?: Partial<DEFAULT_HOUSE_RULES> }
  * @returns {Object} { [playerId]: { roundScore, breakdown } }
  */
-function scoreRound(winnerId, players) {
+function scoreRound(winnerId, players, options = {}) {
+  const houseRules = { ...DEFAULT_HOUSE_RULES, ...(options.houseRules || {}) };
+  const isHandAus = !!options.isHandAus;
+  const multiplier = isHandAus && houseRules.handAusDoubles ? 2 : 1;
+
   const result = {};
 
   for (const [pid, data] of Object.entries(players)) {
     const laidOutValue = sumValues(data.laidOutCards || []);
     const handValue = sumValues(data.handCards || []);
-    const pikDamePenaltyCount = (data.handCards || []).filter(isPikDame).length;
-    const pikDamePenalty = pikDamePenaltyCount * 100;
+    const pikDameCount = (data.handCards || []).filter(isPikDame).length;
 
     let roundScore;
     if (pid === winnerId) {
       // Gewinner: nur Pluspunkte aus eigenen Auslagen
       roundScore = laidOutValue;
     } else {
-      // Mitspieler: Pluspunkte (Auslage) minus Minuspunkte (Handkarten)
+      // Mitspieler: Pluspunkte (Auslage) minus Minuspunkte (Handkarten).
+      // Eine auf der Hand verbliebene Pik Dame ist hier bereits mit ihrem
+      // vollen Wert (100) in handValue enthalten - keine Extra-Strafe.
       roundScore = laidOutValue - handValue;
     }
-    // Sonder-Strafe: Pik-Dame noch auf der Hand -> zusätzlich -100 pro Stück
-    roundScore -= pikDamePenalty;
+
+    roundScore *= multiplier;
 
     result[pid] = {
       roundScore,
       breakdown: {
         laidOutValue,
         handValue,
-        pikDamePenalty,
+        pikDameCount,
         isWinner: pid === winnerId,
+        multiplier,
       },
     };
   }
@@ -56,11 +77,18 @@ function applyRoundScores(totals, roundResult) {
   return newTotals;
 }
 
-function checkGameOver(totals) {
-  const over = Object.entries(totals).filter(([, score]) => score > GAME_END_THRESHOLD);
+/**
+ * @param {Object} totals { [playerId]: number }
+ * @param {Object} houseRules { strictThreshold?: boolean }
+ */
+function checkGameOver(totals, houseRules = {}) {
+  const strict = !!houseRules.strictThreshold;
+  const meetsThreshold = (score) => (strict ? score > GAME_END_THRESHOLD : score >= GAME_END_THRESHOLD);
+
+  const over = Object.entries(totals).filter(([, score]) => meetsThreshold(score));
   if (over.length === 0) return { gameOver: false };
 
-  // Spiel endet, sobald irgendein Spieler die Schwelle überschreitet.
+  // Spiel endet, sobald irgendein Spieler die Schwelle erreicht/überschreitet.
   // Gewinner = höchste Gesamtpunktzahl.
   let bestId = null;
   let bestScore = -Infinity;
@@ -75,6 +103,7 @@ function checkGameOver(totals) {
 
 module.exports = {
   GAME_END_THRESHOLD,
+  DEFAULT_HOUSE_RULES,
   scoreRound,
   applyRoundScores,
   checkGameOver,

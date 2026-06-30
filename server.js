@@ -97,6 +97,7 @@ wss.on('connection', (ws) => {
         break;
       }
       case 'startGame': {
+        game.setHouseRules(msg.houseRules || {});
         game.fillWithBots();
         game.startNewRound();
         break;

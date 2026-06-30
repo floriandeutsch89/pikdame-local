@@ -18,20 +18,23 @@ function rankIndex(rank) {
 /**
  * Punktwert einer Karte für die Abrechnung.
  * - 2 bis 9: 5 Punkte
+ * - 10: 10 Punkte
  * - Bube, Dame, König: 10 Punkte
  * - Ass, Joker: 20 Punkte
  * - Pik Dame (einzeln): 100 Punkte (Sonderfall, ersetzt den normalen Damen-Wert)
  *
- * Annahme: Die "10" wurde in den Regeln nicht explizit erwähnt (weder bei
- * 2-9 noch bei den Bildkarten). Sie wird hier wie eine normale Zahlenkarte
- * mit 5 Punkten gewertet. Falls gewünscht, einfach unten anpassen.
+ * Der Wert "100" für die Pik Dame ist die EINZIGE Strafe dafür – es gibt
+ * keine zusätzliche Sonderstrafe obendrauf. Liegt sie am Rundenende auf der
+ * Hand, fließt sie ganz normal mit 100 Punkten in die Minuspunkte (handValue)
+ * ein. 2 Pik Damen auf der Hand ergeben entsprechend -200 Punkte insgesamt.
  */
 function cardValue(card) {
   if (card.isJoker) return 20;
   if (card.rank === 'Q' && card.suit === 'S') return 100; // Pik Dame Sonderfall
   if (card.rank === 'A') return 20;
+  if (card.rank === '10') return 10;
   if (['J', 'Q', 'K'].includes(card.rank)) return 10;
-  return 5; // '2'..'10'
+  return 5; // '2'..'9'
 }
 
 function isPikDame(card) {

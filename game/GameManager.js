@@ -1,7 +1,7 @@
 // game/GameManager.js
 const { createDeck, shuffle, dealWithGlucksgriff } = require('./Deck');
 const { validateMeld, tryLayOff, tryJokerSwap } = require('./Rules');
-const { scoreRound, applyRoundScores, checkGameOver } = require('./ScoreBoard');
+const { scoreRound, applyRoundScores, checkGameOver, DEFAULT_HOUSE_RULES } = require('./ScoreBoard');
 const { cardLabel } = require('./Card');
 const Bot = require('./Bot');
 
@@ -17,6 +17,7 @@ class GameManager {
     this.broadcast = broadcastFn; // (playerId, message) -> sendet an genau diesen Spieler
     this.players = []; // { id, name, isBot, hand, connected, laidOutCards }
     this.totals = {};
+    this.houseRules = { ...DEFAULT_HOUSE_RULES };
     this.reset();
   }
 
@@ -25,8 +26,11 @@ class GameManager {
     this.drawPile = [];
     this.discardPile = [];
     this.tableMelds = [];
+    this.retiredJokers = []; // ausgetauschte Joker: dauerhaft raus aus dem Spiel
     this.currentPlayerIndex = 0;
+    this.dealerIndex = 0;
     this.turnPhase = 'draw'; // draw | meld
+    this.turnIndexInRound = 0; // 0 = allererster Zug der laufenden Runde (für "Hand aus")
     this.mustLayOffCardId = null; // gesetzt, wenn kompletter Ablagestapel gezogen wurde
     this.roundNumber = 0;
     this.log = [];
@@ -70,10 +74,19 @@ class GameManager {
     }
   }
 
+  setHouseRules(partial = {}) {
+    this.houseRules = {
+      ...DEFAULT_HOUSE_RULES,
+      ...this.houseRules,
+      ...partial,
+    };
+  }
+
   // --- Rundenstart ---------------------------------------------------------
 
   startNewRound() {
     this.tableMelds = [];
+    this.retiredJokers = [];
     this.roundNumber += 1;
     const deck = shuffle(createDeck());
     const playerIds = this.players.map((p) => p.id);
@@ -85,8 +98,11 @@ class GameManager {
     }
     this.drawPile = drawPile;
     this.discardPile = discardPile;
-    this.currentPlayerIndex = (this.roundNumber - 1) % this.players.length;
+    // Der Geber rotiert jede Runde reihum; gestartet wird vom Spieler NACH dem Geber.
+    this.dealerIndex = (this.roundNumber - 1) % this.players.length;
+    this.currentPlayerIndex = this.players.length > 0 ? (this.dealerIndex + 1) % this.players.length : 0;
     this.turnPhase = 'draw';
+    this.turnIndexInRound = 0;
     this.mustLayOffCardId = null;
     this.phase = 'playing';
 
@@ -94,7 +110,8 @@ class GameManager {
       const p = this.players.find((pl) => pl.id === hit.playerId);
       this.addLog(`Glücksgriff: ${p ? p.name : hit.playerId} erhält sofort ${cardLabel(hit.card)}!`);
     }
-    this.addLog(`Runde ${this.roundNumber} gestartet.`);
+    const dealer = this.players[this.dealerIndex];
+    this.addLog(`Runde ${this.roundNumber} gestartet. Geber: ${dealer ? dealer.name : '?'}.`);
     this.broadcastState();
     this.maybeRunBotTurn();
   }
@@ -107,6 +124,7 @@ class GameManager {
     this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
     this.turnPhase = 'draw';
     this.mustLayOffCardId = null;
+    this.turnIndexInRound += 1;
     this.broadcastState();
     this.maybeRunBotTurn();
   }
@@ -221,10 +239,13 @@ class GameManager {
 
     meld.slots = result.meld.slots;
     player.hand = player.hand.filter((c) => c.id !== handCardId);
-    player.hand.push(result.freedJoker);
+    // Der ausgetauschte Joker darf NICHT wieder aufgenommen werden - er bleibt
+    // sichtbar in einem eigenen Ablagebereich liegen und ist für den Rest der
+    // Runde aus dem Spiel.
+    this.retiredJokers.push(result.freedJoker);
     player.laidOutCards.push(handCard);
 
-    this.addLog(`${player.name} tauscht ${cardLabel(handCard)} gegen einen Joker in einer Auslage.`);
+    this.addLog(`${player.name} tauscht ${cardLabel(handCard)} gegen einen Joker in einer Auslage. Der Joker scheidet aus dem Spiel aus.`);
     this.broadcastState();
     return { ok: true };
   }
@@ -272,15 +293,34 @@ class GameManager {
     for (const p of this.players) {
       playersData[p.id] = { laidOutCards: p.laidOutCards, handCards: p.hand };
     }
-    const roundResult = scoreRound(winnerId, playersData);
+    // "Hand aus": Der Gewinner hat im allerersten Zug der Runde (turnIndexInRound
+    // war noch nie erhöht worden) seine komplette Hand ausgelegt und abgeworfen.
+    const isHandAus = this.turnIndexInRound === 0;
+    const roundResult = scoreRound(winnerId, playersData, { isHandAus, houseRules: this.houseRules });
     this.totals = applyRoundScores(this.totals, roundResult);
     this.lastRoundResult = roundResult;
+    this.lastRoundWasHandAus = isHandAus;
 
-    const over = checkGameOver(this.totals);
+    // Statistiken für die Rundenanzeige (siehe publicState -> roundStats)
+    this.lastRoundStats = this.players.map((p) => ({
+      id: p.id,
+      name: p.name,
+      laidOutCount: p.laidOutCards.length,
+      handCount: p.hand.length,
+      pikDameCount: p.hand.filter((c) => c.rank === 'Q' && c.suit === 'S').length,
+      jokerInHandCount: p.hand.filter((c) => c.isJoker).length,
+      meldsLaidOut: this.tableMelds.filter((m) =>
+        m.slots.some((s) => p.laidOutCards.some((c) => (s.real ? s.real.id : s.joker.id) === c.id))
+      ).length,
+    }));
+
+    const over = checkGameOver(this.totals, this.houseRules);
     if (over.gameOver) {
       this.phase = 'gameOver';
       this.gameOverInfo = over;
       this.addLog(`Spiel beendet! Gewinner: ${this.players.find((p) => p.id === over.winnerId)?.name}`);
+    } else if (isHandAus) {
+      this.addLog(`Hand aus! Die komplette Rundenwertung wird verdoppelt.`);
     }
     this.broadcastState();
   }
@@ -368,11 +408,14 @@ class GameManager {
       phase: this.phase,
       roundNumber: this.roundNumber,
       currentPlayerId: this.players[this.currentPlayerIndex]?.id || null,
+      dealerId: this.players[this.dealerIndex]?.id || null,
       turnPhase: this.turnPhase,
       mustLayOffCardId: this.mustLayOffCardId,
       drawPileCount: this.drawPile.length,
       discardTop: this.discardPile[0] || null,
       tableMelds: this.tableMelds,
+      retiredJokers: this.retiredJokers,
+      houseRules: this.houseRules,
       players: this.players.map((p) => ({
         id: p.id,
         name: p.name,
@@ -383,6 +426,8 @@ class GameManager {
       })),
       totals: this.totals,
       lastRoundResult: this.lastRoundResult || null,
+      lastRoundWasHandAus: this.lastRoundWasHandAus || false,
+      lastRoundStats: this.lastRoundStats || null,
       gameOverInfo: this.gameOverInfo || null,
       log: this.log.slice(-20),
     };
