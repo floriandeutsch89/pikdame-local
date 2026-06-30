@@ -315,6 +315,65 @@ test('forfeitRound mit unbekannter Spieler-ID liefert einen Fehler', () => {
   assert.ok(result.error);
 });
 
+test('drawFromDiscard wird abgelehnt, wenn die oberste Karte gar nicht nutzbar wäre', () => {
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  game.turnPhase = 'draw';
+  game.currentPlayerIndex = 0;
+  game.tableMelds = [];
+  // Hand ohne jeglichen Bezug zur obersten Ablagekarte (Herz-7)
+  game.players[0].hand = [
+    makeStandardCard('S', '2', 0),
+    makeStandardCard('D', 'K', 0),
+    makeStandardCard('C', '9', 0),
+  ];
+  game.discardPile = [makeStandardCard('H', '7', 0)];
+
+  const result = game.drawFromDiscard('p1');
+  assert.ok(result.error);
+  assert.equal(game.players[0].hand.length, 3, 'Hand darf sich bei Ablehnung nicht verändert haben');
+  assert.equal(game.discardPile.length, 1, 'Ablagestapel darf bei Ablehnung nicht verändert haben');
+});
+
+test('drawFromDiscard ist erlaubt, wenn die oberste Karte einen neuen Satz ermöglicht', () => {
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  game.turnPhase = 'draw';
+  game.currentPlayerIndex = 0;
+  game.tableMelds = [];
+  game.players[0].hand = [makeStandardCard('H', '7', 0), makeStandardCard('D', '7', 0)];
+  game.discardPile = [makeStandardCard('C', '7', 0)]; // ergibt mit der Hand einen Satz aus 7ern
+
+  const result = game.drawFromDiscard('p1');
+  assert.equal(result.ok, true);
+  assert.equal(game.players[0].hand.length, 3);
+});
+
+test('drawFromDiscard ist erlaubt, wenn die oberste Karte an eine bestehende Auslage angelegt werden kann', () => {
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  game.turnPhase = 'draw';
+  game.currentPlayerIndex = 0;
+  game.tableMelds = [
+    {
+      id: 'meld-1',
+      type: 'run',
+      suit: 'H',
+      rank: null,
+      slots: [
+        { real: makeStandardCard('H', '7', 0) },
+        { real: makeStandardCard('H', '8', 0) },
+        { real: makeStandardCard('H', '9', 0) },
+      ],
+    },
+  ];
+  game.players[0].hand = [makeStandardCard('S', '2', 0)]; // unabhängig von der Ablagekarte
+  game.discardPile = [makeStandardCard('H', '10', 0)]; // passt an die Folge an
+
+  const result = game.drawFromDiscard('p1');
+  assert.equal(result.ok, true);
+});
+
 test('Hausregel "über 1000 Punkte" wird beim Rundenende berücksichtigt', () => {
   const { game } = makeGame(2);
   game.setHouseRules({ strictThreshold: true });

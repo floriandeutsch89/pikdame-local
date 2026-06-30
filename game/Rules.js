@@ -19,14 +19,20 @@ function isJokerCard(c) {
   return !!c.isJoker;
 }
 
+const MAX_PER_SUIT_IN_SET = 2; // 2 Decks im Spiel -> jede Farbe darf bis zu 2x vorkommen
+const MAX_SET_SIZE = SUITS.length * MAX_PER_SUIT_IN_SET; // 4 Farben x 2 = 8
+
 /**
  * Prüft, ob eine Menge von Karten (real, Joker erlaubt) einen gültigen SATZ
- * bildet: 3 oder 4 Karten gleichen Wertes, unterschiedliche Farben.
+ * bildet: mindestens 3 Karten gleichen Wertes. Da mit 2 Decks gespielt wird,
+ * darf jede Farbe bis zu 2x vorkommen (z. B. 2x Kreuz-Ass + 1x Herz-Ass ist
+ * ein gültiger Satz) - es gibt KEINE "alle Farben unterschiedlich"-Pflicht
+ * mehr, nur die physische Obergrenze von maximal 2 identischen Karten.
  * jokerAssignments: optionales Mapping jokerCardId -> gewünschte Farbe.
  */
 function validateSet(cards, jokerAssignments = {}) {
-  if (cards.length < 3 || cards.length > 4) {
-    return { valid: false, reason: 'Ein Satz braucht 3 oder 4 Karten.' };
+  if (cards.length < 3 || cards.length > MAX_SET_SIZE) {
+    return { valid: false, reason: `Ein Satz braucht 3 bis ${MAX_SET_SIZE} Karten.` };
   }
   const reals = cards.filter((c) => !isJokerCard(c));
   const jokers = cards.filter((c) => isJokerCard(c));
@@ -40,20 +46,28 @@ function validateSet(cards, jokerAssignments = {}) {
     return { valid: false, reason: 'Alle echten Karten im Satz müssen denselben Wert haben.' };
   }
 
-  const usedSuits = new Set(reals.map((c) => c.suit));
-  if (usedSuits.size !== reals.length) {
-    return { valid: false, reason: 'Im Satz dürfen keine zwei Karten derselben Farbe vorkommen.' };
+  const countBySuit = {};
+  for (const c of reals) {
+    countBySuit[c.suit] = (countBySuit[c.suit] || 0) + 1;
+    if (countBySuit[c.suit] > MAX_PER_SUIT_IN_SET) {
+      return { valid: false, reason: 'Jede Farbe darf in einem Satz höchstens 2x vorkommen (2 Decks).' };
+    }
   }
 
-  // Jokern müssen freie Farben zugewiesen werden
-  const freeSuits = SUITS.filter((s) => !usedSuits.has(s));
-  if (jokers.length > freeSuits.length) {
-    return { valid: false, reason: 'Zu viele Joker für die verbleibenden Farben.' };
+  // Verbleibende freie "Slots" für Joker: jede Farbe hat bis zu 2 Plätze,
+  // abzüglich bereits verwendeter echter Karten dieser Farbe.
+  const freeSlots = [];
+  for (const suit of SUITS) {
+    const remaining = MAX_PER_SUIT_IN_SET - (countBySuit[suit] || 0);
+    for (let i = 0; i < remaining; i++) freeSlots.push(suit);
+  }
+  if (jokers.length > freeSlots.length) {
+    return { valid: false, reason: 'Zu viele Joker für die verbleibenden Plätze in diesem Satz.' };
   }
 
   const slots = reals.map((c) => ({ real: c }));
   jokers.forEach((j, i) => {
-    const assigned = jokerAssignments[j.id] || freeSuits[i];
+    const assigned = jokerAssignments[j.id] || freeSlots[i];
     slots.push({ joker: j, representsRank: rank, representsSuit: assigned });
   });
 
@@ -140,21 +154,25 @@ function validateMeld(cards, jokerAssignments = {}) {
  */
 function tryLayOff(meld, card, opts = {}) {
   if (meld.type === 'set') {
+    const slotSuits = meld.slots.map((s) => (s.real ? s.real.suit : s.representsSuit));
+    const countBySuit = {};
+    for (const s of slotSuits) countBySuit[s] = (countBySuit[s] || 0) + 1;
+
     if (isJokerCard(card)) {
-      // Joker kann nur angelegt werden, wenn noch eine freie Farbe übrig ist
-      const usedSuits = meld.slots.map((s) => (s.real ? s.real.suit : s.representsSuit));
-      const freeSuits = SUITS.filter((s) => !usedSuits.includes(s));
-      if (freeSuits.length === 0 || meld.slots.length >= 4) return null;
-      const suit = opts.asSuit || freeSuits[0];
+      // Joker kann nur angelegt werden, wenn noch ein freier Platz übrig ist
+      // (jede Farbe darf insgesamt höchstens 2x vorkommen, 2 Decks im Spiel).
+      if (meld.slots.length >= MAX_SET_SIZE) return null;
+      const freeSuits = SUITS.filter((s) => (countBySuit[s] || 0) < MAX_PER_SUIT_IN_SET);
+      if (freeSuits.length === 0) return null;
+      const suit = opts.asSuit && freeSuits.includes(opts.asSuit) ? opts.asSuit : freeSuits[0];
       return {
         ...meld,
         slots: [...meld.slots, { joker: card, representsRank: meld.rank, representsSuit: suit }],
       };
     }
     if (card.rank !== meld.rank) return null;
-    if (meld.slots.length >= 4) return null;
-    const usedSuits = meld.slots.map((s) => (s.real ? s.real.suit : s.representsSuit));
-    if (usedSuits.includes(card.suit)) return null;
+    if (meld.slots.length >= MAX_SET_SIZE) return null;
+    if ((countBySuit[card.suit] || 0) >= MAX_PER_SUIT_IN_SET) return null;
     return { ...meld, slots: [...meld.slots, { real: card }] };
   }
 
@@ -225,4 +243,6 @@ module.exports = {
   validateMeld,
   tryLayOff,
   tryJokerSwap,
+  MAX_PER_SUIT_IN_SET,
+  MAX_SET_SIZE,
 };

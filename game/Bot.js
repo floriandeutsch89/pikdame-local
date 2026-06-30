@@ -201,9 +201,16 @@ function decideDraw(hand, discardPile, tableMelds) {
   return { source: 'drawPile' };
 }
 
+// Ab dieser Handgröße wird die Pik Dame dringend losgeworden (Runde nähert
+// sich dem Ende, Risiko der -100-Strafe steigt). Vorher verhält sie sich wie
+// eine normale (sehr wertvolle) Karte und wird nicht bei jeder Gelegenheit
+// sofort abgeworfen - ein Bot darf sie also auch mal kurz halten.
+const URGENT_DISCARD_HAND_SIZE = 8;
+
 /**
  * Wählt die Karte, die am Zugende abgeworfen wird.
- * Prio 1: Pik-Dame oder Joker loswerden, wenn sie nicht ausgelegt werden konnten.
+ * Prio 1 (ab URGENT_DISCARD_HAND_SIZE): Pik-Dame loswerden, wenn sie nicht
+ * ausgelegt werden konnte. Joker werden weiterhin grundsätzlich priorisiert.
  * Danach: höchstwertige "nutzlose" Karte (keine Teilfolge/-satz-Beziehung zu
  * anderen Handkarten), um das eigene Punkterisiko zu minimieren.
  */
@@ -211,7 +218,7 @@ function chooseDiscard(hand) {
   if (hand.length === 0) return null;
 
   const pikDame = hand.find((c) => isPikDame(c));
-  if (pikDame) return pikDame;
+  if (pikDame && hand.length <= URGENT_DISCARD_HAND_SIZE) return pikDame;
 
   const joker = hand.find((c) => c.isJoker);
   if (joker) return joker;
@@ -278,4 +285,5 @@ module.exports = {
   chooseDiscard,
   planBotTurn,
   planBotMelds,
+  URGENT_DISCARD_HAND_SIZE,
 };
