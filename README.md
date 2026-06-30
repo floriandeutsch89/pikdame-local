@@ -171,13 +171,28 @@ keinen Gewinner-Bonus für irgendwen: alle Spieler (inkl. des Aufgebenden)
 werden wie ein normaler Mitspieler gewertet (Pluspunkte aus Ausgelegtem minus
 Minuspunkte der Resthand). `forfeitRound()` in `GameManager.js`.
 
+### Joker-Auswahl bei Mehrdeutigkeit
+
+Manche Joker-Kombinationen lassen mehr als eine gültige Interpretation zu
+(z. B. 1 Dame + 2 Joker: ein Satz aus 3 Damen ODER eine Folge an drei
+verschiedenen möglichen Stellen). In diesen Fällen fragt das Spiel aktiv
+nach, statt eine Variante zu erraten - ein Auswahl-Overlay zeigt alle
+gültigen Optionen in Klartext an. `enumerateMeldOptions()` /
+`enumerateLayOffOptions()` in `Rules.js` ermitteln dafür systematisch (nicht
+per Brute-Force) alle gültigen Interpretationen: Sätze werden nur über
+gleichrangige Karten gesucht, Folgen nur über gleichfarbige - das hält die
+Suche auch bei großen Händen sehr günstig. Ist nur eine Interpretation
+gültig, wird sie automatisch verwendet (keine unnötige Rückfrage). Bots
+wählen bei Mehrdeutigkeit automatisch die erste (kanonische) Option.
+
 ## Bewusste Annahmen (in den Regeln nicht 100% spezifiziert)
 
 Diese Punkte wurden sinnvoll interpretiert und lassen sich bei Bedarf leicht
 anpassen (Code-Stellen sind kommentiert):
 
-1. **Ass in Folgen**: zählt nur hoch (...Q-K-A), nicht zusätzlich als 1 vor
-   der 2. Anpassbar in `Card.js` (`RANK_ORDER`).
+1. **Ass in Folgen zählt nur hoch** (...Q-K-A), NICHT zusätzlich als 1 vor
+   der 2 ("Ass-2-3" ist also keine gültige Folge). Anpassbar in `Card.js`
+   (`RANK_ORDER`).
 2. **Joker-Tausch-Timing**: Ein Spieler kann während seiner eigenen
    Auslegen/Anlegen-Phase einen Tisch-Joker gegen die passende Handkarte
    tauschen (`swapJoker`). Der freigewordene Joker bleibt sichtbar liegen und

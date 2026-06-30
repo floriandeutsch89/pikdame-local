@@ -155,6 +155,14 @@
       downloadJson(msg.record, `pikdame-spielverlauf-${new Date(msg.record.finishedAt).toISOString().slice(0, 19)}.json`);
       return;
     }
+    if (msg.type === 'meldAmbiguous') {
+      showJokerChoice('meld', msg.cardIds, msg.options);
+      return;
+    }
+    if (msg.type === 'layOffAmbiguous') {
+      showJokerChoice('layOff', { meldId: msg.meldId, cardId: msg.cardId }, msg.options);
+      return;
+    }
   }
 
   function downloadJson(data, filename) {
@@ -168,6 +176,33 @@
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+
+  // --- Joker-Mehrdeutigkeit: Nachfrage-Overlay ----------------------------
+
+  function showJokerChoice(kind, context, options) {
+    const optionsDiv = el('jokerChoiceOptions');
+    optionsDiv.innerHTML = '';
+    options.forEach((opt) => {
+      const btn = document.createElement('button');
+      btn.textContent = opt.label;
+      btn.addEventListener('click', () => {
+        el('jokerChoiceOverlay').classList.add('hidden');
+        sound.meld();
+        if (kind === 'meld') {
+          send({ type: 'layoutMeld', cardIds: context, jokerAssignments: opt.jokerAssignments });
+        } else {
+          send({ type: 'layOff', meldId: context.meldId, cardId: context.cardId, asSuit: opt.asSuit, side: opt.side });
+        }
+        selectedCardIds.clear();
+      });
+      optionsDiv.appendChild(btn);
+    });
+    el('jokerChoiceOverlay').classList.remove('hidden');
+  }
+
+  el('jokerChoiceCancelBtn').addEventListener('click', () => {
+    el('jokerChoiceOverlay').classList.add('hidden');
+  });
 
   // --- Rendering ---------------------------------------------------------
 
@@ -356,7 +391,11 @@
       discardTopDiv.textContent = t.isJoker ? '🃏' : `${t.rank}${suitSymbol(t.suit)}`;
     } else if (lastState.discardTop) {
       discardTopDiv.classList.add('back');
+    } else {
+      discardTopDiv.classList.add('empty');
+      discardTopDiv.textContent = 'leer';
     }
+    el('discardCount').textContent = lastState.discardPileCount > 0 ? `${lastState.discardPileCount} Karten` : '';
 
     const canDraw = isMyTurn && lastState.turnPhase === 'draw';
     el('drawPile').classList.toggle('disabled', !canDraw || lastState.drawPileCount === 0);
@@ -645,59 +684,5 @@
     send({ type: 'exportLastGame' });
   });
 
-  // Direktes Abwerfen einer Handkarte per "langem Drücken" - funktioniert
-  // sowohl per Touch (Mobile) als auch per Maus (Desktop/PC), da Touch-Events
-  // dort nie feuern. Der explizite "Abwerfen"-Button oben ist der primäre,
-  // garantiert funktionierende Weg; dies ist eine zusätzliche Komfort-Geste.
-  function setupLongPressDiscard() {
-    let timer = null;
-
-    function findCardForTarget(target) {
-      const idx = [...el('hand').children].indexOf(target);
-      if (idx === -1) return null;
-      const myPlayer = lastState && lastState.players.find((p) => p.id === playerId);
-      if (!myPlayer || !myPlayer.hand) return null;
-      const sorted = myPlayer.hand.slice().sort((a, b) => {
-        if (a.isJoker && b.isJoker) return 0;
-        if (a.isJoker) return 1;
-        if (b.isJoker) return -1;
-        if (a.suit !== b.suit) return a.suit.localeCompare(b.suit);
-        return RANK_ORDER.indexOf(a.rank) - RANK_ORDER.indexOf(b.rank);
-      });
-      return sorted[idx] || null;
-    }
-
-    function startTimer(target) {
-      timer = setTimeout(() => {
-        const card = findCardForTarget(target);
-        if (card && lastState.currentPlayerId === playerId && lastState.turnPhase === 'meld') {
-          sound.discard();
-          send({ type: 'discard', cardId: card.id });
-          selectedCardIds.clear();
-        }
-      }, 550);
-    }
-
-    function cancelTimer() {
-      clearTimeout(timer);
-    }
-
-    el('hand').addEventListener('touchstart', (ev) => {
-      const target = ev.target.closest('.card');
-      if (target) startTimer(target);
-    });
-    el('hand').addEventListener('touchend', cancelTimer);
-    el('hand').addEventListener('touchmove', cancelTimer);
-
-    // Maus-Äquivalent für Desktop/PC (Touch-Events feuern dort nicht).
-    el('hand').addEventListener('mousedown', (ev) => {
-      const target = ev.target.closest('.card');
-      if (target) startTimer(target);
-    });
-    el('hand').addEventListener('mouseup', cancelTimer);
-    el('hand').addEventListener('mouseleave', cancelTimer);
-  }
-
-  setupLongPressDiscard();
   connect();
 })();

@@ -197,11 +197,15 @@ wss.on('connection', (ws) => {
       case 'layoutMeld': {
         const r = game.layoutMeld(playerId, msg.cardIds, msg.jokerAssignments || {});
         if (r && r.error) sendError(ws, r.error);
+        if (r && r.ambiguous) sendTo(playerId, { type: 'meldAmbiguous', cardIds: msg.cardIds, options: r.options });
         break;
       }
       case 'layOff': {
-        const r = game.layOffCard(playerId, msg.meldId, msg.cardId, msg.asSuit);
+        const r = game.layOffCard(playerId, msg.meldId, msg.cardId, msg.asSuit, msg.side);
         if (r && r.error) sendError(ws, r.error);
+        if (r && r.ambiguous) {
+          sendTo(playerId, { type: 'layOffAmbiguous', meldId: msg.meldId, cardId: msg.cardId, options: r.options });
+        }
         break;
       }
       case 'swapJoker': {

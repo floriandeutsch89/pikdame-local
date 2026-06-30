@@ -76,6 +76,7 @@
         </div>
         <div class="pile" id="discardPile">
           <div class="pile-card" id="discardTopCard"></div>
+          <span id="discardCount">0</span>
         </div>
       </div>
 
@@ -89,6 +90,16 @@
 
       <div id="handWrapper">
         <div id="hand"></div>
+      </div>
+    </section>
+
+    <!-- JOKER-AUSWAHL BEI MEHRDEUTIGKEIT -->
+    <section id="jokerChoiceOverlay" class="overlay hidden">
+      <div class="overlay-card">
+        <h2>Was soll der Joker sein?</h2>
+        <p class="lobby-hint">Mehrere Kombinationen sind möglich – bitte wählen.</p>
+        <div id="jokerChoiceOptions" class="jokerChoiceOptions"></div>
+        <button id="jokerChoiceCancelBtn" class="btn-secondary">Abbrechen</button>
       </div>
     </section>
 
