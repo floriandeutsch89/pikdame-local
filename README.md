@@ -12,7 +12,7 @@ pik-dame/
 ├── package.json
 ├── game/
 │   ├── Card.js             # Kartendefinition, Punktwerte
-│   ├── Deck.js              # Deck-Erzeugung, Mischen, "Glücksgriff"-Austeilung
+│   ├── Deck.js              # Deck-Erzeugung, Mischen, Austeilung
 │   ├── Rules.js              # Satz-/Folgen-Validierung, Anlegen, Joker-Tausch
 │   ├── ScoreBoard.js          # Rundenwertung & Spielende-Logik
 │   ├── Bot.js                 # Bot-KI (Ziehen, Auslegen, Abwerfen)
@@ -35,7 +35,7 @@ Browser öffnen: `http://localhost:8080`
 
 ## Tests
 
-Unit-Tests (Deck/Glücksgriff, Satz-/Folgen-Regeln, Joker-Logik, Punkteberechnung)
+Unit-Tests (Deck/Austeilung, Satz-/Folgen-Regeln, Joker-Logik, Punkteberechnung)
 laufen mit dem in Node.js eingebauten Testrunner – keine zusätzliche Abhängigkeit nötig:
 
 ```bash
@@ -99,10 +99,10 @@ docker run -d -p 8080:8080 -v pikdame-data:/app/data --name pikdame pikdame
 | Regel | Datei | Hinweis |
 |---|---|---|
 | 110 Karten (2×52 + 6 Joker) | `Deck.js` | `createDeck()` |
-| 15 Handkarten, Rest = Nachziehstapel | `Deck.js` | `dealWithGlucksgriff()` |
-| Glücksgriff (Pik-Dame/Joker beim Abheben) | `Deck.js` | Simulierter Cut pro Spieler; per Hausregel abschaltbar |
+| 15 Handkarten, Rest = Nachziehstapel | `Deck.js` | `dealCards()` |
 | Ziehen: Stapel ODER ganzer Ablagestapel (mit Sofort-Auslage-Pflicht) | `GameManager.js` | `drawFromPile`, `drawFromDiscard`, `mustLayOffCardId` |
-| Sätze (gleicher Wert, versch. Farben) | `Rules.js` | `validateSet` |
+| Ablagestapel nur aufnehmbar, wenn die oberste Karte wirklich nutzbar ist | `GameManager.js` | `canUseDiscardTop()` |
+| Sätze (gleicher Wert, Farbe max. 2x wegen 2 Decks) | `Rules.js` | `validateSet` |
 | Folgen (≥3 aufeinanderfolgend, gleiche Farbe) | `Rules.js` | `validateRun` |
 | Joker ersetzen jede Karte, austauschbar | `Rules.js` | `tryJokerSwap` |
 | Ausgetauschter Joker bleibt liegen (eigener Ablagebereich, nicht wieder aufnehmbar) | `GameManager.js` | `retiredJokers` |
@@ -112,13 +112,12 @@ docker run -d -p 8080:8080 -v pikdame-data:/app/data --name pikdame pikdame
 | Gewinner-/Mitspieler-Abrechnung (Pik-Dame zählt einfach, keine Sonderstrafe) | `ScoreBoard.js` | `scoreRound()` |
 | Spielende bei Erreichen/Überschreiten von 1000 Punkten | `ScoreBoard.js` | `checkGameOver()` |
 | Geber rotiert pro Runde, dauerhaft sichtbar | `GameManager.js` | `dealerIndex` / `dealerId` im State |
-| Bots: regelkonform, Kombis erkennen, Pik-Dame/Joker priorisiert loswerden | `Bot.js` | `decideDraw`, `findHandMelds`, `chooseDiscard` |
+| Bots: regelkonform, Kombis erkennen, Pik-Dame/Joker loswerden (Pik Dame erst ab kleiner Hand dringend) | `Bot.js` | `decideDraw`, `findHandMelds`, `chooseDiscard`, `URGENT_DISCARD_HAND_SIZE` |
 
 ### Optionale Hausregeln (bei Spielstart wählbar)
 
 | Regel | Standard | Effekt |
 |---|---|---|
-| Glücksgriff | an | Pik-Dame/Joker beim simulierten Abheben sofort auf die Hand |
 | Hand aus zählt doppelt | aus | Geht ein Spieler im allerersten Zug der Runde komplett aus, wird die GESAMTE Rundenwertung aller Spieler (inkl. Minuspunkte) verdoppelt |
 | Über 1000 Punkte zum Gewinnen | aus | Spielende erst bei MEHR als 1000 Punkten (genau 1000 reicht nicht) |
 

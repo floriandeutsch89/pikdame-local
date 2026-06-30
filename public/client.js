@@ -178,21 +178,25 @@
     return suit === 'H' || suit === 'D' ? 'red' : 'black';
   }
 
-  function cardEl(card, { selectable, selected, onClick } = {}) {
+  function cardEl(card, { selectable, selected, onClick, compact } = {}) {
     const div = document.createElement('div');
-    div.className = 'card';
+    div.className = compact ? 'card card-compact' : 'card';
     if (card.isJoker) {
       div.classList.add('joker');
-      div.innerHTML = `<div class="suitMark">🃏</div><div>JOKER</div>`;
+      div.innerHTML = compact
+        ? `<div class="suitMark">🃏</div>`
+        : `<div class="suitMark">🃏</div><div>JOKER</div>`;
     } else {
       div.classList.add(suitColor(card.suit));
       div.innerHTML = `<div>${card.rank}</div><div class="suitMark">${suitSymbol(card.suit)}</div>`;
       if (card.rank === 'Q' && card.suit === 'S') {
         div.classList.add('pikdame-card');
-        const tag = document.createElement('div');
-        tag.className = 'pikdame-tag';
-        tag.textContent = '100';
-        div.appendChild(tag);
+        if (!compact) {
+          const tag = document.createElement('div');
+          tag.className = 'pikdame-tag';
+          tag.textContent = '100';
+          div.appendChild(tag);
+        }
       }
     }
     if (selected) div.classList.add('selected');
@@ -285,7 +289,6 @@
 
   function collectHouseRules() {
     return {
-      glueckgriffEnabled: el('ruleGlueckgriff').checked,
       handAusDoubles: el('ruleHandAus').checked,
       strictThreshold: el('ruleStrict1000').checked,
     };
@@ -325,6 +328,7 @@
         const cEl = cardEl(card, {
           selectable: isMyTurn && lastState.turnPhase === 'meld',
           onClick: () => onMeldCardClick(meld),
+          compact: true,
         });
         group.appendChild(cEl);
       });

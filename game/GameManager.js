@@ -1,5 +1,5 @@
 // game/GameManager.js
-const { createDeck, shuffle, dealWithGlucksgriff } = require('./Deck');
+const { createDeck, shuffle, dealCards } = require('./Deck');
 const { validateMeld, tryLayOff, tryJokerSwap } = require('./Rules');
 const { scoreRound, applyRoundScores, checkGameOver, DEFAULT_HOUSE_RULES } = require('./ScoreBoard');
 const { cardLabel } = require('./Card');
@@ -158,9 +158,7 @@ class GameManager {
     if (this.roundNumber === 1) this.gameStartedAt = Date.now();
     const deck = shuffle(createDeck());
     const playerIds = this.players.map((p) => p.id);
-    const { hands, drawPile, discardPile, luckyHits } = dealWithGlucksgriff(deck, playerIds, {
-      glueckgriffEnabled: this.houseRules.glueckgriffEnabled,
-    });
+    const { hands, drawPile, discardPile } = dealCards(deck, playerIds);
 
     for (const p of this.players) {
       p.hand = hands[p.id];
@@ -179,10 +177,6 @@ class GameManager {
     this.mustLayOffCardId = null;
     this.phase = 'playing';
 
-    for (const hit of luckyHits) {
-      const p = this.players.find((pl) => pl.id === hit.playerId);
-      this.addLog(`Glücksgriff: ${p ? p.name : hit.playerId} erhält sofort ${cardLabel(hit.card)}!`);
-    }
     const dealer = this.players[this.dealerIndex];
     this.addLog(`Runde ${this.roundNumber} gestartet. Geber: ${dealer ? dealer.name : '?'}.`);
     this.broadcastState();
@@ -230,6 +224,20 @@ class GameManager {
     this.addLog('Nachziehstapel war leer - Ablagestapel (außer oberster Karte) wurde gemischt und neu aufgelegt.');
   }
 
+  /**
+   * Prüft, ob die oberste Ablagekarte überhaupt sinnvoll verwendbar wäre -
+   * entweder direkt an eine bestehende Auslage angelegt, oder zusammen mit
+   * der eigenen Hand zu einer neuen Kombination kombiniert. Nutzt dieselbe
+   * Erkennungslogik wie die Bot-KI (Bot.decideDraw), damit Mensch und Bot
+   * konsistent bewertet werden. Ist beides nicht möglich, darf der gesamte
+   * Ablagestapel gar nicht erst aufgenommen werden (sonst droht ein
+   * unlösbarer Zwang, eine nicht nutzbare Pflichtkarte auslegen zu müssen).
+   */
+  canUseDiscardTop(hand, topCard) {
+    const plan = Bot.decideDraw(hand, [topCard], this.tableMelds);
+    return plan.source === 'discardPile';
+  }
+
   drawFromDiscard(playerId) {
     const err = this.assertTurn(playerId, 'draw');
     if (err) return err;
@@ -237,11 +245,20 @@ class GameManager {
       return { error: 'Ablagestapel ist leer.' };
     }
     const topCard = this.discardPile[0]; // index 0 = oberste/zuletzt abgelegte Karte
+    const player = this.currentPlayer();
+
+    if (!this.canUseDiscardTop(player.hand, topCard)) {
+      return {
+        error:
+          'Die oberste Ablagekarte passt weder an eine bestehende Auslage noch in eine neue Kombination mit deiner Hand - der Ablagestapel kann so nicht aufgenommen werden.',
+      };
+    }
+
     const taken = this.discardPile.splice(0, this.discardPile.length); // gesamter Stapel
-    this.currentPlayer().hand.push(...taken);
+    player.hand.push(...taken);
     this.turnPhase = 'meld';
     this.mustLayOffCardId = topCard.id; // Pflicht: diese Karte muss sofort verwendet werden
-    this.addLog(`${this.currentPlayer().name} nimmt den gesamten Ablagestapel (${taken.length} Karten) auf.`);
+    this.addLog(`${player.name} nimmt den gesamten Ablagestapel (${taken.length} Karten) auf.`);
     this.broadcastState();
     return { ok: true, mustUseCardId: topCard.id };
   }

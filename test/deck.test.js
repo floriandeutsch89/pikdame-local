@@ -1,7 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createDeck, shuffle, dealWithGlucksgriff, HAND_SIZE } = require('../game/Deck');
-const { isPikDame } = require('../game/Card');
+const { createDeck, shuffle, dealCards, HAND_SIZE } = require('../game/Deck');
 
 test('createDeck liefert exakt 110 Karten (2x52 + 6 Joker)', () => {
   const deck = createDeck();
@@ -30,10 +29,10 @@ test('shuffle verändert Reihenfolge, behält aber alle Karten', () => {
   assert.deepEqual(idsAfter, idsBefore);
 });
 
-test('dealWithGlucksgriff verteilt an 4 Spieler je 15 Karten, Rest bleibt erhalten', () => {
+test('dealCards verteilt an 4 Spieler je 15 Karten, Rest bleibt erhalten', () => {
   const deck = shuffle(createDeck());
   const players = ['p1', 'p2', 'p3', 'p4'];
-  const { hands, drawPile, discardPile } = dealWithGlucksgriff(deck, players);
+  const { hands, drawPile, discardPile } = dealCards(deck, players);
 
   for (const p of players) {
     assert.equal(hands[p].length, HAND_SIZE);
@@ -44,36 +43,16 @@ test('dealWithGlucksgriff verteilt an 4 Spieler je 15 Karten, Rest bleibt erhalt
   assert.equal(discardPile.length, 1);
 });
 
-test('Glücksgriff kann als Hausregel komplett abgeschaltet werden', () => {
-  const deck = createDeck();
-  const pikDame = deck.find((c) => isPikDame(c));
-  const rest = deck.filter((c) => c !== pikDame);
-  const rigged = [pikDame, ...rest]; // Pik Dame ganz oben - würde sonst oft getroffen
-
-  const players = ['p1', 'p2', 'p3', 'p4'];
-  const { hands, luckyHits } = dealWithGlucksgriff(rigged, players, { glueckgriffEnabled: false });
-
-  assert.equal(luckyHits.length, 0);
-  for (const p of players) {
-    assert.equal(hands[p].length, HAND_SIZE);
-  }
-});
-
-test('Glücksgriff: Pik-Dame/Joker landen sofort beim Spieler, der sie "abhebt"', () => {
-  // Deterministisches Mini-Deck: erzwinge, dass die Pik-Dame ganz oben liegt
-  const deck = createDeck();
-  const pikDame = deck.find((c) => isPikDame(c));
-  const rest = deck.filter((c) => c !== pikDame);
-  const rigged = [pikDame, ...rest];
-
-  const players = ['p1', 'p2', 'p3', 'p4'];
-  const { hands, luckyHits } = dealWithGlucksgriff(rigged, players);
-
-  for (const p of players) {
-    assert.equal(hands[p].length, HAND_SIZE);
-  }
-  assert.ok(luckyHits.length <= 4);
-  for (const hit of luckyHits) {
-    assert.ok(hit.card.isJoker || isPikDame(hit.card));
+test('dealCards funktioniert auch mit 2 oder 3 Spielern', () => {
+  for (const playerCount of [2, 3]) {
+    const deck = shuffle(createDeck());
+    const players = Array.from({ length: playerCount }, (_, i) => `p${i + 1}`);
+    const { hands, drawPile, discardPile } = dealCards(deck, players);
+    for (const p of players) {
+      assert.equal(hands[p].length, HAND_SIZE);
+    }
+    const total =
+      players.reduce((sum, p) => sum + hands[p].length, 0) + drawPile.length + discardPile.length;
+    assert.equal(total, 110);
   }
 });

@@ -15,9 +15,22 @@ test('validateSet: 3 gleiche Werte, verschiedene Farben ist gültig', () => {
   assert.equal(r.type, 'set');
 });
 
-test('validateSet: gleiche Farbe doppelt ist ungültig', () => {
+test('validateSet: gleiche Farbe bis zu 2x ist gültig (2 Decks im Spiel)', () => {
   const r = validateSet([H('D'), H('D', 1), C('D')]);
+  assert.equal(r.valid, true);
+  assert.equal(r.type, 'set');
+});
+
+test('validateSet: dieselbe Farbe 3x (mehr als 2 Kopien) ist ungültig', () => {
+  // Es gibt nur 2 Kopien jeder Karte (2 Decks) - 3x dieselbe Farbe ist also unmöglich
+  const r = validateSet([H('D', 0), H('D', 1), H('D', 2)]);
   assert.equal(r.valid, false);
+});
+
+test('validateSet: 2x Kreuz-Ass + 1x Herz-Ass ist ein gültiger Satz', () => {
+  const r = validateSet([C('A', 0), C('A', 1), H('A')]);
+  assert.equal(r.valid, true);
+  assert.equal(r.rank, 'A');
 });
 
 test('validateSet: unterschiedliche Werte sind ungültig', () => {
@@ -74,6 +87,19 @@ test('tryLayOff: vierte passende Farbe kann an Satz angelegt werden', () => {
   const result = tryLayOff(meld, S('D'));
   assert.ok(result);
   assert.equal(result.slots.length, 4);
+});
+
+test('tryLayOff: zweite Kopie einer bereits genutzten Farbe kann angelegt werden (2 Decks)', () => {
+  const meld = validateSet([H('D', 0), D('D', 0), C('D', 0)]);
+  const result = tryLayOff(meld, H('D', 1)); // zweite Kopie Herz-Dame aus Deck 2
+  assert.ok(result);
+  assert.equal(result.slots.length, 4);
+});
+
+test('tryLayOff: dritte Kopie derselben Farbe (über die 2 Decks hinaus) ist nicht möglich', () => {
+  const meld = validateSet([H('D', 0), H('D', 1), C('D', 0)]);
+  const result = tryLayOff(meld, H('D', 2)); // es gibt aber gar keine dritte Kopie
+  assert.equal(result, null);
 });
 
 test('tryJokerSwap: echte Karte tauscht passenden Joker aus der Auslage', () => {
