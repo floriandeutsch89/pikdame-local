@@ -254,6 +254,67 @@ test('prepareRematch setzt Punkte/Verlauf zurück, behält aber die Spieler', ()
   assert.equal(game.players.length, 2); // Spieler bleiben erhalten
 });
 
+test('forfeitRound: Runde endet sofort, alle Spieler werden wie normale Mitspieler gewertet (kein Gewinner-Bonus)', () => {
+  const { game } = makeGame(3);
+  game.phase = 'playing';
+  game.turnPhase = 'draw';
+  game.currentPlayerIndex = 1; // p2 ist am Zug
+  game.turnIndexInRound = 3;
+
+  game.players[0].laidOutCards = [makeStandardCard('H', 'A', 0)]; // 20
+  game.players[0].hand = [makeStandardCard('H', '7', 0)]; // -5 -> p1: 15
+  game.players[1].laidOutCards = [];
+  game.players[1].hand = [makeStandardCard('H', 'K', 0)]; // -10 -> p2: -10
+  game.players[2].laidOutCards = [makeStandardCard('H', '5', 0)]; // 5
+  game.players[2].hand = []; // p3: 5
+
+  // p1 (nicht am Zug) gibt auf - muss trotzdem möglich sein.
+  const result = game.forfeitRound('p1');
+  assert.equal(result.ok, true);
+  assert.equal(game.phase, 'roundEnd');
+  assert.equal(game.lastRoundForfeitedBy, 'p1');
+
+  // Niemand bekommt den Gewinner-Bonus (alle nach "Mitspieler"-Formel).
+  assert.equal(game.lastRoundResult.p1.roundScore, 15);
+  assert.equal(game.lastRoundResult.p2.roundScore, -10);
+  assert.equal(game.lastRoundResult.p3.roundScore, 5);
+  for (const pid of ['p1', 'p2', 'p3']) {
+    assert.equal(game.lastRoundResult[pid].breakdown.isWinner, false);
+  }
+});
+
+test('forfeitRound: "Hand aus" greift NICHT, selbst wenn es der allererste Zug der Runde ist', () => {
+  const { game } = makeGame(2);
+  game.setHouseRules({ handAusDoubles: true });
+  game.phase = 'playing';
+  game.turnPhase = 'draw';
+  game.currentPlayerIndex = 0;
+  game.turnIndexInRound = 0; // allererster Zug
+
+  game.players[0].laidOutCards = [makeStandardCard('H', 'A', 0)];
+  game.players[0].hand = [];
+  game.players[1].laidOutCards = [];
+  game.players[1].hand = [makeStandardCard('H', 'K', 0)];
+
+  game.forfeitRound('p2');
+
+  assert.equal(game.lastRoundWasHandAus, false);
+  assert.equal(game.lastRoundResult.p1.roundScore, 20); // kein x2
+});
+
+test('forfeitRound außerhalb einer laufenden Runde liefert einen Fehler', () => {
+  const { game } = makeGame(2);
+  const result = game.forfeitRound('p1');
+  assert.ok(result.error);
+});
+
+test('forfeitRound mit unbekannter Spieler-ID liefert einen Fehler', () => {
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  const result = game.forfeitRound('unknown-id');
+  assert.ok(result.error);
+});
+
 test('Hausregel "über 1000 Punkte" wird beim Rundenende berücksichtigt', () => {
   const { game } = makeGame(2);
   game.setHouseRules({ strictThreshold: true });

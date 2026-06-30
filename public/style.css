@@ -175,7 +175,10 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .seatControls { display: flex; gap: 2px; }
 .seatControls .btn-icon { font-size: 0.95rem; padding: 4px 7px; border-radius: 6px; }
 .seatControls .btn-icon:active { background: var(--surface-3); }
-.seatControls .btn-icon.active { color: var(--accent); }
+.seatControls .btn-icon.active {
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 2px var(--accent);
+}
 .seatControls .btn-icon:disabled { opacity: 0.25; }
 
 #teamSelect {
@@ -257,6 +260,13 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   display: flex; align-items: center; justify-content: center;
   font-weight: 700; font-size: 0.85rem; box-shadow: var(--shadow);
 }
+.pile-card.red { color: var(--suit-red); }
+.pile-card.black { color: var(--suit-black); }
+.pile-card.joker { color: var(--joker); }
+.pile-card.empty {
+  background: transparent; border-style: dashed; border-color: var(--surface-3);
+  color: var(--text-muted); font-size: 0.6rem; font-weight: 400;
+}
 .pile-card.back {
   background: repeating-linear-gradient(45deg, var(--accent-ink), var(--accent-ink) 4px, var(--accent) 4px, var(--accent) 8px);
   opacity: 0.85;
@@ -282,9 +292,12 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   border-top: 1px solid var(--surface-3);
 }
 #hand {
-  display: flex; justify-content: center;
-  padding: 0 24px;
+  display: flex; justify-content: flex-start;
+  padding: 0 32px;
   min-height: 104px;
+  margin: 0 auto;
+  width: max-content;
+  max-width: 100%;
 }
 
 .card {

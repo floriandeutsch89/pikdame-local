@@ -164,6 +164,14 @@ kurz vibriert (`navigator.vibrate`). Ein/Aus-Schalter: Checkbox in der Lobby
 ("Sound & Vibration") oder 🔊/🔇-Button am Spieltisch; die Einstellung wird im
 Browser gespeichert.
 
+### Runde aufgeben
+
+Über den 🏳️-Button in der Aktionsleiste kann jeder Spieler die laufende Runde
+JEDERZEIT beenden (unabhängig davon, wer gerade am Zug ist). Es gibt dabei
+keinen Gewinner-Bonus für irgendwen: alle Spieler (inkl. des Aufgebenden)
+werden wie ein normaler Mitspieler gewertet (Pluspunkte aus Ausgelegtem minus
+Minuspunkte der Resthand). `forfeitRound()` in `GameManager.js`.
+
 ## Bewusste Annahmen (in den Regeln nicht 100% spezifiziert)
 
 Diese Punkte wurden sinnvoll interpretiert und lassen sich bei Bedarf leicht

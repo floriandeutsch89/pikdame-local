@@ -358,9 +358,25 @@ class GameManager {
     }
   }
 
+  /**
+   * Ein Spieler gibt die laufende Runde auf. Die Runde endet SOFORT für alle
+   * (unabhängig davon, wer gerade am Zug ist). Es gibt keinen Gewinner-Bonus
+   * für irgendwen - alle Spieler (inkl. des Aufgebenden) werden wie normale
+   * Mitspieler gewertet: Pluspunkte (Ausgelegtes) minus Minuspunkte (Resthand).
+   */
+  forfeitRound(playerId) {
+    if (this.phase !== 'playing') return { error: 'Es läuft gerade keine Runde.' };
+    const player = this.players.find((p) => p.id === playerId);
+    if (!player) return { error: 'Spieler nicht gefunden.' };
+
+    this.addLog(`${player.name} gibt die Runde auf.`);
+    this.finishRound(null, { forfeitedBy: playerId });
+    return { ok: true };
+  }
+
   // --- Rundenende / Wertung ------------------------------------------------
 
-  finishRound(winnerId) {
+  finishRound(winnerId, options = {}) {
     this.phase = 'roundEnd';
     const playersData = {};
     for (const p of this.players) {
@@ -368,11 +384,13 @@ class GameManager {
     }
     // "Hand aus": Der Gewinner hat im allerersten Zug der Runde (turnIndexInRound
     // war noch nie erhöht worden) seine komplette Hand ausgelegt und abgeworfen.
-    const isHandAus = this.turnIndexInRound === 0;
+    // Gilt nur, wenn es überhaupt einen echten Gewinner gibt (nicht bei "Aufgeben").
+    const isHandAus = !!winnerId && this.turnIndexInRound === 0;
     const roundResult = scoreRound(winnerId, playersData, { isHandAus, houseRules: this.houseRules });
     this.totals = applyRoundScores(this.totals, roundResult);
     this.lastRoundResult = roundResult;
     this.lastRoundWasHandAus = isHandAus;
+    this.lastRoundForfeitedBy = options.forfeitedBy || null;
 
     // Statistiken für die Rundenanzeige (siehe publicState -> roundStats)
     this.lastRoundStats = this.players.map((p) => ({
@@ -444,6 +462,7 @@ class GameManager {
     this.lastRoundResult = null;
     this.lastRoundStats = null;
     this.lastRoundWasHandAus = false;
+    this.lastRoundForfeitedBy = null;
     this.roundHistory = [];
     this.lastGameRecord = null;
     this.gameStartedAt = null;
@@ -566,6 +585,7 @@ class GameManager {
       totals: this.totals,
       lastRoundResult: this.lastRoundResult || null,
       lastRoundWasHandAus: this.lastRoundWasHandAus || false,
+      lastRoundForfeitedBy: this.lastRoundForfeitedBy || null,
       lastRoundStats: this.lastRoundStats || null,
       hasExportableGame: !!this.lastGameRecord,
       gameOverInfo: this.gameOverInfo || null,

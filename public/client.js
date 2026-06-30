@@ -258,7 +258,7 @@
         <span class="seatControls">
           <button class="btn-icon seatUp" ${idx === 0 ? 'disabled' : ''} title="Nach oben">▲</button>
           <button class="btn-icon seatDown" ${idx === lastState.players.length - 1 ? 'disabled' : ''} title="Nach unten">▼</button>
-          <button class="btn-icon seatDealer ${isDealer ? 'active' : ''}" title="Als Geber festlegen">⭐</button>
+          <button class="btn-icon seatDealer ${isDealer ? 'active' : ''}" title="Als Geber festlegen">${isDealer ? '⭐' : '☆'}</button>
         </span>`;
       row.querySelector('.seatUp').addEventListener('click', () => moveSeat(idx, -1));
       row.querySelector('.seatDown').addEventListener('click', () => moveSeat(idx, 1));
@@ -392,12 +392,18 @@
 
     const showMeldControls = isMyTurn && lastState.turnPhase === 'meld' && selectedCardIds.size >= 3;
     el('confirmMeldBtn').classList.toggle('hidden', !showMeldControls);
+
+    const showDiscardBtn =
+      isMyTurn && lastState.turnPhase === 'meld' && selectedCardIds.size === 1 && !lastState.mustLayOffCardId;
+    el('discardBtn').classList.toggle('hidden', !showDiscardBtn);
+
     el('clearSelectionBtn').classList.toggle('hidden', selectedCardIds.size === 0);
+    el('forfeitBtn').classList.toggle('hidden', lastState.phase !== 'playing');
 
     if (lastState.mustLayOffCardId && isMyTurn) {
       showHint('Pflicht: Die aufgenommene Ablagekarte muss zuerst ausgelegt/angelegt werden.', false);
     } else if (isMyTurn && lastState.turnPhase === 'meld') {
-      showHint('Karten auswählen zum Auslegen, auf eine Auslage tippen zum Anlegen, oder direkt eine Handkarte zum Abwerfen antippen (lange drücken).', false);
+      showHint('Karte(n) wählen: 3+ auswählen zum Auslegen, 1 auswählen + "Abwerfen", oder auf eine Auslage tippen zum Anlegen.', false);
     } else {
       clearHintIfNotError();
     }
@@ -455,6 +461,13 @@
       handAusNote.className = 'handAusNote';
       handAusNote.textContent = '🎉 Hand aus! Die komplette Rundenwertung zählt doppelt.';
       body.appendChild(handAusNote);
+    }
+    if (lastState.lastRoundForfeitedBy) {
+      const forfeiter = lastState.players.find((p) => p.id === lastState.lastRoundForfeitedBy);
+      const forfeitNote = document.createElement('p');
+      forfeitNote.className = 'handAusNote';
+      forfeitNote.textContent = `🏳️ ${forfeiter ? forfeiter.name : 'Ein Spieler'} hat die Runde aufgegeben. Wertung wie ein normaler Mitspieler, kein Gewinner-Bonus.`;
+      body.appendChild(forfeitNote);
     }
 
     lastState.players.forEach((p) => {
@@ -521,12 +534,16 @@
     }
   }
 
+  let hasJoinedOnce = false;
+
+  el('nameInput').value = myName;
+
   el('joinBtn').addEventListener('click', () => {
     myName = el('nameInput').value.trim() || `Spieler${Math.floor(Math.random() * 1000)}`;
     localStorage.setItem(NAME_KEY, myName);
     send({ type: 'join', playerId, name: myName });
-    el('joinBtn').disabled = true;
-    el('joinBtn').textContent = 'Beigetreten ✓';
+    hasJoinedOnce = true;
+    el('joinBtn').textContent = 'Namen aktualisieren';
     el('startBtn').disabled = false;
   });
 
@@ -571,6 +588,25 @@
     send({ type: 'drawFromDiscard' });
   });
 
+  el('discardBtn').addEventListener('click', () => {
+    if (selectedCardIds.size !== 1) return;
+    const cardId = [...selectedCardIds][0];
+    sound.discard();
+    send({ type: 'discard', cardId });
+    selectedCardIds.clear();
+  });
+
+  el('forfeitBtn').addEventListener('click', () => {
+    if (!lastState || lastState.phase !== 'playing') return;
+    const confirmed = window.confirm(
+      'Runde wirklich aufgeben? Du wirst wie ein normaler Mitspieler gewertet (Ausgelegtes minus Resthand) - ohne Gewinner-Bonus für irgendwen.'
+    );
+    if (confirmed) {
+      sound.discard();
+      send({ type: 'forfeitRound' });
+    }
+  });
+
   el('confirmMeldBtn').addEventListener('click', () => {
     if (selectedCardIds.size < 3) return;
     sound.meld();
@@ -605,33 +641,57 @@
     send({ type: 'exportLastGame' });
   });
 
-  // Langes Drücken auf eine Handkarte = direkt abwerfen (Pflicht-Phase: meld)
+  // Direktes Abwerfen einer Handkarte per "langem Drücken" - funktioniert
+  // sowohl per Touch (Mobile) als auch per Maus (Desktop/PC), da Touch-Events
+  // dort nie feuern. Der explizite "Abwerfen"-Button oben ist der primäre,
+  // garantiert funktionierende Weg; dies ist eine zusätzliche Komfort-Geste.
   function setupLongPressDiscard() {
     let timer = null;
-    el('hand').addEventListener('touchstart', (ev) => {
-      const target = ev.target.closest('.card');
-      if (!target) return;
+
+    function findCardForTarget(target) {
+      const idx = [...el('hand').children].indexOf(target);
+      if (idx === -1) return null;
+      const myPlayer = lastState && lastState.players.find((p) => p.id === playerId);
+      if (!myPlayer || !myPlayer.hand) return null;
+      const sorted = myPlayer.hand.slice().sort((a, b) => {
+        if (a.isJoker && b.isJoker) return 0;
+        if (a.isJoker) return 1;
+        if (b.isJoker) return -1;
+        if (a.suit !== b.suit) return a.suit.localeCompare(b.suit);
+        return RANK_ORDER.indexOf(a.rank) - RANK_ORDER.indexOf(b.rank);
+      });
+      return sorted[idx] || null;
+    }
+
+    function startTimer(target) {
       timer = setTimeout(() => {
-        const idx = [...el('hand').children].indexOf(target);
-        const myPlayer = lastState && lastState.players.find((p) => p.id === playerId);
-        if (!myPlayer || !myPlayer.hand) return;
-        const sorted = myPlayer.hand.slice().sort((a, b) => {
-          if (a.isJoker && b.isJoker) return 0;
-          if (a.isJoker) return 1;
-          if (b.isJoker) return -1;
-          if (a.suit !== b.suit) return a.suit.localeCompare(b.suit);
-          return RANK_ORDER.indexOf(a.rank) - RANK_ORDER.indexOf(b.rank);
-        });
-        const card = sorted[idx];
+        const card = findCardForTarget(target);
         if (card && lastState.currentPlayerId === playerId && lastState.turnPhase === 'meld') {
           sound.discard();
           send({ type: 'discard', cardId: card.id });
           selectedCardIds.clear();
         }
       }, 550);
+    }
+
+    function cancelTimer() {
+      clearTimeout(timer);
+    }
+
+    el('hand').addEventListener('touchstart', (ev) => {
+      const target = ev.target.closest('.card');
+      if (target) startTimer(target);
     });
-    el('hand').addEventListener('touchend', () => clearTimeout(timer));
-    el('hand').addEventListener('touchmove', () => clearTimeout(timer));
+    el('hand').addEventListener('touchend', cancelTimer);
+    el('hand').addEventListener('touchmove', cancelTimer);
+
+    // Maus-Äquivalent für Desktop/PC (Touch-Events feuern dort nicht).
+    el('hand').addEventListener('mousedown', (ev) => {
+      const target = ev.target.closest('.card');
+      if (target) startTimer(target);
+    });
+    el('hand').addEventListener('mouseup', cancelTimer);
+    el('hand').addEventListener('mouseleave', cancelTimer);
   }
 
   setupLongPressDiscard();
