@@ -45,6 +45,35 @@ npm test
 Tests laufen außerdem automatisch via GitHub Actions bei jedem Push/Pull-Request
 auf `main` (siehe `.github/workflows/ci.yml`), gegen Node 18/20/22.
 
+## Hosting mit Docker (Alternative zum Hotspot-Setup)
+
+Statt direkt mit Node.js zu starten, lässt sich der Server auch als Docker-
+Container betreiben (z. B. auf einem Raspberry Pi, NAS oder Heim-Server statt
+einem iPhone-Hotspot):
+
+```bash
+docker compose up --build -d
+```
+
+- Der Server ist danach unter `http://<host>:8080` erreichbar.
+- Spielerprofile/Teams/Spielverlauf landen im benannten Volume `pikdame-data`
+  (gemountet auf `/app/data` im Container) und überleben Container-Neustarts
+  und -Updates.
+- Healthcheck: `GET /healthz` (von Docker automatisch alle 30s geprüft).
+- Port/Variable anpassen: `PORT` in `docker-compose.yml` setzen.
+
+Ohne Compose, direkt mit `docker`:
+
+```bash
+docker build -t pikdame .
+docker run -d -p 8080:8080 -v pikdame-data:/app/data --name pikdame pikdame
+```
+
+> Hinweis: Dieses Docker-Setup wurde nicht in einer echten Docker-Umgebung
+> gebaut/getestet (im Entwicklungs-Sandbox war kein Docker verfügbar) -
+> bitte einmal selbst mit `docker compose up --build` gegenprüfen, bevor es
+> produktiv eingesetzt wird.
+
 ## Start auf dem iPhone (CodeApp + Hotspot)
 
 1. Projektordner `pik-dame/` in die CodeApp laden (z.B. via Git-Klon im

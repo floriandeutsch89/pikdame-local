@@ -31,6 +31,11 @@ const MIME_TYPES = {
 
 function serveStatic(req, res) {
   let filePath = req.url.split('?')[0];
+  if (filePath === '/healthz') {
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('ok');
+    return;
+  }
   if (filePath === '/') filePath = '/index.html';
   const resolved = path.normalize(path.join(PUBLIC_DIR, filePath));
 
