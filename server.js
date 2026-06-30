@@ -214,6 +214,11 @@ wss.on('connection', (ws) => {
         if (r && r.error) sendError(ws, r.error);
         break;
       }
+      case 'forfeitRound': {
+        const r = game.forfeitRound(playerId);
+        if (r && r.error) sendError(ws, r.error);
+        break;
+      }
       default:
         sendError(ws, `Unbekannter Nachrichtentyp: ${msg.type}`);
     }
