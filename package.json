@@ -4,7 +4,8 @@
   "description": "Offline-Multiplayer Rommé-Variante 'Pik Dame' – Node.js Server + WebSocket, lauffähig per iPhone-Hotspot (z.B. in CodeApp).",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
   },
   "license": "MIT",
   "dependencies": {

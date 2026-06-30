@@ -33,6 +33,18 @@ npm start
 
 Browser öffnen: `http://localhost:8080`
 
+## Tests
+
+Unit-Tests (Deck/Glücksgriff, Satz-/Folgen-Regeln, Joker-Logik, Punkteberechnung)
+laufen mit dem in Node.js eingebauten Testrunner – keine zusätzliche Abhängigkeit nötig:
+
+```bash
+npm test
+```
+
+Tests laufen außerdem automatisch via GitHub Actions bei jedem Push/Pull-Request
+auf `main` (siehe `.github/workflows/ci.yml`), gegen Node 18/20/22.
+
 ## Start auf dem iPhone (CodeApp + Hotspot)
 
 1. Projektordner `pik-dame/` in die CodeApp laden (z.B. via Git-Klon im
