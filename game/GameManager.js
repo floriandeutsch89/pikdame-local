@@ -1,6 +1,6 @@
 // game/GameManager.js
 const { createDeck, shuffle, dealCards } = require('./Deck');
-const { validateMeld, tryLayOff, tryJokerSwap } = require('./Rules');
+const { validateMeld, tryLayOff, tryJokerSwap, enumerateMeldOptions, enumerateLayOffOptions, canFormMeldWithCard } = require('./Rules');
 const { scoreRound, applyRoundScores, checkGameOver, DEFAULT_HOUSE_RULES } = require('./ScoreBoard');
 const { cardLabel } = require('./Card');
 const Bot = require('./Bot');
@@ -227,15 +227,18 @@ class GameManager {
   /**
    * Prüft, ob die oberste Ablagekarte überhaupt sinnvoll verwendbar wäre -
    * entweder direkt an eine bestehende Auslage angelegt, oder zusammen mit
-   * der eigenen Hand zu einer neuen Kombination kombiniert. Nutzt dieselbe
-   * Erkennungslogik wie die Bot-KI (Bot.decideDraw), damit Mensch und Bot
-   * konsistent bewertet werden. Ist beides nicht möglich, darf der gesamte
-   * Ablagestapel gar nicht erst aufgenommen werden (sonst droht ein
-   * unlösbarer Zwang, eine nicht nutzbare Pflichtkarte auslegen zu müssen).
+   * der eigenen Hand zu einer neuen Kombination kombiniert (Rules.js'
+   * canFormMeldWithCard durchsucht dafür gezielt nur die relevanten
+   * Kandidaten - keine Brute-Force-Suche über alle Handkarten-Teilmengen).
+   * Ist beides nicht möglich, darf der gesamte Ablagestapel gar nicht erst
+   * aufgenommen werden (sonst droht ein unlösbarer Zwang, eine nicht
+   * nutzbare Pflichtkarte auslegen zu müssen).
    */
   canUseDiscardTop(hand, topCard) {
-    const plan = Bot.decideDraw(hand, [topCard], this.tableMelds);
-    return plan.source === 'discardPile';
+    for (const meld of this.tableMelds) {
+      if (tryLayOff(meld, topCard)) return true;
+    }
+    return canFormMeldWithCard(topCard, hand);
   }
 
   drawFromDiscard(playerId) {
@@ -272,7 +275,29 @@ class GameManager {
     const cards = cardIds.map((id) => player.hand.find((c) => c.id === id)).filter(Boolean);
     if (cards.length !== cardIds.length) return { error: 'Karte(n) nicht in der Hand gefunden.' };
 
-    const result = validateMeld(cards, jokerAssignments);
+    const hasJokers = cards.some((c) => c.isJoker);
+    let result;
+
+    if (hasJokers && Object.keys(jokerAssignments).length === 0) {
+      // Noch keine explizite Zuweisung vom Client -> prüfen, ob die Auswahl
+      // mehrdeutig ist (z. B. 1 Dame + 2 Joker: Satz ODER mehrere mögliche
+      // Folge-Fenster). Bei mehr als einer gültigen Interpretation muss der
+      // Spieler explizit wählen, statt dass wir eine davon erraten.
+      const options = enumerateMeldOptions(cards);
+      if (options.length === 0) {
+        return { error: 'Diese Kombination ergibt keinen gültigen Satz oder keine gültige Folge.' };
+      }
+      if (options.length > 1) {
+        return {
+          ambiguous: true,
+          options: options.map((o) => ({ id: o.id, type: o.type, label: o.label, jokerAssignments: o.jokerAssignments })),
+        };
+      }
+      result = validateMeld(cards, options[0].jokerAssignments);
+    } else {
+      result = validateMeld(cards, jokerAssignments);
+    }
+
     if (!result.valid) return { error: result.reason };
 
     const meld = { id: nextMeldId(), type: result.type, suit: result.suit || null, rank: result.rank || null, slots: result.slots };
@@ -291,7 +316,7 @@ class GameManager {
     return { ok: true };
   }
 
-  layOffCard(playerId, meldId, cardId, asSuit) {
+  layOffCard(playerId, meldId, cardId, asSuit, side) {
     const err = this.assertTurn(playerId, 'meld');
     if (err) return err;
     const player = this.currentPlayer();
@@ -300,7 +325,25 @@ class GameManager {
     const card = player.hand.find((c) => c.id === cardId);
     if (!card) return { error: 'Karte nicht in der Hand gefunden.' };
 
-    const result = tryLayOff(meld, card, { asSuit });
+    let result;
+    if (card.isJoker && !asSuit && !side) {
+      // Noch keine explizite Wahl vom Client -> prüfen, ob mehrere Anlege-
+      // Möglichkeiten existieren (z. B. Joker an Folge: oben ODER unten;
+      // Joker an Satz: mehrere freie Farben).
+      const options = enumerateLayOffOptions(meld, card);
+      if (options.length === 0) {
+        return { error: 'Karte passt nicht an diese Auslage.' };
+      }
+      if (options.length > 1) {
+        return {
+          ambiguous: true,
+          options: options.map((o) => ({ id: o.id, label: o.label, asSuit: o.asSuit, side: o.side })),
+        };
+      }
+      result = options[0].meld;
+    } else {
+      result = tryLayOff(meld, card, { asSuit, side });
+    }
     if (!result) return { error: 'Karte passt nicht an diese Auslage.' };
 
     meld.slots = result.slots;
@@ -422,7 +465,22 @@ class GameManager {
       ).length,
     }));
 
-    const over = checkGameOver(this.totals, this.houseRules);
+    // Defensive Absicherung: checkGameOver bekommt NUR die Gesamtpunkte der
+    // aktuell am Tisch sitzenden Spieler übergeben (nicht das komplette
+    // this.totals-Objekt), damit niemals ein veralteter/verwaister Eintrag
+    // (z. B. von einem Spieler, der das Spiel verlassen hat) versehentlich
+    // ein vorzeitiges Spielende auslösen kann.
+    const currentPlayerIds = new Set(this.players.map((p) => p.id));
+    const totalsForGameOverCheck = {};
+    for (const [pid, score] of Object.entries(this.totals)) {
+      if (currentPlayerIds.has(pid)) totalsForGameOverCheck[pid] = score;
+    }
+    this.addLog(
+      `Rundenwertung: ${Object.entries(totalsForGameOverCheck)
+        .map(([pid, score]) => `${this.players.find((p) => p.id === pid)?.name || pid}=${score}`)
+        .join(', ')}`
+    );
+    const over = checkGameOver(totalsForGameOverCheck, this.houseRules);
 
     // Runde in die Verlaufsaufzeichnung der laufenden Partie aufnehmen.
     this.roundHistory.push({
@@ -543,14 +601,23 @@ class GameManager {
 
     for (const meldCards of meldPlan.newMelds) {
       const ids = meldCards.map((c) => c.id);
-      this.layoutMeld(botId, ids);
+      let r = this.layoutMeld(botId, ids);
+      if (r && r.ambiguous) {
+        // Bots brauchen keinen UI-Prompt - sie nehmen einfach die erste
+        // (kanonische) Interpretation.
+        r = this.layoutMeld(botId, ids, r.options[0].jokerAssignments);
+      }
       if (this.phase !== 'playing') return;
     }
 
     for (const lo of meldPlan.layOffs) {
       const stillHas = cp.hand.find((c) => c.id === lo.card.id);
       if (!stillHas) continue;
-      this.layOffCard(botId, lo.meldId, lo.card.id);
+      let r = this.layOffCard(botId, lo.meldId, lo.card.id);
+      if (r && r.ambiguous) {
+        const choice = r.options[0];
+        r = this.layOffCard(botId, lo.meldId, lo.card.id, choice.asSuit, choice.side);
+      }
       if (this.phase !== 'playing') return;
     }
 
@@ -571,6 +638,12 @@ class GameManager {
       if (fallback) {
         this.mustLayOffCardId = null; // Notausgang, um die Partie nicht zu blockieren
         this.discard(botId, fallback.id);
+      } else if (cp.hand.length > 0) {
+        // Die Pflichtkarte ist die einzige verbliebene Handkarte und konnte
+        // nicht ausgelegt werden - auch dann muss der Zug zu Ende gehen,
+        // sonst bleibt der Tisch für immer stehen.
+        this.mustLayOffCardId = null;
+        this.discard(botId, cp.hand[0].id);
       }
     }
   }
@@ -587,6 +660,7 @@ class GameManager {
       mustLayOffCardId: this.mustLayOffCardId,
       drawPileCount: this.drawPile.length,
       discardTop: this.discardPile[0] || null,
+      discardPileCount: this.discardPile.length,
       tableMelds: this.tableMelds,
       retiredJokers: this.retiredJokers,
       houseRules: this.houseRules,

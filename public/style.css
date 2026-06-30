@@ -357,6 +357,14 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .statsTable th:first-child, .statsTable td:first-child { text-align: left; }
 #exportGameBtn { margin-top: 10px; background: rgba(11,93,59,0.12); color: #0b5d3b; }
 
+.jokerChoiceOptions { display: flex; flex-direction: column; gap: 8px; margin: 14px 0; }
+.jokerChoiceOptions button {
+  width: 100%; text-align: left; padding: 12px 14px; border-radius: var(--radius-sm);
+  border: 1px solid rgba(0,0,0,0.12); background: #f4f1ea; color: #18140f;
+  font-size: 0.9rem; font-weight: 600; cursor: pointer;
+}
+.jokerChoiceOptions button:active { background: var(--accent-soft); }
+
 /* ---------- LOG ---------- */
 #logPanel {
   position: fixed; right: 8px; top: 56px; width: 230px; max-height: 50vh;

@@ -64,6 +64,26 @@ test('validateRun: Joker schließt eine Lücke in der Folge', () => {
   assert.equal(jokerSlot.representsSuit, 'H');
 });
 
+test('validateSet lehnt Folge-Rang-Zuweisungen ab statt sie falsch als Satz zu interpretieren', () => {
+  // Regression: jokerAssignments mit Rang-Codes ('J','K') wurden früher
+  // fälschlich als "Farbe" akzeptiert, weil validateSet nicht prüfte, ob
+  // der zugewiesene Wert überhaupt eine gültige Farbe ist.
+  const r = validateSet([H('Q'), J(0), J(1)], { 'JOKER-0': 'J', 'JOKER-1': 'K' });
+  assert.equal(r.valid, false);
+});
+
+test('validateRun lehnt Satz-Farb-Zuweisungen ab statt sie falsch als Folge zu interpretieren', () => {
+  const r = validateRun([H('Q'), J(0), J(1)], { 'JOKER-0': 'S', 'JOKER-1': 'C' });
+  assert.equal(r.valid, false);
+});
+
+test('validateRun: explizite Rang-Zuweisung verlängert die Folge gezielt nach oben (Q-K-A statt 10-J-Q)', () => {
+  const r = validateRun([H('Q'), J(0), J(1)], { 'JOKER-0': 'K', 'JOKER-1': 'A' });
+  assert.equal(r.valid, true);
+  const ranks = r.slots.map((s) => (s.real ? s.real.rank : s.representsRank));
+  assert.deepEqual(ranks, ['Q', 'K', 'A']);
+});
+
 test('validateMeld: erkennt automatisch Satz vs. Folge', () => {
   assert.equal(validateMeld([H('D'), D('D'), C('D')]).type, 'set');
   assert.equal(validateMeld([H('7'), H('8'), H('9')]).type, 'run');

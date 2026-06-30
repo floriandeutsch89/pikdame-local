@@ -374,6 +374,169 @@ test('drawFromDiscard ist erlaubt, wenn die oberste Karte an eine bestehende Aus
   assert.equal(result.ok, true);
 });
 
+test('layoutMeld: mehrdeutige Joker-Kombination liefert Optionen statt zu raten', () => {
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  game.turnPhase = 'meld';
+  game.currentPlayerIndex = 0;
+
+  const queen = makeStandardCard('H', 'Q', 0);
+  const j1 = makeJoker(0);
+  const j2 = makeJoker(1);
+  game.players[0].hand = [queen, j1, j2];
+
+  const result = game.layoutMeld('p1', [queen.id, j1.id, j2.id]);
+  assert.equal(result.ambiguous, true);
+  assert.equal(result.options.length, 4); // Satz + 3 Folge-Fenster
+  // Hand darf bei Mehrdeutigkeit NICHT verändert worden sein
+  assert.equal(game.players[0].hand.length, 3);
+  assert.equal(game.tableMelds.length, 0);
+});
+
+test('layoutMeld: eindeutige Joker-Kombination wird automatisch aufgelöst (keine Rückfrage)', () => {
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  game.turnPhase = 'meld';
+  game.currentPlayerIndex = 0;
+
+  // König + Ass + Joker: nur EINE gültige Folge möglich (Dame-König-Ass)
+  const king = makeStandardCard('H', 'K', 0);
+  const ace = makeStandardCard('H', 'A', 0);
+  const joker = makeJoker(0);
+  game.players[0].hand = [king, ace, joker];
+
+  const result = game.layoutMeld('p1', [king.id, ace.id, joker.id]);
+  assert.equal(result.ok, true);
+  assert.equal(game.tableMelds.length, 1);
+  assert.equal(game.tableMelds[0].type, 'run');
+});
+
+test('layoutMeld: nach Auswahl einer Option per jokerAssignments wird genau diese verwendet', () => {
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  game.turnPhase = 'meld';
+  game.currentPlayerIndex = 0;
+
+  const queen = makeStandardCard('H', 'Q', 0);
+  const j1 = makeJoker(0);
+  const j2 = makeJoker(1);
+  game.players[0].hand = [queen, j1, j2];
+
+  const first = game.layoutMeld('p1', [queen.id, j1.id, j2.id]);
+  assert.equal(first.ambiguous, true);
+  const setOption = first.options.find((o) => o.type === 'set');
+  assert.ok(setOption);
+
+  const second = game.layoutMeld('p1', [queen.id, j1.id, j2.id], setOption.jokerAssignments);
+  assert.equal(second.ok, true);
+  assert.equal(game.tableMelds[0].type, 'set');
+  assert.equal(game.players[0].hand.length, 0);
+});
+
+test('layOffCard: Joker an Folge mit beiden Enden frei liefert 2 Optionen', () => {
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  game.turnPhase = 'meld';
+  game.currentPlayerIndex = 0;
+
+  game.tableMelds = [
+    {
+      id: 'meld-1',
+      type: 'run',
+      suit: 'H',
+      rank: null,
+      slots: [
+        { real: makeStandardCard('H', '7', 0) },
+        { real: makeStandardCard('H', '8', 0) },
+        { real: makeStandardCard('H', '9', 0) },
+      ],
+    },
+  ];
+  const joker = makeJoker(0);
+  game.players[0].hand = [joker];
+
+  const result = game.layOffCard('p1', 'meld-1', joker.id);
+  assert.equal(result.ambiguous, true);
+  assert.equal(result.options.length, 2);
+  assert.equal(game.players[0].hand.length, 1); // unverändert
+});
+
+test('layOffCard: nach Auswahl einer Seite wird genau diese angelegt', () => {
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  game.turnPhase = 'meld';
+  game.currentPlayerIndex = 0;
+
+  game.tableMelds = [
+    {
+      id: 'meld-1',
+      type: 'run',
+      suit: 'H',
+      rank: null,
+      slots: [
+        { real: makeStandardCard('H', '7', 0) },
+        { real: makeStandardCard('H', '8', 0) },
+        { real: makeStandardCard('H', '9', 0) },
+      ],
+    },
+  ];
+  const joker = makeJoker(0);
+  game.players[0].hand = [joker];
+
+  const first = game.layOffCard('p1', 'meld-1', joker.id);
+  const lowOption = first.options.find((o) => o.side === 'low');
+  const second = game.layOffCard('p1', 'meld-1', joker.id, lowOption.asSuit, lowOption.side);
+  assert.equal(second.ok, true);
+  assert.equal(game.tableMelds[0].slots.length, 4);
+  assert.equal(game.tableMelds[0].slots[0].representsRank, '6');
+});
+
+test('finishRound ignoriert verwaiste totals-Einträge (nicht mehr aktuelle Spieler) bei der Spielende-Prüfung', () => {
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  game.turnPhase = 'meld';
+  game.currentPlayerIndex = 0;
+  game.turnIndexInRound = 1;
+
+  // Simuliert einen verwaisten Eintrag, z. B. von einem früheren Spieler-Slot.
+  game.totals['orphan-id-from-old-session'] = 5000;
+  game.totals.p1 = 0;
+  game.totals.p2 = 0;
+
+  game.players[0].hand = [makeStandardCard('H', '2', 0)]; // 5 Punkte Resthand
+  game.players[0].laidOutCards = [];
+  game.players[1].hand = [];
+  game.players[1].laidOutCards = [];
+
+  game.discard('p1', game.players[0].hand[0].id);
+
+  assert.equal(game.phase, 'roundEnd', 'darf NICHT durch den verwaisten 5000er-Eintrag beendet werden');
+  assert.equal(game.gameOverInfo, undefined);
+});
+
+test('runBotTurn blockiert nie: Notausgang greift auch wenn die Pflichtkarte die einzige Handkarte ist', () => {
+  const { game } = makeGame(2);
+  game.fillWithBots();
+  game.phase = 'playing';
+  game.turnPhase = 'meld';
+  game.currentPlayerIndex = 2; // bot-1
+  game.tableMelds = [];
+
+  const bot1 = game.players.find((p) => p.id === 'bot-1');
+  const pikDame = makeStandardCard('S', 'Q', 0);
+  bot1.hand = [pikDame];
+  game.mustLayOffCardId = pikDame.id; // Pflichtkarte, die nicht ausgelegt werden kann
+
+  game.runBotTurn('bot-1');
+
+  // Der Bot muss seinen Zug irgendwie beenden (Karte abgeworfen, Zug weiter),
+  // statt für immer auf turnPhase='meld' hängen zu bleiben.
+  assert.ok(game.phase === 'playing' || game.phase === 'roundEnd');
+  if (game.phase === 'playing') {
+    assert.notEqual(game.currentPlayer().id, 'bot-1');
+  }
+});
+
 test('Hausregel "über 1000 Punkte" wird beim Rundenende berücksichtigt', () => {
   const { game } = makeGame(2);
   game.setHouseRules({ strictThreshold: true });

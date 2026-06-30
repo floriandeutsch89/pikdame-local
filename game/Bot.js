@@ -1,6 +1,6 @@
 // game/Bot.js
 const { rankIndex, isPikDame, cardValue, RANKS, SUITS } = require('./Card');
-const { validateMeld, tryLayOff } = require('./Rules');
+const { validateMeld, tryLayOff, canFormMeldWithCard, enumerateMeldOptions } = require('./Rules');
 
 /**
  * Die Bot-KI ist heuristisch (kein perfekter Solver), aber regelkonform und
@@ -139,6 +139,26 @@ function findHandMelds(hand) {
     }
   }
 
+  // 4) Einzelne reale Karte + mehrere Joker (z. B. 1 Ass + 2 Joker -> Satz
+  // ODER Folge). Die obigen Durchgänge erkennen das nicht (Durchgang 1
+  // braucht 3+ echte Karten, Durchgang 3 nur exakt 2 echte + 1 Joker).
+  // Nutzt enumerateMeldOptions(), das beide Meld-Typen samt aller
+  // Joker-Fenster prüft.
+  if (jokers.length >= 2) {
+    for (const card of pool.filter((c) => !c.isJoker)) {
+      const availableJokers = jokers.filter((j) => pool.some((p) => p.id === j.id));
+      if (availableJokers.length < 2) continue;
+      const candidate = [card, availableJokers[0], availableJokers[1]];
+      const options = enumerateMeldOptions(candidate);
+      if (options.length > 0) {
+        melds.push(candidate);
+        removeFromPool(candidate);
+        jokers.splice(jokers.indexOf(availableJokers[0]), 1);
+        jokers.splice(jokers.indexOf(availableJokers[1]), 1);
+      }
+    }
+  }
+
   return melds;
 }
 
@@ -181,7 +201,10 @@ function findLayOffs(hand, tableMelds) {
 function decideDraw(hand, discardPile, tableMelds) {
   if (discardPile.length === 0) return { source: 'drawPile' };
 
-  const topCard = discardPile[discardPile.length - 1];
+  // WICHTIG: Index 0 ist die oberste/zuletzt abgelegte Karte (siehe
+  // GameManager.discardPile-Konvention). Bei mehr als einer Karte im Stapel
+  // wäre das letzte Element die ÄLTESTE Karte, nicht die oberste!
+  const topCard = discardPile[0];
 
   // Kann die oberste Ablagekarte sofort angelegt werden?
   for (const meld of tableMelds) {
@@ -191,11 +214,8 @@ function decideDraw(hand, discardPile, tableMelds) {
   }
 
   // Kann die oberste Ablagekarte zusammen mit Handkarten einen neuen Satz/Folge bilden?
-  const simulatedHand = [...hand, topCard];
-  const melds = findHandMelds(simulatedHand);
-  const usesTop = melds.find((m) => m.some((c) => c.id === topCard.id));
-  if (usesTop) {
-    return { source: 'discardPile', immediateUse: { type: 'newMeld', cards: usesTop } };
+  if (canFormMeldWithCard(topCard, hand)) {
+    return { source: 'discardPile', immediateUse: { type: 'newMeld' } };
   }
 
   return { source: 'drawPile' };
