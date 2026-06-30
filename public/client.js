@@ -7,9 +7,12 @@
 
   const STORAGE_KEY = 'pikdame_player_id';
   const NAME_KEY = 'pikdame_player_name';
+  const THEME_KEY = 'pikdame_theme';
+  const SOUND_KEY = 'pikdame_sound_enabled';
 
   let playerId = localStorage.getItem(STORAGE_KEY) || null;
   let myName = localStorage.getItem(NAME_KEY) || '';
+  let soundEnabled = localStorage.getItem(SOUND_KEY) !== 'off';
   let ws = null;
   let lastState = null;
   let selectedCardIds = new Set();
@@ -18,6 +21,74 @@
   let knownProfiles = [];
 
   const el = (id) => document.getElementById(id);
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem(THEME_KEY, theme);
+    document.querySelectorAll('.themeBtn').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.themeChoice === theme);
+    });
+  }
+
+  document.querySelectorAll('.themeBtn').forEach((btn) => {
+    btn.addEventListener('click', () => applyTheme(btn.dataset.themeChoice));
+  });
+  applyTheme(localStorage.getItem(THEME_KEY) || 'table');
+
+  // --- Sound & Haptik (komplett offline: synthetisierte Töne, kein Audio-Download) ---
+
+  let audioCtx = null;
+  function getAudioCtx() {
+    if (!audioCtx) {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (Ctx) audioCtx = new Ctx();
+    }
+    return audioCtx;
+  }
+
+  function playTone(freqs, durationMs, type = 'sine', gainValue = 0.06) {
+    if (!soundEnabled) return;
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') ctx.resume();
+    const now = ctx.currentTime;
+    freqs.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.value = freq;
+      const start = now + i * (durationMs / 1000 / freqs.length);
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(gainValue, start + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + durationMs / 1000 / freqs.length);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + durationMs / 1000 / freqs.length + 0.02);
+    });
+  }
+
+  function vibrate(pattern) {
+    if (!soundEnabled) return;
+    if (navigator.vibrate) navigator.vibrate(pattern);
+  }
+
+  const sound = {
+    draw: () => { playTone([320], 90, 'triangle', 0.05); vibrate(8); },
+    discard: () => { playTone([260, 180], 110, 'triangle', 0.05); vibrate(12); },
+    meld: () => { playTone([440, 554, 660], 220, 'sine', 0.06); vibrate([10, 30, 10]); },
+    error: () => { playTone([140], 160, 'square', 0.05); vibrate(40); },
+    roundEnd: () => { playTone([392, 494, 587, 784], 420, 'sine', 0.07); vibrate([15, 40, 15, 40]); },
+  };
+
+  function setSoundEnabled(enabled) {
+    soundEnabled = enabled;
+    localStorage.setItem(SOUND_KEY, enabled ? 'on' : 'off');
+    const toggleBtn = el('soundToggle');
+    if (toggleBtn) toggleBtn.textContent = enabled ? '🔊' : '🔇';
+    const ruleCheckbox = el('ruleSound');
+    if (ruleCheckbox) ruleCheckbox.checked = enabled;
+  }
+  setSoundEnabled(soundEnabled);
 
   function wsUrl() {
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -117,6 +188,7 @@
       div.classList.add(suitColor(card.suit));
       div.innerHTML = `<div>${card.rank}</div><div class="suitMark">${suitSymbol(card.suit)}</div>`;
       if (card.rank === 'Q' && card.suit === 'S') {
+        div.classList.add('pikdame-card');
         const tag = document.createElement('div');
         tag.className = 'pikdame-tag';
         tag.textContent = '100';
@@ -129,6 +201,8 @@
     }
     return div;
   }
+
+  let soundedForRound = -1;
 
   function render() {
     if (!lastState) return;
@@ -145,6 +219,10 @@
     renderTable();
 
     if (lastState.phase === 'roundEnd' || lastState.phase === 'gameOver') {
+      if (soundedForRound !== lastState.roundNumber) {
+        soundedForRound = lastState.roundNumber;
+        sound.roundEnd();
+      }
       renderResultOverlay();
     } else {
       el('resultOverlay').classList.add('hidden');
@@ -253,6 +331,16 @@
       meldsDiv.appendChild(group);
     });
 
+    // Ausgetauschte Joker (dauerhaft aus dem Spiel, nur sichtbar liegend)
+    const retiredDiv = el('retiredJokersBar');
+    if (lastState.retiredJokers && lastState.retiredJokers.length > 0) {
+      retiredDiv.innerHTML =
+        `<span>Ausgeschiedene Joker:</span>` +
+        lastState.retiredJokers.map(() => `<span class="joker-mini">🃏</span>`).join('');
+    } else {
+      retiredDiv.innerHTML = '';
+    }
+
     // Stapel
     el('drawCount').textContent = lastState.drawPileCount;
     const discardTopDiv = el('discardTopCard');
@@ -283,12 +371,21 @@
         if (a.suit !== b.suit) return a.suit.localeCompare(b.suit);
         return RANK_ORDER.indexOf(a.rank) - RANK_ORDER.indexOf(b.rank);
       });
-      sorted.forEach((card) => {
+      sorted.forEach((card, idx) => {
         const cEl = cardEl(card, {
           selectable: isMyTurn && lastState.turnPhase === 'meld',
           selected: selectedCardIds.has(card.id),
           onClick: () => onHandCardClick(card),
         });
+        // Fächer-Optik: Karten leicht um die Mitte der Hand rotiert + angehoben
+        const mid = (sorted.length - 1) / 2;
+        const offset = idx - mid;
+        const rotate = Math.max(-14, Math.min(14, offset * 3.5));
+        const lift = Math.abs(offset) * 2.5;
+        cEl.style.transform = `rotate(${rotate}deg) translateY(${lift}px)`;
+        if (selectedCardIds.has(card.id)) {
+          cEl.style.transform += ' translateY(-16px)';
+        }
         handDiv.appendChild(cEl);
       });
     }
@@ -327,13 +424,15 @@
   let hintIsError = false;
   function showHint(text, isError) {
     el('hint').textContent = text;
-    el('hint').style.color = isError ? '#ff6b6b' : '#ffe08a';
+    el('hint').classList.toggle('error', !!isError);
     hintIsError = isError;
     if (isError) {
+      sound.error();
       setTimeout(() => {
         if (hintIsError) {
           el('hint').textContent = '';
           hintIsError = false;
+          el('hint').classList.remove('error');
         }
       }, 3000);
     }
@@ -462,16 +561,19 @@
 
   el('drawPile').addEventListener('click', () => {
     if (el('drawPile').classList.contains('disabled')) return;
+    sound.draw();
     send({ type: 'drawFromPile' });
   });
 
   el('discardPile').addEventListener('click', () => {
     if (el('discardPile').classList.contains('disabled')) return;
+    sound.draw();
     send({ type: 'drawFromDiscard' });
   });
 
   el('confirmMeldBtn').addEventListener('click', () => {
     if (selectedCardIds.size < 3) return;
+    sound.meld();
     send({ type: 'layoutMeld', cardIds: [...selectedCardIds] });
     selectedCardIds.clear();
   });
@@ -483,6 +585,14 @@
 
   el('logToggle').addEventListener('click', () => {
     el('logPanel').classList.toggle('hidden');
+  });
+
+  el('soundToggle').addEventListener('click', () => {
+    setSoundEnabled(!soundEnabled);
+  });
+
+  el('ruleSound').addEventListener('change', () => {
+    setSoundEnabled(el('ruleSound').checked);
   });
 
   el('resultContinueBtn').addEventListener('click', () => {
@@ -514,6 +624,7 @@
         });
         const card = sorted[idx];
         if (card && lastState.currentPlayerId === playerId && lastState.turnPhase === 'meld') {
+          sound.discard();
           send({ type: 'discard', cardId: card.id });
           selectedCardIds.clear();
         }

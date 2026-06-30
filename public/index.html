@@ -11,8 +11,15 @@
 
     <!-- LOBBY -->
     <section id="lobby" class="screen">
-      <h1>♠ Pik Dame</h1>
-      <p class="subtitle">Offline-Multiplayer Rommé über Hotspot</p>
+      <div class="lobbyHeader">
+        <h1>♠ Pik Dame</h1>
+        <p class="subtitle">Offline-Multiplayer Rommé über Hotspot</p>
+        <div class="themeSwitch" role="group" aria-label="Erscheinungsbild wählen">
+          <button class="themeBtn" data-theme-choice="table" title="Spieltisch">🟢</button>
+          <button class="themeBtn" data-theme-choice="night" title="Nacht">🌙</button>
+          <button class="themeBtn" data-theme-choice="love" title="Herzdame">💖</button>
+        </div>
+      </div>
       <input id="nameInput" type="text" placeholder="Dein Name" maxlength="16" />
       <button id="joinBtn" class="btn-primary">Tisch beitreten</button>
 
@@ -40,6 +47,7 @@
         <label class="rule-toggle"><input type="checkbox" id="ruleGlueckgriff" checked /> Glücksgriff beim Abheben</label>
         <label class="rule-toggle"><input type="checkbox" id="ruleHandAus" /> Hand aus zählt doppelt</label>
         <label class="rule-toggle"><input type="checkbox" id="ruleStrict1000" /> Über 1000 Punkte zum Gewinnen (genau 1000 reicht nicht)</label>
+        <label class="rule-toggle"><input type="checkbox" id="ruleSound" checked /> Sound &amp; Vibration</label>
       </div>
 
       <button id="startBtn" class="btn-secondary" disabled>Spiel starten (fehlende Plätze = Bots)</button>
@@ -53,12 +61,14 @@
         <div id="roundInfo">Runde –</div>
         <div id="dealerInfo">Geber: –</div>
         <div id="turnInfo">–</div>
+        <button id="soundToggle" class="btn-icon" title="Sound ein/aus">🔊</button>
         <button id="logToggle" class="btn-icon">📜</button>
       </header>
 
       <div id="opponents"></div>
 
       <div id="melds"></div>
+      <div id="retiredJokersBar"></div>
 
       <div id="centerPiles">
         <div class="pile" id="drawPile">

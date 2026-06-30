@@ -135,6 +135,35 @@ docker run -d -p 8080:8080 -v pikdame-data:/app/data --name pikdame pikdame
 - **Rundenstatistiken**: Am Rundenende zeigt das Ergebnis-Overlay zusätzlich eine Tabelle mit ausgelegten/verbliebenen Karten, Pik-Damen und Jokern auf der Hand pro Spieler (`lastRoundStats`).
 - **Spielverlauf-Export**: Nach Spielende lässt sich der komplette Runde-für-Runde-Verlauf der Partie als JSON-Datei herunterladen ("📤 Spielverlauf exportieren"). Alle abgeschlossenen Partien werden außerdem dauerhaft in `data/games.json` gespeichert (`GameHistoryStore.js`), um Statistiken über mehrere Partien hinweg auszuwerten.
 
+### Design-System: drei Stimmungen, ein Tisch
+
+Über den Theme-Switcher in der Lobby (🟢/🌙/💖) lässt sich zwischen drei
+Erscheinungsbildern wechseln (Auswahl wird im Browser gespeichert):
+
+- **Spieltisch** (Standard): tiefes Tannengrün + Messing-Gold, klassische Casino-Filz-Optik.
+- **Nacht**: fast schwarzer Tisch, gedämpftes Gold, höherer Kontrast für dunkle Räume.
+- **Herzdame**: weinrot/rosé, spielerisch-romantisch – die Pik Dame bekommt hier ihren ironischen Auftritt.
+
+Karten selbst bleiben in allen drei Themes cremefarben (wie echtes Kartenpapier) –
+nur die Tischatmosphäre wechselt. Schriften kommen bewusst aus dem
+Betriebssystem-Stack (Georgia/Palatino für Überschriften, System-Sans für den
+Rest), damit nichts aus dem Internet nachgeladen werden muss – der Server läuft
+ja gerade offline über Hotspot ohne Internetzugang.
+
+Die eigene Hand wird als echter Kartenfächer dargestellt (CSS-Rotation pro
+Karte um die Fächermitte), die Pik Dame ist in der Hand zusätzlich farblich
+hervorgehoben, und ausgetauschte Joker werden in einer eigenen Leiste über dem
+Spielfeld sichtbar gemacht.
+
+### Sound & Haptik
+
+Alle Töne werden zur Laufzeit per Web Audio API synthetisiert (kurze Sinus-/
+Dreieckstöne) – es gibt keine Audio-Dateien zum Herunterladen, das Spiel bleibt
+also vollständig offline-fähig. Ergänzend wird, sofern vom Gerät unterstützt,
+kurz vibriert (`navigator.vibrate`). Ein/Aus-Schalter: Checkbox in der Lobby
+("Sound & Vibration") oder 🔊/🔇-Button am Spieltisch; die Einstellung wird im
+Browser gespeichert.
+
 ## Bewusste Annahmen (in den Regeln nicht 100% spezifiziert)
 
 Diese Punkte wurden sinnvoll interpretiert und lassen sich bei Bedarf leicht
