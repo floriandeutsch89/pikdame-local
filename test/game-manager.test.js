@@ -537,6 +537,61 @@ test('runBotTurn blockiert nie: Notausgang greift auch wenn die Pflichtkarte die
   }
 });
 
+test('setMaxSeats: ändert die maximale Tischgröße innerhalb 2-4', () => {
+  const { game } = makeGame(0);
+  const result = game.setMaxSeats(2);
+  assert.equal(result.ok, true);
+  assert.equal(game.maxSeats, 2);
+});
+
+test('setMaxSeats: lehnt Werte außerhalb 2-4 ab', () => {
+  const { game } = makeGame(0);
+  assert.ok(game.setMaxSeats(1).error);
+  assert.ok(game.setMaxSeats(5).error);
+  assert.equal(game.maxSeats, 4); // unverändert (Standard)
+});
+
+test('setMaxSeats: kann nicht kleiner als die Anzahl bereits beigetretener Spieler gewählt werden', () => {
+  const { game } = makeGame(3);
+  const result = game.setMaxSeats(2);
+  assert.ok(result.error);
+  assert.equal(game.maxSeats, 4);
+});
+
+test('setMaxSeats: nur in der Lobby änderbar', () => {
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  const result = game.setMaxSeats(2);
+  assert.ok(result.error);
+});
+
+test('fillWithBots respektiert die gewählte Spieleranzahl', () => {
+  const { game } = makeGame(1);
+  game.setMaxSeats(2);
+  game.fillWithBots();
+  assert.equal(game.players.length, 2);
+  assert.equal(game.players.filter((p) => p.isBot).length, 1);
+});
+
+test('addOrReconnectPlayer lehnt Beitritt ab, sobald die gewählte Spieleranzahl erreicht ist', () => {
+  const { game } = makeGame(0);
+  game.setMaxSeats(2);
+  assert.ok(game.addOrReconnectPlayer('p1', 'A'));
+  assert.ok(game.addOrReconnectPlayer('p2', 'B'));
+  assert.equal(game.addOrReconnectPlayer('p3', 'C'), null); // Tisch voll bei 2
+});
+
+test('Eine Runde mit nur 2 Spielern (Mindestanzahl) funktioniert vollständig', () => {
+  const { game } = makeGame(0);
+  game.setMaxSeats(2);
+  game.addOrReconnectPlayer('p1', 'A');
+  game.fillWithBots();
+  game.startNewRound();
+  assert.equal(game.players.length, 2);
+  assert.equal(game.players[0].hand.length, 15);
+  assert.equal(game.players[1].hand.length, 15);
+});
+
 test('Hausregel "über 1000 Punkte" wird beim Rundenende berücksichtigt', () => {
   const { game } = makeGame(2);
   game.setHouseRules({ strictThreshold: true });

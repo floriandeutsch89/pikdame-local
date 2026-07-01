@@ -23,6 +23,16 @@
       <input id="nameInput" type="text" placeholder="Dein Name" maxlength="16" />
       <button id="joinBtn" class="btn-primary">Tisch beitreten</button>
 
+      <div id="seatCountSection" class="lobby-section hidden">
+        <h3>Spieleranzahl</h3>
+        <p class="lobby-hint">Fehlende Plätze werden mit Bots aufgefüllt.</p>
+        <div class="themeSwitch" role="group" aria-label="Spieleranzahl wählen">
+          <button class="seatCountBtn" data-seat-count="2">2</button>
+          <button class="seatCountBtn" data-seat-count="3">3</button>
+          <button class="seatCountBtn" data-seat-count="4">4</button>
+        </div>
+      </div>
+
       <div id="seatingSection" class="lobby-section hidden">
         <h3>Sitzordnung &amp; Geber</h3>
         <p class="lobby-hint">Reihenfolge mit ▲▼ anpassen, ⭐ markiert den Geber der ersten Runde.</p>
