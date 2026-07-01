@@ -21,6 +21,12 @@
   let lastState = null;
   let selectedCardIds = new Set();
   let lastRoundResultShownAt = 0;
+  // Frisch gezogene/aufgenommene Karten hervorheben: Diff der Hand-IDs
+  // zwischen zwei Renders. Bei Rundenwechsel (Erstverteilung) wird nichts
+  // markiert.
+  let prevHandIds = new Set();
+  let prevHandRound = null;
+  let freshCardIds = new Set();
   let knownTeams = [];
   let knownProfiles = [];
 
@@ -496,6 +502,19 @@
     const handDiv = el('hand');
     handDiv.innerHTML = '';
     if (myPlayer && myPlayer.hand) {
+      // Neue Karten seit dem letzten Render ermitteln (Ziehen/Stapelaufnahme).
+      const currentIds = new Set(myPlayer.hand.map((c) => c.id));
+      const isNewRound = prevHandRound !== lastState.roundNumber;
+      if (isNewRound || prevHandIds.size === 0) {
+        freshCardIds = new Set(); // Erstverteilung nicht markieren
+      } else {
+        const added = myPlayer.hand.filter((c) => !prevHandIds.has(c.id)).map((c) => c.id);
+        if (added.length > 0) freshCardIds = new Set(added);
+        // Markierung erlischt, sobald die Karte die Hand verlässt
+        for (const id of [...freshCardIds]) if (!currentIds.has(id)) freshCardIds.delete(id);
+      }
+      prevHandIds = currentIds;
+      prevHandRound = lastState.roundNumber;
       // sortiere Hand: erst nach Farbe, dann Wert, Joker ans Ende
       const sorted = myPlayer.hand.slice().sort((a, b) => {
         if (a.isJoker && b.isJoker) return 0;
@@ -510,6 +529,8 @@
           selected: selectedCardIds.has(card.id),
           onClick: () => onHandCardClick(card),
         });
+        // Gerade gezogene/aufgenommene Karte sichtbar machen
+        if (freshCardIds.has(card.id)) cEl.classList.add('just-drawn');
         // Fächer-Optik: Karten leicht um die Mitte der Hand rotiert + angehoben.
         // Rotation flacht bei vielen Karten ab, sonst wird der Fächer unleserlich.
         const mid = (sorted.length - 1) / 2;
