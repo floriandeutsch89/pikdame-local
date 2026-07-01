@@ -271,6 +271,43 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .session-banner-actions { display: flex; gap: 8px; width: 100%; }
 .session-banner-actions .btn-secondary { flex: 1; padding: 11px 10px; font-size: 0.8rem; }
 
+/* Impressum / Datenschutz */
+.legal-link {
+  font-size: 0.7rem; font-weight: 500;
+  color: var(--text-muted); text-decoration: underline;
+  margin-top: 6px;
+}
+.legal-page {
+  max-width: 620px; margin: 0 auto;
+  padding: calc(24px + var(--safe-top)) 22px calc(40px + var(--safe-bottom));
+  text-align: left; user-select: text; -webkit-user-select: text;
+  line-height: 1.6;
+  overflow-y: auto;
+}
+.legal-page h1 {
+  font-size: 1.7rem; font-weight: 800; letter-spacing: -0.02em;
+  margin: 30px 0 4px;
+}
+.legal-page h1:first-of-type { margin-top: 18px; }
+.legal-page .legal-law { color: var(--text-muted); font-size: 0.78rem; margin: 0 0 8px; }
+.legal-page h2 {
+  font-size: 0.78rem; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--accent);
+  margin: 22px 0 6px;
+}
+.legal-page p { margin: 0 0 10px; font-size: 0.9rem; }
+.legal-page a { color: var(--accent); }
+.legal-back {
+  display: inline-block; margin: 10px 0;
+  font-size: 0.85rem; font-weight: 600;
+  color: var(--text); text-decoration: none;
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-pill);
+  padding: 9px 16px;
+}
+
 /* Glas-Panels */
 .lobby-section {
   width: 100%; max-width: 340px; text-align: left;
