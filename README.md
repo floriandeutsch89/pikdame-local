@@ -123,6 +123,7 @@ docker run -d -p 8080:8080 -v pikdame-data:/app/data --name pikdame pikdame
 
 ### Lobby-Features
 
+- **Spieleranzahl**: Vor dem Beitreten/Start wählbar (2-4, Standard 4) - bestimmt, wie viele Bot-Plätze beim Start automatisch aufgefüllt werden. Kann nicht kleiner als die Anzahl bereits beigetretener Spieler gewählt werden. `setMaxSeats()`.
 - **Sitzordnung & Geber**: Vor Rundenbeginn frei per ▲▼ umsortierbar, Geber der ersten Runde per ⭐ direkt wählbar (`reorderPlayers`, `setExplicitDealer`).
 - **Teams**: Gespeicherte Gruppen von Spielernamen (`PlayerStore.js`, `data/players.json`) lassen sich erneut anwenden und benennen freie Bot-Plätze entsprechend um.
 - **Reconnect-Robustheit**: Verliert ein Spieler die Verbindung (z. B. wackliger Hotspot), übernimmt automatisch die Bot-Logik für seine Züge, bis er zurück ist (`isBotControlled`).

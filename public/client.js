@@ -35,6 +35,13 @@
   });
   applyTheme(localStorage.getItem(THEME_KEY) || 'table');
 
+  document.querySelectorAll('.seatCountBtn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (btn.disabled) return;
+      send({ type: 'setMaxSeats', count: Number(btn.dataset.seatCount) });
+    });
+  });
+
   // --- Sound & Haptik (komplett offline: synthetisierte Töne, kein Audio-Download) ---
 
   let audioCtx = null;
@@ -278,9 +285,16 @@
     el('startBtn').disabled = humanCount === 0;
 
     const hasJoined = lastState.players.some((p) => p.id === playerId);
+    el('seatCountSection').classList.toggle('hidden', !hasJoined);
     el('seatingSection').classList.toggle('hidden', !hasJoined || lastState.players.length === 0);
     el('teamSection').classList.toggle('hidden', !hasJoined);
     el('houseRulesSection').classList.toggle('hidden', !hasJoined);
+
+    document.querySelectorAll('.seatCountBtn').forEach((btn) => {
+      const count = Number(btn.dataset.seatCount);
+      btn.classList.toggle('active', count === lastState.maxSeats);
+      btn.disabled = count < humanCount; // kleiner als bereits beigetretene Spieler nicht wählbar
+    });
 
     renderSeatingList();
   }

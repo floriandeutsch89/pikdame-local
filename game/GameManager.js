@@ -5,7 +5,9 @@ const { scoreRound, applyRoundScores, checkGameOver, DEFAULT_HOUSE_RULES } = req
 const { cardLabel } = require('./Card');
 const Bot = require('./Bot');
 
-const MAX_SEATS = 4;
+const MIN_SEATS = 2;
+const MAX_SEATS_LIMIT = 4; // Spielmaterial (Kartenanzahl, Joker) ist auf max. 4 Spieler ausgelegt
+const DEFAULT_MAX_SEATS = 4;
 let meldCounter = 0;
 function nextMeldId() {
   meldCounter += 1;
@@ -19,6 +21,7 @@ class GameManager {
     this.players = []; // { id, name, isBot, hand, connected, laidOutCards }
     this.totals = {};
     this.houseRules = { ...DEFAULT_HOUSE_RULES };
+    this.maxSeats = DEFAULT_MAX_SEATS; // wählbar (2-4), siehe setMaxSeats()
     this.reset();
   }
 
@@ -54,7 +57,7 @@ class GameManager {
       if (name) p.name = name;
       return p;
     }
-    if (this.players.filter((pl) => !pl.isBot).length >= MAX_SEATS) {
+    if (this.players.filter((pl) => !pl.isBot).length >= this.maxSeats) {
       return null; // Tisch voll
     }
     p = { id, name: name || `Spieler ${this.players.length + 1}`, isBot: false, hand: [], connected: true, laidOutCards: [] };
@@ -76,12 +79,35 @@ class GameManager {
 
   fillWithBots() {
     let botIndex = 1;
-    while (this.players.length < MAX_SEATS) {
+    while (this.players.length < this.maxSeats) {
       const id = `bot-${botIndex}`;
       this.players.push({ id, name: `Bot ${botIndex}`, isBot: true, hand: [], connected: true, laidOutCards: [] });
       this.totals[id] = this.totals[id] || 0;
       botIndex += 1;
     }
+  }
+
+  /**
+   * Legt fest, wie viele Plätze der Tisch insgesamt hat (2-4). Davon
+   * abhängig ist auch die Anzahl der Bots, die fillWithBots() zum Auffüllen
+   * erzeugt. Nur in der Lobby änderbar, und nicht kleiner als die Anzahl
+   * bereits beigetretener echter Spieler.
+   */
+  setMaxSeats(count) {
+    if (this.phase !== 'lobby') {
+      return { error: 'Die Spieleranzahl kann nur vor Rundenbeginn geändert werden.' };
+    }
+    const n = Math.round(Number(count));
+    if (!Number.isFinite(n) || n < MIN_SEATS || n > MAX_SEATS_LIMIT) {
+      return { error: `Die Spieleranzahl muss zwischen ${MIN_SEATS} und ${MAX_SEATS_LIMIT} liegen.` };
+    }
+    const humanCount = this.players.filter((pl) => !pl.isBot).length;
+    if (n < humanCount) {
+      return { error: `Es sind bereits ${humanCount} Spieler beigetreten - die Anzahl kann nicht kleiner gewählt werden.` };
+    }
+    this.maxSeats = n;
+    this.broadcastState();
+    return { ok: true };
   }
 
   setHouseRules(partial = {}) {
@@ -664,6 +690,7 @@ class GameManager {
       tableMelds: this.tableMelds,
       retiredJokers: this.retiredJokers,
       houseRules: this.houseRules,
+      maxSeats: this.maxSeats,
       players: this.players.map((p) => ({
         id: p.id,
         name: p.name,
@@ -692,5 +719,9 @@ class GameManager {
     }
   }
 }
+
+GameManager.MIN_SEATS = MIN_SEATS;
+GameManager.MAX_SEATS_LIMIT = MAX_SEATS_LIMIT;
+GameManager.DEFAULT_MAX_SEATS = DEFAULT_MAX_SEATS;
 
 module.exports = GameManager;

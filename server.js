@@ -121,6 +121,11 @@ wss.on('connection', (ws) => {
         game.startNewRound();
         break;
       }
+      case 'setMaxSeats': {
+        const r = game.setMaxSeats(msg.count);
+        if (r && r.error) sendError(ws, r.error);
+        break;
+      }
       case 'nextRound': {
         game.startNewRound();
         break;
