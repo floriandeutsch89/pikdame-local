@@ -86,6 +86,7 @@
     <section id="table" class="screen hidden">
       <header id="topBar">
         <div id="roundInfo">Runde –</div>
+        <div id="myScore" title="Deine Gesamtpunkte">–</div>
         <div id="dealerInfo">Geber: –</div>
         <div id="turnInfo">–</div>
         <button id="soundToggle" class="btn-icon" title="Sound ein/aus">🔊</button>
@@ -106,6 +107,7 @@
         <div class="pile" id="discardPile">
           <div class="pile-card" id="discardTopCard"></div>
           <span id="discardCount">0</span>
+          <button id="discardPreviewBtn" class="pilePeekBtn" title="Ablagestapel ansehen" aria-label="Ablagestapel ansehen">👁</button>
           <div class="pileLabel">Ablage</div>
         </div>
       </div>
@@ -120,6 +122,16 @@
 
       <div id="handWrapper">
         <div id="hand"></div>
+      </div>
+    </section>
+
+    <!-- ABLAGESTAPEL-VORSCHAU -->
+    <section id="discardPreviewOverlay" class="overlay hidden">
+      <div class="overlay-card">
+        <h2>Ablagestapel <span id="discardPreviewCount"></span></h2>
+        <p class="lobby-hint">Oberste Karte zuerst – alle Karten wurden offen abgelegt.</p>
+        <div id="discardPreviewCards" class="discardPreviewCards"></div>
+        <button id="discardPreviewCloseBtn" class="btn-secondary">Schließen</button>
       </div>
     </section>
 

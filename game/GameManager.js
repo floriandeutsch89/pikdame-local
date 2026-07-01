@@ -36,7 +36,8 @@ class GameManager {
     this.explicitDealerSet = false;
     this.turnPhase = 'draw'; // draw | meld
     this.turnIndexInRound = 0; // 0 = allererster Zug der laufenden Runde (für "Hand aus")
-    this.mustLayOffCardId = null; // gesetzt, wenn kompletter Ablagestapel gezogen wurde
+    this.mustLayOffCardId = null; // gesetzt, wenn die oberste Ablagekarte aufgenommen wurde
+    this.pendingDiscardRest = false; // Phase 2 der Ablagestapel-Aufnahme steht noch aus
     this.roundNumber = 0;
     this.roundHistory = []; // vollständige Runde-für-Runde-Aufzeichnung der laufenden Partie
     this.gameStartedAt = null;
@@ -228,6 +229,7 @@ class GameManager {
     this.turnPhase = 'draw';
     this.turnIndexInRound = 0;
     this.mustLayOffCardId = null;
+    this.pendingDiscardRest = false;
     this.phase = 'playing';
 
     const dealer = this.players[this.dealerIndex];
@@ -248,6 +250,7 @@ class GameManager {
     this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
     this.turnPhase = 'draw';
     this.mustLayOffCardId = null;
+    this.pendingDiscardRest = false;
     this.turnIndexInRound += 1;
     this.broadcastState();
     this.maybeRunBotTurn();
@@ -300,11 +303,9 @@ class GameManager {
    * nutzbare Pflichtkarte auslegen zu müssen).
    */
   canUseDiscardTop(player, topCard) {
-    // Nur die EIGENEN Auslagen zählen - an fremde darf ohnehin nicht
-    // angelegt werden (jeder Spieler hat seinen eigenen Stapel).
-    for (const meld of this.tableMelds) {
-      if (meld.ownerId === player.id && tryLayOff(meld, topCard)) return true;
-    }
+    // REGEL: Die oberste Ablagekarte darf NUR genommen werden, wenn sie
+    // zusammen mit den HANDKARTEN eine neue Kombination bilden kann.
+    // Die Anlegbarkeit an bestehende Auslagen berechtigt NICHT zur Aufnahme.
     return canFormMeldWithCard(topCard, player.hand);
   }
 
@@ -320,17 +321,40 @@ class GameManager {
     if (!this.canUseDiscardTop(player, topCard)) {
       return {
         error:
-          'Die oberste Ablagekarte passt weder an eine bestehende Auslage noch in eine neue Kombination mit deiner Hand - der Ablagestapel kann so nicht aufgenommen werden.',
+          'Die oberste Ablagekarte passt zu keiner Kombination mit deinen Handkarten - der Ablagestapel kann so nicht aufgenommen werden.',
       };
     }
 
-    const taken = this.discardPile.splice(0, this.discardPile.length); // gesamter Stapel
-    player.hand.push(...taken);
+    // ZWEI-PHASEN-AUFNAHME: Zuerst wandert NUR die oberste Karte auf die
+    // Hand und muss sofort in einer Kombination gelegt werden. Erst DANACH
+    // erhält der Spieler den gesamten Rest des Ablagestapels
+    // (siehe resolvePendingDiscardPickup).
+    this.discardPile.shift();
+    player.hand.push(topCard);
     this.turnPhase = 'meld';
-    this.mustLayOffCardId = topCard.id; // Pflicht: diese Karte muss sofort verwendet werden
-    this.addLog(`${player.name} nimmt den gesamten Ablagestapel (${taken.length} Karten) auf.`);
+    this.mustLayOffCardId = topCard.id;
+    this.pendingDiscardRest = true;
+    this.addLog(
+      `${player.name} nimmt die oberste Ablagekarte (${cardLabel(topCard)}) - sie muss sofort gelegt werden, danach folgt der Rest des Stapels.`
+    );
     this.broadcastState();
     return { ok: true, mustUseCardId: topCard.id };
+  }
+
+  /**
+   * Phase 2 der Ablagestapel-Aufnahme: Nachdem die oberste Karte regelkonform
+   * gelegt wurde, erhält der Spieler alle restlichen Karten des Stapels.
+   * Wird VOR checkRoundEnd aufgerufen, damit die Runde nicht fälschlich
+   * endet, obwohl noch Karten zustehen.
+   */
+  resolvePendingDiscardPickup(player) {
+    if (!this.pendingDiscardRest) return;
+    this.pendingDiscardRest = false;
+    const rest = this.discardPile.splice(0, this.discardPile.length);
+    if (rest.length > 0) {
+      player.hand.push(...rest);
+      this.addLog(`${player.name} nimmt die restlichen ${rest.length} Karten des Ablagestapels auf.`);
+    }
   }
 
   // --- Aktion: Auslegen / Anlegen -------------------------------------------
@@ -338,6 +362,9 @@ class GameManager {
   layoutMeld(playerId, cardIds, jokerAssignments = {}) {
     const err = this.assertTurn(playerId, 'meld');
     if (err) return err;
+    if (this.pendingDiscardRest && !cardIds.includes(this.mustLayOffCardId)) {
+      return { error: 'Die aufgenommene Ablagekarte muss SOFORT gelegt werden, bevor etwas anderes passiert.' };
+    }
     const player = this.currentPlayer();
     const cards = cardIds.map((id) => player.hand.find((c) => c.id === id)).filter(Boolean);
     if (cards.length !== cardIds.length) return { error: 'Karte(n) nicht in der Hand gefunden.' };
@@ -381,6 +408,7 @@ class GameManager {
 
     if (this.mustLayOffCardId && cardIds.includes(this.mustLayOffCardId)) {
       this.mustLayOffCardId = null;
+      this.resolvePendingDiscardPickup(player);
     }
 
     this.addLog(`${player.name} legt eine neue ${result.type === 'set' ? 'Satz' : 'Folge'}-Auslage aus.`);
@@ -392,6 +420,9 @@ class GameManager {
   layOffCard(playerId, meldId, cardId, asSuit, side) {
     const err = this.assertTurn(playerId, 'meld');
     if (err) return err;
+    if (this.pendingDiscardRest && cardId !== this.mustLayOffCardId) {
+      return { error: 'Die aufgenommene Ablagekarte muss SOFORT gelegt werden, bevor etwas anderes passiert.' };
+    }
     const player = this.currentPlayer();
     const meld = this.tableMelds.find((m) => m.id === meldId);
     if (!meld) return { error: 'Auslage nicht gefunden.' };
@@ -429,7 +460,10 @@ class GameManager {
     player.hand = player.hand.filter((c) => c.id !== cardId);
     player.laidOutCards.push(card);
 
-    if (this.mustLayOffCardId === cardId) this.mustLayOffCardId = null;
+    if (this.mustLayOffCardId === cardId) {
+      this.mustLayOffCardId = null;
+      this.resolvePendingDiscardPickup(player);
+    }
 
     this.addLog(`${player.name} legt ${cardLabel(card)} an eine Auslage an.`);
     this.checkRoundEnd(player);
@@ -440,6 +474,9 @@ class GameManager {
   swapJoker(playerId, meldId, handCardId) {
     const err = this.assertTurn(playerId, 'meld');
     if (err) return err;
+    if (this.pendingDiscardRest && handCardId !== this.mustLayOffCardId) {
+      return { error: 'Die aufgenommene Ablagekarte muss SOFORT gelegt werden, bevor etwas anderes passiert.' };
+    }
     const player = this.currentPlayer();
     const meld = this.tableMelds.find((m) => m.id === meldId);
     if (!meld) return { error: 'Auslage nicht gefunden.' };
@@ -470,7 +507,10 @@ class GameManager {
     // Ohne diesen Reset zeigte mustLayOffCardId auf eine Karte, die gar
     // nicht mehr auf der Hand ist, und discard() blockierte den Zug für
     // immer (Deadlock).
-    if (this.mustLayOffCardId === handCardId) this.mustLayOffCardId = null;
+    if (this.mustLayOffCardId === handCardId) {
+      this.mustLayOffCardId = null;
+      this.resolvePendingDiscardPickup(player);
+    }
 
     this.addLog(`${player.name} tauscht ${cardLabel(handCard)} gegen einen Joker in einer Auslage. Der Joker scheidet aus dem Spiel aus.`);
     // Verbraucht der Tausch die letzte Handkarte, endet die Runde sofort -
@@ -698,6 +738,17 @@ class GameManager {
       this.tableMelds.filter((m) => m.ownerId === botId).map((m) => ({ ...m, slots: m.slots.slice() }))
     );
 
+    // SOFORT-Regel: Enthält ein geplantes Meld die Pflichtkarte aus der
+    // Ablagestapel-Aufnahme, muss es als ERSTES gelegt werden - sonst
+    // blockiert der Guard alle anderen Aktionen.
+    if (this.mustLayOffCardId) {
+      meldPlan.newMelds.sort((a, b) => {
+        const aHas = a.some((card) => card.id === this.mustLayOffCardId) ? 0 : 1;
+        const bHas = b.some((card) => card.id === this.mustLayOffCardId) ? 0 : 1;
+        return aHas - bHas;
+      });
+    }
+
     for (const meldCards of meldPlan.newMelds) {
       const ids = meldCards.map((c) => c.id);
       let r = this.layoutMeld(botId, ids);
@@ -737,6 +788,7 @@ class GameManager {
       const fallback = cp.hand.find((c) => c.id !== this.mustLayOffCardId);
       if (fallback) {
         this.mustLayOffCardId = null; // Notausgang, um die Partie nicht zu blockieren
+        this.pendingDiscardRest = false; // Rest bleibt einfach als Ablagestapel liegen
         this.discard(botId, fallback.id);
       } else if (cp.hand.length > 0) {
         // Die Pflichtkarte ist die einzige verbliebene Handkarte und konnte
@@ -775,6 +827,11 @@ class GameManager {
         hand: p.id === forPlayerId ? p.hand : undefined,
       })),
       totals: this.totals,
+      // Alle offen abgelegten Karten (fuer die Ablage-Vorschau im Client);
+      // eine verdeckt abgelegte Schlusskarte bleibt verdeckt.
+      discardCards: this.discardPile.map((card) =>
+        card.faceDown ? { faceDown: true } : { id: card.id, rank: card.rank, suit: card.suit, isJoker: !!card.isJoker }
+      ),
       lastRoundResult: this.lastRoundResult || null,
       lastRoundWasHandAus: this.lastRoundWasHandAus || false,
       lastRoundForfeitedBy: this.lastRoundForfeitedBy || null,

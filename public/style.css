@@ -583,6 +583,33 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   letter-spacing: 0.07em; text-transform: uppercase;
   color: var(--text-muted);
 }
+/* 👁-Button: eigenes Tap-Ziel, kollidiert nicht mit dem Ziehen */
+.pilePeekBtn {
+  position: absolute; bottom: 22px; left: -13px;
+  width: 27px; height: 27px;
+  border-radius: 50%;
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  color: var(--text);
+  font-size: 0.78rem; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 3;
+  box-shadow: var(--shadow-1);
+}
+.pilePeekBtn:active { transform: scale(0.9); }
+/* Vorschau-Overlay: Karten mit Luft, oberste hervorgehoben */
+.discardPreviewCards {
+  display: flex; flex-wrap: wrap;
+  gap: 7px;
+  justify-content: center;
+  max-height: 46vh; overflow-y: auto;
+  padding: 6px 2px;
+}
+.discardPreviewCards .card-compact { margin-left: 0; }
+.discardPreviewCards .previewTop {
+  box-shadow: 0 0 0 2px var(--accent), var(--shadow-1);
+}
 #discardPile, #drawPile { cursor: pointer; transition: transform 0.18s var(--ease); }
 #discardPile:active, #drawPile:active { transform: scale(0.93); }
 #discardPile.disabled, #drawPile.disabled { opacity: 0.4; cursor: not-allowed; }
@@ -717,6 +744,22 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   color: var(--text-muted);
 }
 .meldOwnerGroup.own .meldOwnerHeader { color: var(--accent); }
+/* Kombinationen nebeneinander; Umbruch erst bei Platzmangel */
+.meldRow {
+  display: flex; flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: flex-start;
+}
+.meldRow .meldGroup { flex: 0 0 auto; }
+#myScore {
+  font-size: 0.78rem; font-weight: 800;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: var(--r-pill);
+  padding: 4px 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 
 /* Kompakte Auslagen-Karten: nur der Ecken-Index (bei starker Überlappung
    bleibt genau dieser sichtbar) */

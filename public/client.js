@@ -387,6 +387,8 @@
 
   function renderTable() {
     el('roundInfo').textContent = `Runde ${lastState.roundNumber}`;
+    const myTotal = (lastState.totals && lastState.totals[playerId]) || 0;
+    el('myScore').textContent = `${myTotal} Pkt`;
     const dealer = lastState.players.find((p) => p.id === lastState.dealerId);
     el('dealerInfo').textContent = `Geber: ${dealer ? dealer.name : '–'}`;
     const cp = lastState.players.find((p) => p.id === lastState.currentPlayerId);
@@ -404,7 +406,8 @@
         const d = document.createElement('div');
         d.className = 'opponent' + (p.id === lastState.currentPlayerId ? ' active' : '');
         const reconnecting = !p.isBot && p.controlledByBot;
-        d.innerHTML = `<div class="opName">${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}${reconnecting ? ' <span class="reconnectTag">⏳ getrennt – Bot übernimmt</span>' : ''}</div><div class="opCount">${p.handCount} Karten</div>`;
+        const opTotal = (lastState.totals && lastState.totals[p.id]) || 0;
+        d.innerHTML = `<div class="opName">${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}${reconnecting ? ' <span class="reconnectTag">⏳ getrennt – Bot übernimmt</span>' : ''}</div><div class="opCount">${p.handCount} Karten · ${opTotal} Pkt</div>`;
         opponentsDiv.appendChild(d);
       });
 
@@ -433,6 +436,10 @@
         : `Auslagen von ${escapeHtml(owner.name)}${owner.isBot ? ' 🤖' : ''}`;
       section.appendChild(header);
 
+      // Kombinationen NEBENEINANDER anzeigen - umbrechen erst, wenn der
+      // Platz nicht mehr reicht (flex-wrap im meldRow-Container).
+      const row = document.createElement('div');
+      row.className = 'meldRow';
       ownerMelds.forEach((meld) => {
         const group = document.createElement('div');
         group.className = 'meldGroup';
@@ -448,8 +455,9 @@
           });
           group.appendChild(cEl);
         });
-        section.appendChild(group);
+        row.appendChild(group);
       });
+      section.appendChild(row);
       meldsDiv.appendChild(section);
     });
 
@@ -873,6 +881,50 @@
   el('exportGameBtn').addEventListener('click', () => {
     send({ type: 'exportLastGame' });
   });
+
+  // --- Ablagestapel-Vorschau -----------------------------------------------
+  // Alle Karten des Ablagestapels wurden offen abgelegt - die Vorschau ist
+  // eine Gedächtnishilfe (oberste zuerst). Der 👁-Button ist ein eigenes
+  // Tap-Ziel, damit er nicht mit dem Ziehen kollidiert.
+  el('discardPreviewBtn').addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    renderDiscardPreview();
+    el('discardPreviewOverlay').classList.remove('hidden');
+  });
+  el('discardPreviewCloseBtn').addEventListener('click', () => {
+    el('discardPreviewOverlay').classList.add('hidden');
+  });
+  el('discardPreviewOverlay').addEventListener('click', (ev) => {
+    if (ev.target === el('discardPreviewOverlay')) {
+      el('discardPreviewOverlay').classList.add('hidden');
+    }
+  });
+
+  function renderDiscardPreview() {
+    const cardsDiv = el('discardPreviewCards');
+    cardsDiv.innerHTML = '';
+    const cards = (lastState && lastState.discardCards) || [];
+    el('discardPreviewCount').textContent = `(${cards.length} ${cards.length === 1 ? 'Karte' : 'Karten'})`;
+    if (cards.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'lobby-hint';
+      empty.textContent = 'Der Ablagestapel ist leer.';
+      cardsDiv.appendChild(empty);
+      return;
+    }
+    cards.forEach((card, idx) => {
+      if (card.faceDown) {
+        const d = document.createElement('div');
+        d.className = 'card card-compact';
+        d.innerHTML = '<div class="corner">?</div>';
+        cardsDiv.appendChild(d);
+        return;
+      }
+      const cEl = cardEl(card, { compact: true });
+      if (idx === 0) cEl.classList.add('previewTop');
+      cardsDiv.appendChild(cEl);
+    });
+  }
 
   // Bei Orientierungswechsel/Fenstergröße die Hand-Überlappung neu berechnen.
   let resizeTimer = null;
