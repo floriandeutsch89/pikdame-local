@@ -25,6 +25,7 @@
   // zwischen zwei Renders. Bei Rundenwechsel (Erstverteilung) wird nichts
   // markiert.
   let prevHandIds = new Set();
+  let prevTurnPlayerId = null;
   let prevHandRound = null;
   let freshCardIds = new Set();
   let knownTeams = [];
@@ -103,6 +104,7 @@
   }
 
   const sound = {
+    turn: () => { playTone([523, 659], 180, 'sine', 0.06); vibrate([30, 60, 30]); },
     draw: () => { playTone([320], 90, 'triangle', 0.05); vibrate(8); },
     discard: () => { playTone([260, 180], 110, 'triangle', 0.05); vibrate(12); },
     meld: () => { playTone([440, 554, 660], 220, 'sine', 0.06); vibrate([10, 30, 10]); },
@@ -180,6 +182,22 @@
     }
     if (msg.type === 'state') {
       lastState = msg.state;
+      // "Du bist dran"-Signal: Ton + Vibration + kurzer Puls der Statuszeile,
+      // sobald der Zug auf mich wechselt (nicht beim allerersten Render).
+      if (
+        lastState.phase === 'playing' &&
+        lastState.currentPlayerId === playerId &&
+        prevTurnPlayerId !== null &&
+        prevTurnPlayerId !== playerId
+      ) {
+        sound.turn();
+        const bar = el('topBar');
+        bar.classList.remove('yourTurnPulse');
+        void bar.offsetWidth; // Animation neu starten
+        bar.classList.add('yourTurnPulse');
+      }
+      prevTurnPlayerId = lastState.currentPlayerId;
+      updateWakeLock();
       render();
       return;
     }
@@ -829,12 +847,42 @@
     send({ type: 'drawFromDiscard' });
   });
 
-  el('discardBtn').addEventListener('click', () => {
-    if (selectedCardIds.size !== 1) return;
-    const cardId = [...selectedCardIds][0];
+  function performDiscard(cardId) {
     sound.discard();
     send({ type: 'discard', cardId });
     selectedCardIds.clear();
+    render();
+  }
+
+  el('discardBtn').addEventListener('click', () => {
+    if (selectedCardIds.size !== 1) return;
+    const cardId = [...selectedCardIds][0];
+    // Abwurf-Schutz: Pik Dame (100 Punkte!) und Joker nicht aus Versehen
+    // abwerfen - der Gegner würde sich freuen.
+    const myPlayer = lastState && lastState.players.find((p) => p.id === playerId);
+    const card = myPlayer && myPlayer.hand ? myPlayer.hand.find((cd) => cd.id === cardId) : null;
+    const isPikDame = card && card.rank === 'Q' && card.suit === 'S';
+    if (card && (isPikDame || card.isJoker)) {
+      el('confirmDiscardTitle').textContent = isPikDame ? 'Pik Dame abwerfen?' : 'Joker abwerfen?';
+      el('confirmDiscardText').textContent = isPikDame
+        ? 'Die Pik Dame ist 100 Punkte wert - und der nächste Spieler könnte sie aufnehmen!'
+        : 'Der Joker ist die flexibelste Karte im Spiel - und der nächste Spieler könnte ihn aufnehmen!';
+      pendingConfirmDiscardId = cardId;
+      el('confirmDiscardOverlay').classList.remove('hidden');
+      return;
+    }
+    performDiscard(cardId);
+  });
+
+  let pendingConfirmDiscardId = null;
+  el('confirmDiscardYesBtn').addEventListener('click', () => {
+    el('confirmDiscardOverlay').classList.add('hidden');
+    if (pendingConfirmDiscardId) performDiscard(pendingConfirmDiscardId);
+    pendingConfirmDiscardId = null;
+  });
+  el('confirmDiscardNoBtn').addEventListener('click', () => {
+    el('confirmDiscardOverlay').classList.add('hidden');
+    pendingConfirmDiscardId = null;
   });
 
   el('forfeitBtn').addEventListener('click', () => {
@@ -925,6 +973,44 @@
       cardsDiv.appendChild(cEl);
     });
   }
+
+  // --- Wake Lock: Display bleibt während des Spielens an -------------------
+  // (iOS ab 16.4; wo nicht unterstützt, passiert einfach nichts.)
+  let wakeLock = null;
+  async function updateWakeLock() {
+    const wantLock = lastState && lastState.phase === 'playing' && document.visibilityState === 'visible';
+    try {
+      if (wantLock && !wakeLock && 'wakeLock' in navigator) {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => { wakeLock = null; });
+      } else if (!wantLock && wakeLock) {
+        await wakeLock.release();
+        wakeLock = null;
+      }
+    } catch (e) {
+      wakeLock = null; // z.B. Energiesparmodus - kein Drama
+    }
+  }
+  document.addEventListener('visibilitychange', updateWakeLock);
+
+  // --- QR-Code zum Beitreten ------------------------------------------------
+  el('showQrBtn').addEventListener('click', () => {
+    if (!sessionCode || typeof qrcode !== 'function') return;
+    const url = new URL(window.location.href);
+    url.searchParams.set('session', sessionCode);
+    const link = url.toString();
+    const qr = qrcode(0, 'M'); // Version automatisch, Fehlerkorrektur M
+    qr.addData(link);
+    qr.make();
+    // Als skalierbares SVG rendern (scharf auf jedem Display)
+    el('qrCodeBox').innerHTML = qr.createSvgTag({ cellSize: 5, margin: 3, scalable: true });
+    el('qrLinkText').textContent = link;
+    el('qrOverlay').classList.remove('hidden');
+  });
+  el('qrCloseBtn').addEventListener('click', () => el('qrOverlay').classList.add('hidden'));
+  el('qrOverlay').addEventListener('click', (ev) => {
+    if (ev.target === el('qrOverlay')) el('qrOverlay').classList.add('hidden');
+  });
 
   // Bei Orientierungswechsel/Fenstergröße die Hand-Überlappung neu berechnen.
   let resizeTimer = null;

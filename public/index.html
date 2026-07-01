@@ -4,7 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Pik Dame</title>
+  <meta name="theme-color" content="#101318" />
+  <link rel="manifest" href="/manifest.json" />
+  <!-- iOS: als Vollbild-App vom Home-Bildschirm startbar -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Pik Dame" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="stylesheet" href="style.css" />
+  <script src="/vendor-qrcode.js"></script>
 </head>
 <body>
   <div id="app">
@@ -35,8 +43,9 @@
         <div class="session-code-label">Spiel-Code – zum Mitspielen weitergeben</div>
         <div id="sessionCodeText" class="session-code"></div>
         <div class="session-banner-actions">
-          <button id="shareCodeBtn" class="btn-secondary">Code teilen</button>
-          <button id="updateNameBtn" class="btn-secondary">Namen aktualisieren</button>
+          <button id="shareCodeBtn" class="btn-secondary">Teilen</button>
+          <button id="showQrBtn" class="btn-secondary">QR-Code</button>
+          <button id="updateNameBtn" class="btn-secondary">Name</button>
         </div>
       </div>
 
@@ -122,6 +131,29 @@
 
       <div id="handWrapper">
         <div id="hand"></div>
+      </div>
+    </section>
+
+    <!-- QR-CODE ZUM BEITRETEN -->
+    <section id="qrOverlay" class="overlay hidden">
+      <div class="overlay-card">
+        <h2>Zum Mitspielen scannen</h2>
+        <p class="lobby-hint">Mit der Kamera scannen – der Spiel-Code wird automatisch übernommen.</p>
+        <div id="qrCodeBox" class="qrCodeBox"></div>
+        <div id="qrLinkText" class="qrLinkText"></div>
+        <button id="qrCloseBtn" class="btn-secondary">Schließen</button>
+      </div>
+    </section>
+
+    <!-- ABWURF-SCHUTZ FÜR WERTVOLLE KARTEN -->
+    <section id="confirmDiscardOverlay" class="overlay hidden">
+      <div class="overlay-card">
+        <h2 id="confirmDiscardTitle">Wirklich abwerfen?</h2>
+        <p class="lobby-hint" id="confirmDiscardText"></p>
+        <div class="session-banner-actions">
+          <button id="confirmDiscardYesBtn" class="btn-danger">Ja, abwerfen</button>
+          <button id="confirmDiscardNoBtn" class="btn-secondary">Abbrechen</button>
+        </div>
       </div>
     </section>
 
