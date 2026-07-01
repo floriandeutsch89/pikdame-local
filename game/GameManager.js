@@ -38,6 +38,7 @@ class GameManager {
     this.turnIndexInRound = 0; // 0 = allererster Zug der laufenden Runde (für "Hand aus")
     this.mustLayOffCardId = null; // gesetzt, wenn die oberste Ablagekarte aufgenommen wurde
     this.pendingDiscardRest = false; // Phase 2 der Ablagestapel-Aufnahme steht noch aus
+    this._botTimer = null; // Handle des pendenden Bot-Zug-Timers (fuer destroy)
     this.roundNumber = 0;
     this.roundHistory = []; // vollständige Runde-für-Runde-Aufzeichnung der laufenden Partie
     this.gameStartedAt = null;
@@ -707,7 +708,17 @@ class GameManager {
     if (this.phase !== 'playing') return;
     const cp = this.currentPlayer();
     if (!cp || !this.isBotControlled(cp)) return;
-    setTimeout(() => this.runBotTurn(cp.id), 700 + Math.random() * 600);
+    // Immer nur EIN pendender Timer pro Spiel - und beim Loeschen der
+    // Session wird er via destroy() abgebrochen, damit keine Referenzen
+    // auf verwaiste Spiele haengen bleiben (RAM-Hygiene bei vielen Sessions).
+    clearTimeout(this._botTimer);
+    this._botTimer = setTimeout(() => this.runBotTurn(cp.id), 700 + Math.random() * 600);
+  }
+
+  /** Bricht pendende Timer ab - wird beim Entfernen der Session aufgerufen. */
+  destroy() {
+    clearTimeout(this._botTimer);
+    this._botTimer = null;
   }
 
   /**

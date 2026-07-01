@@ -393,6 +393,12 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     clearInterval(rateTimer);
     if (playerId && session) {
+      // Toten Socket sofort aus der Session-Map entfernen (nicht erst beim
+      // Session-Cleanup) - sonst sammeln sich bei vielen kurzen Besuchen
+      // WebSocket-Objekte an. Ein Reconnect setzt den Eintrag neu.
+      if (session.sockets.get(playerId) === ws) {
+        session.sockets.delete(playerId);
+      }
       session.game.markDisconnected(playerId);
       session.game.broadcastState();
     }
