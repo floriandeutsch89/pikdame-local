@@ -101,6 +101,26 @@ test('chooseDiscard: isolierte Karten werden vor Paaren/Nachbarn abgeworfen (Reg
   assert.equal(discard.id, lonely.id, 'die isolierte Karte muss vor dem Paar abgeworfen werden');
 });
 
+test('findHandMelds: erkennt 2-Deck-Saetze (2x gleiche Farbe + 1 andere) - Regression', () => {
+  // Seit der 2-Deck-Regel gueltig: 2x Kreuz-Ass + 1x Herz-Ass.
+  // Die alte uniqueSuits-Logik uebersah das (nahm nur 1 Karte pro Farbe).
+  const ca1 = C('A', 0);
+  const ca2 = C('A', 1);
+  const ha = H('A', 0);
+  const melds = findHandMelds([ca1, ca2, ha]);
+  assert.equal(melds.length, 1, '2-Deck-Satz muss erkannt werden');
+  assert.equal(melds[0].length, 3);
+});
+
+test('findHandMelds: erkennt 2x gleiche Karte + Joker als Satz (2-Deck-Regel, Pass 3)', () => {
+  const ha1 = H('9', 0);
+  const ha2 = H('9', 1);
+  const joker = makeJoker(0);
+  const melds = findHandMelds([ha1, ha2, joker]);
+  assert.equal(melds.length, 1);
+  assert.ok(melds[0].some((c) => c.isJoker));
+});
+
 test('chooseDiscard: leere Hand liefert null', () => {
   assert.equal(chooseDiscard([]), null);
 });

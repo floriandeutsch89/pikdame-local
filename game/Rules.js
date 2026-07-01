@@ -228,7 +228,7 @@ function enumerateMeldOptions(cards) {
       options.push({
         id: 'only',
         type: v.type,
-        label: v.type === 'set' ? `Satz: 3x ${rankLabel(v.rank)}` : `Folge: ${v.slots.length} Karten (${SUIT_LABELS[v.suit] || v.suit})`,
+        label: v.type === 'set' ? `Satz: ${v.slots.length}x ${rankLabel(v.rank)}` : `Folge: ${v.slots.length} Karten (${SUIT_LABELS[v.suit] || v.suit})`,
         jokerAssignments: {},
       });
     }
@@ -262,7 +262,7 @@ function enumerateMeldOptions(cards) {
           options.push({
             id: `set-${rank}`,
             type: 'set',
-            label: `Satz: 3x ${rankLabel(rank)}`,
+            label: `Satz: ${cards.length}x ${rankLabel(rank)}`,
             jokerAssignments: assignment,
           });
         }
