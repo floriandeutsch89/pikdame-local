@@ -73,10 +73,33 @@ function findHandMelds(hand) {
     }
   }
 
-  // 2) Folgen: mind. 3 aufeinanderfolgende Werte derselben Farbe
+  // 2) Folgen: mind. 3 im Ring aufeinanderfolgende Werte derselben Farbe.
+  // Der Werte-Ring (2..K,A,2..) macht auch K-A-2 gültig - dafür wird die
+  // Kartenliste an der größten zyklischen Lücke rotiert und dann linear
+  // mit modularer Nachbarschaft ((prev+1) % 13) nach Ketten gesucht.
+  const RING = RANKS.length;
   let bySuit = groupBySuit(pool);
   for (const suit of Object.keys(bySuit)) {
-    const cards = bySuit[suit].slice().sort((a, b) => rankIndex(a.rank) - rankIndex(b.rank));
+    let cards = bySuit[suit].slice().sort((a, b) => rankIndex(a.rank) - rankIndex(b.rank));
+
+    // Rotationspunkt: größte zyklische Lücke zwischen den distinkten Werten
+    const distinctIdxs = [...new Set(cards.map((c) => rankIndex(c.rank)))].sort((a, b) => a - b);
+    if (distinctIdxs.length >= 2 && distinctIdxs.length < RING) {
+      let maxGap = -1;
+      let rotateToIdx = distinctIdxs[0];
+      for (let i = 0; i < distinctIdxs.length; i++) {
+        const cur = distinctIdxs[i];
+        const next = distinctIdxs[(i + 1) % distinctIdxs.length];
+        const gap = i + 1 < distinctIdxs.length ? next - cur : next + RING - cur;
+        if (gap > maxGap) {
+          maxGap = gap;
+          rotateToIdx = (cur + gap) % RING;
+        }
+      }
+      const cut = cards.findIndex((c) => rankIndex(c.rank) === rotateToIdx);
+      if (cut > 0) cards = [...cards.slice(cut), ...cards.slice(0, cut)];
+    }
+
     let run = [];
     const flushRun = () => {
       if (run.length >= 3) {
@@ -94,7 +117,7 @@ function findHandMelds(hand) {
       } else {
         const prevIdx = rankIndex(run[run.length - 1].rank);
         const curIdx = rankIndex(cards[i].rank);
-        if (curIdx === prevIdx + 1) {
+        if (curIdx === (prevIdx + 1) % RING) {
           run.push(cards[i]);
         } else if (curIdx === prevIdx) {
           // Duplikat (zweites Deck) - überspringen für diese Folge

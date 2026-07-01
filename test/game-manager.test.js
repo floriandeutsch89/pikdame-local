@@ -40,6 +40,7 @@ test('Ausgetauschter Joker landet in retiredJokers, NICHT zurück auf der Hand',
   const joker = makeJoker(0);
   const meld = {
     id: 'meld-1',
+    ownerId: 'p1',
     type: 'set',
     rank: 'D',
     suit: null,
@@ -357,6 +358,7 @@ test('drawFromDiscard ist erlaubt, wenn die oberste Karte an eine bestehende Aus
   game.tableMelds = [
     {
       id: 'meld-1',
+      ownerId: 'p1',
       type: 'run',
       suit: 'H',
       rank: null,
@@ -399,16 +401,36 @@ test('layoutMeld: eindeutige Joker-Kombination wird automatisch aufgelöst (kein
   game.turnPhase = 'meld';
   game.currentPlayerIndex = 0;
 
-  // König + Ass + Joker: nur EINE gültige Folge möglich (Dame-König-Ass)
+  // 5 + 7 + Joker: nur EINE gültige Folge möglich (5-6-7, Joker füllt die
+  // interne Lücke). Hinweis: K+A+Joker wäre im Werte-Ring MEHRDEUTIG
+  // (Q-K-A oder K-A-2) und würde eine Rückfrage auslösen.
+  const five = makeStandardCard('H', '5', 0);
+  const seven = makeStandardCard('H', '7', 0);
+  const joker = makeJoker(0);
+  game.players[0].hand = [five, seven, joker];
+
+  const result = game.layoutMeld('p1', [five.id, seven.id, joker.id]);
+  assert.equal(result.ok, true);
+  assert.equal(game.tableMelds.length, 1);
+  assert.equal(game.tableMelds[0].type, 'run');
+});
+
+test('layoutMeld: König+Ass+Joker ist im Werte-Ring MEHRDEUTIG (Q-K-A oder K-A-2) und fragt nach', () => {
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  game.turnPhase = 'meld';
+  game.currentPlayerIndex = 0;
+
   const king = makeStandardCard('H', 'K', 0);
   const ace = makeStandardCard('H', 'A', 0);
   const joker = makeJoker(0);
   game.players[0].hand = [king, ace, joker];
 
   const result = game.layoutMeld('p1', [king.id, ace.id, joker.id]);
-  assert.equal(result.ok, true);
-  assert.equal(game.tableMelds.length, 1);
-  assert.equal(game.tableMelds[0].type, 'run');
+  assert.equal(result.ambiguous, true);
+  assert.equal(result.options.length, 2);
+  const labels = result.options.map((o) => o.label).join(' | ');
+  assert.ok(labels.includes('Dame') && labels.includes('2'), labels);
 });
 
 test('layoutMeld: nach Auswahl einer Option per jokerAssignments wird genau diese verwendet', () => {
@@ -442,6 +464,7 @@ test('layOffCard: Joker an Folge mit beiden Enden frei liefert 2 Optionen', () =
   game.tableMelds = [
     {
       id: 'meld-1',
+      ownerId: 'p1',
       type: 'run',
       suit: 'H',
       rank: null,
@@ -470,6 +493,7 @@ test('layOffCard: nach Auswahl einer Seite wird genau diese angelegt', () => {
   game.tableMelds = [
     {
       id: 'meld-1',
+      ownerId: 'p1',
       type: 'run',
       suit: 'H',
       rank: null,
@@ -609,7 +633,7 @@ test('layoutMeld markiert jeden Slot mit der playerId des auslegenden Spielers',
   assert.ok(meld.slots.every((s) => s.playerId === 'p1'));
 });
 
-test('layOffCard markiert nur den NEUEN Slot mit der aktuellen playerId, alte Slots bleiben unverändert', () => {
+test('layOffCard: Anlegen an FREMDE Auslagen ist verboten (eigene Stapel!)', () => {
   const { game } = makeGame(2);
   game.phase = 'playing';
   game.turnPhase = 'meld';
@@ -622,18 +646,38 @@ test('layOffCard markiert nur den NEUEN Slot mit der aktuellen playerId, alte Sl
   game.players[0].hand = [h7, d7, c7, filler];
   game.layoutMeld('p1', [h7.id, d7.id, c7.id]);
 
-  // Jetzt legt p2 eine vierte Farbe an dieselbe Auslage an.
+  // p2 versucht, eine vierte Farbe an p1s Auslage anzulegen -> verboten.
   game.currentPlayerIndex = 1;
   const s7 = makeStandardCard('S', '7', 0);
   game.players[1].hand = [s7];
   const meldId = game.tableMelds[0].id;
-  game.layOffCard('p2', meldId, s7.id);
+  const r = game.layOffCard('p2', meldId, s7.id);
 
-  const meld = game.tableMelds[0];
-  const p1Slots = meld.slots.filter((s) => s.real && ['H', 'D', 'C'].includes(s.real.suit));
-  const p2Slot = meld.slots.find((s) => s.real && s.real.suit === 'S');
-  assert.ok(p1Slots.every((s) => s.playerId === 'p1'));
-  assert.equal(p2Slot.playerId, 'p2');
+  assert.ok(r.error, 'fremdes Anlegen muss abgelehnt werden');
+  assert.ok(r.error.includes('EIGENEN'), r.error);
+  assert.equal(game.tableMelds[0].slots.length, 3, 'die fremde Auslage bleibt unverändert');
+  assert.equal(game.players[1].hand.length, 1, 'die Karte bleibt auf der Hand');
+});
+
+test('layOffCard: Anlegen an die EIGENE Auslage markiert den neuen Slot mit der playerId', () => {
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  game.turnPhase = 'meld';
+  game.currentPlayerIndex = 0;
+
+  const h7 = makeStandardCard('H', '7', 0);
+  const d7 = makeStandardCard('D', '7', 0);
+  const c7 = makeStandardCard('C', '7', 0);
+  const s7 = makeStandardCard('S', '7', 0);
+  const filler = makeStandardCard('H', '2', 0);
+  game.players[0].hand = [h7, d7, c7, s7, filler];
+  game.layoutMeld('p1', [h7.id, d7.id, c7.id]);
+
+  const meldId = game.tableMelds[0].id;
+  const r = game.layOffCard('p1', meldId, s7.id);
+  assert.equal(r.ok, true);
+  const newSlot = game.tableMelds[0].slots.find((s) => s.real && s.real.suit === 'S');
+  assert.equal(newSlot.playerId, 'p1');
 });
 
 test('swapJoker markiert nur den getauschten Slot mit der playerId des Tauschenden', () => {
@@ -645,6 +689,7 @@ test('swapJoker markiert nur den getauschten Slot mit der playerId des Tauschend
   const joker = makeJoker(0);
   const meld = {
     id: 'meld-1',
+    ownerId: 'p1',
     type: 'set',
     rank: 'D',
     suit: null,
@@ -677,6 +722,7 @@ test('swapJoker: Pflichtkarte per Joker-Tausch verwendet loest die Auslege-Pflic
   game.tableMelds = [
     {
       id: 'meld-1',
+      ownerId: 'p1',
       type: 'set',
       rank: 'Q',
       suit: null,
@@ -714,6 +760,7 @@ test('swapJoker: letzte Handkarte per Tausch verbraucht beendet die Runde (Deadl
   game.tableMelds = [
     {
       id: 'meld-1',
+      ownerId: 'p1',
       type: 'set',
       rank: 'Q',
       suit: null,
