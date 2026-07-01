@@ -101,13 +101,31 @@ docker run -d -p 8080:8080 -v pikdame-data:/app/data --name pikdame pikdame
    — es ist **keine Code-Änderung** nötig, unabhängig von der tatsächlichen
    Hotspot-IP.
 
+### ⚠️ CodeApp muss im Vordergrund bleiben
+
+iOS pausiert den kompletten Node.js-Prozess (und damit den Server), sobald
+CodeApp in den Hintergrund wechselt oder das Display sich sperrt - das ist
+eine grundsätzliche iOS-Einschränkung für Apps, die einen Server im
+Hintergrund am Laufen halten wollen, kein Bug dieses Projekts (Apple selbst
+bestätigt: so ein Design ist "fundamentally incompatible with iOS's
+background execution model"). Während der Partie:
+
+- CodeApp **nicht** wechseln oder minimieren
+- Automatische Display-Sperre deaktivieren: Einstellungen → Anzeige &
+  Helligkeit → Automatische Sperre → "Nie"
+- Alternativ **Geführter Zugriff** (Einstellungen → Bedienungshilfen →
+  Geführter Zugriff) nutzen - pinnt den Bildschirm fest auf CodeApp, sodass
+  auch ein versehentlicher App-Wechsel nicht mehr möglich ist
+
 ### Falls der Server unerwartet abstürzt
 
 Alle Nachrichtenverarbeitung ist gegen unerwartete Fehler abgesichert (ein
 einzelner fehlerhafter Client kann den Server nicht mehr für alle
 crashen). Sollte trotzdem etwas Unerwartetes passieren, wird es zusätzlich
-in `crash.log` im Projektordner protokolliert (nützlich, falls die
-CodeApp-Konsole selbst nicht durchsuchbar/sichtbar ist).
+protokolliert in **`crash.log`** direkt im Projektordner (neben `server.js`),
+nützlich falls die CodeApp-Konsole selbst nicht durchsuchbar/sichtbar ist.
+Der Server zeigt den vollständigen Pfad beim Start auch direkt in der
+Konsole an.
 
 ## Spielregeln – Umsetzung im Code
 
