@@ -367,6 +367,7 @@
       });
 
     // Auslagen
+    el('meldsLegend').classList.toggle('hidden', lastState.tableMelds.length === 0);
     const meldsDiv = el('melds');
     meldsDiv.innerHTML = '';
     lastState.tableMelds.forEach((meld) => {
@@ -379,6 +380,7 @@
           onClick: () => onMeldCardClick(meld),
           compact: true,
         });
+        if (slot.playerId === playerId) cEl.classList.add('mine');
         group.appendChild(cEl);
       });
       meldsDiv.appendChild(group);

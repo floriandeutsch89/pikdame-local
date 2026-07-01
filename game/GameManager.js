@@ -326,7 +326,12 @@ class GameManager {
 
     if (!result.valid) return { error: result.reason };
 
-    const meld = { id: nextMeldId(), type: result.type, suit: result.suit || null, rank: result.rank || null, slots: result.slots };
+    // Jeder Slot bekommt vermerkt, welcher Spieler diese konkrete Karte
+    // dort platziert hat - so kann das Frontend "meine" Karten in Auslagen
+    // optisch hervorheben (auch wenn andere Spieler später weitere Karten
+    // an dieselbe Auslage anlegen).
+    const taggedSlots = result.slots.map((slot) => ({ ...slot, playerId: player.id }));
+    const meld = { id: nextMeldId(), type: result.type, suit: result.suit || null, rank: result.rank || null, slots: taggedSlots };
     this.tableMelds.push(meld);
 
     player.hand = player.hand.filter((c) => !cardIds.includes(c.id));
@@ -372,7 +377,10 @@ class GameManager {
     }
     if (!result) return { error: 'Karte passt nicht an diese Auslage.' };
 
-    meld.slots = result.slots;
+    // Nur der NEU hinzugekommene Slot bekommt den aktuellen Spieler markiert;
+    // bereits vorhandene Slots (result.slots enthält sie unverändert) behalten
+    // ihre ursprüngliche playerId.
+    meld.slots = result.slots.map((slot) => (slot.playerId ? slot : { ...slot, playerId: player.id }));
     player.hand = player.hand.filter((c) => c.id !== cardId);
     player.laidOutCards.push(card);
 
@@ -396,7 +404,12 @@ class GameManager {
     const result = tryJokerSwap(meld, handCard);
     if (!result) return { error: 'Diese Karte passt nicht auf einen Joker in dieser Auslage.' };
 
-    meld.slots = result.meld.slots;
+    // Der Slot, in dem jetzt die echte Karte liegt, gehört jetzt diesem
+    // Spieler (er hat den Joker dort ausgetauscht) - alle anderen Slots
+    // behalten ihre bisherige playerId.
+    meld.slots = result.meld.slots.map((slot) =>
+      slot.real && slot.real.id === handCard.id ? { ...slot, playerId: player.id } : slot
+    );
     player.hand = player.hand.filter((c) => c.id !== handCardId);
     // Der ausgetauschte Joker darf NICHT wieder aufgenommen werden - er bleibt
     // sichtbar in einem eigenen Ablagebereich liegen und ist für den Rest der

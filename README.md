@@ -186,7 +186,13 @@ ja gerade offline über Hotspot ohne Internetzugang.
 Die eigene Hand wird als echter Kartenfächer dargestellt (CSS-Rotation pro
 Karte um die Fächermitte), die Pik Dame ist in der Hand zusätzlich farblich
 hervorgehoben, und ausgetauschte Joker werden in einer eigenen Leiste über dem
-Spielfeld sichtbar gemacht.
+Spielfeld sichtbar gemacht. In den Auslagen auf dem Tisch bekommt jede Karte
+außerdem einen grünen Rand, wenn SIE (der aktuell zuschauende Spieler) diese
+konkrete Karte dort platziert hat - auch wenn andere Spieler später weitere
+Karten an dieselbe Auslage angelegt haben. So bleibt bei vielen Karten auf dem
+Tisch erkennbar, was man selbst beigetragen hat. Serverseitig wird das pro
+Kartenslot getrackt (`playerId` an jedem Meld-Slot in `GameManager.js`), nicht
+pro Auslage - da eine Auslage Karten mehrerer Spieler enthalten kann.
 
 ### Sound & Haptik
 

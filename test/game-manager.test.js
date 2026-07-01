@@ -592,6 +592,81 @@ test('Eine Runde mit nur 2 Spielern (Mindestanzahl) funktioniert vollständig', 
   assert.equal(game.players[1].hand.length, 15);
 });
 
+test('layoutMeld markiert jeden Slot mit der playerId des auslegenden Spielers', () => {
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  game.turnPhase = 'meld';
+  game.currentPlayerIndex = 0;
+
+  const h7 = makeStandardCard('H', '7', 0);
+  const d7 = makeStandardCard('D', '7', 0);
+  const c7 = makeStandardCard('C', '7', 0);
+  game.players[0].hand = [h7, d7, c7];
+
+  game.layoutMeld('p1', [h7.id, d7.id, c7.id]);
+
+  const meld = game.tableMelds[0];
+  assert.ok(meld.slots.every((s) => s.playerId === 'p1'));
+});
+
+test('layOffCard markiert nur den NEUEN Slot mit der aktuellen playerId, alte Slots bleiben unverändert', () => {
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  game.turnPhase = 'meld';
+  game.currentPlayerIndex = 0;
+
+  const h7 = makeStandardCard('H', '7', 0);
+  const d7 = makeStandardCard('D', '7', 0);
+  const c7 = makeStandardCard('C', '7', 0);
+  const filler = makeStandardCard('H', '2', 0); // verhindert leere Hand -> vorzeitiges Rundenende
+  game.players[0].hand = [h7, d7, c7, filler];
+  game.layoutMeld('p1', [h7.id, d7.id, c7.id]);
+
+  // Jetzt legt p2 eine vierte Farbe an dieselbe Auslage an.
+  game.currentPlayerIndex = 1;
+  const s7 = makeStandardCard('S', '7', 0);
+  game.players[1].hand = [s7];
+  const meldId = game.tableMelds[0].id;
+  game.layOffCard('p2', meldId, s7.id);
+
+  const meld = game.tableMelds[0];
+  const p1Slots = meld.slots.filter((s) => s.real && ['H', 'D', 'C'].includes(s.real.suit));
+  const p2Slot = meld.slots.find((s) => s.real && s.real.suit === 'S');
+  assert.ok(p1Slots.every((s) => s.playerId === 'p1'));
+  assert.equal(p2Slot.playerId, 'p2');
+});
+
+test('swapJoker markiert nur den getauschten Slot mit der playerId des Tauschenden', () => {
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  game.turnPhase = 'meld';
+  game.currentPlayerIndex = 0;
+
+  const joker = makeJoker(0);
+  const meld = {
+    id: 'meld-1',
+    type: 'set',
+    rank: 'D',
+    suit: null,
+    slots: [
+      { real: makeStandardCard('H', 'D', 0), playerId: 'p2' },
+      { real: makeStandardCard('C', 'D', 0), playerId: 'p2' },
+      { joker, representsRank: 'D', representsSuit: 'S', playerId: 'p2' },
+    ],
+  };
+  game.tableMelds = [meld];
+
+  const pikDame = makeStandardCard('S', 'D', 1);
+  game.players[0].hand = [pikDame];
+  game.swapJoker('p1', 'meld-1', pikDame.id);
+
+  const updatedMeld = game.tableMelds[0];
+  const swappedSlot = updatedMeld.slots.find((s) => s.real && s.real.suit === 'S');
+  const untouchedSlots = updatedMeld.slots.filter((s) => s.real && s.real.suit !== 'S');
+  assert.equal(swappedSlot.playerId, 'p1');
+  assert.ok(untouchedSlots.every((s) => s.playerId === 'p2'));
+});
+
 test('Hausregel "über 1000 Punkte" wird beim Rundenende berücksichtigt', () => {
   const { game } = makeGame(2);
   game.setHouseRules({ strictThreshold: true });
