@@ -229,35 +229,51 @@ const URGENT_DISCARD_HAND_SIZE = 8;
 
 /**
  * Wählt die Karte, die am Zugende abgeworfen wird.
- * Prio 1 (ab URGENT_DISCARD_HAND_SIZE): Pik-Dame loswerden, wenn sie nicht
- * ausgelegt werden konnte. Joker werden weiterhin grundsätzlich priorisiert.
- * Danach: höchstwertige "nutzlose" Karte (keine Teilfolge/-satz-Beziehung zu
- * anderen Handkarten), um das eigene Punkterisiko zu minimieren.
+ * Strategie (in dieser Reihenfolge):
+ * 1. Pik Dame ab kleiner Hand (Rundenende naht) dringend loswerden.
+ * 2. Joker werden NICHT abgeworfen (außer es gibt keine andere Karte):
+ *    ein abgeworfener Joker ist ein doppeltes Geschenk an den nächsten
+ *    Spieler - er darf den Stapel damit fast immer aufnehmen UND bekommt
+ *    die flexibelste Karte des Spiels.
+ * 3. Keine Karte abwerfen, die an eine bestehende Tisch-Auslage anlegbar
+ *    ist - der nächste Spieler dürfte den Ablagestapel damit sofort
+ *    aufnehmen (sofern es sichere Alternativen gibt).
+ * 4. Unter den verbleibenden Kandidaten: isolierte Karten (kein Paar,
+ *    kein Farb-Nachbar in der Hand) zuerst, davon die punkthöchste.
  */
-function chooseDiscard(hand) {
+function chooseDiscard(hand, tableMelds = []) {
   if (hand.length === 0) return null;
 
   const pikDame = hand.find((c) => isPikDame(c));
   if (pikDame && hand.length <= URGENT_DISCARD_HAND_SIZE) return pikDame;
 
-  const joker = hand.find((c) => c.isJoker);
-  if (joker) return joker;
+  // Joker nur als allerletzte Option abwerfen.
+  let candidates = hand.filter((c) => !c.isJoker);
+  if (candidates.length === 0) return hand[0];
+
+  // Karten meiden, die der nächste Spieler direkt an eine Auslage anlegen
+  // könnte (= Erlaubnis, den gesamten Ablagestapel aufzunehmen).
+  const safeCandidates = candidates.filter(
+    (card) => !tableMelds.some((meld) => tryLayOff(meld, card))
+  );
+  if (safeCandidates.length > 0) candidates = safeCandidates;
 
   // Karten, die zu keiner potenziellen Gruppe (gleicher Rang oder
   // benachbarter Wert gleicher Farbe) gehören, sind "isoliert" -> bevorzugt abwerfen.
   const isIsolated = (card, others) => {
-    const sameRank = others.some((c) => !c.isJoker && c.rank === card.rank);
+    const sameRank = others.some((c) => !c.isJoker && c.id !== card.id && c.rank === card.rank);
     const sameSuitNeighbor = others.some(
       (c) =>
         !c.isJoker &&
+        c.id !== card.id &&
         c.suit === card.suit &&
         Math.abs(rankIndex(c.rank) - rankIndex(card.rank)) <= 2
     );
     return !sameRank && !sameSuitNeighbor;
   };
 
-  const candidates = hand.filter((c) => !c.isJoker);
-  const isolated = candidates.filter((c) => isIsolated(c, candidates));
+  const allReal = hand.filter((c) => !c.isJoker);
+  const isolated = candidates.filter((c) => isIsolated(c, allReal));
   const pool = isolated.length > 0 ? isolated : candidates;
 
   // höchster Punktwert zuerst abwerfen (reduziert Verlustrisiko am Rundenende)

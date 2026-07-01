@@ -663,7 +663,7 @@ class GameManager {
     if (this.phase !== 'playing') return;
 
     // Prio 1 für Bots: Pik-Dame/Joker niemals unnötig auf der Hand behalten.
-    let discardCard = Bot.chooseDiscard(cp.hand);
+    let discardCard = Bot.chooseDiscard(cp.hand, this.tableMelds);
     if (this.mustLayOffCardId) {
       const forced = cp.hand.find((c) => c.id === this.mustLayOffCardId);
       if (forced) discardCard = null; // Pflichtkarte zuerst lösen, kann nicht abwerfen

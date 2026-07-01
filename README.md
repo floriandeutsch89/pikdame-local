@@ -145,7 +145,7 @@ Konsole an.
 | Gewinner-/Mitspieler-Abrechnung (Pik-Dame zählt einfach, keine Sonderstrafe) | `ScoreBoard.js` | `scoreRound()` |
 | Spielende bei Erreichen/Überschreiten von 1000 Punkten | `ScoreBoard.js` | `checkGameOver()` |
 | Geber rotiert pro Runde, dauerhaft sichtbar | `GameManager.js` | `dealerIndex` / `dealerId` im State |
-| Bots: regelkonform, Kombis erkennen, Pik-Dame/Joker loswerden (Pik Dame erst ab kleiner Hand dringend) | `Bot.js` | `decideDraw`, `findHandMelds`, `chooseDiscard`, `URGENT_DISCARD_HAND_SIZE` |
+| Bots: regelkonform, Kombis erkennen, tischbewusst abwerfen (keine an Auslagen anlegbaren "Geschenke", Joker behalten statt verschenken, Pik Dame erst ab kleiner Hand dringend) | `Bot.js` | `decideDraw`, `findHandMelds`, `chooseDiscard`, `URGENT_DISCARD_HAND_SIZE` |
 
 ### Optionale Hausregeln (bei Spielstart wählbar)
 
