@@ -6,6 +6,7 @@
 
 const http = require('http');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const WebSocket = require('ws');
 const GameManager = require('./game/GameManager');
@@ -16,6 +17,54 @@ const PORT = process.env.PORT || 8080;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const playerStore = createPlayerStore();
 const gameHistoryStore = createGameHistoryStore();
+
+// --- Absturz-Diagnose ------------------------------------------------------
+// Schreibt Fehler zusätzlich in eine Log-Datei, falls die Konsole in der
+// verwendeten Umgebung (z. B. iOS CodeApp) nicht sichtbar/durchsuchbar ist.
+const CRASH_LOG_FILE = path.join(__dirname, 'crash.log');
+function logCrash(context, err, extra = {}) {
+  const entry = `[${new Date().toISOString()}] (${context}) ${err && err.stack ? err.stack : err} ${
+    Object.keys(extra).length ? JSON.stringify(extra) : ''
+  }\n`;
+  console.error(entry);
+  try {
+    fs.appendFileSync(CRASH_LOG_FILE, entry);
+  } catch (writeErr) {
+    // Wenn nicht mal das Log geschrieben werden kann, zumindest nicht crashen.
+    console.error('Konnte crash.log nicht schreiben:', writeErr.message);
+  }
+}
+
+// Letztes Sicherheitsnetz: verhindert, dass eine unerwartete Exception oder
+// eine abgelehnte Promise (z. B. in einem setTimeout-Callback der Bot-Logik)
+// den GESAMTEN Serverprozess lautlos beendet. Der Server bleibt am Leben,
+// der Fehler landet in crash.log.
+process.on('uncaughtException', (err) => {
+  logCrash('uncaughtException', err);
+});
+process.on('unhandledRejection', (reason) => {
+  logCrash('unhandledRejection', reason instanceof Error ? reason : new Error(String(reason)));
+});
+
+/**
+ * Ermittelt alle lokalen IPv4-Adressen des Geräts (ohne 127.0.0.1). Der
+ * iPhone-Personal-Hotspot vergibt dem Host praktisch immer 172.20.10.1 aus
+ * Apples reserviertem Hotspot-Subnetz - diese Adresse wird speziell markiert,
+ * alle anderen gefundenen Adressen werden als mögliche Alternativen gelistet
+ * (z. B. bei WLAN statt Hotspot).
+ */
+function getLocalIPv4Addresses() {
+  const interfaces = os.networkInterfaces();
+  const addresses = [];
+  for (const [name, entries] of Object.entries(interfaces)) {
+    for (const entry of entries || []) {
+      if (entry.family === 'IPv4' && !entry.internal) {
+        addresses.push({ name, address: entry.address, isAppleHotspot: entry.address.startsWith('172.20.10.') });
+      }
+    }
+  }
+  return addresses;
+}
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -100,6 +149,21 @@ wss.on('connection', (ws) => {
       return sendError(ws, 'Ungültige Nachricht.');
     }
 
+    try {
+      handleMessage(msg);
+    } catch (err) {
+      // KRITISCH: Ohne dieses try/catch würde JEDE unerwartete Exception in
+      // der Spiellogik (z. B. durch eine kaputte/unerwartete Nachricht) den
+      // gesamten Node-Prozess abstürzen lassen (Node killt den Prozess bei
+      // unbehandelten Exceptions in Event-Handlern) - für alle Mitspieler
+      // gleichzeitig, ohne sichtbare Fehlermeldung. Stattdessen: loggen,
+      // dem betroffenen Client eine Fehlermeldung schicken, Server läuft weiter.
+      logCrash('message-handler', err, { messageType: msg && msg.type });
+      sendError(ws, 'Interner Fehler bei der Verarbeitung - bitte erneut versuchen.');
+    }
+  });
+
+  function handleMessage(msg) {
     switch (msg.type) {
       case 'join': {
         playerId = msg.playerId || `p-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -231,7 +295,7 @@ wss.on('connection', (ws) => {
       default:
         sendError(ws, `Unbekannter Nachrichtentyp: ${msg.type}`);
     }
-  });
+  }
 
   ws.on('close', () => {
     if (playerId) {
@@ -244,5 +308,14 @@ wss.on('connection', (ws) => {
 server.listen(PORT, () => {
   console.log(`Pik Dame Server läuft auf Port ${PORT}`);
   console.log(`Lokal:    http://localhost:${PORT}`);
-  console.log(`Hotspot:  http://<deine-iPhone-Hotspot-IP>:${PORT}`);
+
+  const addresses = getLocalIPv4Addresses();
+  if (addresses.length === 0) {
+    console.log('Keine Netzwerk-IP gefunden (nur localhost erreichbar - Hotspot/WLAN aktiv?).');
+  } else {
+    for (const { name, address, isAppleHotspot } of addresses) {
+      const label = isAppleHotspot ? ' <- iPhone-Hotspot (üblicher Adressbereich)' : '';
+      console.log(`Netzwerk: http://${address}:${PORT}  (${name})${label}`);
+    }
+  }
 });

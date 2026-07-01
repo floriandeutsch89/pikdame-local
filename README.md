@@ -84,15 +84,30 @@ docker run -d -p 8080:8080 -v pikdame-data:/app/data --name pikdame pikdame
    npm install
    node server.js
    ```
-3. iPhone-Persönlichen-Hotspot aktivieren.
+   Der Server zeigt beim Start automatisch alle erreichbaren Netzwerk-IPs an
+   (inkl. Markierung, falls eine davon aus Apples Hotspot-Adressbereich
+   `172.20.10.x` stammt) - keine manuelle IP-Suche mehr nötig.
+3. iPhone-Persönlichen-Hotspot aktivieren. **Wichtig:** Der Personal Hotspot
+   auf iOS setzt eine aktive Mobilfunk-/SIM-Verbindung voraus - ohne
+   Mobilfunkempfang (z. B. im Flugzeug, Ausland ohne Datentarif) lässt er
+   sich oft gar nicht erst aktivieren. Das ist eine iOS-Einschränkung, kein
+   Problem dieses Projekts. Alternativen: ein Mitspieler mit Android-Hotspot
+   (funktioniert ohne Datentarif), ein kleiner Reise-Router/Access-Point,
+   oder alle Geräte im selben (ggf. offline betriebenen) WLAN.
 4. Andere Geräte (Smartphones der Mitspieler) verbinden sich mit dem Hotspot.
-5. Auf jedem Gerät im Browser die **Hotspot-IP des iPhones** öffnen, z.B.
-   `http://172.20.10.1:8080` (IP unter iPhone-Einstellungen → Persönlicher
-   Hotspot, oder via `ifconfig`/`ipconfig getifaddr en0` im CodeApp-Terminal
-   ermitteln).
+5. Auf jedem Gerät im Browser die vom Server angezeigte **Netzwerk-IP**
+   öffnen, z. B. `http://172.20.10.1:8080`.
 6. `client.js` ermittelt den Host automatisch über `window.location.hostname`
    — es ist **keine Code-Änderung** nötig, unabhängig von der tatsächlichen
    Hotspot-IP.
+
+### Falls der Server unerwartet abstürzt
+
+Alle Nachrichtenverarbeitung ist gegen unerwartete Fehler abgesichert (ein
+einzelner fehlerhafter Client kann den Server nicht mehr für alle
+crashen). Sollte trotzdem etwas Unerwartetes passieren, wird es zusätzlich
+in `crash.log` im Projektordner protokolliert (nützlich, falls die
+CodeApp-Konsole selbst nicht durchsuchbar/sichtbar ist).
 
 ## Spielregeln – Umsetzung im Code
 
