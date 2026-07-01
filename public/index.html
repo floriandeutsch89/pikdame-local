@@ -12,12 +12,12 @@
     <!-- LOBBY -->
     <section id="lobby" class="screen">
       <div class="lobbyHeader">
-        <h1>♠ Pik Dame</h1>
+        <h1><span class="spade">♠</span>Pik Dame</h1>
         <p class="subtitle">Offline-Multiplayer Rommé über Hotspot</p>
         <div class="themeSwitch" role="group" aria-label="Erscheinungsbild wählen">
-          <button class="themeBtn" data-theme-choice="table" title="Spieltisch">🟢</button>
-          <button class="themeBtn" data-theme-choice="night" title="Nacht">🌙</button>
-          <button class="themeBtn" data-theme-choice="love" title="Herzdame">💖</button>
+          <button class="themeBtn" data-theme-choice="table" title="Spieltisch" aria-label="Spieltisch"></button>
+          <button class="themeBtn" data-theme-choice="night" title="Nacht" aria-label="Nacht"></button>
+          <button class="themeBtn" data-theme-choice="love" title="Herzdame" aria-label="Herzdame"></button>
         </div>
       </div>
       <input id="nameInput" type="text" placeholder="Dein Name" maxlength="16" />
@@ -76,7 +76,7 @@
 
       <div id="opponents"></div>
 
-      <div id="meldsLegend" class="melds-legend hidden">🟢 grüner Rand = deine eigenen Karten</div>
+      <div id="meldsLegend" class="melds-legend hidden"><span class="legend-dot"></span>deine eigenen Karten</div>
       <div id="melds"></div>
       <div id="retiredJokersBar"></div>
 

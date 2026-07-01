@@ -170,18 +170,20 @@ Konsole an.
 
 ### Design-System: drei Stimmungen, ein Tisch
 
-Über den Theme-Switcher in der Lobby (🟢/🌙/💖) lässt sich zwischen drei
-Erscheinungsbildern wechseln (Auswahl wird im Browser gespeichert):
+Über den Theme-Switcher in der Lobby (drei Farb-Swatches) lässt sich zwischen
+drei Erscheinungsbildern wechseln (Auswahl wird im Browser gespeichert):
 
-- **Spieltisch** (Standard): tiefes Tannengrün + Messing-Gold, klassische Casino-Filz-Optik.
-- **Nacht**: fast schwarzer Tisch, gedämpftes Gold, höherer Kontrast für dunkle Räume.
-- **Herzdame**: weinrot/rosé, spielerisch-romantisch – die Pik Dame bekommt hier ihren ironischen Auftritt.
+- **Spieltisch** (Standard): satter Smaragd-Verlauf mit warmem Amber-Akzent.
+- **Nacht**: tiefes Schwarzblau mit Indigo-Akzent, für dunkle Räume.
+- **Herzdame**: Beerenrot mit leuchtendem Pink – die Pik Dame bekommt hier ihren ironischen Auftritt.
 
-Karten selbst bleiben in allen drei Themes cremefarben (wie echtes Kartenpapier) –
-nur die Tischatmosphäre wechselt. Schriften kommen bewusst aus dem
-Betriebssystem-Stack (Georgia/Palatino für Überschriften, System-Sans für den
-Rest), damit nichts aus dem Internet nachgeladen werden muss – der Server läuft
-ja gerade offline über Hotspot ohne Internetzugang.
+Die Optik ist bewusst modern gehalten: nativer System-Font-Stack (SF Pro auf
+iOS – kein Font-Download nötig, bleibt offline-fähig), Glas-Panels mit
+`backdrop-filter: blur` (läuft auf iOS Safari nativ), große Eckenradien,
+weiche mehrstufige Schatten und Licht-Verläufe statt flacher Flächen. Karten
+bleiben in allen drei Themes helles "Kartenpapier" – nur die Tischatmosphäre
+wechselt. Signature-Elemente: der beleuchtete "Tisch-Spot" hinter den
+Stapeln und das abgerundete Karten-Tray für die eigene Hand.
 
 Die eigene Hand wird als echter Kartenfächer dargestellt (CSS-Rotation pro
 Karte um die Fächermitte), die Pik Dame ist in der Hand zusätzlich farblich
