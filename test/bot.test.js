@@ -6,6 +6,7 @@ const { makeStandardCard, makeJoker, isPikDame } = require('../game/Card');
 const H = (rank, idx = 0) => makeStandardCard('H', rank, idx);
 const S = (rank, idx = 0) => makeStandardCard('S', rank, idx);
 const D = (rank, idx = 0) => makeStandardCard('D', rank, idx);
+const C = (rank, idx = 0) => makeStandardCard('C', rank, idx);
 
 function bigIsolatedHand(extra, targetSize) {
   // Erzeugt eine Hand aus lauter isolierten, weit auseinanderliegenden Karten
@@ -43,11 +44,61 @@ test('chooseDiscard: bei KLEINER Hand (Rundenende nah) wird die Pik Dame prioris
   assert.ok(isPikDame(discard), 'Pik Dame sollte ab der Dringlichkeits-Schwelle priorisiert abgeworfen werden');
 });
 
-test('chooseDiscard: Joker wird weiterhin unabhängig von der Handgröße priorisiert', () => {
+test('chooseDiscard: Joker wird NICHT abgeworfen, solange andere Karten da sind (kein Geschenk an Gegner)', () => {
   const joker = makeJoker(0);
   const hand = bigIsolatedHand([joker], 14);
   const discard = chooseDiscard(hand);
-  assert.ok(discard.isJoker, 'Joker sollte weiterhin bevorzugt abgeworfen werden');
+  assert.ok(!discard.isJoker, 'Joker sollte behalten werden - Abwurf wäre ein Geschenk an den nächsten Spieler');
+});
+
+test('chooseDiscard: Joker wird abgeworfen, wenn er die einzige Handkarte ist', () => {
+  const joker = makeJoker(0);
+  const discard = chooseDiscard([joker]);
+  assert.ok(discard.isJoker);
+});
+
+test('chooseDiscard: meidet Karten, die an eine Tisch-Auslage anlegbar wären', () => {
+  // Herz-10 wäre an die Folge 7-8-9 anlegbar -> der nächste Spieler dürfte
+  // damit den ganzen Ablagestapel aufnehmen. Karo-2 ist harmlos.
+  const dangerous = H('10');
+  const safe = D('2');
+  const hand = [dangerous, safe];
+  const tableMelds = [
+    {
+      id: 'm1',
+      type: 'run',
+      suit: 'H',
+      rank: null,
+      slots: [{ real: H('7') }, { real: H('8') }, { real: H('9') }],
+    },
+  ];
+  const discard = chooseDiscard(hand, tableMelds);
+  assert.equal(discard.id, safe.id, 'sollte die harmlose Karte abwerfen, nicht das Gegner-Geschenk');
+});
+
+test('chooseDiscard: wirft anlegbare Karte ab, wenn es KEINE sichere Alternative gibt', () => {
+  const dangerous = H('10');
+  const tableMelds = [
+    {
+      id: 'm1',
+      type: 'run',
+      suit: 'H',
+      rank: null,
+      slots: [{ real: H('7') }, { real: H('8') }, { real: H('9') }],
+    },
+  ];
+  const discard = chooseDiscard([dangerous], tableMelds);
+  assert.equal(discard.id, dangerous.id);
+});
+
+test('chooseDiscard: isolierte Karten werden vor Paaren/Nachbarn abgeworfen (Regression: Selbst-Vergleich)', () => {
+  // Regression: die alte isIsolated-Prüfung verglich jede Karte auch mit
+  // sich selbst, wodurch NIE eine Karte als isoliert galt.
+  const pair1 = H('9', 0);
+  const pair2 = D('9', 0); // Paar mit pair1 (gleicher Rang)
+  const lonely = C('4', 0); // komplett isoliert, aber niedriger Wert
+  const discard = chooseDiscard([pair1, pair2, lonely]);
+  assert.equal(discard.id, lonely.id, 'die isolierte Karte muss vor dem Paar abgeworfen werden');
 });
 
 test('chooseDiscard: leere Hand liefert null', () => {

@@ -225,12 +225,19 @@
     div.className = compact ? 'card card-compact' : 'card';
     if (card.isJoker) {
       div.classList.add('joker');
+      // Ecken-Index oben links, damit der Joker auch bei starker
+      // Überlappung im Fächer erkennbar bleibt.
       div.innerHTML = compact
-        ? `<div class="suitMark">🃏</div>`
-        : `<div class="suitMark">🃏</div><div>JOKER</div>`;
+        ? `<div class="corner">🃏</div>`
+        : `<div class="corner">🃏</div><div class="suitMark">🃏</div>`;
     } else {
       div.classList.add(suitColor(card.suit));
-      div.innerHTML = `<div>${card.rank}</div><div class="suitMark">${suitSymbol(card.suit)}</div>`;
+      // Wie bei echten Spielkarten: Rang + Farbe klein in der linken oberen
+      // Ecke - die bleibt bei überlappenden Karten immer sichtbar. Das große
+      // Symbol in der Mitte dient der schnellen Orientierung.
+      div.innerHTML = compact
+        ? `<div class="corner"><span>${card.rank}</span><span>${suitSymbol(card.suit)}</span></div>`
+        : `<div class="corner"><span>${card.rank}</span><span>${suitSymbol(card.suit)}</span></div><div class="suitMark">${suitSymbol(card.suit)}</div>`;
       if (card.rank === 'Q' && card.suit === 'S') {
         div.classList.add('pikdame-card');
         if (!compact) {
@@ -398,6 +405,10 @@
 
     // Stapel
     el('drawCount').textContent = lastState.drawPileCount;
+    const drawCardDiv = el('drawPile').querySelector('.pile-card');
+    drawCardDiv.classList.toggle('stacked-2', lastState.drawPileCount > 15);
+    drawCardDiv.classList.toggle('stacked-1', lastState.drawPileCount > 1 && lastState.drawPileCount <= 15);
+
     const discardTopDiv = el('discardTopCard');
     discardTopDiv.innerHTML = '';
     discardTopDiv.className = 'pile-card';
@@ -411,11 +422,20 @@
       discardTopDiv.classList.add('empty');
       discardTopDiv.textContent = 'leer';
     }
-    el('discardCount').textContent = lastState.discardPileCount > 0 ? `${lastState.discardPileCount} Karten` : '';
+    // Stapel-Tiefe visuell: mehr Karten = mehr sichtbare Ebenen unter der obersten
+    discardTopDiv.classList.toggle('stacked-2', lastState.discardPileCount > 6);
+    discardTopDiv.classList.toggle(
+      'stacked-1',
+      lastState.discardPileCount > 1 && lastState.discardPileCount <= 6
+    );
+    el('discardCount').textContent = lastState.discardPileCount > 0 ? lastState.discardPileCount : '';
 
     const canDraw = isMyTurn && lastState.turnPhase === 'draw';
     el('drawPile').classList.toggle('disabled', !canDraw || lastState.drawPileCount === 0);
     el('discardPile').classList.toggle('disabled', !canDraw || !lastState.discardTop);
+    // Sanfter Glow signalisiert: jetzt darfst du ziehen
+    el('drawPile').classList.toggle('glow', canDraw && lastState.drawPileCount > 0);
+    el('discardPile').classList.toggle('glow', canDraw && !!lastState.discardTop);
 
     // Hand
     const myPlayer = lastState.players.find((p) => p.id === playerId);
@@ -436,16 +456,36 @@
           selected: selectedCardIds.has(card.id),
           onClick: () => onHandCardClick(card),
         });
-        // Fächer-Optik: Karten leicht um die Mitte der Hand rotiert + angehoben
+        // Fächer-Optik: Karten leicht um die Mitte der Hand rotiert + angehoben.
+        // Rotation flacht bei vielen Karten ab, sonst wird der Fächer unleserlich.
         const mid = (sorted.length - 1) / 2;
         const offset = idx - mid;
-        const rotate = Math.max(-14, Math.min(14, offset * 3.5));
-        const lift = Math.abs(offset) * 2.5;
+        const rotFactor = Math.min(3.5, 42 / Math.max(sorted.length, 1));
+        const rotate = Math.max(-10, Math.min(10, offset * rotFactor));
+        const lift = Math.abs(offset) * 2;
         cEl.style.transform = `rotate(${rotate}deg) translateY(${lift}px)`;
         if (selectedCardIds.has(card.id)) {
-          cEl.style.transform += ' translateY(-16px)';
+          cEl.style.transform += ' translateY(-18px)';
         }
         handDiv.appendChild(cEl);
+      });
+
+      // Dynamische Überlappung: die gesamte Hand passt IMMER auf die
+      // Bildschirmbreite - kein horizontales Scrollen. Je mehr Karten,
+      // desto stärker überlappen sie; der Ecken-Index oben links bleibt
+      // dabei stets sichtbar. Mindestens 14px sichtbarer Streifen.
+      requestAnimationFrame(() => {
+        const cards = [...handDiv.children];
+        if (cards.length < 2) return;
+        const cardWidth = cards[0].offsetWidth || 60;
+        const available = handDiv.parentElement.clientWidth - 64; // Padding + Rotations-Überhang
+        const naturalVisible = cardWidth * 0.62; // lockerer Fächer, wenn Platz da ist
+        const fitVisible = (available - cardWidth) / (cards.length - 1);
+        const visible = Math.max(14, Math.min(naturalVisible, fitVisible));
+        const overlap = visible - cardWidth;
+        cards.forEach((c, i) => {
+          c.style.marginLeft = i === 0 ? '0' : `${overlap}px`;
+        });
       });
     }
 
@@ -698,6 +738,13 @@
 
   el('exportGameBtn').addEventListener('click', () => {
     send({ type: 'exportLastGame' });
+  });
+
+  // Bei Orientierungswechsel/Fenstergröße die Hand-Überlappung neu berechnen.
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => render(), 150);
   });
 
   connect();

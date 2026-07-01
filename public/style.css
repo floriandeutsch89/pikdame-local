@@ -416,8 +416,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 /* Stapel: der beleuchtete Tisch-Spot */
 #centerPiles {
   position: relative;
-  display: flex; justify-content: center; gap: 34px;
-  padding: 14px 8px 10px;
+  display: flex; justify-content: center; gap: 38px;
+  padding: 14px 8px 12px;
 }
 #centerPiles::before {
   content: '';
@@ -425,7 +425,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   background: radial-gradient(58% 85% at 50% 45%, var(--spot) 0%, transparent 70%);
   pointer-events: none;
 }
-.pile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.pile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .pile-card {
   width: 52px; height: 73px; border-radius: 10px;
   background: var(--card-bg);
@@ -434,6 +434,20 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   display: flex; align-items: center; justify-content: center;
   font-weight: 800; font-size: 0.9rem;
   box-shadow: var(--shadow-2), inset 0 1px 0 rgba(255,255,255,0.7);
+  transition: box-shadow 0.3s ease;
+}
+/* Stapel-Tiefe: versetzte "Karten-Ebenen" unter der obersten Karte -
+   wachsen sichtbar mit der Anzahl der Karten im Stapel. */
+.pile-card.stacked-1 {
+  box-shadow:
+    3px 3px 0 -1px var(--card-bg), 3.5px 3.5px 0 0 var(--card-border),
+    var(--shadow-2), inset 0 1px 0 rgba(255,255,255,0.7);
+}
+.pile-card.stacked-2 {
+  box-shadow:
+    3px 3px 0 -1px var(--card-bg), 3.5px 3.5px 0 0 var(--card-border),
+    6px 6px 0 -2px var(--card-bg), 6.5px 6.5px 0 -1px var(--card-border),
+    var(--shadow-2), inset 0 1px 0 rgba(255,255,255,0.7);
 }
 .pile-card.red { color: var(--suit-red); }
 .pile-card.black { color: var(--suit-black); }
@@ -452,15 +466,48 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   border: none;
   position: relative;
 }
+.pile-card.back.stacked-1 {
+  box-shadow:
+    3px 3px 0 0 var(--accent-2),
+    var(--shadow-2);
+}
+.pile-card.back.stacked-2 {
+  box-shadow:
+    3px 3px 0 0 var(--accent-2),
+    6px 6px 0 -1px var(--accent-2),
+    var(--shadow-2);
+}
 .pile-card.back::after {
   content: '♠';
   color: var(--accent-ink);
   font-size: 1.25rem; opacity: 0.65;
 }
+/* Anzahl als Badge direkt auf der Karte */
+.pile > span {
+  position: absolute; top: -7px; right: -9px;
+  min-width: 21px; height: 21px;
+  padding: 0 5px;
+  border-radius: var(--r-pill);
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.62rem; font-weight: 700; color: var(--text);
+  z-index: 2;
+}
+.pile > span:empty { display: none; }
 #discardPile, #drawPile { cursor: pointer; transition: transform 0.18s var(--ease); }
 #discardPile:active, #drawPile:active { transform: scale(0.93); }
 #discardPile.disabled, #drawPile.disabled { opacity: 0.4; cursor: not-allowed; }
-.pile span { font-size: 0.66rem; font-weight: 600; color: var(--text-muted); }
+/* Zieh-Phase: sanfter Puls zeigt, dass jetzt gezogen werden darf */
+@keyframes drawPulse {
+  0%, 100% { filter: drop-shadow(0 0 3px var(--accent-soft)); }
+  50% { filter: drop-shadow(0 0 14px var(--accent)); }
+}
+.pile.glow { animation: drawPulse 1.8s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .pile.glow { animation: none; filter: drop-shadow(0 0 10px var(--accent)); }
+}
 
 /* Aktionsleiste */
 #actionBar {
@@ -493,7 +540,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 #hand {
   display: flex; justify-content: flex-start;
-  padding: 0 32px;
+  padding: 0 20px;
   min-height: 108px;
   margin: 0 auto;
   width: max-content;
@@ -508,7 +555,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   color: var(--card-ink);
   border-radius: var(--r-sm);
   margin-left: -22px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  display: flex; align-items: center; justify-content: center;
   font-weight: 800; font-size: 1.02rem;
   transition: transform 0.2s var(--ease), box-shadow 0.2s ease;
   box-shadow: var(--shadow-1), 0 3px 8px rgba(0,0,0,0.28);
@@ -518,12 +565,21 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .card:first-child { margin-left: 0; }
 .card.red { color: var(--suit-red); }
 .card.black { color: var(--suit-black); }
-.card.joker { color: var(--joker); font-size: 0.72rem; }
+.card.joker { color: var(--joker); }
 .card.selected {
   box-shadow: 0 0 0 3px var(--accent), var(--shadow-3);
   z-index: 5;
 }
-.card .suitMark { font-size: 1.35rem; line-height: 1.1; }
+
+/* Ecken-Index wie bei echten Spielkarten: bleibt bei überlappenden
+   Karten im Fächer immer sichtbar und lesbar. */
+.card .corner {
+  position: absolute; top: 4px; left: 5px;
+  display: flex; flex-direction: column; align-items: center;
+  font-size: 0.72rem; font-weight: 800; line-height: 1.05;
+}
+.card.joker .corner { font-size: 0.78rem; }
+.card .suitMark { font-size: 1.5rem; line-height: 1; margin-top: 6px; }
 .card .pikdame-tag {
   position: absolute; top: 4px; right: 4px;
   font-size: 0.52rem; font-weight: 700;
@@ -537,15 +593,20 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .card.mine.pikdame-card { box-shadow: inset 0 -4px 0 0 var(--success), 0 0 0 2px var(--accent); }
 .card.mine.selected { box-shadow: inset 0 -4px 0 0 var(--success), 0 0 0 3px var(--accent), var(--shadow-3); }
 
-/* Kompakte Auslagen-Karten */
+/* Kompakte Auslagen-Karten: nur der Ecken-Index (bei starker Überlappung
+   bleibt genau dieser sichtbar) */
 .card-compact {
   width: 31px; height: 44px; min-width: 31px;
-  margin-left: -10px;
+  margin-left: -12px;
   border-radius: 7px;
-  font-size: 0.6rem;
 }
 .card-compact:first-child { margin-left: 0; }
-.card-compact .suitMark { font-size: 0.72rem; }
+.card-compact .corner {
+  top: 3px; left: 4px;
+  font-size: 0.58rem;
+}
+.card-compact.joker .corner { font-size: 0.62rem; }
+.card-compact .suitMark { display: none; }
 .card-compact.selected { box-shadow: 0 0 0 2px var(--accent); }
 
 /* ============================ OVERLAYS ============================ */
