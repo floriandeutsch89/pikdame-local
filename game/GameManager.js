@@ -827,6 +827,8 @@ class GameManager {
         hand: p.id === forPlayerId ? p.hand : undefined,
       })),
       totals: this.totals,
+      // Punkteverlauf pro Runde (fuer das Chart im Ergebnis-Overlay)
+      scoreHistory: this.roundHistory.map((r) => ({ round: r.roundNumber, totals: r.totalsAfter })),
       // Alle offen abgelegten Karten (fuer die Ablage-Vorschau im Client);
       // eine verdeckt abgelegte Schlusskarte bleibt verdeckt.
       discardCards: this.discardPile.map((card) =>

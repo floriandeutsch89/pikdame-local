@@ -26,6 +26,9 @@
   // markiert.
   let prevHandIds = new Set();
   let prevTurnPlayerId = null;
+  let prevDiscardTopId;
+  const SORT_KEY = 'pikdame_hand_sort';
+  let handSortMode = localStorage.getItem(SORT_KEY) === 'rank' ? 'rank' : 'suit';
   let prevHandRound = null;
   let freshCardIds = new Set();
   let knownTeams = [];
@@ -198,6 +201,7 @@
       }
       prevTurnPlayerId = lastState.currentPlayerId;
       updateWakeLock();
+      maybeShowActionToast();
       render();
       return;
     }
@@ -515,6 +519,14 @@
       lastState.discardPileCount > 1 && lastState.discardPileCount <= 6
     );
     el('discardCount').textContent = lastState.discardPileCount > 0 ? lastState.discardPileCount : '';
+    // Pop-Animation, wenn eine neue Karte oben liegt (z.B. Gegner-Abwurf)
+    const topId = lastState.discardTop ? lastState.discardTop.id || 'facedown' : null;
+    if (topId && topId !== prevDiscardTopId && prevDiscardTopId !== undefined) {
+      discardTopDiv.classList.remove('pop');
+      void discardTopDiv.offsetWidth;
+      discardTopDiv.classList.add('pop');
+    }
+    prevDiscardTopId = topId;
 
     const canDraw = isMyTurn && lastState.turnPhase === 'draw';
     el('drawPile').classList.toggle('disabled', !canDraw || lastState.drawPileCount === 0);
@@ -541,11 +553,17 @@
       }
       prevHandIds = currentIds;
       prevHandRound = lastState.roundNumber;
-      // sortiere Hand: erst nach Farbe, dann Wert, Joker ans Ende
+      // Hand sortieren - umschaltbar: nach Farbe (gut für Folgen) oder nach
+      // Wert (gut für Sätze). Joker immer ans Ende.
       const sorted = myPlayer.hand.slice().sort((a, b) => {
         if (a.isJoker && b.isJoker) return 0;
         if (a.isJoker) return 1;
         if (b.isJoker) return -1;
+        if (handSortMode === 'rank') {
+          const dr = RANK_ORDER.indexOf(a.rank) - RANK_ORDER.indexOf(b.rank);
+          if (dr !== 0) return dr;
+          return a.suit.localeCompare(b.suit);
+        }
         if (a.suit !== b.suit) return a.suit.localeCompare(b.suit);
         return RANK_ORDER.indexOf(a.rank) - RANK_ORDER.indexOf(b.rank);
       });
@@ -694,6 +712,12 @@
       body.appendChild(statsTable);
     }
 
+    // Punkteverlauf über alle Runden als kleines SVG-Chart (ab 2 Runden)
+    const history = lastState.scoreHistory || [];
+    if (history.length >= 2) {
+      body.appendChild(renderScoreChart(history));
+    }
+
     if (isGameOver && lastState.gameOverInfo) {
       const winner = lastState.players.find((p) => p.id === lastState.gameOverInfo.winnerId);
       const winLine = document.createElement('p');
@@ -835,20 +859,38 @@
     el('newTeamMembers').value = '';
   });
 
+  el('sortToggleBtn').addEventListener('click', () => {
+    handSortMode = handSortMode === 'suit' ? 'rank' : 'suit';
+    localStorage.setItem(SORT_KEY, handSortMode);
+    updateSortToggleLabel();
+    render();
+  });
+  function updateSortToggleLabel() {
+    el('sortToggleBtn').textContent = handSortMode === 'suit' ? '♠♥ Farbe' : '77 Wert';
+    el('sortToggleBtn').title = handSortMode === 'suit'
+      ? 'Sortiert nach Farbe (gut für Folgen) - tippen für Wert'
+      : 'Sortiert nach Wert (gut für Sätze) - tippen für Farbe';
+  }
+  updateSortToggleLabel();
+
   el('drawPile').addEventListener('click', () => {
     if (el('drawPile').classList.contains('disabled')) return;
     sound.draw();
+    flyCard(el('drawPile'), el('hand'), true);
     send({ type: 'drawFromPile' });
   });
 
   el('discardPile').addEventListener('click', () => {
     if (el('discardPile').classList.contains('disabled')) return;
     sound.draw();
+    flyCard(el('discardPile'), el('hand'), false);
     send({ type: 'drawFromDiscard' });
   });
 
   function performDiscard(cardId) {
     sound.discard();
+    const selectedEl = document.querySelector('#hand .card.selected');
+    flyCard(selectedEl, el('discardPile'), false);
     send({ type: 'discard', cardId });
     selectedCardIds.clear();
     render();
@@ -972,6 +1014,106 @@
       if (idx === 0) cEl.classList.add('previewTop');
       cardsDiv.appendChild(cEl);
     });
+  }
+
+  // --- Punkteverlauf-Chart ---------------------------------------------------
+  const CHART_COLORS = ['#2fd6b0', '#8f90f8', '#ff9f5a', '#ff7d8c'];
+  function renderScoreChart(history) {
+    const wrap = document.createElement('div');
+    wrap.className = 'scoreChart';
+    const title = document.createElement('div');
+    title.className = 'scoreChartTitle';
+    title.textContent = 'Punkteverlauf';
+    wrap.appendChild(title);
+
+    const W = 300;
+    const H = 130;
+    const PAD = { l: 34, r: 8, t: 8, b: 18 };
+    const players = lastState.players;
+    const allValues = history.flatMap((h) => players.map((p) => h.totals[p.id] || 0));
+    const maxV = Math.max(10, ...allValues);
+    const minV = Math.min(0, ...allValues);
+    const x = (i) => PAD.l + (i / Math.max(1, history.length - 1)) * (W - PAD.l - PAD.r);
+    const y = (v) => PAD.t + (1 - (v - minV) / (maxV - minV || 1)) * (H - PAD.t - PAD.b);
+
+    const svgParts = [];
+    // Nulllinie + Gitter (Min/Mitte/Max)
+    for (const v of [minV, (minV + maxV) / 2, maxV]) {
+      svgParts.push(`<line x1="${PAD.l}" y1="${y(v)}" x2="${W - PAD.r}" y2="${y(v)}" class="gridLine"/>`);
+      svgParts.push(`<text x="${PAD.l - 5}" y="${y(v) + 3}" class="axisLabel" text-anchor="end">${Math.round(v)}</text>`);
+    }
+    players.forEach((p, pi) => {
+      const color = CHART_COLORS[pi % CHART_COLORS.length];
+      const points = history.map((h, i) => `${x(i).toFixed(1)},${y(h.totals[p.id] || 0).toFixed(1)}`).join(' ');
+      svgParts.push(`<polyline points="${points}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`);
+      const last = history[history.length - 1];
+      svgParts.push(`<circle cx="${x(history.length - 1).toFixed(1)}" cy="${y(last.totals[p.id] || 0).toFixed(1)}" r="3.4" fill="${color}"/>`);
+    });
+    // Runden-Beschriftung (erste/letzte)
+    svgParts.push(`<text x="${x(0)}" y="${H - 4}" class="axisLabel" text-anchor="middle">R${history[0].round}</text>`);
+    svgParts.push(`<text x="${x(history.length - 1)}" y="${H - 4}" class="axisLabel" text-anchor="middle">R${history[history.length - 1].round}</text>`);
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.classList.add('scoreChartSvg');
+    svg.innerHTML = svgParts.join('');
+    wrap.appendChild(svg);
+
+    const legend = document.createElement('div');
+    legend.className = 'scoreChartLegend';
+    legend.innerHTML = players
+      .map((p, pi) => `<span><i style="background:${CHART_COLORS[pi % CHART_COLORS.length]}"></i>${escapeHtml(p.name)}</span>`)
+      .join('');
+    wrap.appendChild(legend);
+    return wrap;
+  }
+
+  // --- Karten-Flug-Animation -------------------------------------------------
+  // Kleine "Geister-Karte", die vom Start- zum Zielrechteck fliegt. Nur
+  // Deko - der echte Zustand kommt weiterhin vom Server-Broadcast.
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function flyCard(fromEl, toEl, faceDown) {
+    if (reducedMotion || !fromEl || !toEl) return;
+    const from = fromEl.getBoundingClientRect();
+    const to = toEl.getBoundingClientRect();
+    if (!from.width || !to.width) return;
+    const ghost = document.createElement('div');
+    ghost.className = 'flyCard' + (faceDown ? ' back' : '');
+    ghost.style.left = `${from.left + from.width / 2 - 26}px`;
+    ghost.style.top = `${from.top + from.height / 2 - 36}px`;
+    document.body.appendChild(ghost);
+    const dx = to.left + to.width / 2 - (from.left + from.width / 2);
+    const dy = to.top + to.height / 2 - (from.top + from.height / 2);
+    requestAnimationFrame(() => {
+      ghost.style.transform = `translate(${dx}px, ${dy}px) rotate(8deg) scale(0.85)`;
+      ghost.style.opacity = '0';
+    });
+    setTimeout(() => ghost.remove(), 480);
+  }
+
+  // --- Toast: letzte Aktion kurz einblenden ---------------------------------
+  let seenLogLength = null;
+  function maybeShowActionToast() {
+    const log = (lastState && lastState.log) || [];
+    if (seenLogLength === null) {
+      seenLogLength = log.length; // erstes Render: nichts nachreichen
+      return;
+    }
+    if (log.length > seenLogLength) {
+      const latest = log[log.length - 1];
+      seenLogLength = log.length;
+      if (latest && latest.text) showToast(latest.text);
+    } else {
+      seenLogLength = log.length;
+    }
+  }
+  let toastTimer = null;
+  function showToast(text) {
+    const container = el('toastContainer');
+    container.textContent = text;
+    container.classList.add('visible');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => container.classList.remove('visible'), 2600);
   }
 
   // --- Wake Lock: Display bleibt während des Spielens an -------------------
