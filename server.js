@@ -318,4 +318,14 @@ server.listen(PORT, () => {
       console.log(`Netzwerk: http://${address}:${PORT}  (${name})${label}`);
     }
   }
+
+  console.log('');
+  console.log('⚠️  WICHTIG (iOS-Einschränkung, nicht durch Code behebbar):');
+  console.log('    CodeApp muss im VORDERGRUND bleiben, solange gespielt wird!');
+  console.log('    iOS pausiert diesen Server komplett, sobald du die App wechselst');
+  console.log('    oder das Display sich sperrt. Auto-Sperre auf "Nie" stellen');
+  console.log('    (Einstellungen -> Anzeige & Helligkeit) oder Geführten Zugriff');
+  console.log('    nutzen (Einstellungen -> Bedienungshilfen).');
+  console.log('');
+  console.log(`Fehler-Log (falls etwas schiefgeht): ${CRASH_LOG_FILE}`);
 });
