@@ -94,6 +94,10 @@ class SessionRegistry {
   }
 
   delete(code) {
+    const session = this.sessions.get(code);
+    if (session && session.game && typeof session.game.destroy === 'function') {
+      session.game.destroy();
+    }
     this.sessions.delete(code);
   }
 
@@ -117,6 +121,9 @@ class SessionRegistry {
           } catch (e) {
             /* Socket war schon zu */
           }
+        }
+        if (session.game && typeof session.game.destroy === 'function') {
+          session.game.destroy();
         }
         this.sessions.delete(code);
         removed++;

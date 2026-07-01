@@ -1043,3 +1043,39 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 .statsPageTable tr:first-child td { color: var(--accent); font-weight: 700; }
+
+/* --- Desktop & grosse Bildschirme (Chrome/Edge/Firefox auf PC/Mac/Chromebook) --- */
+
+/* Spielflaeche auf grossen Screens zentrieren statt ueber die volle
+   Breite zu strecken - wirkt wie eine App-Karte auf dem Desktop. */
+@media (min-width: 900px) {
+  .screen {
+    width: 100%;
+    max-width: 880px;
+    margin: 0 auto;
+  }
+  #handWrapper { border-radius: var(--r-lg); margin-bottom: 10px; }
+  .overlay-card { max-width: 520px; }
+  .legal-page { max-width: 720px; }
+}
+
+/* Maus-Bedienung: Hover-Feedback nur auf Geraeten MIT Hover (kein
+   Sticky-Hover auf Touchscreens). Wichtig: kein transform im Hover,
+   da die Faecher-Rotation als Inline-Style gesetzt wird. */
+@media (hover: hover) and (pointer: fine) {
+  #hand .card { cursor: pointer; }
+  #hand .card:hover {
+    filter: brightness(1.07);
+    box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow-2);
+    z-index: 4;
+  }
+  .meldOwnerGroup.own .card { cursor: pointer; }
+  .meldOwnerGroup.own .card:hover { filter: brightness(1.07); }
+  #drawPile:not(.disabled):hover .pile-card,
+  #discardPile:not(.disabled):hover .pile-card {
+    filter: brightness(1.08);
+  }
+  .btn-primary:hover, .btn-secondary:hover, .btn-danger:hover { filter: brightness(1.1); }
+  .btn-secondary:disabled:hover, .btn-primary:disabled:hover { filter: none; }
+  .pilePeekBtn:hover, .sortToggle:hover, .emoteChoice:hover { filter: brightness(1.15); }
+}

@@ -789,6 +789,17 @@
     send({ type: 'createSession', name: currentName() });
   });
 
+  // Desktop-Tastatur: Enter im Code-Feld tritt bei, Enter im Namensfeld
+  // erstellt ein Spiel (bzw. tritt bei, wenn schon ein Code eingegeben ist).
+  el('codeInput').addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') el('joinGameBtn').click();
+  });
+  el('nameInput').addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Enter') return;
+    if (el('codeInput').value.trim()) el('joinGameBtn').click();
+    else el('createGameBtn').click();
+  });
+
   el('joinGameBtn').addEventListener('click', () => {
     const code = el('codeInput').value.trim().toUpperCase();
     if (!code) {

@@ -84,6 +84,13 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
         p.bestGameScore = r.score || 0;
       }
     }
+    // Cap gegen unbegrenztes Wachstum auf einem oeffentlichen Server: bei
+    // mehr als 500 Profilen fliegen die mit den wenigsten Partien zuerst.
+    const MAX_PROFILES = 500;
+    if (store.players.length > MAX_PROFILES) {
+      store.players.sort((a, b) => (b.gamesPlayed || 0) - (a.gamesPlayed || 0));
+      store.players.length = MAX_PROFILES;
+    }
     saveStore(store);
     return store.players;
   }
