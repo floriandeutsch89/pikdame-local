@@ -10,6 +10,8 @@ services:
       - "8080:8080"
     environment:
       - PORT=8080
+      # Obergrenze paralleler Spiel-Sessions (DoS-/Speicherschutz, Standard 200)
+      - PIKDAME_MAX_SESSIONS=200
     volumes:
       # Spielerprofile/Teams/Spielverlauf überleben Container-Neustarts und -Updates.
       - pikdame-data:/app/data
