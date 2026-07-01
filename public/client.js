@@ -209,6 +209,11 @@
       knownProfiles = msg.players || [];
       knownTeams = msg.teams || [];
       renderTeamSelect();
+      if (!el('statsOverlay').classList.contains('hidden')) renderStats();
+      return;
+    }
+    if (msg.type === 'emote') {
+      showEmote(msg.playerId, msg.emoji);
       return;
     }
     if (msg.type === 'teamCreated') {
@@ -427,6 +432,7 @@
       .forEach((p) => {
         const d = document.createElement('div');
         d.className = 'opponent' + (p.id === lastState.currentPlayerId ? ' active' : '');
+        d.dataset.playerId = p.id;
         const reconnecting = !p.isBot && p.controlledByBot;
         const opTotal = (lastState.totals && lastState.totals[p.id]) || 0;
         d.innerHTML = `<div class="opName">${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}${reconnecting ? ' <span class="reconnectTag">⏳ getrennt – Bot übernimmt</span>' : ''}</div><div class="opCount">${p.handCount} Karten · ${opTotal} Pkt</div>`;
@@ -1153,6 +1159,62 @@
   el('qrOverlay').addEventListener('click', (ev) => {
     if (ev.target === el('qrOverlay')) el('qrOverlay').classList.add('hidden');
   });
+
+  // --- Emotes -----------------------------------------------------------------
+  el('emoteBtn').addEventListener('click', () => {
+    el('emoteBar').classList.toggle('hidden');
+  });
+  document.querySelectorAll('.emoteChoice').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      send({ type: 'emote', emoji: btn.textContent });
+      el('emoteBar').classList.add('hidden');
+    });
+  });
+
+  function showEmote(fromPlayerId, emoji) {
+    // Ziel: der Chip des Absenders; eigene Emotes schweben über der Hand.
+    let anchor = document.querySelector(`#opponents .opponent[data-player-id="${CSS.escape(fromPlayerId)}"]`);
+    if (fromPlayerId === playerId) anchor = el('handWrapper');
+    const rect = anchor ? anchor.getBoundingClientRect() : { left: window.innerWidth / 2, top: window.innerHeight / 2, width: 0 };
+    const bubble = document.createElement('div');
+    bubble.className = 'emoteFloat';
+    bubble.textContent = emoji;
+    bubble.style.left = `${rect.left + rect.width / 2 - 18}px`;
+    bubble.style.top = `${rect.top - 6}px`;
+    document.body.appendChild(bubble);
+    setTimeout(() => bubble.remove(), 1600);
+  }
+
+  // --- Statistik ---------------------------------------------------------------
+  el('statsBtn').addEventListener('click', () => {
+    send({ type: 'listProfiles' }); // frische Daten anfordern
+    renderStats();
+    el('statsOverlay').classList.remove('hidden');
+  });
+  el('statsCloseBtn').addEventListener('click', () => el('statsOverlay').classList.add('hidden'));
+  el('statsOverlay').addEventListener('click', (ev) => {
+    if (ev.target === el('statsOverlay')) el('statsOverlay').classList.add('hidden');
+  });
+
+  function renderStats() {
+    const box = el('statsContent');
+    const profiles = (knownProfiles || []).filter((p) => (p.gamesPlayed || 0) > 0);
+    if (profiles.length === 0) {
+      box.innerHTML = '<p class="lobby-hint">Noch keine abgeschlossenen Partien - spielt erstmal eine Runde! 🃏</p>';
+      return;
+    }
+    const sorted = profiles.slice().sort((a, b) => (b.gamesWon || 0) - (a.gamesWon || 0) || (b.totalScore || 0) - (a.totalScore || 0));
+    const rows = sorted
+      .map((p) => {
+        const played = p.gamesPlayed || 0;
+        const won = p.gamesWon || 0;
+        const rate = played > 0 ? Math.round((won / played) * 100) : 0;
+        const best = p.bestGameScore !== undefined ? p.bestGameScore : '–';
+        return `<tr><td>${escapeHtml(p.name)}</td><td>${played}</td><td>${won}</td><td>${rate}%</td><td>${best}</td></tr>`;
+      })
+      .join('');
+    box.innerHTML = `<table class="statsPageTable"><thead><tr><th>Spieler</th><th>Spiele</th><th>Siege</th><th>Quote</th><th>Beste Partie</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
 
   // Bei Orientierungswechsel/Fenstergröße die Hand-Überlappung neu berechnen.
   let resizeTimer = null;

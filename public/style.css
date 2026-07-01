@@ -983,3 +983,63 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   display: inline-block; width: 9px; height: 9px;
   border-radius: 50%; margin-right: 5px;
 }
+
+/* --- Paket C: Emotes & Statistik ---------------------------------------- */
+
+.emoteBar {
+  position: absolute;
+  top: calc(52px + var(--safe-top));
+  right: 10px;
+  display: flex; gap: 4px;
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
+  border-radius: var(--r-pill);
+  padding: 6px 8px;
+  z-index: 320;
+  box-shadow: var(--shadow-2);
+}
+.emoteChoice {
+  background: transparent;
+  font-size: 1.3rem;
+  padding: 4px 6px;
+  border-radius: 10px;
+}
+.emoteChoice:active { transform: scale(1.25); }
+
+@keyframes emoteRise {
+  0% { transform: translateY(0) scale(0.6); opacity: 0; }
+  18% { transform: translateY(-8px) scale(1.25); opacity: 1; }
+  100% { transform: translateY(-52px) scale(1); opacity: 0; }
+}
+.emoteFloat {
+  position: fixed;
+  font-size: 2rem;
+  z-index: 420;
+  pointer-events: none;
+  animation: emoteRise 1.55s ease-out forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .emoteFloat { animation: none; opacity: 1; }
+}
+
+.statsContent { max-height: 52vh; overflow-y: auto; width: 100%; }
+.statsPageTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+.statsPageTable th {
+  text-align: left;
+  font-size: 0.62rem; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--glass-border);
+}
+.statsPageTable td {
+  padding: 7px 6px;
+  border-bottom: 1px solid var(--glass-border);
+  font-variant-numeric: tabular-nums;
+}
+.statsPageTable tr:first-child td { color: var(--accent); font-weight: 700; }
