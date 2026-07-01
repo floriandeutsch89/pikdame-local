@@ -234,7 +234,7 @@ class GameManager {
     this.addLog(`Runde ${this.roundNumber} gestartet. Geber: ${dealer ? dealer.name : '?'}.`);
     if (cutter && luckyCards.length > 0) {
       const labels = luckyCards.map((card) => (card.isJoker ? 'Joker' : 'Pik Dame')).join(' + ');
-      this.addLog(`🍀 Glücksgriff! ${cutter.name} hebt ab und nimmt sofort auf die Hand: ${labels}.`);
+      this.addLog(`🍀 Glücksgriff beim Abheben! ${cutter.name} nimmt vor dem Verteilen sofort auf die Hand: ${labels}.`);
     }
     this.broadcastState();
     this.maybeRunBotTurn();

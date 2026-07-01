@@ -10,30 +10,32 @@
 
 :root,
 [data-theme="table"] {
-  --bg: #0b3527;
-  --bg-deep: #072319;
-  --bg-glow: #17654a;
-  --glass: rgba(255,255,255,0.07);
-  --glass-strong: rgba(255,255,255,0.12);
-  --glass-border: rgba(255,255,255,0.14);
-  --accent: #f6bd4a;
-  --accent-2: #e89a2b;
-  --accent-ink: #2c1f04;
-  --accent-soft: rgba(246,189,74,0.22);
-  --text: #f4f7f3;
-  --text-muted: rgba(232,242,235,0.62);
+  /* "Studio": modernes, neutrales Graphit mit frischem Teal-Akzent -
+     bewusst kein Filz-Grün/Casino-Gold mehr. */
+  --bg: #101318;
+  --bg-deep: #0a0c10;
+  --bg-glow: #1c2530;
+  --glass: rgba(255,255,255,0.06);
+  --glass-strong: rgba(255,255,255,0.11);
+  --glass-border: rgba(255,255,255,0.13);
+  --accent: #2fd6b0;
+  --accent-2: #14b394;
+  --accent-ink: #03241b;
+  --accent-soft: rgba(47,214,176,0.2);
+  --text: #f2f5f7;
+  --text-muted: rgba(226,234,238,0.6);
   --danger: #ff7d7d;
   --success: #43dd9a;
-  --card-bg: #fffdf6;
-  --card-ink: #1c1913;
-  --card-border: rgba(28,25,19,0.16);
-  --suit-red: #d43844;
-  --suit-black: #23201a;
+  --card-bg: #fcfdfd;
+  --card-ink: #1a1e24;
+  --card-border: rgba(26,30,36,0.15);
+  --suit-red: #e0455a;
+  --suit-black: #21262d;
   --joker: #8b5cf6;
-  --spot: rgba(80, 200, 150, 0.16);
-  --shadow-1: 0 1px 2px rgba(0,0,0,0.25);
-  --shadow-2: 0 4px 16px rgba(0,0,0,0.3);
-  --shadow-3: 0 12px 40px rgba(0,0,0,0.4);
+  --spot: rgba(47, 214, 176, 0.12);
+  --shadow-1: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-2: 0 4px 16px rgba(0,0,0,0.38);
+  --shadow-3: 0 12px 40px rgba(0,0,0,0.5);
 }
 
 [data-theme="night"] {
@@ -106,12 +108,17 @@
 html, body {
   margin: 0; padding: 0; height: 100%;
   font-family: var(--font);
-  background: var(--bg);
+  /* Modernes Finish: zwei sehr dezente Licht-Glows auf dunklem Grund
+     statt einer flachen "Tischplatte". */
+  background:
+    radial-gradient(120% 90% at 15% -10%, var(--bg-glow) 0%, transparent 55%),
+    radial-gradient(110% 80% at 100% 110%, var(--bg-glow) 0%, transparent 50%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
+  background-attachment: fixed;
   color: var(--text);
   overscroll-behavior: none;
   user-select: none;
   -webkit-font-smoothing: antialiased;
-  transition: background-color 0.5s ease;
 }
 
 #app { height: 100%; display: flex; flex-direction: column; }
@@ -175,7 +182,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   border: 2px solid rgba(255,255,255,0.25);
   transition: transform 0.2s var(--ease), border-color 0.2s ease, box-shadow 0.2s ease;
 }
-.themeBtn[data-theme-choice="table"] { background: linear-gradient(145deg, #17654a, #0b3527); }
+.themeBtn[data-theme-choice="table"] { background: linear-gradient(145deg, #1c2530, #0a0c10); border-color: rgba(47,214,176,0.5); }
 .themeBtn[data-theme-choice="night"] { background: linear-gradient(145deg, #2a3160, #0a0c16); }
 .themeBtn[data-theme-choice="love"]  { background: linear-gradient(145deg, #a2325f, #3a0f24); }
 .themeBtn.active {
@@ -558,18 +565,24 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 /* Anzahl als Badge direkt auf der Karte */
 .pile > span {
-  position: absolute; top: -7px; right: -9px;
-  min-width: 21px; height: 21px;
-  padding: 0 5px;
+  position: absolute; top: -9px; right: -11px;
+  min-width: 26px; height: 26px;
+  padding: 0 7px;
   border-radius: var(--r-pill);
-  background: var(--glass-strong);
-  border: 1px solid var(--glass-border);
-  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  background: var(--accent);
+  border: 2px solid var(--bg-deep);
   display: flex; align-items: center; justify-content: center;
-  font-size: 0.62rem; font-weight: 700; color: var(--text);
+  font-size: 0.78rem; font-weight: 800; color: var(--accent-ink);
+  font-variant-numeric: tabular-nums;
   z-index: 2;
+  box-shadow: var(--shadow-1);
 }
 .pile > span:empty { display: none; }
+.pileLabel {
+  font-size: 0.6rem; font-weight: 700;
+  letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--text-muted);
+}
 #discardPile, #drawPile { cursor: pointer; transition: transform 0.18s var(--ease); }
 #discardPile:active, #drawPile:active { transform: scale(0.93); }
 #discardPile.disabled, #drawPile.disabled { opacity: 0.4; cursor: not-allowed; }
@@ -661,6 +674,30 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   border-radius: 5px; padding: 1.5px 4px;
 }
 .card.pikdame-card { box-shadow: 0 0 0 2px var(--accent), 0 4px 12px rgba(0,0,0,0.35); }
+
+/* Gerade gezogene/aufgenommene Karte: kurzer Glow beim Erscheinen plus ein
+   bleibender Akzent-Punkt, bis die Karte gespielt wird oder neue gezogen werden. */
+@keyframes drawnGlow {
+  0% { box-shadow: 0 0 0 3px var(--accent), 0 0 22px var(--accent-soft), var(--shadow-2); }
+  100% { box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow-1), 0 3px 8px rgba(0,0,0,0.28); }
+}
+.card.just-drawn {
+  animation: drawnGlow 1.6s ease-out forwards;
+}
+.card.just-drawn::before {
+  content: '';
+  position: absolute; top: -4px; right: -4px;
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg-deep);
+  z-index: 3;
+}
+@media (prefers-reduced-motion: reduce) {
+  .card.just-drawn { animation: none; box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow-1); }
+}
+/* Auswahl- und Pik-Dame-Optik gewinnen gegen den Zieh-Glow (Punkt bleibt) */
+.card.just-drawn.selected, .card.just-drawn.pikdame-card { animation: none; }
 
 /* eigene Karten in Auslagen */
 /* Auslagen nach Besitzer gruppiert: jeder Spieler hat seinen eigenen Stapel */
