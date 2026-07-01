@@ -652,6 +652,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 
 /* Karten-Tray: die eigene Hand */
 #handWrapper {
+  position: relative;
   background: var(--glass);
   backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px);
   border-top: 1px solid var(--glass-border);
@@ -895,4 +896,90 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .card { width: 72px; height: 104px; min-width: 72px; }
   .pile-card { width: 60px; height: 84px; }
   .card-compact { width: 36px; height: 51px; min-width: 36px; }
+}
+
+/* --- Paket B: Spielgefühl --------------------------------------------- */
+
+/* Fliegende Geister-Karte (Zieh-/Abwurf-Animation) */
+.flyCard {
+  position: fixed;
+  width: 52px; height: 73px;
+  border-radius: 10px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--shadow-2);
+  z-index: 400;
+  pointer-events: none;
+  transition: transform 0.42s cubic-bezier(0.3, 0.7, 0.3, 1), opacity 0.42s ease;
+  opacity: 0.95;
+}
+.flyCard.back {
+  background: linear-gradient(160deg, var(--accent) 0%, var(--accent-2) 100%);
+  border: none;
+}
+
+/* Toast: letzte Aktion */
+#toastContainer {
+  position: fixed;
+  top: calc(10px + var(--safe-top));
+  left: 50%;
+  transform: translate(-50%, -16px);
+  max-width: 86vw;
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
+  border-radius: var(--r-pill);
+  padding: 8px 16px;
+  font-size: 0.78rem; font-weight: 600;
+  color: var(--text);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  z-index: 350;
+  text-align: center;
+}
+#toastContainer.visible { opacity: 1; transform: translate(-50%, 0); }
+
+/* Neue Karte auf dem Ablagestapel: kurzes Aufpoppen */
+@keyframes discardPop {
+  0% { transform: scale(1.18) translateY(-6px); }
+  100% { transform: scale(1) translateY(0); }
+}
+.pile-card.pop { animation: discardPop 0.28s var(--ease); }
+@media (prefers-reduced-motion: reduce) { .pile-card.pop { animation: none; } }
+
+/* Sortier-Umschalter über der Hand */
+.sortToggle {
+  position: absolute;
+  top: -10px; right: 10px;
+  padding: 5px 11px;
+  border-radius: var(--r-pill);
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  color: var(--text-muted);
+  font-size: 0.64rem; font-weight: 700;
+  z-index: 5;
+}
+.sortToggle:active { transform: scale(0.94); }
+
+/* Punkteverlauf-Chart */
+.scoreChart { width: 100%; margin-top: 12px; }
+.scoreChartTitle {
+  font-size: 0.7rem; font-weight: 700;
+  letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.scoreChartSvg { width: 100%; height: auto; }
+.scoreChartSvg .gridLine { stroke: var(--glass-border); stroke-width: 1; }
+.scoreChartSvg .axisLabel { fill: var(--text-muted); font-size: 8.5px; font-weight: 600; }
+.scoreChartLegend {
+  display: flex; flex-wrap: wrap; gap: 6px 14px;
+  font-size: 0.68rem; color: var(--text-muted);
+  margin-top: 4px;
+}
+.scoreChartLegend i {
+  display: inline-block; width: 9px; height: 9px;
+  border-radius: 50%; margin-right: 5px;
 }
