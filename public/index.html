@@ -21,7 +21,24 @@
         </div>
       </div>
       <input id="nameInput" type="text" placeholder="Dein Name" maxlength="16" />
-      <button id="joinBtn" class="btn-primary">Tisch beitreten</button>
+
+      <div id="sessionSetup">
+        <button id="createGameBtn" class="btn-primary">Neues Spiel erstellen</button>
+        <div class="join-divider">oder einem Spiel beitreten</div>
+        <div class="joinRow">
+          <input id="codeInput" type="text" placeholder="SPIEL-CODE" maxlength="6" autocapitalize="characters" autocomplete="off" spellcheck="false" />
+          <button id="joinGameBtn" class="btn-secondary">Beitreten</button>
+        </div>
+      </div>
+
+      <div id="sessionBanner" class="session-banner hidden">
+        <div class="session-code-label">Spiel-Code – zum Mitspielen weitergeben</div>
+        <div id="sessionCodeText" class="session-code"></div>
+        <div class="session-banner-actions">
+          <button id="shareCodeBtn" class="btn-secondary">Code teilen</button>
+          <button id="updateNameBtn" class="btn-secondary">Namen aktualisieren</button>
+        </div>
+      </div>
 
       <div id="seatCountSection" class="lobby-section hidden">
         <h3>Spieleranzahl</h3>

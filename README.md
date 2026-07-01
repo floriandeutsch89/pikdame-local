@@ -45,6 +45,39 @@ npm test
 Tests laufen außerdem automatisch via GitHub Actions bei jedem Push/Pull-Request
 auf `main` (siehe `.github/workflows/ci.yml`), gegen Node 18/20/22.
 
+## Spiel-Sessions & Beitritt per Code
+
+Jedes Spiel bekommt beim Erstellen einen **eindeutigen 6-stelligen Code**
+(kryptographisch zufällig, ohne verwechselbare Zeichen wie O/0 oder I/1).
+**Nur wer den Code kennt, kann beitreten** - es gibt keine Spiel-Liste und
+kein Beitreten ohne Code. In der Lobby wählt man: "Neues Spiel erstellen"
+(erzeugt Session + Code) oder "Beitreten" (Code eingeben). Der Code lässt
+sich direkt teilen (iOS-Share-Sheet bzw. Link mit `?session=CODE`, der das
+Code-Feld beim Öffnen vorbefüllt). Reconnects finden über die pro Session
+gespeicherte Spieler-ID automatisch ins richtige Spiel zurück.
+
+Beliebig viele Spiele laufen parallel und vollständig isoliert voneinander
+(`game/SessionRegistry.js`; jede Session hat ihren eigenen `GameManager`).
+
+### Härtung für öffentlichen Betrieb
+
+Der Server ist für öffentliches Hosting (Docker) vorbereitet:
+
+- **Namens-Sanitizing** serverseitig (Whitelist: Buchstaben/Zahlen/wenige
+  Sonderzeichen, max. 16 Zeichen) plus HTML-Escaping im Client an allen
+  Render-Stellen - doppelter XSS-Schutz.
+- **Brute-Force-Schutz**: mehr als 10 falsche Session-Codes pro Verbindung
+  → Verbindung wird getrennt. Bei 6 Zeichen aus 29er-Alphabet (~600 Mio.
+  Kombinationen) ist Raten damit praktisch aussichtslos.
+- **Rate-Limit**: mehr als 40 Nachrichten/Sekunde pro Verbindung → Trennung.
+- **Nachrichten-Größenlimit**: 16 KB (`maxPayload`).
+- **Session-Cleanup**: verlassene Sessions werden nach 30 Minuten entfernt,
+  jede Session spätestens nach 24 h (kein unbegrenztes Speicherwachstum).
+- **Session-Obergrenze**: max. 200 parallele Spiele (`PIKDAME_MAX_SESSIONS`).
+- **Graceful Shutdown**: SIGTERM/SIGINT (z. B. `docker stop`) schließt
+  Verbindungen sauber.
+- `crash.log` liegt im `data/`-Verzeichnis (im Docker-Betrieb ein Volume).
+
 ## Hosting mit Docker (Alternative zum Hotspot-Setup)
 
 Statt direkt mit Node.js zu starten, lässt sich der Server auch als Docker-
@@ -97,7 +130,10 @@ docker run -d -p 8080:8080 -v pikdame-data:/app/data --name pikdame pikdame
 4. Andere Geräte (Smartphones der Mitspieler) verbinden sich mit dem Hotspot.
 5. Auf jedem Gerät im Browser die vom Server angezeigte **Netzwerk-IP**
    öffnen, z. B. `http://172.20.10.1:8080`.
-6. `client.js` ermittelt den Host automatisch über `window.location.hostname`
+6. Ein Spieler tippt **"Neues Spiel erstellen"** und gibt den angezeigten
+   6-stelligen Code an die anderen weiter (oder teilt den Link) - die
+   Mitspieler geben den Code unter **"Beitreten"** ein.
+7. `client.js` ermittelt den Host automatisch über `window.location.hostname`
    — es ist **keine Code-Änderung** nötig, unabhängig von der tatsächlichen
    Hotspot-IP.
 

@@ -5,12 +5,16 @@
 (function () {
   'use strict';
 
-  const STORAGE_KEY = 'pikdame_player_id';
   const NAME_KEY = 'pikdame_player_name';
   const THEME_KEY = 'pikdame_theme';
   const SOUND_KEY = 'pikdame_sound_enabled';
 
-  let playerId = localStorage.getItem(STORAGE_KEY) || null;
+  // Session-Code ggf. aus der URL übernehmen (geteilter Link: ?session=CODE)
+  let sessionCode = (new URLSearchParams(window.location.search).get('session') || '').toUpperCase() || null;
+  // Die playerId wird PRO SESSION gespeichert, damit Reconnects in das
+  // richtige Spiel zurückführen und parallele Spiele sich nicht vermischen.
+  const playerKeyFor = (code) => `pikdame_player_${code}`;
+  let playerId = sessionCode ? localStorage.getItem(playerKeyFor(sessionCode)) : null;
   let myName = localStorage.getItem(NAME_KEY) || '';
   let soundEnabled = localStorage.getItem(SOUND_KEY) !== 'off';
   let ws = null;
@@ -21,6 +25,19 @@
   let knownProfiles = [];
 
   const el = (id) => document.getElementById(id);
+
+  // Defense in Depth: Namen werden zwar bereits serverseitig auf harmlose
+  // Zeichen begrenzt, aber alles, was per innerHTML gerendert wird, läuft
+  // zusätzlich durch dieses Escaping - eine einzelne vergessene Stelle
+  // wird so nicht zur XSS-Lücke auf einem öffentlichen Server.
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
 
   function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
@@ -109,7 +126,13 @@
 
     ws.addEventListener('open', () => {
       el('connStatus').textContent = 'Verbunden.';
-      ws.send(JSON.stringify({ type: 'join', playerId, name: myName }));
+      // Automatischer Wiedereintritt NUR, wenn wir bereits Teil einer
+      // Session waren (Reconnect nach Verbindungsabbruch oder geteilter
+      // Link mit gespeicherter playerId). Ohne Code entscheidet der Nutzer
+      // im UI: neues Spiel erstellen oder Code eingeben.
+      if (sessionCode && playerId) {
+        ws.send(JSON.stringify({ type: 'joinSession', code: sessionCode, playerId, name: myName }));
+      }
     });
 
     ws.addEventListener('close', () => {
@@ -136,7 +159,13 @@
   function handleMessage(msg) {
     if (msg.type === 'joined') {
       playerId = msg.playerId;
-      localStorage.setItem(STORAGE_KEY, playerId);
+      sessionCode = msg.sessionCode;
+      localStorage.setItem(playerKeyFor(sessionCode), playerId);
+      // URL aktualisieren, damit der Link direkt teilbar ist (?session=CODE)
+      const url = new URL(window.location.href);
+      url.searchParams.set('session', sessionCode);
+      history.replaceState(null, '', url.toString());
+      renderSessionBanner();
       return;
     }
     if (msg.type === 'error') {
@@ -287,7 +316,7 @@
     el('lobbyPlayers').innerHTML =
       `${lastState.players.length} Spieler am Tisch` +
       (lastState.players.length
-        ? '<br>' + lastState.players.map((p) => `${p.name}${p.isBot ? ' (Bot)' : ''}`).join(', ')
+        ? '<br>' + lastState.players.map((p) => `${escapeHtml(p.name)}${p.isBot ? ' (Bot)' : ''}`).join(', ')
         : '');
     el('startBtn').disabled = humanCount === 0;
 
@@ -314,7 +343,7 @@
       row.className = 'seatRow';
       const isDealer = p.id === lastState.dealerId;
       row.innerHTML = `
-        <span class="seatName">${p.name}${p.isBot ? ' 🤖' : ''}</span>
+        <span class="seatName">${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}</span>
         <span class="seatControls">
           <button class="btn-icon seatUp" ${idx === 0 ? 'disabled' : ''} title="Nach oben">▲</button>
           <button class="btn-icon seatDown" ${idx === lastState.players.length - 1 ? 'disabled' : ''} title="Nach unten">▼</button>
@@ -339,7 +368,7 @@
     const select = el('teamSelect');
     const current = select.value;
     select.innerHTML = '<option value="">– Team wählen –</option>' +
-      knownTeams.map((t) => `<option value="${t.id}">${t.name} (${t.memberNames.join(', ')})</option>`).join('');
+      knownTeams.map((t) => `<option value="${escapeHtml(t.id)}">${escapeHtml(t.name)} (${t.memberNames.map(escapeHtml).join(', ')})</option>`).join('');
     if (current) select.value = current;
   }
 
@@ -369,7 +398,7 @@
         const d = document.createElement('div');
         d.className = 'opponent' + (p.id === lastState.currentPlayerId ? ' active' : '');
         const reconnecting = !p.isBot && p.controlledByBot;
-        d.innerHTML = `<div class="opName">${p.name}${p.isBot ? ' 🤖' : ''}${reconnecting ? ' <span class="reconnectTag">⏳ getrennt – Bot übernimmt</span>' : ''}</div><div class="opCount">${p.handCount} Karten</div>`;
+        d.innerHTML = `<div class="opName">${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}${reconnecting ? ' <span class="reconnectTag">⏳ getrennt – Bot übernimmt</span>' : ''}</div><div class="opCount">${p.handCount} Karten</div>`;
         opponentsDiv.appendChild(d);
       });
 
@@ -574,7 +603,7 @@
       const row = document.createElement('div');
       row.className = 'resultRow' + (r && r.breakdown.isWinner ? ' winner' : '');
       const total = lastState.totals[p.id] || 0;
-      row.innerHTML = `<span>${p.name}${p.isBot ? ' 🤖' : ''}</span><span>${r ? r.roundScore : 0} Pkt (Gesamt: ${total})</span>`;
+      row.innerHTML = `<span>${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}</span><span>${r ? r.roundScore : 0} Pkt (Gesamt: ${total})</span>`;
       body.appendChild(row);
     });
 
@@ -587,7 +616,7 @@
         <tbody>${lastState.lastRoundStats
           .map(
             (s) =>
-              `<tr><td>${s.name}</td><td>${s.laidOutCount}</td><td>${s.handCount}</td><td>${s.pikDameCount}</td><td>${s.jokerInHandCount}</td></tr>`
+              `<tr><td>${escapeHtml(s.name)}</td><td>${s.laidOutCount}</td><td>${s.handCount}</td><td>${s.pikDameCount}</td><td>${s.jokerInHandCount}</td></tr>`
           )
           .join('')}</tbody>`;
       body.appendChild(statsTable);
@@ -596,7 +625,7 @@
     if (isGameOver && lastState.gameOverInfo) {
       const winner = lastState.players.find((p) => p.id === lastState.gameOverInfo.winnerId);
       const winLine = document.createElement('p');
-      winLine.innerHTML = `<strong>🏆 ${winner ? winner.name : '?'} gewinnt das Spiel!</strong>`;
+      winLine.innerHTML = `<strong>🏆 ${escapeHtml(winner ? winner.name : '?')} gewinnt das Spiel!</strong>`;
       body.appendChild(winLine);
     }
 
@@ -645,18 +674,65 @@
     }
   }
 
-  let hasJoinedOnce = false;
-
   el('nameInput').value = myName;
+  if (sessionCode) el('codeInput').value = sessionCode;
 
-  el('joinBtn').addEventListener('click', () => {
+  function currentName() {
     myName = el('nameInput').value.trim() || `Spieler${Math.floor(Math.random() * 1000)}`;
     localStorage.setItem(NAME_KEY, myName);
-    send({ type: 'join', playerId, name: myName });
-    hasJoinedOnce = true;
-    el('joinBtn').textContent = 'Namen aktualisieren';
-    el('startBtn').disabled = false;
+    return myName;
+  }
+
+  el('createGameBtn').addEventListener('click', () => {
+    send({ type: 'createSession', name: currentName() });
   });
+
+  el('joinGameBtn').addEventListener('click', () => {
+    const code = el('codeInput').value.trim().toUpperCase();
+    if (!code) {
+      showHint('Bitte den Spiel-Code eingeben.', true);
+      return;
+    }
+    const storedId = localStorage.getItem(playerKeyFor(code));
+    send({ type: 'joinSession', code, name: currentName(), playerId: storedId || undefined });
+  });
+
+  el('updateNameBtn').addEventListener('click', () => {
+    if (!sessionCode || !playerId) return;
+    send({ type: 'joinSession', code: sessionCode, playerId, name: currentName() });
+  });
+
+  el('shareCodeBtn').addEventListener('click', async () => {
+    if (!sessionCode) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set('session', sessionCode);
+    const shareData = {
+      title: 'Pik Dame',
+      text: `Spiel mit! Code: ${sessionCode}`,
+      url: url.toString(),
+    };
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (e) {
+        /* Nutzer hat das Teilen abgebrochen */
+      }
+    } else if (navigator.clipboard) {
+      await navigator.clipboard.writeText(`${shareData.text} - ${shareData.url}`);
+      showHint('Link kopiert!', false);
+    }
+  });
+
+  function renderSessionBanner() {
+    const inSession = !!sessionCode && !!playerId;
+    el('sessionSetup').classList.toggle('hidden', inSession);
+    el('sessionBanner').classList.toggle('hidden', !inSession);
+    if (inSession) {
+      el('sessionCodeText').textContent = sessionCode;
+      el('startBtn').disabled = false;
+    }
+  }
+  renderSessionBanner();
 
   el('startBtn').addEventListener('click', () => {
     send({ type: 'startGame', houseRules: collectHouseRules() });
