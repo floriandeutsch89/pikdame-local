@@ -84,21 +84,63 @@ function validateSet(cards, jokerAssignments = {}) {
 }
 
 /**
+ * FOLGEN SIND ZIRKULÄR: Die Werte bilden einen Ring 2,3,...,K,A,2,3,...
+ * Das Ass verbindet König und 2, d.h. Q-K-A, A-2-3 und auch K-A-2 sind
+ * gültige Folgen. Eine Folge ist ein zusammenhängendes Fenster im Ring
+ * (mindestens 3, höchstens 13 Karten - Werte dürfen sich nicht wiederholen).
+ */
+const RING = RANKS.length; // 13
+const ringRank = (idx) => RANKS[((idx % RING) + RING) % RING];
+
+/**
+ * Bestimmt für eine Menge distinkter Ring-Indizes das (eindeutige) minimale
+ * zusammenhängende Fenster, das alle enthält. Liefert { start, length } oder
+ * { ambiguous: true }, wenn mehrere gleich große Fenster möglich sind.
+ */
+function ringHull(indices) {
+  const sorted = [...indices].sort((a, b) => a - b);
+  const n = sorted.length;
+  if (n === 0) return { ambiguous: true };
+  if (n === 1) return { start: sorted[0], length: 1 };
+  if (n === RING) return { start: 0, length: RING }; // alle Werte belegt: kanonisch 2..A
+  let maxGap = -1;
+  let maxGapCount = 0;
+  let startAfterGap = sorted[0];
+  for (let i = 0; i < n; i++) {
+    const cur = sorted[i];
+    const next = sorted[(i + 1) % n];
+    const gap = i + 1 < n ? next - cur : next + RING - cur;
+    if (gap > maxGap) {
+      maxGap = gap;
+      maxGapCount = 1;
+      startAfterGap = (cur + gap) % RING; // = next
+    } else if (gap === maxGap) {
+      maxGapCount += 1;
+    }
+  }
+  if (maxGapCount > 1) return { ambiguous: true };
+  return { start: startAfterGap, length: RING - maxGap + 1 };
+}
+
+/**
  * Prüft, ob eine Menge von Karten eine gültige FOLGE bildet: mindestens 3
- * aufeinanderfolgende Werte derselben Farbe. Joker füllen Lücken/Enden.
+ * im Ring aufeinanderfolgende Werte derselben Farbe (K-A-2 ist gültig!).
+ * Joker füllen Lücken/Enden.
  *
  * Standardverhalten OHNE explizite jokerAssignments: Joker füllen nur
- * LÜCKEN INNERHALB der Spanne der echten Karten (kein automatisches
- * Verlängern nach außen, da das bei mehreren "freien" Jokern mehrdeutig
+ * LÜCKEN INNERHALB des minimalen Fensters der echten Karten (kein
+ * automatisches Erweitern nach außen, da das bei "freien" Jokern mehrdeutig
  * wäre - siehe enumerateMeldOptions() für die explizite Auflösung).
  *
  * Wird für JEDEN Joker eine Rang-Zuweisung übergeben (jokerAssignments:
- * jokerCardId -> Rang), bestimmt das exakt das gewünschte Fenster
- * (z. B. um eine Folge gezielt nach oben/unten zu verlängern).
+ * jokerCardId -> Rang), bestimmt das exakt das gewünschte Fenster.
  */
 function validateRun(cards, jokerAssignments = {}) {
   if (cards.length < 3) {
     return { valid: false, reason: 'Eine Folge braucht mindestens 3 Karten.' };
+  }
+  if (cards.length > RING) {
+    return { valid: false, reason: 'Eine Folge kann höchstens 13 Karten umfassen (Werte dürfen sich nicht wiederholen).' };
   }
   const reals = cards.filter((c) => !isJokerCard(c));
   const jokers = cards.filter((c) => isJokerCard(c));
@@ -120,13 +162,10 @@ function validateRun(cards, jokerAssignments = {}) {
   const allJokersAssigned = jokers.length > 0 && jokers.every((j) => jokerAssignments[j.id]);
 
   if (jokers.some((j) => jokerAssignments[j.id] !== undefined && !RANKS.includes(jokerAssignments[j.id]))) {
-    // Die Zuweisung ist erkennbar NICHT für eine Folge gedacht (z. B. ein
-    // Farb-Code aus einer Satz-Interpretation).
     return { valid: false, reason: 'Joker-Zuweisung passt nicht zu einer Folge.' };
   }
 
-  let windowMin;
-  let windowMax;
+  let start;
 
   if (allJokersAssigned) {
     const assignedIdxs = jokers.map((j) => rankIndex(jokerAssignments[j.id]));
@@ -134,28 +173,26 @@ function validateRun(cards, jokerAssignments = {}) {
     if (new Set(allIdxs).size !== allIdxs.length) {
       return { valid: false, reason: 'Doppelte Werte in der Folge sind nicht erlaubt.' };
     }
-    windowMin = Math.min(...allIdxs);
-    windowMax = Math.max(...allIdxs);
-    if (windowMax - windowMin + 1 !== cards.length) {
+    const hull = ringHull(allIdxs);
+    if (hull.ambiguous || hull.length !== cards.length) {
       return { valid: false, reason: 'Die zugewiesenen Joker-Werte ergeben keine zusammenhängende Folge.' };
     }
+    start = hull.start;
   } else {
-    // Kein (vollständiges) Assignment: nur interne Lücken zwischen den
-    // echten Karten erlauben, keine Verlängerung nach außen.
-    windowMin = Math.min(...realIdxs);
-    windowMax = Math.max(...realIdxs);
-    if (windowMax - windowMin + 1 !== cards.length) {
+    const hull = ringHull(realIdxs);
+    if (hull.ambiguous || hull.length !== cards.length) {
       return {
         valid: false,
         reason:
           jokers.length > 0
             ? 'Mehrdeutige Joker-Platzierung - bitte eine Variante auswählen.'
-            : 'Zu viele Karten für die Spannweite der Folge.',
+            : 'Die Karten bilden keine zusammenhängende Folge.',
       };
     }
+    start = hull.start;
   }
 
-  // Baue komplette Slot-Liste von windowMin..windowMax
+  // Slots in Ring-Reihenfolge ab start bauen
   const slots = [];
   const realByIdx = {};
   reals.forEach((c) => (realByIdx[rankIndex(c.rank)] = c));
@@ -165,25 +202,22 @@ function validateRun(cards, jokerAssignments = {}) {
   }
   const jokerQueue = jokers.slice();
 
-  for (let idx = windowMin; idx <= windowMax; idx++) {
+  for (let i = 0; i < cards.length; i++) {
+    const idx = (start + i) % RING;
     if (realByIdx[idx]) {
       slots.push({ real: realByIdx[idx] });
     } else if (allJokersAssigned) {
       const j = jokerByIdx[idx];
       if (!j) return { valid: false, reason: 'Ungültige Folge.' };
-      slots.push({ joker: j, representsRank: RANKS[idx], representsSuit: suit });
+      slots.push({ joker: j, representsRank: ringRank(idx), representsSuit: suit });
     } else {
       const j = jokerQueue.shift();
       if (!j) return { valid: false, reason: 'Nicht genug Joker, um die Folge zu füllen.' };
-      slots.push({ joker: j, representsRank: RANKS[idx], representsSuit: suit });
+      slots.push({ joker: j, representsRank: ringRank(idx), representsSuit: suit });
     }
   }
 
-  if (slots.length !== cards.length) {
-    return { valid: false, reason: 'Ungültige Folge.' };
-  }
-
-  return { valid: true, type: 'run', suit, slots };
+  return { valid: true, type: 'run', suit, slots, startIdx: start };
 }
 
 /**
@@ -270,41 +304,38 @@ function enumerateMeldOptions(cards) {
     }
   }
 
-  // --- Folge-Interpretationen (eine pro möglicher Fenster-Position) ---
+  // --- Folge-Interpretationen: alle Ring-Fenster durchprobieren ---
+  // (Folgen sind zirkulär: K-A-2 ist gültig, daher alle 13 Startpositionen.)
   if (reals.every((c) => c.suit === reals[0].suit)) {
     const suit = reals[0].suit;
-    const realIdxs = [...new Set(reals.map((c) => rankIndex(c.rank)))].sort((a, b) => a - b);
-    if (realIdxs.length === reals.length) {
-      // keine doppelten Werte unter den echten Karten
-      const minReal = realIdxs[0];
-      const maxReal = realIdxs[realIdxs.length - 1];
-      let requiredInternal = 0;
-      for (let i = minReal; i <= maxReal; i++) {
-        if (!realIdxs.includes(i)) requiredInternal++;
-      }
-      const extra = jokers.length - requiredInternal;
-      if (extra >= 0) {
-        for (let before = 0; before <= extra; before++) {
-          const after = extra - before;
-          const windowMin = minReal - before;
-          const windowMax = maxReal + after;
-          if (windowMin < 0 || windowMax > RANKS.length - 1) continue;
-          if (windowMax - windowMin + 1 !== cards.length) continue;
+    const realIdxSet = new Set(reals.map((c) => rankIndex(c.rank)));
+    if (realIdxSet.size === reals.length && cards.length <= RING) {
+      const L = cards.length;
+      for (let start = 0; start < RING; start++) {
+        const windowIdxs = [];
+        for (let i = 0; i < L; i++) windowIdxs.push((start + i) % RING);
+        const windowSet = new Set(windowIdxs);
+        // Alle echten Karten müssen im Fenster liegen
+        if (![...realIdxSet].every((idx) => windowSet.has(idx))) continue;
 
-          const assignment = {};
-          const jokerQueue = jokers.slice();
-          for (let i = windowMin; i <= windowMax; i++) {
-            if (!realIdxs.includes(i)) {
-              const j = jokerQueue.shift();
-              if (j) assignment[j.id] = RANKS[i];
-            }
+        const assignment = {};
+        const jokerQueue = jokers.slice();
+        let ok = true;
+        for (const idx of windowIdxs) {
+          if (!realIdxSet.has(idx)) {
+            const j = jokerQueue.shift();
+            if (!j) { ok = false; break; }
+            assignment[j.id] = ringRank(idx);
           }
-          const v = validateRun(cards, assignment);
-          if (v.valid) {
-            const label = `Folge: ${rankLabel(RANKS[windowMin])}-${rankLabel(RANKS[windowMax])} (${SUIT_LABELS[suit] || suit})`;
-            if (!options.some((o) => o.label === label)) {
-              options.push({ id: `run-${windowMin}-${windowMax}`, type: 'run', label, jokerAssignments: assignment });
-            }
+        }
+        if (!ok || jokerQueue.length > 0) continue;
+
+        const v = validateRun(cards, assignment);
+        if (v.valid) {
+          const endIdx = (start + L - 1) % RING;
+          const label = `Folge: ${rankLabel(ringRank(start))}-${rankLabel(ringRank(endIdx))} (${SUIT_LABELS[suit] || suit})`;
+          if (!options.some((o) => o.label === label)) {
+            options.push({ id: `run-${start}-${L}`, type: 'run', label, jokerAssignments: assignment });
           }
         }
       }
@@ -343,16 +374,21 @@ function enumerateLayOffOptions(meld, card) {
       }
     }
   } else if (meld.type === 'run') {
-    const slotIdx = meld.slots.map((s) => rankIndex(s.real ? s.real.rank : s.representsRank));
-    const minIdx = Math.min(...slotIdx);
-    const maxIdx = Math.max(...slotIdx);
-    if (maxIdx < RANKS.length - 1) {
-      const result = tryLayOff(meld, card, { side: 'high' });
-      if (result) options.push({ id: 'extend-high', label: `oben anlegen als ${rankLabel(RANKS[maxIdx + 1])}`, side: 'high', meld: result });
-    }
-    if (minIdx > 0) {
-      const result = tryLayOff(meld, card, { side: 'low' });
-      if (result) options.push({ id: 'extend-low', label: `unten anlegen als ${rankLabel(RANKS[minIdx - 1])}`, side: 'low', meld: result });
+    // Ring: solange die Folge kürzer als 13 ist, sind beide Enden offen.
+    // Bei Länge 12 wäre unten und oben derselbe (letzte fehlende) Wert -
+    // dann gibt es nur EINE sinnvolle Option.
+    const len = meld.slots.length;
+    if (len < RING) {
+      const firstRank = meld.slots[0].real ? meld.slots[0].real.rank : meld.slots[0].representsRank;
+      const start = rankIndex(firstRank);
+      const lowRank = ringRank(start - 1);
+      const highRank = ringRank(start + len);
+      const high = tryLayOff(meld, card, { side: 'high' });
+      if (high) options.push({ id: 'extend-high', label: `oben anlegen als ${rankLabel(highRank)}`, side: 'high', meld: high });
+      if (lowRank !== highRank) {
+        const low = tryLayOff(meld, card, { side: 'low' });
+        if (low) options.push({ id: 'extend-low', label: `unten anlegen als ${rankLabel(lowRank)}`, side: 'low', meld: low });
+      }
     }
   }
   return options;
@@ -387,52 +423,43 @@ function tryLayOff(meld, card, opts = {}) {
   }
 
   if (meld.type === 'run') {
-    const slotIdx = meld.slots.map((s) =>
-      rankIndex(s.real ? s.real.rank : s.representsRank)
-    );
-    const minIdx = Math.min(...slotIdx);
-    const maxIdx = Math.max(...slotIdx);
+    // Ring-Arithmetik: Start-Index aus dem ersten Slot ableiten (slots sind
+    // in Folgen-Reihenfolge geordnet), alles Weitere ergibt sich modulo 13.
+    // K-A-2 ist eine gültige Folge; Anlegen ist möglich, solange die Folge
+    // kürzer als 13 Karten ist (danach würden sich Werte wiederholen).
+    const len = meld.slots.length;
+    if (len >= RING) return null;
+    const firstRank = meld.slots[0].real ? meld.slots[0].real.rank : meld.slots[0].representsRank;
+    const start = rankIndex(firstRank);
+    const lowRank = ringRank(start - 1); // Wert, der unten anschließen würde
+    const highRank = ringRank(start + len); // Wert, der oben anschließen würde
 
     const cardSuit = isJokerCard(card) ? meld.suit : card.suit;
     if (cardSuit !== meld.suit) return null;
 
     if (!isJokerCard(card)) {
-      const cIdx = rankIndex(card.rank);
-      if (cIdx === minIdx - 1) {
-        return { ...meld, slots: [{ real: card }, ...meld.slots] };
-      }
-      if (cIdx === maxIdx + 1) {
+      // Bei len === 12 sind lowRank und highRank derselbe (letzte fehlende)
+      // Wert - dann oben anlegen (Position ist spielerisch gleichwertig).
+      if (card.rank === highRank) {
         return { ...meld, slots: [...meld.slots, { real: card }] };
+      }
+      if (card.rank === lowRank) {
+        return { ...meld, slots: [{ real: card }, ...meld.slots] };
       }
       return null;
     } else {
-      // Joker wird an ein Ende angelegt (verlängert die Folge). Wenn der
-      // Aufrufer explizit eine Seite gewählt hat (Disambiguierung bei
-      // mehrdeutigen Fällen), wird genau diese verwendet.
-      const canHigh = maxIdx < RANKS.length - 1;
-      const canLow = minIdx > 0;
-      let useHigh;
-      if (opts.side === 'high' && canHigh) useHigh = true;
-      else if (opts.side === 'low' && canLow) useHigh = false;
-      else if (canHigh) useHigh = true;
-      else if (canLow) useHigh = false;
-      else return null;
-
+      // Joker verlängert die Folge an einem Ende. Bei mehrdeutigen Fällen
+      // (beide Enden frei) wählt opts.side; sonst bevorzugt oben.
+      const useHigh = opts.side === 'low' ? false : true;
       if (useHigh) {
         return {
           ...meld,
-          slots: [
-            ...meld.slots,
-            { joker: card, representsRank: RANKS[maxIdx + 1], representsSuit: meld.suit },
-          ],
+          slots: [...meld.slots, { joker: card, representsRank: highRank, representsSuit: meld.suit }],
         };
       }
       return {
         ...meld,
-        slots: [
-          { joker: card, representsRank: RANKS[minIdx - 1], representsSuit: meld.suit },
-          ...meld.slots,
-        ],
+        slots: [{ joker: card, representsRank: lowRank, representsSuit: meld.suit }, ...meld.slots],
       };
     }
   }
@@ -493,17 +520,22 @@ function canFormRunWithRealCard(card, hand) {
   const sameSuitIdx = hand.filter((c) => !isJokerCard(c) && c.suit === card.suit).map((c) => rankIndex(c.rank));
   const jokerCount = hand.filter((c) => isJokerCard(c)).length;
   const cardIdx = rankIndex(card.rank);
-  const allIdx = [...new Set([cardIdx, ...sameSuitIdx])];
+  const allIdx = new Set([cardIdx, ...sameSuitIdx]);
 
-  const maxSpan = Math.min(RANKS.length, allIdx.length + jokerCount);
+  // Ring-Fenster: alle Startpositionen und Längen durchprobieren; das
+  // Fenster muss die Karte enthalten, Lücken füllen Joker.
+  const maxSpan = Math.min(RING, allIdx.size + jokerCount);
   for (let span = 3; span <= maxSpan; span++) {
-    for (let windowMin = Math.max(0, cardIdx - span + 1); windowMin <= cardIdx; windowMin++) {
-      const windowMax = windowMin + span - 1;
-      if (windowMax > RANKS.length - 1 || windowMax < cardIdx) continue;
-      const covered = allIdx.filter((i) => i >= windowMin && i <= windowMax);
-      if (new Set(covered).size !== covered.length) continue; // doppelte Werte im Fenster unmöglich
-      const gaps = span - covered.length;
-      if (gaps <= jokerCount) return true;
+    for (let start = 0; start < RING; start++) {
+      let containsCard = false;
+      let covered = 0;
+      for (let i = 0; i < span; i++) {
+        const idx = (start + i) % RING;
+        if (idx === cardIdx) containsCard = true;
+        if (allIdx.has(idx)) covered++;
+      }
+      if (!containsCard) continue;
+      if (span - covered <= jokerCount) return true;
     }
   }
   return false;
@@ -525,21 +557,22 @@ function canFormRunAsJoker(hand) {
   const bySuit = {};
   for (const c of hand) {
     if (!isJokerCard(c)) {
-      bySuit[c.suit] = bySuit[c.suit] || [];
-      bySuit[c.suit].push(rankIndex(c.rank));
+      bySuit[c.suit] = bySuit[c.suit] || new Set();
+      bySuit[c.suit].add(rankIndex(c.rank));
     }
   }
   const otherJokers = hand.filter((c) => isJokerCard(c)).length;
   for (const suit of Object.keys(bySuit)) {
-    const idxs = [...new Set(bySuit[suit])];
-    const maxSpan = Math.min(RANKS.length, idxs.length + 1 + otherJokers);
+    const idxs = bySuit[suit];
+    const maxSpan = Math.min(RING, idxs.size + 1 + otherJokers);
     for (let span = 3; span <= maxSpan; span++) {
-      for (let windowMin = 0; windowMin + span - 1 <= RANKS.length - 1; windowMin++) {
-        const windowMax = windowMin + span - 1;
-        const covered = idxs.filter((i) => i >= windowMin && i <= windowMax);
-        if (covered.length === 0) continue; // mind. 1 echte Karte dieser Farbe im Fenster nötig
-        if (new Set(covered).size !== covered.length) continue;
-        const gaps = span - covered.length - 1; // -1 für diesen Joker selbst
+      for (let start = 0; start < RING; start++) {
+        let covered = 0;
+        for (let i = 0; i < span; i++) {
+          if (idxs.has((start + i) % RING)) covered++;
+        }
+        if (covered === 0) continue; // mind. 1 echte Karte dieser Farbe im Fenster nötig
+        const gaps = span - covered - 1; // -1 für diesen Joker selbst
         if (gaps >= 0 && gaps <= otherJokers) return true;
       }
     }

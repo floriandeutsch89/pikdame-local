@@ -1,5 +1,5 @@
 // game/GameManager.js
-const { createDeck, shuffle, dealCards } = require('./Deck');
+const { createDeck, shuffle, dealCards, performLuckyCut } = require('./Deck');
 const { validateMeld, tryLayOff, tryJokerSwap, enumerateMeldOptions, enumerateLayOffOptions, canFormMeldWithCard } = require('./Rules');
 const { scoreRound, applyRoundScores, checkGameOver, DEFAULT_HOUSE_RULES } = require('./ScoreBoard');
 const { cardLabel } = require('./Card');
@@ -182,21 +182,48 @@ class GameManager {
     this.retiredJokers = [];
     this.roundNumber += 1;
     if (this.roundNumber === 1) this.gameStartedAt = Date.now();
-    const deck = shuffle(createDeck());
+
+    // Der Geber rotiert jede Runde reihum, beginnend beim explizit gewählten
+    // (oder sonst Platz 0). WICHTIG: Rotation VOR dem Abheben, damit der
+    // richtige Spieler (rechts vom aktuellen Geber) abhebt.
+    if (this.roundNumber > 1 && this.players.length > 0) {
+      this.dealerIndex = (this.dealerIndex + 1) % this.players.length;
+    }
+
+    let deck = shuffle(createDeck());
     const playerIds = this.players.map((p) => p.id);
-    const { hands, drawPile, discardPile } = dealCards(deck, playerIds);
+
+    // --- Glücksgriff beim Abheben ---
+    // Der Geber mischt, der Spieler zu seiner RECHTEN hebt ab (= der Spieler
+    // VOR ihm in der Sitzreihenfolge, da diese im Uhrzeigersinn läuft).
+    // Findet er dabei Pik Dame oder Joker, wandern diese Karten sofort auf
+    // seine Hand - beim Verteilen wird er dafür entsprechend oft übersprungen,
+    // sodass am Ende alle exakt 15 Karten haben.
+    const skips = {};
+    let luckyCards = [];
+    let cutter = null;
+    if (this.players.length >= 2) {
+      cutter = this.players[(this.dealerIndex - 1 + this.players.length) % this.players.length];
+      const cutIndex = 10 + Math.floor(Math.random() * (deck.length - 20));
+      const cut = performLuckyCut(deck, cutIndex);
+      luckyCards = cut.luckyCards;
+      deck = cut.remaining;
+      if (luckyCards.length > 0) {
+        skips[cutter.id] = luckyCards.length;
+      }
+    }
+
+    const { hands, drawPile, discardPile } = dealCards(deck, playerIds, { skips });
 
     for (const p of this.players) {
       p.hand = hands[p.id];
       p.laidOutCards = []; // für Punkteabrechnung am Rundenende
     }
+    if (cutter && luckyCards.length > 0) {
+      cutter.hand.push(...luckyCards);
+    }
     this.drawPile = drawPile;
     this.discardPile = discardPile;
-    // Der Geber rotiert jede Runde reihum, beginnend beim explizit gewählten
-    // (oder sonst Platz 0). Gestartet wird vom Spieler NACH dem Geber.
-    if (this.roundNumber > 1) {
-      this.dealerIndex = (this.dealerIndex + 1) % this.players.length;
-    }
     this.currentPlayerIndex = this.players.length > 0 ? (this.dealerIndex + 1) % this.players.length : 0;
     this.turnPhase = 'draw';
     this.turnIndexInRound = 0;
@@ -205,6 +232,10 @@ class GameManager {
 
     const dealer = this.players[this.dealerIndex];
     this.addLog(`Runde ${this.roundNumber} gestartet. Geber: ${dealer ? dealer.name : '?'}.`);
+    if (cutter && luckyCards.length > 0) {
+      const labels = luckyCards.map((card) => (card.isJoker ? 'Joker' : 'Pik Dame')).join(' + ');
+      this.addLog(`🍀 Glücksgriff! ${cutter.name} hebt ab und nimmt sofort auf die Hand: ${labels}.`);
+    }
     this.broadcastState();
     this.maybeRunBotTurn();
   }
@@ -268,11 +299,13 @@ class GameManager {
    * aufgenommen werden (sonst droht ein unlösbarer Zwang, eine nicht
    * nutzbare Pflichtkarte auslegen zu müssen).
    */
-  canUseDiscardTop(hand, topCard) {
+  canUseDiscardTop(player, topCard) {
+    // Nur die EIGENEN Auslagen zählen - an fremde darf ohnehin nicht
+    // angelegt werden (jeder Spieler hat seinen eigenen Stapel).
     for (const meld of this.tableMelds) {
-      if (tryLayOff(meld, topCard)) return true;
+      if (meld.ownerId === player.id && tryLayOff(meld, topCard)) return true;
     }
-    return canFormMeldWithCard(topCard, hand);
+    return canFormMeldWithCard(topCard, player.hand);
   }
 
   drawFromDiscard(playerId) {
@@ -284,7 +317,7 @@ class GameManager {
     const topCard = this.discardPile[0]; // index 0 = oberste/zuletzt abgelegte Karte
     const player = this.currentPlayer();
 
-    if (!this.canUseDiscardTop(player.hand, topCard)) {
+    if (!this.canUseDiscardTop(player, topCard)) {
       return {
         error:
           'Die oberste Ablagekarte passt weder an eine bestehende Auslage noch in eine neue Kombination mit deiner Hand - der Ablagestapel kann so nicht aufgenommen werden.',
@@ -339,7 +372,8 @@ class GameManager {
     // optisch hervorheben (auch wenn andere Spieler später weitere Karten
     // an dieselbe Auslage anlegen).
     const taggedSlots = result.slots.map((slot) => ({ ...slot, playerId: player.id }));
-    const meld = { id: nextMeldId(), type: result.type, suit: result.suit || null, rank: result.rank || null, slots: taggedSlots };
+    // ownerId: Auslagen gehören ihrem Ersteller - NUR er darf anlegen/tauschen.
+    const meld = { id: nextMeldId(), ownerId: player.id, type: result.type, suit: result.suit || null, rank: result.rank || null, slots: taggedSlots };
     this.tableMelds.push(meld);
 
     player.hand = player.hand.filter((c) => !cardIds.includes(c.id));
@@ -361,6 +395,9 @@ class GameManager {
     const player = this.currentPlayer();
     const meld = this.tableMelds.find((m) => m.id === meldId);
     if (!meld) return { error: 'Auslage nicht gefunden.' };
+    if (meld.ownerId !== player.id) {
+      return { error: 'Du kannst nur an deine EIGENEN Auslagen anlegen - jeder Spieler hat seinen eigenen Stapel.' };
+    }
     const card = player.hand.find((c) => c.id === cardId);
     if (!card) return { error: 'Karte nicht in der Hand gefunden.' };
 
@@ -406,6 +443,9 @@ class GameManager {
     const player = this.currentPlayer();
     const meld = this.tableMelds.find((m) => m.id === meldId);
     if (!meld) return { error: 'Auslage nicht gefunden.' };
+    if (meld.ownerId !== player.id) {
+      return { error: 'Du kannst nur Joker aus deinen EIGENEN Auslagen tauschen - fremde Stapel sind tabu.' };
+    }
     const handCard = player.hand.find((c) => c.id === handCardId);
     if (!handCard) return { error: 'Karte nicht in der Hand gefunden.' };
 
@@ -644,7 +684,8 @@ class GameManager {
     const cp = this.currentPlayer();
     if (!cp || cp.id !== botId || !this.isBotControlled(cp)) return;
 
-    const plan = Bot.decideDraw(cp.hand, this.discardPile, this.tableMelds);
+    const ownMelds = this.tableMelds.filter((m) => m.ownerId === botId);
+    const plan = Bot.decideDraw(cp.hand, this.discardPile, ownMelds);
     if (plan.source === 'discardPile' && this.discardPile.length > 0) {
       this.drawFromDiscard(botId);
     } else {
@@ -654,7 +695,7 @@ class GameManager {
 
     const meldPlan = Bot.planBotMelds(
       cp.hand,
-      this.tableMelds.map((m) => ({ ...m, slots: m.slots.slice() }))
+      this.tableMelds.filter((m) => m.ownerId === botId).map((m) => ({ ...m, slots: m.slots.slice() }))
     );
 
     for (const meldCards of meldPlan.newMelds) {
@@ -682,7 +723,8 @@ class GameManager {
     if (this.phase !== 'playing') return;
 
     // Prio 1 für Bots: Pik-Dame/Joker niemals unnötig auf der Hand behalten.
-    let discardCard = Bot.chooseDiscard(cp.hand, this.tableMelds);
+    const foreignMelds = this.tableMelds.filter((m) => m.ownerId !== botId);
+    let discardCard = Bot.chooseDiscard(cp.hand, foreignMelds);
     if (this.mustLayOffCardId) {
       const forced = cp.hand.find((c) => c.id === this.mustLayOffCardId);
       if (forced) discardCard = null; // Pflichtkarte zuerst lösen, kann nicht abwerfen

@@ -403,23 +403,48 @@
       });
 
     // Auslagen
-    el('meldsLegend').classList.toggle('hidden', lastState.tableMelds.length === 0);
     const meldsDiv = el('melds');
     meldsDiv.innerHTML = '';
-    lastState.tableMelds.forEach((meld) => {
-      const group = document.createElement('div');
-      group.className = 'meldGroup';
-      meld.slots.forEach((slot) => {
-        const card = slot.real || { isJoker: true, rank: slot.representsRank, suit: slot.representsSuit, _isJokerSlot: true };
-        const cEl = cardEl(card, {
-          selectable: isMyTurn && lastState.turnPhase === 'meld',
-          onClick: () => onMeldCardClick(meld),
-          compact: true,
+    // Auslagen nach BESITZER gruppiert (jeder Spieler hat seinen eigenen
+    // Stapel!) - der eigene zuerst, dann die Mitspieler in Sitzreihenfolge.
+    // So ist auf einen Blick sichtbar, welche Karten bei wem liegen (z.B.
+    // fürs strategische Abwerfen relevant).
+    const ownerOrder = [
+      ...lastState.players.filter((p) => p.id === playerId),
+      ...lastState.players.filter((p) => p.id !== playerId),
+    ];
+    ownerOrder.forEach((owner) => {
+      const ownerMelds = lastState.tableMelds.filter((m) => m.ownerId === owner.id);
+      if (ownerMelds.length === 0) return;
+      const isMine = owner.id === playerId;
+
+      const section = document.createElement('div');
+      section.className = 'meldOwnerGroup' + (isMine ? ' own' : '');
+      const header = document.createElement('div');
+      header.className = 'meldOwnerHeader';
+      header.innerHTML = isMine
+        ? 'Deine Auslagen'
+        : `Auslagen von ${escapeHtml(owner.name)}${owner.isBot ? ' 🤖' : ''}`;
+      section.appendChild(header);
+
+      ownerMelds.forEach((meld) => {
+        const group = document.createElement('div');
+        group.className = 'meldGroup';
+        meld.slots.forEach((slot) => {
+          const card = slot.real || { isJoker: true, rank: slot.representsRank, suit: slot.representsSuit, _isJokerSlot: true };
+          const cEl = cardEl(card, {
+            // Nur die EIGENEN Auslagen sind interaktiv - mit fremden
+            // Stapeln gibt es keinerlei Interaktion (weder Anlegen noch
+            // Joker-Tausch).
+            selectable: isMine && isMyTurn && lastState.turnPhase === 'meld',
+            onClick: () => onMeldCardClick(meld),
+            compact: true,
+          });
+          group.appendChild(cEl);
         });
-        if (slot.playerId === playerId) cEl.classList.add('mine');
-        group.appendChild(cEl);
+        section.appendChild(group);
       });
-      meldsDiv.appendChild(group);
+      meldsDiv.appendChild(section);
     });
 
     // Ausgetauschte Joker (dauerhaft aus dem Spiel, nur sichtbar liegend)

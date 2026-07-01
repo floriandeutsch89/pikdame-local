@@ -456,17 +456,6 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .opponent .opCount { color: var(--text-muted); font-weight: 500; }
 
 /* Auslagen */
-.melds-legend {
-  display: flex; align-items: center; gap: 6px;
-  font-size: 0.68rem; font-weight: 500;
-  color: var(--text-muted);
-  padding: 2px 14px 0;
-}
-.legend-dot {
-  width: 9px; height: 9px; border-radius: 50%;
-  background: var(--success); flex-shrink: 0;
-  box-shadow: 0 0 6px var(--success);
-}
 
 #melds {
   flex: 1;
@@ -674,9 +663,23 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .card.pikdame-card { box-shadow: 0 0 0 2px var(--accent), 0 4px 12px rgba(0,0,0,0.35); }
 
 /* eigene Karten in Auslagen */
-.card.mine { box-shadow: inset 0 -4px 0 0 var(--success), var(--shadow-1); }
-.card.mine.pikdame-card { box-shadow: inset 0 -4px 0 0 var(--success), 0 0 0 2px var(--accent); }
-.card.mine.selected { box-shadow: inset 0 -4px 0 0 var(--success), 0 0 0 3px var(--accent), var(--shadow-3); }
+/* Auslagen nach Besitzer gruppiert: jeder Spieler hat seinen eigenen Stapel */
+.meldOwnerGroup {
+  width: 100%;
+  padding: 8px 10px 10px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--glass-border);
+  background: var(--glass);
+  display: flex; flex-direction: column; gap: 8px;
+  margin-bottom: 8px;
+}
+.meldOwnerGroup.own { border-color: var(--accent-soft); background: var(--glass-strong); }
+.meldOwnerHeader {
+  font-size: 0.66rem; font-weight: 700;
+  letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.meldOwnerGroup.own .meldOwnerHeader { color: var(--accent); }
 
 /* Kompakte Auslagen-Karten: nur der Ecken-Index (bei starker Überlappung
    bleibt genau dieser sichtbar) */

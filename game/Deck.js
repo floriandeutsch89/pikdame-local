@@ -1,5 +1,5 @@
 // game/Deck.js
-const { SUITS, RANKS, makeStandardCard, makeJoker } = require('./Card');
+const { SUITS, RANKS, makeStandardCard, makeJoker, isPikDame } = require('./Card');
 
 const JOKER_COUNT = 6;
 const HAND_SIZE = 15;
@@ -37,15 +37,48 @@ function shuffle(deck) {
  * @param {Array} playerIds Reihenfolge der Spieler (Sitzordnung)
  * @returns {{ hands: Object<string,Array>, drawPile: Array, discardPile: Array }}
  */
-function dealCards(deck, playerIds) {
+/**
+ * Glücksgriff beim Abheben: Der Spieler rechts vom Geber hebt an einer
+ * zufälligen Stelle ab. Liegt dort eine Pik Dame oder ein Joker, nimmt er
+ * die Karte sofort auf die Hand - ebenso alle DIREKT folgenden Karten,
+ * sofern auch sie Pik Dame oder Joker sind.
+ *
+ * Pure Funktion (cutIndex wird injiziert) - dadurch deterministisch testbar.
+ * @returns {{ luckyCards: Array, remaining: Array }}
+ */
+function performLuckyCut(deck, cutIndex) {
+  const remaining = deck.slice();
+  const luckyCards = [];
+  const isLucky = (card) => card && (card.isJoker || isPikDame(card));
+  let idx = Math.max(0, Math.min(cutIndex, remaining.length - 1));
+  while (idx < remaining.length && isLucky(remaining[idx])) {
+    luckyCards.push(remaining.splice(idx, 1)[0]);
+  }
+  return { luckyCards, remaining };
+}
+
+function dealCards(deck, playerIds, options = {}) {
   let remaining = deck.slice();
   const hands = {};
   for (const pid of playerIds) hands[pid] = [];
 
+  // Ausgleich für den Glücksgriff: Wer beim Abheben Karten ergattert hat,
+  // wird in den ersten Verteilrunden entsprechend oft übersprungen, damit
+  // am Ende ALLE exakt 15 Handkarten haben (ergatterte Karten mitgezählt).
+  const skips = { ...(options.skips || {}) };
+  const target = {};
+  for (const pid of playerIds) {
+    target[pid] = HAND_SIZE - (skips[pid] || 0);
+  }
+
   let safety = 0;
-  while (playerIds.some((pid) => hands[pid].length < HAND_SIZE)) {
+  while (playerIds.some((pid) => hands[pid].length < target[pid])) {
     for (const pid of playerIds) {
-      if (hands[pid].length >= HAND_SIZE) continue;
+      if (skips[pid] > 0) {
+        skips[pid] -= 1; // in dieser Verteilrunde übersprungen
+        continue;
+      }
+      if (hands[pid].length >= target[pid]) continue;
       if (remaining.length === 0) break;
       hands[pid].push(remaining.shift());
     }
@@ -69,5 +102,6 @@ module.exports = {
   createDeck,
   shuffle,
   dealCards,
+  performLuckyCut,
   HAND_SIZE,
 };

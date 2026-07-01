@@ -28,10 +28,16 @@ test('canFormMeldWithCard: Folge erkannt, auch wenn Joker die Folge nach außen 
   assert.equal(canFormMeldWithCard(card, hand), true);
 });
 
-test('canFormMeldWithCard: Ass zählt nur hoch - Ass+2+3 ist KEINE gültige Folge', () => {
+test('canFormMeldWithCard: Ass zählt auch niedrig - Ass+2+3 IST eine gültige Folge (Ring)', () => {
   const ass = S('A');
   const hand = [S('2'), S('3')];
-  assert.equal(canFormMeldWithCard(ass, hand), false);
+  assert.equal(canFormMeldWithCard(ass, hand), true);
+});
+
+test('canFormMeldWithCard: Ring-Folge K-A-2 wird erkannt', () => {
+  const ass = S('A');
+  const hand = [S('K'), S('2')];
+  assert.equal(canFormMeldWithCard(ass, hand), true);
 });
 
 test('canFormMeldWithCard: keine Kombination möglich liefert false', () => {

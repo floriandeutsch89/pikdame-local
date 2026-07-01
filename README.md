@@ -172,7 +172,9 @@ Konsole an.
 | Ziehen: Stapel ODER ganzer Ablagestapel (mit Sofort-Auslage-Pflicht) | `GameManager.js` | `drawFromPile`, `drawFromDiscard`, `mustLayOffCardId` |
 | Ablagestapel nur aufnehmbar, wenn die oberste Karte wirklich nutzbar ist | `GameManager.js` | `canUseDiscardTop()` |
 | Sätze (gleicher Wert, Farbe max. 2x wegen 2 Decks) | `Rules.js` | `validateSet` |
-| Folgen (≥3 aufeinanderfolgend, gleiche Farbe) | `Rules.js` | `validateRun` |
+| Folgen (≥3 im WERTE-RING aufeinanderfolgend, gleiche Farbe; K-A-2 gültig, max. 13 Karten) | `Rules.js` | `validateRun`, `ringHull` |
+| Eigene Stapel: Anlegen & Joker-Tausch NUR an den eigenen Auslagen | `GameManager.js` | `layOffCard`, `swapJoker` (ownerId-Guards) |
+| Glücksgriff: Abheber (rechts vom Geber) ergattert Pik Dame/Joker an der Abhebestelle, Ausgleich beim Verteilen | `Deck.js`, `GameManager.js` | `performLuckyCut`, `dealCards` (skips) |
 | Joker ersetzen jede Karte, austauschbar | `Rules.js` | `tryJokerSwap` |
 | Ausgetauschter Joker bleibt liegen (eigener Ablagebereich, nicht wieder aufnehmbar) | `GameManager.js` | `retiredJokers` |
 | Anlegen an bestehende Auslagen | `Rules.js` | `tryLayOff` |
@@ -268,8 +270,9 @@ wählen bei Mehrdeutigkeit automatisch die erste (kanonische) Option.
 Diese Punkte wurden sinnvoll interpretiert und lassen sich bei Bedarf leicht
 anpassen (Code-Stellen sind kommentiert):
 
-1. **Ass in Folgen zählt nur hoch** (...Q-K-A), NICHT zusätzlich als 1 vor
-   der 2 ("Ass-2-3" ist also keine gültige Folge). Anpassbar in `Card.js`
+1. **Folgen sind zirkulär**: Die Werte bilden einen Ring (2..K, A, 2..) -
+   Q-K-A, A-2-3 und auch K-A-2 sind gültige Folgen. Höchstens 13 Karten
+   pro Folge (Werte dürfen sich nicht wiederholen). Umgesetzt in `Rules.js`
    (`RANK_ORDER`).
 2. **Joker-Tausch-Timing**: Ein Spieler kann während seiner eigenen
    Auslegen/Anlegen-Phase einen Tisch-Joker gegen die passende Handkarte
