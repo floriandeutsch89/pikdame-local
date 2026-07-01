@@ -89,6 +89,7 @@
       <button id="startBtn" class="btn-secondary" disabled>Spiel starten (fehlende Plätze = Bots)</button>
       <div id="lobbyPlayers" class="lobby-players"></div>
       <p id="connStatus" class="conn-status">Verbinde...</p>
+      <button id="statsBtn" class="btn-secondary" style="max-width: 340px;">📊 Statistik</button>
       <a class="legal-link" href="/impressum.html">Impressum &amp; Datenschutz</a>
     </section>
 
@@ -99,10 +100,14 @@
         <div id="myScore" title="Deine Gesamtpunkte">–</div>
         <div id="dealerInfo">Geber: –</div>
         <div id="turnInfo">–</div>
+        <button id="emoteBtn" class="btn-icon" title="Reaktion senden">😀</button>
         <button id="soundToggle" class="btn-icon" title="Sound ein/aus">🔊</button>
         <button id="logToggle" class="btn-icon">📜</button>
       </header>
 
+      <div id="emoteBar" class="emoteBar hidden">
+        <button class="emoteChoice">👍</button><button class="emoteChoice">😂</button><button class="emoteChoice">😱</button><button class="emoteChoice">😤</button><button class="emoteChoice">🎉</button><button class="emoteChoice">🃏</button>
+      </div>
       <div id="opponents"></div>
 
       <div id="melds"></div>
@@ -133,6 +138,16 @@
       <div id="handWrapper">
         <button id="sortToggleBtn" class="sortToggle" title="Sortierung umschalten">♠♥ Farbe</button>
         <div id="hand"></div>
+      </div>
+    </section>
+
+    <!-- STATISTIK -->
+    <section id="statsOverlay" class="overlay hidden">
+      <div class="overlay-card">
+        <h2>📊 Statistik</h2>
+        <p class="lobby-hint">Über alle Partien auf diesem Server (nach Spielernamen).</p>
+        <div id="statsContent" class="statsContent"></div>
+        <button id="statsCloseBtn" class="btn-secondary">Schließen</button>
       </div>
     </section>
 

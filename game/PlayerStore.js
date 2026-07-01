@@ -79,6 +79,10 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
       p.gamesPlayed = (p.gamesPlayed || 0) + 1;
       p.totalScore = (p.totalScore || 0) + (r.score || 0);
       if (r.won) p.gamesWon = (p.gamesWon || 0) + 1;
+      // Bester Endstand einer einzelnen Partie (für die Statistik-Seite)
+      if (p.bestGameScore === undefined || (r.score || 0) > p.bestGameScore) {
+        p.bestGameScore = r.score || 0;
+      }
     }
     saveStore(store);
     return store.players;

@@ -365,6 +365,21 @@ wss.on('connection', (ws) => {
         if (r && r.error) sendError(ws, r.error);
         break;
       }
+      case 'emote': {
+        // Emotes: kurze Reaktionen an den ganzen Tisch. Whitelist + eigenes
+        // Rate-Limit (1 Emote / 1,5s), damit niemand den Tisch flutet.
+        const EMOTES = ['👍', '😂', '😱', '😤', '🎉', '🃏'];
+        if (!EMOTES.includes(msg.emoji)) break;
+        const now = Date.now();
+        if (ws._lastEmoteAt && now - ws._lastEmoteAt < 1500) break;
+        ws._lastEmoteAt = now;
+        for (const [, sock] of session.sockets) {
+          if (sock && sock.readyState === WebSocket.OPEN) {
+            sock.send(JSON.stringify({ type: 'emote', playerId, emoji: msg.emoji }));
+          }
+        }
+        break;
+      }
       case 'forfeitRound': {
         const r = game.forfeitRound(playerId);
         if (r && r.error) sendError(ws, r.error);
