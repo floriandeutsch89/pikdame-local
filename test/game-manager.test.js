@@ -350,7 +350,7 @@ test('drawFromDiscard ist erlaubt, wenn die oberste Karte einen neuen Satz ermö
   assert.equal(game.players[0].hand.length, 3);
 });
 
-test('drawFromDiscard ist erlaubt, wenn die oberste Karte an eine bestehende Auslage angelegt werden kann', () => {
+test('drawFromDiscard ist VERBOTEN, wenn die Karte nur an eine Auslage passt (Regel: sie muss zu den HANDKARTEN passen)', () => {
   const { game } = makeGame(2);
   game.phase = 'playing';
   game.turnPhase = 'draw';
@@ -370,10 +370,48 @@ test('drawFromDiscard ist erlaubt, wenn die oberste Karte an eine bestehende Aus
     },
   ];
   game.players[0].hand = [makeStandardCard('S', '2', 0)]; // unabhängig von der Ablagekarte
-  game.discardPile = [makeStandardCard('H', '10', 0)]; // passt an die Folge an
+  game.discardPile = [makeStandardCard('H', '10', 0)]; // passt NUR an die Folge, nicht zur Hand
 
   const result = game.drawFromDiscard('p1');
-  assert.equal(result.ok, true);
+  assert.ok(result.error, 'Anlegbarkeit an Auslagen berechtigt NICHT zur Aufnahme');
+});
+
+test('Zwei-Phasen-Aufnahme: erst nur die oberste Karte, nach dem Legen folgt der Rest', () => {
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  game.turnPhase = 'draw';
+  game.currentPlayerIndex = 0;
+  game.tableMelds = [];
+
+  const h7 = makeStandardCard('H', '7', 0);
+  const d7 = makeStandardCard('D', '7', 0);
+  const filler = makeStandardCard('S', '2', 0);
+  game.players[0].hand = [h7, d7, filler];
+
+  const top = makeStandardCard('C', '7', 0); // ergibt mit der Hand einen 7er-Satz
+  const rest1 = makeStandardCard('S', 'K', 0);
+  const rest2 = makeStandardCard('D', '3', 0);
+  game.discardPile = [top, rest1, rest2];
+
+  // Phase 1: NUR die oberste Karte wandert auf die Hand, der Rest bleibt liegen
+  const r = game.drawFromDiscard('p1');
+  assert.equal(r.ok, true);
+  assert.equal(game.players[0].hand.length, 4, 'nur die oberste Karte aufgenommen');
+  assert.equal(game.discardPile.length, 2, 'der Rest liegt noch');
+  assert.equal(game.mustLayOffCardId, top.id);
+
+  // Andere Aktionen sind blockiert, solange die Pflichtkarte nicht liegt
+  const blocked = game.layoutMeld('p1', [h7.id, d7.id, filler.id]);
+  assert.ok(blocked.error && blocked.error.includes('SOFORT'), 'andere Aktionen müssen blockiert sein');
+
+  // Phase 2: Pflichtkarte legen -> Rest wandert auf die Hand
+  const meldResult = game.layoutMeld('p1', [h7.id, d7.id, top.id]);
+  assert.equal(meldResult.ok, true);
+  assert.equal(game.discardPile.length, 0, 'Rest wurde aufgenommen');
+  const handIds = game.players[0].hand.map((card) => card.id);
+  assert.ok(handIds.includes(rest1.id) && handIds.includes(rest2.id), 'Restkarten sind auf der Hand');
+  assert.equal(game.pendingDiscardRest, false);
+  assert.equal(game.mustLayOffCardId, null);
 });
 
 test('layoutMeld: mehrdeutige Joker-Kombination liefert Optionen statt zu raten', () => {

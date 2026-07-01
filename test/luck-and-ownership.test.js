@@ -90,7 +90,7 @@ test('Ownership: swapJoker an FREMDER Auslage ist verboten', () => {
   assert.ok(game.tableMelds[0].slots.some((s) => s.joker), 'Joker bleibt in der Auslage');
 });
 
-test('Ownership: canUseDiscardTop zählt nur die EIGENEN Auslagen', () => {
+test('canUseDiscardTop: NUR eine Handkarten-Kombination berechtigt zur Aufnahme (Auslagen zählen nicht)', () => {
   const game = makeGame(2);
   game.phase = 'playing';
   // p1 hat eine 7er-Folge liegen, an die eine Herz-10 passen würde
@@ -110,8 +110,12 @@ test('Ownership: canUseDiscardTop zählt nur die EIGENEN Auslagen', () => {
   p1.hand = [S('2')];
   p2.hand = [S('2')];
 
-  assert.equal(game.canUseDiscardTop(p1, topCard), true, 'Besitzer darf (eigene Auslage passt)');
-  assert.equal(game.canUseDiscardTop(p2, topCard), false, 'Fremder darf NICHT (fremde Auslage zählt nicht)');
+  // REGEL-UPDATE: Auslagen zählen für die Aufnahme GAR NICHT mehr - nur
+  // eine mögliche Kombination mit den Handkarten berechtigt dazu.
+  assert.equal(game.canUseDiscardTop(p1, topCard), false, 'auch die eigene Auslage berechtigt NICHT');
+  assert.equal(game.canUseDiscardTop(p2, topCard), false, 'fremde Auslage sowieso nicht');
+  p1.hand = [H('9', 1), H('J')]; // 9-10-J mit der Ablagekarte möglich
+  assert.equal(game.canUseDiscardTop(p1, topCard), true, 'Handkarten-Kombination berechtigt');
 });
 
 // --- Glücksgriff ---

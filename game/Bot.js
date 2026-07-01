@@ -227,14 +227,8 @@ function decideDraw(hand, discardPile, tableMelds) {
   // wäre das letzte Element die ÄLTESTE Karte, nicht die oberste!
   const topCard = discardPile[0];
 
-  // Kann die oberste Ablagekarte sofort angelegt werden?
-  for (const meld of tableMelds) {
-    if (tryLayOff(meld, topCard)) {
-      return { source: 'discardPile', immediateUse: { type: 'layoff', meldId: meld.id } };
-    }
-  }
-
-  // Kann die oberste Ablagekarte zusammen mit Handkarten einen neuen Satz/Folge bilden?
+  // REGEL: Aufnahme nur, wenn die oberste Karte mit den HANDKARTEN eine
+  // neue Kombination bilden kann (Anlegbarkeit an Auslagen zählt nicht).
   if (canFormMeldWithCard(topCard, hand)) {
     return { source: 'discardPile', immediateUse: { type: 'newMeld' } };
   }
