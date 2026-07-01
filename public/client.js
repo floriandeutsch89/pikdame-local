@@ -626,10 +626,22 @@
 
     if (selectedCardIds.size === 1) {
       const cardId = [...selectedCardIds][0];
-      send({ type: 'layOff', meldId: meld.id, cardId });
+      // Enthält die Auslage einen Joker, der GENAU die gewählte Handkarte
+      // repräsentiert, ist der Joker-Tausch gemeint (exakt dieselbe Prüfung
+      // wie tryJokerSwap auf dem Server). Andernfalls normales Anlegen.
+      const myPlayer = lastState.players.find((p) => p.id === playerId);
+      const card = myPlayer && myPlayer.hand ? myPlayer.hand.find((c) => c.id === cardId) : null;
+      const matchesJokerSlot =
+        card && !card.isJoker &&
+        meld.slots.some((s) => s.joker && s.representsRank === card.rank && s.representsSuit === card.suit);
+      if (matchesJokerSlot) {
+        send({ type: 'swapJoker', meldId: meld.id, handCardId: cardId });
+      } else {
+        send({ type: 'layOff', meldId: meld.id, cardId });
+      }
       selectedCardIds.clear();
     } else {
-      showHint('Wähle genau eine Handkarte aus, um sie an diese Auslage anzulegen.', false);
+      showHint('Wähle genau eine Handkarte aus, um sie an diese Auslage anzulegen (oder gegen einen passenden Joker zu tauschen).', false);
     }
   }
 

@@ -667,6 +667,96 @@ test('swapJoker markiert nur den getauschten Slot mit der playerId des Tauschend
   assert.ok(untouchedSlots.every((s) => s.playerId === 'p2'));
 });
 
+test('swapJoker: Pflichtkarte per Joker-Tausch verwendet loest die Auslege-Pflicht (Deadlock-Regression)', () => {
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  game.turnPhase = 'meld';
+  game.currentPlayerIndex = 0;
+
+  const joker = makeJoker(0);
+  game.tableMelds = [
+    {
+      id: 'meld-1',
+      type: 'set',
+      rank: 'Q',
+      suit: null,
+      slots: [
+        { real: makeStandardCard('H', 'Q', 0), playerId: 'p2' },
+        { real: makeStandardCard('C', 'Q', 0), playerId: 'p2' },
+        { joker, representsRank: 'Q', representsSuit: 'S', playerId: 'p2' },
+      ],
+    },
+  ];
+
+  const pikDame = makeStandardCard('S', 'Q', 0);
+  const other = makeStandardCard('D', '5', 0);
+  game.players[0].hand = [pikDame, other];
+  // Simuliert: Pik-Dame wurde vom Ablagestapel aufgenommen -> Pflichtkarte
+  game.mustLayOffCardId = pikDame.id;
+
+  const r = game.swapJoker('p1', 'meld-1', pikDame.id);
+  assert.equal(r.ok, true);
+  assert.equal(game.mustLayOffCardId, null, 'Pflicht muss nach dem Tausch erfuellt sein');
+
+  // Ohne den Fix war hier fuer immer blockiert:
+  const d = game.discard('p1', other.id);
+  assert.equal(d.ok, true, 'Abwerfen muss nach erfuellter Pflicht moeglich sein');
+});
+
+test('swapJoker: letzte Handkarte per Tausch verbraucht beendet die Runde (Deadlock-Regression)', () => {
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  game.turnPhase = 'meld';
+  game.currentPlayerIndex = 0;
+  game.turnIndexInRound = 3;
+
+  const joker = makeJoker(0);
+  game.tableMelds = [
+    {
+      id: 'meld-1',
+      type: 'set',
+      rank: 'Q',
+      suit: null,
+      slots: [
+        { real: makeStandardCard('H', 'Q', 0), playerId: 'p2' },
+        { real: makeStandardCard('C', 'Q', 0), playerId: 'p2' },
+        { joker, representsRank: 'Q', representsSuit: 'S', playerId: 'p2' },
+      ],
+    },
+  ];
+
+  const pikDame = makeStandardCard('S', 'Q', 0);
+  game.players[0].hand = [pikDame]; // einzige Karte
+  game.players[0].laidOutCards = [];
+  game.players[1].hand = [makeStandardCard('H', '2', 0)];
+  game.players[1].laidOutCards = [];
+
+  const r = game.swapJoker('p1', 'meld-1', pikDame.id);
+  assert.equal(r.ok, true);
+  assert.equal(game.players[0].hand.length, 0);
+  assert.equal(game.phase, 'roundEnd', 'Runde muss enden, wenn die letzte Karte per Tausch verbraucht wird');
+});
+
+test('Patt-Regel: Runde endet automatisch, wenn niemand mehr ziehen kann (Deadlock-Regression)', () => {
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  game.turnPhase = 'draw';
+  game.currentPlayerIndex = 0;
+  game.turnIndexInRound = 5;
+
+  game.drawPile = []; // Nachziehstapel leer
+  game.discardPile = [makeStandardCard('D', '7', 0)]; // nur 1 Karte -> nicht mischbar
+  game.players[0].hand = [makeStandardCard('H', '3', 0)];
+  game.players[0].laidOutCards = [];
+  game.players[1].hand = [makeStandardCard('C', '9', 0)];
+  game.players[1].laidOutCards = [];
+
+  const r = game.drawFromPile('p1');
+  assert.equal(r.ok, true);
+  assert.equal(r.roundEnded, true);
+  assert.equal(game.phase, 'roundEnd', 'Runde muss als Patt enden statt einzufrieren');
+});
+
 test('Hausregel "über 1000 Punkte" wird beim Rundenende berücksichtigt', () => {
   const { game } = makeGame(2);
   game.setHouseRules({ strictThreshold: true });

@@ -51,20 +51,20 @@ function findHandMelds(hand) {
     }
   };
 
-  // 1) Sätze: gleiche Werte, verschiedene Farben (3-4 Karten)
+  // 1) Sätze: gleiche Werte, jede Farbe darf bis zu 2x vorkommen (2 Decks!).
+  // Frühere Version nahm nur eine Karte pro Farbe und übersah dadurch
+  // gültige Sätze wie 2x Kreuz-Ass + 1x Herz-Ass.
   let byRank = groupByRank(pool);
   for (const rank of Object.keys(byRank)) {
     const sameRank = byRank[rank];
-    const uniqueSuits = [];
-    const seen = new Set();
+    const countBySuit = {};
+    const usable = [];
     for (const c of sameRank) {
-      if (!seen.has(c.suit)) {
-        seen.add(c.suit);
-        uniqueSuits.push(c);
-      }
+      countBySuit[c.suit] = (countBySuit[c.suit] || 0) + 1;
+      if (countBySuit[c.suit] <= 2) usable.push(c);
     }
-    if (uniqueSuits.length >= 3) {
-      const chosen = uniqueSuits.slice(0, 4);
+    if (usable.length >= 3) {
+      const chosen = usable.slice(0, 8); // max. 8 Karten pro Satz (4 Farben x 2)
       const v = validateMeld(chosen);
       if (v.valid) {
         melds.push(chosen);
@@ -110,24 +110,22 @@ function findHandMelds(hand) {
 
   // 3) Joker-Einsatz: versuche, mit verbliebenen Jokern (insbesondere wenn der
   // Bot eine Pik-Dame oder Joker loswerden will) "fast fertige" Zweiergruppen
-  // zu vervollständigen.
+  // zu vervollständigen. Auch 2x dieselbe Farbe (2 Decks) + Joker ist gültig.
   if (jokers.length > 0) {
     byRank = groupByRank(pool);
     for (const rank of Object.keys(byRank)) {
       if (jokers.length === 0) break;
       const sameRank = byRank[rank];
-      const uniqueSuits = [];
-      const seen = new Set();
+      const countBySuit = {};
+      const usable = [];
       for (const c of sameRank) {
-        if (!seen.has(c.suit)) {
-          seen.add(c.suit);
-          uniqueSuits.push(c);
-        }
+        countBySuit[c.suit] = (countBySuit[c.suit] || 0) + 1;
+        if (countBySuit[c.suit] <= 2) usable.push(c);
       }
-      if (uniqueSuits.length === 2) {
+      if (usable.length === 2) {
         const joker = jokers.find((j) => pool.some((p) => p.id === j.id));
         if (joker) {
-          const chosen = [...uniqueSuits, joker];
+          const chosen = [...usable, joker];
           const v = validateMeld(chosen);
           if (v.valid) {
             melds.push(chosen);

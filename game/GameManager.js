@@ -232,7 +232,15 @@ class GameManager {
       this.reshuffleDiscardIntoDrawPile();
     }
     if (this.drawPile.length === 0) {
-      return { error: 'Nachziehstapel ist leer.' };
+      // Weder Nachziehstapel noch mischbarer Ablagestapel übrig - niemand
+      // kann mehr ziehen. Ohne diese Regel stünde das Spiel für immer still
+      // (Abwerfen/Auslegen verlangen die meld-Phase, die ohne Ziehen nie
+      // erreicht wird). Stattdessen endet die Runde als Patt: alle Spieler
+      // werden ganz normal gewertet (Auslagen minus Resthand), niemand
+      // erhält einen Gewinner-Bonus.
+      this.addLog('Keine Karten mehr zum Ziehen - die Runde endet unentschieden.');
+      this.finishRound(null, { stalemate: true });
+      return { ok: true, roundEnded: true };
     }
     const card = this.drawPile.shift();
     this.currentPlayer().hand.push(card);
@@ -417,7 +425,18 @@ class GameManager {
     this.retiredJokers.push(result.freedJoker);
     player.laidOutCards.push(handCard);
 
+    // Der Tausch legt die Karte in eine Auslage - das erfüllt die Pflicht
+    // einer aufgenommenen Ablagekarte genauso wie layoutMeld/layOffCard.
+    // Ohne diesen Reset zeigte mustLayOffCardId auf eine Karte, die gar
+    // nicht mehr auf der Hand ist, und discard() blockierte den Zug für
+    // immer (Deadlock).
+    if (this.mustLayOffCardId === handCardId) this.mustLayOffCardId = null;
+
     this.addLog(`${player.name} tauscht ${cardLabel(handCard)} gegen einen Joker in einer Auslage. Der Joker scheidet aus dem Spiel aus.`);
+    // Verbraucht der Tausch die letzte Handkarte, endet die Runde sofort -
+    // exakt wie beim Auslegen/Anlegen. Ohne diese Prüfung stand der Spieler
+    // mit leerer Hand in der Abwurf-Pflicht und konnte den Zug nie beenden.
+    this.checkRoundEnd(player);
     this.broadcastState();
     return { ok: true };
   }
