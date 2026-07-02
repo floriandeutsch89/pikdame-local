@@ -135,7 +135,15 @@ function serveStatic(req, res) {
   }
   // ---------------- Benutzerkonten-API ----------------
   if (filePath.startsWith('/api/') || filePath === '/verify') {
-    return handleAccountRequest(req, res, filePath);
+    // handleAccountRequest ist async: eine unerwartete Exception (z.B. aus
+    // SQLite) darf weder als unhandledRejection enden noch die HTTP-Antwort
+    // ewig offen lassen - der Client bekommt ein sauberes 500.
+    handleAccountRequest(req, res, filePath).catch((err) => {
+      logCrash('account-api', err, { path: filePath });
+      if (!res.headersSent) sendJson(res, 500, { error: 'Interner Fehler - bitte erneut versuchen.' });
+      else res.end();
+    });
+    return;
   }
   if (filePath === '/changelogz') {
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -328,6 +336,11 @@ const ipCleanupTimer = setInterval(() => {
   const now = Date.now();
   for (const [ip, entry] of failedJoinsByIp) {
     if (now - entry.windowStart > FAILED_JOIN_WINDOW_MS) failedJoinsByIp.delete(ip);
+  }
+  // Auch die Account-API-Zaehler verfallen lassen - sonst wuechse die Map
+  // im Docker-Dauerbetrieb mit jeder jemals gesehenen IP unbegrenzt.
+  for (const [ip, entry] of accountApiByIp) {
+    if (now - entry.windowStart > 10 * 60 * 1000) accountApiByIp.delete(ip);
   }
 }, 5 * 60 * 1000);
 ipCleanupTimer.unref();
@@ -739,6 +752,9 @@ function shutdown(signal) {
   playerStore.flushSync();
   gameHistoryStore.flushSync();
   globalStats.flushSync();
+  if (accountStore) {
+    try { accountStore.close(); } catch (e) { /* Shutdown nicht blockieren */ }
+  }
   for (const client of wss.clients) {
     try {
       client.close(1001, 'Server wird neu gestartet');

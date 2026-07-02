@@ -5,6 +5,18 @@
 (function () {
   'use strict';
 
+  // localStorage kann werfen (Safari-Privatmodus, volles Quota) - dann soll
+  // die App ohne Persistenz weiterlaufen statt beim Laden zu sterben.
+  function storageGet(key) {
+    try { return localStorage.getItem(key); } catch (e) { return null; }
+  }
+  function storageSet(key, value) {
+    try { localStorage.setItem(key, value); } catch (e) { /* ohne Persistenz weiter */ }
+  }
+  function storageRemove(key) {
+    try { localStorage.removeItem(key); } catch (e) { /* egal */ }
+  }
+
   const NAME_KEY = 'pikdame_player_name';
   const THEME_KEY = 'pikdame_theme';
   const SOUND_KEY = 'pikdame_sound_enabled';
@@ -14,9 +26,9 @@
   // Die playerId wird PRO SESSION gespeichert, damit Reconnects in das
   // richtige Spiel zurückführen und parallele Spiele sich nicht vermischen.
   const playerKeyFor = (code) => `pikdame_player_${code}`;
-  let playerId = sessionCode ? localStorage.getItem(playerKeyFor(sessionCode)) : null;
-  let myName = localStorage.getItem(NAME_KEY) || '';
-  let soundEnabled = localStorage.getItem(SOUND_KEY) !== 'off';
+  let playerId = sessionCode ? storageGet(playerKeyFor(sessionCode)) : null;
+  let myName = storageGet(NAME_KEY) || '';
+  let soundEnabled = storageGet(SOUND_KEY) !== 'off';
   let ws = null;
   let lastState = null;
   let selectedCardIds = new Set();
@@ -88,7 +100,7 @@
   let prevPikdameRound = null;
   // --- Sprache (Deutsch/Englisch, Default Deutsch) ----------------------------
   const LANG_KEY = 'pikdame_lang';
-  let lang = localStorage.getItem(LANG_KEY) === 'en' ? 'en' : 'de';
+  let lang = storageGet(LANG_KEY) === 'en' ? 'en' : 'de';
 
   /** Sprach-Helfer für dynamische Texte: L(deutsch, englisch). */
   function L(de, en) {
@@ -142,7 +154,7 @@
   }
   function cycleLang() {
     lang = lang === 'de' ? 'en' : 'de';
-    localStorage.setItem(LANG_KEY, lang);
+    storageSet(LANG_KEY, lang);
     applyStaticLang();
     updateSortToggleLabel();
     updateHandToggle();
@@ -156,8 +168,8 @@
   function uiScaleLabel(scale) {
     return { normal: L('Normal', 'Normal'), large: L('Groß', 'Large'), xlarge: L('Sehr groß', 'Extra large') }[scale];
   }
-  let uiScale = UI_SCALES.includes(localStorage.getItem(UI_SCALE_KEY))
-    ? localStorage.getItem(UI_SCALE_KEY)
+  let uiScale = UI_SCALES.includes(storageGet(UI_SCALE_KEY))
+    ? storageGet(UI_SCALE_KEY)
     : 'normal';
   function applyUiScale() {
     if (uiScale === 'normal') {
@@ -170,7 +182,7 @@
   }
   function cycleUiScale() {
     uiScale = UI_SCALES[(UI_SCALES.indexOf(uiScale) + 1) % UI_SCALES.length];
-    localStorage.setItem(UI_SCALE_KEY, uiScale);
+    storageSet(UI_SCALE_KEY, uiScale);
     applyUiScale();
     showToast(L(`Anzeigegröße: ${uiScaleLabel(uiScale)}`, `Display size: ${uiScaleLabel(uiScale)}`));
     if (typeof render === 'function' && lastState) render(); // Hand-Überlappung neu messen
@@ -178,7 +190,7 @@
   applyUiScale();
 
   const SORT_KEY = 'pikdame_hand_sort';
-  let handSortMode = localStorage.getItem(SORT_KEY) === 'rank' ? 'rank' : 'suit';
+  let handSortMode = storageGet(SORT_KEY) === 'rank' ? 'rank' : 'suit';
   let prevHandRound = null;
   let freshCardIds = new Set();
   let knownProfiles = [];
@@ -218,7 +230,7 @@
 
   function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem(THEME_KEY, theme);
+    storageSet(THEME_KEY, theme);
     document.querySelectorAll('.themeBtn').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.themeChoice === theme);
     });
@@ -227,7 +239,7 @@
   document.querySelectorAll('.themeBtn').forEach((btn) => {
     btn.addEventListener('click', () => applyTheme(btn.dataset.themeChoice));
   });
-  applyTheme(localStorage.getItem(THEME_KEY) || 'table');
+  applyTheme(storageGet(THEME_KEY) || 'table');
 
   document.querySelectorAll('.seatCountBtn').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -285,7 +297,7 @@
 
   function setSoundEnabled(enabled) {
     soundEnabled = enabled;
-    localStorage.setItem(SOUND_KEY, enabled ? 'on' : 'off');
+    storageSet(SOUND_KEY, enabled ? 'on' : 'off');
     const toggleBtn = el('soundToggle');
     if (toggleBtn) toggleBtn.textContent = enabled ? '🔊' : '🔇';
     const ruleCheckbox = el('ruleSound');
@@ -324,8 +336,15 @@
     });
 
     ws.addEventListener('message', (ev) => {
-      const msg = JSON.parse(ev.data);
-      handleMessage(msg);
+      // WICHTIG: Ohne try/catch würde EINE kaputte/unerwartete Nachricht
+      // (oder ein Render-Fehler) den Handler-Durchlauf ungefangen abbrechen -
+      // der State-Update ginge verloren und die UI bliebe inkonsistent.
+      // So wird geloggt und der nächste State heilt die Anzeige.
+      try {
+        handleMessage(JSON.parse(ev.data));
+      } catch (err) {
+        console.error('Fehler beim Verarbeiten einer Server-Nachricht:', err);
+      }
     });
   }
 
@@ -339,7 +358,7 @@
     if (msg.type === 'joined') {
       playerId = msg.playerId;
       sessionCode = msg.sessionCode;
-      localStorage.setItem(playerKeyFor(sessionCode), playerId);
+      storageSet(playerKeyFor(sessionCode), playerId);
       // URL aktualisieren, damit der Link direkt teilbar ist (?session=CODE)
       const url = new URL(window.location.href);
       url.searchParams.set('session', sessionCode);
@@ -1127,7 +1146,7 @@
 
   function currentName() {
     myName = el('nameInput').value.trim() || `Spieler${Math.floor(Math.random() * 1000)}`;
-    localStorage.setItem(NAME_KEY, myName);
+    storageSet(NAME_KEY, myName);
     return myName;
   }
 
@@ -1152,7 +1171,7 @@
       showHint(L('Bitte den Spiel-Code eingeben.', 'Please enter the game code.'), true);
       return;
     }
-    const storedId = localStorage.getItem(playerKeyFor(code));
+    const storedId = storageGet(playerKeyFor(code));
     send({ type: 'joinSession', code, name: currentName(), playerId: storedId || undefined, accountToken: accountToken() || undefined });
   });
 
@@ -1220,7 +1239,7 @@
 
   el('sortToggleBtn').addEventListener('click', () => {
     handSortMode = handSortMode === 'suit' ? 'rank' : 'suit';
-    localStorage.setItem(SORT_KEY, handSortMode);
+    storageSet(SORT_KEY, handSortMode);
     updateSortToggleLabel();
     render();
   });
@@ -1612,7 +1631,7 @@
   const ACC_TOKEN_KEY = 'pikdame_account_token';
   let accountUsername = null;
   function accountToken() {
-    return localStorage.getItem(ACC_TOKEN_KEY) || '';
+    return storageGet(ACC_TOKEN_KEY) || '';
   }
   async function accountApi(path, body) {
     try {
@@ -1653,7 +1672,7 @@
     if (accountToken()) {
       const me = await accountApi('/api/me', { token: accountToken() });
       if (me.ok) accountUsername = me.username;
-      else localStorage.removeItem(ACC_TOKEN_KEY);
+      else storageRemove(ACC_TOKEN_KEY);
     }
     refreshAccountUi();
   }
@@ -1700,7 +1719,7 @@
       password: el('accLoginPass').value,
     });
     if (r.error) return setAccountStatus(trs(r.error), true);
-    localStorage.setItem(ACC_TOKEN_KEY, r.token);
+    storageSet(ACC_TOKEN_KEY, r.token);
     accountUsername = r.username;
     setAccountStatus('');
     refreshAccountUi();
@@ -1709,7 +1728,7 @@
   });
   el('accLogoutBtn').addEventListener('click', async () => {
     await accountApi('/api/logout', { token: accountToken() });
-    localStorage.removeItem(ACC_TOKEN_KEY);
+    storageRemove(ACC_TOKEN_KEY);
     accountUsername = null;
     refreshAccountUi();
     el('accountOverlay').classList.add('hidden');
