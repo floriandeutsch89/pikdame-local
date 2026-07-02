@@ -1121,12 +1121,14 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   box-shadow: 0 0 0 2px var(--accent);
 }
 
-/* Als Geber + am Zug: "Du bist am Zug" bekommt eine eigene zweite Zeile,
-   statt neben "Geber: du" abgeschnitten zu werden. */
-#topBar.dealerSelf #turnInfo {
+/* Topbar-Layout: Zeile 1 = Infos links + Icon-Buttons rechtsbuendig,
+   Zeile 2 = "Du bist am Zug" IMMER zentriert (nie mehr abgeschnitten). */
+#turnInfo {
   flex-basis: 100%;
   order: 10;
+  text-align: center;
 }
+#uiScaleBtn { margin-left: auto; } /* schiebt die Button-Gruppe nach rechts */
 
 /* Pik-Dame-Emote: kleine gestylte Spielkarte (es gibt kein passendes Emoji) */
 .miniPikdame {

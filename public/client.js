@@ -451,9 +451,6 @@
     el('turnInfo').textContent = isMyTurn
       ? `Du bist am Zug (${phaseLabel(lastState.turnPhase)})`
       : `${cp ? cp.name : '?'} ist am Zug`;
-    // Als Geber wird die Topbar-Zeile zu voll und "Du bist am Zug" wurde
-    // abgeschnitten - dann rutscht der Text in eine eigene zweite Zeile.
-    el('topBar').classList.toggle('dealerSelf', !!(iAmDealer && isMyTurn));
 
     // Gegner
     const opponentsDiv = el('opponents');
