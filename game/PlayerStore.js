@@ -76,6 +76,8 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
       p.gamesPlayed = (p.gamesPlayed || 0) + 1;
       p.totalScore = (p.totalScore || 0) + (r.score || 0);
       if (r.won) p.gamesWon = (p.gamesWon || 0) + 1;
+      // Siegesserie: Basis für das "3 in Folge"-Badge
+      p.winStreak = r.won ? (p.winStreak || 0) + 1 : 0;
       // Bester Endstand einer einzelnen Partie (für die Statistik-Seite)
       if (p.bestGameScore === undefined || (r.score || 0) > p.bestGameScore) {
         p.bestGameScore = r.score || 0;
@@ -96,6 +98,30 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     return loadStore().players;
   }
 
+  function getPlayerByName(name) {
+    return findPlayerByName(loadStore(), name) || null;
+  }
+
+  /**
+   * Vergibt Badges an einen Spieler. Bereits vorhandene werden ignoriert.
+   * @returns {string[]} nur die NEU vergebenen Badge-IDs
+   */
+  function awardBadges(name, badgeIds = []) {
+    const store = loadStore();
+    const p = findPlayerByName(store, name);
+    if (!p) return [];
+    p.badges = p.badges || {};
+    const fresh = [];
+    for (const id of badgeIds) {
+      if (!p.badges[id]) {
+        p.badges[id] = Date.now();
+        fresh.push(id);
+      }
+    }
+    if (fresh.length > 0) saveStore(store);
+    return fresh;
+  }
+
 
 
 
@@ -108,6 +134,8 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     upsertPlayerProfile,
     recordGameResult,
     listPlayers,
+    getPlayerByName,
+    awardBadges,
   };
 }
 

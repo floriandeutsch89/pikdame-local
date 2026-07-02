@@ -130,6 +130,22 @@
   let prevHandRound = null;
   let freshCardIds = new Set();
   let knownProfiles = [];
+  let lastEarnedBadges = null; // frisch verdiente Erfolge (fuers Ergebnis-Overlay)
+
+  // Erfolgs-Badge-Katalog: IDs kommen vom Server, Texte leben hier (DE/EN).
+  function badgeMeta(id) {
+    const M = {
+      first_win: { emoji: '🏆', name: L('Erster Sieg', 'First win'), desc: L('Erste gewonnene Partie', 'Won your first game') },
+      hand_aus_win: { emoji: '🚀', name: L('Hand aus!', 'Out in one!'), desc: L('Eine Runde im allerersten Zug gewonnen', 'Won a round in your very first turn') },
+      pd_laid: { emoji: '♠', name: L('Damensammler', 'Queen collector'), desc: L('Eine Pik Dame sicher ausgelegt (+100)', 'Melded a Queen of Spades (+100)') },
+      pd_triple: { emoji: '👑', name: L('Dreifache Dame', 'Triple queen'), desc: L('3+ Pik Damen in einer Partie ausgelegt', 'Melded 3+ Queens of Spades in one game') },
+      pd_caught: { emoji: '😱', name: L('Autsch!', 'Ouch!'), desc: L('Pik Dame am Rundenende auf der Hand erwischt (−100)', 'Caught with the Queen of Spades in hand (−100)') },
+      score_500: { emoji: '💯', name: L('Punktekönig', 'Point royalty'), desc: L('500+ Punkte Endstand in einer Partie', 'Finished a game with 500+ points') },
+      streak_3: { emoji: '🔥', name: L('Siegesserie', 'Winning streak'), desc: L('3 Partien in Folge gewonnen', 'Won 3 games in a row') },
+      comeback: { emoji: '🐢', name: L('Comeback', 'Comeback'), desc: L('Nach Runde 1 Letzter - und trotzdem gewonnen', 'Last after round 1 - and still won') },
+    };
+    return M[id] || { emoji: '🎖️', name: id, desc: '' };
+  }
   let globalStatsData = null; // anonyme Server-Zähler (Partien, Pik Damen, ...)
   let publicMode = false;
 
@@ -312,6 +328,11 @@
       maybeShowActionToast();
       checkPikdameAnnouncement();
       render();
+      return;
+    }
+    if (msg.type === 'badges') {
+      lastEarnedBadges = msg.earned || null;
+      if (!el('resultOverlay').classList.contains('hidden')) renderResultOverlay();
       return;
     }
     if (msg.type === 'profiles') {
@@ -970,6 +991,25 @@
     }
 
     el('exportGameBtn').classList.toggle('hidden', !(isGameOver && lastState.hasExportableGame));
+    // 🎖️ Frisch verdiente Erfolge feiern (kommen per Server-Nachricht)
+    const oldBadgeBox = el('resultBody').querySelector('.badgeBox');
+    if (oldBadgeBox) oldBadgeBox.remove();
+    if (isGameOver && lastEarnedBadges && lastEarnedBadges.length > 0) {
+      const box = document.createElement('div');
+      box.className = 'badgeBox';
+      box.innerHTML = `<h3>🎖️ ${L('Neue Erfolge', 'New achievements')}</h3>`;
+      for (const entry of lastEarnedBadges) {
+        for (const id of entry.badges) {
+          const m = badgeMeta(id);
+          const row = document.createElement('div');
+          row.className = 'badgeRow';
+          row.innerHTML = `<span class="badgeEmoji">${m.emoji}</span><span><b>${escapeHtml(entry.name)}</b>: ${m.name} – <span class="badgeDesc">${m.desc}</span></span>`;
+          box.appendChild(row);
+        }
+      }
+      el('resultBody').appendChild(box);
+    }
+
     el('resultContinueBtn').textContent = isGameOver ? L('Neue Partie (Rematch)', 'New game (rematch)') : L('Nächste Runde', 'Next round');
   }
 
@@ -1348,6 +1388,9 @@
   let tipShownForTurn = null; // Zug-Tipp nur EINMAL pro eigenem Zug als Toast
   let handCollapsed = false; // eigene Karten per Pfeil ein-/ausblendbar
   function maybeShowActionToast() {
+    if (lastState && lastState.phase === 'playing' && lastState.roundNumber === 1 && lastState.turnIndexInRound === 0) {
+      lastEarnedBadges = null; // neue Partie -> alte Erfolgs-Anzeige verwerfen
+    }
     const log = (lastState && lastState.log) || [];
     if (seenLogLength === null) {
       seenLogLength = log.length; // erstes Render: nichts nachreichen
@@ -1356,7 +1399,11 @@
     if (log.length > seenLogLength) {
       const latest = log[log.length - 1];
       seenLogLength = log.length;
-      if (latest && latest.text) showToast(trs(latest.text));
+      if (latest && latest.text) {
+        // Die Endspurt-Ansage ist wichtig genug fuer eine laengere Anzeige
+        const isWarning = latest.text.startsWith('⚠️');
+        showToast(trs(latest.text), isWarning ? { duration: 6000 } : {});
+      }
     } else {
       seenLogLength = log.length;
     }
@@ -1618,10 +1665,16 @@
         const won = p.gamesWon || 0;
         const rate = played > 0 ? Math.round((won / played) * 100) : 0;
         const best = p.bestGameScore !== undefined ? p.bestGameScore : '–';
-        return `<tr><td>${escapeHtml(p.name)}</td><td>${played}</td><td>${won}</td><td>${rate}%</td><td>${best}</td></tr>`;
+        const badgeEmojis = Object.keys(p.badges || {})
+          .map((id) => {
+            const m = badgeMeta(id);
+            return `<span title="${escapeHtml(m.name)}: ${escapeHtml(m.desc)}">${m.emoji}</span>`;
+          })
+          .join(' ');
+        return `<tr><td>${escapeHtml(p.name)}</td><td>${played}</td><td>${won}</td><td>${rate}%</td><td>${best}</td><td class="badgeCell">${badgeEmojis || '–'}</td></tr>`;
       })
       .join('');
-    box.innerHTML = `<table class="statsPageTable"><thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('Spiele', 'Games')}</th><th>${L('Siege', 'Wins')}</th><th>${L('Quote', 'Rate')}</th><th>${L('Beste Partie', 'Best game')}</th></tr></thead><tbody>${rows}</tbody></table>`;
+    box.innerHTML = `<table class="statsPageTable"><thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('Spiele', 'Games')}</th><th>${L('Siege', 'Wins')}</th><th>${L('Quote', 'Rate')}</th><th>${L('Beste Partie', 'Best game')}</th><th>${L('Erfolge', 'Badges')}</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
   // Bei Orientierungswechsel/Fenstergröße die Hand-Überlappung neu berechnen.

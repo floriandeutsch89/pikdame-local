@@ -223,6 +223,20 @@ class GameManager {
 
     const dealer = this.players[this.dealerIndex];
     this.addLog(`Runde ${this.roundNumber} gestartet. Geber: ${dealer ? dealer.name : '?'}.`);
+
+    // "Letzte Runde?"-Ansage: Steht jemand kurz vor der 1000er-Schwelle,
+    // wissen alle am Tisch, dass es jetzt um alles geht.
+    const leader = this.players
+      .map((p) => ({ name: p.name, total: this.totals[p.id] || 0 }))
+      .sort((a, b) => b.total - a.total)[0];
+    if (leader && leader.total >= 800) {
+      const strict = !!(this.houseRules && this.houseRules.strictThreshold);
+      this.addLog(
+        strict
+          ? `⚠️ Endspurt! ${leader.name} steht bei ${leader.total} Punkten - über 1000 endet das Spiel.`
+          : `⚠️ Endspurt! ${leader.name} steht bei ${leader.total} Punkten - ab 1000 endet das Spiel.`
+      );
+    }
     if (cutter && luckyCards.length > 0) {
       const labels = luckyCards.map((card) => (card.isJoker ? 'Joker' : 'Pik Dame')).join(' + ');
       this.addLog(`🍀 Glücksgriff beim Abheben! ${cutter.name} nimmt vor dem Verteilen sofort auf die Hand: ${labels}.`);
