@@ -95,6 +95,8 @@
 :root {
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --r-sm: 12px;
   --r-md: 18px;
@@ -105,23 +107,35 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+html {
+  /* Dunkle GRUNDFARBE auf dem Wurzelelement: deckt im PWA-/Standalone-Modus
+     auch Overscroll und den Bereich unter der Home-Indicator-Zone ab
+     (vorher blitzte dort das weisse Browser-Canvas durch). */
+  background: var(--bg-deep);
+}
 html, body {
   margin: 0; padding: 0; height: 100%;
   font-family: var(--font);
-  /* Modernes Finish: zwei sehr dezente Licht-Glows auf dunklem Grund
-     statt einer flachen "Tischplatte". */
-  background:
-    radial-gradient(120% 90% at 15% -10%, var(--bg-glow) 0%, transparent 55%),
-    radial-gradient(110% 80% at 100% 110%, var(--bg-glow) 0%, transparent 50%),
-    linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
-  background-attachment: fixed;
   color: var(--text);
   overscroll-behavior: none;
   user-select: none;
   -webkit-font-smoothing: antialiased;
 }
+body {
+  /* Modernes Finish: zwei sehr dezente Licht-Glows auf dunklem Grund.
+     WICHTIG: kein background-attachment: fixed - das ist auf iOS Safari
+     notorisch kaputt (Verlauf verschwindet, weisse Flaechen im PWA-Modus). */
+  background:
+    radial-gradient(120% 90% at 15% -10%, var(--bg-glow) 0%, transparent 55%),
+    radial-gradient(110% 80% at 100% 110%, var(--bg-glow) 0%, transparent 50%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
+}
 
-#app { height: 100%; display: flex; flex-direction: column; }
+#app {
+  height: 100%;
+  height: 100dvh; /* reagiert auf ein-/ausfahrende Browser-Leisten (Fallback: 100%) */
+  display: flex; flex-direction: column;
+}
 .screen { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .hidden { display: none !important; }
 
@@ -1152,21 +1166,23 @@ button:focus-visible, input:focus-visible, select:focus-visible {
       'action action'
       'hand hand';
   }
-  #topBar { grid-area: top; padding: calc(4px + var(--safe-top)) 12px 4px; font-size: 0.7rem; }
-  #opponents { grid-area: opp; padding: 3px 10px; }
-  #melds { grid-area: melds; overflow-y: auto; min-height: 0; padding: 6px 10px; }
+  /* Notch/Dynamic Island: im Querformat sitzt sie links oder rechts -
+     alle Randbereiche entsprechend einruecken. */
+  #topBar { grid-area: top; padding: calc(4px + var(--safe-top)) calc(12px + var(--safe-right)) 4px calc(12px + var(--safe-left)); font-size: 0.7rem; }
+  #opponents { grid-area: opp; padding: 3px calc(10px + var(--safe-right)) 3px calc(10px + var(--safe-left)); }
+  #melds { grid-area: melds; overflow-y: auto; min-height: 0; padding: 6px 10px 6px calc(10px + var(--safe-left)); }
   #retiredJokersBar { display: none; }
   #centerPiles {
     grid-area: piles;
     flex-direction: column;
     align-self: start;
-    padding: 6px 12px 4px 4px;
+    padding: 6px calc(12px + var(--safe-right)) 4px 4px;
     gap: 10px;
   }
   #centerPiles .pile-card { width: 44px; height: 62px; }
   .pileLabel { font-size: 0.52rem; }
-  #actionBar { grid-area: action; padding: 4px 10px; }
-  #handWrapper { grid-area: hand; padding: 6px 8px calc(6px + var(--safe-bottom)); }
+  #actionBar { grid-area: action; padding: 4px calc(10px + var(--safe-right)) 4px calc(10px + var(--safe-left)); }
+  #handWrapper { grid-area: hand; padding: 6px calc(8px + var(--safe-right)) calc(6px + var(--safe-bottom)) calc(8px + var(--safe-left)); }
   .handToolbar { margin: 0 2px 3px; }
   #hand .card { width: 50px; height: 71px; min-width: 50px; }
   #melds .card { width: 46px; height: 65px; min-width: 46px; }
