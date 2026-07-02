@@ -256,15 +256,57 @@ const URGENT_DISCARD_HAND_SIZE = 8;
  * 4. Unter den verbleibenden Kandidaten: isolierte Karten (kein Paar,
  *    kein Farb-Nachbar in der Hand) zuerst, davon die punkthöchste.
  */
-function chooseDiscard(hand, tableMelds = []) {
+/**
+ * Wählt die Abwurfkarte des Bots.
+ *
+ * HARTE GARANTIE: Es wird NIEMALS ein Joker zurückgegeben. Besteht die Hand
+ * ausschließlich aus Jokern, kommt null zurück - der Aufrufer (runBotTurn)
+ * legt die Joker dann an eigene Auslagen an, statt sie abzuwerfen.
+ *
+ * opts.difficulty steuert die Spielstärke:
+ * - 'easy':   wirft eine zufällige Nicht-Joker-Karte ab (auch mal die
+ *             Pik Dame) - spielt wie ein unbekümmerter Anfänger.
+ * - 'medium': bisheriges Verhalten (isolierte hohe Karten zuerst, Tisch-
+ *             bewusstes Abwerfen, Pik Dame bei kleiner Hand loswerden).
+ * - 'hard':   wie medium, aber die Pik Dame wird nie freiwillig abgeworfen,
+ *             solange es Alternativen gibt (100 Punkte verschenkt man nicht).
+ * - 'zen':    wie hard, plus Kartenzählung über opts.visibleCards: Karten,
+ *             deren Kombinationspartner nachweislich nicht mehr im Umlauf
+ *             sind ("tote Duos"), gelten als isoliert. Im Endspiel
+ *             (opts.lowestOpponentHand <= 3) zählt nur noch Schadens-
+ *             begrenzung: die höchsten Punktwerte fliegen zuerst,
+ *             notfalls auch die Pik Dame.
+ */
+function chooseDiscard(hand, tableMelds = [], opts = {}) {
   if (hand.length === 0) return null;
+  const difficulty = opts.difficulty || 'medium';
+
+  // GARANTIE: nie einen Joker abwerfen. Nur-Joker-Hand -> null (Aufrufer
+  // legt die Joker an, statt sie zu verschenken).
+  const nonJokers = hand.filter((c) => !c.isJoker);
+  if (nonJokers.length === 0) return null;
+
+  if (difficulty === 'easy') {
+    return nonJokers[Math.floor(Math.random() * nonJokers.length)];
+  }
+
+  const endgame = difficulty === 'zen' && (opts.lowestOpponentHand || 99) <= 3;
+  if (endgame) {
+    // Ein Gegner steht kurz vor dem Ausmachen: Handpunkte minimieren.
+    // Höchster Wert zuerst raus - hier ausnahmsweise auch die Pik Dame,
+    // denn auf der Hand kostet sie sicher 100 Punkte.
+    return nonJokers.slice().sort((a, b) => cardValue(b) - cardValue(a))[0];
+  }
 
   const pikDame = hand.find((c) => isPikDame(c));
-  if (pikDame && hand.length <= URGENT_DISCARD_HAND_SIZE) return pikDame;
+  if (difficulty === 'medium' && pikDame && hand.length <= URGENT_DISCARD_HAND_SIZE) return pikDame;
 
-  // Joker nur als allerletzte Option abwerfen.
-  let candidates = hand.filter((c) => !c.isJoker);
-  if (candidates.length === 0) return hand[0];
+  let candidates = nonJokers;
+  if (difficulty === 'hard' || difficulty === 'zen') {
+    // Die Pik Dame nie freiwillig hergeben, solange etwas anderes da ist.
+    const withoutPd = candidates.filter((c) => !isPikDame(c));
+    if (withoutPd.length > 0) candidates = withoutPd;
+  }
 
   // Karten meiden, die der nächste Spieler direkt an eine Auslage anlegen
   // könnte (= Erlaubnis, den gesamten Ablagestapel aufzunehmen).
@@ -288,7 +330,45 @@ function chooseDiscard(hand, tableMelds = []) {
   };
 
   const allReal = hand.filter((c) => !c.isJoker);
-  const isolated = candidates.filter((c) => isIsolated(c, allReal));
+  let isolated = candidates.filter((c) => isIsolated(c, allReal));
+
+  if (difficulty === 'zen' && Array.isArray(opts.visibleCards)) {
+    // Kartenzählung: Wie viele Exemplare eines Rangs/einer Karte sind noch
+    // "unsichtbar" (weder in Auslagen noch offen abgelegt noch in der
+    // eigenen Hand)? Ein Duo, dessen fehlende Partner komplett verbraucht
+    // sind, ist wertlos - die Karten gelten als isoliert.
+    const seen = new Map(); // key -> Anzahl gesehen
+    const keyOf = (card) => `${card.rank}|${card.suit}`;
+    for (const v of opts.visibleCards) {
+      if (v.isJoker) continue;
+      seen.set(keyOf(v), (seen.get(keyOf(v)) || 0) + 1);
+    }
+    for (const h of hand) {
+      if (h.isJoker) continue;
+      seen.set(keyOf(h), (seen.get(keyOf(h)) || 0) + 1);
+    }
+    const unseen = (rank, suit) => Math.max(0, 2 - (seen.get(`${rank}|${suit}`) || 0)); // 2 Decks
+    const SUITS_ALL = ['S', 'H', 'D', 'C'];
+    const RANKS_ALL = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+    const ri = (r) => RANKS_ALL.indexOf(r);
+
+    const isDead = (card) => {
+      // Satz-Potenzial: gibt es noch unsichtbare Karten gleichen Rangs?
+      const setPartnersLeft = SUITS_ALL.reduce((sum, s) => sum + unseen(card.rank, s), 0);
+      const handSetPartner = allReal.some((c) => c.id !== card.id && c.rank === card.rank);
+      // Folgen-Potenzial: Nachbar-Ränge (+-1/+-2 im Ring) gleicher Farbe
+      // in der Hand oder noch unsichtbar?
+      const neighborRanks = [-2, -1, 1, 2].map((d) => RANKS_ALL[(ri(card.rank) + d + 13) % 13]);
+      const handRunPartner = allReal.some(
+        (c) => c.id !== card.id && c.suit === card.suit && neighborRanks.includes(c.rank)
+      );
+      const unseenRunPartner = neighborRanks.some((r) => unseen(r, card.suit) > 0);
+      return !handSetPartner && !handRunPartner && setPartnersLeft === 0 && !unseenRunPartner;
+    };
+    const dead = candidates.filter((c) => !isolated.includes(c) && isDead(c));
+    isolated = isolated.concat(dead);
+  }
+
   const pool = isolated.length > 0 ? isolated : candidates;
 
   // höchster Punktwert zuerst abwerfen (reduziert Verlustrisiko am Rundenende)

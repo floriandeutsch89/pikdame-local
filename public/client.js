@@ -120,7 +120,7 @@
     uiScale = UI_SCALES[(UI_SCALES.indexOf(uiScale) + 1) % UI_SCALES.length];
     localStorage.setItem(UI_SCALE_KEY, uiScale);
     applyUiScale();
-    showToast(L(`Anzeigegröße: ${uiScaleLabel(uiScale)}`, `Display size: ${uiScaleLabel(uiScale)}`), { centered: true });
+    showToast(L(`Anzeigegröße: ${uiScaleLabel(uiScale)}`, `Display size: ${uiScaleLabel(uiScale)}`));
     if (typeof render === 'function' && lastState) render(); // Hand-Überlappung neu messen
   }
   applyUiScale();
@@ -130,6 +130,7 @@
   let prevHandRound = null;
   let freshCardIds = new Set();
   let knownProfiles = [];
+  let globalStatsData = null; // anonyme Server-Zähler (Partien, Pik Damen, ...)
   let publicMode = false;
 
   const el = (id) => document.getElementById(id);
@@ -280,6 +281,10 @@
     }
     if (msg.type === 'error') {
       showHint(trs(msg.error), true);
+      // Wichtige Fehler (z.B. Ablagestapel nicht aufnehmbar) deutlich und
+      // laenger in der Bildmitte zeigen - die Hint-Zeile allein wird auf
+      // kleinen Displays leicht uebersehen.
+      showToast(trs(msg.error), { duration: 5000 });
       return;
     }
     if (msg.type === 'state') {
@@ -311,6 +316,7 @@
     }
     if (msg.type === 'profiles') {
       knownProfiles = msg.players || [];
+      globalStatsData = msg.globalStats || null;
       // Öffentlicher Server: Profile/Statistik sind deaktiviert.
       publicMode = !!msg.publicMode;
       el('statsBtn').classList.toggle('hidden', publicMode);
@@ -502,6 +508,7 @@
     return {
       handAusDoubles: el('ruleHandAus').checked,
       strictThreshold: el('ruleStrict1000').checked,
+      botDifficulty: el('ruleBotDifficulty').value,
     };
   }
 
@@ -1355,16 +1362,14 @@
     }
   }
   let toastTimer = null;
+  // Toasts erscheinen jetzt IMMER zentriert in der Bildmitte und bleiben
+  // laenger stehen (Standard 4s, per opts.duration verlaengerbar).
   function showToast(text, opts = {}) {
     const container = el('toastContainer');
     container.textContent = text;
-    container.classList.toggle('centered', !!opts.centered);
     container.classList.add('visible');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => {
-      container.classList.remove('visible');
-      container.classList.remove('centered');
-    }, 2600);
+    toastTimer = setTimeout(() => container.classList.remove('visible'), opts.duration || 4000);
   }
 
   // --- Vollbild ("Kiosk-Modus" wie bei Videos) -------------------------------
@@ -1584,6 +1589,23 @@
 
   function renderStats() {
     const box = el('statsContent');
+    // Globale, anonyme Server-Statistik (funktioniert auch im Public Mode)
+    const gsBox = el('globalStatsBox');
+    if (globalStatsData && globalStatsData.games > 0) {
+      const g = globalStatsData;
+      const row = (label, value) => `<div class="statRow"><span>${label}</span><b>${value}</b></div>`;
+      gsBox.innerHTML =
+        `<h3>${L('🌍 Server-Statistik (alle Spiele)', '🌍 Server statistics (all games)')}</h3>` +
+        row(L('Partien gespielt', 'Games played'), g.games) +
+        row(L('Runden gespielt', 'Rounds played'), g.rounds) +
+        row(L('♠ Pik Damen ausgelegt (+100)', '♠ Queens of Spades melded (+100)'), g.pikDamesLaidOut) +
+        row(L('♠ Pik Damen auf der Hand erwischt (−100)', '♠ Queens of Spades caught in hand (−100)'), g.pikDamesCaught) +
+        row(L('„Hand aus"-Runden', '"Out in one" rounds'), g.handAusRounds);
+      gsBox.classList.remove('hidden');
+    } else {
+      gsBox.classList.add('hidden');
+    }
+
     const profiles = (knownProfiles || []).filter((p) => (p.gamesPlayed || 0) > 0);
     if (profiles.length === 0) {
       box.innerHTML = `<p class="lobby-hint">${L('Noch keine abgeschlossenen Partien - spielt erstmal eine Runde! 🃏', 'No finished games yet - go play a round! 🃏')}</p>`;

@@ -51,10 +51,10 @@ test('chooseDiscard: Joker wird NICHT abgeworfen, solange andere Karten da sind 
   assert.ok(!discard.isJoker, 'Joker sollte behalten werden - Abwurf wäre ein Geschenk an den nächsten Spieler');
 });
 
-test('chooseDiscard: Joker wird abgeworfen, wenn er die einzige Handkarte ist', () => {
+test('chooseDiscard: liefert NIE einen Joker - bei Nur-Joker-Hand kommt null (Aufrufer legt an)', () => {
   const joker = makeJoker(0);
-  const discard = chooseDiscard([joker]);
-  assert.ok(discard.isJoker);
+  assert.equal(chooseDiscard([joker]), null);
+  assert.equal(chooseDiscard([makeJoker(0), makeJoker(1)]), null);
 });
 
 test('chooseDiscard: meidet Karten, die an eine Tisch-Auslage anlegbar wären', () => {
@@ -164,4 +164,35 @@ test('findHandMelds: erkennt 1 reale Karte + 1 Joker NICHT als Satz (zu wenige K
   // mit König - das ist okay, Hauptsache es stürzt nicht ab und liefert
   // sinnvolle Ergebnisse.
   assert.ok(Array.isArray(melds));
+});
+
+// --- v1.3.0: Joker-Garantie ueber alle Schwierigkeiten --------------------
+test('chooseDiscard: wirft in KEINER Schwierigkeit einen Joker ab (Fuzz)', () => {
+  const { makeStandardCard } = require('../game/Card');
+  for (const difficulty of ['easy', 'medium', 'hard', 'zen']) {
+    for (let i = 0; i < 200; i++) {
+      const hand = [makeJoker(0), makeJoker(1), makeStandardCard('H', '7', 0), makeStandardCard('S', 'A', 0)];
+      const d = chooseDiscard(hand, [], { difficulty, lowestOpponentHand: i % 5, visibleCards: [] });
+      assert.ok(d && !d.isJoker, `${difficulty}: Joker abgeworfen!`);
+    }
+  }
+});
+
+test('chooseDiscard hard/zen: Pik Dame wird nicht freiwillig abgeworfen', () => {
+  const { makeStandardCard } = require('../game/Card');
+  const pd = makeStandardCard('S', 'Q', 0);
+  const hand = [pd, makeStandardCard('H', '3', 0)];
+  for (const difficulty of ['hard', 'zen']) {
+    for (let i = 0; i < 50; i++) {
+      const d = chooseDiscard(hand, [], { difficulty, lowestOpponentHand: 99, visibleCards: [] });
+      assert.ok(!(d.rank === 'Q' && d.suit === 'S'), `${difficulty}: PD abgeworfen trotz Alternative`);
+    }
+  }
+});
+
+test('chooseDiscard zen: im Endspiel wird der hoechste Punktwert abgeworfen', () => {
+  const { makeStandardCard } = require('../game/Card');
+  const hand = [makeStandardCard('H', '3', 0), makeStandardCard('S', 'A', 0), makeStandardCard('D', '5', 0)];
+  const d = chooseDiscard(hand, [], { difficulty: 'zen', lowestOpponentHand: 2, visibleCards: [] });
+  assert.equal(d.rank, 'A'); // Ass = 20 Punkte = groesstes Handrisiko
 });

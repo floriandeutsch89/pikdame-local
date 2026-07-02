@@ -11,12 +11,14 @@ const path = require('path');
 const WebSocket = require('ws');
 const GameManager = require('./game/GameManager');
 const { createPlayerStore } = require('./game/PlayerStore');
+const { createGlobalStatsStore } = require('./game/GlobalStatsStore');
 const { createGameHistoryStore } = require('./game/GameHistoryStore');
 const { SessionRegistry, sanitizeName } = require('./game/SessionRegistry');
 
 const PORT = process.env.PORT || 8080;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const playerStore = createPlayerStore();
+const globalStats = createGlobalStatsStore();
 const gameHistoryStore = createGameHistoryStore();
 
 // --- Absturz-Diagnose ------------------------------------------------------
@@ -265,6 +267,9 @@ const registry = new SessionRegistry((session) => {
   };
   return new GameManager(sendTo, {
     onGameOver: (results, gameRecord) => {
+      // Globale Zähler sind ANONYM aggregiert (keine Namen) und daher auch
+      // im öffentlichen Modus unbedenklich.
+      globalStats.recordGame(gameRecord);
       // Im öffentlichen Modus werden KEINE Namen/Statistiken persistiert -
       // Fremde sollen nichts voneinander sehen, und zwei "Max" aus
       // verschiedenen Gruppen teilen sich kein Profil.
@@ -347,8 +352,8 @@ function sendProfilesAndTeams(session, playerId) {
     ws.send(
       JSON.stringify(
         PUBLIC_MODE
-          ? { type: 'profiles', players: [], publicMode: true }
-          : { type: 'profiles', players: playerStore.listPlayers(), publicMode: false }
+          ? { type: 'profiles', players: [], publicMode: true, globalStats: globalStats.getStats() }
+          : { type: 'profiles', players: playerStore.listPlayers(), publicMode: false, globalStats: globalStats.getStats() }
       )
     );
   }
@@ -575,6 +580,7 @@ function shutdown(signal) {
   writeSessionsSnapshot();
   playerStore.flushSync();
   gameHistoryStore.flushSync();
+  globalStats.flushSync();
   for (const client of wss.clients) {
     try {
       client.close(1001, 'Server wird neu gestartet');

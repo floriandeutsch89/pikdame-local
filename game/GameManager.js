@@ -113,10 +113,15 @@ class GameManager {
   }
 
   setHouseRules(partial = {}) {
+    // Nur bekannte Regeln übernehmen (Client-Eingaben nie blind spreaden).
+    const clean = {};
+    if (typeof partial.handAusDoubles === 'boolean') clean.handAusDoubles = partial.handAusDoubles;
+    if (typeof partial.strictThreshold === 'boolean') clean.strictThreshold = partial.strictThreshold;
+    if (['easy', 'medium', 'hard', 'zen'].includes(partial.botDifficulty)) clean.botDifficulty = partial.botDifficulty;
     this.houseRules = {
       ...DEFAULT_HOUSE_RULES,
       ...this.houseRules,
-      ...partial,
+      ...clean,
     };
   }
 
@@ -377,6 +382,19 @@ class GameManager {
     }
 
     if (!result.valid) return { error: result.reason };
+
+    // FAMILIENREGEL: Pro Spieler nur EIN Satz je Kartenwert. Wer schon
+    // einen 7er-Satz liegen hat, legt weitere 7er dort AN, statt einen
+    // zweiten Stapel zu eröffnen. Folgen (Straßen) sind davon nicht
+    // betroffen - mehrere parallele Folgen sind erlaubt.
+    if (result.type === 'set') {
+      const existingSet = this.tableMelds.find(
+        (m) => m.ownerId === player.id && m.type === 'set' && m.rank === result.rank
+      );
+      if (existingSet) {
+        return { error: 'Du hast bereits einen Satz mit diesem Wert - lege die Karte(n) dort an statt einen neuen Stapel zu eröffnen.' };
+      }
+    }
 
     // Jeder Slot bekommt vermerkt, welcher Spieler diese konkrete Karte
     // dort platziert hat - so kann das Frontend "meine" Karten in Auslagen
@@ -747,8 +765,13 @@ class GameManager {
     const cp = this.currentPlayer();
     if (!cp || cp.id !== botId || !this.isBotControlled(cp)) return;
 
+    const difficulty = (this.houseRules && this.houseRules.botDifficulty) || 'medium';
     const ownMelds = this.tableMelds.filter((m) => m.ownerId === botId);
     const plan = Bot.decideDraw(cp.hand, this.discardPile, ownMelds);
+    // Leichte Bots übersehen die Ablage-Chance meistens (wie Anfänger).
+    if (difficulty === 'easy' && plan.source === 'discardPile' && Math.random() < 0.6) {
+      plan.source = 'drawPile';
+    }
     if (plan.source === 'discardPile' && this.discardPile.length > 0) {
       this.drawFromDiscard(botId);
     } else {
@@ -772,7 +795,34 @@ class GameManager {
       });
     }
 
+    // Leichte Bots schieben das Auslegen oft auf (wie zögerliche Anfänger) -
+    // außer eine Pflichtkarte MUSS gelegt werden.
+    if (difficulty === 'easy' && !this.mustLayOffCardId && Math.random() < 0.4) {
+      meldPlan.newMelds = [];
+      meldPlan.layOffs = [];
+    }
+
     for (const meldCards of meldPlan.newMelds) {
+      // Doppel-Satz-Regel: Plant der Bot einen Satz, dessen Wert er schon
+      // als Satz liegen hat, legt er die Karten stattdessen dort AN.
+      const realRanks = [...new Set(meldCards.filter((cd) => !cd.isJoker).map((cd) => cd.rank))];
+      if (realRanks.length === 1) {
+        const existingSet = this.tableMelds.find(
+          (m) => m.ownerId === botId && m.type === 'set' && m.rank === realRanks[0]
+        );
+        if (existingSet) {
+          for (const cd of meldCards) {
+            if (!cp.hand.find((h) => h.id === cd.id)) continue;
+            let lr = this.layOffCard(botId, existingSet.id, cd.id);
+            if (lr && lr.ambiguous) {
+              const choice = lr.options[0];
+              this.layOffCard(botId, existingSet.id, cd.id, choice.asSuit, choice.side);
+            }
+            if (this.phase !== 'playing') return;
+          }
+          continue;
+        }
+      }
       const ids = meldCards.map((c) => c.id);
       let r = this.layoutMeld(botId, ids);
       if (r && r.ambiguous) {
@@ -798,7 +848,45 @@ class GameManager {
 
     // Prio 1 für Bots: Pik-Dame/Joker niemals unnötig auf der Hand behalten.
     const foreignMelds = this.tableMelds.filter((m) => m.ownerId !== botId);
-    let discardCard = Bot.chooseDiscard(cp.hand, foreignMelds);
+    // Kontext für kluge Bots: alle sichtbaren Karten (Auslagen + offene
+    // Ablage) für die Kartenzählung, kleinste Gegnerhand fürs Endspiel.
+    const visibleCards = [
+      ...this.tableMelds.flatMap((m) => m.slots.map((s) => s.real || { isJoker: true })),
+      ...this.discardPile.filter((cd) => !cd.faceDown),
+    ];
+    const lowestOpponentHand = Math.min(
+      99,
+      ...this.players.filter((p) => p.id !== botId).map((p) => p.hand.length)
+    );
+    let discardCard = Bot.chooseDiscard(cp.hand, foreignMelds, {
+      difficulty,
+      visibleCards,
+      lowestOpponentHand,
+    });
+
+    // JOKER-GARANTIE: chooseDiscard liefert null, wenn die Hand nur noch
+    // aus Jokern besteht. Dann werden die Joker an EIGENE Auslagen
+    // angelegt, statt sie zu verschenken. Nur wenn wirklich keine Anlage
+    // möglich ist (keine eigene Auslage / alles voll), bleibt regelbedingt
+    // nur der Abwurf.
+    if (!discardCard && !this.mustLayOffCardId && cp.hand.length > 0) {
+      let placed = true;
+      while (placed && cp.hand.length > 0 && this.phase === 'playing') {
+        placed = false;
+        const joker = cp.hand.find((cd) => cd.isJoker);
+        if (!joker) break;
+        for (const meld of this.tableMelds.filter((m) => m.ownerId === botId)) {
+          let lr = this.layOffCard(botId, meld.id, joker.id);
+          if (lr && lr.ambiguous) {
+            const choice = lr.options[0];
+            lr = this.layOffCard(botId, meld.id, joker.id, choice.asSuit, choice.side);
+          }
+          if (lr && lr.ok) { placed = true; break; }
+        }
+      }
+      if (this.phase !== 'playing') return;
+      if (cp.hand.length > 0) discardCard = cp.hand[0]; // unvermeidbarer Rest
+    }
     if (this.mustLayOffCardId) {
       const forced = cp.hand.find((c) => c.id === this.mustLayOffCardId);
       if (forced) discardCard = null; // Pflichtkarte zuerst lösen, kann nicht abwerfen
@@ -808,7 +896,9 @@ class GameManager {
       this.discard(botId, discardCard.id);
     } else {
       // Sehr seltener Edge Case: Bot konnte Pflichtkarte nicht auslegen/anlegen.
-      const fallback = cp.hand.find((c) => c.id !== this.mustLayOffCardId);
+      const fallback =
+        cp.hand.find((c) => !c.isJoker && c.id !== this.mustLayOffCardId) ||
+        cp.hand.find((c) => c.id !== this.mustLayOffCardId);
       if (fallback) {
         this.mustLayOffCardId = null; // Notausgang, um die Partie nicht zu blockieren
         this.pendingDiscardRest = false; // Rest bleibt einfach als Ablagestapel liegen

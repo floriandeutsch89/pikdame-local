@@ -942,16 +942,17 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 /* Toast: letzte Aktion */
 #toastContainer {
   position: fixed;
-  top: calc(10px + var(--safe-top));
+  top: 50%;
   left: 50%;
-  transform: translate(-50%, -16px);
+  transform: translate(-50%, calc(-50% - 12px));
   max-width: 86vw;
   background: var(--glass-strong);
   border: 1px solid var(--glass-border);
   backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
   border-radius: var(--r-pill);
-  padding: 8px 16px;
-  font-size: 0.78rem; font-weight: 600;
+  padding: 12px 22px;
+  font-size: 0.92rem; font-weight: 600;
+  text-align: center;
   color: var(--text);
   opacity: 0;
   pointer-events: none;
@@ -959,7 +960,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   z-index: 350;
   text-align: center;
 }
-#toastContainer.visible { opacity: 1; transform: translate(-50%, 0); }
+#toastContainer.visible { opacity: 1; transform: translate(-50%, -50%); }
 
 /* Neue Karte auf dem Ablagestapel: kurzes Aufpoppen */
 @keyframes discardPop {
@@ -1373,13 +1374,7 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 .changelogContent p { margin: 4px 0; color: var(--text-muted); }
 
 /* --- Zentrierter Toast (z.B. Anzeigegroessen-Bestaetigung) ----------------- */
-#toastContainer.centered {
-  top: 50%;
-  transform: translate(-50%, calc(-50% - 10px));
-  font-size: 1rem;
-  padding: 14px 24px;
-}
-#toastContainer.centered.visible { transform: translate(-50%, -50%); }
+/* (Toasts sind jetzt standardmäßig zentriert - siehe #toastContainer) */
 
 /* --- Ingame-Version: rechtsbuendig auf der Zeile von 'Du bist am Zug' ------ */
 /* Absolut in der Topbar verankert: turnInfo bleibt exakt zentriert und die
@@ -1397,3 +1392,29 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   line-height: 1.2;
 }
 .ingameVersion:active { opacity: 1; }
+
+/* --- Bot-Schwierigkeit (Hausregeln) ---------------------------------------- */
+.botDifficultyRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.botDifficultyRow select {
+  background: var(--glass-strong);
+  color: var(--text);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm);
+  padding: 6px 10px;
+  font-size: 0.82rem;
+}
+
+/* --- Globale Server-Statistik ---------------------------------------------- */
+.globalStatsBox {
+  margin-top: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  font-size: 0.78rem;
+  line-height: 1.7;
+  text-align: left;
+  width: 100%;
+}
+.globalStatsBox h3 { margin: 0 0 6px; font-size: 0.85rem; color: var(--accent); }
+.globalStatsBox .statRow { display: flex; justify-content: space-between; gap: 12px; }
+.globalStatsBox .statRow b { font-variant-numeric: tabular-nums; }
