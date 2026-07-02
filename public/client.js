@@ -30,6 +30,10 @@
   // Auslagen-Filter: null = alle anzeigen; sonst nur die Auslagen dieses
   // Spielers (Toggle per Klick auf den Namen).
   let meldFilterPlayerId = null;
+  // IDs aller Pik Damen, die bereits in den Auslagen liegen - taucht eine
+  // NEUE auf, gibt es die große Ankündigung (Raid-Warning-Stil).
+  let prevTablePikdameIds = null;
+  let prevPikdameRound = null;
   const SORT_KEY = 'pikdame_hand_sort';
   let handSortMode = localStorage.getItem(SORT_KEY) === 'rank' ? 'rank' : 'suit';
   let prevHandRound = null;
@@ -110,6 +114,7 @@
   }
 
   const sound = {
+    pikdame: () => { playTone([98, 147, 98], 520, 'sawtooth', 0.06); vibrate([60, 40, 60, 40, 120]); },
     turn: () => { playTone([523, 659], 180, 'sine', 0.06); vibrate([30, 60, 30]); },
     draw: () => { playTone([320], 90, 'triangle', 0.05); vibrate(8); },
     discard: () => { playTone([260, 180], 110, 'triangle', 0.05); vibrate(12); },
@@ -205,6 +210,7 @@
       prevTurnPlayerId = lastState.currentPlayerId;
       updateWakeLock();
       maybeShowActionToast();
+      checkPikdameAnnouncement();
       render();
       return;
     }
@@ -1207,6 +1213,60 @@
   el('qrOverlay').addEventListener('click', (ev) => {
     if (ev.target === el('qrOverlay')) el('qrOverlay').classList.add('hidden');
   });
+
+  // --- Pik-Dame-Ankündigung (Raid-Warning) -----------------------------------
+  function collectTablePikdames() {
+    const found = new Map(); // cardId -> ownerId
+    for (const meld of lastState.tableMelds || []) {
+      for (const slot of meld.slots || []) {
+        if (slot.real && slot.real.rank === 'Q' && slot.real.suit === 'S') {
+          found.set(slot.real.id, meld.ownerId);
+        }
+      }
+    }
+    return found;
+  }
+
+  function checkPikdameAnnouncement() {
+    if (!lastState || lastState.phase !== 'playing') {
+      prevTablePikdameIds = null;
+      return;
+    }
+    const current = collectTablePikdames();
+    const isNewRound = prevPikdameRound !== lastState.roundNumber;
+    if (prevTablePikdameIds !== null && !isNewRound) {
+      for (const [cardId, ownerId] of current) {
+        if (!prevTablePikdameIds.has(cardId)) {
+          const owner = lastState.players.find((p) => p.id === ownerId);
+          const isMe = ownerId === playerId;
+          showRaidWarning(
+            '♠ PIK DAME! ♠',
+            isMe ? 'Du sicherst dir 100 Punkte!' : `${owner ? owner.name : '?'} sichert sich 100 Punkte!`
+          );
+          break; // eine Ankündigung reicht, auch wenn beide PD gleichzeitig fallen
+        }
+      }
+    }
+    prevTablePikdameIds = new Set(current.keys());
+    prevPikdameRound = lastState.roundNumber;
+  }
+
+  function showRaidWarning(title, sub) {
+    document.querySelectorAll('.raidWarning').forEach((n) => n.remove());
+    const w = document.createElement('div');
+    w.className = 'raidWarning';
+    const t = document.createElement('div');
+    t.className = 'rwTitle';
+    t.textContent = title;
+    const s = document.createElement('div');
+    s.className = 'rwSub';
+    s.textContent = sub;
+    w.appendChild(t);
+    w.appendChild(s);
+    document.body.appendChild(w);
+    sound.pikdame();
+    setTimeout(() => w.remove(), 2500);
+  }
 
   // --- Emotes -----------------------------------------------------------------
   el('emoteBtn').addEventListener('click', () => {

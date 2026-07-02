@@ -682,7 +682,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   margin-left: -22px;
   display: flex; align-items: center; justify-content: center;
   font-weight: 800; font-size: 1.02rem;
-  transition: transform 0.2s var(--ease), box-shadow 0.2s ease;
+  transition: transform 0.2s var(--ease), box-shadow 0.2s ease, top 0.15s ease;
+  top: 0;
   box-shadow: var(--shadow-1), 0 3px 8px rgba(0,0,0,0.28);
   position: relative;
   transform-origin: bottom center;
@@ -692,8 +693,12 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .card.black { color: var(--suit-black); }
 .card.joker { color: var(--joker); }
 .card.selected {
-  box-shadow: 0 0 0 3px var(--accent), var(--shadow-3);
-  z-index: 5;
+  /* Auswahl = leicht nach OBEN versetzt. Bewusst KEIN z-index mehr: die
+     nach vorn geholte Karte verdeckte sonst den Klickstreifen der rechten
+     Nachbarkarte im Fächer. top statt transform, weil die Fächer-Rotation
+     als Inline-Transform gesetzt wird. */
+  top: -14px;
+  box-shadow: 0 0 0 3px var(--accent), var(--shadow-2);
 }
 
 /* Ecken-Index wie bei echten Spielkarten: bleibt bei überlappenden
@@ -1166,4 +1171,42 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   #hand .card { width: 50px; height: 71px; min-width: 50px; }
   #melds .card { width: 46px; height: 65px; min-width: 46px; }
   .opponent { padding: 4px 9px; font-size: 0.66rem; }
+}
+
+/* --- Pik-Dame-Ankündigung (Raid-Warning-Stil) ----------------------------- */
+@keyframes raidWarnIn {
+  0% { transform: translate(-50%, -50%) scale(0.4); opacity: 0; }
+  14% { transform: translate(-50%, -50%) scale(1.14); opacity: 1; }
+  22% { transform: translate(-50%, -50%) scale(1); }
+  78% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(0.94); opacity: 0; }
+}
+.raidWarning {
+  position: fixed;
+  left: 50%; top: 42%;
+  transform: translate(-50%, -50%);
+  z-index: 450;
+  pointer-events: none;
+  text-align: center;
+  animation: raidWarnIn 2.4s ease-out forwards;
+}
+.raidWarning .rwTitle {
+  font-size: clamp(1.7rem, 8vw, 2.6rem);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: #fff;
+  text-shadow:
+    0 0 14px var(--danger),
+    0 0 34px rgba(255, 80, 80, 0.55),
+    0 2px 4px rgba(0,0,0,0.7);
+}
+.raidWarning .rwSub {
+  margin-top: 4px;
+  font-size: clamp(0.85rem, 3.6vw, 1.05rem);
+  font-weight: 700;
+  color: var(--text);
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+@media (prefers-reduced-motion: reduce) {
+  .raidWarning { animation: none; opacity: 1; }
 }
