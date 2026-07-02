@@ -679,6 +679,13 @@
       clearHintIfNotError();
     }
 
+    // Platz sparen: die Action-Leiste komplett einklappen, wenn sie nichts
+    // Sichtbares enthaelt (der Aufgeben-Button lebt jetzt ueber der Hand).
+    // WICHTIG: erst NACH der Hint-Logik pruefen, sonst zaehlt der alte Text.
+    const actionBarEmpty =
+      !showMeldControls && !showDiscardBtn && selectedCardIds.size === 0 && !el('hint').textContent;
+    el('actionBar').classList.toggle('collapsed', actionBarEmpty);
+
     // Log
     const logEntries = el('logEntries');
     logEntries.innerHTML = '';
