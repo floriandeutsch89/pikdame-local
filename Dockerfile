@@ -1,17 +1,17 @@
 # Pik Dame - Dockerfile
-# Leichtgewichtiges Node.js-Image, läuft als nicht-root User.
-# Persistente Daten (Spielerprofile/Teams/Spielverlauf) liegen unter /app/data
-# und sollten über ein Volume gemountet werden (siehe docker-compose.yml).
+# Lightweight Node.js image, runs as a non-root user.
+# Persistent data (player profiles, game history, accounts DB) lives under
+# /app/data and should be mounted as a volume (see docker-compose.yml).
 
 FROM node:22-alpine
 
-# tini sorgt für sauberes Signal-Handling (Ctrl+C / docker stop) bei PID 1
+# tini provides proper signal handling (Ctrl+C / docker stop) as PID 1
 RUN apk add --no-cache tini
 
 WORKDIR /app
 
-# Nur Manifest zuerst kopieren -> Docker-Layer-Cache für npm ci bleibt erhalten,
-# solange sich package*.json nicht ändert.
+# Copy only the manifests first -> the Docker layer cache for `npm ci`
+# stays valid as long as package*.json does not change.
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
@@ -19,8 +19,8 @@ COPY server.js ./
 COPY game ./game
 COPY public ./public
 
-# data/ wird normalerweise als Volume gemountet; Verzeichnis muss trotzdem
-# existieren und dem unprivilegierten User gehören.
+# data/ is normally mounted as a volume; the directory still has to exist
+# and must be owned by the unprivileged user.
 RUN mkdir -p /app/data \
   && addgroup -S pikdame \
   && adduser -S pikdame -G pikdame \

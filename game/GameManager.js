@@ -83,10 +83,25 @@ class GameManager {
   }
 
   fillWithBots() {
+    // Menschliche Namen statt 'Bot 1/2/3' - fuehlt sich am Tisch lebendiger
+    // an. Das 🤖-Symbol am Gegner-Chip kennzeichnet Bots weiterhin klar.
+    const BOT_NAMES = [
+      'Uwe', 'Inge', 'Maria', 'Heinz', 'Gisela', 'Klaus', 'Renate', 'Dieter',
+      'Helga', 'Manfred', 'Erika', 'Horst', 'Waltraud', 'Bernd', 'Ursel', 'Kurt',
+    ];
+    const taken = new Set(this.players.map((p) => p.name.toLowerCase()));
+    const free = BOT_NAMES.filter((n) => !taken.has(n.toLowerCase()));
+    // Zufaellige Auswahl ohne Duplikate; Fallback auf 'Bot N', falls jemand
+    // tatsaechlich alle 16 Namen als Spieler belegt hat.
+    for (let i = free.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [free[i], free[j]] = [free[j], free[i]];
+    }
     let botIndex = 1;
     while (this.players.length < this.maxSeats) {
       const id = `bot-${botIndex}`;
-      this.players.push({ id, name: `Bot ${botIndex}`, isBot: true, hand: [], connected: true, laidOutCards: [] });
+      const name = free.pop() || `Bot ${botIndex}`;
+      this.players.push({ id, name, isBot: true, hand: [], connected: true, laidOutCards: [] });
       this.totals[id] = this.totals[id] || 0;
       botIndex += 1;
     }
@@ -649,8 +664,12 @@ class GameManager {
       name: p.name,
       laidOutCount: p.laidOutCards.length,
       handCount: p.hand.length,
+      // AUF DER HAND erwischt (Minuspunkte) - am Rundenende meist 0:
       pikDameCount: p.hand.filter((c) => c.rank === 'Q' && c.suit === 'S').length,
       jokerInHandCount: p.hand.filter((c) => c.isJoker).length,
+      // AUSGELEGT (die interessante Zahl fuer die Runden-Tabelle):
+      pikDameLaidOut: p.laidOutCards.filter((c) => isPikDame(c)).length,
+      jokersLaidOut: p.laidOutCards.filter((c) => c.isJoker).length,
       meldsLaidOut: this.tableMelds.filter((m) =>
         m.slots.some((s) => p.laidOutCards.some((c) => (s.real ? s.real.id : s.joker.id) === c.id))
       ).length,

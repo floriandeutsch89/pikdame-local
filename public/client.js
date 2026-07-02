@@ -653,7 +653,8 @@
         const reconnecting = !p.isBot && p.controlledByBot;
         const opTotal = (lastState.totals && lastState.totals[p.id]) || 0;
         const dealerStar = p.id === lastState.dealerId ? ` <span title="${L('Geber dieser Runde', 'Dealer this round')}">⭐</span>` : '';
-        d.innerHTML = `<div class="opName">${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}${dealerStar}${reconnecting ? ` <span class="reconnectTag">⏳ ${L('getrennt – Bot übernimmt', 'disconnected – bot takes over')}</span>` : ''}</div><div class="opCount"><b>${p.handCount}</b> ${L('Karten', 'cards')} · <b>${opTotal}</b> ${L('Pkt', 'pts')}</div>`;
+        d.title = L(`${p.handCount} Karten · ${opTotal} Punkte`, `${p.handCount} cards · ${opTotal} points`);
+        d.innerHTML = `<div class="opName">${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}${dealerStar}${reconnecting ? ` <span class="reconnectTag">⏳ ${L('getrennt – Bot übernimmt', 'disconnected – bot takes over')}</span>` : ''}</div><div class="opCount"><b>${p.handCount}</b> ${L('Kt', 'cd')} · <b>${opTotal}</b> ${L('Pkt', 'pts')}</div>`;
         opponentsDiv.appendChild(d);
       });
 
@@ -1053,12 +1054,15 @@
     if (lastState.lastRoundStats) {
       const statsTable = document.createElement('table');
       statsTable.className = 'statsTable';
+      // ♠Q/🃏 zeigen die AUSGELEGTEN Karten (die Hand-Zaehler waren am
+      // Rundenende fast immer 0 - deshalb wirkten die Spalten 'kaputt').
+      // Fallback ?? 0 fuer Runden, die vor diesem Update gespielt wurden.
       statsTable.innerHTML = `
-        <thead><tr><th>Spieler</th><th>Ausgelegt</th><th>Auf Hand</th><th>♠Q</th><th>🃏</th></tr></thead>
+        <thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('Ausgelegt', 'Melded')}</th><th>${L('Auf Hand', 'In hand')}</th><th title="${L('Pik Damen ausgelegt', 'Queens of Spades melded')}">♠Q</th><th title="${L('Joker ausgelegt', 'Jokers melded')}">🃏</th></tr></thead>
         <tbody>${lastState.lastRoundStats
           .map(
             (s) =>
-              `<tr><td>${escapeHtml(s.name)}</td><td>${s.laidOutCount}</td><td>${s.handCount}</td><td>${s.pikDameCount}</td><td>${s.jokerInHandCount}</td></tr>`
+              `<tr><td>${escapeHtml(s.name)}</td><td>${s.laidOutCount}</td><td>${s.handCount}</td><td>${s.pikDameLaidOut ?? 0}</td><td>${s.jokersLaidOut ?? 0}</td></tr>`
           )
           .join('')}</tbody>`;
       body.appendChild(statsTable);

@@ -45,6 +45,12 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
   const fs = require('fs');
   fs.mkdirSync(path.dirname(dbFile), { recursive: true });
   const db = new DatabaseSync(dbFile);
+  // WAL erlaubt gleichzeitiges Lesen waehrend Schreibvorgaengen und ist die
+  // empfohlene Betriebsart fuer Server; busy_timeout wartet kurz statt
+  // sofort mit SQLITE_BUSY zu scheitern. Fuer diesen Workload (seltene
+  // Konto-Operationen, Spielverkehr laeuft komplett im Speicher/WS) ist
+  // SQLite damit um Groessenordnungen ueberdimensioniert - voellig okay.
+  db.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 3000;');
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
