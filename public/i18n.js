@@ -104,6 +104,8 @@ window.I18N_SERVER_PATTERNS = [
   [/^Hand aus! Die komplette Rundenwertung wird verdoppelt\.$/, 'Out in one! The entire round score is doubled.'],
   [/^Spiel beendet! Gewinner: (.+)$/, 'Game over! Winner: $1'],
   [/^Rundenwertung: (.+)$/, 'Round scores: $1'],
+  [/^⚠️ Endspurt! (.+?) steht bei (\d+) Punkten - ab 1000 endet das Spiel\.$/, '⚠️ Final stretch! $1 is at $2 points - the game ends at 1000.'],
+  [/^⚠️ Endspurt! (.+?) steht bei (\d+) Punkten - über 1000 endet das Spiel\.$/, '⚠️ Final stretch! $1 is at $2 points - the game ends above 1000.'],
   [/^Keine Karten mehr zum Ziehen - die Runde endet unentschieden\.$/, 'No cards left to draw – the round ends in a stalemate.'],
   [/^Nachziehstapel war leer - Ablagestapel \(außer oberster Karte\) wurde gemischt und neu aufgelegt\.$/, 'Draw pile was empty – the discard pile (except the top card) was shuffled and restocked.'],
   [/^(.+?) ist beigetreten\.$/, '$1 joined.'],

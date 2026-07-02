@@ -1418,3 +1418,28 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 .globalStatsBox h3 { margin: 0 0 6px; font-size: 0.85rem; color: var(--accent); }
 .globalStatsBox .statRow { display: flex; justify-content: space-between; gap: 12px; }
 .globalStatsBox .statRow b { font-variant-numeric: tabular-nums; }
+
+/* --- Erfolgs-Badges --------------------------------------------------------- */
+.badgeBox {
+  margin-top: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  text-align: left;
+  width: 100%;
+  animation: badgePop 0.45s ease;
+}
+@keyframes badgePop {
+  0% { transform: scale(0.92); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .badgeBox { animation: none; } }
+.badgeBox h3 { margin: 0 0 8px; font-size: 0.9rem; color: var(--accent); }
+.badgeRow {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 0.8rem; line-height: 1.45;
+  margin-bottom: 6px;
+}
+.badgeEmoji { font-size: 1.3rem; }
+.badgeDesc { color: var(--text-muted); }
+.badgeCell { font-size: 0.95rem; letter-spacing: 2px; }

@@ -12,6 +12,7 @@ const WebSocket = require('ws');
 const GameManager = require('./game/GameManager');
 const { createPlayerStore } = require('./game/PlayerStore');
 const { createGlobalStatsStore } = require('./game/GlobalStatsStore');
+const { computeEarnedBadges } = require('./game/Badges');
 const { createGameHistoryStore } = require('./game/GameHistoryStore');
 const { SessionRegistry, sanitizeName } = require('./game/SessionRegistry');
 
@@ -276,6 +277,23 @@ const registry = new SessionRegistry((session) => {
       if (PUBLIC_MODE) return;
       playerStore.recordGameResult(results);
       gameHistoryStore.saveGame(gameRecord);
+
+      // Erfolgs-Badges: pro ECHTEM Spieler aus der Partie berechnen, im
+      // Profil persistieren (nur neue) und die frisch verdienten an alle
+      // am Tisch melden - der grosse Moment gehoert ins Ergebnis-Overlay.
+      const earned = [];
+      for (const p of gameRecord.players || []) {
+        if (p.isBot) continue;
+        const profile = playerStore.getPlayerByName(p.name) || {};
+        const deserved = computeEarnedBadges(gameRecord, p.id, profile);
+        const fresh = playerStore.awardBadges(p.name, deserved);
+        if (fresh.length > 0) earned.push({ name: p.name, badges: fresh });
+      }
+      if (earned.length > 0) {
+        for (const p of gameRecord.players || []) {
+          sendTo(p.id, { type: 'badges', earned });
+        }
+      }
     },
   });
 }, {
