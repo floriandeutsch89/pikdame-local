@@ -4,8 +4,8 @@
 // einfachen JSON-Datei. Bewusst dependency-frei (kein DB-Treiber nötig) und
 // für den Offline-Hotspot-Use-Case völlig ausreichend.
 
-const fs = require('fs');
 const path = require('path');
+const { createAtomicJsonFile } = require('./AtomicJsonFile');
 
 const DEFAULT_DATA_DIR = path.join(__dirname, '..', 'data');
 const DEFAULT_DATA_FILE = path.join(DEFAULT_DATA_DIR, 'players.json');
@@ -25,23 +25,21 @@ function genId(prefix) {
  * anzufassen.
  */
 function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
+  // Gecacht + debounced + atomar: blockiert die Event-Loop nie (wichtig
+  // bei vielen parallelen Spielen, wo staendig Partien enden).
+  const file = createAtomicJsonFile(filePath);
+
   function loadStore() {
-    try {
-      const raw = fs.readFileSync(filePath, 'utf8');
-      const parsed = JSON.parse(raw);
-      return {
-        players: Array.isArray(parsed.players) ? parsed.players : [],
-        teams: Array.isArray(parsed.teams) ? parsed.teams : [],
-      };
-    } catch (e) {
-      return emptyStore();
-    }
+    const parsed = file.read();
+    if (!parsed) return emptyStore();
+    return {
+      players: Array.isArray(parsed.players) ? parsed.players : [],
+      teams: Array.isArray(parsed.teams) ? parsed.teams : [],
+    };
   }
 
   function saveStore(store) {
-    const dir = path.dirname(filePath);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(filePath, JSON.stringify(store, null, 2), 'utf8');
+    file.write(store);
     return store;
   }
 
@@ -131,6 +129,7 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
 
   return {
     filePath,
+    flushSync: file.flushSync,
     loadStore,
     saveStore,
     upsertPlayerProfile,

@@ -3,8 +3,8 @@
 // Runde-für-Runde-Aufzeichnung in einer JSON-Datei. Dient als Grundlage für
 // den Spielverlauf-Export und spätere Auswertungen über mehrere Partien.
 
-const fs = require('fs');
 const path = require('path');
+const { createAtomicJsonFile } = require('./AtomicJsonFile');
 
 const DEFAULT_DATA_DIR = path.join(__dirname, '..', 'data');
 const DEFAULT_DATA_FILE = path.join(DEFAULT_DATA_DIR, 'games.json');
@@ -15,20 +15,15 @@ function genId() {
 }
 
 function createGameHistoryStore(filePath = DEFAULT_DATA_FILE) {
+  const file = createAtomicJsonFile(filePath);
+
   function loadAll() {
-    try {
-      const raw = fs.readFileSync(filePath, 'utf8');
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed.games) ? parsed.games : [];
-    } catch (e) {
-      return [];
-    }
+    const parsed = file.read();
+    return parsed && Array.isArray(parsed.games) ? parsed.games : [];
   }
 
   function saveAll(games) {
-    const dir = path.dirname(filePath);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(filePath, JSON.stringify({ games }, null, 2), 'utf8');
+    file.write({ games });
   }
 
   /**
@@ -52,7 +47,8 @@ function createGameHistoryStore(filePath = DEFAULT_DATA_FILE) {
     return loadAll().find((g) => g.id === id) || null;
   }
 
-  return { filePath, loadAll, saveGame, listGames, getGame };
+  return {
+    flushSync: file.flushSync, filePath, loadAll, saveGame, listGames, getGame };
 }
 
 module.exports = { createGameHistoryStore, DEFAULT_DATA_FILE };

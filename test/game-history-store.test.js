@@ -36,6 +36,9 @@ test('Spielverlauf übersteht einen Neustart (neue Store-Instanz, gleiche Datei)
   const filePath = path.join(dir, 'games.json');
   const store1 = createGameHistoryStore(filePath);
   store1.saveGame({ players: [], rounds: [], finalTotals: {}, winnerId: null, finishedAt: Date.now() });
+  // Writes sind jetzt gecacht/debounced (blockieren die Event-Loop nicht) -
+  // flushSync entspricht dem Graceful Shutdown vor einem Neustart.
+  store1.flushSync();
 
   const store2 = createGameHistoryStore(filePath);
   assert.equal(store2.listGames().length, 1);

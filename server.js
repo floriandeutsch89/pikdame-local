@@ -89,6 +89,31 @@ const MIME_TYPES = {
 
 function serveStatic(req, res) {
   let filePath = req.url.split('?')[0];
+  if (filePath === '/statusz') {
+    // Beobachtbarkeit für den gehosteten Betrieb: Anzahlen + Speicher.
+    // Enthält bewusst KEINE Namen/Codes - nur aggregierte Zahlen.
+    let players = 0;
+    for (const s of registry.sessions.values()) {
+      for (const sock of s.sockets.values()) {
+        if (sock && sock.readyState === WebSocket.OPEN) players += 1;
+      }
+    }
+    const mem = process.memoryUsage();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(
+      JSON.stringify({
+        status: 'ok',
+        uptimeSeconds: Math.round(process.uptime()),
+        sessions: registry.size,
+        connectedPlayers: players,
+        rssMb: Math.round(mem.rss / 1024 / 1024),
+        heapUsedMb: Math.round(mem.heapUsed / 1024 / 1024),
+        publicMode: PUBLIC_MODE,
+        node: process.version,
+      })
+    );
+    return;
+  }
   if (filePath === '/healthz') {
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('ok');
@@ -120,9 +145,93 @@ const server = http.createServer(serveStatic);
 
 // --- WebSocket-Server ---------------------------------------------------------
 
+// --- Konfiguration für gehosteten Betrieb (alles optional - der
+// iPhone-/Hotspot-Betrieb läuft mit den Defaults unverändert) -------------
+// PIKDAME_PUBLIC_MODE=1   -> Profile/Teams/Statistik deaktiviert (Fremde
+//                            sollen keine Namen/Statistiken anderer sehen)
+// PIKDAME_TRUST_PROXY=1   -> Client-IP aus X-Forwarded-For lesen (NUR hinter
+//                            eigenem Reverse-Proxy setzen, sonst fälschbar!)
+// PIKDAME_ALLOWED_ORIGIN  -> wenn gesetzt: WebSocket-Verbindungen nur von
+//                            dieser Origin (z. B. https://spiel.example.org)
+const PUBLIC_MODE = process.env.PIKDAME_PUBLIC_MODE === '1';
+const TRUST_PROXY = process.env.PIKDAME_TRUST_PROXY === '1';
+const ALLOWED_ORIGIN = process.env.PIKDAME_ALLOWED_ORIGIN || null;
+const HEARTBEAT_MS = Number(process.env.PIKDAME_HEARTBEAT_MS) || 30000;
+
+function clientIp(req) {
+  if (TRUST_PROXY) {
+    const fwd = req.headers['x-forwarded-for'];
+    if (typeof fwd === 'string' && fwd.length > 0) return fwd.split(',')[0].trim();
+  }
+  return req.socket.remoteAddress || 'unknown';
+}
+
+// IP-basierter Brute-Force-Schutz: Fehlversuche pro IP über ein 15-Minuten-
+// Fenster (das frühere Limit pro VERBINDUNG war umgehbar, indem man einfach
+// neue Verbindungen öffnet). Map wird periodisch geleert - kein Wachstum.
+const FAILED_JOIN_WINDOW_MS = 15 * 60 * 1000;
+const FAILED_JOIN_LIMIT = 20;
+const failedJoinsByIp = new Map(); // ip -> { count, windowStart }
+function registerFailedJoin(ip) {
+  const now = Date.now();
+  let entry = failedJoinsByIp.get(ip);
+  if (!entry || now - entry.windowStart > FAILED_JOIN_WINDOW_MS) {
+    entry = { count: 0, windowStart: now };
+    failedJoinsByIp.set(ip, entry);
+  }
+  entry.count += 1;
+  return entry.count;
+}
+function ipIsBlocked(ip) {
+  const entry = failedJoinsByIp.get(ip);
+  if (!entry) return false;
+  if (Date.now() - entry.windowStart > FAILED_JOIN_WINDOW_MS) return false;
+  return entry.count >= FAILED_JOIN_LIMIT;
+}
+const ipCleanupTimer = setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of failedJoinsByIp) {
+    if (now - entry.windowStart > FAILED_JOIN_WINDOW_MS) failedJoinsByIp.delete(ip);
+  }
+}, 5 * 60 * 1000);
+ipCleanupTimer.unref();
+
 // maxPayload: Schutz vor absichtlich riesigen Nachrichten auf einem
 // öffentlichen Server (16 KB reichen für jedes legitime Spielkommando).
-const wss = new WebSocket.Server({ server, maxPayload: 16 * 1024 });
+const wss = new WebSocket.Server({
+  server,
+  maxPayload: 16 * 1024,
+  verifyClient: ({ origin, req }, done) => {
+    // Origin-Check nur, wenn explizit konfiguriert (im LAN/Hotspot ist die
+    // Origin variabel - deshalb opt-in).
+    if (ALLOWED_ORIGIN && origin && origin !== ALLOWED_ORIGIN) {
+      return done(false, 403, 'Origin nicht erlaubt');
+    }
+    done(true);
+  },
+});
+
+// --- Heartbeat: Zombie-Verbindungen erkennen -------------------------------
+// Im Internet (Mobilfunk, NAT-Timeouts) bleiben Verbindungen oft halb offen,
+// ohne dass je ein 'close'-Event kommt. Ohne Heartbeat merkt der Server nie,
+// dass ein Spieler weg ist -> markDisconnected feuert nicht -> der Bot
+// übernimmt nie und der Tisch wartet ewig. Wer auf den Ping nicht antwortet,
+// wird terminiert - terminate() löst 'close' aus und damit die Bot-Übernahme.
+const heartbeatTimer = setInterval(() => {
+  for (const ws of wss.clients) {
+    if (ws.isAlive === false) {
+      ws.terminate();
+      continue;
+    }
+    ws.isAlive = false;
+    try {
+      ws.ping();
+    } catch (e) {
+      /* Socket bereits kaputt - terminate folgt im nächsten Zyklus */
+    }
+  }
+}, HEARTBEAT_MS);
+heartbeatTimer.unref();
 
 function sendError(ws, error) {
   if (ws.readyState === WebSocket.OPEN) {
@@ -142,6 +251,10 @@ const registry = new SessionRegistry((session) => {
   };
   return new GameManager(sendTo, {
     onGameOver: (results, gameRecord) => {
+      // Im öffentlichen Modus werden KEINE Namen/Statistiken persistiert -
+      // Fremde sollen nichts voneinander sehen, und zwei "Max" aus
+      // verschiedenen Gruppen teilen sich kein Profil.
+      if (PUBLIC_MODE) return;
       playerStore.recordGameResult(results);
       gameHistoryStore.saveGame(gameRecord);
     },
@@ -158,24 +271,89 @@ const cleanupTimer = setInterval(() => {
 }, 5 * 60 * 1000);
 cleanupTimer.unref();
 
-function sendProfilesAndTeams(session, playerId) {
-  const ws = session.sockets.get(playerId);
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'profiles', players: playerStore.listPlayers(), teams: playerStore.listTeams() }));
+// --- Deployment-feste Sessions -------------------------------------------
+// Ein `docker pull && restart` würde sonst alle laufenden Tische abbrechen.
+// Beim Shutdown wird der komplette Spielzustand jeder Session auf das
+// data/-Volume geschrieben und beim nächsten Start wiederhergestellt - die
+// Clients reconnecten automatisch (Session-Code + gespeicherte playerId).
+const SNAPSHOT_FILE = path.join(DATA_DIR, 'sessions-snapshot.json');
+
+function writeSessionsSnapshot() {
+  try {
+    const snapshot = [];
+    for (const session of registry.sessions.values()) {
+      snapshot.push({
+        code: session.code,
+        createdAt: session.createdAt,
+        lastActivity: session.lastActivity,
+        state: session.game.serialize(),
+      });
+    }
+    fs.writeFileSync(`${SNAPSHOT_FILE}.tmp`, JSON.stringify({ savedAt: Date.now(), sessions: snapshot }), 'utf8');
+    fs.renameSync(`${SNAPSHOT_FILE}.tmp`, SNAPSHOT_FILE);
+    console.log(`Session-Snapshot geschrieben: ${snapshot.length} Session(s).`);
+  } catch (e) {
+    console.error('Session-Snapshot fehlgeschlagen:', e.message);
   }
 }
 
-wss.on('connection', (ws) => {
+function restoreSessionsSnapshot() {
+  let raw;
+  try {
+    raw = fs.readFileSync(SNAPSHOT_FILE, 'utf8');
+  } catch (e) {
+    return; // kein Snapshot vorhanden - normaler Kaltstart
+  }
+  try {
+    const { sessions } = JSON.parse(raw);
+    let restored = 0;
+    for (const snap of sessions || []) {
+      const session = registry.restore(snap);
+      if (!session) continue;
+      session.game.deserialize(snap.state);
+      restored += 1;
+    }
+    if (restored > 0) console.log(`Session-Restore: ${restored} Session(s) aus dem Snapshot wiederhergestellt.`);
+  } catch (e) {
+    console.error('Session-Restore fehlgeschlagen (Snapshot wird verworfen):', e.message);
+  }
+  // Snapshot ist einmalig - danach löschen, damit ein Crash-Loop nicht
+  // immer wieder denselben alten Zustand lädt.
+  try {
+    fs.unlinkSync(SNAPSHOT_FILE);
+  } catch (e) {
+    /* schon weg */
+  }
+}
+restoreSessionsSnapshot();
+
+function sendProfilesAndTeams(session, playerId) {
+  const ws = session.sockets.get(playerId);
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(
+      JSON.stringify(
+        PUBLIC_MODE
+          ? { type: 'profiles', players: [], teams: [], publicMode: true }
+          : { type: 'profiles', players: playerStore.listPlayers(), teams: playerStore.listTeams(), publicMode: false }
+      )
+    );
+  }
+}
+
+wss.on('connection', (ws, req) => {
   let playerId = null;
   let session = null;
+  const ip = clientIp(req);
+
+  // Heartbeat-Buchhaltung: Browser antworten auf Protokoll-Pings automatisch.
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
 
   // --- Schutzmechanismen für den öffentlichen Betrieb ---
   // Rate-Limit: mehr als 40 Nachrichten/Sekunde ist kein menschliches Spielen.
   let msgCount = 0;
   const rateTimer = setInterval(() => { msgCount = 0; }, 1000);
   rateTimer.unref();
-  // Brute-Force-Schutz: wer wiederholt falsche Session-Codes probiert, fliegt.
-  let failedJoins = 0;
 
   ws.on('message', (raw) => {
     msgCount += 1;
@@ -230,10 +408,16 @@ wss.on('connection', (ws) => {
       return;
     }
     if (msg.type === 'joinSession') {
+      if (ipIsBlocked(ip)) {
+        ws.close(1008, 'Zu viele Fehlversuche');
+        return;
+      }
       const target = registry.get(msg.code);
       if (!target) {
-        failedJoins += 1;
-        if (failedJoins > 10) {
+        // Fehlversuche zählen pro IP (nicht pro Verbindung - das war durch
+        // simples Neu-Verbinden umgehbar).
+        const count = registerFailedJoin(ip);
+        if (count >= FAILED_JOIN_LIMIT) {
           ws.close(1008, 'Zu viele Fehlversuche');
           return;
         }
@@ -295,12 +479,14 @@ wss.on('connection', (ws) => {
         break;
       }
       case 'createTeam': {
+        if (PUBLIC_MODE) { sendError(ws, 'Teams sind auf diesem öffentlichen Server deaktiviert.'); break; }
         const team = playerStore.createTeam(sanitizeName(msg.name, 24), (msg.memberNames || []).map((n) => sanitizeName(n)));
         sendProfilesAndTeams(session, playerId);
         ws.send(JSON.stringify({ type: 'teamCreated', team }));
         break;
       }
       case 'updateTeam': {
+        if (PUBLIC_MODE) { sendError(ws, 'Teams sind auf diesem öffentlichen Server deaktiviert.'); break; }
         const team = playerStore.updateTeam(msg.id, {
           name: sanitizeName(msg.name, 24),
           memberNames: (msg.memberNames || []).map((n) => sanitizeName(n)),
@@ -313,11 +499,13 @@ wss.on('connection', (ws) => {
         break;
       }
       case 'deleteTeam': {
+        if (PUBLIC_MODE) { sendError(ws, 'Teams sind auf diesem öffentlichen Server deaktiviert.'); break; }
         playerStore.deleteTeam(msg.id);
         sendProfilesAndTeams(session, playerId);
         break;
       }
       case 'applyTeam': {
+        if (PUBLIC_MODE) { sendError(ws, 'Teams sind auf diesem öffentlichen Server deaktiviert.'); break; }
         const teams = playerStore.listTeams();
         const team = teams.find((t) => t.id === msg.teamId);
         if (!team) {
@@ -409,6 +597,11 @@ wss.on('connection', (ws) => {
 // offene Verbindungen sauber schließen statt sie hart zu kappen.
 function shutdown(signal) {
   console.log(`${signal} empfangen - Server fährt herunter...`);
+  // Laufende Spiele überleben den Neustart; gepufferte Store-Writes landen
+  // sicher auf der Platte.
+  writeSessionsSnapshot();
+  playerStore.flushSync();
+  gameHistoryStore.flushSync();
   for (const client of wss.clients) {
     try {
       client.close(1001, 'Server wird neu gestartet');

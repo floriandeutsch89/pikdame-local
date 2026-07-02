@@ -722,6 +722,35 @@ class GameManager {
   }
 
   /**
+   * Serialisiert den kompletten Spielzustand als plain JSON (alle Felder
+   * sind bewusst reine Datenobjekte - Karten, Slots, Melds). Transiente
+   * Felder (Callbacks, Timer) werden ausgelassen.
+   */
+  serialize() {
+    const state = {};
+    for (const [key, value] of Object.entries(this)) {
+      if (key === 'broadcast' || key === 'onGameOver' || key === '_botTimer') continue;
+      if (typeof value === 'function') continue;
+      state[key] = value;
+    }
+    return state;
+  }
+
+  /**
+   * Spielt einen serialisierten Zustand in eine frische Instanz ein
+   * (Deployment-Neustart). Alle Spieler gelten danach als getrennt - Bots
+   * übernehmen, bis die Menschen per Reconnect zurückkommen; ein evtl.
+   * laufender Bot-Zug wird wieder angestoßen.
+   */
+  deserialize(state) {
+    Object.assign(this, state);
+    for (const p of this.players) {
+      if (!p.isBot) p.connected = false;
+    }
+    this.maybeRunBotTurn();
+  }
+
+  /**
    * Ein Platz wird von der Bot-Logik gesteuert, wenn es entweder ein echter
    * Bot ist, ODER ein menschlicher Spieler gerade die Verbindung verloren hat
    * (Reconnect-Robustheit: der Tisch blockiert nicht, bis er zurückkehrt).

@@ -78,6 +78,58 @@ Der Server ist für öffentliches Hosting (Docker) vorbereitet:
   Verbindungen sauber.
 - `crash.log` liegt im `data/`-Verzeichnis (im Docker-Betrieb ein Volume).
 
+### Gehosteter Betrieb (viele parallele Spiele)
+
+Für den Dauerbetrieb mit vielen parallelen Spielen (getestet mit 200er-Limit)
+bringt der Server mit:
+
+- **Heartbeat** (30 s, `PIKDAME_HEARTBEAT_MS`): erkennt Zombie-Verbindungen
+  (Mobilfunk/NAT-Timeouts), damit die Bot-Übernahme zuverlässig greift.
+- **Deployment-feste Sessions**: Bei SIGTERM (`docker stop`) wird der komplette
+  Spielzustand auf das `data/`-Volume geschrieben und beim nächsten Start
+  wiederhergestellt - laufende Tische überleben Updates, Clients reconnecten
+  automatisch.
+- **Nicht-blockierende Persistenz**: `players.json`/`games.json` werden
+  gecacht, gesammelt und atomar (tmp + rename) geschrieben - kein
+  Event-Loop-Freeze mehr durch synchrone Writes bei Partieenden.
+- **IP-basierter Brute-Force-Schutz**: 20 falsche Codes pro IP in 15 Minuten
+  → gesperrt (das frühere Limit pro Verbindung war durch Neu-Verbinden
+  umgehbar). Hinter Reverse-Proxy `PIKDAME_TRUST_PROXY=1` setzen, damit die
+  echte Client-IP aus `X-Forwarded-For` gelesen wird.
+- **Beobachtbarkeit**: `GET /statusz` liefert Sessions, verbundene Spieler,
+  RSS/Heap, Uptime als JSON (keine Namen/Codes). `/healthz` bleibt der
+  schlichte Docker-Healthcheck.
+- **Öffentlicher Modus** (`PIKDAME_PUBLIC_MODE=1`): deaktiviert Profile,
+  Teams und die Statistik-Seite komplett - auf einem Server für Fremde
+  sollen sich weder Namen noch Statistiken über Gruppen hinweg vermischen.
+- **Origin-Check** (`PIKDAME_ALLOWED_ORIGIN=https://spiel.example.org`):
+  WebSocket-Verbindungen nur von der eigenen Domain (opt-in, im LAN/Hotspot
+  ist die Origin variabel).
+
+**Alle Optionen sind opt-in - ohne Umgebungsvariablen läuft der Server exakt
+wie bisher, auch in iOS CodeApp auf dem iPhone-Hotspot.**
+
+### TLS / Reverse-Proxy (empfohlen für öffentliches Hosting)
+
+Der Server selbst spricht bewusst nur HTTP (iPhone-kompatibel, keine
+Zertifikatsverwaltung im Spiel-Code). Öffentlich gehört ein Reverse-Proxy
+mit TLS davor - der Client nutzt automatisch `wss:`, sobald die Seite über
+HTTPS läuft. Secure-Context-Features (Wake Lock, iOS-Share, Zwischenablage)
+funktionieren erst mit HTTPS. Minimalbeispiel mit Caddy (automatisches
+Let's-Encrypt-Zertifikat, WebSockets inklusive):
+
+```
+# Caddyfile
+spiel.example.org {
+    reverse_proxy pikdame:8080
+}
+```
+
+Dazu in `docker-compose.yml` einen Caddy-Dienst ergänzen und beim
+Pik-Dame-Dienst `PIKDAME_TRUST_PROXY=1` sowie optional
+`PIKDAME_ALLOWED_ORIGIN=https://spiel.example.org` und
+`PIKDAME_PUBLIC_MODE=1` setzen.
+
 ## Hosting mit Docker (Alternative zum Hotspot-Setup)
 
 Statt direkt mit Node.js zu starten, lässt sich der Server auch als Docker-

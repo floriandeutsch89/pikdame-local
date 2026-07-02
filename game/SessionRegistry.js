@@ -84,6 +84,26 @@ class SessionRegistry {
     return { session };
   }
 
+  /**
+   * Stellt eine Session aus einem Snapshot wieder her (Deployment-Neustart):
+   * gleicher Code, frischer GameManager (der Aufrufer spielt den Spielzustand
+   * per Object.assign ein). Zu alte Snapshots werden abgelehnt.
+   */
+  restore({ code, createdAt, lastActivity }) {
+    if (!code || this.sessions.has(code)) return null;
+    if (this.sessions.size >= this.options.maxSessions) return null;
+    if (this.now() - (createdAt || 0) > this.options.maxSessionAgeMs) return null;
+    const session = {
+      code,
+      sockets: new Map(),
+      createdAt: createdAt || this.now(),
+      lastActivity: this.now(), // frisch anfassen, damit der Cleanup Zeit für Reconnects lässt
+    };
+    session.game = this.createGame(session);
+    this.sessions.set(code, session);
+    return session;
+  }
+
   get(rawCode) {
     const code = normalizeCode(rawCode);
     return this.sessions.get(code) || null;
