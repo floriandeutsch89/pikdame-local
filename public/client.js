@@ -409,12 +409,16 @@
     const myTotal = (lastState.totals && lastState.totals[playerId]) || 0;
     el('myScore').textContent = `${myTotal} Pkt`;
     const dealer = lastState.players.find((p) => p.id === lastState.dealerId);
-    el('dealerInfo').textContent = `Geber: ${dealer ? dealer.name : '–'}`;
+    const iAmDealer = dealer && dealer.id === playerId;
+    el('dealerInfo').textContent = `Geber: ${iAmDealer ? 'du ⭐' : dealer ? dealer.name : '–'}`;
     const cp = lastState.players.find((p) => p.id === lastState.currentPlayerId);
     const isMyTurn = lastState.currentPlayerId === playerId;
     el('turnInfo').textContent = isMyTurn
       ? `Du bist am Zug (${phaseLabel(lastState.turnPhase)})`
       : `${cp ? cp.name : '?'} ist am Zug`;
+    // Als Geber wird die Topbar-Zeile zu voll und "Du bist am Zug" wurde
+    // abgeschnitten - dann rutscht der Text in eine eigene zweite Zeile.
+    el('topBar').classList.toggle('dealerSelf', !!(iAmDealer && isMyTurn));
 
     // Gegner
     const opponentsDiv = el('opponents');
@@ -1146,6 +1150,26 @@
     toastTimer = setTimeout(() => container.classList.remove('visible'), 2600);
   }
 
+  // --- Vollbild ("Kiosk-Modus" wie bei Videos) -------------------------------
+  // Fullscreen-API gibt es auf Android/Desktop (Chrome/Edge/Firefox). iOS
+  // Safari unterstützt sie für Webseiten nicht - dort bleibt der Button
+  // verborgen (der PWA-Homescreen-Modus übernimmt das auf dem iPhone).
+  const fsRoot = document.documentElement;
+  if (fsRoot.requestFullscreen) {
+    el('fullscreenBtn').classList.remove('hidden');
+    el('fullscreenBtn').addEventListener('click', () => {
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else {
+        fsRoot.requestFullscreen().catch(() => {});
+      }
+    });
+    document.addEventListener('fullscreenchange', () => {
+      el('fullscreenBtn').textContent = document.fullscreenElement ? '⛶✕' : '⛶';
+      el('fullscreenBtn').title = document.fullscreenElement ? 'Vollbild verlassen' : 'Vollbild';
+    });
+  }
+
   // --- Wake Lock: Display bleibt während des Spielens an -------------------
   // (iOS ab 16.4; wo nicht unterstützt, passiert einfach nichts.)
   let wakeLock = null;
@@ -1190,7 +1214,7 @@
   });
   document.querySelectorAll('.emoteChoice').forEach((btn) => {
     btn.addEventListener('click', () => {
-      send({ type: 'emote', emoji: btn.textContent });
+      send({ type: 'emote', emoji: btn.dataset.emote });
       el('emoteBar').classList.add('hidden');
     });
   });
@@ -1202,7 +1226,12 @@
     const rect = anchor ? anchor.getBoundingClientRect() : { left: window.innerWidth / 2, top: window.innerHeight / 2, width: 0 };
     const bubble = document.createElement('div');
     bubble.className = 'emoteFloat';
-    bubble.textContent = emoji;
+    if (emoji === 'pikdame') {
+      // Es gibt kein Pik-Dame-Emoji - also eine kleine gestylte Spielkarte.
+      bubble.innerHTML = '<span class="miniPikdame">♠<b>Q</b></span>';
+    } else {
+      bubble.textContent = emoji;
+    }
     bubble.style.left = `${rect.left + rect.width / 2 - 18}px`;
     bubble.style.top = `${rect.top - 6}px`;
     document.body.appendChild(bubble);
