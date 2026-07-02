@@ -365,11 +365,17 @@ function enumerateLayOffOptions(meld, card) {
     const countBySuit = {};
     for (const s of slotSuits) countBySuit[s] = (countBySuit[s] || 0) + 1;
     if (meld.slots.length < MAX_SET_SIZE) {
+      // REGEL-VEREINFACHUNG: Bei einem SATZ ist es egal, welche Farbe der
+      // Joker vertritt - es wird KANONISCH die erste freie Farbe vergeben
+      // (gleiche Logik wie beim Auslegen eines Satzes mit Joker), statt den
+      // Spieler mit einer irrelevanten Farb-Rückfrage zu nerven. Genau EINE
+      // Option -> das Nachfrage-Overlay erscheint nicht mehr.
       const freeSuits = SUITS.filter((s) => (countBySuit[s] || 0) < MAX_PER_SUIT_IN_SET);
       for (const suit of freeSuits) {
         const result = tryLayOff(meld, card, { asSuit: suit });
         if (result) {
           options.push({ id: `suit-${suit}`, label: `als ${SUIT_LABELS[suit] || suit}-${rankLabel(meld.rank)}`, asSuit: suit, meld: result });
+          break; // erste funktionierende Farbe = Default, fertig
         }
       }
     }
