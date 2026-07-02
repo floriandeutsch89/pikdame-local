@@ -57,6 +57,8 @@
       ['Erst der Endspurt zeigt, wer zählen kann.', 'The final stretch shows who can really count.'],
       ['Ein Ass auf der Hand kostet 20 - nur zur Info.', 'An Ace in hand costs 20 - just saying.'],
       ['Möge der Stapel mit dir sein.', 'May the pile be with you.'],
+      ['Der lange Aal schlackert im Nebel.', 'The long eel wobbles in the fog.'],
+      ['Per aspera ad astra.', 'Per aspera ad astra.'],
     ];
     let h = 0;
     for (let i = 0; i < seedStr.length; i++) h = (h * 31 + seedStr.charCodeAt(i)) | 0;

@@ -436,7 +436,7 @@ test('layoutMeld: eindeutige Joker-Kombination wird automatisch aufgelöst (kein
   const five = makeStandardCard('H', '5', 0);
   const seven = makeStandardCard('H', '7', 0);
   const joker = makeJoker(0);
-  game.players[0].hand = [five, seven, joker];
+  game.players[0].hand = [five, seven, joker, makeStandardCard('C', '3', 1)];
 
   const result = game.layoutMeld('p1', [five.id, seven.id, joker.id]);
   assert.equal(result.ok, true);
@@ -471,7 +471,7 @@ test('layoutMeld: nach Auswahl einer Option per jokerAssignments wird genau dies
   const queen = makeStandardCard('H', 'Q', 0);
   const j1 = makeJoker(0);
   const j2 = makeJoker(1);
-  game.players[0].hand = [queen, j1, j2];
+  game.players[0].hand = [queen, j1, j2, makeStandardCard('C', '3', 1)];
 
   const first = game.layoutMeld('p1', [queen.id, j1.id, j2.id]);
   assert.equal(first.ambiguous, true);
@@ -481,7 +481,7 @@ test('layoutMeld: nach Auswahl einer Option per jokerAssignments wird genau dies
   const second = game.layoutMeld('p1', [queen.id, j1.id, j2.id], setOption.jokerAssignments);
   assert.equal(second.ok, true);
   assert.equal(game.tableMelds[0].type, 'set');
-  assert.equal(game.players[0].hand.length, 0);
+  assert.equal(game.players[0].hand.length, 1); // die Füllkarte bleibt (Ausmach-Regel)
 });
 
 test('layOffCard: Joker an Folge mit beiden Enden frei liefert 2 Optionen', () => {
@@ -505,12 +505,12 @@ test('layOffCard: Joker an Folge mit beiden Enden frei liefert 2 Optionen', () =
     },
   ];
   const joker = makeJoker(0);
-  game.players[0].hand = [joker];
+  game.players[0].hand = [joker, makeStandardCard('C', '3', 1)];
 
   const result = game.layOffCard('p1', 'meld-1', joker.id);
   assert.equal(result.ambiguous, true);
   assert.equal(result.options.length, 2);
-  assert.equal(game.players[0].hand.length, 1); // unverändert
+  assert.equal(game.players[0].hand.length, 2); // unverändert (Joker + Füllkarte)
 });
 
 test('layOffCard: nach Auswahl einer Seite wird genau diese angelegt', () => {
@@ -534,7 +534,7 @@ test('layOffCard: nach Auswahl einer Seite wird genau diese angelegt', () => {
     },
   ];
   const joker = makeJoker(0);
-  game.players[0].hand = [joker];
+  game.players[0].hand = [joker, makeStandardCard('C', '3', 1)];
 
   const first = game.layOffCard('p1', 'meld-1', joker.id);
   const lowOption = first.options.find((o) => o.side === 'low');
@@ -654,7 +654,7 @@ test('layoutMeld markiert jeden Slot mit der playerId des auslegenden Spielers',
   const h7 = makeStandardCard('H', '7', 0);
   const d7 = makeStandardCard('D', '7', 0);
   const c7 = makeStandardCard('C', '7', 0);
-  game.players[0].hand = [h7, d7, c7];
+  game.players[0].hand = [h7, d7, c7, makeStandardCard('C', '3', 1)];
 
   game.layoutMeld('p1', [h7.id, d7.id, c7.id]);
 
@@ -672,20 +672,20 @@ test('layOffCard: Anlegen an FREMDE Auslagen ist verboten (eigene Stapel!)', () 
   const d7 = makeStandardCard('D', '7', 0);
   const c7 = makeStandardCard('C', '7', 0);
   const filler = makeStandardCard('H', '2', 0); // verhindert leere Hand -> vorzeitiges Rundenende
-  game.players[0].hand = [h7, d7, c7, filler];
+  game.players[0].hand = [h7, d7, c7, filler, makeStandardCard('C', '3', 1)];
   game.layoutMeld('p1', [h7.id, d7.id, c7.id]);
 
   // p2 versucht, eine vierte Farbe an p1s Auslage anzulegen -> verboten.
   game.currentPlayerIndex = 1;
   const s7 = makeStandardCard('S', '7', 0);
-  game.players[1].hand = [s7];
+  game.players[1].hand = [s7, makeStandardCard('D', '2', 1)]; // 2. Karte: Ausmach-Guard soll hier nicht greifen
   const meldId = game.tableMelds[0].id;
   const r = game.layOffCard('p2', meldId, s7.id);
 
   assert.ok(r.error, 'fremdes Anlegen muss abgelehnt werden');
   assert.ok(r.error.includes('EIGENEN'), r.error);
   assert.equal(game.tableMelds[0].slots.length, 3, 'die fremde Auslage bleibt unverändert');
-  assert.equal(game.players[1].hand.length, 1, 'die Karte bleibt auf der Hand');
+  assert.equal(game.players[1].hand.length, 2, 'die Karte bleibt auf der Hand');
 });
 
 test('layOffCard: Anlegen an die EIGENE Auslage markiert den neuen Slot mit der playerId', () => {
@@ -893,4 +893,76 @@ test('houseRules: botDifficulty wird validiert uebernommen, Muell ignoriert', ()
   g.setHouseRules({ botDifficulty: 'quatsch', evil: true });
   assert.equal(g.houseRules.botDifficulty, 'zen'); // bleibt beim letzten gueltigen
   assert.equal(g.houseRules.evil, undefined);
+});
+
+// --- v1.6.0: Ausmachen nur per Abwurf --------------------------------------
+test('Ausmach-Regel: Auslegen aller Handkarten wird abgelehnt', () => {
+  const { makeStandardCard } = require('../game/Card');
+  const g = new GameManager(() => {});
+  g.addOrReconnectPlayer('p1', 'A');
+  g.addOrReconnectPlayer('p2', 'B');
+  g.phase = 'playing'; g.turnPhase = 'meld'; g.currentPlayerIndex = 0;
+  const s7 = makeStandardCard('S', '7', 0), h7 = makeStandardCard('H', '7', 0), d7 = makeStandardCard('D', '7', 0);
+  g.players[0].hand = [s7, h7, d7]; // genau 3 Karten = kompletter Drilling
+  const r = g.layoutMeld('p1', [s7.id, h7.id, d7.id]);
+  assert.match(r.error, /letzte Karte abwerfen/);
+  // Mit einer vierten Karte auf der Hand klappt derselbe Drilling
+  g.players[0].hand.push(makeStandardCard('C', '2', 0));
+  assert.ok(!g.layoutMeld('p1', [s7.id, h7.id, d7.id]).error);
+});
+
+test('Ausmach-Regel: letzte Handkarte darf nicht angelegt werden', () => {
+  const { makeStandardCard } = require('../game/Card');
+  const g = new GameManager(() => {});
+  g.addOrReconnectPlayer('p1', 'A');
+  g.addOrReconnectPlayer('p2', 'B');
+  g.phase = 'playing'; g.turnPhase = 'meld'; g.currentPlayerIndex = 0;
+  const s7 = makeStandardCard('S', '7', 0), h7 = makeStandardCard('H', '7', 0), d7 = makeStandardCard('D', '7', 0);
+  const c7 = makeStandardCard('C', '7', 0), extra = makeStandardCard('C', '2', 0);
+  g.players[0].hand = [s7, h7, d7, c7, extra];
+  g.layoutMeld('p1', [s7.id, h7.id, d7.id]);
+  const meldId = g.tableMelds[0].id;
+  // extra abwerfen ist hier nicht noetig - wir simulieren: nur noch c7 auf der Hand
+  g.players[0].hand = [c7];
+  const r = g.layOffCard('p1', meldId, c7.id);
+  assert.match(r.error, /letzte Karte abwerfen/);
+});
+
+test('Ausmach-Regel: Pflichtkarte darf trotzdem gelegt werden (keine Sackgasse)', () => {
+  const { makeStandardCard } = require('../game/Card');
+  const g = new GameManager(() => {});
+  g.addOrReconnectPlayer('p1', 'A');
+  g.addOrReconnectPlayer('p2', 'B');
+  g.phase = 'playing'; g.turnPhase = 'meld'; g.currentPlayerIndex = 0;
+  const s7 = makeStandardCard('S', '7', 0), h7 = makeStandardCard('H', '7', 0), d7 = makeStandardCard('D', '7', 0);
+  g.players[0].hand = [s7, h7, d7];
+  g.mustLayOffCardId = d7.id; // d7 kam gerade vom Ablagestapel (Rest leer)
+  g.pendingDiscardRest = true;
+  const r = g.layoutMeld('p1', [s7.id, h7.id, d7.id]);
+  assert.ok(!r.error, 'Pflichtfall darf nicht blockieren: ' + JSON.stringify(r));
+});
+
+// --- v1.6.0: Bot-Emotes ------------------------------------------------------
+test('maybeBotEmote: feuert den Hook, drosselt pro Bot, destroy raeumt Timer', async () => {
+  const emotes = [];
+  const g = new GameManager(() => {}, { onBotEmote: (id, e) => emotes.push([id, e]) });
+  g.addOrReconnectPlayer('p1', 'A');
+  g.fillWithBots();
+  const botId = g.players.find((p) => p.isBot).id;
+  g._emoteDelayForTest = 0;
+  g.maybeBotEmote(botId, '😤', 1);
+  g.maybeBotEmote(botId, '🎉', 1); // innerhalb 5s -> gedrosselt
+  await new Promise((r) => setTimeout(r, 30));
+  assert.deepEqual(emotes, [[botId, '😤']]);
+  // Menschen loesen nie Bot-Emotes aus
+  g.maybeBotEmote('p1', '😤', 1);
+  await new Promise((r) => setTimeout(r, 30));
+  assert.equal(emotes.length, 1);
+  // destroy raeumt pendende Timer ab
+  g._lastBotEmote = {};
+  g._emoteDelayForTest = 5000;
+  g.maybeBotEmote(botId, '😱', 1);
+  assert.equal(g._emoteTimers.size, 1);
+  g.destroy();
+  assert.equal(g._emoteTimers.size, 0);
 });

@@ -267,6 +267,14 @@ const registry = new SessionRegistry((session) => {
     }
   };
   return new GameManager(sendTo, {
+    // Bot-Emotes gehen denselben Weg wie Spieler-Emotes: an alle am Tisch.
+    onBotEmote: (botId, emoji) => {
+      for (const [, sock] of session.sockets) {
+        if (sock && sock.readyState === WebSocket.OPEN) {
+          sock.send(JSON.stringify({ type: 'emote', playerId: botId, emoji }));
+        }
+      }
+    },
     onGameOver: (results, gameRecord) => {
       // Globale Zähler sind ANONYM aggregiert (keine Namen) und daher auch
       // im öffentlichen Modus unbedenklich.
