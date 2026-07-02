@@ -1443,3 +1443,14 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 .badgeEmoji { font-size: 1.3rem; }
 .badgeDesc { color: var(--text-muted); }
 .badgeCell { font-size: 0.95rem; letter-spacing: 2px; }
+
+/* --- Topbar-/Chip-Feinschliff ---------------------------------------------- */
+/* Zahlen in den Gegner-Chips fett und tabellarisch: auf einen Blick erfassbar */
+.opCount b { font-variant-numeric: tabular-nums; color: var(--text); }
+
+/* Schmale Displays: Icon-Buttons ruecken enger zusammen, damit Zeile 1 der
+   Topbar (Infos links, 5 Icons rechts) nicht umbricht */
+@media (max-width: 380px) {
+  #topBar { gap: 6px; }
+  #topBar .btn-icon { padding: 4px 7px; }
+}

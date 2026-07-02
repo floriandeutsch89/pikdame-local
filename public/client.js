@@ -76,7 +76,7 @@
     // Vorfahrt - der Spruch drängelt sich dann nicht dazwischen.
     const latest = (lastState.log || [])[lastState.log.length - 1];
     if (latest && latest.text && !/^Runde \d+ gestartet/.test(latest.text)) return;
-    showToast(`🃏 ${roundQuote(`${lastState.dealerId}-${lastState.roundNumber}`)}`, { duration: 5000 });
+    showToast(`🃏 ${roundQuote(`${lastState.dealerId}-${lastState.roundNumber}`)}`, { duration: 5000, priority: true });
   }
   let prevDiscardTopId;
   // Auslagen-Filter: null = alle anzeigen; sonst nur die Auslagen dieses
@@ -352,7 +352,7 @@
       // Wichtige Fehler (z.B. Ablagestapel nicht aufnehmbar) deutlich und
       // laenger in der Bildmitte zeigen - die Hint-Zeile allein wird auf
       // kleinen Displays leicht uebersehen.
-      showToast(trs(msg.error), { duration: 5000 });
+      showToast(trs(msg.error), { duration: 5000, priority: true });
       return;
     }
     if (msg.type === 'state') {
@@ -591,8 +591,11 @@
     el('myScore').textContent = L(`${myTotal} Pkt`, `${myTotal} pts`);
     const dealer = lastState.players.find((p) => p.id === lastState.dealerId);
     const iAmDealer = dealer && dealer.id === playerId;
-    // Runde + Geber in EINEM Element - laesst der Zug-Anzeige dauerhaft mehr Platz
-    el('roundInfo').textContent = L(`R${lastState.roundNumber} · Geber: ${iAmDealer ? 'du ⭐' : dealer ? dealer.name : '–'}`, `R${lastState.roundNumber} · Dealer: ${iAmDealer ? 'you ⭐' : dealer ? dealer.name : '–'}`);
+    // Kompakte Topbar: Der Geber ist jetzt per ⭐ direkt am jeweiligen
+    // Gegner-Chip markiert - die Topbar nennt ihn nur noch, wenn ICH es bin.
+    el('roundInfo').textContent = iAmDealer
+      ? L(`R${lastState.roundNumber} · Du gibst ⭐`, `R${lastState.roundNumber} · You deal ⭐`)
+      : `R${lastState.roundNumber}`;
     const cp = lastState.players.find((p) => p.id === lastState.currentPlayerId);
     const isMyTurn = lastState.currentPlayerId === playerId;
     el('turnInfo').textContent = isMyTurn
@@ -602,8 +605,19 @@
     // Gegner
     const opponentsDiv = el('opponents');
     opponentsDiv.innerHTML = '';
-    lastState.players
-      .filter((p) => p.id !== playerId)
+    // Gegner in ZUGRICHTUNG ab dem eigenen Platz: der Chip ganz links ist
+    // immer der Spieler, der direkt nach mir dran ist - so sieht man auf
+    // einen Blick, zu wem der Zug als Nächstes wandert.
+    const meIdx = lastState.players.findIndex((p) => p.id === playerId);
+    const orderedOpponents = [];
+    if (meIdx >= 0) {
+      for (let i = 1; i < lastState.players.length; i++) {
+        orderedOpponents.push(lastState.players[(meIdx + i) % lastState.players.length]);
+      }
+    } else {
+      orderedOpponents.push(...lastState.players.filter((p) => p.id !== playerId));
+    }
+    orderedOpponents
       .forEach((p) => {
         const d = document.createElement('div');
         d.className =
@@ -619,7 +633,8 @@
         });
         const reconnecting = !p.isBot && p.controlledByBot;
         const opTotal = (lastState.totals && lastState.totals[p.id]) || 0;
-        d.innerHTML = `<div class="opName">${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}${reconnecting ? ` <span class="reconnectTag">⏳ ${L('getrennt – Bot übernimmt', 'disconnected – bot takes over')}</span>` : ''}</div><div class="opCount">${p.handCount} ${L('Karten', 'cards')} · ${opTotal} ${L('Pkt', 'pts')}</div>`;
+        const dealerStar = p.id === lastState.dealerId ? ` <span title="${L('Geber dieser Runde', 'Dealer this round')}">⭐</span>` : '';
+        d.innerHTML = `<div class="opName">${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}${dealerStar}${reconnecting ? ` <span class="reconnectTag">⏳ ${L('getrennt – Bot übernimmt', 'disconnected – bot takes over')}</span>` : ''}</div><div class="opCount"><b>${p.handCount}</b> ${L('Karten', 'cards')} · <b>${opTotal}</b> ${L('Pkt', 'pts')}</div>`;
         opponentsDiv.appendChild(d);
       });
 
@@ -1455,21 +1470,28 @@
       if (latest && latest.text) {
         // Die Endspurt-Ansage ist wichtig genug fuer eine laengere Anzeige
         const isWarning = latest.text.startsWith('⚠️');
-        showToast(trs(latest.text), isWarning ? { duration: 6000 } : {});
+        showToast(trs(latest.text), isWarning ? { duration: 6000, priority: true } : {});
       }
     } else {
       seenLogLength = log.length;
     }
   }
   let toastTimer = null;
-  // Toasts erscheinen jetzt IMMER zentriert in der Bildmitte und bleiben
-  // laenger stehen (Standard 4s, per opts.duration verlaengerbar).
+  let toastLockUntil = 0; // prioritäre Toasts sperren den Container
+  // Toasts erscheinen zentriert in der Bildmitte (Standard 4s). Prioritäre
+  // Toasts (Rundenspruch, ⚠️-Warnung, Fehlermeldungen) bekommen ihre VOLLE
+  // Anzeigedauer: normale Aktions-Toasts, die währenddessen eintreffen
+  // (z.B. 'Bot zieht eine Karte'), werden verworfen statt sie zu verdrängen.
   function showToast(text, opts = {}) {
+    const now = Date.now();
+    if (!opts.priority && now < toastLockUntil) return;
+    const duration = opts.duration || 4000;
+    if (opts.priority) toastLockUntil = now + duration;
     const container = el('toastContainer');
     container.textContent = text;
     container.classList.add('visible');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => container.classList.remove('visible'), opts.duration || 4000);
+    toastTimer = setTimeout(() => container.classList.remove('visible'), duration);
   }
 
   // --- Vollbild ("Kiosk-Modus" wie bei Videos) -------------------------------
