@@ -1434,6 +1434,17 @@
   }
   el('versionBtn').addEventListener('click', openChangelog);
   el('ingameVersion').addEventListener('click', openChangelog);
+
+  // --- Spielregeln (Lobby + ingame) ------------------------------------------
+  function openRules() {
+    el('rulesOverlay').classList.remove('hidden');
+  }
+  el('rulesBtnLobby').addEventListener('click', openRules);
+  el('rulesBtn').addEventListener('click', openRules);
+  el('rulesCloseBtn').addEventListener('click', () => el('rulesOverlay').classList.add('hidden'));
+  el('rulesOverlay').addEventListener('click', (ev) => {
+    if (ev.target === el('rulesOverlay')) el('rulesOverlay').classList.add('hidden');
+  });
   el('changelogCloseBtn').addEventListener('click', () => el('changelogOverlay').classList.add('hidden'));
   el('changelogOverlay').addEventListener('click', (ev) => {
     if (ev.target === el('changelogOverlay')) el('changelogOverlay').classList.add('hidden');

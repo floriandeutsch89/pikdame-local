@@ -77,6 +77,7 @@
       <button id="startBtn" class="btn-secondary" disabled>Spiel starten (fehlende Plätze = Bots)</button>
       <div id="lobbyPlayers" class="lobby-players"></div>
       <p id="connStatus" class="conn-status">Verbinde...</p>
+      <button id="rulesBtnLobby" class="btn-secondary" style="max-width: 340px;">📖 Spielregeln</button>
       <button id="uiScaleBtnLobby" class="btn-secondary" style="max-width: 340px;">🔍 Anzeigegröße: Normal</button>
       <button id="statsBtn" class="btn-secondary" style="max-width: 340px;">📊 Statistik</button>
       <div class="lobbyFooterLinks">
@@ -91,6 +92,7 @@
         <div id="roundInfo">Runde –</div>
         <div id="myScore" title="Deine Gesamtpunkte">–</div>
         <div id="turnInfo">–</div>
+        <button id="rulesBtn" class="btn-icon" title="Spielregeln">❓</button>
         <button id="uiScaleBtn" class="btn-icon" title="Anzeigegröße ändern">Aa</button>
         <button id="emoteBtn" class="btn-icon" title="Reaktion senden">😀</button>
         <button id="soundToggle" class="btn-icon" title="Sound ein/aus">🔊</button>
@@ -135,6 +137,56 @@
           <button id="sortToggleBtn" class="sortToggle" title="Sortierung umschalten">♠♥ Farbe</button>
         </div>
         <div id="hand"></div>
+      </div>
+    </section>
+
+    <!-- SPIELREGELN -->
+    <section id="rulesOverlay" class="overlay hidden">
+      <div class="overlay-card">
+        <h2>📖 Spielregeln</h2>
+        <div class="changelogContent">
+          <h3>Ziel &amp; Karten</h3>
+          <p>2–4 Spieler (Bots füllen auf), 110 Karten: zwei komplette Decks plus 6 Joker. Jeder erhält 15 Handkarten. Wer zuerst alle Karten los ist, gewinnt die Runde.</p>
+
+          <h3>Geben &amp; Glücksgriff</h3>
+          <ul>
+            <li>Der Geber wechselt jede Runde reihum, der Spieler danach beginnt.</li>
+            <li>Vor dem Verteilen hebt der Spieler rechts vom Geber ab. <b>Glücksgriff:</b> Liegen an der Abhebestelle Pik Dame oder Joker, nimmt er sie sofort auf die Hand – beim Verteilen wird entsprechend übersprungen, alle enden bei 15 Karten.</li>
+          </ul>
+
+          <h3>Dein Zug</h3>
+          <ul>
+            <li><b>1. Ziehen:</b> eine Karte vom Nachziehstapel – ODER die oberste Ablagekarte, aber nur, wenn sie mit deinen Handkarten eine neue Kombination bilden kann. Dann musst du sie <b>sofort legen</b>; erst danach bekommst du den ganzen Rest des Ablagestapels auf die Hand.</li>
+            <li><b>2. Auslegen &amp; Anlegen</b> (beliebig oft): Kombinationen auslegen, einzelne Karten anlegen oder Joker tauschen – <b>nur an deinen eigenen Auslagen</b>. Fremde Stapel sind tabu!</li>
+            <li><b>3. Abwerfen:</b> genau eine Karte auf den Ablagestapel – dein Zug endet.</li>
+          </ul>
+
+          <h3>Kombinationen</h3>
+          <ul>
+            <li><b>Satz:</b> 3–8 Karten mit gleichem Wert. Jede Farbe darf höchstens doppelt vorkommen (zwei Decks!).</li>
+            <li><b>Folge:</b> mindestens 3 Karten derselben Farbe in Reihe. Folgen laufen <b>im Ring</b>: Nach dem König kommt das Ass, danach wieder die 2 – K‑A‑2 ist gültig. Maximal 13 Karten, kein Wert doppelt.</li>
+          </ul>
+
+          <h3>Joker</h3>
+          <ul>
+            <li>Ein Joker ersetzt jede beliebige Karte.</li>
+            <li>Du kannst einen Joker in deiner Auslage gegen die echte Karte austauschen – der Joker ist danach <b>dauerhaft aus dem Spiel</b>.</li>
+          </ul>
+
+          <h3>Punkte</h3>
+          <ul>
+            <li>2–9 = 5 &nbsp;·&nbsp; 10, Bube, Dame, König = 10 &nbsp;·&nbsp; Ass &amp; Joker = 20 &nbsp;·&nbsp; <b>Pik Dame = 100</b></li>
+            <li>Rundenende: Der Gewinner bekommt die Punkte seiner Auslagen. Alle anderen: Auslagen <b>plus</b>, restliche Handkarten <b>minus</b> – eine Pik Dame auf der Hand kostet 100!</li>
+            <li><b>Hand aus</b> (alles im allerersten Zug): verdoppelt die Rundenwertung, wenn die Hausregel aktiv ist.</li>
+          </ul>
+
+          <h3>Spielende &amp; Sonstiges</h3>
+          <ul>
+            <li>Das Spiel endet, sobald jemand 1000 Punkte erreicht (Hausregel „streng": erst über 1000). Es gewinnt der Punktbeste.</li>
+            <li>Kann niemand mehr ziehen, endet die Runde (Patt). Mit 🏳️ kannst du eine Runde aufgeben.</li>
+          </ul>
+        </div>
+        <button id="rulesCloseBtn" class="btn-secondary">Schließen</button>
       </div>
     </section>
 
