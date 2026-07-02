@@ -411,12 +411,12 @@
   }
 
   function renderTable() {
-    el('roundInfo').textContent = `Runde ${lastState.roundNumber}`;
     const myTotal = (lastState.totals && lastState.totals[playerId]) || 0;
     el('myScore').textContent = `${myTotal} Pkt`;
     const dealer = lastState.players.find((p) => p.id === lastState.dealerId);
     const iAmDealer = dealer && dealer.id === playerId;
-    el('dealerInfo').textContent = `Geber: ${iAmDealer ? 'du ⭐' : dealer ? dealer.name : '–'}`;
+    // Runde + Geber in EINEM Element - laesst der Zug-Anzeige dauerhaft mehr Platz
+    el('roundInfo').textContent = `R${lastState.roundNumber} · Geber: ${iAmDealer ? 'du ⭐' : dealer ? dealer.name : '–'}`;
     const cp = lastState.players.find((p) => p.id === lastState.currentPlayerId);
     const isMyTurn = lastState.currentPlayerId === playerId;
     el('turnInfo').textContent = isMyTurn
@@ -453,6 +453,13 @@
     // Auslagen
     const meldsDiv = el('melds');
     meldsDiv.innerHTML = '';
+    // Für die Anlege-Hinweise: die aktuell einzeln ausgewählte Handkarte
+    const meForHints = lastState.players.find((p) => p.id === playerId);
+    const singleSelectedCard =
+      selectedCardIds.size === 1 && meForHints && meForHints.hand
+        ? meForHints.hand.find((cd) => cd.id === [...selectedCardIds][0])
+        : null;
+
     // Auslagen nach BESITZER gruppiert (jeder Spieler hat seinen eigenen
     // Stapel!). Reihenfolge: eigene zuerst, danach die Mitspieler in
     // umgekehrter Zugrichtung - also der Spieler direkt VOR mir zuerst.
@@ -482,6 +489,14 @@
       bar.textContent = `Nur Auslagen von ${filterOwner.id === playerId ? 'dir' : filterOwner.name} – tippen für alle`;
       bar.addEventListener('click', () => { meldFilterPlayerId = null; render(); });
       meldsDiv.appendChild(bar);
+    }
+
+    // Empty-State: Erstspielern erklaeren, was hier hinkommt
+    if ((lastState.tableMelds || []).length === 0 && !meldFilterPlayerId && lastState.phase === 'playing') {
+      const empty = document.createElement('div');
+      empty.className = 'meldsEmptyState';
+      empty.textContent = 'Noch keine Auslagen – sammle 3+ passende Karten (Satz: gleicher Wert · Folge: gleiche Farbe in Reihe) und lege sie hier aus.';
+      meldsDiv.appendChild(empty);
     }
 
     ownerOrder.forEach((owner) => {
@@ -518,6 +533,10 @@
       ownerMelds.forEach((meld) => {
         const group = document.createElement('div');
         group.className = 'meldGroup';
+        // Grüner Hinweis: genau EINE Karte ausgewählt + sie passt hier an
+        if (isMine && singleSelectedCard && isMyTurn && lastState.turnPhase === 'meld' && cardFitsMeld(meld, singleSelectedCard)) {
+          group.classList.add('layOffTarget');
+        }
         meld.slots.forEach((slot) => {
           const card = slot.real || { isJoker: true, rank: slot.representsRank, suit: slot.representsSuit, _isJokerSlot: true };
           const cEl = cardEl(card, {
@@ -672,9 +691,17 @@
     el('forfeitBtn').classList.toggle('hidden', lastState.phase !== 'playing');
 
     if (lastState.mustLayOffCardId && isMyTurn) {
+      // WICHTIG bleibt persistent sichtbar
       showHint('Pflicht: Die aufgenommene Ablagekarte muss zuerst ausgelegt/angelegt werden.', false);
     } else if (isMyTurn && lastState.turnPhase === 'meld') {
-      showHint('Karte(n) wählen: 3+ auswählen zum Auslegen, 1 auswählen + "Abwerfen", oder auf eine Auslage tippen zum Anlegen.', false);
+      // Der allgemeine Bedien-Tipp wandert in einen einmaligen Toast pro Zug -
+      // so kann die Action-Leiste auch im eigenen Zug einklappen.
+      clearHintIfNotError();
+      const turnKey = `${lastState.roundNumber}-${lastState.turnIndexInRound}`;
+      if (tipShownForTurn !== turnKey && selectedCardIds.size === 0) {
+        tipShownForTurn = turnKey;
+        showToast('Tipp: 3+ Karten auswählen zum Auslegen, 1 Karte + „Abwerfen", oder Karte wählen und auf eine grün markierte Auslage tippen.');
+      }
     } else {
       clearHintIfNotError();
     }
@@ -701,6 +728,37 @@
 
   const RANK_ORDER = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 
+  // --- Anlege-Hinweise: passt die AUSGEWÄHLTE Karte an eine eigene Auslage? ---
+  // Bewusst KONSERVATIV (falsche Negative sind ok, falsche grüne Rahmen
+  // nicht): Nur eindeutige Fälle werden markiert; die verbindliche Prüfung
+  // macht weiterhin der Server. Joker-Handkarten werden nicht gehintet.
+  function slotRank(s) { return s.real ? s.real.rank : s.representsRank; }
+  function slotSuit(s) { return s.real ? s.real.suit : s.representsSuit; }
+  function cardFitsMeld(meld, card) {
+    if (!card || card.isJoker) return false;
+    // Exakter Joker-Tausch: Karte entspricht genau dem, was ein Joker vertritt
+    if (meld.slots.some((s) => s.joker && s.representsRank === card.rank && s.representsSuit === card.suit)) {
+      return true;
+    }
+    if (meld.type === 'set') {
+      if (card.rank !== meld.rank || meld.slots.length >= 8) return false;
+      const sameSuit = meld.slots.filter((s) => slotSuit(s) === card.suit).length;
+      return sameSuit < 2; // 2 Decks: jede Farbe maximal doppelt
+    }
+    if (meld.type === 'run') {
+      if (meld.slots.length >= 13) return false;
+      if (card.suit !== slotSuit(meld.slots[0])) return false;
+      // Ring-Folge: anlegbar an beiden Enden (K-A-2 ist gültig)
+      const idx = (r) => RANK_ORDER.indexOf(r);
+      const first = slotRank(meld.slots[0]);
+      const last = slotRank(meld.slots[meld.slots.length - 1]);
+      const prev = RANK_ORDER[(idx(first) - 1 + 13) % 13];
+      const next = RANK_ORDER[(idx(last) + 1) % 13];
+      return card.rank === prev || card.rank === next;
+    }
+    return false;
+  }
+
   function phaseLabel(phase) {
     return phase === 'draw' ? 'Karte ziehen' : 'Auslegen/Abwerfen';
   }
@@ -725,9 +783,35 @@
     if (!hintIsError) el('hint').textContent = '';
   }
 
+  let confettiShownForRound = null;
+  function launchConfetti() {
+    if (reducedMotion) return;
+    const overlay = el('resultOverlay');
+    const colors = ['#2fd6b0', '#8f90f8', '#ff9f5a', '#ff7d8c', '#f5d76e'];
+    for (let i = 0; i < 46; i++) {
+      const p = document.createElement('div');
+      p.className = 'confetti';
+      p.style.left = `${Math.random() * 100}%`;
+      p.style.background = colors[i % colors.length];
+      p.style.animationDelay = `${Math.random() * 0.7}s`;
+      p.style.animationDuration = `${1.7 + Math.random() * 1.3}s`;
+      p.style.setProperty('--drift', `${(Math.random() - 0.5) * 120}px`);
+      if (Math.random() > 0.5) p.style.borderRadius = '50%';
+      overlay.appendChild(p);
+      setTimeout(() => p.remove(), 3400);
+    }
+  }
+
   function renderResultOverlay() {
     if (!lastState.lastRoundResult) return;
     el('resultOverlay').classList.remove('hidden');
+    // Konfetti, wenn ICH die Runde gewonnen habe (einmal pro Runde)
+    const winKey = `${lastState.roundNumber}`;
+    const myResult = lastState.lastRoundResult[playerId];
+    if (myResult && myResult.breakdown && myResult.breakdown.isWinner && confettiShownForRound !== winKey) {
+      confettiShownForRound = winKey;
+      launchConfetti();
+    }
     const isGameOver = lastState.phase === 'gameOver';
     el('resultTitle').textContent = isGameOver ? 'Spielende!' : 'Rundenende';
 
@@ -1140,6 +1224,7 @@
 
   // --- Toast: letzte Aktion kurz einblenden ---------------------------------
   let seenLogLength = null;
+  let tipShownForTurn = null; // Zug-Tipp nur EINMAL pro eigenem Zug als Toast
   function maybeShowActionToast() {
     const log = (lastState && lastState.log) || [];
     if (seenLogLength === null) {
