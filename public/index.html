@@ -66,18 +66,6 @@
         <div id="seatingList" class="seating-list"></div>
       </div>
 
-      <div id="teamSection" class="lobby-section hidden">
-        <h3>Teams</h3>
-        <p class="lobby-hint">Gespeicherte Spielergruppen wiederverwenden (benennt freie Bot-Plätze um).</p>
-        <select id="teamSelect"></select>
-        <button id="applyTeamBtn" class="btn-secondary">Team übernehmen</button>
-        <details id="newTeamDetails">
-          <summary>Neues Team speichern</summary>
-          <input id="newTeamName" type="text" placeholder="Team-Name" maxlength="24" />
-          <input id="newTeamMembers" type="text" placeholder="Namen, mit Komma getrennt (max. 4)" maxlength="80" />
-          <button id="saveTeamBtn" class="btn-secondary">Speichern</button>
-        </details>
-      </div>
 
       <div id="houseRulesSection" class="lobby-section hidden">
         <h3>Hausregeln</h3>
@@ -136,7 +124,9 @@
       </div>
 
       <div id="handWrapper">
-        <button id="sortToggleBtn" class="sortToggle" title="Sortierung umschalten">♠♥ Farbe</button>
+        <div class="handToolbar">
+          <button id="sortToggleBtn" class="sortToggle" title="Sortierung umschalten">♠♥ Farbe</button>
+        </div>
         <div id="hand"></div>
       </div>
     </section>

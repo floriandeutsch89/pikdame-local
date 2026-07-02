@@ -27,11 +27,13 @@
   let prevHandIds = new Set();
   let prevTurnPlayerId = null;
   let prevDiscardTopId;
+  // Auslagen-Filter: null = alle anzeigen; sonst nur die Auslagen dieses
+  // Spielers (Toggle per Klick auf den Namen).
+  let meldFilterPlayerId = null;
   const SORT_KEY = 'pikdame_hand_sort';
   let handSortMode = localStorage.getItem(SORT_KEY) === 'rank' ? 'rank' : 'suit';
   let prevHandRound = null;
   let freshCardIds = new Set();
-  let knownTeams = [];
   let knownProfiles = [];
   let publicMode = false;
 
@@ -208,22 +210,14 @@
     }
     if (msg.type === 'profiles') {
       knownProfiles = msg.players || [];
-      knownTeams = msg.teams || [];
-      // Öffentlicher Server: Profile/Teams/Statistik sind deaktiviert -
-      // die zugehörigen UI-Bereiche verschwinden komplett.
+      // Öffentlicher Server: Profile/Statistik sind deaktiviert.
       publicMode = !!msg.publicMode;
       el('statsBtn').classList.toggle('hidden', publicMode);
-      if (publicMode) el('teamSection').classList.add('hidden');
-      renderTeamSelect();
       if (!el('statsOverlay').classList.contains('hidden')) renderStats();
       return;
     }
     if (msg.type === 'emote') {
       showEmote(msg.playerId, msg.emoji);
-      return;
-    }
-    if (msg.type === 'teamCreated') {
-      showHint(`Team "${msg.team.name}" gespeichert.`, false);
       return;
     }
     if (msg.type === 'gameExport') {
@@ -362,7 +356,6 @@
     const hasJoined = lastState.players.some((p) => p.id === playerId);
     el('seatCountSection').classList.toggle('hidden', !hasJoined);
     el('seatingSection').classList.toggle('hidden', !hasJoined || lastState.players.length === 0);
-    el('teamSection').classList.toggle('hidden', !hasJoined || publicMode);
     el('houseRulesSection').classList.toggle('hidden', !hasJoined);
 
     document.querySelectorAll('.seatCountBtn').forEach((btn) => {
@@ -403,13 +396,6 @@
     send({ type: 'reorderSeats', order });
   }
 
-  function renderTeamSelect() {
-    const select = el('teamSelect');
-    const current = select.value;
-    select.innerHTML = '<option value="">– Team wählen –</option>' +
-      knownTeams.map((t) => `<option value="${escapeHtml(t.id)}">${escapeHtml(t.name)} (${t.memberNames.map(escapeHtml).join(', ')})</option>`).join('');
-    if (current) select.value = current;
-  }
 
   function collectHouseRules() {
     return {
@@ -437,8 +423,17 @@
       .filter((p) => p.id !== playerId)
       .forEach((p) => {
         const d = document.createElement('div');
-        d.className = 'opponent' + (p.id === lastState.currentPlayerId ? ' active' : '');
+        d.className =
+          'opponent' +
+          (p.id === lastState.currentPlayerId ? ' active' : '') +
+          (p.id === meldFilterPlayerId ? ' meldFilterActive' : '');
         d.dataset.playerId = p.id;
+        // Klick auf den Namen: nur die Auslagen dieses Spielers zeigen
+        // (erneuter Klick: wieder alle).
+        d.addEventListener('click', () => {
+          meldFilterPlayerId = meldFilterPlayerId === p.id ? null : p.id;
+          render();
+        });
         const reconnecting = !p.isBot && p.controlledByBot;
         const opTotal = (lastState.totals && lastState.totals[p.id]) || 0;
         d.innerHTML = `<div class="opName">${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}${reconnecting ? ' <span class="reconnectTag">⏳ getrennt – Bot übernimmt</span>' : ''}</div><div class="opCount">${p.handCount} Karten · ${opTotal} Pkt</div>`;
@@ -449,16 +444,48 @@
     const meldsDiv = el('melds');
     meldsDiv.innerHTML = '';
     // Auslagen nach BESITZER gruppiert (jeder Spieler hat seinen eigenen
-    // Stapel!) - der eigene zuerst, dann die Mitspieler in Sitzreihenfolge.
-    // So ist auf einen Blick sichtbar, welche Karten bei wem liegen (z.B.
-    // fürs strategische Abwerfen relevant).
-    const ownerOrder = [
-      ...lastState.players.filter((p) => p.id === playerId),
-      ...lastState.players.filter((p) => p.id !== playerId),
-    ];
+    // Stapel!). Reihenfolge: eigene zuerst, danach die Mitspieler in
+    // umgekehrter Zugrichtung - also der Spieler direkt VOR mir zuerst.
+    // Der hat zuletzt gelegt und ist taktisch am relevantesten (liegen bei
+    // ihm z.B. schon vier Sechsen, ist eine 6 gefahrloser abzuwerfen).
+    const players = lastState.players;
+    const myIdx = players.findIndex((p) => p.id === playerId);
+    const ownerOrder = [];
+    if (myIdx >= 0) {
+      ownerOrder.push(players[myIdx]);
+      for (let step = 1; step < players.length; step++) {
+        ownerOrder.push(players[((myIdx - step) % players.length + players.length) % players.length]);
+      }
+    } else {
+      ownerOrder.push(...players);
+    }
+
+    // Filter zurücksetzen, wenn der gefilterte Spieler nicht mehr existiert
+    if (meldFilterPlayerId && !players.some((p) => p.id === meldFilterPlayerId)) {
+      meldFilterPlayerId = null;
+    }
+    // Aktiver Filter: Hinweiszeile zum Zurücksetzen
+    if (meldFilterPlayerId) {
+      const filterOwner = players.find((p) => p.id === meldFilterPlayerId);
+      const bar = document.createElement('div');
+      bar.className = 'meldFilterBar';
+      bar.textContent = `Nur Auslagen von ${filterOwner.id === playerId ? 'dir' : filterOwner.name} – tippen für alle`;
+      bar.addEventListener('click', () => { meldFilterPlayerId = null; render(); });
+      meldsDiv.appendChild(bar);
+    }
+
     ownerOrder.forEach((owner) => {
+      if (meldFilterPlayerId && owner.id !== meldFilterPlayerId) return;
       const ownerMelds = lastState.tableMelds.filter((m) => m.ownerId === owner.id);
-      if (ownerMelds.length === 0) return;
+      if (ownerMelds.length === 0) {
+        if (meldFilterPlayerId === owner.id) {
+          const empty = document.createElement('div');
+          empty.className = 'meldOwnerHeader';
+          empty.textContent = `${owner.id === playerId ? 'Du hast' : owner.name + ' hat'} noch nichts ausgelegt.`;
+          meldsDiv.appendChild(empty);
+        }
+        return;
+      }
       const isMine = owner.id === playerId;
 
       const section = document.createElement('div');
@@ -468,6 +495,10 @@
       header.innerHTML = isMine
         ? 'Deine Auslagen'
         : `Auslagen von ${escapeHtml(owner.name)}${owner.isBot ? ' 🤖' : ''}`;
+      header.addEventListener('click', () => {
+        meldFilterPlayerId = meldFilterPlayerId === owner.id ? null : owner.id;
+        render();
+      });
       section.appendChild(header);
 
       // Kombinationen NEBENEINANDER anzeigen - umbrechen erst, wenn der
@@ -857,30 +888,6 @@
     send({ type: 'startGame', houseRules: collectHouseRules() });
   });
 
-  el('applyTeamBtn').addEventListener('click', () => {
-    const teamId = el('teamSelect').value;
-    if (!teamId) {
-      showHint('Bitte zuerst ein Team auswählen.', false);
-      return;
-    }
-    send({ type: 'applyTeam', teamId });
-  });
-
-  el('saveTeamBtn').addEventListener('click', () => {
-    const name = el('newTeamName').value.trim();
-    const memberNames = el('newTeamMembers').value
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .slice(0, 4);
-    if (!name || memberNames.length === 0) {
-      showHint('Bitte Team-Namen und mindestens einen Mitgliedsnamen angeben.', false);
-      return;
-    }
-    send({ type: 'createTeam', name, memberNames });
-    el('newTeamName').value = '';
-    el('newTeamMembers').value = '';
-  });
 
   el('sortToggleBtn').addEventListener('click', () => {
     handSortMode = handSortMode === 'suit' ? 'rank' : 'suit';

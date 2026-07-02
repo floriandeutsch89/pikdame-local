@@ -948,10 +948,15 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .pile-card.pop { animation: discardPop 0.28s var(--ease); }
 @media (prefers-reduced-motion: reduce) { .pile-card.pop { animation: none; } }
 
-/* Sortier-Umschalter über der Hand */
+/* Sortier-Umschalter über der Hand. WICHTIG: im normalen Flow statt
+   absolut mit negativem top - Safari clippt bei overflow-x:auto alles,
+   was aus dem Container ragt (overflow-y wird dort als auto behandelt). */
+.handToolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: -12px 2px 6px;
+}
 .sortToggle {
-  position: absolute;
-  top: -10px; right: 10px;
   padding: 5px 11px;
   border-radius: var(--r-pill);
   background: var(--glass-strong);
@@ -959,7 +964,6 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
   color: var(--text-muted);
   font-size: 0.64rem; font-weight: 700;
-  z-index: 5;
 }
 .sortToggle:active { transform: scale(0.94); }
 
@@ -1078,4 +1082,21 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .btn-primary:hover, .btn-secondary:hover, .btn-danger:hover { filter: brightness(1.1); }
   .btn-secondary:disabled:hover, .btn-primary:disabled:hover { filter: none; }
   .pilePeekBtn:hover, .sortToggle:hover, .emoteChoice:hover { filter: brightness(1.15); }
+}
+
+/* --- Auslagen-Filter (Klick auf Spielernamen) ---------------------------- */
+.meldOwnerHeader { cursor: pointer; }
+.meldFilterBar {
+  font-size: 0.7rem; font-weight: 700;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-radius: var(--r-pill);
+  padding: 6px 13px;
+  margin-bottom: 8px;
+  display: inline-block;
+  cursor: pointer;
+}
+.opponent { cursor: pointer; }
+.opponent.meldFilterActive {
+  box-shadow: 0 0 0 2px var(--accent);
 }
