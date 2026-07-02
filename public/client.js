@@ -202,6 +202,10 @@
         prevTurnPlayerId !== playerId
       ) {
         sound.turn();
+        if (handCollapsed) {
+          handCollapsed = false;
+          updateHandToggle();
+        }
         const bar = el('topBar');
         bar.classList.remove('yourTurnPulse');
         void bar.offsetWidth; // Animation neu starten
@@ -625,6 +629,7 @@
       }
       prevHandIds = currentIds;
       prevHandRound = lastState.roundNumber;
+      if (handCollapsed) updateHandToggle(); // Kartenzahl am Pfeil aktualisieren
       // Hand sortieren - umschaltbar: nach Farbe (gut für Folgen) oder nach
       // Wert (gut für Sätze). Joker immer ans Ende.
       const sorted = myPlayer.hand.slice().sort((a, b) => {
@@ -990,6 +995,21 @@
   });
 
 
+  el('handToggleBtn').addEventListener('click', () => {
+    handCollapsed = !handCollapsed;
+    updateHandToggle();
+  });
+  function updateHandToggle() {
+    el('handWrapper').classList.toggle('handCollapsed', handCollapsed);
+    if (handCollapsed) {
+      const me = lastState && lastState.players.find((p) => p.id === playerId);
+      const n = me && me.hand ? me.hand.length : 0;
+      el('handToggleBtn').textContent = `⌃ ${n} Karten`;
+    } else {
+      el('handToggleBtn').textContent = '⌄';
+    }
+  }
+
   el('sortToggleBtn').addEventListener('click', () => {
     handSortMode = handSortMode === 'suit' ? 'rank' : 'suit';
     localStorage.setItem(SORT_KEY, handSortMode);
@@ -1225,6 +1245,7 @@
   // --- Toast: letzte Aktion kurz einblenden ---------------------------------
   let seenLogLength = null;
   let tipShownForTurn = null; // Zug-Tipp nur EINMAL pro eigenem Zug als Toast
+  let handCollapsed = false; // eigene Karten per Pfeil ein-/ausblendbar
   function maybeShowActionToast() {
     const log = (lastState && lastState.log) || [];
     if (seenLogLength === null) {

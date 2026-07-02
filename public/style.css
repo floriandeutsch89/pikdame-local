@@ -1288,3 +1288,17 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .opponent.active { animation: none; box-shadow: 0 0 0 2px var(--accent); }
 }
+
+/* --- Hand ein-/ausklappbar (Pfeil in der Toolbar) ------------------------- */
+.handToggle {
+  min-width: 44px; /* gutes Tap-Ziel */
+  text-align: center;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+#handWrapper.handCollapsed #hand { display: none; }
+#handWrapper.handCollapsed {
+  padding-top: 10px;
+  padding-bottom: calc(8px + var(--safe-bottom));
+}
+#handWrapper.handCollapsed .handToolbar { margin: 0 2px; }
