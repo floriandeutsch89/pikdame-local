@@ -86,6 +86,7 @@
       <button id="startBtn" class="btn-secondary" disabled>Spiel starten (fehlende Plätze = Bots)</button>
       <div id="lobbyPlayers" class="lobby-players"></div>
       <p id="connStatus" class="conn-status">Verbinde...</p>
+      <button id="accountBtn" class="btn-secondary hidden" style="max-width: 340px;">👤 Anmelden / Registrieren</button>
       <button id="langBtnLobby" class="btn-secondary" style="max-width: 340px;">🌐 Sprache: Deutsch</button>
       <button id="rulesBtnLobby" class="btn-secondary" style="max-width: 340px;">📖 Spielregeln</button>
       <button id="uiScaleBtnLobby" class="btn-secondary" style="max-width: 340px;">🔍 Anzeigegröße: Normal</button>
@@ -146,6 +147,37 @@
           <button id="sortToggleBtn" class="sortToggle" title="Sortierung umschalten">♠♥ Farbe</button>
         </div>
         <div id="hand"></div>
+      </div>
+    </section>
+
+    <!-- KONTO (nur auf Servern mit aktivierten Accounts sichtbar) -->
+    <section id="accountOverlay" class="overlay hidden">
+      <div class="overlay-card">
+        <h2 id="accountTitle">👤 Konto</h2>
+        <div id="accountLoggedOut">
+          <div class="accountTabs">
+            <button id="accountTabLogin" class="btn-secondary accountTab active">Anmelden</button>
+            <button id="accountTabRegister" class="btn-secondary accountTab">Registrieren</button>
+          </div>
+          <div id="accountLoginForm">
+            <input id="accLoginUser" type="text" placeholder="Benutzername oder E-Mail" autocomplete="username" />
+            <input id="accLoginPass" type="password" placeholder="Passwort" autocomplete="current-password" />
+            <button id="accLoginBtn" class="btn-primary">Anmelden</button>
+          </div>
+          <div id="accountRegisterForm" class="hidden">
+            <input id="accRegUser" type="text" placeholder="Benutzername (2-24 Zeichen)" autocomplete="username" maxlength="24" />
+            <input id="accRegEmail" type="email" placeholder="E-Mail-Adresse" autocomplete="email" />
+            <input id="accRegPass" type="password" placeholder="Passwort (mind. 8 Zeichen)" autocomplete="new-password" />
+            <button id="accRegisterBtn" class="btn-primary">Konto erstellen</button>
+            <p class="lobby-hint">Dein Fortschritt (Statistik, Erfolge, Siegesserien) bleibt mit einem Konto dauerhaft erhalten - und niemand sonst kann deinen Namen verwenden.</p>
+          </div>
+        </div>
+        <div id="accountLoggedIn" class="hidden">
+          <p id="accountWhoami">Angemeldet als –</p>
+          <button id="accLogoutBtn" class="btn-secondary">Abmelden</button>
+        </div>
+        <p id="accountStatus" class="lobby-hint"></p>
+        <button id="accountCloseBtn" class="btn-secondary">Schließen</button>
       </div>
     </section>
 

@@ -3,7 +3,7 @@
 # Persistente Daten (Spielerprofile/Teams/Spielverlauf) liegen unter /app/data
 # und sollten über ein Volume gemountet werden (siehe docker-compose.yml).
 
-FROM node:20-alpine
+FROM node:22-alpine
 
 # tini sorgt für sauberes Signal-Handling (Ctrl+C / docker stop) bei PID 1
 RUN apk add --no-cache tini

@@ -12,6 +12,19 @@ services:
       - PORT=8080
       # Obergrenze paralleler Spiel-Sessions (DoS-/Speicherschutz, Standard 200)
       - PIKDAME_MAX_SESSIONS=200
+      # --- Benutzerkonten (Registrierung + Login) ---
+      # Accounts sind automatisch aktiv (SQLite in data/users.db, Node 22).
+      # Zum Abschalten: PIKDAME_ACCOUNTS=0
+      # Basis-URL fuer die Bestaetigungslinks in den Mails:
+      # - PIKDAME_BASE_URL=https://spiel.pikdame.online
+      # --- Mailserver (spaeter eintragen - bis dahin landet der
+      #     Bestaetigungslink im Server-Log) ---
+      # - PIKDAME_SMTP_HOST=smtp.example.com
+      # - PIKDAME_SMTP_PORT=587
+      # - PIKDAME_SMTP_SECURE=starttls   # starttls | ssl | none
+      # - PIKDAME_SMTP_USER=noreply@pikdame.online
+      # - PIKDAME_SMTP_PASS=geheim
+      # - PIKDAME_MAIL_FROM=Pik Dame <noreply@pikdame.online>
     volumes:
       # Spielerprofile/Teams/Spielverlauf überleben Container-Neustarts und -Updates.
       - pikdame-data:/app/data

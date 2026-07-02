@@ -13,6 +13,8 @@ const GameManager = require('./game/GameManager');
 const { createPlayerStore } = require('./game/PlayerStore');
 const { createGlobalStatsStore } = require('./game/GlobalStatsStore');
 const { computeEarnedBadges } = require('./game/Badges');
+const { createAccountStore } = require('./game/AccountStore');
+const { createMailer } = require('./game/Mailer');
 const { createGameHistoryStore } = require('./game/GameHistoryStore');
 const { SessionRegistry, sanitizeName } = require('./game/SessionRegistry');
 
@@ -20,6 +22,18 @@ const PORT = process.env.PORT || 8080;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const playerStore = createPlayerStore();
 const globalStats = createGlobalStatsStore();
+// Benutzerkonten: aktiv, wenn Nodes eingebautes SQLite verfügbar ist
+// (Node >= 22, im Docker-Image gegeben) und nicht per Env abgeschaltet.
+// In der iOS CodeApp (ältere Node-Version) liefert die Factory null und
+// der Client blendet die komplette Account-UI aus - genau wie gewünscht.
+const accountStore = process.env.PIKDAME_ACCOUNTS === '0' ? null : createAccountStore();
+const mailer = createMailer();
+const ACCOUNTS_ENABLED = !!accountStore;
+if (ACCOUNTS_ENABLED) {
+  console.log(`Benutzerkonten: aktiv (SQLite, Mail-Treiber: ${mailer.configured ? 'SMTP' : 'Log-Fallback'})`);
+} else {
+  console.log('Benutzerkonten: deaktiviert (node:sqlite nicht verfügbar oder PIKDAME_ACCOUNTS=0)');
+}
 const gameHistoryStore = createGameHistoryStore();
 
 // --- Absturz-Diagnose ------------------------------------------------------
@@ -107,6 +121,7 @@ function serveStatic(req, res) {
       JSON.stringify({
         status: 'ok',
         version: APP_VERSION,
+        accountsEnabled: ACCOUNTS_ENABLED,
         uptimeSeconds: Math.round(process.uptime()),
         sessions: registry.size,
         connectedPlayers: players,
@@ -117,6 +132,10 @@ function serveStatic(req, res) {
       })
     );
     return;
+  }
+  // ---------------- Benutzerkonten-API ----------------
+  if (filePath.startsWith('/api/') || filePath === '/verify') {
+    return handleAccountRequest(req, res, filePath);
   }
   if (filePath === '/changelogz') {
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -189,6 +208,106 @@ function clientIp(req) {
 const FAILED_JOIN_WINDOW_MS = 15 * 60 * 1000;
 const FAILED_JOIN_LIMIT = 20;
 const failedJoinsByIp = new Map(); // ip -> { count, windowStart }
+
+// ---------------------------------------------------------------------------
+// Benutzerkonten: HTTP-API (/api/register, /api/login, /api/logout, /api/me)
+// und der Bestätigungslink (GET /verify?token=...). Kleine JSON-Endpunkte,
+// bewusst ohne Framework. IP-Rate-Limit gegen Brute-Force/Registrier-Spam.
+// ---------------------------------------------------------------------------
+const accountApiByIp = new Map(); // ip -> { count, windowStart }
+function accountRateLimited(ip) {
+  const WINDOW_MS = 10 * 60 * 1000;
+  const MAX = 20;
+  const now = Date.now();
+  let e = accountApiByIp.get(ip);
+  if (!e || now - e.windowStart > WINDOW_MS) {
+    e = { count: 0, windowStart: now };
+    accountApiByIp.set(ip, e);
+  }
+  e.count += 1;
+  return e.count > MAX;
+}
+
+function readJsonBody(req) {
+  return new Promise((resolve) => {
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk;
+      if (body.length > 10 * 1024) {
+        resolve(null); // zu gross
+        req.destroy();
+      }
+    });
+    req.on('end', () => {
+      try {
+        resolve(JSON.parse(body || '{}'));
+      } catch (e) {
+        resolve(null);
+      }
+    });
+    req.on('error', () => resolve(null));
+  });
+}
+
+function sendJson(res, status, obj) {
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.end(JSON.stringify(obj));
+}
+
+async function handleAccountRequest(req, res, filePath) {
+  // GET /verify?token=... - der Link aus der Bestätigungs-Mail (HTML-Antwort)
+  if (filePath === '/verify') {
+    const url = new URL(req.url, 'http://localhost');
+    const result = ACCOUNTS_ENABLED
+      ? accountStore.verifyEmail(url.searchParams.get('token'))
+      : { error: 'Konten sind auf diesem Server nicht verfügbar.' };
+    const ok = !!result.ok;
+    res.writeHead(ok ? 200 : 400, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(`<!DOCTYPE html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pik Dame - E-Mail-Bestätigung</title>
+<body style="font-family:sans-serif;background:#14171c;color:#eef1f4;display:flex;min-height:100dvh;align-items:center;justify-content:center;text-align:center;padding:20px">
+<div><h1>${ok ? '✅ E-Mail bestätigt!' : '❌ Bestätigung fehlgeschlagen'}</h1>
+<p>${ok ? `Willkommen, ${result.username}! Du kannst dich jetzt im Spiel anmelden.` : result.error}</p>
+<p><a href="/" style="color:#2fd6b0">Zurück zum Spiel</a></p></div></body></html>`);
+    return;
+  }
+
+  if (!ACCOUNTS_ENABLED) return sendJson(res, 404, { error: 'Konten sind auf diesem Server nicht verfügbar.' });
+  if (req.method !== 'POST') return sendJson(res, 405, { error: 'Nur POST.' });
+  const ip = req.socket.remoteAddress || '?';
+  if (accountRateLimited(ip)) return sendJson(res, 429, { error: 'Zu viele Anfragen - bitte kurz warten.' });
+  const body = await readJsonBody(req);
+  if (!body) return sendJson(res, 400, { error: 'Ungültige Anfrage.' });
+
+  if (filePath === '/api/register') {
+    const r = accountStore.register(body.username, body.email, body.password);
+    if (r.error) return sendJson(res, 400, { error: r.error });
+    // Bestätigungslink: Basis-URL aus Env (Docker), sonst aus dem Request
+    const base = (process.env.PIKDAME_BASE_URL || `http://${req.headers.host || 'localhost'}`).replace(/\/$/, '');
+    const verifyUrl = `${base}/verify?token=${r.verifyToken}`;
+    const mail = await mailer.send({
+      to: String(body.email).trim(),
+      subject: 'Pik Dame: E-Mail-Adresse bestätigen',
+      text: `Hallo ${String(body.username).trim()},\n\nwillkommen bei Pik Dame! Bitte bestätige deine E-Mail-Adresse über diesen Link:\n\n${verifyUrl}\n\nDer Link ist 48 Stunden gültig. Falls du dich nicht registriert hast, ignoriere diese Mail einfach.\n`,
+    });
+    return sendJson(res, 200, { ok: true, mailDelivered: !!mail.delivered });
+  }
+  if (filePath === '/api/login') {
+    const r = accountStore.login(body.username, body.password);
+    if (r.error) return sendJson(res, 401, { error: r.error });
+    return sendJson(res, 200, { ok: true, token: r.token, username: r.username });
+  }
+  if (filePath === '/api/logout') {
+    accountStore.logout(body.token);
+    return sendJson(res, 200, { ok: true });
+  }
+  if (filePath === '/api/me') {
+    const u = accountStore.sessionUser(body.token);
+    if (!u) return sendJson(res, 401, { error: 'Nicht angemeldet.' });
+    return sendJson(res, 200, { ok: true, username: u.username });
+  }
+  return sendJson(res, 404, { error: 'Unbekannter Endpunkt.' });
+}
 function registerFailedJoin(ip) {
   const now = Date.now();
   let entry = failedJoinsByIp.get(ip);
@@ -429,6 +548,19 @@ wss.on('connection', (ws, req) => {
   });
 
   function joinSession(targetSession, msg) {
+    // FORTSCHRITTS-SCHUTZ: Ein Name, der zu einem verifizierten Konto
+    // gehört, darf nur mit gültigem Login-Token verwendet werden - sonst
+    // könnte jeder die Statistik/Badges eines Kontos kapern.
+    if (ACCOUNTS_ENABLED) {
+      const wantedName = sanitizeName(msg.name);
+      if (accountStore.isRegisteredName(wantedName)) {
+        const session = accountStore.sessionUser(msg.accountToken);
+        if (!session || session.username.toLowerCase() !== String(wantedName).toLowerCase()) {
+          sendError(ws, 'Dieser Name gehört zu einem registrierten Konto - bitte zuerst anmelden, um ihn zu verwenden.');
+          return;
+        }
+      }
+    }
     playerId = msg.playerId || `p-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const player = targetSession.game.addOrReconnectPlayer(playerId, sanitizeName(msg.name));
     if (!player) {

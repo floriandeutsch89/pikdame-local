@@ -41,6 +41,19 @@ window.I18N_STATIC = {
   '📊 Statistik': '📊 Statistics',
   'Impressum & Datenschutz': 'Legal notice & privacy',
   'Verbinde...': 'Connecting...',
+  // Konto
+  '👤 Anmelden / Registrieren': '👤 Sign in / Register',
+  '👤 Konto': '👤 Account',
+  'Anmelden': 'Sign in',
+  'Registrieren': 'Register',
+  'Konto erstellen': 'Create account',
+  'Abmelden': 'Sign out',
+  'Benutzername oder E-Mail': 'Username or e-mail',
+  'Passwort': 'Password',
+  'Benutzername (2-24 Zeichen)': 'Username (2-24 characters)',
+  'E-Mail-Adresse': 'E-mail address',
+  'Passwort (mind. 8 Zeichen)': 'Password (min. 8 characters)',
+  'Dein Fortschritt (Statistik, Erfolge, Siegesserien) bleibt mit einem Konto dauerhaft erhalten - und niemand sonst kann deinen Namen verwenden.': 'With an account your progress (statistics, achievements, streaks) is kept permanently - and nobody else can use your name.',
 
   // Topbar / Spielfeld
   'Runde –': 'Round –',
@@ -119,6 +132,16 @@ window.I18N_SERVER_PATTERNS = [
   [/^Folge: (.+)$/, 'Run: $1'],
   [/^Anlegen$/, 'Add'],
   // --- Fehler ---
+  // Konto-Fehler (kommen per HTTP-API oder als Join-Fehler)
+  [/^Dieser Name gehört zu einem registrierten Konto - bitte zuerst anmelden, um ihn zu verwenden\.$/, 'This name belongs to a registered account - please sign in first to use it.'],
+  [/^Der Benutzername muss 2-24 Zeichen lang sein \(Buchstaben, Zahlen, Leer-, Binde-, Unterstrich, Punkt\)\.$/, 'The username must be 2-24 characters (letters, digits, space, dash, underscore, dot).'],
+  [/^Bitte eine gültige E-Mail-Adresse angeben\.$/, 'Please enter a valid e-mail address.'],
+  [/^Das Passwort muss mindestens 8 Zeichen lang sein\.$/, 'The password must be at least 8 characters long.'],
+  [/^Benutzername oder E-Mail ist bereits registriert\.$/, 'Username or e-mail is already registered.'],
+  [/^Benutzername\/E-Mail oder Passwort ist falsch\.$/, 'Username/e-mail or password is incorrect.'],
+  [/^Bitte zuerst die E-Mail-Adresse bestätigen \(Link in der Mail\)\.$/, 'Please confirm your e-mail address first (link in the mail).'],
+  [/^Ungültiger oder bereits verwendeter Bestätigungslink\.$/, 'Invalid or already used confirmation link.'],
+  [/^Zu viele Anfragen - bitte kurz warten\.$/, 'Too many requests - please wait a moment.'],
   [/^Zum Ausmachen musst du deine letzte Karte abwerfen - mindestens eine Handkarte muss übrig bleiben\.$/, 'To go out you must discard your last card - at least one hand card has to remain.'],
   [/^Du hast bereits einen Satz mit diesem Wert - lege die Karte\(n\) dort an statt einen neuen Stapel zu eröffnen\.$/, 'You already have a set of this rank - add the card(s) there instead of opening a new pile.'],
   [/^Du bist nicht am Zug\.$/, "It's not your turn."],
