@@ -467,8 +467,16 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 
 /* Gegner-Chips */
 #opponents {
-  display: flex; justify-content: center; gap: 8px;
-  padding: 10px 12px 6px; flex-wrap: wrap;
+  display: flex; justify-content: center; gap: 6px;
+  padding: 10px 10px 6px;
+  /* IMMER eine Zeile: bei 3 Gegnern teilen sich die Chips die Breite
+     (flex:1 + min-width:0 an .opponent), lange Namen ellipsieren.
+     Volltext steht im title-Tooltip. */
+  flex-wrap: nowrap;
+}
+#opponents .opponent { flex: 1 1 0; min-width: 0; max-width: 180px; }
+#opponents .opName {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .opponent {
   background: var(--glass);

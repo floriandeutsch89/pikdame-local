@@ -9,15 +9,35 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [18.x, 20.x, 22.x]
     steps:
       - uses: actions/checkout@v4
-      - name: Use Node.js ${{ matrix.node-version }}
+      # Nur die aktuelle LTS-Linie (22) - identisch mit dem Docker-Image.
+      # Damit laufen auch die Konto-Tests (node:sqlite ab Node 22) immer echt.
+      - name: Use Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 22.x
           cache: 'npm'
       - run: npm ci
+      # Exakt dieselben Tests wie lokal: npm test = node --test test/*.test.js
       - run: npm test
+      # Konsistenz: Das Dockerfile muss dieselbe Node-Major-Version nutzen
+      - name: Node-Version Dockerfile == CI
+        run: grep -q "FROM node:22" Dockerfile || (echo "Dockerfile-Node weicht von CI (22) ab" && exit 1)
+
+  dependency-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+      - run: npm ci
+      # Veraltete Pakete schlagen fehl (das Projekt hat bewusst nur 'ws' -
+      # ein Update ist dann eine Ein-Zeilen-Pflege statt einer Überraschung)
+      - name: Outdated packages
+        run: npm outdated
+      # Bekannte Sicherheitslücken (ab Schweregrad high)
+      - name: Security audit
+        run: npm audit --audit-level=high

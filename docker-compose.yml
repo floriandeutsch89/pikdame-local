@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   pikdame:
     build: .
@@ -26,8 +24,27 @@ services:
       # - PIKDAME_SMTP_PASS=geheim
       # - PIKDAME_MAIL_FROM=Pik Dame <noreply@pikdame.online>
     volumes:
-      # Spielerprofile/Teams/Spielverlauf überleben Container-Neustarts und -Updates.
+      # Spielerprofile/Spielverlauf/Konten-DB überleben Container-Neustarts und -Updates.
       - pikdame-data:/app/data
+    # --- Best Practices: Ressourcen, Log-Rotation, Härtung ---
+    deploy:
+      resources:
+        limits:
+          # Gemessen: ~117 KB Heap pro aktivem Spiel + Node-Grundlast.
+          # 512M tragen die 200-Session-Obergrenze mit reichlich Reserve;
+          # 1 CPU reicht (der Server ist I/O-lastig, nicht rechenintensiv).
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   pikdame-data:
