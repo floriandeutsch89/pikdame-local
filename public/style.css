@@ -1179,13 +1179,19 @@ button:focus-visible, input:focus-visible, select:focus-visible {
     padding: 6px calc(12px + var(--safe-right)) 4px 4px;
     gap: 10px;
   }
-  #centerPiles .pile-card { width: 44px; height: 62px; }
+  #centerPiles .pile-card { width: 40px; height: 56px; }
   .pileLabel { font-size: 0.52rem; }
   #actionBar { grid-area: action; padding: 4px calc(10px + var(--safe-right)) 4px calc(10px + var(--safe-left)); }
   #handWrapper { grid-area: hand; padding: 6px calc(8px + var(--safe-right)) calc(6px + var(--safe-bottom)) calc(8px + var(--safe-left)); }
   .handToolbar { margin: 0 2px 3px; }
-  #hand .card { width: 50px; height: 71px; min-width: 50px; }
-  #melds .card { width: 46px; height: 65px; min-width: 46px; }
+  /* Karten bewusst flacher als im Hochformat - jede gesparte Zeile Hoehe
+     kommt direkt der Auslagen-Zone zugute. */
+  #hand .card { width: 44px; height: 62px; min-width: 44px; }
+  #melds .card { width: 40px; height: 56px; min-width: 40px; }
+  #table .card .corner { top: 2px; left: 3px; font-size: 0.6rem; }
+  #table .card.joker .corner { font-size: 0.64rem; }
+  #table .card .suitMark { font-size: 1.05rem; margin-top: 3px; }
+  #table .card { font-size: 0.82rem; }
   .opponent { padding: 4px 9px; font-size: 0.66rem; }
 }
 
