@@ -829,6 +829,7 @@ class GameManager {
     return {
       phase: this.phase,
       roundNumber: this.roundNumber,
+      turnIndexInRound: this.turnIndexInRound,
       currentPlayerId: this.players[this.currentPlayerIndex]?.id || null,
       dealerId: this.players[this.dealerIndex]?.id || null,
       turnPhase: this.turnPhase,

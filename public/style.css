@@ -1231,3 +1231,60 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .handToolbar { justify-content: space-between; }
 #forfeitBtn { color: var(--text-muted); }
 #actionBar.collapsed { display: none; }
+
+/* --- UI-Paket: Anlege-Hinweise, Konfetti, Empty-State, Chip-Puls ---------- */
+
+/* Grüner Rahmen: hier passt die ausgewählte Karte an */
+@keyframes layOffTargetPulse {
+  0%, 100% { box-shadow: 0 0 0 2px var(--success), 0 0 10px rgba(67, 221, 154, 0.25); }
+  50% { box-shadow: 0 0 0 3px var(--success), 0 0 18px rgba(67, 221, 154, 0.45); }
+}
+.meldGroup.layOffTarget {
+  border-radius: var(--r-sm);
+  animation: layOffTargetPulse 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .meldGroup.layOffTarget {
+    animation: none;
+    box-shadow: 0 0 0 2px var(--success);
+  }
+}
+
+/* Konfetti im Ergebnis-Overlay (eigener Rundensieg) */
+@keyframes confettiFall {
+  0% { transform: translateY(-6vh) translateX(0) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(104vh) translateX(var(--drift, 0px)) rotate(660deg); opacity: 0.7; }
+}
+.confetti {
+  position: absolute;
+  top: 0;
+  width: 9px; height: 13px;
+  z-index: 1;
+  pointer-events: none;
+  animation: confettiFall linear forwards;
+}
+
+/* Empty-State der Tischmitte */
+.meldsEmptyState {
+  width: 100%;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  padding: 18px 22px;
+  border: 1px dashed var(--glass-border);
+  border-radius: var(--r-md);
+  align-self: center;
+  margin: auto;
+  max-width: 340px;
+}
+
+/* Spieler am Zug: sanfter Puls am Chip */
+@keyframes activeChipPulse {
+  0%, 100% { box-shadow: 0 0 0 2px var(--accent-soft); }
+  50% { box-shadow: 0 0 0 3px var(--accent), 0 0 14px var(--accent-soft); }
+}
+.opponent.active { animation: activeChipPulse 2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .opponent.active { animation: none; box-shadow: 0 0 0 2px var(--accent); }
+}
