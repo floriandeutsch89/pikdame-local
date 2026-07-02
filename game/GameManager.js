@@ -2,7 +2,7 @@
 const { createDeck, shuffle, dealCards, performLuckyCut } = require('./Deck');
 const { validateMeld, tryLayOff, tryJokerSwap, enumerateMeldOptions, enumerateLayOffOptions, canFormMeldWithCard } = require('./Rules');
 const { scoreRound, applyRoundScores, checkGameOver, DEFAULT_HOUSE_RULES } = require('./ScoreBoard');
-const { cardLabel } = require('./Card');
+const { cardLabel, isPikDame } = require('./Card');
 const Bot = require('./Bot');
 
 const MIN_SEATS = 2;
@@ -18,6 +18,9 @@ class GameManager {
   constructor(broadcastFn, options = {}) {
     this.broadcast = broadcastFn; // (playerId, message) -> sendet an genau diesen Spieler
     this.onGameOver = options.onGameOver || null; // (results: {name, score, won}[]) => void
+    this.onBotEmote = options.onBotEmote || null; // (botId, emoji) => void - Bot-Reaktionen an den Tisch
+    this._emoteTimers = new Set(); // pendende Emote-Timeouts (destroy räumt auf)
+    this._lastBotEmote = {}; // botId -> Zeitstempel (Eigen-Drosselung)
     this.players = []; // { id, name, isBot, hand, connected, laidOutCards }
     this.totals = {};
     this.houseRules = { ...DEFAULT_HOUSE_RULES };
@@ -340,6 +343,8 @@ class GameManager {
     this.addLog(
       `${player.name} nimmt die oberste Ablagekarte (${cardLabel(topCard)}) - sie muss sofort gelegt werden, danach folgt der Rest des Stapels.`
     );
+    // Der Stapel-Raub ärgert die Bots (mal mehr, mal weniger, nie sicher).
+    this.botsReact(player.id, '😤', 0.35);
     this.broadcastState();
     return { ok: true, mustUseCardId: topCard.id };
   }
@@ -397,6 +402,21 @@ class GameManager {
 
     if (!result.valid) return { error: result.reason };
 
+    // AUSMACH-REGEL: Die Runde darf nur durch ABWERFEN der letzten Karte
+    // enden. Eine Auslage, die die Hand komplett leeren würde, ist deshalb
+    // verboten - mindestens eine Karte muss für den Abwurf übrig bleiben.
+    // Ausnahmen: (a) Es kommt gleich Nachschub (Phase 2 der Ablage-Aufnahme
+    // füllt die Hand mit dem Reststapel), (b) die PFLICHTKARTE ist dabei -
+    // deren Zwang darf nie in eine Sackgasse führen.
+    {
+      const usingCount = player.hand.filter((cd) => cardIds.includes(cd.id)).length;
+      const restIncoming = this.pendingDiscardRest && this.discardPile.length > 0;
+      const containsMustCard = this.mustLayOffCardId && cardIds.includes(this.mustLayOffCardId);
+      if (usingCount >= player.hand.length && !restIncoming && !containsMustCard) {
+        return { error: 'Zum Ausmachen musst du deine letzte Karte abwerfen - mindestens eine Handkarte muss übrig bleiben.' };
+      }
+    }
+
     // FAMILIENREGEL: Pro Spieler nur EIN Satz je Kartenwert. Wer schon
     // einen 7er-Satz liegen hat, legt weitere 7er dort AN, statt einen
     // zweiten Stapel zu eröffnen. Folgen (Straßen) sind davon nicht
@@ -428,6 +448,11 @@ class GameManager {
     }
 
     this.addLog(`${player.name} legt eine neue ${result.type === 'set' ? 'Satz' : 'Folge'}-Auslage aus.`);
+    // Eine ausgelegte Pik Dame elektrisiert den Tisch.
+    if (meld.slots.some((s) => s.real && isPikDame(s.real))) {
+      this.maybeBotEmote(player.id, '🎉', 0.3, { force: true });
+      this.botsReact(player.id, '😱', 0.4, { force: true });
+    }
     this.checkRoundEnd(player);
     this.broadcastState();
     return { ok: true };
@@ -436,6 +461,14 @@ class GameManager {
   layOffCard(playerId, meldId, cardId, asSuit, side) {
     const err = this.assertTurn(playerId, 'meld');
     if (err) return err;
+    {
+      const p = this.currentPlayer();
+      const restIncoming = this.pendingDiscardRest && this.discardPile.length > 0;
+      const isMustCard = this.mustLayOffCardId && cardId === this.mustLayOffCardId;
+      if (p.hand.length <= 1 && !restIncoming && !isMustCard) {
+        return { error: 'Zum Ausmachen musst du deine letzte Karte abwerfen - mindestens eine Handkarte muss übrig bleiben.' };
+      }
+    }
     if (this.pendingDiscardRest && cardId !== this.mustLayOffCardId) {
       return { error: 'Die aufgenommene Ablagekarte muss SOFORT gelegt werden, bevor etwas anderes passiert.' };
     }
@@ -482,6 +515,10 @@ class GameManager {
     }
 
     this.addLog(`${player.name} legt ${cardLabel(card)} an eine Auslage an.`);
+    if (isPikDame(card)) {
+      this.maybeBotEmote(player.id, '🎉', 0.3, { force: true });
+      this.botsReact(player.id, '😱', 0.4, { force: true });
+    }
     this.checkRoundEnd(player);
     this.broadcastState();
     return { ok: true };
@@ -636,6 +673,17 @@ class GameManager {
     );
     const over = checkGameOver(totalsForGameOverCheck, this.houseRules);
 
+    // Bots reagieren aufs Rundenende: der Sieger jubelt, der Rest grummelt
+    // oder nimmt's mit Humor - alles dem Zufall überlassen.
+    if (winnerId) {
+      this.maybeBotEmote(winnerId, '🎉', 0.5, { force: true });
+      for (const p of this.players) {
+        if (p.isBot && p.id !== winnerId) {
+          this.maybeBotEmote(p.id, Math.random() < 0.5 ? '😤' : '😂', 0.25, { force: true });
+        }
+      }
+    }
+
     // Runde in die Verlaufsaufzeichnung der laufenden Partie aufnehmen.
     this.roundHistory.push({
       roundNumber: this.roundNumber,
@@ -734,6 +782,38 @@ class GameManager {
   destroy() {
     clearTimeout(this._botTimer);
     this._botTimer = null;
+    for (const t of this._emoteTimers) clearTimeout(t);
+    this._emoteTimers.clear();
+  }
+
+  /**
+   * Bots reagieren mit Emotes auf das Spielgeschehen - aber unberechenbar:
+   * nur mit gegebener Wahrscheinlichkeit, leicht zeitversetzt (300-1800ms,
+   * wie echtes Zögern) und pro Bot höchstens alle 5 Sekunden.
+   */
+  maybeBotEmote(botId, emoji, chance, opts = {}) {
+    if (!this.onBotEmote) return;
+    const bot = this.players.find((p) => p.id === botId);
+    if (!bot || !bot.isBot) return;
+    if (Math.random() > chance) return;
+    const now = Date.now();
+    // Highlights (Pik Dame! Rundenende!) duerfen die Drosselung durchbrechen,
+    // Alltags-Reaktionen (Grummeln, Bluff) bleiben auf max. 1 pro 5s je Bot.
+    if (!opts.force && now - (this._lastBotEmote[botId] || 0) < 5000) return;
+    this._lastBotEmote[botId] = now;
+    const delay = this._emoteDelayForTest !== undefined ? this._emoteDelayForTest : 300 + Math.random() * 1500;
+    const t = setTimeout(() => {
+      this._emoteTimers.delete(t);
+      this.onBotEmote(botId, emoji);
+    }, delay);
+    this._emoteTimers.add(t);
+  }
+
+  /** Alle Bots AUSSER excludeId reagieren mit gegebener Chance. */
+  botsReact(excludeId, emoji, chance, opts = {}) {
+    for (const p of this.players) {
+      if (p.isBot && p.id !== excludeId) this.maybeBotEmote(p.id, emoji, chance, opts);
+    }
   }
 
   /**
@@ -786,6 +866,9 @@ class GameManager {
     if (difficulty === 'easy' && plan.source === 'discardPile' && Math.random() < 0.6) {
       plan.source = 'drawPile';
     }
+    // Gelegentlicher Bluff: kurz vor dem Ziehen das Pik-Dame-Emote zeigen -
+    // selten genug, dass niemand weiß, ob es etwas bedeutet.
+    if (plan.source !== 'discardPile') this.maybeBotEmote(botId, 'pikdame', 0.08);
     if (plan.source === 'discardPile' && this.discardPile.length > 0) {
       this.drawFromDiscard(botId);
     } else {

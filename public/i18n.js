@@ -119,6 +119,7 @@ window.I18N_SERVER_PATTERNS = [
   [/^Folge: (.+)$/, 'Run: $1'],
   [/^Anlegen$/, 'Add'],
   // --- Fehler ---
+  [/^Zum Ausmachen musst du deine letzte Karte abwerfen - mindestens eine Handkarte muss übrig bleiben\.$/, 'To go out you must discard your last card - at least one hand card has to remain.'],
   [/^Du hast bereits einen Satz mit diesem Wert - lege die Karte\(n\) dort an statt einen neuen Stapel zu eröffnen\.$/, 'You already have a set of this rank - add the card(s) there instead of opening a new pile.'],
   [/^Du bist nicht am Zug\.$/, "It's not your turn."],
   [/^Du hast bereits gezogen\.$/, 'You have already drawn.'],
@@ -159,7 +160,7 @@ window.I18N_RULES_EN = `
   <ul>
     <li><b>1. Draw:</b> one card from the draw pile – OR the top discard, but only if it can form a new combination with your hand. Then you must <b>meld it immediately</b>; only afterwards do you receive the entire rest of the discard pile.</li>
     <li><b>2. Meld &amp; add</b> (as often as you like): lay down combinations, add single cards or swap jokers – <b>only on your own melds</b>. Other players' melds are off limits!</li>
-    <li><b>3. Discard:</b> exactly one card onto the discard pile – your turn ends.</li>
+    <li><b>3. Discard:</b> exactly one card onto the discard pile – your turn ends. <b>Going out works only this way:</b> even your last card must be discarded – you can never meld everything without keeping one card to discard.</li>
   </ul>
 
   <h3>Combinations</h3>
