@@ -333,8 +333,8 @@ function sendProfilesAndTeams(session, playerId) {
     ws.send(
       JSON.stringify(
         PUBLIC_MODE
-          ? { type: 'profiles', players: [], teams: [], publicMode: true }
-          : { type: 'profiles', players: playerStore.listPlayers(), teams: playerStore.listTeams(), publicMode: false }
+          ? { type: 'profiles', players: [], publicMode: true }
+          : { type: 'profiles', players: playerStore.listPlayers(), publicMode: false }
       )
     );
   }
@@ -476,47 +476,6 @@ wss.on('connection', (ws, req) => {
       }
       case 'listProfiles': {
         sendProfilesAndTeams(session, playerId);
-        break;
-      }
-      case 'createTeam': {
-        if (PUBLIC_MODE) { sendError(ws, 'Teams sind auf diesem öffentlichen Server deaktiviert.'); break; }
-        const team = playerStore.createTeam(sanitizeName(msg.name, 24), (msg.memberNames || []).map((n) => sanitizeName(n)));
-        sendProfilesAndTeams(session, playerId);
-        ws.send(JSON.stringify({ type: 'teamCreated', team }));
-        break;
-      }
-      case 'updateTeam': {
-        if (PUBLIC_MODE) { sendError(ws, 'Teams sind auf diesem öffentlichen Server deaktiviert.'); break; }
-        const team = playerStore.updateTeam(msg.id, {
-          name: sanitizeName(msg.name, 24),
-          memberNames: (msg.memberNames || []).map((n) => sanitizeName(n)),
-        });
-        if (!team) {
-          sendError(ws, 'Team nicht gefunden.');
-        } else {
-          sendProfilesAndTeams(session, playerId);
-        }
-        break;
-      }
-      case 'deleteTeam': {
-        if (PUBLIC_MODE) { sendError(ws, 'Teams sind auf diesem öffentlichen Server deaktiviert.'); break; }
-        playerStore.deleteTeam(msg.id);
-        sendProfilesAndTeams(session, playerId);
-        break;
-      }
-      case 'applyTeam': {
-        if (PUBLIC_MODE) { sendError(ws, 'Teams sind auf diesem öffentlichen Server deaktiviert.'); break; }
-        const teams = playerStore.listTeams();
-        const team = teams.find((t) => t.id === msg.teamId);
-        if (!team) {
-          sendError(ws, 'Team nicht gefunden.');
-          break;
-        }
-        game.fillWithBots();
-        // Sanitizing auch hier (Altbestände in players.json könnten vor der
-        // Härtung gespeichert worden sein).
-        const r = game.applyTeamNames((team.memberNames || []).map((n) => sanitizeName(n)));
-        if (r && r.error) sendError(ws, r.error);
         break;
       }
       case 'drawFromPile': {

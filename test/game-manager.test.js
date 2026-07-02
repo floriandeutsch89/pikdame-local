@@ -130,15 +130,6 @@ test('setExplicitDealer bestimmt den Geber der nächsten Runde direkt', () => {
   assert.equal(game.currentPlayer().id, 'p4'); // Spieler nach dem Geber startet
 });
 
-test('applyTeamNames benennt nur Bot-Plätze um, verbundene Menschen bleiben unangetastet', () => {
-  const { game } = makeGame(2); // p1, p2 sind Menschen
-  game.fillWithBots(); // bot-1, bot-2 füllen auf
-  game.applyTeamNames(['Anna', 'Tom']);
-  assert.equal(game.players.find((p) => p.id === 'p1').name, 'Spieler 1');
-  assert.equal(game.players.find((p) => p.id === 'bot-1').name, 'Anna');
-  assert.equal(game.players.find((p) => p.id === 'bot-2').name, 'Tom');
-});
-
 test('Reconnect-Robustheit: getrennter Mensch wird beim eigenen Zug von der Bot-Logik gesteuert', () => {
   const { game } = makeGame(2);
   game.startNewRound();

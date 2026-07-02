@@ -1,7 +1,7 @@
 // game/PlayerStore.js
-// Persistiert Spielerprofile (Name, Statistiken über mehrere Partien) und
-// Teams (gespeicherte Gruppen von Spielernamen zum Wiederverwenden) in einer
-// einfachen JSON-Datei. Bewusst dependency-frei (kein DB-Treiber nötig) und
+// Persistiert Spielerprofile (Name, Statistiken über mehrere Partien) in
+// einer einfachen JSON-Datei. (Die frühere Team-Funktion wurde entfernt -
+// ein teams-Feld in Altdateien wird schlicht ignoriert.) Bewusst dependency-frei (kein DB-Treiber nötig) und
 // für den Offline-Hotspot-Use-Case völlig ausreichend.
 
 const path = require('path');
@@ -11,7 +11,7 @@ const DEFAULT_DATA_DIR = path.join(__dirname, '..', 'data');
 const DEFAULT_DATA_FILE = path.join(DEFAULT_DATA_DIR, 'players.json');
 
 function emptyStore() {
-  return { players: [], teams: [] };
+  return { players: [] };
 }
 
 function genId(prefix) {
@@ -34,7 +34,6 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     if (!parsed) return emptyStore();
     return {
       players: Array.isArray(parsed.players) ? parsed.players : [],
-      teams: Array.isArray(parsed.teams) ? parsed.teams : [],
     };
   }
 
@@ -97,35 +96,9 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     return loadStore().players;
   }
 
-  function listTeams() {
-    return loadStore().teams;
-  }
 
-  function createTeam(name, memberNames) {
-    const store = loadStore();
-    const team = { id: genId('team'), name: name.trim(), memberNames: (memberNames || []).slice(0, 4) };
-    store.teams.push(team);
-    saveStore(store);
-    return team;
-  }
 
-  function updateTeam(id, updates = {}) {
-    const store = loadStore();
-    const team = store.teams.find((t) => t.id === id);
-    if (!team) return null;
-    if (typeof updates.name === 'string') team.name = updates.name.trim();
-    if (Array.isArray(updates.memberNames)) team.memberNames = updates.memberNames.slice(0, 4);
-    saveStore(store);
-    return team;
-  }
 
-  function deleteTeam(id) {
-    const store = loadStore();
-    const before = store.teams.length;
-    store.teams = store.teams.filter((t) => t.id !== id);
-    saveStore(store);
-    return store.teams.length < before;
-  }
 
   return {
     filePath,
@@ -135,10 +108,6 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     upsertPlayerProfile,
     recordGameResult,
     listPlayers,
-    listTeams,
-    createTeam,
-    updateTeam,
-    deleteTeam,
   };
 }
 

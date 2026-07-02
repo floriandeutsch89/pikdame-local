@@ -159,23 +159,6 @@ class GameManager {
     return { ok: true };
   }
 
-  /**
-   * Benennt freie Bot-Plätze der Reihe nach mit den Namen eines gespeicherten
-   * Teams um (reale, verbundene Mitspieler werden nicht angefasst). So lässt
-   * sich eine gespeicherte Spielergruppe für eine Solo-Session mit Bots
-   * wiederverwenden.
-   */
-  applyTeamNames(memberNames) {
-    let i = 0;
-    for (const p of this.players) {
-      if (p.isBot && i < memberNames.length) {
-        p.name = memberNames[i];
-        i += 1;
-      }
-    }
-    this.broadcastState();
-    return { ok: true };
-  }
 
   // --- Rundenstart ---------------------------------------------------------
 
