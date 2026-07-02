@@ -4,6 +4,12 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.0.1] - 2026-07-02
+
+### Geändert
+- Die Bestätigung beim Umschalten der Anzeigegröße erscheint jetzt mittig im Bild
+- Versionsnummer auch im Spiel sichtbar (rechts unter der Topbar) - Tap öffnet "Was ist neu?"
+
 ## [1.0.0] - 2026-07-02
 
 Erstes stabiles Release - das komplette Familien-Kartenspiel als Web-App.

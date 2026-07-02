@@ -54,7 +54,7 @@
     uiScale = UI_SCALES[(UI_SCALES.indexOf(uiScale) + 1) % UI_SCALES.length];
     localStorage.setItem(UI_SCALE_KEY, uiScale);
     applyUiScale();
-    showToast(`Anzeigegröße: ${UI_SCALE_LABELS[uiScale]}`);
+    showToast(`Anzeigegröße: ${UI_SCALE_LABELS[uiScale]}`, { centered: true });
     if (typeof render === 'function' && lastState) render(); // Hand-Überlappung neu messen
   }
   applyUiScale();
@@ -1286,12 +1286,16 @@
     }
   }
   let toastTimer = null;
-  function showToast(text) {
+  function showToast(text, opts = {}) {
     const container = el('toastContainer');
     container.textContent = text;
+    container.classList.toggle('centered', !!opts.centered);
     container.classList.add('visible');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => container.classList.remove('visible'), 2600);
+    toastTimer = setTimeout(() => {
+      container.classList.remove('visible');
+      container.classList.remove('centered');
+    }, 2600);
   }
 
   // --- Vollbild ("Kiosk-Modus" wie bei Videos) -------------------------------
@@ -1412,11 +1416,14 @@
   fetch('/statusz')
     .then((r) => r.json())
     .then((s) => {
-      if (s && s.version) el('versionBtn').textContent = `Version ${s.version}`;
+      if (s && s.version) {
+        el('versionBtn').textContent = `Version ${s.version}`;
+        el('ingameVersion').textContent = `v${s.version}`;
+      }
     })
     .catch(() => {});
 
-  el('versionBtn').addEventListener('click', () => {
+  function openChangelog() {
     fetch('/changelogz')
       .then((r) => r.text())
       .then((md) => {
@@ -1424,7 +1431,9 @@
         el('changelogOverlay').classList.remove('hidden');
       })
       .catch(() => showToast('Changelog konnte nicht geladen werden.'));
-  });
+  }
+  el('versionBtn').addEventListener('click', openChangelog);
+  el('ingameVersion').addEventListener('click', openChangelog);
   el('changelogCloseBtn').addEventListener('click', () => el('changelogOverlay').classList.add('hidden'));
   el('changelogOverlay').addEventListener('click', (ev) => {
     if (ev.target === el('changelogOverlay')) el('changelogOverlay').classList.add('hidden');
