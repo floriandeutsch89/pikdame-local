@@ -73,6 +73,14 @@
         <label class="rule-toggle"><input type="checkbox" id="ruleHandAus" /> Hand aus zählt doppelt</label>
         <label class="rule-toggle"><input type="checkbox" id="ruleStrict1000" /> Über 1000 Punkte zum Gewinnen (genau 1000 reicht nicht)</label>
         <label class="rule-toggle"><input type="checkbox" id="ruleSound" checked /> Sound &amp; Vibration</label>
+        <label class="rule-toggle botDifficultyRow"><span>Bot-Schwierigkeit</span>
+          <select id="ruleBotDifficulty">
+            <option value="easy">Leicht</option>
+            <option value="medium" selected>Mittel</option>
+            <option value="hard">Schwer</option>
+            <option value="zen">Zen-Meister</option>
+          </select>
+        </label>
       </div>
 
       <button id="startBtn" class="btn-secondary" disabled>Spiel starten (fehlende Plätze = Bots)</button>
@@ -205,6 +213,7 @@
       <div class="overlay-card">
         <h2>📊 Statistik</h2>
         <p class="lobby-hint">Über alle Partien auf diesem Server (nach Spielernamen).</p>
+        <div id="globalStatsBox" class="globalStatsBox hidden"></div>
         <div id="statsContent" class="statsContent"></div>
         <button id="statsCloseBtn" class="btn-secondary">Schließen</button>
       </div>

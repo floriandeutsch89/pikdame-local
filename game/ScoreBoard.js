@@ -19,6 +19,7 @@ function sumValues(cards) {
 const DEFAULT_HOUSE_RULES = {
   handAusDoubles: false,
   strictThreshold: false,
+  botDifficulty: 'medium', // 'easy' | 'medium' | 'hard' | 'zen'
 };
 
 /**
@@ -40,6 +41,7 @@ function scoreRound(winnerId, players, options = {}) {
     const laidOutValue = sumValues(data.laidOutCards || []);
     const handValue = sumValues(data.handCards || []);
     const pikDameCount = (data.handCards || []).filter(isPikDame).length;
+    const pikDameLaidOut = (data.laidOutCards || []).filter(isPikDame).length;
 
     let roundScore;
     if (pid === winnerId) {
@@ -60,6 +62,7 @@ function scoreRound(winnerId, players, options = {}) {
         laidOutValue,
         handValue,
         pikDameCount,
+        pikDameLaidOut,
         isWinner: pid === winnerId,
         multiplier,
       },

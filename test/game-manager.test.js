@@ -857,3 +857,40 @@ test('Hausregel "über 1000 Punkte" wird beim Rundenende berücksichtigt', () =>
   game.totals.p1 = 1001;
   assert.equal(checkGameOver(game.totals, game.houseRules).gameOver, true);
 });
+
+// --- v1.3.0: Doppel-Satz-Verbot -------------------------------------------
+test('layoutMeld: zweiter Satz gleichen Werts wird abgelehnt, Anlegen bleibt erlaubt', () => {
+  const { makeStandardCard } = require('../game/Card');
+  const g = new GameManager(() => {});
+  g.addOrReconnectPlayer('p1', 'A');
+  g.addOrReconnectPlayer('p2', 'B');
+  g.phase = 'playing';
+  g.turnPhase = 'meld';
+  g.currentPlayerIndex = 0;
+  const s7 = makeStandardCard('S', '7', 0), h7 = makeStandardCard('H', '7', 0), d7 = makeStandardCard('D', '7', 0);
+  const c7 = makeStandardCard('C', '7', 0), s7b = makeStandardCard('S', '7', 1), h7b = makeStandardCard('H', '7', 1);
+  g.players[0].hand = [s7, h7, d7, c7, s7b, h7b, makeStandardCard('C', '2', 0)];
+  const r1 = g.layoutMeld('p1', [s7.id, h7.id, d7.id]);
+  assert.ok(!r1.error, 'erster Satz muss klappen');
+  const r2 = g.layoutMeld('p1', [c7.id, s7b.id, h7b.id]);
+  assert.match(r2.error, /bereits einen Satz/);
+  // Anlegen an den bestehenden Satz funktioniert weiterhin
+  const meldId = g.tableMelds[0].id;
+  const r3 = g.layOffCard('p1', meldId, c7.id);
+  assert.ok(r3.ok, 'Anlegen muss erlaubt bleiben');
+  // Zweite FOLGE gleicher Farbe bleibt erlaubt (nur Saetze sind betroffen)
+  const h3 = makeStandardCard('H', '3', 0), h4 = makeStandardCard('H', '4', 0), h5 = makeStandardCard('H', '5', 0);
+  const h8 = makeStandardCard('H', '8', 0), h9 = makeStandardCard('H', '9', 0), h10 = makeStandardCard('H', '10', 0);
+  g.players[0].hand.push(h3, h4, h5, h8, h9, h10);
+  assert.ok(!g.layoutMeld('p1', [h3.id, h4.id, h5.id]).error);
+  assert.ok(!g.layoutMeld('p1', [h8.id, h9.id, h10.id]).error, 'zweite Folge gleicher Farbe muss erlaubt sein');
+});
+
+test('houseRules: botDifficulty wird validiert uebernommen, Muell ignoriert', () => {
+  const g = new GameManager(() => {});
+  g.setHouseRules({ botDifficulty: 'zen' });
+  assert.equal(g.houseRules.botDifficulty, 'zen');
+  g.setHouseRules({ botDifficulty: 'quatsch', evil: true });
+  assert.equal(g.houseRules.botDifficulty, 'zen'); // bleibt beim letzten gueltigen
+  assert.equal(g.houseRules.evil, undefined);
+});
