@@ -34,6 +34,31 @@
   // NEUE auf, gibt es die große Ankündigung (Raid-Warning-Stil).
   let prevTablePikdameIds = null;
   let prevPikdameRound = null;
+  // --- Anzeigegröße (für ältere Mitspieler): 3 Stufen, pro Gerät gespeichert ---
+  const UI_SCALE_KEY = 'pikdame_ui_scale';
+  const UI_SCALES = ['normal', 'large', 'xlarge'];
+  const UI_SCALE_LABELS = { normal: 'Normal', large: 'Groß', xlarge: 'Sehr groß' };
+  let uiScale = UI_SCALES.includes(localStorage.getItem(UI_SCALE_KEY))
+    ? localStorage.getItem(UI_SCALE_KEY)
+    : 'normal';
+  function applyUiScale() {
+    if (uiScale === 'normal') {
+      delete document.documentElement.dataset.uiscale;
+    } else {
+      document.documentElement.dataset.uiscale = uiScale;
+    }
+    const lobbyBtn = document.getElementById('uiScaleBtnLobby');
+    if (lobbyBtn) lobbyBtn.textContent = `🔍 Anzeigegröße: ${UI_SCALE_LABELS[uiScale]}`;
+  }
+  function cycleUiScale() {
+    uiScale = UI_SCALES[(UI_SCALES.indexOf(uiScale) + 1) % UI_SCALES.length];
+    localStorage.setItem(UI_SCALE_KEY, uiScale);
+    applyUiScale();
+    showToast(`Anzeigegröße: ${UI_SCALE_LABELS[uiScale]}`);
+    if (typeof render === 'function' && lastState) render(); // Hand-Überlappung neu messen
+  }
+  applyUiScale();
+
   const SORT_KEY = 'pikdame_hand_sort';
   let handSortMode = localStorage.getItem(SORT_KEY) === 'rank' ? 'rank' : 'suit';
   let prevHandRound = null;
@@ -994,6 +1019,9 @@
     send({ type: 'startGame', houseRules: collectHouseRules() });
   });
 
+
+  el('uiScaleBtn').addEventListener('click', cycleUiScale);
+  el('uiScaleBtnLobby').addEventListener('click', cycleUiScale);
 
   el('handToggleBtn').addEventListener('click', () => {
     handCollapsed = !handCollapsed;

@@ -1308,3 +1308,32 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   padding-bottom: calc(8px + var(--safe-bottom));
 }
 #handWrapper.handCollapsed .handToolbar { margin: 0 2px; }
+
+/* --- Anzeigegröße (für ältere Mitspieler): Groß / Sehr groß --------------- */
+/* Die Basis-Schriftgröße skaliert ALLE rem-basierten Texte, Buttons und
+   Abstände; die px-basierten Karten bekommen explizite Stufen. Steht am
+   Dateiende, damit es die Breakpoint-Regeln (600px: 72px-Karten) sicher
+   übersteuert. Im Querformat bleiben die Karten bewusst kompakt (dort ist
+   die Bildschirmhöhe das Limit) - die Schrift wächst aber auch dort mit. */
+html[data-uiscale="large"] { font-size: 17.5px; }
+html[data-uiscale="xlarge"] { font-size: 19px; }
+
+html[data-uiscale="large"] #hand .card,
+html[data-uiscale="large"] #melds .card { width: 68px; height: 100px; min-width: 68px; }
+html[data-uiscale="large"] .pile-card { width: 60px; height: 84px; }
+html[data-uiscale="large"] .card-compact { width: 36px; height: 51px; min-width: 36px; }
+
+html[data-uiscale="xlarge"] #hand .card,
+html[data-uiscale="xlarge"] #melds .card { width: 76px; height: 112px; min-width: 76px; }
+html[data-uiscale="xlarge"] .pile-card { width: 66px; height: 93px; }
+html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width: 40px; }
+
+/* Querformat: Karten kompakt lassen (Hoehe ist knapp), Regeln oben nicht anwenden */
+@media (orientation: landscape) and (max-height: 540px) {
+  html[data-uiscale="large"] #hand .card,
+  html[data-uiscale="xlarge"] #hand .card { width: 44px; height: 62px; min-width: 44px; }
+  html[data-uiscale="large"] #melds .card,
+  html[data-uiscale="xlarge"] #melds .card { width: 40px; height: 56px; min-width: 40px; }
+  html[data-uiscale="large"] .pile-card,
+  html[data-uiscale="xlarge"] .pile-card { width: 40px; height: 56px; }
+}
