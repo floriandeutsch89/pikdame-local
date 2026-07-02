@@ -13,6 +13,7 @@
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="stylesheet" href="style.css" />
   <script src="/vendor-qrcode.js"></script>
+  <script src="/i18n.js"></script>
 </head>
 <body>
   <div id="app">
@@ -77,6 +78,7 @@
       <button id="startBtn" class="btn-secondary" disabled>Spiel starten (fehlende Plätze = Bots)</button>
       <div id="lobbyPlayers" class="lobby-players"></div>
       <p id="connStatus" class="conn-status">Verbinde...</p>
+      <button id="langBtnLobby" class="btn-secondary" style="max-width: 340px;">🌐 Sprache: Deutsch</button>
       <button id="rulesBtnLobby" class="btn-secondary" style="max-width: 340px;">📖 Spielregeln</button>
       <button id="uiScaleBtnLobby" class="btn-secondary" style="max-width: 340px;">🔍 Anzeigegröße: Normal</button>
       <button id="statsBtn" class="btn-secondary" style="max-width: 340px;">📊 Statistik</button>
@@ -92,7 +94,6 @@
         <div id="roundInfo">Runde –</div>
         <div id="myScore" title="Deine Gesamtpunkte">–</div>
         <div id="turnInfo">–</div>
-        <button id="rulesBtn" class="btn-icon" title="Spielregeln">❓</button>
         <button id="uiScaleBtn" class="btn-icon" title="Anzeigegröße ändern">Aa</button>
         <button id="emoteBtn" class="btn-icon" title="Reaktion senden">😀</button>
         <button id="soundToggle" class="btn-icon" title="Sound ein/aus">🔊</button>
@@ -143,8 +144,8 @@
     <!-- SPIELREGELN -->
     <section id="rulesOverlay" class="overlay hidden">
       <div class="overlay-card">
-        <h2>📖 Spielregeln</h2>
-        <div class="changelogContent">
+        <h2 id="rulesTitle">📖 Spielregeln</h2>
+        <div id="rulesContent" class="changelogContent">
           <h3>Ziel &amp; Karten</h3>
           <p>2–4 Spieler (Bots füllen auf), 110 Karten: zwei komplette Decks plus 6 Joker. Jeder erhält 15 Handkarten. Wer zuerst alle Karten los ist, gewinnt die Runde.</p>
 
@@ -235,7 +236,7 @@
     <!-- ABLAGESTAPEL-VORSCHAU -->
     <section id="discardPreviewOverlay" class="overlay hidden">
       <div class="overlay-card">
-        <h2>Ablagestapel <span id="discardPreviewCount"></span></h2>
+        <h2><span id="discardPreviewTitle">Ablagestapel</span> <span id="discardPreviewCount"></span></h2>
         <p class="lobby-hint">Oberste Karte zuerst – alle Karten wurden offen abgelegt.</p>
         <div id="discardPreviewCards" class="discardPreviewCards"></div>
         <button id="discardPreviewCloseBtn" class="btn-secondary">Schließen</button>

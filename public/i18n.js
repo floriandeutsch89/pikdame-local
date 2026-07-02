@@ -1,0 +1,181 @@
+// public/i18n.js
+// Zweisprachigkeit Deutsch/Englisch. Deutsch ist die Quellsprache (steht im
+// HTML/Code), Englisch wird per Lookup übersetzt:
+// - I18N_STATIC: exakte Übersetzungen für statische HTML-Texte, title- und
+//   placeholder-Attribute (Blatt-Elemente werden beim Start automatisch
+//   inventarisiert).
+// - I18N_SERVER_PATTERNS: Muster für die dynamischen SERVER-Texte
+//   (Spiel-Log, Fehlermeldungen). Der Server bleibt bewusst einsprachig -
+//   verschiedene Spieler am selben Tisch können verschiedene Sprachen
+//   nutzen, daher übersetzt jeder Client für sich. Unbekannte Texte bleiben
+//   unübersetzt (Fallback Deutsch) statt kaputt zu gehen.
+// - I18N_RULES_EN: die komplette englische Spielregeln-Ansicht.
+
+window.I18N_STATIC = {
+  // Lobby
+  'Offline-Multiplayer Rommé über Hotspot': 'Offline multiplayer rummy over hotspot',
+  'Neues Spiel erstellen': 'Create a new game',
+  'oder einem Spiel beitreten': 'or join a game',
+  'Beitreten': 'Join',
+  'Weiter': 'Continue',
+  'Name': 'Name',
+  'Dein Name': 'Your name',
+  'SPIEL-CODE': 'GAME CODE',
+  'Spiel-Code – zum Mitspielen weitergeben': 'Game code – share it to let others join',
+  'Teilen': 'Share',
+  'QR-Code': 'QR code',
+  'Sitzordnung & Geber': 'Seating & dealer',
+  'Reihenfolge mit ▲▼ anpassen, ⭐ markiert den Geber der ersten Runde.': 'Adjust the order with ▲▼, ⭐ marks the dealer of the first round.',
+  'Spieleranzahl': 'Number of players',
+  'Fehlende Plätze werden mit Bots aufgefüllt.': 'Empty seats are filled with bots.',
+  'Hausregeln': 'House rules',
+  'Hand aus zählt doppelt': 'Going out in one turn counts double',
+  'Über 1000 Punkte zum Gewinnen (genau 1000 reicht nicht)': 'More than 1000 points to win (exactly 1000 is not enough)',
+  'Spiel starten (fehlende Plätze = Bots)': 'Start game (empty seats = bots)',
+  '📖 Spielregeln': '📖 How to play',
+  '📊 Statistik': '📊 Statistics',
+  'Impressum & Datenschutz': 'Legal notice & privacy',
+  'Verbinde...': 'Connecting...',
+
+  // Topbar / Spielfeld
+  'Runde –': 'Round –',
+  'Nachziehen': 'Draw',
+  'Ablage': 'Discard',
+  'Auslegen': 'Meld',
+  'Abwerfen': 'Discard card',
+  'Auswahl löschen': 'Clear selection',
+  '🏳️ Aufgeben': '🏳️ Forfeit',
+
+  // Titles (Attribute)
+  'Ablagestapel ansehen': 'View discard pile',
+  'Anzeigegröße ändern': 'Change display size',
+  'Deine Gesamtpunkte': 'Your total score',
+  'Karten ein-/ausblenden': 'Show/hide cards',
+  'Reaktion senden': 'Send a reaction',
+  'Runde aufgeben': 'Forfeit round',
+  'Sortierung umschalten': 'Toggle sorting',
+  'Sound ein/aus': 'Sound on/off',
+  'Vollbild': 'Fullscreen',
+  'Was ist neu?': "What's new?",
+  'Spieltisch': 'Table',
+  'Nacht': 'Night',
+  'Herzdame': 'Queen of hearts',
+
+  // Overlays
+  'Zum Mitspielen scannen': 'Scan to join',
+  'Mit der Kamera scannen – der Spiel-Code wird automatisch übernommen.': 'Scan with your camera – the game code is filled in automatically.',
+  'Wirklich abwerfen?': 'Really discard?',
+  'Ja, abwerfen': 'Yes, discard',
+  'Abbrechen': 'Cancel',
+  'Oberste Karte zuerst – alle Karten wurden offen abgelegt.': 'Top card first – every card was discarded face up.',
+  'Was soll der Joker sein?': 'What should the joker represent?',
+  'Mehrere Kombinationen sind möglich – bitte wählen.': 'Several combinations are possible – please choose.',
+  'Über alle Partien auf diesem Server (nach Spielernamen).': 'Across all games on this server (by player name).',
+  'Schließen': 'Close',
+  '📤 Spielverlauf exportieren': '📤 Export game history',
+  'Rundenende': 'End of round',
+
+  // Themes-Zeile etc.
+  'Sound & Vibration': 'Sound & vibration',
+};
+
+// Muster für Server-Texte (Log + Fehler). Reihenfolge: speziell vor generisch.
+// $1..$n = Capture-Groups.
+window.I18N_SERVER_PATTERNS = [
+  // --- Log ---
+  [/^Runde (\d+) gestartet\. Geber: (.+)\.$/, 'Round $1 started. Dealer: $2.'],
+  [/^🍀 Glücksgriff beim Abheben! (.+?) nimmt vor dem Verteilen sofort auf die Hand: (.+)\.$/, '🍀 Lucky cut! $1 takes straight into hand before dealing: $2.'],
+  [/^(.+?) zieht eine Karte vom Stapel\.$/, '$1 draws a card from the pile.'],
+  [/^(.+?) nimmt die oberste Ablagekarte \((.+?)\) - sie muss sofort gelegt werden, danach folgt der Rest des Stapels\.$/, '$1 takes the top discard ($2) – it must be melded immediately, then the rest of the pile follows.'],
+  [/^(.+?) nimmt die restlichen (\d+) Karten des Ablagestapels auf\.$/, '$1 picks up the remaining $2 cards of the discard pile.'],
+  [/^(.+?) legt eine neue Satz-Auslage aus\.$/, '$1 lays down a new set.'],
+  [/^(.+?) legt eine neue Folge-Auslage aus\.$/, '$1 lays down a new run.'],
+  [/^(.+?) legt (.+?) an eine Auslage an\.$/, '$1 adds $2 to a meld.'],
+  [/^(.+?) tauscht (.+?) gegen einen Joker in einer Auslage\. Der Joker scheidet aus dem Spiel aus\.$/, '$1 swaps $2 for a joker in a meld. The joker is permanently out of the game.'],
+  [/^(.+?) wirft (.+?) ab\.$/, '$1 discards $2.'],
+  [/^(.+?) hat alle Karten ausgelegt - Runde endet!$/, '$1 has melded all cards – the round ends!'],
+  [/^(.+?) legt die letzte Karte verdeckt ab und beendet die Runde!$/, '$1 discards the last card face down and ends the round!'],
+  [/^(.+?) gibt die Runde auf\.$/, '$1 forfeits the round.'],
+  [/^Hand aus! Die komplette Rundenwertung wird verdoppelt\.$/, 'Out in one! The entire round score is doubled.'],
+  [/^Spiel beendet! Gewinner: (.+)$/, 'Game over! Winner: $1'],
+  [/^Rundenwertung: (.+)$/, 'Round scores: $1'],
+  [/^Keine Karten mehr zum Ziehen - die Runde endet unentschieden\.$/, 'No cards left to draw – the round ends in a stalemate.'],
+  [/^Nachziehstapel war leer - Ablagestapel \(außer oberster Karte\) wurde gemischt und neu aufgelegt\.$/, 'Draw pile was empty – the discard pile (except the top card) was shuffled and restocked.'],
+  [/^(.+?) ist beigetreten\.$/, '$1 joined.'],
+  [/^(.+?) hat die Verbindung verloren - ein Bot übernimmt vorerst\.$/, '$1 lost connection – a bot takes over for now.'],
+  [/^(.+?) ist wieder da und übernimmt von seinem Bot\.$/, '$1 is back and takes over from the bot.'],
+  // --- Options-Labels (Joker-/Anlege-Auswahl) ---
+  [/^oben anlegen als (.+)$/, 'add on top as $1'],
+  [/^unten anlegen als (.+)$/, 'add below as $1'],
+  [/^als (.+)$/, 'as $1'],
+  [/^Satz: (\d+)x (.+)$/, 'Set: $1x $2'],
+  [/^Folge: (.+)$/, 'Run: $1'],
+  [/^Anlegen$/, 'Add'],
+  // --- Fehler ---
+  [/^Du bist nicht am Zug\.$/, "It's not your turn."],
+  [/^Du hast bereits gezogen\.$/, 'You have already drawn.'],
+  [/^Du musst zuerst eine Karte ziehen\.$/, 'You must draw a card first.'],
+  [/^Es läuft gerade keine Runde\.$/, 'No round is in progress.'],
+  [/^Ablagestapel ist leer\.$/, 'The discard pile is empty.'],
+  [/^Auslage nicht gefunden\.$/, 'Meld not found.'],
+  [/^Spieler nicht gefunden\.$/, 'Player not found.'],
+  [/^Karte nicht in der Hand gefunden\.$/, 'Card not found in your hand.'],
+  [/^Karte\(n\) nicht in der Hand gefunden\.$/, 'Card(s) not found in your hand.'],
+  [/^Karte passt nicht an diese Auslage\.$/, "This card doesn't fit this meld."],
+  [/^Diese Karte passt nicht auf einen Joker in dieser Auslage\.$/, "This card doesn't match a joker in this meld."],
+  [/^Diese Kombination ergibt keinen gültigen Satz oder keine gültige Folge\.$/, 'This combination is neither a valid set nor a valid run.'],
+  [/^Die aufgenommene Ablagekarte muss SOFORT gelegt werden, bevor etwas anderes passiert\.$/, 'The picked-up discard must be melded IMMEDIATELY before anything else.'],
+  [/^Die aufgenommene Ablagekarte muss zuerst ausgelegt\/angelegt werden\.$/, 'The picked-up discard must be melded first.'],
+  [/^Die oberste Ablagekarte passt zu keiner Kombination mit deinen Handkarten - der Ablagestapel kann so nicht aufgenommen werden\.$/, "The top discard doesn't form any combination with your hand – the pile can't be picked up."],
+  [/^Du kannst nur an deine EIGENEN Auslagen anlegen - jeder Spieler hat seinen eigenen Stapel\.$/, 'You can only add to your OWN melds – every player has their own.'],
+  [/^Du kannst nur Joker aus deinen EIGENEN Auslagen tauschen - fremde Stapel sind tabu\.$/, 'You can only swap jokers in your OWN melds – other players\' melds are off limits.'],
+  [/^Die Sitzordnung kann nur vor Rundenbeginn geändert werden\.$/, 'Seating can only be changed before a round starts.'],
+  [/^Die Spieleranzahl kann nur vor Rundenbeginn geändert werden\.$/, 'The number of players can only be changed before a round starts.'],
+  [/^Die neue Reihenfolge muss alle aktuellen Plätze enthalten\.$/, 'The new order must contain all current seats.'],
+  [/^Kein Spiel mit diesem Code gefunden\. Bitte Code prüfen\.$/, 'No game found with this code. Please check it.'],
+  [/^Der Server ist derzeit voll - bitte später erneut versuchen\.$/, 'The server is currently full – please try again later.'],
+  [/^Mindestens 2 Spieler nötig\.$/, 'At least 2 players are required.'],
+];
+
+window.I18N_RULES_EN = `
+  <h3>Goal &amp; cards</h3>
+  <p>2–4 players (bots fill empty seats), 110 cards: two full decks plus 6 jokers. Everyone gets 15 cards. Whoever gets rid of all their cards first wins the round.</p>
+
+  <h3>Dealing &amp; the lucky cut</h3>
+  <ul>
+    <li>The dealer rotates each round; the player after the dealer starts.</li>
+    <li>Before dealing, the player to the dealer's right cuts the deck. <b>Lucky cut:</b> If the Queen of Spades or jokers sit at the cut, they go straight into that player's hand – dealing skips accordingly, so everyone ends up with 15 cards.</li>
+  </ul>
+
+  <h3>Your turn</h3>
+  <ul>
+    <li><b>1. Draw:</b> one card from the draw pile – OR the top discard, but only if it can form a new combination with your hand. Then you must <b>meld it immediately</b>; only afterwards do you receive the entire rest of the discard pile.</li>
+    <li><b>2. Meld &amp; add</b> (as often as you like): lay down combinations, add single cards or swap jokers – <b>only on your own melds</b>. Other players' melds are off limits!</li>
+    <li><b>3. Discard:</b> exactly one card onto the discard pile – your turn ends.</li>
+  </ul>
+
+  <h3>Combinations</h3>
+  <ul>
+    <li><b>Set:</b> 3–8 cards of the same rank. Each suit at most twice (two decks!).</li>
+    <li><b>Run:</b> at least 3 cards of the same suit in sequence. Runs are <b>circular</b>: after the King comes the Ace, then the 2 again – K‑A‑2 is valid. At most 13 cards, no duplicate ranks.</li>
+  </ul>
+
+  <h3>Jokers</h3>
+  <ul>
+    <li>A joker substitutes for any card.</li>
+    <li>You can swap a joker in your meld for the real card – the joker is then <b>permanently out of the game</b>.</li>
+  </ul>
+
+  <h3>Scoring</h3>
+  <ul>
+    <li>2–9 = 5 &nbsp;·&nbsp; 10, Jack, Queen, King = 10 &nbsp;·&nbsp; Ace &amp; Joker = 20 &nbsp;·&nbsp; <b>Queen of Spades = 100</b></li>
+    <li>End of round: the winner scores their melds. Everyone else: melds count <b>plus</b>, remaining hand cards count <b>minus</b> – a Queen of Spades left in hand costs 100!</li>
+    <li><b>Out in one</b> (everything in your very first turn): doubles the round score if the house rule is active.</li>
+  </ul>
+
+  <h3>Game end &amp; misc</h3>
+  <ul>
+    <li>The game ends once someone reaches 1000 points (strict house rule: only above 1000). The highest score wins.</li>
+    <li>If nobody can draw, the round ends (stalemate). Use 🏳️ to forfeit a round.</li>
+  </ul>
+`;
