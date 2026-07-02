@@ -34,10 +34,76 @@
   // NEUE auf, gibt es die große Ankündigung (Raid-Warning-Stil).
   let prevTablePikdameIds = null;
   let prevPikdameRound = null;
+  // --- Sprache (Deutsch/Englisch, Default Deutsch) ----------------------------
+  const LANG_KEY = 'pikdame_lang';
+  let lang = localStorage.getItem(LANG_KEY) === 'en' ? 'en' : 'de';
+
+  /** Sprach-Helfer für dynamische Texte: L(deutsch, englisch). */
+  function L(de, en) {
+    return lang === 'en' ? en : de;
+  }
+
+  /** Übersetzt SERVER-Texte (Log/Fehler) per Muster - Fallback: Original. */
+  function trs(text) {
+    if (lang !== 'en' || !text) return text;
+    for (const [re, tpl] of window.I18N_SERVER_PATTERNS || []) {
+      if (re.test(text)) return text.replace(re, tpl);
+    }
+    return text;
+  }
+
+  // Statische HTML-Texte: beim Start werden alle Blatt-Elemente sowie
+  // title-/placeholder-Attribute inventarisiert (deutsches Original als
+  // data-Attribut), danach kann verlustfrei hin- und hergeschaltet werden.
+  let i18nSnapshotDone = false;
+  let rulesHtmlDe = '';
+  function applyStaticLang() {
+    const map = window.I18N_STATIC || {};
+    if (!i18nSnapshotDone) {
+      document.querySelectorAll('body *').forEach((n) => {
+        if (n.children.length === 0) {
+          const txt = n.textContent.trim();
+          if (txt && map[txt]) n.dataset.i18nDe = n.textContent;
+        }
+        if (n.title && map[n.title]) n.dataset.i18nTitleDe = n.title;
+        if (n.placeholder && map[n.placeholder]) n.dataset.i18nPhDe = n.placeholder;
+      });
+      rulesHtmlDe = el('rulesContent').innerHTML;
+      i18nSnapshotDone = true;
+    }
+    document.querySelectorAll('[data-i18n-de]').forEach((n) => {
+      const de = n.dataset.i18nDe;
+      n.textContent = lang === 'en' ? map[de.trim()] || de : de;
+    });
+    document.querySelectorAll('[data-i18n-title-de]').forEach((n) => {
+      const de = n.dataset.i18nTitleDe;
+      n.title = lang === 'en' ? map[de] || de : de;
+    });
+    document.querySelectorAll('[data-i18n-ph-de]').forEach((n) => {
+      const de = n.dataset.i18nPhDe;
+      n.placeholder = lang === 'en' ? map[de] || de : de;
+    });
+    el('rulesContent').innerHTML = lang === 'en' ? window.I18N_RULES_EN : rulesHtmlDe;
+    el('rulesTitle').textContent = L('📖 Spielregeln', '📖 How to play');
+    el('langBtnLobby').textContent = lang === 'en' ? '🌐 Language: English' : '🌐 Sprache: Deutsch';
+    document.documentElement.lang = lang;
+  }
+  function cycleLang() {
+    lang = lang === 'de' ? 'en' : 'de';
+    localStorage.setItem(LANG_KEY, lang);
+    applyStaticLang();
+    updateSortToggleLabel();
+    updateHandToggle();
+    applyUiScale(); // Label des Anzeigegröße-Buttons neu setzen
+    if (lastState) render();
+  }
+
   // --- Anzeigegröße (für ältere Mitspieler): 3 Stufen, pro Gerät gespeichert ---
   const UI_SCALE_KEY = 'pikdame_ui_scale';
   const UI_SCALES = ['normal', 'large', 'xlarge'];
-  const UI_SCALE_LABELS = { normal: 'Normal', large: 'Groß', xlarge: 'Sehr groß' };
+  function uiScaleLabel(scale) {
+    return { normal: L('Normal', 'Normal'), large: L('Groß', 'Large'), xlarge: L('Sehr groß', 'Extra large') }[scale];
+  }
   let uiScale = UI_SCALES.includes(localStorage.getItem(UI_SCALE_KEY))
     ? localStorage.getItem(UI_SCALE_KEY)
     : 'normal';
@@ -48,13 +114,13 @@
       document.documentElement.dataset.uiscale = uiScale;
     }
     const lobbyBtn = document.getElementById('uiScaleBtnLobby');
-    if (lobbyBtn) lobbyBtn.textContent = `🔍 Anzeigegröße: ${UI_SCALE_LABELS[uiScale]}`;
+    if (lobbyBtn) lobbyBtn.textContent = L(`🔍 Anzeigegröße: ${uiScaleLabel(uiScale)}`, `🔍 Display size: ${uiScaleLabel(uiScale)}`);
   }
   function cycleUiScale() {
     uiScale = UI_SCALES[(UI_SCALES.indexOf(uiScale) + 1) % UI_SCALES.length];
     localStorage.setItem(UI_SCALE_KEY, uiScale);
     applyUiScale();
-    showToast(`Anzeigegröße: ${UI_SCALE_LABELS[uiScale]}`, { centered: true });
+    showToast(L(`Anzeigegröße: ${uiScaleLabel(uiScale)}`, `Display size: ${uiScaleLabel(uiScale)}`), { centered: true });
     if (typeof render === 'function' && lastState) render(); // Hand-Überlappung neu messen
   }
   applyUiScale();
@@ -166,10 +232,10 @@
 
   function connect() {
     ws = new WebSocket(wsUrl());
-    el('connStatus').textContent = 'Verbinde...';
+    el('connStatus').textContent = L('Verbinde...', 'Connecting...');
 
     ws.addEventListener('open', () => {
-      el('connStatus').textContent = 'Verbunden.';
+      el('connStatus').textContent = L('Verbunden.', 'Connected.');
       // Automatischer Wiedereintritt NUR, wenn wir bereits Teil einer
       // Session waren (Reconnect nach Verbindungsabbruch oder geteilter
       // Link mit gespeicherter playerId). Ohne Code entscheidet der Nutzer
@@ -180,12 +246,12 @@
     });
 
     ws.addEventListener('close', () => {
-      el('connStatus').textContent = 'Verbindung verloren - neuer Versuch in 2s...';
+      el('connStatus').textContent = L('Verbindung verloren - neuer Versuch in 2s...', 'Connection lost - retrying in 2s...');
       setTimeout(connect, 2000);
     });
 
     ws.addEventListener('error', () => {
-      el('connStatus').textContent = 'Verbindungsfehler.';
+      el('connStatus').textContent = L('Verbindungsfehler.', 'Connection error.');
     });
 
     ws.addEventListener('message', (ev) => {
@@ -213,7 +279,7 @@
       return;
     }
     if (msg.type === 'error') {
-      showHint(msg.error, true);
+      showHint(trs(msg.error), true);
       return;
     }
     if (msg.type === 'state') {
@@ -288,7 +354,7 @@
     optionsDiv.innerHTML = '';
     options.forEach((opt) => {
       const btn = document.createElement('button');
-      btn.textContent = opt.label;
+      btn.textContent = trs(opt.label);
       btn.addEventListener('click', () => {
         el('jokerChoiceOverlay').classList.add('hidden');
         sound.meld();
@@ -441,11 +507,11 @@
 
   function renderTable() {
     const myTotal = (lastState.totals && lastState.totals[playerId]) || 0;
-    el('myScore').textContent = `${myTotal} Pkt`;
+    el('myScore').textContent = L(`${myTotal} Pkt`, `${myTotal} pts`);
     const dealer = lastState.players.find((p) => p.id === lastState.dealerId);
     const iAmDealer = dealer && dealer.id === playerId;
     // Runde + Geber in EINEM Element - laesst der Zug-Anzeige dauerhaft mehr Platz
-    el('roundInfo').textContent = `R${lastState.roundNumber} · Geber: ${iAmDealer ? 'du ⭐' : dealer ? dealer.name : '–'}`;
+    el('roundInfo').textContent = L(`R${lastState.roundNumber} · Geber: ${iAmDealer ? 'du ⭐' : dealer ? dealer.name : '–'}`, `R${lastState.roundNumber} · Dealer: ${iAmDealer ? 'you ⭐' : dealer ? dealer.name : '–'}`);
     const cp = lastState.players.find((p) => p.id === lastState.currentPlayerId);
     const isMyTurn = lastState.currentPlayerId === playerId;
     el('turnInfo').textContent = isMyTurn
@@ -472,7 +538,7 @@
         });
         const reconnecting = !p.isBot && p.controlledByBot;
         const opTotal = (lastState.totals && lastState.totals[p.id]) || 0;
-        d.innerHTML = `<div class="opName">${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}${reconnecting ? ' <span class="reconnectTag">⏳ getrennt – Bot übernimmt</span>' : ''}</div><div class="opCount">${p.handCount} Karten · ${opTotal} Pkt</div>`;
+        d.innerHTML = `<div class="opName">${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}${reconnecting ? ` <span class="reconnectTag">⏳ ${L('getrennt – Bot übernimmt', 'disconnected – bot takes over')}</span>` : ''}</div><div class="opCount">${p.handCount} ${L('Karten', 'cards')} · ${opTotal} ${L('Pkt', 'pts')}</div>`;
         opponentsDiv.appendChild(d);
       });
 
@@ -512,7 +578,7 @@
       const filterOwner = players.find((p) => p.id === meldFilterPlayerId);
       const bar = document.createElement('div');
       bar.className = 'meldFilterBar';
-      bar.textContent = `Nur Auslagen von ${filterOwner.id === playerId ? 'dir' : filterOwner.name} – tippen für alle`;
+      bar.textContent = L(`Nur Auslagen von ${filterOwner.id === playerId ? 'dir' : filterOwner.name} – tippen für alle`, `Only ${filterOwner.id === playerId ? 'your' : filterOwner.name + "'s"} melds – tap for all`);
       bar.addEventListener('click', () => { meldFilterPlayerId = null; render(); });
       meldsDiv.appendChild(bar);
     }
@@ -521,7 +587,7 @@
     if ((lastState.tableMelds || []).length === 0 && !meldFilterPlayerId && lastState.phase === 'playing') {
       const empty = document.createElement('div');
       empty.className = 'meldsEmptyState';
-      empty.textContent = 'Noch keine Auslagen – sammle 3+ passende Karten (Satz: gleicher Wert · Folge: gleiche Farbe in Reihe) und lege sie hier aus.';
+      empty.textContent = L('Noch keine Auslagen – sammle 3+ passende Karten (Satz: gleicher Wert · Folge: gleiche Farbe in Reihe) und lege sie hier aus.', 'No melds yet – collect 3+ matching cards (set: same rank · run: same suit in sequence) and lay them down here.');
       meldsDiv.appendChild(empty);
     }
 
@@ -532,7 +598,7 @@
         if (meldFilterPlayerId === owner.id) {
           const empty = document.createElement('div');
           empty.className = 'meldOwnerHeader';
-          empty.textContent = `${owner.id === playerId ? 'Du hast' : owner.name + ' hat'} noch nichts ausgelegt.`;
+          empty.textContent = L(`${owner.id === playerId ? 'Du hast' : owner.name + ' hat'} noch nichts ausgelegt.`, `${owner.id === playerId ? 'You have' : owner.name + ' has'} not melded anything yet.`);
           meldsDiv.appendChild(empty);
         }
         return;
@@ -544,8 +610,8 @@
       const header = document.createElement('div');
       header.className = 'meldOwnerHeader';
       header.innerHTML = isMine
-        ? 'Deine Auslagen'
-        : `Auslagen von ${escapeHtml(owner.name)}${owner.isBot ? ' 🤖' : ''}`;
+        ? L('Deine Auslagen', 'Your melds')
+        : L(`Auslagen von ${escapeHtml(owner.name)}${owner.isBot ? ' 🤖' : ''}`, `${escapeHtml(owner.name)}'s melds${owner.isBot ? ' 🤖' : ''}`);
       header.addEventListener('click', () => {
         meldFilterPlayerId = meldFilterPlayerId === owner.id ? null : owner.id;
         render();
@@ -608,7 +674,7 @@
       discardTopDiv.classList.add('back');
     } else {
       discardTopDiv.classList.add('empty');
-      discardTopDiv.textContent = 'leer';
+      discardTopDiv.textContent = L('leer', 'empty');
     }
     // Stapel-Tiefe visuell: mehr Karten = mehr sichtbare Ebenen unter der obersten
     discardTopDiv.classList.toggle('stacked-2', lastState.discardPileCount > 6);
@@ -719,7 +785,7 @@
 
     if (lastState.mustLayOffCardId && isMyTurn) {
       // WICHTIG bleibt persistent sichtbar
-      showHint('Pflicht: Die aufgenommene Ablagekarte muss zuerst ausgelegt/angelegt werden.', false);
+      showHint(L('Pflicht: Die aufgenommene Ablagekarte muss zuerst ausgelegt/angelegt werden.', 'Required: the picked-up discard must be melded first.'), false);
     } else if (isMyTurn && lastState.turnPhase === 'meld') {
       // Der allgemeine Bedien-Tipp wandert in einen einmaligen Toast pro Zug -
       // so kann die Action-Leiste auch im eigenen Zug einklappen.
@@ -727,7 +793,7 @@
       const turnKey = `${lastState.roundNumber}-${lastState.turnIndexInRound}`;
       if (tipShownForTurn !== turnKey && selectedCardIds.size === 0) {
         tipShownForTurn = turnKey;
-        showToast('Tipp: 3+ Karten auswählen zum Auslegen, 1 Karte + „Abwerfen", oder Karte wählen und auf eine grün markierte Auslage tippen.');
+        showToast(L('Tipp: 3+ Karten auswählen zum Auslegen, 1 Karte + „Abwerfen", oder Karte wählen und auf eine grün markierte Auslage tippen.', 'Tip: select 3+ cards to meld, 1 card + "Discard", or select a card and tap a green-highlighted meld.'));
       }
     } else {
       clearHintIfNotError();
@@ -748,7 +814,7 @@
       .reverse()
       .forEach((entry) => {
         const d = document.createElement('div');
-        d.textContent = entry.text;
+        d.textContent = trs(entry.text);
         logEntries.appendChild(d);
       });
   }
@@ -840,7 +906,7 @@
       launchConfetti();
     }
     const isGameOver = lastState.phase === 'gameOver';
-    el('resultTitle').textContent = isGameOver ? 'Spielende!' : 'Rundenende';
+    el('resultTitle').textContent = isGameOver ? L('Spielende!', 'Game over!') : L('Rundenende', 'End of round');
 
     const body = el('resultBody');
     body.innerHTML = '';
@@ -848,14 +914,14 @@
     if (lastState.lastRoundWasHandAus) {
       const handAusNote = document.createElement('p');
       handAusNote.className = 'handAusNote';
-      handAusNote.textContent = '🎉 Hand aus! Die komplette Rundenwertung zählt doppelt.';
+      handAusNote.textContent = L('🎉 Hand aus! Die komplette Rundenwertung zählt doppelt.', '🎉 Out in one! The entire round score counts double.');
       body.appendChild(handAusNote);
     }
     if (lastState.lastRoundForfeitedBy) {
       const forfeiter = lastState.players.find((p) => p.id === lastState.lastRoundForfeitedBy);
       const forfeitNote = document.createElement('p');
       forfeitNote.className = 'handAusNote';
-      forfeitNote.textContent = `🏳️ ${forfeiter ? forfeiter.name : 'Ein Spieler'} hat die Runde aufgegeben. Wertung wie ein normaler Mitspieler, kein Gewinner-Bonus.`;
+      forfeitNote.textContent = L(`🏳️ ${forfeiter ? forfeiter.name : 'Ein Spieler'} hat die Runde aufgegeben. Wertung wie ein normaler Mitspieler, kein Gewinner-Bonus.`, `🏳️ ${forfeiter ? forfeiter.name : 'A player'} forfeited the round. Scored like a regular player, no winner bonus.`);
       body.appendChild(forfeitNote);
     }
 
@@ -864,7 +930,7 @@
       const row = document.createElement('div');
       row.className = 'resultRow' + (r && r.breakdown.isWinner ? ' winner' : '');
       const total = lastState.totals[p.id] || 0;
-      row.innerHTML = `<span>${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}</span><span>${r ? r.roundScore : 0} Pkt (Gesamt: ${total})</span>`;
+      row.innerHTML = `<span>${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}</span><span>${r ? r.roundScore : 0} ${L('Pkt', 'pts')} (${L('Gesamt', 'total')}: ${total})</span>`;
       body.appendChild(row);
     });
 
@@ -892,12 +958,12 @@
     if (isGameOver && lastState.gameOverInfo) {
       const winner = lastState.players.find((p) => p.id === lastState.gameOverInfo.winnerId);
       const winLine = document.createElement('p');
-      winLine.innerHTML = `<strong>🏆 ${escapeHtml(winner ? winner.name : '?')} gewinnt das Spiel!</strong>`;
+      winLine.innerHTML = `<strong>🏆 ${L(`${escapeHtml(winner ? winner.name : '?')} gewinnt das Spiel!`, `${escapeHtml(winner ? winner.name : '?')} wins the game!`)}</strong>`;
       body.appendChild(winLine);
     }
 
     el('exportGameBtn').classList.toggle('hidden', !(isGameOver && lastState.hasExportableGame));
-    el('resultContinueBtn').textContent = isGameOver ? 'Neue Partie (Rematch)' : 'Nächste Runde';
+    el('resultContinueBtn').textContent = isGameOver ? L('Neue Partie (Rematch)', 'New game (rematch)') : L('Nächste Runde', 'Next round');
   }
 
   // --- Interaktion ---------------------------------------------------------
@@ -937,7 +1003,7 @@
       }
       selectedCardIds.clear();
     } else {
-      showHint('Wähle genau eine Handkarte aus, um sie an diese Auslage anzulegen (oder gegen einen passenden Joker zu tauschen).', false);
+      showHint(L('Wähle genau eine Handkarte aus, um sie an diese Auslage anzulegen (oder gegen einen passenden Joker zu tauschen).', 'Select exactly one hand card to add it to this meld (or swap it for a matching joker).'), false);
     }
   }
 
@@ -968,7 +1034,7 @@
   el('joinGameBtn').addEventListener('click', () => {
     const code = el('codeInput').value.trim().toUpperCase();
     if (!code) {
-      showHint('Bitte den Spiel-Code eingeben.', true);
+      showHint(L('Bitte den Spiel-Code eingeben.', 'Please enter the game code.'), true);
       return;
     }
     const storedId = localStorage.getItem(playerKeyFor(code));
@@ -997,7 +1063,7 @@
       }
     } else if (navigator.clipboard) {
       await navigator.clipboard.writeText(`${shareData.text} - ${shareData.url}`);
-      showHint('Link kopiert!', false);
+      showHint(L('Link kopiert!', 'Link copied!'), false);
     }
   });
 
@@ -1019,6 +1085,8 @@
 
   el('uiScaleBtn').addEventListener('click', cycleUiScale);
   el('uiScaleBtnLobby').addEventListener('click', cycleUiScale);
+  el('langBtnLobby').addEventListener('click', cycleLang);
+  applyStaticLang();
 
   el('handToggleBtn').addEventListener('click', () => {
     handCollapsed = !handCollapsed;
@@ -1029,7 +1097,7 @@
     if (handCollapsed) {
       const me = lastState && lastState.players.find((p) => p.id === playerId);
       const n = me && me.hand ? me.hand.length : 0;
-      el('handToggleBtn').textContent = `⌃ ${n} Karten`;
+      el('handToggleBtn').textContent = L(`⌃ ${n} Karten`, `⌃ ${n} cards`);
     } else {
       el('handToggleBtn').textContent = '⌄';
     }
@@ -1042,10 +1110,10 @@
     render();
   });
   function updateSortToggleLabel() {
-    el('sortToggleBtn').textContent = handSortMode === 'suit' ? '♠♥ Farbe' : '77 Wert';
+    el('sortToggleBtn').textContent = handSortMode === 'suit' ? L('♠♥ Farbe', '♠♥ Suit') : L('77 Wert', '77 Rank');
     el('sortToggleBtn').title = handSortMode === 'suit'
-      ? 'Sortiert nach Farbe (gut für Folgen) - tippen für Wert'
-      : 'Sortiert nach Wert (gut für Sätze) - tippen für Farbe';
+      ? L('Sortiert nach Farbe (gut für Folgen) - tippen für Wert', 'Sorted by suit (good for runs) - tap for rank')
+      : L('Sortiert nach Wert (gut für Sätze) - tippen für Farbe', 'Sorted by rank (good for sets) - tap for suit');
   }
   updateSortToggleLabel();
 
@@ -1081,10 +1149,10 @@
     const card = myPlayer && myPlayer.hand ? myPlayer.hand.find((cd) => cd.id === cardId) : null;
     const isPikDame = card && card.rank === 'Q' && card.suit === 'S';
     if (card && (isPikDame || card.isJoker)) {
-      el('confirmDiscardTitle').textContent = isPikDame ? 'Pik Dame abwerfen?' : 'Joker abwerfen?';
+      el('confirmDiscardTitle').textContent = isPikDame ? L('Pik Dame abwerfen?', 'Discard the Queen of Spades?') : L('Joker abwerfen?', 'Discard the joker?');
       el('confirmDiscardText').textContent = isPikDame
-        ? 'Die Pik Dame ist 100 Punkte wert - und der nächste Spieler könnte sie aufnehmen!'
-        : 'Der Joker ist die flexibelste Karte im Spiel - und der nächste Spieler könnte ihn aufnehmen!';
+        ? L('Die Pik Dame ist 100 Punkte wert - und der nächste Spieler könnte sie aufnehmen!', 'The Queen of Spades is worth 100 points - and the next player could pick her up!')
+        : L('Der Joker ist die flexibelste Karte im Spiel - und der nächste Spieler könnte ihn aufnehmen!', 'The joker is the most flexible card in the game - and the next player could pick it up!');
       pendingConfirmDiscardId = cardId;
       el('confirmDiscardOverlay').classList.remove('hidden');
       return;
@@ -1106,7 +1174,7 @@
   el('forfeitBtn').addEventListener('click', () => {
     if (!lastState || lastState.phase !== 'playing') return;
     const confirmed = window.confirm(
-      'Runde wirklich aufgeben? Du wirst wie ein normaler Mitspieler gewertet (Ausgelegtes minus Resthand) - ohne Gewinner-Bonus für irgendwen.'
+      L('Runde wirklich aufgeben? Du wirst wie ein normaler Mitspieler gewertet (Ausgelegtes minus Resthand) - ohne Gewinner-Bonus für irgendwen.', 'Really forfeit the round? You are scored like a regular player (melds minus remaining hand) - no winner bonus for anyone.')
     );
     if (confirmed) {
       sound.discard();
@@ -1170,11 +1238,12 @@
     const cardsDiv = el('discardPreviewCards');
     cardsDiv.innerHTML = '';
     const cards = (lastState && lastState.discardCards) || [];
-    el('discardPreviewCount').textContent = `(${cards.length} ${cards.length === 1 ? 'Karte' : 'Karten'})`;
+    el('discardPreviewTitle').textContent = L('Ablagestapel', 'Discard pile');
+    el('discardPreviewCount').textContent = `(${cards.length} ${cards.length === 1 ? L('Karte', 'card') : L('Karten', 'cards')})`;
     if (cards.length === 0) {
       const empty = document.createElement('p');
       empty.className = 'lobby-hint';
-      empty.textContent = 'Der Ablagestapel ist leer.';
+      empty.textContent = L('Der Ablagestapel ist leer.', 'The discard pile is empty.');
       cardsDiv.appendChild(empty);
       return;
     }
@@ -1199,7 +1268,7 @@
     wrap.className = 'scoreChart';
     const title = document.createElement('div');
     title.className = 'scoreChartTitle';
-    title.textContent = 'Punkteverlauf';
+    title.textContent = L('Punkteverlauf', 'Score history');
     wrap.appendChild(title);
 
     const W = 300;
@@ -1280,7 +1349,7 @@
     if (log.length > seenLogLength) {
       const latest = log[log.length - 1];
       seenLogLength = log.length;
-      if (latest && latest.text) showToast(latest.text);
+      if (latest && latest.text) showToast(trs(latest.text));
     } else {
       seenLogLength = log.length;
     }
@@ -1314,7 +1383,7 @@
     });
     document.addEventListener('fullscreenchange', () => {
       el('fullscreenBtn').textContent = document.fullscreenElement ? '⛶✕' : '⛶';
-      el('fullscreenBtn').title = document.fullscreenElement ? 'Vollbild verlassen' : 'Vollbild';
+      el('fullscreenBtn').title = document.fullscreenElement ? L('Vollbild verlassen', 'Exit fullscreen') : L('Vollbild', 'Fullscreen');
     });
   }
 
@@ -1382,8 +1451,8 @@
           const owner = lastState.players.find((p) => p.id === ownerId);
           const isMe = ownerId === playerId;
           showRaidWarning(
-            '♠ PIK DAME! ♠',
-            isMe ? 'Du sicherst dir 100 Punkte!' : `${owner ? owner.name : '?'} sichert sich 100 Punkte!`
+            L('♠ PIK DAME! ♠', '♠ QUEEN OF SPADES! ♠'),
+            isMe ? L('Du sicherst dir 100 Punkte!', 'You secure 100 points!') : L(`${owner ? owner.name : '?'} sichert sich 100 Punkte!`, `${owner ? owner.name : '?'} secures 100 points!`)
           );
           break; // eine Ankündigung reicht, auch wenn beide PD gleichzeitig fallen
         }
@@ -1430,7 +1499,7 @@
         el('changelogContent').innerHTML = renderMiniMarkdown(md);
         el('changelogOverlay').classList.remove('hidden');
       })
-      .catch(() => showToast('Changelog konnte nicht geladen werden.'));
+      .catch(() => showToast(L('Changelog konnte nicht geladen werden.', 'Could not load the changelog.')));
   }
   el('versionBtn').addEventListener('click', openChangelog);
   el('ingameVersion').addEventListener('click', openChangelog);
@@ -1440,7 +1509,6 @@
     el('rulesOverlay').classList.remove('hidden');
   }
   el('rulesBtnLobby').addEventListener('click', openRules);
-  el('rulesBtn').addEventListener('click', openRules);
   el('rulesCloseBtn').addEventListener('click', () => el('rulesOverlay').classList.add('hidden'));
   el('rulesOverlay').addEventListener('click', (ev) => {
     if (ev.target === el('rulesOverlay')) el('rulesOverlay').classList.add('hidden');
@@ -1518,7 +1586,7 @@
     const box = el('statsContent');
     const profiles = (knownProfiles || []).filter((p) => (p.gamesPlayed || 0) > 0);
     if (profiles.length === 0) {
-      box.innerHTML = '<p class="lobby-hint">Noch keine abgeschlossenen Partien - spielt erstmal eine Runde! 🃏</p>';
+      box.innerHTML = `<p class="lobby-hint">${L('Noch keine abgeschlossenen Partien - spielt erstmal eine Runde! 🃏', 'No finished games yet - go play a round! 🃏')}</p>`;
       return;
     }
     const sorted = profiles.slice().sort((a, b) => (b.gamesWon || 0) - (a.gamesWon || 0) || (b.totalScore || 0) - (a.totalScore || 0));
@@ -1531,7 +1599,7 @@
         return `<tr><td>${escapeHtml(p.name)}</td><td>${played}</td><td>${won}</td><td>${rate}%</td><td>${best}</td></tr>`;
       })
       .join('');
-    box.innerHTML = `<table class="statsPageTable"><thead><tr><th>Spieler</th><th>Spiele</th><th>Siege</th><th>Quote</th><th>Beste Partie</th></tr></thead><tbody>${rows}</tbody></table>`;
+    box.innerHTML = `<table class="statsPageTable"><thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('Spiele', 'Games')}</th><th>${L('Siege', 'Wins')}</th><th>${L('Quote', 'Rate')}</th><th>${L('Beste Partie', 'Best game')}</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
   // Bei Orientierungswechsel/Fenstergröße die Hand-Überlappung neu berechnen.
