@@ -26,6 +26,56 @@
   // markiert.
   let prevHandIds = new Set();
   let prevTurnPlayerId = null;
+  let quoteShownForRound = null; // Rundenstart-Spruch nur einmal pro Runde
+
+  // Kreative Sprüche zum Rundenbeginn. Deterministisch aus Geber+Runde
+  // geseedet, damit ALLE am Tisch denselben Spruch sehen - gemeinsames
+  // Schmunzeln statt vier verschiedener Zufälle.
+  function roundQuote(seedStr) {
+    const Q = [
+      ['Neue Runde, neues Glück - die Pik Dame wartet schon.', 'New round, new luck - the Queen of Spades is waiting.'],
+      ['Wer die Dame fängt, zahlt die Zeche: 100 Punkte!', 'Catch the Queen, pay the price: 100 points!'],
+      ['Erst denken, dann abwerfen. Meistens jedenfalls.', 'Think first, discard second. Usually, anyway.'],
+      ['Joker sind wie Kuchen: Man gibt sie nicht freiwillig her.', "Jokers are like cake: you don't give them away."],
+      ['Ein guter Fächer ist die halbe Miete.', 'A well-sorted hand is half the battle.'],
+      ['Die 2 nach dem Ass? Hier schon! K-A-2 gilt.', 'A 2 after the Ace? Here it does! K-A-2 is legal.'],
+      ['Heute schon jemandem die Ablage vermiest?', 'Ruined anyone\u2019s discard pile plans yet today?'],
+      ['Die Pik Dame lächelt nur, wenn sie ausgelegt wird.', 'The Queen of Spades only smiles when melded.'],
+      ['15 Karten, 1000 Möglichkeiten, 0 Gnade.', '15 cards, 1000 possibilities, 0 mercy.'],
+      ['Mut zur Folge - Feiglinge sammeln nur Sätze.', 'Dare to run - cowards only collect sets.'],
+      ['Der Ablagestapel sieht heute verdächtig lecker aus.', 'That discard pile looks suspiciously tasty today.'],
+      ['Wer zuletzt lacht, hat die Dame nicht auf der Hand.', 'He who laughs last isn\u2019t holding the Queen.'],
+      ['Glücksgriff verpasst? Selbst schuld, sagt der Geber.', 'Missed the lucky cut? Dealer says: your loss.'],
+      ['Tipp des Tages: Bots bluffen nicht. Menschen schon.', 'Tip of the day: bots don\u2019t bluff. Humans do.'],
+      ['Ein Satz ohne Joker ist wie Kaffee ohne Kuchen.', 'A set without a joker is like coffee without cake.'],
+      ['Runde eins der Diplomatie: freundlich abwerfen.', 'Diplomacy, round one: discard politely.'],
+      ['Heute wird ausgelegt, nicht ausgeredet.', 'Today we meld, not meddle.'],
+      ['Achtung: Oma sieht mehr, als sie zugibt.', 'Careful: grandma sees more than she admits.'],
+      ['Hand aus in Runde eins? Legenden existieren.', 'Out in one on turn one? Legends do exist.'],
+      ['Die beste Verteidigung ist ein voller eigener Stapel.', 'The best defense is a big meld pile of your own.'],
+      ['Karten lügen nie. Mitspieler manchmal.', 'Cards never lie. Players sometimes do.'],
+      ['Erst der Endspurt zeigt, wer zählen kann.', 'The final stretch shows who can really count.'],
+      ['Ein Ass auf der Hand kostet 20 - nur zur Info.', 'An Ace in hand costs 20 - just saying.'],
+      ['Möge der Stapel mit dir sein.', 'May the pile be with you.'],
+    ];
+    let h = 0;
+    for (let i = 0; i < seedStr.length; i++) h = (h * 31 + seedStr.charCodeAt(i)) | 0;
+    const pair = Q[Math.abs(h) % Q.length];
+    return L(pair[0], pair[1]);
+  }
+
+  function maybeShowRoundQuote() {
+    if (!lastState || lastState.phase !== 'playing') return;
+    const key = `${lastState.roundNumber}`;
+    if (quoteShownForRound === key) return;
+    quoteShownForRound = key;
+    if (lastState.roundNumber === 0) return;
+    // Wichtige Rundenstart-Meldungen (Endspurt ⚠️, Glücksgriff 🍀) haben
+    // Vorfahrt - der Spruch drängelt sich dann nicht dazwischen.
+    const latest = (lastState.log || [])[lastState.log.length - 1];
+    if (latest && latest.text && !/^Runde \d+ gestartet/.test(latest.text)) return;
+    showToast(`🃏 ${roundQuote(`${lastState.dealerId}-${lastState.roundNumber}`)}`, { duration: 5000 });
+  }
   let prevDiscardTopId;
   // Auslagen-Filter: null = alle anzeigen; sonst nur die Auslagen dieses
   // Spielers (Toggle per Klick auf den Namen).
@@ -326,6 +376,7 @@
       prevTurnPlayerId = lastState.currentPlayerId;
       updateWakeLock();
       maybeShowActionToast();
+      maybeShowRoundQuote();
       checkPikdameAnnouncement();
       render();
       return;
