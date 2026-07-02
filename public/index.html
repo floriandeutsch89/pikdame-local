@@ -79,7 +79,10 @@
       <p id="connStatus" class="conn-status">Verbinde...</p>
       <button id="uiScaleBtnLobby" class="btn-secondary" style="max-width: 340px;">🔍 Anzeigegröße: Normal</button>
       <button id="statsBtn" class="btn-secondary" style="max-width: 340px;">📊 Statistik</button>
-      <a class="legal-link" href="/impressum.html">Impressum &amp; Datenschutz</a>
+      <div class="lobbyFooterLinks">
+        <a class="legal-link" href="/impressum.html">Impressum &amp; Datenschutz</a>
+        <button id="versionBtn" class="legal-link versionBtn" title="Was ist neu?">v–</button>
+      </div>
     </section>
 
     <!-- SPIELTISCH -->
@@ -131,6 +134,15 @@
           <button id="sortToggleBtn" class="sortToggle" title="Sortierung umschalten">♠♥ Farbe</button>
         </div>
         <div id="hand"></div>
+      </div>
+    </section>
+
+    <!-- CHANGELOG -->
+    <section id="changelogOverlay" class="overlay hidden">
+      <div class="overlay-card">
+        <h2>Was ist neu?</h2>
+        <div id="changelogContent" class="changelogContent"></div>
+        <button id="changelogCloseBtn" class="btn-secondary">Schließen</button>
       </div>
     </section>
 
