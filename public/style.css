@@ -426,6 +426,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 
 #topBar {
   display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap; row-gap: 3px;
   padding: calc(8px + var(--safe-top)) 14px 8px;
   background: var(--glass);
   backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
@@ -1099,4 +1100,70 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .opponent { cursor: pointer; }
 .opponent.meldFilterActive {
   box-shadow: 0 0 0 2px var(--accent);
+}
+
+/* Als Geber + am Zug: "Du bist am Zug" bekommt eine eigene zweite Zeile,
+   statt neben "Geber: du" abgeschnitten zu werden. */
+#topBar.dealerSelf #turnInfo {
+  flex-basis: 100%;
+  order: 10;
+}
+
+/* Pik-Dame-Emote: kleine gestylte Spielkarte (es gibt kein passendes Emoji) */
+.miniPikdame {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 26px; height: 36px;
+  background: var(--card-bg);
+  color: var(--suit-black);
+  border: 1px solid var(--card-border);
+  border-radius: 5px;
+  font-size: 0.78rem; line-height: 1;
+  box-shadow: var(--shadow-1);
+}
+.miniPikdame b { font-size: 0.62rem; font-weight: 800; }
+.emoteFloat .miniPikdame {
+  width: 38px; height: 53px;
+  font-size: 1.15rem; border-radius: 7px;
+}
+.emoteFloat .miniPikdame b { font-size: 0.9rem; }
+
+/* --- Querformat (Handy gedreht): kompaktes Grid-Layout -------------------
+   Im Landscape frisst das Portrait-Layout (Topbar + Chips + Stapel-Zeile +
+   Hand) die gesamte Hoehe - die Auslagen bekamen 0px und nichts war
+   scrollbar. Jetzt: Auslagen links (scrollbar dank minmax(0,1fr)), Stapel
+   als schmale Spalte rechts, alles kompakter. */
+@media (orientation: landscape) and (max-height: 540px) {
+  #table {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      'top top'
+      'opp opp'
+      'melds piles'
+      'action action'
+      'hand hand';
+  }
+  #topBar { grid-area: top; padding: calc(4px + var(--safe-top)) 12px 4px; font-size: 0.7rem; }
+  #opponents { grid-area: opp; padding: 3px 10px; }
+  #melds { grid-area: melds; overflow-y: auto; min-height: 0; padding: 6px 10px; }
+  #retiredJokersBar { display: none; }
+  #centerPiles {
+    grid-area: piles;
+    flex-direction: column;
+    align-self: start;
+    padding: 6px 12px 4px 4px;
+    gap: 10px;
+  }
+  #centerPiles .pile-card { width: 44px; height: 62px; }
+  .pileLabel { font-size: 0.52rem; }
+  #actionBar { grid-area: action; padding: 4px 10px; }
+  #handWrapper { grid-area: hand; padding: 6px 8px calc(6px + var(--safe-bottom)); }
+  .handToolbar { margin: 0 2px 3px; }
+  #hand .card { width: 50px; height: 71px; min-width: 50px; }
+  #melds .card { width: 46px; height: 65px; min-width: 46px; }
+  .opponent { padding: 4px 9px; font-size: 0.66rem; }
 }
