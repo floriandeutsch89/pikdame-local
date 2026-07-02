@@ -439,6 +439,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 
 #topBar {
+  position: relative;
   display: flex; align-items: center; gap: 10px;
   flex-wrap: wrap; row-gap: 3px;
   padding: calc(8px + var(--safe-top)) 14px 8px;
@@ -1380,20 +1381,19 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 }
 #toastContainer.centered.visible { transform: translate(-50%, -50%); }
 
-/* --- Ingame-Version: dezent rechts unter der Topbar ------------------------ */
+/* --- Ingame-Version: rechtsbuendig auf der Zeile von 'Du bist am Zug' ------ */
+/* Absolut in der Topbar verankert: turnInfo bleibt exakt zentriert und die
+   Version kostet keine Layout-Hoehe (funktioniert dadurch auch im
+   Querformat-Grid problemlos). */
 .ingameVersion {
-  align-self: flex-end;
+  position: absolute;
+  right: 12px;
+  bottom: 7px;
   background: transparent;
   color: var(--text-muted);
   opacity: 0.55;
   font-size: 0.58rem;
-  padding: 1px 12px 0;
-  margin-bottom: -3px;
+  padding: 2px 4px;
   line-height: 1.2;
 }
 .ingameVersion:active { opacity: 1; }
-/* Querformat: das Grid-Layout kennt dieses Element nicht und jeder Pixel
-   Hoehe zaehlt - dort ausblenden (Version bleibt in der Lobby erreichbar). */
-@media (orientation: landscape) and (max-height: 540px) {
-  .ingameVersion { display: none; }
-}
