@@ -33,6 +33,7 @@
   let freshCardIds = new Set();
   let knownTeams = [];
   let knownProfiles = [];
+  let publicMode = false;
 
   const el = (id) => document.getElementById(id);
 
@@ -208,6 +209,11 @@
     if (msg.type === 'profiles') {
       knownProfiles = msg.players || [];
       knownTeams = msg.teams || [];
+      // Öffentlicher Server: Profile/Teams/Statistik sind deaktiviert -
+      // die zugehörigen UI-Bereiche verschwinden komplett.
+      publicMode = !!msg.publicMode;
+      el('statsBtn').classList.toggle('hidden', publicMode);
+      if (publicMode) el('teamSection').classList.add('hidden');
       renderTeamSelect();
       if (!el('statsOverlay').classList.contains('hidden')) renderStats();
       return;
@@ -356,7 +362,7 @@
     const hasJoined = lastState.players.some((p) => p.id === playerId);
     el('seatCountSection').classList.toggle('hidden', !hasJoined);
     el('seatingSection').classList.toggle('hidden', !hasJoined || lastState.players.length === 0);
-    el('teamSection').classList.toggle('hidden', !hasJoined);
+    el('teamSection').classList.toggle('hidden', !hasJoined || publicMode);
     el('houseRulesSection').classList.toggle('hidden', !hasJoined);
 
     document.querySelectorAll('.seatCountBtn').forEach((btn) => {

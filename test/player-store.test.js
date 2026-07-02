@@ -71,6 +71,9 @@ test('Daten überleben einen Neustart (neue Store-Instanz, gleiche Datei)', () =
   const store1 = createPlayerStore(filePath);
   store1.upsertPlayerProfile('Florian');
   store1.createTeam('Stammtisch', ['Florian', 'Anna']);
+  // Writes sind jetzt gecacht/debounced - flushSync entspricht dem
+  // Graceful Shutdown vor einem Neustart.
+  store1.flushSync();
 
   const store2 = createPlayerStore(filePath); // simuliert Server-Neustart
   assert.equal(store2.listPlayers().length, 1);
