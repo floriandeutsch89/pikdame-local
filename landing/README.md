@@ -38,5 +38,24 @@ server {
 }
 ```
 
+Beispiel **Caddy** (Caddyfile) - Caddy kümmert sich automatisch um
+HTTPS-Zertifikate UND um das WebSocket-Upgrade, es ist keine
+Zusatzkonfiguration nötig:
+
+```caddyfile
+pikdame.online {
+    root * /var/www/pikdame-landing
+    file_server
+}
+
+spiel.pikdame.online {
+    reverse_proxy 127.0.0.1:8080
+}
+
+block.pikdame.online {
+    reverse_proxy 127.0.0.1:9090   # Port des Schreibblocks anpassen
+}
+```
+
 Unterpfad-Hosting (`pikdame.online/spiel/`) würde Anpassungen an allen
 absoluten Pfaden des Spiels erfordern - bei Bedarf melden.
