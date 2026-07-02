@@ -1370,3 +1370,30 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 .changelogContent ul { margin: 2px 0 8px; padding-left: 18px; }
 .changelogContent li { margin-bottom: 3px; }
 .changelogContent p { margin: 4px 0; color: var(--text-muted); }
+
+/* --- Zentrierter Toast (z.B. Anzeigegroessen-Bestaetigung) ----------------- */
+#toastContainer.centered {
+  top: 50%;
+  transform: translate(-50%, calc(-50% - 10px));
+  font-size: 1rem;
+  padding: 14px 24px;
+}
+#toastContainer.centered.visible { transform: translate(-50%, -50%); }
+
+/* --- Ingame-Version: dezent rechts unter der Topbar ------------------------ */
+.ingameVersion {
+  align-self: flex-end;
+  background: transparent;
+  color: var(--text-muted);
+  opacity: 0.55;
+  font-size: 0.58rem;
+  padding: 1px 12px 0;
+  margin-bottom: -3px;
+  line-height: 1.2;
+}
+.ingameVersion:active { opacity: 1; }
+/* Querformat: das Grid-Layout kennt dieses Element nicht und jeder Pixel
+   Hoehe zaehlt - dort ausblenden (Version bleibt in der Lobby erreichbar). */
+@media (orientation: landscape) and (max-height: 540px) {
+  .ingameVersion { display: none; }
+}
