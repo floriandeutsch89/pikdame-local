@@ -966,3 +966,33 @@ test('maybeBotEmote: feuert den Hook, drosselt pro Bot, destroy raeumt Timer', a
   g.destroy();
   assert.equal(g._emoteTimers.size, 0);
 });
+
+// --- v1.8.1: Emote-Timer ueberleben Snapshot/Restore ------------------------
+test('serialize/deserialize: Bot-Emotes funktionieren nach einem Server-Neustart', async () => {
+  const emotes = [];
+  const g = new GameManager(() => {});
+  g.addOrReconnectPlayer('p1', 'A');
+  g.fillWithBots();
+  g.startNewRound();
+
+  // Snapshot wie im echten Betrieb: durch JSON hindurch (Set -> {} Gefahr)
+  const snapshot = JSON.parse(JSON.stringify(g.serialize()));
+  assert.equal(snapshot._emoteTimers, undefined, 'transiente Felder nicht im Snapshot');
+  assert.equal(snapshot._lastBotEmote, undefined);
+
+  const g2 = new GameManager(() => {}, { onBotEmote: (id, e) => emotes.push(e) });
+  g2.deserialize(snapshot);
+  assert.ok(g2._emoteTimers instanceof Set, '_emoteTimers ist nach Restore ein Set');
+
+  // Auch ALTE Snapshots (mit kaputtem {}-Feld) duerfen nicht crashen
+  const legacy = { ...snapshot, _emoteTimers: {}, _lastBotEmote: {} };
+  const g3 = new GameManager(() => {}, { onBotEmote: (id, e) => emotes.push(e) });
+  g3.deserialize(legacy);
+  assert.ok(g3._emoteTimers instanceof Set, 'kaputtes Legacy-Feld wird repariert');
+  const botId = g3.players.find((p) => p.isBot).id;
+  g3._emoteDelayForTest = 0;
+  assert.doesNotThrow(() => g3.maybeBotEmote(botId, '😤', 1));
+  await new Promise((r) => setTimeout(r, 30));
+  assert.ok(emotes.includes('😤'), 'Emote nach Restore gefeuert');
+  g2.destroy(); g3.destroy();
+});

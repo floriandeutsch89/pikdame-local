@@ -824,7 +824,18 @@ class GameManager {
   serialize() {
     const state = {};
     for (const [key, value] of Object.entries(this)) {
-      if (key === 'broadcast' || key === 'onGameOver' || key === '_botTimer') continue;
+      // Transiente Laufzeit-Felder gehören NICHT in den Snapshot:
+      // _emoteTimers ist ein Set (würde in JSON zu {} degenerieren und nach
+      // dem Restore '.add is not a function' werfen), _lastBotEmote ist nur
+      // eine Drossel-Uhr, onBotEmote ein Hook.
+      if (
+        key === 'broadcast' ||
+        key === 'onGameOver' ||
+        key === 'onBotEmote' ||
+        key === '_botTimer' ||
+        key === '_emoteTimers' ||
+        key === '_lastBotEmote'
+      ) continue;
       if (typeof value === 'function') continue;
       state[key] = value;
     }
@@ -839,6 +850,13 @@ class GameManager {
    */
   deserialize(state) {
     Object.assign(this, state);
+    // Transiente Felder IMMER frisch initialisieren: bereits gespeicherte
+    // Snapshots (vor diesem Fix) enthalten _emoteTimers als {} - ohne diese
+    // Zeilen wuerde der erste Bot-Emote nach einem Server-Neustart mit
+    // '_emoteTimers.add is not a function' scheitern.
+    this._emoteTimers = new Set();
+    this._lastBotEmote = {};
+    this._botTimer = null;
     for (const p of this.players) {
       if (!p.isBot) p.connected = false;
     }
