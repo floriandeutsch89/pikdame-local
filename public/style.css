@@ -1454,3 +1454,23 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   #topBar { gap: 6px; }
   #topBar .btn-icon { padding: 4px 7px; }
 }
+
+/* --- Benutzerkonto ---------------------------------------------------------- */
+.accountTabs { display: flex; gap: 8px; width: 100%; margin-bottom: 12px; }
+.accountTab { flex: 1; opacity: 0.6; }
+.accountTab.active { opacity: 1; border-color: var(--accent); }
+#accountLoginForm, #accountRegisterForm {
+  display: flex; flex-direction: column; gap: 10px; width: 100%;
+}
+#accountLoginForm input, #accountRegisterForm input {
+  background: var(--glass-strong);
+  color: var(--text);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm);
+  padding: 11px 12px;
+  font-size: 0.9rem;
+}
+#accountLoggedOut, #accountLoggedIn { width: 100%; }
+#accountWhoami { font-weight: 700; margin-bottom: 10px; text-align: center; }
+#accountStatus { min-height: 1.2em; }
+input:disabled { opacity: 0.65; }

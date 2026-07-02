@@ -1132,7 +1132,7 @@
   }
 
   el('createGameBtn').addEventListener('click', () => {
-    send({ type: 'createSession', name: currentName() });
+    send({ type: 'createSession', name: currentName(), accountToken: accountToken() || undefined });
   });
 
   // Desktop-Tastatur: Enter im Code-Feld tritt bei, Enter im Namensfeld
@@ -1153,12 +1153,12 @@
       return;
     }
     const storedId = localStorage.getItem(playerKeyFor(code));
-    send({ type: 'joinSession', code, name: currentName(), playerId: storedId || undefined });
+    send({ type: 'joinSession', code, name: currentName(), playerId: storedId || undefined, accountToken: accountToken() || undefined });
   });
 
   el('updateNameBtn').addEventListener('click', () => {
     if (!sessionCode || !playerId) return;
-    send({ type: 'joinSession', code: sessionCode, playerId, name: currentName() });
+    send({ type: 'joinSession', code: sessionCode, playerId, name: currentName(), accountToken: accountToken() || undefined });
   });
 
   el('shareCodeBtn').addEventListener('click', async () => {
@@ -1606,6 +1606,115 @@
     setTimeout(() => w.remove(), 2500);
   }
 
+  // --- Benutzerkonto (nur wenn der Server Accounts anbietet) -------------------
+  // In der CodeApp/im Hotspot-Betrieb meldet der Server accountsEnabled=false
+  // und die komplette Konto-UI bleibt unsichtbar - dort ändert sich nichts.
+  const ACC_TOKEN_KEY = 'pikdame_account_token';
+  let accountUsername = null;
+  function accountToken() {
+    return localStorage.getItem(ACC_TOKEN_KEY) || '';
+  }
+  async function accountApi(path, body) {
+    try {
+      const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      return await r.json();
+    } catch (e) {
+      return { error: L('Server nicht erreichbar.', 'Server unreachable.') };
+    }
+  }
+  function setAccountStatus(text, isError) {
+    const s = el('accountStatus');
+    s.textContent = text || '';
+    s.style.color = isError ? 'var(--danger, #ff7d8c)' : '';
+  }
+  function refreshAccountUi() {
+    const loggedIn = !!accountUsername;
+    el('accountLoggedOut').classList.toggle('hidden', loggedIn);
+    el('accountLoggedIn').classList.toggle('hidden', !loggedIn);
+    el('accountWhoami').textContent = loggedIn
+      ? L(`Angemeldet als ${accountUsername}`, `Signed in as ${accountUsername}`)
+      : '–';
+    el('accountBtn').textContent = loggedIn
+      ? `👤 ${accountUsername}`
+      : L('👤 Anmelden / Registrieren', '👤 Sign in / Register');
+    // Angemeldet: der Spielername IST der Kontoname (Fortschritt haengt dran)
+    if (loggedIn) {
+      el('nameInput').value = accountUsername;
+      el('nameInput').disabled = true;
+      el('nameInput').title = L('Name ist durch dein Konto festgelegt', 'Name is fixed by your account');
+    } else {
+      el('nameInput').disabled = false;
+      el('nameInput').title = '';
+    }
+  }
+  async function initAccount(enabled) {
+    if (!enabled) return; // Button bleibt versteckt (CodeApp/Hotspot)
+    el('accountBtn').classList.remove('hidden');
+    if (accountToken()) {
+      const me = await accountApi('/api/me', { token: accountToken() });
+      if (me.ok) accountUsername = me.username;
+      else localStorage.removeItem(ACC_TOKEN_KEY);
+    }
+    refreshAccountUi();
+  }
+  el('accountBtn').addEventListener('click', () => {
+    setAccountStatus('');
+    el('accountOverlay').classList.remove('hidden');
+  });
+  el('accountCloseBtn').addEventListener('click', () => el('accountOverlay').classList.add('hidden'));
+  el('accountOverlay').addEventListener('click', (ev) => {
+    if (ev.target === el('accountOverlay')) el('accountOverlay').classList.add('hidden');
+  });
+  el('accountTabLogin').addEventListener('click', () => {
+    el('accountLoginForm').classList.remove('hidden');
+    el('accountRegisterForm').classList.add('hidden');
+    el('accountTabLogin').classList.add('active');
+    el('accountTabRegister').classList.remove('active');
+    setAccountStatus('');
+  });
+  el('accountTabRegister').addEventListener('click', () => {
+    el('accountLoginForm').classList.add('hidden');
+    el('accountRegisterForm').classList.remove('hidden');
+    el('accountTabRegister').classList.add('active');
+    el('accountTabLogin').classList.remove('active');
+    setAccountStatus('');
+  });
+  el('accRegisterBtn').addEventListener('click', async () => {
+    setAccountStatus(L('Registriere...', 'Registering...'));
+    const r = await accountApi('/api/register', {
+      username: el('accRegUser').value,
+      email: el('accRegEmail').value,
+      password: el('accRegPass').value,
+    });
+    if (r.error) return setAccountStatus(trs(r.error), true);
+    setAccountStatus(
+      r.mailDelivered
+        ? L('✅ Fast geschafft! Bitte den Bestätigungslink in deiner E-Mail öffnen, danach kannst du dich anmelden.', '✅ Almost done! Please open the confirmation link in your e-mail, then sign in.')
+        : L('✅ Konto angelegt. Der Bestätigungslink steht im Server-Log (noch kein Mailserver eingetragen).', '✅ Account created. The confirmation link is in the server log (no mail server configured yet).')
+    );
+  });
+  el('accLoginBtn').addEventListener('click', async () => {
+    setAccountStatus(L('Melde an...', 'Signing in...'));
+    const r = await accountApi('/api/login', {
+      username: el('accLoginUser').value,
+      password: el('accLoginPass').value,
+    });
+    if (r.error) return setAccountStatus(trs(r.error), true);
+    localStorage.setItem(ACC_TOKEN_KEY, r.token);
+    accountUsername = r.username;
+    setAccountStatus('');
+    refreshAccountUi();
+    el('accountOverlay').classList.add('hidden');
+    showToast(L(`Angemeldet als ${r.username}`, `Signed in as ${r.username}`));
+  });
+  el('accLogoutBtn').addEventListener('click', async () => {
+    await accountApi('/api/logout', { token: accountToken() });
+    localStorage.removeItem(ACC_TOKEN_KEY);
+    accountUsername = null;
+    refreshAccountUi();
+    el('accountOverlay').classList.add('hidden');
+  });
+
   // --- Version & Changelog ----------------------------------------------------
   // Die Version kommt vom Server (/statusz, Quelle: package.json) - so zeigt
   // der Client immer den tatsaechlich laufenden Stand, nie einen gecachten.
@@ -1616,6 +1725,7 @@
         el('versionBtn').textContent = `Version ${s.version}`;
         el('ingameVersion').textContent = `v${s.version}`;
       }
+      initAccount(!!(s && s.accountsEnabled));
     })
     .catch(() => {});
 
