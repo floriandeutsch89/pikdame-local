@@ -1339,3 +1339,34 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   html[data-uiscale="large"] .pile-card,
   html[data-uiscale="xlarge"] .pile-card { width: 40px; height: 56px; }
 }
+
+/* --- Version & Changelog --------------------------------------------------- */
+.lobbyFooterLinks {
+  display: flex; gap: 16px;
+  align-items: center; justify-content: center;
+}
+.versionBtn {
+  background: transparent;
+  padding: 4px 6px;
+  font-size: inherit;
+}
+.changelogContent {
+  max-height: 55vh; overflow-y: auto;
+  text-align: left;
+  font-size: 0.8rem; line-height: 1.5;
+  width: 100%;
+}
+.changelogContent h3 {
+  margin: 12px 0 4px;
+  font-size: 0.9rem;
+  color: var(--accent);
+}
+.changelogContent h4 {
+  margin: 10px 0 2px;
+  font-size: 0.76rem;
+  letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.changelogContent ul { margin: 2px 0 8px; padding-left: 18px; }
+.changelogContent li { margin-bottom: 3px; }
+.changelogContent p { margin: 4px 0; color: var(--text-muted); }

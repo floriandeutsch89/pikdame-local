@@ -1406,6 +1406,53 @@
     setTimeout(() => w.remove(), 2500);
   }
 
+  // --- Version & Changelog ----------------------------------------------------
+  // Die Version kommt vom Server (/statusz, Quelle: package.json) - so zeigt
+  // der Client immer den tatsaechlich laufenden Stand, nie einen gecachten.
+  fetch('/statusz')
+    .then((r) => r.json())
+    .then((s) => {
+      if (s && s.version) el('versionBtn').textContent = `Version ${s.version}`;
+    })
+    .catch(() => {});
+
+  el('versionBtn').addEventListener('click', () => {
+    fetch('/changelogz')
+      .then((r) => r.text())
+      .then((md) => {
+        el('changelogContent').innerHTML = renderMiniMarkdown(md);
+        el('changelogOverlay').classList.remove('hidden');
+      })
+      .catch(() => showToast('Changelog konnte nicht geladen werden.'));
+  });
+  el('changelogCloseBtn').addEventListener('click', () => el('changelogOverlay').classList.add('hidden'));
+  el('changelogOverlay').addEventListener('click', (ev) => {
+    if (ev.target === el('changelogOverlay')) el('changelogOverlay').classList.add('hidden');
+  });
+
+  // Bewusst winziger Markdown-Renderer (nur Ueberschriften, Listen, Links
+  // werden NICHT gerendert) - alles wird zuerst escaped, kein XSS-Risiko.
+  function renderMiniMarkdown(md) {
+    const lines = md.split('\n');
+    const out = [];
+    let inList = false;
+    for (const raw of lines) {
+      const line = escapeHtml(raw);
+      const isItem = /^\s*-\s+/.test(raw);
+      if (inList && !isItem) { out.push('</ul>'); inList = false; }
+      if (/^###\s+/.test(raw)) out.push(`<h4>${line.replace(/^###\s+/, '')}</h4>`);
+      else if (/^##\s+/.test(raw)) out.push(`<h3>${line.replace(/^##\s+/, '')}</h3>`);
+      else if (/^#\s+/.test(raw)) continue; // Haupttitel steht schon im Overlay
+      else if (isItem) {
+        if (!inList) { out.push('<ul>'); inList = true; }
+        out.push(`<li>${line.replace(/^\s*-\s+/, '')}</li>`);
+      } else if (raw.trim() === '') out.push('');
+      else out.push(`<p>${line}</p>`);
+    }
+    if (inList) out.push('</ul>');
+    return out.join('');
+  }
+
   // --- Emotes -----------------------------------------------------------------
   el('emoteBtn').addEventListener('click', () => {
     el('emoteBar').classList.toggle('hidden');

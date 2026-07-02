@@ -103,6 +103,7 @@ function serveStatic(req, res) {
     res.end(
       JSON.stringify({
         status: 'ok',
+        version: APP_VERSION,
         uptimeSeconds: Math.round(process.uptime()),
         sessions: registry.size,
         connectedPlayers: players,
@@ -112,6 +113,11 @@ function serveStatic(req, res) {
         node: process.version,
       })
     );
+    return;
+  }
+  if (filePath === '/changelogz') {
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end(CHANGELOG_TEXT);
     return;
   }
   if (filePath === '/healthz') {
@@ -153,6 +159,14 @@ const server = http.createServer(serveStatic);
 //                            eigenem Reverse-Proxy setzen, sonst fälschbar!)
 // PIKDAME_ALLOWED_ORIGIN  -> wenn gesetzt: WebSocket-Verbindungen nur von
 //                            dieser Origin (z. B. https://spiel.example.org)
+const APP_VERSION = require('./package.json').version;
+let CHANGELOG_TEXT = '';
+try {
+  CHANGELOG_TEXT = require('fs').readFileSync(require('path').join(__dirname, 'CHANGELOG.md'), 'utf8');
+} catch (e) {
+  CHANGELOG_TEXT = `# Changelog\n\nVersion ${APP_VERSION}`;
+}
+
 const PUBLIC_MODE = process.env.PIKDAME_PUBLIC_MODE === '1';
 const TRUST_PROXY = process.env.PIKDAME_TRUST_PROXY === '1';
 const ALLOWED_ORIGIN = process.env.PIKDAME_ALLOWED_ORIGIN || null;
