@@ -9,6 +9,14 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Added
 - 💡 Spiel-Tipps abschaltbar: Der wiederkehrende Bedien-Tipp ("Tipp: 3+ Karten auswählen...") lässt sich hinterm Zahnrad dauerhaft ausblenden (💡 → 💤) - die Einstellung wird auf dem Gerät gespeichert und gilt über Sitzungen hinweg. Pflicht-Hinweise (z. B. der Anlege-Zwang nach einer Stapelaufnahme) bleiben bewusst immer sichtbar; die Datenschutzerklärung nennt die Hinweis-Einstellung jetzt mit
 
+## [1.26.0] - 2026-07-03
+
+### Added
+- 💡 Spiel-Tipps abschaltbar: Der wiederkehrende Bedien-Tipp ("3+ Karten auswählen zum Auslegen ...") lässt sich hinter dem Zahnrad dauerhaft ausschalten (💡/💤). Die Einstellung wird lokal auf dem Gerät gespeichert; Pflicht-Hinweise (z. B. der Anlege-Zwang nach einer Stapelaufnahme) bleiben bewusst immer sichtbar
+
+### Changed
+- Markierung der frisch gezogenen Karte erneut überarbeitet: Der Punkt (der oben links die Wert-Ecke der Karte verdeckte) ist einem schmalen leuchtenden Balken an der Unterkante gewichen - dort verdeckt er nichts und wird im Fächer nie von Nachbarkarten überlagert
+
 ## [1.25.0] - 2026-07-03
 
 ### Added

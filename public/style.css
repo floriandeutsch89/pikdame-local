@@ -740,19 +740,19 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 .card.just-drawn::before {
   content: '';
-  /* Top LEFT: in the card fan every card's left edge stays visible, while
-     the right edge is covered by the next card - the dot was hard to spot. */
-  position: absolute; top: -4px; left: -4px;
-  width: 13px; height: 13px;
-  border-radius: 50%;
+  /* Accent bar along the BOTTOM edge: the old corner dot covered the
+     card's rank/suit index (top left) and was hidden by the fan neighbour
+     when placed on the right. The bottom edge has neither problem. */
+  position: absolute; bottom: 3px; left: 12%; right: 12%;
+  height: 4px;
+  border-radius: 999px;
   background: var(--accent);
-  border: 2px solid var(--bg-deep);
-  z-index: 3;
+  box-shadow: 0 0 6px var(--accent);
 }
 @media (prefers-reduced-motion: reduce) {
   .card.just-drawn { animation: none; box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow-1); }
 }
-/* Auswahl- und Pik-Dame-Optik gewinnen gegen den Zieh-Glow (Punkt bleibt) */
+/* Auswahl- und Pik-Dame-Optik gewinnen gegen den Zieh-Glow (Balken bleibt) */
 .card.just-drawn.selected, .card.just-drawn.pikdame-card { animation: none; }
 
 /* eigene Karten in Auslagen */
