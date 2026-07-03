@@ -5,8 +5,9 @@
 
 FROM node:22-alpine
 
-# tini provides proper signal handling (Ctrl+C / docker stop) as PID 1
-RUN apk add --no-cache tini
+# Upgrade OS packages first (fixes known CVEs in the base image), then add
+# tini for proper signal handling (Ctrl+C / docker stop) as PID 1
+RUN apk upgrade --no-cache && apk add --no-cache tini
 
 WORKDIR /app
 

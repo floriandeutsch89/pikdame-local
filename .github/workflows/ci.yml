@@ -62,10 +62,17 @@ jobs:
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: pikdame:scan
-          format: table
-          exit-code: '1'
+          format: json
+          output: trivy.json
+          exit-code: '0'
           severity: HIGH,CRITICAL
           ignore-unfixed: true
+      - name: Findings auswerten (als Annotations)
+        run: |
+          COUNT=$(jq '[.Results[]?.Vulnerabilities[]?] | length' trivy.json)
+          jq -r '.Results[]?.Vulnerabilities[]? | "::error::\(.VulnerabilityID) in \(.PkgName) \(.InstalledVersion) -> Fix: \(.FixedVersion // "-") [\(.Severity)]"' trivy.json | head -20
+          echo "Fixbare HIGH/CRITICAL-Findings: $COUNT"
+          [ "$COUNT" = "0" ]
 
   docker-smoke:
     runs-on: ubuntu-latest
@@ -76,7 +83,11 @@ jobs:
       # AppArmor aktiv), pids_limit, tmpfs - up, healthy, antwortet.
       # Granulare Steps: schlaegt einer fehl, zeigt der Step-Name die Ursache
       - name: Compose-Datei validieren
-        run: docker compose config > /dev/null
+        run: |
+          if ! ERR=$(docker compose config 2>&1 > /dev/null); then
+            echo "::error::compose config: ${ERR}"
+            exit 1
+          fi
       - name: Image bauen
         run: docker compose build
       - name: Compose up (gehaertete Konfiguration)
