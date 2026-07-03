@@ -2,21 +2,49 @@
 
 ## Start (Docker)
 
+Everything Docker-specific lives under `docker/` (Dockerfile, compose files,
+Caddyfile, `.env.example`, `secrets/`).
+
 ```sh
-# With the prebuilt image from GHCR (recommended):
-docker compose -f docker-compose.ghcr.yml up -d
-# Or build locally:
-docker compose up -d
+# Production (Caddy with automatic TLS/ACME -> app -> PostgreSQL):
+cd docker
+cp .env.example .env                              # PIKDAME_DOMAIN, ACME_EMAIL
+echo -n 'strong-password' > secrets/db_password.txt
+echo -n 'smtp-password'   > secrets/smtp_password.txt   # optional
+docker compose -f docker-compose.prod.yml up -d
+
+# Minimal without a domain (prebuilt image):
+docker compose -f docker/docker-compose.ghcr.yml up -d
+# Local build:
+docker compose -f docker/docker-compose.yml up -d
 ```
 
-Secrets (SMTP password, base URL): copy `.env.example` to `.env`, fill it in
-and uncomment the `env_file` block in the compose file. `.env` is git-ignored.
+### Secrets policy (which mechanism for what)
+
+- **Compose file secrets** (`docker/secrets/*.txt` → `/run/secrets/…`) for
+  real secrets: DB password, SMTP password. They never appear in the
+  container environment or `docker inspect`; the app and the Postgres image
+  read them via `*_FILE` variables. Files are git-ignored.
+- **`.env`** only for non-sensitive configuration: domain, ACME e-mail,
+  feature toggles. Also git-ignored, but treated as config, not as a vault.
+- **Docker (Swarm) secrets** would add encrypted-at-rest distribution - only
+  relevant if you ever run Swarm; plain Compose file secrets are the right
+  fit for a single host.
+
+### Network layout (prod stack, least privilege)
+
+`caddy_egress` (internet: ACME, future CrowdSec) ← Caddy → `caddy_pikdame`
+(internal) ← app → `pikdame` (internal) ← PostgreSQL. The app and the
+database have **no route to the internet**. Note: that also blocks outbound
+SMTP - to send confirmation mails, attach the app to an egress network or
+run an internal mail relay.
 
 ## Update & rollback
 
 ```sh
-docker compose -f docker-compose.ghcr.yml pull
-docker compose -f docker-compose.ghcr.yml up -d
+cd docker
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
 ```
 
 Running games survive the update: on stop the server writes a session
@@ -28,8 +56,8 @@ version is available as its own tag on GHCR.
 ## Backup & restore
 
 ```sh
-./scripts/backup.sh docker-compose.ghcr.yml     # creates pikdame-backup-<stamp>.tar.gz
-./scripts/restore.sh pikdame-backup-<stamp>.tar.gz docker-compose.ghcr.yml
+./scripts/backup.sh docker/docker-compose.prod.yml     # creates pikdame-backup-<stamp>.tar.gz
+./scripts/restore.sh pikdame-backup-<stamp>.tar.gz docker/docker-compose.prod.yml
 ```
 
 The backup stops the app container for a few seconds — this guarantees a

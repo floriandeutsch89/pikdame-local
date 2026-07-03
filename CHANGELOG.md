@@ -4,6 +4,18 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.18.0] - 2026-07-03
+
+### Added
+- Produktions-Stack docker/docker-compose.prod.yml: Caddy als Reverse-Proxy mit automatischem TLS/ACME (Domain und ACME-E-Mail per Variable), gehärtetes Caddyfile (admin off, HSTS, nosniff, X-Frame-Options DENY, Referrer-/Permissions-Policy, Server-Header entfernt, JSON-Access-Logs, X-Forwarded-For für die IP-Rate-Limits der App)
+- Least-Privilege-Netze: caddy_egress (Internet: ACME, später CrowdSec), caddy_pikdame (internal, nur Proxy-Pfad), pikdame (internal, nur App↔Postgres) - App und Datenbank haben keinerlei Internet-Route (dokumentierter Hinweis: das blockiert auch ausgehendes SMTP)
+- Compose-File-Secrets für echte Geheimnisse: DB- und SMTP-Passwort liegen als Dateien unter docker/secrets/ und erscheinen nie in Environment oder docker inspect; die App unterstützt dafür generisch *_FILE-Varianten (PIKDAME_DATABASE_PASSWORD_FILE, PIKDAME_SMTP_PASS_FILE), das Passwort wird in die ansonsten geheimnislose Datenbank-URL injiziert
+- CI validiert zusätzlich die Prod-Compose (Caddy + Secrets + Netze) bei jedem PR
+
+### Changed
+- Alles Docker-Spezifische in den Unterordner docker/ verschoben (Dockerfile, alle drei Compose-Dateien, Caddyfile, .env.example, secrets/); CI, Release-Workflow, Backup-/Restore-Skripte und Doku auf die neuen Pfade umgestellt
+- Secrets-Leitlinie in docs/OPERATIONS.md: File-Secrets für Geheimnisse, .env nur für unkritische Konfiguration, Swarm-Secrets erst mit Swarm relevant
+
 ## [1.17.0] - 2026-07-03
 
 ### Added

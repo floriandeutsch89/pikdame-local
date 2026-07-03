@@ -1,0 +1,39 @@
+# Pik Dame - hardened Caddyfile (production reverse proxy)
+# Domain and ACME e-mail come from the environment (.env next to the
+# compose file): PIKDAME_DOMAIN, ACME_EMAIL.
+{
+	# No runtime admin API - configuration changes go through redeploys.
+	admin off
+	# ACME account e-mail for Let's Encrypt (expiry notices etc.)
+	email {$ACME_EMAIL}
+}
+
+{$PIKDAME_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		# TLS-only from here on (browsers remember for a year)
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		# The game is never meant to be embedded
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		# Do not advertise the server software
+		-Server
+		# Note: no Content-Security-Policy on purpose - the client uses
+		# inline styles; add one only together with app-side changes.
+	}
+
+	# WebSockets are proxied automatically by Caddy.
+	reverse_proxy pikdame:8080 {
+		# Pass the real client IP for the app's IP-based rate limits
+		# (the app must run with PIKDAME_TRUST_PROXY=1).
+		header_up X-Forwarded-For {remote_host}
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

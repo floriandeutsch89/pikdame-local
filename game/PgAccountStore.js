@@ -53,7 +53,7 @@ const SCHEMA = `
  * @param {string} databaseUrl postgres://user:pass@host:5432/db
  * @returns {Object|null} async store API, or null when 'pg' is unavailable
  */
-function createPgAccountStore(databaseUrl) {
+function createPgAccountStore(databaseUrl, options = {}) {
   let Pool;
   try {
     ({ Pool } = require('pg'));
@@ -61,8 +61,19 @@ function createPgAccountStore(databaseUrl) {
     return null; // pg not installed (e.g. stripped-down environment)
   }
 
+  // An explicit password (e.g. from a Docker secret file) is injected into
+  // the connection URL - the compose file can then carry a secret-free URL.
+  // (Passing it as a separate pool option is unreliable when a
+  // connectionString is present, verified empirically against pg 8.)
+  let connectionString = databaseUrl;
+  if (options.password) {
+    const u = new URL(databaseUrl);
+    u.password = options.password; // URL handles the encoding
+    connectionString = u.toString();
+  }
+
   const pool = new Pool({
-    connectionString: databaseUrl,
+    connectionString,
     max: 10,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,

@@ -40,9 +40,14 @@ external frontend dependencies.
 ### ☁️ Hosted (Docker)
 
 ```sh
-# Prebuilt image from GHCR (amd64 + arm64):
-docker compose -f docker-compose.ghcr.yml up -d
-# → http://<host>:8080
+# Full production stack (Caddy TLS/ACME -> app -> PostgreSQL):
+cd docker && cp .env.example .env   # set PIKDAME_DOMAIN + ACME_EMAIL
+echo -n 'strong-pw' > secrets/db_password.txt
+docker compose -f docker-compose.prod.yml up -d
+# → https://<your-domain>
+
+# Or minimal without a domain (prebuilt image, amd64 + arm64):
+docker compose -f docker/docker-compose.ghcr.yml up -d   # → http://<host>:8080
 ```
 
 Or on Kubernetes via Helm (the chart is published as an OCI artifact with

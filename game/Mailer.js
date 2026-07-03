@@ -57,7 +57,8 @@ function createMailer(env = process.env, log = console.log) {
   const secure = (env.PIKDAME_SMTP_SECURE || 'starttls').toLowerCase();
   const port = parseInt(env.PIKDAME_SMTP_PORT || (secure === 'ssl' ? '465' : '587'), 10);
   const user = env.PIKDAME_SMTP_USER;
-  const pass = env.PIKDAME_SMTP_PASS;
+  const { readSecret } = require('./secretEnv');
+  const pass = readSecret(env, 'PIKDAME_SMTP_PASS');
   const from = env.PIKDAME_MAIL_FROM || 'Pik Dame <noreply@localhost>';
 
   const configured = !!host;

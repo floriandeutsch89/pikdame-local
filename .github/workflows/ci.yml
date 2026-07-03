@@ -41,7 +41,7 @@ jobs:
       - run: npm test
       # Consistency: the Dockerfile must use the same Node major version
       - name: Node version Dockerfile == CI
-        run: grep -q "FROM node:24" Dockerfile || (echo "Dockerfile Node version differs from CI (24)" && exit 1)
+        run: grep -q "FROM node:24" docker/Dockerfile || (echo "Dockerfile Node version differs from CI (24)" && exit 1)
 
   dependency-check:
     runs-on: ubuntu-latest
@@ -70,10 +70,10 @@ jobs:
       - name: Lint Dockerfile (hadolint)
         uses: hadolint/hadolint-action@v3.1.0
         with:
-          dockerfile: Dockerfile
+          dockerfile: docker/Dockerfile
           ignore: DL3018
       - name: Build image
-        run: docker build -t pikdame:scan .
+        run: docker build -f docker/Dockerfile -t pikdame:scan .
       # OWASP RULE #8: scan the image for known vulnerabilities.
       # ignore-unfixed: Alpine CVEs without an available fix do not block.
       - name: Trivy vulnerability scan
@@ -102,14 +102,24 @@ jobs:
       # Granular steps: a failing step name reveals the cause.
       - name: Validate compose file
         run: |
-          if ! ERR=$(docker compose config 2>&1 > /dev/null); then
+          if ! ERR=$(docker compose -f docker/docker-compose.yml config 2>&1 > /dev/null); then
             echo "::error::compose config: ${ERR}"
             exit 1
           fi
+      - name: Validate prod compose (Caddy + secrets + networks)
+        run: |
+          cd docker
+          cp .env.example .env
+          echo test-password > secrets/db_password.txt
+          echo test-smtp > secrets/smtp_password.txt
+          if ! ERR=$(docker compose -f docker-compose.prod.yml config 2>&1 > /dev/null); then
+            echo "::error::prod compose config: ${ERR}"
+            exit 1
+          fi
       - name: Build image
-        run: docker compose build
+        run: docker compose -f docker/docker-compose.yml build
       - name: Compose up (hardened configuration)
-        run: docker compose up -d
+        run: docker compose -f docker/docker-compose.yml up -d
       - name: Wait for healthy
         run: |
           for i in $(seq 1 30); do
@@ -130,7 +140,7 @@ jobs:
           docker inspect pikdame --format '{{.HostConfig.ReadonlyRootfs}}' | grep -q true
       - name: Clean up
         if: always()
-        run: docker compose down -v
+        run: docker compose -f docker/docker-compose.yml down -v
 
   helm-validate:
     runs-on: ubuntu-latest

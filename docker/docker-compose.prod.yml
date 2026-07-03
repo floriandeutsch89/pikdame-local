@@ -1,0 +1,164 @@
+# Pik Dame - production stack: Caddy (TLS/ACME) -> app -> PostgreSQL.
+#
+#   cd docker
+#   cp .env.example .env                     # domain, ACME e-mail, non-secrets
+#   echo -n 'strong-password' > secrets/db_password.txt
+#   echo -n 'smtp-password'   > secrets/smtp_password.txt   # optional
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Secrets policy: real secrets live as compose FILE SECRETS (mounted at
+# /run/secrets, never visible in `docker inspect`/environment); .env only
+# carries non-sensitive configuration. See docs/OPERATIONS.md.
+#
+# Network layout (least privilege):
+#   caddy_egress   - internet-facing (ACME, future CrowdSec plugins)
+#   caddy_pikdame  - internal: Caddy <-> app only
+#   pikdame        - internal: app <-> PostgreSQL only
+# The app has NO route to the internet. NOTE: that also blocks outbound
+# SMTP - to send confirmation mails either attach the app to an egress
+# network as well, or run a mail relay inside the internal network.
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: pikdame-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - PIKDAME_DOMAIN=${PIKDAME_DOMAIN:?set PIKDAME_DOMAIN in .env}
+      - ACME_EMAIL=${ACME_EMAIL:?set ACME_EMAIL in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data      # certificates - MUST persist
+      - caddy-config:/config
+    networks:
+      - caddy_egress
+      - caddy_pikdame
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    security_opt:
+      - no-new-privileges:true
+
+  pikdame:
+    image: ghcr.io/floriandeutsch89/pikdame-local:latest # pin :vX.Y.Z in production
+    container_name: pikdame
+    restart: unless-stopped
+    stop_grace_period: 30s
+    # No published ports - only Caddy reaches the app.
+    environment:
+      - PORT=8080
+      - PIKDAME_MAX_SESSIONS=200
+      - PIKDAME_TRUST_PROXY=1
+      - PIKDAME_ALLOWED_ORIGIN=https://${PIKDAME_DOMAIN:?set PIKDAME_DOMAIN in .env}
+      - PIKDAME_BASE_URL=https://${PIKDAME_DOMAIN}
+      # Secret-free URL - the password is injected from the secret file.
+      - PIKDAME_DATABASE_URL=postgres://pikdame@postgres:5432/pikdame
+      - PIKDAME_DATABASE_PASSWORD_FILE=/run/secrets/db_password
+      # SMTP (optional; see the network note above)
+      # - PIKDAME_SMTP_HOST=smtp.example.com
+      # - PIKDAME_SMTP_PORT=587
+      # - PIKDAME_SMTP_SECURE=starttls
+      # - PIKDAME_SMTP_USER=noreply@example.com
+      - PIKDAME_SMTP_PASS_FILE=/run/secrets/smtp_password
+      # - PIKDAME_MAIL_FROM=Pik Dame <noreply@example.com>
+    secrets:
+      - db_password
+      - smtp_password
+    volumes:
+      - pikdame-data:/app/data
+    networks:
+      - caddy_pikdame
+      - pikdame
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          pids: 256
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+      - apparmor=docker-default
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    ulimits:
+      nofile:
+        soft: 4096
+        hard: 4096
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: pikdame-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=pikdame
+      - POSTGRES_PASSWORD_FILE=/run/secrets/db_password
+      - POSTGRES_DB=pikdame
+    secrets:
+      - db_password
+    volumes:
+      - pikdame-pgdata:/var/lib/postgresql/data
+    networks:
+      - pikdame
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pikdame -d pikdame"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    security_opt:
+      - no-new-privileges:true
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  smtp_password:
+    file: ./secrets/smtp_password.txt
+
+networks:
+  # Internet-facing (ACME today; attach CrowdSec bouncer/plugins here later)
+  caddy_egress:
+  # Proxy path only - no internet route
+  caddy_pikdame:
+    internal: true
+  # App <-> database only - no internet route
+  pikdame:
+    internal: true
+
+volumes:
+  pikdame-data:
+  pikdame-pgdata:
+  caddy-data:
+  caddy-config:
