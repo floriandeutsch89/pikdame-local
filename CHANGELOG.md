@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.16.0] - 2026-07-03
+
+### Added
+- 🎬 Partie-Rückblick: Nach Spielende lässt sich die Partie Runde für Runde durchblättern - pro Runde Geber, Sieger (oder Unentschieden), Hand-aus-Markierung und eine Tabelle mit Rundenpunkten, Ausgelegt/Hand-Aufschlüsselung, ausgelegten Pik Damen und laufendem Gesamtstand
+- 🔔 "Du bist dran"-Hinweis bei Hintergrund-Tab: Der Browser-Titel zeigt es an, und beim Zurückkehren gibt es einen kurzen Toast samt Vibration, falls man (noch) am Zug ist
+
+### Changed
+- Bot-Endspiel-Schutz erweitert: Bots meiden den Ablagestapel mit versteckter Pik Dame jetzt auch dann, wenn ein GEGNER nur noch 3 oder weniger Karten hat - die Runde endet dann meist, bevor man die Pik Dame wieder loswird
+
 ## [1.15.0] - 2026-07-03
 
 ### Changed

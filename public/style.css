@@ -1469,3 +1469,19 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 #accountWhoami { font-weight: 700; margin-bottom: 10px; text-align: center; }
 #accountStatus { min-height: 1.2em; }
 input:disabled { opacity: 0.65; }
+
+/* --- Game replay (round-by-round review) ----------------------------------- */
+.replayNav {
+  display: flex; align-items: center; justify-content: center; gap: 14px;
+  margin-bottom: 10px; width: 100%;
+}
+.replayNav span { font-weight: 700; min-width: 120px; text-align: center; }
+#replayBody { width: 100%; }
+#replayBody .replayMeta {
+  text-align: center; color: var(--text-muted); font-size: 0.8rem;
+  margin-bottom: 8px;
+}
+#replayBody .replayBadge {
+  display: inline-block; padding: 2px 10px; border-radius: 999px;
+  background: var(--glass-strong); font-size: 0.72rem; margin: 0 3px;
+}

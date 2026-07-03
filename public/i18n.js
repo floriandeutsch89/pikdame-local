@@ -43,6 +43,7 @@ window.I18N_STATIC = {
   'Verbinde...': 'Connecting...',
   // Konto
   '👤 Anmelden / Registrieren': '👤 Sign in / Register',
+  '🎬 Partie-Rückblick': '🎬 Game replay',
   '👤 Konto': '👤 Account',
   'Anmelden': 'Sign in',
   'Registrieren': 'Register',

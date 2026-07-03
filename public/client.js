@@ -421,7 +421,14 @@
       return;
     }
     if (msg.type === 'gameExport') {
-      downloadJson(msg.record, `pikdame-spielverlauf-${new Date(msg.record.finishedAt).toISOString().slice(0, 19)}.json`);
+      // The same server payload feeds two features: the JSON download and
+      // the round-by-round replay overlay (whoever asked last wins).
+      if (pendingReplayRequest) {
+        pendingReplayRequest = false;
+        openReplay(msg.record);
+      } else {
+        downloadJson(msg.record, `pikdame-spielverlauf-${new Date(msg.record.finishedAt).toISOString().slice(0, 19)}.json`);
+      }
       return;
     }
     if (msg.type === 'meldAmbiguous') {
@@ -617,6 +624,7 @@
       : `R${lastState.roundNumber}`;
     const cp = lastState.players.find((p) => p.id === lastState.currentPlayerId);
     const isMyTurn = lastState.currentPlayerId === playerId;
+    updateTurnTitleNotice(isMyTurn && lastState.phase === 'playing');
     el('turnInfo').textContent = isMyTurn
       ? `Du bist am Zug (${phaseLabel(lastState.turnPhase)})`
       : `${cp ? cp.name : '?'} ist am Zug`;
@@ -1077,6 +1085,7 @@
     }
 
     el('exportGameBtn').classList.toggle('hidden', !(isGameOver && lastState.hasExportableGame));
+    el('replayBtn').classList.toggle('hidden', !(isGameOver && lastState.hasExportableGame));
     // 🎖️ Frisch verdiente Erfolge feiern (kommen per Server-Nachricht)
     const oldBadgeBox = el('resultBody').querySelector('.badgeBox');
     if (oldBadgeBox) oldBadgeBox.remove();
@@ -1104,6 +1113,7 @@
   function onHandCardClick(card) {
     if (!lastState) return;
     const isMyTurn = lastState.currentPlayerId === playerId;
+    updateTurnTitleNotice(isMyTurn && lastState.phase === 'playing');
     if (!isMyTurn || lastState.turnPhase !== 'meld') return;
 
     if (selectedCardIds.has(card.id)) {
@@ -1117,6 +1127,7 @@
   function onMeldCardClick(meld) {
     if (!lastState) return;
     const isMyTurn = lastState.currentPlayerId === playerId;
+    updateTurnTitleNotice(isMyTurn && lastState.phase === 'playing');
     if (!isMyTurn || lastState.turnPhase !== 'meld') return;
 
     if (selectedCardIds.size === 1) {
@@ -1347,6 +1358,96 @@
 
   el('exportGameBtn').addEventListener('click', () => {
     send({ type: 'exportLastGame' });
+  });
+
+  // --- Game replay: browse the finished game round by round ---------------
+  let pendingReplayRequest = false;
+  let replayRecord = null;
+  let replayIndex = 0;
+  el('replayBtn').addEventListener('click', () => {
+    pendingReplayRequest = true;
+    send({ type: 'exportLastGame' });
+  });
+  el('replayCloseBtn').addEventListener('click', () => el('replayOverlay').classList.add('hidden'));
+  el('replayOverlay').addEventListener('click', (ev) => {
+    if (ev.target === el('replayOverlay')) el('replayOverlay').classList.add('hidden');
+  });
+  el('replayPrevBtn').addEventListener('click', () => {
+    if (replayIndex > 0) { replayIndex--; renderReplayRound(); }
+  });
+  el('replayNextBtn').addEventListener('click', () => {
+    if (replayRecord && replayIndex < replayRecord.rounds.length - 1) { replayIndex++; renderReplayRound(); }
+  });
+  function openReplay(record) {
+    if (!record || !Array.isArray(record.rounds) || record.rounds.length === 0) {
+      showToast(L('Kein Verlauf verfügbar.', 'No history available.'));
+      return;
+    }
+    replayRecord = record;
+    replayIndex = 0;
+    renderReplayRound();
+    el('replayOverlay').classList.remove('hidden');
+  }
+  function replayPlayerName(pid) {
+    const p = (replayRecord.players || []).find((x) => x.id === pid);
+    return p ? p.name : '?';
+  }
+  function renderReplayRound() {
+    const rounds = replayRecord.rounds;
+    const round = rounds[replayIndex];
+    el('replayRoundLabel').textContent = L(`Runde ${round.roundNumber} / ${rounds.length}`, `Round ${round.roundNumber} / ${rounds.length}`);
+    el('replayPrevBtn').disabled = replayIndex === 0;
+    el('replayNextBtn').disabled = replayIndex === rounds.length - 1;
+
+    const winnerName = round.winnerId ? replayPlayerName(round.winnerId) : null;
+    const badges = [
+      `<span class="replayBadge">⭐ ${L('Geber', 'Dealer')}: ${escapeHtml(replayPlayerName(round.dealerId))}</span>`,
+      winnerName
+        ? `<span class="replayBadge">🏆 ${escapeHtml(winnerName)}</span>`
+        : `<span class="replayBadge">🤝 ${L('Unentschieden', 'Draw')}</span>`,
+      round.isHandAus ? `<span class="replayBadge">⚡ ${L('Hand aus!', 'Hand out!')}</span>` : '',
+    ].join('');
+
+    // One row per player: round score with its breakdown, then the running total
+    const rows = Object.entries(round.results || {})
+      .map(([pid, r]) => {
+        const b = r.breakdown || {};
+        const total = (round.totalsAfter || {})[pid];
+        return { pid, name: replayPlayerName(pid), score: r.roundScore, laid: b.laidOutValue ?? 0, hand: b.handValue ?? 0, pd: b.pikDameLaidOut ?? 0, total };
+      })
+      .sort((a, b) => (b.total ?? 0) - (a.total ?? 0))
+      .map((r) =>
+        `<tr><td>${escapeHtml(r.name)}</td><td>${r.score >= 0 ? '+' : ''}${r.score}</td><td>+${r.laid} / −${r.hand}</td><td>${r.pd > 0 ? '♠'.repeat(r.pd) : '–'}</td><td><b>${r.total ?? '–'}</b></td></tr>`
+      )
+      .join('');
+    el('replayBody').innerHTML =
+      `<div class="replayMeta">${badges}</div>` +
+      `<table class="statsTable"><thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('Runde', 'Round')}</th><th>${L('Ausgelegt / Hand', 'Melded / Hand')}</th><th title="${L('Pik Damen ausgelegt', 'Queens of Spades melded')}">♠Q</th><th>${L('Gesamt', 'Total')}</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  // --- "Your turn" notice while the tab is in the background ---------------
+  const BASE_TITLE = document.title;
+  let titleNotifyActive = false;
+  function updateTurnTitleNotice(isMyTurn) {
+    const shouldNotify = isMyTurn && document.hidden;
+    if (shouldNotify && !titleNotifyActive) {
+      titleNotifyActive = true;
+      document.title = L('🔔 Du bist dran! – ', '🔔 Your turn! – ') + BASE_TITLE;
+    } else if (!shouldNotify && titleNotifyActive) {
+      titleNotifyActive = false;
+      document.title = BASE_TITLE;
+    }
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    // Coming back to the tab: clear the notice; if it is (still) our turn,
+    // give a short nudge - the state may have changed while away.
+    const myTurn = lastState && lastState.phase === 'playing' && lastState.currentPlayerId === playerId;
+    updateTurnTitleNotice(false);
+    if (myTurn) {
+      showToast(L('Du bist dran!', 'Your turn!'));
+      if (navigator.vibrate) navigator.vibrate(80);
+    }
   });
 
   // --- Ablagestapel-Vorschau -----------------------------------------------

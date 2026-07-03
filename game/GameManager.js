@@ -919,17 +919,19 @@ class GameManager {
       plan.source = 'drawPile';
     }
     // Endgame guard (medium and up): taking the discard pile means taking
-    // ALL of it. If a Queen of Spades hides BELOW the top card and the bot
-    // is close to going out, swallowing the pile would trade an almost won
-    // round for a -100 liability - draw from the stock instead. A Queen ON
-    // TOP stays attractive: it must be melded immediately (+100).
-    if (
-      plan.source === 'discardPile' &&
-      difficulty !== 'easy' &&
-      cp.hand.length <= 4 &&
-      this.discardPile.slice(1).some((card) => isPikDame(card))
-    ) {
-      plan.source = 'drawPile';
+    // ALL of it. If a Queen of Spades hides BELOW the top card, swallowing
+    // the pile is a -100 liability whenever the round is about to end -
+    // either because the bot itself is close to going out (small own hand)
+    // OR because any opponent is (<= 3 cards: the Queen would very likely
+    // still be stuck in hand at scoring time). A Queen ON TOP stays
+    // attractive: it must be melded immediately (+100).
+    if (plan.source === 'discardPile' && difficulty !== 'easy') {
+      const roundNearlyOver =
+        cp.hand.length <= 4 ||
+        this.players.some((p) => p.id !== botId && p.hand.length <= 3);
+      if (roundNearlyOver && this.discardPile.slice(1).some((card) => isPikDame(card))) {
+        plan.source = 'drawPile';
+      }
     }
     // Gelegentlicher Bluff: kurz vor dem Ziehen das Pik-Dame-Emote zeigen -
     // selten genug, dass niemand weiß, ob es etwas bedeutet.
