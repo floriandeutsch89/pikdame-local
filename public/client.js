@@ -319,6 +319,25 @@
   }
   setSoundEnabled(soundEnabled);
 
+  // Spiel-Tipps (der 'Tipp: 3+ Karten...'-Toast pro Zug): erfahrene Spieler
+  // koennen sie hinterm Zahnrad dauerhaft abschalten. Persistiert lokal auf
+  // dem Geraet (localStorage) - PFLICHT-Hinweise (z.B. Anlege-Zwang nach
+  // Stapelaufnahme) bleiben bewusst immer sichtbar.
+  const TIPS_KEY = 'pikdame_tips';
+  let gameTipsEnabled = storageGet(TIPS_KEY) !== 'off';
+  function setTipsEnabled(enabled) {
+    gameTipsEnabled = enabled;
+    storageSet(TIPS_KEY, enabled ? 'on' : 'off');
+    const btn = el('tipsToggle');
+    if (btn) {
+      btn.textContent = enabled ? '💡' : '💤';
+      btn.title = enabled
+        ? L('Spiel-Tipps ausblenden', 'Hide game tips')
+        : L('Spiel-Tipps wieder anzeigen', 'Show game tips again');
+    }
+  }
+  setTipsEnabled(gameTipsEnabled);
+
   function wsUrl() {
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const port = window.location.port ? `:${window.location.port}` : '';
@@ -951,7 +970,7 @@
       // so kann die Action-Leiste auch im eigenen Zug einklappen.
       clearHintIfNotError();
       const turnKey = `${lastState.roundNumber}-${lastState.turnIndexInRound}`;
-      if (tipShownForTurn !== turnKey && selectedCardIds.size === 0) {
+      if (gameTipsEnabled && tipShownForTurn !== turnKey && selectedCardIds.size === 0) {
         tipShownForTurn = turnKey;
         showToast(L('Tipp: 3+ Karten auswählen zum Auslegen, 1 Karte + „Abwerfen", oder Karte wählen und auf eine grün markierte Auslage tippen.', 'Tip: select 3+ cards to meld, 1 card + "Discard", or select a card and tap a green-highlighted meld.'));
       }
@@ -1438,6 +1457,14 @@
     el('logPanel').classList.toggle('hidden');
   });
 
+  el('tipsToggle').addEventListener('click', () => {
+    setTipsEnabled(!gameTipsEnabled);
+    showToast(
+      gameTipsEnabled
+        ? L('Spiel-Tipps sind wieder an.', 'Game tips are back on.')
+        : L('Spiel-Tipps sind aus. Wieder einschalten: 💤 hinterm Zahnrad.', 'Game tips are off. Re-enable via 💤 behind the gear.')
+    );
+  });
   el('soundToggle').addEventListener('click', () => {
     setSoundEnabled(!soundEnabled);
   });
