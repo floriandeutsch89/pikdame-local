@@ -1,199 +1,203 @@
 # ♠ Pik Dame
 
-Multiplayer-Kartenspiel (Familien-Rommé-Variante) für 2–4 Spieler — fehlende
-Plätze füllen Bots mit vier Schwierigkeitsstufen. Läuft in **zwei
-Betriebsarten** mit derselben Codebasis:
+Multiplayer card game (family rummy variant) for 2–4 players — empty seats
+are filled by bots with four difficulty levels. Runs in **two operating
+modes** from the same codebase:
 
-| | 🏕️ Unterwegs (offline) | ☁️ Gehostet (online) |
+| | 🏕️ On the go (offline) | ☁️ Hosted (online) |
 |---|---|---|
-| **Wo** | iPhone-Hotspot, CodeApp, kein Internet nötig | Eigener Server / Raspberry Pi / Kubernetes |
-| **Für wen** | Familienrunde am Tisch | Spielen über Distanz, z. B. `spiel.pikdame.online` |
-| **Extras** | — | Benutzerkonten mit E-Mail-Bestätigung, geschützte Namen |
-| **Start** | [iPhone + CodeApp](#-iphone-hotspot-codeapp) | [Docker / Helm](#-gehostet-docker) |
+| **Where** | iPhone hotspot, CodeApp, no internet required | Your own server / Raspberry Pi / Kubernetes |
+| **For whom** | Family round at the table | Playing across distances, e.g. `spiel.pikdame.online` |
+| **Extras** | — | User accounts with e-mail confirmation, protected names |
+| **Start** | [iPhone + CodeApp](#-iphone-hotspot-codeapp) | [Docker / Helm](#-hosted-docker) |
 
-Zweisprachig (Deutsch/Englisch), installierbar als PWA, komplett ohne
-Build-Schritt und ohne externe Frontend-Abhängigkeiten.
+Bilingual (German/English), installable as a PWA, no build step and no
+external frontend dependencies.
 
 ---
 
 ## Features
 
-- **Bots mit Charakter**: vier Schwierigkeiten (easy → zen mit Kartenzählung),
-  menschliche Namen (Uwe, Inge, Maria …) und zufällige Emote-Reaktionen —
-  inklusive gelegentlichem Pik-Dame-Bluff.
-- **Statistik & Erfolge**: Spielerprofile (Partien/Siege/Punkte/Siegesserien),
-  8 freischaltbare Badges, globale Server-Zähler, Rundenstatistik und
-  Spielverlauf-Export als JSON.
-- **Benutzerkonten** (nur gehostet): Registrierung mit E-Mail-Bestätigung,
-  Login mit 90-Tage-Sitzung — der eigene Name ist damit vor Fremdnutzung
-  geschützt und der Fortschritt bleibt dauerhaft erhalten. Im Hotspot-Betrieb
-  automatisch deaktiviert und unsichtbar.
-- **Robust im Betrieb**: Reconnect mit Bot-Überbrückung, laufende Spiele
-  überleben Server-Neustarts (Session-Snapshot), Heartbeat gegen
-  Zombie-Verbindungen, gepanzerte Fehlerbehandlung auf Client und Server.
-- **Drei Design-Themes** (Spieltisch/Nacht/Herzdame), Kartenfächer,
-  synthetisierter Sound (offlinefähig, keine Audio-Dateien), Haptik.
+- **Bots with character**: four difficulties (easy → zen with card counting),
+  human names (Uwe, Inge, Maria …) and random emote reactions — including the
+  occasional Queen-of-Spades bluff.
+- **Statistics & achievements**: player profiles (games/wins/points/streaks),
+  8 unlockable badges, global server counters, round statistics and a JSON
+  game-history export.
+- **User accounts** (hosted mode only): registration with e-mail
+  confirmation, login with a 90-day session — your name is protected against
+  impersonation and your progress is kept permanently. Automatically disabled
+  and invisible in hotspot mode.
+- **Robust in operation**: reconnect with bot takeover, running games survive
+  server restarts (session snapshot), heartbeat against zombie connections,
+  armored error handling on client and server.
+- **Three design themes** (table/night/queen-of-hearts), card fan, synthesized
+  sound (offline-capable, no audio files), haptics.
 
-## Schnellstart
+## Quick start
 
-### ☁️ Gehostet (Docker)
+### ☁️ Hosted (Docker)
 
 ```sh
-# Fertiges Image von GHCR (amd64 + arm64):
+# Prebuilt image from GHCR (amd64 + arm64):
 docker compose -f docker-compose.ghcr.yml up -d
 # → http://<host>:8080
 ```
 
-Oder auf Kubernetes per Helm (Chart wird bei jedem Release als OCI-Artefakt
-publiziert):
+Or on Kubernetes via Helm (the chart is published as an OCI artifact with
+every release):
 
 ```sh
 helm install pikdame oci://ghcr.io/floriandeutsch89/charts/pikdame \
   --version <X.Y.Z> --set ingress.host=spiel.example.org --set image.tag=v<X.Y.Z>
 ```
 
-Alles Weitere — Update, Rollback, Backup, Secrets, TLS —
-steht im **[Betriebshandbuch](docs/OPERATIONS.md)**; Sicherheit (OWASP-Härtung,
-CI-Scans) in **[SECURITY.md](SECURITY.md)**; Kubernetes-Details in
-**[k8s/README.md](k8s/README.md)**. Die Auswahlseite für eine Domain mit
-mehreren Apps liegt unter **[landing/](landing/README.md)**.
+Everything else — updates, rollback, backup, secrets, TLS — lives in the
+**[operations guide](docs/OPERATIONS.md)**; security (OWASP hardening,
+CI scans) in **[SECURITY.md](SECURITY.md)**; Kubernetes details in
+**[k8s/README.md](k8s/README.md)**. The selection page for a domain hosting
+multiple apps lives under **[landing/](landing/README.md)**.
 
-### 💻 Lokal
+### 💻 Local
 
 ```sh
 npm install && npm start
 # → http://localhost:8080
 ```
 
-### 🏕️ iPhone-Hotspot (CodeApp)
+### 🏕️ iPhone hotspot (CodeApp)
 
-1. Projekt in die CodeApp laden (Git-Klon im integrierten Terminal oder
-   Dateien-Import), dann: `npm install && node server.js`.
-   Der Server listet beim Start alle erreichbaren Netzwerk-IPs auf und
-   markiert Apples Hotspot-Bereich (`172.20.10.x`).
-2. Persönlichen Hotspot aktivieren. **Hinweis:** iOS setzt dafür eine aktive
-   Mobilfunk-/SIM-Verbindung voraus — ohne Empfang (Flugzeug, Ausland ohne
-   Datentarif) startet der Hotspot oft gar nicht. Alternativen: Android-Hotspot
-   eines Mitspielers, Reise-Router oder ein gemeinsames WLAN.
-3. Mitspieler verbinden sich mit dem Hotspot und öffnen die angezeigte IP im
-   Browser (z. B. `http://172.20.10.1:8080`) — der Client findet den Host
-   automatisch, keine Code-Änderung nötig.
+1. Load the project into CodeApp (git clone in the built-in terminal or file
+   import), then: `npm install && node server.js`.
+   On startup the server lists all reachable network IPs and marks Apple's
+   hotspot range (`172.20.10.x`).
+2. Enable the personal hotspot. **Note:** iOS requires an active cellular/SIM
+   connection for this — without reception (airplane, abroad without a data
+   plan) the hotspot often won't start at all. Alternatives: a fellow
+   player's Android hotspot, a travel router, or a shared Wi-Fi network.
+3. Players connect to the hotspot and open the displayed IP in their browser
+   (e.g. `http://172.20.10.1:8080`) — the client discovers the host
+   automatically, no code change needed.
 
-**⚠️ CodeApp muss im Vordergrund bleiben.** iOS pausiert den Node-Prozess,
-sobald die App in den Hintergrund geht oder das Display sperrt (grundsätzliche
-iOS-Einschränkung). Deshalb: Automatische Sperre auf „Nie" (Einstellungen →
-Anzeige & Helligkeit) oder **Geführter Zugriff** (Bedienungshilfen) — der pinnt
-den Bildschirm fest auf die CodeApp. Sollte doch etwas Unerwartetes passieren,
-landet es in `data/crash.log`.
+**⚠️ CodeApp must stay in the foreground.** iOS suspends the Node process as
+soon as the app goes to the background or the display locks (a fundamental
+iOS limitation). Therefore: set auto-lock to "Never" (Settings → Display &
+Brightness) or use **Guided Access** (Accessibility) — it pins the screen to
+CodeApp. If something unexpected happens anyway, it ends up in
+`data/crash.log`.
 
-## Spiel-Sessions
+## Game sessions
 
-Jedes Spiel bekommt einen **kryptographisch zufälligen 6-stelligen Code**
-(ohne verwechselbare Zeichen) — nur wer ihn kennt, kann beitreten; eine
-Spiel-Liste gibt es bewusst nicht. Der Code lässt sich per iOS-Share-Sheet
-oder Link (`?session=CODE`) teilen. Beliebig viele Spiele laufen parallel und
-vollständig isoliert; Reconnects finden über die gespeicherte Spieler-ID
-automatisch an den richtigen Tisch zurück.
+Every game gets a **cryptographically random 6-character code** (no
+confusable characters) — only those who know it can join; there is
+deliberately no game list. The code can be shared via the iOS share sheet or
+a link (`?session=CODE`). Any number of games run in parallel and fully
+isolated; reconnects find their way back to the right table via the stored
+player ID.
 
-## Spielregeln
+## Game rules
 
-Die vollständigen Regeln stehen **in der App** (📖-Button, DE/EN). Kernpunkte
-und ihre Umsetzung:
+The full rules live **inside the app** (📖 button, DE/EN). Key points and
+where they are implemented:
 
-| Regel | Datei |
+| Rule | File |
 |---|---|
-| 110 Karten (2×52 + 6 Joker), 15 Handkarten | `Deck.js` |
-| Ziehen: Stapel ODER Ablagestapel in zwei Phasen (oberste Karte sofort legen, dann Rest) | `GameManager.js` |
-| Sätze (gleicher Wert, Farbe max. 2×) und Folgen im Werte-Ring (K-A-2 gültig, max. 13) | `Rules.js` |
-| Pro Spieler nur EIN Satz je Kartenwert; Anlegen & Joker-Tausch nur an EIGENEN Auslagen | `GameManager.js` |
-| Glücksgriff beim Abheben (Pik Dame/Joker an der Abhebestelle) | `Deck.js` |
-| Getauschte Joker bleiben sichtbar liegen, aus dem Spiel | `GameManager.js` |
-| **Ausmachen nur per Abwurf der letzten Karte** | `GameManager.js` |
-| Punkte: 2–9 = 5 · 10/B/D/K = 10 · Ass/Joker = 20 · ♠Dame = 100; Spielende ab 1000 | `Card.js`, `ScoreBoard.js` |
+| 110 cards (2×52 + 6 jokers), 15 hand cards | `Deck.js` |
+| Draw: pile OR discard pile in two phases (top card must be melded immediately, then the rest follows) | `GameManager.js` |
+| Sets (same rank, each suit max 2×) and runs on the rank ring (K-A-2 valid, max 13) | `Rules.js` |
+| Only ONE set per rank per player; laying off & joker swaps only on YOUR OWN melds | `GameManager.js` |
+| Lucky cut (Queen of Spades/joker at the cut position) | `Deck.js` |
+| Swapped jokers stay visible on the table, out of the game | `GameManager.js` |
+| **Going out only by discarding the last card** | `GameManager.js` |
+| Points: 2–9 = 5 · 10/J/Q/K = 10 · Ace/Joker = 20 · ♠Q = 100; game ends at 1000 | `Card.js`, `ScoreBoard.js` |
 
-**Hausregeln** (beim Start wählbar): „Hand aus zählt doppelt", „über 1000 zum
-Gewinnen", Bot-Schwierigkeit (easy / medium / hard / zen).
+**House rules** (selectable at game start): "hand aus counts double",
+"more than 1000 to win", bot difficulty (easy / medium / hard / zen).
 
 <details>
-<summary><b>Bewusste Regel-Interpretationen</b></summary>
+<summary><b>Deliberate rule interpretations</b></summary>
 
-1. **Folgen sind zirkulär**: Werte bilden einen Ring (…Q-K-A-2-3…), max. 13
-   Karten pro Folge (`Rules.js`, `RANK_ORDER`).
-2. **Joker-Tausch-Timing**: nur in der eigenen Auslege-Phase; der freie Joker
-   scheidet für den Rest der Runde aus.
-3. **Bots sind Heuristiken**, kein Solver — regelkonform, tischbewusst, werfen
-   nie freiwillig Joker ab (außer als Sieges-Abwurf der letzten Karte).
-4. **„Hand aus"** = Runde endet im allerersten Zug, egal wer beginnt.
-5. Bei **mehrdeutigen Joker-Kombinationen** fragt das Spiel per Overlay nach,
-   statt zu raten (`enumerateMeldOptions` in `Rules.js`).
+1. **Runs are circular**: ranks form a ring (…Q-K-A-2-3…), max 13 cards per
+   run (`Rules.js`, `RANK_ORDER`).
+2. **Joker swap timing**: only during your own melding phase; the freed joker
+   is out for the rest of the round.
+3. **Bots are heuristics**, not a solver — rule-abiding, table-aware, and they
+   never voluntarily discard a joker (except as the winning discard of the
+   last card).
+4. **"Hand aus"** = the round ends within the very first turn, regardless of
+   who starts.
+5. For **ambiguous joker combinations** the game asks via an overlay instead
+   of guessing (`enumerateMeldOptions` in `Rules.js`).
 </details>
 
-## Features im Detail
+## Features in detail
 
-- **Lobby**: Spieleranzahl 2–4, Sitzordnung per ▲▼, Geber per ⭐ wählbar,
-  gespeicherte Teams, Runden-Aufgeben per 🏳️ (ohne Gewinner-Bonus).
-- **Rundenende**: Ergebnis-Overlay mit Statistik-Tabelle (ausgelegte Karten,
-  ♠Q und 🃏 pro Spieler), Punkteverlauf-Chart, Badge-Feier; Rematch behält
-  Sitzordnung und Namen.
-- **Design**: Drei Themes, Glas-Panels, Kartenfächer mit hervorgehobener
-  Pik Dame, grüner Rand an selbst gelegten Karten (pro Kartenslot getrackt).
-  System-Font-Stack und Web-Audio-Synthese halten alles offlinefähig.
-- **Zweisprachig**: Deutsch ist Quellsprache; Englisch wird client-seitig
-  über `public/i18n.js` übersetzt (statische Texte, dynamische `L(de, en)`
-  und Regex-Muster für Server-Meldungen — vertragsgetestet).
+- **Lobby**: player count 2–4, seating order via ▲▼, dealer selectable via ⭐,
+  saved teams, forfeit the round via 🏳️ (no winner bonus).
+- **Round end**: result overlay with a statistics table (melded cards, ♠Q and
+  🃏 per player), score-history chart, badge celebration; rematch keeps
+  seating and names.
+- **Design**: three themes, glass panels, card fan with a highlighted Queen of
+  Spades, green border on cards you personally placed (tracked per card
+  slot). System font stack and Web Audio synthesis keep everything
+  offline-capable.
+- **Bilingual**: German is the source language; English is translated
+  client-side via `public/i18n.js` (static texts, dynamic `L(de, en)` and
+  regex patterns for server messages — covered by contract tests).
 
-## Betrieb
+## Operations
 
-Der Server spricht bewusst nur HTTP — öffentlich gehört ein Reverse-Proxy mit
-TLS davor (Caddy-/nginx-Beispiele in [landing/README.md](landing/README.md));
-der Client wechselt automatisch auf `wss:`. Wichtige Umgebungsvariablen
-(alle opt-in, ohne sie läuft der Server exakt wie im Hotspot-Modus):
+The server deliberately speaks plain HTTP — for public hosting put a reverse
+proxy with TLS in front (Caddy/nginx examples in
+[landing/README.md](landing/README.md)); the client switches to `wss:`
+automatically. Important environment variables (all opt-in; without them the
+server runs exactly like in hotspot mode):
 
-| Variable | Zweck |
+| Variable | Purpose |
 |---|---|
-| `PIKDAME_MAX_SESSIONS` | Obergrenze paralleler Spiele (Standard 200) |
-| `PIKDAME_PUBLIC_MODE=1` | Profile/Teams/Statistik aus — für Server mit Fremden |
-| `PIKDAME_TRUST_PROXY=1` | Client-IP aus `X-Forwarded-For` (hinter Reverse-Proxy) |
-| `PIKDAME_ALLOWED_ORIGIN` | WebSocket nur von der eigenen Domain |
-| `PIKDAME_ACCOUNTS=0` | Benutzerkonten abschalten |
-| `PIKDAME_BASE_URL`, `PIKDAME_SMTP_*` | Bestätigungs-Mails (siehe `.env.example`) |
+| `PIKDAME_MAX_SESSIONS` | Cap on parallel games (default 200) |
+| `PIKDAME_PUBLIC_MODE=1` | Disables profiles/teams/statistics — for servers with strangers |
+| `PIKDAME_TRUST_PROXY=1` | Client IP from `X-Forwarded-For` (behind a reverse proxy) |
+| `PIKDAME_ALLOWED_ORIGIN` | WebSocket only from your own domain |
+| `PIKDAME_ACCOUNTS=0` | Disable user accounts |
+| `PIKDAME_BASE_URL`, `PIKDAME_SMTP_*` | Confirmation e-mails (see `.env.example`) |
 
-Eingebaute Härtung: Namens-Sanitizing + HTML-Escaping (doppelter XSS-Schutz),
-IP-basierter Brute-Force-Schutz auf Codes und Konto-API, Rate-Limits,
-16-KB-Nachrichtenlimit, Session-Cleanup, Heartbeat, Graceful Shutdown mit
-Session-Snapshot, atomare Persistenz, SQLite im WAL-Modus, scrypt-Passwörter.
-Beobachtung über `GET /statusz` (Version, Sessions, Speicher — keine Namen)
-und `GET /healthz`.
+Built-in hardening: name sanitizing + HTML escaping (double XSS protection),
+IP-based brute-force protection on codes and the account API, rate limits,
+16 KB message limit, session cleanup, heartbeat, graceful shutdown with
+session snapshot, atomic persistence, SQLite in WAL mode, scrypt passwords.
+Observability via `GET /statusz` (version, sessions, memory — no names) and
+`GET /healthz`.
 
-## Entwicklung
+## Development
 
 ```
-server.js          HTTP + WebSocket, Konto-API, Session-Registry
-game/              Reine Spiellogik (Rules, GameManager, Bot, Stores, …)
-public/            Vanilla-JS-Client, i18n, PWA
-test/              node --test — 162 Tests inkl. Vertrags- und E2E-Bot-Tests
-helm/ · k8s/       Kubernetes (Chart empfohlen, rohe Manifeste als Alternative)
-docs/ · scripts/   Betriebshandbuch, Backup/Restore
+server.js          HTTP + WebSocket, account API, session registry
+game/              Pure game logic (Rules, GameManager, Bot, stores, …)
+public/            Vanilla JS client, i18n, PWA
+test/              node --test — 162 tests incl. contract and E2E bot tests
+helm/ · k8s/       Kubernetes (chart recommended, raw manifests as alternative)
+docs/ · scripts/   Operations guide, backup/restore
 ```
 
-- **Tests**: `npm test` (Nodes eingebauter Runner, keine Test-Dependencies).
-  Die CI führt exakt dasselbe aus — plus Dependency-Audit, Dockerfile-Lint,
-  Trivy-Scan, Helm-Validierung und einen Smoke-Test, der die voll gehärtete
-  Compose-Konfiguration real hochfährt. Alles auf Node 24.
-- **Releases sind automatisiert**: Version in `package.json` bumpen +
-  CHANGELOG-Abschnitt schreiben → beim Push auf `main` erzeugt der Workflow
-  Git-Tag, GitHub-Release (Notes aus dem CHANGELOG), Multi-Arch-Image und
-  Helm-Chart auf GHCR.
-- **Konventionen** (Sprache, Constraints, Workflow): [CLAUDE.md](CLAUDE.md).
-  Wichtigste Regel: keine neuen npm-Dependencies — der Server muss in der
-  iOS CodeApp lauffähig bleiben (aktuell einzige Dependency: `ws`).
+- **Tests**: `npm test` (Node's built-in runner, zero test dependencies). CI
+  runs exactly the same — plus dependency audit, Dockerfile lint, Trivy scan,
+  Helm validation and a smoke test that boots the fully hardened compose
+  configuration. Everything on Node 24.
+- **Releases are automated**: bump the version in `package.json` + write the
+  CHANGELOG section → on push to `main` the workflow creates the git tag, the
+  GitHub release (notes from the CHANGELOG), the multi-arch image and the
+  Helm chart on GHCR.
+- **Conventions** (language, constraints, workflow): [CLAUDE.md](CLAUDE.md).
+  Most important rule: no new npm dependencies — the server must keep running
+  inside iOS CodeApp (currently the only dependency: `ws`).
 
-## Bewusste Grenzen
+## Deliberate limits
 
-- **Eine Server-Instanz by design**: Sessions leben im Prozess-Speicher, die
-  Konten-DB ist lokales SQLite — horizontal skalieren würde Spieler auf
-  Instanzen verteilen, die nichts voneinander wissen. Für den Zweck
-  (Familien-/Freundesrunden, 200-Session-Limit) reicht eine Instanz locker;
-  Updates überbrückt der Session-Snapshot.
-- Ohne Konten werden Profile anhand des Namens abgeglichen (case-insensitive);
-  mit aktivierten Konten sind verifizierte Namen login-geschützt.
+- **A single server instance by design**: sessions live in process memory and
+  the accounts DB is local SQLite — scaling out would split players across
+  instances that know nothing about each other. For the purpose (family and
+  friends rounds, 200-session cap) one instance is plenty; the session
+  snapshot bridges updates.
+- Without accounts, profiles are matched by name (case-insensitive); with
+  accounts enabled, verified names are login-protected.
