@@ -1040,3 +1040,31 @@ test('bot endgame guard: Queen of Spades ON TOP stays attractive (meldable +100)
   assert.equal(tookTop, true, 'a directly meldable Queen of Spades on top is worth +100');
   g.destroy();
 });
+
+// --- v1.16.0: guard also fires when an OPPONENT is close to going out -------
+test('bot endgame guard: opponent with 3 cards + hidden Queen of Spades -> draws from stock', () => {
+  const { makeStandardCard } = require('../game/Card');
+  const g = new GameManager(() => {});
+  g.addOrReconnectPlayer('p1', 'A');
+  g.setHouseRules({ botDifficulty: 'medium' });
+  g.fillWithBots();
+  g.phase = 'playing'; g.turnPhase = 'draw';
+  const botIdx = g.players.findIndex((p) => p.isBot);
+  g.currentPlayerIndex = botIdx;
+  const bot = g.players[botIdx];
+  // Big own hand (guard would NOT fire on own-hand size alone) with a pair
+  // matching the top card - taking the pile looks attractive
+  bot.hand = [
+    makeStandardCard('H', '7', 0), makeStandardCard('D', '7', 0),
+    makeStandardCard('C', '2', 0), makeStandardCard('C', '4', 0),
+    makeStandardCard('D', '9', 0), makeStandardCard('H', 'J', 0),
+  ];
+  // An opponent is about to go out
+  g.players[0].hand = [makeStandardCard('S', '3', 0), makeStandardCard('S', '4', 0), makeStandardCard('S', '5', 0)];
+  g.drawPile = [makeStandardCard('C', '9', 0)];
+  g.discardPile = [makeStandardCard('S', '7', 0), makeStandardCard('S', 'Q', 0), makeStandardCard('H', '3', 0)];
+  g.runBotTurn(bot.id);
+  const tookPile = g.log.some((e) => /nimmt die oberste Ablagekarte/.test(e.text) && e.text.includes(bot.name));
+  assert.equal(tookPile, false, 'opponent near going out -> do not swallow the pile');
+  g.destroy();
+});
