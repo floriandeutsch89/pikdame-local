@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.14.1] - 2026-07-03
+
+### Changed
+- README komplett neu strukturiert: die zwei Betriebsarten (offline per iPhone-Hotspot, gehostet per Docker/Kubernetes) als Leitstruktur mit Vergleichstabelle, Schnellstart je Betriebsart, kompakte Regel- und Feature-Abschnitte, Verweis-Hub auf Betriebshandbuch/SECURITY/k8s/Helm statt Duplikation
+
+### Fixed
+- Veraltete README-Aussagen korrigiert: "ein Tisch pro Server" (Multi-Session existiert längst), "keine echten Accounts" (Benutzerkonten seit 1.8.0), "Docker ungetestet" (CI baut, scannt und startet das Image bei jedem PR), CI-Node-Versionen (24 statt 18/20/22), Rundenstatistik zählt AUSGELEGTE ♠Q/🃏
+
 ## [1.14.0] - 2026-07-03
 
 ### Added
