@@ -1,0 +1,7 @@
+# CrowdSec log acquisition: parse Caddy's JSON access log from the shared
+# volume. The caddy collection (installed via COLLECTIONS env) provides the
+# parsers and scenarios (HTTP probing, bruteforce, CVE probes, ...).
+filenames:
+  - /var/log/caddy/access.log
+labels:
+  type: caddy

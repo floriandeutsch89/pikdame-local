@@ -39,6 +39,71 @@ database have **no route to the internet**. Note: that also blocks outbound
 SMTP - to send confirmation mails, attach the app to an egress network or
 run an internal mail relay.
 
+## Server bootstrap (fresh Ubuntu/Debian host)
+
+One command as root - system updates, unattended-upgrades with a nightly
+reboot window (04:30), fail2ban for SSH, UFW (22/80/443), Docker from the
+official repository, and the production stack files under
+`/opt/pikdame/docker`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/floriandeutsch89/pikdame-local/main/scripts/server-bootstrap.sh | bash
+```
+
+The script prints the remaining one-time steps (fill `.env`, write the two
+secret files, `up -d`, create the CrowdSec bouncer key). After switching to
+SSH keys: set `PasswordAuthentication no` and `PermitRootLogin
+prohibit-password`, reload sshd, and rotate the root password.
+
+### DNS
+
+Point an **A record** for your domain at the server's IPv4 address
+(e.g. `play.pikdame.online -> <server IP>`, TTL 300-3600). A CNAME is only
+for pointing at another *name*; for a bare IP an A record is the correct
+type. Add an AAAA record only if the host has IPv6. Caddy fetches the TLS
+certificate automatically once the record resolves.
+
+## Auto-updates for the stack
+
+Kept deliberately simple: **Watchtower** runs inside the prod stack, polls
+the registry daily at 04:00 and recreates containers that opted in via
+label (the app image and PostgreSQL minor updates). The custom-built Caddy
+image is excluded - rebuild it explicitly on plugin updates:
+`docker compose -f docker-compose.prod.yml build --pull caddy && docker
+compose -f docker-compose.prod.yml up -d caddy`.
+
+Alternatives, if you outgrow this: **Portainer** (web UI, manual pulls,
+stack management - nice for visibility, no automation by default) or
+GitOps-style tools (Komodo, Dokploy). For a single host, Watchtower +
+versioned GHCR tags is the sweet spot; pin exact versions instead and drop
+Watchtower if you ever need change control.
+
+## CrowdSec (bouncer in Caddy)
+
+Caddy is a custom build (`docker/caddy/Dockerfile`, via xcaddy) with the
+CrowdSec bouncer compiled in - plugins cannot be loaded at runtime. The
+`crowdsec` service tails Caddy's JSON access log (shared volume) with the
+`crowdsecurity/caddy` collection and bans attacking IPs; Caddy checks every
+request against the local API. One-time bootstrap after the first start:
+
+```sh
+docker compose -f docker-compose.prod.yml exec crowdsec cscli bouncers add caddy-bouncer
+# -> put the printed key into .env as CROWDSEC_API_KEY, then:
+docker compose -f docker-compose.prod.yml up -d --force-recreate caddy
+# Inspect decisions/bans:
+docker compose -f docker-compose.prod.yml exec crowdsec cscli decisions list
+```
+
+## SMTP egress (app stays offline)
+
+The app has **no internet route**. Outbound mail works through a dedicated
+`smtp-egress` proxy (socat) that can reach exactly ONE destination:
+`smtp.eu.mailgun.org:587`. The app talks to it over the internal
+`pikdame_smtp` network; TLS is verified against the real Mailgun hostname
+(`PIKDAME_SMTP_TLS_SERVERNAME`), so the proxy cannot be silently swapped.
+Different provider? Change the `tcp-connect:` target in the `smtp-egress`
+service and the servername env.
+
 ## Update & rollback
 
 ```sh
@@ -83,6 +148,22 @@ Raw manifests are available as an alternative under `k8s/` (Deployment,
 Service, Ingress with WebSocket timeouts, PVC). **Key point: one replica,
 strategy Recreate** — sessions live in RAM, SQLite on the PVC; details in
 `k8s/README.md`.
+
+## Best-practice checklist (beyond the stack itself)
+
+- **Off-site backups**: `scripts/backup.sh` via nightly cron, copy the
+  archives off the host (object storage, another machine).
+  `0 3 * * * cd /opt/pikdame && ./scripts/backup.sh docker/docker-compose.prod.yml`
+- **Uptime monitoring**: point an external monitor at `https://<domain>/healthz`.
+- **SSH keys** instead of passwords; rotate any password that was ever
+  shared in plain text.
+- **Mail deliverability**: set up SPF/DKIM/DMARC for the sending domain in
+  Mailgun - confirmation mails land in spam otherwise.
+- **Public server?** Consider `PIKDAME_PUBLIC_MODE=1` (disables profiles/
+  teams/statistics for anonymous strangers).
+- **Image pinning**: replace `:latest` with `:vX.Y.Z` once the setup is
+  stable and let Watchtower handle only conscious tag bumps - or keep
+  `:latest` for convenience on a low-stakes host.
 
 ## Security
 

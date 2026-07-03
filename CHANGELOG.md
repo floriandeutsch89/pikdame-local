@@ -4,6 +4,19 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.19.0] - 2026-07-03
+
+### Added
+- Server-Bootstrap-Skript (scripts/server-bootstrap.sh): ein Befehl richtet einen frischen Ubuntu/Debian-Host ein - Systemupdates, unattended-upgrades mit nächtlichem Auto-Reboot (04:30), fail2ban für SSH, UFW (22/80/443), Docker aus dem offiziellen Repo und die Prod-Stack-Dateien unter /opt/pikdame
+- Caddy als Custom-Build mit einkompiliertem CrowdSec-Bouncer (docker/caddy/Dockerfile via xcaddy) plus crowdsec-Dienst, der Caddys JSON-Access-Log auswertet und Angreifer-IPs bannt; Bootstrap per cscli bouncers add dokumentiert
+- SMTP-Ausgang trotz internetlosem App-Netz: dedizierter smtp-egress-Proxy (socat), der ausschließlich smtp.eu.mailgun.org:587 erreicht; die App spricht ihn über das interne pikdame_smtp-Netz an, TLS wird gegen den echten Mailgun-Hostnamen geprüft (neu: PIKDAME_SMTP_TLS_SERVERNAME)
+- Auto-Updates des Stacks per Watchtower (täglich 04:00, label-basiert nur App-Image und Postgres-Minor-Updates; Alternativen wie Portainer in docs/OPERATIONS.md eingeordnet)
+- Betriebshandbuch erweitert: Server-Bootstrap, DNS-Anleitung (A-Record auf die Server-IP), CrowdSec, SMTP-Egress, Auto-Updates und eine Best-Practice-Checkliste (Offsite-Backups per Cron, Uptime-Monitoring, SSH-Keys, SPF/DKIM, Image-Pinning)
+
+### Changed
+- PostgreSQL 18 in allen Compose-Dateien und der CI; Volume-Mountpoint gemäß neuem 18er-Image auf /var/lib/postgresql umgestellt (PGDATA liegt dort versioniert - erleichtert künftige pg_upgrade)
+- Landing-Page verlinkt die echte Spiel-Domain play.pikdame.online
+
 ## [1.18.0] - 2026-07-03
 
 ### Added

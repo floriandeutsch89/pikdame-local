@@ -13,7 +13,7 @@ jobs:
     # automatically when PIKDAME_TEST_PG_URL is absent, e.g. locally)
     services:
       postgres:
-        image: postgres:16-alpine
+        image: postgres:18-alpine
         env:
           POSTGRES_USER: pikdame
           POSTGRES_PASSWORD: testpass
@@ -110,6 +110,7 @@ jobs:
         run: |
           cd docker
           cp .env.example .env
+          echo "CROWDSEC_API_KEY=ci-dummy" >> .env
           echo test-password > secrets/db_password.txt
           echo test-smtp > secrets/smtp_password.txt
           if ! ERR=$(docker compose -f docker-compose.prod.yml config 2>&1 > /dev/null); then
