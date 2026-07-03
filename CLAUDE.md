@@ -54,8 +54,10 @@ Ass/Joker=20, Pik Dame=100. Spielende ab 1000 (Hausregel „streng“: >1000).
 1. Feature-Branch → Implementieren → `npm test` (== CI: `node --test test/*.test.js`).
 2. **SemVer-Bump in `package.json`** + **CHANGELOG.md-Abschnitt**
    (Keep a Changelog, Kategorien **Added/Changed/Fixed/Removed**, Inhalte deutsch).
-3. Push → PR → CI abwarten → Squash-Merge → Branch löschen → main pullen →
-   **Git-Tag `vX.Y.Z` + GitHub-Release**.
+3. Push → PR → CI abwarten → Squash-Merge → Branch löschen → main pullen.
+   **Tag, GitHub-Release (Notes aus dem CHANGELOG-Abschnitt) und das
+   GHCR-Image erzeugt der Release-Workflow automatisch beim Push auf main** —
+   nach dem Merge nur verifizieren, nichts manuell taggen.
 4. Vor Commits: `rm -f data/*.json data/crash.log data/users.db`.
 5. Neue Server-Texte ⇒ i18n-Pattern. Neue UI-Elemente ⇒ Vertragstests laufen mit.
 
