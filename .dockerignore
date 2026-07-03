@@ -1,9 +1,15 @@
-node_modules
-npm-debug.log
+# Keep the build context minimal: only server.js, game/, public/ and the
+# package manifests are needed (see COPY statements in the Dockerfile).
 .git
-.gitignore
+.github
+node_modules
 data
 test
+k8s
+scripts
+landing
+docs
 *.md
-.DS_Store
-*.log
+.dockerignore
+docker-compose*.yml
+Dockerfile

@@ -1,0 +1,28 @@
+# Ingress for spiel.pikdame.online (nginx ingress controller example).
+# WebSockets work out of the box with ingress-nginx; the extended timeouts
+# keep long-lived game connections alive.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pikdame
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # cert-manager example (uncomment if installed):
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  # tls:
+  #   - hosts: [spiel.pikdame.online]
+  #     secretName: pikdame-tls
+  rules:
+    - host: spiel.pikdame.online
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pikdame
+                port:
+                  name: http

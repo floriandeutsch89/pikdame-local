@@ -11,8 +11,15 @@ services:
     image: ghcr.io/floriandeutsch89/pikdame-local:latest
     container_name: pikdame
     restart: unless-stopped
+    # Give the graceful shutdown (session snapshot + store flush) time to
+    # finish before Docker sends SIGKILL (default would be 10s).
+    stop_grace_period: 30s
     ports:
       - "8080:8080"
+    # Secrets (SMTP password etc.) belong in an untracked .env file, not in
+    # this committed file - copy .env.example to .env and uncomment:
+    # env_file:
+    #   - .env
     environment:
       - PORT=8080
       - PIKDAME_MAX_SESSIONS=200

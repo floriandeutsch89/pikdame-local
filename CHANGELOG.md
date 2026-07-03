@@ -4,6 +4,19 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.13.0] - 2026-07-03
+
+### Added
+- Betriebshandbuch docs/OPERATIONS.md: Start, Update, Rollback (versionierte GHCR-Tags), Backup/Restore, Monitoring-Endpunkte
+- Backup-/Restore-Skripte (scripts/): konsistente Volume-Sicherung mit kurzem Container-Stopp (SQLite-WAL-Checkpoint + Store-Flush garantiert)
+- Kubernetes-Manifeste (k8s/): Deployment (bewusst eine Replika mit Recreate-Strategie - Sessions leben im RAM, SQLite auf dem PVC), Service, Ingress mit WebSocket-Timeouts, PVC; Pod spiegelt die komplette OWASP-Härtung (non-root, readOnlyRootFilesystem, drop ALL, Seccomp); Anleitung inkl. Secrets und Backup in k8s/README.md
+- .env.example als Vorlage für Produktions-Secrets (SMTP, Basis-URL); .env ist git-ignoriert, Compose-Dateien verweisen per env_file-Block darauf
+
+### Changed
+- Dockerfile auf Multi-Stage umgestellt (deps-Stage, minimales Laufzeit-Image) mit OCI-Labels; der Release-Workflow ergänzt Version und Commit als Labels am GHCR-Image
+- stop_grace_period 30s in beiden Compose-Dateien - der Graceful Shutdown (Session-Snapshot + Store-Flush) bekommt garantiert genug Zeit
+- .dockerignore auf den minimalen Build-Kontext reduziert (nur server.js, game/, public/, Manifeste)
+
 ## [1.12.0] - 2026-07-03
 
 ### Changed
