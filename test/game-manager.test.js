@@ -130,24 +130,37 @@ test('setExplicitDealer bestimmt den Geber der nächsten Runde direkt', () => {
   assert.equal(game.currentPlayer().id, 'p4'); // Spieler nach dem Geber startet
 });
 
-test('Reconnect-Robustheit: getrennter Mensch wird beim eigenen Zug von der Bot-Logik gesteuert', () => {
+test('takeover grace: a disconnected human stays in control first, a bot takes over after the grace window', () => {
   const { game } = makeGame(2);
   game.startNewRound();
   const startingPlayer = game.currentPlayer();
   assert.equal(game.isBotControlled(startingPlayer), false);
 
   game.markDisconnected(startingPlayer.id);
-  assert.equal(game.isBotControlled(startingPlayer), true);
-  assert.equal(game.players.find((p) => p.id === startingPlayer.id).connected, false);
+  const p = game.players.find((pl) => pl.id === startingPlayer.id);
+  assert.equal(p.connected, false);
+  // Inside the grace window: NOT bot-controlled (brief app switches in
+  // hosted mode must not cost the player their round)
+  assert.equal(game.isBotControlled(p), false);
+  // Reconnect cancels the takeover entirely
+  game.addOrReconnectPlayer(p.id, p.name);
+  assert.equal(p.connected, true);
+  assert.equal(p.disconnectedAt, undefined);
+  // Disconnect again, grace elapsed -> bot takes over
+  game.markDisconnected(p.id);
+  p.disconnectedAt = Date.now() - GameManager.TAKEOVER_GRACE_MS - 1000;
+  assert.equal(game.isBotControlled(p), true);
 });
 
-test('publicState markiert getrennte Spieler als controlledByBot', () => {
+test('publicState markiert getrennte Spieler nach Ablauf der Grace als controlledByBot', () => {
   const { game } = makeGame(2);
   game.startNewRound();
   game.markDisconnected('p1');
-  const state = game.publicState('p2');
-  const p1State = state.players.find((p) => p.id === 'p1');
-  assert.equal(p1State.controlledByBot, true);
+  // Inside the grace window the seat still belongs to the human
+  assert.equal(game.publicState('p2').players.find((p) => p.id === 'p1').controlledByBot, false);
+  // Grace elapsed -> visible bot takeover
+  game.players.find((p) => p.id === 'p1').disconnectedAt = Date.now() - GameManager.TAKEOVER_GRACE_MS - 1000;
+  assert.equal(game.publicState('p2').players.find((p) => p.id === 'p1').controlledByBot, true);
 });
 
 test('onGameOver-Hook wird mit Namen/Score/Sieger-Flag beim Spielende aufgerufen', () => {

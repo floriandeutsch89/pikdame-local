@@ -1422,6 +1422,24 @@
     setSoundEnabled(el('ruleSound').checked);
   });
 
+  // --- Home button + gear menu (Fishdom-style tidy header) -------------------
+  el('settingsBtn').addEventListener('click', () => {
+    el('settingsGroup').classList.toggle('hidden');
+  });
+  el('homeBtn').addEventListener('click', () => {
+    el('homeOverlay').classList.remove('hidden');
+  });
+  el('homeCancelBtn').addEventListener('click', () => el('homeOverlay').classList.add('hidden'));
+  el('homeOverlay').addEventListener('click', (ev) => {
+    if (ev.target === el('homeOverlay')) el('homeOverlay').classList.add('hidden');
+  });
+  el('homeConfirmBtn').addEventListener('click', () => {
+    // Back to the start screen: drop the ?session query and reload. The
+    // per-session playerId stays in storage - re-entering the code later
+    // reclaims the seat (a bot covers it after the grace period meanwhile).
+    window.location.href = window.location.pathname;
+  });
+
   // --- Per-bot difficulty ---------------------------------------------------
   const BOT_DIFF = {
     easy: { icon: '🌱', label: () => L('Leicht', 'Easy'), hint: () => L('macht Anfängerfehler', 'makes beginner mistakes') },

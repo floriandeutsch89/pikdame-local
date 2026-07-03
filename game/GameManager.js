@@ -56,9 +56,15 @@ class GameManager {
   // --- Spielerverwaltung -------------------------------------------------
 
   addOrReconnectPlayer(id, name) {
+    // (reconnect path below clears disconnectedAt via the connected flag)
     let p = this.players.find((pl) => pl.id === id);
     if (p) {
       p.connected = true;
+      delete p.disconnectedAt; // back in time - cancel the bot takeover
+      if (this._takeoverTimers) {
+        clearTimeout(this._takeoverTimers.get(id));
+        this._takeoverTimers.delete(id);
+      }
       if (name) p.name = name;
       return p;
     }
@@ -73,15 +79,39 @@ class GameManager {
 
   markDisconnected(id) {
     const p = this.players.find((pl) => pl.id === id);
-    if (p) p.connected = false;
-    // Wenn der getrennte Spieler gerade am Zug ist, übernimmt sofort die
-    // Bot-Logik, statt dass der Tisch blockiert (Reconnect-Robustheit für
-    // wackelige Hotspot-Verbindungen).
-    if (this.phase === 'playing' && this.currentPlayer()?.id === id) {
-      this.maybeRunBotTurn();
+    if (p) {
+      p.connected = false;
+      // GRACE PERIOD before a bot takes over: in hosted mode a player who
+      // briefly switches apps (message, call) loses the websocket - the
+      // old instant takeover meant a bot happily played (and sometimes
+      // finished) their round in the meantime. The table now waits a bit;
+      // reconnecting cancels the takeover.
+      p.disconnectedAt = Date.now();
+      this._scheduleTakeover(id);
+      if (this.phase === 'playing' && this.currentPlayer()?.id === id) {
+        this.addLog(`${p.name} ist getrennt - kehrt ${p.name} nicht zurück, übernimmt gleich ein Bot.`);
+        this.broadcastState();
+      }
     }
     // Waiting on the round-end ready check? A leaver must not block it.
     if (this.phase === 'roundEnd') this._maybeStartNextRound();
+  }
+
+  _scheduleTakeover(id) {
+    if (!this._takeoverTimers) this._takeoverTimers = new Map();
+    clearTimeout(this._takeoverTimers.get(id));
+    this._takeoverTimers.set(
+      id,
+      setTimeout(() => {
+        this._takeoverTimers.delete(id);
+        const p = this.players.find((pl) => pl.id === id);
+        if (!p || p.connected) return; // came back in time
+        this.broadcastState(); // chip now shows 'bot takes over'
+        if (this.phase === 'playing' && this.currentPlayer()?.id === id) {
+          this.maybeRunBotTurn();
+        }
+      }, GameManager.TAKEOVER_GRACE_MS)
+    );
   }
 
   fillWithBots() {
@@ -871,6 +901,10 @@ class GameManager {
   /** Bricht pendende Timer ab - wird beim Entfernen der Session aufgerufen. */
   destroy() {
     clearTimeout(this._botTimer);
+    if (this._takeoverTimers) {
+      for (const t of this._takeoverTimers.values()) clearTimeout(t);
+      this._takeoverTimers.clear();
+    }
     this._botTimer = null;
     for (const t of this._emoteTimers) clearTimeout(t);
     this._emoteTimers.clear();
@@ -924,6 +958,7 @@ class GameManager {
         key === 'onBotEmote' ||
         key === '_botTimer' ||
         key === '_emoteTimers' ||
+        key === '_takeoverTimers' ||
         key === '_nextRoundReady' ||
         key === '_lastBotEmote'
       ) continue;
@@ -941,6 +976,12 @@ class GameManager {
    */
   deserialize(state) {
     Object.assign(this, state);
+    // Disconnected players from before the restart: re-arm their takeover
+    // timers, otherwise a table whose current player never returns would
+    // wait forever (the timer itself did not survive the restart).
+    for (const p of this.players || []) {
+      if (!p.isBot && !p.connected) this._scheduleTakeover(p.id);
+    }
     // Transiente Felder IMMER frisch initialisieren: bereits gespeicherte
     // Snapshots (vor diesem Fix) enthalten _emoteTimers als {} - ohne diese
     // Zeilen wuerde der erste Bot-Emote nach einem Server-Neustart mit
@@ -960,7 +1001,11 @@ class GameManager {
    * (Reconnect-Robustheit: der Tisch blockiert nicht, bis er zurückkehrt).
    */
   isBotControlled(player) {
-    return !!player && (player.isBot || !player.connected);
+    if (!player) return false;
+    if (player.isBot) return true;
+    if (player.connected) return false;
+    // Disconnected humans stay in control during the grace window.
+    return !player.disconnectedAt || Date.now() - player.disconnectedAt >= GameManager.TAKEOVER_GRACE_MS;
   }
 
   runBotTurn(botId) {
@@ -1103,6 +1148,10 @@ class GameManager {
       difficulty,
       visibleCards,
       lowestOpponentHand,
+      queensMelded: this.tableMelds.reduce(
+        (n, m) => n + m.slots.filter((s) => s.real && isPikDame(s.real)).length,
+        0
+      ),
     });
 
     // JOKER-GARANTIE: chooseDiscard liefert null, wenn die Hand nur noch
@@ -1211,6 +1260,9 @@ class GameManager {
   }
 }
 
+// Grace before a bot takes over a disconnected human's seat (hosted mode:
+// a quick app switch must not cost anyone their round).
+GameManager.TAKEOVER_GRACE_MS = 75 * 1000;
 GameManager.MIN_SEATS = MIN_SEATS;
 GameManager.MAX_SEATS_LIMIT = MAX_SEATS_LIMIT;
 GameManager.DEFAULT_MAX_SEATS = DEFAULT_MAX_SEATS;

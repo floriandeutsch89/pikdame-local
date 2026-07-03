@@ -104,11 +104,15 @@
         <div id="roundInfo">Runde –</div>
         <div id="myScore" title="Deine Gesamtpunkte">–</div>
         <div id="turnInfo">–</div>
-        <button id="uiScaleBtn" class="btn-icon" title="Anzeigegröße ändern">Aa</button>
+        <button id="homeBtn" class="btn-icon" title="Zum Startbildschirm">🏠</button>
         <button id="emoteBtn" class="btn-icon" title="Reaktion senden">😀</button>
-        <button id="soundToggle" class="btn-icon" title="Sound ein/aus">🔊</button>
-        <button id="fullscreenBtn" class="btn-icon hidden" title="Vollbild">⛶</button>
-        <button id="logToggle" class="btn-icon">📜</button>
+        <button id="settingsBtn" class="btn-icon" title="Einstellungen">⚙️</button>
+        <span id="settingsGroup" class="settingsGroup hidden">
+          <button id="uiScaleBtn" class="btn-icon" title="Anzeigegröße ändern">Aa</button>
+          <button id="soundToggle" class="btn-icon" title="Sound ein/aus">🔊</button>
+          <button id="fullscreenBtn" class="btn-icon hidden" title="Vollbild">⛶</button>
+          <button id="logToggle" class="btn-icon">📜</button>
+        </span>
         <button id="ingameVersion" class="ingameVersion" title="Was ist neu?">v–</button>
       </header>
 
@@ -178,6 +182,16 @@
         </div>
         <p id="accountStatus" class="lobby-hint"></p>
         <button id="accountCloseBtn" class="btn-secondary">Schließen</button>
+      </div>
+    </section>
+
+    <!-- HOME (Tisch verlassen, zurueck zum Startbildschirm) -->
+    <section id="homeOverlay" class="overlay hidden">
+      <div class="overlay-card">
+        <h2>🏠 Zum Startbildschirm?</h2>
+        <p>Du verlässt den Tisch. Kommst du nicht bald zurück, übernimmt ein Bot deinen Platz - mit dem Spiel-Code kannst du jederzeit wieder einsteigen.</p>
+        <button id="homeConfirmBtn" class="btn-primary">Tisch verlassen</button>
+        <button id="homeCancelBtn" class="btn-secondary">Abbrechen</button>
       </div>
     </section>
 

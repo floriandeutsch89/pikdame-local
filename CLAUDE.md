@@ -19,6 +19,11 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
 
 ## Harte Constraints (nie brechen)
 
+0. **Primärer Betriebsmodus ist der gehostete Docker-Stack**
+   (play.pikdame.online). Der Hotspot-/CodeApp-Modus ist Legacy: Er bleibt
+   funktionsfähig (Zero-Config-Fallbacks nicht brechen), wird aber nicht
+   mehr aktiv optimiert - UX-Entscheidungen richten sich nach dem
+   Online-Mehrspieler-Betrieb.
 1. **iOS-CodeApp-Kompatibilität:** Der Server läuft auf dem iPhone-Hotspot in
    der CodeApp. Deshalb: **keine neuen npm-Dependencies ohne explizites Okay**
    (aktuell: `ws` + `pg` — pg ist pure JS, wird LAZY geladen und nur mit

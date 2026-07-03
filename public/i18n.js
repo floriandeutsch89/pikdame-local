@@ -144,6 +144,7 @@ window.I18N_SERVER_PATTERNS = [
   [/^Ungültiger oder bereits verwendeter Bestätigungslink\.$/, 'Invalid or already used confirmation link.'],
   [/^Zu viele Anfragen - bitte kurz warten\.$/, 'Too many requests - please wait a moment.'],
   [/^Lange Zeit keine neue Auslage - die Runde endet unentschieden\.$/, 'No new melds for a long time - the round ends in a draw.'],
+  [/^(.+) ist getrennt - kehrt (.+) nicht zurück, übernimmt gleich ein Bot\.$/, '$1 is disconnected - if $2 does not return, a bot will take over shortly.'],
   [/^(.+) stellt (.+) auf Leicht\.$/, '$1 sets $2 to Easy.'],
   [/^(.+) stellt (.+) auf Mittel\.$/, '$1 sets $2 to Medium.'],
   [/^(.+) stellt (.+) auf Schwer\.$/, '$1 sets $2 to Hard.'],
