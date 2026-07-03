@@ -4,6 +4,13 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.14.0] - 2026-07-03
+
+### Added
+- Helm Chart (helm/pikdame) als empfohlener Kubernetes-Weg: parametrisiert über values.yaml (Host, TLS, Image-Tag, Storage, Secret-Name, Limits), gehärtete Security-Defaults, Recreate-Strategie und Einzel-Replika fest verdrahtet in der Dokumentation
+- Chart wird bei jedem Release automatisch als OCI-Artefakt auf GHCR veröffentlicht (oci://ghcr.io/floriandeutsch89/charts/pikdame, Chart-Version = App-Version) - Installation, Upgrade und Rollback als Helm-Einzeiler ohne Repo-Checkout
+- CI-Job helm-validate: helm lint plus Template-Rendering in drei Varianten (Defaults, TLS, existingClaim/Secret) bei jedem PR
+
 ## [1.13.0] - 2026-07-03
 
 ### Added

@@ -1,0 +1,11 @@
+apiVersion: v2
+name: pikdame
+description: Multiplayer card game server (family rummy variant) - single-instance stateful app
+type: application
+# version and appVersion are overridden at packaging time by the release
+# workflow (both set to the package.json version).
+version: 0.0.0
+appVersion: "0.0.0"
+home: https://github.com/floriandeutsch89/pikdame-local
+sources:
+  - https://github.com/floriandeutsch89/pikdame-local

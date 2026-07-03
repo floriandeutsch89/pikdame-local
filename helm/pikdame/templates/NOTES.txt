@@ -1,0 +1,14 @@
+Pik Dame {{ .Chart.AppVersion }} deployed.
+
+{{- if .Values.ingress.enabled }}
+URL: http{{ if .Values.ingress.tls.enabled }}s{{ end }}://{{ .Values.ingress.host }}
+{{- else }}
+No ingress enabled - port-forward for a quick look:
+  kubectl port-forward svc/{{ include "pikdame.name" . }} 8080:{{ .Values.service.port }}
+{{- end }}
+
+Health:  kubectl get pods -l app.kubernetes.io/name={{ include "pikdame.name" . }}
+Status:  curl <url>/statusz
+
+Reminder: this app is single-instance by design (in-memory sessions,
+local SQLite) - keep replicaCount at 1.

@@ -113,3 +113,17 @@ jobs:
       - name: Clean up
         if: always()
         run: docker compose down -v
+
+  helm-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # helm is preinstalled on ubuntu runners
+      - name: Helm lint
+        run: helm lint helm/pikdame
+      - name: Render templates (defaults + variations)
+        run: |
+          helm template test helm/pikdame > /dev/null
+          helm template test helm/pikdame --set ingress.tls.enabled=true > /dev/null
+          helm template test helm/pikdame --set persistence.existingClaim=my-claim --set existingSecret=pikdame-env > /dev/null
+          echo "All variations render."
