@@ -1,0 +1,45 @@
+# Pik Dame - Betrieb mit dem fertigen Image von GHCR (kein lokaler Build).
+# Start:   docker compose -f docker-compose.ghcr.yml up -d
+# Update:  docker compose -f docker-compose.ghcr.yml pull && docker compose -f docker-compose.ghcr.yml up -d
+#
+# HINWEIS: GHCR-Packages sind anfangs PRIVAT. Entweder das Package in den
+# GitHub-Package-Einstellungen auf "public" stellen, oder vorher anmelden:
+#   echo $GITHUB_TOKEN | docker login ghcr.io -u <username> --password-stdin
+
+services:
+  pikdame:
+    image: ghcr.io/floriandeutsch89/pikdame-local:latest
+    container_name: pikdame
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - PIKDAME_MAX_SESSIONS=200
+      # - PIKDAME_BASE_URL=https://spiel.pikdame.online
+      # - PIKDAME_SMTP_HOST=smtp.example.com
+      # - PIKDAME_SMTP_PORT=587
+      # - PIKDAME_SMTP_SECURE=starttls
+      # - PIKDAME_SMTP_USER=noreply@pikdame.online
+      # - PIKDAME_SMTP_PASS=geheim
+      # - PIKDAME_MAIL_FROM=Pik Dame <noreply@pikdame.online>
+    volumes:
+      - pikdame-data:/app/data
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  pikdame-data:

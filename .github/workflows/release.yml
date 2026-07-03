@@ -1,0 +1,91 @@
+name: Release
+
+# Bei jedem Push auf main: Wenn die Version in package.json noch keinen
+# Git-Tag hat, werden automatisch erzeugt:
+# 1. Git-Tag vX.Y.Z + GitHub-Release (Notes = passender CHANGELOG-Abschnitt)
+# 2. Docker-Image auf GHCR: ghcr.io/<owner>/pikdame-local:latest + :vX.Y.Z
+#    (amd64 + arm64 - laeuft damit auch auf Raspberry Pi & Apple Silicon)
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write # Tag + Release erstellen
+  packages: write # GHCR-Push
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      is_new: ${{ steps.v.outputs.is_new }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        name: Version lesen + pruefen, ob der Tag schon existiert
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if git ls-remote --tags origin "refs/tags/v$VERSION" | grep -q .; then
+            echo "is_new=false" >> "$GITHUB_OUTPUT"
+            echo "Tag v$VERSION existiert bereits - kein neues Release."
+          else
+            echo "is_new=true" >> "$GITHUB_OUTPUT"
+            echo "Neue Version: v$VERSION"
+          fi
+
+  release:
+    needs: meta
+    if: needs.meta.outputs.is_new == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Release-Notes aus CHANGELOG.md extrahieren
+        run: |
+          VERSION="${{ needs.meta.outputs.version }}"
+          # Abschnitt "## [X.Y.Z]" bis zum naechsten "## [" ausschneiden
+          awk -v ver="$VERSION" '
+            $0 ~ "^## \\[" ver "\\]" { on=1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "Details siehe [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md)." > release-notes.md
+          fi
+          echo "--- Notes fuer v$VERSION ---"; cat release-notes.md
+      - name: Tag + GitHub-Release erstellen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ needs.meta.outputs.version }}"
+          gh release create "v$VERSION" \
+            --title "Pik Dame v$VERSION" \
+            --notes-file release-notes.md \
+            --target "${{ github.sha }}"
+
+  docker:
+    needs: [meta, release]
+    if: needs.meta.outputs.is_new == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: GHCR-Login
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build & Push (amd64 + arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:v${{ needs.meta.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
