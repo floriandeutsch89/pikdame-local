@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.15.0] - 2026-07-03
+
+### Changed
+- Bots (ab medium) schlucken im Endspiel nicht mehr den Ablagestapel, wenn weiter hinten eine Pik Dame lauert: Mit 4 oder weniger Handkarten ziehen sie stattdessen verdeckt - eine fast gewonnene Runde wird nicht gegen ein 100-Minuspunkte-Risiko getauscht. Liegt die Pik Dame OBEN (sofort auslegbar, +100), bleibt die Aufnahme attraktiv
+- Ausgeschiedene Joker werden nicht mehr als eigene Leiste über dem Spielfeld angezeigt (kein Mehrwert - der Tausch steht im Log, die Regel bleibt unverändert: getauschte Joker sind dauerhaft aus dem Spiel)
+
+### Fixed
+- Patt-Wächter gegen extrem seltene Endlos-Runden: Kreisen die Karten per Nachmischen ewig, weil niemand mehr auslegen kann, endet die Runde nach 160 auslage-losen Zügen unentschieden (gewertet wie das bestehende Leerstapel-Patt). Im 60-Spiele-Stresstest griff er genau einmal - vorher lief diese Runde endlos
+
 ## [1.14.2] - 2026-07-03
 
 ### Changed

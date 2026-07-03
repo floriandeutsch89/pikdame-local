@@ -763,15 +763,10 @@
       meldsDiv.appendChild(section);
     });
 
-    // Ausgetauschte Joker (dauerhaft aus dem Spiel, nur sichtbar liegend)
-    const retiredDiv = el('retiredJokersBar');
-    if (lastState.retiredJokers && lastState.retiredJokers.length > 0) {
-      retiredDiv.innerHTML =
-        `<span>Ausgeschiedene Joker:</span>` +
-        lastState.retiredJokers.map(() => `<span class="joker-mini">🃏</span>`).join('');
-    } else {
-      retiredDiv.innerHTML = '';
-    }
+    // Retired jokers are intentionally NOT rendered: the info bar added no
+    // gameplay value (the swap is announced in the log; the cards are out of
+    // the game either way). Server-side tracking stays untouched - it is
+    // part of the rules (retired jokers can never be picked up again).
 
     // Stapel
     el('drawCount').textContent = lastState.drawPileCount;

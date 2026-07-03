@@ -107,7 +107,7 @@ where they are implemented:
 | Sets (same rank, each suit max 2×) and runs on the rank ring (K-A-2 valid, max 13) | `Rules.js` |
 | Only ONE set per rank per player; laying off & joker swaps only on YOUR OWN melds | `GameManager.js` |
 | Lucky cut (Queen of Spades/joker at the cut position) | `Deck.js` |
-| Swapped jokers stay visible on the table, out of the game | `GameManager.js` |
+| Swapped jokers are permanently out of the game (cannot be picked up again) | `GameManager.js` |
 | **Going out only by discarding the last card** | `GameManager.js` |
 | Points: 2–9 = 5 · 10/J/Q/K = 10 · Ace/Joker = 20 · ♠Q = 100; game ends at 1000 | `Card.js`, `ScoreBoard.js` |
 

@@ -514,18 +514,6 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
 }
 
-#retiredJokersBar {
-  display: flex; align-items: center; gap: 6px;
-  padding: 3px 14px;
-  font-size: 0.68rem; font-weight: 500; color: var(--text-muted);
-}
-#retiredJokersBar .joker-mini {
-  width: 18px; height: 24px; border-radius: 4px;
-  background: var(--card-bg); color: var(--joker);
-  display: inline-flex; align-items: center; justify-content: center;
-  font-size: 0.62rem;
-  box-shadow: var(--shadow-1);
-}
 
 /* Stapel: der beleuchtete Tisch-Spot */
 #centerPiles {
@@ -1183,7 +1171,6 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   #topBar { grid-area: top; padding: calc(4px + var(--safe-top)) calc(12px + var(--safe-right)) 4px calc(12px + var(--safe-left)); font-size: 0.7rem; }
   #opponents { grid-area: opp; padding: 3px calc(10px + var(--safe-right)) 3px calc(10px + var(--safe-left)); }
   #melds { grid-area: melds; overflow-y: auto; min-height: 0; padding: 6px 10px 6px calc(10px + var(--safe-left)); }
-  #retiredJokersBar { display: none; }
   #centerPiles {
     grid-area: piles;
     flex-direction: column;

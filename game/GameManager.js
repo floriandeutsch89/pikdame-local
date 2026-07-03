@@ -268,6 +268,18 @@ class GameManager {
   }
 
   advanceTurn() {
+    // Stalemate watchdog: with the reshuffle mechanic, cards can circle
+    // forever when no player is able (or willing) to meld anymore - the
+    // empty-pile stalemate below never triggers because the piles refill
+    // each other. 160 consecutive turns without a single successful meld
+    // or lay-off (~40 full table rotations) is far beyond anything a real
+    // round produces - end it as a draw, scored like the empty-pile case.
+    this._turnsWithoutMeld = (this._turnsWithoutMeld || 0) + 1;
+    if (this._turnsWithoutMeld > 160 && this.phase === 'playing') {
+      this.addLog('Lange Zeit keine neue Auslage - die Runde endet unentschieden.');
+      this.finishRound(null, { stalemate: true });
+      return;
+    }
     this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
     this.turnPhase = 'draw';
     this.mustLayOffCardId = null;
@@ -463,6 +475,7 @@ class GameManager {
     }
 
     this.addLog(`${player.name} legt eine neue ${result.type === 'set' ? 'Satz' : 'Folge'}-Auslage aus.`);
+    this._turnsWithoutMeld = 0;
     // Eine ausgelegte Pik Dame elektrisiert den Tisch.
     if (meld.slots.some((s) => s.real && isPikDame(s.real))) {
       this.maybeBotEmote(player.id, '🎉', 0.3, { force: true });
@@ -530,6 +543,7 @@ class GameManager {
     }
 
     this.addLog(`${player.name} legt ${cardLabel(card)} an eine Auslage an.`);
+    this._turnsWithoutMeld = 0;
     if (isPikDame(card)) {
       this.maybeBotEmote(player.id, '🎉', 0.3, { force: true });
       this.botsReact(player.id, '😱', 0.4, { force: true });
@@ -757,6 +771,7 @@ class GameManager {
     this.gameOverInfo = null;
     this.lastRoundResult = null;
     this.lastRoundStats = null;
+    this._turnsWithoutMeld = 0;
     this.lastRoundWasHandAus = false;
     this.lastRoundForfeitedBy = null;
     this.roundHistory = [];
@@ -901,6 +916,19 @@ class GameManager {
     const plan = Bot.decideDraw(cp.hand, this.discardPile, ownMelds);
     // Leichte Bots übersehen die Ablage-Chance meistens (wie Anfänger).
     if (difficulty === 'easy' && plan.source === 'discardPile' && Math.random() < 0.6) {
+      plan.source = 'drawPile';
+    }
+    // Endgame guard (medium and up): taking the discard pile means taking
+    // ALL of it. If a Queen of Spades hides BELOW the top card and the bot
+    // is close to going out, swallowing the pile would trade an almost won
+    // round for a -100 liability - draw from the stock instead. A Queen ON
+    // TOP stays attractive: it must be melded immediately (+100).
+    if (
+      plan.source === 'discardPile' &&
+      difficulty !== 'easy' &&
+      cp.hand.length <= 4 &&
+      this.discardPile.slice(1).some((card) => isPikDame(card))
+    ) {
       plan.source = 'drawPile';
     }
     // Gelegentlicher Bluff: kurz vor dem Ziehen das Pik-Dame-Emote zeigen -
