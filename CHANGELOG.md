@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.19.1] - 2026-07-03
+
+### Added
+- Troubleshooting-Abschnitt im Betriebshandbuch für den klassischen CrowdSec-Stolperstein: Bouncer erhält 403 an /v1/decisions/stream (Key fehlt/passt nicht; Caddy muss nach .env-Änderung per up -d --force-recreate neu erstellt werden - restart liest die .env nicht neu)
+
 ## [1.19.0] - 2026-07-03
 
 ### Added

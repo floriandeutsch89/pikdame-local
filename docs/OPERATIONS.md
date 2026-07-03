@@ -94,6 +94,18 @@ docker compose -f docker-compose.prod.yml up -d --force-recreate caddy
 docker compose -f docker-compose.prod.yml exec crowdsec cscli decisions list
 ```
 
+### Troubleshooting: bouncer gets `403` on `/v1/decisions/stream`
+
+The API key Caddy carries does not match any bouncer registered in
+CrowdSec. Check `cscli bouncers list`: if `caddy-bouncer` is missing (or
+the key was issued by an earlier CrowdSec instance), (re)create it via
+`cscli bouncers delete caddy-bouncer` + `cscli bouncers add caddy-bouncer`
+and put the new key into `.env`. Then recreate Caddy with
+`docker compose -f docker-compose.prod.yml up -d --force-recreate caddy` -
+a plain `restart` does NOT re-read `.env`. Success looks like a fresh
+"last pull" timestamp in `cscli bouncers list` and no more 403 lines in
+the Caddy log.
+
 ## SMTP egress (app stays offline)
 
 The app has **no internet route**. Outbound mail works through a dedicated
