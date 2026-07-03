@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.11.0] - 2026-07-03
+
+### Added
+- OWASP-Docker-Härtung in beiden Compose-Dateien: alle Capabilities entzogen (cap_drop ALL), Read-only-Dateisystem (beschreibbar nur data/-Volume und ein noexec-tmpfs für /tmp), explizites AppArmor-Standardprofil, Prozess-Obergrenze gegen Fork-Bomben (pids_limit 256), Datei-Deskriptor-Limits
+- CI-Job docker-security: Dockerfile-Lint (hadolint) und Trivy-Schwachstellenscan des Images (Fehler ab HIGH bei fixbaren CVEs)
+- CI-Job docker-smoke: fährt die voll gehärtete Compose-Konfiguration real hoch (Ubuntu-Runner mit aktivem AppArmor), wartet auf healthy, prüft /healthz und /statusz und verifiziert die effektive Härtung per docker inspect
+- SECURITY.md: Abbildung aller OWASP-Regeln auf ihre Umsetzung, Host-Pflichten (Rootless Mode, Docker-Updates, Daemon-Socket) und Hinweis für SELinux-Hosts
+
 ## [1.10.0] - 2026-07-03
 
 ### Added

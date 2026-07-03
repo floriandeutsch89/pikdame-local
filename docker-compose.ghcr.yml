@@ -28,6 +28,10 @@ services:
     deploy:
       resources:
         limits:
+          # RULE #6: Prozess-Obergrenze (Fork-Bomb-Schutz). Gehoert bei
+          # vorhandenem deploy-Block HIERHER - 'pids_limit' daneben lehnt
+          # docker compose als widerspruechlich ab.
+          pids: 256
           cpus: "1.0"
           memory: 512M
         reservations:
@@ -38,8 +42,28 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    # --- OWASP Docker Security (Container-Regeln) ---
+    # RULE #3: Alle Linux-Capabilities fallen lassen - der Node-Server
+    # bindet nur Port 8080 (unprivilegiert) und braucht keine einzige.
+    cap_drop:
+      - ALL
+    # RULE #4 (no-new-privileges) + AppArmor-Standardprofil explizit.
+    # Hinweis: apparmor gilt auf Hosts MIT AppArmor (Ubuntu/Debian) - auf
+    # SELinux-Hosts (Fedora/RHEL) diese eine Zeile auskommentieren.
     security_opt:
       - no-new-privileges:true
+      - apparmor=docker-default
+    # RULE #7: Root-Dateisystem unveraenderlich; beschreibbar sind NUR das
+    # data/-Volume und ein kleines nicht-ausfuehrbares tmpfs fuer /tmp.
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    # RULE #6 (Fortsetzung): Datei-Deskriptoren fuer WebSocket-Verbindungen
+    # (4096 traegt hunderte parallele Clients).
+    ulimits:
+      nofile:
+        soft: 4096
+        hard: 4096
 
 volumes:
   pikdame-data:

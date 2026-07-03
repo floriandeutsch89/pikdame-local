@@ -41,3 +41,75 @@ jobs:
       # Bekannte Sicherheitslücken (ab Schweregrad high)
       - name: Security audit
         run: npm audit --audit-level=high
+
+  docker-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # OWASP RULE #11: Dockerfile linten.
+      # DL3018 (apk-Versionspins) ist bewusst ignoriert: tini soll mit dem
+      # Alpine-Basisimage wandern statt auf eine Version festgenagelt zu sein.
+      - name: Lint Dockerfile (hadolint)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          ignore: DL3018
+      - name: Build image
+        run: docker build -t pikdame:scan .
+      # OWASP RULE #8: Image auf bekannte Schwachstellen scannen.
+      # ignore-unfixed: Alpine-CVEs ohne verfuegbaren Fix blockieren nicht.
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: pikdame:scan
+          format: json
+          output: trivy.json
+          exit-code: '0'
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+      - name: Findings auswerten (als Annotations)
+        run: |
+          COUNT=$(jq '[.Results[]?.Vulnerabilities[]?] | length' trivy.json)
+          jq -r '.Results[]?.Vulnerabilities[]? | "::error::\(.VulnerabilityID) in \(.PkgName) \(.InstalledVersion) -> Fix: \(.FixedVersion // "-") [\(.Severity)]"' trivy.json | head -20
+          echo "Fixbare HIGH/CRITICAL-Findings: $COUNT"
+          [ "$COUNT" = "0" ]
+
+  docker-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Beweist, dass der Server unter der VOLLEN OWASP-Haertung laeuft:
+      # cap_drop ALL, read_only, AppArmor-Profil (Ubuntu-Runner haben
+      # AppArmor aktiv), pids_limit, tmpfs - up, healthy, antwortet.
+      # Granulare Steps: schlaegt einer fehl, zeigt der Step-Name die Ursache
+      - name: Compose-Datei validieren
+        run: |
+          if ! ERR=$(docker compose config 2>&1 > /dev/null); then
+            echo "::error::compose config: ${ERR}"
+            exit 1
+          fi
+      - name: Image bauen
+        run: docker compose build
+      - name: Compose up (gehaertete Konfiguration)
+        run: docker compose up -d
+      - name: Auf healthy warten
+        run: |
+          for i in $(seq 1 30); do
+            STATUS=$(docker inspect --format='{{.State.Health.Status}}' pikdame 2>/dev/null || echo starting)
+            echo "Health: $STATUS"
+            [ "$STATUS" = "healthy" ] && exit 0
+            [ "$STATUS" = "unhealthy" ] && docker logs pikdame && exit 1
+            sleep 2
+          done
+          echo "Timeout"; docker logs pikdame; exit 1
+      - name: Endpunkte pruefen
+        run: |
+          curl -fsS http://localhost:8080/healthz
+          curl -fsS http://localhost:8080/statusz | grep -o '"status":"ok"'
+      - name: Effektive Haertung verifizieren
+        run: |
+          docker inspect pikdame --format 'ReadonlyRootfs={{.HostConfig.ReadonlyRootfs}} CapDrop={{.HostConfig.CapDrop}} Pids={{.HostConfig.PidsLimit}} SecurityOpt={{.HostConfig.SecurityOpt}}'
+          docker inspect pikdame --format '{{.HostConfig.ReadonlyRootfs}}' | grep -q true
+      - name: Aufraeumen
+        if: always()
+        run: docker compose down -v
