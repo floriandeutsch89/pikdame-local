@@ -28,6 +28,10 @@ services:
     deploy:
       resources:
         limits:
+          # RULE #6: Prozess-Obergrenze (Fork-Bomb-Schutz). Gehoert bei
+          # vorhandenem deploy-Block HIERHER - 'pids_limit' daneben lehnt
+          # docker compose als widerspruechlich ab.
+          pids: 256
           cpus: "1.0"
           memory: 512M
         reservations:
@@ -54,9 +58,8 @@ services:
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m
-    # RULE #6: Prozess-Obergrenze (Fork-Bomb-Schutz) + Datei-Deskriptoren
-    # (WebSocket-Verbindungen; 4096 traegt hunderte parallele Clients).
-    pids_limit: 256
+    # RULE #6 (Fortsetzung): Datei-Deskriptoren fuer WebSocket-Verbindungen
+    # (4096 traegt hunderte parallele Clients).
     ulimits:
       nofile:
         soft: 4096

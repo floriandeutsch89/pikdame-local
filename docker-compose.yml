@@ -30,6 +30,10 @@ services:
     deploy:
       resources:
         limits:
+          # RULE #6: Prozess-Obergrenze (Fork-Bomb-Schutz). Gehoert bei
+          # vorhandenem deploy-Block HIERHER - 'pids_limit' daneben lehnt
+          # docker compose als widerspruechlich ab.
+          pids: 256
           # Gemessen: ~117 KB Heap pro aktivem Spiel + Node-Grundlast.
           # 512M tragen die 200-Session-Obergrenze mit reichlich Reserve;
           # 1 CPU reicht (der Server ist I/O-lastig, nicht rechenintensiv).
@@ -59,9 +63,8 @@ services:
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m
-    # RULE #6: Prozess-Obergrenze (Fork-Bomb-Schutz) + Datei-Deskriptoren
-    # (WebSocket-Verbindungen; 4096 traegt hunderte parallele Clients).
-    pids_limit: 256
+    # RULE #6 (Fortsetzung): Datei-Deskriptoren fuer WebSocket-Verbindungen
+    # (4096 traegt hunderte parallele Clients).
     ulimits:
       nofile:
         soft: 4096

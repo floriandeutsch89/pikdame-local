@@ -14,7 +14,16 @@ WORKDIR /app
 # Copy only the manifests first -> the Docker layer cache for `npm ci`
 # stays valid as long as package*.json does not change.
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+# Install production deps, then REMOVE the npm/corepack tooling from the
+# final image: the server never needs it at runtime, and npm's own
+# dependency tree (sigstore, picomatch, ...) regularly carries CVEs that
+# would trip the Trivy gate - removing it shrinks the attack surface
+# (OWASP: minimal image) and keeps the scan meaningful for OUR code.
+RUN npm ci --omit=dev \
+  && rm -rf /usr/local/lib/node_modules/npm \
+            /usr/local/lib/node_modules/corepack \
+            /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+            /root/.npm
 
 COPY server.js ./
 COPY game ./game
