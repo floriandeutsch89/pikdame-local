@@ -33,6 +33,7 @@ WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
+COPY CHANGELOG.md ./
 COPY server.js ./
 COPY game ./game
 COPY public ./public

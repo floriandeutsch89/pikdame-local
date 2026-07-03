@@ -11,6 +11,8 @@ scripts
 landing
 docs
 *.md
+# ...except the changelog: /changelogz serves it (the in-app 'what's new')
+!CHANGELOG.md
 .dockerignore
 docker-compose*.yml
 Dockerfile

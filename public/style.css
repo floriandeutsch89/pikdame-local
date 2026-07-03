@@ -841,6 +841,11 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   padding: 18px;
 }
 .overlay-card {
+  /* Overlay cards are LIGHT in every theme, but --text-muted is tuned for
+     the dark table - remap it (and the border tone) locally so rules,
+     statistics, charts and legends stay readable everywhere. */
+  --text-muted: rgba(0, 0, 0, 0.56);
+  --glass-border: rgba(0, 0, 0, 0.12);
   background: var(--card-bg); color: var(--card-ink);
   border-radius: var(--r-lg);
   padding: 26px 22px calc(22px + var(--safe-bottom) / 2);
@@ -1569,3 +1574,18 @@ input:disabled { opacity: 0.65; }
   font-weight: 700;
 }
 #resumeBtn { margin-top: 8px; }
+
+/* --- Score progress bars + round delta (v1.25.0) ------------------------------ */
+.scoreBar {
+  height: 4px; border-radius: 999px; margin-top: 4px;
+  background: rgba(255,255,255,0.18); overflow: hidden;
+}
+.scoreBar i {
+  display: block; height: 100%;
+  background: linear-gradient(90deg, #2ecc71, #f1c40f 70%, #e67e22);
+  border-radius: 999px;
+  transition: width 0.6s ease;
+}
+#myScoreBar { width: 74px; }
+.deltaUp { color: #1e9e57; font-weight: 700; }
+.deltaDown { color: #d34b3a; font-weight: 700; }

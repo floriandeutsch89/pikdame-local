@@ -633,8 +633,12 @@
   }
 
   function renderTable() {
+    const SCORE_TARGET = 1000;
     const myTotal = (lastState.totals && lastState.totals[playerId]) || 0;
     el('myScore').textContent = L(`${myTotal} Pkt`, `${myTotal} pts`);
+    // Progress towards the 1000-point finish line (negatives clamp to 0)
+    el('myScoreBar').querySelector('i').style.width =
+      `${Math.max(0, Math.min(100, (myTotal / SCORE_TARGET) * 100))}%`;
     const dealer = lastState.players.find((p) => p.id === lastState.dealerId);
     const iAmDealer = dealer && dealer.id === playerId;
     // Kompakte Topbar: Der Geber ist jetzt per ⭐ direkt am jeweiligen
@@ -691,7 +695,8 @@
           ? ` <button class="botDiffBadge" data-bot-id="${escapeHtml(p.id)}" title="${L('Schwierigkeit ändern', 'Change difficulty')}">${BOT_DIFF[p.botDifficulty] ? BOT_DIFF[p.botDifficulty].icon : '🙂'}</button>`
           : '';
         d.title = L(`${p.handCount} Karten · ${opTotal} Punkte`, `${p.handCount} cards · ${opTotal} points`);
-        d.innerHTML = `<div class="opName">${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}${diffBadge}${dealerStar}${reconnecting ? ` <span class="reconnectTag">⏳ ${L('getrennt – Bot übernimmt', 'disconnected – bot takes over')}</span>` : ''}</div><div class="opCount"><b>${p.handCount}</b> ${L('Kt', 'cd')} · <b>${opTotal}</b> ${L('Pkt', 'pts')}</div>`;
+        const opProgress = Math.max(0, Math.min(100, (opTotal / 1000) * 100));
+        d.innerHTML = `<div class="opName">${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}${diffBadge}${dealerStar}${reconnecting ? ` <span class="reconnectTag">⏳ ${L('getrennt – Bot übernimmt', 'disconnected – bot takes over')}</span>` : ''}</div><div class="opCount"><b>${p.handCount}</b> ${L('Kt', 'cd')} · <b>${opTotal}</b> ${L('Pkt', 'pts')}</div><div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>`;
         const badgeBtn = d.querySelector('.botDiffBadge');
         if (badgeBtn) {
           badgeBtn.addEventListener('click', (ev) => {
@@ -1097,12 +1102,21 @@
       // Rundenende fast immer 0 - deshalb wirkten die Spalten 'kaputt').
       // Fallback ?? 0 fuer Runden, die vor diesem Update gespielt wurden.
       statsTable.innerHTML = `
-        <thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('Ausgelegt', 'Melded')}</th><th>${L('Auf Hand', 'In hand')}</th><th title="${L('Pik Damen ausgelegt', 'Queens of Spades melded')}">♠Q</th><th title="${L('Joker ausgelegt', 'Jokers melded')}">🃏</th></tr></thead>
+        <thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('Runde', 'Round')}</th><th>${L('Ausgelegt', 'Melded')}</th><th>${L('Auf Hand', 'In hand')}</th><th title="${L('Pik Damen ausgelegt', 'Queens of Spades melded')}">♠Q</th><th title="${L('Joker ausgelegt', 'Jokers melded')}">🃏</th></tr></thead>
         <tbody>${lastState.lastRoundStats
-          .map(
-            (s) =>
-              `<tr${s.id === lastState.lastRoundWinnerId ? ' class="winnerRow"' : ''}><td>${escapeHtml(s.name)}${s.id === lastState.lastRoundWinnerId ? ' 🏆' : ''}</td><td>${s.laidOutCount}</td><td>${s.handCount}</td><td>${s.pikDameLaidOut ?? 0}</td><td>${s.jokersLaidOut ?? 0}</td></tr>`
-          )
+          .map((s) => {
+            const r = lastState.lastRoundResult && lastState.lastRoundResult[s.id];
+            const delta = r ? r.roundScore : null;
+            const deltaCell =
+              delta === null
+                ? '–'
+                : delta > 0
+                  ? `<span class="deltaUp">+${delta} ▲</span>`
+                  : delta < 0
+                    ? `<span class="deltaDown">${delta} ▼</span>`
+                    : '±0';
+            return `<tr${s.id === lastState.lastRoundWinnerId ? ' class="winnerRow"' : ''}><td>${escapeHtml(s.name)}${s.id === lastState.lastRoundWinnerId ? ' 🏆' : ''}</td><td>${deltaCell}</td><td>${s.laidOutCount}</td><td>${s.handCount}</td><td>${s.pikDameLaidOut ?? 0}</td><td>${s.jokersLaidOut ?? 0}</td></tr>`;
+          })
           .join('')}</tbody>`;
       body.appendChild(statsTable);
     }

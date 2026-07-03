@@ -4,6 +4,16 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.25.0] - 2026-07-03
+
+### Added
+- Fortschrittsbalken zum 1000-Punkte-Ziel: jeder Gegner-Chip und die eigene Punkteanzeige tragen einen kleinen Farbverlaufs-Balken (grün → gelb → orange) - der Spielstand ist auf einen Blick erfassbar
+- Delta-Spalte in der Rundenende-Tabelle: die Punkte der Runde erscheinen pro Spieler als "+85 ▲" (grün) bzw. "-40 ▼" (rot)
+
+### Fixed
+- Klick auf die Version zeigt jetzt auch im Online-Betrieb den Changelog: Die CHANGELOG.md fehlte im Docker-Image (.dockerignore blockte *.md, der Server fiel still auf einen Einzeiler zurück) - sie wird nun explizit mitgeliefert
+- Lesbarkeit aller Overlays generell repariert: Die gedämpfte Textfarbe ist für den dunklen Spieltisch abgestimmt und war auf den hellen Overlay-Karten kaum lesbar (Spielregeln "Ziel & Karten", Hauptmenü-Statistik u. a.) - sie wird jetzt zentral pro Overlay-Karte dunkel überschrieben, ein Fix für alle Stellen
+
 ## [1.24.0] - 2026-07-03
 
 ### Added
