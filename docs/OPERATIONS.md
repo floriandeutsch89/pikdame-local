@@ -119,6 +119,22 @@ The app has **no internet route**. Outbound mail works through a dedicated
 Different provider? Change the `tcp-connect:` target in the `smtp-egress`
 service and the servername env.
 
+### Troubleshooting: `EACCES: permission denied, open '/run/secrets/...'`
+
+Compose file secrets are bind mounts that keep the host file's owner and
+mode. The app runs as non-root (UID 10001 since v1.19.3) and cannot read
+files owned by root with mode 600. Fix on the host:
+
+```sh
+cd /opt/pikdame/docker
+chown 10001:10001 secrets/*.txt && chmod 400 secrets/*.txt
+docker compose -f docker-compose.prod.yml restart pikdame
+```
+
+When upgrading from an image older than v1.19.3 (app UID was 100), also
+re-own the data volume once:
+`docker compose -f docker-compose.prod.yml exec -u root pikdame chown -R 10001:10001 /app/data`
+
 ## Update & rollback
 
 ```sh
