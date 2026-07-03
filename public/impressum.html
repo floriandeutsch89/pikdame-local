@@ -48,11 +48,47 @@
         <h2>Grundsatz: Datensparsamkeit</h2>
         <p>
           Dieses Spiel ist bewusst so gebaut, dass so wenig Daten wie möglich
-          anfallen: <strong>keine Konten, keine Passwörter, keine E-Mail-Adressen,
-          keine Cookies zu Werbe- oder Analysezwecken, keine Tracker, keine
-          Einbindung von Drittanbietern und keine Weitergabe von Daten an
-          Dritte.</strong> Es gilt die Empfehlung, als Spielernamen ein Pseudonym
-          (z.&nbsp;B. einen Spitznamen) zu verwenden.
+          anfallen: <strong>keine Cookies zu Werbe- oder Analysezwecken, keine
+          Tracker, keine Werbung und keine Weitergabe von Daten an Dritte zu
+          kommerziellen Zwecken.</strong> Spielen ist vollständig ohne Konto
+          möglich; es gilt die Empfehlung, als Spielernamen ein Pseudonym
+          (z.&nbsp;B. einen Spitznamen) zu verwenden. Ein Benutzerkonto ist ein
+          freiwilliges Zusatzangebot (siehe unten).
+        </p>
+      </section>
+
+      <section>
+        <h2>Benutzerkonten (optional)</h2>
+        <p>
+          Sie können freiwillig ein Konto anlegen, um Ihren Spielernamen zu
+          schützen und Ihren Spielfortschritt dauerhaft zu sichern. Dabei werden
+          verarbeitet (Art.&nbsp;6 Abs.&nbsp;1 lit.&nbsp;b DSGVO):
+        </p>
+        <p>
+          <strong>Benutzername und E-Mail-Adresse:</strong> Die E-Mail-Adresse
+          dient ausschließlich der einmaligen Bestätigung bei der Registrierung
+          und der Anmeldung; sie wird nicht für Werbung verwendet und nicht
+          weitergegeben. <strong>Passwort:</strong> Ihr Passwort wird niemals im
+          Klartext gespeichert, sondern ausschließlich als kryptographischer
+          Hash (scrypt mit individuellem Salt). <strong>Anmelde-Sitzung:</strong>
+          Nach dem Login wird ein zufälliges Sitzungs-Token im Browser Ihres
+          Geräts gespeichert (Gültigkeit 90 Tage, §&nbsp;25 Abs.&nbsp;2
+          Nr.&nbsp;2 TDDDG); beim Abmelden wird es serverseitig ungültig.
+          Alle Kontodaten liegen in einer Datenbank auf dem eigenen Server des
+          Betreibers (Serverstandort Deutschland).
+        </p>
+        <p>
+          <strong>Versand der Bestätigungs-E-Mail:</strong> Für den Versand der
+          Registrierungs-Bestätigung wird der Dienst Mailgun (Mailgun
+          Technologies, EU-Region) als Auftragsverarbeiter gemäß
+          Art.&nbsp;28 DSGVO eingesetzt. Dabei wird Ihre E-Mail-Adresse zum
+          Zweck des Versands an Mailgun übermittelt; die Verarbeitung erfolgt
+          auf Servern in der EU.
+        </p>
+        <p>
+          Sie können die Löschung Ihres Kontos samt aller zugehörigen Daten
+          jederzeit formlos über die im Impressum genannte E-Mail-Adresse
+          verlangen.
         </p>
       </section>
 
@@ -99,7 +135,10 @@
           verlassen wurden (spätestens nach 24 Stunden). Gespeicherte
           Spielstatistiken verbleiben auf dem Server, bis sie vom Betreiber
           gelöscht werden; eine Löschung kann jederzeit formlos über die oben
-          genannte E-Mail-Adresse verlangt werden.
+          genannte E-Mail-Adresse verlangt werden. Kontodaten (Benutzername,
+          E-Mail-Adresse, Passwort-Hash) werden bis zur Löschung des Kontos
+          gespeichert; nicht bestätigte Registrierungen verfallen automatisch
+          nach 48 Stunden.
         </p>
       </section>
 

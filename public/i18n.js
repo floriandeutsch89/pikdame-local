@@ -13,7 +13,7 @@
 
 window.I18N_STATIC = {
   // Lobby
-  'Offline-Multiplayer Rommé über Hotspot': 'Offline multiplayer rummy over hotspot',
+  'Das Familien-Rommé – online mit Freunden & Bots': 'The family rummy – online with friends & bots',
   'Neues Spiel erstellen': 'Create a new game',
   'oder einem Spiel beitreten': 'or join a game',
   'Beitreten': 'Join',

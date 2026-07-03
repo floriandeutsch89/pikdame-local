@@ -370,6 +370,7 @@
 
   function handleMessage(msg) {
     if (msg.type === 'joined') {
+      storageSet('pikdame_last_session', msg.sessionCode);
       playerId = msg.playerId;
       sessionCode = msg.sessionCode;
       storageSet(playerKeyFor(sessionCode), playerId);
@@ -381,6 +382,10 @@
       return;
     }
     if (msg.type === 'error') {
+      // A stale resume target is gone for good - stop offering it.
+      if (/Kein Spiel mit diesem Code/.test(msg.error || '')) {
+        storageRemove('pikdame_last_session');
+      }
       showHint(trs(msg.error), true);
       // Wichtige Fehler (z.B. Ablagestapel nicht aufnehmbar) deutlich und
       // laenger in der Bildmitte zeigen - die Hint-Zeile allein wird auf
@@ -662,9 +667,14 @@
     orderedOpponents
       .forEach((p) => {
         const d = document.createElement('div');
+        const roundOver = lastState.phase === 'roundEnd' || lastState.phase === 'gameOver';
         d.className =
           'opponent' +
-          (p.id === lastState.currentPlayerId ? ' active' : '') +
+          // During play the green ring marks whose TURN it is; once the
+          // round is over it marks the player who WENT OUT instead - the
+          // stale turn ring used to confuse people.
+          (!roundOver && p.id === lastState.currentPlayerId ? ' active' : '') +
+          (roundOver && p.id === lastState.lastRoundWinnerId ? ' roundWinner' : '') +
           (p.id === meldFilterPlayerId ? ' meldFilterActive' : '');
         d.dataset.playerId = p.id;
         // Klick auf den Namen: nur die Auslagen dieses Spielers zeigen
@@ -1091,7 +1101,7 @@
         <tbody>${lastState.lastRoundStats
           .map(
             (s) =>
-              `<tr><td>${escapeHtml(s.name)}</td><td>${s.laidOutCount}</td><td>${s.handCount}</td><td>${s.pikDameLaidOut ?? 0}</td><td>${s.jokersLaidOut ?? 0}</td></tr>`
+              `<tr${s.id === lastState.lastRoundWinnerId ? ' class="winnerRow"' : ''}><td>${escapeHtml(s.name)}${s.id === lastState.lastRoundWinnerId ? ' 🏆' : ''}</td><td>${s.laidOutCount}</td><td>${s.handCount}</td><td>${s.pikDameLaidOut ?? 0}</td><td>${s.jokersLaidOut ?? 0}</td></tr>`
           )
           .join('')}</tbody>`;
       body.appendChild(statsTable);
@@ -1433,6 +1443,25 @@
   el('homeOverlay').addEventListener('click', (ev) => {
     if (ev.target === el('homeOverlay')) el('homeOverlay').classList.add('hidden');
   });
+  // Quick re-entry: remember the last table and offer one-tap resume on
+  // the start screen (pairs with the home button - leave and come back).
+  const LAST_SESSION_KEY = 'pikdame_last_session';
+  function updateResumeButton() {
+    const last = storageGet(LAST_SESSION_KEY);
+    const btn = el('resumeBtn');
+    if (last && !sessionCode) {
+      btn.textContent = L(`↩️ Weiterspielen (${last})`, `↩️ Resume game (${last})`);
+      btn.classList.remove('hidden');
+    } else {
+      btn.classList.add('hidden');
+    }
+  }
+  el('resumeBtn').addEventListener('click', () => {
+    const last = storageGet(LAST_SESSION_KEY);
+    if (last) window.location.href = `${window.location.pathname}?session=${encodeURIComponent(last)}`;
+  });
+  updateResumeButton();
+
   el('homeConfirmBtn').addEventListener('click', () => {
     // Back to the start screen: drop the ?session query and reload. The
     // per-session playerId stays in storage - re-entering the code later
