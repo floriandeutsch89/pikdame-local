@@ -1559,3 +1559,13 @@ input:disabled { opacity: 0.65; }
 
 /* --- Home + gear menu (v1.23.0) ---------------------------------------------- */
 .settingsGroup { display: inline-flex; gap: 6px; animation: tutorialIn 0.2s ease-out; }
+
+/* --- Round winner highlight + resume (v1.24.0) -------------------------------- */
+.opponent.roundWinner {
+  box-shadow: 0 0 0 2px #2ecc71, var(--shadow-1);
+}
+.statsTable tr.winnerRow td {
+  background: rgba(46, 204, 113, 0.14);
+  font-weight: 700;
+}
+#resumeBtn { margin-top: 8px; }

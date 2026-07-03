@@ -745,6 +745,7 @@ class GameManager {
     const roundResult = scoreRound(winnerId, playersData, { isHandAus, houseRules: this.houseRules });
     this.totals = applyRoundScores(this.totals, roundResult);
     this.lastRoundResult = roundResult;
+    this.lastRoundWinnerId = winnerId || null; // for the winner highlight
     this.lastRoundWasHandAus = isHandAus;
     this.lastRoundForfeitedBy = options.forfeitedBy || null;
 
@@ -1244,6 +1245,7 @@ class GameManager {
       lastRoundForfeitedBy: this.lastRoundForfeitedBy || null,
       lastRoundStats: this.lastRoundStats || null,
       nextRoundReady: this._nextRoundReady ? [...this._nextRoundReady] : [],
+      lastRoundWinnerId: this.lastRoundWinnerId || null,
       gameStatsTotals: this.gameStatsTotals || {},
       hasExportableGame: !!this.lastGameRecord,
       gameOverInfo: this.gameOverInfo || null,

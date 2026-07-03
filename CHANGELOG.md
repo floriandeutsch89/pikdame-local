@@ -4,6 +4,18 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.24.0] - 2026-07-03
+
+### Added
+- ↩️ Weiterspielen-Button auf dem Startbildschirm: Der zuletzt besuchte Tisch wird gemerkt und ist mit einem Tipp wieder betretbar (perfektes Gegenstück zum Home-Button); existiert der Tisch nicht mehr, verschwindet das Angebot automatisch
+
+### Changed
+- Hauptmenü-Untertitel erneuert: "Das Familien-Rommé - online mit Freunden & Bots" statt des veralteten Hotspot-Slogans
+- Datenschutzerklärung an die Benutzerkonten angepasst: neuer Abschnitt zu optionalen Konten (E-Mail nur zur Bestätigung, Passwörter ausschließlich als scrypt-Hash, 90-Tage-Sitzungs-Token, Serverstandort), Mailgun EU als Auftragsverarbeiter für Bestätigungs-Mails benannt, Speicherdauer inkl. 48h-Verfall unbestätigter Registrierungen ergänzt; der Grundsatz-Abschnitt behauptet nicht länger "keine Konten, keine E-Mail-Adressen"
+
+### Fixed
+- Die grüne Markierung am Rundenende zeigt jetzt den Spieler, der ausgemacht hat: Der Gewinner trägt den grünen Ring am Chip und ist in der Ergebnis-Tabelle grün hinterlegt (mit 🏆); der Zug-Ring erlischt mit Rundenende, statt verwirrend stehenzubleiben
+
 ## [1.23.0] - 2026-07-03
 
 ### Added
