@@ -1537,3 +1537,22 @@ input:disabled { opacity: 0.65; }
 #tutorialNextBtn { background: rgba(255,255,255,0.92); color: #1a1e24; }
 #tutorialOffBtn { background: rgba(255,255,255,0.18); color: rgba(255,255,255,0.85); }
 #tutorialBtn { margin-top: 8px; }
+
+/* --- Per-bot difficulty (v1.22.0) ------------------------------------------- */
+.botDiffBadge {
+  border: none; background: rgba(255,255,255,0.14);
+  border-radius: 7px; padding: 1px 5px; margin-left: 3px;
+  font-size: 0.7rem; cursor: pointer; line-height: 1.3;
+}
+.botDiffOptions { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 12px; }
+.botDiffOptions button {
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid rgba(0,0,0,0.1); border-radius: 12px;
+  background: rgba(0,0,0,0.03); padding: 11px 14px;
+  font-size: 0.9rem; font-weight: 600; cursor: pointer; text-align: left;
+}
+.botDiffOptions button.current {
+  border-color: var(--accent); background: rgba(0,0,0,0.06);
+}
+.botDiffOptions button .diffIcon { font-size: 1.2rem; }
+.botDiffOptions button small { display: block; font-weight: 500; opacity: 0.65; font-size: 0.72rem; }
