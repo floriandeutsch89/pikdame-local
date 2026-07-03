@@ -8,7 +8,8 @@
 //   PIKDAME_SMTP_PORT   587 (starttls, Default) / 465 (ssl) / 25
 //   PIKDAME_SMTP_SECURE 'starttls' (Default) | 'ssl' | 'none'
 //   PIKDAME_SMTP_USER   SMTP-Benutzer (optional, sonst kein AUTH)
-//   PIKDAME_SMTP_PASS   SMTP-Passwort
+//   PIKDAME_SMTP_PASS   SMTP-Passwort (oder PIKDAME_SMTP_PASS_FILE)
+//   PIKDAME_SMTP_TLS_SERVERNAME  Zertifikats-Name, falls Host ein Egress-Proxy ist
 //   PIKDAME_MAIL_FROM   Absender, z.B. 'Pik Dame <noreply@pikdame.online>'
 //
 // LOG-FALLBACK: Ohne PIKDAME_SMTP_HOST wird die Mail nicht verschickt,
@@ -59,6 +60,10 @@ function createMailer(env = process.env, log = console.log) {
   const user = env.PIKDAME_SMTP_USER;
   const { readSecret } = require('./secretEnv');
   const pass = readSecret(env, 'PIKDAME_SMTP_PASS');
+  // When the app reaches SMTP through an egress proxy (host = proxy name,
+  // e.g. 'smtp-egress'), the certificate still belongs to the real mail
+  // server - verify against that name instead of the connect host.
+  const tlsServername = env.PIKDAME_SMTP_TLS_SERVERNAME || undefined;
   const from = env.PIKDAME_MAIL_FROM || 'Pik Dame <noreply@localhost>';
 
   const configured = !!host;
@@ -76,7 +81,7 @@ function createMailer(env = process.env, log = console.log) {
       socket = await new Promise((resolve, reject) => {
         const s =
           secure === 'ssl'
-            ? tls.connect({ host, port, servername: host }, () => resolve(s))
+            ? tls.connect({ host, port, servername: tlsServername || host }, () => resolve(s))
             : net.connect({ host, port }, () => resolve(s));
         s.once('error', reject);
         s.setTimeout(15000, () => reject(new Error('SMTP-Verbindungs-Timeout')));
@@ -88,7 +93,7 @@ function createMailer(env = process.env, log = console.log) {
       if (secure === 'starttls') {
         await smtpExchange(socket, 220, 'STARTTLS');
         socket = await new Promise((resolve, reject) => {
-          const t = tls.connect({ socket, servername: host }, () => resolve(t));
+          const t = tls.connect({ socket, servername: tlsServername || host }, () => resolve(t));
           t.once('error', reject);
         });
         await smtpExchange(socket, 250, `EHLO pikdame`);

@@ -20,7 +20,9 @@
 
 services:
   caddy:
-    image: caddy:2-alpine
+    # Custom build: official Caddy + CrowdSec bouncer plugin (xcaddy).
+    build: ./caddy
+    image: pikdame-caddy:latest
     container_name: pikdame-caddy
     restart: unless-stopped
     ports:
@@ -29,10 +31,15 @@ services:
     environment:
       - PIKDAME_DOMAIN=${PIKDAME_DOMAIN:?set PIKDAME_DOMAIN in .env}
       - ACME_EMAIL=${ACME_EMAIL:?set ACME_EMAIL in .env}
+      # Created once via: docker compose exec crowdsec cscli bouncers add caddy-bouncer
+      - CROWDSEC_API_KEY=${CROWDSEC_API_KEY:?run cscli bouncers add and set CROWDSEC_API_KEY in .env}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data      # certificates - MUST persist
       - caddy-config:/config
+      - caddy-logs:/var/log/caddy
+    depends_on:
+      - crowdsec
     networks:
       - caddy_egress
       - caddy_pikdame
@@ -64,21 +71,27 @@ services:
       # Secret-free URL - the password is injected from the secret file.
       - PIKDAME_DATABASE_URL=postgres://pikdame@postgres:5432/pikdame
       - PIKDAME_DATABASE_PASSWORD_FILE=/run/secrets/db_password
-      # SMTP (optional; see the network note above)
-      # - PIKDAME_SMTP_HOST=smtp.example.com
-      # - PIKDAME_SMTP_PORT=587
-      # - PIKDAME_SMTP_SECURE=starttls
-      # - PIKDAME_SMTP_USER=noreply@example.com
+      # SMTP through the egress proxy (the app has no internet route; the
+      # proxy can only reach Mailgun EU:587). TLS is verified against the
+      # real mail server name, not the proxy hostname.
+      - PIKDAME_SMTP_HOST=smtp-egress
+      - PIKDAME_SMTP_PORT=587
+      - PIKDAME_SMTP_SECURE=starttls
+      - PIKDAME_SMTP_TLS_SERVERNAME=smtp.eu.mailgun.org
+      - PIKDAME_SMTP_USER=${PIKDAME_SMTP_USER:-}
       - PIKDAME_SMTP_PASS_FILE=/run/secrets/smtp_password
-      # - PIKDAME_MAIL_FROM=Pik Dame <noreply@example.com>
+      - PIKDAME_MAIL_FROM=${PIKDAME_MAIL_FROM:-}
     secrets:
       - db_password
       - smtp_password
     volumes:
       - pikdame-data:/app/data
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
     networks:
       - caddy_pikdame
       - pikdame
+      - pikdame_smtp
     depends_on:
       postgres:
         condition: service_healthy
@@ -109,8 +122,84 @@ services:
         soft: 4096
         hard: 4096
 
+  crowdsec:
+    image: crowdsecurity/crowdsec:latest
+    container_name: pikdame-crowdsec
+    restart: unless-stopped
+    environment:
+      # Parsers + scenarios for Caddy access logs and common HTTP attacks
+      - COLLECTIONS=crowdsecurity/caddy crowdsecurity/http-cve
+    volumes:
+      - ./crowdsec/acquis.yaml:/etc/crowdsec/acquis.yaml:ro
+      - crowdsec-data:/var/lib/crowdsec/data
+      - crowdsec-config:/etc/crowdsec
+      - caddy-logs:/var/log/caddy:ro
+    networks:
+      # Internet for hub/scenario updates; Caddy reaches the LAPI here too.
+      - caddy_egress
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    security_opt:
+      - no-new-privileges:true
+
+  # SMTP egress proxy: the ONLY path from the app towards the internet, and
+  # it can only reach ONE destination (Mailgun EU, port 587). The app itself
+  # stays on internal networks without any route to the outside.
+  smtp-egress:
+    image: alpine/socat:latest
+    container_name: pikdame-smtp-egress
+    restart: unless-stopped
+    command: tcp-listen:587,fork,reuseaddr tcp-connect:smtp.eu.mailgun.org:587
+    networks:
+      - pikdame_smtp
+      - caddy_egress
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 64M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+
+  # Auto-updates for the stack: Watchtower polls the registry daily at 04:00
+  # and recreates opted-in containers (label below) with the new image.
+  # Keep it label-scoped: the custom-built Caddy image cannot be pulled.
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: pikdame-watchtower
+    restart: unless-stopped
+    environment:
+      - WATCHTOWER_LABEL_ENABLE=true
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_SCHEDULE=0 0 4 * * *
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - caddy_egress
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    security_opt:
+      - no-new-privileges:true
+
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     container_name: pikdame-postgres
     restart: unless-stopped
     environment:
@@ -120,7 +209,11 @@ services:
     secrets:
       - db_password
     volumes:
-      - pikdame-pgdata:/var/lib/postgresql/data
+      # postgres:18 image: mount point is /var/lib/postgresql (PGDATA lives
+      # in a versioned subdirectory to ease future pg_upgrade)
+      - pikdame-pgdata:/var/lib/postgresql
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
     networks:
       - pikdame
     healthcheck:
@@ -156,9 +249,15 @@ networks:
   # App <-> database only - no internet route
   pikdame:
     internal: true
+  # App <-> SMTP egress proxy only - no internet route for the app itself
+  pikdame_smtp:
+    internal: true
 
 volumes:
   pikdame-data:
   pikdame-pgdata:
   caddy-data:
   caddy-config:
+  caddy-logs:
+  crowdsec-data:
+  crowdsec-config:

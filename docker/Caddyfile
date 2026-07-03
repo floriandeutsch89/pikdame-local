@@ -6,9 +6,19 @@
 	admin off
 	# ACME account e-mail for Let's Encrypt (expiry notices etc.)
 	email {$ACME_EMAIL}
+
+	# CrowdSec bouncer (compiled in via docker/caddy/Dockerfile): asks the
+	# local CrowdSec API for every request and blocks banned IPs.
+	# The API key is created once via: cscli bouncers add caddy-bouncer
+	crowdsec {
+		api_url http://crowdsec:8080
+		api_key {$CROWDSEC_API_KEY}
+	}
+	order crowdsec first
 }
 
 {$PIKDAME_DOMAIN} {
+	crowdsec
 	encode zstd gzip
 
 	header {
@@ -32,8 +42,13 @@
 		header_up X-Forwarded-For {remote_host}
 	}
 
+	# JSON access log to the shared volume - CrowdSec tails this file
+	# (container logs keep errors/runtime messages on stdout).
 	log {
-		output stdout
+		output file /var/log/caddy/access.log {
+			roll_size 20mb
+			roll_keep 3
+		}
 		format json
 	}
 }
