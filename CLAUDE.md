@@ -7,8 +7,8 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
 
 - **Code, Kommentare, Bezeichner, Commit-Messages der Struktur, GitHub-Workflows,
   Infra-Dateien (Dockerfile/Compose) und Testbeschreibungen: ENGLISCH.**
-- **Repo-Dokumentation (README, docs/) ebenfalls ENGLISCH** — README.md und
-  docs/OPERATIONS.md sind migriert; SECURITY.md, k8s/README.md und
+- **Repo-Dokumentation (README, docs/) ebenfalls ENGLISCH** — README.md,
+  docs/OPERATIONS.md und SECURITY.md sind migriert; k8s/README.md und
   landing/README.md folgen bei der nächsten Berührung.
 - **Nutzersichtbare Texte: DEUTSCH** als Quellsprache über das i18n-System
   (I18N_STATIC / L(de, en) / I18N_SERVER_PATTERNS) — niemals "übersetzen",

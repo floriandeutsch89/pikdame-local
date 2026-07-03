@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.16.1] - 2026-07-03
+
+### Changed
+- SECURITY.md vollständig auf Englisch übersetzt; dabei aktualisiert: Kubernetes-Manifeste und Helm-Chart-Defaults spiegeln die Härtung, npm-Entfernung und OCI-Labels ergänzt
+
 ## [1.16.0] - 2026-07-03
 
 ### Added
