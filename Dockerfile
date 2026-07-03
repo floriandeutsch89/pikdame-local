@@ -3,7 +3,7 @@
 # Persistent data (player profiles, game history, accounts DB) lives under
 # /app/data and should be mounted as a volume (see docker-compose.yml).
 
-FROM node:22-alpine
+FROM node:24-alpine
 
 # Upgrade OS packages first (fixes known CVEs in the base image), then add
 # tini for proper signal handling (Ctrl+C / docker stop) as PID 1

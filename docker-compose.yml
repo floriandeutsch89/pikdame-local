@@ -8,35 +8,35 @@ services:
       - "8080:8080"
     environment:
       - PORT=8080
-      # Obergrenze paralleler Spiel-Sessions (DoS-/Speicherschutz, Standard 200)
+      # Upper bound for parallel game sessions (DoS/memory guard, default 200)
       - PIKDAME_MAX_SESSIONS=200
-      # --- Benutzerkonten (Registrierung + Login) ---
-      # Accounts sind automatisch aktiv (SQLite in data/users.db, Node 22).
-      # Zum Abschalten: PIKDAME_ACCOUNTS=0
-      # Basis-URL fuer die Bestaetigungslinks in den Mails:
+      # --- User accounts (registration + login) ---
+      # Accounts are active automatically (SQLite in data/users.db, Node 24).
+      # To disable: PIKDAME_ACCOUNTS=0
+      # Base URL for the confirmation links in the e-mails:
       # - PIKDAME_BASE_URL=https://spiel.pikdame.online
-      # --- Mailserver (spaeter eintragen - bis dahin landet der
-      #     Bestaetigungslink im Server-Log) ---
+      # --- Mail server (add later - until then the confirmation link is
+      #     written to the server log) ---
       # - PIKDAME_SMTP_HOST=smtp.example.com
       # - PIKDAME_SMTP_PORT=587
       # - PIKDAME_SMTP_SECURE=starttls   # starttls | ssl | none
       # - PIKDAME_SMTP_USER=noreply@pikdame.online
-      # - PIKDAME_SMTP_PASS=geheim
+      # - PIKDAME_SMTP_PASS=secret
       # - PIKDAME_MAIL_FROM=Pik Dame <noreply@pikdame.online>
     volumes:
-      # Spielerprofile/Spielverlauf/Konten-DB überleben Container-Neustarts und -Updates.
+      # Player profiles / game history / accounts DB survive container restarts and updates.
       - pikdame-data:/app/data
-    # --- Best Practices: Ressourcen, Log-Rotation, Härtung ---
+    # --- Best practices: resources, log rotation, hardening ---
     deploy:
       resources:
         limits:
-          # RULE #6: Prozess-Obergrenze (Fork-Bomb-Schutz). Gehoert bei
-          # vorhandenem deploy-Block HIERHER - 'pids_limit' daneben lehnt
-          # docker compose als widerspruechlich ab.
+          # OWASP RULE #6: process cap (fork-bomb guard). With a deploy
+          # block present this belongs HERE - a sibling 'pids_limit' is
+          # rejected by docker compose as contradictory.
           pids: 256
-          # Gemessen: ~117 KB Heap pro aktivem Spiel + Node-Grundlast.
-          # 512M tragen die 200-Session-Obergrenze mit reichlich Reserve;
-          # 1 CPU reicht (der Server ist I/O-lastig, nicht rechenintensiv).
+          # Measured: ~117 KB heap per active game + Node base load.
+          # 512M carries the 200-session cap with plenty of headroom;
+          # 1 CPU is enough (the server is I/O-bound, not CPU-bound).
           cpus: "1.0"
           memory: 512M
         reservations:
@@ -47,24 +47,24 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    # --- OWASP Docker Security (Container-Regeln) ---
-    # RULE #3: Alle Linux-Capabilities fallen lassen - der Node-Server
-    # bindet nur Port 8080 (unprivilegiert) und braucht keine einzige.
+    # --- OWASP Docker Security (container rules) ---
+    # RULE #3: drop all Linux capabilities - the Node server only binds
+    # port 8080 (unprivileged) and needs none at all.
     cap_drop:
       - ALL
-    # RULE #4 (no-new-privileges) + AppArmor-Standardprofil explizit.
-    # Hinweis: apparmor gilt auf Hosts MIT AppArmor (Ubuntu/Debian) - auf
-    # SELinux-Hosts (Fedora/RHEL) diese eine Zeile auskommentieren.
+    # RULE #4 (no-new-privileges) + explicit AppArmor default profile.
+    # Note: apparmor applies on hosts WITH AppArmor (Ubuntu/Debian) - on
+    # SELinux hosts (Fedora/RHEL) comment out that single line.
     security_opt:
       - no-new-privileges:true
       - apparmor=docker-default
-    # RULE #7: Root-Dateisystem unveraenderlich; beschreibbar sind NUR das
-    # data/-Volume und ein kleines nicht-ausfuehrbares tmpfs fuer /tmp.
+    # RULE #7: immutable root filesystem; writable are ONLY the data/
+    # volume and a small non-executable tmpfs for /tmp.
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m
-    # RULE #6 (Fortsetzung): Datei-Deskriptoren fuer WebSocket-Verbindungen
-    # (4096 traegt hunderte parallele Clients).
+    # RULE #6 (continued): file descriptors for WebSocket connections
+    # (4096 carries hundreds of parallel clients).
     ulimits:
       nofile:
         soft: 4096

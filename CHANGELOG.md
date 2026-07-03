@@ -4,6 +4,12 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.12.0] - 2026-07-03
+
+### Changed
+- Node 24 statt 22: Docker-Image (node:24-alpine), CI und Konsistenz-Prüfung laufen auf der aktuellen LTS-Linie
+- Englisch als verbindliche Code-Sprache: beide GitHub-Workflows, Dockerfile und beide Compose-Dateien vollständig auf englische Kommentare und Step-Namen umgestellt; Sprachregel in CLAUDE.md verankert (Code/Workflows/Infra englisch, nutzersichtbare Texte bleiben deutsch über das i18n-System, Bestandskommentare wandern per Boy-Scout-Regel bei jeder Berührung)
+
 ## [1.11.0] - 2026-07-03
 
 ### Added

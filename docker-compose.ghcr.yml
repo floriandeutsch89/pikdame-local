@@ -1,9 +1,9 @@
-# Pik Dame - Betrieb mit dem fertigen Image von GHCR (kein lokaler Build).
+# Pik Dame - run with the prebuilt image from GHCR (no local build).
 # Start:   docker compose -f docker-compose.ghcr.yml up -d
 # Update:  docker compose -f docker-compose.ghcr.yml pull && docker compose -f docker-compose.ghcr.yml up -d
 #
-# HINWEIS: GHCR-Packages sind anfangs PRIVAT. Entweder das Package in den
-# GitHub-Package-Einstellungen auf "public" stellen, oder vorher anmelden:
+# NOTE: GHCR packages start out PRIVATE. Either set the package to "public"
+# in the GitHub package settings, or log in first:
 #   echo $GITHUB_TOKEN | docker login ghcr.io -u <username> --password-stdin
 
 services:
@@ -21,16 +21,15 @@ services:
       # - PIKDAME_SMTP_PORT=587
       # - PIKDAME_SMTP_SECURE=starttls
       # - PIKDAME_SMTP_USER=noreply@pikdame.online
-      # - PIKDAME_SMTP_PASS=geheim
+      # - PIKDAME_SMTP_PASS=secret
       # - PIKDAME_MAIL_FROM=Pik Dame <noreply@pikdame.online>
     volumes:
       - pikdame-data:/app/data
     deploy:
       resources:
         limits:
-          # RULE #6: Prozess-Obergrenze (Fork-Bomb-Schutz). Gehoert bei
-          # vorhandenem deploy-Block HIERHER - 'pids_limit' daneben lehnt
-          # docker compose als widerspruechlich ab.
+          # OWASP RULE #6: process cap (fork-bomb guard); belongs in the
+          # deploy block - a sibling 'pids_limit' is rejected.
           pids: 256
           cpus: "1.0"
           memory: 512M
@@ -42,24 +41,15 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    # --- OWASP Docker Security (Container-Regeln) ---
-    # RULE #3: Alle Linux-Capabilities fallen lassen - der Node-Server
-    # bindet nur Port 8080 (unprivilegiert) und braucht keine einzige.
+    # OWASP hardening - kept in sync with docker-compose.yml (see SECURITY.md)
     cap_drop:
       - ALL
-    # RULE #4 (no-new-privileges) + AppArmor-Standardprofil explizit.
-    # Hinweis: apparmor gilt auf Hosts MIT AppArmor (Ubuntu/Debian) - auf
-    # SELinux-Hosts (Fedora/RHEL) diese eine Zeile auskommentieren.
     security_opt:
       - no-new-privileges:true
       - apparmor=docker-default
-    # RULE #7: Root-Dateisystem unveraenderlich; beschreibbar sind NUR das
-    # data/-Volume und ein kleines nicht-ausfuehrbares tmpfs fuer /tmp.
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m
-    # RULE #6 (Fortsetzung): Datei-Deskriptoren fuer WebSocket-Verbindungen
-    # (4096 traegt hunderte parallele Clients).
     ulimits:
       nofile:
         soft: 4096
