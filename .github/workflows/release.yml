@@ -1,18 +1,18 @@
 name: Release
 
-# Bei jedem Push auf main: Wenn die Version in package.json noch keinen
-# Git-Tag hat, werden automatisch erzeugt:
-# 1. Git-Tag vX.Y.Z + GitHub-Release (Notes = passender CHANGELOG-Abschnitt)
-# 2. Docker-Image auf GHCR: ghcr.io/<owner>/pikdame-local:latest + :vX.Y.Z
-#    (amd64 + arm64 - laeuft damit auch auf Raspberry Pi & Apple Silicon)
+# On every push to main: if the version in package.json has no git tag yet,
+# the workflow automatically creates:
+# 1. Git tag vX.Y.Z + GitHub release (notes = matching CHANGELOG section)
+# 2. Docker image on GHCR: ghcr.io/<owner>/pikdame-local:latest + :vX.Y.Z
+#    (amd64 + arm64 - also runs on Raspberry Pi & Apple Silicon)
 
 on:
   push:
     branches: [main]
 
 permissions:
-  contents: write # Tag + Release erstellen
-  packages: write # GHCR-Push
+  contents: write # create tag + release
+  packages: write # GHCR push
 
 jobs:
   meta:
@@ -23,16 +23,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: v
-        name: Version lesen + pruefen, ob der Tag schon existiert
+        name: Read version + check whether the tag already exists
         run: |
           VERSION=$(node -p "require('./package.json').version")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           if git ls-remote --tags origin "refs/tags/v$VERSION" | grep -q .; then
             echo "is_new=false" >> "$GITHUB_OUTPUT"
-            echo "Tag v$VERSION existiert bereits - kein neues Release."
+            echo "Tag v$VERSION already exists - no new release."
           else
             echo "is_new=true" >> "$GITHUB_OUTPUT"
-            echo "Neue Version: v$VERSION"
+            echo "New version: v$VERSION"
           fi
 
   release:
@@ -41,20 +41,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Release-Notes aus CHANGELOG.md extrahieren
+      - name: Extract release notes from CHANGELOG.md
         run: |
           VERSION="${{ needs.meta.outputs.version }}"
-          # Abschnitt "## [X.Y.Z]" bis zum naechsten "## [" ausschneiden
+          # Cut the "## [X.Y.Z]" section up to the next "## ["
           awk -v ver="$VERSION" '
             $0 ~ "^## \\[" ver "\\]" { on=1; next }
             on && /^## \[/ { exit }
             on { print }
           ' CHANGELOG.md > release-notes.md
           if [ ! -s release-notes.md ]; then
-            echo "Details siehe [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md)." > release-notes.md
+            echo "See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details." > release-notes.md
           fi
-          echo "--- Notes fuer v$VERSION ---"; cat release-notes.md
-      - name: Tag + GitHub-Release erstellen
+          echo "--- Notes for v$VERSION ---"; cat release-notes.md
+      - name: Create tag + GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -72,13 +72,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
-      - name: GHCR-Login
+      - name: GHCR login
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build & Push (amd64 + arm64)
+      - name: Build & push (amd64 + arm64)
         uses: docker/build-push-action@v6
         with:
           context: .

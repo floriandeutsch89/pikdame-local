@@ -3,12 +3,23 @@
 Pik Dame: Offline-/Online-Multiplayer-Kartenspiel (Familien-Rommé-Variante).
 Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
 
+## Sprachregel (verbindlich)
+
+- **Code, Kommentare, Bezeichner, Commit-Messages der Struktur, GitHub-Workflows,
+  Infra-Dateien (Dockerfile/Compose) und Testbeschreibungen: ENGLISCH.**
+- **Nutzersichtbare Texte: DEUTSCH** als Quellsprache über das i18n-System
+  (I18N_STATIC / L(de, en) / I18N_SERVER_PATTERNS) — niemals "übersetzen",
+  sie sind das Produkt. CHANGELOG-Überschriften englisch (Added/Changed/Fixed),
+  Inhalte deutsch.
+- Bestandskommentare werden bei jeder Berührung einer Datei auf Englisch
+  migriert (Boy-Scout-Regel); neue Dateien entstehen ausschließlich englisch.
+
 ## Harte Constraints (nie brechen)
 
 1. **iOS-CodeApp-Kompatibilität:** Der Server läuft auf dem iPhone-Hotspot in
    der CodeApp. Deshalb: **keine neuen npm-Dependencies** (aktuell nur `ws`),
    keine nativen Module, kein Build-Schritt. Features, die mehr brauchen
-   (z. B. Konten via `node:sqlite`, Node ≥ 22), müssen sich auf älteren
+   (z. B. Konten via `node:sqlite`, Node ≥ 22; Docker/CI laufen auf Node 24), müssen sich auf älteren
    Node-Versionen **selbst deaktivieren** (Factory liefert `null`, Client
    blendet UI aus) — der Hotspot-Betrieb bleibt unberührt.
 2. **Frontend ohne CDN:** Alles wird lokal ausgeliefert (Hotspot hat kein

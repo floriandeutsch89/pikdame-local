@@ -1,18 +1,18 @@
 // game/AccountStore.js
-// Benutzerkonten (Registrierung mit E-Mail-Bestätigung + Login), damit
-// Fortschritt/Statistiken dauerhaft an einen Account gebunden sind.
+// User accounts (registration with e-mail confirmation + login) so that
+// progress/statistics are permanently bound to an account.
 //
-// WICHTIG - zwei Betriebswelten:
-// - Docker-Stack: Accounts AKTIV. Persistenz in SQLite über Nodes
-//   EINGEBAUTES node:sqlite (Node >= 22) - keine einzige neue Dependency,
-//   eine Datei im data/-Volume (data/users.db).
-// - iOS CodeApp / Hotspot (Familienmodus): node:sqlite kann fehlen bzw.
-//   Accounts sind nicht gewünscht -> createAccountStore() liefert null,
-//   der Server läuft exakt wie bisher weiter und der Client blendet die
-//   Account-UI komplett aus.
+// IMPORTANT - two operating worlds:
+// - Docker stack: accounts ACTIVE. Persistence in SQLite via Node's
+//   BUILT-IN node:sqlite (Node >= 22) - not a single new dependency,
+//   one file inside the data/ volume (data/users.db).
+// - iOS CodeApp / hotspot (family mode): node:sqlite may be missing or
+//   accounts are unwanted -> createAccountStore() returns null, the
+//   server keeps running exactly as before and the client hides the
+//   account UI entirely.
 //
-// Sicherheit: Passwörter mit scrypt (node:crypto) + zufälligem Salt,
-// Vergleiche mit timingSafeEqual. Tokens sind 32-Byte-Zufallswerte.
+// Security: passwords hashed with scrypt (node:crypto) + random salt,
+// comparisons via timingSafeEqual. Tokens are 32-byte random values.
 const crypto = require('crypto');
 const path = require('path');
 
@@ -30,26 +30,26 @@ function randomToken() {
 }
 
 /**
- * @returns {Object|null} Store-API oder null, wenn node:sqlite fehlt
- *   (ältere Node-Version, z.B. CodeApp) - der Aufrufer behandelt null als
- *   "Accounts deaktiviert".
+ * @returns {Object|null} Store API, or null when node:sqlite is missing
+ *   (older Node version, e.g. CodeApp) - the caller treats null as
+ *   "accounts disabled".
  */
 function createAccountStore(dbFile = DEFAULT_DB_FILE) {
   let DatabaseSync;
   try {
     ({ DatabaseSync } = require('node:sqlite'));
   } catch (e) {
-    return null; // Node < 22: Accounts still deaktiviert
+    return null; // Node < 22: accounts silently disabled
   }
 
   const fs = require('fs');
   fs.mkdirSync(path.dirname(dbFile), { recursive: true });
   const db = new DatabaseSync(dbFile);
-  // WAL erlaubt gleichzeitiges Lesen waehrend Schreibvorgaengen und ist die
-  // empfohlene Betriebsart fuer Server; busy_timeout wartet kurz statt
-  // sofort mit SQLITE_BUSY zu scheitern. Fuer diesen Workload (seltene
-  // Konto-Operationen, Spielverkehr laeuft komplett im Speicher/WS) ist
-  // SQLite damit um Groessenordnungen ueberdimensioniert - voellig okay.
+  // WAL allows concurrent reads during writes and is the recommended mode
+  // for servers; busy_timeout waits briefly instead of failing immediately
+  // with SQLITE_BUSY. For this workload (rare account operations, game
+  // traffic lives entirely in memory/WS) SQLite is oversized by orders of
+  // magnitude - perfectly fine.
   db.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 3000;');
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -114,7 +114,7 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
     const row = db
       .prepare('SELECT id, username, password_hash, salt, verified FROM users WHERE username = ? OR email = ?')
       .get(key, key);
-    // Auch bei unbekanntem Nutzer hashen (kein Timing-Unterschied nach außen)
+    // Hash even for unknown users (no observable timing difference)
     const candidate = hashPassword(String(password || ''), row ? row.salt : 'no-user-salt');
     const stored = row ? Buffer.from(row.password_hash) : Buffer.alloc(SCRYPT_KEYLEN);
     const match = stored.length === candidate.length && crypto.timingSafeEqual(stored, candidate);
@@ -145,7 +145,7 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
     db.prepare('DELETE FROM sessions WHERE token = ?').run(String(token || ''));
   }
 
-  /** Ist dieser Name ein VERIFIZIERTER Account? (Schutz vor Namens-Klau) */
+  /** Is this name a VERIFIED account? (protects against name theft) */
   function isRegisteredName(name) {
     const row = db.prepare('SELECT verified FROM users WHERE username = ?').get(String(name || '').trim());
     return !!(row && row.verified);
