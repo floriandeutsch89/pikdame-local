@@ -1147,3 +1147,44 @@ test('gameStatsTotals accumulate melded Queens/jokers across rounds', () => {
   assert.equal(totals.jokers, 1);
   g.destroy();
 });
+
+// --- v1.22.0: per-bot difficulty ----------------------------------------------
+test('setBotDifficulty: validation, effect and per-bot resolution in guards', () => {
+  const { makeStandardCard } = require('../game/Card');
+  const g = new GameManager(() => {});
+  g.addOrReconnectPlayer('p1', 'Anna');
+  g.setHouseRules({ botDifficulty: 'hard' }); // house default: hard
+  g.fillWithBots();
+
+  const bot = g.players.find((p) => p.isBot);
+  assert.equal(bot.botDifficulty, 'hard', 'bots inherit the house default');
+
+  assert.match(g.setBotDifficulty('p1', bot.id, 'brutal').error, /Unbekannte/);
+  assert.match(g.setBotDifficulty(bot.id, bot.id, 'easy').error, /Nur Spieler/, 'bots cannot request');
+  assert.match(g.setBotDifficulty('p1', 'p1', 'easy').error, /Bot gibt es nicht/);
+
+  assert.equal(g.setBotDifficulty('p1', bot.id, 'easy').ok, true);
+  assert.equal(bot.botDifficulty, 'easy');
+  assert.ok(g.log.some((e) => e.text.includes('stellt') && e.text.includes('Leicht')));
+  const pub = g.publicState('p1').players.find((p) => p.id === bot.id);
+  assert.equal(pub.botDifficulty, 'easy', 'visible in the public state');
+
+  // Per-bot resolution: this EASY bot ignores the endgame guard and takes
+  // a pile hiding a Queen of Spades - even though the HOUSE rule is hard.
+  g.phase = 'playing'; g.turnPhase = 'draw';
+  g.currentPlayerIndex = g.players.findIndex((p) => p.id === bot.id);
+  bot.hand = [makeStandardCard('H', '7', 0), makeStandardCard('D', '7', 0), makeStandardCard('C', '2', 0)];
+  g.drawPile = [makeStandardCard('C', '9', 0)];
+  g.discardPile = [makeStandardCard('S', '7', 0), makeStandardCard('S', 'Q', 0), makeStandardCard('H', '3', 0)];
+  // easy bots randomly skip the pile 60% of the time - force determinism
+  const origRandom = Math.random;
+  Math.random = () => 0.99;
+  try {
+    g.runBotTurn(bot.id);
+  } finally {
+    Math.random = origRandom;
+  }
+  const tookPile = g.log.some((e) => /nimmt die oberste Ablagekarte/.test(e.text) && e.text.includes(bot.name));
+  assert.equal(tookPile, true, 'easy override beats the hard house default');
+  g.destroy();
+});

@@ -676,8 +676,19 @@
         const reconnecting = !p.isBot && p.controlledByBot;
         const opTotal = (lastState.totals && lastState.totals[p.id]) || 0;
         const dealerStar = p.id === lastState.dealerId ? ` <span title="${L('Geber dieser Runde', 'Dealer this round')}">⭐</span>` : '';
+        // Bots wear their difficulty as a tappable badge (per-bot adjustable)
+        const diffBadge = p.isBot
+          ? ` <button class="botDiffBadge" data-bot-id="${escapeHtml(p.id)}" title="${L('Schwierigkeit ändern', 'Change difficulty')}">${BOT_DIFF[p.botDifficulty] ? BOT_DIFF[p.botDifficulty].icon : '🙂'}</button>`
+          : '';
         d.title = L(`${p.handCount} Karten · ${opTotal} Punkte`, `${p.handCount} cards · ${opTotal} points`);
-        d.innerHTML = `<div class="opName">${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}${dealerStar}${reconnecting ? ` <span class="reconnectTag">⏳ ${L('getrennt – Bot übernimmt', 'disconnected – bot takes over')}</span>` : ''}</div><div class="opCount"><b>${p.handCount}</b> ${L('Kt', 'cd')} · <b>${opTotal}</b> ${L('Pkt', 'pts')}</div>`;
+        d.innerHTML = `<div class="opName">${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}${diffBadge}${dealerStar}${reconnecting ? ` <span class="reconnectTag">⏳ ${L('getrennt – Bot übernimmt', 'disconnected – bot takes over')}</span>` : ''}</div><div class="opCount"><b>${p.handCount}</b> ${L('Kt', 'cd')} · <b>${opTotal}</b> ${L('Pkt', 'pts')}</div>`;
+        const badgeBtn = d.querySelector('.botDiffBadge');
+        if (badgeBtn) {
+          badgeBtn.addEventListener('click', (ev) => {
+            ev.stopPropagation(); // chip click keeps its meld-filter role
+            openBotDiffOverlay(p);
+          });
+        }
         opponentsDiv.appendChild(d);
       });
 
@@ -1409,6 +1420,34 @@
 
   el('ruleSound').addEventListener('change', () => {
     setSoundEnabled(el('ruleSound').checked);
+  });
+
+  // --- Per-bot difficulty ---------------------------------------------------
+  const BOT_DIFF = {
+    easy: { icon: '🌱', label: () => L('Leicht', 'Easy'), hint: () => L('macht Anfängerfehler', 'makes beginner mistakes') },
+    medium: { icon: '🙂', label: () => L('Mittel', 'Medium'), hint: () => L('solides Familienspiel', 'solid family play') },
+    hard: { icon: '🔥', label: () => L('Schwer', 'Hard'), hint: () => L('spielt taktisch', 'plays tactically') },
+    zen: { icon: '🧘', label: () => L('Zen-Meister', 'Zen master'), hint: () => L('zählt die Karten mit', 'counts the cards') },
+  };
+  function openBotDiffOverlay(bot) {
+    el('botDiffTitle').textContent = L(`Schwierigkeit: ${bot.name}`, `Difficulty: ${bot.name}`);
+    const box = el('botDiffOptions');
+    box.innerHTML = '';
+    for (const [key, meta] of Object.entries(BOT_DIFF)) {
+      const btn = document.createElement('button');
+      if (key === bot.botDifficulty) btn.classList.add('current');
+      btn.innerHTML = `<span class="diffIcon">${meta.icon}</span><span>${meta.label()}<small>${meta.hint()}</small></span>`;
+      btn.addEventListener('click', () => {
+        send({ type: 'setBotDifficulty', botId: bot.id, difficulty: key });
+        el('botDiffOverlay').classList.add('hidden');
+      });
+      box.appendChild(btn);
+    }
+    el('botDiffOverlay').classList.remove('hidden');
+  }
+  el('botDiffCloseBtn').addEventListener('click', () => el('botDiffOverlay').classList.add('hidden'));
+  el('botDiffOverlay').addEventListener('click', (ev) => {
+    if (ev.target === el('botDiffOverlay')) el('botDiffOverlay').classList.add('hidden');
   });
 
   // --- Tutorial mode: contextual hints for first-time players --------------

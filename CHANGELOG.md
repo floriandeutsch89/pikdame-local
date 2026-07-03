@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.22.0] - 2026-07-03
+
+### Added
+- Bot-Schwierigkeit pro Bot einstellbar: Jeder Bot trägt sein Stufen-Badge sichtbar am Gegner-Chip (🌱 Leicht, 🙂 Mittel, 🔥 Schwer, 🧘 Zen-Meister). Ein Tipp aufs Badge öffnet die Auswahl - mitten im Spiel änderbar, mit transparenter Log-Meldung ("Anna stellt Uwe auf Schwer."). Die Lobby-Einstellung bleibt als Standard für neu erzeugte Bots; der Chip-Tipp selbst behält seine Auslagen-Filter-Funktion
+
 ## [1.21.0] - 2026-07-03
 
 ### Added

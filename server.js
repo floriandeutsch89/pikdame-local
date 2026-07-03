@@ -723,6 +723,11 @@ wss.on('connection', (ws, req) => {
         }
         break;
       }
+      case 'setBotDifficulty': {
+        const r = game.setBotDifficulty(playerId, msg.botId, msg.difficulty);
+        if (r && r.error) sendError(ws, r.error);
+        break;
+      }
       case 'forfeitRound': {
         const r = game.forfeitRound(playerId);
         if (r && r.error) sendError(ws, r.error);

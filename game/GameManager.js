@@ -103,7 +103,10 @@ class GameManager {
     while (this.players.length < this.maxSeats) {
       const id = `bot-${botIndex}`;
       const name = free.pop() || `Bot ${botIndex}`;
-      this.players.push({ id, name, isBot: true, hand: [], connected: true, laidOutCards: [] });
+      this.players.push({
+        id, name, isBot: true, hand: [], connected: true, laidOutCards: [],
+        botDifficulty: (this.houseRules && this.houseRules.botDifficulty) || 'medium',
+      });
       this.totals[id] = this.totals[id] || 0;
       botIndex += 1;
     }
@@ -186,6 +189,23 @@ class GameManager {
 
 
   // --- Rundenstart ---------------------------------------------------------
+
+  /** Change a single bot's difficulty mid-game (any human at the table may;
+   *  the log entry keeps it transparent). The lobby house rule stays the
+   *  default for bots created later (e.g. after a rematch). */
+  setBotDifficulty(requesterId, botId, difficulty) {
+    const LABELS = { easy: 'Leicht', medium: 'Mittel', hard: 'Schwer', zen: 'Zen-Meister' };
+    if (!LABELS[difficulty]) return { error: 'Unbekannte Schwierigkeit.' };
+    const requester = this.players.find((p) => p.id === requesterId && !p.isBot);
+    if (!requester) return { error: 'Nur Spieler am Tisch können das ändern.' };
+    const bot = this.players.find((p) => p.id === botId && p.isBot);
+    if (!bot) return { error: 'Diesen Bot gibt es nicht.' };
+    if (bot.botDifficulty === difficulty) return { ok: true };
+    bot.botDifficulty = difficulty;
+    this.addLog(`${requester.name} stellt ${bot.name} auf ${LABELS[difficulty]}.`);
+    this.broadcastState();
+    return { ok: true };
+  }
 
   /** Round-end ready check: the next round only starts once EVERY connected
    *  human has confirmed - nobody gets rushed past the round statistics.
@@ -948,7 +968,8 @@ class GameManager {
     const cp = this.currentPlayer();
     if (!cp || cp.id !== botId || !this.isBotControlled(cp)) return;
 
-    const difficulty = (this.houseRules && this.houseRules.botDifficulty) || 'medium';
+    // Per-bot difficulty (adjustable in-game) with the house rule as default
+    const difficulty = cp.botDifficulty || (this.houseRules && this.houseRules.botDifficulty) || 'medium';
     const ownMelds = this.tableMelds.filter((m) => m.ownerId === botId);
     const plan = Bot.decideDraw(cp.hand, this.discardPile, ownMelds);
     // Leichte Bots übersehen die Ablage-Chance meistens (wie Anfänger).
@@ -1155,6 +1176,7 @@ class GameManager {
         id: p.id,
         name: p.name,
         isBot: p.isBot,
+        botDifficulty: p.isBot ? (p.botDifficulty || (this.houseRules && this.houseRules.botDifficulty) || 'medium') : undefined,
         connected: p.connected,
         controlledByBot: this.isBotControlled(p),
         handCount: p.hand.length,
