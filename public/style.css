@@ -729,8 +729,9 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 .card.pikdame-card { box-shadow: 0 0 0 2px var(--accent), 0 4px 12px rgba(0,0,0,0.35); }
 
-/* Gerade gezogene/aufgenommene Karte: kurzer Glow beim Erscheinen plus ein
-   bleibender Akzent-Punkt, bis die Karte gespielt wird oder neue gezogen werden. */
+/* Gerade gezogene/aufgenommene Karte: kurzer heller Glow beim Erscheinen,
+   der in einen dezenten bleibenden Rand-Schimmer ausklingt - bewusst OHNE
+   zusaetzlichen Punkt/Balken (verdeckte Karteninfos bzw. stoerte im Faecher). */
 @keyframes drawnGlow {
   0% { box-shadow: 0 0 0 3px var(--accent), 0 0 22px var(--accent-soft), var(--shadow-2); }
   100% { box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow-1), 0 3px 8px rgba(0,0,0,0.28); }
@@ -738,21 +739,10 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .card.just-drawn {
   animation: drawnGlow 1.6s ease-out forwards;
 }
-.card.just-drawn::before {
-  content: '';
-  /* Top LEFT: in the card fan every card's left edge stays visible, while
-     the right edge is covered by the next card - the dot was hard to spot. */
-  position: absolute; top: -4px; left: -4px;
-  width: 13px; height: 13px;
-  border-radius: 50%;
-  background: var(--accent);
-  border: 2px solid var(--bg-deep);
-  z-index: 3;
-}
 @media (prefers-reduced-motion: reduce) {
   .card.just-drawn { animation: none; box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow-1); }
 }
-/* Auswahl- und Pik-Dame-Optik gewinnen gegen den Zieh-Glow (Punkt bleibt) */
+/* Auswahl- und Pik-Dame-Optik gewinnen gegen den Zieh-Glow */
 .card.just-drawn.selected, .card.just-drawn.pikdame-card { animation: none; }
 
 /* eigene Karten in Auslagen */
