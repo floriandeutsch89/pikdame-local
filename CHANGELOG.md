@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.17.0] - 2026-07-03
+
+### Added
+- Konten-Datenbank auf PostgreSQL umgestellt (Docker/K8s-Stack): Beide Compose-Dateien bringen einen gehärteten postgres:16-alpine-Service mit (Healthcheck, eigenes Volume, nicht am Host exponiert), die App wartet per depends_on auf die gesunde Datenbank. Design-Begründung: Eine geteilte, netzwerkfähige DB ist die Voraussetzung, um jemals mehr als eine Instanz zu fahren - lokales SQLite auf einem Volume schließt das strukturell aus. Redis wäre als Account-Speicher die falsche Kategorie (Cache, kein System of Record), MariaDB gleichwertig - Postgres ist der robustere Standard
+- Neues Backend game/PgAccountStore.js mit identischer API (parametrisierte Queries, case-insensitive Unique-Indizes, scrypt wie bisher); Auto-Auswahl über PIKDAME_DATABASE_URL, ohne die URL bleibt SQLite der Zero-Config-Fallback - die iOS CodeApp ist unberührt (pg ist pure JS und wird lazy geladen)
+- Ausfall-Resilienz: Ist Postgres vorübergehend weg, antwortet die Konto-API mit klarer Meldung und erholt sich automatisch; der Namensschutz fällt dabei sicher zu (fail closed)
+- CI testet den Postgres-Store gegen einen echten Service-Container; Helm-Chart mit database.url bzw. database.existingSecret; Backup-Skript zieht zusätzlich einen pg_dump
+
 ## [1.16.1] - 2026-07-03
 
 ### Changed

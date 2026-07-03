@@ -35,6 +35,15 @@ persistence:
 
 env:
   maxSessions: "200"
+
+# Account database (PostgreSQL). Recommended for K8s: a managed/operator
+# database. Either set the URL directly (ends up in the pod spec!) or -
+# better - reference an existing Secret that carries the full URL.
+# Without both, the app falls back to SQLite on the PVC.
+database:
+  url: ""
+  existingSecret: ""       # Secret name
+  existingSecretKey: "url" # key inside that Secret holding postgres://...
 # Name of an existing Secret with production env vars (PIKDAME_BASE_URL,
 # PIKDAME_SMTP_* - see k8s/README.md). Leave empty to run without it.
 existingSecret: ""

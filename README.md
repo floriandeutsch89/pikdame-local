@@ -26,8 +26,9 @@ external frontend dependencies.
   game-history export.
 - **User accounts** (hosted mode only): registration with e-mail
   confirmation, login with a 90-day session — your name is protected against
-  impersonation and your progress is kept permanently. Automatically disabled
-  and invisible in hotspot mode.
+  impersonation and your progress is kept permanently. Stored in
+  **PostgreSQL** in the Docker/K8s stack (SQLite as zero-config fallback for
+  a single container); automatically disabled and invisible in hotspot mode.
 - **Robust in operation**: reconnect with bot takeover, running games survive
   server restarts (session snapshot), heartbeat against zombie connections,
   armored error handling on client and server.
@@ -160,6 +161,7 @@ server runs exactly like in hotspot mode):
 | `PIKDAME_TRUST_PROXY=1` | Client IP from `X-Forwarded-For` (behind a reverse proxy) |
 | `PIKDAME_ALLOWED_ORIGIN` | WebSocket only from your own domain |
 | `PIKDAME_ACCOUNTS=0` | Disable user accounts |
+| `PIKDAME_DATABASE_URL` | PostgreSQL for accounts (compose sets it; without it: SQLite fallback) |
 | `PIKDAME_BASE_URL`, `PIKDAME_SMTP_*` | Confirmation e-mails (see `.env.example`) |
 
 Built-in hardening: name sanitizing + HTML escaping (double XSS protection),

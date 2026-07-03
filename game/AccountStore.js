@@ -158,4 +158,25 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
   return { register, verifyEmail, login, sessionUser, logout, isRegisteredName, close };
 }
 
-module.exports = { createAccountStore };
+/**
+ * Backend auto-selection for the server:
+ * 1. PIKDAME_DATABASE_URL set (postgres://...) -> PostgreSQL (shared,
+ *    networked - the right choice for the Docker/K8s stack and the
+ *    prerequisite for ever running more than one instance)
+ * 2. otherwise node:sqlite available (Node >= 22) -> SQLite (zero-config
+ *    fallback for a single container)
+ * 3. otherwise (e.g. iOS CodeApp) -> null, accounts disabled
+ */
+function createAccountStoreAuto(env = process.env) {
+  if (env.PIKDAME_DATABASE_URL) {
+    const { createPgAccountStore } = require('./PgAccountStore');
+    const store = createPgAccountStore(env.PIKDAME_DATABASE_URL);
+    if (store) return store;
+    console.error("PIKDAME_DATABASE_URL is set but the 'pg' package is unavailable - falling back to SQLite.");
+  }
+  const sqliteStore = createAccountStore();
+  if (sqliteStore) sqliteStore.backend = 'sqlite';
+  return sqliteStore;
+}
+
+module.exports = { createAccountStore, createAccountStoreAuto };
