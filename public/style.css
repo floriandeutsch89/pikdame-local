@@ -1556,3 +1556,6 @@ input:disabled { opacity: 0.65; }
 }
 .botDiffOptions button .diffIcon { font-size: 1.2rem; }
 .botDiffOptions button small { display: block; font-weight: 500; opacity: 0.65; font-size: 0.72rem; }
+
+/* --- Home + gear menu (v1.23.0) ---------------------------------------------- */
+.settingsGroup { display: inline-flex; gap: 6px; animation: tutorialIn 0.2s ease-out; }

@@ -4,6 +4,19 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.23.0] - 2026-07-03
+
+### Added
+- 🏠 Home-Button im Spiel: führt (mit Bestätigung) zurück zum Startbildschirm; der Platz bleibt reserviert und ist mit dem Spiel-Code jederzeit wieder einnehmbar
+- ⚙️ Aufgeräumter Header: Textgröße, Sound, Vollbild und Historie sind standardmäßig hinter einem Zahnrad verstaut - ein Tipp klappt sie aus (Fishdom-Stil); Emote-Button bleibt direkt erreichbar
+
+### Fixed
+- Kurzes Minimieren der App beendet nicht mehr die eigene Runde: Beim Verbindungsverlust übernimmt der Bot erst nach einer Schonfrist von 75 Sekunden (vorher sofort - ein Relikt aus dem Hotspot-Modus). Rückkehr in der Frist bricht die Übernahme ab, der Tisch sieht eine transparente Log-Meldung, und nach einem Server-Neustart werden laufende Fristen neu aufgezogen
+
+### Changed
+- Bots (ab Mittel) füttern die Damen-Jäger nicht mehr: Solange noch eine Pik Dame auftauchen kann, werfen sie weder Damen (beliebiger Farbe - sie könnten einem Gegner den Satz für die +100-Auslage vervollständigen) noch Pik König/Bube (die Folgen-Nachbarn der Pik Dame) ab, sofern Alternativen existieren
+- Primärer Betriebsmodus ist ab jetzt der gehostete Docker-Stack; der Hotspot-Modus bleibt funktionsfähig, wird aber nicht mehr aktiv optimiert (in CLAUDE.md verankert)
+
 ## [1.22.0] - 2026-07-03
 
 ### Added

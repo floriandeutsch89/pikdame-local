@@ -196,3 +196,36 @@ test('chooseDiscard zen: im Endspiel wird der hoechste Punktwert abgeworfen', ()
   const d = chooseDiscard(hand, [], { difficulty: 'zen', lowestOpponentHand: 2, visibleCards: [] });
   assert.equal(d.rank, 'A'); // Ass = 20 Punkte = groesstes Handrisiko
 });
+
+// --- v1.23.0: discard caution around the Queen of Spades ----------------------
+const { chooseDiscard: chooseDiscardV123 } = require('../game/Bot');
+const { makeStandardCard: mkC123 } = require('../game/Card');
+
+test('discard caution: medium+ bots avoid discarding queens / spade J,K while a ♠Q can still appear', () => {
+  // Hand: an isolated heart queen (the "obvious" discard) + one boring card
+  const hand = [
+    mkC123('H', 'Q', 0), mkC123('S', 'K', 0), mkC123('S', 'J', 0),
+    mkC123('C', '4', 0),
+  ];
+  for (const difficulty of ['medium', 'hard', 'zen']) {
+    for (let i = 0; i < 10; i++) {
+      const pick = chooseDiscardV123(hand, [], { difficulty, queensMelded: 0 });
+      assert.equal(pick.rank === 'Q' || (pick.suit === 'S' && ['J', 'K'].includes(pick.rank)), false,
+        `${difficulty}: must not feed the queen hunters (picked ${pick.rank}${pick.suit})`);
+    }
+  }
+});
+
+test('discard caution: lifted once both Queens of Spades are accounted for', () => {
+  const hand = [mkC123('H', 'Q', 0), mkC123('C', '4', 0), mkC123('C', '4', 1), mkC123('D', '4', 0)];
+  // Both queens melded on the table -> the isolated heart queen is the
+  // natural discard again (the 4s form a set worth keeping)
+  const pick = chooseDiscardV123(hand, [], { difficulty: 'hard', queensMelded: 2 });
+  assert.equal(pick.rank, 'Q');
+});
+
+test('discard caution: never blocks when only "bait" cards remain', () => {
+  const hand = [mkC123('H', 'Q', 0), mkC123('S', 'K', 0)];
+  const pick = chooseDiscardV123(hand, [], { difficulty: 'hard', queensMelded: 0 });
+  assert.ok(pick, 'must still discard something');
+});

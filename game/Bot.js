@@ -315,6 +315,20 @@ function chooseDiscard(hand, tableMelds = [], opts = {}) {
   );
   if (safeCandidates.length > 0) candidates = safeCandidates;
 
+  // Never feed the queen hunters (medium and up - the easy branch returned
+  // earlier): while a Queen of Spades can still show up (melded queens plus
+  // own queens in hand < 2), a discarded queen of ANY suit may complete an
+  // opponent's queen set - handing them the slot to meld their ♠Q for +100.
+  // The same goes for ♠J and ♠K: they are the run neighbours the ♠Q embeds
+  // into. Only holds while alternatives exist.
+  const queensAccounted = (opts.queensMelded || 0) + hand.filter((c) => isPikDame(c)).length;
+  if (queensAccounted < 2) {
+    const isQueenBait = (card) =>
+      !card.isJoker && (card.rank === 'Q' || (card.suit === 'S' && (card.rank === 'J' || card.rank === 'K')));
+    const cautious = candidates.filter((card) => !isQueenBait(card));
+    if (cautious.length > 0) candidates = cautious;
+  }
+
   // Karten, die zu keiner potenziellen Gruppe (gleicher Rang oder
   // benachbarter Wert gleicher Farbe) gehören, sind "isoliert" -> bevorzugt abwerfen.
   const isIsolated = (card, others) => {
