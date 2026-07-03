@@ -1,0 +1,60 @@
+# Default values for the pikdame chart.
+
+image:
+  repository: ghcr.io/floriandeutsch89/pikdame-local
+  # Pin a concrete version in production (e.g. "v1.14.0"); "latest" only for testing.
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# IMPORTANT: keep this at 1. Game sessions live in process memory and the
+# accounts DB is a local SQLite file on the PVC - multiple replicas would be
+# independent servers that know nothing about each other. The deployment
+# uses strategy Recreate so two pods never share the volume during updates.
+replicaCount: 1
+
+service:
+  port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  host: spiel.pikdame.online
+  # Long-lived WebSocket connections
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  tls:
+    enabled: false
+    secretName: pikdame-tls
+
+persistence:
+  size: 1Gi
+  # storageClassName: ""
+  # Use an existing PVC instead of creating one:
+  # existingClaim: my-claim
+
+env:
+  maxSessions: "200"
+# Name of an existing Secret with production env vars (PIKDAME_BASE_URL,
+# PIKDAME_SMTP_* - see k8s/README.md). Leave empty to run without it.
+existingSecret: ""
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+# Hardened defaults (mirror of the OWASP setup) - override only if you
+# know why.
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]

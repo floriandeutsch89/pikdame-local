@@ -47,8 +47,10 @@ per Cron nachts + Archiv außer Haus kopieren.
 
 ## Kubernetes
 
-Manifeste und Anleitung unter `k8s/` (Deployment, Service, Ingress mit
-WebSocket-Timeouts, PVC). **Kernpunkt: eine Replika, Strategy Recreate** —
+Empfohlener Weg ist das Helm Chart (`helm/pikdame`, bei jedem Release als
+OCI-Artefakt auf GHCR): `helm install pikdame oci://ghcr.io/floriandeutsch89/charts/pikdame`.
+Rohe Manifeste liegen als Alternative unter `k8s/` (Deployment, Service,
+Ingress mit WebSocket-Timeouts, PVC). **Kernpunkt: eine Replika, Strategy Recreate** —
 Sessions leben im RAM, SQLite auf dem PVC; Details in `k8s/README.md`.
 
 ## Sicherheit

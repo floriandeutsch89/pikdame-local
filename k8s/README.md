@@ -10,7 +10,27 @@ wissen. Für den Zweck (Familien- und Freundesrunden, 200-Session-Limit)
 reicht eine Instanz mit großem Abstand — Updates überbrückt der
 Session-Snapshot: laufende Spiele überleben den Pod-Neustart.
 
-## Deployment
+## Empfohlen: Helm Chart
+
+Das Chart liegt unter `helm/pikdame` und wird bei jedem Release als
+OCI-Artefakt auf GHCR veröffentlicht — Installation ohne Repo-Checkout:
+
+```sh
+helm install pikdame oci://ghcr.io/floriandeutsch89/charts/pikdame \
+  --version <X.Y.Z> \
+  --set ingress.host=spiel.pikdame.online \
+  --set image.tag=v<X.Y.Z>
+
+# Update / Rollback:
+helm upgrade pikdame oci://ghcr.io/floriandeutsch89/charts/pikdame --version <neu> --reuse-values
+helm rollback pikdame
+```
+
+Alle Stellschrauben (TLS, Storage-Klasse, Secret-Name, Limits) stehen
+dokumentiert in `helm/pikdame/values.yaml`. Die CI lintet und rendert das
+Chart bei jedem PR.
+
+## Alternativ: rohe Manifeste
 
 ```sh
 kubectl apply -f k8s/pvc.yaml

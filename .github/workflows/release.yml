@@ -64,6 +64,24 @@ jobs:
             --notes-file release-notes.md \
             --target "${{ github.sha }}"
 
+  helm-chart:
+    needs: [meta, release]
+    if: needs.meta.outputs.is_new == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package chart (version = app version)
+        run: |
+          VERSION="${{ needs.meta.outputs.version }}"
+          helm package helm/pikdame --version "$VERSION" --app-version "$VERSION"
+      - name: Push chart to GHCR (OCI)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.meta.outputs.version }}"
+          echo "$GH_TOKEN" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+          helm push "pikdame-${VERSION}.tgz" "oci://ghcr.io/${{ github.repository_owner }}/charts"
+
   docker:
     needs: [meta, release]
     if: needs.meta.outputs.is_new == 'true'
