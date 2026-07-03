@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pikdame-data
+spec:
+  # ReadWriteOnce is sufficient and intentional: only ever one pod (see
+  # deployment.yaml - replicas: 1, strategy: Recreate).
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
