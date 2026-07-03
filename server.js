@@ -641,7 +641,10 @@ wss.on('connection', (ws, req) => {
         break;
       }
       case 'nextRound': {
-        game.startNewRound();
+        // Ready check: the round continues once every connected human
+        // confirmed - nobody gets rushed past the round statistics.
+        const r = game.markNextRoundReady(playerId);
+        if (r && r.error) sendError(ws, r.error);
         break;
       }
       case 'rematch': {
@@ -708,7 +711,7 @@ wss.on('connection', (ws, req) => {
       case 'emote': {
         // Emotes: kurze Reaktionen an den ganzen Tisch. Whitelist + eigenes
         // Rate-Limit (1 Emote / 1,5s), damit niemand den Tisch flutet.
-        const EMOTES = ['👍', '😂', '😱', '😤', '🎉', 'pikdame'];
+        const EMOTES = ['👍', '😂', '😱', '😤', '🎉', '⏳', 'pikdame'];
         if (!EMOTES.includes(msg.emoji)) break;
         const now = Date.now();
         if (ws._lastEmoteAt && now - ws._lastEmoteAt < 1500) break;

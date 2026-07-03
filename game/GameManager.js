@@ -80,6 +80,8 @@ class GameManager {
     if (this.phase === 'playing' && this.currentPlayer()?.id === id) {
       this.maybeRunBotTurn();
     }
+    // Waiting on the round-end ready check? A leaver must not block it.
+    if (this.phase === 'roundEnd') this._maybeStartNextRound();
   }
 
   fillWithBots() {
@@ -185,7 +187,31 @@ class GameManager {
 
   // --- Rundenstart ---------------------------------------------------------
 
+  /** Round-end ready check: the next round only starts once EVERY connected
+   *  human has confirmed - nobody gets rushed past the round statistics.
+   *  Bots and disconnected players never block; a disconnect while waiting
+   *  re-evaluates readiness. */
+  markNextRoundReady(playerId) {
+    if (this.phase !== 'roundEnd') return { error: 'Gerade läuft keine Rundenauswertung.' };
+    if (!this._nextRoundReady) this._nextRoundReady = new Set();
+    this._nextRoundReady.add(playerId);
+    this._maybeStartNextRound();
+    // broadcastState (per-player states) - NOT this.broadcast(), which is
+    // the low-level (playerId, message) hook and would send nothing here.
+    this.broadcastState();
+    return { ok: true };
+  }
+
+  _maybeStartNextRound() {
+    if (this.phase !== 'roundEnd' || !this._nextRoundReady) return;
+    const waitingFor = this.players.filter(
+      (p) => !p.isBot && p.connected && !this._nextRoundReady.has(p.id)
+    );
+    if (waitingFor.length === 0) this.startNewRound();
+  }
+
   startNewRound() {
+    this._nextRoundReady = new Set();
     this.tableMelds = [];
     this.retiredJokers = [];
     this.roundNumber += 1;
@@ -672,6 +698,15 @@ class GameManager {
     this.lastRoundWasHandAus = isHandAus;
     this.lastRoundForfeitedBy = options.forfeitedBy || null;
 
+    // Cumulative per-game totals (shown as a toggle at game over)
+    if (!this.gameStatsTotals) this.gameStatsTotals = {};
+    for (const p of this.players) {
+      const t = this.gameStatsTotals[p.id] || { pikDames: 0, jokers: 0 };
+      t.pikDames += p.laidOutCards.filter((cd) => isPikDame(cd)).length;
+      t.jokers += p.laidOutCards.filter((cd) => cd.isJoker).length;
+      this.gameStatsTotals[p.id] = t;
+    }
+
     // Statistiken für die Rundenanzeige (siehe publicState -> roundStats)
     this.lastRoundStats = this.players.map((p) => ({
       id: p.id,
@@ -766,6 +801,7 @@ class GameManager {
    * zurückgesetzt, Sitzplätze/Namen bleiben erhalten.
    */
   prepareRematch() {
+    this.gameStatsTotals = {};
     this.totals = {};
     for (const p of this.players) this.totals[p.id] = 0;
     this.gameOverInfo = null;
@@ -868,6 +904,7 @@ class GameManager {
         key === 'onBotEmote' ||
         key === '_botTimer' ||
         key === '_emoteTimers' ||
+        key === '_nextRoundReady' ||
         key === '_lastBotEmote'
       ) continue;
       if (typeof value === 'function') continue;
@@ -918,6 +955,18 @@ class GameManager {
     if (difficulty === 'easy' && plan.source === 'discardPile' && Math.random() < 0.6) {
       plan.source = 'drawPile';
     }
+    // Hand-bloat guard (medium and up): swallowing a big pile onto an
+    // already large hand creates 20+ card monsters that are then nearly
+    // impossible to shed (observed in playtesting: a 23-card bot). Skip
+    // the pile when the result would exceed ~20 cards, unless it is small.
+    if (
+      plan.source === 'discardPile' &&
+      difficulty !== 'easy' &&
+      this.discardPile.length > 4 &&
+      cp.hand.length + this.discardPile.length > 20
+    ) {
+      plan.source = 'drawPile';
+    }
     // Endgame guard (medium and up): taking the discard pile means taking
     // ALL of it. If a Queen of Spades hides BELOW the top card, swallowing
     // the pile is a -100 liability whenever the round is about to end -
@@ -935,7 +984,14 @@ class GameManager {
     }
     // Gelegentlicher Bluff: kurz vor dem Ziehen das Pik-Dame-Emote zeigen -
     // selten genug, dass niemand weiß, ob es etwas bedeutet.
-    if (plan.source !== 'discardPile') this.maybeBotEmote(botId, 'pikdame', 0.08);
+    // The 'hoping for the Queen' bluff only makes sense while at least one
+    // of the two Queens of Spades could still show up - once both are laid
+    // out on the table, the wish would just look silly.
+    const queensOnTable = this.tableMelds.reduce(
+      (n, m) => n + m.slots.filter((s) => s.real && isPikDame(s.real)).length,
+      0
+    );
+    if (plan.source !== 'discardPile' && queensOnTable < 2) this.maybeBotEmote(botId, 'pikdame', 0.08);
     if (plan.source === 'discardPile' && this.discardPile.length > 0) {
       this.drawFromDiscard(botId);
     } else {
@@ -1116,6 +1172,8 @@ class GameManager {
       lastRoundWasHandAus: this.lastRoundWasHandAus || false,
       lastRoundForfeitedBy: this.lastRoundForfeitedBy || null,
       lastRoundStats: this.lastRoundStats || null,
+      nextRoundReady: this._nextRoundReady ? [...this._nextRoundReady] : [],
+      gameStatsTotals: this.gameStatsTotals || {},
       hasExportableGame: !!this.lastGameRecord,
       gameOverInfo: this.gameOverInfo || null,
       log: this.log.slice(-20),

@@ -4,6 +4,24 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.20.0] - 2026-07-03
+
+### Added
+- Rundenende-Bereitschafts-Check: Die nächste Runde startet erst, wenn JEDER verbundene menschliche Spieler auf "Weiter" getippt hat - niemand wird mehr an der Rundenstatistik vorbeigehetzt. Der Button zeigt den Stand ("Nächste Runde (1/3 bereit)" bzw. "Warte auf Anna, Ben..."); Bots und getrennte Spieler blockieren nie, ein Verbindungsabbruch während des Wartens gibt den Tisch sofort frei
+- Emotes am Rundenende: Reaktions-Buttons direkt im Ergebnis-Overlay, eingehende Emotes erscheinen dort als Namens-Chips (die Bot-Jubel- und Frust-Emotes waren bisher unsichtbar hinter dem Overlay)
+- Neues ⏳-Emote ("Tick tack...") für die sanfte Erinnerung an Grübler
+- 14 neue Rundenstart-Sprüche (DE+EN)
+- Spielende: Umschaltbare Gesamtübersicht, wie viele Pik Damen und Joker jeder über die ganze Partie ausgelegt hat
+
+### Fixed
+- Partie-Rückblick funktioniert jetzt: Er öffnete sich unsichtbar HINTER dem Ergebnis-Overlay (Overlays stapeln in DOM-Reihenfolge). Beim Öffnen weicht das Ergebnis-Overlay, beim Schließen kommt es zurück
+- Statistik-Texte im Ergebnis-Overlay sind wieder lesbar: Chart-Beschriftungen und Legende nutzten die hellen Spieltisch-Farben auf der weißen Overlay-Karte
+- Markierung der frisch gezogenen/aufgenommenen Karte sitzt jetzt oben LINKS und ist größer - rechts wurde der Punkt im Kartenfächer von der Nachbarkarte verdeckt
+
+### Changed
+- Bots blähen ihre Hand nicht mehr auf: Aufnahmen, die zu 20+ Handkarten führen würden, werden übersprungen (beobachtet: ein 23-Karten-Bot, der nichts mehr loswurde)
+- Bots wünschen sich keine Pik Dame mehr (Bluff-Emote), wenn bereits beide auf dem Tisch ausgelegt sind
+
 ## [1.19.4] - 2026-07-03
 
 ### Added

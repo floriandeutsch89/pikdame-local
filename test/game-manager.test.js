@@ -1068,3 +1068,82 @@ test('bot endgame guard: opponent with 3 cards + hidden Queen of Spades -> draws
   assert.equal(tookPile, false, 'opponent near going out -> do not swallow the pile');
   g.destroy();
 });
+
+// --- v1.20.0: round-end ready check ------------------------------------------
+test('ready check: next round starts only after EVERY connected human confirmed', () => {
+  const g = new GameManager(() => {});
+  g.addOrReconnectPlayer('p1', 'Anna');
+  g.addOrReconnectPlayer('p2', 'Ben');
+  g.fillWithBots();
+  g.startNewRound();
+  g.finishRound(g.players[0].id);
+  assert.equal(g.phase, 'roundEnd');
+
+  g.markNextRoundReady('p1');
+  assert.equal(g.phase, 'roundEnd', 'one of two humans is not enough');
+  assert.deepEqual(g.publicState('p1').nextRoundReady, ['p1']);
+
+  g.markNextRoundReady('p2');
+  assert.equal(g.phase, 'playing', 'both confirmed -> round starts');
+  assert.deepEqual(g.publicState('p1').nextRoundReady, [], 'reset on round start');
+  g.destroy();
+});
+
+test('ready check: a disconnecting player never blocks the table', () => {
+  const g = new GameManager(() => {});
+  g.addOrReconnectPlayer('p1', 'Anna');
+  g.addOrReconnectPlayer('p2', 'Ben');
+  g.fillWithBots();
+  g.startNewRound();
+  g.finishRound(g.players[0].id);
+  g.markNextRoundReady('p1');
+  assert.equal(g.phase, 'roundEnd');
+  g.markDisconnected('p2'); // the missing confirmer leaves
+  assert.equal(g.phase, 'playing', 'disconnect re-evaluates readiness');
+  g.destroy();
+});
+
+// --- v1.20.0: hand-bloat guard ------------------------------------------------
+test('hand-bloat guard: bot skips a big pile that would create a 20+ card hand', () => {
+  const { makeStandardCard } = require('../game/Card');
+  const g = new GameManager(() => {});
+  g.addOrReconnectPlayer('p1', 'A');
+  g.setHouseRules({ botDifficulty: 'medium' });
+  g.fillWithBots();
+  g.phase = 'playing'; g.turnPhase = 'draw';
+  const botIdx = g.players.findIndex((p) => p.isBot);
+  g.currentPlayerIndex = botIdx;
+  const bot = g.players[botIdx];
+  // 15-card hand with a pair matching the top card (pile looks attractive)
+  bot.hand = [makeStandardCard('H', '7', 0), makeStandardCard('D', '7', 0)];
+  const ranks = ['2', '3', '4', '5', '6', '8', '9', '10', 'J', 'Q', 'K', 'A', '2'];
+  ranks.forEach((r, i) => bot.hand.push(makeStandardCard(i % 2 ? 'C' : 'S', r, 1)));
+  g.drawPile = [makeStandardCard('C', '9', 0)];
+  // 8-card pile, NO hidden Queen (so only the new guard can fire): 15+8 > 20
+  g.discardPile = [makeStandardCard('S', '7', 0)];
+  for (let i = 0; i < 7; i++) g.discardPile.push(makeStandardCard('H', '3', 1));
+  g.runBotTurn(bot.id);
+  const tookPile = g.log.some((e) => /nimmt die oberste Ablagekarte/.test(e.text) && e.text.includes(bot.name));
+  assert.equal(tookPile, false, 'a 23-card hand must not happen');
+  g.destroy();
+});
+
+// --- v1.20.0: cumulative game totals -----------------------------------------
+test('gameStatsTotals accumulate melded Queens/jokers across rounds', () => {
+  const { makeStandardCard, makeJoker } = require('../game/Card');
+  const g = new GameManager(() => {});
+  g.addOrReconnectPlayer('p1', 'Anna');
+  g.fillWithBots();
+  g.startNewRound();
+  const p = g.players.find((pl) => pl.id === 'p1');
+  p.laidOutCards = [makeStandardCard('S', 'Q', 0), makeJoker(0)];
+  g.finishRound('p1');
+  g.startNewRound();
+  const p2 = g.players.find((pl) => pl.id === 'p1');
+  p2.laidOutCards = [makeStandardCard('S', 'Q', 1)];
+  g.finishRound('p1');
+  const totals = g.publicState('p1').gameStatsTotals['p1'];
+  assert.equal(totals.pikDames, 2);
+  assert.equal(totals.jokers, 1);
+  g.destroy();
+});
