@@ -1,6 +1,6 @@
 {
   "name": "pik-dame",
-  "version": "1.16.1",
+  "version": "1.17.0",
   "description": "Offline-Multiplayer Rommé-Variante 'Pik Dame' – Node.js Server + WebSocket, lauffähig per iPhone-Hotspot (z.B. in CodeApp).",
   "main": "server.js",
   "scripts": {
@@ -9,6 +9,7 @@
   },
   "license": "MIT",
   "dependencies": {
+    "pg": "^8.22.0",
     "ws": "^8.18.0"
   }
 }

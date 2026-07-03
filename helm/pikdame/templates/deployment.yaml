@@ -32,6 +32,16 @@ spec:
               value: "8080"
             - name: PIKDAME_MAX_SESSIONS
               value: {{ .Values.env.maxSessions | quote }}
+            {{- if .Values.database.existingSecret }}
+            - name: PIKDAME_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: {{ .Values.database.existingSecretKey }}
+            {{- else if .Values.database.url }}
+            - name: PIKDAME_DATABASE_URL
+              value: {{ .Values.database.url | quote }}
+            {{- end }}
           {{- if .Values.existingSecret }}
           envFrom:
             - secretRef:

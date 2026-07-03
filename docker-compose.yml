@@ -15,6 +15,10 @@ services:
     #   - .env
     environment:
       - PORT=8080
+      # Account database: PostgreSQL (shared, networked - the prerequisite
+      # for ever scaling beyond one app instance). Without this URL the
+      # server falls back to zero-config SQLite in data/users.db.
+      - PIKDAME_DATABASE_URL=postgres://pikdame:${POSTGRES_PASSWORD:-change-me}@postgres:5432/pikdame
       # Upper bound for parallel game sessions (DoS/memory guard, default 200)
       - PIKDAME_MAX_SESSIONS=200
       # --- User accounts (registration + login) ---
@@ -33,6 +37,9 @@ services:
     volumes:
       # Player profiles / game history / accounts DB survive container restarts and updates.
       - pikdame-data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     # --- Best practices: resources, log rotation, hardening ---
     deploy:
       resources:
@@ -77,5 +84,35 @@ services:
         soft: 4096
         hard: 4096
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: pikdame-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=pikdame
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-change-me}
+      - POSTGRES_DB=pikdame
+    volumes:
+      - pikdame-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pikdame -d pikdame"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    # Not exposed to the host on purpose - only the app container reaches it.
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    security_opt:
+      - no-new-privileges:true
+
 volumes:
   pikdame-data:
+  pikdame-pgdata:

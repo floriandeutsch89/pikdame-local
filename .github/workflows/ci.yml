@@ -9,6 +9,24 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Real PostgreSQL for the account-store integration tests (they skip
+    # automatically when PIKDAME_TEST_PG_URL is absent, e.g. locally)
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: pikdame
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: pikdame_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pikdame -d pikdame_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      PIKDAME_TEST_PG_URL: postgres://pikdame:testpass@127.0.0.1:5432/pikdame_test
     steps:
       - uses: actions/checkout@v4
       # Single current LTS line (24) - identical to the Docker image, so the

@@ -19,6 +19,12 @@ docker run --rm \
   -v "$(pwd)":/backup \
   alpine tar czf "/backup/${OUT}" -C /data .
 
+PG_OUT="pikdame-pgdump-${STAMP}.sql.gz"
+if docker compose -f "$COMPOSE_FILE" ps --services 2>/dev/null | grep -q '^postgres$'; then
+  echo ">> Dumping PostgreSQL (accounts) to ${PG_OUT} ..."
+  docker compose -f "$COMPOSE_FILE" exec -T postgres pg_dump -U pikdame pikdame | gzip > "${PG_OUT}"
+fi
+
 echo ">> Starting container..."
 docker compose -f "$COMPOSE_FILE" start pikdame
-echo ">> Done: ${OUT}"
+echo ">> Done: ${OUT}${PG_OUT:+ + ${PG_OUT}}"

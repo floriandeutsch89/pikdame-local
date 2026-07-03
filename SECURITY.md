@@ -39,8 +39,9 @@ and OCI labels (version + revision traceable).
 
 Passwords with scrypt + salt and constant-time comparisons, IP rate limits on
 the join and account APIs, session cap (`PIKDAME_MAX_SESSIONS`), name
-protection for verified accounts, atomic file persistence, SQLite in WAL
-mode, process-level safety nets with a crash log instead of a crash.
+protection for verified accounts, atomic file persistence, parameterized
+SQL queries against PostgreSQL (SQLite fallback in WAL mode), process-level
+safety nets with a crash log instead of a crash.
 
 ## Reporting
 

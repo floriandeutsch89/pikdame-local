@@ -13,7 +13,7 @@ const GameManager = require('./game/GameManager');
 const { createPlayerStore } = require('./game/PlayerStore');
 const { createGlobalStatsStore } = require('./game/GlobalStatsStore');
 const { computeEarnedBadges } = require('./game/Badges');
-const { createAccountStore } = require('./game/AccountStore');
+const { createAccountStoreAuto } = require('./game/AccountStore');
 const { createMailer } = require('./game/Mailer');
 const { createGameHistoryStore } = require('./game/GameHistoryStore');
 const { SessionRegistry, sanitizeName } = require('./game/SessionRegistry');
@@ -26,11 +26,11 @@ const globalStats = createGlobalStatsStore();
 // (Node >= 22, im Docker-Image gegeben) und nicht per Env abgeschaltet.
 // In der iOS CodeApp (ältere Node-Version) liefert die Factory null und
 // der Client blendet die komplette Account-UI aus - genau wie gewünscht.
-const accountStore = process.env.PIKDAME_ACCOUNTS === '0' ? null : createAccountStore();
+const accountStore = process.env.PIKDAME_ACCOUNTS === '0' ? null : createAccountStoreAuto();
 const mailer = createMailer();
 const ACCOUNTS_ENABLED = !!accountStore;
 if (ACCOUNTS_ENABLED) {
-  console.log(`Benutzerkonten: aktiv (SQLite, Mail-Treiber: ${mailer.configured ? 'SMTP' : 'Log-Fallback'})`);
+  console.log(`Benutzerkonten: aktiv (Backend: ${accountStore.backend || 'sqlite'}, Mail-Treiber: ${mailer.configured ? 'SMTP' : 'Log-Fallback'})`);
 } else {
   console.log('Benutzerkonten: deaktiviert (node:sqlite nicht verfügbar oder PIKDAME_ACCOUNTS=0)');
 }
@@ -267,7 +267,7 @@ async function handleAccountRequest(req, res, filePath) {
   if (filePath === '/verify') {
     const url = new URL(req.url, 'http://localhost');
     const result = ACCOUNTS_ENABLED
-      ? accountStore.verifyEmail(url.searchParams.get('token'))
+      ? await accountStore.verifyEmail(url.searchParams.get('token'))
       : { error: 'Konten sind auf diesem Server nicht verfügbar.' };
     const ok = !!result.ok;
     res.writeHead(ok ? 200 : 400, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -288,7 +288,7 @@ async function handleAccountRequest(req, res, filePath) {
   if (!body) return sendJson(res, 400, { error: 'Ungültige Anfrage.' });
 
   if (filePath === '/api/register') {
-    const r = accountStore.register(body.username, body.email, body.password);
+    const r = await accountStore.register(body.username, body.email, body.password);
     if (r.error) return sendJson(res, 400, { error: r.error });
     // Bestätigungslink: Basis-URL aus Env (Docker), sonst aus dem Request
     const base = (process.env.PIKDAME_BASE_URL || `http://${req.headers.host || 'localhost'}`).replace(/\/$/, '');
@@ -301,16 +301,16 @@ async function handleAccountRequest(req, res, filePath) {
     return sendJson(res, 200, { ok: true, mailDelivered: !!mail.delivered });
   }
   if (filePath === '/api/login') {
-    const r = accountStore.login(body.username, body.password);
+    const r = await accountStore.login(body.username, body.password);
     if (r.error) return sendJson(res, 401, { error: r.error });
     return sendJson(res, 200, { ok: true, token: r.token, username: r.username });
   }
   if (filePath === '/api/logout') {
-    accountStore.logout(body.token);
+    await accountStore.logout(body.token);
     return sendJson(res, 200, { ok: true });
   }
   if (filePath === '/api/me') {
-    const u = accountStore.sessionUser(body.token);
+    const u = await accountStore.sessionUser(body.token);
     if (!u) return sendJson(res, 401, { error: 'Nicht angemeldet.' });
     return sendJson(res, 200, { ok: true, username: u.username });
   }
@@ -532,7 +532,9 @@ wss.on('connection', (ws, req) => {
   const rateTimer = setInterval(() => { msgCount = 0; }, 1000);
   rateTimer.unref();
 
-  ws.on('message', (raw) => {
+  // async so that awaited account lookups (Postgres) reject INTO the
+  // try/catch below instead of becoming unhandled rejections
+  ws.on('message', async (raw) => {
     msgCount += 1;
     if (msgCount > 40) {
       ws.close(1008, 'Zu viele Nachrichten');
@@ -547,7 +549,7 @@ wss.on('connection', (ws, req) => {
     }
 
     try {
-      handleMessage(msg);
+      await handleMessage(msg);
     } catch (err) {
       // KRITISCH: Ohne dieses try/catch würde JEDE unerwartete Exception in
       // der Spiellogik (z. B. durch eine kaputte/unerwartete Nachricht) den
@@ -560,14 +562,15 @@ wss.on('connection', (ws, req) => {
     }
   });
 
-  function joinSession(targetSession, msg) {
-    // FORTSCHRITTS-SCHUTZ: Ein Name, der zu einem verifizierten Konto
-    // gehört, darf nur mit gültigem Login-Token verwendet werden - sonst
-    // könnte jeder die Statistik/Badges eines Kontos kapern.
+  async function joinSession(targetSession, msg) {
+    // PROGRESS PROTECTION: a name belonging to a verified account may only
+    // be used with a valid login token - otherwise anyone could hijack an
+    // account's statistics/badges. Async because the Postgres backend
+    // queries over the network; the SQLite path resolves immediately.
     if (ACCOUNTS_ENABLED) {
       const wantedName = sanitizeName(msg.name);
-      if (accountStore.isRegisteredName(wantedName)) {
-        const session = accountStore.sessionUser(msg.accountToken);
+      if (await accountStore.isRegisteredName(wantedName)) {
+        const session = await accountStore.sessionUser(msg.accountToken);
         if (!session || session.username.toLowerCase() !== String(wantedName).toLowerCase()) {
           sendError(ws, 'Dieser Name gehört zu einem registrierten Konto - bitte zuerst anmelden, um ihn zu verwenden.');
           return;
@@ -589,12 +592,12 @@ wss.on('connection', (ws, req) => {
     return true;
   }
 
-  function handleMessage(msg) {
+  async function handleMessage(msg) {
     // --- Session-Verwaltung (einzige Nachrichten OHNE bestehende Session) ---
     if (msg.type === 'createSession') {
       const created = registry.create();
       if (created.error) return sendError(ws, created.error);
-      joinSession(created.session, msg);
+      await joinSession(created.session, msg);
       return;
     }
     if (msg.type === 'joinSession') {
@@ -613,7 +616,7 @@ wss.on('connection', (ws, req) => {
         }
         return sendError(ws, 'Kein Spiel mit diesem Code gefunden. Bitte Code prüfen.');
       }
-      joinSession(target, msg);
+      await joinSession(target, msg);
       return;
     }
 
@@ -753,7 +756,10 @@ function shutdown(signal) {
   gameHistoryStore.flushSync();
   globalStats.flushSync();
   if (accountStore) {
-    try { accountStore.close(); } catch (e) { /* Shutdown nicht blockieren */ }
+    try {
+      const p = accountStore.close();
+      if (p && p.catch) p.catch(() => {});
+    } catch (e) { /* never block shutdown */ }
   }
   for (const client of wss.clients) {
     try {

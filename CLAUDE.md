@@ -20,8 +20,10 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
 ## Harte Constraints (nie brechen)
 
 1. **iOS-CodeApp-Kompatibilität:** Der Server läuft auf dem iPhone-Hotspot in
-   der CodeApp. Deshalb: **keine neuen npm-Dependencies** (aktuell nur `ws`),
-   keine nativen Module, kein Build-Schritt. Features, die mehr brauchen
+   der CodeApp. Deshalb: **keine neuen npm-Dependencies ohne explizites Okay**
+   (aktuell: `ws` + `pg` — pg ist pure JS, wird LAZY geladen und nur mit
+   gesetzter `PIKDAME_DATABASE_URL` benutzt), keine nativen Module, kein
+   Build-Schritt. Features, die mehr brauchen
    (z. B. Konten via `node:sqlite`, Node ≥ 22; Docker/CI laufen auf Node 24), müssen sich auf älteren
    Node-Versionen **selbst deaktivieren** (Factory liefert `null`, Client
    blendet UI aus) — der Hotspot-Betrieb bleibt unberührt.
@@ -48,7 +50,7 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
   1000er-Schwelle), `GameManager.js` (Zustandsmaschine, Bots-Orchestrierung,
   Snapshot), `Bot.js` (4 Schwierigkeiten: easy/medium/hard/zen),
   `PlayerStore/GameHistoryStore/GlobalStatsStore` (atomare JSON-Dateien),
-  `AccountStore.js` (SQLite via `node:sqlite`), `Mailer.js` (dependency-freier
+  `AccountStore.js`/`PgAccountStore.js` (Konten: PostgreSQL im Docker/K8s-Stack, SQLite-Fallback via `node:sqlite`), `Mailer.js` (dependency-freier
   SMTP-Client, Log-Fallback), `Badges.js` (reine Funktion).
 - `public/` — Vanilla-JS-Client (`client.js`), `i18n.js`, PWA.
 - `landing/` — statische Auswahlseite für pikdame.online.

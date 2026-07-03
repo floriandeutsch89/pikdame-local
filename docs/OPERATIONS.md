@@ -32,8 +32,11 @@ version is available as its own tag on GHCR.
 ./scripts/restore.sh pikdame-backup-<stamp>.tar.gz docker-compose.ghcr.yml
 ```
 
-The backup stops the container for a few seconds — this guarantees a
-consistent archive (SQLite WAL checkpoint + flushed JSON stores).
+The backup stops the app container for a few seconds — this guarantees a
+consistent archive of the data volume (flushed JSON stores; SQLite WAL
+checkpoint when running the fallback). If the compose stack contains the
+PostgreSQL service, the script additionally writes a `pg_dump` of the
+accounts database (`pikdame-pgdump-<stamp>.sql.gz`).
 Recommendation: run nightly via cron and copy the archive off-site.
 
 ## Observability
