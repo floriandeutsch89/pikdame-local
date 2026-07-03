@@ -71,6 +71,20 @@
       ['Möge der Stapel mit dir sein.', 'May the pile be with you.'],
       ['Der lange Aal schlackert im Nebel.', 'The long eel wobbles in the fog.'],
       ['Per aspera ad astra.', 'Per aspera ad astra.'],
+      ['Merke: Wer den Stapel nimmt, nimmt ALLES. Auch die Überraschung.', 'Remember: take the pile, take EVERYTHING. Surprises included.'],
+      ['Heute schon einen Joker getauscht? Der Tag ist noch jung.', 'Swapped a joker yet? The day is still young.'],
+      ['Oma sagt: Erst die Folge, dann das Vergnügen.', 'Grandma says: run first, fun second.'],
+      ['Die letzte Karte fliegt immer am schönsten.', 'The last card always flies the prettiest.'],
+      ['Wer zögert, dem mischt das Leben nach.', 'Hesitate, and life reshuffles on you.'],
+      ['13 Karten sind eine Folge. 14 sind ein Problem.', '13 cards make a run. 14 make a problem.'],
+      ['Ein Ass in der Hand ist 20 Punkte im Minus.', 'An ace in hand is 20 points in the red.'],
+      ['Bluffen ist erlaubt. Erwischt werden nicht.', 'Bluffing is allowed. Getting caught is not.'],
+      ['Der Ablagestapel vergisst nichts.', 'The discard pile never forgets.'],
+      ['Heimlich Karten zählen? Zen macht das auch.', 'Counting cards on the sly? Zen does it too.'],
+      ['Glücksgriff heißt Glücksgriff, weil er selten ist.', "It's called a lucky cut because it's rare."],
+      ['Vier Spieler, zwei Damen, null Gnade.', 'Four players, two queens, zero mercy.'],
+      ['Wer zuletzt lacht, hat die Pik Dame rechtzeitig abgeworfen.', 'Who laughs last discarded the Queen in time.'],
+      ['Hand aus! - das schönste Wort nach "Kuchen".', 'Hand out! - the finest phrase after "cake".'],
     ];
     let h = 0;
     for (let i = 0; i < seedStr.length; i++) h = (h * 31 + seedStr.charCodeAt(i)) | 0;
@@ -1086,6 +1100,32 @@
 
     el('exportGameBtn').classList.toggle('hidden', !(isGameOver && lastState.hasExportableGame));
     el('replayBtn').classList.toggle('hidden', !(isGameOver && lastState.hasExportableGame));
+    // Toggleable game totals: how many Queens of Spades / jokers each
+    // player melded across the WHOLE game.
+    const oldTotals = el('resultBody').querySelector('.gameTotalsBox');
+    if (oldTotals) oldTotals.remove();
+    if (isGameOver && lastState.gameStatsTotals && Object.keys(lastState.gameStatsTotals).length > 0) {
+      const box = document.createElement('div');
+      box.className = 'gameTotalsBox';
+      const tBtn = document.createElement('button');
+      tBtn.className = 'btn-secondary';
+      tBtn.textContent = L('♠Q & 🃏 der Partie anzeigen', 'Show game totals ♠Q & 🃏');
+      const tbl = document.createElement('table');
+      tbl.className = 'statsTable hidden';
+      const rows = (lastState.players || [])
+        .map((p) => ({ name: p.name, t: lastState.gameStatsTotals[p.id] || { pikDames: 0, jokers: 0 } }))
+        .sort((a, b) => b.t.pikDames - a.t.pikDames || b.t.jokers - a.t.jokers)
+        .map((r) => `<tr><td>${escapeHtml(r.name)}</td><td>${r.t.pikDames > 0 ? '♠'.repeat(r.t.pikDames) : '–'}</td><td>${r.t.jokers > 0 ? '🃏'.repeat(Math.min(r.t.jokers, 8)) + (r.t.jokers > 8 ? '×' + r.t.jokers : '') : '–'}</td></tr>`)
+        .join('');
+      tbl.innerHTML = `<thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('♠Q ausgelegt', '♠Q melded')}</th><th>${L('🃏 ausgelegt', '🃏 melded')}</th></tr></thead><tbody>${rows}</tbody>`;
+      tBtn.addEventListener('click', () => {
+        const nowHidden = tbl.classList.toggle('hidden');
+        tBtn.textContent = nowHidden ? L('♠Q & 🃏 der Partie anzeigen', 'Show game totals ♠Q & 🃏') : L('♠Q & 🃏 ausblenden', 'Hide game totals');
+      });
+      box.appendChild(tBtn);
+      box.appendChild(tbl);
+      el('resultBody').appendChild(box);
+    }
     // 🎖️ Frisch verdiente Erfolge feiern (kommen per Server-Nachricht)
     const oldBadgeBox = el('resultBody').querySelector('.badgeBox');
     if (oldBadgeBox) oldBadgeBox.remove();
@@ -1105,7 +1145,27 @@
       el('resultBody').appendChild(box);
     }
 
-    el('resultContinueBtn').textContent = isGameOver ? L('Neue Partie (Rematch)', 'New game (rematch)') : L('Nächste Runde', 'Next round');
+    // Ready check: at round end EVERY connected human confirms before the
+    // next round starts - the button shows who the table is waiting for.
+    const contBtn = el('resultContinueBtn');
+    if (isGameOver) {
+      contBtn.disabled = false;
+      contBtn.textContent = L('Neue Partie (Rematch)', 'New game (rematch)');
+    } else {
+      const humans = (lastState.players || []).filter((p) => !p.isBot && p.connected);
+      const ready = new Set(lastState.nextRoundReady || []);
+      const iAmReady = ready.has(playerId);
+      contBtn.disabled = iAmReady;
+      if (humans.length <= 1) {
+        contBtn.textContent = L('Nächste Runde', 'Next round');
+      } else if (iAmReady) {
+        const waiting = humans.filter((h) => !ready.has(h.id)).map((h) => h.name).join(', ');
+        contBtn.textContent = L(`Warte auf ${waiting}…`, `Waiting for ${waiting}…`);
+      } else {
+        const n = humans.filter((h) => ready.has(h.id)).length;
+        contBtn.textContent = L(`Nächste Runde (${n}/${humans.length} bereit)`, `Next round (${n}/${humans.length} ready)`);
+      }
+    }
   }
 
   // --- Interaktion ---------------------------------------------------------
@@ -1353,7 +1413,11 @@
   el('resultContinueBtn').addEventListener('click', () => {
     const isGameOver = lastState && lastState.phase === 'gameOver';
     send({ type: isGameOver ? 'rematch' : 'nextRound' });
-    el('resultOverlay').classList.add('hidden');
+    // Round end: the overlay STAYS open - the ready check may still be
+    // waiting for others (the button reflects that). It closes on its own
+    // when the server starts the next round.
+    if (isGameOver) el('resultOverlay').classList.add('hidden');
+    else el('resultContinueBtn').disabled = true;
   });
 
   el('exportGameBtn').addEventListener('click', () => {
@@ -1368,9 +1432,9 @@
     pendingReplayRequest = true;
     send({ type: 'exportLastGame' });
   });
-  el('replayCloseBtn').addEventListener('click', () => el('replayOverlay').classList.add('hidden'));
+  el('replayCloseBtn').addEventListener('click', closeReplay);
   el('replayOverlay').addEventListener('click', (ev) => {
-    if (ev.target === el('replayOverlay')) el('replayOverlay').classList.add('hidden');
+    if (ev.target === el('replayOverlay')) closeReplay();
   });
   el('replayPrevBtn').addEventListener('click', () => {
     if (replayIndex > 0) { replayIndex--; renderReplayRound(); }
@@ -1378,6 +1442,7 @@
   el('replayNextBtn').addEventListener('click', () => {
     if (replayRecord && replayIndex < replayRecord.rounds.length - 1) { replayIndex++; renderReplayRound(); }
   });
+  let replayReturnToResult = false;
   function openReplay(record) {
     if (!record || !Array.isArray(record.rounds) || record.rounds.length === 0) {
       showToast(L('Kein Verlauf verfügbar.', 'No history available.'));
@@ -1386,7 +1451,19 @@
     replayRecord = record;
     replayIndex = 0;
     renderReplayRound();
+    // Overlays stack in DOM order and the result overlay comes AFTER the
+    // replay in the markup - it would cover the replay completely (the
+    // "replay does nothing" bug). Hide it while browsing, restore on close.
+    replayReturnToResult = !el('resultOverlay').classList.contains('hidden');
+    el('resultOverlay').classList.add('hidden');
     el('replayOverlay').classList.remove('hidden');
+  }
+  function closeReplay() {
+    el('replayOverlay').classList.add('hidden');
+    if (replayReturnToResult) {
+      replayReturnToResult = false;
+      el('resultOverlay').classList.remove('hidden');
+    }
   }
   function replayPlayerName(pid) {
     const p = (replayRecord.players || []).find((x) => x.id === pid);
@@ -1909,6 +1986,20 @@
   });
 
   function showEmote(fromPlayerId, emoji) {
+    // While the result overlay is open it covers the player chips - show
+    // round-end reactions as name chips inside the overlay instead.
+    if (!el('resultOverlay').classList.contains('hidden')) {
+      const sender = (lastState && lastState.players || []).find((p) => p.id === fromPlayerId);
+      const chip = document.createElement('span');
+      chip.className = 'resultEmoteChip';
+      const emojiHtml = emoji === 'pikdame' ? '<span class="miniPikdame">♠<b>Q</b></span>' : escapeHtml(emoji);
+      chip.innerHTML = `${escapeHtml(sender ? sender.name : '?')} ${emojiHtml}`;
+      const box = el('resultEmotes');
+      while (box.children.length >= 6) box.firstChild.remove();
+      box.appendChild(chip);
+      setTimeout(() => chip.remove(), 5000);
+      return;
+    }
     // Ziel: der Chip des Absenders; eigene Emotes schweben über der Hand.
     let anchor = document.querySelector(`#opponents .opponent[data-player-id="${CSS.escape(fromPlayerId)}"]`);
     if (fromPlayerId === playerId) anchor = el('handWrapper');

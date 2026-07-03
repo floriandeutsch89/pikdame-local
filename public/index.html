@@ -112,7 +112,7 @@
       </header>
 
       <div id="emoteBar" class="emoteBar hidden">
-        <button class="emoteChoice" data-emote="👍">👍</button><button class="emoteChoice" data-emote="😂">😂</button><button class="emoteChoice" data-emote="😱">😱</button><button class="emoteChoice" data-emote="😤">😤</button><button class="emoteChoice" data-emote="🎉">🎉</button><button class="emoteChoice" data-emote="pikdame"><span class="miniPikdame">♠<b>Q</b></span></button>
+        <button class="emoteChoice" data-emote="👍">👍</button><button class="emoteChoice" data-emote="😂">😂</button><button class="emoteChoice" data-emote="😱">😱</button><button class="emoteChoice" data-emote="😤">😤</button><button class="emoteChoice" data-emote="🎉">🎉</button><button class="emoteChoice" data-emote="⏳" title="Tick tack...">⏳</button><button class="emoteChoice" data-emote="pikdame"><span class="miniPikdame">♠<b>Q</b></span></button>
       </div>
       <div id="opponents"></div>
 
@@ -311,7 +311,11 @@
     <section id="resultOverlay" class="overlay hidden">
       <div class="overlay-card">
         <h2 id="resultTitle">Rundenende</h2>
+        <div id="resultEmotes"></div>
         <div id="resultBody"></div>
+        <div id="resultEmoteBar" class="resultEmoteBar">
+          <button class="emoteChoice" data-emote="👍">👍</button><button class="emoteChoice" data-emote="😂">😂</button><button class="emoteChoice" data-emote="😱">😱</button><button class="emoteChoice" data-emote="😤">😤</button><button class="emoteChoice" data-emote="🎉">🎉</button><button class="emoteChoice" data-emote="⏳">⏳</button><button class="emoteChoice" data-emote="pikdame"><span class="miniPikdame">♠<b>Q</b></span></button>
+        </div>
         <button id="replayBtn" class="btn-secondary hidden">🎬 Partie-Rückblick</button>
         <button id="exportGameBtn" class="btn-secondary hidden">📤 Spielverlauf exportieren</button>
         <button id="resultContinueBtn" class="btn-primary">Weiter</button>

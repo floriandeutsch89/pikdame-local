@@ -740,8 +740,10 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 .card.just-drawn::before {
   content: '';
-  position: absolute; top: -4px; right: -4px;
-  width: 11px; height: 11px;
+  /* Top LEFT: in the card fan every card's left edge stays visible, while
+     the right edge is covered by the next card - the dot was hard to spot. */
+  position: absolute; top: -4px; left: -4px;
+  width: 13px; height: 13px;
   border-radius: 50%;
   background: var(--accent);
   border: 2px solid var(--bg-deep);
@@ -1485,3 +1487,32 @@ input:disabled { opacity: 0.65; }
   display: inline-block; padding: 2px 10px; border-radius: 999px;
   background: var(--glass-strong); font-size: 0.72rem; margin: 0 3px;
 }
+
+/* --- Readability fixes + round-end emotes (v1.20.0) ------------------------ */
+/* Charts/statistics inside overlays sit on the LIGHT card - the table
+   theme's muted (light) text colors are unreadable there. */
+.overlay-card .scoreChartSvg .axisLabel { fill: rgba(0,0,0,0.55); }
+.overlay-card .scoreChartLegend { color: rgba(0,0,0,0.6); }
+.overlay-card .scoreChartTitle { color: rgba(0,0,0,0.65); }
+
+.resultEmoteBar {
+  display: flex; justify-content: center; gap: 4px;
+  margin: 10px 0 4px;
+}
+.resultEmoteBar .emoteChoice {
+  background: rgba(0,0,0,0.05); border: none; border-radius: 10px;
+  font-size: 1.15rem; padding: 6px 9px; cursor: pointer;
+}
+#resultEmotes {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 6px;
+  min-height: 0;
+}
+#resultEmotes .resultEmoteChip {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(0,0,0,0.06); border-radius: 999px;
+  padding: 3px 10px; font-size: 0.78rem; font-weight: 600;
+  color: rgba(0,0,0,0.7);
+  animation: emoteChipIn 0.25s ease-out;
+}
+@keyframes emoteChipIn { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.gameTotalsBox { margin-top: 10px; }
