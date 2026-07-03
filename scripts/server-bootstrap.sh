@@ -96,6 +96,8 @@ echo "  3. cd /opt/pikdame/docker && docker compose -f docker-compose.prod.yml u
 echo "  4. docker compose -f docker-compose.prod.yml exec crowdsec cscli bouncers add caddy-bouncer"
 echo "     -> key into .env (CROWDSEC_API_KEY=...), then: docker compose -f docker-compose.prod.yml up -d --force-recreate caddy"
 echo
+echo "Updates later: curl -fsSL $BASE/../scripts/server-update.sh | bash"
+echo
 echo "Later (after installing your SSH key): set 'PasswordAuthentication no' +"
 echo "'PermitRootLogin prohibit-password' in /etc/ssh/sshd_config, systemctl reload ssh,"
 echo "and ROTATE the current root password."

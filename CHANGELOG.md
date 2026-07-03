@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.19.4] - 2026-07-03
+
+### Added
+- Update-Skript scripts/server-update.sh als Gegenstück zum Bootstrap: Ein Befehl holt die aktuellen Stack-Dateien von main (compose, Caddyfile, Skripte - .env und secrets/ bleiben unangetastet), korrigiert die Secret-Dateirechte, pullt Images, baut den Custom-Caddy neu und rollt aus; im Betriebshandbuch als Standard-Update-Weg dokumentiert
+
+### Fixed
+- Falscher Volume-chown-Befehl im Troubleshooting korrigiert: Wegen cap_drop ALL fehlt selbst root im Container CAP_CHOWN - der einmalige Daten-Volume-chown beim UID-Upgrade braucht exec --privileged
+
 ## [1.19.3] - 2026-07-03
 
 ### Fixed
