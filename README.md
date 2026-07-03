@@ -34,6 +34,9 @@ external frontend dependencies.
   armored error handling on client and server.
 - **Three design themes** (table/night/queen-of-hearts), card fan, synthesized
   sound (offline-capable, no audio files), haptics.
+- **Tutorial mode** for first-time players: contextual hints explain each
+  rule the moment it becomes relevant during a real game against easy bots
+  (fully client-side, works offline).
 
 ## Quick start
 

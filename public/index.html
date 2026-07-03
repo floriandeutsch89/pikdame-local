@@ -34,6 +34,7 @@
 
       <div id="sessionSetup">
         <button id="createGameBtn" class="btn-primary">Neues Spiel erstellen</button>
+        <button id="tutorialBtn" class="btn-secondary">🎓 Tutorial für neue Spieler</button>
         <div class="join-divider">oder einem Spiel beitreten</div>
         <div class="joinRow">
           <input id="codeInput" type="text" placeholder="SPIEL-CODE" maxlength="6" autocapitalize="characters" autocomplete="off" spellcheck="false" />
@@ -321,6 +322,15 @@
         <button id="resultContinueBtn" class="btn-primary">Weiter</button>
       </div>
     </section>
+
+    <!-- TUTORIAL-BANNER (kontextuelle Hinweise fuer neue Spieler) -->
+    <div id="tutorialBanner" class="hidden">
+      <span id="tutorialText"></span>
+      <div class="tutorialBtns">
+        <button id="tutorialNextBtn">Verstanden ✓</button>
+        <button id="tutorialOffBtn">Hinweise beenden</button>
+      </div>
+    </div>
 
     <!-- LOG -->
     <div id="logPanel" class="hidden">

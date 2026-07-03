@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.21.0] - 2026-07-03
+
+### Added
+- 🎓 Tutorial-Modus für neue Spieler: Der Button auf dem Startbildschirm startet ein normales Spiel gegen leichte Bots, in dem kontextuelle Hinweise jede Regel genau dann erklären, wenn sie zum ersten Mal relevant wird - Ziehen (inkl. der Zwei-Phasen-Ablagestapel-Regel), Auslegen und Anlegen, Pik Dame, Joker, die Nur-per-Abwurf-Ausmachen-Regel, Rundenwertung. Jeder Hinweis erscheint einmal ("Verstanden ✓"), ist jederzeit abschaltbar, und nach dem letzten Hinweis verabschiedet sich das Tutorial von selbst. Läuft komplett clientseitig und damit auch offline in der CodeApp
+
 ## [1.20.0] - 2026-07-03
 
 ### Added
