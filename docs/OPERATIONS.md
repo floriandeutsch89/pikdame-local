@@ -132,13 +132,28 @@ docker compose -f docker-compose.prod.yml restart pikdame
 ```
 
 When upgrading from an image older than v1.19.3 (app UID was 100), also
-re-own the data volume once:
-`docker compose -f docker-compose.prod.yml exec -u root pikdame chown -R 10001:10001 /app/data`
+re-own the data volume once. Plain `exec -u root` is NOT enough - the
+container runs with `cap_drop: ALL`, so even root inside it lacks
+CAP_CHOWN. Grant capabilities to just this one command:
+
+```sh
+docker compose -f docker-compose.prod.yml exec --privileged -u root pikdame chown -R 10001:10001 /app/data
+```
 
 ## Update & rollback
 
+**Stack files changed in the repo** (compose, Caddyfile, scripts) - one
+command fetches and rolls out everything, leaving `.env` and `secrets/`
+untouched:
+
 ```sh
-cd docker
+curl -fsSL https://raw.githubusercontent.com/floriandeutsch89/pikdame-local/main/scripts/server-update.sh | bash
+```
+
+**Images only** (or just wait for the nightly Watchtower run):
+
+```sh
+cd /opt/pikdame/docker
 docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d
 ```
