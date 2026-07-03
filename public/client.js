@@ -541,6 +541,7 @@
   let soundedForRound = -1;
 
   function render() {
+    try { updateTutorial(); } catch (e) { /* hints must never break the table */ }
     if (!lastState) return;
 
     const inLobby = lastState.phase === 'lobby';
@@ -1408,6 +1409,132 @@
 
   el('ruleSound').addEventListener('change', () => {
     setSoundEnabled(el('ruleSound').checked);
+  });
+
+  // --- Tutorial mode: contextual hints for first-time players --------------
+  // Fully client-side (works offline in CodeApp): each rule is explained
+  // the moment it first becomes relevant during a real game vs easy bots.
+  let tutorialActive = storageGet('pikdame_tutorial') === 'on';
+  let tutorialSeen = new Set();
+  try { tutorialSeen = new Set(JSON.parse(storageGet('pikdame_tutorial_seen') || '[]')); } catch (e) { /* fresh start */ }
+  let tutorialCurrentStep = null;
+
+  const TUTORIAL_STEPS = [
+    {
+      key: 'lobby',
+      when: (st) => st.phase === 'lobby',
+      text: () => L(
+        'Willkommen bei Pik Dame! 🎓 Ziel: alle Karten auslegen und die LETZTE Karte abwerfen. Tippe unten auf "Spiel starten" - freie Plätze übernehmen Bots.',
+        'Welcome to Pik Dame! 🎓 Goal: meld all your cards and discard the LAST one. Tap "Start game" below - empty seats are filled by bots.'
+      ),
+    },
+    {
+      key: 'draw',
+      when: (st, me, myTurn) => myTurn && st.turnPhase === 'draw',
+      text: () => L(
+        'Du bist dran! Ziehe eine Karte: verdeckt vom Stapel ODER nimm den Ablagestapel. Achtung beim Ablagestapel: Du bekommst ALLE Karten darin, und die oberste musst du sofort verwenden.',
+        'Your turn! Draw a card: face-down from the stock OR take the discard pile. Careful with the pile: you get ALL of its cards, and you must use the top one immediately.'
+      ),
+    },
+    {
+      key: 'pickupRest',
+      when: (st, me, myTurn) => myTurn && !!st.mustLayOffCardId,
+      text: () => L(
+        'Ablagestapel genommen: Die oberste Karte MUSS jetzt zuerst in eine Auslage - danach kommt der Rest des Stapels auf deine Hand.',
+        'Pile taken: the top card MUST go into a meld first - then the rest of the pile joins your hand.'
+      ),
+    },
+    {
+      key: 'meld',
+      when: (st, me, myTurn) => myTurn && st.turnPhase === 'meld' && !st.mustLayOffCardId,
+      text: () => L(
+        'Auslegen (freiwillig): Tippe 3+ Karten gleichen Werts (Satz) oder eine Folge derselben Farbe an und lege sie. Einzelkarten kannst du an DEINE eigenen Auslagen anlegen. Zum Schluss eine Karte abwerfen - das beendet den Zug.',
+        'Melding (optional): tap 3+ cards of the same rank (set) or a same-suit run and lay them down. Single cards can be added to YOUR OWN melds. Finish by discarding one card - that ends your turn.'
+      ),
+    },
+    {
+      key: 'pikdame',
+      when: (st, me) => me && me.hand && me.hand.some((cd) => cd.rank === 'Q' && cd.suit === 'S'),
+      text: () => L(
+        'Du hältst die Pik Dame! ♠Q ausgelegt = +100 Punkte. Am Rundenende auf der Hand erwischt = -100. Werde sie rechtzeitig los - oder lege sie aus.',
+        'You hold the Queen of Spades! ♠Q melded = +100 points. Caught in hand at round end = -100. Shed her in time - or meld her.'
+      ),
+    },
+    {
+      key: 'joker',
+      when: (st, me) => me && me.hand && me.hand.some((cd) => cd.isJoker),
+      text: () => L(
+        'Ein Joker! 🃏 Er ersetzt jede Karte in Sätzen und Folgen (20 Punkte). Abwerfen ist fast nie klug - und getauschte Joker sind dauerhaft aus dem Spiel.',
+        'A joker! 🃏 It substitutes any card in sets and runs (20 points). Discarding one is almost never wise - and swapped jokers leave the game for good.'
+      ),
+    },
+    {
+      key: 'endgame',
+      when: (st, me, myTurn) => st.phase === 'playing' && me && me.hand && me.hand.length <= 3 && me.hand.length > 0,
+      text: () => L(
+        'Fast geschafft! Wichtig: Ausmachen geht NUR, indem du deine letzte Karte ABWIRFST - nicht durch Auslegen der ganzen Hand.',
+        'Almost there! Important: you can only go out by DISCARDING your last card - not by melding your whole hand.'
+      ),
+    },
+    {
+      key: 'roundend',
+      when: (st) => st.phase === 'roundEnd',
+      text: () => L(
+        'Rundenende! Wertung: Ausgelegtes zählt PLUS, Restkarten auf der Hand MINUS. Ab 1000 Punkten endet die Partie. Wenn alle auf "Weiter" tippen, geht es in die nächste Runde.',
+        'Round over! Scoring: melded cards count PLUS, cards left in hand MINUS. The game ends at 1000 points. Once everyone taps "Continue", the next round begins.'
+      ),
+    },
+  ];
+
+  function persistTutorial() {
+    storageSet('pikdame_tutorial', tutorialActive ? 'on' : 'off');
+    storageSet('pikdame_tutorial_seen', JSON.stringify([...tutorialSeen]));
+  }
+
+  function updateTutorial() {
+    const banner = el('tutorialBanner');
+    if (!tutorialActive || !lastState) {
+      banner.classList.add('hidden');
+      return;
+    }
+    const me = (lastState.players || []).find((p) => p.id === playerId);
+    const myTurn = lastState.phase === 'playing' && lastState.currentPlayerId === playerId;
+    const step = TUTORIAL_STEPS.find((s) => !tutorialSeen.has(s.key) && s.when(lastState, me, myTurn));
+    if (!step) {
+      banner.classList.add('hidden');
+      tutorialCurrentStep = null;
+      // Everything explained once -> the tutorial retires itself.
+      if (TUTORIAL_STEPS.every((s) => tutorialSeen.has(s.key))) {
+        tutorialActive = false;
+        persistTutorial();
+      }
+      return;
+    }
+    if (tutorialCurrentStep !== step.key) {
+      tutorialCurrentStep = step.key;
+      el('tutorialText').textContent = step.text();
+    }
+    banner.classList.remove('hidden');
+  }
+
+  el('tutorialBtn').addEventListener('click', () => {
+    tutorialActive = true;
+    tutorialSeen = new Set();
+    persistTutorial();
+    // Beginners play against gentle opponents - preselect easy bots.
+    el('ruleBotDifficulty').value = 'easy';
+    el('createGameBtn').click(); // normal solo flow - bots fill the seats
+  });
+  el('tutorialNextBtn').addEventListener('click', () => {
+    if (tutorialCurrentStep) tutorialSeen.add(tutorialCurrentStep);
+    tutorialCurrentStep = null;
+    persistTutorial();
+    updateTutorial();
+  });
+  el('tutorialOffBtn').addEventListener('click', () => {
+    tutorialActive = false;
+    persistTutorial();
+    el('tutorialBanner').classList.add('hidden');
   });
 
   el('resultContinueBtn').addEventListener('click', () => {

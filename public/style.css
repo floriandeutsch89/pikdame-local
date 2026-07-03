@@ -1516,3 +1516,24 @@ input:disabled { opacity: 0.65; }
 }
 @keyframes emoteChipIn { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 .gameTotalsBox { margin-top: 10px; }
+
+/* --- Tutorial mode (v1.21.0) ------------------------------------------------ */
+#tutorialBanner {
+  position: fixed; top: calc(52px + var(--safe-top, 0px)); left: 10px; right: 10px;
+  z-index: 40; /* above the table, below overlays */
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong, var(--accent)));
+  color: #fff; border-radius: 14px;
+  padding: 11px 14px;
+  font-size: 0.82rem; line-height: 1.45; font-weight: 500;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.28);
+  animation: tutorialIn 0.3s ease-out;
+}
+@keyframes tutorialIn { from { transform: translateY(-12px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+#tutorialBanner .tutorialBtns { display: flex; gap: 8px; margin-top: 8px; }
+#tutorialBanner button {
+  border: none; border-radius: 9px; padding: 6px 12px;
+  font-size: 0.74rem; font-weight: 700; cursor: pointer;
+}
+#tutorialNextBtn { background: rgba(255,255,255,0.92); color: #1a1e24; }
+#tutorialOffBtn { background: rgba(255,255,255,0.18); color: rgba(255,255,255,0.85); }
+#tutorialBtn { margin-top: 8px; }
