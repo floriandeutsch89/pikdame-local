@@ -80,7 +80,12 @@ done
 [ -f .env ] || cp .env.example .env
 chmod 600 .env
 touch secrets/db_password.txt secrets/smtp_password.txt
-chmod 600 secrets/*.txt
+# Compose file secrets are bind mounts keeping HOST permissions: the app
+# runs as non-root UID 10001 inside the container, so it must be able to
+# read the files. Owner 10001 does not exist as a host user - on the host
+# only root can read them (mode 400).
+chown 10001:10001 secrets/*.txt
+chmod 400 secrets/*.txt
 
 echo
 echo "Bootstrap done. Next steps:"

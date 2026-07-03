@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.19.3] - 2026-07-03
+
+### Fixed
+- EACCES beim Lesen der Secret-Dateien behoben: Compose-File-Secrets sind Bind-Mounts und behalten die Host-Dateirechte - die als root/600 angelegten Dateien waren für den Non-Root-App-User unlesbar. Der App-User hat jetzt eine feste UID (10001), das Bootstrap-Skript setzt chown 10001 + chmod 400, und das Betriebshandbuch enthält den Troubleshooting-Eintrag inklusive einmaligem Daten-Volume-chown beim Upgrade von älteren Images (App-UID war dort 100)
+
 ## [1.19.2] - 2026-07-03
 
 ### Fixed

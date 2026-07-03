@@ -39,9 +39,12 @@ COPY public ./public
 
 # data/ is normally mounted as a volume; the directory still has to exist
 # and must be owned by the unprivileged user.
+# Fixed UID/GID (10001): compose file secrets are bind mounts that keep the
+# HOST file's owner/mode - a deterministic UID lets the host chown the
+# secret files so the non-root app user can read them (chown 10001, mode 400).
 RUN mkdir -p /app/data \
-  && addgroup -S pikdame \
-  && adduser -S pikdame -G pikdame \
+  && addgroup -S -g 10001 pikdame \
+  && adduser -S -u 10001 -G pikdame pikdame \
   && chown -R pikdame:pikdame /app
 
 USER pikdame
