@@ -1,44 +1,47 @@
-# Sicherheit — OWASP Docker Security
+# Security — OWASP Docker Security
 
-Umsetzung des [OWASP Docker Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html).
-Die Container-Regeln sind in `docker-compose.yml` **und** `docker-compose.ghcr.yml`
-identisch umgesetzt und werden in der CI (`docker-smoke`) bei jedem PR mit der
-vollen Härtung hochgefahren und geprüft.
+Implementation of the [OWASP Docker Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html).
+The container rules are implemented identically in `docker-compose.yml` **and**
+`docker-compose.ghcr.yml`, mirrored by the Kubernetes manifests (`k8s/`) and
+the Helm chart defaults (`helm/pikdame/values.yaml`), and verified in CI
+(`docker-smoke`) by booting the fully hardened configuration on every PR.
 
-## Im Repository umgesetzt
+## Implemented in this repository
 
-| OWASP-Regel | Umsetzung |
+| OWASP rule | Implementation |
 | --- | --- |
-| #1 Daemon-Socket schützen | Kein `docker.sock`-Mount, Daemon wird nicht exponiert |
-| #2 Kein Root im Container | `USER pikdame` im Dockerfile (unprivilegierter User, eigene Gruppe) |
-| #3 Capabilities begrenzen | `cap_drop: ALL` — der Server braucht keine einzige Capability |
-| #4 Keine Privilegien-Eskalation | `no-new-privileges:true` + AppArmor-Profil `docker-default` explizit |
-| #6 Ressourcen begrenzen | CPU-/RAM-Limits, `pids_limit: 256` (Fork-Bomb-Schutz), `ulimits.nofile 4096`, `restart: unless-stopped` |
-| #7 Read-only-Dateisystem | `read_only: true`; beschreibbar nur `data/`-Volume + `/tmp` als tmpfs (`noexec,nosuid,16m`) |
-| #8 Schwachstellen-Scan | CI-Job `docker-security`: Trivy (fail ab HIGH, fixbare CVEs) |
-| #10 Logging | json-file mit Rotation (10 MB × 3), App loggt nach stdout |
-| #11 Dockerfile-Lint | CI-Job `docker-security`: hadolint |
+| #1 Protect the daemon socket | No `docker.sock` mount, the daemon is never exposed |
+| #2 No root inside the container | `USER pikdame` in the Dockerfile (unprivileged user, own group) |
+| #3 Limit capabilities | `cap_drop: ALL` — the server needs no capability at all |
+| #4 No privilege escalation | `no-new-privileges:true` + explicit AppArmor profile `docker-default` |
+| #6 Limit resources | CPU/RAM limits, `pids: 256` (fork-bomb guard), `ulimits.nofile 4096`, `restart: unless-stopped` |
+| #7 Read-only filesystem | `read_only: true`; writable only the `data/` volume + `/tmp` as tmpfs (`noexec,nosuid,16m`) |
+| #8 Vulnerability scanning | CI job `docker-security`: Trivy (fails from HIGH, fixable CVEs) |
+| #10 Logging | json-file with rotation (10 MB × 3), the app logs to stdout |
+| #11 Dockerfile linting | CI job `docker-security`: hadolint |
 
-Weitere Bausteine: minimales Alpine-Basisimage mit gepinnter Node-Major-Version
-(CI erzwingt Dockerfile-Node == CI-Node), `tini` als PID 1, Healthcheck gegen
-`/healthz`, Registry-Bezug ausschließlich über GHCR mit versionierten Tags.
+Further building blocks: minimal Alpine base image with a pinned Node major
+version (CI enforces Dockerfile Node == CI Node), npm/corepack removed from
+the final image (smaller attack surface), `tini` as PID 1, healthcheck
+against `/healthz`, registry pulls exclusively from GHCR with versioned tags
+and OCI labels (version + revision traceable).
 
-## Verantwortung des Hosts (nicht per Compose erzwingbar)
+## Host responsibilities (not enforceable via compose)
 
-- **Docker & Host aktuell halten** (Rule #0) — regelmäßige Updates von Engine und Kernel.
-- **Rootless Mode** (Rule #12) erwägen: <https://docs.docker.com/engine/security/rootless/>
-- Den **TCP-Docker-Socket niemals öffnen** (`-H tcp://…`), keine Socket-Mounts in andere Container.
-- Optional: [Docker Bench for Security](https://github.com/docker/docker-bench-security) gegen den Host laufen lassen.
-- Auf SELinux-Hosts (Fedora/RHEL): die `apparmor=docker-default`-Zeile in den
-  Compose-Dateien auskommentieren — SELinux übernimmt dort dieselbe Rolle.
+- **Keep Docker & host up to date** (rule #0) — regular engine and kernel updates.
+- Consider **rootless mode** (rule #12): <https://docs.docker.com/engine/security/rootless/>
+- **Never open the TCP Docker socket** (`-H tcp://…`), never mount the socket into containers.
+- Optional: run [Docker Bench for Security](https://github.com/docker/docker-bench-security) against the host.
+- On SELinux hosts (Fedora/RHEL): comment out the `apparmor=docker-default`
+  line in the compose files — SELinux plays the same role there.
 
-## Anwendungsseitige Härtung (Auszug)
+## Application-level hardening (excerpt)
 
-Passwörter mit scrypt+Salt und zeitkonstanten Vergleichen, IP-Rate-Limits auf
-Join- und Konto-API, Session-Obergrenze (`PIKDAME_MAX_SESSIONS`),
-Namensschutz für verifizierte Konten, atomare Datei-Persistenz, SQLite im
-WAL-Modus, Prozess-Sicherheitsnetze mit Crash-Log statt Absturz.
+Passwords with scrypt + salt and constant-time comparisons, IP rate limits on
+the join and account APIs, session cap (`PIKDAME_MAX_SESSIONS`), name
+protection for verified accounts, atomic file persistence, SQLite in WAL
+mode, process-level safety nets with a crash log instead of a crash.
 
-## Meldungen
+## Reporting
 
-Sicherheitsprobleme bitte als GitHub-Issue mit dem Label `security` melden.
+Please report security issues as a GitHub issue with the `security` label.
