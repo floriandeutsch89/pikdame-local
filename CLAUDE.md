@@ -76,7 +76,7 @@ Ass/Joker=20, Pik Dame=100. Spielende ab 1000 (Hausregel „streng“: >1000).
    nach dem Merge nur verifizieren, nichts manuell taggen.
 4. Vor Commits: `rm -f data/*.json data/crash.log data/users.db`.
 5. Neue Server-Texte ⇒ i18n-Pattern. Neue UI-Elemente ⇒ Vertragstests laufen mit.
-6. Compose-Änderungen IMMER in `docker-compose.yml` UND `docker-compose.ghcr.yml`
+6. Compose-Änderungen IMMER in allen drei Dateien unter `docker/` (yml, ghcr.yml, prod.yml)
    synchron; die OWASP-Härtung (cap_drop ALL, read_only, AppArmor, pids_limit)
    ist Pflicht und wird vom CI-Job `docker-smoke` real hochgefahren — neue
    Schreibpfade des Servers gehören ins `data/`-Volume oder nach `/tmp` (tmpfs).

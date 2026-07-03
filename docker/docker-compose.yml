@@ -1,6 +1,8 @@
 services:
   pikdame:
-    build: .
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
     image: pikdame:latest
     container_name: pikdame
     restart: unless-stopped

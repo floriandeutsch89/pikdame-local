@@ -5,7 +5,7 @@
 # Usage: ./scripts/restore.sh <backup.tar.gz> [compose-file]
 set -eu
 BACKUP="${1:?usage: restore.sh <backup.tar.gz> [compose-file]}"
-COMPOSE_FILE="${2:-docker-compose.yml}"
+COMPOSE_FILE="${2:-docker/docker-compose.yml}"
 
 echo ">> Stopping container..."
 docker compose -f "$COMPOSE_FILE" stop pikdame

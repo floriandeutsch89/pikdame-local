@@ -6,7 +6,7 @@
 #
 # Usage: ./scripts/backup.sh [compose-file]     (default: docker-compose.yml)
 set -eu
-COMPOSE_FILE="${1:-docker-compose.yml}"
+COMPOSE_FILE="${1:-docker/docker-compose.yml}"
 STAMP=$(date +%Y%m%d-%H%M%S)
 OUT="pikdame-backup-${STAMP}.tar.gz"
 

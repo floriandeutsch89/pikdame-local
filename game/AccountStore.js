@@ -170,7 +170,10 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
 function createAccountStoreAuto(env = process.env) {
   if (env.PIKDAME_DATABASE_URL) {
     const { createPgAccountStore } = require('./PgAccountStore');
-    const store = createPgAccountStore(env.PIKDAME_DATABASE_URL);
+    const { readSecret } = require('./secretEnv');
+    const store = createPgAccountStore(env.PIKDAME_DATABASE_URL, {
+      password: readSecret(env, 'PIKDAME_DATABASE_PASSWORD'),
+    });
     if (store) return store;
     console.error("PIKDAME_DATABASE_URL is set but the 'pg' package is unavailable - falling back to SQLite.");
   }
