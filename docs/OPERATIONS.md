@@ -1,58 +1,58 @@
-# Betriebshandbuch (Docker & Kubernetes)
+# Operations Guide (Docker & Kubernetes)
 
 ## Start (Docker)
 
 ```sh
-# Mit fertigem Image von GHCR (empfohlen):
+# With the prebuilt image from GHCR (recommended):
 docker compose -f docker-compose.ghcr.yml up -d
-# Oder lokal bauen:
+# Or build locally:
 docker compose up -d
 ```
 
-Secrets (SMTP-Passwort, Basis-URL): `.env.example` nach `.env` kopieren,
-ausfüllen und den `env_file`-Block in der Compose-Datei einkommentieren.
-`.env` ist git-ignoriert.
+Secrets (SMTP password, base URL): copy `.env.example` to `.env`, fill it in
+and uncomment the `env_file` block in the compose file. `.env` is git-ignored.
 
-## Update & Rollback
+## Update & rollback
 
 ```sh
 docker compose -f docker-compose.ghcr.yml pull
 docker compose -f docker-compose.ghcr.yml up -d
 ```
 
-Laufende Spiele überleben das Update: Der Server schreibt beim Stoppen
-einen Sitzungs-Snapshot (`stop_grace_period: 30s` gibt ihm Zeit) und liest
-ihn beim Start wieder ein. **Rollback:** In der Compose-Datei das
-Image-Tag von `:latest` auf die letzte gute Version pinnen
-(z. B. `:v1.12.0`) und erneut `up -d` — jede Release-Version liegt als
-eigener Tag auf GHCR.
+Running games survive the update: on stop the server writes a session
+snapshot (`stop_grace_period: 30s` gives it time) and restores it on the next
+start. **Rollback:** pin the image tag in the compose file from `:latest` to
+the last good version (e.g. `:v1.12.0`) and run `up -d` again — every release
+version is available as its own tag on GHCR.
 
-## Backup & Restore
+## Backup & restore
 
 ```sh
-./scripts/backup.sh docker-compose.ghcr.yml     # erzeugt pikdame-backup-<stamp>.tar.gz
+./scripts/backup.sh docker-compose.ghcr.yml     # creates pikdame-backup-<stamp>.tar.gz
 ./scripts/restore.sh pikdame-backup-<stamp>.tar.gz docker-compose.ghcr.yml
 ```
 
-Das Backup stoppt den Container für wenige Sekunden — so sind SQLite
-(WAL-Checkpoint) und alle JSON-Stores garantiert konsistent. Empfehlung:
-per Cron nachts + Archiv außer Haus kopieren.
+The backup stops the container for a few seconds — this guarantees a
+consistent archive (SQLite WAL checkpoint + flushed JSON stores).
+Recommendation: run nightly via cron and copy the archive off-site.
 
-## Beobachten
+## Observability
 
-- `GET /healthz` — Liveness (nutzt auch der Docker-Healthcheck)
-- `GET /statusz` — Version, Session-/Spielerzahlen, Speicher, accountsEnabled
-- Logs: `docker logs -f pikdame` (Rotation: 10 MB × 3 ist konfiguriert)
-- Absturz-Diagnose: `data/crash.log` im Volume
+- `GET /healthz` — liveness (also used by the Docker healthcheck)
+- `GET /statusz` — version, session/player counts, memory, accountsEnabled
+- Logs: `docker logs -f pikdame` (rotation 10 MB × 3 is configured)
+- Crash diagnostics: `data/crash.log` inside the volume
 
 ## Kubernetes
 
-Empfohlener Weg ist das Helm Chart (`helm/pikdame`, bei jedem Release als
-OCI-Artefakt auf GHCR): `helm install pikdame oci://ghcr.io/floriandeutsch89/charts/pikdame`.
-Rohe Manifeste liegen als Alternative unter `k8s/` (Deployment, Service,
-Ingress mit WebSocket-Timeouts, PVC). **Kernpunkt: eine Replika, Strategy Recreate** —
-Sessions leben im RAM, SQLite auf dem PVC; Details in `k8s/README.md`.
+The recommended path is the Helm chart (`helm/pikdame`, published as an OCI
+artifact on GHCR with every release):
+`helm install pikdame oci://ghcr.io/floriandeutsch89/charts/pikdame`.
+Raw manifests are available as an alternative under `k8s/` (Deployment,
+Service, Ingress with WebSocket timeouts, PVC). **Key point: one replica,
+strategy Recreate** — sessions live in RAM, SQLite on the PVC; details in
+`k8s/README.md`.
 
-## Sicherheit
+## Security
 
-OWASP-Härtung, CI-Scans und Host-Pflichten: siehe `SECURITY.md`.
+OWASP hardening, CI scans and host responsibilities: see `SECURITY.md`.

@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.14.2] - 2026-07-03
+
+### Changed
+- README.md und docs/OPERATIONS.md vollständig auf Englisch übersetzt (Struktur und Inhalt von 1.14.1 unverändert); Sprachregel in CLAUDE.md erweitert - übrige Doku-Dateien folgen bei der nächsten Berührung
+
 ## [1.14.1] - 2026-07-03
 
 ### Changed
