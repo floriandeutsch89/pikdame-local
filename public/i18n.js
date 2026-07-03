@@ -142,6 +142,7 @@ window.I18N_SERVER_PATTERNS = [
   [/^Bitte zuerst die E-Mail-Adresse bestätigen \(Link in der Mail\)\.$/, 'Please confirm your e-mail address first (link in the mail).'],
   [/^Ungültiger oder bereits verwendeter Bestätigungslink\.$/, 'Invalid or already used confirmation link.'],
   [/^Zu viele Anfragen - bitte kurz warten\.$/, 'Too many requests - please wait a moment.'],
+  [/^Lange Zeit keine neue Auslage - die Runde endet unentschieden\.$/, 'No new melds for a long time - the round ends in a draw.'],
   [/^Zum Ausmachen musst du deine letzte Karte abwerfen - mindestens eine Handkarte muss übrig bleiben\.$/, 'To go out you must discard your last card - at least one hand card has to remain.'],
   [/^Du hast bereits einen Satz mit diesem Wert - lege die Karte\(n\) dort an statt einen neuen Stapel zu eröffnen\.$/, 'You already have a set of this rank - add the card(s) there instead of opening a new pile.'],
   [/^Du bist nicht am Zug\.$/, "It's not your turn."],

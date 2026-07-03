@@ -996,3 +996,47 @@ test('serialize/deserialize: Bot-Emotes funktionieren nach einem Server-Neustart
   assert.ok(emotes.includes('😤'), 'Emote nach Restore gefeuert');
   g2.destroy(); g3.destroy();
 });
+
+// --- v1.15.0: endgame guard - bots avoid piles hiding a Queen of Spades ----
+test('bot endgame guard: small hand + Queen of Spades below the top card -> draws from stock', () => {
+  const { makeStandardCard, makeJoker } = require('../game/Card');
+  for (const difficulty of ['medium', 'hard', 'zen']) {
+    const g = new GameManager(() => {});
+    g.addOrReconnectPlayer('p1', 'A');
+    g.setHouseRules({ botDifficulty: difficulty });
+    g.fillWithBots();
+    g.phase = 'playing'; g.turnPhase = 'draw';
+    const botIdx = g.players.findIndex((p) => p.isBot);
+    g.currentPlayerIndex = botIdx;
+    const bot = g.players[botIdx];
+    // Hand of 3 with a pair -> the top 7 completes a set, VERY attractive
+    bot.hand = [makeStandardCard('H', '7', 0), makeStandardCard('D', '7', 0), makeStandardCard('C', '2', 0)];
+    // Top card usable, but a Queen of Spades hides below it
+    g.drawPile = [makeStandardCard('C', '9', 0), makeStandardCard('C', '10', 0)];
+    g.discardPile = [makeStandardCard('S', '7', 0), makeStandardCard('S', 'Q', 0), makeStandardCard('H', '3', 0)];
+    g.runBotTurn(bot.id);
+    const tookPile = g.log.some((e) => /nimmt die oberste Ablagekarte/.test(e.text) && e.text.includes(bot.name));
+    assert.equal(tookPile, false, `${difficulty}: bot must not swallow the pile`);
+    g.destroy();
+  }
+});
+
+test('bot endgame guard: Queen of Spades ON TOP stays attractive (meldable +100)', () => {
+  const { makeStandardCard } = require('../game/Card');
+  const g = new GameManager(() => {});
+  g.addOrReconnectPlayer('p1', 'A');
+  g.setHouseRules({ botDifficulty: 'hard' });
+  g.fillWithBots();
+  g.phase = 'playing'; g.turnPhase = 'draw';
+  const botIdx = g.players.findIndex((p) => p.isBot);
+  g.currentPlayerIndex = botIdx;
+  const bot = g.players[botIdx];
+  // Two queens in hand -> the Queen of Spades on top completes the set
+  bot.hand = [makeStandardCard('H', 'Q', 0), makeStandardCard('D', 'Q', 0), makeStandardCard('C', '2', 0), makeStandardCard('C', '5', 0)];
+  g.drawPile = [makeStandardCard('C', '9', 0)];
+  g.discardPile = [makeStandardCard('S', 'Q', 0), makeStandardCard('H', '3', 0)];
+  g.runBotTurn(bot.id);
+  const tookTop = g.log.some((e) => /nimmt die oberste Ablagekarte/.test(e.text) && e.text.includes(bot.name));
+  assert.equal(tookTop, true, 'a directly meldable Queen of Spades on top is worth +100');
+  g.destroy();
+});
