@@ -178,8 +178,11 @@ services:
   # Auto-updates for the stack: Watchtower polls the registry daily at 04:00
   # and recreates opted-in containers (label below) with the new image.
   # Keep it label-scoped: the custom-built Caddy image cannot be pulled.
+  # NOTE: nickfedor/watchtower is the actively maintained drop-in fork -
+  # the original containrrr image ships a Docker client (API 1.25) that
+  # Docker Engine >= 29 rejects (min API 1.44), causing a crash loop.
   watchtower:
-    image: containrrr/watchtower:latest
+    image: nickfedor/watchtower:latest
     container_name: pikdame-watchtower
     restart: unless-stopped
     environment:

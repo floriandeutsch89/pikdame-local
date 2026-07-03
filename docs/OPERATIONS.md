@@ -65,9 +65,12 @@ certificate automatically once the record resolves.
 
 ## Auto-updates for the stack
 
-Kept deliberately simple: **Watchtower** runs inside the prod stack, polls
-the registry daily at 04:00 and recreates containers that opted in via
-label (the app image and PostgreSQL minor updates). The custom-built Caddy
+Kept deliberately simple: **Watchtower** (the maintained
+`nickfedor/watchtower` fork - the original `containrrr` image is
+unmaintained and crash-loops on Docker Engine >= 29 with "client version
+1.25 is too old") runs inside the prod stack, polls the registry daily at
+04:00 and recreates containers that opted in via label (the app image and
+PostgreSQL minor updates). The custom-built Caddy
 image is excluded - rebuild it explicitly on plugin updates:
 `docker compose -f docker-compose.prod.yml build --pull caddy && docker
 compose -f docker-compose.prod.yml up -d caddy`.

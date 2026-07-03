@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.19.2] - 2026-07-03
+
+### Fixed
+- Watchtower auf den gepflegten Fork nickfedor/watchtower umgestellt: Das originale containrrr-Image ist seit über zwei Jahren unmaintained und crasht auf Docker Engine 29+ in einer Restart-Schleife ("client version 1.25 is too old, minimum supported API version is 1.44"); der Fork ist ein Drop-in-Replacement ohne Konfig-Änderungen
+
 ## [1.19.1] - 2026-07-03
 
 ### Added
