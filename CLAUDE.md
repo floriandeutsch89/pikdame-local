@@ -65,7 +65,16 @@ Karte sofort legen, dann Rest). Pro Spieler nur EIN Satz je Wert.
 (außer als Sieges-Abwurf der letzten Karte). Punkte: 2–9=5, 10/B/D/K=10,
 Ass/Joker=20, Pik Dame=100. Spielende ab 1000 (Hausregel „streng“: >1000).
 
-## Workflow (pro Änderung)
+## Workflow
+
+**Branch-Hygiene (Lehre aus dem v1.22.0-Vorfall):** Vor jedem PR mit
+`git log --oneline origin/main..HEAD` prüfen, dass der Branch WIRKLICH die
+eigene Arbeit trägt. Niemals Push-Befehle mit `||`-Fallback-Ketten
+verketten - so wurde einmal ein alter lokaler Branch als vermeintlicher
+Feature-Branch gepusht und ein inhaltsleerer PR gemerged. Nach jedem Merge
+lokale Feature-Branches löschen; cherry-pick/commit brauchen IMMER die
+`-c user.email/-c user.name`-Identität, sonst bleibt der Stand halb
+angewendet liegen. (pro Änderung)
 
 1. Feature-Branch → Implementieren → `npm test` (== CI: `node --test test/*.test.js`).
 2. **SemVer-Bump in `package.json`** + **CHANGELOG.md-Abschnitt**
