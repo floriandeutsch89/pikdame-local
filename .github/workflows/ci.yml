@@ -59,7 +59,7 @@ jobs:
       # OWASP RULE #8: Image auf bekannte Schwachstellen scannen.
       # ignore-unfixed: Alpine-CVEs ohne verfuegbaren Fix blockieren nicht.
       - name: Trivy vulnerability scan
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: pikdame:scan
           format: table
@@ -74,8 +74,13 @@ jobs:
       # Beweist, dass der Server unter der VOLLEN OWASP-Haertung laeuft:
       # cap_drop ALL, read_only, AppArmor-Profil (Ubuntu-Runner haben
       # AppArmor aktiv), pids_limit, tmpfs - up, healthy, antwortet.
+      # Granulare Steps: schlaegt einer fehl, zeigt der Step-Name die Ursache
+      - name: Compose-Datei validieren
+        run: docker compose config > /dev/null
+      - name: Image bauen
+        run: docker compose build
       - name: Compose up (gehaertete Konfiguration)
-        run: docker compose up -d --build
+        run: docker compose up -d
       - name: Auf healthy warten
         run: |
           for i in $(seq 1 30); do
