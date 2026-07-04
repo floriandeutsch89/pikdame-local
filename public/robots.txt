@@ -1,0 +1,4 @@
+# Play page may be indexed; the legal-notice page is for humans on-site
+# only (spam-harvester deterrence) - it stays one tap away in the app.
+User-agent: *
+Disallow: /impressum.html

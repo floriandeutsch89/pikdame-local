@@ -44,10 +44,15 @@
 
 	# JSON access log to the shared volume - CrowdSec tails this file
 	# (container logs keep errors/runtime messages on stdout).
+	# Access log exists ONLY for CrowdSec's attack detection. Retention is
+	# deliberately short (privacy policy promises <= 48h): small rolls, two
+	# files max, hard age cap. For debugging beyond that window, raise
+	# roll_keep_for temporarily and reload - do not forget to lower it again.
 	log {
 		output file /var/log/caddy/access.log {
-			roll_size 20mb
-			roll_keep 3
+			roll_size 10mb
+			roll_keep 2
+			roll_keep_for 48h
 		}
 		format json
 	}

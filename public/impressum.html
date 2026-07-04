@@ -2,7 +2,8 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="robots" content="noindex, nofollow" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Impressum &amp; Datenschutz – Pik Dame</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -16,17 +17,37 @@
 
       <section>
         <h2>Anbieter</h2>
-        <!-- TODO: Dummy-Daten durch echte Angaben ersetzen -->
-        <p>
-          Max Mustermann<br />
-          Musterstraße 1<br />
-          12345 Musterstadt<br />
-          Deutschland
+        <!-- Kontaktdaten werden clientseitig zusammengesetzt: fuer Menschen
+             sofort lesbar, fuer simple Adress-Harvester unsichtbar. -->
+        <p id="providerBlock">
+          <noscript>
+            Florian Deutsch<br />
+            Grindelallee&nbsp;40<br />
+            20146&#32;&#72;&#97;&#109;&#98;&#117;&#114;&#103;<br />
+            Deutschland
+          </noscript>
         </p>
         <h2>Kontakt</h2>
-        <p>
-          E-Mail: <a href="mailto:kontakt@example.org">kontakt@example.org</a>
+        <p id="contactBlock">
+          <noscript>
+            E-Mail: fde&#43;pikdame&#32;&#91;at&#93;&#32;mailbox&#46;org
+          </noscript>
         </p>
+        <script>
+          (function () {
+            var n = ['Florian Deutsch', 'Grindelallee 40', '20146 ' + 'Ham' + 'burg', 'Deutschland'];
+            document.getElementById('providerBlock').innerHTML = n.join('<br />');
+            var u = ['fde', 'pikdame'].join('\u002b');
+            var d = ['mailbox', 'org'].join('\u002e');
+            var a = u + '\u0040' + d;
+            var el = document.getElementById('contactBlock');
+            var link = document.createElement('a');
+            link.href = 'mailto:' + a;
+            link.textContent = a;
+            el.appendChild(document.createTextNode('E-Mail: '));
+            el.appendChild(link);
+          })();
+        </script>
       </section>
 
       <section>
@@ -98,9 +119,17 @@
           <strong>1. Verbindungsdaten (IP-Adresse):</strong> Beim Aufruf der Seite
           und während des Spielens wird technisch bedingt die IP-Adresse Ihres
           Geräts verarbeitet, da ohne sie keine Verbindung zum Server möglich
-          ist (Art.&nbsp;6 Abs.&nbsp;1 lit.&nbsp;b DSGVO). Die IP-Adresse wird
-          <strong>nicht protokolliert</strong> und nicht gespeichert; es werden
-          keine Zugriffs-Logs geführt.
+          ist (Art.&nbsp;6 Abs.&nbsp;1 lit.&nbsp;b DSGVO). Zusätzlich wird die
+          IP-Adresse <strong>ausschließlich zur Abwehr von Angriffen</strong>
+          (z.&nbsp;B. Brute-Force-Versuche, Missbrauchserkennung) kurzzeitig in
+          technischen Server-Protokollen verarbeitet (Art.&nbsp;6 Abs.&nbsp;1
+          lit.&nbsp;f DSGVO - berechtigtes Interesse an einem sicheren
+          Betrieb). Diese Protokolle werden automatisch nach spätestens
+          <strong>48 Stunden</strong> überschrieben, verlassen den Server
+          nicht und werden für keine anderen Zwecke (insbesondere kein
+          Tracking, keine Profilbildung) verwendet. Die Auswertung erfolgt
+          durch lokal auf dem Server laufende Sicherheitssoftware ohne
+          Datenweitergabe an Dritte.
         </p>
         <p>
           <strong>2. Spielername und Spielstatistiken:</strong> Der von Ihnen frei

@@ -101,21 +101,24 @@
 
     <!-- SPIELTISCH -->
     <section id="table" class="screen hidden">
+      <!-- Header, Profi-Layout: links Navigation (Home), Mitte Status
+           (wer ist dran), rechts Aktionen (Emote, Einstellungen). Punkte-
+           und Rundeninfo wohnen unten bei der Hand - dort schaut man hin. -->
       <header id="topBar">
-        <div id="roundInfo">Runde –</div>
-        <div id="myScore" title="Deine Gesamtpunkte">–</div>
-        <div id="turnInfo">–</div>
         <button id="homeBtn" class="btn-icon" title="Zum Startbildschirm">🏠</button>
-        <button id="emoteBtn" class="btn-icon" title="Reaktion senden">😀</button>
-        <button id="settingsBtn" class="btn-icon" title="Einstellungen">⚙️</button>
-        <span id="settingsGroup" class="settingsGroup hidden">
-          <button id="uiScaleBtn" class="btn-icon" title="Anzeigegröße ändern">Aa</button>
-          <button id="soundToggle" class="btn-icon" title="Sound ein/aus">🔊</button>
-          <button id="tipsToggle" class="btn-icon" title="Spiel-Tipps ein/aus">💡</button>
-          <button id="fullscreenBtn" class="btn-icon hidden" title="Vollbild">⛶</button>
-          <button id="logToggle" class="btn-icon">📜</button>
-        </span>
-        <button id="ingameVersion" class="ingameVersion" title="Was ist neu?">v–</button>
+        <div id="turnInfo" class="headerCenter">–</div>
+        <div class="headerRight">
+          <span id="settingsGroup" class="settingsGroup hidden">
+            <button id="uiScaleBtn" class="btn-icon" title="Anzeigegröße ändern">Aa</button>
+            <button id="soundToggle" class="btn-icon" title="Sound ein/aus">🔊</button>
+            <button id="tipsToggle" class="btn-icon" title="Spiel-Tipps ein/aus">💡</button>
+            <button id="fullscreenBtn" class="btn-icon hidden" title="Vollbild">⛶</button>
+            <button id="logToggle" class="btn-icon">📜</button>
+            <button id="ingameVersion" class="ingameVersion" title="Was ist neu?">v–</button>
+          </span>
+          <button id="emoteBtn" class="btn-icon" title="Reaktion senden">😀</button>
+          <button id="settingsBtn" class="btn-icon" title="Einstellungen">⚙️</button>
+        </div>
       </header>
 
       <div id="emoteBar" class="emoteBar hidden">
@@ -154,6 +157,7 @@
         </div>
         <div id="hand"></div>
         <div id="myScoreBar" class="scoreBar" title="Fortschritt bis 1000 Punkte"><i></i></div>
+        <div id="myStatusLine"><span id="roundInfo">Runde –</span><span class="statusDot">·</span><span id="myScore" title="Deine Gesamtpunkte">–</span></div>
       </div>
     </section>
 

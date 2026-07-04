@@ -9,6 +9,18 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Changed
 - Zieh-Markierung final vereinfacht: Punkt/Balken komplett entfernt - der Glow-Effekt allein markiert die frisch gezogene Karte (heller Aufleucht-Moment, der in einen dezenten Rand-Schimmer ausklingt, bis die Karte gespielt wird)
 
+## [1.30.0] - 2026-07-04
+
+### Changed
+- Pik Dame ohne Dauer-Leuchten: Der permanente Ring auf der ♠Q in der Hand ist entfernt - Glow gibt es nur noch kurz beim Ziehen/Aufnehmen einer Karte
+- Header aufgeräumt (UI/UX-Überarbeitung): 🏠 ganz links (Navigation), Zug-Status mittig, 😀 und ⚙️ rechts (Aktionen); die Zahnrad-Gruppe klappt nach links aus und enthält jetzt auch die Versionsanzeige. Runde und eigene Punkte wohnen unten links bei der Hand - direkt unter dem Fortschrittsbalken, wo der Blick ohnehin ist
+
+### Fixed
+- Datenschutzerklärung zur IP-Adresse entsprach nicht der Realität: Der Reverse-Proxy führt für die Angriffsabwehr (CrowdSec) sehr wohl Zugriffs-Protokolle. Der Text beschreibt das jetzt ehrlich (Art. 6 Abs. 1 lit. f, lokal, keine Weitergabe) - und die Technik wurde dem Versprechen angepasst: Log-Aufbewahrung hart auf 48 Stunden begrenzt (danach automatisch überschrieben); fürs Debugging temporär erhöhbar, dokumentiert in OPERATIONS.md. Der App-Server selbst protokolliert keine IP-Adressen
+
+### Security
+- Impressum mit echten Anbieterdaten - und Harvester-Schutz: Kontaktblock wird clientseitig zusammengesetzt (für Menschen sofort lesbar, im Quelltext steht die E-Mail-Adresse nirgends im Klartext; noscript-Fallback mit Entities), die Seite trägt noindex/nofollow und steht in der robots.txt - erreichbar bleibt sie selbstverständlich mit einem Tipp
+
 ## [1.29.0] - 2026-07-04
 
 ### Changed
