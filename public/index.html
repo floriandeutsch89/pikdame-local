@@ -34,9 +34,10 @@
 
       <div id="sessionSetup">
         <button id="createGameBtn" class="btn-primary">Neues Spiel erstellen</button>
-        <button id="tutorialBtn" class="btn-secondary">🎓 Tutorial für neue Spieler</button>
-        <button id="challengeBtn" class="btn-secondary">🗓️ Tages-Challenge</button>
-        <p class="lobby-hint challengeHint">Gleiches Deck für alle – dein Name landet in der Tages-Bestenliste.</p>
+        <div class="menuChips">
+          <button id="tutorialBtn" class="btn-secondary">🎓 Tutorial</button>
+          <button id="challengeBtn" class="btn-secondary">🗓️ Challenge</button>
+        </div>
         <div class="join-divider">oder einem Spiel beitreten</div>
         <div class="joinRow">
           <input id="codeInput" type="text" placeholder="SPIEL-CODE" maxlength="6" autocapitalize="characters" autocomplete="off" spellcheck="false" />
@@ -98,11 +99,14 @@
       <button id="startBtn" class="btn-secondary" disabled>Spiel starten (fehlende Plätze = Bots)</button>
       <div id="lobbyPlayers" class="lobby-players"></div>
       <p id="connStatus" class="conn-status">Verbinde...</p>
-      <button id="accountBtn" class="btn-secondary hidden" style="max-width: 340px;">👤 Anmelden / Registrieren</button>
-      <button id="langBtnLobby" class="btn-secondary" style="max-width: 340px;">🌐 Sprache: Deutsch</button>
-      <button id="rulesBtnLobby" class="btn-secondary" style="max-width: 340px;">📖 Spielregeln</button>
-      <button id="uiScaleBtnLobby" class="btn-secondary" style="max-width: 340px;">🔍 Anzeigegröße: Normal</button>
-      <button id="statsBtn" class="btn-secondary" style="max-width: 340px;">📊 Statistik</button>
+      <!-- Werkzeug-Zone: kompakte 2-Spalten-Chips statt Button-Turm -->
+      <div class="menuChips menuTools">
+        <button id="statsBtn" class="btn-secondary">📊 Statistik</button>
+        <button id="rulesBtnLobby" class="btn-secondary">📖 Spielregeln</button>
+        <button id="accountBtn" class="btn-secondary hidden">👤 Konto</button>
+        <button id="langBtnLobby" class="btn-secondary">🌐 Sprache: Deutsch</button>
+        <button id="uiScaleBtnLobby" class="btn-secondary">🔍 Anzeigegröße: Normal</button>
+      </div>
       <div class="lobbyFooterLinks">
         <a class="legal-link" href="/impressum.html">Impressum &amp; Datenschutz</a>
         <button id="versionBtn" class="legal-link versionBtn" title="Was ist neu?">v–</button>
@@ -202,6 +206,19 @@
         </div>
         <p id="accountStatus" class="lobby-hint"></p>
         <button id="accountCloseBtn" class="btn-secondary">Schließen</button>
+      </div>
+    </section>
+
+    <!-- TAGES-CHALLENGE: Erklaerung VOR dem Start (statt Kaltstart ins Spiel) -->
+    <section id="challengeIntroOverlay" class="overlay hidden">
+      <div class="overlay-card">
+        <h2>🗓️ Tages-Challenge</h2>
+        <p>Heute spielen alle Spieler weltweit exakt dasselbe Kartendeck – gegen drei mittlere Bots. Wer holt die meisten Punkte aus den gleichen Karten?</p>
+        <p>Dein bestes Tagesergebnis landet mit deinem Spielernamen in der Bestenliste (7 Tage sichtbar). Mehrere Versuche sind erlaubt – nur der beste zählt.</p>
+        <p class="challengeLead">Heute führt:</p>
+        <p id="challengeTopLine" class="challengeTop">…</p>
+        <button id="challengeStartBtn" class="btn-primary">Los geht's!</button>
+        <button id="challengeCancelBtn" class="btn-secondary">Abbrechen</button>
       </div>
     </section>
 

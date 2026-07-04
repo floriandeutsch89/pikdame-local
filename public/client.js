@@ -1773,7 +1773,29 @@
 
   // --- Daily challenge --------------------------------------------------------
   el('challengeBtn').addEventListener('click', () => {
+    // Explain first, play second: the cold start straight into a running
+    // game left people wondering what was going on.
+    el('challengeTopLine').textContent = '…';
+    el('challengeIntroOverlay').classList.remove('hidden');
+    fetch('/challengeboardz')
+      .then((r) => r.json())
+      .then((d) => {
+        const top = d && d.board && d.board[0];
+        el('challengeTopLine').textContent = top
+          ? `🥇 ${top.name} – ${top.score} ${L('Punkte', 'points')}${d.board[1] ? `  ·  🥈 ${d.board[1].name} – ${d.board[1].score}` : ''}`
+          : L('Noch niemand - sichere dir Platz 1!', 'Nobody yet - claim first place!');
+      })
+      .catch(() => {
+        el('challengeTopLine').textContent = L('Bestenliste gerade nicht erreichbar.', 'Leaderboard unavailable right now.');
+      });
+  });
+  el('challengeStartBtn').addEventListener('click', () => {
+    el('challengeIntroOverlay').classList.add('hidden');
     send({ type: 'startChallenge', name: currentName(), accountToken: accountToken() || undefined });
+  });
+  el('challengeCancelBtn').addEventListener('click', () => el('challengeIntroOverlay').classList.add('hidden'));
+  el('challengeIntroOverlay').addEventListener('click', (ev) => {
+    if (ev.target === el('challengeIntroOverlay')) el('challengeIntroOverlay').classList.add('hidden');
   });
 
   el('tutorialBtn').addEventListener('click', () => {
@@ -2218,7 +2240,7 @@
       : '–';
     el('accountBtn').textContent = loggedIn
       ? `👤 ${accountUsername}`
-      : L('👤 Anmelden / Registrieren', '👤 Sign in / Register');
+      : L('👤 Konto', '👤 Account');
     // Angemeldet: der Spielername IST der Kontoname (Fortschritt haengt dran)
     if (loggedIn) {
       el('nameInput').value = accountUsername;

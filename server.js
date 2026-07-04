@@ -148,6 +148,14 @@ function serveStatic(req, res) {
     });
     return;
   }
+  if (filePath === '/challengeboardz') {
+    // Today's top 5 for the intro overlay - names are already public by
+    // the leaderboard's very purpose; no other data leaves the store.
+    const date = todayUTC();
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+    res.end(JSON.stringify({ date, board: challengeStore.getBoard(date, 5) }));
+    return;
+  }
   if (filePath === '/changelogz') {
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end(CHANGELOG_TEXT);
