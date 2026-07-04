@@ -741,7 +741,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   100% { box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow-1), 0 3px 8px rgba(0,0,0,0.28); }
 }
 .card.just-drawn {
-  animation: drawnGlow 1.6s ease-out forwards;
+  animation: drawnGlow 4s ease-out forwards; /* long enough to actually notice */
 }
 @media (prefers-reduced-motion: reduce) {
   .card.just-drawn { animation: none; box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow-1); }
@@ -1648,3 +1648,16 @@ input:disabled { opacity: 0.65; }
   color: var(--text-muted);
   margin-top: -3px;
 }
+
+/* --- Menu chips + challenge intro (v1.35.0) ------------------------------------ */
+.menuChips {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  width: 100%; max-width: 340px;
+}
+.menuChips .btn-secondary {
+  flex: 1 1 45%; margin: 0;
+  font-size: 0.82rem; padding: 10px 8px;
+  max-width: none !important;
+}
+#challengeIntroOverlay .challengeLead { font-weight: 700; margin: 8px 0 2px; }
+#challengeIntroOverlay .challengeTop { font-size: 0.82rem; color: var(--text-muted); min-height: 1.2em; }

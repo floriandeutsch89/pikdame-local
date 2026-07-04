@@ -9,6 +9,15 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Changed
 - Zieh-Markierung final vereinfacht: Punkt/Balken komplett entfernt - der Glow-Effekt allein markiert die frisch gezogene Karte (heller Aufleucht-Moment, der in einen dezenten Rand-Schimmer ausklingt, bis die Karte gespielt wird)
 
+## [1.35.0] - 2026-07-04
+
+### Added
+- Challenge-Intro statt Kaltstart: Der 🗓️-Button öffnet jetzt zuerst eine Erklärung (gleiches Deck für alle, Bestenlisten-Regeln, 7-Tage-Sichtbarkeit) samt Live-Anzeige, wer heute führt - erst "Los geht's!" startet die Partie. Neuer Mini-Endpoint /challengeboardz liefert dafür die Tages-Top-5
+
+### Changed
+- Hauptmenü entrümpelt: Tutorial und Challenge stehen als halbbreite Chips nebeneinander, und die fünf Meta-Buttons (Statistik, Spielregeln, Konto, Sprache, Anzeigegröße) bilden eine kompakte 2-Spalten-Werkzeugzone statt eines Button-Turms - klare Hierarchie: großer Start-Button, Beitreten, leise Werkzeuge
+- Zieh-Glow deutlich verlängert (4 statt 1,6 Sekunden) - die frisch gezogene Karte ist jetzt wirklich zu erkennen, bevor der Effekt in den dezenten Rand-Schimmer ausklingt
+
 ## [1.34.1] - 2026-07-04
 
 ### Changed
