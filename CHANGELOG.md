@@ -9,6 +9,12 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Changed
 - Zieh-Markierung final vereinfacht: Punkt/Balken komplett entfernt - der Glow-Effekt allein markiert die frisch gezogene Karte (heller Aufleucht-Moment, der in einen dezenten Rand-Schimmer ausklingt, bis die Karte gespielt wird)
 
+## [1.33.2] - 2026-07-04
+
+### Fixed
+- "Karten gezogen, plötzlich war der Nächste dran": Zwei Zug-Timer-Lücken geschlossen - der Hausregel-Countdown wurde auch für kurz getrennte Spieler (WLAN-Aussetzer) armiert und konnte VOR der 75-Sekunden-Schonfrist feuern; und ein vor dem Verbindungsabriss gestarteter Timer beendete den Zug trotz laufender Schonfrist. Jetzt gilt: getrennte Plätze gehören ausschließlich der Schonfrist-Logik, und wer nach einem Aussetzer zurückkehrt, bekommt einen frischen vollen Countdown
+- Veraltete Browser-Clients nach Server-Updates (Ursache der "internen Codes" bei den Erfolgen und unsichtbar feuernder neuer Features wie dem Zug-Timer): Der Server liefert alle Dateien jetzt mit Cache-Control: no-cache aus - Browser prüfen bei jedem Laden kurz nach (winziges 304 bei unverändert) und haben nach jedem nächtlichen Update sofort den passenden Client. Einmalig hilft Neuladen bzw. Cache leeren, danach nie wieder
+
 ## [1.33.1] - 2026-07-04
 
 ### Changed

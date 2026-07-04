@@ -175,7 +175,13 @@ function serveStatic(req, res) {
       return;
     }
     const ext = path.extname(resolved);
-    res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
+    // no-cache = ALWAYS revalidate (a tiny 304 when unchanged). Without it,
+    // browsers kept week-old client.js against a nightly-updated server -
+    // the source of 'raw badge codes' and invisibly firing new features.
+    res.writeHead(200, {
+      'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
+      'Cache-Control': 'no-cache',
+    });
     res.end(data);
   });
 }

@@ -63,6 +63,7 @@ class GameManager {
     if (p) {
       p.connected = true;
       delete p.disconnectedAt; // back in time - cancel the bot takeover
+      if (this.phase === 'playing' && this.currentPlayer()?.id === id) this._armTurnTimer();
       if (this._takeoverTimers) {
         clearTimeout(this._takeoverTimers.get(id));
         this._takeoverTimers.delete(id);
@@ -1015,7 +1016,10 @@ class GameManager {
     const secs = (this.houseRules && this.houseRules.turnTimerSeconds) || 0;
     if (!secs || this.phase !== 'playing') return;
     const cp = this.currentPlayer();
-    if (!cp || cp.isBot || this.isBotControlled(cp)) return;
+    // No countdown for bots, bot-controlled seats OR disconnected humans:
+    // during the takeover grace the seat is protected by ITS clock - a
+    // 30/60s turn timer must never fire before the 75s grace does.
+    if (!cp || cp.isBot || !cp.connected || this.isBotControlled(cp)) return;
     this.turnDeadline = Date.now() + secs * 1000;
     const forId = cp.id;
     this._turnTimer = setTimeout(() => this._onTurnTimeout(forId), secs * 1000);
@@ -1027,6 +1031,9 @@ class GameManager {
     if (this.phase !== 'playing') return;
     const cp = this.currentPlayer();
     if (!cp || cp.id !== playerId || cp.isBot) return;
+    // A stale timer from before a disconnect must not preempt the grace
+    // window - the takeover logic owns disconnected seats.
+    if (!cp.connected) return;
     this.addLog(`⏰ Zeit abgelaufen - der Zug von ${cp.name} wird automatisch zu Ende gespielt.`);
     this.runBotTurn(playerId, { forced: true });
   }

@@ -1429,3 +1429,29 @@ test('challenge store: best score per name, ranked board, 7-day cleanup', () => 
   assert.deepEqual(store.getBoard('2026-06-01'), [], 'entries older than 7 days are dropped');
   try { require('fs').unlinkSync(file); } catch (e) { /* lazy write */ }
 });
+
+// --- v1.33.2: turn timer vs. takeover grace -----------------------------------
+test('turn timer never fires for a disconnected human (grace owns the seat)', () => {
+  const { game } = makeGame(2);
+  game.setHouseRules({ turnTimerSeconds: 30 });
+  game.startNewRound();
+  game.currentPlayerIndex = game.players.findIndex((p) => p.id === 'p1');
+  game.turnPhase = 'draw';
+  game._armTurnTimer();
+  assert.ok(game.turnDeadline, 'connected human gets a countdown');
+
+  game.markDisconnected('p1');
+  game._armTurnTimer();
+  assert.equal(game.turnDeadline, null, 'no countdown for a grace-protected seat');
+
+  // A stale timeout from before the disconnect is a no-op
+  const logLen = game.log.length;
+  game._onTurnTimeout('p1');
+  assert.equal(game.log.length, logLen, 'stale timeout must not auto-play the turn');
+  assert.equal(game.currentPlayer().id, 'p1', 'seat untouched');
+
+  // Reconnect re-arms a FRESH full countdown
+  game.addOrReconnectPlayer('p1', 'Anna');
+  assert.ok(game.turnDeadline > Date.now() + 25 * 1000, 'fresh countdown after reconnect');
+  game.destroy();
+});
