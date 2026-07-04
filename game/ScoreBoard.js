@@ -42,6 +42,7 @@ function scoreRound(winnerId, players, options = {}) {
     const handValue = sumValues(data.handCards || []);
     const pikDameCount = (data.handCards || []).filter(isPikDame).length;
     const pikDameLaidOut = (data.laidOutCards || []).filter(isPikDame).length;
+    const jokersLaidOut = (data.laidOutCards || []).filter((cd) => cd.isJoker).length;
 
     let roundScore;
     if (pid === winnerId) {
@@ -63,6 +64,7 @@ function scoreRound(winnerId, players, options = {}) {
         handValue,
         pikDameCount,
         pikDameLaidOut,
+        jokersLaidOut,
         isWinner: pid === winnerId,
         multiplier,
       },

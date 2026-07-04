@@ -1622,3 +1622,11 @@ input:disabled { opacity: 0.65; }
 }
 
 .timerUrgent { color: #ff6b5e; font-weight: 800; }
+
+/* --- Profile record details (v1.32.0) ------------------------------------------ */
+.statsRow { cursor: pointer; }
+.recordCell {
+  font-size: 0.74rem; padding: 6px 8px 8px;
+  color: rgba(0,0,0,0.62);
+  background: rgba(0,0,0,0.035);
+}

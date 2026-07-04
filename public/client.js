@@ -234,6 +234,11 @@
       score_500: { emoji: '💯', name: L('Punktekönig', 'Point royalty'), desc: L('500+ Punkte Endstand in einer Partie', 'Finished a game with 500+ points') },
       streak_3: { emoji: '🔥', name: L('Siegesserie', 'Winning streak'), desc: L('3 Partien in Folge gewonnen', 'Won 3 games in a row') },
       comeback: { emoji: '🐢', name: L('Comeback', 'Comeback'), desc: L('Nach Runde 1 Letzter - und trotzdem gewonnen', 'Last after round 1 - and still won') },
+      double_queen_round: { emoji: '👯', name: L('Doppeldame', 'Double queen'), desc: L('BEIDE Pik Damen in ein und derselben Runde ausgelegt', 'Melded BOTH Queens of Spades in the same round') },
+      round_300: { emoji: '💥', name: L('Monsterrunde', 'Monster round'), desc: L('300+ Punkte in einer einzigen Runde', '300+ points in a single round') },
+      zen_slayer: { emoji: '⚔️', name: L('Zen-Bezwinger', 'Zen slayer'), desc: L('Partie mit einem Zen-Meister am Tisch gewonnen', 'Won a game with a zen master at the table') },
+      marathon_10: { emoji: '🏃', name: L('Marathon', 'Marathon'), desc: L('10 Partien gespielt', 'Played 10 games') },
+      pd_hunter_10: { emoji: '🎯', name: L('Damenjägerin', 'Queen hunter'), desc: L('10 Pik Damen insgesamt ausgelegt', 'Melded 10 Queens of Spades in total') },
     };
     return M[id] || { emoji: '🎖️', name: id, desc: '' };
   }
@@ -2375,6 +2380,31 @@
     renderStats();
     el('statsOverlay').classList.remove('hidden');
   });
+  // Record details: tapping a profile row expands its personal records
+  // (best round, queen/joker balance, hand-aus wins) right beneath it.
+  el('statsContent').addEventListener('click', (ev) => {
+    const row = ev.target.closest('.statsRow');
+    if (!row) return;
+    const existing = row.nextElementSibling;
+    if (existing && existing.classList.contains('recordRow')) {
+      existing.remove();
+      return;
+    }
+    document.querySelectorAll('.recordRow').forEach((r) => r.remove());
+    const p = (knownProfiles || []).find((pr) => pr.name === row.dataset.name);
+    if (!p) return;
+    const detail = document.createElement('tr');
+    detail.className = 'recordRow';
+    const bits = [
+      `${L('Beste Runde', 'Best round')}: <b>${p.bestRoundScore ?? '–'}</b>`,
+      `♠Q ${L('ausgelegt/erwischt', 'melded/caught')}: <b>${p.totalQueensLaid || 0}/${p.totalQueensCaught || 0}</b>`,
+      `🃏: <b>${p.totalJokersLaid || 0}</b>`,
+      `${L('Hand aus', 'Out in one')}: <b>${p.totalHandAus || 0}</b>`,
+    ];
+    detail.innerHTML = `<td colspan="6" class="recordCell">${bits.join(' · ')}</td>`;
+    row.after(detail);
+  });
+
   el('statsCloseBtn').addEventListener('click', () => el('statsOverlay').classList.add('hidden'));
   el('statsOverlay').addEventListener('click', (ev) => {
     if (ev.target === el('statsOverlay')) el('statsOverlay').classList.add('hidden');
@@ -2417,7 +2447,7 @@
             return `<span title="${escapeHtml(m.name)}: ${escapeHtml(m.desc)}">${m.emoji}</span>`;
           })
           .join(' ');
-        return `<tr><td>${escapeHtml(p.name)}</td><td>${played}</td><td>${won}</td><td>${rate}%</td><td>${best}</td><td class="badgeCell">${badgeEmojis || '–'}</td></tr>`;
+        return `<tr class="statsRow" data-name="${escapeHtml(p.name)}"><td>${escapeHtml(p.name)}</td><td>${played}</td><td>${won}</td><td>${rate}%</td><td>${best}</td><td class="badgeCell">${badgeEmojis || '–'}</td></tr>`;
       })
       .join('');
     box.innerHTML = `<table class="statsPageTable"><thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('Spiele', 'Games')}</th><th>${L('Siege', 'Wins')}</th><th>${L('Quote', 'Rate')}</th><th>${L('Beste Partie', 'Best game')}</th><th>${L('Erfolge', 'Badges')}</th></tr></thead><tbody>${rows}</tbody></table>`;

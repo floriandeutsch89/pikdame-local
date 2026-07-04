@@ -38,7 +38,7 @@ test('computeEarnedBadges: Gewinner mit Hand-aus, 3 PD, 500+ und Comeback', () =
   const earned = computeEarnedBadges(record(), 'p1', { gamesWon: 1, winStreak: 3 });
   assert.deepEqual(
     earned.sort(),
-    ['comeback', 'first_win', 'hand_aus_win', 'pd_laid', 'pd_triple', 'score_500', 'streak_3'].sort()
+    ['comeback', 'double_queen_round', 'first_win', 'hand_aus_win', 'pd_laid', 'pd_triple', 'score_500', 'streak_3'].sort()
   );
 });
 
@@ -91,4 +91,53 @@ test('Endspurt-Ansage erscheint ab 800 Punkten im Log (inkl. strenger Variante)'
   g3.totals = { p1: 500, p2: 200 };
   g3.startNewRound();
   assert.ok(!g3.log.some((e) => /Endspurt/.test(e.text)), 'unter 800 keine Ansage');
+});
+
+
+// --- v1.32.0: new badges --------------------------------------------------------
+test('computeEarnedBadges: round_300, zen_slayer, marathon and cumulative queen hunter', () => {
+  const rec = record({
+    players: [
+      { id: 'p1', name: 'Anna', isBot: false },
+      { id: 'b1', name: 'Klaus', isBot: true, botDifficulty: 'zen' },
+    ],
+  });
+  rec.rounds[1].results.p1.roundScore = 320;
+  const earned = computeEarnedBadges(rec, 'p1', {
+    gamesWon: 1, winStreak: 1, gamesPlayed: 10, totalQueensLaid: 11,
+  });
+  for (const id of ['round_300', 'zen_slayer', 'marathon_10', 'pd_hunter_10']) {
+    assert.ok(earned.includes(id), `${id} expected`);
+  }
+});
+
+test('computeEarnedBadges: zen_slayer requires WINNING against a zen bot', () => {
+  const rec = record({
+    winnerId: 'p2',
+    players: [
+      { id: 'p1', name: 'Anna', isBot: false },
+      { id: 'b1', name: 'Klaus', isBot: true, botDifficulty: 'zen' },
+    ],
+  });
+  assert.ok(!computeEarnedBadges(rec, 'p1', {}).includes('zen_slayer'));
+});
+
+// --- v1.32.0: player records pipeline -------------------------------------------
+test('recordGameResult: records and cumulative counters from facts', () => {
+  const file = require('path').join(require('os').tmpdir(), `pikdame-store-test-${Date.now()}.json`);
+  const store = createPlayerStore(file);
+  store.recordGameResult([
+    { name: 'Anna', score: 480, won: true, facts: { bestRound: 185, pdLaid: 2, pdCaught: 1, jokersLaid: 3, handAusWins: 1 } },
+  ]);
+  store.recordGameResult([
+    { name: 'Anna', score: 1120, won: true, facts: { bestRound: 140, pdLaid: 1, pdCaught: 0, jokersLaid: 2, handAusWins: 0 } },
+  ]);
+  const p = store.getPlayerByName('Anna');
+  assert.equal(p.bestGameScore, 1120);
+  assert.equal(p.bestRoundScore, 185, 'best round survives a weaker second game');
+  assert.equal(p.totalQueensLaid, 3);
+  assert.equal(p.totalQueensCaught, 1);
+  assert.equal(p.totalJokersLaid, 5);
+  assert.equal(p.totalHandAus, 1);
+  try { require('fs').unlinkSync(file); } catch (e) { /* store may write lazily */ }
 });
