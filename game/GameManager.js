@@ -171,6 +171,7 @@ class GameManager {
     if (typeof partial.handAusDoubles === 'boolean') clean.handAusDoubles = partial.handAusDoubles;
     if (typeof partial.strictThreshold === 'boolean') clean.strictThreshold = partial.strictThreshold;
     if (['easy', 'medium', 'hard', 'zen'].includes(partial.botDifficulty)) clean.botDifficulty = partial.botDifficulty;
+    if ([0, 30, 60, 90].includes(Number(partial.turnTimerSeconds))) clean.turnTimerSeconds = Number(partial.turnTimerSeconds);
     this.houseRules = {
       ...DEFAULT_HOUSE_RULES,
       ...this.houseRules,
@@ -979,7 +980,36 @@ class GameManager {
 
   // --- Bot-Steuerung -----------------------------------------------------------
 
+  /** Optional house rule: a per-turn countdown for HUMANS. When it runs
+   *  out, the bot logic finishes that one turn (transparent log line);
+   *  the table never stalls on a daydreamer. Bots are untouched - they
+   *  act on their own timer anyway. Zero server ticks: one timeout per
+   *  turn, the deadline is broadcast for the client-side countdown. */
+  _armTurnTimer() {
+    clearTimeout(this._turnTimer);
+    this._turnTimer = null;
+    this.turnDeadline = null;
+    const secs = (this.houseRules && this.houseRules.turnTimerSeconds) || 0;
+    if (!secs || this.phase !== 'playing') return;
+    const cp = this.currentPlayer();
+    if (!cp || cp.isBot || this.isBotControlled(cp)) return;
+    this.turnDeadline = Date.now() + secs * 1000;
+    const forId = cp.id;
+    this._turnTimer = setTimeout(() => this._onTurnTimeout(forId), secs * 1000);
+  }
+
+  _onTurnTimeout(playerId) {
+    this._turnTimer = null;
+    this.turnDeadline = null;
+    if (this.phase !== 'playing') return;
+    const cp = this.currentPlayer();
+    if (!cp || cp.id !== playerId || cp.isBot) return;
+    this.addLog(`⏰ Zeit abgelaufen - der Zug von ${cp.name} wird automatisch zu Ende gespielt.`);
+    this.runBotTurn(playerId, { forced: true });
+  }
+
   maybeRunBotTurn() {
+    this._armTurnTimer();
     if (this.phase !== 'playing') return;
     const cp = this.currentPlayer();
     if (!cp || !this.isBotControlled(cp)) return;
@@ -993,6 +1023,7 @@ class GameManager {
   /** Bricht pendende Timer ab - wird beim Entfernen der Session aufgerufen. */
   destroy() {
     clearTimeout(this._botTimer);
+    clearTimeout(this._turnTimer);
     if (this._takeoverTimers) {
       for (const t of this._takeoverTimers.values()) clearTimeout(t);
       this._takeoverTimers.clear();
@@ -1049,6 +1080,7 @@ class GameManager {
         key === 'onGameOver' ||
         key === 'onBotEmote' ||
         key === '_botTimer' ||
+        key === '_turnTimer' ||
         key === '_emoteTimers' ||
         key === '_takeoverTimers' ||
         key === '_nextRoundReady' ||
@@ -1074,6 +1106,7 @@ class GameManager {
     for (const p of this.players || []) {
       if (!p.isBot && !p.connected) this._scheduleTakeover(p.id);
     }
+    this._armTurnTimer(); // fresh deadline for a restored running turn
     // Transiente Felder IMMER frisch initialisieren: bereits gespeicherte
     // Snapshots (vor diesem Fix) enthalten _emoteTimers als {} - ohne diese
     // Zeilen wuerde der erste Bot-Emote nach einem Server-Neustart mit
@@ -1100,10 +1133,13 @@ class GameManager {
     return !player.disconnectedAt || Date.now() - player.disconnectedAt >= GameManager.TAKEOVER_GRACE_MS;
   }
 
-  runBotTurn(botId) {
+  runBotTurn(botId, opts = {}) {
     if (this.phase !== 'playing') return;
     const cp = this.currentPlayer();
-    if (!cp || cp.id !== botId || !this.isBotControlled(cp)) return;
+    if (!cp || cp.id !== botId) return;
+    // opts.forced: turn-timer expiry lets the bot logic finish a HUMAN's
+    // turn once - every rule check downstream still applies unchanged.
+    if (!opts.forced && !this.isBotControlled(cp)) return;
 
     // Per-bot difficulty (adjustable in-game) with the house rule as default
     const difficulty = cp.botDifficulty || (this.houseRules && this.houseRules.botDifficulty) || 'medium';
@@ -1350,6 +1386,7 @@ class GameManager {
       lastRoundStats: this.lastRoundStats || null,
       nextRoundReady: this._nextRoundReady ? [...this._nextRoundReady] : [],
       lastRoundWinnerId: this.lastRoundWinnerId || null,
+      turnDeadline: this.turnDeadline || null,
       gameStatsTotals: this.gameStatsTotals || {},
       hasExportableGame: !!this.lastGameRecord,
       gameOverInfo: this.gameOverInfo || null,

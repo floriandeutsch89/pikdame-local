@@ -9,6 +9,11 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Changed
 - Zieh-Markierung final vereinfacht: Punkt/Balken komplett entfernt - der Glow-Effekt allein markiert die frisch gezogene Karte (heller Aufleucht-Moment, der in einen dezenten Rand-Schimmer ausklingt, bis die Karte gespielt wird)
 
+## [1.31.0] - 2026-07-04
+
+### Added
+- ⏱ Zug-Timer als Hausregel (Aus / 30 / 60 / 90 Sekunden): Läuft die Zeit eines menschlichen Spielers ab, spielt die Bot-Logik genau diesen einen Zug transparent zu Ende ("⏰ Zeit abgelaufen - der Zug von Anna wird automatisch zu Ende gespielt.") - der Tisch wartet nie wieder auf Tagträumer. Der Countdown tickt rein clientseitig gegen die Server-Deadline (null zusätzlicher Server-Verkehr), färbt sich ab 10 Sekunden rot, überlebt Server-Neustarts und lässt Bots unberührt
+
 ## [1.30.0] - 2026-07-04
 
 ### Changed

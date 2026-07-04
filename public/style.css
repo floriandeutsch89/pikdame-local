@@ -1620,3 +1620,5 @@ input:disabled { opacity: 0.65; }
   color: var(--text-muted);
   display: flex; align-items: center; gap: 6px;
 }
+
+.timerUrgent { color: #ff6b5e; font-weight: 800; }
