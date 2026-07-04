@@ -142,6 +142,14 @@ docker compose -f docker-compose.prod.yml exec --privileged -u root pikdame chow
 
 ## Security model (anti-cheat & hardening)
 
+**IP logging & retention:** the Caddy access log exists solely to feed
+CrowdSec. Retention is capped at 48 hours (`roll_keep_for 48h`, two 10 MB
+rolls) to match the privacy policy. For extended debugging, temporarily
+raise `roll_keep_for` in docker/Caddyfile and `docker compose exec caddy
+caddy reload --config /etc/caddy/Caddyfile` - and revert afterwards. The
+app container itself never logs IP addresses.
+
+
 The server is fully **authoritative**: every action (draw, meld, lay-off,
 discard, joker swap) is validated server-side against the rules, turn order
 and phase - clients only *render* state and *request* actions. A modified

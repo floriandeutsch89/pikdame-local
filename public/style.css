@@ -727,7 +727,9 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   background: var(--suit-red); color: #fff;
   border-radius: 5px; padding: 1.5px 4px;
 }
-.card.pikdame-card { box-shadow: 0 0 0 2px var(--accent), 0 4px 12px rgba(0,0,0,0.35); }
+/* The Queen of Spades gets NO permanent highlight anymore: the constant
+   glow annoyed players and the ♠Q face is unmistakable on its own. Glow
+   is reserved for freshly drawn cards (drawnGlow below). */
 
 /* Gerade gezogene/aufgenommene Karte: kurzer heller Glow beim Erscheinen,
    der in einen dezenten bleibenden Rand-Schimmer ausklingt - bewusst OHNE
@@ -1602,4 +1604,19 @@ input:disabled { opacity: 0.65; }
   pointer-events: none;
   user-select: none;
   z-index: -1;
+}
+
+/* --- Header redesign + bottom status line (v1.30.0) --------------------------- */
+#topBar { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.headerCenter {
+  flex: 1; text-align: center; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.headerRight { display: inline-flex; align-items: center; gap: 6px; }
+#myScoreBar { margin: 6px 0 0 12px; }
+#myStatusLine {
+  padding: 3px 14px 2px;
+  font-size: 0.72rem; font-weight: 600;
+  color: var(--text-muted);
+  display: flex; align-items: center; gap: 6px;
 }
