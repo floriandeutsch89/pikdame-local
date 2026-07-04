@@ -562,6 +562,73 @@ class GameManager {
     return { ok: true };
   }
 
+  /** Lay off SEVERAL hand cards onto one own meld in a single action
+   *  ("two tens onto the ten set with one tap"). All-or-nothing: a greedy
+   *  simulation on a copy (tryLayOff is pure) finds a working order first -
+   *  runs may require it (J before Q onto 8-9-10) - and only then are the
+   *  cards applied through the audited single-card path, so every guard
+   *  (turn, ownership, forced lay-off, going-out rule) keeps applying. */
+  layOffCards(playerId, meldId, cardIds) {
+    const err = this.assertTurn(playerId, 'meld');
+    if (err) return err;
+    if (!Array.isArray(cardIds) || cardIds.length === 0) return { error: 'Keine Karten gewählt.' };
+    if (cardIds.length === 1) return this.layOffCard(playerId, meldId, cardIds[0]);
+
+    const player = this.currentPlayer();
+    const meld = this.tableMelds.find((m) => m.id === meldId);
+    if (!meld) return { error: 'Auslage nicht gefunden.' };
+    if (meld.ownerId !== player.id) {
+      return { error: 'Du kannst nur an deine EIGENEN Auslagen anlegen - jeder Spieler hat seinen eigenen Stapel.' };
+    }
+    const cards = cardIds.map((id) => player.hand.find((cd) => cd.id === id));
+    if (cards.some((cd) => !cd)) return { error: 'Karte nicht auf der Hand.' };
+    if (cards.some((cd) => cd.isJoker)) {
+      return { error: 'Joker bitte einzeln anlegen (der Platz will gewählt sein).' };
+    }
+    // Going-out rule: at least one hand card must remain for the final discard
+    const restIncoming = this.pendingDiscardRest && this.discardPile.length > 0;
+    if (player.hand.length - cards.length < 1 && !restIncoming) {
+      return { error: 'Zum Ausmachen musst du deine letzte Karte abwerfen - mindestens eine Handkarte muss übrig bleiben.' };
+    }
+    if (this.pendingDiscardRest && !cardIds.includes(this.mustLayOffCardId)) {
+      return { error: 'Die aufgenommene Ablagekarte muss SOFORT gelegt werden, bevor etwas anderes passiert.' };
+    }
+
+    // Simulation: find an order in which every card fits (tryLayOff is
+    // pure, so the table meld is never touched). The forced card - if any -
+    // must lead the order to satisfy the single-card guard on application.
+    let simMeld = meld;
+    const remaining = cards.slice().sort((a, b) => {
+      const aForced = a.id === this.mustLayOffCardId ? 0 : 1;
+      const bForced = b.id === this.mustLayOffCardId ? 0 : 1;
+      return aForced - bForced;
+    });
+    const order = [];
+    while (remaining.length > 0) {
+      const idx = remaining.findIndex((cd, i) => {
+        if (order.length === 0 && this.mustLayOffCardId && remaining.some((r) => r.id === this.mustLayOffCardId)) {
+          // first slot is reserved for the forced card
+          if (cd.id !== this.mustLayOffCardId) return false;
+        }
+        return tryLayOff(simMeld, cd) !== null;
+      });
+      if (idx === -1) {
+        return { error: 'Nicht alle gewählten Karten passen zusammen an diese Auslage.' };
+      }
+      simMeld = tryLayOff(simMeld, remaining[idx]);
+      order.push(remaining[idx]);
+      remaining.splice(idx, 1);
+    }
+
+    // Apply in the proven order through the audited single-card path.
+    for (const cd of order) {
+      const r = this.layOffCard(playerId, meldId, cd.id);
+      if (r && r.error) return r; // unreachable after the simulation
+      if (r && r.options) return { error: 'Diese Kombination bitte einzeln anlegen.' };
+    }
+    return { ok: true };
+  }
+
   layOffCard(playerId, meldId, cardId, asSuit, side) {
     const err = this.assertTurn(playerId, 'meld');
     if (err) return err;

@@ -1576,6 +1576,24 @@ input:disabled { opacity: 0.65; }
   border-radius: 999px;
   transition: width 0.6s ease;
 }
-#myScoreBar { width: 74px; }
+#myScoreBar { width: min(60%, 320px); margin: 6px auto 2px; height: 5px; }
 .deltaUp { color: #1e9e57; font-weight: 700; }
 .deltaDown { color: #d34b3a; font-weight: 700; }
+
+/* --- Table watermark (v1.27.0): subtle in-game marker ------------------------- */
+/* Correct container is #table (the in-game screen). z-index -1 paints the
+   mark above the section's own background but below ALL content. */
+#table { position: relative; }
+#table::before {
+  content: '♠Q';
+  position: absolute;
+  top: 38%; left: 50%;
+  transform: translate(-50%, -50%) rotate(-14deg);
+  font-size: clamp(140px, 34vw, 280px);
+  font-weight: 800;
+  letter-spacing: -0.06em;
+  color: rgba(255, 255, 255, 0.05);
+  pointer-events: none;
+  user-select: none;
+  z-index: -1;
+}

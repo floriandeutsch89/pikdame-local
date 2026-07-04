@@ -140,6 +140,33 @@ CAP_CHOWN. Grant capabilities to just this one command:
 docker compose -f docker-compose.prod.yml exec --privileged -u root pikdame chown -R 10001:10001 /app/data
 ```
 
+## Security model (anti-cheat & hardening)
+
+The server is fully **authoritative**: every action (draw, meld, lay-off,
+discard, joker swap) is validated server-side against the rules, turn order
+and phase - clients only *render* state and *request* actions. A modified
+client therefore cannot make illegal moves. On top of that:
+
+- **Information hiding:** each player receives an individually filtered
+  state - foreign hands are never transmitted (only counts), the draw pile
+  is count-only, the discard pile exposes only its top card. What is not
+  sent cannot be read from memory or network traffic.
+- **Seat protection:** player ids are public (needed for rendering), so
+  reclaiming a seat additionally requires a secret per-seat token
+  (crypto-random, issued at join, stored only in the owner's browser,
+  persisted across server restarts via the session snapshot). Guessing
+  tokens counts towards the per-IP failed-join limit.
+- **Abuse limits:** per-IP join-failure blocking (session-code brute force),
+  per-connection message throttling (~25 msg/s soft, 60 hard close),
+  16 KB websocket payload cap, name sanitization, emote whitelist,
+  account-endpoint rate limiting.
+- **Cost of cheating vs. performance:** all checks are O(1) or O(hand size)
+  per action - there is no speculative simulation or per-tick server work,
+  so the protections add no measurable load.
+
+What is intentionally NOT prevented: players screensharing their hand or
+sitting next to each other - no online game can stop analog cheating.
+
 ## Update & rollback
 
 **Stack files changed in the repo** (compose, Caddyfile, scripts) - one

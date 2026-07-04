@@ -1201,3 +1201,79 @@ test('setBotDifficulty: validation, effect and per-bot resolution in guards', ()
   assert.equal(tookPile, true, 'easy override beats the hard house default');
   g.destroy();
 });
+
+// --- v1.27.0: multi lay-off ---------------------------------------------------
+function setupLayOffScene() {
+  const { makeStandardCard } = require('../game/Card');
+  const g = new GameManager(() => {});
+  g.addOrReconnectPlayer('p1', 'Anna');
+  g.addOrReconnectPlayer('p2', 'Ben');
+  g.startNewRound();
+  g.currentPlayerIndex = g.players.findIndex((p) => p.id === 'p1');
+  g.turnPhase = 'meld';
+  const me = g.players.find((p) => p.id === 'p1');
+  return { g, me, mk: makeStandardCard };
+}
+
+test('multi lay-off: two tens join the ten set in one action', () => {
+  const { g, me, mk } = setupLayOffScene();
+  me.hand = [mk('H', '10', 0), mk('D', '10', 0), mk('C', '2', 0)];
+  const set = [mk('S', '10', 0), mk('C', '10', 0), mk('H', '10', 1)];
+  me.hand.push(...set);
+  const meldRes = g.layoutMeld('p1', set.map((c) => c.id));
+  assert.equal(meldRes.error, undefined);
+  const meldId = g.tableMelds.find((m) => m.ownerId === 'p1').id;
+
+  const r = g.layOffCards('p1', meldId, [me.hand[0].id, me.hand[1].id]);
+  assert.equal(r.error, undefined);
+  assert.equal(g.tableMelds.find((m) => m.id === meldId).slots.length, 5);
+  assert.equal(me.hand.length, 1, 'both tens left the hand');
+  g.destroy();
+});
+
+test('multi lay-off: run order is found automatically (J before Q onto 8-9-10)', () => {
+  const { g, me, mk } = setupLayOffScene();
+  const run = [mk('H', '8', 0), mk('H', '9', 0), mk('H', '10', 0)];
+  const jack = mk('H', 'J', 0);
+  const queen = mk('H', 'Q', 0);
+  me.hand = [...run, queen, jack, mk('C', '2', 0)];
+  assert.equal(g.layoutMeld('p1', run.map((c) => c.id)).error, undefined);
+  const meldId = g.tableMelds.find((m) => m.ownerId === 'p1').id;
+
+  // Selected in the "wrong" order (queen first) - the server must sort it out
+  const r = g.layOffCards('p1', meldId, [queen.id, jack.id]);
+  assert.equal(r.error, undefined);
+  assert.equal(g.tableMelds.find((m) => m.id === meldId).slots.length, 5);
+  g.destroy();
+});
+
+test('multi lay-off: all-or-nothing when one card does not fit', () => {
+  const { g, me, mk } = setupLayOffScene();
+  const ten1 = mk('H', '10', 0);
+  const misfit = mk('C', '3', 0);
+  const set = [mk('S', '10', 0), mk('C', '10', 0), mk('D', '10', 0)];
+  me.hand = [ten1, misfit, ...set, mk('C', '2', 0)];
+  assert.equal(g.layoutMeld('p1', set.map((c) => c.id)).error, undefined);
+  const meldId = g.tableMelds.find((m) => m.ownerId === 'p1').id;
+  const handBefore = me.hand.length;
+  const slotsBefore = g.tableMelds.find((m) => m.id === meldId).slots.length;
+
+  const r = g.layOffCards('p1', meldId, [ten1.id, misfit.id]);
+  assert.match(r.error, /passen zusammen/);
+  assert.equal(me.hand.length, handBefore, 'hand untouched');
+  assert.equal(g.tableMelds.find((m) => m.id === meldId).slots.length, slotsBefore, 'meld untouched');
+  g.destroy();
+});
+
+test('multi lay-off: going-out rule blocks emptying the hand via lay-off', () => {
+  const { g, me, mk } = setupLayOffScene();
+  const t1 = mk('H', '10', 0);
+  const t2 = mk('D', '10', 0);
+  const set = [mk('S', '10', 0), mk('C', '10', 0), mk('H', '10', 1)];
+  me.hand = [t1, t2, ...set];
+  assert.equal(g.layoutMeld('p1', set.map((c) => c.id)).error, undefined);
+  const meldId = g.tableMelds.find((m) => m.ownerId === 'p1').id;
+  const r = g.layOffCards('p1', meldId, [t1.id, t2.id]);
+  assert.match(r.error, /letzte Karte abwerfen/);
+  g.destroy();
+});

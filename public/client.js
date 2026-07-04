@@ -26,6 +26,7 @@
   // Die playerId wird PRO SESSION gespeichert, damit Reconnects in das
   // richtige Spiel zurückführen und parallele Spiele sich nicht vermischen.
   const playerKeyFor = (code) => `pikdame_player_${code}`;
+  const tokenKeyFor = (code) => `pikdame_token_${code}`;
   let playerId = sessionCode ? storageGet(playerKeyFor(sessionCode)) : null;
   let myName = storageGet(NAME_KEY) || '';
   let soundEnabled = storageGet(SOUND_KEY) !== 'off';
@@ -85,6 +86,18 @@
       ['Vier Spieler, zwei Damen, null Gnade.', 'Four players, two queens, zero mercy.'],
       ['Wer zuletzt lacht, hat die Pik Dame rechtzeitig abgeworfen.', 'Who laughs last discarded the Queen in time.'],
       ['Hand aus! - das schönste Wort nach "Kuchen".', 'Hand out! - the finest phrase after "cake".'],
+      ['Neue Runde, neues Glück - altes Misstrauen.', 'New round, new luck - same old suspicion.'],
+      ['Die Pik Dame schläft nie. Sie wartet.', 'The Queen of Spades never sleeps. She waits.'],
+      ['Wer den Joker abwirft, glaubt auch an gutes W-LAN im Keller.', 'Discarding a joker? Sure, and the basement has great wifi.'],
+      ['Erst denken, dann ziehen. Oder andersrum, wir urteilen nicht.', 'Think first, then draw. Or the other way - no judgement.'],
+      ['Drei Damen sind ein Satz. Zwei Damen sind ein Drama.', 'Three queens make a set. Two queens make a drama.'],
+      ['Der Stapel lügt nie. Er schweigt nur sehr laut.', 'The pile never lies. It just stays very loudly silent.'],
+      ['Zen-Meister zählen Karten. Alle anderen zählen auf Glück.', 'Zen masters count cards. Everyone else counts on luck.'],
+      ['Hände weg von der Pik Dame - außer sie liegt schon fest.', 'Hands off the Queen of Spades - unless she is safely melded.'],
+      ['Ein Fächer voller Möglichkeiten. Und drei davon sind Fehler.', 'A fan full of options. Three of them are mistakes.'],
+      ['Familienspiel heißt: Alle lieben sich. Bis zum Ausmachen.', 'Family game means: everyone loves each other. Until someone goes out.'],
+      ['Der beste Zug ist der, über den keiner lacht.', 'The best move is the one nobody laughs at.'],
+      ['Runde eins ist Aufwärmen. Ab Runde zwei ist es persönlich.', 'Round one is a warm-up. From round two on, it is personal.'],
     ];
     let h = 0;
     for (let i = 0; i < seedStr.length; i++) h = (h * 31 + seedStr.charCodeAt(i)) | 0;
@@ -355,7 +368,7 @@
       // Link mit gespeicherter playerId). Ohne Code entscheidet der Nutzer
       // im UI: neues Spiel erstellen oder Code eingeben.
       if (sessionCode && playerId) {
-        ws.send(JSON.stringify({ type: 'joinSession', code: sessionCode, playerId, name: myName }));
+        ws.send(JSON.stringify({ type: 'joinSession', code: sessionCode, playerId, playerToken: storageGet(tokenKeyFor(sessionCode)) || undefined, name: myName }));
       }
     });
 
@@ -390,6 +403,8 @@
   function handleMessage(msg) {
     if (msg.type === 'joined') {
       storageSet('pikdame_last_session', msg.sessionCode);
+      // Secret seat token: proves this browser owns the seat on reconnect
+      if (msg.playerToken) storageSet(tokenKeyFor(msg.sessionCode), msg.playerToken);
       playerId = msg.playerId;
       sessionCode = msg.sessionCode;
       storageSet(playerKeyFor(sessionCode), playerId);
@@ -809,9 +824,17 @@
       ownerMelds.forEach((meld) => {
         const group = document.createElement('div');
         group.className = 'meldGroup';
-        // Grüner Hinweis: genau EINE Karte ausgewählt + sie passt hier an
-        if (isMine && singleSelectedCard && isMyTurn && lastState.turnPhase === 'meld' && cardFitsMeld(meld, singleSelectedCard)) {
-          group.classList.add('layOffTarget');
+        // Grüner Hinweis: EINE Karte, die hier anpasst - ODER mehrere,
+        // die GEMEINSAM anpassen (z.B. zwei Zehnen an den Zehner-Satz)
+        if (isMine && isMyTurn && lastState.turnPhase === 'meld') {
+          if (singleSelectedCard && cardFitsMeld(meld, singleSelectedCard)) {
+            group.classList.add('layOffTarget');
+          } else if (selectedCardIds.size > 1 && meForHints && meForHints.hand) {
+            const sel = meForHints.hand.filter((cd) => selectedCardIds.has(cd.id));
+            if (sel.length === selectedCardIds.size && cardsFitMeldTogether(meld, sel)) {
+              group.classList.add('layOffTarget');
+            }
+          }
         }
         meld.slots.forEach((slot) => {
           const card = slot.real || { isJoker: true, rank: slot.representsRank, suit: slot.representsSuit, _isJokerSlot: true };
@@ -1006,6 +1029,56 @@
   // macht weiterhin der Server. Joker-Handkarten werden nicht gehintet.
   function slotRank(s) { return s.real ? s.real.rank : s.representsRank; }
   function slotSuit(s) { return s.real ? s.real.suit : s.representsSuit; }
+  // Multi lay-off: can ALL selected cards go onto this meld together?
+  // Greedy simulation on a lightweight copy - pure ADDING only (no joker
+  // swaps, no jokers), mirroring the server's layOffCards exactly so the
+  // green highlight never promises something the server would reject.
+  function cardsFitMeldTogether(meld, cards) {
+    if (!cards.length || cards.some((cd) => cd.isJoker)) return false;
+    // Reject cards that would only "fit" via a joker swap
+    const isSwapOnly = (m, cd) =>
+      m.slots.some((s) => s.joker && s.representsRank === cd.rank && s.representsSuit === cd.suit) &&
+      !cardFitsMeldPureAdd(m, cd);
+    let sim = { ...meld, slots: meld.slots.slice() };
+    const remaining = cards.slice();
+    while (remaining.length > 0) {
+      const idx = remaining.findIndex((cd) => !isSwapOnly(sim, cd) && cardFitsMeldPureAdd(sim, cd));
+      if (idx === -1) return false;
+      const cd = remaining[idx];
+      if (sim.type === 'set') {
+        sim.slots = [...sim.slots, { real: cd }];
+      } else {
+        // run: attach at the matching end (ring order)
+        const rIdx = (r) => RANK_ORDER.indexOf(r);
+        const first = slotRank(sim.slots[0]);
+        const prev = RANK_ORDER[(rIdx(first) - 1 + 13) % 13];
+        sim.slots = cd.rank === prev ? [{ real: cd }, ...sim.slots] : [...sim.slots, { real: cd }];
+      }
+      remaining.splice(idx, 1);
+    }
+    return true;
+  }
+  // Pure-add check: cardFitsMeld minus the joker-swap shortcut
+  function cardFitsMeldPureAdd(meld, card) {
+    if (!card || card.isJoker) return false;
+    if (meld.type === 'set') {
+      if (card.rank !== meld.rank || meld.slots.length >= 8) return false;
+      const sameSuit = meld.slots.filter((s) => slotSuit(s) === card.suit).length;
+      return sameSuit < 2;
+    }
+    if (meld.type === 'run') {
+      if (meld.slots.length >= 13) return false;
+      if (card.suit !== slotSuit(meld.slots[0])) return false;
+      const idx = (r) => RANK_ORDER.indexOf(r);
+      const first = slotRank(meld.slots[0]);
+      const last = slotRank(meld.slots[meld.slots.length - 1]);
+      const prev = RANK_ORDER[(idx(first) - 1 + 13) % 13];
+      const next = RANK_ORDER[(idx(last) + 1) % 13];
+      return card.rank === prev || card.rank === next;
+    }
+    return false;
+  }
+
   function cardFitsMeld(meld, card) {
     if (!card || card.isJoker) return false;
     // Exakter Joker-Tausch: Karte entspricht genau dem, was ein Joker vertritt
@@ -1261,8 +1334,13 @@
         send({ type: 'layOff', meldId: meld.id, cardId });
       }
       selectedCardIds.clear();
+    } else if (selectedCardIds.size > 1) {
+      // Multiple cards: lay them all off in one tap (server validates
+      // all-or-nothing and finds the working order, e.g. J before Q).
+      send({ type: 'layOffMulti', meldId: meld.id, cardIds: [...selectedCardIds] });
+      selectedCardIds.clear();
     } else {
-      showHint(L('Wähle genau eine Handkarte aus, um sie an diese Auslage anzulegen (oder gegen einen passenden Joker zu tauschen).', 'Select exactly one hand card to add it to this meld (or swap it for a matching joker).'), false);
+      showHint(L('Wähle mindestens eine Handkarte aus, um sie an diese Auslage anzulegen (mehrere passende Karten gehen mit einem Tipp).', 'Select at least one hand card to add it to this meld (several fitting cards go in one tap).'), false);
     }
   }
 
@@ -1297,12 +1375,12 @@
       return;
     }
     const storedId = storageGet(playerKeyFor(code));
-    send({ type: 'joinSession', code, name: currentName(), playerId: storedId || undefined, accountToken: accountToken() || undefined });
+    send({ type: 'joinSession', code, name: currentName(), playerId: storedId || undefined, playerToken: storageGet(tokenKeyFor(code)) || undefined, accountToken: accountToken() || undefined });
   });
 
   el('updateNameBtn').addEventListener('click', () => {
     if (!sessionCode || !playerId) return;
-    send({ type: 'joinSession', code: sessionCode, playerId, name: currentName(), accountToken: accountToken() || undefined });
+    send({ type: 'joinSession', code: sessionCode, playerId, playerToken: storageGet(tokenKeyFor(sessionCode)) || undefined, name: currentName(), accountToken: accountToken() || undefined });
   });
 
   el('shareCodeBtn').addEventListener('click', async () => {

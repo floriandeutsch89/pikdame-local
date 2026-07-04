@@ -8,6 +8,7 @@ const http = require('http');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const crypto = require('crypto');
 const WebSocket = require('ws');
 const GameManager = require('./game/GameManager');
 const { createPlayerStore } = require('./game/PlayerStore');
@@ -463,6 +464,7 @@ function writeSessionsSnapshot() {
         code: session.code,
         createdAt: session.createdAt,
         lastActivity: session.lastActivity,
+        playerTokens: session.playerTokens ? Object.fromEntries(session.playerTokens) : {},
         state: session.game.serialize(),
       });
     }
@@ -487,6 +489,7 @@ function restoreSessionsSnapshot() {
     for (const snap of sessions || []) {
       const session = registry.restore(snap);
       if (!session) continue;
+      session.playerTokens = new Map(Object.entries(snap.playerTokens || {}));
       session.game.deserialize(snap.state);
       restored += 1;
     }
@@ -577,22 +580,76 @@ wss.on('connection', (ws, req) => {
         }
       }
     }
-    playerId = msg.playerId || `p-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    // --- Seat protection (anti-cheat) -------------------------------------
+    // Player ids are PUBLIC (every state broadcast contains them for
+    // rendering), so they must never be sufficient to claim a seat: anyone
+    // could read a fellow player's id from the state and open their hand
+    // in a second tab. Reclaiming an existing seat therefore requires a
+    // secret per-seat token, generated server-side (crypto) and known only
+    // to the seat's own browser. Legacy seats without a token (pre-update
+    // snapshots) are claimable once by id and upgraded on the spot.
+    if (!targetSession.playerTokens) targetSession.playerTokens = new Map();
+    const wantsExistingSeat =
+      msg.playerId && targetSession.game.players.some((p) => p.id === msg.playerId && !p.isBot);
+    if (wantsExistingSeat) {
+      const expected = targetSession.playerTokens.get(msg.playerId);
+      if (expected && expected !== msg.playerToken) {
+        const count = registerFailedJoin(ip); // token guessing counts as a failed join
+        if (count >= FAILED_JOIN_LIMIT) {
+          ws.close(1008, 'Zu viele Fehlversuche');
+          return false;
+        }
+        sendError(ws, 'Dieser Platz ist geschützt - er gehört einem anderen Gerät.');
+        return false;
+      }
+    }
+    playerId = wantsExistingSeat ? msg.playerId : `p-${crypto.randomBytes(9).toString('base64url')}`;
     const player = targetSession.game.addOrReconnectPlayer(playerId, sanitizeName(msg.name));
     if (!player) {
       sendError(ws, 'Tisch ist voll.');
       return false;
     }
+    let playerToken = targetSession.playerTokens.get(playerId);
+    if (!playerToken) {
+      playerToken = crypto.randomBytes(18).toString('base64url');
+      targetSession.playerTokens.set(playerId, playerToken);
+    }
     session = targetSession;
     session.sockets.set(playerId, ws);
     registry.touch(session);
-    ws.send(JSON.stringify({ type: 'joined', playerId, sessionCode: session.code }));
+    ws.send(JSON.stringify({ type: 'joined', playerId, playerToken, sessionCode: session.code }));
     session.game.broadcastState();
     sendProfilesAndTeams(session, playerId);
     return true;
   }
 
+  // Per-connection message throttle: a well-behaved client sends a handful
+  // of messages per second at most; a flooding one gets one warning, then
+  // the connection closes. O(1) per message - no server-side game cost.
+  let msgWindowStart = Date.now();
+  let msgWindowCount = 0;
+  let floodWarned = false;
+  function messageFloodCheck() {
+    const now = Date.now();
+    if (now - msgWindowStart > 1000) {
+      msgWindowStart = now;
+      msgWindowCount = 0;
+      floodWarned = false;
+    }
+    msgWindowCount += 1;
+    if (msgWindowCount > 25) {
+      if (!floodWarned) {
+        floodWarned = true;
+        sendError(ws, 'Zu viele Aktionen - bitte kurz durchatmen.');
+      }
+      if (msgWindowCount > 60) ws.close(1008, 'Nachrichtenflut');
+      return true;
+    }
+    return false;
+  }
+
   async function handleMessage(msg) {
+    if (messageFloodCheck()) return;
     // --- Session-Verwaltung (einzige Nachrichten OHNE bestehende Session) ---
     if (msg.type === 'createSession') {
       const created = registry.create();
@@ -688,6 +745,11 @@ wss.on('connection', (ws, req) => {
         const r = game.layoutMeld(playerId, msg.cardIds, msg.jokerAssignments || {});
         if (r && r.error) sendError(ws, r.error);
         if (r && r.ambiguous) ws.send(JSON.stringify({ type: 'meldAmbiguous', cardIds: msg.cardIds, options: r.options }));
+        break;
+      }
+      case 'layOffMulti': {
+        const r = game.layOffCards(playerId, msg.meldId, msg.cardIds);
+        if (r && r.error) sendError(ws, r.error);
         break;
       }
       case 'layOff': {
