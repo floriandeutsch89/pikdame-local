@@ -9,6 +9,11 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Changed
 - Zieh-Markierung final vereinfacht: Punkt/Balken komplett entfernt - der Glow-Effekt allein markiert die frisch gezogene Karte (heller Aufleucht-Moment, der in einen dezenten Rand-Schimmer ausklingt, bis die Karte gespielt wird)
 
+## [1.33.0] - 2026-07-04
+
+### Added
+- 🗓️ Tages-Challenge: Ein Tipp auf dem Startbildschirm, und du sitzt sofort am Tisch - gegen drei mittlere Bots, mit einem Deck, das per UTC-Datums-Seed für ALLE Spieler weltweit identisch gemischt ist (jede Runde deterministisch, aber verschieden). Am Partieende landet dein bestes Tagesergebnis in der Tages-Bestenliste (Top 10 direkt im Ergebnis-Overlay, eigener Platz hervorgehoben); mehrere Versuche erlaubt, nur der beste zählt. Einträge verfallen automatisch nach 7 Tagen - Datenschutzerklärung entsprechend ergänzt (Spitzname empfohlen)
+
 ## [1.32.0] - 2026-07-04
 
 ### Added

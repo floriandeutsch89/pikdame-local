@@ -64,7 +64,7 @@ class SessionRegistry {
     this.sessions = new Map(); // code -> { code, game, sockets: Map<playerId, ws>, createdAt, lastActivity }
   }
 
-  create() {
+  create(extra = {}) {
     if (this.sessions.size >= this.options.maxSessions) {
       return { error: 'Der Server ist derzeit voll - bitte später erneut versuchen.' };
     }
@@ -78,6 +78,9 @@ class SessionRegistry {
       sockets: new Map(),
       createdAt: this.now(),
       lastActivity: this.now(),
+      // Challenge sessions carry their seed/date so createGame can pass
+      // them into the GameManager (identical decks for everyone).
+      ...extra,
     };
     session.game = this.createGame(session);
     this.sessions.set(code, session);

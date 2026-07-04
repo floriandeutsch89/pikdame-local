@@ -16,6 +16,8 @@ window.I18N_STATIC = {
   'Das Familien-Rommé – online mit Freunden & Bots': 'The family rummy – online with friends & bots',
   'Neues Spiel erstellen': 'Create a new game',
   'Zug-Timer': 'Turn timer',
+  '🗓️ Tages-Challenge': '🗓️ Daily challenge',
+  'Gleiches Deck für alle – dein Name landet in der Tages-Bestenliste.': 'Same deck for everyone – your name enters the daily leaderboard.',
   'Aus': 'Off',
   '30 Sekunden': '30 seconds',
   '60 Sekunden': '60 seconds',

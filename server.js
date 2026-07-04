@@ -22,6 +22,8 @@ const { SessionRegistry, sanitizeName } = require('./game/SessionRegistry');
 const PORT = process.env.PORT || 8080;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const playerStore = createPlayerStore();
+const { createChallengeStore, seedForDate, todayUTC } = require('./game/ChallengeStore');
+const challengeStore = createChallengeStore();
 const globalStats = createGlobalStatsStore();
 // Benutzerkonten: aktiv, wenn Nodes eingebautes SQLite verfügbar ist
 // (Node >= 22, im Docker-Image gegeben) und nicht per Env abgeschaltet.
@@ -400,6 +402,8 @@ const registry = new SessionRegistry((session) => {
     }
   };
   return new GameManager(sendTo, {
+    deckSeed: typeof session.deckSeed === 'number' ? session.deckSeed : undefined,
+    challengeDate: session.challengeDate || undefined,
     // Bot-Emotes gehen denselben Weg wie Spieler-Emotes: an alle am Tisch.
     onBotEmote: (botId, emoji) => {
       for (const [, sock] of session.sockets) {
@@ -433,6 +437,22 @@ const registry = new SessionRegistry((session) => {
       if (earned.length > 0) {
         for (const p of gameRecord.players || []) {
           sendTo(p.id, { type: 'badges', earned });
+        }
+      }
+
+      // Daily challenge: record the human's score and hand out the board.
+      if (gameRecord.challengeDate) {
+        const human = (gameRecord.players || []).find((p) => !p.isBot);
+        if (human) {
+          const score = (gameRecord.finalTotals || {})[human.id] || 0;
+          const board = challengeStore.submit(gameRecord.challengeDate, human.name, score);
+          sendTo(human.id, {
+            type: 'challengeBoard',
+            date: gameRecord.challengeDate,
+            board,
+            yourScore: score,
+            yourRank: challengeStore.rankOf(gameRecord.challengeDate, human.name),
+          });
         }
       }
     },
@@ -651,6 +671,21 @@ wss.on('connection', (ws, req) => {
   async function handleMessage(msg) {
     if (messageFloodCheck()) return;
     // --- Session-Verwaltung (einzige Nachrichten OHNE bestehende Session) ---
+    if (msg.type === 'startChallenge') {
+      // Daily challenge: everyone on the planet gets the identical deck
+      // (UTC-date seed) against three medium bots - comparable scores.
+      const date = todayUTC();
+      const created = registry.create({ deckSeed: seedForDate(date), challengeDate: date });
+      if (created.error) return sendError(ws, created.error);
+      const ok = await joinSession(created.session, msg);
+      if (ok) {
+        const game = created.session.game;
+        game.setHouseRules({ botDifficulty: 'medium', turnTimerSeconds: 0 });
+        game.fillWithBots();
+        game.startNewRound();
+      }
+      return;
+    }
     if (msg.type === 'createSession') {
       const created = registry.create();
       if (created.error) return sendError(ws, created.error);
