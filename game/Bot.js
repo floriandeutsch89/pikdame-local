@@ -290,13 +290,9 @@ function chooseDiscard(hand, tableMelds = [], opts = {}) {
     return nonJokers[Math.floor(Math.random() * nonJokers.length)];
   }
 
-  const endgame = difficulty === 'zen' && (opts.lowestOpponentHand || 99) <= 3;
-  if (endgame) {
-    // Ein Gegner steht kurz vor dem Ausmachen: Handpunkte minimieren.
-    // Höchster Wert zuerst raus - hier ausnahmsweise auch die Pik Dame,
-    // denn auf der Hand kostet sie sicher 100 Punkte.
-    return nonJokers.slice().sort((a, b) => cardValue(b) - cardValue(a))[0];
-  }
+  // One turn earlier than before (<=4): measured in self-play, waiting for
+  // <=3 often reacted only AFTER an opponent had already gone out.
+  const endgame = difficulty === 'zen' && (opts.lowestOpponentHand || 99) <= 4;
 
   const pikDame = hand.find((c) => isPikDame(c));
   if (difficulty === 'medium' && pikDame && hand.length <= URGENT_DISCARD_HAND_SIZE) return pikDame;
@@ -381,12 +377,45 @@ function chooseDiscard(hand, tableMelds = [], opts = {}) {
     };
     const dead = candidates.filter((c) => !isolated.includes(c) && isDead(c));
     isolated = isolated.concat(dead);
+
+    // Expose a potential score for the final ranking below: how many
+    // unseen set partners + unseen run neighbours does this card still have?
+    opts._zenPotential = (card) => {
+      const setLeft = SUITS_ALL.reduce((sum, s) => sum + unseen(card.rank, s), 0);
+      const neighborRanks = [-2, -1, 1, 2].map((d) => RANKS_ALL[(ri(card.rank) + d + 13) % 13]);
+      const runLeft = neighborRanks.reduce((sum, r) => sum + unseen(r, card.suit), 0);
+      return setLeft + runLeft;
+    };
+  }
+
+  if (endgame) {
+    // Ein Gegner steht kurz vor dem Ausmachen: Handpunkte minimieren -
+    // aber KOMBINATIONEN NICHT ZERREISSEN (früher flog hier blind die
+    // teuerste Karte, auch aus fast fertigen Sätzen). Höchster Wert aus
+    // den ungeschützten Kandidaten zuerst, die Pik Dame ausnahmsweise
+    // eingeschlossen (auf der Hand kostet sie sicher 100 Punkte).
+    // isolated (keine Kombi-Partner) zuerst pluendern, sonst candidates
+    const panicPool = (isolated.length > 0 ? isolated : candidates.length > 0 ? candidates : nonJokers).slice();
+    const withPd = hand.find((cd) => isPikDame(cd));
+    if (withPd && !panicPool.includes(withPd)) panicPool.push(withPd);
+    return panicPool.sort((a, b) => cardValue(b) - cardValue(a))[0];
   }
 
   const pool = isolated.length > 0 ? isolated : candidates;
 
   // höchster Punktwert zuerst abwerfen (reduziert Verlustrisiko am Rundenende)
   pool.sort((a, b) => cardValue(b) - cardValue(a));
+
+  if (difficulty === 'zen' && typeof opts._zenPotential === 'function') {
+    // Card counting, part 2: among the top-value candidates (within 5
+    // points of the best), prefer the one with the LEAST combination
+    // potential still unseen - it is the safest to let go and the least
+    // useful to any pile-hungry opponent.
+    const best = cardValue(pool[0]);
+    const contenders = pool.filter((cd) => best - cardValue(cd) <= 5);
+    contenders.sort((a, b) => opts._zenPotential(a) - opts._zenPotential(b));
+    return contenders[0] || pool[0] || hand[0];
+  }
   return pool[0] || hand[0];
 }
 

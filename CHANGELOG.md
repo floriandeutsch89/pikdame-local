@@ -9,6 +9,23 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Changed
 - Zieh-Markierung final vereinfacht: Punkt/Balken komplett entfernt - der Glow-Effekt allein markiert die frisch gezogene Karte (heller Aufleucht-Moment, der in einen dezenten Rand-Schimmer ausklingt, bis die Karte gespielt wird)
 
+## [1.27.0] - 2026-07-04
+
+### Added
+- Mehrfach-Anlegen: Mehrere passende Handkarten (z. B. zwei Zehnen an den Zehner-Drilling) lassen sich gemeinsam auswählen und mit EINEM Tipp an die eigene Auslage anlegen. Der Server prüft alles-oder-nichts und findet die richtige Reihenfolge selbst (Bube vor Dame an 8-9-10); die grüne Zielmarkierung erscheint nur, wenn wirklich alle gewählten Karten gemeinsam passen. Joker weiterhin einzeln (ihr Platz will gewählt sein)
+- ♠Q-Wasserzeichen dezent im Spieltisch-Hintergrund - man erkennt sofort, dass man am Tisch sitzt
+- 12 neue Rundenstart-Sprüche (DE+EN)
+- Bot-Selbstspiel-Messwerkzeug `scripts/sim-bots.js`: Winraten pro Schwierigkeitsstufe, damit Bot-Tuning datengetrieben bleibt
+
+### Changed
+- Eigener Fortschrittsbalken sitzt jetzt direkt unter der Hand (breiter und besser sichtbar) statt im Kopfmenü
+- Zen-Meister nachgeschärft und erstmals VERMESSEN: Endspiel-Modus greift einen Zug früher, wirft dabei aber keine Karten mehr aus fast fertigen Kombinationen (das tat er vorher!), und unter gleichwertigen Abwurf-Kandidaten wählt die Kartenzählung die nachweislich "toteste" Karte. Selbstspiel über hunderte Partien: Zen gewinnt ~30-33 % der 4er-Runden (fair wären 25 %) und ist damit messbar der stärkste Bot; mehr Dominanz begrenzt der Glücksanteil des Kartenspiels
+
+### Security
+- Sitzplatz-Schutz: Die (notwendigerweise öffentliche) Spieler-ID reicht nicht mehr, um einen Platz zu übernehmen - der Reconnect verlangt ein geheimes, kryptographisch zufälliges Platz-Token, das nur der eigene Browser kennt und das Server-Neustarts übersteht. Vorher konnte jeder Mitspieler mit einer abgelesenen ID in einem zweiten Tab fremde Handkarten einsehen
+- Nachrichten-Drossel pro Verbindung (~25/s, harte Trennung bei Flut) ergänzt die bestehenden Schutzmaßnahmen (Join-Bruteforce-Sperre pro IP, 16-KB-Nachrichtenlimit, Namens-Bereinigung, Emote-Whitelist)
+- Neues Kapitel "Security model" in docs/OPERATIONS.md dokumentiert das Bedrohungsmodell: Server ist autoritativ, fremde Hände/Nachziehstapel werden nie übertragen, alle Prüfungen sind O(1) und kosten keine spürbare Performance
+
 ## [1.26.0] - 2026-07-03
 
 ### Added
