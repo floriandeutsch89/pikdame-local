@@ -1365,3 +1365,26 @@ test('zen discard: avoids feeding a rank an opponent is publicly known to collec
     assert.notEqual(pick.rank, '10', `must not feed the ten collector (picked ${pick.rank}${pick.suit})`);
   }
 });
+
+// --- v1.31.0: turn timer house rule --------------------------------------------
+test('turn timer: deadline armed for humans, expiry auto-finishes the turn once', () => {
+  const { game } = makeGame(2);
+  game.setHouseRules({ turnTimerSeconds: 60 });
+  game.startNewRound();
+  // Force a HUMAN to be the current player
+  game.currentPlayerIndex = game.players.findIndex((p) => p.id === 'p1');
+  game.turnPhase = 'draw';
+  game._armTurnTimer();
+  assert.ok(game.turnDeadline > Date.now(), 'deadline exposed for the client countdown');
+  assert.equal(typeof game.publicState('p1').turnDeadline, 'number');
+
+  const handBefore = game.players.find((p) => p.id === 'p1').hand.length;
+  game._onTurnTimeout('p1'); // simulate expiry (no real waiting in tests)
+  assert.ok(game.log.some((e) => e.text.startsWith('⏰ Zeit abgelaufen')), 'transparent log line');
+  assert.notEqual(game.currentPlayer().id, 'p1', 'turn was finished and passed on');
+
+  // Invalid values are rejected by the whitelist
+  game.setHouseRules({ turnTimerSeconds: 45 });
+  assert.notEqual(game.houseRules.turnTimerSeconds, 45);
+  game.destroy();
+});

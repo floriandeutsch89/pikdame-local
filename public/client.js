@@ -581,6 +581,7 @@
 
   function render() {
     try { updateTutorial(); } catch (e) { /* hints must never break the table */ }
+    delete el('turnInfo').dataset.baseText; // countdown suffix rebuilds fresh
     if (!lastState) return;
 
     const inLobby = lastState.phase === 'lobby';
@@ -663,6 +664,7 @@
       handAusDoubles: el('ruleHandAus').checked,
       strictThreshold: el('ruleStrict1000').checked,
       botDifficulty: el('ruleBotDifficulty').value,
+      turnTimerSeconds: Number(el('ruleTurnTimer').value),
     };
   }
 
@@ -1555,6 +1557,18 @@
   el('ruleSound').addEventListener('change', () => {
     setSoundEnabled(el('ruleSound').checked);
   });
+
+  // --- Turn-timer countdown: purely client-side ticking against the
+  // server-provided deadline (zero extra server traffic) ----------------------
+  setInterval(() => {
+    if (!lastState || !lastState.turnDeadline || lastState.phase !== 'playing') return;
+    const el2 = el('turnInfo');
+    const remaining = Math.max(0, Math.ceil((lastState.turnDeadline - Date.now()) / 1000));
+    const base = el2.dataset.baseText || el2.textContent;
+    el2.dataset.baseText = base;
+    el2.textContent = `${base} ⏱${remaining}s`;
+    el2.classList.toggle('timerUrgent', remaining <= 10);
+  }, 1000);
 
   // --- Home button + gear menu (Fishdom-style tidy header) -------------------
   el('settingsBtn').addEventListener('click', () => {
