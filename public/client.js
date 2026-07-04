@@ -2306,6 +2306,25 @@
       if (s && s.version) {
         el('versionBtn').textContent = `Version ${s.version}`;
         el('ingameVersion').textContent = `v${s.version}`;
+        // PWA auto-update, part 2: my bundle carries the version of the
+        // server that SERVED it (__PIKDAME_BUILD). If the live server is
+        // newer, this client is stale (nightly update, PWA cache) - reload
+        // ONCE to fetch the fresh bundle. Loop guard: at most one attempt
+        // per 5 minutes; if the mismatch survives a reload, tell the user
+        // instead of reload-cycling.
+        const mine = window.__PIKDAME_BUILD;
+        if (mine && mine !== s.version) {
+          const last = Number(storageGet('pikdame_reload_at') || 0);
+          if (Date.now() - last > 5 * 60 * 1000) {
+            storageSet('pikdame_reload_at', String(Date.now()));
+            window.location.reload();
+          } else {
+            showToast(L(
+              `Neue Version v${s.version} verfügbar - bitte App einmal komplett schließen und neu öffnen.`,
+              `New version v${s.version} available - please fully close and reopen the app once.`
+            ));
+          }
+        }
       }
       initAccount(!!(s && s.accountsEnabled));
     })
