@@ -37,8 +37,17 @@ jobs:
           node-version: 24.x
           cache: 'npm'
       - run: npm ci
-      # Exactly the same tests as locally: npm test = node --test test/*.test.js
-      - run: npm test
+      # Exactly the same tests as locally: npm test = node --test test/*.test.js.
+      # On failure, surface the failing test names as annotations - the raw
+      # log lives on an Azure blob that not every agent/network can reach.
+      - name: npm test (annotated failures)
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee /tmp/test.log || {
+            grep -E "^not ok" /tmp/test.log | head -20 | while IFS= read -r l; do echo "::error title=failing test::${l}"; done
+            grep -E "error: |Error \[" /tmp/test.log | head -12 | while IFS= read -r l; do echo "::error title=detail::${l}"; done
+            exit 1
+          }
       # Consistency: the Dockerfile must use the same Node major version
       - name: Node version Dockerfile == CI
         run: grep -q "FROM node:24" docker/Dockerfile || (echo "Dockerfile Node version differs from CI (24)" && exit 1)
