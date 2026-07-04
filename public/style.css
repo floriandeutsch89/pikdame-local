@@ -1609,7 +1609,8 @@ input:disabled { opacity: 0.65; }
 /* --- Header redesign + bottom status line (v1.30.0) --------------------------- */
 #topBar { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .headerCenter {
-  flex: 1; text-align: center; min-width: 0;
+  /* Linksbuendig: teilt die linke Flucht mit der Rundenzeile darunter */
+  flex: 1; text-align: left; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .headerRight { display: inline-flex; align-items: center; gap: 6px; }
@@ -1635,3 +1636,13 @@ input:disabled { opacity: 0.65; }
 .challengeBoardBox { margin-top: 12px; }
 .challengeBoardBox h3 { margin: 0 0 4px; font-size: 0.92rem; }
 .challengeYour { font-size: 0.8rem; margin: 0 0 6px; font-weight: 600; }
+
+/* --- Round/dealer info: second header line, top left (v1.33.1) ----------------- */
+.headerRoundInfo {
+  flex-basis: 100%;
+  order: 5;
+  text-align: left;
+  font-size: 0.68rem; font-weight: 600;
+  color: var(--text-muted);
+  margin-top: -3px;
+}
