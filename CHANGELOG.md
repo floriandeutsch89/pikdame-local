@@ -9,6 +9,11 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Changed
 - Zieh-Markierung final vereinfacht: Punkt/Balken komplett entfernt - der Glow-Effekt allein markiert die frisch gezogene Karte (heller Aufleucht-Moment, der in einen dezenten Rand-Schimmer ausklingt, bis die Karte gespielt wird)
 
+## [1.33.1] - 2026-07-04
+
+### Changed
+- Runden-/Geber-Anzeige ("R1 · du gibst") sitzt jetzt oben links als zweite Kopfzeile direkt unter dem Home-Button; der Zug-Status ("Du bist am Zug") ist linksbündig statt zentriert - beide teilen sich dieselbe linke Flucht. Unten links bei der Hand bleiben Fortschrittsbalken und Punktestand
+
 ## [1.33.0] - 2026-07-04
 
 ### Added
