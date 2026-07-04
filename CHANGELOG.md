@@ -9,6 +9,11 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Changed
 - Zieh-Markierung final vereinfacht: Punkt/Balken komplett entfernt - der Glow-Effekt allein markiert die frisch gezogene Karte (heller Aufleucht-Moment, der in einen dezenten Rand-Schimmer ausklingt, bis die Karte gespielt wird)
 
+## [1.35.2] - 2026-07-04
+
+### Fixed
+- Repo-Hygiene: SQLite-Nebendateien (users.db-shm/-wal des lokalen Konten-Stores) waren versehentlich eingecheckt - aus dem Repo entfernt und samt der Datenbank selbst dauerhaft in die .gitignore aufgenommen. Es handelte sich ausschließlich um lokale Test-Artefakte; die echte Konten-Datenbank liegt unberührt auf dem Server-Volume
+
 ## [1.35.1] - 2026-07-04
 
 ### Fixed
