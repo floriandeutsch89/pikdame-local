@@ -669,7 +669,9 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px);
   border-top: 1px solid var(--glass-border);
   border-radius: var(--r-lg) var(--r-lg) 0 0;
-  padding: 20px 8px calc(16px + var(--safe-bottom));
+  /* Compact bar: the fan needs a whisper of air above, and below the
+     status line only the device safe-area remains - no dead space. */
+  padding: 10px 8px calc(4px + var(--safe-bottom));
   overflow-x: auto; overflow-y: visible;
   -webkit-overflow-scrolling: touch;
   box-shadow: 0 -8px 30px rgba(0,0,0,0.2);
@@ -677,7 +679,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 #hand {
   display: flex; justify-content: flex-start;
   padding: 0 20px;
-  min-height: 108px;
+  min-height: 99px;
   margin: 0 auto;
   width: max-content;
   max-width: 100%;
@@ -909,7 +911,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 /* ============================ GRÖSSERE SCREENS ============================ */
 
 @media (min-width: 600px) {
-  .card { width: 72px; height: 104px; min-width: 72px; }
+  .card { width: 66px; height: 95px; min-width: 66px; }
   .pile-card { width: 60px; height: 84px; }
   .card-compact { width: 36px; height: 51px; min-width: 36px; }
 }
@@ -1614,9 +1616,9 @@ input:disabled { opacity: 0.65; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .headerRight { display: inline-flex; align-items: center; gap: 6px; }
-#myScoreBar { margin: 6px 0 0 12px; }
+#myScoreBar { margin: 3px 0 0 12px; }
 #myStatusLine {
-  padding: 3px 14px 2px;
+  padding: 2px 14px 0;
   font-size: 0.72rem; font-weight: 600;
   color: var(--text-muted);
   display: flex; align-items: center; gap: 6px;
