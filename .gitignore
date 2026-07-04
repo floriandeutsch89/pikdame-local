@@ -2,6 +2,10 @@ node_modules/
 *.log
 .DS_Store
 data/*.json
+# SQLite database + WAL/SHM sidecars (local account store, node:sqlite)
+data/*.db
+data/*.db-shm
+data/*.db-wal
 .env
 docker/secrets/*.txt
 docker/.env
