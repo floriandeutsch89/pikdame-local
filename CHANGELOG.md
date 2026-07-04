@@ -9,6 +9,13 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Changed
 - Zieh-Markierung final vereinfacht: Punkt/Balken komplett entfernt - der Glow-Effekt allein markiert die frisch gezogene Karte (heller Aufleucht-Moment, der in einen dezenten Rand-Schimmer ausklingt, bis die Karte gespielt wird)
 
+## [1.35.1] - 2026-07-04
+
+### Fixed
+- Tote Zone in der Tischmitte (Hochformat): Die Stapel (Nachziehen/Ablage) klebten direkt über der Hand, während sich der Auslagen-Bereich den gesamten Freiraum nahm - jetzt teilen sich beide den Platz und die Stapel schweben vertikal mittig im freien Bereich; bei vollen Auslagen weichen sie sauber zurück
+- Kartenfächer bei vollen Händen: Die Absenkung der Randkarten wuchs unbegrenzt mit der Handgröße (bei 15 Karten hing der äußerste Joker 14 Pixel versetzt unter der Reihe) - der Fächer-Bogen ist jetzt auf 6 Pixel gedeckelt, alle Karten bleiben in der Linie
+- ♠Q-Wasserzeichen auf dunklen Themes (z. B. Herzdame) etwas kräftiger - es war praktisch unsichtbar
+
 ## [1.35.0] - 2026-07-04
 
 ### Added
