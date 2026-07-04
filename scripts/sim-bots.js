@@ -2,7 +2,7 @@
 // tuning is DATA-driven instead of vibes-driven. Usage: node scripts/sim-bots.js
 // (adjust the series at the bottom; ~3 games/second headless).
 // Headless bot-vs-bot simulation: does zen actually beat hard/medium?
-const GameManager = require('./game/GameManager');
+const GameManager = require('../game/GameManager');
 
 function playGame(difficulties) {
   const g = new GameManager(() => {});

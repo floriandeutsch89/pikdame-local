@@ -406,14 +406,25 @@ function chooseDiscard(hand, tableMelds = [], opts = {}) {
   // höchster Punktwert zuerst abwerfen (reduziert Verlustrisiko am Rundenende)
   pool.sort((a, b) => cardValue(b) - cardValue(a));
 
-  if (difficulty === 'zen' && typeof opts._zenPotential === 'function') {
+  if (difficulty === 'zen') {
     // Card counting, part 2: among the top-value candidates (within 5
-    // points of the best), prefer the one with the LEAST combination
-    // potential still unseen - it is the safest to let go and the least
-    // useful to any pile-hungry opponent.
+    // points of the best), prefer the SAFEST discard. Danger first: how
+    // well does this card combine with cards an opponent is publicly
+    // known to hold (watched pile pickups)? A ten is a bad discard when
+    // someone visibly swallowed two tens with the pile. Tie-break: least
+    // combination potential still unseen anywhere.
+    const known = Array.isArray(opts.opponentKnownCards) ? opts.opponentKnownCards : [];
+    const dangerOf = (card) =>
+      known.filter(
+        (k) =>
+          !k.isJoker &&
+          (k.rank === card.rank ||
+            (k.suit === card.suit && Math.abs(rankIndex(k.rank) - rankIndex(card.rank)) <= 2))
+      ).length;
+    const potentialOf = typeof opts._zenPotential === 'function' ? opts._zenPotential : () => 0;
     const best = cardValue(pool[0]);
     const contenders = pool.filter((cd) => best - cardValue(cd) <= 5);
-    contenders.sort((a, b) => opts._zenPotential(a) - opts._zenPotential(b));
+    contenders.sort((a, b) => dangerOf(a) - dangerOf(b) || potentialOf(a) - potentialOf(b));
     return contenders[0] || pool[0] || hand[0];
   }
   return pool[0] || hand[0];

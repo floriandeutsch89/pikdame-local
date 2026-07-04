@@ -262,6 +262,7 @@ class GameManager {
 
   startNewRound() {
     this._nextRoundReady = new Set();
+    this.publicKnownHands = {};
     this.tableMelds = [];
     this.retiredJokers = [];
     this.roundNumber += 1;
@@ -418,6 +419,23 @@ class GameManager {
     return canFormMeldWithCard(topCard, player.hand);
   }
 
+  /** PUBLIC memory (fair play by construction): tracks only cards every
+   *  player at the table has SEEN enter a hand - discard-pile pickups and
+   *  the returned joker of a swap. Face-down draws are never recorded, so
+   *  this can never know more than an attentive human opponent. Cards are
+   *  removed the moment they visibly leave the hand again (discard, meld,
+   *  lay-off). Zen bots use it for card counting and discard safety. */
+  _publicMemoryAdd(playerId, cards) {
+    if (!this.publicKnownHands) this.publicKnownHands = {};
+    const arr = this.publicKnownHands[playerId] || [];
+    this.publicKnownHands[playerId] = arr.concat(cards);
+  }
+
+  _publicMemoryRemove(playerId, cardId) {
+    const arr = this.publicKnownHands && this.publicKnownHands[playerId];
+    if (arr) this.publicKnownHands[playerId] = arr.filter((cd) => cd.id !== cardId);
+  }
+
   drawFromDiscard(playerId) {
     const err = this.assertTurn(playerId, 'draw');
     if (err) return err;
@@ -440,6 +458,7 @@ class GameManager {
     // (siehe resolvePendingDiscardPickup).
     this.discardPile.shift();
     player.hand.push(topCard);
+    this._publicMemoryAdd(player.id, [topCard]);
     this.turnPhase = 'meld';
     this.mustLayOffCardId = topCard.id;
     this.pendingDiscardRest = true;
@@ -464,6 +483,7 @@ class GameManager {
     const rest = this.discardPile.splice(0, this.discardPile.length);
     if (rest.length > 0) {
       player.hand.push(...rest);
+      this._publicMemoryAdd(player.id, rest);
       this.addLog(`${player.name} nimmt die restlichen ${rest.length} Karten des Ablagestapels auf.`);
     }
   }
@@ -543,6 +563,7 @@ class GameManager {
     this.tableMelds.push(meld);
 
     player.hand = player.hand.filter((c) => !cardIds.includes(c.id));
+    for (const cid of cardIds) this._publicMemoryRemove(player.id, cid);
     player.laidOutCards.push(...cards);
 
     if (this.mustLayOffCardId && cardIds.includes(this.mustLayOffCardId)) {
@@ -678,6 +699,7 @@ class GameManager {
     // ihre ursprüngliche playerId.
     meld.slots = result.slots.map((slot) => (slot.playerId ? slot : { ...slot, playerId: player.id }));
     player.hand = player.hand.filter((c) => c.id !== cardId);
+    this._publicMemoryRemove(player.id, cardId);
     player.laidOutCards.push(card);
 
     if (this.mustLayOffCardId === cardId) {
@@ -721,6 +743,7 @@ class GameManager {
       slot.real && slot.real.id === handCard.id ? { ...slot, playerId: player.id } : slot
     );
     player.hand = player.hand.filter((c) => c.id !== handCardId);
+    this._publicMemoryRemove(player.id, handCardId);
     // Der ausgetauschte Joker darf NICHT wieder aufgenommen werden - er bleibt
     // sichtbar in einem eigenen Ablagebereich liegen und ist für den Rest der
     // Runde aus dem Spiel.
@@ -759,6 +782,7 @@ class GameManager {
     if (!card) return { error: 'Karte nicht in der Hand gefunden.' };
 
     player.hand = player.hand.filter((c) => c.id !== cardId);
+    this._publicMemoryRemove(player.id, cardId);
 
     if (player.hand.length === 0) {
       // Letzte Karte wird VERDECKT abgelegt und Runde endet sofort
@@ -1204,9 +1228,16 @@ class GameManager {
     const foreignMelds = this.tableMelds.filter((m) => m.ownerId !== botId);
     // Kontext für kluge Bots: alle sichtbaren Karten (Auslagen + offene
     // Ablage) für die Kartenzählung, kleinste Gegnerhand fürs Endspiel.
+    // Public memory of OTHER hands: cards the whole table watched enter a
+    // hand (pile pickups) and that have not visibly left it yet. Never
+    // contains face-down draws - fair play by construction.
+    const opponentKnownCards = Object.entries(this.publicKnownHands || {})
+      .filter(([pid]) => pid !== botId)
+      .flatMap(([, cards]) => cards);
     const visibleCards = [
       ...this.tableMelds.flatMap((m) => m.slots.map((s) => s.real || { isJoker: true })),
       ...this.discardPile.filter((cd) => !cd.faceDown),
+      ...opponentKnownCards,
     ];
     const lowestOpponentHand = Math.min(
       99,
@@ -1215,6 +1246,7 @@ class GameManager {
     let discardCard = Bot.chooseDiscard(cp.hand, foreignMelds, {
       difficulty,
       visibleCards,
+      opponentKnownCards,
       lowestOpponentHand,
       queensMelded: this.tableMelds.reduce(
         (n, m) => n + m.slots.filter((s) => s.real && isPikDame(s.real)).length,

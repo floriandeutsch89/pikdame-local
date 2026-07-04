@@ -1277,3 +1277,61 @@ test('multi lay-off: going-out rule blocks emptying the hand via lay-off', () =>
   assert.match(r.error, /letzte Karte abwerfen/);
   g.destroy();
 });
+
+// --- v1.28.0: public memory (fair-play card tracking) --------------------------
+test('public memory: pile pickups are remembered, face-down draws NEVER (fairness guard)', () => {
+  const { makeStandardCard } = require('../game/Card');
+  const g = new GameManager(() => {});
+  g.addOrReconnectPlayer('p1', 'Anna');
+  g.addOrReconnectPlayer('p2', 'Ben');
+  g.startNewRound();
+  g.currentPlayerIndex = g.players.findIndex((p) => p.id === 'p1');
+  g.turnPhase = 'draw';
+  const p1 = g.players.find((p) => p.id === 'p1');
+
+  // Face-down draw: memory must stay EMPTY - nobody saw that card.
+  const before = g.drawPile.length;
+  g.drawFromPile('p1');
+  assert.equal(g.drawPile.length, before - 1);
+  assert.deepEqual(g.publicKnownHands['p1'] || [], [], 'face-down draws are never recorded');
+  g.discard('p1', p1.hand[0].id);
+
+  // Pile pickup: the whole table watched those cards - they enter memory.
+  g.currentPlayerIndex = g.players.findIndex((p) => p.id === 'p1');
+  g.turnPhase = 'draw';
+  p1.hand = [makeStandardCard('H', '7', 0), makeStandardCard('D', '7', 0), makeStandardCard('C', '2', 0)];
+  g.discardPile = [makeStandardCard('S', '7', 0), makeStandardCard('H', '3', 1), makeStandardCard('C', '9', 1)];
+  const pileIds = g.discardPile.map((cd) => cd.id);
+  assert.equal(g.drawFromDiscard('p1').ok, true);
+  // must-lay the seven, then the rest arrives
+  const meldRes = g.layoutMeld('p1', [p1.hand.find((c) => c.rank === '7' && c.suit === 'S').id,
+    p1.hand.find((c) => c.rank === '7' && c.suit === 'H').id,
+    p1.hand.find((c) => c.rank === '7' && c.suit === 'D').id]);
+  assert.equal(meldRes.error, undefined);
+  const knownIds = (g.publicKnownHands['p1'] || []).map((cd) => cd.id);
+  assert.ok(knownIds.includes(pileIds[1]) && knownIds.includes(pileIds[2]), 'rest of the pile is remembered');
+  assert.ok(!knownIds.includes(pileIds[0]), 'the melded seven visibly left the hand again');
+
+  // Discarding a known card removes it from memory
+  const knownCard = (g.publicKnownHands['p1'] || [])[0];
+  g.discard('p1', knownCard.id);
+  assert.ok(!(g.publicKnownHands['p1'] || []).some((cd) => cd.id === knownCard.id));
+  g.destroy();
+});
+
+test('zen discard: avoids feeding a rank an opponent is publicly known to collect', () => {
+  const { chooseDiscard } = require('../game/Bot');
+  const { makeStandardCard: mk } = require('../game/Card');
+  // Two near-equal value candidates: a ten and a nine (both isolated).
+  const hand = [mk('H', '10', 0), mk('C', '9', 0), mk('S', '2', 0), mk('S', '2', 1), mk('D', '2', 0)];
+  // Opponent visibly swallowed two tens with the pile:
+  const known = [mk('S', '10', 1), mk('D', '10', 1)];
+  for (let i = 0; i < 10; i++) {
+    const pick = chooseDiscard(hand, [], {
+      difficulty: 'zen',
+      opponentKnownCards: known,
+      visibleCards: known,
+    });
+    assert.notEqual(pick.rank, '10', `must not feed the ten collector (picked ${pick.rank}${pick.suit})`);
+  }
+});

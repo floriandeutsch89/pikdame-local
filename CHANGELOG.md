@@ -9,6 +9,11 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Changed
 - Zieh-Markierung final vereinfacht: Punkt/Balken komplett entfernt - der Glow-Effekt allein markiert die frisch gezogene Karte (heller Aufleucht-Moment, der in einen dezenten Rand-Schimmer ausklingt, bis die Karte gespielt wird)
 
+## [1.28.0] - 2026-07-04
+
+### Changed
+- Zen-Meister bekommt ein faires Gedächtnis: Er merkt sich jetzt genau die Karten, die der GANZE Tisch gesehen hat - wer den Ablagestapel aufnimmt, dessen aufgenommene Karten bleiben "im Hinterkopf", bis sie sichtbar wieder aus der Hand verschwinden (Abwurf, Auslage, Anlage, Joker-Tausch). Verdeckt gezogene Karten werden konstruktionsbedingt NIE erfasst - das Gedächtnis wird ausschließlich aus öffentlich beobachtbaren Ereignissen gebaut, nicht aus den echten Händen (per Fairness-Test abgesichert). Der Zen nutzt es doppelt: präzisere Kartenzählung (aufgenommene Karten sind für ihn nicht mehr ziehbar) und sichereres Abwerfen (wer sichtbar zwei Zehnen geschluckt hat, bekommt keine dritte serviert). In Bot-Selbstspielen kaum messbar - Bots horten dank Hand-Deckel selten Stapel; der Vorteil zielt auf menschliche Vielnehmer
+
 ## [1.27.0] - 2026-07-04
 
 ### Added
