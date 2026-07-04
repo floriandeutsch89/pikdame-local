@@ -9,6 +9,14 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Changed
 - Zieh-Markierung final vereinfacht: Punkt/Balken komplett entfernt - der Glow-Effekt allein markiert die frisch gezogene Karte (heller Aufleucht-Moment, der in einen dezenten Rand-Schimmer ausklingt, bis die Karte gespielt wird)
 
+## [1.29.0] - 2026-07-04
+
+### Changed
+- Bot-Stapelaufnahme denkt jetzt in Nutzen statt in Kartenzahl: Der pauschale "nie über ~20 Handkarten"-Deckel ist ersetzt durch eine Verwertbarkeits-Prüfung - vor einer großen Aufnahme (Stapel > 4) plant der Bot einmal voraus, wie viele der Karten er sofort auslegen/anlegen könnte. Ist der Stapel überwiegend totes Gewicht, lässt er ihn liegen; kann er ihn nutzen, greift er zu - 10 Handkarten plus 10 verwertbare Stapelkarten sind ein Power-Move, kein Problem. Kosten: ein seltener Planungs-Durchlauf, keine spürbare Last
+
+### Fixed
+- Bot-Schwierigkeits-Badge bei 3 Bots im Hochformat wieder sichtbar und antippbar: Es steckte im Namens-Element und wurde beim Kürzen langer Namen auf schmalen Chips einfach mit abgeschnitten - jetzt sitzt es als eigenes Element fest in der Chip-Ecke, unabhängig von Namenslänge und Chip-Breite
+
 ## [1.28.0] - 2026-07-04
 
 ### Changed

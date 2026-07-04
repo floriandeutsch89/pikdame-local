@@ -725,18 +725,23 @@
         const opTotal = (lastState.totals && lastState.totals[p.id]) || 0;
         const dealerStar = p.id === lastState.dealerId ? ` <span title="${L('Geber dieser Runde', 'Dealer this round')}">⭐</span>` : '';
         // Bots wear their difficulty as a tappable badge (per-bot adjustable)
-        const diffBadge = p.isBot
-          ? ` <button class="botDiffBadge" data-bot-id="${escapeHtml(p.id)}" title="${L('Schwierigkeit ändern', 'Change difficulty')}">${BOT_DIFF[p.botDifficulty] ? BOT_DIFF[p.botDifficulty].icon : '🙂'}</button>`
-          : '';
+        // Badge lives OUTSIDE the name div (appended below): inside it, the
+        // name ellipsis on narrow chips (3 bots, portrait) swallowed the
+        // button - invisible and untappable.
+        const diffBadge = '';
         d.title = L(`${p.handCount} Karten · ${opTotal} Punkte`, `${p.handCount} cards · ${opTotal} points`);
         const opProgress = Math.max(0, Math.min(100, (opTotal / 1000) * 100));
         d.innerHTML = `<div class="opName">${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}${diffBadge}${dealerStar}${reconnecting ? ` <span class="reconnectTag">⏳ ${L('getrennt – Bot übernimmt', 'disconnected – bot takes over')}</span>` : ''}</div><div class="opCount"><b>${p.handCount}</b> ${L('Kt', 'cd')} · <b>${opTotal}</b> ${L('Pkt', 'pts')}</div><div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>`;
-        const badgeBtn = d.querySelector('.botDiffBadge');
-        if (badgeBtn) {
+        if (p.isBot) {
+          const badgeBtn = document.createElement('button');
+          badgeBtn.className = 'botDiffBadge';
+          badgeBtn.title = L('Schwierigkeit ändern', 'Change difficulty');
+          badgeBtn.textContent = BOT_DIFF[p.botDifficulty] ? BOT_DIFF[p.botDifficulty].icon : '🙂';
           badgeBtn.addEventListener('click', (ev) => {
             ev.stopPropagation(); // chip click keeps its meld-filter role
             openBotDiffOverlay(p);
           });
+          d.appendChild(badgeBtn); // absolute corner - immune to ellipsis
         }
         opponentsDiv.appendChild(d);
       });

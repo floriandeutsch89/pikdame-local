@@ -1117,7 +1117,7 @@ test('ready check: a disconnecting player never blocks the table', () => {
 });
 
 // --- v1.20.0: hand-bloat guard ------------------------------------------------
-test('hand-bloat guard: bot skips a big pile that would create a 20+ card hand', () => {
+test('pile-usability check: bot skips a big pile of dead weight...', () => {
   const { makeStandardCard } = require('../game/Card');
   const g = new GameManager(() => {});
   g.addOrReconnectPlayer('p1', 'A');
@@ -1129,15 +1129,45 @@ test('hand-bloat guard: bot skips a big pile that would create a 20+ card hand',
   const bot = g.players[botIdx];
   // 15-card hand with a pair matching the top card (pile looks attractive)
   bot.hand = [makeStandardCard('H', '7', 0), makeStandardCard('D', '7', 0)];
-  const ranks = ['2', '3', '4', '5', '6', '8', '9', '10', 'J', 'Q', 'K', 'A', '2'];
-  ranks.forEach((r, i) => bot.hand.push(makeStandardCard(i % 2 ? 'C' : 'S', r, 1)));
+  ['2', '4', '6', '8', '10', 'Q', 'A'].forEach((r) => bot.hand.push(makeStandardCard('S', r, 1)));
+  ['3', '5', '9', 'J', 'K', 'A'].forEach((r) => bot.hand.push(makeStandardCard('C', r, 1)));
   g.drawPile = [makeStandardCard('C', '9', 0)];
-  // 8-card pile, NO hidden Queen (so only the new guard can fire): 15+8 > 20
+  // 8-card pile: only the top seven is usable, the rest is combinable with
+  // NOTHING (unique dead singles) -> mostly dead weight -> skip
   g.discardPile = [makeStandardCard('S', '7', 0)];
-  for (let i = 0; i < 7; i++) g.discardPile.push(makeStandardCard('H', '3', 1));
+  // Each rank appears at most twice across hand+pile (no sets) and no
+  // suit gets three neighbouring ranks (no runs) - verified dead weight.
+  [['H', '3'], ['D', '5'], ['H', 'J'], ['D', '9'], ['H', 'Q'], ['D', 'K'], ['H', '6']].forEach(
+    ([s, r], i) => g.discardPile.push(makeStandardCard(s, r, i % 2))
+  );
   g.runBotTurn(bot.id);
   const tookPile = g.log.some((e) => /nimmt die oberste Ablagekarte/.test(e.text) && e.text.includes(bot.name));
-  assert.equal(tookPile, false, 'a 23-card hand must not happen');
+  assert.equal(tookPile, false, 'a mostly-dead pile must be skipped');
+  g.destroy();
+});
+
+test('pile-usability check: ...but happily takes a big pile it can put to work', () => {
+  const { makeStandardCard } = require('../game/Card');
+  const g = new GameManager(() => {});
+  g.addOrReconnectPlayer('p1', 'A');
+  g.setHouseRules({ botDifficulty: 'medium' });
+  g.fillWithBots();
+  g.phase = 'playing'; g.turnPhase = 'draw';
+  const botIdx = g.players.findIndex((p) => p.isBot);
+  g.currentPlayerIndex = botIdx;
+  const bot = g.players[botIdx];
+  // 10-card hand, 10-card pile: two complete sets ride along - "10 in hand
+  // + 10 usable from the pile is a power move, not a problem"
+  bot.hand = [makeStandardCard('H', '7', 0), makeStandardCard('D', '7', 0)];
+  ['2', '4', '6', '9', 'J', 'Q', 'K', 'A'].forEach((r) => bot.hand.push(makeStandardCard('S', r, 1)));
+  g.drawPile = [makeStandardCard('C', '9', 0)];
+  g.discardPile = [makeStandardCard('S', '7', 0)];
+  [['H', '5'], ['D', '5'], ['C', '5'], ['H', '10'], ['D', '10'], ['C', '10'], ['H', '3'], ['D', '8'], ['C', 'J']].forEach(
+    ([s, r]) => g.discardPile.push(makeStandardCard(s, r, 0))
+  );
+  g.runBotTurn(bot.id);
+  const tookPile = g.log.some((e) => /nimmt die oberste Ablagekarte/.test(e.text) && e.text.includes(bot.name));
+  assert.equal(tookPile, true, 'a usable pile is worth taking, size be damned');
   g.destroy();
 });
 

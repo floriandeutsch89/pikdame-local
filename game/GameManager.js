@@ -1113,17 +1113,22 @@ class GameManager {
     if (difficulty === 'easy' && plan.source === 'discardPile' && Math.random() < 0.6) {
       plan.source = 'drawPile';
     }
-    // Hand-bloat guard (medium and up): swallowing a big pile onto an
-    // already large hand creates 20+ card monsters that are then nearly
-    // impossible to shed (observed in playtesting: a 23-card bot). Skip
-    // the pile when the result would exceed ~20 cards, unless it is small.
-    if (
-      plan.source === 'discardPile' &&
-      difficulty !== 'easy' &&
-      this.discardPile.length > 4 &&
-      cp.hand.length + this.discardPile.length > 20
-    ) {
-      plan.source = 'drawPile';
+    // Pile-usability check (medium and up), replacing the old blunt
+    // "never exceed ~20 hand cards" cap: a big pickup is FINE when the bot
+    // can actually put the cards to work (10 in hand + 10 usable from the
+    // pile is a power move, not a problem). One extra meld-planning pass
+    // on the hypothetical hand decides - only for piles > 4 cards, so the
+    // cost is a rare O(hand²) lookahead, no measurable load. Skipped only
+    // when the pile would mostly become dead weight.
+    if (plan.source === 'discardPile' && difficulty !== 'easy' && this.discardPile.length > 4) {
+      const hypothetical = [...cp.hand, ...this.discardPile];
+      const lookahead = Bot.planBotMelds(hypothetical, ownMelds);
+      const usable =
+        lookahead.newMelds.reduce((n, m) => n + m.length, 0) + lookahead.layOffs.length;
+      const leftover = hypothetical.length - usable;
+      const worthIt =
+        usable >= Math.ceil(this.discardPile.length / 2) || leftover <= cp.hand.length + 3;
+      if (!worthIt) plan.source = 'drawPile';
     }
     // Endgame guard (medium and up): taking the discard pile means taking
     // ALL of it. If a Queen of Spades hides BELOW the top card, swallowing
