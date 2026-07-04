@@ -175,6 +175,15 @@ function serveStatic(req, res) {
       return;
     }
     const ext = path.extname(resolved);
+    // PWA auto-update, part 1: stamp the serving server's version INTO the
+    // client bundle. A stale cached client carries a stale stamp - the
+    // client compares it against /statusz and reloads itself once.
+    if (resolved.endsWith(`${path.sep}client.js`)) {
+      data = Buffer.concat([
+        Buffer.from(`window.__PIKDAME_BUILD='${APP_VERSION}';\n`),
+        data,
+      ]);
+    }
     // no-cache = ALWAYS revalidate (a tiny 304 when unchanged). Without it,
     // browsers kept week-old client.js against a nightly-updated server -
     // the source of 'raw badge codes' and invisibly firing new features.

@@ -9,6 +9,11 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Changed
 - Zieh-Markierung final vereinfacht: Punkt/Balken komplett entfernt - der Glow-Effekt allein markiert die frisch gezogene Karte (heller Aufleucht-Moment, der in einen dezenten Rand-Schimmer ausklingt, bis die Karte gespielt wird)
 
+## [1.34.0] - 2026-07-04
+
+### Added
+- PWA-Selbst-Aktualisierung: Der Server stempelt seine Version beim Ausliefern in den Client; erkennt eine laufende (PWA-)Instanz beim Start, dass der Server neuer ist als ihr eigener Stempel, lädt sie sich einmalig automatisch neu - mit Schleifenschutz (max. ein Versuch pro 5 Minuten; hilft auch das nicht, erscheint ein klarer Hinweis, die App einmal komplett zu schließen). Zusammen mit der no-cache-Auslieferung aus v1.33.2 bleiben installierte Apps damit dauerhaft ohne Zutun aktuell
+
 ## [1.33.2] - 2026-07-04
 
 ### Fixed
