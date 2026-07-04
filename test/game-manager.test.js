@@ -1388,3 +1388,44 @@ test('turn timer: deadline armed for humans, expiry auto-finishes the turn once'
   assert.notEqual(game.houseRules.turnTimerSeconds, 45);
   game.destroy();
 });
+
+// --- v1.33.0: daily challenge -----------------------------------------------
+test('daily challenge: identical seed deals identical hands, different days differ', () => {
+  const { seedForDate } = require('../game/ChallengeStore');
+  const seed = seedForDate('2026-07-04');
+  const mk = () => {
+    const g = new GameManager(() => {}, { deckSeed: seed });
+    g.addOrReconnectPlayer('p1', 'Anna');
+    g.fillWithBots();
+    g.startNewRound();
+    const hand = g.players.find((p) => p.id === 'p1').hand.map((c) => c.id).join(',');
+    g.destroy();
+    return hand;
+  };
+  assert.equal(mk(), mk(), 'same seed = same deal for everyone');
+  const g2 = new GameManager(() => {}, { deckSeed: seedForDate('2026-07-05') });
+  g2.addOrReconnectPlayer('p1', 'Anna');
+  g2.fillWithBots();
+  g2.startNewRound();
+  const other = g2.players.find((p) => p.id === 'p1').hand.map((c) => c.id).join(',');
+  g2.destroy();
+  assert.notEqual(mk(), other, 'a new day deals a new deck');
+});
+
+test('challenge store: best score per name, ranked board, 7-day cleanup', () => {
+  const { createChallengeStore } = require('../game/ChallengeStore');
+  const file = require('path').join(require('os').tmpdir(), `pikdame-chal-${Date.now()}.json`);
+  const store = createChallengeStore(file);
+  store.submit('2026-07-04', 'Anna', 480);
+  store.submit('2026-07-04', 'anna', 350); // worse + case-insensitive: ignored
+  store.submit('2026-07-04', 'Ben', 620);
+  const board = store.getBoard('2026-07-04');
+  assert.equal(board[0].name, 'Ben');
+  assert.equal(board[1].score, 480, 'best score kept, worse retry ignored');
+  assert.equal(store.rankOf('2026-07-04', 'ANNA'), 2);
+  // Old day vanishes on the next submit (7-day retention)
+  store.submit('2026-06-01', 'Old', 100);
+  store.submit('2026-07-04', 'Cleo', 10);
+  assert.deepEqual(store.getBoard('2026-06-01'), [], 'entries older than 7 days are dropped');
+  try { require('fs').unlinkSync(file); } catch (e) { /* lazy write */ }
+});

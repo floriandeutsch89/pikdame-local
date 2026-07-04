@@ -1630,3 +1630,8 @@ input:disabled { opacity: 0.65; }
   color: rgba(0,0,0,0.62);
   background: rgba(0,0,0,0.035);
 }
+
+.challengeHint { font-size: 0.7rem; opacity: 0.75; margin: 2px 0 0; }
+.challengeBoardBox { margin-top: 12px; }
+.challengeBoardBox h3 { margin: 0 0 4px; font-size: 0.92rem; }
+.challengeYour { font-size: 0.8rem; margin: 0 0 6px; font-weight: 600; }

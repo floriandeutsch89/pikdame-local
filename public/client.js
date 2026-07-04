@@ -460,6 +460,11 @@
       render();
       return;
     }
+    if (msg.type === 'challengeBoard') {
+      lastChallengeBoard = msg;
+      renderChallengeBoard();
+      return;
+    }
     if (msg.type === 'badges') {
       lastEarnedBadges = msg.earned || null;
       if (!el('resultOverlay').classList.contains('hidden')) renderResultOverlay();
@@ -1240,6 +1245,7 @@
 
     el('exportGameBtn').classList.toggle('hidden', !(isGameOver && lastState.hasExportableGame));
     el('replayBtn').classList.toggle('hidden', !(isGameOver && lastState.hasExportableGame));
+    if (isGameOver) renderChallengeBoard();
     // Toggleable game totals: how many Queens of Spades / jokers each
     // player melded across the WHOLE game.
     const oldTotals = el('resultBody').querySelector('.gameTotalsBox');
@@ -1745,6 +1751,30 @@
     }
     banner.classList.remove('hidden');
   }
+
+  let lastChallengeBoard = null;
+  function renderChallengeBoard() {
+    if (!lastChallengeBoard) return;
+    const body = el('resultBody');
+    if (!body) return;
+    const old2 = body.querySelector('.challengeBoardBox');
+    if (old2) old2.remove();
+    const b = lastChallengeBoard;
+    const box = document.createElement('div');
+    box.className = 'challengeBoardBox';
+    const rows = (b.board || [])
+      .map((e) => `<tr${e.rank === b.yourRank ? ' class="winnerRow"' : ''}><td>${e.rank}.</td><td>${escapeHtml(e.name)}</td><td>${e.score}</td></tr>`)
+      .join('');
+    box.innerHTML = `<h3>🗓️ ${L('Tages-Challenge', 'Daily challenge')} ${escapeHtml(b.date)}</h3>
+      <p class="challengeYour">${L(`Dein Ergebnis: ${b.yourScore} Punkte${b.yourRank ? ` · Platz ${b.yourRank}` : ''}`, `Your result: ${b.yourScore} points${b.yourRank ? ` · rank ${b.yourRank}` : ''}`)}</p>
+      <table class="statsTable"><tbody>${rows}</tbody></table>`;
+    body.appendChild(box);
+  }
+
+  // --- Daily challenge --------------------------------------------------------
+  el('challengeBtn').addEventListener('click', () => {
+    send({ type: 'startChallenge', name: currentName(), accountToken: accountToken() || undefined });
+  });
 
   el('tutorialBtn').addEventListener('click', () => {
     tutorialActive = true;

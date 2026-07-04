@@ -18,6 +18,8 @@ class GameManager {
   constructor(broadcastFn, options = {}) {
     this.broadcast = broadcastFn; // (playerId, message) -> sendet an genau diesen Spieler
     this.onGameOver = options.onGameOver || null; // (results: {name, score, won}[]) => void
+    this.deckSeed = typeof options.deckSeed === 'number' ? options.deckSeed : null; // daily challenge
+    this.challengeDate = options.challengeDate || null;
     this.onBotEmote = options.onBotEmote || null; // (botId, emoji) => void - Bot-Reaktionen an den Tisch
     this._emoteTimers = new Set(); // pendende Emote-Timeouts (destroy räumt auf)
     this._lastBotEmote = {}; // botId -> Zeitstempel (Eigen-Drosselung)
@@ -276,7 +278,11 @@ class GameManager {
       this.dealerIndex = (this.dealerIndex + 1) % this.players.length;
     }
 
-    let deck = shuffle(createDeck());
+    // Daily challenge: identical decks for everyone. Round number goes
+    // into the seed so every round differs but stays deterministic.
+    const roundSeed =
+      typeof this.deckSeed === 'number' ? (this.deckSeed + this.roundNumber * 7919) >>> 0 : undefined;
+    let deck = shuffle(createDeck(), roundSeed);
     const playerIds = this.players.map((p) => p.id);
 
     // --- Glücksgriff beim Abheben ---
@@ -913,6 +919,7 @@ class GameManager {
       this.addLog(`Spiel beendet! Gewinner: ${this.players.find((p) => p.id === over.winnerId)?.name}`);
 
       this.lastGameRecord = {
+        challengeDate: this.challengeDate || undefined,
         players: this.players.map((p) => ({ id: p.id, name: p.name, isBot: p.isBot, botDifficulty: p.isBot ? p.botDifficulty : undefined })),
         rounds: this.roundHistory,
         finalTotals: this.totals,
