@@ -965,7 +965,10 @@
         const offset = idx - mid;
         const rotFactor = Math.min(3.5, 42 / Math.max(sorted.length, 1));
         const rotate = Math.max(-10, Math.min(10, offset * rotFactor));
-        const lift = Math.abs(offset) * 2;
+        // Dip is CAPPED: with 15 cards the old |offset|*2 sank the edge
+        // cards 14px - the last joker visibly fell out of the row and
+        // clipped below the bar. 6px keeps the fan feel without strays.
+        const lift = Math.min(6, Math.abs(offset) * 1.2);
         cEl.style.transform = `rotate(${rotate}deg) translateY(${lift}px)`;
         if (selectedCardIds.has(card.id)) {
           cEl.style.transform += ' translateY(-18px)';

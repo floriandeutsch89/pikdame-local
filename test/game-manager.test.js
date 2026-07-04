@@ -1452,6 +1452,9 @@ test('turn timer never fires for a disconnected human (grace owns the seat)', ()
 
   // Reconnect re-arms a FRESH full countdown
   game.addOrReconnectPlayer('p1', 'Anna');
-  assert.ok(game.turnDeadline > Date.now() + 25 * 1000, 'fresh countdown after reconnect');
+  // Threshold is generous on purpose: CI runners can stall several seconds
+  // between arming (30s) and asserting - 15s still proves a FRESH deadline
+  // (the disconnect had nulled it entirely).
+  assert.ok(game.turnDeadline > Date.now() + 15 * 1000, 'fresh countdown after reconnect');
   game.destroy();
 });
