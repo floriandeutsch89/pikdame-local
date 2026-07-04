@@ -913,7 +913,7 @@ class GameManager {
       this.addLog(`Spiel beendet! Gewinner: ${this.players.find((p) => p.id === over.winnerId)?.name}`);
 
       this.lastGameRecord = {
-        players: this.players.map((p) => ({ id: p.id, name: p.name, isBot: p.isBot })),
+        players: this.players.map((p) => ({ id: p.id, name: p.name, isBot: p.isBot, botDifficulty: p.isBot ? p.botDifficulty : undefined })),
         rounds: this.roundHistory,
         finalTotals: this.totals,
         winnerId: over.winnerId,
@@ -925,7 +925,23 @@ class GameManager {
       if (this.onGameOver) {
         const results = this.players
           .filter((p) => !p.isBot) // nur echte Spielerprofile persistieren
-          .map((p) => ({ name: p.name, score: this.totals[p.id] || 0, won: p.id === over.winnerId }));
+          .map((p) => {
+            // Per-player facts for records & cumulative badge counters -
+            // computed here because roundHistory lives in the manager.
+            const facts = { bestRound: 0, pdLaid: 0, pdCaught: 0, jokersLaid: 0, handAusWins: 0 };
+            for (const round of this.roundHistory) {
+              const r = round.results && round.results[p.id];
+              const b = r && r.breakdown;
+              if (r && r.roundScore > facts.bestRound) facts.bestRound = r.roundScore;
+              if (b) {
+                facts.pdLaid += b.pikDameLaidOut || 0;
+                facts.pdCaught += b.pikDameCount || 0;
+                facts.jokersLaid += b.jokersLaidOut || 0;
+              }
+              if (round.isHandAus && round.winnerId === p.id) facts.handAusWins += 1;
+            }
+            return { id: p.id, name: p.name, score: this.totals[p.id] || 0, won: p.id === over.winnerId, facts };
+          });
         try {
           this.onGameOver(results, this.lastGameRecord);
         } catch (e) {

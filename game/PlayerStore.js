@@ -78,6 +78,14 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
       if (r.won) p.gamesWon = (p.gamesWon || 0) + 1;
       // Siegesserie: Basis für das "3 in Folge"-Badge
       p.winStreak = r.won ? (p.winStreak || 0) + 1 : 0;
+      // Records & cumulative counters (feed profile display + badges)
+      if ((r.score || 0) > (p.bestGameScore || 0)) p.bestGameScore = r.score || 0;
+      const f = r.facts || {};
+      if ((f.bestRound || 0) > (p.bestRoundScore || 0)) p.bestRoundScore = f.bestRound;
+      p.totalQueensLaid = (p.totalQueensLaid || 0) + (f.pdLaid || 0);
+      p.totalQueensCaught = (p.totalQueensCaught || 0) + (f.pdCaught || 0);
+      p.totalJokersLaid = (p.totalJokersLaid || 0) + (f.jokersLaid || 0);
+      p.totalHandAus = (p.totalHandAus || 0) + (f.handAusWins || 0);
       // Bester Endstand einer einzelnen Partie (für die Statistik-Seite)
       if (p.bestGameScore === undefined || (r.score || 0) > p.bestGameScore) {
         p.bestGameScore = r.score || 0;

@@ -16,6 +16,11 @@ const BADGE_IDS = [
   'score_500', // 500+ Punkte Endstand in einer Partie
   'streak_3', // drei gewonnene Partien in Folge
   'comeback', // nach Runde 1 Letzter - und trotzdem die Partie gewonnen
+  'double_queen_round', // BEIDE Pik Damen in ein und derselben Runde ausgelegt
+  'round_300', // 300+ Punkte in einer einzigen Runde
+  'zen_slayer', // Partie mit mindestens einem Zen-Meister-Bot am Tisch gewonnen
+  'marathon_10', // 10 Partien gespielt
+  'pd_hunter_10', // 10 Pik Damen insgesamt ausgelegt (über alle Partien)
 ];
 
 /**
@@ -34,13 +39,17 @@ function computeEarnedBadges(gameRecord, playerId, profile = {}) {
   let pdLaid = 0;
   let pdCaught = 0;
   let handAusWin = false;
+  let doubleQueenRound = false;
+  let bigRound = false;
   for (const round of rounds) {
     const r = round.results && round.results[playerId];
     const b = r && r.breakdown;
     if (b) {
       pdLaid += b.pikDameLaidOut || 0;
       pdCaught += b.pikDameCount || 0;
+      if ((b.pikDameLaidOut || 0) >= 2) doubleQueenRound = true;
     }
+    if (r && r.roundScore >= 300) bigRound = true;
     if (round.isHandAus && round.winnerId === playerId) handAusWin = true;
   }
 
@@ -59,6 +68,17 @@ function computeEarnedBadges(gameRecord, playerId, profile = {}) {
     const others = Object.entries(totals).filter(([pid]) => pid !== playerId).map(([, v]) => v);
     if (others.length > 0 && others.every((v) => v > my)) earned.push('comeback');
   }
+
+  if (doubleQueenRound) earned.push('double_queen_round');
+  if (bigRound) earned.push('round_300');
+  if (
+    won &&
+    ((gameRecord && gameRecord.players) || []).some((p) => p.isBot && p.botDifficulty === 'zen')
+  ) {
+    earned.push('zen_slayer');
+  }
+  if ((profile.gamesPlayed || 0) >= 10) earned.push('marathon_10');
+  if ((profile.totalQueensLaid || 0) >= 10) earned.push('pd_hunter_10');
 
   return earned;
 }

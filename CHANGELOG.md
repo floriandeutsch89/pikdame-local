@@ -9,6 +9,12 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Changed
 - Zieh-Markierung final vereinfacht: Punkt/Balken komplett entfernt - der Glow-Effekt allein markiert die frisch gezogene Karte (heller Aufleucht-Moment, der in einen dezenten Rand-Schimmer ausklingt, bis die Karte gespielt wird)
 
+## [1.32.0] - 2026-07-04
+
+### Added
+- Persönliche Rekorde im Profil: Ein Tipp auf die eigene Zeile in der Hauptmenü-Statistik klappt die Details auf - beste Einzelrunde, ♠Q-Bilanz (ausgelegt/erwischt), ausgelegte Joker und "Hand aus"-Siege. Die beste Partie steht als eigene Spalte in der Tabelle. Alle Werte werden ab jetzt bei jedem Spielende automatisch fortgeschrieben
+- Fünf neue Abzeichen: 👯 Doppeldame (beide ♠Q in EINER Runde), 💥 Monsterrunde (300+ Punkte in einer Runde), ⚔️ Zen-Bezwinger (Partie mit einem Zen-Meister am Tisch gewonnen), 🏃 Marathon (10 Partien), 🎯 Damenjägerin (10 ♠Q insgesamt ausgelegt) - insgesamt jetzt 13 sammelbare Erfolge
+
 ## [1.31.0] - 2026-07-04
 
 ### Added
