@@ -1519,3 +1519,57 @@ test('bot melds cards that arrive with the pile REST in the same turn (three ace
   assert.ok(!bot.hand.some((cd) => cd.rank === 'A'), 'no ace left on the hand');
   g.destroy();
 });
+
+// --- v1.39.0: lobby ready check + canonical meld order ---------------------------
+test('lobby ready gate: 2+ humans must all confirm; solo and rematch flows covered', () => {
+  const { game } = makeGame(2);
+  // two humans, nobody ready -> blocked
+  assert.match(game.lobbyStartGate().error || '', /1\/2|0\/2/);
+  game.markLobbyReady('p1');
+  assert.match(game.lobbyStartGate().error, /1\/2/);
+  game.markLobbyReady('p2');
+  assert.equal(game.lobbyStartGate().error, undefined, 'all ready -> gate open');
+  // toggle back off blocks again
+  game.markLobbyReady('p2');
+  assert.match(game.lobbyStartGate().error, /1\/2/);
+  game.markLobbyReady('p2');
+  game.startNewRound();
+  assert.equal(game.phase, 'playing');
+  // rematch resets readiness - everyone confirms afresh
+  game.phase = 'gameOver';
+  game.prepareRematch();
+  assert.equal(game.phase, 'lobby');
+  assert.match(game.lobbyStartGate().error, /0\/2/, 'rematch requires fresh readiness');
+  game.destroy();
+});
+
+test('lobby ready gate: a single human starts without any ceremony', () => {
+  const g = new GameManager(() => {});
+  g.addOrReconnectPlayer('p1', 'Solo');
+  assert.equal(g.lobbyStartGate().error, undefined);
+  g.destroy();
+});
+
+test('table melds sort canonically: by leading rank, sets before runs, stable', () => {
+  const { makeStandardCard: mk } = require('../game/Card');
+  const { game } = makeGame(1);
+  game.phase = 'playing';
+  game.turnPhase = 'meld';
+  game.currentPlayerIndex = 0;
+  const p1 = game.players[0];
+  p1.hand = [
+    mk('C', 'K', 0), mk('H', 'K', 0), mk('S', 'K', 0),
+    mk('C', '3', 0), mk('H', '3', 0), mk('S', '3', 0),
+    mk('D', '5', 0), mk('D', '6', 0), mk('D', '7', 1),
+    mk('H', '9', 0),
+  ];
+  assert.equal(game.layoutMeld('p1', p1.hand.slice(0, 3).map((c) => c.id)).error, undefined); // K set first
+  assert.equal(game.layoutMeld('p1', p1.hand.slice(0, 3).map((c) => c.id)).error, undefined); // 3 set
+  assert.equal(game.layoutMeld('p1', p1.hand.slice(0, 3).map((c) => c.id)).error, undefined); // 5-6-7 run
+  game.broadcastState(); // canonical sort happens here
+  const leads = game.tableMelds.map((m) =>
+    m.type === 'set' ? `set-${m.rank}` : `run-${m.slots[0].real.rank}`
+  );
+  assert.deepEqual(leads, ['set-3', 'run-5', 'set-K'], `got ${leads.join(',')}`);
+  game.destroy();
+});

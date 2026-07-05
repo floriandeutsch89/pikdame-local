@@ -2,7 +2,7 @@
 const { seededRandom, createDeck, shuffle, dealCards, performLuckyCut } = require('./Deck');
 const { validateMeld, tryLayOff, tryJokerSwap, enumerateMeldOptions, enumerateLayOffOptions, canFormMeldWithCard } = require('./Rules');
 const { scoreRound, applyRoundScores, checkGameOver, DEFAULT_HOUSE_RULES } = require('./ScoreBoard');
-const { cardLabel, isPikDame } = require('./Card');
+const { rankIndex, cardLabel, isPikDame } = require('./Card');
 const Bot = require('./Bot');
 
 const MIN_SEATS = 2;
@@ -270,6 +270,7 @@ class GameManager {
 
   startNewRound() {
     this._nextRoundReady = new Set();
+    this._lobbyReady = new Set();
     this.publicKnownHands = {};
     this.declinedByPlayer = {};
     this.tableMelds = [];
@@ -1008,7 +1009,39 @@ class GameManager {
    * Gesamtpunkte, Rundenzählung und Verlaufsaufzeichnung werden
    * zurückgesetzt, Sitzplätze/Namen bleiben erhalten.
    */
+  /** Lobby readiness (game start AND rematch): toggles the caller's flag.
+   *  With more than one connected human at the table, the game only starts
+   *  once everyone confirmed - nobody gets yanked into round 1 mid-coffee. */
+  markLobbyReady(playerId) {
+    if (this.phase !== 'lobby') return { error: 'Bereitschaft gibt es nur in der Lobby.' };
+    const p = this.players.find((x) => x.id === playerId && !x.isBot);
+    if (!p) return { error: 'Nur Mitspieler am Tisch können sich bereit melden.' };
+    if (!this._lobbyReady) this._lobbyReady = new Set();
+    if (this._lobbyReady.has(playerId)) {
+      this._lobbyReady.delete(playerId);
+      this.addLog(`${p.name} ist doch noch nicht bereit.`);
+    } else {
+      this._lobbyReady.add(playerId);
+      this.addLog(`${p.name} ist bereit.`);
+    }
+    this.broadcastState();
+    return { ok: true };
+  }
+
+  /** Start gate: with 2+ connected humans everyone must be ready. */
+  lobbyStartGate() {
+    if (this.phase !== 'lobby') return {};
+    const humans = this.players.filter((p) => !p.isBot && p.connected);
+    if (humans.length <= 1) return {};
+    const ready = humans.filter((h) => this._lobbyReady && this._lobbyReady.has(h.id)).length;
+    if (ready < humans.length) {
+      return { error: `Noch nicht alle bereit (${ready}/${humans.length}).` };
+    }
+    return {};
+  }
+
   prepareRematch() {
+    this._lobbyReady = new Set(); // Revanche: alle melden sich frisch bereit
     this.gameStatsTotals = {};
     this.totals = {};
     for (const p of this.players) this.totals[p.id] = 0;
@@ -1155,6 +1188,7 @@ class GameManager {
         key === '_emoteTimers' ||
         key === '_takeoverTimers' ||
         key === '_nextRoundReady' ||
+        key === '_lobbyReady' ||
         key === '_lastBotEmote'
       ) continue;
       if (typeof value === 'function') continue;
@@ -1486,6 +1520,7 @@ class GameManager {
       lastRoundStats: this.lastRoundStats || null,
       nextRoundReady: this._nextRoundReady ? [...this._nextRoundReady] : [],
       lastRoundWinnerId: this.lastRoundWinnerId || null,
+      lobbyReady: this._lobbyReady ? [...this._lobbyReady] : [],
       turnDeadline: this.turnDeadline || null,
       gameStatsTotals: this.gameStatsTotals || {},
       hasExportableGame: !!this.lastGameRecord,
@@ -1494,7 +1529,25 @@ class GameManager {
     };
   }
 
+  /** Canonical, identical-for-everyone order of the table melds: sorted by
+   *  the leading rank (a set's rank / a run's start card, jokers count as
+   *  what they represent), sets narrowly before runs of the same rank, id
+   *  as the stable tie-break so nothing ever jumps around. Called once per
+   *  broadcast - idempotent and cheap, and it covers every mutation path. */
+  _sortTableMelds() {
+    const leadKey = (meld) => {
+      if (meld.type === 'set') return rankIndex(meld.rank) * 10;
+      const s0 = meld.slots[0];
+      const r0 = s0 && (s0.real ? s0.real.rank : s0.representsRank);
+      return rankIndex(r0) * 10 + 5;
+    };
+    this.tableMelds.sort(
+      (a, b) => leadKey(a) - leadKey(b) || String(a.id).localeCompare(String(b.id))
+    );
+  }
+
   broadcastState() {
+    this._sortTableMelds();
     for (const p of this.players) {
       if (!p.isBot) {
         this.broadcast(p.id, { type: 'state', state: this.publicState(p.id) });
