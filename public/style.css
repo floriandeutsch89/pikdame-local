@@ -1668,3 +1668,7 @@ input:disabled { opacity: 0.65; }
 }
 #challengeIntroOverlay .challengeLead { font-weight: 700; margin: 8px 0 2px; }
 #challengeIntroOverlay .challengeTop { font-size: 0.82rem; color: var(--text-muted); min-height: 1.2em; }
+
+/* --- GitHub footer link (v1.39.1) ----------------------------------------------- */
+.githubLink { display: inline-flex; align-items: center; gap: 5px; }
+.githubLink svg { opacity: 0.85; }
