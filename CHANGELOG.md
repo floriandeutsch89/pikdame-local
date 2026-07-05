@@ -9,6 +9,11 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Changed
 - Zieh-Markierung final vereinfacht: Punkt/Balken komplett entfernt - der Glow-Effekt allein markiert die frisch gezogene Karte (heller Aufleucht-Moment, der in einen dezenten Rand-Schimmer ausklingt, bis die Karte gespielt wird)
 
+## [1.35.3] - 2026-07-04
+
+### Changed
+- Stapel-Zone (Nachziehen/Ablage) wieder kompakt und ganz nach unten gerückt, direkt über die Hand - der gesamte Freiraum gehört jetzt den Auslagen darüber. Die schwebende Mittigkeit aus v1.35.1 hat sich in der Praxis als Platzfresser erwiesen: ausgelegte Karten sehen schlägt schwebende Stapel
+
 ## [1.35.2] - 2026-07-04
 
 ### Fixed

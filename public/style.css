@@ -519,13 +519,11 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 #centerPiles {
   position: relative;
   display: flex; justify-content: center; align-items: center; gap: 38px;
-  padding: 14px 8px 12px;
-  /* Share the portrait free space with #melds (flex:1) instead of being
-     glued above the hand: with few melds the piles float mid-table, with
-     many melds they shrink back gracefully (capped, shrinkable). */
-  flex: 1 1 auto;
-  max-height: 280px;
-  min-height: 0;
+  /* Compact strip pinned to the bottom (above the hand): the free space
+     belongs to the MELDS above - seeing laid-out cards beats floating
+     piles (player feedback reversed the v1.35.1 mid-table experiment). */
+  padding: 6px 8px 8px;
+  flex: 0 0 auto;
 }
 #centerPiles::before {
   content: '';
