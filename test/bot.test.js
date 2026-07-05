@@ -261,3 +261,26 @@ test('zen endgame: Queen only as last resort AND only if no table meld could tak
   const dumped = chooseDiscard(hand, [], { difficulty: 'zen', lowestOpponentHand: 2 });
   assert.ok(dumped.rank === 'Q' && dumped.suit === 'S', 'last-resort dump allowed');
 });
+
+// --- v1.37.0: exhaustion weighting -----------------------------------------------
+test('zen: a melded set on the table makes the fourth copy the preferred discard', () => {
+  const { chooseDiscard } = require('../game/Bot');
+  const { makeStandardCard: mk } = require('../game/Card');
+  // Hand: fourth nine vs. a king (worth 1 more point, both isolated)
+  const hand = [mk('C', '9', 1), mk('H', 'K', 0), mk('S', '4', 0), mk('D', '2', 0)];
+  const nineSet = [mk('S', '9', 0), mk('D', '9', 0), mk('H', '9', 0)];
+  // With the nine set visible on the table: the nine is exhausted -> throw it
+  const withSet = chooseDiscard(hand, [], {
+    difficulty: 'zen',
+    visibleCards: nineSet,
+    opponentKnownCards: [],
+  });
+  assert.equal(withSet.rank, '9', `nine expected, got ${withSet.rank}${withSet.suit}`);
+  // Without it, the plain value sort keeps ruling: the king goes
+  const without = chooseDiscard(hand, [], {
+    difficulty: 'zen',
+    visibleCards: [],
+    opponentKnownCards: [],
+  });
+  assert.equal(without.rank, 'K', `king expected, got ${without.rank}${without.suit}`);
+});
