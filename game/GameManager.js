@@ -1,5 +1,5 @@
 // game/GameManager.js
-const { createDeck, shuffle, dealCards, performLuckyCut } = require('./Deck');
+const { seededRandom, createDeck, shuffle, dealCards, performLuckyCut } = require('./Deck');
 const { validateMeld, tryLayOff, tryJokerSwap, enumerateMeldOptions, enumerateLayOffOptions, canFormMeldWithCard } = require('./Rules');
 const { scoreRound, applyRoundScores, checkGameOver, DEFAULT_HOUSE_RULES } = require('./ScoreBoard');
 const { cardLabel, isPikDame } = require('./Card');
@@ -297,7 +297,12 @@ class GameManager {
     let cutter = null;
     if (this.players.length >= 2) {
       cutter = this.players[(this.dealerIndex - 1 + this.players.length) % this.players.length];
-      const cutIndex = 10 + Math.floor(Math.random() * (deck.length - 20));
+      // Daily challenge: the CUT must be seeded too, or it silently
+      // reshuffles part of the deterministic deck (found via a flaky
+      // determinism test - everyone got slightly different hands!).
+      const cutRnd =
+        typeof roundSeed === 'number' ? seededRandom((roundSeed ^ 0x5f3759df) >>> 0) : Math.random;
+      const cutIndex = 10 + Math.floor(cutRnd() * (deck.length - 20));
       const cut = performLuckyCut(deck, cutIndex);
       luckyCards = cut.luckyCards;
       deck = cut.remaining;

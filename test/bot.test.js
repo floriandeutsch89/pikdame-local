@@ -229,3 +229,32 @@ test('discard caution: never blocks when only "bait" cards remain', () => {
   const pick = chooseDiscardV123(hand, [], { difficulty: 'hard', queensMelded: 0 });
   assert.ok(pick, 'must still discard something');
 });
+
+// --- v1.36.0: zen queen discipline ----------------------------------------------
+test('zen endgame: keeps the Queen while opponents are not on their last cards', () => {
+  const { chooseDiscard } = require('../game/Bot');
+  const { makeStandardCard: mk, makeJoker } = require('../game/Card');
+  const pd = mk('S', 'Q', 0);
+  const hand = [pd, mk('H', '9', 0), mk('C', '4', 0), mk('D', '7', 1)];
+  const pick = chooseDiscard(hand, [], { difficulty: 'zen', lowestOpponentHand: 3 });
+  assert.ok(pick.rank !== 'Q' || pick.suit !== 'S', 'no ♠Q gift at 3 opponent cards');
+});
+
+test('zen endgame: Queen only as last resort AND only if no table meld could take her', () => {
+  const { chooseDiscard } = require('../game/Bot');
+  const { makeStandardCard: mk } = require('../game/Card');
+  const pd = mk('S', 'Q', 0);
+  const hand = [pd, mk('H', '3', 0)];
+  // Opponent has a queen set on the table that could absorb her -> keep her
+  const queenMeld = {
+    id: 'm1', ownerId: 'foe', type: 'set', rank: 'Q',
+    slots: [
+      { real: mk('H', 'Q', 0) }, { real: mk('C', 'Q', 0) }, { real: mk('D', 'Q', 0) },
+    ],
+  };
+  const guarded = chooseDiscard(hand, [queenMeld], { difficulty: 'zen', lowestOpponentHand: 2 });
+  assert.ok(guarded.rank !== 'Q' || guarded.suit !== 'S', 'never feed a queen meld');
+  // No usable meld anywhere -> at 2 cards she may finally go (point dump)
+  const dumped = chooseDiscard(hand, [], { difficulty: 'zen', lowestOpponentHand: 2 });
+  assert.ok(dumped.rank === 'Q' && dumped.suit === 'S', 'last-resort dump allowed');
+});
