@@ -19,6 +19,15 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
 
 ## Harte Constraints (nie brechen)
 
+- **Bei mehrdeutigen Feature-Wünschen: ERST FRAGEN, dann bauen.** Wenn ein
+  Wunsch mehrere plausible Lesarten hat (z. B. "Auslage sortieren" - eigene
+  Kästen? Karten im Satz? nur Anzeige?; "Ready-Check" - Rundenwechsel oder
+  Spielstart?), wird NICHT die wahrscheinlichste Interpretation implementiert,
+  sondern dem Nutzer werden 2-4 konkrete, nummerierte Optionen zur Auswahl
+  gestellt. Raten kostet Releases und Vertrauen; eine Rückfrage kostet eine
+  Nachricht. Ausnahme: eindeutige Bug-Reports mit Beweis (Screenshot/Log).
+  (Vereinbart am 2026-07-05 nach zwei Fehlgriffen in einer Antwort.)
+
 0. **Primärer Betriebsmodus ist der gehostete Docker-Stack**
    (play.pikdame.online). Der Hotspot-/CodeApp-Modus ist Legacy: Er bleibt
    funktionsfähig (Zero-Config-Fallbacks nicht brechen), wird aber nicht
