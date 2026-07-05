@@ -4,6 +4,19 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.38.0] - 2026-07-04
+
+### Added
+- Zen liest Verschmähtes mit: Zieht ein Spieler verdeckt, obwohl oben eine offene Karte lag, merkt sich der Zen diesen Rang - der Nachfolger konnte ihn (vermutlich) nicht gebrauchen. Solche Ränge gelten fürs Abwerfen gegen genau diesen Spieler als sicherer; bewusst nur ein schwaches Signal (Bluffs existieren), das die harte Evidenz aus Stapelaufnahmen nie übersteuert. Pro Runde frisch, letzte 8 Beobachtungen je Spieler
+
+### Changed
+- Hand-Sortier-Umschalter besser erkennbar: Der Knopf rechts über der Hand ("77 Wert" / "♠♥ Farbe") war schon immer ein Umschalter zwischen Wert- und Farbsortierung - jetzt trägt er ein ⇅-Symbol, damit man ihm das auch ansieht
+- Hinweis zu zwei gewünschten Features, die bereits an Bord sind: Der Bereitschafts-Check vor der nächsten Runde existiert seit v1.20 (der "Nächste Runde"-Knopf wartet auf alle verbundenen Spieler und zeigt "n/m bereit" - solo gegen Bots startet es deshalb sofort), und das Abzeichen "Hand aus!" beschreibt seit v1.37.1 die korrekte Bedeutung (Text angepasst)
+
+### Fixed
+- Zen-Meister warf die Pik Dame im Endspiel auch mit vollen 15 Handkarten ab: Der "letzter Ausweg"-Abwurf (Gegner kurz vorm Ausmachen) prüft jetzt zusätzlich die EIGENE Handgröße - der 100-Punkte-Spar-Tausch lohnt nur bei maximal 6 Karten, mit großer Hand bleibt die Dame liegen
+- Der bleibende Rand-Schimmer der frisch gezogenen Karte überlebte bis in die Züge der Gegner - er verschwindet jetzt mit dem Ende des eigenen Zugs
+
 ## [1.37.1] - 2026-07-04
 
 ### Fixed
