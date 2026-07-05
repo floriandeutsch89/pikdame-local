@@ -674,8 +674,11 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   border-top: 1px solid var(--glass-border);
   border-radius: var(--r-lg) var(--r-lg) 0 0;
   /* Compact bar: the fan needs a whisper of air above, and below the
-     status line only the device safe-area remains - no dead space. */
-  padding: 10px 8px calc(4px + var(--safe-bottom));
+     status line only the device safe-area remains - no dead space.
+     margin-top:auto pins the whole bar to the very bottom in any flex
+     context, whatever the table above needs. */
+  margin-top: auto;
+  padding: 8px 8px calc(2px + var(--safe-bottom));
   overflow-x: auto; overflow-y: visible;
   -webkit-overflow-scrolling: touch;
   box-shadow: 0 -8px 30px rgba(0,0,0,0.2);
@@ -683,7 +686,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 #hand {
   display: flex; justify-content: flex-start;
   padding: 0 20px;
-  min-height: 101px; /* card 95 + capped fan dip (6px) */
+  min-height: 96px; /* card 90 + capped fan dip (6px) */
   margin: 0 auto;
   width: max-content;
   max-width: 100%;
@@ -915,7 +918,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 /* ============================ GRÖSSERE SCREENS ============================ */
 
 @media (min-width: 600px) {
-  .card { width: 66px; height: 95px; min-width: 66px; }
+  .card { width: 62px; height: 90px; min-width: 62px; }
   .pile-card { width: 60px; height: 84px; }
   .card-compact { width: 36px; height: 51px; min-width: 36px; }
 }

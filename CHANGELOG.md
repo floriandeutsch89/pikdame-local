@@ -4,10 +4,14 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
-## [1.26.1] - 2026-07-03
+## [1.36.1] - 2026-07-04
 
 ### Changed
-- Zieh-Markierung final vereinfacht: Punkt/Balken komplett entfernt - der Glow-Effekt allein markiert die frisch gezogene Karte (heller Aufleucht-Moment, der in einen dezenten Rand-Schimmer ausklingt, bis die Karte gespielt wird)
+- Auch MITTEL-Bots verschenken die Pik Dame nicht mehr: Der alte "Notabwurf ab 8 Handkarten" ist gestrichen - ab Stufe Mittel bleibt die Dame auf der Hand, solange irgendetwas anderes abwerfbar ist. Nur LEICHT wirft sie weiterhin sorglos (Anfänger-freundlich)
+- Hand-Leiste klebt jetzt garantiert am unteren Rand und ist noch einen Hauch flacher (Karten 62×90, engere Polster) - mehr Tisch, weniger Rahmen. Die Aa-Größenstufen bleiben unverändert
+
+### Fixed
+- Changelog-Anzeige: Ein alter 1.26.1-Eintrag klebte ganz oben in der Datei, alle neueren Versionen rutschten darunter - chronologisch einsortiert, und ein neuer Wächter-Test erzwingt ab jetzt strikt absteigende Versions-Reihenfolge
 
 ## [1.36.0] - 2026-07-04
 
@@ -122,6 +126,11 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 - Sitzplatz-Schutz: Die (notwendigerweise öffentliche) Spieler-ID reicht nicht mehr, um einen Platz zu übernehmen - der Reconnect verlangt ein geheimes, kryptographisch zufälliges Platz-Token, das nur der eigene Browser kennt und das Server-Neustarts übersteht. Vorher konnte jeder Mitspieler mit einer abgelesenen ID in einem zweiten Tab fremde Handkarten einsehen
 - Nachrichten-Drossel pro Verbindung (~25/s, harte Trennung bei Flut) ergänzt die bestehenden Schutzmaßnahmen (Join-Bruteforce-Sperre pro IP, 16-KB-Nachrichtenlimit, Namens-Bereinigung, Emote-Whitelist)
 - Neues Kapitel "Security model" in docs/OPERATIONS.md dokumentiert das Bedrohungsmodell: Server ist autoritativ, fremde Hände/Nachziehstapel werden nie übertragen, alle Prüfungen sind O(1) und kosten keine spürbare Performance
+
+## [1.26.1] - 2026-07-03
+
+### Changed
+- Zieh-Markierung final vereinfacht: Punkt/Balken komplett entfernt - der Glow-Effekt allein markiert die frisch gezogene Karte (heller Aufleucht-Moment, der in einen dezenten Rand-Schimmer ausklingt, bis die Karte gespielt wird)
 
 ## [1.26.0] - 2026-07-03
 

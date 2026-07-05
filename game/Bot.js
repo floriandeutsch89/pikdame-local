@@ -294,12 +294,12 @@ function chooseDiscard(hand, tableMelds = [], opts = {}) {
   // <=3 often reacted only AFTER an opponent had already gone out.
   const endgame = difficulty === 'zen' && (opts.lowestOpponentHand || 99) <= 4;
 
-  const pikDame = hand.find((c) => isPikDame(c));
-  if (difficulty === 'medium' && pikDame && hand.length <= URGENT_DISCARD_HAND_SIZE) return pikDame;
-
   let candidates = nonJokers;
-  if (difficulty === 'hard' || difficulty === 'zen') {
-    // Die Pik Dame nie freiwillig hergeben, solange etwas anderes da ist.
+  if (difficulty !== 'easy') {
+    // Die Pik Dame nie freiwillig hergeben, solange etwas anderes da ist -
+    // ab MITTEL. Der alte "Notabwurf ab 8 Handkarten" fuer medium hat sie
+    // regelrecht verschenkt (Spieler-Feedback mit Q♠ auf der Ablage als
+    // Beweisfoto); nur EASY darf sie noch sorglos werfen.
     const withoutPd = candidates.filter((c) => !isPikDame(c));
     if (withoutPd.length > 0) candidates = withoutPd;
   }

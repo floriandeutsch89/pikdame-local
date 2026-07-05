@@ -37,11 +37,14 @@ test('chooseDiscard: bei GROSSER Hand wird die Pik Dame NICHT automatisch sofort
   assert.ok(discard); // wählt irgendeine sinnvolle Karte, kein Crash
 });
 
-test('chooseDiscard: bei KLEINER Hand (Rundenende nah) wird die Pik Dame priorisiert losgeworden', () => {
+test('chooseDiscard: MITTEL behaelt die Pik Dame auch bei kleiner Hand (nur easy wirft sie)', () => {
   const pikDame = S('Q');
-  const hand = bigIsolatedHand([pikDame], URGENT_DISCARD_HAND_SIZE);
-  const discard = chooseDiscard(hand);
-  assert.ok(isPikDame(discard), 'Pik Dame sollte ab der Dringlichkeits-Schwelle priorisiert abgeworfen werden');
+  const small = bigIsolatedHand([pikDame], URGENT_DISCARD_HAND_SIZE);
+  const medium = chooseDiscard(small, [], { difficulty: 'medium' });
+  assert.ok(!isPikDame(medium), 'medium darf die Dame nicht mehr verschenken');
+  const ten = bigIsolatedHand([pikDame], 10);
+  const medium10 = chooseDiscard(ten, [], { difficulty: 'medium' });
+  assert.ok(!isPikDame(medium10), 'auch mit 10 Karten bleibt sie auf der Hand');
 });
 
 test('chooseDiscard: Joker wird NICHT abgeworfen, solange andere Karten da sind (kein Geschenk an Gegner)', () => {
