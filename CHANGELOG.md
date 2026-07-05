@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.42.0] - 2026-07-05
+
+### Changed
+- Standard-Bot-Stufe ist jetzt der Zen-Meister - überall: beim Erstellen eines Spiels (Auswahlliste vorbelegt), beim Schnellstart, beim Auffüllen leerer Plätze UND als Vertretungs-Stärke, wenn ein getrennter Spieler vorübergehend vom Bot übernommen oder ein Zug nach Ablauf des Zug-Timers zu Ende gespielt wird. Wie gehabt pro Spiel und pro Bot jederzeit umstellbar
+
 ## [1.41.1] - 2026-07-05
 
 ### Fixed

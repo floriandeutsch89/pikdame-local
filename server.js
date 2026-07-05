@@ -703,7 +703,7 @@ wss.on('connection', (ws, req) => {
       const ok = await joinSession(created.session, msg);
       if (ok) {
         const game = created.session.game;
-        game.setHouseRules({ botDifficulty: 'medium', turnTimerSeconds: 0 });
+        game.setHouseRules({ botDifficulty: 'zen', turnTimerSeconds: 0 });
         game.fillWithBots();
         game.startNewRound();
       }

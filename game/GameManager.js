@@ -142,7 +142,7 @@ class GameManager {
       const name = free.pop() || `Bot ${botIndex}`;
       this.players.push({
         id, name, isBot: true, hand: [], connected: true, laidOutCards: [],
-        botDifficulty: (this.houseRules && this.houseRules.botDifficulty) || 'medium',
+        botDifficulty: (this.houseRules && this.houseRules.botDifficulty) || 'zen',
       });
       this.totals[id] = this.totals[id] || 0;
       botIndex += 1;
@@ -1327,7 +1327,9 @@ class GameManager {
     if (!opts.forced && !this.isBotControlled(cp)) return;
 
     // Per-bot difficulty (adjustable in-game) with the house rule as default
-    const difficulty = cp.botDifficulty || (this.houseRules && this.houseRules.botDifficulty) || 'medium';
+    // Default (and thus also the stand-in for a temporarily replaced
+    // human or a timed-out turn): the zen master - the strongest fair bot.
+    const difficulty = cp.botDifficulty || (this.houseRules && this.houseRules.botDifficulty) || 'zen';
     const ownMelds = this.tableMelds.filter((m) => m.ownerId === botId);
     const plan = Bot.decideDraw(cp.hand, this.discardPile, ownMelds);
     // Leichte Bots übersehen die Ablage-Chance meistens (wie Anfänger).
@@ -1500,7 +1502,7 @@ class GameManager {
         id: p.id,
         name: p.name,
         isBot: p.isBot,
-        botDifficulty: p.isBot ? (p.botDifficulty || (this.houseRules && this.houseRules.botDifficulty) || 'medium') : undefined,
+        botDifficulty: p.isBot ? (p.botDifficulty || (this.houseRules && this.houseRules.botDifficulty) || 'zen') : undefined,
         connected: p.connected,
         controlledByBot: this.isBotControlled(p),
         handCount: p.hand.length,
