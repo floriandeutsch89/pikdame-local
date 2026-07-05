@@ -271,6 +271,7 @@ class GameManager {
   startNewRound() {
     this._nextRoundReady = new Set();
     this.publicKnownHands = {};
+    this.declinedByPlayer = {};
     this.tableMelds = [];
     this.retiredJokers = [];
     this.roundNumber += 1;
@@ -398,6 +399,17 @@ class GameManager {
   drawFromPile(playerId) {
     const err = this.assertTurn(playerId, 'draw');
     if (err) return err;
+
+    // Public inference material: drawing face-down means the visible top
+    // discard was SPURNED - this player probably has no use for that rank
+    // right now (or is bluffing, which is why it is only a weak signal).
+    const spurned = this.discardPile[0];
+    if (spurned && !spurned.faceDown && !spurned.isJoker) {
+      if (!this.declinedByPlayer) this.declinedByPlayer = {};
+      const list = this.declinedByPlayer[playerId] || [];
+      list.push({ rank: spurned.rank, suit: spurned.suit });
+      this.declinedByPlayer[playerId] = list.slice(-8);
+    }
 
     if (this.drawPile.length === 0) {
       this.reshuffleDiscardIntoDrawPile();
@@ -1370,6 +1382,12 @@ class GameManager {
       difficulty,
       visibleCards,
       opponentKnownCards,
+      // What the NEXT player recently spurned from the pile top: those
+      // ranks are (probably) safe to throw at them.
+      nextPlayerDeclined: (() => {
+        const next = this.players[(this.currentPlayerIndex + 1) % this.players.length];
+        return (next && this.declinedByPlayer && this.declinedByPlayer[next.id]) || [];
+      })(),
       lowestOpponentHand,
       queensMelded: this.tableMelds.reduce(
         (n, m) => n + m.slots.filter((s) => s.real && isPikDame(s.real)).length,

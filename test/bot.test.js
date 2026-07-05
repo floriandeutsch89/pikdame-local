@@ -284,3 +284,33 @@ test('zen: a melded set on the table makes the fourth copy the preferred discard
   });
   assert.equal(without.rank, 'K', `king expected, got ${without.rank}${without.suit}`);
 });
+
+// --- v1.38.0 ---------------------------------------------------------------------
+test('zen never dumps the queen while holding a big hand, even at 2 opponent cards', () => {
+  const { chooseDiscard } = require('../game/Bot');
+  const { makeStandardCard: mk } = require('../game/Card');
+  const hand = [mk('S', 'Q', 0)];
+  ['2', '3', '4', '5', '6', '8', '9', '10', 'J', 'K', 'A'].forEach((r, i) =>
+    hand.push(mk(i % 2 ? 'H' : 'D', r, 0))
+  );
+  ['3', '5', '8'].forEach((r) => hand.push(mk('C', r, 1)));
+  assert.equal(hand.length, 15);
+  for (let i = 0; i < 5; i++) {
+    const pick = chooseDiscard(hand, [], { difficulty: 'zen', lowestOpponentHand: 2 });
+    assert.ok(!(pick.rank === 'Q' && pick.suit === 'S'), '15-card hand must keep the queen');
+  }
+});
+
+test('zen prefers a rank the next player just spurned from the pile', () => {
+  const { chooseDiscard } = require('../game/Bot');
+  const { makeStandardCard: mk } = require('../game/Card');
+  // Two equal-value isolated candidates (nine vs. nine-rank alternative: use K vs K? use 9 vs 10 close values)
+  const hand = [mk('C', '9', 1), mk('H', '10', 0), mk('S', '4', 0), mk('D', '2', 0)];
+  const pick = chooseDiscard(hand, [], {
+    difficulty: 'zen',
+    visibleCards: [],
+    opponentKnownCards: [],
+    nextPlayerDeclined: [{ rank: '9', suit: 'S' }],
+  });
+  assert.equal(pick.rank, '9', `spurned nine expected, got ${pick.rank}${pick.suit}`);
+});

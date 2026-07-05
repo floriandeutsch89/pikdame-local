@@ -227,7 +227,7 @@
   function badgeMeta(id) {
     const M = {
       first_win: { emoji: '🏆', name: L('Erster Sieg', 'First win'), desc: L('Erste gewonnene Partie', 'Won your first game') },
-      hand_aus_win: { emoji: '🚀', name: L('Hand aus!', 'Out in one!'), desc: L('Eine Runde im allerersten Zug gewonnen', 'Won a round in your very first turn') },
+      hand_aus_win: { emoji: '🚀', name: L('Hand aus!', 'Out in one!'), desc: L('Alles in einem einzigen Zug ausgelegt und gewonnen', 'Laid out the whole hand in a single turn and won') },
       pd_laid: { emoji: '♠', name: L('Damensammler', 'Queen collector'), desc: L('Eine Pik Dame sicher ausgelegt (+100)', 'Melded a Queen of Spades (+100)') },
       pd_triple: { emoji: '👑', name: L('Dreifache Dame', 'Triple queen'), desc: L('3+ Pik Damen in einer Partie ausgelegt', 'Melded 3+ Queens of Spades in one game') },
       pd_caught: { emoji: '😱', name: L('Autsch!', 'Ouch!'), desc: L('Pik Dame am Rundenende auf der Hand erwischt (−100)', 'Caught with the Queen of Spades in hand (−100)') },
@@ -933,6 +933,9 @@
         if (added.length > 0) freshCardIds = new Set(added);
         // Markierung erlischt, sobald die Karte die Hand verlässt
         for (const id of [...freshCardIds]) if (!currentIds.has(id)) freshCardIds.delete(id);
+        // Glow lives only for the OWN running turn: the lingering rim
+        // shimmer used to survive into the opponents' turns (bug report).
+        if (lastState.currentPlayerId !== playerId) freshCardIds.clear();
       }
       prevHandIds = currentIds;
       prevHandRound = lastState.roundNumber;
@@ -1468,7 +1471,7 @@
     render();
   });
   function updateSortToggleLabel() {
-    el('sortToggleBtn').textContent = handSortMode === 'suit' ? L('♠♥ Farbe', '♠♥ Suit') : L('77 Wert', '77 Rank');
+    el('sortToggleBtn').textContent = handSortMode === 'suit' ? L('⇅ ♠♥ Farbe', '⇅ ♠♥ Suit') : L('⇅ 77 Wert', '⇅ 77 Rank');
     el('sortToggleBtn').title = handSortMode === 'suit'
       ? L('Sortiert nach Farbe (gut für Folgen) - tippen für Wert', 'Sorted by suit (good for runs) - tap for rank')
       : L('Sortiert nach Wert (gut für Sätze) - tippen für Farbe', 'Sorted by rank (good for sets) - tap for suit');

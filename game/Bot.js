@@ -406,7 +406,10 @@ function chooseDiscard(hand, tableMelds = [], opts = {}) {
       // on the table (checked with the real rule simulation - open
       // information, no cheating).
       const opponentCanUseHer = tableMelds.some((meld) => tryLayOff(meld, withPd));
-      const lastResort = (opts.lowestOpponentHand || 99) <= 2;
+      // The 100-point dump only pays off on a SMALL own hand: losing this
+      // round is certain with 15 cards anyway, so gifting the Queen to the
+      // pile (bug report) is pure downside - she stays put.
+      const lastResort = (opts.lowestOpponentHand || 99) <= 2 && hand.length <= 6;
       if (lastResort && !opponentCanUseHer) panicPool.push(withPd);
     }
     const panicPotential =
@@ -444,7 +447,12 @@ function chooseDiscard(hand, tableMelds = [], opts = {}) {
     // exhaustion count always contributes - a fourth nine is a safe throw
     // once the nine set lies on the table (only 4 of 8 copies remain in
     // circulation), even if it costs a couple more points than the king.
-    const riskOf = (card) => dangerOf(card) * 3 + potentialOf(card);
+    // Spurned-pile bonus: the next player recently declined this rank from
+    // the pile top - weak but real evidence they cannot use it (bluffs
+    // exist, hence a small weight against the danger scale).
+    const declined = Array.isArray(opts.nextPlayerDeclined) ? opts.nextPlayerDeclined : [];
+    const declinedBonus = (card) => (declined.some((d) => d.rank === card.rank) ? 2 : 0);
+    const riskOf = (card) => dangerOf(card) * 3 + potentialOf(card) - declinedBonus(card);
     contenders.sort((a, b) => riskOf(a) - riskOf(b));
     return contenders[0] || pool[0] || hand.find((cd) => !isPikDame(cd) && !cd.isJoker) || hand[0];
   }
