@@ -92,6 +92,7 @@ window.I18N_STATIC = {
   'Spieltisch': 'Table',
   'Nacht': 'Night',
   'Herzdame': 'Queen of hearts',
+  'Filz': 'Felt',
 
   // Overlays
   'Zum Mitspielen scannen': 'Scan to join',

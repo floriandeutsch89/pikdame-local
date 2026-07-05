@@ -4,6 +4,17 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.41.0] - 2026-07-05
+
+### Added
+- Karten-Deal zum Rundenbeginn ist jetzt sichtbar: Die 15 Handkarten fliegen gestaffelt vom Nachziehstapel in den Fächer und landen exakt in ihrer Position - einmal pro Runde, unter einer Sekunde, aus bei "Bewegung reduzieren"
+- Avatar-Chips: Jeder Spieler bekommt einen runden Avatar mit Initiale und einer stabilen, aus dem Namen berechneten Farbe (Bots zeigen 🤖) - gleiche Farbe auf jedem Gerät, in jeder Partie
+- Neues Tischthema "Filz": klassisches Kartenspiel-Grün mit warmem Gold-Akzent, wählbar über die Erscheinungsbild-Umschalter (Zahnrad)
+- Sieg-Konfetti regnet jetzt auch Kartensymbole: ♠ ♥ ♦ ♣ und die ♛ taumeln in den Deckfarben zwischen den bunten Schnipseln herab
+
+### Changed
+- Hinweis: Die Vibration bei "Du bist dran" gab es bereits (Teil des Zugsignals seit v1.28) - Wunsch Nr. 3 war also schon erfüllt
+
 ## [1.40.0] - 2026-07-05
 
 ### Added
