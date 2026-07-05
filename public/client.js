@@ -1528,6 +1528,7 @@
     // in from the draw-pile direction, staggered, and settle into their own
     // fan transform (the dealIn keyframe only defines FROM).
     if (
+      lastState && // the sort-label updater also runs ONCE at init, pre-state!
       lastState.phase === 'playing' &&
       dealAnimatedForRound !== lastState.roundNumber &&
       pendingDealCards.length > 0 &&

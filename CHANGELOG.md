@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.41.1] - 2026-07-05
+
+### Fixed
+- KRITISCH: v1.41.0 machte die App unbenutzbar - Browser und PWA blieben dauerhaft bei "Verbinde..." hängen. Ursache: Die neue Deal-Animation griff beim allerersten Initialisieren (noch vor dem ersten Server-Zustand) auf den Spielzustand zu und ließ das gesamte Client-Skript abstürzen. Behoben - und damit so etwas nie wieder passiert, startet ab jetzt bei jedem Testlauf der ECHTE Client in einer simulierten Browser-Umgebung (Lobby- und Spielzustand); jeder Fehler dieser Klasse lässt die CI sofort rot werden
+
 ## [1.41.0] - 2026-07-05
 
 ### Added
