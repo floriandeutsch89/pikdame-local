@@ -220,10 +220,21 @@
   let handSortMode = storageGet(SORT_KEY) === 'rank' ? 'rank' : 'suit';
   let prevHandRound = null;
   let freshCardIds = new Set();
+  let dealAnimatedForRound = null; // one-shot card deal-in per fresh round
+  let pendingDealCards = [];
   let knownProfiles = [];
   let lastEarnedBadges = null; // frisch verdiente Erfolge (fuers Ergebnis-Overlay)
 
   // Erfolgs-Badge-Katalog: IDs kommen vom Server, Texte leben hier (DE/EN).
+  /** Stable, friendly avatar colour from the player name (djb2 -> hue). */
+  function avatarFor(name, isBot) {
+    let h = 5381;
+    for (const ch of String(name)) h = ((h * 33) ^ ch.codePointAt(0)) >>> 0;
+    const hue = h % 360;
+    const glyph = isBot ? '🤖' : escapeHtml((Array.from(String(name).trim())[0] || '?').toUpperCase());
+    return `<span class="opAvatar" style="background:hsl(${hue},46%,40%)">${glyph}</span>`;
+  }
+
   function badgeMeta(id) {
     const M = {
       first_win: { emoji: '🏆', name: L('Erster Sieg', 'First win'), desc: L('Erste gewonnene Partie', 'Won your first game') },
@@ -765,7 +776,7 @@
         const diffBadge = '';
         d.title = L(`${p.handCount} Karten · ${opTotal} Punkte`, `${p.handCount} cards · ${opTotal} points`);
         const opProgress = Math.max(0, Math.min(100, (opTotal / 1000) * 100));
-        d.innerHTML = `<div class="opName">${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}${diffBadge}${dealerStar}${reconnecting ? ` <span class="reconnectTag">⏳ ${L('getrennt – Bot übernimmt', 'disconnected – bot takes over')}</span>` : ''}</div><div class="opCount"><b>${p.handCount}</b> ${L('Kt', 'cd')} · <b>${opTotal}</b> ${L('Pkt', 'pts')}</div><div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>`;
+        d.innerHTML = `<div class="opName">${avatarFor(p.name, p.isBot)}${escapeHtml(p.name)}${diffBadge}${dealerStar}${reconnecting ? ` <span class="reconnectTag">⏳ ${L('getrennt – Bot übernimmt', 'disconnected – bot takes over')}</span>` : ''}</div><div class="opCount"><b>${p.handCount}</b> ${L('Kt', 'cd')} · <b>${opTotal}</b> ${L('Pkt', 'pts')}</div><div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>`;
         if (p.isBot) {
           const badgeBtn = document.createElement('button');
           badgeBtn.className = 'botDiffBadge';
@@ -999,6 +1010,7 @@
           cEl.style.transform += ' translateY(-18px)';
         }
         handDiv.appendChild(cEl);
+        pendingDealCards.push(cEl);
       });
 
       // Dynamische Überlappung: die gesamte Hand passt IMMER auf die
@@ -1177,6 +1189,25 @@
   function launchConfetti() {
     if (reducedMotion) return;
     const overlay = el('resultOverlay');
+    // Card-suit rain on top of the classic confetti: spades & co. tumble
+    // down in the deck's own colours - the win feels like Pik Dame.
+    const suits = ['♠', '♥', '♦', '♣', '♛'];
+    for (let i = 0; i < 16; i++) {
+      const s = document.createElement('span');
+      s.className = 'spadeRainPiece';
+      const glyph = suits[i % suits.length];
+      s.textContent = glyph;
+      s.style.color = glyph === '♥' || glyph === '♦' ? 'var(--suit-red)' : 'rgba(255,255,255,0.92)';
+      if (glyph === '♛') s.style.color = 'var(--accent)';
+      s.style.setProperty('--x', `${Math.random() * 100}%`);
+      s.style.setProperty('--sz', `${14 + Math.random() * 17}px`);
+      s.style.setProperty('--dur', `${2.2 + Math.random() * 1.5}s`);
+      s.style.setProperty('--delay', `${Math.random() * 0.8}s`);
+      s.style.setProperty('--driftX', `${(Math.random() - 0.5) * 140}px`);
+      s.style.setProperty('--spin', `${(Math.random() - 0.5) * 480}deg`);
+      overlay.appendChild(s);
+      setTimeout(() => s.remove(), 5200);
+    }
     const colors = ['#2fd6b0', '#8f90f8', '#ff9f5a', '#ff7d8c', '#f5d76e'];
     for (let i = 0; i < 46; i++) {
       const p = document.createElement('div');
@@ -1493,6 +1524,28 @@
     render();
   });
   function updateSortToggleLabel() {
+    // One-shot deal-in: on the first render of a fresh round the cards fly
+    // in from the draw-pile direction, staggered, and settle into their own
+    // fan transform (the dealIn keyframe only defines FROM).
+    if (
+      lastState.phase === 'playing' &&
+      dealAnimatedForRound !== lastState.roundNumber &&
+      pendingDealCards.length > 0 &&
+      !reducedMotion
+    ) {
+      dealAnimatedForRound = lastState.roundNumber;
+      const pileRect = el('drawPile').getBoundingClientRect();
+      pendingDealCards.forEach((cardEl, idx) => {
+        const r = cardEl.getBoundingClientRect();
+        cardEl.style.setProperty('--deal-dx', `${pileRect.left + pileRect.width / 2 - (r.left + r.width / 2)}px`);
+        cardEl.style.setProperty('--deal-dy', `${pileRect.top + pileRect.height / 2 - (r.top + r.height / 2)}px`);
+        cardEl.style.setProperty('--deal-delay', `${idx * 34}ms`);
+        cardEl.classList.add('deal-in');
+        cardEl.addEventListener('animationend', () => cardEl.classList.remove('deal-in'), { once: true });
+      });
+    }
+    pendingDealCards = [];
+
     el('sortToggleBtn').textContent = handSortMode === 'suit' ? L('⇅ ♠♥ Farbe', '⇅ ♠♥ Suit') : L('⇅ 77 Wert', '⇅ 77 Rank');
     el('sortToggleBtn').title = handSortMode === 'suit'
       ? L('Sortiert nach Farbe (gut für Folgen) - tippen für Wert', 'Sorted by suit (good for runs) - tap for rank')

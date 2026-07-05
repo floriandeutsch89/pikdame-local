@@ -65,6 +65,34 @@
   --shadow-3: 0 14px 44px rgba(0,0,0,0.6);
 }
 
+[data-theme="felt"] {
+  /* Klassischer Spielkarten-Filz: sattes Grün, warmes Gold als Akzent. */
+  --bg: #0d3524;
+  --bg-deep: #071e14;
+  --bg-glow: #1a5236;
+  --glass: rgba(255,255,255,0.06);
+  --glass-strong: rgba(255,255,255,0.11);
+  --glass-border: rgba(255,255,255,0.14);
+  --accent: #e9c86a;
+  --accent-2: #cfa93f;
+  --accent-ink: #2a2005;
+  --accent-soft: rgba(233,200,106,0.22);
+  --text: #f2f7f2;
+  --text-muted: rgba(220,235,222,0.55);
+  --danger: #ff8a80;
+  --success: #6fe0a8;
+  --card-bg: #f7f6f0;
+  --card-ink: #1d221d;
+  --card-border: rgba(29,34,29,0.16);
+  --suit-red: #d84a56;
+  --suit-black: #232a24;
+  --joker: #7fc98f;
+  --spot: rgba(233, 200, 106, 0.12);
+  --shadow-1: 0 1px 2px rgba(0,0,0,0.4);
+  --shadow-2: 0 4px 18px rgba(0,0,0,0.5);
+  --shadow-3: 0 14px 44px rgba(0,0,0,0.55);
+}
+
 [data-theme="love"] {
   --bg: #3a0f24;
   --bg-deep: #260817;
@@ -199,6 +227,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .themeBtn[data-theme-choice="table"] { background: linear-gradient(145deg, #1c2530, #0a0c10); border-color: rgba(47,214,176,0.5); }
 .themeBtn[data-theme-choice="night"] { background: linear-gradient(145deg, #2a3160, #0a0c16); }
 .themeBtn[data-theme-choice="love"]  { background: linear-gradient(145deg, #a2325f, #3a0f24); }
+.themeBtn[data-theme-choice="felt"]  { background: linear-gradient(145deg, #1a5236, #071e14); border-color: rgba(233,200,106,0.55); }
 .themeBtn.active {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
@@ -1711,4 +1740,46 @@ input:disabled { opacity: 0.65; }
 @media (prefers-reduced-motion: reduce) {
   #lobby h1, #lobby h1 .spade, #lobby h1::after { animation: none; }
   #lobby h1::after { display: none; }
+}
+
+/* --- v1.41.0 UI pack ------------------------------------------------------------ */
+/* 4. Avatar chips: initial + stable colour from the name */
+.opAvatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 13px; color: #fff;
+  margin-right: 7px; flex: 0 0 auto;
+  box-shadow: inset 0 -2px 5px rgba(0,0,0,0.28), 0 1px 2px rgba(0,0,0,0.25);
+}
+.opName { display: flex; align-items: center; min-width: 0; }
+
+/* 2. One-shot spade rain over the result overlay */
+#resultOverlay { overflow: hidden; }
+.spadeRainPiece {
+  position: absolute; top: -34px; left: var(--x);
+  font-size: var(--sz); opacity: 0; pointer-events: none; z-index: 3;
+  animation: spadeFall var(--dur) ease-in var(--delay) 1 both;
+}
+@keyframes spadeFall {
+  0% { opacity: 0; transform: translate(0, 0) rotate(0deg); }
+  10% { opacity: 0.95; }
+  100% { opacity: 0; transform: translate(var(--driftX), 108vh) rotate(var(--spin)); }
+}
+
+/* 1. Deal-in: cards fly from the draw-pile direction into the fan.
+   Trick: the keyframe only defines FROM - each card animates to its own
+   inline fan transform, so every card lands exactly in place. */
+.card.deal-in {
+  animation: dealIn 0.5s cubic-bezier(0.25, 0.8, 0.3, 1) both;
+  animation-delay: var(--deal-delay, 0ms);
+}
+@keyframes dealIn {
+  from {
+    transform: translate(var(--deal-dx, 0px), var(--deal-dy, -240px)) rotate(-9deg) scale(0.72);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card.deal-in { animation: none; }
+  .spadeRainPiece { display: none; }
 }
