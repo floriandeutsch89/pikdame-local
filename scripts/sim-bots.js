@@ -32,23 +32,35 @@ function playGame(difficulties) {
     } else break;
   }
   const totals = g.totals || {};
+  // How often did each seat throw the Queen of Spades away? (Log-based,
+  // seat names embed the difficulty: B0-zen etc.)
+  const pdDiscards = {};
+  for (const e of g.log || []) {
+    const m = /^(B\d+-\w+) wirft Pik-Q ab\.$/.exec(e.text);
+    if (m) pdDiscards[m[1]] = (pdDiscards[m[1]] || 0) + 1;
+  }
   g.destroy();
   if (g.phase !== 'gameOver') return null;
   const ranked = Object.entries(totals).sort((a, b) => b[1] - a[1]);
-  return { winner: ranked[0][0], totals };
+  return { winner: ranked[0][0], totals, pdDiscards };
 }
 
 function series(label, difficulties, n) {
   const wins = {};
+  const pdByName = {};
   let played = 0;
   for (let i = 0; i < n; i++) {
     const r = playGame(difficulties);
     if (!r) continue;
     played += 1;
     wins[r.winner] = (wins[r.winner] || 0) + 1;
+    for (const [name, cnt] of Object.entries(r.pdDiscards || {})) {
+      pdByName[name] = (pdByName[name] || 0) + cnt;
+    }
   }
   const line = difficulties.map((d, i) => `${d}:${(((wins[`bot-${i}`] || 0) / played) * 100).toFixed(0)}%`).join(' ');
-  console.log(`${label} (${played} Partien): ${line}`);
+  const pdLine = difficulties.map((d, i) => `${d}:${((pdByName[`B${i}-${d}`] || 0) / played).toFixed(2)}`).join(' ');
+  console.log(`${label} (${played} Partien): ${line}  |  ♠Q-Abwürfe/Spiel: ${pdLine}`);
 }
 
 series("zen vs 3x hard  ", ["zen", "hard", "hard", "hard"], 130);

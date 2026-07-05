@@ -114,7 +114,14 @@ function dealCards(deck, playerIds, options = {}) {
   return { hands, drawPile, discardPile };
 }
 
+/** Exported for callers that need MORE seeded randomness than the shuffle
+ *  itself (e.g. the lucky cut in a daily-challenge deal). */
+function seededRandom(seed) {
+  return mulberry32(seed >>> 0);
+}
+
 module.exports = {
+  seededRandom,
   createDeck,
   shuffle,
   dealCards,

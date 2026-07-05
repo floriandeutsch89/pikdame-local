@@ -9,6 +9,15 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Changed
 - Zieh-Markierung final vereinfacht: Punkt/Balken komplett entfernt - der Glow-Effekt allein markiert die frisch gezogene Karte (heller Aufleucht-Moment, der in einen dezenten Rand-Schimmer ausklingt, bis die Karte gespielt wird)
 
+## [1.36.0] - 2026-07-04
+
+### Changed
+- Zen-Meister mit Damen-Disziplin: Der Endspiel-Modus warf ab "Gegner hat 4 Karten" stumpf die teuerste Karte ab - und mit 100 Punkten war das fast immer die Pik Dame, ein Geschenk an den Tisch. Jetzt gibt Zen sie nur noch als allerletzten Ausweg her (Gegner steht mit maximal 2 Karten vorm Ausmachen) UND nur, wenn kein Gegner sie per Regel-Simulation sofort an eine ausliegende Kombination anlegen könnte - reines Rechnen mit offenen Informationen. Gemessen über 330 Selbstspiele: ♠Q-Abwürfe pro Partie von medium-Niveau (~0,5) auf 0,21 gesenkt, Winrate gegen "Schwer" auf 35 % gestiegen (Bestwert, fair wären 25 %)
+- Selbstspiel-Werkzeug zählt jetzt ♠Q-Abwürfe pro Schwierigkeitsstufe mit - Damen-Verhalten ist ab sofort messbar statt gefühlt
+
+### Fixed
+- Tages-Challenge war nicht wirklich deterministisch: Das Abheben (Lucky Cut) würfelte seinen Schnittpunkt ungeseedet und verwürfelte damit einen Teil des eigentlich identischen Decks - je nach Schnittlage bekamen Spieler leicht unterschiedliche Hände. Der Cut wird jetzt im Challenge-Modus aus dem Runden-Seed abgeleitet: gleiche Abhebe-Zeremonie, garantiert gleiche Karten für alle. Aufgedeckt durch einen "unerklärlich" flackernden Determinismus-Test - der CI-Flake der letzten Releases war in Wahrheit dieser Bug
+
 ## [1.35.3] - 2026-07-04
 
 ### Changed

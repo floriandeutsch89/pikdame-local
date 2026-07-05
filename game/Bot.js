@@ -397,7 +397,18 @@ function chooseDiscard(hand, tableMelds = [], opts = {}) {
     // isolated (keine Kombi-Partner) zuerst pluendern, sonst candidates
     const panicPool = (isolated.length > 0 ? isolated : candidates.length > 0 ? candidates : nonJokers).slice();
     const withPd = hand.find((cd) => isPikDame(cd));
-    if (withPd && !panicPool.includes(withPd)) panicPool.push(withPd);
+    if (withPd && !panicPool.includes(withPd)) {
+      // Queen discipline: the 100 points on hand hurt, but GIFTING her
+      // hurts more - a discarded ♠Q makes the pile irresistible and can
+      // hand an opponent an instant +100 lay-off. She only becomes
+      // expendable as the VERY last resort: an opponent is one discard
+      // from going out (<=2 cards) AND nobody could attach her to a meld
+      // on the table (checked with the real rule simulation - open
+      // information, no cheating).
+      const opponentCanUseHer = tableMelds.some((meld) => tryLayOff(meld, withPd));
+      const lastResort = (opts.lowestOpponentHand || 99) <= 2;
+      if (lastResort && !opponentCanUseHer) panicPool.push(withPd);
+    }
     return panicPool.sort((a, b) => cardValue(b) - cardValue(a))[0];
   }
 
@@ -425,7 +436,7 @@ function chooseDiscard(hand, tableMelds = [], opts = {}) {
     const best = cardValue(pool[0]);
     const contenders = pool.filter((cd) => best - cardValue(cd) <= 5);
     contenders.sort((a, b) => dangerOf(a) - dangerOf(b) || potentialOf(a) - potentialOf(b));
-    return contenders[0] || pool[0] || hand[0];
+    return contenders[0] || pool[0] || hand.find((cd) => !isPikDame(cd) && !cd.isJoker) || hand[0];
   }
   return pool[0] || hand[0];
 }
