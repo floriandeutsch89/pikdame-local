@@ -44,3 +44,19 @@ test('i18n-Vertrag: Server-Muster sind gueltige RegExp-Paare', () => {
     assert.doesNotThrow(() => entry[0].test('probe')); // Muster ist anwendbar
   }
 });
+
+// --- v1.36.1: changelog ordering guard -------------------------------------------
+test('CHANGELOG: Versionen stehen streng absteigend (neueste ganz oben)', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const text = fs.readFileSync(path.join(__dirname, '..', 'CHANGELOG.md'), 'utf8');
+  const versions = [...text.matchAll(/^## \[(\d+)\.(\d+)\.(\d+)\]/gm)].map((m) =>
+    m.slice(1, 4).map(Number)
+  );
+  assert.ok(versions.length > 10, 'parser sanity');
+  for (let i = 1; i < versions.length; i++) {
+    const [a, b] = [versions[i - 1], versions[i]];
+    const newerFirst = a[0] > b[0] || (a[0] === b[0] && (a[1] > b[1] || (a[1] === b[1] && a[2] > b[2])));
+    assert.ok(newerFirst, `Reihenfolge kaputt: ${a.join('.')} steht vor ${b.join('.')}`);
+  }
+});
