@@ -68,16 +68,18 @@ test('Ausgetauschter Joker landet in retiredJokers, NICHT zurück auf der Hand',
   assert.ok(game.players[0].laidOutCards.some((c) => c.id === handCard.id));
 });
 
-test('"Hand aus" wird nur erkannt, wenn die Runde im allerersten Zug endet', () => {
+test('"Hand aus" verdoppelt, wenn der Gewinner vor seinem letzten Zug NICHTS liegen hatte', () => {
   const { game } = makeGame(2);
   game.setHouseRules({ handAusDoubles: true });
   game.phase = 'playing';
   game.turnPhase = 'meld';
   game.currentPlayerIndex = 0;
-  game.turnIndexInRound = 0; // allererster Zug der Runde
+  // Explicit turn-start snapshot as advanceTurn/startNewRound would set it:
+  // the winner had nothing on the table when this turn began.
+  game.players[0]._laidAtTurnStart = false;
 
   game.players[0].hand = [makeStandardCard('H', '7', 0)];
-  game.players[0].laidOutCards = [makeStandardCard('H', 'A', 0)]; // 20 Punkte
+  game.players[0].laidOutCards = [makeStandardCard('H', 'A', 0)]; // 20 Punkte (in DIESEM Zug gelegt)
   game.players[1].hand = [makeStandardCard('H', 'K', 0)]; // 10 Minuspunkte
   game.players[1].laidOutCards = [];
 
@@ -1457,4 +1459,63 @@ test('turn timer never fires for a disconnected human (grace owns the seat)', ()
   // (the disconnect had nulled it entirely).
   assert.ok(game.turnDeadline > Date.now() + 15 * 1000, 'fresh countdown after reconnect');
   game.destroy();
+});
+
+// --- v1.37.1: hand-aus definition + bot melds after pile pickup -----------------
+test('hand aus: whole hand down in ONE later turn doubles; earlier meld does not', () => {
+  const { makeStandardCard: mk } = require('../game/Card');
+  const build = (winnerLaidEarlier) => {
+    const g = new GameManager(() => {});
+    g.addOrReconnectPlayer('p1', 'A');
+    g.addOrReconnectPlayer('p2', 'B');
+    g.setHouseRules({ handAusDoubles: true });
+    g.startNewRound();
+    // simulate a few completed turns so we are far from turn 0
+    g.currentPlayerIndex = g.players.findIndex((p) => p.id === 'p2');
+    g.advanceTurn(); // -> p1's turn, snapshot taken with current flags
+    const p1 = g.players.find((p) => p.id === 'p1');
+    if (winnerLaidEarlier) {
+      p1._everLaidThisRound = true; // laid a set in an earlier turn
+      g.advanceTurn(); g.currentPlayerIndex = g.players.findIndex((p) => p.id === 'p1');
+      g.advanceTurn(); // fresh snapshot now sees the earlier meld
+      while (g.currentPlayer().id !== 'p1') g.advanceTurn();
+    }
+    g.turnPhase = 'meld';
+    p1.hand = [mk('H', '5', 0), mk('S', '5', 0), mk('C', '5', 1), mk('D', '9', 0)];
+    p1.laidOutCards = winnerLaidEarlier ? [mk('H', 'A', 0)] : [];
+    const meld = g.layoutMeld('p1', p1.hand.slice(0, 3).map((cd) => cd.id));
+    assert.equal(meld.error, undefined);
+    g.discard('p1', p1.hand[0].id);
+    return g;
+  };
+  const handAus = build(false);
+  assert.equal(handAus.lastRoundWasHandAus, true, 'first-and-only meld turn = hand aus');
+  assert.equal(handAus.lastRoundResult.p1.breakdown.multiplier, 2, 'doubling applied');
+  handAus.destroy();
+  const normal = build(true);
+  assert.equal(normal.lastRoundWasHandAus, false, 'earlier meld disqualifies');
+  normal.destroy();
+});
+
+test('bot melds cards that arrive with the pile REST in the same turn (three aces)', () => {
+  const { makeStandardCard: mk } = require('../game/Card');
+  const g = new GameManager(() => {});
+  g.addOrReconnectPlayer('p1', 'A');
+  g.setHouseRules({ botDifficulty: 'medium' });
+  g.fillWithBots();
+  g.phase = 'playing'; g.turnPhase = 'draw';
+  const botIdx = g.players.findIndex((p) => p.isBot);
+  g.currentPlayerIndex = botIdx;
+  const bot = g.players[botIdx];
+  bot.hand = [mk('H', '7', 0), mk('D', '7', 0), mk('S', '2', 0), mk('C', '9', 1)];
+  g.drawPile = [mk('C', '3', 0)];
+  // top seven forces the meld; the REST carries three aces
+  g.discardPile = [mk('S', '7', 0), mk('C', 'A', 0), mk('D', 'A', 0), mk('H', 'A', 0), mk('S', '10', 1)];
+  g.runBotTurn(bot.id);
+  const aceMeld = g.tableMelds.find(
+    (m) => m.ownerId === bot.id && m.slots.some((s) => s.real && s.real.rank === 'A')
+  );
+  assert.ok(aceMeld, 'aces from the pickup must hit the table in the SAME turn');
+  assert.ok(!bot.hand.some((cd) => cd.rank === 'A'), 'no ace left on the hand');
+  g.destroy();
 });
