@@ -459,8 +459,20 @@ function chooseDiscard(hand, tableMelds = [], opts = {}) {
     }
     const panicPotential =
       typeof opts._zenPotential === 'function' ? opts._zenPotential : () => 0;
+    // Optional Monte-Carlo term in the endgame dump: opts.mcRisk maps a card
+    // id to the sampled probability the NEXT player could build a fresh meld
+    // from it. When present it becomes the PRIMARY sort key (safety before
+    // raw value right before someone goes out); absent -> unchanged value
+    // sort. Tuned via scripts/sim-bots.js --mc.
+    const panicMc =
+      opts.mcRisk instanceof Map ? (card) => opts.mcRisk.get(card.id) || 0 : () => 0;
+    const panicMcWeight =
+      opts.mcRisk instanceof Map && typeof opts.mcWeight === 'number' ? opts.mcWeight : 0;
     return panicPool.sort(
-      (a, b) => cardValue(b) - cardValue(a) || panicPotential(a) - panicPotential(b)
+      (a, b) =>
+        panicMcWeight * panicMc(a) - panicMcWeight * panicMc(b) ||
+        cardValue(b) - cardValue(a) ||
+        panicPotential(a) - panicPotential(b)
     )[0];
   }
 
@@ -505,7 +517,16 @@ function chooseDiscard(hand, tableMelds = [], opts = {}) {
     // Verhalten, wenn kein Score-Kontext mitgegeben wird.
     const scoreLead = typeof opts.scoreLead === 'number' ? opts.scoreLead : 0;
     const dangerWeight = scoreLead >= 150 ? 4 : scoreLead <= -150 ? 2 : 3;
-    const riskOf = (card) => dangerOf(card) * dangerWeight + potentialOf(card) - declinedBonus(card);
+    // Optional Monte-Carlo term: opts.mcRisk maps a card id to the sampled
+    // probability [0,1] that the NEXT player could build a fresh meld from
+    // it (hidden information the counting terms above cannot see). Absent by
+    // default, so behaviour is unchanged unless a caller supplies it; the
+    // weight is tuned in self-play (scripts/sim-bots.js --mc).
+    const mcRisk =
+      opts.mcRisk instanceof Map ? (card) => opts.mcRisk.get(card.id) || 0 : () => 0;
+    const mcWeight = typeof opts.mcWeight === 'number' ? opts.mcWeight : 0;
+    const riskOf = (card) =>
+      dangerOf(card) * dangerWeight + potentialOf(card) - declinedBonus(card) + mcWeight * mcRisk(card);
     contenders.sort((a, b) => riskOf(a) - riskOf(b));
     return contenders[0] || pool[0] || hand.find((cd) => !isPikDame(cd) && !cd.isJoker) || hand[0];
   }
