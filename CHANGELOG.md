@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.39.1] - 2026-07-05
+
+### Added
+- Startseite verlinkt das öffentliche GitHub-Repository im Fußbereich (mit GitHub-Symbol, öffnet in neuem Tab) - wie es sich für ein Open-Source-Projekt gehört
+
 ## [1.39.0] - 2026-07-05
 
 ### Added
