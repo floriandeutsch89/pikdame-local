@@ -618,12 +618,34 @@
 
   function renderLobby() {
     const humanCount = lastState.players.filter((p) => !p.isBot).length;
+    const ready = new Set(lastState.lobbyReady || []);
     el('lobbyPlayers').innerHTML =
       `${lastState.players.length} Spieler am Tisch` +
       (lastState.players.length
-        ? '<br>' + lastState.players.map((p) => `${escapeHtml(p.name)}${p.isBot ? ' (Bot)' : ''}`).join(', ')
+        ? '<br>' +
+          lastState.players
+            .map((p) => `${!p.isBot && ready.has(p.id) ? '✅ ' : ''}${escapeHtml(p.name)}${p.isBot ? ' (Bot)' : ''}`)
+            .join(', ')
         : '');
-    el('startBtn').disabled = humanCount === 0;
+
+    // Ready check before a NEW game (and after a rematch): with 2+ humans
+    // everyone confirms first - the start button waits for the group.
+    const connectedHumans = lastState.players.filter((p) => !p.isBot && p.connected !== false);
+    const multiHuman = connectedHumans.length > 1;
+    const readyCount = connectedHumans.filter((p) => ready.has(p.id)).length;
+    const readyBtn = el('lobbyReadyBtn');
+    const iAmSeated = lastState.players.some((p) => p.id === playerId);
+    readyBtn.classList.toggle('hidden', !multiHuman || !iAmSeated);
+    if (multiHuman && iAmSeated) {
+      readyBtn.textContent = ready.has(playerId)
+        ? L('✅ Bereit - warte auf die anderen', '✅ Ready - waiting for the others')
+        : L('🖐️ Bereit melden', '🖐️ Mark me ready');
+    }
+    const allReady = !multiHuman || readyCount === connectedHumans.length;
+    el('startBtn').disabled = humanCount === 0 || !allReady;
+    el('startBtn').textContent = multiHuman
+      ? L(`Spiel starten (${readyCount}/${connectedHumans.length} bereit)`, `Start game (${readyCount}/${connectedHumans.length} ready)`)
+      : L('Spiel starten (fehlende Plätze = Bots)', 'Start game (empty seats = bots)');
 
     const hasJoined = lastState.players.some((p) => p.id === playerId);
     el('seatCountSection').classList.toggle('hidden', !hasJoined);
@@ -1803,6 +1825,8 @@
   el('challengeIntroOverlay').addEventListener('click', (ev) => {
     if (ev.target === el('challengeIntroOverlay')) el('challengeIntroOverlay').classList.add('hidden');
   });
+
+  el('lobbyReadyBtn').addEventListener('click', () => send({ type: 'lobbyReady' }));
 
   el('tutorialBtn').addEventListener('click', () => {
     tutorialActive = true;

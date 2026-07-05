@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.39.0] - 2026-07-05
+
+### Added
+- Bereitschafts-Check vor dem SPIELSTART (und vor jeder Revanche): Sitzen zwei oder mehr Menschen am Tisch, meldet sich jeder per 🖐️-Knopf bereit (Häkchen erscheint am Namen, Umentscheiden erlaubt) - der "Spiel starten"-Knopf zeigt "n/m bereit" und wird erst aktiv, wenn alle bestätigt haben; der Server erzwingt das zusätzlich. Solo gegen Bots startet wie gewohnt ohne Zeremonie. Nach einer Revanche melden sich alle frisch bereit
+
+### Changed
+- Auslagen liegen jetzt für alle identisch sortiert: Sätze nach Rang aufsteigend, Folgen nach ihrer Startkarte einsortiert (Joker zählen als das, was sie vertreten) - egal in welcher Reihenfolge ausgelegt wurde, und stabil ohne Springen bei jedem neuen Meld
+
 ## [1.38.0] - 2026-07-04
 
 ### Added

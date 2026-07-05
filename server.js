@@ -745,9 +745,19 @@ wss.on('connection', (ws, req) => {
 
     switch (msg.type) {
       case 'startGame': {
+        const gate = game.lobbyStartGate();
+        if (gate.error) {
+          sendError(ws, gate.error);
+          break;
+        }
         game.setHouseRules(msg.houseRules || {});
         game.fillWithBots();
         game.startNewRound();
+        break;
+      }
+      case 'lobbyReady': {
+        const r = game.markLobbyReady(playerId);
+        if (r && r.error) sendError(ws, r.error);
         break;
       }
       case 'setMaxSeats': {
