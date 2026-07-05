@@ -1453,11 +1453,35 @@ class GameManager {
     const myTotal = this.totals[botId] || 0;
     const opponentTotalsArr = this.players.filter((p) => p.id !== botId).map((p) => this.totals[p.id] || 0);
     const scoreLead = myTotal - (opponentTotalsArr.length ? Math.max(...opponentTotalsArr) : 0);
+    // Experimental Monte-Carlo discard risk (only when the seat opts in via
+    // cp.mcEnabled - set by the self-play harness, never in production). In
+    // the endgame it samples the next player's hidden hand and estimates the
+    // chance each candidate discard hands them a fresh meld. Engine stays
+    // pure: Bot.chooseDiscard merely blends the returned map.
+    let mcRisk;
+    let mcWeight;
+    if (cp.mcEnabled && lowestOpponentHand <= 4) {
+      const MonteCarlo = require('./MonteCarlo');
+      const next = this.players[(this.currentPlayerIndex + 1) % this.players.length];
+      if (next && next.id !== botId) {
+        mcRisk = MonteCarlo.discardMeldRisk({
+          ownHand: cp.hand,
+          visibleCards,
+          nextHandSize: next.hand.length,
+          nextKnownCards: (this.publicKnownHands && this.publicKnownHands[next.id]) || [],
+          candidates: cp.hand.filter((c) => !c.isJoker),
+          samples: cp.mcSamples || 200,
+        });
+        mcWeight = typeof cp.mcWeight === 'number' ? cp.mcWeight : 6;
+      }
+    }
     let discardCard = Bot.chooseDiscard(cp.hand, foreignMelds, {
       difficulty,
       scoreLead,
       visibleCards,
       opponentKnownCards,
+      mcRisk,
+      mcWeight,
       // What the NEXT player recently spurned from the pile top: those
       // ranks are (probably) safe to throw at them.
       nextPlayerDeclined: (() => {

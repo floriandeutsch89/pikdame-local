@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.43.1] - 2026-07-05
+
+### Investigated, not shipped
+- Monte-Carlo-Simulation über verdeckte Gegnerhände (200 Samples, konsistent mit der Kartenzählung): Ein neues, getestetes Modul (game/MonteCarlo.js) zieht aus dem öffentlichen Wissen den unsichtbaren Kartenpool, verteilt ihn regelkonform auf die Gegner und schätzt für jeden Abwurf-Kandidaten die Wahrscheinlichkeit, dass der nächste Spieler damit eine NEUE Kombination bilden könnte - genau die verdeckte Information, die keine Heuristik kennt. Im Selbstspiel gemessen (Batch-Varianz, mehrere Hundert Partien, Vier- UND Zweispieler): kein statistisch belastbarer Effekt (+0,6 Punkte bei 0,2 Sigma - reines Rauschen). Grund: Die bestehenden deterministischen Zen-Bausteine (Vorfilter für anlegbare Karten und Damen-Köder, erschöpfungsbewusstes Kombinations-Potenzial, dreifach gewichtete beobachtete Gegnerkarten) leiten dasselbe Signal bereits ab - MC berechnet es teurer neu, ohne neue Erkenntnis. Modul, Sampler und das A/B-Messwerkzeug (scripts/sim-bots.js --mc) bleiben getestet im Code für spätere, grundlegend andere Ansätze (z. B. vollständige Ausspiel-Rollouts bis Rundenende); die Produktion ist unberührt (nur aktiv, wenn ein Bot-Sitz das Flag ausdrücklich setzt, was ausschließlich das Sim-Werkzeug tut)
+
 ## [1.43.0] - 2026-07-05
 
 ### Added
