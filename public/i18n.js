@@ -215,7 +215,7 @@ window.I18N_RULES_EN = `
   <ul>
     <li><b>1. Draw:</b> one card from the draw pile – OR the top discard, but only if it can form a new combination with your hand. Then you must <b>meld it immediately</b>; only afterwards do you receive the entire rest of the discard pile.</li>
     <li><b>2. Meld &amp; add</b> (as often as you like): lay down combinations, add single cards or swap jokers – <b>only on your own melds</b>. Other players' melds are off limits!</li>
-    <li><b>3. Discard:</b> exactly one card onto the discard pile – your turn ends. <b>Going out works only this way:</b> even your last card must be discarded – you can never meld everything without keeping one card to discard.</li>
+    <li><b>3. Discard:</b> exactly one card onto the discard pile – your turn ends. <b>Going out:</b> your last card is discarded <b>face down</b> – nobody can pick it up. So you can never meld everything; at least one card stays for the discard. Single exception: swapping a joker out of your own meld with your very last hand card ends the round immediately.</li>
   </ul>
 
   <h3>Combinations</h3>
@@ -234,12 +234,20 @@ window.I18N_RULES_EN = `
   <ul>
     <li>2–9 = 5 &nbsp;·&nbsp; 10, Jack, Queen, King = 10 &nbsp;·&nbsp; Ace &amp; Joker = 20 &nbsp;·&nbsp; <b>Queen of Spades = 100</b></li>
     <li>End of round: the winner scores their melds. Everyone else: melds count <b>plus</b>, remaining hand cards count <b>minus</b> – a Queen of Spades left in hand costs 100!</li>
-    <li><b>Out in one</b> (everything in your very first turn): doubles the round score if the house rule is active.</li>
+    <li><b>Out in one ("Hand aus"):</b> if the winner had nothing melded before their final turn and sheds the entire hand in one go, the round score doubles for everyone – when the house rule is active.</li>
+  </ul>
+
+  <h3>House rules (chosen when creating a game)</h3>
+  <ul>
+    <li><b>Bot difficulty:</b> Easy up to Zen master – adjustable per bot, too (tap the icon on a bot).</li>
+    <li><b>⏱ Turn timer:</b> 30/60/90 seconds per turn. When time runs out, the bot logic finishes that turn fairly – the table never waits forever.</li>
+    <li><b>Out in one counts double</b> (see scoring).</li>
+    <li><b>Strict 1000:</b> victory only once someone is above 1000 points.</li>
   </ul>
 
   <h3>Game end &amp; misc</h3>
   <ul>
     <li>The game ends once someone reaches 1000 points (strict house rule: only above 1000). The highest score wins.</li>
-    <li>If nobody can draw, the round ends (stalemate). Use 🏳️ to forfeit a round.</li>
+    <li>When the draw pile is empty, the discard pile (except its top card) is reshuffled and relaid. Once both are exhausted – or nothing new hits the table for many turns – the round ends in a draw: everyone scores normally, nobody gets the winner bonus. Use 🏳️ to forfeit a round.</li>
   </ul>
 `;

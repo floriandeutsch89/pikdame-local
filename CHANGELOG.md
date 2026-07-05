@@ -4,6 +4,16 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.40.0] - 2026-07-05
+
+### Added
+- Spielregeln um einen Hausregeln-Abschnitt ergänzt (Bot-Schwierigkeit inkl. Einzelbot-Umstellung, ⏱ Zug-Timer, Hand-aus-Verdopplung, 1000 streng) - deutsch und englisch synchron
+- Impressum & Datenschutzerklärung jetzt zusätzlich vollständig auf Englisch (Courtesy-Übersetzung unter dem deutschen Original; rechtlich maßgeblich bleibt die deutsche Fassung)
+- Animierter Lobby-Auftritt: Das ♠-Emblem flippt mit dezentem Überschwung herein, der Titel steigt auf, ein einmaliger Glanz zieht durch - läuft genau einmal pro Laden, respektiert die Bewegungs-Reduzierung des Systems
+
+### Fixed
+- Regeltext ans tatsächliche Spiel angeglichen ("Offline-Kartenspiel-Prüfung"): Der letzte Abwurf beim Ausmachen liegt VERDECKT (stand nirgends), die Joker-Tausch-Ausnahme beim Ausmachen fehlte, "Hand aus" beschrieb noch die alte falsche Definition (allererster Zug der Runde statt "vorher nichts ausgelegt"), und das Nachmischen des Ablagestapels bei leerem Nachziehstapel war gar nicht erklärt - jetzt steht auch, dass die oberste Karte dabei liegen bleibt und wann eine Runde unentschieden endet
+
 ## [1.39.1] - 2026-07-05
 
 ### Added

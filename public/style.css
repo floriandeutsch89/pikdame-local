@@ -1672,3 +1672,43 @@ input:disabled { opacity: 0.65; }
 /* --- GitHub footer link (v1.39.1) ----------------------------------------------- */
 .githubLink { display: inline-flex; align-items: center; gap: 5px; }
 .githubLink svg { opacity: 0.85; }
+
+/* --- Lobby logo entrance (v1.40.0): runs ONCE per load ------------------------- */
+#lobby h1 {
+  position: relative;
+  overflow: hidden;
+  perspective: 600px;
+  animation: logoRise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+#lobby h1 .spade {
+  display: inline-block;
+  transform-origin: 50% 60%;
+  animation: spadeFlipIn 0.9s cubic-bezier(0.2, 0.8, 0.2, 1.15) both;
+}
+#lobby h1::after {
+  /* one elegant sheen sweep after the letters settled */
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0; left: 0;
+  width: 55%;
+  background: linear-gradient(105deg, transparent 20%, rgba(255,255,255,0.28) 50%, transparent 80%);
+  transform: translateX(-160%) skewX(-12deg);
+  animation: logoSheen 0.9s ease-out 0.85s 1 both;
+  pointer-events: none;
+}
+@keyframes logoRise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes spadeFlipIn {
+  from { opacity: 0; transform: rotateY(-140deg) scale(0.6); }
+  60% { opacity: 1; }
+  to { opacity: 1; transform: rotateY(0) scale(1); }
+}
+@keyframes logoSheen {
+  to { transform: translateX(320%) skewX(-12deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #lobby h1, #lobby h1 .spade, #lobby h1::after { animation: none; }
+  #lobby h1::after { display: none; }
+}
