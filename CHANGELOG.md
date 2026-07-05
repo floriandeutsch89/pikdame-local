@@ -4,6 +4,12 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.37.1] - 2026-07-04
+
+### Fixed
+- Bots legen Kombinationen aus einer Stapelaufnahme jetzt noch im SELBEN Zug: Der Rest des Ablagestapels landet regelbedingt erst nach dem Pflicht-Legen auf der Hand - die Meld-Planung lief aber nur einmal davor, sodass frisch aufgenommene Sätze (drei Asse!) bis zum nächsten eigenen Zug liegen blieben und bei Rundenende Minuspunkte kosteten. Die Planung läuft jetzt in Durchgängen, bis nichts Neues mehr passt (Regressionstest: die drei Asse aus dem Stapel liegen nach dem Zug auf dem Tisch)
+- "Hand aus zählt doppelt" verdoppelt jetzt wirklich: Die Erkennung verlangte bisher ein Rundenende im allerersten Zug der GESAMTEN Runde - praktisch unmöglich, die Regel (und das Hand-aus-Abzeichen) griffen daher nie. Korrekte Definition: Der Gewinner hatte vor seinem letzten Zug noch nichts ausgelegt und legt alles in einem Rutsch - unabhängig davon, in welchem Zug der Runde das passiert
+
 ## [1.37.0] - 2026-07-04
 
 ### Changed

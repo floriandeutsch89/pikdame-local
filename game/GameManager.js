@@ -39,7 +39,11 @@ class GameManager {
     this.currentPlayerIndex = 0;
     this.dealerIndex = 0;
     this.explicitDealerSet = false;
-    this.turnPhase = 'draw'; // draw | meld
+    this.turnPhase = 'draw';
+    {
+      const np = this.currentPlayer();
+      if (np) np._laidAtTurnStart = !!np._everLaidThisRound;
+    } // draw | meld
     this.turnIndexInRound = 0; // 0 = allererster Zug der laufenden Runde (für "Hand aus")
     this.mustLayOffCardId = null; // gesetzt, wenn die oberste Ablagekarte aufgenommen wurde
     this.pendingDiscardRest = false; // Phase 2 der Ablagestapel-Aufnahme steht noch aus
@@ -315,7 +319,9 @@ class GameManager {
 
     for (const p of this.players) {
       p.hand = hands[p.id];
-      p.laidOutCards = []; // für Punkteabrechnung am Rundenende
+      p.laidOutCards = [];
+      p._everLaidThisRound = false;
+      p._laidAtTurnStart = false; // für Punkteabrechnung am Rundenende
     }
     if (cutter && luckyCards.length > 0) {
       cutter.hand.push(...luckyCards);
@@ -324,6 +330,10 @@ class GameManager {
     this.discardPile = discardPile;
     this.currentPlayerIndex = this.players.length > 0 ? (this.dealerIndex + 1) % this.players.length : 0;
     this.turnPhase = 'draw';
+    {
+      const np = this.currentPlayer();
+      if (np) np._laidAtTurnStart = !!np._everLaidThisRound;
+    }
     this.turnIndexInRound = 0;
     this.mustLayOffCardId = null;
     this.pendingDiscardRest = false;
@@ -372,6 +382,10 @@ class GameManager {
     }
     this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
     this.turnPhase = 'draw';
+    {
+      const np = this.currentPlayer();
+      if (np) np._laidAtTurnStart = !!np._everLaidThisRound;
+    }
     this.mustLayOffCardId = null;
     this.pendingDiscardRest = false;
     this.turnIndexInRound += 1;
@@ -577,6 +591,7 @@ class GameManager {
 
     player.hand = player.hand.filter((c) => !cardIds.includes(c.id));
     for (const cid of cardIds) this._publicMemoryRemove(player.id, cid);
+    player._everLaidThisRound = true;
     player.laidOutCards.push(...cards);
 
     if (this.mustLayOffCardId && cardIds.includes(this.mustLayOffCardId)) {
@@ -845,7 +860,16 @@ class GameManager {
     // "Hand aus": Der Gewinner hat im allerersten Zug der Runde (turnIndexInRound
     // war noch nie erhöht worden) seine komplette Hand ausgelegt und abgeworfen.
     // Gilt nur, wenn es überhaupt einen echten Gewinner gibt (nicht bei "Aufgeben").
-    const isHandAus = !!winnerId && this.turnIndexInRound === 0;
+    // "Hand aus": the winner had NOTHING laid out before this very turn -
+    // the whole hand went down in one go. The old check (turnIndexInRound
+    // === 0 = round ends on the very first turn of the round) was
+    // practically never true, so the doubling rule and the hand-aus badge
+    // never fired (player report).
+    const winnerPlayer = winnerId ? this.players.find((p) => p.id === winnerId) : null;
+    // Strict === false: the snapshot is guaranteed in real play (set at
+    // round start and every turn change); anything undefined (hand-built
+    // states) conservatively gives NO doubling.
+    const isHandAus = !!(winnerPlayer && winnerPlayer._laidAtTurnStart === false);
     const roundResult = scoreRound(winnerId, playersData, { isHandAus, houseRules: this.houseRules });
     this.totals = applyRoundScores(this.totals, roundResult);
     this.lastRoundResult = roundResult;
@@ -1168,6 +1192,86 @@ class GameManager {
     return !player.disconnectedAt || Date.now() - player.disconnectedAt >= GameManager.TAKEOVER_GRACE_MS;
   }
 
+  /** One plan-and-execute pass of the bot's meld phase. Returns the number
+   *  of cards that left the hand, or -1 if the round ended mid-pass. Called
+   *  in a loop by runBotTurn: a discard-pile pickup lands the REST of the
+   *  pile on the hand only AFTER the forced meld resolves, so a single
+   *  pass missed freshly arrived combos (player report: three aces from a
+   *  swallowed pile sat on the zen bot's hand until the round ended). */
+  _runBotMeldPass(cp, botId, difficulty, passIndex) {
+    let actions = 0;
+    const meldPlan = Bot.planBotMelds(
+      cp.hand,
+      this.tableMelds.filter((m) => m.ownerId === botId).map((m) => ({ ...m, slots: m.slots.slice() }))
+    );
+
+    // SOFORT-Regel: Enthält ein geplantes Meld die Pflichtkarte aus der
+    // Ablagestapel-Aufnahme, muss es als ERSTES gelegt werden - sonst
+    // blockiert der Guard alle anderen Aktionen.
+    if (this.mustLayOffCardId) {
+      meldPlan.newMelds.sort((a, b) => {
+        const aHas = a.some((card) => card.id === this.mustLayOffCardId) ? 0 : 1;
+        const bHas = b.some((card) => card.id === this.mustLayOffCardId) ? 0 : 1;
+        return aHas - bHas;
+      });
+    }
+
+    // Leichte Bots schieben das Auslegen oft auf (wie zögerliche Anfänger) -
+    // außer eine Pflichtkarte MUSS gelegt werden.
+    if (passIndex === 0 && difficulty === 'easy' && !this.mustLayOffCardId && Math.random() < 0.4) {
+      meldPlan.newMelds = [];
+      meldPlan.layOffs = [];
+    }
+
+    for (const meldCards of meldPlan.newMelds) {
+      // Doppel-Satz-Regel: Plant der Bot einen Satz, dessen Wert er schon
+      // als Satz liegen hat, legt er die Karten stattdessen dort AN.
+      const realRanks = [...new Set(meldCards.filter((cd) => !cd.isJoker).map((cd) => cd.rank))];
+      if (realRanks.length === 1) {
+        const existingSet = this.tableMelds.find(
+          (m) => m.ownerId === botId && m.type === 'set' && m.rank === realRanks[0]
+        );
+        if (existingSet) {
+          for (const cd of meldCards) {
+            if (!cp.hand.find((h) => h.id === cd.id)) continue;
+            let lr = this.layOffCard(botId, existingSet.id, cd.id);
+            if (lr && lr.ambiguous) {
+              const choice = lr.options[0];
+              lr = this.layOffCard(botId, existingSet.id, cd.id, choice.asSuit, choice.side);
+            }
+            if (lr && !lr.error) actions += 1;
+            if (this.phase !== 'playing') return -1;
+          }
+          continue;
+        }
+      }
+      const ids = meldCards.map((c) => c.id);
+      let r = this.layoutMeld(botId, ids);
+      if (r && r.ambiguous) {
+        // Bots brauchen keinen UI-Prompt - sie nehmen einfach die erste
+        // (kanonische) Interpretation.
+        r = this.layoutMeld(botId, ids, r.options[0].jokerAssignments);
+      }
+      if (r && !r.error) actions += ids.length;
+      if (this.phase !== 'playing') return -1;
+    }
+
+    for (const lo of meldPlan.layOffs) {
+      const stillHas = cp.hand.find((c) => c.id === lo.card.id);
+      if (!stillHas) continue;
+      let r = this.layOffCard(botId, lo.meldId, lo.card.id);
+      if (r && r.ambiguous) {
+        const choice = r.options[0];
+        r = this.layOffCard(botId, lo.meldId, lo.card.id, choice.asSuit, choice.side);
+      }
+      if (r && !r.error) actions += 1;
+      if (this.phase !== 'playing') return -1;
+    }
+
+    if (this.phase !== 'playing') return -1;
+    return actions;
+  }
+
   runBotTurn(botId, opts = {}) {
     if (this.phase !== 'playing') return;
     const cp = this.currentPlayer();
@@ -1233,72 +1337,15 @@ class GameManager {
     }
     if (this.phase !== 'playing') return; // Sicherheitscheck, falls die Runde inzwischen endete
 
-    const meldPlan = Bot.planBotMelds(
-      cp.hand,
-      this.tableMelds.filter((m) => m.ownerId === botId).map((m) => ({ ...m, slots: m.slots.slice() }))
-    );
-
-    // SOFORT-Regel: Enthält ein geplantes Meld die Pflichtkarte aus der
-    // Ablagestapel-Aufnahme, muss es als ERSTES gelegt werden - sonst
-    // blockiert der Guard alle anderen Aktionen.
-    if (this.mustLayOffCardId) {
-      meldPlan.newMelds.sort((a, b) => {
-        const aHas = a.some((card) => card.id === this.mustLayOffCardId) ? 0 : 1;
-        const bHas = b.some((card) => card.id === this.mustLayOffCardId) ? 0 : 1;
-        return aHas - bHas;
-      });
+    // Plan/execute in passes until nothing new fits (max 4 as a hard cap):
+    // pass 1 lays the forced meld and triggers the pile pickup, pass 2 puts
+    // the freshly arrived cards to work, pass 3 confirms exhaustion.
+    for (let pass = 0; pass < 4; pass++) {
+      const acted = this._runBotMeldPass(cp, botId, difficulty, pass);
+      if (acted < 0) return; // round ended mid-pass
+      if (acted === 0) break;
     }
 
-    // Leichte Bots schieben das Auslegen oft auf (wie zögerliche Anfänger) -
-    // außer eine Pflichtkarte MUSS gelegt werden.
-    if (difficulty === 'easy' && !this.mustLayOffCardId && Math.random() < 0.4) {
-      meldPlan.newMelds = [];
-      meldPlan.layOffs = [];
-    }
-
-    for (const meldCards of meldPlan.newMelds) {
-      // Doppel-Satz-Regel: Plant der Bot einen Satz, dessen Wert er schon
-      // als Satz liegen hat, legt er die Karten stattdessen dort AN.
-      const realRanks = [...new Set(meldCards.filter((cd) => !cd.isJoker).map((cd) => cd.rank))];
-      if (realRanks.length === 1) {
-        const existingSet = this.tableMelds.find(
-          (m) => m.ownerId === botId && m.type === 'set' && m.rank === realRanks[0]
-        );
-        if (existingSet) {
-          for (const cd of meldCards) {
-            if (!cp.hand.find((h) => h.id === cd.id)) continue;
-            let lr = this.layOffCard(botId, existingSet.id, cd.id);
-            if (lr && lr.ambiguous) {
-              const choice = lr.options[0];
-              this.layOffCard(botId, existingSet.id, cd.id, choice.asSuit, choice.side);
-            }
-            if (this.phase !== 'playing') return;
-          }
-          continue;
-        }
-      }
-      const ids = meldCards.map((c) => c.id);
-      let r = this.layoutMeld(botId, ids);
-      if (r && r.ambiguous) {
-        // Bots brauchen keinen UI-Prompt - sie nehmen einfach die erste
-        // (kanonische) Interpretation.
-        r = this.layoutMeld(botId, ids, r.options[0].jokerAssignments);
-      }
-      if (this.phase !== 'playing') return;
-    }
-
-    for (const lo of meldPlan.layOffs) {
-      const stillHas = cp.hand.find((c) => c.id === lo.card.id);
-      if (!stillHas) continue;
-      let r = this.layOffCard(botId, lo.meldId, lo.card.id);
-      if (r && r.ambiguous) {
-        const choice = r.options[0];
-        r = this.layOffCard(botId, lo.meldId, lo.card.id, choice.asSuit, choice.side);
-      }
-      if (this.phase !== 'playing') return;
-    }
-
-    if (this.phase !== 'playing') return;
 
     // Prio 1 für Bots: Pik-Dame/Joker niemals unnötig auf der Hand behalten.
     const foreignMelds = this.tableMelds.filter((m) => m.ownerId !== botId);
