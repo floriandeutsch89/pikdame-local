@@ -1,6 +1,6 @@
 // game/Bot.js
 const { rankIndex, isPikDame, cardValue, RANKS, SUITS } = require('./Card');
-const { validateMeld, tryLayOff, canFormMeldWithCard, enumerateMeldOptions } = require('./Rules');
+const { validateMeld, tryLayOff, tryJokerSwap, canFormMeldWithCard, enumerateMeldOptions } = require('./Rules');
 
 /**
  * Die Bot-KI ist heuristisch (kein perfekter Solver), aber regelkonform und
@@ -188,6 +188,51 @@ function findHandMelds(hand) {
  * tableMelds: Array von Meld-Objekten (siehe Rules.js)
  * Gibt { layOffs: [{meldId, card}], updatedHand } zurück.
  */
+/**
+ * Joker-Ausstieg: prueft, ob Handkarten exakt in einen Joker-Slot der
+ * EIGENEN Auslagen passen (Rang UND Farbe muessen stimmen - ein Joker
+ * vertritt eine ganz bestimmte Karte). GameManager.swapJoker erlaubt das
+ * jederzeit (keine "eine Karte muss fuer den Abwurf bleiben"-Sperre wie bei
+ * layOffCard/layoutMeld) - mit der letzten Handkarte beendet der Tausch die
+ * Runde sofort. Bots nutzten das bisher NIE: Gewinnzuege blieben liegen.
+ */
+function findJokerSwaps(hand, tableMelds) {
+  let pool = hand.slice();
+  const swaps = [];
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const card of pool.slice()) {
+      if (card.isJoker) continue;
+      for (const meld of tableMelds) {
+        const result = tryJokerSwap(meld, card);
+        if (result) {
+          swaps.push({ meldId: meld.id, card });
+          pool = pool.filter((c) => c.id !== card.id);
+          meld.slots = result.meld.slots; // Slot fuer weitere Pruefungen konsumiert
+          changed = true;
+          break;
+        }
+      }
+      if (changed) break;
+    }
+  }
+  return { swaps, updatedHand: pool };
+}
+
+/**
+ * Verrat-Check fuers Blockieren (v1.43.0): wuerde das Legen dieser Karten
+ * als neue Auslage einer der uebergebenen KNOWN-Karten sofort einen
+ * Anlege-Platz verschaffen? Nur fuer NEUE Melds (nicht fuer Anlegen an
+ * Bestehendes) und nur mit oeffentlich bekannten Karten - kein Raten.
+ */
+function meldWouldGiveKnownLayOff(meldCards, dangerousKnownCards) {
+  if (!dangerousKnownCards || dangerousKnownCards.length === 0) return false;
+  const built = validateMeld(meldCards);
+  if (!built.valid) return false;
+  return dangerousKnownCards.some((card) => tryLayOff(built, card) !== null);
+}
+
 function findLayOffs(hand, tableMelds) {
   let pool = hand.slice();
   const layOffs = [];
@@ -452,7 +497,15 @@ function chooseDiscard(hand, tableMelds = [], opts = {}) {
     // exist, hence a small weight against the danger scale).
     const declined = Array.isArray(opts.nextPlayerDeclined) ? opts.nextPlayerDeclined : [];
     const declinedBonus = (card) => (declined.some((d) => d.rank === card.rank) ? 2 : 0);
-    const riskOf = (card) => dangerOf(card) * 3 + potentialOf(card) - declinedBonus(card);
+    // Punktestand-Bewusstsein (v1.43.0): komfortabel in Fuehrung schuetzt
+    // die Fuehrung noch etwas staerker (Gefahren-Gewicht hoch), deutlich im
+    // Rueckstand nimmt er relativ mehr Risiko in Kauf, um schneller
+    // abzubauen. Bei ausgeglichenem Stand (der Normalfall, inkl. Runde 1
+    // jeder Partie) bleibt das Gewicht exakt wie zuvor - unveraendertes
+    // Verhalten, wenn kein Score-Kontext mitgegeben wird.
+    const scoreLead = typeof opts.scoreLead === 'number' ? opts.scoreLead : 0;
+    const dangerWeight = scoreLead >= 150 ? 4 : scoreLead <= -150 ? 2 : 3;
+    const riskOf = (card) => dangerOf(card) * dangerWeight + potentialOf(card) - declinedBonus(card);
     contenders.sort((a, b) => riskOf(a) - riskOf(b));
     return contenders[0] || pool[0] || hand.find((cd) => !isPikDame(cd) && !cd.isJoker) || hand[0];
   }
@@ -486,15 +539,18 @@ function planBotMelds(hand, tableMeldsSnapshot) {
   }
 
   const { layOffs, updatedHand } = findLayOffs(remainingHand, tableMeldsSnapshot);
+  const { swaps: jokerSwaps, updatedHand: afterSwaps } = findJokerSwaps(updatedHand, tableMeldsSnapshot);
 
-  const discard = chooseDiscard(updatedHand);
+  const discard = chooseDiscard(afterSwaps);
 
-  return { newMelds, layOffs, discard, finalHand: updatedHand };
+  return { newMelds, layOffs, jokerSwaps, discard, finalHand: afterSwaps };
 }
 
 module.exports = {
   findHandMelds,
   findLayOffs,
+  findJokerSwaps,
+  meldWouldGiveKnownLayOff,
   decideDraw,
   chooseDiscard,
   planBotTurn,

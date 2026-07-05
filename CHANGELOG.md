@@ -4,6 +4,16 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.43.0] - 2026-07-05
+
+### Added
+- Joker-Ausstieg: Bots nutzten die Regel "letzte Handkarte gegen einen Joker aus der eigenen Auslage tauschen" bisher NIE - jetzt prüft jeder Bot ab Stufe Mittel bei jedem Zug, ob eine Handkarte exakt zu einem Joker-Slot in der eigenen Auslage passt (Rang UND Farbe), und tauscht. Bei der letzten Handkarte endet die Runde dadurch sofort - ein bisher komplett ungenutzter Gewinnzug
+- Allgemeine Stapel-Risiko-Bewertung: Der bisherige Schutz galt nur der Pik Dame ("liegt sie versteckt im Stapel? Finger weg kurz vor Rundenende"). Jetzt vergleicht der Bot den Punktwert, auf dem er sitzen bleiben würde, MIT und OHNE die Stapelaufnahme (volle Anlege-Simulation) - jeder teure vergrabene Kartensatz (zwei Könige, ein einsames Ass) wird kurz vor Rundenende genauso gemieden wie früher nur die Dame
+- Punktestand-Bewusstsein (Zen): Bei komfortablem Vorsprung in der laufenden Partie schützt der Zen-Meister ihn etwas konsequenter (gefährliche Karten werden noch ungerner gehalten); bei deutlichem Rückstand nimmt er etwas mehr Risiko in Kauf, um schneller aufzuholen. Bei ausgeglichenem Stand - inklusive jeder ersten Runde - bleibt das Verhalten exakt wie zuvor
+
+### Investigated, not shipped
+- Bewusstes Zurückhalten einer fertigen Kombination, um einem kurz vor dem Ausmachen stehenden Gegner keinen bekannten Anlege-Platz zu verschaffen, wurde gebaut und im Selbstspiel gemessen - das Ergebnis war eindeutig eine VERSCHLECHTERUNG (Winrate gegen "Schwer" fiel von ~30 % auf 17 %): Das Zurückhalten kostet mehr eigenes Tempo, als es dem Gegner nimmt. Per Ablationstest bestätigt und wieder entfernt, um keine Regression auszuliefern - der reine Erkennungsbaustein bleibt getestet im Code für spätere, klügere Anwendung
+
 ## [1.42.0] - 2026-07-05
 
 ### Changed

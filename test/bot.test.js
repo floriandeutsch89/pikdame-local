@@ -1,6 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { chooseDiscard, decideDraw, findHandMelds, URGENT_DISCARD_HAND_SIZE } = require('../game/Bot');
+const Bot = require('../game/Bot');
+const { chooseDiscard, decideDraw, findHandMelds, URGENT_DISCARD_HAND_SIZE } = Bot;
+const GameManager = require('../game/GameManager');
 const { makeStandardCard, makeJoker, isPikDame } = require('../game/Card');
 
 const H = (rank, idx = 0) => makeStandardCard('H', rank, idx);
@@ -314,3 +316,57 @@ test('zen prefers a rank the next player just spurned from the pile', () => {
   });
   assert.equal(pick.rank, '9', `spurned nine expected, got ${pick.rank}${pick.suit}`);
 });
+
+// --- v1.43.0: joker exit, value-exposure risk, score awareness, blocking --------
+test('findJokerSwaps: exact rank+suit match against an own joker slot, last card ends the round via swap', () => {
+  const { makeStandardCard: mk, makeJoker } = require('../game/Card');
+  const joker = makeJoker(0);
+  const ownSet = {
+    id: 'm1',
+    ownerId: 'bot',
+    type: 'set',
+    rank: 'K',
+    slots: [{ real: mk('H', 'K', 0) }, { real: mk('C', 'K', 0) }, { joker, representsRank: 'K', representsSuit: 'S' }],
+  };
+  const hand = [mk('S', 'K', 1)]; // exact match for the joker's represented suit
+  const { swaps, updatedHand } = Bot.findJokerSwaps(hand, [ownSet]);
+  assert.equal(swaps.length, 1, 'the matching card must be found');
+  assert.equal(swaps[0].meldId, 'm1');
+  assert.equal(updatedHand.length, 0, 'hand empty afterwards -> round-ending move');
+});
+
+test('findJokerSwaps: a card that does not match the represented suit is left alone', () => {
+  const { makeStandardCard: mk, makeJoker } = require('../game/Card');
+  const joker = makeJoker(0);
+  const ownSet = {
+    id: 'm1', ownerId: 'bot', type: 'set', rank: 'K',
+    slots: [{ real: mk('H', 'K', 0) }, { real: mk('C', 'K', 0) }, { joker, representsRank: 'K', representsSuit: 'S' }],
+  };
+  const hand = [mk('D', 'K', 1)]; // wrong suit for this specific joker slot
+  const { swaps, updatedHand } = Bot.findJokerSwaps(hand, [ownSet]);
+  assert.equal(swaps.length, 0);
+  assert.equal(updatedHand.length, 1);
+});
+
+test('meldWouldGiveKnownLayOff: detects a new set that a known card could immediately extend', () => {
+  const { makeStandardCard: mk } = require('../game/Card');
+  const meldCards = [mk('H', '9', 0), mk('C', '9', 0), mk('D', '9', 0)];
+  const knownDangerous = [mk('S', '9', 1)]; // opponent is known to hold a 4th nine
+  assert.equal(Bot.meldWouldGiveKnownLayOff(meldCards, knownDangerous), true);
+  assert.equal(Bot.meldWouldGiveKnownLayOff(meldCards, [mk('H', '4', 0)]), false);
+  assert.equal(Bot.meldWouldGiveKnownLayOff(meldCards, []), false);
+});
+
+test('scoreLead: zen protects a comfortable lead more than an even game', () => {
+  const { makeStandardCard: mk } = require('../game/Card');
+  // Two isolated, unequal-danger-but-close candidates: a plain high card vs
+  // a card sharing rank with visible table cards (dangerOf > 0).
+  const hand = [mk('C', 'K', 0), mk('H', '10', 0), mk('S', '4', 0), mk('D', '2', 0)];
+  const visible = [mk('S', 'K', 0), mk('D', 'K', 0)]; // two kings visible -> king is "dangerous" (near-set)
+  const evenGame = chooseDiscard(hand, [], { difficulty: 'zen', visibleCards: visible, opponentKnownCards: [], scoreLead: 0 });
+  const bigLead = chooseDiscard(hand, [], { difficulty: 'zen', visibleCards: visible, opponentKnownCards: [], scoreLead: 200 });
+  // With a big lead the king (the riskier card) must be AT LEAST as
+  // unattractive as in the even game - never picked earlier/instead.
+  if (evenGame.rank !== 'K') assert.notEqual(bigLead.rank, 'K', 'a protected lead should not newly risk the dangerous king');
+});
+

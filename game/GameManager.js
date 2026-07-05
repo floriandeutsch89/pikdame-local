@@ -2,7 +2,7 @@
 const { seededRandom, createDeck, shuffle, dealCards, performLuckyCut } = require('./Deck');
 const { validateMeld, tryLayOff, tryJokerSwap, enumerateMeldOptions, enumerateLayOffOptions, canFormMeldWithCard } = require('./Rules');
 const { scoreRound, applyRoundScores, checkGameOver, DEFAULT_HOUSE_RULES } = require('./ScoreBoard');
-const { rankIndex, cardLabel, isPikDame } = require('./Card');
+const { rankIndex, cardLabel, isPikDame, cardValue } = require('./Card');
 const Bot = require('./Bot');
 
 const MIN_SEATS = 2;
@@ -1314,6 +1314,19 @@ class GameManager {
       if (this.phase !== 'playing') return -1;
     }
 
+    // Joker-Ausstieg: eigene Handkarten, die exakt einen Joker in einer
+    // EIGENEN Auslage vertreten, werden getauscht - der Joker scheidet aus,
+    // die Handkarte gilt als gelegt. Ist es die letzte Handkarte, endet die
+    // Runde sofort (swapJoker kennt die "eine Karte fuer den Abwurf muss
+    // bleiben"-Sperre nicht - das ist genau die dokumentierte Ausnahme).
+    for (const js of meldPlan.jokerSwaps || []) {
+      const stillHas = cp.hand.find((c) => c.id === js.card.id);
+      if (!stillHas) continue;
+      const r = this.swapJoker(botId, js.meldId, js.card.id);
+      if (r && !r.error) actions += 1;
+      if (this.phase !== 'playing') return -1;
+    }
+
     if (this.phase !== 'playing') return -1;
     return actions;
   }
@@ -1368,6 +1381,26 @@ class GameManager {
         plan.source = 'drawPile';
       }
     }
+    // General value-exposure risk (medium and up): the Queen check above
+    // only ever caught HER specifically. Any other buried point pile (two
+    // kings, a stray ace) is just as costly if the round ends before the
+    // bot gets a chance to unload them. Compares the point value the bot
+    // would be LEFT holding (after a full meld-planning lookahead) WITH
+    // vs WITHOUT the pickup - only relevant once the round could end soon.
+    if (plan.source === 'discardPile' && difficulty !== 'easy') {
+      const roundNearlyOver =
+        cp.hand.length <= 4 ||
+        this.players.some((p) => p.id !== botId && p.hand.length <= 3);
+      if (roundNearlyOver) {
+        const withPickup = Bot.planBotMelds([...cp.hand, ...this.discardPile], ownMelds);
+        const withoutPickup = Bot.planBotMelds(cp.hand, ownMelds);
+        const valueOf = (cards) => cards.reduce((sum, cd) => sum + cardValue(cd), 0);
+        const exposureDelta = valueOf(withPickup.finalHand) - valueOf(withoutPickup.finalHand);
+        // A stray face card or two (~10-15 points) is normal noise; a
+        // buried double-digit swing is the kind of gift that costs rounds.
+        if (exposureDelta > 15) plan.source = 'drawPile';
+      }
+    }
     // Gelegentlicher Bluff: kurz vor dem Ziehen das Pik-Dame-Emote zeigen -
     // selten genug, dass niemand weiß, ob es etwas bedeutet.
     // The 'hoping for the Queen' bluff only makes sense while at least one
@@ -1414,8 +1447,15 @@ class GameManager {
       99,
       ...this.players.filter((p) => p.id !== botId).map((p) => p.hand.length)
     );
+    // Punktestand-Kontext fuers Risikoprofil (nur Zen wertet ihn, siehe
+    // Bot.chooseDiscard): Vorsprung/Rueckstand gegenueber dem staerksten
+    // Gegner in der laufenden Partie (this.totals), nicht der Runde.
+    const myTotal = this.totals[botId] || 0;
+    const opponentTotalsArr = this.players.filter((p) => p.id !== botId).map((p) => this.totals[p.id] || 0);
+    const scoreLead = myTotal - (opponentTotalsArr.length ? Math.max(...opponentTotalsArr) : 0);
     let discardCard = Bot.chooseDiscard(cp.hand, foreignMelds, {
       difficulty,
+      scoreLead,
       visibleCards,
       opponentKnownCards,
       // What the NEXT player recently spurned from the pile top: those
