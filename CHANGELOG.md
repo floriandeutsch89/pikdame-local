@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.37.0] - 2026-07-04
+
+### Changed
+- Zen-Meister gewichtet Karten-Erschöpfung jetzt voll statt nur im Gleichstand: Er zählte schon immer alle offenen Karten aller Spieler (sämtliche Auslagen, Ablagestapel, beobachtete Stapelaufnahmen) - aber die Erkenntnis "vom 9er-Rang liegen 3 von 8 Kopien auf dem Tisch, die vierte Neun kann kaum noch jemand sofort verwerten" war nur ein Nachrang-Kriterium. Jetzt fließt sie als echtes Gewicht in jede Abwurfwahl ein (beobachtete Gegner-Handkarten zählen dreifach, Erschöpfung immer), auch im Endspiel-Abwurf bei Punktgleichheit. Per Test bewiesen: Liegt der 9er-Drilling aus, wirft Zen die vierte Neun statt des teureren Königs; ohne den Drilling weiter den König. Winrate gegen "Schwer" stabil bei 35 %. Hinweis: Gegen "Mittel" schrumpft der Abstand Richtung fair - erwartbar, denn Mittel ist seit v1.36.1 durch den eigenen Damen-Schutz messbar stärker geworden (♠Q-Abwürfe von ~0,5 auf ~0,02 pro Partie)
+
 ## [1.36.1] - 2026-07-04
 
 ### Changed

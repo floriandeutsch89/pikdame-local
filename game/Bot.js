@@ -409,7 +409,11 @@ function chooseDiscard(hand, tableMelds = [], opts = {}) {
       const lastResort = (opts.lowestOpponentHand || 99) <= 2;
       if (lastResort && !opponentCanUseHer) panicPool.push(withPd);
     }
-    return panicPool.sort((a, b) => cardValue(b) - cardValue(a))[0];
+    const panicPotential =
+      typeof opts._zenPotential === 'function' ? opts._zenPotential : () => 0;
+    return panicPool.sort(
+      (a, b) => cardValue(b) - cardValue(a) || panicPotential(a) - panicPotential(b)
+    )[0];
   }
 
   const pool = isolated.length > 0 ? isolated : candidates;
@@ -435,7 +439,13 @@ function chooseDiscard(hand, tableMelds = [], opts = {}) {
     const potentialOf = typeof opts._zenPotential === 'function' ? opts._zenPotential : () => 0;
     const best = cardValue(pool[0]);
     const contenders = pool.filter((cd) => best - cardValue(cd) <= 5);
-    contenders.sort((a, b) => dangerOf(a) - dangerOf(b) || potentialOf(a) - potentialOf(b));
+    // Weighted risk instead of strict lexicographic order: KNOWN opponent
+    // cards (watched pickups) are hard evidence and weigh triple, but the
+    // exhaustion count always contributes - a fourth nine is a safe throw
+    // once the nine set lies on the table (only 4 of 8 copies remain in
+    // circulation), even if it costs a couple more points than the king.
+    const riskOf = (card) => dangerOf(card) * 3 + potentialOf(card);
+    contenders.sort((a, b) => riskOf(a) - riskOf(b));
     return contenders[0] || pool[0] || hand.find((cd) => !isPikDame(cd) && !cd.isJoker) || hand[0];
   }
   return pool[0] || hand[0];
