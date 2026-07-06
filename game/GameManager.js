@@ -1148,6 +1148,16 @@ class GameManager {
     const OnnxPolicy = require('./OnnxPolicy');
     const difficulty =
       cp.botDifficulty || (this.houseRules && this.houseRules.botDifficulty) || 'zen';
+    // Draw-source decision via the model (only when taking the pile is legal).
+    try {
+      const SE = require('./StateEncoder');
+      if (SE.pileTakeLegal(this, botId)) {
+        const src = await OnnxPolicy.chooseDrawSource(this, botId, difficulty);
+        if (src === 'drawPile' || src === 'discardPile') cp.forcedDrawSource = src;
+      }
+    } catch (e) {
+      // heuristic draw
+    }
     const prev = cp.externalDiscard;
     cp.externalDiscard = 'pause';
     this._agentAwaitingDiscard = null;
@@ -1466,6 +1476,14 @@ class GameManager {
       0
     );
     if (plan.source !== 'discardPile' && queensOnTable < 2) this.maybeBotEmote(botId, 'pikdame', 0.08);
+    // External draw decision (RL agent / ONNX): a forced source set before the
+    // turn overrides the heuristic AND its guards. 'discardPile' only takes
+    // effect when the pile is non-empty and the take is rule-legal (the caller
+    // guarantees legality; we still guard here).
+    if (cp.forcedDrawSource === 'drawPile' || cp.forcedDrawSource === 'discardPile') {
+      plan.source = cp.forcedDrawSource;
+      cp.forcedDrawSource = null;
+    }
     if (plan.source === 'discardPile' && this.discardPile.length > 0) {
       this.drawFromDiscard(botId);
     } else {

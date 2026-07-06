@@ -10,9 +10,7 @@ data/*.db-wal
 docker/secrets/*.txt
 docker/.env
 
-# RL / ONNX training artifacts
-models/
+# RL training artifacts (the ONNX models ARE committed - public repo, run-anywhere)
 .venv/
 python/__pycache__/
-*.onnx
-*.zip
+models/*.zip

@@ -12,19 +12,25 @@
  * another and silently plays badly. Never encode game state for the model
  * anywhere else - always go through here.
  *
- * Action space (discard policy): 52 discrete actions, one per standard card
- * type idx = suitIndex*13 + rankIndex (SUITS = H,D,C,S; RANKS = 2..A). Jokers
- * are never discarded (guaranteed by the engine), so they are not actions.
- * The action mask marks the card types currently present as non-joker cards
- * in the agent's hand.
+ * Action space (54 discrete actions):
+ *   0..51  discard a card of that type (idx = suitIndex*13 + rankIndex,
+ *          SUITS = H,D,C,S; RANKS = 2..A). Jokers are never discarded.
+ *   52     DRAW decision: draw face-down from the draw pile
+ *   53     DRAW decision: take the whole discard pile (only when rule-legal)
+ * Each turn has up to two decision points - a draw decision (only offered
+ * when taking the pile is legal) and a discard decision. The action mask and
+ * an observation flag (isDrawDecision) tell the policy which one it faces.
  */
 
 const { SUITS, RANKS, cardValue } = require('./Card');
+const { canFormMeldWithCard } = require('./Rules');
 
 const N_TYPES = 52; // 4 suits * 13 ranks
 const MAX_OPP = 3; // observation is padded/truncated to this many opponents
 const JOKERS_TOTAL = 6;
 const DECK_COPIES = 2;
+const ACTION_DRAW_PILE = 52; // draw face-down from the draw pile
+const ACTION_TAKE_PILE = 53; // take the whole discard pile
 
 function typeIndex(card) {
   if (card.isJoker) return -1;
@@ -71,7 +77,7 @@ function visibleCards(game) {
  * Float32Array. The layout is documented inline; OBS_SIZE is exported and
  * must match the model's input dimension.
  */
-function encode(game, playerId) {
+function encode(game, playerId, ctx = {}) {
   const me = (game.players || []).find((p) => p.id === playerId);
   const feats = [];
   const push = (x) => feats.push(Number.isFinite(x) ? x : 0);
@@ -146,13 +152,33 @@ function encode(game, playerId) {
   push(lowestOpp / 15);
   push(Math.max(-1, Math.min(1, (myTotal - bestOpp) / 200))); // scoreLead clipped
 
+  // decision-phase flag: 1 at a draw decision, 0 at a discard decision
+  push(ctx.phase === 'draw' ? 1 : 0);
+
   return Float32Array.from(feats);
 }
 
-/** Boolean action mask (length 52): true where that card type is a legal, non-joker discard in hand. */
-function actionMask(game, playerId) {
+/** Is taking the whole discard pile rule-legal for this player right now? */
+function pileTakeLegal(game, playerId) {
   const me = (game.players || []).find((p) => p.id === playerId);
-  const mask = new Array(N_TYPES).fill(false);
+  const top = (game.discardPile || [])[0];
+  if (!me || !top || top.faceDown) return false;
+  return canFormMeldWithCard(top, me.hand || []);
+}
+
+/**
+ * Boolean action mask (length 54), phase-aware:
+ *   ctx.phase === 'draw'    -> {DRAW_PILE: true, TAKE_PILE: pileTakeLegal}
+ *   ctx.phase === 'discard' -> the non-joker hand card types
+ */
+function actionMask(game, playerId, ctx = {}) {
+  const mask = new Array(ACTION_SIZE).fill(false);
+  if (ctx.phase === 'draw') {
+    mask[ACTION_DRAW_PILE] = true;
+    mask[ACTION_TAKE_PILE] = ctx.pileTakeLegal !== undefined ? !!ctx.pileTakeLegal : pileTakeLegal(game, playerId);
+    return mask;
+  }
+  const me = (game.players || []).find((p) => p.id === playerId);
   for (const c of (me && me.hand) || []) {
     const idx = typeIndex(c);
     if (idx >= 0) mask[idx] = true;
@@ -169,8 +195,8 @@ function cardForAction(game, playerId, action) {
 }
 
 // OBS_SIZE = 52 +1 +52 +52 +1 +52 + MAX_OPP*(1+52) + 7
-const OBS_SIZE = N_TYPES + 1 + N_TYPES + N_TYPES + 1 + N_TYPES + MAX_OPP * (1 + N_TYPES) + 7;
-const ACTION_SIZE = N_TYPES;
+const OBS_SIZE = N_TYPES + 1 + N_TYPES + N_TYPES + 1 + N_TYPES + MAX_OPP * (1 + N_TYPES) + 7 + 1;
+const ACTION_SIZE = N_TYPES + 2; // + draw-pile + take-pile
 
 module.exports = {
   encode,
@@ -178,8 +204,11 @@ module.exports = {
   cardForAction,
   cardTypeForAction,
   typeIndex,
+  pileTakeLegal,
   OBS_SIZE,
   ACTION_SIZE,
   N_TYPES,
   MAX_OPP,
+  ACTION_DRAW_PILE,
+  ACTION_TAKE_PILE,
 };

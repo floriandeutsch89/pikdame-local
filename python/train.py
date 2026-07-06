@@ -1,5 +1,9 @@
 """Train the four Pik Dame bot tiers and export each to ONNX.
 
+The agent learns two decisions per turn - the draw source (draw pile vs. taking
+the whole discard pile, when legal) and the discard - over a single masked
+action space of 54 actions (see game/StateEncoder.js). Melding stays heuristic.
+
 The four tiers differ by how strong the opponents are and how long we train -
 a simple curriculum that yields four models of increasing skill:
 

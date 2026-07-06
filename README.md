@@ -184,8 +184,10 @@ Observability via `GET /statusz` (version, sessions, memory — no names) and
 ```
 server.js          HTTP + WebSocket, account API, session registry
 game/              Pure game logic (Rules, GameManager, Bot, stores, …)
+game/StateEncoder  · game/OnnxPolicy — learned-bot encoder + ONNX inference
 public/            Vanilla JS client, i18n, PWA
-test/              node --test — 162 tests incl. contract and E2E bot tests
+python/ · scripts/rl-env-server.js  RL training bridge (see docs/RL_TRAINING.md)
+test/              node --test — 219 tests incl. contract, E2E and encoder tests
 helm/ · k8s/       Kubernetes (chart recommended, raw manifests as alternative)
 docs/ · scripts/   Operations guide, backup/restore
 ```
@@ -201,6 +203,25 @@ docs/ · scripts/   Operations guide, backup/restore
 - **Conventions** (language, constraints, workflow): [CLAUDE.md](CLAUDE.md).
   Most important rule: no new npm dependencies — the server must keep running
   inside iOS CodeApp (currently the only dependency: `ws`).
+
+## AI bots (optional, ONNX)
+
+The four bot tiers can be trained as neural networks and run via ONNX. Training
+happens against the **real engine** — a headless Node env server drives the
+actual `GameManager` while Python (Gymnasium + stable-baselines3 MaskablePPO)
+learns the **draw** and **discard** decisions; the same `game/StateEncoder.js`
+feeds both training and runtime so they never diverge. Models export to
+`models/pikdame-<tier>.onnx` and are committed to the repo, so anyone can run
+them.
+
+```bash
+# activate the learned policy (falls back to the heuristic if a model or the
+# onnxruntime-node runtime is missing — the default path is unchanged):
+PIKDAME_ONNX=1 node server.js
+```
+
+Full training guide (Ubuntu 24.04 / WSL2, uv, RTX-class GPU):
+[docs/RL_TRAINING.md](docs/RL_TRAINING.md).
 
 ## Deliberate limits
 

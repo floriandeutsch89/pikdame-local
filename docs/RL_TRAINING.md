@@ -1,37 +1,42 @@
-# Pik Dame – Bot-Training mit Reinforcement Learning (WSL2 / Windows 11)
+# Pik Dame – Reinforcement-Learning Bot Training (Ubuntu 24.04 / WSL2)
 
-Diese Anleitung beschreibt, wie du die vier Bot-Stufen (`easy`, `medium`,
-`hard`, `zen`) als neuronale Netze trainierst und als **ONNX-Dateien**
-exportierst, die die Node-Spiel-Engine zur Laufzeit nutzen kann.
+This guide explains how to train the four bot tiers (`easy`, `medium`, `hard`,
+`zen`) as neural networks and export them as **ONNX** files that the Node game
+engine loads at runtime.
 
-Das Besondere: Trainiert wird gegen die **echte Spiel-Engine**. Ein kleiner
-Node-Server (`scripts/rl-env-server.js`) treibt den echten `GameManager`; die
-Python-Umgebung steuert ihn über eine Textleitung. So lernt das Netz gegen die
-exakten Spielregeln – kein fehleranfälliger Regel-Nachbau in Python.
+The key design choice: training runs against the **real game engine**. A small
+Node server (`scripts/rl-env-server.js`) drives the actual `GameManager`; the
+Python environment steers it over a text line. The network therefore learns
+against the exact game rules — no error-prone rule reimplementation in Python.
 
-Aktuell lernt der Agent die **Abwurfentscheidung** (Ziehen und Auslegen
-übernimmt weiter die bewährte Heuristik). Der Aktionsraum sind 52 Kartentypen
-mit Legalitäts-Maske. Der Beobachtungsvektor (376 Werte) kommt aus
-`game/StateEncoder.js` – **dieselbe** Datei speist Training und Laufzeit, damit
-beide garantiert identisch kodieren.
+The agent learns **two decisions per turn**:
+
+1. **Draw source** — draw face-down from the draw pile, or take the whole
+   discard pile (offered only when taking it is rule-legal).
+2. **Discard** — which card to throw (52 card types, jokers never discarded).
+
+The observation vector (377 values) and action space (54 actions) come from
+`game/StateEncoder.js` — the **same** file feeds training and runtime, so both
+encode identically. Laying off / melding still uses the existing heuristic.
 
 ---
 
-## 1. Voraussetzungen
+## 1. Prerequisites
 
-- Windows 11 mit **WSL2** (Ubuntu 22.04 empfohlen)
-- NVIDIA-Treiber für Windows (der WSL2-CUDA-Stack nutzt ihn automatisch mit)
-- Deine **RTX 5080** – für PyTorch mit CUDA
-- **Node.js 22+** und **Python 3.11** innerhalb der WSL2-Distribution
+- Ubuntu 24.04 (native or under WSL2 on Windows 11)
+- NVIDIA driver (the WSL2 CUDA stack picks up the Windows driver automatically)
+- Your **RTX 5080** for CUDA-accelerated PyTorch
+- **Node.js 22+**
+- **[uv](https://docs.astral.sh/uv/)** for Python & dependency management
 
-### 1.1 WSL2 vorbereiten
+### 1.1 WSL2 with Ubuntu 24.04 (skip if native Linux)
 
-```bash
-# in Windows PowerShell (als Admin), falls noch nicht geschehen:
-wsl --install -d Ubuntu-22.04
+```powershell
+# Windows PowerShell (admin)
+wsl --install -d Ubuntu-24.04
 ```
 
-### 1.2 Node.js in WSL2
+### 1.2 Node.js 22
 
 ```bash
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
@@ -39,67 +44,88 @@ sudo apt-get install -y nodejs
 node --version   # v22.x
 ```
 
-### 1.3 Python-Umgebung
+### 1.3 uv
 
 ```bash
-sudo apt-get install -y python3.11 python3.11-venv python3-pip
-cd /pfad/zu/pikdame-local
-python3.11 -m venv .venv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+exec "$SHELL"       # reload PATH
+uv --version
+```
+
+---
+
+## 2. Python environment with uv
+
+Use the newest Python your ML stack ships wheels for. PyTorch and
+stable-baselines3 track releases with a short lag, so **pick the highest
+supported interpreter** — at the time of writing that is 3.12/3.13; once
+PyTorch publishes 3.14 wheels, simply bump the pin. uv makes this a one-liner
+and will download the interpreter for you:
+
+```bash
+cd /path/to/pikdame-local
+
+# Create a venv on the newest supported Python (try 3.14, fall back if wheels
+# are missing). uv installs the interpreter automatically.
+uv venv --python 3.14 || uv venv --python 3.13 || uv venv --python 3.12
 source .venv/bin/activate
 ```
 
-### 1.4 PyTorch mit CUDA (RTX 5080)
+### 2.1 PyTorch with CUDA (RTX 5080 / Blackwell)
 
-Die RTX 5080 (Blackwell) braucht einen aktuellen CUDA-Build. Installiere das
-zu deinem Treiber passende Wheel ZUERST, danach den Rest:
+The RTX 5080 needs a recent CUDA build. Install the matching wheel first, then
+the rest. Check the current recommended CUDA tag on pytorch.org:
 
 ```bash
-# Beispiel – prüfe die aktuell empfohlene CUDA-Version auf pytorch.org:
-pip install torch --index-url https://download.pytorch.org/whl/cu124
-pip install -r python/requirements.txt
+uv pip install torch --index-url https://download.pytorch.org/whl/cu124
+uv pip install -r python/requirements.txt
 ```
 
-Test, ob die GPU sichtbar ist:
+Verify the GPU is visible:
 
 ```bash
 python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
 # True  NVIDIA GeForce RTX 5080
 ```
 
-### 1.5 Node-Abhängigkeiten (inkl. ONNX-Laufzeit)
+> If a wheel is missing for your chosen Python, recreate the venv one minor
+> version lower (`uv venv --python 3.13`) and reinstall. uv keeps this cheap.
+
+### 2.2 Node dependencies (incl. the ONNX runtime)
 
 ```bash
 npm install
-npm install onnxruntime-node    # optionale Laufzeit für die Inferenz im Spiel
+npm install onnxruntime-node    # optional runtime used for in-game inference
 ```
 
 ---
 
-## 2. Schnelltest der Trainings-Bridge (ohne GPU)
+## 3. Quick check of the training bridge (no GPU needed)
 
-Prüft, dass der Node-Env-Server läuft und Beobachtungen liefert:
+Confirm the Node env server runs and returns observations:
 
 ```bash
 printf '%s\n' \
   '{"cmd":"meta"}' \
   '{"cmd":"reset","difficulty":"hard","opponents":3,"seed":7}' \
-  '{"cmd":"step","action":0}' \
+  '{"cmd":"step","action":52}' \
   '{"cmd":"close"}' | node scripts/rl-env-server.js
 ```
 
-Erwartete Ausgabe: eine `meta`-Zeile mit `obs_size` und `action_size`, dann
-JSON-Objekte mit `obs`/`mask`/`reward`/`done`.
+Expected: a `meta` line with `obs_size` (377) and `action_size` (54), then
+JSON objects with `obs` / `mask` / `reward` / `done` / `phase`.
 
-Ein Gegentest der Python-Anbindung:
+Python-side smoke test:
 
 ```bash
 source .venv/bin/activate
 python - <<'PY'
 from python.pikdame_env import PikDameEnv
+import numpy as np
 env = PikDameEnv(opponent_difficulty="hard", opponents=3, seed=1)
 obs, _ = env.reset()
 print("obs shape:", obs.shape, "| legal actions:", int(env.action_masks().sum()))
-obs, r, done, _, _ = env.step(int(env.action_masks().argmax()))
+obs, r, done, _, _ = env.step(int(np.where(env.action_masks())[0][0]))
 print("stepped -> reward", r, "done", done)
 env.close()
 PY
@@ -107,9 +133,9 @@ PY
 
 ---
 
-## 3. Training
+## 4. Training
 
-Alle vier Stufen nacheinander:
+All four tiers in sequence:
 
 ```bash
 source .venv/bin/activate
@@ -117,96 +143,94 @@ cd python
 python train.py --tier all
 ```
 
-Einzelne Stufe (mit eigener Schrittzahl):
+A single tier with a custom step count:
 
 ```bash
 python train.py --tier zen --steps 3000000
 python train.py --tier easy --steps 200000
 ```
 
-Die Stufen unterscheiden sich durch Gegnerstärke und Trainingsdauer (Curriculum
-in `TIERS` in `train.py`):
+Tiers differ by opponent strength and training length (curriculum in `TIERS`
+in `train.py`):
 
-| Stufe   | Gegner | Schritte (Default) |
-|---------|--------|--------------------|
-| easy    | easy   | 200 000            |
-| medium  | medium | 800 000            |
-| hard    | hard   | 2 000 000          |
-| zen     | hard   | 3 000 000          |
+| Tier    | Opponents | Steps (default) |
+|---------|-----------|-----------------|
+| easy    | easy      | 200 000         |
+| medium  | medium    | 800 000         |
+| hard    | hard      | 2 000 000       |
+| zen     | hard      | 3 000 000       |
 
-Jede Stufe erzeugt:
+Each tier produces:
 
-- `models/pikdame-<stufe>.zip` – SB3-Checkpoint (zum Weitertrainieren)
-- `models/pikdame-<stufe>.onnx` – das exportierte Netz für die Node-Laufzeit
+- `models/pikdame-<tier>.zip` — SB3 checkpoint (to resume training)
+- `models/pikdame-<tier>.onnx` — the exported network for the Node runtime
 
-Tipp: Mehrere Env-Prozesse parallel beschleunigen das Sammeln von Erfahrung.
-Das lässt sich über SB3-`SubprocVecEnv` ergänzen (siehe Kommentar in
-`train.py`); jeder Env startet einen eigenen `node`-Prozess.
+Tip: several env processes in parallel speed up experience collection
+(SB3 `SubprocVecEnv`); each env spawns its own `node` process.
 
 ---
 
-## 4. Modelle prüfen
+## 5. Evaluate a model
 
 ```bash
 python eval_onnx.py --tier zen --episodes 20
 ```
 
-Gibt die mittlere Episoden-Belohnung (Punktesaldo/100 + Sieg-Bonus) aus. Positiv
-= der Agent schlägt die Heuristik-Gegner im Schnitt.
+Prints the mean episode reward (score margin / 100 + game-win bonus). Positive
+means the agent beats the heuristic opponents on average.
 
 ---
 
-## 5. Im Spiel aktivieren
+## 6. Activate in the game
 
-Die ONNX-Inferenz ist **per Umgebungsvariable** schaltbar und standardmäßig aus.
-Liegen die Modelle unter `models/` und ist `onnxruntime-node` installiert:
+ONNX inference is toggled by an **environment variable** and is off by default.
+With the models in `models/` and `onnxruntime-node` installed:
 
 ```bash
 PIKDAME_ONNX=1 node server.js
 ```
 
-Ist die Variable nicht gesetzt (oder fehlt ein Modell / die Laufzeit), spielt der
-Bot **exakt wie bisher** mit der Heuristik – die Integration greift nur, wenn
-alles vorhanden ist, und fällt bei jedem Problem lautlos auf die Heuristik
-zurück. Pro Bot-Stufe wird `models/pikdame-<stufe>.onnx` geladen.
+Without the variable — or if a model or the runtime is missing — the bots play
+**exactly as before** with the heuristic; any problem falls back silently, so
+the default path is unchanged. Each tier loads `models/pikdame-<tier>.onnx`.
 
-Für den Produktions-Container: `PIKDAME_ONNX=1` als Environment-Variable setzen,
-die `models/`-Dateien und `onnxruntime-node` ins Image aufnehmen.
+For the production container: set `PIKDAME_ONNX=1` and include the `models/`
+files plus `onnxruntime-node` in the image.
 
 ---
 
-## 6. Architektur auf einen Blick
+## 7. Architecture at a glance
 
 ```
-Python (GPU-Training)                    Node (echte Spiel-Engine)
-──────────────────────                   ──────────────────────────
-train.py                                 scripts/rl-env-server.js
-  └─ MaskablePPO (SB3)                      └─ GameManager (reale Regeln)
-       └─ PikDameEnv  ── stdio JSON ───►        └─ StateEncoder.encode()
-            (pikdame_env.py)             ◄───        obs / mask / reward
-                                                └─ externalDiscard='pause'
+Python (GPU training)                     Node (real game engine)
+──────────────────────                    ──────────────────────────
+train.py                                  scripts/rl-env-server.js
+  └─ MaskablePPO (SB3)                       └─ GameManager (real rules)
+       └─ PikDameEnv  ── stdio JSON ───►         └─ StateEncoder.encode()
+            (pikdame_env.py)              ◄───        obs / mask / reward
+                                                 └─ forcedDrawSource +
+                                                    externalDiscard='pause'
        └─ export ONNX ─► models/pikdame-*.onnx
 
-Laufzeit-Inferenz:
+Runtime inference:
   server.js (PIKDAME_ONNX=1)
     └─ GameManager._runBotTurnWithOnnx()
-         └─ OnnxPolicy.chooseDiscardCard()
-              └─ StateEncoder.encode()  ─►  onnxruntime-node  ─►  Abwurf
+         ├─ OnnxPolicy.chooseDrawSource()   (draw decision)
+         └─ OnnxPolicy.chooseDiscardCard()  (discard decision)
+              └─ StateEncoder.encode()  ─►  onnxruntime-node
 ```
 
-**Wichtig – Encoder-Parität:** `game/StateEncoder.js` ist die einzige Stelle,
-die Spielzustände fürs Netz kodiert. Ändere sie nie einseitig; jede Änderung
-verändert die Modell-Eingabe und macht bestehende `.onnx`-Dateien inkompatibel
-(dann neu trainieren).
+**Encoder parity — important:** `game/StateEncoder.js` is the single place that
+encodes game state for the network. Never change it one-sidedly; any change
+alters the model input and makes existing `.onnx` files incompatible (retrain).
 
 ---
 
-## 7. Nächste Ausbaustufen (optional)
+## 8. Next extensions (optional)
 
-- **Ziehen & Auslegen lernen:** aktuell heuristisch. Der Aktionsraum ließe sich
-  um „Stapel nehmen ja/nein" und Auslege-Entscheidungen erweitern (mehr Köpfe im
-  Netz oder ein hierarchischer Agent).
-- **Self-Play:** Gegner nicht heuristisch, sondern frühere Modell-Versionen
-  (Liga-Training) für stärkere Endmodelle.
-- **Reward-Shaping:** aktuell sparsamer Rundensaldo; Zwischenbelohnungen (z. B.
-  gemeldeter Kartenwert) können das Lernen beschleunigen.
+- **Learn melding / lay-offs too:** currently heuristic. The action space could
+  grow to cover which cards to meld (more heads or a hierarchical agent).
+- **Self-play:** train against previous model versions (a league) instead of
+  the heuristic for stronger endgame models.
+- **Reward shaping:** the reward is a sparse round margin; intermediate signals
+  (e.g. melded card value) can speed up learning.

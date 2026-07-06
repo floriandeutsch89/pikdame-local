@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.45.0] - 2026-07-05
+
+### Changed
+- RL-Agent lernt jetzt ZWEI Entscheidungen pro Zug statt nur den Abwurf: zusätzlich die Zieh-Quelle - verdeckt vom Stapel ziehen ODER den kompletten Ablagestapel nehmen (nur wenn regelkonform). Der Aktionsraum wuchs von 52 auf 54 (52 Abwurf-Typen + 2 Zieh-Aktionen), der Beobachtungsvektor um ein Entscheidungsphasen-Flag (376 → 377). Ziel: ein am Ende wirklich runder Bot, der auch die Stapel-Aufnahme optimal timing-t. Encoder, headless Env-Server und ONNX-Laufzeit (inkl. Zieh-Entscheidung) sind entsprechend erweitert; Auslegen bleibt heuristisch
+- Trainings-Anleitung (docs/RL_TRAINING.md) auf Englisch, auf Ubuntu 24.04 und uv umgestellt (Python auf der jeweils höchsten vom ML-Stack unterstützten Version), inklusive RTX-5080-CUDA-Hinweisen
+- Haupt-README um einen Abschnitt zu den KI-Bots (ONNX, Aktivierung per PIKDAME_ONNX) ergänzt
+- Die exportierten .onnx-Modelle werden ab jetzt ins Repository aufgenommen (öffentliches Repo, sofort lauffähig) - nur die großen SB3-.zip-Checkpoints bleiben ausgeschlossen
+
 ## [1.44.0] - 2026-07-05
 
 ### Added
