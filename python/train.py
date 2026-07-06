@@ -39,11 +39,16 @@ from pikdame_env import PikDameEnv
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODELS_DIR = os.path.join(REPO_ROOT, "models")
 
+# Each tier defines its opponents. Weak tiers face a single difficulty; the
+# strong tiers train against a MIXED pool anchored by the existing zen-master
+# heuristic - a fixed strong baseline gives a clear "did we beat our best
+# hand-crafted bot?" signal and keeps the agent from overfitting one opponent's
+# quirks (see docs/RL_TRAINING.md, "Opponent selection").
 TIERS = {
-    "easy":   {"opp": "easy",   "steps": 200_000},
-    "medium": {"opp": "medium", "steps": 800_000},
-    "hard":   {"opp": "hard",   "steps": 2_000_000},
-    "zen":    {"opp": "hard",   "steps": 3_000_000},
+    "easy":   {"pool": ["easy", "easy", "medium"],   "steps": 200_000},
+    "medium": {"pool": ["medium", "medium", "hard"], "steps": 800_000},
+    "hard":   {"pool": ["hard", "hard", "zen"],      "steps": 2_000_000},
+    "zen":    {"pool": ["zen", "zen", "hard"],       "steps": 3_000_000},
 }
 
 
@@ -51,8 +56,9 @@ def mask_fn(env: PikDameEnv) -> np.ndarray:
     return env.action_masks()
 
 
-def make_env(opp_difficulty: str, seed: int) -> ActionMasker:
-    env = PikDameEnv(opponent_difficulty=opp_difficulty, opponents=3, seed=seed)
+def make_env(pool, seed: int) -> ActionMasker:
+    # Sample a fresh 3-opponent mix from the pool each episode.
+    env = PikDameEnv(opponent_pool=pool, opponents=3, seed=seed)
     env = Monitor(env)
     return ActionMasker(env, mask_fn)
 
@@ -94,9 +100,9 @@ def train_tier(tier: str, steps_override: int | None, device: str):
     cfg = TIERS[tier]
     steps = steps_override or cfg["steps"]
     os.makedirs(MODELS_DIR, exist_ok=True)
-    print(f"[{tier}] training {steps} steps vs. {cfg['opp']} opponents on {device}")
+    print(f"[{tier}] training {steps} steps vs. pool {cfg['pool']} on {device}")
 
-    env = make_env(cfg["opp"], seed=1234)
+    env = make_env(cfg["pool"], seed=1234)
     model = MaskablePPO(
         "MlpPolicy",
         env,

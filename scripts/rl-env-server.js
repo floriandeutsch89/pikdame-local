@@ -39,28 +39,39 @@ class EnvSession {
     this.roundStartTotalsMargin = 0;
   }
 
-  reset(difficulty, opponents, seed) {
-    this.oppDifficulty = difficulty || 'hard';
-    const n = Math.max(2, Math.min(4, opponents || 3));
+  reset(difficulty, opponents, seed, opponentDifficulties) {
+    // Opponent seats: either an explicit per-seat list (mixed pool, e.g.
+    // ['zen','hard','medium'] to anchor training against the zen master) or a
+    // count of a single difficulty. The explicit list wins when provided.
+    let oppDiffs;
+    if (Array.isArray(opponentDifficulties) && opponentDifficulties.length > 0) {
+      oppDiffs = opponentDifficulties.slice(0, 3);
+    } else {
+      const n = Math.max(2, Math.min(4, opponents || 3));
+      oppDiffs = new Array(n - 1).fill(difficulty || 'hard');
+    }
+    this.oppDifficulty = difficulty || oppDiffs[0] || 'hard';
     if (this.game) this.game.destroy();
     const opts = typeof seed === 'number' ? { deckSeed: seed >>> 0 } : {};
     const g = new GameManager(() => {}, opts);
     g.addOrReconnectPlayer('host', 'Host');
     g.fillWithBots();
     g.players = [];
+    // The agent's own seat difficulty only affects its heuristic fallback (draw
+    // guards etc.); the learned policy overrides the discard. Anchor it to zen.
     g.players.push({
       id: AGENT_ID, name: 'Agent', isBot: true, hand: [], connected: true,
-      laidOutCards: [], botDifficulty: this.oppDifficulty, externalDiscard: 'pause',
+      laidOutCards: [], botDifficulty: 'zen', externalDiscard: 'pause',
       _everLaidThisRound: false, _laidAtTurnStart: false,
     });
-    for (let i = 1; i < n; i++) {
+    oppDiffs.forEach((diff, i) => {
       g.players.push({
-        id: `opp${i}`, name: `Opp${i}`, isBot: true, hand: [], connected: true,
-        laidOutCards: [], botDifficulty: this.oppDifficulty,
+        id: `opp${i + 1}`, name: `Opp${i + 1}`, isBot: true, hand: [], connected: true,
+        laidOutCards: [], botDifficulty: diff,
         _everLaidThisRound: false, _laidAtTurnStart: false,
       });
-    }
-    g.maxSeats = n;
+    });
+    g.maxSeats = g.players.length;
     this.game = g;
     this._awaiting = null;
     this._pileTakeLegal = false;
@@ -131,8 +142,8 @@ class EnvSession {
     };
   }
 
-  resetAndObserve(difficulty, opponents, seed) {
-    const r = this.reset(difficulty, opponents, seed);
+  resetAndObserve(difficulty, opponents, seed, opponentDifficulties) {
+    const r = this.reset(difficulty, opponents, seed, opponentDifficulties);
     return this._observation(r.done, 0);
   }
 
@@ -200,7 +211,7 @@ function main() {
     }
     try {
       if (msg.cmd === 'reset') {
-        send(session.resetAndObserve(msg.difficulty, msg.opponents, msg.seed));
+        send(session.resetAndObserve(msg.difficulty, msg.opponents, msg.seed, msg.opponentDifficulties));
       } else if (msg.cmd === 'step') {
         send(session.step(msg.action | 0));
       } else if (msg.cmd === 'meta') {

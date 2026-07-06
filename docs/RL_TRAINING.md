@@ -226,7 +226,51 @@ alters the model input and makes existing `.onnx` files incompatible (retrain).
 
 ---
 
-## 8. Next extensions (optional)
+## 8. Opponent selection & baselines
+
+Who the agent trains against matters as much as how long it trains.
+
+**Anchor against the zen master (recommended).** Including the existing
+hand-crafted `zen` heuristic as a fixed opponent gives two things: a stable,
+strong learning signal, and a clear answer to *"is the network actually better
+than our best hand-written bot?"* It also prevents the classic failure where an
+agent learns to beat copies of itself yet forgets how to punish conventional
+play.
+
+**Do not train against zen alone.** A single opponent invites overfitting - the
+network learns to exploit that opponent's quirks instead of playing well in
+general. Mix difficulties so it generalizes. The default tiers in `train.py`
+therefore use a zen-anchored **pool** that is resampled each episode:
+
+| Tier   | Opponent pool (sampled per episode) |
+|--------|-------------------------------------|
+| easy   | easy, easy, medium                  |
+| medium | medium, medium, hard                |
+| hard   | hard, hard, zen                     |
+| zen    | zen, zen, hard                      |
+
+You can pass any mix directly:
+
+```python
+# explicit per-seat opponents (anchor on the zen master)
+PikDameEnv(opponent_difficulties=["zen", "hard", "medium"])
+# or a pool to sample a fresh 3-seat table from every reset
+PikDameEnv(opponent_pool=["zen", "zen", "hard", "medium"])
+```
+
+Evaluate specifically against the zen baseline:
+
+```bash
+python eval_onnx.py --tier zen --opponents zen,zen,hard --episodes 40
+```
+
+**Next step - a self-play league.** Once a tier beats the zen baseline, add its
+own past checkpoints as opponents (a league), keeping the zen heuristic in the
+pool as a fixed anchor so the league cannot drift into degenerate strategies.
+This needs the env to run a learned policy for opponent seats (load an ONNX per
+opponent) - a natural extension of the current heuristic-opponent env.
+
+## 9. Next extensions (optional)
 
 - **Learn melding / lay-offs too:** currently heuristic. The action space could
   grow to cover which cards to meld (more heads or a hierarchical agent).

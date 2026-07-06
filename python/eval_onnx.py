@@ -29,11 +29,16 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--tier", default="zen")
     ap.add_argument("--episodes", type=int, default=20)
+    ap.add_argument(
+        "--opponents", default="zen,zen,hard",
+        help="comma-separated per-seat opponent difficulties (default: the zen baseline)",
+    )
     args = ap.parse_args()
 
     onnx_path = os.path.join(REPO_ROOT, "models", f"pikdame-{args.tier}.onnx")
     sess = ort.InferenceSession(onnx_path, providers=["CPUExecutionProvider"])
-    env = PikDameEnv(opponent_difficulty="hard", opponents=3, seed=999)
+    opp = [d.strip() for d in args.opponents.split(",") if d.strip()]
+    env = PikDameEnv(opponent_difficulties=opp, seed=999)
 
     total = 0.0
     for ep in range(args.episodes):
