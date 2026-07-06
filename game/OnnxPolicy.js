@@ -67,18 +67,37 @@ async function getSession(difficulty) {
  * fast path used by GameManager (which awaits at the seam).
  */
 async function chooseDiscardCard(game, playerId, difficulty) {
+  return runPolicy(game, playerId, difficulty, { phase: 'discard' });
+}
+
+/**
+ * Draw-source decision: returns 'discardPile' (take the pile) or 'drawPile',
+ * or null to let the caller keep the heuristic. Only meaningful when taking
+ * the pile is legal; the caller checks that first.
+ */
+async function chooseDrawSource(game, playerId, difficulty) {
+  const action = await runPolicyAction(game, playerId, difficulty, {
+    phase: 'draw',
+    pileTakeLegal: true,
+  });
+  if (action === null) return null;
+  return action === SE.ACTION_TAKE_PILE ? 'discardPile' : 'drawPile';
+}
+
+/** Shared inference: returns the argmax legal action index, or null. */
+async function runPolicyAction(game, playerId, difficulty, ctx) {
   if (!enabled()) return null;
   const session = await getSession(difficulty);
   if (!session) return null;
   try {
     const ort = loadRuntime();
-    const obs = SE.encode(game, playerId);
+    const obs = SE.encode(game, playerId, ctx);
     const tensor = new ort.Tensor('float32', obs, [1, SE.OBS_SIZE]);
     const inputName = session.inputNames ? session.inputNames[0] : 'obs';
     const out = await session.run({ [inputName]: tensor });
     const outName = session.outputNames ? session.outputNames[0] : 'logits';
-    const logits = out[outName].data; // Float32Array length ACTION_SIZE
-    const mask = SE.actionMask(game, playerId);
+    const logits = out[outName].data;
+    const mask = SE.actionMask(game, playerId, ctx);
     let bestIdx = -1;
     let bestVal = -Infinity;
     for (let i = 0; i < SE.ACTION_SIZE; i++) {
@@ -88,11 +107,16 @@ async function chooseDiscardCard(game, playerId, difficulty) {
         bestIdx = i;
       }
     }
-    if (bestIdx < 0) return null;
-    return SE.cardForAction(game, playerId, bestIdx);
+    return bestIdx >= 0 ? bestIdx : null;
   } catch (e) {
     return null;
   }
+}
+
+async function runPolicy(game, playerId, difficulty, ctx) {
+  const action = await runPolicyAction(game, playerId, difficulty, ctx);
+  if (action === null) return null;
+  return SE.cardForAction(game, playerId, action);
 }
 
 /** Pre-load a difficulty's session (call once at startup to avoid first-turn lag). */
@@ -105,4 +129,5 @@ module.exports = {
   enabled,
   warmup,
   chooseDiscardCard,
+  chooseDrawSource,
 };
