@@ -1300,6 +1300,18 @@
       const winLine = document.createElement('p');
       winLine.innerHTML = `<strong>🏆 ${L(`${escapeHtml(winner ? winner.name : '?')} gewinnt das Spiel!`, `${escapeHtml(winner ? winner.name : '?')} wins the game!`)}</strong>`;
       body.appendChild(winLine);
+      // Nice visual stat: how many turns (and rounds) the whole game took.
+      const gi = lastState.gameOverInfo;
+      if (typeof gi.totalTurns === 'number') {
+        const statLine = document.createElement('p');
+        statLine.className = 'gameOverStats';
+        const rounds = gi.totalRounds || 0;
+        statLine.textContent = L(
+          `🎲 ${gi.totalTurns} Züge in ${rounds} ${rounds === 1 ? 'Runde' : 'Runden'}`,
+          `🎲 ${gi.totalTurns} turns across ${rounds} ${rounds === 1 ? 'round' : 'rounds'}`
+        );
+        body.appendChild(statLine);
+      }
     }
 
     el('exportGameBtn').classList.toggle('hidden', !(isGameOver && lastState.hasExportableGame));

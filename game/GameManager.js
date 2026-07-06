@@ -49,6 +49,7 @@ class GameManager {
     this.pendingDiscardRest = false; // Phase 2 der Ablagestapel-Aufnahme steht noch aus
     this._botTimer = null; // Handle des pendenden Bot-Zug-Timers (fuer destroy)
     this.roundNumber = 0;
+    this.gameTurnCount = 0; // Gesamtzahl gespielter Züge in dieser Partie (über alle Runden)
     this.roundHistory = []; // vollständige Runde-für-Runde-Aufzeichnung der laufenden Partie
     this.gameStartedAt = null;
     this.log = [];
@@ -391,6 +392,7 @@ class GameManager {
     this.mustLayOffCardId = null;
     this.pendingDiscardRest = false;
     this.turnIndexInRound += 1;
+    this.gameTurnCount = (this.gameTurnCount || 0) + 1;
     this.broadcastState();
     this.maybeRunBotTurn();
   }
@@ -958,7 +960,7 @@ class GameManager {
 
     if (over.gameOver) {
       this.phase = 'gameOver';
-      this.gameOverInfo = over;
+      this.gameOverInfo = { ...over, totalTurns: this.gameTurnCount || 0, totalRounds: this.roundNumber || 0 };
       this.addLog(`Spiel beendet! Gewinner: ${this.players.find((p) => p.id === over.winnerId)?.name}`);
 
       this.lastGameRecord = {
@@ -1046,6 +1048,7 @@ class GameManager {
     this.totals = {};
     for (const p of this.players) this.totals[p.id] = 0;
     this.gameOverInfo = null;
+    this.gameTurnCount = 0;
     this.lastRoundResult = null;
     this.lastRoundStats = null;
     this._turnsWithoutMeld = 0;
@@ -1237,6 +1240,26 @@ class GameManager {
    * sind bewusst reine Datenobjekte - Karten, Slots, Melds). Transiente
    * Felder (Callbacks, Timer) werden ausgelassen.
    */
+  /**
+   * SECURITY: remove all external-control fields from a game and its seats.
+   * These fields (forcedDrawSource, externalDiscard, mcts* flags) may only be
+   * set by the server's own training/inference code. They only ever choose
+   * among LEGAL actions and never expose hidden state, but to be safe they are
+   * scrubbed on restore and never persisted, so no crafted snapshot can inject
+   * them. Used by deserialize().
+   */
+  static _sanitizeControlFields(game) {
+    const SEAT_FIELDS = [
+      'forcedDrawSource', 'externalDiscard', 'mctsEnabled', 'mctsForceOff',
+      'mctsDeterminizations', 'mctsEndgameAt', 'mctsMaxHand', 'mcEnabled',
+    ];
+    for (const p of game.players || []) {
+      for (const f of SEAT_FIELDS) delete p[f];
+    }
+    game._agentAwaitingDiscard = null;
+    game._noMcts = false;
+  }
+
   serialize() {
     const state = {};
     for (const [key, value] of Object.entries(this)) {
@@ -1254,10 +1277,24 @@ class GameManager {
         key === '_takeoverTimers' ||
         key === '_nextRoundReady' ||
         key === '_lobbyReady' ||
+        key === '_agentAwaitingDiscard' ||
+        key === '_noMcts' ||
         key === '_lastBotEmote'
       ) continue;
       if (typeof value === 'function') continue;
       state[key] = value;
+    }
+    // Never persist per-seat external-control fields either.
+    if (Array.isArray(state.players)) {
+      const SEAT_FIELDS = [
+        'forcedDrawSource', 'externalDiscard', 'mctsEnabled', 'mctsForceOff',
+        'mctsDeterminizations', 'mctsEndgameAt', 'mctsMaxHand', 'mcEnabled',
+      ];
+      state.players = state.players.map((p) => {
+        const clean = { ...p };
+        for (const f of SEAT_FIELDS) delete clean[f];
+        return clean;
+      });
     }
     return state;
   }
@@ -1270,6 +1307,13 @@ class GameManager {
    */
   deserialize(state) {
     Object.assign(this, state);
+    // SECURITY: strip every external-control field that could otherwise be
+    // smuggled in via a tampered/persisted snapshot. These fields let an
+    // external policy PICK among legal actions (they never expose hidden
+    // cards, so they cannot reveal information), but they must only ever be
+    // set by the server's own training/inference code - never survive a
+    // restore. We wipe them from all seats and clear the game-level flags.
+    GameManager._sanitizeControlFields(this);
     // Disconnected players from before the restart: re-arm their takeover
     // timers, otherwise a table whose current player never returns would
     // wait forever (the timer itself did not survive the restart).

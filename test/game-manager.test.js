@@ -1573,3 +1573,53 @@ test('table melds sort canonically: by leading rank, sets before runs, stable', 
   assert.deepEqual(leads, ['set-3', 'run-5', 'set-K'], `got ${leads.join(',')}`);
   game.destroy();
 });
+
+// --- v1.45.1: external-control fields cannot be smuggled in (anti-cheat) ---------
+test('deserialize strips forced*/external*/mcts* control fields from all seats', () => {
+  const g = new GameManager(() => {});
+  // a tampered snapshot trying to inject control fields onto seats + game
+  const tampered = {
+    phase: 'playing',
+    players: [
+      { id: 'p1', name: 'A', isBot: false, connected: true, hand: [], laidOutCards: [],
+        forcedDrawSource: 'discardPile', externalDiscard: 'pause', mctsEnabled: true },
+      { id: 'b1', name: 'B', isBot: true, connected: true, hand: [], laidOutCards: [],
+        mctsForceOff: true, mcEnabled: true },
+    ],
+    _agentAwaitingDiscard: { botId: 'p1', legalIds: ['x'] },
+    _noMcts: true,
+    totals: { p1: 0, b1: 0 },
+  };
+  g.deserialize(tampered);
+  for (const p of g.players) {
+    assert.equal(p.forcedDrawSource, undefined);
+    assert.equal(p.externalDiscard, undefined);
+    assert.equal(p.mctsEnabled, undefined);
+    assert.equal(p.mctsForceOff, undefined);
+    assert.equal(p.mcEnabled, undefined);
+  }
+  assert.equal(g._agentAwaitingDiscard, null);
+  assert.equal(g._noMcts, false);
+  g.destroy();
+});
+
+test('serialize never persists external-control fields', () => {
+  const g = new GameManager(() => {});
+  g.addOrReconnectPlayer('p1', 'A');
+  g.fillWithBots();
+  // set control fields as the training/inference code would
+  g.players[0].externalDiscard = 'pause';
+  g.players[0].forcedDrawSource = 'discardPile';
+  const bot = g.players.find((p) => p.isBot);
+  if (bot) bot.mctsEnabled = true;
+  g._noMcts = true;
+  const snap = g.serialize();
+  for (const p of snap.players) {
+    assert.equal(p.forcedDrawSource, undefined);
+    assert.equal(p.externalDiscard, undefined);
+    assert.equal(p.mctsEnabled, undefined);
+  }
+  assert.equal('_noMcts' in snap, false);
+  assert.equal('_agentAwaitingDiscard' in snap, false);
+  g.destroy();
+});
