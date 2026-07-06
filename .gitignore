@@ -9,3 +9,10 @@ data/*.db-wal
 .env
 docker/secrets/*.txt
 docker/.env
+
+# RL / ONNX training artifacts
+models/
+.venv/
+python/__pycache__/
+*.onnx
+*.zip

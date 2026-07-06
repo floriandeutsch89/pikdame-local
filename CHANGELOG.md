@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.44.0] - 2026-07-05
+
+### Added
+- Reinforcement-Learning-Trainingsgerüst für die Bots (neu, optional): Ein neuronales Netz kann die Abwurfentscheidung lernen und wird als ONNX-Datei je Bot-Stufe (easy/medium/hard/zen) exportiert. Trainiert wird gegen die ECHTE Spiel-Engine - ein headless Node-Env-Server (scripts/rl-env-server.js) treibt den realen GameManager, die Python-Umgebung (Gymnasium + MaskablePPO aus stable-baselines3) steuert ihn über eine stdio-JSON-Leitung. Dadurch lernt das Netz gegen die exakten Spielregeln statt gegen einen fehleranfälligen Nachbau. Kern-Bausteine: ein zustandsidentischer Encoder (game/StateEncoder.js, speist Training UND Laufzeit), das Trainingsskript (python/train.py) samt ONNX-Export, ein Prüf-Skript (python/eval_onnx.py) und eine ausführliche WSL2/Windows-11-Anleitung (docs/RL_TRAINING.md)
+- ONNX-Inferenz zur Laufzeit, per Umgebungsvariable aktivierbar: Mit PIKDAME_ONNX=1 nutzen Bots das gelernte Netz für den Abwurf (game/OnnxPolicy.js, onnxruntime-node). Ohne die Variable - oder wenn Modell bzw. Laufzeit fehlen - spielen die Bots exakt wie bisher; jeder Fehler fällt lautlos auf die Heuristik zurück, der Standardpfad bleibt unverändert
+
+### Changed
+- Determinisierte Rollout-Suche (MCTS) aus v1.43.x wird NICHT produktiv geschaltet: In einer sauberen Batch-Messung über mehrere Hundert Partien blieb der Effekt klein und statistisch nicht belastbar (~+2 Gewinnrate-Punkte bei ~0,8 Sigma) - bei rund 500 ms Rechenaufwand pro Endspiel-Entscheidung. (Ein erster, vielversprechender Messwert von +8,5 Punkten/2,8 Sigma erwies sich bei größerer Stichprobe als günstige Varianz.) Das Modul bleibt als getestetes, per Flag aktivierbares Werkzeug im Code; der Weg nach vorn ist stattdessen das gelernte ONNX-Netz
+
 ## [1.43.1] - 2026-07-05
 
 ### Investigated, not shipped

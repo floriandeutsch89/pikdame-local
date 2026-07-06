@@ -1,0 +1,10 @@
+# Pik Dame RL training stack (tested on Python 3.11, WSL2 + CUDA)
+# Install torch matching your CUDA build first - see docs/RL_TRAINING.md.
+gymnasium>=0.29
+stable-baselines3>=2.3.0
+sb3-contrib>=2.3.0
+onnx>=1.16
+numpy>=1.26
+tqdm>=4.66
+rich>=13.7
+# torch is installed separately with the correct CUDA wheel (see README)
