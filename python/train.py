@@ -39,16 +39,19 @@ from pikdame_env import PikDameEnv
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODELS_DIR = os.path.join(REPO_ROOT, "models")
 
-# Each tier defines its opponents. Weak tiers face a single difficulty; the
-# strong tiers train against a MIXED pool anchored by the existing zen-master
-# heuristic - a fixed strong baseline gives a clear "did we beat our best
-# hand-crafted bot?" signal and keeps the agent from overfitting one opponent's
-# quirks (see docs/RL_TRAINING.md, "Opponent selection").
+# Each tier defines its opponent pool (sampled per episode). IMPORTANT, measured
+# with scripts/bot-divergence.js: the heuristic tiers collapse to only THREE
+# distinct playing styles - easy (random discards), medium == hard (identical
+# policy, 0% discard disagreement), and zen (counting-refined, ~18% different
+# discards from hard). Draw and meld phases are difficulty-independent above
+# easy. So a "medium + hard" pool is secretly uniform; the pools below combine
+# the genuinely distinct styles instead. Real diversity beyond this ceiling
+# needs the self-play league (see docs/RL_TRAINING.md, "Opponent selection").
 TIERS = {
-    "easy":   {"pool": ["easy", "easy", "medium"],   "steps": 200_000},
-    "medium": {"pool": ["medium", "medium", "hard"], "steps": 800_000},
-    "hard":   {"pool": ["hard", "hard", "zen"],      "steps": 2_000_000},
-    "zen":    {"pool": ["zen", "zen", "hard"],       "steps": 3_000_000},
+    "easy":   {"pool": ["easy", "hard"],          "steps": 200_000},
+    "medium": {"pool": ["hard", "zen"],           "steps": 800_000},
+    "hard":   {"pool": ["hard", "zen"],           "steps": 2_000_000},
+    "zen":    {"pool": ["zen", "hard", "easy"],   "steps": 3_000_000},
 }
 
 

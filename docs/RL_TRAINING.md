@@ -237,6 +237,28 @@ than our best hand-written bot?"* It also prevents the classic failure where an
 agent learns to beat copies of itself yet forgets how to punish conventional
 play.
 
+**How distinct are the heuristic tiers, really?** Measured with
+`node scripts/bot-divergence.js` (disagreement on the same discard decision):
+
+| Pair            | Different discards |
+|-----------------|--------------------|
+| medium vs hard  | **0.0%** (identical policy) |
+| hard vs zen     | ~18%               |
+| medium vs zen   | ~18%               |
+| easy vs any     | ~75% (easy discards randomly) |
+
+So the heuristic bots collapse to only **three genuinely distinct styles**:
+`easy` (random), `medium == hard` (value heuristic), and `zen` (counting-refined,
+differing from hard in ~1 in 5 discards). Draw and meld play are
+difficulty-independent above easy. Two consequences:
+
+1. A `medium + hard` pool is secretly uniform - don't use it. The tier pools in
+   `train.py` combine the distinct styles (easy / hard / zen) instead.
+2. `zen` vs `hard` gives real but **modest, one-dimensional** diversity (~18%,
+   only in the discard tie-break). It is enough to avoid trivially memorising a
+   single opponent, but it is not broad. For robust anti-overfitting the
+   **self-play league below is the primary lever**, not the heuristic mix.
+
 **Do not train against zen alone.** A single opponent invites overfitting - the
 network learns to exploit that opponent's quirks instead of playing well in
 general. Mix difficulties so it generalizes. The default tiers in `train.py`

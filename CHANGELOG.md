@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.45.3] - 2026-07-05
+
+### Changed
+- Trainings-Gegnerpools an eine gemessene Erkenntnis angepasst: Die Heuristik-Stufen sind weniger verschieden als gedacht. Neues Messwerkzeug scripts/bot-divergence.js zeigt - medium und hard treffen bei Abwürfen zu 0,0 % unterschiedliche Entscheidungen (behavioral identisch, seit der Damen-Notabwurf in v1.36.1 entfernt wurde), hard vs. zen unterscheiden sich in ~18 % der Abwürfe, easy ist zufällig. Es gibt also nur DREI wirklich verschiedene Stile (easy, medium≡hard, zen). Ein medium+hard-Pool wäre daher heimlich monoton; die Pools kombinieren jetzt die tatsächlich verschiedenen Stile. Fazit in docs/RL_TRAINING.md ergänzt: Der zen/hard-Unterschied liefert nur schmale, eindimensionale Vielfalt - für robusten Overfitting-Schutz ist die Self-Play-Liga der eigentliche Hebel, nicht der Heuristik-Mix
+
 ## [1.45.2] - 2026-07-05
 
 ### Changed
