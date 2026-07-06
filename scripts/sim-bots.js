@@ -4,7 +4,7 @@
 // Headless bot-vs-bot simulation: does zen actually beat hard/medium?
 const GameManager = require('../game/GameManager');
 
-function playGame(difficulties, mcSeats = []) {
+function playGame(difficulties, mcSeats = [], mctsSeats = []) {
   const g = new GameManager(() => {});
   g.addOrReconnectPlayer('h1', 'Host'); // human seat needed to start; converts below
   g.setHouseRules({ botDifficulty: 'medium' });
@@ -13,7 +13,13 @@ function playGame(difficulties, mcSeats = []) {
   // in mcSeats additionally run the experimental Monte-Carlo discard.
   g.players = difficulties.map((d, i) => ({
     id: `bot-${i}`, name: `B${i}-${d}`, isBot: true, hand: [], connected: true,
-    laidOutCards: [], botDifficulty: d, mcEnabled: mcSeats.includes(i),
+    laidOutCards: [], botDifficulty: d,
+    mcEnabled: mcSeats.includes(i),
+    mctsEnabled: mctsSeats.includes(i),
+    mctsForceOff: d === 'zen' && !mctsSeats.includes(i), // control arm: pure heuristic
+    mctsDeterminizations: 8,
+    mctsEndgameAt: 5,
+    mctsMaxHand: 9,
   }));
   g.maxSeats = difficulties.length;
   let rounds = 0;
@@ -46,12 +52,12 @@ function playGame(difficulties, mcSeats = []) {
   return { winner: ranked[0][0], totals, pdDiscards };
 }
 
-function series(label, difficulties, n, mcSeats = []) {
+function series(label, difficulties, n, mcSeats = [], mctsSeats = []) {
   const wins = {};
   const pdByName = {};
   let played = 0;
   for (let i = 0; i < n; i++) {
-    const r = playGame(difficulties, mcSeats);
+    const r = playGame(difficulties, mcSeats, mctsSeats);
     if (!r) continue;
     played += 1;
     wins[r.winner] = (wins[r.winner] || 0) + 1;
@@ -95,6 +101,27 @@ if (process.argv.includes('--mc')) {
   const delta = mM - cM;
   const seDelta = Math.sqrt(stderr(control) ** 2 + stderr(mc) ** 2) * 100;
   console.log(`  delta     : ${delta >= 0 ? '+' : ''}${delta.toFixed(1)} pts  (~${(Math.abs(delta) / (seDelta || 1)).toFixed(1)} sigma)`);
+} else if (process.argv.includes('--mcts')) {
+  // A/B: does determinized-rollout endgame discard beat plain zen? Rollouts
+  // are expensive, so fewer games per batch; still batched for mean +/- se.
+  const BATCHES = 5;
+  const GAMES = 26;
+  const field = ['zen', 'hard', 'hard', 'hard'];
+  const control = [];
+  const mcts = [];
+  process.stdout.write(`MCTS A/B: seat0 zen vs 3x hard, ${BATCHES} batches x ${GAMES} games\n`);
+  for (let b = 0; b < BATCHES; b++) {
+    const cw = series('', field, GAMES, [], []).winBySeat[0];
+    const mw = series('', field, GAMES, [], [0]).winBySeat[0];
+    control.push(cw); mcts.push(mw);
+    process.stdout.write(`BATCH ${cw.toFixed(4)} ${mw.toFixed(4)}\n`);
+  }
+  const cM = mean(control) * 100;
+  const mM = mean(mcts) * 100;
+  const seD = Math.sqrt(stderr(control) ** 2 + stderr(mcts) ** 2) * 100;
+  console.log(`\n  plain zen  : ${cM.toFixed(1)}% +/- ${(stderr(control) * 100).toFixed(1)}`);
+  console.log(`  zen + MCTS : ${mM.toFixed(1)}% +/- ${(stderr(mcts) * 100).toFixed(1)}`);
+  console.log(`  delta      : ${mM - cM >= 0 ? '+' : ''}${(mM - cM).toFixed(1)} pts  (~${(Math.abs(mM - cM) / (seD || 1)).toFixed(1)} sigma)`);
 } else {
   series('zen vs 3x hard  ', ['zen', 'hard', 'hard', 'hard'], 130);
   series('zen vs 3x medium', ['zen', 'medium', 'medium', 'medium'], 200);

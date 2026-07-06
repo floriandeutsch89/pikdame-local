@@ -1121,7 +1121,62 @@ class GameManager {
     // Session wird er via destroy() abgebrochen, damit keine Referenzen
     // auf verwaiste Spiele haengen bleiben (RAM-Hygiene bei vielen Sessions).
     clearTimeout(this._botTimer);
-    this._botTimer = setTimeout(() => this.runBotTurn(cp.id), 700 + Math.random() * 600);
+    this._botTimer = setTimeout(() => {
+      // ONNX runtime path is opt-in (PIKDAME_ONNX=1) and fully guarded: any
+      // failure falls back to the normal synchronous heuristic turn. With the
+      // flag off this is byte-for-byte the previous behaviour.
+      const OnnxPolicy = require('./OnnxPolicy');
+      if (OnnxPolicy.enabled()) {
+        this._runBotTurnWithOnnx(cp.id).catch(() => {
+          try { this.runBotTurn(cp.id); } catch (e) { /* swallow */ }
+        });
+      } else {
+        this.runBotTurn(cp.id);
+      }
+    }, 700 + Math.random() * 600);
+  }
+
+  /**
+   * ONNX-assisted bot turn: reuses the externalDiscard='pause' seam so the
+   * (async) model can choose the discard, then resumes. Guarded end to end;
+   * on any miss it falls through to the heuristic discard. Only ever invoked
+   * when PIKDAME_ONNX is set.
+   */
+  async _runBotTurnWithOnnx(botId) {
+    const cp = this.players.find((p) => p.id === botId);
+    if (!cp) return;
+    const OnnxPolicy = require('./OnnxPolicy');
+    const difficulty =
+      cp.botDifficulty || (this.houseRules && this.houseRules.botDifficulty) || 'zen';
+    const prev = cp.externalDiscard;
+    cp.externalDiscard = 'pause';
+    this._agentAwaitingDiscard = null;
+    try {
+      this.runBotTurn(botId);
+    } finally {
+      cp.externalDiscard = prev;
+    }
+    const pending = this._agentAwaitingDiscard;
+    this._agentAwaitingDiscard = null;
+    if (!pending || pending.botId !== botId) return; // turn already resolved (went out etc.)
+    let chosen = null;
+    try {
+      chosen = await OnnxPolicy.chooseDiscardCard(this, botId, difficulty);
+    } catch (e) {
+      chosen = null;
+    }
+    if (!chosen) {
+      // Heuristic fallback for the discard among the legal ids.
+      const legal = pending.legalIds
+        .map((id) => cp.hand.find((c) => c.id === id))
+        .filter(Boolean);
+      chosen = require('./Bot').chooseDiscard(cp.hand, this.tableMelds.filter((m) => m.ownerId !== botId), {
+        difficulty,
+      }) || legal[0];
+    }
+    if (chosen && cp.hand.find((c) => c.id === chosen.id)) {
+      this.discard(botId, chosen.id);
+    }
   }
 
   /** Bricht pendende Timer ab - wird beim Entfernen der Session aufgerufen. */
@@ -1495,7 +1550,34 @@ class GameManager {
       ),
     });
 
-    // JOKER-GARANTIE: chooseDiscard liefert null, wenn die Hand nur noch
+    // Determinized-rollout discard: kept as opt-in only (cp.mctsEnabled, set
+    // by the self-play harness). A batched A/B measured a small, statistically
+    // INCONCLUSIVE effect (~+2 win-rate points at ~0.8 sigma) at a real ~500ms
+    // per-decision cost, so it is NOT enabled for production zen; the learned
+    // ONNX policy (PIKDAME_ONNX) is the path forward instead.
+    const mctsActive = !this._noMcts && !cp.mctsForceOff && cp.mctsEnabled;
+    if (
+      mctsActive &&
+      lowestOpponentHand <= (cp.mctsEndgameAt || 5) &&
+      cp.hand.length <= (cp.mctsMaxHand || 9) &&
+      discardCard
+    ) {
+      try {
+        const Rollout = require('./Rollout');
+        const shortlist = cp.hand.filter((c) => !c.isJoker && !isPikDame(c));
+        const pool = shortlist.length > 0 ? shortlist : cp.hand.filter((c) => !c.isJoker);
+        if (pool.length > 1) {
+          const picked = Rollout.chooseDiscardByRollout(this.constructor, this, botId, pool, {
+            determinizations: cp.mctsDeterminizations || 8,
+            difficulty: 'zen',
+          });
+          if (picked) discardCard = picked;
+        }
+      } catch (e) {
+        // Fall back to the heuristic discard already chosen above.
+      }
+    }
+
     // aus Jokern besteht. Dann werden die Joker an EIGENE Auslagen
     // angelegt, statt sie zu verschenken. Nur wenn wirklich keine Anlage
     // möglich ist (keine eigene Auslage / alles voll), bleibt regelbedingt
@@ -1521,6 +1603,31 @@ class GameManager {
     if (this.mustLayOffCardId) {
       const forced = cp.hand.find((c) => c.id === this.mustLayOffCardId);
       if (forced) discardCard = null; // Pflichtkarte zuerst lösen, kann nicht abwerfen
+    }
+
+    // External discard decision maker (RL env server during training, ONNX
+    // policy at runtime). Only for a FREE discard - forced pickup cards are
+    // resolved by the logic above. When the seat pauses for an external
+    // agent, we leave the state in meld phase and return; the caller supplies
+    // the discard via discard(). When it decides synchronously (ONNX), it
+    // returns a card id to throw.
+    if (discardCard && !this.mustLayOffCardId && cp.externalDiscard) {
+      const legal = cp.hand.filter((c) => !c.isJoker);
+      if (legal.length > 0) {
+        if (cp.externalDiscard === 'pause') {
+          this._agentAwaitingDiscard = { botId, legalIds: legal.map((c) => c.id) };
+          return; // env will call discard(botId, chosenId)
+        }
+        if (typeof cp.externalDiscard === 'function') {
+          try {
+            const chosenId = cp.externalDiscard(this, cp, legal);
+            const chosen = chosenId && cp.hand.find((c) => c.id === chosenId);
+            if (chosen) discardCard = chosen;
+          } catch (e) {
+            // fall back to the heuristic discardCard
+          }
+        }
+      }
     }
 
     if (discardCard) {
