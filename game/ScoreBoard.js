@@ -19,7 +19,7 @@ function sumValues(cards) {
 const DEFAULT_HOUSE_RULES = {
   handAusDoubles: false,
   strictThreshold: false,
-  botDifficulty: 'medium', // 'easy' | 'medium' | 'hard' | 'zen'
+  botDifficulty: 'medium', // 'easy' | 'medium' | 'zen'
 };
 
 /**

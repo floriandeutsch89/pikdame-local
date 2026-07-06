@@ -313,9 +313,11 @@ const URGENT_DISCARD_HAND_SIZE = 8;
  *             Pik Dame) - spielt wie ein unbekümmerter Anfänger.
  * - 'medium': bisheriges Verhalten (isolierte hohe Karten zuerst, Tisch-
  *             bewusstes Abwerfen, Pik Dame bei kleiner Hand loswerden).
- * - 'hard':   wie medium, aber die Pik Dame wird nie freiwillig abgeworfen,
+ * - (Hinweis: 'hard' wurde entfernt - war identisch mit 'medium'; Alt-Werte
+ *   werden wie 'medium' behandelt.)
+ * - 'medium': solides Wertspiel, die Pik Dame wird nie freiwillig abgeworfen,
  *             solange es Alternativen gibt (100 Punkte verschenkt man nicht).
- * - 'zen':    wie hard, plus Kartenzählung über opts.visibleCards: Karten,
+ * - 'zen':    wie medium, plus Kartenzählung über opts.visibleCards: Karten,
  *             deren Kombinationspartner nachweislich nicht mehr im Umlauf
  *             sind ("tote Duos"), gelten als isoliert. Im Endspiel
  *             (opts.lowestOpponentHand <= 3) zählt nur noch Schadens-
@@ -324,7 +326,7 @@ const URGENT_DISCARD_HAND_SIZE = 8;
  */
 function chooseDiscard(hand, tableMelds = [], opts = {}) {
   if (hand.length === 0) return null;
-  const difficulty = opts.difficulty || 'medium';
+  const difficulty = (opts.difficulty === 'hard' ? 'medium' : opts.difficulty) || 'medium';
 
   // GARANTIE: nie einen Joker abwerfen. Nur-Joker-Hand -> null (Aufrufer
   // legt die Joker an, statt sie zu verschenken).
