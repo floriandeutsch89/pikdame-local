@@ -1198,18 +1198,16 @@ test('setBotDifficulty: validation, effect and per-bot resolution in guards', ()
   const { makeStandardCard } = require('../game/Card');
   const g = new GameManager(() => {});
   g.addOrReconnectPlayer('p1', 'Anna');
-  g.setHouseRules({ botDifficulty: 'hard' }); // legacy 'hard' -> normalized to medium
+  g.setHouseRules({ botDifficulty: 'medium' }); // house default: Fortgeschritten
   g.fillWithBots();
 
   const bot = g.players.find((p) => p.isBot);
-  assert.equal(bot.botDifficulty, 'medium', "legacy 'hard' house default normalizes to medium");
+  assert.equal(bot.botDifficulty, 'medium', 'bots inherit the house default');
 
   assert.match(g.setBotDifficulty('p1', bot.id, 'brutal').error, /Unbekannte/);
+  assert.match(g.setBotDifficulty('p1', bot.id, 'hard').error, /Unbekannte/, "'hard' no longer exists");
   assert.match(g.setBotDifficulty(bot.id, bot.id, 'easy').error, /Nur Spieler/, 'bots cannot request');
   assert.match(g.setBotDifficulty('p1', 'p1', 'easy').error, /Bot gibt es nicht/);
-  // 'hard' is no longer selectable but is accepted as an alias for medium.
-  assert.equal(g.setBotDifficulty('p1', bot.id, 'hard').ok, true);
-  assert.equal(bot.botDifficulty, 'medium', "'hard' request maps to medium");
 
   assert.equal(g.setBotDifficulty('p1', bot.id, 'easy').ok, true);
   assert.equal(bot.botDifficulty, 'easy');
