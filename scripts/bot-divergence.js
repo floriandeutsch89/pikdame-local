@@ -21,7 +21,7 @@
 const Bot = require('../game/Bot');
 const GameManager = require('../game/GameManager');
 
-const TIERS = ['easy', 'medium', 'hard', 'zen'];
+const TIERS = ['easy', 'medium', 'zen'];
 const GAMES = Number(process.argv[2]) || 40;
 
 const orig = Bot.chooseDiscard.bind(Bot);
@@ -75,7 +75,7 @@ function play(diffs) {
   g.destroy();
 }
 
-for (let i = 0; i < GAMES; i++) play(['zen', 'hard', 'medium', 'easy']);
+for (let i = 0; i < GAMES; i++) play(['zen', 'medium', 'medium', 'easy']);
 
 console.log(`Discard decisions sampled: ${calls} (${GAMES} games)\n`);
 console.log('Pairwise discard disagreement (higher = more distinct):');

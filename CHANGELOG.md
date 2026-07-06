@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.46.0] - 2026-07-06
+
+### Changed
+- Bot-Stufen umbenannt und auf drei reduziert: **Anfänger** (vorher „Leicht"), **Fortgeschritten** (vorher „Mittel") und **Zen-Meister**. Die interne Spiellogik bleibt gleich (Werte easy/medium/zen), nur die Anzeige ist klarer
+
+### Removed
+- Spielmodus „Schwer" (hard) komplett entfernt: Messungen (scripts/bot-divergence.js) hatten gezeigt, dass „Schwer" und „Mittel" bei Abwürfen zu 0,0 % unterschiedliche Entscheidungen trafen - also behavioral identisch waren (der einzige frühere Unterschied, der Damen-Notabwurf, fiel in v1.36.1 weg). Die Stufe bot keinen echten Mehrwert. Alt-Spiele oder gespeicherte Zustände mit „Schwer" werden automatisch als „Fortgeschritten" weitergeführt
+
 ## [1.45.3] - 2026-07-05
 
 ### Changed

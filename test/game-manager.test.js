@@ -1198,24 +1198,27 @@ test('setBotDifficulty: validation, effect and per-bot resolution in guards', ()
   const { makeStandardCard } = require('../game/Card');
   const g = new GameManager(() => {});
   g.addOrReconnectPlayer('p1', 'Anna');
-  g.setHouseRules({ botDifficulty: 'hard' }); // house default: hard
+  g.setHouseRules({ botDifficulty: 'hard' }); // legacy 'hard' -> normalized to medium
   g.fillWithBots();
 
   const bot = g.players.find((p) => p.isBot);
-  assert.equal(bot.botDifficulty, 'hard', 'bots inherit the house default');
+  assert.equal(bot.botDifficulty, 'medium', "legacy 'hard' house default normalizes to medium");
 
   assert.match(g.setBotDifficulty('p1', bot.id, 'brutal').error, /Unbekannte/);
   assert.match(g.setBotDifficulty(bot.id, bot.id, 'easy').error, /Nur Spieler/, 'bots cannot request');
   assert.match(g.setBotDifficulty('p1', 'p1', 'easy').error, /Bot gibt es nicht/);
+  // 'hard' is no longer selectable but is accepted as an alias for medium.
+  assert.equal(g.setBotDifficulty('p1', bot.id, 'hard').ok, true);
+  assert.equal(bot.botDifficulty, 'medium', "'hard' request maps to medium");
 
   assert.equal(g.setBotDifficulty('p1', bot.id, 'easy').ok, true);
   assert.equal(bot.botDifficulty, 'easy');
-  assert.ok(g.log.some((e) => e.text.includes('stellt') && e.text.includes('Leicht')));
+  assert.ok(g.log.some((e) => e.text.includes('stellt') && e.text.includes('Anfänger')));
   const pub = g.publicState('p1').players.find((p) => p.id === bot.id);
   assert.equal(pub.botDifficulty, 'easy', 'visible in the public state');
 
   // Per-bot resolution: this EASY bot ignores the endgame guard and takes
-  // a pile hiding a Queen of Spades - even though the HOUSE rule is hard.
+  // a pile hiding a Queen of Spades - even though the HOUSE rule is stronger.
   g.phase = 'playing'; g.turnPhase = 'draw';
   g.currentPlayerIndex = g.players.findIndex((p) => p.id === bot.id);
   bot.hand = [makeStandardCard('H', '7', 0), makeStandardCard('D', '7', 0), makeStandardCard('C', '2', 0)];

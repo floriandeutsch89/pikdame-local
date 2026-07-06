@@ -1,8 +1,9 @@
 # Pik Dame – Reinforcement-Learning Bot Training (Ubuntu 24.04 / WSL2)
 
-This guide explains how to train the four bot tiers (`easy`, `medium`, `hard`,
-`zen`) as neural networks and export them as **ONNX** files that the Node game
-engine loads at runtime.
+This guide explains how to train the three bot tiers (`easy`, `medium`,
+`zen`; the old `hard` tier was identical to `medium` and was removed) as
+neural networks and export them as **ONNX** files that the Node game engine
+loads at runtime.
 
 The key design choice: training runs against the **real game engine**. A small
 Node server (`scripts/rl-env-server.js`) drives the actual `GameManager`; the
@@ -107,7 +108,7 @@ Confirm the Node env server runs and returns observations:
 ```bash
 printf '%s\n' \
   '{"cmd":"meta"}' \
-  '{"cmd":"reset","difficulty":"hard","opponents":3,"seed":7}' \
+  '{"cmd":"reset","difficulty":"medium","opponents":3,"seed":7}' \
   '{"cmd":"step","action":52}' \
   '{"cmd":"close"}' | node scripts/rl-env-server.js
 ```
@@ -122,7 +123,7 @@ source .venv/bin/activate
 python - <<'PY'
 from python.pikdame_env import PikDameEnv
 import numpy as np
-env = PikDameEnv(opponent_difficulty="hard", opponents=3, seed=1)
+env = PikDameEnv(opponent_difficulty="medium", opponents=3, seed=1)
 obs, _ = env.reset()
 print("obs shape:", obs.shape, "| legal actions:", int(env.action_masks().sum()))
 obs, r, done, _, _ = env.step(int(np.where(env.action_masks())[0][0]))
@@ -155,10 +156,9 @@ in `train.py`):
 
 | Tier    | Opponents | Steps (default) |
 |---------|-----------|-----------------|
-| easy    | easy      | 200 000         |
-| medium  | medium    | 800 000         |
-| hard    | hard      | 2 000 000       |
-| zen     | hard      | 3 000 000       |
+| easy    | easy, medium         | 200 000   |
+| medium  | medium, zen          | 1 000 000 |
+| zen     | zen, medium, easy    | 3 000 000 |
 
 Each tier produces:
 
@@ -242,22 +242,20 @@ play.
 
 | Pair            | Different discards |
 |-----------------|--------------------|
-| medium vs hard  | **0.0%** (identical policy) |
-| hard vs zen     | ~18%               |
 | medium vs zen   | ~18%               |
 | easy vs any     | ~75% (easy discards randomly) |
 
-So the heuristic bots collapse to only **three genuinely distinct styles**:
-`easy` (random), `medium == hard` (value heuristic), and `zen` (counting-refined,
-differing from hard in ~1 in 5 discards). Draw and meld play are
-difficulty-independent above easy. Two consequences:
+(The former `hard` tier was measured identical to `medium` - 0% discard
+disagreement - and has been removed.)
 
-1. A `medium + hard` pool is secretly uniform - don't use it. The tier pools in
-   `train.py` combine the distinct styles (easy / hard / zen) instead.
-2. `zen` vs `hard` gives real but **modest, one-dimensional** diversity (~18%,
-   only in the discard tie-break). It is enough to avoid trivially memorising a
-   single opponent, but it is not broad. For robust anti-overfitting the
-   **self-play league below is the primary lever**, not the heuristic mix.
+So the heuristic bots offer only **three genuinely distinct styles**:
+`easy` (random), `medium` (value heuristic), and `zen` (counting-refined,
+differing from medium in ~1 in 5 discards). Draw and meld play are
+difficulty-independent above easy. Consequence: `zen` vs `medium` gives real but
+**modest, one-dimensional** diversity (~18%, only in the discard tie-break) -
+enough to avoid trivially memorising a single opponent, but not broad. For
+robust anti-overfitting the **self-play league below is the primary lever**,
+not the heuristic mix.
 
 **Do not train against zen alone.** A single opponent invites overfitting - the
 network learns to exploit that opponent's quirks instead of playing well in
@@ -266,24 +264,23 @@ therefore use a zen-anchored **pool** that is resampled each episode:
 
 | Tier   | Opponent pool (sampled per episode) |
 |--------|-------------------------------------|
-| easy   | easy, easy, medium                  |
-| medium | medium, medium, hard                |
-| hard   | hard, hard, zen                     |
-| zen    | zen, zen, hard                      |
+| easy   | easy, medium               |
+| medium | medium, zen                |
+| zen    | zen, medium, easy          |
 
 You can pass any mix directly:
 
 ```python
 # explicit per-seat opponents (anchor on the zen master)
-PikDameEnv(opponent_difficulties=["zen", "hard", "medium"])
+PikDameEnv(opponent_difficulties=["zen", "medium", "easy"])
 # or a pool to sample a fresh 3-seat table from every reset
-PikDameEnv(opponent_pool=["zen", "zen", "hard", "medium"])
+PikDameEnv(opponent_pool=["zen", "zen", "medium", "easy"])
 ```
 
 Evaluate specifically against the zen baseline:
 
 ```bash
-python eval_onnx.py --tier zen --opponents zen,zen,hard --episodes 40
+python eval_onnx.py --tier zen --opponents zen,zen,medium --episodes 40
 ```
 
 **Next step - a self-play league.** Once a tier beats the zen baseline, add its

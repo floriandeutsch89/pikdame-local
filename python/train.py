@@ -47,11 +47,13 @@ MODELS_DIR = os.path.join(REPO_ROOT, "models")
 # easy. So a "medium + hard" pool is secretly uniform; the pools below combine
 # the genuinely distinct styles instead. Real diversity beyond this ceiling
 # needs the self-play league (see docs/RL_TRAINING.md, "Opponent selection").
+# Three tiers (the old 'hard' was behaviourally identical to 'medium' and was
+# removed). Pools combine the genuinely distinct styles easy / medium / zen.
+# Real diversity beyond this needs the self-play league (docs/RL_TRAINING.md).
 TIERS = {
-    "easy":   {"pool": ["easy", "hard"],          "steps": 200_000},
-    "medium": {"pool": ["hard", "zen"],           "steps": 800_000},
-    "hard":   {"pool": ["hard", "zen"],           "steps": 2_000_000},
-    "zen":    {"pool": ["zen", "hard", "easy"],   "steps": 3_000_000},
+    "easy":   {"pool": ["easy", "medium"],        "steps": 200_000},
+    "medium": {"pool": ["medium", "zen"],         "steps": 1_000_000},
+    "zen":    {"pool": ["zen", "medium", "easy"], "steps": 3_000_000},
 }
 
 

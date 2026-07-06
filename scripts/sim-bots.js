@@ -1,7 +1,7 @@
 // Bot-vs-bot self-play harness: measures win rates per difficulty so bot
 // tuning is DATA-driven instead of vibes-driven. Usage: node scripts/sim-bots.js
 // (adjust the series at the bottom; ~3 games/second headless).
-// Headless bot-vs-bot simulation: does zen actually beat hard/medium?
+// Headless bot-vs-bot simulation: does zen actually beat the field?
 const GameManager = require('../game/GameManager');
 
 function playGame(difficulties, mcSeats = [], mctsSeats = []) {
@@ -85,10 +85,10 @@ if (process.argv.includes('--mc')) {
   // noisy number (the exact discipline that unmasked the blocking feature).
   const BATCHES = 8;
   const GAMES = 90;
-  const field = ['zen', 'hard', 'hard', 'hard'];
+  const field = ['zen', 'medium', 'medium', 'medium'];
   const control = [];
   const mc = [];
-  process.stdout.write(`MC A/B: seat0 zen vs 3x hard, ${BATCHES} batches x ${GAMES} games\n`);
+  process.stdout.write(`MC A/B: seat0 zen vs 3x medium, ${BATCHES} batches x ${GAMES} games\n`);
   for (let b = 0; b < BATCHES; b++) {
     control.push(series('', field, GAMES, []).winBySeat[0]);
     mc.push(series('', field, GAMES, [0]).winBySeat[0]);
@@ -106,10 +106,10 @@ if (process.argv.includes('--mc')) {
   // are expensive, so fewer games per batch; still batched for mean +/- se.
   const BATCHES = 5;
   const GAMES = 26;
-  const field = ['zen', 'hard', 'hard', 'hard'];
+  const field = ['zen', 'medium', 'medium', 'medium'];
   const control = [];
   const mcts = [];
-  process.stdout.write(`MCTS A/B: seat0 zen vs 3x hard, ${BATCHES} batches x ${GAMES} games\n`);
+  process.stdout.write(`MCTS A/B: seat0 zen vs 3x medium, ${BATCHES} batches x ${GAMES} games\n`);
   for (let b = 0; b < BATCHES; b++) {
     const cw = series('', field, GAMES, [], []).winBySeat[0];
     const mw = series('', field, GAMES, [], [0]).winBySeat[0];
@@ -123,7 +123,7 @@ if (process.argv.includes('--mc')) {
   console.log(`  zen + MCTS : ${mM.toFixed(1)}% +/- ${(stderr(mcts) * 100).toFixed(1)}`);
   console.log(`  delta      : ${mM - cM >= 0 ? '+' : ''}${(mM - cM).toFixed(1)} pts  (~${(Math.abs(mM - cM) / (seD || 1)).toFixed(1)} sigma)`);
 } else {
-  series('zen vs 3x hard  ', ['zen', 'hard', 'hard', 'hard'], 130);
+  series('zen vs 3x medium ', ['zen', 'medium', 'medium', 'medium'], 130);
   series('zen vs 3x medium', ['zen', 'medium', 'medium', 'medium'], 200);
 }
 

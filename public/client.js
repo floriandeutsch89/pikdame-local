@@ -1714,9 +1714,8 @@
 
   // --- Per-bot difficulty ---------------------------------------------------
   const BOT_DIFF = {
-    easy: { icon: '🌱', label: () => L('Leicht', 'Easy'), hint: () => L('macht Anfängerfehler', 'makes beginner mistakes') },
-    medium: { icon: '🙂', label: () => L('Mittel', 'Medium'), hint: () => L('solides Familienspiel', 'solid family play') },
-    hard: { icon: '🔥', label: () => L('Schwer', 'Hard'), hint: () => L('spielt taktisch', 'plays tactically') },
+    easy: { icon: '🌱', label: () => L('Anfänger', 'Beginner'), hint: () => L('macht Anfängerfehler', 'makes beginner mistakes') },
+    medium: { icon: '🙂', label: () => L('Fortgeschritten', 'Advanced'), hint: () => L('solides Familienspiel', 'solid family play') },
     zen: { icon: '🧘', label: () => L('Zen-Meister', 'Zen master'), hint: () => L('zählt die Karten mit', 'counts the cards') },
   };
   function openBotDiffOverlay(bot) {

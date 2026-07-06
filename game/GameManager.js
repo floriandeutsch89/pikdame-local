@@ -178,7 +178,11 @@ class GameManager {
     const clean = {};
     if (typeof partial.handAusDoubles === 'boolean') clean.handAusDoubles = partial.handAusDoubles;
     if (typeof partial.strictThreshold === 'boolean') clean.strictThreshold = partial.strictThreshold;
-    if (['easy', 'medium', 'hard', 'zen'].includes(partial.botDifficulty)) clean.botDifficulty = partial.botDifficulty;
+    if (['easy', 'medium', 'zen'].includes(partial.botDifficulty)) {
+      clean.botDifficulty = partial.botDifficulty;
+    } else if (partial.botDifficulty === 'hard') {
+      clean.botDifficulty = 'medium'; // 'Schwer' entfernt - war identisch mit 'Mittel'
+    }
     if ([0, 30, 60, 90].includes(Number(partial.turnTimerSeconds))) clean.turnTimerSeconds = Number(partial.turnTimerSeconds);
     this.houseRules = {
       ...DEFAULT_HOUSE_RULES,
@@ -233,7 +237,10 @@ class GameManager {
    *  the log entry keeps it transparent). The lobby house rule stays the
    *  default for bots created later (e.g. after a rematch). */
   setBotDifficulty(requesterId, botId, difficulty) {
-    const LABELS = { easy: 'Leicht', medium: 'Mittel', hard: 'Schwer', zen: 'Zen-Meister' };
+    // 'Schwer'/'hard' wurde entfernt (war identisch mit 'Fortgeschritten') -
+    // Alt-Anfragen werden auf 'medium' normalisiert.
+    if (difficulty === 'hard') difficulty = 'medium';
+    const LABELS = { easy: 'Anfänger', medium: 'Fortgeschritten', zen: 'Zen-Meister' };
     if (!LABELS[difficulty]) return { error: 'Unbekannte Schwierigkeit.' };
     const requester = this.players.find((p) => p.id === requesterId && !p.isBot);
     if (!requester) return { error: 'Nur Spieler am Tisch können das ändern.' };

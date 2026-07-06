@@ -7,7 +7,7 @@
  * rules exactly - no divergent Python reimplementation. Communicates with the
  * Python Gymnasium env over stdin/stdout, one JSON object per line:
  *
- *   <- {"cmd":"reset","difficulty":"hard","opponents":3,"seed":123}
+ *   <- {"cmd":"reset","difficulty":"medium","opponents":3,"seed":123}
  *   -> {"obs":[...],"mask":[true,...],"done":false}
  *   <- {"cmd":"step","action":17}
  *   -> {"obs":[...],"mask":[...],"reward":0.0,"done":false}
@@ -35,22 +35,22 @@ function send(obj) {
 class EnvSession {
   constructor() {
     this.game = null;
-    this.oppDifficulty = 'hard';
+    this.oppDifficulty = 'medium';
     this.roundStartTotalsMargin = 0;
   }
 
   reset(difficulty, opponents, seed, opponentDifficulties) {
     // Opponent seats: either an explicit per-seat list (mixed pool, e.g.
-    // ['zen','hard','medium'] to anchor training against the zen master) or a
+    // ['zen','medium','easy'] to anchor training against the zen master) or a
     // count of a single difficulty. The explicit list wins when provided.
     let oppDiffs;
     if (Array.isArray(opponentDifficulties) && opponentDifficulties.length > 0) {
       oppDiffs = opponentDifficulties.slice(0, 3);
     } else {
       const n = Math.max(2, Math.min(4, opponents || 3));
-      oppDiffs = new Array(n - 1).fill(difficulty || 'hard');
+      oppDiffs = new Array(n - 1).fill(difficulty || 'medium');
     }
-    this.oppDifficulty = difficulty || oppDiffs[0] || 'hard';
+    this.oppDifficulty = difficulty || oppDiffs[0] || 'medium';
     if (this.game) this.game.destroy();
     const opts = typeof seed === 'number' ? { deckSeed: seed >>> 0 } : {};
     const g = new GameManager(() => {}, opts);

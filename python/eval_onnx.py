@@ -30,7 +30,7 @@ def main():
     ap.add_argument("--tier", default="zen")
     ap.add_argument("--episodes", type=int, default=20)
     ap.add_argument(
-        "--opponents", default="zen,zen,hard",
+        "--opponents", default="zen,zen,medium",
         help="comma-separated per-seat opponent difficulties (default: the zen baseline)",
     )
     args = ap.parse_args()

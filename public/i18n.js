@@ -45,9 +45,8 @@ window.I18N_STATIC = {
   'Hausregeln': 'House rules',
   'Hand aus zählt doppelt': 'Going out in one turn counts double',
   'Bot-Schwierigkeit': 'Bot difficulty',
-  'Leicht': 'Easy',
-  'Mittel': 'Medium',
-  'Schwer': 'Hard',
+  'Anfänger': 'Beginner',
+  'Fortgeschritten': 'Advanced',
   'Zen-Meister': 'Zen master',
   'Über 1000 Punkte zum Gewinnen (genau 1000 reicht nicht)': 'More than 1000 points to win (exactly 1000 is not enough)',
   'Spiel starten (fehlende Plätze = Bots)': 'Start game (empty seats = bots)',
@@ -171,9 +170,8 @@ window.I18N_SERVER_PATTERNS = [
   [/^Bereitschaft gibt es nur in der Lobby\.$/, 'Readiness only exists in the lobby.'],
   [/^Nur Mitspieler am Tisch können sich bereit melden\.$/, 'Only players at the table can mark themselves ready.'],
   [/^Zu viele Aktionen - bitte kurz durchatmen\.$/, 'Too many actions - please take a breath.'],
-  [/^(.+) stellt (.+) auf Leicht\.$/, '$1 sets $2 to Easy.'],
-  [/^(.+) stellt (.+) auf Mittel\.$/, '$1 sets $2 to Medium.'],
-  [/^(.+) stellt (.+) auf Schwer\.$/, '$1 sets $2 to Hard.'],
+  [/^(.+) stellt (.+) auf Anfänger\.$/, '$1 sets $2 to Beginner.'],
+  [/^(.+) stellt (.+) auf Fortgeschritten\.$/, '$1 sets $2 to Advanced.'],
   [/^(.+) stellt (.+) auf Zen-Meister\.$/, '$1 sets $2 to Zen master.'],
   [/^Zum Ausmachen musst du deine letzte Karte abwerfen - mindestens eine Handkarte muss übrig bleiben\.$/, 'To go out you must discard your last card - at least one hand card has to remain.'],
   [/^Du hast bereits einen Satz mit diesem Wert - lege die Karte\(n\) dort an statt einen neuen Stapel zu eröffnen\.$/, 'You already have a set of this rank - add the card(s) there instead of opening a new pile.'],
@@ -240,7 +238,7 @@ window.I18N_RULES_EN = `
 
   <h3>House rules (chosen when creating a game)</h3>
   <ul>
-    <li><b>Bot difficulty:</b> Easy up to Zen master – adjustable per bot, too (tap the icon on a bot).</li>
+    <li><b>Bot difficulty:</b> Beginner, Advanced or Zen master – adjustable per bot, too (tap the icon on a bot).</li>
     <li><b>⏱ Turn timer:</b> 30/60/90 seconds per turn. When time runs out, the bot logic finishes that turn fairly – the table never waits forever.</li>
     <li><b>Out in one counts double</b> (see scoring).</li>
     <li><b>Strict 1000:</b> victory only once someone is above 1000 points.</li>
