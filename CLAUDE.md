@@ -69,15 +69,64 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
 - `public/` — Vanilla-JS-Client (`client.js`), `i18n.js`, PWA.
 - `landing/` — statische Auswahlseite für pikdame.online.
 
+### Bot-KI (Heuristik + optionales gelerntes Netz)
+- **Heuristik** (`Bot.js`, 4 Stufen easy/medium/hard/zen): Kartenzählung über
+  alle öffentlichen Karten, Damen-Disziplin (nur easy wirft die ♠Q sorglos),
+  Zieh-Guards (Usability-Lookahead, Damen-unter-Stapel, Wertverlust-Vergleich),
+  Zen-Endspiel mit Erschöpfungs-/Punktestand-Gewichtung, Joker-Ausstieg.
+- **Untersucht, NICHT produktiv** (jeweils getestete Infrastruktur, per Flag):
+  `MonteCarlo.js` (Hidden-Hand-Sampling für den Abwurf – gemessen Null-Effekt);
+  `Rollout.js` (determinisierte Rollout-Suche/ISMCTS – gemessen ~+2 Pkt/0,8σ,
+  nicht signifikant, ~500 ms/Zug; nur via `mctsEnabled`-Seat-Flag im Sim).
+- **Gelerntes Netz (ONNX), per `PIKDAME_ONNX=1` aktivierbar** — Standardpfad
+  ohne Variable unverändert, Fallback bei jedem Fehler:
+  - `StateEncoder.js` — EINZIGE Kodier-Stelle (377-dim Obs + 54 Aktionen: 52
+    Abwurf-Typen + Ziehstapel + Ablage-nehmen; Maske phasenabhängig via
+    `{phase, pileTakeLegal}`). **Speist Training UND Laufzeit → Parität ist
+    Pflicht; einseitige Änderung macht bestehende `.onnx` inkompatibel.**
+  - `OnnxPolicy.js` — `onnxruntime-node` (optionale Dep), lädt
+    `models/pikdame-<stufe>.onnx`, wählt Zieh- UND Abwurf-Aktion per maskiertem
+    Argmax. `GameManager._runBotTurnWithOnnx` awaited am Pause-Seam.
+  - Training in `python/` (Gymnasium + sb3-contrib MaskablePPO → ONNX-Export),
+    Bridge `scripts/rl-env-server.js` (stdio-JSON über die ECHTE Engine),
+    Doku `docs/RL_TRAINING.md` (Ubuntu 24.04, uv, RTX-5080). Modelle werden
+    committet (öffentliches Repo); SB3-`.zip` bleibt gitignored.
+  - **Steuer-Seams:** `cp.forcedDrawSource` ('drawPile'|'discardPile', vor dem
+    Zug gesetzt, überschreibt decideDraw+Guards, danach gelöscht),
+    `cp.externalDiscard` ('pause' → `runBotTurn` hält vor dem freien Abwurf an,
+    setzt `_agentAwaitingDiscard={botId,legalIds}`; oder Funktion), `_noMcts`
+    (Rollout-Klone spielen reine Heuristik, verhindert Rekursion).
+  - **Anti-Cheat:** Diese Felder wählen nur unter LEGALEN Aktionen (kein Zugriff
+    auf verdeckte Karten) und wirken nur in `runBotTurn` (Bots). Client-
+    Nachrichten können sie nicht setzen (spezifische Handler, kein Mass-Assign).
+    `GameManager._sanitizeControlFields` entfernt sie bei `deserialize`, und
+    `serialize` persistiert sie nie (Seat-Felder + `_agentAwaitingDiscard`/
+    `_noMcts` gestrippt) — kein manipulierter Snapshot kann sie einschleusen.
+
 ## Spielregeln-Essenz (engine-verifiziert, siehe Regeln-Overlay)
 
 110 Karten (2 Decks + 6 Joker), 15 Handkarten, 2–4 Spieler, Bots füllen auf.
 Jeder Spieler hat **eigene** Auslagen (Anlegen/Joker-Tausch nur dort).
 Folgen laufen im Ring (K-A-2), max 13. Zwei-Phasen-Ablagestapel (oberste
 Karte sofort legen, dann Rest). Pro Spieler nur EIN Satz je Wert.
-**Ausmachen nur per Abwurf der letzten Karte.** Bots werfen NIE Joker ab
-(außer als Sieges-Abwurf der letzten Karte). Punkte: 2–9=5, 10/B/D/K=10,
-Ass/Joker=20, Pik Dame=100. Spielende ab 1000 (Hausregel „streng“: >1000).
+**Ausmachen nur per Abwurf der letzten Karte** (verdeckt abgelegt, nicht
+aufnehmbar; Ausnahme: Joker-Tausch mit der letzten Handkarte beendet sofort).
+Ein getauschter Joker bleibt als +20 in der Auslage-Wertung (plus die echte
+Karte). „Hand aus“ = Gewinner hatte vor seinem letzten Zug nichts ausgelegt
+(verdoppelt bei Hausregel). Leerer Ziehstapel → Ablage (außer oberster Karte)
+neu mischen; beide leer oder 160 Züge ohne Meld → Unentschieden ohne Bonus.
+Bots werfen NIE Joker ab (außer als Sieges-Abwurf der letzten Karte). Punkte:
+2–9=5, 10/B/D/K=10, Ass/Joker=20, Pik Dame=100. Spielende ab 1000 (Hausregel
+„streng“: >1000). `gameTurnCount` zählt alle Züge der Partie; `gameOverInfo`
+trägt `totalTurns`/`totalRounds` (Anzeige im Endbildschirm).
+
+### Messdisziplin für Bot-Änderungen (hart gelernt)
+Winrate-Behauptungen NIE aus einem einzelnen kleinen Lauf ableiten: `node
+scripts/sim-bots.js` (Batches), für Experimente `--mc`/`--mcts` mit Mittel ±
+Standardfehler über viele Batches. Ein erster +8,5 Pkt/2,8σ-Wert entpuppte sich
+bei größerer Stichprobe als Varianz (real ~+2/0,8σ). Features mit Null-/
+Negativ-Effekt werden NICHT ausgeliefert, sondern als „investigated, not
+shipped“ im Changelog dokumentiert und als getestete Infrastruktur behalten.
 
 ## Workflow
 
@@ -111,3 +160,10 @@ angewendet liegen. (pro Änderung)
 - Client-Heuristiken (z. B. Anlege-Hinweise): gegen die Server-Wahrheit fuzzen
   — falsche Positive sind verboten, falsche Negative ok.
 - Snapshot-Änderungen: Roundtrip durch `JSON.stringify/parse` + Restore testen.
+- RL/Encoder: `OBS_SIZE`/`ACTION_SIZE` sind Verträge — bei Encoder-Änderungen
+  Tests (`test/state-encoder.test.js`) UND die Env-Bridge (`printf … | node
+  scripts/rl-env-server.js`, liefert `obs_size`/`action_size`) prüfen; ändert
+  sich die Kodierung, sind bestehende `.onnx` inkompatibel (neu trainieren).
+- Steuer-Seams (`forced*`/`external*`/`mcts*`): dürfen weder aus Client-
+  Nachrichten noch aus deserialisierten Snapshots setzbar sein — Anti-Cheat-
+  Tests in `test/game-manager.test.js` decken beide Wege ab.

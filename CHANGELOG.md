@@ -4,6 +4,17 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.45.1] - 2026-07-05
+
+### Added
+- Zug-Zähler: Am Spielende zeigt der Ergebnisbildschirm jetzt, wie viele Züge die ganze Partie gedauert hat (und über wie viele Runden) - eine schöne kleine Statistik zum Herzeigen
+
+### Security
+- Absicherung der neuen Bot-Steuerungsfelder (Zieh-Quelle, externer Abwurf, Rollout-Flags): Sie wählen ohnehin nur unter regulär erlaubten Aktionen (kein Zugriff auf verdeckte Karten) und wirken nur für Bot-Züge. Zusätzlich abgesichert, dass sie weder aus Client-Nachrichten (feste Handler, kein Feld-Kopieren) noch aus einem manipulierten/gespeicherten Spielstand eingeschleust werden können: Beim Wiederherstellen werden sie von allen Sitzen entfernt und beim Speichern nie mitgeschrieben (mit Tests für beide Wege)
+
+### Changed
+- Entwickler-Handbuch (CLAUDE.md) um das komplette RL/ONNX-Wissen ergänzt: Encoder-Parität, Steuerungs-Seams, Anti-Cheat-Absicherung, Messdisziplin (Winrate immer über Batches mit Standardfehler) und die als „untersucht, nicht ausgeliefert" dokumentierten Verfahren (Monte-Carlo, Rollout-Suche)
+
 ## [1.45.0] - 2026-07-05
 
 ### Changed
