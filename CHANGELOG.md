@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.46.1] - 2026-07-06
+
+### Changed
+- Aufräumen nach der Entfernung von „Schwer": Die Übergangs-Normalisierung von Alt-Werten („hard" → „Fortgeschritten") wurde entfernt - der Code kennt jetzt nur noch die drei echten Stufen (Anfänger/Fortgeschritten/Zen), ohne Kompatibilitäts-Weichen. Ein gespeichertes Spiel mit der alten „Schwer"-Stufe wird bewusst NICHT mehr umgesetzt (einmalige Ausnahme); ein solcher Bot spielt technisch weiterhin wie „Fortgeschritten", ist per Menü aber neu einzustellen. Toter Codepfad im Divergenz-Werkzeug ebenfalls entfernt
+
 ## [1.46.0] - 2026-07-06
 
 ### Changed

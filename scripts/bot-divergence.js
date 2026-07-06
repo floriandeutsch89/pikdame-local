@@ -10,12 +10,12 @@
  *
  *   node scripts/bot-divergence.js
  *
- * Findings (2026-07): medium and hard are behaviourally identical (0% - the old
- * medium queen-dump was removed in v1.36.1); zen differs from hard in ~20% of
- * discards (its counting-based re-ranking of near-equal-value candidates). The
- * draw and meld phases are difficulty-independent above 'easy'. So the only
- * genuinely distinct heuristic styles are: easy, medium==hard, zen. Real
- * training diversity beyond that must come from a self-play league.
+ * Findings (2026-07): the three tiers are the only distinct heuristic styles -
+ * easy (random discards), medium (value heuristic), and zen (counting-refined,
+ * ~18-20% different discards from medium). Draw and meld phases are
+ * difficulty-independent above 'easy'. The former 'hard' tier was measured
+ * identical to medium (0% divergence) and was removed in v1.46.0. Real training
+ * diversity beyond these three must come from a self-play league.
  */
 
 const Bot = require('../game/Bot');
@@ -81,7 +81,6 @@ console.log(`Discard decisions sampled: ${calls} (${GAMES} games)\n`);
 console.log('Pairwise discard disagreement (higher = more distinct):');
 for (const [k, v] of Object.entries(pairs)) {
   const pct = calls ? ((100 * v) / calls).toFixed(1) : '0.0';
-  const note = k === 'medium vs hard' && v === 0 ? '  <- identical policy' : '';
   const easy = k.includes('easy') ? '  (easy is random; ignore)' : '';
-  console.log(`  ${k.padEnd(18)} ${pct}%${note}${easy}`);
+  console.log(`  ${k.padEnd(18)} ${pct}%${easy}`);
 }
