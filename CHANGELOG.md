@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.45.2] - 2026-07-05
+
+### Changed
+- RL-Training kann jetzt gegen einen gemischten Gegner-Pool laufen, verankert am bestehenden Zen-Meister: Der Env-Server akzeptiert per-Sitz-Schwierigkeiten, die Python-Umgebung eine feste Liste ODER einen bei jeder Episode neu gesampelten Pool. Die vier Trainingsstufen nutzen jetzt zen-verankerte Pools (z. B. hard trainiert gegen hard/hard/zen). Hintergrund: Ein fixer starker Referenzgegner liefert ein klares "ist das Netz besser als unser bester handgeschriebener Bot?"-Signal und verhindert Overfitting auf die Eigenheiten eines einzelnen Gegners - reines Training nur gegen Zen würde überanpassen. eval_onnx.py wertet standardmäßig gegen die Zen-Baseline aus; docs/RL_TRAINING.md erklärt Gegnerwahl, Baselines und den Self-Play-Liga-Ausbau als nächsten Schritt
+
 ## [1.45.1] - 2026-07-05
 
 ### Added

@@ -33,12 +33,24 @@ class PikDameEnv(gym.Env):
         self,
         opponent_difficulty: str = "hard",
         opponents: int = 3,
+        opponent_difficulties: Optional[list] = None,
+        opponent_pool: Optional[list] = None,
         seed: Optional[int] = None,
         node_bin: str = "node",
     ):
+        """Opponent selection (in priority order):
+          - opponent_difficulties: an explicit per-seat list, e.g.
+            ["zen", "hard", "medium"] (anchor training against the zen master),
+          - opponent_pool: a list to SAMPLE a fresh 3-seat mix from each reset,
+            e.g. ["zen", "zen", "hard", "medium"] (zen weighted heavier),
+          - else opponents x opponent_difficulty (a uniform table).
+        """
         super().__init__()
         self.opponent_difficulty = opponent_difficulty
         self.opponents = opponents
+        self.opponent_difficulties = opponent_difficulties
+        self.opponent_pool = opponent_pool
+        self._rng = np.random.default_rng(seed)
         self._seed = seed
         self._node_bin = node_bin
         self._proc: Optional[subprocess.Popen] = None
@@ -79,11 +91,12 @@ class PikDameEnv(gym.Env):
     def reset(self, *, seed=None, options=None):
         if seed is not None:
             self._seed = seed
-        msg = {
-            "cmd": "reset",
-            "difficulty": self.opponent_difficulty,
-            "opponents": self.opponents,
-        }
+        opp_diffs = self.opponent_difficulties
+        if opp_diffs is None and self.opponent_pool:
+            opp_diffs = list(self._rng.choice(self.opponent_pool, size=3))
+        msg = {"cmd": "reset", "difficulty": self.opponent_difficulty, "opponents": self.opponents}
+        if opp_diffs is not None:
+            msg["opponentDifficulties"] = [str(d) for d in opp_diffs]
         if self._seed is not None:
             msg["seed"] = int(self._seed) & 0xFFFFFFFF
             # vary the seed per episode so we do not overfit one deal
