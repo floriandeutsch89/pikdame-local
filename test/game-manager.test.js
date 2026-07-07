@@ -1670,3 +1670,27 @@ test('lowering maxSeats trims bots but keeps the humans', () => {
   assert.equal(g.players.length, 2);
   assert.equal(g.players.filter((p) => !p.isBot).length, 2, 'both humans kept');
 });
+
+// --- v1.48.1: richer situational bot reactions ------------------------------
+test('a dragging round (many turns without a meld) makes a bot yawn', () => {
+  const emotes = [];
+  const g = new GameManager(() => {}, { onBotEmote: (id, e) => emotes.push(e) });
+  g._emoteDelayForTest = 0;
+  g.addOrReconnectPlayer('h', 'H');
+  g.maxSeats = 4;
+  g.fillWithBots();
+  g.phase = 'playing';
+  g.players.forEach((p) => { if (p.isBot) g._lastBotEmote[p.id] = 0; });
+  const rnd = Math.random;
+  Math.random = () => 0.1; // pass the chance gate + deterministic bot pick
+  g._turnsWithoutMeld = 23;
+  g.advanceTurn(); // crosses 24 -> yawn
+  Math.random = rnd;
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      assert.ok(emotes.includes('😴'), 'a bot yawned on the dragging round');
+      g.destroy();
+      resolve();
+    }, 20);
+  });
+});

@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.48.1] - 2026-07-07
+
+### Added
+- Reichere situative Bot-Reaktionen, damit die Bots menschlicher wirken (reine Präsentation, keinerlei Einfluss aufs Spiel): Wer einen dicken Ablagestapel schlucken muss, seufzt (😅); eine wertvolle Auslage bringt einen kleinen Stolz-Moment (😎); ein „Hand aus" (Ausmachen im allerersten Zug) verblüfft den ganzen Tisch (😲); und zieht sich eine Runde ewig ohne neue Auslage, gähnt gelegentlich ein Bot (😴). Alles weiterhin über die bestehende Emote-Drosselung (max. ~1 Alltagsreaktion pro Bot alle 5 s, Höhepunkte dürfen sie durchbrechen)
+
 ## [1.48.0] - 2026-07-07
 
 ### Added

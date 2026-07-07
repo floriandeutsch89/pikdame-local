@@ -407,6 +407,12 @@ class GameManager {
     // or lay-off (~40 full table rotations) is far beyond anything a real
     // round produces - end it as a draw, scored like the empty-pile case.
     this._turnsWithoutMeld = (this._turnsWithoutMeld || 0) + 1;
+    // Zieht sich die Runde (24 Zuege ohne neue Auslage ~ 6 Runden), gaehnt
+    // gelegentlich ein zufaelliger Bot - der Tisch wird langsam muede.
+    if (this._turnsWithoutMeld === 24 && this.phase === 'playing') {
+      const bots = this.players.filter((p) => p.isBot);
+      if (bots.length) this.maybeBotEmote(bots[Math.floor(Math.random() * bots.length)].id, '😴', 0.5);
+    }
     if (this._turnsWithoutMeld > 160 && this.phase === 'playing') {
       this.addLog('Lange Zeit keine neue Auslage - die Runde endet unentschieden.');
       this.finishRound(null, { stalemate: true });
@@ -558,6 +564,8 @@ class GameManager {
       player.hand.push(...rest);
       this._publicMemoryAdd(player.id, rest);
       this.addLog(`${player.name} nimmt die restlichen ${rest.length} Karten des Ablagestapels auf.`);
+      // Einen dicken Stapel zu schlucken, entlockt selbst dem Bot ein Seufzen.
+      if (rest.length >= 4) this.maybeBotEmote(player.id, '😅', 0.55);
     }
   }
 
@@ -651,6 +659,10 @@ class GameManager {
     if (meld.slots.some((s) => s.real && isPikDame(s.real))) {
       this.maybeBotEmote(player.id, '🎉', 0.3, { force: true });
       this.botsReact(player.id, '😱', 0.4, { force: true });
+    } else {
+      // Eine dicke Auslage (viele Punkte auf einmal) - kleiner Stolz-Moment.
+      const meldValue = meld.slots.reduce((sum, s) => sum + (s.real ? cardValue(s.real) : 0), 0);
+      if (meldValue >= 25) this.maybeBotEmote(player.id, '😎', 0.3);
     }
     this.checkRoundEnd(player);
     this.broadcastState();
@@ -973,9 +985,14 @@ class GameManager {
     // oder nimmt's mit Humor - alles dem Zufall überlassen.
     if (winnerId) {
       this.maybeBotEmote(winnerId, '🎉', 0.5, { force: true });
-      for (const p of this.players) {
-        if (p.isBot && p.id !== winnerId) {
-          this.maybeBotEmote(p.id, Math.random() < 0.5 ? '😤' : '😂', 0.25, { force: true });
+      // Ein Hand-aus (im allerersten Zug ausgemacht) verblüfft den Tisch.
+      if (this.lastRoundWasHandAus) {
+        this.botsReact(winnerId, '😲', 0.6, { force: true });
+      } else {
+        for (const p of this.players) {
+          if (p.isBot && p.id !== winnerId) {
+            this.maybeBotEmote(p.id, Math.random() < 0.5 ? '😤' : '😂', 0.25, { force: true });
+          }
         }
       }
     }
