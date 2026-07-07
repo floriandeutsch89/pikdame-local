@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.47.0] - 2026-07-06
+
+### Added
+- Aus Menschenspielen lernen (Imitation Learning): Mit PIKDAME_LOG_GAMES=1 zeichnet der Server jede menschliche Zieh- und Abwurfentscheidung über denselben StateEncoder auf, den das Netz nutzt, und schreibt sie am Spielende anonym nach data/human-moves.jsonl (nur kodierte Beobachtung, Aktion, Maske, anonyme Spiel-ID und ein „gewonnen"-Flag - keine Namen/Konten/Klarkarten). train.py kann diese Daten direkt berücksichtigen: --human-data startet eine Behavioral-Cloning-Vorphase (überwachtes Nachahmen der Gewinner-Züge), auf die dann PPO aufsetzt (SL→RL wie bei AlphaGo); --bc-only liefert ein reines Menschen-Imitations-Modell. Motivation: Ein nur gegen Bots trainiertes Netz überanpasst sich an Bot-Verhalten und wird für Menschen berechenbar - menschliche Gewinner-Züge bringen Stil und Unberechenbarkeit. Neuer Loader python/human_dataset.py, Doku-Abschnitt in docs/RL_TRAINING.md
+
 ## [1.46.2] - 2026-07-06
 
 ### Changed

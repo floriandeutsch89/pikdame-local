@@ -35,6 +35,7 @@ from sb3_contrib.common.wrappers import ActionMasker
 from stable_baselines3.common.monitor import Monitor
 
 from pikdame_env import PikDameEnv
+from human_dataset import load_winner_moves
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODELS_DIR = os.path.join(REPO_ROOT, "models")
@@ -103,7 +104,43 @@ def export_onnx(model: MaskablePPO, obs_size: int, out_path: str):
     print(f"  exported ONNX -> {out_path}")
 
 
-def train_tier(tier: str, steps_override: int | None, device: str):
+def behavioral_clone(model, human_data_path, epochs, device, batch=512):
+    """Supervised pre-training: make the policy imitate WINNING humans before
+    (optionally) refining with PPO. Trains the actor with masked cross-entropy
+    on (obs -> human action). This injects human style and reduces overfitting
+    to bot opponents (self-play alone makes bots predictable to people)."""
+    obs, act, mask = load_winner_moves(human_data_path)
+    if len(act) == 0:
+        print(f"  [BC] no winning-human moves in {human_data_path} - skipping")
+        return
+    print(f"  [BC] cloning {len(act)} winner moves for {epochs} epochs")
+    obs_t = torch.as_tensor(obs, dtype=torch.float32, device=device)
+    act_t = torch.as_tensor(act, dtype=torch.long, device=device)
+    mask_t = torch.as_tensor(mask, dtype=torch.bool, device=device)
+    policy = model.policy
+    policy.train()
+    opt = torch.optim.Adam(policy.parameters(), lr=3e-4)
+    n = len(act_t)
+    for ep in range(epochs):
+        perm = torch.randperm(n, device=device)
+        total, nb = 0.0, 0
+        for i in range(0, n, batch):
+            idx = perm[i : i + batch]
+            o, a, m = obs_t[idx], act_t[idx], mask_t[idx]
+            features = policy.extract_features(o)
+            latent_pi = policy.mlp_extractor.forward_actor(features)
+            logits = policy.action_net(latent_pi)
+            logits = logits.masked_fill(~m, -1e9)  # never learn illegal actions
+            loss = nn.functional.cross_entropy(logits, a)
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
+            total += loss.item()
+            nb += 1
+        print(f"  [BC] epoch {ep + 1}/{epochs}  loss {total / max(1, nb):.4f}")
+
+
+def train_tier(tier, steps_override, device, human_data=None, bc_epochs=5, bc_only=False):
     cfg = TIERS[tier]
     steps = steps_override or cfg["steps"]
     os.makedirs(MODELS_DIR, exist_ok=True)
@@ -122,7 +159,13 @@ def train_tier(tier: str, steps_override: int | None, device: str):
         learning_rate=3e-4,
         policy_kwargs=dict(net_arch=[256, 256]),
     )
-    model.learn(total_timesteps=steps, progress_bar=True)
+    # Optional behavioral-cloning warm start from winning human games. This
+    # seeds the policy with human style; PPO then refines it (SL -> RL, like
+    # AlphaGo). Use --bc-only to ship a pure human-imitation model.
+    if human_data:
+        behavioral_clone(model, human_data, bc_epochs, device)
+    if not bc_only:
+        model.learn(total_timesteps=steps, progress_bar=True)
 
     sb3_path = os.path.join(MODELS_DIR, f"pikdame-{tier}.zip")
     model.save(sb3_path)
@@ -139,11 +182,23 @@ def main():
     ap.add_argument("--tier", default="all", choices=["all", *TIERS.keys()])  # medium, zen
     ap.add_argument("--steps", type=int, default=None, help="override step count")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    ap.add_argument(
+        "--human-data", default=None,
+        help="path to data/human-moves.jsonl; enables a behavioral-cloning warm start",
+    )
+    ap.add_argument("--bc-epochs", type=int, default=5, help="behavioral-cloning epochs")
+    ap.add_argument(
+        "--bc-only", action="store_true",
+        help="only clone winning humans (no PPO) - a pure human-style model",
+    )
     args = ap.parse_args()
 
     tiers = list(TIERS.keys()) if args.tier == "all" else [args.tier]
     for tier in tiers:
-        train_tier(tier, args.steps, args.device)
+        train_tier(
+            tier, args.steps, args.device,
+            human_data=args.human_data, bc_epochs=args.bc_epochs, bc_only=args.bc_only,
+        )
 
 
 if __name__ == "__main__":

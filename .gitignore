@@ -14,3 +14,6 @@ docker/.env
 .venv/
 python/__pycache__/
 models/*.zip
+
+# Human move logs for imitation learning (data collection)
+data/human-moves.jsonl
