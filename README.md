@@ -4,6 +4,9 @@ Multiplayer card game (family rummy variant) for 2–4 players — empty seats
 are filled by bots with three difficulty levels. Runs in **two operating
 modes** from the same codebase:
 
+**▶ Live demo: [play.pikdame.online](https://play.pikdame.online)** — try it in
+your browser (no install needed).
+
 | | 🏕️ On the go (offline) | ☁️ Hosted (online) |
 |---|---|---|
 | **Where** | iPhone hotspot, CodeApp, no internet required | Your own server / Raspberry Pi / Kubernetes |
