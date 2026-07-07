@@ -1,7 +1,7 @@
 # ♠ Pik Dame
 
 Multiplayer card game (family rummy variant) for 2–4 players — empty seats
-are filled by bots with four difficulty levels. Runs in **two operating
+are filled by bots with three difficulty levels. Runs in **two operating
 modes** from the same codebase:
 
 | | 🏕️ On the go (offline) | ☁️ Hosted (online) |
@@ -18,7 +18,7 @@ external frontend dependencies.
 
 ## Features
 
-- **Bots with character**: four difficulties (easy → zen with card counting),
+- **Bots with character**: three difficulties (Anfänger → Zen with card counting),
   human names (Uwe, Inge, Maria …) and random emote reactions — including the
   occasional Queen-of-Spades bluff.
 - **Statistics & achievements**: player profiles (games/wins/points/streaks),
@@ -121,7 +121,7 @@ where they are implemented:
 | Points: 2–9 = 5 · 10/J/Q/K = 10 · Ace/Joker = 20 · ♠Q = 100; game ends at 1000 | `Card.js`, `ScoreBoard.js` |
 
 **House rules** (selectable at game start): "hand aus counts double",
-"more than 1000 to win", bot difficulty (easy / medium / hard / zen).
+"more than 1000 to win", bot difficulty (Anfänger / Fortgeschritten / Zen).
 
 <details>
 <summary><b>Deliberate rule interpretations</b></summary>
@@ -187,7 +187,7 @@ game/              Pure game logic (Rules, GameManager, Bot, stores, …)
 game/StateEncoder  · game/OnnxPolicy — learned-bot encoder + ONNX inference
 public/            Vanilla JS client, i18n, PWA
 python/ · scripts/rl-env-server.js  RL training bridge (see docs/RL_TRAINING.md)
-test/              node --test — 219 tests incl. contract, E2E and encoder tests
+test/              node --test — 223 tests incl. contract, E2E and encoder tests
 helm/ · k8s/       Kubernetes (chart recommended, raw manifests as alternative)
 docs/ · scripts/   Operations guide, backup/restore
 ```
@@ -206,13 +206,15 @@ docs/ · scripts/   Operations guide, backup/restore
 
 ## AI bots (optional, ONNX)
 
-The four bot tiers can be trained as neural networks and run via ONNX. Training
-happens against the **real engine** — a headless Node env server drives the
-actual `GameManager` while Python (Gymnasium + stable-baselines3 MaskablePPO)
-learns the **draw** and **discard** decisions; the same `game/StateEncoder.js`
-feeds both training and runtime so they never diverge. Models export to
-`models/pikdame-<tier>.onnx` and are committed to the repo, so anyone can run
-them.
+The strong bot tiers (`medium`, `zen`) can be trained as neural networks and run
+via ONNX; `easy` stays the hand-written heuristic. Training happens against the
+**real engine** — a headless Node env server drives the actual `GameManager`
+while Python (Gymnasium + stable-baselines3 MaskablePPO) learns the **draw** and
+**discard** decisions; the same `game/StateEncoder.js` feeds both training and
+runtime so they never diverge. The policy can also be warm-started from
+**winning human games** (anonymised move logging + behavioral cloning). Models
+export to `models/pikdame-<tier>.onnx` and are committed to the repo, so anyone
+can run them.
 
 ```bash
 # activate the learned policy (falls back to the heuristic if a model or the
