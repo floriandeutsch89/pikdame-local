@@ -2421,7 +2421,7 @@
     .then((r) => r.json())
     .then((s) => {
       if (s && s.version) {
-        el('versionBtn').textContent = `Version ${s.version}`;
+        el('versionBtn').textContent = `v${s.version}`;
         el('ingameVersion').textContent = `v${s.version}`;
         // PWA auto-update, part 2: my bundle carries the version of the
         // server that SERVED it (__PIKDAME_BUILD). If the live server is

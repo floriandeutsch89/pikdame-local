@@ -34,9 +34,9 @@ services:
       # - PIKDAME_SMTP_USER=noreply@pikdame.online
       # - PIKDAME_SMTP_PASS=secret
       # - PIKDAME_MAIL_FROM=Pik Dame <noreply@pikdame.online>
-      # Collect human moves for imitation-learning training (writes
-      # /app/data/human-moves.jsonl). Off unless set.
-      # - PIKDAME_LOG_GAMES=1
+      # Human-move logging for imitation-learning training writes
+      # /app/data/human-moves.jsonl and is ON BY DEFAULT. To turn it off:
+      # - PIKDAME_LOG_GAMES=0
     volumes:
       - pikdame-data:/app/data
       # The data dir (session snapshots, optional SQLite, and any
