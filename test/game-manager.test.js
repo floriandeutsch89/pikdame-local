@@ -1624,3 +1624,49 @@ test('serialize never persists external-control fields', () => {
   assert.equal('_agentAwaitingDiscard' in snap, false);
   g.destroy();
 });
+
+// --- v1.48: lobby shows/sorts bots; joining replaces a bot -------------------
+test('lobby tops up empty seats with bots so they are visible and sortable', () => {
+  const g = new GameManager(() => {});
+  g.maxSeats = 4;
+  g.addOrReconnectPlayer('h1', 'Anna');
+  g.syncLobbyBots();
+  assert.equal(g.players.length, 4, 'table shows all seats');
+  assert.equal(g.players.filter((p) => p.isBot).length, 3, 'three bot seats');
+  const ids = g.players.map((p) => p.id);
+  assert.equal(ids.length, new Set(ids).size, 'no duplicate seat ids');
+});
+
+test('a joining human replaces a bot in place (order preserved), not appended', () => {
+  const g = new GameManager(() => {});
+  g.maxSeats = 4;
+  g.addOrReconnectPlayer('h1', 'Anna');
+  g.syncLobbyBots();
+  const beforeBotSeat = g.players.findIndex((p) => p.isBot); // first bot index
+  g.addOrReconnectPlayer('h2', 'Ben');
+  g.syncLobbyBots();
+  assert.equal(g.players.length, 4, 'still exactly maxSeats seats');
+  assert.equal(g.players.filter((p) => !p.isBot).length, 2, 'two humans now');
+  assert.equal(g.players[beforeBotSeat].id, 'h2', 'human took the bot seat position');
+});
+
+test('table is full only when maxSeats HUMANS have joined', () => {
+  const g = new GameManager(() => {});
+  g.maxSeats = 2;
+  assert.ok(g.addOrReconnectPlayer('h1', 'A'));
+  g.syncLobbyBots();
+  assert.ok(g.addOrReconnectPlayer('h2', 'B'), 'second human replaces the bot');
+  g.syncLobbyBots();
+  assert.equal(g.addOrReconnectPlayer('h3', 'C'), null, 'third human rejected - table full');
+});
+
+test('lowering maxSeats trims bots but keeps the humans', () => {
+  const g = new GameManager(() => {});
+  g.maxSeats = 4;
+  g.addOrReconnectPlayer('h1', 'Anna');
+  g.addOrReconnectPlayer('h2', 'Ben');
+  g.syncLobbyBots();
+  assert.equal(g.setMaxSeats(2).ok, true);
+  assert.equal(g.players.length, 2);
+  assert.equal(g.players.filter((p) => !p.isBot).length, 2, 'both humans kept');
+});

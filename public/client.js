@@ -610,6 +610,10 @@
     el('table').classList.toggle('hidden', inLobby);
 
     if (inLobby) {
+      // Coming back to the lobby (e.g. after a rematch) must clear any result
+      // overlay - otherwise a player who did not click the rematch button keeps
+      // the game-over overlay stuck on top of the lobby and cannot ready up.
+      el('resultOverlay').classList.add('hidden');
       renderLobby();
       return;
     }
