@@ -16,7 +16,6 @@ window.I18N_STATIC = {
   'Das Familien-Rommé – online mit Freunden & Bots': 'The family rummy – online with friends & bots',
   'Neues Spiel erstellen': 'Create a new game',
   'Zug-Timer': 'Turn timer',
-  'Open Source auf GitHub': 'Open source on GitHub',
   '🗓️ Challenge': '🗓️ Challenge',
   '🎓 Tutorial': '🎓 Tutorial',
   '👤 Konto': '👤 Account',

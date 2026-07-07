@@ -21,7 +21,9 @@ const SE = require('./StateEncoder');
 const LOG_PATH = process.env.PIKDAME_LOG_PATH || path.join(__dirname, '..', 'data', 'human-moves.jsonl');
 
 function enabled() {
-  return process.env.PIKDAME_LOG_GAMES === '1' || process.env.PIKDAME_LOG_GAMES === 'true';
+  // On by default; only an explicit 0/false/off turns human-move logging off.
+  const v = process.env.PIKDAME_LOG_GAMES;
+  return v !== '0' && v !== 'false' && v !== 'off';
 }
 
 /**

@@ -4,6 +4,13 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.47.3] - 2026-07-07
+
+### Changed
+- Lobby: Die Versionsanzeige zeigt jetzt nur noch „v x.y.z" statt „Version x.y.z"
+- Lobby: Der GitHub-Link ist jetzt nur noch das Logo (Text „Open Source auf GitHub" entfernt), mit Barrierefreiheits-Label
+- Menschen-Zug-Logging (für das Imitation-Learning-Training) ist jetzt STANDARDMÄSSIG AN. Zum Abschalten PIKDAME_LOG_GAMES=0 (bzw. false/off) setzen. Docker-Kommentare und Doku entsprechend aktualisiert
+
 ## [1.47.2] - 2026-07-06
 
 ### Fixed

@@ -308,10 +308,11 @@ style and unpredictability. We do this with behavioral cloning (supervised
 imitation) as a warm start, then optionally refine with PPO (the SL -> RL
 recipe, like AlphaGo).
 
-**1. Collect data.** Run the server with logging on:
+**1. Collect data.** Human-move logging is **on by default**; just run the server:
 
 ```bash
-PIKDAME_LOG_GAMES=1 node server.js
+node server.js                 # logging on (writes data/human-moves.jsonl)
+PIKDAME_LOG_GAMES=0 node server.js   # to turn it off
 ```
 
 Every human draw and discard decision is encoded with the same
@@ -334,8 +335,8 @@ margin, rank, or game phase), not just clone winners blindly.
 > volume `pikdame-data`, so the log survives restarts. To pull it to your
 > training box, either `docker cp <container>:/app/data/human-moves.jsonl .`, or
 > switch the app service to a bind mount (a commented example is in
-> `docker/docker-compose*.yml`). Set `PIKDAME_LOG_GAMES=1` in the app service to
-> start collecting.
+> `docker/docker-compose*.yml`). Logging is on by default; set
+> `PIKDAME_LOG_GAMES=0` in the app service to turn it off.
 
 **2. Train.** If `data/human-moves.jsonl` exists, **every tier automatically
 warm-starts from it** - no extra flag needed:
