@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.47.2] - 2026-07-06
+
+### Fixed
+- Changelog-Anzeige rendert jetzt auch Links: Markdown-Links [Text](https://…) UND rohe http(s)-Adressen werden anklickbar (in neuem Tab, mit rel=noopener). Nur http/https werden verlinkt - z. B. javascript: bleibt unverlinkt, kein XSS-Risiko
+
+### Changed
+- Docker: klargestellt und dokumentiert, dass der data-Ordner (Sitzungsdaten, optionale SQLite, und ggf. human-moves.jsonl) automatisch angelegt und im benannten Volume pikdame-data persistiert wird. Für den direkten Zugriff vom Host ist in beiden compose-Dateien jetzt eine auskommentierte Bind-Mount-Alternative plus ein docker-cp-Hinweis hinterlegt; ein auskommentiertes PIKDAME_LOG_GAMES=1 zeigt, wo man das Menschen-Logging einschaltet. Der sichere Default (Named Volume, read-only Root-FS) bleibt unverändert
+
 ## [1.47.1] - 2026-07-06
 
 ### Added

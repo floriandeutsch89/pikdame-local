@@ -36,9 +36,20 @@ services:
       # - PIKDAME_SMTP_USER=noreply@pikdame.online
       # - PIKDAME_SMTP_PASS=secret
       # - PIKDAME_MAIL_FROM=Pik Dame <noreply@pikdame.online>
+      # Collect human moves for imitation-learning training (writes
+      # /app/data/human-moves.jsonl). Off unless set.
+      # - PIKDAME_LOG_GAMES=1
     volumes:
       # Player profiles / game history / accounts DB survive container restarts and updates.
       - pikdame-data:/app/data
+      # The data dir (session snapshots, optional SQLite, and any
+      # human-moves.jsonl) is auto-created and persisted in the named
+      # volume above. To reach the files directly from the host, swap it
+      # for a bind mount, e.g.:
+      #   - /srv/pikdame/data:/app/data
+      # Create that host dir first and make it writable by the image's
+      # runtime user. Without changing anything you can also copy files
+      # out on demand: docker cp <container>:/app/data/human-moves.jsonl .
     depends_on:
       postgres:
         condition: service_healthy
