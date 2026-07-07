@@ -315,25 +315,34 @@ PIKDAME_LOG_GAMES=1 node server.js
 ```
 
 Every human draw and discard decision is encoded with the same
-`StateEncoder` the network uses and appended to `data/human-moves.jsonl` at the
-end of each game, tagged with a `won` flag. Only anonymous data is written -
-the encoded observation, the chosen action, the legal-action mask, an anonymous
-per-game id and the won flag; no names, accounts or raw cards. (Set
-`PIKDAME_LOG_PATH` to change the file.)
+`StateEncoder` the network uses and appended to **`data/human-moves.jsonl`** at
+the end of each game. This is the file `train.py` imports - keep it at
+`<repo>/data/human-moves.jsonl` (or point `--human-data` / `PIKDAME_LOG_PATH`
+elsewhere). Rows are **minified by default** (compact JSON, observations rounded
+to 4 decimals, mask as 0/1) to keep the file small.
 
-**2. Train with the human warm start.** Point `train.py` at the log:
+Only anonymous data is written (no names, accounts or raw cards). Each row
+carries as much training-useful context as possible: the encoded observation,
+the chosen action, the legal-action mask, and per-move/-game metadata -
+`phase`, `won`, `rank` (1 = winner), `finalTotal`, `winnerTotal`, `players`,
+`rounds`, `turns`, the `round`/`turn` the move was made on, the mover's `hand`
+size, the opponents' hand sizes `opp`, `pileTakeLegal`, and an anonymous
+per-game id `g`. That lets the Python side weight or filter moves (e.g. by
+margin, rank, or game phase), not just clone winners blindly.
+
+**2. Train.** If `data/human-moves.jsonl` exists, **every tier automatically
+warm-starts from it** - no extra flag needed:
 
 ```bash
-# behavioral-cloning warm start on winning humans, then PPO refinement:
-python train.py --tier zen --human-data ../data/human-moves.jsonl --bc-epochs 8
-
-# or a PURE human-imitation model (no PPO), e.g. for a very "human" bot:
-python train.py --tier zen --human-data ../data/human-moves.jsonl --bc-only
+python train.py --tier zen            # auto behavioral-cloning + PPO if the log exists
+python train.py --tier zen --no-human-data   # ignore the human log
+python train.py --tier zen --bc-only          # pure human-imitation model (no PPO)
+python train.py --tier zen --human-data /path/to/other.jsonl   # a different log
 ```
 
-`--human-data` runs a supervised phase that clones the winners' moves (masked
-cross-entropy over the 54-action space) before PPO starts. `--bc-only` ships
-the cloned policy directly as ONNX without any RL.
+The behavioral-cloning phase clones the winners' moves (masked cross-entropy
+over the 54-action space) before PPO starts; PPO then refines it. `--bc-only`
+ships the cloned policy directly as ONNX without any RL.
 
 **Why this helps:** the resulting bot starts from *how people actually win*,
 not from self-play equilibria, so it plays in a more human, less exploitable

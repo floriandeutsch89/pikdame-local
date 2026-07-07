@@ -51,6 +51,14 @@ test('records only human decisions and flushes with a won flag', () => {
   assert.equal(row.obs.length, SE.OBS_SIZE);
   assert.ok(row.phase === 'discard' || row.phase === 'draw');
   assert.equal('playerId' in row, false, 'no identity leaked to disk');
+  // enrichment for training
+  assert.equal(row.rank, 1, 'winner is rank 1');
+  assert.equal(row.finalTotal, 1000);
+  assert.equal(row.winnerTotal, 1000);
+  assert.ok('players' in row && 'rounds' in row && 'turns' in row && 'hand' in row);
+  // minified: mask is 0/1 ints, obs rounded to <= 4 decimals
+  assert.ok(row.mask.every((v) => v === 0 || v === 1), 'mask is 0/1');
+  assert.ok(row.obs.every((v) => Math.abs(v * 1e4 - Math.round(v * 1e4)) < 1e-6), 'obs rounded to 4dp');
   freshLog();
 });
 
