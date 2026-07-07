@@ -3,7 +3,9 @@
 This guide explains how to train the bot networks and export them as **ONNX**
 files that the Node game engine loads at runtime. Only **`medium`** and
 **`zen`** are trained as networks - see "Why `easy` isn't trained" below.
-(The old `hard` tier was identical to `medium` and was removed.)
+(The old `hard` tier was identical to `medium` and was removed.) The policy can
+also be warm-started from **winning human games** - see "Learning from human
+games".
 
 The key design choice: training runs against the **real game engine**. A small
 Node server (`scripts/rl-env-server.js`) drives the actual `GameManager`; the
@@ -298,7 +300,47 @@ pool as a fixed anchor so the league cannot drift into degenerate strategies.
 This needs the env to run a learned policy for opponent seats (load an ONNX per
 opponent) - a natural extension of the current heuristic-opponent env.
 
-## 9. Next extensions (optional)
+## 9. Learning from human games (imitation learning)
+
+Training only against bots makes the policy overfit to bot behaviour and become
+predictable to people. Learning from **winning human games** injects human
+style and unpredictability. We do this with behavioral cloning (supervised
+imitation) as a warm start, then optionally refine with PPO (the SL -> RL
+recipe, like AlphaGo).
+
+**1. Collect data.** Run the server with logging on:
+
+```bash
+PIKDAME_LOG_GAMES=1 node server.js
+```
+
+Every human draw and discard decision is encoded with the same
+`StateEncoder` the network uses and appended to `data/human-moves.jsonl` at the
+end of each game, tagged with a `won` flag. Only anonymous data is written -
+the encoded observation, the chosen action, the legal-action mask, an anonymous
+per-game id and the won flag; no names, accounts or raw cards. (Set
+`PIKDAME_LOG_PATH` to change the file.)
+
+**2. Train with the human warm start.** Point `train.py` at the log:
+
+```bash
+# behavioral-cloning warm start on winning humans, then PPO refinement:
+python train.py --tier zen --human-data ../data/human-moves.jsonl --bc-epochs 8
+
+# or a PURE human-imitation model (no PPO), e.g. for a very "human" bot:
+python train.py --tier zen --human-data ../data/human-moves.jsonl --bc-only
+```
+
+`--human-data` runs a supervised phase that clones the winners' moves (masked
+cross-entropy over the 54-action space) before PPO starts. `--bc-only` ships
+the cloned policy directly as ONNX without any RL.
+
+**Why this helps:** the resulting bot starts from *how people actually win*,
+not from self-play equilibria, so it plays in a more human, less exploitable
+way - and PPO on top still lifts its strength. More human data = better; a few
+hundred games already shift the style noticeably.
+
+## 10. Next extensions (optional)
 
 - **Learn melding / lay-offs too:** currently heuristic. The action space could
   grow to cover which cards to meld (more heads or a hierarchical agent).

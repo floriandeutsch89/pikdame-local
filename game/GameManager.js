@@ -404,6 +404,7 @@ class GameManager {
   drawFromPile(playerId) {
     const err = this.assertTurn(playerId, 'draw');
     if (err) return err;
+    require('./MoveLogger').record(this, playerId, 'draw', require('./StateEncoder').ACTION_DRAW_PILE);
 
     // Public inference material: drawing face-down means the visible top
     // discard was SPURNED - this player probably has no use for that rank
@@ -486,6 +487,7 @@ class GameManager {
     if (this.discardPile.length === 0) {
       return { error: 'Ablagestapel ist leer.' };
     }
+    require('./MoveLogger').record(this, playerId, 'draw', require('./StateEncoder').ACTION_TAKE_PILE);
     const topCard = this.discardPile[0]; // index 0 = oberste/zuletzt abgelegte Karte
     const player = this.currentPlayer();
 
@@ -824,6 +826,9 @@ class GameManager {
     }
     const player = this.currentPlayer();
     const card = player.hand.find((c) => c.id === cardId);
+    if (card) {
+      require('./MoveLogger').record(this, playerId, 'discard', require('./StateEncoder').typeIndex(card));
+    }
     if (!card) return { error: 'Karte nicht in der Hand gefunden.' };
 
     player.hand = player.hand.filter((c) => c.id !== cardId);
@@ -963,6 +968,7 @@ class GameManager {
     if (over.gameOver) {
       this.phase = 'gameOver';
       this.gameOverInfo = { ...over, totalTurns: this.gameTurnCount || 0, totalRounds: this.roundNumber || 0 };
+      require('./MoveLogger').flush(this); // persist human moves for imitation learning
       this.addLog(`Spiel beendet! Gewinner: ${this.players.find((p) => p.id === over.winnerId)?.name}`);
 
       this.lastGameRecord = {
@@ -1281,6 +1287,7 @@ class GameManager {
         key === '_lobbyReady' ||
         key === '_agentAwaitingDiscard' ||
         key === '_noMcts' ||
+        key === '_moveLog' ||
         key === '_lastBotEmote'
       ) continue;
       if (typeof value === 'function') continue;
