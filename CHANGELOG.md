@@ -4,6 +4,21 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.47.1] - 2026-07-06
+
+### Added
+- Menschen-Zug-Logs enthalten jetzt deutlich mehr trainingsrelevante Infos pro Zug: Platzierung (rank), Endpunktzahl, Gewinner-Punktzahl, Spieler-/Runden-/Zug-Anzahl, aktuelle Runde/Zugnummer, eigene Handgröße, gegnerische Handgrößen und ob eine Stapelaufnahme legal war - so kann das Training Züge gewichten oder filtern statt nur blind Gewinner zu klonen
+- train.py berücksichtigt Menschendaten jetzt AUTOMATISCH: Liegt data/human-moves.jsonl vor, startet jede Stufe mit einer Behavioral-Cloning-Vorphase (abschaltbar per --no-human-data). Die Datei gehört nach <repo>/data/human-moves.jsonl
+
+### Changed
+- Menschen-Zug-Logs werden standardmäßig minifiziert abgelegt (kompaktes JSON, Beobachtungen auf 4 Nachkommastellen gerundet, Maske als 0/1) - deutlich kleinere Dateien ohne Informationsverlust fürs Training
+
+### Fixed
+- Changelog-Anzeige interpretiert **fett** (und *kursiv*) jetzt korrekt statt die Sternchen roh anzuzeigen
+
+### Investigated, not shipped
+- Zurückhalten hoher Melds (Damen-Satz / Pik-Folge neben der Damen-Position), um dem Gegner das Anlegen der Pik Dame (100 Punkte) zu verwehren: Die Überlegung ist berechtigt, aber im Selbstspiel klar gemessen negativ - das Zurückhalten kostet den Bot mehr (nicht gebankte Punkte, riskante Karten in der Hand), als der gelegentliche verschenkte Layoff schadet (breite Variante −20 Punkte/6,7σ, chirurgische Variante nur bei fast fertigem Gegner immer noch −5/1,5σ). Nicht ausgeliefert; der Bot legt hohe Melds weiterhin früh aus (das bankt sicher Punkte). Gegen menschliche Gegner, die die Pik Dame gezielt horten, könnte die Abwägung anders liegen - das ließe sich später mit echten Menschendaten prüfen
+
 ## [1.47.0] - 2026-07-06
 
 ### Added

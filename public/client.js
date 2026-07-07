@@ -2479,8 +2479,14 @@
     const lines = md.split('\n');
     const out = [];
     let inList = false;
+    // Inline formatting on already-escaped text: **bold** and *italic*. The
+    // captured groups are escaped, so this cannot inject markup.
+    const inline = (s) =>
+      s
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/(^|[^*])\*(?!\s)([^*]+?)\*(?!\*)/g, '$1<em>$2</em>');
     for (const raw of lines) {
-      const line = escapeHtml(raw);
+      const line = inline(escapeHtml(raw));
       const isItem = /^\s*-\s+/.test(raw);
       if (inList && !isItem) { out.push('</ul>'); inList = false; }
       if (/^###\s+/.test(raw)) out.push(`<h4>${line.replace(/^###\s+/, '')}</h4>`);

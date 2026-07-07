@@ -35,7 +35,7 @@ from sb3_contrib.common.wrappers import ActionMasker
 from stable_baselines3.common.monitor import Monitor
 
 from pikdame_env import PikDameEnv
-from human_dataset import load_winner_moves
+from human_dataset import load_winner_moves, DEFAULT_PATH as HUMAN_DATA_DEFAULT
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODELS_DIR = os.path.join(REPO_ROOT, "models")
@@ -184,20 +184,31 @@ def main():
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     ap.add_argument(
         "--human-data", default=None,
-        help="path to data/human-moves.jsonl; enables a behavioral-cloning warm start",
+        help="path to human-moves.jsonl (defaults to data/human-moves.jsonl if it exists)",
     )
     ap.add_argument("--bc-epochs", type=int, default=5, help="behavioral-cloning epochs")
     ap.add_argument(
         "--bc-only", action="store_true",
         help="only clone winning humans (no PPO) - a pure human-style model",
     )
+    ap.add_argument(
+        "--no-human-data", action="store_true",
+        help="ignore human data even if data/human-moves.jsonl exists",
+    )
     args = ap.parse_args()
+
+    # By default, ANY tier automatically warm-starts from human games when the
+    # standard log exists - no extra flag needed. --no-human-data opts out.
+    human_data = args.human_data
+    if human_data is None and not args.no_human_data and os.path.exists(HUMAN_DATA_DEFAULT):
+        human_data = HUMAN_DATA_DEFAULT
+        print(f"[human data] using {human_data} for a behavioral-cloning warm start")
 
     tiers = list(TIERS.keys()) if args.tier == "all" else [args.tier]
     for tier in tiers:
         train_tier(
             tier, args.steps, args.device,
-            human_data=args.human_data, bc_epochs=args.bc_epochs, bc_only=args.bc_only,
+            human_data=human_data, bc_epochs=args.bc_epochs, bc_only=args.bc_only,
         )
 
 

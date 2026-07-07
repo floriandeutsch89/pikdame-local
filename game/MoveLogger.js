@@ -39,39 +39,73 @@ function record(game, playerId, phase, action) {
     const obs = SE.encode(game, playerId, { phase });
     const mask = SE.actionMask(game, playerId, { phase, pileTakeLegal: pileLegal });
     if (!game._moveLog) game._moveLog = [];
-    game._moveLog.push({ playerId, phase, obs: Array.from(obs), action, mask });
+    game._moveLog.push({
+      playerId,
+      phase,
+      obs: Array.from(obs),
+      action,
+      mask,
+      // Per-move context that helps training (weighting, curriculum, analysis):
+      round: game.roundNumber || 0,
+      turn: game.gameTurnCount || 0,
+      hand: (player.hand || []).length,
+      opp: (game.players || []).filter((p) => p.id !== playerId).map((p) => (p.hand || []).length),
+      pileTakeLegal: !!pileLegal,
+    });
   } catch (e) {
     /* never disrupt a turn */
   }
 }
 
-/** Write the buffered moves for a finished game, tagged with the winner. */
+// Round observation floats to keep the log compact ("minified") by default -
+// 377 full-precision doubles per row is wasteful and hurts nothing at 4dp.
+function round4(x) {
+  return Math.round(x * 1e4) / 1e4;
+}
+
+/** Write the buffered moves for a finished game, tagged with rich outcome info. */
 function flush(game) {
   if (!enabled()) return;
   try {
     const buf = game && game._moveLog;
     if (!buf || buf.length === 0) return;
-    // Game winner = highest cumulative total.
     const totals = game.totals || {};
-    let winnerId = null;
-    let best = -Infinity;
-    for (const [pid, t] of Object.entries(totals)) {
-      if (t > best) {
-        best = t;
-        winnerId = pid;
-      }
-    }
+    // Rank players by final total (1 = winner).
+    const ranked = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+    const rankOf = {};
+    ranked.forEach(([pid], i) => {
+      rankOf[pid] = i + 1;
+    });
+    const winnerId = ranked.length ? ranked[0][0] : null;
+    const winnerTotal = ranked.length ? ranked[0][1] : 0;
     const gameId = Math.random().toString(36).slice(2, 10);
-    const lines = buf.map((m) =>
-      JSON.stringify({
+    const players = (game.players || []).length;
+    const rounds = game.roundNumber || 0;
+    const turns = game.gameTurnCount || 0;
+
+    const lines = buf.map((m) => {
+      // Compact ("minified") row: rounded observation, 0/1 mask, no whitespace.
+      const row = {
         g: gameId,
         phase: m.phase,
-        obs: m.obs,
+        obs: m.obs.map(round4),
         action: m.action,
-        mask: m.mask,
+        mask: m.mask.map((b) => (b ? 1 : 0)),
         won: m.playerId === winnerId,
-      })
-    );
+        rank: rankOf[m.playerId] || null,
+        finalTotal: totals[m.playerId] != null ? totals[m.playerId] : null,
+        winnerTotal,
+        players,
+        rounds,
+        turns,
+        round: m.round,
+        turn: m.turn,
+        hand: m.hand,
+        opp: m.opp,
+        pileTakeLegal: m.pileTakeLegal ? 1 : 0,
+      };
+      return JSON.stringify(row); // JSON.stringify emits no extra whitespace
+    });
     fs.mkdirSync(path.dirname(LOG_PATH), { recursive: true });
     fs.appendFileSync(LOG_PATH, lines.join('\n') + '\n');
     game._moveLog = [];
