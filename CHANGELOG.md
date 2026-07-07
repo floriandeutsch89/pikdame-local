@@ -4,6 +4,12 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.47.4] - 2026-07-07
+
+### Changed
+- Datenschutzerklärung ergänzt (DE + EN): Neuer Punkt zum anonymisierten Aufzeichnen von Spielzügen zur Verbesserung der Computergegner - ausschließlich Zahlenwerte des Spielzustands, ohne Name, Konto-/Gerätekennung oder IP, nicht auf die Person rückführbar, keine Weitergabe an Dritte (Art. 6 Abs. 1 lit. f DSGVO). Hintergrund: Das Menschen-Zug-Logging ist seit v1.47.3 standardmäßig aktiv
+- README aktualisiert: drei Bot-Stufen (Anfänger/Fortgeschritten/Zen) statt vier, „Schwer" entfernt, Testzahl auf 223, KI-Abschnitt nennt jetzt easy=Heuristik und den Warmstart aus menschlichen Gewinnpartien
+
 ## [1.47.3] - 2026-07-07
 
 ### Changed
