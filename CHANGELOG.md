@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.48.0] - 2026-07-07
+
+### Added
+- Lobby-Sitzordnung zeigt jetzt auch die Bots: Freie Plätze werden schon in der Lobby mit Bots vorbelegt, sodass man Bots genau wie Mitspieler per ▲/▼ sortieren (und den Geber festlegen) kann. Kommt eine Person per Einladungscode dazu, ersetzt sie einen Bot AN DESSEN PLATZ - die Sitzordnung bleibt erhalten. Beim Ändern der Spieleranzahl werden Bots automatisch auf- bzw. abgebaut (Menschen bleiben erhalten)
+
+### Fixed
+- Rematch mit mehreren Spielern: Der 2. Spieler blieb hängen und kam nicht in die neue Lobby. Ursache war ein über der Lobby klebendes Ergebnis-Overlay bei allen, die den Rematch-Button nicht selbst gedrückt hatten - beim Wechsel zurück in die Lobby wird es jetzt zuverlässig ausgeblendet
+
 ## [1.47.4] - 2026-07-07
 
 ### Changed

@@ -77,10 +77,19 @@ class GameManager {
       return p;
     }
     if (this.players.filter((pl) => !pl.isBot).length >= this.maxSeats) {
-      return null; // Tisch voll
+      return null; // Tisch voll (nach Menschen)
     }
     p = { id, name: name || `Spieler ${this.players.length + 1}`, isBot: false, hand: [], connected: true, laidOutCards: [] };
-    this.players.push(p);
+    // In der Lobby sind freie Plätze mit Bots vorbelegt - ein Beitritt ersetzt
+    // den ersten Bot AN SEINEM PLATZ, damit die Sitzordnung erhalten bleibt.
+    const botIdx = this.players.findIndex((pl) => pl.isBot);
+    if (botIdx !== -1) {
+      const removed = this.players[botIdx];
+      this.players[botIdx] = p;
+      if (removed) delete this.totals[removed.id];
+    } else {
+      this.players.push(p);
+    }
     this.totals[id] = this.totals[id] || 0;
     return p;
   }
@@ -139,6 +148,7 @@ class GameManager {
     }
     let botIndex = 1;
     while (this.players.length < this.maxSeats) {
+      while (this.players.some((p) => p.id === `bot-${botIndex}`)) botIndex += 1;
       const id = `bot-${botIndex}`;
       const name = free.pop() || `Bot ${botIndex}`;
       this.players.push({
@@ -148,6 +158,22 @@ class GameManager {
       this.totals[id] = this.totals[id] || 0;
       botIndex += 1;
     }
+  }
+
+  /** Lobby only: keep the table topped up to maxSeats with bots so empty seats
+   *  are visible and sortable, and trim surplus bots when maxSeats shrinks.
+   *  Humans and the existing seat order are preserved (bots trimmed from the
+   *  end). Joining humans replace a bot in place (see addOrReconnectPlayer). */
+  syncLobbyBots() {
+    if (this.phase !== 'lobby') return;
+    // Trim surplus bots from the end first (e.g. after lowering maxSeats).
+    while (this.players.length > this.maxSeats) {
+      const idx = [...this.players].map((p, i) => [p, i]).reverse().find(([p]) => p.isBot)?.[1];
+      if (idx === undefined) break; // only humans left - nothing to trim
+      const [removed] = this.players.splice(idx, 1);
+      if (removed) delete this.totals[removed.id];
+    }
+    this.fillWithBots();
   }
 
   /**
@@ -169,6 +195,7 @@ class GameManager {
       return { error: `Es sind bereits ${humanCount} Spieler beigetreten - die Anzahl kann nicht kleiner gewählt werden.` };
     }
     this.maxSeats = n;
+    this.syncLobbyBots(); // Bots an neue Platzzahl anpassen (auffüllen/kürzen)
     this.broadcastState();
     return { ok: true };
   }

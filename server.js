@@ -652,6 +652,9 @@ wss.on('connection', (ws, req) => {
       sendError(ws, 'Tisch ist voll.');
       return false;
     }
+    // In der Lobby freie Plätze mit Bots vorbelegen, damit sie sichtbar und
+    // sortierbar sind (ein späterer Beitritt ersetzt wieder einen Bot).
+    targetSession.game.syncLobbyBots();
     let playerToken = targetSession.playerTokens.get(playerId);
     if (!playerToken) {
       playerToken = crypto.randomBytes(18).toString('base64url');
