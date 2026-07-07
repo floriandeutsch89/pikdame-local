@@ -1,9 +1,9 @@
 # Pik Dame – Reinforcement-Learning Bot Training (Ubuntu 24.04 / WSL2)
 
-This guide explains how to train the three bot tiers (`easy`, `medium`,
-`zen`; the old `hard` tier was identical to `medium` and was removed) as
-neural networks and export them as **ONNX** files that the Node game engine
-loads at runtime.
+This guide explains how to train the bot networks and export them as **ONNX**
+files that the Node game engine loads at runtime. Only **`medium`** and
+**`zen`** are trained as networks - see "Why `easy` isn't trained" below.
+(The old `hard` tier was identical to `medium` and was removed.)
 
 The key design choice: training runs against the **real game engine**. A small
 Node server (`scripts/rl-env-server.js`) drives the actual `GameManager`; the
@@ -136,7 +136,7 @@ PY
 
 ## 4. Training
 
-All four tiers in sequence:
+Both trained tiers in sequence:
 
 ```bash
 source .venv/bin/activate
@@ -148,7 +148,7 @@ A single tier with a custom step count:
 
 ```bash
 python train.py --tier zen --steps 3000000
-python train.py --tier easy --steps 200000
+python train.py --tier medium --steps 1000000
 ```
 
 Tiers differ by opponent strength and training length (curriculum in `TIERS`
@@ -156,14 +156,24 @@ in `train.py`):
 
 | Tier    | Opponents | Steps (default) |
 |---------|-----------|-----------------|
-| easy    | easy, medium         | 200 000   |
 | medium  | medium, zen          | 1 000 000 |
 | zen     | zen, medium, easy    | 3 000 000 |
 
-Each tier produces:
+Each trained tier produces:
 
 - `models/pikdame-<tier>.zip` — SB3 checkpoint (to resume training)
 - `models/pikdame-<tier>.onnx` — the exported network for the Node runtime
+
+### Why `easy` isn't trained
+
+RL optimises for winning, so it can only make a bot *stronger* - it cannot
+"train weakness" in any controllable way. So the beginner bot is simply the
+existing hand-written heuristic: there is no `pikdame-easy.onnx`, and at runtime
+an `easy` bot finds no model and falls back to that heuristic automatically
+(random-ish discards, ~60% pile skipping - a natural "makes beginner mistakes"
+opponent). If you ever want a *tunable* easy/medium from one strong network,
+weaken it at inference (epsilon-greedy or temperature sampling over the logits)
+rather than training a deliberately weak net.
 
 Tip: several env processes in parallel speed up experience collection
 (SB3 `SubprocVecEnv`); each env spawns its own `node` process.
@@ -264,7 +274,6 @@ therefore use a zen-anchored **pool** that is resampled each episode:
 
 | Tier   | Opponent pool (sampled per episode) |
 |--------|-------------------------------------|
-| easy   | easy, medium               |
 | medium | medium, zen                |
 | zen    | zen, medium, easy          |
 
