@@ -2479,10 +2479,21 @@
     const lines = md.split('\n');
     const out = [];
     let inList = false;
-    // Inline formatting on already-escaped text: **bold** and *italic*. The
-    // captured groups are escaped, so this cannot inject markup.
+    // Inline formatting on already-escaped text: links, **bold**, *italic*.
+    // Links are restricted to http(s) so nothing like javascript: can slip in;
+    // the captured groups are escaped, so this cannot inject markup.
     const inline = (s) =>
       s
+        // [label](https://url) -> anchor
+        .replace(
+          /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+          '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
+        )
+        // bare https://url not already inside an href -> anchor
+        .replace(
+          /(^|[\s(])(https?:\/\/[^\s<)]+)/g,
+          '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>'
+        )
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
         .replace(/(^|[^*])\*(?!\s)([^*]+?)\*(?!\*)/g, '$1<em>$2</em>');
     for (const raw of lines) {

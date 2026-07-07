@@ -330,6 +330,13 @@ size, the opponents' hand sizes `opp`, `pileTakeLegal`, and an anonymous
 per-game id `g`. That lets the Python side weight or filter moves (e.g. by
 margin, rank, or game phase), not just clone winners blindly.
 
+> **Running in Docker?** `/app/data` is auto-created and persisted in the named
+> volume `pikdame-data`, so the log survives restarts. To pull it to your
+> training box, either `docker cp <container>:/app/data/human-moves.jsonl .`, or
+> switch the app service to a bind mount (a commented example is in
+> `docker/docker-compose*.yml`). Set `PIKDAME_LOG_GAMES=1` in the app service to
+> start collecting.
+
 **2. Train.** If `data/human-moves.jsonl` exists, **every tier automatically
 warm-starts from it** - no extra flag needed:
 
