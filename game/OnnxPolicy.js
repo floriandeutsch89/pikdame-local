@@ -120,7 +120,7 @@ async function runPolicy(game, playerId, difficulty, ctx) {
 }
 
 /** Pre-load a difficulty's session (call once at startup to avoid first-turn lag). */
-async function warmup(difficulties = ['easy', 'medium', 'zen']) {
+async function warmup(difficulties = ['medium', 'zen']) {
   if (!enabled()) return;
   await Promise.all(difficulties.map((d) => getSession(d)));
 }

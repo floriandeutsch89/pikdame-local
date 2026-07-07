@@ -1,16 +1,16 @@
-"""Train the four Pik Dame bot tiers and export each to ONNX.
+"""Train the Pik Dame bot networks (medium, zen) and export each to ONNX.
 
 The agent learns two decisions per turn - the draw source (draw pile vs. taking
 the whole discard pile, when legal) and the discard - over a single masked
 action space of 54 actions (see game/StateEncoder.js). Melding stays heuristic.
 
-The four tiers differ by how strong the opponents are and how long we train -
-a simple curriculum that yields four models of increasing skill:
+Only medium and zen are trained: RL optimises for winning, so it cannot
+"train weakness". 'easy' stays the hand-written beginner heuristic (an easy bot
+finds no pikdame-easy.onnx and falls back to it automatically). The two trained
+tiers differ by opponents and training length:
 
-    easy   : few steps vs. easy opponents      (deliberately shallow)
-    medium : moderate steps vs. medium         opponents
-    hard   : long training vs. hard            opponents
-    zen    : longest training vs. hard          opponents (the ceiling model)
+    medium : moderate steps vs. a medium/zen pool
+    zen    : long training vs. a zen-anchored pool (the ceiling model)
 
 Each tier is saved as models/pikdame-<tier>.onnx, ready for the Node runtime
 (game/OnnxPolicy.js). Usage on the RTX 5080 box (WSL2), see docs/RL_TRAINING.md:
@@ -47,13 +47,15 @@ MODELS_DIR = os.path.join(REPO_ROOT, "models")
 # easy. So a "medium + hard" pool is secretly uniform; the pools below combine
 # the genuinely distinct styles instead. Real diversity beyond this ceiling
 # needs the self-play league (see docs/RL_TRAINING.md, "Opponent selection").
-# Three tiers (the old 'hard' was behaviourally identical to 'medium' and was
-# removed). Pools combine the genuinely distinct styles easy / medium / zen.
-# Real diversity beyond this needs the self-play league (docs/RL_TRAINING.md).
+# Only MEDIUM and ZEN are trained as networks. 'easy' is intentionally NOT
+# trained: RL optimises for winning, so it makes bots stronger, not weaker -
+# there is no easy pikdame-easy.onnx, and at runtime an easy bot automatically
+# falls back to the existing beginner heuristic (random-ish discards). Pools
+# still draw on all three heuristic styles for opponent variety. Real diversity
+# beyond that needs the self-play league (docs/RL_TRAINING.md).
 TIERS = {
-    "easy":   {"pool": ["easy", "medium"],        "steps": 200_000},
-    "medium": {"pool": ["medium", "zen"],         "steps": 1_000_000},
-    "zen":    {"pool": ["zen", "medium", "easy"], "steps": 3_000_000},
+    "medium": {"pool": ["medium", "zen"],          "steps": 1_000_000},
+    "zen":    {"pool": ["zen", "medium", "easy"],  "steps": 3_000_000},
 }
 
 
@@ -134,7 +136,7 @@ def train_tier(tier: str, steps_override: int | None, device: str):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--tier", default="all", choices=["all", *TIERS.keys()])
+    ap.add_argument("--tier", default="all", choices=["all", *TIERS.keys()])  # medium, zen
     ap.add_argument("--steps", type=int, default=None, help="override step count")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = ap.parse_args()

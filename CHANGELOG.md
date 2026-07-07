@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.46.2] - 2026-07-06
+
+### Changed
+- RL-Training erzeugt jetzt nur noch Netze für **Fortgeschritten** und **Zen**. Der Anfänger-Bot bleibt bewusst die handgeschriebene Heuristik: Reinforcement Learning optimiert auf Gewinnen und kann Schwäche nicht sinnvoll „trainieren". Ohne easy-Modell fällt ein Anfänger-Bot zur Laufzeit automatisch auf die Heuristik zurück (zufällige Abwürfe - der natürliche „macht Anfängerfehler"-Gegner). train.py, ONNX-Warmup, models/README und docs/RL_TRAINING.md entsprechend angepasst; die Doku erklärt zusätzlich, wie man bei Bedarf aus EINEM starken Netz per ε-greedy/Temperatur einen stufenlosen Schwierigkeitsregler ableiten könnte
+
 ## [1.46.1] - 2026-07-06
 
 ### Changed
