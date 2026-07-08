@@ -685,7 +685,6 @@
     setCtl('ruleHandAus', hr.handAusDoubles, true);
     setCtl('ruleStrict1000', hr.strictThreshold, true);
     setCtl('ruleTurnTimer', hr.turnTimerSeconds != null ? hr.turnTimerSeconds : 0);
-    setCtl('ruleBotDifficulty', hr.botDifficulty || 'zen');
     // House rules are read-only for non-hosts.
     el('houseRulesSection').querySelectorAll('input, select, button').forEach((ctrl) => {
       // ruleSound is a personal (per-device) setting - never lock it.
@@ -711,9 +710,16 @@
       row.className = 'seatRow';
       const isDealer = p.id === lastState.dealerId;
       const lock = !canEdit ? 'disabled' : '';
+      // Per-bot difficulty badge (bots only) - each bot is configured
+      // individually right here in the lobby; there is no global setting.
+      const diff = BOT_DIFF[p.botDifficulty] || BOT_DIFF.zen;
+      const diffBadge = p.isBot
+        ? `<button class="btn-icon seatDiff" ${lock} title="${L('Schwierigkeit ändern', 'Change difficulty')}">${diff.icon}</button>`
+        : '';
       row.innerHTML = `
         <span class="seatName">${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}</span>
         <span class="seatControls">
+          ${diffBadge}
           <button class="btn-icon seatUp" ${idx === 0 || !canEdit ? 'disabled' : ''} title="Nach oben">▲</button>
           <button class="btn-icon seatDown" ${idx === lastState.players.length - 1 || !canEdit ? 'disabled' : ''} title="Nach unten">▼</button>
           <button class="btn-icon seatDealer ${isDealer ? 'active' : ''}" ${lock} title="Als Geber festlegen">${isDealer ? '⭐' : '☆'}</button>
@@ -722,6 +728,7 @@
         row.querySelector('.seatUp').addEventListener('click', () => moveSeat(idx, -1));
         row.querySelector('.seatDown').addEventListener('click', () => moveSeat(idx, 1));
         row.querySelector('.seatDealer').addEventListener('click', () => send({ type: 'setDealer', playerId: p.id }));
+        if (p.isBot) row.querySelector('.seatDiff').addEventListener('click', () => openBotDiffOverlay(p));
       }
       list.appendChild(row);
     });
@@ -740,7 +747,6 @@
     return {
       handAusDoubles: el('ruleHandAus').checked,
       strictThreshold: el('ruleStrict1000').checked,
-      botDifficulty: el('ruleBotDifficulty').value,
       turnTimerSeconds: Number(el('ruleTurnTimer').value),
     };
   }
@@ -1699,7 +1705,7 @@
 
   // Host changes to house rules sync LIVE so every player sees them and the
   // bots follow immediately (ruleSound stays local - it's a personal setting).
-  ['ruleHandAus', 'ruleStrict1000', 'ruleTurnTimer', 'ruleBotDifficulty'].forEach((id) => {
+  ['ruleHandAus', 'ruleStrict1000', 'ruleTurnTimer'].forEach((id) => {
     el(id).addEventListener('change', () => {
       if (lastState && lastState.isHost) send({ type: 'setHouseRules', houseRules: collectHouseRules() });
     });
@@ -1940,7 +1946,6 @@
     tutorialSeen = new Set();
     persistTutorial();
     // Beginners play against gentle opponents - preselect easy bots.
-    el('ruleBotDifficulty').value = 'easy';
     el('createGameBtn').click(); // normal solo flow - bots fill the seats
   });
   el('tutorialNextBtn').addEventListener('click', () => {
