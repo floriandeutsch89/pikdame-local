@@ -1575,6 +1575,11 @@ input:disabled { opacity: 0.65; }
   font-size: 0.72rem; cursor: pointer; line-height: 1.3;
   box-shadow: 0 1px 4px rgba(0,0,0,0.3);
 }
+/* Read-only difficulty badge for non-hosts: clearly visible, not interactive
+   (no faint "disabled" look - it's an indicator, not a broken button). */
+.botDiffBadge.readonly, .seatDiff.readonly {
+  cursor: default; opacity: 1; pointer-events: none;
+}
 .opponent .opName { padding-right: 4px; }
 .botDiffOptions { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 12px; }
 .botDiffOptions button {

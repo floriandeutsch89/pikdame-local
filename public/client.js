@@ -712,9 +712,13 @@
       const lock = !canEdit ? 'disabled' : '';
       // Per-bot difficulty badge (bots only) - each bot is configured
       // individually right here in the lobby; there is no global setting.
+      // Non-hosts still SEE each bot's difficulty (read-only, clearly visible).
       const diff = BOT_DIFF[p.botDifficulty] || BOT_DIFF.zen;
+      const diffTitle = canEdit
+        ? L('Schwierigkeit ändern', 'Change difficulty')
+        : L(`Schwierigkeit: ${diff.label()}`, `Difficulty: ${diff.label()}`);
       const diffBadge = p.isBot
-        ? `<button class="btn-icon seatDiff" ${lock} title="${L('Schwierigkeit ändern', 'Change difficulty')}">${diff.icon}</button>`
+        ? `<button class="btn-icon seatDiff${canEdit ? '' : ' readonly'}" title="${diffTitle}">${diff.icon}</button>`
         : '';
       row.innerHTML = `
         <span class="seatName">${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}</span>
@@ -817,15 +821,22 @@
         d.title = L(`${p.handCount} Karten · ${opTotal} Punkte`, `${p.handCount} cards · ${opTotal} points`);
         const opProgress = Math.max(0, Math.min(100, (opTotal / 1000) * 100));
         d.innerHTML = `<div class="opName">${avatarFor(p.name, p.isBot)}${escapeHtml(p.name)}${diffBadge}${dealerStar}${reconnecting ? ` <span class="reconnectTag">⏳ ${L('getrennt – Bot übernimmt', 'disconnected – bot takes over')}</span>` : ''}</div><div class="opCount"><b>${p.handCount}</b> ${L('Kt', 'cd')} · <b>${opTotal}</b> ${L('Pkt', 'pts')}</div><div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>`;
-        if (p.isBot && lastState.isHost) {
+        if (p.isBot) {
+          const meta = BOT_DIFF[p.botDifficulty] || BOT_DIFF.zen;
           const badgeBtn = document.createElement('button');
           badgeBtn.className = 'botDiffBadge';
-          badgeBtn.title = L('Schwierigkeit ändern', 'Change difficulty');
-          badgeBtn.textContent = BOT_DIFF[p.botDifficulty] ? BOT_DIFF[p.botDifficulty].icon : '🙂';
-          badgeBtn.addEventListener('click', (ev) => {
-            ev.stopPropagation(); // chip click keeps its meld-filter role
-            openBotDiffOverlay(p);
-          });
+          badgeBtn.textContent = meta.icon;
+          if (lastState.isHost) {
+            badgeBtn.title = L('Schwierigkeit ändern', 'Change difficulty');
+            badgeBtn.addEventListener('click', (ev) => {
+              ev.stopPropagation(); // chip click keeps its meld-filter role
+              openBotDiffOverlay(p);
+            });
+          } else {
+            // Non-hosts see the difficulty read-only (clearly visible, not tappable).
+            badgeBtn.classList.add('readonly');
+            badgeBtn.title = L(`Schwierigkeit: ${meta.label()}`, `Difficulty: ${meta.label()}`);
+          }
           d.appendChild(badgeBtn); // absolute corner - immune to ellipsis
         }
         opponentsDiv.appendChild(d);
