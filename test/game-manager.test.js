@@ -1723,3 +1723,38 @@ test('host role falls back to a connected human if the host disconnects', () => 
   g.addOrReconnectPlayer('h1', 'Anna'); // reconnect
   assert.equal(g.effectiveHostId(), 'h1', 'original host reclaims on reconnect');
 });
+
+// --- v1.49.1: auto-end a deadlocked round; ready gate counts seated humans ---
+test('a deadlocked round (no draw, cannot take the single discard) ends itself', () => {
+  const g = new GameManager(() => {});
+  g.addOrReconnectPlayer('a', 'A');
+  g.addOrReconnectPlayer('b', 'B');
+  g.maxSeats = 2;
+  g.phase = 'playing';
+  g.roundNumber = 1;
+  g.currentPlayerIndex = 0;
+  g.turnPhase = 'meld';
+  g.players[0].hand = [makeStandardCard('H', 'K', 0)];
+  g.players[1].hand = [makeStandardCard('D', '3', 0)];
+  g.players.forEach((p) => { p.laidOutCards = []; });
+  g.tableMelds = [];
+  g.drawPile = [];
+  g.discardPile = [makeStandardCard('S', '2', 0)]; // empty draw + a single unusable discard
+  g.advanceTurn(); // B cannot draw and cannot take the 2 of spades
+  assert.ok(g.phase === 'roundEnd' || g.phase === 'gameOver', 'round ended automatically');
+  assert.equal(g.totals.a, -10, 'K on hand counts negative as usual');
+  assert.equal(g.totals.b, -5, 'the 3 on hand counts negative');
+});
+
+test('start gate counts seated humans; a minimised player still blocks the start', () => {
+  const g = new GameManager(() => {});
+  g.addOrReconnectPlayer('h1', 'Anna');
+  g.addOrReconnectPlayer('h2', 'Ben');
+  g.maxSeats = 2;
+  g.phase = 'lobby';
+  g.markLobbyReady('h1'); // only Anna ready
+  assert.match(g.lobbyStartGate().error, /1\/2/, 'blocked while Ben is not ready');
+  g.markDisconnected('h2'); // Ben minimises -> disconnect
+  assert.match(g.lobbyStartGate().error, /1\/2/, 'still blocked - Ben counts even while away');
+  assert.equal(g._lobbyReady.has('h2'), false, 'disconnect clears the ready flag');
+});

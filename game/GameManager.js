@@ -115,6 +115,10 @@ class GameManager {
     const p = this.players.find((pl) => pl.id === id);
     if (p) {
       p.connected = false;
+      // In der Lobby zaehlt nur aktives Bereitmelden: Wer sich (durch
+      // Minimieren) trennt, verliert seine Bereitschaft und muss nach der
+      // Rueckkehr erneut druecken.
+      if (this.phase === 'lobby' && this._lobbyReady) this._lobbyReady.delete(id);
       // GRACE PERIOD before a bot takes over: in hosted mode a player who
       // briefly switches apps (message, call) loses the websocket - the
       // old instant takeover meant a bot happily played (and sometimes
@@ -140,6 +144,18 @@ class GameManager {
         this._takeoverTimers.delete(id);
         const p = this.players.find((pl) => pl.id === id);
         if (!p || p.connected) return; // came back in time
+        if (this.phase === 'lobby') {
+          // Lobby: a human who never came back gives up their seat (a bot
+          // takes it), so the ready gate isn't blocked indefinitely.
+          if (!p.isBot) {
+            this.players = this.players.filter((pl) => pl.id !== id);
+            delete this.totals[id];
+            if (this._lobbyReady) this._lobbyReady.delete(id);
+            this.syncLobbyBots();
+            this.broadcastState();
+          }
+          return;
+        }
         this.broadcastState(); // chip now shows 'bot takes over'
         if (this.phase === 'playing' && this.currentPlayer()?.id === id) {
           this.maybeRunBotTurn();
@@ -437,6 +453,17 @@ class GameManager {
     }
     this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
     this.turnPhase = 'draw';
+    // Deadlock am Zuganfang: Nachziehstapel leer UND nicht nachmischbar
+    // (Ablage <= 1) UND der Spieler kann die oberste Ablagekarte nicht nehmen
+    // -> niemand kann mehr etwas tun. Die Runde endet automatisch und wird
+    // ganz normal gewertet (Auslagen minus Resthand), ohne Gewinner-Bonus.
+    // Wichtig, weil einem Menschen die (unmögliche) Zieh-Aktion sonst gar
+    // nicht angeboten wird und der Tisch endlos wartet.
+    if (this.phase === 'playing' && this._roundIsDeadlocked()) {
+      this.addLog('Niemand kann mehr ziehen oder aufnehmen - die Runde endet.');
+      this.finishRound(null, { stalemate: true });
+      return;
+    }
     {
       const np = this.currentPlayer();
       if (np) np._laidAtTurnStart = !!np._everLaidThisRound;
@@ -487,6 +514,18 @@ class GameManager {
     this.addLog(`${this.currentPlayer().name} zieht eine Karte vom Stapel.`);
     this.broadcastState();
     return { ok: true };
+  }
+
+  /** True when no player can make any move: the draw pile is empty and cannot
+   *  be refilled (discard has <= 1 card) and the current player cannot take the
+   *  single discard top. Used to auto-end a deadlocked round. */
+  _roundIsDeadlocked() {
+    if (this.drawPile.length > 0) return false;
+    if (this.discardPile.length > 1) return false; // reshuffle still possible
+    const cp = this.currentPlayer();
+    const top = this.discardPile[0];
+    if (cp && top && !top.faceDown && this.canUseDiscardTop(cp, top)) return false;
+    return true;
   }
 
   reshuffleDiscardIntoDrawPile() {
@@ -1102,7 +1141,11 @@ class GameManager {
   /** Start gate: with 2+ connected humans everyone must be ready. */
   lobbyStartGate() {
     if (this.phase !== 'lobby') return {};
-    const humans = this.players.filter((p) => !p.isBot && p.connected);
+    // Count SEATED humans, not just connected ones: a player who minimised the
+    // app (and thus dropped the socket) must still actively press 'ready' -
+    // the game does not start behind their back. If they never return, the
+    // lobby takeover below frees their seat so the table is not stuck forever.
+    const humans = this.players.filter((p) => !p.isBot);
     if (humans.length <= 1) return {};
     const ready = humans.filter((h) => this._lobbyReady && this._lobbyReady.has(h.id)).length;
     if (ready < humans.length) {
