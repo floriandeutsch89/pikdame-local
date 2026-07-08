@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.49.0] - 2026-07-07
+
+### Added
+- Organisator-Rolle in der Lobby: Der erste beigetretene Mensch ist der Organisator. Nur er kann die Einstellungen ändern - Spieleranzahl, Sitzordnung/Geber, Bot-Schwierigkeit, Hausregeln und den Spielstart. Für alle anderen sind die Einstellungen jetzt schreibgeschützt (mit Hinweis „🔒 Nur der Organisator kann die Einstellungen ändern."), serverseitig erzwungen. Trennt sich der Organisator kurz, übernimmt vertretungsweise ein anderer verbundener Mensch; kommt der Organisator zurück, erhält er die Rolle wieder
+
+### Changed
+- Regeln klarer formuliert: Wenn Nachzieh- und Ablagestapel erschöpft sind und niemand mehr etwas tun kann (oder sich lange nichts tut), endet die Runde und wird **ganz normal** gewertet - ausgelegte Karten plus, restliche Handkarten wie gewohnt **minus** (Pik Dame 100!), nur der Gewinner-Bonus entfällt. (Die Wertung selbst war bereits korrekt; jetzt steht es explizit in den Regeln.)
+
 ## [1.48.1] - 2026-07-07
 
 ### Added

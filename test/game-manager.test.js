@@ -1694,3 +1694,32 @@ test('a dragging round (many turns without a meld) makes a bot yawn', () => {
     }, 20);
   });
 });
+
+// --- v1.49: only the organizer (host) may change lobby settings -------------
+test('the first human to join is the host; later joiners are not', () => {
+  const g = new GameManager(() => {});
+  g.maxSeats = 4;
+  g.addOrReconnectPlayer('h1', 'Anna');
+  g.syncLobbyBots();
+  g.addOrReconnectPlayer('h2', 'Ben');
+  assert.equal(g.isHost('h1'), true, 'first human is host');
+  assert.equal(g.isHost('h2'), false, 'second human is not host');
+  assert.equal(g.isHost('bot-1'), false, 'a bot is never host');
+  const st = g.publicState('h2');
+  assert.equal(st.hostId, 'h1');
+  assert.equal(st.isHost, false, 'publicState.isHost reflects the recipient');
+  assert.equal(g.publicState('h1').isHost, true);
+});
+
+test('host role falls back to a connected human if the host disconnects', () => {
+  const g = new GameManager(() => {});
+  g.maxSeats = 4;
+  g.addOrReconnectPlayer('h1', 'Anna');
+  g.addOrReconnectPlayer('h2', 'Ben');
+  assert.equal(g.effectiveHostId(), 'h1');
+  g.markDisconnected('h1');
+  assert.equal(g.effectiveHostId(), 'h2', 'a connected human takes over settings');
+  assert.equal(g.isHost('h2'), true);
+  g.addOrReconnectPlayer('h1', 'Anna'); // reconnect
+  assert.equal(g.effectiveHostId(), 'h1', 'original host reclaims on reconnect');
+});

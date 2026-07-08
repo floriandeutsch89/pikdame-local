@@ -633,6 +633,7 @@
 
   function renderLobby() {
     const humanCount = lastState.players.filter((p) => !p.isBot).length;
+    const isHost = !!lastState.isHost;
     const ready = new Set(lastState.lobbyReady || []);
     el('lobbyPlayers').innerHTML =
       `${lastState.players.length} Spieler am Tisch` +
@@ -657,6 +658,7 @@
         : L('🖐️ Bereit melden', '🖐️ Mark me ready');
     }
     const allReady = !multiHuman || readyCount === connectedHumans.length;
+    el('startBtn').classList.toggle('hidden', !isHost); // only the organizer starts
     el('startBtn').disabled = humanCount === 0 || !allReady;
     el('startBtn').textContent = multiHuman
       ? L(`Spiel starten (${readyCount}/${connectedHumans.length} bereit)`, `Start game (${readyCount}/${connectedHumans.length} ready)`)
@@ -666,33 +668,43 @@
     el('seatCountSection').classList.toggle('hidden', !hasJoined);
     el('seatingSection').classList.toggle('hidden', !hasJoined || lastState.players.length === 0);
     el('houseRulesSection').classList.toggle('hidden', !hasJoined);
+    el('nonHostHint').classList.toggle('hidden', !hasJoined || isHost);
+    // House rules are read-only for non-hosts.
+    el('houseRulesSection').querySelectorAll('input, select, button').forEach((ctrl) => {
+      ctrl.disabled = !isHost;
+    });
 
     document.querySelectorAll('.seatCountBtn').forEach((btn) => {
       const count = Number(btn.dataset.seatCount);
       btn.classList.toggle('active', count === lastState.maxSeats);
-      btn.disabled = count < humanCount; // kleiner als bereits beigetretene Spieler nicht wählbar
+      // non-hosts cannot change the seat count; hosts cannot go below joined humans
+      btn.disabled = !isHost || count < humanCount;
     });
 
-    renderSeatingList();
+    renderSeatingList(isHost);
   }
 
-  function renderSeatingList() {
+  function renderSeatingList(isHost) {
     const list = el('seatingList');
     list.innerHTML = '';
+    const canEdit = isHost !== false; // default true when called without arg
     lastState.players.forEach((p, idx) => {
       const row = document.createElement('div');
       row.className = 'seatRow';
       const isDealer = p.id === lastState.dealerId;
+      const lock = !canEdit ? 'disabled' : '';
       row.innerHTML = `
         <span class="seatName">${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}</span>
         <span class="seatControls">
-          <button class="btn-icon seatUp" ${idx === 0 ? 'disabled' : ''} title="Nach oben">▲</button>
-          <button class="btn-icon seatDown" ${idx === lastState.players.length - 1 ? 'disabled' : ''} title="Nach unten">▼</button>
-          <button class="btn-icon seatDealer ${isDealer ? 'active' : ''}" title="Als Geber festlegen">${isDealer ? '⭐' : '☆'}</button>
+          <button class="btn-icon seatUp" ${idx === 0 || !canEdit ? 'disabled' : ''} title="Nach oben">▲</button>
+          <button class="btn-icon seatDown" ${idx === lastState.players.length - 1 || !canEdit ? 'disabled' : ''} title="Nach unten">▼</button>
+          <button class="btn-icon seatDealer ${isDealer ? 'active' : ''}" ${lock} title="Als Geber festlegen">${isDealer ? '⭐' : '☆'}</button>
         </span>`;
-      row.querySelector('.seatUp').addEventListener('click', () => moveSeat(idx, -1));
-      row.querySelector('.seatDown').addEventListener('click', () => moveSeat(idx, 1));
-      row.querySelector('.seatDealer').addEventListener('click', () => send({ type: 'setDealer', playerId: p.id }));
+      if (canEdit) {
+        row.querySelector('.seatUp').addEventListener('click', () => moveSeat(idx, -1));
+        row.querySelector('.seatDown').addEventListener('click', () => moveSeat(idx, 1));
+        row.querySelector('.seatDealer').addEventListener('click', () => send({ type: 'setDealer', playerId: p.id }));
+      }
       list.appendChild(row);
     });
   }
@@ -781,7 +793,7 @@
         d.title = L(`${p.handCount} Karten · ${opTotal} Punkte`, `${p.handCount} cards · ${opTotal} points`);
         const opProgress = Math.max(0, Math.min(100, (opTotal / 1000) * 100));
         d.innerHTML = `<div class="opName">${avatarFor(p.name, p.isBot)}${escapeHtml(p.name)}${diffBadge}${dealerStar}${reconnecting ? ` <span class="reconnectTag">⏳ ${L('getrennt – Bot übernimmt', 'disconnected – bot takes over')}</span>` : ''}</div><div class="opCount"><b>${p.handCount}</b> ${L('Kt', 'cd')} · <b>${opTotal}</b> ${L('Pkt', 'pts')}</div><div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>`;
-        if (p.isBot) {
+        if (p.isBot && lastState.isHost) {
           const badgeBtn = document.createElement('button');
           badgeBtn.className = 'botDiffBadge';
           badgeBtn.title = L('Schwierigkeit ändern', 'Change difficulty');
