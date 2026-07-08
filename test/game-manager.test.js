@@ -901,13 +901,15 @@ test('layoutMeld: zweiter Satz gleichen Werts wird abgelehnt, Anlegen bleibt erl
   assert.ok(!g.layoutMeld('p1', [h8.id, h9.id, h10.id]).error, 'zweite Folge gleicher Farbe muss erlaubt sein');
 });
 
-test('houseRules: botDifficulty wird validiert uebernommen, Muell ignoriert', () => {
+test('houseRules: valid rules kept, garbage (incl. the removed botDifficulty) ignored', () => {
   const g = new GameManager(() => {});
-  g.setHouseRules({ botDifficulty: 'zen' });
-  assert.equal(g.houseRules.botDifficulty, 'zen');
-  g.setHouseRules({ botDifficulty: 'quatsch', evil: true });
-  assert.equal(g.houseRules.botDifficulty, 'zen'); // bleibt beim letzten gueltigen
+  g.setHouseRules({ turnTimerSeconds: 60, handAusDoubles: true });
+  assert.equal(g.houseRules.turnTimerSeconds, 60);
+  assert.equal(g.houseRules.handAusDoubles, true);
+  g.setHouseRules({ turnTimerSeconds: 999, evil: true, botDifficulty: 'zen' });
+  assert.equal(g.houseRules.turnTimerSeconds, 60); // invalid value rejected -> keeps last
   assert.equal(g.houseRules.evil, undefined);
+  assert.equal(g.houseRules.botDifficulty, undefined, 'bot difficulty is per-bot, not a house rule');
 });
 
 // --- v1.6.0: Ausmachen nur per Abwurf --------------------------------------
@@ -1198,11 +1200,10 @@ test('setBotDifficulty: validation, effect and per-bot resolution in guards', ()
   const { makeStandardCard } = require('../game/Card');
   const g = new GameManager(() => {});
   g.addOrReconnectPlayer('p1', 'Anna');
-  g.setHouseRules({ botDifficulty: 'medium' }); // house default: Fortgeschritten
   g.fillWithBots();
 
   const bot = g.players.find((p) => p.isBot);
-  assert.equal(bot.botDifficulty, 'medium', 'bots inherit the house default');
+  assert.equal(bot.botDifficulty, 'zen', 'bots default to Zen (no global setting)');
 
   assert.match(g.setBotDifficulty('p1', bot.id, 'brutal').error, /Unbekannte/);
   assert.match(g.setBotDifficulty('p1', bot.id, 'hard').error, /Unbekannte/, "'hard' no longer exists");
@@ -1759,17 +1760,20 @@ test('start gate counts seated humans; a minimised player still blocks the start
   assert.equal(g._lobbyReady.has('h2'), false, 'disconnect clears the ready flag');
 });
 
-// --- v1.50.1: house-rule difficulty reaches bots; unanimous in-game pause ----
-test('setHouseRules propagates the chosen difficulty to all existing bots', () => {
+// --- v1.52.0: per-bot difficulty in the lobby (no global setting) -----------
+test('bots default to Zen and are configured PER bot in the lobby', () => {
   const g = new GameManager(() => {});
   g.maxSeats = 4;
   g.addOrReconnectPlayer('h', 'Host');
   g.syncLobbyBots();
-  assert.ok(g.players.filter((p) => p.isBot).every((b) => b.botDifficulty === 'zen'), 'default zen');
-  g.setHouseRules({ botDifficulty: 'medium' });
-  assert.ok(g.players.filter((p) => p.isBot).every((b) => b.botDifficulty === 'medium'), 'medium reaches pre-filled bots');
-  g.setHouseRules({ botDifficulty: 'zen' });
-  assert.ok(g.players.filter((p) => p.isBot).every((b) => b.botDifficulty === 'zen'), 'zen reaches them too');
+  const bots = g.players.filter((p) => p.isBot);
+  assert.ok(bots.every((b) => b.botDifficulty === 'zen'), 'every bot defaults to Zen');
+  // setting one bot does not touch the others (per-bot, in the lobby)
+  assert.equal(g.setBotDifficulty('h', bots[0].id, 'easy').ok, true);
+  assert.equal(g.players.find((p) => p.id === bots[0].id).botDifficulty, 'easy');
+  assert.ok(bots.slice(1).every((b) => g.players.find((p) => p.id === b.id).botDifficulty === 'zen'), 'others unchanged');
+  // botDifficulty is no longer a house rule
+  assert.equal(g.houseRules.botDifficulty, undefined);
 });
 
 test('in-game pause needs unanimous consent and freezes turn actions', () => {

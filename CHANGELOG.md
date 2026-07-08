@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.52.0] - 2026-07-07
+
+### Changed
+- Bot-Schwierigkeit ist jetzt **pro Bot** in der Lobby einstellbar (Tipp auf den Schwierigkeits-Badge in der Sitzordnung) und wird pro Bot im geteilten Zustand angezeigt. Die globale Einstellung wurde entfernt. Jeder Bot startet standardmäßig auf **Zen-Meister** und kann einzeln auf Anfänger/Fortgeschritten/Zen gestellt werden
+
+### Internal
+- Aufräumen (keine Verhaltensänderung): inline-`require`s für StateEncoder/MoveLogger in GameManager nach oben gezogen (kein zirkulärer Import), der `botDifficulty || 'zen'`-Fallback in einen Helfer `botDifficultyOf()` ausgelagert, der doppelte Pik-Dame-Reaktionsblock zu `_celebratePikDame()` zusammengefasst und das mehrfach genutzte „verbundene Menschen"-Filter in `_connectedHumans()` gebündelt (Host-/Pause-/Bereit-Gate)
+
 ## [1.51.0] - 2026-07-07
 
 ### Added

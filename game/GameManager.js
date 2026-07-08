@@ -4,6 +4,13 @@ const { validateMeld, tryLayOff, tryJokerSwap, enumerateMeldOptions, enumerateLa
 const { scoreRound, applyRoundScores, checkGameOver, DEFAULT_HOUSE_RULES } = require('./ScoreBoard');
 const { rankIndex, cardLabel, isPikDame, cardValue } = require('./Card');
 const Bot = require('./Bot');
+const StateEncoder = require('./StateEncoder');
+const MoveLogger = require('./MoveLogger');
+
+/** A bot's difficulty, defaulting to Zen (single source for the fallback). */
+function botDifficultyOf(player) {
+  return (player && player.botDifficulty) || 'zen';
+}
 
 const MIN_SEATS = 2;
 const MAX_SEATS_LIMIT = 4; // Spielmaterial (Kartenanzahl, Joker) ist auf max. 4 Spieler ausgelegt
@@ -102,7 +109,7 @@ class GameManager {
   effectiveHostId() {
     const host = this.players.find((p) => p.id === this.hostId && !p.isBot && p.connected);
     if (host) return this.hostId;
-    const firstConnected = this.players.find((p) => !p.isBot && p.connected);
+    const firstConnected = this._connectedHumans()[0];
     return firstConnected ? firstConnected.id : this.hostId || null;
   }
 
@@ -190,7 +197,7 @@ class GameManager {
       const name = free.pop() || `Bot ${botIndex}`;
       this.players.push({
         id, name, isBot: true, hand: [], connected: true, laidOutCards: [],
-        botDifficulty: (this.houseRules && this.houseRules.botDifficulty) || 'zen',
+        botDifficulty: 'zen', // per-bot; adjustable in the lobby, defaults to Zen
       });
       this.totals[id] = this.totals[id] || 0;
       botIndex += 1;
@@ -242,21 +249,14 @@ class GameManager {
     const clean = {};
     if (typeof partial.handAusDoubles === 'boolean') clean.handAusDoubles = partial.handAusDoubles;
     if (typeof partial.strictThreshold === 'boolean') clean.strictThreshold = partial.strictThreshold;
-    if (['easy', 'medium', 'zen'].includes(partial.botDifficulty)) {
-      clean.botDifficulty = partial.botDifficulty;
-    }
     if ([0, 30, 60, 90].includes(Number(partial.turnTimerSeconds))) clean.turnTimerSeconds = Number(partial.turnTimerSeconds);
     this.houseRules = {
       ...DEFAULT_HOUSE_RULES,
       ...this.houseRules,
       ...clean,
     };
-    // Apply the chosen bot difficulty to ALL current bots. Lobby seats are
-    // pre-filled with bots (v1.48), so without this the host's choice (e.g.
-    // Zen master) would never reach bots that were created earlier.
-    if (clean.botDifficulty) {
-      for (const p of this.players) if (p.isBot) p.botDifficulty = clean.botDifficulty;
-    }
+    // Bot difficulty is NOT a house rule - it is set PER BOT via
+    // setBotDifficulty (adjustable in the lobby), defaulting to Zen.
   }
 
   /**
@@ -491,7 +491,7 @@ class GameManager {
   drawFromPile(playerId) {
     const err = this.assertTurn(playerId, 'draw');
     if (err) return err;
-    require('./MoveLogger').record(this, playerId, 'draw', require('./StateEncoder').ACTION_DRAW_PILE);
+    MoveLogger.record(this, playerId, 'draw', StateEncoder.ACTION_DRAW_PILE);
 
     // Public inference material: drawing face-down means the visible top
     // discard was SPURNED - this player probably has no use for that rank
@@ -586,7 +586,7 @@ class GameManager {
     if (this.discardPile.length === 0) {
       return { error: 'Ablagestapel ist leer.' };
     }
-    require('./MoveLogger').record(this, playerId, 'draw', require('./StateEncoder').ACTION_TAKE_PILE);
+    MoveLogger.record(this, playerId, 'draw', StateEncoder.ACTION_TAKE_PILE);
     const topCard = this.discardPile[0]; // index 0 = oberste/zuletzt abgelegte Karte
     const player = this.currentPlayer();
 
@@ -723,8 +723,7 @@ class GameManager {
     this._turnsWithoutMeld = 0;
     // Eine ausgelegte Pik Dame elektrisiert den Tisch.
     if (meld.slots.some((s) => s.real && isPikDame(s.real))) {
-      this.maybeBotEmote(player.id, '🎉', 0.3, { force: true });
-      this.botsReact(player.id, '😱', 0.4, { force: true });
+      this._celebratePikDame(player.id);
     } else {
       // Eine dicke Auslage (viele Punkte auf einmal) - kleiner Stolz-Moment.
       const meldValue = meld.slots.reduce((sum, s) => sum + (s.real ? cardValue(s.real) : 0), 0);
@@ -862,8 +861,7 @@ class GameManager {
     this.addLog(`${player.name} legt ${cardLabel(card)} an eine Auslage an.`);
     this._turnsWithoutMeld = 0;
     if (isPikDame(card)) {
-      this.maybeBotEmote(player.id, '🎉', 0.3, { force: true });
-      this.botsReact(player.id, '😱', 0.4, { force: true });
+      this._celebratePikDame(player.id);
     }
     this.checkRoundEnd(player);
     this.broadcastState();
@@ -932,7 +930,7 @@ class GameManager {
     const player = this.currentPlayer();
     const card = player.hand.find((c) => c.id === cardId);
     if (card) {
-      require('./MoveLogger').record(this, playerId, 'discard', require('./StateEncoder').typeIndex(card), card);
+      MoveLogger.record(this, playerId, 'discard', StateEncoder.typeIndex(card), card);
     }
     if (!card) return { error: 'Karte nicht in der Hand gefunden.' };
 
@@ -1078,7 +1076,7 @@ class GameManager {
     if (over.gameOver) {
       this.phase = 'gameOver';
       this.gameOverInfo = { ...over, totalTurns: this.gameTurnCount || 0, totalRounds: this.roundNumber || 0 };
-      require('./MoveLogger').flush(this); // persist human moves for imitation learning
+      MoveLogger.flush(this); // persist human moves for imitation learning
       this.addLog(`Spiel beendet! Gewinner: ${this.players.find((p) => p.id === over.winnerId)?.name}`);
 
       this.lastGameRecord = {
@@ -1188,6 +1186,19 @@ class GameManager {
 
   // --- Validierung -----------------------------------------------------------
 
+  /** Bots on the table that belong to a connected human? No - just the humans
+   *  who are currently connected. Shared by the host, pause and ready gates. */
+  _connectedHumans() {
+    return this.players.filter((p) => !p.isBot && p.connected);
+  }
+
+  /** A laid/attached Pik Dame electrifies the table (same reaction wherever it
+   *  happens - melded or laid off). */
+  _celebratePikDame(playerId) {
+    this.maybeBotEmote(playerId, '🎉', 0.3, { force: true });
+    this.botsReact(playerId, '😱', 0.4, { force: true });
+  }
+
   /** In-game pause by unanimous consent. Toggling a vote; once every CONNECTED
    *  human agrees the game pauses (or, while paused, resumes). Bots, the turn
    *  timer and all turn actions are frozen while paused. */
@@ -1205,7 +1216,7 @@ class GameManager {
 
   _evaluatePauseVotes() {
     if (!this._pauseVotes) this._pauseVotes = new Set();
-    const humans = this.players.filter((x) => !x.isBot && x.connected);
+    const humans = this._connectedHumans();
     if (humans.length === 0 || !humans.every((h) => this._pauseVotes.has(h.id))) return;
     this.paused = !this.paused;
     this._pauseVotes = new Set();
@@ -1307,10 +1318,10 @@ class GameManager {
     if (!cp) return;
     const OnnxPolicy = require('./OnnxPolicy');
     const difficulty =
-      cp.botDifficulty || (this.houseRules && this.houseRules.botDifficulty) || 'zen';
+      botDifficultyOf(cp);
     // Draw-source decision via the model (only when taking the pile is legal).
     try {
-      const SE = require('./StateEncoder');
+      const SE = StateEncoder;
       if (SE.pileTakeLegal(this, botId)) {
         const src = await OnnxPolicy.chooseDrawSource(this, botId, difficulty);
         if (src === 'drawPile' || src === 'discardPile') cp.forcedDrawSource = src;
@@ -1610,7 +1621,7 @@ class GameManager {
     // Per-bot difficulty (adjustable in-game) with the house rule as default
     // Default (and thus also the stand-in for a temporarily replaced
     // human or a timed-out turn): the zen master - the strongest fair bot.
-    const difficulty = cp.botDifficulty || (this.houseRules && this.houseRules.botDifficulty) || 'zen';
+    const difficulty = botDifficultyOf(cp);
     const ownMelds = this.tableMelds.filter((m) => m.ownerId === botId);
     const plan = Bot.decideDraw(cp.hand, this.discardPile, ownMelds);
     // Leichte Bots übersehen die Ablage-Chance meistens (wie Anfänger).
@@ -1898,7 +1909,7 @@ class GameManager {
         id: p.id,
         name: p.name,
         isBot: p.isBot,
-        botDifficulty: p.isBot ? (p.botDifficulty || (this.houseRules && this.houseRules.botDifficulty) || 'zen') : undefined,
+        botDifficulty: p.isBot ? botDifficultyOf(p) : undefined,
         connected: p.connected,
         controlledByBot: this.isBotControlled(p),
         handCount: p.hand.length,

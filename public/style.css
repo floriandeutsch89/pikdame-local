@@ -1426,15 +1426,6 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 .ingameVersion:active { opacity: 1; }
 
 /* --- Bot-Schwierigkeit (Hausregeln) ---------------------------------------- */
-.botDifficultyRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.botDifficultyRow select {
-  background: var(--glass-strong);
-  color: var(--text);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--r-sm);
-  padding: 6px 10px;
-  font-size: 0.82rem;
-}
 
 /* --- Globale Server-Statistik ---------------------------------------------- */
 .globalStatsBox {
