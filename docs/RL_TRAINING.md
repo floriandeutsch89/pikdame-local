@@ -359,35 +359,61 @@ hundred games already shift the style noticeably.
 
 ## 9a. Log data format (`human-moves.jsonl`)
 
-One JSON object per line = one human decision. Rows are minified (compact JSON,
-observations rounded to 4 decimals, mask as 0/1). Fields:
+One JSON object per line = one human decision, in a self-describing,
+encoder-independent format. Each row keeps three views of the decision plus the
+outcome. Observations are rounded to 4 decimals and the mask is 0/1 to stay
+compact.
 
-| field           | type        | meaning |
-|-----------------|-------------|---------|
-| `g`             | string      | anonymous per-game id - groups all rows from the same game |
-| `phase`         | string      | `"draw"` or `"discard"` - which decision this row records |
-| `obs`           | number[377] | the encoded game state from `game/StateEncoder.js` (`OBS_SIZE`), the SAME vector the network sees; layout is defined there |
-| `action`        | int         | the chosen action in the 54-slot space: discard -> `suitIdx*13 + rankIdx` (suits H,D,C,S; ranks 2..A); draw -> `52` = draw pile, `53` = take discard pile |
-| `mask`          | int[54]     | which actions were legal at that moment (1 = legal); illegal actions must be ignored in training |
-| `won`           | bool        | did this player win the GAME (highest final total) |
-| `rank`          | int         | final placement (1 = winner) |
-| `finalTotal`    | int         | this player's final cumulative score |
-| `winnerTotal`   | int         | the winner's final score |
-| `players`       | int         | number of players in the game |
-| `rounds`        | int         | total rounds played in the game |
-| `turns`         | int         | total turns in the game |
-| `round`         | int         | the round number when this move was made |
-| `turn`          | int         | the global turn counter when this move was made |
-| `hand`          | int         | the mover's hand size at decision time |
-| `opp`           | int[]       | opponents' hand sizes at decision time |
-| `pileTakeLegal` | 0/1         | whether taking the discard pile was legal at this draw decision |
+Top-level fields:
 
-For behavioral cloning we train `obs -> action` on the winners' rows
-(`won == true`), masking illegal actions. The extra fields let you weight or
-filter (e.g. by `rank`, margin `finalTotal - winnerTotal`, or game `phase`).
-The observation/action ENCODING is owned entirely by `game/StateEncoder.js` -
-read it there rather than hard-coding offsets, since it is the single source of
-truth shared by logging, training and runtime.
+| field           | type   | meaning |
+|-----------------|--------|---------|
+| `g`             | string | anonymous per-game id (groups a game's rows) |
+| `seat`          | int    | the deciding player's seat index (anonymous, stable within the game) |
+| `phase`         | string | `"draw"` or `"discard"` |
+| `round`         | int    | round number when the move was made |
+| `turn`          | int    | global turn counter when the move was made |
+| `pileTakeLegal` | 0/1    | was taking the discard pile legal at this draw decision |
+| `move`          | object | **deserialized action** (human-readable), see below |
+| `state`         | object | **raw decision context** from the player's POV, see below |
+| `action`        | int    | the action index in the 54-slot space (training label) |
+| `obs`           | number[] | the encoded network input (`StateEncoder`, `OBS_SIZE` floats) |
+| `mask`          | int[]  | legal-action mask (1 = legal) over the 54-slot space |
+| `won`           | bool   | did this player win the game (top final total) |
+| `rank`          | int    | final placement (1 = winner) |
+| `finalTotal` / `winnerTotal` | int | this player's / the winner's final score |
+| `players` / `rounds` / `turns` | int | game-level counts |
+
+`move` (the deserialized action):
+
+| field  | meaning |
+|--------|---------|
+| `type` | `"drawPile"`, `"takeDiscard"` or `"discard"` |
+| `card` | the card as `rank+suit` (`"QS"`, `"10H"`, joker `"JK"`); the discarded card for a discard, the taken top for `takeDiscard`, else `null` |
+
+`state` (what the deciding player could legitimately see - own hand in full,
+opponents only by count and publicly-known cards):
+
+| field         | meaning |
+|---------------|---------|
+| `hand`        | the player's own cards, e.g. `["QS","7H","KD"]` |
+| `drawCount`   | cards left in the draw pile |
+| `discardTop`  | top discard card (or `null`) |
+| `discardCount`| number of cards in the discard pile |
+| `melds`       | table melds: `{owner: seat, type: "set"|"run", cards: [...]}` |
+| `opponents`   | per opponent: `{seat, handCount, isBot, known: [...]}` where `known` are cards everyone has SEEN them take (public memory) |
+
+**Why both `state` and `obs`?** `obs`/`action`/`mask` let training run directly
+(no need to re-implement the encoder in Python). `state`/`move` are the raw,
+human-readable ground truth: they make the logs inspectable AND let a future,
+improved `StateEncoder` RE-ENCODE old logs (the encoded `obs` alone would lock
+you into today's encoder). The encoding is owned entirely by
+`game/StateEncoder.js` - the single source of truth shared by logging, training
+and runtime.
+
+For behavioral cloning we train `obs -> action` on winners' rows (`won == true`)
+with illegal actions masked; the extra fields let you weight/filter (by `rank`,
+margin `finalTotal - winnerTotal`, `phase`, etc.) or re-encode from `state`.
 
 ## 10. Next extensions (optional)
 

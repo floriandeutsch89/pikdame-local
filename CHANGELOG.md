@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.50.0] - 2026-07-07
+
+### Changed
+- Menschen-Zug-Logging (human-moves.jsonl) auf ein best-practice, selbstbeschreibendes Format umgestellt. Jede Zeile enthält jetzt drei Sichten derselben Entscheidung plus das Ergebnis: (1) `state` – der **rohe, menschenlesbare Spielzustand aus Spielersicht** (die echten Handkarten, Ablage-Top, Auslagen mit Karten, Gegner-Kartenzahlen und öffentlich bekannte Karten, Stapelgrößen); (2) `move` – die **deserialisierte Aktion** (z. B. `{type:"discard", card:"QS"}` statt nur eines Enum-Index); (3) `obs`/`action`/`mask` – der kodierte Netz-Input fürs direkte Training. So sind die Logs lesbar, überprüfbar UND encoder-unabhängig (ein verbesserter StateEncoder kann alte Aufzeichnungen neu kodieren, weil der Rohzustand erhalten ist). Karten werden als Kürzel `Rang+Farbe` gespeichert (`QS`, `10H`, Joker `JK`). Datenschutzerklärung (DE+EN) entsprechend präzisiert (anonyme Spielverlaufsdaten inkl. Karten, weiterhin ohne Name/Konto/Gerät/IP). Schema vollständig in docs/RL_TRAINING.md dokumentiert. **Hinweis:** Bereits gesammelte Logs im alten Format werden dadurch obsolet (bewusst in Kauf genommen)
+
 ## [1.49.1] - 2026-07-07
 
 ### Fixed
