@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.52.1] - 2026-07-07
+
+### Fixed
+- Bot-Schwierigkeit wird jetzt auch Nicht-Organisatoren angezeigt – schreibgeschützt, aber klar sichtbar – **sowohl in der Lobby als auch im Spiel**. Vorher war der Schwierigkeits-Badge im Spiel nur für den Organisator sichtbar. Für Nicht-Hosts ist der Badge nicht antippbar (voller Kontrast statt blasser „deaktiviert"-Optik), und ein Tooltip zeigt die Stufe im Klartext (z. B. „Schwierigkeit: Zen-Meister")
+
 ## [1.52.0] - 2026-07-07
 
 ### Changed
