@@ -33,8 +33,8 @@ test('records only human decisions and flushes with a won flag', () => {
   // ...a human decision must be.
   const human = g.players.find((p) => p.id === 'human');
   human.hand = [mk('H', '7', 0), mk('S', '9', 0)];
-  MoveLogger.record(g, 'human', 'discard', SE.typeIndex(mk('H', '7', 0)));
-  MoveLogger.record(g, 'human', 'draw', SE.ACTION_TAKE_PILE);
+  MoveLogger.record(g, 'human', 'discard', SE.typeIndex(mk('H', '7', 0)), mk('H', '7', 0));
+  MoveLogger.record(g, 'human', 'draw', SE.ACTION_DRAW_PILE);
   assert.equal(g._moveLog.length, 2);
   assert.equal(g._moveLog[0].obs.length, SE.OBS_SIZE);
   assert.equal(g._moveLog[0].mask.length, SE.ACTION_SIZE);
@@ -51,11 +51,19 @@ test('records only human decisions and flushes with a won flag', () => {
   assert.equal(row.obs.length, SE.OBS_SIZE);
   assert.ok(row.phase === 'discard' || row.phase === 'draw');
   assert.equal('playerId' in row, false, 'no identity leaked to disk');
-  // enrichment for training
+  // deserialized action + raw state
+  assert.equal(row.move.type, 'discard');
+  assert.equal(row.move.card, '7H', 'the actual discarded card is recorded');
+  assert.ok(Array.isArray(row.state.hand) && row.state.hand.includes('7H'), 'own hand is in state');
+  assert.ok('discardTop' in row.state && 'drawCount' in row.state && Array.isArray(row.state.opponents));
+  // outcome enrichment
   assert.equal(row.rank, 1, 'winner is rank 1');
   assert.equal(row.finalTotal, 1000);
   assert.equal(row.winnerTotal, 1000);
-  assert.ok('players' in row && 'rounds' in row && 'turns' in row && 'hand' in row);
+  assert.ok('players' in row && 'rounds' in row && 'turns' in row && 'seat' in row);
+  // draw row: deserialized draw source
+  const drawRow = JSON.parse(lines[1]);
+  assert.equal(drawRow.move.type, 'drawPile');
   // minified: mask is 0/1 ints, obs rounded to <= 4 decimals
   assert.ok(row.mask.every((v) => v === 0 || v === 1), 'mask is 0/1');
   assert.ok(row.obs.every((v) => Math.abs(v * 1e4 - Math.round(v * 1e4)) < 1e-6), 'obs rounded to 4dp');

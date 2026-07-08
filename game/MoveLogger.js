@@ -1,22 +1,33 @@
 'use strict';
 
 /**
- * Records human move decisions for imitation learning (behavioral cloning).
+ * Records human move decisions for imitation learning (behavioral cloning) and
+ * offline RL, in a best-practice, self-describing, encoder-independent format.
  *
- * When PIKDAME_LOG_GAMES=1, every draw and discard decision made by a HUMAN
- * (never a bot) is encoded with the SAME StateEncoder the network uses, and
- * buffered per game. At game over the buffer is flushed to a JSONL file with a
- * `won` flag per row, so the Python side can train on the moves of the game's
- * winner. Off by default; wrapped so it can never disrupt a game.
+ * When PIKDAME_LOG_GAMES is not disabled (on by default; PIKDAME_LOG_GAMES=0
+ * /false/off turns it off), every draw and discard decision made by a HUMAN
+ * (never a bot) is recorded and buffered per game, then flushed to a JSONL file
+ * at game over with the final outcome.
  *
- * Privacy: only anonymous data is written - the encoded observation (numbers),
- * the chosen action, the legal-action mask, an anonymous per-game id and the
- * won flag. No names, no account ids, no raw cards.
+ * Each row carries THREE views of the same decision so the data stays useful
+ * even if the model changes:
+ *   1. `state` - the raw, human-readable game state FROM THE DECIDING PLAYER'S
+ *      POV (their actual hand, the discard top, table melds, opponents' hand
+ *      counts and publicly-known cards, pile counts). Encoder-independent, so a
+ *      future/improved StateEncoder can RE-ENCODE these logs.
+ *   2. `move` - the deserialized action (e.g. {type:'discard', card:'QS'} or
+ *      {type:'takeDiscard'} / {type:'drawPile'}), human-readable.
+ *   3. `obs` + `action` + `mask` - the encoded network input (StateEncoder,
+ *      OBS_SIZE floats), the action index (ACTION_SIZE space) and the legal
+ *      mask, so training runs directly without re-implementing the encoder.
+ * Plus the game outcome (won/rank/totals) for winner-filtering and weighting.
  *
- * Row schema (one JSON object per line, minified): see the "Log data format"
- * table in docs/RL_TRAINING.md. Keys: g, phase, obs, action, mask, won, rank,
- * finalTotal, winnerTotal, players, rounds, turns, round, turn, hand, opp,
- * pileTakeLegal. The obs/action encoding is owned by StateEncoder.js.
+ * Privacy: only anonymous gameplay data is written - the cards and game state of
+ * an anonymous seat in an anonymous game. NO names, NO account or device ids, NO
+ * IP addresses; the per-game id is random and not linkable to a person. Card
+ * codes are gameplay moves, not personal data.
+ *
+ * See docs/RL_TRAINING.md ("Log data format") for the full field reference.
  */
 
 const fs = require('fs');
@@ -31,12 +42,59 @@ function enabled() {
   return v !== '0' && v !== 'false' && v !== 'off';
 }
 
+/** Compact, human-readable card code: rank+suit ("QS", "10H"), jokers "JK". */
+function cardCode(card) {
+  if (!card) return null;
+  if (card.isJoker) return 'JK';
+  return `${card.rank}${card.suit}`;
+}
+
+function seatIndex(game, playerId) {
+  return (game.players || []).findIndex((p) => p.id === playerId);
+}
+
+/** The full decision context as the deciding player could legitimately see it
+ *  (own hand in full; opponents only by count + publicly-known cards). */
+function povState(game, playerId) {
+  const me = (game.players || []).find((p) => p.id === playerId) || { hand: [] };
+  const known = game.publicKnownHands || {};
+  return {
+    hand: (me.hand || []).map(cardCode),
+    drawCount: game.drawPile.length,
+    discardTop: cardCode(game.discardPile[0]),
+    discardCount: game.discardPile.length,
+    melds: (game.tableMelds || []).map((m) => ({
+      owner: seatIndex(game, m.ownerId),
+      type: m.type,
+      cards: m.slots.map((s) => cardCode(s.real || s.joker)).filter(Boolean),
+    })),
+    opponents: (game.players || [])
+      .filter((p) => p.id !== playerId)
+      .map((p) => ({
+        seat: seatIndex(game, p.id),
+        handCount: (p.hand || []).length,
+        isBot: !!p.isBot,
+        known: (known[p.id] || []).map(cardCode), // cards everyone has SEEN them take
+      })),
+  };
+}
+
+/** Deserialized action for readability/verification. `card` is the actual
+ *  discarded card (discard phase only). */
+function moveFor(game, phase, action, card) {
+  if (phase === 'draw') {
+    if (action === SE.ACTION_TAKE_PILE) return { type: 'takeDiscard', card: cardCode(game.discardPile[0]) };
+    return { type: 'drawPile', card: null };
+  }
+  return { type: 'discard', card: cardCode(card) };
+}
+
 /**
  * Buffer one human decision. `phase` is 'draw' or 'discard'; `action` is the
- * StateEncoder action index (draw: ACTION_DRAW_PILE / ACTION_TAKE_PILE;
- * discard: the card-type index). Bots and invalid actions are skipped.
+ * StateEncoder action index; `card` is the actual card for a discard (optional).
+ * Bots and invalid actions are skipped.
  */
-function record(game, playerId, phase, action) {
+function record(game, playerId, phase, action, card) {
   if (!enabled()) return;
   try {
     const player = (game.players || []).find((p) => p.id === playerId);
@@ -47,37 +105,35 @@ function record(game, playerId, phase, action) {
     const mask = SE.actionMask(game, playerId, { phase, pileTakeLegal: pileLegal });
     if (!game._moveLog) game._moveLog = [];
     game._moveLog.push({
-      playerId,
+      playerId, // stripped on flush - only used to tag won/rank
+      seat: seatIndex(game, playerId),
       phase,
-      obs: Array.from(obs),
-      action,
-      mask,
-      // Per-move context that helps training (weighting, curriculum, analysis):
       round: game.roundNumber || 0,
       turn: game.gameTurnCount || 0,
-      hand: (player.hand || []).length,
-      opp: (game.players || []).filter((p) => p.id !== playerId).map((p) => (p.hand || []).length),
       pileTakeLegal: !!pileLegal,
+      move: moveFor(game, phase, action, card),
+      state: povState(game, playerId),
+      action,
+      obs: Array.from(obs),
+      mask,
     });
   } catch (e) {
     /* never disrupt a turn */
   }
 }
 
-// Round observation floats to keep the log compact ("minified") by default -
-// 377 full-precision doubles per row is wasteful and hurts nothing at 4dp.
+// Round observation floats to keep the log compact ("minified") by default.
 function round4(x) {
   return Math.round(x * 1e4) / 1e4;
 }
 
-/** Write the buffered moves for a finished game, tagged with rich outcome info. */
+/** Write the buffered moves for a finished game, tagged with the outcome. */
 function flush(game) {
   if (!enabled()) return;
   try {
     const buf = game && game._moveLog;
     if (!buf || buf.length === 0) return;
     const totals = game.totals || {};
-    // Rank players by final total (1 = winner).
     const ranked = Object.entries(totals).sort((a, b) => b[1] - a[1]);
     const rankOf = {};
     ranked.forEach(([pid], i) => {
@@ -90,14 +146,22 @@ function flush(game) {
     const rounds = game.roundNumber || 0;
     const turns = game.gameTurnCount || 0;
 
-    const lines = buf.map((m) => {
-      // Compact ("minified") row: rounded observation, 0/1 mask, no whitespace.
-      const row = {
+    const lines = buf.map((m) =>
+      JSON.stringify({
         g: gameId,
+        seat: m.seat,
         phase: m.phase,
-        obs: m.obs.map(round4),
+        round: m.round,
+        turn: m.turn,
+        pileTakeLegal: m.pileTakeLegal ? 1 : 0,
+        // deserialized + raw state (encoder-independent, human-readable)
+        move: m.move,
+        state: m.state,
+        // encoded network view (for direct training), minified
         action: m.action,
+        obs: m.obs.map(round4),
         mask: m.mask.map((b) => (b ? 1 : 0)),
+        // outcome
         won: m.playerId === winnerId,
         rank: rankOf[m.playerId] || null,
         finalTotal: totals[m.playerId] != null ? totals[m.playerId] : null,
@@ -105,14 +169,8 @@ function flush(game) {
         players,
         rounds,
         turns,
-        round: m.round,
-        turn: m.turn,
-        hand: m.hand,
-        opp: m.opp,
-        pileTakeLegal: m.pileTakeLegal ? 1 : 0,
-      };
-      return JSON.stringify(row); // JSON.stringify emits no extra whitespace
-    });
+      })
+    );
     fs.mkdirSync(path.dirname(LOG_PATH), { recursive: true });
     fs.appendFileSync(LOG_PATH, lines.join('\n') + '\n');
     game._moveLog = [];
@@ -121,4 +179,4 @@ function flush(game) {
   }
 }
 
-module.exports = { enabled, record, flush, LOG_PATH };
+module.exports = { enabled, record, flush, cardCode, LOG_PATH };

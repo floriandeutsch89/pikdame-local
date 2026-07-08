@@ -922,7 +922,7 @@ class GameManager {
     const player = this.currentPlayer();
     const card = player.hand.find((c) => c.id === cardId);
     if (card) {
-      require('./MoveLogger').record(this, playerId, 'discard', require('./StateEncoder').typeIndex(card));
+      require('./MoveLogger').record(this, playerId, 'discard', require('./StateEncoder').typeIndex(card), card);
     }
     if (!card) return { error: 'Karte nicht in der Hand gefunden.' };
 
