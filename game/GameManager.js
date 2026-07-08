@@ -119,6 +119,10 @@ class GameManager {
       // Minimieren) trennt, verliert seine Bereitschaft und muss nach der
       // Rueckkehr erneut druecken.
       if (this.phase === 'lobby' && this._lobbyReady) this._lobbyReady.delete(id);
+      if (this._pauseVotes) {
+        this._pauseVotes.delete(id);
+        this._evaluatePauseVotes(); // connected-human set changed -> re-check
+      }
       // GRACE PERIOD before a bot takes over: in hosted mode a player who
       // briefly switches apps (message, call) loses the websocket - the
       // old instant takeover meant a bot happily played (and sometimes
@@ -247,6 +251,12 @@ class GameManager {
       ...this.houseRules,
       ...clean,
     };
+    // Apply the chosen bot difficulty to ALL current bots. Lobby seats are
+    // pre-filled with bots (v1.48), so without this the host's choice (e.g.
+    // Zen master) would never reach bots that were created earlier.
+    if (clean.botDifficulty) {
+      for (const p of this.players) if (p.isBot) p.botDifficulty = clean.botDifficulty;
+    }
   }
 
   /**
@@ -1178,8 +1188,42 @@ class GameManager {
 
   // --- Validierung -----------------------------------------------------------
 
+  /** In-game pause by unanimous consent. Toggling a vote; once every CONNECTED
+   *  human agrees the game pauses (or, while paused, resumes). Bots, the turn
+   *  timer and all turn actions are frozen while paused. */
+  togglePauseVote(playerId) {
+    if (this.phase !== 'playing') return { error: 'Pause gibt es nur im laufenden Spiel.' };
+    const p = this.players.find((x) => x.id === playerId && !x.isBot);
+    if (!p) return { error: 'Nur Mitspieler am Tisch können pausieren.' };
+    if (!this._pauseVotes) this._pauseVotes = new Set();
+    if (this._pauseVotes.has(playerId)) this._pauseVotes.delete(playerId);
+    else this._pauseVotes.add(playerId);
+    this._evaluatePauseVotes();
+    this.broadcastState();
+    return { ok: true };
+  }
+
+  _evaluatePauseVotes() {
+    if (!this._pauseVotes) this._pauseVotes = new Set();
+    const humans = this.players.filter((x) => !x.isBot && x.connected);
+    if (humans.length === 0 || !humans.every((h) => this._pauseVotes.has(h.id))) return;
+    this.paused = !this.paused;
+    this._pauseVotes = new Set();
+    if (this.paused) {
+      clearTimeout(this._turnTimer);
+      this._turnTimer = null;
+      this.turnDeadline = null;
+      clearTimeout(this._botTimer);
+      this.addLog('⏸️ Spiel pausiert - alle waren einverstanden.');
+    } else {
+      this.addLog('▶️ Spiel fortgesetzt.');
+      this.maybeRunBotTurn(); // re-arms the timer and continues a bot turn if due
+    }
+  }
+
   assertTurn(playerId, expectedPhase) {
     if (this.phase !== 'playing') return { error: 'Es läuft gerade keine Runde.' };
+    if (this.paused) return { error: 'Das Spiel ist pausiert.' };
     const cp = this.currentPlayer();
     if (!cp || cp.id !== playerId) return { error: 'Du bist nicht am Zug.' };
     if (expectedPhase === 'draw' && this.turnPhase !== 'draw') {
@@ -1203,7 +1247,7 @@ class GameManager {
     this._turnTimer = null;
     this.turnDeadline = null;
     const secs = (this.houseRules && this.houseRules.turnTimerSeconds) || 0;
-    if (!secs || this.phase !== 'playing') return;
+    if (!secs || this.phase !== 'playing' || this.paused) return;
     const cp = this.currentPlayer();
     // No countdown for bots, bot-controlled seats OR disconnected humans:
     // during the takeover grace the seat is protected by ITS clock - a
@@ -1228,6 +1272,7 @@ class GameManager {
   }
 
   maybeRunBotTurn() {
+    if (this.paused) return; // frozen while paused
     this._armTurnTimer();
     if (this.phase !== 'playing') return;
     const cp = this.currentPlayer();
@@ -1389,6 +1434,7 @@ class GameManager {
         key === '_takeoverTimers' ||
         key === '_nextRoundReady' ||
         key === '_lobbyReady' ||
+        key === '_pauseVotes' ||
         key === '_agentAwaitingDiscard' ||
         key === '_noMcts' ||
         key === '_moveLog' ||
@@ -1846,6 +1892,8 @@ class GameManager {
       maxSeats: this.maxSeats,
       hostId: this.effectiveHostId(),
       isHost: this.isHost(forPlayerId),
+      paused: !!this.paused,
+      pauseVotes: this._pauseVotes ? [...this._pauseVotes] : [],
       players: this.players.map((p) => ({
         id: p.id,
         name: p.name,

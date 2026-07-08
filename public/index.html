@@ -137,6 +137,7 @@
             <button id="ingameVersion" class="ingameVersion" title="Was ist neu?">v–</button>
           </span>
           <button id="emoteBtn" class="btn-icon" title="Reaktion senden">😀</button>
+          <button id="pauseBtn" class="btn-icon hidden" title="Pause (alle müssen zustimmen)">⏸️</button>
           <button id="settingsBtn" class="btn-icon" title="Einstellungen">⚙️</button>
         </div>
         <!-- Zweite Kopfzeile: Runde/Geber klein, linksbuendig unter dem
@@ -235,6 +236,15 @@
         <p>Du verlässt den Tisch. Kommst du nicht bald zurück, übernimmt ein Bot deinen Platz - mit dem Spiel-Code kannst du jederzeit wieder einsteigen.</p>
         <button id="homeConfirmBtn" class="btn-primary">Tisch verlassen</button>
         <button id="homeCancelBtn" class="btn-secondary">Abbrechen</button>
+      </div>
+    </section>
+
+    <!-- PAUSE (im Spiel, nur mit Zustimmung aller) -->
+    <section id="pauseOverlay" class="overlay hidden">
+      <div class="overlay-card">
+        <h2>⏸️ Spiel pausiert</h2>
+        <p id="pauseInfo">Das Spiel ist pausiert. Es geht weiter, sobald alle zustimmen.</p>
+        <button id="pauseResumeBtn" class="btn-primary">▶️ Fortsetzen</button>
       </div>
     </section>
 

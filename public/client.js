@@ -608,6 +608,7 @@
     const inLobby = lastState.phase === 'lobby';
     el('lobby').classList.toggle('hidden', !inLobby);
     el('table').classList.toggle('hidden', inLobby);
+    renderPause();
 
     if (inLobby) {
       // Coming back to the lobby (e.g. after a rematch) must clear any result
@@ -671,9 +672,24 @@
     el('seatingSection').classList.toggle('hidden', !hasJoined || lastState.players.length === 0);
     el('houseRulesSection').classList.toggle('hidden', !hasJoined);
     el('nonHostHint').classList.toggle('hidden', !hasJoined || isHost);
+    // Reflect the host's settings for EVERYONE from the broadcast state, so
+    // non-hosts (and a reconnecting host) see the actual chosen values. Skip a
+    // control the host is editing right now to avoid clobbering mid-change.
+    const hr = lastState.houseRules || {};
+    const setCtl = (id, val, isCheckbox) => {
+      const c = el(id);
+      if (document.activeElement === c) return;
+      if (isCheckbox) c.checked = !!val;
+      else c.value = String(val);
+    };
+    setCtl('ruleHandAus', hr.handAusDoubles, true);
+    setCtl('ruleStrict1000', hr.strictThreshold, true);
+    setCtl('ruleTurnTimer', hr.turnTimerSeconds != null ? hr.turnTimerSeconds : 0);
+    setCtl('ruleBotDifficulty', hr.botDifficulty || 'zen');
     // House rules are read-only for non-hosts.
     el('houseRulesSection').querySelectorAll('input, select, button').forEach((ctrl) => {
-      ctrl.disabled = !isHost;
+      // ruleSound is a personal (per-device) setting - never lock it.
+      ctrl.disabled = !isHost && ctrl.id !== 'ruleSound';
     });
 
     document.querySelectorAll('.seatCountBtn').forEach((btn) => {
@@ -1681,6 +1697,14 @@
     setSoundEnabled(el('ruleSound').checked);
   });
 
+  // Host changes to house rules sync LIVE so every player sees them and the
+  // bots follow immediately (ruleSound stays local - it's a personal setting).
+  ['ruleHandAus', 'ruleStrict1000', 'ruleTurnTimer', 'ruleBotDifficulty'].forEach((id) => {
+    el(id).addEventListener('change', () => {
+      if (lastState && lastState.isHost) send({ type: 'setHouseRules', houseRules: collectHouseRules() });
+    });
+  });
+
   // --- Turn-timer countdown: purely client-side ticking against the
   // server-provided deadline (zero extra server traffic) ----------------------
   setInterval(() => {
@@ -2532,6 +2556,41 @@
   }
 
   // --- Emotes -----------------------------------------------------------------
+  el('pauseBtn').addEventListener('click', () => send({ type: 'togglePause' }));
+  el('pauseResumeBtn').addEventListener('click', () => send({ type: 'togglePause' }));
+
+  function renderPause() {
+    const s = lastState;
+    const playing = s && s.phase === 'playing';
+    const seated = s && s.players.some((p) => p.id === playerId && !p.isBot);
+    const votes = (s && s.pauseVotes) || [];
+    const humans = (s && s.players.filter((p) => !p.isBot && p.connected !== false)) || [];
+    // Pause button: only while seated in a running game.
+    el('pauseBtn').classList.toggle('hidden', !(playing && seated));
+    const iVoted = votes.includes(playerId);
+    el('pauseBtn').classList.toggle('active', iVoted);
+    el('pauseBtn').title = s && s.paused
+      ? L('Fortsetzen (alle müssen zustimmen)', 'Resume (everyone must agree)')
+      : votes.length
+        ? L(`Pause: ${votes.length}/${humans.length} dafür`, `Pause: ${votes.length}/${humans.length} in favour`)
+        : L('Pause (alle müssen zustimmen)', 'Pause (everyone must agree)');
+    // Pause overlay while the game is frozen.
+    const paused = !!(s && s.paused);
+    el('pauseOverlay').classList.toggle('hidden', !paused);
+    if (paused) {
+      const need = humans.length;
+      const have = votes.length;
+      el('pauseInfo').textContent = have
+        ? L(`Weiter, sobald alle zustimmen (${have}/${need}).`, `Resumes once everyone agrees (${have}/${need}).`)
+        : L('Das Spiel ist pausiert. Tippe „Fortsetzen", um weiterzuspielen (alle müssen zustimmen).',
+            'The game is paused. Tap "Resume" to continue (everyone must agree).');
+      el('pauseResumeBtn').classList.toggle('active', iVoted);
+      el('pauseResumeBtn').textContent = iVoted
+        ? L('✅ Warte auf die anderen', '✅ Waiting for the others')
+        : L('▶️ Fortsetzen', '▶️ Resume');
+    }
+  }
+
   el('emoteBtn').addEventListener('click', () => {
     el('emoteBar').classList.toggle('hidden');
   });

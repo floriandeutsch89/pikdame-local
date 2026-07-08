@@ -764,6 +764,17 @@ wss.on('connection', (ws, req) => {
         if (r && r.error) sendError(ws, r.error);
         break;
       }
+      case 'togglePause': {
+        const r = game.togglePauseVote(playerId);
+        if (r && r.error) sendError(ws, r.error);
+        break;
+      }
+      case 'setHouseRules': {
+        if (!game.isHost(playerId)) { sendError(ws, 'Nur der Organisator kann die Einstellungen ändern.'); break; }
+        game.setHouseRules(msg.houseRules || {});
+        game.broadcastState();
+        break;
+      }
       case 'setMaxSeats': {
         if (!game.isHost(playerId)) { sendError(ws, 'Nur der Organisator kann die Einstellungen ändern.'); break; }
         const r = game.setMaxSeats(msg.count);

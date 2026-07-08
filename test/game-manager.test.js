@@ -1758,3 +1758,51 @@ test('start gate counts seated humans; a minimised player still blocks the start
   assert.match(g.lobbyStartGate().error, /1\/2/, 'still blocked - Ben counts even while away');
   assert.equal(g._lobbyReady.has('h2'), false, 'disconnect clears the ready flag');
 });
+
+// --- v1.50.1: house-rule difficulty reaches bots; unanimous in-game pause ----
+test('setHouseRules propagates the chosen difficulty to all existing bots', () => {
+  const g = new GameManager(() => {});
+  g.maxSeats = 4;
+  g.addOrReconnectPlayer('h', 'Host');
+  g.syncLobbyBots();
+  assert.ok(g.players.filter((p) => p.isBot).every((b) => b.botDifficulty === 'zen'), 'default zen');
+  g.setHouseRules({ botDifficulty: 'medium' });
+  assert.ok(g.players.filter((p) => p.isBot).every((b) => b.botDifficulty === 'medium'), 'medium reaches pre-filled bots');
+  g.setHouseRules({ botDifficulty: 'zen' });
+  assert.ok(g.players.filter((p) => p.isBot).every((b) => b.botDifficulty === 'zen'), 'zen reaches them too');
+});
+
+test('in-game pause needs unanimous consent and freezes turn actions', () => {
+  const g = new GameManager(() => {});
+  g.addOrReconnectPlayer('a', 'A');
+  g.addOrReconnectPlayer('b', 'B');
+  g.maxSeats = 2;
+  g.fillWithBots();
+  g.phase = 'playing';
+  g.currentPlayerIndex = 0;
+  g.turnPhase = 'draw';
+  assert.equal(g.togglePauseVote('a').ok, true);
+  assert.ok(!g.paused, 'one vote does not pause');
+  assert.equal(g.publicState('a').pauseVotes.length, 1);
+  g.togglePauseVote('b');
+  assert.equal(g.paused, true, 'unanimous -> paused');
+  assert.match(g.assertTurn('a', 'draw').error, /pausiert/, 'actions frozen while paused');
+  // resume also needs everyone
+  g.togglePauseVote('a');
+  assert.equal(g.paused, true, 'still paused with one resume vote');
+  g.togglePauseVote('b');
+  assert.equal(g.paused, false, 'unanimous resume');
+  assert.equal(g.publicState('a').paused, false);
+});
+
+test('a disconnect must not keep the table paused-blocked', () => {
+  const g = new GameManager(() => {});
+  g.addOrReconnectPlayer('a', 'A');
+  g.addOrReconnectPlayer('b', 'B');
+  g.maxSeats = 2;
+  g.fillWithBots();
+  g.phase = 'playing';
+  g.togglePauseVote('a'); // A wants to pause
+  g.markDisconnected('b'); // B leaves -> only A remains, A already voted -> pauses
+  assert.equal(g.paused, true, 'remaining humans all agree -> pause resolves');
+});
