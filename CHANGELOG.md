@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.49.1] - 2026-07-07
+
+### Fixed
+- Runde endet jetzt automatisch, wenn niemand mehr etwas tun kann: Ist der Nachziehstapel leer und nicht nachmischbar (Ablage ≤ 1 Karte) und der Spieler kann die oberste Ablagekarte nicht nehmen, wird die Runde sofort zu Zugbeginn beendet und normal gewertet. Vorher wurde das nur beim aktiven Ziehen erkannt - einem Menschen, dem die (unmögliche) Zieh-Aktion gar nicht angeboten wird, hing der Tisch endlos
+- Lobby-Start nur mit aktiver Bereitschaft: Die Start-Prüfung zählt jetzt alle am Tisch sitzenden Menschen, nicht nur die verbundenen. Wer die App minimiert (und damit die Verbindung verliert), verliert seine Bereitschaft und muss nach der Rückkehr erneut „bereit" drücken - das Spiel startet nicht mehr hinter dem Rücken eines minimierten Spielers. Kehrt ein getrennter Lobby-Spieler bis zum Ablauf der Übernahmefrist nicht zurück, wird sein Platz frei (Bot rückt nach), damit die Lobby nicht ewig blockiert
+
+### Docs
+- docs/RL_TRAINING.md: Struktur der human-moves.jsonl vollständig dokumentiert (Feld-Tabelle mit Bedeutung; Encoding via StateEncoder). Der Melding-/Anlege-Punkt ist jetzt ehrlich eingeordnet: bewusst heuristisch, kein Flaschenhals (greedy-Auslegen ist nahezu optimal, eine ausgefeilte Variante war messbar schlechter); die strategische Tiefe steckt im trainierten Ziehen/Abwerfen
+
 ## [1.49.0] - 2026-07-07
 
 ### Added

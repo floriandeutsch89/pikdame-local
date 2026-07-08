@@ -10,8 +10,13 @@
  * winner. Off by default; wrapped so it can never disrupt a game.
  *
  * Privacy: only anonymous data is written - the encoded observation (numbers),
- * the chosen action, the legal-action mask, an anonymous per-game id, and the
+ * the chosen action, the legal-action mask, an anonymous per-game id and the
  * won flag. No names, no account ids, no raw cards.
+ *
+ * Row schema (one JSON object per line, minified): see the "Log data format"
+ * table in docs/RL_TRAINING.md. Keys: g, phase, obs, action, mask, won, rank,
+ * finalTotal, winnerTotal, players, rounds, turns, round, turn, hand, opp,
+ * pileTakeLegal. The obs/action encoding is owned by StateEncoder.js.
  */
 
 const fs = require('fs');

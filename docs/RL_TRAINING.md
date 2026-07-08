@@ -357,10 +357,52 @@ not from self-play equilibria, so it plays in a more human, less exploitable
 way - and PPO on top still lifts its strength. More human data = better; a few
 hundred games already shift the style noticeably.
 
+## 9a. Log data format (`human-moves.jsonl`)
+
+One JSON object per line = one human decision. Rows are minified (compact JSON,
+observations rounded to 4 decimals, mask as 0/1). Fields:
+
+| field           | type        | meaning |
+|-----------------|-------------|---------|
+| `g`             | string      | anonymous per-game id - groups all rows from the same game |
+| `phase`         | string      | `"draw"` or `"discard"` - which decision this row records |
+| `obs`           | number[377] | the encoded game state from `game/StateEncoder.js` (`OBS_SIZE`), the SAME vector the network sees; layout is defined there |
+| `action`        | int         | the chosen action in the 54-slot space: discard -> `suitIdx*13 + rankIdx` (suits H,D,C,S; ranks 2..A); draw -> `52` = draw pile, `53` = take discard pile |
+| `mask`          | int[54]     | which actions were legal at that moment (1 = legal); illegal actions must be ignored in training |
+| `won`           | bool        | did this player win the GAME (highest final total) |
+| `rank`          | int         | final placement (1 = winner) |
+| `finalTotal`    | int         | this player's final cumulative score |
+| `winnerTotal`   | int         | the winner's final score |
+| `players`       | int         | number of players in the game |
+| `rounds`        | int         | total rounds played in the game |
+| `turns`         | int         | total turns in the game |
+| `round`         | int         | the round number when this move was made |
+| `turn`          | int         | the global turn counter when this move was made |
+| `hand`          | int         | the mover's hand size at decision time |
+| `opp`           | int[]       | opponents' hand sizes at decision time |
+| `pileTakeLegal` | 0/1         | whether taking the discard pile was legal at this draw decision |
+
+For behavioral cloning we train `obs -> action` on the winners' rows
+(`won == true`), masking illegal actions. The extra fields let you weight or
+filter (e.g. by `rank`, margin `finalTotal - winnerTotal`, or game `phase`).
+The observation/action ENCODING is owned entirely by `game/StateEncoder.js` -
+read it there rather than hard-coding offsets, since it is the single source of
+truth shared by logging, training and runtime.
+
 ## 10. Next extensions (optional)
 
-- **Learn melding / lay-offs too:** currently heuristic. The action space could
-  grow to cover which cards to meld (more heads or a hierarchical agent).
+- **Learn melding / lay-offs too (optional, not the bottleneck):** draw and
+  discard are trained; melding and lay-offs still use the heuristic. This is a
+  deliberate choice, not a gap. Melding here is close to "lay whatever you can":
+  laying scores POSITIVE points and removes the risk of being caught holding the
+  cards, so greedy melding is near-optimal. A sophisticated refinement we tried
+  (holding back melds that hand an opponent a Queen-of-Spades lay-off) was
+  measured clearly NEGATIVE (-20 pts / 6.7 sigma), i.e. the heuristic's simple
+  greedy behaviour was better. The strategic depth lives in draw/discard (which
+  cards to keep and throw), which IS trained. Training melding too would need a
+  larger, structured action space (which cards, which combination, which
+  lay-offs) - a big complexity increase for likely small gains. Worth revisiting
+  only if human data (below) shows humans melding very differently.
 - **Self-play:** train against previous model versions (a league) instead of
   the heuristic for stronger endgame models.
 - **Reward shaping:** the reward is a sparse round margin; intermediate signals
