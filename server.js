@@ -718,6 +718,25 @@ wss.on('connection', (ws, req) => {
       await joinSession(created.session, msg);
       return;
     }
+    if (msg.type === 'checkSession') {
+      // Lightweight existence probe so the client only offers a 'resume' button
+      // for a game that still exists (sessions are in-memory and vanish on
+      // restart/expiry). Same anti-enumeration protection as joinSession.
+      if (ipIsBlocked(ip)) {
+        ws.close(1008, 'Zu viele Fehlversuche');
+        return;
+      }
+      const exists = !!registry.get(msg.code);
+      if (!exists) {
+        const count = registerFailedJoin(ip);
+        if (count >= FAILED_JOIN_LIMIT) {
+          ws.close(1008, 'Zu viele Fehlversuche');
+          return;
+        }
+      }
+      ws.send(JSON.stringify({ type: 'sessionStatus', code: msg.code, exists }));
+      return;
+    }
     if (msg.type === 'joinSession') {
       if (ipIsBlocked(ip)) {
         ws.close(1008, 'Zu viele Fehlversuche');

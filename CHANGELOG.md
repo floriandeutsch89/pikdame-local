@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.52.3] - 2026-07-07
+
+### Fixed
+- „Weiterspielen"-Button wird nur noch angezeigt, wenn das Spiel mit dem gemerkten Code wirklich noch existiert. Der Code wird lokal gespeichert, die Sitzungen liegen aber im Arbeitsspeicher des Servers und verschwinden bei Neustart/Ablauf – dadurch bot der Button oft ein totes Spiel an und man bekam beim Klick „Kein Spiel mit diesem Code gefunden". Jetzt fragt der Client beim Start kurz beim Server nach (neue checkSession-Prüfung, mit derselben Missbrauchs-Drosselung wie beim Beitreten) und blendet den Button nur bei einer noch laufenden Partie ein; ein veralteter Code wird verworfen
+
 ## [1.52.2] - 2026-07-07
 
 ### Fixed

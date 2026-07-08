@@ -385,6 +385,10 @@
       // im UI: neues Spiel erstellen oder Code eingeben.
       if (sessionCode && playerId) {
         ws.send(JSON.stringify({ type: 'joinSession', code: sessionCode, playerId, playerToken: storageGet(tokenKeyFor(sessionCode)) || undefined, name: myName }));
+      } else {
+        // Start screen: only offer 'resume' if that game still exists.
+        const last = storageGet(LAST_SESSION_KEY);
+        if (last) ws.send(JSON.stringify({ type: 'checkSession', code: last }));
       }
     });
 
@@ -429,6 +433,20 @@
       url.searchParams.set('session', sessionCode);
       history.replaceState(null, '', url.toString());
       renderSessionBanner();
+      return;
+    }
+    if (msg.type === 'sessionStatus') {
+      // Existence probe reply: reveal the resume button only for a live game,
+      // and drop a stale code so it is never offered again.
+      const last = storageGet('pikdame_last_session');
+      const btn = el('resumeBtn');
+      if (msg.exists && msg.code === last && !sessionCode) {
+        btn.textContent = L(`↩️ Weiterspielen (${msg.code})`, `↩️ Resume game (${msg.code})`);
+        btn.classList.remove('hidden');
+      } else {
+        if (!msg.exists && msg.code === last) storageRemove('pikdame_last_session');
+        btn.classList.add('hidden');
+      }
       return;
     }
     if (msg.type === 'error') {
@@ -1749,13 +1767,14 @@
   // the start screen (pairs with the home button - leave and come back).
   const LAST_SESSION_KEY = 'pikdame_last_session';
   function updateResumeButton() {
+    // Never reveal the button from localStorage alone - a stored code may point
+    // at a game that no longer exists. Keep it hidden and ask the server; the
+    // 'sessionStatus' reply reveals it only when the game is still live.
     const last = storageGet(LAST_SESSION_KEY);
     const btn = el('resumeBtn');
-    if (last && !sessionCode) {
-      btn.textContent = L(`↩️ Weiterspielen (${last})`, `↩️ Resume game (${last})`);
-      btn.classList.remove('hidden');
-    } else {
-      btn.classList.add('hidden');
+    btn.classList.add('hidden');
+    if (last && !sessionCode && ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'checkSession', code: last }));
     }
   }
   el('resumeBtn').addEventListener('click', () => {
