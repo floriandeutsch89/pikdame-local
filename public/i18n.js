@@ -216,7 +216,7 @@ window.I18N_RULES_EN = `
   <ul>
     <li><b>1. Draw:</b> one card from the draw pile – OR the top discard, but only if it can form a new combination with your hand. Then you must <b>meld it immediately</b>; only afterwards do you receive the entire rest of the discard pile.</li>
     <li><b>2. Meld &amp; add</b> (as often as you like): lay down combinations, add single cards or swap jokers – <b>only on your own melds</b>. Other players' melds are off limits!</li>
-    <li><b>3. Discard:</b> exactly one card onto the discard pile – your turn ends. <b>Going out:</b> your last card is discarded <b>face down</b> – nobody can pick it up. So you can never meld everything; at least one card stays for the discard. Single exception: swapping a joker out of your own meld with your very last hand card ends the round immediately.</li>
+    <li><b>3. Discard:</b> exactly one card onto the discard pile – your turn ends. <b>Going out:</b> your last card is discarded <b>face down</b> – nobody can pick it up. So you can never meld everything; at least one card stays for the discard.</li>
   </ul>
 
   <h3>Combinations</h3>
@@ -233,7 +233,10 @@ window.I18N_RULES_EN = `
 
   <h3>Scoring</h3>
   <ul>
-    <li>2–9 = 5 &nbsp;·&nbsp; 10, Jack, Queen, King = 10 &nbsp;·&nbsp; Ace &amp; Joker = 20 &nbsp;·&nbsp; <b>Queen of Spades = 100</b></li>
+    <li>2–9 = <b>5</b> points</li>
+    <li>10, Jack, Queen, King = <b>10</b> points</li>
+    <li>Ace &amp; Joker = <b>20</b> points</li>
+    <li>Queen of Spades = <b>100</b> points</li>
     <li>End of round: the winner scores their melds. Everyone else: melds count <b>plus</b>, remaining hand cards count <b>minus</b> – a Queen of Spades left in hand costs 100!</li>
     <li><b>Out in one ("Hand aus"):</b> if the winner had nothing melded before their final turn and sheds the entire hand in one go, the round score doubles for everyone – when the house rule is active.</li>
   </ul>
@@ -249,6 +252,6 @@ window.I18N_RULES_EN = `
   <h3>Game end &amp; misc</h3>
   <ul>
     <li>The game ends once someone reaches 1000 points (strict house rule: only above 1000). The highest score wins.</li>
-    <li>When the draw pile is empty, the discard pile (except its top card) is reshuffled and relaid. Once both are exhausted and you cannot do anything – or nothing new hits the table for many turns – the round ends. It is then <b>scored completely normally</b>: laid-out cards count plus, the cards left in your hand count <b>minus</b> as usual (a Queen of Spades in hand costs 100!) – only the winner bonus is not awarded in this case. Use 🏳️ to forfeit a round.</li>
+    <li>When the draw pile runs out, the discard pile (except its top card) is reshuffled and reused – but only while there are still cards for it. <b>If you can neither draw nor take the top discard card, the round ends and is scored:</b> laid-out cards count plus, the cards left in your hand count <b>minus</b> as usual (a Queen of Spades in hand costs 100!) – only the winner bonus is not awarded in this case. Use 🏳️ to forfeit a round.</li>
   </ul>
 `;

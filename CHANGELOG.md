@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.52.2] - 2026-07-07
+
+### Fixed
+- Regeltext korrigiert (DE + EN): (1) Die unsinnige Passage „Einzige Ausnahme: Tauschst du mit deiner letzten Handkarte einen Joker aus deiner Auslage, endet die Runde sofort." entfernt – ein Joker-Tausch beendet die Runde nicht (ausgemacht wird nur durch verdecktes Abwerfen der letzten Karte). (2) Die Punkte-Übersicht ist jetzt sauber als Liste formatiert (je ein Punkt pro Zeile) statt als eine überladene Zeile. (3) Die Leerstapel-Regel klargestellt: Der Ablagestapel wird nur nachgemischt, solange dafür noch Karten da sind – kannst du weder nachziehen noch die oberste Ablagekarte aufnehmen, endet die Runde und wird gewertet
+
 ## [1.52.1] - 2026-07-07
 
 ### Fixed
