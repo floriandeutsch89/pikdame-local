@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.51.0] - 2026-07-07
+
+### Added
+- Pause-Modus im laufenden Spiel: Jeder Mitspieler kann über den ⏸️-Button eine Pause vorschlagen. Sobald **alle** verbundenen Menschen zustimmen, friert das Spiel ein (Bots ziehen nicht, der Zug-Timer stoppt, Aktionen sind gesperrt) und ein Pause-Overlay erscheint. Fortsetzen funktioniert genauso – erst wenn alle „Fortsetzen" drücken, geht es weiter. Trennt sich jemand, blockiert er die Abstimmung nicht
+
+### Fixed
+- Lobby: Nicht-Hosts sahen die vom Organisator gewählten Einstellungen nicht – die Regel-Bedienelemente wurden nie aus dem Server-Zustand befüllt. Hausregeln (Schwierigkeit, Hand-aus, 1000-streng, Zug-Timer) werden jetzt für alle live aus dem geteilten Zustand angezeigt und vom Host live synchronisiert
+- Lobby: Die gewählte Bot-Schwierigkeit (z. B. Zen-Meister) wurde nicht auf die Bots übertragen – sie hatten „Fortgeschritten". Ursache: Die in der Lobby vorbefüllten Bots wurden mit dem alten Standard erstellt, und die Auswahl aktualisierte sie nie. `setHouseRules` setzt die Schwierigkeit jetzt auf **alle** vorhandenen Bots, und der Standard wurde auf „Zen-Meister" angeglichen (passend zur Auswahl-Vorgabe)
+
 ## [1.50.0] - 2026-07-07
 
 ### Changed
