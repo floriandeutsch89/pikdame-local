@@ -47,6 +47,7 @@ window.I18N_STATIC = {
   'Anfänger': 'Beginner',
   'Fortgeschritten': 'Advanced',
   'Zen-Meister': 'Zen master',
+  '🔒 Nur der Organisator kann die Einstellungen ändern.': '🔒 Only the organizer can change the settings.',
   'Über 1000 Punkte zum Gewinnen (genau 1000 reicht nicht)': 'More than 1000 points to win (exactly 1000 is not enough)',
   'Spiel starten (fehlende Plätze = Bots)': 'Start game (empty seats = bots)',
   '📖 Spielregeln': '📖 How to play',
@@ -246,6 +247,6 @@ window.I18N_RULES_EN = `
   <h3>Game end &amp; misc</h3>
   <ul>
     <li>The game ends once someone reaches 1000 points (strict house rule: only above 1000). The highest score wins.</li>
-    <li>When the draw pile is empty, the discard pile (except its top card) is reshuffled and relaid. Once both are exhausted – or nothing new hits the table for many turns – the round ends in a draw: everyone scores normally, nobody gets the winner bonus. Use 🏳️ to forfeit a round.</li>
+    <li>When the draw pile is empty, the discard pile (except its top card) is reshuffled and relaid. Once both are exhausted and you cannot do anything – or nothing new hits the table for many turns – the round ends. It is then <b>scored completely normally</b>: laid-out cards count plus, the cards left in your hand count <b>minus</b> as usual (a Queen of Spades in hand costs 100!) – only the winner bonus is not awarded in this case. Use 🏳️ to forfeit a round.</li>
   </ul>
 `;

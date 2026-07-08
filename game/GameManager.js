@@ -74,6 +74,7 @@ class GameManager {
         this._takeoverTimers.delete(id);
       }
       if (name) p.name = name;
+      if (!this.hostId && !p.isBot) this.hostId = id;
       return p;
     }
     if (this.players.filter((pl) => !pl.isBot).length >= this.maxSeats) {
@@ -91,7 +92,23 @@ class GameManager {
       this.players.push(p);
     }
     this.totals[id] = this.totals[id] || 0;
+    if (!this.hostId) this.hostId = id; // first human to join is the organizer
     return p;
+  }
+
+  /** The effective organizer: the stored host if still present & connected,
+   *  otherwise the first connected human (so a brief host disconnect does not
+   *  lock the lobby, and the host reclaims on reconnect). */
+  effectiveHostId() {
+    const host = this.players.find((p) => p.id === this.hostId && !p.isBot && p.connected);
+    if (host) return this.hostId;
+    const firstConnected = this.players.find((p) => !p.isBot && p.connected);
+    return firstConnected ? firstConnected.id : this.hostId || null;
+  }
+
+  /** Only the organizer may change lobby settings. */
+  isHost(playerId) {
+    return !!playerId && playerId === this.effectiveHostId();
   }
 
   markDisconnected(id) {
@@ -1784,6 +1801,8 @@ class GameManager {
       retiredJokers: this.retiredJokers,
       houseRules: this.houseRules,
       maxSeats: this.maxSeats,
+      hostId: this.effectiveHostId(),
+      isHost: this.isHost(forPlayerId),
       players: this.players.map((p) => ({
         id: p.id,
         name: p.name,

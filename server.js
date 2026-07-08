@@ -748,6 +748,7 @@ wss.on('connection', (ws, req) => {
 
     switch (msg.type) {
       case 'startGame': {
+        if (!game.isHost(playerId)) { sendError(ws, 'Nur der Organisator kann das Spiel starten.'); break; }
         const gate = game.lobbyStartGate();
         if (gate.error) {
           sendError(ws, gate.error);
@@ -764,6 +765,7 @@ wss.on('connection', (ws, req) => {
         break;
       }
       case 'setMaxSeats': {
+        if (!game.isHost(playerId)) { sendError(ws, 'Nur der Organisator kann die Einstellungen ändern.'); break; }
         const r = game.setMaxSeats(msg.count);
         if (r && r.error) sendError(ws, r.error);
         break;
@@ -789,11 +791,13 @@ wss.on('connection', (ws, req) => {
         break;
       }
       case 'reorderSeats': {
+        if (!game.isHost(playerId)) { sendError(ws, 'Nur der Organisator kann die Einstellungen ändern.'); break; }
         const r = game.reorderPlayers(msg.order || []);
         if (r && r.error) sendError(ws, r.error);
         break;
       }
       case 'setDealer': {
+        if (!game.isHost(playerId)) { sendError(ws, 'Nur der Organisator kann die Einstellungen ändern.'); break; }
         const r = game.setExplicitDealer(msg.playerId);
         if (r && r.error) sendError(ws, r.error);
         break;
@@ -857,6 +861,7 @@ wss.on('connection', (ws, req) => {
         break;
       }
       case 'setBotDifficulty': {
+        if (!game.isHost(playerId)) { sendError(ws, 'Nur der Organisator kann die Einstellungen ändern.'); break; }
         const r = game.setBotDifficulty(playerId, msg.botId, msg.difficulty);
         if (r && r.error) sendError(ws, r.error);
         break;
