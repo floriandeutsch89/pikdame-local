@@ -696,7 +696,17 @@ class GameManager {
         (m) => m.ownerId === player.id && m.type === 'set' && m.rank === result.rank
       );
       if (existingSet) {
-        return { error: 'Du hast bereits einen Satz mit diesem Wert - lege die Karte(n) dort an statt einen neuen Stapel zu eröffnen.' };
+        // EXCEPTION: a mandatory discard-pickup card that the existing set
+        // cannot accept (e.g. its suit is already at the two-deck maximum) may
+        // open a fresh set - otherwise the "take = must form/lay a combination"
+        // rule and this tidiness rule would deadlock (the card could be taken
+        // but never laid).
+        const mustInMeld = this.mustLayOffCardId && cardIds.includes(this.mustLayOffCardId);
+        const mustCard = mustInMeld && player.hand.find((c) => c.id === this.mustLayOffCardId);
+        const existingCanTake = mustCard && !!tryLayOff(existingSet, mustCard);
+        if (!mustInMeld || existingCanTake) {
+          return { error: 'Du hast bereits einen Satz mit diesem Wert - lege die Karte(n) dort an statt einen neuen Stapel zu eröffnen.' };
+        }
       }
     }
 
@@ -1610,6 +1620,45 @@ class GameManager {
     return actions;
   }
 
+  /** Guarantee the mandatory discard-pickup card gets laid this turn. Tries a
+   *  lay-off onto any existing meld, then a fresh meld built from the card plus
+   *  a few hand cards (a valid meld provably exists - canUseDiscardTop checked
+   *  it before the pickup). Returns true once it is laid. Only invoked in the
+   *  rare case the greedy meld passes stranded it. */
+  _forceLayMustCard(cp, botId) {
+    const cardId = this.mustLayOffCardId;
+    if (!cardId) return true;
+    if (!cp.hand.some((c) => c.id === cardId)) return true; // already laid
+    // (a) lay off onto any existing meld
+    for (const meld of this.tableMelds) {
+      let lr = this.layOffCard(botId, meld.id, cardId);
+      if (lr && lr.ambiguous && lr.options && lr.options[0]) {
+        lr = this.layOffCard(botId, meld.id, cardId, lr.options[0].asSuit, lr.options[0].side);
+      }
+      if (lr && lr.ok) return true;
+    }
+    // (b) build a fresh meld: the card plus 2-3 other hand cards. Any valid
+    // 3-card run/set through the card is enough (longer runs contain one), and
+    // layoutMeld only mutates on success, so failed tries are free.
+    const tryMeld = (ids) => {
+      let r = this.layoutMeld(botId, ids);
+      if (r && r.ambiguous && r.options && r.options[0]) {
+        r = this.layoutMeld(botId, ids, r.options[0].jokerAssignments || {});
+      }
+      return !!(r && r.ok);
+    };
+    const others = cp.hand.filter((c) => c.id !== cardId).map((c) => c.id);
+    for (let i = 0; i < others.length; i++) {
+      for (let j = i + 1; j < others.length; j++) {
+        if (tryMeld([cardId, others[i], others[j]])) return true;
+        for (let k = j + 1; k < others.length; k++) {
+          if (tryMeld([cardId, others[i], others[j], others[k]])) return true;
+        }
+      }
+    }
+    return false;
+  }
+
   runBotTurn(botId, opts = {}) {
     if (this.phase !== 'playing') return;
     const cp = this.currentPlayer();
@@ -1712,6 +1761,23 @@ class GameManager {
       const acted = this._runBotMeldPass(cp, botId, difficulty, pass);
       if (acted < 0) return; // round ended mid-pass
       if (acted === 0) break;
+    }
+
+    // RULE GUARANTEE: a card taken from the discard pile MUST be laid this turn
+    // (canUseDiscardTop already verified a lay exists). The greedy meld passes
+    // occasionally don't lay it (their planner may spend the needed cards/joker
+    // elsewhere) - so if it is still stranded, lay it explicitly here. Without
+    // this the bot used to discard a DIFFERENT card and keep the taken one,
+    // breaking the rule.
+    if (this.mustLayOffCardId) {
+      if (this._forceLayMustCard(cp, botId)) {
+        // Laying it releases the rest of the pile - work those cards too.
+        for (let pass = 0; pass < 4; pass++) {
+          const acted = this._runBotMeldPass(cp, botId, difficulty, pass);
+          if (acted < 0) return;
+          if (acted === 0) break;
+        }
+      }
     }
 
 

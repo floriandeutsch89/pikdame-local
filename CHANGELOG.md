@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.53.0] - 2026-07-09
+
+### Fixed
+- Regelbruch behoben: Ein Bot nahm gelegentlich eine Karte aus dem Ablagestapel (z. B. Kreuz-Ass), legte sie aber nicht sofort aus, sondern warf eine andere Karte ab. Ursache war ein Widerspruch zweier Regeln: „Aufnehmen erlaubt, wenn die Karte eine neue Kombination bilden kann" gegen die Doppel-Satz-Regel („du hast schon einen Satz dieses Werts – lege dort an"), wobei das Anlegen scheiterte, weil die Farbe im Satz schon zweimal (Zwei-Deck-Maximum) vorhanden war. Jetzt darf die **Pflicht-Aufnahmekarte** ausnahmsweise einen zweiten Satz gleichen Werts eröffnen, wenn der bestehende Satz sie nicht aufnehmen kann – und der Bot legt die aufgenommene Karte garantiert sofort aus (mehrfach abgesichert). Betrifft auch Menschen, die in dieser Konstellation sonst festsaßen
+
+### Added
+- Kleine Personalisierung: Spielerinnen und Spieler mit dem Namen „Liisa" werden überall mit einem ❤️ neben dem Namen angezeigt
+
 ## [1.52.3] - 2026-07-07
 
 ### Fixed

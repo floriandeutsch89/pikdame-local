@@ -271,6 +271,13 @@
       .replace(/'/g, '&#39;');
   }
 
+  // A little heart for Liisa. Returns the HTML-escaped name, with ❤️ appended
+  // when the (trimmed, case-insensitive) name is Liisa.
+  function nameWithHeart(name) {
+    const safe = escapeHtml(name);
+    return typeof name === 'string' && name.trim().toLowerCase() === 'liisa' ? `${safe} ❤️` : safe;
+  }
+
   function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
     storageSet(THEME_KEY, theme);
@@ -659,7 +666,7 @@
       (lastState.players.length
         ? '<br>' +
           lastState.players
-            .map((p) => `${!p.isBot && ready.has(p.id) ? '✅ ' : ''}${escapeHtml(p.name)}${p.isBot ? ' (Bot)' : ''}`)
+            .map((p) => `${!p.isBot && ready.has(p.id) ? '✅ ' : ''}${nameWithHeart(p.name)}${p.isBot ? ' (Bot)' : ''}`)
             .join(', ')
         : '');
 
@@ -739,7 +746,7 @@
         ? `<button class="btn-icon seatDiff${canEdit ? '' : ' readonly'}" title="${diffTitle}">${diff.icon}</button>`
         : '';
       row.innerHTML = `
-        <span class="seatName">${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}</span>
+        <span class="seatName">${nameWithHeart(p.name)}${p.isBot ? ' 🤖' : ''}</span>
         <span class="seatControls">
           ${diffBadge}
           <button class="btn-icon seatUp" ${idx === 0 || !canEdit ? 'disabled' : ''} title="Nach oben">▲</button>
@@ -838,7 +845,7 @@
         const diffBadge = '';
         d.title = L(`${p.handCount} Karten · ${opTotal} Punkte`, `${p.handCount} cards · ${opTotal} points`);
         const opProgress = Math.max(0, Math.min(100, (opTotal / 1000) * 100));
-        d.innerHTML = `<div class="opName">${avatarFor(p.name, p.isBot)}${escapeHtml(p.name)}${diffBadge}${dealerStar}${reconnecting ? ` <span class="reconnectTag">⏳ ${L('getrennt – Bot übernimmt', 'disconnected – bot takes over')}</span>` : ''}</div><div class="opCount"><b>${p.handCount}</b> ${L('Kt', 'cd')} · <b>${opTotal}</b> ${L('Pkt', 'pts')}</div><div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>`;
+        d.innerHTML = `<div class="opName">${avatarFor(p.name, p.isBot)}${nameWithHeart(p.name)}${diffBadge}${dealerStar}${reconnecting ? ` <span class="reconnectTag">⏳ ${L('getrennt – Bot übernimmt', 'disconnected – bot takes over')}</span>` : ''}</div><div class="opCount"><b>${p.handCount}</b> ${L('Kt', 'cd')} · <b>${opTotal}</b> ${L('Pkt', 'pts')}</div><div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>`;
         if (p.isBot) {
           const meta = BOT_DIFF[p.botDifficulty] || BOT_DIFF.zen;
           const badgeBtn = document.createElement('button');
@@ -1327,7 +1334,7 @@
       const row = document.createElement('div');
       row.className = 'resultRow' + (r && r.breakdown.isWinner ? ' winner' : '');
       const total = lastState.totals[p.id] || 0;
-      row.innerHTML = `<span>${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}</span><span>${r ? r.roundScore : 0} ${L('Pkt', 'pts')} (${L('Gesamt', 'total')}: ${total})</span>`;
+      row.innerHTML = `<span>${nameWithHeart(p.name)}${p.isBot ? ' 🤖' : ''}</span><span>${r ? r.roundScore : 0} ${L('Pkt', 'pts')} (${L('Gesamt', 'total')}: ${total})</span>`;
       body.appendChild(row);
     });
 
@@ -2198,7 +2205,7 @@
     const legend = document.createElement('div');
     legend.className = 'scoreChartLegend';
     legend.innerHTML = players
-      .map((p, pi) => `<span><i style="background:${CHART_COLORS[pi % CHART_COLORS.length]}"></i>${escapeHtml(p.name)}</span>`)
+      .map((p, pi) => `<span><i style="background:${CHART_COLORS[pi % CHART_COLORS.length]}"></i>${nameWithHeart(p.name)}</span>`)
       .join('');
     wrap.appendChild(legend);
     return wrap;
@@ -2742,7 +2749,7 @@
             return `<span title="${escapeHtml(m.name)}: ${escapeHtml(m.desc)}">${m.emoji}</span>`;
           })
           .join(' ');
-        return `<tr class="statsRow" data-name="${escapeHtml(p.name)}"><td>${escapeHtml(p.name)}</td><td>${played}</td><td>${won}</td><td>${rate}%</td><td>${best}</td><td class="badgeCell">${badgeEmojis || '–'}</td></tr>`;
+        return `<tr class="statsRow" data-name="${escapeHtml(p.name)}"><td>${nameWithHeart(p.name)}</td><td>${played}</td><td>${won}</td><td>${rate}%</td><td>${best}</td><td class="badgeCell">${badgeEmojis || '–'}</td></tr>`;
       })
       .join('');
     box.innerHTML = `<table class="statsPageTable"><thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('Spiele', 'Games')}</th><th>${L('Siege', 'Wins')}</th><th>${L('Quote', 'Rate')}</th><th>${L('Beste Partie', 'Best game')}</th><th>${L('Erfolge', 'Badges')}</th></tr></thead><tbody>${rows}</tbody></table>`;
