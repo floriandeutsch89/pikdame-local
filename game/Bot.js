@@ -264,13 +264,21 @@ function findLayOffs(hand, tableMelds) {
  * oberste Karte sofort sinnvoll ausgelegt/angelegt werden kann (Pflicht-
  * bedingung der Regel).
  */
-function decideDraw(hand, discardPile, tableMelds) {
+function decideDraw(hand, discardPile, tableMelds, opts = {}) {
   if (discardPile.length === 0) return { source: 'drawPile' };
 
   // WICHTIG: Index 0 ist die oberste/zuletzt abgelegte Karte (siehe
   // GameManager.discardPile-Konvention). Bei mehr als einer Karte im Stapel
   // wäre das letzte Element die ÄLTESTE Karte, nicht die oberste!
   const topCard = discardPile[0];
+
+  // Optionaler früher Draw-Bias (A/B-Test): In den ersten N Zügen einer Runde
+  // den Nachziehstapel bevorzugen (verdeckte Karten -> höhere Chance auf eine
+  // Pik Dame, die man dann für +100 auslegen kann), statt eine Ablage-Kombi zu
+  // nehmen. Default aus (earlyDrawBiasTurns = 0).
+  if ((opts.earlyDrawBiasTurns || 0) > 0 && (opts.turnInRound || 99) < opts.earlyDrawBiasTurns) {
+    return { source: 'drawPile' };
+  }
 
   // REGEL: Aufnahme nur, wenn die oberste Karte mit den HANDKARTEN eine
   // neue Kombination bilden kann (Anlegbarkeit an Auslagen zählt nicht).
@@ -280,12 +288,6 @@ function decideDraw(hand, discardPile, tableMelds) {
 
   return { source: 'drawPile' };
 }
-
-// Ab dieser Handgröße wird die Pik Dame dringend losgeworden (Runde nähert
-// sich dem Ende, Risiko der -100-Strafe steigt). Vorher verhält sie sich wie
-// eine normale (sehr wertvolle) Karte und wird nicht bei jeder Gelegenheit
-// sofort abgeworfen - ein Bot darf sie also auch mal kurz halten.
-const URGENT_DISCARD_HAND_SIZE = 8;
 
 /**
  * Wählt die Karte, die am Zugende abgeworfen wird.
@@ -454,7 +456,7 @@ function chooseDiscard(hand, tableMelds = [], opts = {}) {
       // The 100-point dump only pays off on a SMALL own hand: losing this
       // round is certain with 15 cards anyway, so gifting the Queen to the
       // pile (bug report) is pure downside - she stays put.
-      const lastResort = (opts.lowestOpponentHand || 99) <= 2 && hand.length <= 6;
+      const lastResort = (opts.lowestOpponentHand || 99) <= 2 && hand.length <= (opts.queenDumpMaxHand || 6);
       if (lastResort && !opponentCanUseHer) panicPool.push(withPd);
     }
     const panicPotential =
@@ -576,5 +578,4 @@ module.exports = {
   chooseDiscard,
   planBotTurn,
   planBotMelds,
-  URGENT_DISCARD_HAND_SIZE,
 };

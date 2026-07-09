@@ -4,6 +4,12 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.53.3] - 2026-07-09
+
+### Internal
+- Datengetriebene Tuning-Werkzeuge ergänzt (kein Spielverhalten geändert): neuer A/B-Selbstspiel-Harness `scripts/sim-ab.js` (Varianten- gegen Baseline-Sitze in denselben Partien) plus zwei abschaltbare, sanitisierte Bot-Stellschrauben (`queenDumpMaxHand`, `earlyDrawBiasTurns`), beide standardmäßig aus. Zwei Messungen (je 5000 Partien, 4× Zen): Pik-Dame-Notabwurf ab Handgröße 5 statt 6 → kein messbarer Effekt (z=0,34); die ersten Züge den Nachziehstapel bevorzugen → deutlich schlechter (−30 Punkte, z=−7,71). Daher keine Änderung der Defaults
+- Totes Konstrukt `URGENT_DISCARD_HAND_SIZE` (=8) entfernt: Es war seit Längerem nicht mehr in der Abwurf-Logik verwendet (die Pik Dame wird ohnehin gehalten, solange es Alternativen gibt), stiftete aber Verwirrung über die tatsächliche Schwelle. Tests entsprechend angepasst
+
 ## [1.53.2] - 2026-07-09
 
 ### Fixed

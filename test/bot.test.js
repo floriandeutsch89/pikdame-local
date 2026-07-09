@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Bot = require('../game/Bot');
-const { chooseDiscard, decideDraw, findHandMelds, URGENT_DISCARD_HAND_SIZE } = Bot;
+const { chooseDiscard, decideDraw, findHandMelds } = Bot;
 const GameManager = require('../game/GameManager');
 const { makeStandardCard, makeJoker, isPikDame } = require('../game/Card');
 
@@ -29,8 +29,7 @@ function bigIsolatedHand(extra, targetSize) {
 
 test('chooseDiscard: bei GROSSER Hand wird die Pik Dame NICHT automatisch sofort abgeworfen', () => {
   const pikDame = S('Q');
-  const hand = bigIsolatedHand([pikDame], 14); // > URGENT_DISCARD_HAND_SIZE
-  assert.ok(hand.length > URGENT_DISCARD_HAND_SIZE);
+  const hand = bigIsolatedHand([pikDame], 14); // large hand
   const discard = chooseDiscard(hand);
   // Die Pik Dame darf gewählt werden (sie hat den höchsten Wert unter den
   // isolierten Karten), aber es ist keine ERZWUNGENE Sofort-Priorität mehr -
@@ -41,7 +40,7 @@ test('chooseDiscard: bei GROSSER Hand wird die Pik Dame NICHT automatisch sofort
 
 test('chooseDiscard: MITTEL behaelt die Pik Dame auch bei kleiner Hand (nur easy wirft sie)', () => {
   const pikDame = S('Q');
-  const small = bigIsolatedHand([pikDame], URGENT_DISCARD_HAND_SIZE);
+  const small = bigIsolatedHand([pikDame], 8); // small hand
   const medium = chooseDiscard(small, [], { difficulty: 'medium' });
   assert.ok(!isPikDame(medium), 'medium darf die Dame nicht mehr verschenken');
   const ten = bigIsolatedHand([pikDame], 10);
