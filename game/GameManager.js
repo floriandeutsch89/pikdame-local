@@ -1410,7 +1410,7 @@ class GameManager {
   static _sanitizeControlFields(game) {
     const SEAT_FIELDS = [
       'forcedDrawSource', 'externalDiscard', 'mctsEnabled', 'mctsForceOff',
-      'mctsDeterminizations', 'mctsEndgameAt', 'mctsMaxHand', 'mcEnabled',
+      'mctsDeterminizations', 'mctsEndgameAt', 'mctsMaxHand', 'mcEnabled', 'earlyDrawBiasTurns', 'queenDumpMaxHand',
     ];
     for (const p of game.players || []) {
       for (const f of SEAT_FIELDS) delete p[f];
@@ -1449,7 +1449,7 @@ class GameManager {
     if (Array.isArray(state.players)) {
       const SEAT_FIELDS = [
         'forcedDrawSource', 'externalDiscard', 'mctsEnabled', 'mctsForceOff',
-        'mctsDeterminizations', 'mctsEndgameAt', 'mctsMaxHand', 'mcEnabled',
+        'mctsDeterminizations', 'mctsEndgameAt', 'mctsMaxHand', 'mcEnabled', 'earlyDrawBiasTurns', 'queenDumpMaxHand',
       ];
       state.players = state.players.map((p) => {
         const clean = { ...p };
@@ -1632,7 +1632,10 @@ class GameManager {
     // human or a timed-out turn): the zen master - the strongest fair bot.
     const difficulty = botDifficultyOf(cp);
     const ownMelds = this.tableMelds.filter((m) => m.ownerId === botId);
-    const plan = Bot.decideDraw(cp.hand, this.discardPile, ownMelds);
+    const plan = Bot.decideDraw(cp.hand, this.discardPile, ownMelds, {
+      earlyDrawBiasTurns: cp.earlyDrawBiasTurns || 0,
+      turnInRound: this.turnIndexInRound,
+    });
     // Leichte Bots übersehen die Ablage-Chance meistens (wie Anfänger).
     if (difficulty === 'easy' && plan.source === 'discardPile' && Math.random() < 0.6) {
       plan.source = 'drawPile';
@@ -1802,6 +1805,7 @@ class GameManager {
         return (next && this.declinedByPlayer && this.declinedByPlayer[next.id]) || [];
       })(),
       lowestOpponentHand,
+      queenDumpMaxHand: cp.queenDumpMaxHand || 6,
       queensMelded: this.tableMelds.reduce(
         (n, m) => n + m.slots.filter((s) => s.real && isPikDame(s.real)).length,
         0
