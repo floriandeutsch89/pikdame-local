@@ -6,7 +6,7 @@
 const path = require('path');
 const { createAtomicJsonFile } = require('./AtomicJsonFile');
 
-const DEFAULT_STATS_FILE = path.join(__dirname, '..', 'data', 'stats.json');
+const DEFAULT_STATS_FILE = path.join(process.env.PIKDAME_DATA_DIR || path.join(__dirname, '..', 'data'), 'stats.json');
 
 const EMPTY = {
   games: 0, // abgeschlossene Partien

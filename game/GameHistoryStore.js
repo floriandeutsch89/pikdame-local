@@ -6,7 +6,7 @@
 const path = require('path');
 const { createAtomicJsonFile } = require('./AtomicJsonFile');
 
-const DEFAULT_DATA_DIR = path.join(__dirname, '..', 'data');
+const DEFAULT_DATA_DIR = process.env.PIKDAME_DATA_DIR || path.join(__dirname, '..', 'data');
 const DEFAULT_DATA_FILE = path.join(DEFAULT_DATA_DIR, 'games.json');
 const MAX_STORED_GAMES = 200; // Sicherheitsnetz gegen unbegrenztes Wachstum
 

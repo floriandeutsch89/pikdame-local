@@ -7,7 +7,7 @@
 const path = require('path');
 const { createAtomicJsonFile } = require('./AtomicJsonFile');
 
-const DEFAULT_DATA_FILE = path.join(__dirname, '..', 'data', 'challenges.json');
+const DEFAULT_DATA_FILE = path.join(process.env.PIKDAME_DATA_DIR || path.join(__dirname, '..', 'data'), 'challenges.json');
 const KEEP_DAYS = 7;
 const MAX_ENTRIES_PER_DAY = 100;
 
