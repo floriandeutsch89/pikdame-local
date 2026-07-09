@@ -687,29 +687,6 @@ class GameManager {
       }
     }
 
-    // FAMILIENREGEL: Pro Spieler nur EIN Satz je Kartenwert. Wer schon
-    // einen 7er-Satz liegen hat, legt weitere 7er dort AN, statt einen
-    // zweiten Stapel zu eröffnen. Folgen (Straßen) sind davon nicht
-    // betroffen - mehrere parallele Folgen sind erlaubt.
-    if (result.type === 'set') {
-      const existingSet = this.tableMelds.find(
-        (m) => m.ownerId === player.id && m.type === 'set' && m.rank === result.rank
-      );
-      if (existingSet) {
-        // EXCEPTION: a mandatory discard-pickup card that the existing set
-        // cannot accept (e.g. its suit is already at the two-deck maximum) may
-        // open a fresh set - otherwise the "take = must form/lay a combination"
-        // rule and this tidiness rule would deadlock (the card could be taken
-        // but never laid).
-        const mustInMeld = this.mustLayOffCardId && cardIds.includes(this.mustLayOffCardId);
-        const mustCard = mustInMeld && player.hand.find((c) => c.id === this.mustLayOffCardId);
-        const existingCanTake = mustCard && !!tryLayOff(existingSet, mustCard);
-        if (!mustInMeld || existingCanTake) {
-          return { error: 'Du hast bereits einen Satz mit diesem Wert - lege die Karte(n) dort an statt einen neuen Stapel zu eröffnen.' };
-        }
-      }
-    }
-
     // Jeder Slot bekommt vermerkt, welcher Spieler diese konkrete Karte
     // dort platziert hat - so kann das Frontend "meine" Karten in Auslagen
     // optisch hervorheben (auch wenn andere Spieler später weitere Karten
@@ -1559,27 +1536,6 @@ class GameManager {
     }
 
     for (const meldCards of meldPlan.newMelds) {
-      // Doppel-Satz-Regel: Plant der Bot einen Satz, dessen Wert er schon
-      // als Satz liegen hat, legt er die Karten stattdessen dort AN.
-      const realRanks = [...new Set(meldCards.filter((cd) => !cd.isJoker).map((cd) => cd.rank))];
-      if (realRanks.length === 1) {
-        const existingSet = this.tableMelds.find(
-          (m) => m.ownerId === botId && m.type === 'set' && m.rank === realRanks[0]
-        );
-        if (existingSet) {
-          for (const cd of meldCards) {
-            if (!cp.hand.find((h) => h.id === cd.id)) continue;
-            let lr = this.layOffCard(botId, existingSet.id, cd.id);
-            if (lr && lr.ambiguous) {
-              const choice = lr.options[0];
-              lr = this.layOffCard(botId, existingSet.id, cd.id, choice.asSuit, choice.side);
-            }
-            if (lr && !lr.error) actions += 1;
-            if (this.phase !== 'playing') return -1;
-          }
-          continue;
-        }
-      }
       const ids = meldCards.map((c) => c.id);
       let r = this.layoutMeld(botId, ids);
       if (r && r.ambiguous) {
