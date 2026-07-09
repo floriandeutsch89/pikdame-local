@@ -23,6 +23,7 @@
 
   // Session-Code ggf. aus der URL übernehmen (geteilter Link: ?session=CODE)
   let sessionCode = (new URLSearchParams(window.location.search).get('session') || '').toUpperCase() || null;
+  const urlSessionCode = sessionCode; // the value the page was OPENED with (join-via-link)
   // Die playerId wird PRO SESSION gespeichert, damit Reconnects in das
   // richtige Spiel zurückführen und parallele Spiele sich nicht vermischen.
   const playerKeyFor = (code) => `pikdame_player_${code}`;
@@ -690,7 +691,7 @@
     el('startBtn').disabled = humanCount === 0 || !allReady;
     el('startBtn').textContent = multiHuman
       ? L(`Spiel starten (${readyCount}/${seatedHumans.length} bereit)`, `Start game (${readyCount}/${seatedHumans.length} ready)`)
-      : L('Spiel starten (fehlende Plätze = Bots)', 'Start game (empty seats = bots)');
+      : L('Spiel starten', 'Start game');
 
     const hasJoined = lastState.players.some((p) => p.id === playerId);
     el('seatCountSection').classList.toggle('hidden', !hasJoined);
@@ -1441,6 +1442,7 @@
     // Ready check: at round end EVERY connected human confirms before the
     // next round starts - the button shows who the table is waiting for.
     const contBtn = el('resultContinueBtn');
+    el('resultHomeBtn').classList.toggle('hidden', !isGameOver); // main menu only after the match
     if (isGameOver) {
       contBtn.disabled = false;
       contBtn.textContent = L('Neue Partie (Rematch)', 'New game (rematch)');
@@ -1790,10 +1792,25 @@
   });
   updateResumeButton();
 
+  // Opened via a shared ?session=CODE link -> the visitor wants to JOIN, not
+  // create. Hide "new game" and the menu chips, and pre-fill the code.
+  if (urlSessionCode) {
+    el('createGameBtn').classList.add('hidden');
+    const chips = document.querySelector('#sessionSetup .menuChips');
+    if (chips) chips.classList.add('hidden');
+    const divider = document.querySelector('#sessionSetup .join-divider');
+    if (divider) divider.classList.add('hidden');
+    if (el('codeInput')) el('codeInput').value = urlSessionCode;
+  }
+
   el('homeConfirmBtn').addEventListener('click', () => {
     // Back to the start screen: drop the ?session query and reload. The
     // per-session playerId stays in storage - re-entering the code later
     // reclaims the seat (a bot covers it after the grace period meanwhile).
+    window.location.href = window.location.pathname;
+  });
+  // After the match: a direct way back to the main menu (rematch stays too).
+  el('resultHomeBtn').addEventListener('click', () => {
     window.location.href = window.location.pathname;
   });
 
@@ -2685,17 +2702,17 @@
   // Record details: tapping a profile row expands its personal records
   // (best round, queen/joker balance, hand-aus wins) right beneath it.
   el('statsContent').addEventListener('click', (ev) => {
-    const row = ev.target.closest('.statsRow');
-    if (!row) return;
-    const existing = row.nextElementSibling;
+    const card = ev.target.closest('.statsCard');
+    if (!card) return;
+    const existing = card.nextElementSibling;
     if (existing && existing.classList.contains('recordRow')) {
       existing.remove();
       return;
     }
     document.querySelectorAll('.recordRow').forEach((r) => r.remove());
-    const p = (knownProfiles || []).find((pr) => pr.name === row.dataset.name);
+    const p = (knownProfiles || []).find((pr) => pr.name === card.dataset.name);
     if (!p) return;
-    const detail = document.createElement('tr');
+    const detail = document.createElement('div');
     detail.className = 'recordRow';
     const bits = [
       `${L('Beste Runde', 'Best round')}: <b>${p.bestRoundScore ?? '–'}</b>`,
@@ -2703,8 +2720,8 @@
       `🃏: <b>${p.totalJokersLaid || 0}</b>`,
       `${L('Hand aus', 'Out in one')}: <b>${p.totalHandAus || 0}</b>`,
     ];
-    detail.innerHTML = `<td colspan="6" class="recordCell">${bits.join(' · ')}</td>`;
-    row.after(detail);
+    detail.innerHTML = `<div class="recordCell">${bits.join(' · ')}</div>`;
+    card.after(detail);
   });
 
   el('statsCloseBtn').addEventListener('click', () => el('statsOverlay').classList.add('hidden'));
@@ -2737,22 +2754,26 @@
       return;
     }
     const sorted = profiles.slice().sort((a, b) => (b.gamesWon || 0) - (a.gamesWon || 0) || (b.totalScore || 0) - (a.totalScore || 0));
-    const rows = sorted
+    const cards = sorted
       .map((p) => {
         const played = p.gamesPlayed || 0;
         const won = p.gamesWon || 0;
         const rate = played > 0 ? Math.round((won / played) * 100) : 0;
         const best = p.bestGameScore !== undefined ? p.bestGameScore : '–';
-        const badgeEmojis = Object.keys(p.badges || {})
+        const badgeChips = Object.keys(p.badges || {})
           .map((id) => {
             const m = badgeMeta(id);
-            return `<span title="${escapeHtml(m.name)}: ${escapeHtml(m.desc)}">${m.emoji}</span>`;
+            return `<span class="statsBadgeChip" title="${escapeHtml(m.desc)}">${m.emoji} ${escapeHtml(m.name)}</span>`;
           })
-          .join(' ');
-        return `<tr class="statsRow" data-name="${escapeHtml(p.name)}"><td>${nameWithHeart(p.name)}</td><td>${played}</td><td>${won}</td><td>${rate}%</td><td>${best}</td><td class="badgeCell">${badgeEmojis || '–'}</td></tr>`;
+          .join('');
+        return `<div class="statsCard" data-name="${escapeHtml(p.name)}">
+          <div class="statsCardHead"><span class="statsCardName">${nameWithHeart(p.name)}</span><span class="statsCardRate">${rate}% · ${won}/${played} ${L('Siege', 'wins')}</span></div>
+          <div class="statsCardMeta">${L('Spiele', 'Games')}: <b>${played}</b> · ${L('Beste Partie', 'Best game')}: <b>${best}</b></div>
+          <div class="statsCardBadges">${badgeChips || `<span class="statsNoBadge">${L('Noch keine Erfolge', 'No badges yet')}</span>`}</div>
+        </div>`;
       })
       .join('');
-    box.innerHTML = `<table class="statsPageTable"><thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('Spiele', 'Games')}</th><th>${L('Siege', 'Wins')}</th><th>${L('Quote', 'Rate')}</th><th>${L('Beste Partie', 'Best game')}</th><th>${L('Erfolge', 'Badges')}</th></tr></thead><tbody>${rows}</tbody></table>`;
+    box.innerHTML = `<div class="statsCards">${cards}</div>`;
   }
 
   // Bei Orientierungswechsel/Fenstergröße die Hand-Überlappung neu berechnen.
