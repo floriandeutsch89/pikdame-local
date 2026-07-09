@@ -4,6 +4,16 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.54.0] - 2026-07-09
+
+### Added
+- Nach Spielende gibt es neben „Neue Partie (Rematch)" jetzt auch einen Button **🏠 Hauptmenü**, der zurück zum Startbildschirm führt
+
+### Changed
+- Wird die App über einen geteilten Link mit Spiel-Code (`?session=…`) geöffnet, wird „Neues Spiel erstellen" ausgeblendet und der Code vorausgefüllt - man will dann ja beitreten, nicht ein neues Spiel starten
+- Lobby: Der Start-Button heißt jetzt schlicht „Spiel starten" (der Zusatz „(fehlende Plätze = Bots)" ist entfallen)
+- Lobby-Statistik neu gestaltet: Statt einer auf dem iPhone stark gequetschten 6-Spalten-Tabelle gibt es jetzt pro Spieler eine übersichtliche Karte; die Erfolge werden als gut lesbare Chips (Emoji + Name) angezeigt statt in einer winzigen Spalte
+
 ## [1.53.3] - 2026-07-09
 
 ### Internal

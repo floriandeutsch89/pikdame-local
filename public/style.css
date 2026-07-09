@@ -1103,6 +1103,29 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 .statsPageTable tr:first-child td { color: var(--accent); font-weight: 700; }
 
+/* Mobile-friendly stats: one card per player, achievements as readable chips
+   instead of a cramped table column. */
+.statsCards { display: flex; flex-direction: column; gap: 8px; }
+.statsCard {
+  cursor: pointer;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.03);
+}
+.statsCardHead { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.statsCardName { font-weight: 700; font-size: 0.95rem; }
+.statsCardRate { color: var(--accent); font-weight: 700; font-size: 0.82rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.statsCardMeta { font-size: 0.74rem; color: var(--text-muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.statsCardBadges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.statsBadgeChip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.72rem; font-weight: 600;
+  padding: 3px 8px; border-radius: 999px;
+  background: rgba(0,0,0,0.06); border: 1px solid var(--glass-border);
+}
+.statsNoBadge { font-size: 0.72rem; color: var(--text-muted); font-style: italic; }
+
 /* --- Desktop & grosse Bildschirme (Chrome/Edge/Firefox auf PC/Mac/Chromebook) --- */
 
 /* Spielflaeche auf grossen Screens zentrieren statt ueber die volle
@@ -1659,11 +1682,13 @@ input:disabled { opacity: 0.65; }
 .timerUrgent { color: #ff6b5e; font-weight: 800; }
 
 /* --- Profile record details (v1.32.0) ------------------------------------------ */
-.statsRow { cursor: pointer; }
+.recordRow { margin-top: -4px; }
 .recordCell {
-  font-size: 0.74rem; padding: 6px 8px 8px;
-  color: rgba(0,0,0,0.62);
-  background: rgba(0,0,0,0.035);
+  font-size: 0.74rem; padding: 8px 10px;
+  color: var(--text-muted);
+  background: rgba(0,0,0,0.04);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
 }
 
 .challengeHint { font-size: 0.7rem; opacity: 0.75; margin: 2px 0 0; }
