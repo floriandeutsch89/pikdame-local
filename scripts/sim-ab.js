@@ -5,13 +5,16 @@
 //   node scripts/sim-ab.js <games> <variantKey> <variantValue>
 //
 // Supported (default-off, sanitized) seat knobs:
-//   queenDumpMaxHand=<n>   endgame Queen-of-Spades dump threshold (default 6)
-//   earlyDrawBiasTurns=<n> prefer the draw pile for the first n turns of a round
+//   queenDumpMaxHand=<n>       endgame Queen-of-Spades dump threshold (default 6)
+//   earlyDrawBiasTurns=<n>     prefer the draw pile for the first n turns
+//   relaxQueenBaitOnJoker=true discard spades J/K more freely once an opponent
+//                              has a joker on the table
 //
 // Measured 2026-07-09 (5000 games each, 4x zen):
-//   queenDumpMaxHand=5     -> 50.24% win share (z=0.34)  -> no effect
-//   earlyDrawBiasTurns=3   -> 44.58% win share (z=-7.71) -> clearly WORSE
-// Neither shipped; both left as off-by-default tuning seams.
+//   queenDumpMaxHand=5         -> 50.24% win share (z=0.34)  -> no effect
+//   earlyDrawBiasTurns=3       -> 44.58% win share (z=-7.71) -> clearly WORSE
+//   relaxQueenBaitOnJoker=true -> 50.34% win share (z=0.48)  -> no effect
+// None shipped; all left as off-by-default tuning seams.
 const GameManager = require('../game/GameManager');
 
 const GAMES = parseInt(process.argv[2] || '1500', 10);

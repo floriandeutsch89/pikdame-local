@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.54.1] - 2026-07-09
+
+### Internal
+- Gameplay-Theorie gemessen (kein Verhalten geändert): „Wenn ein Gegner bereits einen Joker ausgelegt hat, kann man ♠Bube/♠König eher abwerfen." Als abschaltbare Stellschraube eingebaut und per Selbstspiel-A/B getestet (5000 Partien, 4× Zen): Win-Share 50,3 % (z=0,48), Score-Δ +2,7 – **kein signifikanter Effekt**. Die Idee ist plausibel und lehnt sich minimal ins Positive, ist aber statistisch Rauschen; das Standardverhalten bleibt unverändert (die Vorsicht bei Damen jeder Farbe bleibt ohnehin bestehen)
+
 ## [1.54.0] - 2026-07-09
 
 ### Added
