@@ -176,7 +176,6 @@ window.I18N_SERVER_PATTERNS = [
   [/^(.+) stellt (.+) auf Fortgeschritten\.$/, '$1 sets $2 to Advanced.'],
   [/^(.+) stellt (.+) auf Zen-Meister\.$/, '$1 sets $2 to Zen master.'],
   [/^Zum Ausmachen musst du deine letzte Karte abwerfen - mindestens eine Handkarte muss übrig bleiben\.$/, 'To go out you must discard your last card - at least one hand card has to remain.'],
-  [/^Du hast bereits einen Satz mit diesem Wert - lege die Karte\(n\) dort an statt einen neuen Stapel zu eröffnen\.$/, 'You already have a set of this rank - add the card(s) there instead of opening a new pile.'],
   [/^Du bist nicht am Zug\.$/, "It's not your turn."],
   [/^Du hast bereits gezogen\.$/, 'You have already drawn.'],
   [/^Du musst zuerst eine Karte ziehen\.$/, 'You must draw a card first.'],

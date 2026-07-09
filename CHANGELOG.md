@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.53.1] - 2026-07-09
+
+### Changed
+- Die (bisher unsichtbare) „Doppel-Satz-Regel" wurde vollständig entfernt: Man darf jetzt jederzeit einen **zweiten Satz gleichen Werts** eröffnen, statt an den bestehenden anlegen zu müssen. Diese Familienregel war seit v1.3.0 im Code, stand aber nicht in den sichtbaren Spielregeln – und war die eigentliche Ursache des Aufnahme-Regelbruchs aus v1.53.0. Wichtig bleibt nur: Mit einer aus der Ablage aufgenommenen Karte muss sofort eine neue Kombination (Drilling **oder** Folge) gelegt werden. Bots erzeugen bei Bedarf jetzt ebenfalls zweite Sätze; die Aufnahme-Absicherung greift weiterhin (Regressionstest: 0 ungelegte Aufnahmen)
+
 ## [1.53.0] - 2026-07-09
 
 ### Fixed

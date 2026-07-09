@@ -873,8 +873,8 @@ test('Hausregel "über 1000 Punkte" wird beim Rundenende berücksichtigt', () =>
   assert.equal(checkGameOver(game.totals, game.houseRules).gameOver, true);
 });
 
-// --- v1.3.0: Doppel-Satz-Verbot -------------------------------------------
-test('layoutMeld: zweiter Satz gleichen Werts wird abgelehnt, Anlegen bleibt erlaubt', () => {
+// --- v1.53.1: second set of the same value is allowed (Doppel-Satz removed) --
+test('layoutMeld: a second set of the same value is allowed', () => {
   const { makeStandardCard } = require('../game/Card');
   const g = new GameManager(() => {});
   g.addOrReconnectPlayer('p1', 'A');
@@ -888,12 +888,9 @@ test('layoutMeld: zweiter Satz gleichen Werts wird abgelehnt, Anlegen bleibt erl
   const r1 = g.layoutMeld('p1', [s7.id, h7.id, d7.id]);
   assert.ok(!r1.error, 'erster Satz muss klappen');
   const r2 = g.layoutMeld('p1', [c7.id, s7b.id, h7b.id]);
-  assert.match(r2.error, /bereits einen Satz/);
-  // Anlegen an den bestehenden Satz funktioniert weiterhin
-  const meldId = g.tableMelds[0].id;
-  const r3 = g.layOffCard('p1', meldId, c7.id);
-  assert.ok(r3.ok, 'Anlegen muss erlaubt bleiben');
-  // Zweite FOLGE gleicher Farbe bleibt erlaubt (nur Saetze sind betroffen)
+  assert.ok(!r2.error, 'zweiter Satz gleichen Werts ist jetzt erlaubt');
+  assert.equal(g.tableMelds.filter((m) => m.type === 'set' && m.rank === '7').length, 2, 'zwei 7er-Saetze liegen');
+  // Zweite FOLGE gleicher Farbe bleibt ebenfalls erlaubt
   const h3 = makeStandardCard('H', '3', 0), h4 = makeStandardCard('H', '4', 0), h5 = makeStandardCard('H', '5', 0);
   const h8 = makeStandardCard('H', '8', 0), h9 = makeStandardCard('H', '9', 0), h10 = makeStandardCard('H', '10', 0);
   g.players[0].hand.push(h3, h4, h5, h8, h9, h10);
