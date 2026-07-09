@@ -16,7 +16,7 @@
 const crypto = require('crypto');
 const path = require('path');
 
-const DEFAULT_DB_FILE = path.join(__dirname, '..', 'data', 'users.db');
+const DEFAULT_DB_FILE = path.join(process.env.PIKDAME_DATA_DIR || path.join(__dirname, '..', 'data'), 'users.db');
 const SCRYPT_KEYLEN = 64;
 const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 Tage
 const VERIFY_TTL_MS = 48 * 60 * 60 * 1000; // 48 Stunden

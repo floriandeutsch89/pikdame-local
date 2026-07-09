@@ -70,10 +70,20 @@ function logCrash(context, err, extra = {}) {
 // der Fehler landet in crash.log.
 process.on('uncaughtException', (err) => {
   logCrash('uncaughtException', err);
+  flushStoresSafely();
 });
 process.on('unhandledRejection', (reason) => {
   logCrash('unhandledRejection', reason instanceof Error ? reason : new Error(String(reason)));
+  flushStoresSafely();
 });
+
+// Persist pending buffered writes when something goes wrong, so stats survive
+// even if the process is killed right after a crash (the debounce hasn't fired).
+function flushStoresSafely() {
+  try { playerStore.flushSync(); } catch (e) { /* best effort */ }
+  try { globalStats.flushSync(); } catch (e) { /* best effort */ }
+  try { gameHistoryStore.flushSync(); } catch (e) { /* best effort */ }
+}
 
 /**
  * Ermittelt alle lokalen IPv4-Adressen des Geräts (ohne 127.0.0.1). Der

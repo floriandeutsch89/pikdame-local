@@ -7,7 +7,7 @@
 const path = require('path');
 const { createAtomicJsonFile } = require('./AtomicJsonFile');
 
-const DEFAULT_DATA_DIR = path.join(__dirname, '..', 'data');
+const DEFAULT_DATA_DIR = process.env.PIKDAME_DATA_DIR || path.join(__dirname, '..', 'data');
 const DEFAULT_DATA_FILE = path.join(DEFAULT_DATA_DIR, 'players.json');
 
 function emptyStore() {

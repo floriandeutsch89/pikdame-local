@@ -4,6 +4,12 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.54.2] - 2026-07-09
+
+### Fixed
+- Statistiken (Spielerprofile, Erfolge, Server-Statistik) konnten nach einem Server-Neustart verloren gehen: Der Server nutzt für sein Datenverzeichnis die Variable `PIKDAME_DATA_DIR`, die Stores (players.json, stats.json, challenges.json, games.json sowie der SQLite-Konten-Fallback) haben diese aber ignoriert und fest `…/data` verwendet. Lief das in der Produktion auseinander, schrieben die Stores in ein nicht dauerhaftes Verzeichnis. Jetzt respektieren **alle** Stores dasselbe `PIKDAME_DATA_DIR` wie der Server - Server und Statistik-Dateien liegen garantiert im selben (persistenten) Verzeichnis. Persistenz Ende-zu-Ende verifiziert (Aufzeichnen → Flush → Neustart → Laden)
+- Zusätzliche Absicherung: Bei einem unerwarteten Fehler (uncaughtException/unhandledRejection) werden gepufferte Schreibvorgänge jetzt sofort auf die Platte geschrieben, damit auch bei einem Absturz kurz vor dem Beenden nichts verloren geht (der reguläre Graceful-Shutdown-Flush bei SIGTERM war bereits vorhanden)
+
 ## [1.54.1] - 2026-07-09
 
 ### Internal
