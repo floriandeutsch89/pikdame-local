@@ -1182,8 +1182,8 @@ class GameManager {
   /** A laid/attached Pik Dame electrifies the table (same reaction wherever it
    *  happens - melded or laid off). */
   _celebratePikDame(playerId) {
-    this.maybeBotEmote(playerId, '🎉', 0.3, { force: true });
-    this.botsReact(playerId, '😱', 0.4, { force: true });
+    this.maybeBotEmote(playerId, '🎉', 0.3, { force: true, minHand: 3 });
+    this.botsReact(playerId, '😱', 0.4, { force: true, minHand: 3 });
   }
 
   /** In-game pause by unanimous consent. Toggling a vote; once every CONNECTED
@@ -1369,6 +1369,10 @@ class GameManager {
     if (!this.onBotEmote) return;
     const bot = this.players.find((p) => p.id === botId);
     if (!bot || !bot.isBot) return;
+    // A bot on the verge of going out (fewer than opts.minHand cards) stays
+    // quiet - used for Pik-Dame highlights, where a near-winning bot
+    // celebrating or gasping looks off.
+    if (opts.minHand && (bot.hand ? bot.hand.length : 0) < opts.minHand) return;
     if (Math.random() > chance) return;
     const now = Date.now();
     // Highlights (Pik Dame! Rundenende!) duerfen die Drosselung durchbrechen,

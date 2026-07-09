@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.53.2] - 2026-07-09
+
+### Fixed
+- Bots mit weniger als 3 Karten auf der Hand nutzen den Pik-Dame-Emote (🎉/😱) nicht mehr – ein kurz vorm Ausmachen stehender Bot jubelt bzw. erschrickt jetzt nicht mehr. Andere Emotes bleiben unverändert
+
 ## [1.53.1] - 2026-07-09
 
 ### Changed
