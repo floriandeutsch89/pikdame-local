@@ -366,8 +366,13 @@ function chooseDiscard(hand, tableMelds = [], opts = {}) {
   // into. Only holds while alternatives exist.
   const queensAccounted = (opts.queensMelded || 0) + hand.filter((c) => isPikDame(c)).length;
   if (queensAccounted < 2) {
+    // A/B seam: theory that ♠J/♠K become safer to discard once an opponent has
+    // already committed a joker to the table (less flexibility left to build a
+    // fresh ♠Q run). Off by default; the Q-set caution (any suit) is unaffected.
+    const relaxSpadesBait = opts.relaxQueenBaitOnJoker && opts.opponentHasLaidJoker;
     const isQueenBait = (card) =>
-      !card.isJoker && (card.rank === 'Q' || (card.suit === 'S' && (card.rank === 'J' || card.rank === 'K')));
+      !card.isJoker &&
+      (card.rank === 'Q' || (!relaxSpadesBait && card.suit === 'S' && (card.rank === 'J' || card.rank === 'K')));
     const cautious = candidates.filter((card) => !isQueenBait(card));
     if (cautious.length > 0) candidates = cautious;
   }

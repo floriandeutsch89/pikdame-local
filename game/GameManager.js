@@ -1410,7 +1410,7 @@ class GameManager {
   static _sanitizeControlFields(game) {
     const SEAT_FIELDS = [
       'forcedDrawSource', 'externalDiscard', 'mctsEnabled', 'mctsForceOff',
-      'mctsDeterminizations', 'mctsEndgameAt', 'mctsMaxHand', 'mcEnabled', 'earlyDrawBiasTurns', 'queenDumpMaxHand',
+      'mctsDeterminizations', 'mctsEndgameAt', 'mctsMaxHand', 'mcEnabled', 'earlyDrawBiasTurns', 'queenDumpMaxHand', 'relaxQueenBaitOnJoker',
     ];
     for (const p of game.players || []) {
       for (const f of SEAT_FIELDS) delete p[f];
@@ -1449,7 +1449,7 @@ class GameManager {
     if (Array.isArray(state.players)) {
       const SEAT_FIELDS = [
         'forcedDrawSource', 'externalDiscard', 'mctsEnabled', 'mctsForceOff',
-        'mctsDeterminizations', 'mctsEndgameAt', 'mctsMaxHand', 'mcEnabled', 'earlyDrawBiasTurns', 'queenDumpMaxHand',
+        'mctsDeterminizations', 'mctsEndgameAt', 'mctsMaxHand', 'mcEnabled', 'earlyDrawBiasTurns', 'queenDumpMaxHand', 'relaxQueenBaitOnJoker',
       ];
       state.players = state.players.map((p) => {
         const clean = { ...p };
@@ -1806,6 +1806,11 @@ class GameManager {
       })(),
       lowestOpponentHand,
       queenDumpMaxHand: cp.queenDumpMaxHand || 6,
+      // A/B seam (off by default): does an OPPONENT already have a joker laid?
+      relaxQueenBaitOnJoker: cp.relaxQueenBaitOnJoker || false,
+      opponentHasLaidJoker: this.tableMelds.some(
+        (m) => m.ownerId !== botId && m.slots.some((s) => s.joker || (s.real && s.real.isJoker))
+      ),
       queensMelded: this.tableMelds.reduce(
         (n, m) => n + m.slots.filter((s) => s.real && isPikDame(s.real)).length,
         0
