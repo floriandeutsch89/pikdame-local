@@ -1810,3 +1810,47 @@ test('a disconnect must not keep the table paused-blocked', () => {
   g.markDisconnected('b'); // B leaves -> only A remains, A already voted -> pauses
   assert.equal(g.paused, true, 'remaining humans all agree -> pause resolves');
 });
+
+// --- v1.53: a bot must lay a taken discard card (no rule break) -------------
+test('a bot never takes the discard unless it will actually lay that card', () => {
+  const orig = GameManager.prototype.drawFromDiscard;
+  let takes = 0;
+  let violations = 0;
+  let pending = null;
+  GameManager.prototype.drawFromDiscard = function patched(id) {
+    const top = this.discardPile[0];
+    const r = orig.call(this, id);
+    if (r && !r.error) { pending = { botId: id, cardId: top && top.id }; takes += 1; }
+    return r;
+  };
+  try {
+    for (let i = 0; i < 25; i++) {
+      const g = new GameManager(() => {});
+      g.addOrReconnectPlayer('x', 'X');
+      g.maxSeats = 4;
+      g.players = ['zen', 'medium', 'zen', 'easy'].map((d, k) => ({
+        id: `b${k}`, name: `B${k}`, isBot: true, hand: [], connected: true, laidOutCards: [], botDifficulty: d,
+      }));
+      g.startNewRound();
+      let s = 0;
+      while (g.phase !== 'gameOver' && s < 3000) {
+        if (g.phase === 'playing') {
+          const bot = g.currentPlayer();
+          pending = null;
+          g.runBotTurn(bot.id);
+          if (pending && pending.cardId) {
+            const b = g.players.find((p) => p.id === pending.botId);
+            if (b && b.hand.some((c) => c.id === pending.cardId)) violations += 1;
+          }
+        } else if (g.phase === 'roundEnd') g.startNewRound();
+        else break;
+        s += 1;
+      }
+      g.destroy();
+    }
+  } finally {
+    GameManager.prototype.drawFromDiscard = orig;
+  }
+  assert.ok(takes > 100, `sanity: bots did take the pile (${takes} times)`);
+  assert.equal(violations, 0, 'a taken discard card is always laid this turn');
+});
