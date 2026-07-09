@@ -1851,3 +1851,28 @@ test('a bot never takes the discard unless it will actually lay that card', () =
   assert.ok(takes > 100, `sanity: bots did take the pile (${takes} times)`);
   assert.equal(violations, 0, 'a taken discard card is always laid this turn');
 });
+
+// --- v1.53.2: no Pik-Dame emote from bots with fewer than 3 cards ------------
+test('a bot with fewer than 3 cards does not use the Pik-Dame emote', async () => {
+  let smallEmoted = 0;
+  let bigEmoted = 0;
+  for (let trial = 0; trial < 200; trial++) {
+    const g = new GameManager(() => {});
+    const seen = new Set();
+    g.onBotEmote = (id) => seen.add(id);
+    g._emoteDelayForTest = 0;
+    g.addOrReconnectPlayer('h', 'M');
+    g.maxSeats = 4;
+    g.fillWithBots();
+    const bots = g.players.filter((p) => p.isBot);
+    bots[0].hand = [1, 2, 3, 4, 5].map((i) => ({ id: `a${trial}_${i}` })); // 5 cards (celebrant)
+    bots[1].hand = [{ id: `x${trial}` }, { id: `y${trial}` }]; // 2 cards (must stay quiet)
+    g._celebratePikDame(bots[0].id);
+    await new Promise((r) => setTimeout(r, 1));
+    if (seen.has(bots[1].id)) smallEmoted += 1;
+    if (seen.has(bots[0].id)) bigEmoted += 1;
+    g.destroy();
+  }
+  assert.equal(smallEmoted, 0, 'a bot with 2 cards never emits the Pik-Dame emote');
+  assert.ok(bigEmoted > 0, 'a bot with >= 3 cards still emotes at the normal rate');
+});
