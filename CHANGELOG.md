@@ -4,6 +4,12 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.54.4] - 2026-07-09
+
+### Fixed
+- Diagnose für verlorene Statistiken: Beim Start prüft der Server jetzt, ob das (gemountete) Datenverzeichnis wirklich **beschreibbar** ist, und schreibt das Ergebnis deutlich ins Log. Häufigste Ursache für „Statistiken nach Neustart weg" ist ein Volume, das **root** gehört, während die App als non-root-User (UID 10001) läuft - Schreibvorgänge scheitern dann still. Ist das Verzeichnis nicht beschreibbar, erscheint jetzt eine unübersehbare Warnung samt Behebung (`docker run --rm -v <projekt>_pikdame-data:/d alpine chown -R 10001:10001 /d`)
+- Robustheit: `flushSync` beim Graceful Shutdown schreibt jetzt auch dann, wenn gerade ein asynchroner Write „in der Luft" ist - schließt eine seltene Race Condition, bei der die allerletzte Änderung vor dem Beenden verloren gehen konnte
+
 ## [1.54.3] - 2026-07-09
 
 ### Internal
