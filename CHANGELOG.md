@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.54.3] - 2026-07-09
+
+### Internal
+- Gameplay-Theorie gemessen (kein Verhalten geändert): „Wenn ich die Ablage nehmen könnte, aber schon einen Drilling habe, lieber vom Nachziehstapel ziehen (um andere Kombinationen zu vervollständigen), sofern der Stapel klein ist." Als abschaltbaren Seam eingebaut und per Selbstspiel-A/B getestet (5000 Partien, 4× Zen): Win-Share 46,1 % (z=−5,56), Score-Δ **−32,9** – **deutlich schlechter**. Wiederkehrende Erkenntnis: Eine garantierte Ablage-Kombination auszuschlagen, um auf einen Zug zu spekulieren, kostet ~30 Punkte (auch bei einem „redundanten" Drilling ist das Auslegen echter Fortschritt Richtung Ausmachen). Standardverhalten bleibt unverändert
+
 ## [1.54.2] - 2026-07-09
 
 ### Fixed

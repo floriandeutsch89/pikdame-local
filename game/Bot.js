@@ -283,6 +283,23 @@ function decideDraw(hand, discardPile, tableMelds, opts = {}) {
   // REGEL: Aufnahme nur, wenn die oberste Karte mit den HANDKARTEN eine
   // neue Kombination bilden kann (Anlegbarkeit an Auslagen zählt nicht).
   if (canFormMeldWithCard(topCard, hand)) {
+    // A/B seam (off by default): user theory - if taking the discard would only
+    // form ANOTHER set (Drilling) while we already have a set going (laid, or a
+    // triplet in hand) AND the pile is small (little extra material to gain by
+    // taking it), draw instead to work on our OTHER combinations.
+    if (opts.preferDrawOnRedundantSet) {
+      const topRank = topCard.rank;
+      const sameRankInHand = hand.filter((c) => !c.isJoker && c.rank === topRank).length;
+      const wouldFormSet = sameRankInHand >= 2; // top + 2 same-rank = a fresh set
+      const rankCounts = {};
+      for (const c of hand) if (!c.isJoker) rankCounts[c.rank] = (rankCounts[c.rank] || 0) + 1;
+      const hasTripletInHand = Object.values(rankCounts).some((n) => n >= 3);
+      const hasLaidSet = (tableMelds || []).some((m) => m.type === 'set');
+      const smallPile = discardPile.length <= 2;
+      if (wouldFormSet && (hasLaidSet || hasTripletInHand) && smallPile) {
+        return { source: 'drawPile' };
+      }
+    }
     return { source: 'discardPile', immediateUse: { type: 'newMeld' } };
   }
 

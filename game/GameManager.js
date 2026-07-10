@@ -1410,7 +1410,7 @@ class GameManager {
   static _sanitizeControlFields(game) {
     const SEAT_FIELDS = [
       'forcedDrawSource', 'externalDiscard', 'mctsEnabled', 'mctsForceOff',
-      'mctsDeterminizations', 'mctsEndgameAt', 'mctsMaxHand', 'mcEnabled', 'earlyDrawBiasTurns', 'queenDumpMaxHand', 'relaxQueenBaitOnJoker',
+      'mctsDeterminizations', 'mctsEndgameAt', 'mctsMaxHand', 'mcEnabled', 'earlyDrawBiasTurns', 'queenDumpMaxHand', 'relaxQueenBaitOnJoker', 'preferDrawOnRedundantSet',
     ];
     for (const p of game.players || []) {
       for (const f of SEAT_FIELDS) delete p[f];
@@ -1449,7 +1449,7 @@ class GameManager {
     if (Array.isArray(state.players)) {
       const SEAT_FIELDS = [
         'forcedDrawSource', 'externalDiscard', 'mctsEnabled', 'mctsForceOff',
-        'mctsDeterminizations', 'mctsEndgameAt', 'mctsMaxHand', 'mcEnabled', 'earlyDrawBiasTurns', 'queenDumpMaxHand', 'relaxQueenBaitOnJoker',
+        'mctsDeterminizations', 'mctsEndgameAt', 'mctsMaxHand', 'mcEnabled', 'earlyDrawBiasTurns', 'queenDumpMaxHand', 'relaxQueenBaitOnJoker', 'preferDrawOnRedundantSet',
       ];
       state.players = state.players.map((p) => {
         const clean = { ...p };
@@ -1635,6 +1635,7 @@ class GameManager {
     const plan = Bot.decideDraw(cp.hand, this.discardPile, ownMelds, {
       earlyDrawBiasTurns: cp.earlyDrawBiasTurns || 0,
       turnInRound: this.turnIndexInRound,
+      preferDrawOnRedundantSet: cp.preferDrawOnRedundantSet || false,
     });
     // Leichte Bots übersehen die Ablage-Chance meistens (wie Anfänger).
     if (difficulty === 'easy' && plan.source === 'discardPile' && Math.random() < 0.6) {

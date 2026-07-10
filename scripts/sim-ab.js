@@ -5,16 +5,21 @@
 //   node scripts/sim-ab.js <games> <variantKey> <variantValue>
 //
 // Supported (default-off, sanitized) seat knobs:
-//   queenDumpMaxHand=<n>       endgame Queen-of-Spades dump threshold (default 6)
-//   earlyDrawBiasTurns=<n>     prefer the draw pile for the first n turns
-//   relaxQueenBaitOnJoker=true discard spades J/K more freely once an opponent
-//                              has a joker on the table
+//   queenDumpMaxHand=<n>          endgame Queen-of-Spades dump threshold (def 6)
+//   earlyDrawBiasTurns=<n>        prefer the draw pile for the first n turns
+//   relaxQueenBaitOnJoker=true    discard spades J/K more freely once an
+//                                 opponent has a joker on the table
+//   preferDrawOnRedundantSet=true if taking the discard would only form ANOTHER
+//                                 set while we already have one, and the pile is
+//                                 small (<=2), draw instead
 //
 // Measured 2026-07-09 (5000 games each, 4x zen):
-//   queenDumpMaxHand=5         -> 50.24% win share (z=0.34)  -> no effect
-//   earlyDrawBiasTurns=3       -> 44.58% win share (z=-7.71) -> clearly WORSE
-//   relaxQueenBaitOnJoker=true -> 50.34% win share (z=0.48)  -> no effect
-// None shipped; all left as off-by-default tuning seams.
+//   queenDumpMaxHand=5           -> 50.24% win share (z=0.34)  -> no effect
+//   earlyDrawBiasTurns=3         -> 44.58% win share (z=-7.71) -> clearly WORSE
+//   relaxQueenBaitOnJoker=true   -> 50.34% win share (z=0.48)  -> no effect
+//   preferDrawOnRedundantSet=true-> 46.08% win share (z=-5.56) -> clearly WORSE
+// None shipped; all left as off-by-default tuning seams. Recurring lesson:
+// passing up a GUARANTEED discard-meld to gamble on a draw costs ~30 points.
 const GameManager = require('../game/GameManager');
 
 const GAMES = parseInt(process.argv[2] || '1500', 10);
