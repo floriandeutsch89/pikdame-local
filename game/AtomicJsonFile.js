@@ -73,10 +73,14 @@ function createAtomicJsonFile(filePath, { flushDelayMs = 800 } = {}) {
     });
   }
 
-  /** Synchroner, atomarer Flush - für SIGTERM/SIGINT beim Shutdown. */
+  /** Synchroner, atomarer Flush - für SIGTERM/SIGINT beim Shutdown. Schreibt
+   *  auch, wenn gerade ein asynchroner Write in der Luft ist (writing): sonst
+   *  könnte der Prozess beendet werden, bevor dieser async-Write fertig ist,
+   *  und die letzte Änderung ginge verloren. */
   function flushSync() {
-    if (!dirty) return;
+    if (!dirty && !writing) return;
     dirty = false;
+    if (cache === undefined) return;
     try {
       ensureDir();
       const tmp = `${filePath}.tmp`;

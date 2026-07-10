@@ -50,6 +50,36 @@ try {
 } catch (e) {
   /* existiert bereits */
 }
+// Start-Diagnose: ist das (gemountete) Datenverzeichnis wirklich beschreibbar?
+// Der häufigste Grund für "Statistiken nach Neustart weg" ist ein Volume, das
+// root gehört, während die App als non-root-User (UID 10001) läuft - Schreibvorgänge
+// scheitern dann still. Diese Prüfung macht das SOFORT im Log sichtbar.
+(function checkDataDirWritable() {
+  try {
+    const probe = path.join(DATA_DIR, '.write-test');
+    fs.writeFileSync(probe, String(Date.now()));
+    fs.unlinkSync(probe);
+    const info = ['players.json', 'stats.json', 'games.json', 'sessions-snapshot.json']
+      .map((f) => {
+        try {
+          return `${f} ${fs.statSync(path.join(DATA_DIR, f)).size}B`;
+        } catch (e) {
+          return `${f} –`;
+        }
+      })
+      .join(', ');
+    console.log(`Datenverzeichnis beschreibbar: ${DATA_DIR} [${info}]`);
+  } catch (e) {
+    console.error('');
+    console.error('*** ⚠️  DATENVERZEICHNIS NICHT BESCHREIBBAR ***');
+    console.error(`***     ${DATA_DIR}: ${e.message}`);
+    console.error('***     Statistiken, Profile und Konten werden NICHT gespeichert und gehen bei');
+    console.error('***     jedem Neustart verloren! Meist gehört das gemountete Volume root, der');
+    console.error('***     App-User (UID 10001) darf nicht schreiben. Einmalig beheben, z. B.:');
+    console.error('***       docker run --rm -v <projekt>_pikdame-data:/d alpine chown -R 10001:10001 /d');
+    console.error('');
+  }
+})();
 const CRASH_LOG_FILE = path.join(DATA_DIR, 'crash.log');
 function logCrash(context, err, extra = {}) {
   const entry = `[${new Date().toISOString()}] (${context}) ${err && err.stack ? err.stack : err} ${
