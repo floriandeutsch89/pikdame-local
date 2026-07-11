@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.54.5] - 2026-07-09
+
+### Fixed
+- Anlegen an den falschen Stapel: Wählte man eine Handkarte aus und tippte auf eine unpassende Auslage, kam korrekt „passt nicht" - die Karte wurde aber trotzdem sofort abgewählt, sodass man sie neu selektieren musste, um sie einem anderen Stapel zuzuweisen. Die Auswahl wird jetzt **nicht mehr voreilig beim Tippen** geleert, sondern erst, wenn die Karte die Hand tatsächlich verlässt (erfolgreiches Anlegen/Auslegen/Abwerfen). Ein abgelehnter Versuch lässt die Karte ausgewählt - sie kann direkt auf einen anderen Stapel gelegt werden, ohne neu zu selektieren. Gilt genauso für „Auslegen" und Mehrfach-Anlegen
+
 ## [1.54.4] - 2026-07-09
 
 ### Fixed
