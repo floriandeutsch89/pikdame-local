@@ -34,6 +34,38 @@ function mulberry32(seed) {
   };
 }
 
+/**
+ * Mischt das Deck FAIR und UNVERZERRT mit dem Fisher-Yates-Algorithmus (auch
+ * "Knuth Shuffle"). Fisher-Yates ist der Standard für faires Mischen: Jede der
+ * n! möglichen Kartenreihenfolgen ist exakt gleich wahrscheinlich, sofern die
+ * Zufallsquelle gleichverteilt ist. Damit hat jede Karte für jede Position die
+ * gleiche Wahrscheinlichkeit.
+ *
+ * FAIRNESS / "Wie verhindert man, dass einer alle guten Karten bekommt?"
+ * - Gar nicht durch Eingriff - und das ist Absicht. Die Verteilung ist REIN
+ *   ZUFÄLLIG; es gibt bewusst KEIN "Ausbalancieren" der Hände (kein Nachbessern,
+ *   kein Bevorzugen/Benachteiligen). Ein manipuliertes "Fairmachen" wäre in
+ *   Wahrheit unfair und in keinem seriösen Kartenspiel üblich.
+ * - Die Fairness liegt in der GLEICHVERTEILUNG: Weil jede Kartenanordnung gleich
+ *   wahrscheinlich ist, hat jeder Spieler in JEDER Runde exakt die gleiche
+ *   Chance auf die Pik Dame, Joker & Co. Kein Sitz und kein Spieler ist im Vorteil.
+ * - In einer EINZELNEN Runde kann jemand Glück haben (das gehört zum Spiel);
+ *   über viele Runden gleicht sich das statistisch aus.
+ * - Vor jeder Runde wird ein KOMPLETT NEUES, volles 110-Karten-Deck erzeugt und
+ *   frisch gemischt (siehe GameManager.startNewRound) - es gibt keine
+ *   Übernahme/Fortschreibung aus der Vorrunde.
+ *
+ * Zufallsquelle:
+ * - Standard: Math.random (der eingebaute PRNG der Laufzeit) - für ein
+ *   Kartenspiel völlig ausreichend (es geht um Fairness, nicht um Kryptografie).
+ * - Mit numerischem `seed`: deterministischer mulberry32-PRNG. So bekommt bei
+ *   der Tages-Challenge JEDER Spieler weltweit das IDENTISCHE Deck - Fairness
+ *   hier durch exakt gleiche Bedingungen für alle.
+ *
+ * @param {Array} deck zu mischendes Deck (wird nicht mutiert; es wird kopiert)
+ * @param {number} [seed] optionaler Seed für ein reproduzierbares Deck
+ * @returns {Array} eine neu gemischte Kopie
+ */
 function shuffle(deck, seed) {
   const rnd = typeof seed === 'number' ? mulberry32(seed) : Math.random;
   const arr = deck.slice();

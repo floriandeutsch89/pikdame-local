@@ -1493,6 +1493,20 @@
     // next round starts - the button shows who the table is waiting for.
     const contBtn = el('resultContinueBtn');
     el('resultHomeBtn').classList.toggle('hidden', !isGameOver); // main menu only after the match
+    // Forfeit the whole game straight from the points overview (round end only,
+    // not once the game is already over). Same unanimous vote as in-game.
+    const rfBtn = el('resultForfeitBtn');
+    const rfSeated = lastState.players.some((p) => p.id === playerId && !p.isBot);
+    const showRoundEndForfeit = lastState.phase === 'roundEnd' && rfSeated && !forfeited;
+    rfBtn.classList.toggle('hidden', !showRoundEndForfeit);
+    if (showRoundEndForfeit) {
+      const fv = lastState.forfeitVotes || [];
+      const hc = lastState.players.filter((p) => !p.isBot && p.connected !== false).length;
+      rfBtn.classList.toggle('active', fv.includes(playerId));
+      rfBtn.textContent = fv.length
+        ? L(`🏳️ Aufgeben (${fv.length}/${hc})`, `🏳️ Forfeit (${fv.length}/${hc})`)
+        : L('🏳️ Spiel aufgeben', '🏳️ Forfeit game');
+    }
     if (isGameOver) {
       contBtn.disabled = false;
       contBtn.textContent = L('Neue Partie (Rematch)', 'New game (rematch)');
@@ -1872,6 +1886,23 @@
   // After the match: a direct way back to the main menu (rematch stays too).
   el('resultHomeBtn').addEventListener('click', () => {
     window.location.href = window.location.pathname;
+  });
+
+  // Forfeit the whole game from the round-end points overview (same unanimous
+  // vote as the in-game 🏳️ button).
+  el('resultForfeitBtn').addEventListener('click', () => {
+    if (!lastState || lastState.phase !== 'roundEnd') return;
+    if (!lastState.players.some((p) => p.id === playerId && !p.isBot)) return;
+    const votes = lastState.forfeitVotes || [];
+    if (!votes.includes(playerId) && votes.length === 0) {
+      const ok = window.confirm(
+        L('Das ganze Spiel aufgeben? Die Partie endet nur, wenn ALLE aktiven Spieler zustimmen - dann wird das Spiel sofort abgebrochen (kein Sieger, keine Wertung).',
+          'Forfeit the whole game? The match only ends if ALL active players agree - then the game is aborted immediately (no winner, not recorded).')
+      );
+      if (!ok) return;
+    }
+    sound.discard();
+    send({ type: 'forfeitRound' });
   });
 
   // --- Per-bot difficulty ---------------------------------------------------

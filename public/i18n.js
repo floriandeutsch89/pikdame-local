@@ -211,6 +211,7 @@ window.I18N_RULES_EN = `
   <ul>
     <li>The dealer rotates each round; the player after the dealer starts.</li>
     <li>Before dealing, the player to the dealer's right cuts the deck. <b>Lucky cut:</b> If the Queen of Spades or jokers sit at the cut, they go straight into that player's hand – dealing skips accordingly, so everyone ends up with 15 cards.</li>
+    <li><b>Fairly shuffled:</b> Every round a brand-new deck is shuffled purely at random (Fisher-Yates). There is no hand-balancing – everyone has the exact same chance at the good cards each round. A single round is down to luck; over many rounds it evens out.</li>
   </ul>
 
   <h3>Your turn</h3>

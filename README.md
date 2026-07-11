@@ -142,6 +142,29 @@ where they are implemented:
    of guessing (`enumerateMeldOptions` in `Rules.js`).
 </details>
 
+## Fairness & card dealing
+
+**How are the cards dealt?** Before every round a **brand-new, full 110-card
+deck** (2 decks + 6 jokers) is created and shuffled with the **Fisher-Yates**
+algorithm (`shuffle()` in `game/Deck.js`), then dealt **round-robin** — one card
+at a time to each player in turn, exactly like dealing by hand — until everyone
+holds 15 cards. Nothing is carried over from the previous round.
+
+**Is it just random?** Yes — and deliberately so. Fisher-Yates is the standard
+unbiased shuffle: every possible card order is **equally likely**, so every
+player has the **same chance** at the Queen of Spades, jokers and other strong
+cards in every round. No seat and no player is favoured.
+
+**How do you stop one player from getting all the good cards?** We don't — and
+we shouldn't. There is **no hand-balancing or rigging**; "fixing" hands would
+itself be unfair and is not how real card games work. Fairness comes from the
+**uniform distribution**: in a single round someone may get lucky (that's part
+of the game), but over many rounds it evens out and nobody has a systematic
+edge. The randomness source is the runtime's `Math.random` (plenty for a card
+game — this is about fairness, not cryptography). The **daily challenge** instead
+uses a seeded deterministic PRNG (`mulberry32`) so **everyone worldwide gets the
+identical deck** — fairness there through identical conditions for all.
+
 ## Features in detail
 
 - **Lobby**: player count 2–4, seating order via ▲▼, dealer selectable via ⭐,
