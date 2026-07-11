@@ -958,7 +958,7 @@ class GameManager {
    * niemand die Runde im Alleingang beenden - alle aktiven Spieler werden gefragt.
    */
   toggleForfeitVote(playerId) {
-    if (this.phase !== 'playing') return { error: 'Es läuft gerade keine Partie.' };
+    if (this.phase !== 'playing' && this.phase !== 'roundEnd') return { error: 'Es läuft gerade keine Partie.' };
     const p = this.players.find((x) => x.id === playerId && !x.isBot);
     if (!p) return { error: 'Nur Mitspieler am Tisch können aufgeben.' };
     if (!this._forfeitVotes) this._forfeitVotes = new Set();

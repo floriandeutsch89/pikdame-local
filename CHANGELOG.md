@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.56.1] - 2026-07-09
+
+### Added
+- „Spiel aufgeben" wird jetzt auch am **Rundenende in der Punkteübersicht** angeboten - man muss also nicht extra ins laufende Spiel zurück, um die Partie zu beenden. Gleiche Abstimmung wie sonst (alle aktiven Spieler müssen zustimmen)
+
+### Docs
+- **Kartenverteilung/Fairness dokumentiert** (README-Abschnitt, ausführlicher Code-Kommentar an `shuffle`, kurze Zeile in den Spielregeln DE+EN): Vor jeder Runde wird ein komplett neues 110-Karten-Deck **fair und unverzerrt per Fisher-Yates** gemischt (Standard-Zufallsmischen) und reihum ausgeteilt. Es gibt **bewusst kein Ausbalancieren** der Hände - das wäre in Wahrheit unfair. Die Fairness liegt in der Gleichverteilung: Jeder hat in jeder Runde exakt die gleiche Chance auf die guten Karten; einzelne Runden entscheidet Glück, über viele gleicht es sich aus. Die Tages-Challenge nutzt einen deterministischen Seed, damit alle weltweit dasselbe Deck erhalten
+
 ## [1.56.0] - 2026-07-09
 
 ### Changed

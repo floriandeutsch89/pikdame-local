@@ -323,6 +323,18 @@ test('forfeit außerhalb einer laufenden Partie liefert einen Fehler', () => {
   assert.ok(result.error);
 });
 
+test('forfeit: das Spiel kann auch am RUNDENENDE (Punkteuebersicht) aufgegeben werden', () => {
+  const { game } = makeGame(2);
+  game.startNewRound();
+  game.finishRound('p1'); // regulaerer Rundenabschluss -> Phase roundEnd
+  assert.equal(game.phase, 'roundEnd');
+  assert.equal(game.toggleForfeitVote('p1').ok, true);
+  assert.equal(game.phase, 'roundEnd', 'ein Votum reicht nicht');
+  game.toggleForfeitVote('p2');
+  assert.equal(game.phase, 'gameOver');
+  assert.equal(game.gameOverInfo.forfeited, true);
+});
+
 test('forfeit mit unbekannter Spieler-ID liefert einen Fehler', () => {
   const { game } = makeGame(2);
   game.phase = 'playing';
