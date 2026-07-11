@@ -78,7 +78,7 @@ window.I18N_STATIC = {
   'Auslegen': 'Meld',
   'Abwerfen': 'Discard card',
   'Auswahl löschen': 'Clear selection',
-  '🏳️ Aufgeben': '🏳️ Forfeit',
+  '🏳️ Spiel aufgeben': '🏳️ Forfeit game',
 
   // Titles (Attribute)
   'Ablagestapel ansehen': 'View discard pile',
@@ -86,7 +86,7 @@ window.I18N_STATIC = {
   'Deine Gesamtpunkte': 'Your total score',
   'Karten ein-/ausblenden': 'Show/hide cards',
   'Reaktion senden': 'Send a reaction',
-  'Runde aufgeben': 'Forfeit round',
+  'Spiel aufgeben': 'Forfeit game',
   'Sortierung umschalten': 'Toggle sorting',
   'Sound ein/aus': 'Sound on/off',
   'Vollbild': 'Fullscreen',
@@ -130,7 +130,8 @@ window.I18N_SERVER_PATTERNS = [
   [/^(.+?) wirft (.+?) ab\.$/, '$1 discards $2.'],
   [/^(.+?) hat alle Karten ausgelegt - Runde endet!$/, '$1 has melded all cards – the round ends!'],
   [/^(.+?) legt die letzte Karte verdeckt ab und beendet die Runde!$/, '$1 discards the last card face down and ends the round!'],
-  [/^(.+?) gibt die Runde auf\.$/, '$1 forfeits the round.'],
+  [/^(.+?) möchte das Spiel aufgeben \((\d+\/\d+)\)\.$/, '$1 wants to forfeit the game ($2).'],
+  [/^🏳️ Spiel einvernehmlich aufgegeben.*$/, '🏳️ Game forfeited by mutual agreement - everyone agreed. Match over.'],
   [/^Hand aus! Die komplette Rundenwertung wird verdoppelt\.$/, 'Out in one! The entire round score is doubled.'],
   [/^Spiel beendet! Gewinner: (.+)$/, 'Game over! Winner: $1'],
   [/^Rundenwertung: (.+)$/, 'Round scores: $1'],
@@ -252,6 +253,6 @@ window.I18N_RULES_EN = `
   <h3>Game end &amp; misc</h3>
   <ul>
     <li>The game ends once someone reaches 1000 points (strict house rule: only above 1000). The highest score wins.</li>
-    <li>When the draw pile runs out, the discard pile (except its top card) is reshuffled and reused – but only while there are still cards for it. <b>If you can neither draw nor take the top discard card, the round ends and is scored:</b> laid-out cards count plus, the cards left in your hand count <b>minus</b> as usual (a Queen of Spades in hand costs 100!) – only the winner bonus is not awarded in this case. Use 🏳️ to forfeit a round.</li>
+    <li>When the draw pile runs out, the discard pile (except its top card) is reshuffled and reused – but only while there are still cards for it. <b>If you can neither draw nor take the top discard card, the round ends and is scored:</b> laid-out cards count plus, the cards left in your hand count <b>minus</b> as usual (a Queen of Spades in hand costs 100!) – only the winner bonus is not awarded in this case. Use 🏳️ to forfeit the whole game - that ends the match immediately (all active players must agree).</li>
   </ul>
 `;

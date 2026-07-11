@@ -958,7 +958,7 @@ class GameManager {
    * niemand die Runde im Alleingang beenden - alle aktiven Spieler werden gefragt.
    */
   toggleForfeitVote(playerId) {
-    if (this.phase !== 'playing') return { error: 'Es läuft gerade keine Runde.' };
+    if (this.phase !== 'playing') return { error: 'Es läuft gerade keine Partie.' };
     const p = this.players.find((x) => x.id === playerId && !x.isBot);
     if (!p) return { error: 'Nur Mitspieler am Tisch können aufgeben.' };
     if (!this._forfeitVotes) this._forfeitVotes = new Set();
@@ -966,7 +966,7 @@ class GameManager {
     else this._forfeitVotes.add(playerId);
     const humans = this._connectedHumans();
     if (this._forfeitVotes.has(playerId)) {
-      this.addLog(`${p.name} möchte die Runde aufgeben (${this._forfeitVotes.size}/${humans.length}).`);
+      this.addLog(`${p.name} möchte das Spiel aufgeben (${this._forfeitVotes.size}/${humans.length}).`);
     }
     this._evaluateForfeitVotes();
     this.broadcastState();
@@ -977,10 +977,36 @@ class GameManager {
     if (!this._forfeitVotes) this._forfeitVotes = new Set();
     const humans = this._connectedHumans();
     if (humans.length === 0 || !humans.every((h) => this._forfeitVotes.has(h.id))) return;
-    const voters = [...this._forfeitVotes];
+    this._forfeitGame();
+  }
+
+  /** All active players agreed to give up the whole MATCH. Ends the game right
+   *  away and shows the final standings (current cumulative totals). It is an
+   *  abort: no official winner and NOT recorded as a completed game. */
+  _forfeitGame() {
     this._forfeitVotes = new Set();
-    this.addLog('🏳️ Runde einvernehmlich aufgegeben - alle waren einverstanden.');
-    this.finishRound(null, { forfeitedBy: voters[0] || null, byConsensus: true });
+    clearTimeout(this._turnTimer);
+    this._turnTimer = null;
+    this.turnDeadline = null;
+    clearTimeout(this._botTimer);
+    this.paused = false;
+    this.phase = 'gameOver';
+    const currentIds = new Set(this.players.map((p) => p.id));
+    const finalTotals = {};
+    for (const [pid, s] of Object.entries(this.totals || {})) {
+      if (currentIds.has(pid)) finalTotals[pid] = s;
+    }
+    this.gameOverInfo = {
+      gameOver: true,
+      forfeited: true,
+      winnerId: null,
+      finalTotals,
+      totalTurns: this.gameTurnCount || 0,
+      totalRounds: this.roundNumber || 0,
+    };
+    this.addLog('🏳️ Spiel einvernehmlich aufgegeben - alle waren einverstanden. Partie beendet.');
+    MoveLogger.flush(this);
+    this.broadcastState();
   }
 
   /** Kompatibilität: alter Direkt-Aufruf leitet jetzt auf die Abstimmung um. */
@@ -1014,8 +1040,6 @@ class GameManager {
     this.lastRoundResult = roundResult;
     this.lastRoundWinnerId = winnerId || null; // for the winner highlight
     this.lastRoundWasHandAus = isHandAus;
-    this.lastRoundForfeitedBy = options.forfeitedBy || null;
-    this.lastRoundForfeitByConsensus = !!options.byConsensus;
 
     // Cumulative per-game totals (shown as a toggle at game over)
     if (!this.gameStatsTotals) this.gameStatsTotals = {};
@@ -1188,8 +1212,6 @@ class GameManager {
     this.lastRoundStats = null;
     this._turnsWithoutMeld = 0;
     this.lastRoundWasHandAus = false;
-    this.lastRoundForfeitedBy = null;
-    this.lastRoundForfeitByConsensus = false;
     this.roundHistory = [];
     this.lastGameRecord = null;
     this.gameStartedAt = null;
@@ -1992,8 +2014,6 @@ class GameManager {
       ),
       lastRoundResult: this.lastRoundResult || null,
       lastRoundWasHandAus: this.lastRoundWasHandAus || false,
-      lastRoundForfeitedBy: this.lastRoundForfeitedBy || null,
-      lastRoundForfeitByConsensus: !!this.lastRoundForfeitByConsensus,
       lastRoundStats: this.lastRoundStats || null,
       nextRoundReady: this._nextRoundReady ? [...this._nextRoundReady] : [],
       lastRoundWinnerId: this.lastRoundWinnerId || null,
