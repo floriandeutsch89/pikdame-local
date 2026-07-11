@@ -1137,15 +1137,15 @@
     el('forfeitBtn').classList.toggle('active', iVotedForfeit);
     el('forfeitBtn').textContent = forfeitVotes.length
       ? L(`🏳️ Aufgeben (${forfeitVotes.length}/${humansForfeit})`, `🏳️ Forfeit (${forfeitVotes.length}/${humansForfeit})`)
-      : L('🏳️ Aufgeben', '🏳️ Forfeit');
+      : L('🏳️ Spiel aufgeben', '🏳️ Forfeit game');
     el('forfeitBtn').title = forfeitVotes.length
-      ? L(`${forfeitVotes.length}/${humansForfeit} wollen die Runde aufgeben - tippe zum Zustimmen`, `${forfeitVotes.length}/${humansForfeit} want to forfeit - tap to agree`)
-      : L('Runde aufgeben (alle aktiven Spieler müssen zustimmen)', 'Forfeit the round (all active players must agree)');
+      ? L(`${forfeitVotes.length}/${humansForfeit} wollen das Spiel aufgeben - tippe zum Zustimmen`, `${forfeitVotes.length}/${humansForfeit} want to forfeit the game - tap to agree`)
+      : L('Das ganze Spiel aufgeben (alle aktiven Spieler müssen zustimmen)', 'Forfeit the whole game (all active players must agree)');
     // Ask everyone visibly: when a proposal appears (or grows) and I haven't
     // agreed yet, pop a toast so no one misses that they are being asked.
     if (lastState.phase === 'playing' && forfeitVotes.length > prevForfeitVoteCount && !iVotedForfeit && iSeatedForfeit) {
       showToast(
-        L(`🏳️ Aufgeben vorgeschlagen (${forfeitVotes.length}/${humansForfeit}) - tippe auf 🏳️, um zuzustimmen.`,
+        L(`🏳️ Spiel aufgeben vorgeschlagen (${forfeitVotes.length}/${humansForfeit}) - tippe auf 🏳️, um zuzustimmen.`,
           `🏳️ Forfeit proposed (${forfeitVotes.length}/${humansForfeit}) - tap 🏳️ to agree.`),
         { priority: true }
       );
@@ -1334,48 +1334,63 @@
   }
 
   function renderResultOverlay() {
-    if (!lastState.lastRoundResult) return;
+    const forfeited = lastState.phase === 'gameOver' && lastState.gameOverInfo && lastState.gameOverInfo.forfeited;
+    if (!lastState.lastRoundResult && !forfeited) return;
     el('resultOverlay').classList.remove('hidden');
     // Konfetti, wenn ICH die Runde gewonnen habe (einmal pro Runde)
     const winKey = `${lastState.roundNumber}`;
-    const myResult = lastState.lastRoundResult[playerId];
+    const myResult = lastState.lastRoundResult && lastState.lastRoundResult[playerId];
     if (myResult && myResult.breakdown && myResult.breakdown.isWinner && confettiShownForRound !== winKey) {
       confettiShownForRound = winKey;
       launchConfetti();
     }
     const isGameOver = lastState.phase === 'gameOver';
-    el('resultTitle').textContent = isGameOver ? L('Spielende!', 'Game over!') : L('Rundenende', 'End of round');
+    el('resultTitle').textContent = forfeited
+      ? L('🏳️ Spiel aufgegeben', '🏳️ Game forfeited')
+      : isGameOver ? L('Spielende!', 'Game over!') : L('Rundenende', 'End of round');
 
     const body = el('resultBody');
     body.innerHTML = '';
 
-    if (lastState.lastRoundWasHandAus) {
+    if (forfeited) {
+      const note = document.createElement('p');
+      note.className = 'handAusNote';
+      note.textContent = L(
+        '🏳️ Das Spiel wurde einvernehmlich aufgegeben - alle aktiven Spieler waren einverstanden. Kein Sieger, das Spiel wird nicht gewertet.',
+        '🏳️ The game was forfeited by mutual agreement - all active players agreed. No winner, the game is not recorded.'
+      );
+      body.appendChild(note);
+      const fTotals = (lastState.gameOverInfo && lastState.gameOverInfo.finalTotals) || lastState.totals || {};
+      lastState.players
+        .slice()
+        .sort((a, b) => (fTotals[b.id] || 0) - (fTotals[a.id] || 0))
+        .forEach((p) => {
+          const row = document.createElement('div');
+          row.className = 'resultRow';
+          row.innerHTML = `<span>${nameWithHeart(p.name)}${p.isBot ? ' 🤖' : ''}</span><span>${L('Gesamt', 'Total')}: ${fTotals[p.id] || 0}</span>`;
+          body.appendChild(row);
+        });
+    }
+
+    if (!forfeited && lastState.lastRoundWasHandAus) {
       const handAusNote = document.createElement('p');
       handAusNote.className = 'handAusNote';
       handAusNote.textContent = L('🎉 Hand aus! Die komplette Rundenwertung zählt doppelt.', '🎉 Out in one! The entire round score counts double.');
       body.appendChild(handAusNote);
     }
-    if (lastState.lastRoundForfeitedBy || lastState.lastRoundForfeitByConsensus) {
-      const forfeitNote = document.createElement('p');
-      forfeitNote.className = 'handAusNote';
-      forfeitNote.textContent = L(
-        '🏳️ Die Runde wurde einvernehmlich aufgegeben (alle aktiven Spieler waren einverstanden). Wertung wie ein normaler Mitspieler, kein Gewinner-Bonus.',
-        '🏳️ The round was forfeited by mutual agreement (all active players agreed). Scored like a regular player, no winner bonus.'
-      );
-      body.appendChild(forfeitNote);
+    if (!forfeited && lastState.lastRoundResult) {
+      lastState.players.forEach((p) => {
+        const r = lastState.lastRoundResult[p.id];
+        const row = document.createElement('div');
+        row.className = 'resultRow' + (r && r.breakdown.isWinner ? ' winner' : '');
+        const total = lastState.totals[p.id] || 0;
+        row.innerHTML = `<span>${nameWithHeart(p.name)}${p.isBot ? ' 🤖' : ''}</span><span>${r ? r.roundScore : 0} ${L('Pkt', 'pts')} (${L('Gesamt', 'total')}: ${total})</span>`;
+        body.appendChild(row);
+      });
     }
 
-    lastState.players.forEach((p) => {
-      const r = lastState.lastRoundResult[p.id];
-      const row = document.createElement('div');
-      row.className = 'resultRow' + (r && r.breakdown.isWinner ? ' winner' : '');
-      const total = lastState.totals[p.id] || 0;
-      row.innerHTML = `<span>${nameWithHeart(p.name)}${p.isBot ? ' 🤖' : ''}</span><span>${r ? r.roundScore : 0} ${L('Pkt', 'pts')} (${L('Gesamt', 'total')}: ${total})</span>`;
-      body.appendChild(row);
-    });
-
     // Rundenstatistiken (Details)
-    if (lastState.lastRoundStats) {
+    if (!forfeited && lastState.lastRoundStats) {
       const statsTable = document.createElement('table');
       statsTable.className = 'statsTable';
       // ♠Q/🃏 zeigen die AUSGELEGTEN Karten (die Hand-Zaehler waren am
@@ -1407,7 +1422,7 @@
       body.appendChild(renderScoreChart(history));
     }
 
-    if (isGameOver && lastState.gameOverInfo) {
+    if (isGameOver && !forfeited && lastState.gameOverInfo) {
       const winner = lastState.players.find((p) => p.id === lastState.gameOverInfo.winnerId);
       const winLine = document.createElement('p');
       winLine.innerHTML = `<strong>🏆 ${L(`${escapeHtml(winner ? winner.name : '?')} gewinnt das Spiel!`, `${escapeHtml(winner ? winner.name : '?')} wins the game!`)}</strong>`;
@@ -1744,8 +1759,8 @@
     // existing proposal (or withdrawing) just toggles, no dialog.
     if (!iVoted && votes.length === 0) {
       const ok = window.confirm(
-        L('Aufgeben vorschlagen? Die Runde endet nur, wenn ALLE aktiven Spieler zustimmen. Alle werden wie normale Mitspieler gewertet (Ausgelegtes minus Resthand), kein Gewinner-Bonus.',
-          'Propose to forfeit? The round only ends if ALL active players agree. Everyone is scored like a regular player (melds minus remaining hand), no winner bonus.')
+        L('Das ganze Spiel aufgeben? Die Partie endet nur, wenn ALLE aktiven Spieler zustimmen - dann wird das Spiel sofort abgebrochen (kein Sieger, keine Wertung).',
+          'Forfeit the whole game? The match only ends if ALL active players agree - then the game is aborted immediately (no winner, not recorded).')
       );
       if (!ok) return;
     }

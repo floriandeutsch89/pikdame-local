@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.56.0] - 2026-07-09
+
+### Changed
+- „Aufgeben" beendet jetzt das **ganze Spiel** statt nur die laufende Runde - und heißt entsprechend überall **„Spiel aufgeben"**. Stimmen alle aktiven Spieler zu (Abstimmung wie zuvor), wird die Partie **sofort abgebrochen**: Endbildschirm mit dem aktuellen Punktestand, **kein Sieger**, und das Spiel wird **nicht** als abgeschlossene Partie gewertet (keine Statistik/Erfolge). Von dort geht es per 🏠 zurück ins Hauptmenü oder per Rematch in eine neue Partie. Regeltext, Button, Bestätigung und Hinweise entsprechend angepasst
+
 ## [1.55.0] - 2026-07-09
 
 ### Changed
