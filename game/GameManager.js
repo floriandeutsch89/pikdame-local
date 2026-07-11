@@ -130,6 +130,10 @@ class GameManager {
         this._pauseVotes.delete(id);
         this._evaluatePauseVotes(); // connected-human set changed -> re-check
       }
+      if (this._forfeitVotes) {
+        this._forfeitVotes.delete(id);
+        this._evaluateForfeitVotes(); // connected-human set changed -> re-check
+      }
       // GRACE PERIOD before a bot takes over: in hosted mode a player who
       // briefly switches apps (message, call) loses the websocket - the
       // old instant takeover meant a bot happily played (and sometimes
@@ -344,6 +348,7 @@ class GameManager {
   startNewRound() {
     this._nextRoundReady = new Set();
     this._lobbyReady = new Set();
+    this._forfeitVotes = new Set();
     this.publicKnownHands = {};
     this.declinedByPlayer = {};
     this.tableMelds = [];
@@ -946,19 +951,41 @@ class GameManager {
   }
 
   /**
-   * Ein Spieler gibt die laufende Runde auf. Die Runde endet SOFORT für alle
-   * (unabhängig davon, wer gerade am Zug ist). Es gibt keinen Gewinner-Bonus
-   * für irgendwen - alle Spieler (inkl. des Aufgebenden) werden wie normale
-   * Mitspieler gewertet: Pluspunkte (Ausgelegtes) minus Minuspunkte (Resthand).
+   * Aufgeben per Konsens: Ein Spieler stimmt fürs Aufgeben der laufenden Runde
+   * (Toggle). Erst wenn ALLE verbundenen Menschen zustimmen, endet die Runde -
+   * SOFORT für alle. Es gibt keinen Gewinner-Bonus für irgendwen; alle Spieler
+   * werden wie normale Mitspieler gewertet (Ausgelegtes minus Resthand). So kann
+   * niemand die Runde im Alleingang beenden - alle aktiven Spieler werden gefragt.
    */
-  forfeitRound(playerId) {
+  toggleForfeitVote(playerId) {
     if (this.phase !== 'playing') return { error: 'Es läuft gerade keine Runde.' };
-    const player = this.players.find((p) => p.id === playerId);
-    if (!player) return { error: 'Spieler nicht gefunden.' };
-
-    this.addLog(`${player.name} gibt die Runde auf.`);
-    this.finishRound(null, { forfeitedBy: playerId });
+    const p = this.players.find((x) => x.id === playerId && !x.isBot);
+    if (!p) return { error: 'Nur Mitspieler am Tisch können aufgeben.' };
+    if (!this._forfeitVotes) this._forfeitVotes = new Set();
+    if (this._forfeitVotes.has(playerId)) this._forfeitVotes.delete(playerId);
+    else this._forfeitVotes.add(playerId);
+    const humans = this._connectedHumans();
+    if (this._forfeitVotes.has(playerId)) {
+      this.addLog(`${p.name} möchte die Runde aufgeben (${this._forfeitVotes.size}/${humans.length}).`);
+    }
+    this._evaluateForfeitVotes();
+    this.broadcastState();
     return { ok: true };
+  }
+
+  _evaluateForfeitVotes() {
+    if (!this._forfeitVotes) this._forfeitVotes = new Set();
+    const humans = this._connectedHumans();
+    if (humans.length === 0 || !humans.every((h) => this._forfeitVotes.has(h.id))) return;
+    const voters = [...this._forfeitVotes];
+    this._forfeitVotes = new Set();
+    this.addLog('🏳️ Runde einvernehmlich aufgegeben - alle waren einverstanden.');
+    this.finishRound(null, { forfeitedBy: voters[0] || null, byConsensus: true });
+  }
+
+  /** Kompatibilität: alter Direkt-Aufruf leitet jetzt auf die Abstimmung um. */
+  forfeitRound(playerId) {
+    return this.toggleForfeitVote(playerId);
   }
 
   // --- Rundenende / Wertung ------------------------------------------------
@@ -988,6 +1015,7 @@ class GameManager {
     this.lastRoundWinnerId = winnerId || null; // for the winner highlight
     this.lastRoundWasHandAus = isHandAus;
     this.lastRoundForfeitedBy = options.forfeitedBy || null;
+    this.lastRoundForfeitByConsensus = !!options.byConsensus;
 
     // Cumulative per-game totals (shown as a toggle at game over)
     if (!this.gameStatsTotals) this.gameStatsTotals = {};
@@ -1161,6 +1189,7 @@ class GameManager {
     this._turnsWithoutMeld = 0;
     this.lastRoundWasHandAus = false;
     this.lastRoundForfeitedBy = null;
+    this.lastRoundForfeitByConsensus = false;
     this.roundHistory = [];
     this.lastGameRecord = null;
     this.gameStartedAt = null;
@@ -1437,6 +1466,7 @@ class GameManager {
         key === '_nextRoundReady' ||
         key === '_lobbyReady' ||
         key === '_pauseVotes' ||
+        key === '_forfeitVotes' ||
         key === '_agentAwaitingDiscard' ||
         key === '_noMcts' ||
         key === '_moveLog' ||
@@ -1941,6 +1971,7 @@ class GameManager {
       isHost: this.isHost(forPlayerId),
       paused: !!this.paused,
       pauseVotes: this._pauseVotes ? [...this._pauseVotes] : [],
+      forfeitVotes: this._forfeitVotes ? [...this._forfeitVotes] : [],
       players: this.players.map((p) => ({
         id: p.id,
         name: p.name,
@@ -1962,6 +1993,7 @@ class GameManager {
       lastRoundResult: this.lastRoundResult || null,
       lastRoundWasHandAus: this.lastRoundWasHandAus || false,
       lastRoundForfeitedBy: this.lastRoundForfeitedBy || null,
+      lastRoundForfeitByConsensus: !!this.lastRoundForfeitByConsensus,
       lastRoundStats: this.lastRoundStats || null,
       nextRoundReady: this._nextRoundReady ? [...this._nextRoundReady] : [],
       lastRoundWinnerId: this.lastRoundWinnerId || null,

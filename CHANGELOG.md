@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.55.0] - 2026-07-09
+
+### Changed
+- Aufgeben ist jetzt eine **Abstimmung** statt eines Alleingangs: Tippt jemand auf 🏳️, wird das als Votum fürs Aufgeben gewertet, und **alle aktiven Spieler werden gefragt** (sichtbarer Hinweis-Toast „Aufgeben vorgeschlagen – tippe 🏳️ zum Zustimmen"). Die Runde endet erst, wenn **alle verbundenen Mitspieler** zustimmen (analog zur Pause). Der Aufgeben-Button zeigt den Stimmenstand (z. B. „🏳️ Aufgeben (1/2)"); ein Votum lässt sich auch wieder zurückziehen. Ist man der einzige verbundene Mensch (Rest Bots), gibt der eine Tipp wie bisher sofort auf. Trennt sich ein Mitspieler, während ein Votum läuft, wird neu ausgewertet. Wertung unverändert: alle wie normale Mitspieler, kein Gewinner-Bonus
+
 ## [1.54.5] - 2026-07-09
 
 ### Fixed
