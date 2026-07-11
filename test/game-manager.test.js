@@ -261,7 +261,7 @@ test('prepareRematch setzt Punkte/Verlauf zurück, behält aber die Spieler', ()
   assert.equal(game.players.length, 2); // Spieler bleiben erhalten
 });
 
-test('forfeitRound: Runde endet sofort, alle Spieler werden wie normale Mitspieler gewertet (kein Gewinner-Bonus)', () => {
+test('forfeit: erst wenn ALLE aktiven Spieler zustimmen, endet die Runde (alle wie Mitspieler gewertet)', () => {
   const { game } = makeGame(3);
   game.phase = 'playing';
   game.turnPhase = 'draw';
@@ -275,13 +275,20 @@ test('forfeitRound: Runde endet sofort, alle Spieler werden wie normale Mitspiel
   game.players[2].laidOutCards = [makeStandardCard('H', '5', 0)]; // 5
   game.players[2].hand = []; // p3: 5
 
-  // p1 (nicht am Zug) gibt auf - muss trotzdem möglich sein.
-  const result = game.forfeitRound('p1');
-  assert.equal(result.ok, true);
+  // Ein einzelnes Votum beendet die Runde NICHT.
+  assert.equal(game.toggleForfeitVote('p1').ok, true);
+  assert.equal(game.phase, 'playing', 'ein Votum reicht nicht');
+  assert.equal(game.toggleForfeitVote('p2').ok, true);
+  assert.equal(game.phase, 'playing', 'zwei von drei reichen nicht');
+  // Ein Spieler kann sein Votum auch zurückziehen.
+  game.toggleForfeitVote('p1');
+  assert.equal(game.phase, 'playing');
+  game.toggleForfeitVote('p1');
+  // Jetzt stimmen alle drei zu -> Runde endet.
+  assert.equal(game.toggleForfeitVote('p3').ok, true);
   assert.equal(game.phase, 'roundEnd');
-  assert.equal(game.lastRoundForfeitedBy, 'p1');
+  assert.equal(game.lastRoundForfeitByConsensus, true);
 
-  // Niemand bekommt den Gewinner-Bonus (alle nach "Mitspieler"-Formel).
   assert.equal(game.lastRoundResult.p1.roundScore, 15);
   assert.equal(game.lastRoundResult.p2.roundScore, -10);
   assert.equal(game.lastRoundResult.p3.roundScore, 5);
@@ -290,7 +297,22 @@ test('forfeitRound: Runde endet sofort, alle Spieler werden wie normale Mitspiel
   }
 });
 
-test('forfeitRound: "Hand aus" greift NICHT, selbst wenn es der allererste Zug der Runde ist', () => {
+test('forfeit: ein einziger verbundener Mensch (Rest Bots) gibt allein auf', () => {
+  const game = new GameManager(() => {});
+  game.addOrReconnectPlayer('p1', 'Mensch');
+  game.maxSeats = 4;
+  game.fillWithBots();
+  game.phase = 'playing';
+  game.turnPhase = 'draw';
+  game.currentPlayerIndex = 0;
+  game.turnIndexInRound = 2;
+  const r = game.toggleForfeitVote('p1');
+  assert.equal(r.ok, true);
+  assert.equal(game.phase, 'roundEnd', 'einziger Mensch -> sofortiges Aufgeben');
+  assert.equal(game.lastRoundForfeitByConsensus, true);
+});
+
+test('forfeit: "Hand aus" greift NICHT, selbst wenn es der allererste Zug der Runde ist', () => {
   const { game } = makeGame(2);
   game.setHouseRules({ handAusDoubles: true });
   game.phase = 'playing';
@@ -303,22 +325,24 @@ test('forfeitRound: "Hand aus" greift NICHT, selbst wenn es der allererste Zug d
   game.players[1].laidOutCards = [];
   game.players[1].hand = [makeStandardCard('H', 'K', 0)];
 
-  game.forfeitRound('p2');
+  game.toggleForfeitVote('p1');
+  game.toggleForfeitVote('p2'); // beide einig -> Runde endet
 
+  assert.equal(game.phase, 'roundEnd');
   assert.equal(game.lastRoundWasHandAus, false);
   assert.equal(game.lastRoundResult.p1.roundScore, 20); // kein x2
 });
 
-test('forfeitRound außerhalb einer laufenden Runde liefert einen Fehler', () => {
+test('forfeit außerhalb einer laufenden Runde liefert einen Fehler', () => {
   const { game } = makeGame(2);
-  const result = game.forfeitRound('p1');
+  const result = game.toggleForfeitVote('p1');
   assert.ok(result.error);
 });
 
-test('forfeitRound mit unbekannter Spieler-ID liefert einen Fehler', () => {
+test('forfeit mit unbekannter Spieler-ID liefert einen Fehler', () => {
   const { game } = makeGame(2);
   game.phase = 'playing';
-  const result = game.forfeitRound('unknown-id');
+  const result = game.toggleForfeitVote('unknown-id');
   assert.ok(result.error);
 });
 

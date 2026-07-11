@@ -40,6 +40,7 @@
   // markiert.
   let prevHandIds = new Set();
   let prevTurnPlayerId = null;
+  let prevForfeitVoteCount = 0;
   let quoteShownForRound = null; // Rundenstart-Spruch nur einmal pro Runde
 
   // Kreative Sprüche zum Rundenbeginn. Deterministisch aus Geber+Runde
@@ -1128,7 +1129,28 @@
     el('discardBtn').classList.toggle('hidden', !showDiscardBtn);
 
     el('clearSelectionBtn').classList.toggle('hidden', selectedCardIds.size === 0);
-    el('forfeitBtn').classList.toggle('hidden', lastState.phase !== 'playing');
+    const iSeatedForfeit = lastState.players.some((p) => p.id === playerId && !p.isBot);
+    el('forfeitBtn').classList.toggle('hidden', lastState.phase !== 'playing' || !iSeatedForfeit);
+    const forfeitVotes = lastState.forfeitVotes || [];
+    const humansForfeit = lastState.players.filter((p) => !p.isBot && p.connected !== false).length;
+    const iVotedForfeit = forfeitVotes.includes(playerId);
+    el('forfeitBtn').classList.toggle('active', iVotedForfeit);
+    el('forfeitBtn').textContent = forfeitVotes.length
+      ? L(`🏳️ Aufgeben (${forfeitVotes.length}/${humansForfeit})`, `🏳️ Forfeit (${forfeitVotes.length}/${humansForfeit})`)
+      : L('🏳️ Aufgeben', '🏳️ Forfeit');
+    el('forfeitBtn').title = forfeitVotes.length
+      ? L(`${forfeitVotes.length}/${humansForfeit} wollen die Runde aufgeben - tippe zum Zustimmen`, `${forfeitVotes.length}/${humansForfeit} want to forfeit - tap to agree`)
+      : L('Runde aufgeben (alle aktiven Spieler müssen zustimmen)', 'Forfeit the round (all active players must agree)');
+    // Ask everyone visibly: when a proposal appears (or grows) and I haven't
+    // agreed yet, pop a toast so no one misses that they are being asked.
+    if (lastState.phase === 'playing' && forfeitVotes.length > prevForfeitVoteCount && !iVotedForfeit && iSeatedForfeit) {
+      showToast(
+        L(`🏳️ Aufgeben vorgeschlagen (${forfeitVotes.length}/${humansForfeit}) - tippe auf 🏳️, um zuzustimmen.`,
+          `🏳️ Forfeit proposed (${forfeitVotes.length}/${humansForfeit}) - tap 🏳️ to agree.`),
+        { priority: true }
+      );
+    }
+    prevForfeitVoteCount = forfeitVotes.length;
 
     if (lastState.mustLayOffCardId && isMyTurn) {
       // WICHTIG bleibt persistent sichtbar
@@ -1333,11 +1355,13 @@
       handAusNote.textContent = L('🎉 Hand aus! Die komplette Rundenwertung zählt doppelt.', '🎉 Out in one! The entire round score counts double.');
       body.appendChild(handAusNote);
     }
-    if (lastState.lastRoundForfeitedBy) {
-      const forfeiter = lastState.players.find((p) => p.id === lastState.lastRoundForfeitedBy);
+    if (lastState.lastRoundForfeitedBy || lastState.lastRoundForfeitByConsensus) {
       const forfeitNote = document.createElement('p');
       forfeitNote.className = 'handAusNote';
-      forfeitNote.textContent = L(`🏳️ ${forfeiter ? forfeiter.name : 'Ein Spieler'} hat die Runde aufgegeben. Wertung wie ein normaler Mitspieler, kein Gewinner-Bonus.`, `🏳️ ${forfeiter ? forfeiter.name : 'A player'} forfeited the round. Scored like a regular player, no winner bonus.`);
+      forfeitNote.textContent = L(
+        '🏳️ Die Runde wurde einvernehmlich aufgegeben (alle aktiven Spieler waren einverstanden). Wertung wie ein normaler Mitspieler, kein Gewinner-Bonus.',
+        '🏳️ The round was forfeited by mutual agreement (all active players agreed). Scored like a regular player, no winner bonus.'
+      );
       body.appendChild(forfeitNote);
     }
 
@@ -1712,13 +1736,21 @@
 
   el('forfeitBtn').addEventListener('click', () => {
     if (!lastState || lastState.phase !== 'playing') return;
-    const confirmed = window.confirm(
-      L('Runde wirklich aufgeben? Du wirst wie ein normaler Mitspieler gewertet (Ausgelegtes minus Resthand) - ohne Gewinner-Bonus für irgendwen.', 'Really forfeit the round? You are scored like a regular player (melds minus remaining hand) - no winner bonus for anyone.')
-    );
-    if (confirmed) {
-      sound.discard();
-      send({ type: 'forfeitRound' });
+    const seated = lastState.players.some((p) => p.id === playerId && !p.isBot);
+    if (!seated) return;
+    const votes = lastState.forfeitVotes || [];
+    const iVoted = votes.includes(playerId);
+    // First proposal asks everyone to end the round - confirm it. Agreeing to an
+    // existing proposal (or withdrawing) just toggles, no dialog.
+    if (!iVoted && votes.length === 0) {
+      const ok = window.confirm(
+        L('Aufgeben vorschlagen? Die Runde endet nur, wenn ALLE aktiven Spieler zustimmen. Alle werden wie normale Mitspieler gewertet (Ausgelegtes minus Resthand), kein Gewinner-Bonus.',
+          'Propose to forfeit? The round only ends if ALL active players agree. Everyone is scored like a regular player (melds minus remaining hand), no winner bonus.')
+      );
+      if (!ok) return;
     }
+    sound.discard();
+    send({ type: 'forfeitRound' }); // toggles my forfeit vote
   });
 
   el('confirmMeldBtn').addEventListener('click', () => {
