@@ -471,6 +471,17 @@
     }
     if (msg.type === 'state') {
       lastState = msg.state;
+      // Keep the hand selection in sync with reality: a card stays selected
+      // until it actually LEAVES the hand (laid off / melded / discarded).
+      // A failed lay-off ("doesn't fit") leaves the card in hand, so it stays
+      // selected and can be aimed at another meld right away - no reselecting.
+      const meNow = lastState.players && lastState.players.find((p) => p.id === playerId);
+      if (meNow && meNow.hand) {
+        const handIds = new Set(meNow.hand.map((c) => c.id));
+        for (const id of [...selectedCardIds]) if (!handIds.has(id)) selectedCardIds.delete(id);
+      } else if (lastState.phase !== 'playing') {
+        selectedCardIds.clear();
+      }
       // "Du bist dran"-Signal: Ton + Vibration + kurzer Puls der Statuszeile,
       // sobald der Zug auf mich wechselt (nicht beim allerersten Render).
       if (
@@ -569,7 +580,7 @@
         } else {
           send({ type: 'layOff', meldId: context.meldId, cardId: context.cardId, asSuit: opt.asSuit, side: opt.side });
         }
-        selectedCardIds.clear();
+        // Reconciled on the next state update (see the 'state' handler).
       });
       optionsDiv.appendChild(btn);
     });
@@ -1500,12 +1511,13 @@
       } else {
         send({ type: 'layOff', meldId: meld.id, cardId });
       }
-      selectedCardIds.clear();
+      // Selection is reconciled on the next state update: it clears only if the
+      // card actually left the hand. A rejected lay-off keeps it selected so it
+      // can be retargeted at another meld without reselecting.
     } else if (selectedCardIds.size > 1) {
       // Multiple cards: lay them all off in one tap (server validates
       // all-or-nothing and finds the working order, e.g. J before Q).
       send({ type: 'layOffMulti', meldId: meld.id, cardIds: [...selectedCardIds] });
-      selectedCardIds.clear();
     } else {
       showHint(L('Wähle mindestens eine Handkarte aus, um sie an diese Auslage anzulegen (mehrere passende Karten gehen mit einem Tipp).', 'Select at least one hand card to add it to this meld (several fitting cards go in one tap).'), false);
     }
@@ -1713,7 +1725,8 @@
     if (selectedCardIds.size < 3) return;
     sound.meld();
     send({ type: 'layoutMeld', cardIds: [...selectedCardIds] });
-    selectedCardIds.clear();
+    // Reconciled on the next state update - a rejected meld keeps the cards
+    // selected so they can be adjusted instead of reselected from scratch.
   });
 
   el('clearSelectionBtn').addEventListener('click', () => {
