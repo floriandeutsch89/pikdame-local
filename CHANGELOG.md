@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.57.1] - 2026-07-12
+
+### Added
+- Bestätigungs-Meta-Tag für die Bing Webmaster Tools eingebunden (`msvalidate.01`) - damit lässt sich der Seitenbesitz bei Bing verifizieren, Sitemap einreichen und die Indexierung anstoßen (deckt auch DuckDuckGo ab)
+
 ## [1.57.0] - 2026-07-12
 
 ### Added
