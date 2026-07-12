@@ -32,7 +32,7 @@ import torch.nn as nn
 
 from sb3_contrib import MaskablePPO
 from sb3_contrib.common.wrappers import ActionMasker
-from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.vec_env import SubprocVecEnv
 
 from pikdame_env import PikDameEnv
 from human_dataset import load_winner_moves, DEFAULT_PATH as HUMAN_DATA_DEFAULT
@@ -66,8 +66,10 @@ def mask_fn(env: PikDameEnv) -> np.ndarray:
 
 def make_env(pool, seed: int) -> ActionMasker:
     # Sample a fresh 3-opponent mix from the pool each episode.
+    # ActionMasker must be the outermost wrapper: MaskablePPO calls
+    # action_masks() on the sub-env inside DummyVecEnv, and Monitor does not
+    # forward that attribute reliably.
     env = PikDameEnv(opponent_pool=pool, opponents=3, seed=seed)
-    env = Monitor(env)
     return ActionMasker(env, mask_fn)
 
 
@@ -140,20 +142,23 @@ def behavioral_clone(model, human_data_path, epochs, device, batch=512):
         print(f"  [BC] epoch {ep + 1}/{epochs}  loss {total / max(1, nb):.4f}")
 
 
-def train_tier(tier, steps_override, device, human_data=None, bc_epochs=5, bc_only=False):
+def train_tier(tier, steps_override, device, human_data=None, bc_epochs=5, bc_only=False, n_envs=8):
     cfg = TIERS[tier]
     steps = steps_override or cfg["steps"]
     os.makedirs(MODELS_DIR, exist_ok=True)
-    print(f"[{tier}] training {steps} steps vs. pool {cfg['pool']} on {device}")
+    print(f"[{tier}] training {steps} steps vs. pool {cfg['pool']} on {device} ({n_envs} envs)")
 
-    env = make_env(cfg["pool"], seed=1234)
+    # Each subprocess gets its own Node env-server process. n_envs parallel
+    # workers saturate the CPU cores and keep the GPU fed with larger batches.
+    env_fns = [lambda i=i: make_env(cfg["pool"], seed=1234 + i) for i in range(n_envs)]
+    env = SubprocVecEnv(env_fns)
     model = MaskablePPO(
         "MlpPolicy",
         env,
         verbose=1,
         device=device,
         n_steps=2048,
-        batch_size=512,
+        batch_size=512 * n_envs,  # scale with workers so each GPU batch stays full
         gamma=0.997,
         ent_coef=0.01,
         learning_rate=3e-4,
@@ -195,6 +200,10 @@ def main():
         "--no-human-data", action="store_true",
         help="ignore human data even if data/human-moves.jsonl exists",
     )
+    ap.add_argument(
+        "--n-envs", type=int, default=8,
+        help="parallel SubprocVecEnv workers (each spawns a Node process); default 8",
+    )
     args = ap.parse_args()
 
     # By default, ANY tier automatically warm-starts from human games when the
@@ -209,6 +218,7 @@ def main():
         train_tier(
             tier, args.steps, args.device,
             human_data=human_data, bc_epochs=args.bc_epochs, bc_only=args.bc_only,
+            n_envs=args.n_envs,
         )
 
 
