@@ -1810,3 +1810,48 @@ input:disabled { opacity: 0.65; }
   text-align: center; margin: 4px 0 10px; opacity: 0.82;
   font-size: 0.95em; letter-spacing: 0.2px;
 }
+
+/* --- SEO/Einsteiger-Text in der Lobby -------------------------------------
+   Echter, sichtbarer Inhalt (aufklappbar) - gibt Suchmaschinen etwas zu lesen
+   und Neulingen eine Einführung, ohne die App-Oberfläche zu überladen. */
+.seoIntro {
+  margin: 18px auto 8px;
+  max-width: 640px;
+  width: 100%;
+  text-align: left;
+}
+.seoIntro details {
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.seoIntro summary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--text-muted);
+}
+.seoIntro summary::-webkit-details-marker { display: none; }
+.seoIntro summary h2 {
+  display: inline;
+  font-size: 0.86rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-muted);
+}
+.seoIntro summary::before { content: '▸ '; color: var(--text-muted); }
+.seoIntro details[open] summary::before { content: '▾ '; }
+.seoIntroBody { padding: 6px 2px 4px; }
+.seoIntroBody h3 {
+  font-size: 0.84rem;
+  margin: 12px 0 4px;
+  color: var(--text);
+}
+.seoIntroBody p,
+.seoIntroBody li {
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: var(--text-muted);
+  margin: 0 0 6px;
+}
+.seoIntroBody ul { margin: 0 0 6px; padding-left: 18px; }
