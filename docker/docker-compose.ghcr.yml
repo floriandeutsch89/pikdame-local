@@ -9,6 +9,26 @@
 services:
   pikdame:
     image: ghcr.io/floriandeutsch89/pikdame-local:latest
+    # --- Trained ONNX bots (optional) ---------------------------------------
+    # The bots are heuristic by default and need nothing extra. To play against
+    # the TRAINED policies, use the second published image instead - it has the
+    # runtime and the models baked in and sets PIKDAME_ONNX=1 itself:
+    #
+    #   image: ghcr.io/floriandeutsch89/pikdame-local-onnx:latest
+    #
+    # It is a separate image (Debian instead of Alpine) because onnxruntime-node
+    # ships glibc-linked binaries that cannot run on musl. Same UID/GID, so the
+    # data volume below keeps working when you switch.
+    #
+    # To swap in your own models without rebuilding:
+    #
+    #   volumes:
+    #     - ./models:/app/models:ro
+    #   environment:
+    #     - PIKDAME_MODELS_DIR=/app/models
+    #
+    # Verify after start:  docker compose logs pikdame | grep -i "ONNX-Modell"
+    # Details: docs/admin/onnx.md
     container_name: pikdame
     restart: unless-stopped
     # Give the graceful shutdown (session snapshot + store flush) time to

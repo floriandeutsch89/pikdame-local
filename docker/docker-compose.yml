@@ -4,6 +4,29 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     image: pikdame:latest
+    # --- Trained ONNX bots (optional) ---------------------------------------
+    # The bots are heuristic by default and need nothing extra. To play against
+    # the TRAINED policies instead, build the ONNX image: it is a separate
+    # Dockerfile because onnxruntime-node ships glibc-linked binaries that
+    # cannot run on the Alpine base (musl). Replace the `build` block above
+    # with:
+    #
+    #   build:
+    #     context: ..
+    #     dockerfile: docker/Dockerfile.onnx
+    #   image: pikdame-onnx:latest
+    #
+    # ...and add `- PIKDAME_ONNX=1` to `environment` below.
+    # The image already contains the models; to swap them without rebuilding,
+    # mount your own and point the server at them:
+    #
+    #   volumes:
+    #     - ../models:/app/models:ro
+    #   environment:
+    #     - PIKDAME_MODELS_DIR=/app/models
+    #
+    # Verify after start:  docker compose logs pikdame | grep -i "ONNX-Modell"
+    # Details: docs/admin/onnx.md
     container_name: pikdame
     restart: unless-stopped
     # Give the graceful shutdown (session snapshot + store flush) time to

@@ -58,6 +58,23 @@ services:
 
   pikdame:
     image: ghcr.io/floriandeutsch89/pikdame-local:latest # pin :vX.Y.Z in production
+    # --- Trained ONNX bots (optional) ---------------------------------------
+    # To run the TRAINED bot policies, switch to the second published image -
+    # runtime and models are baked in, PIKDAME_ONNX=1 is preset:
+    #
+    #   image: ghcr.io/floriandeutsch89/pikdame-local-onnx:v1.63.0
+    #
+    # Separate image because onnxruntime-node needs glibc (the default image is
+    # Alpine/musl). Same UID/GID (10001), so the existing data volume and the
+    # secret file permissions keep working.
+    #
+    # NOTE for this stack: Watchtower auto-updates by TAG. If you pin a version
+    # (recommended in production), pin the ONNX tag the same way - and remember
+    # that switching image also switches the update stream.
+    #
+    # Verify after deploy:
+    #   docker compose logs pikdame | grep -i "ONNX-Modell"
+    # Details: docs/admin/onnx.md
     container_name: pikdame
     restart: unless-stopped
     stop_grace_period: 30s
