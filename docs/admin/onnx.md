@@ -68,6 +68,13 @@ Building it yourself works too:
 docker build -f docker/Dockerfile.onnx -t pikdame-onnx .
 ```
 
+:::{tip}
+All three compose files (`docker/docker-compose.yml`, `.ghcr.yml`, `.prod.yml`)
+already carry a **ready-to-uncomment ONNX block** on the `pikdame` service — the
+image swap, the env var and the optional model mount. You do not have to piece it
+together from this page.
+:::
+
 ## Option B — swap models without rebuilding
 
 The models are baked into the ONNX image, so a retrained model would mean a new
