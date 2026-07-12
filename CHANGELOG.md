@@ -4,6 +4,18 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.58.0] - 2026-07-12
+
+### Changed
+- **Session-Limit von 200 auf 500 angehoben.** Das alte Limit lag exakt auf dem Zielwert - die 201. Partie wurde bereits mit „Server ist voll" abgewiesen. Messungen (neuer `scripts/load-test.js`) zeigen, dass selbst 500 parallele Partien sauber laufen. Weiterhin über `PIKDAME_MAX_SESSIONS` einstellbar
+
+### Performance
+- **Zustands-Broadcasts werden jetzt gebündelt** (Coalescing): Ein einzelner Bot-Zug löste bisher bis zu 4 komplette Zustands-Sendungen pro Mitspieler aus (Ziehen, Auslegen, Anlegen, Abwerfen) - obwohl niemand die Zwischenzustände sieht, weil sie im selben Verarbeitungsschritt entstehen. Jetzt wird pro Schritt nur noch der finale Zustand gesendet: **75 % weniger Nachrichten und 63 % weniger übertragene Daten** pro Bot-Zug, bei identischer Sichtbarkeit für die Spieler. Die kanonische Sortierung der Auslagen bleibt bewusst synchron (sie ist Spielzustand, kein Netzwerkdetail)
+- Gemessen bei **200 parallelen Partien** (je 1 Mensch + 3 Bots): Event-Loop-Latenz im **Median 0 ms**, p95 1 ms, p99 1 ms; ~88 MB Arbeitsspeicher (~68 KB pro Partie). Die Reaktionszeit für Spieler bleibt damit auch unter Volllast unbeeinträchtigt
+
+### Internal
+- Neues Lasttest-Werkzeug `scripts/load-test.js` (misst Event-Loop-Latenz, Broadcast-Volumen und Speicher bei N parallelen Partien)
+
 ## [1.57.1] - 2026-07-12
 
 ### Added
