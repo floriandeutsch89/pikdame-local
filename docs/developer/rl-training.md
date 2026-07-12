@@ -111,9 +111,10 @@ Lower the learning rate.
 `entropy_loss`: if it dropped steeply and early, the policy converged before it
 had explored. Increase `ent_coef`.
 
-**"The numbers look fine but it still loses."** That is the most likely case here,
-and it is not a training problem at all — see the reward trap above. Measure the
-**win rate** against the heuristic and compare with the −5.2/−5.4 baseline.
+**"The numbers look fine but it still loses."** Check the **win rate** rather than
+the reward — 25 % is par against three equal opponents. And judge the reward
+against the heuristic baseline (**≈ −0.6**, see above), not against zero: the
+terminal term alone puts an average player at −0.5.
 
 ## Reproducing the old reward
 

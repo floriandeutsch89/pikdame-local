@@ -7,6 +7,10 @@ modes** from the same codebase:
 **▶ Live demo: [play.pikdame.online](https://play.pikdame.online)** — try it in
 your browser (no install needed).
 
+**📚 Documentation: [pik-dame.readthedocs.io](https://pik-dame.readthedocs.io)** —
+getting started, admin manual (configuration, backup & restore, ONNX bots),
+developer guide, FAQ.
+
 | | 🏕️ On the go (offline) | ☁️ Hosted (online) |
 |---|---|---|
 | **Where** | iPhone hotspot, CodeApp, no internet required | Your own server / Raspberry Pi / Kubernetes |
@@ -65,7 +69,9 @@ helm install pikdame oci://ghcr.io/floriandeutsch89/charts/pikdame \
 ```
 
 Everything else — updates, rollback, backup, secrets, TLS — lives in the
-**[operations guide](docs/OPERATIONS.md)**; security (OWASP hardening,
+**[operations guide](https://pik-dame.readthedocs.io/en/latest/admin/operations.html)**
+(and [backup & restore](https://pik-dame.readthedocs.io/en/latest/admin/backup-restore.html),
+which is worth rehearsing before you need it); security (OWASP hardening,
 CI scans) in **[SECURITY.md](SECURITY.md)**; Kubernetes details in
 **[k8s/README.md](k8s/README.md)**. The selection page for a domain hosting
 multiple apps lives under **[landing/](landing/README.md)**.
@@ -213,7 +219,7 @@ game/              Pure game logic (Rules, GameManager, Bot, stores, …)
 game/StateEncoder  · game/OnnxPolicy — learned-bot encoder + ONNX inference
 public/            Vanilla JS client, i18n, PWA
 python/ · scripts/rl-env-server.js  RL training bridge (see docs/RL_TRAINING.md)
-test/              node --test — 223 tests incl. contract, E2E and encoder tests
+test/              node --test — 239 tests incl. contract, E2E and encoder tests
 helm/ · k8s/       Kubernetes (chart recommended, raw manifests as alternative)
 docs/ · scripts/   Operations guide, backup/restore
 ```
@@ -248,8 +254,15 @@ can run them.
 PIKDAME_ONNX=1 node server.js
 ```
 
-Full training guide (Ubuntu 24.04 / WSL2, uv, RTX-class GPU):
-[docs/RL_TRAINING.md](docs/RL_TRAINING.md).
+Full training guide (Ubuntu 24.04 / WSL2, uv, RTX-class GPU) and — importantly —
+**[how to read the training output](https://pik-dame.readthedocs.io/en/latest/developer/rl-training.html)**:
+what `approx_kl`, `explained_variance` & co. mean, and why the mean episode
+reward is negative even for a *good* model.
+
+Deploying the trained bots:
+**[ONNX bots](https://pik-dame.readthedocs.io/en/latest/admin/onnx.html)** — the
+default image cannot run them (Alpine/musl vs. glibc), so a second image is
+published: `ghcr.io/floriandeutsch89/pikdame-local-onnx`.
 
 ## Deliberate limits
 
