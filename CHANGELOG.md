@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.64.0] - 2026-07-13
+
+### Changed
+- **ONNX Models** Neu trainierte Modelle (stärker)
+
 ## [1.63.0] - 2026-07-12
 
 ### Added
