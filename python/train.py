@@ -92,8 +92,14 @@ class OnnxPolicy(nn.Module):
 
 def export_onnx(model: MaskablePPO, obs_size: int, out_path: str):
     model.policy.eval()
-    wrapper = OnnxPolicy(model.policy).eval()
+    # Move to CPU for export: ONNX models are device-agnostic and the Node
+    # runtime loads them on CPU. This also avoids device-mismatch errors when
+    # the policy was trained on CUDA (dummy input is always CPU).
+    wrapper = OnnxPolicy(model.policy).cpu().eval()
     dummy = torch.zeros(1, obs_size, dtype=torch.float32)
+    # dynamo=False uses the legacy TorchScript-based exporter, which supports
+    # dynamic_axes reliably across PyTorch versions and avoids the dynamo
+    # device-mismatch crash introduced in newer torch.onnx.export defaults.
     torch.onnx.export(
         wrapper,
         dummy,
@@ -102,6 +108,7 @@ def export_onnx(model: MaskablePPO, obs_size: int, out_path: str):
         output_names=["logits"],
         dynamic_axes={"obs": {0: "batch"}, "logits": {0: "batch"}},
         opset_version=17,
+        dynamo=False,
     )
     print(f"  exported ONNX -> {out_path}")
 
