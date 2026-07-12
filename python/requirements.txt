@@ -9,3 +9,4 @@ tqdm>=4.66
 rich>=13.7
 # torch is installed separately with the correct CUDA wheel (see README)
 onnxruntime>=1.18   # for python/eval_onnx.py
+onnxscript>=0.7.1
