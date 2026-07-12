@@ -4,6 +4,20 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.57.0] - 2026-07-12
+
+### Added
+- **Suchmaschinen-Optimierung (SEO)**, damit das Spiel über Begriffe wie „Pik Dame spielen", „Kartenspiel Rommé" oder „Rommé" gefunden wird:
+  - Aussagekräftiger Seitentitel und Meta-Description (statt nur „Pik Dame")
+  - Open-Graph- und Twitter-Card-Vorschau (schöne Vorschaukarte beim Teilen in WhatsApp, Signal & Co.)
+  - Strukturierte Daten (JSON-LD): `VideoGame` (Genre, Spielerzahl, kostenlos) und eine `FAQPage` mit den häufigsten Fragen - Google kann daraus direkt Antworten anzeigen
+  - Canonical-URL und Robots-Meta
+  - Sichtbarer, aufklappbarer Einsteiger-/Suchtext in der Lobby („Pik Dame spielen - das Rommé-Kartenspiel kostenlos online") mit Erklärung, Punktetabelle und Hinweisen zum Spielen mit Freunden. Ohne echten Text sieht Google nur eine leere App-Hülle
+  - `sitemap.xml` und erweiterte `robots.txt` (mit Sitemap-Verweis)
+
+### Fixed
+- Zeitbomben-Test entschärft: Der Test der Tages-Challenge nutzte feste Datumsangaben und schlug fehl, sobald diese aus dem 7-Tage-Fenster fielen. Er rechnet jetzt relativ zum heutigen Datum
+
 ## [1.56.1] - 2026-07-09
 
 ### Added

@@ -3,7 +3,26 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Pik Dame</title>
+  <title>Pik Dame spielen – Rommé Kartenspiel kostenlos online mit Freunden &amp; Bots</title>
+  <meta name="description" content="Pik Dame kostenlos online spielen: das beliebte Familien-Rommé als Kartenspiel im Browser. Ohne Anmeldung, ohne Download – mit Freunden per Link oder gegen Bots. Rommé mit Pik-Dame-Regel (100 Punkte), Joker, Sätzen und Folgen." />
+  <link rel="canonical" href="https://play.pikdame.online/" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+
+  <!-- Open Graph (WhatsApp, Facebook, Signal …) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Pik Dame" />
+  <meta property="og:locale" content="de_DE" />
+  <meta property="og:url" content="https://play.pikdame.online/" />
+  <meta property="og:title" content="Pik Dame spielen – Rommé Kartenspiel kostenlos online" />
+  <meta property="og:description" content="Das Familien-Rommé kostenlos im Browser: Pik Dame online spielen – mit Freunden per Link oder gegen Bots. Ohne Anmeldung, ohne Download." />
+  <meta property="og:image" content="https://play.pikdame.online/icons/apple-touch-icon.png" />
+
+  <!-- Twitter/X -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Pik Dame spielen – Rommé Kartenspiel kostenlos online" />
+  <meta name="twitter:description" content="Das Familien-Rommé kostenlos im Browser: mit Freunden per Link oder gegen Bots. Ohne Anmeldung." />
+  <meta name="twitter:image" content="https://play.pikdame.online/icons/apple-touch-icon.png" />
+
   <meta name="theme-color" content="#101318" />
   <link rel="manifest" href="/manifest.json" />
   <!-- iOS: als Vollbild-App vom Home-Bildschirm startbar -->
@@ -12,6 +31,57 @@
   <meta name="apple-mobile-web-app-title" content="Pik Dame" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="stylesheet" href="style.css" />
+
+  <!-- Strukturierte Daten: hilft Google, das Spiel als solches zu verstehen -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "VideoGame",
+    "name": "Pik Dame",
+    "alternateName": ["Pik Dame Rommé", "Familien-Rommé", "Rommé Kartenspiel"],
+    "url": "https://play.pikdame.online/",
+    "description": "Pik Dame ist ein kostenloses Online-Kartenspiel: das beliebte Familien-Rommé mit der Pik-Dame-Sonderregel (100 Punkte). Im Browser spielbar – mit Freunden per Link oder gegen Bots, ohne Anmeldung und ohne Download.",
+    "inLanguage": ["de", "en"],
+    "genre": ["Kartenspiel", "Rommé", "Brettspiel", "Familienspiel"],
+    "keywords": "Pik Dame spielen, Pik Dame, Rommé, Romme, Kartenspiel Rommé, Rommé online spielen, Kartenspiel online, Familien-Rommé",
+    "playMode": ["MultiPlayer", "SinglePlayer"],
+    "numberOfPlayers": { "@type": "QuantitativeValue", "minValue": 2, "maxValue": 4 },
+    "applicationCategory": "GameApplication",
+    "operatingSystem": "Web-Browser (iOS, Android, Windows, macOS, Linux)",
+    "browserRequirements": "Benötigt JavaScript.",
+    "isAccessibleForFree": true,
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Was ist Pik Dame?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Pik Dame ist eine beliebte Rommé-Variante (Familien-Rommé). Gespielt wird mit zwei Kartendecks und sechs Jokern; jeder legt Sätze (gleicher Wert) und Folgen (gleiche Farbe) aus. Die Besonderheit: Die Pik Dame zählt 100 Punkte – ausgelegt bringt sie 100 Pluspunkte, auf der Hand kostet sie 100 Minuspunkte." }
+      },
+      {
+        "@type": "Question",
+        "name": "Kann man Pik Dame kostenlos online spielen?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Ja. Pik Dame lässt sich hier kostenlos im Browser spielen – ohne Anmeldung und ohne Download, auf Handy, Tablet und PC. Man startet ein Spiel und lädt Freunde per Link ein oder spielt gegen Bots." }
+      },
+      {
+        "@type": "Question",
+        "name": "Wie spielt man Rommé mit Freunden online?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Ein Spiel erstellen, den Einladungslink oder den Spiel-Code teilen und losspielen – zu zweit bis zu viert. Freie Plätze übernehmen Bots in drei Schwierigkeitsstufen." }
+      },
+      {
+        "@type": "Question",
+        "name": "Wie viele Punkte zählt die Pik Dame?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Die Pik Dame zählt 100 Punkte. Wer sie auslegt, bekommt 100 Pluspunkte; wer sie am Rundenende auf der Hand hat, bekommt 100 Minuspunkte. Joker und Asse zählen 20, Zehner und Bilder 10, die Karten 2 bis 9 jeweils 5 Punkte." }
+      }
+    ]
+  }
+  </script>
+
   <script src="/vendor-qrcode.js"></script>
   <script src="/i18n.js"></script>
 </head>
@@ -110,6 +180,44 @@
           <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
         </a>
       </div>
+
+      <!-- Suchmaschinen-/Einsteiger-Text: echter, sichtbarer Inhalt (aufklappbar).
+           Ohne Text sieht Google nur eine leere App-Huelle - kein Cloaking. -->
+      <section class="seoIntro">
+        <details>
+          <summary><h2>Pik Dame spielen &ndash; das Romm&eacute;-Kartenspiel kostenlos online</h2></summary>
+          <div class="seoIntroBody">
+            <p>
+              <strong>Pik Dame</strong> ist die beliebte <strong>Romm&eacute;</strong>-Variante, die viele als
+              <em>Familien-Romm&eacute;</em> kennen. Hier kannst du das <strong>Kartenspiel Romm&eacute; kostenlos online spielen</strong> &ndash;
+              direkt im Browser, <strong>ohne Anmeldung und ohne Download</strong>, auf Handy, Tablet oder PC.
+              Spiele <strong>Romm&eacute; mit Freunden</strong> per Einladungslink oder gegen Bots in drei Schwierigkeitsstufen.
+            </p>
+            <h3>Wie funktioniert Pik Dame?</h3>
+            <p>
+              Gespielt wird mit zwei Kartendecks und sechs Jokern. Jeder bekommt 15 Karten und legt
+              <strong>S&auml;tze</strong> (gleicher Wert, z.&nbsp;B. drei Damen) und <strong>Folgen</strong> (gleiche Farbe in
+              Reihenfolge, z.&nbsp;B. 7-8-9 Herz) aus. Ziel ist es, seine Karten loszuwerden und Punkte zu sammeln.
+              Namensgebend ist die Sonderregel: Die <strong>Pik Dame z&auml;hlt 100 Punkte</strong> &ndash; ausgelegt bringt
+              sie 100 Pluspunkte, auf der Hand kostet sie am Rundenende 100 Minuspunkte.
+            </p>
+            <h3>Punkte im &Uuml;berblick</h3>
+            <ul>
+              <li>Pik Dame: 100 Punkte</li>
+              <li>Joker und Ass: je 20 Punkte</li>
+              <li>Zehn, Bube, Dame, K&ouml;nig: je 10 Punkte</li>
+              <li>Zahlen 2 bis 9: je 5 Punkte</li>
+            </ul>
+            <h3>Romm&eacute; online mit Freunden spielen</h3>
+            <p>
+              Spiel erstellen, den Link oder Spiel-Code teilen, fertig &ndash; zu zweit bis zu viert. Freie Pl&auml;tze
+              &uuml;bernehmen Bots. Es gibt Statistiken, Erfolge, eine t&auml;gliche Challenge und Hausregeln
+              (Zug-Timer, &bdquo;Hand aus&ldquo; z&auml;hlt doppelt). Die vollst&auml;ndigen <strong>Romm&eacute;-Regeln</strong> findest du
+              jederzeit unter &bdquo;&#128214; Spielregeln&ldquo;.
+            </p>
+          </div>
+        </details>
+      </section>
     </section>
 
     <!-- SPIELTISCH -->
