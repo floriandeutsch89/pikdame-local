@@ -87,6 +87,13 @@ jobs:
         with:
           dockerfile: docker/Dockerfile
           ignore: DL3018
+      # The optional ONNX image is linted too, but deliberately NOT built here:
+      # onnxruntime-node is a ~100 MB native dependency and would dominate CI.
+      - name: Lint Dockerfile.onnx (hadolint)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: docker/Dockerfile.onnx
+          ignore: DL3018
       - name: Build image
         run: docker build -f docker/Dockerfile -t pikdame:scan .
       # OWASP RULE #8: scan the image for known vulnerabilities.

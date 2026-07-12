@@ -35,7 +35,8 @@ const ENV_NOTES = {
   PIKDAME_ALLOWED_ORIGIN: 'If set, only WebSocket connections from this origin are accepted (CSRF hardening).',
   PIKDAME_TRUST_PROXY: 'Set to `1` when running behind a reverse proxy so client IPs are read from `X-Forwarded-For`.',
   PIKDAME_HEARTBEAT_MS: 'WebSocket ping interval used to detect dead connections.',
-  PIKDAME_ONNX: 'Set to `1` to activate a trained ONNX bot policy (falls back to the heuristic bot if unavailable). See {doc}`../admin/onnx`.',
+  PIKDAME_ONNX: 'Set to `1` to activate a trained ONNX bot policy (falls back to the heuristic bot if unavailable). See {doc}`onnx`.',
+  PIKDAME_MODELS_DIR: 'Where the `.onnx` model files live. Override it to mount models on a volume and swap them without rebuilding the image. Default: the `models/` folder in the image.',
   PIKDAME_LOG_GAMES: 'Set to `1` to log human moves to JSONL for imitation learning.',
   PIKDAME_LOG_PATH: 'Where the move log is written.',
 };
@@ -56,12 +57,31 @@ function generateConfiguration() {
       entry.files.add(file);
       found.set(m[1], entry);
     }
+    // `process.env.X || path.join(a, b, 'c')` - the generic pattern below would
+    // truncate at the first comma, so capture the whole call first.
+    const reJoin = /process\.env\.([A-Z_][A-Z0-9_]*)\s*\|\|\s*path\.join\(([^)]*)\)/g;
+    while ((m = reJoin.exec(src)) !== null) {
+      const inner = m[2];
+      let def;
+      if (inner.includes("'models'")) def = '`models/` inside the image';
+      else if (inner.includes("'data'")) def = '`<app>/data`';
+      else def = '_(path relative to the app)_';
+      const entry = found.get(m[1]) || { default: '', files: new Set() };
+      entry.default = def;
+      entry.files.add(file);
+      found.set(m[1], entry);
+    }
     const re = /process\.env\.([A-Z_][A-Z0-9_]*)\s*(?:\|\|\s*([^;,)\n]+?))?\s*(?:[;,)\n]|===)/g;
     while ((m = re.exec(src)) !== null) {
       const name = m[1];
       let def = (m[2] || '').trim();
       // Tidy up the extracted default expression
-      if (def.startsWith('path.join')) def = '`<data dir>`';
+      if (def.startsWith('path.join')) {
+        // The joined path tells us what it actually defaults to.
+        if (def.includes("'models'")) def = '`models/` in the image';
+        else if (def.includes("'data'")) def = '`<app>/data`';
+        else def = '_(a path relative to the app)_';
+      }
       else if (def.startsWith('`http://$')) def = 'the request\'s own host';
       else if (def === 'null') def = 'unset';
       else if (def) def = `\`${def.replace(/`/g, '')}\``;

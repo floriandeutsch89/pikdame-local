@@ -129,10 +129,17 @@ class EnvSession {
     const g = this.game;
     const phase = this._awaiting === 'draw' ? 'draw' : 'discard';
     if (done) {
+      // Report the OUTCOME too. The scalar reward alone cannot tell you whether
+      // the agent actually won (it is a relative margin), so evaluation would
+      // otherwise have no way to compute a win rate - the only metric that is
+      // meaningful on its own.
+      const ranked = Object.entries(g.totals || {}).sort((a, b) => b[1] - a[1]);
       return {
         obs: Array.from(new Float32Array(SE.OBS_SIZE)),
         mask: new Array(SE.ACTION_SIZE).fill(false),
         reward: reward || 0, done: true, phase,
+        won: !!(ranked[0] && ranked[0][0] === AGENT_ID),
+        totals: g.totals || {},
       };
     }
     return {

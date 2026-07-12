@@ -79,6 +79,7 @@ developer/index
 developer/architecture
 developer/protocol
 developer/bots
+developer/rl-training
 developer/contributing
 ```
 

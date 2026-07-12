@@ -1,0 +1,82 @@
+# Pik Dame - ONNX-capable image (OPTIONAL, and NOT the default image)
+#
+# Why a second Dockerfile instead of a build arg on the Alpine one?
+#
+#   onnxruntime-node ships PRE-BUILT NATIVE BINARIES that are linked against
+#   GLIBC (they need libstdc++.so.6, libm.so.6, GLIBC_2.x symbols). The default
+#   image is Alpine, which uses MUSL. Installing onnxruntime-node there
+#   "succeeds" and then fails to load at require() time - i.e. it would produce
+#   an image where ONNX silently never works. So the ONNX variant uses a
+#   Debian (glibc) base instead.
+#
+# The default image (docker/Dockerfile, Alpine) stays small and ONNX-free. Use
+# this one only if you actually want the trained bot policies:
+#
+#   docker build -f docker/Dockerfile.onnx -t pikdame-onnx .
+#   docker run -d -p 8080:8080 -v pikdame-data:/app/data \
+#     -e PIKDAME_ONNX=1 pikdame-onnx
+#
+# Verify it worked - the server logs the model it loaded:
+#   docker logs <container> | grep -i "ONNX-Modell geladen"
+
+# --- Stage 1: production dependencies + the ONNX runtime --------------------
+FROM node:24-slim AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+# onnxruntime-node is PINNED on purpose (hadolint DL3016): a native runtime is
+# exactly the kind of dependency you do not want silently changing between
+# builds. Both installs in one layer (DL3059).
+RUN npm ci --omit=dev \
+  && npm install --omit=dev --no-save onnxruntime-node@1.27.0
+
+# --- Stage 2: runtime -------------------------------------------------------
+FROM node:24-slim
+
+LABEL org.opencontainers.image.source="https://github.com/floriandeutsch89/pikdame-local" \
+      org.opencontainers.image.title="Pik Dame (ONNX)" \
+      org.opencontainers.image.description="Multiplayer card game server with trained ONNX bot policies" \
+      org.opencontainers.image.licenses="UNLICENSED"
+
+# tini for proper signal handling as PID 1. Then drop npm/corepack: the server
+# never needs them at runtime and their dependency trees regularly carry CVEs.
+# hadolint ignore=DL3008
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends tini \
+  && rm -rf /var/lib/apt/lists/* \
+  && rm -rf /usr/local/lib/node_modules/npm \
+            /usr/local/lib/node_modules/corepack \
+            /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+            /root/.npm
+
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY package.json ./
+COPY CHANGELOG.md ./
+COPY server.js ./
+COPY game ./game
+COPY public ./public
+# The trained policies (~700 KB each). Swap them without rebuilding by mounting
+# a directory and setting PIKDAME_MODELS_DIR.
+COPY models ./models
+
+# Same fixed UID/GID as the default image, so an existing data volume keeps
+# working when switching between the two.
+RUN mkdir -p /app/data \
+  && groupadd -g 10001 pikdame \
+  && useradd -u 10001 -g 10001 -M -s /usr/sbin/nologin pikdame \
+  && chown -R pikdame:pikdame /app
+
+USER pikdame
+
+ENV PORT=8080 \
+    NODE_ENV=production \
+    PIKDAME_ONNX=1
+EXPOSE 8080
+
+# Debian slim has no wget; use node itself for the health check.
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:'+(process.env.PORT||8080)+'/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["node", "server.js"]
