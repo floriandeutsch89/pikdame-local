@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.59.0] - 2026-07-12
+
+### Performance
+- **Akkuschonung auf dem Handy** (vier echte Stromfresser abgestellt):
+  - **Display bleibt nur noch wach, wenn DU am Zug bist.** Bisher wurde die Bildschirmsperre während der gesamten Partie verhindert - das Display leuchtete also auch dann mit voller Helligkeit, wenn man minutenlang auf Mitspieler oder Bots wartete. Das war mit Abstand der größte Verbraucher. Jetzt darf das Handy beim Warten wie gewohnt dimmen und einschlafen; bist du dran, bleibt der Bildschirm zuverlässig an (und du bekommst ohnehin eine Benachrichtigung)
+  - **Sekundentakt-Timer läuft nur noch, wenn wirklich ein Countdown aktiv ist.** Vorher weckte die App die CPU *jede Sekunde* - dauerhaft, auch in der Lobby, am Rundenende, bei ausgeschaltetem Zug-Timer und im Hintergrund. Jetzt startet und stoppt er sich selbst
+  - **Audio-Hardware wird schlafen gelegt.** Der Audio-Kontext blieb nach dem ersten Ton dauerhaft aktiv (und hielt damit die Audio-Einheit in Betrieb). Jetzt wird er nach kurzer Stille - und sofort beim Wechsel in den Hintergrund - suspendiert und beim nächsten Ton automatisch wieder aufgeweckt
+  - **Endlos-Animationen stoppen im Hintergrund** (pulsierender Nachziehstapel, Anlege-Ziel, aktiver Gegner): Sie laufen nicht mehr weiter, wenn niemand hinsieht. Zusätzlich wird die Systemeinstellung „Bewegung reduzieren" respektiert
+
 ## [1.58.0] - 2026-07-12
 
 ### Changed

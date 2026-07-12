@@ -1855,3 +1855,24 @@ input:disabled { opacity: 0.65; }
   margin: 0 0 6px;
 }
 .seoIntroBody ul { margin: 0 0 6px; padding-left: 18px; }
+
+/* --- Akku: Dauer-Animationen im Hintergrund anhalten -----------------------
+   Die pulsierenden Hinweise (Ziehstapel, Anlege-Ziel, aktiver Gegner) laufen
+   endlos. Ist die App nicht sichtbar, bringen sie nichts, kosten aber weiter
+   Compositing-Arbeit. `.appHidden` wird vom Client bei visibilitychange gesetzt.
+   Zusätzlich respektieren wir die System-Einstellung "Bewegung reduzieren". */
+.appHidden .pile.glow,
+.appHidden .meld.layOffTarget,
+.appHidden .opponent.active,
+.appHidden .yourTurnPulse {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pile.glow,
+  .meld.layOffTarget,
+  .opponent.active,
+  .yourTurnPulse {
+    animation: none !important;
+  }
+}

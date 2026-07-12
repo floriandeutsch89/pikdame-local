@@ -41,6 +41,7 @@
   let prevHandIds = new Set();
   let prevTurnPlayerId = null;
   let prevForfeitVoteCount = 0;
+  let countdownTimer = null; // per-second turn countdown; only runs when needed (battery)
   let quoteShownForRound = null; // Rundenstart-Spruch nur einmal pro Runde
 
   // Kreative Sprüche zum Rundenbeginn. Deterministisch aus Geber+Runde
@@ -303,6 +304,7 @@
   // --- Sound & Haptik (komplett offline: synthetisierte Töne, kein Audio-Download) ---
 
   let audioCtx = null;
+  let audioIdleTimer = null;
   function getAudioCtx() {
     if (!audioCtx) {
       const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -310,6 +312,22 @@
     }
     return audioCtx;
   }
+
+  // BATTERY: a running AudioContext keeps the audio hardware powered even in
+  // total silence. Our sounds are short one-shots, so suspend it a moment after
+  // the last one (and immediately when the app goes to the background); it
+  // resumes automatically on the next sound.
+  function scheduleAudioSuspend() {
+    clearTimeout(audioIdleTimer);
+    audioIdleTimer = setTimeout(() => {
+      if (audioCtx && audioCtx.state === 'running') audioCtx.suspend().catch(() => {});
+    }, 3000);
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && audioCtx && audioCtx.state === 'running') {
+      audioCtx.suspend().catch(() => {});
+    }
+  });
 
   function playTone(freqs, durationMs, type = 'sine', gainValue = 0.06) {
     if (!soundEnabled) return;
@@ -330,6 +348,7 @@
       osc.start(start);
       osc.stop(start + durationMs / 1000 / freqs.length + 0.02);
     });
+    scheduleAudioSuspend(); // power the audio hardware down again once idle
   }
 
   function vibrate(pattern) {
@@ -641,6 +660,7 @@
   function render() {
     try { updateTutorial(); } catch (e) { /* hints must never break the table */ }
     delete el('turnInfo').dataset.baseText; // countdown suffix rebuilds fresh
+    try { updateCountdownTimer(); } catch (e) { /* timer must never break the table */ }
     if (!lastState) return;
 
     const inLobby = lastState.phase === 'lobby';
@@ -1825,15 +1845,39 @@
 
   // --- Turn-timer countdown: purely client-side ticking against the
   // server-provided deadline (zero extra server traffic) ----------------------
-  setInterval(() => {
-    if (!lastState || !lastState.turnDeadline || lastState.phase !== 'playing') return;
+  // BATTERY: only tick while a countdown is ACTUALLY running and the app is
+  // visible. Previously this woke the CPU every second forever - in the lobby,
+  // at round end, with the timer off, and in the background. It now starts and
+  // stops itself, so an idle app does no per-second work at all.
+  function countdownWanted() {
+    return !!(
+      lastState &&
+      lastState.turnDeadline &&
+      lastState.phase === 'playing' &&
+      !document.hidden
+    );
+  }
+  function tickCountdown() {
     const el2 = el('turnInfo');
+    if (!el2 || !lastState || !lastState.turnDeadline) return;
     const remaining = Math.max(0, Math.ceil((lastState.turnDeadline - Date.now()) / 1000));
     const base = el2.dataset.baseText || el2.textContent;
     el2.dataset.baseText = base;
     el2.textContent = `${base} ⏱${remaining}s`;
     el2.classList.toggle('timerUrgent', remaining <= 10);
-  }, 1000);
+  }
+  function updateCountdownTimer() {
+    if (countdownWanted()) {
+      if (!countdownTimer) {
+        tickCountdown(); // paint immediately, don't wait a second
+        countdownTimer = setInterval(tickCountdown, 1000);
+      }
+    } else if (countdownTimer) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
+  }
+  document.addEventListener('visibilitychange', updateCountdownTimer);
 
   // --- Home button + gear menu (Fishdom-style tidy header) -------------------
   el('settingsBtn').addEventListener('click', () => {
@@ -2210,6 +2254,13 @@
       document.title = BASE_TITLE;
     }
   }
+  // BATTERY: mark the app as hidden so CSS can stop the endless pulse
+  // animations (draw pile glow, lay-off target, active opponent). They are
+  // pointless when nobody is looking but keep the compositor busy.
+  document.addEventListener('visibilitychange', () => {
+    document.documentElement.classList.toggle('appHidden', document.hidden);
+  });
+
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) return;
     // Coming back to the tab: clear the notice; if it is (still) our turn,
@@ -2405,11 +2456,23 @@
     });
   }
 
-  // --- Wake Lock: Display bleibt während des Spielens an -------------------
+  // --- Wake Lock: Display bleibt an, WÄHREND ICH DRAN BIN -------------------
   // (iOS ab 16.4; wo nicht unterstützt, passiert einfach nichts.)
+  // BATTERY: previously the lock was held for the whole 'playing' phase, so the
+  // screen stayed at full brightness even while waiting minutes for the other
+  // players/bots - by far the biggest drain on a phone. Now it is only held when
+  // it actually helps: when it is MY turn (so the screen never dies mid-move).
+  // While waiting, the phone may dim/sleep as usual; an incoming turn brings a
+  // notification/toast anyway.
   let wakeLock = null;
   async function updateWakeLock() {
-    const wantLock = lastState && lastState.phase === 'playing' && document.visibilityState === 'visible';
+    const myTurn = !!(
+      lastState &&
+      lastState.phase === 'playing' &&
+      lastState.currentPlayerId === playerId &&
+      !lastState.paused
+    );
+    const wantLock = myTurn && document.visibilityState === 'visible';
     try {
       if (wantLock && !wakeLock && 'wakeLock' in navigator) {
         wakeLock = await navigator.wakeLock.request('screen');
