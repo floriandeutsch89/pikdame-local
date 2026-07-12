@@ -149,7 +149,7 @@ def behavioral_clone(model, human_data_path, epochs, device, batch=512):
         print(f"  [BC] epoch {ep + 1}/{epochs}  loss {total / max(1, nb):.4f}")
 
 
-def train_tier(tier, steps_override, device, human_data=None, bc_epochs=5, bc_only=False, n_envs=8):
+def train_tier(tier, steps_override, device, human_data=None, bc_epochs=5, bc_only=False, n_envs=8, resume=None):
     cfg = TIERS[tier]
     steps = steps_override or cfg["steps"]
     os.makedirs(MODELS_DIR, exist_ok=True)
@@ -159,18 +159,25 @@ def train_tier(tier, steps_override, device, human_data=None, bc_epochs=5, bc_on
     # workers saturate the CPU cores and keep the GPU fed with larger batches.
     env_fns = [lambda i=i: make_env(cfg["pool"], seed=1234 + i) for i in range(n_envs)]
     env = SubprocVecEnv(env_fns)
-    model = MaskablePPO(
-        "MlpPolicy",
-        env,
-        verbose=1,
-        device=device,
-        n_steps=2048,
-        batch_size=512 * n_envs,  # scale with workers so each GPU batch stays full
-        gamma=0.997,
-        ent_coef=0.01,
-        learning_rate=3e-4,
-        policy_kwargs=dict(net_arch=[256, 256]),
-    )
+    checkpoint = resume or os.path.join(MODELS_DIR, f"pikdame-{tier}.zip")
+    if os.path.exists(checkpoint):
+        print(f"  resuming from {checkpoint}")
+        model = MaskablePPO.load(checkpoint, env=env, device=device)
+        # Restore parallel-env batch size in case it differs from the saved run.
+        model.batch_size = 512 * n_envs
+    else:
+        model = MaskablePPO(
+            "MlpPolicy",
+            env,
+            verbose=1,
+            device=device,
+            n_steps=2048,
+            batch_size=512 * n_envs,  # scale with workers so each GPU batch stays full
+            gamma=0.997,
+            ent_coef=0.01,
+            learning_rate=3e-4,
+            policy_kwargs=dict(net_arch=[256, 256]),
+        )
     # Optional behavioral-cloning warm start from winning human games. This
     # seeds the policy with human style; PPO then refines it (SL -> RL, like
     # AlphaGo). Use --bc-only to ship a pure human-imitation model.
@@ -211,6 +218,10 @@ def main():
         "--n-envs", type=int, default=8,
         help="parallel SubprocVecEnv workers (each spawns a Node process); default 8",
     )
+    ap.add_argument(
+        "--resume", default=None, metavar="PATH",
+        help="SB3 .zip checkpoint to resume from (default: models/pikdame-<tier>.zip if it exists)",
+    )
     args = ap.parse_args()
 
     # By default, ANY tier automatically warm-starts from human games when the
@@ -225,7 +236,7 @@ def main():
         train_tier(
             tier, args.steps, args.device,
             human_data=human_data, bc_epochs=args.bc_epochs, bc_only=args.bc_only,
-            n_envs=args.n_envs,
+            n_envs=args.n_envs, resume=args.resume,
         )
 
 
