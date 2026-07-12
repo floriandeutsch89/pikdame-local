@@ -4,6 +4,13 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.60.0] - 2026-07-12
+
+### Added
+- **Vollständige Dokumentation** (Sphinx + Markdown/MyST, gebaut auf Read the Docs) im Unterordner `docs/` - bewusst im selben Repo, damit Doku und Code nie auseinanderlaufen. Struktur: Overview, Getting started (Docker, Compose-Stack mit automatischem TLS/ACME, Kubernetes, lokal), Admin-Handbuch (Konfiguration, **Backup & Restore inkl. erprobter Wiederherstellungs-Übung**, ONNX-Bots, Ops-Runbook), Developer Guide (Architektur, WebSocket-Protokoll, Bots, Contributing), FAQ, Roadmap und Releases
+- **Automatisch aus dem Code generierte Doku-Teile** (`npm run docs:gen`): die Tabelle aller Umgebungsvariablen, das WebSocket-Protokoll und sämtliche Spielkonstanten (Kartenzahl, Punktwerte, Kombinations-Grenzen, Punkteschwelle) werden direkt aus dem Quelltext extrahiert - sie können also nicht veralten. **CI prüft das** (`npm run docs:check`): Wer eine Konstante, eine Variable oder eine Protokoll-Nachricht ändert, ohne die Doku neu zu generieren, bekommt einen roten Build
+- Bestehende Anleitungen (`OPERATIONS.md`, `RL_TRAINING.md`) werden eingebunden statt dupliziert
+
 ## [1.59.0] - 2026-07-12
 
 ### Performance

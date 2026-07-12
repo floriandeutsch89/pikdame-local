@@ -52,6 +52,12 @@ jobs:
       - name: Node version Dockerfile == CI
         run: grep -q "FROM node:24" docker/Dockerfile || (echo "Dockerfile Node version differs from CI (24)" && exit 1)
 
+      # Consistency: the generated docs (env vars, WS protocol, game constants)
+      # must match the code. If someone changes a constant without running
+      # `npm run docs:gen`, the documentation would silently lie - fail instead.
+      - name: Generated docs are up to date
+        run: npm run docs:check
+
   dependency-check:
     runs-on: ubuntu-latest
     steps:
