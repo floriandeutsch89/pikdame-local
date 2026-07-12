@@ -10,14 +10,15 @@ generated from the source, so it cannot go stale.
 | `PIKDAME_ACCOUNTS` | unset (compare against `0`) | Set to `0` to disable user accounts entirely (pure guest play). |
 | `PIKDAME_ALLOWED_ORIGIN` | unset | If set, only WebSocket connections from this origin are accepted (CSRF hardening). |
 | `PIKDAME_BASE_URL` | the request's own host | Public base URL used to build invite links and QR codes (e.g. `https://play.example.com`). |
-| `PIKDAME_DATA_DIR` | `<data dir>` | Directory for all persistent data (profiles, stats, accounts, session snapshot). Point this at your mounted volume. |
+| `PIKDAME_DATA_DIR` | `<app>/data` | Directory for all persistent data (profiles, stats, accounts, session snapshot). Point this at your mounted volume. |
 | `PIKDAME_DATABASE_PASSWORD` | unset | Password for the PostgreSQL connection (also readable from a `_FILE` secret; see Configuration). |
 | `PIKDAME_DATABASE_URL` | unset | PostgreSQL connection string for accounts. If unset, a local SQLite file (`users.db`) inside the data directory is used. |
 | `PIKDAME_HEARTBEAT_MS` | `30000` | WebSocket ping interval used to detect dead connections. |
 | `PIKDAME_LOG_GAMES` | — | Set to `1` to log human moves to JSONL for imitation learning. |
-| `PIKDAME_LOG_PATH` | `<data dir>` | Where the move log is written. |
+| `PIKDAME_LOG_PATH` | `<app>/data` | Where the move log is written. |
 | `PIKDAME_MAX_SESSIONS` | `500` | Maximum number of concurrent games. Beyond it, new games are rejected with "server full". |
-| `PIKDAME_ONNX` | unset (compare against `1`) | Set to `1` to activate a trained ONNX bot policy (falls back to the heuristic bot if unavailable). See {doc}`../admin/onnx`. |
+| `PIKDAME_MODELS_DIR` | `models/` inside the image | Where the `.onnx` model files live. Override it to mount models on a volume and swap them without rebuilding the image. Default: the `models/` folder in the image. |
+| `PIKDAME_ONNX` | unset (compare against `1`) | Set to `1` to activate a trained ONNX bot policy (falls back to the heuristic bot if unavailable). See {doc}`onnx`. |
 | `PIKDAME_PUBLIC_MODE` | unset (compare against `1`) | Set to `1` on a public server: no player profiles are persisted and the lobby shows no player list. Anonymous global stats are still counted. |
 | `PIKDAME_TRUST_PROXY` | unset (compare against `1`) | Set to `1` when running behind a reverse proxy so client IPs are read from `X-Forwarded-For`. |
 | `PORT` | `8080` | HTTP/WebSocket port the server listens on. |

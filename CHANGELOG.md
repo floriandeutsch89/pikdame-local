@@ -4,6 +4,19 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.62.0] - 2026-07-12
+
+### Added
+- **ONNX-Modelle lassen sich jetzt tatsächlich ausliefern.** Bisher fehlte im Dockerfile das Kopieren des `models/`-Ordners *und* die Laufzeit `onnxruntime-node` - `PIKDAME_ONNX=1` fiel also **still** auf die Heuristik zurück. Neu:
+  - `COPY models ./models` im Image (die Modelle sind je ~700 KB und werden ohne `PIKDAME_ONNX=1` nie geladen)
+  - Optionale Laufzeit per Build-Argument: `docker build --build-arg WITH_ONNX=1` (die native Abhängigkeit wiegt ~100 MB, deshalb bleibt das Standard-Image bewusst schlank)
+  - Neue Variable **`PIKDAME_MODELS_DIR`**: Modelle können auf ein Volume gelegt und **ohne Image-Neubau** ausgetauscht werden
+- **Laute Diagnose statt stillem Fallback**: Ist `PIKDAME_ONNX=1` gesetzt, aber die Laufzeit oder eine Modelldatei fehlt, sagt der Server das jetzt unübersehbar im Log (und spielt sicher mit der Heuristik weiter). Bei Erfolg wird das geladene Modell protokolliert
+- **Dokumentation des Trainings-Outputs** (`docs/developer/rl-training.md`): Was `approx_kl`, `value_loss`, `policy_gradient_loss`, `entropy_loss`, `explained_variance`, `clip_fraction` & Co. bedeuten, welche Werte gesund sind und was sie im Fehlerfall verraten - plus ein Diagnose-Leitfaden
+
+### Fixed
+- **Die Bewertung eines trainierten Modells war irreführend.** `eval_onnx.py` gab nur den mittleren Episoden-Reward aus. Dieser ist aber **relativ** (eigene Punkte minus die des **besten** von drei Gegnern, plus ±1 am Spielende) und damit gegen gleich starke Gegner **strukturell negativ** - ein Wert nahe null ist gar nicht erreichbar. Zum Vergleich gemessen: Der **heuristische Bot selbst** erreicht in genau diesem Schema **−5,37** (medium) bzw. **−5,17** (zen). Ein Modell bei −2,3 ist also **deutlich besser** als der Bot, gegen den es spielt. `eval_onnx.py` gibt jetzt zusätzlich die **Siegquote** (25 % = gleichauf) samt Standardfehler aus und erklärt die Einordnung direkt in der Ausgabe
+
 ## [1.61.0] - 2026-07-12
 
 ### Added

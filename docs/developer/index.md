@@ -7,6 +7,7 @@ architecture
 protocol
 game-constants
 bots
+rl-training
 contributing
 ```
 

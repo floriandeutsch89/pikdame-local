@@ -112,7 +112,14 @@ class PikDameEnv(gym.Env):
         obs = np.array(resp["obs"], dtype=np.float32)
         reward = float(resp["reward"])
         done = bool(resp["done"])
-        return obs, reward, done, False, {}
+        # On the terminal step the bridge also reports the OUTCOME. The reward is
+        # a relative margin and cannot tell you who won, so pass it through in
+        # `info` - that is what evaluation needs for a win rate.
+        info = {}
+        if done:
+            info["won"] = bool(resp.get("won", False))
+            info["totals"] = resp.get("totals", {})
+        return obs, reward, done, False, info
 
     def action_masks(self) -> np.ndarray:
         """Consumed by sb3-contrib MaskablePPO. All-False (terminal) -> allow all

@@ -16,7 +16,10 @@ const fs = require('fs');
 const path = require('path');
 const SE = require('./StateEncoder');
 
-const MODELS_DIR = path.join(__dirname, '..', 'models');
+// Where the .onnx files live. Overridable so operators can mount models on a
+// volume (e.g. PIKDAME_MODELS_DIR=/app/data/models) and swap them WITHOUT
+// rebuilding the image. Default: the models/ folder baked into the image.
+const MODELS_DIR = process.env.PIKDAME_MODELS_DIR || path.join(__dirname, '..', 'models');
 
 let ortModule; // cached onnxruntime-node module (or false if unavailable)
 const sessions = new Map(); // difficulty -> InferenceSession | null
@@ -31,7 +34,15 @@ function loadRuntime() {
     // eslint-disable-next-line global-require
     ortModule = require('onnxruntime-node');
   } catch (e) {
-    ortModule = false; // not installed -> silently disabled
+    ortModule = false;
+    // Falling back is safe, but a SILENT fallback is a trap: you set
+    // PIKDAME_ONNX=1, nothing happens, and you never find out why.
+    console.error('');
+    console.error('*** ⚠️  PIKDAME_ONNX ist aktiv, aber onnxruntime-node fehlt. ***');
+    console.error('***     Die Bots spielen weiter mit der HEURISTIK (kein Ausfall).');
+    console.error('***     Das Standard-Image enthält die Laufzeit bewusst nicht.');
+    console.error('***     Abhilfe: Image mit `npm i onnxruntime-node` bauen.');
+    console.error('');
   }
   return ortModule;
 }
@@ -45,9 +56,15 @@ async function getSession(difficulty) {
   }
   const file = path.join(MODELS_DIR, `pikdame-${difficulty}.onnx`);
   if (!fs.existsSync(file)) {
+    console.error(
+      `⚠️  PIKDAME_ONNX aktiv, aber Modell fehlt: ${file} - ` +
+      `Schwierigkeit "${difficulty}" spielt weiter mit der Heuristik. ` +
+      '(Modelle ins Image kopieren oder PIKDAME_MODELS_DIR auf ein Volume zeigen lassen.)'
+    );
     sessions.set(difficulty, null);
     return null;
   }
+  console.log(`ONNX-Modell geladen: ${file} (Schwierigkeit "${difficulty}")`);
   try {
     const session = await ort.InferenceSession.create(file);
     sessions.set(difficulty, session);

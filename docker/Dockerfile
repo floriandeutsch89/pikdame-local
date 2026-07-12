@@ -9,6 +9,15 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
+# Optional ONNX runtime for the learned bot policy. It is a ~100 MB native
+# dependency, so it is NOT in the default image - the heuristic bots need
+# nothing extra. Build an ONNX-capable image with:
+#   docker build --build-arg WITH_ONNX=1 -f docker/Dockerfile .
+ARG WITH_ONNX=0
+RUN if [ "$WITH_ONNX" = "1" ]; then \
+      npm install --omit=dev --no-save onnxruntime-node; \
+    fi
+
 # --- Stage 2: minimal runtime image -----------------------------------------
 FROM node:24-alpine
 
@@ -37,6 +46,10 @@ COPY CHANGELOG.md ./
 COPY server.js ./
 COPY game ./game
 COPY public ./public
+# Trained bot policies (~700 KB each). Harmless when unused: without
+# PIKDAME_ONNX=1 they are never loaded. Operators who want to swap models
+# WITHOUT rebuilding can instead mount them and set PIKDAME_MODELS_DIR.
+COPY models ./models
 
 # data/ is normally mounted as a volume; the directory still has to exist
 # and must be owned by the unprivileged user.
