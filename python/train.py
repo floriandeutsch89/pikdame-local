@@ -32,7 +32,7 @@ import torch.nn as nn
 
 from sb3_contrib import MaskablePPO
 from sb3_contrib.common.wrappers import ActionMasker
-from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.vec_env import SubprocVecEnv
 
 from pikdame_env import PikDameEnv
 from human_dataset import load_winner_moves, DEFAULT_PATH as HUMAN_DATA_DEFAULT
@@ -66,8 +66,10 @@ def mask_fn(env: PikDameEnv) -> np.ndarray:
 
 def make_env(pool, seed: int) -> ActionMasker:
     # Sample a fresh 3-opponent mix from the pool each episode.
+    # ActionMasker must be the outermost wrapper: MaskablePPO calls
+    # action_masks() on the sub-env inside DummyVecEnv, and Monitor does not
+    # forward that attribute reliably.
     env = PikDameEnv(opponent_pool=pool, opponents=3, seed=seed)
-    env = Monitor(env)
     return ActionMasker(env, mask_fn)
 
 
@@ -90,8 +92,14 @@ class OnnxPolicy(nn.Module):
 
 def export_onnx(model: MaskablePPO, obs_size: int, out_path: str):
     model.policy.eval()
-    wrapper = OnnxPolicy(model.policy).eval()
+    # Move to CPU for export: ONNX models are device-agnostic and the Node
+    # runtime loads them on CPU. This also avoids device-mismatch errors when
+    # the policy was trained on CUDA (dummy input is always CPU).
+    wrapper = OnnxPolicy(model.policy).cpu().eval()
     dummy = torch.zeros(1, obs_size, dtype=torch.float32)
+    # dynamo=False uses the legacy TorchScript-based exporter, which supports
+    # dynamic_axes reliably across PyTorch versions and avoids the dynamo
+    # device-mismatch crash introduced in newer torch.onnx.export defaults.
     torch.onnx.export(
         wrapper,
         dummy,
@@ -100,6 +108,7 @@ def export_onnx(model: MaskablePPO, obs_size: int, out_path: str):
         output_names=["logits"],
         dynamic_axes={"obs": {0: "batch"}, "logits": {0: "batch"}},
         opset_version=17,
+        dynamo=False,
     )
     print(f"  exported ONNX -> {out_path}")
 
@@ -140,25 +149,35 @@ def behavioral_clone(model, human_data_path, epochs, device, batch=512):
         print(f"  [BC] epoch {ep + 1}/{epochs}  loss {total / max(1, nb):.4f}")
 
 
-def train_tier(tier, steps_override, device, human_data=None, bc_epochs=5, bc_only=False):
+def train_tier(tier, steps_override, device, human_data=None, bc_epochs=5, bc_only=False, n_envs=8, resume=None):
     cfg = TIERS[tier]
     steps = steps_override or cfg["steps"]
     os.makedirs(MODELS_DIR, exist_ok=True)
-    print(f"[{tier}] training {steps} steps vs. pool {cfg['pool']} on {device}")
+    print(f"[{tier}] training {steps} steps vs. pool {cfg['pool']} on {device} ({n_envs} envs)")
 
-    env = make_env(cfg["pool"], seed=1234)
-    model = MaskablePPO(
-        "MlpPolicy",
-        env,
-        verbose=1,
-        device=device,
-        n_steps=2048,
-        batch_size=512,
-        gamma=0.997,
-        ent_coef=0.01,
-        learning_rate=3e-4,
-        policy_kwargs=dict(net_arch=[256, 256]),
-    )
+    # Each subprocess gets its own Node env-server process. n_envs parallel
+    # workers saturate the CPU cores and keep the GPU fed with larger batches.
+    env_fns = [lambda i=i: make_env(cfg["pool"], seed=1234 + i) for i in range(n_envs)]
+    env = SubprocVecEnv(env_fns)
+    checkpoint = resume or os.path.join(MODELS_DIR, f"pikdame-{tier}.zip")
+    if os.path.exists(checkpoint):
+        print(f"  resuming from {checkpoint}")
+        model = MaskablePPO.load(checkpoint, env=env, device=device)
+        # Restore parallel-env batch size in case it differs from the saved run.
+        model.batch_size = 512 * n_envs
+    else:
+        model = MaskablePPO(
+            "MlpPolicy",
+            env,
+            verbose=1,
+            device=device,
+            n_steps=2048,
+            batch_size=512 * n_envs,  # scale with workers so each GPU batch stays full
+            gamma=0.997,
+            ent_coef=0.01,
+            learning_rate=3e-4,
+            policy_kwargs=dict(net_arch=[256, 256]),
+        )
     # Optional behavioral-cloning warm start from winning human games. This
     # seeds the policy with human style; PPO then refines it (SL -> RL, like
     # AlphaGo). Use --bc-only to ship a pure human-imitation model.
@@ -195,6 +214,14 @@ def main():
         "--no-human-data", action="store_true",
         help="ignore human data even if data/human-moves.jsonl exists",
     )
+    ap.add_argument(
+        "--n-envs", type=int, default=8,
+        help="parallel SubprocVecEnv workers (each spawns a Node process); default 8",
+    )
+    ap.add_argument(
+        "--resume", default=None, metavar="PATH",
+        help="SB3 .zip checkpoint to resume from (default: models/pikdame-<tier>.zip if it exists)",
+    )
     args = ap.parse_args()
 
     # By default, ANY tier automatically warm-starts from human games when the
@@ -209,6 +236,7 @@ def main():
         train_tier(
             tier, args.steps, args.device,
             human_data=human_data, bc_epochs=args.bc_epochs, bc_only=args.bc_only,
+            n_envs=args.n_envs, resume=args.resume,
         )
 
 

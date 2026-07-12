@@ -70,7 +70,7 @@ cd /path/to/pikdame-local
 
 # Create a venv on the newest supported Python (try 3.14, fall back if wheels
 # are missing). uv installs the interpreter automatically.
-uv venv --python 3.14 || uv venv --python 3.13 || uv venv --python 3.12
+uv venv --python 3.13
 source .venv/bin/activate
 ```
 
