@@ -23,10 +23,11 @@
 FROM node:24-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
-# Pinned on purpose (hadolint DL3016): a native runtime is exactly the kind of
-# dependency you do not want silently changing under you between builds.
-RUN npm install --omit=dev --no-save onnxruntime-node@1.27.0
+# onnxruntime-node is PINNED on purpose (hadolint DL3016): a native runtime is
+# exactly the kind of dependency you do not want silently changing between
+# builds. Both installs in one layer (DL3059).
+RUN npm ci --omit=dev \
+  && npm install --omit=dev --no-save onnxruntime-node@1.27.0
 
 # --- Stage 2: runtime -------------------------------------------------------
 FROM node:24-slim
