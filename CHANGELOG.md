@@ -4,6 +4,28 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.63.0] - 2026-07-12
+
+### Added
+- **Zweites Container-Image mit fertigen ONNX-Bots.** Jeder Release veröffentlicht jetzt zusätzlich `ghcr.io/floriandeutsch89/pikdame-local-onnx` (`:latest` und `:vX.Y.Z`, amd64 + arm64) - Laufzeit und trainierte Modelle sind bereits enthalten, `PIKDAME_ONNX=1` ist gesetzt. Kein Selbstbau mehr nötig:
+  ```
+  docker run -d -p 8080:8080 -v pikdame-data:/app/data \
+    ghcr.io/floriandeutsch89/pikdame-local-onnx:latest
+  ```
+  Das Standard-Image bleibt unverändert schlank (Alpine, heuristische Bots). Beide nutzen dieselbe UID/GID (10001) und damit dasselbe Daten-Volume. Der ONNX-Build läuft als **eigener Job**, damit ein Fehler dort das Haupt-Image nie blockiert
+
+### Changed
+- **Reward-Funktion des RL-Trainings vergleicht jetzt gegen den DURCHSCHNITT der Gegner statt gegen den Besten.** Der bisherige Vergleich mit dem stärksten von drei Gegnern machte die Belohnung von fremdem Losglück abhängig - also von Rauschen, das der Agent nicht beeinflussen kann. Rauschen im Ziel ist genau das, was den Critic am Lernen hindert (sichtbar an schlechter `explained_variance`). Gemessen über je 400 Spiele:
+
+  | Formel | Runden-Reward eines Durchschnittsspielers | Streuung (SD) |
+  | --- | --- | --- |
+  | alt (Maximum) | **−5,17** | 3,69 |
+  | **neu (Durchschnitt)** | **−0,07** | **2,96** |
+
+  Das Signal ist jetzt **um null zentriert** (ein positiver Runden-Reward heißt tatsächlich „besser als der Tisch") und rund **20 % rauschärmer**. Die neue Baseline des heuristischen Bots liegt bei **−0,62** (medium) bzw. **−0,59** (zen) - das ist die Zahl, die ein Modell schlagen muss
+  - **Achtung:** Werte von vor v1.63.0 sind **nicht vergleichbar**, und die bisher trainierten Modelle haben ein anderes Ziel optimiert - sie sollten neu trainiert werden. Die alte Formel lässt sich mit `PIKDAME_RL_REWARD=max` reproduzieren
+- `eval_onnx.py` und die Trainings-Doku nennen die neuen Baselines
+
 ## [1.62.0] - 2026-07-12
 
 ### Added
