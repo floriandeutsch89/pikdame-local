@@ -28,6 +28,10 @@ const { canFormMeldWithCard } = require('../game/Rules');
 
 const AGENT_ID = 'agent';
 
+// Which opponent baseline the round reward is measured against: 'mean' (default,
+// low variance) or 'max' (the original, high variance). See _roundReward().
+const REWARD_BASELINE = process.env.PIKDAME_RL_REWARD === 'max' ? 'max' : 'mean';
+
 function send(obj) {
   process.stdout.write(JSON.stringify(obj) + '\n');
 }
@@ -197,7 +201,24 @@ class EnvSession {
       const rr = g.lastRoundResult;
       const mine = rr[AGENT_ID] ? rr[AGENT_ID].roundScore : 0;
       const others = Object.entries(rr).filter(([pid]) => pid !== AGENT_ID).map(([, r]) => r.roundScore);
-      return (mine - (others.length ? Math.max(...others) : 0)) / 100;
+      if (!others.length) return 0;
+      // Baseline the agent is scored against.
+      //
+      // 'mean' (default): compare against the AVERAGE opponent. This measures
+      // "am I better than this table", which is what we actually want, and it
+      // is a much lower-variance signal.
+      //
+      // 'max' (the original): compare against the BEST of three. That makes the
+      // reward depend heavily on whichever opponent happened to draw a lucky
+      // hand - noise the agent cannot influence. Noise in the target is exactly
+      // what stops the critic from learning (it shows up as a poor
+      // explained_variance), so the actor ends up learning from a signal that
+      // is largely luck. Kept behind the env var so the old objective can be
+      // reproduced and the two compared.
+      const baseline = REWARD_BASELINE === 'max'
+        ? Math.max(...others)
+        : others.reduce((a, b) => a + b, 0) / others.length;
+      return (mine - baseline) / 100;
     }
     return 0;
   }

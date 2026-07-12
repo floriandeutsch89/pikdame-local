@@ -5,6 +5,9 @@ name: Release
 # 1. Git tag vX.Y.Z + GitHub release (notes = matching CHANGELOG section)
 # 2. Docker image on GHCR: ghcr.io/<owner>/pikdame-local:latest + :vX.Y.Z
 #    (amd64 + arm64 - also runs on Raspberry Pi & Apple Silicon)
+# 3. A SECOND image with the trained ONNX bots baked in:
+#    ghcr.io/<owner>/pikdame-local-onnx:latest + :vX.Y.Z
+#    (Debian/glibc base - onnxruntime-node cannot run on the Alpine/musl image)
 
 on:
   push:
@@ -81,6 +84,44 @@ jobs:
           VERSION="${{ needs.meta.outputs.version }}"
           echo "$GH_TOKEN" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
           helm push "pikdame-${VERSION}.tgz" "oci://ghcr.io/${{ github.repository_owner }}/charts"
+
+  docker-onnx:
+    # Second image: same app, but on a DEBIAN (glibc) base with onnxruntime-node
+    # and the trained models baked in. It cannot share the default Alpine image:
+    # onnxruntime-node ships glibc-linked native binaries that do not load on
+    # musl. Published as its own package so the default image stays small.
+    #
+    # Deliberately a SEPARATE job: it is the slow one (a ~100 MB native
+    # dependency), and if it ever fails it must not take the main image down
+    # with it.
+    needs: [meta, release]
+    if: needs.meta.outputs.is_new == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: GHCR login
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build & push ONNX image (amd64 + arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.onnx
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}-onnx:latest
+            ghcr.io/${{ github.repository }}-onnx:v${{ needs.meta.outputs.version }}
+          labels: |
+            org.opencontainers.image.version=${{ needs.meta.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=onnx
+          cache-to: type=gha,mode=max,scope=onnx
 
   docker:
     needs: [meta, release]

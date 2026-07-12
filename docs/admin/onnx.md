@@ -30,29 +30,31 @@ So the ONNX build is a **separate image on a Debian (glibc) base**:
 The runtime is also a ~100 MB native dependency, which is the second reason not
 to put it in the default image — the heuristic bots are good and need nothing.
 
-## Option A — build the ONNX image
+## Option A — use the prebuilt ONNX image
+
+Every release publishes a **second image** with the runtime and the trained
+models already inside:
 
 ```bash
-docker build -f docker/Dockerfile.onnx -t pikdame-onnx .
+docker pull ghcr.io/floriandeutsch89/pikdame-local-onnx:latest
 ```
-
-Run it (the image already sets `PIKDAME_ONNX=1`):
 
 ```bash
 docker run -d \
   -p 8080:8080 \
   -v pikdame-data:/app/data \
-  pikdame-onnx
+  ghcr.io/floriandeutsch89/pikdame-local-onnx:latest
 ```
 
-In compose:
+The image already sets `PIKDAME_ONNX=1`, so there is nothing else to configure.
+Tags follow the app version (`:v1.63.0`), and it is built for **amd64 + arm64**.
+
+In compose, point at the ONNX package instead of the default one:
 
 ```yaml
 services:
   app:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.onnx
+    image: ghcr.io/floriandeutsch89/pikdame-local-onnx:latest
     environment:
       - PIKDAME_ONNX=1
 ```
@@ -60,23 +62,22 @@ services:
 It uses the **same UID/GID (10001)** as the default image, so an existing data
 volume keeps working if you switch between the two.
 
-:::{note}
-This image is **not built by CI** (the native dependency makes it slow), so build
-it once yourself and check the log line below before relying on it.
-:::
+Building it yourself works too:
+
+```bash
+docker build -f docker/Dockerfile.onnx -t pikdame-onnx .
+```
 
 ## Option B — swap models without rebuilding
 
-The models are baked into the ONNX image, which means **a new image for every
-retrained model**. If you iterate on models, mount them instead and point the
-server at them (still using the ONNX image — the runtime has to be there):
+The models are baked into the ONNX image, so a retrained model would mean a new
+image. If you iterate on models, mount them instead and point the server at them
+(still using the **ONNX image** — the runtime has to be there):
 
 ```yaml
 services:
   app:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.onnx
+    image: ghcr.io/floriandeutsch89/pikdame-local-onnx:latest
     volumes:
       - pikdame-data:/app/data
       - ./models:/app/models:ro      # your trained .onnx files
