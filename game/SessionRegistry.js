@@ -14,7 +14,11 @@ const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTWXYZ23456789';
 const CODE_LENGTH = 6;
 
 const DEFAULTS = {
-  maxSessions: 200,
+  // Gemessen (scripts/load-test.js): 500 parallele Partien laufen sauber -
+  // Event-Loop-Latenz im Median 0 ms, p95 1 ms, ~100 MB RSS. Bei 200 lag das
+  // alte Limit GENAU auf dem Zielwert, d. h. die 201. Partie wurde bereits
+  // abgewiesen. Mit 500 ist Luft nach oben; per PIKDAME_MAX_SESSIONS anpassbar.
+  maxSessions: 500,
   // Session ohne verbundene Spieler wird nach dieser Inaktivität entfernt.
   emptySessionTtlMs: 30 * 60 * 1000, // 30 Minuten
   // Harte Obergrenze, selbst wenn noch jemand verbunden ist (hängende Sockets).

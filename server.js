@@ -524,7 +524,7 @@ const registry = new SessionRegistry((session) => {
     },
   });
 }, {
-  maxSessions: Number(process.env.PIKDAME_MAX_SESSIONS) || 200,
+  maxSessions: Number(process.env.PIKDAME_MAX_SESSIONS) || 500,
 });
 
 // Inaktive Sessions regelmäßig entsorgen (sonst wächst der Speicher eines

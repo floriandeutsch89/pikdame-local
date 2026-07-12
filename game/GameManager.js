@@ -1400,6 +1400,8 @@ class GameManager {
 
   /** Bricht pendende Timer ab - wird beim Entfernen der Session aufgerufen. */
   destroy() {
+    this._destroyed = true;
+    this._pendingBroadcast = false;
     clearTimeout(this._botTimer);
     clearTimeout(this._turnTimer);
     if (this._takeoverTimers) {
@@ -2043,8 +2045,43 @@ class GameManager {
     );
   }
 
-  broadcastState() {
+  /**
+   * Sendet den aktuellen Zustand an alle menschlichen Mitspieler.
+   *
+   * COALESCING (Bündelung): Ein einziger Bot-Zug ruft dies bis zu 4x auf
+   * (Ziehen, jedes Auslegen/Anlegen, Abwerfen). Früher ging JEDES Mal ein
+   * kompletter State (~3 KB) pro Mensch über die Leitung - obwohl niemand die
+   * Zwischenzustände sieht, weil sie im selben Tick entstehen. Jetzt wird pro
+   * Event-Loop-Tick nur EIN finaler Broadcast gesendet: gleiche Sichtbarkeit
+   * für die Spieler, aber ~4x weniger Serialisierung und Netzwerklast - der
+   * entscheidende Hebel bei vielen parallelen Partien.
+   *
+   * flushImmediate=true erzwingt sofortiges Senden (z. B. vor dem Shutdown).
+   */
+  broadcastState(opts = {}) {
+    if (this._destroyed) return;
+    // Die kanonische Meld-Sortierung bleibt SYNCHRON: Sie ist Spielzustand,
+    // kein Netzwerkdetail, und Aufrufer (inkl. Tests) verlassen sich darauf.
     this._sortTableMelds();
+    if (opts.immediate) {
+      this._pendingBroadcast = false;
+      this._doBroadcastState();
+      return;
+    }
+    if (this._pendingBroadcast) return; // schon ein Flush für diesen Tick geplant
+    this._pendingBroadcast = true;
+    // setImmediate: läuft ans Ende des aktuellen Ticks, also NACH allen
+    // Teilschritten eines Zuges - unref'd, damit ein leerer Prozess trotzdem
+    // beenden kann.
+    const t = setImmediate(() => {
+      this._pendingBroadcast = false;
+      if (this._destroyed) return;
+      this._doBroadcastState();
+    });
+    if (t.unref) t.unref();
+  }
+
+  _doBroadcastState() {
     for (const p of this.players) {
       if (!p.isBot) {
         this.broadcast(p.id, { type: 'state', state: this.publicState(p.id) });
