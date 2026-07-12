@@ -7,10 +7,11 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ## [1.62.0] - 2026-07-12
 
 ### Added
-- **ONNX-Modelle lassen sich jetzt tatsächlich ausliefern.** Bisher fehlte im Dockerfile das Kopieren des `models/`-Ordners *und* die Laufzeit `onnxruntime-node` - `PIKDAME_ONNX=1` fiel also **still** auf die Heuristik zurück. Neu:
-  - `COPY models ./models` im Image (die Modelle sind je ~700 KB und werden ohne `PIKDAME_ONNX=1` nie geladen)
-  - Optionale Laufzeit per Build-Argument: `docker build --build-arg WITH_ONNX=1` (die native Abhängigkeit wiegt ~100 MB, deshalb bleibt das Standard-Image bewusst schlank)
+- **ONNX-Modelle lassen sich jetzt tatsächlich ausliefern** - über ein neues, separates Image `docker/Dockerfile.onnx`. Bisher fehlte sowohl das Kopieren des `models/`-Ordners als auch die Laufzeit `onnxruntime-node`, `PIKDAME_ONNX=1` fiel also **still** auf die Heuristik zurück.
+  - **Wichtig:** Das Standard-Image ist **Alpine (musl)** - dort kann ONNX **prinzipiell nicht** laufen. `onnxruntime-node` liefert vorgebaute Binaries, die gegen **glibc** gelinkt sind (`libstdc++.so.6`, `GLIBC_2.x`); auf musl installieren sie sich scheinbar erfolgreich und scheitern dann beim Laden. Das ONNX-Image nutzt deshalb eine **Debian-Basis**: `docker build -f docker/Dockerfile.onnx -t pikdame-onnx .`
+  - Gleiche UID/GID (10001) wie das Standard-Image - ein vorhandenes Daten-Volume funktioniert beim Wechsel weiter
   - Neue Variable **`PIKDAME_MODELS_DIR`**: Modelle können auf ein Volume gelegt und **ohne Image-Neubau** ausgetauscht werden
+  - Das Standard-Image bleibt unverändert schlank (kein ONNX, keine Modelle)
 - **Laute Diagnose statt stillem Fallback**: Ist `PIKDAME_ONNX=1` gesetzt, aber die Laufzeit oder eine Modelldatei fehlt, sagt der Server das jetzt unübersehbar im Log (und spielt sicher mit der Heuristik weiter). Bei Erfolg wird das geladene Modell protokolliert
 - **Dokumentation des Trainings-Outputs** (`docs/developer/rl-training.md`): Was `approx_kl`, `value_loss`, `policy_gradient_loss`, `entropy_loss`, `explained_variance`, `clip_fraction` & Co. bedeuten, welche Werte gesund sind und was sie im Fehlerfall verraten - plus ein Diagnose-Leitfaden
 

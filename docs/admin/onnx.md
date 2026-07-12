@@ -13,28 +13,35 @@ If either is missing the server **falls back to the heuristic bot** — it never
 takes the game down. It now also **says so loudly in the log** instead of failing
 silently.
 
-## Why isn't it in the default image?
+## Why the default image cannot do it
 
-`onnxruntime-node` is a native dependency of roughly **100 MB**. The point of the
-default image is that it stays small and boring, and the heuristic bots are
-perfectly good. So ONNX is **opt-in at build time**.
+:::{important}
+**The default image is Alpine, and ONNX cannot work there — at all.**
 
-The model files themselves (~700 KB each) *are* baked into the image — harmless
-when unused, since nothing loads them unless `PIKDAME_ONNX=1`.
+`onnxruntime-node` ships **pre-built native binaries linked against glibc**
+(they need `libstdc++.so.6`, `libm.so.6`, `GLIBC_2.x` symbols). Alpine uses
+**musl**. Installing the package on Alpine *appears* to succeed and then fails
+to load at `require()` time.
 
-## Option A — build an ONNX-capable image
+So the ONNX build is a **separate image on a Debian (glibc) base**:
+`docker/Dockerfile.onnx`. The default Alpine image stays small and ONNX-free.
+:::
+
+The runtime is also a ~100 MB native dependency, which is the second reason not
+to put it in the default image — the heuristic bots are good and need nothing.
+
+## Option A — build the ONNX image
 
 ```bash
-docker build --build-arg WITH_ONNX=1 -f docker/Dockerfile -t pikdame-onnx .
+docker build -f docker/Dockerfile.onnx -t pikdame-onnx .
 ```
 
-Run it with the feature switched on:
+Run it (the image already sets `PIKDAME_ONNX=1`):
 
 ```bash
 docker run -d \
   -p 8080:8080 \
   -v pikdame-data:/app/data \
-  -e PIKDAME_ONNX=1 \
   pikdame-onnx
 ```
 
@@ -45,21 +52,31 @@ services:
   app:
     build:
       context: ..
-      dockerfile: docker/Dockerfile
-      args:
-        WITH_ONNX: "1"
+      dockerfile: docker/Dockerfile.onnx
     environment:
       - PIKDAME_ONNX=1
 ```
 
+It uses the **same UID/GID (10001)** as the default image, so an existing data
+volume keeps working if you switch between the two.
+
+:::{note}
+This image is **not built by CI** (the native dependency makes it slow), so build
+it once yourself and check the log line below before relying on it.
+:::
+
 ## Option B — swap models without rebuilding
 
-Baking models into the image means a **new image for every retrained model**. If
-you iterate on models, mount them instead and point the server at them:
+The models are baked into the ONNX image, which means **a new image for every
+retrained model**. If you iterate on models, mount them instead and point the
+server at them (still using the ONNX image — the runtime has to be there):
 
 ```yaml
 services:
   app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.onnx
     volumes:
       - pikdame-data:/app/data
       - ./models:/app/models:ro      # your trained .onnx files
@@ -101,7 +118,8 @@ ONNX-Modell geladen: /app/models/pikdame-medium.onnx (Schwierigkeit "medium")
 
 If instead you see a warning that `onnxruntime-node` is missing, or that a model
 file was not found, then **the bots are still heuristic** — the flag is on but
-doing nothing.
+doing nothing. The most likely cause is running the **default Alpine image**
+rather than the ONNX one.
 
 ## Training a model
 
