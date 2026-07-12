@@ -17,3 +17,4 @@ models/*.zip
 
 # Human move logs for imitation learning (data collection)
 data/human-moves.jsonl
+docs/_build/
