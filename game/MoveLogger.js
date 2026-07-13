@@ -27,7 +27,7 @@
  * IP addresses; the per-game id is random and not linkable to a person. Card
  * codes are gameplay moves, not personal data.
  *
- * See docs/RL_TRAINING.md ("Log data format") for the full field reference.
+ * See https://pik-dame.readthedocs.io/en/latest/developer/rl-setup.html ("Log data format") for the full field reference.
  */
 
 const fs = require('fs');

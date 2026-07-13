@@ -130,3 +130,41 @@ test('cutting: non-cutter disconnect does NOT auto-cut', () => {
   assert.equal(g.phase, 'playing');
   g.destroy();
 });
+
+test('cut reveal: publicState exposes lucky cards + the stopper, nothing else', () => {
+  // Force a deterministic deck situation by cutting many games and checking
+  // the invariants that must ALWAYS hold.
+  for (let i = 0; i < 60; i++) {
+    const { g } = humanGame(3);
+    g.startNewRound();
+    g.performCut(g.cutterId, Math.random());
+    const st = g.publicState(g.players[0].id);
+    const r = st.lastCutReveal;
+    assert.ok(r, 'reveal present after the cut');
+    assert.equal(r.round, g.roundNumber);
+    assert.ok(r.cards.length >= 1, 'at least the stopper is revealed');
+    // All but the last are lucky; the last one (stopper) never is.
+    const isLucky = (c) => c.isJoker || (c.suit === 'S' && c.rank === 'Q');
+    r.cards.forEach((c, idx) => {
+      if (idx < r.luckyCount) assert.ok(isLucky(c), 'kept cards are lucky');
+    });
+    const stopper = r.cards[r.cards.length - 1];
+    if (r.cards.length > r.luckyCount) {
+      assert.ok(!isLucky(stopper), 'the stopper is an ordinary card');
+    }
+    // The stopper STAYS in play: total cards must still be 110.
+    const inHands = g.players.reduce((a, p) => a + p.hand.length, 0);
+    assert.equal(inHands + g.drawPile.length + g.discardPile.length, 110);
+    g.destroy();
+  }
+});
+
+test('cut reveal: auto-cuts (bot cutter) reveal too, so the step is visible every round', () => {
+  const { g } = humanGame(1);
+  g.fillWithBots();
+  g.startNewRound(); // bot cutter -> auto
+  assert.equal(g.phase, 'playing');
+  const r = g.publicState(g.players[0].id).lastCutReveal;
+  assert.ok(r && r.cards.length >= 1);
+  g.destroy();
+});

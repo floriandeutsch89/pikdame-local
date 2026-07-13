@@ -22,7 +22,7 @@ handler, so it always matches the running code.
 | `listProfiles` | _(see source)_ |
 | `lobbyReady` | _(see source)_ |
 | `nextRound` | Signal readiness for the next round. |
-| `performCut` | Interactive round start: the cutter picks where to cut the freshly shuffled deck (position 0..1). Only valid in the cutting phase, only for the cutter; bots, the daily challenge and timeouts cut automatically. |
+| `performCut` | Interactive round start: the cutter picks where to cut the freshly shuffled deck (position 0..1). Only valid in the cutting phase, only for the cutter; bots, the daily challenge and timeouts cut automatically. The next state carries `lastCutReveal` (the lucky cards kept plus the ordinary card that ended the run) for the reveal animation. |
 | `rematch` | Start a new match with the same table. |
 | `reorderSeats` | Host only: change the seating order. |
 | `setBotDifficulty` | Host only: set a bot seat's difficulty. |

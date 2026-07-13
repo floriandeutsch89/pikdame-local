@@ -43,15 +43,12 @@ myst_heading_anchors = 3  # auto anchors for h1-h3
 
 source_suffix = {".md": "markdown"}
 master_doc = "index"
-# OPERATIONS.md and RL_TRAINING.md are INCLUDED into admin pages, so they must
-# not also be picked up as standalone documents (that would duplicate them and
-# warn about not being in any toctree). Same for the generated fragments.
+# The generated fragments are INCLUDED into real pages and must not also be
+# picked up as standalone documents.
 exclude_patterns = [
     "_build",
     "Thumbs.db",
     ".DS_Store",
-    "OPERATIONS.md",
-    "RL_TRAINING.md",
     "_generated/*",
 ]
 

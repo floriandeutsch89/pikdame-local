@@ -218,7 +218,7 @@ server.js          HTTP + WebSocket, account API, session registry
 game/              Pure game logic (Rules, GameManager, Bot, stores, …)
 game/StateEncoder  · game/OnnxPolicy — learned-bot encoder + ONNX inference
 public/            Vanilla JS client, i18n, PWA
-python/ · scripts/rl-env-server.js  RL training bridge (see docs/RL_TRAINING.md)
+python/ · scripts/rl-env-server.js  RL training bridge (see the RL setup docs)
 test/              node --test — 239 tests incl. contract, E2E and encoder tests
 helm/ · k8s/       Kubernetes (chart recommended, raw manifests as alternative)
 docs/ · scripts/   Operations guide, backup/restore

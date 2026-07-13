@@ -102,7 +102,11 @@ function performLuckyCut(deck, cutIndex) {
   while (idx < remaining.length && isLucky(remaining[idx])) {
     luckyCards.push(remaining.splice(idx, 1)[0]);
   }
-  return { luckyCards, remaining };
+  // The card that STOPPED the run (the first non-lucky one at the cut). It
+  // stays in the deck - it is only returned so the UI can show what was
+  // revealed, exactly like looking at the cut card in a physical game.
+  const stopper = idx < remaining.length ? remaining[idx] : null;
+  return { luckyCards, remaining, stopper };
 }
 
 function dealCards(deck, playerIds, options = {}) {

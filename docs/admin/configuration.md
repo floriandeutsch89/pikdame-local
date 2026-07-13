@@ -5,7 +5,7 @@ is **generated from the source code** (`scripts/gen-docs.js`), so it cannot drif
 out of date.
 
 ```{include} ../_generated/configuration.md
-:start-line: 2
+:start-line: 3
 ```
 
 ## Secrets

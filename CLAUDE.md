@@ -8,7 +8,7 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
 - **Code, Kommentare, Bezeichner, Commit-Messages der Struktur, GitHub-Workflows,
   Infra-Dateien (Dockerfile/Compose) und Testbeschreibungen: ENGLISCH.**
 - **Repo-Dokumentation (README, docs/) ebenfalls ENGLISCH** — README.md,
-  docs/OPERATIONS.md und SECURITY.md sind migriert; k8s/README.md und
+  Ops-Doku (jetzt docs/admin/operations.md auf RTD) und SECURITY.md sind migriert; k8s/README.md und
   landing/README.md folgen bei der nächsten Berührung.
 - **Nutzersichtbare Texte: DEUTSCH** als Quellsprache über das i18n-System
   (I18N_STATIC / L(de, en) / I18N_SERVER_PATTERNS) — niemals "übersetzen",
@@ -89,7 +89,7 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
     Argmax. `GameManager._runBotTurnWithOnnx` awaited am Pause-Seam.
   - Training in `python/` (Gymnasium + sb3-contrib MaskablePPO → ONNX-Export),
     Bridge `scripts/rl-env-server.js` (stdio-JSON über die ECHTE Engine),
-    Doku `docs/RL_TRAINING.md` (Ubuntu 24.04, uv, RTX-5080). Modelle werden
+    Doku `docs/developer/rl-setup.md` (RTD; Ubuntu 24.04, uv, RTX-5080). Modelle werden
     committet (öffentliches Repo); SB3-`.zip` bleibt gitignored.
   - **Steuer-Seams:** `cp.forcedDrawSource` ('drawPile'|'discardPile', vor dem
     Zug gesetzt, überschreibt decideDraw+Guards, danach gelöscht),
