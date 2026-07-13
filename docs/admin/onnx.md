@@ -96,6 +96,37 @@ services:
 `PIKDAME_MODELS_DIR` overrides where the server looks. Drop in a new
 `pikdame-medium.onnx`, restart the container, done — no rebuild.
 
+## Kubernetes / Helm
+
+There is **no separate ONNX chart** — the chart already parameterises the image,
+so a second one would only duplicate the ingress/PVC/service templates. Use the
+ready-made overrides instead:
+
+```bash
+helm install pikdame oci://ghcr.io/floriandeutsch89/charts/pikdame \
+  --version <X.Y.Z> \
+  -f helm/pikdame/values-onnx.yaml \
+  --set ingress.host=spiel.example.org \
+  --set image.tag=v<X.Y.Z>
+```
+
+That sets `image.repository` to the ONNX package and `onnx.enabled=true` (which
+adds `PIKDAME_ONNX=1`). The image uses the **same UID/GID (10001)**, so an
+existing PVC keeps working.
+
+:::{note}
+The chart **refuses to render** `onnx.enabled=true` together with the default
+Alpine image — that combination would quietly fall back to the heuristic bots,
+which is exactly the kind of misconfiguration that is better caught at install
+time than discovered weeks later.
+:::
+
+Verify after rollout:
+
+```bash
+kubectl logs deploy/pikdame | grep -i "ONNX-Modell"
+```
+
 ## File naming
 
 The server loads **one model per difficulty**, by name:

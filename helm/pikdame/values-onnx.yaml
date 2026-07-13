@@ -1,0 +1,28 @@
+# Overrides for running the TRAINED ONNX bot policies.
+#
+#   helm install pikdame oci://ghcr.io/floriandeutsch89/charts/pikdame \
+#     --version <X.Y.Z> \
+#     -f helm/pikdame/values-onnx.yaml \
+#     --set ingress.host=spiel.example.org \
+#     --set image.tag=v<X.Y.Z>
+#
+# There is no separate ONNX chart on purpose - the chart already parameterises
+# the image, so a second chart would just duplicate the templates.
+#
+# Why a different image at all: onnxruntime-node ships pre-built native binaries
+# linked against glibc. The default image is Alpine (musl), where they cannot
+# load. Hence a second published package, built from docker/Dockerfile.onnx.
+# It uses the same UID/GID (10001), so an existing PVC keeps working.
+
+image:
+  repository: ghcr.io/floriandeutsch89/pikdame-local-onnx
+  # Pin a concrete version in production; "latest" only for testing.
+  tag: latest
+
+onnx:
+  enabled: true
+
+# Verify after rollout - the server logs the model it loaded:
+#   kubectl logs deploy/pikdame | grep -i "ONNX-Modell"
+# If it instead warns that the runtime or a model file is missing, the bots are
+# still heuristic.

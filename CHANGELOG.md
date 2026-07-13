@@ -4,6 +4,20 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.65.0] - 2026-07-13
+
+### Added
+- **Helm: ONNX-Bots per Overrides statt eigenem Chart.** Bewusst **kein** zweiter Chart - der bestehende parametrisiert das Image bereits, ein zweiter würde nur Ingress/PVC/Service-Templates duplizieren. Stattdessen: `helm/pikdame/values-onnx.yaml` (setzt Image auf das ONNX-Package und `onnx.enabled=true` → `PIKDAME_ONNX=1`):
+  ```
+  helm install pikdame oci://ghcr.io/floriandeutsch89/charts/pikdame \
+    --version <X.Y.Z> -f helm/pikdame/values-onnx.yaml
+  ```
+  Gleiche UID/GID (10001), ein vorhandenes PVC läuft weiter
+- **Schutzplanke:** Der Chart **verweigert das Rendern**, wenn `onnx.enabled=true` mit dem Standard-Image (Alpine) kombiniert wird - genau diese Kombination würde still auf die heuristischen Bots zurückfallen, weil `onnxruntime-node` glibc braucht. Lieber beim Installieren scheitern als Wochen später rätseln. CI prüft, dass die Schutzplanke greift
+
+### Changed
+- **Datenschutzerklärung: Hosting-Abschnitt ergänzt** (DE + EN). Der Server wird bei der **IONOS SE** (Elgendorfer Str. 57, 56410 Montabaur) gehostet; IONOS wird als **Auftragsverarbeiter nach Art. 28 DSGVO** benannt, Rechtsgrundlage Art. 6 Abs. 1 lit. f DSGVO, Serverstandort Deutschland, keine Drittlandübermittlung, ausdrücklich **keine Web-Analyse** (weder IONOS WebAnalytics noch Google Analytics). Zudem wurde die bisher irreführende Formulierung „auf dem eigenen Server des Betreibers" korrigiert
+
 ## [1.64.0] - 2026-07-13
 
 ### Changed

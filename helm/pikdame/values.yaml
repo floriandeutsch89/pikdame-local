@@ -36,6 +36,24 @@ persistence:
 env:
   maxSessions: "200"
 
+# Trained ONNX bot policies (optional). The bots are heuristic by default and
+# need nothing extra.
+#
+# There is deliberately NO second chart for this: the chart already
+# parameterises the image, so a separate chart would only duplicate the
+# ingress/PVC/service templates. Instead, point `image.repository` at the ONNX
+# package and flip the switch below - or just use the ready-made overrides:
+#
+#   helm install pikdame oci://ghcr.io/floriandeutsch89/charts/pikdame \
+#     --version <X.Y.Z> -f helm/pikdame/values-onnx.yaml
+#
+# The ONNX image is a SEPARATE image (Debian) because onnxruntime-node ships
+# glibc-linked binaries that cannot run on the default Alpine image. Enabling
+# this with the default image would fall back to the heuristic bots, so the
+# chart refuses to render that combination rather than let it pass silently.
+onnx:
+  enabled: false
+
 # Account database (PostgreSQL). Recommended for K8s: a managed/operator
 # database. Either set the URL directly (ends up in the pod spec!) or -
 # better - reference an existing Secret that carries the full URL.

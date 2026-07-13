@@ -1,3 +1,12 @@
+{{- /*
+  Guardrail: enabling ONNX while still pointing at the DEFAULT (Alpine) image
+  produces a server that silently falls back to the heuristic bots -
+  onnxruntime-node's native binaries are glibc-linked and cannot load on musl.
+  That is a configuration mistake worth failing on, not shipping.
+*/ -}}
+{{- if and .Values.onnx.enabled (eq .Values.image.repository "ghcr.io/floriandeutsch89/pikdame-local") }}
+{{- fail "onnx.enabled=true requires the ONNX image: set image.repository=ghcr.io/floriandeutsch89/pikdame-local-onnx (the default Alpine image cannot run onnxruntime-node). See docs/admin/onnx.md" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -32,6 +41,10 @@ spec:
               value: "8080"
             - name: PIKDAME_MAX_SESSIONS
               value: {{ .Values.env.maxSessions | quote }}
+            {{- if .Values.onnx.enabled }}
+            - name: PIKDAME_ONNX
+              value: "1"
+            {{- end }}
             {{- if .Values.database.existingSecret }}
             - name: PIKDAME_DATABASE_URL
               valueFrom:
