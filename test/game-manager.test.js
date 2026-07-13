@@ -1919,3 +1919,72 @@ test('a bot with fewer than 3 cards does not use the Pik-Dame emote', async () =
   assert.equal(smallEmoted, 0, 'a bot with 2 cards never emits the Pik-Dame emote');
   assert.ok(bigEmoted > 0, 'a bot with >= 3 cards still emotes at the normal rate');
 });
+
+// --- v1.70: Ablagestapel-Aufnahme zurücknehmen ---------------------------------
+test('undoPileTake: puts the top card back, resets duty + memory, allows a fresh draw', () => {
+  const { game: g } = makeGame(2);
+  g.startNewRound();
+  g.turnPhase = 'draw';
+  const me = g.currentPlayer();
+  const { makeStandardCard } = require('../game/Card');
+  // Konstruierte Lage: oberste Ablagekarte passt sicher (Drilling)
+  const c1 = makeStandardCard('H', '9', 900);
+  const c2 = makeStandardCard('S', '9', 901);
+  const top = makeStandardCard('D', '9', 902);
+  me.hand.push(c1, c2);
+  g.discardPile.unshift(top);
+  const pileBefore = g.discardPile.map((c) => c.id).join(',');
+
+  const r = g.drawFromDiscard(me.id);
+  assert.equal(r.ok, true);
+  assert.equal(g.publicState(me.id).canUndoPileTake, true, 'undo offered to me');
+  assert.equal(g.publicState(g.players.find((p) => p.id !== me.id).id).canUndoPileTake, false);
+
+  const u = g.undoPileTake(me.id);
+  assert.equal(u.ok, true);
+  assert.equal(g.turnPhase, 'draw', 'back to drawing');
+  assert.equal(g.mustLayOffCardId, null);
+  assert.equal(g.pendingDiscardRest, false);
+  assert.equal(g.discardPile.map((c) => c.id).join(','), pileBefore, 'pile exactly restored');
+  assert.ok(!me.hand.some((c) => c.id === top.id), 'card left the hand');
+  assert.ok(!(g.publicKnownHands[me.id] || []).some((c) => c.id === top.id), 'public memory reverted');
+  // und neu ziehen geht
+  const d = g.drawFromPile(me.id);
+  assert.equal(d.ok, true);
+  g.destroy();
+});
+
+test('undoPileTake: rejected once the mandatory card has been played (phase 2)', () => {
+  const { game: g } = makeGame(2);
+  g.startNewRound();
+  g.turnPhase = 'draw';
+  const me = g.currentPlayer();
+  const { makeStandardCard } = require('../game/Card');
+  const c1 = makeStandardCard('H', '9', 910);
+  const c2 = makeStandardCard('S', '9', 911);
+  const top = makeStandardCard('D', '9', 912);
+  me.hand.push(c1, c2);
+  g.discardPile.unshift(top);
+  g.drawFromDiscard(me.id);
+  const m = g.layoutMeld(me.id, [c1.id, c2.id, top.id]);
+  assert.equal(m.ok, true, 'mandatory card played');
+  const u = g.undoPileTake(me.id);
+  assert.ok(u.error, 'no take-back after playing');
+  assert.equal(g.publicState(me.id).canUndoPileTake, false);
+  g.destroy();
+});
+
+test('undoPileTake: rejected for the wrong player and outside the window', () => {
+  const { game: g } = makeGame(2);
+  g.startNewRound();
+  g.turnPhase = 'draw';
+  const me = g.currentPlayer();
+  const other = g.players.find((p) => p.id !== me.id);
+  assert.ok(g.undoPileTake(me.id).error, 'nothing to undo yet');
+  const { makeStandardCard } = require('../game/Card');
+  me.hand.push(makeStandardCard('H', '7', 920), makeStandardCard('S', '7', 921));
+  g.discardPile.unshift(makeStandardCard('D', '7', 922));
+  g.drawFromDiscard(me.id);
+  assert.ok(g.undoPileTake(other.id).error, 'not your turn');
+  g.destroy();
+});

@@ -944,6 +944,12 @@ wss.on('connection', (ws, req) => {
         if (r && r.error) sendError(ws, r.error);
         break;
       }
+      case 'undoPileTake': {
+        // Take-back of a discard-pile pickup while nothing has been played yet.
+        const r = game.undoPileTake(playerId);
+        if (r && r.error) sendError(ws, r.error);
+        break;
+      }
       case 'performCut': {
         // Interactive cut at round start: the cutter picks the position (0..1).
         const r = game.performCut(playerId, msg.position);

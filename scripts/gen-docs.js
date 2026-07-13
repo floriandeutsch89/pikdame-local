@@ -148,6 +148,7 @@ const MSG_NOTES = {
   swapJoker: 'Swap a joker on the table for the card it represents (the joker leaves play permanently).',
   discard: 'Discard exactly one card and end your turn.',
   forfeitRound: 'Vote to forfeit the whole game. The match only ends once every connected player agrees.',
+  undoPileTake: 'Take back a discard-pile pickup - only while the mandatory top card has not been played yet (phase 1 of the two-phase pickup). Fair by construction: the card was public anyway and nothing on the table changed.',
   performCut: 'Interactive round start: the cutter picks where to cut the freshly shuffled deck (position 0..1). Only valid in the cutting phase, only for the cutter; bots, the daily challenge and timeouts cut automatically. The next state carries `lastCutReveal` (the lucky cards kept plus the ordinary card that ended the run) for the reveal animation.',
   togglePause: 'Vote to pause. The game only pauses once every connected player agrees.',
   nextRound: 'Signal readiness for the next round.',

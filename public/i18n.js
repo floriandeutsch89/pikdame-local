@@ -17,6 +17,7 @@ window.I18N_STATIC = {
   'Wähle, wo du das frisch gemischte Deck abhebst. Liegen dort Pik Dame oder Joker, gehören sie sofort dir!':
     'Choose where to cut the freshly shuffled deck. If the Queen of Spades or a joker sits at the cut, it is yours immediately!',
   'Hier abheben': 'Cut here',
+  '↩︎ Zurücklegen': '↩︎ Put back',
   // Lobby
   'Das Familien-Rommé – online mit Freunden & Bots': 'The family rummy – online with friends & bots',
   'Neues Spiel erstellen': 'Create a new game',
@@ -130,6 +131,7 @@ window.I18N_SERVER_PATTERNS = [
   [/^Automatisch abgehoben \(Zeit abgelaufen\)\.$/, 'Auto-cut (time expired).'],
   [/^Automatisch abgehoben \(Spieler getrennt\)\.$/, 'Auto-cut (player disconnected).'],
   [/^Automatisch abgehoben \(Server-Neustart\)\.$/, 'Auto-cut (server restart).'],
+  [/^(.+?) legt die Ablagekarte zurück und zieht neu\.$/, '$1 puts the discard card back and draws again.'],
   [/^(.+?) zieht eine Karte vom Stapel\.$/, '$1 draws a card from the pile.'],
   [/^(.+?) nimmt die oberste Ablagekarte \((.+?)\) - sie muss sofort gelegt werden, danach folgt der Rest des Stapels\.$/, '$1 takes the top discard ($2) – it must be melded immediately, then the rest of the pile follows.'],
   [/^(.+?) nimmt die restlichen (\d+) Karten des Ablagestapels auf\.$/, '$1 picks up the remaining $2 cards of the discard pile.'],
