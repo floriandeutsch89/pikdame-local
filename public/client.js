@@ -529,6 +529,20 @@
     }, holdMs);
   }
 
+  // Scrollbare Hand: dezente Fade-Kanten zeigen, in welche Richtung noch
+  // Karten liegen. Wird bei Scroll und Re-Layout aktualisiert.
+  let handScrollWired = false;
+  function updateHandScrollEdges(handDiv) {
+    const canL = handDiv.scrollLeft > 4;
+    const canR = handDiv.scrollLeft + handDiv.clientWidth < handDiv.scrollWidth - 4;
+    handDiv.classList.toggle('canScrollL', canL);
+    handDiv.classList.toggle('canScrollR', canR);
+    if (!handScrollWired) {
+      handScrollWired = true;
+      handDiv.addEventListener('scroll', () => updateHandScrollEdges(handDiv), { passive: true });
+    }
+  }
+
   function send(obj) {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(obj));
@@ -1215,6 +1229,7 @@
       // Bildschirmbreite - kein horizontales Scrollen. Je mehr Karten,
       // desto stärker überlappen sie; der Ecken-Index oben links bleibt
       // dabei stets sichtbar. Mindestens 14px sichtbarer Streifen.
+      const prevHandScroll = handDiv.scrollLeft; // Scroll-Position über Re-Render retten
       requestAnimationFrame(() => {
         const cards = [...handDiv.children];
         if (cards.length < 2) return;
@@ -1222,11 +1237,33 @@
         const available = handDiv.parentElement.clientWidth - 64; // Padding + Rotations-Überhang
         const naturalVisible = cardWidth * 0.62; // lockerer Fächer, wenn Platz da ist
         const fitVisible = (available - cardWidth) / (cards.length - 1);
-        const visible = Math.max(14, Math.min(naturalVisible, fitVisible));
+        // Ab 16 Karten (Stapelaufnahme!) wird NICHT weiter gestaucht: Auf einem
+        // iPhone blieben sonst ~14px sichtbarer Streifen pro Karte (Apple
+        // empfiehlt 44px Touchziele). Stattdessen behält jede Karte einen
+        // komfortablen Streifen und die Hand wird seitlich scrollbar.
+        const MANY_CARDS = 16;
+        const comfortable = Math.max(26, Math.round(cardWidth * 0.42));
+        const scrollMode = cards.length >= MANY_CARDS && fitVisible < comfortable;
+        handDiv.classList.toggle('handScroll', scrollMode);
+        const visible = scrollMode
+          ? comfortable
+          : Math.max(14, Math.min(naturalVisible, fitVisible));
         const overlap = visible - cardWidth;
         cards.forEach((c, i) => {
           c.style.marginLeft = i === 0 ? '0' : `${overlap}px`;
         });
+        if (scrollMode) {
+          updateHandScrollEdges(handDiv);
+          const fresh = cards.find((c) => c.classList.contains('just-drawn'));
+          if (fresh) {
+            // Frisch aufgenommene Karten sofort ins Bild holen - so merkt man
+            // auch ohne Suchen, dass die Hand jetzt scrollt.
+            const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            fresh.scrollIntoView({ inline: 'center', block: 'nearest', behavior: reduce ? 'auto' : 'smooth' });
+          } else {
+            handDiv.scrollLeft = prevHandScroll;
+          }
+        }
       });
     }
 

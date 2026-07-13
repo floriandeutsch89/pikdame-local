@@ -1992,3 +1992,28 @@ input:disabled { opacity: 0.65; }
   #cutReveal .card { animation: none; }
   #cutReveal.cutRevealOut { animation: none; opacity: 0; }
 }
+
+/* --- Scrollbare Hand ab 16 Karten (nach Stapelaufnahme) -------------------- */
+#hand.handScroll {
+  width: 100%;                      /* statt max-content: Container fix, Inhalt scrollt */
+  overflow-x: auto;
+  overscroll-behavior-x: contain;   /* kein versehentliches Seiten-Zurück beim Wischen */
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  padding-top: 4px;                 /* Platz für den Fächer-Dip, kein vertikales Scrollen */
+}
+#hand.handScroll::-webkit-scrollbar { height: 5px; }
+#hand.handScroll::-webkit-scrollbar-thumb { background: var(--glass-border); border-radius: 3px; }
+/* Fade-Kanten NUR dort, wo tatsächlich weitere Karten liegen */
+#hand.handScroll.canScrollR {
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 28px), transparent 100%);
+}
+#hand.handScroll.canScrollL {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 28px, #000 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 28px, #000 100%);
+}
+#hand.handScroll.canScrollL.canScrollR {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+}

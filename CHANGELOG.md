@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.69.0] - 2026-07-13
+
+### Changed
+- **Große Hände (ab 16 Karten, z. B. nach einer Stapelaufnahme) sind auf dem Handy jetzt seitlich scrollbar** statt immer enger gestaucht zu werden. Bisher blieben hochkant nur ~14 px sichtbarer Streifen pro Karte (Apple empfiehlt 44 px Touchziele) - bei 25+ Karten lief die Hand sogar über den Rand. Jetzt behält jede Karte einen komfortablen Streifen (26 px+), man wischt seitlich:
+  - dezente Fade-Kanten zeigen nur dort, wo tatsächlich weitere Karten liegen
+  - frisch aufgenommene Karten werden automatisch ins Bild gescrollt - so ist sofort klar, dass die Hand jetzt scrollt
+  - die Scroll-Position übersteht Zwischen-Updates; kein versehentliches Seiten-Zurück beim Wischen (`overscroll-behavior`)
+  - Normalfall (≤15 Karten), Querformat und Desktop sind unverändert - dort passt alles ohne Scrollen
+
 ## [1.68.0] - 2026-07-13
 
 ### Added
