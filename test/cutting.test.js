@@ -240,3 +240,43 @@ test('cutting happens EVERY round, cutter rotates with the dealer (regression: "
   }
   g.destroy();
 });
+
+// --- v1.70.1: Tages-Challenge ist wettbewerbs-fest -----------------------------
+test('challenge lock: bot difficulty and house rules cannot be changed mid-challenge', () => {
+  const GM = require('../game/GameManager');
+  const g = new GM(() => {}, { deckSeed: 12345, challengeDate: '2026-07-13' });
+  g.addOrReconnectPlayer('p1', 'Anna');
+  g.fillWithBots();
+  g.startNewRound();
+  const bot = g.players.find((p) => p.isBot);
+  assert.equal(bot.botDifficulty || 'zen', 'zen', 'challenge bots are zen');
+
+  const r1 = g.setBotDifficulty('p1', bot.id, 'easy');
+  assert.ok(r1.error, 'difficulty change rejected');
+  assert.equal(bot.botDifficulty || 'zen', 'zen', 'difficulty unchanged');
+
+  const before = JSON.stringify(g.houseRules);
+  const r2 = g.setHouseRules({ turnTimerSeconds: 90, strictThreshold: true });
+  assert.ok(r2 && r2.error, 'house-rule change rejected');
+  assert.equal(JSON.stringify(g.houseRules), before, 'rules unchanged');
+
+  // the system setup path must still work (used when creating the session)
+  const r3 = g.setHouseRules({ turnTimerSeconds: 0 }, { system: true });
+  assert.ok(!r3 || !r3.error, 'system setup path stays open');
+  g.destroy();
+});
+
+test('challenge lock: normal games keep both settings fully adjustable', () => {
+  const GM = require('../game/GameManager');
+  const g = new GM(() => {});
+  g.addOrReconnectPlayer('p1', 'Anna');
+  g.fillWithBots();
+  const bot = g.players.find((p) => p.isBot);
+  const r1 = g.setBotDifficulty('p1', bot.id, 'easy');
+  assert.ok(!r1.error, 'normal game: difficulty adjustable');
+  assert.equal(bot.botDifficulty, 'easy');
+  const r2 = g.setHouseRules({ turnTimerSeconds: 60 });
+  assert.ok(!r2 || !r2.error, 'normal game: rules adjustable');
+  assert.equal(g.houseRules.turnTimerSeconds, 60);
+  g.destroy();
+});

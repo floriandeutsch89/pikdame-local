@@ -258,7 +258,14 @@ class GameManager {
     return { ok: true };
   }
 
-  setHouseRules(partial = {}) {
+  setHouseRules(partial = {}, { system = false } = {}) {
+    // Tages-Challenge: Auch Hausregeln (Zug-Timer, Schwellen-Modus, Hand-aus-
+    // Verdopplung) beeinflussen Punkte und Tempo - für eine vergleichbare
+    // Bestenliste sind sie eingefroren. Nur das serverseitige Setup (system)
+    // darf sie beim Erstellen der Challenge-Partie setzen.
+    if (this.challengeDate && !system) {
+      return { error: 'In der Tages-Challenge sind die Regeln fest - sonst wäre die Bestenliste nicht vergleichbar.' };
+    }
     // Nur bekannte Regeln übernehmen (Client-Eingaben nie blind spreaden).
     const clean = {};
     if (typeof partial.handAusDoubles === 'boolean') clean.handAusDoubles = partial.handAusDoubles;
@@ -319,6 +326,12 @@ class GameManager {
    *  the log entry keeps it transparent). The lobby house rule stays the
    *  default for bots created later (e.g. after a rematch). */
   setBotDifficulty(requesterId, botId, difficulty) {
+    // Tages-Challenge: Die Bestenliste lebt davon, dass ALLE gegen dieselben
+    // Gegner spielen - drei Zen-Meister, weltweit. Wer sich leichtere Bots
+    // einstellen könnte, würde jede Vergleichbarkeit zerstören.
+    if (this.challengeDate) {
+      return { error: 'In der Tages-Challenge ist die Bot-Stärke fest (Zen-Meister für alle) - sonst wäre die Bestenliste nicht vergleichbar.' };
+    }
     const LABELS = { easy: 'Anfänger', medium: 'Fortgeschritten', zen: 'Zen-Meister' };
     if (!LABELS[difficulty]) return { error: 'Unbekannte Schwierigkeit.' };
     const requester = this.players.find((p) => p.id === requesterId && !p.isBot);
@@ -2148,6 +2161,7 @@ class GameManager {
       cutterId: this.phase === 'cutting' ? this.cutterId : null,
       cutDeadline: this.phase === 'cutting' ? this.cutDeadline : null,
       lastCutReveal: this._cutRevealFor(forPlayerId),
+      challengeDate: this.challengeDate || null,
       canUndoPileTake: !!(
         this.phase === 'playing' &&
         this.turnPhase === 'meld' &&

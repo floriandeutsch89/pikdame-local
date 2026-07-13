@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.70.1] - 2026-07-13
+
+### Fixed
+- **Tages-Challenge ist jetzt wettbewerbs-fest.** Bisher war der Challenge-Spieler Host seiner eigenen Session und konnte sich mitten in der Partie **leichtere Bots einstellen** (Bot-Chip-Menü) oder **Hausregeln ändern** (Zug-Timer, Schwellen-Modus) - und so die Bestenliste verzerren. Jetzt sind in der Challenge Bot-Stärke (Zen-Meister für alle, weltweit) und Regeln **serverseitig eingefroren**; nur das interne Setup darf sie beim Erstellen setzen. Der Client bietet die Menüs in der Challenge gar nicht erst an. Normale Partien bleiben voll einstellbar (per Test abgesichert)
+
 ## [1.70.0] - 2026-07-13
 
 ### Added
