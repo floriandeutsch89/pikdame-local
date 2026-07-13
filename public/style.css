@@ -1141,6 +1141,37 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .legal-page { max-width: 720px; }
 }
 
+/* --- Desktop: actually USE a big screen --------------------------------
+   The layout was tuned for phones; up to here a 24" monitor got the same
+   62px cards as a 6" phone, capped at 880px width - everything looked tiny.
+   Two tiers scale the whole game up:
+   - the root font-size drives every rem-based size (all text, incl. the
+     card faces, which are rem on purpose), and
+   - the px-based card geometry is raised to match.
+   The hand fan needs NO JS change: it measures offsetWidth at render time. */
+@media (min-width: 1100px) {
+  html { font-size: 17px; }
+  .screen { max-width: 1040px; }
+  .card { width: 76px; height: 111px; min-width: 76px; }
+  #hand { min-height: 118px; /* card 111 + capped fan dip */ }
+  .pile-card { width: 74px; height: 104px; }
+  .card-compact { width: 40px; height: 57px; min-width: 40px; margin-left: -14px; }
+  .flyCard { width: 64px; height: 90px; }
+  #opponents .opponent { max-width: 230px; }
+  .overlay-card { max-width: 560px; }
+}
+
+@media (min-width: 1500px) {
+  html { font-size: 18px; }
+  .screen { max-width: 1200px; }
+  .card { width: 86px; height: 126px; min-width: 86px; }
+  #hand { min-height: 134px; }
+  .pile-card { width: 82px; height: 115px; }
+  .card-compact { width: 46px; height: 65px; min-width: 46px; margin-left: -16px; }
+  .flyCard { width: 72px; height: 101px; }
+  #opponents .opponent { max-width: 260px; }
+}
+
 /* Maus-Bedienung: Hover-Feedback nur auf Geraeten MIT Hover (kein
    Sticky-Hover auf Touchscreens). Wichtig: kein transform im Hover,
    da die Faecher-Rotation als Inline-Style gesetzt wird. */
@@ -1875,4 +1906,25 @@ input:disabled { opacity: 0.65; }
   .yourTurnPulse {
     animation: none !important;
   }
+}
+
+/* Desktop + manuelle Anzeigegröße: die Stufen oben sind für Handys abgestimmt.
+   Auf einem großen Monitor darf "Groß" die Karten nicht KLEINER machen als der
+   neue Desktop-Standard (76px) - hier bekommen die manuellen Stufen daher
+   eigene Desktop-Werte. Steht bewusst am Dateiende (Kaskade). */
+@media (min-width: 1100px) {
+  html[data-uiscale="large"] { font-size: 18.5px; }
+  html[data-uiscale="xlarge"] { font-size: 20px; }
+
+  /* Werte liegen bewusst ÜBER der größten Normal-Stufe (86px bei >=1500px),
+     damit "Groß" auf jedem Monitor größer als "Normal" ist. */
+  html[data-uiscale="large"] #hand .card,
+  html[data-uiscale="large"] #melds .card { width: 90px; height: 132px; min-width: 90px; }
+  html[data-uiscale="large"] .pile-card { width: 84px; height: 118px; }
+  html[data-uiscale="large"] .card-compact { width: 46px; height: 65px; min-width: 46px; }
+
+  html[data-uiscale="xlarge"] #hand .card,
+  html[data-uiscale="xlarge"] #melds .card { width: 98px; height: 144px; min-width: 98px; }
+  html[data-uiscale="xlarge"] .pile-card { width: 92px; height: 129px; }
+  html[data-uiscale="xlarge"] .card-compact { width: 50px; height: 71px; min-width: 50px; }
 }
