@@ -148,6 +148,7 @@ const MSG_NOTES = {
   swapJoker: 'Swap a joker on the table for the card it represents (the joker leaves play permanently).',
   discard: 'Discard exactly one card and end your turn.',
   forfeitRound: 'Vote to forfeit the whole game. The match only ends once every connected player agrees.',
+  performCut: 'Interactive round start: the cutter picks where to cut the freshly shuffled deck (position 0..1). Only valid in the cutting phase, only for the cutter; bots, the daily challenge and timeouts cut automatically.',
   togglePause: 'Vote to pause. The game only pauses once every connected player agrees.',
   nextRound: 'Signal readiness for the next round.',
   rematch: 'Start a new match with the same table.',

@@ -4,8 +4,21 @@ const GameManager = require('../game/GameManager');
 const Rollout = require('../game/Rollout');
 const { makeStandardCard: mk } = require('../game/Card');
 
+// v1.67 interactive cutting: unit tests exercise the game AFTER the deal, so
+// every locally constructed game auto-cuts. Dedicated cutting tests live in
+// test/cutting.test.js and do NOT use this hook.
+function __autoCutHook(g) {
+  const orig = g.startNewRound.bind(g);
+  g.startNewRound = (...a) => {
+    orig(...a);
+    if (g.phase === 'cutting') g.performCut(g.cutterId, 0.5);
+  };
+  return g;
+}
+
+
 function midRound(difficulties) {
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('h', 'H');
   g.fillWithBots();
   g.players = difficulties.map((d, i) => ({

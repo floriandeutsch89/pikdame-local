@@ -5,11 +5,24 @@ const { performLuckyCut, dealCards, createDeck, shuffle, HAND_SIZE } = require('
 const { validateRun, tryLayOff } = require('../game/Rules');
 const { makeStandardCard, makeJoker } = require('../game/Card');
 
+// v1.67 interactive cutting: unit tests exercise the game AFTER the deal, so
+// every locally constructed game auto-cuts. Dedicated cutting tests live in
+// test/cutting.test.js and do NOT use this hook.
+function __autoCutHook(g) {
+  const orig = g.startNewRound.bind(g);
+  g.startNewRound = (...a) => {
+    orig(...a);
+    if (g.phase === 'cutting') g.performCut(g.cutterId, 0.5);
+  };
+  return g;
+}
+
+
 const H = (rank, idx = 0) => makeStandardCard('H', rank, idx);
 const S = (rank, idx = 0) => makeStandardCard('S', rank, idx);
 
 function makeGame(playerCount = 2) {
-  const game = new GameManager(() => {});
+  const game = __autoCutHook(new GameManager(() => {}));
   for (let i = 1; i <= playerCount; i++) {
     game.addOrReconnectPlayer(`p${i}`, `Spieler${i}`);
   }

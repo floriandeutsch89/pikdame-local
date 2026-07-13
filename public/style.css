@@ -1928,3 +1928,30 @@ input:disabled { opacity: 0.65; }
   html[data-uiscale="xlarge"] .pile-card { width: 92px; height: 129px; }
   html[data-uiscale="xlarge"] .card-compact { width: 50px; height: 71px; min-width: 50px; }
 }
+
+/* --- Abheben (interaktiver Rundenstart) ---------------------------------- */
+#cutDeckArea { position: relative; margin: 18px 0 14px; }
+#cutDeckBar {
+  /* Das Deck als liegender Kartenstapel: feine vertikale Streifen = Kartenrücken */
+  height: 64px; border-radius: 10px;
+  background:
+    repeating-linear-gradient(90deg,
+      var(--accent-deep, #1d3a5f) 0px, var(--accent-deep, #1d3a5f) 6px,
+      rgba(255,255,255,0.10) 6px, rgba(255,255,255,0.10) 7px);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 -6px 12px rgba(0,0,0,0.35), 0 4px 10px rgba(0,0,0,0.25);
+  overflow: hidden;
+}
+#cutMarker {
+  position: absolute; top: -6px; bottom: -6px; left: 50%;
+  width: 3px; background: var(--accent, #e8b64c);
+  border-radius: 2px; transform: translateX(-50%);
+  box-shadow: 0 0 8px var(--accent, #e8b64c);
+  pointer-events: none;
+}
+#cutSlider {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  opacity: 0; cursor: pointer; margin: 0; /* unsichtbar, aber voll bedienbar (Touch + Maus + Tastatur) */
+}
+.cutHint { color: var(--text-muted); font-size: 0.92rem; line-height: 1.45; }
+.cutCountdown { color: var(--text-muted); font-size: 0.85rem; min-height: 1.2em; margin: 8px 0 0; }

@@ -19,6 +19,7 @@ for (let i = 0; i < GAMES; i++) {
   g.maxSeats = 4;
   g.fillWithBots();
   g.startNewRound();
+  if (g.phase === 'cutting') g.performCut(g.cutterId, Math.random());
   games.push(g);
 }
 
@@ -36,6 +37,7 @@ const turnTimer = setInterval(() => {
   for (const g of games) {
     if (g.phase === 'roundEnd') {
       g.startNewRound();
+      if (g.phase === 'cutting') g.performCut(g.cutterId, Math.random());
       continue;
     }
     if (g.phase !== 'playing') continue;

@@ -12,6 +12,11 @@
 // - I18N_RULES_EN: die komplette englische Spielregeln-Ansicht.
 
 window.I18N_STATIC = {
+  // Abheben (interaktiver Rundenstart)
+  'Abheben': 'Cutting the deck',
+  'Wähle, wo du das frisch gemischte Deck abhebst. Liegen dort Pik Dame oder Joker, gehören sie sofort dir!':
+    'Choose where to cut the freshly shuffled deck. If the Queen of Spades or a joker sits at the cut, it is yours immediately!',
+  'Hier abheben': 'Cut here',
   // Lobby
   'Das Familien-Rommé – online mit Freunden & Bots': 'The family rummy – online with friends & bots',
   'Neues Spiel erstellen': 'Create a new game',
@@ -120,6 +125,11 @@ window.I18N_SERVER_PATTERNS = [
   // --- Log ---
   [/^Runde (\d+) gestartet\. Geber: (.+)\.$/, 'Round $1 started. Dealer: $2.'],
   [/^🍀 Glücksgriff beim Abheben! (.+?) nimmt vor dem Verteilen sofort auf die Hand: (.+)\.$/, '🍀 Lucky cut! $1 takes straight into hand before dealing: $2.'],
+  [/^Runde (\d+): (.+?) hebt ab …$/, 'Round $1: $2 is cutting the deck …'],
+  [/^(.+?) hebt ab\.$/, '$1 cuts the deck.'],
+  [/^Automatisch abgehoben \(Zeit abgelaufen\)\.$/, 'Auto-cut (time expired).'],
+  [/^Automatisch abgehoben \(Spieler getrennt\)\.$/, 'Auto-cut (player disconnected).'],
+  [/^Automatisch abgehoben \(Server-Neustart\)\.$/, 'Auto-cut (server restart).'],
   [/^(.+?) zieht eine Karte vom Stapel\.$/, '$1 draws a card from the pile.'],
   [/^(.+?) nimmt die oberste Ablagekarte \((.+?)\) - sie muss sofort gelegt werden, danach folgt der Rest des Stapels\.$/, '$1 takes the top discard ($2) – it must be melded immediately, then the rest of the pile follows.'],
   [/^(.+?) nimmt die restlichen (\d+) Karten des Ablagestapels auf\.$/, '$1 picks up the remaining $2 cards of the discard pile.'],
@@ -210,7 +220,7 @@ window.I18N_RULES_EN = `
   <h3>Dealing &amp; the lucky cut</h3>
   <ul>
     <li>The dealer rotates each round; the player after the dealer starts.</li>
-    <li>Before dealing, the player to the dealer's right cuts the deck. <b>Lucky cut:</b> If the Queen of Spades or jokers sit at the cut, they go straight into that player's hand – dealing skips accordingly, so everyone ends up with 15 cards.</li>
+    <li>Before dealing, the player to the dealer's right cuts the deck – <b>choosing the spot themselves</b> (the daily challenge auto-cuts so decks stay identical worldwide). <b>Lucky cut:</b> If the Queen of Spades or jokers sit at the cut, they go straight into that player's hand – dealing skips accordingly, so everyone ends up with 15 cards.</li>
     <li><b>Fairly shuffled:</b> Every round a brand-new deck is shuffled purely at random (Fisher-Yates). There is no hand-balancing – everyone has the exact same chance at the good cards each round. A single round is down to luck; over many rounds it evens out.</li>
   </ul>
 

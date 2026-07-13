@@ -1,5 +1,10 @@
 // game/GameManager.js
 const { seededRandom, createDeck, shuffle, dealCards, performLuckyCut } = require('./Deck');
+
+// Wie lange der Abheber Zeit hat, die Stelle zu wählen, bevor automatisch
+// abgehoben wird. Bewusst auch OHNE aktivierten Zug-Timer begrenzt: Abheben
+// darf den ganzen Tisch nicht blockieren.
+const CUT_TIMEOUT_MS = 45000;
 const { validateMeld, tryLayOff, tryJokerSwap, enumerateMeldOptions, enumerateLayOffOptions, canFormMeldWithCard } = require('./Rules');
 const { scoreRound, applyRoundScores, checkGameOver, DEFAULT_HOUSE_RULES } = require('./ScoreBoard');
 const { rankIndex, cardLabel, isPikDame, cardValue } = require('./Card');
@@ -122,6 +127,11 @@ class GameManager {
     const p = this.players.find((pl) => pl.id === id);
     if (p) {
       p.connected = false;
+      // Der Abheber ist weg -> automatisch abheben, damit die Runde für den
+      // Rest des Tisches sofort weitergeht (nicht erst nach dem Timeout).
+      if (this.phase === 'cutting' && id === this.cutterId) {
+        this._autoCut('Spieler getrennt');
+      }
       // In der Lobby zaehlt nur aktives Bereitmelden: Wer sich (durch
       // Minimieren) trennt, verliert seine Bereitschaft und muss nach der
       // Rueckkehr erneut druecken.
@@ -370,23 +380,90 @@ class GameManager {
     let deck = shuffle(createDeck(), roundSeed);
     const playerIds = this.players.map((p) => p.id);
 
-    // --- Glücksgriff beim Abheben ---
+    // --- Abheben (Glücksgriff) ---
     // Der Geber mischt, der Spieler zu seiner RECHTEN hebt ab (= der Spieler
     // VOR ihm in der Sitzreihenfolge, da diese im Uhrzeigersinn läuft).
     // Findet er dabei Pik Dame oder Joker, wandern diese Karten sofort auf
     // seine Hand - beim Verteilen wird er dafür entsprechend oft übersprungen,
     // sodass am Ende alle exakt 15 Karten haben.
+    //
+    // Ist der Abheber ein VERBUNDENER MENSCH, wird das Abheben zum echten,
+    // interaktiven Schritt: Phase 'cutting', der Spieler wählt die Stelle
+    // selbst (mit Timeout, damit niemand den Tisch blockiert). Bots heben
+    // sofort automatisch ab - dadurch bleiben Selbstspiel-Simulationen und
+    // das RL-Training (alle Sitze sind Bots) exakt so synchron wie bisher.
+    // Die Tages-Challenge bleibt IMMER automatisch und geseedet: Ein frei
+    // gewählter Schnittpunkt würde die weltweit identischen Decks
+    // auseinanderlaufen lassen.
+    const cutter = this.players.length >= 2
+      ? this.players[(this.dealerIndex - 1 + this.players.length) % this.players.length]
+      : null;
+    const seededRound = typeof roundSeed === 'number';
+
+    if (cutter && !seededRound && !cutter.isBot && cutter.connected && !this.isBotControlled(cutter)) {
+      this.phase = 'cutting';
+      this.cutterId = cutter.id;
+      this._pendingDeck = deck; // server-only; publicState is an allowlist and never exposes it
+      this.cutDeadline = Date.now() + CUT_TIMEOUT_MS;
+      clearTimeout(this._cutTimer);
+      this._cutTimer = setTimeout(() => this._autoCut('Zeit abgelaufen'), CUT_TIMEOUT_MS);
+      if (this._cutTimer.unref) this._cutTimer.unref();
+      this.addLog(`Runde ${this.roundNumber}: ${cutter.name} hebt ab …`);
+      this.broadcastState();
+      return;
+    }
+
+    // Automatischer Schnitt (Bot-Abheber, getrennter Mensch, Challenge, <2 Spieler).
+    // Daily challenge: the CUT must be seeded too, or it silently reshuffles
+    // part of the deterministic deck (found via a flaky determinism test -
+    // everyone got slightly different hands!).
+    const cutRnd = seededRound ? seededRandom((roundSeed ^ 0x5f3759df) >>> 0) : Math.random;
+    const autoIndex = cutter ? 10 + Math.floor(cutRnd() * (deck.length - 20)) : -1;
+    this._completeRoundStart(deck, autoIndex);
+  }
+
+  /**
+   * Der Spieler, der mit Abheben dran ist, wählt die Stelle (0 = ganz oben,
+   * 1 = ganz unten). Der nutzbare Bereich ist wie beim Auto-Schnitt auf
+   * [10, deckgröße-10) geklemmt - ganz außen abheben wäre kein Abheben.
+   */
+  performCut(playerId, position) {
+    if (this.phase !== 'cutting') return { error: 'Gerade wird nicht abgehoben.' };
+    if (playerId !== this.cutterId) return { error: 'Du bist nicht mit Abheben dran.' };
+    const f = Number(position);
+    if (!Number.isFinite(f) || f < 0 || f > 1) return { error: 'Ungültige Abhebe-Position.' };
+    const deck = this._pendingDeck;
+    if (!deck) return { error: 'Kein Deck zum Abheben.' };
+    const cutIndex = 10 + Math.floor(f * (deck.length - 20));
+    const cutterName = (this.players.find((p) => p.id === playerId) || {}).name || '?';
+    this.addLog(`${cutterName} hebt ab.`);
+    this._completeRoundStart(deck, cutIndex);
+    return { ok: true };
+  }
+
+  /** Abheben ohne Spieler-Eingabe (Timeout, Disconnect, Restore). */
+  _autoCut(reason) {
+    if (this.phase !== 'cutting' || !this._pendingDeck) return;
+    const deck = this._pendingDeck;
+    const cutIndex = 10 + Math.floor(Math.random() * (deck.length - 20));
+    if (reason) this.addLog(`Automatisch abgehoben (${reason}).`);
+    this._completeRoundStart(deck, cutIndex);
+  }
+
+  /** Rundenstart ab dem Schnitt: Glücksgriff anwenden, verteilen, losspielen. */
+  _completeRoundStart(deck, cutIndex) {
+    clearTimeout(this._cutTimer);
+    this._cutTimer = null;
+    this._pendingDeck = null;
+    this.cutterId = null;
+    this.cutDeadline = null;
+
+    const playerIds = this.players.map((p) => p.id);
     const skips = {};
     let luckyCards = [];
     let cutter = null;
-    if (this.players.length >= 2) {
+    if (this.players.length >= 2 && cutIndex >= 0) {
       cutter = this.players[(this.dealerIndex - 1 + this.players.length) % this.players.length];
-      // Daily challenge: the CUT must be seeded too, or it silently
-      // reshuffles part of the deterministic deck (found via a flaky
-      // determinism test - everyone got slightly different hands!).
-      const cutRnd =
-        typeof roundSeed === 'number' ? seededRandom((roundSeed ^ 0x5f3759df) >>> 0) : Math.random;
-      const cutIndex = 10 + Math.floor(cutRnd() * (deck.length - 20));
       const cut = performLuckyCut(deck, cutIndex);
       luckyCards = cut.luckyCards;
       deck = cut.remaining;
@@ -1404,6 +1481,7 @@ class GameManager {
     this._pendingBroadcast = false;
     clearTimeout(this._botTimer);
     clearTimeout(this._turnTimer);
+    clearTimeout(this._cutTimer);
     if (this._takeoverTimers) {
       for (const t of this._takeoverTimers.values()) clearTimeout(t);
       this._takeoverTimers.clear();
@@ -1485,6 +1563,7 @@ class GameManager {
         key === 'onBotEmote' ||
         key === '_botTimer' ||
         key === '_turnTimer' ||
+        key === '_cutTimer' ||
         key === '_emoteTimers' ||
         key === '_takeoverTimers' ||
         key === '_nextRoundReady' ||
@@ -1536,6 +1615,11 @@ class GameManager {
       if (!p.isBot && !p.connected) this._scheduleTakeover(p.id);
     }
     this._armTurnTimer(); // fresh deadline for a restored running turn
+    // Neustart mitten im Abheben: Nach dem Restore gelten alle Spieler als
+    // getrennt - niemand könnte die Stelle wählen. Automatisch abheben, damit
+    // der Tisch sofort spielbereit ist, wenn die Menschen zurückkommen.
+    this._cutTimer = null; // JSON hat den Timer zu einem toten Objekt degradiert
+    if (this.phase === 'cutting') this._autoCut('Server-Neustart');
     // Transiente Felder IMMER frisch initialisieren: bereits gespeicherte
     // Snapshots (vor diesem Fix) enthalten _emoteTimers als {} - ohne diese
     // Zeilen wuerde der erste Bot-Emote nach einem Server-Neustart mit
@@ -1994,6 +2078,8 @@ class GameManager {
       hostId: this.effectiveHostId(),
       isHost: this.isHost(forPlayerId),
       paused: !!this.paused,
+      cutterId: this.phase === 'cutting' ? this.cutterId : null,
+      cutDeadline: this.phase === 'cutting' ? this.cutDeadline : null,
       pauseVotes: this._pauseVotes ? [...this._pauseVotes] : [],
       forfeitVotes: this._forfeitVotes ? [...this._forfeitVotes] : [],
       players: this.players.map((p) => ({
