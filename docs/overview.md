@@ -17,13 +17,16 @@ For the exact numbers the engine plays with, see {doc}`developer/game-constants`
 ### A round starts
 
 The dealer rotates each round. Before dealing, the player to the dealer's
-right **cuts the deck** — picking the spot themselves; everyone briefly sees
-what the cut revealed. If the Queen of Spades or jokers sit at the cut, the
-cutter keeps them (**lucky cut**) and looks at the next card, until an
-ordinary card ends the run. Dealing then skips the cutter accordingly, so
-everyone starts with exactly 15 cards. (Bots and the daily challenge cut
-automatically — the challenge must stay deterministic so the whole world
-plays the identical deck.)
+right **cuts the deck** — picking the spot themselves. **The cut packet is
+set aside:** every card before the cut spot plus the cut card itself leaves
+the round — only the rest is dealt and drawn from; if the draw pile runs dry,
+the packet is shuffled back in first. If the Queen of Spades or jokers sit at
+the cut, the cutter keeps them (**lucky cut**, announced to the whole table)
+and looks at the next card, until an ordinary card ends the run — that card
+then counts as the cut card, is shown to the cutter only, and leaves with the
+packet. Dealing skips the cutter accordingly, so everyone starts with exactly
+15 cards. (Bots and the daily challenge cut automatically — the challenge
+must stay deterministic so the whole world plays the identical deck.)
 
 ### A turn
 

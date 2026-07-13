@@ -2024,3 +2024,20 @@ input:disabled { opacity: 0.65; }
   box-shadow: 0 0 26px rgba(63, 174, 90, 0.55), 0 10px 30px rgba(0,0,0,0.4);
 }
 .raidWarning.lucky .rwTitle { color: #6fe08b; text-shadow: 0 0 14px rgba(63,174,90,0.8); }
+
+/* --- Tutorial: kontextuelle Markierung ------------------------------------ */
+.card.tutorialGlow {
+  outline: 3px solid #ffd54a; outline-offset: -1px;
+  animation: tutorialPulse 1.2s ease-in-out infinite;
+}
+.meldGroup.tutorialGlowMeld {
+  outline: 3px solid #ffd54a; border-radius: 10px;
+  animation: tutorialPulse 1.2s ease-in-out infinite;
+}
+@keyframes tutorialPulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(255, 213, 74, 0.5); }
+  50%      { box-shadow: 0 0 18px rgba(255, 213, 74, 0.95); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card.tutorialGlow, .meldGroup.tutorialGlowMeld { animation: none; box-shadow: 0 0 10px rgba(255,213,74,0.7); }
+}

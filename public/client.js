@@ -524,10 +524,10 @@
     title.className = 'cutRevealTitle';
     title.textContent = lucky
       ? (iAmCutter && r.cards.length > r.luckyCount
-          ? L('Deine Beute - die letzte Karte bleibt im Deck', 'Your haul - the last card stays in the deck')
+          ? L('Deine Beute - die letzte Karte geht mit dem Packen beiseite', 'Your haul - the last card leaves with the packet')
           : L(`${name} behält ${r.luckyCount} Karte${r.luckyCount > 1 ? 'n' : ''}`,
               `${name} keeps ${r.luckyCount} card${r.luckyCount > 1 ? 's' : ''}`))
-      : L('Deine Abhebekarte - bleibt im Deck', 'Your cut card - stays in the deck');
+      : L('Deine Abhebekarte - geht mit dem Packen beiseite', 'Your cut card - leaves with the packet');
     wrap.appendChild(title);
 
     const row = document.createElement('div');
@@ -730,6 +730,7 @@
   function cardEl(card, { selectable, selected, onClick, compact } = {}) {
     const div = document.createElement('div');
     div.className = compact ? 'card card-compact' : 'card';
+    if (card && card.id != null) div.dataset.cardId = String(card.id); // z.B. Tutorial-Glow
     if (card.isJoker) {
       div.classList.add('joker');
       // Ecken-Index oben links, damit der Joker auch bei starker
@@ -1092,6 +1093,7 @@
       ownerMelds.forEach((meld) => {
         const group = document.createElement('div');
         group.className = 'meldGroup';
+        if (meld.id != null) group.dataset.meldId = String(meld.id);
         // Grüner Hinweis: EINE Karte, die hier anpasst - ODER mehrere,
         // die GEMEINSAM anpassen (z.B. zwei Zehnen an den Zehner-Satz)
         if (isMine && isMyTurn && lastState.turnPhase === 'meld') {
@@ -2146,6 +2148,16 @@
     {
       key: 'pickupRest',
       when: (st, me, myTurn) => myTurn && !!st.mustLayOffCardId,
+      highlight: (st, me) => {
+        const hl = { cardIds: [st.mustLayOffCardId], meldIds: [] };
+        const card = me && me.hand ? me.hand.find((cd) => cd.id === st.mustLayOffCardId) : null;
+        if (card) {
+          for (const meld of st.tableMelds || []) {
+            if (meld.ownerId === me.id && cardFitsMeld(meld, card)) hl.meldIds.push(meld.id);
+          }
+        }
+        return hl;
+      },
       text: () => L(
         'Ablagestapel genommen: Die oberste Karte MUSS jetzt zuerst in eine Auslage - danach kommt der Rest des Stapels auf deine Hand.',
         'Pile taken: the top card MUST go into a meld first - then the rest of the pile joins your hand.'
@@ -2154,6 +2166,18 @@
     {
       key: 'meld',
       when: (st, me, myTurn) => myTurn && st.turnPhase === 'meld' && !st.mustLayOffCardId,
+      highlight: (st, me) => {
+        if (!me || !me.hand) return null;
+        const combo = findTutorialMeld(me.hand);
+        if (combo) return { cardIds: combo, meldIds: [] };
+        // keine neue Kombination? Dann eine anlegbare Einzelkarte + ihr Ziel zeigen
+        for (const meld of st.tableMelds || []) {
+          if (meld.ownerId !== me.id) continue;
+          const fit = me.hand.find((cd) => cardFitsMeld(meld, cd));
+          if (fit) return { cardIds: [fit.id], meldIds: [meld.id] };
+        }
+        return null;
+      },
       text: () => L(
         'Auslegen (freiwillig): Tippe 3+ Karten gleichen Werts (Satz) oder eine Folge derselben Farbe an und lege sie. Einzelkarten kannst du an DEINE eigenen Auslagen anlegen. Zum Schluss eine Karte abwerfen - das beendet den Zug.',
         'Melding (optional): tap 3+ cards of the same rank (set) or a same-suit run and lay them down. Single cards can be added to YOUR OWN melds. Finish by discarding one card - that ends your turn.'
@@ -2162,6 +2186,10 @@
     {
       key: 'pikdame',
       when: (st, me) => me && me.hand && me.hand.some((cd) => cd.rank === 'Q' && cd.suit === 'S'),
+      highlight: (st, me) => ({
+        cardIds: me.hand.filter((cd) => cd.rank === 'Q' && cd.suit === 'S').map((cd) => cd.id),
+        meldIds: [],
+      }),
       text: () => L(
         'Du hältst die Pik Dame! ♠Q ausgelegt = +100 Punkte. Am Rundenende auf der Hand erwischt = -100. Werde sie rechtzeitig los - oder lege sie aus.',
         'You hold the Queen of Spades! ♠Q melded = +100 points. Caught in hand at round end = -100. Shed her in time - or meld her.'
@@ -2170,6 +2198,10 @@
     {
       key: 'joker',
       when: (st, me) => me && me.hand && me.hand.some((cd) => cd.isJoker),
+      highlight: (st, me) => ({
+        cardIds: me.hand.filter((cd) => cd.isJoker).map((cd) => cd.id),
+        meldIds: [],
+      }),
       text: () => L(
         'Ein Joker! 🃏 Er ersetzt jede Karte in Sätzen und Folgen (20 Punkte). Abwerfen ist fast nie klug - und getauschte Joker sind dauerhaft aus dem Spiel.',
         'A joker! 🃏 It substitutes any card in sets and runs (20 points). Discarding one is almost never wise - and swapped jokers leave the game for good.'
@@ -2193,6 +2225,56 @@
     },
   ];
 
+  /**
+   * Findet EINE sicher legbare Kombination in der Hand für den Tutorial-Glow:
+   * zuerst Sätze (3+ gleicher Rang, max. 2 pro Farbe - zwei Decks im Spiel),
+   * dann einfache Folgen (gleiche Farbe, lückenlos). Bewusst konservativ:
+   * ohne Joker und ohne Ring-Folgen (K-A-2) - lieber nichts markieren als
+   * etwas Falsches. Der Server bleibt die einzige Regel-Autorität.
+   */
+  function findTutorialMeld(hand) {
+    const real = hand.filter((cd) => !cd.isJoker);
+    const byRank = {};
+    for (const cd of real) (byRank[cd.rank] = byRank[cd.rank] || []).push(cd);
+    for (const cards of Object.values(byRank)) {
+      const perSuit = {};
+      const pick = [];
+      for (const cd of cards) {
+        perSuit[cd.suit] = (perSuit[cd.suit] || 0) + 1;
+        if (perSuit[cd.suit] <= 2) pick.push(cd);
+      }
+      if (pick.length >= 3) return pick.slice(0, 4).map((cd) => cd.id);
+    }
+    const ORDER = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+    const bySuit = {};
+    for (const cd of real) (bySuit[cd.suit] = bySuit[cd.suit] || new Map()).set(cd.rank, cd);
+    for (const m of Object.values(bySuit)) {
+      let run = [];
+      for (const r of ORDER) {
+        if (m.has(r)) {
+          run.push(m.get(r));
+          if (run.length >= 3) return run.slice(-3).map((cd) => cd.id);
+        } else run = [];
+      }
+    }
+    return null;
+  }
+
+  let tutorialHighlight = null;
+  function applyTutorialHighlight(hl) {
+    document.querySelectorAll('.tutorialGlow').forEach((n) => n.classList.remove('tutorialGlow'));
+    document.querySelectorAll('.tutorialGlowMeld').forEach((n) => n.classList.remove('tutorialGlowMeld'));
+    if (!hl) return;
+    for (const id of hl.cardIds || []) {
+      const n = document.querySelector(`#hand [data-card-id="${CSS.escape(String(id))}"]`);
+      if (n) n.classList.add('tutorialGlow');
+    }
+    for (const id of hl.meldIds || []) {
+      const n = document.querySelector(`[data-meld-id="${CSS.escape(String(id))}"]`);
+      if (n) n.classList.add('tutorialGlowMeld');
+    }
+  }
+
   function persistTutorial() {
     storageSet('pikdame_tutorial', tutorialActive ? 'on' : 'off');
     storageSet('pikdame_tutorial_seen', JSON.stringify([...tutorialSeen]));
@@ -2207,9 +2289,20 @@
     const me = (lastState.players || []).find((p) => p.id === playerId);
     const myTurn = lastState.phase === 'playing' && lastState.currentPlayerId === playerId;
     const step = TUTORIAL_STEPS.find((s) => !tutorialSeen.has(s.key) && s.when(lastState, me, myTurn));
+    // BUGFIX (v1.71): Ein Hinweis, dessen Situation vorbei ist (Bedingung wird
+    // false oder ein anderer Step löst ihn ab), gilt als GESEHEN - vorher
+    // wurde 'seen' nur beim aktiven Weiter-Klick gesetzt, wodurch z.B.
+    // "Du bist dran!" jede Runde erneut auftauchte.
+    const nextKey = step ? step.key : null;
+    if (tutorialCurrentStep && tutorialCurrentStep !== nextKey) {
+      tutorialSeen.add(tutorialCurrentStep);
+      persistTutorial();
+    }
     if (!step) {
       banner.classList.add('hidden');
       tutorialCurrentStep = null;
+      tutorialHighlight = null;
+      requestAnimationFrame(() => applyTutorialHighlight(null));
       // Everything explained once -> the tutorial retires itself.
       if (TUTORIAL_STEPS.every((s) => tutorialSeen.has(s.key))) {
         tutorialActive = false;
@@ -2222,6 +2315,11 @@
       el('tutorialText').textContent = step.text();
     }
     banner.classList.remove('hidden');
+    // Kontextuelle Markierung: die konkreten Karten (und ggf. die Ziel-
+    // Auslage) glühen. Nach dem synchronen Render anwenden (rAF), weil das
+    // Hand-/Auslagen-DOM bei jedem State neu aufgebaut wird.
+    tutorialHighlight = typeof step.highlight === 'function' ? step.highlight(lastState, me) : null;
+    requestAnimationFrame(() => applyTutorialHighlight(tutorialHighlight));
   }
 
   let lastChallengeBoard = null;

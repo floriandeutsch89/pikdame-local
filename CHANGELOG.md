@@ -4,6 +4,19 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.71.0] - 2026-07-13
+
+### Changed
+- **Familienregel beim Abheben (in Regeln + Spiel verewigt):** Der abgehobene Packen wird jetzt **beiseitegelegt** - alle Karten vor der Abhebestelle plus die Abhebekarte selbst kommen für die Runde aus dem Spiel; verteilt und gezogen wird nur der Rest. Läuft der Nachziehstapel leer, wird **zuerst der beiseitegelegte Packen** gemischt nachgelegt (erst danach wie bisher die Ablage). Glücksgriffe bleiben wie gehabt: Pik Dame/Joker an der Abhebestelle wandern in die Hand des Abhebers; die nächste normale Karte gilt dann als Abhebekarte und geht mit dem Packen beiseite
+- Der **Abhebebereich ist entsprechend begrenzt** (je nach Spielerzahl), damit nach dem Beiseitelegen immer für alle verteilt werden kann - der Slider deckt automatisch nur den erlaubten Bereich ab. ⚠️ Durch die neue Schnitt-Formel ändern sich die **Tages-Challenge-Decks einmalig** mit diesem Update (Bestenliste des laufenden Tages nicht direkt vergleichbar über den Deploy-Zeitpunkt hinweg)
+- **RL/Bots:** Regeländerung betrifft alle gleichermaßen; Observation- und Action-Space sind unverändert, bestehende Modelle spielen weiter. Da die Runde jetzt mit weniger Nachziehkarten läuft, ist ein Neutraining mittelfristig sinnvoll
+
+### Fixed
+- **Tutorial: Hinweise wiederholen sich nicht mehr.** „Du bist dran! Ziehe eine Karte …" erschien jede Runde erneut, weil ein Hinweis nur beim aktiven Weiter-Klick als gesehen galt - verschwand er von selbst (weil man z. B. einfach zog), wurde er nie abgehakt. Jetzt gilt: einmal gezeigt = gesehen, egal wie er endet
+
+### Added
+- **Tutorial zeigt jetzt, WOMIT man es macht:** Die konkreten Karten glühen golden - die legbare Kombination beim Auslegen-Hinweis (Satz- und Folgen-Suche, bewusst konservativ ohne Joker/Ringfolgen), die Pflichtkarte nach einer Stapel-Aufnahme samt passender eigener Ziel-Auslage, die Pik Dame und Joker bei ihren Hinweisen. Respektiert „Bewegung reduzieren"
+
 ## [1.70.1] - 2026-07-13
 
 ### Fixed

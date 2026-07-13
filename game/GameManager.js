@@ -1,5 +1,5 @@
 // game/GameManager.js
-const { seededRandom, createDeck, shuffle, dealCards, performLuckyCut } = require('./Deck');
+const { seededRandom, createDeck, shuffle, dealCards, performLuckyCut, HAND_SIZE } = require('./Deck');
 
 // Wie lange der Abheber Zeit hat, die Stelle zu wählen, bevor automatisch
 // abgehoben wird. Bewusst auch OHNE aktivierten Zug-Timer begrenzt: Abheben
@@ -431,14 +431,33 @@ class GameManager {
     // part of the deterministic deck (found via a flaky determinism test -
     // everyone got slightly different hands!).
     const cutRnd = seededRound ? seededRandom((roundSeed ^ 0x5f3759df) >>> 0) : Math.random;
-    const autoIndex = cutter ? 10 + Math.floor(cutRnd() * (deck.length - 20)) : -1;
+    const autoIndex = cutter ? this._cutIndexFromFraction(deck.length, cutRnd()) : -1;
     this._completeRoundStart(deck, autoIndex);
   }
 
   /**
+   * Erlaubter Abhebe-Bereich. Seit der Familienregel (v1.71) wird der
+   * abgehobene Packen BEISEITEGELEGT - je tiefer der Schnitt, desto weniger
+   * Karten bleiben im Spiel. Die Obergrenze garantiert, dass nach dem
+   * Beiseitelegen immer verteilt werden kann (15 Karten pro Spieler + Start
+   * der Ablage + Mindest-Nachziehstapel). Die Glückskarten kürzen sich dabei
+   * heraus: Was der Abheber ergattert, muss nicht mehr verteilt werden.
+   */
+  _cutBounds(deckLen) {
+    const players = Math.max(2, this.players.length);
+    const lo = 10;
+    const hi = Math.max(lo, deckLen - (players * HAND_SIZE + 11));
+    return { lo, hi };
+  }
+
+  _cutIndexFromFraction(deckLen, fraction) {
+    const { lo, hi } = this._cutBounds(deckLen);
+    return lo + Math.floor(Math.min(0.999999, Math.max(0, fraction)) * (hi - lo + 1));
+  }
+
+  /**
    * Der Spieler, der mit Abheben dran ist, wählt die Stelle (0 = ganz oben,
-   * 1 = ganz unten). Der nutzbare Bereich ist wie beim Auto-Schnitt auf
-   * [10, deckgröße-10) geklemmt - ganz außen abheben wäre kein Abheben.
+   * 1 = ganz unten), geklemmt auf den erlaubten Bereich (_cutBounds).
    */
   performCut(playerId, position) {
     if (this.phase !== 'cutting') return { error: 'Gerade wird nicht abgehoben.' };
@@ -447,7 +466,7 @@ class GameManager {
     if (!Number.isFinite(f) || f < 0 || f > 1) return { error: 'Ungültige Abhebe-Position.' };
     const deck = this._pendingDeck;
     if (!deck) return { error: 'Kein Deck zum Abheben.' };
-    const cutIndex = 10 + Math.floor(f * (deck.length - 20));
+    const cutIndex = this._cutIndexFromFraction(deck.length, f);
     const cutterName = (this.players.find((p) => p.id === playerId) || {}).name || '?';
     this.addLog(`${cutterName} hebt ab.`);
     this._completeRoundStart(deck, cutIndex);
@@ -458,7 +477,7 @@ class GameManager {
   _autoCut(reason) {
     if (this.phase !== 'cutting' || !this._pendingDeck) return;
     const deck = this._pendingDeck;
-    const cutIndex = 10 + Math.floor(Math.random() * (deck.length - 20));
+    const cutIndex = this._cutIndexFromFraction(deck.length, Math.random());
     if (reason) this.addLog(`Automatisch abgehoben (${reason}).`);
     this._completeRoundStart(deck, cutIndex);
   }
@@ -476,11 +495,19 @@ class GameManager {
     let luckyCards = [];
     let cutter = null;
     this.lastCutReveal = null;
+    this.setAsidePile = [];
     if (this.players.length >= 2 && cutIndex >= 0) {
       cutter = this.players[(this.dealerIndex - 1 + this.players.length) % this.players.length];
       const cut = performLuckyCut(deck, cutIndex);
       luckyCards = cut.luckyCards;
       deck = cut.remaining;
+      // Familienregel: der abgehobene Packen (alles vor der Abhebestelle plus
+      // die Abhebekarte) wird für diese Runde beiseitegelegt. Er kommt nur
+      // zurück, falls der Nachziehstapel leerläuft (siehe reshuffle).
+      this.setAsidePile = cut.setAside;
+      if (cut.setAside.length > 0) {
+        this.addLog(`${cut.setAside.length} Karten werden mit dem Abheben beiseitegelegt.`);
+      }
       if (luckyCards.length > 0) {
         skips[cutter.id] = luckyCards.length;
       }
@@ -647,6 +674,15 @@ class GameManager {
   }
 
   reshuffleDiscardIntoDrawPile() {
+    // Zuerst kommt der beim Abheben beiseitegelegte Packen zurück ins Spiel -
+    // wie am echten Tisch: Ist der Stapel leer, greift man zum Packen.
+    const aside = Array.isArray(this.setAsidePile) ? this.setAsidePile : [];
+    if (aside.length > 0) {
+      this.drawPile = shuffle(aside);
+      this.setAsidePile = [];
+      this.addLog('Nachziehstapel war leer - der beim Abheben beiseitegelegte Packen wird gemischt und nachgelegt.');
+      return;
+    }
     if (this.discardPile.length <= 1) return;
     const top = this.discardPile.shift();
     this.drawPile = shuffle(this.discardPile);
@@ -2149,6 +2185,7 @@ class GameManager {
       turnPhase: this.turnPhase,
       mustLayOffCardId: this.mustLayOffCardId,
       drawPileCount: this.drawPile.length,
+      setAsideCount: Array.isArray(this.setAsidePile) ? this.setAsidePile.length : 0,
       discardTop: this.discardPile[0] || null,
       discardPileCount: this.discardPile.length,
       tableMelds: this.tableMelds,

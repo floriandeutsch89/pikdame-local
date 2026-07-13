@@ -133,21 +133,27 @@ test('canUseDiscardTop: NUR eine Handkarten-Kombination berechtigt zur Aufnahme 
 
 // --- Glücksgriff ---
 
-test('Glücksgriff: Pik Dame + direkt folgender Joker werden ergattert, normale Karte stoppt', () => {
+test('Glücksgriff: Pik Dame + direkt folgender Joker werden ergattert, normale Karte stoppt und geht mit dem Packen beiseite', () => {
   const deck = [H('5'), H('6'), S('Q'), makeJoker(0), H('9'), makeJoker(1)];
-  const { luckyCards, remaining } = performLuckyCut(deck, 2);
+  const { luckyCards, remaining, stopper, setAside } = performLuckyCut(deck, 2);
   assert.equal(luckyCards.length, 2, 'Pik Dame + folgender Joker');
   assert.equal(luckyCards[0].rank, 'Q');
   assert.equal(luckyCards[1].isJoker, true);
-  assert.equal(remaining.length, 4);
-  assert.equal(remaining[2].rank, '9', 'die normale Karte rückt an die Abhebestelle');
+  // Familienregel: Packen vor der Abhebestelle (H5, H6) + Abhebekarte (H9)
+  // werden beiseitegelegt; gespielt wird nur der Teil danach (Joker 1).
+  assert.equal(stopper.rank, '9');
+  assert.deepEqual(setAside.map((cd) => cd.rank || 'J'), ['5', '6', '9']);
+  assert.equal(remaining.length, 1);
+  assert.equal(remaining[0].isJoker, true);
 });
 
-test('Glücksgriff: keine Spezialkarte an der Abhebestelle -> nichts passiert', () => {
+test('Glücksgriff: keine Spezialkarte an der Abhebestelle -> nur die Abhebekarte geht beiseite', () => {
   const deck = [H('5'), S('Q'), H('7')];
-  const { luckyCards, remaining } = performLuckyCut(deck, 0);
+  const { luckyCards, remaining, setAside } = performLuckyCut(deck, 0);
   assert.equal(luckyCards.length, 0);
-  assert.equal(remaining.length, 3);
+  assert.equal(setAside.length, 1, 'Abhebekarte selbst wird beiseitegelegt');
+  assert.equal(setAside[0].rank, '5');
+  assert.equal(remaining.length, 2, 'gespielt wird der Teil nach der Abhebekarte');
 });
 
 test('Glücksgriff-Ausgleich: dealCards überspringt den Abheber, alle enden bei 15', () => {
@@ -169,8 +175,10 @@ test('Glücksgriff-Integration: nach startNewRound haben IMMER alle exakt 15 Kar
       assert.equal(p.hand.length, HAND_SIZE, `Runde ${i}: ${p.id} muss 15 Karten haben`);
     }
     const total =
-      game.players.reduce((sum, p) => sum + p.hand.length, 0) + game.drawPile.length + game.discardPile.length;
-    assert.equal(total, 110, `Runde ${i}: alle 110 Karten müssen im Spiel sein`);
+      game.players.reduce((sum, p) => sum + p.hand.length, 0) +
+      game.drawPile.length + game.discardPile.length + game.setAsidePile.length;
+    assert.equal(total, 110, `Runde ${i}: alle 110 Karten müssen erfasst sein (inkl. beiseitegelegtem Packen)`);
+    assert.ok(game.setAsidePile.length >= 11, `Runde ${i}: mindestens Abhebe-Minimum (10) + Abhebekarte beiseite`);
   }
 });
 
