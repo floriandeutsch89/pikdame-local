@@ -1974,7 +1974,7 @@
   // bots follow immediately (ruleSound stays local - it's a personal setting).
   ['ruleHandAus', 'ruleStrict1000', 'ruleTurnTimer'].forEach((id) => {
     el(id).addEventListener('change', () => {
-      if (lastState && lastState.isHost) send({ type: 'setHouseRules', houseRules: collectHouseRules() });
+      if (lastState && lastState.isHost && !lastState.challengeDate) send({ type: 'setHouseRules', houseRules: collectHouseRules() });
     });
   });
 
@@ -2096,6 +2096,8 @@
     zen: { icon: '🧘', label: () => L('Zen-Meister', 'Zen master'), hint: () => L('zählt die Karten mit', 'counts the cards') },
   };
   function openBotDiffOverlay(bot) {
+    // Tages-Challenge: Bot-Stärke ist fest (Zen für alle) - Menü gar nicht anbieten.
+    if (lastState && lastState.challengeDate) return;
     el('botDiffTitle').textContent = L(`Schwierigkeit: ${bot.name}`, `Difficulty: ${bot.name}`);
     const box = el('botDiffOptions');
     box.innerHTML = '';

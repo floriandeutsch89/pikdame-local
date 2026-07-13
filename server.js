@@ -749,7 +749,7 @@ wss.on('connection', (ws, req) => {
       const ok = await joinSession(created.session, msg);
       if (ok) {
         const game = created.session.game;
-        game.setHouseRules({ botDifficulty: 'zen', turnTimerSeconds: 0 });
+        game.setHouseRules({ botDifficulty: 'zen', turnTimerSeconds: 0 }, { system: true });
         game.fillWithBots();
         game.startNewRound();
       }
@@ -833,7 +833,8 @@ wss.on('connection', (ws, req) => {
       }
       case 'setHouseRules': {
         if (!game.isHost(playerId)) { sendError(ws, 'Nur der Organisator kann die Einstellungen ändern.'); break; }
-        game.setHouseRules(msg.houseRules || {});
+        const r = game.setHouseRules(msg.houseRules || {});
+        if (r && r.error) { sendError(ws, r.error); break; }
         game.broadcastState();
         break;
       }
