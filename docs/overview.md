@@ -14,6 +14,17 @@ at the end of a round she costs you 100. Much of the tactics revolve around her.
 
 For the exact numbers the engine plays with, see {doc}`developer/game-constants`.
 
+### A round starts
+
+The dealer rotates each round. Before dealing, the player to the dealer's
+right **cuts the deck** — picking the spot themselves; everyone briefly sees
+what the cut revealed. If the Queen of Spades or jokers sit at the cut, the
+cutter keeps them (**lucky cut**) and looks at the next card, until an
+ordinary card ends the run. Dealing then skips the cutter accordingly, so
+everyone starts with exactly 15 cards. (Bots and the daily challenge cut
+automatically — the challenge must stay deterministic so the whole world
+plays the identical deck.)
+
 ### A turn
 
 1. **Draw** — either the top card of the face-down pile, or the discard pile. The

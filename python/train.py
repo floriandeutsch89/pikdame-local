@@ -13,7 +13,7 @@ tiers differ by opponents and training length:
     zen    : long training vs. a zen-anchored pool (the ceiling model)
 
 Each tier is saved as models/pikdame-<tier>.onnx, ready for the Node runtime
-(game/OnnxPolicy.js). Usage on the RTX 5080 box (WSL2), see docs/RL_TRAINING.md:
+(game/OnnxPolicy.js). Usage on the RTX 5080 box (WSL2), see https://pik-dame.readthedocs.io/en/latest/developer/rl-setup.html :
 
     python train.py --tier all
     python train.py --tier zen --steps 3000000
@@ -47,13 +47,13 @@ MODELS_DIR = os.path.join(REPO_ROOT, "models")
 # discards from hard). Draw and meld phases are difficulty-independent above
 # easy. So a "medium + hard" pool is secretly uniform; the pools below combine
 # the genuinely distinct styles instead. Real diversity beyond this ceiling
-# needs the self-play league (see docs/RL_TRAINING.md, "Opponent selection").
+# needs the self-play league (see the RL setup docs, "Opponent selection").
 # Only MEDIUM and ZEN are trained as networks. 'easy' is intentionally NOT
 # trained: RL optimises for winning, so it makes bots stronger, not weaker -
 # there is no easy pikdame-easy.onnx, and at runtime an easy bot automatically
 # falls back to the existing beginner heuristic (random-ish discards). Pools
 # still draw on all three heuristic styles for opponent variety. Real diversity
-# beyond that needs the self-play league (docs/RL_TRAINING.md).
+# beyond that needs the self-play league (see the RL setup docs).
 TIERS = {
     "medium": {"pool": ["medium", "zen"],          "steps": 1_000_000},
     "zen":    {"pool": ["zen", "medium", "easy"],  "steps": 3_000_000},

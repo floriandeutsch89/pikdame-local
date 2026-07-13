@@ -8,7 +8,7 @@
 #
 # Secrets policy: real secrets live as compose FILE SECRETS (mounted at
 # /run/secrets, never visible in `docker inspect`/environment); .env only
-# carries non-sensitive configuration. See docs/OPERATIONS.md.
+# carries non-sensitive configuration. See https://pik-dame.readthedocs.io/en/latest/admin/operations.html
 #
 # Network layout (least privilege):
 #   caddy_egress   - internet-facing (ACME, future CrowdSec plugins)

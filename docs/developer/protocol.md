@@ -1,5 +1,5 @@
 # WebSocket protocol
 
 ```{include} ../_generated/protocol.md
-:start-line: 2
+:start-line: 3
 ```

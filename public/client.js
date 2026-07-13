@@ -481,6 +481,54 @@
     }
   }
 
+  // --- Abhebe-Aufdeckung: aufgedeckte Karten kurz einfliegen lassen ---------
+  let shownCutRevealKey = null;
+  function maybeShowCutReveal() {
+    const r = lastState && lastState.lastCutReveal;
+    if (!r || !Array.isArray(r.cards) || r.cards.length === 0) return;
+    if (lastState.phase !== 'playing') return; // erst wenn die Runde wirklich läuft
+    const key = r.round + ':' + r.cards.map((c) => c.id).join(',');
+    if (key === shownCutRevealKey) return;
+    shownCutRevealKey = key;
+    if (document.hidden) return; // im Hintergrund keine Show
+
+    const cutter = (lastState.players || []).find((p) => p.id === r.cutterId);
+    const name = cutter ? cutter.name : '?';
+    const old = document.getElementById('cutReveal');
+    if (old) old.remove();
+
+    const wrap = document.createElement('div');
+    wrap.id = 'cutReveal';
+    const title = document.createElement('div');
+    title.className = 'cutRevealTitle';
+    title.textContent = r.luckyCount > 0
+      ? L(`🍀 Glücksgriff! ${name} behält ${r.luckyCount} Karte${r.luckyCount > 1 ? 'n' : ''}`,
+          `🍀 Lucky cut! ${name} keeps ${r.luckyCount} card${r.luckyCount > 1 ? 's' : ''}`)
+      : L(`${name} hat abgehoben`, `${name} cut the deck`);
+    wrap.appendChild(title);
+
+    const row = document.createElement('div');
+    row.className = 'cutRevealCards';
+    r.cards.forEach((card, i) => {
+      const div = cardEl(card, {});
+      div.style.setProperty('--i', i);
+      // Glückskarten leuchten; die letzte (normale) Karte beendete den Zug
+      // und bleibt im Deck - leicht gedimmt dargestellt.
+      if (i < r.luckyCount) div.classList.add('cutLucky');
+      else div.classList.add('cutStopper');
+      row.appendChild(div);
+    });
+    wrap.appendChild(row);
+    document.body.appendChild(wrap);
+
+    // Anzeige-Dauer: Basis + Staffelung, dann sanft ausblenden.
+    const holdMs = 2200 + r.cards.length * 160;
+    setTimeout(() => {
+      wrap.classList.add('cutRevealOut');
+      setTimeout(() => wrap.remove(), 450);
+    }, holdMs);
+  }
+
   function send(obj) {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(obj));
@@ -701,6 +749,7 @@
     delete el('turnInfo').dataset.baseText; // countdown suffix rebuilds fresh
     try { updateCountdownTimer(); } catch (e) { /* timer must never break the table */ }
     try { renderCutOverlay(); } catch (e) { /* cut overlay must never break the table */ }
+    try { maybeShowCutReveal(); } catch (e) { /* reveal must never break the table */ }
     if (!lastState) return;
 
     const inLobby = lastState.phase === 'lobby';

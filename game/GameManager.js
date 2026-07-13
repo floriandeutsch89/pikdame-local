@@ -462,6 +462,7 @@ class GameManager {
     const skips = {};
     let luckyCards = [];
     let cutter = null;
+    this.lastCutReveal = null;
     if (this.players.length >= 2 && cutIndex >= 0) {
       cutter = this.players[(this.dealerIndex - 1 + this.players.length) % this.players.length];
       const cut = performLuckyCut(deck, cutIndex);
@@ -470,6 +471,19 @@ class GameManager {
       if (luckyCards.length > 0) {
         skips[cutter.id] = luckyCards.length;
       }
+      // What the cut revealed, for the client's fly-in animation: every lucky
+      // card the cutter kept, plus the ordinary card that ended the run (it
+      // stays in the deck). Everyone sees the same reveal - the log already
+      // announces lucky cards to the whole table, this only adds the visual.
+      // Display-only: the StateEncoder does not read it, so bots/RL are blind
+      // to it by construction.
+      const revealed = [...luckyCards, ...(cut.stopper ? [cut.stopper] : [])];
+      this.lastCutReveal = {
+        round: this.roundNumber,
+        cutterId: cutter.id,
+        cards: revealed,
+        luckyCount: luckyCards.length,
+      };
     }
 
     const { hands, drawPile, discardPile } = dealCards(deck, playerIds, { skips });
@@ -2080,6 +2094,7 @@ class GameManager {
       paused: !!this.paused,
       cutterId: this.phase === 'cutting' ? this.cutterId : null,
       cutDeadline: this.phase === 'cutting' ? this.cutDeadline : null,
+      lastCutReveal: this.lastCutReveal || null,
       pauseVotes: this._pauseVotes ? [...this._pauseVotes] : [],
       forfeitVotes: this._forfeitVotes ? [...this._forfeitVotes] : [],
       players: this.players.map((p) => ({

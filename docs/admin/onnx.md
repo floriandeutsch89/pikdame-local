@@ -170,8 +170,5 @@ reward is *relative*, and why a mean episode reward around **−2.3 is better th
 the heuristic bot**, not a failure.
 :::
 
-The full setup — WSL2, data collection from human games, self-play, export:
-
-```{include} ../RL_TRAINING.md
-:start-line: 1
-```
+The full setup — WSL2, data collection from human games, self-play, export —
+is documented in {doc}`../developer/rl-setup`.

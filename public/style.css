@@ -1955,3 +1955,40 @@ input:disabled { opacity: 0.65; }
 }
 .cutHint { color: var(--text-muted); font-size: 0.92rem; line-height: 1.45; }
 .cutCountdown { color: var(--text-muted); font-size: 0.85rem; min-height: 1.2em; margin: 8px 0 0; }
+
+/* --- Abhebe-Aufdeckung: Karten fliegen kurz ein --------------------------- */
+#cutReveal {
+  position: fixed; top: 18%; left: 50%; transform: translateX(-50%);
+  z-index: 60; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+}
+#cutReveal .cutRevealTitle {
+  font-weight: 800; font-size: 1.05rem; color: var(--text);
+  background: var(--glass); border: 1px solid var(--glass-border);
+  border-radius: 999px; padding: 6px 16px;
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+}
+#cutReveal .cutRevealCards { display: flex; gap: 10px; }
+#cutReveal .card {
+  /* Einflug: von oben mit leichtem Dreh, gestaffelt per --i */
+  animation: cutFlyIn 0.55s cubic-bezier(0.22, 1.2, 0.36, 1) both;
+  animation-delay: calc(var(--i) * 0.16s);
+  box-shadow: 0 10px 26px rgba(0,0,0,0.45);
+}
+#cutReveal .card.cutLucky {
+  outline: 2px solid var(--accent, #e8b64c);
+  box-shadow: 0 0 18px var(--accent, #e8b64c), 0 10px 26px rgba(0,0,0,0.45);
+}
+#cutReveal .card.cutStopper { opacity: 0.82; }
+#cutReveal.cutRevealOut { animation: cutFadeOut 0.4s ease-in forwards; }
+@keyframes cutFlyIn {
+  from { transform: translateY(-90px) rotate(-10deg) scale(0.7); opacity: 0; }
+  to   { transform: translateY(0) rotate(0deg) scale(1); opacity: 1; }
+}
+@keyframes cutFadeOut { to { opacity: 0; transform: translateX(-50%) translateY(-14px); } }
+#cutReveal.cutRevealOut { /* fade-out sitzt am Container, der bereits translateX(-50%) hat */ }
+@media (prefers-reduced-motion: reduce) {
+  #cutReveal .card { animation: none; }
+  #cutReveal.cutRevealOut { animation: none; opacity: 0; }
+}

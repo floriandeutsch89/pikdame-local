@@ -8,6 +8,7 @@ protocol
 game-constants
 bots
 rl-training
+rl-setup
 contributing
 ```
 

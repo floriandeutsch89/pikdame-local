@@ -67,7 +67,7 @@ emptyDir, Ressourcen-Limits. Details: `SECURITY.md` im Repo-Root.
 
 ## Backup
 
-Dasselbe Prinzip wie unter Docker (siehe `docs/OPERATIONS.md`): Pod kurz
+Dasselbe Prinzip wie unter Docker (siehe https://pik-dame.readthedocs.io/en/latest/admin/operations.html): Pod kurz
 auf 0 skalieren, PVC-Inhalt archivieren, wieder auf 1 skalieren:
 
 ```sh

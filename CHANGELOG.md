@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.68.0] - 2026-07-13
+
+### Added
+- **Die abgehobenen Karten werden jetzt kurz aufgedeckt** - mit einfliegender Animation für alle am Tisch: die beim Glücksgriff behaltenen Karten (golden leuchtend, auch mehrere in Serie, wenn Joker/Pik Dame aufeinander folgen) plus die gewöhnliche Karte, die die Serie beendet hat (leicht gedimmt - sie bleibt im Deck). Läuft auch beim automatischen Abheben (Bots, Challenge), damit der Schritt in jeder Runde sichtbar ist. Rein visuell: der StateEncoder liest das Feld nicht, Bots und RL-Training bleiben davon unberührt; respektiert „Bewegung reduzieren" und läuft nicht im Hintergrund
+
+### Changed
+- **Doku aufgeräumt:** Die Seiten „WebSocket protocol", „Game constants" und „Configuration" zeigten ihre Überschrift doppelt (die eingebundene generierte Datei brachte eine zweite H1 mit) - behoben. `docs/OPERATIONS.md` und `docs/RL_TRAINING.md` sind vollständig in die Read-the-Docs-Struktur migriert (`admin/operations` bzw. neue Seite `developer/rl-setup`) und als Einzeldateien entfernt; alle Verweise im Code, README, k8s- und Docker-Doku zeigen jetzt auf die gerenderten Seiten. Der Rundenstart (Abheben inkl. Glücksgriff-Serie) ist in der Overview dokumentiert
+
 ## [1.67.0] - 2026-07-13
 
 ### Added

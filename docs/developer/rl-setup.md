@@ -1,4 +1,9 @@
-# Pik Dame – Reinforcement-Learning Bot Training (Ubuntu 24.04 / WSL2)
+# RL training setup
+
+The complete offline training workflow: Ubuntu 24.04 / WSL2, uv, GPU, data
+collection from human games, self-play, and the ONNX export. For **reading the
+training output** (metrics, reward semantics, baselines), see
+{doc}`rl-training`.
 
 This guide explains how to train the bot networks and export them as **ONNX**
 files that the Node game engine loads at runtime. Only **`medium`** and
@@ -433,3 +438,4 @@ margin `finalTotal - winnerTotal`, `phase`, etc.) or re-encode from `state`.
   the heuristic for stronger endgame models.
 - **Reward shaping:** the reward is a sparse round margin; intermediate signals
   (e.g. melded card value) can speed up learning.
+
