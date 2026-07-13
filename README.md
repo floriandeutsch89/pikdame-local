@@ -273,3 +273,11 @@ published: `ghcr.io/floriandeutsch89/pikdame-local-onnx`.
   snapshot bridges updates.
 - Without accounts, profiles are matched by name (case-insensitive); with
   accounts enabled, verified names are login-protected.
+
+## License
+
+[MIT](LICENSE) © 2026 Florian Deutsch.
+
+Use it, fork it, run it for your own family. If you redistribute it (including
+as a container image), keep the licence and copyright notice with it — that is
+the one condition MIT makes.

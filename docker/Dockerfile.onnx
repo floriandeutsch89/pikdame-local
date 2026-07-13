@@ -35,7 +35,7 @@ FROM node:24-slim
 LABEL org.opencontainers.image.source="https://github.com/floriandeutsch89/pikdame-local" \
       org.opencontainers.image.title="Pik Dame (ONNX)" \
       org.opencontainers.image.description="Multiplayer card game server with trained ONNX bot policies" \
-      org.opencontainers.image.licenses="UNLICENSED"
+      org.opencontainers.image.licenses="MIT"
 
 # tini for proper signal handling as PID 1. Then drop npm/corepack: the server
 # never needs them at runtime and their dependency trees regularly carry CVEs.
@@ -53,6 +53,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
 COPY CHANGELOG.md ./
+# MIT requires the licence text to travel with every copy of the software -
+# and a container image is a copy.
+COPY LICENSE ./
 COPY server.js ./
 COPY game ./game
 COPY public ./public

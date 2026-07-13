@@ -16,7 +16,7 @@ FROM node:24-alpine
 LABEL org.opencontainers.image.source="https://github.com/floriandeutsch89/pikdame-local" \
       org.opencontainers.image.title="Pik Dame" \
       org.opencontainers.image.description="Multiplayer card game server (family rummy variant)" \
-      org.opencontainers.image.licenses="UNLICENSED"
+      org.opencontainers.image.licenses="MIT"
 
 # Upgrade OS packages (fixes known CVEs in the base image), add tini for
 # proper signal handling as PID 1, and REMOVE the npm/corepack tooling:
@@ -34,6 +34,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
 COPY CHANGELOG.md ./
+# MIT requires the licence text to travel with every copy of the software -
+# and a container image is a copy.
+COPY LICENSE ./
 COPY server.js ./
 COPY game ./game
 COPY public ./public
