@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.65.1] - 2026-07-13
+
+### Fixed
+- **Lizenz ergänzt und Widerspruch behoben.** Das Repo hatte **keine `LICENSE`-Datei** - juristisch heißt das im Zweifel „alle Rechte vorbehalten", also **niemand** hätte den Code nutzen, forken oder betreiben dürfen. Gleichzeitig behauptete `package.json` bereits **MIT**, während die Docker-Images sich als `UNLICENSED` labelten. Jetzt einheitlich **MIT** (© 2026 Florian Deutsch):
+  - `LICENSE` im Repo-Wurzelverzeichnis
+  - Image-Label `org.opencontainers.image.licenses` in beiden Dockerfiles auf `MIT` korrigiert
+  - `LICENSE` wird **in die Images kopiert** - MIT verlangt, dass Lizenz- und Copyright-Hinweis jede Kopie begleiten, und ein Container-Image ist eine Kopie
+  - Lizenz-Abschnitt im README
+
 ## [1.65.0] - 2026-07-13
 
 ### Added
