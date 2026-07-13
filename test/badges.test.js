@@ -6,6 +6,19 @@ const path = require('path');
 const { computeEarnedBadges } = require('../game/Badges');
 const { createPlayerStore } = require('../game/PlayerStore');
 
+// v1.67 interactive cutting: unit tests exercise the game AFTER the deal, so
+// every locally constructed game auto-cuts. Dedicated cutting tests live in
+// test/cutting.test.js and do NOT use this hook.
+function __autoCutHook(g) {
+  const orig = g.startNewRound.bind(g);
+  g.startNewRound = (...a) => {
+    orig(...a);
+    if (g.phase === 'cutting') g.performCut(g.cutterId, 0.5);
+  };
+  return g;
+}
+
+
 function record(overrides = {}) {
   return {
     winnerId: 'p1',
@@ -70,14 +83,14 @@ test('PlayerStore.awardBadges: vergibt nur NEUE Badges und persistiert sie', () 
 
 test('Endspurt-Ansage erscheint ab 800 Punkten im Log (inkl. strenger Variante)', () => {
   const GameManager = require('../game/GameManager');
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('p1', 'Anna');
   g.addOrReconnectPlayer('p2', 'Ben');
   g.totals = { p1: 850, p2: 200 };
   g.startNewRound();
   assert.ok(g.log.some((e) => /⚠️ Endspurt! Anna steht bei 850 Punkten - ab 1000/.test(e.text)));
 
-  const g2 = new GameManager(() => {});
+  const g2 = __autoCutHook(new GameManager(() => {}));
   g2.addOrReconnectPlayer('p1', 'Anna');
   g2.addOrReconnectPlayer('p2', 'Ben');
   g2.setHouseRules({ strictThreshold: true });
@@ -85,7 +98,7 @@ test('Endspurt-Ansage erscheint ab 800 Punkten im Log (inkl. strenger Variante)'
   g2.startNewRound();
   assert.ok(g2.log.some((e) => /über 1000 endet das Spiel/.test(e.text)));
 
-  const g3 = new GameManager(() => {});
+  const g3 = __autoCutHook(new GameManager(() => {}));
   g3.addOrReconnectPlayer('p1', 'Anna');
   g3.addOrReconnectPlayer('p2', 'Ben');
   g3.totals = { p1: 500, p2: 200 };

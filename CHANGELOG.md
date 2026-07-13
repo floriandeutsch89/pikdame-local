@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.67.0] - 2026-07-13
+
+### Added
+- **Abheben ist jetzt ein echter, interaktiver Schritt zum Rundenstart** - wie in den Regeln beschrieben. Ist der Abheber (Spieler rechts vom Geber) ein verbundener Mensch, startet die Runde in der neuen Phase „Abheben": Er wählt auf einer Deck-Leiste selbst die Stelle (Touch, Maus oder Tastatur), alle anderen sehen „X hebt ab …". Liegen an der Stelle Pik Dame oder Joker, gehören sie wie bisher sofort ihm (Glücksgriff)
+- **Der Tisch kann nie blockieren:** 45-Sekunden-Frist mit sichtbarem Countdown, danach wird automatisch abgehoben - ebenso sofort, wenn der Abheber die Verbindung verliert oder der Server mitten im Abheben neu startet
+- **Bots heben weiterhin sofort automatisch ab.** Dadurch bleiben Selbstspiel-Simulationen, der Lasttest und das **RL-Training** (alle Sitze sind Bots) exakt so synchron wie bisher - Observation-Space, Action-Space und Reward sind unverändert. Das Abheben wird bewusst keine lernbare Aktion: Die Karten liegen verdeckt, die Schnittposition trägt null Information
+- **Tages-Challenge bleibt automatisch und geseedet:** Ein frei gewählter Schnittpunkt würde die weltweit identischen Decks auseinanderlaufen lassen
+- **Sicherheit:** Das gemischte Deck liegt während der Abhebe-Phase nur serverseitig; `publicState` ist eine Positivliste und gibt es nie heraus (per Test abgesichert). Regeln (DE+EN) und Protokoll-Doku aktualisiert; 10 neue Tests inkl. Ende-zu-Ende über den echten Server
+
 ## [1.66.0] - 2026-07-13
 
 ### Changed

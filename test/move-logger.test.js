@@ -15,13 +15,26 @@ process.env.PIKDAME_LOG_PATH = tmp;
 const GameManager = require('../game/GameManager');
 const MoveLogger = require('../game/MoveLogger');
 
+// v1.67 interactive cutting: unit tests exercise the game AFTER the deal, so
+// every locally constructed game auto-cuts. Dedicated cutting tests live in
+// test/cutting.test.js and do NOT use this hook.
+function __autoCutHook(g) {
+  const orig = g.startNewRound.bind(g);
+  g.startNewRound = (...a) => {
+    orig(...a);
+    if (g.phase === 'cutting') g.performCut(g.cutterId, 0.5);
+  };
+  return g;
+}
+
+
 function freshLog() {
   try { fs.unlinkSync(tmp); } catch (e) { /* ignore */ }
 }
 
 test('records only human decisions and flushes with a won flag', () => {
   freshLog();
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('human', 'Mensch'); // NOT a bot
   g.fillWithBots();
   const bot = g.players.find((p) => p.isBot);
@@ -71,7 +84,7 @@ test('records only human decisions and flushes with a won flag', () => {
 });
 
 test('serialize does not persist the transient move buffer', () => {
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('human', 'M');
   g.fillWithBots();
   g._moveLog = [{ phase: 'draw', obs: [], action: 52, mask: [] }];

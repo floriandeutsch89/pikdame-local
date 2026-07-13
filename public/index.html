@@ -385,7 +385,7 @@
           <h3>Geben &amp; Glücksgriff</h3>
           <ul>
             <li>Der Geber wechselt jede Runde reihum, der Spieler danach beginnt.</li>
-            <li>Vor dem Verteilen hebt der Spieler rechts vom Geber ab. <b>Glücksgriff:</b> Liegen an der Abhebestelle Pik Dame oder Joker, nimmt er sie sofort auf die Hand – beim Verteilen wird entsprechend übersprungen, alle enden bei 15 Karten.</li>
+            <li>Vor dem Verteilen hebt der Spieler rechts vom Geber ab – <b>er wählt die Stelle selbst</b> (in der Tages-Challenge wird für faire, weltweit identische Decks automatisch abgehoben). <b>Glücksgriff:</b> Liegen an der Abhebestelle Pik Dame oder Joker, nimmt er sie sofort auf die Hand – beim Verteilen wird entsprechend übersprungen, alle enden bei 15 Karten.</li>
             <li><b>Fair gemischt:</b> Jede Runde wird ein komplett neues Deck rein zufällig gemischt (Fisher-Yates). Es gibt kein Ausbalancieren der Hände – jeder hat in jeder Runde die exakt gleiche Chance auf die guten Karten. Einzelne Runden entscheidet Glück, über viele Runden gleicht es sich aus.</li>
           </ul>
 
@@ -490,6 +490,23 @@
     </section>
 
     <!-- JOKER-AUSWAHL BEI MEHRDEUTIGKEIT -->
+    <section id="cutOverlay" class="overlay hidden">
+      <div class="overlay-card">
+        <h2 id="cutTitle">Abheben</h2>
+        <p id="cutHint" class="cutHint">Wähle, wo du das frisch gemischte Deck abhebst. Liegen dort Pik Dame oder Joker, gehören sie sofort dir!</p>
+        <div id="cutDeckArea">
+          <div id="cutDeckBar" aria-hidden="true">
+            <div id="cutMarker"></div>
+          </div>
+          <input type="range" id="cutSlider" min="0" max="100" value="50"
+                 aria-label="Abhebe-Position" />
+        </div>
+        <button id="cutConfirmBtn" class="btn-primary">Hier abheben</button>
+        <p id="cutWaiting" class="cutHint hidden"></p>
+        <p id="cutCountdown" class="cutCountdown"></p>
+      </div>
+    </section>
+
     <section id="jokerChoiceOverlay" class="overlay hidden">
       <div class="overlay-card">
         <h2>Was soll der Joker sein?</h2>

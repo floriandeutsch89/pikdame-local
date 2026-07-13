@@ -442,6 +442,45 @@
     });
   }
 
+  // --- Abheben (interaktiver Rundenstart) ----------------------------------
+  let cutWired = false;
+  function renderCutOverlay() {
+    const ov = el('cutOverlay');
+    const isCutting = lastState && lastState.phase === 'cutting';
+    ov.classList.toggle('hidden', !isCutting);
+    if (!isCutting) return;
+
+    const iAmCutter = lastState.cutterId === playerId;
+    const cutter = (lastState.players || []).find((p) => p.id === lastState.cutterId);
+    const name = cutter ? cutter.name : '?';
+
+    el('cutTitle').textContent = iAmCutter
+      ? L('Du hebst ab', 'Your cut')
+      : L('Abheben', 'Cutting the deck');
+    el('cutHint').classList.toggle('hidden', !iAmCutter);
+    el('cutDeckArea').classList.toggle('hidden', !iAmCutter);
+    el('cutConfirmBtn').classList.toggle('hidden', !iAmCutter);
+    const waiting = el('cutWaiting');
+    waiting.classList.toggle('hidden', iAmCutter);
+    if (!iAmCutter) {
+      waiting.textContent = L(
+        `${name} hebt das frisch gemischte Deck ab …`,
+        `${name} is cutting the freshly shuffled deck …`
+      );
+    }
+
+    if (!cutWired) {
+      cutWired = true;
+      const slider = el('cutSlider');
+      const syncMarker = () => { el('cutMarker').style.left = slider.value + '%'; };
+      slider.addEventListener('input', syncMarker);
+      syncMarker();
+      el('cutConfirmBtn').addEventListener('click', () => {
+        send({ type: 'performCut', position: Number(slider.value) / 100 });
+      });
+    }
+  }
+
   function send(obj) {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(obj));
@@ -661,6 +700,7 @@
     try { updateTutorial(); } catch (e) { /* hints must never break the table */ }
     delete el('turnInfo').dataset.baseText; // countdown suffix rebuilds fresh
     try { updateCountdownTimer(); } catch (e) { /* timer must never break the table */ }
+    try { renderCutOverlay(); } catch (e) { /* cut overlay must never break the table */ }
     if (!lastState) return;
 
     const inLobby = lastState.phase === 'lobby';
@@ -1850,14 +1890,19 @@
   // at round end, with the timer off, and in the background. It now starts and
   // stops itself, so an idle app does no per-second work at all.
   function countdownWanted() {
-    return !!(
-      lastState &&
-      lastState.turnDeadline &&
-      lastState.phase === 'playing' &&
-      !document.hidden
-    );
+    if (!lastState || document.hidden) return false;
+    if (lastState.phase === 'playing' && lastState.turnDeadline) return true;
+    if (lastState.phase === 'cutting' && lastState.cutDeadline) return true; // Abhebe-Frist
+    return false;
   }
   function tickCountdown() {
+    // Abheben: Restzeit im Overlay statt in der Zugleiste anzeigen.
+    if (lastState && lastState.phase === 'cutting' && lastState.cutDeadline) {
+      const rem = Math.max(0, Math.ceil((lastState.cutDeadline - Date.now()) / 1000));
+      const n = el('cutCountdown');
+      if (n) n.textContent = L(`Automatisch in ${rem}s`, `Auto-cut in ${rem}s`);
+      return;
+    }
     const el2 = el('turnInfo');
     if (!el2 || !lastState || !lastState.turnDeadline) return;
     const remaining = Math.max(0, Math.ceil((lastState.turnDeadline - Date.now()) / 1000));

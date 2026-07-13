@@ -3,9 +3,22 @@ const assert = require('node:assert/strict');
 const GameManager = require('../game/GameManager');
 const { makeStandardCard, makeJoker } = require('../game/Card');
 
+// v1.67 interactive cutting: unit tests exercise the game AFTER the deal, so
+// every locally constructed game auto-cuts. Dedicated cutting tests live in
+// test/cutting.test.js and do NOT use this hook.
+function __autoCutHook(g) {
+  const orig = g.startNewRound.bind(g);
+  g.startNewRound = (...a) => {
+    orig(...a);
+    if (g.phase === 'cutting') g.performCut(g.cutterId, 0.5);
+  };
+  return g;
+}
+
+
 function makeGame(playerCount = 4) {
   const sent = [];
-  const game = new GameManager((playerId, message) => sent.push({ playerId, message }));
+  const game = __autoCutHook(new GameManager((playerId, message) => sent.push({ playerId, message })));
   for (let i = 1; i <= playerCount; i++) {
     game.addOrReconnectPlayer(`p${i}`, `Spieler ${i}`);
   }
@@ -287,7 +300,7 @@ test('forfeit: erst wenn ALLE aktiven Spieler zustimmen, endet das ganze Spiel (
 });
 
 test('forfeit: ein einziger verbundener Mensch (Rest Bots) gibt das Spiel allein auf', () => {
-  const game = new GameManager(() => {});
+  const game = __autoCutHook(new GameManager(() => {}));
   game.addOrReconnectPlayer('p1', 'Mensch');
   game.maxSeats = 4;
   game.fillWithBots();
@@ -896,7 +909,7 @@ test('Hausregel "über 1000 Punkte" wird beim Rundenende berücksichtigt', () =>
 // --- v1.53.1: second set of the same value is allowed (Doppel-Satz removed) --
 test('layoutMeld: a second set of the same value is allowed', () => {
   const { makeStandardCard } = require('../game/Card');
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('p1', 'A');
   g.addOrReconnectPlayer('p2', 'B');
   g.phase = 'playing';
@@ -919,7 +932,7 @@ test('layoutMeld: a second set of the same value is allowed', () => {
 });
 
 test('houseRules: valid rules kept, garbage (incl. the removed botDifficulty) ignored', () => {
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.setHouseRules({ turnTimerSeconds: 60, handAusDoubles: true });
   assert.equal(g.houseRules.turnTimerSeconds, 60);
   assert.equal(g.houseRules.handAusDoubles, true);
@@ -932,7 +945,7 @@ test('houseRules: valid rules kept, garbage (incl. the removed botDifficulty) ig
 // --- v1.6.0: Ausmachen nur per Abwurf --------------------------------------
 test('Ausmach-Regel: Auslegen aller Handkarten wird abgelehnt', () => {
   const { makeStandardCard } = require('../game/Card');
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('p1', 'A');
   g.addOrReconnectPlayer('p2', 'B');
   g.phase = 'playing'; g.turnPhase = 'meld'; g.currentPlayerIndex = 0;
@@ -947,7 +960,7 @@ test('Ausmach-Regel: Auslegen aller Handkarten wird abgelehnt', () => {
 
 test('Ausmach-Regel: letzte Handkarte darf nicht angelegt werden', () => {
   const { makeStandardCard } = require('../game/Card');
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('p1', 'A');
   g.addOrReconnectPlayer('p2', 'B');
   g.phase = 'playing'; g.turnPhase = 'meld'; g.currentPlayerIndex = 0;
@@ -964,7 +977,7 @@ test('Ausmach-Regel: letzte Handkarte darf nicht angelegt werden', () => {
 
 test('Ausmach-Regel: Pflichtkarte darf trotzdem gelegt werden (keine Sackgasse)', () => {
   const { makeStandardCard } = require('../game/Card');
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('p1', 'A');
   g.addOrReconnectPlayer('p2', 'B');
   g.phase = 'playing'; g.turnPhase = 'meld'; g.currentPlayerIndex = 0;
@@ -979,7 +992,7 @@ test('Ausmach-Regel: Pflichtkarte darf trotzdem gelegt werden (keine Sackgasse)'
 // --- v1.6.0: Bot-Emotes ------------------------------------------------------
 test('maybeBotEmote: feuert den Hook, drosselt pro Bot, destroy raeumt Timer', async () => {
   const emotes = [];
-  const g = new GameManager(() => {}, { onBotEmote: (id, e) => emotes.push([id, e]) });
+  const g = __autoCutHook(new GameManager(() => {}, { onBotEmote: (id, e) => emotes.push([id, e]) }));
   g.addOrReconnectPlayer('p1', 'A');
   g.fillWithBots();
   const botId = g.players.find((p) => p.isBot).id;
@@ -1004,7 +1017,7 @@ test('maybeBotEmote: feuert den Hook, drosselt pro Bot, destroy raeumt Timer', a
 // --- v1.8.1: Emote-Timer ueberleben Snapshot/Restore ------------------------
 test('serialize/deserialize: Bot-Emotes funktionieren nach einem Server-Neustart', async () => {
   const emotes = [];
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('p1', 'A');
   g.fillWithBots();
   g.startNewRound();
@@ -1014,13 +1027,13 @@ test('serialize/deserialize: Bot-Emotes funktionieren nach einem Server-Neustart
   assert.equal(snapshot._emoteTimers, undefined, 'transiente Felder nicht im Snapshot');
   assert.equal(snapshot._lastBotEmote, undefined);
 
-  const g2 = new GameManager(() => {}, { onBotEmote: (id, e) => emotes.push(e) });
+  const g2 = __autoCutHook(new GameManager(() => {}, { onBotEmote: (id, e) => emotes.push(e) }));
   g2.deserialize(snapshot);
   assert.ok(g2._emoteTimers instanceof Set, '_emoteTimers ist nach Restore ein Set');
 
   // Auch ALTE Snapshots (mit kaputtem {}-Feld) duerfen nicht crashen
   const legacy = { ...snapshot, _emoteTimers: {}, _lastBotEmote: {} };
-  const g3 = new GameManager(() => {}, { onBotEmote: (id, e) => emotes.push(e) });
+  const g3 = __autoCutHook(new GameManager(() => {}, { onBotEmote: (id, e) => emotes.push(e) }));
   g3.deserialize(legacy);
   assert.ok(g3._emoteTimers instanceof Set, 'kaputtes Legacy-Feld wird repariert');
   const botId = g3.players.find((p) => p.isBot).id;
@@ -1035,7 +1048,7 @@ test('serialize/deserialize: Bot-Emotes funktionieren nach einem Server-Neustart
 test('bot endgame guard: small hand + Queen of Spades below the top card -> draws from stock', () => {
   const { makeStandardCard, makeJoker } = require('../game/Card');
   for (const difficulty of ['medium', 'hard', 'zen']) {
-    const g = new GameManager(() => {});
+    const g = __autoCutHook(new GameManager(() => {}));
     g.addOrReconnectPlayer('p1', 'A');
     g.setHouseRules({ botDifficulty: difficulty });
     g.fillWithBots();
@@ -1057,7 +1070,7 @@ test('bot endgame guard: small hand + Queen of Spades below the top card -> draw
 
 test('bot endgame guard: Queen of Spades ON TOP stays attractive (meldable +100)', () => {
   const { makeStandardCard } = require('../game/Card');
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('p1', 'A');
   g.setHouseRules({ botDifficulty: 'hard' });
   g.fillWithBots();
@@ -1078,7 +1091,7 @@ test('bot endgame guard: Queen of Spades ON TOP stays attractive (meldable +100)
 // --- v1.16.0: guard also fires when an OPPONENT is close to going out -------
 test('bot endgame guard: opponent with 3 cards + hidden Queen of Spades -> draws from stock', () => {
   const { makeStandardCard } = require('../game/Card');
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('p1', 'A');
   g.setHouseRules({ botDifficulty: 'medium' });
   g.fillWithBots();
@@ -1105,7 +1118,7 @@ test('bot endgame guard: opponent with 3 cards + hidden Queen of Spades -> draws
 
 // --- v1.20.0: round-end ready check ------------------------------------------
 test('ready check: next round starts only after EVERY connected human confirmed', () => {
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('p1', 'Anna');
   g.addOrReconnectPlayer('p2', 'Ben');
   g.fillWithBots();
@@ -1124,7 +1137,7 @@ test('ready check: next round starts only after EVERY connected human confirmed'
 });
 
 test('ready check: a disconnecting player never blocks the table', () => {
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('p1', 'Anna');
   g.addOrReconnectPlayer('p2', 'Ben');
   g.fillWithBots();
@@ -1140,7 +1153,7 @@ test('ready check: a disconnecting player never blocks the table', () => {
 // --- v1.20.0: hand-bloat guard ------------------------------------------------
 test('pile-usability check: bot skips a big pile of dead weight...', () => {
   const { makeStandardCard } = require('../game/Card');
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('p1', 'A');
   g.setHouseRules({ botDifficulty: 'medium' });
   g.fillWithBots();
@@ -1169,7 +1182,7 @@ test('pile-usability check: bot skips a big pile of dead weight...', () => {
 
 test('pile-usability check: ...but happily takes a big pile it can put to work', () => {
   const { makeStandardCard } = require('../game/Card');
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('p1', 'A');
   g.setHouseRules({ botDifficulty: 'medium' });
   g.fillWithBots();
@@ -1195,7 +1208,7 @@ test('pile-usability check: ...but happily takes a big pile it can put to work',
 // --- v1.20.0: cumulative game totals -----------------------------------------
 test('gameStatsTotals accumulate melded Queens/jokers across rounds', () => {
   const { makeStandardCard, makeJoker } = require('../game/Card');
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('p1', 'Anna');
   g.fillWithBots();
   g.startNewRound();
@@ -1215,7 +1228,7 @@ test('gameStatsTotals accumulate melded Queens/jokers across rounds', () => {
 // --- v1.22.0: per-bot difficulty ----------------------------------------------
 test('setBotDifficulty: validation, effect and per-bot resolution in guards', () => {
   const { makeStandardCard } = require('../game/Card');
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('p1', 'Anna');
   g.fillWithBots();
 
@@ -1256,7 +1269,7 @@ test('setBotDifficulty: validation, effect and per-bot resolution in guards', ()
 // --- v1.27.0: multi lay-off ---------------------------------------------------
 function setupLayOffScene() {
   const { makeStandardCard } = require('../game/Card');
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('p1', 'Anna');
   g.addOrReconnectPlayer('p2', 'Ben');
   g.startNewRound();
@@ -1332,7 +1345,7 @@ test('multi lay-off: going-out rule blocks emptying the hand via lay-off', () =>
 // --- v1.28.0: public memory (fair-play card tracking) --------------------------
 test('public memory: pile pickups are remembered, face-down draws NEVER (fairness guard)', () => {
   const { makeStandardCard } = require('../game/Card');
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('p1', 'Anna');
   g.addOrReconnectPlayer('p2', 'Ben');
   g.startNewRound();
@@ -1415,7 +1428,7 @@ test('daily challenge: identical seed deals identical hands, different days diff
   const { seedForDate } = require('../game/ChallengeStore');
   const seed = seedForDate('2026-07-04');
   const mk = () => {
-    const g = new GameManager(() => {}, { deckSeed: seed });
+    const g = __autoCutHook(new GameManager(() => {}, { deckSeed: seed }));
     g.addOrReconnectPlayer('p1', 'Anna');
     g.fillWithBots();
     g.startNewRound();
@@ -1424,7 +1437,7 @@ test('daily challenge: identical seed deals identical hands, different days diff
     return hand;
   };
   assert.equal(mk(), mk(), 'same seed = same deal for everyone');
-  const g2 = new GameManager(() => {}, { deckSeed: seedForDate('2026-07-05') });
+  const g2 = __autoCutHook(new GameManager(() => {}, { deckSeed: seedForDate('2026-07-05') }));
   g2.addOrReconnectPlayer('p1', 'Anna');
   g2.fillWithBots();
   g2.startNewRound();
@@ -1494,7 +1507,7 @@ test('turn timer never fires for a disconnected human (grace owns the seat)', ()
 test('hand aus: whole hand down in ONE later turn doubles; earlier meld does not', () => {
   const { makeStandardCard: mk } = require('../game/Card');
   const build = (winnerLaidEarlier) => {
-    const g = new GameManager(() => {});
+    const g = __autoCutHook(new GameManager(() => {}));
     g.addOrReconnectPlayer('p1', 'A');
     g.addOrReconnectPlayer('p2', 'B');
     g.setHouseRules({ handAusDoubles: true });
@@ -1528,7 +1541,7 @@ test('hand aus: whole hand down in ONE later turn doubles; earlier meld does not
 
 test('bot melds cards that arrive with the pile REST in the same turn (three aces)', () => {
   const { makeStandardCard: mk } = require('../game/Card');
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('p1', 'A');
   g.setHouseRules({ botDifficulty: 'medium' });
   g.fillWithBots();
@@ -1573,7 +1586,7 @@ test('lobby ready gate: 2+ humans must all confirm; solo and rematch flows cover
 });
 
 test('lobby ready gate: a single human starts without any ceremony', () => {
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('p1', 'Solo');
   assert.equal(g.lobbyStartGate().error, undefined);
   g.destroy();
@@ -1605,7 +1618,7 @@ test('table melds sort canonically: by leading rank, sets before runs, stable', 
 
 // --- v1.45.1: external-control fields cannot be smuggled in (anti-cheat) ---------
 test('deserialize strips forced*/external*/mcts* control fields from all seats', () => {
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   // a tampered snapshot trying to inject control fields onto seats + game
   const tampered = {
     phase: 'playing',
@@ -1633,7 +1646,7 @@ test('deserialize strips forced*/external*/mcts* control fields from all seats',
 });
 
 test('serialize never persists external-control fields', () => {
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('p1', 'A');
   g.fillWithBots();
   // set control fields as the training/inference code would
@@ -1655,7 +1668,7 @@ test('serialize never persists external-control fields', () => {
 
 // --- v1.48: lobby shows/sorts bots; joining replaces a bot -------------------
 test('lobby tops up empty seats with bots so they are visible and sortable', () => {
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.maxSeats = 4;
   g.addOrReconnectPlayer('h1', 'Anna');
   g.syncLobbyBots();
@@ -1666,7 +1679,7 @@ test('lobby tops up empty seats with bots so they are visible and sortable', () 
 });
 
 test('a joining human replaces a bot in place (order preserved), not appended', () => {
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.maxSeats = 4;
   g.addOrReconnectPlayer('h1', 'Anna');
   g.syncLobbyBots();
@@ -1679,7 +1692,7 @@ test('a joining human replaces a bot in place (order preserved), not appended', 
 });
 
 test('table is full only when maxSeats HUMANS have joined', () => {
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.maxSeats = 2;
   assert.ok(g.addOrReconnectPlayer('h1', 'A'));
   g.syncLobbyBots();
@@ -1689,7 +1702,7 @@ test('table is full only when maxSeats HUMANS have joined', () => {
 });
 
 test('lowering maxSeats trims bots but keeps the humans', () => {
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.maxSeats = 4;
   g.addOrReconnectPlayer('h1', 'Anna');
   g.addOrReconnectPlayer('h2', 'Ben');
@@ -1702,7 +1715,7 @@ test('lowering maxSeats trims bots but keeps the humans', () => {
 // --- v1.48.1: richer situational bot reactions ------------------------------
 test('a dragging round (many turns without a meld) makes a bot yawn', () => {
   const emotes = [];
-  const g = new GameManager(() => {}, { onBotEmote: (id, e) => emotes.push(e) });
+  const g = __autoCutHook(new GameManager(() => {}, { onBotEmote: (id, e) => emotes.push(e) }));
   g._emoteDelayForTest = 0;
   g.addOrReconnectPlayer('h', 'H');
   g.maxSeats = 4;
@@ -1725,7 +1738,7 @@ test('a dragging round (many turns without a meld) makes a bot yawn', () => {
 
 // --- v1.49: only the organizer (host) may change lobby settings -------------
 test('the first human to join is the host; later joiners are not', () => {
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.maxSeats = 4;
   g.addOrReconnectPlayer('h1', 'Anna');
   g.syncLobbyBots();
@@ -1740,7 +1753,7 @@ test('the first human to join is the host; later joiners are not', () => {
 });
 
 test('host role falls back to a connected human if the host disconnects', () => {
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.maxSeats = 4;
   g.addOrReconnectPlayer('h1', 'Anna');
   g.addOrReconnectPlayer('h2', 'Ben');
@@ -1754,7 +1767,7 @@ test('host role falls back to a connected human if the host disconnects', () => 
 
 // --- v1.49.1: auto-end a deadlocked round; ready gate counts seated humans ---
 test('a deadlocked round (no draw, cannot take the single discard) ends itself', () => {
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('a', 'A');
   g.addOrReconnectPlayer('b', 'B');
   g.maxSeats = 2;
@@ -1775,7 +1788,7 @@ test('a deadlocked round (no draw, cannot take the single discard) ends itself',
 });
 
 test('start gate counts seated humans; a minimised player still blocks the start', () => {
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('h1', 'Anna');
   g.addOrReconnectPlayer('h2', 'Ben');
   g.maxSeats = 2;
@@ -1789,7 +1802,7 @@ test('start gate counts seated humans; a minimised player still blocks the start
 
 // --- v1.52.0: per-bot difficulty in the lobby (no global setting) -----------
 test('bots default to Zen and are configured PER bot in the lobby', () => {
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.maxSeats = 4;
   g.addOrReconnectPlayer('h', 'Host');
   g.syncLobbyBots();
@@ -1804,7 +1817,7 @@ test('bots default to Zen and are configured PER bot in the lobby', () => {
 });
 
 test('in-game pause needs unanimous consent and freezes turn actions', () => {
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('a', 'A');
   g.addOrReconnectPlayer('b', 'B');
   g.maxSeats = 2;
@@ -1827,7 +1840,7 @@ test('in-game pause needs unanimous consent and freezes turn actions', () => {
 });
 
 test('a disconnect must not keep the table paused-blocked', () => {
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('a', 'A');
   g.addOrReconnectPlayer('b', 'B');
   g.maxSeats = 2;
@@ -1852,7 +1865,7 @@ test('a bot never takes the discard unless it will actually lay that card', () =
   };
   try {
     for (let i = 0; i < 25; i++) {
-      const g = new GameManager(() => {});
+      const g = __autoCutHook(new GameManager(() => {}));
       g.addOrReconnectPlayer('x', 'X');
       g.maxSeats = 4;
       g.players = ['zen', 'medium', 'zen', 'easy'].map((d, k) => ({
@@ -1887,7 +1900,7 @@ test('a bot with fewer than 3 cards does not use the Pik-Dame emote', async () =
   let smallEmoted = 0;
   let bigEmoted = 0;
   for (let trial = 0; trial < 200; trial++) {
-    const g = new GameManager(() => {});
+    const g = __autoCutHook(new GameManager(() => {}));
     const seen = new Set();
     g.onBotEmote = (id) => seen.add(id);
     g._emoteDelayForTest = 0;

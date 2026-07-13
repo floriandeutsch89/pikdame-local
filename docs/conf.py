@@ -59,7 +59,7 @@ exclude_patterns = [
 
 html_theme = "furo"
 html_title = f"Pik Dame {version}"
-html_static_path = ["_static"]
+html_static_path = []  # no static assets; an empty dir does not survive Git
 html_theme_options = {
     "source_repository": "https://github.com/floriandeutsch89/pikdame-local/",
     "source_branch": "main",

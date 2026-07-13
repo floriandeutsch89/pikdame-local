@@ -101,6 +101,10 @@ class EnvSession {
     while (g.phase !== 'gameOver' && guard < 8000) {
       guard += 1;
       if (g.phase === 'roundEnd') { g.startNewRound(); continue; }
+      // Defensive: with an all-bot table the cutting phase never engages
+      // (bots auto-cut synchronously), but if that invariant ever changes,
+      // cut here instead of silently breaking the training loop.
+      if (g.phase === 'cutting') { g.performCut(g.cutterId, Math.random()); continue; }
       if (g.phase !== 'playing') break;
       const cp = g.currentPlayer();
       if (!cp) break;

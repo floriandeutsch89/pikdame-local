@@ -4,8 +4,21 @@ const GameManager = require('../game/GameManager');
 const SE = require('../game/StateEncoder');
 const { makeStandardCard: mk, makeJoker } = require('../game/Card');
 
+// v1.67 interactive cutting: unit tests exercise the game AFTER the deal, so
+// every locally constructed game auto-cuts. Dedicated cutting tests live in
+// test/cutting.test.js and do NOT use this hook.
+function __autoCutHook(g) {
+  const orig = g.startNewRound.bind(g);
+  g.startNewRound = (...a) => {
+    orig(...a);
+    if (g.phase === 'cutting') g.performCut(g.cutterId, 0.5);
+  };
+  return g;
+}
+
+
 function game2() {
-  const g = new GameManager(() => {});
+  const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('p1', 'A');
   g.addOrReconnectPlayer('p2', 'B');
   g.startNewRound();

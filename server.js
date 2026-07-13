@@ -944,6 +944,12 @@ wss.on('connection', (ws, req) => {
         if (r && r.error) sendError(ws, r.error);
         break;
       }
+      case 'performCut': {
+        // Interactive cut at round start: the cutter picks the position (0..1).
+        const r = game.performCut(playerId, msg.position);
+        if (r && r.error) sendError(ws, r.error);
+        break;
+      }
       default:
         sendError(ws, `Unbekannter Nachrichtentyp: ${msg.type}`);
     }
