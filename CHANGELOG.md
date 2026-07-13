@@ -4,6 +4,12 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.66.0] - 2026-07-13
+
+### Changed
+- **Desktop-Darstellung: Das Spiel nutzt große Bildschirme jetzt wirklich.** Bisher bekam ein 24-Zoll-Monitor dieselben 62-px-Karten wie ein 6-Zoll-Handy, gedeckelt auf 880 px Breite - alles wirkte winzig. Neu: zwei Desktop-Stufen (ab 1100 px und ab 1500 px Fensterbreite), die Schriftgröße, Karten (Hand bis 86 px statt 62 px), Stapel, Auslagen und Spielfläche (bis 1200 px) gemeinsam hochskalieren. iPhone/Tablet bleiben unverändert
+- Die manuelle **Anzeigegröße „Groß/Sehr groß"** (für ältere Mitspieler) hat eigene Desktop-Werte bekommen: Sie war für Handys abgestimmt und hätte auf einem Monitor die Karten sonst *kleiner* gemacht als der neue Desktop-Standard. Jetzt gilt auf jedem Gerät durchgängig: Normal < Groß < Sehr groß
+
 ## [1.65.1] - 2026-07-13
 
 ### Fixed
