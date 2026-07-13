@@ -95,18 +95,24 @@ function shuffle(deck, seed) {
  * @returns {{ luckyCards: Array, remaining: Array }}
  */
 function performLuckyCut(deck, cutIndex) {
-  const remaining = deck.slice();
-  const luckyCards = [];
+  // FAMILY RULE (v1.71): cutting SETS A PACKET ASIDE. Everything BEFORE the
+  // cut spot plus the cut card itself (the 'stopper') is put aside for the
+  // round - not dealt, not in the draw pile. Only the part AFTER the stopper
+  // is played with. Lucky cards (Queen of Spades / jokers AT the spot) still
+  // go straight into the cutter's hand as before; the next ordinary card then
+  // counts as the cut card and leaves with the packet.
+  const idx0 = Math.max(0, Math.min(cutIndex, deck.length - 1));
   const isLucky = (card) => card && (card.isJoker || isPikDame(card));
-  let idx = Math.max(0, Math.min(cutIndex, remaining.length - 1));
-  while (idx < remaining.length && isLucky(remaining[idx])) {
-    luckyCards.push(remaining.splice(idx, 1)[0]);
+  const luckyCards = [];
+  let i = idx0;
+  while (i < deck.length && isLucky(deck[i])) {
+    luckyCards.push(deck[i]);
+    i += 1;
   }
-  // The card that STOPPED the run (the first non-lucky one at the cut). It
-  // stays in the deck - it is only returned so the UI can show what was
-  // revealed, exactly like looking at the cut card in a physical game.
-  const stopper = idx < remaining.length ? remaining[idx] : null;
-  return { luckyCards, remaining, stopper };
+  const stopper = i < deck.length ? deck[i] : null;
+  const setAside = deck.slice(0, idx0).concat(stopper ? [stopper] : []);
+  const remaining = deck.slice(stopper ? i + 1 : i);
+  return { luckyCards, remaining, stopper, setAside };
 }
 
 function dealCards(deck, playerIds, options = {}) {

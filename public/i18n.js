@@ -14,8 +14,8 @@
 window.I18N_STATIC = {
   // Abheben (interaktiver Rundenstart)
   'Abheben': 'Cutting the deck',
-  'Wähle, wo du das frisch gemischte Deck abhebst. Liegen dort Pik Dame oder Joker, gehören sie sofort dir!':
-    'Choose where to cut the freshly shuffled deck. If the Queen of Spades or a joker sits at the cut, it is yours immediately!',
+  'Wähle, wo du das frisch gemischte Deck abhebst. Liegen dort Pik Dame oder Joker, gehören sie sofort dir! Der abgehobene Packen (samt Abhebekarte) wird für diese Runde beiseitegelegt.':
+    'Choose where to cut the freshly shuffled deck. If the Queen of Spades or a joker sits at the cut, it is yours immediately! The cut packet (incl. the cut card) is set aside for this round.',
   'Hier abheben': 'Cut here',
   '↩︎ Zurücklegen': '↩︎ Put back',
   // Lobby
@@ -132,6 +132,8 @@ window.I18N_SERVER_PATTERNS = [
   [/^Automatisch abgehoben \(Spieler getrennt\)\.$/, 'Auto-cut (player disconnected).'],
   [/^Automatisch abgehoben \(Server-Neustart\)\.$/, 'Auto-cut (server restart).'],
   [/^(.+?) legt die Ablagekarte zurück und zieht neu\.$/, '$1 puts the discard card back and draws again.'],
+  [/^(\d+) Karten werden mit dem Abheben beiseitegelegt\.$/, '$1 cards are set aside with the cut.'],
+  [/^Nachziehstapel war leer - der beim Abheben beiseitegelegte Packen wird gemischt und nachgelegt\.$/, 'Draw pile was empty - the packet set aside at the cut is shuffled back in.'],
   [/^(.+?) zieht eine Karte vom Stapel\.$/, '$1 draws a card from the pile.'],
   [/^(.+?) nimmt die oberste Ablagekarte \((.+?)\) - sie muss sofort gelegt werden, danach folgt der Rest des Stapels\.$/, '$1 takes the top discard ($2) – it must be melded immediately, then the rest of the pile follows.'],
   [/^(.+?) nimmt die restlichen (\d+) Karten des Ablagestapels auf\.$/, '$1 picks up the remaining $2 cards of the discard pile.'],
@@ -222,7 +224,7 @@ window.I18N_RULES_EN = `
   <h3>Dealing &amp; the lucky cut</h3>
   <ul>
     <li>The dealer rotates each round; the player after the dealer starts.</li>
-    <li>Before dealing, the player to the dealer's right cuts the deck – <b>choosing the spot themselves</b> (the daily challenge auto-cuts so decks stay identical worldwide). <b>Lucky cut:</b> If the Queen of Spades or jokers sit at the cut, they go straight into that player's hand – dealing skips accordingly, so everyone ends up with 15 cards.</li>
+    <li>Before dealing, the player to the dealer's right cuts the deck – <b>choosing the spot themselves</b> (the daily challenge auto-cuts so decks stay identical worldwide). <b>The cut packet is set aside:</b> every card before the cut spot plus the cut card itself leaves the round – only the rest is dealt and drawn from. If the draw pile runs dry, the set-aside packet is shuffled back in first. <b>Lucky cut:</b> If the Queen of Spades or jokers sit at the cut, they go straight into that player's hand (the next ordinary card then counts as the cut card and leaves with the packet) – dealing skips accordingly, so everyone ends up with 15 cards.</li>
     <li><b>Fairly shuffled:</b> Every round a brand-new deck is shuffled purely at random (Fisher-Yates). There is no hand-balancing – everyone has the exact same chance at the good cards each round. A single round is down to luck; over many rounds it evens out.</li>
   </ul>
 
