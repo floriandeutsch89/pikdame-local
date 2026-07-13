@@ -4,6 +4,18 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.70.0] - 2026-07-13
+
+### Added
+- **Stapel-Aufnahme zurücknehmen (Vertipper-Ausweg):** Wer den Ablagestapel versehentlich antippt, kann die Aufnahme mit „↩︎ Zurücklegen" rückgängig machen - solange die aufgenommene oberste Karte noch nicht gelegt wurde (Phase 1 der Zwei-Phasen-Aufnahme). Das ist konstruktionsbedingt fair: Die Karte war ohnehin für alle sichtbar, es ist keine verdeckte Information geflossen, am Tisch hat sich nichts geändert. Die Karte wandert exakt zurück an die Stapelspitze (auch das Bot-Gedächtnis wird zurückgesetzt), danach zieht man ganz normal neu. Sobald die Pflichtkarte gelegt wurde, gibt es bewusst kein Zurück mehr
+
+### Changed
+- **Abhebe-Aufdeckung neu gestaltet** (privat vs. öffentlich, wie am echten Tisch):
+  - **Glücksgriff (Pik Dame/Joker an der Abhebestelle):** Großes „🍀 GLÜCKSGRIFF!"-Popup mit Kleeblatt für den **ganzen Tisch** (grüne Variante der Pik-Dame-Ansage) plus die goldenen Karten - auch wenn ein **Bot** den Glückstreffer landet. Der Jackpot-Moment gehört allen
+  - **Gewöhnliche Karte:** sieht **nur der Abheber** (kurzes, dezentes „Deine Abhebekarte - bleibt im Deck") - der Server schickt sie den anderen gar nicht erst. Genau wie beim physischen Abheben: Nur wer abhebt, sieht die Karte; für alle anderen bleibt sie verdeckt
+  - Die Karte, die eine Glücks-Serie beendet, sieht ebenfalls nur der Abheber (gedimmt, „bleibt im Deck")
+- **Zum gemeldeten „nur einmal abheben"-Eindruck:** Die Engine ist korrekt - das Abheben passiert **jede Runde**, der Abheber rotiert mit dem Geber (per Regressionstest über 6 Runden festgeschrieben). Bei 1 Mensch + 3 Bots bist du aber nur jede 4. Runde der Spieler rechts vom Geber; die Bot-Runden hoben bisher **unsichtbar** automatisch ab. Mit dem neuen Glücksgriff-Popup ist der Schritt jetzt immer dann sichtbar, wenn etwas passiert
+
 ## [1.69.0] - 2026-07-13
 
 ### Changed

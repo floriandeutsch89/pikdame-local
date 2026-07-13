@@ -471,18 +471,17 @@ class GameManager {
       if (luckyCards.length > 0) {
         skips[cutter.id] = luckyCards.length;
       }
-      // What the cut revealed, for the client's fly-in animation: every lucky
-      // card the cutter kept, plus the ordinary card that ended the run (it
-      // stays in the deck). Everyone sees the same reveal - the log already
-      // announces lucky cards to the whole table, this only adds the visual.
-      // Display-only: the StateEncoder does not read it, so bots/RL are blind
-      // to it by construction.
-      const revealed = [...luckyCards, ...(cut.stopper ? [cut.stopper] : [])];
+      // What the cut revealed. Raw data - publicState() builds a PER-VIEWER
+      // slice: lucky cards are public (they enter the cutter's hand and the
+      // log announces them anyway), while an ordinary revealed card is shown
+      // to the CUTTER ONLY - just like peeking at the cut in a physical game;
+      // it stays face-down in the deck for everyone else. Display-only: the
+      // StateEncoder does not read it, so bots/RL are blind to it.
       this.lastCutReveal = {
         round: this.roundNumber,
         cutterId: cutter.id,
-        cards: revealed,
-        luckyCount: luckyCards.length,
+        luckyCards,
+        stopper: cut.stopper || null,
       };
     }
 
@@ -710,6 +709,43 @@ class GameManager {
     this.botsReact(player.id, '😤', 0.35);
     this.broadcastState();
     return { ok: true, mustUseCardId: topCard.id };
+  }
+
+  /**
+   * Nimmt eine Ablagestapel-Aufnahme zurück - der "Vertipper"-Ausweg.
+   *
+   * Nur in PHASE 1 der Zwei-Phasen-Aufnahme möglich: Die oberste Karte liegt
+   * auf der Hand, wurde aber noch NICHT gelegt (pendingDiscardRest ist noch
+   * offen). In diesem Fenster ist das Zurücklegen vollkommen fair: Die Karte
+   * war ohnehin für alle sichtbar, es ist keine verdeckte Information
+   * geflossen und am Tisch hat sich nichts geändert. Sobald die Pflichtkarte
+   * gelegt wurde (und damit der Reststapel zusteht), gibt es kein Zurück -
+   * das war eine bewusste Spielhandlung, kein Vertipper.
+   *
+   * Note on the move log: the earlier TAKE_PILE entry stays in the imitation
+   * log; a take that is immediately undone is rare human noise and not worth
+   * a log-rewrite mechanism.
+   */
+  undoPileTake(playerId) {
+    const err = this.assertTurn(playerId, 'meld');
+    if (err) return err;
+    if (!this.pendingDiscardRest || !this.mustLayOffCardId) {
+      return { error: 'Es gibt gerade keine Stapel-Aufnahme zum Zurücklegen.' };
+    }
+    const player = this.currentPlayer();
+    const idx = player.hand.findIndex((cd) => cd.id === this.mustLayOffCardId);
+    if (idx === -1) {
+      return { error: 'Die aufgenommene Karte ist nicht mehr auf der Hand.' };
+    }
+    const [card] = player.hand.splice(idx, 1);
+    this.discardPile.unshift(card); // exakt zurück an die Spitze
+    this._publicMemoryRemove(player.id, card.id);
+    this.mustLayOffCardId = null;
+    this.pendingDiscardRest = false;
+    this.turnPhase = 'draw'; // der Spieler zieht neu (Stapel oder Nachziehstapel)
+    this.addLog(`${player.name} legt die Ablagekarte zurück und zieht neu.`);
+    this.broadcastState();
+    return { ok: true };
   }
 
   /**
@@ -2073,6 +2109,23 @@ class GameManager {
 
   // --- Zustand für Clients -----------------------------------------------------
 
+  /**
+   * Per-viewer slice of the cut reveal. Lucky cards are public; an ordinary
+   * revealed card (incl. the stopper after a lucky run) is private to the
+   * cutter - it stays face-down in the deck for everyone else.
+   */
+  _cutRevealFor(forPlayerId) {
+    const r = this.lastCutReveal;
+    if (!r || !Array.isArray(r.luckyCards)) return null; // also guards old snapshots
+    const isCutter = forPlayerId === r.cutterId;
+    if (r.luckyCards.length === 0) {
+      if (!isCutter || !r.stopper) return null;
+      return { round: r.round, cutterId: r.cutterId, cards: [r.stopper], luckyCount: 0 };
+    }
+    const cards = isCutter && r.stopper ? [...r.luckyCards, r.stopper] : [...r.luckyCards];
+    return { round: r.round, cutterId: r.cutterId, cards, luckyCount: r.luckyCards.length };
+  }
+
   publicState(forPlayerId) {
     return {
       phase: this.phase,
@@ -2094,7 +2147,15 @@ class GameManager {
       paused: !!this.paused,
       cutterId: this.phase === 'cutting' ? this.cutterId : null,
       cutDeadline: this.phase === 'cutting' ? this.cutDeadline : null,
-      lastCutReveal: this.lastCutReveal || null,
+      lastCutReveal: this._cutRevealFor(forPlayerId),
+      canUndoPileTake: !!(
+        this.phase === 'playing' &&
+        this.turnPhase === 'meld' &&
+        this.pendingDiscardRest &&
+        this.mustLayOffCardId &&
+        this.players[this.currentPlayerIndex] &&
+        this.players[this.currentPlayerIndex].id === forPlayerId
+      ),
       pauseVotes: this._pauseVotes ? [...this._pauseVotes] : [],
       forfeitVotes: this._forfeitVotes ? [...this._forfeitVotes] : [],
       players: this.players.map((p) => ({

@@ -494,17 +494,40 @@
 
     const cutter = (lastState.players || []).find((p) => p.id === r.cutterId);
     const name = cutter ? cutter.name : '?';
+    const iAmCutter = r.cutterId === playerId;
+    const lucky = r.luckyCount > 0;
+
+    // GLÜCKSGRIFF = Jackpot-Moment: großes Kleeblatt-Popup für den GANZEN
+    // Tisch (die Karten gehen ja öffentlich in die Hand des Abhebers).
+    if (lucky) {
+      const what = r.cards.slice(0, r.luckyCount)
+        .map((cd) => (cd.isJoker ? L('Joker', 'Joker') : L('Pik Dame', 'Queen of Spades')))
+        .join(' + ');
+      showRaidWarning(
+        L('🍀 GLÜCKSGRIFF! 🍀', '🍀 LUCKY CUT! 🍀'),
+        iAmCutter
+          ? L(`Du ziehst beim Abheben: ${what}!`, `Your cut reveals: ${what}!`)
+          : L(`${name} zieht beim Abheben: ${what}!`, `${name}'s cut reveals: ${what}!`),
+        'lucky'
+      );
+    } else if (!iAmCutter) {
+      // Gewöhnliche Karte: sieht NUR der Abheber (der Server schickt sie auch
+      // nur ihm) - für alle anderen bleibt sie verdeckt im Deck.
+      return;
+    }
+
     const old = document.getElementById('cutReveal');
     if (old) old.remove();
-
     const wrap = document.createElement('div');
     wrap.id = 'cutReveal';
     const title = document.createElement('div');
     title.className = 'cutRevealTitle';
-    title.textContent = r.luckyCount > 0
-      ? L(`🍀 Glücksgriff! ${name} behält ${r.luckyCount} Karte${r.luckyCount > 1 ? 'n' : ''}`,
-          `🍀 Lucky cut! ${name} keeps ${r.luckyCount} card${r.luckyCount > 1 ? 's' : ''}`)
-      : L(`${name} hat abgehoben`, `${name} cut the deck`);
+    title.textContent = lucky
+      ? (iAmCutter && r.cards.length > r.luckyCount
+          ? L('Deine Beute - die letzte Karte bleibt im Deck', 'Your haul - the last card stays in the deck')
+          : L(`${name} behält ${r.luckyCount} Karte${r.luckyCount > 1 ? 'n' : ''}`,
+              `${name} keeps ${r.luckyCount} card${r.luckyCount > 1 ? 's' : ''}`))
+      : L('Deine Abhebekarte - bleibt im Deck', 'Your cut card - stays in the deck');
     wrap.appendChild(title);
 
     const row = document.createElement('div');
@@ -512,8 +535,6 @@
     r.cards.forEach((card, i) => {
       const div = cardEl(card, {});
       div.style.setProperty('--i', i);
-      // Glückskarten leuchten; die letzte (normale) Karte beendete den Zug
-      // und bleibt im Deck - leicht gedimmt dargestellt.
       if (i < r.luckyCount) div.classList.add('cutLucky');
       else div.classList.add('cutStopper');
       row.appendChild(div);
@@ -521,26 +542,11 @@
     wrap.appendChild(row);
     document.body.appendChild(wrap);
 
-    // Anzeige-Dauer: Basis + Staffelung, dann sanft ausblenden.
-    const holdMs = 2200 + r.cards.length * 160;
+    const holdMs = (lucky ? 2400 : 1700) + r.cards.length * 160;
     setTimeout(() => {
       wrap.classList.add('cutRevealOut');
       setTimeout(() => wrap.remove(), 450);
     }, holdMs);
-  }
-
-  // Scrollbare Hand: dezente Fade-Kanten zeigen, in welche Richtung noch
-  // Karten liegen. Wird bei Scroll und Re-Layout aktualisiert.
-  let handScrollWired = false;
-  function updateHandScrollEdges(handDiv) {
-    const canL = handDiv.scrollLeft > 4;
-    const canR = handDiv.scrollLeft + handDiv.clientWidth < handDiv.scrollWidth - 4;
-    handDiv.classList.toggle('canScrollL', canL);
-    handDiv.classList.toggle('canScrollR', canR);
-    if (!handScrollWired) {
-      handScrollWired = true;
-      handDiv.addEventListener('scroll', () => updateHandScrollEdges(handDiv), { passive: true });
-    }
   }
 
   function send(obj) {
@@ -1275,6 +1281,9 @@
     el('discardBtn').classList.toggle('hidden', !showDiscardBtn);
 
     el('clearSelectionBtn').classList.toggle('hidden', selectedCardIds.size === 0);
+    // Vertipper-Ausweg: Stapel-Aufnahme zurücknehmen, solange die Pflichtkarte
+    // noch nicht gelegt wurde (Server validiert; Flag kommt nur für mich true).
+    el('undoPileBtn').classList.toggle('hidden', !lastState.canUndoPileTake);
     const iSeatedForfeit = lastState.players.some((p) => p.id === playerId && !p.isBot);
     el('forfeitBtn').classList.toggle('hidden', lastState.phase !== 'playing' || !iSeatedForfeit);
     const forfeitVotes = lastState.forfeitVotes || [];
@@ -2260,6 +2269,7 @@
   });
 
   el('lobbyReadyBtn').addEventListener('click', () => send({ type: 'lobbyReady' }));
+  el('undoPileBtn').addEventListener('click', () => send({ type: 'undoPileTake' }));
 
   el('tutorialBtn').addEventListener('click', () => {
     tutorialActive = true;
@@ -2674,10 +2684,10 @@
     prevPikdameRound = lastState.roundNumber;
   }
 
-  function showRaidWarning(title, sub) {
+  function showRaidWarning(title, sub, variant) {
     document.querySelectorAll('.raidWarning').forEach((n) => n.remove());
     const w = document.createElement('div');
-    w.className = 'raidWarning';
+    w.className = 'raidWarning' + (variant ? ' ' + variant : '');
     const t = document.createElement('div');
     t.className = 'rwTitle';
     t.textContent = title;

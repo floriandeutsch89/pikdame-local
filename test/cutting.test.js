@@ -131,26 +131,22 @@ test('cutting: non-cutter disconnect does NOT auto-cut', () => {
   g.destroy();
 });
 
-test('cut reveal: publicState exposes lucky cards + the stopper, nothing else', () => {
-  // Force a deterministic deck situation by cutting many games and checking
-  // the invariants that must ALWAYS hold.
+test('cut reveal: the CUTTER always sees the revealed cards; totals stay at 110', () => {
   for (let i = 0; i < 60; i++) {
     const { g } = humanGame(3);
     g.startNewRound();
-    g.performCut(g.cutterId, Math.random());
-    const st = g.publicState(g.players[0].id);
-    const r = st.lastCutReveal;
-    assert.ok(r, 'reveal present after the cut');
+    const cutterId = g.cutterId;
+    g.performCut(cutterId, Math.random());
+    const r = g.publicState(cutterId).lastCutReveal; // the cutter's own view
+    assert.ok(r, 'the cutter always gets a reveal');
     assert.equal(r.round, g.roundNumber);
-    assert.ok(r.cards.length >= 1, 'at least the stopper is revealed');
-    // All but the last are lucky; the last one (stopper) never is.
+    assert.ok(r.cards.length >= 1, 'at least one card revealed to the cutter');
     const isLucky = (c) => c.isJoker || (c.suit === 'S' && c.rank === 'Q');
     r.cards.forEach((c, idx) => {
       if (idx < r.luckyCount) assert.ok(isLucky(c), 'kept cards are lucky');
     });
-    const stopper = r.cards[r.cards.length - 1];
     if (r.cards.length > r.luckyCount) {
-      assert.ok(!isLucky(stopper), 'the stopper is an ordinary card');
+      assert.ok(!isLucky(r.cards[r.cards.length - 1]), 'the stopper is an ordinary card');
     }
     // The stopper STAYS in play: total cards must still be 110.
     const inHands = g.players.reduce((a, p) => a + p.hand.length, 0);
@@ -159,12 +155,88 @@ test('cut reveal: publicState exposes lucky cards + the stopper, nothing else', 
   }
 });
 
-test('cut reveal: auto-cuts (bot cutter) reveal too, so the step is visible every round', () => {
-  const { g } = humanGame(1);
-  g.fillWithBots();
-  g.startNewRound(); // bot cutter -> auto
-  assert.equal(g.phase, 'playing');
-  const r = g.publicState(g.players[0].id).lastCutReveal;
-  assert.ok(r && r.cards.length >= 1);
+test('cut reveal: a bot auto-cut is public ONLY on a lucky hit; ordinary bot cuts show nothing', () => {
+  let sawLucky = false, sawOrdinary = false;
+  for (let i = 0; i < 250 && !(sawLucky && sawOrdinary); i++) {
+    const { g } = humanGame(1);
+    g.fillWithBots();
+    g.startNewRound(); // bot cutter -> auto
+    assert.equal(g.phase, 'playing');
+    const raw = g.lastCutReveal;
+    const humanView = g.publicState(g.players[0].id).lastCutReveal;
+    if (raw.luckyCards.length > 0) {
+      sawLucky = true;
+      assert.ok(humanView && humanView.luckyCount === raw.luckyCards.length,
+        'a lucky bot cut is announced to the table');
+    } else {
+      sawOrdinary = true;
+      assert.equal(humanView, null, 'an ordinary bot cut reveals nothing to others');
+    }
+    g.destroy();
+  }
+  assert.ok(sawOrdinary, 'saw at least one ordinary cut');
+  // lucky cuts are ~40% per cut with 6 jokers + 2 queens in 110 cards over a
+  // run - across 250 games missing one would be a red flag:
+  assert.ok(sawLucky, 'saw at least one lucky cut');
+});
+
+test('cut reveal privacy: an ordinary cut card is visible to the CUTTER ONLY', () => {
+  // Repeat until we hit a non-lucky cut (overwhelmingly likely per attempt).
+  for (let i = 0; i < 40; i++) {
+    const { g } = humanGame(3);
+    g.startNewRound();
+    g.performCut(g.cutterId, Math.random());
+    const raw = g.lastCutReveal;
+    const cutterId = raw.cutterId;
+    if (raw.luckyCards.length === 0) {
+      const forCutter = g.publicState(cutterId).lastCutReveal;
+      assert.ok(forCutter && forCutter.cards.length === 1, 'cutter sees the one card');
+      for (const p of g.players) {
+        if (p.id === cutterId) continue;
+        assert.equal(g.publicState(p.id).lastCutReveal, null, 'others see NOTHING');
+      }
+      g.destroy();
+      return;
+    }
+    g.destroy();
+  }
+  assert.fail('no ordinary cut in 40 attempts (statistically impossible)');
+});
+
+test('cut reveal privacy: lucky cards are public, the stopper stays cutter-only', () => {
+  for (let i = 0; i < 200; i++) {
+    const { g } = humanGame(3);
+    g.startNewRound();
+    g.performCut(g.cutterId, Math.random());
+    const raw = g.lastCutReveal;
+    if (raw.luckyCards.length > 0 && raw.stopper) {
+      const cutterView = g.publicState(raw.cutterId).lastCutReveal;
+      assert.equal(cutterView.cards.length, raw.luckyCards.length + 1, 'cutter: lucky + stopper');
+      const other = g.players.find((p) => p.id !== raw.cutterId);
+      const otherView = g.publicState(other.id).lastCutReveal;
+      assert.equal(otherView.cards.length, raw.luckyCards.length, 'others: lucky only');
+      assert.ok(!otherView.cards.some((c) => c.id === raw.stopper.id), 'stopper never leaks');
+      g.destroy();
+      return;
+    }
+    g.destroy();
+  }
+  assert.fail('no lucky cut in 200 attempts (statistically near-impossible)');
+});
+
+test('cutting happens EVERY round, cutter rotates with the dealer (regression: "only once per game")', () => {
+  const { g } = humanGame(2);
+  const seen = [];
+  for (let r = 1; r <= 6; r++) {
+    g.startNewRound();
+    assert.equal(g.phase, 'cutting', `round ${r} must start with a cut`);
+    seen.push(g.cutterId);
+    g.performCut(g.cutterId, 0.5);
+    g.phase = 'roundEnd'; // simulate the round finishing
+  }
+  // with 2 players the cutter must alternate every round
+  for (let i = 1; i < seen.length; i++) {
+    assert.notEqual(seen[i], seen[i - 1], 'cutter rotates with the dealer');
+  }
   g.destroy();
 });
