@@ -106,6 +106,8 @@ volume), but the deployment is straightforward:
 - **Service** on port 8080, **Ingress** with WebSocket support enabled and TLS
   from cert-manager (which handles ACME the same way Caddy does).
 - Set `PIKDAME_TRUST_PROXY=1` so client IPs are read from `X-Forwarded-For`.
+- Want the **trained ONNX bots**? Use the chart overrides in
+  `helm/pikdame/values-onnx.yaml` — see {doc}`admin/onnx`.
 
 :::{important}
 The ingress must not buffer or time out WebSocket connections. On nginx-ingress,

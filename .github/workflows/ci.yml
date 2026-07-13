@@ -177,4 +177,14 @@ jobs:
           helm template test helm/pikdame > /dev/null
           helm template test helm/pikdame --set ingress.tls.enabled=true > /dev/null
           helm template test helm/pikdame --set persistence.existingClaim=my-claim --set existingSecret=pikdame-env > /dev/null
+          helm template test helm/pikdame -f helm/pikdame/values-onnx.yaml > /dev/null
           echo "All variations render."
+      # The chart must REFUSE the one combination that silently breaks ONNX:
+      # enabling it while still pointing at the default (Alpine) image.
+      - name: Chart rejects onnx.enabled with the non-ONNX image
+        run: |
+          if helm template test helm/pikdame --set onnx.enabled=true > /dev/null 2>&1; then
+            echo "::error::chart rendered onnx.enabled=true with the default Alpine image - the guardrail is broken"
+            exit 1
+          fi
+          echo "Guardrail works: onnx.enabled with the default image is rejected."
