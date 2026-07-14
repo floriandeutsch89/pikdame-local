@@ -94,6 +94,11 @@ jobs:
         with:
           dockerfile: docker/Dockerfile.onnx
           ignore: DL3018
+      - name: Lint Caddy Dockerfile (hadolint)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: docker/caddy/Dockerfile
+          ignore: DL3018
       - name: Build image
         run: docker build -f docker/Dockerfile -t pikdame:scan .
       # OWASP RULE #8: scan the image for known vulnerabilities.

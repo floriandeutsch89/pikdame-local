@@ -21,6 +21,11 @@
 services:
   caddy:
     # Custom build: official Caddy + CrowdSec bouncer plugin (xcaddy).
+    # ALTERNATIVE: pull the prebuilt package instead of building on the server -
+    # then Watchtower keeps the proxy patched like the app (each release is
+    # rebuilt on the latest caddy:2-alpine base). To switch, comment the
+    # 'build:' line and use:
+    #   image: ghcr.io/floriandeutsch89/pikdame-local-caddy:latest
     build: ./caddy
     image: pikdame-caddy:latest
     container_name: pikdame-caddy
