@@ -287,23 +287,23 @@ test('challenge lock: normal games keep both settings fully adjustable', () => {
 });
 
 // --- v1.71: Familienregel - der abgehobene Packen wird beiseitegelegt ----------
-test('set-aside: an empty draw pile is refilled from the set-aside packet FIRST', () => {
+test('set-aside: the packet is NEVER refilled into the game - empty pile means the end rule takes over', () => {
   const { g } = humanGame(2);
   g.startNewRound();
   g.performCut(g.cutterId, 0.9); // tief schneiden -> großer Packen beiseite
   const asideBefore = g.setAsidePile.length;
   assert.ok(asideBefore > 0, 'packet was set aside');
-  // Nachziehstapel künstlich leeren, Ablage füllen
-  const drained = g.drawPile.splice(0, g.drawPile.length);
-  g.discardPile.push(...drained);
-  g.refillDrawPileFromSetAside();
-  assert.equal(g.drawPile.length, asideBefore, 'draw pile refilled from the packet');
-  assert.equal(g.setAsidePile.length, 0, 'packet consumed');
-  // zweiter Leerlauf: die Ablage wird NICHT mehr recycelt (Familienregel) -
-  // ohne Packen bleibt der Stapel leer, die Ende-Regel übernimmt.
+  // Nachziehstapel künstlich leeren - der Packen bleibt trotzdem draußen.
   g.drawPile.length = 0;
-  g.refillDrawPileFromSetAside();
-  assert.equal(g.drawPile.length, 0, 'the discard pile is never reshuffled');
+  const me = g.currentPlayer();
+  g.turnPhase = 'draw';
+  const r = g.drawFromPile(me.id);
+  assert.equal(g.setAsidePile.length, asideBefore, 'packet untouched');
+  assert.equal(g.drawPile.length, 0, 'nothing was refilled from anywhere');
+  // Je nach Ablage-Top: entweder Hinweis auf die Aufnahme oder Rundenende -
+  // niemals ein stilles Weiterspielen mit nachgemischten Karten.
+  assert.ok((r.error && g.phase === 'playing') || (r.roundEnded && g.phase === 'roundEnd'),
+    'either the pickup hint or the round end - never a refill');
   g.destroy();
 });
 

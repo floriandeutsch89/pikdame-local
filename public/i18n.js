@@ -133,7 +133,6 @@ window.I18N_SERVER_PATTERNS = [
   [/^Automatisch abgehoben \(Server-Neustart\)\.$/, 'Auto-cut (server restart).'],
   [/^(.+?) legt die Ablagekarte zurück und zieht neu\.$/, '$1 puts the discard card back and draws again.'],
   [/^(\d+) Karten werden mit dem Abheben beiseitegelegt\.$/, '$1 cards are set aside with the cut.'],
-  [/^Nachziehstapel war leer - der beim Abheben beiseitegelegte Packen wird gemischt und nachgelegt\.$/, 'Draw pile was empty - the packet set aside at the cut is shuffled back in.'],
   [/^(.+?) zieht eine Karte vom Stapel\.$/, '$1 draws a card from the pile.'],
   [/^(.+?) nimmt die oberste Ablagekarte \((.+?)\) - sie muss sofort gelegt werden, danach folgt der Rest des Stapels\.$/, '$1 takes the top discard ($2) – it must be melded immediately, then the rest of the pile follows.'],
   [/^(.+?) nimmt die restlichen (\d+) Karten des Ablagestapels auf\.$/, '$1 picks up the remaining $2 cards of the discard pile.'],
@@ -224,7 +223,7 @@ window.I18N_RULES_EN = `
   <h3>Dealing &amp; the lucky cut</h3>
   <ul>
     <li>The dealer rotates each round; the player after the dealer starts.</li>
-    <li>Before dealing, the player to the dealer's right cuts the deck – <b>choosing the spot themselves</b> (the daily challenge auto-cuts so decks stay identical worldwide). <b>The cut packet is set aside:</b> every card before the cut spot plus the cut card itself leaves the round – only the rest is dealt and drawn from. If the draw pile runs dry, the set-aside packet is shuffled back in first. <b>Lucky cut:</b> If the Queen of Spades or jokers sit at the cut, they go straight into that player's hand (the next ordinary card then counts as the cut card and leaves with the packet) – dealing skips accordingly, so everyone ends up with 15 cards.</li>
+    <li>Before dealing, the player to the dealer's right cuts the deck – <b>choosing the spot themselves</b> (the daily challenge auto-cuts so decks stay identical worldwide). <b>The cut packet is set aside:</b> every card before the cut spot plus the cut card itself leaves the round – only the rest is dealt and drawn from. <b>Lucky cut:</b> If the Queen of Spades or jokers sit at the cut, they go straight into that player's hand (the next ordinary card then counts as the cut card and leaves with the packet) – dealing skips accordingly, so everyone ends up with 15 cards.</li>
     <li><b>Fairly shuffled:</b> Every round a brand-new deck is shuffled purely at random (Fisher-Yates). There is no hand-balancing – everyone has the exact same chance at the good cards each round. A single round is down to luck; over many rounds it evens out.</li>
   </ul>
 
@@ -268,6 +267,6 @@ window.I18N_RULES_EN = `
   <h3>Game end &amp; misc</h3>
   <ul>
     <li>The game ends once someone reaches 1000 points (strict house rule: only above 1000). The highest score wins.</li>
-    <li>When the draw pile runs out, <b>the packet set aside at the cut</b> is shuffled back in first. Once that is used up too: if you can pick up the top discard card, that is your move – <b>if you cannot, the round ends immediately and is scored:</b> laid-out cards count plus, the cards left in your hand count <b>minus</b> as usual (a Queen of Spades in hand costs 100!) – only the winner bonus is not awarded in this case. The discard pile is <b>not</b> reshuffled. Use 🏳️ to forfeit the whole game - that ends the match immediately (all active players must agree).</li>
+    <li>When the draw pile runs out, <b>nothing is refilled</b> – neither the packet set aside at the cut (it stays out for the whole round) nor the discard pile. If you can pick up the top discard card, that is your move – <b>if you cannot, the round ends immediately and is scored:</b> laid-out cards count plus, the cards left in your hand count <b>minus</b> as usual (a Queen of Spades in hand costs 100!) – only the winner bonus is not awarded in this case. Use 🏳️ to forfeit the whole game - that ends the match immediately (all active players must agree).</li>
   </ul>
 `;
