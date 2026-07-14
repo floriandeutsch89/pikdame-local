@@ -4,6 +4,12 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.72.1] - 2026-07-14
+
+### Changed
+- **Das Caddy-Image wird nur noch gebaut, wenn sich wirklich etwas geändert hat.** Der Build ist langsam (xcaddy kompiliert Go, arm64 unter Emulation), das Rezept ändert sich aber so gut wie nie. Vor jedem Build vergleicht der Job jetzt mit dem bereits veröffentlichten Image: Rezept-Hash (alle Dateien in `docker/caddy`) sowie die Digests **beider Caddy-Basis-Images**. Nur wenn sich davon etwas unterscheidet, wird neu gebaut - sonst wird das vorhandene Image für die neue Version **umgetaggt** (Sekunden statt Minuten), sodass `:vX.Y.Z` weiterhin für jedes Release existiert
+- Wichtig dabei: Die Basis-Digests sind Teil der Prüfung. Ein reiner Datei-Vergleich hätte den Hauptnutzen zerstört - **Caddy-Sicherheitspatches** werden weiterhin automatisch mit dem nächsten Release eingesammelt. Sind die Upstream-Digests nicht lesbar, wird im Zweifel gebaut
+
 ## [1.72.0] - 2026-07-14
 
 ### Fixed

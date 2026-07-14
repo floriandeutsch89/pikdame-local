@@ -5,7 +5,10 @@ name: Release
 # 1. Git tag vX.Y.Z + GitHub release (notes = matching CHANGELOG section)
 # 2. Docker image on GHCR: ghcr.io/<owner>/pikdame-local:latest + :vX.Y.Z
 #    (amd64 + arm64 - also runs on Raspberry Pi & Apple Silicon)
-# 3. A SECOND image with the trained ONNX bots baked in:
+# 3. The Caddy reverse-proxy image (ghcr.io/<owner>/pikdame-local-caddy) -
+#    but only rebuilt when the recipe or a Caddy base image actually changed;
+#    otherwise the existing image is simply retagged for the new version.
+# 4. A SECOND image with the trained ONNX bots baked in:
 #    ghcr.io/<owner>/pikdame-local-onnx:latest + :vX.Y.Z
 #    (Debian/glibc base - onnxruntime-node cannot run on the Alpine/musl image)
 
@@ -126,10 +129,19 @@ jobs:
   docker-caddy:
     # Third image: the reverse proxy - official Caddy with the CrowdSec bouncer
     # plugin compiled in via xcaddy (plugins cannot be loaded at runtime).
-    # Publishing it as a package means production can PULL instead of building
-    # on the server, and Watchtower keeps the proxy patched like the app:
-    # rebuilding on every release picks up the latest caddy:2-alpine base,
-    # which is exactly what you want for an internet-facing binary.
+    #
+    # This build is SLOW (xcaddy compiles Go, and arm64 runs under QEMU), while
+    # the recipe changes almost never. But we must NOT simply skip it when
+    # docker/caddy/** is untouched: most of the value is picking up patched
+    # caddy:2-alpine BASE images for a binary that faces the open internet.
+    #
+    # So we rebuild exactly when something actually changed - checked against
+    # the image we already published:
+    #   * the recipe (hash over docker/caddy/**), or
+    #   * the digest of either base image upstream.
+    # If nothing changed, we skip the build and just RETAG the existing image
+    # with the new version (a manifest operation, seconds), so :vX.Y.Z still
+    # exists for every release and the prod compose keeps working.
     needs: [meta, release]
     if: needs.meta.outputs.is_new == 'true'
     runs-on: ubuntu-latest
@@ -143,7 +155,55 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Decide - rebuild or retag?
+        id: gate
+        run: |
+          set -uo pipefail
+          IMAGE="ghcr.io/${{ github.repository }}-caddy"
+
+          # Fingerprint of the build recipe (every file in docker/caddy).
+          RECIPE=$(find docker/caddy -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d" " -f1)
+
+          # Current upstream base digests (manifest-list digest = arch-independent).
+          BUILDER=$(docker buildx imagetools inspect caddy:2-builder-alpine --format "{{.Manifest.Digest}}" 2>/dev/null || echo "unknown")
+          RUNTIME=$(docker buildx imagetools inspect caddy:2-alpine --format "{{.Manifest.Digest}}" 2>/dev/null || echo "unknown")
+          echo "recipe=$RECIPE" >> "$GITHUB_OUTPUT"
+          echo "builder=$BUILDER" >> "$GITHUB_OUTPUT"
+          echo "runtime=$RUNTIME" >> "$GITHUB_OUTPUT"
+
+          # What did we bake into the published image last time? (Labels; the
+          # image may not exist yet on the very first run -> then we build.)
+          PREV=$(docker buildx imagetools inspect "$IMAGE:latest" --format "{{json .Image}}" 2>/dev/null || echo "")
+          if [ -z "$PREV" ]; then
+            echo "No published image yet -> build."
+            echo "rebuild=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Multi-arch: .Image is a map platform -> config. Any platform will do,
+          # the labels are identical across them.
+          P_RECIPE=$(echo "$PREV" | jq -r "[.. | objects | .config? // empty | .Labels? // empty | .\"online.pikdame.caddy.recipe\"? // empty] | first // \"\"")
+          P_BUILDER=$(echo "$PREV" | jq -r "[.. | objects | .config? // empty | .Labels? // empty | .\"online.pikdame.caddy.base.builder\"? // empty] | first // \"\"")
+          P_RUNTIME=$(echo "$PREV" | jq -r "[.. | objects | .config? // empty | .Labels? // empty | .\"online.pikdame.caddy.base.runtime\"? // empty] | first // \"\"")
+
+          echo "recipe : $P_RECIPE -> $RECIPE"
+          echo "builder: $P_BUILDER -> $BUILDER"
+          echo "runtime: $P_RUNTIME -> $RUNTIME"
+
+          # Unknown upstream digests must never be treated as "unchanged".
+          if [ "$BUILDER" = "unknown" ] || [ "$RUNTIME" = "unknown" ]; then
+            echo "Could not read upstream digests -> build to be safe."
+            echo "rebuild=true" >> "$GITHUB_OUTPUT"
+          elif [ "$P_RECIPE" = "$RECIPE" ] && [ "$P_BUILDER" = "$BUILDER" ] && [ "$P_RUNTIME" = "$RUNTIME" ]; then
+            echo "Recipe and both base images unchanged -> retag only."
+            echo "rebuild=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Something changed -> rebuild."
+            echo "rebuild=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build & push Caddy image (amd64 + arm64)
+        if: steps.gate.outputs.rebuild == 'true'
         uses: docker/build-push-action@v6
         with:
           context: docker/caddy
@@ -156,8 +216,21 @@ jobs:
           labels: |
             org.opencontainers.image.version=${{ needs.meta.outputs.version }}
             org.opencontainers.image.revision=${{ github.sha }}
+            online.pikdame.caddy.recipe=${{ steps.gate.outputs.recipe }}
+            online.pikdame.caddy.base.builder=${{ steps.gate.outputs.builder }}
+            online.pikdame.caddy.base.runtime=${{ steps.gate.outputs.runtime }}
           cache-from: type=gha,scope=caddy
           cache-to: type=gha,mode=max,scope=caddy
+
+      - name: Retag existing image for this release (nothing changed)
+        if: steps.gate.outputs.rebuild == 'false'
+        run: |
+          set -euo pipefail
+          IMAGE="ghcr.io/${{ github.repository }}-caddy"
+          docker buildx imagetools create \
+            -t "$IMAGE:v${{ needs.meta.outputs.version }}" \
+            "$IMAGE:latest"
+          echo "Reused the published image (no Caddy or base-image change)."
 
   docker:
     needs: [meta, release]
