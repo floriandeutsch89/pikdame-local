@@ -151,8 +151,8 @@ window.I18N_SERVER_PATTERNS = [
   [/^Rundenwertung: (.+)$/, 'Round scores: $1'],
   [/^⚠️ Endspurt! (.+?) steht bei (\d+) Punkten - ab 1000 endet das Spiel\.$/, '⚠️ Final stretch! $1 is at $2 points - the game ends at 1000.'],
   [/^⚠️ Endspurt! (.+?) steht bei (\d+) Punkten - über 1000 endet das Spiel\.$/, '⚠️ Final stretch! $1 is at $2 points - the game ends above 1000.'],
-  [/^Keine Karten mehr zum Ziehen - die Runde endet unentschieden\.$/, 'No cards left to draw – the round ends in a stalemate.'],
-  [/^Nachziehstapel war leer - Ablagestapel \(außer oberster Karte\) wurde gemischt und neu aufgelegt\.$/, 'Draw pile was empty – the discard pile (except the top card) was shuffled and restocked.'],
+  [/^Nachziehstapel leer und die Ablagekarte passt nicht - die Runde endet und wird gewertet\.$/, 'Draw pile empty and the discard card does not fit - the round ends and is scored.'],
+  [/^Der Nachziehstapel ist leer - du kannst aber die oberste Ablagekarte aufnehmen\.$/, 'The draw pile is empty - but you can pick up the top discard card.'],
   [/^(.+?) ist beigetreten\.$/, '$1 joined.'],
   [/^(.+?) hat die Verbindung verloren - ein Bot übernimmt vorerst\.$/, '$1 lost connection – a bot takes over for now.'],
   [/^(.+?) ist wieder da und übernimmt von seinem Bot\.$/, '$1 is back and takes over from the bot.'],
@@ -268,6 +268,6 @@ window.I18N_RULES_EN = `
   <h3>Game end &amp; misc</h3>
   <ul>
     <li>The game ends once someone reaches 1000 points (strict house rule: only above 1000). The highest score wins.</li>
-    <li>When the draw pile runs out, the discard pile (except its top card) is reshuffled and reused – but only while there are still cards for it. <b>If you can neither draw nor take the top discard card, the round ends and is scored:</b> laid-out cards count plus, the cards left in your hand count <b>minus</b> as usual (a Queen of Spades in hand costs 100!) – only the winner bonus is not awarded in this case. Use 🏳️ to forfeit the whole game - that ends the match immediately (all active players must agree).</li>
+    <li>When the draw pile runs out, <b>the packet set aside at the cut</b> is shuffled back in first. Once that is used up too: if you can pick up the top discard card, that is your move – <b>if you cannot, the round ends immediately and is scored:</b> laid-out cards count plus, the cards left in your hand count <b>minus</b> as usual (a Queen of Spades in hand costs 100!) – only the winner bonus is not awarded in this case. The discard pile is <b>not</b> reshuffled. Use 🏳️ to forfeit the whole game - that ends the match immediately (all active players must agree).</li>
   </ul>
 `;

@@ -296,14 +296,14 @@ test('set-aside: an empty draw pile is refilled from the set-aside packet FIRST'
   // Nachziehstapel künstlich leeren, Ablage füllen
   const drained = g.drawPile.splice(0, g.drawPile.length);
   g.discardPile.push(...drained);
-  g.reshuffleDiscardIntoDrawPile();
+  g.refillDrawPileFromSetAside();
   assert.equal(g.drawPile.length, asideBefore, 'draw pile refilled from the packet');
   assert.equal(g.setAsidePile.length, 0, 'packet consumed');
-  // zweiter Leerlauf -> jetzt greift wie bisher die Ablage
+  // zweiter Leerlauf: die Ablage wird NICHT mehr recycelt (Familienregel) -
+  // ohne Packen bleibt der Stapel leer, die Ende-Regel übernimmt.
   g.drawPile.length = 0;
-  const discardable = g.discardPile.length - 1;
-  g.reshuffleDiscardIntoDrawPile();
-  assert.equal(g.drawPile.length, discardable, 'then the discard pile as before');
+  g.refillDrawPileFromSetAside();
+  assert.equal(g.drawPile.length, 0, 'the discard pile is never reshuffled');
   g.destroy();
 });
 

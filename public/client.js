@@ -1165,10 +1165,14 @@
     prevDiscardTopId = topId;
 
     const canDraw = isMyTurn && lastState.turnPhase === 'draw';
-    el('drawPile').classList.toggle('disabled', !canDraw || lastState.drawPileCount === 0);
+    // Auch bei 0 Karten klickbar: der Server füllt aus dem Abhebe-Packen nach,
+    // verweist auf die Ablage oder beendet die Runde regelkonform. Der alte
+    // disabled-Zustand hat einen Spieler live eingesperrt (Screenshot-Bug):
+    // ziehen ging clientseitig nicht, aufnehmen war regelwidrig.
+    el('drawPile').classList.toggle('disabled', !canDraw);
     el('discardPile').classList.toggle('disabled', !canDraw || !lastState.discardTop);
     // Sanfter Glow signalisiert: jetzt darfst du ziehen
-    el('drawPile').classList.toggle('glow', canDraw && lastState.drawPileCount > 0);
+    el('drawPile').classList.toggle('glow', canDraw && (lastState.drawPileCount > 0 || (lastState.setAsideCount || 0) > 0));
     el('discardPile').classList.toggle('glow', canDraw && !!lastState.discardTop);
 
     // Hand

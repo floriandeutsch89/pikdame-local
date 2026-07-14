@@ -598,8 +598,8 @@ class GameManager {
     }
     this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
     this.turnPhase = 'draw';
-    // Deadlock am Zuganfang: Nachziehstapel leer UND nicht nachmischbar
-    // (Ablage <= 1) UND der Spieler kann die oberste Ablagekarte nicht nehmen
+    // Deadlock am Zuganfang: Nachziehstapel leer, Abhebe-Packen aufgebraucht
+    // UND der Spieler kann die oberste Ablagekarte nicht nehmen
     // -> niemand kann mehr etwas tun. Die Runde endet automatisch und wird
     // ganz normal gewertet (Auslagen minus Resthand), ohne Gewinner-Bonus.
     // Wichtig, weil einem Menschen die (unmögliche) Zieh-Aktion sonst gar
@@ -640,16 +640,19 @@ class GameManager {
     }
 
     if (this.drawPile.length === 0) {
-      this.reshuffleDiscardIntoDrawPile();
+      this.refillDrawPileFromSetAside();
     }
     if (this.drawPile.length === 0) {
-      // Weder Nachziehstapel noch mischbarer Ablagestapel übrig - niemand
-      // kann mehr ziehen. Ohne diese Regel stünde das Spiel für immer still
-      // (Abwerfen/Auslegen verlangen die meld-Phase, die ohne Ziehen nie
-      // erreicht wird). Stattdessen endet die Runde als Patt: alle Spieler
-      // werden ganz normal gewertet (Auslagen minus Resthand), niemand
-      // erhält einen Gewinner-Bonus.
-      this.addLog('Keine Karten mehr zum Ziehen - die Runde endet unentschieden.');
+      // Nachziehstapel leer und auch der Abhebe-Packen ist aufgebraucht.
+      // Kann der Spieler die oberste Ablagekarte regelkonform aufnehmen, ist
+      // das sein (einziger) Zug - kein Rundenende, nur ein Hinweis.
+      const top = this.discardPile[0];
+      if (this.currentPlayer() && top && !top.faceDown && this.canUseDiscardTop(this.currentPlayer(), top)) {
+        return { error: 'Der Nachziehstapel ist leer - du kannst aber die oberste Ablagekarte aufnehmen.' };
+      }
+      // Sonst kann niemand mehr etwas tun: Die Runde endet und wird ganz
+      // normal gewertet (Auslagen minus Resthand), ohne Gewinner-Bonus.
+      this.addLog('Nachziehstapel leer und die Ablagekarte passt nicht - die Runde endet und wird gewertet.');
       this.finishRound(null, { stalemate: true });
       return { ok: true, roundEnded: true };
     }
@@ -661,33 +664,36 @@ class GameManager {
     return { ok: true };
   }
 
-  /** True when no player can make any move: the draw pile is empty and cannot
-   *  be refilled (discard has <= 1 card) and the current player cannot take the
-   *  single discard top. Used to auto-end a deadlocked round. */
+  /** True when no player can make any move: the draw pile is empty, the
+   *  set-aside packet is used up (the discard pile is deliberately NOT
+   *  recycled - family rule), and the current player cannot take the discard
+   *  top. Used to auto-end a deadlocked round with normal scoring.
+   *  THE BUG THIS FIXES: the old check treated a big discard pile as
+   *  're-shufflable', so the round-end rule effectively never fired and a
+   *  player could be stuck with an empty pile and an unusable discard top. */
   _roundIsDeadlocked() {
     if (this.drawPile.length > 0) return false;
-    if (this.discardPile.length > 1) return false; // reshuffle still possible
+    if (Array.isArray(this.setAsidePile) && this.setAsidePile.length > 0) return false; // refill possible
     const cp = this.currentPlayer();
     const top = this.discardPile[0];
     if (cp && top && !top.faceDown && this.canUseDiscardTop(cp, top)) return false;
     return true;
   }
 
-  reshuffleDiscardIntoDrawPile() {
-    // Zuerst kommt der beim Abheben beiseitegelegte Packen zurück ins Spiel -
-    // wie am echten Tisch: Ist der Stapel leer, greift man zum Packen.
+  refillDrawPileFromSetAside() {
+    // Ist der Nachziehstapel leer, kommt der beim Abheben beiseitegelegte
+    // Packen zurück ins Spiel - wie am echten Tisch. Der ABLAGESTAPEL wird
+    // dagegen NICHT mehr recycelt (Familienregel): Ist auch der Packen
+    // aufgebraucht und kann der Spieler am Zug die oberste Ablagekarte nicht
+    // aufnehmen, endet die Runde und wird gewertet (Auslagen minus Resthand,
+    // ohne Gewinner-Bonus). Das frühere Neu-Mischen der Ablage hatte genau
+    // diese Ende-Regel praktisch abgeschafft - die Runde konnte ewig kreisen.
     const aside = Array.isArray(this.setAsidePile) ? this.setAsidePile : [];
     if (aside.length > 0) {
       this.drawPile = shuffle(aside);
       this.setAsidePile = [];
       this.addLog('Nachziehstapel war leer - der beim Abheben beiseitegelegte Packen wird gemischt und nachgelegt.');
-      return;
     }
-    if (this.discardPile.length <= 1) return;
-    const top = this.discardPile.shift();
-    this.drawPile = shuffle(this.discardPile);
-    this.discardPile = [top];
-    this.addLog('Nachziehstapel war leer - Ablagestapel (außer oberster Karte) wurde gemischt und neu aufgelegt.');
   }
 
   /**
@@ -1951,7 +1957,14 @@ class GameManager {
     if (plan.source === 'discardPile' && this.discardPile.length > 0) {
       this.drawFromDiscard(botId);
     } else {
-      this.drawFromPile(botId);
+      const drawn = this.drawFromPile(botId);
+      // Familienregel-Endspiel: Der Stapel ist leer, aber die oberste
+      // Ablagekarte IST aufnehmbar - dann ist die Aufnahme der einzige Zug.
+      // Ohne dieses Ausweichen drehte ein Bot, dessen Heuristik "ziehen"
+      // wollte, im Kreis (2 von 150 Simulationsspielen hingen exakt hier).
+      if (drawn && drawn.error && this.turnPhase === 'draw' && this.phase === 'playing') {
+        this.drawFromDiscard(botId);
+      }
     }
     if (this.phase !== 'playing') return; // Sicherheitscheck, falls die Runde inzwischen endete
 
