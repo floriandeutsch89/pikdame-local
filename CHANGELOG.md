@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.74.1] - 2026-07-14
+
+### Changed
+- **Zwei Bot-Taktik-Hypothesen gemessen statt geraten** (je 5000 gepaarte Selbstspiele, 4× Zen, unter den neuen Regeln): (1) Kombinationen auf 3 Karten kürzen und den Rest fürs Anlegen behalten → **50,24 % Sieganteil, kein Effekt**. (2) Resthand auf „≡ 1 mod 3" steuern (eine Karte für den Pflicht-Abwurf, Rest in Dreiern - die präzisierte Fassung von „durch 3 teilbar") → **49,24 %, kein Effekt**. Erklärung: Eine zurückgehaltene Karte kann jederzeit an die eigene Auslage angelegt werden - der Bot legt sie meist im selben Zug wieder hin; „Flexibilität durch Zurückhalten" existiert im Regelwerk bereits gratis über das Anlegen. Beide Stellschrauben bleiben als dokumentierte, standardmäßig inaktive Mess-Knöpfe im Code (`capMeldSize`, `mod3Trim`); das Bot-Verhalten ist **unverändert**
+
 ## [1.74.0] - 2026-07-14
 
 ### Changed

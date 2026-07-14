@@ -1626,7 +1626,7 @@ class GameManager {
   static _sanitizeControlFields(game) {
     const SEAT_FIELDS = [
       'forcedDrawSource', 'externalDiscard', 'mctsEnabled', 'mctsForceOff',
-      'mctsDeterminizations', 'mctsEndgameAt', 'mctsMaxHand', 'mcEnabled', 'earlyDrawBiasTurns', 'queenDumpMaxHand', 'relaxQueenBaitOnJoker', 'preferDrawOnRedundantSet',
+      'mctsDeterminizations', 'mctsEndgameAt', 'mctsMaxHand', 'mcEnabled', 'earlyDrawBiasTurns', 'queenDumpMaxHand', 'relaxQueenBaitOnJoker', 'preferDrawOnRedundantSet', 'capMeldSize', 'mod3Trim',
     ];
     for (const p of game.players || []) {
       for (const f of SEAT_FIELDS) delete p[f];
@@ -1667,7 +1667,7 @@ class GameManager {
     if (Array.isArray(state.players)) {
       const SEAT_FIELDS = [
         'forcedDrawSource', 'externalDiscard', 'mctsEnabled', 'mctsForceOff',
-        'mctsDeterminizations', 'mctsEndgameAt', 'mctsMaxHand', 'mcEnabled', 'earlyDrawBiasTurns', 'queenDumpMaxHand', 'relaxQueenBaitOnJoker', 'preferDrawOnRedundantSet',
+        'mctsDeterminizations', 'mctsEndgameAt', 'mctsMaxHand', 'mcEnabled', 'earlyDrawBiasTurns', 'queenDumpMaxHand', 'relaxQueenBaitOnJoker', 'preferDrawOnRedundantSet', 'capMeldSize', 'mod3Trim',
       ];
       state.players = state.players.map((p) => {
         const clean = { ...p };
@@ -1741,7 +1741,8 @@ class GameManager {
     let actions = 0;
     const meldPlan = Bot.planBotMelds(
       cp.hand,
-      this.tableMelds.filter((m) => m.ownerId === botId).map((m) => ({ ...m, slots: m.slots.slice() }))
+      this.tableMelds.filter((m) => m.ownerId === botId).map((m) => ({ ...m, slots: m.slots.slice() })),
+      { capMeldSize: cp.capMeldSize, mod3Trim: cp.mod3Trim }
     );
 
     // SOFORT-Regel: Enthält ein geplantes Meld die Pflichtkarte aus der

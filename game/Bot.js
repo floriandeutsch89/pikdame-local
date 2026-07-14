@@ -576,8 +576,38 @@ function planBotTurn({ hand, discardPile, tableMelds }) {
   return { draw }; // Der GameManager führt Draw aus, ruft danach planBotMelds() mit echter Hand auf
 }
 
-function planBotMelds(hand, tableMeldsSnapshot) {
-  const newMelds = findHandMelds(hand);
+function planBotMelds(hand, tableMeldsSnapshot, opts = {}) {
+  let newMelds = findHandMelds(hand);
+
+  // Tuning seam (off by default, measured via sim-ab): cap every fresh meld
+  // at n cards and keep the surplus in hand for later lay-offs. A trimmed
+  // meld is re-validated; runs stay contiguous because findHandMelds returns
+  // them in ring order.
+  if (Number.isInteger(opts.capMeldSize) && opts.capMeldSize >= 3) {
+    newMelds = newMelds.map((m) => {
+      if (m.length <= opts.capMeldSize) return m;
+      const trimmed = m.slice(0, opts.capMeldSize);
+      return validateMeld(trimmed).valid ? trimmed : m;
+    });
+  }
+
+  // Tuning seam (off by default): steer the remaining hand size to
+  // ≡ 1 (mod 3) - one card for the mandatory final discard, the rest in
+  // threes - by trimming ONE oversized meld by 1-2 cards if that hits the
+  // target. (The naive 'divisible by 3' ignores the forced last discard.)
+  if (opts.mod3Trim) {
+    const meldSum = newMelds.reduce((a, m) => a + m.length, 0);
+    const rest = hand.length - meldSum;
+    const k = ((1 - rest) % 3 + 3) % 3; // 0, 1 oder 2 Karten zurückhalten
+    if (k > 0) {
+      const idx = newMelds.findIndex((m) => m.length >= 3 + k);
+      if (idx !== -1) {
+        const trimmed = newMelds[idx].slice(0, newMelds[idx].length - k);
+        if (validateMeld(trimmed).valid) newMelds[idx] = trimmed;
+      }
+    }
+  }
+
   let remainingHand = hand.slice();
   for (const m of newMelds) {
     remainingHand = remainingHand.filter((c) => !m.some((mc) => mc.id === c.id));

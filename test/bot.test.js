@@ -369,3 +369,39 @@ test('scoreLead: zen protects a comfortable lead more than an even game', () => 
   if (evenGame.rank !== 'K') assert.notEqual(bigLead.rank, 'K', 'a protected lead should not newly risk the dangerous king');
 });
 
+
+// --- v1.74.1: Meld-Sizing-Seams (gemessen wirkungslos, default-off) -------------
+test('planBotMelds: capMeldSize=3 trims a 4-card set and the surplus returns as a lay-off in the same turn', () => {
+  const { makeStandardCard } = require('../game/Card');
+  const Bot = require('../game/Bot');
+  const hand = [
+    makeStandardCard('H', '9', 1), makeStandardCard('S', '9', 2),
+    makeStandardCard('D', '9', 3), makeStandardCard('C', '9', 4),
+    makeStandardCard('H', '2', 5),
+  ];
+  const def = Bot.planBotMelds(hand, []);
+  assert.equal(def.newMelds[0].length, 4, 'default lays the full set');
+  const capped = Bot.planBotMelds(hand, [], { capMeldSize: 3 });
+  assert.equal(capped.newMelds[0].length, 3, 'seam trims to 3');
+  // Der Rest bleibt zunächst in der Hand (Anlegen an die NEUE Auslage kann
+  // erst nach dem Legen geschehen - Timing, kein Punktverlust).
+  assert.ok(capped.finalHand.some((c) => c.rank === '9'), 'surplus card kept in hand');
+});
+
+test('planBotMelds: mod3Trim steers the remaining hand to ==1 (mod 3) when possible', () => {
+  const { makeStandardCard } = require('../game/Card');
+  const Bot = require('../game/Bot');
+  // 15 Karten, ein 8er-Satz -> Rest 7 (7%3=1: schon am Ziel, kein Trim)...
+  // Konstruktion: 4er-Satz + 2 lose = Rest 2 -> Trim um 2 -> Satz wird... 4-2=2 <3 nicht kürzbar
+  // Also: 5er-Folge + 1 lose (Hand 6): Rest 1 - am Ziel. Nimm 5er-Folge + 2 lose (Hand 7): Rest 2, k=2, 5-2=3 ok
+  const hand = [
+    makeStandardCard('H', '4', 11), makeStandardCard('H', '5', 12), makeStandardCard('H', '6', 13),
+    makeStandardCard('H', '7', 14), makeStandardCard('H', '8', 15),
+    makeStandardCard('C', 'K', 16), makeStandardCard('D', '2', 17),
+  ];
+  const def = Bot.planBotMelds(hand, []);
+  assert.equal(def.newMelds[0].length, 5);
+  const t = Bot.planBotMelds(hand, [], { mod3Trim: true });
+  assert.equal(t.newMelds[0].length, 3, 'trimmed by 2');
+  assert.equal((hand.length - t.newMelds[0].length) % 3, 1, 'remaining hand ==1 mod 3');
+});
