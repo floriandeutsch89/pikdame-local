@@ -13,15 +13,6 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Fixed
 - **Regel-Audit (angefordert):** Alle Aussagen des Regeltexts wurden systematisch gegen die Engine geprüft - Satz 3-8 Karten mit maximal doppelter Farbe, Folgen bis 13 ohne Wert-Dopplung und mit K-A-2-Ring, verdecktes Ausmachen (letzte Karte nicht aufnehmbar), Anlegen nur an eigene Auslagen, Joker-Tausch nur gegen die exakt repräsentierte Karte und der getauschte Joker dauerhaft aus dem Spiel, Punktwerte 5/10/20/100, Hand-aus-Verdopplung, Abheben/Glücksgriff/Beiseitelegen. **Einzige gefundene Abweichung war das Nachlegen** - mit diesem Release behoben; alles andere entspricht den Regeln
 
-## [1.74.0] - 2026-07-14
-
-### Changed
-- **Bei leerem Nachziehstapel wird jetzt GAR NICHTS nachgelegt** - auch nicht der beim Abheben beiseitegelegte Packen (v1.73 hatte ihn noch als Nachschub verwendet; das war meine Annahme, nicht die Familienregel). Es gilt schlicht: Kannst du die oberste Ablagekarte aufnehmen, ist das dein Zug - kannst du es nicht, **endet die Runde sofort** und wird gewertet (Auslagen plus, Handkarten minus, kein Gewinner-Bonus). Regeln DE/EN und Doku entsprechend geschärft
-- ℹ️ **Messbare Folge** (200 Bot-Spiele simuliert, 0 Hänger): ~57 % der Runden enden jetzt über diese Regel statt durch Rausgehen, mittlere Rundenlänge 24 Züge - die arithmetische Konsequenz aus beiseitegelegtem Packen plus null Nachschub. Falls sich das live zu kurz anfühlt, ist die Stellschraube der erlaubte Abhebe-Bereich (kleinerer Packen = längere Runden)
-
-### Fixed
-- **Regel-Audit (angefordert):** Alle Aussagen des Regeltexts wurden systematisch gegen die Engine geprüft - Satz 3-8 Karten mit maximal doppelter Farbe, Folgen bis 13 ohne Wert-Dopplung und mit K-A-2-Ring, verdecktes Ausmachen (letzte Karte nicht aufnehmbar), Anlegen nur an eigene Auslagen, Joker-Tausch nur gegen die exakt repräsentierte Karte und der getauschte Joker dauerhaft aus dem Spiel, Punktwerte 5/10/20/100, Hand-aus-Verdopplung, Abheben/Glücksgriff/Beiseitelegen. **Einzige gefundene Abweichung war das Nachlegen** - mit diesem Release behoben; alles andere entspricht den Regeln
-
 ## [1.73.0] - 2026-07-14
 
 ### Fixed
