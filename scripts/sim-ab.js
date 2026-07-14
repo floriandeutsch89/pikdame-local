@@ -18,6 +18,20 @@
 //   earlyDrawBiasTurns=3         -> 44.58% win share (z=-7.71) -> clearly WORSE
 //   relaxQueenBaitOnJoker=true   -> 50.34% win share (z=0.48)  -> no effect
 //   preferDrawOnRedundantSet=true-> 46.08% win share (z=-5.56) -> clearly WORSE
+//
+// Measured 2026-07-14 (5000 games each, 4x zen, AFTER the set-aside/no-refill
+// rules - ~57% of rounds end via the empty-pile rule):
+//   capMeldSize=3                -> 50.24% win share (z=0.34)  -> no effect
+//   mod3Trim=true                -> 49.24% win share (z=-1.07) -> no effect
+// WHY zero effect: a card held back from a fresh meld can be laid off onto
+// that same meld at any time - and the bot's lay-off pass runs right after
+// the meld pass, so the held card usually returns to the table IN THE SAME
+// TURN. 'Flexibility through holding back' already exists for free via
+// lay-offs; capping meld size just shuffles cards between two moves.
+//   capMeldSize=<n>              cap fresh melds at n cards, keep surplus in hand
+//   mod3Trim=true                steer remaining hand to ==1 (mod 3) (one card
+//                                for the forced final discard, rest in threes)
+//
 // None shipped; all left as off-by-default tuning seams. Recurring lesson:
 // passing up a GUARANTEED discard-meld to gamble on a draw costs ~30 points.
 const GameManager = require('../game/GameManager');
