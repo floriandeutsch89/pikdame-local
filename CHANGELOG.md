@@ -10,6 +10,7 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
   - **ONNX:** Modelle wurde erneut trainiert, um die aktuelle Regelversion zu berücksichtigen.
   - **Docs** ReadTheDocs-Dateien aktualisiert.
   - **CI/CD** Chore: Updated checkout to v5
+  - **Docker** Updated compose files to use dockerproxy instead of directly exposing the socket.
 
 ## [1.75.0] - 2026-07-14
 
