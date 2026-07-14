@@ -197,6 +197,23 @@ services:
       - no-new-privileges:true
     read_only: true
 
+  # Docker socket proxy: Watchtower uses this instead of a raw docker.sock
+  # mount, limiting it to only the operations it actually needs.
+  dockerproxy:
+    image: tecnativa/docker-socket-proxy:latest
+    container_name: dockerproxy
+    restart: unless-stopped
+    environment:
+      - CONTAINERS=1 # Allow container management
+      - IMAGES=1     # Allow image pulling
+      - POST=1       # Required for Watchtower to execute changes
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - socket_net
+    security_opt:
+      - no-new-privileges:true
+
   # Auto-updates for the stack: Watchtower polls the registry daily at 04:00
   # and recreates opted-in containers (label below) with the new image.
   # Keep it label-scoped: the custom-built Caddy image cannot be pulled.
@@ -211,10 +228,13 @@ services:
       - WATCHTOWER_LABEL_ENABLE=true
       - WATCHTOWER_CLEANUP=true
       - WATCHTOWER_SCHEDULE=0 0 4 * * *
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      # Use the socket proxy instead of a direct docker.sock mount.
+      - DOCKER_HOST=tcp://dockerproxy:2375
     networks:
       - caddy_egress
+      - socket_net
+    depends_on:
+      - dockerproxy
     logging:
       driver: json-file
       options:
@@ -280,6 +300,9 @@ networks:
     internal: true
   # App <-> SMTP egress proxy only - no internet route for the app itself
   pikdame_smtp:
+    internal: true
+  # Docker socket proxy - Watchtower talks to dockerproxy, never the raw socket
+  socket_net:
     internal: true
 
 volumes:

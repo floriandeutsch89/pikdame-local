@@ -48,10 +48,18 @@ If you change an env var, a protocol message or a game constant, run
 To build the docs locally:
 
 ```bash
-pip install -r docs/requirements.txt
-sphinx-build -b html docs docs/_build/html
-# → open docs/_build/html/index.html
+# One-time: create a venv and install dependencies
+uv venv docs/.venv
+uv pip install --python docs/.venv/Scripts/python.exe -r docs/requirements.txt sphinx-autobuild
+
+# Live-reload server → http://127.0.0.1:8000
+docs/.venv/Scripts/sphinx-autobuild.exe docs docs/_build/html
+
+# Or a one-shot build → docs/_build/html/index.html
+docs/.venv/Scripts/sphinx-build.exe -b html docs docs/_build/html
 ```
+
+On Linux/macOS replace `Scripts/` with `bin/`.
 
 ## Reporting bugs
 

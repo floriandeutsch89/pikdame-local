@@ -28,7 +28,7 @@ jobs:
     env:
       PIKDAME_TEST_PG_URL: postgres://pikdame:testpass@127.0.0.1:5432/pikdame_test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # Single current LTS line (24) - identical to the Docker image, so the
       # account tests (node:sqlite, available since Node 22) always run for real.
       - name: Use Node.js 24
@@ -61,7 +61,7 @@ jobs:
   dependency-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
         with:
           node-version: 24.x
@@ -78,7 +78,7 @@ jobs:
   docker-security:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # OWASP RULE #11: lint the Dockerfile.
       # DL3018 (apk version pins) is ignored on purpose: tini should track
       # the Alpine base image instead of being pinned to one version.
@@ -122,7 +122,7 @@ jobs:
   docker-smoke:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # Proves the server runs under the FULL OWASP hardening:
       # cap_drop ALL, read_only, AppArmor profile (Ubuntu runners have
       # AppArmor enabled), pids limit, tmpfs - up, healthy, responding.
@@ -173,7 +173,7 @@ jobs:
   helm-validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # helm is preinstalled on ubuntu runners
       - name: Helm lint
         run: helm lint helm/pikdame

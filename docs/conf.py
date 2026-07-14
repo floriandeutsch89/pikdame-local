@@ -50,6 +50,7 @@ exclude_patterns = [
     "Thumbs.db",
     ".DS_Store",
     "_generated/*",
+    ".venv",
 ]
 
 # -- HTML -------------------------------------------------------------------

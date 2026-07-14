@@ -65,10 +65,6 @@ getting-started
 :caption: Admin manual
 
 admin/index
-admin/configuration
-admin/backup-restore
-admin/onnx
-admin/operations
 ```
 
 ```{toctree}
@@ -76,12 +72,6 @@ admin/operations
 :caption: Developer guide
 
 developer/index
-developer/architecture
-developer/protocol
-developer/bots
-developer/rl-training
-developer/rl-setup
-developer/contributing
 ```
 
 ```{toctree}
