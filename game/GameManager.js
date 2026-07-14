@@ -2181,6 +2181,13 @@ class GameManager {
       turnPhase: this.turnPhase,
       mustLayOffCardId: this.mustLayOffCardId,
       drawPileCount: this.drawPile.length,
+      // Pause-Status + Abstimmungsstand: Der Server pausierte bisher korrekt,
+      // aber diese Felder fehlten in der publicState-POSITIVLISTE - der
+      // Client sah weder Overlay noch Button-Zustand, während alle Züge
+      // serverseitig mit 'Das Spiel ist pausiert' abgelehnt wurden. Der
+      // Pause-Knopf wirkte dadurch komplett kaputt.
+      paused: !!this.paused,
+      pauseVotes: this._pauseVotes ? [...this._pauseVotes] : [],
       setAsideCount: Array.isArray(this.setAsidePile) ? this.setAsidePile.length : 0,
       discardTop: this.discardPile[0] || null,
       discardPileCount: this.discardPile.length,
