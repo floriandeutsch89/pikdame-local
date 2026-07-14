@@ -27,7 +27,7 @@ jobs:
       version: ${{ steps.v.outputs.version }}
       is_new: ${{ steps.v.outputs.is_new }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - id: v
         name: Read version + check whether the tag already exists
         run: |
@@ -46,7 +46,7 @@ jobs:
     if: needs.meta.outputs.is_new == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Extract release notes from CHANGELOG.md
         run: |
           VERSION="${{ needs.meta.outputs.version }}"
@@ -75,7 +75,7 @@ jobs:
     if: needs.meta.outputs.is_new == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Package chart (version = app version)
         run: |
           VERSION="${{ needs.meta.outputs.version }}"
@@ -101,7 +101,7 @@ jobs:
     if: needs.meta.outputs.is_new == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - name: GHCR login
@@ -146,7 +146,7 @@ jobs:
     if: needs.meta.outputs.is_new == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - name: GHCR login
@@ -237,7 +237,7 @@ jobs:
     if: needs.meta.outputs.is_new == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - name: GHCR login
