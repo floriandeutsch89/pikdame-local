@@ -2053,3 +2053,41 @@ test('turn-change auto-end fires even with a BIG discard pile (the old check tre
   assert.equal(g._roundIsDeadlocked(), true, 'deadlock recognised despite 16 discard cards');
   g.destroy();
 });
+
+// --- v1.75.1: Pause-Button (Regression: Felder fehlten im publicState) ----------
+test('pause: votes and paused flag are visible in publicState; solo human pauses instantly', () => {
+  const { game: g } = makeGame(1); // 1 Mensch + Bots
+  g.fillWithBots();
+  g.startNewRound();
+  if (g.phase === 'cutting') g.performCut(g.cutterId, 0.5);
+  const human = g.players.find((p) => !p.isBot);
+  const r = g.togglePauseVote(human.id);
+  assert.equal(r.ok, true);
+  let st = g.publicState(human.id);
+  assert.equal(st.paused, true, 'single human => instant pause, visible to the client');
+  assert.deepEqual(st.pauseVotes, [], 'votes reset after the toggle');
+  // Züge sind blockiert, der Client kann das jetzt auch ERKLÄREN
+  g.turnPhase = 'draw';
+  const mv = g.drawFromPile(g.currentPlayer().id);
+  assert.ok(mv.error && /pausiert/.test(mv.error));
+  // Fortsetzen
+  g.togglePauseVote(human.id);
+  st = g.publicState(human.id);
+  assert.equal(st.paused, false);
+  g.destroy();
+});
+
+test('pause: with two humans the first vote shows up in pauseVotes and does NOT pause yet', () => {
+  const { game: g } = makeGame(2);
+  g.startNewRound();
+  if (g.phase === 'cutting') g.performCut(g.cutterId, 0.5);
+  const [h1, h2] = g.players.filter((p) => !p.isBot);
+  g.togglePauseVote(h1.id);
+  let st = g.publicState(h2.id);
+  assert.equal(st.paused, false, 'one of two votes: not paused');
+  assert.deepEqual(st.pauseVotes, [h1.id], 'the vote is visible (button badge, 1/2 counter)');
+  g.togglePauseVote(h2.id);
+  st = g.publicState(h2.id);
+  assert.equal(st.paused, true, 'second vote pauses');
+  g.destroy();
+});

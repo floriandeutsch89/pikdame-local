@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.76.1] - 2026-07-14
+
+### Fixed
+- **Pause-Knopf funktioniert wieder.** Der Server pausierte auf Knopfdruck sogar korrekt - aber `paused` und der Abstimmungsstand fehlten in der publicState-Positivliste. Der Client sah daher weder Overlay noch Knopf-Zustand, während alle Züge serverseitig mit „Das Spiel ist pausiert" abgelehnt wurden: Der Knopf wirkte komplett kaputt und das Spiel danach eingefroren. Jetzt sind Pause-Status und Stimmen (`1/2 dafür`) sichtbar, Overlay und Fortsetzen-Knopf greifen; abgesichert per Solo- und Zwei-Spieler-Regressionstest
+
 ## [1.76.0] - 2026-07-14
 
 ### Changed
