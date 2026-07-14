@@ -19,10 +19,10 @@ For the exact numbers the engine plays with, see {doc}`developer/game-constants`
 The dealer rotates each round. Before dealing, the player to the dealer's
 right **cuts the deck** — picking the spot themselves. **The cut packet is
 set aside:** every card before the cut spot plus the cut card itself leaves
-the round — only the rest is dealt and drawn from; if the draw pile runs dry,
-the packet is shuffled back in - and once that is used up too, a player who
-cannot pick up the discard top ends the round (normal scoring, no winner
-bonus; the discard pile is never reshuffled). If the Queen of Spades or jokers sit at
+the round — only the rest is dealt and drawn from. Nothing is ever refilled: when the
+draw pile runs dry, a player who cannot pick up the discard top ends the
+round (normal scoring, no winner bonus; neither the packet nor the discard
+pile comes back). If the Queen of Spades or jokers sit at
 the cut, the cutter keeps them (**lucky cut**, announced to the whole table)
 and looks at the next card, until an ordinary card ends the run — that card
 then counts as the cut card, is shown to the cutter only, and leaves with the

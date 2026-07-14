@@ -502,8 +502,8 @@ class GameManager {
       luckyCards = cut.luckyCards;
       deck = cut.remaining;
       // Familienregel: der abgehobene Packen (alles vor der Abhebestelle plus
-      // die Abhebekarte) wird für diese Runde beiseitegelegt. Er kommt nur
-      // zurück, falls der Nachziehstapel leerläuft (siehe reshuffle).
+      // die Abhebekarte) ist für diese Runde KOMPLETT aus dem Spiel - er wird
+      // auch bei leerem Nachziehstapel nicht nachgelegt.
       this.setAsidePile = cut.setAside;
       if (cut.setAside.length > 0) {
         this.addLog(`${cut.setAside.length} Karten werden mit dem Abheben beiseitegelegt.`);
@@ -640,12 +640,11 @@ class GameManager {
     }
 
     if (this.drawPile.length === 0) {
-      this.refillDrawPileFromSetAside();
-    }
-    if (this.drawPile.length === 0) {
-      // Nachziehstapel leer und auch der Abhebe-Packen ist aufgebraucht.
-      // Kann der Spieler die oberste Ablagekarte regelkonform aufnehmen, ist
-      // das sein (einziger) Zug - kein Rundenende, nur ein Hinweis.
+      // FAMILIENREGEL: Es wird NICHTS nachgelegt - weder der beim Abheben
+      // beiseitegelegte Packen (der bleibt für die ganze Runde draußen) noch
+      // die Ablage. Kann der Spieler die oberste Ablagekarte regelkonform
+      // aufnehmen, ist das sein (einziger) Zug - kein Rundenende, nur ein
+      // Hinweis.
       const top = this.discardPile[0];
       if (this.currentPlayer() && top && !top.faceDown && this.canUseDiscardTop(this.currentPlayer(), top)) {
         return { error: 'Der Nachziehstapel ist leer - du kannst aber die oberste Ablagekarte aufnehmen.' };
@@ -664,36 +663,17 @@ class GameManager {
     return { ok: true };
   }
 
-  /** True when no player can make any move: the draw pile is empty, the
-   *  set-aside packet is used up (the discard pile is deliberately NOT
-   *  recycled - family rule), and the current player cannot take the discard
-   *  top. Used to auto-end a deadlocked round with normal scoring.
-   *  THE BUG THIS FIXES: the old check treated a big discard pile as
-   *  're-shufflable', so the round-end rule effectively never fired and a
-   *  player could be stuck with an empty pile and an unusable discard top. */
+  /** True when no player can make any move: the draw pile is empty and the
+   *  current player cannot take the discard top. NOTHING is ever refilled
+   *  (family rule): the set-aside cut packet stays out for the whole round
+   *  and the discard pile is never reshuffled. Used to auto-end a deadlocked
+   *  round with normal scoring (laid out plus, hand minus, no winner bonus). */
   _roundIsDeadlocked() {
     if (this.drawPile.length > 0) return false;
-    if (Array.isArray(this.setAsidePile) && this.setAsidePile.length > 0) return false; // refill possible
     const cp = this.currentPlayer();
     const top = this.discardPile[0];
     if (cp && top && !top.faceDown && this.canUseDiscardTop(cp, top)) return false;
     return true;
-  }
-
-  refillDrawPileFromSetAside() {
-    // Ist der Nachziehstapel leer, kommt der beim Abheben beiseitegelegte
-    // Packen zurück ins Spiel - wie am echten Tisch. Der ABLAGESTAPEL wird
-    // dagegen NICHT mehr recycelt (Familienregel): Ist auch der Packen
-    // aufgebraucht und kann der Spieler am Zug die oberste Ablagekarte nicht
-    // aufnehmen, endet die Runde und wird gewertet (Auslagen minus Resthand,
-    // ohne Gewinner-Bonus). Das frühere Neu-Mischen der Ablage hatte genau
-    // diese Ende-Regel praktisch abgeschafft - die Runde konnte ewig kreisen.
-    const aside = Array.isArray(this.setAsidePile) ? this.setAsidePile : [];
-    if (aside.length > 0) {
-      this.drawPile = shuffle(aside);
-      this.setAsidePile = [];
-      this.addLog('Nachziehstapel war leer - der beim Abheben beiseitegelegte Packen wird gemischt und nachgelegt.');
-    }
   }
 
   /**
