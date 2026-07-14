@@ -4,6 +4,12 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.77.0] - 2026-07-14
+
+### Changed
+- **Rundenergebnis in zwei Reitern:** Reiter „Ergebnis" (standardmäßig aktiv) zeigt die tabellarischen Rundenwerte, Gewinner und neue Erfolge; Reiter „📈 Statistik" enthält die Detail-Tabelle, den Punkteverlauf-Graphen und (am Spielende) die Partie-Totals. Vorher stand alles untereinander - bei 4 Spielern rutschte der Weiter-Knopf unter den Falz und man musste scrollen, um die nächste Runde zu bestätigen. Der Statistik-Reiter erscheint nur, wenn er Inhalt hat
+- Der Client-Rauchtest rendert das Ergebnis-Overlay jetzt mit einem echten 4-Spieler-Rundenende und prüft die Reiter-Mechanik (Standard-Reiter, Wechsel per Klick) im DOM; dabei wurde der WebAudio-Stub des Tests korrigiert (verkettbares `connect`), der das Overlay-Rendering im Test stillschweigend abbrach
+
 ## [1.76.1] - 2026-07-14
 
 ### Fixed

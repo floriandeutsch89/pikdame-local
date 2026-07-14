@@ -2061,3 +2061,20 @@ input:disabled { opacity: 0.65; }
      (--appvh, siehe setAppViewportHeight) ist im PWA die Wahrheit. */
   #app { height: var(--appvh, 100dvh); }
 }
+
+/* --- Rundenergebnis: Reiter Ergebnis | Statistik --------------------------- */
+.resultTabs {
+  display: flex; gap: 8px; justify-content: center;
+  margin: 2px 0 12px;
+}
+.resultTabBtn {
+  appearance: none; border: 1px solid var(--line, rgba(255,255,255,0.14));
+  background: rgba(255,255,255,0.05); color: var(--text, #eee);
+  padding: 7px 16px; border-radius: 999px; font-size: 0.92rem; font-weight: 600;
+  cursor: pointer; transition: background 0.15s, border-color 0.15s;
+}
+.resultTabBtn.active {
+  background: var(--accent, #8f90f8); border-color: var(--accent, #8f90f8);
+  color: #14142a;
+}
+.resultPane { min-height: 40px; }

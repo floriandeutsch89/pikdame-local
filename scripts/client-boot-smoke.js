@@ -20,7 +20,7 @@ window.matchMedia = window.matchMedia || (() => ({ matches: false, addEventListe
 window.navigator.vibrate = () => true;
 window.scrollTo = () => {};
 window.fetch = () => Promise.resolve({ ok: true, json: () => Promise.resolve({ version: '0.0.0-smoke' }), text: () => Promise.resolve('') });
-window.AudioContext = function () { return { createOscillator: () => ({ connect() {}, start() {}, stop() {}, frequency: { setValueAtTime() {} } }), createGain: () => ({ connect() {}, gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {}, linearRampToValueAtTime() {} } }), destination: {}, currentTime: 0, resume: () => Promise.resolve() }; };
+window.AudioContext = function () { return { createOscillator: () => ({ connect: (x) => x, start() {}, stop() {}, type: 'sine', frequency: { setValueAtTime() {}, value: 0 } }), createGain: () => ({ connect: (x) => x, gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {}, linearRampToValueAtTime() {} } }), destination: { connect: (x) => x }, currentTime: 0, state: 'running', resume: () => Promise.resolve(), suspend: () => Promise.resolve() }; };
 window.webkitAudioContext = window.AudioContext;
 
 let wsInstance = null;
@@ -79,13 +79,59 @@ setTimeout(() => {
       ],
       players: base.players.map((p) => ({ ...p, handCount: 15 })),
     });
+    // Rundenende mit 4 Spielern: das Ergebnis-Overlay muss in Reitern
+    // rendern - Reiter 1 (Ergebnis) aktiv, Reiter 2 (Statistik) versteckt.
+    const four = [
+      { id: 'p1', name: 'Flo', isBot: false, connected: true, handCount: 3 },
+      { id: 'b1', name: 'Gisela', isBot: true, connected: true, handCount: 5, botDifficulty: 'zen' },
+      { id: 'b2', name: 'Uwe', isBot: true, connected: true, handCount: 8, botDifficulty: 'zen' },
+      { id: 'b3', name: 'Horst', isBot: true, connected: true, handCount: 0, botDifficulty: 'zen' },
+    ];
+    feed({
+      ...base, phase: 'roundEnd', players: four, roundNumber: 2,
+      currentPlayerId: 'b3', turnPhase: 'draw', dealerId: 'b1', turnDeadline: null,
+      discardTop: { id: 'd1', suit: 'H', rank: '4' }, drawCount: 0, discardCount: 20,
+      hand: [{ id: 'c1', suit: 'H', rank: '7' }, { id: 'c2', suit: 'S', rank: '9' }, { id: 'c3', suit: 'C', rank: 'K' }],
+      nextRoundReady: [],
+      totals: { p1: 120, b1: 80, b2: -40, b3: 210 },
+      lastRoundWinnerId: 'b3',
+      lastRoundResult: {
+        p1: { roundScore: 20, breakdown: { isWinner: false, laidOutValue: 50, handValue: 30 } },
+        b1: { roundScore: 10, breakdown: { isWinner: false, laidOutValue: 30, handValue: 20 } },
+        b2: { roundScore: -40, breakdown: { isWinner: false, laidOutValue: 0, handValue: 40 } },
+        b3: { roundScore: 90, breakdown: { isWinner: true, laidOutValue: 90, handValue: 0 } },
+      },
+      lastRoundStats: four.map((p) => ({ id: p.id, name: p.name, laidOutCount: 6, handCount: p.handCount, pikDameLaidOut: 0, jokersLaidOut: 1 })),
+      scoreHistory: [
+        { round: 1, totals: { p1: 100, b1: 70, b2: 0, b3: 120 } },
+        { round: 2, totals: { p1: 120, b1: 80, b2: -40, b3: 210 } },
+      ],
+    });
     setTimeout(() => {
+      const doc = window.document;
+      const tabs = doc.querySelectorAll('#resultBody .resultTabBtn');
+      if (tabs.length !== 2) errors.push(`resultTabs: expected 2 tab buttons, got ${tabs.length}`);
+      const panes = doc.querySelectorAll('#resultBody .resultPane');
+      if (panes.length !== 2) errors.push(`resultPanes: expected 2, got ${panes.length}`);
+      if (panes.length === 2) {
+        if (panes[0].classList.contains('hidden')) errors.push('result pane (tab 1) must be visible by default');
+        if (!panes[1].classList.contains('hidden')) errors.push('stats pane (tab 2) must start hidden');
+        if (!panes[0].querySelector('.resultRow')) errors.push('tab 1 must contain the tabular result rows');
+        if (!panes[1].querySelector('.statsTable')) errors.push('tab 2 must contain the stats table');
+        if (!panes[1].querySelector('.scoreChart')) errors.push('tab 2 must contain the score chart');
+      }
+      // Reiter-Wechsel per Klick
+      if (tabs.length === 2) {
+        tabs[1].dispatchEvent(new window.Event('click', { bubbles: true }));
+        if (panes[1].classList.contains('hidden')) errors.push('clicking tab 2 must reveal the stats pane');
+        if (!panes[0].classList.contains('hidden')) errors.push('clicking tab 2 must hide the result pane');
+      }
       if (errors.length) {
         console.error('CLIENT BOOT SMOKE: FAILED');
         for (const e of errors) console.error('  -', e);
         process.exit(1);
       }
-      console.log('CLIENT BOOT SMOKE: OK (lobby + playing state rendered without errors)');
+      console.log('CLIENT BOOT SMOKE: OK (lobby + playing + roundEnd tabs rendered without errors)');
       process.exit(0);
     }, 120);
   } catch (e) {
