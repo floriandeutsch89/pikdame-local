@@ -2041,3 +2041,18 @@ input:disabled { opacity: 0.65; }
 @media (prefers-reduced-motion: reduce) {
   .card.tutorialGlow, .meldGroup.tutorialGlowMeld { animation: none; box-shadow: 0 0 10px rgba(255,213,74,0.7); }
 }
+
+/* --- PWA (installierte App): Hand tiefer setzen ---------------------------
+   Im Standalone-Modus gibt es keine Browser-Leisten, aber iOS reserviert die
+   volle Home-Indicator-Zone (env(safe-area-inset-bottom), ~34px) PLUS unser
+   2px-Polster - die Hand samt Punkte-Badge schwebt dadurch sichtbar über der
+   Unterkante. Hier geben wir einen Teil der Reserve zurück: Fächer,
+   Scrollbalken und Statuszeile rutschen ~16px tiefer. Der Badge ist nicht
+   interaktiv, darf also nah an den Home-Indicator; die verbleibende Luft
+   reicht, um Wisch-Gesten nicht zu stören. Browser-Tabs sind unberührt
+   (display-mode greift nur in der installierten App). */
+@media (display-mode: standalone) {
+  #handWrapper {
+    padding-bottom: max(2px, calc(var(--safe-bottom) - 16px));
+  }
+}

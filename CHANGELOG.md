@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.71.1] - 2026-07-14
+
+### Fixed
+- **PWA (installierte App auf dem Homescreen): Hand, Fortschrittsbalken und Punkte-Badge sitzen jetzt tiefer.** Im Standalone-Modus reservierte die App die volle Home-Indicator-Zone plus Polster, wodurch die Handleiste sichtbar über der Unterkante schwebte. Ein Teil der Reserve wird zurückgegeben (~16 px); der Browser-Modus ist unberührt (`display-mode: standalone` greift nur in der installierten App)
+
 ## [1.71.0] - 2026-07-13
 
 ### Changed
