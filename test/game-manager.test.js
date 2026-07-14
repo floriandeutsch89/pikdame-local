@@ -1988,3 +1988,68 @@ test('undoPileTake: rejected for the wrong player and outside the window', () =>
   assert.ok(g.undoPileTake(other.id).error, 'not your turn');
   g.destroy();
 });
+
+// --- v1.73: Rundenende statt Ablage-Recycling (Screenshot-Bug) ------------------
+test('empty pile + unusable discard top ends the round with normal scoring (regression: player was stuck)', () => {
+  const { game: g } = makeGame(2);
+  g.startNewRound();
+  const me = g.currentPlayer();
+  const { makeStandardCard } = require('../game/Card');
+  // Exakt die Screenshot-Lage: Stapel leer, Packen aufgebraucht, volle
+  // Ablage, oberste Karte für den Spieler unbrauchbar.
+  g.turnPhase = 'draw';
+  g.setAsidePile = [];
+  g.drawPile.length = 0;
+  g.discardPile.unshift(makeStandardCard('C', 'K', 990)); // passt zu nichts Konstruiertem
+  me.hand = [makeStandardCard('D', '10', 991), makeStandardCard('H', '10', 992), makeStandardCard('H', 'K', 993)];
+  me.laidOutCards = [
+    makeStandardCard('C', '8', 994), makeStandardCard('S', '8', 995), makeStandardCard('H', '8', 996),
+  ];
+  assert.ok(g.discardPile.length > 1 || g.discardPile.length === 1, 'discard pile present');
+
+  const r = g.drawFromPile(me.id);
+  assert.equal(r.roundEnded, true, 'the round ends instead of trapping the player');
+  assert.equal(g.phase, 'roundEnd');
+  // Wertung: Auslagen plus, Hand minus, kein Gewinner-Bonus.
+  const mine = g.lastRoundResult[me.id];
+  assert.equal(mine.breakdown.laidOutValue, 15, 'laid-out cards count plus (three 8s at 5 points each)');
+  assert.equal(mine.roundScore, mine.breakdown.laidOutValue - mine.breakdown.handValue,
+    'score = laid out minus hand');
+  assert.ok(mine.breakdown.handValue > 0, 'hand cards were counted against the player');
+  assert.equal(g.lastRoundWinnerId, null, 'no winner, no bonus');
+  g.destroy();
+});
+
+test('empty pile but usable discard top: NO round end - the pickup is the move', () => {
+  const { game: g } = makeGame(2);
+  g.startNewRound();
+  const me = g.currentPlayer();
+  const { makeStandardCard } = require('../game/Card');
+  g.turnPhase = 'draw';
+  g.setAsidePile = [];
+  g.drawPile.length = 0;
+  const top = makeStandardCard('D', '9', 980);
+  g.discardPile.unshift(top);
+  me.hand = [makeStandardCard('H', '9', 981), makeStandardCard('S', '9', 982)];
+
+  const r = g.drawFromPile(me.id);
+  assert.ok(r.error, 'draw refused with a pointer to the discard pickup');
+  assert.equal(g.phase, 'playing', 'round continues');
+  const p = g.drawFromDiscard(me.id);
+  assert.equal(p.ok, true, 'the pickup works');
+  g.destroy();
+});
+
+test('turn-change auto-end fires even with a BIG discard pile (the old check treated it as reshufflable)', () => {
+  const { game: g } = makeGame(2);
+  g.startNewRound();
+  const { makeStandardCard } = require('../game/Card');
+  g.setAsidePile = [];
+  g.drawPile.length = 0;
+  // grosse Ablage - früher hiess das fälschlich "reshuffle still possible"
+  g.discardPile = [makeStandardCard('C', 'K', 970)];
+  for (let i = 0; i < 15; i++) g.discardPile.push(makeStandardCard('D', '4', 971 + i));
+  for (const p of g.players) p.hand = [makeStandardCard('H', '2', 960 + g.players.indexOf(p))];
+  assert.equal(g._roundIsDeadlocked(), true, 'deadlock recognised despite 16 discard cards');
+  g.destroy();
+});

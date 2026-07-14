@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.73.0] - 2026-07-14
+
+### Fixed
+- **Ein Spieler konnte unrettbar feststecken** (Spieler-Report mit Screenshot): Nachziehstapel leer, oberste Ablagekarte nicht regelkonform aufnehmbar - ziehen war clientseitig gesperrt, aufnehmen verboten, die Runde lief endlos weiter. Zwei Ursachen: Der Client deaktivierte den Zieh-Klick bei 0 Karten (der Server hätte reagiert, der Klick kam nie an), und die Rundenende-Prüfung wertete einen vollen Ablagestapel als „noch nachmischbar" - wodurch die seit jeher versprochene Ende-Regel praktisch nie zündete
+
+### Changed
+- **Familienregel-Rundenende (wie ursprünglich gefordert):** Der Ablagestapel wird **nicht mehr neu gemischt**. Ist der Nachziehstapel leer, wird zuerst der beim Abheben beiseitegelegte Packen nachgelegt; ist auch der aufgebraucht, gilt: Kann der Spieler am Zug die oberste Ablagekarte aufnehmen, ist das sein Zug - **kann er es nicht, endet die Runde sofort und wird ganz normal gewertet** (ausgelegte Karten plus, Handkarten minus, kein Gewinner-Bonus). Regeln DE/EN und Doku entsprechend aktualisiert
+- Bots weichen im Endspiel automatisch auf die Ablage-Aufnahme aus, wenn Ziehen unmöglich ist (in der Simulation hingen sonst 2 von 150 Spielen genau dort). 200 Spiele Robustheits-Simulation: 0 Hänger, ~3 % der Runden enden über die neue Regel
+
 ## [1.72.1] - 2026-07-14
 
 ### Changed
