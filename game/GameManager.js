@@ -757,9 +757,8 @@ class GameManager {
    * gelegt wurde (und damit der Reststapel zusteht), gibt es kein Zurück -
    * das war eine bewusste Spielhandlung, kein Vertipper.
    *
-   * Note on the move log: the earlier TAKE_PILE entry stays in the imitation
-   * log; a take that is immediately undone is rare human noise and not worth
-   * a log-rewrite mechanism.
+   * The buffered TAKE_PILE log entry is removed again (unrecordLastPileTake):
+   * a take that was immediately undone never happened for imitation learning.
    */
   undoPileTake(playerId) {
     const err = this.assertTurn(playerId, 'meld');
@@ -778,6 +777,7 @@ class GameManager {
     this.mustLayOffCardId = null;
     this.pendingDiscardRest = false;
     this.turnPhase = 'draw'; // der Spieler zieht neu (Stapel oder Nachziehstapel)
+    MoveLogger.unrecordLastPileTake(this, player.id);
     this.addLog(`${player.name} legt die Ablagekarte zurück und zieht neu.`);
     this.broadcastState();
     return { ok: true };
@@ -1167,7 +1167,9 @@ class GameManager {
       totalRounds: this.roundNumber || 0,
     };
     this.addLog('🏳️ Spiel einvernehmlich aufgegeben - alle waren einverstanden. Partie beendet.');
-    MoveLogger.flush(this);
+    // Abgebrochene Spiele werden markiert - der Trainings-Loader überspringt
+    // sie (halbe Partien lehren halbe Strategien).
+    MoveLogger.flush(this, 'forfeit');
     this.broadcastState();
   }
 

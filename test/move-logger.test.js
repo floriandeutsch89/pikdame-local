@@ -91,3 +91,61 @@ test('serialize does not persist the transient move buffer', () => {
   const snap = g.serialize();
   assert.equal('_moveLog' in snap, false);
 });
+
+// --- v1.75: Trainingsdaten-Qualität ---------------------------------------------
+test('flush tags every row with outcome and rules version; forfeit is marked', () => {
+  const os = require('node:os');
+  const tmp = path.join(os.tmpdir(), `ml-test-${Date.now()}.jsonl`);
+  process.env.PIKDAME_LOG_PATH_IGNORED = ''; // LOG_PATH ist beim Laden fixiert - wir testen über den Buffer+flush-Weg mit eigenem Pfad nicht; stattdessen: Buffer inspizieren via flush in Datei? LOG_PATH konstant -> wir prüfen die geschriebenen Zeilen über die echte Datei mit Backup.
+  const ML = require('../game/MoveLogger');
+  const GM = require('../game/GameManager');
+  const fs = require('node:fs');
+  const before = fs.existsSync(ML.LOG_PATH) ? fs.readFileSync(ML.LOG_PATH, 'utf8') : null;
+  try {
+    const g = new GM(() => {});
+    g.addOrReconnectPlayer('p1', 'Anna');
+    g.addOrReconnectPlayer('p2', 'Ben');
+    g.startNewRound();
+    if (g.phase === 'cutting') g.performCut(g.cutterId, 0.5);
+    // einen echten menschlichen Zug aufzeichnen
+    const me = g.currentPlayer();
+    g.turnPhase = 'draw';
+    g.drawFromPile(me.id);
+    assert.ok(g._moveLog && g._moveLog.length >= 1, 'move buffered');
+    g.totals = { p1: 100, p2: 50 };
+    ML.flush(g, 'forfeit');
+    const lines = fs.readFileSync(ML.LOG_PATH, 'utf8').trim().split('\n');
+    const row = JSON.parse(lines[lines.length - 1]);
+    assert.equal(row.outcome, 'forfeit');
+    assert.equal(row.rv, ML.RULES_VERSION);
+    assert.ok(row.rv >= 2);
+    g.destroy();
+  } finally {
+    const fs2 = require('node:fs');
+    if (before === null) { try { fs2.unlinkSync(ML.LOG_PATH); } catch (e) {} }
+    else fs2.writeFileSync(ML.LOG_PATH, before);
+  }
+});
+
+test('undoPileTake removes the buffered TAKE_PILE row - an undone take never happened', () => {
+  const GM = require('../game/GameManager');
+  const { makeStandardCard } = require('../game/Card');
+  const g = new GM(() => {});
+  g.addOrReconnectPlayer('p1', 'Anna');
+  g.addOrReconnectPlayer('p2', 'Ben');
+  g.startNewRound();
+  if (g.phase === 'cutting') g.performCut(g.cutterId, 0.5);
+  const me = g.currentPlayer();
+  g.turnPhase = 'draw';
+  const c1 = makeStandardCard('H', '9', 900);
+  const c2 = makeStandardCard('S', '9', 901);
+  const top = makeStandardCard('D', '9', 902);
+  me.hand.push(c1, c2);
+  g.discardPile.unshift(top);
+  const lenBefore = (g._moveLog || []).length;
+  g.drawFromDiscard(me.id);
+  assert.equal(g._moveLog.length, lenBefore + 1, 'take recorded');
+  g.undoPileTake(me.id);
+  assert.equal(g._moveLog.length, lenBefore, 'take unrecorded after undo');
+  g.destroy();
+});

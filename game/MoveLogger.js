@@ -36,6 +36,18 @@ const SE = require('./StateEncoder');
 
 const LOG_PATH = process.env.PIKDAME_LOG_PATH || path.join(__dirname, '..', 'data', 'human-moves.jsonl');
 
+/**
+ * Rules version stamped into every row, so training can filter out data that
+ * was collected under different game rules:
+ *   1 = up to v1.70: discard pile recycled on an empty draw pile, no set-aside
+ *       cut packet (rows without an `rv` field are implicitly version 1)
+ *   2 = since v1.71/v1.74: the cut packet is set aside for the whole round,
+ *       NOTHING is refilled on an empty draw pile, and a player who cannot
+ *       pick up the discard top ends the round (normal scoring)
+ * Bump this whenever a gameplay rule changes the decision environment.
+ */
+const RULES_VERSION = 2;
+
 function enabled() {
   // On by default; only an explicit 0/false/off turns human-move logging off.
   const v = process.env.PIKDAME_LOG_GAMES;
@@ -127,8 +139,13 @@ function round4(x) {
   return Math.round(x * 1e4) / 1e4;
 }
 
-/** Write the buffered moves for a finished game, tagged with the outcome. */
-function flush(game) {
+/**
+ * Write the buffered moves for a finished game, tagged with the outcome.
+ * `outcome`: 'completed' (played to 1000) or 'forfeit' (abandoned by vote).
+ * Forfeited games are still WRITTEN (they may be useful for other analyses),
+ * but the training loader skips everything that is not 'completed'.
+ */
+function flush(game, outcome = 'completed') {
   if (!enabled()) return;
   try {
     const buf = game && game._moveLog;
@@ -162,6 +179,8 @@ function flush(game) {
         obs: m.obs.map(round4),
         mask: m.mask.map((b) => (b ? 1 : 0)),
         // outcome
+        outcome,
+        rv: RULES_VERSION,
         won: m.playerId === winnerId,
         rank: rankOf[m.playerId] || null,
         finalTotal: totals[m.playerId] != null ? totals[m.playerId] : null,
@@ -179,4 +198,21 @@ function flush(game) {
   }
 }
 
-module.exports = { enabled, record, flush, cardCode, LOG_PATH };
+/**
+ * Remove the most recent buffered move if it is a TAKE_PILE by this player -
+ * called when the pickup is taken back (undoPileTake). A take that was
+ * immediately undone never happened as far as imitation learning is
+ * concerned; leaving it in would teach the model takes with no follow-up.
+ */
+function unrecordLastPileTake(game, playerId) {
+  try {
+    const buf = game && game._moveLog;
+    if (!buf || buf.length === 0) return;
+    const last = buf[buf.length - 1];
+    if (last.playerId === playerId && last.action === SE.ACTION_TAKE_PILE) buf.pop();
+  } catch (e) {
+    /* logging must never break a game */
+  }
+}
+
+module.exports = { enabled, record, flush, unrecordLastPileTake, cardCode, LOG_PATH, RULES_VERSION };

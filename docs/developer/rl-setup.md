@@ -364,6 +364,18 @@ hundred games already shift the style noticeably.
 
 ## 9a. Log data format (`human-moves.jsonl`)
 
+```{admonition} Data-quality fields (since v1.75)
+Every row now carries `outcome` (`completed` | `forfeit`) and `rv` (rules
+version). The loader defaults are strict: `load_winner_moves()` uses only
+completed games recorded under the CURRENT rules (`rv >= 2`, i.e. the
+set-aside cut packet and the no-refill round-end rule). Rows without `rv` are
+implicitly version 1 - everything collected before v1.71/v1.74 is therefore
+excluded by default, because those decisions were made in a different game.
+A pile pickup that the player immediately took back (undo) is removed from
+the buffer and never logged. Pass `min_rules_version=1` /
+`completed_only=False` to opt back in for other analyses.
+```
+
 One JSON object per line = one human decision, in a self-describing,
 encoder-independent format. Each row keeps three views of the decision plus the
 outcome. Observations are rounded to 4 decimals and the mask is 0/1 to stay

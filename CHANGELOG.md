@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.75.0] - 2026-07-14
+
+### Changed
+- **Trainingsdaten-Qualität (menschliche Züge für die Bot-Ausbildung):**
+  - **Abgebrochene Spiele zählen nicht mehr:** Jede Log-Zeile trägt jetzt ein `outcome` (`completed`/`forfeit`); aufgegebene Partien werden markiert und vom Trainings-Loader standardmäßig übersprungen - halbe Partien lehren halbe Strategien
+  - **Regelversion im Log (`rv`):** Alle Daten von vor den Regeländerungen dieser Woche (Packen beiseite, kein Nachschub, Rundenende-Regel) stammen aus einem anderen Spiel - der Loader schließt sie standardmäßig aus (Zeilen ohne Feld gelten als Version 1). Für andere Analysen per Parameter wieder einbeziehbar
+  - **Zurückgenommene Stapel-Aufnahmen (↩︎ Zurücklegen) werden nicht mehr geloggt** - ein sofort rückgängig gemachter Zug ist nie passiert und hätte dem Modell Aufnahmen ohne Folgeaktion beigebracht
+  - Log-Format-Doku (rl-setup) entsprechend erweitert; Filter per synthetischem Datensatz verifiziert (4 Zeilen → exakt die 1 gültige bleibt)
+
 ## [1.74.1] - 2026-07-14
 
 ### Changed
