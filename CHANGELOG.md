@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.72.0] - 2026-07-14
+
+### Fixed
+- **PWA: Der tote schwarze Streifen unter der Handleiste ist weg.** Per Screenshot diagnostiziert: Im iOS-Standalone-Modus weicht `100dvh` von der echten Fensterhöhe ab - der App-Container endete über der Unterkante, Hand und Punkte-Badge schwebten. Die App misst jetzt die echte Höhe (`innerHeight`) und nutzt sie **nur im installierten PWA** als Container-Höhe; Browser-Tabs bleiben unberührt. Zusammen mit dem 16-px-Polster-Fix aus 1.71.1 sitzt die Leiste jetzt an der Kante
+
+### Added
+- **Caddy-Image wird als Package veröffentlicht:** `ghcr.io/floriandeutsch89/pikdame-local-caddy` (`:latest` + `:vX`, amd64 + arm64) - der Reverse-Proxy mit einkompiliertem CrowdSec-Bouncer-Plugin (xcaddy). Jedes Release baut auf der aktuellen `caddy:2-alpine`-Basis neu - genau richtig für ein Binary am offenen Internet. Die Prod-Compose dokumentiert den Umstieg von Server-Build auf Pull (dann hält Watchtower auch den Proxy aktuell); CI lintet das Caddy-Dockerfile mit
+
 ## [1.71.1] - 2026-07-14
 
 ### Fixed

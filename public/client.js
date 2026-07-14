@@ -3172,8 +3172,18 @@
   }
 
   // Bei Orientierungswechsel/Fenstergröße die Hand-Überlappung neu berechnen.
+  // PWA-Viewport-Fix: Im iOS-Standalone-Modus kann 100dvh von der echten
+  // Fensterhöhe abweichen (der App-Container endete sichtbar über der
+  // Unterkante). Wir messen die echte Höhe und stellen sie als CSS-Variable
+  // bereit; die display-mode:standalone-Query in style.css nutzt sie.
+  function setAppViewportHeight() {
+    document.documentElement.style.setProperty('--appvh', window.innerHeight + 'px');
+  }
+  setAppViewportHeight();
+
   let resizeTimer = null;
   window.addEventListener('resize', () => {
+    setAppViewportHeight();
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => render(), 150);
   });

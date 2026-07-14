@@ -2055,4 +2055,9 @@ input:disabled { opacity: 0.65; }
   #handWrapper {
     padding-bottom: max(2px, calc(var(--safe-bottom) - 16px));
   }
+  /* Der eigentliche Übeltäter (per Screenshot diagnostiziert): 100dvh weicht
+     im iOS-Standalone von der echten Fensterhöhe ab - unter der Handleiste
+     blieb ein toter schwarzer Streifen. Die per JS gemessene innerHeight
+     (--appvh, siehe setAppViewportHeight) ist im PWA die Wahrheit. */
+  #app { height: var(--appvh, 100dvh); }
 }
