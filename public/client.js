@@ -1513,6 +1513,35 @@
     const body = el('resultBody');
     body.innerHTML = '';
 
+    // Zwei Reiter: „Ergebnis" (Standard) und „Statistik" (Detail-Tabelle,
+    // Punkteverlauf, Partie-Totals). Vorher stand alles untereinander - bei
+    // 4 Spielern rutschte der Weiter-Knopf unter den Falz und man musste
+    // scrollen, um die nächste Runde zu bestätigen.
+    const paneResult = document.createElement('div');
+    paneResult.className = 'resultPane';
+    const paneStats = document.createElement('div');
+    paneStats.className = 'resultPane hidden';
+    const tabBar = document.createElement('div');
+    tabBar.className = 'resultTabs';
+    const tabResultBtn = document.createElement('button');
+    tabResultBtn.type = 'button';
+    tabResultBtn.className = 'resultTabBtn active';
+    tabResultBtn.textContent = L('Ergebnis', 'Result');
+    const tabStatsBtn = document.createElement('button');
+    tabStatsBtn.type = 'button';
+    tabStatsBtn.className = 'resultTabBtn';
+    tabStatsBtn.textContent = L('📈 Statistik', '📈 Stats');
+    const selectResultTab = (which) => {
+      tabResultBtn.classList.toggle('active', which === 'result');
+      tabStatsBtn.classList.toggle('active', which === 'stats');
+      paneResult.classList.toggle('hidden', which !== 'result');
+      paneStats.classList.toggle('hidden', which !== 'stats');
+    };
+    tabResultBtn.addEventListener('click', () => selectResultTab('result'));
+    tabStatsBtn.addEventListener('click', () => selectResultTab('stats'));
+    tabBar.append(tabResultBtn, tabStatsBtn);
+    body.append(tabBar, paneResult, paneStats);
+
     if (forfeited) {
       const note = document.createElement('p');
       note.className = 'handAusNote';
@@ -1520,7 +1549,7 @@
         '🏳️ Das Spiel wurde einvernehmlich aufgegeben - alle aktiven Spieler waren einverstanden. Kein Sieger, das Spiel wird nicht gewertet.',
         '🏳️ The game was forfeited by mutual agreement - all active players agreed. No winner, the game is not recorded.'
       );
-      body.appendChild(note);
+      paneResult.appendChild(note);
       const fTotals = (lastState.gameOverInfo && lastState.gameOverInfo.finalTotals) || lastState.totals || {};
       lastState.players
         .slice()
@@ -1529,7 +1558,7 @@
           const row = document.createElement('div');
           row.className = 'resultRow';
           row.innerHTML = `<span>${nameWithHeart(p.name)}${p.isBot ? ' 🤖' : ''}</span><span>${L('Gesamt', 'Total')}: ${fTotals[p.id] || 0}</span>`;
-          body.appendChild(row);
+          paneResult.appendChild(row);
         });
     }
 
@@ -1537,7 +1566,7 @@
       const handAusNote = document.createElement('p');
       handAusNote.className = 'handAusNote';
       handAusNote.textContent = L('🎉 Hand aus! Die komplette Rundenwertung zählt doppelt.', '🎉 Out in one! The entire round score counts double.');
-      body.appendChild(handAusNote);
+      paneResult.appendChild(handAusNote);
     }
     if (!forfeited && lastState.lastRoundResult) {
       lastState.players.forEach((p) => {
@@ -1546,7 +1575,7 @@
         row.className = 'resultRow' + (r && r.breakdown.isWinner ? ' winner' : '');
         const total = lastState.totals[p.id] || 0;
         row.innerHTML = `<span>${nameWithHeart(p.name)}${p.isBot ? ' 🤖' : ''}</span><span>${r ? r.roundScore : 0} ${L('Pkt', 'pts')} (${L('Gesamt', 'total')}: ${total})</span>`;
-        body.appendChild(row);
+        paneResult.appendChild(row);
       });
     }
 
@@ -1574,20 +1603,20 @@
             return `<tr${s.id === lastState.lastRoundWinnerId ? ' class="winnerRow"' : ''}><td>${escapeHtml(s.name)}${s.id === lastState.lastRoundWinnerId ? ' 🏆' : ''}</td><td>${deltaCell}</td><td>${s.laidOutCount}</td><td>${s.handCount}</td><td>${s.pikDameLaidOut ?? 0}</td><td>${s.jokersLaidOut ?? 0}</td></tr>`;
           })
           .join('')}</tbody>`;
-      body.appendChild(statsTable);
+      paneStats.appendChild(statsTable);
     }
 
     // Punkteverlauf über alle Runden als kleines SVG-Chart (ab 2 Runden)
     const history = lastState.scoreHistory || [];
     if (history.length >= 2) {
-      body.appendChild(renderScoreChart(history));
+      paneStats.appendChild(renderScoreChart(history));
     }
 
     if (isGameOver && !forfeited && lastState.gameOverInfo) {
       const winner = lastState.players.find((p) => p.id === lastState.gameOverInfo.winnerId);
       const winLine = document.createElement('p');
       winLine.innerHTML = `<strong>🏆 ${L(`${escapeHtml(winner ? winner.name : '?')} gewinnt das Spiel!`, `${escapeHtml(winner ? winner.name : '?')} wins the game!`)}</strong>`;
-      body.appendChild(winLine);
+      paneResult.appendChild(winLine);
       // Nice visual stat: how many turns (and rounds) the whole game took.
       const gi = lastState.gameOverInfo;
       if (typeof gi.totalTurns === 'number') {
@@ -1598,7 +1627,7 @@
           `🎲 ${gi.totalTurns} Züge in ${rounds} ${rounds === 1 ? 'Runde' : 'Runden'}`,
           `🎲 ${gi.totalTurns} turns across ${rounds} ${rounds === 1 ? 'round' : 'rounds'}`
         );
-        body.appendChild(statLine);
+        paneResult.appendChild(statLine);
       }
     }
 
@@ -1629,7 +1658,7 @@
       });
       box.appendChild(tBtn);
       box.appendChild(tbl);
-      el('resultBody').appendChild(box);
+      paneStats.appendChild(box);
     }
     // 🎖️ Frisch verdiente Erfolge feiern (kommen per Server-Nachricht)
     const oldBadgeBox = el('resultBody').querySelector('.badgeBox');
@@ -1647,8 +1676,12 @@
           box.appendChild(row);
         }
       }
-      el('resultBody').appendChild(box);
+      paneResult.appendChild(box);
     }
+
+    // Statistik-Reiter nur anbieten, wenn er auch Inhalt hat (z. B. nicht
+    // nach einem aufgegebenen Spiel).
+    if (!paneStats.childNodes.length) tabBar.classList.add('hidden');
 
     // Ready check: at round end EVERY connected human confirms before the
     // next round starts - the button shows who the table is waiting for.
