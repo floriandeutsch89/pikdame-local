@@ -584,6 +584,17 @@
       }
       return;
     }
+    if (msg.type === 'leftLobby') {
+      // Sitz ist serverseitig frei - Zugangsdaten dieser Session vergessen
+      // und sauber ins Hauptmenü (ohne ?session=... in der URL).
+      if (sessionCode) {
+        storageRemove(playerKeyFor(sessionCode));
+        storageRemove(tokenKeyFor(sessionCode));
+        if (storageGet(LAST_SESSION_KEY) === sessionCode) storageRemove(LAST_SESSION_KEY);
+      }
+      window.location.href = window.location.pathname;
+      return;
+    }
     if (msg.type === 'error') {
       // A stale resume target is gone for good - stop offering it.
       if (/Kein Spiel mit diesem Code/.test(msg.error || '')) {
@@ -802,6 +813,10 @@
 
   function renderLobby() {
     const humanCount = lastState.players.filter((p) => !p.isBot).length;
+    // Zurück ins Hauptmenü: nur sinnvoll, solange ich in einer unbegonnenen
+    // Lobby wirklich am Tisch sitze.
+    const meSeated = lastState.players.some((p) => p.id === playerId && !p.isBot);
+    el('leaveLobbyBtn').classList.toggle('hidden', !meSeated);
     const isHost = !!lastState.isHost;
     const ready = new Set(lastState.lobbyReady || []);
     el('lobbyPlayers').innerHTML =
@@ -2109,6 +2124,15 @@
   // After the match: a direct way back to the main menu (rematch stays too).
   el('resultHomeBtn').addEventListener('click', () => {
     window.location.href = window.location.pathname;
+  });
+
+  // Lobby verlassen: Server räumt den Sitz, wir vergessen die Zugangsdaten
+  // (sonst würde der Auto-Resume sofort wieder in die Session springen) und
+  // laden das Hauptmenü. Vorher gab es aus einer erstellten Lobby KEINEN Weg
+  // zurück ins Hauptmenü.
+  el('leaveLobbyBtn').addEventListener('click', () => {
+    if (!lastState || lastState.phase !== 'lobby') return;
+    send({ type: 'leaveLobby' });
   });
 
   // Forfeit the whole game from the round-end points overview (same unanimous

@@ -44,8 +44,11 @@ jobs:
         run: |
           set -o pipefail
           npm test 2>&1 | tee /tmp/test.log || {
-            grep -E "^not ok" /tmp/test.log | head -20 | while IFS= read -r l; do echo "::error title=failing test::${l}"; done
-            grep -E "error: |Error \[" /tmp/test.log | head -12 | while IFS= read -r l; do echo "::error title=detail::${l}"; done
+            # Node 22 prints TAP ('not ok'), Node 24 defaults to the spec
+            # reporter ('✖') - match both, or a failure annotates NOTHING
+            # (exactly what happened: red job, empty annotations).
+            grep -E "^not ok|✖" /tmp/test.log | head -20 | while IFS= read -r l; do echo "::error title=failing test::${l}"; done
+            grep -E "error: |Error \[|AssertionError" /tmp/test.log | head -12 | while IFS= read -r l; do echo "::error title=detail::${l}"; done
             exit 1
           }
       # Consistency: the Dockerfile must use the same Node major version

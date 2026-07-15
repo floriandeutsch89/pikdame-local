@@ -151,6 +151,7 @@ const MSG_NOTES = {
   undoPileTake: 'Take back a discard-pile pickup - only while the mandatory top card has not been played yet (phase 1 of the two-phase pickup). Fair by construction: the card was public anyway and nothing on the table changed.',
   performCut: 'Interactive round start: the cutter picks where to cut the freshly shuffled deck (position 0..1). Only valid in the cutting phase, only for the cutter; bots, the daily challenge and timeouts cut automatically. The next state carries `lastCutReveal` (the lucky cards kept plus the ordinary card that ended the run) for the reveal animation.',
   togglePause: 'Vote to pause. The game only pauses once every connected player agrees.',
+  leaveLobby: 'Leave an unstarted lobby and free the seat (bots re-sync, host succession is automatic). Refused mid-game - use the forfeit vote instead. The server confirms with `leftLobby` so the client may clear its stored per-session credentials.',
   nextRound: 'Signal readiness for the next round.',
   rematch: 'Start a new match with the same table.',
   emote: 'Send an emoji reaction to the table.',

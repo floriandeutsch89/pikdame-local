@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.77.1] - 2026-07-14
+
+### Fixed
+- **Aus einer erstellten Lobby führt jetzt ein Weg zurück:** Neuer Knopf „🏠 Zurück zum Hauptmenü" in der Spiel-Lobby (vor Spielstart). Vorher saß man nach „Neues Spiel erstellen" fest - selbst ein Neuladen sprang per Auto-Fortsetzen sofort wieder in die Session. Der Server gibt den Sitz frei (Bereit-Status und Punkte werden bereinigt, Bots rücken nach, die Organisator-Rolle geht automatisch an den nächsten Menschen über), der Client vergisst die Zugangsdaten dieser Session und lädt das Hauptmenü. Im laufenden Spiel bleibt der Weg über 🏳️ Aufgeben; E2E-getestet über den echten Server (Beitreten → Verlassen → Sitz frei)
+
 ## [1.77.0] - 2026-07-14
 
 ### Changed

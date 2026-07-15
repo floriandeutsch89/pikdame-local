@@ -2091,3 +2091,22 @@ test('pause: with two humans the first vote shows up in pauseVotes and does NOT 
   assert.equal(st.paused, true, 'second vote pauses');
   g.destroy();
 });
+
+// --- v1.77.1: Lobby verlassen (Regression: kein Rückweg ins Hauptmenü) -----------
+test('leaveLobby frees the seat, cleans ready gate and re-syncs bots; blocked mid-game', () => {
+  const { game: g } = makeGame(2);
+  const [h1, h2] = g.players.filter((p) => !p.isBot);
+  g.setMaxSeats ? g.setMaxSeats(3) : null;
+  const before = g.players.length;
+  const r = g.leaveLobby(h2.id);
+  assert.equal(r.ok, true);
+  assert.ok(!g.players.some((p) => p.id === h2.id), 'seat freed');
+  assert.ok(g.players.length >= before - 1, 'bots re-synced to fill the table');
+  assert.ok(g.isHost(h1.id), 'remaining human is (still) host');
+  // im laufenden Spiel gesperrt
+  g.startNewRound();
+  if (g.phase === 'cutting') g.performCut(g.cutterId, 0.5);
+  const r2 = g.leaveLobby(h1.id);
+  assert.ok(r2.error && /Lobby/.test(r2.error), 'mid-game leaving is refused');
+  g.destroy();
+});
