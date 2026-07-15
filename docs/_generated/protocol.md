@@ -19,6 +19,7 @@ handler, so it always matches the running code.
 | `layOff` | Add a single card to one of your own melds. |
 | `layOffMulti` | Add several cards to one of your own melds in one go. |
 | `layoutMeld` | Lay out a new set or run. |
+| `leaveLobby` | Leave an unstarted lobby and free the seat (bots re-sync, host succession is automatic). Refused mid-game - use the forfeit vote instead. The server confirms with `leftLobby` so the client may clear its stored per-session credentials. |
 | `listProfiles` | _(see source)_ |
 | `lobbyReady` | _(see source)_ |
 | `nextRound` | Signal readiness for the next round. |
