@@ -123,6 +123,26 @@ class GameManager {
     return !!playerId && playerId === this.effectiveHostId();
   }
 
+  /**
+   * A human leaves an unstarted lobby and returns to the main menu. Same
+   * cleanup as the lobby disconnect timeout: seat freed, ready gate and
+   * totals cleaned, bots re-synced. Host succession is automatic
+   * (effectiveHostId picks the next human). Only allowed before the game
+   * starts - mid-game there is the forfeit vote instead.
+   */
+  leaveLobby(playerId) {
+    if (this.phase !== 'lobby') return { error: 'Verlassen geht nur in der Lobby - im Spiel gibt es 🏳️ Aufgeben.' };
+    const p = this.players.find((pl) => pl.id === playerId && !pl.isBot);
+    if (!p) return { error: 'Du sitzt nicht an diesem Tisch.' };
+    this.players = this.players.filter((pl) => pl.id !== playerId);
+    delete this.totals[playerId];
+    if (this._lobbyReady) this._lobbyReady.delete(playerId);
+    this.addLog(`${p.name} hat die Lobby verlassen.`);
+    this.syncLobbyBots();
+    this.broadcastState();
+    return { ok: true };
+  }
+
   markDisconnected(id) {
     const p = this.players.find((pl) => pl.id === id);
     if (p) {

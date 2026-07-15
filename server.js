@@ -826,6 +826,17 @@ wss.on('connection', (ws, req) => {
         if (r && r.error) sendError(ws, r.error);
         break;
       }
+      case 'leaveLobby': {
+        const r = game.leaveLobby(playerId);
+        if (r && r.error) { sendError(ws, r.error); break; }
+        // Confirm to the leaver so the client can clear its stored
+        // credentials (otherwise auto-resume would jump straight back in),
+        // then drop the socket/token mapping for this seat.
+        try { ws.send(JSON.stringify({ type: 'leftLobby' })); } catch (e) { /* socket may be gone */ }
+        session.sockets.delete(playerId);
+        if (session.playerTokens) session.playerTokens.delete(playerId);
+        break;
+      }
       case 'togglePause': {
         const r = game.togglePauseVote(playerId);
         if (r && r.error) sendError(ws, r.error);
