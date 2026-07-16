@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.78.0] - 2026-07-15
+
+### Changed
+- **Abheberegel korrigiert (Missverständnis meinerseits ausgeräumt):** Der abgehobene Packen wird **nicht** für die Runde beiseitegelegt - er kommt nach dem Verteilen **zurück in den Nachziehstapel**. Abheben bestimmt nur, **wo** das Verteilen beginnt; keine Karte verlässt je das Spiel. Der Start-Nachziehstapel ist damit wieder **konstant** (bei 4 Spielern immer 49 Karten: 110 − 60 Handkarten − 1 Ablage) - die in v1.77.2 gemeldeten „schwankenden Stapel" waren die Folge meiner Fehlinterpretation aus v1.71, nicht der Familienregel. Glücksgriff unverändert; die Abhebekarte wird dem Abheber gezeigt und ist schlicht die erste verteilte Karte. Die „Beiseite"-Anzeige aus v1.77.2 ist wieder entfernt (es gibt nichts mehr anzuzeigen)
+- **Messbare Folge** (200 Bot-Spiele, 0 Hänger): Die Patt-Quote fällt von ~57 % auf **~4 %** - Runden enden wieder fast immer durch Rausgehen (mittlere Länge 32 Züge). Die Rundenende-Regel selbst bleibt unverändert: Stapel leer + Ablagekarte nicht aufnehmbar → Runde endet, Ablage wird nie neu gemischt
+- ⚠️ Durch die geänderte Schnitt-Logik ändern sich die **Tages-Challenge-Decks einmalig** mit diesem Update
+- **Trainingsdaten:** Regelversion im Zug-Log auf 3 erhöht; der Trainings-Loader nutzt per Default nur noch rv-3-Daten (die rv-2-Züge entstammen den zwischenzeitlichen Beiseite-Regeln - ein anderes Spiel)
+
 ## [1.77.2] - 2026-07-15
 
 ### Fixed

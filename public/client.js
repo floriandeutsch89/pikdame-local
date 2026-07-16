@@ -524,10 +524,10 @@
     title.className = 'cutRevealTitle';
     title.textContent = lucky
       ? (iAmCutter && r.cards.length > r.luckyCount
-          ? L('Deine Beute - die letzte Karte geht mit dem Packen beiseite', 'Your haul - the last card leaves with the packet')
+          ? L('Deine Beute - die letzte Karte bleibt im Spiel', 'Your haul - the last card stays in play')
           : L(`${name} behält ${r.luckyCount} Karte${r.luckyCount > 1 ? 'n' : ''}`,
               `${name} keeps ${r.luckyCount} card${r.luckyCount > 1 ? 's' : ''}`))
-      : L('Deine Abhebekarte - geht mit dem Packen beiseite', 'Your cut card - leaves with the packet');
+      : L('Deine Abhebekarte - bleibt im Spiel', 'Your cut card - stays in play');
     wrap.appendChild(title);
 
     const row = document.createElement('div');
@@ -1146,13 +1146,6 @@
 
     // Stapel
     el('drawCount').textContent = lastState.drawPileCount;
-    // Der beim Abheben beiseitegelegte Packen: sichtbar machen, sonst sieht
-    // ein tiefer Schnitt wie verschwundene Karten aus (Spieler-Report: '20
-    // Karten weg?!'). Die Bilanz stimmt immer - jetzt kann man sie SEHEN:
-    // Hände + Ablage + Nachziehen + Beiseite = 110.
-    const asideN = lastState.setAsideCount || 0;
-    el('setAsidePile').classList.toggle('hidden', asideN === 0);
-    el('setAsideCount').textContent = asideN;
     const drawCardDiv = el('drawPile').querySelector('.pile-card');
     drawCardDiv.classList.toggle('stacked-2', lastState.drawPileCount > 15);
     drawCardDiv.classList.toggle('stacked-1', lastState.drawPileCount > 1 && lastState.drawPileCount <= 15);
@@ -1194,7 +1187,7 @@
     el('drawPile').classList.toggle('disabled', !canDraw);
     el('discardPile').classList.toggle('disabled', !canDraw || !lastState.discardTop);
     // Sanfter Glow signalisiert: jetzt darfst du ziehen
-    el('drawPile').classList.toggle('glow', canDraw && (lastState.drawPileCount > 0 || (lastState.setAsideCount || 0) > 0));
+    el('drawPile').classList.toggle('glow', canDraw && lastState.drawPileCount > 0);
     el('discardPile').classList.toggle('glow', canDraw && !!lastState.discardTop);
 
     // Hand

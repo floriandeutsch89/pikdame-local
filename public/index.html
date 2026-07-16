@@ -268,11 +268,6 @@
           <button id="discardPreviewBtn" class="pilePeekBtn" title="Ablagestapel ansehen" aria-label="Ablagestapel ansehen">👁</button>
           <div class="pileLabel">Ablage</div>
         </div>
-        <div class="pile pilePassive hidden" id="setAsidePile" title="Beim Abheben beiseitegelegter Packen - für diese Runde aus dem Spiel. Wird nicht nachgelegt.">
-          <div class="pile-card back aside"></div>
-          <span id="setAsideCount">0</span>
-          <div class="pileLabel">Beiseite</div>
-        </div>
       </div>
 
       <div id="actionBar">
@@ -392,7 +387,7 @@
           <h3>Geben &amp; Glücksgriff</h3>
           <ul>
             <li>Der Geber wechselt jede Runde reihum, der Spieler danach beginnt.</li>
-            <li>Vor dem Verteilen hebt der Spieler rechts vom Geber ab – <b>er wählt die Stelle selbst</b> (in der Tages-Challenge wird für faire, weltweit identische Decks automatisch abgehoben). <b>Der abgehobene Packen wird beiseitegelegt:</b> Alle Karten vor der Abhebestelle und die Abhebekarte selbst kommen für diese Runde aus dem Spiel – verteilt und gezogen wird nur der Rest. <b>Glücksgriff:</b> Liegen an der Abhebestelle Pik Dame oder Joker, nimmt der Abheber sie sofort auf die Hand (die nächste normale Karte gilt dann als Abhebekarte und geht mit dem Packen beiseite) – beim Verteilen wird entsprechend übersprungen, alle enden bei 15 Karten.</li>
+            <li>Vor dem Verteilen hebt der Spieler rechts vom Geber ab – <b>er wählt die Stelle selbst</b> (in der Tages-Challenge wird für faire, weltweit identische Decks automatisch abgehoben). <b>Verteilt wird ab der Abhebestelle;</b> der abgehobene Packen kommt danach zurück in den Nachziehstapel – keine Karte verlässt das Spiel. <b>Glücksgriff:</b> Liegen an der Abhebestelle Pik Dame oder Joker, nimmt der Abheber sie sofort auf die Hand (die nächste normale Karte stoppt die Serie und bleibt im Spiel) – beim Verteilen wird entsprechend übersprungen, alle enden bei 15 Karten.</li>
             <li><b>Fair gemischt:</b> Jede Runde wird ein komplett neues Deck rein zufällig gemischt (Fisher-Yates). Es gibt kein Ausbalancieren der Hände – jeder hat in jeder Runde die exakt gleiche Chance auf die guten Karten. Einzelne Runden entscheidet Glück, über viele Runden gleicht es sich aus.</li>
           </ul>
 
@@ -436,7 +431,7 @@
           <h3>Spielende &amp; Sonstiges</h3>
           <ul>
             <li>Das Spiel endet, sobald jemand 1000 Punkte erreicht (Hausregel „streng": erst über 1000). Es gewinnt der Punktbeste.</li>
-            <li>Ist der Nachziehstapel leer, wird <b>nichts nachgelegt</b> – weder der beim Abheben beiseitegelegte Packen (der bleibt die ganze Runde draußen) noch der Ablagestapel. Kannst du die oberste Ablagekarte aufnehmen, ist das dein Zug – <b>kannst du es nicht, endet die Runde sofort und wird gewertet:</b> ausgelegte Karten zählen plus, restliche Handkarten wie gewohnt <b>minus</b> (eine Pik Dame auf der Hand kostet 100!) – nur den Gewinner-Bonus gibt es in diesem Fall nicht. Mit 🏳️ kann das ganze Spiel aufgegeben werden - das beendet die Partie sofort (alle aktiven Spieler müssen zustimmen).</li>
+            <li>Ist der Nachziehstapel leer, wird <b>nichts nachgelegt</b> – der Ablagestapel wird nicht neu gemischt. Kannst du die oberste Ablagekarte aufnehmen, ist das dein Zug – <b>kannst du es nicht, endet die Runde sofort und wird gewertet:</b> ausgelegte Karten zählen plus, restliche Handkarten wie gewohnt <b>minus</b> (eine Pik Dame auf der Hand kostet 100!) – nur den Gewinner-Bonus gibt es in diesem Fall nicht. Mit 🏳️ kann das ganze Spiel aufgegeben werden - das beendet die Partie sofort (alle aktiven Spieler müssen zustimmen).</li>
           </ul>
         </div>
         <button id="rulesCloseBtn" class="btn-secondary">Schließen</button>
@@ -500,7 +495,7 @@
     <section id="cutOverlay" class="overlay hidden">
       <div class="overlay-card">
         <h2 id="cutTitle">Abheben</h2>
-        <p id="cutHint" class="cutHint">Wähle, wo du das frisch gemischte Deck abhebst. Liegen dort Pik Dame oder Joker, gehören sie sofort dir! Der abgehobene Packen (samt Abhebekarte) wird für diese Runde beiseitegelegt.</p>
+        <p id="cutHint" class="cutHint">Wähle, wo du das frisch gemischte Deck abhebst. Liegen dort Pik Dame oder Joker, gehören sie sofort dir! Verteilt wird ab der Abhebestelle; der abgehobene Packen kommt danach zurück in den Nachziehstapel.</p>
         <div id="cutDeckArea">
           <div id="cutDeckBar" aria-hidden="true">
             <div id="cutMarker"></div>
