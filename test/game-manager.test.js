@@ -1405,6 +1405,10 @@ test('turn timer: deadline armed for humans, expiry auto-finishes the turn once'
   const { game } = makeGame(2);
   game.setHouseRules({ turnTimerSeconds: 60 });
   game.startNewRound();
+  // FLAKE FIX: with a random initial dealer the cutter can be a human, which
+  // leaves the round in the 'cutting' phase - the simulated timeout then has
+  // no turn to finish and the turn never passes on (seen as a rare red CI).
+  if (game.phase === 'cutting') game.performCut(game.cutterId, 0.5);
   // Force a HUMAN to be the current player
   game.currentPlayerIndex = game.players.findIndex((p) => p.id === 'p1');
   game.turnPhase = 'draw';

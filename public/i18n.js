@@ -58,6 +58,9 @@ window.I18N_STATIC = {
   '▶️ Fortsetzen': '▶️ Resume',
   'Über 1000 Punkte zum Gewinnen (genau 1000 reicht nicht)': 'More than 1000 points to win (exactly 1000 is not enough)',
   'Spiel starten': 'Start game',
+  'Beiseite': 'Set aside',
+  'Beim Abheben beiseitegelegter Packen - für diese Runde aus dem Spiel. Wird nicht nachgelegt.':
+    'The packet set aside at the cut - out of play for this round. It is never shuffled back in.',
   '🏠 Zurück zum Hauptmenü': '🏠 Back to main menu',
   '🏠 Hauptmenü': '🏠 Main menu',
   '📖 Spielregeln': '📖 How to play',

@@ -2078,3 +2078,12 @@ input:disabled { opacity: 0.65; }
   color: #14142a;
 }
 .resultPane { min-height: 40px; }
+
+/* --- Beiseite-Packen: passiver Mini-Stapel neben der Ablage ---------------- */
+.pilePassive { opacity: 0.55; pointer-events: none; transform: scale(0.82); }
+.pilePassive .pile-card.back.aside {
+  background: repeating-linear-gradient(135deg,
+    rgba(255,255,255,0.10) 0 6px, rgba(255,255,255,0.04) 6px 12px);
+  border: 1px dashed rgba(255,255,255,0.35);
+  box-shadow: none;
+}
