@@ -1146,6 +1146,13 @@
 
     // Stapel
     el('drawCount').textContent = lastState.drawPileCount;
+    // Der beim Abheben beiseitegelegte Packen: sichtbar machen, sonst sieht
+    // ein tiefer Schnitt wie verschwundene Karten aus (Spieler-Report: '20
+    // Karten weg?!'). Die Bilanz stimmt immer - jetzt kann man sie SEHEN:
+    // Hände + Ablage + Nachziehen + Beiseite = 110.
+    const asideN = lastState.setAsideCount || 0;
+    el('setAsidePile').classList.toggle('hidden', asideN === 0);
+    el('setAsideCount').textContent = asideN;
     const drawCardDiv = el('drawPile').querySelector('.pile-card');
     drawCardDiv.classList.toggle('stacked-2', lastState.drawPileCount > 15);
     drawCardDiv.classList.toggle('stacked-1', lastState.drawPileCount > 1 && lastState.drawPileCount <= 15);

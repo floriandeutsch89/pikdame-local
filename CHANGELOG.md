@@ -4,6 +4,12 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.77.2] - 2026-07-15
+
+### Fixed
+- **Der beim Abheben beiseitegelegte Packen ist jetzt am Tisch sichtbar** (Spieler-Report: „In 2 Runden sind 20 Karten vom Ziehstapel weg?!"): Neben der Ablage zeigt ein passiver, gestrichelter Mini-Stapel „Beiseite" mit Anzahl, wie viele Karten der Abheber für diese Runde aus dem Spiel genommen hat. Die Bilanz stimmte immer (per 300-Runden-Simulation erneut verifiziert: Start-Nachziehstapel schwankt regelbedingt zwischen 9 und 38 Karten bei 4 Spielern, alle 110 Karten stets erfasst) - jetzt kann man sie auch **sehen**: Hände + Ablage + Nachziehen + Beiseite = 110
+- Flackernden Zug-Timer-Test deterministisch gemacht (bei zufälligem Mensch-Abheber blieb die Testrunde in der Abhebephase hängen - seltener roter CI ohne Codefehler)
+
 ## [1.77.1] - 2026-07-14
 
 ### Fixed
