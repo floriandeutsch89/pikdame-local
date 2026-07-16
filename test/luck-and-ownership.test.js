@@ -133,27 +133,27 @@ test('canUseDiscardTop: NUR eine Handkarten-Kombination berechtigt zur Aufnahme 
 
 // --- Glücksgriff ---
 
-test('Glücksgriff: Pik Dame + direkt folgender Joker werden ergattert, normale Karte stoppt und geht mit dem Packen beiseite', () => {
+test('Glücksgriff: Pik Dame + direkt folgender Joker werden ergattert, normale Karte stoppt und bleibt im Spiel', () => {
   const deck = [H('5'), H('6'), S('Q'), makeJoker(0), H('9'), makeJoker(1)];
-  const { luckyCards, remaining, stopper, setAside } = performLuckyCut(deck, 2);
+  const { luckyCards, remaining, stopper } = performLuckyCut(deck, 2);
   assert.equal(luckyCards.length, 2, 'Pik Dame + folgender Joker');
   assert.equal(luckyCards[0].rank, 'Q');
   assert.equal(luckyCards[1].isJoker, true);
-  // Familienregel: Packen vor der Abhebestelle (H5, H6) + Abhebekarte (H9)
-  // werden beiseitegelegt; gespielt wird nur der Teil danach (Joker 1).
+  // Korrigierte Familienregel: Verteilt wird ab der Abhebestelle (H9 zuerst),
+  // der abgehobene Packen (H5, H6) kommt danach zurück ans Ende - keine
+  // Karte verlässt das Spiel.
   assert.equal(stopper.rank, '9');
-  assert.deepEqual(setAside.map((cd) => cd.rank || 'J'), ['5', '6', '9']);
-  assert.equal(remaining.length, 1);
-  assert.equal(remaining[0].isJoker, true);
+  assert.equal(remaining.length, 4, 'alle Nicht-Glückskarten bleiben im Spiel');
+  assert.equal(remaining[0].rank, '9', 'die Abhebekarte wird als erstes verteilt');
+  assert.deepEqual(remaining.slice(2).map((cd) => cd.rank), ['5', '6'], 'der Packen liegt hinten');
 });
 
-test('Glücksgriff: keine Spezialkarte an der Abhebestelle -> nur die Abhebekarte geht beiseite', () => {
+test('Glücksgriff: keine Spezialkarte an der Abhebestelle -> nichts verlässt das Spiel', () => {
   const deck = [H('5'), S('Q'), H('7')];
-  const { luckyCards, remaining, setAside } = performLuckyCut(deck, 0);
+  const { luckyCards, remaining } = performLuckyCut(deck, 0);
   assert.equal(luckyCards.length, 0);
-  assert.equal(setAside.length, 1, 'Abhebekarte selbst wird beiseitegelegt');
-  assert.equal(setAside[0].rank, '5');
-  assert.equal(remaining.length, 2, 'gespielt wird der Teil nach der Abhebekarte');
+  assert.equal(remaining.length, 3, 'alle Karten bleiben im Spiel');
+  assert.equal(remaining[0].rank, '5', 'verteilt wird ab der Abhebestelle');
 });
 
 test('Glücksgriff-Ausgleich: dealCards überspringt den Abheber, alle enden bei 15', () => {
@@ -176,9 +176,13 @@ test('Glücksgriff-Integration: nach startNewRound haben IMMER alle exakt 15 Kar
     }
     const total =
       game.players.reduce((sum, p) => sum + p.hand.length, 0) +
-      game.drawPile.length + game.discardPile.length + game.setAsidePile.length;
-    assert.equal(total, 110, `Runde ${i}: alle 110 Karten müssen erfasst sein (inkl. beiseitegelegtem Packen)`);
-    assert.ok(game.setAsidePile.length >= 11, `Runde ${i}: mindestens Abhebe-Minimum (10) + Abhebekarte beiseite`);
+      game.drawPile.length + game.discardPile.length;
+    assert.equal(total, 110, `Runde ${i}: alle 110 Karten müssen im Spiel sein`);
+    // Korrigierte Familienregel: der Packen kehrt zurück -> der Start-
+    // Nachziehstapel ist KONSTANT (110 - Hände - 1 Ablage), egal wie tief
+    // abgehoben wurde (Spieler-Report: schwankende Stapel wirkten wie ein Bug).
+    const expectedDraw = 110 - game.players.length * 15 - 1;
+    assert.equal(game.drawPile.length, expectedDraw, `Runde ${i}: konstanter Start-Nachziehstapel`);
   }
 });
 

@@ -2002,7 +2002,6 @@ test('empty pile + unusable discard top ends the round with normal scoring (regr
   // Exakt die Screenshot-Lage: Stapel leer, Packen aufgebraucht, volle
   // Ablage, oberste Karte für den Spieler unbrauchbar.
   g.turnPhase = 'draw';
-  g.setAsidePile = [];
   g.drawPile.length = 0;
   g.discardPile.unshift(makeStandardCard('C', 'K', 990)); // passt zu nichts Konstruiertem
   me.hand = [makeStandardCard('D', '10', 991), makeStandardCard('H', '10', 992), makeStandardCard('H', 'K', 993)];
@@ -2030,7 +2029,6 @@ test('empty pile but usable discard top: NO round end - the pickup is the move',
   const me = g.currentPlayer();
   const { makeStandardCard } = require('../game/Card');
   g.turnPhase = 'draw';
-  g.setAsidePile = [];
   g.drawPile.length = 0;
   const top = makeStandardCard('D', '9', 980);
   g.discardPile.unshift(top);
@@ -2048,7 +2046,6 @@ test('turn-change auto-end fires even with a BIG discard pile (the old check tre
   const { game: g } = makeGame(2);
   g.startNewRound();
   const { makeStandardCard } = require('../game/Card');
-  g.setAsidePile = [];
   g.drawPile.length = 0;
   // grosse Ablage - früher hiess das fälschlich "reshuffle still possible"
   g.discardPile = [makeStandardCard('C', 'K', 970)];

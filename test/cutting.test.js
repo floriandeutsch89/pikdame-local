@@ -148,14 +148,9 @@ test('cut reveal: the CUTTER always sees the revealed cards; totals stay at 110'
     if (r.cards.length > r.luckyCount) {
       assert.ok(!isLucky(r.cards[r.cards.length - 1]), 'the stopper is an ordinary card');
     }
-    // Family rule: the cut packet is set aside - all 110 cards accounted for.
+    // Corrected family rule: the lifted packet returns - all 110 cards in play.
     const inHands = g.players.reduce((a, p) => a + p.hand.length, 0);
-    assert.equal(inHands + g.drawPile.length + g.discardPile.length + g.setAsidePile.length, 110);
-    // the stopper is IN the set-aside packet, not in play
-    if (r.cards.length > r.luckyCount) {
-      const stopperId = r.cards[r.cards.length - 1].id;
-      assert.ok(g.setAsidePile.some((cd) => cd.id === stopperId), 'stopper left the game with the packet');
-    }
+    assert.equal(inHands + g.drawPile.length + g.discardPile.length, 110);
     g.destroy();
   }
 });
@@ -287,43 +282,40 @@ test('challenge lock: normal games keep both settings fully adjustable', () => {
 });
 
 // --- v1.71: Familienregel - der abgehobene Packen wird beiseitegelegt ----------
-test('set-aside: the packet is NEVER refilled into the game - empty pile means the end rule takes over', () => {
-  const { g } = humanGame(2);
-  g.startNewRound();
-  g.performCut(g.cutterId, 0.9); // tief schneiden -> großer Packen beiseite
-  const asideBefore = g.setAsidePile.length;
-  assert.ok(asideBefore > 0, 'packet was set aside');
-  // Nachziehstapel künstlich leeren - der Packen bleibt trotzdem draußen.
-  g.drawPile.length = 0;
-  const me = g.currentPlayer();
-  g.turnPhase = 'draw';
-  const r = g.drawFromPile(me.id);
-  assert.equal(g.setAsidePile.length, asideBefore, 'packet untouched');
-  assert.equal(g.drawPile.length, 0, 'nothing was refilled from anywhere');
-  // Je nach Ablage-Top: entweder Hinweis auf die Aufnahme oder Rundenende -
-  // niemals ein stilles Weiterspielen mit nachgemischten Karten.
-  assert.ok((r.error && g.phase === 'playing') || (r.roundEnded && g.phase === 'roundEnd'),
-    'either the pickup hint or the round end - never a refill');
-  g.destroy();
+test('cut depth does not change the opening draw pile - the lifted packet returns', () => {
+  const sizes = new Set();
+  for (const pos of [0, 0.25, 0.5, 0.75, 1]) {
+    const { g } = humanGame(2);
+    g.startNewRound();
+    g.performCut(g.cutterId, pos);
+    sizes.add(g.drawPile.length);
+    assert.equal(
+      g.players.reduce((a, p) => a + p.hand.length, 0) + g.drawPile.length + g.discardPile.length,
+      110
+    );
+    g.destroy();
+  }
+  assert.equal(sizes.size, 1, 'opening draw pile is constant regardless of cut depth');
+  assert.ok(sizes.has(110 - 2 * 15 - 1), '110 - hands - 1 discard');
 });
 
-test('set-aside: with 4 players even the deepest allowed cut leaves enough to deal', () => {
+test('with 4 players even the deepest allowed cut deals 15 everywhere', () => {
   for (let i = 0; i < 30; i++) {
     const { g } = humanGame(4);
     g.startNewRound();
     g.performCut(g.cutterId, 1); // maximal tief
     for (const p of g.players) assert.equal(p.hand.length, 15);
-    assert.ok(g.drawPile.length >= 1, 'a draw pile remains');
+    assert.equal(g.drawPile.length + 61, 110 - (15 * 4 - g.players.reduce((a, p) => a + p.hand.length, 0)),
+      'balance via hands');
     assert.equal(
-      g.players.reduce((a, p) => a + p.hand.length, 0) +
-        g.drawPile.length + g.discardPile.length + g.setAsidePile.length,
+      g.players.reduce((a, p) => a + p.hand.length, 0) + g.drawPile.length + g.discardPile.length,
       110
     );
     g.destroy();
   }
 });
 
-test('set-aside: seeded challenge rounds stay deterministic under the new rule', () => {
+test('seeded challenge rounds stay deterministic under the corrected cut rule', () => {
   const run = () => {
     const GM = require('../game/GameManager');
     const g = new GM(() => {}, { deckSeed: 777, challengeDate: '2026-07-13' });
@@ -331,9 +323,9 @@ test('set-aside: seeded challenge rounds stay deterministic under the new rule',
     g.fillWithBots();
     g.startNewRound();
     const sig = g.players.map((p) => p.hand.map((cd) => cd.id).join(',')).join('|') +
-      '#' + g.setAsidePile.map((cd) => cd.id).join(',');
+      '#' + g.drawPile.map((cd) => cd.id).join(',');
     g.destroy();
     return sig;
   };
-  assert.equal(run(), run(), 'identical hands AND identical set-aside packet');
+  assert.equal(run(), run(), 'identical hands AND identical draw pile order');
 });

@@ -95,12 +95,12 @@ function shuffle(deck, seed) {
  * @returns {{ luckyCards: Array, remaining: Array }}
  */
 function performLuckyCut(deck, cutIndex) {
-  // FAMILY RULE (v1.71): cutting SETS A PACKET ASIDE. Everything BEFORE the
-  // cut spot plus the cut card itself (the 'stopper') is put aside for the
-  // round - not dealt, not in the draw pile. Only the part AFTER the stopper
-  // is played with. Lucky cards (Queen of Spades / jokers AT the spot) still
-  // go straight into the cutter's hand as before; the next ordinary card then
-  // counts as the cut card and leaves with the packet.
+  // FAMILY RULE (corrected v1.78): cutting only decides WHERE dealing starts.
+  // Lucky cards (Queen of Spades / jokers AT the spot) go straight into the
+  // cutter's hand; dealing then proceeds from the part BEHIND the cut, and
+  // the lifted packet goes back UNDERNEATH the draw pile afterwards - it
+  // never leaves the game. (The v1.71 'packet stays out for the round' was a
+  // misreading of the family rule; the opening draw pile is constant again.)
   const idx0 = Math.max(0, Math.min(cutIndex, deck.length - 1));
   const isLucky = (card) => card && (card.isJoker || isPikDame(card));
   const luckyCards = [];
@@ -109,10 +109,11 @@ function performLuckyCut(deck, cutIndex) {
     luckyCards.push(deck[i]);
     i += 1;
   }
+  // The stopper is merely LOOKED AT (shown to the cutter); it stays on top of
+  // the rear part and is simply the first card dealt.
   const stopper = i < deck.length ? deck[i] : null;
-  const setAside = deck.slice(0, idx0).concat(stopper ? [stopper] : []);
-  const remaining = deck.slice(stopper ? i + 1 : i);
-  return { luckyCards, remaining, stopper, setAside };
+  const remaining = deck.slice(i).concat(deck.slice(0, idx0));
+  return { luckyCards, remaining, stopper };
 }
 
 function dealCards(deck, playerIds, options = {}) {

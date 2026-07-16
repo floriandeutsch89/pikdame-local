@@ -20,16 +20,17 @@ DEFAULT_PATH = os.path.join(REPO_ROOT, "data", "human-moves.jsonl")
 def load_winner_moves(
     path: str = DEFAULT_PATH,
     phase: Optional[str] = None,
-    min_rules_version: int = 2,
+    min_rules_version: int = 3,
     completed_only: bool = True,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Return (obs, action, mask) arrays for the moves of winning humans.
 
     phase: optionally restrict to 'draw' or 'discard' (None = both).
     min_rules_version: drop rows recorded under older game rules. Rows without
-        an `rv` field are implicitly version 1 (pre set-aside/no-refill) - the
-        default of 2 therefore excludes ALL data collected before v1.71/v1.74,
-        because those decisions were made in a different game.
+        an `rv` field are implicitly version 1. The default of 3 keeps only
+        data from the CURRENT rules (v1.78+: the cut packet returns to the
+        draw pile); rv=2 rows came from the interim set-aside rules and rv=1
+        from before that - both were a different game.
     completed_only: drop rows from games that were not played to the end
         (forfeited games teach half strategies). Rows without an `outcome`
         field predate the tag and are version-1 anyway.

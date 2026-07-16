@@ -1,5 +1,5 @@
 // game/GameManager.js
-const { seededRandom, createDeck, shuffle, dealCards, performLuckyCut, HAND_SIZE } = require('./Deck');
+const { seededRandom, createDeck, shuffle, dealCards, performLuckyCut } = require('./Deck');
 
 // Wie lange der Abheber Zeit hat, die Stelle zu wählen, bevor automatisch
 // abgehoben wird. Bewusst auch OHNE aktivierten Zug-Timer begrenzt: Abheben
@@ -455,18 +455,13 @@ class GameManager {
     this._completeRoundStart(deck, autoIndex);
   }
 
-  /**
-   * Erlaubter Abhebe-Bereich. Seit der Familienregel (v1.71) wird der
-   * abgehobene Packen BEISEITEGELEGT - je tiefer der Schnitt, desto weniger
-   * Karten bleiben im Spiel. Die Obergrenze garantiert, dass nach dem
-   * Beiseitelegen immer verteilt werden kann (15 Karten pro Spieler + Start
-   * der Ablage + Mindest-Nachziehstapel). Die Glückskarten kürzen sich dabei
-   * heraus: Was der Abheber ergattert, muss nicht mehr verteilt werden.
-   */
+  /** Erlaubter Abhebe-Bereich (symmetrisch von den Rändern geklemmt). */
   _cutBounds(deckLen) {
-    const players = Math.max(2, this.players.length);
+    // Cutting only picks the dealing start - the lifted packet returns to the
+    // draw pile, so (almost) any depth is fine. Clamped away from the very
+    // edges: cutting the outermost cards would not be a cut at all.
     const lo = 10;
-    const hi = Math.max(lo, deckLen - (players * HAND_SIZE + 11));
+    const hi = Math.max(lo, deckLen - 10);
     return { lo, hi };
   }
 
@@ -515,19 +510,11 @@ class GameManager {
     let luckyCards = [];
     let cutter = null;
     this.lastCutReveal = null;
-    this.setAsidePile = [];
     if (this.players.length >= 2 && cutIndex >= 0) {
       cutter = this.players[(this.dealerIndex - 1 + this.players.length) % this.players.length];
       const cut = performLuckyCut(deck, cutIndex);
       luckyCards = cut.luckyCards;
       deck = cut.remaining;
-      // Familienregel: der abgehobene Packen (alles vor der Abhebestelle plus
-      // die Abhebekarte) ist für diese Runde KOMPLETT aus dem Spiel - er wird
-      // auch bei leerem Nachziehstapel nicht nachgelegt.
-      this.setAsidePile = cut.setAside;
-      if (cut.setAside.length > 0) {
-        this.addLog(`${cut.setAside.length} Karten werden mit dem Abheben beiseitegelegt.`);
-      }
       if (luckyCards.length > 0) {
         skips[cutter.id] = luckyCards.length;
       }
@@ -2208,7 +2195,6 @@ class GameManager {
       // Pause-Knopf wirkte dadurch komplett kaputt.
       paused: !!this.paused,
       pauseVotes: this._pauseVotes ? [...this._pauseVotes] : [],
-      setAsideCount: Array.isArray(this.setAsidePile) ? this.setAsidePile.length : 0,
       discardTop: this.discardPile[0] || null,
       discardPileCount: this.discardPile.length,
       tableMelds: this.tableMelds,

@@ -41,12 +41,13 @@ const LOG_PATH = process.env.PIKDAME_LOG_PATH || path.join(__dirname, '..', 'dat
  * was collected under different game rules:
  *   1 = up to v1.70: discard pile recycled on an empty draw pile, no set-aside
  *       cut packet (rows without an `rv` field are implicitly version 1)
- *   2 = since v1.71/v1.74: the cut packet is set aside for the whole round,
- *       NOTHING is refilled on an empty draw pile, and a player who cannot
- *       pick up the discard top ends the round (normal scoring)
+ *   2 = v1.71..v1.77: the cut packet was set aside for the whole round,
+ *       nothing refilled on an empty draw pile, empty-pile round end
+ *   3 = since v1.78: the cut packet RETURNS to the draw pile (constant
+ *       opening pile again); empty-pile round end and no-reshuffle unchanged
  * Bump this whenever a gameplay rule changes the decision environment.
  */
-const RULES_VERSION = 2;
+const RULES_VERSION = 3;
 
 function enabled() {
   // On by default; only an explicit 0/false/off turns human-move logging off.

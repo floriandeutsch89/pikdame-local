@@ -17,16 +17,15 @@ For the exact numbers the engine plays with, see {doc}`developer/game-constants`
 ### A round starts
 
 The dealer rotates each round. Before dealing, the player to the dealer's
-right **cuts the deck** — picking the spot themselves. **The cut packet is
-set aside:** every card before the cut spot plus the cut card itself leaves
-the round — only the rest is dealt and drawn from. Nothing is ever refilled: when the
-draw pile runs dry, a player who cannot pick up the discard top ends the
-round (normal scoring, no winner bonus; neither the packet nor the discard
-pile comes back). If the Queen of Spades or jokers sit at
+right **cuts the deck** — picking the spot themselves. **Dealing starts at
+the cut spot;** the lifted packet then returns to the draw pile, so no card
+ever leaves the game and the opening draw pile has a constant size. Nothing
+is ever refilled once play begins: when the draw pile runs dry, a player who
+cannot pick up the discard top ends the round (normal scoring, no winner
+bonus; the discard pile is never reshuffled). If the Queen of Spades or jokers sit at
 the cut, the cutter keeps them (**lucky cut**, announced to the whole table)
 and looks at the next card, until an ordinary card ends the run — that card
-then counts as the cut card, is shown to the cutter only, and leaves with the
-packet. Dealing skips the cutter accordingly, so everyone starts with exactly
+is shown to the cutter only and stays in play as the first card dealt. Dealing skips the cutter accordingly, so everyone starts with exactly
 15 cards. (Bots and the daily challenge cut automatically — the challenge
 must stay deterministic so the whole world plays the identical deck.)
 
