@@ -329,3 +329,22 @@ test('seeded challenge rounds stay deterministic under the corrected cut rule', 
   };
   assert.equal(run(), run(), 'identical hands AND identical draw pile order');
 });
+
+// --- v1.78.1: Challenge-Rematch ('Noch mal probieren') ---------------------------
+test('challenge rematch: round 1 after prepareRematch deals the identical daily deck', () => {
+  const GM = require('../game/GameManager');
+  const g = new GM(() => {}, { deckSeed: 4242, challengeDate: '2026-07-15' });
+  g.addOrReconnectPlayer('p1', 'Flo');
+  g.fillWithBots();
+  g.startNewRound();
+  const firstSig = g.players.map((p) => p.hand.map((cd) => cd.id).join(',')).join('|');
+  g.finishRound(g.players[0].id);
+  g.prepareRematch();
+  assert.equal(g.phase, 'lobby');
+  assert.equal(g.challengeDate, '2026-07-15', 'challenge context survives the rematch');
+  g.fillWithBots();
+  g.startNewRound();
+  const secondSig = g.players.map((p) => p.hand.map((cd) => cd.id).join(',')).join('|');
+  assert.equal(secondSig, firstSig, 'same daily deck, fresh attempt');
+  g.destroy();
+});

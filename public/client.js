@@ -1718,7 +1718,11 @@
     }
     if (isGameOver) {
       contBtn.disabled = false;
-      contBtn.textContent = L('Neue Partie (Rematch)', 'New game (rematch)');
+      // Challenge: dieselbe Tages-Herausforderung noch einmal versuchen -
+      // gleiches Deck, frische Chance (der Server startet solo direkt neu).
+      contBtn.textContent = lastState.challengeDate
+        ? L('🔁 Noch mal probieren', '🔁 Try again')
+        : L('Neue Partie (Rematch)', 'New game (rematch)');
     } else {
       const humans = (lastState.players || []).filter((p) => !p.isBot && p.connected);
       const ready = new Set(lastState.nextRoundReady || []);
