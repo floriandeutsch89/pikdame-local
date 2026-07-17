@@ -60,3 +60,24 @@ test('CHANGELOG: Versionen stehen streng absteigend (neueste ganz oben)', () => 
     assert.ok(newerFirst, `Reihenfolge kaputt: ${a.join('.')} steht vor ${b.join('.')}`);
   }
 });
+
+// --- v1.78.1: UI-Größenstufen dürfen die Hand nie sprengen ----------------------
+test('CSS contract: every uiscale card height fits into the matching #hand min-height', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'style.css'), 'utf8');
+  const FAN_DIP = 6; // capped fan dip (see #hand base comment)
+  const baseHand = Number((css.match(/#hand \{[^}]*min-height:\s*(\d+)px/s) || [])[1]);
+  const baseCard = Number((css.match(/\.card \{[^}]*height:\s*(\d+)px/s) || [])[1]);
+  assert.ok(baseHand >= baseCard + FAN_DIP, `base: hand ${baseHand} >= card ${baseCard}+dip`);
+  for (const scale of ['large', 'xlarge']) {
+    const cardM = css.match(new RegExp(`html\\[data-uiscale="${scale}"\\] #hand \\.card[^{]*\\{[^}]*height:\\s*(\\d+)px`));
+    assert.ok(cardM, `${scale}: card height rule exists`);
+    const cardH = Number(cardM[1]);
+    // Die Stufe muss eine EIGENE #hand-min-height mitbringen, sobald ihre
+    // Karten höher sind als die Basis-Reserve - sonst ragen die Karten über
+    // die Werkzeugleiste (Live-Bug-Report mit Foto, uiscale xlarge).
+    const handM = css.match(new RegExp(`html\\[data-uiscale="${scale}"\\] #hand \\{[^}]*min-height:\\s*(\\d+)px`));
+    const handH = handM ? Number(handM[1]) : baseHand;
+    assert.ok(handH >= cardH + FAN_DIP,
+      `${scale}: #hand min-height ${handH}px must cover card ${cardH}px + ${FAN_DIP}px fan dip`);
+  }
+});

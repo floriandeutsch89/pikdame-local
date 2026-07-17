@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.78.1] - 2026-07-15
+
+### Fixed
+- **Handkarten sprengten bei UI-Größe „groß"/„sehr groß" den Rahmen** (Foto-Report, PWA und Browser): Die Größenstufen vergrößerten die Karten (bis 112 px), der Hand-Container behielt aber seine Basis-Höhe für 90-px-Karten - die Karten ragten über die Werkzeugleiste, mit ausgewählten Karten (+32 px Anhebung) besonders deutlich. Jede Stufe bringt jetzt die passende Container-Höhe mit (im knappen Querformat entsprechend zurückgenommen). Ein neuer CSS-Vertragstest erzwingt maschinell, dass **jede** Kartengröße in ihren Container passt - er war vor dem Fix rot
+
+### Changed
+- **Challenge: „Noch mal probieren":** Nach einer Tages-Challenge heißt der Knopf am Spielende nicht mehr „Neue Partie (Rematch)", sondern **„🔁 Noch mal probieren"** - und startet solo **direkt** dieselbe Challenge neu (gleiches Tages-Deck, deterministisch identische Runde 1, per Test zugesichert), ohne Umweg über die Lobby. Mit mehreren Menschen bleibt das Bereit-Gate erhalten
+
 ## [1.78.0] - 2026-07-15
 
 ### Changed

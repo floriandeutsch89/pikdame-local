@@ -865,6 +865,16 @@ wss.on('connection', (ws, req) => {
       case 'rematch': {
         // Neue Partie mit denselben (noch verbundenen) Spielern.
         game.prepareRematch();
+        // Challenge-Solo ('Noch mal probieren'): direkt wieder ins heutige
+        // Deck springen statt in der Lobby zu landen - challengeDate und
+        // deckSeed überleben prepareRematch, roundNumber startet bei 0, also
+        // ist Runde 1 deterministisch identisch. Mit mehreren Menschen bleibt
+        // das Lobby-Bereit-Gate (alle sollen zustimmen).
+        const humans = game.players.filter((p) => !p.isBot && p.connected !== false);
+        if (game.challengeDate && humans.length === 1) {
+          game.fillWithBots();
+          game.startNewRound();
+        }
         break;
       }
       case 'exportLastGame': {

@@ -1410,11 +1410,15 @@ html[data-uiscale="xlarge"] { font-size: 19px; }
 
 html[data-uiscale="large"] #hand .card,
 html[data-uiscale="large"] #melds .card { width: 68px; height: 100px; min-width: 68px; }
+/* Größere Karten brauchen einen größeren Hand-Container - sonst ragen sie
+   über die Werkzeugleiste (Live-Bug mit Foto: xlarge + Auswahl). */
+html[data-uiscale="large"] #hand { min-height: 106px; } /* card 100 + fan dip */
 html[data-uiscale="large"] .pile-card { width: 60px; height: 84px; }
 html[data-uiscale="large"] .card-compact { width: 36px; height: 51px; min-width: 36px; }
 
 html[data-uiscale="xlarge"] #hand .card,
 html[data-uiscale="xlarge"] #melds .card { width: 76px; height: 112px; min-width: 76px; }
+html[data-uiscale="xlarge"] #hand { min-height: 118px; } /* card 112 + fan dip */
 html[data-uiscale="xlarge"] .pile-card { width: 66px; height: 93px; }
 html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width: 40px; }
 
@@ -1426,6 +1430,8 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   html[data-uiscale="xlarge"] #melds .card { width: 40px; height: 56px; min-width: 40px; }
   html[data-uiscale="large"] .pile-card,
   html[data-uiscale="xlarge"] .pile-card { width: 40px; height: 56px; }
+  html[data-uiscale="large"] #hand,
+  html[data-uiscale="xlarge"] #hand { min-height: 68px; } /* card 62 + fan dip */
 }
 
 /* --- Version & Changelog --------------------------------------------------- */
