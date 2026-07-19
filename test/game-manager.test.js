@@ -2111,3 +2111,27 @@ test('leaveLobby frees the seat, cleans ready gate and re-syncs bots; blocked mi
   assert.ok(r2.error && /Lobby/.test(r2.error), 'mid-game leaving is refused');
   g.destroy();
 });
+
+// --- v1.78.2: Challenge-Verlauf ('7 Tage sichtbar' wörtlich genommen) -----------
+test('challenge history lists past days with winner and own rank; empty past days skipped', () => {
+  const os = require('node:os');
+  const path = require('node:path');
+  const { createChallengeStore, todayUTC } = require('../game/ChallengeStore');
+  const store = createChallengeStore(path.join(os.tmpdir(), `ch-${Date.now()}.json`));
+  const now = Date.now();
+  const d0 = todayUTC(now), d1 = todayUTC(now - 86400000), d3 = todayUTC(now - 3 * 86400000);
+  store.submit(d3, 'Flo', 500, now - 3 * 86400000);
+  store.submit(d3, 'Anna', 800, now - 3 * 86400000);
+  store.submit(d1, 'Flo', 650, now - 86400000);
+  store.submit(d0, 'Flo', 700, now);
+  const h = store.getHistory('Flo', 3, now);
+  assert.equal(h[0].date, d0, 'today first');
+  const day1 = h.find((d) => d.date === d1);
+  const day3 = h.find((d) => d.date === d3);
+  assert.ok(day1 && day3, 'past days with entries are listed');
+  assert.equal(day3.top[0].name, 'Anna', 'daily winner shown');
+  assert.equal(day3.yourRank, 2, 'own rank per day');
+  assert.equal(day1.yourScore, 650);
+  // Tage ohne Einträge (z. B. vorgestern) erscheinen nicht
+  assert.ok(!h.some((d) => d.players === 0 && d.date !== d0), 'empty past days skipped');
+});

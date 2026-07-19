@@ -136,6 +136,11 @@
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 html {
+  /* iOS: Double-Tap auf leeren Flächen löste trotz user-scalable=no einen
+     Smart-Zoom/Bild-Versatz aus (PWA-Report). 'manipulation' erlaubt Pan und
+     Pinch (Pinch ist per Viewport eh aus), deaktiviert aber den Doppeltipp-
+     Zoom - und entfernt nebenbei die 300-ms-Tipp-Verzögerung. */
+  touch-action: manipulation;
   /* Dunkle GRUNDFARBE auf dem Wurzelelement: deckt im PWA-/Standalone-Modus
      auch Overscroll und den Bereich unter der Home-Indicator-Zone ab
      (vorher blitzte dort das weisse Browser-Canvas durch). */
@@ -714,8 +719,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 #hand {
   display: flex; justify-content: flex-start;
-  padding: 0 20px;
-  min-height: 96px; /* card 90 + capped fan dip (6px) */
+  padding: 14px 20px 0; /* oben: Platz für die Auswahl-Anhebung (top: -14px) */
+  min-height: 110px; /* card 90 + fan dip (6) + selection lift (14) */
   margin: 0 auto;
   width: max-content;
   max-width: 100%;
@@ -1007,6 +1012,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
    absolut mit negativem top - Safari clippt bei overflow-x:auto alles,
    was aus dem Container ragt (overflow-y wird dort als auto behandelt). */
 .handToolbar {
+  position: relative; z-index: 5; /* immer über den (ggf. angehobenen) Karten */
   display: flex;
   justify-content: flex-end;
   margin: -12px 2px 6px;
@@ -1412,13 +1418,13 @@ html[data-uiscale="large"] #hand .card,
 html[data-uiscale="large"] #melds .card { width: 68px; height: 100px; min-width: 68px; }
 /* Größere Karten brauchen einen größeren Hand-Container - sonst ragen sie
    über die Werkzeugleiste (Live-Bug mit Foto: xlarge + Auswahl). */
-html[data-uiscale="large"] #hand { min-height: 106px; } /* card 100 + fan dip */
+html[data-uiscale="large"] #hand { min-height: 120px; } /* card 100 + dip + lift */
 html[data-uiscale="large"] .pile-card { width: 60px; height: 84px; }
 html[data-uiscale="large"] .card-compact { width: 36px; height: 51px; min-width: 36px; }
 
 html[data-uiscale="xlarge"] #hand .card,
 html[data-uiscale="xlarge"] #melds .card { width: 76px; height: 112px; min-width: 76px; }
-html[data-uiscale="xlarge"] #hand { min-height: 118px; } /* card 112 + fan dip */
+html[data-uiscale="xlarge"] #hand { min-height: 132px; } /* card 112 + dip + lift */
 html[data-uiscale="xlarge"] .pile-card { width: 66px; height: 93px; }
 html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width: 40px; }
 
@@ -1431,7 +1437,7 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   html[data-uiscale="large"] .pile-card,
   html[data-uiscale="xlarge"] .pile-card { width: 40px; height: 56px; }
   html[data-uiscale="large"] #hand,
-  html[data-uiscale="xlarge"] #hand { min-height: 68px; } /* card 62 + fan dip */
+  html[data-uiscale="xlarge"] #hand { min-height: 82px; } /* card 62 + dip + lift */
 }
 
 /* --- Version & Changelog --------------------------------------------------- */
@@ -2084,3 +2090,12 @@ input:disabled { opacity: 0.65; }
   color: #14142a;
 }
 .resultPane { min-height: 40px; }
+
+/* --- Challenge: Rückblick auf vergangene Tage ------------------------------ */
+.challengeHistory { margin-top: 8px; font-size: 0.88em; opacity: 0.9; }
+.challengeHistory summary { cursor: pointer; opacity: 0.85; padding: 3px 0; }
+.challengeHistDay {
+  display: flex; justify-content: space-between; gap: 10px;
+  padding: 2px 0; border-top: 1px solid var(--glass-border);
+}
+.challengeHistDay span:first-child { opacity: 0.75; font-variant-numeric: tabular-nums; }

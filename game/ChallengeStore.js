@@ -71,7 +71,35 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
     return idx === -1 ? null : idx + 1;
   }
 
-  return { submit, getBoard, rankOf };
+  /**
+   * The last KEEP_DAYS days at a glance (today first): per day the top
+   * entries plus - if a name is given - that player's own score and rank.
+   * This is what makes '7 Tage sichtbar' actually TRUE in the UI: before,
+   * only the current day was ever shown and yesterday silently vanished
+   * from view although the data was still there.
+   */
+  function getHistory(name = null, top = 3, now = Date.now()) {
+    const store = load();
+    const days = [];
+    for (let i = 0; i < KEEP_DAYS; i++) {
+      const date = todayUTC(now - i * 24 * 3600 * 1000);
+      const list = store.days[date] || [];
+      if (list.length === 0 && i > 0) continue; // leere Vortage nicht auflisten
+      const me = name
+        ? list.findIndex((e) => e.name.toLowerCase() === String(name).toLowerCase())
+        : -1;
+      days.push({
+        date,
+        top: list.slice(0, top).map((e, idx) => ({ rank: idx + 1, name: e.name, score: e.score })),
+        yourScore: me === -1 ? null : list[me].score,
+        yourRank: me === -1 ? null : me + 1,
+        players: list.length,
+      });
+    }
+    return days;
+  }
+
+  return { submit, getBoard, rankOf, getHistory };
 }
 
 module.exports = { createChallengeStore, seedForDate, todayUTC, DEFAULT_DATA_FILE };

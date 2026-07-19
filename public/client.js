@@ -1245,9 +1245,10 @@
         // clipped below the bar. 6px keeps the fan feel without strays.
         const lift = Math.min(6, Math.abs(offset) * 1.2);
         cEl.style.transform = `rotate(${rotate}deg) translateY(${lift}px)`;
-        if (selectedCardIds.has(card.id)) {
-          cEl.style.transform += ' translateY(-18px)';
-        }
+        // Die Auswahl-Anhebung kommt AUSSCHLIESSLICH aus CSS (.card.selected
+        // { top: -14px }) - die frühere zusätzliche translateY(-18px) hier
+        // war redundant und hob Karten 32px an, weit über die Reserve des
+        // Containers (Foto-Report: Karten über der Werkzeugleiste).
         handDiv.appendChild(cEl);
         pendingDealCards.push(cEl);
       });
@@ -2400,9 +2401,26 @@
     const rows = (b.board || [])
       .map((e) => `<tr${e.rank === b.yourRank ? ' class="winnerRow"' : ''}><td>${e.rank}.</td><td>${escapeHtml(e.name)}</td><td>${e.score}</td></tr>`)
       .join('');
+    // '7 Tage sichtbar' jetzt wörtlich: kompakter Rückblick auf die letzten
+    // Tage (Tagessieger + eigener Platz), aufklappbar unter der Tagesliste.
+    const past = (b.history || []).filter((d) => d.date !== b.date && (d.players > 0 || d.yourScore != null));
+    const histRows = past
+      .map((d) => {
+        const win = d.top && d.top[0]
+          ? `🥇 ${escapeHtml(d.top[0].name)} · ${d.top[0].score}`
+          : L('keine Teilnahmen', 'no entries');
+        const mine = d.yourScore != null
+          ? ` — ${L(`du: ${d.yourScore} (Platz ${d.yourRank})`, `you: ${d.yourScore} (rank ${d.yourRank})`)}`
+          : '';
+        return `<div class="challengeHistDay"><span>${escapeHtml(d.date)}</span><span>${win}${mine}</span></div>`;
+      })
+      .join('');
+    const histBlock = histRows
+      ? `<details class="challengeHistory"><summary>${L('Vergangene Tage', 'Past days')} (${past.length})</summary>${histRows}</details>`
+      : '';
     box.innerHTML = `<h3>🗓️ ${L('Tages-Challenge', 'Daily challenge')} ${escapeHtml(b.date)}</h3>
       <p class="challengeYour">${L(`Dein Ergebnis: ${b.yourScore} Punkte${b.yourRank ? ` · Platz ${b.yourRank}` : ''}`, `Your result: ${b.yourScore} points${b.yourRank ? ` · rank ${b.yourRank}` : ''}`)}</p>
-      <table class="statsTable"><tbody>${rows}</tbody></table>`;
+      <table class="statsTable"><tbody>${rows}</tbody></table>${histBlock}`;
     body.appendChild(box);
   }
 

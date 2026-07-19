@@ -518,6 +518,8 @@ const registry = new SessionRegistry((session) => {
             board,
             yourScore: score,
             yourRank: challengeStore.rankOf(gameRecord.challengeDate, human.name),
+            // Die versprochenen '7 Tage sichtbar': kompakter Rückblick
+            history: challengeStore.getHistory(human.name),
           });
         }
       }
