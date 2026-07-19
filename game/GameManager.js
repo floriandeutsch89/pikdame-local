@@ -542,6 +542,9 @@ class GameManager {
     }
     if (cutter && luckyCards.length > 0) {
       cutter.hand.push(...luckyCards);
+      // Ein menschlicher Glücksgriff lässt den Tisch staunen - selten genug,
+      // um besonders zu bleiben (Bots feiern ihre eigenen Griffe nicht).
+      if (!cutter.isBot) this.botsReact(cutter.id, '😱', 0.5, { force: true, fast: true });
     }
     this.drawPile = drawPile;
     this.discardPile = discardPile;
@@ -1404,8 +1407,8 @@ class GameManager {
   /** A laid/attached Pik Dame electrifies the table (same reaction wherever it
    *  happens - melded or laid off). */
   _celebratePikDame(playerId) {
-    this.maybeBotEmote(playerId, '🎉', 0.3, { force: true, minHand: 3 });
-    this.botsReact(playerId, '😱', 0.4, { force: true, minHand: 3 });
+    this.maybeBotEmote(playerId, '🎉', 0.3, { force: true, fast: true, minHand: 3 });
+    this.botsReact(playerId, '😱', 0.4, { force: true, fast: true, minHand: 3 });
   }
 
   /** In-game pause by unanimous consent. Toggling a vote; once every CONNECTED
@@ -1604,12 +1607,66 @@ class GameManager {
     // Alltags-Reaktionen (Grummeln, Bluff) bleiben auf max. 1 pro 5s je Bot.
     if (!opts.force && now - (this._lastBotEmote[botId] || 0) < 5000) return;
     this._lastBotEmote[botId] = now;
-    const delay = this._emoteDelayForTest !== undefined ? this._emoteDelayForTest : 300 + Math.random() * 1500;
+    // Highlights im Moment des Geschehens (Pik Dame!, Glücksgriff) nutzen ein
+    // kurzes Fenster - mit bis zu 1,8s wirkte die Reaktion 'nach dem Zug'
+    // (Spieler-Feedback). Antworten auf menschliche Emotes dürfen träger sein:
+    // gesehen, kurz überlegt, reagiert.
+    const delay = this._emoteDelayForTest !== undefined
+      ? this._emoteDelayForTest
+      : opts.fast
+        ? 150 + Math.random() * 550
+        : opts.reply
+          ? 700 + Math.random() * 1500
+          : 300 + Math.random() * 1500;
     const t = setTimeout(() => {
       this._emoteTimers.delete(t);
       this.onBotEmote(botId, emoji);
     }, delay);
     this._emoteTimers.add(t);
+  }
+
+  /**
+   * Social layer: at most ONE random bot answers a HUMAN emote (bots never
+   * answer bots - no cascades). Kept deliberately sparse: 45% chance, a
+   * table-wide 8s cooldown on replies, plus the per-bot 5s throttle. The
+   * reply arrives 0.7-2.2s later - 'seen it, thought a beat, answered'.
+   * Context special: an hourglass while a BOT is to move pokes exactly that
+   * bot (it feels rushed). Inspired by the small contextual AI reactions in
+   * games like Catan online.
+   */
+  respondToHumanEmote(senderId, emoji) {
+    const sender = this.players.find((p) => p.id === senderId);
+    if (!sender || sender.isBot) return;
+    const now = Date.now();
+    if (now - (this._lastEmoteReplyAt || 0) < 8000) return;
+    const REPLIES = {
+      '👍': [['👍', 0.6], ['🎉', 0.4]],
+      '😂': [['😂', 0.7], ['😤', 0.3]],
+      '😱': [['😱', 0.5], ['😂', 0.5]],
+      '😤': [['😂', 0.6], ['👍', 0.4]],
+      '🎉': [['🎉', 0.6], ['👍', 0.4]],
+      '⏳': [['😤', 0.5], ['⏳', 0.5]],
+      pikdame: [['😱', 0.7], ['😂', 0.3]],
+    };
+    const options = REPLIES[emoji];
+    if (!options) return;
+    // Kontext: gedrängelter Bot antwortet selbst; sonst ein zufälliger Bot.
+    const current = this.currentPlayer && this.phase === 'playing' ? this.currentPlayer() : null;
+    let bot = emoji === '⏳' && current && current.isBot ? current : null;
+    if (!bot) {
+      const bots = this.players.filter((p) => p.isBot && p.id !== senderId);
+      if (bots.length === 0) return;
+      bot = bots[Math.floor(Math.random() * bots.length)];
+    }
+    const chance = emoji === '⏳' && current && current.isBot ? 0.6 : 0.45;
+    let roll = Math.random();
+    let reply = options[options.length - 1][0];
+    for (const [e, p] of options) {
+      if (roll < p) { reply = e; break; }
+      roll -= p;
+    }
+    this._lastEmoteReplyAt = now;
+    this.maybeBotEmote(bot.id, reply, chance, { force: true, reply: true });
   }
 
   /** Alle Bots AUSSER excludeId reagieren mit gegebener Chance. */
