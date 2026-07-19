@@ -3300,29 +3300,52 @@
       `uiscale: ${document.documentElement.dataset.uiscale || 'normal'}  w: ${window.innerWidth}`,
       `outlines: app=rot screen=orange handWrap=cyan hand=gelb`,
     ];
-    el('debugPanel').textContent = lines.join('\n');
+    const panel = el('debugPanel');
+    if (panel) panel.textContent = lines.join('\n');
   }
   function applyDebugMode() {
-    const on = debugEnabled();
-    document.documentElement.classList.toggle('debugMode', on);
-    el('debugGrid').classList.toggle('hidden', !on);
-    el('debugPanel').classList.toggle('hidden', !on);
-    const label = on ? L('🐞 Debug: An', '🐞 Debug: On') : L('🐞 Debug: Aus', '🐞 Debug: Off');
-    el('debugBtnLobby').textContent = label;
-    clearInterval(debugTimer);
-    if (on) {
-      updateDebugPanel();
-      debugTimer = setInterval(updateDebugPanel, 1000);
+    // KRITISCHE LEKTION (Live-Ausfall): Beim PWA-Start kann kurzzeitig ALTES
+    // Markup (ohne die Debug-Elemente) mit NEUEM Script kombiniert sein -
+    // iOS revalidiert das Start-HTML nicht immer, trotz no-cache. Ein
+    // ungefangener null-Zugriff hier brach den gesamten Init ab, BEVOR
+    // connect() lief: 'Neues Spiel', 'Beitreten' und 'Tutorial' waren tot,
+    // und ausgerechnet die Auto-Update-Selbstheilung (Versions-Stempel ->
+    // Reload) kam nie zum Zug. Ein OPTIONALES Feature darf den kritischen
+    // Startpfad niemals töten: alles hier ist null-sicher und gefangen.
+    try {
+      const on = debugEnabled();
+      const grid = el('debugGrid');
+      const panel = el('debugPanel');
+      document.documentElement.classList.toggle('debugMode', on);
+      if (grid) grid.classList.toggle('hidden', !on);
+      if (panel) panel.classList.toggle('hidden', !on);
+      const btnLobby = el('debugBtnLobby');
+      if (btnLobby) {
+        btnLobby.textContent = on ? L('🐞 Debug: An', '🐞 Debug: On') : L('🐞 Debug: Aus', '🐞 Debug: Off');
+      }
+      clearInterval(debugTimer);
+      if (on && panel) {
+        updateDebugPanel();
+        debugTimer = setInterval(updateDebugPanel, 1000);
+      }
+    } catch (e) {
+      /* Debug ist Komfort - nie kritisch */
     }
   }
   function toggleDebugMode() {
     storageSet(DEBUG_KEY, debugEnabled() ? 'off' : 'on');
     applyDebugMode();
   }
-  el('debugBtnLobby').addEventListener('click', toggleDebugMode);
-  el('debugBtn').addEventListener('click', toggleDebugMode);
-  window.addEventListener('resize', () => { if (debugEnabled()) updateDebugPanel(); });
-  applyDebugMode();
+  try {
+    const dbgLobby = el('debugBtnLobby');
+    const dbgGame = el('debugBtn');
+    if (dbgLobby) dbgLobby.addEventListener('click', toggleDebugMode);
+    if (dbgGame) dbgGame.addEventListener('click', toggleDebugMode);
+    window.addEventListener('resize', () => { if (debugEnabled()) updateDebugPanel(); });
+    applyDebugMode();
+  } catch (e) {
+    /* siehe oben: optional bricht nie den Start */
+  }
 
   let resizeTimer = null;
   window.addEventListener('resize', () => {
