@@ -131,7 +131,51 @@ setTimeout(() => {
         for (const e of errors) console.error('  -', e);
         process.exit(1);
       }
-      console.log('CLIENT BOOT SMOKE: OK (lobby + playing + roundEnd tabs rendered without errors)');
+      // ZWEITER LAUF - 'Cache-Versatz': NEUES client.js auf ALTEM Markup.
+      // Live-Ausfall v1.79.0: iOS kombinierte gecachtes HTML (ohne Debug-
+      // Elemente) mit frischem Script; ein null-Zugriff im optionalen
+      // Debug-Init brach den Boot VOR connect() ab - alle Menü-Buttons tot.
+      // Der Boot muss auch ohne neu eingeführte DOM-Elemente durchlaufen
+      // und die WebSocket-Verbindung erreichen.
+      const dom2 = new JSDOM(html, { url: 'https://play.example/', runScripts: 'outside-only', pretendToBeVisual: true });
+      const w2 = dom2.window;
+      for (const id of ['debugGrid', 'debugPanel', 'debugBtnLobby', 'debugBtn']) {
+        const n = w2.document.getElementById(id);
+        if (n) n.remove();
+      }
+      w2.matchMedia = window.matchMedia;
+      w2.navigator.vibrate = () => true;
+      w2.scrollTo = () => {};
+      w2.fetch = window.fetch;
+      w2.AudioContext = window.AudioContext;
+      w2.webkitAudioContext = window.AudioContext;
+      let ws2 = null;
+      w2.WebSocket = class {
+        constructor() { ws2 = this; this._ls = {}; this.readyState = 1; }
+        addEventListener(t, f) { (this._ls[t] = this._ls[t] || []).push(f); }
+        removeEventListener() {}
+        send() {}
+        close() {}
+      };
+      const errors2 = [];
+      w2.onerror = (msg) => errors2.push(String(msg));
+      for (const src of ['i18n.js', 'client.js']) {
+        try {
+          w2.eval(fs.readFileSync(path.join(pub, src), 'utf8'));
+        } catch (e) {
+          errors2.push(`stale-markup boot threw in ${src}: ${e.message}`);
+        }
+      }
+      if (errors2.length) {
+        console.error('CLIENT BOOT SMOKE: FAILED (stale-markup run)');
+        for (const e of errors2) console.error('  -', e);
+        process.exit(1);
+      }
+      if (!ws2) {
+        console.error('CLIENT BOOT SMOKE: FAILED (stale-markup run) - connect() was never reached, WebSocket not created');
+        process.exit(1);
+      }
+      console.log('CLIENT BOOT SMOKE: OK (lobby + playing + roundEnd tabs + stale-markup boot reached connect())');
       process.exit(0);
     }, 120);
   } catch (e) {

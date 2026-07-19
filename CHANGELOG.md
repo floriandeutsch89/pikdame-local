@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.79.1] - 2026-07-16
+
+### Fixed
+- **Hauptmenü tot („Neues Spiel", „Beitreten", „Tutorial" ohne Funktion) - kritischer Hotfix:** Beim PWA-Start kann iOS kurzzeitig altes, gecachtes HTML mit dem neuen Script kombinieren. Das frische Debug-Overlay (1.79.0) griff dann auf noch nicht vorhandene Elemente zu, der ungefangene Fehler brach den Start **vor** dem Verbindungsaufbau ab - und verhinderte ausgerechnet die eingebaute Selbstheilung (Versions-Stempel → automatischer Reload). Der Debug-Start ist jetzt vollständig abgesichert (ein optionales Feature darf den kritischen Startpfad nie brechen), und der Client-Rauchtest fährt zusätzlich einen „Cache-Versatz"-Lauf: neues Script auf altem Markup muss booten und die Verbindung erreichen - dieser Test schlägt mit dem 1.79.0-Stand exakt mit dem Live-Fehler fehl
+
 ## [1.79.0] - 2026-07-16
 
 ### Added
