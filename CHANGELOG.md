@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.78.3] - 2026-07-16
+
+### Fixed
+- **PWA: Lücke unter der Handleiste bzw. (nach Doppeltipp) oben** - beides dieselbe Ursache: Beim PWA-Kaltstart lieferte die gemessene Fensterhöhe zeitweise einen zu kleinen Wert, der App-Container blieb kürzer als der Bildschirm und ließ sich im entstandenen Spielraum verschieben. Das ist der Spiegelfall des v1.72-Bugs (damals meldete `100dvh` zu wenig, die Messung rettete; jetzt umgekehrt). Die Container-Höhe nimmt jetzt per `max()` **die größere beider Quellen** - damit ist der Viewport in beiden Fehlerbildern gefüllt. Zusätzlich: Messung über `visualViewport` (im Standalone verlässlicher) mit Kaltstart-Nachmessung, und die Gesamtseite ist als nicht verschiebbar markiert (`overscroll-behavior: none`)
+
 ## [1.78.2] - 2026-07-16
 
 ### Fixed

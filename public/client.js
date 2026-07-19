@@ -3260,9 +3260,18 @@
   // Unterkante). Wir messen die echte Höhe und stellen sie als CSS-Variable
   // bereit; die display-mode:standalone-Query in style.css nutzt sie.
   function setAppViewportHeight() {
-    document.documentElement.style.setProperty('--appvh', window.innerHeight + 'px');
+    // visualViewport ist im iOS-Standalone die verlässlichere Quelle; beim
+    // Kaltstart liefert innerHeight dort gern erst NACH dem ersten Layout
+    // den echten Wert (Live-Report: Lücke unten). CSS nimmt per max() ohnehin
+    // nie einen zu kleinen Wert an - hier sorgen wir für frische Messwerte.
+    const h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+    document.documentElement.style.setProperty('--appvh', Math.round(h) + 'px');
   }
   setAppViewportHeight();
+  setTimeout(setAppViewportHeight, 350);   // Kaltstart: nach dem ersten Layout nachmessen
+  window.addEventListener('pageshow', setAppViewportHeight);
+  window.addEventListener('orientationchange', () => setTimeout(setAppViewportHeight, 60));
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', setAppViewportHeight);
 
   let resizeTimer = null;
   window.addEventListener('resize', () => {

@@ -148,6 +148,9 @@ html {
 }
 html, body {
   margin: 0; padding: 0; height: 100%;
+  /* Die Gesamtseite ist nie scrollbar gemeint - ohne das konnte ein zu kurz
+     gemessener Container per Doppeltipp im Viewport 'wandern'. */
+  overscroll-behavior: none;
   font-family: var(--font);
   color: var(--text);
   overscroll-behavior: none;
@@ -2070,8 +2073,12 @@ input:disabled { opacity: 0.65; }
   /* Der eigentliche Übeltäter (per Screenshot diagnostiziert): 100dvh weicht
      im iOS-Standalone von der echten Fensterhöhe ab - unter der Handleiste
      blieb ein toter schwarzer Streifen. Die per JS gemessene innerHeight
-     (--appvh, siehe setAppViewportHeight) ist im PWA die Wahrheit. */
-  #app { height: var(--appvh, 100dvh); }
+     (--appvh, siehe setAppViewportHeight) war v1.72 die Rettung, als 100dvh
+     ZU KLEIN meldete. Live-Report v1.78.2 zeigte den SPIEGELFALL: Beim PWA-
+     Kaltstart kann innerHeight zu klein sein (Lücke unten, per Doppeltipp
+     nach oben verschiebbar). max() aus beiden Quellen ist beidseitig sicher:
+     die jeweils größere gewinnt, der Container füllt den Viewport immer. */
+  #app { height: max(var(--appvh, 100dvh), 100dvh); }
 }
 
 /* --- Rundenergebnis: Reiter Ergebnis | Statistik --------------------------- */
