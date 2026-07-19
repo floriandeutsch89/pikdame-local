@@ -537,7 +537,11 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 #melds {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 12px;
+  /* Extra Luft unten: die letzte Auslagen-Reihe schnitt sonst hart an der
+     Scroll-Kante ab und der Stapel-Glow strahlte darüber - sah wie ein
+     Überlappungs-Bug aus (Debug-Screenshot), war aber nur Scroll ohne
+     jeden Hinweis. */
+  padding: 8px 12px 20px;
   display: flex; flex-flow: row wrap; align-content: flex-start;
   gap: 8px;
 }
@@ -553,6 +557,13 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 
 
 /* Stapel: der beleuchtete Tisch-Spot */
+/* Scroll-Hinweis: solange unten weitere Auslagen liegen, blendet eine
+   weiche Fade-Kante aus - das Muster der Hand-Scrollkanten, vertikal. */
+#melds.canScrollDown {
+  -webkit-mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 26px), transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 26px), transparent 100%);
+}
+
 #centerPiles {
   position: relative;
   display: flex; justify-content: center; align-items: center; gap: 38px;
@@ -2118,13 +2129,14 @@ input:disabled { opacity: 0.65; }
 }
 #debugPanel {
   position: fixed; top: calc(var(--safe-top) + 4px); right: 4px; z-index: 9999;
-  pointer-events: none; margin: 0; padding: 6px 8px;
+  pointer-events: auto; cursor: pointer; margin: 0; padding: 6px 8px;
   font: 10px/1.45 ui-monospace, Menlo, monospace;
   color: #aef; background: rgba(0, 10, 25, 0.82);
   border: 1px solid rgba(0,255,180,0.5); border-radius: 6px;
   white-space: pre; text-align: left;
 }
 /* Schlüssel-Container umranden (Farben stehen im Panel) */
+#debugPanel.dockBottom { top: auto; bottom: calc(var(--safe-bottom) + 4px); }
 html.debugMode #app { outline: 2px solid #ff5252; outline-offset: -2px; }
 html.debugMode .screen { outline: 1px dashed #ffb300; outline-offset: -1px; }
 html.debugMode #handWrapper { outline: 2px solid #00e5ff; outline-offset: -2px; }

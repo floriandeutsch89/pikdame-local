@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.79.2] - 2026-07-16
+
+### Fixed
+- **Auslagen-Liste: sichtbare Scroll-Kante.** Die letzte Auslagen-Reihe schnitt hart an der Unterkante ab und der Stapel-Glow strahlte darüber - das sah wie ein Überlappungs-Bug aus (per Debug-Overlay-Screenshot entdeckt), war aber ein Scrollbereich ohne jeden Hinweis. Jetzt: Luft unter der letzten Reihe und eine weiche Ausblend-Kante, solange unten weitere Auslagen liegen (dasselbe Muster wie die seitlichen Hand-Scrollkanten)
+
+### Changed
+- Debug-Panel per Antippen zwischen oben und unten umdockbar, damit es bei Diagnosen nicht den Kopfbereich verdeckt
+
 ## [1.79.1] - 2026-07-16
 
 ### Fixed
