@@ -2106,3 +2106,26 @@ input:disabled { opacity: 0.65; }
   padding: 2px 0; border-top: 1px solid var(--glass-border);
 }
 .challengeHistDay span:first-child { opacity: 0.75; font-variant-numeric: tabular-nums; }
+
+/* --- Debug-Overlay (optional, Einstellungen) -------------------------------- */
+#debugGrid {
+  position: fixed; inset: 0; z-index: 9998; pointer-events: none;
+  background:
+    repeating-linear-gradient(0deg, rgba(0,255,180,0.28) 0 1px, transparent 1px 50px),
+    repeating-linear-gradient(90deg, rgba(0,255,180,0.28) 0 1px, transparent 1px 50px),
+    repeating-linear-gradient(0deg, rgba(0,255,180,0.10) 0 1px, transparent 1px 10px),
+    repeating-linear-gradient(90deg, rgba(0,255,180,0.10) 0 1px, transparent 1px 10px);
+}
+#debugPanel {
+  position: fixed; top: calc(var(--safe-top) + 4px); right: 4px; z-index: 9999;
+  pointer-events: none; margin: 0; padding: 6px 8px;
+  font: 10px/1.45 ui-monospace, Menlo, monospace;
+  color: #aef; background: rgba(0, 10, 25, 0.82);
+  border: 1px solid rgba(0,255,180,0.5); border-radius: 6px;
+  white-space: pre; text-align: left;
+}
+/* Schlüssel-Container umranden (Farben stehen im Panel) */
+html.debugMode #app { outline: 2px solid #ff5252; outline-offset: -2px; }
+html.debugMode .screen { outline: 1px dashed #ffb300; outline-offset: -1px; }
+html.debugMode #handWrapper { outline: 2px solid #00e5ff; outline-offset: -2px; }
+html.debugMode #hand { outline: 1px dashed #ffee58; outline-offset: -1px; }

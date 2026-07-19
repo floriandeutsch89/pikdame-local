@@ -3273,6 +3273,57 @@
   window.addEventListener('orientationchange', () => setTimeout(setAppViewportHeight, 60));
   if (window.visualViewport) window.visualViewport.addEventListener('resize', setAppViewportHeight);
 
+  // --- Debug-Overlay (Einstellungen): Gitter + Live-Metriken -----------------
+  // Für Ferndiagnosen von Layout-Fehlern: Ein Screenshot mit aktivem Overlay
+  // enthält alle Viewport-Quellen, die Container-Kanten (farbige Umrandungen)
+  // und ein 10/50px-Gitter zum Nachmessen.
+  const DEBUG_KEY = 'pikdame_debug';
+  let debugTimer = null;
+  function debugEnabled() { return storageGet(DEBUG_KEY) === 'on'; }
+  function updateDebugPanel() {
+    if (!debugEnabled()) return;
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;height:100dvh;width:0;visibility:hidden;';
+    document.body.appendChild(probe);
+    const dvh = probe.offsetHeight;
+    probe.remove();
+    const cs = getComputedStyle(document.documentElement);
+    const app = document.getElementById('app');
+    const vv = window.visualViewport;
+    const lines = [
+      `Pik Dame ${el('versionBtn') ? el('versionBtn').textContent : ''}  ${new Date().toISOString().slice(11, 19)}Z`,
+      `standalone: ${window.matchMedia('(display-mode: standalone)').matches}  dpr: ${window.devicePixelRatio}`,
+      `innerH: ${window.innerHeight}  vv.h: ${vv ? Math.round(vv.height) : '-'}  100dvh: ${dvh}`,
+      `--appvh: ${cs.getPropertyValue('--appvh').trim() || '-'}  #app.h: ${app ? app.clientHeight : '-'}`,
+      `viewport-app delta: ${app ? Math.max(window.innerHeight, dvh) - app.clientHeight : '-'}px`,
+      `safe t/b: ${cs.getPropertyValue('--safe-top').trim() || '0px'} / ${cs.getPropertyValue('--safe-bottom').trim() || '0px'}`,
+      `uiscale: ${document.documentElement.dataset.uiscale || 'normal'}  w: ${window.innerWidth}`,
+      `outlines: app=rot screen=orange handWrap=cyan hand=gelb`,
+    ];
+    el('debugPanel').textContent = lines.join('\n');
+  }
+  function applyDebugMode() {
+    const on = debugEnabled();
+    document.documentElement.classList.toggle('debugMode', on);
+    el('debugGrid').classList.toggle('hidden', !on);
+    el('debugPanel').classList.toggle('hidden', !on);
+    const label = on ? L('🐞 Debug: An', '🐞 Debug: On') : L('🐞 Debug: Aus', '🐞 Debug: Off');
+    el('debugBtnLobby').textContent = label;
+    clearInterval(debugTimer);
+    if (on) {
+      updateDebugPanel();
+      debugTimer = setInterval(updateDebugPanel, 1000);
+    }
+  }
+  function toggleDebugMode() {
+    storageSet(DEBUG_KEY, debugEnabled() ? 'off' : 'on');
+    applyDebugMode();
+  }
+  el('debugBtnLobby').addEventListener('click', toggleDebugMode);
+  el('debugBtn').addEventListener('click', toggleDebugMode);
+  window.addEventListener('resize', () => { if (debugEnabled()) updateDebugPanel(); });
+  applyDebugMode();
+
   let resizeTimer = null;
   window.addEventListener('resize', () => {
     setAppViewportHeight();

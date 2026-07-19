@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.79.0] - 2026-07-16
+
+### Added
+- **🐞 Debug-Overlay (optional, für Fehlersuche):** In den Lobby-Werkzeugen („🐞 Debug: Aus/An") und im Spiel-Zahnrad zuschaltbar. Zeigt ein 10/50-px-Messgitter, farbige Umrandungen der Schlüssel-Container (App = rot, Screen = orange, Handleiste = cyan, Hand = gelb) und ein Live-Metrik-Panel: alle Viewport-Höhenquellen (innerHeight, visualViewport, 100dvh, gemessene --appvh, tatsächliche App-Höhe **und deren Differenz** - das Lücken-Maß der letzten PWA-Bugs), Safe-Areas, Standalone-Status, Anzeigegröße und Version. Ein Screenshot mit aktivem Overlay macht Layout-Fehlerbilder aus der Ferne exakt vermessbar. Einstellung bleibt gespeichert
+
+### Fixed
+- **„Spiel starten" steht jetzt über dem Hauptmenü-Knopf** in der Spiel-Lobby - die Primäraktion zuerst, der Rückweg darunter. Die umgekehrte Reihenfolge (seit 1.77.1) war verwirrend; alle übrigen Menüs folgen bereits diesem Muster (geprüft: Rundenende, Challenge-Intro, Bestätigungsdialoge)
+
 ## [1.78.3] - 2026-07-16
 
 ### Fixed

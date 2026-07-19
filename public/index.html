@@ -164,8 +164,10 @@
       </div>
 
       <button id="lobbyReadyBtn" class="btn-secondary hidden"></button>
-      <button id="leaveLobbyBtn" class="btn-secondary hidden">🏠 Zurück zum Hauptmenü</button>
       <button id="startBtn" class="btn-secondary" disabled>Spiel starten</button>
+      <!-- Primäraktion zuerst, der Rückweg darunter - andersherum war es
+           verwirrend (Nutzer-Feedback). -->
+      <button id="leaveLobbyBtn" class="btn-secondary hidden">🏠 Zurück zum Hauptmenü</button>
       <div id="lobbyPlayers" class="lobby-players"></div>
       <p id="connStatus" class="conn-status">Verbinde...</p>
       <!-- Werkzeug-Zone: kompakte 2-Spalten-Chips statt Button-Turm -->
@@ -175,6 +177,7 @@
         <button id="accountBtn" class="btn-secondary hidden">👤 Konto</button>
         <button id="langBtnLobby" class="btn-secondary">🌐 Sprache: Deutsch</button>
         <button id="uiScaleBtnLobby" class="btn-secondary">🔍 Anzeigegröße: Normal</button>
+        <button id="debugBtnLobby" class="btn-secondary">🐞 Debug: Aus</button>
       </div>
       <div class="lobbyFooterLinks">
         <a class="legal-link" href="/impressum.html">Impressum &amp; Datenschutz</a>
@@ -234,6 +237,7 @@
         <div class="headerRight">
           <span id="settingsGroup" class="settingsGroup hidden">
             <button id="uiScaleBtn" class="btn-icon" title="Anzeigegröße ändern">Aa</button>
+            <button id="debugBtn" class="btn-icon" title="Debug-Overlay umschalten">🐞</button>
             <button id="soundToggle" class="btn-icon" title="Sound ein/aus">🔊</button>
             <button id="tipsToggle" class="btn-icon" title="Spiel-Tipps ein/aus">💡</button>
             <button id="fullscreenBtn" class="btn-icon hidden" title="Vollbild">⛶</button>
@@ -552,5 +556,8 @@
   </div>
 
   <script src="client.js"></script>
+<!-- DEBUG-OVERLAY (optional, Einstellungen): Gitter + Live-Metriken -->
+<div id="debugGrid" class="hidden" aria-hidden="true"></div>
+<pre id="debugPanel" class="hidden" aria-hidden="true"></pre>
 </body>
 </html>
