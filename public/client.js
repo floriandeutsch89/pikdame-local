@@ -938,6 +938,13 @@
     };
   }
 
+  function updateMeldScrollHint() {
+    const m = el('melds');
+    if (!m) return;
+    const more = m.scrollHeight - m.clientHeight - m.scrollTop > 8;
+    m.classList.toggle('canScrollDown', more);
+  }
+
   function renderTable() {
     const SCORE_TARGET = 1000;
     const myTotal = (lastState.totals && lastState.totals[playerId]) || 0;
@@ -3353,6 +3360,20 @@
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => render(), 150);
   });
+
+  try {
+    const meldsEl = el('melds');
+    if (meldsEl) meldsEl.addEventListener('scroll', updateMeldScrollHint, { passive: true });
+    const meldsObs = new MutationObserver(() => updateMeldScrollHint());
+    if (meldsEl) meldsObs.observe(meldsEl, { childList: true, subtree: true });
+    window.addEventListener('resize', updateMeldScrollHint);
+  } catch (e) { /* Hinweis-Kante ist Komfort, nie kritisch */ }
+
+  // Debug-Panel: Tipp wechselt oben/unten, damit es keine Diagnose verdeckt.
+  try {
+    const dp = el('debugPanel');
+    if (dp) dp.addEventListener('click', () => dp.classList.toggle('dockBottom'));
+  } catch (e) { /* optional */ }
 
   connect();
 })();
