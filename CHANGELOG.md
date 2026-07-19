@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.78.2] - 2026-07-16
+
+### Fixed
+- **PWA: Doppeltipp auf leere Flächen verschiebt das Bild nicht mehr** - iOS löste dort trotz deaktiviertem Zoom einen Smart-Zoom-Versatz aus. `touch-action: manipulation` unterbindet das (und entfernt nebenbei die 300-ms-Tipp-Verzögerung); Wischen und Scrollen bleiben unberührt
+- **Ausgewählte Karten ragten auch bei normaler UI-Größe über die Werkzeugleiste:** Die Auswahl hob Karten doppelt an - einmal per CSS (−14 px, der dokumentierte Mechanismus) und zusätzlich per redundanter Transform-Zeile im Client (−18 px) = 32 px bei nur 6 px Reserve. Die Redundanz ist entfernt, die verbleibende Anhebung hat jetzt ein eigenes Platzbudget im Hand-Container (alle Größenstufen + Querformat angepasst), die Werkzeugleiste liegt zusätzlich immer über den Karten. Der CSS-Vertragstest aus 1.78.1 prüft nun Kartenhöhe **plus Anhebung** gegen jede Container-Höhe
+
+### Added
+- **Challenge: „7 Tage sichtbar" gilt jetzt wörtlich.** Die Daten waren nie weg (persistentes Volume, 7-Tage-Aufbewahrung funktionierte) - aber die Anzeige kannte nur den aktuellen Tag, gestern verschwand still aus dem Blick. Die Challenge-Auswertung zeigt jetzt aufklappbar die **vergangenen Tage**: Tagessieger, Teilnehmerzahl und dein eigenes Ergebnis samt Platz pro Tag (leere Vortage werden übersprungen). Kein Watchtower-Problem
+
 ## [1.78.1] - 2026-07-15
 
 ### Fixed
