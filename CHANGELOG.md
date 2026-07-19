@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.80.0] - 2026-07-16
+
+### Added
+- **Soziale Bots:** Auf ein menschliches Emote antwortet jetzt gelegentlich **genau ein** Bot mit einem passenden Gegen-Emote (mit Varianz - auf 😤 gibt es auch mal Schadenfreude 😂, auf 😱 mal Mitgefühl, mal Gelächter). Bewusst sparsam gehalten: 45 % Chance, tischweiter 8-Sekunden-Cooldown, Antwort nach 0,7-2,2 s („gesehen, kurz überlegt"). Kontext-Reaktion nach Catan-Vorbild: Wer ⏳ schickt, während ein **Bot** am Zug ist, bekommt genau von diesem ein 😤/⏳ zurück. Bots antworten nie auf Bots (keine Kaskaden)
+- **Glücksgriff-Reaktion:** Ergattert ein Mensch beim Abheben Pik Dame oder Joker, staunt der Tisch (😱) - Bots feiern ihre eigenen Griffe nicht
+
+### Fixed
+- **Pik-Dame-Reaktion kommt jetzt im Moment des Geschehens:** Highlight-Emotes (gelegte ♠Q, Glücksgriff) nutzen ein kurzes Reaktionsfenster (0,15-0,7 s) statt bis zu 1,8 s - vorher wirkte die Reaktion „wie nach dem Zug" (Spieler-Feedback)
+
 ## [1.79.2] - 2026-07-16
 
 ### Fixed

@@ -2135,3 +2135,53 @@ test('challenge history lists past days with winner and own rank; empty past day
   // Tage ohne Einträge (z. B. vorgestern) erscheinen nicht
   assert.ok(!h.some((d) => d.players === 0 && d.date !== d0), 'empty past days skipped');
 });
+
+// --- v1.80.0: Soziale Bots (Antworten auf menschliche Emotes) --------------------
+test('a human emote gets at most ONE bot reply; bots and cooldown stay silent', async () => {
+  const tick = () => new Promise((r) => setTimeout(r, 5));
+  const { game: g } = makeGame(2);
+  const human = g.players.find((p) => !p.isBot);
+  g.fillWithBots();
+  g._emoteDelayForTest = 0;
+  const sent = [];
+  g.onBotEmote = (botId, emoji) => sent.push({ botId, emoji });
+  const withForcedRoll = (fn) => { const r = Math.random; Math.random = () => 0.01; try { fn(); } finally { Math.random = r; } };
+  withForcedRoll(() => g.respondToHumanEmote(human.id, '🎉'));
+  await tick();
+  assert.equal(sent.length, 1, 'exactly one bot replied');
+  assert.ok(['🎉', '👍'].includes(sent[0].emoji), 'reply from the 🎉 mapping');
+  // Tisch-Cooldown: direkt danach bleibt es still
+  withForcedRoll(() => g.respondToHumanEmote(human.id, '👍'));
+  await tick();
+  assert.equal(sent.length, 1, 'table-wide reply cooldown holds');
+  // Bots lösen niemals Antworten aus (keine Kaskaden)
+  g._lastEmoteReplyAt = 0;
+  const bot = g.players.find((p) => p.isBot);
+  withForcedRoll(() => g.respondToHumanEmote(bot.id, '🎉'));
+  await tick();
+  assert.equal(sent.length, 1, 'bot senders never trigger replies');
+  g.destroy();
+});
+
+test('hourglass while a bot is to move pokes exactly that bot', async () => {
+  const { game: g } = makeGame(1);
+  const human = g.players.find((p) => !p.isBot);
+  g.fillWithBots();
+  g.startNewRound();
+  if (g.phase === 'cutting') g.performCut(g.cutterId, 0.5);
+  // Zug an einen Bot geben
+  while (g.phase === 'playing' && !g.currentPlayer().isBot) g.runBotTurn ? g.currentPlayerIndex++ : null;
+  if (g.phase !== 'playing' || !g.currentPlayer().isBot) { g.destroy(); return; }
+  const rushed = g.currentPlayer().id;
+  g._emoteDelayForTest = 0;
+  g._lastEmoteReplyAt = 0;
+  const sent = [];
+  g.onBotEmote = (botId, emoji) => sent.push({ botId, emoji });
+  const r = Math.random; Math.random = () => 0.01;
+  try { g.respondToHumanEmote(human.id, '⏳'); } finally { Math.random = r; }
+  await new Promise((res) => setTimeout(res, 5));
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].botId, rushed, 'the bot being rushed answers itself');
+  assert.ok(['😤', '⏳'].includes(sent[0].emoji));
+  g.destroy();
+});

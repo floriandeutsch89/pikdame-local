@@ -955,6 +955,8 @@ wss.on('connection', (ws, req) => {
             sock.send(JSON.stringify({ type: 'emote', playerId, emoji: msg.emoji }));
           }
         }
+        // Social layer: maybe one bot answers a human emote (see GameManager).
+        game.respondToHumanEmote(playerId, msg.emoji);
         break;
       }
       case 'setBotDifficulty': {
