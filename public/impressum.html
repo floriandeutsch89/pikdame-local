@@ -37,15 +37,28 @@
           (function () {
             var n = ['Florian Deutsch', 'Grindelallee 40', '20146 ' + 'Ham' + 'burg', 'Deutschland'];
             document.getElementById('providerBlock').innerHTML = n.join('<br />');
-            var u = ['fde', 'pikdame'].join('\u002b');
-            var d = ['mailbox', 'org'].join('\u002e');
-            var a = u + '\u0040' + d;
+            // Click-to-Reveal: Die Adresse entsteht erst NACH einem Klick im
+            // DOM. Einfache Scraper lesen nur statisches HTML (dagegen schuetzte
+            // schon der bisherige JS-Zusammenbau); Headless-Browser sehen das
+            // fertige DOM - aber nur die wenigsten klicken. Ein Klick ist fuer
+            // die Impressums-Erreichbarkeit zumutbar und gaengige Praxis.
             var el = document.getElementById('contactBlock');
-            var link = document.createElement('a');
-            link.href = 'mailto:' + a;
-            link.textContent = a;
-            el.appendChild(document.createTextNode('E-Mail: '));
-            el.appendChild(link);
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn-secondary';
+            btn.textContent = 'E-Mail-Adresse anzeigen';
+            btn.addEventListener('click', function () {
+              var u = ['fde', 'pikdame'].join('\u002b');
+              var d = ['mailbox', 'org'].join('\u002e');
+              var a = u + '\u0040' + d;
+              var link = document.createElement('a');
+              link.href = 'mailto:' + a;
+              link.textContent = a;
+              el.innerHTML = '';
+              el.appendChild(document.createTextNode('E-Mail: '));
+              el.appendChild(link);
+            });
+            el.appendChild(btn);
           })();
         </script>
       </section>
