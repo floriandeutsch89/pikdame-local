@@ -3235,7 +3235,12 @@
 
     const profiles = (knownProfiles || []).filter((p) => (p.gamesPlayed || 0) > 0);
     if (profiles.length === 0) {
-      box.innerHTML = `<p class="lobby-hint">${L('Noch keine abgeschlossenen Partien - spielt erstmal eine Runde! 🃏', 'No finished games yet - go play a round! 🃏')}</p>`;
+      // Präzise sagen, WARUM hier nichts steht (Nutzer-Frage 'immer leer?'):
+      // gezählt wird erst eine KOMPLETT zu Ende gespielte Partie.
+      box.innerHTML = `<p class="lobby-hint">${L(
+        'Noch keine abgeschlossenen Partien. Die Statistik zählt nur komplett zu Ende gespielte Partien (bis 1000 Punkte) - aufgegebene oder vorzeitig verlassene Spiele zählen nicht. 🃏',
+        'No finished games yet. Statistics only count matches played to the end (1000 points) - forfeited or abandoned games do not count. 🃏'
+      )}</p>`;
       return;
     }
     const sorted = profiles.slice().sort((a, b) => (b.gamesWon || 0) - (a.gamesWon || 0) || (b.totalScore || 0) - (a.totalScore || 0));

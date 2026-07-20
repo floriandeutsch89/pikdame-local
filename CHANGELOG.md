@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.80.1] - 2026-07-16
+
+### Fixed
+- **Statistik-Seite: Der Leerzustand erklärt jetzt das Zähl-Kriterium.** Untersuchung der Meldung „Statistik immer leer": Der Speicher-Pfad ist nachweislich intakt (End-to-End-Simulation: komplette Partie → Profil erscheint) - gezählt werden aber **nur regulär bis 1000 Punkte beendete Partien**; aufgegebene oder vorzeitig verlassene Spiele fließen bewusst nicht ein, einzelne Runden sind keine Partie. Der bisherige Hinweis („spielt erstmal eine Runde") war irreführend und behauptete das falsche Kriterium - jetzt steht dort präzise, was zählt und was nicht
+
+### Changed
+- **Impressum: E-Mail nur noch per Klick sichtbar** („E-Mail-Adresse anzeigen"). Die Adresse stand zwar nie im statischen HTML (JS-Zusammenbau), aber Headless-Scraper sehen das fertige DOM - jetzt entsteht sie erst nach einem Klick. Ein Klick ist für die Impressums-Erreichbarkeit zumutbar und gängige Praxis
+
 ## [1.80.0] - 2026-07-16
 
 ### Added
