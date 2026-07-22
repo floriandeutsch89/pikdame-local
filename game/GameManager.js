@@ -1288,7 +1288,14 @@ class GameManager {
 
     if (over.gameOver) {
       this.phase = 'gameOver';
-      this.gameOverInfo = { ...over, totalTurns: this.gameTurnCount || 0, totalRounds: this.roundNumber || 0 };
+      this.gameOverInfo = {
+        ...over,
+        totalTurns: this.gameTurnCount || 0,
+        totalRounds: this.roundNumber || 0,
+        // Erzählte Schlüsselmomente der Partie (max 3, nach Dramatik):
+        // strukturiert, der Client formatiert lokalisiert.
+        highlights: this._collectHighlights(),
+      };
       MoveLogger.flush(this); // persist human moves for imitation learning
       this.addLog(`Spiel beendet! Gewinner: ${this.players.find((p) => p.id === over.winnerId)?.name}`);
 
@@ -1373,6 +1380,44 @@ class GameManager {
       return { error: `Noch nicht alle bereit (${ready}/${humans.length}).` };
     }
     return {};
+  }
+
+  /**
+   * The 3 most dramatic moments of the match, from roundHistory: a caught
+   * Queen (-100) beats everything, then 'Hand aus', then a melded Queen,
+   * then the single best round score. One entry per type, ordered by round.
+   */
+  _collectHighlights() {
+    const nameOf = (pid) => {
+      const p = this.players.find((pl) => pl.id === pid);
+      return p ? p.name : '?';
+    };
+    const found = [];
+    let bestRound = { score: -Infinity };
+    for (const round of this.roundHistory || []) {
+      for (const [pid, r] of Object.entries(round.results || {})) {
+        const b = r && r.breakdown;
+        if (!b) continue;
+        if (b.pikDameCount > 0 && !found.some((h) => h.type === 'queenCaught')) {
+          found.push({ type: 'queenCaught', round: round.round, name: nameOf(pid), drama: 4 });
+        }
+        if (b.pikDameLaidOut > 0 && !found.some((h) => h.type === 'queenLaid')) {
+          found.push({ type: 'queenLaid', round: round.round, name: nameOf(pid), drama: 2 });
+        }
+        if (r.roundScore > bestRound.score) {
+          bestRound = { type: 'bestRound', round: round.round, name: nameOf(pid), score: r.roundScore, drama: 1 };
+        }
+      }
+      if (round.isHandAus && round.winnerId && !found.some((h) => h.type === 'handAus')) {
+        found.push({ type: 'handAus', round: round.round, name: nameOf(round.winnerId), drama: 3 });
+      }
+    }
+    if (bestRound.score > 0) found.push(bestRound);
+    return found
+      .sort((a, b) => b.drama - a.drama)
+      .slice(0, 3)
+      .sort((a, b) => a.round - b.round)
+      .map(({ drama, ...h }) => h);
   }
 
   prepareRematch() {
@@ -1647,6 +1692,8 @@ class GameManager {
       '🎉': [['🎉', 0.6], ['👍', 0.4]],
       '⏳': [['😤', 0.5], ['⏳', 0.5]],
       pikdame: [['😱', 0.7], ['😂', 0.3]],
+      '🎃': [['🎃', 0.6], ['😱', 0.4]],
+      '🎆': [['🎆', 0.7], ['🎉', 0.3]],
     };
     const options = REPLIES[emoji];
     if (!options) return;

@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.81.0] - 2026-07-16
+
+### Added
+- **Schlüsselmomente:** Das Partie-Ergebnis erzählt jetzt die bis zu drei dramatischsten Momente der Partie („♠ Runde 2: Flo wurde mit der Pik Dame auf der Hand erwischt - ein 100-Punkte-Schlag"). Rangfolge nach Dramatik: gefangene Dame > „Hand aus" > ausgelegte Dame > beste Einzelrunde
+- **Wochenwertung der Tages-Challenge** (Mo-So): Es zählt die Summe deiner **besten 5 Tagesergebnisse** - ein, zwei verpasste Tage ruinieren die Woche nicht, und Stetigkeit schlägt den einen Glückstag. Top 5 + eigener Rang direkt im Challenge-Panel
+- **Freischaltbare Kartenrücken** (kosmetisch, an Erfolge gekoppelt): Gold ab 10 Siegen, Nachtblau ab 25 Partien, Joker ab 3× „Hand aus". Auswahl über den neuen 🎴-Chip in den Lobby-Werkzeugen; gesperrte Designs verraten per Antippen ihr Ziel
+- **Saisonale Akzente:** Im Dezember rieselt dezenter Schnee über den Tisch (respektiert reduzierte Bewegung), im Oktober gibt es ein 🎃-Emote, um Silvester ein 🎆 - die Bots antworten passend
+- **Neues Theme „Omas Küchentisch":** helles, warmes Holz statt dunklem Filz - als fünfte Stimmung im bestehenden Theme-Wähler
+
 ## [1.80.1] - 2026-07-16
 
 ### Fixed

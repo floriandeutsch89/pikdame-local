@@ -2141,3 +2141,71 @@ html.debugMode #app { outline: 2px solid #ff5252; outline-offset: -2px; }
 html.debugMode .screen { outline: 1px dashed #ffb300; outline-offset: -1px; }
 html.debugMode #handWrapper { outline: 2px solid #00e5ff; outline-offset: -2px; }
 html.debugMode #hand { outline: 1px dashed #ffee58; outline-offset: -1px; }
+
+/* --- Kartenrücken (kosmetisch, über Erfolge freischaltbar) ------------------ */
+html[data-cardback="gold"] .pile-card.back,
+html[data-cardback="gold"] .card.back {
+  background: linear-gradient(150deg, #8a6d1f 0%, #d4af37 40%, #f5e08a 55%, #d4af37 70%, #8a6d1f 100%);
+  border-color: #b8962e;
+}
+html[data-cardback="night"] .pile-card.back,
+html[data-cardback="night"] .card.back {
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255,255,255,0.28) 0 1.5px, transparent 2px),
+    radial-gradient(circle at 70% 60%, rgba(255,255,255,0.22) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 45% 80%, rgba(255,255,255,0.18) 0 1px, transparent 1.5px),
+    linear-gradient(160deg, #0d1b3d 0%, #1c2f6b 60%, #0a1230 100%);
+  border-color: #2c3f7d;
+}
+html[data-cardback="joker"] .pile-card.back,
+html[data-cardback="joker"] .card.back {
+  background:
+    repeating-linear-gradient(45deg, rgba(255,255,255,0.12) 0 8px, transparent 8px 16px),
+    linear-gradient(150deg, #7a1f5c 0%, #c2338f 55%, #7a1f5c 100%);
+  border-color: #a02a78;
+}
+
+/* --- Theme: Omas Küchentisch (hell, warmes Holz) ---------------------------- */
+[data-theme="kitchen"] {
+  --bg: #e9dcc6;
+  --bg-deep: #d9c6a5;
+  --bg-glow: #f6ecd9;
+  --glass: rgba(90, 60, 25, 0.07);
+  --glass-border: rgba(90, 60, 25, 0.16);
+  --line: rgba(90, 60, 25, 0.2);
+  --accent: #b0552a;
+  --accent-soft: rgba(176, 85, 42, 0.28);
+  --text: #33261a;
+  --text-dim: rgba(51, 38, 26, 0.62);
+  --card-bg: #fffdf8;
+  --card-ink: #241a10;
+  --shadow-1: 0 2px 8px rgba(90, 60, 25, 0.18);
+  --shadow-2: 0 6px 20px rgba(90, 60, 25, 0.22);
+  --shadow-3: 0 12px 40px rgba(90, 60, 25, 0.28);
+}
+.themeBtn[data-theme-choice="kitchen"] {
+  background: linear-gradient(140deg, #e9dcc6 50%, #b0552a 50%);
+}
+
+/* --- Saison: Dezember-Schnee (dezent, reduzierte Bewegung respektiert) ------ */
+.seasonFlake {
+  position: fixed; top: -3vh; z-index: 2; pointer-events: none;
+  color: rgba(255,255,255,0.5); font-size: 13px;
+  animation: flakeFall linear infinite;
+}
+[data-theme="kitchen"] .seasonFlake { color: rgba(120, 90, 50, 0.4); }
+@keyframes flakeFall {
+  to { transform: translateY(106vh) rotate(200deg); }
+}
+@media (prefers-reduced-motion: reduce) { .seasonFlake { display: none; } }
+
+/* --- Wochenwertung im Challenge-Panel --------------------------------------- */
+.challengeWeekly { margin-top: 10px; }
+.challengeWeekly h4 { margin: 0 0 4px; font-size: 0.95em; }
+.challengeWeekly .weekRange { opacity: 0.6; font-weight: 400; font-size: 0.85em; }
+.weeklyHint { margin: 4px 0 0; font-size: 0.8em; opacity: 0.6; }
+
+/* --- Schlüsselmomente im Partie-Ergebnis ------------------------------------ */
+.matchMoments { margin: 10px 0 4px; text-align: left; }
+.matchMoments h4 { margin: 0 0 6px; text-align: center; font-size: 0.95em; opacity: 0.85; }
+.momentLine { padding: 3px 0; font-size: 0.9em; border-top: 1px solid var(--glass-border); }

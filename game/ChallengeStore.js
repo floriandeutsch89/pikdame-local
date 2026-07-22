@@ -99,7 +99,42 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
     return days;
   }
 
-  return { submit, getBoard, rankOf, getHistory };
+  /**
+   * Weekly ranking (Mon-Sun, UTC): per player the SUM of their best 5 daily
+   * scores of the current week. 'Best 5 of 7' keeps one or two missed days
+   * from ruining the week and rewards regulars over one lucky spike.
+   */
+  function getWeekly(name = null, top = 5, now = Date.now()) {
+    const store = load();
+    const d = new Date(now);
+    const dow = (d.getUTCDay() + 6) % 7; // Mo=0 .. So=6
+    const monday = now - dow * 24 * 3600 * 1000;
+    const perPlayer = new Map();
+    for (let i = 0; i <= dow; i++) {
+      const date = todayUTC(monday + i * 24 * 3600 * 1000);
+      for (const e of store.days[date] || []) {
+        const key = e.name.toLowerCase();
+        if (!perPlayer.has(key)) perPlayer.set(key, { name: e.name, scores: [] });
+        perPlayer.get(key).scores.push(e.score);
+      }
+    }
+    const board = [...perPlayer.values()]
+      .map((p) => {
+        const best5 = p.scores.sort((a, b) => b - a).slice(0, 5);
+        return { name: p.name, weekScore: best5.reduce((a, b) => a + b, 0), days: p.scores.length };
+      })
+      .sort((a, b) => b.weekScore - a.weekScore);
+    const meIdx = name ? board.findIndex((e) => e.name.toLowerCase() === String(name).toLowerCase()) : -1;
+    return {
+      week: `${todayUTC(monday)}..${todayUTC(monday + dow * 24 * 3600 * 1000)}`,
+      top: board.slice(0, top).map((e, i) => ({ rank: i + 1, ...e })),
+      yourRank: meIdx === -1 ? null : meIdx + 1,
+      yourScore: meIdx === -1 ? null : board[meIdx].weekScore,
+      players: board.length,
+    };
+  }
+
+  return { submit, getBoard, rankOf, getHistory, getWeekly };
 }
 
 module.exports = { createChallengeStore, seedForDate, todayUTC, DEFAULT_DATA_FILE };

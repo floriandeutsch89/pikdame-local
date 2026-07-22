@@ -1640,6 +1640,23 @@
       const winLine = document.createElement('p');
       winLine.innerHTML = `<strong>🏆 ${L(`${escapeHtml(winner ? winner.name : '?')} gewinnt das Spiel!`, `${escapeHtml(winner ? winner.name : '?')} wins the game!`)}</strong>`;
       paneResult.appendChild(winLine);
+      // Schlüsselmomente der Partie: 3 erzählte Zeilen statt nur Zahlen.
+      const hl = isGameOver && lastState.gameOverInfo && lastState.gameOverInfo.highlights;
+      if (hl && hl.length) {
+        const box = document.createElement('div');
+        box.className = 'matchMoments';
+        const fmt = (h) => {
+          const r = `${L('Runde', 'Round')} ${h.round}`;
+          if (h.type === 'queenCaught') return `♠ ${r}: ${L(`${h.name} wurde mit der Pik Dame auf der Hand erwischt - ein 100-Punkte-Schlag.`, `${h.name} got caught with the Queen of Spades in hand - a 100-point blow.`)}`;
+          if (h.type === 'queenLaid') return `♛ ${r}: ${L(`${h.name} legte die Pik Dame aus (+100).`, `${h.name} melded the Queen of Spades (+100).`)}`;
+          if (h.type === 'handAus') return `🃏 ${r}: ${L(`${h.name} machte „Hand aus" - alles in einem Zug!`, `${h.name} went out in one - the whole hand at once!`)}`;
+          if (h.type === 'bestRound') return `⭐ ${r}: ${L(`${h.name} holte die beste Runde der Partie (${h.score} Punkte).`, `${h.name} scored the best round of the match (${h.score} points).`)}`;
+          return '';
+        };
+        box.innerHTML = `<h4>${L('Schlüsselmomente', 'Key moments')}</h4>` +
+          hl.map((h) => `<div class="momentLine">${fmt(h)}</div>`).join('');
+        paneResult.appendChild(box);
+      }
       // Nice visual stat: how many turns (and rounds) the whole game took.
       const gi = lastState.gameOverInfo;
       if (typeof gi.totalTurns === 'number') {
@@ -2425,9 +2442,19 @@
     const histBlock = histRows
       ? `<details class="challengeHistory"><summary>${L('Vergangene Tage', 'Past days')} (${past.length})</summary>${histRows}</details>`
       : '';
+    // Wochenwertung: beste 5 Tages-Scores der laufenden Woche (Mo-So).
+    const wk = b.weekly;
+    const weeklyBlock = wk && wk.players > 0
+      ? `<div class="challengeWeekly"><h4>🗓️ ${L('Wochenwertung', 'Weekly ranking')} <span class="weekRange">${escapeHtml(wk.week)}</span></h4>` +
+        wk.top.map((e) => `<div class="challengeHistDay"><span>#${e.rank} ${escapeHtml(e.name)}</span><span>${e.weekScore} ${L('Pkt', 'pts')} · ${e.days} ${L('Tage', 'days')}</span></div>`).join('') +
+        (wk.yourRank && wk.yourRank > wk.top.length
+          ? `<div class="challengeHistDay"><span>#${wk.yourRank} ${L('du', 'you')}</span><span>${wk.yourScore} ${L('Pkt', 'pts')}</span></div>`
+          : '') +
+        `<p class="weeklyHint">${L('Deine besten 5 Tage der Woche zählen.', 'Your best 5 days of the week count.')}</p></div>`
+      : '';
     box.innerHTML = `<h3>🗓️ ${L('Tages-Challenge', 'Daily challenge')} ${escapeHtml(b.date)}</h3>
       <p class="challengeYour">${L(`Dein Ergebnis: ${b.yourScore} Punkte${b.yourRank ? ` · Platz ${b.yourRank}` : ''}`, `Your result: ${b.yourScore} points${b.yourRank ? ` · rank ${b.yourRank}` : ''}`)}</p>
-      <table class="statsTable"><tbody>${rows}</tbody></table>${histBlock}`;
+      <table class="statsTable"><tbody>${rows}</tbody></table>${weeklyBlock}${histBlock}`;
     body.appendChild(box);
   }
 
@@ -3284,6 +3311,84 @@
   window.addEventListener('pageshow', setAppViewportHeight);
   window.addEventListener('orientationchange', () => setTimeout(setAppViewportHeight, 60));
   if (window.visualViewport) window.visualViewport.addEventListener('resize', setAppViewportHeight);
+
+  // --- Kartenrücken: kosmetisch, über Erfolge freischaltbar -------------------
+  // Gates lesen das eigene Profil (Name-basiert); ohne Profil bleibt Standard.
+  const CARDBACK_KEY = 'pikdame_cardback';
+  const CARDBACKS = [
+    { id: 'classic', label: 'Klassisch', labelEn: 'Classic', gate: null },
+    { id: 'gold', label: 'Gold', labelEn: 'Gold', gate: { field: 'gamesWon', min: 10, de: 'ab 10 Siegen', en: 'from 10 wins' } },
+    { id: 'night', label: 'Nachtblau', labelEn: 'Midnight', gate: { field: 'gamesPlayed', min: 25, de: 'ab 25 Partien', en: 'from 25 games' } },
+    { id: 'joker', label: 'Joker', labelEn: 'Joker', gate: { field: 'totalHandAus', min: 3, de: 'ab 3× Hand aus', en: 'from 3 out-in-one' } },
+  ];
+  function myProfile() {
+    return (knownProfiles || []).find((p) => p.name && myName && p.name.toLowerCase() === myName.toLowerCase()) || null;
+  }
+  function cardbackUnlocked(cb) {
+    if (!cb.gate) return true;
+    const p = myProfile();
+    return !!p && (p[cb.gate.field] || 0) >= cb.gate.min;
+  }
+  function applyCardback() {
+    try {
+      let chosen = storageGet(CARDBACK_KEY) || 'classic';
+      const def = CARDBACKS.find((x) => x.id === chosen);
+      if (!def || !cardbackUnlocked(def)) chosen = 'classic';
+      document.documentElement.dataset.cardback = chosen;
+      const btn = el('cardbackBtn');
+      if (btn) {
+        const d = CARDBACKS.find((x) => x.id === chosen);
+        btn.textContent = `🎴 ${L('Kartenrücken', 'Card back')}: ${L(d.label, d.labelEn)}`;
+      }
+    } catch (e) { /* Kosmetik bricht nie den Start */ }
+  }
+  function cycleCardback() {
+    const cur = document.documentElement.dataset.cardback || 'classic';
+    const idx = CARDBACKS.findIndex((x) => x.id === cur);
+    for (let i = 1; i <= CARDBACKS.length; i++) {
+      const next = CARDBACKS[(idx + i) % CARDBACKS.length];
+      if (cardbackUnlocked(next)) { storageSet(CARDBACK_KEY, next.id); applyCardback(); return; }
+      showToast(`🔒 ${L(next.label, next.labelEn)}: ${L(next.gate.de, next.gate.en)}`);
+    }
+  }
+  // --- Saisonale Akzente (klein & abschaltfrei): Dezember-Schnee,
+  // Oktober-Kürbis-Emote, Silvester-Feuerwerk-Emoji im Emote-Set. -------------
+  try {
+    const month = new Date().getMonth() + 1;
+    if (month === 12) {
+      for (let i = 0; i < 12; i++) {
+        const f = document.createElement('div');
+        f.className = 'seasonFlake';
+        f.textContent = '❄';
+        f.style.left = `${Math.random() * 100}vw`;
+        f.style.animationDuration = `${9 + Math.random() * 9}s`;
+        f.style.animationDelay = `${Math.random() * 9}s`;
+        f.style.fontSize = `${9 + Math.random() * 8}px`;
+        document.body.appendChild(f);
+      }
+    }
+    const seasonalEmote = month === 10 ? '🎃' : (month === 12 || month === 1) ? '🎆' : null;
+    if (seasonalEmote) {
+      const bar = document.querySelector('.emoteBar');
+      const sample = bar && bar.querySelector('button[data-emote]');
+      if (bar && sample) {
+        const b = sample.cloneNode(false);
+        b.dataset.emote = seasonalEmote;
+        b.textContent = seasonalEmote;
+        b.addEventListener('click', () => {
+          send({ type: 'emote', emoji: seasonalEmote });
+          el('emoteBar').classList.add('hidden');
+        });
+        bar.appendChild(b);
+      }
+    }
+  } catch (e) { /* Saison-Deko bricht nie den Start */ }
+
+  try {
+    const cbBtn = el('cardbackBtn');
+    if (cbBtn) cbBtn.addEventListener('click', cycleCardback);
+    applyCardback();
+  } catch (e) { /* optional */ }
 
   // --- Debug-Overlay (Einstellungen): Gitter + Live-Metriken -----------------
   // Für Ferndiagnosen von Layout-Fehlern: Ein Screenshot mit aktivem Overlay
