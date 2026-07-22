@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.82.0] - 2026-07-16
+
+### Added
+- **Punkte-Popups (Brotato-Prinzip: Punkte fühlbar machen):** Beim Auslegen steigt der Wert der Auslage als „+50" auf, beim Anlegen der Kartenwert - und die gelegte Pik Dame bekommt ein großes goldenes „+100" mit Leuchten. Eigene Punkte erscheinen über der eigenen Auslagen-Zone, fremde am jeweiligen Spieler-Chip. Rein kosmetisch, respektiert reduzierte Bewegung
+- **Runden-Stempel:** Jeder Rundenbeginn wird mit einem kurzen Vollbild-Stempel („RUNDE 3") gefeiert - nicht beim Neuladen oder Wiederverbinden
+- **Bot-Gesichter:** Die Bots sind endlich unterscheidbar - deterministisch aus dem Namen bekommt jeder Bot ein festes Gesicht (👵 🧔 👩‍🦳 …) statt fünfmal 🤖, im Spieler-Chip wie in allen Listen. Erika sieht jetzt immer aus wie Erika
+- **🎩 Spott-Titel:** Wer die Partie mit den meisten gefangenen Pik Damen beendet, wird im Ergebnis liebevoll ausgezeichnet („Damen-Magnet der Partie") - rein kosmetisch, natürlich
+
 ## [1.81.0] - 2026-07-16
 
 ### Added
