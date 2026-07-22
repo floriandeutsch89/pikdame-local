@@ -2185,3 +2185,44 @@ test('hourglass while a bot is to move pokes exactly that bot', async () => {
   assert.ok(['😤', '⏳'].includes(sent[0].emoji));
   g.destroy();
 });
+
+// --- v1.81.0: Wochenwertung (beste 5 Tage, Mo-So UTC) -----------------------------
+test('weekly challenge board sums the best 5 daily scores of the current week', () => {
+  const os = require('node:os');
+  const path = require('node:path');
+  const { createChallengeStore, todayUTC } = require('../game/ChallengeStore');
+  const store = createChallengeStore(path.join(os.tmpdir(), `wk-${Date.now()}.json`));
+  // "now" = ein Sonntag, damit alle 7 Wochentage in der Woche liegen
+  const sunday = Date.UTC(2026, 6, 19, 12); // 2026-07-19 ist ein Sonntag
+  for (let i = 0; i < 7; i++) {
+    const t = sunday - i * 86400000;
+    store.submit(todayUTC(t), 'Flo', 100 + i * 10, t); // 100..160 über Mo..So
+  }
+  store.submit(todayUTC(sunday), 'Anna', 500, sunday); // 1 Tag, hoher Score
+  const w = store.getWeekly('Flo', 5, sunday);
+  // Flo: beste 5 von {100..160} = 160+150+140+130+120 = 700
+  assert.equal(w.top[0].name, 'Flo');
+  assert.equal(w.top[0].weekScore, 700, 'best 5 of 7 days count');
+  assert.equal(w.top[0].days, 7);
+  assert.equal(w.top[1].name, 'Anna');
+  assert.equal(w.top[1].weekScore, 500, 'a single big day does not beat a steady week');
+  assert.equal(w.yourRank, 1);
+});
+
+// --- v1.81.0: Schlüsselmomente ----------------------------------------------------
+test('match highlights pick caught queen, hand-aus and best round, ordered by round', () => {
+  const { game: g } = makeGame(2);
+  const [a, b] = g.players;
+  g.roundHistory = [
+    { round: 1, results: { [a.id]: { roundScore: 80, breakdown: {} }, [b.id]: { roundScore: 60, breakdown: {} } } },
+    { round: 2, results: { [a.id]: { roundScore: -40, breakdown: { pikDameCount: 1 } }, [b.id]: { roundScore: 220, breakdown: { pikDameLaidOut: 1 } } } },
+    { round: 3, isHandAus: true, winnerId: b.id, results: { [b.id]: { roundScore: 150, breakdown: {} }, [a.id]: { roundScore: 10, breakdown: {} } } },
+  ];
+  const hl = g._collectHighlights();
+  assert.equal(hl.length, 3, 'max three moments');
+  assert.deepEqual(hl.map((h) => h.type), ['queenCaught', 'queenLaid', 'handAus'], 'drama picks: caught > handAus > laid; best round drops');
+  assert.equal(hl[0].round, 2);
+  assert.equal(hl[0].name, a.name);
+  assert.equal(hl[2].name, b.name);
+  g.destroy();
+});

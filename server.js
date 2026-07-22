@@ -520,6 +520,8 @@ const registry = new SessionRegistry((session) => {
             yourRank: challengeStore.rankOf(gameRecord.challengeDate, human.name),
             // Die versprochenen '7 Tage sichtbar': kompakter Rückblick
             history: challengeStore.getHistory(human.name),
+            // Wochenwertung (Mo-So, beste 5 Tage zählen)
+            weekly: challengeStore.getWeekly(human.name),
           });
         }
       }
@@ -945,7 +947,10 @@ wss.on('connection', (ws, req) => {
       case 'emote': {
         // Emotes: kurze Reaktionen an den ganzen Tisch. Whitelist + eigenes
         // Rate-Limit (1 Emote / 1,5s), damit niemand den Tisch flutet.
-        const EMOTES = ['👍', '😂', '😱', '😤', '🎉', '⏳', 'pikdame'];
+        // 🎃/🎆 sind saisonale Client-Angebote (Okt / Dez-Jan) - serverseitig
+        // ganzjährig erlaubt, die Whitelist ist ein Sicherheits-, kein
+        // Saisonfilter.
+        const EMOTES = ['👍', '😂', '😱', '😤', '🎉', '⏳', 'pikdame', '🎃', '🎆'];
         if (!EMOTES.includes(msg.emoji)) break;
         const now = Date.now();
         if (ws._lastEmoteAt && now - ws._lastEmoteAt < 1500) break;
