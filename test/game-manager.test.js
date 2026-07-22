@@ -2226,3 +2226,25 @@ test('match highlights pick caught queen, hand-aus and best round, ordered by ro
   assert.equal(hl[2].name, b.name);
   g.destroy();
 });
+
+// --- v1.82.0: Feel-Ereignisse (kosmetisch) ---------------------------------------
+test('layoutMeld emits a points event and gameOver carries the queen-magnet title', () => {
+  const { game: g } = makeGame(2);
+  const [a] = g.players;
+  g._pointsEvent(a.id, 50, false);
+  const st = g.publicState(a.id);
+  assert.ok(st.lastPointsEvent, 'event in public state (positivliste!)');
+  assert.equal(st.lastPointsEvent.points, 50);
+  assert.equal(st.lastPointsEvent.seq, 1);
+  g._pointsEvent(a.id, 100, true);
+  assert.equal(g.publicState(a.id).lastPointsEvent.seq, 2, 'seq increments');
+  // funTitle
+  const [x, y] = g.players;
+  g.roundHistory = [
+    { round: 1, results: { [x.id]: { roundScore: 0, breakdown: { pikDameCount: 2 } }, [y.id]: { roundScore: 0, breakdown: { pikDameCount: 1 } } } },
+  ];
+  const ft = g._collectFunTitle();
+  assert.equal(ft.name, x.name);
+  assert.equal(ft.count, 2);
+  g.destroy();
+});

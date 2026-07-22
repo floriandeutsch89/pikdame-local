@@ -230,11 +230,22 @@
 
   // Erfolgs-Badge-Katalog: IDs kommen vom Server, Texte leben hier (DE/EN).
   /** Stable, friendly avatar colour from the player name (djb2 -> hue). */
+  const BOT_FACES = ['👵', '🧔', '👩‍🦳', '👴', '👨‍🦰', '👱‍♀️', '🧓', '👨‍🦳', '👩‍🦰', '🧑‍🌾'];
+  /** Textuelle Bot-Kennzeichnung: Gesicht statt Roboter. */
+  function botMark(p) {
+    if (!p || !p.isBot) return '';
+    let h = 5381;
+    for (const ch of String(p.name)) h = ((h * 33) ^ ch.codePointAt(0)) >>> 0;
+    return ' ' + BOT_FACES[h % BOT_FACES.length];
+  }
+
   function avatarFor(name, isBot) {
     let h = 5381;
     for (const ch of String(name)) h = ((h * 33) ^ ch.codePointAt(0)) >>> 0;
     const hue = h % 360;
-    const glyph = isBot ? '🤖' : escapeHtml((Array.from(String(name).trim())[0] || '?').toUpperCase());
+    // Bots bekommen GESICHTER statt fünfmal 🤖 (Brotato-Prinzip: sofortige
+    // Wiedererkennung am Tisch) - deterministisch aus demselben Namens-Hash.
+    const glyph = isBot ? BOT_FACES[h % BOT_FACES.length] : escapeHtml((Array.from(String(name).trim())[0] || '?').toUpperCase());
     return `<span class="opAvatar" style="background:hsl(${hue},46%,40%)">${glyph}</span>`;
   }
 
@@ -800,6 +811,27 @@
 
     renderTable();
 
+    // Feel: Punkte-Popup (kosmetisch, seq-entdupliziert). Eigene Punkte
+    // steigen über der eigenen Auslagen-Zone auf, fremde am Spieler-Chip.
+    try {
+      const ev = lastState.lastPointsEvent;
+      if (ev && ev.seq !== shownPointsSeq) {
+        shownPointsSeq = ev.seq;
+        spawnPointsPopup(ev);
+      }
+    } catch (e) { /* nie kritisch */ }
+
+    // Feel: Runden-Stempel beim Rundenwechsel (nicht bei Reload/Resume).
+    try {
+      if (lastState.phase === 'playing' && stampKnownRound !== null &&
+          lastState.roundNumber === stampKnownRound + 1) {
+        showRoundStamp(lastState.roundNumber);
+      }
+      if (lastState.phase === 'playing' || lastState.phase === 'roundEnd') {
+        stampKnownRound = lastState.roundNumber;
+      }
+    } catch (e) { /* nie kritisch */ }
+
     if (lastState.phase === 'roundEnd' || lastState.phase === 'gameOver') {
       if (soundedForRound !== lastState.roundNumber) {
         soundedForRound = lastState.roundNumber;
@@ -904,7 +936,7 @@
         ? `<button class="btn-icon seatDiff${canEdit ? '' : ' readonly'}" title="${diffTitle}">${diff.icon}</button>`
         : '';
       row.innerHTML = `
-        <span class="seatName">${nameWithHeart(p.name)}${p.isBot ? ' 🤖' : ''}</span>
+        <span class="seatName">${nameWithHeart(p.name)}${botMark(p)}</span>
         <span class="seatControls">
           ${diffBadge}
           <button class="btn-icon seatUp" ${idx === 0 || !canEdit ? 'disabled' : ''} title="Nach oben">▲</button>
@@ -936,6 +968,35 @@
       strictThreshold: el('ruleStrict1000').checked,
       turnTimerSeconds: Number(el('ruleTurnTimer').value),
     };
+  }
+
+  let shownPointsSeq = 0;
+  let stampKnownRound = null;
+
+  function spawnPointsPopup(ev) {
+    const mine = ev.playerId === playerId;
+    let anchor = null;
+    if (mine) anchor = el('melds');
+    else anchor = document.querySelector(`.opponent[data-player-id="${ev.playerId}"]`) || el('melds');
+    if (!anchor) return;
+    const r = anchor.getBoundingClientRect();
+    const pop = document.createElement('div');
+    pop.className = 'pointsPop' + (ev.queen ? ' queen' : '');
+    pop.textContent = `+${ev.points}`;
+    pop.style.left = `${r.left + r.width / 2}px`;
+    pop.style.top = `${Math.max(r.top + 8, 60)}px`;
+    document.body.appendChild(pop);
+    setTimeout(() => pop.remove(), 1400);
+  }
+
+  function showRoundStamp(n) {
+    const old = document.querySelector('.roundStamp');
+    if (old) old.remove();
+    const s = document.createElement('div');
+    s.className = 'roundStamp';
+    s.textContent = `${L('Runde', 'Round')} ${n}`;
+    document.body.appendChild(s);
+    setTimeout(() => s.remove(), 1100);
   }
 
   function updateMeldScrollHint() {
@@ -1101,7 +1162,7 @@
       header.className = 'meldOwnerHeader';
       header.innerHTML = isMine
         ? L('Deine Auslagen', 'Your melds')
-        : L(`Auslagen von ${escapeHtml(owner.name)}${owner.isBot ? ' 🤖' : ''}`, `${escapeHtml(owner.name)}'s melds${owner.isBot ? ' 🤖' : ''}`);
+        : L(`Auslagen von ${escapeHtml(owner.name)}${botMark(owner)}`, `${escapeHtml(owner.name)}'s melds${botMark(owner)}`);
       header.addEventListener('click', () => {
         meldFilterPlayerId = meldFilterPlayerId === owner.id ? null : owner.id;
         render();
@@ -1580,7 +1641,7 @@
         .forEach((p) => {
           const row = document.createElement('div');
           row.className = 'resultRow';
-          row.innerHTML = `<span>${nameWithHeart(p.name)}${p.isBot ? ' 🤖' : ''}</span><span>${L('Gesamt', 'Total')}: ${fTotals[p.id] || 0}</span>`;
+          row.innerHTML = `<span>${nameWithHeart(p.name)}${botMark(p)}</span><span>${L('Gesamt', 'Total')}: ${fTotals[p.id] || 0}</span>`;
           paneResult.appendChild(row);
         });
     }
@@ -1597,7 +1658,7 @@
         const row = document.createElement('div');
         row.className = 'resultRow' + (r && r.breakdown.isWinner ? ' winner' : '');
         const total = lastState.totals[p.id] || 0;
-        row.innerHTML = `<span>${nameWithHeart(p.name)}${p.isBot ? ' 🤖' : ''}</span><span>${r ? r.roundScore : 0} ${L('Pkt', 'pts')} (${L('Gesamt', 'total')}: ${total})</span>`;
+        row.innerHTML = `<span>${nameWithHeart(p.name)}${botMark(p)}</span><span>${r ? r.roundScore : 0} ${L('Pkt', 'pts')} (${L('Gesamt', 'total')}: ${total})</span>`;
         paneResult.appendChild(row);
       });
     }
@@ -1656,6 +1717,17 @@
         box.innerHTML = `<h4>${L('Schlüsselmomente', 'Key moments')}</h4>` +
           hl.map((h) => `<div class="momentLine">${fmt(h)}</div>`).join('');
         paneResult.appendChild(box);
+      }
+      // Brotato-artige Anti-Auszeichnung: liebevoller Spott, rein kosmetisch.
+      const ft = isGameOver && lastState.gameOverInfo && lastState.gameOverInfo.funTitle;
+      if (ft && ft.type === 'queenMagnet') {
+        const t = document.createElement('p');
+        t.className = 'funTitleLine';
+        t.textContent = `🎩 ${L(
+          `Damen-Magnet der Partie: ${ft.name} (${ft.count}× mit der ♠Q erwischt)`,
+          `Queen magnet of the match: ${ft.name} (caught with the ♠Q ${ft.count}×)`
+        )}`;
+        paneResult.appendChild(t);
       }
       // Nice visual stat: how many turns (and rounds) the whole game took.
       const gi = lastState.gameOverInfo;

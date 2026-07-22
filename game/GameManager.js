@@ -872,6 +872,13 @@ class GameManager {
     // ownerId: Auslagen gehören ihrem Ersteller - NUR er darf anlegen/tauschen.
     const meld = { id: nextMeldId(), ownerId: player.id, type: result.type, suit: result.suit || null, rank: result.rank || null, slots: taggedSlots };
     this.tableMelds.push(meld);
+    // Feel: Punkte-Popup-Ereignis für den Client (rein kosmetisch). seq
+    // unterscheidet aufeinanderfolgende Ereignisse gleicher Höhe.
+    this._pointsEvent(
+      player.id,
+      meld.slots.reduce((sum, s) => sum + (s.real ? cardValue(s.real) : 0), 0),
+      meld.slots.some((s) => s.real && isPikDame(s.real))
+    );
 
     player.hand = player.hand.filter((c) => !cardIds.includes(c.id));
     for (const cid of cardIds) this._publicMemoryRemove(player.id, cid);
@@ -1024,6 +1031,7 @@ class GameManager {
 
     this.addLog(`${player.name} legt ${cardLabel(card)} an eine Auslage an.`);
     this._turnsWithoutMeld = 0;
+    this._pointsEvent(player.id, cardValue(card), isPikDame(card));
     if (isPikDame(card)) {
       this._celebratePikDame(player.id);
     }
@@ -1295,6 +1303,7 @@ class GameManager {
         // Erzählte Schlüsselmomente der Partie (max 3, nach Dramatik):
         // strukturiert, der Client formatiert lokalisiert.
         highlights: this._collectHighlights(),
+        funTitle: this._collectFunTitle(),
       };
       MoveLogger.flush(this); // persist human moves for imitation learning
       this.addLog(`Spiel beendet! Gewinner: ${this.players.find((p) => p.id === over.winnerId)?.name}`);
@@ -1387,6 +1396,29 @@ class GameManager {
    * Queen (-100) beats everything, then 'Hand aus', then a melded Queen,
    * then the single best round score. One entry per type, ordered by round.
    */
+  /** Cosmetic points popup event (client renders it; never gameplay). */
+  _pointsEvent(playerId, points, queen) {
+    if (!points) return;
+    this._pointsSeq = (this._pointsSeq || 0) + 1;
+    this.lastPointsEvent = { seq: this._pointsSeq, playerId, points, queen: !!queen };
+  }
+
+  /** Tongue-in-cheek anti-award: who caught the Queen most this match. */
+  _collectFunTitle() {
+    const caught = new Map();
+    for (const round of this.roundHistory || []) {
+      for (const [pid, r] of Object.entries(round.results || {})) {
+        const n = r && r.breakdown && r.breakdown.pikDameCount;
+        if (n) caught.set(pid, (caught.get(pid) || 0) + n);
+      }
+    }
+    let best = null;
+    for (const [pid, n] of caught) if (!best || n > best.n) best = { pid, n };
+    if (!best) return null;
+    const p = this.players.find((pl) => pl.id === best.pid);
+    return p ? { type: 'queenMagnet', name: p.name, count: best.n } : null;
+  }
+
   _collectHighlights() {
     const nameOf = (pid) => {
       const p = this.players.find((pl) => pl.id === pid);
@@ -2299,6 +2331,8 @@ class GameManager {
       // Pause-Knopf wirkte dadurch komplett kaputt.
       paused: !!this.paused,
       pauseVotes: this._pauseVotes ? [...this._pauseVotes] : [],
+      // Feel: jüngstes Punkte-Ereignis (Popup); seq-basiert entdupliziert.
+      lastPointsEvent: this.lastPointsEvent || null,
       discardTop: this.discardPile[0] || null,
       discardPileCount: this.discardPile.length,
       tableMelds: this.tableMelds,
