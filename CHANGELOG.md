@@ -4,6 +4,12 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.82.2] - 2026-07-17
+
+### Fixed
+- **„Runde undefined" in den Schlüsselmomenten** (Foto-Report): Die Momente-Sammlung las das falsche Feld aus der Rundenhistorie (`round` statt `roundNumber`) - mein Test hatte die Struktur frei nachgebaut statt die echte zu verwenden und übersah es dadurch. Behoben; der Test nutzt jetzt die echte Struktur und sichert zusätzlich zu, dass jeder Moment eine echte Rundennummer trägt
+- **Küchentisch-Theme: unlesbare helle Hinweistexte** (Untertitel, „Spiel-Code…", Abschnitts-Hinweise): Das neue Theme definierte 11 der 26 Theme-Variablen nicht (u. a. `--text-muted`, Kartenränder, Farbtöne) - die fehlenden erbten die **hellen** Werte der dunklen Themes: weiß auf hellem Holz. Der Variablensatz ist jetzt vollständig (warme, dunkle Töne), und ein neuer **Theme-Vertragstest** erzwingt maschinell, dass jedes Theme denselben Variablensatz definiert wie die Referenz - unvollständige Themes können nie wieder durchrutschen
+
 ## [1.82.1] - 2026-07-17
 
 ### Fixed

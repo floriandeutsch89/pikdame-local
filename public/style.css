@@ -2167,18 +2167,33 @@ html[data-cardback="joker"] .card.back {
 
 /* --- Theme: Omas Küchentisch (hell, warmes Holz) ---------------------------- */
 [data-theme="kitchen"] {
+  /* VOLLSTÄNDIGER Variablensatz! Beim ersten Wurf fehlten 11 Variablen
+     (u. a. --text-muted) - die erbten dann die HELLEN Werte der dunklen
+     Themes: weiße Hinweistexte auf hellem Holz, unlesbar (Foto-Report).
+     Der Theme-Vertragstest erzwingt Vollständigkeit jetzt maschinell. */
   --bg: #e9dcc6;
   --bg-deep: #d9c6a5;
   --bg-glow: #f6ecd9;
   --glass: rgba(90, 60, 25, 0.07);
+  --glass-strong: rgba(90, 60, 25, 0.13);
   --glass-border: rgba(90, 60, 25, 0.16);
   --line: rgba(90, 60, 25, 0.2);
   --accent: #b0552a;
+  --accent-2: #8a6a2e;
+  --accent-ink: #fff6ea;
   --accent-soft: rgba(176, 85, 42, 0.28);
   --text: #33261a;
   --text-dim: rgba(51, 38, 26, 0.62);
+  --text-muted: rgba(51, 38, 26, 0.55);
+  --danger: #b3372b;
+  --success: #33702a;
   --card-bg: #fffdf8;
   --card-ink: #241a10;
+  --card-border: rgba(90, 60, 25, 0.22);
+  --suit-red: #b62f2f;
+  --suit-black: #2a221a;
+  --joker: #7d4796;
+  --spot: rgba(176, 85, 42, 0.11);
   --shadow-1: 0 2px 8px rgba(90, 60, 25, 0.18);
   --shadow-2: 0 6px 20px rgba(90, 60, 25, 0.22);
   --shadow-3: 0 12px 40px rgba(90, 60, 25, 0.28);

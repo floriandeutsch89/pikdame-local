@@ -2214,14 +2214,15 @@ test('match highlights pick caught queen, hand-aus and best round, ordered by ro
   const { game: g } = makeGame(2);
   const [a, b] = g.players;
   g.roundHistory = [
-    { round: 1, results: { [a.id]: { roundScore: 80, breakdown: {} }, [b.id]: { roundScore: 60, breakdown: {} } } },
-    { round: 2, results: { [a.id]: { roundScore: -40, breakdown: { pikDameCount: 1 } }, [b.id]: { roundScore: 220, breakdown: { pikDameLaidOut: 1 } } } },
-    { round: 3, isHandAus: true, winnerId: b.id, results: { [b.id]: { roundScore: 150, breakdown: {} }, [a.id]: { roundScore: 10, breakdown: {} } } },
+    { roundNumber: 1, results: { [a.id]: { roundScore: 80, breakdown: {} }, [b.id]: { roundScore: 60, breakdown: {} } } },
+    { roundNumber: 2, results: { [a.id]: { roundScore: -40, breakdown: { pikDameCount: 1 } }, [b.id]: { roundScore: 220, breakdown: { pikDameLaidOut: 1 } } } },
+    { roundNumber: 3, isHandAus: true, winnerId: b.id, results: { [b.id]: { roundScore: 150, breakdown: {} }, [a.id]: { roundScore: 10, breakdown: {} } } },
   ];
   const hl = g._collectHighlights();
   assert.equal(hl.length, 3, 'max three moments');
   assert.deepEqual(hl.map((h) => h.type), ['queenCaught', 'queenLaid', 'handAus'], 'drama picks: caught > handAus > laid; best round drops');
   assert.equal(hl[0].round, 2);
+  assert.ok(hl.every((h) => Number.isInteger(h.round)), 'every highlight carries a real round number (live bug: Runde undefined)');
   assert.equal(hl[0].name, a.name);
   assert.equal(hl[2].name, b.name);
   g.destroy();
@@ -2241,7 +2242,7 @@ test('layoutMeld emits a points event and gameOver carries the queen-magnet titl
   // funTitle
   const [x, y] = g.players;
   g.roundHistory = [
-    { round: 1, results: { [x.id]: { roundScore: 0, breakdown: { pikDameCount: 2 } }, [y.id]: { roundScore: 0, breakdown: { pikDameCount: 1 } } } },
+    { roundNumber: 1, results: { [x.id]: { roundScore: 0, breakdown: { pikDameCount: 2 } }, [y.id]: { roundScore: 0, breakdown: { pikDameCount: 1 } } } },
   ];
   const ft = g._collectFunTitle();
   assert.equal(ft.name, x.name);
