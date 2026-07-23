@@ -874,10 +874,14 @@ class GameManager {
     this.tableMelds.push(meld);
     // Feel: Punkte-Popup-Ereignis für den Client (rein kosmetisch). seq
     // unterscheidet aufeinanderfolgende Ereignisse gleicher Höhe.
+    // WICHTIG: exakt die Wertung der Rundenabrechnung (sumValues über die
+    // tatsächlich gelegten Karten) - Joker zählen dort 20, wie das Ass.
+    // Die frühere Slot-Summe übersprang Joker (s.real fehlt) und zeigte
+    // z. B. für Q♦-Joker-A♦ nur 30 statt der amtlichen 50 (Foto-Report).
     this._pointsEvent(
       player.id,
-      meld.slots.reduce((sum, s) => sum + (s.real ? cardValue(s.real) : 0), 0),
-      meld.slots.some((s) => s.real && isPikDame(s.real))
+      cards.reduce((sum, cd) => sum + cardValue(cd), 0),
+      cards.some((cd) => isPikDame(cd))
     );
 
     player.hand = player.hand.filter((c) => !cardIds.includes(c.id));

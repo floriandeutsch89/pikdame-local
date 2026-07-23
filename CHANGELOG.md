@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.82.1] - 2026-07-17
+
+### Fixed
+- **Punkte-Popup zeigte Auslagen mit Joker zu niedrig an** (Foto-Report: Q♦-Joker-A♦ als „+30"): Die Popup-Summe übersprang Joker-Plätze. Das Popup nutzt jetzt **exakt die Wertung der Rundenabrechnung** (Joker zählt 20, wie das Ass) - die korrekte Anzeige für dieses Beispiel ist **+50** (Q 10 + Joker 20 + A 20). Per Test festgeheftet: Popup-Wert == amtliche Rundenwertung
+
+### Hinweis
+- Falls eure Familienregel den Auslage-Joker als **vertretene Karte** wertet (im Beispiel als König = 10 → gesamt 40), wäre das eine echte Regeländerung an der Rundenwertung - bitte kurz bestätigen, dann setze ich sie sauber um (inkl. Regeltext, Messung und neuer Trainingsdaten-Version)
+
 ## [1.82.0] - 2026-07-16
 
 ### Added
