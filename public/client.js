@@ -1078,7 +1078,8 @@
         const diffBadge = '';
         d.title = L(`${p.handCount} Karten · ${opTotal} Punkte`, `${p.handCount} cards · ${opTotal} points`);
         const opProgress = Math.max(0, Math.min(100, (opTotal / 1000) * 100));
-        d.innerHTML = `<div class="opName">${avatarFor(p.name, p.isBot)}${nameWithHeart(p.name)}${diffBadge}${dealerStar}${reconnecting ? ` <span class="reconnectTag">⏳ ${L('getrennt – Bot übernimmt', 'disconnected – bot takes over')}</span>` : ''}</div><div class="opCount"><b>${p.handCount}</b> ${L('Kt', 'cd')} · <b>${opTotal}</b> ${L('Pkt', 'pts')}</div><div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>`;
+        if (reconnecting) d.classList.add('disconnected');
+        d.innerHTML = `<div class="opName">${avatarFor(p.name, p.isBot)}${nameWithHeart(p.name)}${diffBadge}${dealerStar}${reconnecting ? ` <span class="reconnectTag">⏳ ${L('getrennt', 'offline')}</span>` : ''}</div><div class="opCount"><b>${p.handCount}</b> ${L('Kt', 'cd')} · <b>${opTotal}</b> ${L('Pkt', 'pts')}</div><div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>`;
         if (p.isBot) {
           const meta = BOT_DIFF[p.botDifficulty] || BOT_DIFF.zen;
           const badgeBtn = document.createElement('button');
@@ -2855,9 +2856,15 @@
       const latest = log[log.length - 1];
       seenLogLength = log.length;
       if (latest && latest.text) {
-        // Die Endspurt-Ansage ist wichtig genug fuer eine laengere Anzeige
-        const isWarning = latest.text.startsWith('⚠️');
-        showToast(trs(latest.text), isWarning ? { duration: 6000, priority: true } : {});
+        // Getrennt-/Rückkehr-Meldungen leben jetzt DAUERHAFT am Spieler-Chip
+        // (gedimmter Chip + ⏳-Badge) - der flüchtige Riesen-Toast mitten im
+        // Spielfeld entfällt dafür (Nutzer-Feedback). Im Log stehen sie weiter.
+        const chipStatus = / ist getrennt - kehrt | ist wieder (da|verbunden)/.test(latest.text);
+        if (!chipStatus) {
+          // Die Endspurt-Ansage ist wichtig genug fuer eine laengere Anzeige
+          const isWarning = latest.text.startsWith('⚠️');
+          showToast(trs(latest.text), isWarning ? { duration: 6000, priority: true } : {});
+        }
       }
     } else {
       seenLogLength = log.length;
@@ -3429,14 +3436,40 @@
       }
     } catch (e) { /* Kosmetik bricht nie den Start */ }
   }
-  function cycleCardback() {
+  // Galerie statt Blindzyklus (Brotato-Prinzip: gesperrte Freischaltungen
+  // sichtbar machen - 'was mir noch fehlt' motiviert): Kacheln mit Vorschau,
+  // aktive Wahl markiert, gesperrte zeigen 🔒 + ihr Ziel.
+  function openCardbackGallery() {
+    const existing = document.querySelector('.cardbackGallery');
+    if (existing) { existing.remove(); return; }
     const cur = document.documentElement.dataset.cardback || 'classic';
-    const idx = CARDBACKS.findIndex((x) => x.id === cur);
-    for (let i = 1; i <= CARDBACKS.length; i++) {
-      const next = CARDBACKS[(idx + i) % CARDBACKS.length];
-      if (cardbackUnlocked(next)) { storageSet(CARDBACK_KEY, next.id); applyCardback(); return; }
-      showToast(`🔒 ${L(next.label, next.labelEn)}: ${L(next.gate.de, next.gate.en)}`);
+    const wrap = document.createElement('div');
+    wrap.className = 'cardbackGallery';
+    const box = document.createElement('div');
+    box.className = 'cardbackGalleryBox';
+    box.innerHTML = `<h3>🎴 ${L('Kartenrücken', 'Card backs')}</h3>`;
+    const grid = document.createElement('div');
+    grid.className = 'cardbackGrid';
+    for (const cb of CARDBACKS) {
+      const unlocked = cardbackUnlocked(cb);
+      const tile = document.createElement('button');
+      tile.type = 'button';
+      tile.className = `cardbackTile${cb.id === cur ? ' active' : ''}${unlocked ? '' : ' locked'}`;
+      tile.innerHTML = `<span class="cbPrev cbPrev-${cb.id}">${unlocked ? '' : '🔒'}</span>` +
+        `<span class="cbName">${L(cb.label, cb.labelEn)}</span>` +
+        `<span class="cbGate">${unlocked ? (cb.id === cur ? '✓' : '') : L(cb.gate.de, cb.gate.en)}</span>`;
+      tile.addEventListener('click', () => {
+        if (!unlocked) { showToast(`🔒 ${L(cb.label, cb.labelEn)}: ${L(cb.gate.de, cb.gate.en)}`); return; }
+        storageSet(CARDBACK_KEY, cb.id);
+        applyCardback();
+        wrap.remove();
+      });
+      grid.appendChild(tile);
     }
+    box.appendChild(grid);
+    wrap.appendChild(box);
+    wrap.addEventListener('click', (e) => { if (e.target === wrap) wrap.remove(); });
+    document.body.appendChild(wrap);
   }
   // --- Saisonale Akzente (klein & abschaltfrei): Dezember-Schnee,
   // Oktober-Kürbis-Emote, Silvester-Feuerwerk-Emoji im Emote-Set. -------------
@@ -3473,7 +3506,7 @@
 
   try {
     const cbBtn = el('cardbackBtn');
-    if (cbBtn) cbBtn.addEventListener('click', cycleCardback);
+    if (cbBtn) cbBtn.addEventListener('click', openCardbackGallery);
     applyCardback();
   } catch (e) { /* optional */ }
 
