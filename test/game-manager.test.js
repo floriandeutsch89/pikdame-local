@@ -2248,3 +2248,25 @@ test('layoutMeld emits a points event and gameOver carries the queen-magnet titl
   assert.equal(ft.count, 2);
   g.destroy();
 });
+
+// --- v1.82.1: Popup-Wert == Rundenwertung, auch mit Joker -------------------------
+test('points popup uses the official scoring - a joker counts 20 like in the round score', () => {
+  const { game: g } = makeGame(2);
+  const [a] = g.players;
+  const { makeStandardCard: mk, makeJoker } = require('../game/Card');
+  const { cardValue } = require('../game/Card');
+  g.startNewRound();
+  if (g.phase === 'cutting') g.performCut(g.cutterId, 0.5);
+  // Hand präparieren: Q♦ + Joker + A♦ und Zug erzwingen
+  const qd = mk('D', 'Q'), jk = makeJoker(0), ad = mk('D', 'A');
+  a.hand = [qd, jk, ad, mk('S', '7'), mk('C', '9')];
+  g.currentPlayerIndex = g.players.indexOf(a);
+  g.turnPhase = 'meld';
+  let r = g.layoutMeld(a.id, [qd.id, jk.id, ad.id]);
+  if (r && r.ambiguous) r = g.layoutMeld(a.id, [qd.id, jk.id, ad.id], r.options[0].jokerAssignments);
+  assert.ok(r && r.ok, r && r.error);
+  const ev = g.publicState(a.id).lastPointsEvent;
+  assert.equal(ev.points, cardValue(qd) + cardValue(jk) + cardValue(ad), 'popup equals official sum');
+  assert.equal(ev.points, 50, 'Q(10) + Joker(20) + A(20) = 50 - the round score truth');
+  g.destroy();
+});
