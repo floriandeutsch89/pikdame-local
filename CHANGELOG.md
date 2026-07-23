@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.83.0] - 2026-07-17
+
+### Added
+- **Joker in Auslagen zeigen, welche Karte sie vertreten** (Spieler-Report: Bei „Joker, Bube, Joker" war nicht mehr erkennbar, ob das drei Buben sind oder eine 10-B-D-Folge): Auf jedem ausgelegten Joker steht jetzt klein, kursiv und gedämpft die vertretene Karte (z. B. „B♦") - sofort lesbar ohne Antippen, in der Farbsymbol-Farbe. Das hilft nebenbei beim Joker-Tausch, weil man auf einen Blick sieht, welche echte Karte gebraucht wird. Handkarten-Joker bleiben unbeschriftet (sie vertreten ja noch nichts); per DOM-Test zugesichert
+
 ## [1.82.2] - 2026-07-17
 
 ### Fixed

@@ -757,9 +757,16 @@
       div.classList.add('joker');
       // Ecken-Index oben links, damit der Joker auch bei starker
       // Überlappung im Fächer erkennbar bleibt.
+      // Geister-Beschriftung: In AUSLAGEN zeigt der Joker klein, welche
+      // Karte er vertritt - vorher war bei [Joker, B, Joker] nicht mehr
+      // erkennbar, ob das drei Buben sind oder eine 10-B-D-Folge
+      // (Spieler-Report). Kursiv + gedämpft = 'vertreten, nicht echt'.
+      const ghost = card._isJokerSlot && card.rank && card.suit
+        ? `<div class="jokerGhost ${suitColor(card.suit)}">${card.rank}${suitSymbol(card.suit)}</div>`
+        : '';
       div.innerHTML = compact
-        ? `<div class="corner">🃏</div>`
-        : `<div class="corner">🃏</div><div class="suitMark">🃏</div>`;
+        ? `<div class="corner">🃏</div>${ghost}`
+        : `<div class="corner">🃏</div>${ghost}<div class="suitMark">🃏</div>`;
     } else {
       div.classList.add(suitColor(card.suit));
       // Wie bei echten Spielkarten: Rang + Farbe klein in der linken oberen

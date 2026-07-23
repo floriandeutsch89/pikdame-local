@@ -87,6 +87,32 @@ setTimeout(() => {
       { id: 'b2', name: 'Uwe', isBot: true, connected: true, handCount: 8, botDifficulty: 'zen' },
       { id: 'b3', name: 'Horst', isBot: true, connected: true, handCount: 0, botDifficulty: 'zen' },
     ];
+    // Joker-Geister-Beschriftung: Meld mit Joker-Slot -> das Label der
+    // vertretenen Karte muss im DOM stehen (Spieler-Report: [Joker,B,Joker]
+    // war nicht mehr als Satz vs. Folge unterscheidbar).
+    feed({
+      ...base,
+      phase: 'playing', players: base.players, roundNumber: 1,
+      currentPlayerId: 'p1', turnPhase: 'meld', dealerId: 'p1',
+      discardTop: { id: 'dx', suit: 'H', rank: '4' }, drawCount: 10, discardCount: 3,
+      hand: [{ id: 'hx', suit: 'S', rank: '9' }],
+      tableMelds: [{
+        id: 'm1', ownerId: 'p1', type: 'run',
+        slots: [
+          { real: { id: 'r1', suit: 'D', rank: '10' } },
+          { real: null, joker: { id: 'j1', isJoker: true }, representsRank: 'J', representsSuit: 'D' },
+          { real: { id: 'r2', suit: 'D', rank: 'Q' } },
+        ],
+      }],
+    });
+    {
+      const ghost = window.document.querySelector('#melds .jokerGhost');
+      if (!ghost) errors.push('joker ghost label missing in melds');
+      else if (!/J/.test(ghost.textContent)) errors.push(`ghost label wrong: ${ghost.textContent}`);
+      const handGhost = window.document.querySelector('#hand .jokerGhost');
+      if (handGhost) errors.push('hand jokers must NOT carry a ghost label');
+    }
+
     feed({
       ...base, phase: 'roundEnd', players: four, roundNumber: 2,
       currentPlayerId: 'b3', turnPhase: 'draw', dealerId: 'b1', turnDeadline: null,
