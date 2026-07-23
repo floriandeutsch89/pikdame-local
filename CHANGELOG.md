@@ -4,6 +4,12 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.83.1] - 2026-07-17
+
+### Changed
+- **Handkarten-Fächer beruhigt bei voller Hand** (Foto-Report, 15 Karten auf schmalem Gerät): Ab 12 Karten flacht der Fächer deutlich ab (Rotation ±4° statt ±10°, Hub 3 statt 6 px) - die Eck-Indizes werden ruhig lesbar, die Karten „tanzen" nicht mehr. Der Seitenrand-Abzug schrumpft mit (der flache Fächer hat kaum Rotations-Überhang), dadurch bekommt jede Karte einen breiteren sichtbaren Streifen und die erste Karte klebt nicht mehr angeschnitten am Rand; Mindeststreifen von 14 auf 16 px angehoben. Die Starthand bleibt bewusst ohne seitliches Scrollen
+- **Hinweis-Blase kompakter:** Lange Meldungen (z. B. der Getrennt-Hinweis) bliesen den zentralen Pillen-Toast bildschirmfüllend auf - jetzt engere Breite, abgerundetes Rechteck und ruhiger Mehrzeilen-Umbruch
+
 ## [1.83.0] - 2026-07-17
 
 ### Added

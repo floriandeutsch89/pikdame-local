@@ -1313,12 +1313,17 @@
         // Rotation flacht bei vielen Karten ab, sonst wird der Fächer unleserlich.
         const mid = (sorted.length - 1) / 2;
         const offset = idx - mid;
-        const rotFactor = Math.min(3.5, 42 / Math.max(sorted.length, 1));
-        const rotate = Math.max(-10, Math.min(10, offset * rotFactor));
-        // Dip is CAPPED: with 15 cards the old |offset|*2 sank the edge
-        // cards 14px - the last joker visibly fell out of the row and
-        // clipped below the bar. 6px keeps the fan feel without strays.
-        const lift = Math.min(6, Math.abs(offset) * 1.2);
+        // DICHTE-ADAPTIV (Foto-Report, 15 Karten auf 402pt): Bei voller Hand
+        // blieb pro Karte nur ein ~20px-Streifen, aber Rotation (±10°) und
+        // Hub liefen auf voller Stärke - Ergebnis: Gedränge, tanzende Kanten
+        // und Anschnitt links durch den Rotations-Überhang. Ab 12 Karten
+        // beruhigt sich der Fächer deutlich (±4°, Hub ≤3px); die Fächer-
+        // Anmutung bleibt, die Eck-Indizes werden wieder ruhig lesbar.
+        const dense = sorted.length >= 12;
+        const rotCap = dense ? 4 : 10;
+        const rotFactor = Math.min(3.5, (dense ? 18 : 42) / Math.max(sorted.length, 1));
+        const rotate = Math.max(-rotCap, Math.min(rotCap, offset * rotFactor));
+        const lift = Math.min(dense ? 3 : 6, Math.abs(offset) * (dense ? 0.6 : 1.2));
         cEl.style.transform = `rotate(${rotate}deg) translateY(${lift}px)`;
         // Die Auswahl-Anhebung kommt AUSSCHLIESSLICH aus CSS (.card.selected
         // { top: -14px }) - die frühere zusätzliche translateY(-18px) hier
@@ -1337,7 +1342,10 @@
         const cards = [...handDiv.children];
         if (cards.length < 2) return;
         const cardWidth = cards[0].offsetWidth || 60;
-        const available = handDiv.parentElement.clientWidth - 64; // Padding + Rotations-Überhang
+        // Randabzug dynamisch: der flache Dichte-Fächer (±4°) hat kaum noch
+        // Rotations-Überhang - der alte 64px-Abzug verschenkte Streifenbreite.
+        const denseHand = cards.length >= 12;
+        const available = handDiv.parentElement.clientWidth - (denseHand ? 44 : 64);
         const naturalVisible = cardWidth * 0.62; // lockerer Fächer, wenn Platz da ist
         const fitVisible = (available - cardWidth) / (cards.length - 1);
         // Ab 16 Karten (Stapelaufnahme!) wird NICHT weiter gestaucht: Auf einem
@@ -1350,7 +1358,7 @@
         handDiv.classList.toggle('handScroll', scrollMode);
         const visible = scrollMode
           ? comfortable
-          : Math.max(14, Math.min(naturalVisible, fitVisible));
+          : Math.max(16, Math.min(naturalVisible, fitVisible));
         const overlap = visible - cardWidth;
         cards.forEach((c, i) => {
           c.style.marginLeft = i === 0 ? '0' : `${overlap}px`;
