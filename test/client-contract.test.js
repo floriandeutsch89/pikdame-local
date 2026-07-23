@@ -82,3 +82,22 @@ test('CSS contract: every uiscale card height fits into the matching #hand min-h
       `${scale}: #hand min-height ${handH}px must cover card ${cardH}px + dip + selection lift`);
   }
 });
+
+// --- v1.82.2: Themes müssen den vollen Variablensatz definieren -------------------
+test('CSS contract: every data-theme defines the same variable set as the reference', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'style.css'), 'utf8');
+  const themeVars = (name) => {
+    const m = css.match(new RegExp(`\\[data-theme="${name}"\\] \\{([\\s\\S]*?)\\n\\}`));
+    assert.ok(m, `theme block ${name} exists`);
+    return new Set([...m[1].matchAll(/(--[a-z0-9-]+):/g)].map((x) => x[1]));
+  };
+  const themes = [...css.matchAll(/\[data-theme="([a-z]+)"\]/g)].map((m) => m[1]);
+  const ref = themeVars('night');
+  for (const t of new Set(themes)) {
+    const missing = [...ref].filter((v) => !themeVars(t).has(v));
+    // Ein unvollständiges Theme erbt die Werte eines ANDEREN Themes - im
+    // hellen Küchentisch-Theme wurden Hinweistexte dadurch weiß auf hell
+    // und unlesbar (Foto-Report). Vollständigkeit ist Pflicht.
+    assert.deepEqual(missing, [], `theme '${t}' must define: ${missing.join(', ')}`);
+  }
+});

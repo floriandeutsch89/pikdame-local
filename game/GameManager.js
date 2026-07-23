@@ -1435,17 +1435,17 @@ class GameManager {
         const b = r && r.breakdown;
         if (!b) continue;
         if (b.pikDameCount > 0 && !found.some((h) => h.type === 'queenCaught')) {
-          found.push({ type: 'queenCaught', round: round.round, name: nameOf(pid), drama: 4 });
+          found.push({ type: 'queenCaught', round: round.roundNumber, name: nameOf(pid), drama: 4 });
         }
         if (b.pikDameLaidOut > 0 && !found.some((h) => h.type === 'queenLaid')) {
-          found.push({ type: 'queenLaid', round: round.round, name: nameOf(pid), drama: 2 });
+          found.push({ type: 'queenLaid', round: round.roundNumber, name: nameOf(pid), drama: 2 });
         }
         if (r.roundScore > bestRound.score) {
-          bestRound = { type: 'bestRound', round: round.round, name: nameOf(pid), score: r.roundScore, drama: 1 };
+          bestRound = { type: 'bestRound', round: round.roundNumber, name: nameOf(pid), score: r.roundScore, drama: 1 };
         }
       }
       if (round.isHandAus && round.winnerId && !found.some((h) => h.type === 'handAus')) {
-        found.push({ type: 'handAus', round: round.round, name: nameOf(round.winnerId), drama: 3 });
+        found.push({ type: 'handAus', round: round.roundNumber, name: nameOf(round.winnerId), drama: 3 });
       }
     }
     if (bestRound.score > 0) found.push(bestRound);
