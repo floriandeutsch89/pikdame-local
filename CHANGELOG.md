@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.84.0] - 2026-07-17
+
+### Added
+- **Kartenrücken-Galerie:** Der 🎴-Chip öffnet jetzt eine Galerie mit allen Rücken als Vorschau-Kacheln - die aktive Wahl ist markiert, gesperrte Designs zeigen 🔒 samt Freischalt-Ziel („ab 10 Siegen"). „Was mir noch fehlt" ist damit sichtbar statt versteckt im Blindzyklus
+
+### Changed
+- **Getrennt-Status wohnt jetzt am Spieler-Chip:** Verliert jemand die Verbindung, wird sein Chip gedimmt und trägt ein pulsierendes „⏳ getrennt"-Badge, bis er zurück ist - der flüchtige Riesen-Toast mitten im Spielfeld entfällt dafür (im Protokoll steht die Meldung weiterhin)
+- **Joker-Beschriftung, bestätigt für alle Ränge:** Die Geister-Beschriftung aus 1.83.0 liest die vertretene Karte generisch - jede Kombination von 2 bis Ass in allen Farben. Der Rauchtest beweist es jetzt ausdrücklich mit den Rändern des Spektrums (2, Bube, Ass)
+
 ## [1.83.1] - 2026-07-17
 
 ### Changed

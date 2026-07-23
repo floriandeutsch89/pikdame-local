@@ -103,12 +103,23 @@ setTimeout(() => {
           { real: null, joker: { id: 'j1', isJoker: true }, representsRank: 'J', representsSuit: 'D' },
           { real: { id: 'r2', suit: 'D', rank: 'Q' } },
         ],
+      }, {
+        // Nutzerfrage: gilt das Label für ALLE Ränge (2 bis Ass)? Beweis:
+        // generisch aus representsRank/Suit - hier 2, 10 und Ass.
+        id: 'm2', ownerId: 'p1', type: 'run',
+        slots: [
+          { real: null, joker: { id: 'j2', isJoker: true }, representsRank: '2', representsSuit: 'C' },
+          { real: { id: 'r3', suit: 'C', rank: '3' } },
+          { real: null, joker: { id: 'j3', isJoker: true }, representsRank: 'A', representsSuit: 'C' },
+        ],
       }],
     });
     {
-      const ghost = window.document.querySelector('#melds .jokerGhost');
-      if (!ghost) errors.push('joker ghost label missing in melds');
-      else if (!/J/.test(ghost.textContent)) errors.push(`ghost label wrong: ${ghost.textContent}`);
+      const ghosts = [...window.document.querySelectorAll('#melds .jokerGhost')].map((g) => g.textContent);
+      if (ghosts.length !== 3) errors.push(`expected 3 ghost labels (J, 2, A), got ${ghosts.length}`);
+      for (const want of ['J', '2', 'A']) {
+        if (!ghosts.some((t) => t.startsWith(want))) errors.push(`ghost label for rank ${want} missing (${ghosts.join(',')})`);
+      }
       const handGhost = window.document.querySelector('#hand .jokerGhost');
       if (handGhost) errors.push('hand jokers must NOT carry a ghost label');
     }
