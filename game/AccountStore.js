@@ -72,6 +72,10 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
 
   /** @returns {{ok:true, verifyToken:string}|{error:string}} */
   function register(username, email, password) {
+    // Opt-in-Hygiene: Nie bestätigte Konten mit abgelaufenem Link blockieren
+    // sonst Benutzername UND E-Mail für immer - und der Hinweis 'bitte neu
+    // registrieren' (abgelaufener Link) liefe gegen 'bereits vergeben'.
+    db.prepare('DELETE FROM users WHERE verified = 0 AND verify_expires < ?').run(Date.now());
     username = String(username || '').trim();
     email = String(email || '').trim();
     password = String(password || '');
@@ -155,7 +159,7 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
     db.close();
   }
 
-  return { register, verifyEmail, login, sessionUser, logout, isRegisteredName, close };
+  return { register, verifyEmail, login, sessionUser, logout, isRegisteredName, close, _db: db }; // _db: Test-Seam (Ablauf-Simulation)
 }
 
 /**

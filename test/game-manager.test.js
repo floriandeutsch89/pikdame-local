@@ -2271,3 +2271,26 @@ test('points popup uses the official scoring - a joker counts 20 like in the rou
   assert.equal(ev.points, 50, 'Q(10) + Joker(20) + A(20) = 50 - the round score truth');
   g.destroy();
 });
+
+// --- v1.84.1: Double-Opt-in - abgelaufene Unbestätigte geben Name/Mail frei ------
+test('expired unverified accounts are purged on next register (name+mail become free)', async () => {
+  const os = require('node:os');
+  const path = require('node:path');
+  const { createAccountStore } = require('../game/AccountStore');
+  const store = createAccountStore(path.join(os.tmpdir(), `acc-${Date.now()}.db`));
+  const r1 = store.register('Flo', 'flo@example.org', 'geheim123');
+  assert.ok(r1.ok, 'first register works');
+  // Ohne Bestätigung: Name/Mail belegt
+  const r2 = store.register('Flo', 'flo@example.org', 'geheim123');
+  assert.ok(r2.error, 'unverified but unexpired still blocks');
+  // Ablauf simulieren, dann muss die Neu-Registrierung durchgehen (Opt-in!)
+  store._db.prepare('UPDATE users SET verify_expires = ? WHERE username = ?').run(Date.now() - 1000, 'Flo');
+  const r3 = store.register('Flo', 'flo@example.org', 'geheim123');
+  assert.ok(r3.ok, 'expired unverified account was purged - re-register works');
+  // Login bleibt bis zur Bestätigung gesperrt
+  const l = store.login('Flo', 'geheim123');
+  assert.ok(l.error && /bestätigen/.test(l.error), 'login stays blocked until verified');
+  const v = store.verifyEmail(r3.verifyToken);
+  assert.ok(v.ok, 'verify works');
+  assert.ok(store.login('Flo', 'geheim123').ok, 'login works after confirmation - opt-in complete');
+});

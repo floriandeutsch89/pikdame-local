@@ -95,6 +95,13 @@ function createPgAccountStore(databaseUrl, options = {}) {
   const DB_DOWN = { error: 'Konto-Datenbank ist gerade nicht erreichbar - bitte später erneut versuchen.' };
 
   async function register(username, email, password) {
+    // Opt-in-Hygiene (siehe AccountStore): abgelaufene Unbestätigte räumen.
+    // Fehler-tolerant: Hygiene darf die Registrierung nie blockieren - und
+    // bei unerreichbarer DB übernimmt die reguläre Fehlerbehandlung unten
+    // (fails closed, wirft nicht - siehe Degradations-Test).
+    try {
+      await pool.query('DELETE FROM users WHERE verified = FALSE AND verify_expires < $1', [Date.now()]);
+    } catch (e) { /* Cleanup ist Komfort */ }
     username = String(username || '').trim();
     email = String(email || '').trim();
     password = String(password || '');
