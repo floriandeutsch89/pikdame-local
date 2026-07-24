@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.84.1] - 2026-07-17
+
+### Fixed
+- **Double-Opt-in: abgelaufene unbestätigte Konten geben Name und E-Mail wieder frei.** Die Registrierung mit Bestätigungs-Mail war bereits vollständig umgesetzt (Konto erst nach Klick auf den Mail-Link nutzbar, Login vorher gesperrt, Link 48 h gültig) - aber nie bestätigte Konten blieben für immer liegen und blockierten Benutzernamen und E-Mail-Adresse; der Hinweis „bitte neu registrieren" beim abgelaufenen Link lief damit ins Leere. Jetzt räumt jede Registrierung abgelaufene Unbestätigte auf (SQLite und Postgres); ein Rundlauf-Test sichert den kompletten Opt-in-Fluss ab
+
+### Added
+- **Wöchentlicher Dependency-Update-Workflow** (`deps-update.yml`): Prüft jeden Montag auf veraltete Pakete. Falls vorhanden: Update auf die neuesten Versionen, Minor-Versions-Bump samt Changelog-Zeile, Pull Request mit angefordertem Review - und **Auto-Merge, sobald alle Checks grün sind** (Chore-Updates brauchen keinen menschlichen Blick). Nur wenn die CI rot ist, bleibt der PR zur manuellen Prüfung offen
+
 ## [1.84.0] - 2026-07-17
 
 ### Added
