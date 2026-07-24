@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.84.2] - 2026-07-17
+
+### Added
+- **Terraform-Ordner für Hetzner Cloud** (`terraform/`): Ein `apply` erzeugt einen Ubuntu-24.04-LTS-Server mit Docker (offizielles Docker-Repo) und Dockge als Compose-Verwaltung, samt Cloud-Firewall (nur SSH/80/443 offen - die Dockge-UI ist bewusst nur per SSH-Tunnel erreichbar), automatischen Sicherheits-Updates und Lösch-Schutz für den Server. Standardwerte: x86-Maschine (die GHCR-Images sind amd64) in Falkenstein (Deutschland, passend zur Datenschutz-Angabe); alles per Variable änderbar. Anleitung inkl. Stack-Einspielen über Dockge im `terraform/README.md`
+
 ## [1.84.1] - 2026-07-17
 
 ### Fixed
