@@ -1,0 +1,46 @@
+#cloud-config
+# First boot setup: Docker from Docker's official apt repo (best practice -
+# the Ubuntu 'docker.io' package lags behind), the compose plugin, Dockge
+# under /opt/dockge with stacks in /opt/stacks, and unattended security
+# updates. Takes 2-4 minutes after the server shows as "running".
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - ca-certificates
+  - curl
+  - unattended-upgrades
+
+write_files:
+  # Dockge itself is just a compose stack. Port 5001 stays closed in the
+  # Hetzner firewall - access it through an SSH tunnel (see README).
+  - path: /opt/dockge/compose.yaml
+    content: |
+      services:
+        dockge:
+          image: louislam/dockge:1
+          restart: unless-stopped
+          ports:
+            - "5001:5001"
+          volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+            - ./data:/app/data
+            - /opt/stacks:/opt/stacks
+          environment:
+            - DOCKGE_STACKS_DIR=/opt/stacks
+
+runcmd:
+  # Docker: official repository (keyring method per docs.docker.com)
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - systemctl enable --now docker
+  # Dockge
+  - mkdir -p /opt/stacks
+  - cd /opt/dockge && docker compose up -d
+  # Unattended security updates on
+  - printf 'APT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Unattended-Upgrade "1";\n' > /etc/apt/apt.conf.d/20auto-upgrades
