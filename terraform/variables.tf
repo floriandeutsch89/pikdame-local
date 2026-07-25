@@ -11,9 +11,9 @@ variable "server_name" {
 }
 
 variable "server_type" {
-  description = "Hetzner server type. Default is x86 (cx22) ON PURPOSE: the pikdame images on GHCR are built for amd64 by the GitHub runners - ARM types (cax*) cannot run them unless multi-arch builds are added."
+  description = "Hetzner server type. cx23 is the current entry x86 plan (2 vCPU / 4 GB / 40 GB); the older cx22 still runs but belongs to the previous generation. x86 is chosen ON PURPOSE: the pikdame images on GHCR are built for amd64 by the GitHub runners - ARM types (cax*) cannot run them unless multi-arch builds are added. Verify the current lineup with 'hcloud server-type list' before changing this."
   type        = string
-  default     = "cx22"
+  default     = "cx23"
 }
 
 variable "location" {

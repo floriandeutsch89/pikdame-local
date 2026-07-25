@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.84.3] - 2026-07-25
+
+### Added
+- **Terraform: fail2ban und SSH-Härtung** - der Server sperrt jetzt Adressen nach 5 Fehlversuchen für eine Stunde (fail2ban liest das systemd-Journal, weil das Ubuntu-Cloud-Image ohne rsyslog kommen kann und ein dateibasiertes Jail sonst still ins Leere liefe). Zusätzlich: Passwort- und Tastatur-Anmeldung abgeschaltet, root nur per Schlüssel, `MaxAuthTries 3`
+
+### Changed
+- **Terraform: Standard-Servertyp auf `cx23`** (aktuelle CX-Generation, 2 vCPU / 4 GB / 40 GB). Der bisherige Standard `cx22` läuft weiter, gehört aber zur Vorgänger-Generation; die Variablen-Beschreibung verweist jetzt auf `hcloud server-type list` zur Prüfung des aktuellen Angebots
+- **Terraform-README auf Englisch** (Wunsch), inklusive neuem Abschnitt zur Sicherheitslage (Cloud-Firewall vor dem Host, Schlüssel-only-SSH, fail2ban, automatische Sicherheits-Updates)
+
 ## [1.84.2] - 2026-07-17
 
 ### Added

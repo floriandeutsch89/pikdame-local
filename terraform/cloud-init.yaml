@@ -1,8 +1,9 @@
 #cloud-config
 # First boot setup: Docker from Docker's official apt repo (best practice -
 # the Ubuntu 'docker.io' package lags behind), the compose plugin, Dockge
-# under /opt/dockge with stacks in /opt/stacks, and unattended security
-# updates. Takes 2-4 minutes after the server shows as "running".
+# under /opt/dockge with stacks in /opt/stacks, SSH hardening, fail2ban and
+# unattended security updates. Takes 2-4 minutes after the server shows as
+# "running" (watch with: cloud-init status --wait).
 
 package_update: true
 package_upgrade: true
@@ -10,6 +11,7 @@ package_upgrade: true
 packages:
   - ca-certificates
   - curl
+  - fail2ban
   - unattended-upgrades
 
 write_files:
@@ -30,6 +32,32 @@ write_files:
           environment:
             - DOCKGE_STACKS_DIR=/opt/stacks
 
+  # SSH: keys only. The Terraform SSH key is injected by cloud-init, so
+  # password login is dead weight and only invites brute force.
+  - path: /etc/ssh/sshd_config.d/99-hardening.conf
+    content: |
+      PermitRootLogin prohibit-password
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      MaxAuthTries 3
+
+  # fail2ban: bans hosts that hammer SSH. With key-only auth this is mostly
+  # about cutting log noise and slowing scanners, but it is cheap and
+  # standard practice. backend=systemd because Ubuntu 24.04 cloud images
+  # journal everything and may ship without rsyslog (a file-based jail
+  # would silently never match).
+  - path: /etc/fail2ban/jail.local
+    content: |
+      [DEFAULT]
+      backend = systemd
+      bantime = 1h
+      findtime = 10m
+      maxretry = 5
+      ignoreself = true
+
+      [sshd]
+      enabled = true
+
 runcmd:
   # Docker: official repository (keyring method per docs.docker.com)
   - install -m 0755 -d /etc/apt/keyrings
@@ -39,6 +67,9 @@ runcmd:
   - apt-get update
   - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   - systemctl enable --now docker
+  # SSH + fail2ban active
+  - systemctl restart ssh
+  - systemctl enable --now fail2ban
   # Dockge
   - mkdir -p /opt/stacks
   - cd /opt/dockge && docker compose up -d
