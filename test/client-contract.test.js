@@ -101,3 +101,46 @@ test('CSS contract: every data-theme defines the same variable set as the refere
     assert.deepEqual(missing, [], `theme '${t}' must define: ${missing.join(', ')}`);
   }
 });
+
+// --- v1.84.4: Sichtbarkeits-Verträge für Glow und Jackpot-Overlay ----------------
+test('CSS contract: the just-drawn marker rests on a full-strength accent ring', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'style.css'), 'utf8');
+  const frames = css.match(/@keyframes drawnGlow \{([\s\S]*?)\n\}/);
+  assert.ok(frames, 'drawnGlow keyframes exist');
+  // Der Ruhezustand (100%) muss die VOLLE Akzentfarbe tragen. Klingt er in
+  // --accent-soft aus (~0.28 Alpha), ist die Markierung nach dem Aufblitzen
+  // praktisch unsichtbar - genau der gemeldete Fehler, in jedem Theme.
+  const resting = frames[1].match(/100%[^}]*\}/);
+  assert.ok(resting, '100% frame exists');
+  assert.match(resting[0], /0 0 0 3px var\(--accent\)/, 'resting ring uses the full accent colour');
+
+  const block = css.match(/\.card\.just-drawn \{([\s\S]*?)\n\}/);
+  assert.ok(block, '.card.just-drawn block exists');
+  // Kommentare rauswerfen: geprüft werden DEKLARATIONEN, nicht Prosa (der
+  // Block erklärt in Worten, warum es hier kein z-index gibt).
+  const declarations = block[1].replace(/\/\*[\s\S]*?\*\//g, '');
+  // Lektion aus .selected: eine nach vorn geholte Karte verdeckt den
+  // Klickstreifen der rechten Nachbarkarte im Fächer.
+  assert.doesNotMatch(declarations, /z-index\s*:/, 'must not raise z-index (hides the neighbour click strip)');
+});
+
+test('CSS contract: the raid/lucky overlay is a real panel with theme colours', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'style.css'), 'utf8');
+  const panel = css.match(/\.raidWarning \{([\s\S]*?)\n\}/);
+  assert.ok(panel, '.raidWarning block exists');
+  // Ohne Hintergrund/Polster/Maximalbreite malt der Glanz-Schatten ein
+  // hartkantiges Rechteck um den Textblock und die Überschrift läuft
+  // seitlich heraus (Foto-Report).
+  for (const prop of ['background', 'padding', 'max-width', 'border-radius']) {
+    assert.match(panel[1], new RegExp(`\\n\\s*${prop}:`), `panel must define ${prop}`);
+  }
+  // Farben aus Theme-Variablen: hart kodierte helle Töne waren auf dem
+  // hellen Küchentisch-Theme unlesbar.
+  for (const sel of [/\.raidWarning \.rwTitle \{([\s\S]*?)\n\}/, /\.raidWarning\.lucky \.rwTitle \{([^}]*)\}/]) {
+    const m = css.match(sel);
+    assert.ok(m, `block ${sel} exists`);
+    const colour = m[1].match(/(?:^|\s)color:\s*([^;]+);/);
+    assert.ok(colour, 'title defines a colour');
+    assert.match(colour[1], /var\(--/, `title colour must come from a theme variable, got: ${colour[1]}`);
+  }
+});

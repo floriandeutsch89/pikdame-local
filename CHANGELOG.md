@@ -4,6 +4,13 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.84.4] - 2026-07-26
+
+### Fixed
+- **„Neu gezogen"-Markierung war praktisch unsichtbar** (Foto-Report, in jedem Farbmodell): Der Glow klang in `--accent-soft` aus - einer Farbe mit rund 28 % Deckkraft - und war nach dem kurzen Aufblitzen kaum noch zu erkennen. Die frisch gezogene Karte trägt jetzt dauerhaft denselben kräftigen Akzent-Ring wie eine ausgewählte Karte (nachweislich in allen Themes gut sichtbar), plus weichen Schein; das Aufblitzen ist kürzer, weil der bleibende Ring die eigentliche Markierung ist. Bewusst weiterhin **ohne** z-index - eine nach vorn geholte Karte verdeckte sonst den Klickstreifen der Nachbarkarte im Fächer
+- **Glücksgriff- und Pik-Dame-Einblendung sah kaputt aus:** Das Overlay hatte weder Hintergrund noch Rahmenbreite, Innenabstand oder Maximalbreite - der Glanz-Schatten malte deshalb ein hartkantiges, milchiges Rechteck um den Text, aus dem die Überschrift seitlich herauslief. Es ist jetzt ein richtiges Panel (abgerundet, mit Unschärfe hinterlegt, umbrechender Text), und die Schriftfarben kommen aus der Theme-Palette statt aus fest verdrahtetem Weiß bzw. Hellgrün - beides war für dunkle Tische gedacht und auf dem hellen Küchentisch-Theme kaum lesbar
+- Beide Fehlerbilder sind per CSS-Vertragstest festgenagelt (Ruhezustand nutzt die volle Akzentfarbe, kein z-index; Overlay definiert Hintergrund/Polster/Maximalbreite/Radius und bezieht seine Farben aus Theme-Variablen) - die Tests wurden gegen den alten Stand gegengeprüft und hätten ihn abgelehnt
+
 ## [1.84.3] - 2026-07-25
 
 ### Added
