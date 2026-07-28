@@ -238,7 +238,7 @@ window.I18N_RULES_EN = `
 
   <h3>Your turn</h3>
   <ul>
-    <li><b>1. Draw:</b> one card from the draw pile – OR the top discard, but only if it can form a new combination with your hand. Then you must <b>meld it immediately</b>; only afterwards do you receive the entire rest of the discard pile.</li>
+    <li><b>1. Draw:</b> one card from the draw pile – OR the top discard, but only if it can form a new combination with your hand. Then you must <b>meld it immediately</b>; only afterwards do you receive the entire rest of the discard pile. If that forced meld would use up your entire hand, the pickup is <b>not allowed</b> – a card must always remain for the discard.</li>
     <li><b>2. Meld &amp; add</b> (as often as you like): lay down combinations, add single cards or swap jokers – <b>only on your own melds</b>. Other players' melds are off limits!</li>
     <li><b>3. Discard:</b> exactly one card onto the discard pile – your turn ends. <b>Going out:</b> your last card is discarded <b>face down</b> – nobody can pick it up. So you can never meld everything; at least one card stays for the discard.</li>
   </ul>

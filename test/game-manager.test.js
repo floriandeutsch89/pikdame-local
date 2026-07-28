@@ -381,12 +381,20 @@ test('drawFromDiscard ist erlaubt, wenn die oberste Karte einen neuen Satz ermö
   game.turnPhase = 'draw';
   game.currentPlayerIndex = 0;
   game.tableMelds = [];
-  game.players[0].hand = [makeStandardCard('H', '7', 0), makeStandardCard('D', '7', 0)];
+  // Die dritte Handkarte ist seit v1.85.2 nötig: Die Aufnahme darf die Hand
+  // nicht restlos verbrauchen, sonst bliebe nichts zum Abwerfen übrig
+  // (Familienregel - die Abwurfpflicht gilt ausnahmslos). Die Aussage dieses
+  // Tests bleibt dieselbe: Ein möglicher NEUER SATZ rechtfertigt die Aufnahme.
+  game.players[0].hand = [
+    makeStandardCard('H', '7', 0),
+    makeStandardCard('D', '7', 0),
+    makeStandardCard('S', '2', 0),
+  ];
   game.discardPile = [makeStandardCard('C', '7', 0)]; // ergibt mit der Hand einen Satz aus 7ern
 
   const result = game.drawFromDiscard('p1');
   assert.equal(result.ok, true);
-  assert.equal(game.players[0].hand.length, 3);
+  assert.equal(game.players[0].hand.length, 4);
 });
 
 test('drawFromDiscard ist VERBOTEN, wenn die Karte nur an eine Auslage passt (Regel: sie muss zu den HANDKARTEN passen)', () => {
@@ -2293,4 +2301,115 @@ test('expired unverified accounts are purged on next register (name+mail become 
   const v = store.verifyEmail(r3.verifyToken);
   assert.ok(v.ok, 'verify works');
   assert.ok(store.login('Flo', 'geheim123').ok, 'login works after confirmation - opt-in complete');
+});
+
+// --- v1.85.2: Abwurfpflicht ausnahmslos - Aufnahme darf keine Sackgasse bauen ----
+function setupPickup(handCards, discardCards) {
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  game.turnPhase = 'draw';
+  game.currentPlayerIndex = 0;
+  game.players[0].hand = handCards;
+  game.discardPile = discardCards;
+  game.drawPile = [makeStandardCard('S', '2', 1)];
+  return game;
+}
+
+test('going-out rule: pickup is refused when it would leave no card to discard', () => {
+  // Hand hat genau zwei Karten; nur zusammen mit der Ablagekarte bilden sie
+  // eine Kombination -> das Pflicht-Legen würde die Hand komplett leeren.
+  const game = setupPickup(
+    [makeStandardCard('H', '7', 0), makeStandardCard('D', '7', 0)],
+    [makeStandardCard('C', '7', 0)]
+  );
+  const r = game.drawFromDiscard('p1');
+  assert.ok(r && r.error, 'pickup must be refused');
+  assert.match(r.error, /abzuwerfen|abwerfen/i);
+  assert.equal(game.players[0].hand.length, 2, 'hand untouched');
+  assert.equal(game.discardPile.length, 1, 'discard pile untouched');
+  assert.equal(game.turnPhase, 'draw', 'still in the draw phase');
+  game.destroy();
+});
+
+test('going-out rule: pickup stays allowed when the rest of the pile follows', () => {
+  const game = setupPickup(
+    [makeStandardCard('H', '7', 0), makeStandardCard('D', '7', 0)],
+    [makeStandardCard('C', '7', 0), makeStandardCard('S', '9', 0)]
+  );
+  const r = game.drawFromDiscard('p1');
+  assert.ok(r && r.ok, `pickup should be allowed, got: ${r && r.error}`);
+  game.destroy();
+});
+
+test('going-out rule: pickup stays allowed when a meld spares one hand card', () => {
+  const game = setupPickup(
+    [makeStandardCard('H', '7', 0), makeStandardCard('D', '7', 0), makeStandardCard('S', '2', 0)],
+    [makeStandardCard('C', '7', 0)]
+  );
+  const r = game.drawFromDiscard('p1');
+  assert.ok(r && r.ok, `pickup should be allowed, got: ${r && r.error}`);
+  game.destroy();
+});
+
+test('going-out rule: pickup stays allowed when the card fits an own meld (costs no hand card)', () => {
+  const game = setupPickup(
+    [makeStandardCard('H', '7', 1), makeStandardCard('D', '7', 1)],
+    [makeStandardCard('C', '7', 0)]
+  );
+  // Eigene Auslage: Satz aus Siebenen - die Ablagekarte kann angelegt werden,
+  // ohne eine einzige Handkarte zu verbrauchen.
+  game.tableMelds = [{
+    id: 'm-own', ownerId: 'p1', type: 'set', rank: '7',
+    slots: [
+      { real: makeStandardCard('H', '7', 0), playerId: 'p1' },
+      { real: makeStandardCard('D', '7', 0), playerId: 'p1' },
+      { real: makeStandardCard('S', '7', 0), playerId: 'p1' },
+    ],
+  }];
+  const r = game.drawFromDiscard('p1');
+  assert.ok(r && r.ok, `pickup should be allowed, got: ${r && r.error}`);
+  game.destroy();
+});
+
+test('going-out rule holds through full games: a round never ends without a discard', () => {
+  for (const options of [{ deckSeed: 20260728 }, {}]) {
+    const game = new GameManager(() => {}, options);
+    for (let i = 1; i <= 4; i++) game.addOrReconnectPlayer(`p${i}`, `P${i}`);
+    for (const p of game.players) { p.isBot = true; p.botDifficulty = 'zen'; }
+
+    // WICHTIG: Marker VOR dem Aufruf setzen - das Rundenende passiert
+    // INNERHALB der Aktion (checkRoundEnd -> finishRound). Wer erst danach
+    // setzt, misst den vorherigen Zug (Messfehler aus der Untersuchung).
+    let lastAction = null;
+    for (const fn of ['discard', 'layoutMeld', 'layOffCard', 'layOffCards', 'swapJoker']) {
+      const orig = game[fn].bind(game);
+      game[fn] = (...args) => {
+        const prev = lastAction;
+        lastAction = fn;
+        const out = orig(...args);
+        if (out && out.error) lastAction = prev;
+        return out;
+      };
+    }
+    const offenders = [];
+    const origFinish = game.finishRound.bind(game);
+    game.finishRound = (winnerId, ...rest) => {
+      // winnerId gesetzt = jemand hat ausgemacht (Patt/Aufgabe haben keinen).
+      if (winnerId && lastAction && lastAction !== 'discard') offenders.push(lastAction);
+      return origFinish(winnerId, ...rest);
+    };
+
+    game.startNewRound();
+    let guard = 0;
+    while (game.phase !== 'gameOver' && guard++ < 20000) {
+      if (game.phase === 'roundEnd') { game.startNewRound(); continue; }
+      if (game.phase === 'cutting') { game.performCut(game.cutterId, 0.5); continue; }
+      if (game.phase !== 'playing') break;
+      const cp = game.currentPlayer();
+      if (!cp) break;
+      game.runBotTurn(cp.id);
+    }
+    game.destroy();
+    assert.deepEqual(offenders, [], `Runden endeten ohne Abwurf über: ${offenders.join(', ')}`);
+  }
 });

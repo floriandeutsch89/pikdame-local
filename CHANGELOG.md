@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.85.2] - 2026-07-28
+
+### Changed
+- **Die Abwurfpflicht gilt jetzt ausnahmslos** (Regelentscheidung vom Tisch): Die oberste Ablagekarte darf **nicht mehr aufgenommen werden, wenn das anschließende Pflicht-Legen die ganze Hand verbrauchen würde** - danach bliebe keine Karte zum Abwerfen übrig. Bisher ließ genau dieser Zwang eine Ausnahme zu, sodass man ohne Abwurf ausmachen konnte. Statt die Ausnahme beim Legen zu erlauben, wird nun die Aufnahme verboten: Die Sackgasse entsteht gar nicht erst. Erlaubt bleibt die Aufnahme, wenn noch ein Reststapel folgt (der kommt ohnehin auf die Hand), wenn die Karte an eine eigene Auslage passt (kostet keine Handkarte) oder wenn eine Kombination existiert, die mindestens eine Handkarte verschont
+- Die Regel gilt einheitlich an allen drei Stellen, die über Aufnehmbarkeit entscheiden: bei der Aufnahme selbst, beim Hinweis „Nachziehstapel leer - du kannst aber aufnehmen" und bei der Patt-Erkennung. Ein Zug, den es nicht mehr gibt, zählt damit auch nicht mehr als verbleibende Möglichkeit
+- Der Regeltext in der App (deutsch und englisch) benennt die Einschränkung ausdrücklich; die dort seit jeher stehende Zusage „mindestens eine Karte bleibt fürs Abwerfen" stimmt jetzt auch technisch
+- **Gemessen** (150 Partien, 1022 Runden): Rundenenden ohne Abwurf **0,0 %** (vorher vereinzelt), Patt-Quote unverändert **4,0 %** (Referenzwert 4,3 %) - die Regel greift selten (2 abgelehnte Aufnahmen), ändert also den Spielfluss nicht spürbar. Bots fallen bei abgelehnter Aufnahme sauber auf den Nachziehstapel zurück
+
 ## [1.85.1] - 2026-07-28
 
 ### Fixed

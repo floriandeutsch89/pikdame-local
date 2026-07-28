@@ -656,7 +656,11 @@ class GameManager {
       // aufnehmen, ist das sein (einziger) Zug - kein Rundenende, nur ein
       // Hinweis.
       const top = this.discardPile[0];
-      if (this.currentPlayer() && top && !top.faceDown && this.canUseDiscardTop(this.currentPlayer(), top)) {
+      // canTakeDiscardTop (nicht canUseDiscardTop): Eine Aufnahme, die keine
+      // Karte zum Abwerfen übrig ließe, ist verboten - sie darf hier also
+      // auch nicht als möglicher Zug angeboten werden, sonst schickt der
+      // Hinweis den Spieler in eine Aktion, die abgelehnt wird.
+      if (this.currentPlayer() && top && !top.faceDown && this.canTakeDiscardTop(this.currentPlayer(), top)) {
         return { error: 'Der Nachziehstapel ist leer - du kannst aber die oberste Ablagekarte aufnehmen.' };
       }
       // Sonst kann niemand mehr etwas tun: Die Runde endet und wird ganz
@@ -682,7 +686,10 @@ class GameManager {
     if (this.drawPile.length > 0) return false;
     const cp = this.currentPlayer();
     const top = this.discardPile[0];
-    if (cp && top && !top.faceDown && this.canUseDiscardTop(cp, top)) return false;
+    // Gleiche Prüfung wie bei der Aufnahme selbst: Was nicht genommen werden
+    // DARF, zählt auch nicht als verbleibender Zug - sonst gilt eine Runde
+    // als spielbar, in der niemand mehr etwas tun kann.
+    if (cp && top && !top.faceDown && this.canTakeDiscardTop(cp, top)) return false;
     return true;
   }
 
@@ -701,6 +708,41 @@ class GameManager {
     // zusammen mit den HANDKARTEN eine neue Kombination bilden kann.
     // Die Anlegbarkeit an bestehende Auslagen berechtigt NICHT zur Aufnahme.
     return canFormMeldWithCard(topCard, player.hand);
+  }
+
+  /**
+   * FAMILIENREGEL (v1.85.2, vom Tisch entschieden): Die Abwurfpflicht gilt
+   * AUSNAHMSLOS - niemand macht aus, ohne die letzte Karte abzuwerfen.
+   *
+   * Die Aufnahme der Ablagekarte erzwingt, sie sofort zu legen. Würde dieses
+   * Pflicht-Legen die Hand vollständig leeren, entstand bisher genau die
+   * Ausnahme, die der Tisch nicht will (Rundenende ohne Abwurf). Statt die
+   * Ausnahme beim Legen zu erlauben, wird jetzt die AUFNAHME verboten - die
+   * Sackgasse kann so gar nicht erst entstehen.
+   *
+   * Erlaubt bleibt die Aufnahme, wenn nach dem Pflicht-Legen sicher eine
+   * Karte übrig bleibt:
+   *   (a) es liegt noch ein Reststapel darunter (der wandert danach auf die
+   *       Hand - siehe resolvePendingDiscardPickup), oder
+   *   (b) die Karte lässt sich an eine EIGENE Auslage anlegen (verbraucht
+   *       keine einzige Handkarte), oder
+   *   (c) es existiert eine Kombination, die mindestens eine Handkarte
+   *       übrig lässt.
+   */
+  canTakeDiscardTop(player, topCard) {
+    if (!player || !topCard) return false;
+    if (!this.canUseDiscardTop(player, topCard)) return false;
+    // (a) Reststapel folgt auf die Hand - danach ist immer etwas zum Abwerfen da.
+    if (this.discardPile.length > 1) return true;
+    // (b) Anlegen an eine eigene Auslage kostet keine Handkarte.
+    const ownMelds = (this.tableMelds || []).filter((m) => m.ownerId === player.id);
+    if (ownMelds.some((m) => tryLayOff(m, topCard))) return true;
+    // (c) Gibt es eine Kombination, die eine Handkarte verschont? Wir prüfen
+    // jede Handkarte als "bleibt liegen" und fragen die bewährte Regellogik,
+    // ob der Rest zusammen mit der Ablagekarte noch eine Kombination bildet.
+    return player.hand.some((keep) =>
+      canFormMeldWithCard(topCard, player.hand.filter((cd) => cd.id !== keep.id))
+    );
   }
 
   /** PUBLIC memory (fair play by construction): tracks only cards every
@@ -734,6 +776,12 @@ class GameManager {
       return {
         error:
           'Die oberste Ablagekarte passt zu keiner Kombination mit deinen Handkarten - der Ablagestapel kann so nicht aufgenommen werden.',
+      };
+    }
+    if (!this.canTakeDiscardTop(player, topCard)) {
+      return {
+        error:
+          'Diese Aufnahme würde deine Hand komplett verbrauchen - danach bliebe keine Karte zum Abwerfen übrig. Zum Ausmachen musst du deine letzte Karte abwerfen.',
       };
     }
 
@@ -2091,7 +2139,13 @@ class GameManager {
       cp.forcedDrawSource = null;
     }
     if (plan.source === 'discardPile' && this.discardPile.length > 0) {
-      this.drawFromDiscard(botId);
+      const taken = this.drawFromDiscard(botId);
+      // Die Aufnahme kann jetzt regelbedingt abgelehnt werden (sie ließe
+      // keine Karte zum Abwerfen übrig). Ohne Rückfall auf den
+      // Nachziehstapel bliebe der Bot in der Ziehphase stehen.
+      if (taken && taken.error && this.turnPhase === 'draw' && this.phase === 'playing') {
+        this.drawFromPile(botId);
+      }
     } else {
       const drawn = this.drawFromPile(botId);
       // Familienregel-Endspiel: Der Stapel ist leer, aber die oberste
