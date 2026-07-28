@@ -1,6 +1,6 @@
 {
   "name": "pik-dame",
-  "version": "1.84.4",
+  "version": "1.85.0",
   "description": "Multiplayer Rommé-Variante 'Pik Dame' – Node.js Server + WebSocket",
   "main": "server.js",
   "scripts": {
@@ -15,6 +15,6 @@
     "ws": "^8.21.1"
   },
   "devDependencies": {
-    "jsdom": "^29.1.1"
+    "jsdom": "^30.0.0"
   }
 }
