@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.85.1] - 2026-07-28
+
+### Fixed
+- **Karten konnten sich verdoppeln - eine Pik Dame tauchte dreimal auf** (Spieler-Report aus der Tages-Challenge): Die Zug-Planung der Bots schrieb ihren Arbeitsstand in die übergebenen Auslagen zurück, um Folgekarten korrekt zu prüfen. Beim Abwägen „Ablagestapel aufnehmen oder nicht?" bekam sie jedoch die **echten** Tisch-Auslagen und rechnete gleichzeitig mit einer gedachten Hand, die den **kompletten Ablagestapel** enthielt. Dadurch landeten Karten in echten Auslagen, ohne die Hand oder die Ablage je zu verlassen - sie existierten doppelt. Die Planung arbeitet jetzt grundsätzlich auf Kopien (abgesichert an der Wurzel, also für alle heutigen und künftigen Aufrufer), und der betroffene Aufrufer übergibt zusätzlich selbst nur noch Kopien
+- **Wichtig: Das betraf das reguläre Spiel genauso** - der Fehler war nicht challenge-spezifisch, die Challenge machte ihn nur reproduzierbar sichtbar
+
+### Added
+- **Kartenerhaltungs-Test als dauerhafte Garantie:** Zwei neue Tests spielen vollständige Partien durch - eine mit Challenge-Deck (geseedet), eine regulär - und prüfen **nach jedem Zug**, dass die Menge aller Karten im Spiel exakt dem 110-Karten-Deck entspricht; zusätzlich wird ausdrücklich zugesichert, dass nie mehr als zwei Pik Damen gleichzeitig existieren. Ein dritter Test hält die Fehlerursache fest: Die Bot-Planung darf die ihr übergebenen Auslagen nicht verändern. Alle drei wurden gegen den fehlerhaften Stand gegengeprüft und lehnen ihn ab
+
 ## [1.85.0] - 2026-07-28
 
 ### Geändert
