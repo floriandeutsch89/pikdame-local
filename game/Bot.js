@@ -197,6 +197,13 @@ function findHandMelds(hand) {
  * Runde sofort. Bots nutzten das bisher NIE: Gewinnzuege blieben liegen.
  */
 function findJokerSwaps(hand, tableMelds) {
+  // DEFENSIVKOPIE - kritisch: Diese Planung schreibt weiter unten
+  // 'meld.slots = ...', um Folgekarten gegen den fortgeschriebenen Stand zu
+  // pruefen. Bekam sie die ECHTEN Auslagen-Objekte, landeten geplante Karten
+  // sofort auf dem Tisch, ohne die Hand (oder den ABLAGESTAPEL) je zu
+  // verlassen - Karten existierten doppelt, eine Pik Dame konnte dreimal
+  // auftauchen. Die Kopie hier schuetzt ALLE Aufrufer, auch kuenftige.
+  tableMelds = (tableMelds || []).map((m) => ({ ...m, slots: (m.slots || []).slice() }));
   let pool = hand.slice();
   const swaps = [];
   let changed = true;
@@ -234,6 +241,10 @@ function meldWouldGiveKnownLayOff(meldCards, dangerousKnownCards) {
 }
 
 function findLayOffs(hand, tableMelds) {
+  // DEFENSIVKOPIE aus demselben Grund wie in findJokerSwaps: unten wird
+  // 'meld.slots = result.slots' fortgeschrieben, was ohne Kopie den echten
+  // Tisch mutieren wuerde.
+  tableMelds = (tableMelds || []).map((m) => ({ ...m, slots: (m.slots || []).slice() }));
   let pool = hand.slice();
   const layOffs = [];
 

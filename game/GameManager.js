@@ -2004,7 +2004,13 @@ class GameManager {
     // Default (and thus also the stand-in for a temporarily replaced
     // human or a timed-out turn): the zen master - the strongest fair bot.
     const difficulty = botDifficultyOf(cp);
-    const ownMelds = this.tableMelds.filter((m) => m.ownerId === botId);
+    // Kopie statt der echten Meld-Objekte: die Zieh-Planung unten rechnet mit
+    // HYPOTHETISCHEN Haenden (u. a. 'Hand + kompletter Ablagestapel'). Bot.js
+    // schuetzt sich seit dem Duplikat-Fund selbst, aber der Aufrufer soll gar
+    // nicht erst echte Tischobjekte in eine Was-waere-wenn-Rechnung geben.
+    const ownMelds = this.tableMelds
+      .filter((m) => m.ownerId === botId)
+      .map((m) => ({ ...m, slots: m.slots.slice() }));
     const plan = Bot.decideDraw(cp.hand, this.discardPile, ownMelds, {
       earlyDrawBiasTurns: cp.earlyDrawBiasTurns || 0,
       turnInRound: this.turnIndexInRound,
