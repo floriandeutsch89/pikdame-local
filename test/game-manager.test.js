@@ -2413,3 +2413,40 @@ test('going-out rule holds through full games: a round never ends without a disc
     assert.deepEqual(offenders, [], `Runden endeten ohne Abwurf über: ${offenders.join(', ')}`);
   }
 });
+
+// --- v1.85.3: "Hand aus" verspricht keine Verdopplung ohne die Hausregel --------
+function playHandAusRound(houseRules) {
+  // Kürzester Weg zu einem echten "Hand aus": Der Gewinner hatte vor seinem
+  // letzten Zug nichts ausgelegt (_laidAtTurnStart === false) und wird die
+  // Hand komplett los. Wir stellen genau diesen Zustand her und werten.
+  const { game } = makeGame(2);
+  game.setHouseRules(houseRules);
+  game.startNewRound();
+  if (game.phase === 'cutting') game.performCut(game.cutterId, 0.5);
+  const winner = game.players[0];
+  winner._laidAtTurnStart = false;
+  winner._everLaidThisRound = true;
+  winner.hand = [];
+  winner.laidOutCards = [makeStandardCard('H', '7', 0), makeStandardCard('D', '7', 0), makeStandardCard('S', '7', 0)];
+  game.players[1].hand = [makeStandardCard('C', '5', 0)];
+  game.finishRound(winner.id);
+  return game;
+}
+
+test('hand-aus log claims doubling ONLY when the house rule is active', () => {
+  const off = playHandAusRound({ handAusDoubles: false });
+  assert.equal(off.lastRoundWasHandAus, true, 'the feat itself is recognised');
+  const offLog = off.log.map((l) => l.text).join('\n');
+  assert.match(offLog, /Hand aus!/, 'the feat is still announced');
+  assert.doesNotMatch(offLog, /verdoppelt/, 'but no doubling is promised without the rule');
+  // Und die Wertung verdoppelt auch tatsächlich nicht.
+  const offScore = off.lastRoundResult[off.players[0].id].roundScore;
+  off.destroy();
+
+  const on = playHandAusRound({ handAusDoubles: true });
+  const onLog = on.log.map((l) => l.text).join('\n');
+  assert.match(onLog, /verdoppelt/, 'with the rule active the log says so');
+  const onScore = on.lastRoundResult[on.players[0].id].roundScore;
+  assert.equal(onScore, offScore * 2, 'and the score really is doubled');
+  on.destroy();
+});

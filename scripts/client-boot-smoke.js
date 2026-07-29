@@ -124,7 +124,7 @@ setTimeout(() => {
       if (handGhost) errors.push('hand jokers must NOT carry a ghost label');
     }
 
-    feed({
+    const roundEndState = {
       ...base, phase: 'roundEnd', players: four, roundNumber: 2,
       currentPlayerId: 'b3', turnPhase: 'draw', dealerId: 'b1', turnDeadline: null,
       discardTop: { id: 'd1', suit: 'H', rank: '4' }, drawCount: 0, discardCount: 20,
@@ -143,7 +143,24 @@ setTimeout(() => {
         { round: 1, totals: { p1: 100, b1: 70, b2: 0, b3: 120 } },
         { round: 2, totals: { p1: 120, b1: 80, b2: -40, b3: 210 } },
       ],
-    });
+      lastRoundWasHandAus: true,
+    };
+
+    // "Hand aus" ist eine Leistung, die Doppelwertung aber eine OPTIONALE
+    // Hausregel. Derselbe Zustand, zwei Regelstände - die Notiz darf nur mit
+    // aktiver Regel erscheinen (Spieler-Report: sie erschien immer, obwohl
+    // die Wertung korrekt nur mit Regel verdoppelte).
+    feed({ ...roundEndState, houseRules: { handAusDoubles: false } });
+    {
+      const note = window.document.querySelector('#resultBody .handAusNote');
+      if (note) errors.push(`handAusNote must stay hidden without the house rule (found: "${note.textContent}")`);
+    }
+    feed({ ...roundEndState, houseRules: { handAusDoubles: true } });
+    {
+      const note = window.document.querySelector('#resultBody .handAusNote');
+      if (!note) errors.push('handAusNote must appear when the house rule is active');
+      else if (!/doppelt|double/i.test(note.textContent)) errors.push(`handAusNote text unexpected: ${note.textContent}`);
+    }
     setTimeout(() => {
       const doc = window.document;
       const tabs = doc.querySelectorAll('#resultBody .resultTabBtn');
