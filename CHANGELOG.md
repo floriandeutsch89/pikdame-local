@@ -4,6 +4,11 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.86.0] - 2026-07-29
+
+### Geändert
+- Abhängigkeiten aktualisiert (wöchentlicher automatischer Check): jsdom 30.0.0→30.0.1
+
 ## [1.85.2] - 2026-07-28
 
 ### Changed
