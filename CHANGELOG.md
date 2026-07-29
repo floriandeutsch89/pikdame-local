@@ -4,6 +4,12 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.86.1] - 2026-07-29
+
+### Fixed
+- **„Hand aus" versprach eine Verdopplung, die nicht stattfand** (Spieler-Report, betraf Tages-Challenge und normales Spiel gleichermaßen): Die Doppelwertung ist eine **optionale Hausregel** („Hand aus zählt doppelt", standardmäßig aus) - Ergebnis-Notiz **und** Spielprotokoll behaupteten sie aber unabhängig davon. Die Wertung selbst war immer korrekt: Ohne aktive Regel wurde nie verdoppelt, die Anzeige log also schlicht. Jetzt erscheint die Notiz nur bei aktiver Regel, und das Protokoll meldet ohne Regel nur noch die Leistung selbst („Hand aus! X hat die komplette Hand in einem Zug ausgelegt.") - ohne Punktversprechen. Die Leistung bleibt in Rekorden, Abzeichen und Schlüsselmomenten weiterhin gewürdigt
+- Abgesichert in beide Richtungen: ein Test beweist, dass das Protokoll die Verdopplung nur bei aktiver Regel erwähnt **und** die Rundenwertung dann tatsächlich genau doppelt so hoch ist; der Rauchtest prüft denselben Rundenzustand mit beiden Regelständen im DOM. Beide wurden gegen den fehlerhaften Stand gegengeprüft und lehnen ihn ab
+
 ## [1.86.0] - 2026-07-29
 
 ### Geändert

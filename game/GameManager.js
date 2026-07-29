@@ -1398,7 +1398,16 @@ class GameManager {
         }
       }
     } else if (isHandAus) {
-      this.addLog(`Hand aus! Die komplette Rundenwertung wird verdoppelt.`);
+      // Die Verdopplung ist eine OPTIONALE Hausregel (handAusDoubles, standardmäßig
+      // AUS). Das Protokoll behauptete sie bisher unabhängig davon - die Wertung
+      // selbst war immer korrekt gesperrt (Spieler-Report). Ohne die Regel bleibt
+      // "Hand aus" die reine Leistungsmeldung, ohne Punktversprechen.
+      const doubles = !!(this.houseRules && this.houseRules.handAusDoubles);
+      this.addLog(
+        doubles
+          ? `Hand aus! Die komplette Rundenwertung wird verdoppelt.`
+          : `Hand aus! ${winnerPlayer ? winnerPlayer.name : '?'} hat die komplette Hand in einem Zug ausgelegt.`
+      );
     }
     this.broadcastState();
   }

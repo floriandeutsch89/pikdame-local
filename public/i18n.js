@@ -155,6 +155,7 @@ window.I18N_SERVER_PATTERNS = [
   [/^(.+?) möchte das Spiel aufgeben \((\d+\/\d+)\)\.$/, '$1 wants to forfeit the game ($2).'],
   [/^🏳️ Spiel einvernehmlich aufgegeben.*$/, '🏳️ Game forfeited by mutual agreement - everyone agreed. Match over.'],
   [/^Hand aus! Die komplette Rundenwertung wird verdoppelt\.$/, 'Out in one! The entire round score is doubled.'],
+  [/^Hand aus! (.+) hat die komplette Hand in einem Zug ausgelegt\.$/, 'Out in one! $1 laid down the entire hand in a single turn.'],
   [/^Spiel beendet! Gewinner: (.+)$/, 'Game over! Winner: $1'],
   [/^Rundenwertung: (.+)$/, 'Round scores: $1'],
   [/^⚠️ Endspurt! (.+?) steht bei (\d+) Punkten - ab 1000 endet das Spiel\.$/, '⚠️ Final stretch! $1 is at $2 points - the game ends at 1000.'],

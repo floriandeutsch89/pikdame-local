@@ -1662,7 +1662,12 @@
         });
     }
 
-    if (!forfeited && lastState.lastRoundWasHandAus) {
+    // Die Doppelwertung ist eine OPTIONALE Hausregel. Ohne sie ist "Hand aus"
+    // keine Punktbesonderheit - dann darf hier auch keine versprochen werden
+    // (Spieler-Report: Notiz erschien immer, die Wertung verdoppelte aber
+    // korrekterweise nur bei aktiver Regel).
+    const handAusDoubles = !!(lastState.houseRules && lastState.houseRules.handAusDoubles);
+    if (!forfeited && lastState.lastRoundWasHandAus && handAusDoubles) {
       const handAusNote = document.createElement('p');
       handAusNote.className = 'handAusNote';
       handAusNote.textContent = L('🎉 Hand aus! Die komplette Rundenwertung zählt doppelt.', '🎉 Out in one! The entire round score counts double.');
