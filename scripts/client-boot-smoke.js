@@ -114,6 +114,21 @@ setTimeout(() => {
         ],
       }],
     });
+    // Studio-Vorspann: Er liegt ueber allem und darf das Spiel NIE blockieren.
+    // Geprueft wird: er startet, das Antippen beendet ihn, und der Boot hat
+    // trotzdem connect() erreicht (siehe Ende des Rauchtests).
+    {
+      const sp = window.document.getElementById('studioSplash');
+      if (!sp) {
+        errors.push('studio splash missing after boot');
+      } else {
+        if (!sp.classList.contains('play')) errors.push('studio splash did not start');
+        if (sp.classList.contains('hidden')) errors.push('studio splash stayed hidden');
+        sp.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        if (!sp.classList.contains('done')) errors.push('tapping the splash must dismiss it');
+      }
+    }
+
     {
       const ghosts = [...window.document.querySelectorAll('#melds .jokerGhost')].map((g) => g.textContent);
       if (ghosts.length !== 3) errors.push(`expected 3 ghost labels (J, 2, A), got ${ghosts.length}`);

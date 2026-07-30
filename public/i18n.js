@@ -59,6 +59,7 @@ window.I18N_STATIC = {
   'Über 1000 Punkte zum Gewinnen (genau 1000 reicht nicht)': 'More than 1000 points to win (exactly 1000 is not enough)',
   'Spiel starten': 'Start game',
   '🐞 Debug: Aus': '🐞 Debug: Off',
+  '🌀 Studio-Logo: Automatisch': '🌀 Studio logo: Automatic',
   '🎴 Kartenrücken: Klassisch': '🎴 Card back: Classic',
   'Omas Küchentisch': "Grandma's kitchen table",
   'Debug-Overlay umschalten': 'Toggle debug overlay',

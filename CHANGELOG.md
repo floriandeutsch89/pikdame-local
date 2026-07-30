@@ -4,6 +4,17 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.87.0] - 2026-07-30
+
+### Added
+- **Studio-Vorspann „Flodex Interactive":** Beim Öffnen der App wirbeln fünf Klingen herein und rasten zum Ring zusammen; danach steigt der Schriftzug langsam auf. Der Vorspann läuft **einmal pro Sitzung**, Antippen überspringt ihn sofort
+- **Einstellung „🌀 Studio-Logo"** in den Lobby-Werkzeugen mit drei Stufen: **Automatisch** (folgt der Systemeinstellung „Bewegung reduzieren"), **Voll** (immer der volle Wirbel) und **Aus** (kein Vorspann). Wer die Bedienungshilfe aktiviert hat, bekommt standardmäßig eine ruhige Fassung, in der die Klingen nur nacheinander aufblenden - kann aber bewusst auf „Voll" stellen
+
+### Technisch
+- Der zweite Teil des Vorspanns (Einrasten, Schriftzug) hängt am **tatsächlichen Ende** der Klingen-Animation statt an ausgerechneten Zeitpunkten - feste Verzögerungen und laufende Animationen sind zwei getrennte Uhren und driften auf langsamen Geräten auseinander
+- Zwei Sicherheitsnetze: Bleibt das Fertig-Signal aus, startet der zweite Teil per Zeitschaltung; und der Vorspann verschwindet in **jedem** Fall nach spätestens 8 Sekunden. Er kann das Spiel also nie blockieren, auch nicht bei abgeschalteten Animationen
+- Der Rauchtest prüft, dass der Vorspann startet **und** sich durch Antippen beenden lässt; gegengeprüft, indem der Start testweise lahmgelegt wurde - der Test schlägt dann korrekt an
+
 ## [1.86.1] - 2026-07-29
 
 ### Fixed
