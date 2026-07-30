@@ -3610,5 +3610,77 @@
     if (dp) dp.addEventListener('click', () => dp.classList.toggle('dockBottom'));
   } catch (e) { /* optional */ }
 
+  // --- Studio-Vorspann "Flodex Interactive" ---------------------------------
+  // Einmal pro Sitzung, Antippen ueberspringt. Drei Einstellungen:
+  //   automatisch = folgt der Systemeinstellung "Bewegung reduzieren"
+  //   voll        = immer der volle Wirbel
+  //   aus         = gar kein Vorspann
+  // Phase 2 haengt am ECHTEN Ende der Klingen-Animation, nicht an einer
+  // ausgerechneten Uhrzeit - feste Zeiten koennen mit der laufenden
+  // Animation auseinanderdriften.
+  const LOGO_MODE_KEY = 'pikdame_studio_logo';
+  const LOGO_MODES = ['auto', 'full', 'off'];
+  function logoModeLabel(mode) {
+    if (mode === 'full') return L('Voll', 'Full');
+    if (mode === 'off') return L('Aus', 'Off');
+    return L('Automatisch', 'Automatic');
+  }
+  function updateStudioLogoBtn() {
+    const btn = el('studioLogoBtn');
+    if (btn) btn.textContent = `🌀 ${L('Studio-Logo', 'Studio logo')}: ${logoModeLabel(storageGet(LOGO_MODE_KEY) || 'auto')}`;
+  }
+  try {
+    const btn = el('studioLogoBtn');
+    if (btn) {
+      btn.addEventListener('click', () => {
+        const cur = storageGet(LOGO_MODE_KEY) || 'auto';
+        const next = LOGO_MODES[(LOGO_MODES.indexOf(cur) + 1) % LOGO_MODES.length];
+        storageSet(LOGO_MODE_KEY, next);
+        updateStudioLogoBtn();
+        showToast(`🌀 ${L('Studio-Logo', 'Studio logo')}: ${logoModeLabel(next)}`);
+      });
+      updateStudioLogoBtn();
+    }
+  } catch (e) { /* Einstellung ist Komfort */ }
+
+  try {
+    const splash = el('studioSplash');
+    if (splash) {
+      let seen = false;
+      try { seen = sessionStorage.getItem('pikdame_splash_seen') === '1'; } catch (e) { seen = false; }
+      const mode = storageGet(LOGO_MODE_KEY) || 'auto';
+      const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      if (seen || mode === 'off') {
+        splash.remove();
+      } else {
+        try { sessionStorage.setItem('pikdame_splash_seen', '1'); } catch (e) { /* egal */ }
+        if (mode === 'full' || !reduce) splash.classList.add('fullMotion');
+        splash.classList.remove('hidden');
+        splash.classList.add('play');
+
+        let finished = false;
+        const finish = () => {
+          if (finished) return;
+          finished = true;
+          splash.classList.add('done');
+          setTimeout(() => splash.remove(), 600);
+        };
+        splash.addEventListener('click', finish);
+
+        const lastBlade = splash.querySelector('.ssBlade:nth-child(5)');
+        const startPhase2 = () => splash.classList.add('phase2');
+        if (lastBlade) lastBlade.addEventListener('animationend', startPhase2, { once: true });
+        // Sicherheitsnetze: Phase 2 startet auch ohne Ereignis, und der
+        // Vorspann verschwindet in JEDEM Fall - er darf das Spiel nie blockieren.
+        setTimeout(startPhase2, 4200);
+        setTimeout(finish, 8200);
+      }
+    }
+  } catch (e) {
+    const s = document.getElementById('studioSplash');
+    if (s) s.remove();
+  }
+
   connect();
 })();
