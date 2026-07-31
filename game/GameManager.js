@@ -35,6 +35,11 @@ class GameManager {
     // seine Lernhilfen nur hier einblendet. Ein zufaelliges Deck laesst sich
     // nicht erklaeren - im Tutorial ist jede Karte vorhersehbar.
     this.tutorialMode = !!options.tutorialMode;
+    // Wird vom Server gesetzt: raeumt die Sitzung weg, wenn ein Solo-Spiel
+    // abgebrochen wird (nicht wiederaufnehmbar, keine Wertung).
+    this.onAbandon = typeof options.onAbandon === 'function' ? options.onAbandon : null;
+    this.abandoned = false;
+    this.soloPausedUntil = null;
     this.challengeDate = options.challengeDate || null;
     this.onBotEmote = options.onBotEmote || null; // (botId, emoji) => void - Bot-Reaktionen an den Tisch
     this._emoteTimers = new Set(); // pendende Emote-Timeouts (destroy räumt auf)
@@ -84,6 +89,8 @@ class GameManager {
     if (p) {
       p.connected = true;
       delete p.disconnectedAt; // back in time - cancel the bot takeover
+      // Solo-Pause beenden: rechtzeitig zurueck, das Spiel laeuft weiter.
+      if (this.isSoloMode()) this.soloPausedUntil = null;
       if (this.phase === 'playing' && this.currentPlayer()?.id === id) this._armTurnTimer();
       if (this._takeoverTimers) {
         clearTimeout(this._takeoverTimers.get(id));
@@ -187,6 +194,25 @@ class GameManager {
   _scheduleTakeover(id) {
     if (!this._takeoverTimers) this._takeoverTimers = new Map();
     clearTimeout(this._takeoverTimers.get(id));
+
+    const solo = this.players.find((pl) => pl.id === id);
+    if (this.isSoloMode() && solo && !solo.isBot) {
+      // Pause statt Uebernahme: 90 Sekunden Zeit, zurueckzukommen (App im
+      // Hintergrund, Anruf, Bildschirmsperre). Danach Abbruch OHNE Wertung.
+      this.soloPausedUntil = Date.now() + GameManager.SOLO_GRACE_MS;
+      this.addLog('Pausiert - das Spiel wartet 90 Sekunden auf dich.');
+      this.broadcastState();
+      const timer = setTimeout(() => {
+        this._takeoverTimers.delete(id);
+        const p = this.players.find((pl) => pl.id === id);
+        if (!p || p.connected) return; // rechtzeitig zurueck
+        this._abandonSolo();
+      }, GameManager.SOLO_GRACE_MS);
+      if (timer.unref) timer.unref();
+      this._takeoverTimers.set(id, timer);
+      return;
+    }
+
     this._takeoverTimers.set(
       id,
       setTimeout(() => {
@@ -457,6 +483,23 @@ class GameManager {
     const cutRnd = seededRound ? seededRandom((roundSeed ^ 0x5f3759df) >>> 0) : Math.random;
     const autoIndex = cutter ? this._cutIndexFromFraction(deck.length, cutRnd()) : -1;
     this._completeRoundStart(deck, autoIndex);
+  }
+
+  /**
+   * Solo-Spiel abbrechen: keine Wertung, keine Statistik, keine Bestenliste,
+   * nicht wiederaufnehmbar. Bewusst KEIN finishRound/gameOver - genau daran
+   * haengen Wertung und Speicherung.
+   */
+  _abandonSolo() {
+    if (this.abandoned) return;
+    this.abandoned = true;
+    this.soloPausedUntil = null;
+    this.phase = 'abandoned';
+    this.addLog('Nicht zurückgekehrt - das Spiel wurde ohne Wertung abgebrochen.');
+    this.broadcastState();
+    if (this.onAbandon) {
+      try { this.onAbandon(); } catch (e) { /* Aufraeumen darf nie werfen */ }
+    }
   }
 
   /** Erlaubter Abhebe-Bereich (symmetrisch von den Rändern geklemmt). */
@@ -1975,9 +2018,20 @@ class GameManager {
    * Bot ist, ODER ein menschlicher Spieler gerade die Verbindung verloren hat
    * (Reconnect-Robustheit: der Tisch blockiert nicht, bis er zurückkehrt).
    */
+  /** Challenge und Tutorial sind Einzelspieler-Erlebnisse. */
+  isSoloMode() {
+    return !!(this.challengeDate || this.tutorialMode);
+  }
+
   isBotControlled(player) {
     if (!player) return false;
     if (player.isBot) return true;
+    // In Challenge/Tutorial uebernimmt NIEMALS ein Bot den menschlichen
+    // Platz: Eine Bestenliste, in der ein Bot weitergespielt hat, waere
+    // wertlos - und im Tutorial wuerde der Lernende beim Zurueckkommen ein
+    // fremdes Spiel vorfinden. Stattdessen pausiert das Spiel und wird
+    // notfalls abgebrochen (siehe _scheduleTakeover).
+    if (this.isSoloMode()) return false;
     if (player.connected) return false;
     // Disconnected humans stay in control during the grace window.
     return !player.disconnectedAt || Date.now() - player.disconnectedAt >= GameManager.TAKEOVER_GRACE_MS;
@@ -2466,6 +2520,8 @@ class GameManager {
       lastCutReveal: this._cutRevealFor(forPlayerId),
       challengeDate: this.challengeDate || null,
       tutorialMode: this.tutorialMode || false,
+      soloPausedUntil: this.soloPausedUntil || null,
+      abandoned: this.abandoned || false,
       canUndoPileTake: !!(
         this.phase === 'playing' &&
         this.turnPhase === 'meld' &&
@@ -2573,6 +2629,9 @@ class GameManager {
 // Grace before a bot takes over a disconnected human's seat (hosted mode:
 // a quick app switch must not cost anyone their round).
 GameManager.TAKEOVER_GRACE_MS = 75 * 1000;
+// Einzelspieler-Modi: laengere Frist als bei der Bot-Uebernahme, weil hier
+// niemand am Tisch wartet - dafuer endet sie hart im Abbruch.
+GameManager.SOLO_GRACE_MS = 90 * 1000;
 GameManager.MIN_SEATS = MIN_SEATS;
 GameManager.MAX_SEATS_LIMIT = MAX_SEATS_LIMIT;
 GameManager.DEFAULT_MAX_SEATS = DEFAULT_MAX_SEATS;

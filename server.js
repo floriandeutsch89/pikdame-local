@@ -473,6 +473,12 @@ const registry = new SessionRegistry((session) => {
   return new GameManager(sendTo, {
     deckSeed: typeof session.deckSeed === 'number' ? session.deckSeed : undefined,
     challengeDate: session.challengeDate || undefined,
+    tutorialMode: !!session.tutorialMode,
+    // Abbruch eines Solo-Spiels: Der Rueckruf kennt hier den Code, den der
+    // Aufrufer beim Erzeugen noch nicht hatte.
+    onAbandon: typeof session.onAbandon === 'function'
+      ? () => session.onAbandon(session.code)
+      : undefined,
     // Bot-Emotes gehen denselben Weg wie Spieler-Emotes: an alle am Tisch.
     onBotEmote: (botId, emoji) => {
       for (const [, sock] of session.sockets) {
@@ -752,7 +758,13 @@ wss.on('connection', (ws, req) => {
       // die Starthand alles Wichtige zeigt - vier Dreien (erster Satz), drei
       // Damen INKLUSIVE Pik Dame (auslegen bringt +100 statt -100) und genau
       // einen Joker. So sind die Lehrmomente kuratiert statt erhofft.
-      const created = registry.create({ deckSeed: TUTORIAL_SEED, tutorialMode: true });
+      const created = registry.create({
+        deckSeed: TUTORIAL_SEED,
+        tutorialMode: true,
+        // Abgebrochenes Solo-Spiel: Sitzung sofort weg, damit sie auch nicht
+        // ueber den Code wiederaufgenommen werden kann.
+        onAbandon: (code) => registry.delete(code),
+      });
       if (created.error) return sendError(ws, created.error);
       const ok = await joinSession(created.session, msg);
       if (ok) {
@@ -775,7 +787,11 @@ wss.on('connection', (ws, req) => {
       // the identical cut (both seeded from the UTC date) against three ZEN
       // bots - the difficulty is locked so the leaderboard stays comparable.
       const date = todayUTC();
-      const created = registry.create({ deckSeed: seedForDate(date), challengeDate: date });
+      const created = registry.create({
+        deckSeed: seedForDate(date),
+        challengeDate: date,
+        onAbandon: (code) => registry.delete(code),
+      });
       if (created.error) return sendError(ws, created.error);
       const ok = await joinSession(created.session, msg);
       if (ok) {

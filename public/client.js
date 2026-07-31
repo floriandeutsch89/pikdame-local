@@ -654,6 +654,19 @@
     }
     if (msg.type === 'state') {
       lastState = msg.state;
+      // Solo-Spiel abgebrochen (Challenge/Tutorial, nicht rechtzeitig
+      // zurueckgekehrt): klar ansagen, den Wiederaufnehmen-Code wegwerfen -
+      // die Sitzung existiert serverseitig nicht mehr.
+      if (lastState.abandoned) {
+        try { storageRemove('pikdame_last_session'); } catch (e) { /* egal */ }
+        resumeCode = null;
+        try { updateResumeBtn(); } catch (e) { /* egal */ }
+        showToast(
+          L('⏹️ Spiel abgebrochen - du warst zu lange weg. Es wurde nicht gewertet und nicht gespeichert.',
+            '⏹️ Game abandoned - you were away too long. It was not scored and not saved.'),
+          { duration: 8000, priority: true }
+        );
+      }
       // Keep the hand selection in sync with reality: a card stays selected
       // until it actually LEAVES the hand (laid off / melded / discarded).
       // A failed lay-off ("doesn't fit") leaves the card in hand, so it stays
