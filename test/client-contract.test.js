@@ -144,3 +144,26 @@ test('CSS contract: the raid/lucky overlay is a real panel with theme colours', 
     assert.match(colour[1], /var\(--/, `title colour must come from a theme variable, got: ${colour[1]}`);
   }
 });
+
+// --- v1.88.2: Bedienelemente in Overlay-Karten müssen HELLE Töne nutzen ----------
+test('CSS contract: overlay controls use card colours, not the dark-table palette', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'style.css'), 'utf8');
+  // .overlay-card ist in JEDEM Theme hell (dort werden --text-muted und
+  // --glass-border lokal umgesetzt). Wer darin --text oder --glass-strong
+  // benutzt, malt die Töne des DUNKLEN Tisches: weiß auf weiß. Genau so war
+  // das Einstellungs-Menü beim ersten Wurf unlesbar (Foto-Report).
+  const card = css.match(/\.overlay-card \{([\s\S]*?)\n\}/);
+  assert.ok(card, '.overlay-card block exists');
+  assert.match(card[1], /--text-muted:/, 'the card still remaps muted text locally');
+
+  for (const selector of ['.settingsSelect', '.settingsAction', '.settingsCheckbox', '.settingsLabel']) {
+    const block = css.match(new RegExp(`\\${selector}[^{]*\\{([\\s\\S]*?)\\n\\}`));
+    assert.ok(block, `${selector} block exists`);
+    const declarations = block[1].replace(/\/\*[\s\S]*?\*\//g, '');
+    assert.doesNotMatch(
+      declarations,
+      /(?:^|\s)(?:color|background|background-color):[^;]*var\(--(?:text|glass-strong|glass)\)/,
+      `${selector} must not paint with the dark-table palette inside a light overlay card`
+    );
+  }
+});

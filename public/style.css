@@ -2428,6 +2428,66 @@ html.noSplash .studioSplash { display: none; }
 
 
 /* --- Einstellungs-Menü ------------------------------------------------------
+   ACHTUNG (Fehler beim ersten Wurf): Overlay-Karten sind in JEDEM Theme HELL
+   (siehe .overlay-card - dort werden --text-muted und --glass-border lokal
+   umgesetzt). Wer hier --text oder --glass-strong benutzt, nimmt die Toene
+   des DUNKLEN Tisches: weisse Schrift auf weisser Karte, praktisch unlesbar.
+   Deshalb durchgaengig --card-ink und schwarzbasierte Fuellungen. */
+.settingsList { display: flex; flex-direction: column; text-align: left; margin: 6px 0 18px; }
+.settingsItem { padding: 10px 2px 12px; border-bottom: 1px solid var(--glass-border); }
+.settingsItem:last-child { border-bottom: none; }
+.settingsRow {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; min-height: 44px;
+}
+.settingsLabel {
+  flex: 1 1 auto; min-width: 0;          /* darf schrumpfen statt umzubrechen */
+  font-size: 0.95rem; font-weight: 600; color: var(--card-ink);
+}
+/* Bedienelemente behalten ihre Breite - sonst quetscht ein langer Text sie
+   zusammen und die Beschriftung bricht neben dem Symbol um. */
+.settingsSelect, .settingsAction { flex: 0 0 auto; min-width: 138px; min-height: 44px; }
+.settingsSelect {
+  appearance: none; -webkit-appearance: none;
+  background-color: rgba(0, 0, 0, 0.05); color: var(--card-ink);
+  border: 1px solid rgba(0, 0, 0, 0.18); border-radius: var(--r-sm);
+  font: inherit; font-size: 0.92rem; font-weight: 600;
+  padding: 10px 34px 10px 13px;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+                    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: right 15px center, right 10px center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+.settingsAction {
+  appearance: none; cursor: pointer;
+  background: rgba(0, 0, 0, 0.05); color: var(--card-ink);
+  border: 1px solid rgba(0, 0, 0, 0.18); border-radius: var(--r-pill);
+  font: inherit; font-size: 0.92rem; font-weight: 600; padding: 10px 18px;
+}
+.settingsAction:hover { background: rgba(0, 0, 0, 0.09); }
+/* Schalter statt nacktem Ankreuzkasten, Touchziel 52x32. */
+.settingsCheckbox {
+  appearance: none; -webkit-appearance: none; flex: 0 0 auto; margin: 0;
+  width: 52px; height: 32px; border-radius: 999px; position: relative; cursor: pointer;
+  background: rgba(0, 0, 0, 0.22); transition: background .18s ease;
+}
+.settingsCheckbox::after {
+  content: ''; position: absolute; top: 3px; left: 3px; width: 26px; height: 26px;
+  border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  transition: transform .18s var(--ease);
+}
+.settingsCheckbox:checked { background: var(--accent); }
+.settingsCheckbox:checked::after { transform: translateX(20px); }
+.settingsCheckbox:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Erklaerzeile gehoert zu IHRER Zeile - deshalb im selben Kasten, ohne
+   Trennlinie dazwischen (vorher stand sie optisch beim naechsten Punkt). */
+.settingsHint { margin: 8px 2px 0; font-size: 0.78rem; color: var(--text-muted); line-height: 1.45; }
+
+@keyframes ssFailSafe { to { opacity: 0; visibility: hidden; pointer-events: none; } }
+
+
+/* --- Einstellungs-Menü ------------------------------------------------------
    Untereinander statt als Knopf-Raster: jede Zeile Beschriftung links,
    Bedienelement rechts - so liest man den aktuellen Wert, ohne durchklicken
    zu müssen (vorher zeigte jeder Knopf nur seinen eigenen Zustand). */
