@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.87.2] - 2026-07-31
+
+### Fixed
+- **Beim Start blitzte kurz die Lobby auf, bevor der Vorspann kam:** `client.js` wird am Ende der Seite geladen - die Lobby war also längst gezeichnet, als das Skript den Vorspann einblendete. Der Vorspann liegt jetzt **von der ersten Bildschirmausgabe an** über allem (per CSS statt per Skript). Ein winziges Skript im Seitenkopf entscheidet noch vor dem ersten Bild, ob er überhaupt gezeigt wird - sonst hätte umgekehrt bei jedem weiteren Laden derselben Sitzung kurz das Logo aufgeblitzt. Zusätzlich eine Notbremse in CSS: Sollte das Skript ausfallen, verschwindet der Vorspann trotzdem nach 9 Sekunden
+
+### Changed
+- **Grüner Rahmen jetzt auch bei Joker-Auswahlen:** Die Vorschau markierte Auslagen nur, wenn kein Joker ausgewählt war - der seit 1.87.1 gültige Zug (Joker + Bube♦ an 7♦-8♦-9♦) sah dadurch unmöglich aus, obwohl er funktionierte. Die Vorschau spiegelt jetzt dieselbe Suche wie der Server: alle Reihenfolgen, alle Joker-Plätze, Ergebnisse reihenfolgeunabhängig verglichen. Markiert wird **nur bei genau einem** möglichen Ergebnis - bei echter Mehrdeutigkeit bleibt der Rahmen aus, weil der Server dann ohnehin nachfragt
+- Der Rauchtest wählt die beiden Karten im DOM wirklich aus und prüft die Markierung; gegengeprüft mit der alten Regel, die dabei korrekt durchfällt
+
 ## [1.87.1] - 2026-07-30
 
 ### Changed

@@ -1457,34 +1457,71 @@
   // macht weiterhin der Server. Joker-Handkarten werden nicht gehintet.
   function slotRank(s) { return s.real ? s.real.rank : s.representsRank; }
   function slotSuit(s) { return s.real ? s.real.suit : s.representsSuit; }
-  // Multi lay-off: can ALL selected cards go onto this meld together?
-  // Greedy simulation on a lightweight copy - pure ADDING only (no joker
-  // swaps, no jokers), mirroring the server's layOffCards exactly so the
-  // green highlight never promises something the server would reject.
-  function cardsFitMeldTogether(meld, cards) {
-    if (!cards.length || cards.some((cd) => cd.isJoker)) return false;
-    // Reject cards that would only "fit" via a joker swap
-    const isSwapOnly = (m, cd) =>
-      m.slots.some((s) => s.joker && s.representsRank === cd.rank && s.representsSuit === cd.suit) &&
-      !cardFitsMeldPureAdd(m, cd);
-    let sim = { ...meld, slots: meld.slots.slice() };
-    const remaining = cards.slice();
-    while (remaining.length > 0) {
-      const idx = remaining.findIndex((cd) => !isSwapOnly(sim, cd) && cardFitsMeldPureAdd(sim, cd));
-      if (idx === -1) return false;
-      const cd = remaining[idx];
-      if (sim.type === 'set') {
-        sim.slots = [...sim.slots, { real: cd }];
-      } else {
-        // run: attach at the matching end (ring order)
-        const rIdx = (r) => RANK_ORDER.indexOf(r);
-        const first = slotRank(sim.slots[0]);
-        const prev = RANK_ORDER[(rIdx(first) - 1 + 13) % 13];
-        sim.slots = cd.rank === prev ? [{ real: cd }, ...sim.slots] : [...sim.slots, { real: cd }];
-      }
-      remaining.splice(idx, 1);
+  // Multi lay-off: can ALL selected cards go onto this meld together - und
+  // zwar EINDEUTIG? Spiegelt die Server-Suche aus layOffCards: alle
+  // Reihenfolgen und alle Joker-Plaetze durchprobieren, Ergebnisse
+  // reihenfolgeunabhaengig vergleichen. Nur bei GENAU EINEM Ergebnis wird
+  // gruen markiert - der Server fragt sonst nach, und ein gruener Rahmen
+  // darf nie etwas versprechen, was dann abgelehnt wird.
+  const SUIT_ORDER = ['H', 'D', 'C', 'S'];   // gleiche Reihenfolge wie im Server
+  function layOffOptionsFor(meld, card) {
+    const rIdx = (r) => RANK_ORDER.indexOf(r);
+    if (!card.isJoker) {
+      // Karten, die nur ueber einen Joker-TAUSCH "passen", zaehlen nicht.
+      const swapOnly =
+        meld.slots.some((s) => s.joker && s.representsRank === card.rank && s.representsSuit === card.suit) &&
+        !cardFitsMeldPureAdd(meld, card);
+      if (swapOnly || !cardFitsMeldPureAdd(meld, card)) return [];
+      if (meld.type === 'set') return [{ ...meld, slots: [...meld.slots, { real: card }] }];
+      const first = slotRank(meld.slots[0]);
+      const prev = RANK_ORDER[(rIdx(first) - 1 + 13) % 13];
+      return card.rank === prev
+        ? [{ ...meld, slots: [{ real: card }, ...meld.slots] }]
+        : [{ ...meld, slots: [...meld.slots, { real: card }] }];
     }
-    return true;
+    // Joker
+    if (meld.type === 'set') {
+      if (meld.slots.length >= 8) return [];
+      const free = SUIT_ORDER.find((s) => meld.slots.filter((x) => slotSuit(x) === s).length < 2);
+      if (!free) return [];
+      // Kanonisch die erste freie Farbe - genau EINE Moeglichkeit (wie im Server).
+      return [{ ...meld, slots: [...meld.slots, { joker: card, representsRank: meld.rank, representsSuit: free }] }];
+    }
+    if (meld.type === 'run') {
+      if (meld.slots.length >= 13) return [];
+      const suit = slotSuit(meld.slots[0]);
+      const first = slotRank(meld.slots[0]);
+      const last = slotRank(meld.slots[meld.slots.length - 1]);
+      const prev = RANK_ORDER[(rIdx(first) - 1 + 13) % 13];
+      const next = RANK_ORDER[(rIdx(last) + 1) % 13];
+      const out = [{ ...meld, slots: [...meld.slots, { joker: card, representsRank: next, representsSuit: suit }] }];
+      if (prev !== next) {
+        out.push({ ...meld, slots: [{ joker: card, representsRank: prev, representsSuit: suit }, ...meld.slots] });
+      }
+      return out;
+    }
+    return [];
+  }
+  function cardsFitMeldTogether(meld, cards) {
+    if (!cards.length) return false;
+    const signature = (m) =>
+      m.slots
+        .map((s) => (s.real ? `${s.real.rank}${s.real.suit}` : `J:${s.representsRank}${s.representsSuit}`))
+        .sort()
+        .join('|');
+    const results = new Set();
+    let budget = 300;
+    const walk = (cur, remaining) => {
+      if (budget-- <= 0 || results.size > 1) return;
+      if (remaining.length === 0) { results.add(signature(cur)); return; }
+      for (let i = 0; i < remaining.length; i++) {
+        for (const next of layOffOptionsFor(cur, remaining[i])) {
+          walk(next, remaining.filter((_, j) => j !== i));
+        }
+      }
+    };
+    walk({ ...meld, slots: meld.slots.slice() }, cards.slice());
+    return results.size === 1;
   }
   // Pure-add check: cardFitsMeld minus the joker-swap shortcut
   function cardFitsMeldPureAdd(meld, card) {
@@ -3656,7 +3693,6 @@
       } else {
         try { sessionStorage.setItem('pikdame_splash_seen', '1'); } catch (e) { /* egal */ }
         if (mode === 'full' || !reduce) splash.classList.add('fullMotion');
-        splash.classList.remove('hidden');
         splash.classList.add('play');
 
         let finished = false;
