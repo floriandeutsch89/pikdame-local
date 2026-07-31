@@ -2492,3 +2492,32 @@ html.noSplash .studioSplash { display: none; }
    Zahnrad bei den übrigen seltenen Aktionen - ein bewusster Tipp entfernt. */
 .forfeitBtn { width: auto; min-width: 44px; padding: 0 10px; font-size: 0.9rem; white-space: nowrap; }
 .forfeitBtn.active { background: var(--danger); color: #fff; }
+
+
+/* --- Tutorial: Ziel-Markierungen (NUR im Tutorial aktiv) --------------------
+   Der Karten-Glow allein zeigt nur die HALBE Aktion. Erst mit dem markierten
+   ZIEL (Ziehstapel, Abwerfen-Knopf, eigene Auslage) erzaehlt der Hinweis den
+   ganzen Zug. Gesetzt wird die Klasse ausschliesslich aus dem Tutorial-Code. */
+.tutorialGlowTarget {
+  position: relative;
+  animation: tutTargetPulse 1.6s ease-in-out infinite;
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--r-sm);
+}
+@keyframes tutTargetPulse {
+  0%, 100% { outline-color: var(--accent); }
+  50% { outline-color: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tutorialGlowTarget { animation: none; outline-color: var(--accent); }
+}
+.tutorialChecklist { list-style: none; margin: 6px 0 14px; padding: 0; text-align: left; }
+.tutorialChecklist li {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 9px 2px; border-bottom: 1px solid var(--glass-border);
+  font-size: 0.92rem; color: var(--card-ink);
+}
+.tutorialChecklist li:last-child { border-bottom: none; }
+.tutorialChecklist li.done { opacity: 0.62; }
+.tutorialChecklist .tick { flex: 0 0 auto; }

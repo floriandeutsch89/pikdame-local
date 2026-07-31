@@ -4,6 +4,20 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.90.0] - 2026-07-31
+
+### Added
+- **Tutorial spielt jetzt auf einem festen Lehr-Deck:** Bisher lief es auf einem zufälligen Spiel - ob überhaupt ein Satz, ein Joker oder die Pik Dame auftauchte, entschied das Mischglück. Der Seed ist jetzt fest und wurde per Suchskript so ausgewählt, dass die Starthand alles Wichtige zeigt: **vier Dreien** (sofortiger erster Satz), **drei Damen inklusive der Pik Dame** (auslegen bringt +100 statt −100) und **genau einen Joker**. Der Lernende **beginnt** außerdem die Runde, und es gibt keinen Zugtimer
+- **Ziel-Markierungen (nur im Tutorial):** Der Hinweis markiert jetzt nicht nur die Karten, sondern auch das **Ziel** der Aktion - den Nachziehstapel beim Ziehen, den Abwerfen-Knopf am Zugende. Karte plus Ziel erzählt den ganzen Zug statt nur die halbe Aktion
+- **Zwei neue geführte Schritte:** „Lege die drei Damen aus" (der beste Moment, den Unterschied zwischen +100 und −100 zu zeigen) und „Beende den Zug mit Abwerfen", sobald keine Kombination mehr in der Hand steckt
+- **Fehler als Lehrmomente:** Lehnt der Server im Tutorial einen Zug ab, folgt kurz darauf die **Regel dahinter** in einfachen Worten - etwa warum die Ablagekarte nicht genommen werden darf, wenn danach nichts zum Abwerfen übrig bliebe
+- **Fortschritts-Checkliste:** Neuer Knopf „Fortschritt" im Hinweis-Banner zeigt alle Lernschritte mit ✅/⬜ und einem Zähler
+
+### Technisch
+- Die Bots spielen im Tutorial auf **mittlerer** Stufe: Die Anfänger-Stufe würfelt beim Abwurf, damit wäre der Ablauf nicht reproduzierbar
+- Ein Test nagelt die Lehrhand fest (Satz, drei Damen mit Pik Dame, genau ein Joker, Lernender beginnt) - ändert jemand den Seed, schlägt er an, weil die Tutorial-Texte konkrete Karten nennen
+- Rauchtest prüft die Ziel-Markierung am Ziehstapel; ein Vertragstest hält fest, dass sie **ausschließlich** bei aktivem Tutorial gesetzt wird und es genau eine Stelle im Code gibt, die sie setzt
+
 ## [1.89.0] - 2026-07-31
 
 ### Changed

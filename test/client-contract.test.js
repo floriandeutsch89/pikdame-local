@@ -180,3 +180,25 @@ test('CSS contract: overlay controls use card colours, not the dark-table palett
     }
   }
 });
+
+// --- v1.90.0: Ziel-Markierungen gehören AUSSCHLIESSLICH ins Tutorial -----------
+test('client contract: target highlights are gated on the tutorial being active', () => {
+  const client = fs.readFileSync(path.join(__dirname, '..', 'public', 'client.js'), 'utf8');
+  // Wunsch des Nutzers: Die neuen Ziel-Markierungen (Ziehstapel, Abwerfen-
+  // Knopf) dürfen NUR im Tutorial erscheinen. Im Rauchtest lässt sich das
+  // nicht prüfen, weil die Hinweise dort durchgehend aktiv sind - deshalb
+  // wird die Bedingung hier direkt am Quelltext festgehalten.
+  // Zeilenweise statt per Klammer-Regex: die Bedingung enthält
+  // verschachtelte Klammern (Array.isArray(...)), an denen ein naiver
+  // Ausdruck scheitert.
+  const branch = client.split('\n').find((line) => line.includes('hl.targets') && line.includes('if ('));
+  assert.ok(branch, 'the targets branch exists');
+  assert.match(
+    branch,
+    /tutorialActive/,
+    'target highlights must be guarded by tutorialActive - they must never show up in a normal game'
+  );
+  // Und die Klasse darf nirgends sonst gesetzt werden.
+  const setters = client.match(/classList\.add\('tutorialGlowTarget'\)/g) || [];
+  assert.equal(setters.length, 1, 'exactly one place may add the target highlight class');
+});

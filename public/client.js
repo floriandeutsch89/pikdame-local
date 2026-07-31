@@ -640,6 +640,12 @@
         storageRemove('pikdame_last_session');
       }
       showHint(trs(msg.error), true);
+      // Im Tutorial ist eine Ablehnung der beste Lehrmoment: zusaetzlich zur
+      // Meldung die REGEL dahinter in einfachen Worten.
+      if (tutorialActive) {
+        const why = tutorialExplainError(msg.error || '');
+        if (why) setTimeout(() => showToast(`🎓 ${why}`, { duration: 7000 }), 900);
+      }
       // Wichtige Fehler (z.B. Ablagestapel nicht aufnehmbar) deutlich und
       // laenger in der Bildmitte zeigen - die Hint-Zeile allein wird auf
       // kleinen Displays leicht uebersehen.
@@ -2401,6 +2407,7 @@
     {
       key: 'draw',
       when: (st, me, myTurn) => myTurn && st.turnPhase === 'draw',
+      highlight: () => ({ cardIds: [], meldIds: [], targets: ['drawPile'] }),
       text: () => L(
         'Du bist dran! Ziehe eine Karte: verdeckt vom Stapel ODER nimm den Ablagestapel. Achtung beim Ablagestapel: Du bekommst ALLE Karten darin, und die oberste musst du sofort verwenden.',
         'Your turn! Draw a card: face-down from the stock OR take the discard pile. Careful with the pile: you get ALL of its cards, and you must use the top one immediately.'
@@ -2442,6 +2449,36 @@
       text: () => L(
         'Auslegen (freiwillig): Tippe 3+ Karten gleichen Werts (Satz) oder eine Folge derselben Farbe an und lege sie. Einzelkarten kannst du an DEINE eigenen Auslagen anlegen. Zum Schluss eine Karte abwerfen - das beendet den Zug.',
         'Melding (optional): tap 3+ cards of the same rank (set) or a same-suit run and lay them down. Single cards can be added to YOUR OWN melds. Finish by discarding one card - that ends your turn.'
+      ),
+    },
+    {
+      // Tutorial-Deck: Die Starthand enthaelt DREI Damen inklusive der Pik
+      // Dame - der beste Moment, den Unterschied zwischen +100 und -100 zu
+      // zeigen, statt nur davor zu warnen.
+      key: 'queenSet',
+      when: (st, me, myTurn) =>
+        st.tutorialMode && myTurn && st.turnPhase === 'meld' && me && me.hand &&
+        me.hand.filter((cd) => cd.rank === 'Q').length >= 3 &&
+        me.hand.some((cd) => cd.rank === 'Q' && cd.suit === 'S'),
+      highlight: (st, me) => ({
+        cardIds: me.hand.filter((cd) => cd.rank === 'Q').map((cd) => cd.id),
+        meldIds: [],
+        targets: [],
+      }),
+      text: () => L(
+        'Chance! Du hast drei Damen - eine davon ist die Pik Dame. Legst du sie aus, bringt sie dir +100 statt am Ende -100. Tippe die markierten Damen an und lege sie.',
+        'Opportunity! You hold three queens - one is the Queen of Spades. Melded she scores +100 instead of -100 at the end. Tap the highlighted queens and lay them down.'
+      ),
+    },
+    {
+      key: 'discardStep',
+      when: (st, me, myTurn) =>
+        st.tutorialMode && myTurn && st.turnPhase === 'meld' && !st.mustLayOffCardId &&
+        me && me.hand && me.hand.length > 1 && !findTutorialMeld(me.hand),
+      highlight: () => ({ cardIds: [], meldIds: [], targets: ['discardBtn'] }),
+      text: () => L(
+        'Zug beenden: Wähle eine Karte, die du am wenigsten brauchst, und tippe auf „Abwerfen". Erst damit ist dein Zug vorbei.',
+        'End your turn: pick the card you need least and tap "Discard". Only then is your turn over.'
       ),
     },
     {
@@ -2521,10 +2558,42 @@
     return null;
   }
 
+  /** Erklaert die Regel hinter einer Ablehnung - nur im Tutorial. */
+  function tutorialExplainError(error) {
+    const RULES = [
+      [/abzuwerfen|abwerfen übrig|keine Karte zum Abwerfen/i, L(
+        'Ausmachen geht nur, indem du deine LETZTE Karte abwirfst. Deshalb darfst du den Ablagestapel nicht nehmen, wenn danach nichts zum Abwerfen übrig bliebe.',
+        'You can only go out by DISCARDING your last card. That is why you cannot take the discard pile if nothing would be left to discard.')],
+      [/passt zu keiner Kombination/i, L(
+        'Die oberste Ablagekarte darfst du nur nehmen, wenn sie SOFORT mit deinen Handkarten eine neue Kombination bildet - an eine Auslage anlegen reicht nicht.',
+        'You may only take the top discard if it IMMEDIATELY forms a new combination with your hand - being able to add it to a meld is not enough.')],
+      [/EIGENEN Auslagen|fremde Stapel/i, L(
+        'Anlegen darfst du nur an deine eigenen Auslagen. Fremde Auslagen sind tabu - so bleibt jedem sein Punktestand.',
+        'You may only add to your own melds. Other players\' melds are off limits - that keeps everyone\'s score their own.')],
+      [/mindestens drei|zu kurz|keine gültige/i, L(
+        'Eine Kombination braucht mindestens DREI Karten: gleicher Wert (Satz) oder lückenlose Folge derselben Farbe.',
+        'A combination needs at least THREE cards: same rank (set) or a gap-free run in one suit.')],
+      [/nicht am Zug|bist nicht dran/i, L(
+        'Erst wenn du am Zug bist. Oben steht immer, wer gerade dran ist.',
+        'Only when it is your turn. The top line always shows whose turn it is.')],
+    ];
+    for (const [pattern, explanation] of RULES) if (pattern.test(error)) return explanation;
+    return null;
+  }
+
   let tutorialHighlight = null;
   function applyTutorialHighlight(hl) {
     document.querySelectorAll('.tutorialGlow').forEach((n) => n.classList.remove('tutorialGlow'));
     document.querySelectorAll('.tutorialGlowMeld').forEach((n) => n.classList.remove('tutorialGlowMeld'));
+    // ZIELE (Ziehstapel, Abwerfen-Knopf ...) - nur im Tutorial, nie im
+    // normalen Spiel.
+    document.querySelectorAll('.tutorialGlowTarget').forEach((n) => n.classList.remove('tutorialGlowTarget'));
+    if (hl && Array.isArray(hl.targets) && tutorialActive) {
+      for (const id of hl.targets) {
+        const node = document.getElementById(id);
+        if (node && !node.classList.contains('hidden')) node.classList.add('tutorialGlowTarget');
+      }
+    }
     if (!hl) return;
     for (const id of hl.cardIds || []) {
       const n = document.querySelector(`#hand [data-card-id="${CSS.escape(String(id))}"]`);
@@ -2663,8 +2732,10 @@
     tutorialActive = true;
     tutorialSeen = new Set();
     persistTutorial();
-    // Beginners play against gentle opponents - preselect easy bots.
-    el('createGameBtn').click(); // normal solo flow - bots fill the seats
+    // Eigene Sitzung mit FESTEM Deck (Server: startTutorial). Vorher lief das
+    // Tutorial auf einem zufaelligen Spiel - ob ein Satz, ein Joker oder die
+    // Pik Dame ueberhaupt auftauchte, entschied das Mischgluck.
+    send({ type: 'startTutorial', name: currentName(), accountToken: accountToken() || undefined });
   });
   el('tutorialNextBtn').addEventListener('click', () => {
     if (tutorialCurrentStep) tutorialSeen.add(tutorialCurrentStep);
@@ -2672,6 +2743,52 @@
     persistTutorial();
     updateTutorial();
   });
+  const TUTORIAL_LABELS = {
+    lobby: () => L('Spiel starten', 'Start a game'),
+    draw: () => L('Karte ziehen', 'Draw a card'),
+    meld: () => L('Kombination auslegen', 'Lay down a combination'),
+    queenSet: () => L('Pik Dame auslegen (+100)', 'Meld the Queen of Spades (+100)'),
+    discardStep: () => L('Zug mit Abwerfen beenden', 'End the turn by discarding'),
+    pickupRest: () => L('Ablagestapel aufnehmen', 'Take the discard pile'),
+    pikdame: () => L('Pik Dame: +100 oder -100', 'Queen of Spades: +100 or -100'),
+    joker: () => L('Joker einsetzen', 'Use a joker'),
+    endgame: () => L('Ausmachen: letzte Karte abwerfen', 'Going out: discard the last card'),
+    roundend: () => L('Wertung verstehen', 'Understand the scoring'),
+  };
+  function renderTutorialChecklist() {
+    const list = document.getElementById('tutorialChecklist');
+    if (!list) return;
+    list.innerHTML = '';
+    let done = 0;
+    for (const step of TUTORIAL_STEPS) {
+      const label = TUTORIAL_LABELS[step.key];
+      if (!label) continue;
+      const seen = tutorialSeen.has(step.key);
+      if (seen) done += 1;
+      const li = document.createElement('li');
+      if (seen) li.className = 'done';
+      const tick = document.createElement('span');
+      tick.className = 'tick';
+      tick.textContent = seen ? '✅' : '⬜';
+      const txt = document.createElement('span');
+      txt.textContent = label();
+      li.append(tick, txt);
+      list.appendChild(li);
+    }
+    const title = document.getElementById('tutorialChecklistTitle');
+    if (title) title.textContent = `🎓 ${L('Dein Fortschritt', 'Your progress')} ${done}/${list.children.length}`;
+  }
+  try {
+    const progressBtn = el('tutorialProgressBtn');
+    const overlay = el('tutorialChecklistOverlay');
+    const closeBtn = el('tutorialChecklistCloseBtn');
+    if (progressBtn && overlay) {
+      progressBtn.addEventListener('click', () => { renderTutorialChecklist(); overlay.classList.remove('hidden'); });
+    }
+    if (closeBtn && overlay) closeBtn.addEventListener('click', () => overlay.classList.add('hidden'));
+    if (overlay) overlay.addEventListener('click', (ev) => { if (ev.target === overlay) overlay.classList.add('hidden'); });
+  } catch (e) { /* Lernhilfe ist nie kritisch */ }
+
   el('tutorialOffBtn').addEventListener('click', () => {
     tutorialActive = false;
     persistTutorial();
