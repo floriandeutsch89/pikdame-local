@@ -4,6 +4,13 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.87.1] - 2026-07-30
+
+### Changed
+- **Joker beim Mehrfach-Anlegen: eindeutige Fälle werden jetzt selbst erkannt** (Spieler-Report): Wer an eine Folge 7♦-8♦-9♦ gleichzeitig einen **Joker und den Buben♦** anlegt, meint zwangsläufig Joker = 10♦ - trotzdem kam bisher die Rückfrage „Joker bitte einzeln anlegen". Der Grund: Der Joker allein wäre mehrdeutig (6♦ unten oder 10♦ oben), und geprüft wurde nur die einzelne Karte. Jetzt durchsucht das Spiel **alle Reihenfolgen und alle Joker-Plätze** der gesamten Auswahl; bleibt genau ein Ergebnis übrig, wird es ohne Nachfrage gelegt
+- Gefragt wird nur noch bei **echter** Mehrdeutigkeit - etwa Joker + 6♦ an 7♦-8♦-9♦, wo sowohl 5♦-6♦-7-8-9 als auch 6♦-7-8-9-10♦ herauskommen kann. Die Meldung nennt jetzt auch den Grund
+- Verschiedene Reihenfolgen mit **demselben** Ergebnis gelten ausdrücklich nicht als mehrdeutig (zwei Zehnen an einen Satz sind egal in welcher Folge dasselbe) - das hätte sonst funktionierende Züge blockiert, was ein Bestandstest sofort aufgedeckt hat
+
 ## [1.87.0] - 2026-07-30
 
 ### Added

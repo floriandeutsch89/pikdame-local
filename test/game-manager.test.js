@@ -2450,3 +2450,71 @@ test('hand-aus log claims doubling ONLY when the house rule is active', () => {
   assert.equal(onScore, offScore * 2, 'and the score really is doubled');
   on.destroy();
 });
+
+// --- v1.87.1: Mehrfach-Anlegen mit Joker - eindeutige Fälle selbst erkennen ------
+function meldRun(ownerId, suit, ranks) {
+  return {
+    id: 'm-run', ownerId, type: 'run', suit,
+    slots: ranks.map((r) => ({ real: makeStandardCard(suit, r, 0) })),
+  };
+}
+
+test('layOffCards resolves a joker automatically when the selection is unambiguous', () => {
+  // Spieler-Report: An 7♦8♦9♦ können Joker + Bube♦ NUR Joker=10♦ bedeuten -
+  // der Joker allein wäre mehrdeutig (6♦ unten oder 10♦ oben).
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  game.turnPhase = 'meld';
+  game.currentPlayerIndex = 0;
+  const joker = makeJoker(0);
+  const jackD = makeStandardCard('D', 'J', 0);
+  game.players[0].hand = [joker, jackD, makeStandardCard('C', '3', 0)];
+  game.tableMelds = [meldRun('p1', 'D', ['7', '8', '9'])];
+
+  const r = game.layOffCards('p1', 'm-run', [joker.id, jackD.id]);
+  assert.ok(r && r.ok, `should succeed, got: ${r && r.error}`);
+
+  const slots = game.tableMelds[0].slots;
+  assert.equal(slots.length, 5, '7-8-9 plus two cards');
+  const jokerSlot = slots.find((s) => !s.real);
+  assert.ok(jokerSlot, 'the joker sits in a slot');
+  assert.equal(jokerSlot.representsRank, '10', 'joker was recognised as the ten');
+  assert.equal(jokerSlot.representsSuit, 'D');
+  assert.equal(slots[slots.length - 1].real.rank, 'J', 'the jack closes the run');
+  game.destroy();
+});
+
+test('layOffCards still asks when the joker really could go either way', () => {
+  // Joker + 6♦ an 7♦8♦9♦: entweder 6♦ unten und Joker als 10♦ oben - oder
+  // Joker als 5♦ unten und 6♦ dazwischen. Zwei verschiedene Ergebnisse.
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  game.turnPhase = 'meld';
+  game.currentPlayerIndex = 0;
+  const joker = makeJoker(0);
+  const sixD = makeStandardCard('D', '6', 0);
+  game.players[0].hand = [joker, sixD, makeStandardCard('C', '3', 0)];
+  game.tableMelds = [meldRun('p1', 'D', ['7', '8', '9'])];
+
+  const r = game.layOffCards('p1', 'm-run', [joker.id, sixD.id]);
+  assert.ok(r && r.error, 'ambiguous selection must not be guessed');
+  assert.match(r.error, /mehrere Arten|einzeln/i);
+  assert.equal(game.tableMelds[0].slots.length, 3, 'meld untouched');
+  game.destroy();
+});
+
+test('layOffCards without jokers keeps working (no regression)', () => {
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  game.turnPhase = 'meld';
+  game.currentPlayerIndex = 0;
+  const tenD = makeStandardCard('D', '10', 0);
+  const jackD = makeStandardCard('D', 'J', 0);
+  game.players[0].hand = [tenD, jackD, makeStandardCard('C', '3', 0)];
+  game.tableMelds = [meldRun('p1', 'D', ['7', '8', '9'])];
+
+  const r = game.layOffCards('p1', 'm-run', [tenD.id, jackD.id]);
+  assert.ok(r && r.ok, `should succeed, got: ${r && r.error}`);
+  assert.equal(game.tableMelds[0].slots.length, 5);
+  game.destroy();
+});
