@@ -4,6 +4,18 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.89.0] - 2026-07-31
+
+### Changed
+- **„Spiel aufgeben" ist umgezogen** (Nutzer-Report: lag direkt unter „Abwerfen"): Eine endgültige Aktion gehört nicht neben einen Knopf, der in jedem Zug gedrückt wird. Der Aufgeben-Knopf sitzt jetzt in der Kopfleiste hinter dem ⚙️-Zahnrad, bei den übrigen seltenen Aktionen - ein bewusster Tipp entfernt und am anderen Ende des Bildschirms. Läuft eine Abstimmung, zeigt er weiterhin den Stand („🏳️ 1/2"), und der Hinweis-Toast beim Vorschlag bleibt unverändert
+- Der Rauchtest stellt sicher, dass der Knopf **nicht** in der Handleiste liegt - gegengeprüft, indem er testweise zurückgeschoben wurde
+
+### Documentation
+- Kommentar im Server berichtigt: Die Tages-Challenge spielt gegen **drei Zen-Bots** (fest eingestellt), nicht gegen „medium"
+
+### Added
+- **Determinismus-Test für die Tages-Challenge:** Gleiches Datum ⇒ identische Hand, identische Ablagekarte, identische Stapelgrößen; anderer Tag ⇒ andere Hand. Hält ausdrücklich fest, dass die Challenge nie für einen manuellen Schnitt anhält
+
 ## [1.88.3] - 2026-07-31
 
 ### Fixed

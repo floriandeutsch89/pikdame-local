@@ -2484,3 +2484,11 @@ html.noSplash .studioSplash { display: none; }
 /* Erklaerzeile gehoert zu IHRER Zeile - deshalb im selben Kasten, ohne
    Trennlinie dazwischen (vorher stand sie optisch beim naechsten Punkt). */
 .settingsHint { margin: 8px 2px 0; font-size: 0.78rem; color: var(--text-muted); line-height: 1.45; }
+
+
+/* --- Aufgeben-Knopf in der Kopfleiste ---------------------------------------
+   Bewusst NICHT mehr neben "Abwerfen": eine seltene, endgültige Aktion darf
+   nicht an einen Knopf grenzen, der jeden Zug gedrückt wird. Jetzt hinter dem
+   Zahnrad bei den übrigen seltenen Aktionen - ein bewusster Tipp entfernt. */
+.forfeitBtn { width: auto; min-width: 44px; padding: 0 10px; font-size: 0.9rem; white-space: nowrap; }
+.forfeitBtn.active { background: var(--danger); color: #fff; }
