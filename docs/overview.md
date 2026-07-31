@@ -34,6 +34,8 @@ must stay deterministic so the whole world plays the identical deck.)
 1. **Draw** — either the top card of the face-down pile, or the discard pile. The
    discard may only be taken if its top card *immediately* forms a new
    combination with your hand — and that card must then be laid this turn.
+   It is refused when melding it would use up your entire hand, because a card
+   must always remain for the discard (see step 3).
 2. **Meld** (optional) — lay out new sets/runs, add cards to your own melds, or
    swap a joker on the table for the card it represents.
 3. **Discard** exactly one card. To go out you must still have a card left to

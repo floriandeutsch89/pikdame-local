@@ -207,8 +207,8 @@
     } else {
       document.documentElement.dataset.uiscale = uiScale;
     }
-    const lobbyBtn = document.getElementById('uiScaleBtnLobby');
-    if (lobbyBtn) lobbyBtn.textContent = L(`🔍 Anzeigegröße: ${uiScaleLabel(uiScale)}`, `🔍 Display size: ${uiScaleLabel(uiScale)}`);
+    const sel = document.getElementById('uiScaleSelect');
+    if (sel) sel.value = uiScale;
   }
   function cycleUiScale() {
     uiScale = UI_SCALES[(UI_SCALES.indexOf(uiScale) + 1) % UI_SCALES.length];
@@ -2021,7 +2021,17 @@
 
 
   el('uiScaleBtn').addEventListener('click', cycleUiScale);
-  el('uiScaleBtnLobby').addEventListener('click', cycleUiScale);
+  try {
+    const scaleSel = el('uiScaleSelect');
+    if (scaleSel) {
+      scaleSel.addEventListener('change', () => {
+        uiScale = UI_SCALES.includes(scaleSel.value) ? scaleSel.value : 'normal';
+        storageSet(UI_SCALE_KEY, uiScale);
+        applyUiScale();
+        if (typeof render === 'function' && lastState) render(); // Hand-Überlappung neu messen
+      });
+    }
+  } catch (e) { /* Einstellung ist Komfort */ }
   el('langBtnLobby').addEventListener('click', cycleLang);
   applyStaticLang();
 
@@ -3213,6 +3223,15 @@
     el('rulesOverlay').classList.remove('hidden');
   }
   el('rulesBtnLobby').addEventListener('click', openRules);
+  try {
+    const openBtn = el('settingsBtnLobby');
+    const overlay = el('settingsOverlay');
+    const closeBtn = el('settingsOverlayCloseBtn');
+    if (openBtn && overlay) openBtn.addEventListener('click', () => overlay.classList.remove('hidden'));
+    if (closeBtn && overlay) closeBtn.addEventListener('click', () => overlay.classList.add('hidden'));
+    if (overlay) overlay.addEventListener('click', (ev) => { if (ev.target === overlay) overlay.classList.add('hidden'); });
+  } catch (e) { /* Menue ist Komfort */ }
+
   el('rulesCloseBtn').addEventListener('click', () => el('rulesOverlay').classList.add('hidden'));
   el('rulesOverlay').addEventListener('click', (ev) => {
     if (ev.target === el('rulesOverlay')) el('rulesOverlay').classList.add('hidden');
@@ -3474,7 +3493,7 @@
       const btn = el('cardbackBtn');
       if (btn) {
         const d = CARDBACKS.find((x) => x.id === chosen);
-        btn.textContent = `🎴 ${L('Kartenrücken', 'Card back')}: ${L(d.label, d.labelEn)}`;
+        btn.textContent = L(d.label, d.labelEn);
       }
     } catch (e) { /* Kosmetik bricht nie den Start */ }
   }
@@ -3598,10 +3617,8 @@
       document.documentElement.classList.toggle('debugMode', on);
       if (grid) grid.classList.toggle('hidden', !on);
       if (panel) panel.classList.toggle('hidden', !on);
-      const btnLobby = el('debugBtnLobby');
-      if (btnLobby) {
-        btnLobby.textContent = on ? L('🐞 Debug: An', '🐞 Debug: On') : L('🐞 Debug: Aus', '🐞 Debug: Off');
-      }
+      const box = document.getElementById('debugCheckbox');
+      if (box) box.checked = on;
       clearInterval(debugTimer);
       if (on && panel) {
         updateDebugPanel();
@@ -3616,9 +3633,9 @@
     applyDebugMode();
   }
   try {
-    const dbgLobby = el('debugBtnLobby');
+    const dbgBox = el('debugCheckbox');
     const dbgGame = el('debugBtn');
-    if (dbgLobby) dbgLobby.addEventListener('click', toggleDebugMode);
+    if (dbgBox) dbgBox.addEventListener('change', toggleDebugMode);
     if (dbgGame) dbgGame.addEventListener('click', toggleDebugMode);
     window.addEventListener('resize', () => { if (debugEnabled()) updateDebugPanel(); });
     applyDebugMode();
@@ -3663,15 +3680,14 @@
     return L('Automatisch', 'Automatic');
   }
   function updateStudioLogoBtn() {
-    const btn = el('studioLogoBtn');
-    if (btn) btn.textContent = `🌀 ${L('Studio-Logo', 'Studio logo')}: ${logoModeLabel(storageGet(LOGO_MODE_KEY) || 'auto')}`;
+    const sel = document.getElementById('studioLogoSelect');
+    if (sel) sel.value = storageGet(LOGO_MODE_KEY) || 'auto';
   }
   try {
-    const btn = el('studioLogoBtn');
-    if (btn) {
-      btn.addEventListener('click', () => {
-        const cur = storageGet(LOGO_MODE_KEY) || 'auto';
-        const next = LOGO_MODES[(LOGO_MODES.indexOf(cur) + 1) % LOGO_MODES.length];
+    const sel = el('studioLogoSelect');
+    if (sel) {
+      sel.addEventListener('change', () => {
+        const next = LOGO_MODES.includes(sel.value) ? sel.value : 'auto';
         storageSet(LOGO_MODE_KEY, next);
         updateStudioLogoBtn();
         showToast(`🌀 ${L('Studio-Logo', 'Studio logo')}: ${logoModeLabel(next)}`);

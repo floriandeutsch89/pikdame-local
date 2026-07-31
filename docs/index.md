@@ -45,7 +45,7 @@ Fairness of the shuffle, data privacy, bots, scaling.
 - **Real multiplayer, no accounts required.** Create a game, share the link or
   the six-character code, play. Accounts are optional and only add profiles and
   statistics.
-- **Bots that hold up.** Three difficulty levels; every behavioural change to
+- **Bots that hold up.** Three difficulty levels in the lobby (a fourth, Zen, is the strongest and card-counting); every behavioural change to
   them is A/B-measured in self-play before it ships (see {doc}`developer/bots`).
 - **Self-hosted.** One container plus a volume. No telemetry, no ads, no
   third-party services in the game path.

@@ -214,10 +214,7 @@
         <button id="rulesBtnLobby" class="btn-secondary">📖 Spielregeln</button>
         <button id="accountBtn" class="btn-secondary hidden">👤 Konto</button>
         <button id="langBtnLobby" class="btn-secondary">🌐 Sprache: Deutsch</button>
-        <button id="uiScaleBtnLobby" class="btn-secondary">🔍 Anzeigegröße: Normal</button>
-        <button id="cardbackBtn" class="btn-secondary">🎴 Kartenrücken: Klassisch</button>
-        <button id="studioLogoBtn" class="btn-secondary">🌀 Studio-Logo: Automatisch</button>
-        <button id="debugBtnLobby" class="btn-secondary">🐞 Debug: Aus</button>
+        <button id="settingsBtnLobby" class="btn-secondary">⚙️ Einstellungen</button>
       </div>
       <div class="lobbyFooterLinks">
         <a class="legal-link" href="/impressum.html">Impressum &amp; Datenschutz</a>
@@ -421,6 +418,44 @@
     </section>
 
     <!-- SPIELREGELN -->
+    <section id="settingsOverlay" class="overlay hidden">
+      <div class="overlay-card">
+        <h2 id="settingsOverlayTitle">⚙️ Einstellungen</h2>
+        <div class="settingsList">
+          <label class="settingsRow" for="uiScaleSelect">
+            <span class="settingsLabel">🔍 Anzeigegröße</span>
+            <select id="uiScaleSelect" class="settingsSelect">
+              <option value="normal">Normal</option>
+              <option value="large">Groß</option>
+              <option value="xlarge">Sehr groß</option>
+            </select>
+          </label>
+
+          <label class="settingsRow" for="studioLogoSelect">
+            <span class="settingsLabel">🌀 Studio-Logo beim Start</span>
+            <select id="studioLogoSelect" class="settingsSelect">
+              <option value="auto">Automatisch</option>
+              <option value="full">Voll</option>
+              <option value="off">Aus</option>
+            </select>
+          </label>
+          <p class="settingsHint" id="studioLogoHint">„Automatisch“ folgt der Systemeinstellung „Bewegung reduzieren“.</p>
+
+          <div class="settingsRow">
+            <span class="settingsLabel">🎴 Kartenrücken</span>
+            <button id="cardbackBtn" class="btn-secondary settingsAction">Klassisch</button>
+          </div>
+
+          <label class="settingsRow" for="debugCheckbox">
+            <span class="settingsLabel">🐞 Debug-Ansicht</span>
+            <input type="checkbox" id="debugCheckbox" class="settingsCheckbox" />
+          </label>
+          <p class="settingsHint">Blendet Gitter und Messwerte ein - nur für die Fehlersuche.</p>
+        </div>
+        <button id="settingsOverlayCloseBtn" class="btn-secondary">Schließen</button>
+      </div>
+    </section>
+
     <section id="rulesOverlay" class="overlay hidden">
       <div class="overlay-card">
         <h2 id="rulesTitle">📖 Spielregeln</h2>

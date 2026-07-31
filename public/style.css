@@ -2425,3 +2425,43 @@ html.noSplash .studioSplash { display: none; }
 @keyframes ssSpread { from { letter-spacing: 3px; } to { letter-spacing: 8.5px; } }
 
 @keyframes ssFailSafe { to { opacity: 0; visibility: hidden; pointer-events: none; } }
+
+
+/* --- Einstellungs-Menü ------------------------------------------------------
+   Untereinander statt als Knopf-Raster: jede Zeile Beschriftung links,
+   Bedienelement rechts - so liest man den aktuellen Wert, ohne durchklicken
+   zu müssen (vorher zeigte jeder Knopf nur seinen eigenen Zustand). */
+.settingsList { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 16px; text-align: left; }
+.settingsRow {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 12px 4px; border-bottom: 1px solid var(--glass-border);
+}
+.settingsRow:last-of-type { border-bottom: none; }
+.settingsLabel { font-size: 0.95rem; font-weight: 600; }
+.settingsSelect {
+  appearance: none; -webkit-appearance: none;
+  background: var(--glass-strong); color: var(--text);
+  border: 1px solid var(--glass-border); border-radius: var(--r-sm);
+  font: inherit; font-size: 0.9rem; padding: 9px 34px 9px 12px; min-height: 44px;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+                    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: right 15px center, right 10px center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+.settingsAction { min-height: 44px; }
+/* Schalter statt nackter Ankreuzkasten - Touchziel mindestens 44 px. */
+.settingsCheckbox {
+  appearance: none; -webkit-appearance: none; flex: 0 0 auto;
+  width: 52px; height: 30px; border-radius: 999px; position: relative; cursor: pointer;
+  background: var(--glass-strong); border: 1px solid var(--glass-border);
+  transition: background .18s ease;
+}
+.settingsCheckbox::after {
+  content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px;
+  border-radius: 50%; background: var(--text); opacity: .75; transition: transform .18s var(--ease);
+}
+.settingsCheckbox:checked { background: var(--accent); border-color: var(--accent); }
+.settingsCheckbox:checked::after { transform: translateX(22px); opacity: 1; }
+.settingsCheckbox:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.settingsHint { margin: -4px 4px 6px; font-size: 0.76rem; color: var(--text-muted); line-height: 1.45; }

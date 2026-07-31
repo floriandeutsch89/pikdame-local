@@ -29,8 +29,12 @@ external frontend dependencies.
   human names (Uwe, Inge, Maria …) and random emote reactions — including the
   occasional Queen-of-Spades bluff.
 - **Statistics & achievements**: player profiles (games/wins/points/streaks),
-  8 unlockable badges, global server counters, round statistics and a JSON
-  game-history export.
+  13 unlockable badges, global server counters, round statistics and a JSON
+  game-history export. Statistics only count matches played through to 1000
+  points — forfeited or abandoned games are deliberately not recorded.
+- **Daily challenge**: one identical deck for the whole world each day, with a
+  daily leaderboard, a seven-day history and a weekly ranking (your best five
+  days of the current week count).
 - **User accounts** (hosted mode only): registration with e-mail
   confirmation, login with a 90-day session — your name is protected against
   impersonation and your progress is kept permanently. Stored in
@@ -39,8 +43,13 @@ external frontend dependencies.
 - **Robust in operation**: reconnect with bot takeover, running games survive
   server restarts (session snapshot), heartbeat against zombie connections,
   armored error handling on client and server.
-- **Three design themes** (table/night/queen-of-hearts), card fan, synthesized
-  sound (offline-capable, no audio files), haptics.
+- **Five design themes** (table/night/felt/queen-of-hearts/grandma's kitchen —
+  the last one light instead of dark), card fan, synthesized sound
+  (offline-capable, no audio files), haptics.
+- **Unlockable card backs** tied to your own record (10 wins, 25 games,
+  3× out-in-one), shown in a gallery with the goal on every locked tile.
+- **Studio splash** on start-up (once per session, tap to skip) — with a
+  setting for full motion, the calm variant or off.
 - **Tutorial mode** for first-time players: contextual hints explain each
   rule the moment it becomes relevant during a real game against easy bots
   (fully client-side, works offline).
@@ -127,6 +136,8 @@ where they are implemented:
 | Lucky cut (Queen of Spades/joker at the cut position) | `Deck.js` |
 | Swapped jokers are permanently out of the game (cannot be picked up again) | `GameManager.js` |
 | **Going out only by discarding the last card** | `GameManager.js` |
+| Taking the discard top is refused when melding it would use up your whole hand (no card left to discard) | `GameManager.js` |
+| A joker on the table shows which card it stands in for | `client.js` |
 | Points: 2–9 = 5 · 10/J/Q/K = 10 · Ace/Joker = 20 · ♠Q = 100; game ends at 1000 | `Card.js`, `ScoreBoard.js` |
 
 **House rules** (selectable at game start): "hand aus counts double",
@@ -178,7 +189,7 @@ identical deck** — fairness there through identical conditions for all.
 - **Round end**: result overlay with a statistics table (melded cards, ♠Q and
   🃏 per player), score-history chart, badge celebration; rematch keeps
   seating and names.
-- **Design**: three themes, glass panels, card fan with a highlighted Queen of
+- **Design**: five themes, glass panels, card fan with a highlighted Queen of
   Spades, green border on cards you personally placed (tracked per card
   slot). System font stack and Web Audio synthesis keep everything
   offline-capable.
