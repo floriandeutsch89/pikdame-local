@@ -963,6 +963,58 @@ class GameManager {
    *  runs may require it (J before Q onto 8-9-10) - and only then are the
    *  cards applied through the audited single-card path, so every guard
    *  (turn, ownership, forced lay-off, going-out rule) keeps applying. */
+  /**
+   * Alle Wege finden, die gewählten Karten an eine Auslage anzulegen -
+   * inklusive der Frage, welchen Rang/welche Farbe ein Joker dabei vertritt.
+   * Zurück kommen nur UNTERSCHIEDLICHE Endergebnisse: Verschiedene
+   * Reihenfolgen mit demselben Ergebnis sind keine Mehrdeutigkeit.
+   * @returns {{steps: {cardId: string, asSuit?: string, side?: string}[]}[]}
+   */
+  _solveLayOffCombination(meld, cards, forcedFirstId) {
+    const solutions = [];
+    const seenResults = new Set();
+    const signature = (m) =>
+      m.slots
+        .map((s) => (s.real ? `${s.real.rank}${s.real.suit}` : `J:${s.representsRank}${s.representsSuit}`))
+        // SORTIERT vergleichen: Bei einem SATZ ist die Slot-Reihenfolge
+        // bedeutungslos - zwei Zehnen in anderer Reihenfolge sind dasselbe
+        // Ergebnis, keine Mehrdeutigkeit. Bei einer FOLGE unterscheiden sich
+        // echte Alternativen ohnehin im Karteninhalt (5-6-7-8-9 gegen
+        // 6-7-8-9-10), nicht bloß in der Reihenfolge.
+        .sort()
+        .join('|');
+    let budget = 400; // Suchbudget - schützt vor pathologischen Auswahlen
+
+    const walk = (curMeld, remaining, steps) => {
+      if (budget-- <= 0 || solutions.length > 1) return;
+      if (remaining.length === 0) {
+        const sig = signature(curMeld);
+        if (!seenResults.has(sig)) {
+          seenResults.add(sig);
+          solutions.push({ steps });
+        }
+        return;
+      }
+      for (let i = 0; i < remaining.length; i++) {
+        const card = remaining[i];
+        // Die Pflichtkarte aus der Ablagestapel-Aufnahme muss zuerst liegen.
+        if (steps.length === 0 && forcedFirstId && remaining.some((r) => r.id === forcedFirstId) && card.id !== forcedFirstId) {
+          continue;
+        }
+        for (const opt of enumerateLayOffOptions(curMeld, card)) {
+          walk(
+            opt.meld,
+            remaining.filter((_, j) => j !== i),
+            steps.concat({ cardId: card.id, asSuit: opt.asSuit, side: opt.side })
+          );
+        }
+      }
+    };
+
+    walk(meld, cards.slice(), []);
+    return solutions;
+  }
+
   layOffCards(playerId, meldId, cardIds) {
     const err = this.assertTurn(playerId, 'meld');
     if (err) return err;
@@ -977,9 +1029,6 @@ class GameManager {
     }
     const cards = cardIds.map((id) => player.hand.find((cd) => cd.id === id));
     if (cards.some((cd) => !cd)) return { error: 'Karte nicht auf der Hand.' };
-    if (cards.some((cd) => cd.isJoker)) {
-      return { error: 'Joker bitte einzeln anlegen (der Platz will gewählt sein).' };
-    }
     // Going-out rule: at least one hand card must remain for the final discard
     const restIncoming = this.pendingDiscardRest && this.discardPile.length > 0;
     if (player.hand.length - cards.length < 1 && !restIncoming) {
@@ -989,36 +1038,29 @@ class GameManager {
       return { error: 'Die aufgenommene Ablagekarte muss SOFORT gelegt werden, bevor etwas anderes passiert.' };
     }
 
-    // Simulation: find an order in which every card fits (tryLayOff is
-    // pure, so the table meld is never touched). The forced card - if any -
-    // must lead the order to satisfy the single-card guard on application.
-    let simMeld = meld;
-    const remaining = cards.slice().sort((a, b) => {
-      const aForced = a.id === this.mustLayOffCardId ? 0 : 1;
-      const bForced = b.id === this.mustLayOffCardId ? 0 : 1;
-      return aForced - bForced;
-    });
-    const order = [];
-    while (remaining.length > 0) {
-      const idx = remaining.findIndex((cd, i) => {
-        if (order.length === 0 && this.mustLayOffCardId && remaining.some((r) => r.id === this.mustLayOffCardId)) {
-          // first slot is reserved for the forced card
-          if (cd.id !== this.mustLayOffCardId) return false;
-        }
-        return tryLayOff(simMeld, cd) !== null;
-      });
-      if (idx === -1) {
-        return { error: 'Nicht alle gewählten Karten passen zusammen an diese Auslage.' };
-      }
-      simMeld = tryLayOff(simMeld, remaining[idx]);
-      order.push(remaining[idx]);
-      remaining.splice(idx, 1);
+    // Kombinationssuche über ALLE Reihenfolgen UND Joker-Plätze. Ein Joker
+    // allein ist an einer Folge meist mehrdeutig (oben oder unten anlegen) -
+    // zusammen mit den anderen gewählten Karten bleibt aber oft nur EINE
+    // Möglichkeit übrig (Spieler-Report: 7♦8♦9♦ + Joker + Bube♦ kann nur
+    // Joker=10♦ heißen). Solange das Ergebnis eindeutig ist, wird nicht mehr
+    // nachgefragt. tryLayOff/enumerateLayOffOptions sind rein - der echte
+    // Tisch wird während der Suche nie angefasst.
+    const forcedFirstId = this.pendingDiscardRest ? this.mustLayOffCardId : null;
+    const solutions = this._solveLayOffCombination(meld, cards, forcedFirstId);
+    if (solutions.length === 0) {
+      return { error: 'Nicht alle gewählten Karten passen zusammen an diese Auslage.' };
+    }
+    if (solutions.length > 1) {
+      return {
+        error:
+          'Diese Auswahl lässt sich auf mehrere Arten anlegen (der Joker passt an verschiedene Stellen) - bitte einzeln anlegen.',
+      };
     }
 
-    // Apply in the proven order through the audited single-card path.
-    for (const cd of order) {
-      const r = this.layOffCard(playerId, meldId, cd.id);
-      if (r && r.error) return r; // unreachable after the simulation
+    // Anwenden über den geprüften Einzelkarten-Pfad, mit den gefundenen Plätzen.
+    for (const step of solutions[0].steps) {
+      const r = this.layOffCard(playerId, meldId, step.cardId, step.asSuit, step.side);
+      if (r && r.error) return r; // nach der Suche eigentlich unerreichbar
       if (r && r.options) return { error: 'Diese Kombination bitte einzeln anlegen.' };
     }
     return { ok: true };
