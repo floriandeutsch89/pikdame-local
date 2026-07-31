@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.88.3] - 2026-07-31
+
+### Fixed
+- **Einstellungs-Menü war trotz Korrektur weiter unlesbar** - mein Fehler beim letzten Release: Der alte Stil-Block blieb **zusätzlich** in der Datei stehen, und zwar *hinter* dem neuen. Bei gleicher Spezifität gewinnt die spätere Regel, also galt weiterhin weiße Schrift auf weißer Karte. Das Duplikat ist entfernt; die korrigierten Farben greifen jetzt wirklich
+- Der CSS-Vertragstest hat das nicht bemerkt, weil er nur das **erste** Vorkommen prüfte - genau das falsche. Er stellt jetzt sicher, dass der Abschnitt **genau einmal** existiert, und prüft alle Vorkommen; gegengeprüft mit einem künstlich eingefügten Duplikat
+
+### Added
+- **Marken-Ausnahme zur Lizenz** (`BRAND.md`, Verweis in `LICENSE` und `README`): Der Quellcode bleibt MIT-lizenziert, aber **Name, Studio-Zeichen und Vorspann-Animation sind ausdrücklich ausgenommen** - nötig, weil das Zeichen von Code gezeichnet wird, der in den MIT-Dateien mitgeliefert wird. Ausdrücklich weiterhin erlaubt: forken, ändern, betreiben, die Herkunft nennen („ein Fork von Pik Dame") und unveränderte Bildschirmfotos. Nicht erlaubt ohne Erlaubnis: das Zeichen oder den Namen als eigene Produkt-Identität führen oder eine geänderte Fassung damit veröffentlichen. An den Stellen im Quelltext, wo die Marke steckt, steht jetzt ein Hinweis
+
 ## [1.88.2] - 2026-07-31
 
 ### Fixed

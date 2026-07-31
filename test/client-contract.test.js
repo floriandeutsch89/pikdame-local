@@ -156,14 +156,27 @@ test('CSS contract: overlay controls use card colours, not the dark-table palett
   assert.ok(card, '.overlay-card block exists');
   assert.match(card[1], /--text-muted:/, 'the card still remaps muted text locally');
 
-  for (const selector of ['.settingsSelect', '.settingsAction', '.settingsCheckbox', '.settingsLabel']) {
-    const block = css.match(new RegExp(`\\${selector}[^{]*\\{([\\s\\S]*?)\\n\\}`));
-    assert.ok(block, `${selector} block exists`);
-    const declarations = block[1].replace(/\/\*[\s\S]*?\*\//g, '');
-    assert.doesNotMatch(
-      declarations,
-      /(?:^|\s)(?:color|background|background-color):[^;]*var\(--(?:text|glass-strong|glass)\)/,
-      `${selector} must not paint with the dark-table palette inside a light overlay card`
-    );
+  // Der ganze Abschnitt darf genau EINMAL vorkommen. Ein versehentlich
+  // doppelt angehängter Block gewinnt als spätere Regel gleicher
+  // Spezifität - so überlebte die unlesbare Fassung einen Release, während
+  // dieser Test nur die (korrekte) erste Definition prüfte.
+  const sections = css.match(/\/\* --- Einstellungs-Menü/g) || [];
+  assert.equal(sections.length, 1, `the settings CSS section exists ${sections.length}x - a duplicate would override the fixed one`);
+
+  for (const selector of ['.settingsSelect', '.settingsAction', '.settingsCheckbox', '.settingsLabel', '.settingsList']) {
+    // ALLE Vorkommen prüfen, nicht nur das erste: Ein versehentlich doppelt
+    // im Stylesheet stehender Block gewinnt als SPÄTERE Regel gleicher
+    // Spezifität - genau so überlebte die unlesbare Fassung einen Release,
+    // während dieser Test die (korrekte) erste Definition prüfte.
+    const blocks = [...css.matchAll(new RegExp(`\\${selector}[^{]*\\{([\\s\\S]*?)\\n\\}`, 'g'))];
+    assert.ok(blocks.length > 0, `${selector} block exists`);
+    for (const block of blocks) {
+      const declarations = block[1].replace(/\/\*[\s\S]*?\*\//g, '');
+      assert.doesNotMatch(
+        declarations,
+        /(?:^|\s)(?:color|background|background-color):[^;]*var\(--(?:text|glass-strong|glass)\)/,
+        `${selector} must not paint with the dark-table palette inside a light overlay card`
+      );
+    }
   }
 });
