@@ -287,8 +287,16 @@ published: `ghcr.io/floriandeutsch89/pikdame-local-onnx`.
 
 ## License
 
-[MIT](LICENSE) © 2026 Florian Deutsch.
+[MIT](LICENSE) © 2026 Florian Deutsch — **except the brand assets**, see
+[BRAND.md](BRAND.md).
 
 Use it, fork it, run it for your own family. If you redistribute it (including
 as a container image), keep the licence and copyright notice with it — that is
 the one condition MIT makes.
+
+The **Flodex Interactive** name, the studio mark and its start-up animation are
+reserved and excluded from the MIT grant, because the mark is drawn by code
+that ships inside these files. Naming the origin ("a fork of Pik Dame") and
+unmodified screenshots stay fine; using the mark as your own identity does not.
+If you publish a fork, replace it — the splash is optional by design
+(⚙️ Settings → Studio logo → Off).
