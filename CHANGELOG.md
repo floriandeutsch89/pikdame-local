@@ -4,6 +4,17 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.91.0] - 2026-07-31
+
+### Changed
+- **In Tages-Challenge und Tutorial übernimmt nie ein Bot deinen Platz.** Bisher galt auch dort die normale Regel: Wer sich trennt (App minimiert, Anruf, Bildschirmsperre), dessen Platz übernahm nach 75 Sekunden ein Bot. Für eine Bestenliste ist das wertlos - und im Tutorial hätte der Lernende beim Zurückkommen ein fremdes Spiel vorgefunden
+- **Stattdessen: 90 Sekunden Pause.** Trennt sich der Mensch in einem dieser Modi, pausiert das Spiel und wartet. Wer rechtzeitig zurückkommt, spielt einfach weiter
+- **Danach: Abbruch ohne Wertung.** Bleibt die Rückkehr aus, wird das Spiel abgebrochen - **keine Punkte, keine Statistik, kein Eintrag in der Bestenliste**, und die Sitzung wird serverseitig entfernt, ist also auch über den Code nicht wiederaufnehmbar. Technisch bewusst über einen eigenen Weg statt über das reguläre Rundenende: Wertung und Speicherung hängen genau daran und werden so gar nicht erst ausgelöst
+- Wer nach dem Abbruch zurückkehrt, bekommt eine klare Ansage statt einer stummen Fehlermeldung, und der „Weiterspielen"-Knopf verschwindet
+
+### Added
+- Drei Tests: Solo-Modi geben den Platz **auch weit nach** der normalen Übernahmefrist nicht an einen Bot; die Pause meldet eine Frist von ~90 Sekunden und der Abbruch beendet **keine** Runde (damit keine Wertung); ein normales Mehrspieler-Spiel übergibt weiterhin an einen Bot, damit der Tisch nicht stehenbleibt
+
 ## [1.90.0] - 2026-07-31
 
 ### Added

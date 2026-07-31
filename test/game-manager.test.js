@@ -2620,3 +2620,57 @@ test('tutorial deck is fixed and teaches: set, three queens incl. the spade one,
   assert.ok(cards.includes('QS'), 'the Queen of Spades is in hand - the +100/-100 lesson');
   assert.equal(cards.filter((c) => c === 'J').length, 1, 'exactly one joker - enough to explain, not to confuse');
 });
+
+// --- v1.91.0: Challenge/Tutorial = Einzelspieler, nie Bot-Übernahme ------------
+function soloGame(options) {
+  const abandoned = [];
+  const game = new GameManager(() => {}, { ...options, onAbandon: () => abandoned.push(true) });
+  game.addOrReconnectPlayer('me', 'Du');
+  game.fillWithBots();
+  game.setHouseRules({ botDifficulty: 'medium', turnTimerSeconds: 0 }, { system: true });
+  game.startNewRound();
+  return { game, abandoned };
+}
+
+test('solo modes never hand the human seat to a bot', () => {
+  for (const options of [{ deckSeed: 4242, challengeDate: '2026-07-31' }, { deckSeed: 22, tutorialMode: true }]) {
+    const { game } = soloGame(options);
+    const me = game.players.find((p) => p.id === 'me');
+    game.markDisconnected('me');
+    // Auch WEIT nach der normalen Übernahmefrist bleibt der Platz menschlich.
+    me.disconnectedAt = Date.now() - (GameManager.TAKEOVER_GRACE_MS + 60_000);
+    assert.equal(game.isSoloMode(), true, 'challenge/tutorial count as solo');
+    assert.equal(game.isBotControlled(me), false, 'a bot must never take this seat');
+    game.destroy();
+  }
+});
+
+test('solo modes pause for 90s and then abandon without scoring or saving', () => {
+  const { game, abandoned } = soloGame({ deckSeed: 22, tutorialMode: true });
+  let scored = 0;
+  const origFinish = game.finishRound.bind(game);
+  game.finishRound = (...args) => { scored += 1; return origFinish(...args); };
+
+  game.markDisconnected('me');
+  const paused = game.publicState('me').soloPausedUntil;
+  assert.ok(paused && paused > Date.now(), 'the game announces a pause deadline');
+  assert.ok(paused - Date.now() > 80_000, `the grace window is ~90s, got ${paused - Date.now()}ms`);
+  assert.equal(game.phase, 'playing', 'still running while the window is open');
+
+  game._abandonSolo(); // Ablauf der Frist
+  assert.equal(game.phase, 'abandoned');
+  assert.equal(game.publicState('me').abandoned, true, 'the client can see it was abandoned');
+  assert.equal(scored, 0, 'no round is finished - scoring and persistence hang off that');
+  assert.equal(abandoned.length, 1, 'the server is told to drop the session');
+  game.destroy();
+});
+
+test('a normal game still lets a bot take over after the grace period', () => {
+  const { game } = soloGame({});                    // kein Seed, keine Challenge
+  const me = game.players.find((p) => p.id === 'me');
+  game.markDisconnected('me');
+  me.disconnectedAt = Date.now() - (GameManager.TAKEOVER_GRACE_MS + 1000);
+  assert.equal(game.isSoloMode(), false);
+  assert.equal(game.isBotControlled(me), true, 'multiplayer keeps the table moving');
+  game.destroy();
+});
