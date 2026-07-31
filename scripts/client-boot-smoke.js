@@ -139,6 +139,50 @@ setTimeout(() => {
       if (handGhost) errors.push('hand jokers must NOT carry a ghost label');
     }
 
+    // Gruener Rahmen bei Joker-Auswahl: An 7d-8d-9d koennen Joker + Bube nur
+    // Joker=10d heissen - der Hinweis muss das genauso erkennen wie der
+    // Server, sonst wirkt ein gueltiger Zug unmoeglich (Spieler-Report).
+    feed({
+      ...base,
+      phase: 'playing', roundNumber: 1,
+      currentPlayerId: 'p1', turnPhase: 'meld', dealerId: 'p1', turnDeadline: null,
+      discardTop: { id: 'dj', suit: 'H', rank: '4' }, drawCount: 12, discardCount: 2,
+      // Handkarten haengen am SPIELER-Eintrag (dort liest der Client sie),
+      // nicht am obersten Zustandsfeld.
+      players: base.players.map((p) =>
+        p.id === 'p1'
+          ? { ...p, handCount: 3, hand: [
+              { id: 'jok1', isJoker: true },
+              { id: 'JD', suit: 'D', rank: 'J' },
+              { id: 'C3', suit: 'C', rank: '3' },
+            ] }
+          : { ...p, handCount: 5 }
+      ),
+      tableMelds: [{
+        id: 'mrun', ownerId: 'p1', type: 'run', suit: 'D',
+        slots: [
+          { real: { id: 'D7', suit: 'D', rank: '7' } },
+          { real: { id: 'D8', suit: 'D', rank: '8' } },
+          { real: { id: 'D9', suit: 'D', rank: '9' } },
+        ],
+      }],
+    });
+    {
+      const doc = window.document;
+      const tap = (id) => {
+        const elCard = doc.querySelector(`#hand [data-card-id="${id}"]`);
+        if (!elCard) { errors.push(`hand card ${id} not rendered`); return; }
+        elCard.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+      };
+      tap('jok1');
+      tap('JD');
+      const group = doc.querySelector('#melds [data-meld-id="mrun"]');
+      if (!group) errors.push('own meld not rendered');
+      else if (!group.classList.contains('layOffTarget')) {
+        errors.push('joker + jack onto 7-8-9 must be highlighted as a lay-off target');
+      }
+    }
+
     const roundEndState = {
       ...base, phase: 'roundEnd', players: four, roundNumber: 2,
       currentPlayerId: 'b3', turnPhase: 'draw', dealerId: 'b1', turnDeadline: null,

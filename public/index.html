@@ -86,11 +86,22 @@
 
   <script src="/vendor-qrcode.js"></script>
   <script src="/i18n.js"></script>
+  <script>
+    /* Laeuft VOR dem ersten Bild: Wurde der Vorspann in dieser Sitzung schon
+       gezeigt (oder ist er abgeschaltet), wird er gar nicht erst gezeichnet.
+       Umgekehrt liegt er dank CSS sofort ueber der Lobby - vorher blitzte
+       sie kurz auf, weil client.js erst am Ende des Body laeuft. */
+    try {
+      var seen = sessionStorage.getItem('pikdame_splash_seen') === '1';
+      var off = localStorage.getItem('pikdame_studio_logo') === 'off';
+      if (seen || off) document.documentElement.classList.add('noSplash');
+    } catch (e) { /* ohne Speicher einfach zeigen */ }
+  </script>
 </head>
 <body>
   <!-- Studio-Vorspann: liegt VOR #app, damit er alles ueberdeckt. Wird von
        client.js gestartet und danach aus dem Dokument entfernt. -->
-  <div id="studioSplash" class="studioSplash hidden" aria-hidden="true">
+  <div id="studioSplash" class="studioSplash" aria-hidden="true">
     <div class="ssMarkWrap">
       <div class="ssBurst"></div>
       <svg class="ssSvg" viewBox="0 0 512 512" aria-hidden="true">
