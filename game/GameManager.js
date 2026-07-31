@@ -31,6 +31,10 @@ class GameManager {
     this.broadcast = broadcastFn; // (playerId, message) -> sendet an genau diesen Spieler
     this.onGameOver = options.onGameOver || null; // (results: {name, score, won}[]) => void
     this.deckSeed = typeof options.deckSeed === 'number' ? options.deckSeed : null; // daily challenge
+    // Tutorial: festes Deck (ueber deckSeed) UND ein Merker, damit der Client
+    // seine Lernhilfen nur hier einblendet. Ein zufaelliges Deck laesst sich
+    // nicht erklaeren - im Tutorial ist jede Karte vorhersehbar.
+    this.tutorialMode = !!options.tutorialMode;
     this.challengeDate = options.challengeDate || null;
     this.onBotEmote = options.onBotEmote || null; // (botId, emoji) => void - Bot-Reaktionen an den Tisch
     this._emoteTimers = new Set(); // pendende Emote-Timeouts (destroy räumt auf)
@@ -2461,6 +2465,7 @@ class GameManager {
       cutDeadline: this.phase === 'cutting' ? this.cutDeadline : null,
       lastCutReveal: this._cutRevealFor(forPlayerId),
       challengeDate: this.challengeDate || null,
+      tutorialMode: this.tutorialMode || false,
       canUndoPileTake: !!(
         this.phase === 'playing' &&
         this.turnPhase === 'meld' &&

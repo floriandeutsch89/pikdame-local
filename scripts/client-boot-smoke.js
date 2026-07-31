@@ -18,6 +18,20 @@ const dom = new JSDOM(html, {
 const { window } = dom;
 window.matchMedia = window.matchMedia || (() => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
 window.navigator.vibrate = () => true;
+// Tutorial vor dem Laden aktivieren: Der Client liest den Speicher beim Start,
+// und die Ziel-Markierungen (Ziehstapel/Abwerfen) sollen NUR dann erscheinen.
+try { window.localStorage.setItem('pikdame_tutorial', 'on'); } catch (e) { /* ohne Speicher egal */ }
+// Bildwechsel SOFORT ausfuehren: Der Client setzt manche Effekte (u. a. die
+// Tutorial-Markierungen) in requestAnimationFrame - im Rauchtest waere die
+// Pruefung sonst schneller als die Anzeige. Tiefenbremse gegen Schleifen,
+// die sich selbst neu einplanen.
+let rafDepth = 0;
+window.requestAnimationFrame = (cb) => {
+  if (rafDepth > 4) return 0;
+  rafDepth += 1;
+  try { cb(Date.now()); } finally { rafDepth -= 1; }
+  return 0;
+};
 window.scrollTo = () => {};
 window.fetch = () => Promise.resolve({ ok: true, json: () => Promise.resolve({ version: '0.0.0-smoke' }), text: () => Promise.resolve('') });
 window.AudioContext = function () { return { createOscillator: () => ({ connect: (x) => x, start() {}, stop() {}, type: 'sine', frequency: { setValueAtTime() {}, value: 0 } }), createGain: () => ({ connect: (x) => x, gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {}, linearRampToValueAtTime() {} } }), destination: { connect: (x) => x }, currentTime: 0, state: 'running', resume: () => Promise.resolve(), suspend: () => Promise.resolve() }; };
@@ -98,6 +112,37 @@ setTimeout(() => {
 
     wsInstance._emit('message', { data: JSON.stringify({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'ABCD' }) });
     feed(base);
+    // Tutorial-Markierungen: Im Tutorial muss das ZIEL des naechsten Schritts
+    // markiert sein (hier: der Ziehstapel), im normalen Spiel NIE.
+    {
+      const doc = window.document;
+      const tutorialState = {
+        ...base, phase: 'playing', roundNumber: 1, tutorialMode: true,
+        currentPlayerId: 'p1', turnPhase: 'draw', dealerId: 'b1', turnDeadline: null,
+        discardTop: { id: 'dt', suit: 'H', rank: '7' }, drawCount: 49, discardCount: 1,
+        players: base.players.map((p) =>
+          p.id === 'p1'
+            ? { ...p, handCount: 3, hand: [
+                { id: 't1', suit: 'D', rank: '3' }, { id: 't2', suit: 'H', rank: '3' },
+                { id: 't3', suit: 'C', rank: '3' },
+              ] }
+            : { ...p, handCount: 15 }
+        ),
+      };
+      feed(tutorialState);
+      const drawPile = doc.getElementById('drawPile');
+      if (!drawPile) errors.push('draw pile missing');
+      else if (!drawPile.classList.contains('tutorialGlowTarget')) {
+        errors.push('tutorial must highlight the draw pile during the draw step');
+      }
+      // Gegenprobe im selben Lauf: ohne Tutorial-Kennzeichnung keine Markierung.
+      feed({ ...tutorialState, tutorialMode: false, turnPhase: 'meld' });
+      if (doc.querySelectorAll('.tutorialGlowTarget').length > 0) {
+        const leaked = [...doc.querySelectorAll('.tutorialGlowTarget')].map((n) => n.id).join(',');
+        errors.push(`target highlights must not appear outside the draw step: ${leaked}`);
+      }
+    }
+
     feed({
       ...base, phase: 'playing', currentPlayerId: 'p1', turnPhase: 'draw', roundNumber: 1,
       dealerId: 'b1', turnDeadline: null, discardTop: null, drawCount: 60, discardCount: 1,

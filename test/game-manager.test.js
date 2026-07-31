@@ -2580,3 +2580,43 @@ test('daily challenge is fully deterministic: same date, same deal AND same cut'
   const other = deal('2026-08-01', 987654);
   assert.notEqual(other.hand, a.hand, 'a different day deals a different hand');
 });
+
+// --- v1.90.0: Tutorial spielt auf einem FESTEN, lehrreichen Deck ---------------
+test('tutorial deck is fixed and teaches: set, three queens incl. the spade one, one joker', () => {
+  // Das Tutorial erklärt konkrete Karten ("tippe die markierten Damen an").
+  // Ändert sich der Seed, stimmen die Texte nicht mehr - deshalb ist die
+  // Starthand hier festgenagelt.
+  const TUTORIAL_SEED = 22;
+  const deal = () => {
+    const g = new GameManager(() => {}, { deckSeed: TUTORIAL_SEED, tutorialMode: true });
+    g.addOrReconnectPlayer('me', 'Du');
+    g.fillWithBots();
+    g.setHouseRules({ botDifficulty: 'medium', turnTimerSeconds: 0 }, { system: true });
+    g.setExplicitDealer(g.players[g.players.length - 1].id);
+    g.startNewRound();
+    const me = g.players.find((p) => p.id === 'me');
+    const out = {
+      phase: g.phase,
+      startsWithMe: g.currentPlayer().id === 'me',
+      hand: me.hand.map((c) => (c.isJoker ? 'J' : `${c.rank}${c.suit}`)).join(' '),
+      tutorialMode: g.publicState('me').tutorialMode,
+    };
+    g.destroy();
+    return out;
+  };
+
+  const a = deal();
+  const b = deal();
+  assert.deepEqual(a, b, 'the tutorial deals identically every time');
+  assert.equal(a.phase, 'playing', 'never stops for a manual cut');
+  assert.equal(a.startsWithMe, true, 'the learner moves first');
+  assert.equal(a.tutorialMode, true, 'the client can tell this is a tutorial');
+
+  const cards = a.hand.split(' ');
+  const rankOf = (c) => (c === 'J' ? 'JOKER' : c.slice(0, -1));
+  const count = (r) => cards.filter((c) => rankOf(c) === r).length;
+  assert.ok(count('3') >= 3, `a ready-made set for the first success, got: ${a.hand}`);
+  assert.ok(count('Q') >= 3, 'three queens so melding the spade queen is possible');
+  assert.ok(cards.includes('QS'), 'the Queen of Spades is in hand - the +100/-100 lesson');
+  assert.equal(cards.filter((c) => c === 'J').length, 1, 'exactly one joker - enough to explain, not to confuse');
+});

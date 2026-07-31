@@ -420,6 +420,15 @@
     </section>
 
     <!-- SPIELREGELN -->
+    <section id="tutorialChecklistOverlay" class="overlay hidden">
+      <div class="overlay-card">
+        <h2 id="tutorialChecklistTitle">🎓 Dein Fortschritt</h2>
+        <ul id="tutorialChecklist" class="tutorialChecklist"></ul>
+        <p class="settingsHint" id="tutorialChecklistHint">Abgehakt wird, sobald du einen Hinweis mit „Verstanden“ bestätigt hast.</p>
+        <button id="tutorialChecklistCloseBtn" class="btn-secondary">Schließen</button>
+      </div>
+    </section>
+
     <section id="settingsOverlay" class="overlay hidden">
       <div class="overlay-card">
         <h2 id="settingsOverlayTitle">⚙️ Einstellungen</h2>
@@ -629,6 +638,7 @@
       <span id="tutorialText"></span>
       <div class="tutorialBtns">
         <button id="tutorialNextBtn">Verstanden ✓</button>
+        <button id="tutorialProgressBtn">Fortschritt</button>
         <button id="tutorialOffBtn">Hinweise beenden</button>
       </div>
     </div>

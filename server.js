@@ -24,6 +24,9 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const playerStore = createPlayerStore();
 const { createChallengeStore, seedForDate, todayUTC } = require('./game/ChallengeStore');
 const challengeStore = createChallengeStore();
+// Tutorial-Deck: per scripts-Suche ermittelt (siehe CLAUDE.md). Nicht aendern,
+// ohne die Tutorial-Texte gegenzupruefen - sie nennen konkrete Karten.
+const TUTORIAL_SEED = 22;
 const globalStats = createGlobalStatsStore();
 // Benutzerkonten: aktiv, wenn Nodes eingebautes SQLite verfügbar ist
 // (Node >= 22, im Docker-Image gegeben) und nicht per Env abgeschaltet.
@@ -744,6 +747,29 @@ wss.on('connection', (ws, req) => {
   async function handleMessage(msg) {
     if (messageFloodCheck()) return;
     // --- Session-Verwaltung (einzige Nachrichten OHNE bestehende Session) ---
+    if (msg.type === 'startTutorial') {
+      // Lehr-Deck: fest verdrahteter Seed, per Skript danach ausgesucht, dass
+      // die Starthand alles Wichtige zeigt - vier Dreien (erster Satz), drei
+      // Damen INKLUSIVE Pik Dame (auslegen bringt +100 statt -100) und genau
+      // einen Joker. So sind die Lehrmomente kuratiert statt erhofft.
+      const created = registry.create({ deckSeed: TUTORIAL_SEED, tutorialMode: true });
+      if (created.error) return sendError(ws, created.error);
+      const ok = await joinSession(created.session, msg);
+      if (ok) {
+        const game = created.session.game;
+        // Mittlere Bots: die Anfaenger-Stufe wuerfelt beim Abwurf, das waere
+        // im Tutorial nicht reproduzierbar. Kein Zugtimer - niemand soll
+        // beim Lesen unter Druck geraten.
+        game.setHouseRules({ botDifficulty: 'medium', turnTimerSeconds: 0 }, { system: true });
+        game.fillWithBots();
+        // Der Lernende sitzt auf Platz 0 und soll BEGINNEN - also gibt der
+        // letzte Platz (sonst faengt immer der Bot links vom Geber an).
+        const last = game.players[game.players.length - 1];
+        if (last) game.setExplicitDealer(last.id);
+        game.startNewRound();
+      }
+      return;
+    }
     if (msg.type === 'startChallenge') {
       // Daily challenge: everyone on the planet gets the identical deck AND
       // the identical cut (both seeded from the UTC date) against three ZEN
