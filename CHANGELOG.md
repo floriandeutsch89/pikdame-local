@@ -4,6 +4,16 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.88.2] - 2026-07-31
+
+### Fixed
+- **Einstellungs-Menü war unlesbar und schlecht gesetzt** (Foto-Report): Die Auswahlfelder zeigten weiße Schrift auf weißer Fläche. Grund: Overlay-Karten sind in **jedem** Theme hell, ich hatte für die Bedienelemente aber die Farben des dunklen Tisches genommen. Jetzt durchgehend Karten-Farben - dunkler Text, dezent getönte Flächen, der Schalter mit weißem Knopf und Akzentfarbe im eingeschalteten Zustand
+- **Layout aufgeräumt:** Bedienelemente behalten ihre Breite, dadurch bricht die Beschriftung nicht mehr neben ihr Symbol um („🎴" stand über „Kartenrücken"); der Kartenrücken-Knopf ist kompakt statt bildschirmbreit; „Studio-Logo beim Start" heißt jetzt schlicht „Studio-Logo", der Zusatz steht in der Erklärzeile
+- **Erklärzeilen gehören sichtbar zu ihrer Zeile:** Sie standen bisher unter der Trennlinie und wirkten wie eine Einleitung zum nächsten Punkt - jetzt sitzen Zeile und Erklärung im selben Block, die Trennlinie kommt danach
+
+### Added
+- **CSS-Vertragstest für Overlay-Karten:** Bedienelemente in Overlays dürfen nicht mit den Farben des dunklen Tisches (`--text`, `--glass-strong`) gemalt werden - genau dieser Griff hatte die weiße Schrift auf weißem Grund erzeugt. Gegengeprüft: Mit den alten Farben schlägt der Test an
+
 ## [1.88.1] - 2026-07-31
 
 ### Fixed
