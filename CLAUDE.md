@@ -66,8 +66,14 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
   `PlayerStore/GameHistoryStore/GlobalStatsStore` (atomare JSON-Dateien),
   `AccountStore.js`/`PgAccountStore.js` (Konten: PostgreSQL im Docker/K8s-Stack, SQLite-Fallback via `node:sqlite`), `Mailer.js` (dependency-freier
   SMTP-Client, Log-Fallback), `Badges.js` (reine Funktion).
-- `public/` — Vanilla-JS-Client (`client.js`), `i18n.js`, PWA.
+- `public/` — Vanilla-JS-Client (`client.js`), `i18n.js`, PWA. Enthält auch den
+  Studio-Vorspann (`#studioSplash`): Er ist ab dem ERSTEN Bild per CSS sichtbar
+  (sonst blitzt die Lobby auf, weil `client.js` am Seitenende lädt), ein
+  Kopf-Skript entscheidet vorab über Anzeigen/Überspringen, und eine
+  CSS-Notbremse blendet ihn nach 9 s aus, falls das Skript ausfällt.
 - `landing/` — statische Auswahlseite für pikdame.online.
+- `terraform/` — Hetzner-Cloud-Aufbau (Ubuntu LTS, Docker, Dockge, Cloud-
+  Firewall, fail2ban, Schlüssel-only-SSH). README dort auf Englisch.
 
 ### Bot-KI (Heuristik + optionales gelerntes Netz)
 - **Heuristik** (`Bot.js`, 4 Stufen easy/medium/hard/zen): Kartenzählung über
@@ -113,8 +119,15 @@ Karte sofort legen, dann Rest). Pro Spieler nur EIN Satz je Wert.
 aufnehmbar; Ausnahme: Joker-Tausch mit der letzten Handkarte beendet sofort).
 Ein getauschter Joker bleibt als +20 in der Auslage-Wertung (plus die echte
 Karte). „Hand aus“ = Gewinner hatte vor seinem letzten Zug nichts ausgelegt
-(verdoppelt bei Hausregel). Leerer Ziehstapel → Ablage (außer oberster Karte)
-neu mischen; beide leer oder 160 Züge ohne Meld → Unentschieden ohne Bonus.
+(verdoppelt NUR bei aktiver Hausregel `handAusDoubles`, Standard aus - Anzeige
+und Protokoll dürfen ohne die Regel keine Verdopplung behaupten).
+**Leerer Ziehstapel: es wird NICHTS nachgelegt, die Ablage wird NIE neu
+gemischt** - wer die oberste Ablagekarte nicht nehmen kann, beendet die Runde
+(normale Wertung, kein Sieger-Bonus). 160 Züge ohne Auslage → Unentschieden.
+**Die Ablagekarte darf nicht genommen werden, wenn das Pflicht-Legen die Hand
+restlos verbrauchen würde** (v1.85.2, Tischentscheidung: die Abwurfpflicht
+gilt ausnahmslos) - erlaubt bleibt sie, wenn ein Reststapel folgt, die Karte
+an eine eigene Auslage passt oder eine Kombination eine Handkarte verschont.
 Bots werfen NIE Joker ab (außer als Sieges-Abwurf der letzten Karte). Punkte:
 2–9=5, 10/B/D/K=10, Ass/Joker=20, Pik Dame=100. Spielende ab 1000 (Hausregel
 „streng“: >1000). `gameTurnCount` zählt alle Züge der Partie; `gameOverInfo`
@@ -148,7 +161,14 @@ angewendet liegen. (pro Änderung)
    nach dem Merge nur verifizieren, nichts manuell taggen.
 4. Vor Commits: `rm -f data/*.json data/crash.log data/users.db`.
 5. Neue Server-Texte ⇒ i18n-Pattern. Neue UI-Elemente ⇒ Vertragstests laufen mit.
-6. Compose-Änderungen IMMER in allen drei Dateien unter `docker/` (yml, ghcr.yml, prod.yml)
+6. **Abhängigkeiten aktualisiert der Workflow `deps-update.yml` selbst**
+   (montags 03:00 UTC + manuell): veraltete Pakete → Update, MINOR-Bump,
+   deutsche CHANGELOG-Zeile, PR mit Reviewer, **Auto-Merge bei grünem CI**.
+   Nutzt bewusst `secrets.WORKFLOW_PAT`, weil PRs/Merges mit `GITHUB_TOKEN`
+   weder CI noch den Release-Workflow auslösen. Läuft das Token ab, muss das
+   Secret erneuert werden. Der CI-Job `dependency-check` wird rot, sobald ein
+   Paket veraltet ist - dann erst den Workflow laufen lassen, dann rebasen.
+7. Compose-Änderungen IMMER in allen drei Dateien unter `docker/` (yml, ghcr.yml, prod.yml)
    synchron; die OWASP-Härtung (cap_drop ALL, read_only, AppArmor, pids_limit)
    ist Pflicht und wird vom CI-Job `docker-smoke` real hochgefahren — neue
    Schreibpfade des Servers gehören ins `data/`-Volume oder nach `/tmp` (tmpfs).
@@ -164,6 +184,15 @@ angewendet liegen. (pro Änderung)
   Tests (`test/state-encoder.test.js`) UND die Env-Bridge (`printf … | node
   scripts/rl-env-server.js`, liefert `obs_size`/`action_size`) prüfen; ändert
   sich die Kodierung, sind bestehende `.onnx` inkompatibel (neu trainieren).
+- **Kartenerhaltung ist die harte Integritätsgarantie**
+  (`test/card-conservation.test.js`): Zwei Tests spielen ganze Partien
+  (geseedetes Challenge-Deck und regulär) und prüfen NACH JEDEM ZUG, dass die
+  Menge aller Karten exakt dem 110-Karten-Deck entspricht - nie mehr als zwei
+  Pik Damen. Anlass war ein Duplikat-Fehler: Die Bot-Planung schrieb ihren
+  Arbeitsstand in die ECHTEN Auslagen zurück (`meld.slots = …`), während sie
+  mit einer gedachten Hand inklusive Ablagestapel rechnete. **Planungs- und
+  Suchfunktionen müssen auf Kopien arbeiten** - `findLayOffs`/`findJokerSwaps`
+  kopieren defensiv an der Wurzel.
 - Steuer-Seams (`forced*`/`external*`/`mcts*`): dürfen weder aus Client-
   Nachrichten noch aus deserialisierten Snapshots setzbar sein — Anti-Cheat-
   Tests in `test/game-manager.test.js` decken beide Wege ab.

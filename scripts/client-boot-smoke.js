@@ -114,6 +114,28 @@ setTimeout(() => {
         ],
       }],
     });
+    // Einstellungs-Menue: Zugang oeffnet das Overlay, die Bedienelemente
+    // spiegeln die gespeicherten Werte (frueher waren es Durchklick-Knoepfe).
+    {
+      const doc = window.document;
+      const openBtn = doc.getElementById('settingsBtnLobby');
+      const overlay = doc.getElementById('settingsOverlay');
+      if (!openBtn || !overlay) errors.push('settings entry or overlay missing');
+      else {
+        openBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        if (overlay.classList.contains('hidden')) errors.push('settings overlay did not open');
+        for (const id of ['uiScaleSelect', 'studioLogoSelect', 'cardbackBtn', 'debugCheckbox']) {
+          if (!doc.getElementById(id)) errors.push(`settings control ${id} missing`);
+        }
+        const scale = doc.getElementById('uiScaleSelect');
+        if (scale && !['normal', 'large', 'xlarge'].includes(scale.value)) {
+          errors.push(`uiScaleSelect shows an unknown value: ${scale.value}`);
+        }
+        doc.getElementById('settingsOverlayCloseBtn').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        if (!overlay.classList.contains('hidden')) errors.push('settings overlay did not close');
+      }
+    }
+
     // Studio-Vorspann: Er liegt ueber allem und darf das Spiel NIE blockieren.
     // Geprueft wird: er startet, das Antippen beendet ihn, und der Boot hat
     // trotzdem connect() erreicht (siehe Ende des Rauchtests).

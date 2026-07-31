@@ -4,6 +4,18 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.88.0] - 2026-07-31
+
+### Changed
+- **Eigenes Einstellungs-Menü:** Anzeigegröße, Studio-Logo, Kartenrücken und Debug-Ansicht sind aus der Lobby-Werkzeugleiste in ein Menü hinter **⚙️ Einstellungen** umgezogen - untereinander, mit **Auswahlfeldern** und einem **Schalter** statt durchklickbarer Knöpfe. Der aktuelle Wert ist damit sofort ablesbar, statt sich erst beim Durchtippen zu zeigen; alle Bedienelemente sind mindestens 44 px hoch
+- Kurze Erklärzeilen im Menü: „Automatisch" beim Studio-Logo folgt der Systemeinstellung „Bewegung reduzieren", die Debug-Ansicht ist als Werkzeug für die Fehlersuche gekennzeichnet
+
+### Documentation
+- **README:** Abzeichen-Zahl von 8 auf **13** berichtigt, „drei Themes" auf **fünf** (inklusive hellem Küchentisch), Tages-Challenge samt Wochenwertung, freischaltbare Kartenrücken und Studio-Vorspann ergänzt; Regeltabelle um die Aufnahme-Beschränkung und die Joker-Beschriftung erweitert
+- **CLAUDE.md:** **Sachfehler behoben** - dort stand, bei leerem Ziehstapel werde die Ablage neu gemischt. Das Gegenteil ist der Fall (es wird nie neu gemischt; wer die oberste Ablagekarte nicht nehmen kann, beendet die Runde). Ergänzt: die Aufnahme-Beschränkung aus 1.85.2, die Hausregel-Bindung der „Hand aus"-Verdopplung, der Studio-Vorspann samt seiner Startreihenfolge, der Terraform-Ordner, der wöchentliche Abhängigkeits-Workflow und die Kartenerhaltungs-Garantie als Testdisziplin
+- **SECURITY.md:** Härtung des bereitgestellten Servers ergänzt (Cloud-Firewall vor dem Host, Schlüssel-only-SSH, fail2ban über das systemd-Journal, automatische Sicherheits-Updates, Dockge nur per SSH-Tunnel), dazu der wöchentliche Abhängigkeits-Workflow und das Double-Opt-in der Konten
+- **Handbuch (readthedocs):** Zug-Beschreibung um die Aufnahme-Beschränkung ergänzt, Bot-Stufen präzisiert
+
 ## [1.87.2] - 2026-07-31
 
 ### Fixed
