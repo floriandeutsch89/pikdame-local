@@ -2518,3 +2518,65 @@ test('layOffCards without jokers keeps working (no regression)', () => {
   assert.equal(game.tableMelds[0].slots.length, 5);
   game.destroy();
 });
+
+// --- v1.89.0: Tages-Challenge muss für alle identisch sein ----------------------
+test('daily challenge is fully deterministic: same date, same deal AND same cut', () => {
+  // Nutzer-Frage: "Sind die Abhebe-Karten auch deterministisch?" - Deck UND
+  // Schnitt hängen am Datums-Seed. Ein freier Schnitt würde die weltweit
+  // gleichen Decks auseinanderlaufen lassen (genau dieser Fehler steckte
+  // schon einmal drin, siehe Kommentar in startNewRound).
+  const deal = (date, seed) => {
+    const g = new GameManager(() => {}, { deckSeed: seed, challengeDate: date });
+    g.addOrReconnectPlayer('me', 'Flodex');
+    g.fillWithBots();
+    g.startNewRound();
+    const me = g.players.find((p) => p.id === 'me');
+    const out = {
+      phase: g.phase,
+      hand: me.hand.map((c) => (c.isJoker ? 'J' : `${c.rank}${c.suit}`)).join(' '),
+      top: g.discardPile[0] ? `${g.discardPile[0].rank || 'J'}${g.discardPile[0].suit || ''}` : '-',
+      draw: g.drawPile.length,
+      bots: g.players.filter((p) => p.isBot).map((p) => p.hand.length).join('/'),
+    };
+    g.destroy();
+    return out;
+  };
+
+  const a = deal('2026-07-31', 123456);
+  const b = deal('2026-07-31', 123456);
+  assert.equal(a.phase, 'playing', 'the challenge never stops for a manual cut');
+  assert.deepEqual(a, b, 'same date must produce the identical table for everyone');
+  const other = deal('2026-08-01', 987654);
+  assert.notEqual(other.hand, a.hand, 'a different day deals a different hand');
+});
+
+// --- v1.89.0: Tages-Challenge muss für alle identisch sein ----------------------
+test('daily challenge is fully deterministic: same date, same deal AND same cut', () => {
+  // Nutzer-Frage: "Sind die Abhebe-Karten auch deterministisch?" - Deck UND
+  // Schnitt hängen am Datums-Seed. Ein freier Schnitt würde die weltweit
+  // gleichen Decks auseinanderlaufen lassen (genau dieser Fehler steckte
+  // schon einmal drin, siehe Kommentar in startNewRound).
+  const deal = (date, seed) => {
+    const g = new GameManager(() => {}, { deckSeed: seed, challengeDate: date });
+    g.addOrReconnectPlayer('me', 'Flodex');
+    g.fillWithBots();
+    g.startNewRound();
+    const me = g.players.find((p) => p.id === 'me');
+    const out = {
+      phase: g.phase,
+      hand: me.hand.map((c) => (c.isJoker ? 'J' : `${c.rank}${c.suit}`)).join(' '),
+      top: g.discardPile[0] ? `${g.discardPile[0].rank || 'J'}${g.discardPile[0].suit || ''}` : '-',
+      draw: g.drawPile.length,
+      bots: g.players.filter((p) => p.isBot).map((p) => p.hand.length).join('/'),
+    };
+    g.destroy();
+    return out;
+  };
+
+  const a = deal('2026-07-31', 123456);
+  const b = deal('2026-07-31', 123456);
+  assert.equal(a.phase, 'playing', 'the challenge never stops for a manual cut');
+  assert.deepEqual(a, b, 'same date must produce the identical table for everyone');
+  const other = deal('2026-08-01', 987654);
+  assert.notEqual(other.hand, a.hand, 'a different day deals a different hand');
+});

@@ -1424,9 +1424,12 @@
     const humansForfeit = lastState.players.filter((p) => !p.isBot && p.connected !== false).length;
     const iVotedForfeit = forfeitVotes.includes(playerId);
     el('forfeitBtn').classList.toggle('active', iVotedForfeit);
+    // Kompakt, weil der Knopf jetzt in der Icon-Leiste sitzt: nur die Flagge,
+    // bei laufender Abstimmung zusätzlich der Stand. Wer gefragt wird, merkt
+    // es ohnehin am Hinweis-Toast weiter unten.
     el('forfeitBtn').textContent = forfeitVotes.length
-      ? L(`🏳️ Aufgeben (${forfeitVotes.length}/${humansForfeit})`, `🏳️ Forfeit (${forfeitVotes.length}/${humansForfeit})`)
-      : L('🏳️ Spiel aufgeben', '🏳️ Forfeit game');
+      ? `🏳️ ${forfeitVotes.length}/${humansForfeit}`
+      : '🏳️';
     el('forfeitBtn').title = forfeitVotes.length
       ? L(`${forfeitVotes.length}/${humansForfeit} wollen das Spiel aufgeben - tippe zum Zustimmen`, `${forfeitVotes.length}/${humansForfeit} want to forfeit the game - tap to agree`)
       : L('Das ganze Spiel aufgeben (alle aktiven Spieler müssen zustimmen)', 'Forfeit the whole game (all active players must agree)');

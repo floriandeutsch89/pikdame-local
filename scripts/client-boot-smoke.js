@@ -164,6 +164,19 @@ setTimeout(() => {
       }
     }
 
+    // Aufgeben-Knopf darf NICHT neben den Zug-Knoepfen liegen: eine
+    // endgueltige Aktion gehoert nicht an die Handleiste, wo jeden Zug
+    // "Abwerfen" gedrueckt wird (Nutzer-Report).
+    {
+      const doc = window.document;
+      const forfeit = doc.getElementById('forfeitBtn');
+      if (!forfeit) errors.push('forfeit button missing');
+      else {
+        if (forfeit.closest('.handToolbar')) errors.push('forfeit button must not sit in the hand toolbar');
+        if (!forfeit.closest('#settingsGroup')) errors.push('forfeit button should live in the header tool group');
+      }
+    }
+
     // Studio-Vorspann: Er liegt ueber allem und darf das Spiel NIE blockieren.
     // Geprueft wird: er startet, das Antippen beendet ihn, und der Boot hat
     // trotzdem connect() erreicht (siehe Ende des Rauchtests).

@@ -745,8 +745,9 @@ wss.on('connection', (ws, req) => {
     if (messageFloodCheck()) return;
     // --- Session-Verwaltung (einzige Nachrichten OHNE bestehende Session) ---
     if (msg.type === 'startChallenge') {
-      // Daily challenge: everyone on the planet gets the identical deck
-      // (UTC-date seed) against three medium bots - comparable scores.
+      // Daily challenge: everyone on the planet gets the identical deck AND
+      // the identical cut (both seeded from the UTC date) against three ZEN
+      // bots - the difficulty is locked so the leaderboard stays comparable.
       const date = todayUTC();
       const created = registry.create({ deckSeed: seedForDate(date), challengeDate: date });
       if (created.error) return sendError(ws, created.error);
