@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.88.1] - 2026-07-31
+
+### Fixed
+- **Sprachwechsel ließ den „Weiterspielen"-Knopf in der alten Sprache stehen** (Nutzer-Report): Seine Beschriftung enthält den Spiel-Code und wird deshalb im Code erzeugt statt aus der Übersetzungstabelle geholt - gesetzt wurde sie aber nur einmal, beim Eintreffen der Sitzungsmeldung. Ein späterer Sprachwechsel fasste sie nicht mehr an. Jetzt wird sie beim Umschalten neu erzeugt; dasselbe gilt für die Auswahlfelder im Einstellungs-Menü und den Kartenrücken-Knopf, die aus demselben Grund hätten hängenbleiben können
+- Der Rauchtest schaltet jetzt wirklich zwischen Deutsch und Englisch um und prüft, dass der Knopf folgt **und** den Spiel-Code behält - gegengeprüft: ohne die Auffrischung bleibt „↩️ Weiterspielen (AQM93Q)" im englischen Modus stehen
+
+### Changed
+- **Handbuch-Menü (readthedocs) eindeutig gemacht:** Jede Rubrik hieß bisher genauso wie ihr erster Eintrag („ADMIN MANUAL" → „Admin manual"), was wie eine Dopplung aussah. Die Rubrik benennt jetzt den Bereich, der Eintrag die Seite („Admin manual" → „Overview"); die Einstiegsrubrik heißt „Start here" statt wie ihre eigene Seite
+
 ## [1.88.0] - 2026-07-31
 
 ### Changed

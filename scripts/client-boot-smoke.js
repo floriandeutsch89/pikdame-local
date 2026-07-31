@@ -68,6 +68,34 @@ setTimeout(() => {
       lobbyReady: [], log: [], tableMelds: [], discardCount: 0, drawCount: 0,
       roundNumber: 0, totals: { p1: 0, b1: 0 }, houseRules: {}, nextRoundReady: [],
     };
+    // Sprachwechsel muss auch DYNAMISCHE Beschriftungen mitnehmen. Der
+    // "Weiterspielen (CODE)"-Knopf wurde frueher einmalig gesetzt und blieb
+    // danach in der alten Sprache stehen (Nutzer-Report).
+    {
+      const doc = window.document;
+      window.localStorage.setItem('pikdame_last_session', 'AQM93Q');
+      wsInstance._emit('message', {
+        data: JSON.stringify({ type: 'sessionStatus', exists: true, code: 'AQM93Q' }),
+      });
+      const resume = doc.getElementById('resumeBtn');
+      const langBtn = doc.getElementById('langBtnLobby');
+      if (!resume || !langBtn) errors.push('resume button or language toggle missing');
+      else {
+        if (!/Weiterspielen/.test(resume.textContent)) {
+          errors.push(`resume button should start in German: ${resume.textContent}`);
+        }
+        langBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));   // -> Englisch
+        if (!/Resume game/.test(resume.textContent)) {
+          errors.push(`resume button did not follow the switch to English: ${resume.textContent}`);
+        }
+        langBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));   // -> Deutsch
+        if (!/Weiterspielen/.test(resume.textContent)) {
+          errors.push(`resume button did not follow the switch back to German: ${resume.textContent}`);
+        }
+        if (!/AQM93Q/.test(resume.textContent)) errors.push('resume button lost the session code');
+      }
+    }
+
     wsInstance._emit('message', { data: JSON.stringify({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'ABCD' }) });
     feed(base);
     feed({
