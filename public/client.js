@@ -137,6 +137,23 @@
     return lang === 'en' ? en : de;
   }
 
+  // Dynamische Beschriftungen (enthalten Werte wie den Spiel-Code) koennen
+  // nicht ueber I18N_STATIC laufen. Sie werden hier zentral neu gesetzt -
+  // beim Erzeugen UND bei jedem Sprachwechsel.
+  let resumeCode = null;
+  function updateResumeBtn() {
+    try {
+      const btn = document.getElementById('resumeBtn');
+      if (!btn) return;
+      if (resumeCode) {
+        btn.textContent = L(`↩️ Weiterspielen (${resumeCode})`, `↩️ Resume game (${resumeCode})`);
+        btn.classList.remove('hidden');
+      } else {
+        btn.classList.add('hidden');
+      }
+    } catch (e) { /* Beschriftung ist nie kritisch */ }
+  }
+
   /** Übersetzt SERVER-Texte (Log/Fehler) per Muster - Fallback: Original. */
   function trs(text) {
     if (lang !== 'en' || !text) return text;
@@ -188,7 +205,10 @@
     applyStaticLang();
     updateSortToggleLabel();
     updateHandToggle();
-    applyUiScale(); // Label des Anzeigegröße-Buttons neu setzen
+    applyUiScale();       // Auswahlfeld Anzeigegröße
+    updateResumeBtn();    // "Weiterspielen (CODE)" - enthaelt einen Wert
+    try { updateStudioLogoBtn(); } catch (e) { /* erst spaeter definiert */ }
+    try { applyCardback(); } catch (e) { /* erst spaeter definiert */ }
     if (lastState) render();
   }
 
@@ -208,7 +228,13 @@
       document.documentElement.dataset.uiscale = uiScale;
     }
     const sel = document.getElementById('uiScaleSelect');
-    if (sel) sel.value = uiScale;
+    if (sel) {
+      sel.value = uiScale;
+      // Optionstexte enthalten keine Werte, stehen aber im HTML - ueber L()
+      // gesetzt bleiben sie beim Sprachwechsel korrekt, ohne dass kurze
+      // Woerter wie "Aus" versehentlich anderswo uebersetzt werden.
+      for (const opt of sel.options) if (UI_SCALES.includes(opt.value)) opt.textContent = uiScaleLabel(opt.value);
+    }
   }
   function cycleUiScale() {
     uiScale = UI_SCALES[(UI_SCALES.indexOf(uiScale) + 1) % UI_SCALES.length];
@@ -585,14 +611,16 @@
       // Existence probe reply: reveal the resume button only for a live game,
       // and drop a stale code so it is never offered again.
       const last = storageGet('pikdame_last_session');
-      const btn = el('resumeBtn');
       if (msg.exists && msg.code === last && !sessionCode) {
-        btn.textContent = L(`↩️ Weiterspielen (${msg.code})`, `↩️ Resume game (${msg.code})`);
-        btn.classList.remove('hidden');
+        resumeCode = msg.code;
       } else {
         if (!msg.exists && msg.code === last) storageRemove('pikdame_last_session');
-        btn.classList.add('hidden');
+        resumeCode = null;
       }
+      // Beschriftung kommt aus updateResumeBtn(), damit ein SPAeTERER
+      // Sprachwechsel sie mitnimmt - vorher wurde sie hier einmalig gesetzt
+      // und blieb danach in der alten Sprache stehen (Nutzer-Report).
+      updateResumeBtn();
       return;
     }
     if (msg.type === 'leftLobby') {
@@ -3681,7 +3709,10 @@
   }
   function updateStudioLogoBtn() {
     const sel = document.getElementById('studioLogoSelect');
-    if (sel) sel.value = storageGet(LOGO_MODE_KEY) || 'auto';
+    if (sel) {
+      sel.value = storageGet(LOGO_MODE_KEY) || 'auto';
+      for (const opt of sel.options) if (LOGO_MODES.includes(opt.value)) opt.textContent = logoModeLabel(opt.value);
+    }
   }
   try {
     const sel = el('studioLogoSelect');

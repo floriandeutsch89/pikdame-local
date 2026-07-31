@@ -54,7 +54,7 @@ Fairness of the shuffle, data privacy, bots, scaling.
 
 ```{toctree}
 :hidden:
-:caption: Getting started
+:caption: Start here
 
 overview
 getting-started
@@ -64,14 +64,14 @@ getting-started
 :hidden:
 :caption: Admin manual
 
-admin/index
+Overview <admin/index>
 ```
 
 ```{toctree}
 :hidden:
 :caption: Developer guide
 
-developer/index
+Overview <developer/index>
 ```
 
 ```{toctree}
