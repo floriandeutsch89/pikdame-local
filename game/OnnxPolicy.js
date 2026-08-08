@@ -24,8 +24,45 @@ const MODELS_DIR = process.env.PIKDAME_MODELS_DIR || path.join(__dirname, '..', 
 let ortModule; // cached onnxruntime-node module (or false if unavailable)
 const sessions = new Map(); // difficulty -> InferenceSession | null
 
+// Explicit operator choice, or null when the variable is not set at all.
+function explicitChoice() {
+  const v = process.env.PIKDAME_ONNX;
+  if (v === undefined || v === '') return null;
+  return v === '1' || v === 'true';
+}
+
+let autoAvailable; // cached probe result
+
+/**
+ * Can THIS installation actually run the learned bots? Both halves must be
+ * present: the native runtime and at least one model file.
+ */
+function probeAvailable() {
+  try {
+    require.resolve('onnxruntime-node');
+  } catch (e) {
+    return false; // e.g. the iPhone/CodeApp path - no native modules there
+  }
+  try {
+    return fs.readdirSync(MODELS_DIR).some((f) => f.endsWith('.onnx'));
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Default is now AUTO: a plain `node server.js` uses the learned bots whenever
+ * the runtime and the models are both there, instead of needing PIKDAME_ONNX=1.
+ * PIKDAME_ONNX=0 forces the heuristic, PIKDAME_ONNX=1 forces the learned path
+ * (and complains loudly if it cannot be honoured). Where the runtime is absent
+ * - the hotspot/CodeApp mode - auto stays off and says nothing, so that path is
+ * completely unchanged.
+ */
 function enabled() {
-  return process.env.PIKDAME_ONNX === '1' || process.env.PIKDAME_ONNX === 'true';
+  const choice = explicitChoice();
+  if (choice !== null) return choice;
+  if (autoAvailable === undefined) autoAvailable = probeAvailable();
+  return autoAvailable;
 }
 
 function loadRuntime() {
@@ -37,12 +74,16 @@ function loadRuntime() {
     ortModule = false;
     // Falling back is safe, but a SILENT fallback is a trap: you set
     // PIKDAME_ONNX=1, nothing happens, and you never find out why.
-    console.error('');
-    console.error('*** ⚠️  PIKDAME_ONNX ist aktiv, aber onnxruntime-node fehlt. ***');
-    console.error('***     Die Bots spielen weiter mit der HEURISTIK (kein Ausfall).');
-    console.error('***     Das Standard-Image enthält die Laufzeit bewusst nicht.');
-    console.error('***     Abhilfe: Image mit `npm i onnxruntime-node` bauen.');
-    console.error('');
+    // In AUTO mode there is nothing to warn about - the absence of the
+    // runtime IS the decision, and the hotspot path must stay quiet.
+    if (explicitChoice() === true) {
+      console.error('');
+      console.error('*** ⚠️  PIKDAME_ONNX ist aktiv, aber onnxruntime-node fehlt. ***');
+      console.error('***     Die Bots spielen weiter mit der HEURISTIK (kein Ausfall).');
+      console.error('***     Das Standard-Image enthält die Laufzeit bewusst nicht.');
+      console.error('***     Abhilfe: Image mit `npm i onnxruntime-node` bauen.');
+      console.error('');
+    }
   }
   return ortModule;
 }

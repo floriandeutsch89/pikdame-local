@@ -1,8 +1,65 @@
 # Changelog
 
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
-Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
-**MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
+Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
+
+## [2.0.0] - 2026-08-08
+
+Oberflächen-Überarbeitung. Die Spielregeln, das Protokoll und die Sitzungs-
+Snapshots sind unverändert - laufende Partien überleben das Update.
+
+### Added
+- **Echtes Icon-Set statt Emoji.** Die gesamte Bedienoberfläche (Kopfzeile, Lobby-Knöpfe, Einstellungen, Ergebnis-Fenster) nutzt jetzt Strich-Icons, die inline im HTML liegen: Sie nehmen die Theme-Farbe an, sitzen auf der Schriftlinie und sehen auf jedem iOS-Stand gleich aus. Emoji bleiben dort, wo sie **Inhalt** sind - Bot-Gesichter, Reaktionen, Abzeichen. Kein Download, der Hotspot-Betrieb bleibt unberührt
+- **Einstellungen im Spiel als eigenes Fenster** mit beschrifteten Zeilen statt acht 36-px-Symbolen in der Kopfzeile. Jede Zeile nennt ihren Zustand („Sound & Vibration – An"), jede ist 44 px hoch
+- **Erscheinungsbild im Spiel umschaltbar:** Die Themen-Auswahl gibt es jetzt auch in den Spiel-Einstellungen, nicht mehr nur in der Lobby. Beide Reihen bleiben synchron
+- **Kartenanzahl über der eigenen Hand**, mittig zwischen Einklapp-Pfeil und Sortierung - bei 15 überlappenden Karten ist sie nicht abzählbar, entscheidet aber, ob man noch rauskommt
+- **Schrift- und Bedienelement-Skala** als CSS-Variablen (`--fs-*`, `--tap-min`, `--ctl-h`). Vorher standen in derselben Knopfreihe 17 px, 15,3 px, 13,6 px und 12,24 px nebeneinander
+- **Startbildschirm mit Karten-Motiv:** drei aufgefächerte Karten mit der ♠Q statt nur des Schriftzugs - der erste Blick sagt jetzt „Kartenspiel" statt „Formular"
+- **Rundenende nennt den Sieger im Klartext** („Erika gewinnt die Runde") mit der Rundenpunktzahl groß darunter. Vorher war der Sieger nur eine grüne Tabellenzeile - und weil gewinnt, wer **rausgeht**, stand die höchste Zahl oft bei jemand anderem, was wie ein Anzeigefehler aussah
+- **Fortschrittsbalken bis 1000 pro Spieler** im Rundenergebnis: Wie eng die Partie steht, war aus der Punktetabelle allein nie ablesbar
+- **Spielende stellt den Sieger nach oben.** „Maria gewinnt das Spiel!" stand als normale Textzeile UNTER den vier Punktezeilen - der wichtigste Satz des Bildschirms, und man musste erst an allem anderen vorbeilesen. Jetzt Kopfzeile mit Krone und Endpunktzahl
+- **ONNX-Bots ohne Umgebungsvariable:** `PIKDAME_ONNX` ist jetzt dreiwertig - **nicht gesetzt = automatisch** (die gelernten Bots werden benutzt, sobald Laufzeit UND Modelle vorhanden sind), `1` erzwingt sie (mit lauter Meldung, falls das nicht geht), `0` erzwingt die Heuristik. Wo die Laufzeit fehlt - Standard-Image, Hotspot-/CodeApp-Betrieb - bleibt es still bei der Heuristik, dieser Pfad ändert sich nicht
+- **Mail-Einrichtung dokumentiert** (`docs/admin/mail.md`): alle `PIKDAME_SMTP_*`-Variablen, Beispiele für STARTTLS/SSL/offenes Relay, der Log-Fallback ohne Mailserver und eine Fehlertabelle
+- Neue Vertragstests: jedes Icon muss ein passendes `<symbol>` haben, reine Icon-Knöpfe brauchen einen zugänglichen Namen, Beschriftungen neben einem Icon müssen im eigenen `<span>` stehen, und jede Scroll-Kante muss sowohl gestaltet als auch tatsächlich gesetzt werden
+
+### Changed
+- **Joker tragen eine Krone** statt des 🃏-Emojis - in Handkarten, Auslagen und auf dem Ablagestapel, in der Joker-Farbe des jeweiligen Themes
+- **Geister-Beschriftung am Joker zeigt in Sätzen nur noch den Wert.** Mit Farbsymbol sah der Joker im Satz aus wie eine echte ♥/♠-Karte; in **Folgen** bleibt das Symbol, weil man die Folge daran liest
+- **Spielverlauf ist ein richtiges Fenster** (unten eingeblendet am Telefon, Seitenspalte am großen Bildschirm) mit Titelzeile und Schließen-Knopf, statt eines 240-px-Kastens ohne Überschrift, der hinter den Einstellungen verschwand
+- **Einklapp-Knopf der Hand** ist ein Pfeil, der sich dreht - vorher wechselte er zwischen „⌄" und „⌃ 15 Karten" und veränderte dabei Breite und Schriftgröße
+- **Punkte-Anzeige färbt sich nach Bedeutung:** Akzentfarbe nur, solange man wirklich vorn liegt, Rot bei negativem Stand, sonst neutral. Vorher stand -245 im selben Grün wie ein Sieg
+- **Leerer Bereich zwischen Auslagen und Stapeln** liegt jetzt in einem weichen Lichtkegel - der Platz gehört bewusst den Auslagen, sah aber wie ein Layout-Fehler aus
+- Die Reaktions-Leiste schließt sich beim Tippen irgendwo anders
+- **Startbildschirm aufgeräumt:** Statistik, Regeln, Konto, Sprache und Einstellungen liegen in EINER Symbolreihe statt in fünf vollbreiten Knöpfen, die genauso schwer wogen wie „Neues Spiel erstellen". Die Themen-Auswahl ist in die Einstellungen umgezogen (Aussehen wählen, bevor man den Namen getippt hat, ist nicht die erste Entscheidung), und „Spiel starten" erscheint erst, wenn es etwas zu starten gibt - vorher stand dort ein ausgegrauter Knopf ohne Funktion
+- **Reaktionen am Rundenende schieben nichts mehr herum.** Die Namens-Chips lagen im Textfluss zwischen Überschrift und Reitern - jeder ankommende und wieder verschwindende Chip verschob die Reiterleiste und landete auf ihr. Sie schweben jetzt in der oberen rechten Ecke der Karte
+- **Reaktions-Auswahl ist eine Reihe gleich großer runder Ziele** statt sieben grauer Kästchen unterschiedlicher Breite, in der die ♠Q-Reaktion als kleine Spielkarte aus der Reihe fiel
+- **Die Sieger-Karte fährt auf und zählt die Punkte hoch** (Krone landet einen Wimpernschlag später). Der Höhepunkt einer Runde bzw. Partie war bisher einfach da. Bei „Bewegung reduzieren" steht die Zahl sofort
+- **„Schlüsselmomente" ist eine Zeitleiste** statt Emoji-Sätzen: Rundenchip an der Schiene, Überschrift, Detailzeile und die Punktverschiebung rechts - grün oder rot, je nachdem, ob der Moment geholfen oder wehgetan hat
+- **Rundenende: Nebenaktionen liegen unter „Mehr".** Rückblick, Export, Aufgeben und Hauptmenü standen als vier gleichwertige Knöpfe unter „Weiter" - die Hauptaktion musste man suchen
+- **Reiter „Ergebnis/Statistik" sind wieder lesbar:** Sie malten mit den Farben des DUNKLEN Tisches auf die helle Ergebniskarte - der inaktive Reiter war praktisch weiß auf weiß. Jetzt ein Segment-Umschalter in Kartenfarben
+
+### Fixed
+- **Zeigen auf eine Handkarte verdeckte am PC alle rechten Nachbarn.** Die Karte unter dem Zeiger wurde per `z-index` nach vorn geholt und lag damit genau über deren schmalen Klickstreifen - man musste erst wieder herausfahren, um die nächste Karte zu treffen. Rückmeldung kommt jetzt wie bei der Auswahl über einen kleinen Versatz nach oben; die Stapelreihenfolge bleibt unangetastet (derselbe Fehler war für `.selected` und `.just-drawn` längst behoben, nur `:hover` fehlte). Ein Vertragstest hält das jetzt fest
+- **Das Rundenergebnis zeigte bei vier Spielern nur drei Zeilen** - der Sieger wanderte in die Kopfzeile und fiel aus der Liste. Jetzt stehen wieder alle in der Liste, die Fortschrittsbalken sind damit auch vergleichbar
+- **Kartenrücken aus den Einstellungen wurde nicht übernommen.** Die Freischalt-Prüfung liest das Spielerprofil, beim Start ist das aber noch nicht geladen - ein freigeschalteter Rücken (Gold, Nachtblau, Joker) galt dadurch bei jedem Laden als gesperrt und fiel still auf „Klassisch" zurück. Die Auswahl selbst war nie weg, nur der Nachziehstapel zeigte sie nicht
+- **Hinweis auf eine neue Version ist jetzt ein Banner statt eines 4-Sekunden-Hinweises.** Auf dem iPhone-Startbildschirm liefert ein Neuladen oft wieder dieselbe zwischengespeicherte Fassung - dort steht jetzt sofort das Banner mit dem einzigen wirksamen Weg (App im Umschalter wirklich schließen und neu öffnen), ohne einen Knopf anzubieten, der dort nichts bewirkt
+- **Der Bedien-Tipp kam immer wieder.** Er erschien einmal pro eigenem Zug - also 10-15 Mal pro Runde, denselben Satz. Jetzt erscheint er drei Mal und bleibt dann weg; wer ihn erneut sehen will, schaltet die Tipps in den Einstellungen aus und wieder ein
+- **Negative Rundenpunkte standen in Grün.** Die Farbe markierte „das bin ich" bzw. den Rundensieger - bei -170 las sich das wie ein Erfolg. Farbe zeigt jetzt ausschließlich das **Vorzeichen** (grün/rot); der eigene Eintrag wird durch eine Akzentlinie am Rand markiert, nicht durch Farbe
+- **„Tutorial" war 8 px niedriger als „Challenge".** `#tutorialBtn` trug noch ein `margin-top` aus der Zeit, als die beiden untereinander standen - in der Flex-Reihe fraß das genau diese 8 px. Ein Vertragstest verbietet jetzt ID-Regeln mit Rand/Größe/Farbe für Knöpfe in einer Flex-Reihe (denselben Fehlertyp hatte zuvor `#forfeitBtn`)
+- **Kein Weg ins Hauptmenü am Rundenende.** „Hauptmenü" gab es nur nach der ganzen Partie - am Rundenende verdeckt das Ergebnisfenster den Tisch, der Haus-Knopf der Kopfzeile ist also unerreichbar, und es blieb nur „Nächste Runde" oder die ganze Partie aufgeben. Der Tisch läuft weiter und der Spiel-Code holt einen zurück, das Verlassen ist hier also gefahrlos. Am **Spielende** klappt der „Mehr"-Bereich zudem von selbst auf, weil „Weiter" dort nicht mehr der naheliegende Schritt ist
+- **„Spiel aufgeben" im Ergebnisfenster verlor sein Icon**, sobald eine Abstimmung lief: Die Beschriftung wurde als Ganzes überschrieben. Der Vertragstest dagegen erkennt diesen Fall jetzt auch, wenn das Element vorher in einer Variablen zwischengelagert wurde
+- **Kleine Bedienelemente haben ein 44-px-Tastfeld** (Ablage-Lupe, Hand-Werkzeugleiste), ohne dass sich ihre gezeichnete Größe ändert
+- **Kopfzeile lief am iPhone über:** Das Zahnrad klappte acht Symbole in die Kopfzeile - Einstellungs- und Pause-Knopf wurden aus dem Bild geschoben und der Tisch wurde scrollbar. Die Kopfzeile trägt jetzt drei Knöpfe, alle 44 px (Apple-Mindestmaß)
+- **Auslagen bekommen Verlaufskanten nach oben und unten** - bisher nur nach unten; eine oben abgeschnittene Reihe sah wie ein Zeichenfehler aus
+- **Karten der eigenen Hand kamen dem Fortschrittsbalken bis auf 3 px nahe** und wirkten, als lägen sie darauf. Der Fächer-Überhang steckt jetzt im Kasten
+- „Spiel aufgeben" war in den Einstellungen grau statt rot: eine ID-Regel aus der alten Kopfzeile stach die neue Klasse aus
+
+## [1.93.1] - 2026-08-08
+
+### Fixed
+- **Große Hand am iPhone: die Verlaufskanten fehlten seit v1.70.0.** Ab 16 Karten (nach einer Stapelaufnahme) scrollt die Hand seitlich - die dezenten Kanten, die zeigen, auf welcher Seite noch Karten liegen, blieben aber aus. Die Funktion dahinter war in v1.70.0 versehentlich mitgelöscht worden, die Aufrufstelle blieb stehen; bei jedem Neuaufbau der Hand flog dadurch ein Fehler, der den Rest der Layout-Routine abbrach - deshalb wurde auch die **frisch gezogene Karte nicht mehr ins Bild geholt**. Am iPhone besonders ärgerlich, weil Safari die Scrollleiste im Ruhezustand ausblendet und die Kanten damit der einzige Hinweis aufs seitliche Scrollen sind
+- **Eine Einblendung konnte das Rundenergebnis verdecken:** Hinweise liegen mittig und über allen Fenstern. Stand noch ein Tipp auf dem Schirm, wenn das Rundenende aufging, lag er quer über den Punktezeilen. Eine offene Einblendung verschwindet jetzt, sobald sich ein Fenster öffnet; danach ausgelöste Hinweise (Server-Fehler, Warnungen) erscheinen weiterhin darüber
+- **„Pik Dame abwerfen?": die beiden Knöpfe waren verschieden groß und gegeneinander versetzt.** Der Dialog benutzte die Knopfreihe aus der Lobby, deren Regeln nur den Abbrechen-Knopf treffen - „Ja, abwerfen" blieb dadurch schmaler und höher und saß 8px über „Abbrechen". Die Reihe hat jetzt eine eigene Klasse, die alle Knöpfe gleich bemaßt
 
 ## [1.93.0] - 2026-08-08
 
