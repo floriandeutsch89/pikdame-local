@@ -35,7 +35,7 @@ const ENV_NOTES = {
   PIKDAME_ALLOWED_ORIGIN: 'If set, only WebSocket connections from this origin are accepted (CSRF hardening).',
   PIKDAME_TRUST_PROXY: 'Set to `1` when running behind a reverse proxy so client IPs are read from `X-Forwarded-For`.',
   PIKDAME_HEARTBEAT_MS: 'WebSocket ping interval used to detect dead connections.',
-  PIKDAME_ONNX: 'Set to `1` to activate a trained ONNX bot policy (falls back to the heuristic bot if unavailable). See {doc}`onnx`.',
+  PIKDAME_ONNX: 'Three-valued. **Unset = auto**: the trained ONNX bot policy is used whenever the runtime and the models are both present, and silently falls back to the heuristic where they are not. `1` forces it on (and says so loudly if it cannot be honoured), `0` forces the heuristic. See {doc}`onnx`.',
   PIKDAME_MODELS_DIR: 'Where the `.onnx` model files live. Override it to mount models on a volume and swap them without rebuilding the image. Default: the `models/` folder in the image.',
   PIKDAME_LOG_GAMES: 'Set to `1` to log human moves to JSONL for imitation learning.',
   PIKDAME_LOG_PATH: 'Where the move log is written.',

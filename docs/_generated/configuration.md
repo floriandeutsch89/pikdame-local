@@ -18,7 +18,7 @@ generated from the source, so it cannot go stale.
 | `PIKDAME_LOG_PATH` | `<app>/data` | Where the move log is written. |
 | `PIKDAME_MAX_SESSIONS` | `500` | Maximum number of concurrent games. Beyond it, new games are rejected with "server full". |
 | `PIKDAME_MODELS_DIR` | `models/` inside the image | Where the `.onnx` model files live. Override it to mount models on a volume and swap them without rebuilding the image. Default: the `models/` folder in the image. |
-| `PIKDAME_ONNX` | unset (compare against `1`) | Set to `1` to activate a trained ONNX bot policy (falls back to the heuristic bot if unavailable). See {doc}`onnx`. |
+| `PIKDAME_ONNX` | — | Three-valued. **Unset = auto**: the trained ONNX bot policy is used whenever the runtime and the models are both present, and silently falls back to the heuristic where they are not. `1` forces it on (and says so loudly if it cannot be honoured), `0` forces the heuristic. See {doc}`onnx`. |
 | `PIKDAME_PUBLIC_MODE` | unset (compare against `1`) | Set to `1` on a public server: no player profiles are persisted and the lobby shows no player list. Anonymous global stats are still counted. |
 | `PIKDAME_TRUST_PROXY` | unset (compare against `1`) | Set to `1` when running behind a reverse proxy so client IPs are read from `X-Forwarded-For`. |
 | `PORT` | `8080` | HTTP/WebSocket port the server listens on. |
