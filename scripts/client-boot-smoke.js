@@ -247,6 +247,38 @@ setTimeout(() => {
       if (handGhost) errors.push('hand jokers must NOT carry a ghost label');
     }
 
+    // Zwei Pik Damen in EINEM Zug ausgelegt: die Ankuendigung muss 200
+    // Punkte nennen (Spieler-Report: sie sagte 100, weil sie nach der ersten
+    // Karte abbrach). Die Wertung war immer korrekt.
+    {
+      const doc = window.document;
+      const pdBase = {
+        ...base, phase: 'playing', roundNumber: 1, currentPlayerId: 'p1',
+        turnPhase: 'meld', dealerId: 'b1', turnDeadline: null,
+        discardTop: { id: 'pd0', suit: 'H', rank: '4' }, drawCount: 20, discardCount: 1,
+        players: base.players.map((p) => ({ ...p, handCount: 5 })),
+      };
+      feed({ ...pdBase, tableMelds: [] });          // Ausgangslage: keine Dame am Tisch
+      feed({
+        ...pdBase,
+        tableMelds: [{
+          id: 'mq', ownerId: 'p1', type: 'set', rank: 'Q',
+          slots: [
+            { real: { id: 'SQ-0', suit: 'S', rank: 'Q' } },
+            { real: { id: 'SQ-1', suit: 'S', rank: 'Q' } },
+            { real: { id: 'HQ-0', suit: 'H', rank: 'Q' } },
+          ],
+        }],
+      });
+      const warn = doc.querySelector('.raidWarning');
+      if (!warn) errors.push('queen announcement missing');
+      else {
+        const text = warn.textContent || '';
+        if (!/200/.test(text)) errors.push(`two queens at once must announce 200 points, got: ${text}`);
+      }
+      doc.querySelectorAll('.raidWarning').forEach((n) => n.remove());
+    }
+
     // Gruener Rahmen bei Joker-Auswahl: An 7d-8d-9d koennen Joker + Bube nur
     // Joker=10d heissen - der Hinweis muss das genauso erkennen wie der
     // Server, sonst wirkt ein gueltiger Zug unmoeglich (Spieler-Report).

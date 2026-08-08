@@ -2717,6 +2717,7 @@
     // game left people wondering what was going on.
     el('challengeTopLine').textContent = '…';
     el('challengeIntroOverlay').classList.remove('hidden');
+    el('challengeWeekLine').textContent = '';
     fetch('/challengeboardz')
       .then((r) => r.json())
       .then((d) => {
@@ -2724,9 +2725,18 @@
         el('challengeTopLine').textContent = top
           ? `🥇 ${top.name} – ${top.score} ${L('Punkte', 'points')}${d.board[1] ? `  ·  🥈 ${d.board[1].name} – ${d.board[1].score}` : ''}`
           : L('Noch niemand - sichere dir Platz 1!', 'Nobody yet - claim first place!');
+        // Wochenwertung: beste 5 von 7 Tagen - belohnt Regelmaessigkeit statt
+        // eines einzelnen Gluckstreffers.
+        // ACHTUNG: getWeekly liefert das Feld "top" (nicht "board" wie die
+        // Tagesliste) - mit dem falschen Namen bliebe die Zeile still leer.
+        const week = (d && d.weekly && d.weekly.top) || [];
+        el('challengeWeekLine').textContent = week.length
+          ? week.slice(0, 3).map((e, i) => `${['🥇', '🥈', '🥉'][i]} ${e.name} – ${e.weekScore}`).join('  ·  ')
+          : L('Diese Woche noch offen.', 'Nothing this week yet.');
       })
       .catch(() => {
         el('challengeTopLine').textContent = L('Bestenliste gerade nicht erreichbar.', 'Leaderboard unavailable right now.');
+        el('challengeWeekLine').textContent = '';
       });
   });
   el('challengeStartBtn').addEventListener('click', () => {
@@ -3192,15 +3202,33 @@
     const current = collectTablePikdames();
     const isNewRound = prevPikdameRound !== lastState.roundNumber;
     if (prevTablePikdameIds !== null && !isNewRound) {
-      for (const [cardId, ownerId] of current) {
-        if (!prevTablePikdameIds.has(cardId)) {
+      // ALLE neuen Pik Damen einsammeln, nicht nur die erste: Wer beide in
+      // einem Zug auslegt, sichert sich 200 Punkte - die Meldung behauptete
+      // bisher 100 (Spieler-Report). Die WERTUNG war immer korrekt, nur die
+      // Ankuendigung zaehlte nach der ersten Karte nicht weiter.
+      const fresh = [...current].filter(([cardId]) => !prevTablePikdameIds.has(cardId));
+      if (fresh.length > 0) {
+        const owners = new Set(fresh.map(([, ownerId]) => ownerId));
+        const points = fresh.length * 100;
+        if (owners.size === 1) {
+          const ownerId = fresh[0][1];
           const owner = lastState.players.find((p) => p.id === ownerId);
           const isMe = ownerId === playerId;
+          const who = owner ? owner.name : '?';
           showRaidWarning(
-            L('♠ PIK DAME! ♠', '♠ QUEEN OF SPADES! ♠'),
-            isMe ? L('Du sicherst dir 100 Punkte!', 'You secure 100 points!') : L(`${owner ? owner.name : '?'} sichert sich 100 Punkte!`, `${owner ? owner.name : '?'} secures 100 points!`)
+            fresh.length > 1
+              ? L('♠♠ BEIDE PIK DAMEN! ♠♠', '♠♠ BOTH QUEENS OF SPADES! ♠♠')
+              : L('♠ PIK DAME! ♠', '♠ QUEEN OF SPADES! ♠'),
+            isMe
+              ? L(`Du sicherst dir ${points} Punkte!`, `You secure ${points} points!`)
+              : L(`${who} sichert sich ${points} Punkte!`, `${who} secures ${points} points!`)
           );
-          break; // eine Ankündigung reicht, auch wenn beide PD gleichzeitig fallen
+        } else {
+          // Selten, aber moeglich: zwei verschiedene Spieler im selben Zustand.
+          showRaidWarning(
+            L('♠♠ BEIDE PIK DAMEN! ♠♠', '♠♠ BOTH QUEENS OF SPADES! ♠♠'),
+            L('Je 100 Punkte für zwei Spieler!', '100 points each for two players!')
+          );
         }
       }
     }
