@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/):
 **MAJOR** bei Regel-/Bruch-Änderungen, **MINOR** bei neuen Features, **PATCH** bei Fehlerbehebungen.
 
+## [1.93.0] - 2026-08-08
+
+### Added
+- **Wochenwertung im Challenge-Fenster:** Neben „Heute führt" stehen jetzt die drei Besten der laufenden Woche. Die Wertung selbst gab es längst (beste **fünf von sieben** Tagen, damit ein verpasster Tag die Woche nicht ruiniert und Regelmäßigkeit mehr zählt als ein einzelner Glückstreffer) - sie war bisher nur nach einer beendeten Partie zu sehen, nicht vor dem Start
+
+### Fixed
+- **Zwei Pik Damen in einem Zug: Meldung sagte 100 statt 200 Punkte** (Spieler-Report): Die Ankündigung brach nach der ersten gefundenen Dame ab. Die **Wertung war immer korrekt** - nur die Einblendung zählte nicht weiter. Jetzt werden alle im selben Zug ausgelegten Pik Damen zusammengezählt („♠♠ BEIDE PIK DAMEN! ♠♠ - Du sicherst dir 200 Punkte!"); der seltene Fall, dass zwei verschiedene Spieler gleichzeitig eine legen, wird ebenfalls sauber benannt
+- Der Rauchtest prüft die 200er-Meldung; gegengeprüft mit dem alten Verhalten, das dabei wortwörtlich das gemeldete Fehlerbild erzeugt
+
 ## [1.92.0] - 2026-08-08
 
 ### Geändert

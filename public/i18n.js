@@ -60,6 +60,8 @@ window.I18N_STATIC = {
   'Spiel starten': 'Start game',
   '⚙️ Einstellungen': '⚙️ Settings',
   'Fortschritt': 'Progress',
+  'Diese Woche:': 'This week:',
+  'Gewertet werden deine besten fünf Tage der laufenden Woche.': 'Your best five days of the current week count.',
   '🎓 Dein Fortschritt': '🎓 Your progress',
   'Abgehakt wird, sobald du einen Hinweis mit „Verstanden“ bestätigt hast.': 'A step is ticked once you confirm its hint with "Got it".',
   '🔍 Anzeigegröße': '🔍 Display size',

@@ -199,7 +199,13 @@ function serveStatic(req, res) {
     // the leaderboard's very purpose; no other data leaves the store.
     const date = todayUTC();
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
-    res.end(JSON.stringify({ date, board: challengeStore.getBoard(date, 5) }));
+    // Zusaetzlich die Wochenwertung (beste 5 von 7 Tagen) - sie existierte
+    // laengst, war aber nur nach einer beendeten Partie zu sehen.
+    res.end(JSON.stringify({
+      date,
+      board: challengeStore.getBoard(date, 5),
+      weekly: challengeStore.getWeekly(null, 5),
+    }));
     return;
   }
   if (filePath === '/changelogz') {
