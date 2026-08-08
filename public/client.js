@@ -760,6 +760,13 @@
     }
     if (msg.type === 'profiles') {
       knownProfiles = msg.players || [];
+      // Re-apply the card back NOW that we know the profile. Its unlock gate
+      // reads gamesWon/gamesPlayed from there, and at startup knownProfiles is
+      // still empty - so an unlocked back (Gold, Nachtblau, Joker) counted as
+      // locked and was silently downgraded to "Klassisch" on every load. The
+      // choice itself survived in localStorage, only the draw pile never
+      // showed it (player report).
+      try { applyCardback(); } catch (e) { /* Kosmetik bricht nie den Start */ }
       globalStatsData = msg.globalStats || null;
       // Öffentlicher Server: Profile/Statistik sind deaktiviert.
       publicMode = !!msg.publicMode;
@@ -1783,6 +1790,30 @@
     }
   }
 
+  /**
+   * Count a score up from zero. The final number is written immediately as the
+   * element's text, so a reduced-motion user (or a mid-animation re-render)
+   * always sees the real value - the animation only replaces what is painted.
+   */
+  function countUpScore(node, finalValue, { signed: withSign = false } = {}) {
+    if (!node) return;
+    const fmt = (v) => (withSign && v > 0 ? `+${v}` : `${v}`);
+    node.textContent = fmt(finalValue);
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (!Number.isFinite(finalValue) || finalValue === 0) return;
+    const DURATION = 650;
+    const start = performance.now();
+    const step = (now) => {
+      const t = Math.min(1, (now - start) / DURATION);
+      // ease-out: fast first, settles onto the real number
+      const eased = 1 - Math.pow(1 - t, 3);
+      node.textContent = fmt(Math.round(finalValue * eased));
+      if (t < 1) requestAnimationFrame(step);
+      else node.textContent = fmt(finalValue);
+    };
+    requestAnimationFrame(step);
+  }
+
   function renderResultOverlay() {
     const forfeited = lastState.phase === 'gameOver' && lastState.gameOverInfo && lastState.gameOverInfo.forfeited;
     if (!lastState.lastRoundResult && !forfeited) return;
@@ -1884,8 +1915,9 @@
               ? L('Du gewinnst die Runde', 'You win the round')
               : L('gewinnt die Runde', 'wins the round')
           }</div>` +
-          `<div class="resultWinnerScore">${signed(wr ? wr.roundScore : 0)}</div>`;
+          `<div class="resultWinnerScore"></div>`;
         paneResult.appendChild(head);
+        countUpScore(head.querySelector('.resultWinnerScore'), wr ? wr.roundScore : 0, { signed: true });
       }
 
       // Everyone else: the round delta is the number that changed, so it gets
@@ -1894,8 +1926,11 @@
       // alone never showed how close the match actually is.
       const list = document.createElement('div');
       list.className = 'resultList';
+      // EVERY player stays in the list, the winner included. Promoting them
+      // into the headline and dropping their row left a 4-player game showing
+      // three lines, which reads as a missing player (report) - and the race
+      // bars are only comparable if all of them are there.
       lastState.players
-        .filter((p) => !(winner && p.id === winner.id) || isGameOver)
         .forEach((p) => {
           const r = lastState.lastRoundResult[p.id];
           const total = lastState.totals[p.id] || 0;
@@ -1968,23 +2003,66 @@
             ? L('Du gewinnst die Partie', 'You win the match')
             : L('gewinnt die Partie', 'wins the match')
         }</div>` +
-        `<div class="resultWinnerScore">${(lastState.totals && lastState.totals[winner ? winner.id : '']) || 0}</div>`;
+        `<div class="resultWinnerScore"></div>`;
       paneResult.insertBefore(head, paneResult.firstChild);
+      countUpScore(
+        head.querySelector('.resultWinnerScore'),
+        (lastState.totals && lastState.totals[winner ? winner.id : '']) || 0
+      );
       // Schlüsselmomente der Partie: 3 erzählte Zeilen statt nur Zahlen.
       const hl = isGameOver && lastState.gameOverInfo && lastState.gameOverInfo.highlights;
       if (hl && hl.length) {
         const box = document.createElement('div');
         box.className = 'matchMoments';
-        const fmt = (h) => {
-          const r = `${L('Runde', 'Round')} ${h.round}`;
-          if (h.type === 'queenCaught') return `♠ ${r}: ${L(`${h.name} wurde mit der Pik Dame auf der Hand erwischt - ein 100-Punkte-Schlag.`, `${h.name} got caught with the Queen of Spades in hand - a 100-point blow.`)}`;
-          if (h.type === 'queenLaid') return `♛ ${r}: ${L(`${h.name} legte die Pik Dame aus (+100).`, `${h.name} melded the Queen of Spades (+100).`)}`;
-          if (h.type === 'handAus') return `🃏 ${r}: ${L(`${h.name} machte „Hand aus" - alles in einem Zug!`, `${h.name} went out in one - the whole hand at once!`)}`;
-          if (h.type === 'bestRound') return `⭐ ${r}: ${L(`${h.name} holte die beste Runde der Partie (${h.score} Punkte).`, `${h.name} scored the best round of the match (${h.score} points).`)}`;
-          return '';
+        // A timeline, not a list of emoji-led sentences: round as a chip, a
+        // headline naming what happened, the detail underneath, and the
+        // point swing on the right where the eye already looks for numbers.
+        const moment = (h) => {
+          if (h.type === 'queenCaught') {
+            return {
+              kind: 'bad', swing: '-100',
+              title: L(`${h.name} erwischt`, `${h.name} caught out`),
+              text: L('Die Pik Dame blieb auf der Hand liegen.', 'Left holding the Queen of Spades.'),
+            };
+          }
+          if (h.type === 'queenLaid') {
+            return {
+              kind: 'good', swing: '+100',
+              title: L(`${h.name} legt die Pik Dame`, `${h.name} melds the Queen of Spades`),
+              text: L('Die teuerste Karte im Spiel - ausgelegt statt kassiert.', 'The most expensive card in the game, melded instead of eaten.'),
+            };
+          }
+          if (h.type === 'handAus') {
+            return {
+              kind: 'good', swing: '',
+              title: L(`${h.name} macht Hand aus`, `${h.name} goes out in one`),
+              text: L('Die komplette Hand in einem einzigen Zug.', 'The whole hand in a single turn.'),
+            };
+          }
+          if (h.type === 'bestRound') {
+            return {
+              kind: 'good', swing: h.score > 0 ? `+${h.score}` : `${h.score}`,
+              title: L(`Beste Runde der Partie: ${h.name}`, `Best round of the match: ${h.name}`),
+              text: L('Keine Runde brachte jemandem mehr ein.', 'No round earned anyone more.'),
+            };
+          }
+          return null;
         };
-        box.innerHTML = `<h4>${L('Schlüsselmomente', 'Key moments')}</h4>` +
-          hl.map((h) => `<div class="momentLine">${fmt(h)}</div>`).join('');
+        const rows = hl
+          .map((h) => ({ h, m: moment(h) }))
+          .filter((x) => x.m)
+          .map(({ h, m }) =>
+            `<li class="momentItem ${m.kind}">` +
+            `<span class="momentRound">${L('R', 'R')}${h.round}</span>` +
+            `<span class="momentBody">` +
+            `<span class="momentTitle">${escapeHtml(m.title)}</span>` +
+            `<span class="momentText">${escapeHtml(m.text)}</span>` +
+            `</span>` +
+            (m.swing ? `<span class="momentSwing">${m.swing}</span>` : '') +
+            `</li>`
+          )
+          .join('');
+        box.innerHTML = `<h4>${L('Schlüsselmomente', 'Key moments')}</h4><ul class="momentList">${rows}</ul>`;
         paneResult.appendChild(box);
       }
       // Brotato-artige Anti-Auszeichnung: liebevoller Spott, rein kosmetisch.
@@ -3598,21 +3676,56 @@
         // instead of reload-cycling.
         const mine = window.__PIKDAME_BUILD;
         if (mine && mine !== s.version) {
+          // On an iOS home-screen app location.reload() commonly re-serves the
+          // SAME cached bundle, so reloading would just spin. There the banner
+          // goes up straight away and names the only cure: close the app for
+          // real (swipe it away in the app switcher) and reopen it.
+          const iosStandalone = window.navigator.standalone === true;
           const last = Number(storageGet('pikdame_reload_at') || 0);
-          if (Date.now() - last > 5 * 60 * 1000) {
+          if (!iosStandalone && Date.now() - last > 5 * 60 * 1000) {
             storageSet('pikdame_reload_at', String(Date.now()));
             window.location.reload();
           } else {
-            showToast(L(
-              `Neue Version v${s.version} verfügbar - bitte App einmal komplett schließen und neu öffnen.`,
-              `New version v${s.version} available - please fully close and reopen the app once.`
-            ));
+            showUpdateBanner(s.version, iosStandalone);
           }
         }
       }
       initAccount(!!(s && s.accountsEnabled));
     })
     .catch(() => {});
+
+  /**
+   * Persistent "you are running an old bundle" notice. Deliberately NOT a
+   * toast: the toast lasts 4s, sits in the middle of the screen and is now
+   * dismissed as soon as any overlay opens - all wrong for something the
+   * player has to act on.
+   */
+  function showUpdateBanner(serverVersion, iosStandalone) {
+    const banner = el('updateBanner');
+    if (!banner) return;
+    el('updateBannerText').textContent = iosStandalone
+      ? L(
+          `Version v${serverVersion} ist da. Diese App läuft noch mit einer älteren - bitte einmal komplett schließen (im App-Umschalter nach oben wischen) und neu öffnen.`,
+          `Version v${serverVersion} is out. This app is still running an older one - please close it completely (swipe it away in the app switcher) and reopen it.`
+        )
+      : L(
+          `Version v${serverVersion} ist da. Diese Seite läuft noch mit einer älteren.`,
+          `Version v${serverVersion} is out. This page is still running an older one.`
+        );
+    const reloadBtn = el('updateReloadBtn');
+    reloadBtn.textContent = L('Neu laden', 'Reload');
+    // On iOS the reload is exactly the thing that does not help - do not
+    // offer a button that quietly does nothing.
+    reloadBtn.classList.toggle('hidden', !!iosStandalone);
+    banner.classList.remove('hidden');
+  }
+  el('updateReloadBtn').addEventListener('click', () => {
+    storageSet('pikdame_reload_at', String(Date.now()));
+    window.location.reload();
+  });
+  el('updateDismissBtn').addEventListener('click', () => {
+    el('updateBanner').classList.add('hidden');
+  });
 
   function openChangelog() {
     fetch('/changelogz')

@@ -170,6 +170,16 @@
   </svg>
 
   <div id="app">
+    <!-- Stale-bundle notice. On an iOS home-screen app a reload often serves
+         the cached bundle again, so the only reliable cure is closing the app
+         from the switcher. A 4s toast was too easy to miss for that - this
+         stays until it is dismissed. -->
+    <div id="updateBanner" class="updateBanner hidden" role="status" aria-live="polite">
+      <svg class="icon" aria-hidden="true"><use href="#i-resume"/></svg>
+      <span id="updateBannerText" class="updateBannerText"></span>
+      <button id="updateReloadBtn" class="updateBannerBtn"></button>
+      <button id="updateDismissBtn" class="updateBannerClose" title="Schließen" aria-label="Schließen"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+    </div>
     <div id="toastContainer" aria-live="polite"></div>
 
     <!-- LOBBY -->

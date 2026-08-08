@@ -347,3 +347,20 @@ test('CSS contract: buttons in a flex row carry no per-ID box overrides', () => 
   }
   assert.deepEqual(offenders, [], `per-ID box/colour overrides inside a flex row: ${offenders.join(' | ')}`);
 });
+
+test('CSS contract: nothing in the hand fan raises z-index', () => {
+  // The fan overlaps by design, so each card shows only a narrow strip. Any
+  // rule that lifts one card above its right-hand neighbours covers exactly
+  // those strips: .selected and .just-drawn were fixed for this before, and
+  // :hover still did it - on a PC the pointer got stuck on the raised card
+  // and could not reach the next one.
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'style.css'), 'utf8');
+  const selectors = ['#hand .card:hover', '.card.selected', '.card.just-drawn'];
+  for (const sel of selectors) {
+    const idx = css.indexOf(sel + ' {');
+    if (idx === -1) continue; // rule may be written differently; other tests cover those
+    const block = css.slice(idx, css.indexOf('}', idx));
+    const decls = block.replace(/\/\*[\s\S]*?\*\//g, '');
+    assert.doesNotMatch(decls, /z-index\s*:/, `${sel} must not raise z-index (it hides the neighbour's click strip)`);
+  }
+});
