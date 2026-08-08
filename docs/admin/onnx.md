@@ -13,6 +13,21 @@ If either is missing the server **falls back to the heuristic bot** — it never
 takes the game down. It now also **says so loudly in the log** instead of failing
 silently.
 
+## `PIKDAME_ONNX` is three-valued
+
+Since v2.0.0 the variable no longer has to be set at all:
+
+| Value | Behaviour |
+| --- | --- |
+| *unset* (**default**) | **Auto.** The learned bots are used whenever the runtime **and** at least one model are present. Where they are not — the plain Alpine image, the hotspot/CodeApp mode — this resolves to the heuristic **silently**, so nothing changes for those setups. |
+| `1` / `true` | Force the learned path. If it cannot be honoured, the server says so loudly and plays on with the heuristic. |
+| `0` / `false` | Force the heuristic, even where models and runtime are available. |
+
+In practice: on a machine where you ran `npm i onnxruntime-node`, a plain
+`node server.js` now picks up the committed models by itself. On the ONNX image
+`PIKDAME_ONNX=1` is still set explicitly, so a missing model is still reported
+rather than quietly ignored.
+
 ## Why the default image cannot do it
 
 :::{important}

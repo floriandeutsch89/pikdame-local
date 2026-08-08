@@ -218,7 +218,7 @@ setTimeout(() => {
       if (!forfeit) errors.push('forfeit button missing');
       else {
         if (forfeit.closest('.handToolbar')) errors.push('forfeit button must not sit in the hand toolbar');
-        if (!forfeit.closest('#settingsGroup')) errors.push('forfeit button should live in the header tool group');
+        if (!forfeit.closest('#gameSettingsOverlay')) errors.push('forfeit button should live in the settings sheet');
       }
     }
 

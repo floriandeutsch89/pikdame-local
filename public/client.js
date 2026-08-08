@@ -146,7 +146,8 @@
       const btn = document.getElementById('resumeBtn');
       if (!btn) return;
       if (resumeCode) {
-        btn.textContent = L(`↩️ Weiterspielen (${resumeCode})`, `↩️ Resume game (${resumeCode})`);
+        btn.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-resume"/></svg><span></span>';
+        btn.querySelector('span').textContent = L(`Weiterspielen (${resumeCode})`, `Resume game (${resumeCode})`);
         btn.classList.remove('hidden');
       } else {
         btn.classList.add('hidden');
@@ -168,6 +169,15 @@
   // data-Attribut), danach kann verlustfrei hin- und hergeschaltet werden.
   let i18nSnapshotDone = false;
   let rulesHtmlDe = '';
+  // Buttons and headings that carry an <svg class="icon"> keep their label in a
+  // <span>. Writing textContent on the element itself would delete the icon,
+  // and the i18n snapshot below only inventories LEAF elements - the span is
+  // that leaf, the button is not.
+  function setLabelText(host, text) {
+    const span = host && host.querySelector('span');
+    if (span) span.textContent = text;
+    else if (host) host.textContent = text;
+  }
   function applyStaticLang() {
     const map = window.I18N_STATIC || {};
     if (!i18nSnapshotDone) {
@@ -195,8 +205,12 @@
       n.placeholder = lang === 'en' ? map[de] || de : de;
     });
     el('rulesContent').innerHTML = lang === 'en' ? window.I18N_RULES_EN : rulesHtmlDe;
-    el('rulesTitle').textContent = L('📖 Spielregeln', '📖 How to play');
-    el('langBtnLobby').textContent = lang === 'en' ? '🌐 Language: English' : '🌐 Sprache: Deutsch';
+    // Both carry an <svg class="icon"> - write the label span, never the
+    // button itself, or the icon is wiped on the next language switch.
+    setLabelText(el('rulesTitle'), L('Spielregeln', 'How to play'));
+    // Short label in the icon row; the current language lives in the tooltip.
+    setLabelText(el('langBtnLobby'), lang === 'en' ? 'Language' : 'Sprache');
+    el('langBtnLobby').title = lang === 'en' ? 'Switch language (English)' : 'Sprache wechseln (Deutsch)';
     document.documentElement.lang = lang;
   }
   function cycleLang() {
@@ -235,6 +249,7 @@
       // Woerter wie "Aus" versehentlich anderswo uebersetzt werden.
       for (const opt of sel.options) if (UI_SCALES.includes(opt.value)) opt.textContent = uiScaleLabel(opt.value);
     }
+    setRowValue(document.getElementById('uiScaleBtn'), uiScaleLabel(uiScale));
   }
   function cycleUiScale() {
     uiScale = UI_SCALES[(UI_SCALES.indexOf(uiScale) + 1) % UI_SCALES.length];
@@ -403,11 +418,23 @@
     roundEnd: () => { playTone([392, 494, 587, 784], 420, 'sine', 0.07); vibrate([15, 40, 15, 40]); },
   };
 
+  // Settings rows carry an <svg class="icon"> plus a label and a value span.
+  // Never assign textContent to the row itself - that would wipe the icon.
+  function setRowIcon(btn, iconId) {
+    const use = btn && btn.querySelector('.icon use');
+    if (use) use.setAttribute('href', `#${iconId}`);
+  }
+  function setRowValue(btn, text) {
+    const span = btn && btn.querySelector('.sheetRowValue');
+    if (span) span.textContent = text;
+  }
+
   function setSoundEnabled(enabled) {
     soundEnabled = enabled;
     storageSet(SOUND_KEY, enabled ? 'on' : 'off');
     const toggleBtn = el('soundToggle');
-    if (toggleBtn) toggleBtn.textContent = enabled ? '🔊' : '🔇';
+    setRowIcon(toggleBtn, enabled ? 'i-sound-on' : 'i-sound-off');
+    setRowValue(toggleBtn, enabled ? L('An', 'On') : L('Aus', 'Off'));
     const ruleCheckbox = el('ruleSound');
     if (ruleCheckbox) ruleCheckbox.checked = enabled;
   }
@@ -424,7 +451,8 @@
     storageSet(TIPS_KEY, enabled ? 'on' : 'off');
     const btn = el('tipsToggle');
     if (btn) {
-      btn.textContent = enabled ? '💡' : '💤';
+      setRowIcon(btn, enabled ? 'i-bulb' : 'i-bulb-off');
+      setRowValue(btn, enabled ? L('An', 'On') : L('Aus', 'Off'));
       btn.title = enabled
         ? L('Spiel-Tipps ausblenden', 'Hide game tips')
         : L('Spiel-Tipps wieder anzeigen', 'Show game tips again');
@@ -584,6 +612,22 @@
       wrap.classList.add('cutRevealOut');
       setTimeout(() => wrap.remove(), 450);
     }, holdMs);
+  }
+
+  // Scrollable hand (16+ cards): subtle fade edges show which side still has
+  // cards hidden off-screen. On iOS the overlay scrollbar is invisible at
+  // rest, so these masks are the only affordance that the hand scrolls.
+  // Kept in sync on scroll and on every re-layout.
+  let handScrollWired = false;
+  function updateHandScrollEdges(handDiv) {
+    const canL = handDiv.scrollLeft > 4;
+    const canR = handDiv.scrollLeft + handDiv.clientWidth < handDiv.scrollWidth - 4;
+    handDiv.classList.toggle('canScrollL', canL);
+    handDiv.classList.toggle('canScrollR', canR);
+    if (!handScrollWired) {
+      handScrollWired = true;
+      handDiv.addEventListener('scroll', () => updateHandScrollEdges(handDiv), { passive: true });
+    }
   }
 
   function send(obj) {
@@ -792,6 +836,21 @@
   function suitSymbol(suit) {
     return { H: '♥', D: '♦', C: '♣', S: '♠' }[suit] || '?';
   }
+
+  // The joker's face. Used to be the 🃏 emoji set at the same font-size as the
+  // ♠/♥ suit marks - it painted far smaller, sat off the baseline and ignored
+  // the theme, so jokers read as a different card stock. A jester's cap drawn
+  // on --joker scales with the suit marks and takes the theme colour.
+  // A crown: royal, on-brand next to the Queen of Spades, and only two solid
+  // shapes so it still reads at the ~20px corner index. The jewels sit ON the
+  // peaks rather than floating above them - as separate dots they blurred away
+  // at small sizes. (A jester's cap was tried first and read as an angel.)
+  const JOKER_MARK_SVG =
+    '<svg class="jokerMark" viewBox="0 0 24 24" aria-hidden="true">' +
+    '<path d="M4.6 16.4 3.4 7.6l4.4 4.2L12 5.4l4.2 6.4 4.4-4.2-1.2 8.8z"/>' +
+    '<circle cx="3.4" cy="7.0" r="1.7"/><circle cx="12" cy="4.6" r="1.8"/><circle cx="20.6" cy="7.0" r="1.7"/>' +
+    '<path d="M4.3 17.4h15.4a1.1 1.1 0 0 1 1.1 1.1v1.1a1.1 1.1 0 0 1-1.1 1.1H4.3a1.1 1.1 0 0 1-1.1-1.1v-1.1a1.1 1.1 0 0 1 1.1-1.1z"/>' +
+    '</svg>';
   function suitColor(suit) {
     return suit === 'H' || suit === 'D' ? 'red' : 'black';
   }
@@ -804,16 +863,20 @@
       div.classList.add('joker');
       // Ecken-Index oben links, damit der Joker auch bei starker
       // Überlappung im Fächer erkennbar bleibt.
-      // Geister-Beschriftung: In AUSLAGEN zeigt der Joker klein, welche
-      // Karte er vertritt - vorher war bei [Joker, B, Joker] nicht mehr
-      // erkennbar, ob das drei Buben sind oder eine 10-B-D-Folge
-      // (Spieler-Report). Kursiv + gedämpft = 'vertreten, nicht echt'.
-      const ghost = card._isJokerSlot && card.rank && card.suit
-        ? `<div class="jokerGhost ${suitColor(card.suit)}">${card.rank}${suitSymbol(card.suit)}</div>`
+      // Ghost label in a meld: which card the joker stands in for. Without it,
+      // [Joker, J, Joker] gave no clue whether that is three jacks or a
+      // 10-J-Q run (player report). Italic + dimmed = "represented, not real".
+      // In a RUN the suit belongs on the label - it is what you read the
+      // sequence by. In a SET it does not: every card there has a different
+      // suit, and naming one made the joker look like a real ♥/♠ card.
+      const ghost = card._isJokerSlot && card.rank
+        ? `<div class="jokerGhost">${card.rank}${
+            card._jokerInRun && card.suit ? suitSymbol(card.suit) : ''
+          }</div>`
         : '';
       div.innerHTML = compact
-        ? `<div class="corner">🃏</div>${ghost}`
-        : `<div class="corner">🃏</div>${ghost}<div class="suitMark">🃏</div>`;
+        ? `<div class="corner">${JOKER_MARK_SVG}</div>${ghost}`
+        : `<div class="corner">${JOKER_MARK_SVG}</div>${ghost}<div class="suitMark">${JOKER_MARK_SVG}</div>`;
     } else {
       div.classList.add(suitColor(card.suit));
       // Wie bei echten Spielkarten: Rang + Farbe klein in der linken oberen
@@ -926,8 +989,8 @@
     readyBtn.classList.toggle('hidden', !multiHuman || !iAmSeated);
     if (multiHuman && iAmSeated) {
       readyBtn.textContent = ready.has(playerId)
-        ? L('✅ Bereit - warte auf die anderen', '✅ Ready - waiting for the others')
-        : L('🖐️ Bereit melden', '🖐️ Mark me ready');
+        ? L('Bereit - warte auf die anderen', 'Ready - waiting for the others')
+        : L('Bereit melden', 'Mark me ready');
     }
     const allReady = !multiHuman || readyCount === seatedHumans.length;
     el('startBtn').classList.toggle('hidden', !isHost); // only the organizer starts
@@ -1056,14 +1119,27 @@
   function updateMeldScrollHint() {
     const m = el('melds');
     if (!m) return;
-    const more = m.scrollHeight - m.clientHeight - m.scrollTop > 8;
-    m.classList.toggle('canScrollDown', more);
+    m.classList.toggle('canScrollDown', m.scrollHeight - m.clientHeight - m.scrollTop > 8);
+    m.classList.toggle('canScrollUp', m.scrollTop > 8);
   }
 
   function renderTable() {
     const SCORE_TARGET = 1000;
     const myTotal = (lastState.totals && lastState.totals[playerId]) || 0;
-    el('myScore').textContent = L(`${myTotal} Pkt`, `${myTotal} pts`);
+    const scorePill = el('myScore');
+    scorePill.textContent = L(`${myTotal} Pkt`, `${myTotal} pts`);
+    // Colour carries the standing: accent only while I am actually ahead,
+    // red when the total is negative, neutral otherwise. Before this a -245
+    // read in the same celebratory green as a winning score.
+    const bestOther = Math.max(
+      0,
+      ...lastState.players.filter((p) => p.id !== playerId).map((p) => (lastState.totals && lastState.totals[p.id]) || 0)
+    );
+    const negative = myTotal < 0;
+    const leading = myTotal > 0 && myTotal >= bestOther;
+    scorePill.classList.toggle('scoreNegative', negative);
+    scorePill.classList.toggle('scoreLeading', leading);
+    scorePill.classList.toggle('scoreNeutral', !negative && !leading);
     // Progress towards the 1000-point finish line (negatives clamp to 0)
     el('myScoreBar').querySelector('i').style.width =
       `${Math.max(0, Math.min(100, (myTotal / SCORE_TARGET) * 100))}%`;
@@ -1245,7 +1321,16 @@
           }
         }
         meld.slots.forEach((slot) => {
-          const card = slot.real || { isJoker: true, rank: slot.representsRank, suit: slot.representsSuit, _isJokerSlot: true };
+          const card = slot.real || {
+            isJoker: true,
+            rank: slot.representsRank,
+            suit: slot.representsSuit,
+            _isJokerSlot: true,
+            // In a RUN the suit is what makes the sequence readable, so the
+            // ghost label keeps it. In a SET every card has a different suit
+            // anyway and naming one made the joker look like a real card.
+            _jokerInRun: meld.type === 'run',
+          };
           const cEl = cardEl(card, {
             // Nur die EIGENEN Auslagen sind interaktiv - mit fremden
             // Stapeln gibt es keinerlei Interaktion (weder Anlegen noch
@@ -1279,7 +1364,8 @@
     if (lastState.discardTop && !lastState.discardTop.faceDown) {
       const t = lastState.discardTop;
       discardTopDiv.classList.add(t.isJoker ? 'joker' : suitColor(t.suit));
-      discardTopDiv.textContent = t.isJoker ? '🃏' : `${t.rank}${suitSymbol(t.suit)}`;
+      if (t.isJoker) discardTopDiv.innerHTML = JOKER_MARK_SVG;
+      else discardTopDiv.textContent = `${t.rank}${suitSymbol(t.suit)}`;
     } else if (lastState.discardTop) {
       discardTopDiv.classList.add('back');
     } else {
@@ -1337,6 +1423,12 @@
       if (handCollapsed) updateHandToggle(); // Kartenzahl am Pfeil aktualisieren
       // Hand sortieren - umschaltbar: nach Farbe (gut für Folgen) oder nach
       // Wert (gut für Sätze). Joker immer ans Ende.
+      // Card count above the fan: with 15+ overlapping cards you cannot count
+      // them by eye, and the number decides whether you can still go out.
+      el('handCount').textContent = L(
+        `${myPlayer.hand.length} Karten`,
+        `${myPlayer.hand.length} cards`
+      );
       const sorted = myPlayer.hand.slice().sort((a, b) => {
         if (a.isJoker && b.isJoker) return 0;
         if (a.isJoker) return 1;
@@ -1443,12 +1535,10 @@
     const humansForfeit = lastState.players.filter((p) => !p.isBot && p.connected !== false).length;
     const iVotedForfeit = forfeitVotes.includes(playerId);
     el('forfeitBtn').classList.toggle('active', iVotedForfeit);
-    // Kompakt, weil der Knopf jetzt in der Icon-Leiste sitzt: nur die Flagge,
-    // bei laufender Abstimmung zusätzlich der Stand. Wer gefragt wird, merkt
-    // es ohnehin am Hinweis-Toast weiter unten.
-    el('forfeitBtn').textContent = forfeitVotes.length
-      ? `🏳️ ${forfeitVotes.length}/${humansForfeit}`
-      : '🏳️';
+    // The row in the settings sheet is labelled, so the value column only
+    // carries the vote tally while a forfeit is being decided. Whoever is
+    // being asked also gets the toast further below.
+    setRowValue(el('forfeitBtn'), forfeitVotes.length ? `${forfeitVotes.length}/${humansForfeit}` : '');
     el('forfeitBtn').title = forfeitVotes.length
       ? L(`${forfeitVotes.length}/${humansForfeit} wollen das Spiel aufgeben - tippe zum Zustimmen`, `${forfeitVotes.length}/${humansForfeit} want to forfeit the game - tap to agree`)
       : L('Das ganze Spiel aufgeben (alle aktiven Spieler müssen zustimmen)', 'Forfeit the whole game (all active players must agree)');
@@ -1470,9 +1560,21 @@
       // Der allgemeine Bedien-Tipp wandert in einen einmaligen Toast pro Zug -
       // so kann die Action-Leiste auch im eigenen Zug einklappen.
       clearHintIfNotError();
+      // Once per turn was still 10-15 times a round: the same sentence over
+      // and over long after it was understood (player report). It is a
+      // how-to-play tip, not a status message - it fades out after a few
+      // showings and stays gone. Switching tips off and on again in the
+      // settings is an explicit "show me that again" and resets the count.
       const turnKey = `${lastState.roundNumber}-${lastState.turnIndexInRound}`;
-      if (gameTipsEnabled && tipShownForTurn !== turnKey && selectedCardIds.size === 0) {
+      if (
+        gameTipsEnabled &&
+        tipShownForTurn !== turnKey &&
+        selectedCardIds.size === 0 &&
+        tipSeenCount < TIP_MAX_SHOWS
+      ) {
         tipShownForTurn = turnKey;
+        tipSeenCount += 1;
+        storageSet(TIP_SEEN_KEY, String(tipSeenCount));
         showToast(L('Tipp: 3+ Karten auswählen zum Auslegen, 1 Karte + „Abwerfen", oder Karte wählen und auf eine grün markierte Auslage tippen.', 'Tip: select 3+ cards to meld, 1 card + "Discard", or select a card and tap a green-highlighted meld.'));
       }
     } else {
@@ -1694,7 +1796,7 @@
     }
     const isGameOver = lastState.phase === 'gameOver';
     el('resultTitle').textContent = forfeited
-      ? L('🏳️ Spiel aufgegeben', '🏳️ Game forfeited')
+      ? L('Spiel aufgegeben', 'Game forfeited')
       : isGameOver ? L('Spielende!', 'Game over!') : L('Rundenende', 'End of round');
 
     const body = el('resultBody');
@@ -1717,7 +1819,7 @@
     const tabStatsBtn = document.createElement('button');
     tabStatsBtn.type = 'button';
     tabStatsBtn.className = 'resultTabBtn';
-    tabStatsBtn.textContent = L('📈 Statistik', '📈 Stats');
+    tabStatsBtn.textContent = L('Statistik', 'Stats'); // no emoji: its sibling tab has none either
     const selectResultTab = (which) => {
       tabResultBtn.classList.toggle('active', which === 'result');
       tabStatsBtn.classList.toggle('active', which === 'stats');
@@ -1761,14 +1863,61 @@
       paneResult.appendChild(handAusNote);
     }
     if (!forfeited && lastState.lastRoundResult) {
-      lastState.players.forEach((p) => {
-        const r = lastState.lastRoundResult[p.id];
-        const row = document.createElement('div');
-        row.className = 'resultRow' + (r && r.breakdown.isWinner ? ' winner' : '');
-        const total = lastState.totals[p.id] || 0;
-        row.innerHTML = `<span>${nameWithHeart(p.name)}${botMark(p)}</span><span>${r ? r.roundScore : 0} ${L('Pkt', 'pts')} (${L('Gesamt', 'total')}: ${total})</span>`;
-        paneResult.appendChild(row);
-      });
+      const SCORE_TARGET = 1000;
+      const signed = (n) => (n > 0 ? `+${n}` : `${n}`);
+
+      // The winner is whoever went OUT, which is often not the biggest number
+      // on screen - as a green table row among four that read like a bug
+      // ("why is 245 the winner when 250 is right below it?"). Lift them out
+      // of the table into a headline that says it in words.
+      const winner = lastState.players.find(
+        (p) => lastState.lastRoundResult[p.id] && lastState.lastRoundResult[p.id].breakdown.isWinner
+      );
+      if (winner && !isGameOver) {
+        const wr = lastState.lastRoundResult[winner.id];
+        const head = document.createElement('div');
+        head.className = 'resultWinner';
+        head.innerHTML =
+          `<div class="resultWinnerName">${nameWithHeart(winner.name)}${botMark(winner)}</div>` +
+          `<div class="resultWinnerSub">${
+            winner.id === playerId
+              ? L('Du gewinnst die Runde', 'You win the round')
+              : L('gewinnt die Runde', 'wins the round')
+          }</div>` +
+          `<div class="resultWinnerScore">${signed(wr ? wr.roundScore : 0)}</div>`;
+        paneResult.appendChild(head);
+      }
+
+      // Everyone else: the round delta is the number that changed, so it gets
+      // the size; the running total is context underneath. A bar shows how far
+      // each player has come towards the 1000-point finish - the round table
+      // alone never showed how close the match actually is.
+      const list = document.createElement('div');
+      list.className = 'resultList';
+      lastState.players
+        .filter((p) => !(winner && p.id === winner.id) || isGameOver)
+        .forEach((p) => {
+          const r = lastState.lastRoundResult[p.id];
+          const total = lastState.totals[p.id] || 0;
+          const pct = Math.max(0, Math.min(100, (total / SCORE_TARGET) * 100));
+          const delta = r ? r.roundScore : 0;
+          const row = document.createElement('div');
+          row.className = 'resultRow' + (r && r.breakdown.isWinner ? ' winner' : '') +
+            (p.id === playerId ? ' isMe' : '');
+          // The delta is coloured by its SIGN, nothing else. Marking "me" or
+          // the round winner in green painted -170 the same celebratory green
+          // as +230 (player report).
+          const deltaCls = delta > 0 ? ' pos' : delta < 0 ? ' neg' : '';
+          row.innerHTML =
+            `<div class="resultRowTop">` +
+            `<span class="resultName">${nameWithHeart(p.name)}${botMark(p)}</span>` +
+            `<span class="resultDelta${deltaCls}">${signed(delta)}</span>` +
+            `</div>` +
+            `<div class="resultRowBar"><i style="width:${pct}%"></i></div>` +
+            `<div class="resultRowFoot">${L('gesamt', 'total')} ${total}</div>`;
+          list.appendChild(row);
+        });
+      paneResult.appendChild(list);
     }
 
     // Rundenstatistiken (Details)
@@ -1806,9 +1955,21 @@
 
     if (isGameOver && !forfeited && lastState.gameOverInfo) {
       const winner = lastState.players.find((p) => p.id === lastState.gameOverInfo.winnerId);
-      const winLine = document.createElement('p');
-      winLine.innerHTML = `<strong>🏆 ${L(`${escapeHtml(winner ? winner.name : '?')} gewinnt das Spiel!`, `${escapeHtml(winner ? winner.name : '?')} wins the game!`)}</strong>`;
-      paneResult.appendChild(winLine);
+      // The match winner belongs at the TOP. It used to be a line of body text
+      // below four score rows - the single most important sentence on the
+      // screen, and you had to read past everything else to reach it.
+      const head = document.createElement('div');
+      head.className = 'resultWinner resultWinnerGame';
+      head.innerHTML =
+        `<div class="resultWinnerCrown">${JOKER_MARK_SVG}</div>` +
+        `<div class="resultWinnerName">${nameWithHeart(winner ? winner.name : '?')}${winner ? botMark(winner) : ''}</div>` +
+        `<div class="resultWinnerSub">${
+          winner && winner.id === playerId
+            ? L('Du gewinnst die Partie', 'You win the match')
+            : L('gewinnt die Partie', 'wins the match')
+        }</div>` +
+        `<div class="resultWinnerScore">${(lastState.totals && lastState.totals[winner ? winner.id : '']) || 0}</div>`;
+      paneResult.insertBefore(head, paneResult.firstChild);
       // Schlüsselmomente der Partie: 3 erzählte Zeilen statt nur Zahlen.
       const hl = isGameOver && lastState.gameOverInfo && lastState.gameOverInfo.highlights;
       if (hl && hl.length) {
@@ -2091,13 +2252,13 @@
   });
   function updateHandToggle() {
     el('handWrapper').classList.toggle('handCollapsed', handCollapsed);
-    if (handCollapsed) {
-      const me = lastState && lastState.players.find((p) => p.id === playerId);
-      const n = me && me.hand ? me.hand.length : 0;
-      el('handToggleBtn').textContent = L(`⌃ ${n} Karten`, `⌃ ${n} cards`);
-    } else {
-      el('handToggleBtn').textContent = '⌄';
-    }
+    // The button is a plain chevron that flips (CSS rotates it). It used to
+    // relabel itself to "⌃ 15 Karten" when collapsed, which made it change
+    // width and typography mid-game; the count now lives permanently in
+    // #handCount next to it, visible in both states.
+    el('handToggleBtn').title = handCollapsed
+      ? L('Karten einblenden', 'Show cards')
+      : L('Karten ausblenden', 'Hide cards');
   }
 
   el('sortToggleBtn').addEventListener('click', () => {
@@ -2224,15 +2385,28 @@
   });
 
   el('logToggle').addEventListener('click', () => {
+    // Opened from the settings sheet - close that first, otherwise the panel
+    // appears behind it and the tap looks like it did nothing.
+    el('gameSettingsOverlay').classList.add('hidden');
     el('logPanel').classList.toggle('hidden');
+  });
+
+  el('logCloseBtn').addEventListener('click', () => {
+    el('logPanel').classList.add('hidden');
   });
 
   el('tipsToggle').addEventListener('click', () => {
     setTipsEnabled(!gameTipsEnabled);
+    if (gameTipsEnabled) {
+      // Deliberately switching them back on means "show me those again".
+      tipSeenCount = 0;
+      tipShownForTurn = null;
+      storageSet(TIP_SEEN_KEY, '0');
+    }
     showToast(
       gameTipsEnabled
         ? L('Spiel-Tipps sind wieder an.', 'Game tips are back on.')
-        : L('Spiel-Tipps sind aus. Wieder einschalten: 💤 hinterm Zahnrad.', 'Game tips are off. Re-enable via 💤 behind the gear.')
+        : L('Spiel-Tipps sind aus. Wieder einschalten: in den Einstellungen.', 'Game tips are off. Re-enable them in the settings.')
     );
   });
   el('soundToggle').addEventListener('click', () => {
@@ -2292,9 +2466,12 @@
   }
   document.addEventListener('visibilitychange', updateCountdownTimer);
 
-  // --- Home button + gear menu (Fishdom-style tidy header) -------------------
+  // --- Home button + settings sheet (tidy three-button header) ---------------
   el('settingsBtn').addEventListener('click', () => {
-    el('settingsGroup').classList.toggle('hidden');
+    el('gameSettingsOverlay').classList.remove('hidden');
+  });
+  el('gameSettingsCloseBtn').addEventListener('click', () => {
+    el('gameSettingsOverlay').classList.add('hidden');
   });
   el('homeBtn').addEventListener('click', () => {
     el('homeOverlay').classList.remove('hidden');
@@ -3065,6 +3242,9 @@
   // --- Toast: letzte Aktion kurz einblenden ---------------------------------
   let seenLogLength = null;
   let tipShownForTurn = null; // Zug-Tipp nur EINMAL pro eigenem Zug als Toast
+  const TIP_SEEN_KEY = 'pikdame_tip_seen';
+  const TIP_MAX_SHOWS = 3; // danach kennt man den Bedien-Tipp
+  let tipSeenCount = Number(storageGet(TIP_SEEN_KEY)) || 0;
   let handCollapsed = false; // eigene Karten per Pfeil ein-/ausblendbar
   function maybeShowActionToast() {
     if (lastState && lastState.phase === 'playing' && lastState.roundNumber === 1 && lastState.turnIndexInRound === 0) {
@@ -3111,6 +3291,29 @@
     toastTimer = setTimeout(() => container.classList.remove('visible'), duration);
   }
 
+  function hideToast() {
+    clearTimeout(toastTimer);
+    toastLockUntil = 0;
+    el('toastContainer').classList.remove('visible');
+  }
+
+  // Overlays are modal and centred - exactly where the toast sits, and the
+  // toast wins on z-index (350 vs 50). A tip that is still on screen when the
+  // round result opens covers the score rows, so drop the CURRENT toast the
+  // moment an overlay becomes visible. Toasts raised afterwards (server
+  // errors, warnings) still show through on top, which is what we want.
+  const overlayToastWatcher = new MutationObserver((records) => {
+    for (const r of records) {
+      const wasHidden = (r.oldValue || '').split(/\s+/).includes('hidden');
+      if (wasHidden && !r.target.classList.contains('hidden')) {
+        hideToast();
+        return;
+      }
+    }
+  });
+  document.querySelectorAll('.overlay').forEach((o) =>
+    overlayToastWatcher.observe(o, { attributes: true, attributeFilter: ['class'], attributeOldValue: true }));
+
   // --- Vollbild ("Kiosk-Modus" wie bei Videos) -------------------------------
   // Fullscreen-API gibt es auf Android/Desktop (Chrome/Edge/Firefox). iOS
   // Safari unterstützt sie für Webseiten nicht - dort bleibt der Button
@@ -3118,6 +3321,7 @@
   const fsRoot = document.documentElement;
   if (fsRoot.requestFullscreen) {
     el('fullscreenBtn').classList.remove('hidden');
+    setRowValue(el('fullscreenBtn'), L('Aus', 'Off')); // no fullscreenchange has fired yet
     el('fullscreenBtn').addEventListener('click', () => {
       if (document.fullscreenElement) {
         document.exitFullscreen();
@@ -3126,8 +3330,10 @@
       }
     });
     document.addEventListener('fullscreenchange', () => {
-      el('fullscreenBtn').textContent = document.fullscreenElement ? '⛶✕' : '⛶';
-      el('fullscreenBtn').title = document.fullscreenElement ? L('Vollbild verlassen', 'Exit fullscreen') : L('Vollbild', 'Fullscreen');
+      const on = !!document.fullscreenElement;
+      setRowIcon(el('fullscreenBtn'), on ? 'i-fullscreen-exit' : 'i-fullscreen');
+      setRowValue(el('fullscreenBtn'), on ? L('An', 'On') : L('Aus', 'Off'));
+      el('fullscreenBtn').title = on ? L('Vollbild verlassen', 'Exit fullscreen') : L('Vollbild', 'Fullscreen');
     });
   }
 
@@ -3281,9 +3487,8 @@
     el('accountWhoami').textContent = loggedIn
       ? L(`Angemeldet als ${accountUsername}`, `Signed in as ${accountUsername}`)
       : '–';
-    el('accountBtn').textContent = loggedIn
-      ? `👤 ${accountUsername}`
-      : L('👤 Konto', '👤 Account');
+    // Label span only - the button carries an <svg class="icon">.
+    setLabelText(el('accountBtn'), loggedIn ? accountUsername : L('Konto', 'Account'));
     // Angemeldet: der Spielername IST der Kontoname (Fortschritt haengt dran)
     if (loggedIn) {
       el('nameInput').value = accountUsername;
@@ -3370,7 +3575,7 @@
     .then((s) => {
       if (s && s.version) {
         el('versionBtn').textContent = `v${s.version}`;
-        el('ingameVersion').textContent = `v${s.version}`;
+        setRowValue(el('ingameVersion'), `v${s.version}`);
         // PWA auto-update, part 2: my bundle carries the version of the
         // server that SERVED it (__PIKDAME_BUILD). If the live server is
         // newer, this client is stale (nightly update, PWA cache) - reload
@@ -3500,9 +3705,11 @@
         : L('Das Spiel ist pausiert. Tippe „Fortsetzen", um weiterzuspielen (alle müssen zustimmen).',
             'The game is paused. Tap "Resume" to continue (everyone must agree).');
       el('pauseResumeBtn').classList.toggle('active', iVoted);
-      el('pauseResumeBtn').textContent = iVoted
-        ? L('✅ Warte auf die anderen', '✅ Waiting for the others')
-        : L('▶️ Fortsetzen', '▶️ Resume');
+      // Label span only - the button carries an <svg class="icon">.
+      setLabelText(
+        el('pauseResumeBtn'),
+        iVoted ? L('Warte auf die anderen', 'Waiting for the others') : L('Fortsetzen', 'Resume')
+      );
     }
   }
 
@@ -3515,6 +3722,20 @@
       el('emoteBar').classList.add('hidden');
     });
   });
+  // Tapping anywhere else dismisses the emote bar - it is a transient picker,
+  // not a mode. Capture phase so it also closes when the tap lands on a card
+  // or a button that stops propagation. The opening tap on #emoteBtn and taps
+  // on the choices themselves are excluded (they have their own handlers).
+  document.addEventListener(
+    'pointerdown',
+    (ev) => {
+      const bar = el('emoteBar');
+      if (bar.classList.contains('hidden')) return;
+      if (ev.target.closest('#emoteBar') || ev.target.closest('#emoteBtn')) return;
+      bar.classList.add('hidden');
+    },
+    true
+  );
 
   function showEmote(fromPlayerId, emoji) {
     // While the result overlay is open it covers the player chips - show

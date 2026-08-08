@@ -163,7 +163,11 @@ test('CSS contract: overlay controls use card colours, not the dark-table palett
   const sections = css.match(/\/\* --- Einstellungs-Menü/g) || [];
   assert.equal(sections.length, 1, `the settings CSS section exists ${sections.length}x - a duplicate would override the fixed one`);
 
-  for (const selector of ['.settingsSelect', '.settingsAction', '.settingsCheckbox', '.settingsLabel', '.settingsList']) {
+  // v2.0.0: .resultTabBtn / .settingsRow* live in the same light card. The
+  // result tabs shipped as var(--text) on rgba(255,255,255,0.05) - near-white
+  // on white, so the inactive tab was unreadable.
+  for (const selector of ['.settingsSelect', '.settingsAction', '.settingsCheckbox', '.settingsLabel', '.settingsList',
+    '.resultTabBtn', '.settingsRow', '.sheetRowValue']) {
     // ALLE Vorkommen prüfen, nicht nur das erste: Ein versehentlich doppelt
     // im Stylesheet stehender Block gewinnt als SPÄTERE Regel gleicher
     // Spezifität - genau so überlebte die unlesbare Fassung einen Release,
@@ -201,4 +205,133 @@ test('client contract: target highlights are gated on the tutorial being active'
   // Und die Klasse darf nirgends sonst gesetzt werden.
   const setters = client.match(/classList\.add\('tutorialGlowTarget'\)/g) || [];
   assert.equal(setters.length, 1, 'exactly one place may add the target highlight class');
+});
+
+// --- v1.94.0: icon sprite replaces the emoji chrome ---------------------------
+test('icon contract: every <use href="#i-..."> resolves to a defined <symbol>', () => {
+  // A typo in a sprite reference fails SILENTLY - the button just renders
+  // empty, which no other test would notice.
+  const symbols = new Set([...html.matchAll(/<symbol id="(i-[a-z0-9-]+)"/g)].map((m) => m[1]));
+  const used = [...html.matchAll(/<use href="#(i-[a-z0-9-]+)"/g)].map((m) => m[1]);
+  const clientJs2 = fs.readFileSync(path.join(__dirname, '..', 'public', 'client.js'), 'utf8');
+  // client.js swaps icons at runtime (sound on/off, bulb, fullscreen).
+  for (const m of clientJs2.matchAll(/setRowIcon\([^,]+,\s*(?:on|enabled)\s*\?\s*'(i-[a-z0-9-]+)'\s*:\s*'(i-[a-z0-9-]+)'/g)) {
+    used.push(m[1], m[2]);
+  }
+  assert.ok(symbols.size >= 15, `sprite looks empty (${symbols.size} symbols)`);
+  const dangling = [...new Set(used)].filter((id) => !symbols.has(id));
+  assert.deepEqual(dangling, [], `<use> without a matching <symbol>: ${dangling.join(', ')}`);
+});
+
+test('icon contract: icon-only buttons keep an accessible name', () => {
+  // Replacing an emoji with an <svg> removes the text a screen reader used to
+  // announce - every icon-only control must carry aria-label or title.
+  const missing = [];
+  for (const m of html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)) {
+    const [, attrs, inner] = m;
+    const hasIcon = /<use href="#i-/.test(inner);
+    const textLeft = inner.replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]+>/g, '').trim();
+    if (!hasIcon || textLeft) continue; // has a visible label -> fine
+    if (!/aria-label=|title=/.test(attrs)) {
+      missing.push((attrs.match(/id="([^"]+)"/) || [, '(no id)'])[1]);
+    }
+  }
+  assert.deepEqual(missing, [], `icon-only buttons without an accessible name: ${missing.join(', ')}`);
+});
+
+test('icon contract: labels next to an icon live in their own <span>', () => {
+  // applyStaticLang() writes textContent when switching language, and only
+  // inventories LEAF elements. A bare text node beside an <svg> would both
+  // escape translation and get wiped along with the icon.
+  const offenders = [];
+  for (const m of html.matchAll(/<(button|h2)\b([^>]*)>([\s\S]*?)<\/\1>/g)) {
+    const [, tag, attrs, inner] = m;
+    if (!/<use href="#i-/.test(inner)) continue;
+    const bare = inner.replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]+>[\s\S]*?<\/[^>]+>/g, '').trim();
+    if (bare) offenders.push(`${tag}#${(attrs.match(/id="([^"]+)"/) || [, '?'])[1]}: "${bare}"`);
+  }
+  assert.deepEqual(offenders, [], `label text beside an icon must be wrapped in <span>: ${offenders.join(' | ')}`);
+});
+
+test('CSS contract: the type scale is defined and control heights meet the touch minimum', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'style.css'), 'utf8');
+  for (const token of ['--fs-title', '--fs-body', '--fs-label', '--fs-hint', '--tap-min', '--ctl-h']) {
+    assert.ok(css.includes(`${token}:`), `${token} must be defined in :root`);
+  }
+  const tap = css.match(/--tap-min:\s*(\d+)px/);
+  assert.ok(tap && Number(tap[1]) >= 44, 'touch targets must be at least 44px (Apple HIG; phone is the primary device)');
+  // The bare .btn-icon rule (not the .seatControls variant) must use the token.
+  const btnIcon = css.match(/^\.btn-icon\s*\{[^}]*\}/m);
+  assert.ok(btnIcon, '.btn-icon rule exists');
+  assert.match(btnIcon[0], /width:\s*var\(--tap-min\)/, '.btn-icon must size itself from --tap-min');
+});
+
+test('CSS contract: scrollable regions declare both fade edges', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'style.css'), 'utf8');
+  const clientJs3 = fs.readFileSync(path.join(__dirname, '..', 'public', 'client.js'), 'utf8');
+  // Fade edges are the ONLY scroll affordance on iOS (the overlay scrollbar is
+  // hidden at rest). Both the hand and the melds need each edge class styled
+  // AND actually toggled - a stale call site once left the hand without any.
+  for (const cls of ['canScrollL', 'canScrollR', 'canScrollUp', 'canScrollDown']) {
+    assert.ok(css.includes('.' + cls), `${cls} must be styled`);
+    assert.ok(
+      clientJs3.includes(`classList.toggle('${cls}'`),
+      `${cls} must be toggled from client.js - a styled edge nobody sets is the v1.70.0 bug all over again`
+    );
+  }
+});
+
+test('icon contract: elements carrying an icon are never written with textContent', () => {
+  // Assigning textContent to a button that holds an <svg class="icon"> DELETES
+  // the icon. It bit langBtnLobby, rulesTitle and accountBtn in turn - the
+  // label came back as an emoji and the icon was gone. Write the <span>
+  // instead (setLabelText / setRowValue).
+  const clientSrc = fs.readFileSync(path.join(__dirname, '..', 'public', 'client.js'), 'utf8');
+  const iconIds = new Set();
+  for (const m of html.matchAll(/<(?:button|h2)\b[^>]*id="([^"]+)"[^>]*>([\s\S]*?)<\/(?:button|h2)>/g)) {
+    if (/<use href="#i-/.test(m[2])) iconIds.add(m[1]);
+  }
+  assert.ok(iconIds.size >= 5, `expected several icon-bearing elements, found ${iconIds.size}`);
+  const offenders = [...iconIds].filter((id) =>
+    clientSrc.includes(`el('${id}').textContent =`) || clientSrc.includes(`el('${id}').innerHTML =`)
+  );
+  assert.deepEqual(offenders, [], `these carry an icon but are written wholesale: ${offenders.join(', ')}`);
+});
+
+test('CSS contract: buttons in a flex row carry no per-ID box overrides', () => {
+  // Twice now a leftover #id rule from an older layout broke a row it was no
+  // longer part of: #forfeitBtn kept a muted colour inside the light settings
+  // sheet, and #tutorialBtn kept margin-top:8px inside .menuChips, rendering
+  // 8px shorter than the Challenge button beside it. Row spacing and colour
+  // belong to the container/class, never to one member's ID.
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'style.css'), 'utf8');
+  const rowClasses = ['menuChips', 'dialog-actions', 'lobbyTools', 'headerRight', 'sheetList'];
+  const ids = new Set();
+  for (const cls of rowClasses) {
+    // Locate each container by class, then take the buttons up to its close
+    // tag. Plain indexOf on purpose - a RegExp built from a template literal
+    // silently eats its own escapes.
+    let from = 0;
+    for (;;) {
+      const open = html.indexOf('class="' + cls, from);
+      if (open === -1) break;
+      const gt = html.indexOf('>', open);
+      const end = html.indexOf('</div>', gt);
+      const inner = html.slice(gt + 1, end === -1 ? undefined : end);
+      for (const idm of inner.matchAll(/<button[^>]*id="([^"]+)"/g)) ids.add(idm[1]);
+      from = gt + 1;
+    }
+  }
+  assert.ok(ids.size >= 4, `expected buttons inside flex rows, found ${ids.size}`);
+  const offenders = [];
+  const BAD_PROPS = /(?:^|[;{\s])(margin[a-z-]*|width|height|flex|color)\s*:/;
+  for (const id of ids) {
+    const re = new RegExp('(?:^|\\n)#' + id + '\\s*\\{([^}]*)\\}', 'g');
+    for (const m of css.matchAll(re)) {
+      const decls = m[1].replace(/\/\*[\s\S]*?\*\//g, '');
+      const bad = decls.match(BAD_PROPS);
+      if (bad) offenders.push('#' + id + ' sets ' + bad[1]);
+    }
+  }
+  assert.deepEqual(offenders, [], `per-ID box/colour overrides inside a flex row: ${offenders.join(' | ')}`);
 });

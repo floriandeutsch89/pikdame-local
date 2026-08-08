@@ -43,6 +43,19 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
    blendet UI aus) — der Hotspot-Betrieb bleibt unberührt.
 2. **Frontend ohne CDN:** Alles wird lokal ausgeliefert (Hotspot hat kein
    Internet). Fremd-Bibliotheken vendoren (`public/vendor-*.js`).
+   **Icons sind Inline-SVG** (`<svg class="iconSprite">`-Sprite oben in
+   `index.html`, Nutzung `<svg class="icon"><use href="#i-name"/></svg>`) —
+   keine Icon-Fonts, keine Downloads. **Emoji sind KEINE Icons:** sie bleiben
+   nur, wo sie Inhalt sind (Bot-Avatare, Reaktions-Leiste, Abzeichen).
+   Beschriftungen neben einem Icon gehören in ein eigenes `<span>` —
+   `applyStaticLang()` inventarisiert nur BLATT-Elemente und schreibt
+   `textContent`, was ein Geschwister-Icon sonst löscht.
+2b. **Mobile zuerst:** Primärgerät ist das iPhone (393×852). Jede UI-Änderung
+   wird in BEIDEN Layouts geprüft (Telefon UND Desktop), nicht nur in einem.
+   Tap-Ziele mindestens `--tap-min` (44 px, Apple-HIG). Schriftgrößen und
+   Knopfmaße kommen aus der Skala in `:root` (`--fs-*`, `--ctl-h`) — nie
+   neue rohe `rem`-Werte pro Kontext erfinden, genau daraus entstanden
+   ungleich hohe Knöpfe in derselben Reihe.
 3. **Zweisprachigkeit:** Deutsch ist Quellsprache. Jeder neue sichtbare Text
    braucht einen Eintrag: statisches HTML → `I18N_STATIC`, dynamisches JS →
    `L(de, en)`, **Server-Texte (Log/Fehler) → `I18N_SERVER_PATTERNS`**
@@ -180,6 +193,15 @@ angewendet liegen. (pro Änderung)
 - Client-Heuristiken (z. B. Anlege-Hinweise): gegen die Server-Wahrheit fuzzen
   — falsche Positive sind verboten, falsche Negative ok.
 - Snapshot-Änderungen: Roundtrip durch `JSON.stringify/parse` + Restore testen.
+- **Scroll-Kanten sind Verträge:** Wer eine `.canScroll*`-Klasse gestaltet,
+  muss sie auch setzen (und umgekehrt) — `test/client-contract.test.js` prüft
+  beides. Hintergrund: In v1.70.0 wurde `updateHandScrollEdges` gelöscht, die
+  Aufrufstelle blieb stehen; 23 Versionen lang flog bei jeder großen Hand ein
+  ReferenceError und die Verlaufskanten fehlten (am iPhone die EINZIGE
+  Scroll-Andeutung, weil Safari die Leiste im Ruhezustand ausblendet).
+- **UI im Browser gegenprüfen, nicht nur `npm test`:** App starten und in
+  beiden Layouts durchspielen. Die groben Fehler (überlaufende Kopfzeile,
+  unlesbare Icons, Fenster hinter Fenstern) fällt keine Testdatei auf.
 - RL/Encoder: `OBS_SIZE`/`ACTION_SIZE` sind Verträge — bei Encoder-Änderungen
   Tests (`test/state-encoder.test.js`) UND die Env-Bridge (`printf … | node
   scripts/rl-env-server.js`, liefert `obs_size`/`action_size`) prüfen; ändert
