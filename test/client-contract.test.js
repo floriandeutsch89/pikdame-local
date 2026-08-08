@@ -292,9 +292,21 @@ test('icon contract: elements carrying an icon are never written with textConten
     if (/<use href="#i-/.test(m[2])) iconIds.add(m[1]);
   }
   assert.ok(iconIds.size >= 5, `expected several icon-bearing elements, found ${iconIds.size}`);
-  const offenders = [...iconIds].filter((id) =>
-    clientSrc.includes(`el('${id}').textContent =`) || clientSrc.includes(`el('${id}').innerHTML =`)
-  );
+  const offenders = [...iconIds].filter((id) => {
+    if (clientSrc.includes(`el('${id}').textContent =`)) return true;
+    if (clientSrc.includes(`el('${id}').innerHTML =`)) return true;
+    // ...also when the element is first parked in a local: `const rfBtn =
+    // el('resultForfeitBtn'); ... rfBtn.textContent = ...` slipped past the
+    // direct check and silently wiped the icon. Only the block right after
+    // the declaration counts - names like `btn` are reused all over the file
+    // and a whole-file search reports every one of them.
+    const decl = new RegExp('(?:const|let|var)\\s+(\\w+)\\s*=\\s*el\\(\'' + id + '\'\\)', 'g');
+    for (const m of clientSrc.matchAll(decl)) {
+      const window = clientSrc.slice(m.index, m.index + 900);
+      if (new RegExp('\\b' + m[1] + '\\.(?:textContent|innerHTML)\\s*=').test(window)) return true;
+    }
+    return false;
+  });
   assert.deepEqual(offenders, [], `these carry an icon but are written wholesale: ${offenders.join(', ')}`);
 });
 

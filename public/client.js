@@ -2067,7 +2067,16 @@
     // Ready check: at round end EVERY connected human confirms before the
     // next round starts - the button shows who the table is waiting for.
     const contBtn = el('resultContinueBtn');
-    el('resultHomeBtn').classList.toggle('hidden', !isGameOver); // main menu only after the match
+    // Leaving for the main menu used to be offered ONLY after the whole match
+    // was over - at round end the result overlay covers the table, so the
+    // header's home button is unreachable and the only exits were "next round"
+    // or forfeiting the entire game (player report). The table keeps running
+    // and the session code still resumes it, so leaving is safe here.
+    el('resultHomeBtn').classList.remove('hidden');
+    // At game over "Weiter" is no longer the obvious next step - unfold the
+    // secondary actions so the way out is visible without a tap.
+    const moreBox = el('resultMore');
+    if (moreBox) moreBox.open = isGameOver;
     // Forfeit the whole game straight from the points overview (round end only,
     // not once the game is already over). Same unanimous vote as in-game.
     const rfBtn = el('resultForfeitBtn');
@@ -2078,9 +2087,14 @@
       const fv = lastState.forfeitVotes || [];
       const hc = lastState.players.filter((p) => !p.isBot && p.connected !== false).length;
       rfBtn.classList.toggle('active', fv.includes(playerId));
-      rfBtn.textContent = fv.length
-        ? L(`🏳️ Aufgeben (${fv.length}/${hc})`, `🏳️ Forfeit (${fv.length}/${hc})`)
-        : L('🏳️ Spiel aufgeben', '🏳️ Forfeit game');
+      // Label span only - the button carries an <svg class="icon">, and
+      // textContent would delete it (and put an emoji back in its place).
+      setLabelText(
+        rfBtn,
+        fv.length
+          ? L(`Aufgeben (${fv.length}/${hc})`, `Forfeit (${fv.length}/${hc})`)
+          : L('Spiel aufgeben', 'Forfeit game')
+      );
     }
     if (isGameOver) {
       contBtn.disabled = false;
