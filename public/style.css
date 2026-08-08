@@ -366,6 +366,29 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 
 /* Session: Erstellen / Beitreten / Code-Banner */
 #sessionSetup { width: 100%; max-width: 340px; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+
+/* Primary lobby actions, pinned to the bottom of the scroll container.
+   On a phone "Spiel starten" used to live BELOW the code banner, the seat
+   count, the seating order and the house rules - four sections of scrolling
+   between arriving in the lobby and being able to start. The bar keeps the
+   sections in their logical reading order and the action always reachable. */
+.lobbyActions {
+  position: sticky;
+  bottom: calc(-1 * var(--safe-bottom));
+  z-index: 3;
+  width: 100%; max-width: 340px;
+  display: flex; flex-direction: column; gap: 8px; align-items: center;
+  padding: 20px 0 calc(10px + var(--safe-bottom));
+  margin-top: auto;           /* sits at the end when the lobby is short */
+  /* Opaque BEHIND the buttons, fading only in the 20px above them: the
+     buttons themselves are glass (--glass-strong), so a gradient still
+     translucent at their height let the session code read through the
+     label. The fade ends exactly where the padding does. */
+  background: linear-gradient(to bottom, transparent 0%, var(--bg) 20px);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.lobbyActions.hidden { display: none; }
+.lobbyActions > button { margin: 0; }
 .join-divider {
   font-size: 0.7rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase;
   color: var(--text-muted);
@@ -2022,6 +2045,37 @@ input:disabled { opacity: 0.65; }
   z-index: 2;
 }
 #resultEmotes:empty { display: none; }
+
+/* Result card = header + SCROLLING body + pinned action footer. Before this
+   the whole card scrolled, so the key-moments timeline pushed "Weiter" /
+   "Neue Partie" below the fold on a phone AND on a 1440x900 desktop. The
+   card no longer scrolls as a whole; only #resultBody does. */
+#resultOverlay .overlay-card {
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  padding-bottom: calc(12px + var(--safe-bottom) / 2);
+}
+#resultOverlay #resultTitle { flex: 0 0 auto; }
+#resultOverlay #resultBody {
+  flex: 1 1 auto;
+  min-height: 0;              /* without this a flex child refuses to shrink */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+/* Same affordance as the hand and the melds: iOS hides the scrollbar at
+   rest, so the only hint that more is below is a fade edge. */
+#resultBody.canScrollDown {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent 100%);
+}
+.resultFooter {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--glass-border);
+  margin-top: 4px;
+  padding-top: 2px;
+}
+.resultFooter .resultEmoteBar { margin: 6px 0 4px; }
 #resultEmotes .resultEmoteChip {
   display: inline-flex; align-items: center; gap: 5px;
   background: rgba(0,0,0,0.06); border-radius: 999px;
@@ -2583,6 +2637,70 @@ input:disabled { opacity: 0.65; }
 .resultMore summary .icon { transition: transform 0.2s var(--ease); }
 .resultMore[open] summary .icon { transform: rotate(180deg); }
 .resultMoreBody { display: flex; flex-direction: column; gap: 2px; padding-top: 4px; }
+
+/* --- Fortschritt: Tagesaufgaben, Erfolge, Saison-Rangliste ----------------- */
+/* Lobby panel. Uses the same lobby-section shell as the house rules, so it
+   inherits width, radius and spacing instead of inventing its own. */
+.questsSection { text-align: left; }
+.questList { display: flex; flex-direction: column; gap: 8px; }
+.questRow {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas: "icon text count" "bar bar bar";
+  align-items: center; gap: 4px 9px;
+}
+.questRow .questIcon { grid-area: icon; font-size: 1rem; line-height: 1; width: 1.3em; text-align: center; }
+.questRow .questText { grid-area: text; font-size: var(--fs-label); font-weight: 600; }
+.questRow .questCount {
+  grid-area: count; font-size: var(--fs-hint); font-weight: 700;
+  color: var(--text-muted); font-variant-numeric: tabular-nums;
+}
+.questRow .questBar {
+  grid-area: bar; height: 4px; border-radius: 999px;
+  background: var(--glass-border); overflow: hidden;
+}
+.questRow .questBar > i { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
+.questRow.done .questText { color: var(--text-muted); text-decoration: line-through; }
+.questRow.done .questBar > i { opacity: 0.6; }
+
+/* Trophy cabinet inside the statistics card (light surface, card colours). */
+.achievementsBox { margin: 6px 0 12px; text-align: left; }
+.achievementsBox h3 {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 8px; margin: 0 0 8px; font-size: var(--fs-label);
+}
+.achCount { font-size: var(--fs-hint); font-weight: 700; color: var(--text-muted); }
+.achGrid {
+  display: grid; gap: 6px;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+}
+.achTile {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 9px 4px; border-radius: var(--r-sm);
+  background: rgba(0, 0, 0, 0.05);
+  /* Locked tiles stay readable but clearly secondary - "what am I missing"
+     is the whole point of showing them at all. */
+  opacity: 0.55;
+}
+.achTile.earned { opacity: 1; background: rgba(47, 214, 176, 0.16); }
+.achTile .achEmoji { font-size: 1.25rem; line-height: 1.1; }
+.achTile .achName { font-size: var(--fs-hint); font-weight: 700; text-align: center; line-height: 1.15; }
+.achTile .achSub { font-size: var(--fs-hint); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+/* Level + season ladder in the account card. */
+.levelBox { text-align: left; margin: 10px 0; }
+.levelHead { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: var(--fs-label); }
+.levelBar { height: 6px; border-radius: 999px; background: rgba(0,0,0,0.10); overflow: hidden; margin: 5px 0 4px; }
+.levelBar > i { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
+.levelMeta { font-size: var(--fs-hint); color: var(--text-muted); }
+.ladderBox { text-align: left; margin: 10px 0 4px; }
+.ladderBox h3 { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 0 6px; font-size: var(--fs-label); }
+.ladderRow {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 5px 8px; border-radius: var(--r-sm);
+  font-size: var(--fs-hint); font-variant-numeric: tabular-nums;
+}
+.ladderRow.isMe { background: rgba(47, 214, 176, 0.18); font-weight: 700; }
 
 /* --- Challenge: Rückblick auf vergangene Tage ------------------------------ */
 .challengeHistory { margin-top: 8px; font-size: 0.88em; opacity: 0.9; }

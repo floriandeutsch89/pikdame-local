@@ -130,6 +130,56 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     return fresh;
   }
 
+  // --- Progression (XP + daily quests) -------------------------------------
+  // Kept on the local, NAME-based profile so it works exactly where the rest
+  // of the statistics work: family/hotspot play without any account. The
+  // account store mirrors the XP for the cross-device season ladder.
+  const QUEST_HISTORY_DAYS = 7; // older days are pruned - this file is small on purpose
+
+  /**
+   * Adds experience and daily-quest progress for one finished game.
+   * @param {string} name
+   * @param {{xp?: number, date?: string, quests?: Object<string, number>}} gain
+   * @returns {{xp:number, gainedXp:number, quests:Object<string,number>, completed:string[]}}
+   */
+  function addProgress(name, gain = {}) {
+    const store = loadStore();
+    const p = findPlayerByName(store, name);
+    if (!p) return { xp: 0, gainedXp: 0, quests: {}, completed: [] };
+    const gainedXp = Math.max(0, Math.round(Number(gain.xp) || 0));
+    p.xp = (p.xp || 0) + gainedXp;
+
+    const completed = [];
+    const date = gain.date;
+    const deltas = gain.quests || {};
+    if (date && Object.keys(deltas).length > 0) {
+      p.quests = p.quests || {};
+      const day = (p.quests[date] = p.quests[date] || {});
+      for (const [id, delta] of Object.entries(deltas)) {
+        const before = day[id] || 0;
+        day[id] = before + Math.max(0, Math.round(Number(delta) || 0));
+        completed.push(id); // caller compares against the quest's target
+      }
+      // Prune: only the recent days are ever displayed, and an unbounded map
+      // would grow with every day a profile is used.
+      const days = Object.keys(p.quests).sort();
+      while (days.length > QUEST_HISTORY_DAYS) delete p.quests[days.shift()];
+    }
+    saveStore(store);
+    return {
+      xp: p.xp,
+      gainedXp,
+      quests: (p.quests && date && p.quests[date]) || {},
+      completed,
+    };
+  }
+
+  /** Quest counters a player has collected on a given day (never null). */
+  function questProgress(name, date) {
+    const p = findPlayerByName(loadStore(), name);
+    return (p && p.quests && p.quests[date]) || {};
+  }
+
 
 
 
@@ -144,6 +194,8 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     listPlayers,
     getPlayerByName,
     awardBadges,
+    addProgress,
+    questProgress,
   };
 }
 

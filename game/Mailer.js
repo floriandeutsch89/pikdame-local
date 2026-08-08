@@ -68,6 +68,20 @@ function createMailer(env = process.env, log = console.log) {
 
   const configured = !!host;
 
+  // Loud, once, at startup: a relay that is configured but missing its
+  // identity fails at the FIRST real mail, hours later, with a provider
+  // error nobody connects back to a compose file. Both cases below are
+  // rejected by every hosted provider (Mailgun/Postmark/SES): sending
+  // without AUTH, or sending as noreply@localhost.
+  if (configured) {
+    if (!user || !pass) {
+      log('[mail] WARNUNG: SMTP-Host gesetzt, aber PIKDAME_SMTP_USER/PASS fehlt - es wird OHNE AUTH gesendet. Die meisten Anbieter lehnen das ab.');
+    }
+    if (!env.PIKDAME_MAIL_FROM) {
+      log(`[mail] WARNUNG: PIKDAME_MAIL_FROM ist nicht gesetzt - Absender bleibt "${from}". Anbieter lehnen fremde Absender in der Regel ab (SMTP 550/553).`);
+    }
+  }
+
   async function send({ to, subject, text }) {
     if (!configured) {
       log(`[mail] SMTP nicht konfiguriert - Mail an ${to} wird nur geloggt:`);
@@ -134,7 +148,13 @@ function createMailer(env = process.env, log = console.log) {
       return { delivered: true };
     } catch (err) {
       try { if (socket) socket.destroy(); } catch (e) { /* egal */ }
+      // Recovery fallback: a configured-but-failing SMTP server used to
+      // swallow the confirmation link entirely - the account existed but
+      // could never be verified. Log the message like the no-SMTP fallback
+      // does, so an admin can hand the link out while fixing the relay.
       log(`[mail] Versand an ${to} fehlgeschlagen: ${err.message}`);
+      log(`[mail] Inhalt der nicht zugestellten Mail (Betreff: ${subject}):`);
+      for (const line of String(text).split('\n')) log(`[mail] ${line}`);
       return { delivered: false, reason: err.message };
     }
   }

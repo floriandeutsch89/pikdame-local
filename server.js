@@ -14,6 +14,14 @@ const GameManager = require('./game/GameManager');
 const { createPlayerStore } = require('./game/PlayerStore');
 const { createGlobalStatsStore } = require('./game/GlobalStatsStore');
 const { computeEarnedBadges } = require('./game/Badges');
+const {
+  xpForGame,
+  levelFromXp,
+  seasonForDate,
+  questsForDate,
+  evaluateQuests,
+  questDef,
+} = require('./game/Progression');
 const { createAccountStoreAuto } = require('./game/AccountStore');
 const { createMailer } = require('./game/Mailer');
 const { createGameHistoryStore } = require('./game/GameHistoryStore');
@@ -171,6 +179,18 @@ function serveStatic(req, res) {
         status: 'ok',
         version: APP_VERSION,
         accountsEnabled: ACCOUNTS_ENABLED,
+        // Today's quest ids, so the START SCREEN can show them before the
+        // player has joined anything (the profiles message only arrives on
+        // join). Anonymous and identical worldwide by design - exactly like
+        // the daily challenge deck.
+        quests: (() => {
+          const date = todayUTC();
+          return { date, ids: questsForDate(date) };
+        })(),
+        // Which mail driver the process actually picked up. Answers the
+        // "SMTP is set but nothing is sent" question without a shell on
+        // the box: 'log' means the container never saw PIKDAME_SMTP_HOST.
+        mailDriver: mailer.configured ? 'smtp' : 'log',
         uptimeSeconds: Math.round(process.uptime()),
         sessions: registry.size,
         connectedPlayers: players,
@@ -376,7 +396,16 @@ async function handleAccountRequest(req, res, filePath) {
       subject: 'Pik Dame: E-Mail-Adresse bestätigen',
       text: `Hallo ${String(body.username).trim()},\n\nwillkommen bei Pik Dame! Bitte bestätige deine E-Mail-Adresse über diesen Link:\n\n${verifyUrl}\n\nDer Link ist 48 Stunden gültig. Falls du dich nicht registriert hast, ignoriere diese Mail einfach.\n`,
     });
-    return sendJson(res, 200, { ok: true, mailDelivered: !!mail.delivered });
+    // mailConfigured separates the two very different non-delivery cases:
+    // no relay set up at all (link is in the log, by design) versus a
+    // configured relay that FAILED (link is in the log too, but something
+    // is broken). Reporting both as "no mail server configured" sent an
+    // admin hunting for an unset variable that was set all along.
+    return sendJson(res, 200, {
+      ok: true,
+      mailDelivered: !!mail.delivered,
+      mailConfigured: !!mailer.configured,
+    });
   }
   if (filePath === '/api/login') {
     const r = await accountStore.login(body.username, body.password);
@@ -391,6 +420,22 @@ async function handleAccountRequest(req, res, filePath) {
     const u = await accountStore.sessionUser(body.token);
     if (!u) return sendJson(res, 401, { error: 'Nicht angemeldet.' });
     return sendJson(res, 200, { ok: true, username: u.username });
+  }
+  if (filePath === '/api/ladder') {
+    // Season ladder. The board itself is public (usernames + XP only, no
+    // e-mail, no counts that could identify anyone); a token merely adds
+    // "where do I stand" so the caller does not need a second request.
+    if (typeof accountStore.ladder !== 'function') {
+      return sendJson(res, 200, { ok: true, season: null, board: [], me: null });
+    }
+    const season = seasonForDate(todayUTC());
+    const board = (await accountStore.ladder(season, 20)) || [];
+    let me = null;
+    if (body.token) {
+      const u = await accountStore.sessionUser(body.token);
+      if (u) me = await accountStore.progressFor(u.username);
+    }
+    return sendJson(res, 200, { ok: true, season, board, me });
   }
   return sendJson(res, 404, { error: 'Unbekannter Endpunkt.' });
 }
@@ -521,6 +566,61 @@ const registry = new SessionRegistry((session) => {
         }
       }
 
+      // --- Progression: XP, level, season ladder, daily quests -------------
+      // Everything below is best-effort: a finished game must never fail
+      // because a counter could not be written.
+      const questDate = todayUTC();
+      const todaysQuests = questsForDate(questDate);
+      for (const p of gameRecord.players || []) {
+        if (p.isBot) continue;
+        try {
+          const gainedXp = xpForGame(gameRecord, p.id);
+          const questDeltas = evaluateQuests(gameRecord, p.id, todaysQuests);
+          const before = playerStore.questProgress(p.name, questDate);
+          const after = playerStore.addProgress(p.name, {
+            xp: gainedXp,
+            date: questDate,
+            quests: questDeltas,
+          });
+          // "Completed" means it crossed the target with THIS game - so the
+          // client can celebrate once instead of on every following render.
+          const completed = todaysQuests.filter((id) => {
+            const def = questDef(id);
+            if (!def) return false;
+            return (before[id] || 0) < def.need && (after.quests[id] || 0) >= def.need;
+          });
+          sendTo(p.id, {
+            type: 'progress',
+            gainedXp,
+            xp: after.xp,
+            level: levelFromXp(after.xp),
+            quests: { date: questDate, ids: todaysQuests, progress: after.quests, completed },
+          });
+        } catch (err) {
+          logCrash('progression', err, { player: p.name });
+        }
+      }
+      // Account-bound mirror for the cross-device season ladder. Only a
+      // VERIFIED account name can be seated (joinSession enforces the login),
+      // so crediting by name cannot be spoofed.
+      if (ACCOUNTS_ENABLED && typeof accountStore.addGameResult === 'function') {
+        const season = seasonForDate(questDate);
+        for (const p of gameRecord.players || []) {
+          if (p.isBot) continue;
+          Promise.resolve(
+            accountStore.addGameResult(p.name, {
+              xp: xpForGame(gameRecord, p.id),
+              won: gameRecord.winnerId === p.id,
+              season,
+            })
+          )
+            .then((prog) => {
+              if (prog) sendTo(p.id, { type: 'accountProgress', progress: prog });
+            })
+            .catch((err) => logCrash('ladder', err, { player: p.name }));
+        }
+      }
+
       // Daily challenge: record the human's score and hand out the board.
       if (gameRecord.challengeDate) {
         const human = (gameRecord.players || []).find((p) => !p.isBot);
@@ -612,17 +712,24 @@ function restoreSessionsSnapshot() {
 }
 restoreSessionsSnapshot();
 
+function sendProfilesTo(ws) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  // Today's quests ride along with the profiles: the client needs the ids
+  // (it owns the bilingual wording) and everyone must see the SAME three,
+  // so the server is the one deciding them.
+  const date = todayUTC();
+  const quests = { date, ids: questsForDate(date) };
+  ws.send(
+    JSON.stringify(
+      PUBLIC_MODE
+        ? { type: 'profiles', players: [], publicMode: true, globalStats: globalStats.getStats(), quests }
+        : { type: 'profiles', players: playerStore.listPlayers(), publicMode: false, globalStats: globalStats.getStats(), quests }
+    )
+  );
+}
+
 function sendProfilesAndTeams(session, playerId) {
-  const ws = session.sockets.get(playerId);
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(
-      JSON.stringify(
-        PUBLIC_MODE
-          ? { type: 'profiles', players: [], publicMode: true, globalStats: globalStats.getStats() }
-          : { type: 'profiles', players: playerStore.listPlayers(), publicMode: false, globalStats: globalStats.getStats() }
-      )
-    );
-  }
+  sendProfilesTo(session.sockets.get(playerId));
 }
 
 wss.on('connection', (ws, req) => {
@@ -790,8 +897,11 @@ wss.on('connection', (ws, req) => {
     }
     if (msg.type === 'startChallenge') {
       // Daily challenge: everyone on the planet gets the identical deck AND
-      // the identical cut (both seeded from the UTC date) against three ZEN
-      // bots - the difficulty is locked so the leaderboard stays comparable.
+      // the identical cut (both seeded from the UTC date) against three
+      // MEDIUM bots - the difficulty is locked so the leaderboard stays
+      // comparable. Medium, not zen: the intro overlay has always promised
+      // "drei mittlere Bots", and with the trained ONNX policies medium is
+      // challenge enough for a daily anyone should want to finish.
       const date = todayUTC();
       const created = registry.create({
         deckSeed: seedForDate(date),
@@ -802,10 +912,18 @@ wss.on('connection', (ws, req) => {
       const ok = await joinSession(created.session, msg);
       if (ok) {
         const game = created.session.game;
-        game.setHouseRules({ botDifficulty: 'zen', turnTimerSeconds: 0 }, { system: true });
+        game.setHouseRules({ botDifficulty: 'medium', turnTimerSeconds: 0 }, { system: true });
         game.fillWithBots();
         game.startNewRound();
       }
+      return;
+    }
+    if (msg.type === 'listProfiles') {
+      // Deliberately BEFORE the session guard: profiles, server statistics
+      // and the daily tasks are server-wide, not session data. The start
+      // screen needs them before the player has joined anything - otherwise
+      // a returning player's daily tasks always read 0/3 until they sit down.
+      sendProfilesTo(ws);
       return;
     }
     if (msg.type === 'createSession') {

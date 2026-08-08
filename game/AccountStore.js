@@ -69,6 +69,21 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
       created_at INTEGER NOT NULL
     );
   `);
+  // Progression columns, added in place: an existing users.db from an older
+  // version must keep working (the data volume survives updates), so this is
+  // an additive migration guarded by the actual table layout - CREATE TABLE
+  // IF NOT EXISTS alone would silently skip them on every existing install.
+  {
+    const have = new Set(db.prepare('PRAGMA table_info(users)').all().map((c) => c.name));
+    const add = (name, ddl) => {
+      if (!have.has(name)) db.exec(`ALTER TABLE users ADD COLUMN ${name} ${ddl}`);
+    };
+    add('xp', 'INTEGER NOT NULL DEFAULT 0');
+    add('games', 'INTEGER NOT NULL DEFAULT 0');
+    add('wins', 'INTEGER NOT NULL DEFAULT 0');
+    add('season', 'TEXT');
+    add('season_xp', 'INTEGER NOT NULL DEFAULT 0');
+  }
 
   /** @returns {{ok:true, verifyToken:string}|{error:string}} */
   function register(username, email, password) {
@@ -155,11 +170,78 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
     return !!(row && row.verified);
   }
 
+  // --- Progression: XP, level and the seasonal ladder ----------------------
+  // Account-bound so it follows the player across devices; the name-based
+  // profile in PlayerStore keeps its own copy for account-less play.
+
+  /**
+   * Books one finished game onto an account. A new season resets the
+   * seasonal counter but never the lifetime XP.
+   * @returns {{xp:number, seasonXp:number, games:number, wins:number}|null}
+   */
+  function addGameResult(username, { xp = 0, won = false, season = null } = {}) {
+    const name = String(username || '').trim();
+    const row = db.prepare('SELECT id, xp, season, season_xp FROM users WHERE username = ? AND verified = 1').get(name);
+    if (!row) return null;
+    const gain = Math.max(0, Math.round(Number(xp) || 0));
+    const sameSeason = season && row.season === season;
+    db.prepare(
+      `UPDATE users SET xp = xp + ?, games = games + 1, wins = wins + ?, season = ?, season_xp = ?
+       WHERE id = ?`
+    ).run(gain, won ? 1 : 0, season, (sameSeason ? row.season_xp : 0) + gain, row.id);
+    return progressFor(name);
+  }
+
+  /** @returns {{username, xp, seasonXp, season, games, wins, rank}|null} */
+  function progressFor(username) {
+    const name = String(username || '').trim();
+    const row = db
+      .prepare('SELECT username, xp, games, wins, season, season_xp FROM users WHERE username = ?')
+      .get(name);
+    if (!row) return null;
+    const rank = row.season
+      ? db
+          .prepare('SELECT COUNT(*) AS n FROM users WHERE season = ? AND season_xp > ?')
+          .get(row.season, row.season_xp).n + 1
+      : null;
+    return {
+      username: row.username,
+      xp: row.xp || 0,
+      seasonXp: row.season_xp || 0,
+      season: row.season || null,
+      games: row.games || 0,
+      wins: row.wins || 0,
+      rank,
+    };
+  }
+
+  /** Top of the current season, highest seasonal XP first. */
+  function ladder(season, limit = 20) {
+    const rows = db
+      .prepare(
+        `SELECT username, season_xp, xp, games, wins FROM users
+         WHERE season = ? AND verified = 1
+         ORDER BY season_xp DESC, xp DESC LIMIT ?`
+      )
+      .all(String(season || ''), Math.max(1, Math.min(100, limit)));
+    return rows.map((r) => ({
+      username: r.username,
+      seasonXp: r.season_xp || 0,
+      xp: r.xp || 0,
+      games: r.games || 0,
+      wins: r.wins || 0,
+    }));
+  }
+
   function close() {
     db.close();
   }
 
-  return { register, verifyEmail, login, sessionUser, logout, isRegisteredName, close, _db: db }; // _db: Test-Seam (Ablauf-Simulation)
+  return {
+    register, verifyEmail, login, sessionUser, logout, isRegisteredName,
+    addGameResult, progressFor, ladder,
+    close, _db: db, // _db: Test-Seam (Ablauf-Simulation)
+  };
 }
 
 /**

@@ -26,6 +26,12 @@
   <meta name="twitter:image" content="https://play.pikdame.online/icons/apple-touch-icon.png" />
 
   <meta name="theme-color" content="#101318" />
+  <!-- Without an explicit icon link every browser probes /favicon.ico, which
+       does not exist here - a 404 on EVERY page load, in every console. The
+       SVG is served locally like everything else (no CDN, hotspot-safe); the
+       PNG is the fallback for browsers without SVG favicon support. -->
+  <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
   <link rel="manifest" href="/manifest.json" />
   <!-- iOS: als Vollbild-App vom Home-Bildschirm startbar -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -224,6 +230,14 @@
         <button id="resumeBtn" class="btn-secondary hidden"></button>
       </div>
 
+      <!-- Tagesaufgaben: drei aus dem Datum geseedete Aufgaben, weltweit für
+           alle gleich. Steht bewusst auf dem Startbildschirm - Fortschritt,
+           den man erst nach dem Spiel sieht, motiviert niemanden. -->
+      <div id="questsSection" class="lobby-section questsSection hidden">
+        <h3>Tagesaufgaben</h3>
+        <div id="questList" class="questList"></div>
+      </div>
+
       <div id="sessionBanner" class="session-banner hidden">
         <div class="session-code-label">Spiel-Code – zum Mitspielen weitergeben</div>
         <div id="sessionCodeText" class="session-code"></div>
@@ -268,10 +282,16 @@
         </label>
       </div>
 
-      <button id="lobbyReadyBtn" class="btn-secondary hidden"></button>
-      <!-- hidden until a session exists: a disabled button on first load is a
-           dead control that only asks "why can't I press this?" -->
-      <button id="startBtn" class="btn-secondary hidden" disabled>Spiel starten</button>
+      <!-- Pinned to the bottom of the viewport while the lobby scrolls: on a
+           phone the primary action sat below the code banner, the seat count,
+           the seating order AND the house rules, so starting a game meant
+           scrolling past four sections first. -->
+      <div id="lobbyActions" class="lobbyActions hidden">
+        <button id="lobbyReadyBtn" class="btn-secondary hidden"></button>
+        <!-- hidden until a session exists: a disabled button on first load is a
+             dead control that only asks "why can't I press this?" -->
+        <button id="startBtn" class="btn-secondary hidden" disabled>Spiel starten</button>
+      </div>
       <!-- Primäraktion zuerst, der Rückweg darunter - andersherum war es
            verwirrend (Nutzer-Feedback). -->
       <button id="leaveLobbyBtn" class="btn-secondary hidden"><svg class="icon" aria-hidden="true"><use href="#i-home"/></svg><span>Zurück zum Hauptmenü</span></button>
@@ -418,6 +438,11 @@
         </div>
         <div id="accountLoggedIn" class="hidden">
           <p id="accountWhoami">Angemeldet als –</p>
+          <!-- Stufe + Saison-Rangliste: der einzige Fortschritt, der dem
+               Konto folgt statt dem Gerät - deshalb steht er hier und nicht
+               in der namensbasierten Statistik. -->
+          <div id="accountLevelBox" class="levelBox hidden"></div>
+          <div id="ladderBox" class="ladderBox hidden"></div>
           <button id="accLogoutBtn" class="btn-secondary">Abmelden</button>
         </div>
         <p id="accountStatus" class="lobby-hint"></p>
@@ -699,6 +724,10 @@
         <h2><svg class="icon" aria-hidden="true"><use href="#i-chart"/></svg><span>Statistik</span></h2>
         <p class="lobby-hint">Über alle Partien auf diesem Server (nach Spielernamen).</p>
         <div id="globalStatsBox" class="globalStatsBox hidden"></div>
+        <!-- Erfolge-Galerie: Abzeichen blitzten bisher einmal am Partieende
+             auf und waren danach unsichtbar. Gesperrte mit Fortschritt zu
+             zeigen ist der eigentliche Antrieb ("was fehlt mir noch?"). -->
+        <div id="achievementsBox" class="achievementsBox hidden"></div>
         <div id="statsContent" class="statsContent"></div>
         <button id="statsCloseBtn" class="btn-secondary">Schließen</button>
       </div>
@@ -770,21 +799,27 @@
         <h2 id="resultTitle">Rundenende</h2>
         <div id="resultEmotes"></div>
         <div id="resultBody"></div>
-        <div id="resultEmoteBar" class="resultEmoteBar">
-          <button class="emoteChoice" data-emote="👍">👍</button><button class="emoteChoice" data-emote="😂">😂</button><button class="emoteChoice" data-emote="😱">😱</button><button class="emoteChoice" data-emote="😤">😤</button><button class="emoteChoice" data-emote="🎉">🎉</button><button class="emoteChoice" data-emote="⏳">⏳</button><button class="emoteChoice" data-emote="pikdame"><span class="miniPikdame">♠<b>Q</b></span></button>
-        </div>
-        <!-- Primary action alone; everything else folds away. Five equal
-             pills below the scores meant "Weiter" had to be hunted for. -->
-        <button id="resultContinueBtn" class="btn-primary">Weiter</button>
-        <details id="resultMore" class="resultMore">
-          <summary><span>Mehr</span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
-          <div class="resultMoreBody">
-            <button id="replayBtn" class="btn-secondary hidden"><svg class="icon" aria-hidden="true"><use href="#i-film"/></svg><span>Partie-Rückblick</span></button>
-            <button id="exportGameBtn" class="btn-secondary hidden"><svg class="icon" aria-hidden="true"><use href="#i-export"/></svg><span>Spielverlauf exportieren</span></button>
-            <button id="resultForfeitBtn" class="btn-secondary hidden"><svg class="icon" aria-hidden="true"><use href="#i-flag"/></svg><span>Spiel aufgeben</span></button>
-            <button id="resultHomeBtn" class="btn-secondary hidden"><svg class="icon" aria-hidden="true"><use href="#i-home"/></svg><span>Hauptmenü</span></button>
+        <!-- Action footer: pinned, never scrolls. The key-moments timeline
+             made the card taller than the viewport, so "Weiter" sat below
+             the fold on a phone AND on a 1440x900 desktop - the one button
+             every player needs was the one you had to scroll for. -->
+        <div class="resultFooter">
+          <div id="resultEmoteBar" class="resultEmoteBar">
+            <button class="emoteChoice" data-emote="👍">👍</button><button class="emoteChoice" data-emote="😂">😂</button><button class="emoteChoice" data-emote="😱">😱</button><button class="emoteChoice" data-emote="😤">😤</button><button class="emoteChoice" data-emote="🎉">🎉</button><button class="emoteChoice" data-emote="⏳">⏳</button><button class="emoteChoice" data-emote="pikdame"><span class="miniPikdame">♠<b>Q</b></span></button>
           </div>
-        </details>
+          <!-- Primary action alone; everything else folds away. Five equal
+               pills below the scores meant "Weiter" had to be hunted for. -->
+          <button id="resultContinueBtn" class="btn-primary">Weiter</button>
+          <details id="resultMore" class="resultMore">
+            <summary><span>Mehr</span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+            <div class="resultMoreBody">
+              <button id="replayBtn" class="btn-secondary hidden"><svg class="icon" aria-hidden="true"><use href="#i-film"/></svg><span>Partie-Rückblick</span></button>
+              <button id="exportGameBtn" class="btn-secondary hidden"><svg class="icon" aria-hidden="true"><use href="#i-export"/></svg><span>Spielverlauf exportieren</span></button>
+              <button id="resultForfeitBtn" class="btn-secondary hidden"><svg class="icon" aria-hidden="true"><use href="#i-flag"/></svg><span>Spiel aufgeben</span></button>
+              <button id="resultHomeBtn" class="btn-secondary hidden"><svg class="icon" aria-hidden="true"><use href="#i-home"/></svg><span>Hauptmenü</span></button>
+            </div>
+          </details>
+        </div>
       </div>
     </section>
 

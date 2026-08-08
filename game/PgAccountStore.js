@@ -47,6 +47,14 @@ const SCHEMA = `
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     created_at BIGINT NOT NULL
   );
+  -- Progression (XP, level, season ladder). Additive and idempotent so an
+  -- existing database from an older version migrates on the next start.
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS xp BIGINT NOT NULL DEFAULT 0;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS games INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS wins INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS season TEXT;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS season_xp BIGINT NOT NULL DEFAULT 0;
+  CREATE INDEX IF NOT EXISTS users_season_xp ON users (season, season_xp DESC);
 `;
 
 /**
@@ -220,11 +228,98 @@ function createPgAccountStore(databaseUrl, options = {}) {
     }
   }
 
+  // --- Progression: XP, level and the seasonal ladder ----------------------
+  // Same contract as the SQLite store. Every path fails SOFT (null / empty
+  // list): a ladder that cannot be read must never break a finished game.
+
+  async function addGameResult(username, { xp = 0, won = false, season = null } = {}) {
+    try {
+      await ensureReady();
+      const gain = Math.max(0, Math.round(Number(xp) || 0));
+      // season_xp resets when the stored season differs from the current one;
+      // lifetime xp keeps accumulating. Done in ONE statement so two games
+      // finishing at the same moment cannot lose an update.
+      await pool.query(
+        `UPDATE users
+            SET xp = xp + $2,
+                games = games + 1,
+                wins = wins + $3,
+                season_xp = CASE WHEN season IS NOT DISTINCT FROM $4 THEN season_xp + $2 ELSE $2 END,
+                season = $4
+          WHERE LOWER(username) = LOWER($1) AND verified = TRUE`,
+        [String(username || '').trim(), gain, won ? 1 : 0, season]
+      );
+      return await progressFor(username);
+    } catch (e) {
+      console.error('Postgres addGameResult failed:', e.message);
+      return null;
+    }
+  }
+
+  async function progressFor(username) {
+    try {
+      await ensureReady();
+      const r = await pool.query(
+        'SELECT username, xp, games, wins, season, season_xp FROM users WHERE LOWER(username) = LOWER($1)',
+        [String(username || '').trim()]
+      );
+      const row = r.rows[0];
+      if (!row) return null;
+      let rank = null;
+      if (row.season) {
+        const rr = await pool.query(
+          'SELECT COUNT(*)::int AS n FROM users WHERE season = $1 AND season_xp > $2',
+          [row.season, row.season_xp]
+        );
+        rank = (rr.rows[0] ? rr.rows[0].n : 0) + 1;
+      }
+      return {
+        username: row.username,
+        xp: Number(row.xp) || 0,
+        seasonXp: Number(row.season_xp) || 0,
+        season: row.season || null,
+        games: row.games || 0,
+        wins: row.wins || 0,
+        rank,
+      };
+    } catch (e) {
+      console.error('Postgres progressFor failed:', e.message);
+      return null;
+    }
+  }
+
+  async function ladder(season, limit = 20) {
+    try {
+      await ensureReady();
+      const r = await pool.query(
+        `SELECT username, season_xp, xp, games, wins FROM users
+          WHERE season = $1 AND verified = TRUE
+          ORDER BY season_xp DESC, xp DESC LIMIT $2`,
+        [String(season || ''), Math.max(1, Math.min(100, limit))]
+      );
+      return r.rows.map((row) => ({
+        username: row.username,
+        seasonXp: Number(row.season_xp) || 0,
+        xp: Number(row.xp) || 0,
+        games: row.games || 0,
+        wins: row.wins || 0,
+      }));
+    } catch (e) {
+      console.error('Postgres ladder failed:', e.message);
+      return [];
+    }
+  }
+
   async function close() {
     await pool.end().catch(() => {});
   }
 
-  return { backend: 'postgres', register, verifyEmail, login, sessionUser, logout, isRegisteredName, close };
+  return {
+    backend: 'postgres',
+    register, verifyEmail, login, sessionUser, logout, isRegisteredName,
+    addGameResult, progressFor, ladder,
+    close,
+  };
 }
 
 module.exports = { createPgAccountStore };

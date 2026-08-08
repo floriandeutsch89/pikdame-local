@@ -41,13 +41,32 @@ must stay deterministic so the whole world plays the identical deck.)
 3. **Discard** exactly one card. To go out you must still have a card left to
    discard; the final one is placed face down.
 
+### Progress between matches
+
+Three layers, all optional and all degrading quietly where they cannot work:
+
+| | Where it lives | Works without an account |
+| --- | --- | --- |
+| **Daily tasks** | Three tasks seeded from the UTC date — identical for every player worldwide, like the daily challenge deck. Progress counts on the name-based profile. | yes |
+| **Achievements** | 13 badges, shown as a cabinet in the statistics panel with locked entries and their progress ("Damenjägerin 4/10"). | yes |
+| **Level & season ladder** | Experience per finished match, a level, and a monthly ladder — bound to the **account**, so it follows the player across devices. | no (needs a login) |
+
+Experience is awarded for *finishing* a match, not only for winning: a base
+amount for every completed game, a bonus for the win, and a slope from the
+final score. A negative final total never costs experience.
+
+Everything is computed from the finished game record in `game/Progression.js`
+(pure functions, no I/O) — the engine has no progression hooks in the game
+loop, so none of this can affect play. On a server in `PIKDAME_PUBLIC_MODE`
+no profiles are stored, and the tasks and cabinet stay hidden accordingly.
+
 ## The software
 
 | | |
 | --- | --- |
 | **Server** | Node.js, no framework. One WebSocket per player, the server is the single source of truth and validates every move. |
 | **Client** | Plain HTML/CSS/JS — no build step, no framework, no bundler. |
-| **Storage** | JSON files on a volume (profiles, statistics, history) plus SQLite or PostgreSQL for optional accounts. |
+| **Storage** | JSON files on a volume (profiles, statistics, history, daily-task progress) plus SQLite or PostgreSQL for optional accounts and the season ladder. |
 | **Bots** | A heuristic engine by default; optionally a trained ONNX policy. |
 | **Deployment** | One container. Optionally the full stack with Caddy (automatic TLS) and PostgreSQL. |
 

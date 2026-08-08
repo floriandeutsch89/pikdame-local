@@ -43,6 +43,14 @@
   let prevForfeitVoteCount = 0;
   let countdownTimer = null; // per-second turn countdown; only runs when needed (battery)
   let quoteShownForRound = null; // Rundenstart-Spruch nur einmal pro Runde
+  // Which source the pending draw came from ('discard' = Ablagestapel).
+  // Only a pile take drags the scrollable fan to the new cards; a single
+  // card off the draw pile must NOT, see freshScrollPending below.
+  let pendingDrawSource = null;
+  // One-shot: consumed by the next hand render. Without the one-shot the
+  // re-centring ran on EVERY render and yanked the fan back while the
+  // player was still scrolling (bug report).
+  let freshScrollPending = false;
 
   // Kreative Sprüche zum Rundenbeginn. Deterministisch aus Geber+Runde
   // geseedet, damit ALLE am Tisch denselben Spruch sehen - gemeinsames
@@ -101,6 +109,41 @@
       ['Familienspiel heißt: Alle lieben sich. Bis zum Ausmachen.', 'Family game means: everyone loves each other. Until someone goes out.'],
       ['Der beste Zug ist der, über den keiner lacht.', 'The best move is the one nobody laughs at.'],
       ['Runde eins ist Aufwärmen. Ab Runde zwei ist es persönlich.', 'Round one is a warm-up. From round two on, it is personal.'],
+      ['Wer die Ablage nimmt, braucht einen Plan. Oder sehr viel Mut.', 'Taking the pile needs a plan. Or a lot of nerve.'],
+      ['Der Ziehstapel schrumpft schneller, als man rechnet.', 'The draw pile shrinks faster than you count.'],
+      ['Sätze sind Fleiß, Folgen sind Kunst.', 'Sets are diligence. Runs are art.'],
+      ['Zwei Joker auf der Hand? Jetzt bloß nicht übermütig werden.', 'Two jokers in hand? Now do not get cocky.'],
+      ['Kaffee kalt, Karten heiß.', 'Coffee cold, cards hot.'],
+      ['Die Pik Dame wiegt 100 Punkte - und kein Gramm weniger.', 'The Queen of Spades weighs 100 points - not a gram less.'],
+      ['Wer früh auslegt, schläft ruhiger.', 'Meld early, sleep better.'],
+      ['Ein Blatt voller Zehner ist ein Blatt voller Reue.', 'A hand full of tens is a hand full of regret.'],
+      ['Der beste Zeitpunkt zum Auslegen war letzte Runde. Der zweitbeste ist jetzt.', 'The best time to meld was last round. The second best is now.'],
+      ['Merke: Der Ziehstapel wird NICHT nachgefüllt.', 'Remember: the draw pile is NEVER refilled.'],
+      ['Ist der Stapel leer, zählt nur noch, was in der Hand klebt.', 'When the pile runs dry, only what sticks in your hand counts.'],
+      ['Der Familienfrieden endet bei 1000 Punkten.', 'Family peace ends at 1000 points.'],
+      ['Ein Joker in der Auslage ist ein Joker in Sicherheit.', 'A joker on the table is a joker out of harm.'],
+      ['Manche zählen Karten. Manche zählen auf Oma.', 'Some count cards. Some count on grandma.'],
+      ['Wer den Fächer sortiert, hat halb gewonnen. Sagt der Fächer.', 'Sorting your fan is half the win. Says the fan.'],
+      ['Schon abgehoben? Der Glücksgriff wartet nicht ewig.', 'Cut the deck yet? The lucky cut will not wait forever.'],
+      ['Große Hand, große Verantwortung.', 'Big hand, big responsibility.'],
+      ['Kurz nachdenken kostet nichts. Falsch abwerfen schon.', 'Thinking is free. Discarding wrong is not.'],
+      ['Ein Ass ist kein Kuscheltier. Leg es hin.', 'An ace is not a pet. Put it down.'],
+      ['Die Zwei nach dem Ass rettet mehr Folgen, als man glaubt.', 'The 2 after the ace saves more runs than you would think.'],
+      ['Bots vergessen keinen Abwurf. Auch deinen nicht.', 'Bots forget no discard. Not even yours.'],
+      ['Wer nichts wagt, sammelt Punkte. Leider die falschen.', 'Play it safe and you still collect points. The wrong kind.'],
+      ['Am Ende zählt nicht die Hand, sondern die Auslage.', 'In the end it is not the hand that counts, it is the table.'],
+      ['Ein fetter Ablagestapel ist eine Falle mit Geschenkpapier.', 'A fat discard pile is a trap in gift wrapping.'],
+      ['Eine geschenkte Runde? Gibt es hier nicht.', 'A free round? Not in this house.'],
+      ['Der Geber mischt, das Schicksal teilt aus.', 'The dealer shuffles, fate deals.'],
+      ['Erst die Dame loswerden, dann angeben.', 'Ditch the Queen first, brag later.'],
+      ['Dreizehn Karten in einer Folge? Dafür darf man einmal laut lachen.', 'A thirteen-card run? That earns you one loud laugh.'],
+      ['Keine Panik: Auch Zen hatte schon schlechte Blätter.', 'No panic: even Zen has had bad cards.'],
+      ['Vier Buben, ein Problem: nur EIN Satz je Wert.', 'Four jacks, one problem: only ONE set per rank.'],
+      ['Ziehen ist Pflicht, Abwerfen ist Kunst.', 'Drawing is duty. Discarding is art.'],
+      ['Heute keine Gnade - aber Kuchen gibt es trotzdem.', 'No mercy today - but there is cake anyway.'],
+      ['Wer die Ablage kennt, kennt die Mitspieler.', 'Know the discard pile, know the players.'],
+      ['Der Joker-Tausch ist der eleganteste Zug im Spiel.', 'Swapping in for a joker is the most elegant move there is.'],
+      ['Karten mischen kann jeder. Karten merken nicht.', 'Anyone can shuffle. Not everyone can remember.'],
     ];
     let h = 0;
     for (let i = 0; i < seedStr.length; i++) h = (h * 31 + seedStr.charCodeAt(i)) | 0;
@@ -290,6 +333,14 @@
     return `<span class="opAvatar" style="background:hsl(${hue},46%,40%)">${glyph}</span>`;
   }
 
+  // Display order of the trophy cabinet: the ones every player meets first,
+  // then the rare feats. Must stay in sync with BADGE_IDS in game/Badges.js.
+  const BADGE_ORDER = [
+    'first_win', 'pd_laid', 'hand_aus_win', 'marathon_10', 'streak_3',
+    'pd_caught', 'round_300', 'score_500', 'pd_triple', 'double_queen_round',
+    'comeback', 'zen_slayer', 'pd_hunter_10',
+  ];
+
   function badgeMeta(id) {
     const M = {
       first_win: { emoji: '🏆', name: L('Erster Sieg', 'First win'), desc: L('Erste gewonnene Partie', 'Won your first game') },
@@ -309,6 +360,36 @@
     return M[id] || { emoji: '🎖️', name: id, desc: '' };
   }
   let globalStatsData = null; // anonyme Server-Zähler (Partien, Pik Damen, ...)
+  // --- Fortschritt über Partien hinweg ------------------------------------
+  // dailyQuests: {date, ids} kommt IMMER vom Server (alle Spieler weltweit
+  // arbeiten an denselben drei Aufgaben); die Beschriftungen leben hier,
+  // weil sie zweisprachig sind. questProgress zählt den heutigen Stand.
+  let dailyQuests = null;
+  let questProgress = {};
+  let myProgress = null;      // {xp, level:{level,into,need,total}}
+  let accountProgress = null; // {xp, seasonXp, season, games, wins, rank}
+
+  function questMeta(id) {
+    const M = {
+      finish_game: { icon: '🏁', text: L('Eine Partie zu Ende spielen', 'Finish one match') },
+      win_game: { icon: '🏆', text: L('Eine Partie gewinnen', 'Win a match') },
+      win_rounds_3: { icon: '🎯', text: L('3 Runden gewinnen', 'Win 3 rounds') },
+      meld_queen: { icon: '♠', text: L('Eine Pik Dame auslegen', 'Meld a Queen of Spades') },
+      meld_jokers_3: { icon: '👑', text: L('3 Joker auslegen', 'Meld 3 jokers') },
+      round_150: { icon: '💥', text: L('Eine Runde mit 150+ Punkten', 'Score 150+ in one round') },
+      clean_hands: { icon: '🧼', text: L('Partie ohne erwischte Pik Dame', 'Finish a match never caught with the Queen') },
+      hand_aus: { icon: '🚀', text: L('Eine Runde mit „Hand aus" gewinnen', 'Win a round with "out in one"') },
+      score_400: { icon: '💯', text: L('400+ Punkte Endstand', 'Finish a match with 400+ points') },
+      beat_zen: { icon: '⚔️', text: L('Eine Partie gegen einen Zen-Bot gewinnen', 'Beat a table with a zen bot') },
+    };
+    return M[id] || { icon: '🎲', text: id };
+  }
+  // Targets mirror game/Progression.js - the server is the authority and
+  // sends the progress; these numbers only draw the bar.
+  const QUEST_NEED = {
+    finish_game: 1, win_game: 1, win_rounds_3: 3, meld_queen: 1, meld_jokers_3: 3,
+    round_150: 1, clean_hands: 1, hand_aus: 1, score_400: 1, beat_zen: 1,
+  };
   let publicMode = false;
 
   const el = (id) => document.getElementById(id);
@@ -472,6 +553,10 @@
 
     ws.addEventListener('open', () => {
       el('connStatus').textContent = L('Verbunden.', 'Connected.');
+      // Profile + Tagesaufgaben sofort holen: der Startbildschirm zeigt den
+      // heutigen Aufgaben-Fortschritt, und der steht im eigenen Profil - ohne
+      // diese Anfrage stünde dort bis zum Beitritt immer 0/3.
+      ws.send(JSON.stringify({ type: 'listProfiles' }));
       // Automatischer Wiedereintritt NUR, wenn wir bereits Teil einer
       // Session waren (Reconnect nach Verbindungsabbruch oder geteilter
       // Link mit gespeicherter playerId). Ohne Code entscheidet der Nutzer
@@ -771,7 +856,31 @@
       // Öffentlicher Server: Profile/Statistik sind deaktiviert.
       publicMode = !!msg.publicMode;
       el('statsBtn').classList.toggle('hidden', publicMode);
+      if (msg.quests) dailyQuests = msg.quests;
+      // My own counters live on my profile (name-based, like every other
+      // statistic) - no extra round trip and no extra server state.
+      if (dailyQuests) {
+        const mine = myProfile();
+        questProgress = (mine && mine.quests && mine.quests[dailyQuests.date]) || {};
+      }
+      renderQuests();
       if (!el('statsOverlay').classList.contains('hidden')) renderStats();
+      return;
+    }
+    if (msg.type === 'progress') {
+      // End of a match: experience, level and the daily quests that ticked.
+      myProgress = { xp: msg.xp, level: msg.level };
+      if (msg.quests) {
+        dailyQuests = { date: msg.quests.date, ids: msg.quests.ids };
+        questProgress = msg.quests.progress || {};
+      }
+      renderQuests();
+      celebrateProgress(msg);
+      return;
+    }
+    if (msg.type === 'accountProgress') {
+      accountProgress = msg.progress || null;
+      renderAccountProgress();
       return;
     }
     if (msg.type === 'emote') {
@@ -1005,6 +1114,12 @@
     el('startBtn').textContent = multiHuman
       ? L(`Spiel starten (${readyCount}/${seatedHumans.length} bereit)`, `Start game (${readyCount}/${seatedHumans.length} ready)`)
       : L('Spiel starten', 'Start game');
+    // The sticky bar only exists while it has something to show - an empty
+    // pinned strip at the bottom of the start screen would be pure noise.
+    el('lobbyActions').classList.toggle(
+      'hidden',
+      el('startBtn').classList.contains('hidden') && readyBtn.classList.contains('hidden')
+    );
 
     const hasJoined = lastState.players.some((p) => p.id === playerId);
     el('seatCountSection').classList.toggle('hidden', !hasJoined);
@@ -1418,12 +1533,25 @@
         freshCardIds = new Set(); // Erstverteilung nicht markieren
       } else {
         const added = myPlayer.hand.filter((c) => !prevHandIds.has(c.id)).map((c) => c.id);
-        if (added.length > 0) freshCardIds = new Set(added);
+        if (added.length > 0) {
+          freshCardIds = new Set(added);
+          // Jump the fan to the new cards ONLY after a pile take: that can
+          // add a dozen cards at once and is easy to miss. A single drawn
+          // card stays where it is - re-centring fought the player's own
+          // scrolling and made the hand feel stuck.
+          if (pendingDrawSource === 'discard') freshScrollPending = true;
+          pendingDrawSource = null;
+        }
         // Markierung erlischt, sobald die Karte die Hand verlässt
         for (const id of [...freshCardIds]) if (!currentIds.has(id)) freshCardIds.delete(id);
         // Glow lives only for the OWN running turn: the lingering rim
         // shimmer used to survive into the opponents' turns (bug report).
-        if (lastState.currentPlayerId !== playerId) freshCardIds.clear();
+        if (lastState.currentPlayerId !== playerId) {
+          freshCardIds.clear();
+          // A take the server refused would otherwise keep the marker armed
+          // into a later, unrelated draw.
+          pendingDrawSource = null;
+        }
       }
       prevHandIds = currentIds;
       prevHandRound = lastState.roundNumber;
@@ -1485,6 +1613,11 @@
       // desto stärker überlappen sie; der Ecken-Index oben links bleibt
       // dabei stets sichtbar. Mindestens 14px sichtbarer Streifen.
       const prevHandScroll = handDiv.scrollLeft; // Scroll-Position über Re-Render retten
+      // Consume the one-shot here, not inside the frame: an early return
+      // below (fewer than two cards) would otherwise leave it armed and
+      // hijack a later, unrelated render.
+      const scrollToFresh = freshScrollPending;
+      freshScrollPending = false;
       requestAnimationFrame(() => {
         const cards = [...handDiv.children];
         if (cards.length < 2) return;
@@ -1512,7 +1645,9 @@
         });
         if (scrollMode) {
           updateHandScrollEdges(handDiv);
-          const fresh = cards.find((c) => c.classList.contains('just-drawn'));
+          const fresh = scrollToFresh
+            ? cards.find((c) => c.classList.contains('just-drawn'))
+            : null;
           if (fresh) {
             // Frisch aufgenommene Karten sofort ins Bild holen - so merkt man
             // auch ohne Suchen, dass die Hand jetzt scrollt.
@@ -2196,7 +2331,18 @@
         contBtn.textContent = L(`Nächste Runde (${n}/${humans.length} bereit)`, `Next round (${n}/${humans.length} ready)`);
       }
     }
+    // The body scrolls on its own now (the action footer is pinned) - so it
+    // needs the same fade affordance as the hand and the melds: on iOS the
+    // scrollbar is invisible at rest and nothing else says "more below".
+    requestAnimationFrame(() => updateResultScrollEdges());
   }
+
+  function updateResultScrollEdges() {
+    const b = el('resultBody');
+    if (!b) return;
+    b.classList.toggle('canScrollDown', b.scrollHeight - b.clientHeight - b.scrollTop > 8);
+  }
+  el('resultBody').addEventListener('scroll', updateResultScrollEdges, { passive: true });
 
   // --- Interaktion ---------------------------------------------------------
 
@@ -2393,6 +2539,7 @@
   el('drawPile').addEventListener('click', () => {
     if (el('drawPile').classList.contains('disabled')) return;
     sound.draw();
+    pendingDrawSource = 'drawPile';
     flyCard(el('drawPile'), el('hand'), true);
     send({ type: 'drawFromPile' });
   });
@@ -2400,6 +2547,9 @@
   el('discardPile').addEventListener('click', () => {
     if (el('discardPile').classList.contains('disabled')) return;
     sound.draw();
+    // Remembered until the new cards show up in the next state: only a
+    // pile take is allowed to scroll the fan to them.
+    pendingDrawSource = 'discard';
     flyCard(el('discardPile'), el('hand'), false);
     send({ type: 'drawFromDiscard' });
   });
@@ -2647,7 +2797,7 @@
     zen: { icon: '🧘', label: () => L('Zen-Meister', 'Zen master'), hint: () => L('zählt die Karten mit', 'counts the cards') },
   };
   function openBotDiffOverlay(bot) {
-    // Tages-Challenge: Bot-Stärke ist fest (Zen für alle) - Menü gar nicht anbieten.
+    // Tages-Challenge: Bot-Stärke ist fest (mittel für alle) - Menü gar nicht anbieten.
     if (lastState && lastState.challengeDate) return;
     el('botDiffTitle').textContent = L(`Schwierigkeit: ${bot.name}`, `Difficulty: ${bot.name}`);
     const box = el('botDiffOptions');
@@ -3589,7 +3739,10 @@
     } else {
       el('nameInput').disabled = false;
       el('nameInput').title = '';
+      accountProgress = null;
+      el('ladderBox').classList.add('hidden');
     }
+    renderAccountProgress();
   }
   async function initAccount(enabled) {
     if (!enabled) return; // Button bleibt versteckt (CodeApp/Hotspot)
@@ -3604,6 +3757,9 @@
   el('accountBtn').addEventListener('click', () => {
     setAccountStatus('');
     el('accountOverlay').classList.remove('hidden');
+    // Ladder + level are the reason to have an account at all - fetch them
+    // when the panel opens, not on every page load.
+    if (accountUsername) loadLadder().catch(() => {});
   });
   el('accountCloseBtn').addEventListener('click', () => el('accountOverlay').classList.add('hidden'));
   el('accountOverlay').addEventListener('click', (ev) => {
@@ -3631,10 +3787,15 @@
       password: el('accRegPass').value,
     });
     if (r.error) return setAccountStatus(trs(r.error), true);
+    // Three outcomes, not two: delivered, no relay configured, or a
+    // configured relay that failed. The old two-way message blamed a
+    // missing mail server even when SMTP was set up and merely broken.
     setAccountStatus(
       r.mailDelivered
         ? L('✅ Fast geschafft! Bitte den Bestätigungslink in deiner E-Mail öffnen, danach kannst du dich anmelden.', '✅ Almost done! Please open the confirmation link in your e-mail, then sign in.')
-        : L('✅ Konto angelegt. Der Bestätigungslink steht im Server-Log (noch kein Mailserver eingetragen).', '✅ Account created. The confirmation link is in the server log (no mail server configured yet).')
+        : r.mailConfigured
+          ? L('⚠️ Konto angelegt, aber die Bestätigungsmail konnte nicht verschickt werden. Der Link steht im Server-Log - bitte den Mailserver prüfen.', '⚠️ Account created, but the confirmation e-mail could not be sent. The link is in the server log - please check the mail server.')
+          : L('✅ Konto angelegt. Der Bestätigungslink steht im Server-Log (noch kein Mailserver eingetragen).', '✅ Account created. The confirmation link is in the server log (no mail server configured yet).')
     );
   });
   el('accLoginBtn').addEventListener('click', async () => {
@@ -3650,6 +3811,7 @@
     refreshAccountUi();
     el('accountOverlay').classList.add('hidden');
     showToast(L(`Angemeldet als ${r.username}`, `Signed in as ${r.username}`));
+    loadLadder().catch(() => {}); // fills level + season rank for next open
   });
   el('accLogoutBtn').addEventListener('click', async () => {
     await accountApi('/api/logout', { token: accountToken() });
@@ -3691,6 +3853,12 @@
         }
       }
       initAccount(!!(s && s.accountsEnabled));
+      // Daily tasks belong on the FIRST screen - progress you only see after
+      // a match motivates nobody. The counters arrive with the profiles.
+      if (s && s.quests) {
+        dailyQuests = s.quests;
+        renderQuests();
+      }
     })
     .catch(() => {});
 
@@ -3897,6 +4065,163 @@
     setTimeout(() => bubble.remove(), 1600);
   }
 
+  // --- Fortschritt: Tagesaufgaben, Erfolge-Galerie, Saison-Rangliste -------
+
+  function renderQuests() {
+    const box = el('questsSection');
+    const list = el('questList');
+    if (!box || !list) return;
+    // Ohne Profile (öffentlicher Server) wird nichts gezählt - dann wäre eine
+    // Aufgabenliste ohne Fortschritt nur eine Enttäuschung.
+    if (!dailyQuests || !dailyQuests.ids || dailyQuests.ids.length === 0 || publicMode) {
+      box.classList.add('hidden');
+      return;
+    }
+    box.classList.remove('hidden');
+    list.innerHTML = dailyQuests.ids
+      .map((id) => {
+        const meta = questMeta(id);
+        const need = QUEST_NEED[id] || 1;
+        const have = Math.min(questProgress[id] || 0, need);
+        const done = have >= need;
+        const pct = Math.round((have / need) * 100);
+        return `<div class="questRow${done ? ' done' : ''}">
+          <span class="questIcon">${done ? '✅' : meta.icon}</span>
+          <span class="questText">${escapeHtml(meta.text)}</span>
+          <span class="questCount">${need > 1 ? `${have}/${need}` : ''}</span>
+          <span class="questBar"><i style="width:${pct}%"></i></span>
+        </div>`;
+      })
+      .join('');
+  }
+
+  // Ein Höhepunkt pro Partie-Ende, nicht drei gleichzeitig: erst die
+  // erledigten Aufgaben, dann ein Stufenaufstieg, sonst nur die XP.
+  let lastLevelSeen = null;
+  function celebrateProgress(msg) {
+    const completed = (msg.quests && msg.quests.completed) || [];
+    for (const id of completed) {
+      showToast(`✅ ${L('Tagesaufgabe geschafft', 'Daily task done')}: ${questMeta(id).text}`);
+    }
+    const lvl = msg.level && msg.level.level;
+    if (lvl && lastLevelSeen !== null && lvl > lastLevelSeen) {
+      showToast(`⭐ ${L(`Stufe ${lvl} erreicht!`, `Level ${lvl} reached!`)}`);
+    } else if (!completed.length && msg.gainedXp > 0) {
+      showToast(`✨ +${msg.gainedXp} ${L('Erfahrung', 'XP')}`);
+    }
+    if (lvl) lastLevelSeen = lvl;
+  }
+
+  function renderAchievements() {
+    const box = el('achievementsBox');
+    if (!box) return;
+    const me = myProfile();
+    if (publicMode || !me) {
+      box.classList.add('hidden');
+      return;
+    }
+    const owned = me.badges || {};
+    const progress = badgeProgressFor(me);
+    const tiles = BADGE_ORDER.map((id) => {
+      const m = badgeMeta(id);
+      const at = owned[id];
+      const p = progress[id];
+      const sub = at
+        ? new Date(at).toLocaleDateString()
+        : p && p.need > 1
+          ? `${p.have}/${p.need}`
+          : L('gesperrt', 'locked');
+      return `<div class="achTile${at ? ' earned' : ''}" title="${escapeHtml(m.desc)}">
+        <span class="achEmoji">${at ? m.emoji : '🔒'}</span>
+        <span class="achName">${escapeHtml(m.name)}</span>
+        <span class="achSub">${escapeHtml(sub)}</span>
+      </div>`;
+    }).join('');
+    const have = BADGE_ORDER.filter((id) => owned[id]).length;
+    box.classList.remove('hidden');
+    box.innerHTML =
+      `<h3>${L('🏅 Erfolge', '🏅 Achievements')} <span class="achCount">${have} / ${BADGE_ORDER.length}</span></h3>` +
+      `<div class="achGrid">${tiles}</div>`;
+  }
+
+  // Mirrors game/Progression.js#badgeProgress - the countable badges only.
+  function badgeProgressFor(p) {
+    const cap = (v, n) => ({ have: Math.min(v || 0, n), need: n });
+    return {
+      first_win: cap(p.gamesWon, 1),
+      pd_laid: cap(p.totalQueensLaid, 1),
+      pd_triple: cap(p.totalQueensLaid, 3),
+      pd_caught: cap(p.totalQueensCaught, 1),
+      hand_aus_win: cap(p.totalHandAus, 1),
+      score_500: cap(p.bestGameScore, 500),
+      round_300: cap(p.bestRoundScore, 300),
+      streak_3: cap(p.winStreak, 3),
+      marathon_10: cap(p.gamesPlayed, 10),
+      pd_hunter_10: cap(p.totalQueensLaid, 10),
+    };
+  }
+
+  function renderAccountProgress() {
+    const lvlBox = el('accountLevelBox');
+    if (!lvlBox) return;
+    if (!accountProgress) {
+      lvlBox.classList.add('hidden');
+      return;
+    }
+    const lv = levelFromXpClient(accountProgress.xp);
+    const pct = Math.round((lv.into / lv.need) * 100);
+    lvlBox.classList.remove('hidden');
+    lvlBox.innerHTML =
+      `<div class="levelHead"><b>${L(`Stufe ${lv.level}`, `Level ${lv.level}`)}</b>` +
+      `<span>${lv.into} / ${lv.need} ${L('EP', 'XP')}</span></div>` +
+      `<div class="levelBar"><i style="width:${pct}%"></i></div>` +
+      `<div class="levelMeta">${L('Saison', 'Season')} ${escapeHtml(accountProgress.season || '–')}: ` +
+      `<b>${accountProgress.seasonXp}</b> ${L('EP', 'XP')}` +
+      (accountProgress.rank ? ` · ${L('Platz', 'Rank')} <b>${accountProgress.rank}</b>` : '') +
+      ` · ${accountProgress.wins}/${accountProgress.games} ${L('Siege', 'wins')}</div>`;
+  }
+
+  // Same curve as game/Progression.js - kept tiny and duplicated on purpose:
+  // the client must be able to draw a level bar without a round trip.
+  function levelFromXpClient(totalXp) {
+    let xp = Math.max(0, Math.floor(Number(totalXp) || 0));
+    let level = 1;
+    const need = (l) => 100 + (l - 1) * 50;
+    while (level < 200 && xp >= need(level)) {
+      xp -= need(level);
+      level += 1;
+    }
+    return { level, into: xp, need: need(level) };
+  }
+
+  async function loadLadder() {
+    const box = el('ladderBox');
+    if (!box) return;
+    box.classList.remove('hidden');
+    box.innerHTML = `<h3>${L('Saison-Rangliste', 'Season ladder')}</h3><p class="lobby-hint">…</p>`;
+    const r = await accountApi('/api/ladder', { token: accountToken() || undefined });
+    if (!r || r.error || !Array.isArray(r.board)) {
+      box.innerHTML = `<h3>${L('Saison-Rangliste', 'Season ladder')}</h3>` +
+        `<p class="lobby-hint">${L('Rangliste gerade nicht erreichbar.', 'Ladder unavailable right now.')}</p>`;
+      return;
+    }
+    if (r.me) {
+      accountProgress = r.me;
+      renderAccountProgress();
+    }
+    const rows = r.board.length
+      ? r.board
+          .map((e, i) => {
+            const medal = ['🥇', '🥈', '🥉'][i] || `${i + 1}.`;
+            const mine = accountUsername && e.username.toLowerCase() === accountUsername.toLowerCase();
+            return `<div class="ladderRow${mine ? ' isMe' : ''}"><span>${medal} ${escapeHtml(e.username)}</span>` +
+              `<b>${e.seasonXp} ${L('EP', 'XP')}</b></div>`;
+          })
+          .join('')
+      : `<p class="lobby-hint">${L('Diese Saison hat noch niemand gepunktet - hol dir Platz 1!', 'Nobody has scored this season - claim first place!')}</p>`;
+    box.innerHTML = `<h3>${L('Saison-Rangliste', 'Season ladder')} <span class="achCount">${escapeHtml(r.season || '')}</span></h3>${rows}`;
+  }
+
   // --- Statistik ---------------------------------------------------------------
   el('statsBtn').addEventListener('click', () => {
     send({ type: 'listProfiles' }); // frische Daten anfordern
@@ -3934,6 +4259,7 @@
   });
 
   function renderStats() {
+    renderAchievements();
     const box = el('statsContent');
     // Globale, anonyme Server-Statistik (funktioniert auch im Public Mode)
     const gsBox = el('globalStatsBox');

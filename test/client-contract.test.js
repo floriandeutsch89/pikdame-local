@@ -17,6 +17,26 @@ test('Client-Vertrag: jede el(...)-ID existiert im HTML', () => {
   assert.deepEqual(missing, [], `el() auf fehlende IDs: ${missing.join(', ')}`);
 });
 
+test('Client-Vertrag: Rundenspruch-Liste ist zweisprachig und dublettenfrei', () => {
+  // The quotes are seeded from dealer+round so the whole table sees the
+  // same one - a duplicate would silently make one line twice as likely,
+  // and a one-language entry would show German text to English players.
+  const block = clientJs.match(/function roundQuote\([\s\S]*?const Q = \[([\s\S]*?)\n {4}\];/);
+  assert.ok(block, 'Spruchliste nicht gefunden');
+  const entries = block[1].split(/\r?\n/).map((l) => l.trim()).filter((l) => l.startsWith('['));
+  assert.ok(entries.length >= 50, `nur ${entries.length} Sprueche - Liste geschrumpft?`);
+  const german = [];
+  for (const line of entries) {
+    // ['de', 'en'],  /  ['de', "en"],
+    const pair = line.match(/^\[\s*(['"])((?:\.|(?!\1).)*)\1\s*,\s*(['"])((?:\.|(?!\3).)*)\3\s*\],?$/);
+    assert.ok(pair, `kein sauberes de/en-Paar: ${line.slice(0, 70)}`);
+    assert.ok(pair[2].length > 3 && pair[4].length > 3, `leerer Spruch: ${line.slice(0, 70)}`);
+    german.push(pair[2]);
+  }
+  const dupes = german.filter((v, i) => german.indexOf(v) !== i);
+  assert.deepEqual(dupes, [], `doppelte Sprueche: ${dupes.join(' | ')}`);
+});
+
 test('Client-Vertrag: keine ungeschuetzten localStorage-Zugriffe', () => {
   // Nur die drei storage*-Wrapper duerfen localStorage direkt anfassen
   // (Safari-Privatmodus/volles Quota werfen sonst beim App-Start).

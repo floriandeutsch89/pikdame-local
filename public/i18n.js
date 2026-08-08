@@ -48,6 +48,7 @@ window.I18N_STATIC = {
   'Spieleranzahl': 'Number of players',
   'Fehlende Plätze werden mit Bots aufgefüllt.': 'Empty seats are filled with bots.',
   'Hausregeln': 'House rules',
+  'Tagesaufgaben': 'Daily tasks',
   'Hand aus zählt doppelt': 'Going out in one turn counts double',
   'Anfänger': 'Beginner',
   'Fortgeschritten': 'Advanced',

@@ -3,6 +3,107 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.2.0] - 2026-08-08
+
+### Added
+- **Fortschritt über Partien hinweg** - drei Ebenen, alle optional:
+  - **Tagesaufgaben:** drei aus dem UTC-Datum geseedete Aufgaben, weltweit für
+    alle gleich (wie das Challenge-Deck). Stehen auf dem Startbildschirm mit
+    Fortschrittsbalken, werden nach jeder beendeten Partie ausgewertet und
+    melden sich bei Erfüllung. Zehn Aufgabentypen im Pool
+  - **Erfolge-Galerie:** Die 13 Abzeichen blitzten bisher einmal am Partieende
+    auf und waren danach unsichtbar. In der Statistik gibt es jetzt eine
+    Vitrine mit ALLEN Abzeichen - verdiente mit Datum, gesperrte mit
+    Fortschritt („Damenjägerin 4/10")
+  - **Stufe & Saison-Rangliste:** Erfahrung pro beendeter Partie, eine Stufe
+    und eine Monats-Rangliste. Hängt am KONTO (nicht am Gerät) und steht im
+    Konto-Fenster. Erfahrung gibt es fürs **Beenden**, nicht nur fürs Gewinnen;
+    ein negativer Endstand kostet nie Erfahrung
+  Die Auswertung ist eine reine Funktion über den fertigen Partie-Datensatz
+  (`game/Progression.js`) - die Engine bekommt keine Fortschritts-Haken in den
+  Spielablauf. Ohne Konto laufen Aufgaben und Vitrine trotzdem (namensbasiert
+  wie die übrige Statistik); im öffentlichen Modus bleibt beides aus
+- **Favicon.** Jeder Seitenaufruf endete mit einem 404 auf `/favicon.ico`, weil
+  kein Icon deklariert war. Jetzt ein lokales SVG (plus PNG-Rückfall) - kein
+  Download, Hotspot-Betrieb unberührt
+- **Warnung bei halber SMTP-Konfiguration.** Fehlt `PIKDAME_SMTP_USER`/`PASS`
+  oder `PIKDAME_MAIL_FROM`, wird ohne AUTH bzw. als `noreply@localhost`
+  gesendet - beides lehnen praktisch alle Anbieter ab. Der Server sagt das
+  jetzt beim Start (`[mail] WARNUNG: …`) statt Stunden später über eine
+  Provider-Fehlermeldung
+
+### Changed
+- **Tages-Challenge läuft gegen MITTLERE Bots statt gegen Zen.** Das
+  Erklär-Fenster versprach seit jeher „drei mittlere Bots", der Server setzte
+  aber `zen` - mit den trainierten ONNX-Modellen ist mittel als Tagesaufgabe
+  fordernd genug
+- **Produktions-Stack: der Mailserver steht nur noch an EINER Stelle.**
+  `PIKDAME_SMTP_RELAY_HOST` speist jetzt sowohl das socat-Ziel des
+  Egress-Proxys als auch den Zertifikatsnamen, gegen den der App-Container
+  prüft. Vorher waren das zwei fest verdrahtete Kopien derselben Tatsache:
+  Anbieter wechseln und die TLS-Prüfung lief still gegen den alten Namen.
+  Alle SMTP-Werte sind zusätzlich aus der `.env` überschreibbar, und der
+  direkte Weg ohne Proxy ist dokumentiert (eine Zeile `.env` + eine Zeile
+  `networks:`)
+
+### Fixed
+- **„Weiter" / „Neue Partie" steht wieder im Bild.** Seit der Zeitleiste mit
+  den Schlüsselmomenten war die Ergebniskarte höher als der Bildschirm - der
+  eine Knopf, den jeder Spieler braucht, war der einzige, für den man scrollen
+  musste (auf dem iPhone UND auf 1440×900). Die Karte scrollt jetzt nur noch
+  im Inhaltsbereich, die Aktionsleiste ist fest angeheftet; eine Verlaufskante
+  zeigt an, dass oben noch mehr steht
+- **„Spiel starten" ist in der Lobby ohne Scrollen erreichbar.** Auf dem
+  Telefon lag die Hauptaktion unter Code-Banner, Spieleranzahl, Sitzordnung
+  und Hausregeln - vier Abschnitte zwischen Ankommen und Starten. Die
+  Hauptaktionen sitzen jetzt in einer angehefteten Leiste am unteren Rand,
+  die Abschnitte behalten ihre Lesereihenfolge
+
+## [2.1.0] - 2026-08-08
+
+### Added
+- **35 neue Sprüche zum Rundenstart** (jetzt 87 statt 52) - weiterhin aus Geber
+  und Rundennummer geseedet, damit alle am Tisch denselben Spruch lesen. Ein
+  Vertragstest prüft ab sofort, dass jeder Eintrag ein sauberes Deutsch/Englisch-
+  Paar ist und kein Spruch doppelt vorkommt
+- **`/statusz` nennt den Mail-Treiber** (`"mailDriver": "smtp"` oder `"log"`).
+  Damit lässt sich ohne Shell auf dem Server beantworten, ob der Container die
+  `PIKDAME_SMTP_*`-Variablen überhaupt gesehen hat
+- Neue Tests: Fehlversand-Fallback des Mailers, Durchreichung der Mail-
+  Konfiguration in den Compose-Dateien und ein Browser-naher Test (jsdom) für
+  das Scroll-Verhalten des Kartenfächers
+- **Mail-Doku berichtigt** (`docs/admin/mail.md`): Die dort abgedruckten
+  Log-Zeilen gab es so nie im Code - beim Suchen nach `--- MAIL (Log-Fallback`
+  oder `Mail verschickt an …` findet man nichts. Jetzt stehen die echten
+  `[mail]`-Zeilen drin, dazu ein Abschnitt über das Durchreichen der Variablen
+  in den Container und die `mailDriver`-Abfrage über `/statusz`
+
+### Changed
+- **Die einfachen Compose-Stacks reichen die Mail-Konfiguration aus der `.env`
+  durch** (`PIKDAME_BASE_URL`, `PIKDAME_SMTP_*`, `PIKDAME_MAIL_FROM`). Bisher
+  standen diese Zeilen nur als Kommentar in `docker-compose.yml` und
+  `docker-compose.ghcr.yml` - wer sie in die `.env` schrieb, bekam sie nie in
+  den Container, und die Registrierung meldete weiter „kein Mailserver".
+  Nicht gesetzte Variablen bleiben leer, der Log-Fallback ändert sich nicht.
+  Der Produktions-Stack bleibt unverändert am Egress-Proxy
+
+### Fixed
+- **Registrierung meldet nicht mehr „noch kein Mailserver eingetragen", wenn
+  einer eingetragen ist.** Jede nicht zugestellte Mail wurde als „nicht
+  konfiguriert" gemeldet - auch die, bei der der SMTP-Server erreichbar war und
+  den Versand abgelehnt hat. Es gibt jetzt drei Meldungen: zugestellt, Versand
+  fehlgeschlagen (mit Hinweis auf das Server-Log) und kein Mailserver
+- **Ein fehlgeschlagener Versand verschluckt den Bestätigungslink nicht mehr.**
+  Bei konfiguriertem, aber fehlerhaftem Mailserver stand nur die Fehlermeldung
+  im Log - das Konto existierte und konnte nie bestätigt werden. Der Mailtext
+  landet jetzt wie im Log-Fallback im Server-Log
+- **Der Kartenfächer springt nicht mehr zur frisch gezogenen Karte zurück.**
+  Bei einer scrollbaren Hand (ab 16 Karten) zog jeder Neuaufbau der Anzeige die
+  gezogene Karte wieder in die Mitte - Scrollen nach links oder rechts war
+  praktisch unmöglich. Der Sprung passiert jetzt nur noch nach dem **Aufnehmen
+  des Ablagestapels** (wo viele Karten auf einmal dazukommen) und dort genau
+  einmal. Der Glow der gezogenen Karte bleibt unverändert
+
 ## [2.0.0] - 2026-08-08
 
 Oberflächen-Überarbeitung. Die Spielregeln, das Protokoll und die Sitzungs-

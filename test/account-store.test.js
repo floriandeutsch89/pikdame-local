@@ -108,6 +108,73 @@ test('PgAccountStore: full flow (register -> verify -> login -> me -> logout)', 
   await store.close();
 });
 
+test('AccountStore: season ladder books XP, ranks players and resets per season', { skip: !HAS_SQLITE }, async () => {
+  const store = freshStore();
+  const signUp = async (name) => {
+    const r = await store.register(name, `${name.toLowerCase()}@example.com`, 'geheim123');
+    await store.verifyEmail(r.verifyToken);
+  };
+  await signUp('Flo');
+  await signUp('Erika');
+
+  assert.equal(store.progressFor('Flo').xp, 0, 'a fresh account starts at zero');
+  assert.deepEqual(store.ladder('2026-08'), [], 'nobody has played yet');
+
+  store.addGameResult('Flo', { xp: 160, won: true, season: '2026-08' });
+  store.addGameResult('Flo', { xp: 50, won: false, season: '2026-08' });
+  store.addGameResult('Erika', { xp: 300, won: true, season: '2026-08' });
+
+  const flo = store.progressFor('Flo');
+  assert.equal(flo.xp, 210);
+  assert.equal(flo.seasonXp, 210);
+  assert.equal(flo.games, 2);
+  assert.equal(flo.wins, 1);
+  assert.equal(flo.rank, 2, 'Erika has more seasonal XP');
+  assert.equal(store.progressFor('Erika').rank, 1);
+
+  const board = store.ladder('2026-08');
+  assert.deepEqual(board.map((e) => e.username), ['Erika', 'Flo'], 'highest seasonal XP first');
+
+  // New season: the seasonal counter restarts, the lifetime total does not.
+  store.addGameResult('Flo', { xp: 40, won: false, season: '2026-09' });
+  const next = store.progressFor('Flo');
+  assert.equal(next.seasonXp, 40, 'season reset');
+  assert.equal(next.xp, 250, 'lifetime XP keeps accumulating');
+  assert.deepEqual(store.ladder('2026-08').map((e) => e.username), ['Erika'], 'old season keeps its own board');
+
+  // Unknown and unverified accounts are never booked.
+  assert.equal(store.addGameResult('Niemand', { xp: 100, season: '2026-09' }), null);
+  const unverified = await store.register('Gast', 'gast@example.com', 'geheim123');
+  assert.ok(unverified.ok);
+  assert.equal(store.addGameResult('Gast', { xp: 100, season: '2026-09' }), null, 'unverified accounts stay out of the ladder');
+  await store.close();
+});
+
+test('AccountStore: an existing database without the progression columns migrates', { skip: !HAS_SQLITE }, async () => {
+  // The data volume survives updates, so users.db from an older version must
+  // gain the new columns instead of throwing "no such column" forever.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikacc-'));
+  const dbFile = path.join(dir, 'users.db');
+  const { DatabaseSync } = require('node:sqlite');
+  const old = new DatabaseSync(dbFile);
+  old.exec(`CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    password_hash BLOB NOT NULL, salt TEXT NOT NULL,
+    verified INTEGER NOT NULL DEFAULT 0, verify_token TEXT,
+    verify_expires INTEGER, created_at INTEGER NOT NULL);`);
+  old.close();
+
+  const store = createAccountStore(dbFile);
+  const r = await store.register('Alt', 'alt@example.com', 'geheim123');
+  await store.verifyEmail(r.verifyToken);
+  assert.equal(store.progressFor('Alt').xp, 0, 'migrated column readable');
+  store.addGameResult('Alt', { xp: 70, won: true, season: '2026-08' });
+  assert.equal(store.progressFor('Alt').seasonXp, 70);
+  await store.close();
+});
+
 test('PgAccountStore: unreachable database degrades gracefully (no throw, fails closed)', async () => {
   const store = createPgAccountStore('postgres://nouser:nopass@127.0.0.1:59999/nodb');
   assert.ok(store);

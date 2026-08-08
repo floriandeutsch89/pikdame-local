@@ -59,3 +59,61 @@ test('Mailer: kompletter SMTP-Dialog gegen einen Fake-Server (AUTH LOGIN, DATA)'
   assert.ok(all.includes('Subject: Bestätigung'));
   assert.ok(all.includes('\r\n..punkt-zeile'), 'Punkt-Stuffing nach RFC 5321');
 });
+
+test('Mailer: unvollständige SMTP-Konfiguration warnt beim Start', () => {
+  // Both of these are accepted silently by the config and then rejected by
+  // every hosted provider at the first real mail - hours later, with an
+  // error nobody traces back to a compose file.
+  const logs = [];
+  createMailer({ PIKDAME_SMTP_HOST: 'smtp.example.com' }, (l) => logs.push(l));
+  assert.ok(logs.some((l) => /USER\/PASS fehlt/.test(l)), 'fehlendes AUTH muss warnen');
+  assert.ok(logs.some((l) => /PIKDAME_MAIL_FROM/.test(l)), 'fehlender Absender muss warnen');
+
+  // Fully configured = no warnings at all.
+  const quiet = [];
+  createMailer(
+    {
+      PIKDAME_SMTP_HOST: 'smtp.example.com',
+      PIKDAME_SMTP_USER: 'u',
+      PIKDAME_SMTP_PASS: 'p',
+      PIKDAME_MAIL_FROM: 'Pik Dame <noreply@pikdame.online>',
+    },
+    (l) => quiet.push(l)
+  );
+  assert.deepEqual(quiet, [], `vollständige Konfiguration darf nicht warnen: ${quiet.join(' | ')}`);
+
+  // No SMTP at all is the documented log fallback, not a misconfiguration.
+  const off = [];
+  createMailer({}, (l) => off.push(l));
+  assert.deepEqual(off, [], 'ohne SMTP-Host gibt es keine Warnung');
+});
+
+test('Mailer: konfigurierter, aber fehlschlagender Server loggt den Link trotzdem', async () => {
+  // Regression: a configured relay that rejects the mail used to swallow the
+  // confirmation link - the account existed and could never be verified.
+  const logs = [];
+  const server = net.createServer((sock) => {
+    sock.write('220 fake ESMTP\r\n');
+    sock.on('data', (chunk) => {
+      if (chunk.toString('utf8').startsWith('EHLO')) sock.write('550 go away\r\n');
+    });
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const port = server.address().port;
+
+  const mailer = createMailer(
+    {
+      PIKDAME_SMTP_HOST: '127.0.0.1',
+      PIKDAME_SMTP_PORT: String(port),
+      PIKDAME_SMTP_SECURE: 'none',
+    },
+    (l) => logs.push(l)
+  );
+  assert.equal(mailer.configured, true, 'gesetzter Host = konfiguriert');
+  const r = await mailer.send({ to: 'x@example.com', subject: 'Test', text: 'Link: http://x/verify?token=abc' });
+  server.close();
+  assert.equal(r.delivered, false);
+  assert.notEqual(r.reason, 'smtp_not_configured', 'Grund muss den echten Fehler nennen');
+  assert.ok(logs.some((l) => l.includes('fehlgeschlagen')), 'Fehler muss im Log stehen');
+  assert.ok(logs.some((l) => l.includes('token=abc')), 'Bestätigungslink muss auch bei Fehlversand im Log stehen');
+});

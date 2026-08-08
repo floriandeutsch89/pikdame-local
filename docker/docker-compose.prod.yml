@@ -94,15 +94,26 @@ services:
       - PIKDAME_DATABASE_URL=postgres://pikdame@postgres:5432/pikdame
       - PIKDAME_DATABASE_PASSWORD_FILE=/run/secrets/db_password
       # SMTP through the egress proxy (the app has no internet route; the
-      # proxy can only reach Mailgun EU:587). TLS is verified against the
-      # real mail server name, not the proxy hostname.
-      - PIKDAME_SMTP_HOST=smtp-egress
-      - PIKDAME_SMTP_PORT=587
-      - PIKDAME_SMTP_SECURE=starttls
-      - PIKDAME_SMTP_TLS_SERVERNAME=smtp.eu.mailgun.org
+      # proxy can only reach ONE destination). TLS is verified against the
+      # REAL mail server name, not the proxy hostname - which is why the
+      # relay host below feeds BOTH the socat target and this servername.
+      # Setting it in only one of the two places used to silently break the
+      # certificate check.
+      - PIKDAME_SMTP_HOST=${PIKDAME_SMTP_HOST:-smtp-egress}
+      - PIKDAME_SMTP_PORT=${PIKDAME_SMTP_PORT:-587}
+      - PIKDAME_SMTP_SECURE=${PIKDAME_SMTP_SECURE:-starttls}
+      - PIKDAME_SMTP_TLS_SERVERNAME=${PIKDAME_SMTP_RELAY_HOST:-smtp.eu.mailgun.org}
       - PIKDAME_SMTP_USER=${PIKDAME_SMTP_USER:-}
       - PIKDAME_SMTP_PASS_FILE=/run/secrets/smtp_password
       - PIKDAME_MAIL_FROM=${PIKDAME_MAIL_FROM:-}
+      #
+      # DIRECT SMTP instead of the proxy: set in .env
+      #     PIKDAME_SMTP_HOST=smtp.eu.mailgun.org
+      # and give this service an internet route by adding "- caddy_egress"
+      # to its networks: block below. That drops the app's "no outbound
+      # route" property - a deliberate trade, not an accident: outbound 587
+      # to one relay is a small surface, and it removes the proxy as a
+      # failure source. The socat service can then be deleted.
     secrets:
       - db_password
       - smtp_password
@@ -173,13 +184,17 @@ services:
       - no-new-privileges:true
 
   # SMTP egress proxy: the ONLY path from the app towards the internet, and
-  # it can only reach ONE destination (Mailgun EU, port 587). The app itself
-  # stays on internal networks without any route to the outside.
+  # it can only reach ONE destination. The app itself stays on internal
+  # networks without any route to the outside.
+  # The destination comes from the SAME variable the app verifies its TLS
+  # certificate against (PIKDAME_SMTP_RELAY_HOST) - two hardcoded copies of
+  # one fact are a trap: change the provider here and the certificate check
+  # keeps validating against the old name.
   smtp-egress:
     image: alpine/socat:latest
     container_name: pikdame-smtp-egress
     restart: unless-stopped
-    command: tcp-listen:587,fork,reuseaddr tcp-connect:smtp.eu.mailgun.org:587
+    command: tcp-listen:587,fork,reuseaddr tcp-connect:${PIKDAME_SMTP_RELAY_HOST:-smtp.eu.mailgun.org}:${PIKDAME_SMTP_RELAY_PORT:-587}
     networks:
       - pikdame_smtp
       - caddy_egress
