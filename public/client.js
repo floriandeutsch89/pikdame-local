@@ -266,6 +266,13 @@
     updateResumeBtn();    // "Weiterspielen (CODE)" - enthaelt einen Wert
     try { updateStudioLogoBtn(); } catch (e) { /* erst spaeter definiert */ }
     try { applyCardback(); } catch (e) { /* erst spaeter definiert */ }
+    // Aus dem Code erzeugte Listen: Ihre Texte kommen aus L(), werden aber nur
+    // beim Rendern gesetzt - ohne erneuten Aufruf bleiben sie in der alten
+    // Sprache stehen (Nutzer-Report zu den Tagesaufgaben). Betrifft alle drei
+    // Bloecke des Fortschrittsbereichs, nicht nur die Aufgaben.
+    try { renderQuests(); } catch (e) { /* Fortschritt ist nie kritisch */ }
+    try { renderAchievements(); } catch (e) { /* dito */ }
+    try { renderAccountProgress(); } catch (e) { /* dito */ }
     if (lastState) render();
   }
 

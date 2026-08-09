@@ -3,6 +3,13 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.12.1] - 2026-08-09
+
+### Fixed
+- **Sprachwechsel griff nicht bei den Tagesaufgaben** (Nutzer-Report): Die Aufgabentexte werden im Code erzeugt und nicht aus dem HTML übersetzt - beim Umschalten wurde die Liste aber nicht neu gezeichnet und blieb in der alten Sprache stehen. Dieselbe Fehlerklasse wie beim „Weiterspielen"-Knopf in 1.88.1
+- Bei der Gelegenheit **zwei weitere Anzeigen desselben Bereichs** mitgeprüft und behoben: die Erfolge-Galerie und die Fortschrittsanzeige des Kontos hätten aus demselben Grund hängenbleiben können
+- Der Rauchtest schaltet jetzt mit echten Aufgabendaten zwischen Deutsch und Englisch hin und zurück und prüft die Liste im DOM - gegengeprüft: Ohne die Auffrischung schlägt er an
+
 ## [2.12.0] - 2026-08-09
 
 ### Added
