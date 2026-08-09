@@ -4,7 +4,7 @@
 # /app/data and should be mounted as a volume (see docker-compose.yml).
 
 # --- Stage 1: install production dependencies ------------------------------
-FROM node:24-alpine AS deps
+FROM node:26-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
@@ -18,7 +18,7 @@ RUN npm ci --omit=dev
 # text and byte-identical for every target architecture, so running it under
 # QEMU for the arm64 image would only cost minutes.
 # hadolint ignore=DL3029
-FROM --platform=$BUILDPLATFORM node:24-alpine AS assets
+FROM --platform=$BUILDPLATFORM node:26-alpine AS assets
 WORKDIR /app
 # Full install (esbuild is a devDependency); nothing from here reaches the
 # runtime image - only the minified files under public/ do.
@@ -29,7 +29,7 @@ COPY public ./public
 RUN node scripts/minify-assets.js
 
 # --- Stage 3: minimal runtime image -----------------------------------------
-FROM node:24-alpine
+FROM node:26-alpine
 
 # OCI labels: link the GHCR package to the repository and document the image
 LABEL org.opencontainers.image.source="https://github.com/floriandeutsch89/pikdame-local" \
