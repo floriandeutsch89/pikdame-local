@@ -20,7 +20,27 @@
 #   volumes: ['./caddy/Caddyfile:/etc/caddy/Caddyfile:ro']
 # then: docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
 FROM caddy:2-builder-alpine AS builder
-RUN xcaddy build \
+# Go build cache + module cache as BuildKit cache mounts. These are exactly the
+# paths the builder image uses (verified: go env GOCACHE -> /root/.cache/go-build,
+# GOMODCACHE -> /go/pkg/mod). Measured on this recipe, amd64, layer invalidated
+# but builder cache kept: 33s cold -> 3s warm.
+#
+# Where it does and does not pay off:
+#   * Local and self-hosted builds: every rebuild after the first is ~10x
+#     faster, because the compiled std lib and the modules are still there.
+#   * GitHub-hosted CI: nothing. Cache mounts live on the BUILDER, and
+#     `cache-to: type=gha` exports LAYERS, not mounts - each run starts with an
+#     empty mount. CI stays fast for the common case anyway: a Caddyfile-only
+#     change (a new CSP hash) does not touch this stage, so the GHA layer cache
+#     serves it and xcaddy never runs.
+#   * Making CI benefit too would need a save/restore action for the mounts
+#     (buildkit-cache-dance or similar) - deliberately not added.
+#
+# Careful when benchmarking: `docker build --no-cache` also WIPES cache mounts,
+# so it will show no gain at all. Bust the layer with a build arg instead.
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    xcaddy build \
     --with github.com/hslatman/caddy-crowdsec-bouncer/http
 
 FROM caddy:2-alpine

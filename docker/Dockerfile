@@ -7,7 +7,11 @@
 FROM node:26-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+# npm cache as a BuildKit cache mount (/root/.npm is npm's cache dir in this
+# image). Keeps the download out of the layer and out of the network on every
+# rebuild. Same caveat as the Caddy image: mounts live on the BUILDER, so a
+# GitHub-hosted runner starts empty and only local/self-hosted builds gain.
+RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev
 
 
 # --- Stage 2: minify the browser assets ------------------------------------
@@ -23,7 +27,7 @@ WORKDIR /app
 # Full install (esbuild is a devDependency); nothing from here reaches the
 # runtime image - only the minified files under public/ do.
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm npm ci
 COPY scripts/minify-assets.js ./scripts/
 COPY public ./public
 RUN node scripts/minify-assets.js
