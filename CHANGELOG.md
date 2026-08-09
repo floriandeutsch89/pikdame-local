@@ -3,6 +3,17 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.12.0] - 2026-08-09
+
+### Added
+- **Drei eigenständige Themenseiten** unter sprechenden Adressen: **/romme-regeln** (kompletter Spielablauf: Sätze, Folgen, Joker, Zug, Punkte, Ausmachen), **/pik-dame-regeln** (die 100-Punkte-Sonderregel, wie man die Karte loswird, Schreibweisen, Abgrenzung zum gleichnamigen Hearts-Spiel) und **/kartenspiele-zu-zweit** (was sich zu zweit ändert, Bots, Challenge)
+- Hintergrund: Eine einzelne Seite kann nur für **ein** Hauptthema ranken. Der Regeltext steckte bisher in einem aufklappbaren Block der Spielseite und konkurrierte dort mit dem Spiel selbst - als eigene Seiten können sie für ihre jeweiligen Suchanfragen gefunden werden
+- Jede Seite trägt eigene strukturierte Daten (Artikel, FAQ, Brotkrumen-Pfad), einen Selbstverweis auf ihre saubere Adresse und Verweise auf die jeweils anderen Seiten. Die Spielseite verlinkt sie in der Fußzeile **und** im Fließtext - ohne interne Verweise wird eine Seite kaum gefunden
+- Alle drei stehen in der Sitemap; der Server liefert sie ohne `.html`-Endung aus (nur die saubere Form ist kanonisch, sonst wäre es doppelter Inhalt)
+
+### Added (Tests)
+- Der SEO-Vertragstest deckt die neuen Seiten ab: vorhanden, indexierbar, selbst-kanonisch auf die saubere Adresse, echter Titel, aussagekräftige Beschreibung, `h1`, **vom Server geroutet** und **von der Spielseite verlinkt**; dazu gültige, seitenspezifische strukturierte Daten. Gegengeprüft: Fehlt die Route oder der interne Verweis, schlägt der Test an. Zusätzlich am laufenden Server geprüft, dass alle drei Adressen wirklich 200 liefern
+
 ## [2.11.0] - 2026-08-09
 
 ### Changed
