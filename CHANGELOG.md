@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.5.1] - 2026-08-09
+
+Nachtrag zu 2.5.0: Der Vorspann verdeckte die Seite immer noch - ausgerechnet
+für das Werkzeug, mit dem man die Behebung prüft.
+
+### Fixed
+- **Der Live-Test der Search Console sah weiterhin nur das Logo**: Die Crawler-Erkennung suchte im Wesentlichen nach „bot" im Namen - Googlebot und Bingbot wurden erkannt, aber Google ruft die Seite unter mehreren Namen ab, und der URL-Prüfer der Search Console sowie der Test für Rich-Suchergebnisse melden sich als `Google-InspectionTool`, weitere Abrufe als `GoogleOther`/`Google-Extended`. Ohne „bot" im Namen fielen sie durch das Raster und bekamen den vollen Vorspann. Die Erkennung deckt diese Namen jetzt ab, ebenso die Link-Vorschauen von Facebook und WhatsApp (auch dort erschien bisher nur das Logo statt der Startseite). Am echten Server nachgewiesen: mit `Google-InspectionTool` zeigte https://play.pikdame.online das Logo, mit `Googlebot` die Lobby
+- `test/splash-crawler.test.js` prüft die betroffenen Namen jetzt einzeln, und der Durchlauf mit dem echten Client läuft unter `Google-InspectionTool` statt unter `Googlebot` - genau der Fall, den 2.5.0 übersehen hat. Gegenprobe mit iPhone-Safari und Android-Chrome bleibt: normale Besucher sehen den Vorspann weiter
+
 ## [2.5.0] - 2026-08-09
 
 Auswertung eines PageSpeed-Insights-Berichts plus der Meldung, dass die Google
