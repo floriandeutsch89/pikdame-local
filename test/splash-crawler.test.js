@@ -82,8 +82,9 @@ function boot({ userAgent, reduceMotion = false, storage = {}, session = {}, wit
       };
     };
     window.webkitAudioContext = window.AudioContext;
+    window.__socketsOpened = 0;
     window.WebSocket = class {
-      constructor() { this.readyState = 1; }
+      constructor() { this.readyState = 1; window.__socketsOpened += 1; }
       addEventListener() {} removeEventListener() {} send() {} close() {}
     };
     for (const src of ['i18n.js', 'client.js']) {
@@ -153,6 +154,28 @@ test('a crawler boot leaves NO intro in the document and marks nothing as seen',
   assert.ok(w.document.querySelector('#lobby h1'), 'lobby heading missing');
   assert.ok(w.document.querySelector('.seoIntro'), 'SEO section missing');
   assert.match(w.document.querySelector('#lobby').textContent, /Pik Dame/);
+});
+
+/** The connection status must not turn into indexed text. Google's renderer
+ *  never opens a WebSocket, so every attempt fails - the old code wrote
+ *  "Verbindungsfehler." into the DOM and then retried every 2 s forever. */
+test('a crawler gets html.isCrawler, opens no WebSocket and shows no error', () => {
+  const w = boot({ userAgent: NON_BOT_AGENTS['Google-InspectionTool'], withClient: true });
+  assert.ok(w.document.documentElement.classList.contains('isCrawler'), 'isCrawler not set');
+  assert.strictEqual(w.__socketsOpened, 0, 'a crawler must not open a WebSocket');
+  assert.strictEqual(
+    w.document.getElementById('connStatus').textContent, '',
+    'the status line must be empty for crawlers - it ends up in the indexed text'
+  );
+});
+
+test('the isCrawler flag is NOT set for people, and they do connect', () => {
+  // A returning visitor carries noSplash too - that must not be mistaken for
+  // a crawler, or the whole game would stop connecting for them.
+  const w = boot({ userAgent: IPHONE, session: { pikdame_splash_seen: '1' }, withClient: true });
+  assert.ok(w.document.documentElement.classList.contains('noSplash'), 'precondition: noSplash');
+  assert.ok(!w.document.documentElement.classList.contains('isCrawler'), 'isCrawler wrongly set');
+  assert.strictEqual(w.__socketsOpened, 1, 'a returning visitor must still connect');
 });
 
 test('a normal visitor still gets the intro, and it is marked as seen', () => {

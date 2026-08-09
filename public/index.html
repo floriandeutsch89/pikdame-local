@@ -46,12 +46,12 @@
     "@context": "https://schema.org",
     "@type": "VideoGame",
     "name": "Pik Dame",
-    "alternateName": ["Pik Dame Rommé", "Familien-Rommé", "Rommé Kartenspiel"],
+    "alternateName": ["Pikdame", "Pik-Dame", "Pique Dame", "Pik Dame Kartenspiel", "Pik Dame Rommé", "Familien-Rommé", "Rommé Kartenspiel"],
     "url": "https://play.pikdame.online/",
     "description": "Pik Dame ist ein kostenloses Online-Kartenspiel: das beliebte Familien-Rommé mit der Pik-Dame-Sonderregel (100 Punkte). Im Browser spielbar – mit Freunden per Link oder gegen Bots, ohne Anmeldung und ohne Download.",
     "inLanguage": ["de", "en"],
     "genre": ["Kartenspiel", "Rommé", "Brettspiel", "Familienspiel"],
-    "keywords": "Pik Dame spielen, Pik Dame, Rommé, Romme, Kartenspiel Rommé, Rommé online spielen, Kartenspiel online, Familien-Rommé",
+    "keywords": "Pik Dame spielen, Pik Dame, Pik Dame Kartenspiel, Pikdame, Pikdame spielen, Pik-Dame, Pique Dame, Rommé, Romme, Kartenspiel Rommé, Rommé online spielen, Kartenspiel online, Familien-Rommé",
     "playMode": ["MultiPlayer", "SinglePlayer"],
     "numberOfPlayers": { "@type": "QuantitativeValue", "minValue": 2, "maxValue": 4 },
     "applicationCategory": "GameApplication",
@@ -80,6 +80,11 @@
         "@type": "Question",
         "name": "Wie spielt man Rommé mit Freunden online?",
         "acceptedAnswer": { "@type": "Answer", "text": "Ein Spiel erstellen, den Einladungslink oder den Spiel-Code teilen und losspielen – zu zweit bis zu viert. Freie Plätze übernehmen Bots in drei Schwierigkeitsstufen." }
+      },
+      {
+        "@type": "Question",
+        "name": "Heißt es Pik Dame, Pikdame oder Pique Dame?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Alle drei meinen dieselbe Karte. „Pik Dame“ (getrennt), „Pikdame“ (zusammen) und „Pik-Dame“ (mit Bindestrich) sind gebräuchliche deutsche Schreibweisen; „Pique Dame“ ist die französische Form, im Englischen heißt sie „Queen of Spades“. In diesem Spiel gilt für alle dieselbe Sonderregel: 100 Punkte." }
       },
       {
         "@type": "Question",
@@ -125,6 +130,13 @@
            Einstellung ausdruecklich auf 'full' gestellt hat, bekommt ihn. */
         var reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) && mode !== 'full';
         if (seen || mode === 'off' || bot || reduce) document.documentElement.classList.add('noSplash');
+        /* Eigene Klasse, NICHT noSplash wiederverwenden: die traegt auch ein
+           wiederkehrender Besucher und eine reduzierte Bewegung. Nur diese
+           hier heisst wirklich 'kein Mensch' - client.js baut dann gar keine
+           WebSocket-Verbindung auf (Googles Renderer kann keine), statt in
+           einer 2-Sekunden-Schleife ewig neu zu versuchen und
+           'Verbindungsfehler' in den gerenderten Text zu schreiben. */
+        if (bot) document.documentElement.classList.add('isCrawler');
       } catch (e) { /* ohne Speicher einfach zeigen */ }
     })();
   </script>
@@ -349,7 +361,8 @@
           <div class="seoIntroBody">
             <p>
               <strong>Pik Dame</strong> ist die beliebte <strong>Romm&eacute;</strong>-Variante, die viele als
-              <em>Familien-Romm&eacute;</em> kennen. Hier kannst du das <strong>Kartenspiel Romm&eacute; kostenlos online spielen</strong> &ndash;
+              <em>Familien-Romm&eacute;</em> kennen. Hier kannst du das <strong>Pik Dame Kartenspiel</strong>
+              und damit <strong>Romm&eacute; kostenlos online spielen</strong> &ndash;
               direkt im Browser, <strong>ohne Anmeldung und ohne Download</strong>, auf Handy, Tablet oder PC.
               Spiele <strong>Romm&eacute; mit Freunden</strong> per Einladungslink oder gegen Bots in drei Schwierigkeitsstufen.
             </p>
@@ -368,6 +381,14 @@
               <li>Zehn, Bube, Dame, K&ouml;nig: je 10 Punkte</li>
               <li>Zahlen 2 bis 9: je 5 Punkte</li>
             </ul>
+            <h3>Schreibweisen: Pik Dame, Pikdame, Pique Dame</h3>
+            <p>
+              Der Name der Karte wird unterschiedlich geschrieben. <strong>Pik Dame</strong> (getrennt),
+              <strong>Pikdame</strong> (zusammen) und <strong>Pik-Dame</strong> (mit Bindestrich) sind im
+              Deutschen alle gebr&auml;uchlich; auf Franz&ouml;sisch hei&szlig;t sie <strong>Pique Dame</strong>,
+              auf Englisch <em>Queen of Spades</em>. Gemeint ist immer dieselbe Karte &ndash; und in diesem
+              Spiel immer dieselbe Sonderregel: 100 Punkte.
+            </p>
             <h3>Romm&eacute; online mit Freunden spielen</h3>
             <p>
               Spiel erstellen, den Link oder Spiel-Code teilen, fertig &ndash; zu zweit bis zu viert. Freie Pl&auml;tze
