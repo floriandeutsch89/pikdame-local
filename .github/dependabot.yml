@@ -1,0 +1,81 @@
+# Dependabot replaces the former deps-update.yml (npm-only, home-grown).
+#
+# Division of labour:
+#   - Dependabot raises the PRs (npm, Docker base images, compose images,
+#     GitHub Actions).
+#   - .github/workflows/dependabot-auto.yml adds the SemVer bump + the German
+#     CHANGELOG line the release workflow needs, and enables auto-merge for
+#     minor/patch updates. MAJOR updates (e.g. a new Node base image) never
+#     auto-merge: they get a reviewer and wait for a human.
+#
+# npm is GROUPED on purpose: the CI job `dependency-check` runs `npm outdated`
+# and fails while ANY package is behind. One PR per package would therefore
+# leave every PR red until the last one landed - a group updates them all at
+# once, so the job can go green.
+version: 2
+updates:
+  # --- Application dependencies (ws, pg, esbuild, jsdom) ------------------
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '03:00'
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: 'chore(deps)'
+      prefix-development: 'chore(deps-dev)'
+    labels: ['dependencies']
+    groups:
+      npm-minor-patch:
+        patterns: ['*']
+        update-types: ['minor', 'patch']
+    # Majors stay ungrouped -> single PR, no auto-merge, human decides.
+
+  # --- Docker base images (node:24-alpine, node:24-slim, caddy) ----------
+  # A Node MAJOR bump additionally trips the CI check
+  # "Node version Dockerfile == CI" (grep FROM node:24) - intended:
+  # such a PR must be looked at, and ci.yml/release.yml adjusted with it.
+  - package-ecosystem: docker
+    directories:
+      - /docker
+      - /docker/caddy
+    schedule:
+      interval: weekly
+      day: monday
+      time: '03:00'
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: 'chore(docker)'
+    labels: ['dependencies', 'docker']
+
+  # --- Images referenced from the compose files (postgres, crowdsec, ...) -
+  # Only pinned tags can be updated; the `:latest` services (watchtower,
+  # socket-proxy) are invisible to Dependabot by design.
+  - package-ecosystem: docker-compose
+    directory: /docker
+    schedule:
+      interval: weekly
+      day: monday
+      time: '03:00'
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: 'chore(docker)'
+    labels: ['dependencies', 'docker']
+
+  # --- GitHub Actions used by ci.yml / release.yml -----------------------
+  # No version bump for these: they change nothing about the shipped image.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '03:00'
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: 'chore(ci)'
+    labels: ['dependencies', 'github-actions']
