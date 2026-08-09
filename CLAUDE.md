@@ -38,7 +38,7 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
    (aktuell: `ws` + `pg` — pg ist pure JS, wird LAZY geladen und nur mit
    gesetzter `PIKDAME_DATABASE_URL` benutzt), keine nativen Module, kein
    Build-Schritt. Features, die mehr brauchen
-   (z. B. Konten via `node:sqlite`, Node ≥ 22; Docker/CI laufen auf Node 24), müssen sich auf älteren
+   (z. B. Konten via `node:sqlite`, Node ≥ 22; Docker/CI laufen auf Node 26), müssen sich auf älteren
    Node-Versionen **selbst deaktivieren** (Factory liefert `null`, Client
    blendet UI aus) — der Hotspot-Betrieb bleibt unberührt.
 2. **Frontend ohne CDN:** Alles wird lokal ausgeliefert (Hotspot hat kein

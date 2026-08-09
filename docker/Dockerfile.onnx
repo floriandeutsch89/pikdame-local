@@ -20,7 +20,7 @@
 #   docker logs <container> | grep -i "ONNX-Modell geladen"
 
 # --- Stage 1: production dependencies + the ONNX runtime --------------------
-FROM node:24-slim AS deps
+FROM node:26-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 # onnxruntime-node is PINNED on purpose (hadolint DL3016): a native runtime is
@@ -30,7 +30,7 @@ RUN npm ci --omit=dev \
   && npm install --omit=dev --no-save onnxruntime-node@1.27.0
 
 # --- Stage 2: runtime -------------------------------------------------------
-FROM node:24-slim
+FROM node:26-slim
 
 LABEL org.opencontainers.image.source="https://github.com/floriandeutsch89/pikdame-local" \
       org.opencontainers.image.title="Pik Dame (ONNX)" \

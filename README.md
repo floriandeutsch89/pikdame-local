@@ -238,7 +238,7 @@ docs/ · scripts/   Operations guide, backup/restore
 - **Tests**: `npm test` (Node's built-in runner, zero test dependencies). CI
   runs exactly the same — plus dependency audit, Dockerfile lint, Trivy scan,
   Helm validation and a smoke test that boots the fully hardened compose
-  configuration. Everything on Node 24.
+  configuration. Everything on Node 26.
 - **Releases are automated**: bump the version in `package.json` + write the
   CHANGELOG section → on push to `main` the workflow creates the git tag, the
   GitHub release (notes from the CHANGELOG), the multi-arch image and the

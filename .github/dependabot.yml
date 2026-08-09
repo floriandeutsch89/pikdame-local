@@ -33,9 +33,9 @@ updates:
         update-types: ['minor', 'patch']
     # Majors stay ungrouped -> single PR, no auto-merge, human decides.
 
-  # --- Docker base images (node:24-alpine, node:24-slim, caddy) ----------
+  # --- Docker base images (node:26-alpine, node:26-slim, caddy) ----------
   # A Node MAJOR bump additionally trips the CI check
-  # "Node version Dockerfile == CI" (grep FROM node:24) - intended:
+  # "Node version Dockerfile == CI" (grep FROM node:26) - intended:
   # such a PR must be looked at, and ci.yml/release.yml adjusted with it.
   - package-ecosystem: docker
     directories:
