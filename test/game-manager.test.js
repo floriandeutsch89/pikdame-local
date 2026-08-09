@@ -2674,3 +2674,42 @@ test('a normal game still lets a bot take over after the grace period', () => {
   assert.equal(game.isBotControlled(me), true, 'multiplayer keeps the table moving');
   game.destroy();
 });
+
+// --- Bot-Stufe in Challenge/Tutorial: gesetzt heißt auch gesetzt ---------------
+test('solo setup really applies the bot difficulty (it is NOT a house rule)', () => {
+  // Spieler-Report: Changelog und Erklär-Fenster versprachen "drei mittlere
+  // Bots", angezeigt wurde Zen. Ursache: setHouseRules verwirft unbekannte
+  // Schlüssel still - botDifficulty gehört nicht dazu und blieb wirkungslos.
+  for (const options of [{ deckSeed: 1, challengeDate: '2026-08-09' }, { deckSeed: 22, tutorialMode: true }]) {
+    const game = new GameManager(() => {}, options);
+    game.addOrReconnectPlayer('me', 'Flodex');
+    game.setAllBotsDifficulty('medium');   // VOR fillWithBots, wie im Server
+    game.fillWithBots();
+    game.startNewRound();
+
+    const bots = game.players.filter((p) => p.isBot);
+    assert.ok(bots.length >= 3, 'the table is filled');
+    for (const bot of bots) {
+      assert.equal(bot.botDifficulty, 'medium', `${bot.name} must play at the announced level`);
+    }
+    // Auch nach aussen sichtbar - genau das hat der Spieler geprüft.
+    for (const p of game.publicState('me').players.filter((x) => x.isBot)) {
+      assert.equal(p.botDifficulty, 'medium', 'the client shows the real level');
+    }
+    game.destroy();
+  }
+});
+
+test('the house-rule route never silently changed bot difficulty', () => {
+  // Gegenprobe zur Ursache: der alte Weg wirkt nachweislich NICHT - dieser
+  // Test hält fest, warum es eine eigene Methode braucht.
+  const game = new GameManager(() => {}, { deckSeed: 1, challengeDate: '2026-08-09' });
+  game.addOrReconnectPlayer('me', 'Flodex');
+  game.setHouseRules({ botDifficulty: 'medium', turnTimerSeconds: 0 }, { system: true });
+  game.fillWithBots();
+  assert.equal(game.houseRules.botDifficulty, undefined, 'botDifficulty is not a house rule');
+  for (const bot of game.players.filter((p) => p.isBot)) {
+    assert.equal(bot.botDifficulty, 'zen', 'without setAllBotsDifficulty the bots stay at the default');
+  }
+  game.destroy();
+});
