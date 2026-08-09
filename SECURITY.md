@@ -16,7 +16,7 @@ the Helm chart defaults (`helm/pikdame/values.yaml`), and verified in CI
 | #4 No privilege escalation | `no-new-privileges:true` + explicit AppArmor profile `docker-default` |
 | #6 Limit resources | CPU/RAM limits, `pids: 256` (fork-bomb guard), `ulimits.nofile 4096`, `restart: unless-stopped` |
 | #7 Read-only filesystem | `read_only: true`; writable only the `data/` volume + `/tmp` as tmpfs (`noexec,nosuid,16m`) |
-| #8 Vulnerability scanning | CI job `docker-security`: Trivy (fails from HIGH, fixable CVEs); CI job `dependency-check` fails on any outdated npm package, and `deps-update.yml` updates them weekly on its own (PR, reviewer, auto-merge only when every check is green) |
+| #8 Vulnerability scanning | CI job `docker-security`: Trivy (fails from HIGH, fixable CVEs); CI job `dependency-check` fails on any outdated npm package, and Dependabot raises weekly update PRs for npm, Docker base images and Actions (`dependabot-auto.yml` adds the version bump and auto-merges minor/patch once every check is green; majors wait for a reviewer) |
 | #10 Logging | json-file with rotation (10 MB × 3), the app logs to stdout |
 | #11 Dockerfile linting | CI job `docker-security`: hadolint |
 

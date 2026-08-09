@@ -174,13 +174,18 @@ angewendet liegen. (pro Änderung)
    nach dem Merge nur verifizieren, nichts manuell taggen.
 4. Vor Commits: `rm -f data/*.json data/crash.log data/users.db`.
 5. Neue Server-Texte ⇒ i18n-Pattern. Neue UI-Elemente ⇒ Vertragstests laufen mit.
-6. **Abhängigkeiten aktualisiert der Workflow `deps-update.yml` selbst**
-   (montags 03:00 UTC + manuell): veraltete Pakete → Update, MINOR-Bump,
-   deutsche CHANGELOG-Zeile, PR mit Reviewer, **Auto-Merge bei grünem CI**.
-   Nutzt bewusst `secrets.WORKFLOW_PAT`, weil PRs/Merges mit `GITHUB_TOKEN`
-   weder CI noch den Release-Workflow auslösen. Läuft das Token ab, muss das
-   Secret erneuert werden. Der CI-Job `dependency-check` wird rot, sobald ein
-   Paket veraltet ist - dann erst den Workflow laufen lassen, dann rebasen.
+6. **Abhängigkeiten hebt Dependabot an** (`.github/dependabot.yml`,
+   montags 03:00 UTC): npm (gruppiert), Docker-Basis-Images, Compose-Images,
+   GitHub-Actions. `dependabot-auto.yml` hängt den SemVer-Bump plus die
+   deutsche CHANGELOG-Zeile an den PR (ohne sie erzeugt der Release-Workflow
+   nichts, weil der Tag schon existiert) und setzt **Auto-Merge für
+   Minor/Patch**. **MAJOR-Updates (neues Node-Basis-Image, Postgres-Major)
+   mergen NIE automatisch** - sie bekommen Label + Reviewer. Nutzt bewusst
+   `secrets.WORKFLOW_PAT`, weil Pushes/Merges mit `GITHUB_TOKEN` weder CI
+   noch den Release-Workflow auslösen; das Token muss als **Dependabot**-Secret
+   hinterlegt sein (Actions-Secrets sind in Dependabot-Läufen unsichtbar).
+   Der CI-Job `dependency-check` wird rot, sobald ein Paket veraltet ist -
+   deshalb ist npm gruppiert: einzelne PRs blieben sonst gegenseitig rot.
 7. Compose-Änderungen IMMER in allen drei Dateien unter `docker/` (yml, ghcr.yml, prod.yml)
    synchron; die OWASP-Härtung (cap_drop ALL, read_only, AppArmor, pids_limit)
    ist Pflicht und wird vom CI-Job `docker-smoke` real hochgefahren — neue

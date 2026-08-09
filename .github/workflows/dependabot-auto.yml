@@ -1,0 +1,109 @@
+# Everything Dependabot itself cannot do for this repository:
+#
+#   1. Version bump + German CHANGELOG section. Without it a merged update
+#      lands on main with a version that already has a tag - release.yml then
+#      does nothing and no new GHCR image is built. (Skipped for pure
+#      github-actions updates: they do not change the shipped artifact.)
+#   2. Auto-merge for minor/patch updates once every check is green.
+#      MAJOR updates (new Node base image, Postgres major, ...) are never
+#      merged automatically - they get a reviewer and wait for a human.
+#
+# Uses WORKFLOW_PAT, not GITHUB_TOKEN, for the same reason as before: a push
+# or merge made with GITHUB_TOKEN triggers neither CI nor release.yml.
+# IMPORTANT: the PAT must exist as a *Dependabot* secret (Settings ->
+# Secrets and variables -> Dependabot), because workflow runs triggered by
+# Dependabot PRs cannot read Actions secrets.
+name: dependabot-auto
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: dependabot-auto-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.WORKFLOW_PAT }}
+
+      # Pushing our own commit fires another `synchronize` event - without this
+      # guard the workflow would bump the version on every loop.
+      - name: Bump version + changelog
+        id: bump
+        env:
+          ECOSYSTEM: ${{ steps.meta.outputs.package-ecosystem }}
+          UPDATE_TYPE: ${{ steps.meta.outputs.update-type }}
+          DEPS_JSON: ${{ steps.meta.outputs.updated-dependencies-json }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -e
+          if git log -1 --pretty=%B | grep -q '\[deps-version-bump\]'; then
+            echo "Bump commit already on the branch - nothing to do."
+            exit 0
+          fi
+          case "$ECOSYSTEM" in
+            github_actions|terraform|pip)
+              echo "$ECOSYSTEM does not change the shipped artifact - no version bump."
+              exit 0
+              ;;
+          esac
+          case "$ECOSYSTEM" in
+            docker*) KIND=docker ;;
+            *) KIND=npm ;;
+          esac
+          if [ "$UPDATE_TYPE" = "version-update:semver-patch" ]; then LEVEL=patch; else LEVEL=minor; fi
+          LIST=$(node -e '
+            const d = JSON.parse(process.env.DEPS_JSON || "[]");
+            console.log(d.map((x) => x.prevVersion && x.newVersion
+              ? `${x.dependencyName} ${x.prevVersion}→${x.newVersion}`
+              : x.dependencyName).join(", "));
+          ')
+          [ -n "$LIST" ] || LIST="$PR_TITLE"
+          VERSION=$(node scripts/bump-deps.js "$LIST" --level="$LEVEL" --kind="$KIND")
+          git config user.name "pikdame-deps-bot"
+          git config user.email "deps-bot@pikdame.local"
+          git commit -am "chore(deps): v${VERSION} + Changelog [deps-version-bump]" -m "${LIST}"
+          git push origin "HEAD:${HEAD_REF}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # Minor/patch: GitHub merges the PR itself as soon as the required
+      # checks pass. Needs "Allow auto-merge" plus required status checks on
+      # main - without required checks GitHub would merge INSTANTLY.
+      - name: Enable auto-merge (minor/patch)
+        if: steps.meta.outputs.update-type != 'version-update:semver-major'
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT }}
+        run: gh pr merge --auto --squash "${{ github.event.pull_request.html_url }}"
+
+      - name: Major update - hand over to a human
+        if: steps.meta.outputs.update-type == 'version-update:semver-major'
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_PAT }}
+          PR: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr edit "$PR" --add-label "needs-review" --add-reviewer floriandeutsch89 \
+            || echo "labelling/reviewer request failed (non-fatal)"
+          gh pr comment "$PR" --body "🛑 **Major-Update - kein Auto-Merge.**
+
+          Dieser PR hebt eine Hauptversion an (${{ steps.meta.outputs.dependency-names }}). Bitte manuell prüfen. Bei einem neuen Node-Basis-Image gehören in denselben PR:
+          - \`docker/Dockerfile\` + \`docker/Dockerfile.onnx\` (FROM-Zeilen)
+          - \`.github/workflows/ci.yml\`: \`node-version\` und die Prüfung \`grep -q \"FROM node:24\"\`
+          - Versions-Bump in \`package.json\` + CHANGELOG-Abschnitt"
