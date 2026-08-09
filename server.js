@@ -35,6 +35,9 @@ const challengeStore = createChallengeStore();
 // Tutorial-Deck: per scripts-Suche ermittelt (siehe CLAUDE.md). Nicht aendern,
 // ohne die Tutorial-Texte gegenzupruefen - sie nennen konkrete Karten.
 const TUTORIAL_SEED = 22;
+// Eigenstaendige Themenseiten (public/<slug>.html). Eine Seite kann nur fuer
+// EIN Hauptthema ranken - deshalb je eine Seite statt eines Sammelblocks.
+const SEO_PAGES = ['romme-regeln', 'pik-dame-regeln', 'kartenspiele-zu-zweit'];
 const globalStats = createGlobalStatsStore();
 // Benutzerkonten: aktiv, wenn Nodes eingebautes SQLite verfügbar ist
 // (Node >= 22, im Docker-Image gegeben) und nicht per Env abgeschaltet.
@@ -253,6 +256,11 @@ function serveStatic(req, res) {
     return;
   }
   if (filePath === '/') filePath = '/index.html';
+  // Themenseiten unter sprechender Adresse OHNE .html: /romme-regeln statt
+  // /romme-regeln.html. Der canonical-Verweis der Seiten zeigt auf genau
+  // diese Form - zwei erreichbare Adressen fuer denselben Inhalt waeren
+  // doppelter Inhalt.
+  if (SEO_PAGES.includes(filePath.slice(1))) filePath = `${filePath}.html`;
   const resolved = path.normalize(path.join(PUBLIC_DIR, filePath));
 
   // Verhindert Verzeichnis-Traversal außerhalb von public/

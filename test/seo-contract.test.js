@@ -29,9 +29,17 @@ function jsonLd() {
   return out;
 }
 
+// Themenseiten: je eine Seite pro Hauptthema (eine Seite kann nur fuer EIN
+// Thema ranken). Slugs stehen auch in server.js - dort ohne .html erreichbar.
+const TOPIC_PAGES = ['romme-regeln', 'pik-dame-regeln', 'kartenspiele-zu-zweit'];
+
 test('sitemap lists the canonical URL and nothing disallowed', () => {
   const locs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
-  assert.deepStrictEqual(locs, [CANONICAL], 'sitemap should list exactly the canonical URL');
+  assert.deepStrictEqual(
+    locs,
+    [CANONICAL, ...TOPIC_PAGES.map((s) => `${CANONICAL}${s}`)],
+    'sitemap should list the game plus exactly the topic pages'
+  );
   assert.ok(html.includes(`<link rel="canonical" href="${CANONICAL}"`), 'canonical link differs from the sitemap');
   // Anything robots.txt disallows must not be advertised in the sitemap.
   for (const [, rule] of robots.matchAll(/^Disallow:\s*(\S+)/gm)) {
@@ -99,4 +107,53 @@ test('the "kostenlos" search terms are in the metadata AND answered in visible c
   // Und die Aussage muss stimmen: Das Spiel ist als kostenfrei ausgezeichnet.
   assert.equal(game.isAccessibleForFree, true, 'claiming "kostenlos" requires isAccessibleForFree');
   assert.equal(game.offers.price, '0', 'the offer must state a price of zero');
+});
+
+
+test('every topic page is reachable, self-canonical, indexable and linked from the game', () => {
+  const server = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+  for (const slug of TOPIC_PAGES) {
+    const file = path.join(__dirname, '..', 'public', `${slug}.html`);
+    assert.ok(fs.existsSync(file), `public/${slug}.html is missing`);
+    const page = fs.readFileSync(file, 'utf8');
+
+    // Selbst-kanonisch auf die SPRECHENDE Adresse: Waeren /slug und
+    // /slug.html beide kanonisch, waere es doppelter Inhalt.
+    assert.ok(
+      page.includes(`<link rel="canonical" href="${CANONICAL}${slug}"`),
+      `${slug}: canonical must point at the clean URL`
+    );
+    assert.ok(/<meta name="robots" content="index, follow/.test(page), `${slug}: must be indexable`);
+    assert.ok(/<title>[^<]{20,}<\/title>/.test(page), `${slug}: needs a real title`);
+    const desc = page.match(/<meta name="description" content="([^"]+)"/);
+    assert.ok(desc && desc[1].length > 80, `${slug}: description too short to be useful`);
+    assert.ok(/<h1>/.test(page), `${slug}: needs an h1`);
+
+    // Der Server muss die sprechende Adresse kennen, sonst laeuft der
+    // canonical-Verweis ins Leere (404).
+    assert.ok(server.includes(`'${slug}'`), `${slug}: server.js does not route the clean URL`);
+
+    // Und die Spielseite muss darauf verweisen - ohne interne Links wird
+    // eine Seite kaum gefunden.
+    assert.ok(html.includes(`href="/${slug}"`), `${slug}: not linked from the game page`);
+  }
+});
+
+test('topic pages carry valid, page-specific structured data', () => {
+  for (const slug of TOPIC_PAGES) {
+    const page = fs.readFileSync(path.join(__dirname, '..', 'public', `${slug}.html`), 'utf8');
+    const blocks = [...page.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)]
+      .map((m) => JSON.parse(m[1]));
+    assert.ok(blocks.length >= 2, `${slug}: expected article + FAQ structured data`);
+    const types = blocks.map((b) => b['@type']);
+    assert.ok(types.includes('Article'), `${slug}: no Article block`);
+    assert.ok(types.includes('FAQPage'), `${slug}: no FAQPage block`);
+    // Die Daten muessen DIESE Seite beschreiben, nicht die Startseite.
+    const article = blocks.find((b) => b['@type'] === 'Article');
+    assert.equal(article.mainEntityOfPage['@id'], `${CANONICAL}${slug}`, `${slug}: Article points elsewhere`);
+    for (const q of blocks.find((b) => b['@type'] === 'FAQPage').mainEntity) {
+      assert.ok(q.name && q.name.length > 5, `${slug}: question without a name`);
+      assert.ok(q.acceptedAnswer.text.length > 40, `${slug}: answer too short: ${q.name}`);
+    }
+  }
 });

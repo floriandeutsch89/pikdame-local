@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  One URL on purpose: the game is a single page. /impressum.html is excluded
+  The game itself plus one page per topic: a single page can only rank for
+  one main subject, so the rules live at their own addresses. /impressum.html is excluded
   here AND in robots.txt (harvester deterrence), /statusz is machine output.
 
   <changefreq> and <priority> used to be here and were removed: Google states
@@ -12,6 +13,18 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://play.pikdame.online/</loc>
+    <lastmod>2026-08-09</lastmod>
+  </url>
+  <url>
+    <loc>https://play.pikdame.online/romme-regeln</loc>
+    <lastmod>2026-08-09</lastmod>
+  </url>
+  <url>
+    <loc>https://play.pikdame.online/pik-dame-regeln</loc>
+    <lastmod>2026-08-09</lastmod>
+  </url>
+  <url>
+    <loc>https://play.pikdame.online/kartenspiele-zu-zweit</loc>
     <lastmod>2026-08-09</lastmod>
   </url>
 </urlset>
