@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.7.0] - 2026-08-09
+
+### Geändert
+- Container-Basis-Images aktualisiert (automatischer Dependabot-Check): node 24-slim→26-slim
+
 ## [2.6.0] - 2026-08-09
 
 ### Changed
