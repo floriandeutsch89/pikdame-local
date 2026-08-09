@@ -130,18 +130,29 @@ jobs:
     # Third image: the reverse proxy - official Caddy with the CrowdSec bouncer
     # plugin compiled in via xcaddy (plugins cannot be loaded at runtime).
     #
-    # This build is SLOW (xcaddy compiles Go, and arm64 runs under QEMU), while
-    # the recipe changes almost never. But we must NOT simply skip it when
-    # docker/caddy/** is untouched: most of the value is picking up patched
-    # caddy:2-alpine BASE images for a binary that faces the open internet.
+    # This build is SLOW (xcaddy compiles Go, and arm64 runs under QEMU), so it
+    # runs only when something that ends up IN the image actually changed:
+    #   * the recipe - a hash over docker/caddy/**, i.e. the Dockerfile and the
+    #     Caddyfile (which carries the CSP hash of the inline head script), or
+    #   * the Caddy VERSION of the base image, read from the
+    #     org.opencontainers.image.version label of caddy:2-alpine.
+    # If neither changed we skip the build and just RETAG the published image
+    # for this release (a manifest operation, seconds), so :vX.Y.Z exists for
+    # every version and the prod compose keeps working.
     #
-    # So we rebuild exactly when something actually changed - checked against
-    # the image we already published:
-    #   * the recipe (hash over docker/caddy/**), or
-    #   * the digest of either base image upstream.
-    # If nothing changed, we skip the build and just RETAG the existing image
-    # with the new version (a manifest operation, seconds), so :vX.Y.Z still
-    # exists for every release and the prod compose keeps working.
+    # DELIBERATE TRADE-OFF (changed in v2.10.0): this used to compare base
+    # image DIGESTS, which also fired when upstream merely republished the same
+    # Caddy version - e.g. an Alpine CVE patch. That kept an internet-facing
+    # binary fresh but rebuilt often. Version-based means such a republish is
+    # NOT picked up on its own; a Caddy release, a Dockerfile change or a
+    # Caddyfile change (including every CSP hash change) still rebuilds. To
+    # force a fresh base in between, touch docker/caddy/ or bump the pinned
+    # tag - both change the recipe hash.
+    #
+    # Why the version comes from the RUNTIME image only: caddy:2-builder-alpine
+    # carries no version label, and both tags are published together from the
+    # same caddy-docker release. xcaddy compiles the current Caddy release,
+    # which is exactly what that label reports.
     needs: [meta, release]
     if: needs.meta.outputs.is_new == 'true'
     runs-on: ubuntu-latest
@@ -162,15 +173,18 @@ jobs:
           set -uo pipefail
           IMAGE="ghcr.io/${{ github.repository }}-caddy"
 
-          # Fingerprint of the build recipe (every file in docker/caddy).
+          # Fingerprint of the build recipe (every file in docker/caddy:
+          # the Dockerfile AND the Caddyfile that gets COPYed into the image).
           RECIPE=$(find docker/caddy -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d" " -f1)
 
-          # Current upstream base digests (manifest-list digest = arch-independent).
-          BUILDER=$(docker buildx imagetools inspect caddy:2-builder-alpine --format "{{.Manifest.Digest}}" 2>/dev/null || echo "unknown")
-          RUNTIME=$(docker buildx imagetools inspect caddy:2-alpine --format "{{.Manifest.Digest}}" 2>/dev/null || echo "unknown")
+          # Caddy version of the runtime base, from its OCI label ("v2.11.4").
+          # jq walk: the inspect output is a map platform -> config for a
+          # multi-arch tag and a plain object for a single-arch one.
+          BASE_VERSION=$(docker buildx imagetools inspect caddy:2-alpine --format "{{json .Image}}" 2>/dev/null \
+            | jq -r "[.. | objects | .config? // empty | .Labels? // empty | .\"org.opencontainers.image.version\"? // empty] | first // \"\"")
+          [ -n "$BASE_VERSION" ] || BASE_VERSION="unknown"
           echo "recipe=$RECIPE" >> "$GITHUB_OUTPUT"
-          echo "builder=$BUILDER" >> "$GITHUB_OUTPUT"
-          echo "runtime=$RUNTIME" >> "$GITHUB_OUTPUT"
+          echo "base_version=$BASE_VERSION" >> "$GITHUB_OUTPUT"
 
           # What did we bake into the published image last time? (Labels; the
           # image may not exist yet on the very first run -> then we build.)
@@ -180,25 +194,23 @@ jobs:
             echo "rebuild=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # Multi-arch: .Image is a map platform -> config. Any platform will do,
-          # the labels are identical across them.
           P_RECIPE=$(echo "$PREV" | jq -r "[.. | objects | .config? // empty | .Labels? // empty | .\"online.pikdame.caddy.recipe\"? // empty] | first // \"\"")
-          P_BUILDER=$(echo "$PREV" | jq -r "[.. | objects | .config? // empty | .Labels? // empty | .\"online.pikdame.caddy.base.builder\"? // empty] | first // \"\"")
-          P_RUNTIME=$(echo "$PREV" | jq -r "[.. | objects | .config? // empty | .Labels? // empty | .\"online.pikdame.caddy.base.runtime\"? // empty] | first // \"\"")
+          P_VERSION=$(echo "$PREV" | jq -r "[.. | objects | .config? // empty | .Labels? // empty | .\"online.pikdame.caddy.base.version\"? // empty] | first // \"\"")
 
-          echo "recipe : $P_RECIPE -> $RECIPE"
-          echo "builder: $P_BUILDER -> $BUILDER"
-          echo "runtime: $P_RUNTIME -> $RUNTIME"
+          echo "recipe      : $P_RECIPE -> $RECIPE"
+          echo "base version: $P_VERSION -> $BASE_VERSION"
 
-          # Unknown upstream digests must never be treated as "unchanged".
-          if [ "$BUILDER" = "unknown" ] || [ "$RUNTIME" = "unknown" ]; then
-            echo "Could not read upstream digests -> build to be safe."
+          # An unreadable label must never be treated as "unchanged". This also
+          # covers the first run after switching from digests to versions: the
+          # published image has no base.version label yet -> one rebuild.
+          if [ "$BASE_VERSION" = "unknown" ]; then
+            echo "Could not read the base image version -> build to be safe."
             echo "rebuild=true" >> "$GITHUB_OUTPUT"
-          elif [ "$P_RECIPE" = "$RECIPE" ] && [ "$P_BUILDER" = "$BUILDER" ] && [ "$P_RUNTIME" = "$RUNTIME" ]; then
-            echo "Recipe and both base images unchanged -> retag only."
+          elif [ "$P_RECIPE" = "$RECIPE" ] && [ "$P_VERSION" = "$BASE_VERSION" ]; then
+            echo "Recipe and Caddy base version unchanged -> retag only."
             echo "rebuild=false" >> "$GITHUB_OUTPUT"
           else
-            echo "Something changed -> rebuild."
+            echo "Recipe or base version changed -> rebuild."
             echo "rebuild=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -217,8 +229,7 @@ jobs:
             org.opencontainers.image.version=${{ needs.meta.outputs.version }}
             org.opencontainers.image.revision=${{ github.sha }}
             online.pikdame.caddy.recipe=${{ steps.gate.outputs.recipe }}
-            online.pikdame.caddy.base.builder=${{ steps.gate.outputs.builder }}
-            online.pikdame.caddy.base.runtime=${{ steps.gate.outputs.runtime }}
+            online.pikdame.caddy.base.version=${{ steps.gate.outputs.base_version }}
           cache-from: type=gha,scope=caddy
           cache-to: type=gha,mode=max,scope=caddy
 

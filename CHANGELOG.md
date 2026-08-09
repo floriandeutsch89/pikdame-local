@@ -3,6 +3,17 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.10.0] - 2026-08-09
+
+### Changed
+- **Das Caddy-Image wird nur noch neu gebaut, wenn sich wirklich etwas am Image ändert**: entweder das Rezept (`docker/caddy/**`, also Dockerfile ODER Caddyfile - und damit jede Änderung am sha256-Wert der Sicherheitsregel) oder die **Caddy-Version** des Basis-Images, gelesen aus dessen Label `org.opencontainers.image.version`. Sonst wird das vorhandene Image nur für die neue Version umetikettiert (Sekunden statt eines Go-Baus unter QEMU)
+- Vorher verglich die Prüfung **Digests** der beiden Basis-Images. Die ändern sich auch dann, wenn dieselbe Caddy-Version bloß neu veröffentlicht wird (etwa ein Alpine-Patch) - das hielt den Proxy frisch, baute aber häufig neu. **Bewusste Abwägung:** So ein reines Neuveröffentlichen löst jetzt KEINEN Bau mehr aus; eine neue Caddy-Version, eine Dockerfile- oder eine Caddyfile-Änderung schon. Wer zwischendurch ein frisches Basis-Image erzwingen will, ändert etwas unter `docker/caddy/` - das ändert den Rezept-Fingerabdruck
+- Die Version kommt allein aus dem Laufzeit-Image: `caddy:2-builder-alpine` trägt gar kein Versions-Label, und beide Marken erscheinen gemeinsam aus derselben Veröffentlichung. xcaddy übersetzt die jeweils aktuelle Caddy-Version - genau das, was das Label meldet
+- Das Image trägt statt zweier Digest-Label jetzt `online.pikdame.caddy.base.version`. Beim ersten Lauf nach der Umstellung fehlt es am veröffentlichten Image, deshalb wird **genau einmal** neu gebaut; danach greift der Vergleich
+
+### Added
+- `test/csp-contract.test.js` hält die neue Prüfung fest: Die Version muss vom Laufzeit-Basis-Image gelesen, gegen das Label des veröffentlichten Images verglichen und beim Bau zurückgeschrieben werden - reißt eine dieser drei Verbindungen, friert die Prüfung stillschweigend ein und eine neue Caddy-Version erreicht den Proxy nie. Ein unlesbares Label gilt weiterhin als „bauen", nie als „unverändert"
+
 ## [2.9.0] - 2026-08-09
 
 ### Changed

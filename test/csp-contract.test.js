@@ -121,6 +121,30 @@ test('the release workflow rebuilds the Caddy image when the Caddyfile changes',
   assert.match(wf, /context:\s*docker\/caddy/, 'the Caddy build context must be docker/caddy');
 });
 
+/** The gate is only half a contract if the base image can silently stop being
+ *  watched: a Caddy release would then never reach the proxy. Digest-based
+ *  comparison was dropped on purpose (v2.10.0) - it fired on every upstream
+ *  republish of the same version - so the VERSION comparison is now the only
+ *  thing keeping the base fresh, and it has to stay wired up. */
+test('the Caddy gate still tracks the base image version', () => {
+  const wf = read('.github/workflows/release.yml');
+  assert.match(
+    wf, /org\.opencontainers\.image\.version/,
+    'the gate no longer reads the base image version label'
+  );
+  // Read from upstream, compared against the label baked into the published
+  // image, and written back on build - break any link and the gate freezes.
+  assert.match(wf, /BASE_VERSION=\$\(docker buildx imagetools inspect caddy:2-alpine/,
+    'the base version must come from the runtime base image');
+  assert.match(wf, /P_VERSION=[\s\S]{0,200}?online\.pikdame\.caddy\.base\.version/,
+    'the gate must compare against the base.version label of the published image');
+  assert.match(wf, /online\.pikdame\.caddy\.base\.version=\$\{\{ steps\.gate\.outputs\.base_version \}\}/,
+    'the build must write the base.version label back, or the next run compares against nothing');
+  // An unreadable version must never be read as "unchanged".
+  assert.match(wf, /if \[ "\$BASE_VERSION" = "unknown" \]/,
+    'an unreadable base version must fall back to rebuilding');
+});
+
 test('index.html loads no third-party resources (hotspot has no internet)', () => {
   // Only LOADED subresources count - a plain <a href> to GitHub is fine.
   const loaded = [
