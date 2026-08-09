@@ -4796,5 +4796,19 @@
     if (s) s.remove();
   }
 
-  connect();
+  /* Crawler bekommen KEINE WebSocket-Verbindung. Googles Renderer baut keine
+     auf, der Versuch scheitert also immer: die Statuszeile wuerde
+     'Verbindungsfehler' in den indexierten Text schreiben und der
+     close-Handler alle 2 s ewig neu verbinden - die Seite kaeme nie zur Ruhe.
+     Die Klasse setzt das Kopf-Skript in index.html (dieselbe Erkennung, die
+     schon den Vorspann ueberspringt). Fuer Menschen aendert sich nichts: die
+     Lobby ist statisches Markup, alles Interaktive braucht ohnehin den
+     Server. Die Statuszeile wird geleert statt gefuellt - eine sichtbare
+     Fehlermeldung ohne Fehler ist schlechter als gar keine. */
+  if (document.documentElement.classList.contains('isCrawler')) {
+    const cs = el('connStatus');
+    if (cs) cs.textContent = '';
+  } else {
+    connect();
+  }
 })();

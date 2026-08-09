@@ -1,8 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  One URL on purpose: the game is a single page. /impressum.html is excluded
+  here AND in robots.txt (harvester deterrence), /statusz is machine output.
+
+  <changefreq> and <priority> used to be here and were removed: Google states
+  it ignores both, and a "priority 1.0" on the only URL in the file says
+  nothing anyway. <lastmod> IS read - but only while it stays truthful, so it
+  belongs in the same commit as a content change, exactly like the CHANGELOG.
+  test/seo-contract.test.js keeps it a valid date pointing at this host.
+-->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://play.pikdame.online/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>1.0</priority>
+    <lastmod>2026-08-09</lastmod>
   </url>
 </urlset>

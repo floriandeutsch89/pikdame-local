@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.8.0] - 2026-08-09
+
+### Changed
+- **Crawler bauen keine WebSocket-Verbindung mehr auf**: Googles Renderer kann keine öffnen, der Versuch scheiterte also immer - „Verbindungsfehler." landete im indexierten Text und der `close`-Handler versuchte es alle 2 Sekunden erneut, die Seite kam nie zur Ruhe. Das Kopf-Skript setzt jetzt zusätzlich `html.isCrawler` (**eigene** Klasse, nicht `noSplash` wiederverwendet - die trägt auch ein wiederkehrender Besucher), `client.js` überspringt daraufhin `connect()` und lässt die Statuszeile leer. Für Menschen ändert sich nichts; ein Test hält fest, dass ein wiederkehrender Besucher weiterhin verbindet
+- **`sitemap.xml` aufgeräumt**: `<changefreq>` und `<priority>` sind raus (Google erklärt ausdrücklich, beide zu ignorieren, und „Priorität 1.0" auf der einzigen URL der Datei sagt ohnehin nichts), dafür steht jetzt `<lastmod>` drin - der einzige Hinweis, den Google tatsächlich liest. Er gehört wie der CHANGELOG in denselben Commit wie eine Inhaltsänderung
+
+### Added
+- **Schreibweisen „Pikdame", „Pique Dame" und die Suchphrase „Pik Dame Kartenspiel"**: Beide Schreibweisen sind gebräuchliche Namen derselben Karte, wurden aber nirgends erwähnt - wer so sucht, fand die Seite nicht. Sie stehen jetzt in den strukturierten Daten (`alternateName`, `keywords`), als eigene FAQ-Frage und als kurzer Abschnitt im **aufklappbaren** `seoIntro`-Block. Bewusst an BEIDEN Stellen: Ein Name, der nur in Metadaten existiert und nirgends im Seitentext, wäre versteckter Text und damit ein Verstoß gegen Googles Spam-Richtlinien. Im Startbildschirm ist weiterhin nichts davon zu sehen
+- `test/seo-contract.test.js`: hält Sitemap, robots.txt und die JSON-LD-Blöcke zusammen - die Sitemap zeigt genau auf die kanonische URL, bewirbt nichts, was robots.txt sperrt, `lastmod` ist ein echtes Datum, jeder JSON-LD-Block ist gültiges JSON, und jede Schreibweise aus `alternateName` kommt auch im sichtbaren Text vor. Nichts davon sieht man in der Oberfläche; ohne Test fällt es erst auf, wenn Google die Datei nicht mehr ernst nimmt
+
 ## [2.7.0] - 2026-08-09
 
 ### Changed
