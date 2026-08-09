@@ -885,7 +885,11 @@ wss.on('connection', (ws, req) => {
         // Mittlere Bots: die Anfaenger-Stufe wuerfelt beim Abwurf, das waere
         // im Tutorial nicht reproduzierbar. Kein Zugtimer - niemand soll
         // beim Lesen unter Druck geraten.
-        game.setHouseRules({ botDifficulty: 'medium', turnTimerSeconds: 0 }, { system: true });
+        game.setHouseRules({ turnTimerSeconds: 0 }, { system: true });
+        // Bot-Stufe ist KEINE Hausregel: setHouseRules verwirft den Schluessel
+        // still, die Bots blieben deshalb auf Zen (Spieler-Report). Vor
+        // fillWithBots aufrufen - der Wert gilt auch fuer neu erzeugte Bots.
+        game.setAllBotsDifficulty('medium');
         game.fillWithBots();
         // Der Lernende sitzt auf Platz 0 und soll BEGINNEN - also gibt der
         // letzte Platz (sonst faengt immer der Bot links vom Geber an).
@@ -912,7 +916,11 @@ wss.on('connection', (ws, req) => {
       const ok = await joinSession(created.session, msg);
       if (ok) {
         const game = created.session.game;
-        game.setHouseRules({ botDifficulty: 'medium', turnTimerSeconds: 0 }, { system: true });
+        game.setHouseRules({ turnTimerSeconds: 0 }, { system: true });
+        // Bot-Stufe ist KEINE Hausregel: setHouseRules verwirft den Schluessel
+        // still, die Bots blieben deshalb auf Zen (Spieler-Report). Vor
+        // fillWithBots aufrufen - der Wert gilt auch fuer neu erzeugte Bots.
+        game.setAllBotsDifficulty('medium');
         game.fillWithBots();
         game.startNewRound();
       }

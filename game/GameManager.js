@@ -261,7 +261,7 @@ class GameManager {
       const name = free.pop() || `Bot ${botIndex}`;
       this.players.push({
         id, name, isBot: true, hand: [], connected: true, laidOutCards: [],
-        botDifficulty: 'zen', // per-bot; adjustable in the lobby, defaults to Zen
+        botDifficulty: this.defaultBotDifficulty || 'zen', // per-bot; adjustable in the lobby, defaults to Zen
       });
       this.totals[id] = this.totals[id] || 0;
       botIndex += 1;
@@ -375,12 +375,32 @@ class GameManager {
   /** Change a single bot's difficulty mid-game (any human at the table may;
    *  the log entry keeps it transparent). The lobby house rule stays the
    *  default for bots created later (e.g. after a rematch). */
+  /**
+   * Setzt die Stufe ALLER Bots - nur fuer das serverseitige Setup gedacht
+   * (Challenge, Tutorial), daher ohne Anfragenden und ohne Challenge-Sperre.
+   *
+   * Hintergrund: Die Bot-Stufe ist KEINE Hausregel. setHouseRules verwirft
+   * unbekannte Schluessel stillschweigend, deshalb blieb ein
+   * `setHouseRules({ botDifficulty: 'medium' })` folgenlos und die Bots
+   * spielten weiter auf Zen, obwohl Erklaerfenster und Changelog "mittlere
+   * Bots" versprachen (Spieler-Report).
+   */
+  setAllBotsDifficulty(difficulty) {
+    const ALLOWED = ['easy', 'medium', 'zen'];
+    if (!ALLOWED.includes(difficulty)) return { error: 'Unbekannte Schwierigkeit.' };
+    for (const p of this.players) if (p.isBot) p.botDifficulty = difficulty;
+    // Auch fuer spaeter aufgefuellte Bots merken: fillWithBots kann NACH
+    // diesem Aufruf laufen (so macht es der Server beim Challenge-Start).
+    this.defaultBotDifficulty = difficulty;
+    return { ok: true };
+  }
+
   setBotDifficulty(requesterId, botId, difficulty) {
     // Tages-Challenge: Die Bestenliste lebt davon, dass ALLE gegen dieselben
     // Gegner spielen - drei Zen-Meister, weltweit. Wer sich leichtere Bots
     // einstellen könnte, würde jede Vergleichbarkeit zerstören.
     if (this.challengeDate) {
-      return { error: 'In der Tages-Challenge ist die Bot-Stärke fest (Zen-Meister für alle) - sonst wäre die Bestenliste nicht vergleichbar.' };
+      return { error: 'In der Tages-Challenge ist die Bot-Stärke fest - sonst wäre die Bestenliste nicht vergleichbar.' };
     }
     const LABELS = { easy: 'Anfänger', medium: 'Fortgeschritten', zen: 'Zen-Meister' };
     if (!LABELS[difficulty]) return { error: 'Unbekannte Schwierigkeit.' };

@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.3.1] - 2026-08-09
+
+### Fixed
+- **Tages-Challenge und Tutorial spielten weiter gegen Zen-Bots**, obwohl Erklär-Fenster und Changelog „drei mittlere Bots" versprachen (Spieler-Report): Der Server setzte die Stufe über `setHouseRules(...)` - die **Bot-Stärke ist aber keine Hausregel**. `setHouseRules` übernimmt nur bekannte Schlüssel und verwarf `botDifficulty` **stillschweigend**, sodass alle Bots auf dem Standard Zen blieben. Es gab keine Fehlermeldung, der Aufruf lief einfach ins Leere
+- Beide Solo-Modi nutzen jetzt die neue Methode `setAllBotsDifficulty()`, die ausdrücklich für das serverseitige Setup gedacht ist (ohne die Lobby-Sperre, die in der Challenge sonst jede Änderung verweigert). Sie merkt sich die Stufe außerdem für **später aufgefüllte** Bots - der Server füllt den Tisch erst nach dem Setzen
+- Veraltete Fehlermeldung berichtigt: Sie nannte beim Änderungsversuch in der Challenge noch „Zen-Meister für alle"
+
+### Added
+- Zwei Tests: Nach dem Setup spielen in Challenge **und** Tutorial alle Bots nachweislich auf „mittel" - auch in der Ansicht, die der Client bekommt. Ein zweiter Test hält die Ursache fest, dass der alte Hausregel-Weg die Stufe **nicht** ändert
+
 ## [2.3.0] - 2026-08-08
 
 ### Geändert
