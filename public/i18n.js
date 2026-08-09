@@ -26,7 +26,7 @@ window.I18N_STATIC = {
   'Tutorial': 'Tutorial',
   'Konto': 'Account',
   'Tages-Challenge': 'Daily challenge',
-  'Heute spielen alle Spieler weltweit exakt dasselbe Kartendeck – gegen drei mittlere Bots. Wer holt die meisten Punkte aus den gleichen Karten?': 'Today every player worldwide gets the exact same deck – against three medium bots. Who squeezes the most points out of identical cards?',
+  'Heute spielen alle Spieler weltweit exakt dasselbe Kartendeck – gegen drei Zen-Meister, die stärksten Bots. Wer holt die meisten Punkte aus den gleichen Karten?': 'Today every player worldwide gets the exact same deck – against three Zen masters, the strongest bots. Who squeezes the most points out of identical cards?',
   'Dein bestes Tagesergebnis landet mit deinem Spielernamen in der Bestenliste (7 Tage sichtbar). Mehrere Versuche sind erlaubt – nur der beste zählt.': 'Your best result of the day enters the leaderboard under your player name (visible for 7 days). Multiple attempts are allowed – only the best one counts.',
   'Heute führt:': 'Today\u2019s leader:',
   "Los geht's!": "Let\u2019s go!",

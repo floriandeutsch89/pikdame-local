@@ -901,11 +901,10 @@ wss.on('connection', (ws, req) => {
     }
     if (msg.type === 'startChallenge') {
       // Daily challenge: everyone on the planet gets the identical deck AND
-      // the identical cut (both seeded from the UTC date) against three
-      // MEDIUM bots - the difficulty is locked so the leaderboard stays
-      // comparable. Medium, not zen: the intro overlay has always promised
-      // "drei mittlere Bots", and with the trained ONNX policies medium is
-      // challenge enough for a daily anyone should want to finish.
+      // the identical cut (both seeded from the UTC date) against three ZEN
+      // bots - the difficulty is locked so the leaderboard stays comparable.
+      // Zen by table decision: the daily is meant to be the hard one; the
+      // tutorial is where medium belongs.
       const date = todayUTC();
       const created = registry.create({
         deckSeed: seedForDate(date),
@@ -917,10 +916,12 @@ wss.on('connection', (ws, req) => {
       if (ok) {
         const game = created.session.game;
         game.setHouseRules({ turnTimerSeconds: 0 }, { system: true });
-        // Bot-Stufe ist KEINE Hausregel: setHouseRules verwirft den Schluessel
-        // still, die Bots blieben deshalb auf Zen (Spieler-Report). Vor
-        // fillWithBots aufrufen - der Wert gilt auch fuer neu erzeugte Bots.
-        game.setAllBotsDifficulty('medium');
+        // ZEN (Tischentscheidung): Die Tages-Challenge soll fordernd sein -
+        // gleiche Karten, gleiche Gegner, und die Gegner sind die staerksten.
+        // Bot-Stufe ist KEINE Hausregel (setHouseRules verwirft den Schluessel
+        // still), deshalb die ausdrueckliche Methode - vor fillWithBots, damit
+        // sie auch fuer neu erzeugte Bots gilt.
+        game.setAllBotsDifficulty('zen');
         game.fillWithBots();
         game.startNewRound();
       }

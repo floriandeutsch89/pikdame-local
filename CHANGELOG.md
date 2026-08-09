@@ -3,6 +3,13 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.3.2] - 2026-08-09
+
+### Changed
+- **Tages-Challenge wieder gegen Zen-Meister** (Tischentscheidung): Die tägliche Herausforderung soll fordernd sein - gleiche Karten für alle, und die stärksten Gegner. Das **Tutorial bleibt bei „mittel"**: Zen-Meister wären als erste Gegner für Anfänger zu hart, und dort ist die Stufe ohnehin bewusst gewählt (die Anfänger-Stufe würfelt beim Abwurf und wäre nicht reproduzierbar)
+- Das Erklär-Fenster nennt jetzt „drei Zen-Meister, die stärksten Bots" (deutsch und englisch) - der Text darf nicht wieder etwas anderes versprechen als der Server einstellt
+- Ein Test hält beide Stufen getrennt fest: Challenge = Zen, Tutorial = mittel. Beide Modi teilen sich denselben Setup-Weg, damit fällt eine versehentliche Angleichung sofort auf
+
 ## [2.3.1] - 2026-08-09
 
 ### Fixed
