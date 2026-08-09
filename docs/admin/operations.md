@@ -148,8 +148,12 @@ docker compose -f docker-compose.prod.yml exec --privileged -u root pikdame chow
 **IP logging & retention:** the Caddy access log exists solely to feed
 CrowdSec. Retention is capped at 48 hours (`roll_keep_for 48h`, two 10 MB
 rolls) to match the privacy policy. For extended debugging, temporarily
-raise `roll_keep_for` in docker/Caddyfile and `docker compose exec caddy
-caddy reload --config /etc/caddy/Caddyfile` - and revert afterwards. The
+raise `roll_keep_for` in `docker/caddy/Caddyfile` and roll out a new proxy
+image - and revert afterwards. The config is baked into the image (it pins the
+inline head script of `index.html` by sha256, so it has to travel with the
+release); for a one-off experiment on the server, mount over it instead:
+add `- ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro` to the caddy service and run
+`docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile`. The
 app container itself never logs IP addresses.
 
 

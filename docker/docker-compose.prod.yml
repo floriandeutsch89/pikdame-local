@@ -39,7 +39,11 @@ services:
       # Created once via: docker compose exec crowdsec cscli bouncers add caddy-bouncer
       - CROWDSEC_API_KEY=${CROWDSEC_API_KEY:?run cscli bouncers add and set CROWDSEC_API_KEY in .env}
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # No Caddyfile mount: the config is BAKED INTO the image (see
+      # caddy/Dockerfile). It pins the inline head script of index.html by
+      # sha256, so it has to travel with the app release instead of ageing
+      # separately on the host. To override for a single experiment, add:
+      #   - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data      # certificates - MUST persist
       - caddy-config:/config
       - caddy-logs:/var/log/caddy

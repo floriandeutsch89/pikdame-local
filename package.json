@@ -1,13 +1,15 @@
 {
   "name": "pik-dame",
-  "version": "2.8.0",
+  "version": "2.9.0",
   "description": "Multiplayer Rommé-Variante 'Pik Dame' – Node.js Server + WebSocket",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "test": "node --test test/*.test.js",
     "docs:gen": "node scripts/gen-docs.js",
-    "docs:check": "node scripts/gen-docs.js --check"
+    "docs:check": "node scripts/gen-docs.js --check",
+    "csp:sync": "node scripts/sync-csp-hash.js",
+    "csp:check": "node scripts/sync-csp-hash.js --check"
   },
   "license": "MIT",
   "dependencies": {
