@@ -180,10 +180,15 @@ angewendet liegen. (pro Änderung)
    deutsche CHANGELOG-Zeile an den PR (ohne sie erzeugt der Release-Workflow
    nichts, weil der Tag schon existiert) und setzt **Auto-Merge für
    Minor/Patch**. **MAJOR-Updates (neues Node-Basis-Image, Postgres-Major)
-   mergen NIE automatisch** - sie bekommen Label + Reviewer. Nutzt bewusst
-   `secrets.WORKFLOW_PAT`, weil Pushes/Merges mit `GITHUB_TOKEN` weder CI
-   noch den Release-Workflow auslösen; das Token muss als **Dependabot**-Secret
-   hinterlegt sein (Actions-Secrets sind in Dependabot-Läufen unsichtbar).
+   mergen NIE automatisch** - sie bekommen Label + Reviewer. Handelt über ein
+   **GitHub-App-Token** (`DEPS_BOT_APP_ID`/`DEPS_BOT_PRIVATE_KEY`), weil
+   Pushes/Merges mit `GITHUB_TOKEN` weder CI noch den Release-Workflow
+   auslösen - der Bump-Commit bliebe ungetestet und der Merge ohne Tag/Image.
+   Beide Secrets gehören in den **Dependabot**-Speicher, nicht zu den
+   Actions-Secrets: die sind in Dependabot-Läufen unsichtbar. App-Token laufen
+   nicht ab (der frühere `WORKFLOW_PAT` musste von Hand erneuert werden).
+   Der Auto-Merge selbst ist GitHubs eigener: main braucht dafür Pflicht-Checks
+   (ohne die würde GitHub SOFORT mergen), aber KEINE Pflicht-Reviews.
    Der CI-Job `dependency-check` wird rot, sobald ein Paket veraltet ist -
    deshalb ist npm gruppiert: einzelne PRs blieben sonst gegenseitig rot.
 7. Compose-Änderungen IMMER in allen drei Dateien unter `docker/` (yml, ghcr.yml, prod.yml)

@@ -8,11 +8,20 @@
 #      MAJOR updates (new Node base image, Postgres major, ...) are never
 #      merged automatically - they get a reviewer and wait for a human.
 #
-# Uses WORKFLOW_PAT, not GITHUB_TOKEN, for the same reason as before: a push
-# or merge made with GITHUB_TOKEN triggers neither CI nor release.yml.
-# IMPORTANT: the PAT must exist as a *Dependabot* secret (Settings ->
-# Secrets and variables -> Dependabot), because workflow runs triggered by
-# Dependabot PRs cannot read Actions secrets.
+# Acts through a GitHub App token, not GITHUB_TOKEN: a push or merge made
+# with GITHUB_TOKEN triggers neither CI nor release.yml (GitHub's recursion
+# guard), so the bump commit would never be tested and the merge would never
+# produce a tag or a GHCR image. An App token has no expiry date - the former
+# WORKFLOW_PAT had to be renewed by hand whenever it ran out.
+#
+# Setup (once):
+#   1. Register a GitHub App on the account, permissions
+#      "Contents: Read and write" + "Pull requests: Read and write",
+#      install it on this repository.
+#   2. Store App ID and private key as *Dependabot* secrets (Settings ->
+#      Secrets and variables -> Dependabot): DEPS_BOT_APP_ID,
+#      DEPS_BOT_PRIVATE_KEY. Actions secrets are invisible to workflow runs
+#      triggered by Dependabot PRs - this must be the Dependabot store.
 name: dependabot-auto
 
 on:
@@ -32,6 +41,13 @@ jobs:
     if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
+      - name: Mint a GitHub App token
+        id: app
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.DEPS_BOT_APP_ID }}
+          private-key: ${{ secrets.DEPS_BOT_PRIVATE_KEY }}
+
       - name: Dependabot metadata
         id: meta
         uses: dependabot/fetch-metadata@v2
@@ -41,7 +57,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.ref }}
-          token: ${{ secrets.WORKFLOW_PAT }}
+          token: ${{ steps.app.outputs.token }}
 
       # Pushing our own commit fires another `synchronize` event - without this
       # guard the workflow would bump the version on every loop.
@@ -90,13 +106,13 @@ jobs:
       - name: Enable auto-merge (minor/patch)
         if: steps.meta.outputs.update-type != 'version-update:semver-major'
         env:
-          GH_TOKEN: ${{ secrets.WORKFLOW_PAT }}
+          GH_TOKEN: ${{ steps.app.outputs.token }}
         run: gh pr merge --auto --squash "${{ github.event.pull_request.html_url }}"
 
       - name: Major update - hand over to a human
         if: steps.meta.outputs.update-type == 'version-update:semver-major'
         env:
-          GH_TOKEN: ${{ secrets.WORKFLOW_PAT }}
+          GH_TOKEN: ${{ steps.app.outputs.token }}
           PR: ${{ github.event.pull_request.html_url }}
         run: |
           gh pr edit "$PR" --add-label "needs-review" --add-reviewer floriandeutsch89 \
