@@ -2676,6 +2676,32 @@ test('a normal game still lets a bot take over after the grace period', () => {
 });
 
 // --- Bot-Stufe in Challenge/Tutorial: gesetzt heißt auch gesetzt ---------------
+test('challenge runs at zen, tutorial at medium - the levels do not drift apart', () => {
+  // Tischentscheidung: Die Tages-Challenge ist die harte (Zen-Meister),
+  // das Tutorial die sanfte Uebung (mittel). Beide Modi teilen sich denselben
+  // Setup-Weg, deshalb wird die Trennung hier festgehalten.
+  const setup = (options, difficulty) => {
+    const game = new GameManager(() => {}, options);
+    game.addOrReconnectPlayer('me', 'Flodex');
+    game.setAllBotsDifficulty(difficulty);
+    game.fillWithBots();
+    game.startNewRound();
+    const levels = game.publicState('me').players.filter((p) => p.isBot).map((p) => p.botDifficulty);
+    game.destroy();
+    return levels;
+  };
+  assert.deepEqual(
+    setup({ deckSeed: 1, challengeDate: '2026-08-09' }, 'zen'),
+    ['zen', 'zen', 'zen'],
+    'the daily challenge faces the strongest bots'
+  );
+  assert.deepEqual(
+    setup({ deckSeed: 22, tutorialMode: true }, 'medium'),
+    ['medium', 'medium', 'medium'],
+    'the tutorial stays gentler - zen masters would be brutal for a beginner'
+  );
+});
+
 test('solo setup really applies the bot difficulty (it is NOT a house rule)', () => {
   // Spieler-Report: Changelog und Erklär-Fenster versprachen "drei mittlere
   // Bots", angezeigt wurde Zen. Ursache: setHouseRules verwirft unbekannte
