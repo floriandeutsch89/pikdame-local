@@ -3,6 +3,18 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.6.0] - 2026-08-09
+
+### Changed
+- **Abhängigkeits-Updates kommen jetzt von Dependabot** statt vom selbstgebauten `deps-update.yml`: montags 03:00 UTC für npm (als Gruppe, damit der CI-Job `dependency-check` grün werden kann), Docker-Basis-Images, die Images der Compose-Dateien und die GitHub-Actions. `dependabot-auto.yml` hängt den Versions-Bump samt deutscher CHANGELOG-Zeile an den PR - ohne ihn würde der Release-Workflow nach dem Merge nichts bauen - und stellt Minor/Patch auf Auto-Merge, sobald alle Prüfungen grün sind
+- **Die Automatik handelt über ein GitHub-App-Token statt über einen persönlichen Zugriffsschlüssel**: Der `WORKFLOW_PAT` musste von Hand erneuert werden und die Kette stand still, sobald er ablief. Nötig sind jetzt `DEPS_BOT_APP_ID` und `DEPS_BOT_PRIVATE_KEY` im **Dependabot**-Secret-Speicher (Actions-Secrets sind in Dependabot-Läufen unsichtbar)
+
+### Added
+- **Major-Updates bleiben Handarbeit**: Ein neues Node-Basis-Image oder ein Postgres-Major wird nie automatisch gemergt, sondern bekommt Label, Reviewer und einen Kommentar mit der Liste der Stellen, die im selben PR mitwandern müssen (Dockerfiles, `ci.yml`, Versions-Bump)
+
+### Removed
+- `deps-update.yml` (npm-only, eigene CI-Warteschleife) - Dependabot deckt mehr Ökosysteme ab und braucht keine Poll-Schleife
+
 ## [2.5.0] - 2026-08-09
 
 Auswertung eines PageSpeed-Insights-Berichts plus der Meldung, dass die Google
