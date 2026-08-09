@@ -85,3 +85,18 @@ test('the FAQ answers exist and are not empty', () => {
     );
   }
 });
+
+test('the "kostenlos" search terms are in the metadata AND answered in visible copy', () => {
+  // Vom Nutzer bestellt: "Kartenspiel kostenlos" und "Pik Dame kostenlos".
+  // Dieselbe Regel wie oben - ein Begriff, der nur in Metadaten steht und
+  // nirgends im lesbaren Text, waere versteckter Text.
+  const game = jsonLd().find((b) => b['@type'] === 'VideoGame');
+  const body = html.slice(html.indexOf('class="seoIntro"'));
+  for (const term of ['Kartenspiel kostenlos', 'Pik Dame kostenlos']) {
+    assert.ok(game.keywords.includes(term), `keywords are missing "${term}"`);
+    assert.ok(body.includes(term), `"${term}" appears in metadata but nowhere a reader can see it`);
+  }
+  // Und die Aussage muss stimmen: Das Spiel ist als kostenfrei ausgezeichnet.
+  assert.equal(game.isAccessibleForFree, true, 'claiming "kostenlos" requires isAccessibleForFree');
+  assert.equal(game.offers.price, '0', 'the offer must state a price of zero');
+});

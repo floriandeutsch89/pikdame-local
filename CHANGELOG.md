@@ -3,6 +3,17 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.11.0] - 2026-08-09
+
+### Changed
+- **Suchbegriffe erweitert:** „Kartenspiel kostenlos" und „Pik Dame kostenlos" sind aufgenommen, dazu naheliegende Varianten, nach denen tatsächlich gesucht wird - „Kartenspiel kostenlos online spielen", „Kartenspiele kostenlos", „Pikdame kostenlos", „Rommé kostenlos", „Kartenspiel ohne Anmeldung", „Kartenspiel ohne Download", „Kartenspiel zu zweit", „Kartenspiel mit Freunden online"
+- **Neuer sichtbarer Abschnitt „Kartenspiel kostenlos - was heißt das hier?"**: Begriffe nur in den Metadaten wären versteckter Text, den Suchmaschinen abstrafen. Der Absatz beantwortet die Frage hinter der Suche ehrlich - kein Kaufpreis, keine Werbung, keine Abos, keine Kaufoptionen, kein Download, Konto freiwillig
+- **Zwei neue FAQ-Einträge** in den strukturierten Daten (Chance auf eine direkte Antwort in den Suchergebnissen): „Gibt es hier ein Kartenspiel kostenlos ohne Anmeldung?" und „Kann man Pik Dame auch alleine gegen den Computer spielen?"
+- `alternateName` um „Pik Dame kostenlos" und „Kartenspiel kostenlos" ergänzt; `lastmod` der Sitemap fortgeschrieben
+
+### Added
+- Der SEO-Vertragstest sichert die neuen Begriffe in **beide** Richtungen: Sie müssen in den Metadaten **und** im lesbaren Text stehen, und die Auszeichnung als kostenfrei (`isAccessibleForFree`, Preis 0) muss die Aussage decken - eine „kostenlos"-Behauptung ohne passende Auszeichnung wäre irreführend
+
 ## [2.10.0] - 2026-08-09
 
 ### Changed
