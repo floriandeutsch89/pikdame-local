@@ -47,7 +47,7 @@ services:
       # Upper bound for parallel game sessions (DoS/memory guard, default 200)
       - PIKDAME_MAX_SESSIONS=200
       # --- User accounts (registration + login) ---
-      # Accounts are active automatically (SQLite in data/users.db, Node 24).
+      # Accounts are active automatically (SQLite in data/users.db, Node 26).
       # To disable: PIKDAME_ACCOUNTS=0
       # Base URL for the confirmation links in the e-mails:
       - PIKDAME_BASE_URL=${PIKDAME_BASE_URL:-}

@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.7.0] - 2026-08-09
+
+### Changed
+- **Docker-Bilder und CI laufen auf Node 26** (vorher 24): `docker/Dockerfile` (alle drei Abschnitte, `node:26-alpine`), `docker/Dockerfile.onnx` (`node:26-slim`) und beide CI-Aufträge samt der Konsistenzprüfung `FROM node:26`. **Hinweis:** 26 ist derzeit die *aktuelle* Linie, die LTS-Phase beginnt erst im Oktober 2026 - wer Verlässlichkeit über Aktualität stellt, bleibt bis dahin besser auf 24
+- Die Hinweise zum Node-Major-Update in `.github/dependabot.yml` und im Kommentar von `dependabot-auto.yml` zeigen wieder auf die tatsächlich geprüfte Zeichenkette (`FROM node:26`) - sonst schickt die Automatik beim nächsten Major eine Checkliste, die ins Leere greift
+- Der Mindeststand für den Hotspot-/CodeApp-Betrieb bleibt **Node 22** (`node:sqlite` für die Konten). Es gibt keine neue Abhängigkeit und keinen Bau-Schritt; ältere Node-Versionen schalten die Konten weiterhin selbst ab
+
+### Fixed
+- **`docker/Dockerfile.onnx` galt git als Binärdatei**: Die Regel `*.onnx binary` in `.gitattributes` ist für Modelldateien gedacht, griff aber auch für den Dockerfile, dessen Name zufällig so endet. Im Diff stand `Bin 3484 -> 3484 bytes` statt der geänderten `FROM`-Zeilen - ausgerechnet ein Basis-Image-Wechsel war damit nicht überprüfbar. Der Pfad ist jetzt ausdrücklich als Text mit Diff ausgenommen
+
 ## [2.6.1] - 2026-08-09
 
 Nachtrag zu 2.5.0: Der Vorspann verdeckte die Seite immer noch - ausgerechnet

@@ -121,5 +121,5 @@ jobs:
 
           Dieser PR hebt eine Hauptversion an (${{ steps.meta.outputs.dependency-names }}). Bitte manuell prüfen. Bei einem neuen Node-Basis-Image gehören in denselben PR:
           - \`docker/Dockerfile\` + \`docker/Dockerfile.onnx\` (FROM-Zeilen)
-          - \`.github/workflows/ci.yml\`: \`node-version\` und die Prüfung \`grep -q \"FROM node:24\"\`
+          - \`.github/workflows/ci.yml\`: \`node-version\` und die Prüfung \`grep -q \"FROM node:26\"\`
           - Versions-Bump in \`package.json\` + CHANGELOG-Abschnitt"

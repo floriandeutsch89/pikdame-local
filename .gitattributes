@@ -14,3 +14,8 @@
 *.zip   binary
 *.woff  binary
 *.woff2 binary
+
+# ... but the ONNX Dockerfile is a text file that merely ENDS in ".onnx" and
+# was swallowed by the rule above: git showed "Bin 3484 -> 3484 bytes" instead
+# of the changed FROM lines, so a base image bump was invisible in review.
+docker/Dockerfile.onnx text diff eol=lf

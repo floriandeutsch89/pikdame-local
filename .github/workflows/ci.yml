@@ -29,12 +29,13 @@ jobs:
       PIKDAME_TEST_PG_URL: postgres://pikdame:testpass@127.0.0.1:5432/pikdame_test
     steps:
       - uses: actions/checkout@v5
-      # Single current LTS line (24) - identical to the Docker image, so the
-      # account tests (node:sqlite, available since Node 22) always run for real.
-      - name: Use Node.js 24
+      # Single Node line (26) - identical to the Docker image, so the account
+      # tests (node:sqlite, available since Node 22) always run for real.
+      # 26 is the CURRENT line, not LTS: it becomes Active LTS in October 2026.
+      - name: Use Node.js 26
         uses: actions/setup-node@v7
         with:
-          node-version: 24.x
+          node-version: 26.x
           cache: 'npm'
       - run: npm ci
       # Exactly the same tests as locally: npm test = node --test test/*.test.js.
@@ -44,7 +45,7 @@ jobs:
         run: |
           set -o pipefail
           npm test 2>&1 | tee /tmp/test.log || {
-            # Node 22 prints TAP ('not ok'), Node 24 defaults to the spec
+            # Node 22 prints TAP ('not ok'), Node 24+ defaults to the spec
             # reporter ('✖') - match both, or a failure annotates NOTHING
             # (exactly what happened: red job, empty annotations).
             grep -E "^not ok|✖" /tmp/test.log | head -20 | while IFS= read -r l; do echo "::error title=failing test::${l}"; done
@@ -53,7 +54,7 @@ jobs:
           }
       # Consistency: the Dockerfile must use the same Node major version
       - name: Node version Dockerfile == CI
-        run: grep -q "FROM node:24" docker/Dockerfile || (echo "Dockerfile Node version differs from CI (24)" && exit 1)
+        run: grep -q "FROM node:26" docker/Dockerfile || (echo "Dockerfile Node version differs from CI (26)" && exit 1)
 
       # Consistency: the generated docs (env vars, WS protocol, game constants)
       # must match the code. If someone changes a constant without running
@@ -67,7 +68,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v7
         with:
-          node-version: 24.x
+          node-version: 26.x
           cache: 'npm'
       - run: npm ci
       # Outdated packages fail the job (the project deliberately has only
