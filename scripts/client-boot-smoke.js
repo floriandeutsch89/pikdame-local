@@ -82,6 +82,35 @@ setTimeout(() => {
       lobbyReady: [], log: [], tableMelds: [], discardCount: 0, drawCount: 0,
       roundNumber: 0, totals: { p1: 0, b1: 0 }, houseRules: {}, nextRoundReady: [],
     };
+    // Tagesaufgaben: Ihre Texte kommen aus dem Code (L()), nicht aus dem
+    // HTML - beim Sprachwechsel blieben sie deshalb stehen (Nutzer-Report).
+    {
+      const doc = window.document;
+      wsInstance._emit('message', {
+        data: JSON.stringify({
+          type: 'profiles',
+          players: [{ name: 'Flo', gamesPlayed: 3, gamesWon: 1, quests: {} }],
+          publicMode: false,
+          quests: { date: '2026-08-09', ids: ['finish_game', 'meld_queen'] },
+        }),
+      });
+      const list = doc.getElementById('questList');
+      const langBtn = doc.getElementById('langBtnLobby');
+      if (!list || !langBtn) errors.push('quest list or language toggle missing');
+      else if (!/Partie/.test(list.textContent)) {
+        errors.push(`quest list did not render in German: ${list.textContent.slice(0, 60)}`);
+      } else {
+        langBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));   // -> Englisch
+        if (!/Finish one match/.test(list.textContent)) {
+          errors.push(`daily quests did not follow the language switch: ${list.textContent.slice(0, 80)}`);
+        }
+        langBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));   // -> Deutsch
+        if (!/Partie zu Ende spielen/.test(list.textContent)) {
+          errors.push(`daily quests did not switch back: ${list.textContent.slice(0, 80)}`);
+        }
+      }
+    }
+
     // Sprachwechsel muss auch DYNAMISCHE Beschriftungen mitnehmen. Der
     // "Weiterspielen (CODE)"-Knopf wurde frueher einmalig gesetzt und blieb
     // danach in der alten Sprache stehen (Nutzer-Report).
