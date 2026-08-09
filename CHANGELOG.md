@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.9.0] - 2026-08-09
+
+### Changed
+- **Die Caddy-Konfiguration steckt jetzt im Image statt in einem Mount**: `docker/Caddyfile` ist nach `docker/caddy/Caddyfile` gewandert und wird vom Proxy-Image mitgebaut; der Mount `./Caddyfile:/etc/caddy/Caddyfile` in `docker-compose.prod.yml` entfällt. Grund: Die Datei enthält den sha256-Wert des eingebetteten Kopf-Skripts aus `index.html`. Als Mount waren beide **getrennt versioniert** - ein Server, der ein neues App-Image zieht, aber die alte Datei behält, sperrt das Kopf-Skript still aus (keine Crawler-Erkennung, Vorspann bei jedem Aufruf). Ein einmaliges Experiment am Server bleibt möglich: Mount wieder eintragen, Kommentar in der Compose-Datei zeigt wie
+- Der Ordnerwechsel ist kein Kosmetik-Schritt: Der Release-Workflow baut das Caddy-Image nur neu, wenn sich sein Fingerabdruck über `docker/caddy/**` ändert. Eine Ebene höher hätte eine Änderung der Sicherheitsregel das alte Image nur **umetikettiert** statt neu gebaut - genau der Fehler, den der Umbau verhindern soll
+
+### Added
+- **Sicherheitsnetz gegen auseinanderlaufende Sicherheitsregel und HTML** (drei Ebenen, alle in `npm test`): `test/csp-contract.test.js` rechnet den Wert neu aus und wird rot bei Abweichung (bestand schon), prüft jetzt zusätzlich, dass das Image die Datei wirklich hineinkopiert, dass keine Compose-Datei sie überdeckt, und dass der Release-Fingerabdruck sie erfasst
+- `scripts/sync-csp-hash.js` samt `npm run csp:sync` (schreibt) und `npm run csp:check` (meldet nur): Die Antwort auf einen roten Test ist damit ein Befehl statt Base64-Abtippen. Der Test nennt den Befehl in seiner Fehlermeldung. Nachgewiesen: Nach einer Änderung am Kopf-Skript ist die reparierte Datei **byte-identisch** mit der von Hand gepflegten - das Skript fasst nur die Werte an, keine Einrückung
+
 ## [2.8.0] - 2026-08-09
 
 ### Changed
