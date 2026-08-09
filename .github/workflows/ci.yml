@@ -85,11 +85,14 @@ jobs:
       # OWASP RULE #11: lint the Dockerfile.
       # DL3018 (apk version pins) is ignored on purpose: tini should track
       # the Alpine base image instead of being pinned to one version.
+      # DL3029 (--platform in FROM) is ignored for the asset-minifying stage:
+      # $BUILDPLATFORM is exactly the documented cross-build pattern, and the
+      # rule targets HARDCODED platforms.
       - name: Lint Dockerfile (hadolint)
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: docker/Dockerfile
-          ignore: DL3018
+          ignore: DL3018,DL3029
       # The optional ONNX image is linted too, but deliberately NOT built here:
       # onnxruntime-node is a ~100 MB native dependency and would dominate CI.
       - name: Lint Dockerfile.onnx (hadolint)

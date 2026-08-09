@@ -9,7 +9,26 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-# --- Stage 2: minimal runtime image -----------------------------------------
+
+# --- Stage 2: minify the browser assets ------------------------------------
+# Only the IMAGE ships minified files. The repository keeps readable sources
+# because the hotspot/CodeApp mode serves public/ straight from the checkout
+# and has to stay build-free (see CLAUDE.md).
+# $BUILDPLATFORM keeps this stage on the native builder: the output is plain
+# text and byte-identical for every target architecture, so running it under
+# QEMU for the arm64 image would only cost minutes.
+# hadolint ignore=DL3029
+FROM --platform=$BUILDPLATFORM node:24-alpine AS assets
+WORKDIR /app
+# Full install (esbuild is a devDependency); nothing from here reaches the
+# runtime image - only the minified files under public/ do.
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY scripts/minify-assets.js ./scripts/
+COPY public ./public
+RUN node scripts/minify-assets.js
+
+# --- Stage 3: minimal runtime image -----------------------------------------
 FROM node:24-alpine
 
 # OCI labels: link the GHCR package to the repository and document the image
@@ -39,7 +58,9 @@ COPY CHANGELOG.md ./
 COPY LICENSE ./
 COPY server.js ./
 COPY game ./game
-COPY public ./public
+# Minified in stage "assets" - index.html travels through untouched, because
+# its inline script is pinned by sha256 in the production CSP.
+COPY --from=assets /app/public ./public
 
 # data/ is normally mounted as a volume; the directory still has to exist
 # and must be owned by the unprivileged user.

@@ -159,6 +159,20 @@ const MIME_TYPES = {
   '.ico': 'image/x-icon',
 };
 
+/** Does the client already hold this exact representation?
+ *  If-None-Match is a LIST, entries may be weak, and a compressing proxy
+ *  rewrites the tag: Caddy's `encode` appends the encoder name, so the
+ *  browser echoes back W/"...-zstd" and a naive === would never match -
+ *  the 304 would silently never happen behind the production proxy.
+ *  Comparison is therefore weak and suffix-tolerant. */
+const ENCODING_SUFFIX = /-(?:gzip|zstd|br|deflate)"$/;
+function etagMatches(ifNoneMatch, etag) {
+  if (!ifNoneMatch) return false;
+  const normalize = (t) => t.trim().replace(/^W\//, '').replace(ENCODING_SUFFIX, '"');
+  const mine = normalize(etag);
+  return ifNoneMatch.split(',').some((t) => t.trim() === '*' || normalize(t) === mine);
+}
+
 // --- Statischer Datei-Server für den Ordner public/ -------------------------
 
 function serveStatic(req, res) {
@@ -248,30 +262,55 @@ function serveStatic(req, res) {
     return;
   }
 
-  fs.readFile(resolved, (err, data) => {
-    if (err) {
+  fs.stat(resolved, (statErr, stat) => {
+    if (statErr || !stat.isFile()) {
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('Nicht gefunden');
       return;
     }
+    // 'no-cache' means REVALIDATE, not 'never cache' - but revalidation
+    // needs a validator. Without one the browser re-downloaded every
+    // bundle on every single navigation (client.js alone is ~220 kB raw).
+    // Size + mtime + app version is enough: a redeploy changes at least
+    // one of them, and the version also covers the stamp injected below.
+    const etag = `W/"${stat.size.toString(16)}-${stat.mtimeMs.toString(16)}-${APP_VERSION}"`;
     const ext = path.extname(resolved);
-    // PWA auto-update, part 1: stamp the serving server's version INTO the
-    // client bundle. A stale cached client carries a stale stamp - the
-    // client compares it against /statusz and reloads itself once.
-    if (resolved.endsWith(`${path.sep}client.js`)) {
-      data = Buffer.concat([
-        Buffer.from(`window.__PIKDAME_BUILD='${APP_VERSION}';\n`),
-        data,
-      ]);
+    // Icons are content-stable between releases and are re-requested on
+    // every cold start; everything else must revalidate so a new release
+    // actually reaches the player.
+    const cacheControl = filePath.startsWith('/icons/')
+      ? 'public, max-age=86400'
+      : 'no-cache';
+    if (etagMatches(req.headers['if-none-match'], etag)) {
+      res.writeHead(304, { ETag: etag, 'Cache-Control': cacheControl });
+      res.end();
+      return;
     }
-    // no-cache = ALWAYS revalidate (a tiny 304 when unchanged). Without it,
-    // browsers kept week-old client.js against a nightly-updated server -
-    // the source of 'raw badge codes' and invisibly firing new features.
-    res.writeHead(200, {
-      'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
-      'Cache-Control': 'no-cache',
+    fs.readFile(resolved, (err, data) => {
+      if (err) {
+        res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('Nicht gefunden');
+        return;
+      }
+      // PWA auto-update, part 1: stamp the serving server's version INTO the
+      // client bundle. A stale cached client carries a stale stamp - the
+      // client compares it against /statusz and reloads itself once.
+      if (resolved.endsWith(`${path.sep}client.js`)) {
+        data = Buffer.concat([
+          Buffer.from(`window.__PIKDAME_BUILD='${APP_VERSION}';\n`),
+          data,
+        ]);
+      }
+      // no-cache = ALWAYS revalidate (a tiny 304 when unchanged). Without it,
+      // browsers kept week-old client.js against a nightly-updated server -
+      // the source of 'raw badge codes' and invisibly firing new features.
+      res.writeHead(200, {
+        'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
+        'Cache-Control': cacheControl,
+        ETag: etag,
+      });
+      res.end(data);
     });
-    res.end(data);
   });
 }
 

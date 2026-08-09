@@ -130,10 +130,35 @@ setTimeout(() => {
         ),
       };
       feed(tutorialState);
+      // The welcome step now also covers the opening draw of a tutorial round
+      // (phase 'lobby' never reaches the client there - the tutorial session
+      // starts its round immediately). Confirm it like a player would, THEN
+      // the draw step and its target highlight are due.
+      const welcome = doc.getElementById('tutorialText').textContent;
+      if (!/Willkommen|Welcome/.test(welcome)) {
+        errors.push(`tutorial must open with the welcome step, got: ${welcome}`);
+      }
+      doc.getElementById('tutorialNextBtn').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
       const drawPile = doc.getElementById('drawPile');
       if (!drawPile) errors.push('draw pile missing');
       else if (!drawPile.classList.contains('tutorialGlowTarget')) {
         errors.push('tutorial must highlight the draw pile during the draw step');
+      }
+      // Singular/Plural im Kartenzaehler: bei genau einer Karte stand hier
+      // "1 Karten" - ausgerechnet im spannendsten Moment der Runde.
+      {
+        const one = {
+          ...tutorialState,
+          players: tutorialState.players.map((p) =>
+            p.id === 'p1' ? { ...p, handCount: 1, hand: [{ id: 't1', suit: 'D', rank: '3' }] } : p
+          ),
+        };
+        feed(one);
+        const label = doc.getElementById('handCount').textContent;
+        if (label !== '1 Karte') errors.push(`hand counter must read "1 Karte" for a single card, got: ${label}`);
+        feed(tutorialState);
+        const many = doc.getElementById('handCount').textContent;
+        if (many !== '3 Karten') errors.push(`hand counter must read "3 Karten" for three cards, got: ${many}`);
       }
       // Gegenprobe im selben Lauf: ohne Tutorial-Kennzeichnung keine Markierung.
       feed({ ...tutorialState, tutorialMode: false, turnPhase: 'meld' });

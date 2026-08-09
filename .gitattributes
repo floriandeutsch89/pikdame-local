@@ -1,0 +1,16 @@
+# Line endings are a CONTRACT here, not a style preference: the production CSP
+# allows the inline splash script in public/index.html by its sha256 hash, and
+# that hash is computed over the exact bytes the browser receives. A CRLF
+# working copy (Windows default via core.autocrlf) hashes differently, so the
+# browser would refuse to run the script and the lobby would flash on every
+# load. LF everywhere keeps every checkout byte-identical to the container.
+* text=auto eol=lf
+
+# Binaries must never be touched by any of the above.
+*.png   binary
+*.jpg   binary
+*.ico   binary
+*.onnx  binary
+*.zip   binary
+*.woff  binary
+*.woff2 binary

@@ -64,7 +64,8 @@ window.I18N_STATIC = {
   'Diese Woche:': 'This week:',
   'Gewertet werden deine besten fünf Tage der laufenden Woche.': 'Your best five days of the current week count.',
   'Dein Fortschritt': 'Your progress',
-  'Abgehakt wird, sobald du einen Hinweis mit „Verstanden“ bestätigt hast.': 'A step is ticked once you confirm its hint with "Got it".',
+  'Abgehakt wird ein Punkt, sobald du ihn mit „Verstanden“ bestätigt hast oder die Situation vorbei ist. Bonus-Punkte hängen an einer seltenen Spielsituation und zählen nicht zum Fortschritt.':
+    'A step is ticked once you confirm it with "Got it" - or once its situation has passed. Bonus steps depend on a rare table situation and do not count towards your progress.',
   'Erscheinungsbild': 'Appearance',
   'Spielverlauf': 'Game log',
   'Anzeigegröße': 'Display size',
