@@ -12,6 +12,9 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 - Das Image trägt statt zweier Digest-Label jetzt `online.pikdame.caddy.base.version`. Beim ersten Lauf nach der Umstellung fehlt es am veröffentlichten Image, deshalb wird **genau einmal** neu gebaut; danach greift der Vergleich
 
 ### Added
+- **Bau-Zwischenspeicher für alle drei Images** (`RUN --mount=type=cache`): Das Caddy-Image legt Gos Übersetzungs- und Modul-Zwischenspeicher (`/root/.cache/go-build`, `/go/pkg/mod`) ab, die beiden Node-Images den npm-Zwischenspeicher (`/root/.npm`). Gemessen auf amd64, Schicht ungültig aber Bau-Zwischenspeicher erhalten: Caddy **33 s -> 3 s**, ONNX-Abhängigkeiten **42 s -> 33 s**, App-Image 5 s -> 4 s
+- **Wichtig zur Einordnung:** In der GitHub-CI bringt das nichts. Diese Zwischenspeicher liegen am Bau-Dienst, und `cache-to: type=gha` sichert **Schichten**, keine Mounts - ein flüchtiger Läufer startet jedes Mal leer. Dort bleibt der Schichten-Zwischenspeicher entscheidend, der schon eingerichtet ist (`cache-from`/`cache-to` mit eigenem `scope=caddy`). Der Gewinn liegt bei lokalen und selbst betriebenen Läufern. Nebenwirkung überall: Der npm-Zwischenspeicher landet nicht mehr in der Schicht
+- Beim Messen ist `docker build --no-cache` eine Falle: Es leert **auch** die Bau-Zwischenspeicher, dann ist der Gewinn null. Die Schicht muss stattdessen über ein Bau-Argument ungültig gemacht werden - steht als Warnung im Dockerfile
 - `test/csp-contract.test.js` hält die neue Prüfung fest: Die Version muss vom Laufzeit-Basis-Image gelesen, gegen das Label des veröffentlichten Images verglichen und beim Bau zurückgeschrieben werden - reißt eine dieser drei Verbindungen, friert die Prüfung stillschweigend ein und eine neue Caddy-Version erreicht den Proxy nie. Ein unlesbares Label gilt weiterhin als „bauen", nie als „unverändert"
 
 ## [2.9.0] - 2026-08-09
