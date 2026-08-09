@@ -8,6 +8,10 @@ test
 k8s
 docker
 scripts
+# ...except the asset minifier: the image build minifies public/ with it
+# (see stage "assets" in docker/Dockerfile). The rest of scripts/ is
+# development tooling and stays out of the context.
+!scripts/minify-assets.js
 landing
 docs
 *.md

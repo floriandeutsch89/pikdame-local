@@ -3,6 +3,55 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.5.0] - 2026-08-09
+
+Auswertung eines PageSpeed-Insights-Berichts plus der Meldung, dass die Google
+Search Console beim Live-Test nur den Studio-Vorspann zu sehen bekam.
+
+### Fixed
+- **Suchmaschinen sahen nur das Studio-Logo**: Der Vorspann liegt ab dem ersten Bild per CSS über der Lobby - der Live-Test der Search Console rendert genau dieses Bild, Startbildschirm und SEO-Text lagen darunter. Crawler (Googlebot, Bingbot, Lighthouse und weitere) überspringen den Vorspann jetzt vollständig und finden Lobby, Knöpfe und `seoIntro`-Text sofort im gerenderten DOM. Nachgewiesen mit echtem Chrome hinter der echten Caddy-Konfiguration
+- **Jeder Seitenaufruf lud alles neu**: Die Dateien wurden mit `no-cache` ausgeliefert, aber ohne Kennzeichnung - „bitte nachfragen" ohne etwas zum Nachfragen. Der Browser holte `client.js` (~220 kB) bei JEDEM Aufruf komplett. Mit `ETag` antwortet der Server bei unverändertem Stand mit 304 und 0 Byte Inhalt; die Selbstaktualisierung nach einem Release bleibt unberührt, weil die Version in der Kennzeichnung steckt
+- **Zwei Dateien blockierten die Anzeige unnötig**: `vendor-qrcode.js` (~55 kB) stand im Kopf, obwohl es nur beim Öffnen des QR-Fensters gebraucht wird - es wird jetzt erst beim Klick geladen. `i18n.js` und `client.js` laufen per `defer` nach dem Aufbau der Seite
+- **Überschriften sprangen von h1 auf h3**: Die vier Abschnitte des Startbildschirms (Tagesaufgaben, Spieleranzahl, Sitzordnung, Hausregeln) sind jetzt h2 - eine übersprungene Ebene ist für Screenreader ein echtes Hindernis
+- **Zoom war gesperrt**: `user-scalable=no, maximum-scale=1.0` verhinderte das Vergrößern. iOS-Safari ignoriert das seit Jahren ohnehin, für alle anderen war es eine Barriere
+
+### Added
+- **Reduzierte Bewegung überspringt den Vorspann** ganz (vorher lief eine ruhigere Fassung). Wer ihn in den Einstellungen ausdrücklich auf „voll" gestellt hat, bekommt ihn weiterhin
+- **Content-Security-Policy** im erzwungenen Modus, dazu `Cross-Origin-Opener-Policy`. Alles wird von der eigenen Herkunft geladen; das einzige eingebettete Skript ist über seinen sha256-Wert erlaubt. Der WebSocket steht ausdrücklich in `connect-src`, weil Safari `wss://` nicht immer als eigene Herkunft anerkennt
+- `test/csp-contract.test.js`: rechnet den sha256-Wert aus `index.html` neu aus und lässt den Bau scheitern, wenn er nicht mehr zur Caddy-Konfiguration passt - sonst würde die Sperre still zuschlagen und der Startbildschirm bei jedem Aufruf kurz aufblitzen. Prüft zusätzlich, dass keine fremde Herkunft eingebunden wird
+- `test/splash-crawler.test.js`: startet den echten Client und hält beide Seiten fest - Crawler bekommen kein Vorspann-Element und hinterlassen NICHTS im Sitzungsspeicher, ein normaler erster Besuch bekommt den Vorspann wie gewohnt
+- **Verkleinerte Auslieferung im Docker-Bild**: Ein eigener Bau-Abschnitt (`scripts/minify-assets.js`, esbuild) verkleinert JS und CSS - 437 kB werden zu 234 kB, über die Leitung fällt `client.js` von 74 auf 43 kB und `style.css` von 36 auf 19 kB. **Das Verzeichnis im Projekt bleibt unverändert lesbar**: Der Hotspot-/CodeApp-Betrieb liefert `public/` direkt aus dem Checkout aus und bleibt bau-frei. `index.html` wird bewusst NICHT angefasst, sonst passte der sha256-Wert der Sicherheitsregel nicht mehr
+- `.gitattributes`: LF in jeder Arbeitskopie. Der sha256-Wert der Sicherheitsregel wird über die tatsächlich ausgelieferten Bytes gebildet - eine Windows-Arbeitskopie mit CRLF ergäbe einen anderen Wert und ein gesperrtes Skript
+
+### Changed
+- Symbole werden einen Tag lang zwischengespeichert (sie ändern sich zwischen Veröffentlichungen nicht); alles andere fragt weiterhin bei jedem Aufruf nach
+
+## [2.4.0] - 2026-08-09
+
+Durchspielen des Tutorials im Browser (Telefon- und Desktop-Layout) - der Modus
+lief, aber mehrere Lektionen erreichten den Lernenden nie.
+
+### Fixed
+- **Der Hinweis-Balken verdeckte die Kopfzeile** - in BEIDEN Layouts lagen `Du bist am Zug` und die Rundenzeile darunter. Ausgerechnet die Zeile, auf die das Tutorial selbst verweist („oben steht immer, wer gerade dran ist"). Der Balken hing an einem geratenen `top: 52px`; jetzt sitzt er an der Oberkante und das Layout hält per gemessener Höhe genau so viel Platz frei
+- **Die Wertungs-Lektion war nie lesbar**: Am Rundenende lag der Balken *hinter* dem Ergebnis-Fenster. Beim Tippen auf „Nächste Runde" galt der Schritt trotzdem als gesehen - „Wertung verstehen" war abgehakt, ohne je auf dem Bildschirm gestanden zu haben. Der Balken liegt jetzt über den Fenstern, deren Karte rückt entsprechend nach unten
+- **„Spiel starten" war unerreichbar**: Der Schritt wartete auf die Lobby, das Tutorial startet seine Runde aber sofort - der Willkommens-Text war toter Code. Damit wurde die Liste nie vollständig, das Tutorial **schaltete sich nie ab** und trug seine Hinweise in jedes spätere normale Spiel. Der Willkommens-Schritt deckt jetzt beide Einstiege ab
+- **Die Regel-Erklärung nach einer Ablehnung erschien grundsätzlich nicht**: Die Fehlermeldung belegt den Meldungs-Platz 5 Sekunden lang mit Vorrang, die Erklärung kam nach 0,9 Sekunden ohne Vorrang und wurde jedes Mal verworfen. Sie erscheint jetzt nach der Fehlermeldung - und deckt zusätzlich den häufigsten Anfängerfehler ab (Farben in einer Folge gemischt) sowie „nur ein Satz je Wert"
+- **Ein einzeln gewählter Joker bekam keinen grünen Rahmen**, obwohl der Zug erlaubt ist: Die Prüfung wies Joker sofort ab. Sie nutzt jetzt dieselbe Eindeutigkeits-Suche wie das Anlegen mehrerer Karten - mehrdeutige Fälle (beide Enden einer Folge) bleiben weiter unmarkiert
+- **„1 Karten"** im Kartenzähler - jetzt „1 Karte"
+- **Pik-Dame-Jubel und Protokoll-Meldung überdruckten sich** (beide in der Bildmitte): „Du sicherst dir 100 Punkte" war unlesbar. Die Meldung rückt jetzt unter das Jubel-Feld
+- Der Rundenende-Hinweis nannte einen Knopf „Weiter", der „Nächste Runde" heißt
+- Der Hinweis unter der Fortschrittsliste behauptete, abgehakt werde nur per „Verstanden" - tatsächlich zählt seit v1.71 auch eine vorübergegangene Situation
+
+### Added
+- **Zwei neue Lektionen**: „An eigene Auslage anlegen" (im Text erwähnt, aber nie gezeigt - kein Schritt hatte je ein Anlege-Ziel markiert) und „Joker zurücktauschen" (der Joker-Schritt sprach von „getauschten Jokern", ohne den Tausch je zu erklären)
+- Der Schritt „Auslegen" markiert jetzt auch den **Auslegen-Knopf**, der Abwerf-Schritt zusätzlich den **Fächer** - er zeigte vorher nur auf einen Knopf, den es ohne gewählte Karte noch gar nicht gibt
+- Die Fortschrittsliste kennt **Bonus-Punkte** für Lektionen, die an einer seltenen Spielsituation hängen (Ablagestapel aufnehmen, Joker-Tausch). Sie zählen nicht mit, sonst wäre 100 % nicht erreichbar
+- Rauchtest prüft Willkommens-Schritt und Singular/Plural des Kartenzählers
+
+### Changed
+- **„Pik Dame: +100 oder -100" kommt jetzt VOR „Pik Dame auslegen"**: Erst folgte man dem Rat und legte die Dame aus, danach konnte der erklärende Schritt nie mehr auslösen - er setzt sie auf der Hand voraus
+- Wer ohne Namen ins Tutorial startet, heißt „Neuling" statt „Spieler417"
+
 ## [2.3.2] - 2026-08-09
 
 ### Changed

@@ -493,7 +493,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
   box-shadow: var(--shadow-1);
 }
-.lobby-section h3 {
+.lobby-section h2 {
   margin: 0 0 4px;
   font-size: 0.72rem; font-weight: 700;
   letter-spacing: 0.09em; text-transform: uppercase;
@@ -1390,6 +1390,11 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   text-align: center;
 }
 #toastContainer.visible { opacity: 1; transform: translate(-50%, -50%); }
+/* .raidWarning (top:42%) and the toast (top:50%) both live in the middle of
+   the screen and overprinted each other - the log line "... legt eine neue
+   Satz-Auslage aus." ran straight through "Du sicherst dir 100 Punkte".
+   Margin, not transform: the toast animates its own transform. */
+body.raidActive #toastContainer { margin-top: 132px; }
 
 /* Neue Karte auf dem Ablagestapel: kurzes Aufpoppen */
 @keyframes discardPop {
@@ -2088,8 +2093,14 @@ input:disabled { opacity: 0.65; }
 
 /* --- Tutorial mode (v1.21.0) ------------------------------------------------ */
 #tutorialBanner {
-  position: fixed; top: calc(52px + var(--safe-top, 0px)); left: 10px; right: 10px;
-  z-index: 40; /* above the table, below overlays */
+  /* Was top:52px/z-index:40 - a hardcoded guess at the header height that
+     covered #turnInfo and #roundInfo in BOTH layouts (the very line the
+     tutorial tells beginners to read), and at round end it hid behind the
+     result overlay (z-index 50), so the scoring lesson was ticked off
+     without ever having been on screen. It now sits at the top edge and the
+     layout below reserves --tutorial-h for it - it overlaps nothing. */
+  position: fixed; top: calc(6px + var(--safe-top, 0px)); left: 10px; right: 10px;
+  z-index: 60; /* above overlays - they reserve room for it, see .overlay */
   background: linear-gradient(135deg, var(--accent), var(--accent-strong, var(--accent)));
   color: #fff; border-radius: 14px;
   padding: 11px 14px;
@@ -2105,6 +2116,13 @@ input:disabled { opacity: 0.65; }
 }
 #tutorialNextBtn { background: rgba(255,255,255,0.92); color: #1a1e24; }
 #tutorialOffBtn { background: rgba(255,255,255,0.18); color: rgba(255,255,255,0.85); }
+/* Room for the fixed banner. --tutorial-h is MEASURED in syncTutorialLayout()
+   (the text is 1-4 lines depending on step and width), so no offset has to be
+   guessed here. .screen is border-box and flex:1, so the padding simply
+   shrinks the meld area; in landscape #table is a grid and the 1fr row gives
+   the same space back. Overlay cards move down with it instead of under it. */
+body.tutorialOpen .screen { padding-top: var(--tutorial-h, 0px); }
+body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 /* (#tutorialBtn had margin-top:8px from when these buttons were stacked. In
    the .menuChips flex row that margin ate 8px of its stretched height, so
    Tutorial rendered 40px tall next to a 48px Challenge. Row spacing belongs
@@ -2976,8 +2994,17 @@ html[data-cardback="joker"] .card.back {
    ohne die Klasse blenden die Klingen nur nacheinander auf. Welche gilt,
    entscheidet client.js - bewusst KEINE Media Query, damit eine bereits
    sichtbare Marke nie ein zweites Mal eingeblendet werden kann. */
-/* Vom Kopf-Skript gesetzt: gar nicht erst zeichnen. */
-html.noSplash .studioSplash { display: none; }
+/* Vom Kopf-Skript gesetzt: gar nicht erst zeichnen. Beide Selektoren, damit
+   die Regel auch ohne die Klasse am Element greift, und !important gegen die
+   Ausblend-Animation weiter unten - ein Crawler-Screenshot darf NICHTS vom
+   Vorspann sehen, auch keinen Rest-Layer. */
+html.noSplash #studioSplash,
+html.noSplash .studioSplash { display: none !important; }
+/* Garantie fuer das Rendern durch Suchmaschinen: ohne Vorspann sind Spiel und
+   Startbildschirm ab dem ersten Bild voll sichtbar - keine Einblende-Animation
+   darf sich hier je davorschieben. */
+html.noSplash #app,
+html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
 
 .studioSplash {
   /* Notbremse: Sollte das Skript sterben, verschwindet der Vorspann trotzdem
@@ -3117,6 +3144,9 @@ html.noSplash .studioSplash { display: none; }
   outline-offset: 3px;
   border-radius: var(--r-sm);
 }
+/* The hand bar sits flush against the bottom edge and clips horizontally
+   (overflow-x:auto), so its ring goes INSIDE instead of 3px outside. */
+#handWrapper.tutorialGlowTarget { outline-offset: -3px; }
 @keyframes tutTargetPulse {
   0%, 100% { outline-color: var(--accent); }
   50% { outline-color: transparent; }

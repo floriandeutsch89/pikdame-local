@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Pik Dame spielen – Rommé Kartenspiel kostenlos online mit Freunden &amp; Bots</title>
   <meta name="description" content="Pik Dame kostenlos online spielen: das beliebte Familien-Rommé als Kartenspiel im Browser. Ohne Anmeldung, ohne Download – mit Freunden per Link oder gegen Bots. Rommé mit Pik-Dame-Regel (100 Punkte), Joker, Sätzen und Folgen." />
   <link rel="canonical" href="https://play.pikdame.online/" />
@@ -90,18 +90,37 @@
   }
   </script>
 
-  <script src="/vendor-qrcode.js"></script>
-  <script src="/i18n.js"></script>
+  <!-- Render-blocking budget: both bundles run AFTER the document is parsed
+       (defer), in source order, so i18n is ready before client.js starts.
+       vendor-qrcode.js is NOT loaded here - it is only needed once the QR
+       overlay is opened, and client.js fetches it then (see loadQrLib). -->
+  <script src="/i18n.js" defer></script>
+  <script src="/client.js" defer></script>
   <script>
-    /* Laeuft VOR dem ersten Bild: Wurde der Vorspann in dieser Sitzung schon
-       gezeigt (oder ist er abgeschaltet), wird er gar nicht erst gezeichnet.
-       Umgekehrt liegt er dank CSS sofort ueber der Lobby - vorher blitzte
-       sie kurz auf, weil client.js erst am Ende des Body laeuft. */
-    try {
-      var seen = sessionStorage.getItem('pikdame_splash_seen') === '1';
-      var off = localStorage.getItem('pikdame_studio_logo') === 'off';
-      if (seen || off) document.documentElement.classList.add('noSplash');
-    } catch (e) { /* ohne Speicher einfach zeigen */ }
+    /* Laeuft VOR dem ersten Bild und entscheidet ueber den Studio-Vorspann.
+       Uebersprungen wird er, wenn er in dieser Sitzung schon lief, per
+       Einstellung abgeschaltet ist, ein CRAWLER die Seite rendert oder
+       reduzierte Bewegung gewuenscht ist. Umgekehrt liegt er dank CSS sofort
+       ueber der Lobby - vorher blitzte sie kurz auf.
+       Eigener Gueltigkeitsbereich: die Variablen duerfen nicht als globale
+       Namen (bot, mode, ...) im Fenster landen. */
+    (function () {
+      try {
+        var mode = null, seen = false;
+        try { mode = localStorage.getItem('pikdame_studio_logo'); } catch (e) { mode = null; }
+        try { seen = sessionStorage.getItem('pikdame_splash_seen') === '1'; } catch (e) { seen = false; }
+        /* Crawler sahen bisher NUR das Logo - der Live-Test der Search
+           Console rendert genau dieses erste Bild, Lobby und SEO-Text lagen
+           darunter. Bots ueberspringen den Vorspann komplett und schreiben
+           dabei nichts in den Speicher (siehe client.js). */
+        var ua = navigator.userAgent || '';
+        var bot = /bot|crawl|spider|slurp|duckduckbot|lighthouse|headlesschrome|pagespeed|yandex|baiduspider|applebot|preview/i.test(ua);
+        /* Reduzierte Bewegung heisst hier: gar kein Vorspann. Wer ihn per
+           Einstellung ausdruecklich auf 'full' gestellt hat, bekommt ihn. */
+        var reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) && mode !== 'full';
+        if (seen || mode === 'off' || bot || reduce) document.documentElement.classList.add('noSplash');
+      } catch (e) { /* ohne Speicher einfach zeigen */ }
+    })();
   </script>
 </head>
 <body>
@@ -234,7 +253,7 @@
            alle gleich. Steht bewusst auf dem Startbildschirm - Fortschritt,
            den man erst nach dem Spiel sieht, motiviert niemanden. -->
       <div id="questsSection" class="lobby-section questsSection hidden">
-        <h3>Tagesaufgaben</h3>
+        <h2>Tagesaufgaben</h2>
         <div id="questList" class="questList"></div>
       </div>
 
@@ -251,7 +270,7 @@
       <p id="nonHostHint" class="lobby-hint hidden">🔒 Nur der Organisator kann die Einstellungen ändern.</p>
 
       <div id="seatCountSection" class="lobby-section hidden">
-        <h3>Spieleranzahl</h3>
+        <h2>Spieleranzahl</h2>
         <p class="lobby-hint">Fehlende Plätze werden mit Bots aufgefüllt.</p>
         <div class="themeSwitch" role="group" aria-label="Spieleranzahl wählen">
           <button class="seatCountBtn" data-seat-count="2">2</button>
@@ -261,14 +280,14 @@
       </div>
 
       <div id="seatingSection" class="lobby-section hidden">
-        <h3>Sitzordnung &amp; Geber</h3>
+        <h2>Sitzordnung &amp; Geber</h2>
         <p class="lobby-hint">Reihenfolge mit ▲▼ anpassen, ⭐ markiert den Geber der ersten Runde.</p>
         <div id="seatingList" class="seating-list"></div>
       </div>
 
 
       <div id="houseRulesSection" class="lobby-section hidden">
-        <h3>Hausregeln</h3>
+        <h2>Hausregeln</h2>
         <label class="rule-toggle"><input type="checkbox" id="ruleHandAus" /> Hand aus zählt doppelt</label>
         <label class="rule-toggle"><input type="checkbox" id="ruleStrict1000" /> Über 1000 Punkte zum Gewinnen (genau 1000 reicht nicht)</label>
         <label class="rule-toggle"><input type="checkbox" id="ruleSound" checked /> Sound &amp; Vibration</label>
@@ -580,7 +599,7 @@
       <div class="overlay-card">
         <h2 id="tutorialChecklistTitle"><svg class="icon" aria-hidden="true"><use href="#i-cap"/></svg><span>Dein Fortschritt</span></h2>
         <ul id="tutorialChecklist" class="tutorialChecklist"></ul>
-        <p class="settingsHint" id="tutorialChecklistHint">Abgehakt wird, sobald du einen Hinweis mit „Verstanden“ bestätigt hast.</p>
+        <p class="settingsHint" id="tutorialChecklistHint">Abgehakt wird ein Punkt, sobald du ihn mit „Verstanden“ bestätigt hast oder die Situation vorbei ist. Bonus-Punkte hängen an einer seltenen Spielsituation und zählen nicht zum Fortschritt.</p>
         <button id="tutorialChecklistCloseBtn" class="btn-secondary">Schließen</button>
       </div>
     </section>
@@ -847,7 +866,6 @@
 
   </div>
 
-  <script src="client.js"></script>
 <!-- DEBUG-OVERLAY (optional, Einstellungen): Gitter + Live-Metriken -->
 <div id="debugGrid" class="hidden" aria-hidden="true"></div>
 <pre id="debugPanel" class="hidden" aria-hidden="true"></pre>

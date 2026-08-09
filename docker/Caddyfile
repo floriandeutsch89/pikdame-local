@@ -31,8 +31,20 @@
 		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
 		# Do not advertise the server software
 		-Server
-		# Note: no Content-Security-Policy on purpose - the client uses
-		# inline styles; add one only together with app-side changes.
+		# Popups (share sheet, mail links) must not get a handle on this window
+		Cross-Origin-Opener-Policy "same-origin"
+		# Content-Security-Policy. Everything is same-origin (no CDN), so
+		# 'self' covers scripts, styles, images and the manifest. The
+		# WebSocket origin is spelled out on top: Safari has not always
+		# matched wss:// against 'self', and iOS is the primary device -
+		# a blocked socket would mean a game stuck at 'Verbinde...'.
+		# The ONE inline script is the splash pre-check in index.html; it is
+		# allowed by its sha256 hash. If you edit that script, the hash
+		# changes - test/csp-contract.test.js recomputes it and fails the
+		# build, so it cannot silently break the page.
+		# style-src keeps 'unsafe-inline': the client writes style attributes
+		# via the CSSOM and inline SVG carries presentation attributes.
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'sha256-jH3KSOBSxaye5mHx5q4GBJOSkH+yreYI2RN3bj4LMGc='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' wss://{$PIKDAME_DOMAIN}; manifest-src 'self'; worker-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'"
 	}
 
 	# WebSockets are proxied automatically by Caddy.
