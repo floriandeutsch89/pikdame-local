@@ -3,17 +3,14 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
-## [2.6.0] - 2026-08-09
+## [2.5.1] - 2026-08-09
 
-### Changed
-- **Abhängigkeits-Updates kommen jetzt von Dependabot** statt vom selbstgebauten `deps-update.yml`: montags 03:00 UTC für npm (als Gruppe, damit der CI-Job `dependency-check` grün werden kann), Docker-Basis-Images, die Images der Compose-Dateien und die GitHub-Actions. `dependabot-auto.yml` hängt den Versions-Bump samt deutscher CHANGELOG-Zeile an den PR - ohne ihn würde der Release-Workflow nach dem Merge nichts bauen - und stellt Minor/Patch auf Auto-Merge, sobald alle Prüfungen grün sind
-- **Die Automatik handelt über ein GitHub-App-Token statt über einen persönlichen Zugriffsschlüssel**: Der `WORKFLOW_PAT` musste von Hand erneuert werden und die Kette stand still, sobald er ablief. Nötig sind jetzt `DEPS_BOT_APP_ID` und `DEPS_BOT_PRIVATE_KEY` im **Dependabot**-Secret-Speicher (Actions-Secrets sind in Dependabot-Läufen unsichtbar)
+Nachtrag zu 2.5.0: Der Vorspann verdeckte die Seite immer noch - ausgerechnet
+für das Werkzeug, mit dem man die Behebung prüft.
 
-### Added
-- **Major-Updates bleiben Handarbeit**: Ein neues Node-Basis-Image oder ein Postgres-Major wird nie automatisch gemergt, sondern bekommt Label, Reviewer und einen Kommentar mit der Liste der Stellen, die im selben PR mitwandern müssen (Dockerfiles, `ci.yml`, Versions-Bump)
-
-### Removed
-- `deps-update.yml` (npm-only, eigene CI-Warteschleife) - Dependabot deckt mehr Ökosysteme ab und braucht keine Poll-Schleife
+### Fixed
+- **Der Live-Test der Search Console sah weiterhin nur das Logo**: Die Crawler-Erkennung suchte im Wesentlichen nach „bot" im Namen - Googlebot und Bingbot wurden erkannt, aber Google ruft die Seite unter mehreren Namen ab, und der URL-Prüfer der Search Console sowie der Test für Rich-Suchergebnisse melden sich als `Google-InspectionTool`, weitere Abrufe als `GoogleOther`/`Google-Extended`. Ohne „bot" im Namen fielen sie durch das Raster und bekamen den vollen Vorspann. Die Erkennung deckt diese Namen jetzt ab, ebenso die Link-Vorschauen von Facebook und WhatsApp (auch dort erschien bisher nur das Logo statt der Startseite). Am echten Server nachgewiesen: mit `Google-InspectionTool` zeigte https://play.pikdame.online das Logo, mit `Googlebot` die Lobby
+- `test/splash-crawler.test.js` prüft die betroffenen Namen jetzt einzeln, und der Durchlauf mit dem echten Client läuft unter `Google-InspectionTool` statt unter `Googlebot` - genau der Fall, den 2.5.0 übersehen hat. Gegenprobe mit iPhone-Safari und Android-Chrome bleibt: normale Besucher sehen den Vorspann weiter
 
 ## [2.5.0] - 2026-08-09
 

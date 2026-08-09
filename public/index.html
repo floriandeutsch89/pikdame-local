@@ -112,9 +112,15 @@
         /* Crawler sahen bisher NUR das Logo - der Live-Test der Search
            Console rendert genau dieses erste Bild, Lobby und SEO-Text lagen
            darunter. Bots ueberspringen den Vorspann komplett und schreiben
-           dabei nichts in den Speicher (siehe client.js). */
+           dabei nichts in den Speicher (siehe client.js).
+           ACHTUNG bei der Liste: Nicht jeder Google-Abruf traegt 'bot' im
+           Namen. Der URL-Pruefer der Search Console und der Test fuer
+           Rich-Suchergebnisse kommen als 'Google-InspectionTool', weitere
+           Abrufe als 'GoogleOther'/'Google-Extended' - genau die sahen
+           nach der ersten Fassung weiterhin nur das Logo. Link-Vorschauen
+           (Facebook, WhatsApp) heissen ebenfalls nicht 'bot'. */
         var ua = navigator.userAgent || '';
-        var bot = /bot|crawl|spider|slurp|duckduckbot|lighthouse|headlesschrome|pagespeed|yandex|baiduspider|applebot|preview/i.test(ua);
+        var bot = /bot|crawl|spider|slurp|lighthouse|headlesschrome|pagespeed|yandex|preview|google-inspectiontool|googleother|google-extended|mediapartners|google-site-verification|facebookexternalhit|whatsapp|snapchat|embedly|validator/i.test(ua);
         /* Reduzierte Bewegung heisst hier: gar kein Vorspann. Wer ihn per
            Einstellung ausdruecklich auf 'full' gestellt hat, bekommt ihn. */
         var reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) && mode !== 'full';
