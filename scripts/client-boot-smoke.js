@@ -38,10 +38,12 @@ window.AudioContext = function () { return { createOscillator: () => ({ connect:
 window.webkitAudioContext = window.AudioContext;
 
 let wsInstance = null;
+let wsConstructed = 0;   // zaehlt Verbindungsversuche (fuer den Backoff-Test)
 window.WebSocket = class {
   constructor() {
     this._ls = {};
     wsInstance = this;
+    wsConstructed += 1;
     this.readyState = 1;
     setTimeout(() => this._emit('open', {}), 0);
   }
@@ -54,6 +56,8 @@ window.WebSocket = class {
   send() {}
   close() {}
 };
+window.WebSocket.OPEN = 1;
+window.WebSocket.CONNECTING = 0;
 window.onerror = (msg) => { errors.push(String(msg)); };
 window.addEventListener('error', (e) => errors.push(String(e.message || e.error)));
 
@@ -82,6 +86,27 @@ setTimeout(() => {
       lobbyReady: [], log: [], tableMelds: [], discardCount: 0, drawCount: 0,
       roundNumber: 0, totals: { p1: 0, b1: 0 }, houseRules: {}, nextRoundReady: [],
     };
+    // Wiederverbindung: Bei fehlendem Netz darf NICHT sofort weiterprobiert
+    // werden (Nutzer-Report: Fehlerflut ERR_NAME_NOT_RESOLVED), und bei
+    // Netz-Rueckkehr muss es SOFORT gehen statt den Wartezeitgeber abzusitzen.
+    {
+      const doc = window.document;
+      const before = wsConstructed;
+      let online = true;
+      Object.defineProperty(window.navigator, 'onLine', { get: () => online, configurable: true });
+
+      online = false;
+      wsInstance.readyState = 3;   // CLOSED - sonst haelt reconnectNow die alte Verbindung fuer aktiv
+      wsInstance._emit('close', {});
+      if (wsConstructed !== before) errors.push('offline must not trigger an immediate reconnect');
+      const status = doc.getElementById('connStatus').textContent;
+      if (!/Offline|offline/.test(status)) errors.push(`offline status not shown, got: ${status}`);
+
+      online = true;
+      window.dispatchEvent(new window.Event('online'));
+      if (wsConstructed <= before) errors.push('coming back online must reconnect right away');
+    }
+
     // Tagesaufgaben: Ihre Texte kommen aus dem Code (L()), nicht aus dem
     // HTML - beim Sprachwechsel blieben sie deshalb stehen (Nutzer-Report).
     {

@@ -554,7 +554,52 @@
     return `${proto}//${window.location.hostname}${port}`;
   }
 
+  // Wiederverbindung mit wachsenden Abstaenden. Vorher wurde stur alle 2
+  // Sekunden neu versucht - bei fehlender Netzverbindung (z. B. Mobilfunk-
+  // Wechsel, DNS noch nicht auflösbar: ERR_NAME_NOT_RESOLVED) erzeugte das
+  // eine Fehlermeldung nach der anderen in der Konsole, ohne dass ein
+  // schneller Neuversuch irgendetwas gebracht haette.
+  let reconnectAttempt = 0;
+  let reconnectTimer = null;
+  const RECONNECT_STEPS_MS = [1000, 2000, 4000, 8000, 15000, 30000];
+
+  function scheduleReconnect() {
+    clearTimeout(reconnectTimer);
+    // Offline: gar nicht erst versuchen. Der 'online'-Ereignishandler unten
+    // startet sofort, sobald das Geraet wieder Netz hat.
+    if (navigator.onLine === false) {
+      el('connStatus').textContent = L('Offline - warte auf Netz...', 'Offline - waiting for a network...');
+      return;
+    }
+    const wait = RECONNECT_STEPS_MS[Math.min(reconnectAttempt, RECONNECT_STEPS_MS.length - 1)];
+    reconnectAttempt += 1;
+    const seconds = Math.round(wait / 1000);
+    el('connStatus').textContent = L(
+      `Verbindung verloren - neuer Versuch in ${seconds}s...`,
+      `Connection lost - retrying in ${seconds}s...`
+    );
+    // Streuung, damit nach einem Serverneustart nicht alle Geraete exakt
+    // gleichzeitig anklopfen.
+    reconnectTimer = setTimeout(connect, wait + Math.floor(Math.random() * 400));
+  }
+
+  function reconnectNow() {
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+    clearTimeout(reconnectTimer);
+    reconnectAttempt = 0;
+    connect();
+  }
+
+  // Netz zurueck oder App wieder im Vordergrund: sofort versuchen, statt den
+  // laufenden Wartezeitgeber abzuwarten.
+  window.addEventListener('online', reconnectNow);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') reconnectNow();
+  });
+
   function connect() {
+    clearTimeout(reconnectTimer);
+    if (navigator.onLine === false) { scheduleReconnect(); return; }
     ws = new WebSocket(wsUrl());
     el('connStatus').textContent = L('Verbinde...', 'Connecting...');
 
@@ -577,13 +622,18 @@
       }
     });
 
+    ws.addEventListener('open', () => { reconnectAttempt = 0; });
+
     ws.addEventListener('close', () => {
-      el('connStatus').textContent = L('Verbindung verloren - neuer Versuch in 2s...', 'Connection lost - retrying in 2s...');
-      setTimeout(connect, 2000);
+      scheduleReconnect();
     });
 
     ws.addEventListener('error', () => {
-      el('connStatus').textContent = L('Verbindungsfehler.', 'Connection error.');
+      // Kein eigener Neuversuch hier: Auf 'error' folgt IMMER 'close', sonst
+      // liefen zwei Zeitgeber parallel. Nur die Anzeige aktualisieren.
+      el('connStatus').textContent = navigator.onLine === false
+        ? L('Offline - warte auf Netz...', 'Offline - waiting for a network...')
+        : L('Verbindungsfehler.', 'Connection error.');
     });
 
     ws.addEventListener('message', (ev) => {

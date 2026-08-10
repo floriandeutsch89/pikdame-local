@@ -3,6 +3,14 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.12.2] - 2026-08-09
+
+### Fixed
+- **Fehlerflut beim Verbindungsaufbau** (Nutzer-Report: `ERR_NAME_NOT_RESOLVED`): Nach einem Abbruch versuchte der Client stur **alle 2 Sekunden** neu zu verbinden - auch dann, wenn das Gerät gar kein Netz hatte. Jede Runde erzeugte eine neue Fehlermeldung, ohne dass der schnelle Neuversuch etwas gebracht hätte. Jetzt wachsen die Abstände (1, 2, 4, 8, 15, 30 Sekunden, mit leichter Streuung, damit nach einem Serverneustart nicht alle Geräte gleichzeitig anklopfen)
+- **Ohne Netz wird gar nicht erst versucht.** Die Anzeige sagt dann „Offline - warte auf Netz..."; sobald das Gerät wieder Netz meldet oder die App in den Vordergrund kommt, wird **sofort** verbunden, statt den Wartezeitgeber abzusitzen
+- Nach einem Verbindungsfehler wird kein zweiter Zeitgeber mehr gestartet: Auf `error` folgt immer `close`, vorher konnten dadurch zwei Wiederverbindungs-Schleifen parallel laufen
+- Der Rauchtest simuliert Netzverlust und -rückkehr und prüft beides; gegengeprüft für beide Richtungen
+
 ## [2.12.1] - 2026-08-09
 
 ### Fixed
