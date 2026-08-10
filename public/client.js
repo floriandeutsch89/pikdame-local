@@ -273,6 +273,9 @@
     try { renderQuests(); } catch (e) { /* Fortschritt ist nie kritisch */ }
     try { renderAchievements(); } catch (e) { /* dito */ }
     try { renderAccountProgress(); } catch (e) { /* dito */ }
+    // "Angemeldet als ..." steht dauerhaft in der Lobby - vom Vertragstest
+    // unten gefunden, bevor es jemand melden konnte.
+    try { refreshAccountUi(); } catch (e) { /* dito */ }
     if (lastState) render();
   }
 

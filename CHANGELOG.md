@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.13.0] - 2026-08-09
+
+### Fixed
+- **„Googlebot durch robots.txt blockiert" für `/statusz`** (Search-Console-Meldung): Diese Adresse liefert die Versionsnummer und steuert die Selbstaktualisierung - der Client ruft sie beim Rendern auf. Gesperrt zu werden meldete Google deshalb als blockierte Ressource **der Seite, die gerade indexiert werden soll**. Die Sperre ist raus; stattdessen hält eine `X-Robots-Tag: noindex`-Kopfzeile die Antwort aus dem Index. Eine Anfrage zu blockieren und ein Dokument aus dem Index zu halten sind zwei verschiedene Aufgaben - robots.txt ist für die zweite das falsche Werkzeug
+- **Sprachwechsel ließ „Angemeldet als …" stehen** - gefunden vom neuen Vertragstest, bevor es jemand melden konnte
+
+### Added
+- **Vertragstest gegen die ganze Fehlerklasse „Text bleibt in der alten Sprache":** Er sammelt alle Funktionen, die übersetzten Text ins DOM schreiben - **auch indirekt** über Hilfsfunktionen wie `questMeta()` - und verlangt, dass jede davon beim Sprachwechsel erneut läuft. Funktionen, die nicht veralten können (Overlays, die beim Öffnen neu bauen; die Verbindungsanzeige), stehen mit Begründung auf einer Ausnahmeliste. Gegengeprüft: Entfernt man eine Auffrischung, benennt der Test die betroffene Funktion
+- Der erste Entwurf des Tests prüfte nur auf direkte `L()`-Aufrufe und hätte den Tagesaufgaben-Fehler aus 2.12.1 **nicht** gefunden - die Gegenprobe hat das aufgedeckt
+
 ## [2.12.2] - 2026-08-09
 
 ### Fixed
