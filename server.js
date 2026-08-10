@@ -181,6 +181,12 @@ function etagMatches(ifNoneMatch, etag) {
 function serveStatic(req, res) {
   let filePath = req.url.split('?')[0];
   if (filePath === '/statusz') {
+    // noindex statt robots-Sperre: Der Client holt diese Antwort beim
+    // Rendern (Versionsanzeige + Selbstaktualisierung). Wird sie gesperrt,
+    // meldet die Search Console eine blockierte Ressource der Seite, die
+    // gerade indexiert werden soll. Die Kopfzeile haelt sie trotzdem aus
+    // dem Index.
+    res.setHeader('X-Robots-Tag', 'noindex');
     // Beobachtbarkeit für den gehosteten Betrieb: Anzahlen + Speicher.
     // Enthält bewusst KEINE Namen/Codes - nur aggregierte Zahlen.
     let players = 0;

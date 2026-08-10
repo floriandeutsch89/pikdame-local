@@ -1,8 +1,14 @@
 # Play page may be indexed; the legal-notice page is for humans on-site
 # only (spam-harvester deterrence) - it stays one tap away in the app.
+#
+# /statusz is NOT disallowed on purpose. The client fetches it while
+# rendering (version banner + self-update), so blocking it made the Search
+# Console report "Googlebot blocked by robots.txt" for a resource of the very
+# page being indexed. It is kept OUT OF THE INDEX by an X-Robots-Tag: noindex
+# header instead - blocking a fetch and hiding a document are different jobs,
+# and robots.txt is the wrong tool for the second one.
 User-agent: *
 Allow: /
 Disallow: /impressum.html
-Disallow: /statusz
 
 Sitemap: https://play.pikdame.online/sitemap.xml

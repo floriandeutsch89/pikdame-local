@@ -384,3 +384,99 @@ test('CSS contract: nothing in the hand fan raises z-index', () => {
     assert.doesNotMatch(decls, /z-index\s*:/, `${sel} must not raise z-index (it hides the neighbour's click strip)`);
   }
 });
+
+// --- Sprachwechsel: jede Funktion, die Text ERZEUGT, muss auffrischbar sein ----
+test('client contract: functions that build translated markup are refreshed by cycleLang', () => {
+  const client = fs.readFileSync(path.join(__dirname, '..', 'public', 'client.js'), 'utf8');
+
+  // Hintergrund: Dreimal derselbe Fehler (Weiterspielen-Knopf 1.88.1,
+  // Einstellungs-Auswahlfelder 1.88.1, Tagesaufgaben 2.12.1). Jedes Mal war
+  // die Übersetzung korrekt - aber der erzeugte Text wurde beim Umschalten
+  // nicht neu gebaut. Statischer Text aus dem HTML ist über I18N_STATIC
+  // abgedeckt; gefährlich ist nur Text, den JS SELBST ins DOM schreibt.
+  const lines = client.split('\n');
+
+  // 1) Alle Funktionsrümpfe einsammeln (Namen + Bereich).
+  const functions = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^\s*function ([A-Za-z_][\w]*)\s*\(/);
+    if (!m) continue;
+    const indent = lines[i].search(/\S/);
+    let end = lines.length - 1;
+    for (let j = i + 1; j < lines.length; j++) {
+      if (lines[j].search(/\S/) === indent && /^\s*\}/.test(lines[j])) { end = j; break; }
+    }
+    functions.push({ name: m[1], body: lines.slice(i, end + 1).join('\n') });
+  }
+  assert.ok(functions.length > 20, 'the parser found the functions');
+
+  // 2) Welche davon schreiben ÜBERSETZTEN Text ins DOM?
+  //    WICHTIG: auch INDIREKT. renderQuests() etwa ruft kein L(), sondern
+  //    questMeta(), das die Texte übersetzt - genau dieser Fall war der Bug
+  //    aus 2.12.1, und eine reine "enthält L("-Prüfung hätte ihn verfehlt.
+  const usesLDeep = (body, depth = 0) => {
+    if (/\bL\(/.test(body)) return true;
+    if (depth > 2) return false;
+    for (const call of body.matchAll(/\b([A-Za-z_][\w]*)\s*\(/g)) {
+      const fn = functions.find((f) => f.name === call[1]);
+      if (fn && fn.body !== body && usesLDeep(fn.body, depth + 1)) return true;
+    }
+    return false;
+  };
+  const writesTranslatedMarkup = (body) => {
+    const writes = /\.(innerHTML|textContent)\s*=|\.appendChild\(|\.insertAdjacentHTML\(/.test(body);
+    return writes && usesLDeep(body);
+  };
+
+  // 3) Von cycleLang aus erreichbar? (direkt oder über eine gerufene Funktion)
+  const cycle = functions.find((f) => f.name === 'cycleLang');
+  assert.ok(cycle, 'cycleLang exists');
+  const reachable = new Set();
+  const walk = (body, depth) => {
+    if (depth > 3) return;
+    for (const call of body.matchAll(/\b([A-Za-z_][\w]*)\s*\(/g)) {
+      const name = call[1];
+      if (reachable.has(name)) continue;
+      const fn = functions.find((f) => f.name === name);
+      if (!fn) continue;
+      reachable.add(name);
+      walk(fn.body, depth + 1);
+    }
+  };
+  walk(cycle.body, 0);
+  // render() ist der Haupt-Zeichner und wird von cycleLang gerufen.
+  assert.ok(reachable.has('render'), 'cycleLang triggers the main render');
+
+  // 4) Ausnahmen: Funktionen, die NUR auf Ereignis laufen (Toasts, Overlays,
+  //    die beim Öffnen ohnehin neu bauen) - sie können nicht veralten.
+  const EVENT_ONLY = new Set([
+    'showToast', 'showHint', 'showRaidWarning', 'celebrateProgress', 'showTip',
+    'renderMiniMarkdown', 'renderReplayRound', 'renderScoreChart', 'renderStats',
+    'renderChallengeBoard', 'renderTutorialChecklist', 'renderDiscardPreview',
+    'renderCutOverlay', 'renderResultOverlay', 'renderSessionBanner',
+    'tutorialExplainError', 'questMeta', 'badgeProgressFor', 'updateTutorial',
+    'flashLevelUp', 'openOverlay', 'renderLadder', 'renderProfileList',
+    // Verbindungsanzeige: schreibt bei JEDEM Zustandswechsel neu, und die
+    // Sprache ist beim naechsten Ereignis (spaetestens dem Verbindungsaufbau)
+    // wieder aktuell - ein Sprachwechsel im Sekundenfenster dazwischen
+    // korrigiert sich von selbst.
+    'scheduleReconnect', 'connect',
+    // Overlays, die ihren Inhalt beim OEFFNEN aufbauen: Wer die Sprache
+    // wechselt, hat sie zu; beim naechsten Oeffnen stehen sie richtig.
+    'openChangelog', 'openCardbackGallery',
+    // Aktualisierungs-Hinweis: erscheint einmalig und fuehrt zum Neuladen.
+    'showUpdateBanner',
+  ]);
+
+  const stale = functions
+    .filter((f) => writesTranslatedMarkup(f.body))
+    .map((f) => f.name)
+    .filter((name) => !reachable.has(name) && !EVENT_ONLY.has(name) && name !== 'cycleLang');
+
+  assert.deepEqual(
+    stale, [],
+    'these build translated markup but cycleLang never re-runs them - they would stay in the old language:\n  '
+      + stale.join('\n  ')
+      + '\nEither call them from cycleLang or add them to EVENT_ONLY if they cannot go stale.'
+  );
+});
