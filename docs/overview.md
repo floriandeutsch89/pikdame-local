@@ -6,7 +6,8 @@ Pik Dame is the German family variant of **Rommé**. Everyone gets 15 cards from
 a 110-card deck (two standard decks plus jokers) and tries to get rid of them by
 laying out **sets** (same rank) and **runs** (same suit, consecutive). The round
 ends when someone goes out; play continues over several rounds until a player
-crosses 1000 points.
+crosses 1000 points. If two or more players are level at the top, another
+round is played - with everyone - until one of them is ahead alone.
 
 What gives the game its name — and its bite — is the **Queen of Spades**: she is
 worth **100 points**. Laid out on the table she is a fortune; caught in your hand

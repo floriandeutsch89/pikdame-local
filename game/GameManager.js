@@ -1426,6 +1426,14 @@ class GameManager {
         .join(', ')}`
     );
     const over = checkGameOver(totalsForGameOverCheck, this.houseRules);
+    // Gleichstand an der Spitze: Es geht weiter. Ohne Ansage wirkt das wie
+    // ein Fehler ("warum ist das Spiel nicht vorbei?").
+    if (over.tieBreak) {
+      const names = over.tiedIds
+        .map((pid) => this.players.find((p) => p.id === pid)?.name || pid)
+        .join(' und ');
+      this.addLog(`Gleichstand bei ${over.tiedScore} Punkten (${names}) - es wird eine weitere Runde gespielt.`);
+    }
 
     // Bots reagieren aufs Rundenende: der Sieger jubelt, der Rest grummelt
     // oder nimmt's mit Humor - alles dem Zufall überlassen.

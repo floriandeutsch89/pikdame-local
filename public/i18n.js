@@ -170,6 +170,7 @@ window.I18N_SERVER_PATTERNS = [
   [/^🏳️ Spiel einvernehmlich aufgegeben.*$/, '🏳️ Game forfeited by mutual agreement - everyone agreed. Match over.'],
   [/^Hand aus! Die komplette Rundenwertung wird verdoppelt\.$/, 'Out in one! The entire round score is doubled.'],
   [/^Hand aus! (.+) hat die komplette Hand in einem Zug ausgelegt\.$/, 'Out in one! $1 laid down the entire hand in a single turn.'],
+  [/^Gleichstand bei (\d+) Punkten \((.+)\) - es wird eine weitere Runde gespielt\.$/, 'Tied at $1 points ($2) - one more round is played.'],
   [/^Spiel beendet! Gewinner: (.+)$/, 'Game over! Winner: $1'],
   [/^Rundenwertung: (.+)$/, 'Round scores: $1'],
   [/^⚠️ Endspurt! (.+?) steht bei (\d+) Punkten - ab 1000 endet das Spiel\.$/, '⚠️ Final stretch! $1 is at $2 points - the game ends at 1000.'],
@@ -290,7 +291,7 @@ window.I18N_RULES_EN = `
 
   <h3>Game end &amp; misc</h3>
   <ul>
-    <li>The game ends once someone reaches 1000 points (strict house rule: only above 1000). The highest score wins.</li>
+    <li>The game ends once someone reaches 1000 points (strict house rule: only above 1000). The highest score wins. <b>If the leaders are tied, one more round is played</b> – with everyone – until somebody is ahead on their own.</li>
     <li>When the draw pile runs out, <b>nothing is refilled</b> – the discard pile is never reshuffled. If you can pick up the top discard card, that is your move – <b>if you cannot, the round ends immediately and is scored:</b> laid-out cards count plus, the cards left in your hand count <b>minus</b> as usual (a Queen of Spades in hand costs 100!) – only the winner bonus is not awarded in this case. Use 🏳️ to forfeit the whole game - that ends the match immediately (all active players must agree).</li>
   </ul>
 `;

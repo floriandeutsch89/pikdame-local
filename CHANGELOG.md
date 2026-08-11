@@ -3,6 +3,18 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.15.0] - 2026-08-09
+
+### Fixed
+- **Gleichstand über 1000 Punkten beendete das Spiel mit einem faktisch zufälligen Sieger** (Spieler-Report: beide 1060 Punkte): Bei Punktgleichheit gewann schlicht der **erste Eintrag in der internen Reihenfolge**. Jetzt gilt die Familienregel - bei Gleichstand an der Spitze wird **eine weitere Runde mit allen Spielern** gespielt, bis jemand allein vorn liegt. Auch mehrfacher Gleichstand (drei Spieler) und Gleichstand weit über der Schwelle sind abgedeckt; ein Gleichstand **unterhalb** der Spitze bleibt folgenlos
+- Das Protokoll sagt jetzt, **warum** weitergespielt wird („Gleichstand bei 1060 Punkten (Flodex und Renate) - es wird eine weitere Runde gespielt.") - ohne Ansage wirkt das wie ein Fehler. Mit englischer Übersetzung
+
+### Documentation
+- **Die Regel fehlte tatsächlich** und ist jetzt an allen vier Stellen ergänzt: Spielregeln in der App (deutsch und englisch), Themenseite `/romme-regeln` und Handbuch
+
+### Investigated
+- **Häufigkeit von zwei Pik Damen auf einer Hand geprüft** (Verdacht auf Fehler beim Mischen): Über 200.000 simulierte Runden hält ein Spieler in **6,94 %** der Runden beide Damen - der theoretische Erwartungswert liegt bei **7,01 %**, gleichmäßig über alle Sitzplätze verteilt. Das Mischen ist ein korrektes Fisher-Yates-Verfahren. Dreimal in einer Partie ist Pech, kein Fehler: bei sieben Runden tritt das in etwa jeder 100. Partie auf
+
 ## [2.14.1] - 2026-08-09
 
 ### Documentation

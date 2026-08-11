@@ -2739,3 +2739,55 @@ test('the house-rule route never silently changed bot difficulty', () => {
   }
   game.destroy();
 });
+
+// --- v2.15.0: Gleichstand über 1000 entscheidet keine Reihenfolge ---------------
+test('a tie at the top does NOT end the game - another round follows', () => {
+  // Spieler-Report: beide 1060 Punkte, Spiel vorbei, Sieger faktisch zufällig
+  // (es gewann schlicht der erste Eintrag im Punkte-Objekt).
+  const { checkGameOver } = require('../game/ScoreBoard');
+
+  const tie = checkGameOver({ p1: 1060, p2: 1060, p3: 400 });
+  assert.equal(tie.gameOver, false, 'a tie must not end the game');
+  assert.equal(tie.tieBreak, true);
+  assert.deepEqual(tie.tiedIds.sort(), ['p1', 'p2'], 'both leaders are named');
+  assert.equal(tie.tiedScore, 1060);
+
+  // Reihenfolge darf nichts ändern - genau daran hing der zufällige Sieger.
+  const reversed = checkGameOver({ p2: 1060, p1: 1060, p3: 400 });
+  assert.equal(reversed.gameOver, false, 'key order must not decide anything');
+
+  // Klarer Vorsprung beendet weiterhin sofort.
+  const clear = checkGameOver({ p1: 1060, p2: 1000, p3: 400 });
+  assert.equal(clear.gameOver, true);
+  assert.equal(clear.winnerId, 'p1');
+
+  // Auch drei gleichauf, und auch weit über der Schwelle.
+  assert.equal(checkGameOver({ a: 1200, b: 1200, c: 1200 }).gameOver, false);
+  // Gleichstand UNTERHALB der Spitze ist irrelevant.
+  const belowTie = checkGameOver({ a: 1100, b: 900, c: 900 });
+  assert.equal(belowTie.gameOver, true);
+  assert.equal(belowTie.winnerId, 'a');
+});
+
+test('the table is told why the game continues on a tie', () => {
+  const { game } = makeGame(2);
+  game.startNewRound();
+  if (game.phase === 'cutting') game.performCut(game.cutterId, 0.5);
+  // Gleichstand herstellen und die Runde regulär abschließen.
+  game.totals[game.players[0].id] = 1060;
+  game.totals[game.players[1].id] = 1060;
+  // WICHTIG: Die Runde darf die Punkte nicht verschieben, sonst besteht der
+  // Gleichstand im Moment der Prüfung gar nicht mehr (daran ist mein erster
+  // Testaufbau gescheitert - ausgelegte Karten des Siegers zählen plus).
+  const winner = game.players[0];
+  winner.hand = [];
+  winner.laidOutCards = [];
+  game.players[1].hand = [];
+  game.finishRound(winner.id);
+
+  assert.equal(game.totals[winner.id], game.totals[game.players[1].id], 'still level after scoring');
+  assert.equal(game.phase, 'roundEnd', 'the game keeps going instead of declaring a winner');
+  const log = game.log.map((l) => l.text).join('\n');
+  assert.match(log, /Gleichstand bei \d+ Punkten/, 'the log explains the extra round');
+  game.destroy();
+});
