@@ -28,21 +28,19 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
   Nachricht. Ausnahme: eindeutige Bug-Reports mit Beweis (Screenshot/Log).
   (Vereinbart am 2026-07-05 nach zwei Fehlgriffen in einer Antwort.)
 
-0. **Primärer Betriebsmodus ist der gehostete Docker-Stack**
-   (play.pikdame.online). Der Hotspot-/CodeApp-Modus ist Legacy: Er bleibt
-   funktionsfähig (Zero-Config-Fallbacks nicht brechen), wird aber nicht
-   mehr aktiv optimiert - UX-Entscheidungen richten sich nach dem
+0. **Betriebsmodus ist der gehostete Docker-Stack** (play.pikdame.online).
+   UX- und Architekturentscheidungen richten sich nach dem
    Online-Mehrspieler-Betrieb.
-1. **iOS-CodeApp-Kompatibilität:** Der Server läuft auf dem iPhone-Hotspot in
-   der CodeApp. Deshalb: **keine neuen npm-Dependencies ohne explizites Okay**
+1. **Schlanke Laufzeit:** **keine neuen npm-Dependencies ohne explizites Okay**
    (aktuell: `ws` + `pg` — pg ist pure JS, wird LAZY geladen und nur mit
    gesetzter `PIKDAME_DATABASE_URL` benutzt), keine nativen Module, kein
    Build-Schritt. Features, die mehr brauchen
    (z. B. Konten via `node:sqlite`, Node ≥ 22; Docker/CI laufen auf Node 26), müssen sich auf älteren
    Node-Versionen **selbst deaktivieren** (Factory liefert `null`, Client
-   blendet UI aus) — der Hotspot-Betrieb bleibt unberührt.
-2. **Frontend ohne CDN:** Alles wird lokal ausgeliefert (Hotspot hat kein
-   Internet). Fremd-Bibliotheken vendoren (`public/vendor-*.js`).
+   blendet UI aus) — ältere Umgebungen laufen dadurch unverändert weiter.
+2. **Frontend ohne CDN:** Alles wird lokal ausgeliefert - keine fremden
+   Hosts im Ladepfad (Datenschutz, Ladezeit, keine Ausfaelle Dritter).
+   Fremd-Bibliotheken vendoren (`public/vendor-*.js`).
    **Icons sind Inline-SVG** (`<svg class="iconSprite">`-Sprite oben in
    `index.html`, Nutzung `<svg class="icon"><use href="#i-name"/></svg>`) —
    keine Icon-Fonts, keine Downloads. **Emoji sind KEINE Icons:** sie bleiben

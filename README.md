@@ -11,12 +11,10 @@ your browser (no install needed).
 getting started, admin manual (configuration, backup & restore, ONNX bots),
 developer guide, FAQ.
 
-| | 🏕️ On the go (offline) | ☁️ Hosted (online) |
-|---|---|---|
-| **Where** | iPhone hotspot, CodeApp, no internet required | Your own server / Raspberry Pi / Kubernetes |
-| **For whom** | Family round at the table | Playing across distances, e.g. `spiel.pikdame.online` |
-| **Extras** | — | User accounts with e-mail confirmation, protected names |
-| **Start** | [iPhone + CodeApp](#-iphone-hotspot-codeapp) | [Docker / Helm](#-hosted-docker) |
+Run it on your own server, a Raspberry Pi or Kubernetes — see
+[Docker / Helm](#-hosted-docker). Players join across distances with a
+6-character game code; optional accounts add e-mail confirmation and
+protected names.
 
 Bilingual (German/English), installable as a PWA, no build step and no
 external frontend dependencies.
@@ -39,7 +37,8 @@ external frontend dependencies.
   confirmation, login with a 90-day session — your name is protected against
   impersonation and your progress is kept permanently. Stored in
   **PostgreSQL** in the Docker/K8s stack (SQLite as zero-config fallback for
-  a single container); automatically disabled and invisible in hotspot mode.
+  a single container); automatically disabled and invisible where it is not
+  configured.
 - **Robust in operation**: reconnect with bot takeover, running games survive
   server restarts (session snapshot), heartbeat against zombie connections,
   armored error handling on client and server.
@@ -91,27 +90,6 @@ multiple apps lives under **[landing/](landing/README.md)**.
 npm install && npm start
 # → http://localhost:8080
 ```
-
-### 🏕️ iPhone hotspot (CodeApp)
-
-1. Load the project into CodeApp (git clone in the built-in terminal or file
-   import), then: `npm install && node server.js`.
-   On startup the server lists all reachable network IPs and marks Apple's
-   hotspot range (`172.20.10.x`).
-2. Enable the personal hotspot. **Note:** iOS requires an active cellular/SIM
-   connection for this — without reception (airplane, abroad without a data
-   plan) the hotspot often won't start at all. Alternatives: a fellow
-   player's Android hotspot, a travel router, or a shared Wi-Fi network.
-3. Players connect to the hotspot and open the displayed IP in their browser
-   (e.g. `http://172.20.10.1:8080`) — the client discovers the host
-   automatically, no code change needed.
-
-**⚠️ CodeApp must stay in the foreground.** iOS suspends the Node process as
-soon as the app goes to the background or the display locks (a fundamental
-iOS limitation). Therefore: set auto-lock to "Never" (Settings → Display &
-Brightness) or use **Guided Access** (Accessibility) — it pins the screen to
-CodeApp. If something unexpected happens anyway, it ends up in
-`data/crash.log`.
 
 ## Game sessions
 
@@ -203,7 +181,7 @@ The server deliberately speaks plain HTTP — for public hosting put a reverse
 proxy with TLS in front (Caddy/nginx examples in
 [landing/README.md](landing/README.md)); the client switches to `wss:`
 automatically. Important environment variables (all opt-in; without them the
-server runs exactly like in hotspot mode):
+server runs with its defaults):
 
 | Variable | Purpose |
 |---|---|
@@ -244,8 +222,9 @@ docs/ · scripts/   Operations guide, backup/restore
   GitHub release (notes from the CHANGELOG), the multi-arch image and the
   Helm chart on GHCR.
 - **Conventions** (language, constraints, workflow): [CLAUDE.md](CLAUDE.md).
-  Most important rule: no new npm dependencies — the server must keep running
-  inside iOS CodeApp (currently the only dependency: `ws`).
+  Most important rule: no new npm dependencies without an explicit decision —
+  a small dependency tree keeps the attack surface, the image and the audit
+  effort small, and the project deliberately has no build step.
 
 ## AI bots (optional, ONNX)
 

@@ -3,6 +3,14 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.14.1] - 2026-08-09
+
+### Documentation
+- **Hotspot-/CodeApp-Betrieb aus README und Handbuch entfernt:** Die Vergleichstabelle „On the go (offline)" gegen „Hosted", der komplette Abschnitt zur Einrichtung über den iPhone-Hotspot und alle verstreuten Verweise darauf sind raus. Der gehostete Betrieb ist der einzige dokumentierte Weg
+- **Die Projektregeln bleiben - nur ihre Begründung ist neu:** „Keine neuen npm-Abhängigkeiten" und „kein CDN im Ladepfad" standen bisher mit dem Hotspot begründet. Beide sind aus eigenem Recht sinnvoll (kleine Angriffsfläche, kein Build-Schritt, Datenschutz, Ladezeit, keine Ausfälle Dritter) und gelten unverändert weiter - nur so beschrieben, dass sie ohne den alten Modus verständlich sind
+- Auch in `CLAUDE.md` entfernt, obwohl nicht ausdrücklich genannt: Diese Datei steuert die weitere Arbeit am Projekt, dort hätte der Modus sonst als Anforderung weitergelebt
+- Geprüft, dass keine toten Sprungmarken zurückbleiben (der Inhaltsverweis auf den gelöschten Abschnitt ist mitentfernt)
+
 ## [2.14.0] - 2026-08-09
 
 ### Changed
