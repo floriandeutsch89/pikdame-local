@@ -3,6 +3,14 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.14.0] - 2026-08-09
+
+### Changed
+- **Beim Filtern auf einen Mitspieler bleiben die eigenen Auslagen sichtbar** (Nutzer-Wunsch): Wer entscheidet, welche Karte er gefahrlos abwirft, braucht **beide** Seiten gleichzeitig - was der Nachbar anlegen könnte **und** was die eigene Auslage aufnimmt. Bisher verschwanden die eigenen Auslagen, sobald man auf einen anderen Spieler filterte
+- Die Filterleiste benennt das jetzt: „Auslagen von X und dir – tippen für alle". Filtert man auf **sich selbst**, bleibt es unverändert bei der reinen Eigenansicht - das ist ja der Zweck dieses Filters
+- Hat man selbst noch nichts ausgelegt, erscheint auch dafür der Hinweis „Du hast noch nichts ausgelegt", damit klar ist, dass die Auslage leer und nicht ausgeblendet ist
+- Der Rauchtest prüft beide Richtungen im DOM (Fremdfilter zeigt beide, Eigenfilter nur die eigenen); gegengeprüft mit dem alten Verhalten
+
 ## [2.13.0] - 2026-08-09
 
 ### Fixed
