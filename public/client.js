@@ -1447,7 +1447,12 @@
       const filterOwner = players.find((p) => p.id === meldFilterPlayerId);
       const bar = document.createElement('div');
       bar.className = 'meldFilterBar';
-      bar.textContent = L(`Nur Auslagen von ${filterOwner.id === playerId ? 'dir' : filterOwner.name} – tippen für alle`, `Only ${filterOwner.id === playerId ? 'your' : filterOwner.name + "'s"} melds – tap for all`);
+      bar.textContent = filterOwner.id === playerId
+        ? L('Nur deine Auslagen – tippen für alle', 'Only your melds – tap for all')
+        : L(
+            `Auslagen von ${filterOwner.name} und dir – tippen für alle`,
+            `${filterOwner.name}'s melds and yours – tap for all`
+          );
       bar.addEventListener('click', () => { meldFilterPlayerId = null; render(); });
       meldsDiv.appendChild(bar);
     }
@@ -1461,10 +1466,18 @@
     }
 
     ownerOrder.forEach((owner) => {
-      if (meldFilterPlayerId && owner.id !== meldFilterPlayerId) return;
+      // Beim Filtern auf einen MITSPIELER bleiben die eigenen Auslagen
+      // sichtbar: Wer entscheidet, was er gefahrlos abwerfen kann, braucht
+      // beide Seiten gleichzeitig - was der Nachbar anlegen koennte UND was
+      // die eigene Auslage aufnimmt (Nutzer-Report). Filtert man auf sich
+      // selbst, bleibt es bei der reinen Eigenansicht.
+      const keepMine = meldFilterPlayerId && meldFilterPlayerId !== playerId && owner.id === playerId;
+      if (meldFilterPlayerId && owner.id !== meldFilterPlayerId && !keepMine) return;
       const ownerMelds = lastState.tableMelds.filter((m) => m.ownerId === owner.id);
       if (ownerMelds.length === 0) {
-        if (meldFilterPlayerId === owner.id) {
+        // Hinweis auch fuer die eigene, mitangezeigte (leere) Auslage - sonst
+        // waere unklar, ob sie fehlt oder nur leer ist.
+        if (meldFilterPlayerId === owner.id || keepMine) {
           const empty = document.createElement('div');
           empty.className = 'meldOwnerHeader';
           empty.textContent = L(`${owner.id === playerId ? 'Du hast' : owner.name + ' hat'} noch nichts ausgelegt.`, `${owner.id === playerId ? 'You have' : owner.name + ' has'} not melded anything yet.`);

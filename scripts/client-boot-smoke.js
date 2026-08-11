@@ -326,6 +326,54 @@ setTimeout(() => {
       if (handGhost) errors.push('hand jokers must NOT carry a ghost label');
     }
 
+    // Auslagen-Filter: Beim Filtern auf einen MITSPIELER muessen die eigenen
+    // Auslagen sichtbar bleiben - man wirft ja genau danach ab, was der
+    // Nachbar brauchen koennte und was die eigene Auslage aufnimmt.
+    {
+      const doc = window.document;
+      feed({
+        ...base, phase: 'playing', roundNumber: 1, currentPlayerId: 'p1',
+        turnPhase: 'meld', dealerId: 'b1', turnDeadline: null,
+        discardTop: { id: 'f0', suit: 'H', rank: '4' }, drawCount: 20, discardCount: 1,
+        players: base.players.map((p) => ({ ...p, handCount: 5 })),
+        tableMelds: [
+          { id: 'mine', ownerId: 'p1', type: 'set', rank: '6',
+            slots: [{ real: { id: 'C6', suit: 'C', rank: '6' } }, { real: { id: 'H6', suit: 'H', rank: '6' } }, { real: { id: 'S6', suit: 'S', rank: '6' } }] },
+          { id: 'theirs', ownerId: 'b1', type: 'set', rank: '9',
+            slots: [{ real: { id: 'C9', suit: 'C', rank: '9' } }, { real: { id: 'H9', suit: 'H', rank: '9' } }, { real: { id: 'S9', suit: 'S', rank: '9' } }] },
+        ],
+      });
+      const meldIds = () => [...doc.querySelectorAll('#melds [data-meld-id]')].map((n) => n.dataset.meldId);
+      if (!meldIds().includes('mine') || !meldIds().includes('theirs')) {
+        errors.push(`unfiltered view should show both melds, got: ${meldIds().join(',')}`);
+      }
+      // Auf den Mitspieler filtern (Klick auf dessen Ueberschrift).
+      const headers = [...doc.querySelectorAll('#melds .meldOwnerHeader')];
+      const theirHeader = headers.find((h) => /Gisela/.test(h.textContent));
+      if (!theirHeader) errors.push('opponent meld header not found');
+      else {
+        theirHeader.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        const shown = meldIds();
+        if (!shown.includes('theirs')) errors.push('filtering must show the filtered player');
+        if (!shown.includes('mine')) errors.push('own melds must stay visible while filtering an opponent');
+        const bar = doc.querySelector('#melds .meldFilterBar');
+        if (!bar || !/und dir/.test(bar.textContent)) {
+          errors.push(`filter bar should say both are shown, got: ${bar ? bar.textContent : 'missing'}`);
+        }
+      }
+      // Auf sich selbst filtern: dann NUR die eigenen.
+      // Auf sich selbst filtern: EIN Klick auf die eigene Ueberschrift setzt
+      // den Filter direkt um (ein zweiter wuerde ihn wieder loesen).
+      const myHeader = [...doc.querySelectorAll('#melds .meldOwnerHeader')].find((h) => /Deine Auslagen/.test(h.textContent));
+      if (!myHeader) errors.push('own meld header not found while filtering');
+      else {
+        myHeader.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        const shown = meldIds();
+        if (shown.includes('theirs')) errors.push('filtering yourself must hide the opponent melds');
+        if (!shown.includes('mine')) errors.push('filtering yourself must still show your own melds');
+      }
+    }
+
     // Zwei Pik Damen in EINEM Zug ausgelegt: die Ankuendigung muss 200
     // Punkte nennen (Spieler-Report: sie sagte 100, weil sie nach der ersten
     // Karte abbrach). Die Wertung war immer korrekt.
