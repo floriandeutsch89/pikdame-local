@@ -9,7 +9,7 @@ still work; the confirmation link is written to the log instead of being sent
 (see [Without a mail server](#without-a-mail-server-the-log-fallback)).
 
 The SMTP client is hand-written on `node:net` / `node:tls` — no dependency, no
-native module, so it works in the hotspot/CodeApp mode too.
+native module, so it needs no extra dependency.
 
 ## Environment variables
 

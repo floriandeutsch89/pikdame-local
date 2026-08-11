@@ -19,7 +19,7 @@ Since v2.0.0 the variable no longer has to be set at all:
 
 | Value | Behaviour |
 | --- | --- |
-| *unset* (**default**) | **Auto.** The learned bots are used whenever the runtime **and** at least one model are present. Where they are not — the plain Alpine image, the hotspot/CodeApp mode — this resolves to the heuristic **silently**, so nothing changes for those setups. |
+| *unset* (**default**) | **Auto.** The learned bots are used whenever the runtime **and** at least one model are present. Where they are not — for example the plain Alpine image — this resolves to the heuristic **silently**, so nothing changes for those setups. |
 | `1` / `true` | Force the learned path. If it cannot be honoured, the server says so loudly and plays on with the heuristic. |
 | `0` / `false` | Force the heuristic, even where models and runtime are available. |
 
