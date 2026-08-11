@@ -94,15 +94,23 @@ function checkGameOver(totals, houseRules = {}) {
 
   // Spiel endet, sobald irgendein Spieler die Schwelle erreicht/überschreitet.
   // Gewinner = höchste Gesamtpunktzahl.
-  let bestId = null;
   let bestScore = -Infinity;
-  for (const [pid, score] of Object.entries(totals)) {
-    if (score > bestScore) {
-      bestScore = score;
-      bestId = pid;
-    }
+  for (const score of Object.values(totals)) if (score > bestScore) bestScore = score;
+  const leaders = Object.entries(totals)
+    .filter(([, score]) => score === bestScore)
+    .map(([pid]) => pid);
+
+  // GLEICHSTAND AN DER SPITZE: Es wird weitergespielt, bis einer allein vorn
+  // liegt (Familienregel). Vorher gewann schlicht der erste Eintrag in der
+  // Objektreihenfolge - fuer die Beteiligten war der Sieger damit zufaellig
+  // (Spieler-Report: beide 1060 Punkte, das Spiel war trotzdem vorbei).
+  // WICHTIG: gameOver false, aber die Information mitgeben, damit der Tisch
+  // erfaehrt, WARUM noch eine Runde kommt.
+  if (leaders.length > 1) {
+    return { gameOver: false, tieBreak: true, tiedIds: leaders, tiedScore: bestScore };
   }
-  return { gameOver: true, winnerId: bestId, finalTotals: totals };
+
+  return { gameOver: true, winnerId: leaders[0], finalTotals: totals };
 }
 
 module.exports = {
