@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.15.1] - 2026-08-10
+
+### Fixed
+- **Bot übernahm den Platz, obwohl der Spieler verbunden war** (Spieler-Report: „ich konnte alles live sehen und weiterklicken, trotzdem spielte der Bot für mich"): Bei einer Neuverbindung - etwa nach kurzem Funkloch - registriert sich der **neue** Socket sofort, das `close` des **alten** trifft erst danach ein. Dieses verspätete Ereignis markierte den gerade zurückgekehrten Spieler als getrennt. Bildschirm und Klicks funktionierten weiter (die neue Verbindung war ja intakt), aber nach Ablauf der Gnadenfrist übernahm ein Bot den Sitz
+- Ein `close` wird jetzt **nur noch beachtet, wenn es vom aktuellen Socket des Spielers stammt**. Veraltete Ereignisse werden ignoriert
+- **Zweites Sicherheitsnetz:** Jede eingehende Nachricht beweist, dass der Spieler da ist - gilt er fälschlich als getrennt, wird das sofort korrigiert, bevor die Gnadenfrist abläuft. Bewusst über denselben Weg wie eine echte Rückkehr, damit nichts vergessen wird (Übernahme-Zeitgeber stoppen, Zug-Timer neu setzen)
+
+### Added
+- **Integrationstest mit echtem Server:** Er baut den Wettlauf nach (verbinden, neu verbinden, dann das alte `close`) und prüft, dass der Spieler verbunden bleibt. Der Fehler lag in der Verdrahtung zwischen WebSocket-Ereignissen und Spielzustand - eine Attrappe hätte ihn nicht gezeigt. Gegengeprüft: Mit dem alten Stand schlägt der Test an
+
 ## [2.15.0] - 2026-08-09
 
 ### Fixed

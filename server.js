@@ -816,6 +816,23 @@ wss.on('connection', (ws, req) => {
       return sendError(ws, 'Ungültige Nachricht.');
     }
 
+    // Zweites Sicherheitsnetz gegen die Bot-Uebernahme trotz bestehender
+    // Verbindung: JEDE Nachricht beweist, dass dieser Spieler da ist. Sollte
+    // ihn ein verspaetetes close-Ereignis (oder ein anderer Grund) als
+    // getrennt markiert haben, wird das hier sofort korrigiert - bevor die
+    // Gnadenfrist ablaeuft und ein Bot uebernimmt.
+    if (playerId && session && session.sockets.get(playerId) === ws) {
+      const seat = session.game.players.find((p) => p.id === playerId);
+      if (seat && !seat.connected) {
+        // Bewusst der GLEICHE Weg wie bei einer echten Rueckkehr: er loescht
+        // disconnectedAt, stoppt den Uebernahme-Zeitgeber und richtet den
+        // Zug-Timer neu ein. Eine eigene Abkuerzung wuerde davon etwas
+        // vergessen.
+        session.game.addOrReconnectPlayer(playerId, seat.name);
+        session.game.broadcastState();
+      }
+    }
+
     try {
       await handleMessage(msg);
     } catch (err) {
@@ -1224,12 +1241,16 @@ wss.on('connection', (ws, req) => {
   ws.on('close', () => {
     clearInterval(rateTimer);
     if (playerId && session) {
-      // Toten Socket sofort aus der Session-Map entfernen (nicht erst beim
-      // Session-Cleanup) - sonst sammeln sich bei vielen kurzen Besuchen
-      // WebSocket-Objekte an. Ein Reconnect setzt den Eintrag neu.
-      if (session.sockets.get(playerId) === ws) {
-        session.sockets.delete(playerId);
-      }
+      // WETTLAUF: Bei einer Neuverbindung registriert der NEUE Socket sich
+      // sofort, das 'close' des alten trifft erst danach ein. Wer dann
+      // ungeprueft markDisconnected() ruft, erklaert einen gerade wieder
+      // verbundenen Spieler fuer getrennt - er sieht alles live, kann
+      // klicken, und nach Ablauf der Gnadenfrist spielt trotzdem ein Bot
+      // fuer ihn (Spieler-Report). Deshalb: NUR handeln, wenn dieser Socket
+      // noch der aktuelle des Spielers ist.
+      const current = session.sockets.get(playerId);
+      if (current && current !== ws) return;   // veraltetes close - ignorieren
+      if (current === ws) session.sockets.delete(playerId);
       session.game.markDisconnected(playerId);
       session.game.broadcastState();
     }
