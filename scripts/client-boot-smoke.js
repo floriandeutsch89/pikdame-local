@@ -326,6 +326,40 @@ setTimeout(() => {
       if (handGhost) errors.push('hand jokers must NOT carry a ghost label');
     }
 
+    // Joker-Auswahl markiert ALLE moeglichen Auslagen - auch Folgen, wo er
+    // an beide Enden passt (Spieler-Report: nur Saetze leuchteten). Der
+    // Server fragt dort per Auswahldialog nach, lehnt also nicht ab.
+    {
+      const doc = window.document;
+      feed({
+        ...base, phase: 'playing', roundNumber: 1, currentPlayerId: 'p1',
+        turnPhase: 'meld', dealerId: 'b1', turnDeadline: null,
+        discardTop: { id: 'j0', suit: 'H', rank: '4' }, drawCount: 30, discardCount: 1,
+        players: base.players.map((p) =>
+          p.id === 'p1'
+            ? { ...p, handCount: 2, hand: [{ id: 'jok9', isJoker: true }, { id: 'S2', suit: 'S', rank: '2' }] }
+            : { ...p, handCount: 8 }
+        ),
+        tableMelds: [
+          { id: 'set6', ownerId: 'p1', type: 'set', rank: '6',
+            slots: [{ real: { id: 'C6', suit: 'C', rank: '6' } }, { real: { id: 'H6', suit: 'H', rank: '6' } }, { real: { id: 'S6', suit: 'S', rank: '6' } }] },
+          { id: 'runD', ownerId: 'p1', type: 'run', suit: 'D',
+            slots: [{ real: { id: 'D10', suit: 'D', rank: '10' } }, { real: { id: 'DJ', suit: 'D', rank: 'J' } }, { real: { id: 'DQ', suit: 'D', rank: 'Q' } }] },
+        ],
+      });
+      const jokerCard = doc.querySelector('#hand [data-card-id="jok9"]');
+      if (!jokerCard) errors.push('joker not rendered in hand');
+      else {
+        jokerCard.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        const lit = (id) => {
+          const g = doc.querySelector(`#melds [data-meld-id="${id}"]`);
+          return !!g && g.classList.contains('layOffTarget');
+        };
+        if (!lit('set6')) errors.push('a joker must highlight a set it can join');
+        if (!lit('runD')) errors.push('a joker must ALSO highlight a run (the server asks which end)');
+      }
+    }
+
     // Auslagen-Filter: Beim Filtern auf einen MITSPIELER muessen die eigenen
     // Auslagen sichtbar bleiben - man wirft ja genau danach ab, was der
     // Nachbar brauchen koennte und was die eigene Auslage aufnimmt.
