@@ -1511,13 +1511,18 @@
         // Grüner Hinweis: EINE Karte, die hier anpasst - ODER mehrere,
         // die GEMEINSAM anpassen (z.B. zwei Zehnen an den Zehner-Satz)
         if (isMine && isMyTurn && lastState.turnPhase === 'meld') {
-          // cardFitsMeld rejects jokers outright, so a single selected joker
-          // got no green frame at all - even where exactly one placement is
-          // legal (a set with a free suit). cardsFitMeldTogether runs the same
-          // uniqueness rule as the multi-card path, so this stays free of
-          // false positives: ambiguous cases (both ends of a run) stay unmarked.
+          // EINE Karte: markieren, sobald mindestens eine Platzierung
+          // moeglich ist - auch bei Mehrdeutigkeit. Der Server LEHNT hier
+          // naemlich nicht ab, sondern fragt per Auswahldialog nach
+          // ("Joker oben oder unten anlegen?", showJokerChoice). Der gruene
+          // Rahmen verspricht also nichts Falsches.
+          // Der strenge Eindeutigkeits-Test bleibt der MEHRKARTEN-Auswahl
+          // vorbehalten - dort weist der Server Mehrdeutiges wirklich zurueck.
+          // Vorher blieb ein Joker an jeder FOLGE ungruen (zwei Enden = zwei
+          // Ergebnisse), obwohl das Anlegen problemlos funktioniert
+          // (Spieler-Report).
           const jokerFits = singleSelectedCard && singleSelectedCard.isJoker &&
-            cardsFitMeldTogether(meld, [singleSelectedCard]);
+            layOffPlacementCount(meld, singleSelectedCard) >= 1;
           if (singleSelectedCard && (cardFitsMeld(meld, singleSelectedCard) || jokerFits)) {
             group.classList.add('layOffTarget');
           } else if (selectedCardIds.size > 1 && meForHints && meForHints.hand) {
@@ -1880,6 +1885,25 @@
     }
     return [];
   }
+  /**
+   * Wie viele UNTERSCHIEDLICHE Ergebnisse gibt es, diese eine Karte hier
+   * anzulegen? 0 = passt nicht, 1 = eindeutig, 2 = mehrdeutig (z. B. Joker
+   * an beiden Enden einer Folge). Gedeckelt bei 2, mehr interessiert nicht.
+   */
+  function layOffPlacementCount(meld, card) {
+    const signature = (m) =>
+      m.slots
+        .map((s) => (s.real ? `${s.real.rank}${s.real.suit}` : `J:${s.representsRank}${s.representsSuit}`))
+        .sort()
+        .join('|');
+    const results = new Set();
+    for (const next of layOffOptionsFor({ ...meld, slots: meld.slots.slice() }, card)) {
+      results.add(signature(next));
+      if (results.size > 1) break;
+    }
+    return results.size;
+  }
+
   function cardsFitMeldTogether(meld, cards) {
     if (!cards.length) return false;
     const signature = (m) =>

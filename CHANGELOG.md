@@ -3,6 +3,13 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.16.0] - 2026-08-12
+
+### Fixed
+- **Ausgewählter Joker markierte nur Sätze, keine Folgen** (Spieler-Report mit Bildschirmfoto): Die Vorschau verlangte auch bei einer **einzelnen** Karte ein **eindeutiges** Ergebnis. Ein Joker passt an eine Folge aber an **beide Enden** - zwei Möglichkeiten, also blieb der Rahmen aus, obwohl das Anlegen einwandfrei funktioniert
+- Der entscheidende Unterschied: Bei einer **einzelnen** Karte **lehnt der Server Mehrdeutigkeit nicht ab, sondern fragt nach** („oben oder unten anlegen?"). Der grüne Rahmen verspricht dort also nichts Falsches. Er erscheint jetzt, sobald **mindestens eine** Platzierung möglich ist. Bei einer **Mehrfach-Auswahl** bleibt es beim strengen Test - dort weist der Server Mehrdeutiges wirklich zurück
+- Rauchtest mit genau dieser Tischsituation (Satz **und** Folge, Joker ausgewählt); gegengeprüft mit dem alten Verhalten
+
 ## [2.15.1] - 2026-08-10
 
 ### Fixed
