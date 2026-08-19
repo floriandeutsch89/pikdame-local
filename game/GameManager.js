@@ -197,17 +197,27 @@ class GameManager {
 
     const solo = this.players.find((pl) => pl.id === id);
     if (this.isSoloMode() && solo && !solo.isBot) {
-      // Pause statt Uebernahme: 90 Sekunden Zeit, zurueckzukommen (App im
-      // Hintergrund, Anruf, Bildschirmsperre). Danach Abbruch OHNE Wertung.
-      this.soloPausedUntil = Date.now() + GameManager.SOLO_GRACE_MS;
-      this.addLog('Pausiert - das Spiel wartet 90 Sekunden auf dich.');
+      // Feature-Wunsch: explizites Pausieren in der Challenge/im Tutorial.
+      // War das Spiel schon ueber den Pause-Knopf angehalten (this.paused),
+      // bekommt die Trennung eine LANGE Frist statt der normalen 90 Sekunden
+      // - man hat ja bewusst "Pause" gedrueckt, bevor man die App verlaesst.
+      // Ohne Unterscheidung liefe die kurze Solo-Uhr trotz Pause weiter und
+      // haette das Spiel abgebrochen, waehrend am Bildschirm "pausiert"
+      // stand.
+      const graceMs = this.paused ? GameManager.SOLO_PAUSED_GRACE_MS : GameManager.SOLO_GRACE_MS;
+      this.soloPausedUntil = Date.now() + graceMs;
+      this.addLog(
+        this.paused
+          ? `Pausiert - das Spiel wartet ${Math.round(graceMs / 60000)} Minuten auf dich.`
+          : 'Pausiert - das Spiel wartet 90 Sekunden auf dich.'
+      );
       this.broadcastState();
       const timer = setTimeout(() => {
         this._takeoverTimers.delete(id);
         const p = this.players.find((pl) => pl.id === id);
         if (!p || p.connected) return; // rechtzeitig zurueck
         this._abandonSolo();
-      }, GameManager.SOLO_GRACE_MS);
+      }, graceMs);
       if (timer.unref) timer.unref();
       this._takeoverTimers.set(id, timer);
       return;
@@ -2660,6 +2670,10 @@ GameManager.TAKEOVER_GRACE_MS = 75 * 1000;
 // Einzelspieler-Modi: laengere Frist als bei der Bot-Uebernahme, weil hier
 // niemand am Tisch wartet - dafuer endet sie hart im Abbruch.
 GameManager.SOLO_GRACE_MS = 90 * 1000;
+// Explizit pausiert (Pause-Knopf gedrueckt): grosszuegigere Frist, bevor ein
+// Solo-Spiel ohne Wertung abgebrochen wird - 20 Minuten reichen fuer eine
+// echte Unterbrechung (Essen, Anruf), ohne die Sitzung endlos offen zu halten.
+GameManager.SOLO_PAUSED_GRACE_MS = 20 * 60 * 1000;
 GameManager.MIN_SEATS = MIN_SEATS;
 GameManager.MAX_SEATS_LIMIT = MAX_SEATS_LIMIT;
 GameManager.DEFAULT_MAX_SEATS = DEFAULT_MAX_SEATS;

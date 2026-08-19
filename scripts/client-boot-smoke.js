@@ -53,7 +53,7 @@ window.WebSocket = class {
     if (typeof this['on' + t] === 'function') this['on' + t](ev);
     for (const f of this._ls[t] || []) f(ev);
   }
-  send() {}
+  send(raw) { this._sent = this._sent || []; this._sent.push(raw); }
   close() {}
 };
 window.WebSocket.OPEN = 1;
@@ -86,6 +86,49 @@ setTimeout(() => {
       lobbyReady: [], log: [], tableMelds: [], discardCount: 0, drawCount: 0,
       roundNumber: 0, totals: { p1: 0, b1: 0 }, houseRules: {}, nextRoundReady: [],
     };
+    // Eigene Spielhistorie: Reiterwechsel fragt einmalig an, zeigt die
+    // Antwort an, und ein Sprachwechsel darf die schon geladene Liste nicht
+    // in der alten Sprache stehen lassen (gleiche Fehlerklasse wie bei den
+    // Tagesaufgaben - deshalb hier gleich mitgeprueft statt erst spaeter
+    // gemeldet zu werden).
+    {
+      const doc = window.document;
+      doc.getElementById('nameInput').value = 'Flodex';
+      const statsOpenBtn = doc.getElementById('statsBtn');
+      if (statsOpenBtn) statsOpenBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+      const boardBtn = doc.getElementById('statsTabBoardBtn');
+      const historyBtn = doc.getElementById('statsTabHistoryBtn');
+      if (!boardBtn || !historyBtn) errors.push('stats tabs missing');
+      else {
+        historyBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        const sentRaw = (wsInstance._sent || []).map((r) => JSON.parse(r));
+        const asked = sentRaw.find((m) => m.type === 'getGameHistory');
+        if (!asked) errors.push('switching to the history tab must request it from the server');
+        else if (asked.name !== 'Flodex') errors.push(`getGameHistory must send the current name, got: ${asked.name}`);
+
+        wsInstance._emit('message', { data: JSON.stringify({
+          type: 'gameHistory',
+          games: [{
+            id: 'g1', finishedAt: Date.now(), challengeDate: null, rounds: 5,
+            players: [{ name: 'Flodex', isBot: false }, { name: 'Gisela', isBot: true }],
+            finalTotals: { p1: 1040 }, winnerId: 'p1', won: true, myScore: 1040,
+          }],
+        }) });
+        const historyBox = doc.getElementById('historyContent');
+        if (!historyBox || !/1040/.test(historyBox.textContent)) {
+          errors.push(`history did not render the received game: ${historyBox ? historyBox.textContent.slice(0, 80) : 'missing'}`);
+        }
+        // Sprachwechsel darf die geladene Historie nicht in der alten
+        // Sprache stehen lassen.
+        doc.getElementById('langBtnLobby').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        const afterSwitch = historyBox.textContent;
+        if (!/pts/.test(afterSwitch)) errors.push(`history did not follow the language switch: ${afterSwitch.slice(0, 80)}`);
+        doc.getElementById('langBtnLobby').dispatchEvent(new window.MouseEvent('click', { bubbles: true })); // zurueck auf Deutsch
+
+        boardBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); // aufraeumen fuer folgende Pruefungen
+      }
+    }
+
     // Wiederverbindung: Bei fehlendem Netz darf NICHT sofort weiterprobiert
     // werden (Nutzer-Report: Fehlerflut ERR_NAME_NOT_RESOLVED), und bei
     // Netz-Rueckkehr muss es SOFORT gehen statt den Wartezeitgeber abzusitzen.
@@ -326,6 +369,48 @@ setTimeout(() => {
       if (handGhost) errors.push('hand jokers must NOT carry a ghost label');
     }
 
+    // Zwei Joker in der Hand: ihre Reihenfolge im Faecher darf sich beim
+    // erneuten Rendern NICHT aendern (Spieler-Report: "einer der beiden
+    // Joker war ploetzlich was anderes" - tatsaechlich vertauschten zwei
+    // ununterscheidbare Joker ihren Platz, weil der Sortierer sie als
+    // gleich behandelte). Zweimal mit der GLEICHEN Hand rendern, DOM-
+    // Reihenfolge muss identisch bleiben.
+    {
+      const doc = window.document;
+      const twoJokerHand = {
+        ...base, phase: 'playing', roundNumber: 1, currentPlayerId: 'p1',
+        turnPhase: 'meld', dealerId: 'b1', turnDeadline: null,
+        discardTop: { id: 'j1', suit: 'H', rank: '4' }, drawCount: 30, discardCount: 1,
+        players: base.players.map((p) =>
+          p.id === 'p1'
+            ? { ...p, handCount: 3, hand: [
+                { id: 'jokA', isJoker: true }, { id: 'S3', suit: 'S', rank: '3' }, { id: 'jokB', isJoker: true },
+              ] }
+            : { ...p, handCount: 8 }
+        ),
+      };
+      const order = () => [...doc.querySelectorAll('#hand [data-card-id]')].map((n) => n.dataset.cardId).filter((id) => id.startsWith('jok'));
+      feed(twoJokerHand);
+      const first = order();
+      feed({ ...twoJokerHand });   // erneut derselbe Zustand, wie ein Folge-Update
+      const second = order();
+      if (first.length !== 2 || second.length !== 2) {
+        errors.push(`expected 2 jokers in the hand, got ${first.length} then ${second.length}`);
+      } else if (first[0] !== second[0] || first[1] !== second[1]) {
+        errors.push(`joker order must stay stable across renders: ${first.join(',')} -> ${second.join(',')}`);
+      }
+      // Ehrlicher Hinweis: node --test sortiert bereits stabil, ein
+      // "return 0" faellt hier NICHT auf, weil die Engine ohnehin die
+      // Einfuegereihenfolge beibehaelt. Der eigentliche Beweis steht im
+      // Quelltext-Vertrag direkt darunter - er prueft, dass '0' fuer zwei
+      // Joker gar nicht mehr zurueckgegeben werden KANN, unabhaengig von
+      // der Sortier-Implementierung der jeweiligen Browser-Engine.
+      const clientSrc = fs.readFileSync(path.join(__dirname, '..', 'public', 'client.js'), 'utf8');
+      if (/if \(a\.isJoker && b\.isJoker\) return 0;/.test(clientSrc)) {
+        errors.push('hand sort must not return 0 for two jokers - order becomes engine-dependent');
+      }
+    }
+
     // Joker-Auswahl markiert ALLE moeglichen Auslagen - auch Folgen, wo er
     // an beide Enden passt (Spieler-Report: nur Saetze leuchteten). Der
     // Server fragt dort per Auswahldialog nach, lehnt also nicht ab.
@@ -520,6 +605,26 @@ setTimeout(() => {
       const note = window.document.querySelector('#resultBody .handAusNote');
       if (!note) errors.push('handAusNote must appear when the house rule is active');
       else if (!/doppelt|double/i.test(note.textContent)) errors.push(`handAusNote text unexpected: ${note.textContent}`);
+    }
+    // Partie-Ende (nicht nur Rundenende): der PARTIE-Gewinn zeigt den neuen
+    // Pokal statt der Krone, die weiterhin jeden Rundengewinn markiert.
+    // Feature-Wunsch, nach dem Vorbild von Codenames - ohne eigenes Symbol
+    // sahen "Runde gewonnen" und "Partie gewonnen" optisch identisch aus.
+    {
+      feed({
+        ...roundEndState,
+        phase: 'gameOver',
+        houseRules: {},
+        gameOverInfo: { winnerId: 'b3', finalTotals: { p1: 120, b1: 80, b2: -40, b3: 1010 }, highlights: [] },
+        totals: { p1: 120, b1: 80, b2: -40, b3: 1010 },
+      });
+      const doc = window.document;
+      const winnerBox = doc.querySelector('#resultBody .resultWinnerGame');
+      if (!winnerBox) errors.push('game-over must render the match-winner banner');
+      else {
+        if (!winnerBox.querySelector('.trophyMark')) errors.push('match win must show the TROPHY icon');
+        if (winnerBox.querySelector('.jokerMark')) errors.push('match win must NOT reuse the round-win crown icon');
+      }
     }
     setTimeout(() => {
       const doc = window.document;
