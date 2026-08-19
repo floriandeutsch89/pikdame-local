@@ -276,6 +276,10 @@
     // "Angemeldet als ..." steht dauerhaft in der Lobby - vom Vertragstest
     // unten gefunden, bevor es jemand melden konnte.
     try { refreshAccountUi(); } catch (e) { /* dito */ }
+    // Eigene Spielhistorie: nur relevant, wenn der Reiter offen ist, aber
+    // billig genug, es einfach immer zu versuchen statt den Sichtbarkeits-
+    // Zustand zu pruefen.
+    try { renderGameHistory(); } catch (e) { /* dito */ }
     if (lastState) render();
   }
 
@@ -369,7 +373,8 @@
     };
     return M[id] || { emoji: '🎖️', name: id, desc: '' };
   }
-  let globalStatsData = null; // anonyme Server-Zähler (Partien, Pik Damen, ...)
+  let globalStatsData = null;
+  let myGameHistory = null; // null = noch nicht angefragt, [] = angefragt und leer // anonyme Server-Zähler (Partien, Pik Damen, ...)
   // --- Fortschritt über Partien hinweg ------------------------------------
   // dailyQuests: {date, ids} kommt IMMER vom Server (alle Spieler weltweit
   // arbeiten an denselben drei Aufgaben); die Beschriftungen leben hier,
@@ -908,6 +913,13 @@
       if (!el('resultOverlay').classList.contains('hidden')) renderResultOverlay();
       return;
     }
+    if (msg.type === 'gameHistory') {
+      myGameHistory = msg.games || [];
+      if (!el('statsOverlay').classList.contains('hidden') && !el('statsPaneHistory').classList.contains('hidden')) {
+        renderGameHistory();
+      }
+      return;
+    }
     if (msg.type === 'profiles') {
       knownProfiles = msg.players || [];
       // Re-apply the card back NOW that we know the profile. Its unlock gate
@@ -1031,6 +1043,24 @@
     '<path d="M4.6 16.4 3.4 7.6l4.4 4.2L12 5.4l4.2 6.4 4.4-4.2-1.2 8.8z"/>' +
     '<circle cx="3.4" cy="7.0" r="1.7"/><circle cx="12" cy="4.6" r="1.8"/><circle cx="20.6" cy="7.0" r="1.7"/>' +
     '<path d="M4.3 17.4h15.4a1.1 1.1 0 0 1 1.1 1.1v1.1a1.1 1.1 0 0 1-1.1 1.1H4.3a1.1 1.1 0 0 1-1.1-1.1v-1.1a1.1 1.1 0 0 1 1.1-1.1z"/>' +
+    '</svg>';
+  // Pokal für den PARTIE-Gewinn - bewusst eine eigene Form statt der Krone
+  // wiederzuverwenden, die schon jeden Rundengewinn markiert. Ohne diese
+  // Trennung sah "eine Runde gewonnen" optisch identisch zu "die ganze
+  // Partie gewonnen" aus (Feature-Wunsch, nach dem Vorbild von Codenames:
+  // ein Pokal nur für den eigentlichen Sieg). Geometrie berechnet und als
+  // PNG bei mehreren Größen und auf hellem wie dunklem Grund geprüft, bevor
+  // sie hier landete - Henkel als echte SVG-Bögen, Kelch/Stiel/Sockel mit
+  // 0.15-0.35 Einheiten Überlappung gegen Anti-Aliasing-Nähte zwischen den
+  // gestapelten Formen.
+  const TROPHY_MARK_SVG =
+    '<svg class="trophyMark" viewBox="0 0 24 24" aria-hidden="true">' +
+    '<path d="M5.2 3H18.8C18.8 8 16.4 12.4 13 13.2V14.85H11V13.2C7.6 12.4 5.2 8 5.2 3Z"/>' +
+    '<path d="M3.76 3.61A2.7 2.7 0 1 1 3.76 8.99L3.89 7.60A1.3 1.3 0 1 0 3.89 5.00Z" fill-rule="evenodd"/>' +
+    '<path d="M19.76 3.61A2.7 2.7 0 1 1 19.76 8.99L19.89 7.60A1.3 1.3 0 1 0 19.89 5.00Z" fill-rule="evenodd"/>' +
+    '<path d="M11 14.6H13L13.4 17.4H10.6Z"/>' +
+    '<path d="M9.8 17.15H14.2L14.7 19.1H9.3Z"/>' +
+    '<path d="M8.4 18.85H15.6L16.2 21H7.8Z"/>' +
     '</svg>';
   function suitColor(suit) {
     return suit === 'H' || suit === 'D' ? 'red' : 'black';
@@ -1654,7 +1684,16 @@
         ? L('1 Karte', '1 card')
         : L(`${myPlayer.hand.length} Karten`, `${myPlayer.hand.length} cards`);
       const sorted = myPlayer.hand.slice().sort((a, b) => {
-        if (a.isJoker && b.isJoker) return 0;
+        // ZWEI Joker: stabil nach id sortieren statt 0 zurueckzugeben.
+        // '0' heisst "diese beiden sind aus Sortier-Sicht gleich" - deren
+        // Platz im Faecher haengt dann von der Sortier-Stabilitaet der
+        // JS-Engine ab und kann sich beim naechsten Rendern unterscheiden,
+        // besonders sobald zwischen zwei Zuegen eine dritte Karte entfernt
+        // oder hinzugefuegt wurde. Zwei optisch identische Joker tauschten
+        // dadurch scheinbar Position - fuer den Spieler sah es so aus, als
+        // waere EIN Joker ploetzlich "etwas anderes" geworden, dabei stand
+        // nur der ANDERE Joker jetzt an seiner Stelle (Spieler-Report).
+        if (a.isJoker && b.isJoker) return String(a.id).localeCompare(String(b.id));
         if (a.isJoker) return 1;
         if (b.isJoker) return -1;
         if (handSortMode === 'rank') {
@@ -2238,8 +2277,12 @@
       // screen, and you had to read past everything else to reach it.
       const head = document.createElement('div');
       head.className = 'resultWinner resultWinnerGame';
+      // Pokal statt Krone: die Krone markiert schon JEDEN Rundengewinn (siehe
+      // .resultWinner ohne "Game"-Zusatz weiter oben in dieser Funktion) -
+      // ohne eigenes Symbol für den PARTIE-Gewinn sahen beide Momente
+      // identisch aus.
       head.innerHTML =
-        `<div class="resultWinnerCrown">${JOKER_MARK_SVG}</div>` +
+        `<div class="resultWinnerCrown resultWinnerTrophy">${TROPHY_MARK_SVG}</div>` +
         `<div class="resultWinnerName">${nameWithHeart(winner ? winner.name : '?')}${winner ? botMark(winner) : ''}</div>` +
         `<div class="resultWinnerSub">${
           winner && winner.id === playerId
@@ -4515,6 +4558,21 @@
     renderStats();
     el('statsOverlay').classList.remove('hidden');
   });
+  function selectStatsTab(which) {
+    const board = which === 'board';
+    el('statsTabBoardBtn').classList.toggle('active', board);
+    el('statsTabHistoryBtn').classList.toggle('active', !board);
+    el('statsPaneBoard').classList.toggle('hidden', !board);
+    el('statsPaneHistory').classList.toggle('hidden', board);
+    if (!board) {
+      // Erst beim ersten Wechsel anfragen - kein unnoetiger Rundgang beim
+      // blossen Oeffnen der Bestenliste.
+      if (myGameHistory === null) send({ type: 'getGameHistory', name: currentName() });
+      renderGameHistory();
+    }
+  }
+  el('statsTabBoardBtn').addEventListener('click', () => selectStatsTab('board'));
+  el('statsTabHistoryBtn').addEventListener('click', () => selectStatsTab('history'));
   // Record details: tapping a profile row expands its personal records
   // (best round, queen/joker balance, hand-aus wins) right beneath it.
   el('statsContent').addEventListener('click', (ev) => {
@@ -4544,6 +4602,49 @@
   el('statsOverlay').addEventListener('click', (ev) => {
     if (ev.target === el('statsOverlay')) el('statsOverlay').classList.add('hidden');
   });
+
+  function renderGameHistory() {
+    const box = el('historyContent');
+    if (myGameHistory === null) {
+      box.innerHTML = `<p class="lobby-hint">${L('Lade …', 'Loading …')}</p>`;
+      return;
+    }
+    if (myGameHistory.length === 0) {
+      box.innerHTML = `<p class="lobby-hint">${L(
+        'Noch keine abgeschlossenen Partien unter diesem Namen. Gezählt wird erst eine komplett zu Ende gespielte Partie (bis 1000 Punkte).',
+        'No finished games yet under this name. Only matches played to the end (1000 points) count.'
+      )}</p>`;
+      return;
+    }
+    const rows = myGameHistory
+      .map((g) => {
+        const date = g.finishedAt ? new Date(g.finishedAt) : null;
+        const dateStr = date
+          ? date.toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+          : '–';
+        const others = (g.players || [])
+          .filter((p) => !p.isBot)
+          .map((p) => p.name)
+          .filter((n) => n.toLowerCase() !== (currentName() || '').toLowerCase());
+        const oppLabel = others.length
+          ? L(`gegen ${others.join(', ')}`, `vs ${others.join(', ')}`)
+          : L('Solo (Bots)', 'Solo (bots)');
+        const tag = g.challengeDate
+          ? `<span class="historyTag historyTagChallenge">${L('Challenge', 'Challenge')}</span>`
+          : '';
+        return `<div class="historyRow${g.won ? ' historyRowWon' : ''}">
+          <div class="historyRowMain">
+            <span class="historyResult">${g.won ? '🏆' : '　'}</span>
+            <span class="historyDate">${dateStr}</span>
+            ${tag}
+            <span class="historyOpp">${escapeHtml(oppLabel)}</span>
+          </div>
+          <div class="historyScore">${g.myScore !== undefined ? g.myScore : '–'} ${L('Pkt', 'pts')} · ${g.rounds} ${L('Runden', 'rounds')}</div>
+        </div>`;
+      })
+      .join('');
+    box.innerHTML = `<div class="historyList">${rows}</div>`;
+  }
 
   function renderStats() {
     renderAchievements();

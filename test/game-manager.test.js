@@ -2665,6 +2665,44 @@ test('solo modes pause for 90s and then abandon without scoring or saving', () =
   game.destroy();
 });
 
+// --- Feature-Wunsch: explizites Pausieren in der Tages-Challenge --------------
+test('an explicit pause before disconnecting gets a long grace window, not the normal 90s', () => {
+  // Ohne diese Unterscheidung lief die kurze Solo-Uhr trotz gedrückter Pause
+  // weiter und hätte das Spiel abgebrochen, während am Bildschirm "pausiert"
+  // stand - das ist der Fehler, den der Wunsch beheben soll.
+  const { game } = soloGame({ deckSeed: 4242, challengeDate: '2026-07-31' });
+  const other = game.players.find((p) => p.id !== 'me' && !p.isBot);
+  // Zweiter Mensch nötig, sonst pausiert togglePauseVote sofort ohne Zutun
+  // eines zweiten Stimmenden - hier soll das Auslösen ausdrücklich geprüft
+  // werden, nicht als Nebenwirkung des Alleinseins am Tisch passieren.
+  assert.equal(other, undefined, 'sanity: solo games have exactly one human');
+
+  game.togglePauseVote('me');
+  assert.equal(game.paused, true, 'the only human present pauses the game alone');
+
+  game.markDisconnected('me');
+  const paused = game.publicState('me').soloPausedUntil;
+  assert.ok(paused && paused > Date.now(), 'a pause deadline is still announced');
+  const remainingMinutes = (paused - Date.now()) / 60_000;
+  assert.ok(remainingMinutes > 15, `expected the long grace window (~20 min), got ${remainingMinutes.toFixed(1)} min`);
+  game.destroy();
+});
+
+test('disconnecting WITHOUT an explicit pause keeps the normal short window', () => {
+  // Gegenprobe zur Unterscheidung: kein Pause-Klick vorher -> weiterhin 90s,
+  // nicht versehentlich die lange Frist für jede Trennung.
+  const { game } = soloGame({ deckSeed: 4242, challengeDate: '2026-07-31' });
+  // this.paused startet als undefined (erst togglePauseVote setzt es explizit
+  // auf true/false) - überall im Code wird nur auf Falsy geprüft, daher hier
+  // ebenso statt eines strikten === false.
+  assert.ok(!game.paused, 'sanity: not paused');
+  game.markDisconnected('me');
+  const paused = game.publicState('me').soloPausedUntil;
+  const remainingSeconds = (paused - Date.now()) / 1000;
+  assert.ok(remainingSeconds < 100, `expected the short ~90s window, got ${remainingSeconds.toFixed(0)}s`);
+  game.destroy();
+});
+
 test('a normal game still lets a bot take over after the grace period', () => {
   const { game } = soloGame({});                    // kein Seed, keine Challenge
   const me = game.players.find((p) => p.id === 'me');

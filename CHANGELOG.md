@@ -3,7 +3,20 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
-## [2.16.0] - 2026-08-12
+## [2.17.0] - 2026-08-12
+
+### Fixed
+- **Ein Joker in der Hand „verwandelte" sich scheinbar in eine andere Karte** (Spieler-Report: „hatte 2 Joker auf der Hand, im nächsten Zug war einer plötzlich was anderes"): Über sechs vollständig simulierte Partien war keine Datenverfälschung nachweisbar - der eigentliche Fehler steckte in der Sortierung des Kartenfächers. Zwei Joker galten dort als „gleich" (der Vergleich gab `0` zurück), wodurch ihre Reihenfolge bei jedem Neuzeichnen von der Sortier-Stabilität der jeweiligen Browser-Engine abhing. Zwei optisch identische Joker konnten dadurch beim nächsten Zug scheinbar die Plätze tauschen - für den Spieler sah es aus, als wäre einer „zu etwas anderem" geworden, dabei stand nur der jeweils andere Joker jetzt an dessen Stelle. Joker werden jetzt stabil nach ihrer Karten-ID sortiert
+
+### Added
+- **Explizites Pausieren in der Tages-Challenge und im Tutorial:** Wird das Spiel über den Pause-Knopf angehalten, bevor sich der Spieler trennt, gilt jetzt eine großzügige **20-Minuten-Frist** statt der normalen 90 Sekunden, bevor ein Solo-Spiel ohne Wertung abgebrochen wird. Ohne diese Unterscheidung lief die kurze Solo-Uhr trotz gedrückter Pause weiter und hätte das Spiel abgebrochen, während am Bildschirm „pausiert" stand
+- **Persönliche Spielhistorie im Statistik-Overlay:** Neuer Reiter „Meine Partien" neben der bisherigen Bestenliste zeigt die letzten 20 abgeschlossenen Partien unter dem eigenen Namen - Datum, Gegner, Endstand, Sieg/Niederlage, Rundenzahl, mit Kennzeichnung für Tages-Challenge-Partien. Die Filter- und Kürzungslogik lebt als eigene, reine Funktion (`historyForPlayer`) in `GameHistoryStore.js` und ist ohne laufenden Server prüfbar. Respektiert denselben `PUBLIC_MODE`-Schalter wie die bestehende Statistik
+- **Pokal-Symbol beim Partiesieg** (Vorbild Codenames): Der Partiegewinn zeigte bisher dieselbe goldene Krone wie jeder einzelne Rundengewinn - „eine Runde gewonnen" und „die ganze Partie gewonnen" waren optisch nicht zu unterscheiden. Ein neu gezeichnetes Pokal-Symbol markiert jetzt ausschließlich den Partiesieg, mit einer eigenen, etwas ausgelasseneren Eintritts-Animation. Die Krone bleibt unverändert für Rundengewinne
+
+### Technisch
+- Neuer Server-Nachrichtentyp `getGameHistory` (respektiert `PUBLIC_MODE`, liefert nur die Übersichtsdaten, nicht die komplette Runde-für-Runde-Aufzeichnung)
+- Rauchtest deckt die neue Historie-Ansicht (Reiterwechsel, Serverantwort, Sprachwechsel-Auffrischung) und die Pokal/Krone-Unterscheidung beim Partieende ab; alle neuen Verhaltensweisen mit echten Gegenproben (schlagen mit dem alten Code fehl)
+
 
 ### Fixed
 - **Ausgewählter Joker markierte nur Sätze, keine Folgen** (Spieler-Report mit Bildschirmfoto): Die Vorschau verlangte auch bei einer **einzelnen** Karte ein **eindeutiges** Ergebnis. Ein Joker passt an eine Folge aber an **beide Enden** - zwei Möglichkeiten, also blieb der Rahmen aus, obwohl das Anlegen einwandfrei funktioniert

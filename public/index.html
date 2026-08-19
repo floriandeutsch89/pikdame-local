@@ -794,13 +794,28 @@
     <section id="statsOverlay" class="overlay hidden">
       <div class="overlay-card">
         <h2><svg class="icon" aria-hidden="true"><use href="#i-chart"/></svg><span>Statistik</span></h2>
-        <p class="lobby-hint">Über alle Partien auf diesem Server (nach Spielernamen).</p>
-        <div id="globalStatsBox" class="globalStatsBox hidden"></div>
-        <!-- Erfolge-Galerie: Abzeichen blitzten bisher einmal am Partieende
-             auf und waren danach unsichtbar. Gesperrte mit Fortschritt zu
-             zeigen ist der eigentliche Antrieb ("was fehlt mir noch?"). -->
-        <div id="achievementsBox" class="achievementsBox hidden"></div>
-        <div id="statsContent" class="statsContent"></div>
+        <!-- Zwei Ansichten: Bestenliste (alle Spieler) und die eigene
+             Partien-Historie. Getrennt statt vermischt, weil unterschiedliche
+             Fragen dahinterstehen ("wie stehe ich im Vergleich" vs. "was habe
+             ICH zuletzt gespielt") - Feature-Wunsch nach der eigenen
+             Spielhistorie. -->
+        <div class="statsTabs">
+          <button id="statsTabBoardBtn" type="button" class="resultTabBtn active">Bestenliste</button>
+          <button id="statsTabHistoryBtn" type="button" class="resultTabBtn">Meine Partien</button>
+        </div>
+        <div id="statsPaneBoard" class="statsPane">
+          <p class="lobby-hint">Über alle Partien auf diesem Server (nach Spielernamen).</p>
+          <div id="globalStatsBox" class="globalStatsBox hidden"></div>
+          <!-- Erfolge-Galerie: Abzeichen blitzten bisher einmal am Partieende
+               auf und waren danach unsichtbar. Gesperrte mit Fortschritt zu
+               zeigen ist der eigentliche Antrieb ("was fehlt mir noch?"). -->
+          <div id="achievementsBox" class="achievementsBox hidden"></div>
+          <div id="statsContent" class="statsContent"></div>
+        </div>
+        <div id="statsPaneHistory" class="statsPane hidden">
+          <p class="lobby-hint">Deine letzten abgeschlossenen Partien (bis 1000 Punkte) - nur auf diesem Gerät/mit diesem Spielernamen.</p>
+          <div id="historyContent" class="statsContent"></div>
+        </div>
         <button id="statsCloseBtn" class="btn-secondary">Schließen</button>
       </div>
     </section>

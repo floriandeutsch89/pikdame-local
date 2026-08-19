@@ -24,7 +24,7 @@ const {
 } = require('./game/Progression');
 const { createAccountStoreAuto } = require('./game/AccountStore');
 const { createMailer } = require('./game/Mailer');
-const { createGameHistoryStore } = require('./game/GameHistoryStore');
+const { createGameHistoryStore, historyForPlayer } = require('./game/GameHistoryStore');
 const { SessionRegistry, sanitizeName } = require('./game/SessionRegistry');
 
 const PORT = process.env.PORT || 8080;
@@ -995,6 +995,17 @@ wss.on('connection', (ws, req) => {
         game.fillWithBots();
         game.startNewRound();
       }
+      return;
+    }
+    if (msg.type === 'getGameHistory') {
+      // Persönliche Spielhistorie (Feature-Wunsch): die letzten beendeten
+      // Partien, in denen dieser Name als echter Spieler dabei war. Dieselbe
+      // Sperre wie bei Profilen/Statistik - im öffentlichen Modus sieht
+      // niemand die Partien Fremder. Die Filter-/Kürzungslogik selbst lebt
+      // als reine Funktion in GameHistoryStore.js (dort ohne laufenden
+      // Server prüfbar).
+      const mine = PUBLIC_MODE ? [] : historyForPlayer(gameHistoryStore.listGames(), msg.name, 20);
+      ws.send(JSON.stringify({ type: 'gameHistory', games: mine }));
       return;
     }
     if (msg.type === 'listProfiles') {

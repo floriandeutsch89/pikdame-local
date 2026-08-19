@@ -1170,6 +1170,22 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .resultWinnerCrown .jokerMark { width: 100%; height: 100%; fill: #d9a520; }
 .resultWinnerGame .resultWinnerScore { font-size: 2rem; }
 
+/* Pokal statt Krone für den PARTIE-Gewinn (Feature-Wunsch, Vorbild
+   Codenames): eigenes Symbol, eigene - etwas grössere und ausgelasseneres -
+   Animation, damit sich "die ganze Partie gewonnen" fühlbar von "eine Runde
+   gewonnen" unterscheidet, nicht nur im Text darunter. */
+.resultWinnerTrophy { width: 42px; height: 42px; animation: trophyBounce 0.62s var(--ease) 0.12s both; }
+.resultWinnerTrophy .trophyMark { width: 100%; height: 100%; fill: #d9a520; }
+@keyframes trophyBounce {
+  0%   { transform: translateY(-20px) scale(0.4) rotate(-16deg); opacity: 0; }
+  50%  { transform: translateY(2px) scale(1.16) rotate(7deg); opacity: 1; }
+  75%  { transform: translateY(-3px) scale(0.96) rotate(-3deg); }
+  100% { transform: none; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .resultWinnerTrophy { animation: none; }
+}
+
 .resultList { display: flex; flex-direction: column; gap: 2px; }
 .resultRow {
   padding: 9px 2px;
@@ -1540,6 +1556,35 @@ body.raidActive #toastContainer { margin-top: 132px; }
   background: rgba(0,0,0,0.06); border: 1px solid var(--glass-border);
 }
 .statsNoBadge { font-size: 0.72rem; color: var(--text-muted); font-style: italic; }
+
+/* --- Statistik-Overlay: Reiter Bestenliste | Meine Partien ------------------ */
+.statsTabs {
+  display: flex; gap: 4px; justify-content: center;
+  width: fit-content; margin: 2px auto 14px;
+  padding: 4px; border-radius: var(--r-pill);
+  background: rgba(0, 0, 0, 0.06);
+}
+.statsPane { min-height: 40px; }
+
+/* Eigene Partien-Historie: eine Zeile pro Partie, Sieg optisch hervorgehoben. */
+.historyList { display: flex; flex-direction: column; gap: 6px; }
+.historyRow {
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.03);
+}
+.historyRowWon { border-color: var(--accent); background: rgba(255,255,255,0.06); }
+.historyRowMain { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.historyResult { font-size: 0.95rem; line-height: 1; width: 1.2em; text-align: center; }
+.historyDate { font-size: 0.82rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.historyOpp { font-size: 0.78rem; color: var(--text-muted); }
+.historyTag {
+  font-size: 0.68rem; font-weight: 700; padding: 2px 7px; border-radius: 999px;
+  background: rgba(0,0,0,0.08); color: var(--text-muted);
+}
+.historyTagChallenge { background: var(--accent); color: var(--accent-ink, #fff); }
+.historyScore { font-size: 0.74rem; color: var(--text-muted); margin-top: 3px; font-variant-numeric: tabular-nums; }
 
 /* --- Desktop & grosse Bildschirme (Chrome/Edge/Firefox auf PC/Mac/Chromebook) --- */
 
