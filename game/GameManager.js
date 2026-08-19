@@ -801,8 +801,12 @@ class GameManager {
    * Karte übrig bleibt:
    *   (a) es liegt noch ein Reststapel darunter (der wandert danach auf die
    *       Hand - siehe resolvePendingDiscardPickup), oder
-   *   (b) die Karte lässt sich an eine EIGENE Auslage anlegen (verbraucht
-   *       keine einzige Handkarte), oder
+   *   (b) die Karte lässt sich per JOKER-TAUSCH in eine EIGENE Auslage
+   *       einwechseln (verbraucht keine einzige Handkarte) - NICHT per
+   *       einfachem Anlegen, das der Tisch inzwischen (Spieler-Report)
+   *       als eigenständigen Weg ausdrücklich gesperrt hat: layOffCard
+   *       lehnt die Pflichtkarte ab, damit die Aufnahme-Rechtfertigung
+   *       (Kombination MIT Handkarten) nicht per Anlegen umgangen wird, oder
    *   (c) es existiert eine Kombination, die mindestens eine Handkarte
    *       übrig lässt.
    */
@@ -811,9 +815,11 @@ class GameManager {
     if (!this.canUseDiscardTop(player, topCard)) return false;
     // (a) Reststapel folgt auf die Hand - danach ist immer etwas zum Abwerfen da.
     if (this.discardPile.length > 1) return true;
-    // (b) Anlegen an eine eigene Auslage kostet keine Handkarte.
+    // (b) Joker-Tausch in eine eigene Auslage kostet keine Handkarte - bleibt
+    // als einziger anlege-ähnlicher Weg gültig (layOffCard/Anlegen dagegen
+    // NICHT mehr, siehe dortiger Kommentar).
     const ownMelds = (this.tableMelds || []).filter((m) => m.ownerId === player.id);
-    if (ownMelds.some((m) => tryLayOff(m, topCard))) return true;
+    if (!topCard.isJoker && ownMelds.some((m) => tryJokerSwap(m, topCard))) return true;
     // (c) Gibt es eine Kombination, die eine Handkarte verschont? Wir prüfen
     // jede Handkarte als "bleibt liegen" und fragen die bewährte Regellogik,
     // ob der Rest zusammen mit der Ablagekarte noch eine Kombination bildet.
@@ -1156,6 +1162,25 @@ class GameManager {
     }
     if (this.pendingDiscardRest && cardId !== this.mustLayOffCardId) {
       return { error: 'Die aufgenommene Ablagekarte muss SOFORT gelegt werden, bevor etwas anderes passiert.' };
+    }
+    // Die PFLICHTKARTE selbst darf NICHT per einfachem Anlegen an eine
+    // BESTEHENDE Auslage entladen werden. canUseDiscardTop erlaubt die
+    // Aufnahme ausdrücklich NUR, weil die Karte mit HANDKARTEN eine neue
+    // Kombination bildet ("Anlegbarkeit an bestehende Auslagen berechtigt
+    // NICHT zur Aufnahme") - wird die Pflicht dann trotzdem per Anlegen
+    // erfüllt, wird genau diese Rechtfertigung umgangen: die Handkarten
+    // bleiben unberührt, obwohl sie der einzige Grund waren, die Karte
+    // überhaupt nehmen zu dürfen (Spieler-Report: Herz Dame aufgenommen,
+    // weil sie mit Herz König + Joker eine Folge bildet, dann aber einfach
+    // an den bestehenden Damen-Drilling angelegt - König und Joker blieben
+    // unangetastet auf der Hand). layoutMeld (neue Kombination mit Hand-
+    // karten) oder swapJoker (eigenständiger, unveränderter Ausstiegsweg)
+    // bleiben die einzigen gültigen Wege.
+    if (this.mustLayOffCardId && cardId === this.mustLayOffCardId) {
+      return {
+        error:
+          'Die aufgenommene Karte muss in einer NEUEN Kombination mit deinen Handkarten ausgelegt werden - genau das hat die Aufnahme gerechtfertigt. Anlegen an eine bestehende Auslage reicht dafür nicht.',
+      };
     }
     const player = this.currentPlayer();
     const meld = this.tableMelds.find((m) => m.id === meldId);
@@ -2148,24 +2173,23 @@ class GameManager {
     return actions;
   }
 
-  /** Guarantee the mandatory discard-pickup card gets laid this turn. Tries a
-   *  lay-off onto any existing meld, then a fresh meld built from the card plus
-   *  a few hand cards (a valid meld provably exists - canUseDiscardTop checked
-   *  it before the pickup). Returns true once it is laid. Only invoked in the
-   *  rare case the greedy meld passes stranded it. */
+  /** Guarantee the mandatory discard-pickup card gets laid this turn. Builds a
+   *  fresh meld from the card plus a few hand cards (a valid meld provably
+   *  exists - canUseDiscardTop checked it before the pickup). Returns true
+   *  once it is laid. Only invoked in the rare case the greedy meld passes
+   *  stranded it.
+   *
+   *  NO LONGER tries a plain lay-off onto an existing meld first: layOffCard
+   *  refuses the mandatory card outright now (see its comment) - simple
+   *  attach was the loophole that let the pickup's hand-combination
+   *  justification go unused (player report). A JOKER SWAP remains a valid
+   *  discharge and is handled upstream in the normal meld pass
+   *  (meldPlan.jokerSwaps), before this fallback ever runs. */
   _forceLayMustCard(cp, botId) {
     const cardId = this.mustLayOffCardId;
     if (!cardId) return true;
     if (!cp.hand.some((c) => c.id === cardId)) return true; // already laid
-    // (a) lay off onto any existing meld
-    for (const meld of this.tableMelds) {
-      let lr = this.layOffCard(botId, meld.id, cardId);
-      if (lr && lr.ambiguous && lr.options && lr.options[0]) {
-        lr = this.layOffCard(botId, meld.id, cardId, lr.options[0].asSuit, lr.options[0].side);
-      }
-      if (lr && lr.ok) return true;
-    }
-    // (b) build a fresh meld: the card plus 2-3 other hand cards. Any valid
+    // build a fresh meld: the card plus 2-3 other hand cards. Any valid
     // 3-card run/set through the card is enough (longer runs contain one), and
     // layoutMeld only mutates on success, so failed tries are free.
     const tryMeld = (ids) => {

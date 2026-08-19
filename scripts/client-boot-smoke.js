@@ -445,6 +445,76 @@ setTimeout(() => {
       }
     }
 
+    // Pflichtkarte (gerade vom Ablagestapel genommen): einfaches Anlegen an
+    // eine bestehende eigene Auslage darf NICHT mehr gruen markiert werden -
+    // der Server lehnt genau das jetzt ab (Spieler-Report: Herz Dame durfte
+    // nicht an den bestehenden Damen-Drilling angelegt werden, wenn sie
+    // stattdessen mit Handkarten eine neue Folge bilden sollte). Zwei Faelle:
+    // (1) Auslage aus echten Karten -> KEIN Ziel mehr. (2) Auslage mit einem
+    // passenden JOKER -> bleibt Ziel (Tausch ist weiterhin erlaubt).
+    {
+      const doc = window.document;
+      const mustCardState = {
+        ...base, phase: 'playing', roundNumber: 1, currentPlayerId: 'p1',
+        turnPhase: 'meld', dealerId: 'b1', turnDeadline: null,
+        discardTop: null, drawCount: 30, discardCount: 0,
+        mustLayOffCardId: 'HQ_must', pendingDiscardRest: true,
+        players: base.players.map((p) =>
+          p.id === 'p1'
+            ? { ...p, handCount: 3, hand: [
+                { id: 'HQ_must', suit: 'H', rank: 'Q' },
+                { id: 'HK_hand', suit: 'H', rank: 'K' },
+                { id: 'jok_hand', isJoker: true },
+              ] }
+            : { ...p, handCount: 8 }
+        ),
+        tableMelds: [{
+          id: 'queenSet', ownerId: 'p1', type: 'set', rank: 'Q',
+          slots: [
+            { real: { id: 'SQ0', suit: 'S', rank: 'Q' } },
+            { real: { id: 'CQ0', suit: 'C', rank: 'Q' } },
+            { real: { id: 'DQ0', suit: 'D', rank: 'Q' } },
+          ],
+        }],
+      };
+      feed(mustCardState);
+      const mustCard = doc.querySelector('#hand [data-card-id="HQ_must"]');
+      if (!mustCard) errors.push('mandatory card not rendered in hand');
+      else {
+        mustCard.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        const queenSetLit = doc.querySelector('#melds [data-meld-id="queenSet"]');
+        if (queenSetLit && queenSetLit.classList.contains('layOffTarget')) {
+          errors.push('mandatory card must NOT highlight a plain-attach meld (real cards only, no joker)');
+        }
+      }
+
+      // Fall (2): dieselbe Pflichtkarte, aber die eigene Auslage traegt jetzt
+      // einen Joker, der GENAU Herz-Koenig vertritt - Tausch bleibt erlaubt
+      // und muss weiterhin leuchten.
+      feed({
+        ...mustCardState,
+        tableMelds: [{
+          id: 'kingSwap', ownerId: 'p1', type: 'set', rank: 'K',
+          slots: [
+            { real: { id: 'SK0', suit: 'S', rank: 'K' } },
+            { real: { id: 'CK0', suit: 'C', rank: 'K' } },
+            { joker: { id: 'jok_table', isJoker: true }, representsRank: 'Q', representsSuit: 'H' },
+          ],
+        }],
+      });
+      // Auswahl bleibt clientseitig ueber feed()-Aufrufe hinweg bestehen -
+      // ein erneuter Klick koennte die bereits ausgewaehlte Karte wieder
+      // ABWAEHLEN (Umschalt-Verhalten). Deshalb pruefen statt blind klicken.
+      const mustCard2 = doc.querySelector('#hand [data-card-id="HQ_must"]');
+      if (mustCard2 && !mustCard2.classList.contains('selected')) {
+        mustCard2.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+      }
+      const swapLit = doc.querySelector('#melds [data-meld-id="kingSwap"]');
+      if (!swapLit || !swapLit.classList.contains('layOffTarget')) {
+        errors.push('mandatory card must still highlight a meld it can be JOKER-SWAPPED into');
+      }
+    }
+
     // Auslagen-Filter: Beim Filtern auf einen MITSPIELER muessen die eigenen
     // Auslagen sichtbar bleiben - man wirft ja genau danach ab, was der
     // Nachbar brauchen koennte und was die eigene Auslage aufnimmt.
