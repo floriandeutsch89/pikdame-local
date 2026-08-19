@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.18.0] - 2026-08-12
+
+### Fixed
+- **Pflichtkarte nach Ablagestapel-Aufnahme konnte per Anlegen an eine bestehende Auslage entladen werden - die Handkarten-Rechtfertigung wurde damit umgangen** (Spieler-Report mit konkretem Beispiel: Herz Dame aufgenommen, weil sie mit Herz König + Joker eine neue Folge bildet; stattdessen einfach an einen bereits bestehenden Damen-Drilling angelegt, König und Joker blieben unangetastet auf der Hand). Die Aufnahme-Regel sagt ausdrücklich: „Die Anlegbarkeit an bestehende Auslagen berechtigt NICHT zur Aufnahme" - genau diese Rechtfertigung wurde beim Entladen der Pflicht nicht mehr geprüft, jede Karte mit *irgendeiner* zufälligen Hand-Kombination ließ sich so nehmen und dann trotzdem nur an eine unabhängige Auslage kleben
+- Einfaches Anlegen der Pflichtkarte an eine bestehende Auslage wird jetzt abgelehnt. Sie muss entweder in einer **neuen Kombination mit Handkarten** ausgelegt werden (genau das hat die Aufnahme gerechtfertigt), oder per **Joker-Tausch** in eine eigene Auslage einwechseln - dieser eigenständige, bereits vorher getestete Weg bleibt unverändert erlaubt
+- Die Ausweich-Regel gegen eine Abwurf-Sackgasse (v1.85.2: Aufnahme wird verweigert, wenn danach keine Karte zum Abwerfen übrig bliebe) beruhte für den Fall „Anlegen kostet keine Handkarte" auf demselben jetzt gesperrten Weg - auf Joker-Tausch umgestellt, sonst hätte der Fix in seltenen Fällen zur Sackgasse führen können
+- Bot-Verhalten geprüft und angepasst: Der Notfall-Rückfallpfad für Bots versuchte bisher zuerst denselben Anlege-Weg - entfernt, da er jetzt immer scheitert; der Rückfall auf eine neue Kombination war bereits vorhanden und durch die Aufnahme-Berechtigung selbst garantiert erfolgreich
+- Der grüne Anlege-Rahmen im Client zeigt bei der Pflichtkarte nur noch Joker-Tausch-Ziele - vorher hätte er weiterhin bestehende Auslagen als Ziel markiert, obwohl der Server das inzwischen ablehnt. Hinweistexte in Spiel und Tutorial angepasst, die bisher „auslegen oder anlegen" als gleichwertige Wege nannten
+- Neuer End-to-End-Test reproduziert das gemeldete Beispiel exakt (Herz Dame, Herz König + Joker auf der Hand, Damen-Drilling in eigener Auslage) und prüft beide Wege: der Anlege-Versuch wird abgelehnt und lässt Auslage wie Hand unverändert, der Weg über eine neue Kombination gelingt. Gegengeprüft: ohne den Fix schlägt der Test an
+
 ## [2.17.0] - 2026-08-12
 
 ### Fixed

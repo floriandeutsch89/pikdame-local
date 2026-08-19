@@ -2351,24 +2351,106 @@ test('going-out rule: pickup stays allowed when a meld spares one hand card', ()
   game.destroy();
 });
 
-test('going-out rule: pickup stays allowed when the card fits an own meld (costs no hand card)', () => {
+test('going-out rule: pickup stays allowed when the card can be swapped into an own meld (costs no hand card)', () => {
+  // Ersetzt den alten "einfaches Anlegen"-Test: seit layOffCard die
+  // Pflichtkarte nicht mehr per Anlegen entladen laesst (Spieler-Report),
+  // ist der JOKER-TAUSCH der einzige verbleibende anlege-aehnliche Weg, der
+  // ohne Handkarten auskommt.
   const game = setupPickup(
-    [makeStandardCard('H', '7', 1), makeStandardCard('D', '7', 1)],
-    [makeStandardCard('C', '7', 0)]
+    [makeStandardCard('D', 'J', 1), makeStandardCard('D', 'Q', 1)],
+    [makeStandardCard('D', 'K', 0)]
   );
-  // Eigene Auslage: Satz aus Siebenen - die Ablagekarte kann angelegt werden,
-  // ohne eine einzige Handkarte zu verbrauchen.
+  // Eigene Auslage: Satz aus Koenigen, einer davon ein Joker, der GENAU
+  // Karo-Koenig vertritt - die aufgenommene Karte kann ihn ersetzen, ohne
+  // eine einzige Handkarte zu verbrauchen.
+  const joker = makeJoker(0);
   game.tableMelds = [{
-    id: 'm-own', ownerId: 'p1', type: 'set', rank: '7',
+    id: 'm-own', ownerId: 'p1', type: 'set', rank: 'K',
     slots: [
-      { real: makeStandardCard('H', '7', 0), playerId: 'p1' },
-      { real: makeStandardCard('D', '7', 0), playerId: 'p1' },
-      { real: makeStandardCard('S', '7', 0), playerId: 'p1' },
+      { real: makeStandardCard('S', 'K', 0), playerId: 'p1' },
+      { real: makeStandardCard('C', 'K', 0), playerId: 'p1' },
+      { joker, representsRank: 'K', representsSuit: 'D', playerId: 'p1' },
     ],
   }];
   const r = game.drawFromDiscard('p1');
   assert.ok(r && r.ok, `pickup should be allowed, got: ${r && r.error}`);
   game.destroy();
+});
+
+test('going-out rule: pickup is refused when the own meld only offers plain attach, not a joker swap', () => {
+  // Gegenprobe zum Fix: eine Auslage OHNE passenden Joker (nur echte Karten)
+  // darf die Aufnahme NICHT mehr rechtfertigen, obwohl die Karte dort
+  // frueher haette angelegt werden koennen - genau das war der gemeldete
+  // Fehler (Dame an bestehenden Damen-Drilling angelegt, Handkarten
+  // unangetastet gelassen).
+  const game = setupPickup(
+    [makeStandardCard('D', 'J', 1), makeStandardCard('D', 'Q', 1)],
+    [makeStandardCard('D', 'K', 0)]
+  );
+  game.tableMelds = [{
+    id: 'm-own', ownerId: 'p1', type: 'set', rank: 'K',
+    slots: [
+      { real: makeStandardCard('S', 'K', 0), playerId: 'p1' },
+      { real: makeStandardCard('C', 'K', 0), playerId: 'p1' },
+      { real: makeStandardCard('H', 'K', 0), playerId: 'p1' },
+    ],
+  }];
+  const r = game.drawFromDiscard('p1');
+  assert.ok(r && r.error, `pickup should be refused (no rest pile, hand-combo uses all cards, no joker to swap), got: ${JSON.stringify(r)}`);
+  game.destroy();
+});
+
+// --- Reproduktion des Spieler-Reports: Herz Dame / Koenig+Joker / Damen-Drilling ---
+test('BUG REPORT: mandatory card cannot be discharged by attaching to an unrelated own meld', () => {
+  // Exaktes gemeldetes Szenario: Hand hat Herz-Koenig + Joker (bildet mit der
+  // Herz-Dame vom Ablagestapel eine neue Folge D-K-A... hier vereinfacht als
+  // Q-K-Joker(=Ass)). Die eigene Auslage hat bereits einen Damen-Drilling
+  // (drei ECHTE Damen, kein Joker). Die Aufnahme ist erlaubt (Hand-Kombo
+  // existiert) - aber die Pflicht darf NICHT durch einfaches Anlegen an den
+  // bestehenden Drilling erfuellt werden, waehrend Koenig+Joker unangetastet
+  // auf der Hand bleiben. Genau das war der gemeldete Fehler.
+  const hKing = makeStandardCard('H', 'K', 1);
+  const joker = makeJoker(0);
+  const game = setupPickup([hKing, joker], [makeStandardCard('H', 'Q', 0)]);
+  game.discardPile.push(makeStandardCard('C', '3', 0)); // Reststapel, damit (a) greift und die Aufnahme sicher erlaubt ist
+  game.tableMelds = [{
+    id: 'queenTriplet', ownerId: 'p1', type: 'set', rank: 'Q',
+    slots: [
+      { real: makeStandardCard('S', 'Q', 0), playerId: 'p1' },
+      { real: makeStandardCard('C', 'Q', 0), playerId: 'p1' },
+      { real: makeStandardCard('D', 'Q', 0), playerId: 'p1' },
+    ],
+  }];
+
+  const pick = game.drawFromDiscard('p1');
+  assert.ok(pick && pick.ok, `pickup should be allowed via the K+Joker run, got: ${pick && pick.error}`);
+  const takenId = game.mustLayOffCardId;
+  assert.ok(takenId, 'a mandatory card is tracked after pickup');
+
+  // DER GEMELDETE FEHLER: einfaches Anlegen an den bestehenden Drilling.
+  const badAttach = game.layOffCard('p1', 'queenTriplet', takenId);
+  assert.ok(badAttach && badAttach.error, `plain attach onto the existing triplet must be REFUSED, got: ${JSON.stringify(badAttach)}`);
+  assert.equal(game.mustLayOffCardId, takenId, 'the obligation must still stand after the refused attempt');
+  assert.equal(
+    game.tableMelds.find((m) => m.id === 'queenTriplet').slots.length, 3,
+    'the existing meld must be untouched by the refused attempt'
+  );
+  assert.ok(
+    game.players[0].hand.some((c) => c.id === hKing.id) && game.players[0].hand.some((c) => c.isJoker),
+    'King and Joker must still be on the hand after the refused attempt'
+  );
+
+  // DER RICHTIGE WEG: die Karte MIT den Handkarten zu einer neuen Folge legen.
+  // Q+K+Joker ist mehrdeutig (Joker koennte Bube ODER Ass darstellen, beides
+  // ergibt eine gueltige 3er-Folge) - der Server fragt korrekt nach, statt zu
+  // raten. Wie an anderer Stelle im Projekt ueblich: erste Option waehlen.
+  let good = game.layoutMeld('p1', [hKing.id, joker.id, takenId]);
+  if (good && good.ambiguous) {
+    good = game.layoutMeld('p1', [hKing.id, joker.id, takenId], good.options[0].jokerAssignments);
+  }
+  assert.ok(good && good.ok, `melding with the hand cards must succeed, got: ${JSON.stringify(good)}`);
+  assert.equal(game.mustLayOffCardId, null, 'obligation cleared via the new meld');
+  assert.ok(!game.players[0].hand.some((c) => c.id === hKing.id), 'King left the hand this time');
 });
 
 test('going-out rule holds through full games: a round never ends without a discard', () => {

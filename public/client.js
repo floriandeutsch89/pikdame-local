@@ -1541,6 +1541,17 @@
         // Grüner Hinweis: EINE Karte, die hier anpasst - ODER mehrere,
         // die GEMEINSAM anpassen (z.B. zwei Zehnen an den Zehner-Satz)
         if (isMine && isMyTurn && lastState.turnPhase === 'meld') {
+          // PFLICHTKARTE (gerade vom Ablagestapel genommen): einfaches
+          // ANLEGEN erfüllt die Pflicht nicht mehr - der Server lehnt das
+          // jetzt ab, weil die Aufnahme durch eine HAND-Kombination
+          // gerechtfertigt wurde und genau die jetzt gelegt werden muss
+          // (Spieler-Report: Dame durfte nicht einfach an den bestehenden
+          // Damen-Drilling angelegt werden, wenn sie stattdessen mit
+          // Handkarten eine neue Folge bilden sollte). Einzige Ausnahme
+          // bleibt der JOKER-TAUSCH (cardMatchesJokerInMeld) - der ist vom
+          // Server weiterhin unverändert erlaubt. Ein grüner Rahmen darf
+          // hier also nie mehr bloßes Anlegen versprechen.
+          const isMustCard = singleSelectedCard && lastState.mustLayOffCardId === singleSelectedCard.id;
           // EINE Karte: markieren, sobald mindestens eine Platzierung
           // moeglich ist - auch bei Mehrdeutigkeit. Der Server LEHNT hier
           // naemlich nicht ab, sondern fragt per Auswahldialog nach
@@ -1551,11 +1562,17 @@
           // Vorher blieb ein Joker an jeder FOLGE ungruen (zwei Enden = zwei
           // Ergebnisse), obwohl das Anlegen problemlos funktioniert
           // (Spieler-Report).
-          const jokerFits = singleSelectedCard && singleSelectedCard.isJoker &&
+          const jokerFits = !isMustCard && singleSelectedCard && singleSelectedCard.isJoker &&
             layOffPlacementCount(meld, singleSelectedCard) >= 1;
-          if (singleSelectedCard && (cardFitsMeld(meld, singleSelectedCard) || jokerFits)) {
+          const singleFits = singleSelectedCard && (
+            isMustCard ? cardMatchesJokerInMeld(meld, singleSelectedCard) : cardFitsMeld(meld, singleSelectedCard)
+          );
+          if (singleFits || jokerFits) {
             group.classList.add('layOffTarget');
-          } else if (selectedCardIds.size > 1 && meForHints && meForHints.hand) {
+          } else if (selectedCardIds.size > 1 && meForHints && meForHints.hand && !selectedCardIds.has(lastState.mustLayOffCardId)) {
+            // Mehrfach-Auswahl per Anlegen: ist die Pflichtkarte darunter,
+            // würde derselbe Server-Guard greifen - dann gar nicht erst
+            // markieren (die Aktion würde ohnehin abgelehnt).
             const sel = meForHints.hand.filter((cd) => selectedCardIds.has(cd.id));
             if (sel.length === selectedCardIds.size && cardsFitMeldTogether(meld, sel)) {
               group.classList.add('layOffTarget');
@@ -1825,7 +1842,7 @@
 
     if (lastState.mustLayOffCardId && isMyTurn) {
       // WICHTIG bleibt persistent sichtbar
-      showHint(L('Pflicht: Die aufgenommene Ablagekarte muss zuerst ausgelegt/angelegt werden.', 'Required: the picked-up discard must be melded first.'), false);
+      showHint(L('Pflicht: Die aufgenommene Ablagekarte muss zuerst in einer neuen Kombination mit Handkarten ausgelegt werden.', 'Required: the picked-up discard must first be melded in a new combination with hand cards.'), false);
     } else if (isMyTurn && lastState.turnPhase === 'meld') {
       // Der allgemeine Bedien-Tipp wandert in einen einmaligen Toast pro Zug -
       // so kann die Action-Leiste auch im eigenen Zug einklappen.
@@ -1988,9 +2005,7 @@
   function cardFitsMeld(meld, card) {
     if (!card || card.isJoker) return false;
     // Exakter Joker-Tausch: Karte entspricht genau dem, was ein Joker vertritt
-    if (meld.slots.some((s) => s.joker && s.representsRank === card.rank && s.representsSuit === card.suit)) {
-      return true;
-    }
+    if (cardMatchesJokerInMeld(meld, card)) return true;
     if (meld.type === 'set') {
       if (card.rank !== meld.rank || meld.slots.length >= 8) return false;
       const sameSuit = meld.slots.filter((s) => slotSuit(s) === card.suit).length;
@@ -2008,6 +2023,13 @@
       return card.rank === prev || card.rank === next;
     }
     return false;
+  }
+  // Isolierter Joker-Tausch-Test (keine Anlege-Prüfung): wird für die
+  // PFLICHTKARTE gebraucht, seit einfaches Anlegen sie nicht mehr entladen
+  // darf - siehe cardFitsMeldPureAdd/layOffCard-Kommentar im Server.
+  function cardMatchesJokerInMeld(meld, card) {
+    return !!card && !card.isJoker &&
+      meld.slots.some((s) => s.joker && s.representsRank === card.rank && s.representsSuit === card.suit);
   }
 
   function phaseLabel(phase) {
@@ -3020,16 +3042,19 @@
       highlight: (st, me) => {
         const hl = { cardIds: [st.mustLayOffCardId], meldIds: [] };
         const card = me && me.hand ? me.hand.find((cd) => cd.id === st.mustLayOffCardId) : null;
+        // Für die Pflichtkarte zählt nur noch der Joker-Tausch als Anlege-
+        // Weg (cardFitsMeld schlösse einfaches Anlegen ein, das der Server
+        // hier ablehnt - siehe layOffCard-Kommentar).
         if (card) {
           for (const meld of st.tableMelds || []) {
-            if (meld.ownerId === me.id && cardFitsMeld(meld, card)) hl.meldIds.push(meld.id);
+            if (meld.ownerId === me.id && cardMatchesJokerInMeld(meld, card)) hl.meldIds.push(meld.id);
           }
         }
         return hl;
       },
       text: () => L(
-        'Ablagestapel genommen: Die oberste Karte MUSS jetzt zuerst in eine Auslage - danach kommt der Rest des Stapels auf deine Hand.',
-        'Pile taken: the top card MUST go into a meld first - then the rest of the pile joins your hand.'
+        'Ablagestapel genommen: Die oberste Karte MUSS jetzt zuerst in einer NEUEN Kombination mit Handkarten ausgelegt werden - danach kommt der Rest des Stapels auf deine Hand.',
+        'Pile taken: the top card MUST now be melded in a NEW combination with hand cards - then the rest of the pile joins your hand.'
       ),
     },
     {
