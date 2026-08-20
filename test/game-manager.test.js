@@ -797,7 +797,12 @@ test('swapJoker markiert nur den getauschten Slot mit der playerId des Tauschend
   assert.ok(untouchedSlots.every((s) => s.playerId === 'p2'));
 });
 
-test('swapJoker: Pflichtkarte per Joker-Tausch verwendet loest die Auslege-Pflicht (Deadlock-Regression)', () => {
+test('swapJoker: Pflichtkarte wird ebenfalls abgelehnt - kein Deadlock, Weg über layoutMeld bleibt offen (Tischentscheidung)', () => {
+  // Ersetzt den alten Test, der Joker-Tausch als gültigen Ausweg fuer die
+  // Pflichtkarte pruefte ("loest die Auslege-Pflicht"). Nutzer-Klarstellung:
+  // dieselbe Umgehung wie beim einfachen Anlegen gilt auch fuer den Tausch -
+  // beide verbrauchen keine Handkarten und wuerden die Aufnahme-
+  // Rechtfertigung (Kombination MIT Handkarten) unterlaufen.
   const { game } = makeGame(2);
   game.phase = 'playing';
   game.turnPhase = 'meld';
@@ -812,26 +817,45 @@ test('swapJoker: Pflichtkarte per Joker-Tausch verwendet loest die Auslege-Pflic
       rank: 'Q',
       suit: null,
       slots: [
-        { real: makeStandardCard('H', 'Q', 0), playerId: 'p2' },
-        { real: makeStandardCard('C', 'Q', 0), playerId: 'p2' },
-        { joker, representsRank: 'Q', representsSuit: 'S', playerId: 'p2' },
+        { real: makeStandardCard('H', 'Q', 0), playerId: 'p1' },
+        { real: makeStandardCard('C', 'Q', 0), playerId: 'p1' },
+        { joker, representsRank: 'Q', representsSuit: 'S', playerId: 'p1' },
       ],
     },
   ];
 
+  // Hand so gewaehlt, dass die Pflichtkarte (Pik Dame) ZUSAETZLICH eine
+  // echte Kombination mit Handkarten bildet (Q-K-Joker2 in Pik) - damit die
+  // Aufnahme ueberhaupt haette gerechtfertigt sein koennen und der korrekte
+  // Ausweg (layoutMeld) am Ende auch tatsaechlich demonstriert werden kann.
   const pikDame = makeStandardCard('S', 'Q', 0);
-  const other = makeStandardCard('D', '5', 0);
-  game.players[0].hand = [pikDame, other];
+  const sKing = makeStandardCard('S', 'K', 1);
+  const joker2 = makeJoker(1);
+  game.players[0].hand = [pikDame, sKing, joker2];
   // Simuliert: Pik-Dame wurde vom Ablagestapel aufgenommen -> Pflichtkarte
   game.mustLayOffCardId = pikDame.id;
 
-  const r = game.swapJoker('p1', 'meld-1', pikDame.id);
-  assert.equal(r.ok, true);
-  assert.equal(game.mustLayOffCardId, null, 'Pflicht muss nach dem Tausch erfuellt sein');
+  // DER (nach Nutzer-Klarstellung ebenfalls gesperrte) UMGEHUNGSWEG:
+  const swapAttempt = game.swapJoker('p1', 'meld-1', pikDame.id);
+  assert.ok(swapAttempt && swapAttempt.error, `joker swap of the mandatory card must be refused, got: ${JSON.stringify(swapAttempt)}`);
+  assert.equal(game.mustLayOffCardId, pikDame.id, 'Pflicht bleibt bestehen - kein korrupter Zwischenzustand');
+  assert.equal(
+    game.tableMelds[0].slots.find((s) => s.joker)?.joker?.id, joker.id,
+    'der Joker in der Auslage ist unveraendert, kein stiller Teil-Tausch'
+  );
+  assert.ok(game.players[0].hand.some((c) => c.id === pikDame.id), 'Pik Dame ist weiterhin auf der Hand');
 
-  // Ohne den Fix war hier fuer immer blockiert:
-  const d = game.discard('p1', other.id);
-  assert.equal(d.ok, true, 'Abwerfen muss nach erfuellter Pflicht moeglich sein');
+  // KEIN Deadlock: andere Aktionen bleiben zwar blockiert (Pflicht offen),
+  // aber der korrekte Weg ueber eine NEUE Kombination funktioniert weiterhin.
+  const blocked = game.discard('p1', sKing.id);
+  assert.ok(blocked && blocked.error, 'Abwerfen bleibt blockiert, solange die Pflicht offen ist');
+
+  let resolved = game.layoutMeld('p1', [pikDame.id, sKing.id, joker2.id]);
+  if (resolved && resolved.ambiguous) {
+    resolved = game.layoutMeld('p1', [pikDame.id, sKing.id, joker2.id], resolved.options[0].jokerAssignments);
+  }
+  assert.ok(resolved && resolved.ok, `melding via hand cards must succeed, got: ${JSON.stringify(resolved)}`);
+  assert.equal(game.mustLayOffCardId, null, 'Pflicht ueber den korrekten Weg erfuellt - kein dauerhafter Stillstand');
 });
 
 test('swapJoker: letzte Handkarte per Tausch verbraucht beendet die Runde (Deadlock-Regression)', () => {
@@ -2351,53 +2375,38 @@ test('going-out rule: pickup stays allowed when a meld spares one hand card', ()
   game.destroy();
 });
 
-test('going-out rule: pickup stays allowed when the card can be swapped into an own meld (costs no hand card)', () => {
-  // Ersetzt den alten "einfaches Anlegen"-Test: seit layOffCard die
-  // Pflichtkarte nicht mehr per Anlegen entladen laesst (Spieler-Report),
-  // ist der JOKER-TAUSCH der einzige verbleibende anlege-aehnliche Weg, der
-  // ohne Handkarten auskommt.
-  const game = setupPickup(
-    [makeStandardCard('D', 'J', 1), makeStandardCard('D', 'Q', 1)],
-    [makeStandardCard('D', 'K', 0)]
-  );
-  // Eigene Auslage: Satz aus Koenigen, einer davon ein Joker, der GENAU
-  // Karo-Koenig vertritt - die aufgenommene Karte kann ihn ersetzen, ohne
-  // eine einzige Handkarte zu verbrauchen.
-  const joker = makeJoker(0);
-  game.tableMelds = [{
-    id: 'm-own', ownerId: 'p1', type: 'set', rank: 'K',
-    slots: [
-      { real: makeStandardCard('S', 'K', 0), playerId: 'p1' },
-      { real: makeStandardCard('C', 'K', 0), playerId: 'p1' },
-      { joker, representsRank: 'K', representsSuit: 'D', playerId: 'p1' },
-    ],
-  }];
-  const r = game.drawFromDiscard('p1');
-  assert.ok(r && r.ok, `pickup should be allowed, got: ${r && r.error}`);
-  game.destroy();
-});
-
-test('going-out rule: pickup is refused when the own meld only offers plain attach, not a joker swap', () => {
-  // Gegenprobe zum Fix: eine Auslage OHNE passenden Joker (nur echte Karten)
-  // darf die Aufnahme NICHT mehr rechtfertigen, obwohl die Karte dort
-  // frueher haette angelegt werden koennen - genau das war der gemeldete
-  // Fehler (Dame an bestehenden Damen-Drilling angelegt, Handkarten
-  // unangetastet gelassen).
-  const game = setupPickup(
-    [makeStandardCard('D', 'J', 1), makeStandardCard('D', 'Q', 1)],
-    [makeStandardCard('D', 'K', 0)]
-  );
-  game.tableMelds = [{
-    id: 'm-own', ownerId: 'p1', type: 'set', rank: 'K',
-    slots: [
+test('going-out rule: pickup is refused when it would empty the hand - regardless of what the existing meld offers', () => {
+  // Nutzer-Klarstellung: NICHT nur einfaches Anlegen ist gesperrt, sondern
+  // auch der Joker-Tausch - beide verbrauchen keine Handkarte und wuerden
+  // die Aufnahme-Rechtfertigung (Kombination MIT Handkarten) unterlaufen.
+  // canTakeDiscardTop kennt daher keine "Auslage rettet die Aufnahme"-
+  // Ausnahme mehr; einzig ein Reststapel (a) oder eine Hand-Kombination,
+  // die selbst eine Karte uebrig laesst (b), zaehlen noch. Beide Varianten
+  // der Auslage - nur echte Karten (frueher: Anlegen moeglich) UND mit
+  // passendem Joker (frueher: Tausch moeglich) - fuehren jetzt gleich zur
+  // Ablehnung.
+  const meldVariants = {
+    'nur echte Karten (fruehere Anlegen-Ausnahme)': [
       { real: makeStandardCard('S', 'K', 0), playerId: 'p1' },
       { real: makeStandardCard('C', 'K', 0), playerId: 'p1' },
       { real: makeStandardCard('H', 'K', 0), playerId: 'p1' },
     ],
-  }];
-  const r = game.drawFromDiscard('p1');
-  assert.ok(r && r.error, `pickup should be refused (no rest pile, hand-combo uses all cards, no joker to swap), got: ${JSON.stringify(r)}`);
-  game.destroy();
+    'mit passendem Joker (fruehere Tausch-Ausnahme)': [
+      { real: makeStandardCard('S', 'K', 0), playerId: 'p1' },
+      { real: makeStandardCard('C', 'K', 0), playerId: 'p1' },
+      { joker: makeJoker(0), representsRank: 'K', representsSuit: 'D', playerId: 'p1' },
+    ],
+  };
+  for (const [label, slots] of Object.entries(meldVariants)) {
+    const game = setupPickup(
+      [makeStandardCard('D', 'J', 1), makeStandardCard('D', 'Q', 1)],
+      [makeStandardCard('D', 'K', 0)]
+    );
+    game.tableMelds = [{ id: 'm-own', ownerId: 'p1', type: 'set', rank: 'K', slots }];
+    const r = game.drawFromDiscard('p1');
+    assert.ok(r && r.error, `[${label}] pickup should be refused, got: ${JSON.stringify(r)}`);
+    game.destroy();
+  }
 });
 
 // --- Reproduktion des Spieler-Reports: Herz Dame / Koenig+Joker / Damen-Drilling ---

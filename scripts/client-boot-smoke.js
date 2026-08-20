@@ -489,8 +489,9 @@ setTimeout(() => {
       }
 
       // Fall (2): dieselbe Pflichtkarte, aber die eigene Auslage traegt jetzt
-      // einen Joker, der GENAU Herz-Koenig vertritt - Tausch bleibt erlaubt
-      // und muss weiterhin leuchten.
+      // einen Joker, der GENAU Herz-Koenig vertritt. Nutzer-Klarstellung:
+      // auch der Joker-Tausch loest die Pflicht nicht mehr - darf also
+      // ebenfalls NICHT mehr leuchten (vorher war das noch die Ausnahme).
       feed({
         ...mustCardState,
         tableMelds: [{
@@ -510,8 +511,8 @@ setTimeout(() => {
         mustCard2.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
       }
       const swapLit = doc.querySelector('#melds [data-meld-id="kingSwap"]');
-      if (!swapLit || !swapLit.classList.contains('layOffTarget')) {
-        errors.push('mandatory card must still highlight a meld it can be JOKER-SWAPPED into');
+      if (swapLit && swapLit.classList.contains('layOffTarget')) {
+        errors.push('mandatory card must NOT highlight a joker-swap meld either (table decision: closed too)');
       }
     }
 

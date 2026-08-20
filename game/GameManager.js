@@ -801,26 +801,21 @@ class GameManager {
    * Karte übrig bleibt:
    *   (a) es liegt noch ein Reststapel darunter (der wandert danach auf die
    *       Hand - siehe resolvePendingDiscardPickup), oder
-   *   (b) die Karte lässt sich per JOKER-TAUSCH in eine EIGENE Auslage
-   *       einwechseln (verbraucht keine einzige Handkarte) - NICHT per
-   *       einfachem Anlegen, das der Tisch inzwischen (Spieler-Report)
-   *       als eigenständigen Weg ausdrücklich gesperrt hat: layOffCard
-   *       lehnt die Pflichtkarte ab, damit die Aufnahme-Rechtfertigung
-   *       (Kombination MIT Handkarten) nicht per Anlegen umgangen wird, oder
-   *   (c) es existiert eine Kombination, die mindestens eine Handkarte
+   *   (b) es existiert eine Kombination, die mindestens eine Handkarte
    *       übrig lässt.
+   *
+   * KEINE Ausnahme mehr für "Anlegen/Tauschen kostet keine Handkarte":
+   * beide Wege sind für die Pflichtkarte gesperrt (layOffCard, swapJoker -
+   * Tischentscheidung nach Spieler-Report). Die Pflicht lässt sich nur noch
+   * per NEUER Kombination mit Handkarten erfüllen (layoutMeld) - und genau
+   * das ist es, was hier auf "mindestens eine Handkarte übrig" geprüft wird.
    */
   canTakeDiscardTop(player, topCard) {
     if (!player || !topCard) return false;
     if (!this.canUseDiscardTop(player, topCard)) return false;
     // (a) Reststapel folgt auf die Hand - danach ist immer etwas zum Abwerfen da.
     if (this.discardPile.length > 1) return true;
-    // (b) Joker-Tausch in eine eigene Auslage kostet keine Handkarte - bleibt
-    // als einziger anlege-ähnlicher Weg gültig (layOffCard/Anlegen dagegen
-    // NICHT mehr, siehe dortiger Kommentar).
-    const ownMelds = (this.tableMelds || []).filter((m) => m.ownerId === player.id);
-    if (!topCard.isJoker && ownMelds.some((m) => tryJokerSwap(m, topCard))) return true;
-    // (c) Gibt es eine Kombination, die eine Handkarte verschont? Wir prüfen
+    // (b) Gibt es eine Kombination, die eine Handkarte verschont? Wir prüfen
     // jede Handkarte als "bleibt liegen" und fragen die bewährte Regellogik,
     // ob der Rest zusammen mit der Ablagekarte noch eine Kombination bildet.
     return player.hand.some((keep) =>
@@ -1242,6 +1237,22 @@ class GameManager {
     if (this.pendingDiscardRest && handCardId !== this.mustLayOffCardId) {
       return { error: 'Die aufgenommene Ablagekarte muss SOFORT gelegt werden, bevor etwas anderes passiert.' };
     }
+    // Die PFLICHTKARTE darf auch per JOKER-TAUSCH nicht entladen werden -
+    // dieselbe Umgehung wie beim einfachen Anlegen (siehe layOffCard):
+    // Aufnahme wird durch eine neue Kombination MIT Handkarten gerechtfertigt
+    // ("Anlegbarkeit an bestehende Auslagen berechtigt NICHT zur Aufnahme"),
+    // und ein Tausch in eine bestehende Auslage verbraucht ebenso keine
+    // einzige Handkarte wie das Anlegen. Tischentscheidung nach dem
+    // Anlegen-Fix: die Ausnahme muss konsequent auch hier gelten - einzig
+    // layoutMeld (neue Kombination) erfüllt die Pflicht noch. Kein
+    // Deadlock-Risiko: canUseDiscardTop garantiert bereits bei der Aufnahme,
+    // dass eine reine Hand-Kombination existiert.
+    if (this.mustLayOffCardId && handCardId === this.mustLayOffCardId) {
+      return {
+        error:
+          'Die aufgenommene Karte muss in einer NEUEN Kombination mit deinen Handkarten ausgelegt werden - Joker-Tausch reicht dafür nicht.',
+      };
+    }
     const player = this.currentPlayer();
     const meld = this.tableMelds.find((m) => m.id === meldId);
     if (!meld) return { error: 'Auslage nicht gefunden.' };
@@ -1268,15 +1279,10 @@ class GameManager {
     this.retiredJokers.push(result.freedJoker);
     player.laidOutCards.push(handCard);
 
-    // Der Tausch legt die Karte in eine Auslage - das erfüllt die Pflicht
-    // einer aufgenommenen Ablagekarte genauso wie layoutMeld/layOffCard.
-    // Ohne diesen Reset zeigte mustLayOffCardId auf eine Karte, die gar
-    // nicht mehr auf der Hand ist, und discard() blockierte den Zug für
-    // immer (Deadlock).
-    if (this.mustLayOffCardId === handCardId) {
-      this.mustLayOffCardId = null;
-      this.resolvePendingDiscardPickup(player);
-    }
+    // KEIN mustLayOffCardId-Reset hier (anders als bei layoutMeld/layOffCard):
+    // Die Pflichtkarte kann diesen Punkt gar nicht erreichen - der Guard am
+    // Funktionsanfang hat sie bereits abgelehnt. Joker-Tausch entlädt die
+    // Pflicht nicht mehr (Tischentscheidung).
 
     this.addLog(`${player.name} tauscht ${cardLabel(handCard)} gegen einen Joker in einer Auslage. Der Joker scheidet aus dem Spiel aus.`);
     // Verbraucht der Tausch die letzte Handkarte, endet die Runde sofort -
@@ -1293,7 +1299,7 @@ class GameManager {
     const err = this.assertTurn(playerId, 'meld'); // Abwerfen ist erst nach dem Ziehen erlaubt
     if (err) return err;
     if (this.mustLayOffCardId) {
-      return { error: 'Die aufgenommene Ablagekarte muss zuerst ausgelegt/angelegt werden.' };
+      return { error: 'Die aufgenommene Ablagekarte muss zuerst in einer neuen Kombination mit Handkarten ausgelegt werden.' };
     }
     const player = this.currentPlayer();
     const card = player.hand.find((c) => c.id === cardId);
@@ -2179,12 +2185,13 @@ class GameManager {
    *  once it is laid. Only invoked in the rare case the greedy meld passes
    *  stranded it.
    *
-   *  NO LONGER tries a plain lay-off onto an existing meld first: layOffCard
-   *  refuses the mandatory card outright now (see its comment) - simple
-   *  attach was the loophole that let the pickup's hand-combination
-   *  justification go unused (player report). A JOKER SWAP remains a valid
-   *  discharge and is handled upstream in the normal meld pass
-   *  (meldPlan.jokerSwaps), before this fallback ever runs. */
+   *  NEITHER a plain lay-off onto an existing meld NOR a joker swap can
+   *  discharge the mandatory card anymore: both layOffCard and swapJoker
+   *  refuse it outright now (see their comments) - either was a loophole
+   *  that let the pickup's hand-combination justification go unused (player
+   *  report, then extended by table decision to close swap too). A fresh
+   *  meld via layoutMeld is the only remaining path, which is exactly what
+   *  this fallback builds. */
   _forceLayMustCard(cp, botId) {
     const cardId = this.mustLayOffCardId;
     if (!cardId) return true;
