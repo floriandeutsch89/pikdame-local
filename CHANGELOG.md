@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.19.0] - 2026-08-12
+
+### Fixed
+- **Auch Joker-Tausch konnte die Pflichtkarte aus der Ablagestapel-Aufnahme umgehen** (Nutzer-Klarstellung zu v2.18.0: „Auch der Joker Tausch gilt nicht für die Ablagekarten"). Derselbe Fehler wie beim einfachen Anlegen: Der Tausch verbraucht ebenfalls keine Handkarte und hätte die Aufnahme-Rechtfertigung („Kombination MIT Handkarten") ebenso unterlaufen können. `swapJoker` lehnt die Pflichtkarte jetzt genauso ab wie `layOffCard` - einzig eine **neue Kombination mit Handkarten** (`layoutMeld`) erfüllt die Pflicht noch
+- Die Ausweich-Regel gegen eine Abwurf-Sackgasse (v1.85.2) hatte den Joker-Tausch als letzte Ausnahme „kostet keine Handkarte" behalten - auch die ist jetzt raus. Nur noch: ein Reststapel folgt, oder die Hand-Kombination selbst lässt eine Karte übrig
+- Grüner Anlege-Rahmen und Tutorial-Hinweis im Client zeigen bei der Pflichtkarte konsequent **kein** Auslage-Ziel mehr - weder Anlegen noch Tausch werden angeboten, nur die neue Kombination
+- **Bestätigt statt geändert:** Die Regel gilt ausschließlich für den Ablagestapel. Das Merkmal, das die Pflicht auslöst, wird ausschließlich beim Aufnehmen der Ablage gesetzt - beim verdeckten Ziehen vom Nachziehstapel existiert es nie, jede Karte von dort ist uneingeschränkt frei verwendbar (Anlegen, Tausch, alles). Das war bereits durch die bestehende Architektur so - am echten Code verifiziert, nicht angenommen
+- 60 simulierte Partien (359 Runden) empirisch geprüft: Kein Bot bleibt an der Pflichtkarte hängen, obwohl ihm jetzt zwei statt einem Weg fehlen
+- Ein historischer Regressionstest, der Joker-Tausch noch als gültigen Ausweg für die Pflichtkarte prüfte, ist auf die neue Erwartung umgestellt (Ablehnung, kein Deadlock, Weg über neue Kombination bleibt offen) - dieselbe Lehre wie ursprünglich, nur der richtige Ausgang. Zwei getrennte Gegenproben bestätigen beide Teile des Fixes unabhängig voneinander
+
 ## [2.18.0] - 2026-08-12
 
 ### Fixed

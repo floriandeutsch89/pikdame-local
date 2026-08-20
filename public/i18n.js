@@ -229,7 +229,7 @@ window.I18N_SERVER_PATTERNS = [
   [/^Diese Karte passt nicht auf einen Joker in dieser Auslage\.$/, "This card doesn't match a joker in this meld."],
   [/^Diese Kombination ergibt keinen gültigen Satz oder keine gültige Folge\.$/, 'This combination is neither a valid set nor a valid run.'],
   [/^Die aufgenommene Ablagekarte muss SOFORT gelegt werden, bevor etwas anderes passiert\.$/, 'The picked-up discard must be melded IMMEDIATELY before anything else.'],
-  [/^Die aufgenommene Ablagekarte muss zuerst ausgelegt\/angelegt werden\.$/, 'The picked-up discard must be melded first.'],
+  [/^Die aufgenommene Ablagekarte muss zuerst in einer neuen Kombination mit Handkarten ausgelegt werden\.$/, 'The picked-up discard must first be melded in a new combination with hand cards.'],
   [/^Die oberste Ablagekarte passt zu keiner Kombination mit deinen Handkarten - der Ablagestapel kann so nicht aufgenommen werden\.$/, "The top discard doesn't form any combination with your hand – the pile can't be picked up."],
   [/^Du kannst nur an deine EIGENEN Auslagen anlegen - jeder Spieler hat seinen eigenen Stapel\.$/, 'You can only add to your OWN melds – every player has their own.'],
   [/^Du kannst nur Joker aus deinen EIGENEN Auslagen tauschen - fremde Stapel sind tabu\.$/, 'You can only swap jokers in your OWN melds – other players\' melds are off limits.'],
