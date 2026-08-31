@@ -90,19 +90,19 @@ jobs:
       # $BUILDPLATFORM is exactly the documented cross-build pattern, and the
       # rule targets HARDCODED platforms.
       - name: Lint Dockerfile (hadolint)
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@v3.5.0
         with:
           dockerfile: docker/Dockerfile
           ignore: DL3018,DL3029
       # The optional ONNX image is linted too, but deliberately NOT built here:
       # onnxruntime-node is a ~100 MB native dependency and would dominate CI.
       - name: Lint Dockerfile.onnx (hadolint)
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@v3.5.0
         with:
           dockerfile: docker/Dockerfile.onnx
           ignore: DL3018
       - name: Lint Caddy Dockerfile (hadolint)
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@v3.5.0
         with:
           dockerfile: docker/caddy/Dockerfile
           ignore: DL3018
