@@ -89,20 +89,35 @@ jobs:
       # DL3029 (--platform in FROM) is ignored for the asset-minifying stage:
       # $BUILDPLATFORM is exactly the documented cross-build pattern, and the
       # rule targets HARDCODED platforms.
+      #
+      # DL3066 and DL3025 arrived with hadolint 2.13/2.15 (pulled in by
+      # hadolint-action 3.5.0) and both misfire here:
+      #   DL3066 "non-numeric user-id may not be resolvable": the name is
+      #   resolvable because addgroup/adduser create it two lines earlier with
+      #   a FIXED uid/gid 10001 - deliberately, so the host can chown the
+      #   bind-mounted secrets to a known id. Writing "USER 10001" instead
+      #   would drop the group and make the intent harder to read.
+      #   DL3025 "use JSON notation for CMD/ENTRYPOINT": applies to the
+      #   HEALTHCHECK CMD, which needs a shell on purpose - it expands
+      #   ${PORT} and relies on "|| exit 1". JSON notation runs without a
+      #   shell, so both would silently break.
       - name: Lint Dockerfile (hadolint)
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@v3.5.0
         with:
           dockerfile: docker/Dockerfile
-          ignore: DL3018,DL3029
+          ignore: DL3018,DL3029,DL3066,DL3025
       # The optional ONNX image is linted too, but deliberately NOT built here:
       # onnxruntime-node is a ~100 MB native dependency and would dominate CI.
+      # Same two false positives as above: the user is created with a FIXED
+      # uid/gid 10001 (groupadd/useradd - Debian base here, not Alpine), and
+      # the HEALTHCHECK CMD needs a shell to read $PORT at runtime.
       - name: Lint Dockerfile.onnx (hadolint)
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@v3.5.0
         with:
           dockerfile: docker/Dockerfile.onnx
-          ignore: DL3018
+          ignore: DL3018,DL3066,DL3025
       - name: Lint Caddy Dockerfile (hadolint)
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@v3.5.0
         with:
           dockerfile: docker/caddy/Dockerfile
           ignore: DL3018

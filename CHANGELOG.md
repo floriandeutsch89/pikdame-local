@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.20.2] - 2026-08-12
+
+### Fixed
+- **CI-Job `docker-security` schlug bei der Hadolint-Aktualisierung fehl** (Dependabot-PR #252, 3.1.0 → 3.5.0): Die neue Fassung bringt Hadolint 2.15.1 mit, das zwei zusätzliche Regeln kennt. Beide greifen hier **zu Unrecht**, deshalb sind sie mit Begründung ausgenommen statt das Dockerfile zu verschlechtern:
+  - **DL3066** („nicht-numerische Nutzer-ID womöglich nicht auflösbar"): Der Name ist auflösbar - er wird zwei Zeilen vorher mit **fester UID/GID 10001** angelegt, und zwar absichtlich, damit der Host die eingehängten Geheimnisdateien auf eine bekannte ID übertragen kann. `USER 10001` statt des Namens würde die Gruppe verlieren und die Absicht unlesbar machen
+  - **DL3025** („JSON-Notation für CMD/ENTRYPOINT"): Betrifft das `HEALTHCHECK CMD`, das eine Shell **braucht** - es löst `${PORT}` auf und stützt sich auf `|| exit 1`. In JSON-Notation liefe es ohne Shell, beides bräche still
+- **Zusätzlich gefunden:** `Dockerfile.onnx` hatte dieselben zwei Befunde und wäre beim nächsten Lauf ebenfalls rot geworden - der fehlgeschlagene Schritt hatte die späteren Schritte nur übersprungen, sodass es im PR noch gar nicht sichtbar war. Dort ebenfalls ausgenommen, mit eigener Prüfung der Begründung (Debian-Basis, `groupadd`/`useradd`, ebenfalls feste 10001)
+- Die Aktion ist gleich mit auf **3.5.0** angehoben, womit der Dependabot-PR gegenstandslos wird
+- Gegengeprüft mit Hadolint 2.15.1 lokal: alle drei Dockerfiles laufen mit den neuen Listen durch, ohne die Ausnahmen schlagen beide betroffenen Dateien fehl, und die Caddy-Datei behält ihre schmale Liste - die Ausnahmen sind also nötig und nicht zu breit gesetzt
+
 ## [2.20.1] - 2026-08-12
 
 ### Added
