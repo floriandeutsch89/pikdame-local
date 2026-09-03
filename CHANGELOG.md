@@ -3,6 +3,14 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.20.1] - 2026-08-12
+
+### Added
+- **Tutorial-Modus in den Ratgeber-Texten erwähnt:** Er war bisher nur beiläufig in einer FAQ-Antwort zu finden, im sichtbaren Text der Startseite und auf den Themenseiten gar nicht. Neu ist ein eigener Abschnitt auf der Startseite („Neu bei Rommé? Das Tutorial führt dich durch"), ein Einstiegs-Abschnitt auf `/pik-dame-strategie` vor den Taktik-Tipps und ein Hinweis am Ende der `/romme-regeln`
+- **Neuer FAQ-Eintrag** „Wie lernt man Pik Dame als Anfänger?" mit der Antwort in den ersten zwei Sätzen - die Frage, die Einsteiger tatsächlich stellen
+- Beschrieben werden dabei die Eigenschaften, die das Tutorial ausmachen und im Code so umgesetzt sind: **festes Kartendeck** (jeder Anfänger bekommt dieselbe Starthand, ausgewählt mit fertigem Satz, drei Damen inklusive Pik Dame und einem Joker), **situationsabhängige Hinweise** mit Markierung der Karten und des Zugziels, Erklärung der Regel bei abgelehnten Zügen und **kein Zug-Timer**
+- Am laufenden Server geprüft, dass die Erwähnungen ohne JavaScript im ausgelieferten Text stehen und damit für Suchmaschinen und KI-Systeme lesbar sind
+
 ## [2.20.0] - 2026-08-12
 
 ### Added
