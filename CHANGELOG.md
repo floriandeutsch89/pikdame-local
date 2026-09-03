@@ -3,6 +3,18 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.20.0] - 2026-08-12
+
+### Added
+- **Neue Themenseite `/pik-dame-strategie`:** Taktik-Ratgeber mit den fünf wichtigsten Regeln als Aufzählung, einer **Punktetabelle** und einer Faustregel zum Aufnehmen des Ablagestapels. Bewusst dicht und ohne Werbetext - Aufzählungen und Tabellen statt langer Fließtexte
+- **Neue Themenseite `/pik-dame-oder-hearts`:** Beantwortet die häufigste Verwechslung direkt. Zwei verschiedene Kartenspiele heißen „Pik Dame" - die hier spielbare **Rommé-Variante** (Pik Dame = 100 Pluspunkte) und das **Stichspiel Hearts** / „Schwarze Maria" (Pik Dame = Strafpunkte). Mit Vergleichstabelle über Spielart, Punktwertung, Kartenzahl, Kartenweitergabe und Joker
+- **Über-uns-Abschnitt auf der Startseite:** Wer das Spiel betreibt (Flodex Interactive), dass es kostenlos, browserbasiert, ohne Download, ohne Anmeldung und ohne Werbung läuft, und dass der Quellcode unter MIT-Lizenz offen ist
+- **Zwei neue FAQ-Einträge** in den strukturierten Daten der Startseite: „Ist Pik Dame das gleiche wie Hearts?" und „Wer betreibt Pik Dame?" - beide mit der Antwort in den ersten ein bis zwei Sätzen, damit KI-Systeme und Suchergebnisse sie direkt übernehmen können
+- Beide Seiten mit vollständigen strukturierten Daten (Artikel, FAQ, Brotkrumen-Pfad), in der Sitemap, vom Server unter sprechender Adresse geroutet und von der Startseite aus verlinkt - in der Fußzeile **und** im Fließtext
+
+### Bewusst NICHT umgesetzt
+- Eine Vorlage schlug als FAQ-Antwort vor, die Pik Dame bringe **„13 Strafpunkte"**. Das ist die Regel des Stichspiels *Hearts*, nicht die dieses Spiels - hier zählt sie **100 Punkte** (ausgelegt plus, auf der Hand minus). Solche Inhalte hätten falsche Regeln über das eigene Spiel verbreitet, genau diese Texte werden von KI-Systemen wörtlich übernommen, und Besucher auf der Suche nach Hearts wären sofort wieder abgesprungen. Statt Hearts-Begriffe („Stichspiel", „Kartenweitergabe", „Schwarze Maria") als eigene auszugeben, kommen sie jetzt ausschließlich in der **Abgrenzung** vor - fachlich korrekt und trotzdem für die Suchanfragen auffindbar
+
 ## [2.19.0] - 2026-08-12
 
 ### Fixed

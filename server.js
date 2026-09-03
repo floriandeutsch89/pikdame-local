@@ -37,7 +37,7 @@ const challengeStore = createChallengeStore();
 const TUTORIAL_SEED = 22;
 // Eigenstaendige Themenseiten (public/<slug>.html). Eine Seite kann nur fuer
 // EIN Hauptthema ranken - deshalb je eine Seite statt eines Sammelblocks.
-const SEO_PAGES = ['romme-regeln', 'pik-dame-regeln', 'kartenspiele-zu-zweit'];
+const SEO_PAGES = ['romme-regeln', 'pik-dame-regeln', 'kartenspiele-zu-zweit', 'pik-dame-strategie', 'pik-dame-oder-hearts'];
 const globalStats = createGlobalStatsStore();
 // Benutzerkonten: aktiv, wenn Nodes eingebautes SQLite verfügbar ist
 // (Node >= 22, im Docker-Image gegeben) und nicht per Env abgeschaltet.

@@ -31,7 +31,7 @@ function jsonLd() {
 
 // Themenseiten: je eine Seite pro Hauptthema (eine Seite kann nur fuer EIN
 // Thema ranken). Slugs stehen auch in server.js - dort ohne .html erreichbar.
-const TOPIC_PAGES = ['romme-regeln', 'pik-dame-regeln', 'kartenspiele-zu-zweit'];
+const TOPIC_PAGES = ['romme-regeln', 'pik-dame-regeln', 'kartenspiele-zu-zweit', 'pik-dame-strategie', 'pik-dame-oder-hearts'];
 
 test('sitemap lists the canonical URL and nothing disallowed', () => {
   const locs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
