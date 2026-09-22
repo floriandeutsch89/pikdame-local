@@ -8,6 +8,9 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Fixed
 - **Pik-Dame-Karte im Startbildschirm: ♠ und Q sitzen jetzt mittig.** Die beiden Zeichen hingen im oberen Teil der Karte, das Pik berührte fast den Rand. Sie sind nun als Gruppe senkrecht und waagerecht zentriert; das Q war durch die verringerte Laufweite zusätzlich leicht nach rechts versetzt. Im Browser (Telefon 393×852 und Desktop 1440×900) nachgemessen: Abweichung zur Kartenmitte unter einem Pixel
 
+### Changed
+- Abhängigkeiten aktualisiert: jsdom 30.1.0→30.1.1 (Test-Abhängigkeit; der CI-Job `dependency-check` war seit dem Erscheinen der Version für jeden PR rot)
+
 ## [2.21.0] - 2026-09-21
 
 ### Geändert
