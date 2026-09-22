@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.21.1] - 2026-09-23
+
+### Fixed
+- **Pik-Dame-Karte im Startbildschirm: ♠ und Q sitzen jetzt mittig.** Die beiden Zeichen hingen im oberen Teil der Karte, das Pik berührte fast den Rand. Sie sind nun als Gruppe senkrecht und waagerecht zentriert; das Q war durch die verringerte Laufweite zusätzlich leicht nach rechts versetzt. Im Browser (Telefon 393×852 und Desktop 1440×900) nachgemessen: Abweichung zur Kartenmitte unter einem Pixel
+
 ## [2.21.0] - 2026-09-21
 
 ### Geändert
