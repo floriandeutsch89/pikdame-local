@@ -2158,6 +2158,8 @@
       tabStatsBtn.classList.toggle('active', which === 'stats');
       paneResult.classList.toggle('hidden', which !== 'result');
       paneStats.classList.toggle('hidden', which !== 'stats');
+      // The panes differ in height, so the fade edge must follow the swap.
+      updateResultScrollEdges();
     };
     tabResultBtn.addEventListener('click', () => selectResultTab('result'));
     tabStatsBtn.addEventListener('click', () => selectResultTab('stats'));
@@ -2514,6 +2516,13 @@
     b.classList.toggle('canScrollDown', b.scrollHeight - b.clientHeight - b.scrollTop > 8);
   }
   el('resultBody').addEventListener('scroll', updateResultScrollEdges, { passive: true });
+  // The body can start overflowing without any scroll: unfolding "Mehr" in
+  // the pinned footer shrinks it (on a phone that pushed the winner's row out
+  // of view with no fade), and so does rotating or resizing the viewport.
+  el('resultMore').addEventListener('toggle', updateResultScrollEdges);
+  if (typeof ResizeObserver === 'function') {
+    new ResizeObserver(() => updateResultScrollEdges()).observe(el('resultBody'));
+  }
 
   // --- Interaktion ---------------------------------------------------------
 

@@ -21,6 +21,19 @@
  * best opponent's, / 100).
  */
 
+// stdout is the wire protocol: exactly one JSON object per line, nothing else.
+// Any stray console.log (e.g. OnnxPolicy's "ONNX-Modell geladen") would be read
+// by Python as a response and crash the training run with a JSONDecodeError.
+// Diagnostics go to stderr instead.
+console.log = console.error;
+console.info = console.error;
+
+// The env drives every turn itself and synchronously. The learned policy must
+// never kick in here - it is async and would also make opponents diverge from
+// the heuristic baseline the reward is measured against. Force it off even when
+// onnxruntime-node and models are installed (auto mode would enable it).
+process.env.PIKDAME_ONNX = '0';
+
 const readline = require('readline');
 const GameManager = require('../game/GameManager');
 const SE = require('../game/StateEncoder');
@@ -58,6 +71,11 @@ class EnvSession {
     if (this.game) this.game.destroy();
     const opts = typeof seed === 'number' ? { deckSeed: seed >>> 0 } : {};
     const g = new GameManager(() => {}, opts);
+    // No background bot timers: while Python is busy (PPO update phase takes
+    // seconds) a 700-1300 ms timer would otherwise fire and play turns - even
+    // the paused agent's - behind the env's back. _advanceToDecision() runs
+    // every turn explicitly.
+    g.maybeRunBotTurn = () => {};
     g.addOrReconnectPlayer('host', 'Host');
     g.fillWithBots();
     g.players = [];

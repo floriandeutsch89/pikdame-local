@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.21.2] - 2026-09-23
+
+### Fixed
+- **RL-Training bricht nicht mehr mit `JSONDecodeError` ab.** Die Env-Bridge (`scripts/rl-env-server.js`) ließ die normalen Bot-Timer des Spiels laufen. Während der PPO-Update-Phase feuerten sie im Hintergrund, spielten Züge an der Umgebung vorbei und nahmen - sobald `onnxruntime-node` und Modelle installiert waren - den ONNX-Pfad, dessen `console.log` auf stdout landete und das JSON-Protokoll zerstörte. Die Bridge schaltet die Bot-Timer jetzt ab, erzwingt die Heuristik (`PIKDAME_ONNX=0`) und leitet `console.log` auf stderr um
+- **Rundenende: Die unterste Zeile verschwindet nicht mehr unbemerkt.** Beim Aufklappen von „Mehr" wird die Ergebnisliste kürzer und scrollt - auf dem Telefon rutschte so die Zeile des Rundensiegers aus dem Bild, ohne dass die Verlaufskante „da ist noch mehr" anzeigte. Die Kante wird jetzt auch beim Aufklappen, beim Wechsel zwischen „Ergebnis" und „Statistik" und bei jeder Größenänderung (Drehen, Fenster) neu geprüft
+
 ## [2.21.1] - 2026-09-23
 
 ### Fixed
