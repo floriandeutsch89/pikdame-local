@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.22.0] - 2026-09-23
+
+### Changed
+- **Neu trainiertes Zen-Modell** (`models/pikdame-zen.onnx`, 40 Mio. Trainingsschritte). Ein- und Ausgabe sind unverändert (377 Beobachtungswerte, 54 Aktionen) - das Modell passt zum aktuellen `StateEncoder` und ersetzt das bisherige ohne weitere Änderungen. Wirkt nur mit aktiven ONNX-Bots (ONNX-Image bzw. `PIKDAME_ONNX`); das Standard-Image spielt weiter mit der Heuristik
+
 ## [2.21.2] - 2026-09-23
 
 ### Fixed
