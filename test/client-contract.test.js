@@ -301,6 +301,19 @@ test('CSS contract: scrollable regions declare both fade edges', () => {
   }
 });
 
+test('client contract: the result body re-checks its fade edge when its height changes without a scroll', () => {
+  // Unfolding "Mehr" in the pinned footer shrinks #resultBody; on a phone the
+  // winner's row slid out of view while the fade stayed off, because the
+  // edge was only recomputed on render and on scroll.
+  assert.match(clientJs, /el\('resultMore'\)\.addEventListener\('toggle', updateResultScrollEdges\)/,
+    'toggling "Mehr" must re-check the result fade edge');
+  assert.match(clientJs, /new ResizeObserver\(\(\) => updateResultScrollEdges\(\)\)\.observe\(el\('resultBody'\)\)/,
+    'a resize of the result body (viewport, rotation) must re-check the fade edge');
+  const tabSwitch = clientJs.match(/const selectResultTab = \(which\) => \{[\s\S]*?\n {4}\};/);
+  assert.ok(tabSwitch && tabSwitch[0].includes('updateResultScrollEdges()'),
+    'switching result tabs must re-check the fade edge');
+});
+
 test('icon contract: elements carrying an icon are never written with textContent', () => {
   // Assigning textContent to a button that holds an <svg class="icon"> DELETES
   // the icon. It bit langBtnLobby, rulesTitle and accountBtn in turn - the
