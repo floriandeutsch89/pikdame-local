@@ -121,7 +121,8 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
 - **Heuristik** (`Bot.js`, 4 Stufen easy/medium/hard/zen): Kartenzählung über
   alle öffentlichen Karten, Damen-Disziplin (nur easy wirft die ♠Q sorglos),
   Zieh-Guards (Usability-Lookahead, Damen-unter-Stapel, Wertverlust-Vergleich),
-  Zen-Endspiel mit Erschöpfungs-/Punktestand-Gewichtung, Joker-Ausstieg.
+  Zen-Endspiel mit Erschöpfungs-/Punktestand-Gewichtung, Joker-Tausch (nie mit
+  der letzten Handkarte).
 - **Untersucht, NICHT produktiv** (jeweils getestete Infrastruktur, per Flag):
   `MonteCarlo.js` (Hidden-Hand-Sampling für den Abwurf – gemessen Null-Effekt);
   `Rollout.js` (determinisierte Rollout-Suche/ISMCTS – gemessen ~+2 Pkt/0,8σ,
@@ -161,7 +162,8 @@ bestehenden Satz des Spielers gemergt (Joker bekommen eine freie Farbe);
 passt die Vereinigung nicht mehr (>8 Karten), liegt er separat - nie ein Fehler,
 sonst Deadlock mit der Pflicht-Aufnahmekarte (v1.53.1).
 **Ausmachen nur per Abwurf der letzten Karte** (verdeckt abgelegt, nicht
-aufnehmbar; Ausnahme: Joker-Tausch mit der letzten Handkarte beendet sofort).
+aufnehmbar; OHNE Ausnahme - auch kein Joker-Tausch mit der letzten Handkarte,
+Tischentscheidung v2.32.0; `swapJoker` verweigert ihn, Bots planen ihn nicht).
 Ein getauschter Joker bleibt als +20 in der Auslage-Wertung (plus die echte
 Karte). „Hand aus“ = Gewinner hatte vor seinem letzten Zug nichts ausgelegt
 (verdoppelt NUR bei aktiver Hausregel `handAusDoubles`, Standard aus - Anzeige

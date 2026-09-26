@@ -189,12 +189,11 @@ function findHandMelds(hand) {
  * Gibt { layOffs: [{meldId, card}], updatedHand } zurück.
  */
 /**
- * Joker-Ausstieg: prueft, ob Handkarten exakt in einen Joker-Slot der
- * EIGENEN Auslagen passen (Rang UND Farbe muessen stimmen - ein Joker
- * vertritt eine ganz bestimmte Karte). GameManager.swapJoker erlaubt das
- * jederzeit (keine "eine Karte muss fuer den Abwurf bleiben"-Sperre wie bei
- * layOffCard/layoutMeld) - mit der letzten Handkarte beendet der Tausch die
- * Runde sofort. Bots nutzten das bisher NIE: Gewinnzuege blieben liegen.
+ * Joker swaps: finds hand cards that exactly fit a joker slot in the bot's
+ * OWN melds (rank AND suit - a joker stands for one specific card). Like
+ * layOffCard/layoutMeld, GameManager.swapJoker keeps one card for the final
+ * discard, so the last hand card is never planned for a swap (table rule
+ * v2.32.0: going out only by discarding, no joker-swap exit).
  */
 function findJokerSwaps(hand, tableMelds) {
   // DEFENSIVKOPIE - kritisch: Diese Planung schreibt weiter unten
@@ -207,7 +206,8 @@ function findJokerSwaps(hand, tableMelds) {
   let pool = hand.slice();
   const swaps = [];
   let changed = true;
-  while (changed) {
+  // The last hand card is always discarded, never swapped for a joker.
+  while (changed && pool.length > 1) {
     changed = false;
     for (const card of pool.slice()) {
       if (card.isJoker) continue;

@@ -1746,7 +1746,9 @@
           // (Spieler-Report).
           const jokerFits = !isMustCard && singleSelectedCard && singleSelectedCard.isJoker &&
             layOffPlacementCount(meld, singleSelectedCard) >= 1;
-          const singleFits = !isMustCard && singleSelectedCard && cardFitsMeld(meld, singleSelectedCard);
+          // One card left = it must be discarded: neither lay-off nor joker
+          // swap is allowed, so no green frame (false positives are banned).
+          const singleFits = !isMustCard && singleSelectedCard && meForHints.hand.length > 1 && cardFitsMeld(meld, singleSelectedCard);
           if (singleFits || jokerFits) {
             group.classList.add('layOffTarget');
           } else if (selectedCardIds.size > 1 && meForHints && meForHints.hand && !selectedCardIds.has(lastState.mustLayOffCardId)) {
@@ -3425,7 +3427,7 @@
         // keine neue Kombination? Dann eine anlegbare Einzelkarte + ihr Ziel zeigen
         for (const meld of st.tableMelds || []) {
           if (meld.ownerId !== me.id) continue;
-          const fit = me.hand.find((cd) => cardFitsMeld(meld, cd));
+          const fit = me.hand.length > 1 && me.hand.find((cd) => cardFitsMeld(meld, cd));
           if (fit) return { cardIds: [fit.id], meldIds: [meld.id], targets };
         }
         return { cardIds: [], meldIds: [], targets };
@@ -3601,7 +3603,7 @@
   /** Handkarte, die genau das ersetzt, wofuer ein Joker in EINER EIGENEN
    *  Auslage steht - die Voraussetzung des Joker-Tauschs. */
   function findTutorialJokerSwap(st, me) {
-    if (!me || !me.hand) return null;
+    if (!me || !me.hand || me.hand.length <= 1) return null; // last card is discarded
     for (const meld of st.tableMelds || []) {
       if (meld.ownerId !== me.id) continue;
       for (const slot of meld.slots || []) {

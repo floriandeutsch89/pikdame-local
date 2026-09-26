@@ -66,7 +66,7 @@ test('Ausgetauschter Joker landet in retiredJokers, NICHT zurück auf der Hand',
   game.tableMelds = [meld];
 
   const handCard = makeStandardCard('S', 'D', 1); // passt auf den Joker-Slot (Pik Dame!)
-  game.players[0].hand = [handCard];
+  game.players[0].hand = [handCard, makeStandardCard('C', '3', 0)]; // one card stays for the discard
   game.players[0].laidOutCards = [];
 
   const result = game.swapJoker('p1', 'meld-1', handCard.id);
@@ -798,7 +798,7 @@ test('swapJoker markiert nur den getauschten Slot mit der playerId des Tauschend
   game.tableMelds = [meld];
 
   const pikDame = makeStandardCard('S', 'D', 1);
-  game.players[0].hand = [pikDame];
+  game.players[0].hand = [pikDame, makeStandardCard('C', '3', 0)]; // one card stays for the discard
   game.swapJoker('p1', 'meld-1', pikDame.id);
 
   const updatedMeld = game.tableMelds[0];
@@ -869,7 +869,7 @@ test('swapJoker: Pflichtkarte wird ebenfalls abgelehnt - kein Deadlock, Weg übe
   assert.equal(game.mustLayOffCardId, null, 'Pflicht ueber den korrekten Weg erfuellt - kein dauerhafter Stillstand');
 });
 
-test('swapJoker: letzte Handkarte per Tausch verbraucht beendet die Runde (Deadlock-Regression)', () => {
+test('swapJoker: the last hand card cannot be swapped - it must be discarded, no dead end', () => {
   const { game } = makeGame(2);
   game.phase = 'playing';
   game.turnPhase = 'meld';
@@ -899,9 +899,31 @@ test('swapJoker: letzte Handkarte per Tausch verbraucht beendet die Runde (Deadl
   game.players[1].laidOutCards = [];
 
   const r = game.swapJoker('p1', 'meld-1', pikDame.id);
-  assert.equal(r.ok, true);
-  assert.equal(game.players[0].hand.length, 0);
-  assert.equal(game.phase, 'roundEnd', 'Runde muss enden, wenn die letzte Karte per Tausch verbraucht wird');
+  assert.ok(r.error, 'no going out via a joker swap');
+  assert.equal(game.players[0].hand.length, 1);
+  assert.equal(game.phase, 'playing');
+  assert.ok(game.tableMelds[0].slots.some((s) => s.joker), 'the joker stays in the meld');
+  // The old deadlock cannot come back: the card is simply discarded.
+  assert.ok(!game.discard('p1', pikDame.id).error);
+  assert.equal(game.phase, 'roundEnd');
+});
+
+test('swapJoker: with two hand cards the swap works and one card is left to discard', () => {
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  game.turnPhase = 'meld';
+  game.currentPlayerIndex = 0;
+  const joker = makeJoker(0);
+  game.tableMelds = [{ id: 'm', ownerId: 'p1', type: 'set', rank: 'Q', suit: null, slots: [
+    { real: makeStandardCard('H', 'Q', 0), playerId: 'p1' },
+    { real: makeStandardCard('C', 'Q', 0), playerId: 'p1' },
+    { joker, representsRank: 'Q', representsSuit: 'S', playerId: 'p1' },
+  ] }];
+  const sQ = makeStandardCard('S', 'Q', 0);
+  game.players[0].hand = [sQ, makeStandardCard('H', '2', 0)];
+  assert.ok(game.swapJoker('p1', 'm', sQ.id).ok);
+  assert.equal(game.players[0].hand.length, 1);
+  assert.equal(game.phase, 'playing');
 });
 
 test('Patt-Regel: Runde endet automatisch, wenn niemand mehr ziehen kann (Deadlock-Regression)', () => {
@@ -2500,11 +2522,8 @@ test('going-out rule holds through full games: a round never ends without a disc
     const origFinish = game.finishRound.bind(game);
     game.finishRound = (winnerId, ...rest) => {
       // winnerId gesetzt = jemand hat ausgemacht (Patt/Aufgabe haben keinen).
-      // The ONE documented exception is the joker exit: swapping the last
-      // hand card for a joker in an own meld ends the round at once (rules
-      // essence in CLAUDE.md, bot 'Joker-Ausstieg'). Bots do it on purpose,
-      // so the unseeded game hit it in ~0.5% of runs and made CI flaky.
-      if (winnerId && lastAction && lastAction !== 'discard' && lastAction !== 'swapJoker') offenders.push(lastAction);
+      // No exception: not even a joker swap may use up the last hand card.
+      if (winnerId && lastAction && lastAction !== 'discard') offenders.push(lastAction);
       return origFinish(winnerId, ...rest);
     };
 

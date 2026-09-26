@@ -317,7 +317,7 @@ test('zen prefers a rank the next player just spurned from the pile', () => {
 });
 
 // --- v1.43.0: joker exit, value-exposure risk, score awareness, blocking --------
-test('findJokerSwaps: exact rank+suit match against an own joker slot, last card ends the round via swap', () => {
+test('findJokerSwaps: exact rank+suit match against an own joker slot, but never the last hand card', () => {
   const { makeStandardCard: mk, makeJoker } = require('../game/Card');
   const joker = makeJoker(0);
   const ownSet = {
@@ -327,11 +327,15 @@ test('findJokerSwaps: exact rank+suit match against an own joker slot, last card
     rank: 'K',
     slots: [{ real: mk('H', 'K', 0) }, { real: mk('C', 'K', 0) }, { joker, representsRank: 'K', representsSuit: 'S' }],
   };
-  const hand = [mk('S', 'K', 1)]; // exact match for the joker's represented suit
+  const hand = [mk('S', 'K', 1), mk('H', '4', 0)]; // exact match for the joker's represented suit
   const { swaps, updatedHand } = Bot.findJokerSwaps(hand, [ownSet]);
   assert.equal(swaps.length, 1, 'the matching card must be found');
   assert.equal(swaps[0].meldId, 'm1');
-  assert.equal(updatedHand.length, 0, 'hand empty afterwards -> round-ending move');
+  assert.equal(updatedHand.length, 1, 'one card stays for the discard');
+  // Alone on the hand the king is the last card - it is discarded, not swapped.
+  const alone = Bot.findJokerSwaps([mk('S', 'K', 1)], [ownSet]);
+  assert.equal(alone.swaps.length, 0, 'no going out via a joker swap');
+  assert.equal(alone.updatedHand.length, 1);
 });
 
 test('findJokerSwaps: a card that does not match the represented suit is left alone', () => {

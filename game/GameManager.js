@@ -1416,6 +1416,12 @@ class GameManager {
     }
     const handCard = player.hand.find((c) => c.id === handCardId);
     if (!handCard) return { error: 'Karte nicht in der Hand gefunden.' };
+    // The last hand card is ALWAYS discarded - no going out via a joker swap
+    // (table rule, like layoutMeld/layOffCard). The swap consumes a hand card
+    // and the freed joker leaves the game, so one card must remain after it.
+    if (player.hand.length <= 1) {
+      return { error: 'Die letzte Handkarte muss abgeworfen werden - ein Joker-Tausch ist damit nicht möglich.' };
+    }
 
     const result = tryJokerSwap(meld, handCard);
     if (!result) return { error: 'Diese Karte passt nicht auf einen Joker in dieser Auslage.' };
@@ -1441,9 +1447,9 @@ class GameManager {
     // Pflicht nicht mehr (Tischentscheidung).
 
     this.addLog(`${player.name} tauscht ${cardLabel(handCard)} gegen einen Joker in einer Auslage. Der Joker scheidet aus dem Spiel aus.`);
-    // Verbraucht der Tausch die letzte Handkarte, endet die Runde sofort -
-    // exakt wie beim Auslegen/Anlegen. Ohne diese Prüfung stand der Spieler
-    // mit leerer Hand in der Abwurf-Pflicht und konnte den Zug nie beenden.
+    // Defensive only: the guard above keeps a card for the discard, so the
+    // hand cannot run empty here anymore (it once did - the player then sat
+    // in the discard duty with nothing to discard).
     this.checkRoundEnd(player);
     this.broadcastState();
     return { ok: true };
@@ -2359,11 +2365,10 @@ class GameManager {
       if (this.phase !== 'playing') return -1;
     }
 
-    // Joker-Ausstieg: eigene Handkarten, die exakt einen Joker in einer
-    // EIGENEN Auslage vertreten, werden getauscht - der Joker scheidet aus,
-    // die Handkarte gilt als gelegt. Ist es die letzte Handkarte, endet die
-    // Runde sofort (swapJoker kennt die "eine Karte fuer den Abwurf muss
-    // bleiben"-Sperre nicht - das ist genau die dokumentierte Ausnahme).
+    // Joker swaps: own hand cards that exactly match a joker in an OWN meld
+    // are swapped in - the joker leaves the game, the hand card counts as
+    // laid. Never the last hand card: it must be discarded (swapJoker refuses
+    // it, findJokerSwaps does not plan it).
     for (const js of meldPlan.jokerSwaps || []) {
       const stillHas = cp.hand.find((c) => c.id === js.card.id);
       if (!stillHas) continue;
