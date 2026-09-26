@@ -2810,6 +2810,31 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 /* Lobby panel. Uses the same lobby-section shell as the house rules, so it
    inherits width, radius and spacing instead of inventing its own. */
 .questsSection { text-align: left; }
+/* Stammtisch */
+.stammtischRecent { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; max-width: 340px; justify-content: center; }
+.stammtischRecent button {
+  background: var(--glass); border: 1px solid var(--glass-border); color: var(--text);
+  border-radius: var(--r-pill); padding: 8px 12px; min-height: var(--tap-min);
+  font-size: var(--fs-label); font-weight: 600;
+}
+.stammtischRecent button small { color: var(--text-muted); font-weight: 500; margin-left: 4px; }
+.stSeries { font-weight: 700; margin: 2px 0 8px; }
+.stSeries small { display: block; color: var(--text-muted); font-weight: 500; }
+.stTable { width: 100%; border-collapse: collapse; font-size: var(--fs-label); font-variant-numeric: tabular-nums; }
+.stTable th { text-align: left; font-weight: 600; color: var(--text-muted); padding: 2px 4px; font-size: var(--fs-hint); }
+.stTable td { padding: 3px 4px; border-top: 1px solid var(--glass-border); }
+.stTable td:not(:first-child), .stTable th:not(:first-child) { text-align: right; }
+.stPairs { margin-top: 6px; font-size: var(--fs-hint); color: var(--text-muted); }
+.stPairs b { color: var(--text); }
+.stName { font-weight: 700; }
+.stCode { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.08em; }
+/* Result overlay: the series stands right above the continue button */
+.resultSeries {
+  margin: 8px 0 2px; padding: 8px 12px; border-radius: var(--r-sm);
+  background: rgba(0, 0, 0, 0.05); color: var(--card-ink);
+  font-weight: 700; text-align: center;
+}
+.resultSeries small { display: block; font-weight: 500; opacity: 0.75; }
 /* Daily puzzle overlay */
 .puzzleTarget { font-weight: 700; margin: 2px 0 8px; }
 .puzzleHand { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 4px 0 10px; }

@@ -274,6 +274,7 @@
     // Bloecke des Fortschrittsbereichs, nicht nur die Aufgaben.
     try { renderQuests(); } catch (e) { /* Fortschritt ist nie kritisch */ }
     try { renderPuzzle(); } catch (e) { /* dito */ }
+    try { renderStammtisch(); renderStammtischRecent(); renderSessionBanner(); } catch (e) { /* dito */ }
     try { renderAchievements(); } catch (e) { /* dito */ }
     try { renderAccountProgress(); } catch (e) { /* dito */ }
     // "Angemeldet als ..." steht dauerhaft in der Lobby - vom Vertragstest
@@ -412,6 +413,8 @@
   let questProgress = {};
   let myProgress = null;      // {xp, level:{level,into,need,total}}
   let myStreak = null;        // {streak, best, event, graceFree} - from the last 'progress' message
+  let stammtischInfo = null;  // {code, name} when this session is bound to a Stammtisch
+  let stammtischSummary = null; // standings / pairwise / series from the server
   let accountProgress = null; // {xp, seasonXp, season, games, wins, rank}
 
   function questMeta(id) {
@@ -753,6 +756,8 @@
       // heutigen Aufgaben-Fortschritt, und der steht im eigenen Profil - ohne
       // diese Anfrage stünde dort bis zum Beitritt immer 0/3.
       ws.send(JSON.stringify({ type: 'listProfiles' }));
+      // Stammtisch chips on the start screen: series state per remembered code.
+      try { renderStammtischRecent(); } catch (e) { /* cosmetic */ }
       // Automatischer Wiedereintritt NUR, wenn wir bereits Teil einer
       // Session waren (Reconnect nach Verbindungsabbruch oder geteilter
       // Link mit gespeicherter playerId). Ohne Code entscheidet der Nutzer
@@ -939,6 +944,8 @@
   function handleMessage(msg) {
     if (msg.type === 'pong') return; // liveness only, see watchdogTick
     if (msg.type === 'joined') {
+      stammtischInfo = msg.stammtisch || null;
+      if (stammtischInfo) rememberStammtisch(stammtischInfo);
       storageSet('pikdame_last_session', msg.sessionCode);
       // Secret seat token: proves this browser owns the seat on reconnect
       if (msg.playerToken) storageSet(tokenKeyFor(msg.sessionCode), msg.playerToken);
@@ -1052,6 +1059,22 @@
       maybeShowRoundQuote();
       checkPikdameAnnouncement();
       render();
+      return;
+    }
+    if (msg.type === 'stammtisch') {
+      stammtischSummary = msg.summary || null;
+      try { renderStammtisch(); } catch (e) { /* never critical */ }
+      const ev = msg.seriesEvent;
+      if (ev && ev.type === 'won') {
+        const w = msg.summary && msg.summary.series && msg.summary.series.wins;
+        const scores = w ? Object.values(w).sort((a, b) => b - a) : [];
+        showToast(`🏆 ${trs(`${ev.winner} gewinnt die Serie ${scores[0] || 0}:${scores[1] || 0}!`)}`, { duration: 6000, priority: true });
+      }
+      if (!el('resultOverlay').classList.contains('hidden')) renderResultOverlay();
+      return;
+    }
+    if (msg.type === 'stammtischInfo') {
+      try { updateStammtischChip(msg); } catch (e) { /* cosmetic */ }
       return;
     }
     if (msg.type === 'puzzle' || msg.type === 'puzzleResult' || msg.type === 'puzzleSolution') {
@@ -1406,6 +1429,7 @@
     });
 
     renderSeatingList(isHost);
+    try { renderStammtisch(); } catch (e) { /* never critical */ }
   }
 
   function renderSeatingList(isHost) {
@@ -2589,6 +2613,12 @@
       }
     }
 
+    if (isGameOver && stammtischInfo && stammtischSummary && stammtischSummary.series) {
+      const box = document.createElement('div');
+      box.className = 'resultSeries';
+      box.innerHTML = seriesLineHtml(stammtischSummary);
+      paneResult.appendChild(box);
+    }
     el('exportGameBtn').classList.toggle('hidden', !(isGameOver && lastState.hasExportableGame));
     el('replayBtn').classList.toggle('hidden', !(isGameOver && lastState.hasExportableGame));
     if (isGameOver) renderChallengeBoard();
@@ -2677,9 +2707,14 @@
       contBtn.disabled = false;
       // Challenge: dieselbe Tages-Herausforderung noch einmal versuchen -
       // gleiches Deck, frische Chance (der Server startet solo direkt neu).
+      const ser = stammtischInfo && stammtischSummary && stammtischSummary.series;
       contBtn.textContent = lastState.challengeDate
         ? L('🔁 Noch mal probieren', '🔁 Try again')
-        : L('Neue Partie (Rematch)', 'New game (rematch)');
+        : ser
+          ? ser.winner
+            ? L('Neue Serie starten', 'Start a new series')
+            : L(`Revanche (Spiel ${ser.games + 1} von ${ser.bestOf})`, `Rematch (game ${ser.games + 1} of ${ser.bestOf})`)
+          : L('Neue Partie (Rematch)', 'New game (rematch)');
     } else {
       const humans = (lastState.players || []).filter((p) => !p.isBot && p.connected);
       const ready = new Set(lastState.nextRoundReady || []);
@@ -2865,10 +2900,11 @@
   el('shareCodeBtn').addEventListener('click', async () => {
     if (!sessionCode) return;
     const url = new URL(window.location.href);
-    url.searchParams.set('session', sessionCode);
+    const shareCode = stammtischInfo ? stammtischInfo.code : sessionCode;
+    url.searchParams.set('session', shareCode);
     const shareData = {
       title: 'Pik Dame',
-      text: `Spiel mit! Code: ${sessionCode}`,
+      text: stammtischInfo ? `Stammtisch „${stammtischInfo.name}“ - Code: ${shareCode}` : `Spiel mit! Code: ${shareCode}`,
       url: url.toString(),
     };
     if (navigator.share) {
@@ -2888,7 +2924,15 @@
     el('sessionSetup').classList.toggle('hidden', inSession);
     el('sessionBanner').classList.toggle('hidden', !inSession);
     if (inSession) {
-      el('sessionCodeText').textContent = sessionCode;
+      // At a Stammtisch the GROUP code is the one to hand around - it works
+      // forever, while the live session's code dies with the evening.
+      el('sessionCodeText').textContent = stammtischInfo ? stammtischInfo.code : sessionCode;
+      const label = el('sessionBanner').querySelector('.session-code-label');
+      if (label) {
+        label.textContent = stammtischInfo
+          ? L(`Stammtisch „${stammtischInfo.name}“ - Code gilt für immer`, `Regulars table "${stammtischInfo.name}" - code works forever`)
+          : L('Spiel-Code – zum Mitspielen weitergeben', 'Game code – share it to play together');
+      }
       el('startBtn').disabled = false;
     }
   }
@@ -3718,6 +3762,121 @@
     el('challengeIntroOverlay').classList.add('hidden');
     send({ type: 'startChallenge', name: currentName(), accountToken: accountToken() || undefined });
   });
+  // --- Stammtisch ------------------------------------------------------------
+  const STAMMTISCH_KEY = 'pikdame_stammtische';
+  function recentStammtische() {
+    try { const v = JSON.parse(storageGet(STAMMTISCH_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; }
+  }
+  function rememberStammtisch(info) {
+    const list = recentStammtische().filter((t) => t.code !== info.code);
+    list.unshift({ code: info.code, name: info.name, at: Date.now() });
+    storageSet(STAMMTISCH_KEY, JSON.stringify(list.slice(0, 3)));
+    renderStammtischRecent();
+  }
+  function renderStammtischRecent() {
+    const box = el('stammtischRecent');
+    if (!box) return;
+    const list = recentStammtische();
+    box.classList.toggle('hidden', list.length === 0);
+    box.innerHTML = list
+      .map((t) => `<button type="button" data-code="${escapeHtml(t.code)}"><span>🍻 ${escapeHtml(t.name)}</span><small class="stChipInfo"></small></button>`)
+      .join('');
+    box.querySelectorAll('button[data-code]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        send({ type: 'joinSession', code: btn.dataset.code, name: currentName(), accountToken: accountToken() || undefined });
+      });
+    });
+    // Ask for the series state so the chip says "Serie 1:1" without a tap.
+    for (const t of list) send({ type: 'getStammtisch', code: t.code });
+  }
+  function updateStammtischChip(info) {
+    const btn = document.querySelector(`#stammtischRecent button[data-code="${CSS.escape(info.code)}"]`);
+    if (!btn) return;
+    if (!info.exists) {
+      // Gone (pruned after months of silence): forget it quietly.
+      storageSet(STAMMTISCH_KEY, JSON.stringify(recentStammtische().filter((t) => t.code !== info.code)));
+      btn.remove();
+      if (!el('stammtischRecent').children.length) el('stammtischRecent').classList.add('hidden');
+      return;
+    }
+    const w = (info.series && info.series.wins) || {};
+    const scores = Object.values(w).sort((a, b) => b - a);
+    btn.querySelector('.stChipInfo').textContent = info.series && info.series.games
+      ? L(`Serie ${scores[0] || 0}:${scores[1] || 0}`, `series ${scores[0] || 0}:${scores[1] || 0}`)
+      : L(`${info.gamesPlayed || 0} Partien`, `${info.gamesPlayed || 0} games`);
+  }
+  function seriesLineHtml(sum) {
+    const ser = sum.series;
+    const byKey = {};
+    for (const m of sum.members || []) byKey[m.name.toLowerCase()] = m.name;
+    const parts = Object.entries(ser.wins || {})
+      .sort((a, b) => b[1] - a[1])
+      .map(([k, n]) => `${escapeHtml(byKey[k] || k)} ${n}`);
+    const score = parts.length ? parts.join(' – ') : L('noch 0:0', 'still 0:0');
+    if (ser.winner) {
+      return `🏆 ${escapeHtml(L(`${ser.winner} hat Serie ${ser.no} gewonnen`, `${ser.winner} won series ${ser.no}`))}<small>${score}</small>`;
+    }
+    return `${escapeHtml(L(`Serie ${ser.no} · Best of ${ser.bestOf}`, `Series ${ser.no} · best of ${ser.bestOf}`))}: ${score}<small>${escapeHtml(
+      L(`${ser.needed} Siege entscheiden · Spiel ${ser.games + 1} von ${ser.bestOf}`, `${ser.needed} wins decide · game ${ser.games + 1} of ${ser.bestOf}`)
+    )}</small>`;
+  }
+  function renderStammtisch() {
+    const box = el('stammtischSection');
+    if (!box) return;
+    if (!stammtischInfo || !stammtischSummary) {
+      box.classList.add('hidden');
+      return;
+    }
+    box.classList.remove('hidden');
+    const sum = stammtischSummary;
+    const members = sum.members || [];
+    const rows = members
+      .map((m) => `<tr><td class="stName">${nameWithHeart(m.name)}</td><td>${m.wins}</td><td>${m.games}</td><td>${m.avg}</td></tr>`)
+      .join('');
+    // Pairwise record for the humans at THIS table: "who finished ahead".
+    const humans = ((lastState && lastState.players) || []).filter((p) => !p.isBot).map((p) => p.name);
+    const pairs = [];
+    for (let i = 0; i < humans.length; i++) {
+      for (let j = i + 1; j < humans.length; j++) {
+        const a = humans[i].toLowerCase();
+        const b = humans[j].toLowerCase();
+        const rec = sum.pairwise && sum.pairwise[a] && sum.pairwise[a][b];
+        if (rec && rec.ahead + rec.behind > 0) {
+          pairs.push(`<b>${escapeHtml(humans[i])}</b> ${rec.ahead}:${rec.behind} <b>${escapeHtml(humans[j])}</b>`);
+        }
+      }
+    }
+    box.querySelector('#stammtischBody').innerHTML =
+      `<div class="stName">🍻 ${escapeHtml(sum.name)} <span class="stCode">${escapeHtml(sum.code)}</span> <small>· ${L(`${sum.gamesPlayed} Partien`, `${sum.gamesPlayed} games`)}</small></div>` +
+      `<div class="stSeries">${seriesLineHtml(sum)}</div>` +
+      (members.length
+        ? `<table class="stTable"><thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('Siege', 'Wins')}</th><th>${L('Partien', 'Games')}</th><th>Ø</th></tr></thead><tbody>${rows}</tbody></table>`
+        : `<p class="lobby-hint">${L('Noch keine Partie gespielt - die Bilanz beginnt mit der ersten.', 'No match yet - the record starts with the first one.')}</p>`) +
+      (pairs.length ? `<div class="stPairs">${L('Direktvergleich', 'Head to head')}: ${pairs.join(' · ')}</div>` : '');
+  }
+  el('stammtischBtn').addEventListener('click', () => {
+    el('stammtischNameInput').value = '';
+    el('stammtischOverlay').classList.remove('hidden');
+    el('stammtischNameInput').focus();
+  });
+  el('stammtischCancelBtn').addEventListener('click', () => el('stammtischOverlay').classList.add('hidden'));
+  el('stammtischOverlay').addEventListener('click', (ev) => {
+    if (ev.target === el('stammtischOverlay')) el('stammtischOverlay').classList.add('hidden');
+  });
+  el('stammtischCreateBtn').addEventListener('click', () => {
+    const stammtischName = el('stammtischNameInput').value.trim();
+    if (!stammtischName) {
+      showToast(L('Bitte einen Namen für den Stammtisch eingeben.', 'Please enter a name for the table.'));
+      return;
+    }
+    el('stammtischOverlay').classList.add('hidden');
+    send({ type: 'createStammtisch', stammtischName, name: currentName(), accountToken: accountToken() || undefined });
+  });
+  el('stammtischNameInput').addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') el('stammtischCreateBtn').click();
+  });
+  try { renderStammtischRecent(); } catch (e) { /* cosmetic */ }
+
   // --- Daily puzzle --------------------------------------------------------
   // One hand, one question, the engine grades. Selection lives here; the
   // server owns tries/solved (local profile) and hands out the XP once.
@@ -3801,6 +3960,9 @@
           'ok'
         );
         if (msg.level) myProgress = { xp: myProgress ? Math.max(myProgress.xp || 0, (msg.level.total || 0)) : (msg.level.total || 0), level: msg.level };
+        if (msg.streak) myStreak = msg.streak;
+        try { renderQuests(); renderEmoteLocks(); } catch (e) { /* cosmetic */ }
+      } else {
         setPuzzleStatus(
           L(`Gültig, aber nur ${msg.points} von ${msg.targetPoints} Punkten - da geht mehr.`, `Valid, but only ${msg.points} of ${msg.targetPoints} points - there is more.`),
           'bad'

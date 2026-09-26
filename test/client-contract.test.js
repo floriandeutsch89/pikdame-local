@@ -494,6 +494,9 @@ test('client contract: functions that build translated markup are refreshed by c
     // Discard confirmation: the dialog text is written fresh on every
     // click, and the dialog is closed before any language switch.
     'requestDiscard',
+    // Stammtisch chip info: cycleLang re-renders the chips, which re-requests
+    // the info from the server - the reply rewrites the text in the new language.
+    'updateStammtischChip',
     // Puzzle overlay: opened fresh on every click; the hand and status are
     // rendered by renderPuzzle, which cycleLang re-runs.
     'openPuzzle',

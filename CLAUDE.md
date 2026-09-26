@@ -98,7 +98,9 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
   `Progression.js` (XP/Level, Tagesaufgaben, Tagesserie mit Joker-Tag),
   `DailyPuzzle.js` (Tagesrätsel: geseedete Hand, erschöpfende Suche, die
   Engine bewertet - Ergebnisobjekt darf KEIN `type`-Feld tragen, es wird in
-  die WS-Nachricht gespreadet),
+  die WS-Nachricht gespreadet), `StammtischStore.js` (feste Gruppen-Tische:
+  Code `ST…`, Bilanz, Best-of-3-Serie; per Code abgeschottet, deshalb auch
+  im Public-Mode aktiv),
   `Emotes.js` (EINZIGE Emote-Whitelist + Level; Client-Leisten und
   `EMOTE_UNLOCK` spiegeln sie, Vertragstest prüft).
 - `public/` — Vanilla-JS-Client (`client.js`), `i18n.js`, PWA. Enthält auch den
@@ -199,8 +201,11 @@ angewendet liegen. (pro Änderung)
    CI-Job `secret-scan` (Dateinamen + gitleaks über die volle History)
    schlagen sonst an. Ein gepushtes Secret zuerst ROTIEREN, dann entfernen.
 5. Neue Server-Texte ⇒ i18n-Pattern. Neue UI-Elemente ⇒ Vertragstests laufen mit.
-   Nachrichten VOR dem Session-Beitritt (Profile, Rätsel) stehen im Handler
-   vor der Session-Sperre und tragen `msg.name`.
+   Nachrichten VOR dem Session-Beitritt (Profile, Rätsel, Stammtisch-Info)
+   stehen im Handler vor der Session-Sperre und tragen `msg.name`; ein
+   Stammtisch-Code wird bei `joinSession` automatisch aufgelöst (Live-Tisch
+   oder neuer Tisch), Platz-Rückgabe dort per Name statt Sitz-Token - nur
+   für GETRENNTE Sitze.
 6. **Abhängigkeiten hebt Dependabot an** (`.github/dependabot.yml`,
    montags 03:00 UTC): npm (gruppiert), Docker-Basis-Images, Compose-Images,
    GitHub-Actions. `dependabot-auto.yml` hängt den SemVer-Bump plus die
