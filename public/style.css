@@ -886,6 +886,9 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 #actionBar .btn-primary, #actionBar .btn-secondary {
   width: auto; padding: 11px 22px; font-size: 0.88rem;
+  /* 'Auslegen' / 'Auswahl löschen' measured 38-40px - under the 44px floor
+     for the two buttons tapped most often in a turn. */
+  min-height: var(--tap-min);
 }
 #actionBar .btn-icon { width: 40px; height: 40px; }
 .hint {
@@ -3235,6 +3238,54 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
 .tutorialChecklist li.done { opacity: 0.62; }
 .tutorialChecklist .tick { flex: 0 0 auto; }
 
+/* --- Desktop table layout ------------------------------------------------------
+   Playthrough at 1366x768 / 1920x1080: the piles sat in their own row between
+   melds and hand, so at 768px height the melds got ~170px and the second
+   owner's row was only a sliver above the scroll fade. At 1920 the app was
+   capped at 1200px with meld cards far smaller than the hand cards and a
+   large empty gap. Now: piles in a side column next to the melds (the
+   landscape idea), a wider app, owner groups in two columns and larger meld
+   cards. Only from 1100px up - tablets and phones keep their layouts. */
+@media (min-width: 1100px) {
+  .screen { max-width: min(1400px, 100%); }
+  #table {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      'top top'
+      'opp opp'
+      'melds piles'
+      'action action'
+      'hand hand';
+  }
+  /* One-row topbar here too: the turn status on its own line below the
+     buttons cost a full row of height on every desktop. */
+  #topBar { grid-area: top; flex-wrap: nowrap; row-gap: 0; }
+  #roundInfo { order: 1; flex: 0 0 auto; margin-top: 0; }
+  #turnInfo { order: 2; flex: 1 1 auto; min-width: 0; text-align: center; }
+  #topBar .headerRight { order: 3; }
+  #opponents { grid-area: opp; }
+  #melds { grid-area: melds; min-height: 0; }
+  #centerPiles {
+    grid-area: piles;
+    flex-direction: column; align-self: start;
+    gap: 22px; padding: 18px 22px 8px 8px;
+  }
+  #actionBar { grid-area: action; }
+  #handWrapper { grid-area: hand; }
+  /* Owner groups side by side: a lone group (or the odd one out) still
+     takes the full row. */
+  .meldOwnerGroup { flex: 1 1 calc(50% - 4px); min-width: calc(50% - 4px); width: auto; }
+  .card-compact { width: 52px; height: 74px; min-width: 52px; margin-left: -18px; }
+  .card-compact .corner { font-size: 0.7rem; }
+}
+@media (min-width: 1500px) {
+  .screen { max-width: min(1600px, 100%); }
+  .card-compact { width: 60px; height: 86px; min-width: 60px; margin-left: -20px; }
+  .card-compact .corner { font-size: 0.78rem; }
+}
+
 /* --- Landscape phone, second pass --------------------------------------------
    Playthrough on iPhone 16 Pro / Pro Max turned sideways (874x402, 956x440):
    the first landscape grid above was undone by rules further down the file.
@@ -3274,6 +3325,16 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
      of 110px wasted ~30px of the scarce height). */
   #hand { min-height: 82px; }
   #actionBar { min-height: 0; padding-top: 2px; padding-bottom: 2px; }
+  /* The score pill moves up into the hand toolbar row (left of the card
+     count, where the row is empty anyway) instead of a line of its own
+     below the fan: ~34px more for the melds. The thin progress bar would
+     reach into the lift zone of selected cards, so landscape drops it -
+     the pill's colour still carries the standing. */
+  #myStatusLine {
+    position: absolute; top: 7px; left: calc(64px + var(--safe-left));
+    height: 30px; padding: 0; align-items: center; z-index: 6;
+  }
+  #myScoreBar { display: none; }
 
   /* Overlays: use the height there is. */
   .overlay { padding: 8px calc(8px + var(--safe-right)) 8px calc(8px + var(--safe-left)); }

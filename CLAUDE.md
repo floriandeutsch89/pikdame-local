@@ -55,6 +55,9 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
    Regeln den Querformat-Block aushebelten: Der letzte
    `@media (orientation: landscape) and (max-height: 540px)`-Block steht
    deshalb am ENDE von `style.css` (Vertragstest prüft das).
+   Der Tisch hat drei Layouts: Hochformat (Flex-Spalte, Stapel über der
+   Hand), Querformat bis 540 px Höhe und Desktop ab 1100 px Breite (beide
+   CSS-Grid, Stapel in einer Seitenspalte neben den Auslagen).
    Auswahl (`--accent`) und „gerade gezogen“ (`--drawn`) brauchen
    unterscheidbare Farben - in jedem Theme.
    Tap-Ziele mindestens `--tap-min` (44 px, Apple-HIG). Schriftgrößen und
