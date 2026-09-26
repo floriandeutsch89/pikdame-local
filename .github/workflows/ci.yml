@@ -3,8 +3,9 @@ name: CI
 on:
   push:
     branches: [main]
+  # Every PR, whatever its base: stacked PRs (feature on feature) target a
+  # sibling branch and were silently skipping CI with a [main] filter.
   pull_request:
-    branches: [main]
 
 # Least privilege: no job here writes to the repo, so the GITHUB_TOKEN gets
 # read-only access (without this block it inherits the repository default,
