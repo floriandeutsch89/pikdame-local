@@ -5,7 +5,7 @@ const { seededRandom, createDeck, shuffle, dealCards, performLuckyCut } = requir
 // abgehoben wird. Bewusst auch OHNE aktivierten Zug-Timer begrenzt: Abheben
 // darf den ganzen Tisch nicht blockieren.
 const CUT_TIMEOUT_MS = 45000;
-const { validateMeld, tryLayOff, tryJokerSwap, enumerateMeldOptions, enumerateLayOffOptions, canFormMeldWithCard } = require('./Rules');
+const { validateMeld, validateSet, tryLayOff, tryJokerSwap, enumerateMeldOptions, enumerateLayOffOptions, canFormMeldWithCard } = require('./Rules');
 const { scoreRound, scoreLines, applyRoundScores, checkGameOver, DEFAULT_HOUSE_RULES } = require('./ScoreBoard');
 const { rankIndex, cardLabel, isPikDame, cardValue, RANKS } = require('./Card');
 const Bot = require('./Bot');
@@ -996,14 +996,42 @@ class GameManager {
       }
     }
 
-    // Jeder Slot bekommt vermerkt, welcher Spieler diese konkrete Karte
-    // dort platziert hat - so kann das Frontend "meine" Karten in Auslagen
-    // optisch hervorheben (auch wenn andere Spieler später weitere Karten
-    // an dieselbe Auslage anlegen).
-    const taggedSlots = result.slots.map((slot) => ({ ...slot, playerId: player.id }));
-    // ownerId: Auslagen gehören ihrem Ersteller - NUR er darf anlegen/tauschen.
-    const meld = { id: nextMeldId(), ownerId: player.id, type: result.type, suit: result.suit || null, rank: result.rank || null, slots: taggedSlots };
-    this.tableMelds.push(meld);
+    // A second set of a rank the player already has on the table is not laid
+    // next to it ("3x7 beside 3x7") but MERGED into the existing one. The
+    // union is re-validated as ONE set, so a joker already lying there moves
+    // to a suit that is still free (a joker "as diamonds" must yield when both
+    // real diamonds arrive). The v1.3-v1.53 "Doppel-Satz" ban was dropped
+    // because it deadlocked the mandatory discard pickup (the taken card had
+    // to open a new combination but could not join the fixed-suit set). The
+    // merge cannot deadlock that way: whenever the union does not fit (only
+    // possible past MAX_SET_SIZE, i.e. with jokers), the second set is laid
+    // separately as before - every previously legal move stays legal.
+    let existingSet = null;
+    let merged = null;
+    if (result.type === 'set') {
+      existingSet = this.tableMelds.find((m) => m.ownerId === player.id && m.type === 'set' && m.rank === result.rank) || null;
+      if (existingSet) {
+        merged = validateSet(existingSet.slots.map((s) => s.real || s.joker).concat(cards));
+        if (!merged.valid) {
+          existingSet = null;
+          merged = null;
+        }
+      }
+    }
+    if (existingSet) {
+      // Every card keeps the player who laid it (the union can only carry the
+      // owner's own cards, but the tag is data the client renders).
+      const laidBy = new Map(existingSet.slots.map((s) => [(s.real || s.joker).id, s.playerId]));
+      existingSet.slots = merged.slots.map((slot) => ({ ...slot, playerId: laidBy.get((slot.real || slot.joker).id) || player.id }));
+    } else {
+      // Jeder Slot bekommt vermerkt, welcher Spieler diese konkrete Karte
+      // dort platziert hat - so kann das Frontend "meine" Karten in Auslagen
+      // optisch hervorheben (auch wenn andere Spieler später weitere Karten
+      // an dieselbe Auslage anlegen).
+      const taggedSlots = result.slots.map((slot) => ({ ...slot, playerId: player.id }));
+      // ownerId: Auslagen gehören ihrem Ersteller - NUR er darf anlegen/tauschen.
+      this.tableMelds.push({ id: nextMeldId(), ownerId: player.id, type: result.type, suit: result.suit || null, rank: result.rank || null, slots: taggedSlots });
+    }
     // Feel: Punkte-Popup-Ereignis für den Client (rein kosmetisch). seq
     // unterscheidet aufeinanderfolgende Ereignisse gleicher Höhe.
     // WICHTIG: exakt die Wertung der Rundenabrechnung (sumValues über die
@@ -1026,14 +1054,19 @@ class GameManager {
       this.resolvePendingDiscardPickup(player);
     }
 
-    this.addLog(`${player.name} legt eine neue ${result.type === 'set' ? 'Satz' : 'Folge'}-Auslage aus.`);
+    if (existingSet) {
+      this.addLog(`${player.name} erweitert den eigenen Satz um ${cards.length} Karten.`);
+    } else {
+      this.addLog(`${player.name} legt eine neue ${result.type === 'set' ? 'Satz' : 'Folge'}-Auslage aus.`);
+    }
     this._turnsWithoutMeld = 0;
-    // Eine ausgelegte Pik Dame elektrisiert den Tisch.
-    if (meld.slots.some((s) => s.real && isPikDame(s.real))) {
+    // A laid Pik Dame electrifies the table. Only the cards laid NOW count -
+    // a merge must not re-celebrate a queen already lying in the set.
+    if (cards.some((cd) => isPikDame(cd))) {
       this._celebratePikDame(player.id);
     } else {
       // Eine dicke Auslage (viele Punkte auf einmal) - kleiner Stolz-Moment.
-      const meldValue = meld.slots.reduce((sum, s) => sum + (s.real ? cardValue(s.real) : 0), 0);
+      const meldValue = cards.reduce((sum, cd) => sum + (cd.isJoker ? 0 : cardValue(cd)), 0);
       if (meldValue >= 25) this.maybeBotEmote(player.id, '😎', 0.3);
     }
     this.checkRoundEnd(player);

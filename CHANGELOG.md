@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.32.0] - 2026-09-26
+
+### Changed
+- **Ein Satz je Wert:** Wer einen zweiten Satz mit demselben Wert auslegt (3×7 neben 3×7), bekommt keine zweite Auslage mehr - die Karten wandern automatisch in den bestehenden Satz. Ein Joker, der dort schon eine Farbe vertritt, wechselt dabei auf eine noch freie Farbe (kommen beide echten Karo-7, kann er nicht Karo bleiben). Bots verhalten sich genauso. Passt die Vereinigung nicht mehr (mehr als 8 Karten, nur mit Jokern möglich), liegt der zweite Satz wie bisher separat - der Zug wird nie verweigert, damit die Pflicht-Aufnahmekarte (Lehre aus v1.53.1) nicht in eine Sackgasse führt. Protokoll: „erweitert den eigenen Satz um 3 Karten"
+
 ## [2.31.0] - 2026-09-26
 
 ### Changed

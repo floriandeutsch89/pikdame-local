@@ -172,6 +172,7 @@ window.I18N_SERVER_PATTERNS = [
   [/^(.+?) nimmt die restlichen (\d+) Karten des Ablagestapels auf\.$/, '$1 picks up the remaining $2 cards of the discard pile.'],
   [/^(.+?) legt eine neue Satz-Auslage aus\.$/, '$1 lays down a new set.'],
   [/^(.+?) legt eine neue Folge-Auslage aus\.$/, '$1 lays down a new run.'],
+  [/^(.+?) erweitert den eigenen Satz um (\d+) Karten\.$/, '$1 extends their own set by $2 cards.'],
   [/^(.+?) legt (.+?) an eine Auslage an\.$/, '$1 adds $2 to a meld.'],
   [/^(.+?) tauscht (.+?) gegen einen Joker in einer Auslage\. Der Joker scheidet aus dem Spiel aus\.$/, '$1 swaps $2 for a joker in a meld. The joker is permanently out of the game.'],
   [/^(.+?) wirft (.+?) ab\.$/, '$1 discards $2.'],
@@ -284,7 +285,7 @@ window.I18N_RULES_EN = `
 
   <h3>Combinations</h3>
   <ul>
-    <li><b>Set:</b> 3–8 cards of the same rank. Each suit at most twice (two decks!).</li>
+    <li><b>Set:</b> 3–8 cards of the same rank. Each suit at most twice (two decks!). A second set of the same rank automatically joins your existing one.</li>
     <li><b>Run:</b> at least 3 cards of the same suit in sequence. Runs are <b>circular</b>: after the King comes the Ace, then the 2 again – K‑A‑2 is valid. At most 13 cards, no duplicate ranks.</li>
   </ul>
 

@@ -938,8 +938,9 @@ test('Hausregel "über 1000 Punkte" wird beim Rundenende berücksichtigt', () =>
   assert.equal(checkGameOver(game.totals, game.houseRules).gameOver, true);
 });
 
-// --- v1.53.1: second set of the same value is allowed (Doppel-Satz removed) --
-test('layoutMeld: a second set of the same value is allowed', () => {
+// --- v1.53.1 dropped the Doppel-Satz ban; v2.32.0 merges a second set of the
+// same value into the first instead (a second RUN of one suit stays separate) --
+test('layoutMeld: a second set of the same value is merged, a second run of the same suit stays separate', () => {
   const { makeStandardCard } = require('../game/Card');
   const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('p1', 'A');
@@ -953,14 +954,16 @@ test('layoutMeld: a second set of the same value is allowed', () => {
   const r1 = g.layoutMeld('p1', [s7.id, h7.id, d7.id]);
   assert.ok(!r1.error, 'erster Satz muss klappen');
   const r2 = g.layoutMeld('p1', [c7.id, s7b.id, h7b.id]);
-  assert.ok(!r2.error, 'zweiter Satz gleichen Werts ist jetzt erlaubt');
-  assert.equal(g.tableMelds.filter((m) => m.type === 'set' && m.rank === '7').length, 2, 'zwei 7er-Saetze liegen');
-  // Zweite FOLGE gleicher Farbe bleibt ebenfalls erlaubt
+  assert.ok(!r2.error, 'zweiter Satz gleichen Werts bleibt erlaubt');
+  assert.equal(g.tableMelds.filter((m) => m.type === 'set' && m.rank === '7').length, 1, 'ein 7er-Satz mit sechs Karten statt zwei Saetze');
+  assert.equal(g.tableMelds[0].slots.length, 6);
+  // Zweite FOLGE gleicher Farbe bleibt eigenständig
   const h3 = makeStandardCard('H', '3', 0), h4 = makeStandardCard('H', '4', 0), h5 = makeStandardCard('H', '5', 0);
   const h8 = makeStandardCard('H', '8', 0), h9 = makeStandardCard('H', '9', 0), h10 = makeStandardCard('H', '10', 0);
   g.players[0].hand.push(h3, h4, h5, h8, h9, h10);
   assert.ok(!g.layoutMeld('p1', [h3.id, h4.id, h5.id]).error);
   assert.ok(!g.layoutMeld('p1', [h8.id, h9.id, h10.id]).error, 'zweite Folge gleicher Farbe muss erlaubt sein');
+  assert.equal(g.tableMelds.length, 3);
 });
 
 test('houseRules: valid rules kept, garbage (incl. the removed botDifficulty) ignored', () => {
@@ -2918,5 +2921,118 @@ test('the table is told why the game continues on a tie', () => {
   assert.equal(game.phase, 'roundEnd', 'the game keeps going instead of declaring a winner');
   const log = game.log.map((l) => l.text).join('\n');
   assert.match(log, /Gleichstand bei \d+ Punkten/, 'the log explains the extra round');
+  game.destroy();
+});
+
+// --- One set per rank per player: a second set MERGES into the first ---------
+
+function meldReadyGame() {
+  const { game } = makeGame(2);
+  game.phase = 'playing';
+  game.turnPhase = 'meld';
+  game.currentPlayerIndex = 0;
+  game.tableMelds = [];
+  return game;
+}
+
+test('layoutMeld merges a second set of the same rank into the existing one instead of laying it next to it', () => {
+  const game = meldReadyGame();
+  const p = game.players[0];
+  p.hand = [
+    makeStandardCard('H', '7', 0), makeStandardCard('S', '7', 0), makeStandardCard('D', '7', 0),
+    makeStandardCard('H', '7', 1), makeStandardCard('S', '7', 1), makeStandardCard('C', '7', 0),
+    makeStandardCard('C', '2', 0),
+  ];
+  assert.ok(game.layoutMeld('p1', p.hand.slice(0, 3).map((c) => c.id)).ok);
+  const firstId = game.tableMelds[0].id;
+  const r = game.layoutMeld('p1', p.hand.slice(0, 3).map((c) => c.id));
+  assert.ok(r.ok, JSON.stringify(r));
+  assert.equal(game.tableMelds.length, 1, 'no parallel 7-set');
+  assert.equal(game.tableMelds[0].id, firstId, 'the existing meld is extended, not replaced');
+  assert.equal(game.tableMelds[0].slots.length, 6);
+  assert.ok(game.tableMelds[0].slots.every((s) => s.playerId === 'p1'));
+  assert.equal(p.hand.length, 1);
+  assert.equal(p.laidOutCards.length, 6, 'scoring sees all six cards');
+  assert.match(game.log.map((l) => l.text).join('\n'), /erweitert den eigenen Satz um 3 Karten/);
+  game.destroy();
+});
+
+test('merging re-assigns a joker in the existing set to a suit that is still free', () => {
+  const game = meldReadyGame();
+  const p = game.players[0];
+  const joker = makeJoker(0);
+  p.hand = [
+    makeStandardCard('H', '7', 0), makeStandardCard('S', '7', 0), joker,
+    makeStandardCard('D', '7', 0), makeStandardCard('D', '7', 1), makeStandardCard('C', '7', 0),
+    makeStandardCard('C', '2', 0),
+  ];
+  // Explicitly lay the joker "as diamonds" - both real diamonds arrive later.
+  assert.ok(game.layoutMeld('p1', p.hand.slice(0, 3).map((c) => c.id), { [joker.id]: 'D' }).ok);
+  assert.equal(game.tableMelds[0].slots.find((s) => s.joker).representsSuit, 'D');
+  assert.ok(game.layoutMeld('p1', p.hand.slice(0, 3).map((c) => c.id)).ok);
+  assert.equal(game.tableMelds.length, 1);
+  const slots = game.tableMelds[0].slots;
+  assert.equal(slots.length, 6);
+  const jokerSlot = slots.find((s) => s.joker);
+  assert.equal(jokerSlot.representsRank, '7');
+  assert.notEqual(jokerSlot.representsSuit, 'D', 'the joker cannot stay a third diamond');
+  // Card conservation on the merged meld: every card exactly once.
+  const ids = slots.map((s) => (s.real || s.joker).id);
+  assert.equal(new Set(ids).size, 6);
+  game.destroy();
+});
+
+test('a union past MAX_SET_SIZE is laid as a separate set - the old fallback, never a dead end', () => {
+  const game = meldReadyGame();
+  const p = game.players[0];
+  const j0 = makeJoker(0);
+  const j1 = makeJoker(1);
+  p.hand = [
+    makeStandardCard('H', '7', 0), makeStandardCard('H', '7', 1), makeStandardCard('S', '7', 0),
+    makeStandardCard('S', '7', 1), makeStandardCard('D', '7', 0), makeStandardCard('D', '7', 1),
+    makeStandardCard('C', '7', 0), j0, j1,
+    makeStandardCard('C', '2', 0),
+  ];
+  assert.ok(game.layoutMeld('p1', p.hand.slice(0, 6).map((c) => c.id)).ok); // six real sevens
+  const first = JSON.stringify(game.tableMelds[0]);
+  // 6 + 3 = 9 cards would exceed MAX_SET_SIZE (8): explicit set assignments so
+  // the three-card selection itself is unambiguous (C7 + 2 jokers could be a run).
+  const r = game.layoutMeld('p1', [p.hand[0].id, j0.id, j1.id], { [j0.id]: 'H', [j1.id]: 'S' });
+  assert.ok(r.ok, JSON.stringify(r));
+  assert.equal(game.tableMelds.length, 2, 'the second set opens beside the full one');
+  assert.equal(JSON.stringify(game.tableMelds[0]), first, 'the full set is untouched');
+  assert.equal(p.hand.length, 1);
+  game.destroy();
+});
+
+test('sets of DIFFERENT ranks and runs are still laid as separate melds', () => {
+  const game = meldReadyGame();
+  const p = game.players[0];
+  p.hand = [
+    makeStandardCard('H', '7', 0), makeStandardCard('S', '7', 0), makeStandardCard('D', '7', 0),
+    makeStandardCard('H', '8', 0), makeStandardCard('S', '8', 0), makeStandardCard('D', '8', 0),
+    makeStandardCard('C', '5', 0), makeStandardCard('C', '6', 0), makeStandardCard('C', '7', 1),
+    makeStandardCard('C', '2', 0),
+  ];
+  assert.ok(game.layoutMeld('p1', p.hand.slice(0, 3).map((c) => c.id)).ok);
+  assert.ok(game.layoutMeld('p1', p.hand.slice(0, 3).map((c) => c.id)).ok);
+  assert.ok(game.layoutMeld('p1', p.hand.slice(0, 3).map((c) => c.id)).ok, 'the run C5-6-7 is not a 7-set');
+  assert.equal(game.tableMelds.length, 3);
+  game.destroy();
+});
+
+test('a second same-rank set belongs to the OTHER player and stays separate', () => {
+  const game = meldReadyGame();
+  game.tableMelds = [
+    { id: 'foreign', ownerId: 'p2', type: 'set', suit: null, rank: '7', slots: [
+      { real: makeStandardCard('H', '7', 1), playerId: 'p2' },
+      { real: makeStandardCard('S', '7', 1), playerId: 'p2' },
+      { real: makeStandardCard('D', '7', 1), playerId: 'p2' },
+    ] },
+  ];
+  const p = game.players[0];
+  p.hand = [makeStandardCard('H', '7', 0), makeStandardCard('S', '7', 0), makeStandardCard('D', '7', 0), makeStandardCard('C', '2', 0)];
+  assert.ok(game.layoutMeld('p1', p.hand.slice(0, 3).map((c) => c.id)).ok);
+  assert.equal(game.tableMelds.length, 2, 'own melds only - never merged into an opponent set');
   game.destroy();
 });

@@ -156,7 +156,10 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
 110 Karten (2 Decks + 6 Joker), 15 Handkarten, 2–4 Spieler, Bots füllen auf.
 Jeder Spieler hat **eigene** Auslagen (Anlegen/Joker-Tausch nur dort).
 Folgen laufen im Ring (K-A-2), max 13. Zwei-Phasen-Ablagestapel (oberste
-Karte sofort legen, dann Rest). Pro Spieler nur EIN Satz je Wert.
+Karte sofort legen, dann Rest). Ein zweiter Satz gleichen Werts wird in den
+bestehenden Satz des Spielers gemergt (Joker bekommen eine freie Farbe);
+passt die Vereinigung nicht mehr (>8 Karten), liegt er separat - nie ein Fehler,
+sonst Deadlock mit der Pflicht-Aufnahmekarte (v1.53.1).
 **Ausmachen nur per Abwurf der letzten Karte** (verdeckt abgelegt, nicht
 aufnehmbar; Ausnahme: Joker-Tausch mit der letzten Handkarte beendet sofort).
 Ein getauschter Joker bleibt als +20 in der Auslage-Wertung (plus die echte
