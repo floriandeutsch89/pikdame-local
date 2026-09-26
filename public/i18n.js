@@ -139,6 +139,17 @@ window.I18N_STATIC = {
 
   // Themes-Zeile etc.
   'Sound & Vibration': 'Sound & vibration',
+  // Stammtisch
+  'Stammtisch': 'Regulars table',
+  'Stammtisch gründen': 'Found a regulars table',
+  'Ein fester Tisch für deine Runde: ein Code für immer, eine Bilanz über alle Partien und eine Revanche-Serie (Best of 3). Wer den Code kennt, landet immer am aktuellen Tisch.': 'A permanent table for your group: one code forever, a record across all matches and a rematch series (best of 3). Whoever holds the code always lands at the current table.',
+  'Gründen & Tisch eröffnen': 'Found it & open the table',
+  'Du hast schon einen Code? Gib ihn einfach oben bei „Beitreten“ ein.': 'Already have a code? Just enter it under "Join" above.',
+  // Tagesrätsel
+  'Tagesrätsel': 'Daily puzzle',
+  'Welche Karten ergeben zusammen die wertvollste Auslage? Tippe sie an und prüfe - die Regeln entscheiden.': 'Which cards together make the most valuable meld? Tap them and check - the rules decide.',
+  'Prüfen': 'Check',
+  'Lösung zeigen': 'Show solution',
 };
 
 // Muster für Server-Texte (Log + Fehler). Reihenfolge: speziell vor generisch.
@@ -212,6 +223,7 @@ window.I18N_SERVER_PATTERNS = [
   [/^Bereitschaft gibt es nur in der Lobby\.$/, 'Readiness only exists in the lobby.'],
   [/^Nur Mitspieler am Tisch können sich bereit melden\.$/, 'Only players at the table can mark themselves ready.'],
   [/^Zu viele Aktionen - bitte kurz durchatmen\.$/, 'Too many actions - please take a breath.'],
+  [/^Dieses Emote gibt es ab Stufe (\d+)\.$/, 'This reaction unlocks at level $1.'],
   [/^(.+) stellt (.+) auf Anfänger\.$/, '$1 sets $2 to Beginner.'],
   [/^(.+) stellt (.+) auf Fortgeschritten\.$/, '$1 sets $2 to Advanced.'],
   [/^(.+) stellt (.+) auf Zen-Meister\.$/, '$1 sets $2 to Zen master.'],
@@ -239,6 +251,17 @@ window.I18N_SERVER_PATTERNS = [
   [/^Kein Spiel mit diesem Code gefunden\. Bitte Code prüfen\.$/, 'No game found with this code. Please check it.'],
   [/^Der Server ist derzeit voll - bitte später erneut versuchen\.$/, 'The server is currently full – please try again later.'],
   [/^Mindestens 2 Spieler nötig\.$/, 'At least 2 players are required.'],
+  [/^(.+?) gewinnt die Serie (\d+):(\d+)!$/, '$1 wins the series $2:$3!'],
+  // Meld validation reasons (Rules.js) - surfaced by the daily puzzle
+  [/^Ein Satz braucht 3 bis (\d+) Karten\.$/, 'A set needs 3 to $1 cards.'],
+  [/^Ein Satz braucht mindestens eine echte Karte\.$/, 'A set needs at least one real card.'],
+  [/^Alle echten Karten im Satz müssen denselben Wert haben\.$/, 'All real cards in a set must share the same rank.'],
+  [/^Jede Farbe darf in einem Satz höchstens 2x vorkommen \(2 Decks\)\.$/, 'Each suit may appear at most twice in a set (two decks).'],
+  [/^Eine Folge braucht mindestens 3 Karten\.$/, 'A run needs at least 3 cards.'],
+  [/^Eine Folge kann höchstens 13 Karten umfassen.*$/, 'A run can hold at most 13 cards (no repeated ranks).'],
+  [/^Alle echten Karten in der Folge müssen dieselbe Farbe haben\.$/, 'All real cards in a run must share the same suit.'],
+  [/^Doppelte Werte in der Folge sind nicht erlaubt\.$/, 'Duplicate ranks in a run are not allowed.'],
+  [/^Die Karten bilden keine zusammenhängende Folge\.$/, 'The cards do not form a consecutive run.'],
 ];
 
 window.I18N_RULES_EN = `

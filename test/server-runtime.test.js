@@ -84,3 +84,72 @@ test('a disconnected human does not keep a bare GameManager process alive', () =
   assert.strictEqual(res.status, 0, String(res.stderr));
   assert.ok(Date.now() - started < 10000, 'process exits without waiting for the takeover grace');
 });
+
+// Stammtisch over the wire: founding binds a live session to the group code,
+// the group code joins that same session, and a member who dropped out gets
+// their seat back by NAME (there is no seat token to show at a Stammtisch).
+test('Stammtisch: found, join by group code, reclaim seat by name', async (t) => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-st-'));
+  const { server } = startServer(dataDir);
+  t.after(() => {
+    server.kill();
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  });
+  await waitForServer(PORT);
+
+  const open = () => new Promise((resolve, reject) => {
+    const ws = new WebSocket(`ws://localhost:${PORT}`);
+    ws.inbox = [];
+    ws.on('message', (raw) => ws.inbox.push(JSON.parse(raw)));
+    ws.once('open', () => resolve(ws));
+    ws.once('error', reject);
+  });
+  const waitFor = (ws, type, timeoutMs = 4000) => new Promise((resolve, reject) => {
+    const started = Date.now();
+    const tick = () => {
+      const m = ws.inbox.find((x) => x.type === type);
+      if (m) return resolve(m);
+      if (Date.now() - started > timeoutMs) return reject(new Error(`no ${type} message`));
+      setTimeout(tick, 25);
+    };
+    tick();
+  });
+
+  const flo = await open();
+  flo.send(JSON.stringify({ type: 'createStammtisch', stammtischName: 'Familie', name: 'Flo' }));
+  const joinedFlo = await waitFor(flo, 'joined');
+  assert.ok(joinedFlo.stammtisch && /^ST[A-Z2-9]{4}$/.test(joinedFlo.stammtisch.code), 'joined carries the group code');
+  assert.strictEqual(joinedFlo.stammtisch.name, 'Familie');
+  const summary = await waitFor(flo, 'stammtisch');
+  assert.strictEqual(summary.summary.series.no, 1);
+  const code = joinedFlo.stammtisch.code;
+
+  const anna = await open();
+  anna.send(JSON.stringify({ type: 'joinSession', code, name: 'Anna' }));
+  const joinedAnna = await waitFor(anna, 'joined');
+  assert.strictEqual(joinedAnna.sessionCode, joinedFlo.sessionCode, 'the group code lands at the live table');
+  assert.notStrictEqual(joinedAnna.playerId, joinedFlo.playerId);
+
+  // Anna drops out and comes back with nothing but the group code + her name.
+  anna.close();
+  await new Promise((r) => setTimeout(r, 300));
+  const anna2 = await open();
+  anna2.send(JSON.stringify({ type: 'joinSession', code, name: 'anna' }));
+  const back = await waitFor(anna2, 'joined');
+  assert.strictEqual(back.playerId, joinedAnna.playerId, 'same seat again, matched by name');
+
+  // A namesake cannot take a CONNECTED seat.
+  const impostor = await open();
+  impostor.send(JSON.stringify({ type: 'joinSession', code, name: 'Anna' }));
+  const imp = await waitFor(impostor, 'joined');
+  assert.notStrictEqual(imp.playerId, joinedAnna.playerId, 'a connected seat is never handed over');
+
+  const probe = await open();
+  probe.send(JSON.stringify({ type: 'checkSession', code }));
+  assert.strictEqual((await waitFor(probe, 'sessionStatus')).exists, true, 'the group code counts as an existing game');
+  probe.send(JSON.stringify({ type: 'getStammtisch', code }));
+  const info = await waitFor(probe, 'stammtischInfo');
+  assert.strictEqual(info.exists, true);
+  assert.strictEqual(info.name, 'Familie');
+  for (const ws of [flo, anna2, impostor, probe]) ws.close();
+});

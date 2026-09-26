@@ -491,6 +491,12 @@ test('client contract: functions that build translated markup are refreshed by c
     'openChangelog', 'openCardbackGallery',
     // Aktualisierungs-Hinweis: erscheint einmalig und fuehrt zum Neuladen.
     'showUpdateBanner',
+    // Discard confirmation: the dialog text is written fresh on every
+    // click, and the dialog is closed before any language switch.
+    'requestDiscard',
+    // Stammtisch chip info: cycleLang re-renders the chips, which re-requests
+    // the info from the server - the reply rewrites the text in the new language.
+    'updateStammtischChip',
   ]);
 
   const stale = functions
@@ -525,5 +531,26 @@ test('CSS contract: the landscape layout block comes after the rules it override
   let m;
   while ((m = topLevel.exec(css))) {
     assert.ok(m.index < lastLandscape, `'${m[0].trim()}' at offset ${m.index} comes after the landscape block and would override it`);
+  }
+});
+
+// Emotes: one list (game/Emotes.js) feeds the server whitelist; the two
+// client bars carry the same ids statically. A button the server rejects,
+// or an emote the client cannot send, is a silent dead tap.
+test('Emote contract: both client bars equal the shared emote list', () => {
+  const { EMOTE_IDS } = require('../game/Emotes');
+  const bars = [...html.matchAll(/<div id="(emoteBar|resultEmoteBar)"[^>]*>([\s\S]*?)<\/div>/g)];
+  assert.strictEqual(bars.length, 2, 'both emote bars exist');
+  for (const [, id, inner] of bars) {
+    const ids = [...inner.matchAll(/data-emote="([^"]+)"/g)].map((m) => m[1]);
+    assert.deepStrictEqual(ids, EMOTE_IDS, `#${id} must list exactly the shared emotes in order`);
+  }
+  // The client-side unlock table mirrors the server's levels.
+  const { EMOTE_DEFS } = require('../game/Emotes');
+  const clientTable = clientJs.match(/const EMOTE_UNLOCK = \{([^}]*)\}/);
+  assert.ok(clientTable, 'client EMOTE_UNLOCK table exists');
+  const parsed = Object.fromEntries([...clientTable[1].matchAll(/'([^']+)':\s*(\d+)/g)].map((m) => [m[1], Number(m[2])]));
+  for (const def of EMOTE_DEFS) {
+    assert.strictEqual(parsed[def.id] || 1, def.level, `unlock level of ${def.id} must match game/Emotes.js`);
   }
 });

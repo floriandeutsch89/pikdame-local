@@ -91,7 +91,17 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
   Snapshot), `Bot.js` (4 Schwierigkeiten: easy/medium/hard/zen),
   `PlayerStore/GameHistoryStore/GlobalStatsStore` (atomare JSON-Dateien),
   `AccountStore.js`/`PgAccountStore.js` (Konten: PostgreSQL im Docker/K8s-Stack, SQLite-Fallback via `node:sqlite`), `Mailer.js` (dependency-freier
-  SMTP-Client, Log-Fallback), `Badges.js` (reine Funktion).
+  SMTP-Client, Log-Fallback; Header nach RFC 2047, Body Quoted-Printable -
+  nie rohes UTF-8 in Kopfzeilen), `Badges.js` (reine Funktion; Familien mit
+  Stufen in `BADGE_FAMILIES`, Engine-Fakten wie `ringRuns`/`longestRun`/
+  `bigPileTake` kommen aus `finishRound` in den `breakdown`),
+  `Progression.js` (XP/Level, Tagesaufgaben, Tagesserie mit Joker-Tag),
+  `DailyPuzzle.js` (Tagesrätsel: geseedete Hand, erschöpfende Suche, die
+  Engine bewertet - Ergebnisobjekt darf KEIN `type`-Feld tragen, es wird in
+  die WS-Nachricht gespreadet), `StammtischStore.js` (feste Gruppen-Tische:
+  Code `ST…`, Bilanz, Best-of-3-Serie; per Code abgeschottet, deshalb auch
+  im Public-Mode aktiv), `Emotes.js` (EINZIGE Emote-Whitelist + Level;
+  Client-Leisten und `EMOTE_UNLOCK` spiegeln sie, Vertragstest prüft).
 - `public/` — Vanilla-JS-Client (`client.js`), `i18n.js`, PWA. Enthält auch den
   Studio-Vorspann (`#studioSplash`): Er ist ab dem ERSTEN Bild per CSS sichtbar
   (sonst blitzt die Lobby auf, weil `client.js` am Seitenende lädt), ein
@@ -190,6 +200,11 @@ angewendet liegen. (pro Änderung)
    CI-Job `secret-scan` (Dateinamen + gitleaks über die volle History)
    schlagen sonst an. Ein gepushtes Secret zuerst ROTIEREN, dann entfernen.
 5. Neue Server-Texte ⇒ i18n-Pattern. Neue UI-Elemente ⇒ Vertragstests laufen mit.
+   Nachrichten VOR dem Session-Beitritt (Profile, Rätsel, Stammtisch-Info)
+   stehen im Handler vor der Session-Sperre und tragen `msg.name`; ein
+   Stammtisch-Code wird bei `joinSession` automatisch aufgelöst (Live-Tisch
+   oder neuer Tisch), Platz-Rückgabe dort per Name statt Sitz-Token - nur
+   für GETRENNTE Sitze.
 6. **Abhängigkeiten hebt Dependabot an** (`.github/dependabot.yml`,
    montags 03:00 UTC): npm (gruppiert), Docker-Basis-Images, Compose-Images,
    GitHub-Actions. `dependabot-auto.yml` hängt den SemVer-Bump plus die

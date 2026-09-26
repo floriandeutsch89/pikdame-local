@@ -24,6 +24,9 @@ const {
 } = require('./game/Progression');
 const { createAccountStoreAuto } = require('./game/AccountStore');
 const { createMailer } = require('./game/Mailer');
+const { isAllowedEmote, emoteLevel } = require('./game/Emotes');
+const { puzzleForDate, publicPuzzle, checkAnswer, XP_FOR_SOLVED } = require('./game/DailyPuzzle');
+const { createStammtischStore, normalizeCode: normalizeStammtischCode } = require('./game/StammtischStore');
 const { createGameHistoryStore, historyForPlayer } = require('./game/GameHistoryStore');
 const { SessionRegistry, sanitizeName } = require('./game/SessionRegistry');
 
@@ -48,10 +51,19 @@ const mailer = createMailer();
 const ACCOUNTS_ENABLED = !!accountStore;
 if (ACCOUNTS_ENABLED) {
   console.log(`Benutzerkonten: aktiv (Backend: ${accountStore.backend || 'sqlite'}, Mail-Treiber: ${mailer.configured ? 'SMTP' : 'Log-Fallback'})`);
+  // Behind a reverse proxy the confirmation link falls back to the Host
+  // header when PIKDAME_BASE_URL is unset - which a registrant controls. A
+  // forged Host would send the victim a link to the attacker's domain.
+  if (!process.env.PIKDAME_BASE_URL && process.env.PIKDAME_TRUST_PROXY === '1') {
+    console.log('[mail] WARNUNG: PIKDAME_BASE_URL ist nicht gesetzt - Bestätigungslinks werden aus dem Host-Header gebildet. Hinter einem Proxy die öffentliche URL setzen.');
+  }
 } else {
   console.log('Benutzerkonten: deaktiviert (node:sqlite nicht verfügbar oder PIKDAME_ACCOUNTS=0)');
 }
 const gameHistoryStore = createGameHistoryStore();
+// Stammtisch: persistent group tables (code -> members, record, series).
+// Scoped by code, so it stays on in public mode - see StammtischStore.
+const stammtischStore = createStammtischStore();
 
 // --- Absturz-Diagnose ------------------------------------------------------
 // Schreibt Fehler zusätzlich in eine Log-Datei, falls die Konsole in der
@@ -414,6 +426,12 @@ function readJsonBody(req) {
   });
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 function sendJson(res, status, obj) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(obj));
@@ -432,14 +450,18 @@ async function handleAccountRequest(req, res, filePath) {
 <title>Pik Dame - E-Mail-Bestätigung</title>
 <body style="font-family:sans-serif;background:#14171c;color:#eef1f4;display:flex;min-height:100dvh;align-items:center;justify-content:center;text-align:center;padding:20px">
 <div><h1>${ok ? '✅ E-Mail bestätigt!' : '❌ Bestätigung fehlgeschlagen'}</h1>
-<p>${ok ? `Willkommen, ${result.username}! Du kannst dich jetzt im Spiel anmelden.` : result.error}</p>
+<p>${ok ? `Willkommen, ${escapeHtml(result.username)}! Du kannst dich jetzt im Spiel anmelden.` : escapeHtml(result.error)}</p>
 <p><a href="/" style="color:#2fd6b0">Zurück zum Spiel</a></p></div></body></html>`);
     return;
   }
 
   if (!ACCOUNTS_ENABLED) return sendJson(res, 404, { error: 'Konten sind auf diesem Server nicht verfügbar.' });
   if (req.method !== 'POST') return sendJson(res, 405, { error: 'Nur POST.' });
-  const ip = req.socket.remoteAddress || '?';
+  // clientIp honours PIKDAME_TRUST_PROXY. Behind Caddy every request used to
+  // arrive from the proxy's address, so the WHOLE site shared one bucket of
+  // 20 account calls per 10 minutes - the 21st registration or login of the
+  // evening was refused for everyone.
+  const ip = clientIp(req);
   if (accountRateLimited(ip)) return sendJson(res, 429, { error: 'Zu viele Anfragen - bitte kurz warten.' });
   const body = await readJsonBody(req);
   if (!body) return sendJson(res, 400, { error: 'Ungültige Anfrage.' });
@@ -612,6 +634,16 @@ const registry = new SessionRegistry((session) => {
       // Globale Zähler sind ANONYM aggregiert (keine Namen) und daher auch
       // im öffentlichen Modus unbedenklich.
       globalStats.recordGame(gameRecord);
+      // Stammtisch record + rematch series: scoped by the table's code, so it
+      // runs in public mode too. Best-effort like everything below.
+      if (session.stammtisch) {
+        try {
+          const booked = stammtischStore.recordGame(session.stammtisch, gameRecord);
+          if (booked) broadcastToSession(session, { type: 'stammtisch', summary: booked.summary, seriesEvent: booked.seriesEvent });
+        } catch (err) {
+          logCrash('stammtisch', err, { code: session.stammtisch });
+        }
+      }
       // Im öffentlichen Modus werden KEINE Namen/Statistiken persistiert -
       // Fremde sollen nichts voneinander sehen, und zwei "Max" aus
       // verschiedenen Gruppen teilen sich kein Profil.
@@ -619,9 +651,18 @@ const registry = new SessionRegistry((session) => {
       playerStore.recordGameResult(results);
       gameHistoryStore.saveGame(gameRecord);
 
-      // Erfolgs-Badges: pro ECHTEM Spieler aus der Partie berechnen, im
-      // Profil persistieren (nur neue) und die frisch verdienten an alle
-      // am Tisch melden - der grosse Moment gehoert ins Ergebnis-Overlay.
+      // Daily streak: "played today" - BEFORE the badges, so the 7/30-day
+      // tiers see the updated counter in the profile.
+      const questDate = todayUTC();
+      const streaks = {};
+      for (const p of gameRecord.players || []) {
+        if (p.isBot) continue;
+        try { streaks[p.id] = playerStore.touchDailyStreak(p.name, questDate); } catch (err) { logCrash('streak', err, { player: p.name }); }
+      }
+
+      // Achievement badges: computed per REAL player from the record,
+      // persisted on the profile (new ones only) and announced to the whole
+      // table - the big moment belongs in the result overlay.
       const earned = [];
       for (const p of gameRecord.players || []) {
         if (p.isBot) continue;
@@ -639,7 +680,6 @@ const registry = new SessionRegistry((session) => {
       // --- Progression: XP, level, season ladder, daily quests -------------
       // Everything below is best-effort: a finished game must never fail
       // because a counter could not be written.
-      const questDate = todayUTC();
       const todaysQuests = questsForDate(questDate);
       for (const p of gameRecord.players || []) {
         if (p.isBot) continue;
@@ -665,6 +705,7 @@ const registry = new SessionRegistry((session) => {
             xp: after.xp,
             level: levelFromXp(after.xp),
             quests: { date: questDate, ids: todaysQuests, progress: after.quests, completed },
+            streak: streaks[p.id] || null,
           });
         } catch (err) {
           logCrash('progression', err, { player: p.name });
@@ -749,6 +790,7 @@ function writeSessionsSnapshot({ quiet = false } = {}) {
         createdAt: session.createdAt,
         lastActivity: session.lastActivity,
         playerTokens: session.playerTokens ? Object.fromEntries(session.playerTokens) : {},
+        stammtisch: session.stammtisch || null,
         state: session.game.serialize(),
       });
     }
@@ -781,6 +823,7 @@ function restoreSessionsSnapshot() {
       const session = registry.restore(snap);
       if (!session) continue;
       session.playerTokens = new Map(Object.entries(snap.playerTokens || {}));
+      if (snap.stammtisch) session.stammtisch = String(snap.stammtisch);
       session.game.deserialize(snap.state);
       restored += 1;
     }
@@ -802,6 +845,29 @@ restoreSessionsSnapshot();
 // rewritten periodically so a hard kill loses at most one interval of play.
 const snapshotTimer = setInterval(() => writeSessionsSnapshot({ quiet: true }), SNAPSHOT_INTERVAL_MS);
 snapshotTimer.unref();
+
+// One puzzle per day, built on first request (the subset search costs a few
+// milliseconds) and dropped when the date moves on.
+let dailyPuzzleCache = null;
+function dailyPuzzleFor(date) {
+  if (!dailyPuzzleCache || dailyPuzzleCache.date !== date) dailyPuzzleCache = puzzleForDate(date);
+  return dailyPuzzleCache;
+}
+
+function broadcastToSession(session, message) {
+  const raw = JSON.stringify(message);
+  for (const [, sock] of session.sockets) {
+    if (sock && sock.readyState === WebSocket.OPEN) sock.send(raw);
+  }
+}
+
+/** The live session currently bound to a Stammtisch code, if any. */
+function findStammtischSession(code) {
+  for (const s of registry.sessions.values()) {
+    if (s.stammtisch === code) return s;
+  }
+  return null;
+}
 
 function sendProfilesTo(ws) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -909,6 +975,20 @@ wss.on('connection', (ws, req) => {
     // to the seat's own browser. Legacy seats without a token (pre-update
     // snapshots) are claimable once by id and upgraded on the spot.
     if (!targetSession.playerTokens) targetSession.playerTokens = new Map();
+    // Stammtisch tables are entered by the GROUP's code, never by the live
+    // session's code, so a returning member has no seat token to show. Their
+    // name is the identity at a Stammtisch: a human seat with the same name
+    // that is currently disconnected is theirs again. A connected seat stays
+    // protected - nobody gets kicked by a namesake.
+    if (targetSession.stammtisch && !msg.playerId) {
+      const wanted = sanitizeName(msg.name).toLowerCase();
+      const mine = targetSession.game.players.find(
+        (p) => !p.isBot && !p.connected && wanted && p.name.toLowerCase() === wanted
+      );
+      if (mine) {
+        msg = { ...msg, playerId: mine.id, playerToken: targetSession.playerTokens.get(mine.id) };
+      }
+    }
     const wantsExistingSeat =
       msg.playerId && targetSession.game.players.some((p) => p.id === msg.playerId && !p.isBot);
     if (wantsExistingSeat) {
@@ -940,9 +1020,14 @@ wss.on('connection', (ws, req) => {
     session = targetSession;
     session.sockets.set(playerId, ws);
     registry.touch(session);
-    ws.send(JSON.stringify({ type: 'joined', playerId, playerToken, sessionCode: session.code }));
+    const stammtisch = session.stammtisch ? stammtischStore.touch(session.stammtisch, player.name) : null;
+    ws.send(JSON.stringify({
+      type: 'joined', playerId, playerToken, sessionCode: session.code,
+      stammtisch: stammtisch ? { code: stammtisch.code, name: stammtisch.name } : null,
+    }));
     session.game.broadcastState();
     sendProfilesAndTeams(session, playerId);
+    if (stammtisch) ws.send(JSON.stringify({ type: 'stammtisch', summary: stammtischStore.summary(stammtisch.code), seriesEvent: null }));
     return true;
   }
 
@@ -1046,6 +1131,44 @@ wss.on('connection', (ws, req) => {
       ws.send(JSON.stringify({ type: 'gameHistory', games: mine }));
       return;
     }
+    if (msg.type === 'getPuzzle' || msg.type === 'solvePuzzle' || msg.type === 'revealPuzzle') {
+      // Daily puzzle: no session needed, it is a one-minute ritual on the
+      // start screen. The hand is seeded from the date (identical worldwide),
+      // the engine grades, the local profile remembers tries and the solve.
+      const date = todayUTC();
+      const puzzle = dailyPuzzleFor(date);
+      const name = sanitizeName(msg.name);
+      const withProfile = !PUBLIC_MODE && !!name;
+      if (msg.type === 'getPuzzle') {
+        ws.send(JSON.stringify({
+          type: 'puzzle', ...publicPuzzle(puzzle),
+          status: withProfile ? playerStore.puzzleStatus(name, date) : { tries: 0, solved: false, revealed: false },
+        }));
+        return;
+      }
+      if (msg.type === 'revealPuzzle') {
+        const status = withProfile ? playerStore.revealPuzzle(name, date) : { tries: 0, solved: false, revealed: true };
+        ws.send(JSON.stringify({ type: 'puzzleSolution', cardIds: puzzle.best ? puzzle.best.cardIds : [], points: puzzle.best ? puzzle.best.points : 0, status }));
+        return;
+      }
+      const result = checkAnswer(puzzle, msg.cardIds);
+      let status = { tries: 1, solved: result.solved, revealed: false };
+      let xp = 0;
+      let level = null;
+      let streak = null;
+      if (withProfile) {
+        status = playerStore.recordPuzzleAttempt(name, date, result.solved);
+        if (status.justSolved) {
+          const after = playerStore.addProgress(name, { xp: XP_FOR_SOLVED });
+          xp = XP_FOR_SOLVED;
+          level = levelFromXp(after.xp);
+          // A solved puzzle is a played day - it keeps the daily streak alive.
+          try { streak = playerStore.touchDailyStreak(name, date); } catch (err) { logCrash('streak', err, { player: name }); }
+        }
+      }
+      ws.send(JSON.stringify({ ...result, xp, level, streak, status, type: 'puzzleResult' }));
+      return;
+    }
     if (msg.type === 'listProfiles') {
       // Deliberately BEFORE the session guard: profiles, server statistics
       // and the daily tasks are server-wide, not session data. The start
@@ -1060,6 +1183,32 @@ wss.on('connection', (ws, req) => {
       await joinSession(created.session, msg);
       return;
     }
+    if (msg.type === 'createStammtisch') {
+      // A Stammtisch is founded WITH its first table: one message, and the
+      // founder sits at a live session bound to the new group code.
+      const founded = stammtischStore.create(msg.stammtischName, sanitizeName(msg.name));
+      if (founded.error) return sendError(ws, founded.error);
+      const created = registry.create({ stammtisch: founded.table.code });
+      if (created.error) return sendError(ws, created.error);
+      await joinSession(created.session, msg);
+      return;
+    }
+    if (msg.type === 'getStammtisch') {
+      // Start-screen chips: name + series at a glance. Guarded like a join
+      // probe - a Stammtisch code is a shared secret, guessing is counted.
+      if (ipIsBlocked(ip)) {
+        ws.close(1008, 'Zu viele Fehlversuche');
+        return;
+      }
+      const summary = stammtischStore.summary(msg.code);
+      if (!summary) {
+        registerFailedJoin(ip);
+        ws.send(JSON.stringify({ type: 'stammtischInfo', code: normalizeStammtischCode(msg.code), exists: false }));
+        return;
+      }
+      ws.send(JSON.stringify({ type: 'stammtischInfo', code: summary.code, exists: true, name: summary.name, series: summary.series, gamesPlayed: summary.gamesPlayed }));
+      return;
+    }
     if (msg.type === 'checkSession') {
       // Lightweight existence probe so the client only offers a 'resume' button
       // for a game that still exists (sessions are in-memory and vanish on
@@ -1068,7 +1217,7 @@ wss.on('connection', (ws, req) => {
         ws.close(1008, 'Zu viele Fehlversuche');
         return;
       }
-      const exists = !!registry.get(msg.code);
+      const exists = !!registry.get(msg.code) || !!stammtischStore.get(msg.code);
       if (!exists) {
         const count = registerFailedJoin(ip);
         if (count >= FAILED_JOIN_LIMIT) {
@@ -1084,7 +1233,22 @@ wss.on('connection', (ws, req) => {
         ws.close(1008, 'Zu viele Fehlversuche');
         return;
       }
-      const target = registry.get(msg.code);
+      let target = registry.get(msg.code);
+      if (!target) {
+        // Not a live session - maybe a Stammtisch code: the group's table is
+        // the live session bound to it, or a fresh one when nobody is there.
+        const table = stammtischStore.get(msg.code);
+        if (table) {
+          target = findStammtischSession(table.code);
+          if (!target) {
+            const created = registry.create({ stammtisch: table.code });
+            if (created.error) return sendError(ws, created.error);
+            target = created.session;
+          }
+          await joinSession(target, { ...msg, playerId: undefined, playerToken: undefined });
+          return;
+        }
+      }
       if (!target) {
         // Fehlversuche zählen pro IP (nicht pro Verbindung - das war durch
         // simples Neu-Verbinden umgehbar).
@@ -1240,13 +1404,21 @@ wss.on('connection', (ws, req) => {
         break;
       }
       case 'emote': {
-        // Emotes: kurze Reaktionen an den ganzen Tisch. Whitelist + eigenes
-        // Rate-Limit (1 Emote / 1,5s), damit niemand den Tisch flutet.
-        // 🎃/🎆 sind saisonale Client-Angebote (Okt / Dez-Jan) - serverseitig
-        // ganzjährig erlaubt, die Whitelist ist ein Sicherheits-, kein
-        // Saisonfilter.
-        const EMOTES = ['👍', '😂', '😱', '😤', '🎉', '⏳', 'pikdame', '🎃', '🎆'];
-        if (!EMOTES.includes(msg.emoji)) break;
+        // Emotes: short reactions to the whole table. Whitelist (game/Emotes.js)
+        // + own rate limit (1 emote / 1.5 s) so nobody floods the table.
+        if (!isAllowedEmote(msg.emoji)) break;
+        // Level-gated emotes (see game/Emotes.js): checked against the local
+        // profile where one exists. Public mode has no profiles, so nothing
+        // is locked there.
+        if (!PUBLIC_MODE && emoteLevel(msg.emoji) > 1) {
+          const seat = game.players.find((p) => p.id === playerId);
+          const profile = seat ? playerStore.getPlayerByName(seat.name) : null;
+          const level = levelFromXp(profile ? profile.xp : 0).level;
+          if (level < emoteLevel(msg.emoji)) {
+            sendError(ws, `Dieses Emote gibt es ab Stufe ${emoteLevel(msg.emoji)}.`);
+            break;
+          }
+        }
         const now = Date.now();
         if (ws._lastEmoteAt && now - ws._lastEmoteAt < 1500) break;
         ws._lastEmoteAt = now;
@@ -1316,6 +1488,7 @@ function shutdown(signal) {
   playerStore.flushSync();
   gameHistoryStore.flushSync();
   globalStats.flushSync();
+  stammtischStore.flushSync();
   if (accountStore) {
     try {
       const p = accountStore.close();

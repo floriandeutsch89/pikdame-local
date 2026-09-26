@@ -3,6 +3,23 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.25.0] - 2026-09-26
+
+### Added
+- **Stammtisch: ein fester Tisch für die eigene Runde.** Über „Stammtisch“ im Startbildschirm wird ein Tisch mit dauerhaftem Code (`ST…`) gegründet. Wer den Code eingibt, landet immer am aktuellen Tisch der Gruppe - läuft gerade keiner, wird er eröffnet. Der Stammtisch führt eine Bilanz über alle Partien (Siege, Partien, Schnitt, Direktvergleich der Anwesenden) und eine **Revanche-Serie im Best-of-3**: Der Endbildschirm zeigt den Serienstand, der Knopf heißt „Revanche (Spiel 2 von 3)“, wer zwei Partien gewinnt, holt die Serie. Wer die Verbindung verliert, bekommt seinen Platz über Code und Namen zurück. Zuletzt besuchte Stammtische stehen als Chips im Startbildschirm. Der Stammtisch ist über seinen Code abgeschottet und deshalb auch auf öffentlichen Servern aktiv
+- **Tagesrätsel:** eine Hand aus elf Karten, weltweit für alle gleich, eine Frage - welche Karten ergeben die wertvollste Auslage? Die Regel-Engine prüft die Antwort und nennt bei Fehlern den Grund. Lösen bringt 30 EP (einmal pro Tag) und zählt als gespielter Tag für die Tagesserie; „Lösung zeigen“ verrät die Antwort ohne EP
+- **Tagesserie:** Wer an aufeinanderfolgenden Tagen spielt (Partie oder Rätsel), baut eine Serie auf. Ein verpasster Tag pro Woche wird überbrückt (Joker-Tag). Stand und Joker-Tag stehen über den Tagesaufgaben; die Abzeichen „Eine Woche dabei“ (7) und „Ein Monat dabei“ (30) belohnen die Serie
+- **Abzeichen in Stufen:** Damen (1/10/50), Partien (10/50/100), Siege (1/10/50), Siegesserie (3/5/10), Hand aus (1/5) und Tagesserie (7/30) sind jetzt Familien mit Stufenpunkten auf einer Kachel. Fünf neue Abzeichen aus echten Spielfakten: **Ringschluss** (Folge über K-A-2), **Die ganze Farbe** (13er-Folge), **Stapelfresser** (10+ Karten vom Ablagestapel genommen und die Runde trotzdem gewonnen), **Drei Meister** (gegen drei Zen-Bots gewonnen), **Ohne Joker** (Partie ohne ausgelegten Joker gewonnen)
+- **Level schaltet frei:** acht neue Reaktionen ab Stufe 2 bis 12 und der Kartenrücken „Meister“ ab Stufe 10. Gesperrte Reaktionen bleiben sichtbar und nennen ihre Stufe; die Stufe steht jetzt auch im Startbildschirm
+- **Reaktionen: 15 statt 7** in zwei Reihen (🙈 🤔 😎 🍀 🔥 👏 😴 🙏 neu), im Spiel und am Rundenende; die Bots antworten auch auf die neuen
+- **Ziehen und Ablegen mit der Maus:** Am Desktop lässt sich eine Handkarte auf eine eigene Auslage (Anlegen/Joker-Tausch) oder auf die Ablage ziehen; eine Mehrfachauswahl wandert mit einer Karte. Am Telefon bleibt das Antippen
+- **Rundenende mit Aufschlüsselung pro Karte:** unter jeder Ergebniszeile steht aufklappbar, woraus die Zahl besteht („Ausgelegt: 3× 10/B/D/K 30 · Auf der Hand: ♠Q 100, Ass 20“); die eigene Zeile ist aufgeklappt
+
+### Fixed
+- **E-Mail-Versand:** Betreffzeilen mit Umlauten werden nach RFC 2047 kodiert (vorher rohes UTF-8 im Header - je nach Relay „bestÃ¤tigen“ oder Ablehnung), der Text geht als Quoted-Printable (7-Bit-sicher), `Date`- und `Message-ID`-Kopfzeilen fehlten (Spam-Filter werten das), `EHLO` nennt jetzt einen Hostnamen statt „pikdame“ (`PIKDAME_SMTP_EHLO`, sonst der Host der Basis-URL). Ein hängender SMTP-Dialog wird nach 15 s sauber abgebrochen
+- **Konto-API hinter dem Reverse-Proxy:** Das Rate-Limit las die Adresse des Proxys statt des Clients - der ganze Server teilte sich 20 Registrierungen/Anmeldungen pro 10 Minuten. Jetzt zählt die echte Client-Adresse (`PIKDAME_TRUST_PROXY`)
+- **Konten (SQLite):** zwei gleichzeitige Registrierungen desselben Namens endeten mit einem 500er statt „bereits registriert“; abgelaufene Anmelde-Sitzungen wurden nie gelöscht (jetzt beim Login bereinigt, auch in PostgreSQL). Die Bestätigungsseite escaped den Namen; fehlt `PIKDAME_BASE_URL` hinter einem Proxy, warnt der Start (der Link würde sonst aus dem `Host`-Header gebaut)
+
 ## [2.24.0] - 2026-09-26
 
 ### Added

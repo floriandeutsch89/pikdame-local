@@ -273,6 +273,8 @@
     // Sprache stehen (Nutzer-Report zu den Tagesaufgaben). Betrifft alle drei
     // Bloecke des Fortschrittsbereichs, nicht nur die Aufgaben.
     try { renderQuests(); } catch (e) { /* Fortschritt ist nie kritisch */ }
+    try { renderPuzzle(); } catch (e) { /* dito */ }
+    try { renderStammtisch(); renderStammtischRecent(); renderSessionBanner(); } catch (e) { /* dito */ }
     try { renderAchievements(); } catch (e) { /* dito */ }
     try { renderAccountProgress(); } catch (e) { /* dito */ }
     // "Angemeldet als ..." steht dauerhaft in der Lobby - vom Vertragstest
@@ -351,12 +353,6 @@
 
   // Display order of the trophy cabinet: the ones every player meets first,
   // then the rare feats. Must stay in sync with BADGE_IDS in game/Badges.js.
-  const BADGE_ORDER = [
-    'first_win', 'pd_laid', 'hand_aus_win', 'marathon_10', 'streak_3',
-    'pd_caught', 'round_300', 'score_500', 'pd_triple', 'double_queen_round',
-    'comeback', 'zen_slayer', 'pd_hunter_10',
-  ];
-
   function badgeMeta(id) {
     const M = {
       first_win: { emoji: '🏆', name: L('Erster Sieg', 'First win'), desc: L('Erste gewonnene Partie', 'Won your first game') },
@@ -372,9 +368,40 @@
       zen_slayer: { emoji: '⚔️', name: L('Zen-Bezwinger', 'Zen slayer'), desc: L('Partie mit einem Zen-Meister am Tisch gewonnen', 'Won a game with a zen master at the table') },
       marathon_10: { emoji: '🏃', name: L('Marathon', 'Marathon'), desc: L('10 Partien gespielt', 'Played 10 games') },
       pd_hunter_10: { emoji: '🎯', name: L('Damenjägerin', 'Queen hunter'), desc: L('10 Pik Damen insgesamt ausgelegt', 'Melded 10 Queens of Spades in total') },
+      // Tiers (bronze/silver/gold on the same counter)
+      pd_hunter_50: { emoji: '🎯', name: L('Damenlegende', 'Queen legend'), desc: L('50 Pik Damen insgesamt ausgelegt', 'Melded 50 Queens of Spades in total') },
+      marathon_50: { emoji: '🏃', name: L('Dauerläufer', 'Long runner'), desc: L('50 Partien gespielt', 'Played 50 games') },
+      marathon_100: { emoji: '🏃', name: L('Stammgast', 'Regular'), desc: L('100 Partien gespielt', 'Played 100 games') },
+      wins_10: { emoji: '🏆', name: L('Seriensieger', 'Serial winner'), desc: L('10 Partien gewonnen', 'Won 10 games') },
+      wins_50: { emoji: '🏆', name: L('Tischlegende', 'Table legend'), desc: L('50 Partien gewonnen', 'Won 50 games') },
+      streak_5: { emoji: '🔥', name: L('Lauffeuer', 'Wildfire'), desc: L('5 Partien in Folge gewonnen', 'Won 5 games in a row') },
+      streak_10: { emoji: '🔥', name: L('Unaufhaltsam', 'Unstoppable'), desc: L('10 Partien in Folge gewonnen', 'Won 10 games in a row') },
+      hand_aus_5: { emoji: '🚀', name: L('Blitzhand', 'Lightning hand'), desc: L('5× per „Hand aus“ gewonnen', 'Won 5 rounds out in one') },
+      daily_7: { emoji: '📅', name: L('Eine Woche dabei', 'A week running'), desc: L('7 Tage in Folge gespielt', 'Played 7 days in a row') },
+      daily_30: { emoji: '🗓️', name: L('Ein Monat dabei', 'A month running'), desc: L('30 Tage in Folge gespielt', 'Played 30 days in a row') },
+      // One-offs from the engine facts
+      ring_run: { emoji: '🔄', name: L('Ringschluss', 'Full circle'), desc: L('Eine Folge über K-A-2 ausgelegt', 'Melded a run wrapping K-A-2') },
+      run_13: { emoji: '🌈', name: L('Die ganze Farbe', 'The whole suit'), desc: L('Eine Folge mit allen 13 Karten ausgelegt', 'Melded a full 13-card run') },
+      pile_glutton: { emoji: '🍽️', name: L('Stapelfresser', 'Pile glutton'), desc: L('10+ Karten vom Ablagestapel genommen und die Runde trotzdem gewonnen', 'Picked up 10+ discards and still won the round') },
+      zen_trio: { emoji: '🧘', name: L('Drei Meister', 'Three masters'), desc: L('Gegen drei Zen-Meister gewonnen', 'Beat three zen masters') },
+      no_joker_win: { emoji: '🃏', name: L('Ohne Joker', 'No jokers'), desc: L('Eine Partie gewonnen, ohne je einen Joker auszulegen', 'Won a game without ever melding a joker') },
     };
     return M[id] || { emoji: '🎖️', name: id, desc: '' };
   }
+  // Mirrors game/Badges.js BADGE_FAMILIES: one tile per counter, tiers as
+  // dots. Everything not listed here is a single badge.
+  const BADGE_FAMILIES = [
+    { id: 'queens', tiers: ['pd_laid', 'pd_hunter_10', 'pd_hunter_50'] },
+    { id: 'games', tiers: ['marathon_10', 'marathon_50', 'marathon_100'] },
+    { id: 'wins', tiers: ['first_win', 'wins_10', 'wins_50'] },
+    { id: 'streak', tiers: ['streak_3', 'streak_5', 'streak_10'] },
+    { id: 'handaus', tiers: ['hand_aus_win', 'hand_aus_5'] },
+    { id: 'daily', tiers: ['daily_7', 'daily_30'] },
+  ];
+  const BADGE_SINGLES = [
+    'pd_caught', 'round_300', 'score_500', 'pd_triple', 'double_queen_round',
+    'comeback', 'zen_slayer', 'zen_trio', 'ring_run', 'run_13', 'pile_glutton', 'no_joker_win',
+  ];
   let globalStatsData = null;
   let myGameHistory = null; // null = noch nicht angefragt, [] = angefragt und leer // anonyme Server-Zähler (Partien, Pik Damen, ...)
   // --- Fortschritt über Partien hinweg ------------------------------------
@@ -384,6 +411,9 @@
   let dailyQuests = null;
   let questProgress = {};
   let myProgress = null;      // {xp, level:{level,into,need,total}}
+  let myStreak = null;        // {streak, best, event, graceFree} - from the last 'progress' message
+  let stammtischInfo = null;  // {code, name} when this session is bound to a Stammtisch
+  let stammtischSummary = null; // standings / pairwise / series from the server
   let accountProgress = null; // {xp, seasonXp, season, games, wins, rank}
 
   function questMeta(id) {
@@ -619,6 +649,8 @@
       // heutigen Aufgaben-Fortschritt, und der steht im eigenen Profil - ohne
       // diese Anfrage stünde dort bis zum Beitritt immer 0/3.
       ws.send(JSON.stringify({ type: 'listProfiles' }));
+      // Stammtisch chips on the start screen: series state per remembered code.
+      try { renderStammtischRecent(); } catch (e) { /* cosmetic */ }
       // Automatischer Wiedereintritt NUR, wenn wir bereits Teil einer
       // Session waren (Reconnect nach Verbindungsabbruch oder geteilter
       // Link mit gespeicherter playerId). Ohne Code entscheidet der Nutzer
@@ -790,6 +822,8 @@
 
   function handleMessage(msg) {
     if (msg.type === 'joined') {
+      stammtischInfo = msg.stammtisch || null;
+      if (stammtischInfo) rememberStammtisch(stammtischInfo);
       storageSet('pikdame_last_session', msg.sessionCode);
       // Secret seat token: proves this browser owns the seat on reconnect
       if (msg.playerToken) storageSet(tokenKeyFor(msg.sessionCode), msg.playerToken);
@@ -905,6 +939,26 @@
       render();
       return;
     }
+    if (msg.type === 'stammtisch') {
+      stammtischSummary = msg.summary || null;
+      try { renderStammtisch(); } catch (e) { /* never critical */ }
+      const ev = msg.seriesEvent;
+      if (ev && ev.type === 'won') {
+        const w = msg.summary && msg.summary.series && msg.summary.series.wins;
+        const scores = w ? Object.values(w).sort((a, b) => b - a) : [];
+        showToast(`🏆 ${trs(`${ev.winner} gewinnt die Serie ${scores[0] || 0}:${scores[1] || 0}!`)}`, { duration: 6000, priority: true });
+      }
+      if (!el('resultOverlay').classList.contains('hidden')) renderResultOverlay();
+      return;
+    }
+    if (msg.type === 'stammtischInfo') {
+      try { updateStammtischChip(msg); } catch (e) { /* cosmetic */ }
+      return;
+    }
+    if (msg.type === 'puzzle' || msg.type === 'puzzleResult' || msg.type === 'puzzleSolution') {
+      try { handlePuzzleMessage(msg); } catch (e) { /* a broken puzzle never breaks the client */ }
+      return;
+    }
     if (msg.type === 'challengeBoard') {
       lastChallengeBoard = msg;
       renderChallengeBoard();
@@ -943,18 +997,21 @@
         questProgress = (mine && mine.quests && mine.quests[dailyQuests.date]) || {};
       }
       renderQuests();
+      try { renderEmoteLocks(); } catch (e) { /* cosmetic */ }
       if (!el('statsOverlay').classList.contains('hidden')) renderStats();
       return;
     }
     if (msg.type === 'progress') {
       // End of a match: experience, level and the daily quests that ticked.
       myProgress = { xp: msg.xp, level: msg.level };
+      if (msg.streak) myStreak = msg.streak;
       if (msg.quests) {
         dailyQuests = { date: msg.quests.date, ids: msg.quests.ids };
         questProgress = msg.quests.progress || {};
       }
       renderQuests();
       celebrateProgress(msg);
+      try { renderEmoteLocks(); } catch (e) { /* cosmetic */ }
       return;
     }
     if (msg.type === 'accountProgress') {
@@ -1250,6 +1307,7 @@
     });
 
     renderSeatingList(isHost);
+    try { renderStammtisch(); } catch (e) { /* never critical */ }
   }
 
   function renderSeatingList(isHost) {
@@ -1579,6 +1637,9 @@
             }
           }
         }
+        if (DND_ENABLED && isMine && isMyTurn && lastState.turnPhase === 'meld') {
+          attachDropTarget(group, (cardIds) => layOffToMeld(meld, cardIds));
+        }
         meld.slots.forEach((slot) => {
           const card = slot.real || {
             isJoker: true,
@@ -1727,6 +1788,7 @@
           selected: selectedCardIds.has(card.id),
           onClick: () => onHandCardClick(card),
         });
+        if (DND_ENABLED && isMyTurn && lastState.turnPhase === 'meld') attachDragSource(cEl, card);
         // Gerade gezogene/aufgenommene Karte sichtbar machen
         if (freshCardIds.has(card.id)) cEl.classList.add('just-drawn');
         // Fächer-Optik: Karten leicht um die Mitte der Hand rotiert + angehoben.
@@ -2256,6 +2318,35 @@
             `</div>` +
             `<div class="resultRowBar"><i style="width:${pct}%"></i></div>` +
             `<div class="resultRowFoot">${L('gesamt', 'total')} ${total}</div>`;
+          // Per-card breakdown: which cards made the number. Open for MY
+          // row (that is the one people ask about), tap to open the others.
+          const stats = (lastState.lastRoundStats || []).find((s) => s.id === p.id);
+          if (stats && (stats.laidLines || stats.handLines)) {
+            const det = document.createElement('details');
+            det.className = 'resultBreakdown';
+            if (p.id === playerId) det.open = true;
+            const lineText = (ln) => {
+              const label = {
+                pikdame: '♠Q', joker: L('Joker', 'Joker'), ace: L('Ass', 'Ace'),
+                face: L('10/B/D/K', '10/J/Q/K'), low: '2–9',
+              }[ln.kind] || ln.kind;
+              return `${ln.count > 1 ? `${ln.count}× ` : ''}${label} ${ln.points}`;
+            };
+            const plus = (stats.laidLines || []).map(lineText).join(', ');
+            const minus = (stats.handLines || []).map(lineText).join(', ');
+            const plusSum = (stats.laidLines || []).reduce((a, ln) => a + ln.points, 0);
+            const minusSum = (stats.handLines || []).reduce((a, ln) => a + ln.points, 0);
+            const isWinner = !!(r && r.breakdown && r.breakdown.isWinner);
+            const mult = r && r.breakdown && r.breakdown.multiplier > 1 ? r.breakdown.multiplier : 1;
+            det.innerHTML =
+              `<summary>${L('Aufschlüsselung', 'Breakdown')}</summary>` +
+              `<div class="bdLine bdPlus"><span>${L('Ausgelegt', 'Melded')}</span><span>${plus ? escapeHtml(plus) : '–'}</span><b>+${plusSum}</b></div>` +
+              (isWinner
+                ? `<div class="bdLine bdNote"><span>${L('Rundensieg: keine Minuspunkte', 'Round winner: no minus points')}</span><span></span><b></b></div>`
+                : `<div class="bdLine bdMinus"><span>${L('Auf der Hand', 'In hand')}</span><span>${minus ? escapeHtml(minus) : '–'}</span><b>−${minusSum}</b></div>`) +
+              (mult > 1 ? `<div class="bdLine bdNote"><span>${L(`Hand aus: ×${mult}`, `Out in one: ×${mult}`)}</span><span></span><b></b></div>` : '');
+            row.appendChild(det);
+          }
           list.appendChild(row);
         });
       paneResult.appendChild(list);
@@ -2400,6 +2491,12 @@
       }
     }
 
+    if (isGameOver && stammtischInfo && stammtischSummary && stammtischSummary.series) {
+      const box = document.createElement('div');
+      box.className = 'resultSeries';
+      box.innerHTML = seriesLineHtml(stammtischSummary);
+      paneResult.appendChild(box);
+    }
     el('exportGameBtn').classList.toggle('hidden', !(isGameOver && lastState.hasExportableGame));
     el('replayBtn').classList.toggle('hidden', !(isGameOver && lastState.hasExportableGame));
     if (isGameOver) renderChallengeBoard();
@@ -2488,9 +2585,14 @@
       contBtn.disabled = false;
       // Challenge: dieselbe Tages-Herausforderung noch einmal versuchen -
       // gleiches Deck, frische Chance (der Server startet solo direkt neu).
+      const ser = stammtischInfo && stammtischSummary && stammtischSummary.series;
       contBtn.textContent = lastState.challengeDate
         ? L('🔁 Noch mal probieren', '🔁 Try again')
-        : L('Neue Partie (Rematch)', 'New game (rematch)');
+        : ser
+          ? ser.winner
+            ? L('Neue Serie starten', 'Start a new series')
+            : L(`Revanche (Spiel ${ser.games + 1} von ${ser.bestOf})`, `Rematch (game ${ser.games + 1} of ${ser.bestOf})`)
+          : L('Neue Partie (Rematch)', 'New game (rematch)');
     } else {
       const humans = (lastState.players || []).filter((p) => !p.isBot && p.connected);
       const ready = new Set(lastState.nextRoundReady || []);
@@ -2528,6 +2630,60 @@
 
   // --- Interaktion ---------------------------------------------------------
 
+  // --- Desktop drag-and-drop ------------------------------------------------
+  // Mouse users drag a hand card onto one of their melds (lay-off / joker
+  // swap) or onto the discard pile. Phones keep tap-to-target: HTML5 drag
+  // needs a fine pointer, and the fan is a scroll surface there.
+  const DND_ENABLED = !!(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches);
+  let dragCardId = null;
+  function attachDragSource(cEl, card) {
+    cEl.draggable = true;
+    cEl.addEventListener('dragstart', (ev) => {
+      dragCardId = card.id;
+      try {
+        ev.dataTransfer.setData('text/plain', String(card.id));
+        ev.dataTransfer.effectAllowed = 'move';
+      } catch (e) { /* jsdom & co. */ }
+      cEl.classList.add('dragging');
+      document.body.classList.add('dndActive');
+    });
+    cEl.addEventListener('dragend', () => {
+      cEl.classList.remove('dragging');
+      document.body.classList.remove('dndActive');
+      document.querySelectorAll('.dropHover').forEach((n) => n.classList.remove('dropHover'));
+      dragCardId = null;
+    });
+  }
+  // The dragged card plus the rest of the selection when it is part of it -
+  // so a three-card lay-off is one drag, like it is one tap.
+  function draggedCardIds() {
+    if (!dragCardId) return [];
+    return selectedCardIds.has(dragCardId) && selectedCardIds.size > 1 ? [...selectedCardIds] : [dragCardId];
+  }
+  function attachDropTarget(node, onDrop) {
+    node.addEventListener('dragover', (ev) => {
+      if (!dragCardId) return;
+      ev.preventDefault();
+      try { ev.dataTransfer.dropEffect = 'move'; } catch (e) { /* ignore */ }
+      node.classList.add('dropHover');
+    });
+    node.addEventListener('dragleave', () => node.classList.remove('dropHover'));
+    node.addEventListener('drop', (ev) => {
+      ev.preventDefault();
+      node.classList.remove('dropHover');
+      const ids = draggedCardIds();
+      if (ids.length) onDrop(ids);
+    });
+  }
+  // The discard pile takes exactly one card - the dragged one, whatever
+  // else is selected (a discard is never a batch).
+  if (DND_ENABLED) {
+    attachDropTarget(el('discardPile'), () => {
+      if (!lastState || lastState.currentPlayerId !== playerId || lastState.turnPhase !== 'meld') return;
+      if (dragCardId) requestDiscard(dragCardId);
+    });
+  }
+
   function onHandCardClick(card) {
     if (!lastState) return;
     const isMyTurn = lastState.currentPlayerId === playerId;
@@ -2547,9 +2703,14 @@
     const isMyTurn = lastState.currentPlayerId === playerId;
     updateTurnTitleNotice(isMyTurn && lastState.phase === 'playing');
     if (!isMyTurn || lastState.turnPhase !== 'meld') return;
+    layOffToMeld(meld, [...selectedCardIds]);
+  }
 
-    if (selectedCardIds.size === 1) {
-      const cardId = [...selectedCardIds][0];
+  // Lay one or several hand cards onto one of MY melds. Tap-to-target and
+  // desktop drag-and-drop both end up here.
+  function layOffToMeld(meld, cardIds) {
+    if (cardIds.length === 1) {
+      const cardId = cardIds[0];
       // Enthält die Auslage einen Joker, der GENAU die gewählte Handkarte
       // repräsentiert, ist der Joker-Tausch gemeint (exakt dieselbe Prüfung
       // wie tryJokerSwap auf dem Server). Andernfalls normales Anlegen.
@@ -2566,10 +2727,10 @@
       // Selection is reconciled on the next state update: it clears only if the
       // card actually left the hand. A rejected lay-off keeps it selected so it
       // can be retargeted at another meld without reselecting.
-    } else if (selectedCardIds.size > 1) {
+    } else if (cardIds.length > 1) {
       // Multiple cards: lay them all off in one tap (server validates
       // all-or-nothing and finds the working order, e.g. J before Q).
-      send({ type: 'layOffMulti', meldId: meld.id, cardIds: [...selectedCardIds] });
+      send({ type: 'layOffMulti', meldId: meld.id, cardIds });
     } else {
       showHint(L('Wähle mindestens eine Handkarte aus, um sie an diese Auslage anzulegen (mehrere passende Karten gehen mit einem Tipp).', 'Select at least one hand card to add it to this meld (several fitting cards go in one tap).'), false);
     }
@@ -2617,10 +2778,11 @@
   el('shareCodeBtn').addEventListener('click', async () => {
     if (!sessionCode) return;
     const url = new URL(window.location.href);
-    url.searchParams.set('session', sessionCode);
+    const shareCode = stammtischInfo ? stammtischInfo.code : sessionCode;
+    url.searchParams.set('session', shareCode);
     const shareData = {
       title: 'Pik Dame',
-      text: `Spiel mit! Code: ${sessionCode}`,
+      text: stammtischInfo ? `Stammtisch „${stammtischInfo.name}“ - Code: ${shareCode}` : `Spiel mit! Code: ${shareCode}`,
       url: url.toString(),
     };
     if (navigator.share) {
@@ -2640,7 +2802,15 @@
     el('sessionSetup').classList.toggle('hidden', inSession);
     el('sessionBanner').classList.toggle('hidden', !inSession);
     if (inSession) {
-      el('sessionCodeText').textContent = sessionCode;
+      // At a Stammtisch the GROUP code is the one to hand around - it works
+      // forever, while the live session's code dies with the evening.
+      el('sessionCodeText').textContent = stammtischInfo ? stammtischInfo.code : sessionCode;
+      const label = el('sessionBanner').querySelector('.session-code-label');
+      if (label) {
+        label.textContent = stammtischInfo
+          ? L(`Stammtisch „${stammtischInfo.name}“ - Code gilt für immer`, `Regulars table "${stammtischInfo.name}" - code works forever`)
+          : L('Spiel-Code – zum Mitspielen weitergeben', 'Game code – share it to play together');
+      }
       el('startBtn').disabled = false;
     }
   }
@@ -2747,9 +2917,13 @@
 
   el('discardBtn').addEventListener('click', () => {
     if (selectedCardIds.size !== 1) return;
-    const cardId = [...selectedCardIds][0];
-    // Abwurf-Schutz: Pik Dame (100 Punkte!) und Joker nicht aus Versehen
-    // abwerfen - der Gegner würde sich freuen.
+    requestDiscard([...selectedCardIds][0]);
+  });
+
+  // Discard with the safety net for the two cards nobody throws away by
+  // accident: the Queen of Spades (100 points) and a joker. Shared by the
+  // button and the desktop drag-and-drop onto the pile.
+  function requestDiscard(cardId) {
     const myPlayer = lastState && lastState.players.find((p) => p.id === playerId);
     const card = myPlayer && myPlayer.hand ? myPlayer.hand.find((cd) => cd.id === cardId) : null;
     const isPikDame = card && card.rank === 'Q' && card.suit === 'S';
@@ -2763,7 +2937,7 @@
       return;
     }
     performDiscard(cardId);
-  });
+  }
 
   let pendingConfirmDiscardId = null;
   el('confirmDiscardYesBtn').addEventListener('click', () => {
@@ -3466,6 +3640,228 @@
     el('challengeIntroOverlay').classList.add('hidden');
     send({ type: 'startChallenge', name: currentName(), accountToken: accountToken() || undefined });
   });
+  // --- Stammtisch ------------------------------------------------------------
+  const STAMMTISCH_KEY = 'pikdame_stammtische';
+  function recentStammtische() {
+    try { const v = JSON.parse(storageGet(STAMMTISCH_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; }
+  }
+  function rememberStammtisch(info) {
+    const list = recentStammtische().filter((t) => t.code !== info.code);
+    list.unshift({ code: info.code, name: info.name, at: Date.now() });
+    storageSet(STAMMTISCH_KEY, JSON.stringify(list.slice(0, 3)));
+    renderStammtischRecent();
+  }
+  function renderStammtischRecent() {
+    const box = el('stammtischRecent');
+    if (!box) return;
+    const list = recentStammtische();
+    box.classList.toggle('hidden', list.length === 0);
+    box.innerHTML = list
+      .map((t) => `<button type="button" data-code="${escapeHtml(t.code)}"><span>🍻 ${escapeHtml(t.name)}</span><small class="stChipInfo"></small></button>`)
+      .join('');
+    box.querySelectorAll('button[data-code]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        send({ type: 'joinSession', code: btn.dataset.code, name: currentName(), accountToken: accountToken() || undefined });
+      });
+    });
+    // Ask for the series state so the chip says "Serie 1:1" without a tap.
+    for (const t of list) send({ type: 'getStammtisch', code: t.code });
+  }
+  function updateStammtischChip(info) {
+    const btn = document.querySelector(`#stammtischRecent button[data-code="${CSS.escape(info.code)}"]`);
+    if (!btn) return;
+    if (!info.exists) {
+      // Gone (pruned after months of silence): forget it quietly.
+      storageSet(STAMMTISCH_KEY, JSON.stringify(recentStammtische().filter((t) => t.code !== info.code)));
+      btn.remove();
+      if (!el('stammtischRecent').children.length) el('stammtischRecent').classList.add('hidden');
+      return;
+    }
+    const w = (info.series && info.series.wins) || {};
+    const scores = Object.values(w).sort((a, b) => b - a);
+    btn.querySelector('.stChipInfo').textContent = info.series && info.series.games
+      ? L(`Serie ${scores[0] || 0}:${scores[1] || 0}`, `series ${scores[0] || 0}:${scores[1] || 0}`)
+      : L(`${info.gamesPlayed || 0} Partien`, `${info.gamesPlayed || 0} games`);
+  }
+  function seriesLineHtml(sum) {
+    const ser = sum.series;
+    const byKey = {};
+    for (const m of sum.members || []) byKey[m.name.toLowerCase()] = m.name;
+    const parts = Object.entries(ser.wins || {})
+      .sort((a, b) => b[1] - a[1])
+      .map(([k, n]) => `${escapeHtml(byKey[k] || k)} ${n}`);
+    const score = parts.length ? parts.join(' – ') : L('noch 0:0', 'still 0:0');
+    if (ser.winner) {
+      return `🏆 ${escapeHtml(L(`${ser.winner} hat Serie ${ser.no} gewonnen`, `${ser.winner} won series ${ser.no}`))}<small>${score}</small>`;
+    }
+    return `${escapeHtml(L(`Serie ${ser.no} · Best of ${ser.bestOf}`, `Series ${ser.no} · best of ${ser.bestOf}`))}: ${score}<small>${escapeHtml(
+      L(`${ser.needed} Siege entscheiden · Spiel ${ser.games + 1} von ${ser.bestOf}`, `${ser.needed} wins decide · game ${ser.games + 1} of ${ser.bestOf}`)
+    )}</small>`;
+  }
+  function renderStammtisch() {
+    const box = el('stammtischSection');
+    if (!box) return;
+    if (!stammtischInfo || !stammtischSummary) {
+      box.classList.add('hidden');
+      return;
+    }
+    box.classList.remove('hidden');
+    const sum = stammtischSummary;
+    const members = sum.members || [];
+    const rows = members
+      .map((m) => `<tr><td class="stName">${nameWithHeart(m.name)}</td><td>${m.wins}</td><td>${m.games}</td><td>${m.avg}</td></tr>`)
+      .join('');
+    // Pairwise record for the humans at THIS table: "who finished ahead".
+    const humans = ((lastState && lastState.players) || []).filter((p) => !p.isBot).map((p) => p.name);
+    const pairs = [];
+    for (let i = 0; i < humans.length; i++) {
+      for (let j = i + 1; j < humans.length; j++) {
+        const a = humans[i].toLowerCase();
+        const b = humans[j].toLowerCase();
+        const rec = sum.pairwise && sum.pairwise[a] && sum.pairwise[a][b];
+        if (rec && rec.ahead + rec.behind > 0) {
+          pairs.push(`<b>${escapeHtml(humans[i])}</b> ${rec.ahead}:${rec.behind} <b>${escapeHtml(humans[j])}</b>`);
+        }
+      }
+    }
+    box.querySelector('#stammtischBody').innerHTML =
+      `<div class="stName">🍻 ${escapeHtml(sum.name)} <span class="stCode">${escapeHtml(sum.code)}</span> <small>· ${L(`${sum.gamesPlayed} Partien`, `${sum.gamesPlayed} games`)}</small></div>` +
+      `<div class="stSeries">${seriesLineHtml(sum)}</div>` +
+      (members.length
+        ? `<table class="stTable"><thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('Siege', 'Wins')}</th><th>${L('Partien', 'Games')}</th><th>Ø</th></tr></thead><tbody>${rows}</tbody></table>`
+        : `<p class="lobby-hint">${L('Noch keine Partie gespielt - die Bilanz beginnt mit der ersten.', 'No match yet - the record starts with the first one.')}</p>`) +
+      (pairs.length ? `<div class="stPairs">${L('Direktvergleich', 'Head to head')}: ${pairs.join(' · ')}</div>` : '');
+  }
+  el('stammtischBtn').addEventListener('click', () => {
+    el('stammtischNameInput').value = '';
+    el('stammtischOverlay').classList.remove('hidden');
+    el('stammtischNameInput').focus();
+  });
+  el('stammtischCancelBtn').addEventListener('click', () => el('stammtischOverlay').classList.add('hidden'));
+  el('stammtischOverlay').addEventListener('click', (ev) => {
+    if (ev.target === el('stammtischOverlay')) el('stammtischOverlay').classList.add('hidden');
+  });
+  el('stammtischCreateBtn').addEventListener('click', () => {
+    const stammtischName = el('stammtischNameInput').value.trim();
+    if (!stammtischName) {
+      showToast(L('Bitte einen Namen für den Stammtisch eingeben.', 'Please enter a name for the table.'));
+      return;
+    }
+    el('stammtischOverlay').classList.add('hidden');
+    send({ type: 'createStammtisch', stammtischName, name: currentName(), accountToken: accountToken() || undefined });
+  });
+  el('stammtischNameInput').addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') el('stammtischCreateBtn').click();
+  });
+  try { renderStammtischRecent(); } catch (e) { /* cosmetic */ }
+
+  // --- Daily puzzle --------------------------------------------------------
+  // One hand, one question, the engine grades. Selection lives here; the
+  // server owns tries/solved (local profile) and hands out the XP once.
+  let puzzleData = null;      // {date, hand, targetPoints, status}
+  const puzzleSelected = new Set();
+  let puzzleSolutionIds = null;
+  function openPuzzle() {
+    puzzleSelected.clear();
+    puzzleSolutionIds = null;
+    puzzleData = null;
+    el('puzzleHand').innerHTML = '';
+    el('puzzleTarget').textContent = '…';
+    setPuzzleStatus('', '');
+    el('puzzleOverlay').classList.remove('hidden');
+    send({ type: 'getPuzzle', name: currentName() });
+  }
+  function setPuzzleStatus(text, cls) {
+    const n = el('puzzleStatus');
+    n.textContent = text;
+    n.className = `puzzleStatus${cls ? ` ${cls}` : ''}`;
+  }
+  function renderPuzzle() {
+    if (!puzzleData) return;
+    const st = puzzleData.status || {};
+    el('puzzleTarget').textContent = L(
+      `Ziel: ${puzzleData.targetPoints} Punkte in einer Auslage`,
+      `Target: ${puzzleData.targetPoints} points in one meld`
+    ) + (st.tries ? ` · ${L(`${st.tries}. Versuch`, `attempt ${st.tries}`)}` : '');
+    const box = el('puzzleHand');
+    box.innerHTML = '';
+    const done = !!st.solved || !!puzzleSolutionIds;
+    for (const card of puzzleData.hand) {
+      const cEl = cardEl(card, {
+        selectable: !done,
+        selected: puzzleSelected.has(card.id),
+        onClick: () => {
+          if (done) return;
+          if (puzzleSelected.has(card.id)) puzzleSelected.delete(card.id);
+          else puzzleSelected.add(card.id);
+          renderPuzzle();
+        },
+      });
+      if (puzzleSolutionIds && puzzleSolutionIds.includes(card.id)) cEl.classList.add('solution');
+      box.appendChild(cEl);
+    }
+    el('puzzleCheckBtn').disabled = done || puzzleSelected.size < 3;
+    el('puzzleRevealBtn').classList.toggle('hidden', done);
+    // Reopened after a solve: say so - but never overwrite the fresh
+    // "Gelöst! +30 EP" line right after the winning check.
+    if (st.solved && !puzzleSolutionIds && !el('puzzleStatus').textContent) {
+      setPuzzleStatus(`✅ ${L('Heute schon gelöst - morgen gibt es ein neues.', 'Solved today - a new one comes tomorrow.')}`, 'ok');
+    }
+  }
+  el('puzzleBtn').addEventListener('click', openPuzzle);
+  el('puzzleCloseBtn').addEventListener('click', () => el('puzzleOverlay').classList.add('hidden'));
+  el('puzzleOverlay').addEventListener('click', (ev) => {
+    if (ev.target === el('puzzleOverlay')) el('puzzleOverlay').classList.add('hidden');
+  });
+  el('puzzleCheckBtn').addEventListener('click', () => {
+    if (puzzleSelected.size < 3) return;
+    send({ type: 'solvePuzzle', name: currentName(), cardIds: [...puzzleSelected] });
+  });
+  el('puzzleRevealBtn').addEventListener('click', () => {
+    send({ type: 'revealPuzzle', name: currentName() });
+  });
+  function handlePuzzleMessage(msg) {
+    if (msg.type === 'puzzle') {
+      puzzleData = { date: msg.date, hand: msg.hand || [], targetPoints: msg.targetPoints || 0, status: msg.status || {} };
+      renderPuzzle();
+      return true;
+    }
+    if (msg.type === 'puzzleResult') {
+      if (!puzzleData) return true;
+      puzzleData.status = msg.status || puzzleData.status;
+      if (!msg.valid) {
+        setPuzzleStatus(`❌ ${trs(msg.reason || '')}`, 'bad');
+      } else if (msg.solved) {
+        sound.meld();
+        setPuzzleStatus(
+          `✅ ${L(`Gelöst! ${msg.points} Punkte`, `Solved! ${msg.points} points`)}${msg.xp ? ` · +${msg.xp} ${L('EP', 'XP')}` : ''}`,
+          'ok'
+        );
+        if (msg.level) myProgress = { xp: myProgress ? Math.max(myProgress.xp || 0, (msg.level.total || 0)) : (msg.level.total || 0), level: msg.level };
+        if (msg.streak) myStreak = msg.streak;
+        try { renderQuests(); renderEmoteLocks(); } catch (e) { /* cosmetic */ }
+      } else {
+        setPuzzleStatus(
+          L(`Gültig, aber nur ${msg.points} von ${msg.targetPoints} Punkten - da geht mehr.`, `Valid, but only ${msg.points} of ${msg.targetPoints} points - there is more.`),
+          'bad'
+        );
+      }
+      renderPuzzle();
+      return true;
+    }
+    if (msg.type === 'puzzleSolution') {
+      if (!puzzleData) return true;
+      puzzleSolutionIds = msg.cardIds || [];
+      puzzleData.status = msg.status || puzzleData.status;
+      puzzleSelected.clear();
+      for (const id of puzzleSolutionIds) puzzleSelected.add(id);
+      setPuzzleStatus(L(`Lösung: ${msg.points} Punkte (markiert). Ohne EP - morgen gibt es ein neues.`, `Solution: ${msg.points} points (highlighted). No XP - a new one comes tomorrow.`), '');
+      renderPuzzle();
+      return true;
+    }
+    return false;
+  }
+
   el('challengeCancelBtn').addEventListener('click', () => el('challengeIntroOverlay').classList.add('hidden'));
   el('challengeIntroOverlay').addEventListener('click', (ev) => {
     if (ev.target === el('challengeIntroOverlay')) el('challengeIntroOverlay').classList.add('hidden');
@@ -4402,10 +4798,27 @@
   });
   document.querySelectorAll('.emoteChoice').forEach((btn) => {
     btn.addEventListener('click', () => {
+      const need = emoteUnlockLevel(btn.dataset.emote);
+      if (need > myLevel()) {
+        showToast(`🔒 ${L(`Dieses Emote gibt es ab Stufe ${need}.`, `This reaction unlocks at level ${need}.`)}`);
+        return;
+      }
       send({ type: 'emote', emoji: btn.dataset.emote });
       el('emoteBar').classList.add('hidden');
     });
   });
+  // Locked reactions stay visible (Brotato principle: what is still missing
+  // motivates) - dimmed, with the level they unlock at.
+  function renderEmoteLocks() {
+    const level = myLevel();
+    document.querySelectorAll('.emoteChoice[data-emote]').forEach((btn) => {
+      const need = emoteUnlockLevel(btn.dataset.emote);
+      const locked = need > level;
+      btn.classList.toggle('locked', locked);
+      if (locked) btn.dataset.lock = String(need);
+      else delete btn.dataset.lock;
+    });
+  }
   // Tapping anywhere else dismisses the emote bar - it is a transient picker,
   // not a mode. Capture phase so it also closes when the tap lands on a card
   // or a button that stops propagation. The opening tap on #emoteBtn and taps
@@ -4467,6 +4880,20 @@
       return;
     }
     box.classList.remove('hidden');
+    // Level and daily streak above the tasks: the two numbers that grow
+    // every day, on the screen people see every day.
+    const me = myProfile();
+    const lv = levelFromXpClient(Math.max(me ? me.xp || 0 : 0, myProgress ? myProgress.xp || 0 : 0));
+    const streak = (myStreak && myStreak.streak) || (me && me.dailyStreak) || 0;
+    const graceFree = myStreak ? myStreak.graceFree : !(me && me.daily && me.daily.graceAt);
+    const strip = el('progressStrip');
+    if (strip) {
+      strip.innerHTML =
+        `<span class="psLevel"><b>${L(`Stufe ${lv.level}`, `Level ${lv.level}`)}</b> <i class="levelBar"><u style="width:${Math.round((lv.into / lv.need) * 100)}%"></u></i> <small>${lv.into}/${lv.need} ${L('EP', 'XP')}</small></span>` +
+        `<span class="psStreak" title="${escapeHtml(L('Tagesserie: an aufeinanderfolgenden Tagen spielen. Ein verpasster Tag pro Woche wird überbrückt (Joker-Tag).', 'Daily streak: play on consecutive days. One missed day per week is bridged (grace day).'))}">🔥 ${
+          streak > 0 ? L(`${streak} ${streak === 1 ? 'Tag' : 'Tage'} in Folge`, `${streak} ${streak === 1 ? 'day' : 'days'} running`) : L('Heute spielen startet die Serie', 'Play today to start a streak')
+        }${streak > 0 ? ` <small>${graceFree ? L('· Joker-Tag frei', '· grace day free') : L('· Joker-Tag verbraucht', '· grace day used')}</small>` : ''}</span>`;
+    }
     list.innerHTML = dailyQuests.ids
       .map((id) => {
         const meta = questMeta(id);
@@ -4492,6 +4919,10 @@
     for (const id of completed) {
       showToast(`✅ ${L('Tagesaufgabe geschafft', 'Daily task done')}: ${questMeta(id).text}`);
     }
+    const st = msg.streak;
+    if (st && (st.event === 'extended' || st.event === 'bridged') && st.streak >= 2) {
+      showToast(`🔥 ${L(`${st.streak} Tage in Folge gespielt`, `${st.streak} days in a row`)}${st.event === 'bridged' ? ` ${L('(Joker-Tag genutzt)', '(grace day used)')}` : ''}`);
+    }
     const lvl = msg.level && msg.level.level;
     if (lvl && lastLevelSeen !== null && lvl > lastLevelSeen) {
       showToast(`⭐ ${L(`Stufe ${lvl} erreicht!`, `Level ${lvl} reached!`)}`);
@@ -4511,7 +4942,7 @@
     }
     const owned = me.badges || {};
     const progress = badgeProgressFor(me);
-    const tiles = BADGE_ORDER.map((id) => {
+    const singleTile = (id) => {
       const m = badgeMeta(id);
       const at = owned[id];
       const p = progress[id];
@@ -4525,11 +4956,33 @@
         <span class="achName">${escapeHtml(m.name)}</span>
         <span class="achSub">${escapeHtml(sub)}</span>
       </div>`;
-    }).join('');
-    const have = BADGE_ORDER.filter((id) => owned[id]).length;
+    };
+    // A family is ONE tile: the highest earned tier gives it name and
+    // emoji, the dots show the tiers, the counter shows the way to the next.
+    const familyTile = (fam) => {
+      const earnedTiers = fam.tiers.filter((id) => owned[id]);
+      const top = earnedTiers[earnedTiers.length - 1] || null;
+      const next = fam.tiers.find((id) => !owned[id]) || null;
+      const m = badgeMeta(top || fam.tiers[0]);
+      const p = next ? progress[next] : null;
+      const dots = fam.tiers.map((id) => `<i class="${owned[id] ? 'on' : ''}"></i>`).join('');
+      const sub = next
+        ? p && p.need > 1 ? `${p.have}/${p.need}` : L('gesperrt', 'locked')
+        : L('alle Stufen', 'all tiers');
+      const title = next ? `${badgeMeta(next).desc}` : m.desc;
+      return `<div class="achTile achFamily${top ? ' earned' : ''}${!next ? ' maxed' : ''}" title="${escapeHtml(title)}">
+        <span class="achEmoji">${top ? m.emoji : '🔒'}</span>
+        <span class="achName">${escapeHtml(m.name)}</span>
+        <span class="achTiers">${dots}</span>
+        <span class="achSub">${escapeHtml(sub)}</span>
+      </div>`;
+    };
+    const tiles = BADGE_FAMILIES.map(familyTile).join('') + BADGE_SINGLES.map(singleTile).join('');
+    const total = BADGE_FAMILIES.reduce((n, f) => n + f.tiers.length, 0) + BADGE_SINGLES.length;
+    const have = Object.keys(owned).filter((id) => BADGE_SINGLES.includes(id) || BADGE_FAMILIES.some((f) => f.tiers.includes(id))).length;
     box.classList.remove('hidden');
     box.innerHTML =
-      `<h3>${L('🏅 Erfolge', '🏅 Achievements')} <span class="achCount">${have} / ${BADGE_ORDER.length}</span></h3>` +
+      `<h3>${L('🏅 Erfolge', '🏅 Achievements')} <span class="achCount">${have} / ${total}</span></h3>` +
       `<div class="achGrid">${tiles}</div>`;
   }
 
@@ -4537,16 +4990,16 @@
   function badgeProgressFor(p) {
     const cap = (v, n) => ({ have: Math.min(v || 0, n), need: n });
     return {
-      first_win: cap(p.gamesWon, 1),
-      pd_laid: cap(p.totalQueensLaid, 1),
+      first_win: cap(p.gamesWon, 1), wins_10: cap(p.gamesWon, 10), wins_50: cap(p.gamesWon, 50),
+      pd_laid: cap(p.totalQueensLaid, 1), pd_hunter_10: cap(p.totalQueensLaid, 10), pd_hunter_50: cap(p.totalQueensLaid, 50),
       pd_triple: cap(p.totalQueensLaid, 3),
       pd_caught: cap(p.totalQueensCaught, 1),
-      hand_aus_win: cap(p.totalHandAus, 1),
+      hand_aus_win: cap(p.totalHandAus, 1), hand_aus_5: cap(p.totalHandAus, 5),
       score_500: cap(p.bestGameScore, 500),
       round_300: cap(p.bestRoundScore, 300),
-      streak_3: cap(p.winStreak, 3),
-      marathon_10: cap(p.gamesPlayed, 10),
-      pd_hunter_10: cap(p.totalQueensLaid, 10),
+      streak_3: cap(p.winStreak, 3), streak_5: cap(p.winStreak, 5), streak_10: cap(p.winStreak, 10),
+      marathon_10: cap(p.gamesPlayed, 10), marathon_50: cap(p.gamesPlayed, 50), marathon_100: cap(p.gamesPlayed, 100),
+      daily_7: cap(p.dailyStreak, 7), daily_30: cap(p.dailyStreak, 30),
     };
   }
 
@@ -4785,12 +5238,29 @@
     { id: 'gold', label: 'Gold', labelEn: 'Gold', gate: { field: 'gamesWon', min: 10, de: 'ab 10 Siegen', en: 'from 10 wins' } },
     { id: 'night', label: 'Nachtblau', labelEn: 'Midnight', gate: { field: 'gamesPlayed', min: 25, de: 'ab 25 Partien', en: 'from 25 games' } },
     { id: 'joker', label: 'Joker', labelEn: 'Joker', gate: { field: 'totalHandAus', min: 3, de: 'ab 3× Hand aus', en: 'from 3 out-in-one' } },
+    // Level reward: the XP bar hands out something you can SEE on the table.
+    { id: 'master', label: 'Meister', labelEn: 'Master', gate: { field: 'level', min: 10, de: 'ab Stufe 10', en: 'from level 10' } },
   ];
   function myProfile() {
     return (knownProfiles || []).find((p) => p.name && myName && p.name.toLowerCase() === myName.toLowerCase()) || null;
   }
+  // Level of the LOCAL (name-based) profile - the same one the server checks
+  // for level-gated emotes. myProgress is fresher right after a game (the
+  // profile list only refreshes on the next listProfiles).
+  function myLevel() {
+    const p = myProfile();
+    const xp = Math.max(p ? p.xp || 0 : 0, myProgress ? myProgress.xp || 0 : 0);
+    return levelFromXpClient(xp).level;
+  }
+  // Mirrors game/Emotes.js - the server is the authority, this only draws
+  // the locks. Public servers keep no profiles, so nothing is locked there.
+  const EMOTE_UNLOCK = { '👏': 2, '🙈': 3, '🤔': 4, '🍀': 5, '😎': 6, '🔥': 8, '😴': 10, '🙏': 12 };
+  function emoteUnlockLevel(id) {
+    return publicMode ? 1 : EMOTE_UNLOCK[id] || 1;
+  }
   function cardbackUnlocked(cb) {
     if (!cb.gate) return true;
+    if (cb.gate.field === 'level') return myLevel() >= cb.gate.min;
     const p = myProfile();
     return !!p && (p[cb.gate.field] || 0) >= cb.gate.min;
   }

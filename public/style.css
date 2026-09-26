@@ -1257,6 +1257,25 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 /* The round winner is already named in the headline above; in the list they
    only get weight. No colour - see .resultDelta.pos/.neg for that. */
 .resultRow.winner .resultName { font-weight: 800; }
+/* Per-card breakdown under a result row: a <details> so the list stays
+   scannable; the own row opens by default. */
+.resultBreakdown { margin-top: 4px; font-size: var(--fs-hint); color: var(--text-muted); }
+.resultBreakdown summary {
+  cursor: pointer; list-style: none; font-weight: 600;
+  min-height: 28px; display: inline-flex; align-items: center; gap: 4px;
+}
+.resultBreakdown summary::before { content: '▸'; font-size: 0.7em; }
+.resultBreakdown[open] summary::before { content: '▾'; }
+.resultBreakdown summary::-webkit-details-marker { display: none; }
+.bdLine {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px;
+  padding: 2px 0; font-variant-numeric: tabular-nums;
+}
+.bdLine span:first-child { font-weight: 600; }
+.bdLine b { text-align: right; }
+.bdPlus b { color: #1e9e57; }
+.bdMinus b { color: #d34b3a; }
+.bdNote { opacity: 0.8; }
 .handAusNote {
   background: var(--accent-soft); color: var(--card-ink);
   border-radius: var(--r-sm); padding: 11px 13px;
@@ -1509,7 +1528,9 @@ body.raidActive #toastContainer { margin-top: 132px; }
   position: absolute;
   top: calc(52px + var(--safe-top));
   right: 10px;
-  display: flex; gap: 4px;
+  /* 15 reactions in two rows (8 + 7) - one row no longer fits a phone. */
+  display: flex; flex-wrap: wrap; gap: 4px; justify-content: center;
+  max-width: calc(8 * 44px + 7 * 4px + 16px);
   background: var(--glass-strong);
   border: 1px solid var(--glass-border);
   backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
@@ -1851,6 +1872,13 @@ body.raidActive #toastContainer { margin-top: 132px; }
   border-radius: var(--r-sm);
   animation: layOffTargetPulse 1.4s ease-in-out infinite;
 }
+/* Desktop drag-and-drop: the dragged card ghosts, the target under the
+   pointer lights up. Only mouse layouts ever set these classes. */
+#hand .card[draggable="true"] { cursor: grab; }
+#hand .card.dragging { opacity: 0.35; }
+.dropHover { box-shadow: 0 0 0 3px var(--accent), 0 0 18px var(--accent-soft); border-radius: var(--r-sm); }
+body.dndActive .meldOwnerGroup.own .meldGroup { outline: 2px dashed var(--accent-soft); outline-offset: 2px; }
+body.dndActive #discardPile { outline: 2px dashed var(--accent-soft); outline-offset: 6px; border-radius: 12px; }
 @media (prefers-reduced-motion: reduce) {
   .meldGroup.layOffTarget {
     animation: none;
@@ -2088,11 +2116,22 @@ input:disabled { opacity: 0.65; }
    one drawn as a little playing card so it broke the row entirely. Now a row
    of equal circular targets; the background only appears on press. */
 .resultEmoteBar {
-  display: flex; justify-content: center; align-items: center; gap: 4px;
+  /* 15 reactions as 8 + 7: at 38px + 2px gap eight fit the phone-width card
+     (322px inner); at 40px + 4px the last one dropped into a third row. */
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 2px;
   margin: 14px 0 6px;
 }
+/* Level-locked reaction: dimmed, the unlock level as a corner tag. */
+.emoteChoice.locked { opacity: 0.4; position: relative; }
+.emoteChoice.locked::after {
+  content: attr(data-lock);
+  position: absolute; right: -2px; bottom: -2px;
+  font-size: var(--fs-micro); font-weight: 800; line-height: 1.1;
+  padding: 0 4px; border-radius: 999px;
+  background: var(--accent); color: var(--accent-ink);
+}
 .resultEmoteBar .emoteChoice {
-  width: 40px; height: 40px; padding: 0;
+  width: 38px; height: 38px; padding: 0;
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: none; border-radius: 50%;
   font-size: 1.2rem; line-height: 1; cursor: pointer;
@@ -2734,6 +2773,57 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 /* Lobby panel. Uses the same lobby-section shell as the house rules, so it
    inherits width, radius and spacing instead of inventing its own. */
 .questsSection { text-align: left; }
+/* Stammtisch */
+.stammtischRecent { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; max-width: 340px; justify-content: center; }
+.stammtischRecent button {
+  background: var(--glass); border: 1px solid var(--glass-border); color: var(--text);
+  border-radius: var(--r-pill); padding: 8px 12px; min-height: var(--tap-min);
+  font-size: var(--fs-label); font-weight: 600;
+}
+.stammtischRecent button small { color: var(--text-muted); font-weight: 500; margin-left: 4px; }
+.stSeries { font-weight: 700; margin: 2px 0 8px; }
+.stSeries small { display: block; color: var(--text-muted); font-weight: 500; }
+.stTable { width: 100%; border-collapse: collapse; font-size: var(--fs-label); font-variant-numeric: tabular-nums; }
+.stTable th { text-align: left; font-weight: 600; color: var(--text-muted); padding: 2px 4px; font-size: var(--fs-hint); }
+.stTable td { padding: 3px 4px; border-top: 1px solid var(--glass-border); }
+.stTable td:not(:first-child), .stTable th:not(:first-child) { text-align: right; }
+.stPairs { margin-top: 6px; font-size: var(--fs-hint); color: var(--text-muted); }
+.stPairs b { color: var(--text); }
+.stName { font-weight: 700; }
+.stCode { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.08em; }
+/* Result overlay: the series stands right above the continue button */
+.resultSeries {
+  margin: 8px 0 2px; padding: 8px 12px; border-radius: var(--r-sm);
+  background: rgba(0, 0, 0, 0.05); color: var(--card-ink);
+  font-weight: 700; text-align: center;
+}
+.resultSeries small { display: block; font-weight: 500; opacity: 0.75; }
+/* Daily puzzle overlay */
+.puzzleTarget { font-weight: 700; margin: 2px 0 8px; }
+.puzzleHand { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 4px 0 10px; }
+.puzzleHand .card { position: relative; margin-left: 0; cursor: pointer; }
+.puzzleHand .card.selected { top: -6px; }
+.puzzleStatus { min-height: 1.4em; font-weight: 600; margin: 0 0 8px; }
+.puzzleStatus.ok { color: #1e9e57; }
+.puzzleStatus.bad { color: #d34b3a; }
+.puzzleHand .card.solution { box-shadow: 0 0 0 3px var(--drawn), var(--shadow-2); }
+/* Level + daily streak strip above the tasks */
+.progressStrip {
+  display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center;
+  margin: -2px 0 10px; font-size: var(--fs-label);
+}
+.progressStrip .psLevel { display: inline-flex; align-items: center; gap: 6px; }
+.progressStrip .levelBar {
+  display: inline-block; width: 70px; height: 6px; border-radius: 3px;
+  background: var(--glass-strong); overflow: hidden; vertical-align: middle;
+}
+.progressStrip .levelBar u { display: block; height: 100%; background: var(--accent); }
+.progressStrip small { color: var(--text-muted); font-size: var(--fs-hint); }
+/* Family tiles: tier dots under the name */
+.achTiers { display: inline-flex; gap: 3px; }
+.achTiers i { width: 7px; height: 7px; border-radius: 50%; background: rgba(0,0,0,0.15); display: inline-block; }
+.achTiers i.on { background: var(--accent); }
+.achTile.maxed { box-shadow: inset 0 0 0 2px var(--accent); }
 .questList { display: flex; flex-direction: column; gap: 8px; }
 .questRow {
   display: grid;
@@ -2832,6 +2922,14 @@ html[data-cardback="gold"] .pile-card.back,
 html[data-cardback="gold"] .card.back {
   background: linear-gradient(150deg, #8a6d1f 0%, #d4af37 40%, #f5e08a 55%, #d4af37 70%, #8a6d1f 100%);
   border-color: #b8962e;
+}
+html[data-cardback="master"] .pile-card.back,
+html[data-cardback="master"] .card.back {
+  /* Level 10 reward: graphite with a fine diagonal weave and a teal edge */
+  background:
+    repeating-linear-gradient(135deg, rgba(255,255,255,0.07) 0 3px, transparent 3px 9px),
+    linear-gradient(160deg, #1b2530 0%, #2b3a49 55%, #101820 100%);
+  border-color: #2fd6b0;
 }
 html[data-cardback="night"] .pile-card.back,
 html[data-cardback="night"] .card.back {
@@ -3051,6 +3149,12 @@ html[data-cardback="joker"] .card.back {
     radial-gradient(circle at 30% 25%, rgba(255,255,255,0.28) 0 1.5px, transparent 2px),
     radial-gradient(circle at 70% 60%, rgba(255,255,255,0.22) 0 1px, transparent 1.5px),
     linear-gradient(160deg, #0d1b3d 0%, #1c2f6b 60%, #0a1230 100%);
+}
+.cbPrev-master {
+  background:
+    repeating-linear-gradient(135deg, rgba(255,255,255,0.07) 0 3px, transparent 3px 9px),
+    linear-gradient(160deg, #1b2530 0%, #2b3a49 55%, #101820 100%);
+  border-color: #2fd6b0;
 }
 .cbPrev-joker {
   background:

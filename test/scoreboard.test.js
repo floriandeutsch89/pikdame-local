@@ -110,3 +110,24 @@ test('GAME_END_THRESHOLD ist 1000', () => {
   assert.equal(GAME_END_THRESHOLD, 1000);
 });
 
+
+test('scoreLines groups a hand by value class with the right points', () => {
+  const { scoreLines } = require('../game/ScoreBoard');
+  const { makeStandardCard, makeJoker } = require('../game/Card');
+  const lines = scoreLines([
+    makeStandardCard('S', 'Q', 0), makeStandardCard('H', 'Q', 0), makeStandardCard('C', 'K', 0),
+    makeStandardCard('D', 'A', 1), makeJoker(0), makeStandardCard('H', '3', 0), makeStandardCard('S', '9', 1),
+  ]);
+  assert.deepStrictEqual(lines, [
+    { kind: 'pikdame', count: 1, points: 100 },
+    { kind: 'joker', count: 1, points: 20 },
+    { kind: 'ace', count: 1, points: 20 },
+    { kind: 'face', count: 2, points: 20 },
+    { kind: 'low', count: 2, points: 10 },
+  ]);
+  assert.deepStrictEqual(scoreLines([]), []);
+  // The sum of the lines is exactly the hand value the round uses.
+  const { sumValues } = require('../game/ScoreBoard');
+  const hand = [makeStandardCard('S', 'Q', 0), makeStandardCard('D', 'A', 1), makeJoker(2), makeStandardCard('H', '7', 0)];
+  assert.strictEqual(scoreLines(hand).reduce((a, l) => a + l.points, 0), sumValues(hand));
+});

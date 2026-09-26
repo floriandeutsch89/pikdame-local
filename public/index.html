@@ -283,7 +283,11 @@
         <div class="menuChips">
           <button id="tutorialBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-cap"/></svg><span>Tutorial</span></button>
           <button id="challengeBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg><span>Challenge</span></button>
+          <button id="puzzleBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg><span>Tagesrätsel</span></button>
+          <button id="stammtischBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span>Stammtisch</span></button>
         </div>
+        <!-- Recently visited Stammtische: one tap back to the group's table -->
+        <div id="stammtischRecent" class="stammtischRecent hidden"></div>
         <div class="join-divider">oder einem Spiel beitreten</div>
         <div class="joinRow">
           <input id="codeInput" type="text" placeholder="SPIEL-CODE" maxlength="6" autocapitalize="characters" autocomplete="off" spellcheck="false" />
@@ -297,6 +301,7 @@
            den man erst nach dem Spiel sieht, motiviert niemanden. -->
       <div id="questsSection" class="lobby-section questsSection hidden">
         <h2>Tagesaufgaben</h2>
+        <div id="progressStrip" class="progressStrip"></div>
         <div id="questList" class="questList"></div>
       </div>
 
@@ -308,6 +313,12 @@
           <button id="showQrBtn" class="btn-secondary">QR-Code</button>
           <button id="updateNameBtn" class="btn-secondary">Name</button>
         </div>
+      </div>
+
+      <!-- Stammtisch panel: standings, pairwise record and the rematch series -->
+      <div id="stammtischSection" class="lobby-section stammtischSection hidden">
+        <h2>Stammtisch</h2>
+        <div id="stammtischBody"></div>
       </div>
 
       <p id="nonHostHint" class="lobby-hint hidden">🔒 Nur der Organisator kann die Einstellungen ändern.</p>
@@ -498,7 +509,7 @@
       </header>
 
       <div id="emoteBar" class="emoteBar hidden">
-        <button class="emoteChoice" data-emote="👍">👍</button><button class="emoteChoice" data-emote="😂">😂</button><button class="emoteChoice" data-emote="😱">😱</button><button class="emoteChoice" data-emote="😤">😤</button><button class="emoteChoice" data-emote="🎉">🎉</button><button class="emoteChoice" data-emote="⏳" title="Tick tack...">⏳</button><button class="emoteChoice" data-emote="pikdame"><span class="miniPikdame">♠<b>Q</b></span></button>
+        <button class="emoteChoice" data-emote="👍">👍</button><button class="emoteChoice" data-emote="😂">😂</button><button class="emoteChoice" data-emote="😱">😱</button><button class="emoteChoice" data-emote="😤">😤</button><button class="emoteChoice" data-emote="🎉">🎉</button><button class="emoteChoice" data-emote="⏳" title="Tick tack...">⏳</button><button class="emoteChoice" data-emote="pikdame"><span class="miniPikdame">♠<b>Q</b></span></button><button class="emoteChoice" data-emote="👏">👏</button><button class="emoteChoice" data-emote="🙈">🙈</button><button class="emoteChoice" data-emote="🤔">🤔</button><button class="emoteChoice" data-emote="🍀">🍀</button><button class="emoteChoice" data-emote="😎">😎</button><button class="emoteChoice" data-emote="🔥">🔥</button><button class="emoteChoice" data-emote="😴">😴</button><button class="emoteChoice" data-emote="🙏">🙏</button>
       </div>
       <div id="opponents"></div>
 
@@ -587,6 +598,34 @@
         <p class="settingsHint">Gewertet werden deine besten fünf Tage der laufenden Woche.</p>
         <button id="challengeStartBtn" class="btn-primary">Los geht's!</button>
         <button id="challengeCancelBtn" class="btn-secondary">Abbrechen</button>
+      </div>
+    </section>
+
+    <!-- STAMMTISCH: found a persistent group table -->
+    <section id="stammtischOverlay" class="overlay hidden">
+      <div class="overlay-card">
+        <h2><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span>Stammtisch gründen</span></h2>
+        <p class="lobby-hint">Ein fester Tisch für deine Runde: ein Code für immer, eine Bilanz über alle Partien und eine Revanche-Serie (Best of 3). Wer den Code kennt, landet immer am aktuellen Tisch.</p>
+        <input id="stammtischNameInput" type="text" placeholder="Name des Stammtischs" maxlength="24" />
+        <button id="stammtischCreateBtn" class="btn-primary">Gründen &amp; Tisch eröffnen</button>
+        <p class="settingsHint">Du hast schon einen Code? Gib ihn einfach oben bei „Beitreten“ ein.</p>
+        <button id="stammtischCancelBtn" class="btn-secondary">Abbrechen</button>
+      </div>
+    </section>
+
+    <!-- DAILY PUZZLE: one hand, one question, the engine grades -->
+    <section id="puzzleOverlay" class="overlay hidden">
+      <div class="overlay-card">
+        <h2><svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg><span>Tagesrätsel</span></h2>
+        <p class="lobby-hint">Welche Karten ergeben zusammen die wertvollste Auslage? Tippe sie an und prüfe - die Regeln entscheiden.</p>
+        <p id="puzzleTarget" class="puzzleTarget"></p>
+        <div id="puzzleHand" class="puzzleHand"></div>
+        <p id="puzzleStatus" class="puzzleStatus"></p>
+        <div class="dialog-actions">
+          <button id="puzzleCheckBtn" class="btn-primary">Prüfen</button>
+          <button id="puzzleRevealBtn" class="btn-secondary">Lösung zeigen</button>
+        </div>
+        <button id="puzzleCloseBtn" class="btn-secondary">Schließen</button>
       </div>
     </section>
 
@@ -944,7 +983,7 @@
              every player needs was the one you had to scroll for. -->
         <div class="resultFooter">
           <div id="resultEmoteBar" class="resultEmoteBar">
-            <button class="emoteChoice" data-emote="👍">👍</button><button class="emoteChoice" data-emote="😂">😂</button><button class="emoteChoice" data-emote="😱">😱</button><button class="emoteChoice" data-emote="😤">😤</button><button class="emoteChoice" data-emote="🎉">🎉</button><button class="emoteChoice" data-emote="⏳">⏳</button><button class="emoteChoice" data-emote="pikdame"><span class="miniPikdame">♠<b>Q</b></span></button>
+            <button class="emoteChoice" data-emote="👍">👍</button><button class="emoteChoice" data-emote="😂">😂</button><button class="emoteChoice" data-emote="😱">😱</button><button class="emoteChoice" data-emote="😤">😤</button><button class="emoteChoice" data-emote="🎉">🎉</button><button class="emoteChoice" data-emote="⏳" title="Tick tack...">⏳</button><button class="emoteChoice" data-emote="pikdame"><span class="miniPikdame">♠<b>Q</b></span></button><button class="emoteChoice" data-emote="👏">👏</button><button class="emoteChoice" data-emote="🙈">🙈</button><button class="emoteChoice" data-emote="🤔">🤔</button><button class="emoteChoice" data-emote="🍀">🍀</button><button class="emoteChoice" data-emote="😎">😎</button><button class="emoteChoice" data-emote="🔥">🔥</button><button class="emoteChoice" data-emote="😴">😴</button><button class="emoteChoice" data-emote="🙏">🙏</button>
           </div>
           <!-- Primary action alone; everything else folds away. Five equal
                pills below the scores meant "Weiter" had to be hunted for. -->
