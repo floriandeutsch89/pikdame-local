@@ -491,6 +491,9 @@ test('client contract: functions that build translated markup are refreshed by c
     'openChangelog', 'openCardbackGallery',
     // Aktualisierungs-Hinweis: erscheint einmalig und fuehrt zum Neuladen.
     'showUpdateBanner',
+    // Discard confirmation: the dialog text is written fresh on every
+    // click, and the dialog is closed before any language switch.
+    'requestDiscard',
     // Joker choice dialog: rebuilt from scratch every time the server
     // reports an ambiguous meld; its buttons reach L() only through send().
     'showJokerChoice',

@@ -6,8 +6,8 @@ const { seededRandom, createDeck, shuffle, dealCards, performLuckyCut } = requir
 // darf den ganzen Tisch nicht blockieren.
 const CUT_TIMEOUT_MS = 45000;
 const { validateMeld, tryLayOff, tryJokerSwap, enumerateMeldOptions, enumerateLayOffOptions, canFormMeldWithCard } = require('./Rules');
-const { scoreRound, applyRoundScores, checkGameOver, DEFAULT_HOUSE_RULES } = require('./ScoreBoard');
 const { rankIndex, cardLabel, isPikDame, cardValue } = require('./Card');
+const { scoreRound, scoreLines, applyRoundScores, checkGameOver, DEFAULT_HOUSE_RULES } = require('./ScoreBoard');
 const Bot = require('./Bot');
 const StateEncoder = require('./StateEncoder');
 const MoveLogger = require('./MoveLogger');
@@ -1451,6 +1451,11 @@ class GameManager {
       meldsLaidOut: this.tableMelds.filter((m) =>
         m.slots.some((s) => p.laidOutCards.some((c) => (s.real ? s.real.id : s.joker.id) === c.id))
       ).length,
+      // Per-card breakdown for the result overlay: plus lines from the melds,
+      // minus lines from the hand (the winner's hand is empty). Grouped by
+      // value class, so "why -125?" answers itself.
+      laidLines: scoreLines(p.laidOutCards),
+      handLines: scoreLines(p.hand),
     }));
 
     // Defensive Absicherung: checkGameOver bekommt NUR die Gesamtpunkte der

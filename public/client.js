@@ -1701,6 +1701,9 @@
             }
           }
         }
+        if (DND_ENABLED && isMine && isMyTurn && lastState.turnPhase === 'meld') {
+          attachDropTarget(group, (cardIds) => layOffToMeld(meld, cardIds));
+        }
         meld.slots.forEach((slot) => {
           const card = slot.real || {
             isJoker: true,
@@ -1849,6 +1852,7 @@
           selected: selectedCardIds.has(card.id),
           onClick: () => onHandCardClick(card),
         });
+        if (DND_ENABLED && isMyTurn && lastState.turnPhase === 'meld') attachDragSource(cEl, card);
         // Gerade gezogene/aufgenommene Karte sichtbar machen
         if (freshCardIds.has(card.id)) cEl.classList.add('just-drawn');
         // Fächer-Optik: Karten leicht um die Mitte der Hand rotiert + angehoben.
@@ -2378,6 +2382,35 @@
             `</div>` +
             `<div class="resultRowBar"><i style="width:${pct}%"></i></div>` +
             `<div class="resultRowFoot">${L('gesamt', 'total')} ${total}</div>`;
+          // Per-card breakdown: which cards made the number. Open for MY
+          // row (that is the one people ask about), tap to open the others.
+          const stats = (lastState.lastRoundStats || []).find((s) => s.id === p.id);
+          if (stats && (stats.laidLines || stats.handLines)) {
+            const det = document.createElement('details');
+            det.className = 'resultBreakdown';
+            if (p.id === playerId) det.open = true;
+            const lineText = (ln) => {
+              const label = {
+                pikdame: '♠Q', joker: L('Joker', 'Joker'), ace: L('Ass', 'Ace'),
+                face: L('10/B/D/K', '10/J/Q/K'), low: '2–9',
+              }[ln.kind] || ln.kind;
+              return `${ln.count > 1 ? `${ln.count}× ` : ''}${label} ${ln.points}`;
+            };
+            const plus = (stats.laidLines || []).map(lineText).join(', ');
+            const minus = (stats.handLines || []).map(lineText).join(', ');
+            const plusSum = (stats.laidLines || []).reduce((a, ln) => a + ln.points, 0);
+            const minusSum = (stats.handLines || []).reduce((a, ln) => a + ln.points, 0);
+            const isWinner = !!(r && r.breakdown && r.breakdown.isWinner);
+            const mult = r && r.breakdown && r.breakdown.multiplier > 1 ? r.breakdown.multiplier : 1;
+            det.innerHTML =
+              `<summary>${L('Aufschlüsselung', 'Breakdown')}</summary>` +
+              `<div class="bdLine bdPlus"><span>${L('Ausgelegt', 'Melded')}</span><span>${plus ? escapeHtml(plus) : '–'}</span><b>+${plusSum}</b></div>` +
+              (isWinner
+                ? `<div class="bdLine bdNote"><span>${L('Rundensieg: keine Minuspunkte', 'Round winner: no minus points')}</span><span></span><b></b></div>`
+                : `<div class="bdLine bdMinus"><span>${L('Auf der Hand', 'In hand')}</span><span>${minus ? escapeHtml(minus) : '–'}</span><b>−${minusSum}</b></div>`) +
+              (mult > 1 ? `<div class="bdLine bdNote"><span>${L(`Hand aus: ×${mult}`, `Out in one: ×${mult}`)}</span><span></span><b></b></div>` : '');
+            row.appendChild(det);
+          }
           list.appendChild(row);
         });
       paneResult.appendChild(list);
@@ -2650,6 +2683,60 @@
 
   // --- Interaktion ---------------------------------------------------------
 
+  // --- Desktop drag-and-drop ------------------------------------------------
+  // Mouse users drag a hand card onto one of their melds (lay-off / joker
+  // swap) or onto the discard pile. Phones keep tap-to-target: HTML5 drag
+  // needs a fine pointer, and the fan is a scroll surface there.
+  const DND_ENABLED = !!(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches);
+  let dragCardId = null;
+  function attachDragSource(cEl, card) {
+    cEl.draggable = true;
+    cEl.addEventListener('dragstart', (ev) => {
+      dragCardId = card.id;
+      try {
+        ev.dataTransfer.setData('text/plain', String(card.id));
+        ev.dataTransfer.effectAllowed = 'move';
+      } catch (e) { /* jsdom & co. */ }
+      cEl.classList.add('dragging');
+      document.body.classList.add('dndActive');
+    });
+    cEl.addEventListener('dragend', () => {
+      cEl.classList.remove('dragging');
+      document.body.classList.remove('dndActive');
+      document.querySelectorAll('.dropHover').forEach((n) => n.classList.remove('dropHover'));
+      dragCardId = null;
+    });
+  }
+  // The dragged card plus the rest of the selection when it is part of it -
+  // so a three-card lay-off is one drag, like it is one tap.
+  function draggedCardIds() {
+    if (!dragCardId) return [];
+    return selectedCardIds.has(dragCardId) && selectedCardIds.size > 1 ? [...selectedCardIds] : [dragCardId];
+  }
+  function attachDropTarget(node, onDrop) {
+    node.addEventListener('dragover', (ev) => {
+      if (!dragCardId) return;
+      ev.preventDefault();
+      try { ev.dataTransfer.dropEffect = 'move'; } catch (e) { /* ignore */ }
+      node.classList.add('dropHover');
+    });
+    node.addEventListener('dragleave', () => node.classList.remove('dropHover'));
+    node.addEventListener('drop', (ev) => {
+      ev.preventDefault();
+      node.classList.remove('dropHover');
+      const ids = draggedCardIds();
+      if (ids.length) onDrop(ids);
+    });
+  }
+  // The discard pile takes exactly one card - the dragged one, whatever
+  // else is selected (a discard is never a batch).
+  if (DND_ENABLED) {
+    attachDropTarget(el('discardPile'), () => {
+      if (!lastState || lastState.currentPlayerId !== playerId || lastState.turnPhase !== 'meld') return;
+      if (dragCardId) requestDiscard(dragCardId);
+    });
+  }
+
   function onHandCardClick(card) {
     if (!lastState) return;
     const isMyTurn = lastState.currentPlayerId === playerId;
@@ -2669,9 +2756,14 @@
     const isMyTurn = lastState.currentPlayerId === playerId;
     updateTurnTitleNotice(isMyTurn && lastState.phase === 'playing');
     if (!isMyTurn || lastState.turnPhase !== 'meld') return;
+    layOffToMeld(meld, [...selectedCardIds]);
+  }
 
-    if (selectedCardIds.size === 1) {
-      const cardId = [...selectedCardIds][0];
+  // Lay one or several hand cards onto one of MY melds. Tap-to-target and
+  // desktop drag-and-drop both end up here.
+  function layOffToMeld(meld, cardIds) {
+    if (cardIds.length === 1) {
+      const cardId = cardIds[0];
       // Enthält die Auslage einen Joker, der GENAU die gewählte Handkarte
       // repräsentiert, ist der Joker-Tausch gemeint (exakt dieselbe Prüfung
       // wie tryJokerSwap auf dem Server). Andernfalls normales Anlegen.
@@ -2688,10 +2780,10 @@
       // Selection is reconciled on the next state update: it clears only if the
       // card actually left the hand. A rejected lay-off keeps it selected so it
       // can be retargeted at another meld without reselecting.
-    } else if (selectedCardIds.size > 1) {
+    } else if (cardIds.length > 1) {
       // Multiple cards: lay them all off in one tap (server validates
       // all-or-nothing and finds the working order, e.g. J before Q).
-      send({ type: 'layOffMulti', meldId: meld.id, cardIds: [...selectedCardIds] });
+      send({ type: 'layOffMulti', meldId: meld.id, cardIds });
     } else {
       showHint(L('Wähle mindestens eine Handkarte aus, um sie an diese Auslage anzulegen (mehrere passende Karten gehen mit einem Tipp).', 'Select at least one hand card to add it to this meld (several fitting cards go in one tap).'), false);
     }
@@ -2869,9 +2961,13 @@
 
   el('discardBtn').addEventListener('click', () => {
     if (selectedCardIds.size !== 1) return;
-    const cardId = [...selectedCardIds][0];
-    // Abwurf-Schutz: Pik Dame (100 Punkte!) und Joker nicht aus Versehen
-    // abwerfen - der Gegner würde sich freuen.
+    requestDiscard([...selectedCardIds][0]);
+  });
+
+  // Discard with the safety net for the two cards nobody throws away by
+  // accident: the Queen of Spades (100 points) and a joker. Shared by the
+  // button and the desktop drag-and-drop onto the pile.
+  function requestDiscard(cardId) {
     const myPlayer = lastState && lastState.players.find((p) => p.id === playerId);
     const card = myPlayer && myPlayer.hand ? myPlayer.hand.find((cd) => cd.id === cardId) : null;
     const isPikDame = card && card.rank === 'Q' && card.suit === 'S';
@@ -2885,7 +2981,7 @@
       return;
     }
     performDiscard(cardId);
-  });
+  }
 
   let pendingConfirmDiscardId = null;
   el('confirmDiscardYesBtn').addEventListener('click', () => {

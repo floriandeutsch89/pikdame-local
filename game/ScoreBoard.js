@@ -73,6 +73,27 @@ function scoreRound(winnerId, players, options = {}) {
   return result;
 }
 
+/**
+ * Per-card breakdown of a card set, grouped by value class - what the round
+ * result shows under each row ("♠Q 100, 3x face 30, ..."). Pure and tiny so
+ * the client never has to know the point table.
+ * @returns {Array<{kind:'pikdame'|'joker'|'ace'|'face'|'low', count:number, points:number}>}
+ */
+function scoreLines(cards) {
+  const groups = { pikdame: 0, joker: 0, ace: 0, face: 0, low: 0 };
+  for (const c of cards || []) {
+    if (c.isJoker) groups.joker += 1;
+    else if (isPikDame(c)) groups.pikdame += 1;
+    else if (c.rank === 'A') groups.ace += 1;
+    else if (['10', 'J', 'Q', 'K'].includes(c.rank)) groups.face += 1;
+    else groups.low += 1;
+  }
+  const unit = { pikdame: 100, joker: 20, ace: 20, face: 10, low: 5 };
+  return Object.entries(groups)
+    .filter(([, n]) => n > 0)
+    .map(([kind, count]) => ({ kind, count, points: count * unit[kind] }));
+}
+
 function applyRoundScores(totals, roundResult) {
   const newTotals = { ...totals };
   for (const [pid, r] of Object.entries(roundResult)) {
@@ -117,6 +138,7 @@ module.exports = {
   GAME_END_THRESHOLD,
   DEFAULT_HOUSE_RULES,
   scoreRound,
+  scoreLines,
   applyRoundScores,
   checkGameOver,
   sumValues,
