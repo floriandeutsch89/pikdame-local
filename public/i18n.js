@@ -176,6 +176,7 @@ window.I18N_SERVER_PATTERNS = [
   [/^(.+?) erweitert den eigenen Satz um (\d+) Karten\.$/, '$1 extends their own set by $2 cards.'],
   [/^(.+?) nimmt die letzte Auslage zurück\.$/, '$1 takes back their last meld action.'],
   [/^In diesem Zug gibt es nichts zurückzunehmen\.$/, 'There is nothing to take back in this turn.'],
+  [/^Zum Ausmachen musst du deine letzte Karte abwerfen - lege die aufgenommene Karte so aus, dass eine Handkarte übrig bleibt\.$/, 'To go out you must discard your last card - lay the picked-up card so that one hand card remains.'],
   [/^(.+?) legt (.+?) an eine Auslage an\.$/, '$1 adds $2 to a meld.'],
   [/^(.+?) tauscht (.+?) gegen einen Joker in einer Auslage\. Der Joker scheidet aus dem Spiel aus\.$/, '$1 swaps $2 for a joker in a meld. The joker is permanently out of the game.'],
   [/^(.+?) wirft (.+?) ab\.$/, '$1 discards $2.'],

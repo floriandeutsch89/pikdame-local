@@ -2500,7 +2500,11 @@ test('going-out rule holds through full games: a round never ends without a disc
     const origFinish = game.finishRound.bind(game);
     game.finishRound = (winnerId, ...rest) => {
       // winnerId gesetzt = jemand hat ausgemacht (Patt/Aufgabe haben keinen).
-      if (winnerId && lastAction && lastAction !== 'discard') offenders.push(lastAction);
+      // The ONE documented exception is the joker exit: swapping the last
+      // hand card for a joker in an own meld ends the round at once (rules
+      // essence in CLAUDE.md, bot 'Joker-Ausstieg'). Bots do it on purpose,
+      // so the unseeded game hit it in ~0.5% of runs and made CI flaky.
+      if (winnerId && lastAction && lastAction !== 'discard' && lastAction !== 'swapJoker') offenders.push(lastAction);
       return origFinish(winnerId, ...rest);
     };
 
@@ -3229,5 +3233,41 @@ test('undoMeldAction: bots never build an undo stack', () => {
   p.hand = [makeStandardCard('H', '7', 0), makeStandardCard('S', '7', 0), makeStandardCard('D', '7', 0), makeStandardCard('C', '2', 0)];
   assert.ok(game.layoutMeld('p1', p.hand.slice(0, 3).map((c) => c.id)).ok);
   assert.equal(game._undoStack.length, 0);
+  game.destroy();
+});
+
+// --- Pickup duty never empties the hand when a smaller meld spares a card ------
+test('layoutMeld: a whole-hand meld with the pickup card is refused when a smaller meld spares a card', () => {
+  const game = meldReadyGame();
+  const p = game.players[0];
+  game.turnPhase = 'draw';
+  const aS = makeStandardCard('S', 'A', 0);
+  const s2 = makeStandardCard('S', '2', 0), s3 = makeStandardCard('S', '3', 0), sK = makeStandardCard('S', 'K', 0);
+  game.discardPile = [aS];
+  p.hand = [s2, s3, sK];
+  assert.ok(!game.drawFromDiscard('p1').error, 'A-2-3 spares the king - the pickup is legal');
+  const whole = game.layoutMeld('p1', [sK.id, aS.id, s2.id, s3.id]);
+  assert.ok(whole.error, 'K-A-2-3 would end the round without a discard');
+  assert.equal(game.phase, 'playing');
+  assert.equal(p.hand.length, 4);
+  const spare = game.layoutMeld('p1', [aS.id, s2.id, s3.id]);
+  assert.ok(spare.ok, JSON.stringify(spare));
+  assert.equal(p.hand.length, 1, 'the king is left for the discard');
+  assert.equal(game.mustLayOffCardId, null);
+  game.destroy();
+});
+
+test('layoutMeld: the whole-hand exception still applies when no smaller meld exists (no dead end)', () => {
+  const game = meldReadyGame();
+  const p = game.players[0];
+  const aS = makeStandardCard('S', 'A', 0);
+  const s2 = makeStandardCard('S', '2', 0), s3 = makeStandardCard('S', '3', 0);
+  // Duty state as after taking a lone card: forced card on hand, no rest.
+  p.hand = [aS, s2, s3];
+  game.mustLayOffCardId = aS.id;
+  game.pendingDiscardRest = true;
+  game.discardPile = [];
+  const r = game.layoutMeld('p1', [aS.id, s2.id, s3.id]);
+  assert.ok(r.ok, JSON.stringify(r));
   game.destroy();
 });

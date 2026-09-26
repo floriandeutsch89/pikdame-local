@@ -925,6 +925,28 @@ class GameManager {
     return { ok: true };
   }
 
+  /** Is there a valid meld that contains the mandatory pickup card and still
+   *  leaves at least one hand card for the final discard? Only reached when
+   *  a meld would empty the hand, i.e. with a small hand - the subset walk
+   *  stays cheap (at most a few thousand validations on a 13-card hand). */
+  _sparingMeldExists(hand, mustCardId) {
+    const must = hand.find((c) => c.id === mustCardId);
+    if (!must) return false;
+    const others = hand.filter((c) => c.id !== mustCardId);
+    const maxOthers = Math.min(others.length - 1, 12);
+    const pick = (start, chosen) => {
+      if (chosen.length >= 2 && enumerateMeldOptions([must, ...chosen]).length > 0) return true;
+      if (chosen.length >= maxOthers) return false;
+      for (let i = start; i < others.length; i++) {
+        chosen.push(others[i]);
+        if (pick(i + 1, chosen)) return true;
+        chosen.pop();
+      }
+      return false;
+    };
+    return maxOthers >= 2 && pick(0, []);
+  }
+
   /** Snapshot of everything a meld-phase action (new meld, lay-off, joker
    *  swap) can change, so undoMeldAction can put it back. Humans only: bots
    *  never undo, and rollout clones must not pay for deep copies. Cleared at
@@ -1064,6 +1086,15 @@ class GameManager {
       const containsMustCard = this.mustLayOffCardId && cardIds.includes(this.mustLayOffCardId);
       if (usingCount >= player.hand.length && !restIncoming && !containsMustCard) {
         return { error: 'Zum Ausmachen musst du deine letzte Karte abwerfen - mindestens eine Handkarte muss übrig bleiben.' };
+      }
+      // Exception (b) only exists so the pickup duty can never dead-end. When
+      // a SMALLER combination with the mandatory card spares a hand card, the
+      // whole-hand meld is refused: the discard duty holds without exception
+      // (v1.85.2 table decision). Found by the full-game going-out test - hand
+      // 2S 3S KS took a lone AS (legal: A-2-3 spares the king), the zen bot
+      // then laid K-A-2-3 and the round ended without a discard.
+      if (usingCount >= player.hand.length && !restIncoming && containsMustCard && this._sparingMeldExists(player.hand, this.mustLayOffCardId)) {
+        return { error: 'Zum Ausmachen musst du deine letzte Karte abwerfen - lege die aufgenommene Karte so aus, dass eine Handkarte übrig bleibt.' };
       }
     }
 
