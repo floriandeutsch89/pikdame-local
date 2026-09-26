@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.25.0] - 2026-09-26
+
+### Added
+- **Verbindungsanzeige am Tisch.** Bricht die Verbindung während einer Partie ab, erscheint unter der Kopfzeile „Verbindung weg - verbinde neu …“ (ohne Netz: „Offline - warte auf Netz …“). Bisher stand das nur in der Statuszeile der Lobby - am Tisch passierte beim Tippen einfach nichts. Eine Aktion ohne Verbindung meldet jetzt „Aktion nicht gesendet“ und löst sofort einen Neuaufbau aus, statt still verloren zu gehen
+
+### Changed
+- **Deutlich stabiler im Zug und bei schwachem Netz (EDGE).** Im Funkloch oder beim Zellwechsel stirbt die Verbindung oft, ohne dass der Browser es merkt - die Partie wirkte minutenlang eingefroren. Der Client prüft die Verbindung jetzt selbst: Bleibt eine Antwort auf einen eigenen Zug 3 s aus oder ist die Leitung 10 s still, fragt er per Ping nach; kommt binnen 8 s keine Antwort, baut er sofort eine neue Verbindung auf und setzt am selben Platz fort. Ein hängender Verbindungsaufbau wird nach 12 s abgebrochen und mit wachsendem Abstand neu versucht. Nach der Rückkehr aus dem Hintergrund wird die Verbindung sofort geprüft
+- **~90 % weniger Datenvolumen pro Zug.** Das Kompressionsfenster der WebSocket-Verbindung ist jetzt groß genug für einen ganzen Spielstand, sodass jeder neue Stand nur noch als Unterschied zum vorigen übertragen wird: gemessen ~200 Byte statt ~1,9 KB pro Spielstand (vorher ~10 KB unkomprimiert). Serverseitig kostet das ~96 KB Speicher pro Verbindung
+
 ## [2.24.0] - 2026-09-26
 
 ### Added

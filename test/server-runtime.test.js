@@ -1,6 +1,8 @@
 /**
  * Runtime guarantees of the real server process and bare game objects:
- *  - WebSocket frames are compressed (permessage-deflate negotiated),
+ *  - WebSocket frames are compressed (permessage-deflate negotiated, with a
+ *    window large enough to diff consecutive states), and an app-level
+ *    ping is answered with a pong (client liveness watchdog),
  *  - a stale session snapshot is discarded instead of restored,
  *  - game timers never keep a process alive on their own (the 75s takeover
  *    grace used to hang every test file that disconnected a player).
@@ -53,8 +55,12 @@ test('server negotiates permessage-deflate and drops a stale snapshot', async (t
   fs.writeFileSync(snapshotFile, JSON.stringify({ savedAt: Date.now() - 2 * 60 * 60 * 1000, sessions: [] }));
 
   const { server, output } = startServer(dataDir);
-  t.after(() => {
+  t.after(async () => {
+    // SIGTERM makes the server write its session snapshot into dataDir;
+    // removing the directory before it exits raced that write (ENOTEMPTY).
+    const exited = new Promise((resolve) => server.once('exit', resolve));
     server.kill();
+    await exited;
     fs.rmSync(dataDir, { recursive: true, force: true });
   });
   await waitForServer(PORT);
@@ -63,11 +69,26 @@ test('server negotiates permessage-deflate and drops a stale snapshot', async (t
   assert.ok(!fs.existsSync(snapshotFile), 'a stale snapshot is deleted, not kept around');
 
   const ws = new WebSocket(`ws://localhost:${PORT}`);
+  let negotiated = '';
+  ws.once('upgrade', (res) => { negotiated = String(res.headers['sec-websocket-extensions'] || ''); });
   await new Promise((resolve, reject) => {
     ws.once('open', resolve);
     ws.once('error', reject);
   });
   assert.match(ws.extensions, /permessage-deflate/);
+  // The 16 KB window holds a whole previous state, so the next one
+  // compresses as a diff (~200 B instead of ~1.9 KB) - the EDGE/train lever.
+  assert.match(negotiated, /server_max_window_bits=14/);
+
+  // App-level keepalive: the client's liveness watchdog relies on this pong.
+  const pong = new Promise((resolve) => {
+    ws.on('message', (data) => {
+      const msg = JSON.parse(data);
+      if (msg.type === 'pong') resolve(msg);
+    });
+  });
+  ws.send(JSON.stringify({ type: 'ping' }));
+  assert.deepEqual(await pong, { type: 'pong' });
   ws.close();
 });
 

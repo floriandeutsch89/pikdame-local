@@ -282,6 +282,7 @@
     // billig genug, es einfach immer zu versuchen statt den Sichtbarkeits-
     // Zustand zu pruefen.
     try { renderGameHistory(); } catch (e) { /* dito */ }
+    try { updateNetBanner(); } catch (e) { /* defined further down */ }
     if (lastState) render();
   }
 
@@ -573,8 +574,93 @@
   let reconnectTimer = null;
   const RECONNECT_STEPS_MS = [1000, 2000, 4000, 8000, 15000, 30000];
 
+  // --- Liveness watchdog (train/EDGE connections) --------------------------
+  // In a tunnel or during a cell handover the TCP connection often dies
+  // without a close event: readyState stays OPEN for minutes, every tap goes
+  // into the void and the table looks frozen. Browsers cannot see the
+  // server's protocol pings, so the client probes on its own: a socket that
+  // has been silent for a while (or right after the player acted and got no
+  // answer) gets an app-level ping; no pong within PONG_TIMEOUT_MS means the
+  // socket is written off and a fresh one is opened at once.
+  const IDLE_PROBE_MS = 10000;    // silent this long -> probe
+  const ACTION_PROBE_MS = 3000;   // player acted, no answer this long -> probe
+  const PONG_TIMEOUT_MS = 8000;   // probe unanswered this long -> dead
+  const WATCHDOG_TICK_MS = 1000;
+  // A handshake lost in a dead zone can hang in CONNECTING for minutes
+  // (TCP SYN retries). Give up after this and retry with backoff.
+  const CONNECT_TIMEOUT_MS = 12000;
+  let lastRxAt = 0;
+  let lastActionAt = 0;
+  let pingSentAt = 0;
+  let watchdogTimer = null;
+
+  // Runs only while a socket is OPEN: nothing to watch otherwise, and the
+  // reconnect timers own the disconnected phase.
+  function startWatchdog() {
+    clearInterval(watchdogTimer);
+    watchdogTimer = setInterval(watchdogTick, WATCHDOG_TICK_MS);
+  }
+  function stopWatchdog() {
+    clearInterval(watchdogTimer);
+    watchdogTimer = null;
+  }
+
+  function watchdogTick() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    // A backgrounded tab gets throttled timers; judging liveness there
+    // would only produce false alarms. 'visibilitychange' re-checks.
+    if (document.visibilityState === 'hidden') return;
+    const now = Date.now();
+    if (pingSentAt) {
+      if (now - pingSentAt > PONG_TIMEOUT_MS) abandonSocket();
+      return;
+    }
+    const idle = now - lastRxAt;
+    const unanswered = lastActionAt > lastRxAt && now - lastActionAt > ACTION_PROBE_MS;
+    if (idle > IDLE_PROBE_MS || unanswered) {
+      pingSentAt = now;
+      try { ws.send('{"type":"ping"}'); } catch (e) { abandonSocket(); }
+    }
+  }
+
+  /** Writes off a socket that is OPEN on paper but dead in practice. Its
+   *  handlers are detached (via the `sock !== ws` guards) so a close event
+   *  that trickles in minutes later cannot start a second reconnect. */
+  function abandonSocket(opts = {}) {
+    const dead = ws;
+    ws = null;
+    pingSentAt = 0;
+    stopWatchdog();
+    try { if (dead) dead.close(); } catch (e) { /* already gone */ }
+    updateNetBanner();
+    // A socket that WAS working died: retry at once. A handshake that never
+    // completed: keep backing off, the network is evidently not there yet.
+    if (opts.backoff) {
+      scheduleReconnect();
+    } else {
+      reconnectAttempt = 0;
+      connect();
+    }
+  }
+
+  // Persistent hint during a game: without it a dead connection only showed
+  // up in the lobby's status line - at the table taps just did nothing.
+  function updateNetBanner() {
+    const banner = el('netBanner');
+    if (!banner) return;
+    const inSession = !!(sessionCode && playerId);
+    const open = !!(ws && ws.readyState === WebSocket.OPEN);
+    banner.classList.toggle('hidden', !inSession || open);
+    if (inSession && !open) {
+      el('netBannerText').textContent = navigator.onLine === false
+        ? L('Offline - warte auf Netz …', 'Offline - waiting for network …')
+        : L('Verbindung weg - verbinde neu …', 'Connection lost - reconnecting …');
+    }
+  }
+
   function scheduleReconnect() {
     clearTimeout(reconnectTimer);
+    updateNetBanner();
     // Offline: gar nicht erst versuchen. Der 'online'-Ereignishandler unten
     // startet sofort, sobald das Geraet wieder Netz hat.
     if (navigator.onLine === false) {
@@ -603,17 +689,38 @@
   // Netz zurueck oder App wieder im Vordergrund: sofort versuchen, statt den
   // laufenden Wartezeitgeber abzuwarten.
   window.addEventListener('online', reconnectNow);
+  window.addEventListener('offline', updateNetBanner);
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') reconnectNow();
+    if (document.visibilityState !== 'visible') return;
+    reconnectNow();
+    // Back from the background: the socket may have died unnoticed while
+    // the timers were throttled - probe it right away.
+    if (ws && ws.readyState === WebSocket.OPEN && !pingSentAt) {
+      pingSentAt = Date.now();
+      try { ws.send('{"type":"ping"}'); } catch (e) { abandonSocket(); }
+    }
   });
 
   function connect() {
     clearTimeout(reconnectTimer);
     if (navigator.onLine === false) { scheduleReconnect(); return; }
-    ws = new WebSocket(wsUrl());
+    const sock = new WebSocket(wsUrl());
+    ws = sock;
+    pingSentAt = 0;
+    const connectTimer = setTimeout(() => {
+      if (sock === ws && sock.readyState === WebSocket.CONNECTING) abandonSocket({ backoff: true });
+    }, CONNECT_TIMEOUT_MS);
     el('connStatus').textContent = L('Verbinde...', 'Connecting...');
 
-    ws.addEventListener('open', () => {
+    // Every handler below ignores events of a socket that has since been
+    // replaced (abandonSocket / a newer connect()).
+    sock.addEventListener('open', () => {
+      clearTimeout(connectTimer);
+      if (sock !== ws) return;
+      lastRxAt = Date.now();
+      lastActionAt = 0;
+      startWatchdog();
+      updateNetBanner();
       el('connStatus').textContent = L('Verbunden.', 'Connected.');
       // Profile + Tagesaufgaben sofort holen: der Startbildschirm zeigt den
       // heutigen Aufgaben-Fortschritt, und der steht im eigenen Profil - ohne
@@ -632,21 +739,28 @@
       }
     });
 
-    ws.addEventListener('open', () => { reconnectAttempt = 0; });
+    sock.addEventListener('open', () => { if (sock === ws) reconnectAttempt = 0; });
 
-    ws.addEventListener('close', () => {
+    sock.addEventListener('close', () => {
+      clearTimeout(connectTimer);
+      if (sock !== ws) return;
+      stopWatchdog();
       scheduleReconnect();
     });
 
-    ws.addEventListener('error', () => {
-      // Kein eigener Neuversuch hier: Auf 'error' folgt IMMER 'close', sonst
-      // liefen zwei Zeitgeber parallel. Nur die Anzeige aktualisieren.
+    sock.addEventListener('error', () => {
+      if (sock !== ws) return;
+      // No retry of its own here: 'error' is ALWAYS followed by 'close',
+      // otherwise two timers would run in parallel. Only update the display.
       el('connStatus').textContent = navigator.onLine === false
         ? L('Offline - warte auf Netz...', 'Offline - waiting for a network...')
         : L('Verbindungsfehler.', 'Connection error.');
     });
 
-    ws.addEventListener('message', (ev) => {
+    sock.addEventListener('message', (ev) => {
+      if (sock !== ws) return;
+      lastRxAt = Date.now();
+      pingSentAt = 0;
       // WICHTIG: Ohne try/catch würde EINE kaputte/unerwartete Nachricht
       // (oder ein Render-Fehler) den Handler-Durchlauf ungefangen abbrechen -
       // der State-Update ginge verloren und die UI bliebe inkonsistent.
@@ -785,10 +899,18 @@
   function send(obj) {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(obj));
+      // Arms the action probe: no answer within ACTION_PROBE_MS -> ping.
+      lastActionAt = Date.now();
+      return;
     }
+    // Not queued on purpose: replaying a stale move after a reconnect could
+    // act on a table that changed meanwhile. Say so instead of swallowing it.
+    showToast(L('Keine Verbindung - Aktion nicht gesendet. Verbinde neu …', 'No connection - action not sent. Reconnecting …'), { priority: true });
+    reconnectNow();
   }
 
   function handleMessage(msg) {
+    if (msg.type === 'pong') return; // liveness only, see watchdogTick
     if (msg.type === 'joined') {
       storageSet('pikdame_last_session', msg.sessionCode);
       // Secret seat token: proves this browser owns the seat on reconnect

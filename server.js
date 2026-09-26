@@ -533,15 +533,20 @@ const wss = new WebSocket.Server({
   server,
   maxPayload: 16 * 1024,
   // permessage-deflate: a state broadcast is ~10 KB of repetitive JSON
-  // (up to ~14 KB late in a round) and shrinks ~6x. Caddy's `encode` only
-  // covers HTTP, never WebSocket frames, so without this every move cost
-  // each player the full size over mobile data. Small window + memLevel
-  // keep the per-connection zlib memory in the low-KB range; frames under
-  // 1 KB (acks, emotes) are sent as-is. Browsers negotiate it on their own.
+  // (up to ~14 KB late in a round). Caddy's `encode` only covers HTTP, never
+  // WebSocket frames, so without this every move cost each player the full
+  // size over mobile data. Frames under 1 KB (acks, emotes) go out as-is.
+  // The 16 KB window (14 bits) is the real lever: it holds the WHOLE
+  // previous state, and with context takeover (ws default) the next state
+  // compresses as a diff against it - measured ~200 B per state instead of
+  // ~1.9 KB with the former 1 KB window (bot game, 216 states). That is what
+  // keeps the game playable on EDGE/train connections. Cost: ~96 KB zlib
+  // memory per connection (window 64 KB + memLevel 6 hash 32 KB).
+  // Browsers negotiate it on their own.
   perMessageDeflate: {
     threshold: 1024,
-    serverMaxWindowBits: 10,
-    zlibDeflateOptions: { memLevel: 7 },
+    serverMaxWindowBits: 14,
+    zlibDeflateOptions: { memLevel: 6 },
   },
   verifyClient: ({ origin, req }, done) => {
     // Origin-Check nur, wenn explizit konfiguriert (im LAN/Hotspot ist die
@@ -854,21 +859,31 @@ wss.on('connection', (ws, req) => {
       return sendError(ws, 'Ungültige Nachricht.');
     }
 
-    // Zweites Sicherheitsnetz gegen die Bot-Uebernahme trotz bestehender
-    // Verbindung: JEDE Nachricht beweist, dass dieser Spieler da ist. Sollte
-    // ihn ein verspaetetes close-Ereignis (oder ein anderer Grund) als
-    // getrennt markiert haben, wird das hier sofort korrigiert - bevor die
-    // Gnadenfrist ablaeuft und ein Bot uebernimmt.
+    // Second safety net against a bot takeover despite a live connection:
+    // EVERY message (pings included) proves this player is here. If a late
+    // close event (or anything else) marked the seat as disconnected, fix it
+    // right away - before the grace period runs out and a bot takes over.
     if (playerId && session && session.sockets.get(playerId) === ws) {
       const seat = session.game.players.find((p) => p.id === playerId);
       if (seat && !seat.connected) {
-        // Bewusst der GLEICHE Weg wie bei einer echten Rueckkehr: er loescht
-        // disconnectedAt, stoppt den Uebernahme-Zeitgeber und richtet den
-        // Zug-Timer neu ein. Eine eigene Abkuerzung wuerde davon etwas
-        // vergessen.
+        // Deliberately the SAME path as a real return: it clears
+        // disconnectedAt, stops the takeover timer and re-arms the turn
+        // timer. A shortcut of our own would forget one of those.
         session.game.addOrReconnectPlayer(playerId, seat.name);
         session.game.broadcastState();
       }
+    }
+
+    // Any inbound frame proves the socket is alive (saves a ping round).
+    ws.isAlive = true;
+
+    // Application-level keepalive: browsers cannot see protocol pings, so
+    // the client probes a silent socket itself (train tunnels leave it
+    // half-open for minutes) and reconnects if this pong never arrives.
+    // Answered before any game handling - cheap and side-effect free.
+    if (msg && msg.type === 'ping') {
+      if (ws.readyState === WebSocket.OPEN) ws.send('{"type":"pong"}');
+      return;
     }
 
     try {
