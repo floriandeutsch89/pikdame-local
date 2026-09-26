@@ -41,6 +41,8 @@
   let prevHandIds = new Set();
   let prevTurnPlayerId = null;
   let prevForfeitVoteCount = 0;
+  let prevPauseVoteCount = 0;
+  let prevIVotedPause = false;
   let countdownTimer = null; // per-second turn countdown; only runs when needed (battery)
   let quoteShownForRound = null; // Rundenstart-Spruch nur einmal pro Runde
   // Which source the pending draw came from ('discard' = Ablagestapel).
@@ -4343,8 +4345,31 @@
       : votes.length
         ? L(`Pause: ${votes.length}/${humans.length} dafür`, `Pause: ${votes.length}/${humans.length} in favour`)
         : L('Pause (alle müssen zustimmen)', 'Pause (everyone must agree)');
-    // Pause overlay while the game is frozen.
     const paused = !!(s && s.paused);
+    // The tally used to live in the title tooltip only - invisible on a
+    // phone. With 2+ humans a tap therefore seemed to do nothing, and the
+    // others never learned they were being asked. Now: a visible counter on
+    // the button, a confirmation for the proposer and a prompt for everyone
+    // else (same pattern as the forfeit vote).
+    el('pauseBtn').dataset.votes = playing && !paused && votes.length ? `${votes.length}/${humans.length}` : '';
+    if (playing && !paused && seated && humans.length > 1) {
+      if (iVoted && !prevIVotedPause) {
+        showToast(
+          L(`⏸️ Pause vorgeschlagen (${votes.length}/${humans.length}) - das Spiel hält an, sobald alle zustimmen.`,
+            `⏸️ Pause proposed (${votes.length}/${humans.length}) - the game stops once everyone agrees.`),
+          { priority: true }
+        );
+      } else if (!iVoted && votes.length > prevPauseVoteCount) {
+        showToast(
+          L(`⏸️ Pause vorgeschlagen (${votes.length}/${humans.length}) - tippe auf ⏸️, um zuzustimmen.`,
+            `⏸️ Pause proposed (${votes.length}/${humans.length}) - tap ⏸️ to agree.`),
+          { priority: true }
+        );
+      }
+    }
+    prevPauseVoteCount = paused ? 0 : votes.length;
+    prevIVotedPause = !paused && iVoted;
+    // Pause overlay while the game is frozen.
     el('pauseOverlay').classList.toggle('hidden', !paused);
     if (paused) {
       const need = humans.length;

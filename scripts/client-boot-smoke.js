@@ -596,6 +596,65 @@ setTimeout(() => {
       doc.querySelectorAll('.raidWarning').forEach((n) => n.remove());
     }
 
+    // Pause vote with two humans: the tally used to live in the title tooltip
+    // only, so on a phone a tap seemed to do nothing and the other player
+    // never learned they were being asked (player report).
+    {
+      const doc = window.document;
+      const pauseBase = {
+        ...base, phase: 'playing', roundNumber: 1, currentPlayerId: 'b1',
+        turnPhase: 'draw', dealerId: 'b1', turnDeadline: null, paused: false,
+        discardTop: { id: 'pz0', suit: 'H', rank: '4' }, drawCount: 20, discardCount: 1,
+        players: [
+          ...base.players.map((p) => ({ ...p, handCount: 5 })),
+          { id: 'p2', name: 'Anna', isBot: false, connected: true, handCount: 5 },
+        ],
+      };
+      const toast = doc.getElementById('toastContainer');
+      const pauseBtn = doc.getElementById('pauseBtn');
+      feed({ ...pauseBase, pauseVotes: [] });
+      if (pauseBtn.dataset.votes) errors.push(`pause tally must be empty without votes, got: ${pauseBtn.dataset.votes}`);
+      feed({ ...pauseBase, pauseVotes: ['p2'] });
+      if (pauseBtn.dataset.votes !== '1/2') errors.push(`pause tally must show 1/2, got: ${pauseBtn.dataset.votes}`);
+      if (!/Pause vorgeschlagen \(1\/2\).*zuzustimmen/.test(toast.textContent)) {
+        errors.push(`the other player must be asked to agree to the pause, got: ${toast.textContent}`);
+      }
+      feed({ ...pauseBase, pauseVotes: [] });
+      toast.textContent = '';
+      feed({ ...pauseBase, pauseVotes: ['p1'] });
+      if (!/Pause vorgeschlagen \(1\/2\).*sobald alle/.test(toast.textContent)) {
+        errors.push(`the proposer must see that the pause waits for the others, got: ${toast.textContent}`);
+      }
+      feed({ ...pauseBase, paused: true, pauseVotes: [] });
+      if (pauseBtn.dataset.votes) errors.push('pause tally must clear once the game is paused');
+      feed({ ...pauseBase, pauseVotes: [] });
+    }
+
+    // A freshly drawn card is marked - the Queen of Spades included (it used
+    // to be exempted from the marker by a stale CSS rule).
+    {
+      const doc = window.document;
+      const handOf = (cards) => ({
+        ...base, phase: 'playing', roundNumber: 1, currentPlayerId: 'p1',
+        turnPhase: 'meld', dealerId: 'b1', turnDeadline: null,
+        discardTop: { id: 'dq0', suit: 'H', rank: '4' }, drawCount: 20, discardCount: 1,
+        players: base.players.map((p) =>
+          p.id === 'p1' ? { ...p, handCount: cards.length, hand: cards } : { ...p, handCount: 5 }
+        ),
+        tableMelds: [],
+      });
+      const start = [{ id: 'H5', suit: 'H', rank: '5' }, { id: 'C9', suit: 'C', rank: '9' }];
+      feed(handOf(start));
+      feed(handOf([...start, { id: 'SQ-0', suit: 'S', rank: 'Q' }]));
+      const drawn = doc.querySelector('#hand [data-card-id="SQ-0"]');
+      if (!drawn) errors.push('drawn Pik Dame not rendered');
+      else if (!drawn.classList.contains('just-drawn')) errors.push('a drawn Pik Dame must carry the just-drawn marker');
+      const css = fs.readFileSync(path.join(pub, 'style.css'), 'utf8');
+      if (/\.just-drawn\.pikdame-card[^{]*\{[^}]*animation:\s*none/.test(css)) {
+        errors.push('style.css must not switch the draw marker off for the Pik Dame');
+      }
+    }
+
     // Gruener Rahmen bei Joker-Auswahl: An 7d-8d-9d koennen Joker + Bube nur
     // Joker=10d heissen - der Hinweis muss das genauso erkennen wie der
     // Server, sonst wirkt ein gueltiger Zug unmoeglich (Spieler-Report).

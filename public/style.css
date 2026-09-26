@@ -615,6 +615,17 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   transition: transform 0.15s var(--ease), background 0.2s ease;
 }
 .btn-icon:active { transform: scale(0.9); }
+/* Pause vote tally: without it a tap with 2+ humans seemed to do nothing
+   (the count lived in the title tooltip, which phones never show). */
+#pauseBtn { position: relative; }
+#pauseBtn:not([data-votes=""])[data-votes]::after {
+  content: attr(data-votes);
+  position: absolute; top: -4px; right: -6px;
+  padding: 1px 4px; border-radius: 999px;
+  background: var(--accent); color: var(--accent-ink);
+  font-size: var(--fs-micro); font-weight: 800; line-height: 1.2;
+  pointer-events: none;
+}
 
 /* --- Hit-area expansion -----------------------------------------------------
    Some controls are deliberately small (the peek eye on the discard pile, the
@@ -980,14 +991,19 @@ button:focus-visible, input:focus-visible, select:focus-visible {
      bleibende Ring die eigentliche Markierung ist; er verschwindet ohnehin,
      sobald die Karte gespielt wird oder der Zug endet.
      BEWUSST OHNE z-index - siehe .selected: die nach vorn geholte Karte
-     verdeckte sonst den Klickstreifen der rechten Nachbarkarte im Faecher. */
+     verdeckte sonst den Klickstreifen der rechten Nachbarkarte im Faecher.
+     The resting ring is also set statically so the marker never depends on
+     the animation's fill mode alone. */
+  box-shadow: 0 0 0 3px var(--accent), 0 0 12px var(--accent-soft), var(--shadow-2);
   animation: drawnGlow 1.4s ease-out forwards;
 }
 @media (prefers-reduced-motion: reduce) {
   .card.just-drawn { animation: none; box-shadow: 0 0 0 3px var(--accent), 0 0 12px var(--accent-soft), var(--shadow-2); }
 }
-/* Auswahl- und Pik-Dame-Optik gewinnen gegen den Zieh-Glow */
-.card.just-drawn.selected, .card.just-drawn.pikdame-card { animation: none; }
+/* The selection ring wins against the draw glow. The Queen of Spades used
+   to be exempted too, for a 'Pik Dame look' that no longer exists - a drawn
+   Pik Dame therefore got no marker at all (player report). */
+.card.just-drawn.selected { animation: none; }
 
 /* eigene Karten in Auslagen */
 /* Auslagen nach Besitzer gruppiert: jeder Spieler hat seinen eigenen Stapel */
