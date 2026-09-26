@@ -139,6 +139,12 @@ window.I18N_STATIC = {
 
   // Themes-Zeile etc.
   'Sound & Vibration': 'Sound & vibration',
+  // Stammtisch
+  'Stammtisch': 'Regulars table',
+  'Stammtisch gründen': 'Found a regulars table',
+  'Ein fester Tisch für deine Runde: ein Code für immer, eine Bilanz über alle Partien und eine Revanche-Serie (Best of 3). Wer den Code kennt, landet immer am aktuellen Tisch.': 'A permanent table for your group: one code forever, a record across all matches and a rematch series (best of 3). Whoever holds the code always lands at the current table.',
+  'Gründen & Tisch eröffnen': 'Found it & open the table',
+  'Du hast schon einen Code? Gib ihn einfach oben bei „Beitreten“ ein.': 'Already have a code? Just enter it under "Join" above.',
   // Tagesrätsel
   'Tagesrätsel': 'Daily puzzle',
   'Welche Karten ergeben zusammen die wertvollste Auslage? Tippe sie an und prüfe - die Regeln entscheiden.': 'Which cards together make the most valuable meld? Tap them and check - the rules decide.',
@@ -245,6 +251,7 @@ window.I18N_SERVER_PATTERNS = [
   [/^Kein Spiel mit diesem Code gefunden\. Bitte Code prüfen\.$/, 'No game found with this code. Please check it.'],
   [/^Der Server ist derzeit voll - bitte später erneut versuchen\.$/, 'The server is currently full – please try again later.'],
   [/^Mindestens 2 Spieler nötig\.$/, 'At least 2 players are required.'],
+  [/^(.+?) gewinnt die Serie (\d+):(\d+)!$/, '$1 wins the series $2:$3!'],
   // Meld validation reasons (Rules.js) - surfaced by the daily puzzle
   [/^Ein Satz braucht 3 bis (\d+) Karten\.$/, 'A set needs 3 to $1 cards.'],
   [/^Ein Satz braucht mindestens eine echte Karte\.$/, 'A set needs at least one real card.'],

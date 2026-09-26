@@ -26,6 +26,7 @@ const { createAccountStoreAuto } = require('./game/AccountStore');
 const { createMailer } = require('./game/Mailer');
 const { isAllowedEmote, emoteLevel } = require('./game/Emotes');
 const { puzzleForDate, publicPuzzle, checkAnswer, XP_FOR_SOLVED } = require('./game/DailyPuzzle');
+const { createStammtischStore, normalizeCode: normalizeStammtischCode } = require('./game/StammtischStore');
 const { createGameHistoryStore, historyForPlayer } = require('./game/GameHistoryStore');
 const { SessionRegistry, sanitizeName } = require('./game/SessionRegistry');
 
@@ -60,6 +61,9 @@ if (ACCOUNTS_ENABLED) {
   console.log('Benutzerkonten: deaktiviert (node:sqlite nicht verfügbar oder PIKDAME_ACCOUNTS=0)');
 }
 const gameHistoryStore = createGameHistoryStore();
+// Stammtisch: persistent group tables (code -> members, record, series).
+// Scoped by code, so it stays on in public mode - see StammtischStore.
+const stammtischStore = createStammtischStore();
 
 // --- Absturz-Diagnose ------------------------------------------------------
 // Schreibt Fehler zusätzlich in eine Log-Datei, falls die Konsole in der
@@ -635,6 +639,16 @@ const registry = new SessionRegistry((session) => {
       // Globale Zähler sind ANONYM aggregiert (keine Namen) und daher auch
       // im öffentlichen Modus unbedenklich.
       globalStats.recordGame(gameRecord);
+      // Stammtisch record + rematch series: scoped by the table's code, so it
+      // runs in public mode too. Best-effort like everything below.
+      if (session.stammtisch) {
+        try {
+          const booked = stammtischStore.recordGame(session.stammtisch, gameRecord);
+          if (booked) broadcastToSession(session, { type: 'stammtisch', summary: booked.summary, seriesEvent: booked.seriesEvent });
+        } catch (err) {
+          logCrash('stammtisch', err, { code: session.stammtisch });
+        }
+      }
       // Im öffentlichen Modus werden KEINE Namen/Statistiken persistiert -
       // Fremde sollen nichts voneinander sehen, und zwei "Max" aus
       // verschiedenen Gruppen teilen sich kein Profil.
@@ -781,6 +795,7 @@ function writeSessionsSnapshot({ quiet = false } = {}) {
         createdAt: session.createdAt,
         lastActivity: session.lastActivity,
         playerTokens: session.playerTokens ? Object.fromEntries(session.playerTokens) : {},
+        stammtisch: session.stammtisch || null,
         state: session.game.serialize(),
       });
     }
@@ -813,6 +828,7 @@ function restoreSessionsSnapshot() {
       const session = registry.restore(snap);
       if (!session) continue;
       session.playerTokens = new Map(Object.entries(snap.playerTokens || {}));
+      if (snap.stammtisch) session.stammtisch = String(snap.stammtisch);
       session.game.deserialize(snap.state);
       restored += 1;
     }
@@ -841,6 +857,21 @@ let dailyPuzzleCache = null;
 function dailyPuzzleFor(date) {
   if (!dailyPuzzleCache || dailyPuzzleCache.date !== date) dailyPuzzleCache = puzzleForDate(date);
   return dailyPuzzleCache;
+}
+
+function broadcastToSession(session, message) {
+  const raw = JSON.stringify(message);
+  for (const [, sock] of session.sockets) {
+    if (sock && sock.readyState === WebSocket.OPEN) sock.send(raw);
+  }
+}
+
+/** The live session currently bound to a Stammtisch code, if any. */
+function findStammtischSession(code) {
+  for (const s of registry.sessions.values()) {
+    if (s.stammtisch === code) return s;
+  }
+  return null;
 }
 
 function sendProfilesTo(ws) {
@@ -959,6 +990,20 @@ wss.on('connection', (ws, req) => {
     // to the seat's own browser. Legacy seats without a token (pre-update
     // snapshots) are claimable once by id and upgraded on the spot.
     if (!targetSession.playerTokens) targetSession.playerTokens = new Map();
+    // Stammtisch tables are entered by the GROUP's code, never by the live
+    // session's code, so a returning member has no seat token to show. Their
+    // name is the identity at a Stammtisch: a human seat with the same name
+    // that is currently disconnected is theirs again. A connected seat stays
+    // protected - nobody gets kicked by a namesake.
+    if (targetSession.stammtisch && !msg.playerId) {
+      const wanted = sanitizeName(msg.name).toLowerCase();
+      const mine = targetSession.game.players.find(
+        (p) => !p.isBot && !p.connected && wanted && p.name.toLowerCase() === wanted
+      );
+      if (mine) {
+        msg = { ...msg, playerId: mine.id, playerToken: targetSession.playerTokens.get(mine.id) };
+      }
+    }
     const wantsExistingSeat =
       msg.playerId && targetSession.game.players.some((p) => p.id === msg.playerId && !p.isBot);
     if (wantsExistingSeat) {
@@ -990,9 +1035,14 @@ wss.on('connection', (ws, req) => {
     session = targetSession;
     session.sockets.set(playerId, ws);
     registry.touch(session);
-    ws.send(JSON.stringify({ type: 'joined', playerId, playerToken, sessionCode: session.code }));
+    const stammtisch = session.stammtisch ? stammtischStore.touch(session.stammtisch, player.name) : null;
+    ws.send(JSON.stringify({
+      type: 'joined', playerId, playerToken, sessionCode: session.code,
+      stammtisch: stammtisch ? { code: stammtisch.code, name: stammtisch.name } : null,
+    }));
     session.game.broadcastState();
     sendProfilesAndTeams(session, playerId);
+    if (stammtisch) ws.send(JSON.stringify({ type: 'stammtisch', summary: stammtischStore.summary(stammtisch.code), seriesEvent: null }));
     return true;
   }
 
@@ -1148,6 +1198,32 @@ wss.on('connection', (ws, req) => {
       await joinSession(created.session, msg);
       return;
     }
+    if (msg.type === 'createStammtisch') {
+      // A Stammtisch is founded WITH its first table: one message, and the
+      // founder sits at a live session bound to the new group code.
+      const founded = stammtischStore.create(msg.stammtischName, sanitizeName(msg.name));
+      if (founded.error) return sendError(ws, founded.error);
+      const created = registry.create({ stammtisch: founded.table.code });
+      if (created.error) return sendError(ws, created.error);
+      await joinSession(created.session, msg);
+      return;
+    }
+    if (msg.type === 'getStammtisch') {
+      // Start-screen chips: name + series at a glance. Guarded like a join
+      // probe - a Stammtisch code is a shared secret, guessing is counted.
+      if (ipIsBlocked(ip)) {
+        ws.close(1008, 'Zu viele Fehlversuche');
+        return;
+      }
+      const summary = stammtischStore.summary(msg.code);
+      if (!summary) {
+        registerFailedJoin(ip);
+        ws.send(JSON.stringify({ type: 'stammtischInfo', code: normalizeStammtischCode(msg.code), exists: false }));
+        return;
+      }
+      ws.send(JSON.stringify({ type: 'stammtischInfo', code: summary.code, exists: true, name: summary.name, series: summary.series, gamesPlayed: summary.gamesPlayed }));
+      return;
+    }
     if (msg.type === 'checkSession') {
       // Lightweight existence probe so the client only offers a 'resume' button
       // for a game that still exists (sessions are in-memory and vanish on
@@ -1156,7 +1232,7 @@ wss.on('connection', (ws, req) => {
         ws.close(1008, 'Zu viele Fehlversuche');
         return;
       }
-      const exists = !!registry.get(msg.code);
+      const exists = !!registry.get(msg.code) || !!stammtischStore.get(msg.code);
       if (!exists) {
         const count = registerFailedJoin(ip);
         if (count >= FAILED_JOIN_LIMIT) {
@@ -1172,7 +1248,22 @@ wss.on('connection', (ws, req) => {
         ws.close(1008, 'Zu viele Fehlversuche');
         return;
       }
-      const target = registry.get(msg.code);
+      let target = registry.get(msg.code);
+      if (!target) {
+        // Not a live session - maybe a Stammtisch code: the group's table is
+        // the live session bound to it, or a fresh one when nobody is there.
+        const table = stammtischStore.get(msg.code);
+        if (table) {
+          target = findStammtischSession(table.code);
+          if (!target) {
+            const created = registry.create({ stammtisch: table.code });
+            if (created.error) return sendError(ws, created.error);
+            target = created.session;
+          }
+          await joinSession(target, { ...msg, playerId: undefined, playerToken: undefined });
+          return;
+        }
+      }
       if (!target) {
         // Fehlversuche zählen pro IP (nicht pro Verbindung - das war durch
         // simples Neu-Verbinden umgehbar).
@@ -1412,6 +1503,7 @@ function shutdown(signal) {
   playerStore.flushSync();
   gameHistoryStore.flushSync();
   globalStats.flushSync();
+  stammtischStore.flushSync();
   if (accountStore) {
     try {
       const p = accountStore.close();

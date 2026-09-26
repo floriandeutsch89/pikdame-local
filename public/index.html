@@ -290,7 +290,10 @@
           <button id="tutorialBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-cap"/></svg><span>Tutorial</span></button>
           <button id="challengeBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg><span>Challenge</span></button>
           <button id="puzzleBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg><span>Tagesrätsel</span></button>
+          <button id="stammtischBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span>Stammtisch</span></button>
         </div>
+        <!-- Recently visited Stammtische: one tap back to the group's table -->
+        <div id="stammtischRecent" class="stammtischRecent hidden"></div>
         <div class="join-divider">oder einem Spiel beitreten</div>
         <div class="joinRow">
           <input id="codeInput" type="text" placeholder="SPIEL-CODE" maxlength="6" autocapitalize="characters" autocomplete="off" spellcheck="false" />
@@ -316,6 +319,12 @@
           <button id="showQrBtn" class="btn-secondary">QR-Code</button>
           <button id="updateNameBtn" class="btn-secondary">Name</button>
         </div>
+      </div>
+
+      <!-- Stammtisch panel: standings, pairwise record and the rematch series -->
+      <div id="stammtischSection" class="lobby-section stammtischSection hidden">
+        <h2>Stammtisch</h2>
+        <div id="stammtischBody"></div>
       </div>
 
       <p id="nonHostHint" class="lobby-hint hidden">🔒 Nur der Organisator kann die Einstellungen ändern.</p>
@@ -598,6 +607,19 @@
       </div>
     </section>
 
+    <!-- STAMMTISCH: found a persistent group table -->
+    <section id="stammtischOverlay" class="overlay hidden">
+      <div class="overlay-card">
+        <h2><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span>Stammtisch gründen</span></h2>
+        <p class="lobby-hint">Ein fester Tisch für deine Runde: ein Code für immer, eine Bilanz über alle Partien und eine Revanche-Serie (Best of 3). Wer den Code kennt, landet immer am aktuellen Tisch.</p>
+        <input id="stammtischNameInput" type="text" placeholder="Name des Stammtischs" maxlength="24" />
+        <button id="stammtischCreateBtn" class="btn-primary">Gründen &amp; Tisch eröffnen</button>
+        <p class="settingsHint">Du hast schon einen Code? Gib ihn einfach oben bei „Beitreten“ ein.</p>
+        <button id="stammtischCancelBtn" class="btn-secondary">Abbrechen</button>
+      </div>
+    </section>
+
+    <!-- DAILY PUZZLE: one hand, one question, the engine grades -->
     <section id="puzzleOverlay" class="overlay hidden">
       <div class="overlay-card">
         <h2><svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg><span>Tagesrätsel</span></h2>

@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.30.0] - 2026-09-26
+
+### Added
+- **Stammtisch: ein fester Tisch für die eigene Runde.** Über „Stammtisch“ im Startbildschirm wird ein Tisch mit dauerhaftem Code (`ST…`) gegründet. Wer den Code eingibt, landet immer am aktuellen Tisch der Gruppe - läuft gerade keiner, wird er eröffnet. Der Stammtisch führt eine Bilanz über alle Partien (Siege, Partien, Schnitt, Direktvergleich der Anwesenden) und eine **Revanche-Serie im Best-of-3**: Der Endbildschirm zeigt den Serienstand, der Knopf heißt „Revanche (Spiel 2 von 3)“, wer zwei Partien gewinnt, holt die Serie. Wer die Verbindung verliert, bekommt seinen Platz über Code und Namen zurück. Zuletzt besuchte Stammtische stehen als Chips im Startbildschirm. Der Stammtisch ist über seinen Code abgeschottet und deshalb auch auf öffentlichen Servern aktiv
+
 ## [2.29.0] - 2026-09-26
 
 ### Added
