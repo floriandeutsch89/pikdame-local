@@ -123,16 +123,28 @@ test('CSS contract: every data-theme defines the same variable set as the refere
 });
 
 // --- v1.84.4: Sichtbarkeits-Verträge für Glow und Jackpot-Overlay ----------------
-test('CSS contract: the just-drawn marker rests on a full-strength accent ring', () => {
+test('CSS contract: the just-drawn marker rests on a full-strength ring distinct from the selection', () => {
   const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'style.css'), 'utf8');
   const frames = css.match(/@keyframes drawnGlow \{([\s\S]*?)\n\}/);
   assert.ok(frames, 'drawnGlow keyframes exist');
-  // Der Ruhezustand (100%) muss die VOLLE Akzentfarbe tragen. Klingt er in
-  // --accent-soft aus (~0.28 Alpha), ist die Markierung nach dem Aufblitzen
-  // praktisch unsichtbar - genau der gemeldete Fehler, in jedem Theme.
+  // The resting state (100%) must carry a FULL-strength colour ring. Fading
+  // out into --accent-soft (~0.28 alpha) made the marker practically
+  // invisible after the flash - the originally reported bug, in every theme.
+  // It must also differ from the selection ring (--accent): with the same
+  // colour, a drawn card vanished among selected ones (playthrough finding).
   const resting = frames[1].match(/100%[^}]*\}/);
   assert.ok(resting, '100% frame exists');
-  assert.match(resting[0], /0 0 0 3px var\(--accent\)/, 'resting ring uses the full accent colour');
+  assert.match(resting[0], /0 0 0 5px var\(--drawn\)/, 'resting ring uses the full --drawn colour');
+  assert.doesNotMatch(resting[0], /var\(--accent/, 'draw marker must not reuse the selection colour');
+  const themeBlocks = css.match(/(?::root|\[data-theme="[a-z]+"\])[^{]*\{[^}]*--accent:\s*(#[0-9a-fA-F]{6})[^}]*\}/g) || [];
+  const rootDrawn = (css.match(/:root \{[^}]*--drawn:\s*(#[0-9a-fA-F]{6})/) || [])[1];
+  assert.ok(rootDrawn, '--drawn is defined');
+  for (const b of themeBlocks) {
+    const accent = b.match(/--accent:\s*(#[0-9a-fA-F]{6})/)[1].toLowerCase();
+    const drawn = ((b.match(/--drawn:\s*(#[0-9a-fA-F]{6})/) || [])[1] || rootDrawn).toLowerCase();
+    const dist = [0, 2, 4].reduce((d, i) => d + Math.abs(parseInt(accent.slice(1 + i, 3 + i), 16) - parseInt(drawn.slice(1 + i, 3 + i), 16)), 0);
+    assert.ok(dist > 150, `theme ${b.slice(0, 24)}: --drawn ${drawn} too close to --accent ${accent}`);
+  }
 
   const block = css.match(/\.card\.just-drawn \{([\s\S]*?)\n\}/);
   assert.ok(block, '.card.just-drawn block exists');
@@ -492,4 +504,26 @@ test('client contract: functions that build translated markup are refreshed by c
       + stale.join('\n  ')
       + '\nEither call them from cycleLang or add them to EVENT_ONLY if they cannot go stale.'
   );
+});
+
+// Playthrough finding (iPhone landscape): the landscape grid was silently
+// undone by top-level rules for #turnInfo / .headerRoundInfo / #hand that sat
+// FURTHER DOWN the stylesheet - same specificity, later wins. The piles slid
+// under the hand and the melds got 0px. The final landscape block must stay
+// after every unscoped rule it overrides.
+test('CSS contract: the landscape layout block comes after the rules it overrides', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'style.css'), 'utf8');
+  const marker = '@media (orientation: landscape) and (max-height: 540px)';
+  const lastLandscape = css.lastIndexOf(marker);
+  assert.ok(lastLandscape > 0, 'landscape block exists');
+  const block = css.slice(lastLandscape);
+  for (const needle of ["'opp piles'", '#turnInfo', '#roundInfo', '#hand {', '#centerPiles']) {
+    assert.ok(block.includes(needle), `final landscape block must handle ${needle}`);
+  }
+  // Every top-level (unindented) rule for these selectors must precede it.
+  const topLevel = /^(#turnInfo|\.headerRoundInfo|#roundInfo|#hand|#centerPiles|#topBar)\b[^{]*\{/gm;
+  let m;
+  while ((m = topLevel.exec(css))) {
+    assert.ok(m.index < lastLandscape, `'${m[0].trim()}' at offset ${m.index} comes after the landscape block and would override it`);
+  }
 });

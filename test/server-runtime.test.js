@@ -16,7 +16,23 @@ const WebSocket = require('ws');
 const ROOT = path.join(__dirname, '..');
 const PORT = 8093;
 
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+// Poll until the server accepts connections instead of sleeping a fixed
+// time: a fixed 2.2s wait went red once under load (the server just had not
+// finished booting).
+async function waitForServer(port, timeoutMs = 15000) {
+  const http = require('node:http');
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const up = await new Promise((resolve) => {
+      const req = http.get({ host: '127.0.0.1', port, path: '/healthz', timeout: 500 }, (res) => { res.resume(); resolve(true); });
+      req.on('error', () => resolve(false));
+      req.on('timeout', () => { req.destroy(); resolve(false); });
+    });
+    if (up) return;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error(`server on port ${port} did not come up within ${timeoutMs}ms`);
+}
 
 function startServer(dataDir) {
   const server = spawn('node', ['server.js'], {
@@ -41,7 +57,7 @@ test('server negotiates permessage-deflate and drops a stale snapshot', async (t
     server.kill();
     fs.rmSync(dataDir, { recursive: true, force: true });
   });
-  await wait(2200);
+  await waitForServer(PORT);
 
   assert.match(output(), /Snapshot ist zu alt/);
   assert.ok(!fs.existsSync(snapshotFile), 'a stale snapshot is deleted, not kept around');

@@ -23,6 +23,24 @@ const PORT = 8091;
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Poll until the server accepts connections instead of sleeping a fixed
+// time: a fixed 2.2s wait went red once under load (the server just had not
+// finished booting).
+async function waitForServer(port, timeoutMs = 15000) {
+  const http = require('node:http');
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const up = await new Promise((resolve) => {
+      const req = http.get({ host: '127.0.0.1', port, path: '/healthz', timeout: 500 }, (res) => { res.resume(); resolve(true); });
+      req.on('error', () => resolve(false));
+      req.on('timeout', () => { req.destroy(); resolve(false); });
+    });
+    if (up) return;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error(`server on port ${port} did not come up within ${timeoutMs}ms`);
+}
+
 function openSocket() {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(`ws://localhost:${PORT}`);
@@ -54,7 +72,7 @@ test('a late close from the OLD socket must not mark a reconnected player as gon
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   t.after(() => server.kill());
-  await wait(2200); // Server hochfahren lassen
+  await waitForServer(PORT);
 
   const first = await openSocket();
   const joinedPromise = waitFor(first, 'joined');

@@ -3,6 +3,24 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.24.0] - 2026-09-26
+
+### Added
+- **Sicherheitsprüfung gegen versehentlich eingecheckte Geheimnisse.** Neuer CI-Job `secret-scan`: Er schlägt fehl, sobald eine Datei im Repository liegt, die nach Geheimnis oder privaten Laufzeitdaten aussieht (`.env`, Schlüssel, Terraform-Variablen, Konten-Datenbank; lokal: `npm run secrets:check`), und durchsucht mit gitleaks die gesamte Versionsgeschichte nach Zugangsdaten. Der Erstlauf über alle 263 Commits war sauber. `.gitignore` deckt jetzt jede `.env`-Variante, Schlüsseldateien und `terraform/*.tfvars` ab; die CI läuft mit reinen Leserechten (`permissions: contents: read`)
+
+### Changed
+- **Desktop-Tisch nutzt den Bildschirm.** Die Stapel stehen ab 1100 px Fensterbreite in einer Spalte rechts neben den Auslagen statt in einer eigenen Zeile darüber - bei 1366×768 bekamen die Auslagen vorher nur ~170 px Höhe, die zweite Reihe war nur als Streifen zu sehen. Die App ist breiter (bis 1600 px), die Auslagen der Mitspieler stehen zweispaltig nebeneinander, und die Auslagen-Karten sind größer
+- **Kopfzeile in einer Zeile** - „Du bist am Zug“ steht am Desktop und im Querformat zwischen den Knöpfen statt in einer eigenen Zeile darunter
+- **Querformat: Punktestand in der Kartenleiste.** Er steht jetzt links neben der Kartenzahl statt in einer eigenen Zeile unter dem Fächer - noch einmal ~34 px mehr für die Auslagen. Der dünne Fortschrittsbalken entfällt quer; die Farbe der Punkte zeigt den Stand weiterhin
+
+### Fixed
+- **Querformat am Telefon ist wieder spielbar.** Beim kompletten Durchspielen auf iPhone 16 Pro und Pro Max quer lag der Ablagestapel unter der Hand, die Auslagen bekamen nur 63 px Höhe - und sobald „Auslegen“ erschien, gar keine mehr. Spätere Regeln im Stylesheet hebelten das Querformat-Layout aus. Jetzt: Kopfzeile in einer Zeile, Stapel nebeneinander rechts neben Gegnern und Auslagen, Hand kompakter und die volle Bildschirmbreite (vorher blieb am Pro Max links und rechts ein dunkler Rand). Die Auslagen haben dadurch doppelt so viel Platz (125 px statt 63 px am 16 Pro)
+- **Rundenende im Querformat zeigt die Punkte.** Die Ergebniskarte ist quer jetzt zweispaltig - links Ergebnis und Punkteliste, rechts die Knöpfe. Vorher war die Punkteliste auf einen schmalen Streifen zusammengedrückt
+- **Die gerade gezogene Karte ist von ausgewählten Karten zu unterscheiden.** Beide trugen denselben türkisen Rand - wählte man Karten aus, ging die neue Karte darin unter. Die Zieh-Markierung ist jetzt bernsteinfarben (im Filz-Theme mit goldenem Akzent: hellblau); ist die neue Karte zusätzlich ausgewählt, zeigt sie beide Ränder
+- Kleinigkeiten: Anführungszeichen in Hinweisen typografisch korrekt („Fortsetzen“ statt „Fortsetzen"); allein am Tisch sagt das Pause-Fenster nicht mehr „alle müssen zustimmen“; eigene Züge erscheinen nicht mehr zusätzlich als Einblendung mitten über den Auslagen (im Tutorial weiterhin); die Farbthemen-Knöpfe haben eine größere Tippfläche; ein Server, der seinen Port nicht bekommt, beendet sich mit Fehlercode statt mit 0
+- **„Auslegen“ und „Auswahl löschen“ sind mindestens 44 px hoch** (vorher 38-40 px) - die beiden am häufigsten getippten Knöpfe im Zug lagen unter der Mindestgröße für Tippziele
+- Ein Server-Test wartete fest 2,2 s auf den Serverstart und wurde unter Last rot; er fragt jetzt ab, bis der Server antwortet
+
 ## [2.23.0] - 2026-09-26
 
 ### Changed

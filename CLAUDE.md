@@ -49,7 +49,17 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
    `applyStaticLang()` inventarisiert nur BLATT-Elemente und schreibt
    `textContent`, was ein Geschwister-Icon sonst löscht.
 2b. **Mobile zuerst:** Primärgerät ist das iPhone (393×852). Jede UI-Änderung
-   wird in BEIDEN Layouts geprüft (Telefon UND Desktop), nicht nur in einem.
+   wird in ALLEN Layouts geprüft: Telefon hoch, Telefon **quer** (z. B.
+   874×402 - nur ~400 px Höhe!) UND Desktop. Das Querformat war bis v2.23.0
+   kaum spielbar (Stapel unter der Hand, Auslagen 0 px), weil spätere
+   Regeln den Querformat-Block aushebelten: Der letzte
+   `@media (orientation: landscape) and (max-height: 540px)`-Block steht
+   deshalb am ENDE von `style.css` (Vertragstest prüft das).
+   Der Tisch hat drei Layouts: Hochformat (Flex-Spalte, Stapel über der
+   Hand), Querformat bis 540 px Höhe und Desktop ab 1100 px Breite (beide
+   CSS-Grid, Stapel in einer Seitenspalte neben den Auslagen).
+   Auswahl (`--accent`) und „gerade gezogen“ (`--drawn`) brauchen
+   unterscheidbare Farben - in jedem Theme.
    Tap-Ziele mindestens `--tap-min` (44 px, Apple-HIG). Schriftgrößen und
    Knopfmaße kommen aus der Skala in `:root` (`--fs-*`, `--ctl-h`) — nie
    neue rohe `rem`-Werte pro Kontext erfinden, genau daraus entstanden
@@ -62,6 +72,11 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
    Transiente Felder (Timer, Sets, Hooks) gehören in die Skip-Liste von
    `serialize()` UND werden in `deserialize()` frisch initialisiert
    (JSON macht aus `Set` sonst `{}` → Crash-Klasse `.add is not a function`).
+   Der Snapshot wird jede Minute geschrieben (nur bei Änderung) und beim
+   SIGTERM; älter als 30 min wird er beim Start verworfen.
+   **Timer im `GameManager` immer `unref()`en** - der HTTP-Server hält den
+   Prozess ohnehin am Leben; ohne `unref` hing jede Testdatei mit getrenntem
+   Spieler 75 s auf der Übernahme-Frist (Suite 77 s statt ~18 s).
 5. **Exceptions töten nie den Prozess/Durchlauf:** Server-Message-Handler,
    Client-WS-Handler und die Account-API sind mit try/catch/`.catch`
    gepanzert; `localStorage` nur über `storageGet/Set/Remove`.
@@ -171,6 +186,9 @@ angewendet liegen. (pro Änderung)
    GHCR-Image erzeugt der Release-Workflow automatisch beim Push auf main** —
    nach dem Merge nur verifizieren, nichts manuell taggen.
 4. Vor Commits: `rm -f data/*.json data/crash.log data/users.db`.
+   Secrets nie ins Repo (nur `*.example`); `npm run secrets:check` und der
+   CI-Job `secret-scan` (Dateinamen + gitleaks über die volle History)
+   schlagen sonst an. Ein gepushtes Secret zuerst ROTIEREN, dann entfernen.
 5. Neue Server-Texte ⇒ i18n-Pattern. Neue UI-Elemente ⇒ Vertragstests laufen mit.
 6. **Abhängigkeiten hebt Dependabot an** (`.github/dependabot.yml`,
    montags 03:00 UTC): npm (gruppiert), Docker-Basis-Images, Compose-Images,
@@ -208,8 +226,12 @@ angewendet liegen. (pro Änderung)
   ReferenceError und die Verlaufskanten fehlten (am iPhone die EINZIGE
   Scroll-Andeutung, weil Safari die Leiste im Ruhezustand ausblendet).
 - **UI im Browser gegenprüfen, nicht nur `npm test`:** App starten und in
-  beiden Layouts durchspielen. Die groben Fehler (überlaufende Kopfzeile,
-  unlesbare Icons, Fenster hinter Fenstern) fällt keine Testdatei auf.
+  allen Layouts (hoch, quer, Desktop) durchspielen. Die groben Fehler
+  (überlaufende Kopfzeile, unlesbare Icons, Fenster hinter Fenstern,
+  verdeckte Stapel im Querformat) fällt keine Testdatei auf. Headless-
+  Chromium mit einem normalen User-Agent starten: Der Standard-UA
+  („HeadlessChrome“) trifft die Crawler-Erkennung, der Client baut dann
+  keine WebSocket-Verbindung auf und die Lobby wirkt tot.
 - RL/Encoder: `OBS_SIZE`/`ACTION_SIZE` sind Verträge — bei Encoder-Änderungen
   Tests (`test/state-encoder.test.js`) UND die Env-Bridge (`printf … | node
   scripts/rl-env-server.js`, liefert `obs_size`/`action_size`) prüfen; ändert
