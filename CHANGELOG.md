@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.26.0] - 2026-09-26
+
+### Added
+- **Rundenende mit Aufschlüsselung pro Karte:** unter jeder Ergebniszeile steht aufklappbar, woraus die Zahl besteht („Ausgelegt: 3× 10/B/D/K 30 · Auf der Hand: ♠Q 100, Ass 20“); die eigene Zeile ist aufgeklappt
+- **Ziehen und Ablegen mit der Maus:** Am Desktop lässt sich eine Handkarte auf eine eigene Auslage (Anlegen/Joker-Tausch) oder auf die Ablage ziehen; eine Mehrfachauswahl wandert mit einer Karte. Am Telefon bleibt das Antippen
+
 ## [2.25.1] - 2026-09-26
 
 ### Fixed

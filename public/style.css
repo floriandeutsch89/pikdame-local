@@ -1257,6 +1257,25 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 /* The round winner is already named in the headline above; in the list they
    only get weight. No colour - see .resultDelta.pos/.neg for that. */
 .resultRow.winner .resultName { font-weight: 800; }
+/* Per-card breakdown under a result row: a <details> so the list stays
+   scannable; the own row opens by default. */
+.resultBreakdown { margin-top: 4px; font-size: var(--fs-hint); color: var(--text-muted); }
+.resultBreakdown summary {
+  cursor: pointer; list-style: none; font-weight: 600;
+  min-height: 28px; display: inline-flex; align-items: center; gap: 4px;
+}
+.resultBreakdown summary::before { content: '▸'; font-size: 0.7em; }
+.resultBreakdown[open] summary::before { content: '▾'; }
+.resultBreakdown summary::-webkit-details-marker { display: none; }
+.bdLine {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px;
+  padding: 2px 0; font-variant-numeric: tabular-nums;
+}
+.bdLine span:first-child { font-weight: 600; }
+.bdLine b { text-align: right; }
+.bdPlus b { color: #1e9e57; }
+.bdMinus b { color: #d34b3a; }
+.bdNote { opacity: 0.8; }
 .handAusNote {
   background: var(--accent-soft); color: var(--card-ink);
   border-radius: var(--r-sm); padding: 11px 13px;
@@ -1888,6 +1907,13 @@ body.raidActive #toastContainer { margin-top: 132px; }
   border-radius: var(--r-sm);
   animation: layOffTargetPulse 1.4s ease-in-out infinite;
 }
+/* Desktop drag-and-drop: the dragged card ghosts, the target under the
+   pointer lights up. Only mouse layouts ever set these classes. */
+#hand .card[draggable="true"] { cursor: grab; }
+#hand .card.dragging { opacity: 0.35; }
+.dropHover { box-shadow: 0 0 0 3px var(--accent), 0 0 18px var(--accent-soft); border-radius: var(--r-sm); }
+body.dndActive .meldOwnerGroup.own .meldGroup { outline: 2px dashed var(--accent-soft); outline-offset: 2px; }
+body.dndActive #discardPile { outline: 2px dashed var(--accent-soft); outline-offset: 6px; border-radius: 12px; }
 @media (prefers-reduced-motion: reduce) {
   .meldGroup.layOffTarget {
     animation: none;
