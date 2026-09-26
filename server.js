@@ -521,11 +521,22 @@ const ipCleanupTimer = setInterval(() => {
 }, 5 * 60 * 1000);
 ipCleanupTimer.unref();
 
-// maxPayload: Schutz vor absichtlich riesigen Nachrichten auf einem
-// öffentlichen Server (16 KB reichen für jedes legitime Spielkommando).
+// maxPayload: guards a public server against deliberately huge messages
+// (16 KB is plenty for every legitimate game command).
 const wss = new WebSocket.Server({
   server,
   maxPayload: 16 * 1024,
+  // permessage-deflate: a state broadcast is ~10 KB of repetitive JSON
+  // (up to ~14 KB late in a round) and shrinks ~6x. Caddy's `encode` only
+  // covers HTTP, never WebSocket frames, so without this every move cost
+  // each player the full size over mobile data. Small window + memLevel
+  // keep the per-connection zlib memory in the low-KB range; frames under
+  // 1 KB (acks, emotes) are sent as-is. Browsers negotiate it on their own.
+  perMessageDeflate: {
+    threshold: 1024,
+    serverMaxWindowBits: 10,
+    zlibDeflateOptions: { memLevel: 7 },
+  },
   verifyClient: ({ origin, req }, done) => {
     // Origin-Check nur, wenn explizit konfiguriert (im LAN/Hotspot ist die
     // Origin variabel - deshalb opt-in).
@@ -707,14 +718,23 @@ const cleanupTimer = setInterval(() => {
 }, 5 * 60 * 1000);
 cleanupTimer.unref();
 
-// --- Deployment-feste Sessions -------------------------------------------
-// Ein `docker pull && restart` würde sonst alle laufenden Tische abbrechen.
-// Beim Shutdown wird der komplette Spielzustand jeder Session auf das
-// data/-Volume geschrieben und beim nächsten Start wiederhergestellt - die
-// Clients reconnecten automatisch (Session-Code + gespeicherte playerId).
+// --- Deployment-proof sessions -------------------------------------------
+// Otherwise a `docker pull && restart` would abort every running table.
+// The full game state of every session is written to the data/ volume
+// (periodically and on shutdown) and restored on the next start - clients
+// reconnect on their own (session code + stored playerId).
 const SNAPSHOT_FILE = path.join(DATA_DIR, 'sessions-snapshot.json');
 
-function writeSessionsSnapshot() {
+// Snapshots older than this are not restored: they belong to a container
+// that has been gone for a long time, and resurrecting those tables would
+// only confuse players who long since moved on.
+const SNAPSHOT_MAX_AGE_MS = 30 * 60 * 1000;
+// Periodic snapshot interval - bounds what a hard kill (OOM, SIGKILL, host
+// reboot) can lose; before, the snapshot was only written on SIGTERM.
+const SNAPSHOT_INTERVAL_MS = 60 * 1000;
+let lastSnapshotBody = null;
+
+function writeSessionsSnapshot({ quiet = false } = {}) {
   try {
     const snapshot = [];
     for (const session of registry.sessions.values()) {
@@ -726,9 +746,14 @@ function writeSessionsSnapshot() {
         state: session.game.serialize(),
       });
     }
-    fs.writeFileSync(`${SNAPSHOT_FILE}.tmp`, JSON.stringify({ savedAt: Date.now(), sessions: snapshot }), 'utf8');
+    // Skip the disk write when nothing changed since the last snapshot
+    // (idle server, paused tables) - savedAt is left out of the comparison.
+    const body = JSON.stringify(snapshot);
+    if (body === lastSnapshotBody) return;
+    fs.writeFileSync(`${SNAPSHOT_FILE}.tmp`, `{"savedAt":${Date.now()},"sessions":${body}}`, 'utf8');
     fs.renameSync(`${SNAPSHOT_FILE}.tmp`, SNAPSHOT_FILE);
-    console.log(`Session-Snapshot geschrieben: ${snapshot.length} Session(s).`);
+    lastSnapshotBody = body;
+    if (!quiet) console.log(`Session-Snapshot geschrieben: ${snapshot.length} Session(s).`);
   } catch (e) {
     console.error('Session-Snapshot fehlgeschlagen:', e.message);
   }
@@ -739,12 +764,14 @@ function restoreSessionsSnapshot() {
   try {
     raw = fs.readFileSync(SNAPSHOT_FILE, 'utf8');
   } catch (e) {
-    return; // kein Snapshot vorhanden - normaler Kaltstart
+    return; // no snapshot - regular cold start
   }
   try {
-    const { sessions } = JSON.parse(raw);
+    const { savedAt, sessions } = JSON.parse(raw);
+    const tooOld = typeof savedAt === 'number' && Date.now() - savedAt > SNAPSHOT_MAX_AGE_MS;
+    if (tooOld) console.log('Session-Restore übersprungen: Snapshot ist zu alt.');
     let restored = 0;
-    for (const snap of sessions || []) {
+    for (const snap of tooOld ? [] : sessions || []) {
       const session = registry.restore(snap);
       if (!session) continue;
       session.playerTokens = new Map(Object.entries(snap.playerTokens || {}));
@@ -755,15 +782,20 @@ function restoreSessionsSnapshot() {
   } catch (e) {
     console.error('Session-Restore fehlgeschlagen (Snapshot wird verworfen):', e.message);
   }
-  // Snapshot ist einmalig - danach löschen, damit ein Crash-Loop nicht
-  // immer wieder denselben alten Zustand lädt.
+  // A snapshot is single-use - delete it so a crash loop does not keep
+  // loading the same old state.
   try {
     fs.unlinkSync(SNAPSHOT_FILE);
   } catch (e) {
-    /* schon weg */
+    /* already gone */
   }
 }
 restoreSessionsSnapshot();
+
+// The restore above deleted the file (crash-loop guard); from here on it is
+// rewritten periodically so a hard kill loses at most one interval of play.
+const snapshotTimer = setInterval(() => writeSessionsSnapshot({ quiet: true }), SNAPSHOT_INTERVAL_MS);
+snapshotTimer.unref();
 
 function sendProfilesTo(ws) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;

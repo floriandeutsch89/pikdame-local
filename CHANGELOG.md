@@ -3,6 +3,17 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.23.0] - 2026-09-26
+
+### Changed
+- **Laufende Partien überleben jetzt auch einen Absturz.** Der Spielstand aller Tische wird zusätzlich jede Minute auf das Datenvolume geschrieben (nur wenn sich etwas geändert hat), nicht mehr ausschließlich beim geordneten Herunterfahren. Ein OOM-Kill, `kill -9` oder Host-Neustart kostet damit höchstens die letzte Minute statt der ganzen Partie. Snapshots, die älter als 30 Minuten sind, werden beim Start verworfen statt wiederhergestellt
+- **Deutlich weniger Datenvolumen im Spiel.** WebSocket-Nachrichten werden jetzt komprimiert (`permessage-deflate`). Ein Spielstand pro Zug schrumpft von ~10 KB auf ~2 KB - spürbar im Mobilfunknetz. Caddys `encode` komprimiert nur HTTP, nie WebSocket-Frames; Browser handeln die Kompression selbst aus
+
+### Fixed
+- **Pause mit mehreren Spielern funktioniert sichtbar.** Die Abstimmung (alle Menschen am Tisch müssen zustimmen - fürs Pausieren wie fürs Fortsetzen) lief serverseitig schon korrekt, aber der Zwischenstand stand nur im Tooltip des Pause-Knopfs, den das Telefon nie anzeigt. Wer tippte, sah scheinbar nichts passieren, und die anderen erfuhren nicht, dass sie gefragt werden. Jetzt zeigt der Knopf den Stand (z. B. „1/2"), der Vorschlagende bekommt eine Bestätigung und alle anderen eine Aufforderung zum Zustimmen - wie beim Aufgeben. Allein am Tisch pausiert das Spiel wie bisher sofort
+- **Eine gezogene Pik Dame wird wieder hervorgehoben.** Eine veraltete CSS-Regel schaltete die Zieh-Markierung für die Pik Dame ab, zugunsten einer „Pik-Dame-Optik", die es nicht mehr gibt - die Karte blieb dadurch unmarkiert. Der Rand der Markierung hängt außerdem nicht mehr allein an der Animation
+- **Testlauf von 77 s auf ~18 s.** Die Übernahme-, Zug- und Bot-Timer des Spiels hielten einen Prozess ohne Server künstlich am Leben - jede Testdatei mit getrenntem Spieler wartete die 75-s-Gnadenfrist ab. Die Timer sind jetzt wie die übrigen `unref()`t; im laufenden Server ändert sich nichts
+
 ## [2.22.0] - 2026-09-23
 
 ### Changed

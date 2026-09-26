@@ -223,30 +223,32 @@ class GameManager {
       return;
     }
 
-    this._takeoverTimers.set(
-      id,
-      setTimeout(() => {
-        this._takeoverTimers.delete(id);
-        const p = this.players.find((pl) => pl.id === id);
-        if (!p || p.connected) return; // came back in time
-        if (this.phase === 'lobby') {
-          // Lobby: a human who never came back gives up their seat (a bot
-          // takes it), so the ready gate isn't blocked indefinitely.
-          if (!p.isBot) {
-            this.players = this.players.filter((pl) => pl.id !== id);
-            delete this.totals[id];
-            if (this._lobbyReady) this._lobbyReady.delete(id);
-            this.syncLobbyBots();
-            this.broadcastState();
-          }
-          return;
+    // unref'd like every game timer: a live server is kept alive by its
+    // HTTP listener anyway, and a bare GameManager (tests, sim scripts)
+    // must not hang its process until the 75s grace runs out.
+    const takeoverTimer = setTimeout(() => {
+      this._takeoverTimers.delete(id);
+      const p = this.players.find((pl) => pl.id === id);
+      if (!p || p.connected) return; // came back in time
+      if (this.phase === 'lobby') {
+        // Lobby: a human who never came back gives up their seat (a bot
+        // takes it), so the ready gate isn't blocked indefinitely.
+        if (!p.isBot) {
+          this.players = this.players.filter((pl) => pl.id !== id);
+          delete this.totals[id];
+          if (this._lobbyReady) this._lobbyReady.delete(id);
+          this.syncLobbyBots();
+          this.broadcastState();
         }
-        this.broadcastState(); // chip now shows 'bot takes over'
-        if (this.phase === 'playing' && this.currentPlayer()?.id === id) {
-          this.maybeRunBotTurn();
-        }
-      }, GameManager.TAKEOVER_GRACE_MS)
-    );
+        return;
+      }
+      this.broadcastState(); // chip now shows 'bot takes over'
+      if (this.phase === 'playing' && this.currentPlayer()?.id === id) {
+        this.maybeRunBotTurn();
+      }
+    }, GameManager.TAKEOVER_GRACE_MS);
+    if (takeoverTimer.unref) takeoverTimer.unref();
+    this._takeoverTimers.set(id, takeoverTimer);
   }
 
   fillWithBots() {
@@ -1775,6 +1777,7 @@ class GameManager {
     this.turnDeadline = Date.now() + secs * 1000;
     const forId = cp.id;
     this._turnTimer = setTimeout(() => this._onTurnTimeout(forId), secs * 1000);
+    if (this._turnTimer.unref) this._turnTimer.unref();
   }
 
   _onTurnTimeout(playerId) {
@@ -1813,6 +1816,7 @@ class GameManager {
         this.runBotTurn(cp.id);
       }
     }, 700 + Math.random() * 600);
+    if (this._botTimer.unref) this._botTimer.unref();
   }
 
   /**
@@ -2651,33 +2655,33 @@ class GameManager {
   }
 
   /**
-   * Sendet den aktuellen Zustand an alle menschlichen Mitspieler.
+   * Sends the current state to every human player.
    *
-   * COALESCING (Bündelung): Ein einziger Bot-Zug ruft dies bis zu 4x auf
-   * (Ziehen, jedes Auslegen/Anlegen, Abwerfen). Früher ging JEDES Mal ein
-   * kompletter State (~3 KB) pro Mensch über die Leitung - obwohl niemand die
-   * Zwischenzustände sieht, weil sie im selben Tick entstehen. Jetzt wird pro
-   * Event-Loop-Tick nur EIN finaler Broadcast gesendet: gleiche Sichtbarkeit
-   * für die Spieler, aber ~4x weniger Serialisierung und Netzwerklast - der
-   * entscheidende Hebel bei vielen parallelen Partien.
+   * COALESCING: a single bot turn calls this up to 4x (draw, every meld/
+   * lay-off, discard). Each call used to send a full state (~10 KB raw,
+   * ~2 KB with permessage-deflate) per human, although nobody sees the
+   * intermediate states - they all happen in the same tick. Now only ONE
+   * final broadcast goes out per event-loop tick: same visibility for the
+   * players, ~4x less serialisation and network load - the lever that
+   * matters with many parallel games.
    *
-   * flushImmediate=true erzwingt sofortiges Senden (z. B. vor dem Shutdown).
+   * opts.immediate=true forces an immediate send (e.g. before shutdown).
    */
   broadcastState(opts = {}) {
     if (this._destroyed) return;
-    // Die kanonische Meld-Sortierung bleibt SYNCHRON: Sie ist Spielzustand,
-    // kein Netzwerkdetail, und Aufrufer (inkl. Tests) verlassen sich darauf.
+    // The canonical meld order stays SYNCHRONOUS: it is game state, not a
+    // network detail, and callers (tests included) rely on it.
     this._sortTableMelds();
     if (opts.immediate) {
       this._pendingBroadcast = false;
       this._doBroadcastState();
       return;
     }
-    if (this._pendingBroadcast) return; // schon ein Flush für diesen Tick geplant
+    if (this._pendingBroadcast) return; // a flush for this tick is already scheduled
     this._pendingBroadcast = true;
-    // setImmediate: läuft ans Ende des aktuellen Ticks, also NACH allen
-    // Teilschritten eines Zuges - unref'd, damit ein leerer Prozess trotzdem
-    // beenden kann.
+    // setImmediate: runs at the end of the current tick, i.e. AFTER all
+    // partial steps of a move - unref'd so an otherwise idle process can
+    // still exit.
     const t = setImmediate(() => {
       this._pendingBroadcast = false;
       if (this._destroyed) return;
