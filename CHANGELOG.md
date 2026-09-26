@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.28.0] - 2026-09-26
+
+### Added
+- **Tagesserie:** Wer an aufeinanderfolgenden Tagen spielt, baut eine Serie auf. Ein verpasster Tag pro Woche wird überbrückt (Joker-Tag). Stand und Joker-Tag stehen mit der Stufe über den Tagesaufgaben; die Abzeichen „Eine Woche dabei“ (7) und „Ein Monat dabei“ (30) belohnen die Serie
+- **Abzeichen in Stufen:** Damen (1/10/50), Partien (10/50/100), Siege (1/10/50), Siegesserie (3/5/10), Hand aus (1/5) und Tagesserie (7/30) sind jetzt Familien mit Stufenpunkten auf einer Kachel. Fünf neue Abzeichen aus echten Spielfakten: **Ringschluss** (Folge über K-A-2), **Die ganze Farbe** (13er-Folge), **Stapelfresser** (10+ Karten vom Ablagestapel genommen und die Runde trotzdem gewonnen), **Drei Meister** (gegen drei Zen-Bots gewonnen), **Ohne Joker** (Partie ohne ausgelegten Joker gewonnen)
+
 ## [2.27.0] - 2026-09-26
 
 ### Added

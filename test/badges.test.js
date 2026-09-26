@@ -51,7 +51,8 @@ test('computeEarnedBadges: Gewinner mit Hand-aus, 3 PD, 500+ und Comeback', () =
   const earned = computeEarnedBadges(record(), 'p1', { gamesWon: 1, winStreak: 3 });
   assert.deepEqual(
     earned.sort(),
-    ['comeback', 'double_queen_round', 'first_win', 'hand_aus_win', 'pd_laid', 'pd_triple', 'score_500', 'streak_3'].sort()
+    // no_joker_win: the fixture melds no joker and p1 wins (v2.25)
+    ['comeback', 'double_queen_round', 'first_win', 'hand_aus_win', 'no_joker_win', 'pd_laid', 'pd_triple', 'score_500', 'streak_3'].sort()
   );
 });
 
@@ -153,4 +154,68 @@ test('recordGameResult: records and cumulative counters from facts', () => {
   assert.equal(p.totalJokersLaid, 5);
   assert.equal(p.totalHandAus, 1);
   try { require('fs').unlinkSync(file); } catch (e) { /* store may write lazily */ }
+});
+
+// --- v2.25: tiers and engine-fact badges -------------------------------------
+test('computeEarnedBadges: counter tiers follow the profile, streak/wins tiers only on a win', () => {
+  const { BADGE_FAMILIES } = require('../game/Badges');
+  const won = computeEarnedBadges(record(), 'p1', {
+    gamesWon: 50, gamesPlayed: 100, winStreak: 10, totalQueensLaid: 50, totalHandAus: 5, dailyStreak: 30,
+  });
+  for (const fam of BADGE_FAMILIES) for (const [id] of fam.tiers) assert.ok(won.includes(id), `winner with maxed counters gets ${id}`);
+  const lost = computeEarnedBadges(record(), 'p2', { gamesWon: 50, gamesPlayed: 100, winStreak: 10, totalQueensLaid: 50, dailyStreak: 30 });
+  assert.ok(!lost.includes('wins_10') && !lost.includes('streak_5'), 'wins/streak tiers need a win');
+  assert.ok(lost.includes('marathon_100') && lost.includes('pd_hunter_50') && lost.includes('daily_30'), 'played/queens/daily tiers do not');
+});
+
+test('computeEarnedBadges: ring run, 13-run, pile glutton, zen trio and no-joker win come from the record', () => {
+  const rec = record({
+    players: [
+      { id: 'p1', name: 'A', isBot: false },
+      { id: 'b1', isBot: true, botDifficulty: 'zen' }, { id: 'b2', isBot: true, botDifficulty: 'zen' }, { id: 'b3', isBot: true, botDifficulty: 'zen' },
+    ],
+    rounds: [
+      {
+        winnerId: 'p1', totalsAfter: { p1: 10, p2: 20 },
+        results: {
+          p1: { roundScore: 10, breakdown: { ringRuns: 1, longestRun: 13, bigPileTake: true, jokersLaidOut: 0 } },
+          p2: { roundScore: -20, breakdown: { ringRuns: 0, longestRun: 4, bigPileTake: true, jokersLaidOut: 2 } },
+        },
+      },
+    ],
+  });
+  const a = computeEarnedBadges(rec, 'p1', { gamesWon: 1 });
+  for (const id of ['ring_run', 'run_13', 'pile_glutton', 'zen_trio', 'zen_slayer', 'no_joker_win']) assert.ok(a.includes(id), id);
+  // p2 swallowed a pile too but lost the round - and melded jokers.
+  const b = computeEarnedBadges(rec, 'p2', {});
+  assert.ok(!b.includes('pile_glutton') && !b.includes('no_joker_win') && !b.includes('ring_run'));
+});
+
+test('GameManager: round breakdown carries ring run / longest run / big pile facts', () => {
+  const GameManager = require('../game/GameManager');
+  const { makeStandardCard } = require('../game/Card');
+  const g = __autoCutHook(new GameManager(() => {}));
+  g.addOrReconnectPlayer('p1', 'Anna');
+  g.addOrReconnectPlayer('p2', 'Ben');
+  g.startNewRound();
+  const anna = g.players.find((p) => p.id === 'p1');
+  // Hand-built table: a K-A-2 wrap for Anna, a plain 3-4-5 for Ben.
+  const kA2 = [makeStandardCard('H', 'K', 0), makeStandardCard('H', 'A', 0), makeStandardCard('H', '2', 0)];
+  const r345 = [makeStandardCard('S', '3', 0), makeStandardCard('S', '4', 0), makeStandardCard('S', '5', 0)];
+  g.tableMelds = [
+    { id: 'm1', ownerId: 'p1', type: 'run', suit: 'H', slots: kA2.map((c) => ({ real: c })) },
+    { id: 'm2', ownerId: 'p2', type: 'run', suit: 'S', slots: r345.map((c) => ({ real: c })) },
+  ];
+  anna.laidOutCards = kA2;
+  anna._bigPileTake = true;
+  g.finishRound('p1');
+  const b1 = g.lastRoundResult.p1.breakdown;
+  const b2 = g.lastRoundResult.p2.breakdown;
+  assert.equal(b1.ringRuns, 1);
+  assert.equal(b1.longestRun, 3);
+  assert.equal(b1.bigPileTake, true);
+  assert.equal(b2.ringRuns, 0);
+  assert.equal(b2.bigPileTake, false);
+  // The facts travel into the record the badges are computed from.
+  assert.equal(g.roundHistory[0].results.p1.breakdown.ringRuns, 1);
 });

@@ -92,7 +92,10 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
   `PlayerStore/GameHistoryStore/GlobalStatsStore` (atomare JSON-Dateien),
   `AccountStore.js`/`PgAccountStore.js` (Konten: PostgreSQL im Docker/K8s-Stack, SQLite-Fallback via `node:sqlite`), `Mailer.js` (dependency-freier
   SMTP-Client, Log-Fallback; Header nach RFC 2047, Body Quoted-Printable -
-  nie rohes UTF-8 in Kopfzeilen), `Badges.js` (reine Funktion),
+  nie rohes UTF-8 in Kopfzeilen), `Badges.js` (reine Funktion; Familien mit
+  Stufen in `BADGE_FAMILIES`, Engine-Fakten wie `ringRuns`/`longestRun`/
+  `bigPileTake` kommen aus `finishRound` in den `breakdown`),
+  `Progression.js` (XP/Level, Tagesaufgaben, Tagesserie mit Joker-Tag),
   `Emotes.js` (EINZIGE Emote-Whitelist + Level; Client-Leisten und
   `EMOTE_UNLOCK` spiegeln sie, Vertragstest prüft).
 - `public/` — Vanilla-JS-Client (`client.js`), `i18n.js`, PWA. Enthält auch den

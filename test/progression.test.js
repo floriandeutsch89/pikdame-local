@@ -204,3 +204,38 @@ test('PlayerStore progression survives a save/load roundtrip', () => {
   assert.equal(p.xp, 300);
   assert.equal(reopened.questProgress('Flo', '2026-08-08').win_game, 1);
 });
+
+// --- Daily streak --------------------------------------------------------------
+test('advanceDailyStreak: consecutive days extend, one gap per week is bridged, more resets', () => {
+  const { advanceDailyStreak, streakGraceAvailable } = require('../game/Progression');
+  let s = null;
+  const step = (d) => { const r = advanceDailyStreak(s, d); s = r.state; return r.event; };
+  assert.equal(step('2026-09-01'), 'started');
+  assert.equal(step('2026-09-02'), 'extended');
+  assert.equal(step('2026-09-02'), 'same', 'a second game on the same day changes nothing');
+  assert.equal(s.streak, 2);
+  assert.equal(step('2026-09-04'), 'bridged', 'one missed day is bridged by the grace day');
+  assert.equal(s.streak, 3);
+  assert.equal(streakGraceAvailable(s, '2026-09-05'), false, 'grace is spent for a week');
+  assert.equal(step('2026-09-05'), 'extended');
+  assert.equal(step('2026-09-07'), 'reset', 'second gap within the same week resets');
+  assert.equal(s.streak, 1);
+  assert.equal(s.best, 4, 'best streak is remembered');
+  assert.equal(streakGraceAvailable(s, '2026-09-11'), true, 'grace is back after seven days');
+  assert.equal(step('2026-08-01'), 'same', 'a date from the past never counts twice');
+  assert.equal(advanceDailyStreak(s, 'garbage').event, 'same');
+});
+
+test('PlayerStore.touchDailyStreak: persists the streak and mirrors it for the badge tiers', () => {
+  const store = tempStore();
+  store.recordGameResult([{ name: 'Anna', score: 10, won: true }]);
+  assert.equal(store.touchDailyStreak('Anna', '2026-09-01').streak, 1);
+  assert.equal(store.touchDailyStreak('Anna', '2026-09-02').streak, 2);
+  const r = store.touchDailyStreak('Anna', '2026-09-02');
+  assert.equal(r.event, 'same');
+  assert.equal(store.getPlayerByName('Anna').dailyStreak, 2);
+  assert.equal(store.touchDailyStreak('Nobody', '2026-09-02'), null);
+  store.flushSync();
+  const fresh = createPlayerStore(store.filePath);
+  assert.equal(fresh.getPlayerByName('Anna').daily.streak, 2);
+});

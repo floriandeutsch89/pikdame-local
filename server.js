@@ -641,9 +641,18 @@ const registry = new SessionRegistry((session) => {
       playerStore.recordGameResult(results);
       gameHistoryStore.saveGame(gameRecord);
 
-      // Erfolgs-Badges: pro ECHTEM Spieler aus der Partie berechnen, im
-      // Profil persistieren (nur neue) und die frisch verdienten an alle
-      // am Tisch melden - der grosse Moment gehoert ins Ergebnis-Overlay.
+      // Daily streak: "played today" - BEFORE the badges, so the 7/30-day
+      // tiers see the updated counter in the profile.
+      const questDate = todayUTC();
+      const streaks = {};
+      for (const p of gameRecord.players || []) {
+        if (p.isBot) continue;
+        try { streaks[p.id] = playerStore.touchDailyStreak(p.name, questDate); } catch (err) { logCrash('streak', err, { player: p.name }); }
+      }
+
+      // Achievement badges: computed per REAL player from the record,
+      // persisted on the profile (new ones only) and announced to the whole
+      // table - the big moment belongs in the result overlay.
       const earned = [];
       for (const p of gameRecord.players || []) {
         if (p.isBot) continue;
@@ -661,7 +670,6 @@ const registry = new SessionRegistry((session) => {
       // --- Progression: XP, level, season ladder, daily quests -------------
       // Everything below is best-effort: a finished game must never fail
       // because a counter could not be written.
-      const questDate = todayUTC();
       const todaysQuests = questsForDate(questDate);
       for (const p of gameRecord.players || []) {
         if (p.isBot) continue;
@@ -687,6 +695,7 @@ const registry = new SessionRegistry((session) => {
             xp: after.xp,
             level: levelFromXp(after.xp),
             quests: { date: questDate, ids: todaysQuests, progress: after.quests, completed },
+            streak: streaks[p.id] || null,
           });
         } catch (err) {
           logCrash('progression', err, { player: p.name });
