@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.29.0] - 2026-09-26
+
+### Added
+- **Tagesrätsel:** eine Hand aus elf Karten, weltweit für alle gleich, eine Frage - welche Karten ergeben die wertvollste Auslage? Die Regel-Engine prüft die Antwort und nennt bei Fehlern den Grund. Lösen bringt 30 EP (einmal pro Tag) und zählt als gespielter Tag für die Tagesserie; „Lösung zeigen“ verrät die Antwort ohne EP
+
 ## [2.28.0] - 2026-09-26
 
 ### Added
