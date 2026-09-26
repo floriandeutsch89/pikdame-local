@@ -45,7 +45,7 @@ window.I18N_STATIC = {
   'Teilen': 'Share',
   'QR-Code': 'QR code',
   'Sitzordnung & Geber': 'Seating & dealer',
-  'Reihenfolge mit ▲▼ anpassen, ⭐ markiert den Geber der ersten Runde.': 'Adjust the order with ▲▼, ⭐ marks the dealer of the first round.',
+  'Zum Umsortieren am Griff ziehen. Der Stern legt den Geber der ersten Runde fest.': 'Drag the handle to reorder. The star sets the dealer of the first round.',
   'Spieleranzahl': 'Number of players',
   'Fehlende Plätze werden mit Bots aufgefüllt.': 'Empty seats are filled with bots.',
   'Hausregeln': 'House rules',
@@ -54,7 +54,8 @@ window.I18N_STATIC = {
   'Anfänger': 'Beginner',
   'Fortgeschritten': 'Advanced',
   'Zen-Meister': 'Zen master',
-  '🔒 Nur der Organisator kann die Einstellungen ändern.': '🔒 Only the organizer can change the settings.',
+  'Nur der Organisator kann die Einstellungen ändern.': 'Only the organizer can change the settings.',
+  'Namen ändern': 'Change name',
   'Spiel pausiert': 'Game paused',
   'Das Spiel ist pausiert. Es geht weiter, sobald alle zustimmen.': 'The game is paused. It continues once everyone agrees.',
   'Fortsetzen': 'Resume',
@@ -100,7 +101,6 @@ window.I18N_STATIC = {
   'Dein Fortschritt (Statistik, Erfolge, Siegesserien) bleibt mit einem Konto dauerhaft erhalten - und niemand sonst kann deinen Namen verwenden.': 'With an account your progress (statistics, achievements, streaks) is kept permanently - and nobody else can use your name.',
 
   // Topbar / Spielfeld
-  'Runde –': 'Round –',
   'Nachziehen': 'Draw',
   'Ablage': 'Discard',
   'Auslegen': 'Meld',
