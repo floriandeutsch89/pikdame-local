@@ -4991,6 +4991,17 @@
 
   // --- Fortschritt: Tagesaufgaben, Erfolge-Galerie, Saison-Rangliste -------
 
+  // The daily-task panel is a <details>: closed on a phone (it sat below
+  // the fold), open on a desktop, and the last choice wins on that device.
+  const QUESTS_OPEN_KEY = 'pikdame_quests_open';
+  (function initQuestsPanel() {
+    const box = el('questsSection');
+    if (!box || box.tagName !== 'DETAILS') return;
+    const saved = storageGet(QUESTS_OPEN_KEY);
+    box.open = saved ? saved === '1' : !!(window.matchMedia && window.matchMedia('(min-width: 900px)').matches);
+    box.addEventListener('toggle', () => storageSet(QUESTS_OPEN_KEY, box.open ? '1' : '0'));
+  })();
+
   function renderQuests() {
     const box = el('questsSection');
     const list = el('questList');
@@ -5015,6 +5026,18 @@
         `<span class="psStreak" title="${escapeHtml(L('Tagesserie: an aufeinanderfolgenden Tagen spielen. Ein verpasster Tag pro Woche wird überbrückt (Joker-Tag).', 'Daily streak: play on consecutive days. One missed day per week is bridged (grace day).'))}">🔥 ${
           streak > 0 ? L(`${streak} ${streak === 1 ? 'Tag' : 'Tage'} in Folge`, `${streak} ${streak === 1 ? 'day' : 'days'} running`) : L('Heute spielen startet die Serie', 'Play today to start a streak')
         }${streak > 0 ? ` <small>${graceFree ? L('· Joker-Tag frei', '· grace day free') : L('· Joker-Tag verbraucht', '· grace day used')}</small>` : ''}</span>`;
+    }
+    // Summary line on the collapsed panel: the three numbers that matter
+    // without opening it.
+    const sum = el('questsSummary');
+    if (sum) {
+      const total = dailyQuests.ids.length;
+      const done = dailyQuests.ids.filter((id) => (questProgress[id] || 0) >= (QUEST_NEED[id] || 1)).length;
+      sum.textContent = [
+        L(`Stufe ${lv.level}`, `Level ${lv.level}`),
+        streak > 0 ? `🔥 ${streak}` : null,
+        `${done}/${total} ${L('erledigt', 'done')}`,
+      ].filter(Boolean).join(' · ');
     }
     list.innerHTML = dailyQuests.ids
       .map((id) => {

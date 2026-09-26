@@ -60,6 +60,11 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
    CSS-Grid, Stapel in einer Seitenspalte neben den Auslagen).
    Auswahl (`--accent`) und „gerade gezogen“ (`--drawn`) brauchen
    unterscheidbare Farben - in jedem Theme.
+   Der Startbildschirm ist EINE Spalte mit Breite `--lobby-w` (340 px, ab
+   900 px Breite 400 px, nur in `#lobby` überschrieben); Modi sind eine
+   Reihe Icon-Kacheln (`.menuChips`), die Tagesaufgaben ein `<details>`
+   mit Zusammenfassung in der Kopfzeile - der ganze Startbildschirm passt
+   am iPhone ohne Scrollen, das ist die Messlatte für neue Elemente dort.
    Tap-Ziele mindestens `--tap-min` (44 px, Apple-HIG). Schriftgrößen und
    Knopfmaße kommen aus der Skala in `:root` (`--fs-*`, `--ctl-h`) — nie
    neue rohe `rem`-Werte pro Kontext erfinden, genau daraus entstanden

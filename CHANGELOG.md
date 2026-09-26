@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.31.0] - 2026-09-26
+
+### Changed
+- **Startbildschirm kompakter:** Der Kopf (Kartenfächer, Wortmarke, Tagline) nahm am iPhone ein Drittel des Bildschirms ein, Tagesaufgaben und Stammtisch-Chips lagen unter dem Fold. Jetzt: kleinerer Kopf, „Neues Spiel“ und der Beitritts-Code direkt darunter, die vier Modi (Tutorial, Challenge, Tagesrätsel, Stammtisch) als EINE Reihe aus Icon-Kacheln, die Tagesaufgaben als aufklappbares Feld, dessen Kopfzeile Stufe, Tagesserie und „erledigt“ zeigt (am Telefon zu, am Desktop offen - die letzte Wahl bleibt gespeichert). Am iPhone passt der ganze Startbildschirm ohne Scrollen; im Querformat entfallen Kartenfächer und Tagline; am Desktop ist die Spalte 400 statt 340 px breit
+
 ## [2.30.0] - 2026-09-26
 
 ### Added

@@ -286,7 +286,15 @@
 
       <div id="sessionSetup">
         <button id="createGameBtn" class="btn-primary">Neues Spiel erstellen</button>
-        <div class="menuChips">
+        <button id="resumeBtn" class="btn-secondary hidden"></button>
+        <div class="join-divider">oder einem Spiel beitreten</div>
+        <div class="joinRow">
+          <input id="codeInput" type="text" placeholder="SPIEL-CODE" maxlength="6" autocapitalize="characters" autocomplete="off" spellcheck="false" />
+          <button id="joinGameBtn" class="btn-secondary">Beitreten</button>
+        </div>
+        <!-- Game modes: ONE row of four icon tiles. Two rows of pills read as
+             four equal actions and pushed the daily tasks below the fold. -->
+        <div class="menuChips" role="group" aria-label="Spielmodi">
           <button id="tutorialBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-cap"/></svg><span>Tutorial</span></button>
           <button id="challengeBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg><span>Challenge</span></button>
           <button id="puzzleBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg><span>Tagesrätsel</span></button>
@@ -294,22 +302,20 @@
         </div>
         <!-- Recently visited Stammtische: one tap back to the group's table -->
         <div id="stammtischRecent" class="stammtischRecent hidden"></div>
-        <div class="join-divider">oder einem Spiel beitreten</div>
-        <div class="joinRow">
-          <input id="codeInput" type="text" placeholder="SPIEL-CODE" maxlength="6" autocapitalize="characters" autocomplete="off" spellcheck="false" />
-          <button id="joinGameBtn" class="btn-secondary">Beitreten</button>
-        </div>
-        <button id="resumeBtn" class="btn-secondary hidden"></button>
       </div>
 
       <!-- Tagesaufgaben: drei aus dem Datum geseedete Aufgaben, weltweit für
            alle gleich. Steht bewusst auf dem Startbildschirm - Fortschritt,
            den man erst nach dem Spiel sieht, motiviert niemanden. -->
-      <div id="questsSection" class="lobby-section questsSection hidden">
-        <h2>Tagesaufgaben</h2>
+      <details id="questsSection" class="lobby-section questsSection hidden">
+        <summary>
+          <h2>Tagesaufgaben</h2>
+          <span id="questsSummary" class="questsSummary"></span>
+          <svg class="icon questsChevron" aria-hidden="true"><use href="#i-chevron"/></svg>
+        </summary>
         <div id="progressStrip" class="progressStrip"></div>
         <div id="questList" class="questList"></div>
-      </div>
+      </details>
 
       <div id="sessionBanner" class="session-banner hidden">
         <div class="session-code-label">Spiel-Code – zum Mitspielen weitergeben</div>
