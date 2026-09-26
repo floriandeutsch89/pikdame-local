@@ -177,6 +177,9 @@ function createPgAccountStore(databaseUrl, options = {}) {
       if (!row || !match) return { error: 'Benutzername/E-Mail oder Passwort ist falsch.' };
       if (!row.verified) return { error: 'Bitte zuerst die E-Mail-Adresse bestätigen (Link in der Mail).' };
       const token = randomToken();
+      // Prune expired sessions on login (see AccountStore) - failure-tolerant,
+      // housekeeping must never block a login.
+      await pool.query('DELETE FROM sessions WHERE created_at < $1', [Date.now() - SESSION_TTL_MS]).catch(() => {});
       await pool.query('INSERT INTO sessions (token, user_id, created_at) VALUES ($1, $2, $3)', [token, row.id, Date.now()]);
       return { ok: true, token, username: row.username };
     } catch (e) {

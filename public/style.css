@@ -1441,6 +1441,43 @@ button:focus-visible, input:focus-visible, select:focus-visible {
    Margin, not transform: the toast animates its own transform. */
 body.raidActive #toastContainer { margin-top: 132px; }
 
+/* Connection-lost pill (see updateNetBanner in client.js). Sits just below
+   the header row - at the very top it wrapped onto three lines in portrait
+   and covered the emote/pause buttons. One line, never takes taps: the
+   table underneath stays usable the moment the socket is back. Kept small -
+   in phone landscape there are only ~400 px of height. */
+.netBanner {
+  position: fixed;
+  top: calc(var(--safe-top) + 58px);
+  left: 50%;
+  transform: translateX(-50%);
+  /* left:50% alone would cap the shrink-to-fit width at half the screen */
+  width: max-content;
+  max-width: 92vw;
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px;
+  /* Opaque: a glass pill let the opponent chips underneath show through
+     and the text became unreadable in landscape. */
+  background: color-mix(in srgb, var(--bg-deep) 88%, var(--danger));
+  border: 1px solid var(--danger);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  border-radius: var(--r-md);
+  font-size: var(--fs-label); font-weight: 700; line-height: 1.3;
+  white-space: nowrap;
+  color: var(--text);
+  pointer-events: none;
+  z-index: 360;
+}
+#netBannerText { overflow: hidden; text-overflow: ellipsis; }
+.netBannerDot {
+  flex-shrink: 0;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--danger);
+  animation: netBannerPulse 1.2s ease-in-out infinite;
+}
+@keyframes netBannerPulse { 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) { .netBannerDot { animation: none; } }
+
 /* Neue Karte auf dem Ablagestapel: kurzes Aufpoppen */
 @keyframes discardPop {
   0% { transform: scale(1.18) translateY(-6px); }

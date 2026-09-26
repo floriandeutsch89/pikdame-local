@@ -52,6 +52,10 @@ function boot() {
     }
     send() {} close() {}
   };
+  // Real browsers expose the readyState constants; without them send()
+  // would treat the open stub as dead and reconnect.
+  window.WebSocket.OPEN = 1;
+  window.WebSocket.CONNECTING = 0;
   window.onerror = (msg) => errors.push(String(msg));
   window.addEventListener('error', (e) => errors.push(String(e.message || e.error)));
 
@@ -81,8 +85,11 @@ function playingState(hand, turnPhase) {
   };
 }
 
-test('hand fan: only a pile take scrolls to the fresh cards, and only once', async () => {
+test('hand fan: only a pile take scrolls to the fresh cards, and only once', async (t) => {
   const { window, errors, scrolledInto, ws } = boot();
+  // The client's connection watchdog ticks while the (stub) socket is open;
+  // closing the window clears jsdom's timers so the test process can exit.
+  t.after(() => window.close());
   await new Promise((r) => setTimeout(r, 10));
   const sock = ws();
   const feed = (state) => sock._emit('message', { data: JSON.stringify({ type: 'state', state }) });

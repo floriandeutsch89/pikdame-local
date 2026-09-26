@@ -22,6 +22,7 @@ native module, so it needs no extra dependency.
 | `PIKDAME_SMTP_PASS` | *(unset)* | Password. Prefer `PIKDAME_SMTP_PASS_FILE`. |
 | `PIKDAME_SMTP_PASS_FILE` | *(unset)* | Path to a file holding the password — for Docker/Kubernetes secrets. |
 | `PIKDAME_SMTP_TLS_SERVERNAME` | *(host)* | Certificate name, when `PIKDAME_SMTP_HOST` points at an egress proxy whose certificate names something else. |
+| `PIKDAME_SMTP_EHLO` | host of `PIKDAME_BASE_URL`, else the machine name | Host name announced in `EHLO`. Some relays reject a bare word. |
 | `PIKDAME_MAIL_FROM` | `Pik Dame <noreply@localhost>` | Sender. Most providers **reject** mail whose `From` is not a mailbox you own. |
 | `PIKDAME_BASE_URL` | *(from the request)* | Public base URL used to build the confirmation link, e.g. `https://play.pikdame.online`. Set this behind a reverse proxy, otherwise the link points at the internal host name. |
 

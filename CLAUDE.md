@@ -91,7 +91,8 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
   Snapshot), `Bot.js` (4 Schwierigkeiten: easy/medium/hard/zen),
   `PlayerStore/GameHistoryStore/GlobalStatsStore` (atomare JSON-Dateien),
   `AccountStore.js`/`PgAccountStore.js` (Konten: PostgreSQL im Docker/K8s-Stack, SQLite-Fallback via `node:sqlite`), `Mailer.js` (dependency-freier
-  SMTP-Client, Log-Fallback), `Badges.js` (reine Funktion).
+  SMTP-Client, Log-Fallback; Header nach RFC 2047, Body Quoted-Printable -
+  nie rohes UTF-8 in Kopfzeilen), `Badges.js` (reine Funktion).
 - `public/` — Vanilla-JS-Client (`client.js`), `i18n.js`, PWA. Enthält auch den
   Studio-Vorspann (`#studioSplash`): Er ist ab dem ERSTEN Bild per CSS sichtbar
   (sonst blitzt die Lobby auf, weil `client.js` am Seitenende lädt), ein

@@ -39,6 +39,7 @@ const ENV_NOTES = {
   PIKDAME_MODELS_DIR: 'Where the `.onnx` model files live. Override it to mount models on a volume and swap them without rebuilding the image. Default: the `models/` folder in the image.',
   PIKDAME_LOG_GAMES: 'Set to `1` to log human moves to JSONL for imitation learning.',
   PIKDAME_LOG_PATH: 'Where the move log is written.',
+  PIKDAME_SMTP_EHLO: 'Host name announced in SMTP `EHLO`. Defaults to the host of `PIKDAME_BASE_URL`, else the machine name.',
 };
 
 function generateConfiguration() {

@@ -491,6 +491,9 @@ test('client contract: functions that build translated markup are refreshed by c
     'openChangelog', 'openCardbackGallery',
     // Aktualisierungs-Hinweis: erscheint einmalig und fuehrt zum Neuladen.
     'showUpdateBanner',
+    // Joker choice dialog: rebuilt from scratch every time the server
+    // reports an ambiguous meld; its buttons reach L() only through send().
+    'showJokerChoice',
   ]);
 
   const stale = functions
@@ -526,4 +529,24 @@ test('CSS contract: the landscape layout block comes after the rules it override
   while ((m = topLevel.exec(css))) {
     assert.ok(m.index < lastLandscape, `'${m[0].trim()}' at offset ${m.index} comes after the landscape block and would override it`);
   }
+});
+
+// Train/EDGE connections leave sockets half-open for minutes: readyState stays
+// OPEN, taps vanish, the table looks frozen. The client's watchdog pings a
+// silent socket and replaces it when no pong comes back. Both halves of that
+// handshake and the stale-socket guards must stay in place.
+test('client contract: liveness watchdog pings, handles pong and ignores replaced sockets', () => {
+  const client = fs.readFileSync(path.join(__dirname, '..', 'public', 'client.js'), 'utf8');
+  const server = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+  assert.match(client, /'\{"type":"ping"\}'/, 'client sends app-level pings');
+  assert.match(client, /msg\.type === 'pong'/, 'client consumes pongs');
+  assert.match(server, /msg\.type === 'ping'/, 'server answers pings');
+  // Every socket handler must drop events of a socket that was written off,
+  // otherwise its late close event starts a second reconnect loop.
+  for (const ev of ['open', 'close', 'error', 'message']) {
+    const re = new RegExp(`sock\\.addEventListener\\('${ev}', \\([^)]*\\) => \\{\\s*(?:clearTimeout\\(connectTimer\\);\\s*)?(if \\(sock !== ws\\) return;|if \\(sock === ws\\))`);
+    assert.match(client, re, `'${ev}' handler guards against a replaced socket`);
+  }
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+  assert.match(html, /id="netBanner"/, 'connection-lost banner exists in the markup');
 });
