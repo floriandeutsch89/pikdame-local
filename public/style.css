@@ -149,6 +149,7 @@
      44px is Apple's minimum touch target and the phone is the primary
      device, so that is the floor for anything tappable. */
   --tap-min: 44px;
+  --lobby-w: 340px;      /* start-screen column; wider on desktop (#lobby) */
 
   /* Marker for a freshly drawn card. Deliberately NOT --accent: the
      selection ring is --accent, and with both in the same colour a drawn
@@ -217,9 +218,9 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 
 #lobby {
   align-items: center;
-  padding: calc(28px + var(--safe-top)) 20px calc(32px + var(--safe-bottom));
+  padding: calc(18px + var(--safe-top)) 20px calc(32px + var(--safe-bottom));
   text-align: center;
-  gap: 14px;
+  gap: 12px;
   overflow-y: auto;
   background:
     radial-gradient(120% 55% at 50% -8%, var(--bg-glow) 0%, transparent 62%),
@@ -227,12 +228,14 @@ button:focus-visible, input:focus-visible, select:focus-visible {
     var(--bg);
 }
 
-.lobbyHeader { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 8px; }
+.lobbyHeader { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: 2px; }
 
 /* --- Lobby hero -------------------------------------------------------------
    Three fanned cards with the ♠Q in front. The wordmark on its own read like
    a web form; this says "card game" before a word is read. */
-.lobbyHero { width: min(190px, 46vw); margin: 0 auto -4px; }
+/* v2.31: 190px of hero plus the wordmark took a third of an iPhone screen;
+   the daily tasks and the Stammtisch chips sat below the fold. */
+.lobbyHero { width: min(124px, 32vw); margin: 0 auto -4px; }
 .lobbyHeroSvg { width: 100%; height: auto; display: block; overflow: visible; }
 .heroCard rect {
   fill: var(--card-bg);
@@ -261,7 +264,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
    enough height to push the first screen into scrolling. */
 .lobbyTools {
   display: flex; justify-content: center; align-items: flex-start;
-  gap: 4px; width: 100%; max-width: 340px; margin-top: 4px;
+  gap: 4px; width: 100%; max-width: var(--lobby-w); margin-top: 4px;
 }
 .lobbyTool {
   flex: 1 1 0; min-width: 0;
@@ -280,7 +283,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 
 #lobby h1 {
   margin: 0;
-  font-size: clamp(2.4rem, 9vw, 3rem);
+  font-size: clamp(2rem, 7.5vw, 2.6rem);
   font-weight: 800;
   letter-spacing: -0.03em;
   line-height: 1.05;
@@ -298,7 +301,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 
 .subtitle {
   color: var(--text-muted); margin: 0;
-  font-size: 0.8rem; font-weight: 500;
+  font-size: var(--fs-micro); font-weight: 500;
   letter-spacing: 0.05em; text-transform: uppercase;
 }
 
@@ -321,7 +324,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .themeBtn:active { transform: scale(0.94); }
 
 #nameInput {
-  width: 100%; max-width: 340px;
+  width: 100%; max-width: var(--lobby-w);
   padding: 15px 18px;
   border-radius: var(--r-md); border: 1px solid var(--glass-border);
   font-size: 1rem; text-align: center; font-weight: 500;
@@ -333,7 +336,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 #nameInput:focus { border-color: var(--accent); outline: none; background: var(--glass); }
 
 .btn-primary, .btn-secondary {
-  width: 100%; max-width: 340px;
+  width: 100%; max-width: var(--lobby-w);
   padding: 15px 22px;
   font-size: 1rem; font-weight: 700;
   /* inline-flex so an <svg class="icon"> and its <span> label get real
@@ -372,7 +375,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .conn-status { font-size: 0.75rem; color: var(--text-muted); opacity: 0.75; }
 
 /* Session: Erstellen / Beitreten / Code-Banner */
-#sessionSetup { width: 100%; max-width: 340px; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+#sessionSetup { width: 100%; max-width: var(--lobby-w); display: flex; flex-direction: column; gap: 12px; align-items: center; }
 
 /* Primary lobby actions, pinned to the bottom of the scroll container.
    On a phone "Spiel starten" used to live BELOW the code banner, the seat
@@ -383,7 +386,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   position: sticky;
   bottom: calc(-1 * var(--safe-bottom));
   z-index: 3;
-  width: 100%; max-width: 340px;
+  width: 100%; max-width: var(--lobby-w);
   display: flex; flex-direction: column; gap: 8px; align-items: center;
   padding: 20px 0 calc(10px + var(--safe-bottom));
   margin-top: auto;           /* sits at the end when the lobby is short */
@@ -419,7 +422,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .joinRow .btn-secondary { width: auto; padding: 13px 18px; flex-shrink: 0; }
 
 .session-banner {
-  width: 100%; max-width: 340px;
+  width: 100%; max-width: var(--lobby-w);
   background: var(--glass);
   border: 1px solid var(--glass-border);
   border-radius: var(--r-lg);
@@ -492,7 +495,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 
 /* Glas-Panels */
 .lobby-section {
-  width: 100%; max-width: 340px; text-align: left;
+  width: 100%; max-width: var(--lobby-w); text-align: left;
   background: var(--glass);
   border: 1px solid var(--glass-border);
   border-radius: var(--r-lg);
@@ -1683,6 +1686,8 @@ body.raidActive #toastContainer { margin-top: 132px; }
     max-width: 880px;
     margin: 0 auto;
   }
+  #lobby { --lobby-w: 400px; }
+  .lobbyHero { width: 150px; }
   #handWrapper { border-radius: var(--r-lg); margin-bottom: 10px; }
   .overlay-card { max-width: 520px; }
   .legal-page { max-width: 720px; }
@@ -2438,15 +2443,21 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 
 /* --- Menu chips + challenge intro (v1.35.0) ------------------------------------ */
 .menuChips {
-  display: flex; flex-wrap: wrap; gap: 8px;
-  width: 100%; max-width: 340px;
+  display: flex; flex-wrap: nowrap; gap: 6px;
+  width: 100%; max-width: var(--lobby-w);
 }
+/* One row of four icon tiles (icon above label), the same shape as the
+   utility row at the bottom - the modes are secondary to "Neues Spiel". */
 .menuChips .btn-secondary {
-  flex: 1 1 45%; margin: 0;
-  min-height: var(--tap-min); /* they were 40px - under the Apple minimum */
-  font-size: var(--fs-label); padding: 10px 8px;
+  flex: 1 1 0; min-width: 0; margin: 0;
+  flex-direction: column; gap: 4px;
+  min-height: 58px; /* icon + label; comfortably above --tap-min */
+  font-size: var(--fs-hint); padding: 8px 4px;
+  border-radius: var(--r-md);
   max-width: none !important;
 }
+.menuChips .btn-secondary .icon { width: 1.45em; height: 1.45em; }
+.menuChips .btn-secondary span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #challengeIntroOverlay .challengeLead { font-weight: 700; margin: 8px 0 2px; }
 #challengeIntroOverlay .challengeTop { font-size: 0.82rem; color: var(--text-muted); min-height: 1.2em; }
 
@@ -2809,9 +2820,22 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 /* --- Fortschritt: Tagesaufgaben, Erfolge, Saison-Rangliste ----------------- */
 /* Lobby panel. Uses the same lobby-section shell as the house rules, so it
    inherits width, radius and spacing instead of inventing its own. */
-.questsSection { text-align: left; }
+.questsSection { text-align: left; padding: 12px 18px; }
+/* Collapsed by default on a phone: the summary line carries level, streak
+   and the done-count, the list opens on tap (state remembered per device). */
+.questsSection summary {
+  list-style: none; cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+  min-height: calc(var(--tap-min) - 12px);
+}
+.questsSection summary::-webkit-details-marker { display: none; }
+.questsSection summary h2 { margin: 0; flex-shrink: 0; }
+.questsSummary { flex: 1; min-width: 0; text-align: right; font-size: var(--fs-label); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.questsChevron { width: 1em; height: 1em; flex-shrink: 0; color: var(--text-muted); transition: transform 0.2s var(--ease); }
+.questsSection[open] .questsChevron { transform: rotate(180deg); }
+.questsSection .progressStrip { margin: 10px 0 10px; }
 /* Stammtisch */
-.stammtischRecent { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; max-width: 340px; justify-content: center; }
+.stammtischRecent { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; max-width: var(--lobby-w); justify-content: center; }
 .stammtischRecent button {
   background: var(--glass); border: 1px solid var(--glass-border); color: var(--text);
   border-radius: var(--r-pill); padding: 8px 12px; min-height: var(--tap-min);
@@ -3500,4 +3524,8 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
     margin: 0; padding: 0 0 0 16px;
   }
   #resultOverlay .resultEmoteBar { flex-wrap: wrap; justify-content: center; }
+  /* Start screen at ~400px height: no room for a hero or a tagline. */
+  .lobbyHero, .subtitle { display: none; }
+  #lobby { padding-top: calc(10px + var(--safe-top)); gap: 8px; }
+  #lobby h1 { font-size: 1.7rem; }
 }
