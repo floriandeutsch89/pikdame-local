@@ -3,6 +3,18 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.33.0] - 2026-09-26
+
+### Changed
+- **Spieltisch am Telefon: Kopfzeile einzeilig.** Home, Zug-Status und Aktionen stehen in einer Reihe; der Status darf zweizeilig umbrechen statt abgeschnitten zu werden. Runde und „Du gibst“ stehen jetzt in der Handleiste neben der Kartenzahl („15 Karten · R1“). Die Kopfzeile ist 61 statt 96 px hoch, in allen Layouts einheitlich
+- **Startbildschirm:** Wiederkehrende Spieler sehen statt eines Eingabefelds ihren Namen mit Avatar als Chip, ein Tipp ändert ihn. Die Pik-Plakette neben dem Schriftzug entfällt (der Kartenfächer ist das Markenzeichen). Die vier Modus-Kacheln haben je eine eigene Icon-Farbe. „Verbunden.“ steht nicht mehr dauerhaft da, die Zeile erscheint nur noch bei Verbindungsproblemen
+- **Spiel-Lobby:** Reihenfolge Code, Spieleranzahl, Sitzordnung, Hausregeln; die Tagesaufgaben stehen darunter. „Spiel starten“ ist der farbige Hauptknopf. Die Sitzordnung wird per Griff gezogen statt mit ▲▼ geklickt (Tastatur: Pfeiltasten auf dem Griff), der Geber trägt einen Stern-Chip, Bots zeigen ihre Stärke als Text („Zen“, „Mittel“, „Leicht“), bereite Spieler einen Haken. Am Desktop zweispaltig: Code, Spieleranzahl und Hausregeln links, Sitzordnung rechts, dazu zwei dezente Karten im Hintergrund
+- **Icons statt Emoji** für Geber-Stern, Sitzordnung, Hinweis „Nur der Organisator…“, Ablage-Vorschau und Bot-Stärke an den Gegner-Chips; der Rundenstart-Spruch kommt ohne 🃏
+
+### Fixed
+- **Fußzeilen-Links am iPhone:** „Rommé-Regeln“ lief links aus dem Bild, „Pik Dame oder Hearts?“ brach vierzeilig um. Die Links umbrechen jetzt als Ganzes
+- **Startleiste der Lobby:** Unter „Spiel starten“ schien ein Streifen der Sitzliste durch (die Leiste klebte 32 px über dem unteren Rand)
+
 ## [2.32.0] - 2026-09-26
 
 ### Added

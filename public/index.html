@@ -234,6 +234,13 @@
     <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
     <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3.2c-4.9 0-8.8 3.7-8.8 8.4 0 4.6 3.6 7.7 8 7.7 1.5 0 2.4-.9 2.4-2 0-.6-.2-1-.6-1.4-.3-.4-.5-.7-.5-1.2 0-.9.7-1.6 1.7-1.6h1.6c2.7 0 4.8-2 4.8-4.8 0-3-3.4-5.1-8.6-5.1z"/><circle cx="7.6" cy="11.4" r="1.25"/><circle cx="11" cy="7.9" r="1.25"/><circle cx="15.6" cy="8.8" r="1.25"/></symbol>
     <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></symbol>
+    <!-- v2.33: dealer star, drag grip, lock, pencil and check replace the
+         emoji that stood in for them (⭐ ☆ ▲▼ 🔒 ✅). -->
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></symbol>
+    <symbol id="i-grip" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.6" fill="currentColor" stroke="none"/><circle cx="15" cy="6" r="1.6" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="1.6" fill="currentColor" stroke="none"/><circle cx="15" cy="18" r="1.6" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/></symbol>
+    <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4 20l1-4.2L15.8 5a2 2 0 0 1 2.8 0l.4.4a2 2 0 0 1 0 2.8L8.2 19z"/><path d="M14 6.8l3.2 3.2"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
     <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3.5 11.2V4.5a1 1 0 0 1 1-1h6.7a1 1 0 0 1 .7.3l8.3 8.3a1 1 0 0 1 0 1.4l-6.7 6.7a1 1 0 0 1-1.4 0L3.8 11.9a1 1 0 0 1-.3-.7z"/><circle cx="8" cy="8" r="1.4"/></symbol>
   </svg>
 
@@ -279,10 +286,18 @@
             </g>
           </svg>
         </div>
-        <h1><span class="spade">♠</span>Pik Dame</h1>
+        <h1>Pik Dame</h1>
         <p class="subtitle">Das Familien-Rommé – online mit Freunden &amp; Bots</p>
       </div>
-      <input id="nameInput" type="text" placeholder="Dein Name" maxlength="16" />
+      <!-- Returning players see WHO they are (avatar + name) instead of a
+           form field they already filled in last time; a tap edits it.
+           First-time players still get the plain input. -->
+      <button id="identityChip" class="identityChip hidden" type="button" title="Namen ändern">
+        <span id="identityAvatar" class="identityAvatar" aria-hidden="true"></span>
+        <span id="identityName" class="identityName"></span>
+        <svg class="icon identityEdit" aria-hidden="true"><use href="#i-pencil"/></svg>
+      </button>
+      <input id="nameInput" type="text" placeholder="Dein Name" maxlength="16" enterkeyhint="done" />
 
       <div id="sessionSetup">
         <button id="createGameBtn" class="btn-primary">Neues Spiel erstellen</button>
@@ -304,18 +319,11 @@
         <div id="stammtischRecent" class="stammtischRecent hidden"></div>
       </div>
 
-      <!-- Tagesaufgaben: drei aus dem Datum geseedete Aufgaben, weltweit für
-           alle gleich. Steht bewusst auf dem Startbildschirm - Fortschritt,
-           den man erst nach dem Spiel sieht, motiviert niemanden. -->
-      <details id="questsSection" class="lobby-section questsSection hidden">
-        <summary>
-          <h2>Tagesaufgaben</h2>
-          <span id="questsSummary" class="questsSummary"></span>
-          <svg class="icon questsChevron" aria-hidden="true"><use href="#i-chevron"/></svg>
-        </summary>
-        <div id="progressStrip" class="progressStrip"></div>
-        <div id="questList" class="questList"></div>
-      </details>
+      <!-- Session lobby panels. Phone: one column in reading order - code,
+           players, house rules (display: contents, the wrapper is invisible).
+           Desktop: two columns, settings left, seating right. -->
+      <div id="sessionPanels" class="sessionPanels">
+      <p id="nonHostHint" class="lobby-hint nonHostHint hidden"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg><span>Nur der Organisator kann die Einstellungen ändern.</span></p>
 
       <div id="sessionBanner" class="session-banner hidden">
         <div class="session-code-label">Spiel-Code – zum Mitspielen weitergeben</div>
@@ -333,8 +341,6 @@
         <div id="stammtischBody"></div>
       </div>
 
-      <p id="nonHostHint" class="lobby-hint hidden">🔒 Nur der Organisator kann die Einstellungen ändern.</p>
-
       <div id="seatCountSection" class="lobby-section hidden">
         <h2>Spieleranzahl</h2>
         <p class="lobby-hint">Fehlende Plätze werden mit Bots aufgefüllt.</p>
@@ -347,7 +353,7 @@
 
       <div id="seatingSection" class="lobby-section hidden">
         <h2>Sitzordnung &amp; Geber</h2>
-        <p class="lobby-hint">Reihenfolge mit ▲▼ anpassen, ⭐ markiert den Geber der ersten Runde.</p>
+        <p class="lobby-hint">Zum Umsortieren am Griff ziehen. Der Stern legt den Geber der ersten Runde fest.</p>
         <div id="seatingList" class="seating-list"></div>
       </div>
 
@@ -366,6 +372,7 @@
           </select>
         </label>
       </div>
+      </div><!-- /sessionPanels -->
 
       <!-- Pinned to the bottom of the viewport while the lobby scrolls: on a
            phone the primary action sat below the code banner, the seat count,
@@ -375,13 +382,27 @@
         <button id="lobbyReadyBtn" class="btn-secondary hidden"></button>
         <!-- hidden until a session exists: a disabled button on first load is a
              dead control that only asks "why can't I press this?" -->
-        <button id="startBtn" class="btn-secondary hidden" disabled>Spiel starten</button>
+        <button id="startBtn" class="btn-primary hidden" disabled>Spiel starten</button>
       </div>
       <!-- Primäraktion zuerst, der Rückweg darunter - andersherum war es
            verwirrend (Nutzer-Feedback). -->
       <button id="leaveLobbyBtn" class="btn-secondary hidden"><svg class="icon" aria-hidden="true"><use href="#i-home"/></svg><span>Zurück zum Hauptmenü</span></button>
+      <!-- Tagesaufgaben: drei aus dem Datum geseedete Aufgaben, weltweit für
+           alle gleich. Steht bewusst auf dem Startbildschirm - Fortschritt,
+           den man erst nach dem Spiel sieht, motiviert niemanden. -->
+      <details id="questsSection" class="lobby-section questsSection hidden">
+        <summary>
+          <h2>Tagesaufgaben</h2>
+          <span id="questsSummary" class="questsSummary"></span>
+          <svg class="icon questsChevron" aria-hidden="true"><use href="#i-chevron"/></svg>
+        </summary>
+        <div id="progressStrip" class="progressStrip"></div>
+        <div id="questList" class="questList"></div>
+      </details>
       <div id="lobbyPlayers" class="lobby-players"></div>
-      <p id="connStatus" class="conn-status">Verbinde...</p>
+      <!-- Silent while connected: the line only appears when something is
+           wrong (connecting, retrying, offline). -->
+      <p id="connStatus" class="conn-status" data-state="pending" role="status">Verbinde...</p>
       <!-- Utility zone. Five full-width pills used to compete with the primary
            CTA and pushed the first screen into scrolling. One icon row: same
            five destinations, a fifth of the height. Labels sit underneath so
@@ -515,9 +536,6 @@
           <button id="pauseBtn" class="btn-icon hidden" title="Pause (alle müssen zustimmen)" aria-label="Pause"><svg class="icon" aria-hidden="true"><use href="#i-pause"/></svg></button>
           <button id="settingsBtn" class="btn-icon" title="Einstellungen" aria-label="Einstellungen"><svg class="icon" aria-hidden="true"><use href="#i-gear"/></svg></button>
         </div>
-        <!-- Zweite Kopfzeile: Runde/Geber klein, linksbuendig unter dem
-             Home-Button - auf gleicher linker Flucht wie der Zug-Status. -->
-        <div id="roundInfo" class="headerRoundInfo">Runde –</div>
       </header>
 
       <div id="emoteBar" class="emoteBar hidden">
@@ -536,7 +554,7 @@
         <div class="pile" id="discardPile">
           <div class="pile-card" id="discardTopCard"></div>
           <span id="discardCount">0</span>
-          <button id="discardPreviewBtn" class="pilePeekBtn tapExpand" title="Ablagestapel ansehen" aria-label="Ablagestapel ansehen">👁</button>
+          <button id="discardPreviewBtn" class="pilePeekBtn tapExpand" title="Ablagestapel ansehen" aria-label="Ablagestapel ansehen"><svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg></button>
           <div class="pileLabel">Ablage</div>
         </div>
       </div>
@@ -554,7 +572,9 @@
       <div id="handWrapper">
         <div class="handToolbar">
           <button id="handToggleBtn" class="sortToggle handToggle tapExpand" title="Karten ein-/ausblenden" aria-label="Karten ein-/ausblenden"><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></button>
-          <span id="handCount" class="handCount" title="Karten auf deiner Hand">–</span>
+          <!-- Card count + round/dealer. The round line used to be a second
+               header row on phones; down here it costs no height. -->
+          <span class="handMeta"><span id="handCount" class="handCount" title="Karten auf deiner Hand">–</span><span id="roundInfo" class="handRoundInfo"></span></span>
           <button id="sortToggleBtn" class="sortToggle tapExpand" title="Sortierung umschalten">♠♥ Farbe</button>
         </div>
         <div id="hand"></div>

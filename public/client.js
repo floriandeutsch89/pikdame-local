@@ -163,7 +163,7 @@
     // Vorfahrt - der Spruch drängelt sich dann nicht dazwischen.
     const latest = (lastState.log || [])[lastState.log.length - 1];
     if (latest && latest.text && !/^Runde \d+ gestartet/.test(latest.text)) return;
-    showToast(`🃏 ${roundQuote(`${lastState.dealerId}-${lastState.roundNumber}`)}`, { duration: 5000, priority: true });
+    showToast(roundQuote(`${lastState.dealerId}-${lastState.roundNumber}`), { duration: 5000, priority: true });
   }
   let prevDiscardTopId;
   // Auslagen-Filter: null = alle anzeigen; sonst nur die Auslagen dieses
@@ -688,22 +688,32 @@
     }
   }
 
+  // The lobby status line only speaks up when something is wrong: a
+  // permanent "Connected." cost a full line of the start screen for no news.
+  // data-state drives the visibility (CSS hides 'ok').
+  function setConnStatus(text, state) {
+    const cs = el('connStatus');
+    if (!cs) return;
+    cs.textContent = text;
+    cs.dataset.state = state;
+  }
+
   function scheduleReconnect() {
     clearTimeout(reconnectTimer);
     updateNetBanner();
     // Offline: gar nicht erst versuchen. Der 'online'-Ereignishandler unten
     // startet sofort, sobald das Geraet wieder Netz hat.
     if (navigator.onLine === false) {
-      el('connStatus').textContent = L('Offline - warte auf Netz...', 'Offline - waiting for a network...');
+      setConnStatus(L('Offline - warte auf Netz...', 'Offline - waiting for a network...'), 'error');
       return;
     }
     const wait = RECONNECT_STEPS_MS[Math.min(reconnectAttempt, RECONNECT_STEPS_MS.length - 1)];
     reconnectAttempt += 1;
     const seconds = Math.round(wait / 1000);
-    el('connStatus').textContent = L(
+    setConnStatus(L(
       `Verbindung verloren - neuer Versuch in ${seconds}s...`,
       `Connection lost - retrying in ${seconds}s...`
-    );
+    ), 'error');
     // Streuung, damit nach einem Serverneustart nicht alle Geraete exakt
     // gleichzeitig anklopfen.
     reconnectTimer = setTimeout(connect, wait + Math.floor(Math.random() * 400));
@@ -740,7 +750,7 @@
     const connectTimer = setTimeout(() => {
       if (sock === ws && sock.readyState === WebSocket.CONNECTING) abandonSocket({ backoff: true });
     }, CONNECT_TIMEOUT_MS);
-    el('connStatus').textContent = L('Verbinde...', 'Connecting...');
+    setConnStatus(L('Verbinde...', 'Connecting...'), 'pending');
 
     // Every handler below ignores events of a socket that has since been
     // replaced (abandonSocket / a newer connect()).
@@ -751,7 +761,7 @@
       lastActionAt = 0;
       startWatchdog();
       updateNetBanner();
-      el('connStatus').textContent = L('Verbunden.', 'Connected.');
+      setConnStatus(L('Verbunden.', 'Connected.'), 'ok');
       // Profile + Tagesaufgaben sofort holen: der Startbildschirm zeigt den
       // heutigen Aufgaben-Fortschritt, und der steht im eigenen Profil - ohne
       // diese Anfrage stünde dort bis zum Beitritt immer 0/3.
@@ -784,9 +794,9 @@
       if (sock !== ws) return;
       // No retry of its own here: 'error' is ALWAYS followed by 'close',
       // otherwise two timers would run in parallel. Only update the display.
-      el('connStatus').textContent = navigator.onLine === false
+      setConnStatus(navigator.onLine === false
         ? L('Offline - warte auf Netz...', 'Offline - waiting for a network...')
-        : L('Verbindungsfehler.', 'Connection error.');
+        : L('Verbindungsfehler.', 'Connection error.'), 'error');
     });
 
     sock.addEventListener('message', (ev) => {
@@ -1365,7 +1375,7 @@
       (lastState.players.length
         ? '<br>' +
           lastState.players
-            .map((p) => `${!p.isBot && ready.has(p.id) ? '✅ ' : ''}${nameWithHeart(p.name)}${p.isBot ? ' (Bot)' : ''}`)
+            .map((p) => `${nameWithHeart(p.name)}${p.isBot ? ' (Bot)' : ''}${!p.isBot && ready.has(p.id) ? ` (${L('bereit', 'ready')})` : ''}`)
             .join(', ')
         : '');
 
@@ -1398,6 +1408,9 @@
     );
 
     const hasJoined = lastState.players.some((p) => p.id === playerId);
+    // Seated players read the seating list (names, ready ticks); the plain
+    // text line is only for someone looking at the table from outside.
+    el('lobbyPlayers').classList.toggle('hidden', hasJoined);
     el('seatCountSection').classList.toggle('hidden', !hasJoined);
     el('seatingSection').classList.toggle('hidden', !hasJoined || lastState.players.length === 0);
     el('houseRulesSection').classList.toggle('hidden', !hasJoined);
@@ -1432,49 +1445,117 @@
     try { renderStammtisch(); } catch (e) { /* never critical */ }
   }
 
+  // Drag state of the seating list. A state broadcast in mid-drag must not
+  // rebuild the list under the finger; the rebuild waits for the drop.
+  let seatDrag = null;
+  let seatListPending = null;
+
   function renderSeatingList(isHost) {
+    if (seatDrag) { seatListPending = isHost; return; }
     const list = el('seatingList');
     list.innerHTML = '';
     const canEdit = isHost !== false; // default true when called without arg
+    const ready = new Set(lastState.lobbyReady || []);
+    const multiHuman = lastState.players.filter((p) => !p.isBot).length > 1;
+    const count = lastState.players.length;
     lastState.players.forEach((p, idx) => {
       const row = document.createElement('div');
       row.className = 'seatRow';
       const isDealer = p.id === lastState.dealerId;
-      const lock = !canEdit ? 'disabled' : '';
-      // Per-bot difficulty badge (bots only) - each bot is configured
-      // individually right here in the lobby; there is no global setting.
-      // Non-hosts still SEE each bot's difficulty (read-only, clearly visible).
+      // Per-bot difficulty (bots only), as a labelled chip - the emoji alone
+      // (🌱🙂🧘) said nothing to anyone who had not opened the picker yet.
+      // Non-hosts see it read-only.
       const diff = BOT_DIFF[p.botDifficulty] || BOT_DIFF.zen;
       const diffTitle = canEdit
         ? L('Schwierigkeit ändern', 'Change difficulty')
         : L(`Schwierigkeit: ${diff.label()}`, `Difficulty: ${diff.label()}`);
-      const diffBadge = p.isBot
-        ? `<button class="btn-icon seatDiff${canEdit ? '' : ' readonly'}" title="${diffTitle}">${diff.icon}</button>`
+      const diffChip = p.isBot
+        ? `<button class="seatDiff tapExpand${canEdit ? '' : ' readonly'}" title="${diffTitle}">${diff.short()}</button>`
         : '';
-      row.innerHTML = `
-        <span class="seatName">${nameWithHeart(p.name)}${botMark(p)}</span>
-        <span class="seatControls">
-          ${diffBadge}
-          <button class="btn-icon seatUp" ${idx === 0 || !canEdit ? 'disabled' : ''} title="Nach oben">▲</button>
-          <button class="btn-icon seatDown" ${idx === lastState.players.length - 1 || !canEdit ? 'disabled' : ''} title="Nach unten">▼</button>
-          <button class="btn-icon seatDealer ${isDealer ? 'active' : ''}" ${lock} title="Als Geber festlegen">${isDealer ? '⭐' : '☆'}</button>
-        </span>`;
+      const readyMark = multiHuman && !p.isBot && ready.has(p.id)
+        ? `<span class="seatReady" title="${L('bereit', 'ready')}"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></span>`
+        : '';
+      // Dealer: a filled chip on the dealer's row; the host gets an outline
+      // star on the others to move it. Non-hosts only see who deals.
+      const dealerBtn = isDealer || canEdit
+        ? `<button class="btn-icon seatDealer tapExpand${isDealer ? ' active' : ''}" ${canEdit ? '' : 'disabled'} aria-pressed="${isDealer}" title="${isDealer ? L('Gibt die erste Runde', 'Deals the first round') : L('Als Geber festlegen', 'Make dealer')}"><svg class="icon" aria-hidden="true"><use href="#i-star"/></svg>${isDealer ? `<span>${L('Geber', 'Dealer')}</span>` : ''}</button>`
+        : '';
+      const grip = canEdit && count > 1
+        ? `<button class="seatGrip" title="${L('Ziehen zum Umsortieren', 'Drag to reorder')}" aria-label="${L(`Platz ${idx + 1} verschieben (Pfeiltasten)`, `Move seat ${idx + 1} (arrow keys)`)}"><svg class="icon" aria-hidden="true"><use href="#i-grip"/></svg></button>`
+        : '';
+      row.innerHTML = `${grip}<span class="seatName">${nameWithHeart(p.name)}${botMark(p)}${readyMark}</span><span class="seatControls">${diffChip}${dealerBtn}</span>`;
       if (canEdit) {
-        row.querySelector('.seatUp').addEventListener('click', () => moveSeat(idx, -1));
-        row.querySelector('.seatDown').addEventListener('click', () => moveSeat(idx, 1));
-        row.querySelector('.seatDealer').addEventListener('click', () => send({ type: 'setDealer', playerId: p.id }));
+        const dealer = row.querySelector('.seatDealer');
+        if (dealer && !isDealer) dealer.addEventListener('click', () => send({ type: 'setDealer', playerId: p.id }));
         if (p.isBot) row.querySelector('.seatDiff').addEventListener('click', () => openBotDiffOverlay(p));
+        const g = row.querySelector('.seatGrip');
+        if (g) {
+          g.addEventListener('pointerdown', (ev) => startSeatDrag(ev, row, idx));
+          g.addEventListener('keydown', (ev) => {
+            if (ev.key === 'ArrowUp' && idx > 0) { ev.preventDefault(); moveSeatTo(idx, idx - 1); }
+            else if (ev.key === 'ArrowDown' && idx < count - 1) { ev.preventDefault(); moveSeatTo(idx, idx + 1); }
+          });
+        }
       }
       list.appendChild(row);
     });
   }
 
-  function moveSeat(idx, dir) {
+  function moveSeatTo(from, to) {
     const order = lastState.players.map((p) => p.id);
-    const target = idx + dir;
-    if (target < 0 || target >= order.length) return;
-    [order[idx], order[target]] = [order[target], order[idx]];
+    if (from === to || to < 0 || to >= order.length) return;
+    const [id] = order.splice(from, 1);
+    order.splice(to, 0, id);
     send({ type: 'reorderSeats', order });
+  }
+
+  // Pointer drag on the grip (mouse and touch alike). The row follows the
+  // pointer, the others slide aside; the new order goes to the server on drop.
+  function startSeatDrag(ev, row, fromIdx) {
+    if (ev.button !== undefined && ev.button !== 0) return;
+    const grip = ev.currentTarget;
+    const rows = [...el('seatingList').querySelectorAll('.seatRow')];
+    if (rows.length < 2) return;
+    ev.preventDefault();
+    const rects = rows.map((r) => r.getBoundingClientRect());
+    const pitch = rects[1].top - rects[0].top;
+    seatDrag = { row, rows, rects, pitch, fromIdx, toIdx: fromIdx, startY: ev.clientY };
+    row.classList.add('dragging');
+    try { grip.setPointerCapture(ev.pointerId); } catch (e) { /* older engines */ }
+    const onMove = (e) => {
+      const d = seatDrag;
+      if (!d) return;
+      const minDy = rects[0].top - rects[fromIdx].top;
+      const maxDy = rects[rects.length - 1].top - rects[fromIdx].top;
+      const dy = Math.max(minDy, Math.min(maxDy, e.clientY - d.startY));
+      d.row.style.transform = `translateY(${dy}px)`;
+      d.toIdx = Math.max(0, Math.min(rows.length - 1, fromIdx + Math.round(dy / d.pitch)));
+      rows.forEach((r, i) => {
+        if (i === fromIdx) return;
+        let shift = 0;
+        if (fromIdx < d.toIdx && i > fromIdx && i <= d.toIdx) shift = -d.pitch;
+        if (fromIdx > d.toIdx && i < fromIdx && i >= d.toIdx) shift = d.pitch;
+        r.style.transform = shift ? `translateY(${shift}px)` : '';
+      });
+    };
+    const onEnd = () => {
+      grip.removeEventListener('pointermove', onMove);
+      grip.removeEventListener('pointerup', onEnd);
+      grip.removeEventListener('pointercancel', onEnd);
+      const d = seatDrag;
+      seatDrag = null;
+      if (!d) return;
+      rows.forEach((r) => { r.style.transform = ''; r.classList.remove('dragging'); });
+      if (d.toIdx !== d.fromIdx) moveSeatTo(d.fromIdx, d.toIdx);
+      if (seatListPending !== null) {
+        const host = seatListPending;
+        seatListPending = null;
+        renderSeatingList(host);
+      }
+    };
+    grip.addEventListener('pointermove', onMove);
+    grip.addEventListener('pointerup', onEnd);
+    grip.addEventListener('pointercancel', onEnd);
   }
 
 
@@ -1546,8 +1627,8 @@
     const iAmDealer = dealer && dealer.id === playerId;
     // Kompakte Topbar: Der Geber ist jetzt per ⭐ direkt am jeweiligen
     // Gegner-Chip markiert - die Topbar nennt ihn nur noch, wenn ICH es bin.
-    el('roundInfo').textContent = iAmDealer
-      ? L(`R${lastState.roundNumber} · Du gibst ⭐`, `R${lastState.roundNumber} · You deal ⭐`)
+    el('roundInfo').innerHTML = iAmDealer
+      ? `R${lastState.roundNumber} · ${L('Du gibst', 'You deal')} <svg class="icon dealerIcon" aria-hidden="true"><use href="#i-star"/></svg>`
       : `R${lastState.roundNumber}`;
     const cp = lastState.players.find((p) => p.id === lastState.currentPlayerId);
     const isMyTurn = lastState.currentPlayerId === playerId;
@@ -1592,7 +1673,7 @@
         });
         const reconnecting = !p.isBot && p.controlledByBot;
         const opTotal = (lastState.totals && lastState.totals[p.id]) || 0;
-        const dealerStar = p.id === lastState.dealerId ? ` <span title="${L('Geber dieser Runde', 'Dealer this round')}">⭐</span>` : '';
+        const dealerStar = p.id === lastState.dealerId ? `<span class="opDealer" title="${L('Geber dieser Runde', 'Dealer this round')}"><svg class="icon dealerIcon" aria-hidden="true"><use href="#i-star"/></svg></span>` : '';
         // Bots wear their difficulty as a tappable badge (per-bot adjustable)
         // Badge lives OUTSIDE the name div (appended below): inside it, the
         // name ellipsis on narrow chips (3 bots, portrait) swallowed the
@@ -1601,12 +1682,12 @@
         d.title = L(`${p.handCount} Karten · ${opTotal} Punkte`, `${p.handCount} cards · ${opTotal} points`);
         const opProgress = Math.max(0, Math.min(100, (opTotal / 1000) * 100));
         if (reconnecting) d.classList.add('disconnected');
-        d.innerHTML = `<div class="opName">${avatarFor(p.name, p.isBot)}${nameWithHeart(p.name)}${diffBadge}${dealerStar}${reconnecting ? ` <span class="reconnectTag">⏳ ${L('getrennt', 'offline')}</span>` : ''}</div><div class="opCount"><b>${p.handCount}</b> ${L('Kt', 'cd')} · <b>${opTotal}</b> ${L('Pkt', 'pts')}</div><div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>`;
+        d.innerHTML = `<div class="opName">${avatarFor(p.name, p.isBot)}${nameWithHeart(p.name)}${diffBadge}${dealerStar}${reconnecting ? ` <span class="reconnectTag">${L('getrennt', 'offline')}</span>` : ''}</div><div class="opCount"><b>${p.handCount}</b> ${L('Kt', 'cd')} · <b>${opTotal}</b> ${L('Pkt', 'pts')}</div><div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>`;
         if (p.isBot) {
           const meta = BOT_DIFF[p.botDifficulty] || BOT_DIFF.zen;
           const badgeBtn = document.createElement('button');
           badgeBtn.className = 'botDiffBadge';
-          badgeBtn.textContent = meta.icon;
+          badgeBtn.textContent = meta.short();
           if (lastState.isHost) {
             badgeBtn.title = L('Schwierigkeit ändern', 'Change difficulty');
             badgeBtn.addEventListener('click', (ev) => {
@@ -2920,9 +3001,67 @@
   el('nameInput').value = myName;
   if (sessionCode) el('codeInput').value = sessionCode;
 
+  // Identity chip: a returning player sees avatar + name; a tap swaps in the
+  // input. First-time players (no stored name) get the input straight away.
+  // In a session both stay hidden until "Name" in the code banner asks.
+  let editingName = false;
+  // accountUsername is declared further down; the first render runs before
+  // that line, where touching it would throw (temporal dead zone).
+  function signedInName() {
+    try { return accountUsername || null; } catch (e) { return null; }
+  }
+  function renderIdentity() {
+    const inSession = !!sessionCode && !!playerId;
+    const account = signedInName();
+    const locked = !!account;
+    const name = locked ? account : myName;
+    const showInput = editingName || (!inSession && !name);
+    el('nameInput').classList.toggle('hidden', !showInput);
+    const chip = el('identityChip');
+    chip.classList.toggle('hidden', showInput || inSession || !name);
+    chip.classList.toggle('locked', locked);
+    chip.disabled = locked;
+    chip.title = locked
+      ? L('Name ist durch dein Konto festgelegt', 'Name is fixed by your account')
+      : L('Namen ändern', 'Change name');
+    if (name) {
+      el('identityAvatar').innerHTML = avatarFor(name, false);
+      el('identityName').textContent = name;
+    }
+  }
+  function startNameEdit() {
+    if (signedInName()) return;
+    editingName = true;
+    renderIdentity();
+    const input = el('nameInput');
+    input.focus();
+    try { input.select(); } catch (e) { /* not every engine */ }
+  }
+  function commitNameEdit() {
+    if (!editingName) return;
+    editingName = false;
+    const typed = el('nameInput').value.trim();
+    const changed = !!typed && typed !== myName;
+    if (typed) {
+      myName = typed;
+      storageSet(NAME_KEY, myName);
+    } else {
+      el('nameInput').value = myName;
+    }
+    renderIdentity();
+    // Renaming inside a session re-joins under the new name (what the
+    // "Name" button used to do after typing into the field above).
+    if (changed && sessionCode && playerId) {
+      send({ type: 'joinSession', code: sessionCode, playerId, playerToken: storageGet(tokenKeyFor(sessionCode)) || undefined, name: myName, accountToken: accountToken() || undefined });
+    }
+  }
+  el('identityChip').addEventListener('click', startNameEdit);
+  el('nameInput').addEventListener('blur', () => { try { commitNameEdit(); } catch (e) { /* cosmetic */ } });
+
   function currentName() {
     myName = el('nameInput').value.trim() || `Spieler${Math.floor(Math.random() * 1000)}`;
     storageSet(NAME_KEY, myName);
+    el('nameInput').value = myName;
     return myName;
   }
 
@@ -2937,6 +3076,7 @@
   });
   el('nameInput').addEventListener('keydown', (ev) => {
     if (ev.key !== 'Enter') return;
+    if (editingName) { ev.preventDefault(); el('nameInput').blur(); return; }
     if (el('codeInput').value.trim()) el('joinGameBtn').click();
     else el('createGameBtn').click();
   });
@@ -2951,9 +3091,10 @@
     send({ type: 'joinSession', code, name: currentName(), playerId: storedId || undefined, playerToken: storageGet(tokenKeyFor(code)) || undefined, accountToken: accountToken() || undefined });
   });
 
+  // Opens the name editor; the rename is sent when the field is left.
   el('updateNameBtn').addEventListener('click', () => {
     if (!sessionCode || !playerId) return;
-    send({ type: 'joinSession', code: sessionCode, playerId, playerToken: storageGet(tokenKeyFor(sessionCode)) || undefined, name: currentName(), accountToken: accountToken() || undefined });
+    startNameEdit();
   });
 
   el('shareCodeBtn').addEventListener('click', async () => {
@@ -2994,6 +3135,9 @@
       }
       el('startBtn').disabled = false;
     }
+    // Session lobby layout hook (desktop: two columns).
+    el('lobby').classList.toggle('inSession', inSession);
+    try { renderIdentity(); } catch (e) { /* cosmetic */ }
   }
   renderSessionBanner();
 
@@ -3329,9 +3473,9 @@
 
   // --- Per-bot difficulty ---------------------------------------------------
   const BOT_DIFF = {
-    easy: { icon: '🌱', label: () => L('Anfänger', 'Beginner'), hint: () => L('macht Anfängerfehler', 'makes beginner mistakes') },
-    medium: { icon: '🙂', label: () => L('Fortgeschritten', 'Advanced'), hint: () => L('solides Familienspiel', 'solid family play') },
-    zen: { icon: '🧘', label: () => L('Zen-Meister', 'Zen master'), hint: () => L('zählt die Karten mit', 'counts the cards') },
+    easy: { icon: '🌱', short: () => L('Leicht', 'Easy'), label: () => L('Anfänger', 'Beginner'), hint: () => L('macht Anfängerfehler', 'makes beginner mistakes') },
+    medium: { icon: '🙂', short: () => L('Mittel', 'Medium'), label: () => L('Fortgeschritten', 'Advanced'), hint: () => L('solides Familienspiel', 'solid family play') },
+    zen: { icon: '🧘', short: () => L('Zen', 'Zen'), label: () => L('Zen-Meister', 'Zen master'), hint: () => L('zählt die Karten mit', 'counts the cards') },
   };
   function openBotDiffOverlay(bot) {
     // Tages-Challenge: Bot-Stärke ist fest (mittel für alle) - Menü gar nicht anbieten.
@@ -4682,6 +4826,7 @@
       accountProgress = null;
       el('ladderBox').classList.add('hidden');
     }
+    try { renderIdentity(); } catch (e) { /* cosmetic */ }
     renderAccountProgress();
   }
   async function initAccount(enabled) {
