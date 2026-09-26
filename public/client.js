@@ -395,7 +395,7 @@
       meld_jokers_3: { icon: '👑', text: L('3 Joker auslegen', 'Meld 3 jokers') },
       round_150: { icon: '💥', text: L('Eine Runde mit 150+ Punkten', 'Score 150+ in one round') },
       clean_hands: { icon: '🧼', text: L('Partie ohne erwischte Pik Dame', 'Finish a match never caught with the Queen') },
-      hand_aus: { icon: '🚀', text: L('Eine Runde mit „Hand aus" gewinnen', 'Win a round with "out in one"') },
+      hand_aus: { icon: '🚀', text: L('Eine Runde mit „Hand aus“ gewinnen', 'Win a round with "out in one"') },
       score_400: { icon: '💯', text: L('400+ Punkte Endstand', 'Finish a match with 400+ points') },
       beat_zen: { icon: '⚔️', text: L('Eine Partie gegen einen Zen-Bot gewinnen', 'Beat a table with a zen bot') },
     };
@@ -1862,7 +1862,7 @@
         tipShownForTurn = turnKey;
         tipSeenCount += 1;
         storageSet(TIP_SEEN_KEY, String(tipSeenCount));
-        showToast(L('Tipp: 3+ Karten auswählen zum Auslegen, 1 Karte + „Abwerfen", oder Karte wählen und auf eine grün markierte Auslage tippen.', 'Tip: select 3+ cards to meld, 1 card + "Discard", or select a card and tap a green-highlighted meld.'));
+        showToast(L('Tipp: 3+ Karten auswählen zum Auslegen, 1 Karte + „Abwerfen“, oder Karte wählen und auf eine grün markierte Auslage tippen.', 'Tip: select 3+ cards to meld, 1 card + "Discard", or select a card and tap a green-highlighted meld.'));
       }
     } else {
       clearHintIfNotError();
@@ -2137,7 +2137,7 @@
     const body = el('resultBody');
     body.innerHTML = '';
 
-    // Zwei Reiter: „Ergebnis" (Standard) und „Statistik" (Detail-Tabelle,
+    // Zwei Reiter: „Ergebnis“ (Standard) und „Statistik“ (Detail-Tabelle,
     // Punkteverlauf, Partie-Totals). Vorher stand alles untereinander - bei
     // 4 Spielern rutschte der Weiter-Knopf unter den Falz und man musste
     // scrollen, um die nächste Runde zu bestätigen.
@@ -3172,7 +3172,7 @@
       // hint appeared. The fan says "pick one", the button lights up after.
       highlight: () => ({ cardIds: [], meldIds: [], targets: ['handWrapper', 'discardBtn'] }),
       text: () => L(
-        'Zug beenden: Wähle im Fächer eine Karte, die du am wenigsten brauchst - dann erscheint „Abwerfen". Erst damit ist dein Zug vorbei.',
+        'Zug beenden: Wähle im Fächer eine Karte, die du am wenigsten brauchst - dann erscheint „Abwerfen“. Erst damit ist dein Zug vorbei.',
         'End your turn: pick the card you need least from your fan - then "Discard" appears. Only that ends your turn.'
       ),
     },
@@ -3189,7 +3189,7 @@
       when: (st) => st.phase === 'roundEnd',
       text: () => L(
         // Button label, verbatim: it says "Nächste Runde", not "Weiter".
-        'Rundenende! Wertung: Ausgelegtes zählt PLUS, Restkarten auf der Hand MINUS. Ab 1000 Punkten endet die Partie. Mit „Nächste Runde" geht es weiter.',
+        'Rundenende! Wertung: Ausgelegtes zählt PLUS, Restkarten auf der Hand MINUS. Ab 1000 Punkten endet die Partie. Mit „Nächste Runde“ geht es weiter.',
         'Round over! Scoring: melded cards count PLUS, cards left in hand MINUS. The game ends at 1000 points. "Next round" carries on.'
       ),
     },
@@ -3833,9 +3833,15 @@
         // (gedimmter Chip + ⏳-Badge) - der flüchtige Riesen-Toast mitten im
         // Spielfeld entfällt dafür (Nutzer-Feedback). Im Log stehen sie weiter.
         const chipStatus = / ist getrennt - kehrt | ist wieder (da|verbunden)/.test(latest.text);
-        if (!chipStatus) {
-          // Die Endspurt-Ansage ist wichtig genug fuer eine laengere Anzeige
-          const isWarning = latest.text.startsWith('⚠️');
+        // Die Endspurt-Ansage ist wichtig genug fuer eine laengere Anzeige
+        const isWarning = latest.text.startsWith('⚠️');
+        // My own moves need no echo: I just made them, and the toast sat
+        // right on top of the melds I was looking at (playthrough finding).
+        // The tutorial keeps them - there the echo explains what happened.
+        const me = lastState.players && lastState.players.find((p) => p.id === playerId);
+        const ownMove = !isWarning && !lastState.tutorialMode && me &&
+          lastState.currentPlayerId === playerId && latest.text.startsWith(`${me.name} `);
+        if (!chipStatus && !ownMove) {
           showToast(trs(latest.text), isWarning ? { duration: 6000, priority: true } : {});
         }
       }
@@ -4376,8 +4382,12 @@
       const have = votes.length;
       el('pauseInfo').textContent = have
         ? L(`Weiter, sobald alle zustimmen (${have}/${need}).`, `Resumes once everyone agrees (${have}/${need}).`)
-        : L('Das Spiel ist pausiert. Tippe „Fortsetzen", um weiterzuspielen (alle müssen zustimmen).',
-            'The game is paused. Tap "Resume" to continue (everyone must agree).');
+        : need > 1
+          ? L('Das Spiel ist pausiert. Tippe „Fortsetzen“, um weiterzuspielen (alle müssen zustimmen).',
+              'The game is paused. Tap "Resume" to continue (everyone must agree).')
+          // Alone at the table there is nobody to agree with.
+          : L('Das Spiel ist pausiert. Tippe „Fortsetzen“, um weiterzuspielen.',
+              'The game is paused. Tap "Resume" to continue.');
       el('pauseResumeBtn').classList.toggle('active', iVoted);
       // Label span only - the button carries an <svg class="icon">.
       setLabelText(
@@ -4709,7 +4719,7 @@
         row(L('Runden gespielt', 'Rounds played'), g.rounds) +
         row(L('♠ Pik Damen ausgelegt (+100)', '♠ Queens of Spades melded (+100)'), g.pikDamesLaidOut) +
         row(L('♠ Pik Damen auf der Hand erwischt (−100)', '♠ Queens of Spades caught in hand (−100)'), g.pikDamesCaught) +
-        row(L('„Hand aus"-Runden', '"Out in one" rounds'), g.handAusRounds);
+        row(L('„Hand aus“-Runden', '"Out in one" rounds'), g.handAusRounds);
       gsBox.classList.remove('hidden');
     } else {
       gsBox.classList.add('hidden');

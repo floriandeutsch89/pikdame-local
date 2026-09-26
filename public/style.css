@@ -74,6 +74,7 @@
   --glass-strong: rgba(255,255,255,0.11);
   --glass-border: rgba(255,255,255,0.14);
   --accent: #e9c86a;
+  --drawn: #5ad1ff; /* the accent is already gold - the draw marker goes cyan */
   --accent-2: #cfa93f;
   --accent-ink: #2a2005;
   --accent-soft: rgba(233,200,106,0.22);
@@ -148,6 +149,12 @@
      44px is Apple's minimum touch target and the phone is the primary
      device, so that is the floor for anything tappable. */
   --tap-min: 44px;
+
+  /* Marker for a freshly drawn card. Deliberately NOT --accent: the
+     selection ring is --accent, and with both in the same colour a drawn
+     card vanished among selected ones (playthrough finding). Themes whose
+     accent is close to amber override it (see felt). */
+  --drawn: #ffc53d;
   --ctl-h: 48px;         /* standard button height */
   --ctl-h-sm: 40px;      /* dense contexts (seat controls, chips) */
   --ctl-pad-x: 20px;
@@ -979,8 +986,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
    der in einen dezenten bleibenden Rand-Schimmer ausklingt - bewusst OHNE
    zusaetzlichen Punkt/Balken (verdeckte Karteninfos bzw. stoerte im Faecher). */
 @keyframes drawnGlow {
-  0% { box-shadow: 0 0 0 5px var(--accent), 0 0 26px var(--accent), var(--shadow-2); }
-  100% { box-shadow: 0 0 0 3px var(--accent), 0 0 12px var(--accent-soft), var(--shadow-2); }
+  0% { box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 6px var(--drawn), 0 0 26px var(--drawn), var(--shadow-2); }
+  100% { box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 5px var(--drawn), var(--shadow-2); }
 }
 .card.just-drawn {
   /* Ruhezustand = dieselbe Ringstaerke wie .selected (0 0 0 3px var(--accent)):
@@ -994,16 +1001,19 @@ button:focus-visible, input:focus-visible, select:focus-visible {
      verdeckte sonst den Klickstreifen der rechten Nachbarkarte im Faecher.
      The resting ring is also set statically so the marker never depends on
      the animation's fill mode alone. */
-  box-shadow: 0 0 0 3px var(--accent), 0 0 12px var(--accent-soft), var(--shadow-2);
+  box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 5px var(--drawn), var(--shadow-2);
   animation: drawnGlow 1.4s ease-out forwards;
 }
 @media (prefers-reduced-motion: reduce) {
-  .card.just-drawn { animation: none; box-shadow: 0 0 0 3px var(--accent), 0 0 12px var(--accent-soft), var(--shadow-2); }
+  .card.just-drawn { animation: none; box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 5px var(--drawn), var(--shadow-2); }
 }
 /* The selection ring wins against the draw glow. The Queen of Spades used
    to be exempted too, for a 'Pik Dame look' that no longer exists - a drawn
    Pik Dame therefore got no marker at all (player report). */
 .card.just-drawn.selected { animation: none; }
+/* Drawn AND selected: both rings - selection inside, draw marker outside -
+   so picking the new card up never hides where it came from. */
+.card.just-drawn.selected { box-shadow: 0 0 0 3px var(--accent), 0 0 0 6px var(--drawn), var(--shadow-2); }
 
 /* eigene Karten in Auslagen */
 /* Auslagen nach Besitzer gruppiert: jeder Spieler hat seinen eigenen Stapel */
@@ -3224,3 +3234,68 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
 .tutorialChecklist li:last-child { border-bottom: none; }
 .tutorialChecklist li.done { opacity: 0.62; }
 .tutorialChecklist .tick { flex: 0 0 auto; }
+
+/* --- Landscape phone, second pass --------------------------------------------
+   Playthrough on iPhone 16 Pro / Pro Max turned sideways (874x402, 956x440):
+   the first landscape grid above was undone by rules further down the file.
+   The topbar wrapped into three lines (87px), #hand kept its 110px portrait
+   min-height for 62px cards, and the piles - stacked vertically, 164px -
+   sat in a 63px grid row and slid UNDER the hand panel (discard pile hidden).
+   The melds got 63px, and 0px once the action bar showed up. This block sits
+   at the very end on purpose, so it outranks those later rules. */
+@media (orientation: landscape) and (max-height: 540px) {
+  /* The desktop width cap (min-width: 900px) also caught a Pro Max on its
+     side and left dead bands left and right. */
+  .screen { max-width: none; }
+  #handWrapper { margin-bottom: 0; border-radius: var(--r-lg) var(--r-lg) 0 0; }
+
+  /* Topbar in ONE row: home, round, turn status, actions. */
+  #topBar { flex-wrap: nowrap; row-gap: 0; }
+  #roundInfo { order: 1; flex: 0 0 auto; margin-top: 0; }
+  #turnInfo { order: 2; flex: 1 1 auto; min-width: 0; text-align: center; }
+  #topBar .headerRight { order: 3; }
+
+  /* Piles side by side in the right column, spanning opponents + melds -
+     never under the hand. */
+  #table {
+    grid-template-areas:
+      'top top'
+      'opp piles'
+      'melds piles'
+      'action action'
+      'hand hand';
+  }
+  /* align-self: start - centred, the piles jumped ~30px whenever the action
+     bar appeared (selecting a card) and resized the rows. */
+  #centerPiles { flex-direction: row; align-self: start; gap: 14px; padding-top: 14px; }
+  #centerPiles .pile-card { width: 46px; height: 64px; }
+
+  /* 62px landscape cards + fan dip + selection lift (the portrait value
+     of 110px wasted ~30px of the scarce height). */
+  #hand { min-height: 82px; }
+  #actionBar { min-height: 0; padding-top: 2px; padding-bottom: 2px; }
+
+  /* Overlays: use the height there is. */
+  .overlay { padding: 8px calc(8px + var(--safe-right)) 8px calc(8px + var(--safe-left)); }
+  .overlay-card { max-height: calc(100dvh - 16px); }
+
+  /* Round result: two columns - title + scrolling scores left, actions
+     right. Stacked, the pinned footer (emotes, continue, more) ate ~150px
+     of a ~330px card and the score list was squeezed to a sliver. */
+  #resultOverlay .overlay-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(200px, 36%);
+    grid-template-rows: auto minmax(0, 1fr);
+    column-gap: 18px;
+    max-width: 760px;
+    padding: 14px 18px 12px;
+  }
+  #resultOverlay #resultTitle { grid-column: 1; grid-row: 1; }
+  #resultOverlay #resultBody { grid-column: 1; grid-row: 2; }
+  #resultOverlay .resultFooter {
+    grid-column: 2; grid-row: 1 / 3; align-self: end;
+    border-top: none; border-left: 1px solid var(--glass-border);
+    margin: 0; padding: 0 0 0 16px;
+  }
+  #resultOverlay .resultEmoteBar { flex-wrap: wrap; justify-content: center; }
+}

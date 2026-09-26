@@ -115,6 +115,12 @@ function logCrash(context, err, extra = {}) {
 process.on('uncaughtException', (err) => {
   logCrash('uncaughtException', err);
   flushStoresSafely();
+  // A server that cannot bind its port is useless - exit non-zero so the
+  // orchestrator (Docker/K8s) sees a failure and restarts it, instead of the
+  // process drifting out with exit code 0 once nothing keeps it alive.
+  if (err && (err.code === 'EADDRINUSE' || err.code === 'EACCES') && err.syscall === 'listen') {
+    process.exit(1);
+  }
 });
 process.on('unhandledRejection', (reason) => {
   logCrash('unhandledRejection', reason instanceof Error ? reason : new Error(String(reason)));
