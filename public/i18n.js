@@ -212,6 +212,7 @@ window.I18N_SERVER_PATTERNS = [
   [/^Bereitschaft gibt es nur in der Lobby\.$/, 'Readiness only exists in the lobby.'],
   [/^Nur Mitspieler am Tisch können sich bereit melden\.$/, 'Only players at the table can mark themselves ready.'],
   [/^Zu viele Aktionen - bitte kurz durchatmen\.$/, 'Too many actions - please take a breath.'],
+  [/^Dieses Emote gibt es ab Stufe (\d+)\.$/, 'This reaction unlocks at level $1.'],
   [/^(.+) stellt (.+) auf Anfänger\.$/, '$1 sets $2 to Beginner.'],
   [/^(.+) stellt (.+) auf Fortgeschritten\.$/, '$1 sets $2 to Advanced.'],
   [/^(.+) stellt (.+) auf Zen-Meister\.$/, '$1 sets $2 to Zen master.'],

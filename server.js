@@ -24,6 +24,7 @@ const {
 } = require('./game/Progression');
 const { createAccountStoreAuto } = require('./game/AccountStore');
 const { createMailer } = require('./game/Mailer');
+const { isAllowedEmote, emoteLevel } = require('./game/Emotes');
 const { createGameHistoryStore, historyForPlayer } = require('./game/GameHistoryStore');
 const { SessionRegistry, sanitizeName } = require('./game/SessionRegistry');
 
@@ -1271,13 +1272,21 @@ wss.on('connection', (ws, req) => {
         break;
       }
       case 'emote': {
-        // Emotes: kurze Reaktionen an den ganzen Tisch. Whitelist + eigenes
-        // Rate-Limit (1 Emote / 1,5s), damit niemand den Tisch flutet.
-        // 🎃/🎆 sind saisonale Client-Angebote (Okt / Dez-Jan) - serverseitig
-        // ganzjährig erlaubt, die Whitelist ist ein Sicherheits-, kein
-        // Saisonfilter.
-        const EMOTES = ['👍', '😂', '😱', '😤', '🎉', '⏳', 'pikdame', '🎃', '🎆'];
-        if (!EMOTES.includes(msg.emoji)) break;
+        // Emotes: short reactions to the whole table. Whitelist (game/Emotes.js)
+        // + own rate limit (1 emote / 1.5 s) so nobody floods the table.
+        if (!isAllowedEmote(msg.emoji)) break;
+        // Level-gated emotes (see game/Emotes.js): checked against the local
+        // profile where one exists. Public mode has no profiles, so nothing
+        // is locked there.
+        if (!PUBLIC_MODE && emoteLevel(msg.emoji) > 1) {
+          const seat = game.players.find((p) => p.id === playerId);
+          const profile = seat ? playerStore.getPlayerByName(seat.name) : null;
+          const level = levelFromXp(profile ? profile.xp : 0).level;
+          if (level < emoteLevel(msg.emoji)) {
+            sendError(ws, `Dieses Emote gibt es ab Stufe ${emoteLevel(msg.emoji)}.`);
+            break;
+          }
+        }
         const now = Date.now();
         if (ws._lastEmoteAt && now - ws._lastEmoteAt < 1500) break;
         ws._lastEmoteAt = now;

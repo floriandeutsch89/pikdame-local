@@ -1065,6 +1065,7 @@
         questProgress = (mine && mine.quests && mine.quests[dailyQuests.date]) || {};
       }
       renderQuests();
+      try { renderEmoteLocks(); } catch (e) { /* cosmetic */ }
       if (!el('statsOverlay').classList.contains('hidden')) renderStats();
       return;
     }
@@ -1077,6 +1078,7 @@
       }
       renderQuests();
       celebrateProgress(msg);
+      try { renderEmoteLocks(); } catch (e) { /* cosmetic */ }
       return;
     }
     if (msg.type === 'accountProgress') {
@@ -4620,10 +4622,27 @@
   });
   document.querySelectorAll('.emoteChoice').forEach((btn) => {
     btn.addEventListener('click', () => {
+      const need = emoteUnlockLevel(btn.dataset.emote);
+      if (need > myLevel()) {
+        showToast(`🔒 ${L(`Dieses Emote gibt es ab Stufe ${need}.`, `This reaction unlocks at level ${need}.`)}`);
+        return;
+      }
       send({ type: 'emote', emoji: btn.dataset.emote });
       el('emoteBar').classList.add('hidden');
     });
   });
+  // Locked reactions stay visible (Brotato principle: what is still missing
+  // motivates) - dimmed, with the level they unlock at.
+  function renderEmoteLocks() {
+    const level = myLevel();
+    document.querySelectorAll('.emoteChoice[data-emote]').forEach((btn) => {
+      const need = emoteUnlockLevel(btn.dataset.emote);
+      const locked = need > level;
+      btn.classList.toggle('locked', locked);
+      if (locked) btn.dataset.lock = String(need);
+      else delete btn.dataset.lock;
+    });
+  }
   // Tapping anywhere else dismisses the emote bar - it is a transient picker,
   // not a mode. Capture phase so it also closes when the tap lands on a card
   // or a button that stops propagation. The opening tap on #emoteBtn and taps
@@ -5003,12 +5022,29 @@
     { id: 'gold', label: 'Gold', labelEn: 'Gold', gate: { field: 'gamesWon', min: 10, de: 'ab 10 Siegen', en: 'from 10 wins' } },
     { id: 'night', label: 'Nachtblau', labelEn: 'Midnight', gate: { field: 'gamesPlayed', min: 25, de: 'ab 25 Partien', en: 'from 25 games' } },
     { id: 'joker', label: 'Joker', labelEn: 'Joker', gate: { field: 'totalHandAus', min: 3, de: 'ab 3× Hand aus', en: 'from 3 out-in-one' } },
+    // Level reward: the XP bar hands out something you can SEE on the table.
+    { id: 'master', label: 'Meister', labelEn: 'Master', gate: { field: 'level', min: 10, de: 'ab Stufe 10', en: 'from level 10' } },
   ];
   function myProfile() {
     return (knownProfiles || []).find((p) => p.name && myName && p.name.toLowerCase() === myName.toLowerCase()) || null;
   }
+  // Level of the LOCAL (name-based) profile - the same one the server checks
+  // for level-gated emotes. myProgress is fresher right after a game (the
+  // profile list only refreshes on the next listProfiles).
+  function myLevel() {
+    const p = myProfile();
+    const xp = Math.max(p ? p.xp || 0 : 0, myProgress ? myProgress.xp || 0 : 0);
+    return levelFromXpClient(xp).level;
+  }
+  // Mirrors game/Emotes.js - the server is the authority, this only draws
+  // the locks. Public servers keep no profiles, so nothing is locked there.
+  const EMOTE_UNLOCK = { '👏': 2, '🙈': 3, '🤔': 4, '🍀': 5, '😎': 6, '🔥': 8, '😴': 10, '🙏': 12 };
+  function emoteUnlockLevel(id) {
+    return publicMode ? 1 : EMOTE_UNLOCK[id] || 1;
+  }
   function cardbackUnlocked(cb) {
     if (!cb.gate) return true;
+    if (cb.gate.field === 'level') return myLevel() >= cb.gate.min;
     const p = myProfile();
     return !!p && (p[cb.gate.field] || 0) >= cb.gate.min;
   }
