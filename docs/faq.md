@@ -69,8 +69,9 @@ core rules are fixed — they are the rules the family plays by.
 
 Yes. On shutdown every running table is snapshotted to the data volume and
 restored on the next start; clients reconnect on their own. A nightly auto-update
-therefore doesn't kill an evening's game. A *crash* of the host mid-round,
-however, does lose that round — the snapshot is for graceful restarts.
+therefore doesn't kill an evening's game. The snapshot is also
+rewritten every minute during play, so a hard crash or host reboot loses at most
+the last minute of moves.
 
 ## Which browsers work?
 

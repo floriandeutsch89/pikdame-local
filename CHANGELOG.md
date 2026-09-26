@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.23.0] - 2026-09-26
+
+### Changed
+- **Laufende Partien überleben jetzt auch einen Absturz.** Der Spielstand aller Tische wird zusätzlich jede Minute auf das Datenvolume geschrieben (nur wenn sich etwas geändert hat), nicht mehr ausschließlich beim geordneten Herunterfahren. Ein OOM-Kill, `kill -9` oder Host-Neustart kostet damit höchstens die letzte Minute statt der ganzen Partie. Snapshots, die älter als 30 Minuten sind, werden beim Start verworfen statt wiederhergestellt
+- **Deutlich weniger Datenvolumen im Spiel.** WebSocket-Nachrichten werden jetzt komprimiert (`permessage-deflate`). Ein Spielstand pro Zug schrumpft von ~10 KB auf ~2 KB - spürbar im Mobilfunknetz. Caddys `encode` komprimiert nur HTTP, nie WebSocket-Frames; Browser handeln die Kompression selbst aus
+
+### Fixed
+- **Testlauf von 77 s auf ~18 s.** Die Übernahme-, Zug- und Bot-Timer des Spiels hielten einen Prozess ohne Server künstlich am Leben - jede Testdatei mit getrenntem Spieler wartete die 75-s-Gnadenfrist ab. Die Timer sind jetzt wie die übrigen `unref()`t; im laufenden Server ändert sich nichts
+
 ## [2.22.0] - 2026-09-23
 
 ### Changed

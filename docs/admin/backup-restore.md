@@ -12,7 +12,7 @@ bottom of this page once — it takes five minutes and is the only way to know.
 | Profiles, stats, achievements, history | `players.json`, `stats.json`, `games.json`, `challenges.json` in the data volume | …everyone's statistics and badges are gone. The game still works. |
 | Accounts (SQLite) | `users.db` in the data volume | …people can't log in. Guests unaffected. |
 | Accounts (PostgreSQL) | the database | …same, but it lives outside the volume. |
-| Running games | `sessions-snapshot.json` | …nothing, long-term. It only exists between shutdown and the next start. |
+| Running games | `sessions-snapshot.json` | …nothing, long-term. Rewritten every minute while tables change and on shutdown; deleted once restored. |
 
 Everything else — the image, the code, the config — is reproducible from Git and
 the registry. **The volume is the only thing that is irreplaceable.**

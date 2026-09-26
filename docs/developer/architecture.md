@@ -56,9 +56,10 @@ state, not a network detail.
 
 ### Games survive deployments
 
-On `SIGTERM` every table is serialised into `sessions-snapshot.json` on the data
-volume; on the next start they are restored and clients reconnect on their own
-(they keep the session code and their player id). That is what makes a nightly
+Every table is serialised into `sessions-snapshot.json` on the data volume —
+every 60 s while anything changed, and once more on `SIGTERM`. On the next start
+they are restored (snapshots older than 30 minutes are discarded) and clients
+reconnect on their own (they keep the session code and their player id). That is what makes a nightly
 auto-update safe.
 
 ### One process, on purpose

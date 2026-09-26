@@ -34,7 +34,7 @@ All persistent data lives in **one directory**, mounted into the container at
 | `games.json` | Game history |
 | `challenges.json` | Daily-challenge leaderboard (7-day retention) |
 | `users.db` | Accounts — **only** when using SQLite (with PostgreSQL they live in the database) |
-| `sessions-snapshot.json` | Running tables, written on shutdown so games survive a restart |
+| `sessions-snapshot.json` | Running tables, written every minute and on shutdown so games survive a restart or crash |
 
 If that directory is not writable, **nothing is saved** and everything is lost on
 restart. Since v1.54.4 the server checks this at startup and says so loudly:
