@@ -1,0 +1,7 @@
+# Reviewed gitleaks false positives, one fingerprint per line
+# (<commit>:<file>:<rule>:<line>). Add an entry ONLY after checking the match
+# is not a real secret - a real one must be rotated, never ignored.
+#
+# generic-api-key on a list of plain file names in a test (two names side by
+# side looked like a key assignment); the test was reformatted afterwards.
+ac64efd2874dbc00fdea503b50016a8d8f4f79e0:test/secret-files.test.js:generic-api-key:23

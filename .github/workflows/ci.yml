@@ -29,9 +29,11 @@ jobs:
       - name: gitleaks (full history)
         # Pinned image instead of gitleaks-action: no licence key, no token,
         # same binary locally (`docker run ... zricethezav/gitleaks`).
+        # -w /repo: gitleaks reads .gitleaksignore (reviewed false positives)
+        # from its working directory, not from the scanned path.
         run: |
-          docker run --rm -v "$PWD:/repo" --user "$(id -u):$(id -g)" \
-            ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --redact --verbose --exit-code 1
+          docker run --rm -v "$PWD:/repo" -w /repo --user "$(id -u):$(id -g)" \
+            ghcr.io/gitleaks/gitleaks:v8.30.1 git . --redact --verbose --exit-code 1
 
   test:
     runs-on: ubuntu-latest

@@ -18,9 +18,17 @@ test('secret-like paths are flagged', () => {
 });
 
 test('templates and ordinary files pass', () => {
+  // One path per line: side by side, "secret-env.test.js', '<next>'" reads
+  // like `secret = '<value>'` to gitleaks' generic-api-key rule.
   for (const f of [
-    'docker/.env.example', 'docker/secrets/db_password.txt.example', 'data/.gitkeep', 'game/secretEnv.js',
-    'test/secret-env.test.js', 'id_ed25519.pub', 'README.md', 'public/client.js',
+    'docker/.env.example',
+    'docker/secrets/db_password.txt.example',
+    'data/.gitkeep',
+    'game/secretEnv.js',
+    'test/secret-env.test.js',
+    'id_ed25519.pub',
+    'README.md',
+    'public/client.js',
   ]) {
     assert.strictEqual(forbiddenReason(f), null, `${f} must pass`);
   }
