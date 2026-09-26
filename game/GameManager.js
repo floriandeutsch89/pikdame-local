@@ -5,7 +5,7 @@ const { seededRandom, createDeck, shuffle, dealCards, performLuckyCut } = requir
 // abgehoben wird. Bewusst auch OHNE aktivierten Zug-Timer begrenzt: Abheben
 // darf den ganzen Tisch nicht blockieren.
 const CUT_TIMEOUT_MS = 45000;
-const { validateMeld, tryLayOff, tryJokerSwap, enumerateMeldOptions, enumerateLayOffOptions, canFormMeldWithCard } = require('./Rules');
+const { validateMeld, validateSet, runAssignmentByOrder, tryLayOff, tryJokerSwap, enumerateMeldOptions, enumerateLayOffOptions, canFormMeldWithCard } = require('./Rules');
 const { scoreRound, scoreLines, applyRoundScores, checkGameOver, DEFAULT_HOUSE_RULES } = require('./ScoreBoard');
 const { rankIndex, cardLabel, isPikDame, cardValue, RANKS } = require('./Card');
 const Bot = require('./Bot');
@@ -43,6 +43,7 @@ class GameManager {
     this.challengeDate = options.challengeDate || null;
     this.onBotEmote = options.onBotEmote || null; // (botId, emoji) => void - Bot-Reaktionen an den Tisch
     this._emoteTimers = new Set(); // pendende Emote-Timeouts (destroy räumt auf)
+    this._undoStack = []; // meld-phase actions of the running turn a human may take back
     this._lastBotEmote = {}; // botId -> Zeitstempel (Eigen-Drosselung)
     this.players = []; // { id, name, isBot, hand, connected, laidOutCards }
     this.totals = {};
@@ -454,6 +455,7 @@ class GameManager {
     this._nextRoundReady = new Set();
     this._lobbyReady = new Set();
     this._forfeitVotes = new Set();
+    this._undoStack = [];
     this.publicKnownHands = {};
     this.declinedByPlayer = {};
     this.tableMelds = [];
@@ -688,6 +690,7 @@ class GameManager {
     }
     this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
     this.turnPhase = 'draw';
+    this._undoStack = []; // a finished turn is final
     // Deadlock am Zuganfang: Nachziehstapel leer, Abhebe-Packen aufgebraucht
     // UND der Spieler kann die oberste Ablagekarte nicht nehmen
     // -> niemand kann mehr etwas tun. Die Runde endet automatisch und wird
@@ -922,6 +925,80 @@ class GameManager {
     return { ok: true };
   }
 
+  /** Is there a valid meld that contains the mandatory pickup card and still
+   *  leaves at least one hand card for the final discard? Only reached when
+   *  a meld would empty the hand, i.e. with a small hand - the subset walk
+   *  stays cheap (at most a few thousand validations on a 13-card hand). */
+  _sparingMeldExists(hand, mustCardId) {
+    const must = hand.find((c) => c.id === mustCardId);
+    if (!must) return false;
+    const others = hand.filter((c) => c.id !== mustCardId);
+    const maxOthers = Math.min(others.length - 1, 12);
+    const pick = (start, chosen) => {
+      if (chosen.length >= 2 && enumerateMeldOptions([must, ...chosen]).length > 0) return true;
+      if (chosen.length >= maxOthers) return false;
+      for (let i = start; i < others.length; i++) {
+        chosen.push(others[i]);
+        if (pick(i + 1, chosen)) return true;
+        chosen.pop();
+      }
+      return false;
+    };
+    return maxOthers >= 2 && pick(0, []);
+  }
+
+  /** Snapshot of everything a meld-phase action (new meld, lay-off, joker
+   *  swap) can change, so undoMeldAction can put it back. Humans only: bots
+   *  never undo, and rollout clones must not pay for deep copies. Cleared at
+   *  every turn/round transition and once the mandatory pickup card is laid. */
+  _pushUndo(player) {
+    if (!player || player.isBot) return;
+    if (!this._undoStack) this._undoStack = [];
+    this._undoStack.push(
+      structuredClone({
+        hand: player.hand,
+        laidOutCards: player.laidOutCards,
+        everLaid: !!player._everLaidThisRound,
+        tableMelds: this.tableMelds,
+        retiredJokers: this.retiredJokers || [],
+        known: (this.publicKnownHands && this.publicKnownHands[player.id]) || [],
+        turnsWithoutMeld: this._turnsWithoutMeld || 0,
+        mustLayOffCardId: this.mustLayOffCardId || null,
+        pendingDiscardRest: !!this.pendingDiscardRest,
+      })
+    );
+  }
+
+  /** Once the mandatory pickup card is laid (phase 2 handed over the rest of
+   *  the pile) nothing from this turn can be taken back anymore. */
+  _sealUndoIfDutyDone(hadDuty) {
+    if (hadDuty && !this.mustLayOffCardId) this._undoStack = [];
+  }
+
+  /** Take back the last meld-phase action of the running turn (3b): the
+   *  snapshot restores hand, own melds, retired jokers, public memory and the
+   *  pickup duty exactly as they were. Only until the discard ends the turn. */
+  undoMeldAction(playerId) {
+    const err = this.assertTurn(playerId, 'meld');
+    if (err) return err;
+    const snap = this._undoStack && this._undoStack.pop();
+    if (!snap) return { error: 'In diesem Zug gibt es nichts zurückzunehmen.' };
+    const player = this.currentPlayer();
+    player.hand = snap.hand;
+    player.laidOutCards = snap.laidOutCards;
+    player._everLaidThisRound = snap.everLaid;
+    this.tableMelds = snap.tableMelds;
+    this.retiredJokers = snap.retiredJokers;
+    if (!this.publicKnownHands) this.publicKnownHands = {};
+    this.publicKnownHands[player.id] = snap.known;
+    this._turnsWithoutMeld = snap.turnsWithoutMeld;
+    this.mustLayOffCardId = snap.mustLayOffCardId;
+    this.pendingDiscardRest = snap.pendingDiscardRest;
+    this.addLog(`${player.name} nimmt die letzte Auslage zurück.`);
+    this.broadcastState();
+    return { ok: true };
+  }
+
   /**
    * Phase 2 der Ablagestapel-Aufnahme: Nachdem die oberste Karte regelkonform
    * gelegt wurde, erhält der Spieler alle restlichen Karten des Stapels.
@@ -946,7 +1023,7 @@ class GameManager {
 
   // --- Aktion: Auslegen / Anlegen -------------------------------------------
 
-  layoutMeld(playerId, cardIds, jokerAssignments = {}) {
+  layoutMeld(playerId, cardIds, jokerAssignments = {}, opts = {}) {
     const err = this.assertTurn(playerId, 'meld');
     if (err) return err;
     if (this.pendingDiscardRest && !cardIds.includes(this.mustLayOffCardId)) {
@@ -964,9 +1041,25 @@ class GameManager {
       // mehrdeutig ist (z. B. 1 Dame + 2 Joker: Satz ODER mehrere mögliche
       // Folge-Fenster). Bei mehr als einer gültigen Interpretation muss der
       // Spieler explizit wählen, statt dass wir eine davon erraten.
-      const options = enumerateMeldOptions(cards);
+      let options = enumerateMeldOptions(cards);
       if (options.length === 0) {
         return { error: 'Diese Kombination ergibt keinen gültigen Satz oder keine gültige Folge.' };
+      }
+      // The TAP ORDER decides where a joker sits in a run (joker before the 9
+      // = 8, after the 10 = J): when the order spells out one of the run
+      // windows, the other windows are dropped and only "set or run?" (one
+      // queen + two jokers) is still asked. Bots pass byOrder=false - their
+      // card order is incidental and their choice must stay the canonical one.
+      if (options.length > 1 && opts.byOrder !== false) {
+        const byOrder = runAssignmentByOrder(cards);
+        if (byOrder) {
+          const windowKey = (a) => Object.values(a).map(rankIndex).sort((x, y) => x - y).join(',');
+          const wanted = windowKey(byOrder);
+          const narrowed = options.filter((o) => o.type === 'set' || windowKey(o.jokerAssignments) === wanted);
+          if (narrowed.some((o) => o.type === 'run')) {
+            options = narrowed.map((o) => (o.type === 'run' ? { ...o, jokerAssignments: byOrder } : o));
+          }
+        }
       }
       if (options.length > 1) {
         return {
@@ -994,16 +1087,55 @@ class GameManager {
       if (usingCount >= player.hand.length && !restIncoming && !containsMustCard) {
         return { error: 'Zum Ausmachen musst du deine letzte Karte abwerfen - mindestens eine Handkarte muss übrig bleiben.' };
       }
+      // Exception (b) only exists so the pickup duty can never dead-end. When
+      // a SMALLER combination with the mandatory card spares a hand card, the
+      // whole-hand meld is refused: the discard duty holds without exception
+      // (v1.85.2 table decision). Found by the full-game going-out test - hand
+      // 2S 3S KS took a lone AS (legal: A-2-3 spares the king), the zen bot
+      // then laid K-A-2-3 and the round ended without a discard.
+      if (usingCount >= player.hand.length && !restIncoming && containsMustCard && this._sparingMeldExists(player.hand, this.mustLayOffCardId)) {
+        return { error: 'Zum Ausmachen musst du deine letzte Karte abwerfen - lege die aufgenommene Karte so aus, dass eine Handkarte übrig bleibt.' };
+      }
     }
 
-    // Jeder Slot bekommt vermerkt, welcher Spieler diese konkrete Karte
-    // dort platziert hat - so kann das Frontend "meine" Karten in Auslagen
-    // optisch hervorheben (auch wenn andere Spieler später weitere Karten
-    // an dieselbe Auslage anlegen).
-    const taggedSlots = result.slots.map((slot) => ({ ...slot, playerId: player.id }));
-    // ownerId: Auslagen gehören ihrem Ersteller - NUR er darf anlegen/tauschen.
-    const meld = { id: nextMeldId(), ownerId: player.id, type: result.type, suit: result.suit || null, rank: result.rank || null, slots: taggedSlots };
-    this.tableMelds.push(meld);
+    // A second set of a rank the player already has on the table is not laid
+    // next to it ("3x7 beside 3x7") but MERGED into the existing one. The
+    // union is re-validated as ONE set, so a joker already lying there moves
+    // to a suit that is still free (a joker "as diamonds" must yield when both
+    // real diamonds arrive). The v1.3-v1.53 "Doppel-Satz" ban was dropped
+    // because it deadlocked the mandatory discard pickup (the taken card had
+    // to open a new combination but could not join the fixed-suit set). The
+    // merge cannot deadlock that way: whenever the union does not fit (only
+    // possible past MAX_SET_SIZE, i.e. with jokers), the second set is laid
+    // separately as before - every previously legal move stays legal.
+    let existingSet = null;
+    let merged = null;
+    if (result.type === 'set') {
+      existingSet = this.tableMelds.find((m) => m.ownerId === player.id && m.type === 'set' && m.rank === result.rank) || null;
+      if (existingSet) {
+        merged = validateSet(existingSet.slots.map((s) => s.real || s.joker).concat(cards));
+        if (!merged.valid) {
+          existingSet = null;
+          merged = null;
+        }
+      }
+    }
+    const hadDuty = !!this.mustLayOffCardId;
+    this._pushUndo(player);
+    if (existingSet) {
+      // Every card keeps the player who laid it (the union can only carry the
+      // owner's own cards, but the tag is data the client renders).
+      const laidBy = new Map(existingSet.slots.map((s) => [(s.real || s.joker).id, s.playerId]));
+      existingSet.slots = merged.slots.map((slot) => ({ ...slot, playerId: laidBy.get((slot.real || slot.joker).id) || player.id }));
+    } else {
+      // Jeder Slot bekommt vermerkt, welcher Spieler diese konkrete Karte
+      // dort platziert hat - so kann das Frontend "meine" Karten in Auslagen
+      // optisch hervorheben (auch wenn andere Spieler später weitere Karten
+      // an dieselbe Auslage anlegen).
+      const taggedSlots = result.slots.map((slot) => ({ ...slot, playerId: player.id }));
+      // ownerId: Auslagen gehören ihrem Ersteller - NUR er darf anlegen/tauschen.
+      this.tableMelds.push({ id: nextMeldId(), ownerId: player.id, type: result.type, suit: result.suit || null, rank: result.rank || null, slots: taggedSlots });
+    }
     // Feel: Punkte-Popup-Ereignis für den Client (rein kosmetisch). seq
     // unterscheidet aufeinanderfolgende Ereignisse gleicher Höhe.
     // WICHTIG: exakt die Wertung der Rundenabrechnung (sumValues über die
@@ -1025,15 +1157,21 @@ class GameManager {
       this.mustLayOffCardId = null;
       this.resolvePendingDiscardPickup(player);
     }
+    this._sealUndoIfDutyDone(hadDuty);
 
-    this.addLog(`${player.name} legt eine neue ${result.type === 'set' ? 'Satz' : 'Folge'}-Auslage aus.`);
+    if (existingSet) {
+      this.addLog(`${player.name} erweitert den eigenen Satz um ${cards.length} Karten.`);
+    } else {
+      this.addLog(`${player.name} legt eine neue ${result.type === 'set' ? 'Satz' : 'Folge'}-Auslage aus.`);
+    }
     this._turnsWithoutMeld = 0;
-    // Eine ausgelegte Pik Dame elektrisiert den Tisch.
-    if (meld.slots.some((s) => s.real && isPikDame(s.real))) {
+    // A laid Pik Dame electrifies the table. Only the cards laid NOW count -
+    // a merge must not re-celebrate a queen already lying in the set.
+    if (cards.some((cd) => isPikDame(cd))) {
       this._celebratePikDame(player.id);
     } else {
       // Eine dicke Auslage (viele Punkte auf einmal) - kleiner Stolz-Moment.
-      const meldValue = meld.slots.reduce((sum, s) => sum + (s.real ? cardValue(s.real) : 0), 0);
+      const meldValue = cards.reduce((sum, cd) => sum + (cd.isJoker ? 0 : cardValue(cd)), 0);
       if (meldValue >= 25) this.maybeBotEmote(player.id, '😎', 0.3);
     }
     this.checkRoundEnd(player);
@@ -1142,10 +1280,18 @@ class GameManager {
     }
 
     // Anwenden über den geprüften Einzelkarten-Pfad, mit den gefundenen Plätzen.
-    for (const step of solutions[0].steps) {
-      const r = this.layOffCard(playerId, meldId, step.cardId, step.asSuit, step.side);
-      if (r && r.error) return r; // nach der Suche eigentlich unerreichbar
-      if (r && r.options) return { error: 'Diese Kombination bitte einzeln anlegen.' };
+    // ONE undo entry for the whole batch: "Rückgängig" takes back the action
+    // the player performed, not one card of it.
+    this._pushUndo(player);
+    this._undoBatch = true;
+    try {
+      for (const step of solutions[0].steps) {
+        const r = this.layOffCard(playerId, meldId, step.cardId, step.asSuit, step.side);
+        if (r && r.error) return r; // nach der Suche eigentlich unerreichbar
+        if (r && r.options) return { error: 'Diese Kombination bitte einzeln anlegen.' };
+      }
+    } finally {
+      this._undoBatch = false;
     }
     return { ok: true };
   }
@@ -1213,6 +1359,8 @@ class GameManager {
     }
     if (!result) return { error: 'Karte passt nicht an diese Auslage.' };
 
+    const hadDuty = !!this.mustLayOffCardId;
+    if (!this._undoBatch) this._pushUndo(player);
     // Nur der NEU hinzugekommene Slot bekommt den aktuellen Spieler markiert;
     // bereits vorhandene Slots (result.slots enthält sie unverändert) behalten
     // ihre ursprüngliche playerId.
@@ -1225,6 +1373,7 @@ class GameManager {
       this.mustLayOffCardId = null;
       this.resolvePendingDiscardPickup(player);
     }
+    this._sealUndoIfDutyDone(hadDuty);
 
     this.addLog(`${player.name} legt ${cardLabel(card)} an eine Auslage an.`);
     this._turnsWithoutMeld = 0;
@@ -1267,10 +1416,17 @@ class GameManager {
     }
     const handCard = player.hand.find((c) => c.id === handCardId);
     if (!handCard) return { error: 'Karte nicht in der Hand gefunden.' };
+    // The last hand card is ALWAYS discarded - no going out via a joker swap
+    // (table rule, like layoutMeld/layOffCard). The swap consumes a hand card
+    // and the freed joker leaves the game, so one card must remain after it.
+    if (player.hand.length <= 1) {
+      return { error: 'Die letzte Handkarte muss abgeworfen werden - ein Joker-Tausch ist damit nicht möglich.' };
+    }
 
     const result = tryJokerSwap(meld, handCard);
     if (!result) return { error: 'Diese Karte passt nicht auf einen Joker in dieser Auslage.' };
 
+    this._pushUndo(player);
     // Der Slot, in dem jetzt die echte Karte liegt, gehört jetzt diesem
     // Spieler (er hat den Joker dort ausgetauscht) - alle anderen Slots
     // behalten ihre bisherige playerId.
@@ -1291,9 +1447,9 @@ class GameManager {
     // Pflicht nicht mehr (Tischentscheidung).
 
     this.addLog(`${player.name} tauscht ${cardLabel(handCard)} gegen einen Joker in einer Auslage. Der Joker scheidet aus dem Spiel aus.`);
-    // Verbraucht der Tausch die letzte Handkarte, endet die Runde sofort -
-    // exakt wie beim Auslegen/Anlegen. Ohne diese Prüfung stand der Spieler
-    // mit leerer Hand in der Abwurf-Pflicht und konnte den Zug nie beenden.
+    // Defensive only: the guard above keeps a card for the discard, so the
+    // hand cannot run empty here anymore (it once did - the player then sat
+    // in the discard duty with nothing to discard).
     this.checkRoundEnd(player);
     this.broadcastState();
     return { ok: true };
@@ -1408,6 +1564,7 @@ class GameManager {
 
   finishRound(winnerId, options = {}) {
     this.phase = 'roundEnd';
+    this._undoStack = [];
     const playersData = {};
     for (const p of this.players) {
       playersData[p.id] = { laidOutCards: p.laidOutCards, handCards: p.hand };
@@ -2064,6 +2221,8 @@ class GameManager {
         key === '_agentAwaitingDiscard' ||
         key === '_noMcts' ||
         key === '_moveLog' ||
+        key === '_undoStack' ||
+        key === '_undoBatch' ||
         key === '_lastBotEmote'
       ) continue;
       if (typeof value === 'function') continue;
@@ -2092,6 +2251,8 @@ class GameManager {
    */
   deserialize(state) {
     Object.assign(this, state);
+    this._undoStack = []; // transient: an undo window never survives a restart
+    this._undoBatch = false;
     // SECURITY: strip every external-control field that could otherwise be
     // smuggled in via a tampered/persisted snapshot. These fields let an
     // external policy PICK among legal actions (they never expose hidden
@@ -2182,7 +2343,7 @@ class GameManager {
 
     for (const meldCards of meldPlan.newMelds) {
       const ids = meldCards.map((c) => c.id);
-      let r = this.layoutMeld(botId, ids);
+      let r = this.layoutMeld(botId, ids, {}, { byOrder: false });
       if (r && r.ambiguous) {
         // Bots brauchen keinen UI-Prompt - sie nehmen einfach die erste
         // (kanonische) Interpretation.
@@ -2204,11 +2365,10 @@ class GameManager {
       if (this.phase !== 'playing') return -1;
     }
 
-    // Joker-Ausstieg: eigene Handkarten, die exakt einen Joker in einer
-    // EIGENEN Auslage vertreten, werden getauscht - der Joker scheidet aus,
-    // die Handkarte gilt als gelegt. Ist es die letzte Handkarte, endet die
-    // Runde sofort (swapJoker kennt die "eine Karte fuer den Abwurf muss
-    // bleiben"-Sperre nicht - das ist genau die dokumentierte Ausnahme).
+    // Joker swaps: own hand cards that exactly match a joker in an OWN meld
+    // are swapped in - the joker leaves the game, the hand card counts as
+    // laid. Never the last hand card: it must be discarded (swapJoker refuses
+    // it, findJokerSwaps does not plan it).
     for (const js of meldPlan.jokerSwaps || []) {
       const stillHas = cp.hand.find((c) => c.id === js.card.id);
       if (!stillHas) continue;
@@ -2242,7 +2402,7 @@ class GameManager {
     // 3-card run/set through the card is enough (longer runs contain one), and
     // layoutMeld only mutates on success, so failed tries are free.
     const tryMeld = (ids) => {
-      let r = this.layoutMeld(botId, ids);
+      let r = this.layoutMeld(botId, ids, {}, { byOrder: false });
       if (r && r.ambiguous && r.options && r.options[0]) {
         r = this.layoutMeld(botId, ids, r.options[0].jokerAssignments || {});
       }
@@ -2633,6 +2793,14 @@ class GameManager {
       tutorialMode: this.tutorialMode || false,
       soloPausedUntil: this.soloPausedUntil || null,
       abandoned: this.abandoned || false,
+      canUndoMeld: !!(
+        this.phase === 'playing' &&
+        this.turnPhase === 'meld' &&
+        this._undoStack &&
+        this._undoStack.length > 0 &&
+        this.players[this.currentPlayerIndex] &&
+        this.players[this.currentPlayerIndex].id === forPlayerId
+      ),
       canUndoPileTake: !!(
         this.phase === 'playing' &&
         this.turnPhase === 'meld' &&

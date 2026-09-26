@@ -1457,6 +1457,11 @@ wss.on('connection', (ws, req) => {
         if (r && r.error) sendError(ws, r.error);
         break;
       }
+      case 'undoMeld': {
+        const r = game.undoMeldAction(playerId);
+        if (r && r.error) sendError(ws, r.error);
+        break;
+      }
       case 'undoPileTake': {
         // Take-back of a discard-pile pickup while nothing has been played yet.
         const r = game.undoPileTake(playerId);

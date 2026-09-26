@@ -110,7 +110,7 @@ where they are implemented:
 | 110 cards (2×52 + 6 jokers), 15 hand cards | `Deck.js` |
 | Draw: pile OR discard pile in two phases (top card must be melded immediately, then the rest follows) | `GameManager.js` |
 | Sets (same rank, each suit max 2×) and runs on the rank ring (K-A-2 valid, max 13) | `Rules.js` |
-| Only ONE set per rank per player; laying off & joker swaps only on YOUR OWN melds | `GameManager.js` |
+| A second set of a rank you already hold is merged into your existing set (jokers re-suited); laying off & joker swaps only on YOUR OWN melds | `GameManager.js` |
 | Lucky cut (Queen of Spades/joker at the cut position) | `Deck.js` |
 | Swapped jokers are permanently out of the game (cannot be picked up again) | `GameManager.js` |
 | **Going out only by discarding the last card** | `GameManager.js` |

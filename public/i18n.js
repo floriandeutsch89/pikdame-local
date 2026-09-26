@@ -18,6 +18,7 @@ window.I18N_STATIC = {
     'Choose where to cut the freshly shuffled deck. If the Queen of Spades or a joker sits at the cut, it is yours immediately! Dealing starts at the cut spot; the lifted packet then returns to the draw pile.',
   'Hier abheben': 'Cut here',
   '↩︎ Zurücklegen': '↩︎ Put back',
+  '↩︎ Rückgängig': '↩︎ Undo',
   // Lobby
   'Das Familien-Rommé – online mit Freunden & Bots': 'The family rummy – online with friends & bots',
   'Neues Spiel erstellen': 'Create a new game',
@@ -172,6 +173,10 @@ window.I18N_SERVER_PATTERNS = [
   [/^(.+?) nimmt die restlichen (\d+) Karten des Ablagestapels auf\.$/, '$1 picks up the remaining $2 cards of the discard pile.'],
   [/^(.+?) legt eine neue Satz-Auslage aus\.$/, '$1 lays down a new set.'],
   [/^(.+?) legt eine neue Folge-Auslage aus\.$/, '$1 lays down a new run.'],
+  [/^(.+?) erweitert den eigenen Satz um (\d+) Karten\.$/, '$1 extends their own set by $2 cards.'],
+  [/^(.+?) nimmt die letzte Auslage zurück\.$/, '$1 takes back their last meld action.'],
+  [/^In diesem Zug gibt es nichts zurückzunehmen\.$/, 'There is nothing to take back in this turn.'],
+  [/^Zum Ausmachen musst du deine letzte Karte abwerfen - lege die aufgenommene Karte so aus, dass eine Handkarte übrig bleibt\.$/, 'To go out you must discard your last card - lay the picked-up card so that one hand card remains.'],
   [/^(.+?) legt (.+?) an eine Auslage an\.$/, '$1 adds $2 to a meld.'],
   [/^(.+?) tauscht (.+?) gegen einen Joker in einer Auslage\. Der Joker scheidet aus dem Spiel aus\.$/, '$1 swaps $2 for a joker in a meld. The joker is permanently out of the game.'],
   [/^(.+?) wirft (.+?) ab\.$/, '$1 discards $2.'],
@@ -244,6 +249,7 @@ window.I18N_SERVER_PATTERNS = [
   [/^Die aufgenommene Ablagekarte muss zuerst in einer neuen Kombination mit Handkarten ausgelegt werden\.$/, 'The picked-up discard must first be melded in a new combination with hand cards.'],
   [/^Die oberste Ablagekarte passt zu keiner Kombination mit deinen Handkarten - der Ablagestapel kann so nicht aufgenommen werden\.$/, "The top discard doesn't form any combination with your hand – the pile can't be picked up."],
   [/^Du kannst nur an deine EIGENEN Auslagen anlegen - jeder Spieler hat seinen eigenen Stapel\.$/, 'You can only add to your OWN melds – every player has their own.'],
+  [/^Die letzte Handkarte muss abgeworfen werden - ein Joker-Tausch ist damit nicht möglich\.$/, 'Your last hand card must be discarded - a joker swap is not possible with it.'],
   [/^Du kannst nur Joker aus deinen EIGENEN Auslagen tauschen - fremde Stapel sind tabu\.$/, 'You can only swap jokers in your OWN melds – other players\' melds are off limits.'],
   [/^Die Sitzordnung kann nur vor Rundenbeginn geändert werden\.$/, 'Seating can only be changed before a round starts.'],
   [/^Die Spieleranzahl kann nur vor Rundenbeginn geändert werden\.$/, 'The number of players can only be changed before a round starts.'],
@@ -279,12 +285,12 @@ window.I18N_RULES_EN = `
   <ul>
     <li><b>1. Draw:</b> one card from the draw pile – OR the top discard, but only if it can form a new combination with your hand. Then you must <b>meld it immediately</b>; only afterwards do you receive the entire rest of the discard pile. If that forced meld would use up your entire hand, the pickup is <b>not allowed</b> – a card must always remain for the discard.</li>
     <li><b>2. Meld &amp; add</b> (as often as you like): lay down combinations, add single cards or swap jokers – <b>only on your own melds</b>. Other players' melds are off limits!</li>
-    <li><b>3. Discard:</b> exactly one card onto the discard pile – your turn ends. <b>Going out:</b> your last card is discarded <b>face down</b> – nobody can pick it up. So you can never meld everything; at least one card stays for the discard.</li>
+    <li><b>3. Discard:</b> exactly one card onto the discard pile – your turn ends. <b>Going out:</b> your last card is discarded <b>face down</b> – nobody can pick it up. So you can never meld everything; at least one card stays for the discard – not even a joker swap may use up your last card.</li>
   </ul>
 
   <h3>Combinations</h3>
   <ul>
-    <li><b>Set:</b> 3–8 cards of the same rank. Each suit at most twice (two decks!).</li>
+    <li><b>Set:</b> 3–8 cards of the same rank. Each suit at most twice (two decks!). A second set of the same rank automatically joins your existing one.</li>
     <li><b>Run:</b> at least 3 cards of the same suit in sequence. Runs are <b>circular</b>: after the King comes the Ace, then the 2 again – K‑A‑2 is valid. At most 13 cards, no duplicate ranks.</li>
   </ul>
 

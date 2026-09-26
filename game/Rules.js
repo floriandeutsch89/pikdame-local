@@ -586,10 +586,46 @@ function canFormRunAsJoker(hand) {
   return false;
 }
 
+/**
+ * Reads a TAP-ORDERED selection as one run and returns the joker assignments
+ * (jokerId -> rank) that order implies - or null when the order does not
+ * spell out a run: a real card out of sequence, a gap no joker fills, mixed
+ * suits. Direction comes from the first two real cards (9 then 10 reads
+ * upward, A then K downward); a single real card reads upward. A joker
+ * tapped before the first real card sits below it, one tapped between two
+ * reals fills that gap, one tapped last sits on top. Lets the client skip
+ * the "which card is the joker?" dialog for everything but set-or-run.
+ */
+function runAssignmentByOrder(orderedCards) {
+  const cards = orderedCards.slice();
+  const reals = cards.filter((c) => !isJokerCard(c));
+  const jokers = cards.filter((c) => isJokerCard(c));
+  if (reals.length === 0 || jokers.length === 0 || cards.length < 3 || cards.length > RING) return null;
+  if (!reals.every((c) => c.suit === reals[0].suit)) return null;
+  if (reals.length >= 2) {
+    const a = rankIndex(reals[0].rank);
+    const b = rankIndex(reals[1].rank);
+    const forward = (((b - a) % RING) + RING) % RING;
+    const backward = (((a - b) % RING) + RING) % RING;
+    if (forward === 0) return null;
+    if (backward < forward) cards.reverse();
+  }
+  const firstRealPos = cards.findIndex((c) => !isJokerCard(c));
+  const base = rankIndex(cards[firstRealPos].rank) - firstRealPos;
+  const assignment = {};
+  for (let i = 0; i < cards.length; i++) {
+    const expected = (((base + i) % RING) + RING) % RING;
+    if (isJokerCard(cards[i])) assignment[cards[i].id] = ringRank(expected);
+    else if (rankIndex(cards[i].rank) !== expected) return null;
+  }
+  return validateRun(orderedCards, assignment).valid ? assignment : null;
+}
+
 module.exports = {
   validateSet,
   validateRun,
   validateMeld,
+  runAssignmentByOrder,
   tryLayOff,
   tryJokerSwap,
   enumerateMeldOptions,

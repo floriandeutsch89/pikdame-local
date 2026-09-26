@@ -1746,7 +1746,9 @@
           // (Spieler-Report).
           const jokerFits = !isMustCard && singleSelectedCard && singleSelectedCard.isJoker &&
             layOffPlacementCount(meld, singleSelectedCard) >= 1;
-          const singleFits = !isMustCard && singleSelectedCard && cardFitsMeld(meld, singleSelectedCard);
+          // One card left = it must be discarded: neither lay-off nor joker
+          // swap is allowed, so no green frame (false positives are banned).
+          const singleFits = !isMustCard && singleSelectedCard && meForHints.hand.length > 1 && cardFitsMeld(meld, singleSelectedCard);
           if (singleFits || jokerFits) {
             group.classList.add('layOffTarget');
           } else if (selectedCardIds.size > 1 && meForHints && meForHints.hand && !selectedCardIds.has(lastState.mustLayOffCardId)) {
@@ -1991,6 +1993,28 @@
 
     const showMeldControls = isMyTurn && lastState.turnPhase === 'meld' && selectedCardIds.size >= 3;
     el('confirmMeldBtn').classList.toggle('hidden', !showMeldControls);
+    // Joker preview: the tap order decides what a joker stands for in a run
+    // (server rule), so say it BEFORE 'Auslegen' - on the phone nobody can
+    // tell from the fan which card was tapped first.
+    let jokerPreview = '';
+    if (showMeldControls && meForHints && meForHints.hand) {
+      const sel = [...selectedCardIds].map((id) => meForHints.hand.find((cd) => cd.id === id)).filter(Boolean);
+      if (sel.length === selectedCardIds.size && sel.some((cd) => cd.isJoker)) {
+        const byOrder = jokerRunByOrder(sel);
+        if (byOrder) {
+          const reals = sel.filter((cd) => !cd.isJoker);
+          jokerPreview = sel
+            .filter((cd) => cd.isJoker)
+            .map((cd) => `Joker = ${byOrder[cd.id]}${suitSymbol(reals[0].suit)}`)
+            .join(', ');
+          if (reals.every((cd) => cd.rank === reals[0].rank)) {
+            jokerPreview += L(' (Folge) - oder ein Satz? Du wirst gefragt.', ' (run) - or a set? You will be asked.');
+          }
+        }
+      }
+    }
+    el('jokerPreview').textContent = jokerPreview;
+    el('jokerPreview').classList.toggle('hidden', !jokerPreview);
 
     const showDiscardBtn =
       isMyTurn && lastState.turnPhase === 'meld' && selectedCardIds.size === 1 && !lastState.mustLayOffCardId;
@@ -2000,6 +2024,7 @@
     // Vertipper-Ausweg: Stapel-Aufnahme zurücknehmen, solange die Pflichtkarte
     // noch nicht gelegt wurde (Server validiert; Flag kommt nur für mich true).
     el('undoPileBtn').classList.toggle('hidden', !lastState.canUndoPileTake);
+    el('undoMeldBtn').classList.toggle('hidden', !lastState.canUndoMeld);
     const iSeatedForfeit = lastState.players.some((p) => p.id === playerId && !p.isBot);
     el('forfeitBtn').classList.toggle('hidden', lastState.phase !== 'playing' || !iSeatedForfeit);
     const forfeitVotes = lastState.forfeitVotes || [];
@@ -2080,6 +2105,40 @@
   // macht weiterhin der Server. Joker-Handkarten werden nicht gehintet.
   function slotRank(s) { return s.real ? s.real.rank : s.representsRank; }
   function slotSuit(s) { return s.real ? s.real.suit : s.representsSuit; }
+
+  // Mirror of Rules.runAssignmentByOrder (server truth, fuzzed against it in
+  // test/client-contract.test.js): what each joker becomes when the TAPPED
+  // ORDER is read as a run - null when the order spells out no run. Feeds
+  // only the preview line; the server decides.
+  function jokerRunByOrder(orderedCards) {
+    const RING = 13;
+    const RANKS_RING = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+    const idx = (r) => RANKS_RING.indexOf(r);
+    const cards = orderedCards.slice();
+    const reals = cards.filter((c) => !c.isJoker);
+    const jokers = cards.filter((c) => c.isJoker);
+    if (reals.length === 0 || jokers.length === 0 || cards.length < 3 || cards.length > RING) return null;
+    if (!reals.every((c) => c.suit === reals[0].suit)) return null;
+    const seen = new Set(reals.map((c) => c.rank));
+    if (seen.size !== reals.length) return null;
+    if (reals.length >= 2) {
+      const a = idx(reals[0].rank);
+      const b = idx(reals[1].rank);
+      const forward = (((b - a) % RING) + RING) % RING;
+      const backward = (((a - b) % RING) + RING) % RING;
+      if (forward === 0) return null;
+      if (backward < forward) cards.reverse();
+    }
+    const firstRealPos = cards.findIndex((c) => !c.isJoker);
+    const base = idx(cards[firstRealPos].rank) - firstRealPos;
+    const out = {};
+    for (let i = 0; i < cards.length; i++) {
+      const expected = (((base + i) % RING) + RING) % RING;
+      if (cards[i].isJoker) out[cards[i].id] = RANKS_RING[expected];
+      else if (idx(cards[i].rank) !== expected) return null;
+    }
+    return out;
+  }
   // Multi lay-off: can ALL selected cards go onto this meld together - und
   // zwar EINDEUTIG? Spiegelt die Server-Suche aus layOffCards: alle
   // Reihenfolgen und alle Joker-Plaetze durchprobieren, Ergebnisse
@@ -3368,7 +3427,7 @@
         // keine neue Kombination? Dann eine anlegbare Einzelkarte + ihr Ziel zeigen
         for (const meld of st.tableMelds || []) {
           if (meld.ownerId !== me.id) continue;
-          const fit = me.hand.find((cd) => cardFitsMeld(meld, cd));
+          const fit = me.hand.length > 1 && me.hand.find((cd) => cardFitsMeld(meld, cd));
           if (fit) return { cardIds: [fit.id], meldIds: [meld.id], targets };
         }
         return { cardIds: [], meldIds: [], targets };
@@ -3544,7 +3603,7 @@
   /** Handkarte, die genau das ersetzt, wofuer ein Joker in EINER EIGENEN
    *  Auslage steht - die Voraussetzung des Joker-Tauschs. */
   function findTutorialJokerSwap(st, me) {
-    if (!me || !me.hand) return null;
+    if (!me || !me.hand || me.hand.length <= 1) return null; // last card is discarded
     for (const meld of st.tableMelds || []) {
       if (meld.ownerId !== me.id) continue;
       for (const slot of meld.slots || []) {
@@ -3991,6 +4050,7 @@
 
   el('lobbyReadyBtn').addEventListener('click', () => send({ type: 'lobbyReady' }));
   el('undoPileBtn').addEventListener('click', () => send({ type: 'undoPileTake' }));
+  el('undoMeldBtn').addEventListener('click', () => send({ type: 'undoMeld' }));
 
   el('tutorialBtn').addEventListener('click', () => {
     tutorialActive = true;

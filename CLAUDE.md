@@ -121,7 +121,8 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
 - **Heuristik** (`Bot.js`, 4 Stufen easy/medium/hard/zen): Kartenzählung über
   alle öffentlichen Karten, Damen-Disziplin (nur easy wirft die ♠Q sorglos),
   Zieh-Guards (Usability-Lookahead, Damen-unter-Stapel, Wertverlust-Vergleich),
-  Zen-Endspiel mit Erschöpfungs-/Punktestand-Gewichtung, Joker-Ausstieg.
+  Zen-Endspiel mit Erschöpfungs-/Punktestand-Gewichtung, Joker-Tausch (nie mit
+  der letzten Handkarte).
 - **Untersucht, NICHT produktiv** (jeweils getestete Infrastruktur, per Flag):
   `MonteCarlo.js` (Hidden-Hand-Sampling für den Abwurf – gemessen Null-Effekt);
   `Rollout.js` (determinisierte Rollout-Suche/ISMCTS – gemessen ~+2 Pkt/0,8σ,
@@ -156,9 +157,13 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
 110 Karten (2 Decks + 6 Joker), 15 Handkarten, 2–4 Spieler, Bots füllen auf.
 Jeder Spieler hat **eigene** Auslagen (Anlegen/Joker-Tausch nur dort).
 Folgen laufen im Ring (K-A-2), max 13. Zwei-Phasen-Ablagestapel (oberste
-Karte sofort legen, dann Rest). Pro Spieler nur EIN Satz je Wert.
+Karte sofort legen, dann Rest). Ein zweiter Satz gleichen Werts wird in den
+bestehenden Satz des Spielers gemergt (Joker bekommen eine freie Farbe);
+passt die Vereinigung nicht mehr (>8 Karten), liegt er separat - nie ein Fehler,
+sonst Deadlock mit der Pflicht-Aufnahmekarte (v1.53.1).
 **Ausmachen nur per Abwurf der letzten Karte** (verdeckt abgelegt, nicht
-aufnehmbar; Ausnahme: Joker-Tausch mit der letzten Handkarte beendet sofort).
+aufnehmbar; OHNE Ausnahme - auch kein Joker-Tausch mit der letzten Handkarte,
+Tischentscheidung v2.32.0; `swapJoker` verweigert ihn, Bots planen ihn nicht).
 Ein getauschter Joker bleibt als +20 in der Auslage-Wertung (plus die echte
 Karte). „Hand aus“ = Gewinner hatte vor seinem letzten Zug nichts ausgelegt
 (verdoppelt NUR bei aktiver Hausregel `handAusDoubles`, Standard aus - Anzeige
