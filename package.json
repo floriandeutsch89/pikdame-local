@@ -9,7 +9,8 @@
     "docs:gen": "node scripts/gen-docs.js",
     "docs:check": "node scripts/gen-docs.js --check",
     "csp:sync": "node scripts/sync-csp-hash.js",
-    "csp:check": "node scripts/sync-csp-hash.js --check"
+    "csp:check": "node scripts/sync-csp-hash.js --check",
+    "secrets:check": "node scripts/check-secret-files.js"
   },
   "license": "MIT",
   "dependencies": {

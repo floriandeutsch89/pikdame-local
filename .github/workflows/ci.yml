@@ -6,7 +6,33 @@ on:
   pull_request:
     branches: [main]
 
+# Least privilege: no job here writes to the repo, so the GITHUB_TOKEN gets
+# read-only access (without this block it inherits the repository default,
+# which can be read-write).
+permissions:
+  contents: read
+
 jobs:
+  # Secrets: by FILE NAME (a tracked .env, key, tfvars or runtime data file)
+  # and by CONTENT across the FULL history (gitleaks) - a secret removed in a
+  # later commit is still public. The primary guard is GitHub's own push
+  # protection (Settings -> Code security), which blocks the push itself;
+  # this job is the net for whatever gets past it.
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # full history for gitleaks
+      - name: No secret-like files tracked
+        run: node scripts/check-secret-files.js
+      - name: gitleaks (full history)
+        # Pinned image instead of gitleaks-action: no licence key, no token,
+        # same binary locally (`docker run ... zricethezav/gitleaks`).
+        run: |
+          docker run --rm -v "$PWD:/repo" --user "$(id -u):$(id -g)" \
+            ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --redact --verbose --exit-code 1
+
   test:
     runs-on: ubuntu-latest
     # Real PostgreSQL for the account-store integration tests (they skip

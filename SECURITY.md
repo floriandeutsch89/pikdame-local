@@ -60,6 +60,26 @@ protection for verified accounts, atomic file persistence, parameterized
 SQL queries against PostgreSQL (SQLite fallback in WAL mode), process-level
 safety nets with a crash log instead of a crash.
 
+## Secrets in the repository
+
+Real secrets never live in Git: they come from the environment or from
+`*_FILE` mounts (Docker/Kubernetes secrets, see `docs/admin/configuration.md`),
+and only `*.example` templates are committed. Three layers keep it that way:
+
+1. **GitHub push protection** (Settings -> Code security -> Secret scanning,
+   free for public repositories) rejects a push that contains a known token
+   format - the only layer that stops a secret *before* it is public.
+2. **`.gitignore`** covers every `.env` variant, key files, `terraform/*.tfvars`
+   and the runtime data in `data/`.
+3. **CI job `secret-scan`**: `scripts/check-secret-files.js` fails on any
+   tracked file that looks like a secret or private runtime data by its name
+   (`npm run secrets:check` locally), and gitleaks scans the content of the
+   **full history** - a secret deleted in a later commit is still public.
+
+If a secret was pushed anyway: **rotate it first** (revoke the token, change
+the password), then remove the file. Rewriting history does not help - forks,
+clones and caches keep the old commits.
+
 ## Reporting
 
 Please report security issues as a GitHub issue with the `security` label.

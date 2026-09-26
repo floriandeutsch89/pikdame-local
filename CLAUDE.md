@@ -186,6 +186,9 @@ angewendet liegen. (pro Änderung)
    GHCR-Image erzeugt der Release-Workflow automatisch beim Push auf main** —
    nach dem Merge nur verifizieren, nichts manuell taggen.
 4. Vor Commits: `rm -f data/*.json data/crash.log data/users.db`.
+   Secrets nie ins Repo (nur `*.example`); `npm run secrets:check` und der
+   CI-Job `secret-scan` (Dateinamen + gitleaks über die volle History)
+   schlagen sonst an. Ein gepushtes Secret zuerst ROTIEREN, dann entfernen.
 5. Neue Server-Texte ⇒ i18n-Pattern. Neue UI-Elemente ⇒ Vertragstests laufen mit.
 6. **Abhängigkeiten hebt Dependabot an** (`.github/dependabot.yml`,
    montags 03:00 UTC): npm (gruppiert), Docker-Basis-Images, Compose-Images,

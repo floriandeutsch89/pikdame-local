@@ -5,6 +5,9 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 
 ## [2.24.0] - 2026-09-26
 
+### Added
+- **Sicherheitsprüfung gegen versehentlich eingecheckte Geheimnisse.** Neuer CI-Job `secret-scan`: Er schlägt fehl, sobald eine Datei im Repository liegt, die nach Geheimnis oder privaten Laufzeitdaten aussieht (`.env`, Schlüssel, Terraform-Variablen, Konten-Datenbank; lokal: `npm run secrets:check`), und durchsucht mit gitleaks die gesamte Versionsgeschichte nach Zugangsdaten. Der Erstlauf über alle 263 Commits war sauber. `.gitignore` deckt jetzt jede `.env`-Variante, Schlüsseldateien und `terraform/*.tfvars` ab; die CI läuft mit reinen Leserechten (`permissions: contents: read`)
+
 ### Changed
 - **Desktop-Tisch nutzt den Bildschirm.** Die Stapel stehen ab 1100 px Fensterbreite in einer Spalte rechts neben den Auslagen statt in einer eigenen Zeile darüber - bei 1366×768 bekamen die Auslagen vorher nur ~170 px Höhe, die zweite Reihe war nur als Streifen zu sehen. Die App ist breiter (bis 1600 px), die Auslagen der Mitspieler stehen zweispaltig nebeneinander, und die Auslagen-Karten sind größer
 - **Kopfzeile in einer Zeile** - „Du bist am Zug“ steht am Desktop und im Querformat zwischen den Knöpfen statt in einer eigenen Zeile darunter

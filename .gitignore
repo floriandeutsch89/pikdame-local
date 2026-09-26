@@ -9,6 +9,20 @@ data/*.db-wal
 .env
 docker/secrets/*.txt
 docker/.env
+# Secrets safety net (see scripts/check-secret-files.js, CI job secret-scan):
+# any .env variant anywhere, keys and Terraform variables. Templates stay in.
+**/.env
+**/.env.*
+!**/*.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+id_ecdsa
+terraform/*.tfvars
+terraform/*.tfvars.json
 
 # RL training artifacts (the ONNX models ARE committed - public repo, run-anywhere)
 .venv/
