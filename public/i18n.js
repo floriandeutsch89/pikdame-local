@@ -139,6 +139,11 @@ window.I18N_STATIC = {
 
   // Themes-Zeile etc.
   'Sound & Vibration': 'Sound & vibration',
+  // Tagesrätsel
+  'Tagesrätsel': 'Daily puzzle',
+  'Welche Karten ergeben zusammen die wertvollste Auslage? Tippe sie an und prüfe - die Regeln entscheiden.': 'Which cards together make the most valuable meld? Tap them and check - the rules decide.',
+  'Prüfen': 'Check',
+  'Lösung zeigen': 'Show solution',
 };
 
 // Muster für Server-Texte (Log + Fehler). Reihenfolge: speziell vor generisch.
@@ -240,6 +245,16 @@ window.I18N_SERVER_PATTERNS = [
   [/^Kein Spiel mit diesem Code gefunden\. Bitte Code prüfen\.$/, 'No game found with this code. Please check it.'],
   [/^Der Server ist derzeit voll - bitte später erneut versuchen\.$/, 'The server is currently full – please try again later.'],
   [/^Mindestens 2 Spieler nötig\.$/, 'At least 2 players are required.'],
+  // Meld validation reasons (Rules.js) - surfaced by the daily puzzle
+  [/^Ein Satz braucht 3 bis (\d+) Karten\.$/, 'A set needs 3 to $1 cards.'],
+  [/^Ein Satz braucht mindestens eine echte Karte\.$/, 'A set needs at least one real card.'],
+  [/^Alle echten Karten im Satz müssen denselben Wert haben\.$/, 'All real cards in a set must share the same rank.'],
+  [/^Jede Farbe darf in einem Satz höchstens 2x vorkommen \(2 Decks\)\.$/, 'Each suit may appear at most twice in a set (two decks).'],
+  [/^Eine Folge braucht mindestens 3 Karten\.$/, 'A run needs at least 3 cards.'],
+  [/^Eine Folge kann höchstens 13 Karten umfassen.*$/, 'A run can hold at most 13 cards (no repeated ranks).'],
+  [/^Alle echten Karten in der Folge müssen dieselbe Farbe haben\.$/, 'All real cards in a run must share the same suit.'],
+  [/^Doppelte Werte in der Folge sind nicht erlaubt\.$/, 'Duplicate ranks in a run are not allowed.'],
+  [/^Die Karten bilden keine zusammenhängende Folge\.$/, 'The cards do not form a consecutive run.'],
 ];
 
 window.I18N_RULES_EN = `

@@ -273,6 +273,7 @@
     // Sprache stehen (Nutzer-Report zu den Tagesaufgaben). Betrifft alle drei
     // Bloecke des Fortschrittsbereichs, nicht nur die Aufgaben.
     try { renderQuests(); } catch (e) { /* Fortschritt ist nie kritisch */ }
+    try { renderPuzzle(); } catch (e) { /* dito */ }
     try { renderAchievements(); } catch (e) { /* dito */ }
     try { renderAccountProgress(); } catch (e) { /* dito */ }
     // "Angemeldet als ..." steht dauerhaft in der Lobby - vom Vertragstest
@@ -1051,6 +1052,10 @@
       maybeShowRoundQuote();
       checkPikdameAnnouncement();
       render();
+      return;
+    }
+    if (msg.type === 'puzzle' || msg.type === 'puzzleResult' || msg.type === 'puzzleSolution') {
+      try { handlePuzzleMessage(msg); } catch (e) { /* a broken puzzle never breaks the client */ }
       return;
     }
     if (msg.type === 'challengeBoard') {
@@ -3713,6 +3718,110 @@
     el('challengeIntroOverlay').classList.add('hidden');
     send({ type: 'startChallenge', name: currentName(), accountToken: accountToken() || undefined });
   });
+  // --- Daily puzzle --------------------------------------------------------
+  // One hand, one question, the engine grades. Selection lives here; the
+  // server owns tries/solved (local profile) and hands out the XP once.
+  let puzzleData = null;      // {date, hand, targetPoints, status}
+  const puzzleSelected = new Set();
+  let puzzleSolutionIds = null;
+  function openPuzzle() {
+    puzzleSelected.clear();
+    puzzleSolutionIds = null;
+    puzzleData = null;
+    el('puzzleHand').innerHTML = '';
+    el('puzzleTarget').textContent = '…';
+    setPuzzleStatus('', '');
+    el('puzzleOverlay').classList.remove('hidden');
+    send({ type: 'getPuzzle', name: currentName() });
+  }
+  function setPuzzleStatus(text, cls) {
+    const n = el('puzzleStatus');
+    n.textContent = text;
+    n.className = `puzzleStatus${cls ? ` ${cls}` : ''}`;
+  }
+  function renderPuzzle() {
+    if (!puzzleData) return;
+    const st = puzzleData.status || {};
+    el('puzzleTarget').textContent = L(
+      `Ziel: ${puzzleData.targetPoints} Punkte in einer Auslage`,
+      `Target: ${puzzleData.targetPoints} points in one meld`
+    ) + (st.tries ? ` · ${L(`${st.tries}. Versuch`, `attempt ${st.tries}`)}` : '');
+    const box = el('puzzleHand');
+    box.innerHTML = '';
+    const done = !!st.solved || !!puzzleSolutionIds;
+    for (const card of puzzleData.hand) {
+      const cEl = cardEl(card, {
+        selectable: !done,
+        selected: puzzleSelected.has(card.id),
+        onClick: () => {
+          if (done) return;
+          if (puzzleSelected.has(card.id)) puzzleSelected.delete(card.id);
+          else puzzleSelected.add(card.id);
+          renderPuzzle();
+        },
+      });
+      if (puzzleSolutionIds && puzzleSolutionIds.includes(card.id)) cEl.classList.add('solution');
+      box.appendChild(cEl);
+    }
+    el('puzzleCheckBtn').disabled = done || puzzleSelected.size < 3;
+    el('puzzleRevealBtn').classList.toggle('hidden', done);
+    // Reopened after a solve: say so - but never overwrite the fresh
+    // "Gelöst! +30 EP" line right after the winning check.
+    if (st.solved && !puzzleSolutionIds && !el('puzzleStatus').textContent) {
+      setPuzzleStatus(`✅ ${L('Heute schon gelöst - morgen gibt es ein neues.', 'Solved today - a new one comes tomorrow.')}`, 'ok');
+    }
+  }
+  el('puzzleBtn').addEventListener('click', openPuzzle);
+  el('puzzleCloseBtn').addEventListener('click', () => el('puzzleOverlay').classList.add('hidden'));
+  el('puzzleOverlay').addEventListener('click', (ev) => {
+    if (ev.target === el('puzzleOverlay')) el('puzzleOverlay').classList.add('hidden');
+  });
+  el('puzzleCheckBtn').addEventListener('click', () => {
+    if (puzzleSelected.size < 3) return;
+    send({ type: 'solvePuzzle', name: currentName(), cardIds: [...puzzleSelected] });
+  });
+  el('puzzleRevealBtn').addEventListener('click', () => {
+    send({ type: 'revealPuzzle', name: currentName() });
+  });
+  function handlePuzzleMessage(msg) {
+    if (msg.type === 'puzzle') {
+      puzzleData = { date: msg.date, hand: msg.hand || [], targetPoints: msg.targetPoints || 0, status: msg.status || {} };
+      renderPuzzle();
+      return true;
+    }
+    if (msg.type === 'puzzleResult') {
+      if (!puzzleData) return true;
+      puzzleData.status = msg.status || puzzleData.status;
+      if (!msg.valid) {
+        setPuzzleStatus(`❌ ${trs(msg.reason || '')}`, 'bad');
+      } else if (msg.solved) {
+        sound.meld();
+        setPuzzleStatus(
+          `✅ ${L(`Gelöst! ${msg.points} Punkte`, `Solved! ${msg.points} points`)}${msg.xp ? ` · +${msg.xp} ${L('EP', 'XP')}` : ''}`,
+          'ok'
+        );
+        if (msg.level) myProgress = { xp: myProgress ? Math.max(myProgress.xp || 0, (msg.level.total || 0)) : (msg.level.total || 0), level: msg.level };
+        setPuzzleStatus(
+          L(`Gültig, aber nur ${msg.points} von ${msg.targetPoints} Punkten - da geht mehr.`, `Valid, but only ${msg.points} of ${msg.targetPoints} points - there is more.`),
+          'bad'
+        );
+      }
+      renderPuzzle();
+      return true;
+    }
+    if (msg.type === 'puzzleSolution') {
+      if (!puzzleData) return true;
+      puzzleSolutionIds = msg.cardIds || [];
+      puzzleData.status = msg.status || puzzleData.status;
+      puzzleSelected.clear();
+      for (const id of puzzleSolutionIds) puzzleSelected.add(id);
+      setPuzzleStatus(L(`Lösung: ${msg.points} Punkte (markiert). Ohne EP - morgen gibt es ein neues.`, `Solution: ${msg.points} points (highlighted). No XP - a new one comes tomorrow.`), '');
+      renderPuzzle();
+      return true;
+    }
+    return false;
+  }
+
   el('challengeCancelBtn').addEventListener('click', () => el('challengeIntroOverlay').classList.add('hidden'));
   el('challengeIntroOverlay').addEventListener('click', (ev) => {
     if (ev.target === el('challengeIntroOverlay')) el('challengeIntroOverlay').classList.add('hidden');

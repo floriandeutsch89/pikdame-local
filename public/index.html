@@ -289,6 +289,7 @@
         <div class="menuChips">
           <button id="tutorialBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-cap"/></svg><span>Tutorial</span></button>
           <button id="challengeBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg><span>Challenge</span></button>
+          <button id="puzzleBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg><span>Tagesrätsel</span></button>
         </div>
         <div class="join-divider">oder einem Spiel beitreten</div>
         <div class="joinRow">
@@ -594,6 +595,21 @@
         <p class="settingsHint">Gewertet werden deine besten fünf Tage der laufenden Woche.</p>
         <button id="challengeStartBtn" class="btn-primary">Los geht's!</button>
         <button id="challengeCancelBtn" class="btn-secondary">Abbrechen</button>
+      </div>
+    </section>
+
+    <section id="puzzleOverlay" class="overlay hidden">
+      <div class="overlay-card">
+        <h2><svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg><span>Tagesrätsel</span></h2>
+        <p class="lobby-hint">Welche Karten ergeben zusammen die wertvollste Auslage? Tippe sie an und prüfe - die Regeln entscheiden.</p>
+        <p id="puzzleTarget" class="puzzleTarget"></p>
+        <div id="puzzleHand" class="puzzleHand"></div>
+        <p id="puzzleStatus" class="puzzleStatus"></p>
+        <div class="dialog-actions">
+          <button id="puzzleCheckBtn" class="btn-primary">Prüfen</button>
+          <button id="puzzleRevealBtn" class="btn-secondary">Lösung zeigen</button>
+        </div>
+        <button id="puzzleCloseBtn" class="btn-secondary">Schließen</button>
       </div>
     </section>
 

@@ -25,6 +25,7 @@ const {
 const { createAccountStoreAuto } = require('./game/AccountStore');
 const { createMailer } = require('./game/Mailer');
 const { isAllowedEmote, emoteLevel } = require('./game/Emotes');
+const { puzzleForDate, publicPuzzle, checkAnswer, XP_FOR_SOLVED } = require('./game/DailyPuzzle');
 const { createGameHistoryStore, historyForPlayer } = require('./game/GameHistoryStore');
 const { SessionRegistry, sanitizeName } = require('./game/SessionRegistry');
 
@@ -834,6 +835,14 @@ restoreSessionsSnapshot();
 const snapshotTimer = setInterval(() => writeSessionsSnapshot({ quiet: true }), SNAPSHOT_INTERVAL_MS);
 snapshotTimer.unref();
 
+// One puzzle per day, built on first request (the subset search costs a few
+// milliseconds) and dropped when the date moves on.
+let dailyPuzzleCache = null;
+function dailyPuzzleFor(date) {
+  if (!dailyPuzzleCache || dailyPuzzleCache.date !== date) dailyPuzzleCache = puzzleForDate(date);
+  return dailyPuzzleCache;
+}
+
 function sendProfilesTo(ws) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   // Today's quests ride along with the profiles: the client needs the ids
@@ -1085,6 +1094,44 @@ wss.on('connection', (ws, req) => {
       // Server prüfbar).
       const mine = PUBLIC_MODE ? [] : historyForPlayer(gameHistoryStore.listGames(), msg.name, 20);
       ws.send(JSON.stringify({ type: 'gameHistory', games: mine }));
+      return;
+    }
+    if (msg.type === 'getPuzzle' || msg.type === 'solvePuzzle' || msg.type === 'revealPuzzle') {
+      // Daily puzzle: no session needed, it is a one-minute ritual on the
+      // start screen. The hand is seeded from the date (identical worldwide),
+      // the engine grades, the local profile remembers tries and the solve.
+      const date = todayUTC();
+      const puzzle = dailyPuzzleFor(date);
+      const name = sanitizeName(msg.name);
+      const withProfile = !PUBLIC_MODE && !!name;
+      if (msg.type === 'getPuzzle') {
+        ws.send(JSON.stringify({
+          type: 'puzzle', ...publicPuzzle(puzzle),
+          status: withProfile ? playerStore.puzzleStatus(name, date) : { tries: 0, solved: false, revealed: false },
+        }));
+        return;
+      }
+      if (msg.type === 'revealPuzzle') {
+        const status = withProfile ? playerStore.revealPuzzle(name, date) : { tries: 0, solved: false, revealed: true };
+        ws.send(JSON.stringify({ type: 'puzzleSolution', cardIds: puzzle.best ? puzzle.best.cardIds : [], points: puzzle.best ? puzzle.best.points : 0, status }));
+        return;
+      }
+      const result = checkAnswer(puzzle, msg.cardIds);
+      let status = { tries: 1, solved: result.solved, revealed: false };
+      let xp = 0;
+      let level = null;
+      let streak = null;
+      if (withProfile) {
+        status = playerStore.recordPuzzleAttempt(name, date, result.solved);
+        if (status.justSolved) {
+          const after = playerStore.addProgress(name, { xp: XP_FOR_SOLVED });
+          xp = XP_FOR_SOLVED;
+          level = levelFromXp(after.xp);
+          // A solved puzzle is a played day - it keeps the daily streak alive.
+          try { streak = playerStore.touchDailyStreak(name, date); } catch (err) { logCrash('streak', err, { player: name }); }
+        }
+      }
+      ws.send(JSON.stringify({ ...result, xp, level, streak, status, type: 'puzzleResult' }));
       return;
     }
     if (msg.type === 'listProfiles') {

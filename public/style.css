@@ -2810,6 +2810,15 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 /* Lobby panel. Uses the same lobby-section shell as the house rules, so it
    inherits width, radius and spacing instead of inventing its own. */
 .questsSection { text-align: left; }
+/* Daily puzzle overlay */
+.puzzleTarget { font-weight: 700; margin: 2px 0 8px; }
+.puzzleHand { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 4px 0 10px; }
+.puzzleHand .card { position: relative; margin-left: 0; cursor: pointer; }
+.puzzleHand .card.selected { top: -6px; }
+.puzzleStatus { min-height: 1.4em; font-weight: 600; margin: 0 0 8px; }
+.puzzleStatus.ok { color: #1e9e57; }
+.puzzleStatus.bad { color: #d34b3a; }
+.puzzleHand .card.solution { box-shadow: 0 0 0 3px var(--drawn), var(--shadow-2); }
 /* Level + daily streak strip above the tasks */
 .progressStrip {
   display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center;

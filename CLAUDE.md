@@ -96,6 +96,9 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
   Stufen in `BADGE_FAMILIES`, Engine-Fakten wie `ringRuns`/`longestRun`/
   `bigPileTake` kommen aus `finishRound` in den `breakdown`),
   `Progression.js` (XP/Level, Tagesaufgaben, Tagesserie mit Joker-Tag),
+  `DailyPuzzle.js` (Tagesrätsel: geseedete Hand, erschöpfende Suche, die
+  Engine bewertet - Ergebnisobjekt darf KEIN `type`-Feld tragen, es wird in
+  die WS-Nachricht gespreadet),
   `Emotes.js` (EINZIGE Emote-Whitelist + Level; Client-Leisten und
   `EMOTE_UNLOCK` spiegeln sie, Vertragstest prüft).
 - `public/` — Vanilla-JS-Client (`client.js`), `i18n.js`, PWA. Enthält auch den
@@ -196,6 +199,8 @@ angewendet liegen. (pro Änderung)
    CI-Job `secret-scan` (Dateinamen + gitleaks über die volle History)
    schlagen sonst an. Ein gepushtes Secret zuerst ROTIEREN, dann entfernen.
 5. Neue Server-Texte ⇒ i18n-Pattern. Neue UI-Elemente ⇒ Vertragstests laufen mit.
+   Nachrichten VOR dem Session-Beitritt (Profile, Rätsel) stehen im Handler
+   vor der Session-Sperre und tragen `msg.name`.
 6. **Abhängigkeiten hebt Dependabot an** (`.github/dependabot.yml`,
    montags 03:00 UTC): npm (gruppiert), Docker-Basis-Images, Compose-Images,
    GitHub-Actions. `dependabot-auto.yml` hängt den SemVer-Bump plus die

@@ -494,6 +494,9 @@ test('client contract: functions that build translated markup are refreshed by c
     // Discard confirmation: the dialog text is written fresh on every
     // click, and the dialog is closed before any language switch.
     'requestDiscard',
+    // Puzzle overlay: opened fresh on every click; the hand and status are
+    // rendered by renderPuzzle, which cycleLang re-runs.
+    'openPuzzle',
     // Joker choice dialog: rebuilt from scratch every time the server
     // reports an ambiguous meld; its buttons reach L() only through send().
     'showJokerChoice',

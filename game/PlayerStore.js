@@ -202,6 +202,48 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
 
 
 
+  // --- Daily puzzle (see game/DailyPuzzle.js) --------------------------------
+  // tries / solved / revealed per day; the profile is created on first
+  // contact so the puzzle works before the first match. Pruned like quests.
+  const PUZZLE_HISTORY_DAYS = 7;
+  function puzzleDay(p, date) {
+    p.puzzles = p.puzzles || {};
+    const day = (p.puzzles[date] = p.puzzles[date] || { tries: 0, solved: false, revealed: false });
+    const days = Object.keys(p.puzzles).sort();
+    while (days.length > PUZZLE_HISTORY_DAYS) delete p.puzzles[days.shift()];
+    return day;
+  }
+  function puzzleStatus(name, date) {
+    const p = findPlayerByName(loadStore(), name);
+    return (p && p.puzzles && p.puzzles[date]) || { tries: 0, solved: false, revealed: false };
+  }
+  /** @returns {{tries,solved,revealed,justSolved:boolean}} */
+  function recordPuzzleAttempt(name, date, solved) {
+    upsertPlayerProfile(name);
+    const store = loadStore();
+    const p = findPlayerByName(store, name);
+    const day = puzzleDay(p, date);
+    let justSolved = false;
+    if (!day.solved) {
+      day.tries += 1;
+      if (solved) {
+        day.solved = true;
+        justSolved = !day.revealed; // a revealed solution earns nothing
+      }
+    }
+    saveStore(store);
+    return { ...day, justSolved };
+  }
+  function revealPuzzle(name, date) {
+    upsertPlayerProfile(name);
+    const store = loadStore();
+    const p = findPlayerByName(store, name);
+    const day = puzzleDay(p, date);
+    day.revealed = true;
+    saveStore(store);
+    return { ...day };
+  }
+
   return {
     filePath,
     flushSync: file.flushSync,
@@ -215,6 +257,9 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     addProgress,
     questProgress,
     touchDailyStreak,
+    puzzleStatus,
+    recordPuzzleAttempt,
+    revealPuzzle,
   };
 }
 
