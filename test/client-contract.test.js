@@ -534,6 +534,27 @@ test('CSS contract: the landscape layout block comes after the rules it override
   }
 });
 
+// Emotes: one list (game/Emotes.js) feeds the server whitelist; the two
+// client bars carry the same ids statically. A button the server rejects,
+// or an emote the client cannot send, is a silent dead tap.
+test('Emote contract: both client bars equal the shared emote list', () => {
+  const { EMOTE_IDS } = require('../game/Emotes');
+  const bars = [...html.matchAll(/<div id="(emoteBar|resultEmoteBar)"[^>]*>([\s\S]*?)<\/div>/g)];
+  assert.strictEqual(bars.length, 2, 'both emote bars exist');
+  for (const [, id, inner] of bars) {
+    const ids = [...inner.matchAll(/data-emote="([^"]+)"/g)].map((m) => m[1]);
+    assert.deepStrictEqual(ids, EMOTE_IDS, `#${id} must list exactly the shared emotes in order`);
+  }
+  // The client-side unlock table mirrors the server's levels.
+  const { EMOTE_DEFS } = require('../game/Emotes');
+  const clientTable = clientJs.match(/const EMOTE_UNLOCK = \{([^}]*)\}/);
+  assert.ok(clientTable, 'client EMOTE_UNLOCK table exists');
+  const parsed = Object.fromEntries([...clientTable[1].matchAll(/'([^']+)':\s*(\d+)/g)].map((m) => [m[1], Number(m[2])]));
+  for (const def of EMOTE_DEFS) {
+    assert.strictEqual(parsed[def.id] || 1, def.level, `unlock level of ${def.id} must match game/Emotes.js`);
+  }
+});
+
 // Train/EDGE connections leave sockets half-open for minutes: readyState stays
 // OPEN, taps vanish, the table looks frozen. The client's watchdog pings a
 // silent socket and replaces it when no pong comes back. Both halves of that

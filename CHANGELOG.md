@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.27.0] - 2026-09-26
+
+### Added
+- **Reaktionen: 15 statt 7** in zwei Reihen (🙈 🤔 😎 🍀 🔥 👏 😴 🙏 neu), im Spiel und am Rundenende; die Bots antworten auch auf die neuen. Die Liste lebt einmal in `game/Emotes.js`, ein Vertragstest hält Client und Server synchron
+- **Level schaltet frei:** die acht neuen Reaktionen ab Stufe 2 bis 12 (serverseitig geprüft, nicht im Public-Mode) und der Kartenrücken „Meister“ ab Stufe 10. Gesperrte Reaktionen bleiben sichtbar und nennen ihre Stufe
+
 ## [2.26.0] - 2026-09-26
 
 ### Added
