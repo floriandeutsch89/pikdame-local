@@ -3,6 +3,13 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.25.1] - 2026-09-26
+
+### Fixed
+- **E-Mail-Versand:** Betreffzeilen mit Umlauten werden nach RFC 2047 kodiert (vorher rohes UTF-8 im Header - je nach Relay „bestÃ¤tigen“ oder Ablehnung), der Text geht als Quoted-Printable (7-Bit-sicher), `Date`- und `Message-ID`-Kopfzeilen fehlten (Spam-Filter werten das), `EHLO` nennt jetzt einen Hostnamen statt „pikdame“ (`PIKDAME_SMTP_EHLO`, sonst der Host der Basis-URL). Ein hängender SMTP-Dialog wird nach 15 s sauber abgebrochen
+- **Konto-API hinter dem Reverse-Proxy:** Das Rate-Limit las die Adresse des Proxys statt des Clients - der ganze Server teilte sich 20 Registrierungen/Anmeldungen pro 10 Minuten. Jetzt zählt die echte Client-Adresse (`PIKDAME_TRUST_PROXY`)
+- **Konten (SQLite):** zwei gleichzeitige Registrierungen desselben Namens endeten mit einem 500er statt „bereits registriert“; abgelaufene Anmelde-Sitzungen wurden nie gelöscht (jetzt beim Login bereinigt, auch in PostgreSQL). Die Bestätigungsseite escaped den Namen; fehlt `PIKDAME_BASE_URL` hinter einem Proxy, warnt der Start (der Link würde sonst aus dem `Host`-Header gebaut)
+
 ## [2.25.0] - 2026-09-26
 
 ### Added
