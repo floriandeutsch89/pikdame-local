@@ -111,10 +111,18 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
     }
     const salt = randomToken();
     const verifyToken = randomToken();
-    db.prepare(
-      `INSERT INTO users (username, email, password_hash, salt, verified, verify_token, verify_expires, created_at)
-       VALUES (?, ?, ?, ?, 0, ?, ?, ?)`
-    ).run(username, email, hashPassword(password, salt), salt, verifyToken, Date.now() + VERIFY_TTL_MS, Date.now());
+    try {
+      db.prepare(
+        `INSERT INTO users (username, email, password_hash, salt, verified, verify_token, verify_expires, created_at)
+         VALUES (?, ?, ?, ?, 0, ?, ?, ?)`
+      ).run(username, email, hashPassword(password, salt), salt, verifyToken, Date.now() + VERIFY_TTL_MS, Date.now());
+    } catch (e) {
+      // Two registrations racing for the same name/mail: the UNIQUE index
+      // catches what the SELECT above missed - answer like a duplicate, not
+      // with a 500 (the Postgres store handles 23505 the same way).
+      if (/UNIQUE/i.test(e.message)) return { error: 'Benutzername oder E-Mail ist bereits registriert.' };
+      throw e;
+    }
     return { ok: true, verifyToken };
   }
 
@@ -140,6 +148,9 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
     if (!row || !match) return { error: 'Benutzername/E-Mail oder Passwort ist falsch.' };
     if (!row.verified) return { error: 'Bitte zuerst die E-Mail-Adresse bestätigen (Link in der Mail).' };
     const token = randomToken();
+    // Every login adds a row and only logout removed one - expired sessions
+    // (90 days) used to pile up forever. Prune them on the way in.
+    db.prepare('DELETE FROM sessions WHERE created_at < ?').run(Date.now() - SESSION_TTL_MS);
     db.prepare('INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)').run(token, row.id, Date.now());
     return { ok: true, token, username: row.username };
   }

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const net = require('net');
-const { createMailer } = require('../game/Mailer');
+const { createMailer, encodeHeaderValue, quotedPrintable } = require('../game/Mailer');
 
 test('Mailer: Log-Fallback ohne SMTP-Konfiguration', async () => {
   const logs = [];
@@ -56,8 +56,34 @@ test('Mailer: kompletter SMTP-Dialog gegen einen Fake-Server (AUTH LOGIN, DATA)'
   const all = received.join('');
   assert.ok(all.includes('MAIL FROM:<noreply@pikdame.online>'));
   assert.ok(all.includes('RCPT TO:<flo@example.com>'));
-  assert.ok(all.includes('Subject: Bestätigung'));
-  assert.ok(all.includes('\r\n..punkt-zeile'), 'Punkt-Stuffing nach RFC 5321');
+  // Non-ASCII subject travels as an RFC 2047 encoded word; the body is
+  // quoted-printable (7-bit clean) and its leading dot is encoded, so the
+  // SMTP end-of-data marker can never be forged by message text.
+  assert.ok(all.includes(`Subject: ${encodeHeaderValue('Bestätigung')}`), 'umlaut subject is RFC 2047 encoded');
+  assert.ok(!/Subject: Best/.test(all), 'no raw UTF-8 in the Subject header');
+  assert.ok(all.includes('Content-Transfer-Encoding: quoted-printable'));
+  assert.ok(all.includes('\r\n=2Epunkt-zeile'), 'leading dot is QP-encoded');
+  assert.ok(/\r\nDate: /.test(all) && /\r\nMessage-ID: </.test(all), 'Date and Message-ID headers present');
+  assert.ok(!/EHLO pikdame\r\n/.test(all), 'EHLO carries a host name, not a bare word');
+  // Decode the QP body back: the reader must see exactly the text we sent.
+  const body = all.split('\r\n\r\n')[1].split('\r\n.\r\n')[0];
+  const decoded = Buffer.from(
+    body.replace(/=\r\n/g, '').replace(/=([0-9A-F]{2})/g, (m, h) => String.fromCharCode(parseInt(h, 16))),
+    'latin1'
+  ).toString('utf8');
+  assert.strictEqual(decoded, 'Hallo!\r\n.punkt-zeile\r\nEnde.');
+});
+
+test('Mailer: quoted-printable keeps umlauts, long lines and trailing spaces intact', () => {
+  const text = `Grüße aus Köln – ${'x'.repeat(120)}\nZeile mit Leerzeichen am Ende \n=gleich`;
+  const qp = quotedPrintable(text);
+  for (const line of qp.split('\r\n')) assert.ok(line.length <= 76, `line too long: ${line.length}`);
+  assert.ok(/^[\x20-\x7e]*$/.test(qp.replace(/\r\n/g, '')), 'QP output is 7-bit ASCII');
+  const decoded = Buffer.from(
+    qp.replace(/=\r\n/g, '').replace(/=([0-9A-F]{2})/g, (m, h) => String.fromCharCode(parseInt(h, 16))),
+    'latin1'
+  ).toString('utf8');
+  assert.strictEqual(decoded, text.replace(/\n/g, '\r\n'));
 });
 
 test('Mailer: unvollständige SMTP-Konfiguration warnt beim Start', () => {

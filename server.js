@@ -48,6 +48,12 @@ const mailer = createMailer();
 const ACCOUNTS_ENABLED = !!accountStore;
 if (ACCOUNTS_ENABLED) {
   console.log(`Benutzerkonten: aktiv (Backend: ${accountStore.backend || 'sqlite'}, Mail-Treiber: ${mailer.configured ? 'SMTP' : 'Log-Fallback'})`);
+  // Behind a reverse proxy the confirmation link falls back to the Host
+  // header when PIKDAME_BASE_URL is unset - which a registrant controls. A
+  // forged Host would send the victim a link to the attacker's domain.
+  if (!process.env.PIKDAME_BASE_URL && process.env.PIKDAME_TRUST_PROXY === '1') {
+    console.log('[mail] WARNUNG: PIKDAME_BASE_URL ist nicht gesetzt - Bestätigungslinks werden aus dem Host-Header gebildet. Hinter einem Proxy die öffentliche URL setzen.');
+  }
 } else {
   console.log('Benutzerkonten: deaktiviert (node:sqlite nicht verfügbar oder PIKDAME_ACCOUNTS=0)');
 }
@@ -414,6 +420,12 @@ function readJsonBody(req) {
   });
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 function sendJson(res, status, obj) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(obj));
@@ -432,14 +444,18 @@ async function handleAccountRequest(req, res, filePath) {
 <title>Pik Dame - E-Mail-Bestätigung</title>
 <body style="font-family:sans-serif;background:#14171c;color:#eef1f4;display:flex;min-height:100dvh;align-items:center;justify-content:center;text-align:center;padding:20px">
 <div><h1>${ok ? '✅ E-Mail bestätigt!' : '❌ Bestätigung fehlgeschlagen'}</h1>
-<p>${ok ? `Willkommen, ${result.username}! Du kannst dich jetzt im Spiel anmelden.` : result.error}</p>
+<p>${ok ? `Willkommen, ${escapeHtml(result.username)}! Du kannst dich jetzt im Spiel anmelden.` : escapeHtml(result.error)}</p>
 <p><a href="/" style="color:#2fd6b0">Zurück zum Spiel</a></p></div></body></html>`);
     return;
   }
 
   if (!ACCOUNTS_ENABLED) return sendJson(res, 404, { error: 'Konten sind auf diesem Server nicht verfügbar.' });
   if (req.method !== 'POST') return sendJson(res, 405, { error: 'Nur POST.' });
-  const ip = req.socket.remoteAddress || '?';
+  // clientIp honours PIKDAME_TRUST_PROXY. Behind Caddy every request used to
+  // arrive from the proxy's address, so the WHOLE site shared one bucket of
+  // 20 account calls per 10 minutes - the 21st registration or login of the
+  // evening was refused for everyone.
+  const ip = clientIp(req);
   if (accountRateLimited(ip)) return sendJson(res, 429, { error: 'Zu viele Anfragen - bitte kurz warten.' });
   const body = await readJsonBody(req);
   if (!body) return sendJson(res, 400, { error: 'Ungültige Anfrage.' });
