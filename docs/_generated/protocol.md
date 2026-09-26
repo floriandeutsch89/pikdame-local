@@ -33,6 +33,7 @@ handler, so it always matches the running code.
 | `startGame` | Host only: start the game (empty seats are filled with bots). |
 | `swapJoker` | Swap a joker on the table for the card it represents (the joker leaves play permanently). |
 | `togglePause` | Vote to pause. The game only pauses once every connected player agrees. |
+| `undoMeld` | Take back the last meld-phase action of the running turn (new meld, lay-off, joker swap) - everything it changed is restored. Not possible anymore once the mandatory pickup card has been laid (the rest of the pile was handed over), and never after the discard. |
 | `undoPileTake` | Take back a discard-pile pickup - only while the mandatory top card has not been played yet (phase 1 of the two-phase pickup). Fair by construction: the card was public anyway and nothing on the table changed. |
 
 ## Server → client

@@ -137,3 +137,42 @@ test('tryJokerSwap: nicht passende Karte tauscht nichts', () => {
   const result = tryJokerSwap(meld, H('K'));
   assert.equal(result, null);
 });
+
+// --- runAssignmentByOrder: the tap order spells out where a joker sits ------
+const { runAssignmentByOrder } = require('../game/Rules');
+{
+  const { makeStandardCard, makeJoker } = require('../game/Card');
+  const H = (r, d = 0) => makeStandardCard('H', r, d);
+  const J = (i = 0) => makeJoker(i);
+
+  test('runAssignmentByOrder: joker before the 9 is the 8, after the 10 the jack, between them the ten', () => {
+    const j = J();
+    assert.deepEqual(runAssignmentByOrder([j, H('9'), H('10')]), { [j.id]: '8' });
+    assert.deepEqual(runAssignmentByOrder([H('9'), H('10'), j]), { [j.id]: 'J' });
+    assert.deepEqual(runAssignmentByOrder([H('9'), j, H('J')]), { [j.id]: '10' });
+  });
+
+  test('runAssignmentByOrder: tapping downward reads the same run mirrored', () => {
+    const j = J();
+    assert.deepEqual(runAssignmentByOrder([H('10'), H('9'), j]), { [j.id]: '8' });
+    assert.deepEqual(runAssignmentByOrder([j, H('10'), H('9')]), { [j.id]: 'J' });
+  });
+
+  test('runAssignmentByOrder: a single real card reads upward; the ring K-A-2 works', () => {
+    const j0 = J(0), j1 = J(1);
+    assert.deepEqual(runAssignmentByOrder([j0, H('Q'), j1]), { [j0.id]: 'J', [j1.id]: 'K' });
+    assert.deepEqual(runAssignmentByOrder([j0, j1, H('Q')]), { [j0.id]: '10', [j1.id]: 'J' });
+    assert.deepEqual(runAssignmentByOrder([H('K'), j0, H('2')]), { [j0.id]: 'A' });
+    assert.deepEqual(runAssignmentByOrder([H('A'), H('K'), j0]), { [j0.id]: 'Q' });
+  });
+
+  test('runAssignmentByOrder: an order that is no run gives null (fallback to the dialog)', () => {
+    const j = J();
+    assert.equal(runAssignmentByOrder([H('9'), j, H('10')]), null, 'the joker cannot be the 10 when the 10 follows');
+    assert.equal(runAssignmentByOrder([H('9'), H('J'), j]), null, 'gap not filled');
+    assert.equal(runAssignmentByOrder([H('9'), makeStandardCard('S', '10'), j]), null, 'mixed suits');
+    assert.equal(runAssignmentByOrder([H('9'), H('9', 1), j]), null, 'duplicate rank');
+    assert.equal(runAssignmentByOrder([H('9'), H('10'), H('J')]), null, 'no joker - nothing to assign');
+    assert.equal(runAssignmentByOrder([j, J(1), J(2)]), null, 'no real card');
+  });
+}

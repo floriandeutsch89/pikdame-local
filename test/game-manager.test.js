@@ -472,9 +472,15 @@ test('layoutMeld: mehrdeutige Joker-Kombination liefert Optionen statt zu raten'
   const j2 = makeJoker(1);
   game.players[0].hand = [queen, j1, j2];
 
+  // Without the tap-order reading (bots): set + all three run windows.
+  const all = game.layoutMeld('p1', [queen.id, j1.id, j2.id], {}, { byOrder: false });
+  assert.equal(all.ambiguous, true);
+  assert.equal(all.options.length, 4); // Satz + 3 Folge-Fenster
+  // With it (humans): the order Q, J, J spells Q-K-A - only "set or run?" is left.
   const result = game.layoutMeld('p1', [queen.id, j1.id, j2.id]);
   assert.equal(result.ambiguous, true);
-  assert.equal(result.options.length, 4); // Satz + 3 Folge-Fenster
+  assert.equal(result.options.length, 2);
+  assert.deepEqual(result.options.map((o) => o.type).sort(), ['run', 'set']);
   // Hand darf bei Mehrdeutigkeit NICHT verändert worden sein
   assert.equal(game.players[0].hand.length, 3);
   assert.equal(game.tableMelds.length, 0);
@@ -509,13 +515,18 @@ test('layoutMeld: König+Ass+Joker ist im Werte-Ring MEHRDEUTIG (Q-K-A oder K-A-
   const king = makeStandardCard('H', 'K', 0);
   const ace = makeStandardCard('H', 'A', 0);
   const joker = makeJoker(0);
-  game.players[0].hand = [king, ace, joker];
+  game.players[0].hand = [king, ace, joker, makeStandardCard('C', '5', 0)];
 
-  const result = game.layoutMeld('p1', [king.id, ace.id, joker.id]);
+  // Canonical enumeration (bots): both ring windows are offered.
+  const result = game.layoutMeld('p1', [king.id, ace.id, joker.id], {}, { byOrder: false });
   assert.equal(result.ambiguous, true);
   assert.equal(result.options.length, 2);
   const labels = result.options.map((o) => o.label).join(' | ');
   assert.ok(labels.includes('Dame') && labels.includes('2'), labels);
+  // Tapped K, A, joker the order says K-A-2: laid without a question.
+  const byOrder = game.layoutMeld('p1', [king.id, ace.id, joker.id]);
+  assert.ok(byOrder.ok, JSON.stringify(byOrder));
+  assert.equal(game.tableMelds[0].slots.find((s) => s.joker).representsRank, '2');
 });
 
 test('layoutMeld: nach Auswahl einer Option per jokerAssignments wird genau diese verwendet', () => {
@@ -3034,5 +3045,189 @@ test('a second same-rank set belongs to the OTHER player and stays separate', ()
   p.hand = [makeStandardCard('H', '7', 0), makeStandardCard('S', '7', 0), makeStandardCard('D', '7', 0), makeStandardCard('C', '2', 0)];
   assert.ok(game.layoutMeld('p1', p.hand.slice(0, 3).map((c) => c.id)).ok);
   assert.equal(game.tableMelds.length, 2, 'own melds only - never merged into an opponent set');
+  game.destroy();
+});
+
+// --- Tap order decides the joker's place in a run (1a) -------------------------
+
+test('layoutMeld: the tap order picks the run window - no dialog for 9-10 + joker', () => {
+  const game = meldReadyGame();
+  const p = game.players[0];
+  const j = makeJoker(0);
+  const h9 = makeStandardCard('H', '9', 0), h10 = makeStandardCard('H', '10', 0);
+  p.hand = [h9, h10, j, makeStandardCard('C', '2', 0)];
+  const r = game.layoutMeld('p1', [j.id, h9.id, h10.id]);
+  assert.ok(r.ok, JSON.stringify(r));
+  const slot = game.tableMelds[0].slots.find((s) => s.joker);
+  assert.equal(slot.representsRank, '8', 'joker tapped first sits below the 9');
+  game.destroy();
+});
+
+test('layoutMeld: joker tapped last sits on top; an order that is no run still asks', () => {
+  const game = meldReadyGame();
+  const p = game.players[0];
+  const j = makeJoker(0);
+  const h9 = makeStandardCard('H', '9', 0), h10 = makeStandardCard('H', '10', 0);
+  p.hand = [h9, h10, j, makeStandardCard('C', '2', 0)];
+  const asked = game.layoutMeld('p1', [h9.id, j.id, h10.id]);
+  assert.ok(asked.ambiguous, 'joker between 9 and 10 spells no run -> old dialog');
+  assert.equal(asked.options.length, 2, '8-9-10 and 9-10-J');
+  const r = game.layoutMeld('p1', [h9.id, h10.id, j.id]);
+  assert.ok(r.ok);
+  assert.equal(game.tableMelds[0].slots.find((s) => s.joker).representsRank, 'J');
+  game.destroy();
+});
+
+test('layoutMeld: set-or-run stays the only question, narrowed to the run the order spells', () => {
+  const game = meldReadyGame();
+  const p = game.players[0];
+  const j0 = makeJoker(0), j1 = makeJoker(1);
+  const q = makeStandardCard('H', 'Q', 0);
+  p.hand = [q, j0, j1, makeStandardCard('C', '2', 0)];
+  const r = game.layoutMeld('p1', [j0.id, q.id, j1.id]);
+  assert.ok(r.ambiguous);
+  assert.deepEqual(r.options.map((o) => o.type).sort(), ['run', 'set']);
+  const run = r.options.find((o) => o.type === 'run');
+  assert.deepEqual(run.jokerAssignments, { [j0.id]: 'J', [j1.id]: 'K' });
+  // the chosen option is replayed with its assignments, as the client does
+  const done = game.layoutMeld('p1', [j0.id, q.id, j1.id], run.jokerAssignments);
+  assert.ok(done.ok);
+  assert.equal(game.tableMelds[0].type, 'run');
+  game.destroy();
+});
+
+test('layoutMeld: bots keep the canonical choice - byOrder=false returns every window', () => {
+  const game = meldReadyGame();
+  const p = game.players[0];
+  const j = makeJoker(0);
+  const h9 = makeStandardCard('H', '9', 0), h10 = makeStandardCard('H', '10', 0);
+  p.hand = [h9, h10, j, makeStandardCard('C', '2', 0)];
+  const r = game.layoutMeld('p1', [j.id, h9.id, h10.id], {}, { byOrder: false });
+  assert.ok(r.ambiguous);
+  assert.equal(r.options.length, 2);
+  game.destroy();
+});
+
+// --- Undo of meld-phase actions within the turn (3b) --------------------------
+
+function cardCount(game) {
+  let n = game.drawPile.length + game.discardPile.length + (game.retiredJokers || []).length;
+  for (const p of game.players) n += p.hand.length;
+  for (const m of game.tableMelds) n += m.slots.length;
+  return n;
+}
+
+test('undoMeldAction: a new meld goes back to the hand, flags and memory restored', () => {
+  const game = meldReadyGame();
+  const p = game.players[0];
+  p.hand = [makeStandardCard('H', '7', 0), makeStandardCard('S', '7', 0), makeStandardCard('D', '7', 0), makeStandardCard('C', '2', 0)];
+  game._publicMemoryAdd('p1', [p.hand[0]]);
+  game._turnsWithoutMeld = 5;
+  const before = cardCount(game);
+  assert.equal(game.publicState('p1').canUndoMeld, false, 'nothing to undo yet');
+  assert.ok(game.undoMeldAction('p1').error);
+  assert.ok(game.layoutMeld('p1', p.hand.slice(0, 3).map((c) => c.id)).ok);
+  assert.equal(game.publicState('p1').canUndoMeld, true);
+  assert.equal(game.publicState('p2').canUndoMeld, false, 'only the player at turn');
+  assert.ok(game.undoMeldAction('p2').error, 'not their turn');
+  const u = game.undoMeldAction('p1');
+  assert.ok(u.ok, JSON.stringify(u));
+  assert.equal(game.tableMelds.length, 0);
+  assert.equal(p.hand.length, 4);
+  assert.equal(p.laidOutCards.length, 0);
+  assert.equal(p._everLaidThisRound, false);
+  assert.equal(game._turnsWithoutMeld, 5);
+  assert.equal(game.publicKnownHands.p1.length, 1, 'public memory knows the card again');
+  assert.equal(cardCount(game), before, 'card conservation');
+  assert.equal(game.publicState('p1').canUndoMeld, false);
+  assert.match(game.log.map((l) => l.text).join('\n'), /nimmt die letzte Auslage zurück/);
+  game.destroy();
+});
+
+test('undoMeldAction: lay-off, multi lay-off and joker swap are single undo steps, in reverse order', () => {
+  const game = meldReadyGame();
+  const p = game.players[0];
+  const j = makeJoker(0);
+  const h7 = makeStandardCard('H', '7', 0), s7 = makeStandardCard('S', '7', 0), d7 = makeStandardCard('D', '7', 0);
+  const c7 = makeStandardCard('C', '7', 0), h7b = makeStandardCard('H', '7', 1), s7b = makeStandardCard('S', '7', 1);
+  p.hand = [h7, s7, j, d7, c7, h7b, s7b, makeStandardCard('C', '2', 0)];
+  assert.ok(game.layoutMeld('p1', [h7.id, s7.id, j.id], { [j.id]: 'D' }).ok); // joker as diamonds
+  assert.ok(game.layOffCard('p1', game.tableMelds[0].id, c7.id).ok);
+  assert.ok(game.layOffCards('p1', game.tableMelds[0].id, [h7b.id, s7b.id]).ok);
+  assert.ok(game.swapJoker('p1', game.tableMelds[0].id, d7.id).ok);
+  assert.equal(game.retiredJokers.length, 1);
+  assert.equal(p.hand.length, 1);
+  assert.equal(game._undoStack.length, 4, 'four actions, four steps');
+  const before = cardCount(game);
+
+  assert.ok(game.undoMeldAction('p1').ok); // swap undone
+  assert.equal(game.retiredJokers.length, 0);
+  assert.ok(game.tableMelds[0].slots.some((s) => s.joker), 'the joker is back in the set');
+  assert.ok(p.hand.some((c) => c.id === d7.id));
+  assert.ok(game.undoMeldAction('p1').ok); // multi lay-off undone as ONE step
+  assert.equal(game.tableMelds[0].slots.length, 4);
+  assert.ok(p.hand.some((c) => c.id === h7b.id) && p.hand.some((c) => c.id === s7b.id));
+  assert.ok(game.undoMeldAction('p1').ok); // single lay-off
+  assert.equal(game.tableMelds[0].slots.length, 3);
+  assert.ok(game.undoMeldAction('p1').ok); // the meld itself
+  assert.equal(game.tableMelds.length, 0);
+  assert.equal(p.hand.length, 8);
+  assert.ok(game.undoMeldAction('p1').error, 'stack exhausted');
+  assert.equal(cardCount(game), before);
+  game.destroy();
+});
+
+test('undoMeldAction: sealed once the mandatory pickup card is laid, cleared by the discard', () => {
+  const game = meldReadyGame();
+  const p = game.players[0];
+  game.turnPhase = 'draw';
+  const top = makeStandardCard('H', '7', 0);
+  game.discardPile = [top, makeStandardCard('C', '9', 0), makeStandardCard('D', '3', 0)];
+  p.hand = [makeStandardCard('S', '7', 0), makeStandardCard('D', '7', 0), makeStandardCard('C', '2', 0)];
+  assert.ok(!game.drawFromDiscard('p1').error);
+  assert.equal(game.mustLayOffCardId, top.id);
+  assert.ok(game.layoutMeld('p1', [top.id, p.hand[0].id, p.hand[1].id]).ok);
+  assert.equal(game.publicState('p1').canUndoMeld, false, 'the rest of the pile was handed over - no way back');
+  assert.ok(game.undoMeldAction('p1').error);
+  // a following lay-off can still be undone on its own
+  game.tableMelds.push({ id: 'own9', ownerId: 'p1', type: 'set', suit: null, rank: '9', slots: [
+    { real: makeStandardCard('H', '9', 1), playerId: 'p1' }, { real: makeStandardCard('S', '9', 1), playerId: 'p1' }, { real: makeStandardCard('D', '9', 1), playerId: 'p1' },
+  ] });
+  const c9 = p.hand.find((c) => c.rank === '9');
+  assert.ok(game.layOffCard('p1', 'own9', c9.id).ok);
+  assert.equal(game.publicState('p1').canUndoMeld, true);
+  assert.ok(game.undoMeldAction('p1').ok);
+  assert.ok(p.hand.some((c) => c.id === c9.id));
+  assert.ok(game.layOffCard('p1', 'own9', c9.id).ok);
+  const last = p.hand.find((c) => c.id !== c9.id);
+  assert.ok(!game.discard('p1', last.id).error);
+  assert.equal(game._undoStack.length, 0, 'the discard ends the turn - nothing left to undo');
+  assert.equal(game.publicState('p1').canUndoMeld, false);
+  game.destroy();
+});
+
+test('undoMeldAction: the undo window never survives a snapshot restore', () => {
+  const game = meldReadyGame();
+  const p = game.players[0];
+  p.hand = [makeStandardCard('H', '7', 0), makeStandardCard('S', '7', 0), makeStandardCard('D', '7', 0), makeStandardCard('C', '2', 0)];
+  assert.ok(game.layoutMeld('p1', p.hand.slice(0, 3).map((c) => c.id)).ok);
+  const state = JSON.parse(JSON.stringify(game.serialize()));
+  assert.equal(state._undoStack, undefined, 'transient - not persisted');
+  const restored = __autoCutHook(new GameManager(() => {}));
+  restored.deserialize(state);
+  assert.deepEqual(restored._undoStack, []);
+  assert.equal(restored.publicState('p1').canUndoMeld, false);
+  assert.ok(restored.undoMeldAction('p1').error);
+  restored.destroy();
+  game.destroy();
+});
+
+test('undoMeldAction: bots never build an undo stack', () => {
+  const game = meldReadyGame();
+  const p = game.players[0];
+  p.isBot = true;
+  p.hand = [makeStandardCard('H', '7', 0), makeStandardCard('S', '7', 0), makeStandardCard('D', '7', 0), makeStandardCard('C', '2', 0)];
+  assert.ok(game.layoutMeld('p1', p.hand.slice(0, 3).map((c) => c.id)).ok);
+  assert.equal(game._undoStack.length, 0);
   game.destroy();
 });

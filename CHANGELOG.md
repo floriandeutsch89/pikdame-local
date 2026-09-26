@@ -5,6 +5,10 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 
 ## [2.32.0] - 2026-09-26
 
+### Added
+- **Joker ohne Nachfrage:** Die Reihenfolge, in der die Karten angetippt werden, legt fest, wofür ein Joker in einer Folge steht - Joker vor der 9 ist die 8, Joker nach der 10 der Bube, Joker zwischen 9 und Bube die 10 (abwärts getippt funktioniert genauso). Eine Vorschauzeile über den Knöpfen zeigt es vor dem Auslegen („Joker = 8♥“). Der Nachfrage-Dialog erscheint nur noch, wenn die Auswahl Satz UND Folge sein kann (eine Dame + zwei Joker) oder die Reihenfolge keine Folge ergibt. Bots wählen weiter die kanonische Variante
+- **Rückgängig:** Jede Auslege-Aktion des laufenden Zugs (neue Auslage, Anlegen, Joker-Tausch) lässt sich per „↩︎ Rückgängig“ zurücknehmen, auch mehrfach nacheinander - Hand, Auslagen, ausgeschiedene Joker und Kartengedächtnis kehren exakt zurück. Nicht mehr, sobald die Pflicht-Aufnahmekarte gelegt ist (der Reststapel wurde übernommen) und nie nach dem Abwurf
+
 ### Changed
 - **Ein Satz je Wert:** Wer einen zweiten Satz mit demselben Wert auslegt (3×7 neben 3×7), bekommt keine zweite Auslage mehr - die Karten wandern automatisch in den bestehenden Satz. Ein Joker, der dort schon eine Farbe vertritt, wechselt dabei auf eine noch freie Farbe (kommen beide echten Karo-7, kann er nicht Karo bleiben). Bots verhalten sich genauso. Passt die Vereinigung nicht mehr (mehr als 8 Karten, nur mit Jokern möglich), liegt der zweite Satz wie bisher separat - der Zug wird nie verweigert, damit die Pflicht-Aufnahmekarte (Lehre aus v1.53.1) nicht in eine Sackgasse führt. Protokoll: „erweitert den eigenen Satz um 3 Karten"
 

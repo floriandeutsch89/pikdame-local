@@ -18,6 +18,7 @@ window.I18N_STATIC = {
     'Choose where to cut the freshly shuffled deck. If the Queen of Spades or a joker sits at the cut, it is yours immediately! Dealing starts at the cut spot; the lifted packet then returns to the draw pile.',
   'Hier abheben': 'Cut here',
   '↩︎ Zurücklegen': '↩︎ Put back',
+  '↩︎ Rückgängig': '↩︎ Undo',
   // Lobby
   'Das Familien-Rommé – online mit Freunden & Bots': 'The family rummy – online with friends & bots',
   'Neues Spiel erstellen': 'Create a new game',
@@ -173,6 +174,8 @@ window.I18N_SERVER_PATTERNS = [
   [/^(.+?) legt eine neue Satz-Auslage aus\.$/, '$1 lays down a new set.'],
   [/^(.+?) legt eine neue Folge-Auslage aus\.$/, '$1 lays down a new run.'],
   [/^(.+?) erweitert den eigenen Satz um (\d+) Karten\.$/, '$1 extends their own set by $2 cards.'],
+  [/^(.+?) nimmt die letzte Auslage zurück\.$/, '$1 takes back their last meld action.'],
+  [/^In diesem Zug gibt es nichts zurückzunehmen\.$/, 'There is nothing to take back in this turn.'],
   [/^(.+?) legt (.+?) an eine Auslage an\.$/, '$1 adds $2 to a meld.'],
   [/^(.+?) tauscht (.+?) gegen einen Joker in einer Auslage\. Der Joker scheidet aus dem Spiel aus\.$/, '$1 swaps $2 for a joker in a meld. The joker is permanently out of the game.'],
   [/^(.+?) wirft (.+?) ab\.$/, '$1 discards $2.'],

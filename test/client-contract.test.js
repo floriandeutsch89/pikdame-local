@@ -580,3 +580,38 @@ test('client contract: liveness watchdog pings, handles pong and ignores replace
   const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
   assert.match(html, /id="netBanner"/, 'connection-lost banner exists in the markup');
 });
+
+// --- Joker preview: the client's order reading must match the server's --------
+test('jokerRunByOrder (client preview) agrees with Rules.runAssignmentByOrder on random selections', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'client.js'), 'utf8');
+  const m = src.match(/\n  function jokerRunByOrder\(orderedCards\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(m, 'jokerRunByOrder is defined in client.js');
+  const ctx = {};
+  vm.runInNewContext(`${m[0]}\nthis.fn = jokerRunByOrder;`, ctx);
+  const { runAssignmentByOrder } = require('../game/Rules');
+  const { makeStandardCard, makeJoker } = require('../game/Card');
+  const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+  const SUITS = ['H', 'D', 'C', 'S'];
+  let seed = 4242;
+  const rnd = (n) => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n; };
+  let nonNull = 0;
+  for (let i = 0; i < 4000; i++) {
+    const size = 3 + rnd(5);
+    const jokers = 1 + rnd(Math.min(3, size - 1));
+    const suit = SUITS[rnd(4)];
+    const cards = [];
+    for (let k = 0; k < jokers; k++) cards.push(makeJoker(k));
+    // mostly one suit, a near-run most of the time, sometimes noise
+    const start = rnd(13);
+    for (let k = 0; k < size - jokers; k++) {
+      const rank = rnd(4) === 0 ? RANKS[rnd(13)] : RANKS[(start + k + rnd(2)) % 13];
+      cards.push(makeStandardCard(rnd(6) === 0 ? SUITS[rnd(4)] : suit, rank, rnd(2)));
+    }
+    for (let k = cards.length - 1; k > 0; k--) { const r = rnd(k + 1); [cards[k], cards[r]] = [cards[r], cards[k]]; }
+    const server = runAssignmentByOrder(cards);
+    const client = ctx.fn(cards);
+    assert.deepEqual(client, server, `mismatch for ${cards.map((c) => (c.isJoker ? 'J' : c.rank + c.suit)).join(' ')}`);
+    if (server) nonNull++;
+  }
+  assert.ok(nonNull > 200, `fuzz must exercise real runs (got ${nonNull})`);
+});
