@@ -2810,6 +2810,23 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 /* Lobby panel. Uses the same lobby-section shell as the house rules, so it
    inherits width, radius and spacing instead of inventing its own. */
 .questsSection { text-align: left; }
+/* Level + daily streak strip above the tasks */
+.progressStrip {
+  display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center;
+  margin: -2px 0 10px; font-size: var(--fs-label);
+}
+.progressStrip .psLevel { display: inline-flex; align-items: center; gap: 6px; }
+.progressStrip .levelBar {
+  display: inline-block; width: 70px; height: 6px; border-radius: 3px;
+  background: var(--glass-strong); overflow: hidden; vertical-align: middle;
+}
+.progressStrip .levelBar u { display: block; height: 100%; background: var(--accent); }
+.progressStrip small { color: var(--text-muted); font-size: var(--fs-hint); }
+/* Family tiles: tier dots under the name */
+.achTiers { display: inline-flex; gap: 3px; }
+.achTiers i { width: 7px; height: 7px; border-radius: 50%; background: rgba(0,0,0,0.15); display: inline-block; }
+.achTiers i.on { background: var(--accent); }
+.achTile.maxed { box-shadow: inset 0 0 0 2px var(--accent); }
 .questList { display: flex; flex-direction: column; gap: 8px; }
 .questRow {
   display: grid;

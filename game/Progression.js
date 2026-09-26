@@ -184,18 +184,70 @@ function evaluateQuests(gameRecord, playerId, questIds = []) {
 // double queen round) have no counter and simply stay locked.
 function badgeProgress(profile = {}) {
   const p = profile || {};
-  return {
-    marathon_10: { have: Math.min(p.gamesPlayed || 0, 10), need: 10 },
-    pd_hunter_10: { have: Math.min(p.totalQueensLaid || 0, 10), need: 10 },
-    streak_3: { have: Math.min(p.winStreak || 0, 3), need: 3 },
-    first_win: { have: Math.min(p.gamesWon || 0, 1), need: 1 },
-    pd_laid: { have: Math.min(p.totalQueensLaid || 0, 1), need: 1 },
+  const out = {
     pd_triple: { have: Math.min(p.totalQueensLaid || 0, 3), need: 3 },
     pd_caught: { have: Math.min(p.totalQueensCaught || 0, 1), need: 1 },
-    hand_aus_win: { have: Math.min(p.totalHandAus || 0, 1), need: 1 },
     score_500: { have: Math.min(p.bestGameScore || 0, 500), need: 500 },
     round_300: { have: Math.min(p.bestRoundScore || 0, 300), need: 300 },
   };
+  // Every tier of every counter family, from the same profile field.
+  const { BADGE_FAMILIES } = require('./Badges');
+  for (const fam of BADGE_FAMILIES) {
+    for (const [id, need] of fam.tiers) out[id] = { have: Math.min(p[fam.field] || 0, need), need };
+  }
+  return out;
+}
+
+// --- Daily streak ------------------------------------------------------------
+// "Played today" - any finished match counts (a quest day, a challenge, a
+// family table). A streak is consecutive UTC days; ONE missed day per seven
+// is bridged by a grace day ("Joker-Tag"), so a single evening off does not
+// erase a month. Pure: takes the stored state and the date, returns the new
+// state plus what happened, PlayerStore persists it.
+const STREAK_GRACE_EVERY_DAYS = 7;
+
+function dayDiff(fromDate, toDate) {
+  const a = Date.parse(`${fromDate}T00:00:00Z`);
+  const b = Date.parse(`${toDate}T00:00:00Z`);
+  if (Number.isNaN(a) || Number.isNaN(b)) return null;
+  return Math.round((b - a) / 86400000);
+}
+
+/**
+ * @param {{streak?:number,last?:string|null,graceAt?:string|null,best?:number}} state
+ * @param {string} date "YYYY-MM-DD" (UTC)
+ * @returns {{state:Object, event:'same'|'extended'|'bridged'|'started'|'reset'}}
+ */
+function advanceDailyStreak(state, date) {
+  const s = { streak: 0, last: null, graceAt: null, best: 0, ...(state || {}) };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date))) return { state: s, event: 'same' };
+  if (s.last === date) return { state: s, event: 'same' };
+  const gap = s.last ? dayDiff(s.last, date) : null;
+  let event;
+  if (gap === 1) {
+    s.streak += 1;
+    event = 'extended';
+  } else if (gap === 2 && (!s.graceAt || dayDiff(s.graceAt, date) >= STREAK_GRACE_EVERY_DAYS)) {
+    s.streak += 1;
+    s.graceAt = date;
+    event = 'bridged';
+  } else if (gap !== null && gap <= 0) {
+    // Clock went backwards (or a date from a different device): keep the
+    // streak, do not count the day twice.
+    return { state: s, event: 'same' };
+  } else {
+    event = s.last ? 'reset' : 'started';
+    s.streak = 1;
+  }
+  s.last = date;
+  s.best = Math.max(s.best || 0, s.streak);
+  return { state: s, event };
+}
+
+/** Is the grace day available on `date`? (for the UI: "Joker-Tag frei") */
+function streakGraceAvailable(state, date) {
+  const s = state || {};
+  return !s.graceAt || (dayDiff(s.graceAt, date) || 0) >= STREAK_GRACE_EVERY_DAYS;
 }
 
 module.exports = {
@@ -211,4 +263,7 @@ module.exports = {
   questDef,
   evaluateQuests,
   badgeProgress,
+  advanceDailyStreak,
+  streakGraceAvailable,
+  STREAK_GRACE_EVERY_DAYS,
 };

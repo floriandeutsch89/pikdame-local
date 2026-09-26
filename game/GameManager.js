@@ -6,8 +6,8 @@ const { seededRandom, createDeck, shuffle, dealCards, performLuckyCut } = requir
 // darf den ganzen Tisch nicht blockieren.
 const CUT_TIMEOUT_MS = 45000;
 const { validateMeld, tryLayOff, tryJokerSwap, enumerateMeldOptions, enumerateLayOffOptions, canFormMeldWithCard } = require('./Rules');
-const { rankIndex, cardLabel, isPikDame, cardValue } = require('./Card');
 const { scoreRound, scoreLines, applyRoundScores, checkGameOver, DEFAULT_HOUSE_RULES } = require('./ScoreBoard');
+const { rankIndex, cardLabel, isPikDame, cardValue, RANKS } = require('./Card');
 const Bot = require('./Bot');
 const StateEncoder = require('./StateEncoder');
 const MoveLogger = require('./MoveLogger');
@@ -617,7 +617,8 @@ class GameManager {
       p.hand = hands[p.id];
       p.laidOutCards = [];
       p._everLaidThisRound = false;
-      p._laidAtTurnStart = false; // für Punkteabrechnung am Rundenende
+      p._laidAtTurnStart = false; // for the scoring at round end
+      p._bigPileTake = false; // badge fact: picked up a 10+ card pile this round
     }
     if (cutter && luckyCards.length > 0) {
       cutter.hand.push(...luckyCards);
@@ -934,6 +935,9 @@ class GameManager {
     if (rest.length > 0) {
       player.hand.push(...rest);
       this._publicMemoryAdd(player.id, rest);
+      // 10+ cards counting the top card already taken: the 'pile glutton'
+      // badge needs this fact at round end.
+      if (rest.length + 1 >= 10) player._bigPileTake = true;
       this.addLog(`${player.name} nimmt die restlichen ${rest.length} Karten des Ablagestapels auf.`);
       // Einen dicken Stapel zu schlucken, entlockt selbst dem Bot ein Seufzen.
       if (rest.length >= 4) this.maybeBotEmote(player.id, '😅', 0.55);
@@ -1422,6 +1426,27 @@ class GameManager {
     // states) conservatively gives NO doubling.
     const isHandAus = !!(winnerPlayer && winnerPlayer._laidAtTurnStart === false);
     const roundResult = scoreRound(winnerId, playersData, { isHandAus, houseRules: this.houseRules });
+    // Engine facts for the badges, next to the score breakdown: runs that
+    // wrap K-A-2, the longest run, a swallowed 10+ card pile. Only the
+    // engine knows them, and the record must carry them - Badges.js is a
+    // pure function over the record.
+    for (const p of this.players) {
+      const b = roundResult[p.id] && roundResult[p.id].breakdown;
+      if (!b) continue;
+      let ringRuns = 0;
+      let longestRun = 0;
+      for (const m of this.tableMelds) {
+        if (m.ownerId !== p.id || m.type !== 'run' || !m.slots.length) continue;
+        const first = m.slots[0].real ? m.slots[0].real.rank : m.slots[0].representsRank;
+        // Slots run in ring order from the first rank; passing the Ace back
+        // to the 2 means the window wraps.
+        if (rankIndex(first) + m.slots.length > RANKS.length) ringRuns += 1;
+        if (m.slots.length > longestRun) longestRun = m.slots.length;
+      }
+      b.ringRuns = ringRuns;
+      b.longestRun = longestRun;
+      b.bigPileTake = !!p._bigPileTake;
+    }
     this.totals = applyRoundScores(this.totals, roundResult);
     this.lastRoundResult = roundResult;
     this.lastRoundWinnerId = winnerId || null; // for the winner highlight

@@ -352,12 +352,6 @@
 
   // Display order of the trophy cabinet: the ones every player meets first,
   // then the rare feats. Must stay in sync with BADGE_IDS in game/Badges.js.
-  const BADGE_ORDER = [
-    'first_win', 'pd_laid', 'hand_aus_win', 'marathon_10', 'streak_3',
-    'pd_caught', 'round_300', 'score_500', 'pd_triple', 'double_queen_round',
-    'comeback', 'zen_slayer', 'pd_hunter_10',
-  ];
-
   function badgeMeta(id) {
     const M = {
       first_win: { emoji: '🏆', name: L('Erster Sieg', 'First win'), desc: L('Erste gewonnene Partie', 'Won your first game') },
@@ -373,9 +367,40 @@
       zen_slayer: { emoji: '⚔️', name: L('Zen-Bezwinger', 'Zen slayer'), desc: L('Partie mit einem Zen-Meister am Tisch gewonnen', 'Won a game with a zen master at the table') },
       marathon_10: { emoji: '🏃', name: L('Marathon', 'Marathon'), desc: L('10 Partien gespielt', 'Played 10 games') },
       pd_hunter_10: { emoji: '🎯', name: L('Damenjägerin', 'Queen hunter'), desc: L('10 Pik Damen insgesamt ausgelegt', 'Melded 10 Queens of Spades in total') },
+      // Tiers (bronze/silver/gold on the same counter)
+      pd_hunter_50: { emoji: '🎯', name: L('Damenlegende', 'Queen legend'), desc: L('50 Pik Damen insgesamt ausgelegt', 'Melded 50 Queens of Spades in total') },
+      marathon_50: { emoji: '🏃', name: L('Dauerläufer', 'Long runner'), desc: L('50 Partien gespielt', 'Played 50 games') },
+      marathon_100: { emoji: '🏃', name: L('Stammgast', 'Regular'), desc: L('100 Partien gespielt', 'Played 100 games') },
+      wins_10: { emoji: '🏆', name: L('Seriensieger', 'Serial winner'), desc: L('10 Partien gewonnen', 'Won 10 games') },
+      wins_50: { emoji: '🏆', name: L('Tischlegende', 'Table legend'), desc: L('50 Partien gewonnen', 'Won 50 games') },
+      streak_5: { emoji: '🔥', name: L('Lauffeuer', 'Wildfire'), desc: L('5 Partien in Folge gewonnen', 'Won 5 games in a row') },
+      streak_10: { emoji: '🔥', name: L('Unaufhaltsam', 'Unstoppable'), desc: L('10 Partien in Folge gewonnen', 'Won 10 games in a row') },
+      hand_aus_5: { emoji: '🚀', name: L('Blitzhand', 'Lightning hand'), desc: L('5× per „Hand aus“ gewonnen', 'Won 5 rounds out in one') },
+      daily_7: { emoji: '📅', name: L('Eine Woche dabei', 'A week running'), desc: L('7 Tage in Folge gespielt', 'Played 7 days in a row') },
+      daily_30: { emoji: '🗓️', name: L('Ein Monat dabei', 'A month running'), desc: L('30 Tage in Folge gespielt', 'Played 30 days in a row') },
+      // One-offs from the engine facts
+      ring_run: { emoji: '🔄', name: L('Ringschluss', 'Full circle'), desc: L('Eine Folge über K-A-2 ausgelegt', 'Melded a run wrapping K-A-2') },
+      run_13: { emoji: '🌈', name: L('Die ganze Farbe', 'The whole suit'), desc: L('Eine Folge mit allen 13 Karten ausgelegt', 'Melded a full 13-card run') },
+      pile_glutton: { emoji: '🍽️', name: L('Stapelfresser', 'Pile glutton'), desc: L('10+ Karten vom Ablagestapel genommen und die Runde trotzdem gewonnen', 'Picked up 10+ discards and still won the round') },
+      zen_trio: { emoji: '🧘', name: L('Drei Meister', 'Three masters'), desc: L('Gegen drei Zen-Meister gewonnen', 'Beat three zen masters') },
+      no_joker_win: { emoji: '🃏', name: L('Ohne Joker', 'No jokers'), desc: L('Eine Partie gewonnen, ohne je einen Joker auszulegen', 'Won a game without ever melding a joker') },
     };
     return M[id] || { emoji: '🎖️', name: id, desc: '' };
   }
+  // Mirrors game/Badges.js BADGE_FAMILIES: one tile per counter, tiers as
+  // dots. Everything not listed here is a single badge.
+  const BADGE_FAMILIES = [
+    { id: 'queens', tiers: ['pd_laid', 'pd_hunter_10', 'pd_hunter_50'] },
+    { id: 'games', tiers: ['marathon_10', 'marathon_50', 'marathon_100'] },
+    { id: 'wins', tiers: ['first_win', 'wins_10', 'wins_50'] },
+    { id: 'streak', tiers: ['streak_3', 'streak_5', 'streak_10'] },
+    { id: 'handaus', tiers: ['hand_aus_win', 'hand_aus_5'] },
+    { id: 'daily', tiers: ['daily_7', 'daily_30'] },
+  ];
+  const BADGE_SINGLES = [
+    'pd_caught', 'round_300', 'score_500', 'pd_triple', 'double_queen_round',
+    'comeback', 'zen_slayer', 'zen_trio', 'ring_run', 'run_13', 'pile_glutton', 'no_joker_win',
+  ];
   let globalStatsData = null;
   let myGameHistory = null; // null = noch nicht angefragt, [] = angefragt und leer // anonyme Server-Zähler (Partien, Pik Damen, ...)
   // --- Fortschritt über Partien hinweg ------------------------------------
@@ -385,6 +410,7 @@
   let dailyQuests = null;
   let questProgress = {};
   let myProgress = null;      // {xp, level:{level,into,need,total}}
+  let myStreak = null;        // {streak, best, event, graceFree} - from the last 'progress' message
   let accountProgress = null; // {xp, seasonXp, season, games, wins, rank}
 
   function questMeta(id) {
@@ -1072,6 +1098,7 @@
     if (msg.type === 'progress') {
       // End of a match: experience, level and the daily quests that ticked.
       myProgress = { xp: msg.xp, level: msg.level };
+      if (msg.streak) myStreak = msg.streak;
       if (msg.quests) {
         dailyQuests = { date: msg.quests.date, ids: msg.quests.ids };
         questProgress = msg.quests.progress || {};
@@ -4704,6 +4731,20 @@
       return;
     }
     box.classList.remove('hidden');
+    // Level and daily streak above the tasks: the two numbers that grow
+    // every day, on the screen people see every day.
+    const me = myProfile();
+    const lv = levelFromXpClient(Math.max(me ? me.xp || 0 : 0, myProgress ? myProgress.xp || 0 : 0));
+    const streak = (myStreak && myStreak.streak) || (me && me.dailyStreak) || 0;
+    const graceFree = myStreak ? myStreak.graceFree : !(me && me.daily && me.daily.graceAt);
+    const strip = el('progressStrip');
+    if (strip) {
+      strip.innerHTML =
+        `<span class="psLevel"><b>${L(`Stufe ${lv.level}`, `Level ${lv.level}`)}</b> <i class="levelBar"><u style="width:${Math.round((lv.into / lv.need) * 100)}%"></u></i> <small>${lv.into}/${lv.need} ${L('EP', 'XP')}</small></span>` +
+        `<span class="psStreak" title="${escapeHtml(L('Tagesserie: an aufeinanderfolgenden Tagen spielen. Ein verpasster Tag pro Woche wird überbrückt (Joker-Tag).', 'Daily streak: play on consecutive days. One missed day per week is bridged (grace day).'))}">🔥 ${
+          streak > 0 ? L(`${streak} ${streak === 1 ? 'Tag' : 'Tage'} in Folge`, `${streak} ${streak === 1 ? 'day' : 'days'} running`) : L('Heute spielen startet die Serie', 'Play today to start a streak')
+        }${streak > 0 ? ` <small>${graceFree ? L('· Joker-Tag frei', '· grace day free') : L('· Joker-Tag verbraucht', '· grace day used')}</small>` : ''}</span>`;
+    }
     list.innerHTML = dailyQuests.ids
       .map((id) => {
         const meta = questMeta(id);
@@ -4729,6 +4770,10 @@
     for (const id of completed) {
       showToast(`✅ ${L('Tagesaufgabe geschafft', 'Daily task done')}: ${questMeta(id).text}`);
     }
+    const st = msg.streak;
+    if (st && (st.event === 'extended' || st.event === 'bridged') && st.streak >= 2) {
+      showToast(`🔥 ${L(`${st.streak} Tage in Folge gespielt`, `${st.streak} days in a row`)}${st.event === 'bridged' ? ` ${L('(Joker-Tag genutzt)', '(grace day used)')}` : ''}`);
+    }
     const lvl = msg.level && msg.level.level;
     if (lvl && lastLevelSeen !== null && lvl > lastLevelSeen) {
       showToast(`⭐ ${L(`Stufe ${lvl} erreicht!`, `Level ${lvl} reached!`)}`);
@@ -4748,7 +4793,7 @@
     }
     const owned = me.badges || {};
     const progress = badgeProgressFor(me);
-    const tiles = BADGE_ORDER.map((id) => {
+    const singleTile = (id) => {
       const m = badgeMeta(id);
       const at = owned[id];
       const p = progress[id];
@@ -4762,11 +4807,33 @@
         <span class="achName">${escapeHtml(m.name)}</span>
         <span class="achSub">${escapeHtml(sub)}</span>
       </div>`;
-    }).join('');
-    const have = BADGE_ORDER.filter((id) => owned[id]).length;
+    };
+    // A family is ONE tile: the highest earned tier gives it name and
+    // emoji, the dots show the tiers, the counter shows the way to the next.
+    const familyTile = (fam) => {
+      const earnedTiers = fam.tiers.filter((id) => owned[id]);
+      const top = earnedTiers[earnedTiers.length - 1] || null;
+      const next = fam.tiers.find((id) => !owned[id]) || null;
+      const m = badgeMeta(top || fam.tiers[0]);
+      const p = next ? progress[next] : null;
+      const dots = fam.tiers.map((id) => `<i class="${owned[id] ? 'on' : ''}"></i>`).join('');
+      const sub = next
+        ? p && p.need > 1 ? `${p.have}/${p.need}` : L('gesperrt', 'locked')
+        : L('alle Stufen', 'all tiers');
+      const title = next ? `${badgeMeta(next).desc}` : m.desc;
+      return `<div class="achTile achFamily${top ? ' earned' : ''}${!next ? ' maxed' : ''}" title="${escapeHtml(title)}">
+        <span class="achEmoji">${top ? m.emoji : '🔒'}</span>
+        <span class="achName">${escapeHtml(m.name)}</span>
+        <span class="achTiers">${dots}</span>
+        <span class="achSub">${escapeHtml(sub)}</span>
+      </div>`;
+    };
+    const tiles = BADGE_FAMILIES.map(familyTile).join('') + BADGE_SINGLES.map(singleTile).join('');
+    const total = BADGE_FAMILIES.reduce((n, f) => n + f.tiers.length, 0) + BADGE_SINGLES.length;
+    const have = Object.keys(owned).filter((id) => BADGE_SINGLES.includes(id) || BADGE_FAMILIES.some((f) => f.tiers.includes(id))).length;
     box.classList.remove('hidden');
     box.innerHTML =
-      `<h3>${L('🏅 Erfolge', '🏅 Achievements')} <span class="achCount">${have} / ${BADGE_ORDER.length}</span></h3>` +
+      `<h3>${L('🏅 Erfolge', '🏅 Achievements')} <span class="achCount">${have} / ${total}</span></h3>` +
       `<div class="achGrid">${tiles}</div>`;
   }
 
@@ -4774,16 +4841,16 @@
   function badgeProgressFor(p) {
     const cap = (v, n) => ({ have: Math.min(v || 0, n), need: n });
     return {
-      first_win: cap(p.gamesWon, 1),
-      pd_laid: cap(p.totalQueensLaid, 1),
+      first_win: cap(p.gamesWon, 1), wins_10: cap(p.gamesWon, 10), wins_50: cap(p.gamesWon, 50),
+      pd_laid: cap(p.totalQueensLaid, 1), pd_hunter_10: cap(p.totalQueensLaid, 10), pd_hunter_50: cap(p.totalQueensLaid, 50),
       pd_triple: cap(p.totalQueensLaid, 3),
       pd_caught: cap(p.totalQueensCaught, 1),
-      hand_aus_win: cap(p.totalHandAus, 1),
+      hand_aus_win: cap(p.totalHandAus, 1), hand_aus_5: cap(p.totalHandAus, 5),
       score_500: cap(p.bestGameScore, 500),
       round_300: cap(p.bestRoundScore, 300),
-      streak_3: cap(p.winStreak, 3),
-      marathon_10: cap(p.gamesPlayed, 10),
-      pd_hunter_10: cap(p.totalQueensLaid, 10),
+      streak_3: cap(p.winStreak, 3), streak_5: cap(p.winStreak, 5), streak_10: cap(p.winStreak, 10),
+      marathon_10: cap(p.gamesPlayed, 10), marathon_50: cap(p.gamesPlayed, 50), marathon_100: cap(p.gamesPlayed, 100),
+      daily_7: cap(p.dailyStreak, 7), daily_30: cap(p.dailyStreak, 30),
     };
   }
 
