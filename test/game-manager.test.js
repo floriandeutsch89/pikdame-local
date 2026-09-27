@@ -3290,3 +3290,39 @@ test('layoutMeld: the whole-hand exception still applies when no smaller meld ex
   assert.ok(r.ok, JSON.stringify(r));
   game.destroy();
 });
+
+// --- Round end: an opponent's leftover hand is never sent to other players -----
+test('publicState hides opponents\' leftover hand composition after a round; own row keeps it', () => {
+  const { game } = makeGame(3);
+  game.phase = 'playing';
+  game.currentPlayerIndex = 0;
+  game.tableMelds = [];
+  game.players[0].hand = [];
+  game.players[0].laidOutCards = [makeStandardCard('H', '9', 0)];
+  game.players[1].hand = [makeStandardCard('S', 'Q', 0), makeJoker(0), makeStandardCard('H', '3', 0)];
+  game.players[1].laidOutCards = [];
+  game.players[2].hand = [makeStandardCard('C', 'A', 0)];
+  game.players[2].laidOutCards = [];
+  game.finishRound('p1');
+
+  const forP1 = game.publicState('p1');
+  const p2Stats = forP1.lastRoundStats.find((s) => s.id === 'p2');
+  assert.equal(p2Stats.handLines, undefined, 'no per-card classes of an opponent hand');
+  assert.equal(p2Stats.pikDameCount, undefined, 'no "caught with the queen" per round');
+  assert.equal(p2Stats.jokerInHandCount, undefined);
+  assert.equal(p2Stats.handCount, 3, 'the card count was public anyway');
+  assert.equal(forP1.lastRoundResult.p2.breakdown.pikDameCount, undefined);
+  assert.equal(typeof forP1.lastRoundResult.p2.roundScore, 'number', 'scores stay visible');
+  const wire = JSON.stringify(forP1);
+  assert.ok(!/"kind":"pikdame"/.test(wire), 'the queen on p2\'s hand appears nowhere on p1\'s wire');
+
+  const forP2 = game.publicState('p2');
+  const own = forP2.lastRoundStats.find((s) => s.id === 'p2');
+  assert.ok(own.handLines.some((ln) => ln.kind === 'pikdame'), 'my own breakdown stays');
+  assert.equal(forP2.lastRoundResult.p2.breakdown.pikDameCount, 1);
+  assert.equal(forP2.lastRoundStats.find((s) => s.id === 'p3').handLines, undefined);
+
+  const spectator = game.publicState(null);
+  assert.ok(spectator.lastRoundStats.every((s) => s.handLines === undefined), 'no viewer id - nothing leaks');
+  game.destroy();
+});

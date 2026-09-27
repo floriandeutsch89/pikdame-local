@@ -736,6 +736,19 @@ setTimeout(() => {
       if (!note) errors.push('handAusNote must appear when the house rule is active');
       else if (!/doppelt|double/i.test(note.textContent)) errors.push(`handAusNote text unexpected: ${note.textContent}`);
     }
+    // Opponents' leftover hands stay private: only MY row carries the
+    // breakdown - even if a (stale) server still sent every row's lines.
+    {
+      const lines = [{ kind: 'pikdame', count: 1, points: 100 }];
+      feed({
+        ...roundEndState,
+        houseRules: {},
+        lastRoundStats: roundEndState.lastRoundStats.map((st) => ({ ...st, laidLines: lines, handLines: lines })),
+      });
+      const boxes = [...window.document.querySelectorAll('#resultBody .resultBreakdown')];
+      if (boxes.length !== 1) errors.push(`exactly one breakdown (mine) expected, found ${boxes.length}`);
+      else if (!boxes[0].closest('.resultRow.isMe')) errors.push('the only breakdown must sit in my own row');
+    }
     // Partie-Ende (nicht nur Rundenende): der PARTIE-Gewinn zeigt den neuen
     // Pokal statt der Krone, die weiterhin jeden Rundengewinn markiert.
     // Feature-Wunsch, nach dem Vorbild von Codenames - ohne eigenes Symbol

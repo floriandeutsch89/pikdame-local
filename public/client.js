@@ -2580,13 +2580,14 @@
             `</div>` +
             `<div class="resultRowBar"><i style="width:${pct}%"></i></div>` +
             `<div class="resultRowFoot">${L('gesamt', 'total')} ${total}</div>`;
-          // Per-card breakdown: which cards made the number. Open for MY
-          // row (that is the one people ask about), tap to open the others.
-          const stats = (lastState.lastRoundStats || []).find((s) => s.id === p.id);
+          // Per-card breakdown: which cards made the number - for MY row
+          // only. An opponent's leftover hand is hidden (it reveals their play
+          // style); the server does not even send it (_roundStatsFor).
+          const stats = p.id === playerId ? (lastState.lastRoundStats || []).find((s) => s.id === p.id) : null;
           if (stats && (stats.laidLines || stats.handLines)) {
             const det = document.createElement('details');
             det.className = 'resultBreakdown';
-            if (p.id === playerId) det.open = true;
+            det.open = true;
             const lineText = (ln) => {
               const label = {
                 pikdame: '♠Q', joker: L('Joker', 'Joker'), ace: L('Ass', 'Ace'),
