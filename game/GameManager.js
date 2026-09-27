@@ -2758,6 +2758,36 @@ class GameManager {
     return { round: r.round, cutterId: r.cutterId, cards, luckyCount: r.luckyCards.length };
   }
 
+  /** Round-end result as ONE viewer may see it: what an opponent still held
+   *  (per-card value classes, a Queen of Spades or jokers caught on the hand)
+   *  is hidden - it reveals their play style. Only the viewer's own row keeps
+   *  it. Scores, laid-out values and hand counts stay: they are public (the
+   *  minus sum follows from round score minus the laid cards anyway). Bots
+   *  never read these fields. The game-end titles built from roundHistory
+   *  are a deliberate exception (table decision). */
+  _roundStatsFor(forPlayerId) {
+    if (!this.lastRoundStats) return null;
+    return this.lastRoundStats.map((s) => {
+      if (s.id === forPlayerId) return s;
+      const { handLines, pikDameCount, jokerInHandCount, ...rest } = s;
+      return rest;
+    });
+  }
+
+  _roundResultFor(forPlayerId) {
+    if (!this.lastRoundResult) return null;
+    const out = {};
+    for (const [pid, r] of Object.entries(this.lastRoundResult)) {
+      if (pid === forPlayerId || !r || !r.breakdown) {
+        out[pid] = r;
+        continue;
+      }
+      const { pikDameCount, ...breakdown } = r.breakdown;
+      out[pid] = { ...r, breakdown };
+    }
+    return out;
+  }
+
   publicState(forPlayerId) {
     return {
       phase: this.phase,
@@ -2829,9 +2859,9 @@ class GameManager {
       discardCards: this.discardPile.map((card) =>
         card.faceDown ? { faceDown: true } : { id: card.id, rank: card.rank, suit: card.suit, isJoker: !!card.isJoker }
       ),
-      lastRoundResult: this.lastRoundResult || null,
+      lastRoundResult: this._roundResultFor(forPlayerId),
       lastRoundWasHandAus: this.lastRoundWasHandAus || false,
-      lastRoundStats: this.lastRoundStats || null,
+      lastRoundStats: this._roundStatsFor(forPlayerId),
       nextRoundReady: this._nextRoundReady ? [...this._nextRoundReady] : [],
       lastRoundWinnerId: this.lastRoundWinnerId || null,
       lobbyReady: this._lobbyReady ? [...this._lobbyReady] : [],
