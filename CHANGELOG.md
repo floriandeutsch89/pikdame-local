@@ -7,6 +7,7 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 
 ### Changed
 - **Rundenende verrät keine Gegner-Handkarten mehr:** Die Aufschlüsselung („Auf der Hand: ♠Q 100, 2× Joker 40 …“) gibt es nur noch für die eigene Zeile. Aus ihr ließ sich ablesen, was ein Gegner zurückgehalten hatte, und daraus seine Spielweise. Der Server schickt die Handkarten-Klassen, die Pik Dame und die Joker auf der Hand eines Gegners gar nicht mehr an andere Spieler, auch nicht im Hintergrund. Rundenpunkte, Gesamtstand und die Zahl der Handkarten bleiben sichtbar. Die Minuspunkte eines Gegners ergeben sich weiterhin rechnerisch aus Rundenpunkten und Ausgelegtem. Die Auswertungen am Spielende („Damen-Magnet“, „Pik Dame erwischt“) bleiben bewusst erhalten. Bots haben diese Daten nie ausgewertet
+- Abhängigkeiten aktualisiert: ws 8.21.3→8.22.0 (der CI-Job `dependency-check` war seit dem Erscheinen der Version für jeden PR rot)
 
 ## [2.33.0] - 2026-09-26
 
