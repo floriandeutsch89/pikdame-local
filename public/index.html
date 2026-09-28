@@ -229,6 +229,7 @@
     <symbol id="i-share" viewBox="0 0 24 24"><circle cx="17.5" cy="6" r="2.6"/><circle cx="6.5" cy="12" r="2.6"/><circle cx="17.5" cy="18" r="2.6"/><path d="m8.9 10.8 6.3-3.4M8.9 13.2l6.3 3.4"/></symbol>
     <symbol id="i-qr" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1"/><rect x="13.5" y="3.5" width="7" height="7" rx="1"/><rect x="3.5" y="13.5" width="7" height="7" rx="1"/><path d="M13.5 13.5h3v3M20.5 16.5v4h-4M17 20.5h-.01"/></symbol>
     <symbol id="i-resume" viewBox="0 0 24 24"><path d="M20 11.5a8 8 0 1 1-2.6-5.9"/><path d="M20.5 3.5v5h-5"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14.5 4 9.5l5-5"/><path d="M4 9.5h10a6 6 0 0 1 0 12h-3"/></symbol>
     <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.2 18.5 12 8 18.8z"/></symbol>
     <symbol id="i-cards" viewBox="0 0 24 24"><rect x="8.5" y="5" width="11" height="15" rx="2"/><path d="M5.6 7.4 4.2 8a2 2 0 0 0-1.1 2.6l3.3 8.1"/></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
@@ -555,16 +556,24 @@
           <div class="pile-card" id="discardTopCard"></div>
           <span id="discardCount">0</span>
           <button id="discardPreviewBtn" class="pilePeekBtn tapExpand" title="Ablagestapel ansehen" aria-label="Ablagestapel ansehen"><svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg></button>
+          <!-- Undo for a pile take lives ON the pile it reverts, never in the
+               action bar: there it slid into the empty 'Abwerfen' slot. -->
+          <button id="undoPileBtn" class="pileUndoBtn tapExpand hidden" title="Aufnahme zurücklegen" aria-label="Aufnahme zurücklegen"><svg class="icon" aria-hidden="true"><use href="#i-undo"/></svg><span>Zurücklegen</span></button>
           <div class="pileLabel">Ablage</div>
         </div>
       </div>
 
       <div id="actionBar">
-        <button id="confirmMeldBtn" class="btn-primary hidden">Auslegen</button>
-        <button id="discardBtn" class="btn-primary hidden">Abwerfen</button>
-        <button id="clearSelectionBtn" class="btn-secondary hidden">Auswahl löschen</button>
-        <button id="undoPileBtn" class="btn-secondary hidden">↩︎ Zurücklegen</button>
-        <button id="undoMeldBtn" class="btn-secondary hidden">↩︎ Rückgängig</button>
+        <!-- Fixed slots: inside .actionSlots a hidden button keeps its space
+             (see style.css), so nothing ever slides into another's place. -->
+        <div id="actionSlots" class="actionSlots hidden">
+          <div class="primarySlot">
+            <button id="confirmMeldBtn" class="btn-primary hidden">Auslegen</button>
+            <button id="discardBtn" class="btn-primary hidden">Abwerfen</button>
+          </div>
+          <button id="clearSelectionBtn" class="btn-secondary hidden">Auswahl löschen</button>
+          <button id="undoMeldBtn" class="btn-icon hidden" title="Rückgängig" aria-label="Rückgängig"><svg class="icon" aria-hidden="true"><use href="#i-undo"/></svg></button>
+        </div>
         <div id="jokerPreview" class="hint hidden"></div>
         <div id="hint" class="hint"></div>
       </div>

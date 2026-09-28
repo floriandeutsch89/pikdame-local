@@ -17,8 +17,9 @@ window.I18N_STATIC = {
   'Wähle, wo du das frisch gemischte Deck abhebst. Liegen dort Pik Dame oder Joker, gehören sie sofort dir! Verteilt wird ab der Abhebestelle; der abgehobene Packen kommt danach zurück in den Nachziehstapel.':
     'Choose where to cut the freshly shuffled deck. If the Queen of Spades or a joker sits at the cut, it is yours immediately! Dealing starts at the cut spot; the lifted packet then returns to the draw pile.',
   'Hier abheben': 'Cut here',
-  '↩︎ Zurücklegen': '↩︎ Put back',
-  '↩︎ Rückgängig': '↩︎ Undo',
+  'Zurücklegen': 'Put back',
+  'Aufnahme zurücklegen': 'Put the pile take back',
+  'Rückgängig': 'Undo',
   // Lobby
   'Das Familien-Rommé – online mit Freunden & Bots': 'The family rummy – online with friends & bots',
   'Neues Spiel erstellen': 'Create a new game',
