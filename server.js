@@ -33,7 +33,8 @@ const { SessionRegistry, sanitizeName } = require('./game/SessionRegistry');
 const PORT = process.env.PORT || 8080;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const playerStore = createPlayerStore();
-const { createChallengeStore, seedForDate, todayUTC } = require('./game/ChallengeStore');
+const { createChallengeStore, seedForDate } = require('./game/ChallengeStore');
+const { gameDay } = require('./game/GameDay');
 const challengeStore = createChallengeStore();
 // Tutorial-Deck: per scripts-Suche ermittelt (siehe CLAUDE.md). Nicht aendern,
 // ohne die Tutorial-Texte gegenzupruefen - sie nennen konkrete Karten.
@@ -225,7 +226,7 @@ function serveStatic(req, res) {
         // join). Anonymous and identical worldwide by design - exactly like
         // the daily challenge deck.
         quests: (() => {
-          const date = todayUTC();
+          const date = gameDay();
           return { date, ids: questsForDate(date) };
         })(),
         // Which mail driver the process actually picked up. Answers the
@@ -258,7 +259,7 @@ function serveStatic(req, res) {
   if (filePath === '/challengeboardz') {
     // Today's top 5 for the intro overlay - names are already public by
     // the leaderboard's very purpose; no other data leaves the store.
-    const date = todayUTC();
+    const date = gameDay();
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
     // Zusaetzlich die Wochenwertung (beste 5 von 7 Tagen) - sie existierte
     // laengst, war aber nur nach einer beendeten Partie zu sehen.
@@ -509,7 +510,7 @@ async function handleAccountRequest(req, res, filePath) {
     if (typeof accountStore.ladder !== 'function') {
       return sendJson(res, 200, { ok: true, season: null, board: [], me: null });
     }
-    const season = seasonForDate(todayUTC());
+    const season = seasonForDate(gameDay());
     const board = (await accountStore.ladder(season, 20)) || [];
     let me = null;
     if (body.token) {
@@ -658,7 +659,7 @@ const registry = new SessionRegistry((session) => {
 
       // Daily streak: "played today" - BEFORE the badges, so the 7/30-day
       // tiers see the updated counter in the profile.
-      const questDate = todayUTC();
+      const questDate = gameDay();
       const streaks = {};
       for (const p of gameRecord.players || []) {
         if (p.isBot) continue;
@@ -879,7 +880,7 @@ function sendProfilesTo(ws) {
   // Today's quests ride along with the profiles: the client needs the ids
   // (it owns the bilingual wording) and everyone must see the SAME three,
   // so the server is the one deciding them.
-  const date = todayUTC();
+  const date = gameDay();
   const quests = { date, ids: questsForDate(date) };
   ws.send(
     JSON.stringify(
@@ -1109,11 +1110,11 @@ wss.on('connection', (ws, req) => {
     }
     if (msg.type === 'startChallenge') {
       // Daily challenge: everyone on the planet gets the identical deck AND
-      // the identical cut (both seeded from the UTC date) against three ZEN
+      // the identical cut (both seeded from the game date, German midnight) against three ZEN
       // bots - the difficulty is locked so the leaderboard stays comparable.
       // Zen by table decision: the daily is meant to be the hard one; the
       // tutorial is where medium belongs.
-      const date = todayUTC();
+      const date = gameDay();
       const created = registry.create({
         deckSeed: seedForDate(date),
         challengeDate: date,
@@ -1150,7 +1151,7 @@ wss.on('connection', (ws, req) => {
       // Daily puzzle: no session needed, it is a one-minute ritual on the
       // start screen. The hand is seeded from the date (identical worldwide),
       // the engine grades, the local profile remembers tries and the solve.
-      const date = todayUTC();
+      const date = gameDay();
       const puzzle = dailyPuzzleFor(date);
       const name = sanitizeName(msg.name);
       const withProfile = !PUBLIC_MODE && !!name;
@@ -1350,6 +1351,13 @@ wss.on('connection', (ws, req) => {
         // das Lobby-Bereit-Gate (alle sollen zustimmen).
         const humans = game.players.filter((p) => !p.isBot && p.connected !== false);
         if (game.challengeDate && humans.length === 1) {
+          // Past midnight the retry is today's challenge, not yesterday's
+          // deck (and not yesterday's leaderboard).
+          const today = gameDay();
+          if (game.challengeDate !== today) {
+            game.challengeDate = today;
+            game.deckSeed = seedForDate(today);
+          }
           game.fillWithBots();
           game.startNewRound();
         }

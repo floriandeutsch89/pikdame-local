@@ -11,6 +11,7 @@ const { rankIndex, cardLabel, isPikDame, cardValue, RANKS } = require('./Card');
 const Bot = require('./Bot');
 const StateEncoder = require('./StateEncoder');
 const MoveLogger = require('./MoveLogger');
+const { dayEnd } = require('./GameDay');
 
 /** A bot's difficulty, defaulting to Zen (single source for the fallback). */
 function botDifficultyOf(player) {
@@ -199,16 +200,16 @@ class GameManager {
     const solo = this.players.find((pl) => pl.id === id);
     if (this.isSoloMode() && solo && !solo.isBot) {
       // Daily challenge: any disconnect (app minimised, tab closed) keeps the
-      // game open until the challenge day ends (00:00 UTC, when the deck
+      // game open until the challenge day ends (German midnight, when the deck
       // changes anyway) - players want to come back later that day. The
       // tutorial keeps the short windows: 90s, or 20 min after an explicit
       // pause (otherwise the short clock would abandon a paused game).
       const graceMs = this.challengeDate
-        ? Math.max(GameManager.SOLO_GRACE_MS, this._challengeDayEnd() - Date.now())
+        ? Math.max(GameManager.SOLO_GRACE_MS, dayEnd(this.challengeDate) - Date.now())
         : this.paused ? GameManager.SOLO_PAUSED_GRACE_MS : GameManager.SOLO_GRACE_MS;
       this.soloPausedUntil = Date.now() + graceMs;
       if (graceMs >= 60 * 60 * 1000) {
-        this.addLog('Pausiert - die Tages-Challenge wartet bis Mitternacht UTC auf dich.');
+        this.addLog('Pausiert - die Tages-Challenge wartet bis Mitternacht auf dich.');
       } else if (graceMs >= 2 * 60 * 1000) {
         this.addLog(`Pausiert - das Spiel wartet ${Math.round(graceMs / 60000)} Minuten auf dich.`);
       } else {
@@ -519,12 +520,6 @@ class GameManager {
     const cutRnd = seededRound ? seededRandom((roundSeed ^ 0x5f3759df) >>> 0) : Math.random;
     const autoIndex = cutter ? this._cutIndexFromFraction(deck.length, cutRnd()) : -1;
     this._completeRoundStart(deck, autoIndex);
-  }
-
-  /** End of the challenge day (next 00:00 UTC) as epoch ms; NaN-safe. */
-  _challengeDayEnd() {
-    const start = Date.parse(`${this.challengeDate}T00:00:00Z`);
-    return Number.isFinite(start) ? start + 24 * 60 * 60 * 1000 : 0;
   }
 
   /**

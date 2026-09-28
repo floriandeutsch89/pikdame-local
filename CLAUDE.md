@@ -101,6 +101,9 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
   Stufen in `BADGE_FAMILIES`, Engine-Fakten wie `ringRuns`/`longestRun`/
   `bigPileTake` kommen aus `finishRound` in den `breakdown`),
   `Progression.js` (XP/Level, Tagesaufgaben, Tagesserie mit Joker-Tag),
+  `GameDay.js` (EINZIGE Definition von „heute“ für alles Tägliche: Tag
+  wechselt um Mitternacht Europe/Berlin; Tagesarithmetik nur auf
+  Datums-Strings, nie in 24-h-Schritten - Zeitumstellung),
   `DailyPuzzle.js` (Tagesrätsel: geseedete Hand, erschöpfende Suche, die
   Engine bewertet - Ergebnisobjekt darf KEIN `type`-Feld tragen, es wird in
   die WS-Nachricht gespreadet), `StammtischStore.js` (feste Gruppen-Tische:

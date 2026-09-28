@@ -129,7 +129,7 @@ function sumBreakdown(rec, pid, field) {
   return n;
 }
 
-// Same trick as the daily challenge deck: seeded from the UTC date, so every
+// Same trick as the daily challenge deck: seeded from the game date (GameDay), so every
 // player in the world works on the identical three tasks and they can be
 // talked about ("hast du die Joker-Aufgabe schon?").
 function hashString(str) {
@@ -200,7 +200,7 @@ function badgeProgress(profile = {}) {
 
 // --- Daily streak ------------------------------------------------------------
 // "Played today" - any finished match counts (a quest day, a challenge, a
-// family table). A streak is consecutive UTC days; ONE missed day per seven
+// family table). A streak is consecutive game days (German midnight, see GameDay); ONE missed day per seven
 // is bridged by a grace day ("Joker-Tag"), so a single evening off does not
 // erase a month. Pure: takes the stored state and the date, returns the new
 // state plus what happened, PlayerStore persists it.
@@ -215,7 +215,7 @@ function dayDiff(fromDate, toDate) {
 
 /**
  * @param {{streak?:number,last?:string|null,graceAt?:string|null,best?:number}} state
- * @param {string} date "YYYY-MM-DD" (UTC)
+ * @param {string} date "YYYY-MM-DD" (game day)
  * @returns {{state:Object, event:'same'|'extended'|'bridged'|'started'|'reset'}}
  */
 function advanceDailyStreak(state, date) {

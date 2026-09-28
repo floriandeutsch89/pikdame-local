@@ -1525,11 +1525,8 @@ test('challenge store: best score per name, ranked board, 7-day cleanup', () => 
   // Dates must be RELATIVE to today: the 7-day retention is measured against the
   // current date, so hard-coded days silently expire and made this test a time
   // bomb (it started failing once the fixed date fell out of the window).
-  const dayStr = (offsetDays) => {
-    const d = new Date();
-    d.setUTCDate(d.getUTCDate() - offsetDays);
-    return d.toISOString().slice(0, 10);
-  };
+  const { gameDay, addDays } = require('../game/GameDay');
+  const dayStr = (offsetDays) => addDays(gameDay(), -offsetDays);
   const today = dayStr(0);
   const longAgo = dayStr(40); // safely outside the 7-day window
   store.submit(today, 'Anna', 480);
@@ -2184,10 +2181,10 @@ test('leaveLobby frees the seat, cleans ready gate and re-syncs bots; blocked mi
 test('challenge history lists past days with winner and own rank; empty past days skipped', () => {
   const os = require('node:os');
   const path = require('node:path');
-  const { createChallengeStore, todayUTC } = require('../game/ChallengeStore');
+  const { createChallengeStore, todayDate } = require('../game/ChallengeStore');
   const store = createChallengeStore(path.join(os.tmpdir(), `ch-${Date.now()}.json`));
   const now = Date.now();
-  const d0 = todayUTC(now), d1 = todayUTC(now - 86400000), d3 = todayUTC(now - 3 * 86400000);
+  const d0 = todayDate(now), d1 = todayDate(now - 86400000), d3 = todayDate(now - 3 * 86400000);
   store.submit(d3, 'Flo', 500, now - 3 * 86400000);
   store.submit(d3, 'Anna', 800, now - 3 * 86400000);
   store.submit(d1, 'Flo', 650, now - 86400000);
@@ -2254,19 +2251,19 @@ test('hourglass while a bot is to move pokes exactly that bot', async () => {
   g.destroy();
 });
 
-// --- v1.81.0: Wochenwertung (beste 5 Tage, Mo-So UTC) -----------------------------
+// --- v1.81.0: Wochenwertung (beste 5 Tage, Mo-So) -----------------------------
 test('weekly challenge board sums the best 5 daily scores of the current week', () => {
   const os = require('node:os');
   const path = require('node:path');
-  const { createChallengeStore, todayUTC } = require('../game/ChallengeStore');
+  const { createChallengeStore, todayDate } = require('../game/ChallengeStore');
   const store = createChallengeStore(path.join(os.tmpdir(), `wk-${Date.now()}.json`));
   // "now" = ein Sonntag, damit alle 7 Wochentage in der Woche liegen
   const sunday = Date.UTC(2026, 6, 19, 12); // 2026-07-19 ist ein Sonntag
   for (let i = 0; i < 7; i++) {
     const t = sunday - i * 86400000;
-    store.submit(todayUTC(t), 'Flo', 100 + i * 10, t); // 100..160 über Mo..So
+    store.submit(todayDate(t), 'Flo', 100 + i * 10, t); // 100..160 über Mo..So
   }
-  store.submit(todayUTC(sunday), 'Anna', 500, sunday); // 1 Tag, hoher Score
+  store.submit(todayDate(sunday), 'Anna', 500, sunday); // 1 Tag, hoher Score
   const w = store.getWeekly('Flo', 5, sunday);
   // Flo: beste 5 von {100..160} = 160+150+140+130+120 = 700
   assert.equal(w.top[0].name, 'Flo');
@@ -2832,9 +2829,10 @@ test('disconnecting WITHOUT an explicit pause keeps the normal short window', ()
 });
 
 // --- Daily challenge: resumable until the challenge day ends -------------------
-test('a challenge left without pausing waits until midnight UTC, not 90s', () => {
-  const today = new Date().toISOString().slice(0, 10);
-  const dayEnd = Date.parse(`${today}T00:00:00Z`) + 24 * 60 * 60 * 1000;
+test('a challenge left without pausing waits until German midnight, not 90s', () => {
+  const { gameDay, dayEnd: dayEndOf } = require('../game/GameDay');
+  const today = gameDay();
+  const dayEnd = dayEndOf(today);
   const { game } = soloGame({ deckSeed: 4242, challengeDate: today });
   assert.ok(!game.paused, 'sanity: no explicit pause');
   game.markDisconnected('me');
