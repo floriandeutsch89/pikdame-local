@@ -845,6 +845,30 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   box-shadow: var(--shadow-1);
 }
 .pilePeekBtn:active { transform: scale(0.9); }
+/* 'Zurücklegen' after a pile take: a labelled chip on the discard pile,
+   over the 'Ablage' caption. It reverts that pile, so it lives there -
+   not in the action bar next to 'Abwerfen'. */
+.pileUndoBtn {
+  position: absolute; left: 50%; bottom: -8px;
+  transform: translateX(-50%);
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 28px; padding: 0 10px 0 8px;
+  border-radius: 999px;
+  background: var(--glass-strong);
+  border: 1.5px solid var(--accent);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  color: var(--accent);
+  font-size: var(--fs-hint); font-weight: 700; line-height: 1;
+  white-space: nowrap;
+  z-index: 4;
+  box-shadow: var(--shadow-1);
+}
+.pileUndoBtn .icon { width: 15px; height: 15px; }
+.pileUndoBtn:active { transform: translateX(-50%) scale(0.92); }
+#discardPile.undoable .pileLabel { visibility: hidden; }
+/* The pile itself stays dimmed (it can't be tapped), the chip must not. */
+#discardPile.disabled.undoable { opacity: 1; }
+#discardPile.disabled.undoable > :not(.pileUndoBtn) { opacity: 0.4; }
 /* Vorschau-Overlay: Karten mit Luft, oberste hervorgehoben */
 .discardPreviewCards {
   display: flex; flex-wrap: wrap;
@@ -870,20 +894,36 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .pile.glow { animation: none; filter: drop-shadow(0 0 10px var(--accent)); }
 }
 
-/* Aktionsleiste */
+/* Action bar: FIXED slots instead of a wrapping flex row. In the flex row a
+   hidden button let the next one slide into its place - right after a pile
+   take the lone 'Zurücklegen' sat exactly where 'Abwerfen' always is, and a
+   habitual tap undid the take. Now every control owns its cell:
+   primary (Auslegen/Abwerfen, mutually exclusive) left of the centre line,
+   'Auswahl löschen' right of it, undo in its own column at the far right.
+   An empty slot stays empty. */
 #actionBar {
-  display: flex; align-items: center; justify-content: center; gap: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) var(--tap-min);
+  align-items: center; gap: 6px 8px;
   padding: 6px 12px;
   min-height: 42px;
-  flex-wrap: wrap;
 }
+#confirmMeldBtn, #discardBtn { grid-column: 1; grid-row: 1; justify-self: end; }
+#clearSelectionBtn { grid-column: 2; grid-row: 1; justify-self: start; }
+#undoMeldBtn { grid-column: 3; grid-row: 1; }
+#actionBar .hint { grid-column: 1 / -1; }
 #actionBar .btn-primary, #actionBar .btn-secondary {
   width: auto; padding: 11px 22px; font-size: 0.88rem;
+  white-space: nowrap;
   /* 'Auslegen' / 'Auswahl löschen' measured 38-40px - under the 44px floor
      for the two buttons tapped most often in a turn. */
   min-height: var(--tap-min);
 }
-#actionBar .btn-icon { width: 40px; height: 40px; }
+/* Small phones (SE, mini): 'Auswahl löschen' must fit its half. */
+@media (max-width: 380px) {
+  #actionBar .btn-primary, #actionBar .btn-secondary { padding-left: 16px; padding-right: 16px; }
+}
+#actionBar .btn-icon { width: var(--tap-min); height: var(--tap-min); }
 .hint {
   width: 100%;
   font-size: 0.76rem; font-weight: 500;
@@ -3576,6 +3616,10 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
     flex-direction: column; align-self: start;
     gap: 22px; padding: 18px 22px 8px 8px;
   }
+  /* Free space below the pile column: the undo chip goes under the
+     caption instead of over it. */
+  .pileUndoBtn { top: calc(100% + 6px); bottom: auto; }
+  #discardPile.undoable .pileLabel { visibility: visible; }
   #actionBar { grid-area: action; }
   #handWrapper { grid-area: hand; }
   /* Owner groups side by side: a lone group (or the odd one out) still
@@ -3624,6 +3668,11 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
      bar appeared (selecting a card) and resized the rows. */
   #centerPiles { flex-direction: row; align-self: start; gap: 14px; padding-top: 14px; }
   #centerPiles .pile-card { width: 46px; height: 64px; }
+  /* The discard pile is the rightmost element: a centred chip would poke
+     past the screen edge, so it grows leftwards under the draw pile. */
+  .pileUndoBtn { top: calc(100% + 4px); bottom: auto; left: auto; right: -4px; transform: none; }
+  #discardPile.undoable .pileLabel { visibility: visible; }
+  .pileUndoBtn:active { transform: scale(0.92); }
 
   /* 62px landscape cards + fan dip + selection lift (the portrait value
      of 110px wasted ~30px of the scarce height). */

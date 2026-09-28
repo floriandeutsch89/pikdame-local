@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.36.0] - 2026-09-28
+
+### Changed
+- **„Zurücklegen“ sitzt jetzt am Ablagestapel:** Nach dem Aufnehmen der Ablage erscheint der Knopf als beschrifteter Chip direkt am Stapel, den er zurücknimmt, statt in der Aktionsleiste. Dort rutschte er ohne ausgewählte Karte genau auf den Platz von „Abwerfen“, und ein gewohnter Tipp machte die Aufnahme versehentlich rückgängig
+- **Feste Plätze in der Aktionsleiste:** „Auslegen“/„Abwerfen“ steht immer links der Mitte, „Auswahl löschen“ immer rechts davon, „Rückgängig“ als Pfeil-Symbol ganz rechts außen. Ein ausgeblendeter Knopf hinterlässt eine Lücke, statt dass der nächste auf seinen Platz nachrückt
+
+### Fixed
+- „Rückgängig“ verschwand, wenn nach dem Auslegen keine Karte ausgewählt und kein Hinweis sichtbar war: Die Aktionsleiste klappte dann komplett ein
+
 ## [2.35.0] - 2026-09-28
 
 ### Changed

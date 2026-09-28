@@ -2102,9 +2102,11 @@
     el('discardBtn').classList.toggle('hidden', !showDiscardBtn);
 
     el('clearSelectionBtn').classList.toggle('hidden', selectedCardIds.size === 0);
-    // Vertipper-Ausweg: Stapel-Aufnahme zurücknehmen, solange die Pflichtkarte
-    // noch nicht gelegt wurde (Server validiert; Flag kommt nur für mich true).
+    // Mis-tap escape: undo the pile take while the mandatory card is not yet
+    // laid (server validates; the flag is only true for me). The button sits
+    // on the discard pile, which stays un-dimmed around it via .undoable.
     el('undoPileBtn').classList.toggle('hidden', !lastState.canUndoPileTake);
+    el('discardPile').classList.toggle('undoable', !!lastState.canUndoPileTake);
     el('undoMeldBtn').classList.toggle('hidden', !lastState.canUndoMeld);
     const iSeatedForfeit = lastState.players.some((p) => p.id === playerId && !p.isBot);
     el('forfeitBtn').classList.toggle('hidden', lastState.phase !== 'playing' || !iSeatedForfeit);
@@ -2162,7 +2164,8 @@
     // Sichtbares enthaelt (der Aufgeben-Button lebt jetzt ueber der Hand).
     // WICHTIG: erst NACH der Hint-Logik pruefen, sonst zaehlt der alte Text.
     const actionBarEmpty =
-      !showMeldControls && !showDiscardBtn && selectedCardIds.size === 0 && !el('hint').textContent;
+      !showMeldControls && !showDiscardBtn && selectedCardIds.size === 0 && !lastState.canUndoMeld &&
+      !el('hint').textContent;
     el('actionBar').classList.toggle('collapsed', actionBarEmpty);
 
     // Log
@@ -4194,7 +4197,11 @@
   });
 
   el('lobbyReadyBtn').addEventListener('click', () => send({ type: 'lobbyReady' }));
-  el('undoPileBtn').addEventListener('click', () => send({ type: 'undoPileTake' }));
+  el('undoPileBtn').addEventListener('click', (ev) => {
+    // Inside #discardPile: the pile's own click (take) must not fire too.
+    ev.stopPropagation();
+    send({ type: 'undoPileTake' });
+  });
   el('undoMeldBtn').addEventListener('click', () => send({ type: 'undoMeld' }));
 
   el('tutorialBtn').addEventListener('click', () => {
