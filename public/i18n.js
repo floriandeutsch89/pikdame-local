@@ -158,6 +158,10 @@ window.I18N_STATIC = {
 window.I18N_SERVER_PATTERNS = [
   // --- Log ---
   [/^Runde (\d+) gestartet\. Geber: (.+)\.$/, 'Round $1 started. Dealer: $2.'],
+  [/^Pausiert - die Tages-Challenge wartet bis Mitternacht auf dich\.$/, 'Paused - the daily challenge waits for you until midnight (German time).'],
+  [/^Pausiert - das Spiel wartet (\d+) Minuten auf dich\.$/, 'Paused - the game waits $1 minutes for you.'],
+  [/^Pausiert - das Spiel wartet 90 Sekunden auf dich\.$/, 'Paused - the game waits 90 seconds for you.'],
+  [/^Nicht zurückgekehrt - das Spiel wurde ohne Wertung abgebrochen\.$/, 'Did not return - the game was abandoned without scoring.'],
   [/^🍀 Glücksgriff beim Abheben! (.+?) nimmt vor dem Verteilen sofort auf die Hand: (.+)\.$/, '🍀 Lucky cut! $1 takes straight into hand before dealing: $2.'],
   [/^Runde (\d+): (.+?) hebt ab …$/, 'Round $1: $2 is cutting the deck …'],
   [/^(.+?) hebt ab\.$/, '$1 cuts the deck.'],

@@ -4,7 +4,7 @@
 // the judge. Pure functions over the date, no I/O: the server keeps the
 // attempts per player (PlayerStore), this module only builds and grades.
 //
-// Same trick as the daily challenge deck: seeded from the UTC date, so
+// Same trick as the daily challenge deck: seeded from the game date (GameDay), so
 // everyone on the planet gets the identical hand and can talk about it.
 // Jokers are left out on purpose - with them the best answer is ambiguous
 // (a joker can stand for anything), and a puzzle needs one right answer.

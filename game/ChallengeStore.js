@@ -6,6 +6,7 @@
 
 const path = require('path');
 const { createAtomicJsonFile } = require('./AtomicJsonFile');
+const { gameDay, addDays, weekdayIndex } = require('./GameDay');
 
 const DEFAULT_DATA_FILE = path.join(process.env.PIKDAME_DATA_DIR || path.join(__dirname, '..', 'data'), 'challenges.json');
 const KEEP_DAYS = 7;
@@ -18,10 +19,8 @@ function seedForDate(dateStr) {
   return h >>> 0;
 }
 
-/** Today's challenge date in UTC - one deck for the whole planet. */
-function todayUTC(now = Date.now()) {
-  return new Date(now).toISOString().slice(0, 10);
-}
+/** Today's challenge date (German midnight, see GameDay) - one deck for everyone. */
+const todayDate = gameDay;
 
 function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
   const file = createAtomicJsonFile(filePath);
@@ -32,7 +31,7 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
   }
 
   function cleanup(store, now = Date.now()) {
-    const cutoff = todayUTC(now - KEEP_DAYS * 24 * 3600 * 1000);
+    const cutoff = addDays(gameDay(now), -KEEP_DAYS);
     for (const day of Object.keys(store.days)) {
       if (day < cutoff) delete store.days[day];
     }
@@ -81,8 +80,9 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
   function getHistory(name = null, top = 3, now = Date.now()) {
     const store = load();
     const days = [];
+    const today = gameDay(now);
     for (let i = 0; i < KEEP_DAYS; i++) {
-      const date = todayUTC(now - i * 24 * 3600 * 1000);
+      const date = addDays(today, -i);
       const list = store.days[date] || [];
       if (list.length === 0 && i > 0) continue; // leere Vortage nicht auflisten
       const me = name
@@ -100,18 +100,18 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
   }
 
   /**
-   * Weekly ranking (Mon-Sun, UTC): per player the SUM of their best 5 daily
+   * Weekly ranking (Mon-Sun, game days): per player the SUM of their best 5 daily
    * scores of the current week. 'Best 5 of 7' keeps one or two missed days
    * from ruining the week and rewards regulars over one lucky spike.
    */
   function getWeekly(name = null, top = 5, now = Date.now()) {
     const store = load();
-    const d = new Date(now);
-    const dow = (d.getUTCDay() + 6) % 7; // Mo=0 .. So=6
-    const monday = now - dow * 24 * 3600 * 1000;
+    const today = gameDay(now);
+    const dow = weekdayIndex(today); // Mo=0 .. So=6
+    const monday = addDays(today, -dow);
     const perPlayer = new Map();
     for (let i = 0; i <= dow; i++) {
-      const date = todayUTC(monday + i * 24 * 3600 * 1000);
+      const date = addDays(monday, i);
       for (const e of store.days[date] || []) {
         const key = e.name.toLowerCase();
         if (!perPlayer.has(key)) perPlayer.set(key, { name: e.name, scores: [] });
@@ -126,7 +126,7 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
       .sort((a, b) => b.weekScore - a.weekScore);
     const meIdx = name ? board.findIndex((e) => e.name.toLowerCase() === String(name).toLowerCase()) : -1;
     return {
-      week: `${todayUTC(monday)}..${todayUTC(monday + dow * 24 * 3600 * 1000)}`,
+      week: `${monday}..${today}`,
       top: board.slice(0, top).map((e, i) => ({ rank: i + 1, ...e })),
       yourRank: meIdx === -1 ? null : meIdx + 1,
       yourScore: meIdx === -1 ? null : board[meIdx].weekScore,
@@ -137,4 +137,4 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
   return { submit, getBoard, rankOf, getHistory, getWeekly };
 }
 
-module.exports = { createChallengeStore, seedForDate, todayUTC, DEFAULT_DATA_FILE };
+module.exports = { createChallengeStore, seedForDate, todayDate, DEFAULT_DATA_FILE };

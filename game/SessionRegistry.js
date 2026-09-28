@@ -139,7 +139,11 @@ class SessionRegistry {
       const connected = [...session.sockets.values()].some((ws) => ws && ws.readyState === 1);
       const idleFor = now - session.lastActivity;
       const age = now - session.createdAt;
-      const emptyAndStale = !connected && idleFor > this.options.emptySessionTtlMs;
+      // A solo game waiting for its player (daily challenge: until the day
+      // ends) owns its own deadline - the empty-session TTL must not cut it.
+      const heldUntil = session.game && session.game.soloPausedUntil;
+      const held = typeof heldUntil === 'number' && heldUntil > now;
+      const emptyAndStale = !connected && !held && idleFor > this.options.emptySessionTtlMs;
       const tooOld = age > this.options.maxSessionAgeMs;
       if (emptyAndStale || tooOld) {
         for (const ws of session.sockets.values()) {

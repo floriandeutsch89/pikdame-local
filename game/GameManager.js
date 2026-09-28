@@ -11,6 +11,7 @@ const { rankIndex, cardLabel, isPikDame, cardValue, RANKS } = require('./Card');
 const Bot = require('./Bot');
 const StateEncoder = require('./StateEncoder');
 const MoveLogger = require('./MoveLogger');
+const { dayEnd } = require('./GameDay');
 
 /** A bot's difficulty, defaulting to Zen (single source for the fallback). */
 function botDifficultyOf(player) {
@@ -198,20 +199,22 @@ class GameManager {
 
     const solo = this.players.find((pl) => pl.id === id);
     if (this.isSoloMode() && solo && !solo.isBot) {
-      // Feature-Wunsch: explizites Pausieren in der Challenge/im Tutorial.
-      // War das Spiel schon ueber den Pause-Knopf angehalten (this.paused),
-      // bekommt die Trennung eine LANGE Frist statt der normalen 90 Sekunden
-      // - man hat ja bewusst "Pause" gedrueckt, bevor man die App verlaesst.
-      // Ohne Unterscheidung liefe die kurze Solo-Uhr trotz Pause weiter und
-      // haette das Spiel abgebrochen, waehrend am Bildschirm "pausiert"
-      // stand.
-      const graceMs = this.paused ? GameManager.SOLO_PAUSED_GRACE_MS : GameManager.SOLO_GRACE_MS;
+      // Daily challenge: any disconnect (app minimised, tab closed) keeps the
+      // game open until the challenge day ends (German midnight, when the deck
+      // changes anyway) - players want to come back later that day. The
+      // tutorial keeps the short windows: 90s, or 20 min after an explicit
+      // pause (otherwise the short clock would abandon a paused game).
+      const graceMs = this.challengeDate
+        ? Math.max(GameManager.SOLO_GRACE_MS, dayEnd(this.challengeDate) - Date.now())
+        : this.paused ? GameManager.SOLO_PAUSED_GRACE_MS : GameManager.SOLO_GRACE_MS;
       this.soloPausedUntil = Date.now() + graceMs;
-      this.addLog(
-        this.paused
-          ? `Pausiert - das Spiel wartet ${Math.round(graceMs / 60000)} Minuten auf dich.`
-          : 'Pausiert - das Spiel wartet 90 Sekunden auf dich.'
-      );
+      if (graceMs >= 60 * 60 * 1000) {
+        this.addLog('Pausiert - die Tages-Challenge wartet bis Mitternacht auf dich.');
+      } else if (graceMs >= 2 * 60 * 1000) {
+        this.addLog(`Pausiert - das Spiel wartet ${Math.round(graceMs / 60000)} Minuten auf dich.`);
+      } else {
+        this.addLog('Pausiert - das Spiel wartet 90 Sekunden auf dich.');
+      }
       this.broadcastState();
       const timer = setTimeout(() => {
         this._takeoverTimers.delete(id);

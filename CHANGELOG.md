@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.35.0] - 2026-09-28
+
+### Changed
+- **Neuer Spieltag um Mitternacht deutscher Zeit:** Tages-Challenge, Tagesaufgaben, Tagesrätsel, Tagesserie, Wochenwertung und Saison wechseln jetzt um 00:00 Uhr (Europe/Berlin, Sommer- und Winterzeit) statt um 00:00 UTC, also 02:00 bzw. 01:00 Uhr. Die neue Challenge ist damit ab Mitternacht spielbar. „Noch mal probieren“ nach Mitternacht startet die Challenge des neuen Tages statt noch einmal das Deck vom Vortag
+- **Tages-Challenge später am Tag fortsetzen:** App minimieren, Tab schließen oder Verbindung verlieren bricht die Challenge nicht mehr nach 90 Sekunden (bzw. 20 Minuten mit Pause) ab. Die Partie wartet bis Mitternacht und lässt sich über „Fortsetzen“ auf demselben Gerät weiterspielen. Ein Pause-Klick ist dafür nicht nötig. Die leere Sitzung wird in dieser Zeit auch nicht mehr nach 30 Minuten aufgeräumt. Tutorial und Mehrspieler-Tische behalten ihre bisherigen Fristen
+- Die Pause- und Abbruch-Meldungen im Protokoll sind jetzt auch auf Englisch übersetzt
+
+### Fixed
+- Challenge-Verlauf und Wochenwertung rechnen in Kalendertagen: An den Tagen der Zeitumstellung (23 bzw. 25 Stunden) konnte sonst ein Tag übersprungen oder doppelt gezählt werden
+
 ## [2.34.0] - 2026-09-27
 
 ### Changed
