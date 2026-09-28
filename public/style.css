@@ -894,24 +894,25 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .pile.glow { animation: none; filter: drop-shadow(0 0 10px var(--accent)); }
 }
 
-/* Action bar: FIXED slots instead of a wrapping flex row. In the flex row a
+/* Action bar. Its buttons sit in FIXED slots: in the old wrapping row a
    hidden button let the next one slide into its place - right after a pile
    take the lone 'Zurücklegen' sat exactly where 'Abwerfen' always is, and a
-   habitual tap undid the take. Now every control owns its cell:
-   primary (Auslegen/Abwerfen, mutually exclusive) left of the centre line,
-   'Auswahl löschen' right of it, undo in its own column at the far right.
-   An empty slot stays empty. */
+   habitual tap undid the take. Inside .actionSlots a hidden button keeps
+   its box (visibility instead of display), so the row is always
+   [Auslegen|Abwerfen] [Auswahl löschen] [undo] with one gap everywhere and
+   the whole row centred. With no button to show, .actionSlots itself goes. */
 #actionBar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) var(--tap-min);
-  align-items: center; gap: 6px 8px;
+  display: flex; align-items: center; justify-content: center; gap: 6px 8px;
   padding: 6px 12px;
   min-height: 42px;
+  flex-wrap: wrap;
 }
-#confirmMeldBtn, #discardBtn { grid-column: 1; grid-row: 1; justify-self: end; }
-#clearSelectionBtn { grid-column: 2; grid-row: 1; justify-self: start; }
-#undoMeldBtn { grid-column: 3; grid-row: 1; }
-#actionBar .hint { grid-column: 1 / -1; }
+.actionSlots { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.actionSlots .hidden { display: inline-flex !important; visibility: hidden; }
+/* Auslegen and Abwerfen never show together: one cell, as wide as the
+   wider of the two, so 'Auswahl löschen' never moves between them. */
+.primarySlot { display: grid; }
+.primarySlot > button { grid-area: 1 / 1; }
 #actionBar .btn-primary, #actionBar .btn-secondary {
   width: auto; padding: 11px 22px; font-size: 0.88rem;
   white-space: nowrap;
@@ -919,7 +920,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
      for the two buttons tapped most often in a turn. */
   min-height: var(--tap-min);
 }
-/* Small phones (SE, mini): 'Auswahl löschen' must fit its half. */
+/* Small phones (SE, mini): keep the three slots on one line. */
 @media (max-width: 380px) {
   #actionBar .btn-primary, #actionBar .btn-secondary { padding-left: 16px; padding-right: 16px; }
 }

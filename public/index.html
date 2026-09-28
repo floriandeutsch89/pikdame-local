@@ -564,10 +564,16 @@
       </div>
 
       <div id="actionBar">
-        <button id="confirmMeldBtn" class="btn-primary hidden">Auslegen</button>
-        <button id="discardBtn" class="btn-primary hidden">Abwerfen</button>
-        <button id="clearSelectionBtn" class="btn-secondary hidden">Auswahl löschen</button>
-        <button id="undoMeldBtn" class="btn-icon hidden" title="Rückgängig" aria-label="Rückgängig"><svg class="icon" aria-hidden="true"><use href="#i-undo"/></svg></button>
+        <!-- Fixed slots: inside .actionSlots a hidden button keeps its space
+             (see style.css), so nothing ever slides into another's place. -->
+        <div id="actionSlots" class="actionSlots hidden">
+          <div class="primarySlot">
+            <button id="confirmMeldBtn" class="btn-primary hidden">Auslegen</button>
+            <button id="discardBtn" class="btn-primary hidden">Abwerfen</button>
+          </div>
+          <button id="clearSelectionBtn" class="btn-secondary hidden">Auswahl löschen</button>
+          <button id="undoMeldBtn" class="btn-icon hidden" title="Rückgängig" aria-label="Rückgängig"><svg class="icon" aria-hidden="true"><use href="#i-undo"/></svg></button>
+        </div>
         <div id="jokerPreview" class="hint hidden"></div>
         <div id="hint" class="hint"></div>
       </div>

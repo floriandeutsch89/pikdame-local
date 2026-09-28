@@ -2108,6 +2108,12 @@
     el('undoPileBtn').classList.toggle('hidden', !lastState.canUndoPileTake);
     el('discardPile').classList.toggle('undoable', !!lastState.canUndoPileTake);
     el('undoMeldBtn').classList.toggle('hidden', !lastState.canUndoMeld);
+    // The slot row keeps hidden buttons' space; only drop it when it would
+    // be all empty (otherwise a blank 44px row above the hint).
+    el('actionSlots').classList.toggle(
+      'hidden',
+      !showMeldControls && !showDiscardBtn && selectedCardIds.size === 0 && !lastState.canUndoMeld
+    );
     const iSeatedForfeit = lastState.players.some((p) => p.id === playerId && !p.isBot);
     el('forfeitBtn').classList.toggle('hidden', lastState.phase !== 'playing' || !iSeatedForfeit);
     const forfeitVotes = lastState.forfeitVotes || [];
