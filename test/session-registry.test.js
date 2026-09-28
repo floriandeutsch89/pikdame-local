@@ -88,3 +88,23 @@ test('normalizeCode: Großschreibung, Sonderzeichen raus, Länge begrenzt', () =
   assert.equal(normalizeCode('abcdefghij'), 'ABCDEF');
   assert.equal(normalizeCode(null), '');
 });
+
+test('cleanup: a solo game still waiting for its player outlives the empty-session TTL', () => {
+  let fakeNow = 1_000_000;
+  const games = [];
+  const registry = new SessionRegistry(() => {
+    const g = { soloPausedUntil: null, destroy() {} };
+    games.push(g);
+    return g;
+  }, { now: () => fakeNow });
+  const { session: held } = registry.create();
+  const { session: idle } = registry.create();
+  held.game.soloPausedUntil = fakeNow + 10 * 60 * 60 * 1000; // challenge: until the day ends
+  fakeNow += 2 * 60 * 60 * 1000;
+  registry.cleanup();
+  assert.equal(registry.get(held.code), held, 'the waiting challenge survives');
+  assert.equal(registry.get(idle.code), null, 'an ordinary empty session is still reaped');
+  fakeNow += 9 * 60 * 60 * 1000; // deadline passed
+  registry.cleanup();
+  assert.equal(registry.get(held.code), null, 'reaped once its own deadline has passed');
+});

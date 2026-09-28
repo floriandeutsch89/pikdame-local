@@ -2798,7 +2798,7 @@ test('an explicit pause before disconnecting gets a long grace window, not the n
   // Ohne diese Unterscheidung lief die kurze Solo-Uhr trotz gedrückter Pause
   // weiter und hätte das Spiel abgebrochen, während am Bildschirm "pausiert"
   // stand - das ist der Fehler, den der Wunsch beheben soll.
-  const { game } = soloGame({ deckSeed: 4242, challengeDate: '2026-07-31' });
+  const { game } = soloGame({ deckSeed: 22, tutorialMode: true });
   const other = game.players.find((p) => p.id !== 'me' && !p.isBot);
   // Zweiter Mensch nötig, sonst pausiert togglePauseVote sofort ohne Zutun
   // eines zweiten Stimmenden - hier soll das Auslösen ausdrücklich geprüft
@@ -2819,7 +2819,7 @@ test('an explicit pause before disconnecting gets a long grace window, not the n
 test('disconnecting WITHOUT an explicit pause keeps the normal short window', () => {
   // Gegenprobe zur Unterscheidung: kein Pause-Klick vorher -> weiterhin 90s,
   // nicht versehentlich die lange Frist für jede Trennung.
-  const { game } = soloGame({ deckSeed: 4242, challengeDate: '2026-07-31' });
+  const { game } = soloGame({ deckSeed: 22, tutorialMode: true });
   // this.paused startet als undefined (erst togglePauseVote setzt es explizit
   // auf true/false) - überall im Code wird nur auf Falsy geprüft, daher hier
   // ebenso statt eines strikten === false.
@@ -2828,6 +2828,30 @@ test('disconnecting WITHOUT an explicit pause keeps the normal short window', ()
   const paused = game.publicState('me').soloPausedUntil;
   const remainingSeconds = (paused - Date.now()) / 1000;
   assert.ok(remainingSeconds < 100, `expected the short ~90s window, got ${remainingSeconds.toFixed(0)}s`);
+  game.destroy();
+});
+
+// --- Daily challenge: resumable until the challenge day ends -------------------
+test('a challenge left without pausing waits until midnight UTC, not 90s', () => {
+  const today = new Date().toISOString().slice(0, 10);
+  const dayEnd = Date.parse(`${today}T00:00:00Z`) + 24 * 60 * 60 * 1000;
+  const { game } = soloGame({ deckSeed: 4242, challengeDate: today });
+  assert.ok(!game.paused, 'sanity: no explicit pause');
+  game.markDisconnected('me');
+  const until = game.publicState('me').soloPausedUntil;
+  const expected = Math.max(dayEnd, Date.now() + GameManager.SOLO_GRACE_MS);
+  assert.ok(Math.abs(until - expected) < 2000, `deadline is the end of the challenge day, got ${new Date(until).toISOString()}`);
+  assert.equal(game.phase, 'playing');
+  game.addOrReconnectPlayer('me', 'Flodex');
+  assert.equal(game.publicState('me').soloPausedUntil, null, 'coming back clears the deadline');
+  game.destroy();
+});
+
+test('a challenge from a day that is already over keeps the short 90s floor', () => {
+  const { game } = soloGame({ deckSeed: 4242, challengeDate: '2026-07-31' });
+  game.markDisconnected('me');
+  const remainingSeconds = (game.publicState('me').soloPausedUntil - Date.now()) / 1000;
+  assert.ok(remainingSeconds > 80 && remainingSeconds < 100, `expected ~90s, got ${remainingSeconds.toFixed(0)}s`);
   game.destroy();
 });
 

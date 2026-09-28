@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.35.0] - 2026-09-28
+
+### Changed
+- **Tages-Challenge später am Tag fortsetzen:** App minimieren, Tab schließen oder Verbindung verlieren bricht die Challenge nicht mehr nach 90 Sekunden (bzw. 20 Minuten mit Pause) ab. Die Partie wartet bis zum Challenge-Wechsel um Mitternacht UTC (02:00 Uhr Sommerzeit) und lässt sich über „Fortsetzen“ auf demselben Gerät weiterspielen. Ein Pause-Klick ist dafür nicht nötig. Die leere Sitzung wird in dieser Zeit auch nicht mehr nach 30 Minuten aufgeräumt. Tutorial und Mehrspieler-Tische behalten ihre bisherigen Fristen
+- Die Pause- und Abbruch-Meldungen im Protokoll sind jetzt auch auf Englisch übersetzt
+
 ## [2.34.0] - 2026-09-27
 
 ### Changed
