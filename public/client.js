@@ -186,13 +186,17 @@
   // nicht ueber I18N_STATIC laufen. Sie werden hier zentral neu gesetzt -
   // beim Erzeugen UND bei jedem Sprachwechsel.
   let resumeCode = null;
+  // The resumable game is today's running daily challenge (server says so).
+  let resumeIsChallenge = false;
   function updateResumeBtn() {
     try {
       const btn = document.getElementById('resumeBtn');
       if (!btn) return;
       if (resumeCode) {
         btn.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-resume"/></svg><span></span>';
-        btn.querySelector('span').textContent = L(`Weiterspielen (${resumeCode})`, `Resume game (${resumeCode})`);
+        btn.querySelector('span').textContent = resumeIsChallenge
+          ? L('Challenge fortsetzen', 'Resume challenge')
+          : L(`Weiterspielen (${resumeCode})`, `Resume game (${resumeCode})`);
         btn.classList.remove('hidden');
       } else {
         btn.classList.add('hidden');
@@ -975,9 +979,11 @@
       const last = storageGet('pikdame_last_session');
       if (msg.exists && msg.code === last && !sessionCode) {
         resumeCode = msg.code;
+        resumeIsChallenge = !!msg.challenge;
       } else {
         if (!msg.exists && msg.code === last) storageRemove('pikdame_last_session');
         resumeCode = null;
+        resumeIsChallenge = false;
       }
       // Beschriftung kommt aus updateResumeBtn(), damit ein SPAeTERER
       // Sprachwechsel sie mitnimmt - vorher wurde sie hier einmalig gesetzt
@@ -1027,6 +1033,7 @@
       if (lastState.abandoned) {
         try { storageRemove('pikdame_last_session'); } catch (e) { /* egal */ }
         resumeCode = null;
+        resumeIsChallenge = false;
         try { updateResumeBtn(); } catch (e) { /* egal */ }
         showToast(
           L('⏹️ Spiel abgebrochen - du warst zu lange weg. Es wurde nicht gewertet und nicht gespeichert.',
@@ -3945,6 +3952,12 @@
 
   // --- Daily challenge --------------------------------------------------------
   el('challengeBtn').addEventListener('click', () => {
+    // Today's challenge is still running (app was minimised or closed):
+    // the tile continues it instead of dealing a fresh game.
+    if (resumeCode && resumeIsChallenge) {
+      window.location.href = `${window.location.pathname}?session=${encodeURIComponent(resumeCode)}`;
+      return;
+    }
     // Explain first, play second: the cold start straight into a running
     // game left people wondering what was going on.
     el('challengeTopLine').textContent = '…';

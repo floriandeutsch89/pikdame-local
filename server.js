@@ -1241,7 +1241,12 @@ wss.on('connection', (ws, req) => {
           return;
         }
       }
-      ws.send(JSON.stringify({ type: 'sessionStatus', code: msg.code, exists }));
+      // A still running challenge of TODAY: the client lets the challenge
+      // tile resume it instead of dealing a fresh game.
+      const probed = registry.get(msg.code);
+      const g = probed && probed.game;
+      const challenge = !!(g && g.challengeDate && g.challengeDate === gameDay() && g.phase !== 'gameOver' && g.phase !== 'abandoned');
+      ws.send(JSON.stringify({ type: 'sessionStatus', code: msg.code, exists, challenge }));
       return;
     }
     if (msg.type === 'joinSession') {
