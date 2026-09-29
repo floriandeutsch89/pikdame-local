@@ -174,3 +174,56 @@ test('Stammtisch: found, join by group code, reclaim seat by name', async (t) =>
   assert.strictEqual(info.name, 'Familie');
   for (const ws of [flo, anna2, impostor, probe]) ws.close();
 });
+
+// Coming back to a minimised daily challenge: the existence probe tells the
+// client that the remembered game is TODAY's running challenge, so the
+// challenge tile resumes it instead of dealing a fresh game.
+test('checkSession flags a running challenge of today, not a normal table', async (t) => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-ch-'));
+  const { server } = startServer(dataDir);
+  t.after(() => {
+    server.kill();
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  });
+  await waitForServer(PORT);
+
+  const open = () => new Promise((resolve, reject) => {
+    const ws = new WebSocket(`ws://localhost:${PORT}`);
+    ws.inbox = [];
+    ws.on('message', (raw) => ws.inbox.push(JSON.parse(raw)));
+    ws.once('open', () => resolve(ws));
+    ws.once('error', reject);
+  });
+  const waitFor = (ws, type, timeoutMs = 4000) => new Promise((resolve, reject) => {
+    const started = Date.now();
+    const tick = () => {
+      const m = ws.inbox.find((x) => x.type === type);
+      if (m) return resolve(m);
+      if (Date.now() - started > timeoutMs) return reject(new Error(`no ${type} message`));
+      setTimeout(tick, 25);
+    };
+    tick();
+  });
+
+  const player = await open();
+  player.send(JSON.stringify({ type: 'startChallenge', name: 'Flo' }));
+  const challengeCode = (await waitFor(player, 'joined')).sessionCode;
+  player.close(); // app minimised
+  await new Promise((r) => setTimeout(r, 300));
+
+  const host = await open();
+  host.send(JSON.stringify({ type: 'createSession', name: 'Anna' }));
+  const tableCode = (await waitFor(host, 'joined')).sessionCode;
+
+  const probe = await open();
+  probe.send(JSON.stringify({ type: 'checkSession', code: challengeCode }));
+  const ch = await waitFor(probe, 'sessionStatus');
+  assert.strictEqual(ch.exists, true, 'the minimised challenge is still there');
+  assert.strictEqual(ch.challenge, true, 'and flagged as today\'s challenge');
+  probe.inbox.length = 0;
+  probe.send(JSON.stringify({ type: 'checkSession', code: tableCode }));
+  const table = await waitFor(probe, 'sessionStatus');
+  assert.strictEqual(table.exists, true);
+  assert.strictEqual(table.challenge, false, 'a normal table is not a challenge');
+  for (const ws of [host, probe]) ws.close();
+});

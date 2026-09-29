@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.36.1] - 2026-09-29
+
+### Fixed
+- **Minimierte Tages-Challenge wiederfinden:** Läuft die heutige Challenge noch (App minimiert oder geschlossen), führt die Challenge-Kachel direkt zurück in diese Partie, statt eine neue zu starten. Der Knopf auf dem Startbildschirm heißt dann „Challenge fortsetzen“ statt „Weiterspielen (CODE)“
+
 ## [2.36.0] - 2026-09-28
 
 ### Changed
