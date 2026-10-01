@@ -884,6 +884,9 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 #discardPile, #drawPile { cursor: pointer; transition: transform 0.18s var(--ease); }
 #discardPile:active, #drawPile:active { transform: scale(0.93); }
 #discardPile.disabled, #drawPile.disabled { opacity: 0.4; cursor: not-allowed; }
+/* Draw phase, but the server says the top card cannot be taken: no glow,
+   card muted (the peek button stays fully visible). */
+#discardPile.noTake .pile-card { opacity: 0.55; }
 /* Zieh-Phase: sanfter Puls zeigt, dass jetzt gezogen werden darf */
 @keyframes drawPulse {
   0%, 100% { filter: drop-shadow(0 0 3px var(--accent-soft)); }
@@ -1251,13 +1254,23 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 
 .resultList { display: flex; flex-direction: column; gap: 2px; }
 .resultRow {
-  padding: 9px 2px;
+  padding: 6px 2px;
   border-bottom: 1px solid rgba(0,0,0,0.07);
   font-weight: 500;
 }
 .resultRow:last-child { border-bottom: none; }
-.resultRowTop { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
-.resultName { font-size: var(--fs-body); font-weight: 700; color: var(--card-ink); }
+.resultRowTop { display: flex; align-items: baseline; gap: 10px; }
+.resultName {
+  flex: 1 1 auto; min-width: 0;
+  font-size: var(--fs-body); font-weight: 700; color: var(--card-ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.resultTotal {
+  flex: 0 0 auto;
+  font-size: var(--fs-hint); font-weight: 600; color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.resultDelta { flex: 0 0 auto; min-width: 3.4em; text-align: right; }
 /* "Me" is marked by weight and a rule down the left edge, NOT by colour:
    green next to a -170 read as "well done". Colour is reserved for sign. */
 .resultRow.isMe {
@@ -1283,16 +1296,11 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   background: linear-gradient(90deg, #2ecc71, #f1c40f 70%, #e67e22);
   transition: width 0.6s ease;
 }
-.resultRowFoot {
-  font-size: var(--fs-hint); font-weight: 600;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
 /* The round winner is already named in the headline above; in the list they
    only get weight. No colour - see .resultDelta.pos/.neg for that. */
 .resultRow.winner .resultName { font-weight: 800; }
 /* Per-card breakdown under a result row: a <details> so the list stays
-   scannable; the own row opens by default. */
+   scannable; folded by default, the summary shows the two sums. */
 .resultBreakdown { margin-top: 4px; font-size: var(--fs-hint); color: var(--text-muted); }
 .resultBreakdown summary {
   cursor: pointer; list-style: none; font-weight: 600;
@@ -2277,6 +2285,17 @@ input:disabled { opacity: 0.65; }
   padding-top: 2px;
 }
 .resultFooter .resultEmoteBar { margin: 6px 0 4px; }
+.resultActions { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.resultActions .btn-primary { flex: 1 1 auto; margin: 0; }
+.resultActions .btn-icon {
+  flex: 0 0 auto;
+  /* The sheet is light: the dark-theme glass look of .btn-icon vanishes here. */
+  background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.14); color: var(--card-ink);
+}
+.resultActions .btn-icon[aria-expanded="true"] { background: var(--accent-soft); border-color: var(--accent); }
+.bdSums { margin-left: 6px; font-variant-numeric: tabular-nums; font-weight: 800; }
+.bdSumPlus { color: #0e7a4d; }
+.bdSumMinus { color: #c0281f; }
 #resultEmotes .resultEmoteChip {
   display: inline-flex; align-items: center; gap: 5px;
   background: rgba(0,0,0,0.06); border-radius: 999px;
@@ -2734,8 +2753,17 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
   overscroll-behavior-x: contain;   /* kein versehentliches Seiten-Zurück beim Wischen */
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
-  padding-top: 4px;                 /* Platz für den Fächer-Dip, kein vertikales Scrollen */
+  /* Room for the selection lift (.card.selected { top: -14px }): with only
+     4px here overflow-x:auto clipped the lifted cards' index corner. */
+  padding-top: 14px;
 }
+/* Two-row hand (phone portrait, 14+ cards): rows are centred, the fan
+   rotation is dropped (client.js resets it), row 2 overlaps row 1. */
+#hand.handRows {
+  flex-direction: column; align-items: center;
+  width: 100%; min-height: 0;
+}
+#hand .handRow { display: flex; justify-content: center; }
 #hand.handScroll::-webkit-scrollbar { height: 5px; }
 #hand.handScroll::-webkit-scrollbar-thumb { background: var(--glass-border); border-radius: 3px; }
 /* Fade-Kanten NUR dort, wo tatsächlich weitere Karten liegen */
@@ -3717,4 +3745,13 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
   .lobbyHero, .subtitle { display: none; }
   #lobby { padding-top: calc(10px + var(--safe-top)); gap: 8px; }
   #lobby h1 { font-size: 1.7rem; }
+
+  /* Round result at ~400px: the winner headline becomes one line so all
+     four score rows fit without scrolling (it used to leave room for one). */
+  .resultWinner {
+    flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: baseline;
+    gap: 4px 12px; padding: 6px 12px; margin-bottom: 4px;
+  }
+  .resultWinnerScore { margin-top: 0; font-size: 1.25rem; }
+  .resultWinnerGame .resultWinnerCrown { display: none; }
 }

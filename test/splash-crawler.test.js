@@ -43,9 +43,9 @@ const NON_BOT_AGENTS = {
 
 /** Boots a jsdom with the real markup, then runs the head script (and
  *  optionally the whole client) exactly as a browser would. */
-function boot({ userAgent, reduceMotion = false, storage = {}, session = {}, withClient = false }) {
+function boot({ userAgent, reduceMotion = false, storage = {}, session = {}, withClient = false, url = 'https://play.example/' }) {
   const dom = new JSDOM(html, {
-    url: 'https://play.example/',
+    url,
     runScripts: 'outside-only',
     pretendToBeVisual: true,
     beforeParse(window) {
@@ -184,4 +184,28 @@ test('a normal visitor still gets the intro, and it is marked as seen', () => {
   assert.ok(splash, 'the intro was removed for a normal first visit');
   assert.ok(splash.classList.contains('play'), 'the intro animation was not started');
   assert.strictEqual(w.sessionStorage.getItem('pikdame_splash_seen'), '1');
+});
+
+// v2.37.0: the ~8 s intro no longer replays on every app start.
+test('automatic mode: intro plays once per DEVICE, not once per session', () => {
+  assert.strictEqual(skipped(boot({ userAgent: IPHONE, storage: { pikdame_splash_device: '1' } })), true);
+  // 'full' = the explicit "every time" setting keeps replaying it
+  assert.strictEqual(
+    skipped(boot({ userAgent: IPHONE, storage: { pikdame_splash_device: '1', pikdame_studio_logo: 'full' } })),
+    false
+  );
+});
+
+test('an invite link (?session=CODE) skips the intro unless "full" is chosen', () => {
+  const url = 'https://play.example/?session=ABC123';
+  assert.strictEqual(skipped(boot({ userAgent: IPHONE, url })), true);
+  assert.strictEqual(skipped(boot({ userAgent: IPHONE, url, storage: { pikdame_studio_logo: 'full' } })), false);
+});
+
+test('client.js marks the device after the first intro and drops the overlay afterwards', () => {
+  const first = boot({ userAgent: IPHONE, withClient: true });
+  assert.strictEqual(first.localStorage.getItem('pikdame_splash_device'), '1', 'device flag written when the intro plays');
+  assert.ok(first.document.getElementById('studioSplash'), 'first visit: overlay present');
+  const again = boot({ userAgent: IPHONE, withClient: true, storage: { pikdame_splash_device: '1' } });
+  assert.strictEqual(again.document.getElementById('studioSplash'), null, 'known device: overlay removed');
 });

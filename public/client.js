@@ -18,6 +18,7 @@
   }
 
   const NAME_KEY = 'pikdame_player_name';
+  const SPLASH_DEVICE_KEY = 'pikdame_splash_device'; // intro played once on this device
   const THEME_KEY = 'pikdame_theme';
   const SOUND_KEY = 'pikdame_sound_enabled';
 
@@ -977,7 +978,9 @@
       // Existence probe reply: reveal the resume button only for a live game,
       // and drop a stale code so it is never offered again.
       const last = storageGet('pikdame_last_session');
-      if (msg.exists && msg.code === last && !sessionCode) {
+      // A finished match (winner decided) is not offered for resuming; the
+      // code stays remembered, the results are still reachable by typing it.
+      if (msg.exists && !msg.finished && msg.code === last && !sessionCode) {
         resumeCode = msg.code;
         resumeIsChallenge = !!msg.challenge;
       } else {
@@ -1435,6 +1438,7 @@
     setCtl('ruleHandAus', hr.handAusDoubles, true);
     setCtl('ruleStrict1000', hr.strictThreshold, true);
     setCtl('ruleTurnTimer', hr.turnTimerSeconds != null ? hr.turnTimerSeconds : 0);
+    setCtl('ruleBotPace', hr.botPace || 'normal');
     // House rules are read-only for non-hosts.
     el('houseRulesSection').querySelectorAll('input, select, button').forEach((ctrl) => {
       // ruleSound is a personal (per-device) setting - never lock it.
@@ -1571,6 +1575,7 @@
       handAusDoubles: el('ruleHandAus').checked,
       strictThreshold: el('ruleStrict1000').checked,
       turnTimerSeconds: Number(el('ruleTurnTimer').value),
+      botPace: el('ruleBotPace').value,
     };
   }
 
@@ -1929,7 +1934,11 @@
     el('discardPile').classList.toggle('disabled', !canDraw || !lastState.discardTop);
     // Sanfter Glow signalisiert: jetzt darfst du ziehen
     el('drawPile').classList.toggle('glow', canDraw && lastState.drawPileCount > 0);
-    el('discardPile').classList.toggle('glow', canDraw && !!lastState.discardTop);
+    // Server truth: glow the discard only when taking it is actually legal.
+    // `null`/missing (older server, no answer) keeps the old optimistic glow.
+    const discardBlocked = canDraw && !!lastState.discardTop && lastState.discardTakeable === false;
+    el('discardPile').classList.toggle('glow', canDraw && !!lastState.discardTop && !discardBlocked);
+    el('discardPile').classList.toggle('noTake', discardBlocked);
 
     // Hand
     const myPlayer = lastState.players.find((p) => p.id === playerId);
@@ -2038,7 +2047,17 @@
       const scrollToFresh = freshScrollPending;
       freshScrollPending = false;
       requestAnimationFrame(() => {
-        const cards = [...handDiv.children];
+        // Undo a previous two-row pass first (the same cards can be laid out
+        // twice when renders overlap) - cards go back to the flat fan.
+        const cards = [...handDiv.querySelectorAll('.card')];
+        if (handDiv.querySelector('.handRow')) {
+          cards.forEach((c) => {
+            if (c.dataset.fan !== undefined) c.style.transform = c.dataset.fan;
+            handDiv.appendChild(c);
+          });
+          handDiv.querySelectorAll('.handRow').forEach((r) => r.remove());
+        }
+        handDiv.classList.remove('handRows');
         if (cards.length < 2) return;
         const cardWidth = cards[0].offsetWidth || 60;
         // Randabzug dynamisch: der flache Dichte-Fächer (±4°) hat kaum noch
@@ -2053,6 +2072,34 @@
         // komfortablen Streifen und die Hand wird seitlich scrollbar.
         const MANY_CARDS = 16;
         const comfortable = Math.max(26, Math.round(cardWidth * 0.42));
+        // Narrow screens (phone portrait): a dense hand goes into TWO rows
+        // instead of one 19-26 px strip per card. Every card keeps a ~40 px
+        // tap strip and nothing scrolls. The second row overlaps the first
+        // one's lower part - only the index corner of row 1 is needed.
+        const parentW = handDiv.parentElement.clientWidth;
+        const rowLen = Math.ceil(cards.length / 2);
+        const rowAvail = parentW - 44;
+        const rowVisible = rowLen > 1 ? Math.min(naturalVisible, (rowAvail - cardWidth) / (rowLen - 1)) : naturalVisible;
+        const twoRows = parentW > 0 && parentW < 560 && cards.length >= 14 && fitVisible < 24 && rowVisible >= 22;
+        if (twoRows) {
+          handDiv.classList.remove('handScroll');
+          handDiv.classList.add('handRows');
+          const rows = [cards.slice(0, rowLen), cards.slice(rowLen)].map((rowCards) => {
+            const row = document.createElement('div');
+            row.className = 'handRow';
+            rowCards.forEach((c, i) => {
+              if (c.dataset.fan === undefined) c.dataset.fan = c.style.transform;
+              c.style.transform = 'none';
+              c.style.marginLeft = i === 0 ? '0' : `${rowVisible - cardWidth}px`;
+              row.appendChild(c);
+            });
+            return row;
+          });
+          handDiv.append(...rows);
+          const cardH = cards[0].offsetHeight || 88;
+          rows[1].style.marginTop = `${-(cardH - 46)}px`; // row 1 keeps its top 46 px visible
+          return;
+        }
         const scrollMode = cards.length >= MANY_CARDS && fitVisible < comfortable;
         handDiv.classList.toggle('handScroll', scrollMode);
         const visible = scrollMode
@@ -2576,7 +2623,15 @@
       // into the headline and dropping their row left a 4-player game showing
       // three lines, which reads as a missing player (report) - and the race
       // bars are only comparable if all of them are there.
+      // Best first: by the round's delta (by the standing once the match is
+      // over), so the order itself answers "who did well".
+      const deltaOf = (pl) => (lastState.lastRoundResult[pl.id] ? lastState.lastRoundResult[pl.id].roundScore : 0);
+      const totalOf = (pl) => lastState.totals[pl.id] || 0;
       lastState.players
+        .slice()
+        .sort((a, b) => (isGameOver
+          ? totalOf(b) - totalOf(a)
+          : deltaOf(b) - deltaOf(a) || totalOf(b) - totalOf(a)))
         .forEach((p) => {
           const r = lastState.lastRoundResult[p.id];
           const total = lastState.totals[p.id] || 0;
@@ -2592,10 +2647,10 @@
           row.innerHTML =
             `<div class="resultRowTop">` +
             `<span class="resultName">${nameWithHeart(p.name)}${botMark(p)}</span>` +
+            `<span class="resultTotal">${L('gesamt', 'total')} ${total}</span>` +
             `<span class="resultDelta${deltaCls}">${signed(delta)}</span>` +
             `</div>` +
-            `<div class="resultRowBar"><i style="width:${pct}%"></i></div>` +
-            `<div class="resultRowFoot">${L('gesamt', 'total')} ${total}</div>`;
+            `<div class="resultRowBar"><i style="width:${pct}%"></i></div>`;
           // Per-card breakdown: which cards made the number - for MY row
           // only. An opponent's leftover hand is hidden (it reveals their play
           // style); the server does not even send it (_roundStatsFor).
@@ -2603,7 +2658,9 @@
           if (stats && (stats.laidLines || stats.handLines)) {
             const det = document.createElement('details');
             det.className = 'resultBreakdown';
-            det.open = true;
+            // Folded: four rows must fit on a phone. The summary carries the
+            // two sums, the per-card lines open on tap.
+            det.open = false;
             const lineText = (ln) => {
               const label = {
                 pikdame: '♠Q', joker: L('Joker', 'Joker'), ace: L('Ass', 'Ace'),
@@ -2618,7 +2675,7 @@
             const isWinner = !!(r && r.breakdown && r.breakdown.isWinner);
             const mult = r && r.breakdown && r.breakdown.multiplier > 1 ? r.breakdown.multiplier : 1;
             det.innerHTML =
-              `<summary>${L('Aufschlüsselung', 'Breakdown')}</summary>` +
+              `<summary>${L('Aufschlüsselung', 'Breakdown')} <span class="bdSums"><span class="bdSumPlus">+${plusSum}</span>${isWinner ? '' : ` <span class="bdSumMinus">−${minusSum}</span>`}</span></summary>` +
               `<div class="bdLine bdPlus"><span>${L('Ausgelegt', 'Melded')}</span><span>${plus ? escapeHtml(plus) : '–'}</span><b>+${plusSum}</b></div>` +
               (isWinner
                 ? `<div class="bdLine bdNote"><span>${L('Rundensieg: keine Minuspunkte', 'Round winner: no minus points')}</span><span></span><b></b></div>`
@@ -2903,6 +2960,15 @@
   // the pinned footer shrinks it (on a phone that pushed the winner's row out
   // of view with no fade), and so does rotating or resizing the viewport.
   el('resultMore').addEventListener('toggle', updateResultScrollEdges);
+  // Reactions live behind a button: the 15-emote bar used to take three
+  // rows of a card that is mainly about the scores.
+  el('resultEmoteToggle').addEventListener('click', () => {
+    const bar = el('resultEmoteBar');
+    const show = bar.classList.contains('hidden');
+    bar.classList.toggle('hidden', !show);
+    el('resultEmoteToggle').setAttribute('aria-expanded', String(show));
+    updateResultScrollEdges();
+  });
   if (typeof ResizeObserver === 'function') {
     new ResizeObserver(() => updateResultScrollEdges()).observe(el('resultBody'));
   }
@@ -3240,6 +3306,13 @@
 
   el('discardPile').addEventListener('click', () => {
     if (el('discardPile').classList.contains('disabled')) return;
+    // Known-illegal take: still ask the server (it explains WHY in its
+    // error toast) but skip the sound and the card flying to the hand - they
+    // would announce a take that is about to be refused.
+    if (el('discardPile').classList.contains('noTake')) {
+      send({ type: 'drawFromDiscard' });
+      return;
+    }
     sound.draw();
     // Remembered until the new cards show up in the next state: only a
     // pile take is allowed to scroll the fan to them.
@@ -3359,7 +3432,7 @@
 
   // Host changes to house rules sync LIVE so every player sees them and the
   // bots follow immediately (ruleSound stays local - it's a personal setting).
-  ['ruleHandAus', 'ruleStrict1000', 'ruleTurnTimer'].forEach((id) => {
+  ['ruleHandAus', 'ruleStrict1000', 'ruleTurnTimer', 'ruleBotPace'].forEach((id) => {
     el(id).addEventListener('change', () => {
       if (lastState && lastState.isHost && !lastState.challengeDate) send({ type: 'setHouseRules', houseRules: collectHouseRules() });
     });
@@ -5862,6 +5935,13 @@
       let seen = false;
       try { seen = sessionStorage.getItem('pikdame_splash_seen') === '1'; } catch (e) { seen = false; }
       const mode = storageGet(LOGO_MODE_KEY) || 'auto';
+      // Same rule as the head script: automatic = once per DEVICE and never
+      // for an invite link; only the explicit 'full' mode replays it every
+      // session.
+      if (mode !== 'full') {
+        if (storageGet(SPLASH_DEVICE_KEY) === '1') seen = true;
+        if (urlSessionCode) seen = true;
+      }
       const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       // The head script already decided (already seen, switched off, crawler,
       // or reduced motion). Honour it: drop the overlay out of the document
@@ -5874,6 +5954,7 @@
         splash.remove();
       } else {
         try { sessionStorage.setItem('pikdame_splash_seen', '1'); } catch (e) { /* egal */ }
+        storageSet(SPLASH_DEVICE_KEY, '1');
         if (mode === 'full' || !reduce) splash.classList.add('fullMotion');
         splash.classList.add('play');
 

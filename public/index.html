@@ -139,6 +139,14 @@
         var mode = null, seen = false;
         try { mode = localStorage.getItem('pikdame_studio_logo'); } catch (e) { mode = null; }
         try { seen = sessionStorage.getItem('pikdame_splash_seen') === '1'; } catch (e) { seen = false; }
+        /* Ein Vorspann von ~8 s bei JEDEM App-Start ist zu viel: automatisch
+           laeuft er nur einmal pro Geraet und nie bei einem Einladungslink
+           (?session=...) - wer mitspielen will, soll sofort tippen koennen.
+           Wer 'Voll' waehlt, bekommt ihn weiter bei jeder Sitzung. */
+        if (mode !== 'full') {
+          try { if (localStorage.getItem('pikdame_splash_device') === '1') seen = true; } catch (e) { /* egal */ }
+          if (/[?&]session=/.test(location.search)) seen = true;
+        }
         /* Crawler sahen bisher NUR das Logo - der Live-Test der Search
            Console rendert genau dieses erste Bild, Lobby und SEO-Text lagen
            darunter. Bots ueberspringen den Vorspann komplett und schreiben
@@ -370,6 +378,13 @@
             <option value="30">30 Sekunden</option>
             <option value="60">60 Sekunden</option>
             <option value="90">90 Sekunden</option>
+          </select>
+        </label>
+        <label class="rule-toggle"><span>Bot-Tempo</span>
+          <select id="ruleBotPace">
+            <option value="fast">Schnell</option>
+            <option value="normal" selected>Normal</option>
+            <option value="slow">Gemütlich</option>
           </select>
         </label>
       </div>
@@ -1025,12 +1040,15 @@
              the fold on a phone AND on a 1440x900 desktop - the one button
              every player needs was the one you had to scroll for. -->
         <div class="resultFooter">
-          <div id="resultEmoteBar" class="resultEmoteBar">
+          <div id="resultEmoteBar" class="resultEmoteBar hidden">
             <button class="emoteChoice" data-emote="👍">👍</button><button class="emoteChoice" data-emote="😂">😂</button><button class="emoteChoice" data-emote="😱">😱</button><button class="emoteChoice" data-emote="😤">😤</button><button class="emoteChoice" data-emote="🎉">🎉</button><button class="emoteChoice" data-emote="⏳" title="Tick tack...">⏳</button><button class="emoteChoice" data-emote="pikdame"><span class="miniPikdame">♠<b>Q</b></span></button><button class="emoteChoice" data-emote="👏">👏</button><button class="emoteChoice" data-emote="🙈">🙈</button><button class="emoteChoice" data-emote="🤔">🤔</button><button class="emoteChoice" data-emote="🍀">🍀</button><button class="emoteChoice" data-emote="😎">😎</button><button class="emoteChoice" data-emote="🔥">🔥</button><button class="emoteChoice" data-emote="😴">😴</button><button class="emoteChoice" data-emote="🙏">🙏</button>
           </div>
           <!-- Primary action alone; everything else folds away. Five equal
                pills below the scores meant "Weiter" had to be hunted for. -->
-          <button id="resultContinueBtn" class="btn-primary">Weiter</button>
+          <div class="resultActions">
+            <button id="resultContinueBtn" class="btn-primary">Weiter</button>
+            <button id="resultEmoteToggle" class="btn-icon" title="Reaktion senden" aria-label="Reaktion senden" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-smile"/></svg></button>
+          </div>
           <details id="resultMore" class="resultMore">
             <summary><span>Mehr</span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
             <div class="resultMoreBody">
