@@ -16,6 +16,7 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 - **Studio-Vorspann nur noch einmal pro Gerät** (statt bei jedem App-Start, ca. 8 s) und gar nicht bei Einladungslinks (`?session=…`). Wer „Voll“ in den Einstellungen wählt, sieht ihn weiterhin bei jeder Sitzung
 
 ### Fixed
+- Abhängigkeit aktualisiert: pg 8.23.0→8.23.1 (der CI-Job `dependency-check` war seit dem Erscheinen der Version für jeden PR rot)
 - **Ausgewählte Karten wurden in der scrollenden Hand oben abgeschnitten** (Rang und Farbe halb verdeckt): Der Fächer im Scroll-Modus ließ nur 4 px Platz für das Anheben der Auswahl statt 14 px
 
 ## [2.36.1] - 2026-09-29
