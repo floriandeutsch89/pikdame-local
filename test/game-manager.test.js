@@ -3348,3 +3348,89 @@ test('publicState hides opponents\' leftover hand composition after a round; own
   assert.ok(spectator.lastRoundStats.every((s) => s.handLines === undefined), 'no viewer id - nothing leaks');
   game.destroy();
 });
+
+// --- v2.37.0: discardTakeable (server truth for the discard glow) -----------
+test('publicState.discardTakeable: only the mover in the draw phase, true/false by legality', () => {
+  const { makeStandardCard: mk } = require('../game/Card');
+  const g = __autoCutHook(new GameManager(() => {}));
+  g.addOrReconnectPlayer('p1', 'Anna');
+  g.addOrReconnectPlayer('p2', 'Ben');
+  g.startNewRound();
+  g.currentPlayerIndex = g.players.findIndex((p) => p.id === 'p1');
+  g.turnPhase = 'draw';
+  const p1 = g.players.find((p) => p.id === 'p1');
+  p1.hand = [mk('H', '7', 0), mk('D', '7', 0), mk('C', '2', 0), mk('C', '9', 0)];
+
+  g.discardPile = [mk('S', '7', 0), mk('H', '3', 1)];
+  assert.equal(g.publicState('p1').discardTakeable, true, 'a seven completes a set with 7H 7D');
+  assert.equal(g.publicState('p2').discardTakeable, null, 'not the mover: no answer (leaks nothing)');
+
+  g.discardPile = [mk('S', 'K', 0)];
+  assert.equal(g.publicState('p1').discardTakeable, false, 'a king fits nothing');
+
+  g.discardPile = [];
+  assert.equal(g.publicState('p1').discardTakeable, null, 'empty pile: question does not apply');
+
+  g.discardPile = [mk('S', '7', 0)];
+  g.turnPhase = 'meld';
+  assert.equal(g.publicState('p1').discardTakeable, null, 'only in the draw phase');
+});
+
+test('publicState.discardTakeable agrees with drawFromDiscard (never promises a refused take)', () => {
+  const { makeStandardCard: mk } = require('../game/Card');
+  const g = __autoCutHook(new GameManager(() => {}));
+  g.addOrReconnectPlayer('p1', 'Anna');
+  g.addOrReconnectPlayer('p2', 'Ben');
+  g.startNewRound();
+  const p1 = g.players.find((p) => p.id === 'p1');
+  // Hand of exactly 3 + a single-card pile: taking would consume the whole
+  // hand (the family rule forbids it) although the card forms a meld.
+  g.currentPlayerIndex = g.players.indexOf(p1);
+  g.turnPhase = 'draw';
+  p1.hand = [mk('H', '7', 0), mk('D', '7', 0)];
+  g.discardPile = [mk('S', '7', 0)];
+  const flag = g.publicState('p1').discardTakeable;
+  const res = g.drawFromDiscard('p1');
+  assert.equal(flag, !res.error);
+});
+
+// --- v2.37.0: bot pace house rule --------------------------------------------
+test('houseRules.botPace: only fast/normal/slow accepted; scales the bot delay', () => {
+  const g = __autoCutHook(new GameManager(() => {}));
+  g.addOrReconnectPlayer('p1', 'Anna');
+  g.setHouseRules({ botPace: 'slow' });
+  assert.equal(g.houseRules.botPace, 'slow');
+  g.setHouseRules({ botPace: 'warp' });
+  assert.equal(g.houseRules.botPace, 'slow', 'unknown value keeps the last one');
+  g.setHouseRules({ botPace: 'fast' });
+  assert.equal(g.houseRules.botPace, 'fast');
+  g.setHouseRules({ turnTimerSeconds: 30 });
+  assert.equal(g.houseRules.botPace, 'fast', 'other rules do not reset it');
+});
+
+test('botPace changes the scheduled bot delay (fast < normal < slow)', () => {
+  const delays = {};
+  const realSetTimeout = global.setTimeout;
+  for (const pace of ['fast', 'normal', 'slow']) {
+    const g = __autoCutHook(new GameManager(() => {}));
+    g.addOrReconnectPlayer('p1', 'Anna');
+    g.fillWithBots();
+    g.setHouseRules({ botPace: pace });
+    g.startNewRound();
+    const bot = g.players.find((p) => p.isBot);
+    g.currentPlayerIndex = g.players.indexOf(bot);
+    g.turnPhase = 'draw';
+    let seen = null;
+    global.setTimeout = (fn, ms, ...rest) => {
+      if (ms >= 300) seen = ms; // the bot think-time timer (others are shorter or far longer)
+      const t = realSetTimeout(() => {}, 0);
+      return t;
+    };
+    try { g.maybeRunBotTurn(); } finally { global.setTimeout = realSetTimeout; }
+    delays[pace] = seen;
+    g.destroy();
+  }
+  assert.ok(delays.fast >= 350 && delays.fast <= 650, `fast ${delays.fast}`);
+  assert.ok(delays.normal >= 700 && delays.normal <= 1300, `normal ${delays.normal}`);
+  assert.ok(delays.slow >= 1400 && delays.slow <= 2600, `slow ${delays.slow}`);
+});

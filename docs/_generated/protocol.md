@@ -28,7 +28,7 @@ handler, so it always matches the running code.
 | `reorderSeats` | Host only: change the seating order. |
 | `setBotDifficulty` | Host only: set a bot seat's difficulty. |
 | `setDealer` | Host only: choose the dealer. |
-| `setHouseRules` | Host only: change house rules (turn timer, "hand aus" doubling, strict threshold). |
+| `setHouseRules` | Host only: change house rules (turn timer, bot speed, "hand aus" doubling, strict threshold). |
 | `setMaxSeats` | Host only: change the number of seats (2-4). |
 | `startGame` | Host only: start the game (empty seats are filled with bots). |
 | `swapJoker` | Swap a joker on the table for the card it represents (the joker leaves play permanently). |

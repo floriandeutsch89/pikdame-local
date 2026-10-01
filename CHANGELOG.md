@@ -3,6 +3,21 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.37.0] - 2026-10-01
+
+### Added
+- **Bot-Tempo als Tischeinstellung:** In der Spiel-Lobby steht unter den Hausregeln „Bot-Tempo“ (Schnell · Normal · Gemütlich). „Schnell“ halbiert die Bedenkzeit der Bots, „Gemütlich“ verdoppelt sie (Normal bleibt bei 0,7–1,3 s). Reines Tempo, am Spielverlauf ändert sich nichts. Mit „Gemütlich“ lassen sich Bot-Züge besser verfolgen
+- **Ablage-Hinweis nach Serverwahrheit:** Der Server meldet dem Spieler am Zug, ob die oberste Ablagekarte aufgenommen werden darf (`discardTakeable`)
+
+### Changed
+- **Ablagestapel glüht nur noch, wenn die Aufnahme erlaubt ist.** Vorher leuchteten beide Stapel in der Zieh-Phase immer. Ist die Aufnahme nicht möglich, ist die Karte abgedunkelt und es gibt weder Ton noch Flug-Animation; der Tipp darauf erklärt wie bisher per Meldung, warum es nicht geht
+- **Hand ab 14 Karten am Telefon (hochkant) zweireihig** statt einer Reihe mit 19–26 px schmalen Streifen oder seitlichem Scrollen. Jede Karte hat jetzt einen rund 37 px breiten Tippstreifen, es muss nichts mehr gescrollt werden. Querformat und Desktop behalten den Fächer
+- **Rundenende-Ergebnis passt aufs Telefon:** Eine Zeile pro Spieler (Name · gesamt · Rundenpunkte), sortiert nach Rundenpunkten (am Spielende nach Gesamtstand). Die Aufschlüsselung ist nur für die eigene Zeile da und startet zugeklappt, die Zusammenfassung zeigt „+Ausgelegt −Hand“. Die Reaktionsleiste (15 Emotes in drei Zeilen) liegt hinter einem Knopf neben „Weiter“. Gemessen mit 4 Spielern: alle 4 Zeilen sichtbar im Hochformat und am Desktop (vorher ca. 1,7 bzw. 2,9), im Querformat alle 4 statt 1
+- **Studio-Vorspann nur noch einmal pro Gerät** (statt bei jedem App-Start, ca. 8 s) und gar nicht bei Einladungslinks (`?session=…`). Wer „Voll“ in den Einstellungen wählt, sieht ihn weiterhin bei jeder Sitzung
+
+### Fixed
+- **Ausgewählte Karten wurden in der scrollenden Hand oben abgeschnitten** (Rang und Farbe halb verdeckt): Der Fächer im Scroll-Modus ließ nur 4 px Platz für das Anheben der Auswahl statt 14 px
+
 ## [2.36.1] - 2026-09-29
 
 ### Fixed

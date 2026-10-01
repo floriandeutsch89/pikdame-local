@@ -135,3 +135,67 @@ test('hand fan: only a pile take scrolls to the fresh cards, and only once', asy
 
   assert.deepEqual(errors, [], `Client-Fehler: ${errors.join(' | ')}`);
 });
+
+// v2.37.0: on a narrow screen a dense hand goes into two rows instead of one
+// 19-26 px strip per card (and nothing scrolls); wide screens keep the fan.
+function feedHandWithWidth(n, parentWidth) {
+  const ctx = boot();
+  const { window } = ctx;
+  // jsdom has no layout: give the hand's parent a width and the cards a size.
+  Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', {
+    configurable: true,
+    get() { return this.id === 'handWrapper' ? parentWidth : 0; },
+  });
+  Object.defineProperty(window.HTMLElement.prototype, 'offsetWidth', {
+    configurable: true, get() { return this.classList && this.classList.contains('card') ? 66 : 0; },
+  });
+  Object.defineProperty(window.HTMLElement.prototype, 'offsetHeight', {
+    configurable: true, get() { return this.classList && this.classList.contains('card') ? 92 : 0; },
+  });
+  return ctx;
+}
+
+async function renderHand(ctx, n) {
+  await new Promise((r) => setTimeout(r, 10));
+  const sock = ctx.ws();
+  const feed = (state) => sock._emit('message', { data: JSON.stringify({ type: 'state', state }) });
+  sock._emit('message', { data: JSON.stringify({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'ABCD' }) });
+  feed(playingState(makeHand(n), 'meld'));
+  return ctx.window.document.getElementById('hand');
+}
+
+test('hand fan: 16 cards on a phone-width screen -> two rows, no scrolling', async (t) => {
+  const ctx = feedHandWithWidth(16, 393);
+  t.after(() => ctx.window.close());
+  const hand = await renderHand(ctx, 16);
+  assert.ok(hand.classList.contains('handRows'), 'dense hand uses the two-row layout');
+  assert.ok(!hand.classList.contains('handScroll'), 'two rows replace the scroll mode');
+  const rows = hand.querySelectorAll('.handRow');
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].children.length + rows[1].children.length, 16, 'no card lost');
+  assert.equal(hand.querySelectorAll('.card').length, 16);
+  // every card kept a tap strip well above the old 19-26 px
+  const strip = 66 + parseFloat(rows[0].children[1].style.marginLeft);
+  assert.ok(strip >= 30, `strip ${strip}px`);
+  assert.deepEqual(ctx.errors, []);
+});
+
+test('hand fan: wide screens and small hands keep the single fan', async (t) => {
+  const wide = feedHandWithWidth(16, 874);
+  t.after(() => wide.window.close());
+  const handW = await renderHand(wide, 16);
+  assert.ok(!handW.classList.contains('handRows'), 'landscape/desktop: no rows');
+
+  const small = feedHandWithWidth(8, 393);
+  t.after(() => small.window.close());
+  const handS = await renderHand(small, 8);
+  assert.ok(!handS.classList.contains('handRows'), '8 cards fit one row');
+});
+
+test('CSS contract: scroll-mode hand keeps room for the selection lift', () => {
+  const css = fs.readFileSync(path.join(pub, 'style.css'), 'utf8');
+  const m = css.match(/\n#hand\.handScroll\s*\{([\s\S]*?)\n\}/);
+  assert.ok(m, '#hand.handScroll rule exists');
+  const pad = m[1].replace(/\/\*[\s\S]*?\*\//g, '').match(/padding-top\s*:\s*(\d+)px/);
+  assert.ok(pad && Number(pad[1]) >= 14, 'padding-top >= 14px (.card.selected lifts by 14px; overflow-x:auto would clip it)');
+});

@@ -140,7 +140,7 @@ const MSG_NOTES = {
   reorderSeats: 'Host only: change the seating order.',
   setDealer: 'Host only: choose the dealer.',
   setBotDifficulty: 'Host only: set a bot seat\'s difficulty.',
-  setHouseRules: 'Host only: change house rules (turn timer, "hand aus" doubling, strict threshold).',
+  setHouseRules: 'Host only: change house rules (turn timer, bot speed, "hand aus" doubling, strict threshold).',
   drawFromPile: 'Draw the top card of the face-down draw pile.',
   drawFromDiscard: 'Take the discard pile. Only allowed if its top card immediately forms a new combination - it must then be laid this turn.',
   layoutMeld: 'Lay out a new set or run.',

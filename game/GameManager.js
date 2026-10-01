@@ -13,6 +13,13 @@ const StateEncoder = require('./StateEncoder');
 const MoveLogger = require('./MoveLogger');
 const { dayEnd } = require('./GameDay');
 
+// Bot think time multiplier per table (house rule `botPace`, default normal).
+const BOT_PACE_FACTOR = { fast: 0.5, normal: 1, slow: 2 };
+function botPaceFactor(houseRules) {
+  const f = houseRules && BOT_PACE_FACTOR[houseRules.botPace];
+  return f === undefined ? 1 : f;
+}
+
 /** A bot's difficulty, defaulting to Zen (single source for the fallback). */
 function botDifficultyOf(player) {
   return (player && player.botDifficulty) || 'zen';
@@ -337,6 +344,8 @@ class GameManager {
     if (typeof partial.handAusDoubles === 'boolean') clean.handAusDoubles = partial.handAusDoubles;
     if (typeof partial.strictThreshold === 'boolean') clean.strictThreshold = partial.strictThreshold;
     if ([0, 30, 60, 90].includes(Number(partial.turnTimerSeconds))) clean.turnTimerSeconds = Number(partial.turnTimerSeconds);
+    // Pure pacing, no effect on play: how long a bot "thinks" per turn.
+    if (typeof partial.botPace === 'string' && BOT_PACE_FACTOR[partial.botPace] !== undefined) clean.botPace = partial.botPace;
     this.houseRules = {
       ...DEFAULT_HOUSE_RULES,
       ...this.houseRules,
@@ -2005,7 +2014,7 @@ class GameManager {
       } else {
         this.runBotTurn(cp.id);
       }
-    }, 700 + Math.random() * 600);
+    }, (700 + Math.random() * 600) * botPaceFactor(this.houseRules));
     if (this._botTimer.unref) this._botTimer.unref();
   }
 
@@ -2842,6 +2851,11 @@ class GameManager {
         this.players[this.currentPlayerIndex] &&
         this.players[this.currentPlayerIndex].id === forPlayerId
       ),
+      // Server truth for the discard glow: may the viewer take the top card
+      // RIGHT NOW? Only ever set for the player to move in the draw phase
+      // (derived from their own hand + the public top card, so it leaks
+      // nothing); null for everyone else.
+      discardTakeable: this._discardTakeableFor(forPlayerId),
       pauseVotes: this._pauseVotes ? [...this._pauseVotes] : [],
       forfeitVotes: this._forfeitVotes ? [...this._forfeitVotes] : [],
       players: this.players.map((p) => ({
@@ -2874,6 +2888,22 @@ class GameManager {
       gameOverInfo: this.gameOverInfo || null,
       log: this.log.slice(-20),
     };
+  }
+
+  /** True/false whether `playerId` could take the discard top now (draw
+   *  phase, their turn); null when the question does not apply. */
+  _discardTakeableFor(playerId) {
+    if (this.phase !== 'playing' || this.turnPhase !== 'draw') return null;
+    const cp = this.players[this.currentPlayerIndex];
+    if (!cp || cp.id !== playerId) return null;
+    const top = this.discardPile[0];
+    if (!top) return null;
+    if (top.faceDown) return false;
+    try {
+      return !!this.canTakeDiscardTop(cp, top);
+    } catch (e) {
+      return null; // a hint must never break the state broadcast
+    }
   }
 
   /** Canonical, identical-for-everyone order of the table melds: sorted by
