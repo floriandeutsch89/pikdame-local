@@ -978,7 +978,9 @@
       // Existence probe reply: reveal the resume button only for a live game,
       // and drop a stale code so it is never offered again.
       const last = storageGet('pikdame_last_session');
-      if (msg.exists && msg.code === last && !sessionCode) {
+      // A finished match (winner decided) is not offered for resuming; the
+      // code stays remembered, the results are still reachable by typing it.
+      if (msg.exists && !msg.finished && msg.code === last && !sessionCode) {
         resumeCode = msg.code;
         resumeIsChallenge = !!msg.challenge;
       } else {

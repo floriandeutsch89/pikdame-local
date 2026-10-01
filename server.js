@@ -1246,7 +1246,9 @@ wss.on('connection', (ws, req) => {
       const probed = registry.get(msg.code);
       const g = probed && probed.game;
       const challenge = !!(g && g.challengeDate && g.challengeDate === gameDay() && g.phase !== 'gameOver' && g.phase !== 'abandoned');
-      ws.send(JSON.stringify({ type: 'sessionStatus', code: msg.code, exists, challenge }));
+      // A finished match (a winner is decided) is not worth a 'resume' button.
+      const finished = !!(g && g.phase === 'gameOver');
+      ws.send(JSON.stringify({ type: 'sessionStatus', code: msg.code, exists, challenge, finished }));
       return;
     }
     if (msg.type === 'joinSession') {

@@ -199,3 +199,21 @@ test('CSS contract: scroll-mode hand keeps room for the selection lift', () => {
   const pad = m[1].replace(/\/\*[\s\S]*?\*\//g, '').match(/padding-top\s*:\s*(\d+)px/);
   assert.ok(pad && Number(pad[1]) >= 14, 'padding-top >= 14px (.card.selected lifts by 14px; overflow-x:auto would clip it)');
 });
+
+// Main menu: a finished match (winner decided) is not offered for resuming.
+test('main menu: resume button hidden when the probed game is finished', async (t) => {
+  const { window, errors, ws } = boot();
+  t.after(() => window.close());
+  await new Promise((r) => setTimeout(r, 10));
+  const sock = ws();
+  window.localStorage.setItem('pikdame_last_session', 'ABCD');
+  const btn = window.document.getElementById('resumeBtn');
+  const status = (extra) => sock._emit('message', { data: JSON.stringify({ type: 'sessionStatus', code: 'ABCD', exists: true, challenge: false, ...extra }) });
+  status({ finished: false });
+  assert.ok(!btn.classList.contains('hidden'), 'live game: resume offered');
+  status({ finished: true });
+  assert.ok(btn.classList.contains('hidden'), 'finished game: no resume button');
+  status({});
+  assert.ok(!btn.classList.contains('hidden'), 'older server without the field: unchanged behaviour');
+  assert.deepEqual(errors, []);
+});

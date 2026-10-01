@@ -225,5 +225,7 @@ test('checkSession flags a running challenge of today, not a normal table', asyn
   const table = await waitFor(probe, 'sessionStatus');
   assert.strictEqual(table.exists, true);
   assert.strictEqual(table.challenge, false, 'a normal table is not a challenge');
+  assert.strictEqual(table.finished, false, 'a running table is not finished');
+  assert.strictEqual(ch.finished, false, 'neither is the running challenge');
   for (const ws of [host, probe]) ws.close();
 });
