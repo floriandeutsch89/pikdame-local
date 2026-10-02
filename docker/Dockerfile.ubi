@@ -1,0 +1,107 @@
+# Pik Dame - Red Hat UBI image (OPTIONAL, and NOT the default image)
+#
+# Same app as docker/Dockerfile, but the runtime base is ubi9-micro instead of
+# Alpine:
+#
+#   docker build -f docker/Dockerfile.ubi -t pikdame-ubi .
+#   docker run -d --init -p 8080:8080 -v pikdame-data:/app/data pikdame-ubi
+#
+# Why it looks the way it does:
+#
+#   * Red Hat ships only LTS Node streams (ubi9/nodejs-22, -24), while this
+#     project (and CI) runs on Node 26. So the Node BINARY comes from the
+#     official node:26-slim image and is copied into ubi9-micro. The CI check
+#     "FROM node:26" keeps matching, and Dependabot keeps bumping that stage.
+#   * ubi9-micro has no package manager and lacks the runtime libraries the
+#     Node binary links against (libstdc++, libatomic). They are installed
+#     into a scratch rootfs with microdnf --installroot in a throw-away
+#     ubi9-minimal stage (the pattern Red Hat documents for micro) and copied
+#     over. The RPM database travels along, so image scanners see the packages.
+#   * glibc, like Debian: onnxruntime-node's prebuilt binaries would load here
+#     (see docker/Dockerfile.onnx) - not wired up in this file on purpose.
+#   * No tini: the server spawns no child processes (no zombies to reap) and
+#     handles SIGTERM itself. Use `docker run --init` / `init: true` in compose
+#     if you want a reaper anyway.
+#   * UBI is freely redistributable under the UBI EULA, but it is NOT OSI open
+#     source. See docs/admin/operations.md before adopting it.
+#
+# Build prerequisites: network access to registry.access.redhat.com (images)
+# and cdn-ubi.redhat.com (RPMs for the rootfs stage).
+
+# --- Stage 1: production dependencies + the Node binary ---------------------
+# glibc builder: `ws` and `pg` are pure JS, but a glibc stage keeps the door
+# open for optional native modules.
+FROM node:26-slim AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev
+
+
+# --- Stage 2: minify the browser assets -------------------------------------
+# Same as the default image: only minified files reach the runtime image.
+# hadolint ignore=DL3029
+FROM --platform=$BUILDPLATFORM node:26-slim AS assets
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci
+COPY scripts/minify-assets.js ./scripts/
+COPY public ./public
+RUN node scripts/minify-assets.js
+
+
+# --- Stage 3: runtime libraries for the Node binary -------------------------
+# microdnf upgrades too, so security errata that landed after the micro base
+# was built are included.
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.8 AS rootfs
+# hadolint ignore=DL3041
+RUN mkdir -p /mnt/rootfs \
+  && microdnf install -y --installroot /mnt/rootfs --releasever 9 \
+       --setopt=install_weak_deps=0 --setopt=reposdir=/etc/yum.repos.d --nodocs \
+       libstdc++ libatomic \
+  && microdnf --installroot /mnt/rootfs --releasever 9 clean all \
+  && rm -rf /mnt/rootfs/var/cache /mnt/rootfs/var/log/* /mnt/rootfs/tmp/*
+
+
+# --- Stage 4: minimal runtime image -----------------------------------------
+FROM registry.access.redhat.com/ubi9/ubi-micro:9.8
+
+LABEL org.opencontainers.image.source="https://github.com/floriandeutsch89/pikdame-local" \
+      org.opencontainers.image.title="Pik Dame (UBI)" \
+      org.opencontainers.image.description="Multiplayer card game server (family rummy variant) on Red Hat UBI 9 micro" \
+      org.opencontainers.image.licenses="MIT"
+
+COPY --from=rootfs /mnt/rootfs/ /
+COPY --from=deps /usr/local/bin/node /usr/local/bin/node
+
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY package.json ./
+COPY CHANGELOG.md ./
+# MIT requires the licence text to travel with every copy of the software.
+COPY LICENSE ./
+COPY server.js ./
+COPY game ./game
+# Minified in stage "assets" - index.html travels through untouched, because
+# its inline script is pinned by sha256 in the production CSP.
+COPY --from=assets /app/public ./public
+
+# Same fixed UID/GID as the other images, so an existing data volume and the
+# chown'ed compose secrets keep working. micro has no useradd: write the
+# passwd/group entries by hand (a missing entry makes os.userInfo() throw).
+RUN mkdir -p /app/data \
+  && echo 'pikdame:x:10001:10001:Pik Dame:/app:/sbin/nologin' >> /etc/passwd \
+  && echo 'pikdame:x:10001:' >> /etc/group \
+  && chown -R 10001:10001 /app
+
+USER 10001:10001
+
+ENV PORT=8080 \
+    NODE_ENV=production
+EXPOSE 8080
+
+# micro has neither wget nor curl; use node itself for the health check.
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:'+(process.env.PORT||8080)+'/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+
+CMD ["node", "server.js"]

@@ -145,6 +145,13 @@ jobs:
         with:
           dockerfile: docker/Dockerfile.onnx
           ignore: DL3018,DL3066,DL3025
+      # The optional UBI image is linted only: building it needs RPMs from
+      # cdn-ubi.redhat.com and the Node binary copy, which CI does not need to
+      # re-prove on every run. No ignores - the user is numeric (USER 10001).
+      - name: Lint Dockerfile.ubi (hadolint)
+        uses: hadolint/hadolint-action@v3.5.0
+        with:
+          dockerfile: docker/Dockerfile.ubi
       - name: Lint Caddy Dockerfile (hadolint)
         uses: hadolint/hadolint-action@v3.5.0
         with:

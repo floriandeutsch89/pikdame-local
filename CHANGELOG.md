@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.39.0] - 2026-10-02
+
+### Added
+- **Optionales UBI-Image (`docker/Dockerfile.ubi`):** Laufzeit auf Red Hat UBI 9 micro statt Alpine, Node 26 wird aus `node:26-slim` hineinkopiert (Red Hat liefert nur LTS-Streams), `libstdc++`/`libatomic` kommen per `microdnf --installroot` dazu. Läuft als UID 10001 mit `read_only`, `cap_drop: ALL`, Healthcheck über Node und sauberem SIGTERM-Shutdown. Standard-Image und Compose-Dateien bleiben unverändert. Trivy-Messung (HIGH/CRITICAL, 2026-10-02): Alpine 0 Befunde, UBI 6 (alle `pcre2`, ohne verfügbaren Fix) - UBI ist hier kein Sicherheitsgewinn, sondern Option für glibc und Red-Hat-Support. Der CI-Job `docker-security` lintet die Datei mit hadolint, gebaut wird sie dort nicht
+
 ## [2.38.0] - 2026-10-02
 
 ### Added
