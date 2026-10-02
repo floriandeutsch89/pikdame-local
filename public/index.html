@@ -743,6 +743,16 @@
             <span class="sheetRowLabel">Spiel-Tipps</span>
             <span class="sheetRowValue">–</span>
           </button>
+          <button id="aidDiscardToggle" class="sheetRow" title="Ablage-Hinweis ein/aus">
+            <svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg>
+            <span class="sheetRowLabel">Ablage-Hinweis</span>
+            <span class="sheetRowValue">–</span>
+          </button>
+          <button id="aidLayOffToggle" class="sheetRow" title="Anlege-Hinweis ein/aus">
+            <svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>
+            <span class="sheetRowLabel">Anlege-Hinweis</span>
+            <span class="sheetRowValue">–</span>
+          </button>
           <button id="fullscreenBtn" class="sheetRow hidden" title="Vollbild">
             <svg class="icon" aria-hidden="true"><use href="#i-fullscreen"/></svg>
             <span class="sheetRowLabel">Vollbild</span>
@@ -855,6 +865,24 @@
               <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><span>Kartenrücken</span></span>
               <button id="cardbackBtn" class="settingsAction">Klassisch</button>
             </div>
+          </div>
+
+          <div class="settingsItem">
+            <h3 class="settingsGroupTitle">Spielhilfen</h3>
+            <label class="settingsRow" for="aidTipsCheckbox">
+              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg><span>Spiel-Tipps</span></span>
+              <input type="checkbox" id="aidTipsCheckbox" class="settingsCheckbox" />
+            </label>
+            <label class="settingsRow" for="aidDiscardCheckbox">
+              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><span>Ablage-Hinweis</span></span>
+              <input type="checkbox" id="aidDiscardCheckbox" class="settingsCheckbox" />
+            </label>
+            <p class="settingsHint">Zeigt in der Zieh-Phase, ob die oberste Ablagekarte zu deiner Hand passt. Aus: Du prüfst das selbst.</p>
+            <label class="settingsRow" for="aidLayOffCheckbox">
+              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span>Anlege-Hinweis</span></span>
+              <input type="checkbox" id="aidLayOffCheckbox" class="settingsCheckbox" />
+            </label>
+            <p class="settingsHint">Grüne Rahmen an deinen Auslagen, wenn die gewählte Karte dort anlegen kann. Aus: Du prüfst das selbst. Im Tutorial sind beide Hinweise immer an.</p>
           </div>
 
           <div class="settingsItem">

@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.38.0] - 2026-10-02
+
+### Added
+- **Spielhilfen als Einstellungen:** Wer beim Ablagestapel und beim Anlegen lieber selbst nachdenkt, kann die Hinweise abschalten. Neuer Block „Spielhilfen“ in den Einstellungen der Startseite (Schalter) und im Einstellungsblatt am Tisch (Zeilen), pro Gerät gespeichert: **Spiel-Tipps** (bestand schon), **Ablage-Hinweis** (leuchtet der Ablagestapel nur, wenn die oberste Karte passt?) und **Anlege-Hinweis** (grüne Rahmen an passenden Auslagen). Standard: Ablage-Hinweis aus, Anlege-Hinweis an (wie bisher). Im Tutorial sind beide Hinweise immer an; ein neuer Bonus-Schritt weist darauf hin. Der Server prüft jeden Zug wie zuvor, die Hinweise ändern keine Regel
+- Bei ausgeschaltetem Anlege-Hinweis spricht der Zug-Tipp nur noch von „einer deiner Auslagen“ statt von „grün markierten“
+
+### Changed
+- **Ablage-Hinweis (aus 2.37.0) ist jetzt abschaltbar und standardmäßig aus.** Aus verhält sich der Ablagestapel wie vor 2.37.0: Er leuchtet in der Zieh-Phase immer, eine nicht erlaubte Aufnahme wird erst vom Server mit Begründung abgelehnt
+
 ## [2.37.0] - 2026-10-01
 
 ### Added

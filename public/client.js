@@ -273,6 +273,7 @@
     updateResumeBtn();    // "Weiterspielen (CODE)" - enthaelt einen Wert
     try { updateStudioLogoBtn(); } catch (e) { /* erst spaeter definiert */ }
     try { applyCardback(); } catch (e) { /* erst spaeter definiert */ }
+    try { setTipsEnabled(gameTipsEnabled); renderAidControls(); } catch (e) { /* Einstellungsblatt ist nie kritisch */ }
     // Aus dem Code erzeugte Listen: Ihre Texte kommen aus L(), werden aber nur
     // beim Rendern gesetzt - ohne erneuten Aufruf bleiben sie in der alten
     // Sprache stehen (Nutzer-Report zu den Tagesaufgaben). Betrifft alle drei
@@ -591,8 +592,55 @@
         ? L('Spiel-Tipps ausblenden', 'Hide game tips')
         : L('Spiel-Tipps wieder anzeigen', 'Show game tips again');
     }
+    const tipsBox = document.getElementById('aidTipsCheckbox');
+    if (tipsBox) tipsBox.checked = enabled;
   }
   setTipsEnabled(gameTipsEnabled);
+
+  // Spielhilfen (per device, like the tips): two aids that take over a check
+  // experienced players like to do themselves. The tutorial always has both.
+  //   - discard hint: does the top discard fit my hand? (server truth)
+  //   - lay-off hint: green frames on melds the selected card fits
+  // Defaults: discard hint OFF (new in 2.37, so nobody loses a habit), lay-off
+  // hint ON (it has always been there). Nothing here changes a rule - the
+  // server stays the only judge of every move.
+  const AID_DISCARD_KEY = 'pikdame_aid_discard';
+  const AID_LAYOFF_KEY = 'pikdame_aid_layoff';
+  let aidDiscard = storageGet(AID_DISCARD_KEY) === 'on';
+  let aidLayOff = storageGet(AID_LAYOFF_KEY) !== 'off';
+  const inTutorial = () => !!(lastState && lastState.tutorialMode);
+  const discardAidOn = () => aidDiscard || inTutorial();
+  const layOffAidOn = () => aidLayOff || inTutorial();
+  function renderAidControls() {
+    for (const [btnId, boxId, on, onTxt, offTxt] of [
+      ['aidDiscardToggle', 'aidDiscardCheckbox', aidDiscard,
+        L('Ablage-Hinweis ausblenden', 'Hide discard hint'), L('Ablage-Hinweis anzeigen', 'Show discard hint')],
+      ['aidLayOffToggle', 'aidLayOffCheckbox', aidLayOff,
+        L('Anlege-Hinweis ausblenden', 'Hide lay-off hint'), L('Anlege-Hinweis anzeigen', 'Show lay-off hint')],
+    ]) {
+      const btn = document.getElementById(btnId);
+      if (btn) {
+        setRowValue(btn, on ? L('An', 'On') : L('Aus', 'Off'));
+        btn.title = on ? onTxt : offTxt;
+      }
+      const box = document.getElementById(boxId);
+      if (box) box.checked = on;
+    }
+    const tipsBox = document.getElementById('aidTipsCheckbox');
+    if (tipsBox) tipsBox.checked = gameTipsEnabled;
+  }
+  function setAid(which, enabled) {
+    if (which === 'discard') {
+      aidDiscard = enabled;
+      storageSet(AID_DISCARD_KEY, enabled ? 'on' : 'off');
+    } else {
+      aidLayOff = enabled;
+      storageSet(AID_LAYOFF_KEY, enabled ? 'on' : 'off');
+    }
+    renderAidControls();
+    if (typeof render === 'function' && lastState) render();
+  }
+  renderAidControls();
 
   function wsUrl() {
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -1815,7 +1863,7 @@
         if (meld.id != null) group.dataset.meldId = String(meld.id);
         // Grüner Hinweis: EINE Karte, die hier anpasst - ODER mehrere,
         // die GEMEINSAM anpassen (z.B. zwei Zehnen an den Zehner-Satz)
-        if (isMine && isMyTurn && lastState.turnPhase === 'meld') {
+        if (isMine && isMyTurn && lastState.turnPhase === 'meld' && layOffAidOn()) {
           // PFLICHTKARTE (gerade vom Ablagestapel genommen): WEDER einfaches
           // ANLEGEN NOCH JOKER-TAUSCH erfüllen die Pflicht noch - der Server
           // lehnt beides ab, weil die Aufnahme durch eine HAND-Kombination
@@ -1936,7 +1984,7 @@
     el('drawPile').classList.toggle('glow', canDraw && lastState.drawPileCount > 0);
     // Server truth: glow the discard only when taking it is actually legal.
     // `null`/missing (older server, no answer) keeps the old optimistic glow.
-    const discardBlocked = canDraw && !!lastState.discardTop && lastState.discardTakeable === false;
+    const discardBlocked = discardAidOn() && canDraw && !!lastState.discardTop && lastState.discardTakeable === false;
     el('discardPile').classList.toggle('glow', canDraw && !!lastState.discardTop && !discardBlocked);
     el('discardPile').classList.toggle('noTake', discardBlocked);
 
@@ -2214,7 +2262,9 @@
         tipShownForTurn = turnKey;
         tipSeenCount += 1;
         storageSet(TIP_SEEN_KEY, String(tipSeenCount));
-        showToast(L('Tipp: 3+ Karten auswählen zum Auslegen, 1 Karte + „Abwerfen“, oder Karte wählen und auf eine grün markierte Auslage tippen.', 'Tip: select 3+ cards to meld, 1 card + "Discard", or select a card and tap a green-highlighted meld.'));
+        showToast(layOffAidOn()
+          ? L('Tipp: 3+ Karten auswählen zum Auslegen, 1 Karte + „Abwerfen“, oder Karte wählen und auf eine grün markierte Auslage tippen.', 'Tip: select 3+ cards to meld, 1 card + "Discard", or select a card and tap a green-highlighted meld.')
+          : L('Tipp: 3+ Karten auswählen zum Auslegen, 1 Karte + „Abwerfen“, oder Karte wählen und auf eine deiner Auslagen tippen.', 'Tip: select 3+ cards to meld, 1 card + "Discard", or select a card and tap one of your melds.'));
       }
     } else {
       clearHintIfNotError();
@@ -3422,6 +3472,13 @@
         : L('Spiel-Tipps sind aus. Wieder einschalten: in den Einstellungen.', 'Game tips are off. Re-enable them in the settings.')
     );
   });
+  el('aidDiscardToggle').addEventListener('click', () => setAid('discard', !aidDiscard));
+  el('aidLayOffToggle').addEventListener('click', () => setAid('layoff', !aidLayOff));
+  el('aidDiscardCheckbox').addEventListener('change', () => setAid('discard', el('aidDiscardCheckbox').checked));
+  el('aidLayOffCheckbox').addEventListener('change', () => setAid('layoff', el('aidLayOffCheckbox').checked));
+  el('aidTipsCheckbox').addEventListener('change', () => {
+    if (el('aidTipsCheckbox').checked !== gameTipsEnabled) el('tipsToggle').click();
+  });
   el('soundToggle').addEventListener('click', () => {
     setSoundEnabled(!soundEnabled);
   });
@@ -3628,6 +3685,18 @@
       text: () => L(
         'Du bist dran! Ziehe eine Karte: verdeckt vom Stapel ODER nimm den Ablagestapel. Achtung beim Ablagestapel: Du bekommst ALLE Karten darin, und die oberste musst du sofort verwenden.',
         'Your turn! Draw a card: face-down from the stock OR take the discard pile. Careful with the pile: you get ALL of its cards, and you must use the top one immediately.'
+      ),
+    },
+    {
+      // OPTIONAL (bonus row): pointing at the two play aids. Both are always
+      // on in the tutorial; afterwards each player decides per device.
+      key: 'aids',
+      optional: true,
+      when: (st, me, myTurn) => st.tutorialMode && myTurn && st.turnPhase === 'draw',
+      highlight: () => ({ cardIds: [], meldIds: [], targets: ['discardPile'] }),
+      text: () => L(
+        'Spielhilfen: Der Ablagestapel leuchtet nur, wenn die oberste Karte zu deiner Hand passt, und beim Anlegen markieren grüne Rahmen passende Auslagen. Beides ist hier immer an. Später kannst du beides in den Einstellungen abschalten, wenn du lieber selbst prüfst.',
+        'Play aids: the discard pile only glows when its top card fits your hand, and green frames mark melds a card can be added to. Both are always on here. Later you can switch each off in the settings if you prefer to check yourself.'
       ),
     },
     {
@@ -4325,6 +4394,7 @@
     meld: () => L('Kombination auslegen', 'Lay down a combination'),
     queenSet: () => L('Pik Dame auslegen (+100)', 'Meld the Queen of Spades (+100)'),
     discardStep: () => L('Zug mit Abwerfen beenden', 'End the turn by discarding'),
+    aids: () => L('Spielhilfen kennenlernen', 'Meet the play aids'),
     pickupRest: () => L('Ablagestapel aufnehmen', 'Take the discard pile'),
     pikdame: () => L('Pik Dame: +100 oder -100', 'Queen of Spades: +100 or -100'),
     joker: () => L('Joker einsetzen', 'Use a joker'),
