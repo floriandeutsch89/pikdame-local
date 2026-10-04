@@ -183,8 +183,16 @@ async function warmup(difficulties = ['medium', 'zen']) {
   await Promise.all(difficulties.map((d) => getSession(d)));
 }
 
+// For the config report: does the runtime + model pair actually exist?
+// enabled() alone says yes to a forced PIKDAME_ONNX=1 even when it cannot work.
+function available() {
+  if (autoAvailable === undefined) autoAvailable = probeAvailable();
+  return autoAvailable;
+}
+
 module.exports = {
   enabled,
+  available,
   warmup,
   chooseDiscardCard,
   chooseDrawSource,

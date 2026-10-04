@@ -134,14 +134,10 @@ function createMailer(env = process.env, log = console.log) {
     }
   }
 
-  async function send({ to, subject, text }) {
-    if (!configured) {
-      log(`[mail] SMTP nicht konfiguriert - Mail an ${to} wird nur geloggt:`);
-      log(`[mail] Betreff: ${subject}`);
-      for (const line of String(text).split('\n')) log(`[mail] ${line}`);
-      return { delivered: false, reason: 'smtp_not_configured' };
-    }
-
+  // Connect, greet, upgrade to TLS and authenticate - everything up to the
+  // point where a mail could be sent. Shared by send() and probe(), so the
+  // startup probe tests exactly the path a real mail takes.
+  async function openSession() {
     let socket;
     try {
       socket = await new Promise((resolve, reject) => {
@@ -174,7 +170,39 @@ function createMailer(env = process.env, log = console.log) {
         await smtpExchange(socket, 334, Buffer.from(user).toString('base64'));
         await smtpExchange(socket, 235, Buffer.from(pass).toString('base64'));
       }
+      return socket;
+    } catch (err) {
+      try { if (socket) socket.destroy(); } catch (e) { /* already gone */ }
+      throw err;
+    }
+  }
 
+  // Startup / admin-page check: log in and leave again without sending.
+  // Catches wrong host, port, TLS mode and credentials before the first
+  // registration does.
+  async function probe() {
+    if (!configured) return { ok: false, reason: 'smtp_not_configured' };
+    try {
+      const socket = await openSession();
+      await smtpExchange(socket, 221, 'QUIT').catch(() => {});
+      socket.end();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, reason: err.message };
+    }
+  }
+
+  async function send({ to, subject, text }) {
+    if (!configured) {
+      log(`[mail] SMTP nicht konfiguriert - Mail an ${to} wird nur geloggt:`);
+      log(`[mail] Betreff: ${subject}`);
+      for (const line of String(text).split('\n')) log(`[mail] ${line}`);
+      return { delivered: false, reason: 'smtp_not_configured' };
+    }
+
+    let socket;
+    try {
+      socket = await openSession();
       const fromAddr = (from.match(/<([^>]+)>/) || [null, from])[1];
       await smtpExchange(socket, 250, `MAIL FROM:<${fromAddr}>`);
       await smtpExchange(socket, 250, `RCPT TO:<${to}>`);
@@ -226,7 +254,7 @@ function createMailer(env = process.env, log = console.log) {
     }
   }
 
-  return { send, configured };
+  return { send, probe, configured };
 }
 
 module.exports = { createMailer, encodeHeaderValue, quotedPrintable };

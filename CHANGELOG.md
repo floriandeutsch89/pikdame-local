@@ -3,6 +3,13 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.43.0] - 2026-10-04
+
+### Added
+- **Konfigurationsbericht beim Start:** Der Server listet im Log pro Funktion (Datenverzeichnis, Konten, Datenbank, E-Mail, öffentliche Adresse, Proxy, ONNX-Bots, Admin-Seite) ✓/⚠/✗/– und nennt bei halb eingerichteten Funktionen die fehlenden Variablen, Probleme zuerst. Werte von Secrets erscheinen nie
+- **SMTP-Prüfung beim Start:** Ist ein Mailserver eingetragen, meldet sich der Server einmal an und wieder ab, ohne etwas zu senden. Falscher Host, Port, TLS-Modus oder falsches Passwort fallen so sofort auf statt erst bei der ersten Registrierung
+- **Admin-Seite `/admin`** (optional, nur mit `PIKDAME_ADMIN_TOKEN`): zeigt denselben Bericht, das Ergebnis der SMTP-Prüfung und Laufzeitwerte; Knöpfe „Verbindung prüfen“ und „Testmail senden“. Nur lesend - die Konfiguration bleibt in der Compose-Datei. Anmeldung per Basic Auth (beliebiger Name, Token als Passwort), Sperre nach 10 Fehlversuchen, CSRF-Schutz, höchstens 5 Testmails in 10 Minuten. Ohne Token antwortet `/admin` mit 404. Doku: „Config check and admin page“
+
 ## [2.41.0] - 2026-10-04
 
 ### Changed

@@ -6,6 +6,7 @@ Everything needed to run Pik Dame for other people.
 :hidden:
 
 configuration
+admin-page
 mail
 backup-restore
 onnx
@@ -17,6 +18,7 @@ operations
 | Task | Page |
 | --- | --- |
 | Which environment variables exist, and what do they do? | {doc}`configuration` |
+| **What is missing in my setup?** Startup report, `/admin` page, test mail | {doc}`admin-page` |
 | Send account-confirmation mails (SMTP) | {doc}`mail` |
 | **Back up my data — and prove the restore works** | {doc}`backup-restore` |
 | Run a trained (ONNX) bot instead of the heuristic one | {doc}`onnx` |

@@ -64,6 +64,10 @@ services:
       - PIKDAME_SMTP_USER=${PIKDAME_SMTP_USER:-}
       - PIKDAME_SMTP_PASS=${PIKDAME_SMTP_PASS:-}
       - PIKDAME_MAIL_FROM=${PIKDAME_MAIL_FROM:-}
+      # --- Admin page (optional): /admin shows the config report and can send
+      #     a test mail. Off while unset. Long random value, e.g.
+      #     `openssl rand -hex 32`; or PIKDAME_ADMIN_TOKEN_FILE for a secret.
+      - PIKDAME_ADMIN_TOKEN=${PIKDAME_ADMIN_TOKEN:-}
       # Human-move logging for imitation-learning training writes
       # /app/data/human-moves.jsonl and is ON BY DEFAULT. To turn it off:
       # - PIKDAME_LOG_GAMES=0
