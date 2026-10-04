@@ -1077,6 +1077,7 @@
       return;
     }
     if (msg.type === 'state') {
+      const prevState = lastState;
       lastState = msg.state;
       // Solo-Spiel abgebrochen (Challenge/Tutorial, nicht rechtzeitig
       // zurueckgekehrt): klar ansagen, den Wiederaufnehmen-Code wegwerfen -
@@ -1127,6 +1128,7 @@
       maybeShowRoundQuote();
       checkPikdameAnnouncement();
       render();
+      try { animateOpponentMoves(prevState, lastState); } catch (e) { /* decoration only */ }
       return;
     }
     if (msg.type === 'stammtisch') {
@@ -4684,13 +4686,14 @@
   // Kleine "Geister-Karte", die vom Start- zum Zielrechteck fliegt. Nur
   // Deko - der echte Zustand kommt weiterhin vom Server-Broadcast.
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  function flyCard(fromEl, toEl, faceDown) {
+  function flyCard(fromEl, toEl, faceDown, face) {
     if (reducedMotion || !fromEl || !toEl) return;
     const from = fromEl.getBoundingClientRect();
     const to = toEl.getBoundingClientRect();
     if (!from.width || !to.width) return;
     const ghost = document.createElement('div');
-    ghost.className = 'flyCard' + (faceDown ? ' back' : '');
+    ghost.className = 'flyCard' + (faceDown ? ' back' : '') + (face ? ` ${face.cls}` : '');
+    if (face && !faceDown) ghost.innerHTML = face.html;
     ghost.style.left = `${from.left + from.width / 2 - 26}px`;
     ghost.style.top = `${from.top + from.height / 2 - 36}px`;
     document.body.appendChild(ghost);
@@ -4701,6 +4704,50 @@
       ghost.style.opacity = '0';
     });
     setTimeout(() => ghost.remove(), 480);
+  }
+
+  // --- Opponent moves ---------------------------------------------------------
+  // Own draws and discards fly from the click handlers. Moves by other players
+  // and bots only show up as a new state, so they are derived here from the
+  // difference between two consecutive states: pile counts tell what happened,
+  // the previous turn holder tells who did it. Decoration only - nothing here
+  // feeds back into the state.
+  function seatEl(pid) {
+    return document.querySelector(`#opponents .opponent[data-player-id="${CSS.escape(pid)}"]`);
+  }
+  function discardFace(card) {
+    if (!card || card.faceDown) return null;
+    if (card.isJoker) return { cls: 'joker', html: JOKER_MARK_SVG };
+    return { cls: suitColor(card.suit), html: `${card.rank}${suitSymbol(card.suit)}` };
+  }
+  function animateOpponentMoves(prev, next) {
+    if (reducedMotion || !prev || !next || document.hidden) return;
+    if (prev.phase !== 'playing' || next.phase !== 'playing') return;
+    if (prev.roundNumber !== next.roundNumber) return; // a fresh deal has its own animation
+    const actor = prev.currentPlayerId;
+    if (!actor || actor === playerId) return; // own moves fly from the click handlers
+    const seat = seatEl(actor);
+    if (!seat) return;
+    const drew = prev.drawPileCount - next.drawPileCount > 0;
+    const took = next.discardPileCount < prev.discardPileCount;
+    const discarded = next.discardPileCount > prev.discardPileCount;
+    let delay = 0;
+    if (drew) { flyCard(el('drawPile'), seat, true); delay = 260; }
+    if (took) { flyCard(el('discardPile'), seat, false, discardFace(prev.discardTop)); delay = 260; }
+    if (discarded) {
+      const face = discardFace(next.discardTop);
+      const go = () => flyCard(seat, el('discardPile'), !face, face);
+      if (delay) setTimeout(go, delay); else go();
+    }
+    // New melds of other players fade in where they land.
+    const known = new Set((prev.tableMelds || []).map((m) => m.id));
+    for (const m of next.tableMelds || []) {
+      if (m.ownerId === playerId || known.has(m.id) || m.id == null) continue;
+      const g = document.querySelector(`#melds .meldGroup[data-meld-id="${CSS.escape(String(m.id))}"]`);
+      if (!g) continue;
+      g.classList.add('meldIn');
+      g.addEventListener('animationend', () => g.classList.remove('meldIn'), { once: true });
+    }
   }
 
   // --- Toast: letzte Aktion kurz einblenden ---------------------------------

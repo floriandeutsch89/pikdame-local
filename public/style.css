@@ -1475,9 +1475,29 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   opacity: 0.95;
 }
 .flyCard.back {
-  background: linear-gradient(160deg, var(--accent) 0%, var(--accent-2) 100%);
+  /* same printed back as .pile-card.back, so the flying card matches the pile */
+  background: var(--accent-2);
+  background:
+    repeating-linear-gradient(45deg, rgba(255,255,255,0.13) 0 1px, transparent 1px 6px),
+    repeating-linear-gradient(-45deg, rgba(255,255,255,0.13) 0 1px, transparent 1px 6px),
+    linear-gradient(160deg, var(--accent-2) 0%, color-mix(in srgb, var(--accent-2) 45%, #000) 100%);
   border: none;
 }
+/* Face-up ghost (opponent discard): rank + suit, like the discard pile shows it */
+.flyCard:not(.back) {
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 0.9rem; color: var(--card-ink);
+}
+.flyCard.red { color: var(--suit-red); }
+.flyCard.black { color: var(--suit-black); }
+.flyCard.joker { color: var(--joker); }
+.flyCard .jokerMark { width: 1.5em; height: 1.5em; }
+/* An opponent's new meld settles into place instead of popping in. */
+@keyframes meldIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.92); }
+  to { opacity: 1; transform: none; }
+}
+.meldGroup.meldIn { animation: meldIn 0.38s var(--ease) both; }
 
 /* Toast: letzte Aktion */
 /* --- Stale-bundle banner ----------------------------------------------------
@@ -3057,12 +3077,14 @@ html.debugMode #hand { outline: 1px dashed #ffee58; outline-offset: -1px; }
 
 /* --- Kartenrücken (kosmetisch, über Erfolge freischaltbar) ------------------ */
 html[data-cardback="gold"] .pile-card.back,
-html[data-cardback="gold"] .card.back {
+html[data-cardback="gold"] .card.back,
+html[data-cardback="gold"] .flyCard.back {
   background: linear-gradient(150deg, #8a6d1f 0%, #d4af37 40%, #f5e08a 55%, #d4af37 70%, #8a6d1f 100%);
   border-color: #b8962e;
 }
 html[data-cardback="master"] .pile-card.back,
-html[data-cardback="master"] .card.back {
+html[data-cardback="master"] .card.back,
+html[data-cardback="master"] .flyCard.back {
   /* Level 10 reward: graphite with a fine diagonal weave and a teal edge */
   background:
     repeating-linear-gradient(135deg, rgba(255,255,255,0.07) 0 3px, transparent 3px 9px),
@@ -3070,7 +3092,8 @@ html[data-cardback="master"] .card.back {
   border-color: #2fd6b0;
 }
 html[data-cardback="night"] .pile-card.back,
-html[data-cardback="night"] .card.back {
+html[data-cardback="night"] .card.back,
+html[data-cardback="night"] .flyCard.back {
   background:
     radial-gradient(circle at 30% 25%, rgba(255,255,255,0.28) 0 1.5px, transparent 2px),
     radial-gradient(circle at 70% 60%, rgba(255,255,255,0.22) 0 1px, transparent 1.5px),
@@ -3079,7 +3102,8 @@ html[data-cardback="night"] .card.back {
   border-color: #2c3f7d;
 }
 html[data-cardback="joker"] .pile-card.back,
-html[data-cardback="joker"] .card.back {
+html[data-cardback="joker"] .card.back,
+html[data-cardback="joker"] .flyCard.back {
   background:
     repeating-linear-gradient(45deg, rgba(255,255,255,0.12) 0 8px, transparent 8px 16px),
     linear-gradient(150deg, #7a1f5c 0%, #c2338f 55%, #7a1f5c 100%);
