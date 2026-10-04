@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.47.4] - 2026-10-05
+
+### Fixed
+- **„Spiel aufgeben“ fragt jetzt im Spiel nach** statt mit einem Browser-Dialog, den iOS ohne Hinweis unterdrücken kann - der Tipp blieb dann folgenlos. Der neue Dialog „Spiel aufgeben?“ erklärt wie bisher, dass alle aktiven Spieler zustimmen müssen, und gilt im Spielmenü wie in der Rundenübersicht. Ein Test verhindert künftig Browser-Dialoge im Client
+
 ## [2.47.2] - 2026-10-05
 
 ### Fixed

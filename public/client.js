@@ -3417,24 +3417,28 @@
     pendingConfirmDiscardId = null;
   });
 
-  el('forfeitBtn').addEventListener('click', () => {
-    if (!lastState || lastState.phase !== 'playing') return;
-    const seated = lastState.players.some((p) => p.id === playerId && !p.isBot);
-    if (!seated) return;
+  // Starting a forfeit vote asks first (in-app dialog); agreeing to an
+  // existing proposal or withdrawing just toggles.
+  function toggleForfeit(phase) {
+    if (!lastState || lastState.phase !== phase) return;
+    if (!lastState.players.some((p) => p.id === playerId && !p.isBot)) return;
     const votes = lastState.forfeitVotes || [];
-    const iVoted = votes.includes(playerId);
-    // First proposal asks everyone to end the round - confirm it. Agreeing to an
-    // existing proposal (or withdrawing) just toggles, no dialog.
-    if (!iVoted && votes.length === 0) {
-      const ok = window.confirm(
-        L('Das ganze Spiel aufgeben? Die Partie endet nur, wenn ALLE aktiven Spieler zustimmen - dann wird das Spiel sofort abgebrochen (kein Sieger, keine Wertung).',
-          'Forfeit the whole game? The match only ends if ALL active players agree - then the game is aborted immediately (no winner, not recorded).')
-      );
-      if (!ok) return;
+    if (!votes.includes(playerId) && votes.length === 0) {
+      el('confirmForfeitOverlay').classList.remove('hidden');
+      return;
     }
+    sendForfeitVote();
+  }
+  function sendForfeitVote() {
     sound.discard();
     send({ type: 'forfeitRound' }); // toggles my forfeit vote
+  }
+  el('forfeitBtn').addEventListener('click', () => toggleForfeit('playing'));
+  el('confirmForfeitYesBtn').addEventListener('click', () => {
+    el('confirmForfeitOverlay').classList.add('hidden');
+    if (lastState && (lastState.phase === 'playing' || lastState.phase === 'roundEnd')) sendForfeitVote();
   });
+  el('confirmForfeitNoBtn').addEventListener('click', () => el('confirmForfeitOverlay').classList.add('hidden'));
 
   el('confirmMeldBtn').addEventListener('click', () => {
     if (selectedCardIds.size < 3) return;
@@ -3603,22 +3607,8 @@
     send({ type: 'leaveLobby' });
   });
 
-  // Forfeit the whole game from the round-end points overview (same unanimous
-  // vote as the in-game 🏳️ button).
-  el('resultForfeitBtn').addEventListener('click', () => {
-    if (!lastState || lastState.phase !== 'roundEnd') return;
-    if (!lastState.players.some((p) => p.id === playerId && !p.isBot)) return;
-    const votes = lastState.forfeitVotes || [];
-    if (!votes.includes(playerId) && votes.length === 0) {
-      const ok = window.confirm(
-        L('Das ganze Spiel aufgeben? Die Partie endet nur, wenn ALLE aktiven Spieler zustimmen - dann wird das Spiel sofort abgebrochen (kein Sieger, keine Wertung).',
-          'Forfeit the whole game? The match only ends if ALL active players agree - then the game is aborted immediately (no winner, not recorded).')
-      );
-      if (!ok) return;
-    }
-    sound.discard();
-    send({ type: 'forfeitRound' });
-  });
+  // Forfeit from the round-end overview: same unanimous vote as in the menu.
+  el('resultForfeitBtn').addEventListener('click', () => toggleForfeit('roundEnd'));
 
   // --- Per-bot difficulty ---------------------------------------------------
   const BOT_DIFF = {
