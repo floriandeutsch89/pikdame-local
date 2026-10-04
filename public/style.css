@@ -586,6 +586,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 /* ============================ SPIELTISCH ============================ */
 
 #table {
+  position: relative; /* containing block for the grain layer */
   height: 100%;
   background:
     radial-gradient(130% 60% at 50% -5%, var(--bg-glow) 0%, transparent 58%),
@@ -599,9 +600,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
        melds and piles are. Without it the screen read as a flat app panel. */
     radial-gradient(140% 100% at 50% 45%, transparent 55%, var(--vignette) 100%),
     var(--bg);
-  /* Own stacking context, so the ♠Q watermark (#table::before, z-index -1)
-     paints above this background instead of behind it - it was invisible
-     from v1.27.0 on. */
+  /* Own stacking context, so the grain (#table::after, z-index -1) paints
+     above this background but below all content. */
   isolation: isolate;
 }
 /* Fine grain over the whole surface. A cloth or paper texture is what makes
@@ -2463,26 +2463,6 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 #myScoreBar { width: min(60%, 320px); margin: 6px auto 2px; height: 5px; }
 .deltaUp { color: #1e9e57; font-weight: 700; }
 .deltaDown { color: #d34b3a; font-weight: 700; }
-
-/* --- Table watermark (v1.27.0): subtle in-game marker ------------------------- */
-/* Correct container is #table (the in-game screen). z-index -1 paints the
-   mark above the section's own background but below ALL content. */
-#table { position: relative; }
-#table::before {
-  content: '♠Q';
-  position: absolute;
-  top: 38%; left: 50%;
-  transform: translate(-50%, -50%) rotate(-14deg);
-  font-size: clamp(140px, 34vw, 280px);
-  font-weight: 800;
-  letter-spacing: -0.06em;
-  /* 0.07 was tuned while the mark was (unknowingly) hidden; once visible it
-     dominated the desktop table. */
-  color: rgba(255, 255, 255, 0.035);
-  pointer-events: none;
-  user-select: none;
-  z-index: -1;
-}
 
 /* --- Header redesign + bottom status line (v1.30.0) --------------------------- */
 #topBar { display: flex; align-items: center; justify-content: space-between; gap: 6px; }

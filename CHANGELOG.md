@@ -11,7 +11,9 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 
 ### Fixed
 - **„+Punkte“-Einblendungen und Emotes von Mitspielern stiegen in die Kopfzeile** und lagen über Pause- und Einstellungsknopf. Sie starten jetzt in der Mitte des Spielerplatzes
-- **Das ♠Q-Wasserzeichen auf dem Tisch war seit v1.27.0 unsichtbar** (lag hinter dem Tischhintergrund). Es ist wieder da, deutlich zurückhaltender
+
+### Removed
+- Ungenutzte Regel für ein ♠Q-Wasserzeichen auf dem Tisch (war seit v1.27.0 nie sichtbar)
 
 ## [2.39.0] - 2026-10-04
 
