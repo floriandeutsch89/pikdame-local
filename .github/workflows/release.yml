@@ -273,3 +273,13 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Roll the new image out right away instead of waiting for Watchtower's
+  # nightly run. No-op until DEPLOY_HOST is configured (docs/admin/auto-deploy.md).
+  deploy:
+    needs: [meta, docker]
+    if: needs.meta.outputs.is_new == 'true'
+    uses: ./.github/workflows/deploy.yml
+    with:
+      version: ${{ needs.meta.outputs.version }}
+    secrets: inherit

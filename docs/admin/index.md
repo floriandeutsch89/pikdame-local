@@ -9,6 +9,7 @@ configuration
 admin-page
 mail
 backup-restore
+auto-deploy
 onnx
 operations
 ```
@@ -22,6 +23,7 @@ operations
 | Send account-confirmation mails (SMTP) | {doc}`mail` |
 | **Back up my data — and prove the restore works** | {doc}`backup-restore` |
 | Run a trained (ONNX) bot instead of the heuristic one | {doc}`onnx` |
+| **Deploy automatically after every merge** (instead of nightly) | {doc}`auto-deploy` |
 | Upgrades, monitoring, CrowdSec, the full ops runbook | {doc}`operations` |
 
 ## The one thing to get right
