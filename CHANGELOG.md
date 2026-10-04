@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.45.0] - 2026-10-05
+
+### Changed
+- **Neu trainiertes Modell für die mittleren Bots** (`models/pikdame-medium.onnx`). Ein- und Ausgabe sind unverändert (377 Beobachtungswerte, 54 Aktionen) - das Modell passt zum aktuellen `StateEncoder` und ersetzt das bisherige ohne weitere Änderungen. Wirkt mit aktiven ONNX-Bots (Standard im Docker-Image); betrifft auch die Tages-Challenge, die gegen mittlere Bots läuft
+
 ## [2.44.2] - 2026-10-05
 
 ### Changed
