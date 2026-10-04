@@ -11,6 +11,13 @@ function isSet(env, name) {
   return !!(env[name] || env[`${name}_FILE`]);
 }
 
+// Which variable feeds a setting, and is it set? For secrets, the _FILE
+// variant is named when that is where the value comes from.
+function v(env, name, { secret = false } = {}) {
+  if (secret && !env[name] && env[`${name}_FILE`]) return { name: `${name}_FILE`, set: true };
+  return { name, set: !!env[name] };
+}
+
 function parseUrl(value) {
   try { return new URL(value); } catch (e) { return null; }
 }
@@ -19,12 +26,32 @@ function parseUrl(value) {
  * @param {object} env  process.env (or a test double)
  * @param {object} facts runtime facts the env alone cannot tell:
  *   dataDir, dataDirWritable, accountsEnabled, accountsBackend ('postgres'|'sqlite'),
- *   onnxActive (bool|null), adminEnabled
- * @returns {{ id, label, status: 'ok'|'warn'|'off'|'error', detail: string, missing: string[] }[]}
+ *   onnxActive (bool|null), adminMode ('off'|'argon2'|'plain'|'invalid'|'unsupported')
+ * @returns {{ id, label, status: 'ok'|'warn'|'off'|'error', detail: string, missing: string[],
+ *            vars: { name: string, set: boolean }[] }[]}
  */
 function buildConfigReport(env, facts = {}) {
   const items = [];
-  const add = (id, label, status, detail, missing = []) => items.push({ id, label, status, detail, missing });
+  // Variables per feature: shown on /admin for every entry, also the green
+  // ones, so an operator sees what a ✓ is actually built from.
+  const VARS = {
+    data: [v(env, 'PIKDAME_DATA_DIR')],
+    accounts: [v(env, 'PIKDAME_ACCOUNTS'), v(env, 'PIKDAME_DATABASE_URL')],
+    database: [v(env, 'PIKDAME_DATABASE_URL'), v(env, 'PIKDAME_DATABASE_PASSWORD', { secret: true })],
+    mail: [
+      v(env, 'PIKDAME_SMTP_HOST'), v(env, 'PIKDAME_SMTP_PORT'), v(env, 'PIKDAME_SMTP_SECURE'),
+      v(env, 'PIKDAME_SMTP_USER'), v(env, 'PIKDAME_SMTP_PASS', { secret: true }), v(env, 'PIKDAME_MAIL_FROM'),
+      v(env, 'PIKDAME_SMTP_TLS_SERVERNAME'), v(env, 'PIKDAME_SMTP_EHLO'),
+    ],
+    baseUrl: [v(env, 'PIKDAME_BASE_URL')],
+    proxy: [v(env, 'PIKDAME_TRUST_PROXY')],
+    origin: [v(env, 'PIKDAME_ALLOWED_ORIGIN')],
+    onnx: [v(env, 'PIKDAME_ONNX'), v(env, 'PIKDAME_MODELS_DIR')],
+    admin: [v(env, 'PIKDAME_ADMIN_TOKEN', { secret: true })],
+    publicMode: [v(env, 'PIKDAME_PUBLIC_MODE')],
+  };
+  const add = (id, label, status, detail, missing = []) =>
+    items.push({ id, label, status, detail, missing, vars: VARS[id] || [] });
 
   // Data directory
   add('data', 'Datenverzeichnis',
@@ -104,8 +131,15 @@ function buildConfigReport(env, facts = {}) {
     env.PIKDAME_ONNX === '1' ? 'erzwungen, aber Laufzeit oder Modelle fehlen - Heuristik läuft' : 'Heuristik (Laufzeit/Modelle nicht vorhanden)');
 
   // The admin page itself
-  add('admin', 'Admin-Seite', facts.adminEnabled ? 'ok' : 'off',
-    facts.adminEnabled ? '/admin aktiv' : 'aus - zum Einschalten PIKDAME_ADMIN_TOKEN setzen');
+  const ADMIN = {
+    argon2: ['ok', '/admin aktiv (Argon2id-Hash)'],
+    plain: ['warn', '/admin aktiv, aber mit Klartext-Token - besser einen Argon2-Hash eintragen (node game/AdminToken.js)'],
+    invalid: ['error', 'PIKDAME_ADMIN_TOKEN beginnt wie ein Argon2-Hash, ist aber ungültig (abgeschnitten? $ in .env ohne einfache Anführungszeichen?) - /admin bleibt aus'],
+    unsupported: ['error', `Argon2-Hash gesetzt, aber dieses Node (${process.version}) kann Argon2 nicht prüfen (ab 24.7) - /admin bleibt aus`],
+    off: ['off', 'aus - zum Einschalten PIKDAME_ADMIN_TOKEN setzen'],
+  };
+  const [adminStatus, adminDetail] = ADMIN[facts.adminMode] || ADMIN.off;
+  add('admin', 'Admin-Seite', adminStatus, adminDetail);
 
   add('publicMode', 'Öffentlicher Modus', env.PIKDAME_PUBLIC_MODE === '1' ? 'ok' : 'off',
     env.PIKDAME_PUBLIC_MODE === '1' ? 'an - keine Profile, keine Spielerliste' : 'aus');

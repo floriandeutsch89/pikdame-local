@@ -8,9 +8,10 @@ const fs = require('node:fs');
 const http = require('node:http');
 const { buildConfigReport, formatConfigReport } = require('../game/ConfigReport');
 const AdminPage = require('../game/AdminPage');
+const { createAdminTokenVerifier, hashAdminToken, parsePhc, hasArgon2 } = require('../game/AdminToken');
 
 const byId = (report, id) => report.find((i) => i.id === id);
-const FACTS = { dataDir: '/data', dataDirWritable: true, accountsEnabled: true, accountsBackend: 'sqlite', onnxActive: false, adminEnabled: false };
+const FACTS = { dataDir: '/data', dataDirWritable: true, accountsEnabled: true, accountsBackend: 'sqlite', onnxActive: false, adminMode: 'off' };
 
 test('config report: accounts without SMTP warn that links only reach the log', () => {
   const r = buildConfigReport({}, FACTS);
@@ -56,13 +57,12 @@ test('config report: secret values never appear, problems are logged first', () 
   assert.match(lines[1], /✗ Datenverzeichnis/, 'errors sort to the top');
 });
 
-test('admin page helpers: basic auth, CSRF and recipient checks', () => {
-  const b64 = (s) => 'Basic ' + Buffer.from(s).toString('base64');
-  assert.equal(AdminPage.checkBasicAuth(b64('admin:tok'), 'tok'), true);
-  assert.equal(AdminPage.checkBasicAuth(b64('anyone:tok'), 'tok'), true, 'user name is ignored');
-  assert.equal(AdminPage.checkBasicAuth(b64('admin:wrong'), 'tok'), false);
-  assert.equal(AdminPage.checkBasicAuth(undefined, 'tok'), false);
-  assert.equal(AdminPage.checkBasicAuth(b64('admin:'), ''), false, 'no token = no login');
+test('admin page helpers: basic auth parsing, CSRF and recipient checks', () => {
+  const b64 = (x) => 'Basic ' + Buffer.from(x).toString('base64');
+  assert.equal(AdminPage.basicPassword(b64('admin:tok:with:colons')), 'tok:with:colons');
+  assert.equal(AdminPage.basicPassword(b64('nocolon')), null);
+  assert.equal(AdminPage.basicPassword('Bearer x'), null);
+  assert.equal(AdminPage.basicPassword(undefined), null);
   const csrf = AdminPage.csrfToken('tok');
   assert.equal(AdminPage.csrfValid(csrf, 'tok'), true);
   assert.equal(AdminPage.csrfValid(csrf, 'other'), false);
@@ -70,6 +70,53 @@ test('admin page helpers: basic auth, CSRF and recipient checks', () => {
   assert.equal(AdminPage.validRecipient('a@b.de'), true);
   assert.equal(AdminPage.validRecipient('a@b.de\r\nRCPT TO:<x@y.de>'), false, 'no SMTP injection');
   assert.equal(AdminPage.validRecipient('nope'), false);
+});
+
+test('admin token: Argon2id hash round trip, plain token, invalid hash', { skip: !hasArgon2() && 'Node without crypto.argon2' }, async () => {
+  const hash = await hashAdminToken('a-long-admin-password');
+  assert.match(hash, /^\$argon2id\$v=19\$m=19456,t=2,p=1\$/);
+  assert.ok(parsePhc(hash));
+  const argon = createAdminTokenVerifier(hash);
+  assert.equal(argon.mode, 'argon2');
+  assert.equal(await argon.verify('wrong-password'), 'fail');
+  assert.equal(await argon.verify('a-long-admin-password'), 'ok');
+  assert.equal(await argon.verify('a-long-admin-password'), 'ok', 'cached fast path');
+  assert.equal(await argon.verify('wrong-password'), 'fail', 'cache does not widen access');
+
+  const plain = createAdminTokenVerifier('plain-token');
+  assert.equal(plain.mode, 'plain');
+  assert.equal(await plain.verify('plain-token'), 'ok');
+  assert.equal(await plain.verify('x'), 'fail');
+
+  assert.equal(createAdminTokenVerifier('').mode, 'off');
+  assert.equal(createAdminTokenVerifier('$argon2id$v=19$m=19456,t=2,p=1$cut').mode, 'invalid', 'truncated by $-interpolation');
+  assert.equal(createAdminTokenVerifier(hash.replace('m=19456', 'm=99999999')).mode, 'invalid', 'absurd memory cost refused');
+});
+
+test('admin token: at most two Argon2 checks at once', { skip: !hasArgon2() && 'Node without crypto.argon2' }, async () => {
+  const verifier = createAdminTokenVerifier(await hashAdminToken('a-long-admin-password'));
+  const results = await Promise.all([1, 2, 3, 4].map((n) => verifier.verify(`wrong-${n}`)));
+  assert.ok(results.includes('busy'), 'excess checks are turned away, not queued');
+  assert.equal(results.filter((r) => r === 'fail').length, 2);
+});
+
+test('config report: every entry names its variables, secrets by _FILE when used', () => {
+  const r = buildConfigReport({ PIKDAME_SMTP_HOST: 'h', PIKDAME_SMTP_PASS_FILE: '/run/secrets/smtp', PIKDAME_BASE_URL: 'https://x.de' }, FACTS);
+  const names = (id) => byId(r, id).vars.map((x) => `${x.name}:${x.set}`);
+  assert.ok(names('mail').includes('PIKDAME_SMTP_PASS_FILE:true'));
+  assert.ok(names('mail').includes('PIKDAME_SMTP_HOST:true'));
+  assert.ok(names('mail').includes('PIKDAME_SMTP_PORT:false'));
+  assert.deepEqual(names('baseUrl'), ['PIKDAME_BASE_URL:true']);
+  for (const item of r) assert.ok(item.vars.length > 0, `${item.id} lists its variables`);
+});
+
+test('config report: admin token modes', () => {
+  const mode = (m) => byId(buildConfigReport({}, { ...FACTS, adminMode: m }), 'admin').status;
+  assert.equal(mode('argon2'), 'ok');
+  assert.equal(mode('plain'), 'warn');
+  assert.equal(mode('invalid'), 'error');
+  assert.equal(mode('unsupported'), 'error');
+  assert.equal(mode('off'), 'off');
 });
 
 test('admin page escapes report text', () => {

@@ -27,6 +27,7 @@ const { createMailer } = require('./game/Mailer');
 const { readSecret } = require('./game/secretEnv');
 const { buildConfigReport, formatConfigReport } = require('./game/ConfigReport');
 const AdminPage = require('./game/AdminPage');
+const { createAdminTokenVerifier } = require('./game/AdminToken');
 const { isAllowedEmote, emoteLevel } = require('./game/Emotes');
 const { puzzleForDate, publicPuzzle, checkAnswer, XP_FOR_SOLVED } = require('./game/DailyPuzzle');
 const { createStammtischStore, normalizeCode: normalizeStammtischCode } = require('./game/StammtischStore');
@@ -454,7 +455,11 @@ function sendJson(res, status, obj) {
 // ---------------------------------------------------------------------------
 // Configuration report + read-only admin page (/admin)
 // ---------------------------------------------------------------------------
-const ADMIN_TOKEN = readSecret(process.env, 'PIKDAME_ADMIN_TOKEN') || null;
+// The configured value: an Argon2id hash (recommended) or a plain token.
+// It also keys the CSRF HMAC, so it never leaves the process.
+const ADMIN_SECRET = readSecret(process.env, 'PIKDAME_ADMIN_TOKEN') || '';
+const adminAuth = createAdminTokenVerifier(ADMIN_SECRET);
+const ADMIN_ENABLED = adminAuth.mode === 'argon2' || adminAuth.mode === 'plain';
 let lastSmtpProbe = null; // { ok, reason, at }
 
 function currentConfigReport() {
@@ -469,7 +474,7 @@ function currentConfigReport() {
     accountsEnabled: ACCOUNTS_ENABLED,
     accountsBackend: accountStore ? accountStore.backend : null,
     onnxActive,
-    adminEnabled: !!ADMIN_TOKEN,
+    adminMode: adminAuth.mode,
   });
 }
 
@@ -483,6 +488,10 @@ async function runSmtpProbe() {
 const adminFailsByIp = new Map(); // ip -> { count, windowStart }
 const ADMIN_FAIL_WINDOW_MS = 15 * 60 * 1000;
 const ADMIN_FAIL_LIMIT = 10;
+// Across ALL IPs: each failed Argon2 check costs real memory and CPU, so a
+// spread-out guessing run is capped too.
+const ADMIN_GLOBAL_FAIL_LIMIT = 30; // per minute
+let adminGlobalFails = { count: 0, windowStart: 0 };
 // Test mails per IP: the form must not turn the server into a mail cannon.
 const adminMailsByIp = new Map();
 function bump(map, ip, windowMs) {
@@ -529,20 +538,34 @@ function adminRuntime() {
 
 async function handleAdminRequest(req, res, filePath) {
   // Off = indistinguishable from any unknown path.
-  if (!ADMIN_TOKEN) {
+  if (!ADMIN_ENABLED) {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Nicht gefunden');
     return;
   }
   const ip = clientIp(req);
+  const now = Date.now();
   const failState = adminFailsByIp.get(ip);
-  if (failState && Date.now() - failState.windowStart <= ADMIN_FAIL_WINDOW_MS && failState.count >= ADMIN_FAIL_LIMIT) {
-    res.writeHead(429, { 'Content-Type': 'text/plain; charset=utf-8', 'Retry-After': '900' });
+  const ipLocked = failState && now - failState.windowStart <= ADMIN_FAIL_WINDOW_MS && failState.count >= ADMIN_FAIL_LIMIT;
+  const globalLocked = now - adminGlobalFails.windowStart <= 60 * 1000 && adminGlobalFails.count >= ADMIN_GLOBAL_FAIL_LIMIT;
+  if (ipLocked || globalLocked) {
+    res.writeHead(429, { 'Content-Type': 'text/plain; charset=utf-8', 'Retry-After': ipLocked ? '900' : '60' });
     res.end('Zu viele Fehlversuche - bitte später erneut versuchen.');
     return;
   }
-  if (!AdminPage.checkBasicAuth(req.headers.authorization, ADMIN_TOKEN)) {
-    if (req.headers.authorization) bump(adminFailsByIp, ip, ADMIN_FAIL_WINDOW_MS);
+  const password = AdminPage.basicPassword(req.headers.authorization);
+  const verdict = password === null ? 'fail' : await adminAuth.verify(password);
+  if (verdict === 'busy') {
+    res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8', 'Retry-After': '5' });
+    res.end('Gerade ausgelastet - bitte gleich erneut versuchen.');
+    return;
+  }
+  if (verdict !== 'ok') {
+    if (password !== null) {
+      bump(adminFailsByIp, ip, ADMIN_FAIL_WINDOW_MS);
+      if (now - adminGlobalFails.windowStart > 60 * 1000) adminGlobalFails = { count: 0, windowStart: now };
+      adminGlobalFails.count += 1;
+    }
     res.writeHead(401, {
       'Content-Type': 'text/plain; charset=utf-8',
       'WWW-Authenticate': 'Basic realm="Pik Dame Admin", charset="UTF-8"',
@@ -562,7 +585,7 @@ async function handleAdminRequest(req, res, filePath) {
     // cross-site form could trigger this: require same-origin + CSRF token.
     const site = req.headers['sec-fetch-site'];
     const form = await readFormBody(req);
-    if ((site && site !== 'same-origin') || !form || !AdminPage.csrfValid(form.get('csrf'), ADMIN_TOKEN)) {
+    if ((site && site !== 'same-origin') || !form || !AdminPage.csrfValid(form.get('csrf'), ADMIN_SECRET)) {
       res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('Ungültige Anfrage');
       return;
@@ -607,7 +630,7 @@ async function handleAdminRequest(req, res, filePath) {
     runtime: adminRuntime(),
     smtpProbe: lastSmtpProbe,
     notice,
-    csrf: AdminPage.csrfToken(ADMIN_TOKEN),
+    csrf: AdminPage.csrfToken(ADMIN_SECRET),
     mailConfigured: mailer.configured,
   }));
 }

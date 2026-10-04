@@ -3,24 +3,21 @@
 // and a mail check. No I/O here - server.js wires requests to these helpers.
 //
 // Off unless PIKDAME_ADMIN_TOKEN (or _FILE) is set; then /admin answers 404,
-// the same as any unknown path. Login is HTTP Basic auth with the token as
-// password: no JavaScript and no cookie needed, so the page works under the
+// the same as any unknown path. Login is HTTP Basic auth, the password is
+// checked against an Argon2id hash (see AdminToken.js): no JavaScript and no cookie needed, so the page works under the
 // site's strict CSP unchanged. The browser re-sends Basic credentials on its
 // own, so the one state-changing form (test mail) carries a CSRF token.
 const crypto = require('crypto');
 const { STATUS_ICON } = require('./ConfigReport');
 
-const sha256 = (s) => crypto.createHash('sha256').update(String(s)).digest();
-
-/** Constant-time check of an `Authorization: Basic ...` header. The user
- *  name is ignored - there is exactly one operator credential. */
-function checkBasicAuth(header, token) {
-  if (!token || typeof header !== 'string' || !header.startsWith('Basic ')) return false;
-  let decoded;
-  try { decoded = Buffer.from(header.slice(6), 'base64').toString('utf8'); } catch (e) { return false; }
+/** Password from an `Authorization: Basic ...` header, or null. The user
+ *  name is ignored - there is exactly one operator credential. Checking it
+ *  is AdminToken's job (Argon2 hash or plain token). */
+function basicPassword(header) {
+  if (typeof header !== 'string' || !header.startsWith('Basic ')) return null;
+  const decoded = Buffer.from(header.slice(6), 'base64').toString('utf8');
   const colon = decoded.indexOf(':');
-  if (colon < 0) return false;
-  return crypto.timingSafeEqual(sha256(decoded.slice(colon + 1)), sha256(token));
+  return colon < 0 ? null : decoded.slice(colon + 1);
 }
 
 /** CSRF token for the admin forms: derived from the admin token, so it is
@@ -52,6 +49,15 @@ function formatUptime(seconds) {
   return d ? `${d} T ${h} h` : h ? `${h} h ${m} min` : `${m} min`;
 }
 
+// Every variable behind an entry: set ones highlighted, unset ones dimmed
+// (default in use). Missing ones are already listed above - not repeated.
+function varList(item) {
+  const vars = (item.vars || []).filter((x) => !item.missing.includes(x.name));
+  if (!vars.length) return '';
+  return `<div class="vars">${vars.map((x) =>
+    `<code class="${x.set ? 'set' : 'unset'}" title="${x.set ? 'gesetzt' : 'nicht gesetzt - Standardwert'}">${esc(x.name)}</code>`).join(' ')}</div>`;
+}
+
 /**
  * @param {object} p
  * @param {object[]} p.report   buildConfigReport() output
@@ -66,7 +72,7 @@ function renderAdminPage({ report, runtime, smtpProbe, notice, csrf, mailConfigu
   const rows = [...report].sort((a, b) => order[a.status] - order[b.status]).map((i) => `
       <tr class="${i.status}"><td class="icon">${STATUS_ICON[i.status]}</td><th>${esc(i.label)}</th><td>${esc(i.detail)}${
         i.missing.length ? `<div class="missing">fehlt: ${i.missing.map((m) => `<code>${esc(m)}</code>`).join(' ')}</div>` : ''
-      }</td></tr>`).join('');
+      }${varList(i)}</td></tr>`).join('');
   const problems = report.filter((i) => i.status === 'error' || i.status === 'warn').length;
   const probeLine = !mailConfigured
     ? 'Kein SMTP-Server konfiguriert.'
@@ -83,7 +89,9 @@ main{max-width:760px;margin:0 auto}h1{font-size:1.4rem;margin:0 0 4px}h2{font-si
 table{width:100%;border-collapse:collapse}td,th{padding:10px 12px;border-top:1px solid var(--line);text-align:left;vertical-align:top}tr:first-child td,tr:first-child th{border-top:0}
 th{font-weight:600;white-space:nowrap;width:1%}.icon{width:1%;font-weight:800}
 tr.ok .icon{color:var(--ok)}tr.warn .icon{color:var(--warn)}tr.error .icon{color:var(--error)}tr.off{color:var(--muted)}
-.missing{margin-top:4px;font-size:.88em;color:var(--warn)}code{background:#0b0e12;padding:1px 5px;border-radius:5px;font-size:.88em}
+.missing{margin-top:4px;font-size:.88em;color:var(--warn)}
+.vars{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px}.vars code.set{color:var(--ok);border:1px solid rgba(67,221,154,.35)}.vars code.unset{color:var(--muted);opacity:.7}
+.legend{color:var(--muted);font-size:.85em;margin:8px 2px 0}.legend code.set{color:var(--ok)}code{background:#0b0e12;padding:1px 5px;border-radius:5px;font-size:.88em}
 dl{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:0;padding:12px}dt{color:var(--muted)}dd{margin:0}
 form{display:flex;flex-wrap:wrap;gap:8px;padding:12px}input{flex:1 1 220px;min-height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:#0b0e12;color:var(--text);font:inherit}
 button{min-height:44px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:#252c36;color:var(--text);font:inherit;font-weight:600;cursor:pointer}button.primary{background:var(--accent);color:#03241b;border-color:var(--accent)}
@@ -99,6 +107,7 @@ td,th{border-top:0;width:auto}tr>td:last-child{grid-column:1/-1;padding-top:0}}
 ${notice ? `<div class="notice ${notice.ok ? 'ok' : 'err'}">${esc(notice.text)}</div>` : ''}
 <h2>Konfiguration</h2>
 <div class="panel"><table>${rows}</table></div>
+<p class="legend">Variablen: <code class="set">grün</code> = gesetzt, grau = nicht gesetzt (Standardwert). Werte werden nicht angezeigt.</p>
 <h2>E-Mail prüfen</h2>
 <div class="panel">
 <p class="probe">${probeLine}</p>
@@ -120,4 +129,4 @@ ${notice ? `<div class="notice ${notice.ok ? 'ok' : 'err'}">${esc(notice.text)}<
 </main></body></html>`;
 }
 
-module.exports = { checkBasicAuth, csrfToken, csrfValid, validRecipient, renderAdminPage };
+module.exports = { basicPassword, csrfToken, csrfValid, validRecipient, renderAdminPage };
