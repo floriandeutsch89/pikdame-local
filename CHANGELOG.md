@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.46.1] - 2026-10-04
+
+### Removed
+- Der alte Registrier-Endpunkt `/api/register` (Konto mit Passwort in einem Schritt): Registriert wird nur noch E-Mail-zuerst, das Passwort ist danach eine der beiden Wahlmöglichkeiten. Bestehende Konten mit Passwort sind nicht betroffen
+
 ## [2.46.0] - 2026-10-05
 
 ### Added
