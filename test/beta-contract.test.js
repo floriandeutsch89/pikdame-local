@@ -1,8 +1,4 @@
-// Contract for the beta preview stack: every pull-request push runs on the
-// SAME host as production (docs/admin/beta.md). These checks pin the
-// properties that keep the two apart - a beta that shares a container name,
-// a volume or a lock with prod, or that a fork could deploy to, is an outage
-// or a breach waiting for the next pull request.
+// Beta runs on the prod host: these checks keep the two stacks apart.
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
@@ -10,7 +6,6 @@ const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
-// Active lines only - commented examples must not satisfy a contract.
 const active = (src) => src.split(/\r?\n/).filter((l) => !/^\s*#/.test(l)).join('\n');
 
 const beta = active(read('docker/docker-compose.beta.yml'));
@@ -60,7 +55,6 @@ test('beta: Watchtower never updates it (deploys only through the beta workflow)
 });
 
 test('beta: Caddy reaches it over one named network that prod creates', () => {
-  // Prod declares it (internal, fixed name), beta joins it as external.
   const prodNet = prod.match(/\n {2}caddy_beta:\n\s+name:\s*(\S+)\n\s+internal:\s*true/);
   assert.ok(prodNet, 'prod must declare caddy_beta with a fixed name, internal');
   const betaNet = beta.match(/\n {2}caddy_beta:\n\s+name:\s*(\S+)\n\s+external:\s*true/);
@@ -81,8 +75,7 @@ test('Caddyfile: prod and beta share one hardened snippet; beta is noindex', () 
 });
 
 test('prod compose: the beta domain is never empty (Caddy would refuse to start)', () => {
-  // Caddy applies {$VAR:default} only to UNSET variables; an empty one leaves
-  // a site block without address and the whole proxy - prod included - fails.
+  // Caddy's {$VAR:default} ignores empty values -> config rejected, prod down.
   const line = prod.match(/^\s+-\s+PIKDAME_BETA_DOMAIN=(.+)$/m);
   assert.ok(line, 'Caddy needs PIKDAME_BETA_DOMAIN');
   assert.match(line[1], /^\$\{PIKDAME_BETA_DOMAIN:-[^}]+\}$/, `needs a non-empty default: ${line[1]}`);
@@ -115,8 +108,6 @@ test('beta workflow: labels the image with the head commit it hands the server',
 });
 
 test('deploy script: the mode comes from authorized_keys, never from the client', () => {
-  // $1 is fixed by the forced command; the client only controls
-  // SSH_ORIGINAL_COMMAND, which must stay a bare commit id.
   assert.match(deploy, /if \[ "\$\{1:-\}" = "beta" \]; then/);
   assert.doesNotMatch(deploy, /SSH_ORIGINAL_COMMAND[^\n]*beta/);
   assert.match(deploy, /pikdame-deploy-\$MODE\.lock/, 'beta and prod need separate locks');

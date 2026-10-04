@@ -23,12 +23,8 @@
 # It only labels the log - the images come from the registry tags in your
 # compose file - but anything that is not a 40-character commit id is refused.
 #
-# Beta preview (docs/admin/beta.md): a SECOND key, forced to
-#   command="sudo -n /usr/local/bin/pikdame-deploy beta",restrict ...
-# rolls out docker-compose.beta.yml instead. The mode is fixed in
-# authorized_keys, not chosen by the client - the beta key cannot touch prod.
-# Input is then the pull request's head commit, and after the rollout the
-# script checks that the running beta image was built from exactly that commit.
+# Beta (docs/admin/beta.md): a second key forced to `pikdame-deploy beta`.
+# The mode comes from authorized_keys, never from the client.
 #
 # Optional /etc/pikdame-deploy.conf (sourced):
 #   PIKDAME_DIR=/opt/stacks/pikdame          # default: /opt/pikdame/docker
@@ -64,9 +60,7 @@ if [ ! -f "$FILE" ]; then
   exit 5
 fi
 
-# One deploy at a time per stack: a second merge right after the first waits
-# instead of racing it on the same compose project. Beta has its own lock, so
-# a pull-request push never queues behind a release (or the other way round).
+# One deploy at a time per stack; beta and prod do not wait for each other.
 exec 9>"/run/pikdame-deploy-$MODE.lock"
 if ! flock -w 600 9; then
   echo "pikdame-deploy: another deploy is still running after 10 minutes - giving up" >&2
@@ -82,7 +76,7 @@ docker compose -f "$FILE" up -d
 docker image prune -f >/dev/null
 docker compose -f "$FILE" ps
 if [ "$MODE" = beta ]; then
-  # :beta is a moving tag - prove the container runs THIS push, not the last.
+  # :beta moves - prove the container runs this push.
   GOT=$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' pikdame-beta 2>/dev/null || true)
   if [ "$GOT" != "$REF" ]; then
     echo "pikdame-deploy: beta runs revision '${GOT:-unknown}', expected $REF" >&2

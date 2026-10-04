@@ -1,46 +1,25 @@
-# Pik Dame - beta preview stack: the latest pushed pull request, next to
-# production on the same host. Docs: docs/admin/beta.md
-#
-#   cd docker                                 # same directory and .env as prod
-#   echo 'PIKDAME_BETA_DOMAIN=beta.pikdame.online' >> .env
-#   openssl rand -base64 24 | tr -d '\n' > secrets/beta_db_password.txt
-#   chown 10001:10001 secrets/*.txt && chmod 400 secrets/*.txt
-#   docker compose -f docker-compose.beta.yml up -d    # AFTER the prod stack
-#
-# Isolation from production:
-#   * own compose project (name below) - own containers, volumes, networks;
-#     `docker compose -f docker-compose.beta.yml down -v` never touches prod
-#   * own PostgreSQL with its own password - no shared accounts or stats
-#   * the ONLY link to prod is Caddy, which reaches the app through the
-#     external network pikdame-caddy-beta (declared in docker-compose.prod.yml,
-#     so the prod stack must be up first)
-#   * tighter resource limits than prod, so a broken pull request cannot
-#     starve the live game
-#   * NO Watchtower label: the image changes only through the beta deploy
-#     (scripts/pikdame-deploy.sh beta), never at 04:00
-# Same OWASP hardening as prod (cap_drop ALL, read_only, AppArmor, pids limit).
+# Pik Dame - beta preview stack next to prod; same .env and directory.
+# Setup and isolation: docs/admin/beta.md. Start AFTER the prod stack (its
+# network). No Watchtower label: only the beta deploy updates it.
 
 name: pikdame-beta
 
 services:
   pikdame-beta:
-    # Rebuilt and pushed for every pull-request push (.github/workflows/beta.yml).
     image: ghcr.io/floriandeutsch89/pikdame-local:beta
     container_name: pikdame-beta
     restart: unless-stopped
     stop_grace_period: 30s
-    # No published ports - only Caddy reaches the app.
     environment:
       - PORT=8080
       - PIKDAME_MAX_SESSIONS=20
       - PIKDAME_TRUST_PROXY=1
       - PIKDAME_ALLOWED_ORIGIN=https://${PIKDAME_BETA_DOMAIN:?set PIKDAME_BETA_DOMAIN in .env}
-      # Also the passkey RP-ID: beta passkeys work on beta only.
+      # Also the passkey RP-ID.
       - PIKDAME_BASE_URL=https://${PIKDAME_BETA_DOMAIN}
       - PIKDAME_DATABASE_URL=postgres://pikdame@postgres-beta:5432/pikdame
       - PIKDAME_DATABASE_PASSWORD_FILE=/run/secrets/beta_db_password
-      # Real mail: registration is e-mail-first (6-digit code), so beta needs
-      # it as much as prod. Same relay and account as prod, own egress proxy.
+      # Sign-up is e-mail-first, so beta needs real mail (own egress proxy).
       - PIKDAME_SMTP_HOST=smtp-egress-beta
       - PIKDAME_SMTP_PORT=${PIKDAME_SMTP_PORT:-587}
       - PIKDAME_SMTP_SECURE=${PIKDAME_SMTP_SECURE:-starttls}
@@ -48,7 +27,6 @@ services:
       - PIKDAME_SMTP_USER=${PIKDAME_SMTP_USER:-}
       - PIKDAME_SMTP_PASS_FILE=/run/secrets/smtp_password
       - PIKDAME_MAIL_FROM=${PIKDAME_MAIL_FROM:-}
-      # Own admin password, so the prod one is never typed into unreleased code.
       - PIKDAME_ADMIN_TOKEN=${PIKDAME_BETA_ADMIN_TOKEN:-}
     secrets:
       - beta_db_password
@@ -118,8 +96,6 @@ services:
     security_opt:
       - no-new-privileges:true
 
-  # Same single-destination SMTP proxy as prod (see docker-compose.prod.yml),
-  # driven by the same PIKDAME_SMTP_RELAY_HOST as the TLS servername above.
   smtp-egress-beta:
     image: alpine/socat:latest
     container_name: pikdame-beta-smtp-egress
@@ -142,7 +118,6 @@ services:
       - no-new-privileges:true
     read_only: true
 
-# Shares secrets/smtp_password.txt with prod; the DB password is its own.
 secrets:
   beta_db_password:
     file: ./secrets/beta_db_password.txt
@@ -150,17 +125,15 @@ secrets:
     file: ./secrets/smtp_password.txt
 
 networks:
-  # Created by the prod stack - Caddy <-> beta app only, no internet route.
+  # Created by the prod stack.
   caddy_beta:
     name: pikdame-caddy-beta
     external: true
-  # App <-> database only
   beta:
     internal: true
-  # App <-> SMTP egress proxy only
   beta_smtp:
     internal: true
-  # Internet route for the SMTP proxy alone
+  # SMTP proxy only
   egress:
 
 volumes:

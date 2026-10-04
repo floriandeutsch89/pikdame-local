@@ -1,24 +1,9 @@
 name: Beta
 
-# Every push to a pull request rolls out to the beta preview
-# (beta.pikdame.online): build the image from the PR head, push it to GHCR as
-# :beta, then hand the commit id to the server over SSH. ONE slot - the most
-# recent push wins. The PR shows the deployment ("View deployment") through
-# the `beta` environment.
-#
-# Off until the repository variables DEPLOY_HOST and BETA_URL are set - the
-# job is then skipped (grey), never red. BETA_URL is the switch and is set
-# LAST, after the `beta` environment and its secrets exist: GitHub cannot test
-# for an environment in `if:`, and a job that names a missing one silently
-# creates it empty. Setup: docs/admin/beta.md.
-#
-# Who never reaches beta:
-#   * fork PRs - the repository is public, and a fork must not get a deploy
-#     key or GHCR write access. Plain `pull_request` already withholds both;
-#     the head-repo check below makes the skip explicit instead of a red run.
-#     NEVER switch this to `pull_request_target`.
-#   * Dependabot branches - a dependency bump would push the feature you are
-#     testing off the slot.
+# Every PR push -> :beta image -> beta.pikdame.online (one slot, latest wins).
+# Skipped until DEPLOY_HOST and BETA_URL are set; set BETA_URL last, a job
+# naming a missing environment creates it empty. Setup: docs/admin/beta.md
+# Forks and dependabot/ branches never deploy - never use pull_request_target.
 
 on:
   pull_request:
@@ -28,9 +13,7 @@ permissions:
   contents: read
   packages: write # push :beta to GHCR
 
-# Never cancel a running rollout halfway (compose up mid-way). GitHub keeps at
-# most one PENDING run per group and replaces it with each newer push, so a
-# burst of pushes still ends on the last one.
+# Never cut a rollout off; newer pushes replace the one pending run.
 concurrency:
   group: deploy-beta
   cancel-in-progress: false
@@ -47,8 +30,7 @@ jobs:
       name: beta
       url: ${{ vars.BETA_URL }}
     env:
-      # The commit you pushed, not GitHub's synthetic merge commit - that is
-      # what the image revision, the server check and the logs refer to.
+      # The pushed commit, not GitHub's merge commit.
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
       - uses: actions/checkout@v7
@@ -67,8 +49,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # amd64 only: that is the server (terraform: x86 on purpose). The arm64
-      # leg under QEMU would triple the wait for nothing.
+      # amd64 only - the server is x86.
       - name: Build & push :beta
         uses: docker/build-push-action@v7
         with:
@@ -77,11 +58,9 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ghcr.io/${{ github.repository }}:beta
-          # The server compares this label with the commit it was handed.
           labels: |
             org.opencontainers.image.version=${{ steps.v.outputs.version }}
             org.opencontainers.image.revision=${{ env.HEAD_SHA }}
-          # Reads main's cache (PRs may), writes its own PR-scoped entries.
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -98,8 +77,6 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
-          # The beta key is forced to `pikdame-deploy beta` on the server; it
-          # sends only the commit id.
           ssh -i ~/.ssh/deploy_key \
               -o IdentitiesOnly=yes -o BatchMode=yes \
               -o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.ssh/known_hosts \

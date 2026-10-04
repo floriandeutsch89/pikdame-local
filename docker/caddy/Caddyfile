@@ -1,7 +1,6 @@
 # Pik Dame - hardened Caddyfile (production reverse proxy)
 # Domain and ACME e-mail come from the environment (.env next to the
-# compose file): PIKDAME_DOMAIN, ACME_EMAIL. Optional: PIKDAME_BETA_DOMAIN
-# for the pull-request preview stack (docker-compose.beta.yml).
+# compose file): PIKDAME_DOMAIN, ACME_EMAIL, optional PIKDAME_BETA_DOMAIN.
 {
 	# No runtime admin API - configuration changes go through redeploys.
 	admin off
@@ -17,16 +16,12 @@
 	}
 	order crowdsec first
 
-	# The beta site falls back to beta.localhost when PIKDAME_BETA_DOMAIN is
-	# unset. Caddy serves such names from its internal CA; there is no host
-	# trust store to install that CA into inside a container.
+	# beta.localhost (beta unset) gets an internal cert; no trust store here.
 	skip_install_trust
 }
 
-# Everything a site needs except its upstream - shared by production and the
-# beta preview so the two can never differ in hardening.
-#   {args[0]} = public domain (for the WebSocket origin in the CSP)
-#   {args[1]} = upstream host:port
+# Shared by prod and beta so their hardening cannot drift.
+# {args[0]} = public domain, {args[1]} = upstream host:port
 (site) {
 	crowdsec
 	encode zstd gzip
@@ -84,16 +79,9 @@
 	import site {$PIKDAME_DOMAIN} pikdame:8080
 }
 
-# Beta preview: every push to a pull request lands here (.github/workflows/
-# beta.yml, docs/admin/beta.md). Same hardening as production; separate stack,
-# database and volumes. Until the beta stack runs, Caddy answers 502.
-#
-# Known limit: the CSP above is the one baked into THIS image, i.e. from the
-# last release. A pull request that edits the inline head script of
-# index.html gets that script blocked on beta (splash shows its CSS fallback)
-# until it is released - the CSP contract test still guards the real thing.
+# Beta preview of the latest PR push (docs/admin/beta.md). Its CSP hash is
+# the last release's - a PR changing the inline head script is blocked here.
 {$PIKDAME_BETA_DOMAIN:beta.localhost} {
 	import site {$PIKDAME_BETA_DOMAIN:beta.localhost} pikdame-beta:8080
-	# Not for search engines - beta runs unreleased code.
 	header X-Robots-Tag "noindex, nofollow"
 }
