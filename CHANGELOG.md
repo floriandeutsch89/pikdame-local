@@ -3,7 +3,7 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
-## [2.43.0] - 2026-10-04
+## [2.42.0] - 2026-10-04
 
 ### Added
 - **Konfigurationsbericht beim Start:** Der Server listet im Log pro Funktion (Datenverzeichnis, Konten, Datenbank, E-Mail, öffentliche Adresse, Proxy, ONNX-Bots, Admin-Seite) ✓/⚠/✗/– und nennt bei halb eingerichteten Funktionen die fehlenden Variablen, Probleme zuerst. Werte von Secrets erscheinen nie
