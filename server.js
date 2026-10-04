@@ -24,6 +24,10 @@ const {
 } = require('./game/Progression');
 const { createAccountStoreAuto } = require('./game/AccountStore');
 const { createMailer } = require('./game/Mailer');
+const { readSecret } = require('./game/secretEnv');
+const { buildConfigReport, formatConfigReport } = require('./game/ConfigReport');
+const AdminPage = require('./game/AdminPage');
+const { createAdminTokenVerifier } = require('./game/AdminToken');
 const { isAllowedEmote, emoteLevel } = require('./game/Emotes');
 const { puzzleForDate, publicPuzzle, checkAnswer, XP_FOR_SOLVED } = require('./game/DailyPuzzle');
 const { createStammtischStore, normalizeCode: normalizeStammtischCode } = require('./game/StammtischStore');
@@ -81,6 +85,7 @@ try {
 // Der häufigste Grund für "Statistiken nach Neustart weg" ist ein Volume, das
 // root gehört, während die App als non-root-User (UID 10001) läuft - Schreibvorgänge
 // scheitern dann still. Diese Prüfung macht das SOFORT im Log sichtbar.
+let DATA_DIR_WRITABLE = true; // for the config report
 (function checkDataDirWritable() {
   try {
     const probe = path.join(DATA_DIR, '.write-test');
@@ -97,6 +102,7 @@ try {
       .join(', ');
     console.log(`Datenverzeichnis beschreibbar: ${DATA_DIR} [${info}]`);
   } catch (e) {
+    DATA_DIR_WRITABLE = false;
     console.error('');
     console.error('*** ⚠️  DATENVERZEICHNIS NICHT BESCHREIBBAR ***');
     console.error(`***     ${DATA_DIR}: ${e.message}`);
@@ -242,6 +248,14 @@ function serveStatic(req, res) {
         node: process.version,
       })
     );
+    return;
+  }
+  if (filePath === '/admin' || filePath === '/admin/mail') {
+    handleAdminRequest(req, res, filePath).catch((err) => {
+      logCrash('admin', err, { path: filePath });
+      if (!res.headersSent) { res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' }); res.end('Interner Fehler'); }
+      else res.end();
+    });
     return;
   }
   // ---------------- Benutzerkonten-API ----------------
@@ -436,6 +450,189 @@ function escapeHtml(value) {
 function sendJson(res, status, obj) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(obj));
+}
+
+// ---------------------------------------------------------------------------
+// Configuration report + read-only admin page (/admin)
+// ---------------------------------------------------------------------------
+// The configured value: an Argon2id hash (recommended) or a plain token.
+// It also keys the CSRF HMAC, so it never leaves the process.
+const ADMIN_SECRET = readSecret(process.env, 'PIKDAME_ADMIN_TOKEN') || '';
+const adminAuth = createAdminTokenVerifier(ADMIN_SECRET);
+const ADMIN_ENABLED = adminAuth.mode === 'argon2' || adminAuth.mode === 'plain';
+let lastSmtpProbe = null; // { ok, reason, at }
+
+function currentConfigReport() {
+  let onnxActive = false;
+  try {
+    const OnnxPolicy = require('./game/OnnxPolicy');
+    onnxActive = OnnxPolicy.enabled() && OnnxPolicy.available();
+  } catch (e) { /* no runtime - heuristic */ }
+  return buildConfigReport(process.env, {
+    dataDir: DATA_DIR,
+    dataDirWritable: DATA_DIR_WRITABLE,
+    accountsEnabled: ACCOUNTS_ENABLED,
+    accountsBackend: accountStore ? accountStore.backend : null,
+    onnxActive,
+    adminMode: adminAuth.mode,
+  });
+}
+
+async function runSmtpProbe() {
+  const r = await mailer.probe();
+  lastSmtpProbe = { ok: r.ok, reason: r.reason || '', at: Date.now() };
+  return lastSmtpProbe;
+}
+
+// Failed admin logins per IP. Generous for a human typo, useless for guessing.
+const adminFailsByIp = new Map(); // ip -> { count, windowStart }
+const ADMIN_FAIL_WINDOW_MS = 15 * 60 * 1000;
+const ADMIN_FAIL_LIMIT = 10;
+// Across ALL IPs: each failed Argon2 check costs real memory and CPU, so a
+// spread-out guessing run is capped too.
+const ADMIN_GLOBAL_FAIL_LIMIT = 30; // per minute
+let adminGlobalFails = { count: 0, windowStart: 0 };
+// Test mails per IP: the form must not turn the server into a mail cannon.
+const adminMailsByIp = new Map();
+function bump(map, ip, windowMs) {
+  const now = Date.now();
+  let e = map.get(ip);
+  if (!e || now - e.windowStart > windowMs) { e = { count: 0, windowStart: now }; map.set(ip, e); }
+  e.count += 1;
+  return e.count;
+}
+
+function readFormBody(req) {
+  return new Promise((resolve) => {
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk;
+      if (body.length > 4 * 1024) { resolve(null); req.destroy(); }
+    });
+    req.on('end', () => resolve(new URLSearchParams(body)));
+    req.on('error', () => resolve(null));
+  });
+}
+
+// A separate function on purpose: scripts/gen-docs.js reads an inline
+// env-var-or-fallback expression as the variable's documented default.
+function mailSiteName() {
+  const base = process.env.PIKDAME_BASE_URL;
+  return base ? base : 'Pik Dame';
+}
+
+function adminRuntime() {
+  let players = 0;
+  for (const s of registry.sessions.values()) {
+    for (const sock of s.sockets.values()) if (sock && sock.readyState === WebSocket.OPEN) players += 1;
+  }
+  return {
+    version: APP_VERSION,
+    uptimeSeconds: Math.round(process.uptime()),
+    sessions: registry.size,
+    connectedPlayers: players,
+    rssMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
+    node: process.version,
+  };
+}
+
+async function handleAdminRequest(req, res, filePath) {
+  // Off = indistinguishable from any unknown path.
+  if (!ADMIN_ENABLED) {
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Nicht gefunden');
+    return;
+  }
+  const ip = clientIp(req);
+  const now = Date.now();
+  const failState = adminFailsByIp.get(ip);
+  const ipLocked = failState && now - failState.windowStart <= ADMIN_FAIL_WINDOW_MS && failState.count >= ADMIN_FAIL_LIMIT;
+  const globalLocked = now - adminGlobalFails.windowStart <= 60 * 1000 && adminGlobalFails.count >= ADMIN_GLOBAL_FAIL_LIMIT;
+  if (ipLocked || globalLocked) {
+    res.writeHead(429, { 'Content-Type': 'text/plain; charset=utf-8', 'Retry-After': ipLocked ? '900' : '60' });
+    res.end('Zu viele Fehlversuche - bitte später erneut versuchen.');
+    return;
+  }
+  const password = AdminPage.basicPassword(req.headers.authorization);
+  const verdict = password === null ? 'fail' : await adminAuth.verify(password);
+  if (verdict === 'busy') {
+    res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8', 'Retry-After': '5' });
+    res.end('Gerade ausgelastet - bitte gleich erneut versuchen.');
+    return;
+  }
+  if (verdict !== 'ok') {
+    if (password !== null) {
+      bump(adminFailsByIp, ip, ADMIN_FAIL_WINDOW_MS);
+      if (now - adminGlobalFails.windowStart > 60 * 1000) adminGlobalFails = { count: 0, windowStart: now };
+      adminGlobalFails.count += 1;
+    }
+    res.writeHead(401, {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'WWW-Authenticate': 'Basic realm="Pik Dame Admin", charset="UTF-8"',
+    });
+    res.end('Anmeldung erforderlich');
+    return;
+  }
+
+  let notice = null;
+  if (filePath === '/admin/mail') {
+    if (req.method !== 'POST') {
+      res.writeHead(303, { Location: '/admin' });
+      res.end();
+      return;
+    }
+    // Basic credentials ride along on any request the browser makes, so a
+    // cross-site form could trigger this: require same-origin + CSRF token.
+    const site = req.headers['sec-fetch-site'];
+    const form = await readFormBody(req);
+    if ((site && site !== 'same-origin') || !form || !AdminPage.csrfValid(form.get('csrf'), ADMIN_SECRET)) {
+      res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Ungültige Anfrage');
+      return;
+    }
+    if (form.get('action') === 'send') {
+      const to = String(form.get('to') || '').trim();
+      if (!AdminPage.validRecipient(to)) {
+        notice = { ok: false, text: 'Bitte eine gültige Empfängeradresse eingeben.' };
+      } else if (bump(adminMailsByIp, ip, 10 * 60 * 1000) > 5) {
+        notice = { ok: false, text: 'Höchstens 5 Testmails in 10 Minuten.' };
+      } else if (!mailer.configured) {
+        notice = { ok: false, text: 'Kein SMTP-Server konfiguriert - die Mail steht nur im Log.' };
+        await mailer.send({ to, subject: 'Pik Dame: Testmail', text: 'Testmail von der Admin-Seite.' });
+      } else {
+        const site = mailSiteName();
+        const r = await mailer.send({
+          to,
+          subject: 'Pik Dame: Testmail',
+          text: `Diese Testmail kommt von der Admin-Seite (${site}).\n\nWenn sie angekommen ist, funktioniert der Mailversand.\n`,
+        });
+        notice = r.delivered
+          ? { ok: true, text: `Testmail an ${to} wurde vom SMTP-Server angenommen.` }
+          : { ok: false, text: `Versand fehlgeschlagen: ${r.reason}` };
+      }
+    } else {
+      const r = await runSmtpProbe();
+      notice = mailer.configured
+        ? { ok: r.ok, text: r.ok ? 'Anmeldung am SMTP-Server erfolgreich.' : `SMTP-Prüfung fehlgeschlagen: ${r.reason}` }
+        : { ok: false, text: 'Kein SMTP-Server konfiguriert.' };
+    }
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Cache-Control': 'no-store',
+    'X-Robots-Tag': 'noindex',
+    'Referrer-Policy': 'no-referrer',
+    'X-Frame-Options': 'DENY',
+  });
+  res.end(AdminPage.renderAdminPage({
+    report: currentConfigReport(),
+    runtime: adminRuntime(),
+    smtpProbe: lastSmtpProbe,
+    notice,
+    csrf: AdminPage.csrfToken(ADMIN_SECRET),
+    mailConfigured: mailer.configured,
+  }));
 }
 
 async function handleAccountRequest(req, res, filePath) {
@@ -1567,4 +1764,15 @@ server.listen(PORT, () => {
   console.log('    nutzen (Einstellungen -> Bedienungshilfen).');
   console.log('');
   console.log(`Fehler-Log (falls etwas schiefgeht): ${CRASH_LOG_FILE}`);
+  console.log('');
+  try {
+    for (const line of formatConfigReport(currentConfigReport())) console.log(line);
+  } catch (e) { logCrash('config-report', e); }
+  // SMTP probe: log in and out once, so a wrong host/port/password shows up
+  // now instead of at the first registration. Never blocks the start.
+  if (mailer.configured) {
+    runSmtpProbe()
+      .then((r) => console.log(r.ok ? '[config] SMTP-Prüfung: Anmeldung erfolgreich.' : `[config] SMTP-Prüfung FEHLGESCHLAGEN: ${r.reason}`))
+      .catch((e) => logCrash('smtp-probe', e));
+  }
 });

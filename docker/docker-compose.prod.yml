@@ -110,6 +110,12 @@ services:
       - PIKDAME_SMTP_USER=${PIKDAME_SMTP_USER:-}
       - PIKDAME_SMTP_PASS_FILE=/run/secrets/smtp_password
       - PIKDAME_MAIL_FROM=${PIKDAME_MAIL_FROM:-}
+      # --- Admin page (optional): /admin shows the config report and can send
+      #     a test mail. Off while unset. Value = Argon2id hash of the admin
+      #     password, made with `docker compose exec pikdame node game/AdminToken.js`;
+      #     in .env inside SINGLE quotes. Or PIKDAME_ADMIN_TOKEN_FILE for a secret.
+      #     Docs: docs/admin/admin-page.md
+      - PIKDAME_ADMIN_TOKEN=${PIKDAME_ADMIN_TOKEN:-}
       #
       # DIRECT SMTP instead of the proxy: set in .env
       #     PIKDAME_SMTP_HOST=smtp.eu.mailgun.org

@@ -3,6 +3,14 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.42.0] - 2026-10-04
+
+### Added
+- **Konfigurationsbericht beim Start:** Der Server listet im Log pro Funktion (Datenverzeichnis, Konten, Datenbank, E-Mail, öffentliche Adresse, Proxy, ONNX-Bots, Admin-Seite) ✓/⚠/✗/– und nennt bei halb eingerichteten Funktionen die fehlenden Variablen, Probleme zuerst. Werte von Secrets erscheinen nie
+- **SMTP-Prüfung beim Start:** Ist ein Mailserver eingetragen, meldet sich der Server einmal an und wieder ab, ohne etwas zu senden. Falscher Host, Port, TLS-Modus oder falsches Passwort fallen so sofort auf statt erst bei der ersten Registrierung
+- **Admin-Seite `/admin`** (optional, nur mit `PIKDAME_ADMIN_TOKEN`): zeigt denselben Bericht samt aller beteiligten Variablen je Eintrag (gesetzt/nicht gesetzt, nie Werte), das Ergebnis der SMTP-Prüfung und Laufzeitwerte; Knöpfe „Verbindung prüfen“ und „Testmail senden“. Nur lesend - die Konfiguration bleibt in der Compose-Datei. Ohne Token antwortet `/admin` mit 404
+- **Admin-Passwort als Argon2id-Hash** (wie bei Vaultwarden): In `PIKDAME_ADMIN_TOKEN` steht nur der Hash, nie das Passwort. Erzeugen mit `docker compose exec pikdame node game/AdminToken.js --generate` (oder ohne `--generate` für ein eigenes Passwort, verdeckte Eingabe). Geprüft wird mit dem in Node eingebauten Argon2 - keine neue Abhängigkeit. Ein Klartext-Token geht weiter, der Bericht warnt dann. Anmeldung über den Login-Dialog des Browsers, Sperre nach 10 Fehlversuchen pro IP bzw. 30 pro Minute insgesamt, CSRF-Schutz, höchstens 5 Testmails in 10 Minuten. Schritt-für-Schritt-Anleitung in der Doku: „Config check and admin page“
+
 ## [2.41.0] - 2026-10-04
 
 ### Changed
