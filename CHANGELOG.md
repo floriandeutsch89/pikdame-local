@@ -3,6 +3,18 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.40.0] - 2026-10-04
+
+### Changed
+- **Spieltisch mit Material:** Feine Körnung über der ganzen Tischfläche und ein dunklerer Rand, der den Blick zur Mitte (Auslagen, Stapel) lenkt - der Tisch wirkt nicht mehr wie eine flache App-Fläche. Im hellen Küchentisch-Theme entsprechend dezenter. Reines CSS, kein Download
+- **Punktestand im Hochformat am Ende seines Fortschrittsbalkens** statt allein in einer eigenen Zeile unten links unter der Hand
+
+### Fixed
+- **„+Punkte“-Einblendungen und Emotes von Mitspielern stiegen in die Kopfzeile** und lagen über Pause- und Einstellungsknopf. Sie starten jetzt in der Mitte des Spielerplatzes
+
+### Removed
+- Ungenutzte Regel für ein ♠Q-Wasserzeichen auf dem Tisch (war seit v1.27.0 nie sichtbar)
+
 ## [2.39.0] - 2026-10-04
 
 ### Changed
