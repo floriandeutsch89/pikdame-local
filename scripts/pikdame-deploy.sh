@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # Pik Dame - entry point for the automatic deploy after a merge to main.
 #
-# Installed ONCE by hand as /usr/local/bin/pikdame-deploy (root:root, 0755) and
-# never replaced by a deploy - so what the deploy key may trigger only changes
-# when you change it. The GitHub workflow reaches it through a dedicated user:
+# What it does: pull the images of YOUR compose file on this host and recreate
+# what changed - Watchtower's job, right away instead of at 04:00. It never
+# downloads or changes stack files (compose, .env, Caddyfile); for those run
+# server-update.sh by hand when a release asks for it.
+#
+# Installed ONCE by hand as /usr/local/bin/pikdame-deploy (root:root, 0755);
+# a deploy never replaces it. The GitHub workflow reaches it through a
+# dedicated user:
 #
 #   /home/deploy/.ssh/authorized_keys:
 #     command="sudo -n /usr/local/bin/pikdame-deploy",restrict ssh-ed25519 AAAA... github-deploy
@@ -11,15 +16,16 @@
 #     Defaults!/usr/local/bin/pikdame-deploy env_keep += "SSH_ORIGINAL_COMMAND"
 #     deploy ALL=(root) NOPASSWD: /usr/local/bin/pikdame-deploy
 #
-# The key can do exactly one thing: roll out a commit of main. No shell, no
-# forwarding, no Docker access of its own.
+# The key can do exactly one thing: run this script. No shell, no forwarding,
+# no Docker access of its own.
 #
-# Input: the commit to deploy, sent as the SSH command (sshd puts it into
-# SSH_ORIGINAL_COMMAND). Only a full 40-character commit id is accepted;
-# anything else is refused before a single file is fetched.
+# Input: the merged commit id, sent as the SSH command (SSH_ORIGINAL_COMMAND).
+# It only labels the log - the images come from the registry tags in your
+# compose file - but anything that is not a 40-character commit id is refused.
 #
 # Optional /etc/pikdame-deploy.conf (sourced):
-#   PIKDAME_DIR=/opt/stacks/pikdame   # stack directory if not /opt/pikdame/docker
+#   PIKDAME_DIR=/opt/stacks/pikdame          # default: /opt/pikdame/docker
+#   PIKDAME_COMPOSE_FILE=compose.yaml        # default: docker-compose.prod.yml
 set -euo pipefail
 
 REF="${SSH_ORIGINAL_COMMAND:-${1:-}}"
@@ -28,22 +34,17 @@ if ! [[ "$REF" =~ ^[0-9a-f]{40}$ ]]; then
   exit 2
 fi
 
-# The commit must be ON main. Without this check a leaked key could roll out
-# any commit GitHub serves for this repository - an unmerged branch included.
-# "identical"/"ahead" = main contains it. Public API, no token needed.
-STATUS=$(curl -fsS --max-time 15 "https://api.github.com/repos/floriandeutsch89/pikdame-local/compare/$REF...main" \
-  | grep -o '"status": *"[a-z]*"' | head -1 | grep -o '[a-z]*"$' | tr -d '"' || true)
-if [ "$STATUS" != "identical" ] && [ "$STATUS" != "ahead" ]; then
-  echo "pikdame-deploy: $REF is not part of main (compare status: '${STATUS:-unknown}') - refused" >&2
-  exit 4
-fi
-
 if [ -r /etc/pikdame-deploy.conf ]; then
   # shellcheck disable=SC1091
   . /etc/pikdame-deploy.conf
 fi
-export PIKDAME_DIR="${PIKDAME_DIR:-/opt/pikdame/docker}"
-export PIKDAME_REF="$REF"
+DIR="${PIKDAME_DIR:-/opt/pikdame/docker}"
+FILE="${PIKDAME_COMPOSE_FILE:-docker-compose.prod.yml}"
+cd "$DIR"
+if [ ! -f "$FILE" ]; then
+  echo "pikdame-deploy: $DIR/$FILE not found - set PIKDAME_DIR / PIKDAME_COMPOSE_FILE in /etc/pikdame-deploy.conf" >&2
+  exit 5
+fi
 
 # One deploy at a time: a second merge right after the first waits instead of
 # racing it on the same compose project.
@@ -53,9 +54,12 @@ if ! flock -w 600 9; then
   exit 3
 fi
 
-echo "pikdame-deploy: rolling out $REF into $PIKDAME_DIR"
-TMP="$(mktemp)"
-trap 'rm -f "$TMP"' EXIT
-curl -fsSL "https://raw.githubusercontent.com/floriandeutsch89/pikdame-local/$REF/scripts/server-update.sh" -o "$TMP"
-bash "$TMP"
+echo "pikdame-deploy: deploying images for commit $REF ($DIR/$FILE)"
+# --ignore-buildable: services built on this host (if any) are left alone -
+# nothing is compiled here.
+docker compose -f "$FILE" pull --ignore-buildable
+docker compose -f "$FILE" up -d
+# Old image layers, like Watchtower's WATCHTOWER_CLEANUP.
+docker image prune -f >/dev/null
+docker compose -f "$FILE" ps
 echo "pikdame-deploy: done ($REF)"
