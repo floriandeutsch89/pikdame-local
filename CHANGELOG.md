@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.47.1] - 2026-10-05
+
+### Changed
+- **Passkeys tragen die E-Mail-Adresse als Benutzernamen:** Bitwarden, iCloud-Schlüsselbund & Co. legen den Passkey jetzt unter der E-Mail-Adresse ab, der Spielername erscheint als Anzeigename in der Passkey-Auswahl. Ein später gesetztes Passwort landet so im selben Eintrag. Bereits angelegte Passkeys ziehen bei der nächsten Anmeldung mit Passkey nach, wo der Browser das unterstützt (Safari ab iOS/macOS 26, Chrome ab 132); sonst bleibt der alte Name stehen, der Passkey funktioniert unverändert. Den Ordner wählt man im Passwort-Manager selbst - danach fragt beim Speichern eines Passkeys keiner
+
 ## [2.47.0] - 2026-10-05
 
 ### Added

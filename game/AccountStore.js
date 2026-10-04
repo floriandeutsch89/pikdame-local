@@ -490,10 +490,10 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
   function accountForSession(token) {
     const s = sessionUser(token);
     if (!s) return null;
-    const row = db.prepare('SELECT id, username, salt, webauthn_user_id FROM users WHERE username = ?').get(s.username);
+    const row = db.prepare('SELECT id, username, email, salt, webauthn_user_id FROM users WHERE username = ?').get(s.username);
     if (!row) return null;
     const creds = db.prepare('SELECT * FROM webauthn_credentials WHERE user_id = ? ORDER BY created_at').all(row.id).map(credRow);
-    return { id: row.id, username: row.username, hasPassword: !!row.salt, webauthnUserId: row.webauthn_user_id || null, credentials: creds };
+    return { id: row.id, username: row.username, email: row.email, hasPassword: !!row.salt, webauthnUserId: row.webauthn_user_id || null, credentials: creds };
   }
 
   function setWebauthnUserId(userId, handle) {
@@ -513,9 +513,12 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
   function credentialById(credId) {
     const r = db.prepare('SELECT * FROM webauthn_credentials WHERE id = ?').get(String(credId || ''));
     if (!r) return null;
-    const u = db.prepare('SELECT id, username, verified FROM users WHERE id = ?').get(r.user_id);
+    const u = db.prepare('SELECT id, username, email, verified, webauthn_user_id FROM users WHERE id = ?').get(r.user_id);
     if (!u) return null;
-    return { credential: credRow(r), user: { id: u.id, username: u.username, verified: !!u.verified } };
+    return {
+      credential: credRow(r),
+      user: { id: u.id, username: u.username, email: u.email, verified: !!u.verified, webauthnUserId: u.webauthn_user_id || null },
+    };
   }
 
   function touchCredential(credId, counter) {

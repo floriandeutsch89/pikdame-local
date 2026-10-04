@@ -544,11 +544,11 @@ function createPgAccountStore(databaseUrl, options = {}) {
     const s = await sessionUser(token);
     if (!s) return null;
     try {
-      const u = await pool.query('SELECT id, username, salt, webauthn_user_id FROM users WHERE LOWER(username) = LOWER($1)', [s.username]);
+      const u = await pool.query('SELECT id, username, email, salt, webauthn_user_id FROM users WHERE LOWER(username) = LOWER($1)', [s.username]);
       const row = u.rows[0];
       if (!row) return null;
       const c = await pool.query('SELECT * FROM webauthn_credentials WHERE user_id = $1 ORDER BY created_at', [row.id]);
-      return { id: Number(row.id), username: row.username, hasPassword: !!row.salt, webauthnUserId: row.webauthn_user_id || null, credentials: c.rows.map(credRow) };
+      return { id: Number(row.id), username: row.username, email: row.email, hasPassword: !!row.salt, webauthnUserId: row.webauthn_user_id || null, credentials: c.rows.map(credRow) };
     } catch (e) {
       console.error('Postgres accountForSession failed:', e.message);
       return null;
@@ -576,12 +576,16 @@ function createPgAccountStore(databaseUrl, options = {}) {
     try {
       await ensureReady();
       const r = await pool.query(
-        `SELECT c.*, u.id AS uid, u.username, u.verified FROM webauthn_credentials c JOIN users u ON u.id = c.user_id WHERE c.id = $1`,
+        `SELECT c.*, u.id AS uid, u.username, u.email, u.verified, u.webauthn_user_id
+           FROM webauthn_credentials c JOIN users u ON u.id = c.user_id WHERE c.id = $1`,
         [String(credId || '')]
       );
       const row = r.rows[0];
       if (!row) return null;
-      return { credential: credRow(row), user: { id: Number(row.uid), username: row.username, verified: !!row.verified } };
+      return {
+        credential: credRow(row),
+        user: { id: Number(row.uid), username: row.username, email: row.email, verified: !!row.verified, webauthnUserId: row.webauthn_user_id || null },
+      };
     } catch (e) {
       console.error('Postgres credentialById failed:', e.message);
       return null;

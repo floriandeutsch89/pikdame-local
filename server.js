@@ -938,7 +938,13 @@ async function handleAccountRequest(req, res, filePath) {
     const s2 = await accountStore.sessionForUser(r.user.id);
     if (s2.error) return sendJson(res, 401, { error: s2.error });
     await importGuestProfile(s2.username);
-    return sendJson(res, 200, { ok: true, token: s2.token, username: s2.username });
+    // Lets the client tell the authenticator the account's current names
+    // (WebAuthn Signal API): passkeys created before the e-mail became their
+    // user name, or after a change, show up right in the password manager.
+    const passkeyUser = r.user.webauthnUserId
+      ? { rpId: passkeys.rpID, userId: r.user.webauthnUserId, name: r.user.email, displayName: s2.username }
+      : null;
+    return sendJson(res, 200, { ok: true, token: s2.token, username: s2.username, passkeyUser });
   }
   // Signed-in account management: the session token identifies the account.
   const needAccount = async () => {
@@ -951,7 +957,10 @@ async function handleAccountRequest(req, res, filePath) {
     if (!acc) return;
     const handle = acc.webauthnUserId || (await accountStore.setWebauthnUserId(acc.id, passkeys.newUserHandle()));
     const r = await passkeys.startRegistration({
-      username: acc.username, userHandle: handle, excludeIds: acc.credentials.map((c) => c.id), data: { accountId: acc.id },
+      // Name = e-mail (unique, what the sign-in field takes, and where a later
+      // password lands in the same password-manager entry); display name =
+      // the player name shown in the passkey picker.
+      username: acc.email, displayName: acc.username, userHandle: handle, excludeIds: acc.credentials.map((c) => c.id), data: { accountId: acc.id },
     });
     return sendJson(res, 200, { ok: true, flowId: r.flowId, options: r.options });
   }
