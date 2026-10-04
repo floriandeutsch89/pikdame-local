@@ -14,7 +14,7 @@ BASE="https://raw.githubusercontent.com/floriandeutsch89/pikdame-local/$REF"
 cd "$DIR"
 
 echo "== 1/4 Fetching stack files from $REF (keeps .env and secrets/) =="
-for f in docker-compose.prod.yml Caddyfile .env.example caddy/Dockerfile crowdsec/acquis.yaml; do
+for f in docker-compose.prod.yml .env.example caddy/Caddyfile caddy/Dockerfile crowdsec/acquis.yaml; do
   mkdir -p "$(dirname "$f")"
   curl -fsSL "$BASE/docker/$f" -o "$f"
 done
