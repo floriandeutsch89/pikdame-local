@@ -2212,13 +2212,20 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 #accountLoginForm, #accountRegisterForm {
   display: flex; flex-direction: column; gap: 10px; width: 100%;
 }
+/* The dialog is a light card (--card-bg / --card-ink). The fields used the
+   page's --text, which is LIGHT in the dark themes - typed text was nearly
+   invisible, and a prefilled name looked like a placeholder. */
 #accountLoginForm input, #accountRegisterForm input {
-  background: var(--glass-strong);
-  color: var(--text);
-  border: 1px solid var(--glass-border);
+  background: rgba(0, 0, 0, 0.04); /* fallback: iOS < 16.2 has no color-mix */
+  background: color-mix(in srgb, var(--card-ink) 4%, transparent);
+  color: var(--card-ink);
+  border: 1px solid var(--card-border);
   border-radius: var(--r-sm);
   padding: 11px 12px;
   font-size: 0.9rem;
+}
+#accountLoginForm input::placeholder, #accountRegisterForm input::placeholder {
+  color: color-mix(in srgb, var(--card-ink) 45%, transparent);
 }
 #accountLoggedOut, #accountLoggedIn { width: 100%; }
 #accountWhoami { font-weight: 700; margin-bottom: 10px; text-align: center; }

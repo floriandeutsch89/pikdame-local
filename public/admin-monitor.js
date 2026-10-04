@@ -52,6 +52,7 @@
   ];
 
   const plots = {};
+  root.pikdamePlots = plots; // test seam: lets a browser test read the scales
   let lastData = null;
 
   /** Column data for one chart: x in seconds, null where the server was off
@@ -109,7 +110,11 @@
       cursor: { sync: { key: 'pikdame-monitor' }, drag: { x: true, y: false } },
       legend: { live: true },
       scales: {
-        x: { time: true, range: [Math.round(data.from / 1000), Math.round(data.to / 1000)] },
+        // No fixed range here: a static [from, to] pinned the axis to the
+        // window of the FIRST load, so every refresh snapped back to it and new
+        // points landed off the right edge - the charts looked frozen until F5.
+        // The window is set with setScale below and moved on each refresh.
+        x: { time: true, auto: false },
         y: { range: (u, min, max) => [0, Math.max(def.minTop || 1, max * 1.1)] },
       },
       axes: [
@@ -118,7 +123,16 @@
       ],
       series,
     };
-    plots[def.id] = { plot: new uPlot(opts, cols, box.querySelector('.plot')), box, shape: `${showPeak}|${limit != null}` };
+    const plot = new uPlot(opts, cols, box.querySelector('.plot'));
+    const win = { min: Math.round(data.from / 1000), max: Math.round(data.to / 1000) };
+    plot.setScale('x', win);
+    plots[def.id] = { plot, box, shape: `${showPeak}|${limit != null}`, win };
+    // Double-click resets to the current time window (uPlot's own reset would
+    // go to the data extent, which the zoom check below reads as a zoom).
+    plot.over.addEventListener('dblclick', () => {
+      const pl = plots[def.id];
+      if (pl) pl.plot.setScale('x', { ...pl.win });
+    });
   }
 
   function update(data) {
@@ -130,10 +144,14 @@
         build(def, data);
         continue;
       }
-      // Keep a zoom the user made; otherwise follow the moving window.
-      const zoomed = p.plot.scales.x.min > Math.round(data.from / 1000) + 1 || p.plot.scales.x.max < Math.round(data.to / 1000) - 60;
-      p.plot.setData(cols, !zoomed);
-      if (!zoomed) p.plot.setScale('x', { min: Math.round(data.from / 1000), max: Math.round(data.to / 1000) });
+      // Keep a zoom the user made (the scale differs from the window we set
+      // last time); otherwise move the window along with the clock.
+      const sx = p.plot.scales.x;
+      const zoomed = Math.abs(sx.min - p.win.min) > 1 || Math.abs(sx.max - p.win.max) > 1;
+      p.plot.setData(cols, false);
+      p.win = { min: Math.round(data.from / 1000), max: Math.round(data.to / 1000) };
+      // setScale on x also re-ranges the auto y axis for the visible data.
+      p.plot.setScale('x', zoomed ? { min: sx.min, max: sx.max } : { ...p.win });
       p.box.querySelector('.sub').textContent = summary(def, cols);
     }
   }
