@@ -16,6 +16,10 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
   Inhalte deutsch.
 - Bestandskommentare werden bei jeder Berührung einer Datei auf Englisch
   migriert (Boy-Scout-Regel); neue Dateien entstehen ausschließlich englisch.
+- **Kommentare kurz: 1–2 Zeilen, nur das nicht Offensichtliche** (Warum,
+  Falle, Vertrag). Erklärungen, Hintergrund und Anleitungen gehören in
+  docs/, die Commit-Message oder den PR — nicht in Kommentarblöcke. Lange
+  Bestandskommentare sind kein Vorbild. (Vereinbart am 2026-10-04.)
 
 ## Harte Constraints (nie brechen)
 
