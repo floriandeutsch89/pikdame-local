@@ -2209,13 +2209,54 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 .accountTabs { display: flex; gap: 8px; width: 100%; margin-bottom: 12px; }
 .accountTab { flex: 1; opacity: 0.6; }
 .accountTab.active { opacity: 1; border-color: var(--accent); }
-#accountLoginForm, #accountRegisterForm {
+#accountLoginForm, #accountRegisterForm, #accountCodeForm, #accSetPasswordForm, .accountSetup {
   display: flex; flex-direction: column; gap: 10px; width: 100%;
 }
+#accountLoginForm.hidden, #accountRegisterForm.hidden, #accountCodeForm.hidden, #accSetPasswordForm.hidden, .accountSetup.hidden { display: none; }
+#accCodeHint { margin: 0; }
+/* The sign-up code: big, spaced digits - read from the mail, typed here. */
+#accountCodeForm .codeInput {
+  font-size: var(--fs-title); letter-spacing: 0.4em; text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.codeActions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.accountSetup { margin: 4px 0 16px; text-align: center; }
+.accountSetup p { margin: 0; }
+.setupDone { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-weight: 700; }
+.setupDone .icon { color: var(--accent-2); }
+/* Secondary actions in the account dialog ("Anmelde-Link per E-Mail",
+   "Neuen Code senden"): text, but still a full tap target. */
+.linkBtn {
+  background: none; border: none; padding: 0 4px;
+  min-height: var(--tap-min);
+  color: var(--accent-2); font-weight: 600; font-size: var(--fs-label);
+  text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+  align-self: center;
+}
+.linkBtn.hidden { display: none; }
+/* Present for password managers (pairs the new password with the account),
+   invisible for people. */
+.visuallyHidden {
+  position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.accountMethods { width: 100%; margin: 12px 0; display: flex; flex-direction: column; gap: 8px; }
+.accountMethods h3 { margin: 0; font-size: var(--fs-hint); text-transform: uppercase; letter-spacing: 0.06em; color: color-mix(in srgb, var(--card-ink) 60%, transparent); }
+.passkeyList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.passkeyList li {
+  display: flex; align-items: center; gap: 10px; justify-content: space-between;
+  padding: 8px 10px; border: 1px solid var(--card-border); border-radius: var(--r-sm);
+}
+.passkeyList .pkName { font-weight: 600; }
+.passkeyList .pkMeta { display: block; font-size: var(--fs-hint); color: color-mix(in srgb, var(--card-ink) 55%, transparent); font-weight: 400; }
+.passwordRow { display: flex; align-items: center; justify-content: space-between; gap: 4px 8px; flex-wrap: wrap; }
+.passwordActions { display: inline-flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.pkLabel { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+.pkLabel .icon { flex-shrink: 0; color: var(--accent-2); }
 /* The dialog is a light card (--card-bg / --card-ink). The fields used the
    page's --text, which is LIGHT in the dark themes - typed text was nearly
    invisible, and a prefilled name looked like a placeholder. */
-#accountLoginForm input, #accountRegisterForm input {
+#accountLoginForm input, #accountRegisterForm input, #accountCodeForm input, #accSetPasswordForm input {
   background: rgba(0, 0, 0, 0.04); /* fallback: iOS < 16.2 has no color-mix */
   background: color-mix(in srgb, var(--card-ink) 4%, transparent);
   color: var(--card-ink);
@@ -2224,7 +2265,7 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   padding: 11px 12px;
   font-size: 0.9rem;
 }
-#accountLoginForm input::placeholder, #accountRegisterForm input::placeholder {
+#accountLoginForm input::placeholder, #accountRegisterForm input::placeholder, #accountCodeForm input::placeholder, #accSetPasswordForm input::placeholder {
   color: color-mix(in srgb, var(--card-ink) 45%, transparent);
 }
 #accountLoggedOut, #accountLoggedIn { width: 100%; }

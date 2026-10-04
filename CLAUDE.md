@@ -31,9 +31,18 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
 0. **Betriebsmodus ist der gehostete Docker-Stack** (play.pikdame.online).
    UX- und Architekturentscheidungen richten sich nach dem
    Online-Mehrspieler-Betrieb.
-1. **Schlanke Laufzeit:** **keine neuen npm-Dependencies ohne explizites Okay**
-   (aktuell: `ws` + `pg` — pg ist pure JS, wird LAZY geladen und nur mit
-   gesetzter `PIKDAME_DATABASE_URL` benutzt), keine nativen Module, kein
+1. **Schlanke Laufzeit: externe Pakete nur, wenn es wirklich sinnvoll und
+   notwendig ist** - und nie ohne Okay des Nutzers. Sinnvoll heißt: Der
+   Eigenbau wäre sicherheitskritisch oder fehleranfällig (Kryptografie,
+   Protokoll-Parser, Zeitreihen-Diagramme) oder deutlich mehr eigener Code;
+   das Paket ist etabliert, gepflegt, gängig lizenziert (MIT/BSD/Apache) und
+   reines JavaScript. Vorher prüfen: Lizenzen des ganzen Baums, Größe,
+   Trivy, `require` aus CommonJS. Aktuell: `ws`, `pg` (LAZY, nur mit
+   `PIKDAME_DATABASE_URL`), `@simplewebauthn/server` (LAZY, Passkeys;
+   ~27 Pakete, 8 MB, entschieden am 2026-10-05). Browser-Bibliotheken werden
+   VENDORT statt installiert (`public/vendor-*.js`, unverändert, npm-Hash im
+   Kopfkommentar): qrcode, uPlot, @simplewebauthn/browser. Keine nativen
+   Module (Ausnahme: `onnxruntime-node`, NUR im Dockerfile), kein
    Build-Schritt. Features, die mehr brauchen
    (z. B. Konten via `node:sqlite`, Node ≥ 22; Docker/CI laufen auf Node 26), müssen sich auf älteren
    Node-Versionen **selbst deaktivieren** (Factory liefert `null`, Client
@@ -110,7 +119,15 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
   Code `ST…`, Bilanz, Best-of-3-Serie; per Code abgeschottet, deshalb auch
   im Public-Mode aktiv),
   `Emotes.js` (EINZIGE Emote-Whitelist + Level; Client-Leisten und
-  `EMOTE_UNLOCK` spiegeln sie, Vertragstest prüft).
+  `EMOTE_UNLOCK` spiegeln sie, Vertragstest prüft),
+  `Passkeys.js` (WebAuthn über `@simplewebauthn/server`; aus ohne Bibliothek
+  oder ohne https-`PIKDAME_BASE_URL` - die RP-ID ist deren Hostname, ein
+  Domainwechsel macht alle Passkeys ungültig; Rückweg ist der Anmelde-Link
+  per Mail). Registrierung ist E-Mail-zuerst: Name + Adresse, die Mail trägt
+  einen 6-stelligen Code (15 min, 5 Versuche, nur als SHA-256 gespeichert) und
+  einen Link; beides bestätigt UND meldet an, erst danach Passkey oder
+  Passwort. Konten können passwortlos sein (`salt = ''`); der letzte
+  Anmeldeweg ist nie löschbar.
 - `public/` — Vanilla-JS-Client (`client.js`), `i18n.js`, PWA. Enthält auch den
   Studio-Vorspann (`#studioSplash`): Er ist ab dem ERSTEN Bild per CSS sichtbar
   (sonst blitzt die Lobby auf, weil `client.js` am Seitenende lädt), ein

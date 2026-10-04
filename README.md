@@ -222,9 +222,14 @@ docs/ · scripts/   Operations guide, backup/restore
   GitHub release (notes from the CHANGELOG), the multi-arch image and the
   Helm chart on GHCR.
 - **Conventions** (language, constraints, workflow): [CLAUDE.md](CLAUDE.md).
-  Most important rule: no new npm dependencies without an explicit decision —
-  a small dependency tree keeps the attack surface, the image and the audit
-  effort small, and the project deliberately has no build step.
+  Most important rule: external packages only when they are really sensible
+  and necessary — when building it ourselves would be security-critical or
+  error-prone (cryptography, protocol parsers) or much more code, and the
+  package is established, maintained, permissively licensed and pure
+  JavaScript. A small dependency tree keeps the attack surface, the image and
+  the audit effort small, and the project deliberately has no build step.
+  Browser libraries are vendored (`public/vendor-*.js`), never loaded from a
+  CDN.
 
 ## AI bots (ONNX)
 

@@ -20,6 +20,26 @@ const DEFAULT_DB_FILE = path.join(process.env.PIKDAME_DATA_DIR || path.join(__di
 const SCRYPT_KEYLEN = 64;
 const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 Tage
 const VERIFY_TTL_MS = 48 * 60 * 60 * 1000; // 48 Stunden
+const LOGIN_LINK_TTL_MS = 15 * 60 * 1000; // e-mail login link
+// Sign-up without a password: the mail carries a 6-digit code (typed into the
+// open dialog, so the passkey is created on THIS device) next to the link.
+const SIGNUP_CODE_TTL_MS = 15 * 60 * 1000;
+const SIGNUP_CODE_TRIES = 5;
+
+function signupCode() {
+  return String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+}
+
+/** Bound to the account id, so equal codes of two accounts hash differently. */
+function codeHash(userId, code) {
+  return crypto.createHash('sha256').update(`${userId}:${String(code || '').trim()}`).digest('hex');
+}
+
+function codeMatches(userId, code, stored) {
+  const a = Buffer.from(codeHash(userId, code));
+  const b = Buffer.from(String(stored || ''));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
 
 function hashPassword(password, salt) {
   return crypto.scryptSync(password, salt, SCRYPT_KEYLEN);
@@ -86,6 +106,48 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
     // Set once the name-based profile's progress was carried over (see
     // importProfile) - a second import would count the same games twice.
     add('profile_imported', 'INTEGER NOT NULL DEFAULT 0');
+    // Passkeys: one random WebAuthn user handle per account (authenticators
+    // group an account's passkeys by it), and the e-mail login link. Only a
+    // SHA-256 of the link token is stored.
+    add('webauthn_user_id', 'TEXT');
+    add('login_token_hash', 'TEXT');
+    add('login_expires', 'INTEGER');
+    // Sign-up code (password-less registration): hash, expiry, attempts.
+    add('verify_code_hash', 'TEXT');
+    add('verify_code_expires', 'INTEGER');
+    add('verify_code_tries', 'INTEGER NOT NULL DEFAULT 0');
+  }
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS webauthn_credentials (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      public_key BLOB NOT NULL,
+      counter INTEGER NOT NULL DEFAULT 0,
+      transports TEXT,
+      device_type TEXT,
+      backed_up INTEGER NOT NULL DEFAULT 0,
+      name TEXT,
+      created_at INTEGER NOT NULL,
+      last_used_at INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS webauthn_credentials_user ON webauthn_credentials (user_id);
+  `);
+
+  /** Name/e-mail checks shared by password and passkey registration. */
+  function validateNewAccount(username, email) {
+    db.prepare('DELETE FROM users WHERE verified = 0 AND verify_expires < ?').run(Date.now());
+    username = String(username || '').trim();
+    email = String(email || '').trim();
+    if (!/^[\p{L}\p{N} _.-]{2,24}$/u.test(username)) {
+      return { error: 'Der Benutzername muss 2-24 Zeichen lang sein (Buchstaben, Zahlen, Leer-, Binde-, Unterstrich, Punkt).' };
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+      return { error: 'Bitte eine gültige E-Mail-Adresse angeben.' };
+    }
+    if (db.prepare('SELECT id FROM users WHERE username = ? OR email = ?').get(username, email)) {
+      return { error: 'Benutzername oder E-Mail ist bereits registriert.' };
+    }
+    return { ok: true, username, email };
   }
 
   /** @returns {{ok:true, verifyToken:string}|{error:string}} */
@@ -134,7 +196,9 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
     const row = db.prepare('SELECT id, username, verify_expires FROM users WHERE verify_token = ?').get(String(token || ''));
     if (!row) return { error: 'Ungültiger oder bereits verwendeter Bestätigungslink.' };
     if (Date.now() > row.verify_expires) return { error: 'Der Bestätigungslink ist abgelaufen - bitte neu registrieren.' };
-    db.prepare('UPDATE users SET verified = 1, verify_token = NULL, verify_expires = NULL WHERE id = ?').run(row.id);
+    db.prepare(
+      'UPDATE users SET verified = 1, verify_token = NULL, verify_expires = NULL, verify_code_hash = NULL, verify_code_expires = NULL WHERE id = ?'
+    ).run(row.id);
     return { ok: true, username: row.username };
   }
 
@@ -284,7 +348,9 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
   function listUsers(limit = 500) {
     const rows = db
       .prepare(
-        `SELECT username, email, verified, created_at, verify_expires, xp, games, wins, season, season_xp
+        `SELECT username, email, verified, created_at, verify_expires, xp, games, wins, season, season_xp,
+                salt != '' AS has_password,
+                (SELECT COUNT(*) FROM webauthn_credentials c WHERE c.user_id = users.id) AS passkeys
          FROM users ORDER BY created_at DESC LIMIT ?`
       )
       .all(Math.max(1, Math.min(5000, limit)));
@@ -302,6 +368,8 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
         wins: r.wins || 0,
         season: r.season || null,
         seasonXp: r.season_xp || 0,
+        hasPassword: !!r.has_password,
+        passkeys: r.passkeys || 0,
       })),
     };
   }
@@ -311,6 +379,7 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
     const row = db.prepare('SELECT id, username FROM users WHERE username = ?').get(String(username || '').trim());
     if (!row) return { error: 'Benutzer nicht gefunden.' };
     db.prepare('DELETE FROM sessions WHERE user_id = ?').run(row.id);
+    db.prepare('DELETE FROM webauthn_credentials WHERE user_id = ?').run(row.id);
     db.prepare('DELETE FROM users WHERE id = ?').run(row.id);
     return { ok: true, username: row.username };
   }
@@ -318,12 +387,198 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
   /** Admin: fresh confirmation link for an UNVERIFIED account (the old one
    *  stops working). @returns {{ok, username, email, verifyToken}|{error}} */
   function renewVerification(username) {
-    const row = db.prepare('SELECT id, username, email, verified FROM users WHERE username = ?').get(String(username || '').trim());
+    const row = db.prepare('SELECT id, username, email, verified, salt FROM users WHERE username = ?').get(String(username || '').trim());
     if (!row) return { error: 'Benutzer nicht gefunden.' };
     if (row.verified) return { error: 'Dieses Konto ist bereits bestätigt.' };
     const verifyToken = randomToken();
     db.prepare('UPDATE users SET verify_token = ?, verify_expires = ? WHERE id = ?').run(verifyToken, Date.now() + VERIFY_TTL_MS, row.id);
-    return { ok: true, username: row.username, email: row.email, verifyToken };
+    return { ok: true, username: row.username, email: row.email, verifyToken, passwordless: !row.salt };
+  }
+
+  // --- Passkeys (WebAuthn) and e-mail login links ----------------------------
+  // The WebAuthn ceremony itself lives in Passkeys.js; this store only keeps
+  // what it needs: the credential's public key and signature counter.
+
+  const credRow = (r) => ({
+    id: r.id,
+    publicKey: Buffer.from(r.public_key),
+    counter: r.counter || 0,
+    transports: r.transports ? JSON.parse(r.transports) : undefined,
+    deviceType: r.device_type || null,
+    backedUp: !!r.backed_up,
+    name: r.name || null,
+    createdAt: r.created_at,
+    lastUsedAt: r.last_used_at || null,
+  });
+
+  function insertCredential(userId, cred) {
+    db.prepare(
+      `INSERT INTO webauthn_credentials (id, user_id, public_key, counter, transports, device_type, backed_up, name, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(cred.id, userId, Buffer.from(cred.publicKey), cred.counter || 0,
+      cred.transports ? JSON.stringify(cred.transports) : null, cred.deviceType || null, cred.backedUp ? 1 : 0,
+      String(cred.name || '').slice(0, 60) || null, Date.now());
+  }
+
+  /** New account WITHOUT a password and without a passkey yet: e-mail first.
+   *  The mail carries a code and a link; either one confirms the address AND
+   *  signs the person in, and only then they pick a passkey or a password -
+   *  no sign-in method exists for an unconfirmed address. */
+  function registerWithoutPassword(username, email) {
+    const v = validateNewAccount(username, email);
+    if (v.error) return v;
+    const verifyToken = randomToken();
+    let id;
+    try {
+      id = db.prepare(
+        `INSERT INTO users (username, email, password_hash, salt, verified, verify_token, verify_expires, created_at)
+         VALUES (?, ?, ?, '', 0, ?, ?, ?)`
+      ).run(v.username, v.email, Buffer.alloc(0), verifyToken, Date.now() + VERIFY_TTL_MS, Date.now()).lastInsertRowid;
+    } catch (e) {
+      if (/UNIQUE/i.test(e.message)) return { error: 'Benutzername oder E-Mail ist bereits registriert.' };
+      throw e;
+    }
+    const code = setSignupCode(Number(id));
+    return { ok: true, verifyToken, code, username: v.username };
+  }
+
+  function setSignupCode(userId) {
+    const code = signupCode();
+    db.prepare('UPDATE users SET verify_code_hash = ?, verify_code_expires = ?, verify_code_tries = 0 WHERE id = ?')
+      .run(codeHash(userId, code), Date.now() + SIGNUP_CODE_TTL_MS, userId);
+    return code;
+  }
+
+  /** Fresh code + link for an UNCONFIRMED password-less sign-up (null
+   *  otherwise). The link's lifetime starts over as well. */
+  function renewSignupCode(email) {
+    const u = db.prepare('SELECT id, username, email, verified FROM users WHERE email = ?').get(String(email || '').trim());
+    if (!u || u.verified) return null;
+    const verifyToken = randomToken();
+    db.prepare('UPDATE users SET verify_token = ?, verify_expires = ? WHERE id = ?').run(verifyToken, Date.now() + VERIFY_TTL_MS, u.id);
+    return { username: u.username, email: u.email, verifyToken, code: setSignupCode(u.id) };
+  }
+
+  /** The code from the sign-up mail: confirms the address and signs in.
+   *  Each attempt is counted BEFORE comparing, so SIGNUP_CODE_TRIES is a hard
+   *  limit; after that only a new code helps. */
+  function verifyCodeAndSignIn(email, code) {
+    const bad = { error: 'Der Code stimmt nicht.' };
+    const u = db.prepare('SELECT id, verified, verify_code_hash, verify_code_expires, verify_code_tries FROM users WHERE email = ?')
+      .get(String(email || '').trim());
+    if (!u || u.verified || !u.verify_code_hash) return bad;
+    if (Date.now() > u.verify_code_expires || u.verify_code_tries >= SIGNUP_CODE_TRIES) {
+      return { error: 'Der Code ist abgelaufen - bitte einen neuen anfordern.' };
+    }
+    db.prepare('UPDATE users SET verify_code_tries = verify_code_tries + 1 WHERE id = ?').run(u.id);
+    if (!codeMatches(u.id, code, u.verify_code_hash)) return bad;
+    db.prepare(
+      'UPDATE users SET verified = 1, verify_token = NULL, verify_expires = NULL, verify_code_hash = NULL, verify_code_expires = NULL WHERE id = ?'
+    ).run(u.id);
+    return sessionForUser(u.id);
+  }
+
+  /** Confirm the address by link AND start a session (the e-mail-first sign-up). */
+  function verifyAndSignIn(token) {
+    const v = verifyEmail(token);
+    if (v.error) return v;
+    const u = db.prepare('SELECT id FROM users WHERE username = ?').get(v.username);
+    return u ? sessionForUser(u.id) : { error: 'Benutzer nicht gefunden.' };
+  }
+
+  /** The signed-in account behind a session token, with its login methods. */
+  function accountForSession(token) {
+    const s = sessionUser(token);
+    if (!s) return null;
+    const row = db.prepare('SELECT id, username, salt, webauthn_user_id FROM users WHERE username = ?').get(s.username);
+    if (!row) return null;
+    const creds = db.prepare('SELECT * FROM webauthn_credentials WHERE user_id = ? ORDER BY created_at').all(row.id).map(credRow);
+    return { id: row.id, username: row.username, hasPassword: !!row.salt, webauthnUserId: row.webauthn_user_id || null, credentials: creds };
+  }
+
+  function setWebauthnUserId(userId, handle) {
+    db.prepare('UPDATE users SET webauthn_user_id = ? WHERE id = ? AND webauthn_user_id IS NULL').run(handle, userId);
+    return db.prepare('SELECT webauthn_user_id FROM users WHERE id = ?').get(userId).webauthn_user_id;
+  }
+
+  function addCredential(userId, cred) {
+    try { insertCredential(userId, cred); } catch (e) {
+      if (/UNIQUE/i.test(e.message)) return { error: 'Dieser Passkey ist bereits gespeichert.' };
+      throw e;
+    }
+    return { ok: true };
+  }
+
+  /** Credential + owner for a login attempt. */
+  function credentialById(credId) {
+    const r = db.prepare('SELECT * FROM webauthn_credentials WHERE id = ?').get(String(credId || ''));
+    if (!r) return null;
+    const u = db.prepare('SELECT id, username, verified FROM users WHERE id = ?').get(r.user_id);
+    if (!u) return null;
+    return { credential: credRow(r), user: { id: u.id, username: u.username, verified: !!u.verified } };
+  }
+
+  function touchCredential(credId, counter) {
+    db.prepare('UPDATE webauthn_credentials SET counter = ?, last_used_at = ? WHERE id = ?').run(counter || 0, Date.now(), String(credId));
+  }
+
+  /** Never removes the last way to sign in. */
+  function deleteCredential(userId, credId) {
+    const u = db.prepare('SELECT salt FROM users WHERE id = ?').get(userId);
+    const n = db.prepare('SELECT COUNT(*) AS n FROM webauthn_credentials WHERE user_id = ?').get(userId).n;
+    if (!u) return { error: 'Benutzer nicht gefunden.' };
+    if (!u.salt && n <= 1) return { error: 'Das ist dein letzter Anmeldeweg - lege zuerst ein Passwort oder einen weiteren Passkey an.' };
+    const r = db.prepare('DELETE FROM webauthn_credentials WHERE id = ? AND user_id = ?').run(String(credId), userId);
+    return r.changes ? { ok: true } : { error: 'Passkey nicht gefunden.' };
+  }
+
+  function setPassword(userId, password) {
+    password = String(password || '');
+    if (password.length < 8 || password.length > 200) return { error: 'Das Passwort muss mindestens 8 Zeichen lang sein.' };
+    const salt = randomToken();
+    db.prepare('UPDATE users SET password_hash = ?, salt = ? WHERE id = ?').run(hashPassword(password, salt), salt, userId);
+    return { ok: true };
+  }
+
+  function removePassword(userId) {
+    const n = db.prepare('SELECT COUNT(*) AS n FROM webauthn_credentials WHERE user_id = ?').get(userId).n;
+    if (!n) return { error: 'Ohne Passkey kann das Passwort nicht entfernt werden - es ist sonst dein letzter Anmeldeweg.' };
+    db.prepare("UPDATE users SET password_hash = ?, salt = '' WHERE id = ?").run(Buffer.alloc(0), userId);
+    return { ok: true };
+  }
+
+  /** A session for an account that proved itself another way (passkey,
+   *  login link). Same rules as a password login: confirmed accounts only. */
+  function sessionForUser(userId) {
+    const u = db.prepare('SELECT id, username, verified FROM users WHERE id = ?').get(userId);
+    if (!u) return { error: 'Benutzer nicht gefunden.' };
+    if (!u.verified) return { error: 'Bitte zuerst die E-Mail-Adresse bestätigen (Link in der Mail).' };
+    const token = randomToken();
+    db.prepare('DELETE FROM sessions WHERE created_at < ?').run(Date.now() - SESSION_TTL_MS);
+    db.prepare('INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)').run(token, u.id, Date.now());
+    return { ok: true, token, username: u.username };
+  }
+
+  const sha256hex = (t) => crypto.createHash('sha256').update(String(t)).digest('hex');
+
+  /** E-mail login link for a CONFIRMED account (null otherwise - the caller
+   *  answers the same either way, so the link form reveals no accounts). */
+  function createLoginLink(usernameOrEmail, ttlMs = LOGIN_LINK_TTL_MS) {
+    const key = String(usernameOrEmail || '').trim();
+    const u = db.prepare('SELECT id, username, email, verified FROM users WHERE username = ? OR email = ?').get(key, key);
+    if (!u || !u.verified) return null;
+    const token = randomToken();
+    db.prepare('UPDATE users SET login_token_hash = ?, login_expires = ? WHERE id = ?').run(sha256hex(token), Date.now() + ttlMs, u.id);
+    return { username: u.username, email: u.email, token };
+  }
+
+  /** Single use: the link is spent even if the session cannot be created. */
+  function consumeLoginLink(token) {
+    const u = db.prepare('SELECT id, login_expires FROM users WHERE login_token_hash = ?').get(sha256hex(token || ''));
+    if (!u) return { error: 'Dieser Anmelde-Link ist ungültig oder wurde schon benutzt.' };
+    db.prepare('UPDATE users SET login_token_hash = NULL, login_expires = NULL WHERE id = ?').run(u.id);
+    if (Date.now() > u.login_expires) return { error: 'Dieser Anmelde-Link ist abgelaufen - bitte einen neuen anfordern.' };
+    return sessionForUser(u.id);
   }
 
   function close() {
@@ -333,6 +588,9 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
   return {
     register, verifyEmail, login, sessionUser, logout, isRegisteredName,
     addGameResult, progressFor, ladder, importProfile, listUsers, deleteUser, renewVerification,
+    validateNewAccount, registerWithoutPassword, verifyAndSignIn, renewSignupCode, verifyCodeAndSignIn, accountForSession, setWebauthnUserId, addCredential,
+    credentialById, touchCredential, deleteCredential, setPassword, removePassword, sessionForUser,
+    createLoginLink, consumeLoginLink,
     close, _db: db, // _db: Test-Seam (Ablauf-Simulation)
   };
 }
