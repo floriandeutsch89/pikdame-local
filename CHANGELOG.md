@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.47.2] - 2026-10-05
+
+### Fixed
+- **Passkey entfernen tat am iPhone nichts:** Die Rückfrage war ein Browser-Dialog, den iOS ohne Hinweis unterdrücken kann - der Tipp auf „Entfernen“ blieb dann folgenlos. Jetzt bestätigt man mit einem zweiten Tipp: „Entfernen“ wird zu „Wirklich?“ (4 Sekunden), erst der zweite Tipp löscht. Gleiches gilt für „Passwort entfernen“
+- Nach dem Anmelden blieb die Passkey-Vorschlagsanfrage im Namensfeld offen; sie wird jetzt beendet, damit sie spätere Passkey-Abfragen nicht blockiert
+- Fehlermeldungen im Konto-Dialog (z. B. „letzter Anmeldeweg“) werden ins Bild gerollt, statt unten außer Sicht zu stehen
+
+### Changed
+- Die Anmeldewege zeigen beim Anlegedatum auch die Uhrzeit - zwei Passkeys vom selben Tag und Gerät sind so unterscheidbar
+
 ## [2.47.1] - 2026-10-05
 
 ### Changed
