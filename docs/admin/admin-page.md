@@ -45,7 +45,7 @@ Three tabs:
 | Tab | What it shows / does |
 | --- | --- |
 | **Konfiguration** | The report above with **every variable behind each entry** (green = set, grey = not set, default in use; values are never shown), the last SMTP check, buttons **Verbindung prüfen** (SMTP login without sending) and **Testmail senden**. Configuration itself still lives in your compose file. |
-| **Benutzer** | All registered accounts: name, **e-mail**, confirmed / link open / link expired, registration date, XP, games, wins, season XP. **Mail neu senden** (unconfirmed accounts only: a fresh 48-hour link, the old one stops working) and **Löschen** (two steps: question, then the real button). |
+| **Benutzer** | All registered accounts: name, **e-mail**, how they sign in (passkeys / password), confirmed / link open / link expired, registration date, XP, games, wins, season XP. **Mail neu senden** (unconfirmed accounts: a fresh 48-hour confirmation link), **Anmelde-Link senden** (confirmed accounts: a 15-minute sign-in link, e.g. after a lost passkey) and **Löschen** (two steps: question, then the real button). |
 | **Monitoring** | Current values (app container RAM and CPU against its limits, event-loop delay, players, host RAM, free space on the data volume) and **history charts** like a hosting console: ranges 1 h / 24 h / 7 days / 30 days, cursor synced across all charts, drag to zoom, double-click to reset. Updates every 15 s. |
 
 ### Benutzer: what delete and resend do

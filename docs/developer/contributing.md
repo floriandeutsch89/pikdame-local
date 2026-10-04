@@ -106,8 +106,19 @@ help, say so and keep the default.
 **Never trust the client.** Anything arriving over the WebSocket is hostile until
 validated. New control fields must be added to the sanitiser.
 
-**No new dependencies without a reason.** The server has a minimal dependency
-tree and the client has none at all. Keep it that way; it is a feature.
+**External packages only when they are really sensible and necessary.** That
+means: building it ourselves would be security-critical or error-prone
+(cryptography, protocol parsers, time-series charts) or clearly much more code,
+*and* the package is established, maintained, permissively licensed
+(MIT/BSD/Apache) and pure JavaScript. Before adding one, check the licences of
+the whole tree, its size, a Trivy scan and that it loads with `require`. Load
+it lazily and let the feature switch itself off when it is missing.
+
+Today the server has `ws`, `pg` (lazy, only with `PIKDAME_DATABASE_URL`) and
+`@simplewebauthn/server` (lazy, passkeys). Browser libraries are **vendored**
+unchanged as `public/vendor-*.js` with the npm integrity hash in the header —
+never installed for the client, never loaded from a CDN: QR codes, uPlot,
+`@simplewebauthn/browser`.
 
 ## Documentation
 

@@ -54,7 +54,8 @@ async function storeContract(store, uniq) {
   const me = list.users.find((u) => u.username === name);
   assert.ok(me && me.verified && me.email === `flo${uniq}@example.org` && me.xp === 250);
   assert.ok(list.total >= 1);
-  for (const u of list.users) for (const k of Object.keys(u)) assert.ok(!/pass|salt|hash|token/i.test(k), `leaks ${k}`);
+  // hasPassword (a yes/no) is fine; the hash, salt and tokens never leave the store.
+  for (const u of list.users) for (const k of Object.keys(u)) assert.ok(!/salt|hash|token/i.test(k) && k !== 'password', `leaks ${k}`);
 
   // Delete frees the name.
   assert.ok((await store.deleteUser(name)).ok);

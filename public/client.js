@@ -5001,9 +5001,26 @@
     try { renderIdentity(); } catch (e) { /* cosmetic */ }
     renderAccountProgress();
   }
-  async function initAccount(enabled) {
+  async function initAccount(enabled, passkeysOn) {
     if (!enabled) return; // Button bleibt versteckt (CodeApp/Hotspot)
+    passkeysServer = !!passkeysOn;
     el('accountBtn').classList.remove('hidden');
+    // A sign-in link from the e-mail (?login=...) is redeemed before anything
+    // else, then removed from the address bar so a reload does not reuse it.
+    const loginLink = new URLSearchParams(window.location.search).get('login');
+    if (loginLink) {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('login');
+        window.history.replaceState(null, '', url.toString());
+      } catch (e) { /* cosmetic */ }
+      const r = await accountApi('/api/login-link/consume', { token: loginLink });
+      if (r.ok) {
+        signedIn(r, { fromLink: true });
+        return;
+      }
+      showToast(trs(r.error), { duration: 6000, priority: true });
+    }
     if (accountToken()) {
       const me = await accountApi('/api/me', { token: accountToken() });
       if (me.ok) accountUsername = me.username;
@@ -5014,6 +5031,8 @@
   el('accountBtn').addEventListener('click', () => {
     setAccountStatus('');
     el('accountOverlay').classList.remove('hidden');
+    preparePasskeyUi().catch(() => {});
+    if (accountUsername) renderLoginMethods().catch(() => {});
     // Ladder + level are the reason to have an account at all - fetch them
     // when the panel opens, not on every page load.
     if (accountUsername) loadLadder().catch(() => {});
@@ -5071,18 +5090,235 @@
       password: el('accLoginPass').value,
     });
     if (r.error) return setAccountStatus(trs(r.error), true);
+    signedIn(r);
+  });
+  /** After any successful sign-in (password, passkey, e-mail link). */
+  function signedIn(r, { fromLink = false } = {}) {
     storageSet(ACC_TOKEN_KEY, r.token);
     accountUsername = r.username;
     setAccountStatus('');
     refreshAccountUi();
-    el('accountOverlay').classList.add('hidden');
     showToast(L(`Angemeldet als ${r.username}`, `Signed in as ${r.username}`));
     loadLadder().catch(() => {}); // fills level + season rank for next open
+    if (fromLink) {
+      // Signed in by link, usually because the passkey or password is gone:
+      // open the dialog on the sign-in methods so a new one is one tap away.
+      el('accountOverlay').classList.remove('hidden');
+      setAccountStatus(L('Angemeldet über den Link. Lege jetzt einen neuen Passkey an oder setze ein Passwort.', 'Signed in via the link. Add a new passkey or set a password now.'));
+      preparePasskeyUi().then(() => renderLoginMethods()).catch(() => {});
+    } else {
+      el('accountOverlay').classList.add('hidden');
+    }
+  }
+
+  // --- Passkeys ---------------------------------------------------------------
+  // The browser half of SimpleWebAuthn (public/vendor-simplewebauthn.js, 13 kB)
+  // loads with the first opening of the account dialog - nobody else needs it.
+  let passkeysServer = false;
+  let webauthnLibPromise = null;
+  function loadWebAuthnLib() {
+    if (window.SimpleWebAuthnBrowser) return Promise.resolve(true);
+    if (webauthnLibPromise) return webauthnLibPromise;
+    webauthnLibPromise = new Promise((resolve) => {
+      const tag = document.createElement('script');
+      tag.src = '/vendor-simplewebauthn.js';
+      tag.addEventListener('load', () => resolve(!!window.SimpleWebAuthnBrowser));
+      tag.addEventListener('error', () => { webauthnLibPromise = null; resolve(false); });
+      document.head.appendChild(tag);
+    });
+    return webauthnLibPromise;
+  }
+  let passkeysUsable = false;
+  async function preparePasskeyUi() {
+    passkeysUsable = passkeysServer && (await loadWebAuthnLib()) && window.SimpleWebAuthnBrowser.browserSupportsWebAuthn();
+    el('accPasskeyLoginBtn').classList.toggle('hidden', !passkeysUsable);
+    el('accRegPasskeyBtn').classList.toggle('hidden', !passkeysUsable);
+    // Passkey first: the password part waits behind "stattdessen Passwort".
+    const passwordChosen = el('accRegPasswordPart').dataset.chosen === '1';
+    el('accRegUsePasswordBtn').classList.toggle('hidden', !passkeysUsable || passwordChosen);
+    el('accRegPasswordPart').classList.toggle('hidden', passkeysUsable && !passwordChosen);
+    // One primary button at a time: once the password path is chosen, the
+    // passkey button steps back.
+    el('accRegPasskeyBtn').classList.toggle('btn-primary', !passwordChosen);
+    el('accRegPasskeyBtn').classList.toggle('btn-secondary', passwordChosen);
+    if (passkeysUsable && !accountUsername) startPasskeyAutofill();
+  }
+
+  /** Cancelled by the person (or a newer ceremony took over): no error text. */
+  function passkeyCancelled(e) {
+    return e && (e.name === 'NotAllowedError' || e.name === 'AbortError' || e.code === 'ERROR_CEREMONY_ABORTED');
+  }
+
+  // Passkey suggestions right in the username field (iOS QuickType bar,
+  // password managers) - runs quietly in the background while the dialog is
+  // open; a click on "Mit Passkey anmelden" replaces it.
+  let autofillRunning = false;
+  async function startPasskeyAutofill() {
+    if (autofillRunning) return;
+    const lib = window.SimpleWebAuthnBrowser;
+    if (!lib || !(await lib.browserSupportsWebAuthnAutofill().catch(() => false))) return;
+    autofillRunning = true;
+    try {
+      const opt = await accountApi('/api/passkey/login/options', {});
+      if (!opt.ok) return;
+      const response = await lib.startAuthentication({ optionsJSON: opt.options, useBrowserAutofill: true });
+      await finishPasskeyLogin(opt.flowId, response);
+    } catch (e) {
+      if (!passkeyCancelled(e)) setAccountStatus(L('Passkey-Anmeldung fehlgeschlagen.', 'Passkey sign-in failed.'), true);
+    } finally {
+      autofillRunning = false;
+    }
+  }
+
+  async function finishPasskeyLogin(flowId, response) {
+    setAccountStatus(L('Melde an...', 'Signing in...'));
+    const r = await accountApi('/api/passkey/login/verify', { flowId, response });
+    if (r.error) return setAccountStatus(trs(r.error), true);
+    signedIn(r);
+  }
+
+  el('accPasskeyLoginBtn').addEventListener('click', async () => {
+    const lib = window.SimpleWebAuthnBrowser;
+    if (!lib) return;
+    try {
+      const opt = await accountApi('/api/passkey/login/options', {});
+      if (opt.error) return setAccountStatus(trs(opt.error), true);
+      const response = await lib.startAuthentication({ optionsJSON: opt.options });
+      await finishPasskeyLogin(opt.flowId, response);
+    } catch (e) {
+      setAccountStatus(passkeyCancelled(e) ? L('Abgebrochen.', 'Cancelled.') : L('Passkey-Anmeldung fehlgeschlagen.', 'Passkey sign-in failed.'), !passkeyCancelled(e));
+    }
   });
+
+  el('accRegUsePasswordBtn').addEventListener('click', () => {
+    el('accRegPasswordPart').dataset.chosen = '1';
+    el('accRegPasswordPart').classList.remove('hidden');
+    el('accRegUsePasswordBtn').classList.add('hidden');
+    el('accRegPasskeyBtn').classList.replace('btn-primary', 'btn-secondary');
+    el('accRegPass').focus();
+  });
+
+  el('accRegPasskeyBtn').addEventListener('click', async () => {
+    const lib = window.SimpleWebAuthnBrowser;
+    if (!lib) return;
+    setAccountStatus(L('Registriere...', 'Registering...'));
+    try {
+      const opt = await accountApi('/api/passkey/register/options', { username: el('accRegUser').value, email: el('accRegEmail').value });
+      if (opt.error) return setAccountStatus(trs(opt.error), true);
+      const response = await lib.startRegistration({ optionsJSON: opt.options });
+      const r = await accountApi('/api/passkey/register/verify', { flowId: opt.flowId, response });
+      if (r.error) return setAccountStatus(trs(r.error), true);
+      setAccountStatus(
+        r.mailDelivered
+          ? L('✅ Passkey gespeichert! Bitte noch den Bestätigungslink in deiner E-Mail öffnen, danach meldest du dich mit dem Passkey an.', '✅ Passkey saved! Please open the confirmation link in your e-mail, then sign in with the passkey.')
+          : r.mailConfigured
+            ? L('⚠️ Passkey gespeichert, aber die Bestätigungsmail konnte nicht verschickt werden. Der Link steht im Server-Log - bitte den Mailserver prüfen.', '⚠️ Passkey saved, but the confirmation e-mail could not be sent. The link is in the server log - please check the mail server.')
+            : L('✅ Passkey gespeichert. Der Bestätigungslink steht im Server-Log (noch kein Mailserver eingetragen).', '✅ Passkey saved. The confirmation link is in the server log (no mail server configured yet).')
+      );
+    } catch (e) {
+      setAccountStatus(passkeyCancelled(e) ? L('Abgebrochen.', 'Cancelled.') : L('Der Passkey konnte nicht angelegt werden.', 'The passkey could not be created.'), !passkeyCancelled(e));
+    }
+  });
+
+  el('accLoginLinkBtn').addEventListener('click', async () => {
+    const who = el('accLoginUser').value.trim();
+    if (!who) {
+      setAccountStatus(L('Bitte oben Benutzername oder E-Mail-Adresse eintragen, dann den Link anfordern.', 'Enter your username or e-mail address above, then request the link.'), true);
+      el('accLoginUser').focus();
+      return;
+    }
+    const r = await accountApi('/api/login-link', { usernameOrEmail: who });
+    if (r.error) return setAccountStatus(trs(r.error), true);
+    // Deliberately the same text whether or not the account exists.
+    setAccountStatus(L('📧 Wenn es dazu ein bestätigtes Konto gibt, ist ein Anmelde-Link unterwegs. Er gilt 15 Minuten.', '📧 If a confirmed account exists for this, a sign-in link is on its way. It is valid for 15 minutes.'));
+  });
+
+  // --- Sign-in methods of the signed-in account ---------------------------------
+  function fmtShortDate(ms) {
+    return ms ? new Date(ms).toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-DE') : '–';
+  }
+  async function renderLoginMethods() {
+    const box = el('accountMethods');
+    const m = await accountApi('/api/account/methods', { token: accountToken() });
+    if (!m.ok) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden');
+    const list = el('passkeyList');
+    list.innerHTML = '';
+    for (const pk of m.passkeys) {
+      const li = document.createElement('li');
+      const label = document.createElement('span');
+      label.className = 'pkLabel';
+      label.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-key"/></svg><span><span class="pkName"></span><span class="pkMeta"></span></span>';
+      label.querySelector('.pkName').textContent = pk.name || 'Passkey';
+      label.querySelector('.pkMeta').textContent = pk.lastUsedAt
+        ? L(`zuletzt benutzt ${fmtShortDate(pk.lastUsedAt)}`, `last used ${fmtShortDate(pk.lastUsedAt)}`)
+        : L(`angelegt ${fmtShortDate(pk.createdAt)}`, `added ${fmtShortDate(pk.createdAt)}`);
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'linkBtn';
+      del.textContent = L('Entfernen', 'Remove');
+      del.addEventListener('click', async () => {
+        if (!window.confirm(L(`Passkey „${pk.name || 'Passkey'}“ entfernen? Mit diesem Gerät kannst du dich dann nicht mehr per Passkey anmelden.`, `Remove passkey "${pk.name || 'Passkey'}"? You will no longer be able to sign in with it.`))) return;
+        const r = await accountApi('/api/passkey/delete', { token: accountToken(), id: pk.id });
+        if (r.error) return setAccountStatus(trs(r.error), true);
+        setAccountStatus(L('Passkey entfernt.', 'Passkey removed.'));
+        renderLoginMethods().catch(() => {});
+      });
+      li.append(label, del);
+      list.appendChild(li);
+    }
+    el('accAddPasskeyBtn').classList.toggle('hidden', !(m.passkeysAvailable && passkeysUsable));
+    el('accPasswordState').textContent = m.hasPassword
+      ? L('Passwort gesetzt', 'Password set')
+      : L('Kein Passwort', 'No password');
+    setLabelText(el('accSetPasswordBtn'), m.hasPassword ? L('Passwort ändern', 'Change password') : L('Passwort festlegen', 'Set a password'));
+    el('accRemovePasswordBtn').classList.toggle('hidden', !m.hasPassword || !m.passkeys.length);
+  }
+
+  el('accAddPasskeyBtn').addEventListener('click', async () => {
+    const lib = window.SimpleWebAuthnBrowser;
+    if (!lib) return;
+    try {
+      const opt = await accountApi('/api/passkey/add/options', { token: accountToken() });
+      if (opt.error) return setAccountStatus(trs(opt.error), true);
+      const response = await lib.startRegistration({ optionsJSON: opt.options });
+      const r = await accountApi('/api/passkey/add/verify', { token: accountToken(), flowId: opt.flowId, response });
+      if (r.error) return setAccountStatus(trs(r.error), true);
+      setAccountStatus(L('✅ Passkey hinzugefügt.', '✅ Passkey added.'));
+      renderLoginMethods().catch(() => {});
+    } catch (e) {
+      setAccountStatus(passkeyCancelled(e) ? L('Abgebrochen.', 'Cancelled.') : L('Der Passkey konnte nicht angelegt werden.', 'The passkey could not be created.'), !passkeyCancelled(e));
+    }
+  });
+
+  el('accSetPasswordBtn').addEventListener('click', () => {
+    el('accSetPasswordUser').value = accountUsername || '';
+    el('accSetPasswordForm').classList.toggle('hidden');
+    if (!el('accSetPasswordForm').classList.contains('hidden')) el('accNewPass').focus();
+  });
+  el('accSetPasswordForm').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const r = await accountApi('/api/password/set', { token: accountToken(), password: el('accNewPass').value });
+    if (r.error) return setAccountStatus(trs(r.error), true);
+    el('accNewPass').value = '';
+    el('accSetPasswordForm').classList.add('hidden');
+    setAccountStatus(L('✅ Passwort gespeichert.', '✅ Password saved.'));
+    renderLoginMethods().catch(() => {});
+  });
+  el('accRemovePasswordBtn').addEventListener('click', async () => {
+    if (!window.confirm(L('Passwort entfernen? Du meldest dich dann nur noch per Passkey (oder Anmelde-Link) an.', 'Remove the password? You will then sign in with a passkey (or a sign-in link) only.'))) return;
+    const r = await accountApi('/api/password/remove', { token: accountToken() });
+    if (r.error) return setAccountStatus(trs(r.error), true);
+    setAccountStatus(L('Passwort entfernt.', 'Password removed.'));
+    renderLoginMethods().catch(() => {});
+  });
+
   el('accLogoutBtn').addEventListener('click', async () => {
     await accountApi('/api/logout', { token: accountToken() });
     storageRemove(ACC_TOKEN_KEY);
     accountUsername = null;
+    el('accountMethods').classList.add('hidden');
+    el('accSetPasswordForm').classList.add('hidden');
     refreshAccountUi();
     el('accountOverlay').classList.add('hidden');
   });
@@ -5118,7 +5354,7 @@
           }
         }
       }
-      initAccount(!!(s && s.accountsEnabled));
+      initAccount(!!(s && s.accountsEnabled), !!(s && s.passkeysEnabled));
       // Daily tasks belong on the FIRST screen - progress you only see after
       // a match motivates nobody. The counters arrive with the profiles.
       if (s && s.quests) {

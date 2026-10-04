@@ -228,7 +228,7 @@
     <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.8 12 5.8 21.5 12 21.5 12 18 18.2 12 18.2 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></symbol>
     <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M7 20v-6M12 20V6M17 20v-9"/></symbol>
     <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h5v17H6a2 2 0 0 0-2 2z"/><path d="M20 5a2 2 0 0 0-2-2h-5v17h5a2 2 0 0 1 2 2z"/></symbol>
-    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.8"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M10.85 12.15 19 4M15 8l3 3M17.5 5.5 20 8"/></symbol><symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.8"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></symbol>
     <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z"/></symbol>
     <symbol id="i-cap" viewBox="0 0 24 24"><path d="M2.5 9 12 4.5 21.5 9 12 13.5z"/><path d="M6.5 11v5c0 1.4 2.5 2.5 5.5 2.5s5.5-1.1 5.5-2.5v-5"/></symbol>
     <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8.5 3v4M15.5 3v4"/></symbol>
@@ -621,15 +621,25 @@
                recognise login/sign-up fields reliably inside a form. The
                submit is handled in client.js (no page navigation). -->
           <form id="accountLoginForm" action="/api/login" method="post" novalidate>
-            <input id="accLoginUser" name="username" type="text" placeholder="Benutzername oder E-Mail" autocomplete="username" autocapitalize="none" spellcheck="false" />
+            <!-- "webauthn" in autocomplete: the iPhone / password manager offers
+                 saved passkeys right in this field (conditional UI). -->
+            <input id="accLoginUser" name="username" type="text" placeholder="Benutzername oder E-Mail" autocomplete="username webauthn" autocapitalize="none" spellcheck="false" />
             <input id="accLoginPass" name="password" type="password" placeholder="Passwort" autocomplete="current-password" />
             <button id="accLoginBtn" type="submit" class="btn-primary">Anmelden</button>
+            <button id="accPasskeyLoginBtn" type="button" class="btn-secondary hidden"><svg class="icon" aria-hidden="true"><use href="#i-key"/></svg><span>Mit Passkey anmelden</span></button>
+            <button id="accLoginLinkBtn" type="button" class="linkBtn">Anmelde-Link per E-Mail</button>
           </form>
           <form id="accountRegisterForm" class="hidden" action="/api/register" method="post" novalidate>
             <input id="accRegUser" name="username" type="text" placeholder="Benutzername (2-24 Zeichen)" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="24" />
             <input id="accRegEmail" name="email" type="email" inputmode="email" placeholder="E-Mail-Adresse" autocomplete="email" autocapitalize="none" spellcheck="false" />
-            <input id="accRegPass" name="password" type="password" placeholder="Passwort (mind. 8 Zeichen)" autocomplete="new-password" passwordrules="minlength: 8;" />
-            <button id="accRegisterBtn" type="submit" class="btn-primary">Konto erstellen</button>
+            <!-- Passkey first; the password path stays for browsers without
+                 passkeys and for anyone who prefers it. -->
+            <button id="accRegPasskeyBtn" type="button" class="btn-primary hidden"><svg class="icon" aria-hidden="true"><use href="#i-key"/></svg><span>Mit Passkey registrieren</span></button>
+            <button id="accRegUsePasswordBtn" type="button" class="linkBtn hidden">stattdessen Passwort festlegen</button>
+            <div id="accRegPasswordPart" class="accFormPart">
+              <input id="accRegPass" name="password" type="password" placeholder="Passwort (mind. 8 Zeichen)" autocomplete="new-password" passwordrules="minlength: 8;" />
+              <button id="accRegisterBtn" type="submit" class="btn-primary">Konto erstellen</button>
+            </div>
             <p class="lobby-hint">Dein Fortschritt (Statistik, Erfolge, Siegesserien) bleibt mit einem Konto dauerhaft erhalten - und niemand sonst kann deinen Namen verwenden.</p>
           </form>
         </div>
@@ -640,6 +650,24 @@
                in der namensbasierten Statistik. -->
           <div id="accountLevelBox" class="levelBox hidden"></div>
           <div id="ladderBox" class="ladderBox hidden"></div>
+          <!-- Sign-in methods: passkeys and/or a password, at least one stays. -->
+          <div id="accountMethods" class="accountMethods hidden">
+            <h3>Anmeldewege</h3>
+            <ul id="passkeyList" class="passkeyList"></ul>
+            <button id="accAddPasskeyBtn" type="button" class="btn-secondary hidden"><svg class="icon" aria-hidden="true"><use href="#i-key"/></svg><span>Passkey hinzufügen</span></button>
+            <div class="passwordRow">
+              <span id="accPasswordState"></span>
+              <span class="passwordActions">
+                <button id="accSetPasswordBtn" type="button" class="linkBtn">Passwort festlegen</button>
+                <button id="accRemovePasswordBtn" type="button" class="linkBtn hidden">Passwort entfernen</button>
+              </span>
+            </div>
+            <form id="accSetPasswordForm" class="hidden" action="/api/password/set" method="post" novalidate>
+              <input type="text" name="username" id="accSetPasswordUser" autocomplete="username" class="visuallyHidden" tabindex="-1" aria-hidden="true" />
+              <input id="accNewPass" name="password" type="password" placeholder="Neues Passwort (mind. 8 Zeichen)" autocomplete="new-password" passwordrules="minlength: 8;" />
+              <button id="accSavePasswordBtn" type="submit" class="btn-primary">Passwort speichern</button>
+            </form>
+          </div>
           <button id="accLogoutBtn" class="btn-secondary">Abmelden</button>
         </div>
         <p id="accountStatus" class="lobby-hint"></p>

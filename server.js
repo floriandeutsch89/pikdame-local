@@ -29,6 +29,7 @@ const { buildConfigReport, formatConfigReport } = require('./game/ConfigReport')
 const AdminPage = require('./game/AdminPage');
 const { createAdminTokenVerifier } = require('./game/AdminToken');
 const { createMonitor } = require('./game/Monitor');
+const { createPasskeyService, deviceName } = require('./game/Passkeys');
 const { isAllowedEmote, emoteLevel } = require('./game/Emotes');
 const { puzzleForDate, publicPuzzle, checkAnswer, XP_FOR_SOLVED } = require('./game/DailyPuzzle');
 const { createStammtischStore, normalizeCode: normalizeStammtischCode } = require('./game/StammtischStore');
@@ -54,6 +55,9 @@ const globalStats = createGlobalStatsStore();
 // der Client blendet die komplette Account-UI aus - genau wie gewünscht.
 const accountStore = process.env.PIKDAME_ACCOUNTS === '0' ? null : createAccountStoreAuto();
 const mailer = createMailer();
+// Passkeys need accounts, the WebAuthn library and an https origin
+// (PIKDAME_BASE_URL); otherwise null and the client hides them.
+const passkeys = accountStore ? createPasskeyService({ baseUrl: process.env.PIKDAME_BASE_URL }) : null;
 const ACCOUNTS_ENABLED = !!accountStore;
 if (ACCOUNTS_ENABLED) {
   console.log(`Benutzerkonten: aktiv (Backend: ${accountStore.backend || 'sqlite'}, Mail-Treiber: ${mailer.configured ? 'SMTP' : 'Log-Fallback'})`);
@@ -228,6 +232,7 @@ function serveStatic(req, res) {
         status: 'ok',
         version: APP_VERSION,
         accountsEnabled: ACCOUNTS_ENABLED,
+        passkeysEnabled: !!passkeys,
         // Today's quest ids, so the START SCREEN can show them before the
         // player has joined anything (the profiles message only arrives on
         // join). Anonymous and identical worldwide by design - exactly like
@@ -408,14 +413,26 @@ const failedJoinsByIp = new Map(); // ip -> { count, windowStart }
 // bewusst ohne Framework. IP-Rate-Limit gegen Brute-Force/Registrier-Spam.
 // ---------------------------------------------------------------------------
 const accountApiByIp = new Map(); // ip -> { count, windowStart }
-function accountRateLimited(ip) {
+// Two buckets. The strict one guards what can be abused: password checks,
+// new accounts, mails, credential changes - 20 per 10 min per IP. Reads and
+// fetching a passkey challenge cost nothing and prove nothing, so they get a
+// generous bucket: a family behind one home router shares a single IP, and
+// every opening of the account dialog makes a few of those calls.
+const ACCOUNT_CHEAP_ENDPOINTS = new Set([
+  '/api/me', '/api/ladder', '/api/account/methods',
+  '/api/passkey/login/options', '/api/passkey/register/options', '/api/passkey/add/options',
+]);
+const accountCheapByIp = new Map();
+function accountRateLimited(ip, filePath = '') {
   const WINDOW_MS = 10 * 60 * 1000;
-  const MAX = 20;
+  const cheap = ACCOUNT_CHEAP_ENDPOINTS.has(filePath);
+  const map = cheap ? accountCheapByIp : accountApiByIp;
+  const MAX = cheap ? 200 : 20;
   const now = Date.now();
-  let e = accountApiByIp.get(ip);
+  let e = map.get(ip);
   if (!e || now - e.windowStart > WINDOW_MS) {
     e = { count: 0, windowStart: now };
-    accountApiByIp.set(ip, e);
+    map.set(ip, e);
   }
   e.count += 1;
   return e.count > MAX;
@@ -673,6 +690,21 @@ async function handleAdminRequest(req, res, filePath) {
         const r = await accountStore.deleteUser(username);
         if (r.ok) console.log(`[admin] Benutzer gelöscht: ${r.username}`);
         notice = r.ok ? { ok: true, text: `Benutzer „${r.username}“ wurde gelöscht.` } : { ok: false, text: r.error };
+      } else if (action === 'login-link') {
+        if (bump(adminMailsByIp, ip, 10 * 60 * 1000) > 5) {
+          notice = { ok: false, text: 'Höchstens 5 Mails in 10 Minuten.' };
+        } else {
+          const link = await accountStore.createLoginLink(username);
+          if (!link) {
+            notice = { ok: false, text: 'Anmelde-Links gibt es nur für bestätigte Konten.' };
+          } else {
+            const mail = await sendLoginLinkMail(req, link.username, link.email, link.token);
+            console.log(`[admin] Anmelde-Link gesendet: ${link.username} (${mail.delivered ? 'zugestellt' : 'nur im Log'})`);
+            notice = mail.delivered
+              ? { ok: true, text: `Anmelde-Link an ${link.email} wurde vom SMTP-Server angenommen (15 Minuten gültig).` }
+              : { ok: false, text: `Link erstellt, aber die Mail ging nicht raus (${mail.reason}) - der Link steht im Server-Log.` };
+          }
+        }
       } else if (action === 'resend') {
         if (bump(adminMailsByIp, ip, 10 * 60 * 1000) > 5) {
           notice = { ok: false, text: 'Höchstens 5 Mails in 10 Minuten.' };
@@ -761,15 +793,34 @@ async function importGuestProfile(username) {
 
 // The confirmation mail - at registration and when the admin page sends it
 // again. Base URL from the environment (Docker), else from the request.
+function publicBase(req) {
+  return (process.env.PIKDAME_BASE_URL || `http://${req.headers.host || 'localhost'}`).replace(/\/$/, '');
+}
+
 function sendVerificationMail(req, username, email, verifyToken) {
-  const base = (process.env.PIKDAME_BASE_URL || `http://${req.headers.host || 'localhost'}`).replace(/\/$/, '');
-  const verifyUrl = `${base}/verify?token=${verifyToken}`;
+  const verifyUrl = `${publicBase(req)}/verify?token=${verifyToken}`;
   return mailer.send({
     to: email,
     subject: 'Pik Dame: E-Mail-Adresse bestätigen',
     text: `Hallo ${username},\n\nwillkommen bei Pik Dame! Bitte bestätige deine E-Mail-Adresse über diesen Link:\n\n${verifyUrl}\n\nDer Link ist 48 Stunden gültig. Falls du dich nicht registriert hast, ignoriere diese Mail einfach.\n`,
   });
 }
+
+// E-mail login link: the way back in after losing a passkey or forgetting the
+// password. 15 minutes, single use; the link signs in, and the account dialog
+// then offers to add a passkey or set a password.
+function sendLoginLinkMail(req, username, email, token) {
+  const url = `${publicBase(req)}/?login=${token}`;
+  return mailer.send({
+    to: email,
+    subject: 'Pik Dame: Dein Anmelde-Link',
+    text: `Hallo ${username},\n\nmit diesem Link meldest du dich bei Pik Dame an:\n\n${url}\n\nDer Link ist 15 Minuten gültig und funktioniert nur einmal. Danach kannst du im Konto-Bereich einen neuen Passkey anlegen oder ein Passwort festlegen.\n\nFalls du keinen Link angefordert hast, ignoriere diese Mail einfach - ohne den Link passiert nichts.\n`,
+  });
+}
+
+// Login-link requests per target address: the form must not become a way to
+// flood someone's inbox (the per-IP account limit alone would allow 20).
+const loginLinkRequests = new Map(); // lower(name|mail) -> { count, windowStart }
 
 async function handleAccountRequest(req, res, filePath) {
   // GET /verify?token=... - der Link aus der Bestätigungs-Mail (HTML-Antwort)
@@ -797,7 +848,7 @@ async function handleAccountRequest(req, res, filePath) {
   // 20 account calls per 10 minutes - the 21st registration or login of the
   // evening was refused for everyone.
   const ip = clientIp(req);
-  if (accountRateLimited(ip)) return sendJson(res, 429, { error: 'Zu viele Anfragen - bitte kurz warten.' });
+  if (accountRateLimited(ip, filePath)) return sendJson(res, 429, { error: 'Zu viele Anfragen - bitte kurz warten.' });
   const body = await readJsonBody(req);
   if (!body) return sendJson(res, 400, { error: 'Ungültige Anfrage.' });
 
@@ -826,6 +877,121 @@ async function handleAccountRequest(req, res, filePath) {
   if (filePath === '/api/logout') {
     await accountStore.logout(body.token);
     return sendJson(res, 200, { ok: true });
+  }
+  // ---------------- Passkeys ----------------
+  if (filePath.startsWith('/api/passkey/') && !passkeys) {
+    return sendJson(res, 404, { error: 'Passkeys sind auf diesem Server nicht verfügbar.' });
+  }
+  if (filePath === '/api/passkey/register/options') {
+    const v = await accountStore.validateNewAccount(body.username, body.email);
+    if (v.error) return sendJson(res, 400, { error: v.error });
+    const r = await passkeys.startRegistration({ username: v.username, userHandle: passkeys.newUserHandle(), data: { email: v.email } });
+    return sendJson(res, 200, { ok: true, flowId: r.flowId, options: r.options });
+  }
+  if (filePath === '/api/passkey/register/verify') {
+    const r = await passkeys.finishRegistration(body.flowId, body.response);
+    if (r.error) return sendJson(res, 400, { error: r.error });
+    const created = await accountStore.registerWithPasskey(r.flow.username, r.flow.email, r.flow.userHandle,
+      { ...r.credential, name: deviceName(req.headers['user-agent']) });
+    if (created.error) return sendJson(res, 400, { error: created.error });
+    console.log(`[account] Registrierung mit Passkey: ${created.username}`);
+    const mail = await sendVerificationMail(req, created.username, r.flow.email, created.verifyToken);
+    return sendJson(res, 200, { ok: true, mailDelivered: !!mail.delivered, mailConfigured: !!mailer.configured });
+  }
+  if (filePath === '/api/passkey/login/options') {
+    const r = await passkeys.startLogin();
+    return sendJson(res, 200, { ok: true, flowId: r.flowId, options: r.options });
+  }
+  if (filePath === '/api/passkey/login/verify') {
+    const r = await passkeys.finishLogin(body.flowId, body.response, (id) => accountStore.credentialById(id));
+    if (r.error) return sendJson(res, 401, { error: r.error });
+    if (!r.user.verified) return sendJson(res, 401, { error: 'Bitte zuerst die E-Mail-Adresse bestätigen (Link in der Mail).' });
+    await accountStore.touchCredential(r.credentialId, r.newCounter);
+    const s2 = await accountStore.sessionForUser(r.user.id);
+    if (s2.error) return sendJson(res, 401, { error: s2.error });
+    await importGuestProfile(s2.username);
+    return sendJson(res, 200, { ok: true, token: s2.token, username: s2.username });
+  }
+  // Signed-in account management: the session token identifies the account.
+  const needAccount = async () => {
+    const acc = await accountStore.accountForSession(body.token);
+    if (!acc) sendJson(res, 401, { error: 'Nicht angemeldet.' });
+    return acc;
+  };
+  if (filePath === '/api/passkey/add/options') {
+    const acc = await needAccount();
+    if (!acc) return;
+    const handle = acc.webauthnUserId || (await accountStore.setWebauthnUserId(acc.id, passkeys.newUserHandle()));
+    const r = await passkeys.startRegistration({
+      username: acc.username, userHandle: handle, excludeIds: acc.credentials.map((c) => c.id), data: { accountId: acc.id },
+    });
+    return sendJson(res, 200, { ok: true, flowId: r.flowId, options: r.options });
+  }
+  if (filePath === '/api/passkey/add/verify') {
+    const acc = await needAccount();
+    if (!acc) return;
+    const r = await passkeys.finishRegistration(body.flowId, body.response);
+    if (r.error) return sendJson(res, 400, { error: r.error });
+    if (r.flow.accountId !== acc.id) return sendJson(res, 400, { error: 'Die Passkey-Anfrage gehört zu einem anderen Konto.' });
+    const added = await accountStore.addCredential(acc.id, { ...r.credential, name: deviceName(req.headers['user-agent']) });
+    if (added.error) return sendJson(res, 400, { error: added.error });
+    console.log(`[account] Passkey hinzugefügt: ${acc.username}`);
+    return sendJson(res, 200, { ok: true });
+  }
+  if (filePath === '/api/passkey/delete') {
+    const acc = await needAccount();
+    if (!acc) return;
+    const r = await accountStore.deleteCredential(acc.id, body.id);
+    return sendJson(res, r.error ? 400 : 200, r);
+  }
+  if (filePath === '/api/account/methods') {
+    const acc = await needAccount();
+    if (!acc) return;
+    return sendJson(res, 200, {
+      ok: true,
+      hasPassword: acc.hasPassword,
+      passkeysAvailable: !!passkeys,
+      passkeys: acc.credentials.map((c) => ({ id: c.id, name: c.name, createdAt: c.createdAt, lastUsedAt: c.lastUsedAt, synced: c.backedUp })),
+    });
+  }
+  if (filePath === '/api/password/set') {
+    const acc = await needAccount();
+    if (!acc) return;
+    const r = await accountStore.setPassword(acc.id, body.password);
+    return sendJson(res, r.error ? 400 : 200, r);
+  }
+  if (filePath === '/api/password/remove') {
+    const acc = await needAccount();
+    if (!acc) return;
+    const r = await accountStore.removePassword(acc.id);
+    return sendJson(res, r.error ? 400 : 200, r);
+  }
+  // ---------------- E-mail login link ----------------
+  if (filePath === '/api/login-link') {
+    const key = String(body.usernameOrEmail || '').trim().toLowerCase().slice(0, 254);
+    // Same answer whether or not the account exists - the form must not tell
+    // strangers which names or addresses have an account.
+    const answer = { ok: true };
+    if (!key) return sendJson(res, 400, { error: 'Bitte Benutzername oder E-Mail-Adresse angeben.' });
+    const now = Date.now();
+    let e = loginLinkRequests.get(key);
+    if (!e || now - e.windowStart > 15 * 60 * 1000) { e = { count: 0, windowStart: now }; loginLinkRequests.set(key, e); }
+    e.count += 1;
+    if (loginLinkRequests.size > 5000) loginLinkRequests.clear();
+    if (e.count > 3) return sendJson(res, 200, answer);
+    const link = await accountStore.createLoginLink(key);
+    if (link) {
+      const mail = await sendLoginLinkMail(req, link.username, link.email, link.token);
+      console.log(`[account] Anmelde-Link angefordert: ${link.username} (${mail.delivered ? 'zugestellt' : 'nur im Log'})`);
+    }
+    return sendJson(res, 200, answer);
+  }
+  if (filePath === '/api/login-link/consume') {
+    const r = await accountStore.consumeLoginLink(body.token);
+    if (r.error) return sendJson(res, 401, { error: r.error });
+    await importGuestProfile(r.username);
+    console.log(`[account] Anmeldung per Link: ${r.username}`);
+    return sendJson(res, 200, { ok: true, token: r.token, username: r.username });
   }
   if (filePath === '/api/me') {
     const u = await accountStore.sessionUser(body.token);
@@ -873,6 +1039,9 @@ const ipCleanupTimer = setInterval(() => {
   }
   // Auch die Account-API-Zaehler verfallen lassen - sonst wuechse die Map
   // im Docker-Dauerbetrieb mit jeder jemals gesehenen IP unbegrenzt.
+  for (const [ip, entry] of accountCheapByIp) {
+    if (now - entry.windowStart > 10 * 60 * 1000) accountCheapByIp.delete(ip);
+  }
   for (const [ip, entry] of accountApiByIp) {
     if (now - entry.windowStart > 10 * 60 * 1000) accountApiByIp.delete(ip);
   }

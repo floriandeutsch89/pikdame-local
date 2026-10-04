@@ -30,3 +30,37 @@ can still play, they just get no profile).
   it up with `pg_dump` (see {doc}`backup-restore`).
 
 Switching from SQLite to PostgreSQL does **not** migrate existing accounts.
+
+## Passkeys and sign-in links
+
+Players can sign up and sign in with a **passkey** (Face ID / Touch ID, Android,
+Windows Hello, Bitwarden, 1Password …) instead of a password. Passwords keep
+working; an account can have passkeys, a password, or both — never zero: the
+last way to sign in cannot be removed.
+
+Passkeys switch on by themselves when all of this is true, and stay hidden
+otherwise:
+
+- accounts are enabled,
+- `PIKDAME_BASE_URL` is an **https** URL (or `http://localhost…` for
+  development) — the official image and compose files set it,
+- the server package `@simplewebauthn/server` is installed (it is in the image;
+  a bare `node server.js` from a checkout without `npm install` has none).
+
+:::{warning}
+A passkey is bound to the **domain** of `PIKDAME_BASE_URL`
+(e.g. `play.pikdame.online`). If you move the game to another domain, every
+stored passkey stops working. Players then sign in with the e-mail link below
+and add a new passkey; with a password set, nothing changes for them.
+:::
+
+**E-mail sign-in link** ("Anmelde-Link per E-Mail" in the sign-in dialog): the
+way back in after losing a passkey or forgetting the password. Valid for
+15 minutes, single use, only for confirmed accounts. The answer on screen is the
+same whether or not an account exists, so the form reveals no names or
+addresses; each address gets at most 3 links per 15 minutes. After signing in
+by link, the account dialog offers to add a passkey or set a password. The admin
+page's **Benutzer** tab can send the same link.
+
+Stored: the passkey's **public** key and its signature counter (nothing secret),
+and for open sign-in links only a SHA-256 of the token.

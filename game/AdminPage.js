@@ -187,6 +187,14 @@ function userStatus(u, now) {
   return `<span class="badge warn" title="Link gültig bis ${esc(fmtDate(u.verifyExpires))}">Link offen</span>`;
 }
 
+/** "Passkey ×2 · Passwort" - how this account can sign in. */
+function loginMethods(u) {
+  const parts = [];
+  if (u.passkeys) parts.push(u.passkeys > 1 ? `Passkey ×${u.passkeys}` : 'Passkey');
+  if (u.hasPassword) parts.push('Passwort');
+  return parts.length ? parts.join(' · ') : 'kein Anmeldeweg';
+}
+
 function userForm(csrf, username, action, label, cls) {
   return `<form method="post" action="/admin/users"><input type="hidden" name="csrf" value="${esc(csrf)}">` +
     `<input type="hidden" name="username" value="${esc(username)}"><button type="submit" name="action" value="${action}"${cls ? ` class="${cls}"` : ''}>${label}</button></form>`;
@@ -198,18 +206,18 @@ function usersBody({ users, csrf, now = Date.now() }) {
   const list = users.users || [];
   const verified = list.filter((u) => u.verified).length;
   const rows = list.map((u) => `<tr>
-<td class="name"><b>${esc(u.username)}</b><div class="mail">${esc(u.email)}</div></td>
+<td class="name"><b>${esc(u.username)}</b><div class="mail">${esc(u.email)}</div><div class="mail">${esc(loginMethods(u))}</div></td>
 <td class="status">${userStatus(u, now)}</td>
 <td class="date" data-label="Registriert">${esc(fmtDate(u.createdAt))}</td>
 <td class="num" data-label="EP">${fmtNum(u.xp)}</td><td class="num" data-label="Spiele">${fmtNum(u.games)}</td><td class="num" data-label="Siege">${fmtNum(u.wins)}</td>
 <td class="num" data-label="Saison-EP">${fmtNum(u.seasonXp)}${u.season ? ` <span class="sub">${esc(u.season)}</span>` : ''}</td>
-<td class="act"><div class="actions">${u.verified ? '' : userForm(csrf, u.username, 'resend', 'Mail neu senden')}${userForm(csrf, u.username, 'ask-delete', 'Löschen', 'danger')}</div></td>
+<td class="act"><div class="actions">${u.verified ? userForm(csrf, u.username, 'login-link', 'Anmelde-Link senden') : userForm(csrf, u.username, 'resend', 'Mail neu senden')}${userForm(csrf, u.username, 'ask-delete', 'Löschen', 'danger')}</div></td>
 </tr>`).join('');
   return `<h2>Benutzer <span class="sub">(${users.total} gesamt, ${verified} bestätigt${users.total > list.length ? `, die neuesten ${list.length} angezeigt` : ''})</span></h2>
 ${list.length ? `<div class="panel scroll"><table class="users">
 <thead><tr><th>Name / E-Mail</th><th>Status</th><th>Registriert</th><th>EP</th><th>Spiele</th><th>Siege</th><th>Saison-EP</th><th></th></tr></thead>
 <tbody>${rows}</tbody></table></div>` : '<p class="muted">Noch keine registrierten Benutzer.</p>'}
-<p class="legend">Unbestätigte Konten werden 48 Stunden nach Ablauf ihres Links bei der nächsten Registrierung automatisch entfernt. Löschen entfernt das Konto und seine Anmeldungen; das Gast-Profil unter dem Namen (Statistik, Abzeichen) bleibt erhalten.</p>`;
+<p class="legend">„Anmelde-Link senden“ schickt einem bestätigten Konto einen 15 Minuten gültigen Einmal-Link - der Weg zurück nach verlorenem Passkey oder vergessenem Passwort. Unbestätigte Konten werden 48 Stunden nach Ablauf ihres Links bei der nächsten Registrierung automatisch entfernt. Löschen entfernt das Konto und seine Anmeldungen; das Gast-Profil unter dem Namen (Statistik, Abzeichen) bleibt erhalten.</p>`;
 }
 
 /** The second step of a delete: shown in the notice area. */
