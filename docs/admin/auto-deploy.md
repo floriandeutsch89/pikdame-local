@@ -84,6 +84,26 @@ chown deploy:deploy /home/deploy/.ssh/authorized_keys
 chmod 600 /home/deploy/.ssh/authorized_keys
 ```
 
+The file then holds **one line**, and the part in front of the key is
+intentional:
+
+```text
+command="sudo -n /usr/local/bin/pikdame-deploy",restrict ssh-ed25519 AAAA... github-deploy
+```
+
+:::{important}
+Keep the `command="…",restrict` prefix. It is not a leftover: it is the lock.
+
+- `command="…"` is an OpenSSH *forced command*. Whatever a client asks to run
+  with this key, sshd runs the deploy script instead. The client's request
+  only arrives as `SSH_ORIGINAL_COMMAND`, and the script accepts nothing but a
+  commit id of `main`.
+- `restrict` switches off terminal, port, agent and X11 forwarding for this key.
+
+Without the prefix, the same key would be an ordinary login with a shell for
+`deploy` - exactly what must not sit in a GitHub secret.
+:::
+
 Check that the lock works. From your own machine, temporarily using the new key:
 
 ```bash
@@ -94,6 +114,13 @@ ssh -i /tmp/github-deploy deploy@<server> 'id'
 
 > That refusal is the proof: whatever the key sends, only the deploy script
 > answers.
+
+| Answer to `ssh … 'id'` | Meaning |
+| --- | --- |
+| `expected a 40-character commit id, got 'id'` | Correct - the key can only start the deploy script |
+| `uid=… (deploy) …` | The forced command is **not** applied: the prefix is missing, or sshd reads another `authorized_keys` |
+| `sudo: a password is required` | Step 2 missing or `visudo -c` failed |
+| `Permission denied (publickey)` | Owner/mode: `chown deploy:deploy` + `chmod 600` on the file, `chmod 700` on `.ssh` |
 
 ### 5. Create the `production` environment on GitHub
 
