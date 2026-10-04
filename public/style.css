@@ -2234,6 +2234,10 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   align-self: center;
 }
 .linkBtn.hidden { display: none; }
+/* Armed by the first tap of a two-tap removal (confirmByTap); darkened
+   towards the ink so it stays readable on the light dialog card. */
+.linkBtn.armed { color: color-mix(in srgb, var(--danger) 65%, var(--card-ink)); }
+.passkeyList .linkBtn { white-space: nowrap; flex-shrink: 0; }
 /* Present for password managers (pairs the new password with the account),
    invisible for people. */
 .visuallyHidden {
