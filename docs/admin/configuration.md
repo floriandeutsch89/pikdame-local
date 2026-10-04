@@ -71,5 +71,12 @@ addresses; each address gets at most 3 links per 15 minutes. After signing in
 by link, the account dialog offers to add a passkey or set a password. The admin
 page's **Benutzer** tab can send the same link.
 
+Password managers file a passkey under the account's **e-mail address**; the
+player name is its display name in the passkey picker. After each passkey sign-in
+the page reports the current names to the browser (WebAuthn Signal API, Safari
+26 / Chrome 132+), so passkeys created under an older name catch up. Which
+folder the entry lands in is up to the password manager (none of them asks when
+saving a passkey); moving it later does not affect the passkey.
+
 Stored: the passkey's **public** key and its signature counter (nothing secret),
 and for open sign-in links and sign-up codes only a SHA-256.

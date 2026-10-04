@@ -88,17 +88,18 @@ function createPasskeyService({ baseUrl, rpName = 'Pik Dame', lib = loadLibrary(
 
     /**
      * @param {object} p
-     * @param {string} p.username
+     * @param {string} p.username     what password managers file it under (the e-mail)
+     * @param {string} [p.displayName] shown in the passkey picker (the player name)
      * @param {string} p.userHandle   base64url, stable per account
      * @param {string[]} [p.excludeIds] the account's existing credential ids
      * @param {object} [p.data]       carried to finishRegistration (e-mail, account id)
      */
-    async startRegistration({ username, userHandle, excludeIds = [], data = {} }) {
+    async startRegistration({ username, displayName, userHandle, excludeIds = [], data = {} }) {
       const options = await lib.generateRegistrationOptions({
         rpName,
         rpID: rp.rpID,
         userName: username,
-        userDisplayName: username,
+        userDisplayName: displayName || username,
         userID: Buffer.from(userHandle, 'base64url'),
         attestationType: 'none',
         excludeCredentials: excludeIds.map((id) => ({ id })),

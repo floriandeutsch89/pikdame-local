@@ -5232,6 +5232,18 @@
     const r = await accountApi('/api/passkey/login/verify', { flowId, response });
     if (r.error) return setAccountStatus(trs(r.error), true);
     signedIn(r);
+    syncPasskeyDetails(r.passkeyUser);
+  }
+
+  // WebAuthn Signal API (Safari 26, Chrome 132+): updates the names stored
+  // with the passkey on this device - e.g. passkeys made while they still
+  // carried the player name instead of the e-mail. Elsewhere a no-op.
+  function syncPasskeyDetails(u) {
+    try {
+      if (!u || typeof PublicKeyCredential === 'undefined' || typeof PublicKeyCredential.signalCurrentUserDetails !== 'function') return;
+      PublicKeyCredential.signalCurrentUserDetails({ rpId: u.rpId, userId: u.userId, name: u.name, displayName: u.displayName })
+        .catch(() => {});
+    } catch (e) { /* best effort */ }
   }
 
   el('accPasskeyLoginBtn').addEventListener('click', async () => {

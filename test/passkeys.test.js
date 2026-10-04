@@ -215,6 +215,10 @@ async function journey(t, port, databaseUrl, NAME, MAIL) {
   // Now the passkey, on the device that signed up.
   let ao = await post('/api/passkey/add/options', { token });
   assert.equal(ao.json.options.rp.id, 'localhost');
+  // Password managers file the passkey under the e-mail; the picker shows the player name.
+  assert.equal(ao.json.options.user.name, MAIL);
+  assert.equal(ao.json.options.user.displayName, NAME);
+  const userHandle = ao.json.options.user.id;
   assert.equal(ao.json.options.authenticatorSelection.residentKey, 'required');
   const evil = await post('/api/passkey/add/verify', { token, flowId: ao.json.flowId, response: auth.create(ao.json.options, { origin: 'https://evil.example' }) });
   assert.equal(evil.status, 400, 'foreign origin');
@@ -231,6 +235,8 @@ async function journey(t, port, databaseUrl, NAME, MAIL) {
   assert.equal(li.json.username, NAME);
   token = li.json.token;
   assert.equal((await post('/api/me', { token })).json.username, NAME);
+  // Current names for the Signal API, so older passkeys catch up.
+  assert.deepEqual(li.json.passkeyUser, { rpId: 'localhost', userId: userHandle, name: MAIL, displayName: NAME });
   // A passkey nobody registered gets nowhere.
   const stranger = softAuthenticator(ORIGIN, 'localhost');
   stranger.create({ user: { id: 'eA' }, challenge: 'eA' });
