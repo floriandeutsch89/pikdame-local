@@ -3,6 +3,18 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.44.2] - 2026-10-05
+
+### Changed
+- **Registrieren übernimmt den Spielernamen:** Beim Wechsel auf „Registrieren“ steht der selbst gewählte Spielername schon im Feld (nicht der automatisch vergebene „Spieler123“, und nie über bereits Eingetipptes)
+- **Anmelden und Registrieren sind echte Formulare:** Passwort-Manager wie Bitwarden oder der iCloud-Schlüsselbund erkennen die Felder dadurch zuverlässiger. Absenden geht jetzt auch mit der Eingabetaste
+- Admin-Seite, Reiter „Benutzer“: Knöpfe deutlich sichtbarer; Name und E-Mail stehen zusammen, damit am Desktop nichts mehr abgeschnitten wird
+- Admin-Seite, Monitoring: Die Karte „Datenverzeichnis“ zeigt den **belegten** Platz („11,6 GB von 76,4 GB belegt“)
+
+### Fixed
+- **Monitoring-Diagramme aktualisierten sich nicht:** Die Daten kamen alle 15 Sekunden, aber die Zeitachse blieb auf dem Fenster vom ersten Laden stehen - neue Punkte lagen außerhalb des Sichtbaren, erst F5 half. Jetzt wandert die Achse mit; ein selbst gezoomter Ausschnitt bleibt beim Aktualisieren erhalten, Doppelklick führt zurück zur Live-Ansicht
+- **Konto-Dialog: eingetippter Text war fast unsichtbar** (helle Schrift auf heller Karte in den dunklen Themes) - ein vorausgefüllter Name sah aus wie ein Platzhalter
+
 ## [2.44.1] - 2026-10-05
 
 ### Fixed

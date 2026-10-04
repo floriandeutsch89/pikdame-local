@@ -5035,8 +5035,16 @@
     el('accountTabRegister').classList.add('active');
     el('accountTabLogin').classList.remove('active');
     setAccountStatus('');
+    // Registering usually means "keep the name I already play with": take it
+    // over - but only a name the player chose, not the random "Spieler123"
+    // stand-in, and never over something already typed here.
+    const chosen = (el('nameInput').value || myName || '').trim();
+    if (!el('accRegUser').value && chosen && !/^Spieler\d{1,3}$/.test(chosen)) {
+      el('accRegUser').value = chosen.slice(0, 24);
+    }
   });
-  el('accRegisterBtn').addEventListener('click', async () => {
+  el('accountRegisterForm').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
     setAccountStatus(L('Registriere...', 'Registering...'));
     const r = await accountApi('/api/register', {
       username: el('accRegUser').value,
@@ -5055,7 +5063,8 @@
           : L('✅ Konto angelegt. Der Bestätigungslink steht im Server-Log (noch kein Mailserver eingetragen).', '✅ Account created. The confirmation link is in the server log (no mail server configured yet).')
     );
   });
-  el('accLoginBtn').addEventListener('click', async () => {
+  el('accountLoginForm').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
     setAccountStatus(L('Melde an...', 'Signing in...'));
     const r = await accountApi('/api/login', {
       username: el('accLoginUser').value,

@@ -613,21 +613,25 @@
         <h2 id="accountTitle"><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span>Konto</span></h2>
         <div id="accountLoggedOut">
           <div class="accountTabs">
-            <button id="accountTabLogin" class="btn-secondary accountTab active">Anmelden</button>
-            <button id="accountTabRegister" class="btn-secondary accountTab">Registrieren</button>
+            <button id="accountTabLogin" type="button" class="btn-secondary accountTab active">Anmelden</button>
+            <button id="accountTabRegister" type="button" class="btn-secondary accountTab">Registrieren</button>
           </div>
-          <div id="accountLoginForm">
-            <input id="accLoginUser" type="text" placeholder="Benutzername oder E-Mail" autocomplete="username" />
-            <input id="accLoginPass" type="password" placeholder="Passwort" autocomplete="current-password" />
-            <button id="accLoginBtn" class="btn-primary">Anmelden</button>
-          </div>
-          <div id="accountRegisterForm" class="hidden">
-            <input id="accRegUser" type="text" placeholder="Benutzername (2-24 Zeichen)" autocomplete="username" maxlength="24" />
-            <input id="accRegEmail" type="email" placeholder="E-Mail-Adresse" autocomplete="email" />
-            <input id="accRegPass" type="password" placeholder="Passwort (mind. 8 Zeichen)" autocomplete="new-password" />
-            <button id="accRegisterBtn" class="btn-primary">Konto erstellen</button>
+          <!-- Real <form>s with name attributes and a submit button: iOS
+               AutoFill and password managers (Bitwarden, 1Password) only
+               recognise login/sign-up fields reliably inside a form. The
+               submit is handled in client.js (no page navigation). -->
+          <form id="accountLoginForm" action="/api/login" method="post" novalidate>
+            <input id="accLoginUser" name="username" type="text" placeholder="Benutzername oder E-Mail" autocomplete="username" autocapitalize="none" spellcheck="false" />
+            <input id="accLoginPass" name="password" type="password" placeholder="Passwort" autocomplete="current-password" />
+            <button id="accLoginBtn" type="submit" class="btn-primary">Anmelden</button>
+          </form>
+          <form id="accountRegisterForm" class="hidden" action="/api/register" method="post" novalidate>
+            <input id="accRegUser" name="username" type="text" placeholder="Benutzername (2-24 Zeichen)" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="24" />
+            <input id="accRegEmail" name="email" type="email" inputmode="email" placeholder="E-Mail-Adresse" autocomplete="email" autocapitalize="none" spellcheck="false" />
+            <input id="accRegPass" name="password" type="password" placeholder="Passwort (mind. 8 Zeichen)" autocomplete="new-password" passwordrules="minlength: 8;" />
+            <button id="accRegisterBtn" type="submit" class="btn-primary">Konto erstellen</button>
             <p class="lobby-hint">Dein Fortschritt (Statistik, Erfolge, Siegesserien) bleibt mit einem Konto dauerhaft erhalten - und niemand sonst kann deinen Namen verwenden.</p>
-          </div>
+          </form>
         </div>
         <div id="accountLoggedIn" class="hidden">
           <p id="accountWhoami">Angemeldet als –</p>

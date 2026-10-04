@@ -238,7 +238,7 @@ test('server: guest progress follows the name into the account; admin users + mo
   assert.equal(page.status, 200);
   assert.match(page.body, /Oma Inge/);
   assert.match(page.body, /inge@example\.org/);
-  assert.match(page.body, /offen bis/);
+  assert.match(page.body, /Link offen/);
   const csrf = (page.body.match(/name="csrf" value="([a-f0-9]+)"/) || [])[1];
   assert.ok(csrf);
   const resend = await request('POST', '/admin/users', { auth, body: `csrf=${csrf}&username=${encodeURIComponent('Oma Inge')}&action=resend` });
