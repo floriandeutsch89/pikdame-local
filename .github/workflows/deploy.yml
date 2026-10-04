@@ -1,0 +1,93 @@
+name: Deploy
+
+# Rolls a commit of main out to the production server over SSH.
+#
+# - Called by release.yml right after the new image is on GHCR.
+# - Or by hand: Actions -> Deploy -> "Run workflow" (deploys the current main),
+#   e.g. to redeploy after a server change.
+#
+# Off until the repository variable DEPLOY_HOST is set, so forks and fresh
+# clones do not fail here. Setup: docs/admin/auto-deploy.md.
+#
+# The server side is a forced command (scripts/pikdame-deploy.sh): this key
+# can only hand over a commit id, nothing else.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Version expected on /statusz afterwards (without "v")
+        type: string
+        required: false
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # Manual runs only from main; the server re-checks that the commit is on main.
+    if: vars.DEPLOY_HOST != '' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: ${{ vars.DEPLOY_URL }}
+    steps:
+      - name: Expected version
+        id: want
+        run: |
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            # Manual run: whatever package.json on this commit says.
+            VERSION=$(curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/package.json" | jq -r .version)
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Deploying commit ${{ github.sha }}, expecting v$VERSION"
+
+      - name: SSH to the server
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          if [ -z "$SSH_KEY" ] || [ -z "$KNOWN_HOSTS" ]; then
+            echo "::error::DEPLOY_SSH_KEY and DEPLOY_KNOWN_HOSTS must be set in the 'production' environment (docs/admin/auto-deploy.md)"
+            exit 1
+          fi
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # Pinned host key: no "accept whatever answers" on first contact.
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_key \
+              -o IdentitiesOnly=yes -o BatchMode=yes \
+              -o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.ssh/known_hosts \
+              -o ConnectTimeout=20 -o ServerAliveInterval=30 \
+              -p "${{ vars.DEPLOY_PORT || '22' }}" \
+              "${{ vars.DEPLOY_USER || 'deploy' }}@${{ vars.DEPLOY_HOST }}" \
+              "${{ github.sha }}"
+
+      - name: Wait for the new version on /statusz
+        if: vars.DEPLOY_URL != ''
+        run: |
+          WANT="${{ steps.want.outputs.version }}"
+          URL="${{ vars.DEPLOY_URL }}/statusz"
+          for i in $(seq 1 36); do
+            GOT=$(curl -fsS --max-time 5 "$URL" | jq -r .version 2>/dev/null || true)
+            if [ "$GOT" = "$WANT" ]; then
+              echo "Live: v$GOT"
+              exit 0
+            fi
+            echo "Waiting for v$WANT (got: ${GOT:-no answer}) ..."
+            sleep 5
+          done
+          echo "::error::$URL still does not report v$WANT after 3 minutes"
+          exit 1
+
+      - name: Clean up the key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

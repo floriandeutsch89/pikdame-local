@@ -3,12 +3,17 @@
 # Counterpart to server-bootstrap.sh. Never touches .env or secrets/*.txt.
 # Run as root on the server:
 #   curl -fsSL https://raw.githubusercontent.com/floriandeutsch89/pikdame-local/main/scripts/server-update.sh | bash
+#
+# Optional environment (used by the automatic deploy, see pikdame-deploy.sh):
+#   PIKDAME_REF  commit or branch to take the stack files from (default: main)
+#   PIKDAME_DIR  stack directory (default: /opt/pikdame/docker)
 set -euo pipefail
-DIR=/opt/pikdame/docker
-BASE=https://raw.githubusercontent.com/floriandeutsch89/pikdame-local/main
+REF="${PIKDAME_REF:-main}"
+DIR="${PIKDAME_DIR:-/opt/pikdame/docker}"
+BASE="https://raw.githubusercontent.com/floriandeutsch89/pikdame-local/$REF"
 cd "$DIR"
 
-echo "== 1/4 Fetching latest stack files from main (keeps .env and secrets/) =="
+echo "== 1/4 Fetching stack files from $REF (keeps .env and secrets/) =="
 for f in docker-compose.prod.yml Caddyfile .env.example caddy/Dockerfile crowdsec/acquis.yaml; do
   mkdir -p "$(dirname "$f")"
   curl -fsSL "$BASE/docker/$f" -o "$f"
