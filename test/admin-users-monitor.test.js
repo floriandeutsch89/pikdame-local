@@ -209,7 +209,13 @@ test('server: guest progress follows the name into the account; admin users + mo
   });
   let log = '';
   server.stdout.on('data', (c) => { log += c; });
-  t.after(() => { server.kill(); fs.rmSync(dataDir, { recursive: true, force: true }); });
+  // Wait for exit: the server writes its snapshot into dataDir on SIGTERM (ENOTEMPTY race).
+  t.after(async () => {
+    const gone = server.exitCode !== null ? null : new Promise((r) => server.once('exit', r));
+    server.kill();
+    await gone;
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  });
   const deadline = Date.now() + 15000;
   for (;;) {
     try { if ((await request('GET', '/healthz')).status === 200) break; } catch (e) { /* booting */ }
