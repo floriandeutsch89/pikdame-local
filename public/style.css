@@ -851,17 +851,10 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   display: flex; align-items: center; justify-content: center;
   width: 26px; height: 26px; border-radius: 50%;
   background: var(--card-bg);
-  color: var(--accent-2);
+  color: var(--suit-black); /* neutral: an accent-coloured ♠ clashed with the gold and joker backs */
   font-size: 0.95rem; line-height: 1;
   box-shadow: 0 0 0 2px rgba(255,255,255,0.35), 0 1px 3px rgba(0,0,0,0.3);
 }
-/* Face-up discard: same corner index + centre pip as a hand card. */
-.pile-card .corner {
-  position: absolute; top: 4px; left: 5px;
-  display: flex; flex-direction: column; align-items: center;
-  font-size: 0.68rem; font-weight: 800; line-height: 1.05; letter-spacing: -0.04em;
-}
-.pile-card .pileMark { font-size: 1.45rem; line-height: 1; margin-top: 8px; }
 /* Anzahl als Badge direkt auf der Karte */
 .pile > span {
   position: absolute; top: -9px; right: -11px;
@@ -1029,12 +1022,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   font-weight: 800; font-size: 1.02rem;
   transition: transform 0.2s var(--ease), box-shadow 0.2s ease, top 0.15s ease;
   top: 0;
-  /* Two-step shadow (contact + soft drop) and a 1px inner highlight: reads as
-     card stock lying on the table instead of a white sticker. */
-  box-shadow:
-    inset 0 0 0 1px rgba(255,255,255,0.7),
-    0 1px 1px rgba(0,0,0,0.22),
-    0 4px 12px rgba(0,0,0,0.26);
+  box-shadow: var(--shadow-1), 0 3px 8px rgba(0,0,0,0.28);
   position: relative;
   transform-origin: bottom center;
 }
@@ -1057,9 +1045,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   position: absolute; top: 4px; left: 5px;
   display: flex; flex-direction: column; align-items: center;
   font-size: 0.72rem; font-weight: 800; line-height: 1.05;
-  letter-spacing: -0.04em; /* keeps "10" as narrow as one glyph */
 }
-.card .corner span:last-child { font-size: 0.92em; margin-top: 1px; }
 .card.joker .corner { font-size: 0.78rem; }
 .card .suitMark { font-size: 1.5rem; line-height: 1; margin-top: 6px; }
 /* Joker face. Sized in em so it tracks the suit marks through every uiscale
@@ -1077,29 +1063,6 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   background: var(--suit-red); color: #fff;
   border-radius: 5px; padding: 1.5px 4px;
 }
-/* Court cards: a framed rank in the centre, like the picture panel of a
-   printed deck. Sized in em so it follows every .suitMark override
-   (landscape, desktop, uiscale) without rules of its own. */
-.card .suitMark.court {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  /* No wider than a pip: in the overlapped hand only a sliver of the
-     centre shows, and a wide frame left fragments behind the neighbours. */
-  width: 1.15em; height: 1.6em;
-  border: 1.5px solid currentColor;
-  border-radius: 0.2em;
-  font-size: 1.15rem;
-  line-height: 0.95;
-}
-.card .suitMark.court b { font-size: 0.9em; font-weight: 800; }
-.card .suitMark.court span { font-size: 0.62em; }
-/* Meld cards: pip in the lower right corner (only the last card of a meld
-   shows it - the others are covered by their neighbour). */
-.card .pipBR {
-  position: absolute; right: 4px; bottom: 3px;
-  font-size: 1.05rem; line-height: 1;
-}
-.card.joker .pipBR,
-.card:not(:last-child) .pipBR { display: none; } /* covered cards: it peeked out */
 /* The Queen of Spades gets NO permanent highlight anymore: the constant
    glow annoyed players and the ♠Q face is unmistakable on its own. Glow
    is reserved for freshly drawn cards (drawnGlow below). */
