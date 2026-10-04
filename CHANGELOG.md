@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.41.0] - 2026-10-04
+
+### Changed
+- **Neuer klassischer Kartenrücken:** feines Rautenmuster in einem dunkleren Ton der Theme-Farbe, heller Innenrand wie bei echten Karten und das ♠ in einem Medaillon statt einer flachen, leuchtenden Fläche. Rahmen und Medaillon gelten auch für die freischaltbaren Rücken. Die Vorschau in der Kartenrücken-Galerie zeigt jetzt den tatsächlichen Rücken (bisher graublau)
+- **Bildkarten (Bube, Dame, König) mit gerahmtem Wert** in der Kartenmitte statt eines einzelnen Farbsymbols - Bild- und Zahlenkarten sind auf einen Blick unterscheidbar
+- **Oberste Ablagekarte als echte Karte:** Eckwert und Farbsymbol in der Mitte wie auf der Hand, statt „8♦“ als Text
+- **Auslagen:** Die letzte Karte jeder Auslage zeigt unten rechts ihr Farbsymbol, statt weiß zu bleiben
+- Karten mit weicherem, zweistufigem Schatten und schmalerem Eckwert (die „10“ ist nicht mehr breiter als andere Werte)
+
 ## [2.40.0] - 2026-10-04
 
 ### Changed

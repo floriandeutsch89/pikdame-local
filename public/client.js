@@ -1315,6 +1315,8 @@
     return suit === 'H' || suit === 'D' ? 'red' : 'black';
   }
 
+  const COURT_RANKS = new Set(['J', 'Q', 'K']);
+
   function cardEl(card, { selectable, selected, onClick, compact } = {}) {
     const div = document.createElement('div');
     div.className = compact ? 'card card-compact' : 'card';
@@ -1342,9 +1344,19 @@
       // Wie bei echten Spielkarten: Rang + Farbe klein in der linken oberen
       // Ecke - die bleibt bei überlappenden Karten immer sichtbar. Das große
       // Symbol in der Mitte dient der schnellen Orientierung.
+      const sym = suitSymbol(card.suit);
+      const corner = `<div class="corner"><span>${card.rank}</span><span>${sym}</span></div>`;
+      // Court cards get a framed rank instead of a bare pip - the frame is
+      // what tells a picture card from a number card at a glance, the way the
+      // figure does on a printed deck.
+      const centre = COURT_RANKS.has(card.rank)
+        ? `<div class="suitMark court"><b>${card.rank}</b><span>${sym}</span></div>`
+        : `<div class="suitMark">${sym}</div>`;
+      // Compact (meld) cards overlap so far that only the last one shows its
+      // body; a pip in its lower corner fills what was a blank white card.
       div.innerHTML = compact
-        ? `<div class="corner"><span>${card.rank}</span><span>${suitSymbol(card.suit)}</span></div>`
-        : `<div class="corner"><span>${card.rank}</span><span>${suitSymbol(card.suit)}</span></div><div class="suitMark">${suitSymbol(card.suit)}</div>`;
+        ? `${corner}<div class="pipBR" aria-hidden="true">${sym}</div>`
+        : corner + centre;
       if (card.rank === 'Q' && card.suit === 'S') {
         div.classList.add('pikdame-card');
         if (!compact) {
@@ -1952,7 +1964,9 @@
       const t = lastState.discardTop;
       discardTopDiv.classList.add(t.isJoker ? 'joker' : suitColor(t.suit));
       if (t.isJoker) discardTopDiv.innerHTML = JOKER_MARK_SVG;
-      else discardTopDiv.textContent = `${t.rank}${suitSymbol(t.suit)}`;
+      // Same face as a hand card (corner index + centre pip), so the top of
+      // the pile reads as a card rather than a label.
+      else discardTopDiv.innerHTML = `<div class="corner"><span>${t.rank}</span><span>${suitSymbol(t.suit)}</span></div><div class="pileMark">${suitSymbol(t.suit)}</div>`;
     } else if (lastState.discardTop) {
       discardTopDiv.classList.add('back');
     } else {
