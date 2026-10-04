@@ -3,6 +3,19 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.43.0] - 2026-10-05
+
+### Changed
+- **Ein einziges Docker-Image mit gelernten ONNX-Bots, standardmäßig an.** `ghcr.io/floriandeutsch89/pikdame-local` enthält jetzt die ONNX-Laufzeit und die Modelle; die Bots spielen mit dem trainierten Netz. `PIKDAME_ONNX=0` schaltet auf die Heuristik-Bots (Helm: `onnx.enabled=false`). Fällt Laufzeit oder Modell aus, übernimmt wie bisher die Heuristik und das Log sagt es
+- Basis ist jetzt **Debian slim statt Alpine**, weil die ONNX-Laufzeit glibc braucht. Größe ~436 MB statt 265 MB (das bisherige ONNX-Image hatte ~2 GB: Es enthielt Windows-, macOS- und CUDA-Bibliotheken, die im Container nie geladen werden - die werden jetzt beim Bau entfernt). Gemessen unter den Prod-Limits: ~35 MB Arbeitsspeicher bei zwei Partien gegen Zen-Bots, Limits unverändert
+- Ohne Docker (`node server.js`, z. B. iPhone/CodeApp) ändert sich nichts: Das Repo hat weiterhin keine native Abhängigkeit, dort spielen die Heuristik-Bots
+
+### Removed
+- **Das Image `pikdame-local-onnx` wird nicht mehr veröffentlicht.** Wer seine Compose-Datei darauf umgestellt hatte: Image-Zeile zurück auf `ghcr.io/floriandeutsch89/pikdame-local:latest` (sonst bleibt sie auf dem letzten Stand stehen). Ebenso entfallen `docker/Dockerfile.onnx` und `helm/pikdame/values-onnx.yaml`
+
+### Fixed
+- **Sicherheitslücken im ONNX-Pfad:** Das bisherige ONNX-Image hatte 10 behebbare Funde der Stufe HIGH (OpenSSL, PCRE2 aus dem Debian-Basisimage; `adm-zip` aus dem Installationsskript der ONNX-Laufzeit). Das Image spielt jetzt beim Bau die Debian-Sicherheitsupdates ein und entfernt `adm-zip`/`global-agent`, die nur bei der Installation gebraucht werden. Trivy: 0 Funde. Da es nur noch ein Image gibt, prüft CI jetzt genau das ausgelieferte Image; der Smoke-Test bricht ab, wenn es die ONNX-Bots nicht aktiviert
+
 ## [2.42.0] - 2026-10-04
 
 ### Added
