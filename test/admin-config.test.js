@@ -172,6 +172,7 @@ test('/admin without a token answers 404 like any unknown path', async (t) => {
   startServer(t, 8096, {});
   await waitForServer();
   assert.equal((await request('GET', '/admin', { auth: 'admin:' })).status, 404);
+  assert.equal((await request('GET', '/admin/', { auth: 'admin:' })).status, 404, 'disabled: no redirect that would reveal the page');
 });
 
 test('/admin with a token: Basic auth, CSRF, mail check', async (t) => {

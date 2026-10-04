@@ -281,4 +281,13 @@ test('server: guest progress follows the name into the account; admin users + mo
   assert.equal(vendor.status, 200);
   assert.match(vendor.body, /uPlot 1\.6\.32/);
   assert.equal((await request('GET', '/admin/nope', { auth })).status, 404);
+  // Trailing slash (browser autocomplete): redirect, never a 404 after login.
+  for (const [from, to] of [['/admin/', '/admin'], ['/admin/users/', '/admin/users'], ['/admin/monitor/?range=7d', '/admin/monitor?range=7d']]) {
+    const r = await new Promise((resolve, reject) => {
+      http.get({ host: '127.0.0.1', port: PORT, path: from, headers: { Authorization: 'Basic ' + Buffer.from(auth).toString('base64') } },
+        (res) => { res.resume(); resolve({ status: res.statusCode, location: res.headers.location }); }).on('error', reject);
+    });
+    assert.equal(r.status, 302, from);
+    assert.equal(r.location, to, from);
+  }
 });

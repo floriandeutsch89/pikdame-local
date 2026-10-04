@@ -563,6 +563,16 @@ async function handleAdminRequest(req, res, filePath) {
     res.end('Nicht gefunden');
     return;
   }
+  // "/admin/" (browser autocomplete likes the trailing slash) used to pass the
+  // login and then hit the unknown-path 404. Redirect to the canonical path;
+  // only after the enabled check, so a disabled page still looks like any
+  // unknown path.
+  if (filePath.length > 1 && filePath.endsWith('/')) {
+    const query = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    res.writeHead(302, { Location: filePath.replace(/\/+$/, '') + query, 'Cache-Control': 'no-store' });
+    res.end();
+    return;
+  }
   const ip = clientIp(req);
   const now = Date.now();
   const failState = adminFailsByIp.get(ip);
