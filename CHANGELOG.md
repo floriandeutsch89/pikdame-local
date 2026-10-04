@@ -3,7 +3,7 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
-## [2.45.0] - 2026-10-05
+## [2.46.0] - 2026-10-05
 
 ### Added
 - **Passkeys:** Registrieren und Anmelden mit Face ID, Touch ID, Android, Windows Hello oder einem Passwort-Manager (Bitwarden, 1Password …) - ganz ohne Passwort. „Mit Passkey registrieren“ ist beim Registrieren der Hauptweg, „stattdessen Passwort festlegen“ bleibt möglich; ohne Passkey-Unterstützung im Browser erscheint wie bisher das Passwort-Formular. Beim Anmelden schlägt das iPhone bzw. der Passwort-Manager den Passkey direkt im Namensfeld vor, alternativ „Mit Passkey anmelden“
@@ -13,6 +13,11 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Changed
 - **Konto-Anfragen haben zwei Kontingente:** Passwort-Prüfungen, neue Konten, Mails und Änderungen an Anmeldewegen bleiben bei 20 pro 10 Minuten und IP; reine Abfragen (Rangliste, Anmeldewege, Passkey-Anfragen) haben ein großzügiges eigenes Kontingent. Vorher teilten sich alle Aufrufe das enge Kontingent - eine Familie hinter einem Router (eine IP) konnte es schon beim mehrfachen Öffnen des Konto-Dialogs aufbrauchen
 - Neue Server-Abhängigkeit `@simplewebauthn/server` (MIT, reines JavaScript, wird nur bei Bedarf geladen; ohne sie bleiben Passkeys aus). Die Regel für externe Pakete lautet jetzt: nur, wenn es wirklich sinnvoll und notwendig ist (siehe Doku „Contributing“)
+
+## [2.45.0] - 2026-10-05
+
+### Changed
+- **Neu trainiertes Modell für die mittleren Bots** (`models/pikdame-medium.onnx`). Ein- und Ausgabe sind unverändert (377 Beobachtungswerte, 54 Aktionen) - das Modell passt zum aktuellen `StateEncoder` und ersetzt das bisherige ohne weitere Änderungen. Wirkt mit aktiven ONNX-Bots (Standard im Docker-Image); betrifft auch die Tages-Challenge, die gegen mittlere Bots läuft
 
 ## [2.44.2] - 2026-10-05
 
