@@ -126,6 +126,10 @@
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
+  /* Table material, shared by the dark themes; the light kitchen theme
+     overrides both. */
+  --vignette: rgba(0, 0, 0, 0.42);
+  --grain: 0.5;
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --r-sm: 12px;
   --r-md: 18px;
@@ -591,7 +595,27 @@ button:focus-visible, input:focus-visible, select:focus-visible {
        it read as "the layout failed to fill". This lit pool centred on the
        piles turns the same gap into the middle of a table. */
     radial-gradient(78% 34% at 50% 78%, var(--spot) 0%, transparent 72%),
+    /* Edge falloff: draws the eye to the middle of the table, where the
+       melds and piles are. Without it the screen read as a flat app panel. */
+    radial-gradient(140% 100% at 50% 45%, transparent 55%, var(--vignette) 100%),
     var(--bg);
+  /* Own stacking context, so the ♠Q watermark (#table::before, z-index -1)
+     paints above this background instead of behind it - it was invisible
+     from v1.27.0 on. */
+  isolation: isolate;
+}
+/* Fine grain over the whole surface. A cloth or paper texture is what makes
+   a card table read as a material rather than a coloured rectangle. Inline
+   SVG noise (CSP allows data: images) - no download, about 400 bytes. */
+#table::after {
+  content: '';
+  position: absolute; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 1.4 -0.45'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+  opacity: var(--grain);
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  z-index: -1;
 }
 
 #topBar {
@@ -2452,7 +2476,9 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
   font-size: clamp(140px, 34vw, 280px);
   font-weight: 800;
   letter-spacing: -0.06em;
-  color: rgba(255, 255, 255, 0.07);
+  /* 0.07 was tuned while the mark was (unknowingly) hidden; once visible it
+     dominated the desktop table. */
+  color: rgba(255, 255, 255, 0.035);
   pointer-events: none;
   user-select: none;
   z-index: -1;
@@ -3088,6 +3114,8 @@ html[data-cardback="joker"] .card.back {
   --suit-black: #2a221a;
   --joker: #7d4796;
   --spot: rgba(176, 85, 42, 0.11);
+  --vignette: rgba(90, 60, 25, 0.16);
+  --grain: 0.35;
   --shadow-1: 0 2px 8px rgba(90, 60, 25, 0.18);
   --shadow-2: 0 6px 20px rgba(90, 60, 25, 0.22);
   --shadow-3: 0 12px 40px rgba(90, 60, 25, 0.28);
@@ -3665,6 +3693,19 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
   .screen { max-width: min(1600px, 100%); }
   .card-compact { width: 60px; height: 86px; min-width: 60px; margin-left: -20px; }
   .card-compact .corner { font-size: 0.78rem; }
+}
+
+/* --- Phone portrait: score pill at the end of its progress bar --------------
+   The pill had a line of its own under the fan, alone in the bottom-left
+   corner. It now closes the bar it belongs to ("progress to 1000 - you are
+   here") on one shared row. The toolbar was tried first: with the card count
+   centred there, a three-digit score touched it. */
+@media (orientation: portrait) and (max-width: 1099px) {
+  #myScoreBar { width: auto; margin: 6px 92px 10px 14px; }
+  #myStatusLine {
+    position: absolute; right: 12px; bottom: calc(2px + var(--safe-bottom));
+    height: 26px; padding: 0; align-items: center;
+  }
 }
 
 /* --- Landscape phone, second pass --------------------------------------------

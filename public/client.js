@@ -1641,7 +1641,9 @@
     pop.className = 'pointsPop' + (ev.queen ? ' queen' : '');
     pop.textContent = `+${ev.points}`;
     pop.style.left = `${r.left + r.width / 2}px`;
-    pop.style.top = `${Math.max(r.top + 8, 60)}px`;
+    // Opponent seats sit right under the top bar: starting at their top edge,
+    // the 46px rise ended on the pause/settings buttons. Start mid-seat.
+    pop.style.top = mine ? `${Math.max(r.top + 8, 60)}px` : `${r.top + r.height / 2 - 6}px`;
     document.body.appendChild(pop);
     setTimeout(() => pop.remove(), 1400);
   }
@@ -5359,7 +5361,9 @@
       bubble.textContent = emoji;
     }
     bubble.style.left = `${rect.left + rect.width / 2 - 18}px`;
-    bubble.style.top = `${rect.top - 6}px`;
+    // Same reason as spawnPointsPopup: from a seat's top edge the rise
+    // covered the top bar, so opponent emotes start mid-seat.
+    bubble.style.top = fromPlayerId === playerId ? `${rect.top - 6}px` : `${rect.top + rect.height / 2 - 12}px`;
     document.body.appendChild(bubble);
     setTimeout(() => bubble.remove(), 1600);
   }
