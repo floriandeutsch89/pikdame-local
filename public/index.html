@@ -747,7 +747,7 @@
     </section>
 
     <!-- PAUSE (im Spiel, nur mit Zustimmung aller) -->
-    <section id="pauseOverlay" class="overlay hidden">
+    <section id="pauseOverlay" class="overlay overlayTop hidden">
       <div class="overlay-card">
         <h2><svg class="icon" aria-hidden="true"><use href="#i-pause"/></svg><span>Spiel pausiert</span></h2>
         <p id="pauseInfo">Das Spiel ist pausiert. Es geht weiter, sobald alle zustimmen.</p>
@@ -1140,9 +1140,8 @@
     </section>
 
     <!-- Forfeit confirmation in the app, not window.confirm (iOS can suppress
-         native dialogs silently). Last overlay in the DOM: above the game
-         menu and the round result. -->
-    <section id="confirmForfeitOverlay" class="overlay hidden">
+         native dialogs silently). .overlayTop: above every game effect. -->
+    <section id="confirmForfeitOverlay" class="overlay overlayTop hidden">
       <div class="overlay-card">
         <h2>Spiel aufgeben?</h2>
         <p class="lobby-hint">Die Partie endet nur, wenn ALLE aktiven Spieler zustimmen - dann wird das Spiel sofort abgebrochen (kein Sieger, keine Wertung).</p>

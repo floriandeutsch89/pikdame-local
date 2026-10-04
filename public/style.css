@@ -1202,6 +1202,10 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   z-index: 50;
   padding: 18px;
 }
+/* Dialogs that must win over every game effect (points pops, toasts, flying
+   cards, emotes reach 450): forfeit question and pause. Below only the
+   studio splash (900) and the debug overlay. */
+.overlay.overlayTop { z-index: 800; }
 .overlay-card {
   position: relative; /* anchor for #resultEmotes */
   /* Overlay cards are LIGHT in every theme, but --text-muted is tuned for

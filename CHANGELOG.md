@@ -7,6 +7,7 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 
 ### Fixed
 - **„Spiel aufgeben“ fragt jetzt im Spiel nach** statt mit einem Browser-Dialog, den iOS ohne Hinweis unterdrücken kann - der Tipp blieb dann folgenlos. Der neue Dialog „Spiel aufgeben?“ erklärt wie bisher, dass alle aktiven Spieler zustimmen müssen, und gilt im Spielmenü wie in der Rundenübersicht. Ein Test verhindert künftig Browser-Dialoge im Client
+- „Spiel aufgeben?“ und die Pause liegen jetzt immer ganz oben: Punkte-Einblendungen („+30“), Meldungen, fliegende Karten und Emotes überdeckten den Dialog vorher
 
 ## [2.47.3] - 2026-10-05
 
