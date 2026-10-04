@@ -408,7 +408,7 @@ const FAILED_JOIN_LIMIT = 20;
 const failedJoinsByIp = new Map(); // ip -> { count, windowStart }
 
 // ---------------------------------------------------------------------------
-// Benutzerkonten: HTTP-API (/api/register, /api/login, /api/logout, /api/me)
+// Benutzerkonten: HTTP-API (/api/register-passwordless, /api/login, /api/logout, /api/me)
 // und der Bestätigungslink (GET /verify?token=...). Kleine JSON-Endpunkte,
 // bewusst ohne Framework. IP-Rate-Limit gegen Brute-Force/Registrier-Spam.
 // ---------------------------------------------------------------------------
@@ -872,21 +872,6 @@ async function handleAccountRequest(req, res, filePath) {
   const body = await readJsonBody(req);
   if (!body) return sendJson(res, 400, { error: 'Ungültige Anfrage.' });
 
-  if (filePath === '/api/register') {
-    const r = await accountStore.register(body.username, body.email, body.password);
-    if (r.error) return sendJson(res, 400, { error: r.error });
-    const mail = await sendVerificationMail(req, String(body.username).trim(), String(body.email).trim(), r.verifyToken);
-    // mailConfigured separates the two very different non-delivery cases:
-    // no relay set up at all (link is in the log, by design) versus a
-    // configured relay that FAILED (link is in the log too, but something
-    // is broken). Reporting both as "no mail server configured" sent an
-    // admin hunting for an unset variable that was set all along.
-    return sendJson(res, 200, {
-      ok: true,
-      mailDelivered: !!mail.delivered,
-      mailConfigured: !!mailer.configured,
-    });
-  }
   if (filePath === '/api/login') {
     const r = await accountStore.login(body.username, body.password);
     if (r.error) return sendJson(res, 401, { error: r.error });
@@ -911,6 +896,8 @@ async function handleAccountRequest(req, res, filePath) {
     if (r.error) return sendJson(res, 400, { error: r.error });
     console.log(`[account] Registrierung: ${r.username}`);
     const mail = await sendSetupMail(req, r.username, String(body.email).trim(), r.verifyToken, r.code);
+    // mailConfigured separates "no relay set up" (code in the log, by design)
+    // from "relay configured but FAILED" - both used to read as the former.
     return sendJson(res, 200, { ok: true, mailDelivered: !!mail.delivered, mailConfigured: !!mailer.configured });
   }
   if (filePath === '/api/verify-code') {

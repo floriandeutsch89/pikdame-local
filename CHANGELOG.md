@@ -3,10 +3,23 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
-## [2.46.2] - 2026-10-04
+## [2.47.1] - 2026-10-05
 
 ### Changed
 - **Passkeys tragen die E-Mail-Adresse als Benutzernamen:** Bitwarden, iCloud-Schlüsselbund & Co. legen den Passkey jetzt unter der E-Mail-Adresse ab, der Spielername erscheint als Anzeigename in der Passkey-Auswahl. Ein später gesetztes Passwort landet so im selben Eintrag. Bereits angelegte Passkeys ziehen bei der nächsten Anmeldung mit Passkey nach, wo der Browser das unterstützt (Safari ab iOS/macOS 26, Chrome ab 132); sonst bleibt der alte Name stehen, der Passkey funktioniert unverändert. Den Ordner wählt man im Passwort-Manager selbst - danach fragt beim Speichern eines Passkeys keiner
+
+## [2.47.0] - 2026-10-05
+
+### Added
+- **Beta-Vorschau für Pull Requests:** Jeder Push auf einen Pull Request läuft wenige Minuten später auf `beta.pikdame.online` - zum Ausprobieren am iPhone vor dem Merge. Eigener Stack neben der Produktion (eigene Datenbank, eigene Volumes, engere Ressourcengrenzen, für Suchmaschinen gesperrt), gleiche Härtung, eigener Deploy-Schlüssel, der nur die Beta neu starten kann. Pull Requests aus Forks und von Dependabot werden nie ausgerollt. Einrichtung: Doku „Beta preview“
+
+### Fixed
+- Testsuite: Server-Tests warten vor dem Aufräumen auf das Prozessende - der Server schreibt beim Beenden seinen Snapshot, das Löschen schlug sonst sporadisch fehl und färbte die CI rot
+
+## [2.46.1] - 2026-10-04
+
+### Removed
+- Der alte Registrier-Endpunkt `/api/register` (Konto mit Passwort in einem Schritt): Registriert wird nur noch E-Mail-zuerst, das Passwort ist danach eine der beiden Wahlmöglichkeiten. Bestehende Konten mit Passwort sind nicht betroffen
 
 ## [2.46.0] - 2026-10-05
 

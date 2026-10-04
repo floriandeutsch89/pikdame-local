@@ -157,7 +157,13 @@ async function journey(t, port, databaseUrl, NAME, MAIL) {
   });
   let log = '';
   server.stdout.on('data', (c) => { log += c; });
-  t.after(() => { server.kill(); fs.rmSync(dataDir, { recursive: true, force: true }); });
+  // Wait for exit: the server writes its snapshot into dataDir on SIGTERM (ENOTEMPTY race).
+  t.after(async () => {
+    const gone = server.exitCode !== null ? null : new Promise((r) => server.once('exit', r));
+    server.kill();
+    await gone;
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  });
   for (let i = 0; ; i++) {
     try { if ((await get('/healthz')) === 200) break; } catch (e) { /* booting */ }
     if (i > 150) throw new Error('server did not come up');

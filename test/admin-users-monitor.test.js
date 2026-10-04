@@ -209,7 +209,13 @@ test('server: guest progress follows the name into the account; admin users + mo
   });
   let log = '';
   server.stdout.on('data', (c) => { log += c; });
-  t.after(() => { server.kill(); fs.rmSync(dataDir, { recursive: true, force: true }); });
+  // Wait for exit: the server writes its snapshot into dataDir on SIGTERM (ENOTEMPTY race).
+  t.after(async () => {
+    const gone = server.exitCode !== null ? null : new Promise((r) => server.once('exit', r));
+    server.kill();
+    await gone;
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  });
   const deadline = Date.now() + 15000;
   for (;;) {
     try { if ((await request('GET', '/healthz')).status === 200) break; } catch (e) { /* booting */ }
@@ -217,7 +223,7 @@ test('server: guest progress follows the name into the account; admin users + mo
     await new Promise((r) => setTimeout(r, 100));
   }
   const tokenFromLog = () => {
-    const all = [...log.matchAll(/verify\?token=([a-f0-9]{64})/g)];
+    const all = [...log.matchAll(/\?verify=([a-f0-9]{64})/g)];
     return all.length ? all[all.length - 1][1] : null;
   };
   const waitForToken = async (previous) => {
@@ -229,7 +235,9 @@ test('server: guest progress follows the name into the account; admin users + mo
     throw new Error('no verification link in the log');
   };
 
-  const reg = await request('POST', '/api/register', { json: { username: 'Oma Inge', email: 'inge@example.org', password: 'long-password-1' } });
+  // The old password sign-up endpoint is gone; sign-up is e-mail first.
+  assert.equal((await request('POST', '/api/register', { json: { username: 'X Y', email: 'xy@example.org', password: 'long-password-1' } })).status, 404);
+  const reg = await request('POST', '/api/register-passwordless', { json: { username: 'Oma Inge', email: 'inge@example.org' } });
   assert.equal(reg.status, 200);
   const firstToken = await waitForToken(null);
 
@@ -248,8 +256,8 @@ test('server: guest progress follows the name into the account; admin users + mo
   const newToken = await waitForToken(firstToken);
 
   // Confirming with the new link imports the guest profile.
-  assert.equal((await request('GET', `/verify?token=${firstToken}`)).status, 400, 'old link is dead');
-  assert.equal((await request('GET', `/verify?token=${newToken}`)).status, 200);
+  assert.equal((await request('POST', '/api/verify-signin', { json: { token: firstToken } })).status, 400, 'old link is dead');
+  assert.equal((await request('POST', '/api/verify-signin', { json: { token: newToken } })).status, 200);
   page = await request('GET', '/admin/users', { auth });
   assert.match(page.body, /bestätigt/);
   assert.match(page.body, /data-label="EP">420<\/td><td class="num" data-label="Spiele">7<\/td><td class="num" data-label="Siege">3<\/td>/, 'XP, games, wins carried over');
