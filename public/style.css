@@ -812,9 +812,6 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   box-shadow: none;
 }
 .pile-card.back {
-  background:
-    radial-gradient(60% 60% at 50% 40%, rgba(255,255,255,0.14) 0%, transparent 65%),
-    linear-gradient(160deg, var(--accent) 0%, var(--accent-2) 100%);
   border: none;
   position: relative;
 }
@@ -829,10 +826,34 @@ button:focus-visible, input:focus-visible, select:focus-visible {
     6px 6px 0 -1px var(--accent-2),
     var(--shadow-2);
 }
+/* Classic back, v2.41: a printed back instead of a flat accent slab - fine
+   lattice on a deeper shade of the theme accent, a light inner border like
+   the white margin of a real deck, and the ♠ in a medallion. The unlockable
+   backs (html[data-cardback]) replace only the background; border and
+   medallion apply to all of them. */
+.pile-card.back {
+  background: var(--accent-2); /* fallback: iOS < 16.2 has no color-mix */
+  background:
+    repeating-linear-gradient(45deg, rgba(255,255,255,0.13) 0 1px, transparent 1px 6px),
+    repeating-linear-gradient(-45deg, rgba(255,255,255,0.13) 0 1px, transparent 1px 6px),
+    linear-gradient(160deg, var(--accent-2) 0%, color-mix(in srgb, var(--accent-2) 45%, #000) 100%);
+  overflow: hidden;
+}
+.pile-card.back::before {
+  content: '';
+  position: absolute; inset: 4px;
+  border: 1.5px solid rgba(255,255,255,0.6);
+  border-radius: 6px;
+  pointer-events: none;
+}
 .pile-card.back::after {
   content: '♠';
-  color: var(--accent-ink);
-  font-size: 1.25rem; opacity: 0.65;
+  display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--card-bg);
+  color: var(--suit-black); /* neutral: an accent-coloured ♠ clashed with the gold and joker backs */
+  font-size: 0.95rem; line-height: 1;
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.35), 0 1px 3px rgba(0,0,0,0.3);
 }
 /* Anzahl als Badge direkt auf der Karte */
 .pile > span {
@@ -3260,7 +3281,11 @@ html[data-cardback="joker"] .card.back {
   width: 44px; height: 62px; border-radius: 7px;
   border: 1px solid rgba(0,0,0,0.25);
   display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
-  background: linear-gradient(160deg, #7c8db0 0%, #4d5c7a 100%); /* classic */
+  /* classic - same recipe as .pile-card.back, so the preview matches */
+  background:
+    repeating-linear-gradient(45deg, rgba(255,255,255,0.13) 0 1px, transparent 1px 6px),
+    repeating-linear-gradient(-45deg, rgba(255,255,255,0.13) 0 1px, transparent 1px 6px),
+    linear-gradient(160deg, var(--accent-2) 0%, color-mix(in srgb, var(--accent-2) 45%, #000) 100%);
 }
 .cbPrev-gold { background: linear-gradient(150deg, #8a6d1f 0%, #d4af37 40%, #f5e08a 55%, #d4af37 70%, #8a6d1f 100%); }
 .cbPrev-night {

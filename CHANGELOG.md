@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.41.0] - 2026-10-04
+
+### Changed
+- **Neuer klassischer Kartenrücken:** feines Rautenmuster in einem dunkleren Ton der Theme-Farbe, heller Innenrand wie bei echten Karten und das ♠ in einem Medaillon statt einer flachen, leuchtenden Fläche. Rahmen und Medaillon gelten auch für die freischaltbaren Rücken. Die Vorschau in der Kartenrücken-Galerie zeigt jetzt den tatsächlichen Rücken (bisher graublau)
+
 ## [2.40.0] - 2026-10-04
 
 ### Changed
