@@ -8,6 +8,11 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Fixed
 - **„Spiel aufgeben“ fragt jetzt im Spiel nach** statt mit einem Browser-Dialog, den iOS ohne Hinweis unterdrücken kann - der Tipp blieb dann folgenlos. Der neue Dialog „Spiel aufgeben?“ erklärt wie bisher, dass alle aktiven Spieler zustimmen müssen, und gilt im Spielmenü wie in der Rundenübersicht. Ein Test verhindert künftig Browser-Dialoge im Client
 
+## [2.47.3] - 2026-10-05
+
+### Changed
+- Projektregeln für KI-Assistenten (`CLAUDE.md`) gestrafft: gleiche Regeln in etwa halber Länge, damit weniger Kontext verbraucht wird. Neu: Version immer gegen den aktuellen `main` vergeben, Folge-Commits nie auf schon gemergte PR-Branches, Push danach gegen den Remote prüfen, nur eigene Dateien committen, keine nativen Browser-Dialoge (iOS unterdrückt sie still), Passkeys mit E-Mail als Benutzername
+
 ## [2.47.2] - 2026-10-05
 
 ### Fixed
