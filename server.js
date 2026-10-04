@@ -28,6 +28,7 @@ const { readSecret } = require('./game/secretEnv');
 const { buildConfigReport, formatConfigReport } = require('./game/ConfigReport');
 const AdminPage = require('./game/AdminPage');
 const { createAdminTokenVerifier } = require('./game/AdminToken');
+const { createMonitor } = require('./game/Monitor');
 const { isAllowedEmote, emoteLevel } = require('./game/Emotes');
 const { puzzleForDate, publicPuzzle, checkAnswer, XP_FOR_SOLVED } = require('./game/DailyPuzzle');
 const { createStammtischStore, normalizeCode: normalizeStammtischCode } = require('./game/StammtischStore');
@@ -250,7 +251,7 @@ function serveStatic(req, res) {
     );
     return;
   }
-  if (filePath === '/admin' || filePath === '/admin/mail') {
+  if (filePath === '/admin' || filePath.startsWith('/admin/')) {
     handleAdminRequest(req, res, filePath).catch((err) => {
       logCrash('admin', err, { path: filePath });
       if (!res.headersSent) { res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' }); res.end('Interner Fehler'); }
@@ -521,6 +522,25 @@ function mailSiteName() {
   return base ? base : 'Pik Dame';
 }
 
+// Resource samples for the Monitoring tab - only collected when the admin
+// page is on (nobody could look at them otherwise).
+let adminMonitor = null;
+function connectedPlayerCount() {
+  let players = 0;
+  for (const s of registry.sessions.values()) {
+    for (const sock of s.sockets.values()) if (sock && sock.readyState === WebSocket.OPEN) players += 1;
+  }
+  return players;
+}
+function startAdminMonitor() {
+  if (!ADMIN_ENABLED || adminMonitor) return;
+  adminMonitor = createMonitor({
+    dataDir: DATA_DIR,
+    stats: () => ({ sessions: registry.size, players: connectedPlayerCount() }),
+  });
+  adminMonitor.start();
+}
+
 function adminRuntime() {
   let players = 0;
   for (const s of registry.sessions.values()) {
@@ -574,22 +594,27 @@ async function handleAdminRequest(req, res, filePath) {
     return;
   }
 
-  let notice = null;
-  if (filePath === '/admin/mail') {
-    if (req.method !== 'POST') {
-      res.writeHead(303, { Location: '/admin' });
-      res.end();
-      return;
-    }
-    // Basic credentials ride along on any request the browser makes, so a
-    // cross-site form could trigger this: require same-origin + CSRF token.
+  // Basic credentials ride along on any request the browser makes, so a
+  // cross-site form could trigger a POST: require same-origin + CSRF token.
+  async function readAdminForm() {
     const site = req.headers['sec-fetch-site'];
     const form = await readFormBody(req);
     if ((site && site !== 'same-origin') || !form || !AdminPage.csrfValid(form.get('csrf'), ADMIN_SECRET)) {
       res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('Ungültige Anfrage');
-      return;
+      return null;
     }
+    return form;
+  }
+  const isPost = req.method === 'POST';
+  const csrf = AdminPage.csrfToken(ADMIN_SECRET);
+  let tab = 'config';
+  let notice = null;
+
+  if (filePath === '/admin/mail') {
+    if (!isPost) { res.writeHead(303, { Location: '/admin' }); res.end(); return; }
+    const form = await readAdminForm();
+    if (!form) return;
     if (form.get('action') === 'send') {
       const to = String(form.get('to') || '').trim();
       if (!AdminPage.validRecipient(to)) {
@@ -616,7 +641,59 @@ async function handleAdminRequest(req, res, filePath) {
         ? { ok: r.ok, text: r.ok ? 'Anmeldung am SMTP-Server erfolgreich.' : `SMTP-Prüfung fehlgeschlagen: ${r.reason}` }
         : { ok: false, text: 'Kein SMTP-Server konfiguriert.' };
     }
+  } else if (filePath === '/admin/users') {
+    tab = 'users';
+    if (isPost) {
+      const form = await readAdminForm();
+      if (!form) return;
+      const action = form.get('action');
+      const username = String(form.get('username') || '').trim();
+      if (!ACCOUNTS_ENABLED) {
+        notice = { ok: false, text: 'Benutzerkonten sind auf diesem Server nicht aktiv.' };
+      } else if (action === 'ask-delete') {
+        // Step 1 of 2: no script for a confirm() dialog, so the question and
+        // the real delete button appear in the notice area.
+        notice = {
+          ok: false,
+          text: `Benutzer „${username}“ wirklich löschen? Konto und Anmeldungen werden entfernt, der Name ist danach wieder frei.`,
+          html: AdminPage.confirmDeleteHtml(csrf, username),
+        };
+      } else if (action === 'delete') {
+        const r = await accountStore.deleteUser(username);
+        if (r.ok) console.log(`[admin] Benutzer gelöscht: ${r.username}`);
+        notice = r.ok ? { ok: true, text: `Benutzer „${r.username}“ wurde gelöscht.` } : { ok: false, text: r.error };
+      } else if (action === 'resend') {
+        if (bump(adminMailsByIp, ip, 10 * 60 * 1000) > 5) {
+          notice = { ok: false, text: 'Höchstens 5 Mails in 10 Minuten.' };
+        } else {
+          const r = await accountStore.renewVerification(username);
+          if (r.error) {
+            notice = { ok: false, text: r.error };
+          } else {
+            const mail = await sendVerificationMail(req, r.username, r.email, r.verifyToken);
+            console.log(`[admin] Bestätigungsmail neu gesendet: ${r.username} (${mail.delivered ? 'zugestellt' : 'nur im Log'})`);
+            notice = mail.delivered
+              ? { ok: true, text: `Neue Bestätigungsmail an ${r.email} wurde vom SMTP-Server angenommen. Der Link ist 48 Stunden gültig, der alte gilt nicht mehr.` }
+              : { ok: false, text: `Neuer Link erstellt, aber die Mail ging nicht raus (${mail.reason}) - der Link steht im Server-Log.` };
+          }
+        }
+      } else {
+        notice = { ok: false, text: 'Unbekannte Aktion.' };
+      }
+    }
+  } else if (filePath === '/admin/monitor') {
+    tab = 'monitor';
+  } else if (filePath !== '/admin') {
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Nicht gefunden');
+    return;
   }
+
+  let users = null;
+  if (tab === 'users' && ACCOUNTS_ENABLED && typeof accountStore.listUsers === 'function') {
+    users = await accountStore.listUsers(500);
+  }
+  if (tab === 'monitor') startAdminMonitor();
 
   res.writeHead(200, {
     'Content-Type': 'text/html; charset=utf-8',
@@ -626,13 +703,54 @@ async function handleAdminRequest(req, res, filePath) {
     'X-Frame-Options': 'DENY',
   });
   res.end(AdminPage.renderAdminPage({
+    tab,
     report: currentConfigReport(),
     runtime: adminRuntime(),
+    version: APP_VERSION,
     smtpProbe: lastSmtpProbe,
     notice,
-    csrf: AdminPage.csrfToken(ADMIN_SECRET),
+    csrf,
     mailConfigured: mailer.configured,
+    users,
+    monitor: tab === 'monitor' ? { current: adminMonitor.current(), history: adminMonitor.history() } : null,
   }));
+}
+
+// Guest -> account: players who played under a name first and registered it
+// later keep their progress. The name-based profile (PlayerStore) is theirs
+// already - joinSession only lets a verified account's owner use the name -
+// and this carries its numbers into the account-bound ladder, once per
+// account (see AccountStore.importProfile). Best effort: never blocks verify
+// or login.
+async function importGuestProfile(username) {
+  if (!ACCOUNTS_ENABLED || typeof accountStore.importProfile !== 'function') return null;
+  try {
+    const profile = playerStore.getPlayerByName(username);
+    if (!profile) return null;
+    const r = await accountStore.importProfile(username, {
+      xp: profile.xp || 0,
+      games: profile.gamesPlayed || 0,
+      wins: profile.gamesWon || 0,
+      season: seasonForDate(gameDay()),
+    });
+    if (r && r.imported) console.log(`[account] Gast-Fortschritt übernommen: ${username} (${profile.xp || 0} EP, ${profile.gamesPlayed || 0} Spiele)`);
+    return r;
+  } catch (err) {
+    logCrash('import-profile', err, { player: username });
+    return null;
+  }
+}
+
+// The confirmation mail - at registration and when the admin page sends it
+// again. Base URL from the environment (Docker), else from the request.
+function sendVerificationMail(req, username, email, verifyToken) {
+  const base = (process.env.PIKDAME_BASE_URL || `http://${req.headers.host || 'localhost'}`).replace(/\/$/, '');
+  const verifyUrl = `${base}/verify?token=${verifyToken}`;
+  return mailer.send({
+    to: email,
+    subject: 'Pik Dame: E-Mail-Adresse bestätigen',
+    text: `Hallo ${username},\n\nwillkommen bei Pik Dame! Bitte bestätige deine E-Mail-Adresse über diesen Link:\n\n${verifyUrl}\n\nDer Link ist 48 Stunden gültig. Falls du dich nicht registriert hast, ignoriere diese Mail einfach.\n`,
+  });
 }
 
 async function handleAccountRequest(req, res, filePath) {
@@ -643,6 +761,7 @@ async function handleAccountRequest(req, res, filePath) {
       ? await accountStore.verifyEmail(url.searchParams.get('token'))
       : { error: 'Konten sind auf diesem Server nicht verfügbar.' };
     const ok = !!result.ok;
+    if (ok) await importGuestProfile(result.username);
     res.writeHead(ok ? 200 : 400, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(`<!DOCTYPE html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pik Dame - E-Mail-Bestätigung</title>
@@ -667,14 +786,7 @@ async function handleAccountRequest(req, res, filePath) {
   if (filePath === '/api/register') {
     const r = await accountStore.register(body.username, body.email, body.password);
     if (r.error) return sendJson(res, 400, { error: r.error });
-    // Bestätigungslink: Basis-URL aus Env (Docker), sonst aus dem Request
-    const base = (process.env.PIKDAME_BASE_URL || `http://${req.headers.host || 'localhost'}`).replace(/\/$/, '');
-    const verifyUrl = `${base}/verify?token=${r.verifyToken}`;
-    const mail = await mailer.send({
-      to: String(body.email).trim(),
-      subject: 'Pik Dame: E-Mail-Adresse bestätigen',
-      text: `Hallo ${String(body.username).trim()},\n\nwillkommen bei Pik Dame! Bitte bestätige deine E-Mail-Adresse über diesen Link:\n\n${verifyUrl}\n\nDer Link ist 48 Stunden gültig. Falls du dich nicht registriert hast, ignoriere diese Mail einfach.\n`,
-    });
+    const mail = await sendVerificationMail(req, String(body.username).trim(), String(body.email).trim(), r.verifyToken);
     // mailConfigured separates the two very different non-delivery cases:
     // no relay set up at all (link is in the log, by design) versus a
     // configured relay that FAILED (link is in the log too, but something
@@ -689,6 +801,8 @@ async function handleAccountRequest(req, res, filePath) {
   if (filePath === '/api/login') {
     const r = await accountStore.login(body.username, body.password);
     if (r.error) return sendJson(res, 401, { error: r.error });
+    // Accounts verified before the import existed get it on their next login.
+    await importGuestProfile(r.username);
     return sendJson(res, 200, { ok: true, token: r.token, username: r.username });
   }
   if (filePath === '/api/logout') {
@@ -1768,6 +1882,7 @@ server.listen(PORT, () => {
   try {
     for (const line of formatConfigReport(currentConfigReport())) console.log(line);
   } catch (e) { logCrash('config-report', e); }
+  try { startAdminMonitor(); } catch (e) { logCrash('admin-monitor', e); }
   // SMTP probe: log in and out once, so a wrong host/port/password shows up
   // now instead of at the first registration. Never blocks the start.
   if (mailer.configured) {

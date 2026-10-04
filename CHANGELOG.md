@@ -3,6 +3,13 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.44.0] - 2026-10-05
+
+### Added
+- **Gast-Fortschritt wandert ins Konto:** Wer erst als Gast gespielt und danach denselben Namen registriert hat, behält alles. Das Profil unter dem Namen (Statistik, Abzeichen, Tagesaufgaben) gehörte ohnehin schon dazu; jetzt werden einmalig auch die Zähler des Kontos - Stufe, Spiele, Siege und die **aktuelle Saison-Rangliste** - auf den Stand des Profils angehoben. Das geschieht beim Bestätigen der E-Mail bzw. bei bereits bestätigten Konten bei der nächsten Anmeldung. Angehoben statt addiert: Spiele, die schon aufs Konto gebucht wurden, zählen nicht doppelt
+- **Admin-Seite, Reiter „Benutzer“:** alle registrierten Konten mit E-Mail-Adresse, Status (bestätigt / Link offen / Link abgelaufen), Registrierungsdatum, EP, Spielen, Siegen und Saison-EP. Pro Konto „Mail neu senden“ (nur unbestätigte Konten, neuer 48-Stunden-Link, der alte wird ungültig) und „Löschen“ (mit Rückfrage; das Gast-Profil unter dem Namen bleibt erhalten). Am Telefon als Karten statt Tabelle
+- **Admin-Seite, Reiter „Monitoring“:** Arbeitsspeicher und CPU des App-Containers gegen seine Limits, Reaktionszeit des Servers (Event-Loop), verbundene Spieler, Arbeitsspeicher und Last des ganzen Servers, freier Platz im Datenverzeichnis - mit Verlauf der letzten Stunde, aktualisiert sich alle 15 Sekunden. Ohne JavaScript
+
 ## [2.43.0] - 2026-10-05
 
 ### Changed

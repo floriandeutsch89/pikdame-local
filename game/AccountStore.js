@@ -83,6 +83,9 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
     add('wins', 'INTEGER NOT NULL DEFAULT 0');
     add('season', 'TEXT');
     add('season_xp', 'INTEGER NOT NULL DEFAULT 0');
+    // Set once the name-based profile's progress was carried over (see
+    // importProfile) - a second import would count the same games twice.
+    add('profile_imported', 'INTEGER NOT NULL DEFAULT 0');
   }
 
   /** @returns {{ok:true, verifyToken:string}|{error:string}} */
@@ -244,13 +247,92 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
     }));
   }
 
+  /**
+   * Carries the name-based profile's progress (PlayerStore) over to the
+   * account, ONCE: players who registered after playing as guests keep their
+   * level and their place in the current season. Lifts the account up TO the
+   * profile's values instead of adding them, so games already booked on the
+   * account since verification are not counted twice; the XP difference also
+   * goes into the given (current) season.
+   * @returns {{imported:boolean, progress:object|null}}
+   */
+  function importProfile(username, { xp = 0, games = 0, wins = 0, season = null } = {}) {
+    const name = String(username || '').trim();
+    const row = db
+      .prepare('SELECT id, xp, games, wins, season, season_xp, profile_imported FROM users WHERE username = ? AND verified = 1')
+      .get(name);
+    if (!row || row.profile_imported) return { imported: false, progress: row ? progressFor(name) : null };
+    const n = (v) => Math.max(0, Math.round(Number(v) || 0));
+    const newXp = Math.max(row.xp || 0, n(xp));
+    const delta = newXp - (row.xp || 0);
+    const sameSeason = season && row.season === season;
+    db.prepare(
+      `UPDATE users SET xp = ?, games = ?, wins = ?, season = ?, season_xp = ?, profile_imported = 1
+       WHERE id = ?`
+    ).run(
+      newXp,
+      Math.max(row.games || 0, n(games)),
+      Math.max(row.wins || 0, n(wins)),
+      season || row.season,
+      (sameSeason || !season ? row.season_xp || 0 : 0) + delta,
+      row.id
+    );
+    return { imported: true, progress: progressFor(name) };
+  }
+
+  /** For the admin page: newest first. Never returns password data. */
+  function listUsers(limit = 500) {
+    const rows = db
+      .prepare(
+        `SELECT username, email, verified, created_at, verify_expires, xp, games, wins, season, season_xp
+         FROM users ORDER BY created_at DESC LIMIT ?`
+      )
+      .all(Math.max(1, Math.min(5000, limit)));
+    const total = db.prepare('SELECT COUNT(*) AS n FROM users').get().n;
+    return {
+      total,
+      users: rows.map((r) => ({
+        username: r.username,
+        email: r.email,
+        verified: !!r.verified,
+        createdAt: r.created_at,
+        verifyExpires: r.verify_expires || null,
+        xp: r.xp || 0,
+        games: r.games || 0,
+        wins: r.wins || 0,
+        season: r.season || null,
+        seasonXp: r.season_xp || 0,
+      })),
+    };
+  }
+
+  /** Admin: remove an account and its login sessions. The name is free again. */
+  function deleteUser(username) {
+    const row = db.prepare('SELECT id, username FROM users WHERE username = ?').get(String(username || '').trim());
+    if (!row) return { error: 'Benutzer nicht gefunden.' };
+    db.prepare('DELETE FROM sessions WHERE user_id = ?').run(row.id);
+    db.prepare('DELETE FROM users WHERE id = ?').run(row.id);
+    return { ok: true, username: row.username };
+  }
+
+  /** Admin: fresh confirmation link for an UNVERIFIED account (the old one
+   *  stops working). @returns {{ok, username, email, verifyToken}|{error}} */
+  function renewVerification(username) {
+    const row = db.prepare('SELECT id, username, email, verified FROM users WHERE username = ?').get(String(username || '').trim());
+    if (!row) return { error: 'Benutzer nicht gefunden.' };
+    if (row.verified) return { error: 'Dieses Konto ist bereits bestätigt.' };
+    const verifyToken = randomToken();
+    db.prepare('UPDATE users SET verify_token = ?, verify_expires = ? WHERE id = ?').run(verifyToken, Date.now() + VERIFY_TTL_MS, row.id);
+    return { ok: true, username: row.username, email: row.email, verifyToken };
+  }
+
   function close() {
     db.close();
   }
 
   return {
     register, verifyEmail, login, sessionUser, logout, isRegisteredName,
-    addGameResult, progressFor, ladder,
+    addGameResult, progressFor, ladder, importProfile, listUsers, deleteUser, renewVerification,
     close, _db: db, // _db: Test-Seam (Ablauf-Simulation)
   };
 }
