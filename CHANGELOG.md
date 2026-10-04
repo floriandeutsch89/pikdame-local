@@ -15,6 +15,9 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 - **Konto-Anfragen haben zwei Kontingente:** Passwort-Prüfungen, neue Konten, Code-Eingaben, Mails und Änderungen an Anmeldewegen bleiben bei 20 pro 10 Minuten und IP; reine Abfragen (Rangliste, Anmeldewege, Passkey-Anfragen) haben ein großzügiges eigenes Kontingent. Vorher teilten sich alle Aufrufe das enge Kontingent - eine Familie hinter einem Router (eine IP) konnte es schon beim mehrfachen Öffnen des Konto-Dialogs aufbrauchen
 - Neue Server-Abhängigkeit `@simplewebauthn/server` (MIT, reines JavaScript, wird nur bei Bedarf geladen; ohne sie bleiben Passkeys aus). Die Regel für externe Pakete lautet jetzt: nur, wenn es wirklich sinnvoll und notwendig ist (siehe Doku „Contributing“)
 
+### Removed
+- Der alte Registrier-Endpunkt `/api/register` (Konto mit Passwort in einem Schritt): Registriert wird nur noch E-Mail-zuerst, das Passwort ist danach eine der beiden Wahlmöglichkeiten. Bestehende Konten mit Passwort sind nicht betroffen
+
 ## [2.45.0] - 2026-10-05
 
 ### Changed
