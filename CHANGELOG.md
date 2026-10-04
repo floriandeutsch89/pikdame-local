@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.47.3] - 2026-10-05
+
+### Changed
+- Projektregeln für KI-Assistenten (`CLAUDE.md`) gestrafft: gleiche Regeln in etwa halber Länge, damit weniger Kontext verbraucht wird. Neu: Version immer gegen den aktuellen `main` vergeben, Folge-Commits nie auf schon gemergte PR-Branches, Push danach gegen den Remote prüfen, nur eigene Dateien committen, keine nativen Browser-Dialoge (iOS unterdrückt sie still), Passkeys mit E-Mail als Benutzername
+
 ## [2.47.1] - 2026-10-05
 
 ### Changed
