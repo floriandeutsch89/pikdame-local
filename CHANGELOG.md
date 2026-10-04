@@ -3,6 +3,14 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.42.0] - 2026-10-04
+
+### Added
+- **Züge der Mitspieler und Bots sind jetzt zu sehen:** Zieht jemand, fliegt eine verdeckte Karte vom Stapel zu seinem Platz; nimmt er die Ablage, fliegt die oberste Karte zu ihm; wirft er ab, fliegt die Karte offen von seinem Platz auf die Ablage. Neue Auslagen der anderen gleiten kurz ein, statt plötzlich dazustehen. Bisher bewegten sich nur die eigenen Züge. Reine Anzeige, bei „Bewegung reduzieren“ (Systemeinstellung) aus
+
+### Fixed
+- Die fliegende Karte beim eigenen Ziehen zeigte noch den alten einfarbigen Rücken statt des gewählten Kartenrückens
+
 ## [2.41.0] - 2026-10-04
 
 ### Changed
