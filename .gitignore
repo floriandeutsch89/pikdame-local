@@ -29,8 +29,9 @@ terraform/*.tfvars.json
 python/__pycache__/
 models/*.zip
 
-# Human move logs for imitation learning (data collection)
-data/human-moves.jsonl
+# Human move logs for imitation learning (data collection) - including
+# renamed copies (.bak, .1, ...) set aside for training runs
+data/human-moves.jsonl*
 docs/_build/
 terraform/*.tfstate*
 terraform/.terraform/

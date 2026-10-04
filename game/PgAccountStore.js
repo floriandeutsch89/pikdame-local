@@ -55,6 +55,8 @@ const SCHEMA = `
   ALTER TABLE users ADD COLUMN IF NOT EXISTS season TEXT;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS season_xp BIGINT NOT NULL DEFAULT 0;
   CREATE INDEX IF NOT EXISTS users_season_xp ON users (season, season_xp DESC);
+  -- Set once the guest profile's progress was carried over (importProfile).
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_imported BOOLEAN NOT NULL DEFAULT FALSE;
 `;
 
 /**
@@ -259,6 +261,102 @@ function createPgAccountStore(databaseUrl, options = {}) {
     }
   }
 
+  /**
+   * Same contract as AccountStore.importProfile: once per account, lift the
+   * account up TO the guest profile's values (no double counting), the XP
+   * difference also into the given season. ONE statement: SET expressions
+   * read the old row, and the profile_imported guard makes a concurrent
+   * second call a no-op.
+   */
+  async function importProfile(username, { xp = 0, games = 0, wins = 0, season = null } = {}) {
+    const n = (v) => Math.max(0, Math.round(Number(v) || 0));
+    try {
+      await ensureReady();
+      const r = await pool.query(
+        `UPDATE users
+            SET xp = GREATEST(xp, $2),
+                games = GREATEST(games, $3),
+                wins = GREATEST(wins, $4),
+                season_xp = (CASE WHEN $5::text IS NULL OR season IS NOT DISTINCT FROM $5 THEN season_xp ELSE 0 END)
+                            + GREATEST($2 - xp, 0),
+                season = COALESCE($5, season),
+                profile_imported = TRUE
+          WHERE LOWER(username) = LOWER($1) AND verified = TRUE AND profile_imported = FALSE`,
+        [String(username || '').trim(), n(xp), n(games), n(wins), season]
+      );
+      return { imported: r.rowCount > 0, progress: await progressFor(username) };
+    } catch (e) {
+      console.error('Postgres importProfile failed:', e.message);
+      return { imported: false, progress: null };
+    }
+  }
+
+  /** For the admin page: newest first. Never returns password data. */
+  async function listUsers(limit = 500) {
+    try {
+      await ensureReady();
+      const lim = Math.max(1, Math.min(5000, Number(limit) || 500));
+      const [rows, count] = await Promise.all([
+        pool.query(
+          `SELECT username, email, verified, created_at, verify_expires, xp, games, wins, season, season_xp
+             FROM users ORDER BY created_at DESC LIMIT $1`,
+          [lim]
+        ),
+        pool.query('SELECT COUNT(*)::int AS n FROM users'),
+      ]);
+      return {
+        total: count.rows[0].n,
+        users: rows.rows.map((r) => ({
+          username: r.username,
+          email: r.email,
+          verified: !!r.verified,
+          createdAt: Number(r.created_at),
+          verifyExpires: r.verify_expires ? Number(r.verify_expires) : null,
+          xp: Number(r.xp) || 0,
+          games: r.games || 0,
+          wins: r.wins || 0,
+          season: r.season || null,
+          seasonXp: Number(r.season_xp) || 0,
+        })),
+      };
+    } catch (e) {
+      console.error('Postgres listUsers failed:', e.message);
+      return { total: 0, users: [], error: e.message };
+    }
+  }
+
+  /** Admin: remove an account; sessions go with it (ON DELETE CASCADE). */
+  async function deleteUser(username) {
+    try {
+      await ensureReady();
+      const r = await pool.query('DELETE FROM users WHERE LOWER(username) = LOWER($1) RETURNING username', [String(username || '').trim()]);
+      return r.rows.length ? { ok: true, username: r.rows[0].username } : { error: 'Benutzer nicht gefunden.' };
+    } catch (e) {
+      console.error('Postgres deleteUser failed:', e.message);
+      return { error: 'Datenbankfehler - bitte erneut versuchen.' };
+    }
+  }
+
+  /** Admin: fresh confirmation link for an UNVERIFIED account. */
+  async function renewVerification(username) {
+    try {
+      await ensureReady();
+      const verifyToken = randomToken();
+      const r = await pool.query(
+        `UPDATE users SET verify_token = $2, verify_expires = $3
+          WHERE LOWER(username) = LOWER($1) AND verified = FALSE
+          RETURNING username, email`,
+        [String(username || '').trim(), verifyToken, Date.now() + VERIFY_TTL_MS]
+      );
+      if (r.rows.length) return { ok: true, username: r.rows[0].username, email: r.rows[0].email, verifyToken };
+      const exists = await pool.query('SELECT verified FROM users WHERE LOWER(username) = LOWER($1)', [String(username || '').trim()]);
+      return { error: exists.rows.length ? 'Dieses Konto ist bereits bestätigt.' : 'Benutzer nicht gefunden.' };
+    } catch (e) {
+      console.error('Postgres renewVerification failed:', e.message);
+      return { error: 'Datenbankfehler - bitte erneut versuchen.' };
+    }
+  }
+
   async function progressFor(username) {
     try {
       await ensureReady();
@@ -320,7 +418,7 @@ function createPgAccountStore(databaseUrl, options = {}) {
   return {
     backend: 'postgres',
     register, verifyEmail, login, sessionUser, logout, isRegisteredName,
-    addGameResult, progressFor, ladder,
+    addGameResult, progressFor, ladder, importProfile, listUsers, deleteUser, renewVerification,
     close,
   };
 }

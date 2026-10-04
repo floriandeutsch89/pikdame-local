@@ -40,12 +40,57 @@ docker compose logs pikdame | grep '\[config\]'
 
 ## Admin page (`/admin`, optional)
 
-Shows the same report with **every variable behind each entry** (green = set,
-grey = not set, default in use; values are never shown), the result of the last
-SMTP check, a few runtime numbers (version, uptime, games, connected players,
-memory), and two buttons: **Verbindung prüfen** (SMTP login without sending)
-and **Testmail senden**. It is read-only: configuration still lives in your
-compose file.
+Three tabs:
+
+| Tab | What it shows / does |
+| --- | --- |
+| **Konfiguration** | The report above with **every variable behind each entry** (green = set, grey = not set, default in use; values are never shown), the last SMTP check, buttons **Verbindung prüfen** (SMTP login without sending) and **Testmail senden**. Configuration itself still lives in your compose file. |
+| **Benutzer** | All registered accounts: name, **e-mail**, confirmed / link open / link expired, registration date, XP, games, wins, season XP. **Mail neu senden** (unconfirmed accounts only: a fresh 48-hour link, the old one stops working) and **Löschen** (two steps: question, then the real button). |
+| **Monitoring** | Current values (app container RAM and CPU against its limits, event-loop delay, players, host RAM, free space on the data volume) and **history charts** like a hosting console: ranges 1 h / 24 h / 7 days / 30 days, cursor synced across all charts, drag to zoom, double-click to reset. Updates every 15 s. |
+
+### Benutzer: what delete and resend do
+
+- **Löschen** removes the account and its login sessions; the name is free
+  again. The guest profile under that name (statistics, badges in
+  `players.json`) stays - the player keeps it when playing as a guest or
+  registering the name again.
+- **Mail neu senden** replaces the confirmation link. Without a working SMTP
+  setup the new link is written to the server log, as at registration.
+- Both actions, like the test mail, are logged (`[admin] …`), need the CSRF
+  token of the page and are refused from other sites.
+
+### Guest progress follows the name into the account
+
+Players who played as guests first and then register **the same name** keep
+everything: the name-based profile was theirs all along. Once, when the e-mail
+is confirmed (or, for accounts confirmed earlier, at the next login), the
+account's own counters - level, games, wins and the **current season's
+ladder** - are lifted to the profile's values. Lifted, not added: games already
+booked on the account are not counted twice. The log says
+`[account] Gast-Fortschritt übernommen: <name> (… EP, … Spiele)`.
+
+### Monitoring: what the numbers mean
+
+- **App-Container** comes from the container's own cgroup: RAM and CPU are
+  shown against the limits in `docker-compose.prod.yml` (512 MB, 1 CPU).
+  100 % CPU = one full core.
+- **Reaktionszeit** is the 99th percentile of how long a message waits before
+  the server handles it. Near 0 ms is normal; above ~50 ms for longer
+  periods, players notice delays.
+- **Server gesamt** is the whole machine (all containers and the system). The
+  app cannot see Postgres, Caddy or CrowdSec individually - it has no Docker
+  access on purpose.
+- **History:** samples are taken every 15 s while the admin page is enabled.
+  Kept at full resolution for 1 hour, as 5-minute averages for 24 hours and as
+  30-minute averages for 30 days - with the **peak** per interval for RAM, CPU
+  and response time, so a short spike does not vanish in an average.
+  Stored in `data/monitor-history.json` (a few hundred KB), written at most
+  once a minute and on shutdown, so deploys and restarts keep it. Deleting the
+  file only clears the charts.
+- **Gaps** in a chart are times the server did not run (deploy, restart, outage).
+- The charts are drawn with [uPlot](https://github.com/leeoniya/uPlot) (MIT,
+  ~50 KB), served from the app itself like every other asset - no CDN. Only
+  this tab loads it.
 
 The credential works like Vaultwarden's `ADMIN_TOKEN`: the environment holds an
 **Argon2id hash** of your admin password, never the password itself. Anyone who
