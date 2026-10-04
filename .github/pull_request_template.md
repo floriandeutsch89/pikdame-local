@@ -8,15 +8,15 @@
 
 ## Screenshots
 
-<!-- Required for any UI change. Before = main, after = this branch.
-     Layouts: phone portrait (393×852 or 402×874), phone landscape (874×402),
-     desktop (≥1100 px wide). Delete this section for non-UI changes. -->
+<!-- Only when the change is actually visible in a still image. Before = main,
+     after = this branch. Show only the layouts where something changed, and
+     crop to the affected area. Subtle or motion-only changes: say so in one
+     line instead of adding identical-looking shots. Delete this section
+     otherwise. -->
 
-| | Before | After |
-|---|---|---|
-| Portrait | | |
-| Landscape | | |
-| Desktop | | |
+| Before | After |
+|---|---|
+| | |
 
 ## Checklist
 
