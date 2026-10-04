@@ -46,7 +46,7 @@ Three tabs:
 | --- | --- |
 | **Konfiguration** | The report above with **every variable behind each entry** (green = set, grey = not set, default in use; values are never shown), the last SMTP check, buttons **Verbindung prüfen** (SMTP login without sending) and **Testmail senden**. Configuration itself still lives in your compose file. |
 | **Benutzer** | All registered accounts: name, **e-mail**, confirmed / link open / link expired, registration date, XP, games, wins, season XP. **Mail neu senden** (unconfirmed accounts only: a fresh 48-hour link, the old one stops working) and **Löschen** (two steps: question, then the real button). |
-| **Monitoring** | App container RAM and CPU against its limits, event-loop delay, connected players, host RAM and load, free space on the data volume - with a one-hour history, refreshing every 15 s. |
+| **Monitoring** | Current values (app container RAM and CPU against its limits, event-loop delay, players, host RAM, free space on the data volume) and **history charts** like a hosting console: ranges 1 h / 24 h / 7 days / 30 days, cursor synced across all charts, drag to zoom, double-click to reset. Updates every 15 s. |
 
 ### Benutzer: what delete and resend do
 
@@ -80,8 +80,17 @@ booked on the account are not counted twice. The log says
 - **Server gesamt** is the whole machine (all containers and the system). The
   app cannot see Postgres, Caddy or CrowdSec individually - it has no Docker
   access on purpose.
-- Samples are taken every 15 s while the admin page is enabled and kept in
-  memory for one hour; a restart starts an empty history.
+- **History:** samples are taken every 15 s while the admin page is enabled.
+  Kept at full resolution for 1 hour, as 5-minute averages for 24 hours and as
+  30-minute averages for 30 days - with the **peak** per interval for RAM, CPU
+  and response time, so a short spike does not vanish in an average.
+  Stored in `data/monitor-history.json` (a few hundred KB), written at most
+  once a minute and on shutdown, so deploys and restarts keep it. Deleting the
+  file only clears the charts.
+- **Gaps** in a chart are times the server did not run (deploy, restart, outage).
+- The charts are drawn with [uPlot](https://github.com/leeoniya/uPlot) (MIT,
+  ~50 KB), served from the app itself like every other asset - no CDN. Only
+  this tab loads it.
 
 The credential works like Vaultwarden's `ADMIN_TOKEN`: the environment holds an
 **Argon2id hash** of your admin password, never the password itself. Anyone who

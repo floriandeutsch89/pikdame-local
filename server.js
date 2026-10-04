@@ -609,6 +609,7 @@ async function handleAdminRequest(req, res, filePath) {
   const isPost = req.method === 'POST';
   const csrf = AdminPage.csrfToken(ADMIN_SECRET);
   let tab = 'config';
+  let monitorRange = '1h';
   let notice = null;
 
   if (filePath === '/admin/mail') {
@@ -681,8 +682,16 @@ async function handleAdminRequest(req, res, filePath) {
         notice = { ok: false, text: 'Unbekannte Aktion.' };
       }
     }
-  } else if (filePath === '/admin/monitor') {
+  } else if (filePath === '/admin/monitor' || filePath === '/admin/monitor/data') {
     tab = 'monitor';
+    startAdminMonitor();
+    const wanted = new URL(req.url, 'http://localhost').searchParams.get('range');
+    monitorRange = ['1h', '24h', '7d', '30d'].includes(wanted) ? wanted : '1h';
+    if (filePath === '/admin/monitor/data') {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' });
+      res.end(JSON.stringify(AdminPage.monitorData(adminMonitor.series(monitorRange), adminMonitor.current())));
+      return;
+    }
   } else if (filePath !== '/admin') {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Nicht gefunden');
@@ -693,7 +702,6 @@ async function handleAdminRequest(req, res, filePath) {
   if (tab === 'users' && ACCOUNTS_ENABLED && typeof accountStore.listUsers === 'function') {
     users = await accountStore.listUsers(500);
   }
-  if (tab === 'monitor') startAdminMonitor();
 
   res.writeHead(200, {
     'Content-Type': 'text/html; charset=utf-8',
@@ -712,7 +720,7 @@ async function handleAdminRequest(req, res, filePath) {
     csrf,
     mailConfigured: mailer.configured,
     users,
-    monitor: tab === 'monitor' ? { current: adminMonitor.current(), history: adminMonitor.history() } : null,
+    monitor: tab === 'monitor' ? { current: adminMonitor.current(), range: monitorRange } : null,
   }));
 }
 
@@ -1835,6 +1843,7 @@ function shutdown(signal) {
   gameHistoryStore.flushSync();
   globalStats.flushSync();
   stammtischStore.flushSync();
+  try { if (adminMonitor) adminMonitor.flushSync(); } catch (e) { /* monitoring history is best effort */ }
   if (accountStore) {
     try {
       const p = accountStore.close();

@@ -9,7 +9,7 @@ const http = require('node:http');
 const { spawn } = require('node:child_process');
 const { createAccountStore } = require('../game/AccountStore');
 const { createPgAccountStore } = require('../game/PgAccountStore');
-const { createMonitor, readCgroup } = require('../game/Monitor');
+const { createMonitor, readCgroup, TIERS } = require('../game/Monitor');
 const AdminPage = require('../game/AdminPage');
 
 let HAS_SQLITE = true;
@@ -105,18 +105,72 @@ test('Monitor: reads cgroup v2 numbers, keeps a capped history', () => {
   assert.equal(readCgroup(dir).cpuLimit, null);
   assert.equal(readCgroup(path.join(dir, 'missing')).memBytes, null, 'outside Docker: nulls, no throw');
 
-  const m = createMonitor({ dataDir: dir, cgroupRoot: dir, keep: 3, stats: () => ({ sessions: 2, players: 5 }) });
+  const m = createMonitor({ dataDir: dir, cgroupRoot: dir, historyFile: null, stats: () => ({ sessions: 2, players: 5 }) });
   for (let i = 0; i < 5; i++) m.sample();
   m.stop();
-  assert.equal(m.history().length, 3);
+  assert.equal(m.history().length, 5);
   const c = m.current();
   assert.equal(Math.round(c.container.memMb), 64);
   assert.deepEqual(c.game, { sessions: 2, players: 5 });
   assert.ok(c.host.memTotalMb > 0 && c.host.cores > 0);
-  const html = AdminPage.renderAdminPage({ tab: 'monitor', monitor: { current: c, history: m.history() }, version: '1.0.0', csrf: 'x' });
-  assert.match(html, /<svg class="spark"/);
-  assert.match(html, /http-equiv="refresh" content="15"/, 'the monitor tab refreshes itself');
-  assert.doesNotMatch(html, /<script/i, 'no script - fits the CSP');
+  const html = AdminPage.renderAdminPage({ tab: 'monitor', monitor: { current: c, range: '24h' }, version: '1.0.0', csrf: 'x' });
+  assert.match(html, /<script src="\/vendor-uplot\.js" defer><\/script>/);
+  assert.match(html, /<script src="\/admin-monitor\.js" defer><\/script>/);
+  assert.doesNotMatch(html, /<script>/, 'no inline script - the CSP only allows same-origin files');
+  assert.match(html, /data-range="24h"/);
+  assert.match(html, /href="\/admin\/monitor\?range=24h" class="active"/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('Monitor: 5- and 30-minute averages with peaks, pruning, gaps, persistence', () => {
+  const dir = tmpDir('pikdame-hist-');
+  let clock = Date.UTC(2026, 9, 5, 10, 0, 0);
+  let cpu = 0;
+  const cg = path.join(dir, 'cg');
+  fs.mkdirSync(cg);
+  const writeCg = () => {
+    fs.writeFileSync(path.join(cg, 'memory.current'), String(100 * 1024 * 1024));
+    fs.writeFileSync(path.join(cg, 'cpu.stat'), `usage_usec ${cpu}\n`);
+  };
+  writeCg();
+  const file = path.join(dir, 'monitor-history.json');
+  const mk = () => createMonitor({ dataDir: dir, cgroupRoot: cg, historyFile: file, now: () => clock });
+  let m = mk();
+  // 40 minutes at 15 s; one CPU spike of a full core for 15 s at minute 7.
+  for (let i = 0; i < 160; i++) {
+    clock += 15000;
+    cpu += i === 28 ? 15000000 : 150000; // 100 % for one sample, else 1 %
+    writeCg();
+    m.sample();
+  }
+  const day = m.series('24h');
+  assert.equal(day.step, TIERS.m5.step);
+  assert.ok(day.points.length >= 8 && day.points.length <= 9, `5-min buckets: ${day.points.length}`);
+  const spikeBucket = day.points.find((p) => p.cpuPctMax > 90);
+  assert.ok(spikeBucket, 'the spike survives as a peak');
+  assert.ok(spikeBucket.cpuPct < 20, 'while the average stays low');
+  assert.equal(m.series('1h').points.length, 160, 'raw tier: every sample of the last hour');
+  m.flushSync();
+  m.stop();
+
+  // "Restart": the history comes back from the data directory.
+  m = mk();
+  assert.equal(m.series('1h').points.length, 160);
+  assert.ok(m.series('24h').points.length >= 8);
+
+  // Server off for 2 hours: the raw tier forgets the old hour, the 24 h
+  // range keeps it, and the client sees the hole through the step size.
+  clock += 2 * 60 * 60 * 1000;
+  writeCg(); m.sample();
+  assert.equal(m.series('1h').points.length, 1, 'raw tier is pruned to one hour');
+  const after = m.series('24h');
+  const gaps = after.points.slice(1).filter((p, i) => p.at - after.points[i].at > after.step * 2.5);
+  assert.equal(gaps.length, 1, 'one gap where the server did not run');
+  const json = AdminPage.monitorData(after, m.current());
+  assert.equal(json.range, '24h');
+  assert.ok(json.points.every((p) => typeof p.at === 'number'));
+  assert.equal(json.current.memMb, 100);
+  m.stop();
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -211,10 +265,20 @@ test('server: guest progress follows the name into the account; admin users + mo
   assert.match(del.body, /wurde gelöscht/);
   assert.doesNotMatch(del.body, /inge@example\.org/);
 
-  // Monitoring tab.
-  const mon = await request('GET', '/admin/monitor', { auth });
+  // Monitoring tab + its JSON.
+  const mon = await request('GET', '/admin/monitor?range=7d', { auth });
   assert.equal(mon.status, 200);
   assert.match(mon.body, /Arbeitsspeicher/);
-  assert.match(mon.body, /Server gesamt/);
+  assert.match(mon.body, /data-range="7d"/);
+  assert.equal((await request('GET', '/admin/monitor/data?range=7d')).status, 401, 'the data needs the login too');
+  const data = await request('GET', '/admin/monitor/data?range=7d', { auth });
+  assert.equal(data.status, 200);
+  const parsed = JSON.parse(data.body);
+  assert.equal(parsed.range, '7d');
+  assert.ok(Array.isArray(parsed.points) && parsed.current && parsed.limits);
+  assert.equal(JSON.parse((await request('GET', '/admin/monitor/data?range=evil', { auth })).body).range, '1h', 'unknown ranges fall back');
+  const vendor = await request('GET', '/vendor-uplot.js');
+  assert.equal(vendor.status, 200);
+  assert.match(vendor.body, /uPlot 1\.6\.32/);
   assert.equal((await request('GET', '/admin/nope', { auth })).status, 404);
 });

@@ -96,8 +96,18 @@ table.users button{min-height:36px;padding:0 10px;font-size:.88em}.actions{displ
 .big{font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums}.big small{font-size:.9rem;color:var(--muted);font-weight:500}
 .bar{height:6px;border-radius:3px;background:#0b0e12;margin:8px 0 4px;overflow:hidden}.bar i{display:block;height:100%;background:var(--accent)}
 .bar i.warn{background:var(--warn)}.bar i.error{background:var(--error)}
-svg.spark{display:block;width:100%;height:44px;margin-top:6px}svg.spark polyline{fill:none;stroke:var(--accent);stroke-width:1.5}
-svg.spark polygon{fill:rgba(47,214,176,.12);stroke:none}
+/* History charts (uPlot, public/admin-monitor.js) */
+nav.ranges{display:flex;gap:6px;margin:0 0 12px;flex-wrap:wrap}
+nav.ranges a{padding:0 14px;min-height:36px;display:inline-flex;align-items:center;border-radius:999px;border:1px solid var(--line);color:var(--muted);text-decoration:none;font-weight:600;font-size:.9em}
+nav.ranges a.active{color:#03241b;background:var(--accent);border-color:var(--accent)}
+.charts{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:12px}
+@media (max-width:520px){.charts{grid-template-columns:1fr}}
+.chart{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 12px 6px;min-width:0}
+.chart .chead{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline;margin-bottom:4px}
+.chart h3{margin:0;font-size:.85rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.chart .plot{width:100%}
+.uplot{font-family:inherit}.u-legend{color:var(--text);font-size:.82em}.u-legend .u-marker{border-radius:2px}
+.u-select{background:rgba(47,214,176,.12)}
 .sub{color:var(--muted);font-size:.85em}
 /* Phone: one card per user - in a sideways-scrolling table the action
    buttons sat off screen, and iOS hides the scroll hint. */
@@ -118,9 +128,9 @@ const TABS = [
   ['monitor', '/admin/monitor', 'Monitoring'],
 ];
 
-function layout({ tab, summary, notice, body, refreshSeconds }) {
+function layout({ tab, summary, notice, body, extraHead = '' }) {
   return `<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">${refreshSeconds ? `<meta http-equiv="refresh" content="${refreshSeconds}">` : ''}<title>Pik Dame · Admin</title>
+<meta name="robots" content="noindex"><title>Pik Dame · Admin</title>${extraHead}
 <style>${STYLE}</style></head><body><main>
 <h1>Pik Dame · Admin</h1>
 ${summary ? `<p class="sum">${summary}</p>` : ''}
@@ -198,58 +208,60 @@ function confirmDeleteHtml(csrf, username) {
 }
 
 // -------------------------------------------------------------- monitor tab
-/** Inline SVG sparkline - no script, fits the strict CSP. */
-function spark(values, { max } = {}) {
-  const v = values.filter((x) => x != null && Number.isFinite(x));
-  if (v.length < 2) return '<p class="sub">Verlauf ab der zweiten Messung (alle 15 s).</p>';
-  const top = Math.max(max || 0, ...v, 1e-9);
-  const W = 240; const H = 44;
-  const pts = v.map((x, i) => `${((i / (v.length - 1)) * W).toFixed(1)},${(H - (x / top) * (H - 4) - 2).toFixed(1)}`);
-  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">` +
-    `<polygon points="0,${H} ${pts.join(' ')} ${W},${H}"/><polyline points="${pts.join(' ')}"/></svg>`;
-}
+const RANGE_TABS = [['1h', '1 Std'], ['24h', '24 Std'], ['7d', '7 Tage'], ['30d', '30 Tage']];
 
-function bar(value, limit) {
+/** Bar whose width admin-monitor.js keeps up to date (data-bar="value/limit"). */
+function bar(value, limit, keys) {
   if (value == null || !limit) return '';
   const pct = Math.min(100, (value / limit) * 100);
-  return `<div class="bar"><i style="width:${pct.toFixed(1)}%"${pct > 90 ? ' class="error"' : pct > 75 ? ' class="warn"' : ''}></i></div>`;
+  return `<div class="bar"><i data-bar="${keys}" style="width:${pct.toFixed(1)}%"${pct > 90 ? ' class="error"' : pct > 75 ? ' class="warn"' : ''}></i></div>`;
 }
 
 function card(title, big, extra = '') {
   return `<div class="card"><h3>${title}</h3><div class="big">${big}</div>${extra}</div>`;
 }
 
-function monitorBody({ current: c, history: h, version }) {
-  const hist = (fn) => h.map((s) => { try { return fn(s); } catch (e) { return null; } });
-  const memLimit = c.container.memLimitMb;
-  const cpuLimitPct = c.container.cpuLimit ? c.container.cpuLimit * 100 : null;
-  const cpuNow = c.container.cpuPct != null ? c.container.cpuPct : c.process.cpuPct;
-  const span = h.length > 1 ? Math.round((h[h.length - 1].at - h[0].at) / 60000) : 0;
-  return `<h2>App-Container <span class="sub">(aktualisiert sich alle 15 s · Verlauf: ${span} min)</span></h2>
+/** A number the script refreshes: <span data-k="memMb" data-d="0">. */
+const live = (key, value, digits = 0) => `<span data-k="${key}" data-d="${digits}">${fmtNum(value, digits)}</span>`;
+
+/** Flat "now" values for the cards - the same shape the JSON endpoint sends. */
+function currentValues(c) {
+  return {
+    memMb: c.container.memMb != null ? c.container.memMb : c.process.rssMb,
+    memLimitMb: c.container.memLimitMb,
+    cpuPct: c.container.cpuPct != null ? c.container.cpuPct : c.process.cpuPct,
+    cpuLimitPct: c.container.cpuLimit ? c.container.cpuLimit * 100 : null,
+    lagMs: c.process.loopLagMs,
+    players: c.game.players,
+    sessions: c.game.sessions,
+    hostMemUsedGb: c.host.memUsedMb / 1024,
+    hostMemTotalGb: c.host.memTotalMb / 1024,
+    diskFreeGb: c.disk.freeMb != null ? c.disk.freeMb / 1024 : null,
+    diskUsedGb: c.disk.totalMb != null ? (c.disk.totalMb - c.disk.freeMb) / 1024 : null,
+    diskTotalGb: c.disk.totalMb != null ? c.disk.totalMb / 1024 : null,
+  };
+}
+
+function monitorBody({ current: c, range, version }) {
+  const v = currentValues(c);
+  const nav = `<nav class="ranges">${RANGE_TABS.map(([id, label]) =>
+    `<a href="/admin/monitor?range=${id}"${id === range ? ' class="active" aria-current="page"' : ''}>${label}</a>`).join('')}</nav>`;
+  return `<h2>Jetzt <span class="sub">(aktualisiert <span id="updated">${esc(new Date().toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin' }))}</span>, alle 15 s)</span></h2>
 <div class="cards">
-${card('Arbeitsspeicher', c.container.memMb != null
-    ? `${fmtNum(c.container.memMb)} <small>MB${memLimit ? ` von ${fmtNum(memLimit)} MB` : ''}</small>`
-    : `${fmtNum(c.process.rssMb)} <small>MB (Prozess)</small>`,
-  bar(c.container.memMb, memLimit) + spark(hist((s) => (s.container.memMb != null ? s.container.memMb : s.process.rssMb)), { max: memLimit }))}
-${card('CPU', `${fmtNum(cpuNow, 1)} <small>%${cpuLimitPct ? ` von ${fmtNum(cpuLimitPct)} %` : ''}</small>`,
-  bar(cpuNow, cpuLimitPct) + `<div class="sub">100 % = ein voller Kern${c.container.cpuPct == null ? ' · Messung des Prozesses' : ''}</div>` +
-  spark(hist((s) => (s.container.cpuPct != null ? s.container.cpuPct : s.process.cpuPct)), { max: cpuLimitPct || 100 }))}
-${card('Reaktionszeit (Event-Loop, p99)', `${fmtNum(c.process.loopLagMs, 1)} <small>ms</small>`,
-  `<div class="sub">Wartezeit, bis der Server eine Nachricht bearbeitet. Dauerhaft über 50 ms = spürbare Verzögerung.</div>` +
-  spark(hist((s) => s.process.loopLagMs), { max: 50 }))}
-${card('Spieler', `${fmtNum(c.game.players)} <small>verbunden · ${fmtNum(c.game.sessions)} Spiele</small>`,
-  spark(hist((s) => s.game.players)))}
+${card('App: Arbeitsspeicher', `${live('memMb', v.memMb)} <small>MB${v.memLimitMb ? ` von ${fmtNum(v.memLimitMb)} MB` : ''}</small>`, bar(v.memMb, v.memLimitMb, 'memMb/memLimitMb'))}
+${card('App: CPU', `${live('cpuPct', v.cpuPct, 1)} <small>%${v.cpuLimitPct ? ` von ${fmtNum(v.cpuLimitPct)} %` : ''}</small>`, bar(v.cpuPct, v.cpuLimitPct, 'cpuPct/cpuLimitPct'))}
+${card('Reaktionszeit', `${live('lagMs', v.lagMs, 1)} <small>ms (p99)</small>`)}
+${card('Spieler', `${live('players', v.players)} <small>verbunden · ${live('sessions', v.sessions)} Spiele</small>`)}
+${card('Server: Arbeitsspeicher', `${live('hostMemUsedGb', v.hostMemUsedGb, 1)} <small>GB von ${fmtNum(v.hostMemTotalGb, 1)} GB</small>`, bar(v.hostMemUsedGb, v.hostMemTotalGb, 'hostMemUsedGb/hostMemTotalGb'))}
+${card('Datenverzeichnis', v.diskFreeGb != null ? `${live('diskFreeGb', v.diskFreeGb, 1)} <small>GB frei von ${fmtNum(v.diskTotalGb, 1)} GB</small>` : '–', bar(v.diskUsedGb, v.diskTotalGb, 'diskUsedGb/diskTotalGb'))}
 </div>
-<h2>Server gesamt</h2>
-<div class="cards">
-${card('Arbeitsspeicher (Host)', `${fmtNum(c.host.memUsedMb / 1024, 1)} <small>GB von ${fmtNum(c.host.memTotalMb / 1024, 1)} GB</small>`,
-  bar(c.host.memUsedMb, c.host.memTotalMb) + '<div class="sub">alle Container und das System zusammen</div>' + spark(hist((s) => s.host.memUsedMb), { max: c.host.memTotalMb }))}
-${card('Last', `${fmtNum(c.host.load1, 2)} <small>· ${fmtNum(c.host.load5, 2)} · ${fmtNum(c.host.load15, 2)}</small>`,
-  `<div class="sub">Durchschnitt 1 / 5 / 15 min bei ${c.host.cores} Kernen - dauerhaft über ${c.host.cores} heißt: überlastet</div>` +
-  spark(hist((s) => s.host.load1), { max: c.host.cores }))}
-${card('Datenverzeichnis', c.disk.freeMb != null ? `${fmtNum(c.disk.freeMb / 1024, 1)} <small>GB frei von ${fmtNum(c.disk.totalMb / 1024, 1)} GB</small>` : '–',
-  c.disk.totalMb ? bar(c.disk.totalMb - c.disk.freeMb, c.disk.totalMb) : '')}
-</div>
+<h2>Verlauf</h2>
+${nav}
+<div id="charts" class="charts" data-range="${esc(range)}"><p class="sub">Diagramme werden geladen …</p></div>
+<noscript><p class="notice err">Die Diagramme brauchen JavaScript.</p></noscript>
+<p class="legend">Fläche = Durchschnitt${range !== '1h' ? ', dünne Linie = Spitze im Intervall' : ''}, gestrichelt = Grenze, Lücke = Server lief nicht.
+Über ein Diagramm fahren zeigt die Werte in allen; Bereich mit der Maus aufziehen = heranzoomen, Doppelklick = zurück.
+Auflösung: 1 Std alle 15 s, 24 Std in 5-Minuten-, 7/30 Tage in 30-Minuten-Mitteln. 100 % CPU = ein voller Kern.</p>
 <h2>Prozess</h2>
 <div class="panel"><dl>
 <dt>Version</dt><dd>${esc(version)}</dd>
@@ -257,8 +269,40 @@ ${card('Datenverzeichnis', c.disk.freeMb != null ? `${fmtNum(c.disk.freeMb / 102
 <dt>Node</dt><dd>${esc(process.version)}</dd>
 <dt>Speicher (RSS)</dt><dd>${fmtNum(c.process.rssMb)} MB</dd>
 <dt>Heap</dt><dd>${fmtNum(c.process.heapUsedMb)} von ${fmtNum(c.process.heapTotalMb)} MB</dd>
+<dt>Last 1 / 5 / 15 min</dt><dd>${fmtNum(c.host.load1, 2)} · ${fmtNum(c.host.load5, 2)} · ${fmtNum(c.host.load15, 2)} (${c.host.cores} Kerne)</dd>
 </dl></div>
-<p class="legend">Andere Container (PostgreSQL, Caddy, CrowdSec) sieht die App nicht einzeln - sie hat bewusst keinen Zugriff auf Docker. Ihr Anteil steckt in „Server gesamt“.</p>`;
+<p class="legend">Andere Container (PostgreSQL, Caddy, CrowdSec) sieht die App nicht einzeln - sie hat bewusst keinen Zugriff auf Docker. Ihr Anteil steckt in „Server“.</p>
+<script src="/vendor-uplot.js" defer></script>
+<script src="/admin-monitor.js" defer></script>`;
+}
+
+/** JSON for /admin/monitor/data: history of one range + limits + now. */
+function monitorData(series, current) {
+  const r1 = (v) => (v == null || !Number.isFinite(v) ? null : Math.round(v * 10) / 10);
+  const r2 = (v) => (v == null || !Number.isFinite(v) ? null : Math.round(v * 100) / 100);
+  const v = currentValues(current);
+  return {
+    range: series.range,
+    from: series.from,
+    to: series.to,
+    step: series.step,
+    limits: {
+      memLimitMb: v.memLimitMb,
+      cpuLimitPct: v.cpuLimitPct,
+      hostMemTotalMb: current.host.memTotalMb,
+      cores: current.host.cores,
+    },
+    current: Object.fromEntries(Object.entries(v).map(([k, x]) => [k, r2(x)])),
+    points: series.points.map((p) => ({
+      at: p.at,
+      memMb: r1(p.memMb), memMbMax: r1(p.memMbMax),
+      cpuPct: r2(p.cpuPct), cpuPctMax: r2(p.cpuPctMax),
+      lagMs: r2(p.lagMs), lagMsMax: r2(p.lagMsMax),
+      players: r1(p.players),
+      hostMemUsedMb: r1(p.hostMemUsedMb),
+      load1: r2(p.load1),
+    })),
+  };
 }
 
 /**
@@ -278,9 +322,9 @@ function renderAdminPage(p) {
     : '';
   let body;
   if (tab === 'users') body = usersBody({ users: p.users, csrf: p.csrf });
-  else if (tab === 'monitor') body = monitorBody({ current: p.monitor.current, history: p.monitor.history, version: p.version || (p.runtime && p.runtime.version) });
+  else if (tab === 'monitor') body = monitorBody({ current: p.monitor.current, range: p.monitor.range || '1h', version: p.version || (p.runtime && p.runtime.version) });
   else body = configBody({ report, smtpProbe: p.smtpProbe, csrf: p.csrf, mailConfigured: p.mailConfigured });
-  return layout({ tab, summary, notice: p.notice, body, refreshSeconds: tab === 'monitor' ? 15 : 0 });
+  return layout({ tab, summary, notice: p.notice, body, extraHead: tab === 'monitor' ? '<link rel="stylesheet" href="/vendor-uplot.css">' : '' });
 }
 
-module.exports = { basicPassword, csrfToken, csrfValid, validRecipient, renderAdminPage, confirmDeleteHtml };
+module.exports = { basicPassword, csrfToken, csrfValid, validRecipient, renderAdminPage, confirmDeleteHtml, monitorData };
