@@ -72,11 +72,12 @@ Kept deliberately simple: **Watchtower** (the maintained
 `nickfedor/watchtower` fork - the original `containrrr` image is
 unmaintained and crash-loops on Docker Engine >= 29 with "client version
 1.25 is too old") runs inside the prod stack, polls the registry daily at
-04:00 and recreates containers that opted in via label (the app image and
-PostgreSQL minor updates). The custom-built Caddy
-image is excluded - rebuild it explicitly on plugin updates:
-`docker compose -f docker-compose.prod.yml build --pull caddy && docker
-compose -f docker-compose.prod.yml up -d caddy`.
+04:00 and recreates containers that opted in via label: the app, the Caddy
+proxy and PostgreSQL minor updates. Caddy (with the CrowdSec plugin) is
+prebuilt by the release workflow as `pikdame-local-caddy` - nothing is compiled
+on the server - and must update together with the app, because its Caddyfile
+pins the hash of the app's inline start-up script. With {doc}`auto-deploy` the
+same pull happens right after every release instead of at 04:00.
 
 Alternatives, if you outgrow this: **Portainer** (web UI, manual pulls,
 stack management - nice for visibility, no automation by default) or
@@ -87,7 +88,9 @@ Watchtower if you ever need change control.
 ## CrowdSec (bouncer in Caddy)
 
 Caddy is a custom build (`docker/caddy/Dockerfile`, via xcaddy) with the
-CrowdSec bouncer compiled in - plugins cannot be loaded at runtime. The
+CrowdSec bouncer compiled in - plugins cannot be loaded at runtime. The release
+workflow builds it and publishes it as `pikdame-local-caddy`; the server only
+pulls it. The
 `crowdsec` service tails Caddy's JSON access log (shared volume) with the
 `crowdsecurity/caddy` collection and bans attacking IPs; Caddy checks every
 request against the local API. One-time bootstrap after the first start:

@@ -3,23 +3,29 @@
 Without this, Watchtower picks up a new release at 04:00. With it, a merge to
 `main` is live a few minutes later:
 
-1. The release workflow builds the image and pushes it to GHCR (as before).
-2. The **Deploy** job logs in to the server over SSH and hands over the merged
-   commit.
-3. The server fetches the stack files of exactly that commit, pulls the
-   images, rebuilds Caddy and restarts what changed
-   (`scripts/server-update.sh`, the same script you would run by hand).
+1. The release workflow builds the images and pushes them to GHCR (as before):
+   the app and the Caddy proxy.
+2. The **Deploy** job logs in to the server over SSH.
+3. The server runs `docker compose -f docker-compose.prod.yml pull` and
+   `up -d` on **your** compose file - Watchtower's job, right away. Nothing is
+   downloaded from the repository and nothing is compiled on the server.
 4. The job waits until `/statusz` reports the new version. If it does not
    within 3 minutes, the job turns red.
 
 Watchtower keeps running as a nightly safety net.
 
 :::{note}
-The deploy key can do **one thing only**: roll out a commit that is on `main`.
-It never gets a shell, cannot forward ports, and the `deploy` user has no Docker
-access of its own. Even a leaked key cannot run anything else and cannot deploy
-an unmerged branch: the server asks GitHub whether the commit is part of `main`
-and refuses otherwise.
+The deploy key can do **one thing only**: "pull the images and restart". It
+never gets a shell, cannot forward ports, and the `deploy` user has no Docker
+access of its own. Your compose file, `.env` and `secrets/` are never touched.
+:::
+
+:::{tip}
+**Stack-file changes** (compose, `.env.example`) are not deployed
+automatically - your compose file on the host stays yours. When a release note
+mentions such a change, compare and apply it by hand, or run
+`scripts/server-update.sh` (it replaces `docker-compose.prod.yml` with the
+repository version and keeps `.env` and `secrets/`).
 :::
 
 ## Tutorial (about 15 minutes)
@@ -56,6 +62,13 @@ visudo -c
 `visudo -c` must answer `parsed OK`. Read the script once before you install
 it: this file is what the key may trigger, and deploys never replace it.
 
+:::{important}
+**Installed it before 2026-10-05?** Run the `curl … -o /usr/local/bin/pikdame-deploy`
+line above once more. The first version downloaded the stack files from the
+repository and overwrote your compose file on every deploy; the current one only
+pulls images.
+:::
+
 :::{warning}
 Do not drop the `env_keep` line. `sudo` clears the environment, and without it
 the commit id never reaches the script: every deploy fails with
@@ -64,13 +77,14 @@ the commit id never reaches the script: every deploy fails with
 
 ### 3. Only for Dockge: point the script at your stack
 
-Skip this when you used `server-bootstrap.sh`.
+Skip this when you used `server-bootstrap.sh` (`/opt/pikdame/docker/docker-compose.prod.yml`).
 
 ```bash
-echo 'PIKDAME_DIR=/opt/stacks/pikdame' > /etc/pikdame-deploy.conf
+cat > /etc/pikdame-deploy.conf <<'CONF'
+PIKDAME_DIR=/opt/stacks/pikdame
+PIKDAME_COMPOSE_FILE=compose.yaml
+CONF
 ```
-
-The directory must contain `docker-compose.prod.yml`.
 
 ### 4. Create the key and lock it to the script
 
@@ -193,7 +207,7 @@ not red), Watchtower carries on nightly. To revoke the key for good, empty
 | `Permission denied (publickey)` | `authorized_keys` wrong owner/mode, the public key does not belong to `DEPLOY_SSH_KEY`, or your sshd config has `AllowUsers`/`AllowGroups` without `deploy` |
 | `sudo: a password is required` | sudoers file missing or `visudo -c` failed |
 | `expected a 40-character commit id, got ''` | `env_keep` line missing in the sudoers file |
-| `… is not part of main … refused` | Manual run on a non-main commit — works as intended |
+| `… not found - set PIKDAME_DIR / PIKDAME_COMPOSE_FILE` | Stack is not in `/opt/pikdame/docker/docker-compose.prod.yml`: step 3 |
 | `another deploy is still running` | Two merges in quick succession; the second one waits up to 10 minutes |
 | `still does not report vX.Y.Z after 3 minutes` | Deploy ran, but the app did not come up healthy: `docker compose -f docker-compose.prod.yml logs pikdame` on the server |
 
@@ -201,14 +215,18 @@ not red), Watchtower carries on nightly. To revoke the key for good, empty
 
 `/usr/local/bin/pikdame-deploy <commit>`:
 
-1. Refuses anything that is not a 40-character commit id.
-2. Asks the GitHub API whether `main` contains the commit; refuses otherwise.
-3. Takes a lock (`/run/pikdame-deploy.lock`), so deploys never overlap.
-4. Downloads `scripts/server-update.sh` **of that commit** and runs it with
-   `PIKDAME_REF=<commit>`: stack files of that commit (keeps `.env` and
-   `secrets/`), `pull`, rebuild Caddy, `up -d --remove-orphans`.
+1. Refuses anything that is not a 40-character commit id. The id only labels
+   the log; which images run is decided by the tags in your compose file
+   (`:latest` by default).
+2. Takes a lock (`/run/pikdame-deploy.lock`), so deploys never overlap.
+3. In your stack directory: `docker compose -f <file> pull --ignore-buildable`,
+   `up -d`, `docker image prune -f`, `ps`.
 
-Trust model, stated plainly: whoever can merge to `main` decides what runs on
-the server. That was already true for the app image via Watchtower; with the
-auto-deploy it also covers the stack files. Branch protection on `main`
+Caddy is pulled too: it is the prebuilt `pikdame-local-caddy` image, published
+with every release. It carries the Caddyfile, which pins the hash of the app's
+inline start-up script, so app and proxy must always be updated together - the
+deploy and Watchtower both do that.
+
+Trust model, stated plainly: whoever can merge to `main` decides which images
+run on the server - as with Watchtower before. Branch protection on `main`
 (required checks, no direct pushes) is what guards it.

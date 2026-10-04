@@ -29,9 +29,13 @@ echo "== 2/4 Secret file permissions (app runs as UID 10001) =="
 chown 10001:10001 secrets/*.txt 2>/dev/null || true
 chmod 400 secrets/*.txt 2>/dev/null || true
 
-echo "== 3/4 Pulling images and rebuilding the custom Caddy =="
+echo "== 3/4 Pulling images =="
 docker compose -f docker-compose.prod.yml pull --ignore-buildable
-docker compose -f docker-compose.prod.yml build --pull caddy
+# Caddy comes prebuilt from GHCR. Only a stack switched back to building it
+# on the server (build: ./caddy) rebuilds it here.
+if grep -qE '^[[:space:]]+build:[[:space:]]*\./caddy' docker-compose.prod.yml; then
+  docker compose -f docker-compose.prod.yml build --pull caddy
+fi
 
 echo "== 4/4 Rolling out =="
 docker compose -f docker-compose.prod.yml up -d --remove-orphans
