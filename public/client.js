@@ -4977,6 +4977,9 @@
     const s = el('accountStatus');
     s.textContent = text || '';
     s.style.color = isError ? 'var(--danger, #ff7d8c)' : '';
+    // The dialog is long on a phone; an error below the fold looked like
+    // "nothing happened".
+    if (text && isError) { try { s.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) { /* cosmetic */ } }
   }
   function refreshAccountUi() {
     const loggedIn = !!accountUsername;
@@ -5149,6 +5152,11 @@
    *  open on "Passkey or password". */
   function signedIn(r, { fromLink = false, confirmed = false } = {}) {
     storageSet(ACC_TOKEN_KEY, r.token);
+    // The passkey suggestion in the username field (conditional UI) is a
+    // WebAuthn request that stays open until something ends it - after
+    // signing in by password, link or code nothing did, and on iOS a pending
+    // request can swallow later prompts.
+    try { if (window.SimpleWebAuthnBrowser) window.SimpleWebAuthnBrowser.WebAuthnAbortService.cancelCeremony(); } catch (e) { /* nothing pending */ }
     accountUsername = r.username;
     setAccountStatus('');
     // Back to the plain login form for the next sign-out.
@@ -5276,6 +5284,37 @@
   function fmtShortDate(ms) {
     return ms ? new Date(ms).toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-DE') : '–';
   }
+  // With time: two passkeys made on the same day on the same phone are told
+  // apart by it.
+  function fmtDateTime(ms) {
+    return ms
+      ? new Date(ms).toLocaleString(lang === 'en' ? 'en-GB' : 'de-DE', { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : '–';
+  }
+  /** Two-tap confirmation instead of window.confirm(): iOS can suppress the
+   *  native dialog silently (the tap then did nothing at all). First tap arms
+   *  the button for 4 s, the second one acts. */
+  function confirmByTap(btn, armedLabel, action) {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.armed === '1') {
+        clearTimeout(Number(btn.dataset.timer));
+        delete btn.dataset.armed;
+        btn.classList.remove('armed');
+        if (btn.dataset.label) setLabelText(btn, btn.dataset.label);
+        action();
+        return;
+      }
+      btn.dataset.label = btn.textContent;
+      btn.dataset.armed = '1';
+      btn.classList.add('armed');
+      setLabelText(btn, armedLabel);
+      btn.dataset.timer = String(setTimeout(() => {
+        delete btn.dataset.armed;
+        btn.classList.remove('armed');
+        setLabelText(btn, btn.dataset.label);
+      }, 4000));
+    });
+  }
   async function renderLoginMethods() {
     const box = el('accountMethods');
     const m = await accountApi('/api/account/methods', { token: accountToken() });
@@ -5295,13 +5334,12 @@
       label.querySelector('.pkName').textContent = pk.name || 'Passkey';
       label.querySelector('.pkMeta').textContent = pk.lastUsedAt
         ? L(`zuletzt benutzt ${fmtShortDate(pk.lastUsedAt)}`, `last used ${fmtShortDate(pk.lastUsedAt)}`)
-        : L(`angelegt ${fmtShortDate(pk.createdAt)}`, `added ${fmtShortDate(pk.createdAt)}`);
+        : L(`angelegt ${fmtDateTime(pk.createdAt)}`, `added ${fmtDateTime(pk.createdAt)}`);
       const del = document.createElement('button');
       del.type = 'button';
       del.className = 'linkBtn';
       del.textContent = L('Entfernen', 'Remove');
-      del.addEventListener('click', async () => {
-        if (!window.confirm(L(`Passkey „${pk.name || 'Passkey'}“ entfernen? Mit diesem Gerät kannst du dich dann nicht mehr per Passkey anmelden.`, `Remove passkey "${pk.name || 'Passkey'}"? You will no longer be able to sign in with it.`))) return;
+      confirmByTap(del, L('Wirklich?', 'Sure?'), async () => {
         const r = await accountApi('/api/passkey/delete', { token: accountToken(), id: pk.id });
         if (r.error) return setAccountStatus(trs(r.error), true);
         setAccountStatus(L('Passkey entfernt.', 'Passkey removed.'));
@@ -5359,8 +5397,7 @@
     setAccountStatus(L('✅ Passwort gespeichert.', '✅ Password saved.'));
     renderLoginMethods().catch(() => {});
   });
-  el('accRemovePasswordBtn').addEventListener('click', async () => {
-    if (!window.confirm(L('Passwort entfernen? Du meldest dich dann nur noch per Passkey (oder Anmelde-Link) an.', 'Remove the password? You will then sign in with a passkey (or a sign-in link) only.'))) return;
+  confirmByTap(el('accRemovePasswordBtn'), L('Wirklich?', 'Sure?'), async () => {
     const r = await accountApi('/api/password/remove', { token: accountToken() });
     if (r.error) return setAccountStatus(trs(r.error), true);
     setAccountStatus(L('Passwort entfernt.', 'Password removed.'));
