@@ -164,7 +164,13 @@ function startServer(t, port, extraEnv) {
   });
   const out = { log: '' };
   server.stdout.on('data', (c) => { out.log += c; });
-  t.after(() => { server.kill(); fs.rmSync(dataDir, { recursive: true, force: true }); });
+  // Wait for exit: the server writes its snapshot into dataDir on SIGTERM (ENOTEMPTY race).
+  t.after(async () => {
+    const gone = server.exitCode !== null ? null : new Promise((r) => server.once('exit', r));
+    server.kill();
+    await gone;
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  });
   return out;
 }
 

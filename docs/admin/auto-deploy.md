@@ -218,7 +218,7 @@ not red), Watchtower carries on nightly. To revoke the key for good, empty
 1. Refuses anything that is not a 40-character commit id. The id only labels
    the log; which images run is decided by the tags in your compose file
    (`:latest` by default).
-2. Takes a lock (`/run/pikdame-deploy.lock`), so deploys never overlap.
+2. Takes a lock (`/run/pikdame-deploy-prod.lock`; the {doc}`beta` deploy has its own), so deploys never overlap.
 3. In your stack directory: `docker compose -f <file> pull --ignore-buildable`,
    `up -d`, `docker image prune -f`, `ps`.
 

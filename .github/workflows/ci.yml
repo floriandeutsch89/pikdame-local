@@ -184,6 +184,15 @@ jobs:
             echo "::error::prod compose config: ${ERR}"
             exit 1
           fi
+      - name: Validate beta compose (preview stack next to prod)
+        run: |
+          cd docker
+          echo "PIKDAME_BETA_DOMAIN=beta.example.org" >> .env
+          echo test-password > secrets/beta_db_password.txt
+          if ! ERR=$(docker compose -f docker-compose.beta.yml config 2>&1 > /dev/null); then
+            echo "::error::beta compose config: ${ERR}"
+            exit 1
+          fi
       - name: Build image
         run: docker compose -f docker/docker-compose.yml build
       - name: Compose up (hardened configuration)

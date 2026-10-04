@@ -3,6 +3,14 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.47.0] - 2026-10-05
+
+### Added
+- **Beta-Vorschau für Pull Requests:** Jeder Push auf einen Pull Request läuft wenige Minuten später auf `beta.pikdame.online` - zum Ausprobieren am iPhone vor dem Merge. Eigener Stack neben der Produktion (eigene Datenbank, eigene Volumes, engere Ressourcengrenzen, für Suchmaschinen gesperrt), gleiche Härtung, eigener Deploy-Schlüssel, der nur die Beta neu starten kann. Pull Requests aus Forks und von Dependabot werden nie ausgerollt. Einrichtung: Doku „Beta preview“
+
+### Fixed
+- Testsuite: Server-Tests warten vor dem Aufräumen auf das Prozessende - der Server schreibt beim Beenden seinen Snapshot, das Löschen schlug sonst sporadisch fehl und färbte die CI rot
+
 ## [2.46.1] - 2026-10-04
 
 ### Removed
