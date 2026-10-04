@@ -1,110 +1,72 @@
-# ONNX bots (optional)
+# ONNX bots
 
-By default the bots are a **heuristic engine** — hand-written rules, A/B-measured
-in self-play. They are the shipped default and need nothing extra.
+The bots play with a **trained neural policy** exported to ONNX. Since v2.43.0
+there is **one image**, `ghcr.io/floriandeutsch89/pikdame-local`, with the
+runtime (`onnxruntime-node`) and the models built in, and the learned bots are
+**on by default**.
 
-Optionally you can run a **trained neural policy** exported to ONNX. Two things
-have to be true for it to actually take effect:
+The **heuristic engine** — hand-written rules, A/B-measured in self-play — is
+still part of every install:
 
-1. the **model files** must be inside the container, and
-2. the **`onnxruntime-node`** runtime must be installed in the image.
+- it is what you get with `PIKDAME_ONNX=0`,
+- it takes over automatically whenever the learned path cannot run (runtime or
+  model missing) — the server never goes down for it and says so in the log,
+- it is what plain `node server.js` from a checkout uses (e.g. the iPhone/CodeApp
+  hotspot mode): the repository itself has no native dependency.
 
-If either is missing the server **falls back to the heuristic bot** — it never
-takes the game down. It now also **says so loudly in the log** instead of failing
-silently.
-
-## `PIKDAME_ONNX` is three-valued
-
-Since v2.0.0 the variable no longer has to be set at all:
+## `PIKDAME_ONNX`
 
 | Value | Behaviour |
 | --- | --- |
-| *unset* (**default**) | **Auto.** The learned bots are used whenever the runtime **and** at least one model are present. Where they are not — for example the plain Alpine image — this resolves to the heuristic **silently**, so nothing changes for those setups. |
-| `1` / `true` | Force the learned path. If it cannot be honoured, the server says so loudly and plays on with the heuristic. |
-| `0` / `false` | Force the heuristic, even where models and runtime are available. |
+| `1` / `true` (**image default**) | Learned bots. If the runtime or a model cannot load, the server says so loudly and plays on with the heuristic. |
+| `0` / `false` | Heuristic bots, even though runtime and models are there. |
+| *unset* (only outside the image) | **Auto**: learned bots when runtime **and** at least one model are present, heuristic otherwise — silently, so `node server.js` without the runtime behaves as before. |
 
-In practice: on a machine where you ran `npm i onnxruntime-node`, a plain
-`node server.js` now picks up the committed models by itself. On the ONNX image
-`PIKDAME_ONNX=1` is still set explicitly, so a missing model is still reported
-rather than quietly ignored.
+Compose:
 
-## Why the default image cannot do it
+```yaml
+services:
+  pikdame:
+    image: ghcr.io/floriandeutsch89/pikdame-local:latest
+    environment:
+      - PIKDAME_ONNX=0    # only if you want the heuristic bots
+```
+
+Helm: `--set onnx.enabled=false` (sets `PIKDAME_ONNX=0`; default `true`).
+
+## What is in the image
+
+Debian slim, ~436 MB, amd64 + arm64 (a Raspberry Pi with a 64-bit OS works).
 
 :::{important}
-**The default image is Alpine, and ONNX cannot work there — at all.**
-
-`onnxruntime-node` ships **pre-built native binaries linked against glibc**
-(they need `libstdc++.so.6`, `libm.so.6`, `GLIBC_2.x` symbols). Alpine uses
-**musl**. Installing the package on Alpine *appears* to succeed and then fails
-to load at `require()` time.
-
-So the ONNX build is a **separate image on a Debian (glibc) base**:
-`docker/Dockerfile.onnx`. The default Alpine image stays small and ONNX-free.
+**Why Debian and not Alpine:** `onnxruntime-node` ships pre-built native
+binaries linked against **glibc** (`libstdc++.so.6`, `GLIBC_2.x` symbols).
+Alpine uses **musl**; the package *appears* to install there and then fails to
+load at `require()` time. Up to v2.42.0 there were therefore two images, a small
+Alpine one with heuristic bots only and a separate `-onnx` one.
 :::
 
-The runtime is also a ~100 MB native dependency, which is the second reason not
-to put it in the default image — the heuristic bots are good and need nothing.
+Only the CPU runtime for the image's own architecture is kept: the package also
+ships Windows and macOS binaries, the other CPU architecture and a 240 MB CUDA
+GPU provider, all removed at build time (`node_modules` 503 MB → 41 MB).
 
-## Option A — use the prebuilt ONNX image
+Measured under the production limits (`docker-compose.prod.yml`: 512 MB, 1 CPU,
+256 pids, read-only root) with two games against zen bots: ~35 MB RAM,
+~45 threads on a 32-core host (fewer on a small VM).
 
-Every release publishes a **second image** with the runtime and the trained
-models already inside:
+## Swap models without rebuilding
 
-```bash
-docker pull ghcr.io/floriandeutsch89/pikdame-local-onnx:latest
-```
-
-```bash
-docker run -d \
-  -p 8080:8080 \
-  -v pikdame-data:/app/data \
-  ghcr.io/floriandeutsch89/pikdame-local-onnx:latest
-```
-
-The image already sets `PIKDAME_ONNX=1`, so there is nothing else to configure.
-Tags follow the app version (`:v1.63.0`), and it is built for **amd64 + arm64**.
-
-In compose, point at the ONNX package instead of the default one:
+The models are baked into the image. If you iterate on models, mount them and
+point the server at them:
 
 ```yaml
 services:
-  app:
-    image: ghcr.io/floriandeutsch89/pikdame-local-onnx:latest
-    environment:
-      - PIKDAME_ONNX=1
-```
-
-It uses the **same UID/GID (10001)** as the default image, so an existing data
-volume keeps working if you switch between the two.
-
-Building it yourself works too:
-
-```bash
-docker build -f docker/Dockerfile.onnx -t pikdame-onnx .
-```
-
-:::{tip}
-All three compose files (`docker/docker-compose.yml`, `.ghcr.yml`, `.prod.yml`)
-already carry a **ready-to-uncomment ONNX block** on the `pikdame` service — the
-image swap, the env var and the optional model mount. You do not have to piece it
-together from this page.
-:::
-
-## Option B — swap models without rebuilding
-
-The models are baked into the ONNX image, so a retrained model would mean a new
-image. If you iterate on models, mount them instead and point the server at them
-(still using the **ONNX image** — the runtime has to be there):
-
-```yaml
-services:
-  app:
-    image: ghcr.io/floriandeutsch89/pikdame-local-onnx:latest
+  pikdame:
+    image: ghcr.io/floriandeutsch89/pikdame-local:latest
     volumes:
       - pikdame-data:/app/data
       - ./models:/app/models:ro      # your trained .onnx files
     environment:
-      - PIKDAME_ONNX=1
       - PIKDAME_MODELS_DIR=/app/models
 ```
 
@@ -113,33 +75,11 @@ services:
 
 ## Kubernetes / Helm
 
-There is **no separate ONNX chart** — the chart already parameterises the image,
-so a second one would only duplicate the ingress/PVC/service templates. Use the
-ready-made overrides instead:
+The chart sets `PIKDAME_ONNX` from `onnx.enabled` (default `true`). There is no
+separate values file any more. Verify after rollout:
 
 ```bash
-helm install pikdame oci://ghcr.io/floriandeutsch89/charts/pikdame \
-  --version <X.Y.Z> \
-  -f helm/pikdame/values-onnx.yaml \
-  --set ingress.host=spiel.example.org \
-  --set image.tag=v<X.Y.Z>
-```
-
-That sets `image.repository` to the ONNX package and `onnx.enabled=true` (which
-adds `PIKDAME_ONNX=1`). The image uses the **same UID/GID (10001)**, so an
-existing PVC keeps working.
-
-:::{note}
-The chart **refuses to render** `onnx.enabled=true` together with the default
-Alpine image — that combination would quietly fall back to the heuristic bots,
-which is exactly the kind of misconfiguration that is better caught at install
-time than discovered weeks later.
-:::
-
-Verify after rollout:
-
-```bash
-kubectl logs deploy/pikdame | grep -i "ONNX-Modell"
+kubectl logs deploy/pikdame | grep -E "ONNX-Bots|ONNX-Modell"
 ```
 
 ## File naming
@@ -161,19 +101,21 @@ This is the part people get wrong, because the fallback is *designed* to be
 harmless. Check the log after start:
 
 ```bash
-docker compose logs app | grep -iE "ONNX|Modell"
+docker compose logs pikdame | grep -E "ONNX-Bots|ONNX-Modell"
 ```
 
 You want to see:
 
 ```text
-ONNX-Modell geladen: /app/models/pikdame-medium.onnx (Schwierigkeit "medium")
+[config]  ✓ ONNX-Bots            aktiv
+ONNX-Modell geladen: /app/models/pikdame-zen.onnx (Schwierigkeit "zen")
 ```
 
+The model line appears with the first bot move of a difficulty, not at start.
 If instead you see a warning that `onnxruntime-node` is missing, or that a model
-file was not found, then **the bots are still heuristic** — the flag is on but
-doing nothing. The most likely cause is running the **default Alpine image**
-rather than the ONNX one.
+file was not found, then **the bots are heuristic** — the most likely causes are
+an image older than v2.43.0 (pull again) or a `PIKDAME_MODELS_DIR` that points
+at an empty directory.
 
 ## Training a model
 

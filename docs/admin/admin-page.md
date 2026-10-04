@@ -13,7 +13,7 @@ Every start logs one block. Problems come first:
 [config]  ⚠ Öffentliche Adresse  nicht gesetzt - Bestätigungslinks entstehen aus dem Host-Header (fälschbar) (fehlt: PIKDAME_BASE_URL)
 [config]  ✓ Datenverzeichnis     /app/data
 [config]  ✓ Benutzerkonten       aktiv (PostgreSQL)
-[config]  – ONNX-Bots            Heuristik (Laufzeit/Modelle nicht vorhanden)
+[config]  ✓ ONNX-Bots            aktiv
 [config] 2 Punkt(e) brauchen Aufmerksamkeit (Details auch unter /admin, falls aktiv).
 [config] SMTP-Prüfung: Anmeldung erfolgreich.
 ```

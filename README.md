@@ -226,22 +226,26 @@ docs/ · scripts/   Operations guide, backup/restore
   a small dependency tree keeps the attack surface, the image and the audit
   effort small, and the project deliberately has no build step.
 
-## AI bots (optional, ONNX)
+## AI bots (ONNX)
 
-The strong bot tiers (`medium`, `zen`) can be trained as neural networks and run
-via ONNX; `easy` stays the hand-written heuristic. Training happens against the
-**real engine** — a headless Node env server drives the actual `GameManager`
-while Python (Gymnasium + stable-baselines3 MaskablePPO) learns the **draw** and
-**discard** decisions; the same `game/StateEncoder.js` feeds both training and
-runtime so they never diverge. The policy can also be warm-started from
-**winning human games** (anonymised move logging + behavioral cloning). Models
-export to `models/pikdame-<tier>.onnx` and are committed to the repo, so anyone
-can run them.
+The strong bot tiers (`medium`, `zen`) are trained neural networks run via ONNX;
+`easy` stays the hand-written heuristic. The Docker image has the runtime and
+the models built in and uses them **by default**; `PIKDAME_ONNX=0` switches to
+the heuristic bots. Training happens against the **real engine** — a headless
+Node env server drives the actual `GameManager` while Python (Gymnasium +
+stable-baselines3 MaskablePPO) learns the **draw** and **discard** decisions;
+the same `game/StateEncoder.js` feeds both training and runtime so they never
+diverge. The policy can also be warm-started from **winning human games**
+(anonymised move logging + behavioral cloning). Models export to
+`models/pikdame-<tier>.onnx` and are committed to the repo.
+
+Without Docker, `node server.js` plays the heuristic bots unless
+`onnxruntime-node` is installed — the repository itself has no native
+dependency:
 
 ```bash
-# activate the learned policy (falls back to the heuristic if a model or the
-# onnxruntime-node runtime is missing — the default path is unchanged):
-PIKDAME_ONNX=1 node server.js
+npm i --no-save onnxruntime-node@1.27.0   # glibc systems only (not Alpine)
+node server.js                             # picks up models/ by itself
 ```
 
 Full training guide (Ubuntu 24.04 / WSL2, uv, RTX-class GPU) and — importantly —
@@ -249,10 +253,8 @@ Full training guide (Ubuntu 24.04 / WSL2, uv, RTX-class GPU) and — importantly
 what `approx_kl`, `explained_variance` & co. mean, and why the mean episode
 reward is negative even for a *good* model.
 
-Deploying the trained bots:
-**[ONNX bots](https://pik-dame.readthedocs.io/en/latest/admin/onnx.html)** — the
-default image cannot run them (Alpine/musl vs. glibc), so a second image is
-published: `ghcr.io/floriandeutsch89/pikdame-local-onnx`.
+Running, switching off and swapping the trained bots:
+**[ONNX bots](https://pik-dame.readthedocs.io/en/latest/admin/onnx.html)**.
 
 ## Deliberate limits
 

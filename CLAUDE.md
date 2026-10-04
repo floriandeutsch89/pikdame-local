@@ -130,8 +130,13 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
   `MonteCarlo.js` (Hidden-Hand-Sampling für den Abwurf – gemessen Null-Effekt);
   `Rollout.js` (determinisierte Rollout-Suche/ISMCTS – gemessen ~+2 Pkt/0,8σ,
   nicht signifikant, ~500 ms/Zug; nur via `mctsEnabled`-Seat-Flag im Sim).
-- **Gelerntes Netz (ONNX), per `PIKDAME_ONNX=1` aktivierbar** — Standardpfad
-  ohne Variable unverändert, Fallback bei jedem Fehler:
+- **Gelerntes Netz (ONNX) — im Docker-Image der STANDARD** (seit v2.43.0 EIN
+  Image, Debian slim, `onnxruntime-node` + Modelle eingebacken,
+  `PIKDAME_ONNX=1` gesetzt; `PIKDAME_ONNX=0` = Heuristik). Das Repo selbst
+  bleibt ohne native Abhängigkeit: `onnxruntime-node` installiert NUR das
+  Dockerfile (gepinnt, Fremdplattformen/CUDA entfernt); `node server.js` ohne
+  Runtime spielt Heuristik (Auto-Modus). CI prüft im Smoke-Test „ONNX-Bots
+  aktiv“. Fallback auf die Heuristik bei jedem Fehler:
   - `StateEncoder.js` — EINZIGE Kodier-Stelle (377-dim Obs + 54 Aktionen: 52
     Abwurf-Typen + Ziehstapel + Ablage-nehmen; Maske phasenabhängig via
     `{phase, pileTakeLegal}`). **Speist Training UND Laufzeit → Parität ist

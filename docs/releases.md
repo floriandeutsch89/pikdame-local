@@ -4,20 +4,16 @@ Every merge to `main` with a version bump is tagged and released automatically.
 
 **➡️ [All releases on GitHub](https://github.com/floriandeutsch89/pikdame-local/releases)**
 
-**Two** container images are published to the GitHub Container Registry on every
-release, both for **amd64 and arm64** (so a Raspberry Pi works too):
+One container image is published to the GitHub Container Registry on every
+release, for **amd64 and arm64** (so a Raspberry Pi with a 64-bit OS works too):
 
 ```bash
-# The default image: small, Alpine-based, heuristic bots
 docker pull ghcr.io/floriandeutsch89/pikdame-local:latest
-
-# With the trained ONNX bots baked in (Debian-based, larger)
-docker pull ghcr.io/floriandeutsch89/pikdame-local-onnx:latest
 ```
 
-Most people want the first one. The ONNX image exists because
-`onnxruntime-node` ships glibc-linked binaries that cannot run on Alpine — see
-{doc}`admin/onnx`. Both use the same UID/GID, so they share a data volume.
+It has the trained ONNX bots built in; `PIKDAME_ONNX=0` switches to the
+heuristic bots — see {doc}`admin/onnx`. Up to v2.42.0 there was a second image,
+`pikdame-local-onnx`; it is no longer published, switch back to `pikdame-local`.
 
 ## Versioning
 

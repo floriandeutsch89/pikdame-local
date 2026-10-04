@@ -20,7 +20,8 @@ the Helm chart defaults (`helm/pikdame/values.yaml`), and verified in CI
 | #10 Logging | json-file with rotation (10 MB × 3), the app logs to stdout |
 | #11 Dockerfile linting | CI job `docker-security`: hadolint |
 
-Further building blocks: minimal Alpine base image with a pinned Node major
+Further building blocks: Debian slim base image (OS security updates applied at
+build time, unused native binaries removed) with a pinned Node major
 version (CI enforces Dockerfile Node == CI Node), npm/corepack removed from
 the final image (smaller attack surface), `tini` as PID 1, healthcheck
 against `/healthz`, registry pulls exclusively from GHCR with versioned tags

@@ -20,3 +20,5 @@ docs
 .dockerignore
 docker-compose*.yml
 Dockerfile
+# Training checkpoints (SB3 .zip, gitignored) must not end up in the image
+models/*.zip
