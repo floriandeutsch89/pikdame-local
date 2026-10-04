@@ -21,6 +21,25 @@ const SCRYPT_KEYLEN = 64;
 const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 Tage
 const VERIFY_TTL_MS = 48 * 60 * 60 * 1000; // 48 Stunden
 const LOGIN_LINK_TTL_MS = 15 * 60 * 1000; // e-mail login link
+// Sign-up without a password: the mail carries a 6-digit code (typed into the
+// open dialog, so the passkey is created on THIS device) next to the link.
+const SIGNUP_CODE_TTL_MS = 15 * 60 * 1000;
+const SIGNUP_CODE_TRIES = 5;
+
+function signupCode() {
+  return String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+}
+
+/** Bound to the account id, so equal codes of two accounts hash differently. */
+function codeHash(userId, code) {
+  return crypto.createHash('sha256').update(`${userId}:${String(code || '').trim()}`).digest('hex');
+}
+
+function codeMatches(userId, code, stored) {
+  const a = Buffer.from(codeHash(userId, code));
+  const b = Buffer.from(String(stored || ''));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
 
 function hashPassword(password, salt) {
   return crypto.scryptSync(password, salt, SCRYPT_KEYLEN);
@@ -93,6 +112,10 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
     add('webauthn_user_id', 'TEXT');
     add('login_token_hash', 'TEXT');
     add('login_expires', 'INTEGER');
+    // Sign-up code (password-less registration): hash, expiry, attempts.
+    add('verify_code_hash', 'TEXT');
+    add('verify_code_expires', 'INTEGER');
+    add('verify_code_tries', 'INTEGER NOT NULL DEFAULT 0');
   }
   db.exec(`
     CREATE TABLE IF NOT EXISTS webauthn_credentials (
@@ -173,7 +196,9 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
     const row = db.prepare('SELECT id, username, verify_expires FROM users WHERE verify_token = ?').get(String(token || ''));
     if (!row) return { error: 'Ungültiger oder bereits verwendeter Bestätigungslink.' };
     if (Date.now() > row.verify_expires) return { error: 'Der Bestätigungslink ist abgelaufen - bitte neu registrieren.' };
-    db.prepare('UPDATE users SET verified = 1, verify_token = NULL, verify_expires = NULL WHERE id = ?').run(row.id);
+    db.prepare(
+      'UPDATE users SET verified = 1, verify_token = NULL, verify_expires = NULL, verify_code_hash = NULL, verify_code_expires = NULL WHERE id = ?'
+    ).run(row.id);
     return { ok: true, username: row.username };
   }
 
@@ -362,12 +387,12 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
   /** Admin: fresh confirmation link for an UNVERIFIED account (the old one
    *  stops working). @returns {{ok, username, email, verifyToken}|{error}} */
   function renewVerification(username) {
-    const row = db.prepare('SELECT id, username, email, verified FROM users WHERE username = ?').get(String(username || '').trim());
+    const row = db.prepare('SELECT id, username, email, verified, salt FROM users WHERE username = ?').get(String(username || '').trim());
     if (!row) return { error: 'Benutzer nicht gefunden.' };
     if (row.verified) return { error: 'Dieses Konto ist bereits bestätigt.' };
     const verifyToken = randomToken();
     db.prepare('UPDATE users SET verify_token = ?, verify_expires = ? WHERE id = ?').run(verifyToken, Date.now() + VERIFY_TTL_MS, row.id);
-    return { ok: true, username: row.username, email: row.email, verifyToken };
+    return { ok: true, username: row.username, email: row.email, verifyToken, passwordless: !row.salt };
   }
 
   // --- Passkeys (WebAuthn) and e-mail login links ----------------------------
@@ -395,26 +420,70 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
       String(cred.name || '').slice(0, 60) || null, Date.now());
   }
 
-  /** New account WITHOUT a password, created together with its first passkey
-   *  (one transaction - a cancelled ceremony leaves nothing behind). */
-  function registerWithPasskey(username, email, webauthnUserId, cred) {
+  /** New account WITHOUT a password and without a passkey yet: e-mail first.
+   *  The mail carries a code and a link; either one confirms the address AND
+   *  signs the person in, and only then they pick a passkey or a password -
+   *  no sign-in method exists for an unconfirmed address. */
+  function registerWithoutPassword(username, email) {
     const v = validateNewAccount(username, email);
     if (v.error) return v;
     const verifyToken = randomToken();
+    let id;
     try {
-      db.exec('BEGIN');
-      const info = db.prepare(
-        `INSERT INTO users (username, email, password_hash, salt, verified, verify_token, verify_expires, created_at, webauthn_user_id)
-         VALUES (?, ?, ?, '', 0, ?, ?, ?, ?)`
-      ).run(v.username, v.email, Buffer.alloc(0), verifyToken, Date.now() + VERIFY_TTL_MS, Date.now(), webauthnUserId);
-      insertCredential(Number(info.lastInsertRowid), cred);
-      db.exec('COMMIT');
+      id = db.prepare(
+        `INSERT INTO users (username, email, password_hash, salt, verified, verify_token, verify_expires, created_at)
+         VALUES (?, ?, ?, '', 0, ?, ?, ?)`
+      ).run(v.username, v.email, Buffer.alloc(0), verifyToken, Date.now() + VERIFY_TTL_MS, Date.now()).lastInsertRowid;
     } catch (e) {
-      try { db.exec('ROLLBACK'); } catch (e2) { /* nothing open */ }
       if (/UNIQUE/i.test(e.message)) return { error: 'Benutzername oder E-Mail ist bereits registriert.' };
       throw e;
     }
-    return { ok: true, verifyToken, username: v.username };
+    const code = setSignupCode(Number(id));
+    return { ok: true, verifyToken, code, username: v.username };
+  }
+
+  function setSignupCode(userId) {
+    const code = signupCode();
+    db.prepare('UPDATE users SET verify_code_hash = ?, verify_code_expires = ?, verify_code_tries = 0 WHERE id = ?')
+      .run(codeHash(userId, code), Date.now() + SIGNUP_CODE_TTL_MS, userId);
+    return code;
+  }
+
+  /** Fresh code + link for an UNCONFIRMED password-less sign-up (null
+   *  otherwise). The link's lifetime starts over as well. */
+  function renewSignupCode(email) {
+    const u = db.prepare('SELECT id, username, email, verified FROM users WHERE email = ?').get(String(email || '').trim());
+    if (!u || u.verified) return null;
+    const verifyToken = randomToken();
+    db.prepare('UPDATE users SET verify_token = ?, verify_expires = ? WHERE id = ?').run(verifyToken, Date.now() + VERIFY_TTL_MS, u.id);
+    return { username: u.username, email: u.email, verifyToken, code: setSignupCode(u.id) };
+  }
+
+  /** The code from the sign-up mail: confirms the address and signs in.
+   *  Each attempt is counted BEFORE comparing, so SIGNUP_CODE_TRIES is a hard
+   *  limit; after that only a new code helps. */
+  function verifyCodeAndSignIn(email, code) {
+    const bad = { error: 'Der Code stimmt nicht.' };
+    const u = db.prepare('SELECT id, verified, verify_code_hash, verify_code_expires, verify_code_tries FROM users WHERE email = ?')
+      .get(String(email || '').trim());
+    if (!u || u.verified || !u.verify_code_hash) return bad;
+    if (Date.now() > u.verify_code_expires || u.verify_code_tries >= SIGNUP_CODE_TRIES) {
+      return { error: 'Der Code ist abgelaufen - bitte einen neuen anfordern.' };
+    }
+    db.prepare('UPDATE users SET verify_code_tries = verify_code_tries + 1 WHERE id = ?').run(u.id);
+    if (!codeMatches(u.id, code, u.verify_code_hash)) return bad;
+    db.prepare(
+      'UPDATE users SET verified = 1, verify_token = NULL, verify_expires = NULL, verify_code_hash = NULL, verify_code_expires = NULL WHERE id = ?'
+    ).run(u.id);
+    return sessionForUser(u.id);
+  }
+
+  /** Confirm the address by link AND start a session (the e-mail-first sign-up). */
+  function verifyAndSignIn(token) {
+    const v = verifyEmail(token);
+    if (v.error) return v;
+    const u = db.prepare('SELECT id FROM users WHERE username = ?').get(v.username);
+    return u ? sessionForUser(u.id) : { error: 'Benutzer nicht gefunden.' };
   }
 
   /** The signed-in account behind a session token, with its login methods. */
@@ -519,7 +588,7 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
   return {
     register, verifyEmail, login, sessionUser, logout, isRegisteredName,
     addGameResult, progressFor, ladder, importProfile, listUsers, deleteUser, renewVerification,
-    validateNewAccount, registerWithPasskey, accountForSession, setWebauthnUserId, addCredential,
+    validateNewAccount, registerWithoutPassword, verifyAndSignIn, renewSignupCode, verifyCodeAndSignIn, accountForSession, setWebauthnUserId, addCredential,
     credentialById, touchCredential, deleteCredential, setPassword, removePassword, sessionForUser,
     createLoginLink, consumeLoginLink,
     close, _db: db, // _db: Test-Seam (Ablauf-Simulation)

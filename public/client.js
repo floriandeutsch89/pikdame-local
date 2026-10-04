@@ -5021,6 +5021,22 @@
       }
       showToast(trs(r.error), { duration: 6000, priority: true });
     }
+    // The link from the sign-up mail (?verify=...): confirms the address and
+    // signs in, then the dialog offers "Passkey or password".
+    const verifyLink = new URLSearchParams(window.location.search).get('verify');
+    if (verifyLink) {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('verify');
+        window.history.replaceState(null, '', url.toString());
+      } catch (e) { /* cosmetic */ }
+      const r = await accountApi('/api/verify-signin', { token: verifyLink });
+      if (r.ok) {
+        signedIn(r, { confirmed: true });
+        return;
+      }
+      showToast(trs(r.error), { duration: 6000, priority: true });
+    }
     if (accountToken()) {
       const me = await accountApi('/api/me', { token: accountToken() });
       if (me.ok) accountUsername = me.username;
@@ -5044,13 +5060,15 @@
   el('accountTabLogin').addEventListener('click', () => {
     el('accountLoginForm').classList.remove('hidden');
     el('accountRegisterForm').classList.add('hidden');
+    el('accountCodeForm').classList.add('hidden');
     el('accountTabLogin').classList.add('active');
     el('accountTabRegister').classList.remove('active');
     setAccountStatus('');
   });
   el('accountTabRegister').addEventListener('click', () => {
     el('accountLoginForm').classList.add('hidden');
-    el('accountRegisterForm').classList.remove('hidden');
+    // A sign-up waiting for its code stays on the code step.
+    el(pendingSignupEmail ? 'accountCodeForm' : 'accountRegisterForm').classList.remove('hidden');
     el('accountTabRegister').classList.add('active');
     el('accountTabLogin').classList.remove('active');
     setAccountStatus('');
@@ -5062,25 +5080,59 @@
       el('accRegUser').value = chosen.slice(0, 24);
     }
   });
+  // Sign-up, e-mail first: name + address -> code (or link) from the mail ->
+  // signed in -> "Passkey or password".
+  let pendingSignupEmail = '';
+  function showCodeStep(email) {
+    pendingSignupEmail = email;
+    el('accountRegisterForm').classList.toggle('hidden', !!email);
+    el('accountCodeForm').classList.toggle('hidden', !email);
+    el('accRegCode').value = '';
+  }
   el('accountRegisterForm').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     setAccountStatus(L('Registriere...', 'Registering...'));
-    const r = await accountApi('/api/register', {
-      username: el('accRegUser').value,
-      email: el('accRegEmail').value,
-      password: el('accRegPass').value,
-    });
+    const email = el('accRegEmail').value.trim();
+    const r = await accountApi('/api/register-passwordless', { username: el('accRegUser').value, email });
     if (r.error) return setAccountStatus(trs(r.error), true);
+    showCodeStep(email);
     // Three outcomes, not two: delivered, no relay configured, or a
     // configured relay that failed. The old two-way message blamed a
     // missing mail server even when SMTP was set up and merely broken.
-    setAccountStatus(
-      r.mailDelivered
-        ? L('✅ Fast geschafft! Bitte den Bestätigungslink in deiner E-Mail öffnen, danach kannst du dich anmelden.', '✅ Almost done! Please open the confirmation link in your e-mail, then sign in.')
-        : r.mailConfigured
-          ? L('⚠️ Konto angelegt, aber die Bestätigungsmail konnte nicht verschickt werden. Der Link steht im Server-Log - bitte den Mailserver prüfen.', '⚠️ Account created, but the confirmation e-mail could not be sent. The link is in the server log - please check the mail server.')
-          : L('✅ Konto angelegt. Der Bestätigungslink steht im Server-Log (noch kein Mailserver eingetragen).', '✅ Account created. The confirmation link is in the server log (no mail server configured yet).')
-    );
+    el('accCodeHint').textContent = r.mailDelivered
+      ? L(`Wir haben dir einen 6-stelligen Code an ${email} geschickt. Gib ihn hier ein (15 Minuten gültig) - oder tippe auf den Link in der Mail.`,
+        `We sent a 6-digit code to ${email}. Enter it here (valid for 15 minutes) - or tap the link in the e-mail.`)
+      : r.mailConfigured
+        ? L('Konto angelegt, aber die Mail mit dem Code konnte nicht verschickt werden. Code und Link stehen im Server-Log - bitte den Mailserver prüfen.',
+          'Account created, but the e-mail with the code could not be sent. Code and link are in the server log - please check the mail server.')
+        : L('Konto angelegt. Code und Link stehen im Server-Log (noch kein Mailserver eingetragen).',
+          'Account created. Code and link are in the server log (no mail server configured yet).');
+    setAccountStatus('');
+    el('accRegCode').focus();
+  });
+  el('accountCodeForm').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const code = el('accRegCode').value.replace(/\D/g, '');
+    if (code.length !== 6) return setAccountStatus(L('Bitte den 6-stelligen Code aus der Mail eingeben.', 'Please enter the 6-digit code from the e-mail.'), true);
+    setAccountStatus(L('Prüfe...', 'Checking...'));
+    const r = await accountApi('/api/verify-code', { email: pendingSignupEmail, code });
+    if (r.error) return setAccountStatus(trs(r.error), true);
+    signedIn(r, { confirmed: true });
+  });
+  // Complete as soon as six digits are in (also when iOS fills the code in).
+  el('accRegCode').addEventListener('input', () => {
+    if (el('accRegCode').value.replace(/\D/g, '').length === 6) el('accountCodeForm').requestSubmit();
+  });
+  el('accResendCodeBtn').addEventListener('click', async () => {
+    const r = await accountApi('/api/verify-code/resend', { email: pendingSignupEmail });
+    if (r.error) return setAccountStatus(trs(r.error), true);
+    el('accRegCode').value = '';
+    setAccountStatus(L('Ein neuer Code ist unterwegs - der alte gilt nicht mehr.', 'A new code is on its way - the old one no longer works.'));
+  });
+  el('accCodeBackBtn').addEventListener('click', () => {
+    showCodeStep('');
+    setAccountStatus('');
+    el('accRegEmail').focus();
   });
   el('accountLoginForm').addEventListener('submit', async (ev) => {
     ev.preventDefault();
@@ -5092,19 +5144,28 @@
     if (r.error) return setAccountStatus(trs(r.error), true);
     signedIn(r);
   });
-  /** After any successful sign-in (password, passkey, e-mail link). */
-  function signedIn(r, { fromLink = false } = {}) {
+  /** After any successful sign-in (password, passkey, e-mail link, sign-up
+   *  code). `confirmed`: the address was just confirmed - the dialog stays
+   *  open on "Passkey or password". */
+  function signedIn(r, { fromLink = false, confirmed = false } = {}) {
     storageSet(ACC_TOKEN_KEY, r.token);
     accountUsername = r.username;
     setAccountStatus('');
+    // Back to the plain login form for the next sign-out.
+    showCodeStep('');
+    el('accountRegisterForm').classList.add('hidden');
+    el('accountLoginForm').classList.remove('hidden');
+    el('accountTabLogin').classList.add('active');
+    el('accountTabRegister').classList.remove('active');
     refreshAccountUi();
     showToast(L(`Angemeldet als ${r.username}`, `Signed in as ${r.username}`));
     loadLadder().catch(() => {}); // fills level + season rank for next open
-    if (fromLink) {
-      // Signed in by link, usually because the passkey or password is gone:
-      // open the dialog on the sign-in methods so a new one is one tap away.
+    if (fromLink || confirmed) {
+      // Signed in by link, usually because the passkey or password is gone -
+      // or just signed up: open the dialog on the sign-in methods so one is a
+      // tap away.
       el('accountOverlay').classList.remove('hidden');
-      setAccountStatus(L('Angemeldet über den Link. Lege jetzt einen neuen Passkey an oder setze ein Passwort.', 'Signed in via the link. Add a new passkey or set a password now.'));
+      if (fromLink) setAccountStatus(L('Angemeldet über den Link. Lege jetzt einen neuen Passkey an oder setze ein Passwort.', 'Signed in via the link. Add a new passkey or set a password now.'));
       preparePasskeyUi().then(() => renderLoginMethods()).catch(() => {});
     } else {
       el('accountOverlay').classList.add('hidden');
@@ -5132,15 +5193,11 @@
   async function preparePasskeyUi() {
     passkeysUsable = passkeysServer && (await loadWebAuthnLib()) && window.SimpleWebAuthnBrowser.browserSupportsWebAuthn();
     el('accPasskeyLoginBtn').classList.toggle('hidden', !passkeysUsable);
-    el('accRegPasskeyBtn').classList.toggle('hidden', !passkeysUsable);
-    // Passkey first: the password part waits behind "stattdessen Passwort".
-    const passwordChosen = el('accRegPasswordPart').dataset.chosen === '1';
-    el('accRegUsePasswordBtn').classList.toggle('hidden', !passkeysUsable || passwordChosen);
-    el('accRegPasswordPart').classList.toggle('hidden', passkeysUsable && !passwordChosen);
-    // One primary button at a time: once the password path is chosen, the
-    // passkey button steps back.
-    el('accRegPasskeyBtn').classList.toggle('btn-primary', !passwordChosen);
-    el('accRegPasskeyBtn').classList.toggle('btn-secondary', passwordChosen);
+    // Passkey first after sign-up; without passkeys the password is the one
+    // primary choice.
+    el('accSetupPasskeyBtn').classList.toggle('hidden', !passkeysUsable);
+    el('accSetupPasswordBtn').classList.toggle('btn-primary', !passkeysUsable);
+    el('accSetupPasswordBtn').classList.toggle('btn-secondary', passkeysUsable);
     if (passkeysUsable && !accountUsername) startPasskeyAutofill();
   }
 
@@ -5190,36 +5247,6 @@
     }
   });
 
-  el('accRegUsePasswordBtn').addEventListener('click', () => {
-    el('accRegPasswordPart').dataset.chosen = '1';
-    el('accRegPasswordPart').classList.remove('hidden');
-    el('accRegUsePasswordBtn').classList.add('hidden');
-    el('accRegPasskeyBtn').classList.replace('btn-primary', 'btn-secondary');
-    el('accRegPass').focus();
-  });
-
-  el('accRegPasskeyBtn').addEventListener('click', async () => {
-    const lib = window.SimpleWebAuthnBrowser;
-    if (!lib) return;
-    setAccountStatus(L('Registriere...', 'Registering...'));
-    try {
-      const opt = await accountApi('/api/passkey/register/options', { username: el('accRegUser').value, email: el('accRegEmail').value });
-      if (opt.error) return setAccountStatus(trs(opt.error), true);
-      const response = await lib.startRegistration({ optionsJSON: opt.options });
-      const r = await accountApi('/api/passkey/register/verify', { flowId: opt.flowId, response });
-      if (r.error) return setAccountStatus(trs(r.error), true);
-      setAccountStatus(
-        r.mailDelivered
-          ? L('✅ Passkey gespeichert! Bitte noch den Bestätigungslink in deiner E-Mail öffnen, danach meldest du dich mit dem Passkey an.', '✅ Passkey saved! Please open the confirmation link in your e-mail, then sign in with the passkey.')
-          : r.mailConfigured
-            ? L('⚠️ Passkey gespeichert, aber die Bestätigungsmail konnte nicht verschickt werden. Der Link steht im Server-Log - bitte den Mailserver prüfen.', '⚠️ Passkey saved, but the confirmation e-mail could not be sent. The link is in the server log - please check the mail server.')
-            : L('✅ Passkey gespeichert. Der Bestätigungslink steht im Server-Log (noch kein Mailserver eingetragen).', '✅ Passkey saved. The confirmation link is in the server log (no mail server configured yet).')
-      );
-    } catch (e) {
-      setAccountStatus(passkeyCancelled(e) ? L('Abgebrochen.', 'Cancelled.') : L('Der Passkey konnte nicht angelegt werden.', 'The passkey could not be created.'), !passkeyCancelled(e));
-    }
-  });
-
   el('accLoginLinkBtn').addEventListener('click', async () => {
     const who = el('accLoginUser').value.trim();
     if (!who) {
@@ -5240,8 +5267,12 @@
   async function renderLoginMethods() {
     const box = el('accountMethods');
     const m = await accountApi('/api/account/methods', { token: accountToken() });
-    if (!m.ok) { box.classList.add('hidden'); return; }
-    box.classList.remove('hidden');
+    if (!m.ok) { box.classList.add('hidden'); el('accountSetup').classList.add('hidden'); return; }
+    // No way to sign in yet (just confirmed, or signed up and left): the
+    // setup choice replaces the list until one exists.
+    const none = !m.hasPassword && !m.passkeys.length;
+    el('accountSetup').classList.toggle('hidden', !none);
+    box.classList.toggle('hidden', none);
     const list = el('passkeyList');
     list.innerHTML = '';
     for (const pk of m.passkeys) {
@@ -5275,7 +5306,14 @@
     el('accRemovePasswordBtn').classList.toggle('hidden', !m.hasPassword || !m.passkeys.length);
   }
 
-  el('accAddPasskeyBtn').addEventListener('click', async () => {
+  el('accAddPasskeyBtn').addEventListener('click', () => addPasskey());
+  el('accSetupPasskeyBtn').addEventListener('click', () => addPasskey());
+  el('accSetupPasswordBtn').addEventListener('click', () => {
+    el('accountSetup').classList.add('hidden');
+    el('accountMethods').classList.remove('hidden');
+    openPasswordForm();
+  });
+  async function addPasskey() {
     const lib = window.SimpleWebAuthnBrowser;
     if (!lib) return;
     try {
@@ -5289,12 +5327,16 @@
     } catch (e) {
       setAccountStatus(passkeyCancelled(e) ? L('Abgebrochen.', 'Cancelled.') : L('Der Passkey konnte nicht angelegt werden.', 'The passkey could not be created.'), !passkeyCancelled(e));
     }
-  });
+  }
 
-  el('accSetPasswordBtn').addEventListener('click', () => {
+  function openPasswordForm() {
     el('accSetPasswordUser').value = accountUsername || '';
-    el('accSetPasswordForm').classList.toggle('hidden');
-    if (!el('accSetPasswordForm').classList.contains('hidden')) el('accNewPass').focus();
+    el('accSetPasswordForm').classList.remove('hidden');
+    el('accNewPass').focus();
+  }
+  el('accSetPasswordBtn').addEventListener('click', () => {
+    if (el('accSetPasswordForm').classList.contains('hidden')) openPasswordForm();
+    else el('accSetPasswordForm').classList.add('hidden');
   });
   el('accSetPasswordForm').addEventListener('submit', async (ev) => {
     ev.preventDefault();
@@ -5318,6 +5360,7 @@
     storageRemove(ACC_TOKEN_KEY);
     accountUsername = null;
     el('accountMethods').classList.add('hidden');
+    el('accountSetup').classList.add('hidden');
     el('accSetPasswordForm').classList.add('hidden');
     refreshAccountUi();
     el('accountOverlay').classList.add('hidden');

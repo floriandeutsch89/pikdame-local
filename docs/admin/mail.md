@@ -1,11 +1,13 @@
 # E-mail (SMTP)
 
-Pik Dame sends exactly **one** kind of mail: the address-confirmation link a
-new account gets after registering. Everything else — game invites, results,
-password changes — happens in the app, never by mail.
+Pik Dame sends two kinds of mail, both about accounts: the **confirmation**
+after registering (a 6-digit code plus a link) and the **sign-in link** a
+player can request after losing a passkey or forgetting the password.
+Everything else — game invites, results, password changes — happens in the
+app, never by mail.
 
 That means mail is **optional**. Without it the server still runs, accounts
-still work; the confirmation link is written to the log instead of being sent
+still work; code and link are written to the log instead of being sent
 (see [Without a mail server](#without-a-mail-server-the-log-fallback)).
 
 The SMTP client is hand-written on `node:net` / `node:tls` — no dependency, no
@@ -136,13 +138,15 @@ every hosted provider at the first real mail: **no `PIKDAME_SMTP_USER`/PASS**
 ## Without a mail server: the log fallback
 
 If `PIKDAME_SMTP_HOST` is unset, registration still succeeds and the complete
-mail — including the confirmation link — is written to the server log:
+mail — including code and link — is written to the server log:
 
 ```
 [mail] SMTP nicht konfiguriert - Mail an spieler@example.com wird nur geloggt:
-[mail] Betreff: Pik Dame: E-Mail-Adresse bestätigen
-[mail] willkommen bei Pik Dame! Bitte bestätige deine E-Mail-Adresse über diesen Link:
-[mail] https://play.pikdame.online/verify?token=...
+[mail] Betreff: Pik Dame: Dein Bestätigungscode 481523
+[mail] willkommen bei Pik Dame! Dein Bestätigungscode:
+[mail]     481523
+[mail] Gib ihn im offenen Registrierungsfenster ein (15 Minuten gültig). Oder bestätige über diesen Link:
+[mail] https://play.pikdame.online/?verify=...
 ```
 
 This is deliberate: you can test and use the whole account flow before any
@@ -189,8 +193,8 @@ Then register a test account and watch the log:
 
 The app tells the registering user which of the three happened, so a support
 message ("account created, but the confirmation e-mail could not be sent")
-already narrows it down to the last case. Finally, open the confirmation link
-and check that the account becomes verified.
+already narrows it down to the last case. Finally, enter the code (or open the
+link) and check that the account becomes verified.
 
 ## Troubleshooting
 

@@ -123,7 +123,10 @@ Diese Datei fasst die Regeln zusammen, die bei JEDER Änderung gelten.
   `Passkeys.js` (WebAuthn über `@simplewebauthn/server`; aus ohne Bibliothek
   oder ohne https-`PIKDAME_BASE_URL` - die RP-ID ist deren Hostname, ein
   Domainwechsel macht alle Passkeys ungültig; Rückweg ist der Anmelde-Link
-  per Mail). Konten können passwortlos sein (`salt = ''`); der letzte
+  per Mail). Registrierung ist E-Mail-zuerst: Name + Adresse, die Mail trägt
+  einen 6-stelligen Code (15 min, 5 Versuche, nur als SHA-256 gespeichert) und
+  einen Link; beides bestätigt UND meldet an, erst danach Passkey oder
+  Passwort. Konten können passwortlos sein (`salt = ''`); der letzte
   Anmeldeweg ist nie löschbar.
 - `public/` — Vanilla-JS-Client (`client.js`), `i18n.js`, PWA. Enthält auch den
   Studio-Vorspann (`#studioSplash`): Er ist ab dem ERSTEN Bild per CSS sichtbar

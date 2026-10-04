@@ -420,7 +420,7 @@ const accountApiByIp = new Map(); // ip -> { count, windowStart }
 // every opening of the account dialog makes a few of those calls.
 const ACCOUNT_CHEAP_ENDPOINTS = new Set([
   '/api/me', '/api/ladder', '/api/account/methods',
-  '/api/passkey/login/options', '/api/passkey/register/options', '/api/passkey/add/options',
+  '/api/passkey/login/options', '/api/passkey/add/options',
 ]);
 const accountCheapByIp = new Map();
 function accountRateLimited(ip, filePath = '') {
@@ -709,14 +709,21 @@ async function handleAdminRequest(req, res, filePath) {
         if (bump(adminMailsByIp, ip, 10 * 60 * 1000) > 5) {
           notice = { ok: false, text: 'Höchstens 5 Mails in 10 Minuten.' };
         } else {
-          const r = await accountStore.renewVerification(username);
-          if (r.error) {
-            notice = { ok: false, text: r.error };
+          let r = await accountStore.renewVerification(username);
+          // Password-less sign-ups get the code + sign-in link mail: the plain
+          // confirmation link would leave them without any way to sign in.
+          if (r.ok && r.passwordless) r = { ok: true, passwordless: true, ...(await accountStore.renewSignupCode(r.email)) };
+          if (r.error || !r.verifyToken) {
+            notice = { ok: false, text: r.error || 'Benutzer nicht gefunden.' };
           } else {
-            const mail = await sendVerificationMail(req, r.username, r.email, r.verifyToken);
+            const mail = r.passwordless
+              ? await sendSetupMail(req, r.username, r.email, r.verifyToken, r.code)
+              : await sendVerificationMail(req, r.username, r.email, r.verifyToken);
             console.log(`[admin] Bestätigungsmail neu gesendet: ${r.username} (${mail.delivered ? 'zugestellt' : 'nur im Log'})`);
             notice = mail.delivered
-              ? { ok: true, text: `Neue Bestätigungsmail an ${r.email} wurde vom SMTP-Server angenommen. Der Link ist 48 Stunden gültig, der alte gilt nicht mehr.` }
+              ? { ok: true, text: r.passwordless
+                ? `Neue Mail mit Code und Link an ${r.email} wurde vom SMTP-Server angenommen. Der Code gilt 15 Minuten, der Link 48 Stunden; die alten gelten nicht mehr.`
+                : `Neue Bestätigungsmail an ${r.email} wurde vom SMTP-Server angenommen. Der Link ist 48 Stunden gültig, der alte gilt nicht mehr.` }
               : { ok: false, text: `Neuer Link erstellt, aber die Mail ging nicht raus (${mail.reason}) - der Link steht im Server-Log.` };
           }
         }
@@ -806,6 +813,19 @@ function sendVerificationMail(req, username, email, verifyToken) {
   });
 }
 
+// Confirmation mail of the password-less sign-up: a 6-digit code for the open
+// dialog (the passkey is then created on the device that signed up) and a link
+// for those who prefer to click. Either one confirms and signs in; the choice
+// "Passkey or password" comes after that.
+function sendSetupMail(req, username, email, verifyToken, code) {
+  const url = `${publicBase(req)}/?verify=${verifyToken}`;
+  return mailer.send({
+    to: email,
+    subject: `Pik Dame: Dein Bestätigungscode ${code}`,
+    text: `Hallo ${username},\n\nwillkommen bei Pik Dame! Dein Bestätigungscode:\n\n    ${code}\n\nGib ihn im offenen Registrierungsfenster ein (15 Minuten gültig). Oder bestätige über diesen Link:\n\n${url}\n\nDanach bist du angemeldet und wählst, wie du dich künftig anmeldest: mit einem Passkey (Face ID, Touch ID, Passwort-Manager) oder mit einem Passwort.\n\nFalls du dich nicht registriert hast, ignoriere diese Mail einfach.\n`,
+  });
+}
+
 // E-mail login link: the way back in after losing a passkey or forgetting the
 // password. 15 minutes, single use; the link signs in, and the account dialog
 // then offers to add a passkey or set a password.
@@ -882,21 +902,42 @@ async function handleAccountRequest(req, res, filePath) {
   if (filePath.startsWith('/api/passkey/') && !passkeys) {
     return sendJson(res, 404, { error: 'Passkeys sind auf diesem Server nicht verfügbar.' });
   }
-  if (filePath === '/api/passkey/register/options') {
-    const v = await accountStore.validateNewAccount(body.username, body.email);
-    if (v.error) return sendJson(res, 400, { error: v.error });
-    const r = await passkeys.startRegistration({ username: v.username, userHandle: passkeys.newUserHandle(), data: { email: v.email } });
-    return sendJson(res, 200, { ok: true, flowId: r.flowId, options: r.options });
-  }
-  if (filePath === '/api/passkey/register/verify') {
-    const r = await passkeys.finishRegistration(body.flowId, body.response);
+  // ---------------- Sign-up: e-mail first ----------------
+  // Name + e-mail only. The code (or the link) from the mail confirms the
+  // address AND signs in; the passkey or password is chosen after that, so no
+  // sign-in method ever exists for an unconfirmed address.
+  if (filePath === '/api/register-passwordless') {
+    const r = await accountStore.registerWithoutPassword(body.username, body.email);
     if (r.error) return sendJson(res, 400, { error: r.error });
-    const created = await accountStore.registerWithPasskey(r.flow.username, r.flow.email, r.flow.userHandle,
-      { ...r.credential, name: deviceName(req.headers['user-agent']) });
-    if (created.error) return sendJson(res, 400, { error: created.error });
-    console.log(`[account] Registrierung mit Passkey: ${created.username}`);
-    const mail = await sendVerificationMail(req, created.username, r.flow.email, created.verifyToken);
+    console.log(`[account] Registrierung: ${r.username}`);
+    const mail = await sendSetupMail(req, r.username, String(body.email).trim(), r.verifyToken, r.code);
     return sendJson(res, 200, { ok: true, mailDelivered: !!mail.delivered, mailConfigured: !!mailer.configured });
+  }
+  if (filePath === '/api/verify-code') {
+    const r = await accountStore.verifyCodeAndSignIn(body.email, body.code);
+    if (r.error) return sendJson(res, 400, { error: r.error });
+    await importGuestProfile(r.username);
+    console.log(`[account] E-Mail per Code bestätigt: ${r.username}`);
+    return sendJson(res, 200, { ok: true, token: r.token, username: r.username });
+  }
+  if (filePath === '/api/verify-code/resend') {
+    // Same per-address cap as the login link; the answer never says whether
+    // an unconfirmed sign-up exists for the address.
+    const key = 'code:' + String(body.email || '').trim().toLowerCase().slice(0, 254);
+    const now = Date.now();
+    let e = loginLinkRequests.get(key);
+    if (!e || now - e.windowStart > 15 * 60 * 1000) { e = { count: 0, windowStart: now }; loginLinkRequests.set(key, e); }
+    e.count += 1;
+    if (e.count > 3) return sendJson(res, 429, { error: 'Höchstens 3 neue Codes in 15 Minuten - bitte kurz warten.' });
+    const r = await accountStore.renewSignupCode(body.email);
+    if (r) await sendSetupMail(req, r.username, r.email, r.verifyToken, r.code);
+    return sendJson(res, 200, { ok: true });
+  }
+  if (filePath === '/api/verify-signin') {
+    const r = await accountStore.verifyAndSignIn(body.token);
+    if (r.error) return sendJson(res, 400, { error: r.error });
+    await importGuestProfile(r.username);
+    return sendJson(res, 200, { ok: true, token: r.token, username: r.username });
   }
   if (filePath === '/api/passkey/login/options') {
     const r = await passkeys.startLogin();

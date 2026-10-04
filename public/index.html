@@ -629,22 +629,39 @@
             <button id="accPasskeyLoginBtn" type="button" class="btn-secondary hidden"><svg class="icon" aria-hidden="true"><use href="#i-key"/></svg><span>Mit Passkey anmelden</span></button>
             <button id="accLoginLinkBtn" type="button" class="linkBtn">Anmelde-Link per E-Mail</button>
           </form>
-          <form id="accountRegisterForm" class="hidden" action="/api/register" method="post" novalidate>
+          <!-- E-mail first, like most services: name + address, then the code
+               (or the link) from the mail confirms and signs in, and only then
+               a passkey or a password is chosen - no sign-in method ever
+               exists for an unconfirmed address. -->
+          <form id="accountRegisterForm" class="hidden" action="/api/register-passwordless" method="post" novalidate>
             <input id="accRegUser" name="username" type="text" placeholder="Benutzername (2-24 Zeichen)" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="24" />
             <input id="accRegEmail" name="email" type="email" inputmode="email" placeholder="E-Mail-Adresse" autocomplete="email" autocapitalize="none" spellcheck="false" />
-            <!-- Passkey first; the password path stays for browsers without
-                 passkeys and for anyone who prefers it. -->
-            <button id="accRegPasskeyBtn" type="button" class="btn-primary hidden"><svg class="icon" aria-hidden="true"><use href="#i-key"/></svg><span>Mit Passkey registrieren</span></button>
-            <button id="accRegUsePasswordBtn" type="button" class="linkBtn hidden">stattdessen Passwort festlegen</button>
-            <div id="accRegPasswordPart" class="accFormPart">
-              <input id="accRegPass" name="password" type="password" placeholder="Passwort (mind. 8 Zeichen)" autocomplete="new-password" passwordrules="minlength: 8;" />
-              <button id="accRegisterBtn" type="submit" class="btn-primary">Konto erstellen</button>
-            </div>
+            <button id="accRegisterBtn" type="submit" class="btn-primary">Weiter</button>
             <p class="lobby-hint">Dein Fortschritt (Statistik, Erfolge, Siegesserien) bleibt mit einem Konto dauerhaft erhalten - und niemand sonst kann deinen Namen verwenden.</p>
+          </form>
+          <!-- "one-time-code": iOS offers the code from Mail / Messages above
+               the keyboard. -->
+          <form id="accountCodeForm" class="hidden" action="/api/verify-code" method="post" novalidate>
+            <p id="accCodeHint" class="lobby-hint"></p>
+            <input id="accRegCode" name="code" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" maxlength="6" placeholder="6-stelliger Code" class="codeInput" />
+            <button id="accVerifyCodeBtn" type="submit" class="btn-primary">Bestätigen</button>
+            <span class="codeActions">
+              <button id="accResendCodeBtn" type="button" class="linkBtn">Neuen Code senden</button>
+              <button id="accCodeBackBtn" type="button" class="linkBtn">Andere Adresse</button>
+            </span>
           </form>
         </div>
         <div id="accountLoggedIn" class="hidden">
           <p id="accountWhoami">Angemeldet als –</p>
+          <!-- Right after confirming (or with no method at all): pick how to
+               sign in from now on - first thing below the name, it is THE
+               next step. -->
+          <div id="accountSetup" class="accountSetup hidden">
+            <p class="setupDone"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span>E-Mail bestätigt</span></p>
+            <p>Wie willst du dich künftig anmelden?</p>
+            <button id="accSetupPasskeyBtn" type="button" class="btn-primary hidden"><svg class="icon" aria-hidden="true"><use href="#i-key"/></svg><span>Passkey anlegen</span></button>
+            <button id="accSetupPasswordBtn" type="button" class="btn-secondary">Passwort festlegen</button>
+          </div>
           <!-- Stufe + Saison-Rangliste: der einzige Fortschritt, der dem
                Konto folgt statt dem Gerät - deshalb steht er hier und nicht
                in der namensbasierten Statistik. -->

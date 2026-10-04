@@ -31,12 +31,21 @@ can still play, they just get no profile).
 
 Switching from SQLite to PostgreSQL does **not** migrate existing accounts.
 
-## Passkeys and sign-in links
+## Sign-up, passkeys and sign-in links
 
-Players can sign up and sign in with a **passkey** (Face ID / Touch ID, Android,
-Windows Hello, Bitwarden, 1Password …) instead of a password. Passwords keep
-working; an account can have passkeys, a password, or both — never zero: the
-last way to sign in cannot be removed.
+**Sign-up is e-mail first**, like at most services: players enter a name and an
+e-mail address, nothing else. The mail carries a **6-digit code** (typed into
+the open dialog; 15 minutes, 5 attempts) and a **link** (48 hours). Either one
+confirms the address and signs the player in; only then do they choose how to
+sign in from now on: a **passkey** (Face ID / Touch ID, Android, Windows Hello,
+Bitwarden, 1Password …) or a **password**. No sign-in method ever exists for an
+unconfirmed address. With the code, the passkey is created on the device that
+signed up, even when the mail is read on another one.
+
+An account can have passkeys, a password, or both; the last one cannot be
+removed. Anyone who closed the dialog before choosing signs in with the e-mail
+sign-in link below and gets the same choice. Unconfirmed sign-ups are deleted
+after 48 hours.
 
 Passkeys switch on by themselves when all of this is true, and stay hidden
 otherwise:
@@ -63,4 +72,4 @@ by link, the account dialog offers to add a passkey or set a password. The admin
 page's **Benutzer** tab can send the same link.
 
 Stored: the passkey's **public** key and its signature counter (nothing secret),
-and for open sign-in links only a SHA-256 of the token.
+and for open sign-in links and sign-up codes only a SHA-256.

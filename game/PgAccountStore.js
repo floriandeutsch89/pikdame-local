@@ -20,6 +20,25 @@ const SCRYPT_KEYLEN = 64;
 const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 const VERIFY_TTL_MS = 48 * 60 * 60 * 1000; // 48 hours
 const LOGIN_LINK_TTL_MS = 15 * 60 * 1000; // e-mail login link
+// Sign-up without a password: the mail carries a 6-digit code (typed into the
+// open dialog, so the passkey is created on THIS device) next to the link.
+const SIGNUP_CODE_TTL_MS = 15 * 60 * 1000;
+const SIGNUP_CODE_TRIES = 5;
+
+function signupCode() {
+  return String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+}
+
+/** Bound to the account id, so equal codes of two accounts hash differently. */
+function codeHash(userId, code) {
+  return crypto.createHash('sha256').update(`${userId}:${String(code || '').trim()}`).digest('hex');
+}
+
+function codeMatches(userId, code, stored) {
+  const a = Buffer.from(codeHash(userId, code));
+  const b = Buffer.from(String(stored || ''));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
 
 function hashPassword(password, salt) {
   return crypto.scryptSync(password, salt, SCRYPT_KEYLEN);
@@ -63,6 +82,10 @@ const SCHEMA = `
   ALTER TABLE users ADD COLUMN IF NOT EXISTS webauthn_user_id TEXT;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS login_token_hash TEXT;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS login_expires BIGINT;
+  -- Sign-up code (password-less registration): hash, expiry, attempts.
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_code_hash TEXT;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_code_expires BIGINT;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_code_tries INTEGER NOT NULL DEFAULT 0;
   CREATE TABLE IF NOT EXISTS webauthn_credentials (
     id TEXT PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -174,7 +197,10 @@ function createPgAccountStore(databaseUrl, options = {}) {
       const row = r.rows[0];
       if (!row) return { error: 'Ungültiger oder bereits verwendeter Bestätigungslink.' };
       if (Date.now() > Number(row.verify_expires)) return { error: 'Der Bestätigungslink ist abgelaufen - bitte neu registrieren.' };
-      await pool.query('UPDATE users SET verified = TRUE, verify_token = NULL, verify_expires = NULL WHERE id = $1', [row.id]);
+      await pool.query(
+        `UPDATE users SET verified = TRUE, verify_token = NULL, verify_expires = NULL,
+           verify_code_hash = NULL, verify_code_expires = NULL WHERE id = $1`, [row.id]
+      );
       return { ok: true, username: row.username };
     } catch (e) {
       console.error('Postgres verifyEmail failed:', e.message);
@@ -368,10 +394,13 @@ function createPgAccountStore(databaseUrl, options = {}) {
       const r = await pool.query(
         `UPDATE users SET verify_token = $2, verify_expires = $3
           WHERE LOWER(username) = LOWER($1) AND verified = FALSE
-          RETURNING username, email`,
+          RETURNING username, email, salt`,
         [String(username || '').trim(), verifyToken, Date.now() + VERIFY_TTL_MS]
       );
-      if (r.rows.length) return { ok: true, username: r.rows[0].username, email: r.rows[0].email, verifyToken };
+      if (r.rows.length) {
+        const row = r.rows[0];
+        return { ok: true, username: row.username, email: row.email, verifyToken, passwordless: !row.salt };
+      }
       const exists = await pool.query('SELECT verified FROM users WHERE LOWER(username) = LOWER($1)', [String(username || '').trim()]);
       return { error: exists.rows.length ? 'Dieses Konto ist bereits bestätigt.' : 'Benutzer nicht gefunden.' };
     } catch (e) {
@@ -422,29 +451,92 @@ function createPgAccountStore(databaseUrl, options = {}) {
     }
   }
 
-  async function registerWithPasskey(username, email, webauthnUserId, cred) {
+  async function registerWithoutPassword(username, email) {
     const v = await validateNewAccount(username, email);
     if (v.error) return v;
     const verifyToken = randomToken();
-    const client = await pool.connect().catch((e) => { console.error('Postgres connect failed:', e.message); return null; });
-    if (!client) return DB_DOWN;
     try {
-      await client.query('BEGIN');
-      const r = await client.query(
-        `INSERT INTO users (username, email, password_hash, salt, verified, verify_token, verify_expires, created_at, webauthn_user_id)
-         VALUES ($1, $2, $3, '', FALSE, $4, $5, $6, $7) RETURNING id`,
-        [v.username, v.email, Buffer.alloc(0), verifyToken, Date.now() + VERIFY_TTL_MS, Date.now(), webauthnUserId]
+      const r = await pool.query(
+        `INSERT INTO users (username, email, password_hash, salt, verified, verify_token, verify_expires, created_at)
+         VALUES ($1, $2, $3, '', FALSE, $4, $5, $6) RETURNING id`,
+        [v.username, v.email, Buffer.alloc(0), verifyToken, Date.now() + VERIFY_TTL_MS, Date.now()]
       );
-      await client.query(INSERT_CRED, credValues(r.rows[0].id, cred));
-      await client.query('COMMIT');
-      return { ok: true, verifyToken, username: v.username };
+      const code = await setSignupCode(Number(r.rows[0].id));
+      return { ok: true, verifyToken, code, username: v.username };
     } catch (e) {
-      await client.query('ROLLBACK').catch(() => {});
       if (e.code === '23505') return { error: 'Benutzername oder E-Mail ist bereits registriert.' };
-      console.error('Postgres registerWithPasskey failed:', e.message);
+      console.error('Postgres registerWithoutPassword failed:', e.message);
       return DB_DOWN;
-    } finally {
-      client.release();
+    }
+  }
+
+  async function setSignupCode(userId) {
+    const code = signupCode();
+    await pool.query(
+      'UPDATE users SET verify_code_hash = $2, verify_code_expires = $3, verify_code_tries = 0 WHERE id = $1',
+      [userId, codeHash(userId, code), Date.now() + SIGNUP_CODE_TTL_MS]
+    );
+    return code;
+  }
+
+  async function renewSignupCode(email) {
+    try {
+      await ensureReady();
+      const r = await pool.query('SELECT id, username, email, verified FROM users WHERE LOWER(email) = LOWER($1)', [String(email || '').trim()]);
+      const u = r.rows[0];
+      if (!u || u.verified) return null;
+      const id = Number(u.id);
+      const verifyToken = randomToken();
+      await pool.query('UPDATE users SET verify_token = $2, verify_expires = $3 WHERE id = $1', [id, verifyToken, Date.now() + VERIFY_TTL_MS]);
+      return { username: u.username, email: u.email, verifyToken, code: await setSignupCode(id) };
+    } catch (e) {
+      console.error('Postgres renewSignupCode failed:', e.message);
+      return null;
+    }
+  }
+
+  async function verifyCodeAndSignIn(email, code) {
+    const bad = { error: 'Der Code stimmt nicht.' };
+    try {
+      await ensureReady();
+      // Count the attempt atomically BEFORE comparing: parallel guesses cannot
+      // get past SIGNUP_CODE_TRIES.
+      const r = await pool.query(
+        `UPDATE users SET verify_code_tries = verify_code_tries + 1
+          WHERE LOWER(email) = LOWER($1) AND verified = FALSE AND verify_code_hash IS NOT NULL
+            AND verify_code_tries < $2 AND verify_code_expires >= $3
+          RETURNING id, verify_code_hash`,
+        [String(email || '').trim(), SIGNUP_CODE_TRIES, Date.now()]
+      );
+      const u = r.rows[0];
+      if (!u) {
+        const q = await pool.query(
+          'SELECT verify_code_hash FROM users WHERE LOWER(email) = LOWER($1) AND verified = FALSE', [String(email || '').trim()]
+        );
+        return q.rows[0] && q.rows[0].verify_code_hash ? { error: 'Der Code ist abgelaufen - bitte einen neuen anfordern.' } : bad;
+      }
+      const id = Number(u.id);
+      if (!codeMatches(id, code, u.verify_code_hash)) return bad;
+      await pool.query(
+        `UPDATE users SET verified = TRUE, verify_token = NULL, verify_expires = NULL,
+           verify_code_hash = NULL, verify_code_expires = NULL WHERE id = $1`, [id]
+      );
+      return sessionForUser(id);
+    } catch (e) {
+      console.error('Postgres verifyCodeAndSignIn failed:', e.message);
+      return DB_DOWN;
+    }
+  }
+
+  async function verifyAndSignIn(token) {
+    const v = await verifyEmail(token);
+    if (v.error) return v;
+    try {
+      const r = await pool.query('SELECT id FROM users WHERE LOWER(username) = LOWER($1)', [v.username]);
+      return r.rows[0] ? sessionForUser(Number(r.rows[0].id)) : { error: 'Benutzer nicht gefunden.' };
+    } catch (e) {
+      console.error('Postgres verifyAndSignIn failed:', e.message);
+      return DB_DOWN;
     }
   }
 
@@ -660,7 +752,7 @@ function createPgAccountStore(databaseUrl, options = {}) {
     backend: 'postgres',
     register, verifyEmail, login, sessionUser, logout, isRegisteredName,
     addGameResult, progressFor, ladder, importProfile, listUsers, deleteUser, renewVerification,
-    validateNewAccount, registerWithPasskey, accountForSession, setWebauthnUserId, addCredential,
+    validateNewAccount, registerWithoutPassword, verifyAndSignIn, renewSignupCode, verifyCodeAndSignIn, accountForSession, setWebauthnUserId, addCredential,
     credentialById, touchCredential, deleteCredential, setPassword, removePassword, sessionForUser,
     createLoginLink, consumeLoginLink,
     close,

@@ -2209,12 +2209,23 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 .accountTabs { display: flex; gap: 8px; width: 100%; margin-bottom: 12px; }
 .accountTab { flex: 1; opacity: 0.6; }
 .accountTab.active { opacity: 1; border-color: var(--accent); }
-#accountLoginForm, #accountRegisterForm, .accFormPart, #accSetPasswordForm {
+#accountLoginForm, #accountRegisterForm, #accountCodeForm, #accSetPasswordForm, .accountSetup {
   display: flex; flex-direction: column; gap: 10px; width: 100%;
 }
-#accountLoginForm.hidden, #accountRegisterForm.hidden, .accFormPart.hidden, #accSetPasswordForm.hidden { display: none; }
+#accountLoginForm.hidden, #accountRegisterForm.hidden, #accountCodeForm.hidden, #accSetPasswordForm.hidden, .accountSetup.hidden { display: none; }
+#accCodeHint { margin: 0; }
+/* The sign-up code: big, spaced digits - read from the mail, typed here. */
+#accountCodeForm .codeInput {
+  font-size: var(--fs-title); letter-spacing: 0.4em; text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.codeActions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.accountSetup { margin: 4px 0 16px; text-align: center; }
+.accountSetup p { margin: 0; }
+.setupDone { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-weight: 700; }
+.setupDone .icon { color: var(--accent-2); }
 /* Secondary actions in the account dialog ("Anmelde-Link per E-Mail",
-   "stattdessen Passwort festlegen"): text, but still a full tap target. */
+   "Neuen Code senden"): text, but still a full tap target. */
 .linkBtn {
   background: none; border: none; padding: 0 4px;
   min-height: var(--tap-min);
@@ -2245,7 +2256,7 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 /* The dialog is a light card (--card-bg / --card-ink). The fields used the
    page's --text, which is LIGHT in the dark themes - typed text was nearly
    invisible, and a prefilled name looked like a placeholder. */
-#accountLoginForm input, #accountRegisterForm input, #accSetPasswordForm input {
+#accountLoginForm input, #accountRegisterForm input, #accountCodeForm input, #accSetPasswordForm input {
   background: rgba(0, 0, 0, 0.04); /* fallback: iOS < 16.2 has no color-mix */
   background: color-mix(in srgb, var(--card-ink) 4%, transparent);
   color: var(--card-ink);
@@ -2254,7 +2265,7 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   padding: 11px 12px;
   font-size: 0.9rem;
 }
-#accountLoginForm input::placeholder, #accountRegisterForm input::placeholder, #accSetPasswordForm input::placeholder {
+#accountLoginForm input::placeholder, #accountRegisterForm input::placeholder, #accountCodeForm input::placeholder, #accSetPasswordForm input::placeholder {
   color: color-mix(in srgb, var(--card-ink) 45%, transparent);
 }
 #accountLoggedOut, #accountLoggedIn { width: 100%; }
