@@ -10,6 +10,7 @@ admin-page
 mail
 backup-restore
 auto-deploy
+beta
 onnx
 operations
 ```
@@ -24,6 +25,7 @@ operations
 | **Back up my data — and prove the restore works** | {doc}`backup-restore` |
 | Run a trained (ONNX) bot instead of the heuristic one | {doc}`onnx` |
 | **Deploy automatically after every merge** (instead of nightly) | {doc}`auto-deploy` |
+| Try every pull request on a beta site before merging | {doc}`beta` |
 | Upgrades, monitoring, CrowdSec, the full ops runbook | {doc}`operations` |
 
 ## The one thing to get right

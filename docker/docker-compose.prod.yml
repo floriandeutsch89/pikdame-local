@@ -40,6 +40,11 @@ services:
       - ACME_EMAIL=${ACME_EMAIL:?set ACME_EMAIL in .env}
       # Created once via: docker compose exec crowdsec cscli bouncers add caddy-bouncer
       - CROWDSEC_API_KEY=${CROWDSEC_API_KEY:?run cscli bouncers add and set CROWDSEC_API_KEY in .env}
+      # Optional beta preview (docker-compose.beta.yml, docs/admin/beta.md).
+      # Unset = the beta site only answers for beta.localhost, no certificate.
+      # NEVER pass an empty value: Caddy ignores its own default for "" and
+      # refuses the whole config - production would not start.
+      - PIKDAME_BETA_DOMAIN=${PIKDAME_BETA_DOMAIN:-beta.localhost}
     volumes:
       # No Caddyfile mount: the config is BAKED INTO the image (see
       # caddy/Dockerfile). It pins the inline head script of index.html by
@@ -56,6 +61,7 @@ services:
     networks:
       - caddy_egress
       - caddy_pikdame
+      - caddy_beta
     deploy:
       resources:
         limits:
@@ -315,6 +321,11 @@ networks:
   caddy_egress:
   # Proxy path only - no internet route
   caddy_pikdame:
+    internal: true
+  # Proxy path to the beta preview stack (separate compose project, joins
+  # this network as external). Fixed name so the other project can find it.
+  caddy_beta:
+    name: pikdame-caddy-beta
     internal: true
   # App <-> database only - no internet route
   pikdame:

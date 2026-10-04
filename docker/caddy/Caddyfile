@@ -1,6 +1,7 @@
 # Pik Dame - hardened Caddyfile (production reverse proxy)
 # Domain and ACME e-mail come from the environment (.env next to the
-# compose file): PIKDAME_DOMAIN, ACME_EMAIL.
+# compose file): PIKDAME_DOMAIN, ACME_EMAIL. Optional: PIKDAME_BETA_DOMAIN
+# for the pull-request preview stack (docker-compose.beta.yml).
 {
 	# No runtime admin API - configuration changes go through redeploys.
 	admin off
@@ -15,9 +16,18 @@
 		api_key {$CROWDSEC_API_KEY}
 	}
 	order crowdsec first
+
+	# The beta site falls back to beta.localhost when PIKDAME_BETA_DOMAIN is
+	# unset. Caddy serves such names from its internal CA; there is no host
+	# trust store to install that CA into inside a container.
+	skip_install_trust
 }
 
-{$PIKDAME_DOMAIN} {
+# Everything a site needs except its upstream - shared by production and the
+# beta preview so the two can never differ in hardening.
+#   {args[0]} = public domain (for the WebSocket origin in the CSP)
+#   {args[1]} = upstream host:port
+(site) {
 	crowdsec
 	encode zstd gzip
 
@@ -44,11 +54,11 @@
 		# build, so it cannot silently break the page.
 		# style-src keeps 'unsafe-inline': the client writes style attributes
 		# via the CSSOM and inline SVG carries presentation attributes.
-		Content-Security-Policy "default-src 'self'; script-src 'self' 'sha256-gCnO/a3lWsTTvEhoMzsadMHrkFgoJfKQG8brXUFEGK4='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' wss://{$PIKDAME_DOMAIN}; manifest-src 'self'; worker-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'sha256-gCnO/a3lWsTTvEhoMzsadMHrkFgoJfKQG8brXUFEGK4='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' wss://{args[0]}; manifest-src 'self'; worker-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'"
 	}
 
 	# WebSockets are proxied automatically by Caddy.
-	reverse_proxy pikdame:8080 {
+	reverse_proxy {args[1]} {
 		# Pass the real client IP for the app's IP-based rate limits
 		# (the app must run with PIKDAME_TRUST_PROXY=1).
 		header_up X-Forwarded-For {remote_host}
@@ -68,4 +78,22 @@
 		}
 		format json
 	}
+}
+
+{$PIKDAME_DOMAIN} {
+	import site {$PIKDAME_DOMAIN} pikdame:8080
+}
+
+# Beta preview: every push to a pull request lands here (.github/workflows/
+# beta.yml, docs/admin/beta.md). Same hardening as production; separate stack,
+# database and volumes. Until the beta stack runs, Caddy answers 502.
+#
+# Known limit: the CSP above is the one baked into THIS image, i.e. from the
+# last release. A pull request that edits the inline head script of
+# index.html gets that script blocked on beta (splash shows its CSS fallback)
+# until it is released - the CSP contract test still guards the real thing.
+{$PIKDAME_BETA_DOMAIN:beta.localhost} {
+	import site {$PIKDAME_BETA_DOMAIN:beta.localhost} pikdame-beta:8080
+	# Not for search engines - beta runs unreleased code.
+	header X-Robots-Tag "noindex, nofollow"
 }
