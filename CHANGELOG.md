@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.44.1] - 2026-10-05
+
+### Fixed
+- **Admin-Seite: `/admin/` mit Schrägstrich am Ende ergab nach der Anmeldung „Nicht gefunden“** (die Autovervollständigung des Browsers hängt ihn gern an). Adressen mit Schrägstrich am Ende werden jetzt auf die Variante ohne weitergeleitet. Ist die Admin-Seite aus, bleibt es beim 404
+
 ## [2.44.0] - 2026-10-05
 
 ### Added
