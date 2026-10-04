@@ -13,9 +13,27 @@ function isSet(env, name) {
 
 // Which variable feeds a setting, and is it set? For secrets, the _FILE
 // variant is named when that is where the value comes from.
-function v(env, name, { secret = false } = {}) {
-  if (secret && !env[name] && env[`${name}_FILE`]) return { name: `${name}_FILE`, set: true };
-  return { name, set: !!env[name] };
+// `value` is what the admin page shows on hover: never for secrets, and a
+// URL with a password inside gets that password masked.
+function v(env, name, { secret = false, maskUrl = false } = {}) {
+  if (secret && !env[name] && env[`${name}_FILE`]) {
+    // The path of a secret file is not secret; its content is never read here.
+    return { name: `${name}_FILE`, set: true, value: env[`${name}_FILE`] };
+  }
+  if (!env[name]) return { name, set: false };
+  if (secret) return { name, set: true, secret: true };
+  return { name, set: true, value: maskUrl ? maskUrlPassword(env[name]) : env[name] };
+}
+
+/** postgres://user:PASSWORD@host/db -> postgres://user:***@host/db */
+function maskUrlPassword(value) {
+  try {
+    const u = new URL(value);
+    if (u.password) u.password = '***';
+    return u.toString();
+  } catch (e) {
+    return '(keine gültige URL)';
+  }
 }
 
 function parseUrl(value) {
@@ -28,7 +46,7 @@ function parseUrl(value) {
  *   dataDir, dataDirWritable, accountsEnabled, accountsBackend ('postgres'|'sqlite'),
  *   onnxActive (bool|null), adminMode ('off'|'argon2'|'plain'|'invalid'|'unsupported')
  * @returns {{ id, label, status: 'ok'|'warn'|'off'|'error', detail: string, missing: string[],
- *            vars: { name: string, set: boolean }[] }[]}
+ *            vars: { name: string, set: boolean, value?: string, secret?: boolean }[] }[]}
  */
 function buildConfigReport(env, facts = {}) {
   const items = [];
@@ -36,8 +54,8 @@ function buildConfigReport(env, facts = {}) {
   // ones, so an operator sees what a ✓ is actually built from.
   const VARS = {
     data: [v(env, 'PIKDAME_DATA_DIR')],
-    accounts: [v(env, 'PIKDAME_ACCOUNTS'), v(env, 'PIKDAME_DATABASE_URL')],
-    database: [v(env, 'PIKDAME_DATABASE_URL'), v(env, 'PIKDAME_DATABASE_PASSWORD', { secret: true })],
+    accounts: [v(env, 'PIKDAME_ACCOUNTS'), v(env, 'PIKDAME_DATABASE_URL', { maskUrl: true })],
+    database: [v(env, 'PIKDAME_DATABASE_URL', { maskUrl: true }), v(env, 'PIKDAME_DATABASE_PASSWORD', { secret: true })],
     mail: [
       v(env, 'PIKDAME_SMTP_HOST'), v(env, 'PIKDAME_SMTP_PORT'), v(env, 'PIKDAME_SMTP_SECURE'),
       v(env, 'PIKDAME_SMTP_USER'), v(env, 'PIKDAME_SMTP_PASS', { secret: true }), v(env, 'PIKDAME_MAIL_FROM'),

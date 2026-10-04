@@ -198,3 +198,24 @@ test('/admin with a token: Basic auth, CSRF, mail check', async (t) => {
 
   assert.match(out.log, /\[config\] Konfiguration:/, 'startup report is logged');
 });
+
+test('config report: values on hover for plain settings, never for secrets', () => {
+  const env = {
+    PIKDAME_SMTP_HOST: 'smtp.example.com', PIKDAME_SMTP_PORT: '587', PIKDAME_SMTP_USER: 'postmaster@example.org',
+    PIKDAME_SMTP_PASS: 'TOPSECRET', PIKDAME_ADMIN_TOKEN: 'ADMINSECRET', PIKDAME_DATABASE_PASSWORD_FILE: '/run/secrets/db',
+    PIKDAME_DATABASE_URL: 'postgres://pikdame:DBSECRET@postgres:5432/pikdame', PIKDAME_BASE_URL: 'https://play.example.com',
+  };
+  const r = buildConfigReport(env, { ...FACTS, adminMode: 'plain' });
+  const varOf = (id, name) => byId(r, id).vars.find((x) => x.name === name);
+  assert.equal(varOf('mail', 'PIKDAME_SMTP_HOST').value, 'smtp.example.com');
+  assert.equal(varOf('mail', 'PIKDAME_SMTP_USER').value, 'postmaster@example.org');
+  assert.equal(varOf('mail', 'PIKDAME_SMTP_PASS').value, undefined);
+  assert.equal(varOf('mail', 'PIKDAME_SMTP_PASS').secret, true);
+  assert.equal(varOf('admin', 'PIKDAME_ADMIN_TOKEN').value, undefined);
+  assert.equal(varOf('database', 'PIKDAME_DATABASE_PASSWORD_FILE').value, '/run/secrets/db', 'the path is shown, not the file');
+  assert.equal(varOf('database', 'PIKDAME_DATABASE_URL').value, 'postgres://pikdame:***@postgres:5432/pikdame');
+  const html = AdminPage.renderAdminPage({ report: r, csrf: 'c', mailConfigured: true });
+  assert.match(html, /data-tip="smtp\.example\.com"/);
+  assert.match(html, /data-tip="geheim - Wert wird nicht angezeigt"/);
+  for (const secret of ['TOPSECRET', 'ADMINSECRET', 'DBSECRET']) assert.ok(!html.includes(secret), `${secret} leaked into the page`);
+});

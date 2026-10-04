@@ -10,6 +10,7 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 - **Anmelden und Registrieren sind echte Formulare:** Passwort-Manager wie Bitwarden oder der iCloud-Schlüsselbund erkennen die Felder dadurch zuverlässiger. Absenden geht jetzt auch mit der Eingabetaste
 - Admin-Seite, Reiter „Benutzer“: Knöpfe deutlich sichtbarer; Name und E-Mail stehen zusammen, damit am Desktop nichts mehr abgeschnitten wird
 - Admin-Seite, Monitoring: Die Karte „Datenverzeichnis“ zeigt den **belegten** Platz („11,6 GB von 76,4 GB belegt“)
+- Admin-Seite, Konfiguration: **Darüberfahren oder Antippen einer Variable zeigt ihren Wert.** Passwörter und Tokens bleiben verborgen („geheim“), ein Passwort in der Datenbank-URL erscheint als `***`, bei `_FILE`-Secrets nur der Dateipfad
 
 ### Fixed
 - **Monitoring-Diagramme aktualisierten sich nicht:** Die Daten kamen alle 15 Sekunden, aber die Zeitachse blieb auf dem Fenster vom ersten Laden stehen - neue Punkte lagen außerhalb des Sichtbaren, erst F5 half. Jetzt wandert die Achse mit; ein selbst gezoomter Ausschnitt bleibt beim Aktualisieren erhalten, Doppelklick führt zurück zur Live-Ansicht

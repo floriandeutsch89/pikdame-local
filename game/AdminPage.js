@@ -54,8 +54,13 @@ function formatUptime(seconds) {
 function varList(item) {
   const vars = (item.vars || []).filter((x) => !item.missing.includes(x.name));
   if (!vars.length) return '';
+  // The value shows on hover - and on tap, since phones have no hover
+  // (tabindex makes the chip focusable, CSS shows the bubble on :focus).
+  const tip = (x) => (!x.set ? 'nicht gesetzt - Standardwert'
+    : x.secret ? 'geheim - Wert wird nicht angezeigt'
+      : x.value);
   return `<div class="vars">${vars.map((x) =>
-    `<code class="${x.set ? 'set' : 'unset'}" title="${x.set ? 'gesetzt' : 'nicht gesetzt - Standardwert'}">${esc(x.name)}</code>`).join(' ')}</div>`;
+    `<code class="${x.set ? 'set' : 'unset'}${x.secret ? ' secret' : ''}" tabindex="0" data-tip="${esc(tip(x))}">${esc(x.name)}</code>`).join(' ')}</div>`;
 }
 
 const fmtDate = (ms) => (ms ? new Date(ms).toLocaleString('de-DE', { timeZone: 'Europe/Berlin', dateStyle: 'short', timeStyle: 'short' }) : '–');
@@ -73,7 +78,13 @@ table{width:100%;border-collapse:collapse}td,th{padding:10px 12px;border-top:1px
 table.cfg th{font-weight:600;white-space:nowrap;width:1%}.icon{width:1%;font-weight:800}
 tr.ok .icon{color:var(--ok)}tr.warn .icon{color:var(--warn)}tr.error .icon{color:var(--error)}tr.off{color:var(--muted)}
 .missing{margin-top:4px;font-size:.88em;color:var(--warn)}
-.vars{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px}.vars code.set{color:var(--ok);border:1px solid rgba(67,221,154,.35)}.vars code.unset{color:var(--muted);opacity:.7}
+.vars{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px}
+.vars code{position:relative;cursor:help;outline:none}
+.vars code:focus-visible{box-shadow:0 0 0 2px var(--accent)}
+.vars code[data-tip]:hover::after,.vars code[data-tip]:focus::after{content:attr(data-tip);position:absolute;left:0;top:calc(100% + 6px);z-index:5;
+  max-width:min(420px,80vw);width:max-content;white-space:normal;overflow-wrap:anywhere;padding:6px 9px;border-radius:8px;
+  background:#0b0e12;border:1px solid var(--line);color:var(--text);font-size:.95em;box-shadow:0 6px 18px rgba(0,0,0,.45)}
+.vars code.secret[data-tip]:hover::after,.vars code.secret[data-tip]:focus::after{color:var(--muted);font-style:italic}.vars code.set{color:var(--ok);border:1px solid rgba(67,221,154,.35)}.vars code.unset{color:var(--muted);opacity:.7}
 .legend{color:var(--muted);font-size:.85em;margin:8px 2px 0}.legend code.set{color:var(--ok)}code{background:#0b0e12;padding:1px 5px;border-radius:5px;font-size:.88em}
 dl{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:0;padding:12px}dt{color:var(--muted)}dd{margin:0}
 form{display:flex;flex-wrap:wrap;gap:8px;padding:12px}input{flex:1 1 220px;min-height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:#0b0e12;color:var(--text);font:inherit}
@@ -157,7 +168,7 @@ function configBody({ report, smtpProbe, csrf, mailConfigured }) {
       : 'Noch nicht geprüft.';
   return `<h2>Konfiguration</h2>
 <div class="panel"><table class="cfg">${rows}</table></div>
-<p class="legend">Variablen: <code class="set">grün</code> = gesetzt, grau = nicht gesetzt (Standardwert). Werte werden nicht angezeigt.</p>
+<p class="legend">Variablen: <code class="set">grün</code> = gesetzt, grau = nicht gesetzt (Standardwert). Darüberfahren oder antippen zeigt den Wert - außer bei Passwörtern und Tokens; ein Passwort in der Datenbank-URL erscheint als ***.</p>
 <h2>E-Mail prüfen</h2>
 <div class="panel">
 <p class="probe">${probeLine}</p>
