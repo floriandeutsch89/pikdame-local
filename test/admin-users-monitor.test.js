@@ -116,7 +116,9 @@ test('Monitor: reads cgroup v2 numbers, keeps a capped history', () => {
   assert.ok(c.host.memTotalMb > 0 && c.host.cores > 0);
   const html = AdminPage.renderAdminPage({ tab: 'monitor', monitor: { current: c, range: '24h' }, version: '1.0.0', csrf: 'x' });
   assert.match(html, /<script src="\/vendor-uplot\.js" defer><\/script>/);
-  assert.match(html, /<script src="\/admin-monitor\.js" defer><\/script>/);
+  assert.match(html, /<script src="\/uplot-touch\.js" defer><\/script>\n<script src="\/admin-monitor\.js" defer><\/script>/, 'touch plugin loads before the charts (#305)');
+  assert.ok(c.process.externalMb >= 0, 'external memory is sampled (#306)');
+  assert.match(html, /<dt>Nativ<\/dt><dd>\d+ MB/, 'native memory (outside the JS heap) is shown (#306)');
   assert.doesNotMatch(html, /<script>/, 'no inline script - the CSP only allows same-origin files');
   assert.match(html, /data-range="24h"/);
   assert.match(html, /href="\/admin\/monitor\?range=24h" class="active"/);
@@ -286,6 +288,7 @@ test('server: guest progress follows the name into the account; admin users + mo
   assert.equal(parsed.range, '7d');
   assert.ok(Array.isArray(parsed.points) && parsed.current && parsed.limits);
   assert.equal(JSON.parse((await request('GET', '/admin/monitor/data?range=evil', { auth })).body).range, '1h', 'unknown ranges fall back');
+  assert.equal((await request('GET', '/uplot-touch.js')).status, 200);
   const vendor = await request('GET', '/vendor-uplot.js');
   assert.equal(vendor.status, 200);
   assert.match(vendor.body, /uPlot 1\.6\.32/);

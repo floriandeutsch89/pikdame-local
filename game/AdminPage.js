@@ -242,6 +242,13 @@ function card(title, big, extra = '') {
   return `<div class="card"><h3>${title}</h3><div class="big">${big}</div>${extra}</div>`;
 }
 
+/** Memory outside V8 (RSS - heap - external): native libraries such as the
+ *  ONNX runtime. A JS leak grows the heap, this one stays flat after warmup. */
+function nativeMb(p) {
+  if (p.externalMb == null) return null;
+  return Math.max(0, p.rssMb - p.heapTotalMb - p.externalMb);
+}
+
 /** A number the script refreshes: <span data-k="memMb" data-d="0">. */
 const live = (key, value, digits = 0) => `<span data-k="${key}" data-d="${digits}">${fmtNum(value, digits)}</span>`;
 
@@ -281,7 +288,7 @@ ${nav}
 <div id="charts" class="charts" data-range="${esc(range)}"><p class="sub">Diagramme werden geladen …</p></div>
 <noscript><p class="notice err">Die Diagramme brauchen JavaScript.</p></noscript>
 <p class="legend">Fläche = Durchschnitt${range !== '1h' ? ', dünne Linie = Spitze im Intervall' : ''}, gestrichelt = Grenze, Lücke = Server lief nicht.
-Über ein Diagramm fahren zeigt die Werte in allen; Bereich mit der Maus aufziehen = heranzoomen, Doppelklick = zurück.
+Über ein Diagramm fahren (Handy: antippen) zeigt die Werte in allen; Bereich mit der Maus aufziehen oder seitlich wischen = heranzoomen, Doppelklick/Doppeltipp = zurück.
 Auflösung: 1 Std alle 15 s, 24 Std in 5-Minuten-, 7/30 Tage in 30-Minuten-Mitteln. 100 % CPU = ein voller Kern.</p>
 <h2>Prozess</h2>
 <div class="panel"><dl>
@@ -290,10 +297,12 @@ Auflösung: 1 Std alle 15 s, 24 Std in 5-Minuten-, 7/30 Tage in 30-Minuten-Mitte
 <dt>Node</dt><dd>${esc(process.version)}</dd>
 <dt>Speicher (RSS)</dt><dd>${fmtNum(c.process.rssMb)} MB</dd>
 <dt>Heap</dt><dd>${fmtNum(c.process.heapUsedMb)} von ${fmtNum(c.process.heapTotalMb)} MB</dd>
+<dt>Nativ</dt><dd>${nativeMb(c.process) != null ? `${fmtNum(nativeMb(c.process))} MB <small>(RSS − Heap − extern; u. a. ONNX-Laufzeit)</small>` : '–'}</dd>
 <dt>Last 1 / 5 / 15 min</dt><dd>${fmtNum(c.host.load1, 2)} · ${fmtNum(c.host.load5, 2)} · ${fmtNum(c.host.load15, 2)} (${c.host.cores} Kerne)</dd>
 </dl></div>
 <p class="legend">Andere Container (PostgreSQL, Caddy, CrowdSec) sieht die App nicht einzeln - sie hat bewusst keinen Zugriff auf Docker. Ihr Anteil steckt in „Server“.</p>
 <script src="/vendor-uplot.js" defer></script>
+<script src="/uplot-touch.js" defer></script>
 <script src="/admin-monitor.js" defer></script>`;
 }
 

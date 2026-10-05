@@ -4317,6 +4317,12 @@
     n.textContent = text;
     n.className = `puzzleStatus${cls ? ` ${cls}` : ''}`;
   }
+  // Solved or revealed (server status, so it survives a reload) ends today's
+  // puzzle; a new day brings a fresh status without either flag.
+  function puzzleLocked(status, solutionIds) {
+    const st = status || {};
+    return !!st.solved || !!st.revealed || !!solutionIds;
+  }
   function renderPuzzle() {
     if (!puzzleData) return;
     const st = puzzleData.status || {};
@@ -4326,7 +4332,7 @@
     ) + (st.tries ? ` · ${L(`${st.tries}. Versuch`, `attempt ${st.tries}`)}` : '');
     const box = el('puzzleHand');
     box.innerHTML = '';
-    const done = !!st.solved || !!puzzleSolutionIds;
+    const done = puzzleLocked(st, puzzleSolutionIds);
     for (const card of puzzleData.hand) {
       const cEl = cardEl(card, {
         selectable: !done,
@@ -4347,6 +4353,8 @@
     // "Gelöst! +30 EP" line right after the winning check.
     if (st.solved && !puzzleSolutionIds && !el('puzzleStatus').textContent) {
       setPuzzleStatus(`✅ ${L('Heute schon gelöst - morgen gibt es ein neues.', 'Solved today - a new one comes tomorrow.')}`, 'ok');
+    } else if (st.revealed && !puzzleSolutionIds && !el('puzzleStatus').textContent) {
+      setPuzzleStatus(L('Lösung heute schon angezeigt - morgen gibt es ein neues.', 'Solution already shown today - a new one comes tomorrow.'), '');
     }
   }
   el('puzzleBtn').addEventListener('click', openPuzzle);

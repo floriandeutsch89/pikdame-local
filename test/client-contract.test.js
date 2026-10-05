@@ -622,3 +622,18 @@ test('no native browser dialogs in the client (iOS can suppress them silently)',
   const code = clientJs.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '');
   assert.doesNotMatch(code, /\b(?:window\.)?(?:alert|confirm|prompt)\s*\(/, 'use an in-app dialog or confirmByTap');
 });
+
+test('CSS contract: fixed layers use the z-index scale; pause and forfeit stay on top (#302)', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'style.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  // Raw numbers are fine for stacking inside a component (< 10); every layer
+  // above that comes from a --z-* token, so no dialog can be covered by accident.
+  const raw = [...css.matchAll(/z-index:\s*(-?\d+)/g)].map((m) => Number(m[1])).filter((v) => v >= 10);
+  assert.deepEqual(raw, [], `raw z-index values outside the --z-* scale: ${raw.join(', ')}`);
+  const tokens = Object.fromEntries([...css.matchAll(/--(z-[\w-]+):\s*(\d+);/g)].map((m) => [m[1], Number(m[2])]));
+  const gameLayers = Object.entries(tokens).filter(([k]) => !['z-critical', 'z-splash', 'z-debug'].includes(k));
+  for (const [k, v] of gameLayers) assert.ok(v < tokens['z-critical'], `--${k} (${v}) must stay below --z-critical`);
+  assert.match(css, /\.overlay\.overlayTop \{ z-index: var\(--z-critical\); \}/);
+  for (const id of ['pauseOverlay', 'confirmForfeitOverlay']) {
+    assert.match(html, new RegExp(`id="${id}" class="overlay overlayTop`), `${id} must use .overlayTop`);
+  }
+});

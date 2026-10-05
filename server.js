@@ -2139,6 +2139,12 @@ server.listen(PORT, () => {
     for (const line of formatConfigReport(currentConfigReport())) console.log(line);
   } catch (e) { logCrash('config-report', e); }
   try { startAdminMonitor(); } catch (e) { logCrash('admin-monitor', e); }
+  // Load the ONNX runtime + models now, not in the first bot turn: the one-off
+  // ~40 MB then sits in the baseline instead of looking like a leak (#306).
+  try {
+    const OnnxPolicy = require('./game/OnnxPolicy');
+    if (OnnxPolicy.enabled()) OnnxPolicy.warmup().catch((e) => logCrash('onnx-warmup', e));
+  } catch (e) { logCrash('onnx-warmup', e); }
   // SMTP probe: log in and out once, so a wrong host/port/password shows up
   // now instead of at the first registration. Never blocks the start.
   if (mailer.configured) {

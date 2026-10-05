@@ -12,6 +12,16 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 - **Stammtisch gründen braucht ein Konto** (#307): Der Stammtisch gehört dem Konto, das ihn gegründet hat; nur so ist das Löschen sicher (ein Spielername allein ließe sich nachmachen). Mitspielen per Code geht weiter ohne Konto. Auf Servern ohne Benutzerkonten bleibt alles wie bisher. Bestehende Stammtische gehören dem, der sie gegründet hat
 - **Ein Stammtisch startet erst mit mindestens 2 Spielern** (#301), auch bei der Revanche. Bis jemand per Code dazukommt, zeigt der Startknopf „Mindestens 2 Spieler nötig“; freie Plätze füllen wie gewohnt Bots. Normale Tische sind unverändert
 
+## [2.47.5] - 2026-10-05
+
+### Fixed
+- **Tagesrätsel: „Prüfen“ ist nach dem Lösen wirklich aus** (#304). Ein deaktivierter Hauptknopf sah bisher genauso aus wie ein aktiver; jetzt ist er ausgegraut. Nach „Lösung zeigen“ bleibt das Rätsel auch nach dem Neuladen gesperrt (der Server merkt sich das), am nächsten Spieltag ist es wieder frei
+- **Admin-Monitoring am Handy bedienbar** (#305): seitlich über ein Diagramm wischen zoomt in den Bereich, Doppeltipp setzt zurück, Antippen zeigt die Werte. Senkrechtes Wischen scrollt weiter die Seite
+- **Speichersprung beim ersten Tageschallenge** (#306): Kein Leck - gemessen bleibt der Speicher nach etwa zehn Spielen mit den trainierten Bots stabil (~130 MB, JS-Speicher flach). Der Sprung war das einmalige Laden der Bot-Laufzeit (~40 MB) beim ersten Bot-Zug. Sie wird jetzt beim Serverstart geladen, so steckt der Betrag in der Grundlast. Das Admin-Monitoring zeigt zusätzlich den Speicher außerhalb von JavaScript („Nativ“), damit sich Laufzeit und echte Lecks unterscheiden lassen
+
+### Changed
+- Dialog-Ebenen haben eine feste Skala (#302): Pause und „Spiel aufgeben?“ liegen immer über allen anderen Dialogen, Meldungen und Effekten; ein Test verhindert neue Ebenen außerhalb der Skala
+
 ## [2.47.4] - 2026-10-05
 
 ### Fixed

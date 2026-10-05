@@ -68,3 +68,28 @@ test('PlayerStore puzzle bookkeeping: tries, one solve, no XP after reveal', () 
   assert.strictEqual(after.justSolved, false, 'revealed first = no XP');
   assert.strictEqual(after.solved, true);
 });
+
+test('check button locks once solved or revealed, unlocks on the next game day (#304)', () => {
+  const vm = require('node:vm');
+  const { addDays } = require('../game/GameDay');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'client.js'), 'utf8');
+  const m = src.match(/\n  function puzzleLocked\(status, solutionIds\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(m, 'puzzleLocked is defined in client.js');
+  assert.match(src, /el\('puzzleCheckBtn'\)\.disabled = done \|\|/, 'the check button follows puzzleLocked');
+  const ctx = {};
+  vm.runInNewContext(`${m[0]}\nthis.locked = puzzleLocked;`, ctx);
+
+  // The lock is derived from the server status, so a reload keeps it.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikpuzzle-'));
+  const store = createPlayerStore(path.join(dir, 'players.json'));
+  const day = '2026-10-05';
+  assert.equal(ctx.locked(store.puzzleStatus('Ben', day), null), false);
+  store.recordPuzzleAttempt('Ben', day, true);
+  assert.equal(ctx.locked(store.puzzleStatus('Ben', day), null), true, 'solved -> locked');
+  assert.equal(ctx.locked(store.puzzleStatus('Ben', addDays(day, 1)), null), false, 'new day -> unlocked');
+
+  store.revealPuzzle('Cleo', day);
+  assert.equal(ctx.locked(store.puzzleStatus('Cleo', day), null), true, 'revealed -> locked after reload');
+  assert.equal(ctx.locked({ tries: 0, solved: false, revealed: false }, ['a']), true, 'solution on screen -> locked');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
