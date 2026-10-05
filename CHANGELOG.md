@@ -8,6 +8,11 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Added
 - **Lieblingsabzeichen** (#317): Wer mit Konto angemeldet ist, kann bis zu drei verdiente Abzeichen auswählen (Stern-Knopf in der Abzeichen-Ansicht). Sie stehen neben dem Namen in der Statistik und in der Sitzordnung vor dem Spiel, in der gewählten Reihenfolge; eine Abzeichen-Familie zeigt immer ihre höchste erreichte Stufe. Ohne Konto gibt es die Auswahl nicht, ein gelöschtes Konto verliert sie
 
+## [2.51.0] - 2026-10-05
+
+### Added
+- **Level-up-Dialog** (#315): Wer eine Stufe aufsteigt, sieht kurz nach der Ergebnisübersicht (oder nach dem Tagesrätsel) einen eigenen Dialog: neue Stufe, neuer Titel, ein Balken, der die abgeschlossene Stufe auffüllt, was gerade freigeschaltet wurde und was als Nächstes kommt. Mit etwas Konfetti (aus bei „Bewegung reduzieren“). Funktioniert jetzt auch bei der ersten Partie einer Sitzung - der alte Hinweis kam dort nie
+
 ## [2.50.0] - 2026-10-05
 
 ### Added
