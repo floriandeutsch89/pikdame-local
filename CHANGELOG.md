@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.50.0] - 2026-10-05
+
+### Changed
+- **Beta-Vorschau läuft auf einem eigenen Server** statt neben der Produktion: Code aus Pull Requests kommt nicht mehr auf den Produktionsserver. Die Beta hat einen eigenen Proxy, der bei jedem Push mitgebaut wird. Ändert ein Pull Request das Start-Skript der Seite, läuft es auf der Beta jetzt sofort (vorher erst nach dem Release blockiert). Empfohlen ist ein eigener Mail-Zugang für die Beta. Die Produktion enthält keine Beta-Teile mehr. Umzug und Einrichtung: Doku „Beta preview“
+
 ## [2.47.5] - 2026-10-05
 
 ### Fixed

@@ -52,4 +52,5 @@ LABEL org.opencontainers.image.title="Pik Dame Caddy" \
       org.opencontainers.image.source="https://github.com/floriandeutsch89/pikdame-local" \
       org.opencontainers.image.licenses="Apache-2.0"
 COPY --from=builder /usr/bin/caddy /usr/bin/caddy
+COPY site.caddy /etc/caddy/site.caddy
 COPY Caddyfile /etc/caddy/Caddyfile

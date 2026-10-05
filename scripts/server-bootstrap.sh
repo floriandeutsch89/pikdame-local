@@ -73,7 +73,7 @@ echo "== 6/6 Fetch the production stack =="
 mkdir -p /opt/pikdame/docker/secrets
 cd /opt/pikdame/docker
 BASE=https://raw.githubusercontent.com/floriandeutsch89/pikdame-local/main/docker
-for f in docker-compose.prod.yml Caddyfile .env.example caddy/Dockerfile crowdsec/acquis.yaml; do
+for f in docker-compose.prod.yml .env.example caddy/Caddyfile caddy/site.caddy caddy/Dockerfile crowdsec/acquis.yaml; do
   mkdir -p "$(dirname "$f")"
   curl -fsSL "$BASE/$f" -o "$f"
 done

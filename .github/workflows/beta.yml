@@ -1,8 +1,9 @@
 name: Beta
 
-# Every PR push -> :beta image -> beta.pikdame.online (one slot, latest wins).
-# Skipped until DEPLOY_HOST and BETA_URL are set; set BETA_URL last, a job
-# naming a missing environment creates it empty. Setup: docs/admin/beta.md
+# Every PR push -> :beta images -> beta host (one slot, latest wins).
+# Own server, never the prod host. Skipped until BETA_HOST and BETA_URL are
+# set; set BETA_URL last, a job naming a missing environment creates it
+# empty. Setup: docs/admin/beta.md
 # Forks and dependabot/ branches never deploy - never use pull_request_target.
 
 on:
@@ -11,7 +12,7 @@ on:
 
 permissions:
   contents: read
-  packages: write # push :beta to GHCR
+  packages: write # push the :beta images to GHCR
 
 # Never cut a rollout off; newer pushes replace the one pending run.
 concurrency:
@@ -21,7 +22,7 @@ concurrency:
 jobs:
   beta:
     if: >-
-      vars.DEPLOY_HOST != '' && vars.BETA_URL != '' &&
+      vars.BETA_HOST != '' && vars.BETA_URL != '' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       !startsWith(github.head_ref, 'dependabot/')
     runs-on: ubuntu-latest
@@ -64,6 +65,20 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # Proxy with this commit's Caddyfile, so the CSP hash always matches.
+      - name: Build & push Caddy :beta
+        uses: docker/build-push-action@v7
+        with:
+          context: docker/caddy
+          file: docker/caddy/Dockerfile.beta
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/${{ github.repository }}-caddy:beta
+          labels: |
+            org.opencontainers.image.revision=${{ env.HEAD_SHA }}
+          cache-from: type=gha,scope=caddy-beta
+          cache-to: type=gha,mode=max,scope=caddy-beta
+
       - name: SSH to the server
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
@@ -81,8 +96,8 @@ jobs:
               -o IdentitiesOnly=yes -o BatchMode=yes \
               -o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.ssh/known_hosts \
               -o ConnectTimeout=20 -o ServerAliveInterval=30 \
-              -p "${{ vars.DEPLOY_PORT || '22' }}" \
-              "${{ vars.DEPLOY_USER || 'deploy' }}@${{ vars.DEPLOY_HOST }}" \
+              -p "${{ vars.BETA_PORT || '22' }}" \
+              "${{ vars.BETA_USER || 'deploy' }}@${{ vars.BETA_HOST }}" \
               "$HEAD_SHA"
 
       - name: Wait for beta on /statusz

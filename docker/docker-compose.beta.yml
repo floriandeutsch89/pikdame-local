@@ -1,10 +1,41 @@
-# Pik Dame - beta preview stack next to prod; same .env and directory.
-# Setup and isolation: docs/admin/beta.md. Start AFTER the prod stack (its
-# network). No Watchtower label: only the beta deploy updates it.
+# Pik Dame - beta preview stack on its OWN host (docs/admin/beta.md).
+# Self-contained: own Caddy, database and mail egress; nothing from prod.
+# No Watchtower: only the beta deploy updates it.
+#   cp .env.beta.example .env && docker compose -f docker-compose.beta.yml up -d
 
 name: pikdame-beta
 
 services:
+  caddy-beta:
+    # Built per PR push from docker/caddy/Dockerfile.beta (CSP of that commit).
+    image: ghcr.io/floriandeutsch89/pikdame-local-caddy:beta
+    container_name: pikdame-beta-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - PIKDAME_BETA_DOMAIN=${PIKDAME_BETA_DOMAIN:?set PIKDAME_BETA_DOMAIN in .env}
+      - ACME_EMAIL=${ACME_EMAIL:?set ACME_EMAIL in .env}
+    volumes:
+      - beta-caddy-data:/data      # certificates - MUST persist
+      - beta-caddy-config:/config
+    networks:
+      - caddy_egress
+      - caddy_beta
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    security_opt:
+      - no-new-privileges:true
+
   pikdame-beta:
     image: ghcr.io/floriandeutsch89/pikdame-local:beta
     container_name: pikdame-beta
@@ -44,8 +75,8 @@ services:
       resources:
         limits:
           pids: 256
-          cpus: "0.5"
-          memory: 384M
+          cpus: "1.0"
+          memory: 512M
     logging:
       driver: json-file
       options:
@@ -125,10 +156,11 @@ secrets:
     file: ./secrets/smtp_password.txt
 
 networks:
-  # Created by the prod stack.
+  # Internet-facing: ACME and clients
+  caddy_egress:
+  # Caddy <-> app only
   caddy_beta:
-    name: pikdame-caddy-beta
-    external: true
+    internal: true
   beta:
     internal: true
   beta_smtp:
@@ -137,5 +169,7 @@ networks:
   egress:
 
 volumes:
+  beta-caddy-data:
+  beta-caddy-config:
   beta-data:
   beta-pgdata:

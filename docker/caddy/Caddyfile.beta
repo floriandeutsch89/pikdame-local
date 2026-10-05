@@ -1,0 +1,14 @@
+# Pik Dame - beta preview host (docs/admin/beta.md): latest PR push, own server.
+# Built per PR push (Dockerfile.beta), so the CSP hash matches that commit.
+# No CrowdSec: throwaway data, not indexed.
+{
+	admin off
+	email {$ACME_EMAIL}
+}
+
+import site.caddy
+
+{$PIKDAME_BETA_DOMAIN} {
+	import site {$PIKDAME_BETA_DOMAIN} pikdame-beta:8080
+	header X-Robots-Tag "noindex, nofollow"
+}

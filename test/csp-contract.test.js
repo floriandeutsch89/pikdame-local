@@ -1,5 +1,5 @@
-/** The Content-Security-Policy lives in docker/caddy/Caddyfile, the inline script it
- *  allows lives in public/index.html. Nothing links the two at runtime: if the
+/** The Content-Security-Policy lives in docker/caddy/site.caddy (prod and beta
+ *  import it), the inline script it allows lives in public/index.html. Nothing links the two at runtime: if the
  *  splash pre-check is edited, its sha256 changes and the browser silently
  *  refuses to run it (lobby flashes, or worse). These tests recompute the hash
  *  from the HTML and fail the build on any drift. */
@@ -14,7 +14,7 @@ const root = path.join(__dirname, '..');
 // browser only ever sees the LF bytes from the Linux checkout, so normalise.
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8').replace(/\r\n/g, '\n');
 const html = read('public/index.html');
-const caddyfile = read('docker/caddy/Caddyfile');
+const caddyfile = read('docker/caddy/site.caddy');
 
 /** Inline <script> bodies: no src attribute, and JSON-LD data blocks excluded
  *  (they are not executed, so CSP script-src does not apply to them). */
@@ -31,7 +31,7 @@ const cspLine = caddyfile
   .find((l) => l.trim().startsWith('Content-Security-Policy '));
 
 test('Caddyfile ships a Content-Security-Policy', () => {
-  assert.ok(cspLine, 'no Content-Security-Policy header found in docker/caddy/Caddyfile');
+  assert.ok(cspLine, 'no Content-Security-Policy header found in docker/caddy/site.caddy');
   for (const directive of [
     "default-src 'self'",
     "object-src 'none'",
@@ -53,7 +53,7 @@ test('every inline script in index.html is allowed by a CSP hash', () => {
     const hash = `sha256-${crypto.createHash('sha256').update(body, 'utf8').digest('base64')}`;
     assert.ok(
       cspLine.includes(`'${hash}'`),
-      `inline script not covered by the CSP. Run: npm run csp:sync (adds '${hash}' to docker/caddy/Caddyfile).`
+      `inline script not covered by the CSP. Run: npm run csp:sync (adds '${hash}' to docker/caddy/site.caddy).`
     );
   }
 });
@@ -74,24 +74,29 @@ test('the CSP carries no stale script hashes', () => {
  *  bind-mounted, i.e. versioned separately from the app image - a host with a
  *  stale copy silently blocked the head script. These two tests keep the
  *  config inside the image and out of the compose mounts. */
-test('the Caddy image bakes the Caddyfile in', () => {
-  const dockerfile = read('docker/caddy/Dockerfile');
-  assert.match(
-    dockerfile,
-    /^COPY\s+Caddyfile\s+\/etc\/caddy\/Caddyfile\s*$/m,
-    'docker/caddy/Dockerfile must COPY the Caddyfile - otherwise the image ships without a config'
-  );
+test('the Caddy images bake the Caddyfile and the CSP snippet in', () => {
+  for (const [file, config] of [['Dockerfile', 'Caddyfile'], ['Dockerfile.beta', 'Caddyfile.beta']]) {
+    const dockerfile = read(`docker/caddy/${file}`);
+    assert.match(
+      dockerfile,
+      new RegExp(`^COPY\\s+${config.replace('.', '\\.')}\\s+\\/etc\\/caddy\\/Caddyfile\\s*$`, 'm'),
+      `docker/caddy/${file} must COPY ${config} - otherwise the image ships without a config`
+    );
+    assert.match(dockerfile, /^COPY\s+site\.caddy\s+\/etc\/caddy\/site\.caddy\s*$/m,
+      `docker/caddy/${file} must COPY site.caddy - the CSP lives there`);
+    assert.match(read(`docker/caddy/${config}`), /^import site\.caddy$/m, `${config} must import the shared snippet`);
+  }
   // It has to sit in the build context, or the COPY cannot see it AND the
   // release workflow's rebuild gate (a fingerprint over docker/caddy/**)
   // would retag a stale image instead of rebuilding it.
   assert.ok(
-    fs.existsSync(path.join(root, 'docker/caddy/Caddyfile')),
-    'the Caddyfile must live next to the Dockerfile that copies it'
+    ['Caddyfile', 'site.caddy'].every((f) => fs.existsSync(path.join(root, 'docker/caddy', f))),
+    'the Caddyfile and site.caddy must live next to the Dockerfile that copies them'
   );
 });
 
 test('no compose file bind-mounts a Caddyfile over the baked-in one', () => {
-  for (const f of ['docker/docker-compose.yml', 'docker/docker-compose.ghcr.yml', 'docker/docker-compose.prod.yml']) {
+  for (const f of ['docker/docker-compose.yml', 'docker/docker-compose.ghcr.yml', 'docker/docker-compose.prod.yml', 'docker/docker-compose.beta.yml']) {
     const active = read(f)
       .split('\n')
       .filter((l) => !l.trim().startsWith('#')) // a documented opt-out is fine

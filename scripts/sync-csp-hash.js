@@ -1,4 +1,4 @@
-/** Keeps the CSP script hashes in docker/caddy/Caddyfile in sync with the
+/** Keeps the CSP script hashes in docker/caddy/site.caddy in sync with the
  *  inline scripts in public/index.html.
  *
  *  Why this exists: the browser only runs the inline head script if its exact
@@ -19,7 +19,7 @@ const crypto = require('crypto');
 
 const root = path.join(__dirname, '..');
 const HTML = path.join(root, 'public', 'index.html');
-const CADDY = path.join(root, 'docker', 'caddy', 'Caddyfile');
+const CADDY = path.join(root, 'docker', 'caddy', 'site.caddy');
 
 // Git stores LF; a CRLF working copy would hash differently from the bytes the
 // container serves (see .gitattributes).
@@ -48,7 +48,7 @@ function main() {
   const caddy = read(CADDY);
   const line = caddy.split('\n').find((l) => l.trim().startsWith('Content-Security-Policy '));
   if (!line) {
-    console.error('No Content-Security-Policy header in docker/caddy/Caddyfile.');
+    console.error('No Content-Security-Policy header in docker/caddy/site.caddy.');
     process.exit(1);
   }
 
@@ -81,7 +81,7 @@ function main() {
   });
 
   fs.writeFileSync(CADDY, caddy.replace(line, fixed));
-  console.log('\ndocker/caddy/Caddyfile updated. Commit it together with public/index.html.');
+  console.log('\ndocker/caddy/site.caddy updated. Commit it together with public/index.html.');
 }
 
 main();

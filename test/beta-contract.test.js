@@ -1,4 +1,4 @@
-// Beta runs on the prod host: these checks keep the two stacks apart.
+// Beta runs PR code on its own host: these checks keep it off the prod host.
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
@@ -10,7 +10,8 @@ const active = (src) => src.split(/\r?\n/).filter((l) => !/^\s*#/.test(l)).join(
 
 const beta = active(read('docker/docker-compose.beta.yml'));
 const prod = active(read('docker/docker-compose.prod.yml'));
-const caddyfile = read('docker/caddy/Caddyfile');
+const prodCaddyfile = active(read('docker/caddy/Caddyfile'));
+const betaCaddyfile = active(read('docker/caddy/Caddyfile.beta'));
 const workflow = read('.github/workflows/beta.yml');
 const deploy = active(read('scripts/pikdame-deploy.sh'));
 
@@ -31,10 +32,16 @@ test('beta: its own compose project, no container name shared with prod', () => 
   assert.deepEqual(clash, [], 'beta would replace prod containers');
 });
 
-test('beta: never mounts prod volumes or the prod DB password', () => {
+test('beta: self-contained, needs nothing from a prod stack', () => {
+  assert.doesNotMatch(beta, /^\s+external:\s*true/m, 'an external network/volume ties beta to another stack');
   assert.doesNotMatch(beta, /pikdame-(data|pgdata):/, 'beta uses a prod volume');
   assert.doesNotMatch(beta, /^\s+-\s+db_password\s*$/m, 'beta reads the prod DB password');
   assert.match(beta, /file:\s*\.\/secrets\/beta_db_password\.txt/);
+});
+
+test('prod: no trace of beta in its compose file or Caddyfile', () => {
+  assert.doesNotMatch(prod, /beta/i, 'prod compose still references beta');
+  assert.doesNotMatch(prodCaddyfile, /beta/i, 'prod Caddyfile still serves beta');
 });
 
 test('beta: the app carries the full OWASP hardening of prod', () => {
@@ -50,35 +57,28 @@ test('beta: the app carries the full OWASP hardening of prod', () => {
   assert.doesNotMatch(app, /^\s+ports:/m, 'only Caddy may reach the beta app');
 });
 
+test('beta: only its Caddy publishes ports, from the per-PR :beta image', () => {
+  const caddy = service(beta, 'caddy-beta');
+  assert.match(caddy, /^\s+image:\s*ghcr\.io\/[^/]+\/pikdame-local-caddy:beta\s*$/m);
+  assert.match(caddy, /^\s+container_name:\s*pikdame-beta-caddy\s*$/m);
+  assert.equal((beta.match(/^\s+ports:/gm) || []).length, 1, 'a second service publishes ports');
+  assert.match(beta, /\n {2}caddy_beta:\n\s+internal:\s*true/, 'Caddy <-> app network must be internal');
+});
+
 test('beta: Watchtower never updates it (deploys only through the beta workflow)', () => {
   assert.doesNotMatch(beta, /watchtower\.enable=true/);
 });
 
-test('beta: Caddy reaches it over one named network that prod creates', () => {
-  const prodNet = prod.match(/\n {2}caddy_beta:\n\s+name:\s*(\S+)\n\s+internal:\s*true/);
-  assert.ok(prodNet, 'prod must declare caddy_beta with a fixed name, internal');
-  const betaNet = beta.match(/\n {2}caddy_beta:\n\s+name:\s*(\S+)\n\s+external:\s*true/);
-  assert.ok(betaNet, 'beta must join caddy_beta as external');
-  assert.equal(betaNet[1], prodNet[1]);
-  assert.match(service(prod, 'caddy'), /^\s+-\s+caddy_beta$/m, 'Caddy is not on the beta network');
-});
-
-test('Caddyfile: prod and beta share one hardened snippet; beta is noindex', () => {
-  assert.match(caddyfile, /^\(site\) \{/m);
-  assert.match(caddyfile, /^\{\$PIKDAME_DOMAIN\} \{\n\timport site \{\$PIKDAME_DOMAIN\} pikdame:8080\n\}/m);
-  const betaSite = caddyfile.match(/^\{\$PIKDAME_BETA_DOMAIN:[^}]+\} \{\n([\s\S]*?)\n\}/m);
-  assert.ok(betaSite, 'beta site with a default domain missing');
-  const upstream = betaSite[1].match(/import site \S+ (\S+):8080/);
+test('Caddyfile.beta: shared hardened snippet, proxies to the beta app, noindex, no CrowdSec', () => {
+  const site = betaCaddyfile.match(/^\{\$PIKDAME_BETA_DOMAIN\} \{\n([\s\S]*?)\n\}/m);
+  assert.ok(site, 'beta site block missing');
+  const upstream = site[1].match(/import site \S+ (\S+):8080/);
   assert.ok(upstream, 'beta site must import the shared snippet');
   assert.ok(names(beta, 'container_name').includes(upstream[1]), `Caddy proxies to ${upstream[1]}, no such beta container`);
-  assert.match(betaSite[1], /X-Robots-Tag "noindex/);
-});
-
-test('prod compose: the beta domain is never empty (Caddy would refuse to start)', () => {
-  // Caddy's {$VAR:default} ignores empty values -> config rejected, prod down.
-  const line = prod.match(/^\s+-\s+PIKDAME_BETA_DOMAIN=(.+)$/m);
-  assert.ok(line, 'Caddy needs PIKDAME_BETA_DOMAIN');
-  assert.match(line[1], /^\$\{PIKDAME_BETA_DOMAIN:-[^}]+\}$/, `needs a non-empty default: ${line[1]}`);
+  assert.match(site[1], /X-Robots-Tag "noindex/);
+  // Stock Caddy image: a crowdsec directive would fail to load.
+  assert.doesNotMatch(betaCaddyfile, /crowdsec/);
+  assert.doesNotMatch(active(read('docker/caddy/Dockerfile.beta')), /xcaddy/);
 });
 
 test('beta: socat target and TLS servername come from the same variable', () => {
@@ -88,9 +88,14 @@ test('beta: socat target and TLS servername come from the same variable', () => 
   assert.equal(socat[1], servername[1]);
 });
 
-test('beta workflow: stays off until DEPLOY_HOST and BETA_URL are set', () => {
-  assert.match(workflow, /vars\.DEPLOY_HOST != ''/);
+test('beta workflow: stays off until BETA_HOST and BETA_URL are set', () => {
+  assert.match(workflow, /vars\.BETA_HOST != ''/);
   assert.match(workflow, /vars\.BETA_URL != ''/);
+});
+
+test('beta workflow: never aims at the prod host', () => {
+  assert.doesNotMatch(workflow, /vars\.DEPLOY_(HOST|USER|PORT)/, 'beta must not reuse the prod connection');
+  assert.match(workflow, /@\$\{\{ vars\.BETA_HOST \}\}/);
 });
 
 test('beta workflow: forks and Dependabot never deploy', () => {
@@ -100,9 +105,12 @@ test('beta workflow: forks and Dependabot never deploy', () => {
   assert.match(workflow, /name:\s*beta\b/, 'secrets must come from the beta environment, not production');
 });
 
-test('beta workflow: labels the image with the head commit it hands the server', () => {
+test('beta workflow: labels both images with the head commit it hands the server', () => {
   assert.match(workflow, /HEAD_SHA:\s*\$\{\{\s*github\.event\.pull_request\.head\.sha\s*\}\}/);
-  assert.match(workflow, /org\.opencontainers\.image\.revision=\$\{\{\s*env\.HEAD_SHA\s*\}\}/);
+  const labels = workflow.match(/org\.opencontainers\.image\.revision=\$\{\{\s*env\.HEAD_SHA\s*\}\}/g) || [];
+  assert.equal(labels.length, 2, 'app and Caddy image both need the revision label');
+  assert.match(workflow, /\}\}-caddy:beta\s*$/m, 'the beta Caddy image is not built');
+  assert.match(workflow, /file:\s*docker\/caddy\/Dockerfile\.beta/);
   assert.match(workflow, /"\$HEAD_SHA"\s*$/m, 'the SSH command must be the head commit');
   assert.match(workflow, /cancel-in-progress:\s*false/, 'a rollout must never be cut off halfway');
 });
@@ -112,4 +120,8 @@ test('deploy script: the mode comes from authorized_keys, never from the client'
   assert.doesNotMatch(deploy, /SSH_ORIGINAL_COMMAND[^\n]*beta/);
   assert.match(deploy, /pikdame-deploy-\$MODE\.lock/, 'beta and prod need separate locks');
   assert.match(deploy, /org\.opencontainers\.image\.revision/, 'beta must verify the running revision');
+  for (const c of ['pikdame-beta', 'pikdame-beta-caddy']) {
+    assert.ok(names(beta, 'container_name').includes(c), `${c} is not a beta container`);
+    assert.match(deploy, new RegExp(`\\b${c}\\b`), `deploy does not verify ${c}`);
+  }
 });

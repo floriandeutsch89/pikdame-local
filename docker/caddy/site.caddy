@@ -1,0 +1,39 @@
+# Hardening shared by prod (Caddyfile) and beta (Caddyfile.beta) so it cannot drift.
+# Holds the CSP; npm run csp:sync rewrites its hash.
+# {args[0]} = public domain, {args[1]} = upstream host:port
+(site) {
+	encode zstd gzip
+
+	header {
+		# TLS-only from here on (browsers remember for a year)
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		# The game is never meant to be embedded
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		# Do not advertise the server software
+		-Server
+		# Popups (share sheet, mail links) must not get a handle on this window
+		Cross-Origin-Opener-Policy "same-origin"
+		# Content-Security-Policy. Everything is same-origin (no CDN), so
+		# 'self' covers scripts, styles, images and the manifest. The
+		# WebSocket origin is spelled out on top: Safari has not always
+		# matched wss:// against 'self', and iOS is the primary device -
+		# a blocked socket would mean a game stuck at 'Verbinde...'.
+		# The ONE inline script is the splash pre-check in index.html; it is
+		# allowed by its sha256 hash. If you edit that script, the hash
+		# changes - test/csp-contract.test.js recomputes it and fails the
+		# build, so it cannot silently break the page.
+		# style-src keeps 'unsafe-inline': the client writes style attributes
+		# via the CSSOM and inline SVG carries presentation attributes.
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'sha256-gCnO/a3lWsTTvEhoMzsadMHrkFgoJfKQG8brXUFEGK4='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' wss://{args[0]}; manifest-src 'self'; worker-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'"
+	}
+
+	# WebSockets are proxied automatically by Caddy.
+	reverse_proxy {args[1]} {
+		# Pass the real client IP for the app's IP-based rate limits
+		# (the app must run with PIKDAME_TRUST_PROXY=1).
+		header_up X-Forwarded-For {remote_host}
+	}
+}

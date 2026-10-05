@@ -139,6 +139,10 @@ jobs:
         with:
           dockerfile: docker/caddy/Dockerfile
           ignore: DL3018
+      - name: Lint beta Caddy Dockerfile (hadolint)
+        uses: hadolint/hadolint-action@v3.5.0
+        with:
+          dockerfile: docker/caddy/Dockerfile.beta
       - name: Build image
         run: docker build -f docker/Dockerfile -t pikdame:scan .
       # OWASP RULE #8: scan the image for known vulnerabilities.
@@ -184,15 +188,20 @@ jobs:
             echo "::error::prod compose config: ${ERR}"
             exit 1
           fi
-      - name: Validate beta compose (preview stack next to prod)
+      - name: Validate beta compose (own host, own .env)
         run: |
           cd docker
-          echo "PIKDAME_BETA_DOMAIN=beta.example.org" >> .env
           echo test-password > secrets/beta_db_password.txt
-          if ! ERR=$(docker compose -f docker-compose.beta.yml config 2>&1 > /dev/null); then
+          if ! ERR=$(docker compose --env-file .env.beta.example -f docker-compose.beta.yml config 2>&1 > /dev/null); then
             echo "::error::beta compose config: ${ERR}"
             exit 1
           fi
+      # Stock Caddy can parse the beta config (prod needs the CrowdSec build).
+      - name: Validate beta Caddyfile (import of site.caddy)
+        run: |
+          docker run --rm -v "$PWD/docker/caddy:/etc/caddy:ro" \
+            -e PIKDAME_BETA_DOMAIN=beta.example.org -e ACME_EMAIL=ci@example.org \
+            caddy:2-alpine caddy adapt --config /etc/caddy/Caddyfile.beta --adapter caddyfile > /dev/null
       - name: Build image
         run: docker compose -f docker/docker-compose.yml build
       - name: Compose up (hardened configuration)
