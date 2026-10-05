@@ -10,7 +10,19 @@
 
   function uplotTouch(opts) {
     const onReset = (opts && opts.onReset) || null;
+    let lastTouchAt = 0;
     return {
+      // After a tap the browser emulates mouse events and ends with a
+      // mouseleave, which would hide the cursor (and the values) right away.
+      opts(u, o) {
+        const cursor = (o.cursor = o.cursor || {});
+        const bind = (cursor.bind = cursor.bind || {});
+        const prev = bind.mouseleave;
+        bind.mouseleave = (self, targ, handler) => {
+          const h = prev ? prev(self, targ, handler) : handler;
+          return (e) => (Date.now() - lastTouchAt < 800 ? null : h(e));
+        };
+      },
       hooks: {
         init(u) {
           const over = u.over;
@@ -50,6 +62,7 @@
           }, { passive: false });
 
           over.addEventListener('touchend', () => {
+            lastTouchAt = Date.now();
             if (!start) return;
             if (dragging && u.select.width > DRAG_PX) {
               const min = u.posToVal(u.select.left, 'x');
@@ -70,6 +83,7 @@
           });
 
           over.addEventListener('touchcancel', () => {
+            lastTouchAt = Date.now();
             if (dragging) clearSelect();
             start = null;
             dragging = false;
