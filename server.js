@@ -13,7 +13,7 @@ const WebSocket = require('ws');
 const GameManager = require('./game/GameManager');
 const { createPlayerStore } = require('./game/PlayerStore');
 const { createGlobalStatsStore } = require('./game/GlobalStatsStore');
-const { computeEarnedBadges } = require('./game/Badges');
+const { computeEarnedBadges, familyBadges } = require('./game/Badges');
 const {
   xpForGame,
   levelFromXp,
@@ -283,10 +283,13 @@ function serveStatic(req, res) {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
     // Zusaetzlich die Wochenwertung (beste 5 von 7 Tagen) - sie existierte
     // laengst, war aber nur nach einer beendeten Partie zu sehen.
+    // Trend graph: the top 5 of the last 14 days, plus ?name= as "me".
+    const trendName = sanitizeName(new URL(req.url, 'http://x').searchParams.get('name') || '');
     res.end(JSON.stringify({
       date,
       board: challengeStore.getBoard(date, 5),
       weekly: challengeStore.getWeekly(null, 5),
+      trend: challengeStore.getTrend(trendName),
     }));
     return;
   }
@@ -1189,6 +1192,8 @@ const registry = new SessionRegistry((session) => {
       // Fremde sollen nichts voneinander sehen, und zwei "Max" aus
       // verschiedenen Gruppen teilen sich kein Profil.
       if (PUBLIC_MODE) return;
+      // Counters the record alone does not know (challenger / Stammtisch badges).
+      for (const r of results) r.facts = { ...(r.facts || {}), challenge: !!gameRecord.challengeDate, stammtisch: !!session.stammtisch };
       playerStore.recordGameResult(results);
       gameHistoryStore.saveGame(gameRecord);
 
@@ -1208,7 +1213,9 @@ const registry = new SessionRegistry((session) => {
       for (const p of gameRecord.players || []) {
         if (p.isBot) continue;
         const profile = playerStore.getPlayerByName(p.name) || {};
-        const deserved = computeEarnedBadges(gameRecord, p.id, profile);
+        let challengeChamp = false;
+        try { challengeChamp = challengeStore.wasChampion(p.name); } catch (err) { logCrash('challenge-champ', err, { player: p.name }); }
+        const deserved = computeEarnedBadges(gameRecord, p.id, profile, { challengeChamp });
         const fresh = playerStore.awardBadges(p.name, deserved);
         if (fresh.length > 0) earned.push({ name: p.name, badges: fresh });
       }
@@ -1714,6 +1721,7 @@ wss.on('connection', (ws, req) => {
       let xp = 0;
       let level = null;
       let streak = null;
+      let badges = [];
       if (withProfile) {
         status = playerStore.recordPuzzleAttempt(name, date, result.solved);
         if (status.justSolved) {
@@ -1722,9 +1730,11 @@ wss.on('connection', (ws, req) => {
           level = levelFromXp(after.xp);
           // A solved puzzle is a played day - it keeps the daily streak alive.
           try { streak = playerStore.touchDailyStreak(name, date); } catch (err) { logCrash('streak', err, { player: name }); }
+          // Puzzle tiers (and a daily streak tier) right away, not at the next match.
+          try { badges = playerStore.awardBadges(name, familyBadges(playerStore.getPlayerByName(name) || {})); } catch (err) { logCrash('badges', err, { player: name }); }
         }
       }
-      ws.send(JSON.stringify({ ...result, xp, level, streak, status, type: 'puzzleResult' }));
+      ws.send(JSON.stringify({ ...result, xp, level, streak, status, badges, type: 'puzzleResult' }));
       return;
     }
     if (msg.type === 'listProfiles') {

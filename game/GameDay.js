@@ -74,4 +74,20 @@ function dayEnd(date) {
   return utcMidnight - zoneOffsetMs(utcMidnight - zoneOffsetMs(utcMidnight));
 }
 
-module.exports = { GAME_TZ, gameDay, addDays, weekdayIndex, dayEnd };
+let hourFormatter = null;
+try {
+  hourFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: GAME_TZ, hour: '2-digit', hourCycle: 'h23' });
+} catch (e) {
+  hourFormatter = null;
+}
+
+/** Hour of day (0-23) in German time at `now` (epoch ms); UTC without tz data. */
+function gameHour(now = Date.now()) {
+  if (hourFormatter) {
+    const h = Number(hourFormatter.format(new Date(now)));
+    if (Number.isInteger(h) && h >= 0 && h < 24) return h;
+  }
+  return new Date(now).getUTCHours();
+}
+
+module.exports = { GAME_TZ, gameDay, gameHour, addDays, weekdayIndex, dayEnd };
