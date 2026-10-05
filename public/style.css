@@ -3309,6 +3309,30 @@ html[data-cardback="winter"] .card.back,
 .themeBtn.locked { opacity: 0.4; }
 .seatTitle { font-weight: 400; font-size: var(--fs-hint); color: var(--text-muted); }
 
+/* --- Level-up dialog (#315) ------------------------------------------------- */
+.levelUpCard { text-align: center; overflow: hidden; }
+.levelUpTitle { font-size: calc(var(--fs-title) * 1.4); margin: 4px 0 2px; }
+.levelUpRank { margin: 0 0 10px; font-weight: 600; color: var(--text-muted); }
+.levelUpRank.isNew { color: var(--card-ink); }
+.levelUpBar { height: 10px; border-radius: 999px; background: rgba(0,0,0,0.1); overflow: hidden; margin: 0 auto; max-width: 280px; }
+.levelUpBar > i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: inherit; transition: width 1.1s var(--ease); }
+.levelUpXp { margin: 6px 0 8px; font-size: var(--fs-label); font-weight: 700; color: var(--text-muted); }
+.levelUpRewards { text-align: left; margin: 0 auto 12px; max-width: 300px; }
+.levelUpRewards h3 { font-size: var(--fs-hint); text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin: 8px 0 4px; }
+.levelUpRewards ul { list-style: none; margin: 0; padding: 0; font-size: var(--fs-body); }
+.levelUpRewards li { padding: 2px 0; }
+.levelUpRewards ul.next { color: var(--text-muted); }
+.levelUpConfetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.levelUpConfetti i {
+  position: absolute; top: -12px; width: 7px; height: 11px; border-radius: 2px; opacity: 0.9;
+  animation: levelUpFall 1.6s ease-in forwards;
+}
+@keyframes levelUpFall { to { transform: translateY(420px) rotate(320deg); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .levelUpConfetti { display: none; }
+  .levelUpBar > i { transition: none; }
+}
+
 /* --- Theme: Omas Küchentisch (hell, warmes Holz) ---------------------------- */
 [data-theme="kitchen"] {
   /* VOLLSTÄNDIGER Variablensatz! Beim ersten Wurf fehlten 11 Variablen
