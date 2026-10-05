@@ -283,6 +283,7 @@
     try { renderStammtisch(); renderStammtischRecent(); renderSessionBanner(); } catch (e) { /* dito */ }
     try { renderAchievements(); } catch (e) { /* dito */ }
     try { renderStatsMe(); } catch (e) { /* dito */ }
+    try { renderProgressSheet(); } catch (e) { /* dito */ }
     try { renderAccountProgress(); } catch (e) { /* dito */ }
     // "Angemeldet als ..." steht dauerhaft in der Lobby - vom Vertragstest
     // unten gefunden, bevor es jemand melden konnte.
@@ -3319,8 +3320,9 @@
     const chip = el('identityChip');
     chip.classList.toggle('hidden', showInput || inSession || !name);
     chip.classList.toggle('locked', locked);
-    chip.disabled = locked;
-    chip.title = locked
+    const nameBtn = el('identityNameBtn');
+    nameBtn.disabled = locked;
+    nameBtn.title = locked
       ? L('Name ist durch dein Konto festgelegt', 'Name is fixed by your account')
       : L('Namen ändern', 'Change name');
     if (name) {
@@ -3355,7 +3357,8 @@
       send({ type: 'joinSession', code: sessionCode, playerId, playerToken: storageGet(tokenKeyFor(sessionCode)) || undefined, name: myName, accountToken: accountToken() || undefined });
     }
   }
-  el('identityChip').addEventListener('click', startNameEdit);
+  el('identityNameBtn').addEventListener('click', startNameEdit);
+  el('identityAvatarBtn').addEventListener('click', () => openProgressSheet());
   el('nameInput').addEventListener('blur', () => { try { commitNameEdit(); } catch (e) { /* cosmetic */ } });
 
   function currentName() {
@@ -6095,16 +6098,22 @@
     box.addEventListener('toggle', () => storageSet(QUESTS_OPEN_KEY, box.open ? '1' : '0'));
   })();
 
-  // Level ring + streak on the identity chip: the two numbers that grow every
-  // day, visible without opening anything. Same visibility as the quests.
+  /** Level of the local profile, fresher myProgress included. */
+  function myLevelInfo() {
+    const me = myProfile();
+    return levelFromXpClient(Math.max(me ? me.xp || 0 : 0, myProgress ? myProgress.xp || 0 : 0));
+  }
+  function progressEnabled() {
+    return !publicMode && !!(dailyQuests && dailyQuests.ids && dailyQuests.ids.length);
+  }
+  // Lifetime progress on the identity chip: XP ring + level badge. The
+  // avatar button opens the progress sheet.
   function renderIdentityProgress() {
     const av = el('identityAvatar');
-    const st = el('identityStreak');
-    if (!av || !st) return;
-    const on = !publicMode && !!(dailyQuests && dailyQuests.ids && dailyQuests.ids.length);
-    const me = on ? myProfile() : null;
-    const lv = levelFromXpClient(Math.max(me ? me.xp || 0 : 0, myProgress ? myProgress.xp || 0 : 0));
-    const streak = (myStreak && myStreak.streak) || (me && me.dailyStreak) || 0;
+    const btn = el('identityAvatarBtn');
+    if (!av || !btn) return;
+    const on = progressEnabled();
+    const lv = myLevelInfo();
     av.classList.toggle('hasLevel', on);
     av.style.setProperty('--xp', on ? String(Math.round((lv.into / lv.need) * 100)) : '0');
     let badge = av.querySelector('.identityLevel');
@@ -6117,11 +6126,51 @@
       badge.classList.toggle('hidden', !on);
       badge.textContent = String(lv.level);
     }
-    av.title = on ? L(`Stufe ${lv.level} · ${lv.into}/${lv.need} EP`, `Level ${lv.level} · ${lv.into}/${lv.need} XP`) : '';
-    st.classList.toggle('hidden', !on || streak <= 0);
-    st.title = L(`${streak} Tage in Folge gespielt`, `${streak} days in a row`);
-    st.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#i-flame"/></svg><span>${streak}</span>`;
+    btn.disabled = !on;
+    const label = on
+      ? L(`Fortschritt: Stufe ${lv.level}, ${lv.into}/${lv.need} EP`, `Progress: level ${lv.level}, ${lv.into}/${lv.need} XP`)
+      : L('Fortschritt', 'Progress');
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
   }
+
+  // Mirrors game/Progression.js (XP_BASE, XP_WIN, XP_PER_POINT) - display only.
+  const XP_RULES = { base: 10, win: 50, perPoints: 10 };
+  function renderProgressSheet() {
+    const box = el('progressContent');
+    if (!box) return;
+    const lv = myLevelInfo();
+    const pct = Math.round((lv.into / lv.need) * 100);
+    const next = nextRewards(levelRewards(), lv.level);
+    const cur = LEVEL_TITLES.reduce((idx, row, i) => (lv.level >= row[0] ? i : idx), 0);
+    const ladder = LEVEL_TITLES.map(([level, de, en], i) => {
+      const cls = i === cur ? 'current' : i < cur ? 'done' : '';
+      return `<li class="${cls}"><span class="plLevel">${level}</span><span>${escapeHtml(L(de, en))}</span>` +
+        (cls === 'current' ? `<b>${escapeHtml(L('aktuell', 'current'))}</b>` : cls === 'done' ? '<svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>' : '') + `</li>`;
+    }).join('');
+    box.innerHTML =
+      `<div class="pgHead"><span class="pgLevel">${lv.level}</span><span class="pgText"><b>${L(`Stufe ${lv.level}`, `Level ${lv.level}`)}</b><span>${escapeHtml(titleForLevel(lv.level))}</span></span></div>` +
+      `<div class="levelUpBar pgBar"><i style="width:${pct}%"></i></div>` +
+      `<p class="pgXp">${L(`${lv.into}/${lv.need} EP · noch ${lv.need - lv.into} bis Stufe ${lv.level + 1}`, `${lv.into}/${lv.need} XP · ${lv.need - lv.into} to level ${lv.level + 1}`)}</p>` +
+      (next.length
+        ? `<h3>${escapeHtml(L(`Nächste Belohnung (Stufe ${next[0].level})`, `Next reward (level ${next[0].level})`))}</h3><ul class="pgNext">${next.map((r) => `<li>${escapeHtml(r.label)}</li>`).join('')}</ul>`
+        : '') +
+      `<h3>${escapeHtml(L('So gibt es Erfahrung', 'How to earn XP'))}</h3>` +
+      `<p class="pgRules">${escapeHtml(L(
+        `${XP_RULES.base} EP pro beendeter Partie, +${XP_RULES.win} für einen Sieg, +1 je ${XP_RULES.perPoints} Punkte Endstand.`,
+        `${XP_RULES.base} XP per finished match, +${XP_RULES.win} for a win, +1 per ${XP_RULES.perPoints} points of your final score.`
+      ))}</p>` +
+      `<h3>${escapeHtml(L('Titel', 'Titles'))}</h3><ol class="pgLadder">${ladder}</ol>`;
+  }
+  function openProgressSheet() {
+    if (!progressEnabled()) return;
+    renderProgressSheet();
+    el('progressOverlay').classList.remove('hidden');
+  }
+  el('progressCloseBtn').addEventListener('click', () => el('progressOverlay').classList.add('hidden'));
+  el('progressOverlay').addEventListener('click', (ev) => {
+    if (ev.target === el('progressOverlay')) el('progressOverlay').classList.add('hidden');
+  });
 
   function renderQuests() {
     try { renderIdentityProgress(); } catch (e) { /* cosmetic */ }
@@ -6135,29 +6184,25 @@
       return;
     }
     box.classList.remove('hidden');
-    // Level and daily streak above the tasks: the two numbers that grow
-    // every day, on the screen people see every day.
+    // The streak is a daily rhythm, so it stays with the tasks; the level is
+    // lifetime progress and lives on the identity chip.
     const me = myProfile();
-    const lv = levelFromXpClient(Math.max(me ? me.xp || 0 : 0, myProgress ? myProgress.xp || 0 : 0));
     const streak = (myStreak && myStreak.streak) || (me && me.dailyStreak) || 0;
     const graceFree = myStreak ? myStreak.graceFree : !(me && me.daily && me.daily.graceAt);
     const strip = el('progressStrip');
     if (strip) {
-      const pct = Math.round((lv.into / lv.need) * 100);
       strip.innerHTML =
-        `<div class="psLevel"><b>${L(`Stufe ${lv.level}`, `Level ${lv.level}`)}</b><span class="psTitle">${escapeHtml(titleForLevel(lv.level))}</span><small>${lv.into}/${lv.need} ${L('EP', 'XP')}</small></div>` +
-        `<i class="levelBar psBar"><u style="width:${pct}%"></u></i>` +
         `<div class="psStreak" title="${escapeHtml(L('Tagesserie: an aufeinanderfolgenden Tagen spielen. Ein verpasster Tag pro Woche wird überbrückt (Joker-Tag).', 'Daily streak: play on consecutive days. One missed day per week is bridged (grace day).'))}"><svg class="icon" aria-hidden="true"><use href="#i-flame"/></svg><span>${
           streak > 0 ? L(`${streak} ${streak === 1 ? 'Tag' : 'Tage'} in Folge`, `${streak} ${streak === 1 ? 'day' : 'days'} running`) : L('Heute spielen startet die Serie', 'Play today to start a streak')
         }${streak > 0 ? ` <small>${graceFree ? L('· Joker-Tag frei', '· grace day free') : L('· Joker-Tag verbraucht', '· grace day used')}</small>` : ''}</span></div>`;
     }
-    // Level and streak now live on the identity chip; the folded panel only
-    // has to say how far today's tasks are.
     const sum = el('questsSummary');
     if (sum) {
       const total = dailyQuests.ids.length;
       const done = dailyQuests.ids.filter((id) => (questProgress[id] || 0) >= (QUEST_NEED[id] || 1)).length;
-      sum.textContent = `${done}/${total} ${L('erledigt', 'done')}`;
+      sum.innerHTML = (streak > 0
+        ? `<span class="qsStreak" title="${escapeHtml(L(`${streak} Tage in Folge gespielt`, `${streak} days in a row`))}"><svg class="icon" aria-hidden="true"><use href="#i-flame"/></svg>${streak}</span><span class="dot"> · </span>`
+        : '') + `<span>${done}/${total} ${L('erledigt', 'done')}</span>`;
     }
     list.innerHTML = dailyQuests.ids
       .map((id) => {
@@ -6699,6 +6744,9 @@
   }
 
   // "You" first: four numbers and the trend of the last games.
+  el('statsMeBox').addEventListener('click', (ev) => {
+    if (ev.target.closest('[data-open="progress"]')) openProgressSheet();
+  });
   function renderStatsMe() {
     const box = el('statsMeBox');
     if (!box) return;
@@ -6738,7 +6786,7 @@
       kpi(`${played > 0 ? Math.round((won / played) * 100) : 0} %`, L(`Siegquote (${won}/${played})`, `Win rate (${won}/${played})`)) +
       kpi(played, L('Partien', 'Games')) +
       kpi(me.bestGameScore !== undefined ? me.bestGameScore : '–', L('Beste Partie', 'Best game')) +
-      kpi(lv.level, L('Stufe', 'Level')) +
+      `<button type="button" class="kpiTile kpiLink" data-open="progress"><b>${lv.level}</b><span>${L('Stufe', 'Level')}</span></button>` +
       `</div>` + spark;
     box.classList.remove('hidden');
   }

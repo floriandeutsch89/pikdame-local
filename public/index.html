@@ -308,15 +308,18 @@
         <h1>Pik Dame</h1>
         <p class="subtitle">Das Familien-Rommé – online mit Freunden &amp; Bots</p>
       </div>
-      <!-- Returning players see WHO they are (avatar + name) instead of a
-           form field they already filled in last time; a tap edits it.
-           First-time players still get the plain input. -->
-      <button id="identityChip" class="identityChip hidden" type="button" title="Namen ändern">
-        <span id="identityAvatar" class="identityAvatar" aria-hidden="true"></span>
-        <span id="identityName" class="identityName"></span>
-        <span id="identityStreak" class="identityStreak hidden"></span>
-        <svg class="icon identityEdit" aria-hidden="true"><use href="#i-pencil"/></svg>
-      </button>
+      <!-- Returning players see WHO they are instead of the name field. Two
+           targets: the avatar (level ring) opens the progress sheet, the
+           name edits it. -->
+      <div id="identityChip" class="identityChip hidden">
+        <button id="identityAvatarBtn" class="identityAvatarBtn" type="button" aria-label="Fortschritt" title="Fortschritt">
+          <span id="identityAvatar" class="identityAvatar" aria-hidden="true"></span>
+        </button>
+        <button id="identityNameBtn" class="identityNameBtn" type="button" title="Namen ändern">
+          <span id="identityName" class="identityName"></span>
+          <svg class="icon identityEdit" aria-hidden="true"><use href="#i-pencil"/></svg>
+        </button>
+      </div>
       <input id="nameInput" type="text" placeholder="Dein Name" maxlength="16" enterkeyhint="done" />
 
       <div id="sessionSetup">
@@ -1165,6 +1168,16 @@
             </div>
           </details>
         </div>
+      </div>
+    </section>
+
+    <!-- PROGRESS: level, XP, next reward, title ladder. Lifetime progress,
+         so it lives on the identity chip, not under the daily tasks. -->
+    <section id="progressOverlay" class="overlay hidden">
+      <div class="overlay-card progressCard" role="dialog" aria-labelledby="progressTitle">
+        <h2 id="progressTitle">Dein Fortschritt</h2>
+        <div id="progressContent"></div>
+        <button id="progressCloseBtn" class="btn-secondary">Schließen</button>
       </div>
     </section>
 

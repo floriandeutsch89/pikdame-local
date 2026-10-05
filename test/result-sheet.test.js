@@ -11,7 +11,7 @@ const { JSDOM } = require('jsdom');
 
 const pub = path.join(__dirname, '..', 'public');
 
-function boot() {
+function boot(storage = {}) {
   const html = fs.readFileSync(path.join(pub, 'index.html'), 'utf8');
   const dom = new JSDOM(html, { url: 'https://play.example/', runScripts: 'outside-only', pretendToBeVisual: true });
   const { window } = dom;
@@ -58,6 +58,7 @@ function boot() {
   window.onerror = (msg) => errors.push(String(msg));
   window.addEventListener('error', (e) => errors.push(String(e.message || e.error)));
 
+  for (const [k, v] of Object.entries(storage)) window.localStorage.setItem(k, v);
   for (const src of ['i18n.js', 'client.js']) window.eval(fs.readFileSync(path.join(pub, src), 'utf8'));
   window.document.dispatchEvent(new window.Event('DOMContentLoaded', { bubbles: true }));
   return { window, errors, scrolledInto, ws: () => ws };
@@ -169,5 +170,33 @@ test('result sheet: sort toggle switches to seat order and is remembered per dev
   doc.querySelector('#resultBody .resultSortBtn[data-mode="points"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
   assert.deepEqual(order(), ['Klaus', 'Horst', 'Maria', 'Flo']);
   assert.equal(window.localStorage.getItem('pikdame_result_sort'), 'points');
+  assert.deepEqual(errors, [], `Client-Fehler: ${errors.join(' | ')}`);
+});
+
+test('identity chip: avatar opens the progress sheet, name still edits; streak sits with the daily tasks', async (t) => {
+  const { window, errors, ws } = boot({ pikdame_player_name: 'Flo' });
+  t.after(() => window.close());
+  await new Promise((r) => setTimeout(r, 10));
+  const sock = ws();
+  const today = new Date().toISOString().slice(0, 10);
+  sock._emit('message', { data: JSON.stringify({
+    type: 'profiles', publicMode: false, globalStats: null,
+    quests: { date: today, ids: ['finish_game', 'win_game', 'meld_jokers_3'] },
+    players: [{ name: 'Flo', gamesPlayed: 3, gamesWon: 1, xp: 5320, dailyStreak: 6 }],
+  }) });
+  const doc = window.document;
+  assert.equal(doc.querySelector('#identityAvatar .identityLevel').textContent, '14');
+  assert.match(doc.getElementById('questsSummary').textContent, /6.*0\/3/, 'streak + done count on the tasks');
+  assert.equal(doc.querySelector('#progressStrip .psLevel'), null, 'no level strip under the daily tasks');
+
+  doc.getElementById('identityAvatarBtn').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  assert.ok(!doc.getElementById('progressOverlay').classList.contains('hidden'), 'avatar opens the sheet');
+  assert.match(doc.getElementById('progressContent').textContent, /Stufe 14/);
+  assert.ok(doc.querySelector('#progressContent .pgLadder li.current'), 'current title marked');
+  doc.getElementById('progressCloseBtn').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  assert.ok(doc.getElementById('progressOverlay').classList.contains('hidden'));
+
+  doc.getElementById('identityNameBtn').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  assert.ok(!doc.getElementById('nameInput').classList.contains('hidden'), 'name button still edits');
   assert.deepEqual(errors, [], `Client-Fehler: ${errors.join(' | ')}`);
 });
