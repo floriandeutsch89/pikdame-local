@@ -1624,7 +1624,7 @@
       const grip = canEdit && count > 1
         ? `<button class="seatGrip" title="${L('Ziehen zum Umsortieren', 'Drag to reorder')}" aria-label="${L(`Platz ${idx + 1} verschieben (Pfeiltasten)`, `Move seat ${idx + 1} (arrow keys)`)}"><svg class="icon" aria-hidden="true"><use href="#i-grip"/></svg></button>`
         : '';
-      row.innerHTML = `${grip}<span class="seatName">${nameWithHeart(p.name)}${botMark(p)}${readyMark}</span><span class="seatControls">${diffChip}${dealerBtn}</span>`;
+      row.innerHTML = `${grip}<span class="seatName">${nameWithHeart(p.name)}${botMark(p)}${p.isBot ? '' : favoriteBadgesHtml(profileByName(p.name))}${readyMark}</span><span class="seatControls">${diffChip}${dealerBtn}</span>`;
       if (canEdit) {
         const dealer = row.querySelector('.seatDealer');
         if (dealer && !isDealer) dealer.addEventListener('click', () => send({ type: 'setDealer', playerId: p.id }));
@@ -6128,6 +6128,51 @@
     };
   }
 
+  // Favourite badges (#317): tile keys (badge or family id), max 3, accounts only.
+  const FAVORITES_MAX = 3;
+  function favoriteEmoji(profile, key) {
+    const owned = (profile && profile.badges) || {};
+    const fam = BADGE_FAMILIES.find((f) => f.id === key);
+    const id = fam ? fam.tiers.filter((t) => owned[t]).pop() : owned[key] ? key : null;
+    return id ? badgeMeta(id) : null;
+  }
+  function favoriteBadgesHtml(profile) {
+    const metas = ((profile && profile.favoriteBadges) || []).map((k) => favoriteEmoji(profile, k)).filter(Boolean);
+    if (!metas.length) return '';
+    return ` <span class="favBadges" title="${escapeHtml(metas.map((m) => m.name).join(', '))}">${metas.map((m) => m.emoji).join('')}</span>`;
+  }
+  function profileByName(name) {
+    const n = String(name || '').toLowerCase();
+    return (knownProfiles || []).find((p) => p.name && p.name.toLowerCase() === n) || null;
+  }
+  // Only the signed-in owner of the local profile may pick favourites.
+  function canPickFavorites() {
+    const acc = signedInName();
+    return !publicMode && !!acc && !!myName && acc.toLowerCase() === myName.toLowerCase();
+  }
+  function favoriteToggleHtml(key) {
+    const me = myProfile();
+    if (!canPickFavorites() || !me || !favoriteEmoji(me, key)) return '';
+    const favs = me.favoriteBadges || [];
+    const on = favs.includes(key);
+    const label = on
+      ? L(`Lieblingsabzeichen (${favs.length}/${FAVORITES_MAX})`, `Favourite badge (${favs.length}/${FAVORITES_MAX})`)
+      : L('Als Lieblingsabzeichen zeigen', 'Show as favourite badge');
+    return `<button type="button" class="achFavBtn${on ? ' active' : ''}" data-fav="${escapeHtml(key)}" aria-pressed="${on}"><svg class="icon" aria-hidden="true"><use href="#i-star"/></svg><span>${escapeHtml(label)}</span></button>`;
+  }
+  function toggleFavorite(key) {
+    const me = myProfile();
+    if (!me || !canPickFavorites()) return;
+    const favs = (me.favoriteBadges || []).slice();
+    const at = favs.indexOf(key);
+    if (at >= 0) favs.splice(at, 1);
+    else if (favs.length >= FAVORITES_MAX) {
+      showToast(L('Höchstens 3 - entferne zuerst eins', 'At most 3 - remove one first'));
+      return;
+    } else favs.push(key);
+    send({ type: 'setFavoriteBadges', name: myName, badges: favs, accountToken: accountToken() || undefined });
+  }
+
   // Tap (phone) or click (desktop) on a tile: how to earn it, right below
   // its row. Hover additionally shows the same text via title.
   let openAchId = null;
@@ -6161,7 +6206,8 @@
     return `<div class="achDetailHead"><span class="achEmoji">${head.emoji}</span>` +
       `<span>${escapeHtml(title)}</span>` +
       `<button type="button" class="achDetailClose" aria-label="${escapeHtml(L('Schließen', 'Close'))}"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div>` +
-      `<ul class="${fam ? 'achTierList' : ''}">${(fam ? fam.tiers : [key]).map(line).join('')}</ul>`;
+      `<ul class="${fam ? 'achTierList' : ''}">${(fam ? fam.tiers : [key]).map(line).join('')}</ul>` +
+      favoriteToggleHtml(key);
   }
   function showAchDetail(key, scroll = true) {
     const box = el('achievementsBox');
@@ -6181,6 +6227,8 @@
   }
   el('achievementsBox').addEventListener('click', (ev) => {
     if (ev.target.closest('.achDetailClose')) { showAchDetail(null); return; }
+    const fav = ev.target.closest('.achFavBtn');
+    if (fav) { toggleFavorite(fav.dataset.fav); return; }
     const tile = ev.target.closest('.achTile');
     if (!tile) return;
     showAchDetail(openAchId === tile.dataset.ach ? null : tile.dataset.ach);
@@ -6407,7 +6455,7 @@
           })
           .join('');
         return `<div class="statsCard" data-name="${escapeHtml(p.name)}">
-          <div class="statsCardHead"><span class="statsCardName">${nameWithHeart(p.name)}</span><span class="statsCardRate">${rate}% · ${won}/${played} ${L('Siege', 'wins')}</span></div>
+          <div class="statsCardHead"><span class="statsCardName">${nameWithHeart(p.name)}${favoriteBadgesHtml(p)}</span><span class="statsCardRate">${rate}% · ${won}/${played} ${L('Siege', 'wins')}</span></div>
           <div class="statsCardMeta">${L('Spiele', 'Games')}: <b>${played}</b> · ${L('Beste Partie', 'Best game')}: <b>${best}</b></div>
           <div class="statsCardBadges">${badgeChips || `<span class="statsNoBadge">${L('Noch keine Erfolge', 'No badges yet')}</span>`}</div>
         </div>`;

@@ -3150,6 +3150,13 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 .achTierNo { display: block; font-size: var(--fs-micro); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
 .achTierList li.next .achTierNo { color: inherit; }
 .achHow { display: block; }
+.achFavBtn {
+  display: inline-flex; align-items: center; gap: 6px; min-height: var(--tap-min); margin-top: 4px; padding: 0 12px;
+  border: 1px solid var(--glass-border); border-radius: 999px; background: none; color: inherit; font: inherit; cursor: pointer;
+}
+.achFavBtn.active { border-color: var(--accent); color: var(--accent); }
+.achFavBtn.active .icon { fill: currentColor; }
+.favBadges { white-space: nowrap; letter-spacing: 0.05em; }
 /* Reached tier: done - name and condition struck, the name stays bold italic. */
 .achTierList li.done b { font-style: italic; text-decoration: line-through; }
 .achTierList li.done .achHow { color: var(--text-muted); text-decoration: line-through; }
