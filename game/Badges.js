@@ -7,6 +7,8 @@
 // Display names/descriptions live in the CLIENT (bilingual via L()); this
 // module only deals in stable ids.
 
+const { gameHour } = require('./GameDay');
+
 const BADGE_IDS = [
   'first_win', // first game won
   'hand_aus_win', // a round won by going "out in one"
@@ -38,6 +40,26 @@ const BADGE_IDS = [
   'pile_glutton', // picked up a discard pile of 10+ cards and still won the round
   'zen_trio', // won a match against three zen-master bots
   'no_joker_win', // won a match without ever melding a joker
+  // --- v2.48: consolation and curiosity badges ----------------------------------
+  'purple_heart_10', // 10 matches lost (tiers 50/100 below)
+  'purple_heart_50',
+  'purple_heart_100',
+  'red_lantern', // last place in 3 matches in a row
+  'rock_bottom', // finished a match with a negative total
+  'cold_shower', // caught with BOTH Queens of Spades in one round
+  'joker_king', // 4+ jokers melded in one round
+  'quick_start', // went out in one ("Hand aus") in round 1
+  'near_miss', // lost a match by less than 20 points
+  'landslide', // won a match by 500+ points
+  'night_owl', // finished a match between 0:00 and 3:59 German time
+  'stammtisch_10', // 10 matches at a Stammtisch
+  'challenger_7', // 7 daily challenges played (tier 30 below)
+  'challenger_30',
+  'challenge_champ', // first place of a daily challenge once the day was over
+  'puzzle_7', // 7 daily puzzles solved (tier 30 below)
+  'puzzle_30',
+  'royal_flush', // melded 10-J-Q-K-A of one suit, all real cards
+  'pik_royal', // ... in spades (with the Queen of Spades)
 ];
 
 // Badge families: the same counter at rising thresholds, shown as ONE tile
@@ -50,6 +72,9 @@ const BADGE_FAMILIES = [
   { id: 'streak', field: 'winStreak', tiers: [['streak_3', 3], ['streak_5', 5], ['streak_10', 10]] },
   { id: 'handaus', field: 'totalHandAus', tiers: [['hand_aus_win', 1], ['hand_aus_5', 5]] },
   { id: 'daily', field: 'dailyStreak', tiers: [['daily_7', 7], ['daily_30', 30]] },
+  { id: 'hearts', field: 'gamesLost', tiers: [['purple_heart_10', 10], ['purple_heart_50', 50], ['purple_heart_100', 100]] },
+  { id: 'challenger', field: 'totalChallenges', tiers: [['challenger_7', 7], ['challenger_30', 30]] },
+  { id: 'puzzles', field: 'totalPuzzlesSolved', tiers: [['puzzle_7', 7], ['puzzle_30', 30]] },
 ];
 
 /**
@@ -58,9 +83,10 @@ const BADGE_FAMILIES = [
  * @param {Object} gameRecord GameManager.lastGameRecord (rounds, finalTotals, winnerId)
  * @param {string} playerId   player id inside the match
  * @param {Object} profile    player profile AFTER recordGameResult (winStreak/gamesWon/...)
+ * @param {Object} [context]  facts outside the record: {challengeChamp:boolean}
  * @returns {string[]} earned badge ids
  */
-function computeEarnedBadges(gameRecord, playerId, profile = {}) {
+function computeEarnedBadges(gameRecord, playerId, profile = {}, context = {}) {
   const earned = [];
   const rounds = (gameRecord && gameRecord.rounds) || [];
   const won = gameRecord && gameRecord.winnerId === playerId;
@@ -74,6 +100,9 @@ function computeEarnedBadges(gameRecord, playerId, profile = {}) {
   let ringRun = false;
   let run13 = false;
   let pileGlutton = false;
+  let coldShower = false;
+  let jokerKing = false;
+  let royal = null;
   for (const round of rounds) {
     const r = round.results && round.results[playerId];
     const b = r && r.breakdown;
@@ -85,6 +114,9 @@ function computeEarnedBadges(gameRecord, playerId, profile = {}) {
       if ((b.ringRuns || 0) > 0) ringRun = true;
       if ((b.longestRun || 0) >= 13) run13 = true;
       if (b.bigPileTake && round.winnerId === playerId) pileGlutton = true;
+      if ((b.pikDameCount || 0) >= 2) coldShower = true;
+      if ((b.jokersLaidOut || 0) >= 4) jokerKing = true;
+      if (b.royalFlush) royal = royal === 'S' ? 'S' : b.royalFlush;
     }
     if (r && r.roundScore >= 300) bigRound = true;
     if (round.isHandAus && round.winnerId === playerId) handAusWin = true;
@@ -114,16 +146,44 @@ function computeEarnedBadges(gameRecord, playerId, profile = {}) {
   if (run13) earned.push('run_13');
   if (pileGlutton) earned.push('pile_glutton');
 
-  // Counter families: every tier whose threshold the profile has reached.
-  // The win streak only counts on a WIN (a lost match resets it anyway).
-  for (const fam of BADGE_FAMILIES) {
-    if (fam.field === 'winStreak' && !won) continue;
-    if (fam.field === 'gamesWon' && !won) continue;
-    const have = (profile && profile[fam.field]) || 0;
-    for (const [id, need] of fam.tiers) if (have >= need) earned.push(id);
-  }
+  if (coldShower) earned.push('cold_shower');
+  if (jokerKing) earned.push('joker_king');
+  if (royal) earned.push('royal_flush');
+  if (royal === 'S') earned.push('pik_royal');
+  if (rounds[0] && rounds[0].isHandAus && rounds[0].winnerId === playerId) earned.push('quick_start');
 
+  // Final standings: margins against the winner / the runner-up.
+  const totals = (gameRecord && gameRecord.finalTotals) || {};
+  const mine = totals[playerId];
+  if (typeof mine === 'number' && rounds.length > 0) {
+    if (mine < 0) earned.push('rock_bottom');
+    const others = Object.entries(totals).filter(([pid]) => pid !== playerId).map(([, v]) => v);
+    const winnerTotal = totals[gameRecord.winnerId];
+    if (!won && typeof winnerTotal === 'number' && winnerTotal - mine < 20) earned.push('near_miss');
+    if (won && others.length > 0 && mine - Math.max(...others) >= 500) earned.push('landslide');
+  }
+  if (rounds.length > 0 && gameRecord.finishedAt && gameHour(gameRecord.finishedAt) < 4) earned.push('night_owl');
+  if ((profile.lastPlaceStreak || 0) >= 3) earned.push('red_lantern');
+  if ((profile.totalStammtischGames || 0) >= 10) earned.push('stammtisch_10');
+  if (context.challengeChamp) earned.push('challenge_champ');
+
+  earned.push(...familyBadges(profile, won));
   return earned;
 }
 
-module.exports = { BADGE_IDS, BADGE_FAMILIES, computeEarnedBadges };
+/**
+ * Counter families: every tier whose threshold the profile has reached.
+ * Win-based counters only count on a WIN (a loss resets the streak anyway).
+ * Also used outside a match (a solved daily puzzle).
+ */
+function familyBadges(profile = {}, won = false) {
+  const out = [];
+  for (const fam of BADGE_FAMILIES) {
+    if (!won && (fam.field === 'winStreak' || fam.field === 'gamesWon')) continue;
+    const have = (profile && profile[fam.field]) || 0;
+    for (const [id, need] of fam.tiers) if (have >= need) out.push(id);
+  }
+  return out;
+}
+
+module.exports = { BADGE_IDS, BADGE_FAMILIES, computeEarnedBadges, familyBadges };

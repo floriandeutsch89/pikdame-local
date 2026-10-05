@@ -9,6 +9,7 @@ const { createAtomicJsonFile } = require('./AtomicJsonFile');
 
 const DEFAULT_DATA_DIR = process.env.PIKDAME_DATA_DIR || path.join(__dirname, '..', 'data');
 const DEFAULT_DATA_FILE = path.join(DEFAULT_DATA_DIR, 'players.json');
+const FAVORITE_BADGES_MAX = 3;
 
 function emptyStore() {
   return { players: [] };
@@ -86,6 +87,11 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
       p.totalQueensCaught = (p.totalQueensCaught || 0) + (f.pdCaught || 0);
       p.totalJokersLaid = (p.totalJokersLaid || 0) + (f.jokersLaid || 0);
       p.totalHandAus = (p.totalHandAus || 0) + (f.handAusWins || 0);
+      // Derived, so profiles from before the "purple heart" count all old losses too.
+      p.gamesLost = p.gamesPlayed - (p.gamesWon || 0);
+      p.lastPlaceStreak = f.lastPlace ? (p.lastPlaceStreak || 0) + 1 : 0;
+      if (f.challenge) p.totalChallenges = (p.totalChallenges || 0) + 1;
+      if (f.stammtisch) p.totalStammtischGames = (p.totalStammtischGames || 0) + 1;
       // Bester Endstand einer einzelnen Partie (für die Statistik-Seite)
       if (p.bestGameScore === undefined || (r.score || 0) > p.bestGameScore) {
         p.bestGameScore = r.score || 0;
@@ -114,6 +120,32 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
    * Vergibt Badges an einen Spieler. Bereits vorhandene werden ignoriert.
    * @returns {string[]} nur die NEU vergebenen Badge-IDs
    */
+  /**
+   * Favourite badges (#317): up to 3 earned badge tiles in the order chosen.
+   * A key is a single badge id or a family id (shown as its top tier).
+   * The caller checks the account; this only checks the profile.
+   * @returns {{favorites:string[]}|{error:string}}
+   */
+  function setFavoriteBadges(name, keys) {
+    const store = loadStore();
+    const p = findPlayerByName(store, name);
+    if (!p) return { error: 'Profil nicht gefunden.' };
+    if (!Array.isArray(keys)) return { error: 'Ungültige Auswahl.' };
+    const { BADGE_IDS, BADGE_FAMILIES } = require('./Badges');
+    const owned = p.badges || {};
+    const earned = (key) => {
+      const fam = BADGE_FAMILIES.find((f) => f.id === key);
+      if (fam) return fam.tiers.some(([id]) => owned[id]);
+      return BADGE_IDS.includes(key) && !!owned[key];
+    };
+    const unique = [...new Set(keys.map(String))];
+    if (unique.length > FAVORITE_BADGES_MAX) return { error: 'Höchstens 3 Lieblingsabzeichen.' };
+    if (!unique.every(earned)) return { error: 'Nur verdiente Abzeichen können Lieblingsabzeichen sein.' };
+    p.favoriteBadges = unique;
+    saveStore(store);
+    return { favorites: unique };
+  }
+
   function awardBadges(name, badgeIds = []) {
     const store = loadStore();
     const p = findPlayerByName(store, name);
@@ -128,6 +160,19 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     }
     if (fresh.length > 0) saveStore(store);
     return fresh;
+  }
+
+  /** Seasonal card back for this profile (first unlock date kept). @returns {boolean} newly unlocked */
+  function unlockSeasonalBack(name, backId, date) {
+    if (!backId) return false;
+    const store = loadStore();
+    const p = findPlayerByName(store, name);
+    if (!p) return false;
+    p.seasonalBacks = p.seasonalBacks || {};
+    if (p.seasonalBacks[backId]) return false;
+    p.seasonalBacks[backId] = date;
+    saveStore(store);
+    return true;
   }
 
   // --- Progression (XP + daily quests) -------------------------------------
@@ -184,18 +229,19 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
    * "Played today": advances the daily streak (see Progression.js). The
    * flat `dailyStreak` mirror on the profile is what the badge tiers and the
    * client read; `daily` holds the full state.
-   * @returns {{streak:number,best:number,event:string,graceFree:boolean}|null}
+   * @returns {{streak:number,best:number,event:string,graceFree:boolean,welcomeBack:boolean}|null}
    */
   function touchDailyStreak(name, date) {
     const store = loadStore();
     const p = findPlayerByName(store, name);
     if (!p) return null;
-    const { advanceDailyStreak, streakGraceAvailable } = require('./Progression');
+    const { advanceDailyStreak, streakGraceAvailable, isWelcomeBack } = require('./Progression');
+    const welcomeBack = isWelcomeBack(p.daily, date);
     const { state, event } = advanceDailyStreak(p.daily, date);
     p.daily = state;
     p.dailyStreak = state.streak;
     saveStore(store);
-    return { streak: state.streak, best: state.best, event, graceFree: streakGraceAvailable(state, date) };
+    return { streak: state.streak, best: state.best, event, graceFree: streakGraceAvailable(state, date), welcomeBack };
   }
 
 
@@ -229,6 +275,7 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
       if (solved) {
         day.solved = true;
         justSolved = !day.revealed; // a revealed solution earns nothing
+        if (justSolved) p.totalPuzzlesSolved = (p.totalPuzzlesSolved || 0) + 1;
       }
     }
     saveStore(store);
@@ -254,9 +301,11 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     listPlayers,
     getPlayerByName,
     awardBadges,
+    unlockSeasonalBack,
     addProgress,
     questProgress,
     touchDailyStreak,
+    setFavoriteBadges,
     puzzleStatus,
     recordPuzzleAttempt,
     revealPuzzle,

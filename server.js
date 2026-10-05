@@ -13,7 +13,8 @@ const WebSocket = require('ws');
 const GameManager = require('./game/GameManager');
 const { createPlayerStore } = require('./game/PlayerStore');
 const { createGlobalStatsStore } = require('./game/GlobalStatsStore');
-const { computeEarnedBadges } = require('./game/Badges');
+const { computeEarnedBadges, familyBadges } = require('./game/Badges');
+const { seasonalBacksFor } = require('./game/SeasonalBacks');
 const {
   xpForGame,
   levelFromXp,
@@ -283,10 +284,13 @@ function serveStatic(req, res) {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
     // Zusaetzlich die Wochenwertung (beste 5 von 7 Tagen) - sie existierte
     // laengst, war aber nur nach einer beendeten Partie zu sehen.
+    // Trend graph: the top 5 of the last 14 days, plus ?name= as "me".
+    const trendName = sanitizeName(new URL(req.url, 'http://x').searchParams.get('name') || '');
     res.end(JSON.stringify({
       date,
       board: challengeStore.getBoard(date, 5),
       weekly: challengeStore.getWeekly(null, 5),
+      trend: challengeStore.getTrend(trendName),
     }));
     return;
   }
@@ -689,6 +693,8 @@ async function handleAdminRequest(req, res, filePath) {
       } else if (action === 'delete') {
         const r = await accountStore.deleteUser(username);
         if (r.ok) console.log(`[admin] Benutzer gelöscht: ${r.username}`);
+        // The name is a guest name again: favourites are an account feature.
+        if (r.ok) try { playerStore.setFavoriteBadges(r.username, []); } catch (e) { /* best effort */ }
         notice = r.ok ? { ok: true, text: `Benutzer „${r.username}“ wurde gelöscht.` } : { ok: false, text: r.error };
       } else if (action === 'login-link') {
         if (bump(adminMailsByIp, ip, 10 * 60 * 1000) > 5) {
@@ -1189,6 +1195,8 @@ const registry = new SessionRegistry((session) => {
       // Fremde sollen nichts voneinander sehen, und zwei "Max" aus
       // verschiedenen Gruppen teilen sich kein Profil.
       if (PUBLIC_MODE) return;
+      // Counters the record alone does not know (challenger / Stammtisch badges).
+      for (const r of results) r.facts = { ...(r.facts || {}), challenge: !!gameRecord.challengeDate, stammtisch: !!session.stammtisch };
       playerStore.recordGameResult(results);
       gameHistoryStore.saveGame(gameRecord);
 
@@ -1201,6 +1209,14 @@ const registry = new SessionRegistry((session) => {
         try { streaks[p.id] = playerStore.touchDailyStreak(p.name, questDate); } catch (err) { logCrash('streak', err, { player: p.name }); }
       }
 
+      // Seasonal card backs: a finished game in the month unlocks it for good.
+      for (const seasonalBack of seasonalBacksFor(questDate)) {
+        for (const p of gameRecord.players || []) {
+          if (p.isBot) continue;
+          try { playerStore.unlockSeasonalBack(p.name, seasonalBack, questDate); } catch (err) { logCrash('seasonal-back', err, { player: p.name }); }
+        }
+      }
+
       // Achievement badges: computed per REAL player from the record,
       // persisted on the profile (new ones only) and announced to the whole
       // table - the big moment belongs in the result overlay.
@@ -1208,7 +1224,9 @@ const registry = new SessionRegistry((session) => {
       for (const p of gameRecord.players || []) {
         if (p.isBot) continue;
         const profile = playerStore.getPlayerByName(p.name) || {};
-        const deserved = computeEarnedBadges(gameRecord, p.id, profile);
+        let challengeChamp = false;
+        try { challengeChamp = challengeStore.wasChampion(p.name); } catch (err) { logCrash('challenge-champ', err, { player: p.name }); }
+        const deserved = computeEarnedBadges(gameRecord, p.id, profile, { challengeChamp });
         const fresh = playerStore.awardBadges(p.name, deserved);
         if (fresh.length > 0) earned.push({ name: p.name, badges: fresh });
       }
@@ -1222,10 +1240,13 @@ const registry = new SessionRegistry((session) => {
       // Everything below is best-effort: a finished game must never fail
       // because a counter could not be written.
       const todaysQuests = questsForDate(questDate);
+      // Welcome back (#316): only this game's XP doubles, the ladder mirror included.
+      const xpFor = (p) => xpForGame(gameRecord, p.id) * (streaks[p.id] && streaks[p.id].welcomeBack ? 2 : 1);
       for (const p of gameRecord.players || []) {
         if (p.isBot) continue;
         try {
-          const gainedXp = xpForGame(gameRecord, p.id);
+          const welcomeBack = !!(streaks[p.id] && streaks[p.id].welcomeBack);
+          const gainedXp = xpFor(p);
           const questDeltas = evaluateQuests(gameRecord, p.id, todaysQuests);
           const before = playerStore.questProgress(p.name, questDate);
           const after = playerStore.addProgress(p.name, {
@@ -1243,6 +1264,7 @@ const registry = new SessionRegistry((session) => {
           sendTo(p.id, {
             type: 'progress',
             gainedXp,
+            welcomeBack,
             xp: after.xp,
             level: levelFromXp(after.xp),
             quests: { date: questDate, ids: todaysQuests, progress: after.quests, completed },
@@ -1261,7 +1283,7 @@ const registry = new SessionRegistry((session) => {
           if (p.isBot) continue;
           Promise.resolve(
             accountStore.addGameResult(p.name, {
-              xp: xpForGame(gameRecord, p.id),
+              xp: xpFor(p),
               won: gameRecord.winnerId === p.id,
               season,
             })
@@ -1400,6 +1422,14 @@ function broadcastToSession(session, message) {
   for (const [, sock] of session.sockets) {
     if (sock && sock.readyState === WebSocket.OPEN) sock.send(raw);
   }
+}
+
+const FAVORITES_LOGIN_ERROR = 'Lieblingsabzeichen gibt es nur mit Konto - bitte zuerst anmelden.';
+const STAMMTISCH_LOGIN_ERROR = 'Für deine Stammtische brauchst du ein Konto - bitte zuerst anmelden.';
+/** Account username behind msg.accountToken, or null (not signed in). */
+async function stammtischAccount(msg) {
+  const user = await accountStore.sessionUser(msg.accountToken);
+  return user && user.username ? user.username : null;
 }
 
 /** The live session currently bound to a Stammtisch code, if any. */
@@ -1707,6 +1737,7 @@ wss.on('connection', (ws, req) => {
       let xp = 0;
       let level = null;
       let streak = null;
+      let badges = [];
       if (withProfile) {
         status = playerStore.recordPuzzleAttempt(name, date, result.solved);
         if (status.justSolved) {
@@ -1715,9 +1746,11 @@ wss.on('connection', (ws, req) => {
           level = levelFromXp(after.xp);
           // A solved puzzle is a played day - it keeps the daily streak alive.
           try { streak = playerStore.touchDailyStreak(name, date); } catch (err) { logCrash('streak', err, { player: name }); }
+          // Puzzle tiers (and a daily streak tier) right away, not at the next match.
+          try { badges = playerStore.awardBadges(name, familyBadges(playerStore.getPlayerByName(name) || {})); } catch (err) { logCrash('badges', err, { player: name }); }
         }
       }
-      ws.send(JSON.stringify({ ...result, xp, level, streak, status, type: 'puzzleResult' }));
+      ws.send(JSON.stringify({ ...result, xp, level, streak, status, badges, type: 'puzzleResult' }));
       return;
     }
     if (msg.type === 'listProfiles') {
@@ -1737,11 +1770,45 @@ wss.on('connection', (ws, req) => {
     if (msg.type === 'createStammtisch') {
       // A Stammtisch is founded WITH its first table: one message, and the
       // founder sits at a live session bound to the new group code.
-      const founded = stammtischStore.create(msg.stammtischName, sanitizeName(msg.name));
+      // Founding needs an account (it owns the table); joining by code does not.
+      let owner = null;
+      if (ACCOUNTS_ENABLED) {
+        owner = await stammtischAccount(msg);
+        if (!owner) return sendError(ws, STAMMTISCH_LOGIN_ERROR);
+        msg = { ...msg, name: owner };
+      }
+      const founded = stammtischStore.create(msg.stammtischName, sanitizeName(msg.name), Date.now(), owner);
       if (founded.error) return sendError(ws, founded.error);
       const created = registry.create({ stammtisch: founded.table.code });
       if (created.error) return sendError(ws, created.error);
       await joinSession(created.session, msg);
+      return;
+    }
+    if (msg.type === 'setFavoriteBadges') {
+      // Registered players only (#317): the account behind the token must own the name.
+      const owner = ACCOUNTS_ENABLED && !PUBLIC_MODE ? await stammtischAccount(msg) : null;
+      if (!owner || owner.toLowerCase() !== String(sanitizeName(msg.name)).toLowerCase()) {
+        return sendError(ws, FAVORITES_LOGIN_ERROR);
+      }
+      const r = playerStore.setFavoriteBadges(owner, msg.badges);
+      if (r.error) return sendError(ws, r.error);
+      sendProfilesTo(ws);
+      return;
+    }
+    if (msg.type === 'listStammtische' || msg.type === 'deleteStammtisch' || msg.type === 'leaveStammtisch') {
+      // "My Stammtische": by account only - a name alone is spoofable.
+      const owner = ACCOUNTS_ENABLED ? await stammtischAccount(msg) : null;
+      if (!owner) return sendError(ws, STAMMTISCH_LOGIN_ERROR);
+      if (msg.type !== 'listStammtische') {
+        const r = msg.type === 'deleteStammtisch'
+          ? stammtischStore.remove(msg.code, owner)
+          : stammtischStore.leave(msg.code, owner);
+        if (r.error) return sendError(ws, r.error);
+        // A live table of a deleted Stammtisch plays on as a normal table.
+        const live = msg.type === 'deleteStammtisch' ? findStammtischSession(r.code) : null;
+        if (live) live.stammtisch = null;
+      }
+      ws.send(JSON.stringify({ type: 'stammtischList', tables: stammtischStore.listFor(owner) }));
       return;
     }
     if (msg.type === 'getStammtisch') {
@@ -1832,7 +1899,8 @@ wss.on('connection', (ws, req) => {
     switch (msg.type) {
       case 'startGame': {
         if (!game.isHost(playerId)) { sendError(ws, 'Nur der Organisator kann das Spiel starten.'); break; }
-        const gate = game.lobbyStartGate();
+        // Stammtisch: at least two humans, also for a rematch (same lobby path).
+        const gate = game.lobbyStartGate({ minHumans: session.stammtisch ? 2 : 1 });
         if (gate.error) {
           sendError(ws, gate.error);
           break;

@@ -1604,8 +1604,14 @@ class GameManager {
       if (!b) continue;
       let ringRuns = 0;
       let longestRun = 0;
+      let royalSuit = null;
       for (const m of this.tableMelds) {
         if (m.ownerId !== p.id || m.type !== 'run' || !m.slots.length) continue;
+        // Royal flush: 10-J-Q-K-A as REAL cards (no joker in those spots).
+        const reals = m.slots.filter((sl) => sl.real).map((sl) => sl.real);
+        if (['10', 'J', 'Q', 'K', 'A'].every((r) => reals.some((c) => c.rank === r))) {
+          if (!royalSuit || reals[0].suit === 'S') royalSuit = reals[0].suit;
+        }
         const first = m.slots[0].real ? m.slots[0].real.rank : m.slots[0].representsRank;
         // Slots run in ring order from the first rank; passing the Ace back
         // to the 2 means the window wraps.
@@ -1615,6 +1621,7 @@ class GameManager {
       b.ringRuns = ringRuns;
       b.longestRun = longestRun;
       b.bigPileTake = !!p._bigPileTake;
+      b.royalFlush = royalSuit; // suit letter, 'S' wins over others; null = none
     }
     this.totals = applyRoundScores(this.totals, roundResult);
     this.lastRoundResult = roundResult;
@@ -1748,6 +1755,9 @@ class GameManager {
               }
               if (round.isHandAus && round.winnerId === p.id) facts.handAusWins += 1;
             }
+            // Last place (ties at the bottom included) feeds the "red lantern" streak.
+            const lowest = Math.min(...this.players.map((pl) => this.totals[pl.id] || 0));
+            facts.lastPlace = p.id !== over.winnerId && (this.totals[p.id] || 0) <= lowest;
             return { id: p.id, name: p.name, score: this.totals[p.id] || 0, won: p.id === over.winnerId, facts };
           });
         try {
@@ -1795,14 +1805,18 @@ class GameManager {
     return { ok: true };
   }
 
-  /** Start gate: with 2+ connected humans everyone must be ready. */
-  lobbyStartGate() {
+  /** Start gate: with 2+ connected humans everyone must be ready.
+   *  minHumans: a Stammtisch is a group table and never starts with one human. */
+  lobbyStartGate({ minHumans = 1 } = {}) {
     if (this.phase !== 'lobby') return {};
     // Count SEATED humans, not just connected ones: a player who minimised the
     // app (and thus dropped the socket) must still actively press 'ready' -
     // the game does not start behind their back. If they never return, the
     // lobby takeover below frees their seat so the table is not stuck forever.
     const humans = this.players.filter((p) => !p.isBot);
+    if (humans.length < minHumans) {
+      return { error: `Am Stammtisch braucht es mindestens ${minHumans} Spieler - teile den Code, damit jemand dazukommt.` };
+    }
     if (humans.length <= 1) return {};
     const ready = humans.filter((h) => this._lobbyReady && this._lobbyReady.has(h.id)).length;
     if (ready < humans.length) {

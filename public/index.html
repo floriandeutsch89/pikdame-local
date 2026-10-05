@@ -555,7 +555,7 @@
       </header>
 
       <div id="emoteBar" class="emoteBar hidden">
-        <button class="emoteChoice" data-emote="👍">👍</button><button class="emoteChoice" data-emote="😂">😂</button><button class="emoteChoice" data-emote="😱">😱</button><button class="emoteChoice" data-emote="😤">😤</button><button class="emoteChoice" data-emote="🎉">🎉</button><button class="emoteChoice" data-emote="⏳" title="Tick tack...">⏳</button><button class="emoteChoice" data-emote="pikdame"><span class="miniPikdame">♠<b>Q</b></span></button><button class="emoteChoice" data-emote="👏">👏</button><button class="emoteChoice" data-emote="🙈">🙈</button><button class="emoteChoice" data-emote="🤔">🤔</button><button class="emoteChoice" data-emote="🍀">🍀</button><button class="emoteChoice" data-emote="😎">😎</button><button class="emoteChoice" data-emote="🔥">🔥</button><button class="emoteChoice" data-emote="😴">😴</button><button class="emoteChoice" data-emote="🙏">🙏</button>
+        <button class="emoteChoice" data-emote="👍">👍</button><button class="emoteChoice" data-emote="😂">😂</button><button class="emoteChoice" data-emote="😱">😱</button><button class="emoteChoice" data-emote="😤">😤</button><button class="emoteChoice" data-emote="🎉">🎉</button><button class="emoteChoice" data-emote="⏳" title="Tick tack...">⏳</button><button class="emoteChoice" data-emote="pikdame"><span class="miniPikdame">♠<b>Q</b></span></button><button class="emoteChoice" data-emote="👏">👏</button><button class="emoteChoice" data-emote="🙈">🙈</button><button class="emoteChoice" data-emote="🤔">🤔</button><button class="emoteChoice" data-emote="🍀">🍀</button><button class="emoteChoice" data-emote="😎">😎</button><button class="emoteChoice" data-emote="🔥">🔥</button><button class="emoteChoice" data-emote="😴">😴</button><button class="emoteChoice" data-emote="🙏">🙏</button><button class="emoteChoice" data-emote="🤩">🤩</button><button class="emoteChoice" data-emote="🥳">🥳</button><button class="emoteChoice" data-emote="💪">💪</button>
       </div>
       <div id="opponents"></div>
 
@@ -703,18 +703,32 @@
         <p class="challengeLead">Diese Woche:</p>
         <p id="challengeWeekLine" class="challengeTop">…</p>
         <p class="settingsHint">Gewertet werden deine besten fünf Tage der laufenden Woche.</p>
+        <!-- My points vs. the top 5 others (14 days): collapsed by default, remembered. -->
+        <button id="challengeTrendBtn" type="button" class="challengeTrendToggle" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-chart"/></svg><span>Du vs. Top 5 (14 Tage)</span><svg class="icon chev" aria-hidden="true"><use href="#i-chevron"/></svg></button>
+        <div id="challengeTrend" class="challengeTrend hidden"></div>
         <button id="challengeStartBtn" class="btn-primary">Los geht's!</button>
         <button id="challengeCancelBtn" class="btn-secondary">Abbrechen</button>
       </div>
     </section>
 
-    <!-- STAMMTISCH: found a persistent group table -->
+    <!-- STAMMTISCH: my tables (account) + found a persistent group table -->
     <section id="stammtischOverlay" class="overlay hidden">
       <div class="overlay-card">
-        <h2><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span>Stammtisch gründen</span></h2>
+        <h2><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span>Stammtisch</span></h2>
         <p class="lobby-hint">Ein fester Tisch für deine Runde: ein Code für immer, eine Bilanz über alle Partien und eine Revanche-Serie (Best of 3). Wer den Code kennt, landet immer am aktuellen Tisch.</p>
-        <input id="stammtischNameInput" type="text" placeholder="Name des Stammtischs" maxlength="24" />
-        <button id="stammtischCreateBtn" class="btn-primary">Gründen &amp; Tisch eröffnen</button>
+        <div id="stammtischMine" class="stammtischMine hidden">
+          <h3>Meine Stammtische</h3>
+          <div id="stammtischList" class="stammtischList"></div>
+        </div>
+        <div id="stammtischFound" class="stammtischFound">
+          <h3>Stammtisch gründen</h3>
+          <input id="stammtischNameInput" type="text" placeholder="Name des Stammtischs" maxlength="24" />
+          <button id="stammtischCreateBtn" class="btn-primary">Gründen &amp; Tisch eröffnen</button>
+        </div>
+        <div id="stammtischLoginBox" class="hidden">
+          <p class="settingsHint">Zum Gründen und für die Liste deiner Stammtische brauchst du ein Konto. Mitspielen per Code geht auch ohne.</p>
+          <button id="stammtischLoginBtn" class="btn-primary">Anmelden</button>
+        </div>
         <p class="settingsHint">Du hast schon einen Code? Gib ihn einfach oben bei „Beitreten“ ein.</p>
         <button id="stammtischCancelBtn" class="btn-secondary">Abbrechen</button>
       </div>
@@ -775,6 +789,7 @@
               <button class="themeBtn tapExpand" data-theme-choice="love" title="Herzdame" aria-label="Herzdame"></button>
               <button class="themeBtn tapExpand" data-theme-choice="felt" title="Filz" aria-label="Filz"></button>
               <button class="themeBtn tapExpand" data-theme-choice="kitchen" title="Omas Küchentisch" aria-label="Omas Küchentisch"></button>
+              <button class="themeBtn tapExpand" data-theme-choice="bordeaux" title="Bordeaux" aria-label="Bordeaux"></button>
             </span>
           </div>
           <button id="uiScaleBtn" class="sheetRow" title="Anzeigegröße ändern">
@@ -883,6 +898,7 @@
               <button class="themeBtn tapExpand" data-theme-choice="love" title="Herzdame" aria-label="Herzdame"></button>
               <button class="themeBtn tapExpand" data-theme-choice="felt" title="Filz" aria-label="Filz"></button>
               <button class="themeBtn tapExpand" data-theme-choice="kitchen" title="Omas Küchentisch" aria-label="Omas Küchentisch"></button>
+              <button class="themeBtn tapExpand" data-theme-choice="bordeaux" title="Bordeaux" aria-label="Bordeaux"></button>
             </div>
           </div>
 
@@ -1118,7 +1134,7 @@
              every player needs was the one you had to scroll for. -->
         <div class="resultFooter">
           <div id="resultEmoteBar" class="resultEmoteBar hidden">
-            <button class="emoteChoice" data-emote="👍">👍</button><button class="emoteChoice" data-emote="😂">😂</button><button class="emoteChoice" data-emote="😱">😱</button><button class="emoteChoice" data-emote="😤">😤</button><button class="emoteChoice" data-emote="🎉">🎉</button><button class="emoteChoice" data-emote="⏳" title="Tick tack...">⏳</button><button class="emoteChoice" data-emote="pikdame"><span class="miniPikdame">♠<b>Q</b></span></button><button class="emoteChoice" data-emote="👏">👏</button><button class="emoteChoice" data-emote="🙈">🙈</button><button class="emoteChoice" data-emote="🤔">🤔</button><button class="emoteChoice" data-emote="🍀">🍀</button><button class="emoteChoice" data-emote="😎">😎</button><button class="emoteChoice" data-emote="🔥">🔥</button><button class="emoteChoice" data-emote="😴">😴</button><button class="emoteChoice" data-emote="🙏">🙏</button>
+            <button class="emoteChoice" data-emote="👍">👍</button><button class="emoteChoice" data-emote="😂">😂</button><button class="emoteChoice" data-emote="😱">😱</button><button class="emoteChoice" data-emote="😤">😤</button><button class="emoteChoice" data-emote="🎉">🎉</button><button class="emoteChoice" data-emote="⏳" title="Tick tack...">⏳</button><button class="emoteChoice" data-emote="pikdame"><span class="miniPikdame">♠<b>Q</b></span></button><button class="emoteChoice" data-emote="👏">👏</button><button class="emoteChoice" data-emote="🙈">🙈</button><button class="emoteChoice" data-emote="🤔">🤔</button><button class="emoteChoice" data-emote="🍀">🍀</button><button class="emoteChoice" data-emote="😎">😎</button><button class="emoteChoice" data-emote="🔥">🔥</button><button class="emoteChoice" data-emote="😴">😴</button><button class="emoteChoice" data-emote="🙏">🙏</button><button class="emoteChoice" data-emote="🤩">🤩</button><button class="emoteChoice" data-emote="🥳">🥳</button><button class="emoteChoice" data-emote="💪">💪</button>
           </div>
           <!-- Primary action alone; everything else folds away. Five equal
                pills below the scores meant "Weiter" had to be hunted for. -->
@@ -1136,6 +1152,20 @@
             </div>
           </details>
         </div>
+      </div>
+    </section>
+
+    <!-- LEVEL UP (#315): after the result overlay in the DOM, so it wins at
+         the same layer; pause/forfeit (.overlayTop) still cover it. -->
+    <section id="levelUpOverlay" class="overlay hidden">
+      <div class="overlay-card levelUpCard" role="dialog" aria-labelledby="levelUpTitle">
+        <div id="levelUpConfetti" class="levelUpConfetti" aria-hidden="true"></div>
+        <h2 id="levelUpTitle" class="levelUpTitle"></h2>
+        <p id="levelUpRank" class="levelUpRank"></p>
+        <div class="levelUpBar"><i id="levelUpBarFill"></i></div>
+        <p id="levelUpXp" class="levelUpXp"></p>
+        <div id="levelUpRewards" class="levelUpRewards"></div>
+        <button id="levelUpCloseBtn" class="btn-primary">Weiter</button>
       </div>
     </section>
 

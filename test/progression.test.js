@@ -239,3 +239,130 @@ test('PlayerStore.touchDailyStreak: persists the streak and mirrors it for the b
   const fresh = createPlayerStore(store.filePath);
   assert.equal(fresh.getPlayerByName('Anna').daily.streak, 2);
 });
+
+// --- v2.50: level titles, level rewards, seasonal card backs ------------------
+test('level titles: strictly ascending, start at level 1, de/en for every rank (#312)', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'client.js'), 'utf8');
+  const block = src.match(/const LEVEL_TITLES = \[([\s\S]*?)\n  \];/);
+  assert.ok(block, 'LEVEL_TITLES exists');
+  const rows = [...block[1].matchAll(/\[(\d+), '([^']+)', '([^']+)'\]/g)].map((m) => [Number(m[1]), m[2], m[3]]);
+  assert.ok(rows.length >= 8);
+  assert.equal(rows[0][0], 1, 'everyone has a title from level 1');
+  for (let i = 1; i < rows.length; i++) assert.ok(rows[i][0] > rows[i - 1][0], `ascending at ${rows[i][1]}`);
+});
+
+test('seasonal card backs: the game day decides, the client mirrors the ids (#314)', () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { seasonalBacksFor, SEASONAL_BACKS, easterSunday } = require('../game/SeasonalBacks');
+  const { gameDay } = require('../game/GameDay');
+  // 2026-10-31 23:30 German time (CET) is still October; 00:30 is November.
+  assert.deepEqual(seasonalBacksFor(gameDay(Date.parse('2026-10-31T22:30:00Z'))), ['pumpkin']);
+  assert.deepEqual(seasonalBacksFor(gameDay(Date.parse('2026-10-31T23:30:00Z'))), []);
+  assert.deepEqual(seasonalBacksFor('2026-12-10'), ['winter']);
+  assert.deepEqual(seasonalBacksFor('2026-12-24'), ['winter', 'christmas'], 'Christmas Eve unlocks both');
+  assert.deepEqual(seasonalBacksFor('2026-12-27'), ['winter']);
+  // Easter: Good Friday .. Easter Monday, computed per year.
+  assert.equal(easterSunday(2026), '2026-04-05');
+  assert.equal(easterSunday(2027), '2027-03-28');
+  assert.equal(easterSunday(2025), '2025-04-20');
+  assert.deepEqual(seasonalBacksFor('2026-04-02'), [], 'Maundy Thursday is too early');
+  assert.deepEqual(seasonalBacksFor('2026-04-03'), ['easter']);
+  assert.deepEqual(seasonalBacksFor('2026-04-06'), ['easter']);
+  assert.deepEqual(seasonalBacksFor('2026-04-07'), []);
+  assert.deepEqual(seasonalBacksFor('2027-03-26'), ['easter'], 'Good Friday 2027 in March');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'client.js'), 'utf8');
+  for (const b of SEASONAL_BACKS) {
+    assert.match(src, new RegExp(`id: '${b.id}'[^\\n]*field: 'seasonal'`), `client mirrors ${b.id}`);
+  }
+  const { createPlayerStore } = require('../game/PlayerStore');
+  const store = createPlayerStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikseason-')), 'players.json'));
+  store.recordGameResult([{ name: 'Ida', score: 10, won: false }]);
+  assert.equal(store.unlockSeasonalBack('Ida', 'pumpkin', '2026-10-05'), true);
+  assert.equal(store.unlockSeasonalBack('ida', 'pumpkin', '2026-10-20'), false, 'kept, first date wins');
+  assert.equal(store.getPlayerByName('Ida').seasonalBacks.pumpkin, '2026-10-05');
+});
+
+test('level rewards: new emotes are level-gated on the server too (#313)', () => {
+  const { EMOTE_DEFS } = require('../game/Emotes');
+  const lvl = Object.fromEntries(EMOTE_DEFS.map((e) => [e.id, e.level]));
+  assert.deepEqual([lvl['🤩'], lvl['🥳'], lvl['💪']], [14, 16, 18]);
+});
+
+test('level-up dialog: rewards between two levels and the next reward (#315)', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const vm = require('node:vm');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'client.js'), 'utf8');
+  const pick = (name) => src.match(new RegExp(`\\n  function ${name}\\([\\s\\S]*?\\n  \\}\\n`))[0];
+  const ctx = {};
+  vm.runInNewContext(`${pick('rewardsBetween')}${pick('nextRewards')}\nthis.between = rewardsBetween; this.next = nextRewards;`, ctx);
+  const rewards = [
+    { level: 5, id: '🍀' }, { level: 6, id: '😎' }, { level: 8, id: '🔥' }, { level: 8, id: 'Kartenhai' }, { level: 10, id: 'master' },
+  ];
+  assert.deepEqual(ctx.between(rewards, 5, 8).map((r) => r.id), ['😎', '🔥', 'Kartenhai'], 'from is exclusive, to inclusive');
+  assert.deepEqual(ctx.between(rewards, 6, 7).map((r) => r.id), [], 'a level without rewards');
+  assert.deepEqual(ctx.next(rewards, 6).map((r) => r.id), ['🔥', 'Kartenhai'], 'all items of the next rewarded level');
+  assert.deepEqual(ctx.next(rewards, 10).map((r) => r.id), [], 'nothing left');
+});
+
+test('level-up dialog: the client markup exists and sits above the result overlay (#315)', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+  const result = html.indexOf('id="resultOverlay"');
+  const levelUp = html.indexOf('id="levelUpOverlay"');
+  assert.ok(result > 0 && levelUp > result, 'later in the DOM = on top at the same layer');
+  assert.doesNotMatch(html.match(/<section id="levelUpOverlay"[^>]*>/)[0], /overlayTop/, 'pause and forfeit stay above it');
+});
+
+test('welcome back (#316): first game after 7+ days away flags double XP, nothing else does', () => {
+  const store = tempStore();
+  store.recordGameResult([{ name: 'Anna', score: 10, won: true }]);
+  // New profile: no last day yet, not "back".
+  assert.equal(store.touchDailyStreak('Anna', '2026-09-01').welcomeBack, false);
+  // 6 days away: normal.
+  assert.equal(store.touchDailyStreak('Anna', '2026-09-07').welcomeBack, false);
+  // 7 days away: double, but only the first game that day.
+  assert.equal(store.touchDailyStreak('Anna', '2026-09-14').welcomeBack, true);
+  assert.equal(store.touchDailyStreak('Anna', '2026-09-14').welcomeBack, false);
+  assert.equal(store.touchDailyStreak('Anna', '2026-10-26').welcomeBack, true);
+});
+
+test('welcome back: server doubles the game XP (progress and ladder) from the streak flag', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+  assert.match(src, /const xpFor = \(p\) => xpForGame\(gameRecord, p\.id\) \* \(streaks\[p\.id\] && streaks\[p\.id\]\.welcomeBack \? 2 : 1\)/);
+  // Both consumers use the doubled value; quest XP is untouched.
+  assert.equal((src.match(/xpForGame\(gameRecord, p\.id\)/g) || []).length, 1);
+  assert.match(src, /type: 'progress',\s+gainedXp,\s+welcomeBack,/);
+});
+
+test('favourite badges (#317): only earned keys, max 3, order kept, families allowed', () => {
+  const store = tempStore();
+  store.recordGameResult([{ name: 'Anna', score: 10, won: true }]);
+  store.awardBadges('Anna', ['first_win', 'night_owl', 'pd_laid', 'pd_hunter_10', 'score_500']);
+  assert.ok(store.setFavoriteBadges('Anna', ['first_win', 'night_owl', 'nope']).error, 'unknown id');
+  assert.ok(store.setFavoriteBadges('Anna', ['wins_50']).error, 'not earned');
+  assert.ok(store.setFavoriteBadges('Anna', ['hearts']).error, 'family without an earned tier');
+  assert.ok(store.setFavoriteBadges('Anna', ['first_win', 'night_owl', 'queens', 'score_500']).error, '4th');
+  assert.ok(store.setFavoriteBadges('Anna', 'first_win').error, 'not an array');
+  assert.ok(store.setFavoriteBadges('Nobody', []).error);
+  assert.deepEqual(store.setFavoriteBadges('Anna', ['queens', 'night_owl', 'queens']).favorites, ['queens', 'night_owl']);
+  assert.deepEqual(store.getPlayerByName('Anna').favoriteBadges, ['queens', 'night_owl']);
+  assert.deepEqual(store.setFavoriteBadges('Anna', []).favorites, []);
+});
+
+test('favourite badges: the server accepts them only from the signed-in owner of the name', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+  const i = src.indexOf("msg.type === 'setFavoriteBadges'");
+  assert.ok(i > 0);
+  const block = src.slice(i, src.indexOf('return;\n    }', i));
+  assert.match(block, /ACCOUNTS_ENABLED && !PUBLIC_MODE \? await stammtischAccount\(msg\) : null/);
+  assert.match(block, /owner\.toLowerCase\(\) !== String\(sanitizeName\(msg\.name\)\)\.toLowerCase\(\)/);
+  assert.match(block, /playerStore\.setFavoriteBadges\(owner, msg\.badges\)/);
+  // Before the session guard: works from the start screen.
+  assert.ok(i < src.indexOf('    if (!session) {', src.indexOf("msg.type === 'listProfiles'")));
+});

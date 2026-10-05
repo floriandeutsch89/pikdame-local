@@ -3,10 +3,55 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
-## [2.50.0] - 2026-10-05
+## [2.54.0] - 2026-10-05
 
 ### Changed
 - **Beta-Vorschau läuft auf einem eigenen Server** statt neben der Produktion: Code aus Pull Requests kommt nicht mehr auf den Produktionsserver. Die Beta hat einen eigenen Proxy, der bei jedem Push mitgebaut wird. Ändert ein Pull Request das Start-Skript der Seite, läuft es auf der Beta jetzt sofort (vorher erst nach dem Release blockiert). Empfohlen ist ein eigener Mail-Zugang für die Beta. Die Produktion enthält keine Beta-Teile mehr. Umzug und Einrichtung: Doku „Beta preview“
+
+## [2.53.0] - 2026-10-05
+
+### Added
+- **Lieblingsabzeichen** (#317): Wer mit Konto angemeldet ist, kann bis zu drei verdiente Abzeichen auswählen (Stern-Knopf in der Abzeichen-Ansicht). Sie stehen neben dem Namen in der Statistik und in der Sitzordnung vor dem Spiel, in der gewählten Reihenfolge; eine Abzeichen-Familie zeigt immer ihre höchste erreichte Stufe. Ohne Konto gibt es die Auswahl nicht, ein gelöschtes Konto verliert sie
+
+### Changed
+- **Sitzordnung zeigt keinen Stufen-Titel mehr** (#317): Neben dem Namen stehen nur noch die selbst gewählten Lieblingsabzeichen. Den Titel gibt es weiter in der Statistik
+
+## [2.52.0] - 2026-10-05
+
+### Added
+- **Willkommen zurück** (#316): Die erste beendete Partie nach mindestens 7 Tagen Pause bringt doppelte Erfahrung (auch für die Saison-Rangliste). Ein Hinweis nach der Partie sagt, warum. Gilt nur für diese eine Partie, nicht für Tagesaufgaben oder das Rätsel; ganz neue Spieler bekommen ihn nicht
+
+## [2.51.0] - 2026-10-05
+
+### Added
+- **Level-up-Dialog** (#315): Wer eine Stufe aufsteigt, sieht kurz nach der Ergebnisübersicht (oder nach dem Tagesrätsel) einen eigenen Dialog: neue Stufe, neuer Titel, ein Balken, der die abgeschlossene Stufe auffüllt, was gerade freigeschaltet wurde und was als Nächstes kommt. Mit etwas Konfetti (aus bei „Bewegung reduzieren“). Funktioniert jetzt auch bei der ersten Partie einer Sitzung - der alte Hinweis kam dort nie
+
+## [2.50.0] - 2026-10-05
+
+### Added
+- **Stufen-Titel** (#312): Kiebitz (1) → Mitspieler (3) → Kartenmischer (5) → Kartenhai (8) → Rommé-Fuchs (12) → Auslage-Ass (16) → Rommé-Profi (20) → Tischmeister (25) → Pik-Legende (30). Sichtbar in der Sitzordnung der Lobby und auf der Statistik-Karte
+- **Mehr Belohnungen für höhere Stufen** (#313): Emotes 🤩 (Stufe 14), 🥳 (16) und 💪 (18), Kartenrücken „Smaragd“ (15), „Purpur“ (20) und „Legende“ (30) sowie die Tischfarbe „Bordeaux“ (25). Gesperrtes ist mit „ab Stufe …“ beschriftet
+- **Saisonale Kartenrücken** (#314): „Kürbis“ lässt sich nur im Oktober freischalten, „Winterzauber“ nur im Dezember, „Weihnachten“ nur vom 24. bis 26. Dezember und „Ostern“ nur von Karfreitag bis Ostermontag - eine beendete Partie im Zeitraum genügt, danach bleibt der Rücken für immer
+
+## [2.49.0] - 2026-10-05
+
+### Added
+- **Meine Stammtische** (#307): Das Stammtisch-Fenster listet alle Stammtische, die du gegründet hast oder an denen du gespielt hast, mit Code, Mitspielern und letzter Aktivität. Antippen setzt dich an den Tisch. Wer gegründet hat, kann den Stammtisch löschen (für alle, mit zweitem Tipp bestätigen), alle anderen können ihn verlassen. Ein laufender Tisch eines gelöschten Stammtischs spielt als normaler Tisch weiter
+
+### Changed
+- **Stammtisch gründen braucht ein Konto** (#307): Der Stammtisch gehört dem Konto, das ihn gegründet hat; nur so ist das Löschen sicher (ein Spielername allein ließe sich nachmachen). Mitspielen per Code geht weiter ohne Konto. Auf Servern ohne Benutzerkonten bleibt alles wie bisher. Bestehende Stammtische gehören dem, der sie gegründet hat
+- **Ein Stammtisch startet erst mit mindestens 2 Spielern** (#301), auch bei der Revanche. Bis jemand per Code dazukommt, zeigt der Startknopf „Mindestens 2 Spieler nötig“; freie Plätze füllen wie gewohnt Bots. Normale Tische sind unverändert
+
+## [2.48.0] - 2026-10-05
+
+### Added
+- **Erfolge erklären sich selbst** (#300): Antippen (Handy) oder Klicken (Desktop) auf ein Abzeichen zeigt direkt darunter, wie man es bekommt - auch für gesperrte. Bei Stufen-Abzeichen stehen alle Stufen mit Bedingung und Fortschritt untereinander. Am Desktop zeigt das Überfahren mit der Maus die Bedingung zusätzlich als Tooltip
+- **19 neue Erfolge** (jetzt 47), auch zum Trösten: 💜 Tapferes Herz / Unverwüstlich / Herz aus Gold (10/50/100 Niederlagen), 😤 Rote Laterne (3× in Folge Letzter), 😡 Tiefpunkt (Endstand unter 0), 🥶 Kalte Dusche (beide Pik Damen in einer Runde erwischt), 🤹 Jokerkönig (4+ Joker in einer Runde), ⚡ Blitzstart („Hand aus“ in Runde 1), 😅 Knapp vorbei (unter 20 Punkte Rückstand), 🏔️ Erdrutschsieg (500+ Vorsprung), 🦉 Nachteule (Partie zwischen 0 und 4 Uhr beendet), 🍻 Stammtischbruder (10 Partien am Stammtisch), 🏁 Herausforderer / Challenge-Profi (7/30 Tages-Challenges), 🥇 Tagesbester (Platz 1 einer Tages-Challenge, vergeben bei der nächsten Partie), 🧩 Rätselfuchs / Rätselmeister (7/30 gelöste Tagesrätsel, sofort beim Lösen), 💎 Royal Flush (10-B-D-K-A einer Farbe ohne Joker), 👑 Pik Royal (dasselbe in Pik, mit der Pik Dame). Niederlagen zählen rückwirkend, die übrigen Zähler ab jetzt
+- Die Erfolge-Galerie zeigt zuerst das Freigeschaltete (das neueste oben), dann das noch Offene (was am nächsten dran ist, zuerst; sonst alphabetisch)
+- **Du vs. Top 5 in der Tages-Challenge** (#303): Im Challenge-Fenster lässt sich ein Diagramm aufklappen, das deine Punkte der letzten 14 Tage neben die der fünf besten anderen Spieler legt (nach Summe über die 14 Tage). Antippen zeigt die Punkte aller an diesem Tag, die Tabelle darunter nennt Namen und 14-Tage-Summe; Wischen zoomt, Doppeltipp setzt zurück. Standardmäßig zu, die Wahl wird gemerkt. Dafür hält der Server die Challenge-Ergebnisse jetzt 14 statt 7 Tage; die Bestenliste zeigt weiterhin 7 Tage
+
+### Changed
+- „Stammgast“ (100 Partien) heißt jetzt „Sitzfleisch“, „Dreifache Dame“ heißt „Huttrick“ 🎩 und zeigt keinen irreführenden Fortschritt mehr (es zählen nur die Pik Damen einer einzigen Partie)
 
 ## [2.47.5] - 2026-10-05
 

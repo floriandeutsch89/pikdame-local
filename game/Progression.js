@@ -185,10 +185,11 @@ function evaluateQuests(gameRecord, playerId, questIds = []) {
 function badgeProgress(profile = {}) {
   const p = profile || {};
   const out = {
-    pd_triple: { have: Math.min(p.totalQueensLaid || 0, 3), need: 3 },
     pd_caught: { have: Math.min(p.totalQueensCaught || 0, 1), need: 1 },
     score_500: { have: Math.min(p.bestGameScore || 0, 500), need: 500 },
     round_300: { have: Math.min(p.bestRoundScore || 0, 300), need: 300 },
+    red_lantern: { have: Math.min(p.lastPlaceStreak || 0, 3), need: 3 },
+    stammtisch_10: { have: Math.min(p.totalStammtischGames || 0, 10), need: 10 },
   };
   // Every tier of every counter family, from the same profile field.
   const { BADGE_FAMILIES } = require('./Badges');
@@ -244,6 +245,17 @@ function advanceDailyStreak(state, date) {
   return { state: s, event };
 }
 
+// "Welcome back": first game after this many game days without playing.
+const WELCOME_BACK_DAYS = 7;
+
+/** Away long enough for double XP? Read BEFORE the streak is advanced. */
+function isWelcomeBack(state, date) {
+  const last = state && state.last;
+  if (!last) return false; // brand-new players are not "back"
+  const gap = dayDiff(last, date);
+  return gap !== null && gap >= WELCOME_BACK_DAYS;
+}
+
 /** Is the grace day available on `date`? (for the UI: "Joker-Tag frei") */
 function streakGraceAvailable(state, date) {
   const s = state || {};
@@ -265,5 +277,7 @@ module.exports = {
   badgeProgress,
   advanceDailyStreak,
   streakGraceAvailable,
+  isWelcomeBack,
+  WELCOME_BACK_DAYS,
   STREAK_GRACE_EVERY_DAYS,
 };
