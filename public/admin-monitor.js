@@ -1,10 +1,10 @@
 // public/admin-monitor.js - charts of the admin Monitoring tab.
 // Loaded only by /admin/monitor (behind the admin login). Draws the history
 // from /admin/monitor/data with uPlot (public/vendor-uplot.js): one chart per
-// metric, cursors synced across all of them, drag to zoom, double-click to
-// reset. Refreshes the data and the "Jetzt" cards every 15 s without a page
-// reload, so a zoom survives the update. No inline script: the site's CSP
-// only allows same-origin files.
+// metric, cursors synced across all of them, drag (or swipe) to zoom,
+// double-click (or double tap) to reset. Refreshes the data and the "Jetzt"
+// cards every 15 s without a page reload, so a zoom survives the update. No
+// inline script: the site's CSP only allows same-origin files.
 (function () {
   'use strict';
   const root = document.getElementById('charts');
@@ -122,6 +122,8 @@
         { stroke: C.text, grid: { stroke: C.grid, width: 1 }, ticks: { stroke: C.grid }, size: 54, values: (u, vals) => vals.map((v) => de(v, v < 10 && def.digits ? 1 : 0)) },
       ],
       series,
+      // Touch (public/uplot-touch.js): swipe = zoom, double tap = reset.
+      plugins: typeof window.uplotTouch === 'function' ? [window.uplotTouch({ onReset: () => resetZoom(def.id) })] : [],
     };
     const plot = new uPlot(opts, cols, box.querySelector('.plot'));
     const win = { min: Math.round(data.from / 1000), max: Math.round(data.to / 1000) };
@@ -129,10 +131,12 @@
     plots[def.id] = { plot, box, shape: `${showPeak}|${limit != null}`, win };
     // Double-click resets to the current time window (uPlot's own reset would
     // go to the data extent, which the zoom check below reads as a zoom).
-    plot.over.addEventListener('dblclick', () => {
-      const pl = plots[def.id];
-      if (pl) pl.plot.setScale('x', { ...pl.win });
-    });
+    plot.over.addEventListener('dblclick', () => resetZoom(def.id));
+  }
+
+  function resetZoom(id) {
+    const pl = plots[id];
+    if (pl) pl.plot.setScale('x', { ...pl.win });
   }
 
   function update(data) {
