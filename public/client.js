@@ -6527,8 +6527,10 @@
     { id: 'purple', label: 'Purpur', labelEn: 'Royal purple', gate: { field: 'level', min: 20, de: 'ab Stufe 20', en: 'from level 20' } },
     { id: 'legend', label: 'Legende', labelEn: 'Legend', gate: { field: 'level', min: 30, de: 'ab Stufe 30', en: 'from level 30' } },
     // Seasonal (mirrors game/SeasonalBacks.js): unlocked by a finished game in the month, kept forever.
-    { id: 'pumpkin', label: 'Kürbis', labelEn: 'Pumpkin', gate: { field: 'seasonal', month: 10, de: 'nur im Oktober freischaltbar', en: 'unlockable in October only' } },
-    { id: 'winter', label: 'Winterzauber', labelEn: 'Winter magic', gate: { field: 'seasonal', month: 12, de: 'nur im Dezember freischaltbar', en: 'unlockable in December only' } },
+    { id: 'pumpkin', label: 'Kürbis', labelEn: 'Pumpkin', gate: { field: 'seasonal', de: 'nur im Oktober freischaltbar', en: 'unlockable in October only' } },
+    { id: 'winter', label: 'Winterzauber', labelEn: 'Winter magic', gate: { field: 'seasonal', de: 'nur im Dezember freischaltbar', en: 'unlockable in December only' } },
+    { id: 'christmas', label: 'Weihnachten', labelEn: 'Christmas', gate: { field: 'seasonal', de: 'nur vom 24. bis 26. Dezember freischaltbar', en: 'unlockable 24-26 December only' } },
+    { id: 'easter', label: 'Ostern', labelEn: 'Easter', gate: { field: 'seasonal', de: 'nur von Karfreitag bis Ostermontag freischaltbar', en: 'unlockable Good Friday to Easter Monday only' } },
   ];
   // Level-gated table colours; every other theme is free.
   const THEME_LEVELS = { bordeaux: 25 };
