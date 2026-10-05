@@ -780,7 +780,8 @@ setTimeout(() => {
         if (!panes[1].classList.contains('hidden')) errors.push('stats pane (tab 2) must start hidden');
         if (!panes[0].querySelector('.resultRow')) errors.push('tab 1 must contain the tabular result rows');
         if (!panes[1].querySelector('.statsTable')) errors.push('tab 2 must contain the stats table');
-        if (!panes[1].querySelector('.scoreChart')) errors.push('tab 2 must contain the score chart');
+        // Game over: the chart tells the match, so it sits on the result pane.
+        if (!panes[0].querySelector('.scoreChart')) errors.push('game over: tab 1 must contain the score chart');
       }
       // Reiter-Wechsel per Klick
       if (tabs.length === 2) {

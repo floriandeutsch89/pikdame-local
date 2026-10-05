@@ -251,6 +251,16 @@
     <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4 20l1-4.2L15.8 5a2 2 0 0 1 2.8 0l.4.4a2 2 0 0 1 0 2.8L8.2 19z"/><path d="M14 6.8l3.2 3.2"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
     <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3.5 11.2V4.5a1 1 0 0 1 1-1h6.7a1 1 0 0 1 .7.3l8.3 8.3a1 1 0 0 1 0 1.4l-6.7 6.7a1 1 0 0 1-1.4 0L3.8 11.9a1 1 0 0 1-.3-.7z"/><circle cx="8" cy="8" r="1.4"/></symbol>
+    <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 3c.8 3.6 5 5.6 5 10.2a5 5 0 0 1-10 0c0-2.3 1-3.8 2.4-4.9.2 1.6.9 2.6 1.9 3.1C11.1 9.2 11.4 5.8 12 3z"/></symbol>
+    <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M7 4h10v4.5a5 5 0 0 1-10 0z"/><path d="M7 6H4.5a2.6 2.6 0 0 0 3 3.6M17 6h2.5a2.6 2.6 0 0 1-3 3.6"/><path d="M12 13.5V17M8.5 20.5h7M9.5 17h5v3.5h-5z"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.8"/><circle cx="12" cy="12" r="1.2"/></symbol>
+    <symbol id="i-spade" viewBox="0 0 24 24"><path d="M12 3.5c3 3.3 7 6 7 9.4a3.6 3.6 0 0 1-6.2 2.5l.7 4.6h-3l.7-4.6A3.6 3.6 0 0 1 5 12.9c0-3.4 4-6.1 7-9.4z"/></symbol>
+    <symbol id="i-crown" viewBox="0 0 24 24"><path d="M4.5 17 3 7.5l5 4 4-6.5 4 6.5 5-4-1.5 9.5z"/><path d="M4.5 20.5h15"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13.5 2.5 5 13.5h6l-1 8 8.5-11h-6z"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 5 5.8v5.4c0 4.4 3 8.2 7 9.8 4-1.6 7-5.4 7-9.8V5.8z"/><path d="m8.8 12 2.3 2.3 4.2-4.6"/></symbol>
+    <symbol id="i-rocket" viewBox="0 0 24 24"><path d="M12 2.8c3.2 2 5 5.6 5 9.7l-2.2 3.3H9.2L7 12.5c0-4.1 1.8-7.7 5-9.7z"/><circle cx="12" cy="9.5" r="1.8"/><path d="M7 12.5 4.5 15l1 3.5 3.5-2.7M17 12.5l2.5 2.5-1 3.5-3.5-2.7M10.5 18.5 12 21.5l1.5-3"/></symbol>
+    <symbol id="i-trend" viewBox="0 0 24 24"><path d="M3.5 17 9 11.5l4 4 7.5-7.5"/><path d="M15 8h5.5v5.5"/></symbol>
+    <symbol id="i-swords" viewBox="0 0 24 24"><path d="M4 4.5 15 15.5M20 4.5 9 15.5"/><path d="M13 18l5-5M11 18l-5-5"/><path d="m16.5 17 3 3M7.5 17l-3 3"/></symbol>
   </svg>
 
   <div id="app">
@@ -304,6 +314,7 @@
       <button id="identityChip" class="identityChip hidden" type="button" title="Namen ändern">
         <span id="identityAvatar" class="identityAvatar" aria-hidden="true"></span>
         <span id="identityName" class="identityName"></span>
+        <span id="identityStreak" class="identityStreak hidden"></span>
         <svg class="icon identityEdit" aria-hidden="true"><use href="#i-pencil"/></svg>
       </button>
       <input id="nameInput" type="text" placeholder="Dein Name" maxlength="16" enterkeyhint="done" />
@@ -1042,17 +1053,18 @@
              ICH zuletzt gespielt") - Feature-Wunsch nach der eigenen
              Spielhistorie. -->
         <div class="statsTabs">
-          <button id="statsTabBoardBtn" type="button" class="resultTabBtn active">Bestenliste</button>
+          <button id="statsTabBoardBtn" type="button" class="resultTabBtn active">Übersicht</button>
           <button id="statsTabHistoryBtn" type="button" class="resultTabBtn">Meine Partien</button>
         </div>
         <div id="statsPaneBoard" class="statsPane">
-          <p class="lobby-hint">Über alle Partien auf diesem Server (nach Spielernamen).</p>
-          <div id="globalStatsBox" class="globalStatsBox hidden"></div>
-          <!-- Erfolge-Galerie: Abzeichen blitzten bisher einmal am Partieende
-               auf und waren danach unsichtbar. Gesperrte mit Fortschritt zu
-               zeigen ist der eigentliche Antrieb ("was fehlt mir noch?"). -->
+          <!-- Personal first, server last: the player's own numbers answer the
+               question people open this for. -->
+          <div id="statsMeBox" class="statsMeBox hidden"></div>
           <div id="achievementsBox" class="achievementsBox hidden"></div>
+          <h3 class="statsSectionTitle">Bestenliste</h3>
+          <p class="lobby-hint">Über alle Partien auf diesem Server (nach Spielernamen).</p>
           <div id="statsContent" class="statsContent"></div>
+          <div id="globalStatsBox" class="globalStatsBox hidden"></div>
         </div>
         <div id="statsPaneHistory" class="statsPane hidden">
           <p class="lobby-hint">Deine letzten abgeschlossenen Partien (bis 1000 Punkte) - nur auf diesem Gerät/mit diesem Spielernamen.</p>
@@ -1140,6 +1152,7 @@
                pills below the scores meant "Weiter" had to be hunted for. -->
           <div class="resultActions">
             <button id="resultContinueBtn" class="btn-primary">Weiter</button>
+            <button id="resultHomeQuickBtn" class="btn-icon hidden" title="Hauptmenü" aria-label="Hauptmenü"><svg class="icon" aria-hidden="true"><use href="#i-home"/></svg></button>
             <button id="resultEmoteToggle" class="btn-icon" title="Reaktion senden" aria-label="Reaktion senden" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-smile"/></svg></button>
           </div>
           <details id="resultMore" class="resultMore">

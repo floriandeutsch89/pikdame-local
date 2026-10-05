@@ -1297,6 +1297,14 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   color: #0e7a4d;
 }
 
+/* Round winner: one line everywhere - the same number is in the list right
+   below, so a three-line hero only cost a phone ~110 px. */
+.resultWinner:not(.resultWinnerGame) {
+  flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: baseline;
+  gap: 4px 10px; padding: 8px 12px; margin-bottom: 8px;
+}
+.resultWinner:not(.resultWinnerGame) .resultWinnerScore { margin-top: 0; font-size: var(--fs-title); }
+
 /* Match winner: same component, turned up - this is the end of the game. */
 .resultWinnerGame { padding-top: 12px; }
 .resultWinnerCrown { width: 34px; height: 34px; margin-bottom: 2px; }
@@ -1353,16 +1361,57 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .resultDelta.pos { color: #0e7a4d; }
 .resultDelta.neg { color: #c0281f; }
 /* Race to 1000: same visual language as the score bar under the hand. */
+/* Solid = standing before the round in the seat colour (--pc, same as the
+   chart), ghost = this round's move, tick = the 1000 goal. */
 .resultRowBar {
-  height: 4px; margin: 6px 0 3px;
-  border-radius: 999px; overflow: hidden;
-  background: rgba(0,0,0,0.09);
+  position: relative;
+  height: 6px; margin: 6px 0 3px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.08);
 }
-.resultRowBar i {
-  display: block; height: 100%; border-radius: 999px;
-  background: linear-gradient(90deg, #2ecc71, #f1c40f 70%, #e67e22);
+.resultRowBar .barSolid,
+.resultRowBar .barGhost {
+  position: absolute; top: 0; bottom: 0; left: 0;
+  border-radius: 999px;
   transition: width 0.6s ease;
 }
+.resultRowBar .barSolid { background: var(--pc); }
+.resultRowBar .barGhost.gain { background: var(--pc); opacity: 0.4; }
+.resultRowBar .barGhost.loss {
+  background: repeating-linear-gradient(135deg, #c0281f 0 3px, rgba(192,40,31,0.25) 3px 6px);
+}
+.resultRowBar .barGoal {
+  position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -2px;
+  border-radius: 1px; background: rgba(0,0,0,0.45);
+}
+/* Game over: rank and total lead, the last round's delta recedes. */
+.resultRank {
+  flex: 0 0 auto; min-width: 1.4em;
+  font-size: var(--fs-label); font-weight: 800; color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.resultDelta.resultDeltaSmall { min-width: 0; font-size: var(--fs-hint); font-weight: 700; }
+.resultTotal.resultTotalBig {
+  min-width: 3em; text-align: right;
+  font-size: var(--fs-lead); font-weight: 800; color: var(--card-ink);
+}
+.resultMine {
+  margin: 0 0 8px; text-align: center;
+  font-size: var(--fs-label); color: var(--text-muted); font-variant-numeric: tabular-nums;
+}
+.resultMine b { color: var(--card-ink); }
+.matchFacts { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 4px; }
+.matchFacts h4 {
+  flex-basis: 100%; margin: 0 0 2px;
+  font-size: var(--fs-hint); font-weight: 700; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--text-muted);
+}
+.factChip {
+  padding: 4px 10px; border-radius: var(--r-pill);
+  background: rgba(0,0,0,0.05);
+  font-size: var(--fs-hint); color: var(--text-muted); font-variant-numeric: tabular-nums;
+}
+.factChip b { color: var(--card-ink); }
 /* The round winner is already named in the headline above; in the list they
    only get weight. No colour - see .resultDelta.pos/.neg for that. */
 .resultRow.winner .resultName { font-weight: 800; }
@@ -1390,10 +1439,23 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   border-radius: var(--r-sm); padding: 11px 13px;
   font-size: 0.85rem; font-weight: 500; margin: 0 0 12px;
 }
-.statsTable { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.76rem; }
-.statsTable th, .statsTable td { padding: 6px; text-align: center; border-bottom: 1px solid rgba(0,0,0,0.07); }
-.statsTable th { font-weight: 700; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(0,0,0,0.5); }
-.statsTable th:first-child, .statsTable td:first-child { text-align: left; }
+.statsTable { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: var(--fs-label); }
+.statsTable th, .statsTable td {
+  padding: 7px 6px; text-align: right; white-space: nowrap;
+  border-bottom: 1px solid rgba(0,0,0,0.07); font-variant-numeric: tabular-nums;
+}
+.statsTable th { font-weight: 700; font-size: var(--fs-micro); text-transform: uppercase; letter-spacing: 0.05em; color: rgba(0,0,0,0.5); }
+.statsTable th:first-child, .statsTable td:first-child { text-align: left; white-space: normal; }
+.statsTable .deltaUp { color: #0e7a4d; font-weight: 700; }
+.statsTable .deltaDown { color: #c0281f; font-weight: 700; }
+.statName { margin-right: 4px; }
+.statMark {
+  display: inline-flex; align-items: center; gap: 1px; vertical-align: 1px;
+  margin-right: 3px; padding: 0 5px; border-radius: 4px;
+  background: rgba(0,0,0,0.06);
+  font-size: var(--fs-micro); font-weight: 700; color: var(--card-ink);
+}
+.statMark .jokerMark { width: 1em; height: 1em; fill: currentColor; }
 #exportGameBtn { background: rgba(14,122,77,0.1); color: #0e7a4d; }
 
 .jokerChoiceOptions { display: flex; flex-direction: column; gap: 9px; margin: 16px 0 8px; }
@@ -1657,7 +1719,13 @@ body.raidActive #toastContainer { margin-top: 132px; }
 }
 .scoreChartSvg { width: 100%; height: auto; }
 .scoreChartSvg .gridLine { stroke: var(--glass-border); stroke-width: 1; }
+.scoreChartSvg .goalLine { stroke: rgba(0,0,0,0.5); stroke-width: 1; stroke-dasharray: 4 3; }
 .scoreChartSvg .axisLabel { fill: var(--text-muted); font-size: 8.5px; font-weight: 600; }
+.scoreChartSvg .axisLabel.goal { fill: var(--card-ink); font-weight: 800; }
+.scoreChartSvg polyline.other { opacity: 0.55; }
+.scoreChartSvg .endLabel { fill: var(--text-muted); font-size: 9px; font-weight: 600; }
+.scoreChartSvg .endLabel.mine { fill: var(--card-ink); font-weight: 800; }
+.scoreChartSvg .endValue { fill: var(--card-ink); font-weight: 800; font-variant-numeric: tabular-nums; }
 .scoreChartLegend {
   display: flex; flex-wrap: wrap; gap: 6px 14px;
   font-size: 0.68rem; color: var(--text-muted);
@@ -1729,29 +1797,6 @@ body.raidActive #toastContainer { margin-top: 132px; }
   font-variant-numeric: tabular-nums;
 }
 .statsPageTable tr:first-child td { color: var(--accent); font-weight: 700; }
-
-/* Mobile-friendly stats: one card per player, achievements as readable chips
-   instead of a cramped table column. */
-.statsCards { display: flex; flex-direction: column; gap: 8px; }
-.statsCard {
-  cursor: pointer;
-  border: 1px solid var(--glass-border);
-  border-radius: 12px;
-  padding: 10px 12px;
-  background: rgba(255,255,255,0.03);
-}
-.statsCardHead { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.statsCardName { font-weight: 700; font-size: 0.95rem; }
-.statsCardRate { color: var(--accent); font-weight: 700; font-size: 0.82rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.statsCardMeta { font-size: 0.74rem; color: var(--text-muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
-.statsCardBadges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
-.statsBadgeChip {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: 0.72rem; font-weight: 600;
-  padding: 3px 8px; border-radius: 999px;
-  background: rgba(0,0,0,0.06); border: 1px solid var(--glass-border);
-}
-.statsNoBadge { font-size: 0.72rem; color: var(--text-muted); font-style: italic; }
 
 /* --- Statistik-Overlay: Reiter Bestenliste | Meine Partien ------------------ */
 .statsTabs {
@@ -2177,19 +2222,69 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 /* --- Bot-Schwierigkeit (Hausregeln) ---------------------------------------- */
 
 /* --- Globale Server-Statistik ---------------------------------------------- */
+/* Footer of the statistics: one punchline plus the raw counters. */
 .globalStatsBox {
-  margin-top: 14px;
-  padding: 10px 14px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--r-md);
-  font-size: 0.78rem;
-  line-height: 1.7;
-  text-align: left;
-  width: 100%;
+  margin: 16px 0 4px; padding-top: 12px;
+  border-top: 1px solid var(--glass-border);
+  text-align: center; width: 100%;
 }
-.globalStatsBox h3 { margin: 0 0 6px; font-size: 0.85rem; color: var(--accent); }
-.globalStatsBox .statRow { display: flex; justify-content: space-between; gap: 12px; }
-.globalStatsBox .statRow b { font-variant-numeric: tabular-nums; }
+.globalStatsBox .gsPunch { margin: 0 0 4px; font-size: var(--fs-label); font-weight: 700; color: var(--card-ink); }
+.globalStatsBox .gsLine { margin: 0; font-size: var(--fs-hint); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+/* --- Statistics overview: you, achievements, leaderboard ------------------- */
+.statsMeBox { margin: 0 0 14px; text-align: left; }
+.meHead { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.meName { font-size: var(--fs-lead); font-weight: 800; }
+.meTitle { font-size: var(--fs-hint); color: var(--text-muted); font-weight: 600; }
+.kpiGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.kpiTile {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 8px 4px; border-radius: var(--r-sm);
+  background: rgba(0,0,0,0.05); text-align: center;
+}
+.kpiTile b { font-size: var(--fs-lead); font-weight: 800; font-variant-numeric: tabular-nums; }
+.kpiTile span { font-size: var(--fs-micro); color: var(--text-muted); line-height: 1.2; }
+.meSpark { margin-top: 10px; }
+.meSparkLabel, .meSparkKey { display: block; font-size: var(--fs-micro); color: var(--text-muted); font-weight: 600; }
+.meSpark svg { display: block; width: 100%; height: auto; margin: 2px 0; }
+.meSpark .goalLine { stroke: rgba(0,0,0,0.35); stroke-width: 1; stroke-dasharray: 4 3; }
+.meSpark .sparkLine { fill: none; stroke: var(--card-ink); stroke-width: 1.6; stroke-linejoin: round; opacity: 0.55; }
+.meSpark circle.won { fill: #0e7a4d; }
+.meSpark circle.lost { fill: var(--card-bg); stroke: var(--card-ink); stroke-width: 1.4; }
+.meSparkKey { text-align: right; }
+.meSparkKey i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin: 0 3px 0 8px; vertical-align: 0; }
+.meSparkKey i.won { background: #0e7a4d; }
+.meSparkKey i.lost { border: 1.4px solid var(--card-ink); }
+.achAllBtn {
+  display: block; width: 100%; min-height: var(--tap-min); margin-top: 6px;
+  border: 0; border-radius: var(--r-sm); background: transparent;
+  font: inherit; font-size: var(--fs-label); font-weight: 700; color: var(--card-ink);
+  text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+}
+.statsSectionTitle { margin: 10px 0 0; font-size: var(--fs-label); text-align: left; }
+#statsPaneBoard > .lobby-hint { margin: 2px 0 8px; text-align: left; }
+.boardHead, .boardRow {
+  display: grid; align-items: center; gap: 8px;
+  grid-template-columns: 1.6em minmax(0, 1fr) 4.2em 3.4em 2.8em;
+  padding: 0 8px;
+}
+.boardHead {
+  font-size: var(--fs-micro); font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--text-muted); padding-bottom: 4px;
+}
+.boardHead span:nth-child(n+3) { text-align: right; }
+.boardList { display: flex; flex-direction: column; }
+.boardRow {
+  width: 100%; min-height: var(--tap-min);
+  border: 0; border-top: 1px solid rgba(0,0,0,0.07); background: transparent;
+  font: inherit; font-size: var(--fs-label); color: var(--card-ink); text-align: left; cursor: pointer;
+}
+.boardRow.isMe { background: var(--accent-soft); border-radius: var(--r-sm); font-weight: 700; }
+.boardRank { font-weight: 800; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.boardName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.boardNum { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-muted); }
+.boardNum b { color: var(--card-ink); }
+.boardRow + .recordRow { margin: 2px 0 6px; }
 
 /* --- Erfolgs-Badges --------------------------------------------------------- */
 .badgeBox {
@@ -2405,7 +2500,8 @@ input:disabled { opacity: 0.65; }
 }
 .resultFooter .resultEmoteBar { margin: 6px 0 4px; }
 .resultActions { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
-.resultActions .btn-primary { flex: 1 1 auto; margin: 0; }
+.resultActions { flex-wrap: wrap; justify-content: flex-end; }
+.resultActions .btn-primary { flex: 1 1 170px; margin: 0; padding-inline: 14px; white-space: nowrap; }
 .resultActions .btn-icon {
   flex: 0 0 auto;
   /* The sheet is light: the dark-theme glass look of .btn-icon vanishes here. */
@@ -2701,12 +2797,6 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 @media (prefers-reduced-motion: reduce) {
   .card.deal-in { animation: none; }
   .spadeRainPiece { display: none; }
-}
-
-/* Game-over turn/round stat line (v1.45.1) */
-.gameOverStats {
-  text-align: center; margin: 4px 0 10px; opacity: 0.82;
-  font-size: 0.95em; letter-spacing: 0.2px;
 }
 
 /* --- SEO/Einsteiger-Text in der Lobby -------------------------------------
@@ -3056,16 +3146,17 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 .puzzleStatus.bad { color: #d34b3a; }
 .puzzleHand .card.solution { box-shadow: 0 0 0 3px var(--drawn), var(--shadow-2); }
 /* Level + daily streak strip above the tasks */
-.progressStrip {
-  display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center;
-  margin: -2px 0 10px; font-size: var(--fs-label);
+.progressStrip { display: flex; flex-direction: column; gap: 6px; margin: -2px 0 12px; font-size: var(--fs-label); }
+.progressStrip .psLevel { display: flex; align-items: baseline; gap: 8px; }
+.progressStrip .psTitle { color: var(--text-muted); font-weight: 600; }
+.progressStrip .psLevel small { margin-left: auto; font-variant-numeric: tabular-nums; }
+.progressStrip .levelBar.psBar {
+  display: block; width: 100%; height: 8px; margin: 0; border-radius: 999px;
+  background: var(--glass-strong); overflow: hidden;
 }
-.progressStrip .psLevel { display: inline-flex; align-items: center; gap: 6px; }
-.progressStrip .levelBar {
-  display: inline-block; width: 70px; height: 6px; border-radius: 3px;
-  background: var(--glass-strong); overflow: hidden; vertical-align: middle;
-}
-.progressStrip .levelBar u { display: block; height: 100%; background: var(--accent); }
+.progressStrip .levelBar u { display: block; height: 100%; min-width: 4px; border-radius: inherit; background: var(--accent); }
+.progressStrip .psStreak { display: flex; align-items: center; gap: 6px; }
+.progressStrip .psStreak .icon { color: #f39a2b; color: color-mix(in srgb, #f39a2b 75%, var(--text)); }
 .progressStrip small { color: var(--text-muted); font-size: var(--fs-hint); }
 /* Family tiles: tier dots under the name */
 .achTiers { display: inline-flex; gap: 3px; }
@@ -3079,7 +3170,8 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
   grid-template-areas: "icon text count" "bar bar bar";
   align-items: center; gap: 4px 9px;
 }
-.questRow .questIcon { grid-area: icon; font-size: 1rem; line-height: 1; width: 1.3em; text-align: center; }
+.questRow .questIcon { grid-area: icon; display: inline-flex; color: var(--accent); }
+.questRow.done .questIcon { color: var(--text-muted); }
 .questRow .questText { grid-area: text; font-size: var(--fs-label); font-weight: 600; }
 .questRow .questCount {
   grid-area: count; font-size: var(--fs-hint); font-weight: 700;
@@ -3505,12 +3597,6 @@ html[data-cardback="easter"] .card.back,
   .pointsPop, .roundStamp { animation-duration: 0.01s; opacity: 0; }
 }
 
-/* --- Spott-Titel im Partie-Ergebnis ------------------------------------------ */
-.funTitleLine {
-  margin: 8px 0 2px; text-align: center; font-size: 0.92em;
-  opacity: 0.85; font-style: italic;
-}
-
 /* --- Joker in Auslagen: Geister-Beschriftung der vertretenen Karte ---------- */
 .card .jokerGhost {
   position: absolute; bottom: 3px; right: 4px;
@@ -3776,7 +3862,24 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
 }
 .identityChip:active { transform: scale(0.97); background: var(--glass-strong); }
 .identityChip:disabled { opacity: 1; cursor: default; transform: none; }
-.identityAvatar { display: inline-flex; flex: 0 0 auto; }
+.identityAvatar { display: inline-flex; flex: 0 0 auto; position: relative; border-radius: 50%; }
+/* XP ring: progress to the next level around the avatar. */
+.identityAvatar.hasLevel {
+  padding: 2px;
+  background: conic-gradient(var(--accent) calc(var(--xp, 0) * 1%), var(--glass-strong) 0);
+}
+.identityLevel {
+  position: absolute; right: -5px; bottom: -3px;
+  min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent); color: #0b0b0b; border: 2px solid var(--bg, #111);
+  font-size: var(--fs-micro); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums;
+}
+.identityStreak {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: var(--fs-label); font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.identityStreak .icon { width: 1.05em; height: 1.05em; color: #f39a2b; color: color-mix(in srgb, #f39a2b 75%, var(--text)); }
 .identityAvatar .opAvatar { width: 34px; height: 34px; margin-right: 0; font-size: 15px; }
 .identityName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .identityEdit { width: 1.05em; height: 1.05em; color: var(--text-muted); }

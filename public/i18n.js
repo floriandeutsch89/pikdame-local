@@ -98,6 +98,9 @@ window.I18N_STATIC = {
   'Hauptmenü': 'Main menu',
   'Spielregeln': 'How to play',
   'Statistik': 'Statistics',
+  'Übersicht': 'Overview',
+  'Bestenliste': 'Leaderboard',
+  'Meine Partien': 'My games',
   'Impressum & Datenschutz': 'Legal notice & privacy',
   'Verbinde...': 'Connecting...',
   // Konto

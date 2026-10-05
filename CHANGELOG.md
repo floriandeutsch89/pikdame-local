@@ -3,6 +3,17 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.56.0] - 2026-10-05
+
+### Changed
+- **Spielende zeigt die Rangliste zuerst**: Platzziffern, der Endstand steht groß, die letzte Runde klein daneben. „Mehr“ klappt nicht mehr von selbst auf (es schob die Hälfte der Spieler aus dem Bild); das Hauptmenü ist ein eigener Knopf neben „Rematch“
+- **Dein Ergebnis am Spielende**: eine Zeile mit Platz, gewonnener Erfahrung und deiner Bilanz (Siege/Partien); der Punkteverlauf steht jetzt direkt im Ergebnis. Züge, Runden und der „Damen-Magnet“ stehen als „Partie in Zahlen“ zusammen; die Aufschlüsselung der letzten Runde entfällt am Spielende
+- **Rundenende kompakter**: Der Rundensieger steht in einer Zeile statt drei. Die Balken zeigen jetzt in der Spielerfarbe den alten Stand, hell (Plus) oder rot schraffiert (Minus) die Bewegung dieser Runde und eine Marke bei 1000
+- **Rundenstatistik lesbarer**: Zahlen rechtsbündig, keine doppelten Pfeile; ausgelegte Pik Damen und Joker stehen als kleine Marke am Namen statt in fast immer leeren Spalten
+- **Punkteverlauf**: runde Achsenwerte (0/250/…/1000), gestrichelte Ziellinie bei 1000, Namen und Stand direkt am Linienende statt Legende, die eigene Linie hervorgehoben. Spielerfarben unterscheiden sich von der Auswahlfarbe und sind auch bei Farbsehschwäche trennbar
+- **Startseite**: Stufe (mit Erfahrungsring um den Avatar) und Tagesserie stehen am Namen; „Tagesaufgaben“ zeigt zugeklappt nur noch, wie viele erledigt sind. Aufgaben haben eigene Symbole statt Emoji, der Stufenbalken ist breiter
+- **Statistik neu geordnet** („Übersicht“): zuerst du (Siegquote, Partien, beste Partie, Stufe und der Verlauf der letzten 10 Partien), dann die drei nächsten Erfolge („Alle anzeigen“ klappt die Galerie auf), dann die Bestenliste als kompakte Tabelle mit deiner Zeile markiert, zuletzt die Server-Zahlen mit einer Pointe
+
 ## [2.54.0] - 2026-10-05
 
 ### Changed
