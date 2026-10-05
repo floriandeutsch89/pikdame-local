@@ -6056,7 +6056,7 @@
   }
   let levelUpTimer = null;
   /** @param {number} beforeXp total XP before the gain: the bar fills the finished level from there to 100 %. */
-  function showLevelUp(from, to, gainedXp, beforeXp) {
+  function showLevelUp(from, to, gainedXp, beforeXp, welcomeBack = false) {
     const rewards = levelRewards();
     const got = rewardsBetween(rewards, from, to).filter((r) => r.kind !== 'title');
     const next = nextRewards(rewards, to);
@@ -6065,7 +6065,7 @@
     el('levelUpTitle').textContent = `⭐ ${L(`Stufe ${to}!`, `Level ${to}!`)}`;
     el('levelUpRank').textContent = newTitle ? L(`Neuer Titel: ${titleNow}`, `New title: ${titleNow}`) : titleNow;
     el('levelUpRank').classList.toggle('isNew', newTitle);
-    el('levelUpXp').textContent = `${L(`Stufe ${from} → ${to}`, `Level ${from} → ${to}`)}${gainedXp ? ` · +${gainedXp} ${L('EP', 'XP')}` : ''}`;
+    el('levelUpXp').textContent = `${L(`Stufe ${from} → ${to}`, `Level ${from} → ${to}`)}${gainedXp ? ` · +${gainedXp} ${L('EP', 'XP')}` : ''}${welcomeBack ? ` (${L('×2 Willkommen zurück', '×2 welcome back')})` : ''}`;
     const start = levelFromXpClient(Math.max(0, beforeXp || 0));
     const list = (items) => items.map((r) => `<li>${escapeHtml(r.label)}</li>`).join('');
     el('levelUpRewards').innerHTML =
@@ -6115,7 +6115,9 @@
     // first game of a session too, when nothing was "seen" yet).
     const before = typeof msg.xp === 'number' && msg.gainedXp ? levelFromXpClient(msg.xp - msg.gainedXp).level : lastLevelSeen;
     if (lvl && before && lvl > before) {
-      showLevelUp(before, lvl, msg.gainedXp, msg.xp - (msg.gainedXp || 0));
+      showLevelUp(before, lvl, msg.gainedXp, msg.xp - (msg.gainedXp || 0), !!msg.welcomeBack);
+    } else if (msg.welcomeBack && msg.gainedXp > 0) {
+      showToast(`👋 ${L('Willkommen zurück! Doppelte Erfahrung', 'Welcome back! Double XP')}: +${msg.gainedXp}`);
     } else if (!completed.length && msg.gainedXp > 0) {
       showToast(`✨ +${msg.gainedXp} ${L('Erfahrung', 'XP')}`);
     }
