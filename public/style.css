@@ -1807,25 +1807,47 @@ body.raidActive #toastContainer { margin-top: 132px; }
 }
 .statsPane { min-height: 40px; }
 
-/* Eigene Partien-Historie: eine Zeile pro Partie, Sieg optisch hervorgehoben. */
-.historyList { display: flex; flex-direction: column; gap: 6px; }
-.historyRow {
-  border: 1px solid var(--glass-border);
-  border-radius: 12px;
-  padding: 8px 12px;
-  background: rgba(255,255,255,0.03);
+/* "Meine Partien": summary, grouped cards, tap opens the game's chart. */
+.histSummary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 4px; }
+.histSummary div {
+  display: flex; flex-direction: column; align-items: center; padding: 8px 4px;
+  border-radius: var(--r-sm); background: rgba(0,0,0,0.05);
 }
-.historyRowWon { border-color: var(--accent); background: rgba(255,255,255,0.06); }
-.historyRowMain { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.historyResult { font-size: 0.95rem; line-height: 1; width: 1.2em; text-align: center; }
-.historyDate { font-size: 0.82rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-.historyOpp { font-size: 0.78rem; color: var(--text-muted); }
+.histSummary b { font-size: var(--fs-lead); font-weight: 800; font-variant-numeric: tabular-nums; }
+.histSummary span { font-size: var(--fs-micro); color: var(--text-muted); }
+.histGroup { margin: 14px 0 6px; font-size: var(--fs-hint); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+.historyList { display: flex; flex-direction: column; gap: 6px; }
+.histCard {
+  display: grid; grid-template-columns: 2.2em minmax(0, 1fr) auto; align-items: center; gap: 10px;
+  width: 100%; min-height: var(--tap-min); padding: 9px 12px;
+  border: 1px solid var(--glass-border); border-radius: var(--r-md);
+  background: transparent; color: var(--card-ink); font: inherit; text-align: left; cursor: pointer;
+}
+.histCard[aria-expanded="true"] { border-color: var(--accent); }
+.histPlace {
+  width: 2em; height: 2em; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.07); font-size: var(--fs-label); font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.histCard.won .histPlace { background: var(--accent); color: #0b0b0b; }
+.histMain { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.histMeta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: var(--fs-label); font-weight: 700; font-variant-numeric: tabular-nums; }
+.histOpp { font-size: var(--fs-hint); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.histBars { display: flex; flex-direction: column; gap: 2px; margin-top: 2px; }
+.histBars i { display: block; height: 3px; border-radius: 2px; opacity: 0.45; }
+.histBars i.me { height: 4px; opacity: 1; }
+.histScore { display: flex; flex-direction: column; align-items: flex-end; font-size: var(--fs-lead); font-weight: 800; font-variant-numeric: tabular-nums; }
+.histScore small { font-size: var(--fs-micro); font-weight: 600; color: var(--text-muted); }
 .historyTag {
-  font-size: 0.68rem; font-weight: 700; padding: 2px 7px; border-radius: 999px;
+  font-size: var(--fs-micro); font-weight: 700; padding: 1px 7px; border-radius: 999px;
   background: rgba(0,0,0,0.08); color: var(--text-muted);
 }
-.historyTagChallenge { background: var(--accent); color: var(--accent-ink, #fff); }
-.historyScore { font-size: 0.74rem; color: var(--text-muted); margin-top: 3px; font-variant-numeric: tabular-nums; }
+.historyTagChallenge { background: var(--accent); color: #0b0b0b; }
+.histDetail { padding: 2px 4px 8px; }
+.histStandings { list-style: none; margin: 6px 0 0; padding: 0; font-size: var(--fs-label); }
+.histStandings li { display: flex; justify-content: space-between; padding: 3px 4px; border-bottom: 1px solid rgba(0,0,0,0.06); font-variant-numeric: tabular-nums; }
+.histStandings li.me { font-weight: 800; }
+.histStandings small { color: var(--text-muted); font-weight: 600; }
 
 /* --- Desktop & grosse Bildschirme (Chrome/Edge/Firefox auf PC/Mac/Chromebook) --- */
 
@@ -2746,6 +2768,8 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 }
 .menuChips .btn-secondary .icon { width: 1.45em; height: 1.45em; }
 .menuChips .btn-secondary span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menuChipsTwo .btn-secondary { flex-direction: row; gap: 8px; min-height: var(--tap-min); font-size: var(--fs-label); }
+.menuChipsTwo .btn-secondary .icon { width: 1.3em; height: 1.3em; }
 #challengeIntroOverlay .challengeLead { font-weight: 700; margin: 8px 0 2px; }
 #challengeIntroOverlay .challengeTop { font-size: 0.82rem; color: var(--text-muted); min-height: 1.2em; }
 #challengeIntroOverlay .challengeTrendToggle {
@@ -3138,7 +3162,35 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 /* --- Fortschritt: Tagesaufgaben, Erfolge, Saison-Rangliste ----------------- */
 /* Lobby panel. Uses the same lobby-section shell as the house rules, so it
    inherits width, radius and spacing instead of inventing its own. */
-.questsSection { text-align: left; padding: 12px 18px; }
+/* Nested in "Heute": a row, not a card of its own. */
+.questsSection { text-align: left; margin-top: 8px; border-top: 1px solid var(--glass-border); padding-top: 4px; }
+.questsSection[open] .questList { padding-bottom: 4px; }
+/* "Heute": the daily puzzle and challenge with their status. */
+.todaySection { padding: 12px 14px 8px; }
+.todaySection > h2 { margin-bottom: 8px; }
+.todayTiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.todayTiles.hidden { display: none; }
+.todayTile {
+  position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0 10px;
+  min-height: 52px; padding: 8px 12px; margin: 0;
+  border: 1px solid var(--glass-border); border-radius: var(--r-md);
+  background: var(--glass); color: var(--text); font: inherit; text-align: left; cursor: pointer;
+  transition: transform 0.15s var(--ease), background 0.2s ease;
+}
+.todayTile:active { transform: scale(0.97); background: var(--glass-strong); }
+.todayTile > .icon { width: 1.5em; height: 1.5em; grid-row: 1 / 3; }
+#puzzleBtn > .icon { color: #e8c93c; color: color-mix(in srgb, #e9c21f 70%, var(--text)); }
+#challengeBtn > .icon { color: #f0a53a; color: color-mix(in srgb, #f39a2b 72%, var(--text)); }
+.ttTitle { font-size: var(--fs-label); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ttStatus { font-size: var(--fs-hint); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.ttStatus:empty::before { content: "\00a0"; }
+/* New today: accent dot + accent status. Done: muted with the tile calm. */
+.todayTile[data-state="new"]::after {
+  content: ""; position: absolute; top: 8px; right: 8px;
+  width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+}
+.todayTile[data-state="new"] .ttStatus, .todayTile[data-state="open"] .ttStatus { color: var(--accent); font-weight: 700; }
+.todayTile[data-state="done"] { background: transparent; }
 /* Collapsed by default on a phone: the summary line carries level, streak
    and the done-count, the list opens on tap (state remembered per device). */
 .questsSection summary {
@@ -3147,18 +3199,23 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
   min-height: calc(var(--tap-min) - 12px);
 }
 .questsSection summary::-webkit-details-marker { display: none; }
-.questsSection summary h2 { margin: 0; flex-shrink: 0; }
+.questsTitle { flex-shrink: 0; font-size: var(--fs-label); font-weight: 700; color: var(--text); }
 .questsSummary { flex: 1; min-width: 0; text-align: right; font-size: var(--fs-label); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 .questsChevron { width: 1em; height: 1em; flex-shrink: 0; color: var(--text-muted); transition: transform 0.2s var(--ease); }
 .questsSection[open] .questsChevron { transform: rotate(180deg); }
 /* Stammtisch */
-.stammtischRecent { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; max-width: var(--lobby-w); justify-content: center; }
-.stammtischRecent button {
+/* Joined tables: one full row each, the name never cut by a tile. */
+.stammtischRecent { display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: var(--lobby-w); }
+.stammtischRecent .stRecentRow {
+  display: flex; align-items: center; gap: 10px; width: 100%;
   background: var(--glass); border: 1px solid var(--glass-border); color: var(--text);
-  border-radius: var(--r-pill); padding: 8px 12px; min-height: var(--tap-min);
-  font-size: var(--fs-label); font-weight: 600;
+  border-radius: var(--r-md); padding: 8px 12px; min-height: var(--tap-min);
+  font: inherit; font-size: var(--fs-label); font-weight: 600; text-align: left; cursor: pointer;
 }
-.stammtischRecent button small { color: var(--text-muted); font-weight: 500; margin-left: 4px; }
+.stRecentRow > .icon:first-child { width: 1.3em; height: 1.3em; flex: 0 0 auto; color: #ec79a6; color: color-mix(in srgb, #ee6aa0 72%, var(--text)); }
+.stRecentRow .stName { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stRecentRow small { flex: 0 0 auto; color: var(--text-muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+.stRecentRow .stGo { width: 1em; height: 1em; flex: 0 0 auto; color: var(--text-muted); transform: rotate(-90deg); }
 /* "My Stammtische" in the overlay: tap the row to join, side button deletes/leaves. */
 .stammtischMine, .stammtischFound { text-align: left; margin: 8px 0; }
 .stammtischMine h3, .stammtischFound h3 { font-size: var(--fs-label); margin: 0 0 6px; }
@@ -3946,6 +4003,16 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
 .identityName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .identityEdit { width: 1.05em; height: 1.05em; color: var(--text-muted); }
 .identityChip.locked .identityEdit { display: none; }
+.identityAccount { display: none; width: 1.05em; height: 1.05em; color: var(--accent); }
+.identityChip.locked .identityAccount { display: inline-block; }
+#accountBtn { position: relative; }
+#accountBtn .accountCheck {
+  display: none; position: absolute; top: 4px; left: calc(50% + 5px);
+  width: 14px; height: 14px; padding: 2px; border-radius: 50%;
+  background: var(--accent); color: #0b0b0b; stroke-width: 3.2;
+  box-shadow: 0 0 0 2px var(--bg, #111);
+}
+#accountBtn.signedIn .accountCheck { display: block; }
 
 /* Mode tiles: one tint per mode. Mixed with the theme's text colour, so the
    same tile reads lighter on the dark themes and deeper on the light one. */

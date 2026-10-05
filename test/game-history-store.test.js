@@ -122,3 +122,22 @@ test('historyForPlayer: respektiert das limit', () => {
   assert.equal(historyForPlayer(many, 'Flodex', 20).length, 20);
   assert.equal(historyForPlayer(many, 'Flodex', 5).length, 5);
 });
+
+test('historyForPlayer: per round only the totals (chart), never the breakdowns; ids for the mapping', () => {
+  const games = [{
+    id: 'g-r', finishedAt: 5, startedAt: 1, challengeDate: null, stammtisch: true,
+    players: [{ id: 'p1', name: 'Flodex', isBot: false }, { id: 'b1', name: 'Klaus', isBot: true, botDifficulty: 'zen' }],
+    rounds: [
+      { roundNumber: 1, results: { p1: { roundScore: 50, breakdown: { handPoints: 30 } } }, totalsAfter: { p1: 50, b1: 20 } },
+      { roundNumber: 2, results: {}, totalsAfter: { p1: 1010, b1: 300 } },
+    ],
+    finalTotals: { p1: 1010, b1: 300 }, winnerId: 'p1',
+  }];
+  const [g] = historyForPlayer(games, 'flodex');
+  assert.deepEqual(g.roundTotals, [{ p1: 50, b1: 20 }, { p1: 1010, b1: 300 }]);
+  assert.equal(JSON.stringify(g).includes('breakdown'), false, 'no per-round breakdowns');
+  assert.equal(g.myId, 'p1');
+  assert.equal(g.stammtisch, true);
+  assert.equal(g.startedAt, 1);
+  assert.deepEqual(g.players[1], { id: 'b1', name: 'Klaus', isBot: true, botDifficulty: 'zen' });
+});

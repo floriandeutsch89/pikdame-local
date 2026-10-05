@@ -122,7 +122,7 @@ setTimeout(() => {
         // Sprache stehen lassen.
         doc.getElementById('langBtnLobby').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
         const afterSwitch = historyBox.textContent;
-        if (!/pts/.test(afterSwitch)) errors.push(`history did not follow the language switch: ${afterSwitch.slice(0, 80)}`);
+        if (!/rounds/.test(afterSwitch)) errors.push(`history did not follow the language switch: ${afterSwitch.slice(0, 80)}`);
         doc.getElementById('langBtnLobby').dispatchEvent(new window.MouseEvent('click', { bubbles: true })); // zurueck auf Deutsch
 
         boardBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); // aufraeumen fuer folgende Pruefungen

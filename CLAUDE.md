@@ -71,12 +71,14 @@ Diese Datei kurz halten: Regeln + knappes Warum; Hintergrund gehört in docs/.
   - `Badges.js` (Familien in `BADGE_FAMILIES`, Fakten aus `finishRound`),
     `Progression.js` (XP, Tagesaufgaben, Serie mit Joker-Tag; XP-Regeln
     spiegelt `XP_RULES` im Client, Vertragstest). UI: Stufe + Serie am
-    Identitäts-Chip/Fortschritts-Blatt, Tagesaufgaben zeigen nur Aufgaben.
+    Identitäts-Chip/Fortschritts-Blatt; Tägliches (Rätsel, Challenge,
+    Aufgaben) mit Status im Bereich „Heute“.
   - `GameDay.js`: EINZIGE Definition von „heute“ (Mitternacht Europe/Berlin,
     Rechnen nur auf Datums-Strings, nie 24-h-Schritte).
   - `DailyPuzzle.js`: Ergebnisobjekt ohne `type`-Feld (wird in WS gespreadet).
   - `StammtischStore.js`: Gruppen-Tische `ST…`, per Code abgeschottet (auch
-    im Public-Mode aktiv). `Emotes.js`: EINZIGE Emote-Whitelist (Vertragstest).
+    im Public-Mode aktiv). Codes nie in die Partien-Historie (per Name
+    abrufbar), dort nur ein Flag. `Emotes.js`: EINZIGE Emote-Whitelist (Vertragstest).
   - `Passkeys.js`: WebAuthn; aus ohne Library oder https-`PIKDAME_BASE_URL`.
     RP-ID = deren Hostname (Domainwechsel killt alle Passkeys; Rückweg:
     Anmelde-Link). `user.name` = E-Mail, `displayName` = Spielername (sonst
