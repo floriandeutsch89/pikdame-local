@@ -12,7 +12,7 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 - **Du vs. Top 5 in der Tages-Challenge** (#303): Im Challenge-Fenster lässt sich ein Diagramm aufklappen, das deine Punkte der letzten 14 Tage neben die der fünf besten anderen Spieler legt (nach Summe über die 14 Tage). Antippen zeigt die Punkte aller an diesem Tag, die Tabelle darunter nennt Namen und 14-Tage-Summe; Wischen zoomt, Doppeltipp setzt zurück. Standardmäßig zu, die Wahl wird gemerkt. Dafür hält der Server die Challenge-Ergebnisse jetzt 14 statt 7 Tage; die Bestenliste zeigt weiterhin 7 Tage
 
 ### Changed
-- „Stammgast“ (100 Partien) heißt jetzt „Sitzfleisch“, „Dreifache Dame“ heißt „Flotter Dreier“ und zeigt keinen irreführenden Fortschritt mehr (es zählen nur die Pik Damen einer einzigen Partie)
+- „Stammgast“ (100 Partien) heißt jetzt „Sitzfleisch“, „Dreifache Dame“ heißt „Huttrick“ 🎩 und zeigt keinen irreführenden Fortschritt mehr (es zählen nur die Pik Damen einer einzigen Partie)
 
 ## [2.47.5] - 2026-10-05
 

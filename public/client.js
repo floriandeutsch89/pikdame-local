@@ -370,7 +370,7 @@
         how: L('Lege deine ganze Hand in einem einzigen Zug aus und mach so die Runde aus.', 'Lay out your whole hand in a single turn and go out.') },
       pd_laid: { emoji: '♠', name: L('Damen\u00adsammler', 'Queen collector'), desc: L('Eine Pik Dame sicher ausgelegt (+100)', 'Melded a Queen of Spades (+100)'),
         how: L('Lege eine Pik Dame in einer Auslage ab.', 'Meld a Queen of Spades.') },
-      pd_triple: { emoji: '🎉', name: L('Flotter Dreier', 'Hat trick'), desc: L('3+ Pik Damen in einer Partie ausgelegt', 'Melded 3+ Queens of Spades in one game'),
+      pd_triple: { emoji: '🎩', name: L('Huttrick', 'Hat trick'), desc: L('3+ Pik Damen in einer Partie ausgelegt', 'Melded 3+ Queens of Spades in one game'),
         how: L('Lege in einer einzigen Partie mindestens 3 Pik Damen aus.', 'Meld at least 3 Queens of Spades within one game.') },
       pd_caught: { emoji: '😱', name: L('Autsch!', 'Ouch!'), desc: L('Pik Dame am Rundenende auf der Hand erwischt (−100)', 'Caught with the Queen of Spades in hand (−100)'),
         how: L('Halte am Rundenende noch eine Pik Dame auf der Hand - passiert irgendwann jedem.', 'Still hold a Queen of Spades when a round ends - happens to everyone.') },
