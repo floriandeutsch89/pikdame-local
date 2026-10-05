@@ -3094,7 +3094,7 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 }
 .achTile.earned { opacity: 1; background: rgba(47, 214, 176, 0.16); }
 .achTile .achEmoji { font-size: 1.25rem; line-height: 1.1; }
-.achTile .achName { font-size: var(--fs-hint); font-weight: 700; text-align: center; line-height: 1.15; }
+.achTile .achName { font-size: var(--fs-hint); font-weight: 700; text-align: center; line-height: 1.15; hyphens: auto; overflow-wrap: anywhere; max-width: 100%; }
 .achTile .achSub { font-size: var(--fs-hint); color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .achTile[aria-expanded="true"] { opacity: 1; box-shadow: inset 0 0 0 2px var(--accent); }
 .achDetail {
@@ -3112,6 +3112,21 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 .achDetail li { padding: 4px 0; }
 .achDetail li + li { border-top: 1px solid var(--glass-border); }
 .achDetailState { color: var(--text-muted); font-size: var(--fs-hint); font-variant-numeric: tabular-nums; }
+/* Tiers of one family badge: a ladder - dot per tier (filled = earned,
+   ringed = next), joined by a line, like the dots on the tile. */
+.achTierList li { position: relative; padding-left: 22px; }
+.achTierList li::before {
+  content: ''; position: absolute; left: 3px; top: 9px; width: 9px; height: 9px;
+  border-radius: 50%; background: rgba(0, 0, 0, 0.15);
+}
+.achTierList li.done::before { background: var(--accent); }
+.achTierList li.next::before { background: none; box-shadow: inset 0 0 0 2px var(--accent); }
+.achTierList li:not(:last-child)::after {
+  content: ''; position: absolute; left: 7px; top: 20px; bottom: -9px; width: 1px; background: rgba(0, 0, 0, 0.15);
+}
+.achTierList li + li { border-top: 0; }
+.achTierNo { display: block; font-size: var(--fs-micro); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.achTierList li.next .achTierNo { color: inherit; }
 
 /* Level + season ladder in the account card. */
 .levelBox { text-align: left; margin: 10px 0; }

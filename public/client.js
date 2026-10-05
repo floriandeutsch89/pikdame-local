@@ -6001,20 +6001,30 @@
     const owned = me.badges || {};
     const progress = badgeProgressFor(me);
     const fam = BADGE_FAMILIES.find((f) => f.id === key);
-    const line = (id) => {
+    const next = fam ? fam.tiers.find((id) => !owned[id]) : null;
+    // A family is ONE badge with tiers: numbered steps on a ladder (dots as
+    // on the tile), the next one to reach marked.
+    const line = (id, i) => {
       const m = badgeMeta(id);
       const p = progress[id];
       const state = owned[id]
         ? `✓ ${new Date(owned[id]).toLocaleDateString()}`
         : p && p.need > 1 ? `${p.have}/${p.need}` : '';
-      return `<li class="${owned[id] ? 'done' : ''}"><b>${escapeHtml(m.name)}</b>` +
+      const cls = [owned[id] ? 'done' : '', id === next ? 'next' : ''].filter(Boolean).join(' ');
+      const tier = fam
+        ? `<span class="achTierNo">${escapeHtml(L(`Stufe ${i + 1}`, `Tier ${i + 1}`))}${id === next ? ` · ${escapeHtml(L('als Nächstes', 'next'))}` : ''}</span>`
+        : '';
+      return `<li class="${cls}">${tier}<b>${escapeHtml(m.name)}</b>` +
         `${state ? ` <span class="achDetailState">${escapeHtml(state)}</span>` : ''}<br>${escapeHtml(m.how)}</li>`;
     };
     const head = badgeMeta(fam ? (fam.tiers.filter((id) => owned[id]).pop() || fam.tiers[0]) : key);
+    const title = fam
+      ? L(`${fam.tiers.length} Stufen - so schaffst du sie`, `${fam.tiers.length} tiers - how to earn them`)
+      : L('So schaffst du es', 'How to earn it');
     return `<div class="achDetailHead"><span class="achEmoji">${head.emoji}</span>` +
-      `<span>${escapeHtml(L('So schaffst du es', 'How to earn it'))}</span>` +
+      `<span>${escapeHtml(title)}</span>` +
       `<button type="button" class="achDetailClose" aria-label="${escapeHtml(L('Schließen', 'Close'))}"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div>` +
-      `<ul>${(fam ? fam.tiers : [key]).map(line).join('')}</ul>`;
+      `<ul class="${fam ? 'achTierList' : ''}">${(fam ? fam.tiers : [key]).map(line).join('')}</ul>`;
   }
   function showAchDetail(key, scroll = true) {
     const grid = el('achievementsBox').querySelector('.achGrid');
