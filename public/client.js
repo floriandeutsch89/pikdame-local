@@ -6010,7 +6010,9 @@
       const state = owned[id]
         ? `✓ ${new Date(owned[id]).toLocaleDateString()}`
         : p && p.need > 1 ? `${p.have}/${p.need}` : '';
-      const cls = [owned[id] ? 'done' : '', id === next ? 'next' : ''].filter(Boolean).join(' ');
+      // "here" = the dot: the tier being worked on, or the last one when all are reached.
+      const here = fam && (id === next || (!next && i === fam.tiers.length - 1));
+      const cls = [owned[id] ? 'done' : '', id === next ? 'next' : '', here ? 'here' : ''].filter(Boolean).join(' ');
       const tier = fam
         ? `<span class="achTierNo">${escapeHtml(L(`Stufe ${i + 1}`, `Tier ${i + 1}`))}${id === next ? ` · ${escapeHtml(L('als Nächstes', 'next'))}` : ''}</span>`
         : '';

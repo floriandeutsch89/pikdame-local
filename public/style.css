@@ -3112,15 +3112,16 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 .achDetail li { padding: 4px 0; }
 .achDetail li + li { border-top: 1px solid var(--glass-border); }
 .achDetailState { color: var(--text-muted); font-size: var(--fs-hint); font-variant-numeric: tabular-nums; }
-/* Tiers of one family badge: a ladder joined by a line; only a reached
-   tier gets its dot on it (like the filled dots on the tile). */
+/* Tiers of one family badge as a progress line: thick and green over the
+   reached tiers, thin and grey ahead; the dot = where you are now. */
 .achTierList li { position: relative; padding-left: 22px; }
-.achTierList li.done::before {
-  content: ''; position: absolute; left: 3px; top: 9px; width: 9px; height: 9px;
-  border-radius: 50%; background: var(--accent);
-}
 .achTierList li:not(:last-child)::after {
   content: ''; position: absolute; left: 7px; top: 9px; bottom: -9px; width: 1px; background: rgba(0, 0, 0, 0.15);
+}
+.achTierList li.done:not(:last-child)::after { left: 6px; width: 3px; top: 4px; border-radius: 2px; background: var(--accent); }
+.achTierList li.here::before {
+  content: ''; position: absolute; left: 2px; top: 8px; width: 11px; height: 11px; z-index: 1;
+  border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
 }
 .achTierList li + li { border-top: 0; }
 .achTierNo { display: block; font-size: var(--fs-micro); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
