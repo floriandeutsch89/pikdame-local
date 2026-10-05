@@ -7,7 +7,7 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 
 ### Added
 - **Erfolge erklären sich selbst** (#300): Antippen (Handy) oder Klicken (Desktop) auf ein Abzeichen zeigt direkt darunter, wie man es bekommt - auch für gesperrte. Bei Stufen-Abzeichen stehen alle Stufen mit Bedingung und Fortschritt untereinander. Am Desktop zeigt das Überfahren mit der Maus die Bedingung zusätzlich als Tooltip
-- **Mein Verlauf in der Tages-Challenge** (#303): Im Challenge-Fenster lässt sich ein Diagramm der eigenen Punkte und Platzierungen der letzten 14 Tage aufklappen (Wischen zoomt, Doppeltipp setzt zurück). Standardmäßig zu, die Wahl wird gemerkt. Dafür hält der Server die Challenge-Ergebnisse jetzt 14 statt 7 Tage; die Bestenliste zeigt weiterhin 7 Tage
+- **Du vs. Top 5 in der Tages-Challenge** (#303): Im Challenge-Fenster lässt sich ein Diagramm aufklappen, das deine Punkte der letzten 14 Tage neben die der fünf besten anderen Spieler legt (nach Summe über die 14 Tage). Antippen zeigt die Punkte aller an diesem Tag, die Tabelle darunter nennt Namen und 14-Tage-Summe; Wischen zoomt, Doppeltipp setzt zurück. Standardmäßig zu, die Wahl wird gemerkt. Dafür hält der Server die Challenge-Ergebnisse jetzt 14 statt 7 Tage; die Bestenliste zeigt weiterhin 7 Tage
 
 ## [2.47.5] - 2026-10-05
 

@@ -491,7 +491,7 @@ test('client contract: functions that build translated markup are refreshed by c
     'scheduleReconnect', 'connect',
     // Overlays, die ihren Inhalt beim OEFFNEN aufbauen: Wer die Sprache
     // wechselt, hat sie zu; beim naechsten Oeffnen stehen sie richtig.
-    'openChangelog', 'openCardbackGallery', 'renderChallengeTrend',
+    'openChangelog', 'openCardbackGallery', 'renderChallengeTrend', 'buildTrendPlot',
     // Aktualisierungs-Hinweis: erscheint einmalig und fuehrt zum Neuladen.
     'showUpdateBanner',
     // Discard confirmation: the dialog text is written fresh on every

@@ -2620,7 +2620,12 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 #challengeIntroOverlay .challengeTrendToggle .chev { transition: transform 0.2s ease; }
 #challengeIntroOverlay .challengeTrendToggle[aria-expanded="true"] .chev { transform: rotate(180deg); }
 #challengeIntroOverlay .challengeTrend { margin: 0 0 10px; font-size: var(--fs-hint); color: var(--text-muted); min-height: 1.2em; }
-#challengeIntroOverlay .challengeTrend .u-legend { font-size: var(--fs-hint); color: var(--text-muted); }
+#challengeIntroOverlay .trendTable { color: var(--card-ink); width: 100%; border-collapse: collapse; margin-top: 4px; font-size: var(--fs-hint); font-variant-numeric: tabular-nums; }
+#challengeIntroOverlay .trendTable th { font-weight: 600; text-align: right; color: var(--text-muted); padding: 2px 4px; }
+#challengeIntroOverlay .trendTable td { text-align: right; padding: 2px 4px; color: var(--text-muted); }
+#challengeIntroOverlay .trendTable td:first-child { text-align: left; color: inherit; max-width: 10em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#challengeIntroOverlay .trendTable td i { display: inline-block; width: 10px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+#challengeIntroOverlay .trendTable tr.me td { font-weight: 700; color: inherit; }
 
 /* --- GitHub footer link (v1.39.1) ----------------------------------------------- */
 .githubLink { display: inline-flex; align-items: center; gap: 5px; }

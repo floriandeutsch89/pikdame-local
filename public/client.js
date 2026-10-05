@@ -4132,7 +4132,7 @@
     fetch(`/challengeboardz${trendName ? `?name=${encodeURIComponent(trendName)}` : ''}`)
       .then((r) => r.json())
       .then((d) => {
-        challengeTrendData = (d && d.trend) || [];
+        challengeTrendData = (d && d.trend) || { dates: [], me: null, top: [] };
         renderChallengeTrend();
         const top = d && d.board && d.board[0];
         el('challengeTopLine').textContent = top
@@ -4152,10 +4152,10 @@
         el('challengeWeekLine').textContent = '';
       });
   });
-  // Own score + rank of the last 14 days. Optional: collapsed unless the
-  // player opened it before (remembered); uPlot loads only when it opens.
+  // My points vs. the top 5 others of the last 14 days. Optional: collapsed
+  // unless opened before (remembered); uPlot loads only when it opens.
   const TREND_KEY = 'pikdame_challenge_trend';
-  let challengeTrendData = null; // null = loading, [] = nothing to show
+  let challengeTrendData = null; // null = loading, else {dates, me, top}
   let challengeTrendPlot = null;
   let chartLibPromise = null;
   function loadScriptOnce(src) {
@@ -4189,57 +4189,76 @@
     box.classList.toggle('hidden', !open);
     if (challengeTrendPlot) { challengeTrendPlot.destroy(); challengeTrendPlot = null; }
     if (!open) return;
-    const days = challengeTrendData;
-    if (!days) { box.textContent = '…'; return; }
-    const played = days.filter((d) => d.score != null);
-    if (!played.length) {
-      box.textContent = L('In den letzten 14 Tagen noch keine Challenge gespielt.', 'No challenge played in the last 14 days.');
+    const trend = challengeTrendData;
+    if (!trend) { box.textContent = '…'; return; }
+    if (!trend.me && !trend.top.length) {
+      box.textContent = L('In den letzten 14 Tagen hat noch niemand die Challenge gespielt.', 'Nobody has played the challenge in the last 14 days.');
       return;
     }
     box.textContent = '';
     loadChartLib().then((ok) => {
-      if (!ok || storageGet(TREND_KEY) !== 'on' || challengeTrendData !== days) return;
+      if (!ok || storageGet(TREND_KEY) !== 'on' || challengeTrendData !== trend) return;
       if (challengeTrendPlot) challengeTrendPlot.destroy();
-      challengeTrendPlot = buildTrendPlot(box, days);
+      challengeTrendPlot = buildTrendPlot(box, trend);
     }).catch(() => { box.textContent = L('Diagramm gerade nicht verfügbar.', 'Chart unavailable right now.'); });
   }
-  function buildTrendPlot(box, days) {
+  // Fixed categorical order by rank in the window (validated light palette;
+  // the overlay card is light in every theme). "Me" is ink, never a hue.
+  const TREND_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4'];
+  function buildTrendPlot(box, trend) {
     const css = getComputedStyle(box);
-    const accent = css.getPropertyValue('--accent').trim() || '#2fd6b0';
     const muted = css.getPropertyValue('--text-muted').trim() || 'rgba(0,0,0,0.56)';
-    const ink = css.color || '#222';
+    const ink = css.getPropertyValue('--card-ink').trim() || '#1d1d1f';
     // Game days as UTC midnights (labels in UTC too): ticks sit on the points
     // and no local DST shift can move a label to the neighbouring day.
-    const xs = days.map((d) => Date.parse(`${d.date}T00:00:00Z`) / 1000);
+    const xs = trend.dates.map((d) => Date.parse(`${d}T00:00:00Z`) / 1000);
     const dayLabel = (ts) => new Date(ts * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'numeric', timeZone: 'UTC' });
-    const maxRank = Math.max(3, ...days.map((d) => d.rank || 0));
+    const people = trend.top.map((p, i) => ({ ...p, color: TREND_COLORS[i], me: false }));
+    if (trend.me) people.push({ ...trend.me, name: L('Du', 'You'), color: ink, me: true });
     const axis = { stroke: muted, grid: { stroke: 'rgba(0,0,0,0.08)', width: 1 }, ticks: { show: false }, font: '11px sans-serif' };
-    const width = Math.max(240, box.clientWidth || 300);
+    const plotBox = document.createElement('div');
+    const table = document.createElement('table');
+    table.className = 'trendTable';
+    box.append(plotBox, table);
+    // Legend + table view in one: name, value on the selected day, 14-day sum.
+    const renderTable = (idx) => {
+      const head = idx == null ? L('Tag', 'Day') : dayLabel(xs[idx]);
+      table.innerHTML = `<thead><tr><th></th><th>${escapeHtml(head)}</th><th>${escapeHtml(L('14 Tage', '14 days'))}</th></tr></thead><tbody>` +
+        people.map((p) => `<tr class="${p.me ? 'me' : ''}"><td><i style="background:${p.color}"></i>${escapeHtml(p.name)}</td>` +
+          `<td>${idx == null || p.scores[idx] == null ? '–' : p.scores[idx]}</td><td>${p.total}</td></tr>`).join('') +
+        '</tbody>';
+    };
+    renderTable(null);
+    const xRange = [xs[0] - 21600, xs[xs.length - 1] + 21600];
     return new uPlot({
-      width,
-      height: 150,
-      padding: [8, 4, 0, 0],
+      width: Math.max(240, box.clientWidth || 300),
+      height: 160,
+      padding: [8, 8, 0, 0],
       cursor: { drag: { x: true, y: false } },
-      legend: { live: true },
+      legend: { show: false },
       scales: {
-        x: { time: false, range: () => [xs[0] - 21600, xs[xs.length - 1] + 21600] },
-        y: { range: (u, min, max) => [0, Math.max(100, (max || 0) * 1.15)] },
-        rank: { dir: -1, range: () => [0.5, maxRank + 0.5] }, // reversed: rank 1 at the top
+        x: { time: false, range: () => xRange },
+        y: { range: (u, min, max) => [0, Math.max(100, (max || 0) * 1.1)] },
       },
       axes: [
         { ...axis, space: 34, values: (u, vals) => vals.map(dayLabel), incrs: [86400, 172800, 345600, 604800] },
         { ...axis, size: 40 },
-        { ...axis, scale: 'rank', side: 1, size: 34, space: 18, grid: { show: false }, incrs: [1, 2, 5, 10, 20, 50], values: (u, vals) => vals.map((v) => (v >= 1 && Math.abs(v - Math.round(v)) < 1e-6 ? `#${Math.round(v)}` : '')) },
       ],
       series: [
-        { label: L('Tag', 'Day'), value: (u, ts) => (ts == null ? '–' : dayLabel(ts)) },
-        { label: L('Punkte', 'Points'), stroke: accent, width: 2, fill: 'rgba(47,214,176,0.14)', points: { size: 6, fill: accent }, spanGaps: true, value: (u, v) => (v == null ? '–' : String(v)) },
-        { label: L('Platz', 'Rank'), scale: 'rank', stroke: ink, width: 1.5, dash: [4, 4], points: { size: 5, fill: ink }, spanGaps: true, value: (u, v) => (v == null ? '–' : `#${v}`) },
+        {},
+        ...people.map((p) => ({
+          label: p.name,
+          stroke: p.color,
+          width: p.me ? 3 : 1.5,
+          points: { size: p.me ? 8 : 6, fill: p.color, stroke: '#fff', width: 1 },
+          spanGaps: true,
+        })),
       ],
+      hooks: { setCursor: [(u) => renderTable(u.cursor.idx)] },
       plugins: typeof window.uplotTouch === 'function'
-        ? [window.uplotTouch({ onReset: (u) => u.setScale('x', { min: xs[0] - 21600, max: xs[xs.length - 1] + 21600 }) })]
+        ? [window.uplotTouch({ onReset: (u) => u.setScale('x', { min: xRange[0], max: xRange[1] }) })]
         : [],
-    }, [xs, days.map((d) => d.score), days.map((d) => d.rank)], box);
+    }, [xs, ...people.map((p) => p.scores)], plotBox);
   }
   el('challengeTrendBtn').addEventListener('click', () => {
     storageSet(TREND_KEY, storageGet(TREND_KEY) === 'on' ? 'off' : 'on');

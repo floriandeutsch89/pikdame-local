@@ -136,21 +136,36 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
   }
 
   /**
-   * One player's own results for the trend graph, oldest day first; days
-   * without a result carry score/rank null (a gap, not a zero).
+   * Trend graph: the player's daily scores plus the `top` OTHER players of
+   * the window (sum of their daily bests), oldest day first; a day without a
+   * result is null (a gap, not a zero). The top set is fixed for the window.
    */
-  function getTrend(name, days = KEEP_DAYS, now = Date.now()) {
+  function getTrend(name, { days = KEEP_DAYS, top = 5 } = {}, now = Date.now()) {
     const store = load();
     const key = String(name || '').trim().toLowerCase();
     const today = gameDay(now);
-    const out = [];
-    for (let i = Math.min(days, KEEP_DAYS) - 1; i >= 0; i--) {
-      const date = addDays(today, -i);
-      const list = store.days[date] || [];
-      const idx = key ? list.findIndex((e) => e.name.toLowerCase() === key) : -1;
-      out.push({ date, score: idx === -1 ? null : list[idx].score, rank: idx === -1 ? null : idx + 1, players: list.length });
-    }
-    return out;
+    const dates = [];
+    for (let i = Math.min(days, KEEP_DAYS) - 1; i >= 0; i--) dates.push(addDays(today, -i));
+    const players = new Map(); // lower-case name -> { name, scores[] }
+    dates.forEach((date, d) => {
+      for (const e of store.days[date] || []) {
+        const k = e.name.toLowerCase();
+        if (!players.has(k)) players.set(k, { name: e.name, scores: dates.map(() => null) });
+        players.get(k).scores[d] = e.score;
+      }
+    });
+    const sum = (p) => p.scores.reduce((a, v) => a + (v || 0), 0);
+    const others = [...players.entries()]
+      .filter(([k]) => k !== key)
+      .map(([, p]) => ({ ...p, total: sum(p), days: p.scores.filter((v) => v != null).length }))
+      .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name))
+      .slice(0, top);
+    const mine = key && players.get(key);
+    return {
+      dates,
+      me: mine ? { ...mine, total: sum(mine), days: mine.scores.filter((v) => v != null).length } : null,
+      top: others,
+    };
   }
 
   return { submit, getBoard, rankOf, getHistory, getWeekly, getTrend };
