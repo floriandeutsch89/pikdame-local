@@ -370,7 +370,7 @@
         how: L('Lege deine ganze Hand in einem einzigen Zug aus und mach so die Runde aus.', 'Lay out your whole hand in a single turn and go out.') },
       pd_laid: { emoji: '♠', name: L('Damen\u00adsammler', 'Queen collector'), desc: L('Eine Pik Dame sicher ausgelegt (+100)', 'Melded a Queen of Spades (+100)'),
         how: L('Lege eine Pik Dame in einer Auslage ab.', 'Meld a Queen of Spades.') },
-      pd_triple: { emoji: '👑', name: L('Dreifache Dame', 'Triple queen'), desc: L('3+ Pik Damen in einer Partie ausgelegt', 'Melded 3+ Queens of Spades in one game'),
+      pd_triple: { emoji: '🎉', name: L('Flotter Dreier', 'Hat trick'), desc: L('3+ Pik Damen in einer Partie ausgelegt', 'Melded 3+ Queens of Spades in one game'),
         how: L('Lege in einer einzigen Partie mindestens 3 Pik Damen aus.', 'Meld at least 3 Queens of Spades within one game.') },
       pd_caught: { emoji: '😱', name: L('Autsch!', 'Ouch!'), desc: L('Pik Dame am Rundenende auf der Hand erwischt (−100)', 'Caught with the Queen of Spades in hand (−100)'),
         how: L('Halte am Rundenende noch eine Pik Dame auf der Hand - passiert irgendwann jedem.', 'Still hold a Queen of Spades when a round ends - happens to everyone.') },
@@ -395,7 +395,7 @@
         how: L('Lege insgesamt 50 Pik Damen aus (über alle Partien).', 'Meld 50 Queens of Spades in total (across all games).') },
       marathon_50: { emoji: '🏃', name: L('Dauer\u00adläufer', 'Long runner'), desc: L('50 Partien gespielt', 'Played 50 games'),
         how: L('Spiele 50 Partien zu Ende.', 'Finish 50 games.') },
-      marathon_100: { emoji: '🏃', name: L('Stammgast', 'Regular'), desc: L('100 Partien gespielt', 'Played 100 games'),
+      marathon_100: { emoji: '🏃', name: L('Sitzfleisch', 'Staying power'), desc: L('100 Partien gespielt', 'Played 100 games'),
         how: L('Spiele 100 Partien zu Ende.', 'Finish 100 games.') },
       wins_10: { emoji: '🏆', name: L('Serien\u00adsieger', 'Serial winner'), desc: L('10 Partien gewonnen', 'Won 10 games'),
         how: L('Gewinne insgesamt 10 Partien.', 'Win 10 games in total.') },
@@ -457,6 +457,10 @@
         how: L('Löse 7 Tagesrätsel, ohne „Lösung zeigen“ zu tippen.', 'Solve 7 daily puzzles without tapping "show solution".') },
       puzzle_30: { emoji: '🧩', name: L('Rätsel\u00admeister', 'Puzzle master'), desc: L('30 Tagesrätsel gelöst', 'Solved 30 daily puzzles'),
         how: L('Löse 30 Tagesrätsel.', 'Solve 30 daily puzzles.') },
+      royal_flush: { emoji: '💎', name: L('Royal Flush', 'Royal flush'), desc: L('10-B-D-K-A einer Farbe ausgelegt, ohne Joker', 'Melded 10-J-Q-K-A of one suit, no jokers'),
+        how: L('Lege eine Folge mit 10, Bube, Dame, König und Ass derselben Farbe aus - alles echte Karten, kein Joker.', 'Meld a run with 10, jack, queen, king and ace of one suit - all real cards, no joker.') },
+      pik_royal: { emoji: '👑', name: L('Pik Royal', 'Spade royal'), desc: L('Royal Flush in Pik - mit der Pik Dame', 'Royal flush in spades - with the Queen of Spades'),
+        how: L('Lege 10, Bube, Dame, König und Ass in Pik als Folge aus - alles echte Karten, kein Joker.', 'Meld 10, jack, queen, king and ace of spades as a run - all real cards, no joker.') },
     };
     return M[id] || { emoji: '🎖️', name: id, desc: '', how: '' };
   }
@@ -477,7 +481,7 @@
     'pd_caught', 'round_300', 'score_500', 'pd_triple', 'double_queen_round',
     'comeback', 'zen_slayer', 'zen_trio', 'ring_run', 'run_13', 'pile_glutton', 'no_joker_win',
     'quick_start', 'joker_king', 'landslide', 'challenge_champ', 'stammtisch_10', 'night_owl',
-    'near_miss', 'cold_shower', 'rock_bottom', 'red_lantern',
+    'near_miss', 'cold_shower', 'rock_bottom', 'red_lantern', 'royal_flush', 'pik_royal',
   ];
   let globalStatsData = null;
   let myGameHistory = null; // null = noch nicht angefragt, [] = angefragt und leer // anonyme Server-Zähler (Partien, Pik Damen, ...)
@@ -6028,13 +6032,39 @@
     };
     const total = BADGE_FAMILIES.reduce((n, f) => n + f.tiers.length, 0) + BADGE_SINGLES.length;
     const have = Object.keys(owned).filter((id) => BADGE_SINGLES.includes(id) || BADGE_FAMILIES.some((f) => f.tiers.includes(id))).length;
+    const order = achievementOrder(BADGE_FAMILIES, BADGE_SINGLES, owned, progress, (id) => badgeMeta(id).name);
+    const tile = (key) => {
+      const fam = BADGE_FAMILIES.find((f) => f.id === key);
+      return fam ? familyTile(fam) : singleTile(key);
+    };
+    const section = (title, keys) => (keys.length
+      ? `<h4 class="achSection">${escapeHtml(title)} (${keys.length})</h4><div class="achGrid">${keys.map(tile).join('')}</div>`
+      : '');
     box.classList.remove('hidden');
     box.innerHTML =
       `<h3>${L('🏅 Erfolge', '🏅 Achievements')} <span class="achCount">${have} / ${total}</span></h3>` +
-      `<h4 class="achSection">${escapeHtml(L('Mit Stufen', 'With tiers'))}</h4><div class="achGrid">${BADGE_FAMILIES.map(familyTile).join('')}</div>` +
-      `<h4 class="achSection">${escapeHtml(L('Einzeln', 'Single'))}</h4><div class="achGrid">${BADGE_SINGLES.map(singleTile).join('')}</div>`;
+      section(L('Freigeschaltet', 'Unlocked'), order.unlocked) +
+      section(L('Noch offen', 'Still open'), order.locked);
     // Re-render (new profile data) keeps the open detail open.
     if (openAchId) showAchDetail(openAchId, false);
+  }
+
+  // Gallery order: unlocked newest first (a family counts with its latest
+  // tier), locked by progress (closest first), then by name.
+  function achievementOrder(families, singles, owned, progress, nameOf) {
+    const items = families.map((f) => {
+      const times = f.tiers.map((id) => owned[id]).filter(Boolean);
+      const next = f.tiers.find((id) => !owned[id]);
+      return { key: f.id, at: times.length ? Math.max(...times) : 0, p: next && progress[next], name: nameOf(f.tiers[0]) };
+    }).concat(singles.map((id) => ({ key: id, at: owned[id] || 0, p: progress[id], name: nameOf(id) })));
+    const ratio = (it) => (it.p && it.p.need ? it.p.have / it.p.need : 0);
+    const plain = (t) => String(t).replace(/\u00ad/g, '');
+    return {
+      unlocked: items.filter((it) => it.at).sort((a, b) => b.at - a.at).map((it) => it.key),
+      locked: items.filter((it) => !it.at)
+        .sort((a, b) => ratio(b) - ratio(a) || plain(a.name).localeCompare(plain(b.name)))
+        .map((it) => it.key),
+    };
   }
 
   // Tap (phone) or click (desktop) on a tile: how to earn it, right below
@@ -6101,7 +6131,6 @@
     return {
       first_win: cap(p.gamesWon, 1), wins_10: cap(p.gamesWon, 10), wins_50: cap(p.gamesWon, 50),
       pd_laid: cap(p.totalQueensLaid, 1), pd_hunter_10: cap(p.totalQueensLaid, 10), pd_hunter_50: cap(p.totalQueensLaid, 50),
-      pd_triple: cap(p.totalQueensLaid, 3),
       pd_caught: cap(p.totalQueensCaught, 1),
       hand_aus_win: cap(p.totalHandAus, 1), hand_aus_5: cap(p.totalHandAus, 5),
       score_500: cap(p.bestGameScore, 500),

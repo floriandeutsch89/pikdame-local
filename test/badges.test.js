@@ -327,3 +327,46 @@ test('client lists every badge exactly once (families + singles)', () => {
     .concat([...singles.matchAll(/'([a-z0-9_]+)'/g)].map((x) => x[1]));
   assert.deepEqual([...listed].sort(), [...BADGE_IDS].sort());
 });
+
+test('royal flush: 10-J-Q-K-A of one suit as real cards; pik royal in spades; a joker spoils it', () => {
+  const GameManager = require('../game/GameManager');
+  const { makeStandardCard, makeJoker } = require('../game/Card');
+  const round = (suit, withJoker) => {
+    const g = __autoCutHook(new GameManager(() => {}));
+    g.addOrReconnectPlayer('p1', 'Anna');
+    g.addOrReconnectPlayer('p2', 'Ben');
+    g.startNewRound();
+    const ranks = ['10', 'J', 'Q', 'K', 'A'];
+    const slots = ranks.map((r) => (withJoker && r === 'K'
+      ? { joker: makeJoker(0), representsRank: 'K', representsSuit: suit }
+      : { real: makeStandardCard(suit, r, 0) }));
+    g.tableMelds = [{ id: 'm1', ownerId: 'p1', type: 'run', suit, slots }];
+    g.players[0].laidOutCards = slots.map((sl) => sl.real || sl.joker);
+    g.finishRound('p1');
+    const rec = { winnerId: 'p1', finalTotals: g.totals, rounds: g.roundHistory };
+    return computeEarnedBadges(rec, 'p1', {});
+  };
+  const hearts = round('H', false);
+  assert.ok(hearts.includes('royal_flush') && !hearts.includes('pik_royal'));
+  const spades = round('S', false);
+  assert.ok(spades.includes('royal_flush') && spades.includes('pik_royal'));
+  const joker = round('S', true);
+  assert.ok(!joker.includes('royal_flush') && !joker.includes('pik_royal'), 'a joker in the royal spots does not count');
+});
+
+test('gallery order: unlocked newest first (family = latest tier), locked by progress then name', () => {
+  const vm = require('node:vm');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'client.js'), 'utf8');
+  const m = src.match(/\n  function achievementOrder\([\s\S]*?\n  \}\n/);
+  assert.ok(m, 'achievementOrder is defined in client.js');
+  const ctx = {};
+  vm.runInNewContext(`${m[0]}\nthis.order = achievementOrder;`, ctx);
+  const families = [{ id: 'wins', tiers: ['w1', 'w10'] }, { id: 'games', tiers: ['g10', 'g50'] }];
+  const singles = ['zeta', 'alpha', 'mid'];
+  const owned = { w1: 100, w10: 500, alpha: 300 };
+  const progress = { g10: { have: 9, need: 10 }, mid: { have: 1, need: 3 } };
+  const names = { g10: 'Marathon', zeta: 'Zeta', mid: 'Mitte', alpha: 'Alpha', w1: 'Sieg' };
+  const r = ctx.order(families, singles, owned, progress, (id) => names[id]);
+  assert.deepEqual([...r.unlocked], ['wins', 'alpha'], 'family took its latest tier time (500)');
+  assert.deepEqual([...r.locked], ['games', 'mid', 'zeta'], '9/10 before 1/3 before no progress');
+});

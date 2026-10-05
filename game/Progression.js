@@ -185,7 +185,6 @@ function evaluateQuests(gameRecord, playerId, questIds = []) {
 function badgeProgress(profile = {}) {
   const p = profile || {};
   const out = {
-    pd_triple: { have: Math.min(p.totalQueensLaid || 0, 3), need: 3 },
     pd_caught: { have: Math.min(p.totalQueensCaught || 0, 1), need: 1 },
     score_500: { have: Math.min(p.bestGameScore || 0, 500), need: 500 },
     round_300: { have: Math.min(p.bestRoundScore || 0, 300), need: 300 },

@@ -58,6 +58,8 @@ const BADGE_IDS = [
   'challenge_champ', // first place of a daily challenge once the day was over
   'puzzle_7', // 7 daily puzzles solved (tier 30 below)
   'puzzle_30',
+  'royal_flush', // melded 10-J-Q-K-A of one suit, all real cards
+  'pik_royal', // ... in spades (with the Queen of Spades)
 ];
 
 // Badge families: the same counter at rising thresholds, shown as ONE tile
@@ -100,6 +102,7 @@ function computeEarnedBadges(gameRecord, playerId, profile = {}, context = {}) {
   let pileGlutton = false;
   let coldShower = false;
   let jokerKing = false;
+  let royal = null;
   for (const round of rounds) {
     const r = round.results && round.results[playerId];
     const b = r && r.breakdown;
@@ -113,6 +116,7 @@ function computeEarnedBadges(gameRecord, playerId, profile = {}, context = {}) {
       if (b.bigPileTake && round.winnerId === playerId) pileGlutton = true;
       if ((b.pikDameCount || 0) >= 2) coldShower = true;
       if ((b.jokersLaidOut || 0) >= 4) jokerKing = true;
+      if (b.royalFlush) royal = royal === 'S' ? 'S' : b.royalFlush;
     }
     if (r && r.roundScore >= 300) bigRound = true;
     if (round.isHandAus && round.winnerId === playerId) handAusWin = true;
@@ -144,6 +148,8 @@ function computeEarnedBadges(gameRecord, playerId, profile = {}, context = {}) {
 
   if (coldShower) earned.push('cold_shower');
   if (jokerKing) earned.push('joker_king');
+  if (royal) earned.push('royal_flush');
+  if (royal === 'S') earned.push('pik_royal');
   if (rounds[0] && rounds[0].isHandAus && rounds[0].winnerId === playerId) earned.push('quick_start');
 
   // Final standings: margins against the winner / the runner-up.
