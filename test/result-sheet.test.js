@@ -137,6 +137,10 @@ test('game over sheet: ranking leads, home next to rematch, personal line, chart
   assert.deepEqual(ranks, ['1.', '2.', '3.', '4.'], 'ranked by total');
   assert.equal(doc.querySelector('#resultBody .resultTotalBig').textContent, '1045', 'total leads at game over');
   assert.equal(doc.querySelectorAll('#resultBody details.resultBreakdown').length, 0, 'no last-round breakdown at game over');
+  assert.equal(doc.querySelectorAll('#resultBody .barGoal').length, 0, 'no 1000 tick at game over');
+  // Leader Klaus: 1045 now, 775 before the round; the scale is 1045, not 1000.
+  const solid = parseFloat(doc.querySelector('#resultBody .resultRow .barSolid').style.width);
+  assert.ok(Math.abs(solid - (775 / 1045) * 100) < 0.1, `solid ${solid}% on a scale of the best total`);
   assert.match(doc.querySelector('#resultBody .resultMine').textContent, /Platz 2 von 4.*\+120.*17\/43/);
   const panes = doc.querySelectorAll('#resultBody .resultPane');
   assert.ok(panes[0].querySelector('.scoreChart'), 'chart sits on the result pane');
@@ -203,4 +207,16 @@ test('identity chip: avatar opens the progress sheet, name still edits; streak s
   doc.getElementById('identityNameBtn').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
   assert.ok(!doc.getElementById('nameInput').classList.contains('hidden'), 'name button still edits');
   assert.deepEqual(errors, [], `Client-Fehler: ${errors.join(' | ')}`);
+});
+
+test('progress sheet: XP rules shown in the client match game/Progression.js', () => {
+  const { xpForGame } = require('../game/Progression');
+  const src = fs.readFileSync(path.join(pub, 'client.js'), 'utf8');
+  const m = src.match(/const XP_RULES = \{ base: (\d+), win: (\d+), perPoints: (\d+) \};/);
+  assert.ok(m, 'XP_RULES literal found in client.js');
+  const rec = (won, score) => ({ winnerId: won ? 'p' : 'x', finalTotals: { p: score } });
+  const base = xpForGame(rec(false, 0), 'p');
+  assert.equal(Number(m[1]), base);
+  assert.equal(Number(m[2]), xpForGame(rec(true, 0), 'p') - base);
+  assert.equal(Number(m[3]), 1000 / (xpForGame(rec(false, 1000), 'p') - base));
 });

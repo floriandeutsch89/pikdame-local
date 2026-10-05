@@ -2812,9 +2812,11 @@
       // showing three rows read as a missing player (report).
       const deltaOf = (pl) => (lastState.lastRoundResult[pl.id] ? lastState.lastRoundResult[pl.id].roundScore : 0);
       const totalOf = (pl) => lastState.totals[pl.id] || 0;
-      // One scale for every bar, so a total past 1000 neither overflows nor
-      // squeezes the others; the goal tick marks 1000 on it.
-      const scaleMax = Math.max(SCORE_TARGET, ...lastState.players.map((pl) => Math.max(totalOf(pl), totalOf(pl) - deltaOf(pl))));
+      // One scale for every bar. Round end: up to the 1000 goal (tick marks
+      // it). Game over: the goal is reached, bars only compare the players,
+      // so the scale is the best total and there is no tick (read as a
+      // per-player marker).
+      const scaleMax = Math.max(isGameOver ? 1 : SCORE_TARGET, ...lastState.players.map((pl) => Math.max(totalOf(pl), totalOf(pl) - deltaOf(pl))));
       const pctOf = (v) => Math.max(0, Math.min(100, (v / scaleMax) * 100));
       // Points order by default; the viewer may switch to seat order (#322).
       const fillList = () => {
@@ -2840,7 +2842,7 @@
               `<div class="resultRowBar" style="--pc:${playerColor(p.id)}">` +
               `<i class="barSolid" style="width:${delta >= 0 ? pctOf(prev) : lo}%"></i>` +
               (hi > lo ? `<i class="barGhost ${delta >= 0 ? 'gain' : 'loss'}" style="left:${lo}%;width:${hi - lo}%"></i>` : '') +
-              `<span class="barGoal" style="left:${pctOf(SCORE_TARGET)}%"></span>` +
+              (isGameOver ? '' : `<span class="barGoal" style="left:${pctOf(SCORE_TARGET)}%"></span>`) +
               `</div>`;
             row.innerHTML = isGameOver
               ? `<div class="resultRowTop">` +
