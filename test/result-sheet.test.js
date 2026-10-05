@@ -114,3 +114,29 @@ test('result sheet: best-first one-line rows, folded own breakdown, emotes behin
   assert.ok(bar.classList.contains('hidden'));
   assert.deepEqual(errors, [], `Client-Fehler: ${errors.join(' | ')}`);
 });
+
+test('result sheet: sort toggle switches to seat order and is remembered per device', async (t) => {
+  const { window, errors, ws } = boot();
+  t.after(() => window.close());
+  await new Promise((r) => setTimeout(r, 10));
+  const sock = ws();
+  sock._emit('message', { data: JSON.stringify({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'ABCD' }) });
+  sock._emit('message', { data: JSON.stringify({ type: 'state', state: roundEndState() }) });
+  const doc = window.document;
+  const order = () => [...doc.querySelectorAll('#resultBody .resultRow .resultName')].map((n) => n.textContent.trim().replace(/\s.*$/, ''));
+
+  assert.deepEqual(order(), ['Klaus', 'Horst', 'Maria', 'Flo'], 'points is the default');
+  doc.querySelector('#resultBody .resultSortBtn[data-mode="seat"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  assert.deepEqual(order(), ['Flo', 'Klaus', 'Horst', 'Maria'], 'seat order = players as sent');
+  assert.equal(window.localStorage.getItem('pikdame_result_sort'), 'seat');
+  assert.equal(doc.querySelector('#resultBody .resultSortBtn[data-mode="seat"]').getAttribute('aria-pressed'), 'true');
+
+  // A later re-render (next state) keeps the choice.
+  sock._emit('message', { data: JSON.stringify({ type: 'state', state: roundEndState() }) });
+  assert.deepEqual(order(), ['Flo', 'Klaus', 'Horst', 'Maria']);
+
+  doc.querySelector('#resultBody .resultSortBtn[data-mode="points"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  assert.deepEqual(order(), ['Klaus', 'Horst', 'Maria', 'Flo']);
+  assert.equal(window.localStorage.getItem('pikdame_result_sort'), 'points');
+  assert.deepEqual(errors, [], `Client-Fehler: ${errors.join(' | ')}`);
+});

@@ -330,6 +330,9 @@
 
   const SORT_KEY = 'pikdame_hand_sort';
   let handSortMode = storageGet(SORT_KEY) === 'rank' ? 'rank' : 'suit';
+  // Result overview order, per device: 'points' (default) or 'seat' (table order).
+  const RESULT_SORT_KEY = 'pikdame_result_sort';
+  let resultSortMode = storageGet(RESULT_SORT_KEY) === 'seat' ? 'seat' : 'points';
   let prevHandRound = null;
   let freshCardIds = new Set();
   let dealAnimatedForRound = null; // one-shot card deal-in per fresh round
@@ -2647,6 +2650,41 @@
     requestAnimationFrame(step);
   }
 
+  // Seat order is lastState.players as sent; 'points' keeps the caller's ranking.
+  function orderResultPlayers(byPoints) {
+    const players = lastState.players.slice();
+    return resultSortMode === 'seat' ? players : players.sort(byPoints);
+  }
+  function buildResultSortControl(onChange) {
+    const wrap = document.createElement('div');
+    wrap.className = 'resultSort';
+    wrap.setAttribute('role', 'group');
+    wrap.setAttribute('aria-label', L('Sortierung', 'Sort order'));
+    const btns = [['points', L('Punkte', 'Points')], ['seat', L('Reihenfolge', 'Seat order')]].map(([mode, label]) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'resultSortBtn';
+      b.dataset.mode = mode;
+      b.textContent = label;
+      b.addEventListener('click', () => {
+        if (resultSortMode === mode) return;
+        resultSortMode = mode;
+        storageSet(RESULT_SORT_KEY, mode);
+        sync();
+        onChange();
+      });
+      return b;
+    });
+    const sync = () => btns.forEach((b) => {
+      const on = b.dataset.mode === resultSortMode;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    sync();
+    wrap.append(...btns);
+    return wrap;
+  }
+
   function renderResultOverlay() {
     const forfeited = lastState.phase === 'gameOver' && lastState.gameOverInfo && lastState.gameOverInfo.forfeited;
     if (!lastState.lastRoundResult && !forfeited) return;
@@ -2706,15 +2744,18 @@
       );
       paneResult.appendChild(note);
       const fTotals = (lastState.gameOverInfo && lastState.gameOverInfo.finalTotals) || lastState.totals || {};
-      lastState.players
-        .slice()
-        .sort((a, b) => (fTotals[b.id] || 0) - (fTotals[a.id] || 0))
-        .forEach((p) => {
+      const fList = document.createElement('div');
+      const fillForfeit = () => {
+        fList.innerHTML = '';
+        orderResultPlayers((a, b) => (fTotals[b.id] || 0) - (fTotals[a.id] || 0)).forEach((p) => {
           const row = document.createElement('div');
           row.className = 'resultRow';
           row.innerHTML = `<span>${nameWithHeart(p.name)}${botMark(p)}</span><span>${L('Gesamt', 'Total')}: ${fTotals[p.id] || 0}</span>`;
-          paneResult.appendChild(row);
+          fList.appendChild(row);
         });
+      };
+      fillForfeit();
+      paneResult.append(buildResultSortControl(fillForfeit), fList);
     }
 
     // Die Doppelwertung ist eine OPTIONALE Hausregel. Ohne sie ist "Hand aus"
@@ -2767,67 +2808,70 @@
       // bars are only comparable if all of them are there.
       // Best first: by the round's delta (by the standing once the match is
       // over), so the order itself answers "who did well".
+      // The viewer may switch to seat order instead (remembered per device).
       const deltaOf = (pl) => (lastState.lastRoundResult[pl.id] ? lastState.lastRoundResult[pl.id].roundScore : 0);
       const totalOf = (pl) => lastState.totals[pl.id] || 0;
-      lastState.players
-        .slice()
-        .sort((a, b) => (isGameOver
+      const fillList = () => {
+        list.innerHTML = '';
+        orderResultPlayers((a, b) => (isGameOver
           ? totalOf(b) - totalOf(a)
           : deltaOf(b) - deltaOf(a) || totalOf(b) - totalOf(a)))
-        .forEach((p) => {
-          const r = lastState.lastRoundResult[p.id];
-          const total = lastState.totals[p.id] || 0;
-          const pct = Math.max(0, Math.min(100, (total / SCORE_TARGET) * 100));
-          const delta = r ? r.roundScore : 0;
-          const row = document.createElement('div');
-          row.className = 'resultRow' + (r && r.breakdown.isWinner ? ' winner' : '') +
-            (p.id === playerId ? ' isMe' : '');
-          // The delta is coloured by its SIGN, nothing else. Marking "me" or
-          // the round winner in green painted -170 the same celebratory green
-          // as +230 (player report).
-          const deltaCls = delta > 0 ? ' pos' : delta < 0 ? ' neg' : '';
-          row.innerHTML =
-            `<div class="resultRowTop">` +
-            `<span class="resultName">${nameWithHeart(p.name)}${botMark(p)}</span>` +
-            `<span class="resultTotal">${L('gesamt', 'total')} ${total}</span>` +
-            `<span class="resultDelta${deltaCls}">${signed(delta)}</span>` +
-            `</div>` +
-            `<div class="resultRowBar"><i style="width:${pct}%"></i></div>`;
-          // Per-card breakdown: which cards made the number - for MY row
-          // only. An opponent's leftover hand is hidden (it reveals their play
-          // style); the server does not even send it (_roundStatsFor).
-          const stats = p.id === playerId ? (lastState.lastRoundStats || []).find((s) => s.id === p.id) : null;
-          if (stats && (stats.laidLines || stats.handLines)) {
-            const det = document.createElement('details');
-            det.className = 'resultBreakdown';
-            // Folded: four rows must fit on a phone. The summary carries the
-            // two sums, the per-card lines open on tap.
-            det.open = false;
-            const lineText = (ln) => {
-              const label = {
-                pikdame: '♠Q', joker: L('Joker', 'Joker'), ace: L('Ass', 'Ace'),
-                face: L('10/B/D/K', '10/J/Q/K'), low: '2–9',
-              }[ln.kind] || ln.kind;
-              return `${ln.count > 1 ? `${ln.count}× ` : ''}${label} ${ln.points}`;
-            };
-            const plus = (stats.laidLines || []).map(lineText).join(', ');
-            const minus = (stats.handLines || []).map(lineText).join(', ');
-            const plusSum = (stats.laidLines || []).reduce((a, ln) => a + ln.points, 0);
-            const minusSum = (stats.handLines || []).reduce((a, ln) => a + ln.points, 0);
-            const isWinner = !!(r && r.breakdown && r.breakdown.isWinner);
-            const mult = r && r.breakdown && r.breakdown.multiplier > 1 ? r.breakdown.multiplier : 1;
-            det.innerHTML =
-              `<summary>${L('Aufschlüsselung', 'Breakdown')} <span class="bdSums"><span class="bdSumPlus">+${plusSum}</span>${isWinner ? '' : ` <span class="bdSumMinus">−${minusSum}</span>`}</span></summary>` +
-              `<div class="bdLine bdPlus"><span>${L('Ausgelegt', 'Melded')}</span><span>${plus ? escapeHtml(plus) : '–'}</span><b>+${plusSum}</b></div>` +
-              (isWinner
-                ? `<div class="bdLine bdNote"><span>${L('Rundensieg: keine Minuspunkte', 'Round winner: no minus points')}</span><span></span><b></b></div>`
-                : `<div class="bdLine bdMinus"><span>${L('Auf der Hand', 'In hand')}</span><span>${minus ? escapeHtml(minus) : '–'}</span><b>−${minusSum}</b></div>`) +
-              (mult > 1 ? `<div class="bdLine bdNote"><span>${L(`Hand aus: ×${mult}`, `Out in one: ×${mult}`)}</span><span></span><b></b></div>` : '');
-            row.appendChild(det);
-          }
-          list.appendChild(row);
-        });
-      paneResult.appendChild(list);
+          .forEach((p) => {
+            const r = lastState.lastRoundResult[p.id];
+            const total = lastState.totals[p.id] || 0;
+            const pct = Math.max(0, Math.min(100, (total / SCORE_TARGET) * 100));
+            const delta = r ? r.roundScore : 0;
+            const row = document.createElement('div');
+            row.className = 'resultRow' + (r && r.breakdown.isWinner ? ' winner' : '') +
+              (p.id === playerId ? ' isMe' : '');
+            // The delta is coloured by its SIGN, nothing else. Marking "me" or
+            // the round winner in green painted -170 the same celebratory green
+            // as +230 (player report).
+            const deltaCls = delta > 0 ? ' pos' : delta < 0 ? ' neg' : '';
+            row.innerHTML =
+              `<div class="resultRowTop">` +
+              `<span class="resultName">${nameWithHeart(p.name)}${botMark(p)}</span>` +
+              `<span class="resultTotal">${L('gesamt', 'total')} ${total}</span>` +
+              `<span class="resultDelta${deltaCls}">${signed(delta)}</span>` +
+              `</div>` +
+              `<div class="resultRowBar"><i style="width:${pct}%"></i></div>`;
+            // Per-card breakdown: which cards made the number - for MY row
+            // only. An opponent's leftover hand is hidden (it reveals their play
+            // style); the server does not even send it (_roundStatsFor).
+            const stats = p.id === playerId ? (lastState.lastRoundStats || []).find((s) => s.id === p.id) : null;
+            if (stats && (stats.laidLines || stats.handLines)) {
+              const det = document.createElement('details');
+              det.className = 'resultBreakdown';
+              // Folded: four rows must fit on a phone. The summary carries the
+              // two sums, the per-card lines open on tap.
+              det.open = false;
+              const lineText = (ln) => {
+                const label = {
+                  pikdame: '♠Q', joker: L('Joker', 'Joker'), ace: L('Ass', 'Ace'),
+                  face: L('10/B/D/K', '10/J/Q/K'), low: '2–9',
+                }[ln.kind] || ln.kind;
+                return `${ln.count > 1 ? `${ln.count}× ` : ''}${label} ${ln.points}`;
+              };
+              const plus = (stats.laidLines || []).map(lineText).join(', ');
+              const minus = (stats.handLines || []).map(lineText).join(', ');
+              const plusSum = (stats.laidLines || []).reduce((a, ln) => a + ln.points, 0);
+              const minusSum = (stats.handLines || []).reduce((a, ln) => a + ln.points, 0);
+              const isWinner = !!(r && r.breakdown && r.breakdown.isWinner);
+              const mult = r && r.breakdown && r.breakdown.multiplier > 1 ? r.breakdown.multiplier : 1;
+              det.innerHTML =
+                `<summary>${L('Aufschlüsselung', 'Breakdown')} <span class="bdSums"><span class="bdSumPlus">+${plusSum}</span>${isWinner ? '' : ` <span class="bdSumMinus">−${minusSum}</span>`}</span></summary>` +
+                `<div class="bdLine bdPlus"><span>${L('Ausgelegt', 'Melded')}</span><span>${plus ? escapeHtml(plus) : '–'}</span><b>+${plusSum}</b></div>` +
+                (isWinner
+                  ? `<div class="bdLine bdNote"><span>${L('Rundensieg: keine Minuspunkte', 'Round winner: no minus points')}</span><span></span><b></b></div>`
+                  : `<div class="bdLine bdMinus"><span>${L('Auf der Hand', 'In hand')}</span><span>${minus ? escapeHtml(minus) : '–'}</span><b>−${minusSum}</b></div>`) +
+                (mult > 1 ? `<div class="bdLine bdNote"><span>${L(`Hand aus: ×${mult}`, `Out in one: ×${mult}`)}</span><span></span><b></b></div>` : '');
+              row.appendChild(det);
+            }
+            list.appendChild(row);
+          });
+      };
+      fillList();
+      paneResult.append(buildResultSortControl(() => { fillList(); updateResultScrollEdges(); }), list);
     }
 
     // Rundenstatistiken (Details)
