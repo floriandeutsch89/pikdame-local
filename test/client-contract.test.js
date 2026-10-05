@@ -615,3 +615,8 @@ test('jokerRunByOrder (client preview) agrees with Rules.runAssignmentByOrder on
   }
   assert.ok(nonNull > 200, `fuzz must exercise real runs (got ${nonNull})`);
 });
+
+test('no native browser dialogs in the client (iOS can suppress them silently)', () => {
+  const code = clientJs.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '');
+  assert.doesNotMatch(code, /\b(?:window\.)?(?:alert|confirm|prompt)\s*\(/, 'use an in-app dialog or confirmByTap');
+});
