@@ -66,8 +66,9 @@ function createStammtischStore(filePath = DEFAULT_DATA_FILE) {
     }
   }
 
-  /** @returns {{table}|{error:string}} */
-  function create(name, founderName, now = Date.now()) {
+  /** @param {string|null} ownerAccount account username; only it may delete
+   *  @returns {{table}|{error:string}} */
+  function create(name, founderName, now = Date.now(), ownerAccount = null) {
     const store = load();
     prune(store, now);
     const title = cleanName(name) || 'Stammtisch';
@@ -81,6 +82,7 @@ function createStammtischStore(filePath = DEFAULT_DATA_FILE) {
       members: {},
       games: [],
       series: newSeries(1),
+      owner: ownerAccount ? keyOf(ownerAccount) : null,
     };
     const founder = cleanName(founderName, 16);
     if (founder) table.members[keyOf(founder)] = { name: founder, games: 0, wins: 0, points: 0, lastSeen: now };
@@ -202,12 +204,59 @@ function createStammtischStore(filePath = DEFAULT_DATA_FILE) {
     };
   }
 
+  // Tables from before owners existed: the founder is the first member
+  // (create() adds them first), and account names are protected.
+  function ownerOf(t) {
+    return t.owner || Object.keys(t.members || {})[0] || null;
+  }
+
+  /** The account's tables: founded or played at, newest activity first. */
+  function listFor(accountName) {
+    const key = keyOf(accountName);
+    if (!key) return [];
+    return Object.values(load().tables)
+      .filter((t) => ownerOf(t) === key || (t.members && t.members[key]))
+      .sort((a, b) => (b.lastActivity || 0) - (a.lastActivity || 0))
+      .map((t) => ({
+        code: t.code,
+        name: t.name,
+        members: Object.values(t.members || {}).map((m) => m.name),
+        lastActivity: t.lastActivity || t.createdAt || 0,
+        gamesPlayed: (t.games || []).length,
+        isOwner: ownerOf(t) === key,
+      }));
+  }
+
+  /** Owner only: the table, its record and series are gone for everyone. */
+  function remove(rawCode, accountName) {
+    const store = load();
+    const code = normalizeCode(rawCode);
+    const t = store.tables[code];
+    if (!t) return { error: 'Diesen Stammtisch gibt es nicht (mehr).' };
+    if (ownerOf(t) !== keyOf(accountName)) return { error: 'Nur wer den Stammtisch gegründet hat, kann ihn löschen.' };
+    delete store.tables[code];
+    file.write(store);
+    return { ok: true, code };
+  }
+
+  /** A member drops off the list (games already played stay in the record). */
+  function leave(rawCode, accountName) {
+    const store = load();
+    const t = store.tables[normalizeCode(rawCode)];
+    const key = keyOf(accountName);
+    if (!t || !t.members || !t.members[key]) return { error: 'Du bist an diesem Stammtisch nicht eingetragen.' };
+    if (ownerOf(t) === key) return { error: 'Als Gründer kannst du den Stammtisch nur löschen, nicht verlassen.' };
+    delete t.members[key];
+    file.write(store);
+    return { ok: true, code: t.code };
+  }
+
   function summary(rawCode) {
     const t = get(rawCode);
     return t ? summarize(t) : null;
   }
 
-  return { create, get, touch, recordGame, summary, flushSync: file.flushSync, filePath, SERIES_BEST_OF };
+  return { create, get, touch, recordGame, summary, listFor, remove, leave, flushSync: file.flushSync, filePath, SERIES_BEST_OF };
 }
 
 module.exports = { createStammtischStore, normalizeCode, generateCode, DEFAULT_DATA_FILE, SERIES_BEST_OF };

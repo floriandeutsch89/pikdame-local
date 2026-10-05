@@ -1805,14 +1805,18 @@ class GameManager {
     return { ok: true };
   }
 
-  /** Start gate: with 2+ connected humans everyone must be ready. */
-  lobbyStartGate() {
+  /** Start gate: with 2+ connected humans everyone must be ready.
+   *  minHumans: a Stammtisch is a group table and never starts with one human. */
+  lobbyStartGate({ minHumans = 1 } = {}) {
     if (this.phase !== 'lobby') return {};
     // Count SEATED humans, not just connected ones: a player who minimised the
     // app (and thus dropped the socket) must still actively press 'ready' -
     // the game does not start behind their back. If they never return, the
     // lobby takeover below frees their seat so the table is not stuck forever.
     const humans = this.players.filter((p) => !p.isBot);
+    if (humans.length < minHumans) {
+      return { error: `Am Stammtisch braucht es mindestens ${minHumans} Spieler - teile den Code, damit jemand dazukommt.` };
+    }
     if (humans.length <= 1) return {};
     const ready = humans.filter((h) => this._lobbyReady && this._lobbyReady.has(h.id)).length;
     if (ready < humans.length) {

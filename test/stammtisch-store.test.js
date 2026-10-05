@@ -79,3 +79,41 @@ test('recordGame: unknown code is a no-op, game list is capped', () => {
   for (let i = 0; i < 120; i++) st.recordGame(table.code, rec('a', { a: 1000, b: 0, x: 0 }));
   assert.strictEqual(st.get(table.code).games.length, 100);
 });
+
+test('my Stammtische: list by account, only the owner deletes, members leave (#307)', () => {
+  const st = tempStore();
+  const { table } = st.create('Familie', 'Flo', Date.now() - 1000, 'Flo');
+  const other = st.create('Skatrunde', 'Anna', Date.now(), 'Anna').table;
+  st.touch(table.code, 'Anna');
+  st.touch(table.code, 'Ben');
+
+  const flo = st.listFor('flo');
+  assert.deepStrictEqual(flo.map((t) => [t.code, t.isOwner]), [[table.code, true]]);
+  assert.deepStrictEqual(flo[0].members.sort(), ['Anna', 'Ben', 'Flo']);
+  // Anna: own table first (newer activity), then the one she plays at.
+  assert.deepStrictEqual(st.listFor('Anna').map((t) => [t.code, t.isOwner]), [[table.code, false], [other.code, true]]);
+  assert.deepStrictEqual(st.listFor(''), []);
+
+  assert.match(st.remove(table.code, 'Anna').error, /Nur wer den Stammtisch gegründet hat/, 'a member cannot delete');
+  assert.match(st.remove(table.code, 'Mallory').error, /Nur wer/, 'a stranger cannot delete');
+  assert.ok(st.get(table.code), 'still there');
+
+  assert.match(st.leave(table.code, 'Flo').error, /nur löschen/, 'the owner deletes, never leaves');
+  assert.deepStrictEqual(st.leave(table.code, 'ben'), { ok: true, code: table.code });
+  assert.ok(!st.listFor('Ben').length, 'Ben no longer lists it');
+  assert.match(st.leave(table.code, 'Ben').error, /nicht eingetragen/);
+
+  assert.deepStrictEqual(st.remove(table.code.toLowerCase(), 'FLO'), { ok: true, code: table.code });
+  assert.strictEqual(st.get(table.code), null);
+  assert.match(st.remove(table.code, 'Flo').error, /gibt es nicht/);
+});
+
+test('tables from before owners existed belong to their founder (first member)', () => {
+  const st = tempStore();
+  const { table } = st.create('Alt', 'Flo'); // no owner account: legacy shape
+  st.touch(table.code, 'Anna');
+  assert.strictEqual(table.owner, null);
+  assert.deepStrictEqual(st.listFor('Flo').map((t) => t.isOwner), [true]);
+  assert.match(st.remove(table.code, 'Anna').error, /Nur wer/);
+  assert.ok(st.remove(table.code, 'Flo').ok);
+});

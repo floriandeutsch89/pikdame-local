@@ -1215,6 +1215,10 @@
       if (!el('resultOverlay').classList.contains('hidden')) renderResultOverlay();
       return;
     }
+    if (msg.type === 'stammtischList') {
+      try { renderStammtischList(msg.tables || []); } catch (e) { /* never critical */ }
+      return;
+    }
     if (msg.type === 'stammtischInfo') {
       try { updateStammtischChip(msg); } catch (e) { /* cosmetic */ }
       return;
@@ -1527,11 +1531,15 @@
         : L('Bereit melden', 'Mark me ready');
     }
     const allReady = !multiHuman || readyCount === seatedHumans.length;
+    // Stammtisch = group table: the server rejects a start with one human.
+    const needsSecond = !!stammtischInfo && seatedHumans.length < 2;
     el('startBtn').classList.toggle('hidden', !isHost); // only the organizer starts
-    el('startBtn').disabled = humanCount === 0 || !allReady;
-    el('startBtn').textContent = multiHuman
-      ? L(`Spiel starten (${readyCount}/${seatedHumans.length} bereit)`, `Start game (${readyCount}/${seatedHumans.length} ready)`)
-      : L('Spiel starten', 'Start game');
+    el('startBtn').disabled = humanCount === 0 || !allReady || needsSecond;
+    el('startBtn').textContent = needsSecond
+      ? L('Mindestens 2 Spieler nötig', 'At least 2 players needed')
+      : multiHuman
+        ? L(`Spiel starten (${readyCount}/${seatedHumans.length} bereit)`, `Start game (${readyCount}/${seatedHumans.length} ready)`)
+        : L('Spiel starten', 'Start game');
     // The sticky bar only exists while it has something to show - an empty
     // pinned strip at the bottom of the start screen would be pure noise.
     el('lobbyActions').classList.toggle(
@@ -4405,11 +4413,62 @@
         : `<p class="lobby-hint">${L('Noch keine Partie gespielt - die Bilanz beginnt mit der ersten.', 'No match yet - the record starts with the first one.')}</p>`) +
       (pairs.length ? `<div class="stPairs">${L('Direktvergleich', 'Head to head')}: ${pairs.join(' · ')}</div>` : '');
   }
+  // With accounts on the server, founding and "my tables" need a sign-in
+  // (the account owns the table); joining by code stays open for guests.
   el('stammtischBtn').addEventListener('click', () => {
+    const needsLogin = accountsServer && !accountUsername;
+    const mine = accountsServer && !!accountUsername;
     el('stammtischNameInput').value = '';
+    el('stammtischLoginBox').classList.toggle('hidden', !needsLogin);
+    el('stammtischFound').classList.toggle('hidden', needsLogin);
+    el('stammtischMine').classList.toggle('hidden', !mine);
+    if (mine) {
+      el('stammtischList').innerHTML = '<p class="stEmpty">…</p>';
+      send({ type: 'listStammtische', name: currentName(), accountToken: accountToken() || undefined });
+    }
     el('stammtischOverlay').classList.remove('hidden');
-    el('stammtischNameInput').focus();
   });
+  el('stammtischLoginBtn').addEventListener('click', () => {
+    el('stammtischOverlay').classList.add('hidden');
+    el('accountBtn').click();
+  });
+  function stammtischAge(ms) {
+    const days = Math.floor((Date.now() - ms) / 86400000);
+    if (days <= 0) return L('heute', 'today');
+    if (days === 1) return L('gestern', 'yesterday');
+    return L(`vor ${days} Tagen`, `${days} days ago`);
+  }
+  function renderStammtischList(tables) {
+    const box = el('stammtischList');
+    box.innerHTML = '';
+    if (!tables.length) {
+      box.innerHTML = `<p class="stEmpty">${escapeHtml(L('Noch keine - gründe unten deinen ersten.', 'None yet - found your first one below.'))}</p>`;
+      return;
+    }
+    for (const t of tables) {
+      const row = document.createElement('div');
+      row.className = 'stRow';
+      const players = L(`${t.members.length} Spieler`, `${t.members.length} players`);
+      row.innerHTML =
+        `<button type="button" class="stJoin"><b>🍻 ${escapeHtml(t.name)}</b>` +
+        `<span>${escapeHtml(`${t.code} · ${players} · ${stammtischAge(t.lastActivity)}`)}</span>` +
+        `<span>${escapeHtml(t.members.join(', '))}</span></button>` +
+        `<button type="button" class="stAction"><span>${escapeHtml(t.isOwner ? L('Löschen', 'Delete') : L('Verlassen', 'Leave'))}</span></button>`;
+      row.querySelector('.stJoin').addEventListener('click', () => {
+        el('stammtischOverlay').classList.add('hidden');
+        send({ type: 'joinSession', code: t.code, name: currentName(), accountToken: accountToken() || undefined });
+      });
+      confirmByTap(row.querySelector('.stAction'), L('Wirklich?', 'Sure?'), () => {
+        send({ type: t.isOwner ? 'deleteStammtisch' : 'leaveStammtisch', code: t.code, name: currentName(), accountToken: accountToken() || undefined });
+        if (t.isOwner) {
+          // Deleted for everyone: drop it from the start-screen chips too.
+          storageSet(STAMMTISCH_KEY, JSON.stringify(recentStammtische().filter((r) => r.code !== t.code)));
+          renderStammtischRecent();
+        }
+      });
+      box.appendChild(row);
+    }
+  }
   el('stammtischCancelBtn').addEventListener('click', () => el('stammtischOverlay').classList.add('hidden'));
   el('stammtischOverlay').addEventListener('click', (ev) => {
     if (ev.target === el('stammtischOverlay')) el('stammtischOverlay').classList.add('hidden');
@@ -5154,6 +5213,7 @@
   // und die komplette Konto-UI bleibt unsichtbar - dort ändert sich nichts.
   const ACC_TOKEN_KEY = 'pikdame_account_token';
   let accountUsername = null;
+  let accountsServer = false; // the server offers accounts at all
   function accountToken() {
     return storageGet(ACC_TOKEN_KEY) || '';
   }
@@ -5198,6 +5258,7 @@
   }
   async function initAccount(enabled, passkeysOn) {
     if (!enabled) return; // Button bleibt versteckt (CodeApp/Hotspot)
+    accountsServer = true;
     passkeysServer = !!passkeysOn;
     el('accountBtn').classList.remove('hidden');
     // A sign-in link from the e-mail (?login=...) is redeemed before anything

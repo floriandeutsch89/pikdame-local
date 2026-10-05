@@ -3437,3 +3437,22 @@ test('botPace changes the scheduled bot delay (fast < normal < slow)', () => {
   assert.ok(delays.normal >= 700 && delays.normal <= 1300, `normal ${delays.normal}`);
   assert.ok(delays.slow >= 1400 && delays.slow <= 2600, `slow ${delays.slow}`);
 });
+
+test('Stammtisch start gate: one human cannot start, two can; rematch too (#301)', () => {
+  const { game } = makeGame(1);
+  game.syncLobbyBots();
+  assert.match(game.lobbyStartGate({ minHumans: 2 }).error, /mindestens 2 Spieler/, 'bots do not count');
+  assert.equal(game.lobbyStartGate().error, undefined, 'a normal table starts solo as before');
+  game.addOrReconnectPlayer('p2', 'Spieler 2');
+  game.markLobbyReady('p1');
+  game.markLobbyReady('p2');
+  assert.equal(game.lobbyStartGate({ minHumans: 2 }).error, undefined);
+  game.fillWithBots();
+  game.startNewRound();
+  // Rematch after p2 left the table: same lobby path, same rule.
+  game.phase = 'gameOver';
+  game.prepareRematch();
+  game.players = game.players.filter((p) => p.id !== 'p2');
+  assert.match(game.lobbyStartGate({ minHumans: 2 }).error, /mindestens 2 Spieler/);
+  game.destroy();
+});
