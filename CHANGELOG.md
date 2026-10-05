@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.55.0] - 2026-10-05
+
+### Added
+- **Sortierung der Ergebnis-Übersicht wählbar** (#322): Am Rundenende und bei Spielende gibt es den Umschalter „Punkte | Reihenfolge“. „Punkte“ ist wie bisher (Rundenergebnis, bei Spielende Gesamtstand), „Reihenfolge“ zeigt die Spieler in der Sitzreihenfolge am Tisch. Die Wahl merkt sich jedes Gerät
+
 ## [2.54.0] - 2026-10-05
 
 ### Changed
