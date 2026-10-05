@@ -456,15 +456,18 @@ test('client contract: functions that build translated markup are refreshed by c
   // 3) Von cycleLang aus erreichbar? (direkt oder über eine gerufene Funktion)
   const cycle = functions.find((f) => f.name === 'cycleLang');
   assert.ok(cycle, 'cycleLang exists');
-  const reachable = new Set();
+  // Shallowest depth wins: a function first met deep in the walk is explored
+  // again when found closer to cycleLang (else the result depends on call order).
+  const depthOf = new Map();
+  const reachable = { has: (name) => depthOf.has(name) };
   const walk = (body, depth) => {
     if (depth > 3) return;
     for (const call of body.matchAll(/\b([A-Za-z_][\w]*)\s*\(/g)) {
       const name = call[1];
-      if (reachable.has(name)) continue;
+      if (depthOf.has(name) && depthOf.get(name) <= depth) continue;
       const fn = functions.find((f) => f.name === name);
       if (!fn) continue;
-      reachable.add(name);
+      depthOf.set(name, depth);
       walk(fn.body, depth + 1);
     }
   };
@@ -488,7 +491,7 @@ test('client contract: functions that build translated markup are refreshed by c
     'scheduleReconnect', 'connect',
     // Overlays, die ihren Inhalt beim OEFFNEN aufbauen: Wer die Sprache
     // wechselt, hat sie zu; beim naechsten Oeffnen stehen sie richtig.
-    'openChangelog', 'openCardbackGallery',
+    'openChangelog', 'openCardbackGallery', 'renderChallengeTrend',
     // Aktualisierungs-Hinweis: erscheint einmalig und fuehrt zum Neuladen.
     'showUpdateBanner',
     // Discard confirmation: the dialog text is written fresh on every

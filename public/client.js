@@ -359,41 +359,70 @@
   }
 
   // Display order of the trophy cabinet: the ones every player meets first,
-  // then the rare feats. Must stay in sync with BADGE_IDS in game/Badges.js.
+  // then the rare feats. Must stay in sync with BADGE_IDS in game/Badges.js;
+  // `how` is the earning condition, shown for locked badges too (contract test).
   function badgeMeta(id) {
     const M = {
-      first_win: { emoji: '🏆', name: L('Erster Sieg', 'First win'), desc: L('Erste gewonnene Partie', 'Won your first game') },
-      hand_aus_win: { emoji: '🚀', name: L('Hand aus!', 'Out in one!'), desc: L('Alles in einem einzigen Zug ausgelegt und gewonnen', 'Laid out the whole hand in a single turn and won') },
-      pd_laid: { emoji: '♠', name: L('Damensammler', 'Queen collector'), desc: L('Eine Pik Dame sicher ausgelegt (+100)', 'Melded a Queen of Spades (+100)') },
-      pd_triple: { emoji: '👑', name: L('Dreifache Dame', 'Triple queen'), desc: L('3+ Pik Damen in einer Partie ausgelegt', 'Melded 3+ Queens of Spades in one game') },
-      pd_caught: { emoji: '😱', name: L('Autsch!', 'Ouch!'), desc: L('Pik Dame am Rundenende auf der Hand erwischt (−100)', 'Caught with the Queen of Spades in hand (−100)') },
-      score_500: { emoji: '💯', name: L('Punktekönig', 'Point royalty'), desc: L('500+ Punkte Endstand in einer Partie', 'Finished a game with 500+ points') },
-      streak_3: { emoji: '🔥', name: L('Siegesserie', 'Winning streak'), desc: L('3 Partien in Folge gewonnen', 'Won 3 games in a row') },
-      comeback: { emoji: '🐢', name: L('Comeback', 'Comeback'), desc: L('Nach Runde 1 Letzter - und trotzdem gewonnen', 'Last after round 1 - and still won') },
-      double_queen_round: { emoji: '👯', name: L('Doppeldame', 'Double queen'), desc: L('BEIDE Pik Damen in ein und derselben Runde ausgelegt', 'Melded BOTH Queens of Spades in the same round') },
-      round_300: { emoji: '💥', name: L('Monsterrunde', 'Monster round'), desc: L('300+ Punkte in einer einzigen Runde', '300+ points in a single round') },
-      zen_slayer: { emoji: '⚔️', name: L('Zen-Bezwinger', 'Zen slayer'), desc: L('Partie mit einem Zen-Meister am Tisch gewonnen', 'Won a game with a zen master at the table') },
-      marathon_10: { emoji: '🏃', name: L('Marathon', 'Marathon'), desc: L('10 Partien gespielt', 'Played 10 games') },
-      pd_hunter_10: { emoji: '🎯', name: L('Damenjägerin', 'Queen hunter'), desc: L('10 Pik Damen insgesamt ausgelegt', 'Melded 10 Queens of Spades in total') },
+      first_win: { emoji: '🏆', name: L('Erster Sieg', 'First win'), desc: L('Erste gewonnene Partie', 'Won your first game'),
+        how: L('Gewinne eine Partie.', 'Win a game.') },
+      hand_aus_win: { emoji: '🚀', name: L('Hand aus!', 'Out in one!'), desc: L('Alles in einem einzigen Zug ausgelegt und gewonnen', 'Laid out the whole hand in a single turn and won'),
+        how: L('Lege deine ganze Hand in einem einzigen Zug aus und mach so die Runde aus.', 'Lay out your whole hand in a single turn and go out.') },
+      pd_laid: { emoji: '♠', name: L('Damensammler', 'Queen collector'), desc: L('Eine Pik Dame sicher ausgelegt (+100)', 'Melded a Queen of Spades (+100)'),
+        how: L('Lege eine Pik Dame in einer Auslage ab.', 'Meld a Queen of Spades.') },
+      pd_triple: { emoji: '👑', name: L('Dreifache Dame', 'Triple queen'), desc: L('3+ Pik Damen in einer Partie ausgelegt', 'Melded 3+ Queens of Spades in one game'),
+        how: L('Lege in einer einzigen Partie mindestens 3 Pik Damen aus.', 'Meld at least 3 Queens of Spades within one game.') },
+      pd_caught: { emoji: '😱', name: L('Autsch!', 'Ouch!'), desc: L('Pik Dame am Rundenende auf der Hand erwischt (−100)', 'Caught with the Queen of Spades in hand (−100)'),
+        how: L('Halte am Rundenende noch eine Pik Dame auf der Hand - passiert irgendwann jedem.', 'Still hold a Queen of Spades when a round ends - happens to everyone.') },
+      score_500: { emoji: '💯', name: L('Punktekönig', 'Point royalty'), desc: L('500+ Punkte Endstand in einer Partie', 'Finished a game with 500+ points'),
+        how: L('Beende eine Partie mit mindestens 500 Punkten Endstand.', 'Finish a game with at least 500 points.') },
+      streak_3: { emoji: '🔥', name: L('Siegesserie', 'Winning streak'), desc: L('3 Partien in Folge gewonnen', 'Won 3 games in a row'),
+        how: L('Gewinne 3 Partien hintereinander, ohne dazwischen zu verlieren.', 'Win 3 games in a row without losing one in between.') },
+      comeback: { emoji: '🐢', name: L('Comeback', 'Comeback'), desc: L('Nach Runde 1 Letzter - und trotzdem gewonnen', 'Last after round 1 - and still won'),
+        how: L('Sei nach der ersten Runde allein Letzter - und gewinne trotzdem die Partie.', 'Be alone in last place after round 1 - and still win the game.') },
+      double_queen_round: { emoji: '👯', name: L('Doppeldame', 'Double queen'), desc: L('BEIDE Pik Damen in ein und derselben Runde ausgelegt', 'Melded BOTH Queens of Spades in the same round'),
+        how: L('Lege beide Pik Damen in derselben Runde aus.', 'Meld both Queens of Spades in the same round.') },
+      round_300: { emoji: '💥', name: L('Monsterrunde', 'Monster round'), desc: L('300+ Punkte in einer einzigen Runde', '300+ points in a single round'),
+        how: L('Hole in einer einzigen Runde mindestens 300 Punkte.', 'Score at least 300 points in a single round.') },
+      zen_slayer: { emoji: '⚔️', name: L('Zen-Bezwinger', 'Zen slayer'), desc: L('Partie mit einem Zen-Meister am Tisch gewonnen', 'Won a game with a zen master at the table'),
+        how: L('Gewinne eine Partie, bei der mindestens ein Zen-Meister-Bot mitspielt.', 'Win a game with at least one zen master bot at the table.') },
+      marathon_10: { emoji: '🏃', name: L('Marathon', 'Marathon'), desc: L('10 Partien gespielt', 'Played 10 games'),
+        how: L('Spiele 10 Partien zu Ende.', 'Finish 10 games.') },
+      pd_hunter_10: { emoji: '🎯', name: L('Damenjägerin', 'Queen hunter'), desc: L('10 Pik Damen insgesamt ausgelegt', 'Melded 10 Queens of Spades in total'),
+        how: L('Lege insgesamt 10 Pik Damen aus (über alle Partien).', 'Meld 10 Queens of Spades in total (across all games).') },
       // Tiers (bronze/silver/gold on the same counter)
-      pd_hunter_50: { emoji: '🎯', name: L('Damenlegende', 'Queen legend'), desc: L('50 Pik Damen insgesamt ausgelegt', 'Melded 50 Queens of Spades in total') },
-      marathon_50: { emoji: '🏃', name: L('Dauerläufer', 'Long runner'), desc: L('50 Partien gespielt', 'Played 50 games') },
-      marathon_100: { emoji: '🏃', name: L('Stammgast', 'Regular'), desc: L('100 Partien gespielt', 'Played 100 games') },
-      wins_10: { emoji: '🏆', name: L('Seriensieger', 'Serial winner'), desc: L('10 Partien gewonnen', 'Won 10 games') },
-      wins_50: { emoji: '🏆', name: L('Tischlegende', 'Table legend'), desc: L('50 Partien gewonnen', 'Won 50 games') },
-      streak_5: { emoji: '🔥', name: L('Lauffeuer', 'Wildfire'), desc: L('5 Partien in Folge gewonnen', 'Won 5 games in a row') },
-      streak_10: { emoji: '🔥', name: L('Unaufhaltsam', 'Unstoppable'), desc: L('10 Partien in Folge gewonnen', 'Won 10 games in a row') },
-      hand_aus_5: { emoji: '🚀', name: L('Blitzhand', 'Lightning hand'), desc: L('5× per „Hand aus“ gewonnen', 'Won 5 rounds out in one') },
-      daily_7: { emoji: '📅', name: L('Eine Woche dabei', 'A week running'), desc: L('7 Tage in Folge gespielt', 'Played 7 days in a row') },
-      daily_30: { emoji: '🗓️', name: L('Ein Monat dabei', 'A month running'), desc: L('30 Tage in Folge gespielt', 'Played 30 days in a row') },
+      pd_hunter_50: { emoji: '🎯', name: L('Damenlegende', 'Queen legend'), desc: L('50 Pik Damen insgesamt ausgelegt', 'Melded 50 Queens of Spades in total'),
+        how: L('Lege insgesamt 50 Pik Damen aus (über alle Partien).', 'Meld 50 Queens of Spades in total (across all games).') },
+      marathon_50: { emoji: '🏃', name: L('Dauerläufer', 'Long runner'), desc: L('50 Partien gespielt', 'Played 50 games'),
+        how: L('Spiele 50 Partien zu Ende.', 'Finish 50 games.') },
+      marathon_100: { emoji: '🏃', name: L('Stammgast', 'Regular'), desc: L('100 Partien gespielt', 'Played 100 games'),
+        how: L('Spiele 100 Partien zu Ende.', 'Finish 100 games.') },
+      wins_10: { emoji: '🏆', name: L('Seriensieger', 'Serial winner'), desc: L('10 Partien gewonnen', 'Won 10 games'),
+        how: L('Gewinne insgesamt 10 Partien.', 'Win 10 games in total.') },
+      wins_50: { emoji: '🏆', name: L('Tischlegende', 'Table legend'), desc: L('50 Partien gewonnen', 'Won 50 games'),
+        how: L('Gewinne insgesamt 50 Partien.', 'Win 50 games in total.') },
+      streak_5: { emoji: '🔥', name: L('Lauffeuer', 'Wildfire'), desc: L('5 Partien in Folge gewonnen', 'Won 5 games in a row'),
+        how: L('Gewinne 5 Partien hintereinander.', 'Win 5 games in a row.') },
+      streak_10: { emoji: '🔥', name: L('Unaufhaltsam', 'Unstoppable'), desc: L('10 Partien in Folge gewonnen', 'Won 10 games in a row'),
+        how: L('Gewinne 10 Partien hintereinander.', 'Win 10 games in a row.') },
+      hand_aus_5: { emoji: '🚀', name: L('Blitzhand', 'Lightning hand'), desc: L('5× per „Hand aus“ gewonnen', 'Won 5 rounds out in one'),
+        how: L('Mach 5 Runden per „Hand aus“ aus (alles in einem Zug).', 'Go out in one 5 times (whole hand in a single turn).') },
+      daily_7: { emoji: '📅', name: L('Eine Woche dabei', 'A week running'), desc: L('7 Tage in Folge gespielt', 'Played 7 days in a row'),
+        how: L('Spiele an 7 Tagen in Folge (Partie oder gelöstes Tagesrätsel). Ein ausgelassener Tag pro Woche wird per Joker-Tag überbrückt.', 'Play on 7 days in a row (a game or a solved daily puzzle). One missed day per week is bridged by a joker day.') },
+      daily_30: { emoji: '🗓️', name: L('Ein Monat dabei', 'A month running'), desc: L('30 Tage in Folge gespielt', 'Played 30 days in a row'),
+        how: L('Spiele an 30 Tagen in Folge (Partie oder gelöstes Tagesrätsel). Ein ausgelassener Tag pro Woche wird per Joker-Tag überbrückt.', 'Play on 30 days in a row (a game or a solved daily puzzle). One missed day per week is bridged by a joker day.') },
       // One-offs from the engine facts
-      ring_run: { emoji: '🔄', name: L('Ringschluss', 'Full circle'), desc: L('Eine Folge über K-A-2 ausgelegt', 'Melded a run wrapping K-A-2') },
-      run_13: { emoji: '🌈', name: L('Die ganze Farbe', 'The whole suit'), desc: L('Eine Folge mit allen 13 Karten ausgelegt', 'Melded a full 13-card run') },
-      pile_glutton: { emoji: '🍽️', name: L('Stapelfresser', 'Pile glutton'), desc: L('10+ Karten vom Ablagestapel genommen und die Runde trotzdem gewonnen', 'Picked up 10+ discards and still won the round') },
-      zen_trio: { emoji: '🧘', name: L('Drei Meister', 'Three masters'), desc: L('Gegen drei Zen-Meister gewonnen', 'Beat three zen masters') },
-      no_joker_win: { emoji: '🃏', name: L('Ohne Joker', 'No jokers'), desc: L('Eine Partie gewonnen, ohne je einen Joker auszulegen', 'Won a game without ever melding a joker') },
+      ring_run: { emoji: '🔄', name: L('Ringschluss', 'Full circle'), desc: L('Eine Folge über K-A-2 ausgelegt', 'Melded a run wrapping K-A-2'),
+        how: L('Lege eine Folge aus, die über König-Ass-Zwei läuft (z. B. D-K-A-2).', 'Meld a run that wraps King-Ace-Two (e.g. Q-K-A-2).') },
+      run_13: { emoji: '🌈', name: L('Die ganze Farbe', 'The whole suit'), desc: L('Eine Folge mit allen 13 Karten ausgelegt', 'Melded a full 13-card run'),
+        how: L('Lege eine Folge mit allen 13 Karten einer Farbe aus.', 'Meld a run with all 13 cards of one suit.') },
+      pile_glutton: { emoji: '🍽️', name: L('Stapelfresser', 'Pile glutton'), desc: L('10+ Karten vom Ablagestapel genommen und die Runde trotzdem gewonnen', 'Picked up 10+ discards and still won the round'),
+        how: L('Nimm 10 oder mehr Karten vom Ablagestapel auf und gewinne die Runde trotzdem.', 'Pick up 10 or more cards from the discard pile and still win the round.') },
+      zen_trio: { emoji: '🧘', name: L('Drei Meister', 'Three masters'), desc: L('Gegen drei Zen-Meister gewonnen', 'Beat three zen masters'),
+        how: L('Gewinne eine Partie gegen drei Zen-Meister-Bots.', 'Win a game against three zen master bots.') },
+      no_joker_win: { emoji: '🃏', name: L('Ohne Joker', 'No jokers'), desc: L('Eine Partie gewonnen, ohne je einen Joker auszulegen', 'Won a game without ever melding a joker'),
+        how: L('Gewinne eine Partie, ohne einen einzigen Joker auszulegen.', 'Win a game without melding a single joker.') },
     };
-    return M[id] || { emoji: '🎖️', name: id, desc: '' };
+    return M[id] || { emoji: '🎖️', name: id, desc: '', how: '' };
   }
   // Mirrors game/Badges.js BADGE_FAMILIES: one tile per counter, tiers as
   // dots. Everything not listed here is a single badge.
@@ -4097,9 +4126,14 @@
     el('challengeTopLine').textContent = '…';
     el('challengeIntroOverlay').classList.remove('hidden');
     el('challengeWeekLine').textContent = '';
-    fetch('/challengeboardz')
+    challengeTrendData = null;
+    renderChallengeTrend();
+    const trendName = el('nameInput').value.trim();
+    fetch(`/challengeboardz${trendName ? `?name=${encodeURIComponent(trendName)}` : ''}`)
       .then((r) => r.json())
       .then((d) => {
+        challengeTrendData = (d && d.trend) || [];
+        renderChallengeTrend();
         const top = d && d.board && d.board[0];
         el('challengeTopLine').textContent = top
           ? `🥇 ${top.name} – ${top.score} ${L('Punkte', 'points')}${d.board[1] ? `  ·  🥈 ${d.board[1].name} – ${d.board[1].score}` : ''}`
@@ -4117,6 +4151,99 @@
         el('challengeTopLine').textContent = L('Bestenliste gerade nicht erreichbar.', 'Leaderboard unavailable right now.');
         el('challengeWeekLine').textContent = '';
       });
+  });
+  // Own score + rank of the last 14 days. Optional: collapsed unless the
+  // player opened it before (remembered); uPlot loads only when it opens.
+  const TREND_KEY = 'pikdame_challenge_trend';
+  let challengeTrendData = null; // null = loading, [] = nothing to show
+  let challengeTrendPlot = null;
+  let chartLibPromise = null;
+  function loadScriptOnce(src) {
+    return new Promise((resolve) => {
+      const tag = document.createElement('script');
+      tag.src = src;
+      tag.addEventListener('load', () => resolve(true));
+      tag.addEventListener('error', () => resolve(false));
+      document.head.appendChild(tag);
+    });
+  }
+  function loadChartLib() {
+    if (typeof uPlot === 'function' && typeof window.uplotTouch === 'function') return Promise.resolve(true);
+    if (chartLibPromise) return chartLibPromise;
+    const css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = '/vendor-uplot.css';
+    document.head.appendChild(css);
+    chartLibPromise = loadScriptOnce('/vendor-uplot.js')
+      .then((ok) => ok && loadScriptOnce('/uplot-touch.js'))
+      .then((ok) => {
+        if (!ok) chartLibPromise = null; // offline: try again next time
+        return !!ok && typeof uPlot === 'function';
+      });
+    return chartLibPromise;
+  }
+  function renderChallengeTrend() {
+    const open = storageGet(TREND_KEY) === 'on';
+    const box = el('challengeTrend');
+    el('challengeTrendBtn').setAttribute('aria-expanded', String(open));
+    box.classList.toggle('hidden', !open);
+    if (challengeTrendPlot) { challengeTrendPlot.destroy(); challengeTrendPlot = null; }
+    if (!open) return;
+    const days = challengeTrendData;
+    if (!days) { box.textContent = '…'; return; }
+    const played = days.filter((d) => d.score != null);
+    if (!played.length) {
+      box.textContent = L('In den letzten 14 Tagen noch keine Challenge gespielt.', 'No challenge played in the last 14 days.');
+      return;
+    }
+    box.textContent = '';
+    loadChartLib().then((ok) => {
+      if (!ok || storageGet(TREND_KEY) !== 'on' || challengeTrendData !== days) return;
+      if (challengeTrendPlot) challengeTrendPlot.destroy();
+      challengeTrendPlot = buildTrendPlot(box, days);
+    }).catch(() => { box.textContent = L('Diagramm gerade nicht verfügbar.', 'Chart unavailable right now.'); });
+  }
+  function buildTrendPlot(box, days) {
+    const css = getComputedStyle(box);
+    const accent = css.getPropertyValue('--accent').trim() || '#2fd6b0';
+    const muted = css.getPropertyValue('--text-muted').trim() || 'rgba(0,0,0,0.56)';
+    const ink = css.color || '#222';
+    // Game days as UTC midnights (labels in UTC too): ticks sit on the points
+    // and no local DST shift can move a label to the neighbouring day.
+    const xs = days.map((d) => Date.parse(`${d.date}T00:00:00Z`) / 1000);
+    const dayLabel = (ts) => new Date(ts * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'numeric', timeZone: 'UTC' });
+    const maxRank = Math.max(3, ...days.map((d) => d.rank || 0));
+    const axis = { stroke: muted, grid: { stroke: 'rgba(0,0,0,0.08)', width: 1 }, ticks: { show: false }, font: '11px sans-serif' };
+    const width = Math.max(240, box.clientWidth || 300);
+    return new uPlot({
+      width,
+      height: 150,
+      padding: [8, 4, 0, 0],
+      cursor: { drag: { x: true, y: false } },
+      legend: { live: true },
+      scales: {
+        x: { time: false, range: () => [xs[0] - 21600, xs[xs.length - 1] + 21600] },
+        y: { range: (u, min, max) => [0, Math.max(100, (max || 0) * 1.15)] },
+        rank: { dir: -1, range: () => [0.5, maxRank + 0.5] }, // reversed: rank 1 at the top
+      },
+      axes: [
+        { ...axis, space: 34, values: (u, vals) => vals.map(dayLabel), incrs: [86400, 172800, 345600, 604800] },
+        { ...axis, size: 40 },
+        { ...axis, scale: 'rank', side: 1, size: 34, space: 18, grid: { show: false }, incrs: [1, 2, 5, 10, 20, 50], values: (u, vals) => vals.map((v) => (v >= 1 && Math.abs(v - Math.round(v)) < 1e-6 ? `#${Math.round(v)}` : '')) },
+      ],
+      series: [
+        { label: L('Tag', 'Day'), value: (u, ts) => (ts == null ? '–' : dayLabel(ts)) },
+        { label: L('Punkte', 'Points'), stroke: accent, width: 2, fill: 'rgba(47,214,176,0.14)', points: { size: 6, fill: accent }, spanGaps: true, value: (u, v) => (v == null ? '–' : String(v)) },
+        { label: L('Platz', 'Rank'), scale: 'rank', stroke: ink, width: 1.5, dash: [4, 4], points: { size: 5, fill: ink }, spanGaps: true, value: (u, v) => (v == null ? '–' : `#${v}`) },
+      ],
+      plugins: typeof window.uplotTouch === 'function'
+        ? [window.uplotTouch({ onReset: (u) => u.setScale('x', { min: xs[0] - 21600, max: xs[xs.length - 1] + 21600 }) })]
+        : [],
+    }, [xs, days.map((d) => d.score), days.map((d) => d.rank)], box);
+  }
+  el('challengeTrendBtn').addEventListener('click', () => {
+    storageSet(TREND_KEY, storageGet(TREND_KEY) === 'on' ? 'off' : 'on');
+    renderChallengeTrend();
   });
   el('challengeStartBtn').addEventListener('click', () => {
     el('challengeIntroOverlay').classList.add('hidden');
@@ -5810,11 +5937,11 @@
         : p && p.need > 1
           ? `${p.have}/${p.need}`
           : L('gesperrt', 'locked');
-      return `<div class="achTile${at ? ' earned' : ''}" title="${escapeHtml(m.desc)}">
+      return `<button type="button" class="achTile${at ? ' earned' : ''}" data-ach="${id}" aria-expanded="false" title="${escapeHtml(m.how)}">
         <span class="achEmoji">${at ? m.emoji : '🔒'}</span>
         <span class="achName">${escapeHtml(m.name)}</span>
         <span class="achSub">${escapeHtml(sub)}</span>
-      </div>`;
+      </button>`;
     };
     // A family is ONE tile: the highest earned tier gives it name and
     // emoji, the dots show the tiers, the counter shows the way to the next.
@@ -5828,13 +5955,13 @@
       const sub = next
         ? p && p.need > 1 ? `${p.have}/${p.need}` : L('gesperrt', 'locked')
         : L('alle Stufen', 'all tiers');
-      const title = next ? `${badgeMeta(next).desc}` : m.desc;
-      return `<div class="achTile achFamily${top ? ' earned' : ''}${!next ? ' maxed' : ''}" title="${escapeHtml(title)}">
+      const title = next ? badgeMeta(next).how : m.desc;
+      return `<button type="button" class="achTile achFamily${top ? ' earned' : ''}${!next ? ' maxed' : ''}" data-ach="${fam.id}" aria-expanded="false" title="${escapeHtml(title)}">
         <span class="achEmoji">${top ? m.emoji : '🔒'}</span>
         <span class="achName">${escapeHtml(m.name)}</span>
         <span class="achTiers">${dots}</span>
         <span class="achSub">${escapeHtml(sub)}</span>
-      </div>`;
+      </button>`;
     };
     const tiles = BADGE_FAMILIES.map(familyTile).join('') + BADGE_SINGLES.map(singleTile).join('');
     const total = BADGE_FAMILIES.reduce((n, f) => n + f.tiers.length, 0) + BADGE_SINGLES.length;
@@ -5843,7 +5970,56 @@
     box.innerHTML =
       `<h3>${L('🏅 Erfolge', '🏅 Achievements')} <span class="achCount">${have} / ${total}</span></h3>` +
       `<div class="achGrid">${tiles}</div>`;
+    // Re-render (new profile data) keeps the open detail open.
+    if (openAchId) showAchDetail(openAchId, false);
   }
+
+  // Tap (phone) or click (desktop) on a tile: how to earn it, right below
+  // its row. Hover additionally shows the same text via title.
+  let openAchId = null;
+  function achDetailHtml(key) {
+    const me = myProfile() || {};
+    const owned = me.badges || {};
+    const progress = badgeProgressFor(me);
+    const fam = BADGE_FAMILIES.find((f) => f.id === key);
+    const line = (id) => {
+      const m = badgeMeta(id);
+      const p = progress[id];
+      const state = owned[id]
+        ? `✓ ${new Date(owned[id]).toLocaleDateString()}`
+        : p && p.need > 1 ? `${p.have}/${p.need}` : '';
+      return `<li class="${owned[id] ? 'done' : ''}"><b>${escapeHtml(m.name)}</b>` +
+        `${state ? ` <span class="achDetailState">${escapeHtml(state)}</span>` : ''}<br>${escapeHtml(m.how)}</li>`;
+    };
+    const head = badgeMeta(fam ? (fam.tiers.filter((id) => owned[id]).pop() || fam.tiers[0]) : key);
+    return `<div class="achDetailHead"><span class="achEmoji">${head.emoji}</span>` +
+      `<span>${escapeHtml(L('So schaffst du es', 'How to earn it'))}</span>` +
+      `<button type="button" class="achDetailClose" aria-label="${escapeHtml(L('Schließen', 'Close'))}"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div>` +
+      `<ul>${(fam ? fam.tiers : [key]).map(line).join('')}</ul>`;
+  }
+  function showAchDetail(key, scroll = true) {
+    const grid = el('achievementsBox').querySelector('.achGrid');
+    if (!grid) return;
+    const old = grid.querySelector('.achDetail');
+    if (old) old.remove();
+    for (const t of grid.querySelectorAll('.achTile')) t.setAttribute('aria-expanded', 'false');
+    const tile = key ? grid.querySelector(`.achTile[data-ach="${CSS.escape(key)}"]`) : null;
+    openAchId = tile ? key : null;
+    if (!tile) return;
+    tile.setAttribute('aria-expanded', 'true');
+    const box = document.createElement('div');
+    box.className = 'achDetail';
+    box.setAttribute('role', 'note');
+    box.innerHTML = achDetailHtml(key);
+    tile.after(box); // grid-auto-flow: dense keeps the row full, the detail goes below it
+    if (scroll) box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+  el('achievementsBox').addEventListener('click', (ev) => {
+    if (ev.target.closest('.achDetailClose')) { showAchDetail(null); return; }
+    const tile = ev.target.closest('.achTile');
+    if (!tile) return;
+    showAchDetail(openAchId === tile.dataset.ach ? null : tile.dataset.ach);
+  });
 
   // Mirrors game/Progression.js#badgeProgress - the countable badges only.
   function badgeProgressFor(p) {

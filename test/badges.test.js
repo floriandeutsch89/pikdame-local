@@ -219,3 +219,24 @@ test('GameManager: round breakdown carries ring run / longest run / big pile fac
   // The facts travel into the record the badges are computed from.
   assert.equal(g.roundHistory[0].results.p1.breakdown.ringRuns, 1);
 });
+
+test('every badge has a de/en "how to earn" text in the client (#300)', () => {
+  const vm = require('node:vm');
+  const { BADGE_IDS, BADGE_FAMILIES } = require('../game/Badges');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'client.js'), 'utf8');
+  const m = src.match(/\n  function badgeMeta\(id\) \{[\s\S]*?\n  \}\n/);
+  assert.ok(m, 'badgeMeta is defined in client.js');
+  for (const lang of ['de', 'en']) {
+    const ctx = { L: (de, en) => (lang === 'de' ? de : en) };
+    vm.runInNewContext(`${m[0]}\nthis.meta = badgeMeta;`, ctx);
+    for (const id of BADGE_IDS) {
+      const how = ctx.meta(id).how;
+      assert.ok(typeof how === 'string' && how.length > 10, `${id}: missing ${lang} how-to-earn text`);
+    }
+  }
+  // The client's families mirror the server's, so a tapped family tile lists the right tiers.
+  const client = src.match(/const BADGE_FAMILIES = \[([\s\S]*?)\n  \];/)[1];
+  for (const fam of BADGE_FAMILIES) {
+    assert.match(client, new RegExp(`id: '${fam.id}', tiers: \\[${fam.tiers.map(([id]) => `'${id}'`).join(', ')}\\]`), fam.id);
+  }
+});

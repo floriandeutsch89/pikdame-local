@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.48.0] - 2026-10-05
+
+### Added
+- **Erfolge erklären sich selbst** (#300): Antippen (Handy) oder Klicken (Desktop) auf ein Abzeichen zeigt direkt darunter, wie man es bekommt - auch für gesperrte. Bei Stufen-Abzeichen stehen alle Stufen mit Bedingung und Fortschritt untereinander. Am Desktop zeigt das Überfahren mit der Maus die Bedingung zusätzlich als Tooltip
+- **Mein Verlauf in der Tages-Challenge** (#303): Im Challenge-Fenster lässt sich ein Diagramm der eigenen Punkte und Platzierungen der letzten 14 Tage aufklappen (Wischen zoomt, Doppeltipp setzt zurück). Standardmäßig zu, die Wahl wird gemerkt. Dafür hält der Server die Challenge-Ergebnisse jetzt 14 statt 7 Tage; die Bestenliste zeigt weiterhin 7 Tage
+
 ## [2.47.5] - 2026-10-05
 
 ### Fixed

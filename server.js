@@ -283,10 +283,13 @@ function serveStatic(req, res) {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
     // Zusaetzlich die Wochenwertung (beste 5 von 7 Tagen) - sie existierte
     // laengst, war aber nur nach einer beendeten Partie zu sehen.
+    // ?name= adds that player's 14-day trend (score + rank) for the graph.
+    const trendName = sanitizeName(new URL(req.url, 'http://x').searchParams.get('name') || '');
     res.end(JSON.stringify({
       date,
       board: challengeStore.getBoard(date, 5),
       weekly: challengeStore.getWeekly(null, 5),
+      trend: trendName ? challengeStore.getTrend(trendName) : null,
     }));
     return;
   }

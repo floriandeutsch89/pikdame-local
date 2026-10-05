@@ -58,3 +58,26 @@ test('the weekly board starts on Monday German time, not UTC', () => {
   assert.equal(w.week, '2026-07-20..2026-07-20');
   assert.deepEqual(w.top.map((e) => e.name), ['Anna'], 'last week does not count');
 });
+
+test('challenge trend: 14 game days oldest first, gaps as null, rank per day (#303)', () => {
+  const os = require('node:os');
+  const path = require('node:path');
+  const { addDays } = require('../game/GameDay');
+  const file = path.join(os.tmpdir(), `gt-${process.pid}-${Date.now()}.json`);
+  const store = createChallengeStore(file);
+  const now = Date.parse('2026-10-05T10:00:00Z');
+  const today = gameDay(now);
+  store.submit(addDays(today, -13), 'Flo', 210, now); // oldest day still in the window
+  store.submit(today, 'Ada', 500, now);
+  store.submit(today, 'Flo', 320, now);
+  const trend = store.getTrend('flo', 14, now);
+  assert.equal(trend.length, 14);
+  assert.equal(trend[0].date, addDays(today, -13));
+  assert.equal(trend[13].date, today);
+  assert.deepEqual([trend[0].score, trend[0].rank], [210, 1]);
+  assert.deepEqual([trend[13].score, trend[13].rank, trend[13].players], [320, 2, 2]);
+  assert.ok(trend.slice(1, 13).every((d) => d.score === null && d.rank === null), 'days not played are gaps');
+  // The public board still shows 7 days, retention keeps 14 for the trend.
+  assert.ok(store.getHistory('Flo', 3, now).every((d) => d.date > addDays(today, -7)));
+  require('node:fs').rmSync(file, { force: true });
+});
