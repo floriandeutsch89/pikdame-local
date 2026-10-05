@@ -291,3 +291,30 @@ test('level rewards: new emotes are level-gated on the server too (#313)', () =>
   const lvl = Object.fromEntries(EMOTE_DEFS.map((e) => [e.id, e.level]));
   assert.deepEqual([lvl['🤩'], lvl['🥳'], lvl['💪']], [14, 16, 18]);
 });
+
+test('level-up dialog: rewards between two levels and the next reward (#315)', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const vm = require('node:vm');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'client.js'), 'utf8');
+  const pick = (name) => src.match(new RegExp(`\\n  function ${name}\\([\\s\\S]*?\\n  \\}\\n`))[0];
+  const ctx = {};
+  vm.runInNewContext(`${pick('rewardsBetween')}${pick('nextRewards')}\nthis.between = rewardsBetween; this.next = nextRewards;`, ctx);
+  const rewards = [
+    { level: 5, id: '🍀' }, { level: 6, id: '😎' }, { level: 8, id: '🔥' }, { level: 8, id: 'Kartenhai' }, { level: 10, id: 'master' },
+  ];
+  assert.deepEqual(ctx.between(rewards, 5, 8).map((r) => r.id), ['😎', '🔥', 'Kartenhai'], 'from is exclusive, to inclusive');
+  assert.deepEqual(ctx.between(rewards, 6, 7).map((r) => r.id), [], 'a level without rewards');
+  assert.deepEqual(ctx.next(rewards, 6).map((r) => r.id), ['🔥', 'Kartenhai'], 'all items of the next rewarded level');
+  assert.deepEqual(ctx.next(rewards, 10).map((r) => r.id), [], 'nothing left');
+});
+
+test('level-up dialog: the client markup exists and sits above the result overlay (#315)', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+  const result = html.indexOf('id="resultOverlay"');
+  const levelUp = html.indexOf('id="levelUpOverlay"');
+  assert.ok(result > 0 && levelUp > result, 'later in the DOM = on top at the same layer');
+  assert.doesNotMatch(html.match(/<section id="levelUpOverlay"[^>]*>/)[0], /overlayTop/, 'pause and forfeit stay above it');
+});

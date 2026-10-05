@@ -1155,6 +1155,20 @@
       </div>
     </section>
 
+    <!-- LEVEL UP (#315): after the result overlay in the DOM, so it wins at
+         the same layer; pause/forfeit (.overlayTop) still cover it. -->
+    <section id="levelUpOverlay" class="overlay hidden">
+      <div class="overlay-card levelUpCard" role="dialog" aria-labelledby="levelUpTitle">
+        <div id="levelUpConfetti" class="levelUpConfetti" aria-hidden="true"></div>
+        <h2 id="levelUpTitle" class="levelUpTitle"></h2>
+        <p id="levelUpRank" class="levelUpRank"></p>
+        <div class="levelUpBar"><i id="levelUpBarFill"></i></div>
+        <p id="levelUpXp" class="levelUpXp"></p>
+        <div id="levelUpRewards" class="levelUpRewards"></div>
+        <button id="levelUpCloseBtn" class="btn-primary">Weiter</button>
+      </div>
+    </section>
+
     <!-- Forfeit confirmation in the app, not window.confirm (iOS can suppress
          native dialogs silently). .overlayTop: above every game effect. -->
     <section id="confirmForfeitOverlay" class="overlay overlayTop hidden">

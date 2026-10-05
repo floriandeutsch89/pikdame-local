@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.51.0] - 2026-10-05
+
+### Added
+- **Level-up-Dialog** (#315): Wer eine Stufe aufsteigt, sieht kurz nach der Ergebnisübersicht (oder nach dem Tagesrätsel) einen eigenen Dialog: neue Stufe, neuer Titel, ein Balken, der die abgeschlossene Stufe auffüllt, was gerade freigeschaltet wurde und was als Nächstes kommt. Mit etwas Konfetti (aus bei „Bewegung reduzieren“). Funktioniert jetzt auch bei der ersten Partie einer Sitzung - der alte Hinweis kam dort nie
+
 ## [2.50.0] - 2026-10-05
 
 ### Added
