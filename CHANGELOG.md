@@ -9,10 +9,15 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 - **Spielende zeigt die Rangliste zuerst**: Platzziffern, der Endstand steht groß, die letzte Runde klein daneben. „Mehr“ klappt nicht mehr von selbst auf (es schob die Hälfte der Spieler aus dem Bild); das Hauptmenü ist ein eigener Knopf neben „Rematch“
 - **Dein Ergebnis am Spielende**: eine Zeile mit Platz, gewonnener Erfahrung und deiner Bilanz (Siege/Partien); der Punkteverlauf steht jetzt direkt im Ergebnis. Züge, Runden und der „Damen-Magnet“ stehen als „Partie in Zahlen“ zusammen; die Aufschlüsselung der letzten Runde entfällt am Spielende
 - **Rundenende kompakter**: Der Rundensieger steht in einer Zeile statt drei. Die Balken zeigen jetzt in der Spielerfarbe den alten Stand, hell (Plus) oder rot schraffiert (Minus) die Bewegung dieser Runde und eine Marke bei 1000
+- **Sortier-Umschalter im Querformat** („Punkte | Reihenfolge“) sitzt neben den Reitern statt eine eigene Zeile zu belegen, damit alle vier Spieler ohne Scrollen sichtbar bleiben. Die Platzziffern am Spielende bleiben auch in der Sitzreihenfolge der echte Platz
 - **Rundenstatistik lesbarer**: Zahlen rechtsbündig, keine doppelten Pfeile; ausgelegte Pik Damen und Joker stehen als kleine Marke am Namen statt in fast immer leeren Spalten
 - **Punkteverlauf**: runde Achsenwerte (0/250/…/1000), gestrichelte Ziellinie bei 1000, Namen und Stand direkt am Linienende statt Legende, die eigene Linie hervorgehoben. Spielerfarben unterscheiden sich von der Auswahlfarbe und sind auch bei Farbsehschwäche trennbar
 - **Startseite**: Stufe (mit Erfahrungsring um den Avatar) und Tagesserie stehen am Namen; „Tagesaufgaben“ zeigt zugeklappt nur noch, wie viele erledigt sind. Aufgaben haben eigene Symbole statt Emoji, der Stufenbalken ist breiter
 - **Statistik neu geordnet** („Übersicht“): zuerst du (Siegquote, Partien, beste Partie, Stufe und der Verlauf der letzten 10 Partien), dann die drei nächsten Erfolge („Alle anzeigen“ klappt die Galerie auf), dann die Bestenliste als kompakte Tabelle mit deiner Zeile markiert, zuletzt die Server-Zahlen mit einer Pointe
+## [2.55.0] - 2026-10-05
+
+### Added
+- **Sortierung der Ergebnis-Übersicht wählbar** (#322): Am Rundenende und bei Spielende gibt es den Umschalter „Punkte | Reihenfolge“. „Punkte“ ist wie bisher (Rundenergebnis, bei Spielende Gesamtstand), „Reihenfolge“ zeigt die Spieler in der Sitzreihenfolge am Tisch. Die Wahl merkt sich jedes Gerät
 
 ## [2.54.0] - 2026-10-05
 

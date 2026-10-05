@@ -3056,6 +3056,29 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
   box-shadow: var(--shadow-1);
 }
 .resultPane { min-height: 40px; }
+.resultSort {
+  display: flex; gap: 2px; justify-content: flex-end;
+  width: fit-content; margin: 0 0 6px auto;
+  padding: 3px; border-radius: var(--r-pill);
+  background: rgba(0, 0, 0, 0.05);
+}
+/* Small pill, but ::after stretches the hit area to --tap-min. */
+.resultSortBtn {
+  position: relative;
+  appearance: none; border: none; background: transparent;
+  color: var(--card-ink); opacity: 0.6;
+  min-height: 28px; padding: 4px 12px; border-radius: var(--r-pill);
+  font-size: var(--fs-hint); font-weight: 700;
+  cursor: pointer; transition: background 0.15s ease, opacity 0.15s ease;
+}
+.resultSortBtn::after {
+  content: ''; position: absolute; left: 0; right: 0;
+  top: 50%; height: var(--tap-min); transform: translateY(-50%);
+}
+.resultSortBtn.active {
+  background: var(--card-bg); opacity: 1;
+  box-shadow: var(--shadow-1);
+}
 
 /* Secondary actions folded away so "Weiter" stands alone. */
 .resultMore { margin-top: 10px; }
@@ -4178,4 +4201,9 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
   }
   .resultWinnerScore { margin-top: 0; font-size: 1.25rem; }
   .resultWinnerGame .resultWinnerCrown { display: none; }
+  /* The sort toggle shares the tab row (tabs left) instead of costing the
+     fourth score row its place on a ~400 px screen. */
+  #resultBody { position: relative; }
+  #resultBody .resultTabs { margin-left: 0; }
+  #resultBody .resultSort { position: absolute; top: 0; right: 0; margin: 0; }
 }
