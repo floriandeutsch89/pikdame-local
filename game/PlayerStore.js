@@ -189,18 +189,19 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
    * "Played today": advances the daily streak (see Progression.js). The
    * flat `dailyStreak` mirror on the profile is what the badge tiers and the
    * client read; `daily` holds the full state.
-   * @returns {{streak:number,best:number,event:string,graceFree:boolean}|null}
+   * @returns {{streak:number,best:number,event:string,graceFree:boolean,welcomeBack:boolean}|null}
    */
   function touchDailyStreak(name, date) {
     const store = loadStore();
     const p = findPlayerByName(store, name);
     if (!p) return null;
-    const { advanceDailyStreak, streakGraceAvailable } = require('./Progression');
+    const { advanceDailyStreak, streakGraceAvailable, isWelcomeBack } = require('./Progression');
+    const welcomeBack = isWelcomeBack(p.daily, date);
     const { state, event } = advanceDailyStreak(p.daily, date);
     p.daily = state;
     p.dailyStreak = state.streak;
     saveStore(store);
-    return { streak: state.streak, best: state.best, event, graceFree: streakGraceAvailable(state, date) };
+    return { streak: state.streak, best: state.best, event, graceFree: streakGraceAvailable(state, date), welcomeBack };
   }
 
 

@@ -6038,8 +6038,12 @@
       showToast(`🔥 ${L(`${st.streak} Tage in Folge gespielt`, `${st.streak} days in a row`)}${st.event === 'bridged' ? ` ${L('(Joker-Tag genutzt)', '(grace day used)')}` : ''}`);
     }
     const lvl = msg.level && msg.level.level;
+    // One toast slot: the last call wins, so welcome back rides along instead of following.
+    const welcome = msg.welcomeBack && msg.gainedXp > 0;
     if (lvl && lastLevelSeen !== null && lvl > lastLevelSeen) {
-      showToast(`⭐ ${L(`Stufe ${lvl} erreicht!`, `Level ${lvl} reached!`)}`);
+      showToast(`⭐ ${L(`Stufe ${lvl} erreicht!`, `Level ${lvl} reached!`)}${welcome ? ` 👋 ${L('Doppelte Erfahrung', 'Double XP')}` : ''}`);
+    } else if (welcome) {
+      showToast(`👋 ${L('Willkommen zurück! Doppelte Erfahrung', 'Welcome back! Double XP')}: +${msg.gainedXp}`);
     } else if (!completed.length && msg.gainedXp > 0) {
       showToast(`✨ +${msg.gainedXp} ${L('Erfahrung', 'XP')}`);
     }

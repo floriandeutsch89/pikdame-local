@@ -239,3 +239,24 @@ test('PlayerStore.touchDailyStreak: persists the streak and mirrors it for the b
   const fresh = createPlayerStore(store.filePath);
   assert.equal(fresh.getPlayerByName('Anna').daily.streak, 2);
 });
+
+test('welcome back (#316): first game after 7+ days away flags double XP, nothing else does', () => {
+  const store = tempStore();
+  store.recordGameResult([{ name: 'Anna', score: 10, won: true }]);
+  // New profile: no last day yet, not "back".
+  assert.equal(store.touchDailyStreak('Anna', '2026-09-01').welcomeBack, false);
+  // 6 days away: normal.
+  assert.equal(store.touchDailyStreak('Anna', '2026-09-07').welcomeBack, false);
+  // 7 days away: double, but only the first game that day.
+  assert.equal(store.touchDailyStreak('Anna', '2026-09-14').welcomeBack, true);
+  assert.equal(store.touchDailyStreak('Anna', '2026-09-14').welcomeBack, false);
+  assert.equal(store.touchDailyStreak('Anna', '2026-10-26').welcomeBack, true);
+});
+
+test('welcome back: server doubles the game XP (progress and ladder) from the streak flag', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+  assert.match(src, /const xpFor = \(p\) => xpForGame\(gameRecord, p\.id\) \* \(streaks\[p\.id\] && streaks\[p\.id\]\.welcomeBack \? 2 : 1\)/);
+  // Both consumers use the doubled value; quest XP is untouched.
+  assert.equal((src.match(/xpForGame\(gameRecord, p\.id\)/g) || []).length, 1);
+  assert.match(src, /type: 'progress',\s+gainedXp,\s+welcomeBack,/);
+});

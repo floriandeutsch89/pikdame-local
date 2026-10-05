@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.52.0] - 2026-10-05
+
+### Added
+- **Willkommen zurück** (#316): Die erste beendete Partie nach mindestens 7 Tagen Pause bringt doppelte Erfahrung (auch für die Saison-Rangliste). Ein Hinweis nach der Partie sagt, warum. Gilt nur für diese eine Partie, nicht für Tagesaufgaben oder das Rätsel; ganz neue Spieler bekommen ihn nicht
+
 ## [2.49.0] - 2026-10-05
 
 ### Added
