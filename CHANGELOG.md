@@ -8,6 +8,9 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Added
 - **Lieblingsabzeichen** (#317): Wer mit Konto angemeldet ist, kann bis zu drei verdiente Abzeichen auswählen (Stern-Knopf in der Abzeichen-Ansicht). Sie stehen neben dem Namen in der Statistik und in der Sitzordnung vor dem Spiel, in der gewählten Reihenfolge; eine Abzeichen-Familie zeigt immer ihre höchste erreichte Stufe. Ohne Konto gibt es die Auswahl nicht, ein gelöschtes Konto verliert sie
 
+### Changed
+- **Sitzordnung zeigt keinen Stufen-Titel mehr** (#317): Neben dem Namen stehen nur noch die selbst gewählten Lieblingsabzeichen. Den Titel gibt es weiter in der Statistik
+
 ## [2.51.0] - 2026-10-05
 
 ### Added

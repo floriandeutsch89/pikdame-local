@@ -1631,9 +1631,8 @@
       const grip = canEdit && count > 1
         ? `<button class="seatGrip" title="${L('Ziehen zum Umsortieren', 'Drag to reorder')}" aria-label="${L(`Platz ${idx + 1} verschieben (Pfeiltasten)`, `Move seat ${idx + 1} (arrow keys)`)}"><svg class="icon" aria-hidden="true"><use href="#i-grip"/></svg></button>`
         : '';
-      const rank = p.isBot ? '' : titleForName(p.name);
-      const rankMark = rank ? `<span class="seatTitle"> · ${escapeHtml(rank)}</span>` : '';
-      row.innerHTML = `${grip}<span class="seatName">${nameWithHeart(p.name)}${p.isBot ? '' : favoriteBadgesHtml(profileByName(p.name))}${rankMark}${botMark(p)}${readyMark}</span><span class="seatControls">${diffChip}${dealerBtn}</span>`;
+      // Lobby: only the badges a player chose themselves, no level title (#317).
+      row.innerHTML = `${grip}<span class="seatName">${nameWithHeart(p.name)}${p.isBot ? '' : favoriteBadgesHtml(profileByName(p.name))}${botMark(p)}${readyMark}</span><span class="seatControls">${diffChip}${dealerBtn}</span>`;
       if (canEdit) {
         const dealer = row.querySelector('.seatDealer');
         if (dealer && !isDealer) dealer.addEventListener('click', () => send({ type: 'setDealer', playerId: p.id }));
@@ -6592,12 +6591,6 @@
     let t = LEVEL_TITLES[0];
     for (const row of LEVEL_TITLES) if (level >= row[0]) t = row;
     return L(t[1], t[2]);
-  }
-  /** Title of a player by name, from the profile list; '' without a profile (bots, public mode). */
-  function titleForName(name) {
-    if (publicMode || !name) return '';
-    const p = (knownProfiles || []).find((x) => x.name && x.name.toLowerCase() === String(name).toLowerCase());
-    return p ? titleForLevel(levelFromXpClient(p.xp || 0).level) : '';
   }
   /** Everything the XP bar hands out, by level: emotes, card backs, theme, titles. */
   function levelRewards() {

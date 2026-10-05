@@ -3332,7 +3332,6 @@ html[data-cardback="easter"] .card.back,
 }
 .themeBtn[data-theme-choice="bordeaux"] { background: linear-gradient(145deg, #7a2440, #16050b); border-color: rgba(232,184,107,0.55); }
 .themeBtn.locked { opacity: 0.4; }
-.seatTitle { font-weight: 400; font-size: var(--fs-hint); color: var(--text-muted); }
 
 /* --- Level-up dialog (#315) ------------------------------------------------- */
 .levelUpCard { text-align: center; overflow: hidden; }
