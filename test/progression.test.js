@@ -339,3 +339,30 @@ test('welcome back: server doubles the game XP (progress and ladder) from the st
   assert.equal((src.match(/xpForGame\(gameRecord, p\.id\)/g) || []).length, 1);
   assert.match(src, /type: 'progress',\s+gainedXp,\s+welcomeBack,/);
 });
+
+test('favourite badges (#317): only earned keys, max 3, order kept, families allowed', () => {
+  const store = tempStore();
+  store.recordGameResult([{ name: 'Anna', score: 10, won: true }]);
+  store.awardBadges('Anna', ['first_win', 'night_owl', 'pd_laid', 'pd_hunter_10', 'score_500']);
+  assert.ok(store.setFavoriteBadges('Anna', ['first_win', 'night_owl', 'nope']).error, 'unknown id');
+  assert.ok(store.setFavoriteBadges('Anna', ['wins_50']).error, 'not earned');
+  assert.ok(store.setFavoriteBadges('Anna', ['hearts']).error, 'family without an earned tier');
+  assert.ok(store.setFavoriteBadges('Anna', ['first_win', 'night_owl', 'queens', 'score_500']).error, '4th');
+  assert.ok(store.setFavoriteBadges('Anna', 'first_win').error, 'not an array');
+  assert.ok(store.setFavoriteBadges('Nobody', []).error);
+  assert.deepEqual(store.setFavoriteBadges('Anna', ['queens', 'night_owl', 'queens']).favorites, ['queens', 'night_owl']);
+  assert.deepEqual(store.getPlayerByName('Anna').favoriteBadges, ['queens', 'night_owl']);
+  assert.deepEqual(store.setFavoriteBadges('Anna', []).favorites, []);
+});
+
+test('favourite badges: the server accepts them only from the signed-in owner of the name', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+  const i = src.indexOf("msg.type === 'setFavoriteBadges'");
+  assert.ok(i > 0);
+  const block = src.slice(i, src.indexOf('return;\n    }', i));
+  assert.match(block, /ACCOUNTS_ENABLED && !PUBLIC_MODE \? await stammtischAccount\(msg\) : null/);
+  assert.match(block, /owner\.toLowerCase\(\) !== String\(sanitizeName\(msg\.name\)\)\.toLowerCase\(\)/);
+  assert.match(block, /playerStore\.setFavoriteBadges\(owner, msg\.badges\)/);
+  // Before the session guard: works from the start screen.
+  assert.ok(i < src.indexOf('    if (!session) {', src.indexOf("msg.type === 'listProfiles'")));
+});

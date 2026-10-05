@@ -693,6 +693,8 @@ async function handleAdminRequest(req, res, filePath) {
       } else if (action === 'delete') {
         const r = await accountStore.deleteUser(username);
         if (r.ok) console.log(`[admin] Benutzer gelöscht: ${r.username}`);
+        // The name is a guest name again: favourites are an account feature.
+        if (r.ok) try { playerStore.setFavoriteBadges(r.username, []); } catch (e) { /* best effort */ }
         notice = r.ok ? { ok: true, text: `Benutzer „${r.username}“ wurde gelöscht.` } : { ok: false, text: r.error };
       } else if (action === 'login-link') {
         if (bump(adminMailsByIp, ip, 10 * 60 * 1000) > 5) {
@@ -1422,6 +1424,7 @@ function broadcastToSession(session, message) {
   }
 }
 
+const FAVORITES_LOGIN_ERROR = 'Lieblingsabzeichen gibt es nur mit Konto - bitte zuerst anmelden.';
 const STAMMTISCH_LOGIN_ERROR = 'Für deine Stammtische brauchst du ein Konto - bitte zuerst anmelden.';
 /** Account username behind msg.accountToken, or null (not signed in). */
 async function stammtischAccount(msg) {
@@ -1779,6 +1782,17 @@ wss.on('connection', (ws, req) => {
       const created = registry.create({ stammtisch: founded.table.code });
       if (created.error) return sendError(ws, created.error);
       await joinSession(created.session, msg);
+      return;
+    }
+    if (msg.type === 'setFavoriteBadges') {
+      // Registered players only (#317): the account behind the token must own the name.
+      const owner = ACCOUNTS_ENABLED && !PUBLIC_MODE ? await stammtischAccount(msg) : null;
+      if (!owner || owner.toLowerCase() !== String(sanitizeName(msg.name)).toLowerCase()) {
+        return sendError(ws, FAVORITES_LOGIN_ERROR);
+      }
+      const r = playerStore.setFavoriteBadges(owner, msg.badges);
+      if (r.error) return sendError(ws, r.error);
+      sendProfilesTo(ws);
       return;
     }
     if (msg.type === 'listStammtische' || msg.type === 'deleteStammtisch' || msg.type === 'leaveStammtisch') {

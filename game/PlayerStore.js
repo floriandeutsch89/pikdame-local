@@ -9,6 +9,7 @@ const { createAtomicJsonFile } = require('./AtomicJsonFile');
 
 const DEFAULT_DATA_DIR = process.env.PIKDAME_DATA_DIR || path.join(__dirname, '..', 'data');
 const DEFAULT_DATA_FILE = path.join(DEFAULT_DATA_DIR, 'players.json');
+const FAVORITE_BADGES_MAX = 3;
 
 function emptyStore() {
   return { players: [] };
@@ -119,6 +120,32 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
    * Vergibt Badges an einen Spieler. Bereits vorhandene werden ignoriert.
    * @returns {string[]} nur die NEU vergebenen Badge-IDs
    */
+  /**
+   * Favourite badges (#317): up to 3 earned badge tiles in the order chosen.
+   * A key is a single badge id or a family id (shown as its top tier).
+   * The caller checks the account; this only checks the profile.
+   * @returns {{favorites:string[]}|{error:string}}
+   */
+  function setFavoriteBadges(name, keys) {
+    const store = loadStore();
+    const p = findPlayerByName(store, name);
+    if (!p) return { error: 'Profil nicht gefunden.' };
+    if (!Array.isArray(keys)) return { error: 'Ungültige Auswahl.' };
+    const { BADGE_IDS, BADGE_FAMILIES } = require('./Badges');
+    const owned = p.badges || {};
+    const earned = (key) => {
+      const fam = BADGE_FAMILIES.find((f) => f.id === key);
+      if (fam) return fam.tiers.some(([id]) => owned[id]);
+      return BADGE_IDS.includes(key) && !!owned[key];
+    };
+    const unique = [...new Set(keys.map(String))];
+    if (unique.length > FAVORITE_BADGES_MAX) return { error: 'Höchstens 3 Lieblingsabzeichen.' };
+    if (!unique.every(earned)) return { error: 'Nur verdiente Abzeichen können Lieblingsabzeichen sein.' };
+    p.favoriteBadges = unique;
+    saveStore(store);
+    return { favorites: unique };
+  }
+
   function awardBadges(name, badgeIds = []) {
     const store = loadStore();
     const p = findPlayerByName(store, name);
@@ -278,6 +305,7 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     addProgress,
     questProgress,
     touchDailyStreak,
+    setFavoriteBadges,
     puzzleStatus,
     recordPuzzleAttempt,
     revealPuzzle,
