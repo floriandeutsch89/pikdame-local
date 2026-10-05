@@ -4587,6 +4587,10 @@
           'ok'
         );
         if (msg.level) myProgress = { xp: myProgress ? Math.max(myProgress.xp || 0, (msg.level.total || 0)) : (msg.level.total || 0), level: msg.level };
+        if (msg.level && msg.xp) {
+          const from = levelFromXpClient((msg.level.total || 0) - msg.xp).level;
+          if (msg.level.level > from) showLevelUp(from, msg.level.level, msg.xp, (msg.level.total || 0) - msg.xp);
+        }
         if (msg.streak) myStreak = msg.streak;
         try { renderQuests(); renderEmoteLocks(); } catch (e) { /* cosmetic */ }
         if (msg.badges && msg.badges.length) {
@@ -6041,6 +6045,62 @@
 
   // Ein Höhepunkt pro Partie-Ende, nicht drei gleichzeitig: erst die
   // erledigten Aufgaben, dann ein Stufenaufstieg, sonst nur die XP.
+  // --- Level-up dialog (#315) ------------------------------------------------
+  /** Rewards earned by climbing from level `from` to `to` (exclusive/inclusive). */
+  function rewardsBetween(rewards, from, to) {
+    return rewards.filter((r) => r.level > from && r.level <= to);
+  }
+  /** The next reward(s) above `level`: all items of the next rewarded level. */
+  function nextRewards(rewards, level) {
+    const next = rewards.find((r) => r.level > level);
+    return next ? rewards.filter((r) => r.level === next.level) : [];
+  }
+  let levelUpTimer = null;
+  /** @param {number} beforeXp total XP before the gain: the bar fills the finished level from there to 100 %. */
+  function showLevelUp(from, to, gainedXp, beforeXp, welcomeBack = false) {
+    const rewards = levelRewards();
+    const got = rewardsBetween(rewards, from, to).filter((r) => r.kind !== 'title');
+    const next = nextRewards(rewards, to);
+    const titleNow = titleForLevel(to);
+    const newTitle = titleNow !== titleForLevel(from);
+    el('levelUpTitle').textContent = `⭐ ${L(`Stufe ${to}!`, `Level ${to}!`)}`;
+    el('levelUpRank').textContent = newTitle ? L(`Neuer Titel: ${titleNow}`, `New title: ${titleNow}`) : titleNow;
+    el('levelUpRank').classList.toggle('isNew', newTitle);
+    el('levelUpXp').textContent = `${L(`Stufe ${from} → ${to}`, `Level ${from} → ${to}`)}${gainedXp ? ` · +${gainedXp} ${L('EP', 'XP')}` : ''}${welcomeBack ? ` (${L('×2 Willkommen zurück', '×2 welcome back')})` : ''}`;
+    const start = levelFromXpClient(Math.max(0, beforeXp || 0));
+    const list = (items) => items.map((r) => `<li>${escapeHtml(r.label)}</li>`).join('');
+    el('levelUpRewards').innerHTML =
+      (got.length ? `<h3>${escapeHtml(L('Neu freigeschaltet', 'Newly unlocked'))}</h3><ul>${list(got)}</ul>` : '') +
+      (next.length ? `<h3>${escapeHtml(L(`Nächste Belohnung (Stufe ${next[0].level})`, `Next reward (level ${next[0].level})`))}</h3><ul class="next">${list(next)}</ul>` : '');
+    const fill = el('levelUpBarFill');
+    fill.style.transition = 'none';
+    fill.style.width = `${Math.round(Math.min(1, start.into / (start.need || 1)) * 100)}%`;
+    // Confetti: decoration only, skipped for reduced motion (CSS hides it too).
+    const conf = el('levelUpConfetti');
+    conf.innerHTML = '';
+    for (let i = 0; i < 18; i++) {
+      const c = document.createElement('i');
+      c.style.left = `${(i * 53) % 100}%`;
+      c.style.animationDelay = `${(i % 6) * 0.12}s`;
+      c.style.background = ['var(--accent)', '#f5c542', '#ff7d8c', '#7fb8ff'][i % 4];
+      conf.appendChild(c);
+    }
+    clearTimeout(levelUpTimer);
+    // A moment after the result overlay, so both are seen.
+    const delay = el('resultOverlay').classList.contains('hidden') ? 0 : 1200;
+    levelUpTimer = setTimeout(() => {
+      el('levelUpOverlay').classList.remove('hidden');
+      requestAnimationFrame(() => {
+        fill.style.transition = '';
+        fill.style.width = '100%';
+      });
+    }, delay);
+  }
+  el('levelUpCloseBtn').addEventListener('click', () => el('levelUpOverlay').classList.add('hidden'));
+  el('levelUpOverlay').addEventListener('click', (ev) => {
+    if (ev.target === el('levelUpOverlay')) el('levelUpOverlay').classList.add('hidden');
+  });
+
   let lastLevelSeen = null;
   function celebrateProgress(msg) {
     const completed = (msg.quests && msg.quests.completed) || [];
@@ -6052,11 +6112,12 @@
       showToast(`🔥 ${L(`${st.streak} Tage in Folge gespielt`, `${st.streak} days in a row`)}${st.event === 'bridged' ? ` ${L('(Joker-Tag genutzt)', '(grace day used)')}` : ''}`);
     }
     const lvl = msg.level && msg.level.level;
-    // One toast slot: the last call wins, so welcome back rides along instead of following.
-    const welcome = msg.welcomeBack && msg.gainedXp > 0;
-    if (lvl && lastLevelSeen !== null && lvl > lastLevelSeen) {
-      showToast(`⭐ ${L(`Stufe ${lvl} erreicht!`, `Level ${lvl} reached!`)}${welcome ? ` 👋 ${L('Doppelte Erfahrung', 'Double XP')}` : ''}`);
-    } else if (welcome) {
+    // The level before this game: XP minus what it brought (works for the
+    // first game of a session too, when nothing was "seen" yet).
+    const before = typeof msg.xp === 'number' && msg.gainedXp ? levelFromXpClient(msg.xp - msg.gainedXp).level : lastLevelSeen;
+    if (lvl && before && lvl > before) {
+      showLevelUp(before, lvl, msg.gainedXp, msg.xp - (msg.gainedXp || 0), !!msg.welcomeBack);
+    } else if (msg.welcomeBack && msg.gainedXp > 0) {
       showToast(`👋 ${L('Willkommen zurück! Doppelte Erfahrung', 'Welcome back! Double XP')}: +${msg.gainedXp}`);
     } else if (!completed.length && msg.gainedXp > 0) {
       showToast(`✨ +${msg.gainedXp} ${L('Erfahrung', 'XP')}`);

@@ -8,6 +8,11 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Added
 - **Willkommen zurück** (#316): Die erste beendete Partie nach mindestens 7 Tagen Pause bringt doppelte Erfahrung (auch für die Saison-Rangliste). Ein Hinweis nach der Partie sagt, warum. Gilt nur für diese eine Partie, nicht für Tagesaufgaben oder das Rätsel; ganz neue Spieler bekommen ihn nicht
 
+## [2.51.0] - 2026-10-05
+
+### Added
+- **Level-up-Dialog** (#315): Wer eine Stufe aufsteigt, sieht kurz nach der Ergebnisübersicht (oder nach dem Tagesrätsel) einen eigenen Dialog: neue Stufe, neuer Titel, ein Balken, der die abgeschlossene Stufe auffüllt, was gerade freigeschaltet wurde und was als Nächstes kommt. Mit etwas Konfetti (aus bei „Bewegung reduzieren“). Funktioniert jetzt auch bei der ersten Partie einer Sitzung - der alte Hinweis kam dort nie
+
 ## [2.50.0] - 2026-10-05
 
 ### Added
