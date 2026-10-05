@@ -551,7 +551,14 @@
   }
 
   document.querySelectorAll('.themeBtn').forEach((btn) => {
-    btn.addEventListener('click', () => applyTheme(btn.dataset.themeChoice));
+    btn.addEventListener('click', () => {
+      const theme = btn.dataset.themeChoice;
+      if (!themeUnlocked(theme)) {
+        showToast(`🔒 ${themeName(theme)}: ${L(`ab Stufe ${THEME_LEVELS[theme]}`, `from level ${THEME_LEVELS[theme]}`)}`);
+        return;
+      }
+      applyTheme(theme);
+    });
   });
   applyTheme(storageGet(THEME_KEY) || 'table');
 
@@ -1624,7 +1631,9 @@
       const grip = canEdit && count > 1
         ? `<button class="seatGrip" title="${L('Ziehen zum Umsortieren', 'Drag to reorder')}" aria-label="${L(`Platz ${idx + 1} verschieben (Pfeiltasten)`, `Move seat ${idx + 1} (arrow keys)`)}"><svg class="icon" aria-hidden="true"><use href="#i-grip"/></svg></button>`
         : '';
-      row.innerHTML = `${grip}<span class="seatName">${nameWithHeart(p.name)}${botMark(p)}${readyMark}</span><span class="seatControls">${diffChip}${dealerBtn}</span>`;
+      const rank = p.isBot ? '' : titleForName(p.name);
+      const rankMark = rank ? `<span class="seatTitle"> · ${escapeHtml(rank)}</span>` : '';
+      row.innerHTML = `${grip}<span class="seatName">${nameWithHeart(p.name)}${rankMark}${botMark(p)}${readyMark}</span><span class="seatControls">${diffChip}${dealerBtn}</span>`;
       if (canEdit) {
         const dealer = row.querySelector('.seatDealer');
         if (dealer && !isDealer) dealer.addEventListener('click', () => send({ type: 'setDealer', playerId: p.id }));
@@ -5900,6 +5909,11 @@
   // motivates) - dimmed, with the level they unlock at.
   function renderEmoteLocks() {
     const level = myLevel();
+    // Level-gated table colours share the hook: same level, same moment.
+    document.querySelectorAll('.themeBtn[data-theme-choice]').forEach((btn) => {
+      const need = THEME_LEVELS[btn.dataset.themeChoice];
+      btn.classList.toggle('locked', !!need && !publicMode && level < need);
+    });
     document.querySelectorAll('.emoteChoice[data-emote]').forEach((btn) => {
       const need = emoteUnlockLevel(btn.dataset.emote);
       const locked = need > level;
@@ -6408,6 +6422,7 @@
           .join('');
         return `<div class="statsCard" data-name="${escapeHtml(p.name)}">
           <div class="statsCardHead"><span class="statsCardName">${nameWithHeart(p.name)}</span><span class="statsCardRate">${rate}% · ${won}/${played} ${L('Siege', 'wins')}</span></div>
+          <div class="statsCardMeta">${L('Stufe', 'Level')} <b>${levelFromXpClient(p.xp || 0).level}</b> · ${escapeHtml(titleForLevel(levelFromXpClient(p.xp || 0).level))}</div>
           <div class="statsCardMeta">${L('Spiele', 'Games')}: <b>${played}</b> · ${L('Beste Partie', 'Best game')}: <b>${best}</b></div>
           <div class="statsCardBadges">${badgeChips || `<span class="statsNoBadge">${L('Noch keine Erfolge', 'No badges yet')}</span>`}</div>
         </div>`;
@@ -6445,7 +6460,52 @@
     { id: 'joker', label: 'Joker', labelEn: 'Joker', gate: { field: 'totalHandAus', min: 3, de: 'ab 3× Hand aus', en: 'from 3 out-in-one' } },
     // Level reward: the XP bar hands out something you can SEE on the table.
     { id: 'master', label: 'Meister', labelEn: 'Master', gate: { field: 'level', min: 10, de: 'ab Stufe 10', en: 'from level 10' } },
+    { id: 'emerald', label: 'Smaragd', labelEn: 'Emerald', gate: { field: 'level', min: 15, de: 'ab Stufe 15', en: 'from level 15' } },
+    { id: 'purple', label: 'Purpur', labelEn: 'Royal purple', gate: { field: 'level', min: 20, de: 'ab Stufe 20', en: 'from level 20' } },
+    { id: 'legend', label: 'Legende', labelEn: 'Legend', gate: { field: 'level', min: 30, de: 'ab Stufe 30', en: 'from level 30' } },
+    // Seasonal (mirrors game/SeasonalBacks.js): unlocked by a finished game in the month, kept forever.
+    { id: 'pumpkin', label: 'Kürbis', labelEn: 'Pumpkin', gate: { field: 'seasonal', de: 'nur im Oktober freischaltbar', en: 'unlockable in October only' } },
+    { id: 'winter', label: 'Winterzauber', labelEn: 'Winter magic', gate: { field: 'seasonal', de: 'nur im Dezember freischaltbar', en: 'unlockable in December only' } },
+    { id: 'christmas', label: 'Weihnachten', labelEn: 'Christmas', gate: { field: 'seasonal', de: 'nur vom 24. bis 26. Dezember freischaltbar', en: 'unlockable 24-26 December only' } },
+    { id: 'easter', label: 'Ostern', labelEn: 'Easter', gate: { field: 'seasonal', de: 'nur von Karfreitag bis Ostermontag freischaltbar', en: 'unlockable Good Friday to Easter Monday only' } },
   ];
+  // Level-gated table colours; every other theme is free.
+  const THEME_LEVELS = { bordeaux: 25 };
+  // Rank titles by level (#312), strictly ascending.
+  const LEVEL_TITLES = [
+    [1, 'Kiebitz', 'Kibitzer'], [3, 'Mitspieler', 'Player'], [5, 'Kartenmischer', 'Shuffler'],
+    [8, 'Kartenhai', 'Card shark'], [12, 'Rommé-Fuchs', 'Rummy fox'], [16, 'Auslage-Ass', 'Meld ace'],
+    [20, 'Rommé-Profi', 'Rummy pro'], [25, 'Tischmeister', 'Table master'], [30, 'Pik-Legende', 'Spade legend'],
+  ];
+  function titleForLevel(level) {
+    let t = LEVEL_TITLES[0];
+    for (const row of LEVEL_TITLES) if (level >= row[0]) t = row;
+    return L(t[1], t[2]);
+  }
+  /** Title of a player by name, from the profile list; '' without a profile (bots, public mode). */
+  function titleForName(name) {
+    if (publicMode || !name) return '';
+    const p = (knownProfiles || []).find((x) => x.name && x.name.toLowerCase() === String(name).toLowerCase());
+    return p ? titleForLevel(levelFromXpClient(p.xp || 0).level) : '';
+  }
+  /** Everything the XP bar hands out, by level: emotes, card backs, theme, titles. */
+  function levelRewards() {
+    const out = [];
+    for (const [id, level] of Object.entries(EMOTE_UNLOCK)) out.push({ level, kind: 'emote', id, label: `${id} ${L('Emote', 'emote')}` });
+    for (const cb of CARDBACKS) {
+      if (cb.gate && cb.gate.field === 'level') out.push({ level: cb.gate.min, kind: 'cardback', id: cb.id, label: `🎴 ${L(`Kartenrücken „${cb.label}“`, `card back "${cb.labelEn}"`)}` });
+    }
+    for (const [id, level] of Object.entries(THEME_LEVELS)) out.push({ level, kind: 'theme', id, label: `🎨 ${L(`Tischfarbe „${themeName(id)}“`, `table colour "${themeName(id)}"`)}` });
+    for (const [level, de, en] of LEVEL_TITLES) if (level > 1) out.push({ level, kind: 'title', id: de, label: `🏷️ ${L(`Titel „${de}“`, `title "${en}"`)}` });
+    return out.sort((a, b) => a.level - b.level);
+  }
+  function themeName(id) {
+    return ({ bordeaux: 'Bordeaux' })[id] || id;
+  }
+  function themeUnlocked(theme) {
+    const need = THEME_LEVELS[theme];
+    return !need || publicMode || myLevel() >= need;
+  }
   function myProfile() {
     return (knownProfiles || []).find((p) => p.name && myName && p.name.toLowerCase() === myName.toLowerCase()) || null;
   }
@@ -6459,7 +6519,7 @@
   }
   // Mirrors game/Emotes.js - the server is the authority, this only draws
   // the locks. Public servers keep no profiles, so nothing is locked there.
-  const EMOTE_UNLOCK = { '👏': 2, '🙈': 3, '🤔': 4, '🍀': 5, '😎': 6, '🔥': 8, '😴': 10, '🙏': 12 };
+  const EMOTE_UNLOCK = { '👏': 2, '🙈': 3, '🤔': 4, '🍀': 5, '😎': 6, '🔥': 8, '😴': 10, '🙏': 12, '🤩': 14, '🥳': 16, '💪': 18 };
   function emoteUnlockLevel(id) {
     return publicMode ? 1 : EMOTE_UNLOCK[id] || 1;
   }
@@ -6467,6 +6527,7 @@
     if (!cb.gate) return true;
     if (cb.gate.field === 'level') return myLevel() >= cb.gate.min;
     const p = myProfile();
+    if (cb.gate.field === 'seasonal') return !!p && !!(p.seasonalBacks || {})[cb.id];
     return !!p && (p[cb.gate.field] || 0) >= cb.gate.min;
   }
   function applyCardback() {

@@ -239,3 +239,55 @@ test('PlayerStore.touchDailyStreak: persists the streak and mirrors it for the b
   const fresh = createPlayerStore(store.filePath);
   assert.equal(fresh.getPlayerByName('Anna').daily.streak, 2);
 });
+
+// --- v2.50: level titles, level rewards, seasonal card backs ------------------
+test('level titles: strictly ascending, start at level 1, de/en for every rank (#312)', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'client.js'), 'utf8');
+  const block = src.match(/const LEVEL_TITLES = \[([\s\S]*?)\n  \];/);
+  assert.ok(block, 'LEVEL_TITLES exists');
+  const rows = [...block[1].matchAll(/\[(\d+), '([^']+)', '([^']+)'\]/g)].map((m) => [Number(m[1]), m[2], m[3]]);
+  assert.ok(rows.length >= 8);
+  assert.equal(rows[0][0], 1, 'everyone has a title from level 1');
+  for (let i = 1; i < rows.length; i++) assert.ok(rows[i][0] > rows[i - 1][0], `ascending at ${rows[i][1]}`);
+});
+
+test('seasonal card backs: the game day decides, the client mirrors the ids (#314)', () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { seasonalBacksFor, SEASONAL_BACKS, easterSunday } = require('../game/SeasonalBacks');
+  const { gameDay } = require('../game/GameDay');
+  // 2026-10-31 23:30 German time (CET) is still October; 00:30 is November.
+  assert.deepEqual(seasonalBacksFor(gameDay(Date.parse('2026-10-31T22:30:00Z'))), ['pumpkin']);
+  assert.deepEqual(seasonalBacksFor(gameDay(Date.parse('2026-10-31T23:30:00Z'))), []);
+  assert.deepEqual(seasonalBacksFor('2026-12-10'), ['winter']);
+  assert.deepEqual(seasonalBacksFor('2026-12-24'), ['winter', 'christmas'], 'Christmas Eve unlocks both');
+  assert.deepEqual(seasonalBacksFor('2026-12-27'), ['winter']);
+  // Easter: Good Friday .. Easter Monday, computed per year.
+  assert.equal(easterSunday(2026), '2026-04-05');
+  assert.equal(easterSunday(2027), '2027-03-28');
+  assert.equal(easterSunday(2025), '2025-04-20');
+  assert.deepEqual(seasonalBacksFor('2026-04-02'), [], 'Maundy Thursday is too early');
+  assert.deepEqual(seasonalBacksFor('2026-04-03'), ['easter']);
+  assert.deepEqual(seasonalBacksFor('2026-04-06'), ['easter']);
+  assert.deepEqual(seasonalBacksFor('2026-04-07'), []);
+  assert.deepEqual(seasonalBacksFor('2027-03-26'), ['easter'], 'Good Friday 2027 in March');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'client.js'), 'utf8');
+  for (const b of SEASONAL_BACKS) {
+    assert.match(src, new RegExp(`id: '${b.id}'[^\\n]*field: 'seasonal'`), `client mirrors ${b.id}`);
+  }
+  const { createPlayerStore } = require('../game/PlayerStore');
+  const store = createPlayerStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikseason-')), 'players.json'));
+  store.recordGameResult([{ name: 'Ida', score: 10, won: false }]);
+  assert.equal(store.unlockSeasonalBack('Ida', 'pumpkin', '2026-10-05'), true);
+  assert.equal(store.unlockSeasonalBack('ida', 'pumpkin', '2026-10-20'), false, 'kept, first date wins');
+  assert.equal(store.getPlayerByName('Ida').seasonalBacks.pumpkin, '2026-10-05');
+});
+
+test('level rewards: new emotes are level-gated on the server too (#313)', () => {
+  const { EMOTE_DEFS } = require('../game/Emotes');
+  const lvl = Object.fromEntries(EMOTE_DEFS.map((e) => [e.id, e.level]));
+  assert.deepEqual([lvl['🤩'], lvl['🥳'], lvl['💪']], [14, 16, 18]);
+});
