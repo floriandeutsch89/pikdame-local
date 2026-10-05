@@ -253,19 +253,30 @@ test('level titles: strictly ascending, start at level 1, de/en for every rank (
   for (let i = 1; i < rows.length; i++) assert.ok(rows[i][0] > rows[i - 1][0], `ascending at ${rows[i][1]}`);
 });
 
-test('seasonal card backs: the game day decides, the client mirrors the months (#314)', () => {
+test('seasonal card backs: the game day decides, the client mirrors the ids (#314)', () => {
   const fs = require('node:fs');
   const os = require('node:os');
   const path = require('node:path');
-  const { seasonalBackFor, SEASONAL_BACKS } = require('../game/SeasonalBacks');
+  const { seasonalBacksFor, SEASONAL_BACKS, easterSunday } = require('../game/SeasonalBacks');
   const { gameDay } = require('../game/GameDay');
   // 2026-10-31 23:30 German time (CET) is still October; 00:30 is November.
-  assert.equal(seasonalBackFor(gameDay(Date.parse('2026-10-31T22:30:00Z'))), 'pumpkin');
-  assert.equal(seasonalBackFor(gameDay(Date.parse('2026-10-31T23:30:00Z'))), null);
-  assert.equal(seasonalBackFor('2026-12-24'), 'winter');
+  assert.deepEqual(seasonalBacksFor(gameDay(Date.parse('2026-10-31T22:30:00Z'))), ['pumpkin']);
+  assert.deepEqual(seasonalBacksFor(gameDay(Date.parse('2026-10-31T23:30:00Z'))), []);
+  assert.deepEqual(seasonalBacksFor('2026-12-10'), ['winter']);
+  assert.deepEqual(seasonalBacksFor('2026-12-24'), ['winter', 'christmas'], 'Christmas Eve unlocks both');
+  assert.deepEqual(seasonalBacksFor('2026-12-27'), ['winter']);
+  // Easter: Good Friday .. Easter Monday, computed per year.
+  assert.equal(easterSunday(2026), '2026-04-05');
+  assert.equal(easterSunday(2027), '2027-03-28');
+  assert.equal(easterSunday(2025), '2025-04-20');
+  assert.deepEqual(seasonalBacksFor('2026-04-02'), [], 'Maundy Thursday is too early');
+  assert.deepEqual(seasonalBacksFor('2026-04-03'), ['easter']);
+  assert.deepEqual(seasonalBacksFor('2026-04-06'), ['easter']);
+  assert.deepEqual(seasonalBacksFor('2026-04-07'), []);
+  assert.deepEqual(seasonalBacksFor('2027-03-26'), ['easter'], 'Good Friday 2027 in March');
   const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'client.js'), 'utf8');
   for (const b of SEASONAL_BACKS) {
-    assert.match(src, new RegExp(`id: '${b.id}'[^\\n]*field: 'seasonal', month: ${b.month}\\b`), `client mirrors ${b.id}`);
+    assert.match(src, new RegExp(`id: '${b.id}'[^\\n]*field: 'seasonal'`), `client mirrors ${b.id}`);
   }
   const { createPlayerStore } = require('../game/PlayerStore');
   const store = createPlayerStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikseason-')), 'players.json'));

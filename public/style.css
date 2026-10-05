@@ -3277,6 +3277,24 @@ html[data-cardback="winter"] .card.back,
   border-color: #9fd3ff;
 }
 
+html[data-cardback="christmas"] .pile-card.back,
+html[data-cardback="christmas"] .card.back,
+.cbPrev.cbPrev-christmas {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255,215,90,0.85) 0 1.5px, transparent 2px) 0 0 / 10px 10px,
+    repeating-linear-gradient(45deg, rgba(255,255,255,0.14) 0 3px, transparent 3px 9px),
+    linear-gradient(160deg, #0d4a2c 0%, #b3202f 100%);
+  border-color: #e9c86a;
+}
+html[data-cardback="easter"] .pile-card.back,
+html[data-cardback="easter"] .card.back,
+.cbPrev.cbPrev-easter {
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.8) 0 2px, transparent 2.5px) 0 0 / 12px 14px,
+    linear-gradient(160deg, #f6c1d9 0%, #b9e3c6 50%, #c8d8ff 100%);
+  border-color: #e7a8c4;
+}
+
 /* --- Theme: Bordeaux (unlocked at level 25) --------------------------------- */
 [data-theme="bordeaux"] {
   --bg: #2a0b16;
