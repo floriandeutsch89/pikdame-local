@@ -1238,10 +1238,13 @@ const registry = new SessionRegistry((session) => {
       // Everything below is best-effort: a finished game must never fail
       // because a counter could not be written.
       const todaysQuests = questsForDate(questDate);
+      // Welcome back (#316): only this game's XP doubles, the ladder mirror included.
+      const xpFor = (p) => xpForGame(gameRecord, p.id) * (streaks[p.id] && streaks[p.id].welcomeBack ? 2 : 1);
       for (const p of gameRecord.players || []) {
         if (p.isBot) continue;
         try {
-          const gainedXp = xpForGame(gameRecord, p.id);
+          const welcomeBack = !!(streaks[p.id] && streaks[p.id].welcomeBack);
+          const gainedXp = xpFor(p);
           const questDeltas = evaluateQuests(gameRecord, p.id, todaysQuests);
           const before = playerStore.questProgress(p.name, questDate);
           const after = playerStore.addProgress(p.name, {
@@ -1259,6 +1262,7 @@ const registry = new SessionRegistry((session) => {
           sendTo(p.id, {
             type: 'progress',
             gainedXp,
+            welcomeBack,
             xp: after.xp,
             level: levelFromXp(after.xp),
             quests: { date: questDate, ids: todaysQuests, progress: after.quests, completed },
@@ -1277,7 +1281,7 @@ const registry = new SessionRegistry((session) => {
           if (p.isBot) continue;
           Promise.resolve(
             accountStore.addGameResult(p.name, {
-              xp: xpForGame(gameRecord, p.id),
+              xp: xpFor(p),
               won: gameRecord.winnerId === p.id,
               season,
             })

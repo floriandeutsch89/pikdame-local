@@ -245,6 +245,17 @@ function advanceDailyStreak(state, date) {
   return { state: s, event };
 }
 
+// "Welcome back": first game after this many game days without playing.
+const WELCOME_BACK_DAYS = 7;
+
+/** Away long enough for double XP? Read BEFORE the streak is advanced. */
+function isWelcomeBack(state, date) {
+  const last = state && state.last;
+  if (!last) return false; // brand-new players are not "back"
+  const gap = dayDiff(last, date);
+  return gap !== null && gap >= WELCOME_BACK_DAYS;
+}
+
 /** Is the grace day available on `date`? (for the UI: "Joker-Tag frei") */
 function streakGraceAvailable(state, date) {
   const s = state || {};
@@ -266,5 +277,7 @@ module.exports = {
   badgeProgress,
   advanceDailyStreak,
   streakGraceAvailable,
+  isWelcomeBack,
+  WELCOME_BACK_DAYS,
   STREAK_GRACE_EVERY_DAYS,
 };
