@@ -27,6 +27,9 @@ const EMOTE_DEFS = [
   { id: '🔥', level: 8 },
   { id: '😴', level: 10 },
   { id: '🙏', level: 12 },
+  { id: '🤩', level: 14 },
+  { id: '🥳', level: 16 },
+  { id: '💪', level: 18 },
 ];
 
 // Seasonal offers the client adds in October / December-January. Allowed

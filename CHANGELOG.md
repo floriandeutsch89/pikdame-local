@@ -3,6 +3,13 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.50.0] - 2026-10-05
+
+### Added
+- **Stufen-Titel** (#312): Kiebitz (1) → Mitspieler (3) → Kartenmischer (5) → Kartenhai (8) → Rommé-Fuchs (12) → Auslage-Ass (16) → Rommé-Profi (20) → Tischmeister (25) → Pik-Legende (30). Sichtbar in der Sitzordnung der Lobby und auf der Statistik-Karte
+- **Mehr Belohnungen für höhere Stufen** (#313): Emotes 🤩 (Stufe 14), 🥳 (16) und 💪 (18), Kartenrücken „Smaragd“ (15), „Purpur“ (20) und „Legende“ (30) sowie die Tischfarbe „Bordeaux“ (25). Gesperrtes ist mit „ab Stufe …“ beschriftet
+- **Saisonale Kartenrücken** (#314): „Kürbis“ lässt sich nur im Oktober freischalten, „Winterzauber“ nur im Dezember - eine beendete Partie im Monat genügt, danach bleibt der Rücken für immer
+
 ## [2.49.0] - 2026-10-05
 
 ### Added

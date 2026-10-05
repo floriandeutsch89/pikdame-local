@@ -14,6 +14,7 @@ const GameManager = require('./game/GameManager');
 const { createPlayerStore } = require('./game/PlayerStore');
 const { createGlobalStatsStore } = require('./game/GlobalStatsStore');
 const { computeEarnedBadges, familyBadges } = require('./game/Badges');
+const { seasonalBackFor } = require('./game/SeasonalBacks');
 const {
   xpForGame,
   levelFromXp,
@@ -1204,6 +1205,15 @@ const registry = new SessionRegistry((session) => {
       for (const p of gameRecord.players || []) {
         if (p.isBot) continue;
         try { streaks[p.id] = playerStore.touchDailyStreak(p.name, questDate); } catch (err) { logCrash('streak', err, { player: p.name }); }
+      }
+
+      // Seasonal card backs: a finished game in the month unlocks it for good.
+      const seasonalBack = seasonalBackFor(questDate);
+      if (seasonalBack) {
+        for (const p of gameRecord.players || []) {
+          if (p.isBot) continue;
+          try { playerStore.unlockSeasonalBack(p.name, seasonalBack, questDate); } catch (err) { logCrash('seasonal-back', err, { player: p.name }); }
+        }
       }
 
       // Achievement badges: computed per REAL player from the record,
