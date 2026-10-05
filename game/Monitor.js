@@ -228,6 +228,7 @@ function createMonitor({
         rssMb: mem.rss / MB,
         heapUsedMb: mem.heapUsed / MB,
         heapTotalMb: mem.heapTotal / MB,
+        externalMb: mem.external / MB,
         cpuPct: Math.max(0, processCpuPct),
         // p99 of the event loop delay since the last sample: the time a
         // message may wait before the server even looks at it.
