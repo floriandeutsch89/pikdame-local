@@ -182,17 +182,21 @@ test('identity chip: avatar opens the progress sheet, name still edits; streak s
   sock._emit('message', { data: JSON.stringify({
     type: 'profiles', publicMode: false, globalStats: null,
     quests: { date: today, ids: ['finish_game', 'win_game', 'meld_jokers_3'] },
-    players: [{ name: 'Flo', gamesPlayed: 3, gamesWon: 1, xp: 5320, dailyStreak: 6 }],
+    players: [{ name: 'Flo', gamesPlayed: 3, gamesWon: 1, xp: 5320, dailyStreak: 6, daily: { streak: 6, best: 9, last: '2000-01-01', graceAt: null } }],
   }) });
   const doc = window.document;
   assert.equal(doc.querySelector('#identityAvatar .identityLevel').textContent, '14');
-  assert.match(doc.getElementById('questsSummary').textContent, /6.*0\/3/, 'streak + done count on the tasks');
-  assert.equal(doc.querySelector('#progressStrip .psLevel'), null, 'no level strip under the daily tasks');
+  assert.equal(doc.getElementById('questsSummary').textContent, '0/3 erledigt', 'tasks only, no level or streak');
+  const flame = doc.getElementById('identityStreak');
+  assert.ok(!flame.classList.contains('hidden'));
+  assert.equal(flame.textContent, '6', 'streak on the chip');
+  assert.ok(flame.classList.contains('pending'), 'not played today yet: outlined');
 
   doc.getElementById('identityAvatarBtn').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
   assert.ok(!doc.getElementById('progressOverlay').classList.contains('hidden'), 'avatar opens the sheet');
   assert.match(doc.getElementById('progressContent').textContent, /Stufe 14/);
   assert.ok(doc.querySelector('#progressContent .pgLadder li.current'), 'current title marked');
+  assert.match(doc.getElementById('progressContent').textContent, /Tagesserie.*6 Tage in Folge.*Rekord: 9 Tage/);
   doc.getElementById('progressCloseBtn').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
   assert.ok(doc.getElementById('progressOverlay').classList.contains('hidden'));
 

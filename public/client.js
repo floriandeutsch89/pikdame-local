@@ -6103,6 +6103,20 @@
     const me = myProfile();
     return levelFromXpClient(Math.max(me ? me.xp || 0 : 0, myProgress ? myProgress.xp || 0 : 0));
   }
+  // Streak state from the profile; "today" is the server's game day (the
+  // quests' date), never the device clock.
+  function myStreakInfo() {
+    const me = myProfile();
+    const daily = (me && me.daily) || {};
+    const today = dailyQuests && dailyQuests.date;
+    const playedToday = !!(today && (daily.last === today || (myStreak && myStreak.event)));
+    return {
+      streak: (myStreak && myStreak.streak) || (me && me.dailyStreak) || 0,
+      best: Math.max((myStreak && myStreak.best) || 0, daily.best || 0),
+      graceFree: myStreak ? !!myStreak.graceFree : !daily.graceAt,
+      playedToday,
+    };
+  }
   function progressEnabled() {
     return !publicMode && !!(dailyQuests && dailyQuests.ids && dailyQuests.ids.length);
   }
@@ -6126,9 +6140,22 @@
       badge.classList.toggle('hidden', !on);
       badge.textContent = String(lv.level);
     }
+    // Flame: filled once today counts, outlined while today is still open.
+    const st = el('identityStreak');
+    const si = myStreakInfo();
+    if (st) {
+      st.classList.toggle('hidden', !on || si.streak <= 0);
+      st.classList.toggle('pending', !si.playedToday);
+      st.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#i-flame"/></svg><span>${si.streak}</span>`;
+    }
     btn.disabled = !on;
+    const streakText = si.streak > 0
+      ? si.playedToday
+        ? L(`, ${si.streak} Tage in Folge`, `, ${si.streak}-day streak`)
+        : L(`, ${si.streak} Tage in Folge - heute noch nicht gespielt`, `, ${si.streak}-day streak - not played today yet`)
+      : '';
     const label = on
-      ? L(`Fortschritt: Stufe ${lv.level}, ${lv.into}/${lv.need} EP`, `Progress: level ${lv.level}, ${lv.into}/${lv.need} XP`)
+      ? L(`Fortschritt: Stufe ${lv.level}, ${lv.into}/${lv.need} EP`, `Progress: level ${lv.level}, ${lv.into}/${lv.need} XP`) + streakText
       : L('Fortschritt', 'Progress');
     btn.title = label;
     btn.setAttribute('aria-label', label);
@@ -6155,12 +6182,30 @@
       (next.length
         ? `<h3>${escapeHtml(L(`Nächste Belohnung (Stufe ${next[0].level})`, `Next reward (level ${next[0].level})`))}</h3><ul class="pgNext">${next.map((r) => `<li>${escapeHtml(r.label)}</li>`).join('')}</ul>`
         : '') +
+      streakSectionHtml() +
       `<h3>${escapeHtml(L('So gibt es Erfahrung', 'How to earn XP'))}</h3>` +
       `<p class="pgRules">${escapeHtml(L(
         `${XP_RULES.base} EP pro beendeter Partie, +${XP_RULES.win} für einen Sieg, +1 je ${XP_RULES.perPoints} Punkte Endstand.`,
         `${XP_RULES.base} XP per finished match, +${XP_RULES.win} for a win, +1 per ${XP_RULES.perPoints} points of your final score.`
       ))}</p>` +
       `<h3>${escapeHtml(L('Titel', 'Titles'))}</h3><ol class="pgLadder">${ladder}</ol>`;
+  }
+  function streakSectionHtml() {
+    const si = myStreakInfo();
+    const status = si.streak <= 0
+      ? L('Spiel heute eine Partie zu Ende oder löse das Tagesrätsel, um eine Serie zu starten.', 'Finish a match or solve the daily puzzle today to start a streak.')
+      : si.playedToday
+        ? L('Heute schon gespielt - die Serie läuft.', 'Played today - the streak is safe.')
+        : L('Heute noch nicht gespielt - eine beendete Partie oder das gelöste Tagesrätsel hält die Serie.', 'Not played today yet - a finished match or the solved daily puzzle keeps it going.');
+    return `<h3>${escapeHtml(L('Tagesserie', 'Daily streak'))}</h3>` +
+      `<div class="pgStreak${si.playedToday ? '' : ' pending'}">` +
+      `<span class="pgStreakNum"><svg class="icon" aria-hidden="true"><use href="#i-flame"/></svg>${si.streak}</span>` +
+      `<span class="pgStreakText"><b>${escapeHtml(si.streak === 1 ? L('1 Tag in Folge', '1 day running') : L(`${si.streak} Tage in Folge`, `${si.streak} days running`))}</b>` +
+      `<span>${escapeHtml(status)}</span></span></div>` +
+      `<p class="pgRules">${escapeHtml(L(
+        `Rekord: ${si.best} ${si.best === 1 ? 'Tag' : 'Tage'} · Joker-Tag ${si.graceFree ? 'frei' : 'diese Woche verbraucht'}. Ein verpasster Tag pro Woche wird überbrückt.`,
+        `Best: ${si.best} ${si.best === 1 ? 'day' : 'days'} · grace day ${si.graceFree ? 'free' : 'used this week'}. One missed day per week is bridged.`
+      ))}</p>`;
   }
   function openProgressSheet() {
     if (!progressEnabled()) return;
@@ -6184,25 +6229,12 @@
       return;
     }
     box.classList.remove('hidden');
-    // The streak is a daily rhythm, so it stays with the tasks; the level is
-    // lifetime progress and lives on the identity chip.
-    const me = myProfile();
-    const streak = (myStreak && myStreak.streak) || (me && me.dailyStreak) || 0;
-    const graceFree = myStreak ? myStreak.graceFree : !(me && me.daily && me.daily.graceAt);
-    const strip = el('progressStrip');
-    if (strip) {
-      strip.innerHTML =
-        `<div class="psStreak" title="${escapeHtml(L('Tagesserie: an aufeinanderfolgenden Tagen spielen. Ein verpasster Tag pro Woche wird überbrückt (Joker-Tag).', 'Daily streak: play on consecutive days. One missed day per week is bridged (grace day).'))}"><svg class="icon" aria-hidden="true"><use href="#i-flame"/></svg><span>${
-          streak > 0 ? L(`${streak} ${streak === 1 ? 'Tag' : 'Tage'} in Folge`, `${streak} ${streak === 1 ? 'day' : 'days'} running`) : L('Heute spielen startet die Serie', 'Play today to start a streak')
-        }${streak > 0 ? ` <small>${graceFree ? L('· Joker-Tag frei', '· grace day free') : L('· Joker-Tag verbraucht', '· grace day used')}</small>` : ''}</span></div>`;
-    }
+    // Tasks only: level and streak live on the identity chip / progress sheet.
     const sum = el('questsSummary');
     if (sum) {
       const total = dailyQuests.ids.length;
       const done = dailyQuests.ids.filter((id) => (questProgress[id] || 0) >= (QUEST_NEED[id] || 1)).length;
-      sum.innerHTML = (streak > 0
-        ? `<span class="qsStreak" title="${escapeHtml(L(`${streak} Tage in Folge gespielt`, `${streak} days in a row`))}"><svg class="icon" aria-hidden="true"><use href="#i-flame"/></svg>${streak}</span><span class="dot"> · </span>`
-        : '') + `<span>${done}/${total} ${L('erledigt', 'done')}</span>`;
+      sum.textContent = `${done}/${total} ${L('erledigt', 'done')}`;
     }
     list.innerHTML = dailyQuests.ids
       .map((id) => {

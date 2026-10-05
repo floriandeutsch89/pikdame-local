@@ -2276,6 +2276,15 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 .pgNext { list-style: none; margin: 0; padding: 0; font-size: var(--fs-body); font-weight: 600; }
 .pgNext li { padding: 2px 0; }
 .pgRules { margin: 0; font-size: var(--fs-label); color: var(--text-muted); }
+.pgStreak { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.pgStreakNum {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 2px;
+  font-size: var(--fs-title); font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.pgStreakNum .icon { width: 1em; height: 1em; color: #e8851f; fill: currentColor; }
+.pgStreak.pending .pgStreakNum .icon { fill: none; color: var(--text-muted); }
+.pgStreakText { display: flex; flex-direction: column; font-size: var(--fs-label); }
+.pgStreakText span { color: var(--text-muted); }
 .pgLadder { list-style: none; margin: 0 0 12px; padding: 0; font-size: var(--fs-label); }
 .pgLadder li {
   display: grid; grid-template-columns: 2.2em 1fr auto; align-items: center; gap: 8px;
@@ -3140,11 +3149,8 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 .questsSection summary::-webkit-details-marker { display: none; }
 .questsSection summary h2 { margin: 0; flex-shrink: 0; }
 .questsSummary { flex: 1; min-width: 0; text-align: right; font-size: var(--fs-label); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
-.questsSummary .qsStreak { display: inline-flex; align-items: center; gap: 2px; font-weight: 700; color: var(--text); }
-.questsSummary .icon { width: 1em; height: 1em; color: #f39a2b; color: color-mix(in srgb, #f39a2b 75%, var(--text)); }
 .questsChevron { width: 1em; height: 1em; flex-shrink: 0; color: var(--text-muted); transition: transform 0.2s var(--ease); }
 .questsSection[open] .questsChevron { transform: rotate(180deg); }
-.questsSection .progressStrip { margin: 10px 0 10px; }
 /* Stammtisch */
 .stammtischRecent { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; max-width: var(--lobby-w); justify-content: center; }
 .stammtischRecent button {
@@ -3202,10 +3208,6 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 .puzzleStatus.bad { color: #d34b3a; }
 .puzzleHand .card.solution { box-shadow: 0 0 0 3px var(--drawn), var(--shadow-2); }
 /* Level + daily streak strip above the tasks */
-.progressStrip { display: flex; flex-direction: column; gap: 6px; margin: -2px 0 12px; font-size: var(--fs-label); }
-.progressStrip .psStreak { display: flex; align-items: center; gap: 6px; }
-.progressStrip .psStreak .icon { color: #f39a2b; color: color-mix(in srgb, #f39a2b 75%, var(--text)); }
-.progressStrip small { color: var(--text-muted); font-size: var(--fs-hint); }
 /* Family tiles: tier dots under the name */
 .achTiers { display: inline-flex; gap: 3px; }
 .achTiers i { width: 7px; height: 7px; border-radius: 50%; background: rgba(0,0,0,0.15); display: inline-block; }
@@ -3914,7 +3916,16 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
   color: inherit; font: inherit; border-radius: var(--r-pill);
   transition: transform 0.15s var(--ease), background 0.2s ease;
 }
-.identityAvatarBtn { justify-content: center; min-width: var(--tap-min); padding: 3px; }
+.identityAvatarBtn { justify-content: center; gap: 4px; min-width: var(--tap-min); padding: 3px 8px 3px 3px; }
+.identityStreak {
+  display: inline-flex; align-items: center; gap: 2px; margin-left: 4px;
+  font-size: var(--fs-label); font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.identityStreak .icon { width: 1.05em; height: 1.05em; color: #f39a2b; color: color-mix(in srgb, #f39a2b 75%, var(--text)); fill: currentColor; }
+/* Today still open: outlined and muted - "keep it alive" without a nag. */
+.identityStreak.pending { color: var(--text-muted); }
+.identityStreak.pending .icon { fill: none; color: var(--text-muted); }
+.identityStreak.hidden { display: none; }
 .identityNameBtn { min-width: 0; padding: 0 12px 0 6px; }
 .identityAvatarBtn:not(:disabled):active, .identityNameBtn:not(:disabled):active { transform: scale(0.96); background: var(--glass-strong); }
 .identityAvatarBtn:disabled, .identityNameBtn:disabled { opacity: 1; cursor: default; }
