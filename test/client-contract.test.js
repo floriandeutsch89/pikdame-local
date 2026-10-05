@@ -497,6 +497,8 @@ test('client contract: functions that build translated markup are refreshed by c
     // Stammtisch chip info: cycleLang re-renders the chips, which re-requests
     // the info from the server - the reply rewrites the text in the new language.
     'updateStammtischChip',
+    // "My Stammtische": rebuilt from the server reply each time the overlay opens.
+    'renderStammtischList',
     // Puzzle overlay: opened fresh on every click; the hand and status are
     // rendered by renderPuzzle, which cycleLang re-runs.
     'openPuzzle',

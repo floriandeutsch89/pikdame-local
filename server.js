@@ -1402,6 +1402,13 @@ function broadcastToSession(session, message) {
   }
 }
 
+const STAMMTISCH_LOGIN_ERROR = 'Für deine Stammtische brauchst du ein Konto - bitte zuerst anmelden.';
+/** Account username behind msg.accountToken, or null (not signed in). */
+async function stammtischAccount(msg) {
+  const user = await accountStore.sessionUser(msg.accountToken);
+  return user && user.username ? user.username : null;
+}
+
 /** The live session currently bound to a Stammtisch code, if any. */
 function findStammtischSession(code) {
   for (const s of registry.sessions.values()) {
@@ -1737,11 +1744,34 @@ wss.on('connection', (ws, req) => {
     if (msg.type === 'createStammtisch') {
       // A Stammtisch is founded WITH its first table: one message, and the
       // founder sits at a live session bound to the new group code.
-      const founded = stammtischStore.create(msg.stammtischName, sanitizeName(msg.name));
+      // Founding needs an account (it owns the table); joining by code does not.
+      let owner = null;
+      if (ACCOUNTS_ENABLED) {
+        owner = await stammtischAccount(msg);
+        if (!owner) return sendError(ws, STAMMTISCH_LOGIN_ERROR);
+        msg = { ...msg, name: owner };
+      }
+      const founded = stammtischStore.create(msg.stammtischName, sanitizeName(msg.name), Date.now(), owner);
       if (founded.error) return sendError(ws, founded.error);
       const created = registry.create({ stammtisch: founded.table.code });
       if (created.error) return sendError(ws, created.error);
       await joinSession(created.session, msg);
+      return;
+    }
+    if (msg.type === 'listStammtische' || msg.type === 'deleteStammtisch' || msg.type === 'leaveStammtisch') {
+      // "My Stammtische": by account only - a name alone is spoofable.
+      const owner = ACCOUNTS_ENABLED ? await stammtischAccount(msg) : null;
+      if (!owner) return sendError(ws, STAMMTISCH_LOGIN_ERROR);
+      if (msg.type !== 'listStammtische') {
+        const r = msg.type === 'deleteStammtisch'
+          ? stammtischStore.remove(msg.code, owner)
+          : stammtischStore.leave(msg.code, owner);
+        if (r.error) return sendError(ws, r.error);
+        // A live table of a deleted Stammtisch plays on as a normal table.
+        const live = msg.type === 'deleteStammtisch' ? findStammtischSession(r.code) : null;
+        if (live) live.stammtisch = null;
+      }
+      ws.send(JSON.stringify({ type: 'stammtischList', tables: stammtischStore.listFor(owner) }));
       return;
     }
     if (msg.type === 'getStammtisch') {
@@ -1832,7 +1862,8 @@ wss.on('connection', (ws, req) => {
     switch (msg.type) {
       case 'startGame': {
         if (!game.isHost(playerId)) { sendError(ws, 'Nur der Organisator kann das Spiel starten.'); break; }
-        const gate = game.lobbyStartGate();
+        // Stammtisch: at least two humans, also for a rematch (same lobby path).
+        const gate = game.lobbyStartGate({ minHumans: session.stammtisch ? 2 : 1 });
         if (gate.error) {
           sendError(ws, gate.error);
           break;

@@ -708,13 +708,24 @@
       </div>
     </section>
 
-    <!-- STAMMTISCH: found a persistent group table -->
+    <!-- STAMMTISCH: my tables (account) + found a persistent group table -->
     <section id="stammtischOverlay" class="overlay hidden">
       <div class="overlay-card">
-        <h2><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span>Stammtisch gründen</span></h2>
+        <h2><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span>Stammtisch</span></h2>
         <p class="lobby-hint">Ein fester Tisch für deine Runde: ein Code für immer, eine Bilanz über alle Partien und eine Revanche-Serie (Best of 3). Wer den Code kennt, landet immer am aktuellen Tisch.</p>
-        <input id="stammtischNameInput" type="text" placeholder="Name des Stammtischs" maxlength="24" />
-        <button id="stammtischCreateBtn" class="btn-primary">Gründen &amp; Tisch eröffnen</button>
+        <div id="stammtischMine" class="stammtischMine hidden">
+          <h3>Meine Stammtische</h3>
+          <div id="stammtischList" class="stammtischList"></div>
+        </div>
+        <div id="stammtischFound" class="stammtischFound">
+          <h3>Stammtisch gründen</h3>
+          <input id="stammtischNameInput" type="text" placeholder="Name des Stammtischs" maxlength="24" />
+          <button id="stammtischCreateBtn" class="btn-primary">Gründen &amp; Tisch eröffnen</button>
+        </div>
+        <div id="stammtischLoginBox" class="hidden">
+          <p class="settingsHint">Zum Gründen und für die Liste deiner Stammtische brauchst du ein Konto. Mitspielen per Code geht auch ohne.</p>
+          <button id="stammtischLoginBtn" class="btn-primary">Anmelden</button>
+        </div>
         <p class="settingsHint">Du hast schon einen Code? Gib ihn einfach oben bei „Beitreten“ ein.</p>
         <button id="stammtischCancelBtn" class="btn-secondary">Abbrechen</button>
       </div>

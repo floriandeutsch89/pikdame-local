@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.49.0] - 2026-10-05
+
+### Added
+- **Meine Stammtische** (#307): Das Stammtisch-Fenster listet alle Stammtische, die du gegründet hast oder an denen du gespielt hast, mit Code, Mitspielern und letzter Aktivität. Antippen setzt dich an den Tisch. Wer gegründet hat, kann den Stammtisch löschen (für alle, mit zweitem Tipp bestätigen), alle anderen können ihn verlassen. Ein laufender Tisch eines gelöschten Stammtischs spielt als normaler Tisch weiter
+
+### Changed
+- **Stammtisch gründen braucht ein Konto** (#307): Der Stammtisch gehört dem Konto, das ihn gegründet hat; nur so ist das Löschen sicher (ein Spielername allein ließe sich nachmachen). Mitspielen per Code geht weiter ohne Konto. Auf Servern ohne Benutzerkonten bleibt alles wie bisher. Bestehende Stammtische gehören dem, der sie gegründet hat
+- **Ein Stammtisch startet erst mit mindestens 2 Spielern** (#301), auch bei der Revanche. Bis jemand per Code dazukommt, zeigt der Startknopf „Mindestens 2 Spieler nötig“; freie Plätze füllen wie gewohnt Bots. Normale Tische sind unverändert
+
 ## [2.47.4] - 2026-10-05
 
 ### Fixed

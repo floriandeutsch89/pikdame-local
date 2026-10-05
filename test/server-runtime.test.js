@@ -106,17 +106,41 @@ test('a disconnected human does not keep a bare GameManager process alive', () =
   assert.ok(Date.now() - started < 10000, 'process exits without waiting for the takeover grace');
 });
 
-// Stammtisch over the wire: founding binds a live session to the group code,
-// the group code joins that same session, and a member who dropped out gets
-// their seat back by NAME (there is no seat token to show at a Stammtisch).
+// Stammtisch over the wire: founding (with an account) binds a live session
+// to the group code, the group code joins that same session (guests too), and
+// a member who dropped out gets their seat back by NAME (no seat token there).
 test('Stammtisch: found, join by group code, reclaim seat by name', async (t) => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-st-'));
-  const { server } = startServer(dataDir);
-  t.after(() => {
+  const { server, output } = startServer(dataDir);
+  t.after(async () => {
+    const gone = server.exitCode !== null ? null : new Promise((r) => server.once('exit', r));
     server.kill();
+    await gone;
     fs.rmSync(dataDir, { recursive: true, force: true });
   });
   await waitForServer(PORT);
+  const http = require('node:http');
+  const post = (urlPath, body) => new Promise((resolve, reject) => {
+    const payload = JSON.stringify(body);
+    const req = http.request({ host: '127.0.0.1', port: PORT, path: urlPath, method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } }, (res) => {
+      let data = '';
+      res.on('data', (c) => { data += c; });
+      res.on('end', () => resolve({ status: res.statusCode, json: JSON.parse(data || '{}') }));
+    });
+    req.on('error', reject);
+    req.end(payload);
+  });
+  // Founding needs an account (#307): sign Flo up with the e-mail code.
+  assert.equal((await post('/api/register-passwordless', { username: 'Flo', email: 'flo@example.org' })).status, 200);
+  let mailCode = null;
+  for (let i = 0; i < 50 && !mailCode; i++) {
+    const m = output().match(/Bestätigungscode (\d{6})/);
+    if (m) mailCode = m[1]; else await new Promise((r) => setTimeout(r, 50));
+  }
+  const verified = await post('/api/verify-code', { email: 'flo@example.org', code: mailCode });
+  assert.equal(verified.status, 200);
+  const floToken = verified.json.token;
 
   const open = () => new Promise((resolve, reject) => {
     const ws = new WebSocket(`ws://localhost:${PORT}`);
@@ -136,14 +160,25 @@ test('Stammtisch: found, join by group code, reclaim seat by name', async (t) =>
     tick();
   });
 
+  const guest = await open();
+  guest.send(JSON.stringify({ type: 'createStammtisch', stammtischName: 'Gäste', name: 'Gast' }));
+  assert.match((await waitFor(guest, 'error')).error, /brauchst du ein Konto/, 'a guest cannot found a Stammtisch');
+  guest.send(JSON.stringify({ type: 'listStammtische', name: 'Gast' }));
+  await new Promise((r) => setTimeout(r, 150));
+  assert.ok(!guest.inbox.some((m) => m.type === 'stammtischList'), 'nor list one');
+
   const flo = await open();
-  flo.send(JSON.stringify({ type: 'createStammtisch', stammtischName: 'Familie', name: 'Flo' }));
+  flo.send(JSON.stringify({ type: 'createStammtisch', stammtischName: 'Familie', name: 'Flo', accountToken: floToken }));
   const joinedFlo = await waitFor(flo, 'joined');
   assert.ok(joinedFlo.stammtisch && /^ST[A-Z2-9]{4}$/.test(joinedFlo.stammtisch.code), 'joined carries the group code');
   assert.strictEqual(joinedFlo.stammtisch.name, 'Familie');
   const summary = await waitFor(flo, 'stammtisch');
   assert.strictEqual(summary.summary.series.no, 1);
   const code = joinedFlo.stammtisch.code;
+  // #301: one human alone cannot start a group table.
+  flo.inbox.length = 0;
+  flo.send(JSON.stringify({ type: 'startGame' }));
+  assert.match((await waitFor(flo, 'error')).error, /mindestens 2 Spieler/);
 
   const anna = await open();
   anna.send(JSON.stringify({ type: 'joinSession', code, name: 'Anna' }));
@@ -172,7 +207,27 @@ test('Stammtisch: found, join by group code, reclaim seat by name', async (t) =>
   const info = await waitFor(probe, 'stammtischInfo');
   assert.strictEqual(info.exists, true);
   assert.strictEqual(info.name, 'Familie');
-  for (const ws of [flo, anna2, impostor, probe]) ws.close();
+
+  // "My Stammtische" (#307): Flo founded it; deleting removes it for everyone.
+  flo.inbox.length = 0;
+  flo.send(JSON.stringify({ type: 'listStammtische', name: 'Flo', accountToken: floToken }));
+  const mine = await waitFor(flo, 'stammtischList');
+  assert.deepStrictEqual(mine.tables.map((x) => [x.code, x.isOwner]), [[code, true]]);
+  assert.ok(mine.tables[0].members.includes('Anna'), 'members joined by code are listed');
+  flo.inbox.length = 0;
+  flo.send(JSON.stringify({ type: 'deleteStammtisch', code, name: 'Flo', accountToken: floToken }));
+  assert.deepStrictEqual((await waitFor(flo, 'stammtischList')).tables, []);
+  probe.inbox.length = 0;
+  probe.send(JSON.stringify({ type: 'getStammtisch', code }));
+  assert.strictEqual((await waitFor(probe, 'stammtischInfo')).exists, false, 'the code is gone');
+  // The live table plays on as a normal table: two humans, everyone ready, start.
+  for (const ws of [flo, anna2, impostor]) ws.send(JSON.stringify({ type: 'lobbyReady' }));
+  await new Promise((r) => setTimeout(r, 150));
+  flo.inbox.length = 0;
+  flo.send(JSON.stringify({ type: 'startGame' }));
+  await new Promise((r) => setTimeout(r, 300));
+  assert.ok(!flo.inbox.some((m) => m.type === 'error'), JSON.stringify(flo.inbox.filter((m) => m.type === 'error')));
+  for (const ws of [guest, flo, anna2, impostor, probe]) ws.close();
 });
 
 // Coming back to a minimised daily challenge: the existence probe tells the
