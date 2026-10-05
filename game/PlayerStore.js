@@ -135,6 +135,19 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     return fresh;
   }
 
+  /** Seasonal card back for this profile (first unlock date kept). @returns {boolean} newly unlocked */
+  function unlockSeasonalBack(name, backId, date) {
+    if (!backId) return false;
+    const store = loadStore();
+    const p = findPlayerByName(store, name);
+    if (!p) return false;
+    p.seasonalBacks = p.seasonalBacks || {};
+    if (p.seasonalBacks[backId]) return false;
+    p.seasonalBacks[backId] = date;
+    saveStore(store);
+    return true;
+  }
+
   // --- Progression (XP + daily quests) -------------------------------------
   // Kept on the local, NAME-based profile so it works exactly where the rest
   // of the statistics work: family/hotspot play without any account. The
@@ -261,6 +274,7 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     listPlayers,
     getPlayerByName,
     awardBadges,
+    unlockSeasonalBack,
     addProgress,
     questProgress,
     touchDailyStreak,
