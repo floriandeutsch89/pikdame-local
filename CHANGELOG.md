@@ -8,6 +8,13 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Added
 - **Lieblingsabzeichen** (#317): Wer mit Konto angemeldet ist, kann bis zu drei verdiente Abzeichen auswählen (Stern-Knopf in der Abzeichen-Ansicht). Sie stehen neben dem Namen in der Statistik und in der Sitzordnung vor dem Spiel, in der gewählten Reihenfolge; eine Abzeichen-Familie zeigt immer ihre höchste erreichte Stufe. Ohne Konto gibt es die Auswahl nicht, ein gelöschtes Konto verliert sie
 
+## [2.50.0] - 2026-10-05
+
+### Added
+- **Stufen-Titel** (#312): Kiebitz (1) → Mitspieler (3) → Kartenmischer (5) → Kartenhai (8) → Rommé-Fuchs (12) → Auslage-Ass (16) → Rommé-Profi (20) → Tischmeister (25) → Pik-Legende (30). Sichtbar in der Sitzordnung der Lobby und auf der Statistik-Karte
+- **Mehr Belohnungen für höhere Stufen** (#313): Emotes 🤩 (Stufe 14), 🥳 (16) und 💪 (18), Kartenrücken „Smaragd“ (15), „Purpur“ (20) und „Legende“ (30) sowie die Tischfarbe „Bordeaux“ (25). Gesperrtes ist mit „ab Stufe …“ beschriftet
+- **Saisonale Kartenrücken** (#314): „Kürbis“ lässt sich nur im Oktober freischalten, „Winterzauber“ nur im Dezember, „Weihnachten“ nur vom 24. bis 26. Dezember und „Ostern“ nur von Karfreitag bis Ostermontag - eine beendete Partie im Zeitraum genügt, danach bleibt der Rücken für immer
+
 ## [2.49.0] - 2026-10-05
 
 ### Added

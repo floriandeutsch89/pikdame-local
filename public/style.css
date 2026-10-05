@@ -3240,6 +3240,100 @@ html[data-cardback="joker"] .card.back {
   border-color: #a02a78;
 }
 
+/* --- Card backs earned by level (15/20/30) and by season ------------------- */
+html[data-cardback="emerald"] .pile-card.back,
+html[data-cardback="emerald"] .card.back,
+.cbPrev.cbPrev-emerald {
+  background:
+    repeating-linear-gradient(90deg, rgba(233,200,106,0.35) 0 1px, transparent 1px 7px),
+    linear-gradient(160deg, #0b4d3a 0%, #127a5a 55%, #06301f 100%);
+  border-color: #e9c86a;
+}
+html[data-cardback="purple"] .pile-card.back,
+html[data-cardback="purple"] .card.back,
+.cbPrev.cbPrev-purple {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255,215,120,0.35) 0 2px, transparent 2.5px) 0 0 / 12px 12px,
+    linear-gradient(155deg, #3b1260 0%, #6b2fa3 55%, #24093d 100%);
+  border-color: #d4af37;
+}
+html[data-cardback="legend"] .pile-card.back,
+html[data-cardback="legend"] .card.back,
+.cbPrev.cbPrev-legend {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(212,175,55,0.55) 0 18%, transparent 19%),
+    repeating-linear-gradient(45deg, rgba(212,175,55,0.18) 0 2px, transparent 2px 10px),
+    linear-gradient(160deg, #111 0%, #2a2414 55%, #050505 100%);
+  border-color: #d4af37;
+}
+html[data-cardback="pumpkin"] .pile-card.back,
+html[data-cardback="pumpkin"] .card.back,
+.cbPrev.cbPrev-pumpkin {
+  background:
+    radial-gradient(ellipse at 50% 55%, rgba(255,170,60,0.75) 0 3px, transparent 3.5px) 0 0 / 14px 14px,
+    linear-gradient(160deg, #3a1406 0%, #a8460f 55%, #261003 100%);
+  border-color: #f08a24;
+}
+html[data-cardback="winter"] .pile-card.back,
+html[data-cardback="winter"] .card.back,
+.cbPrev.cbPrev-winter {
+  background:
+    radial-gradient(circle at 25% 30%, rgba(255,255,255,0.75) 0 1.5px, transparent 2px) 0 0 / 11px 11px,
+    radial-gradient(circle at 70% 70%, rgba(200,230,255,0.55) 0 1px, transparent 1.5px) 0 0 / 7px 7px,
+    linear-gradient(170deg, #0c2340 0%, #1f4f7d 60%, #0a1a30 100%);
+  border-color: #9fd3ff;
+}
+
+html[data-cardback="christmas"] .pile-card.back,
+html[data-cardback="christmas"] .card.back,
+.cbPrev.cbPrev-christmas {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255,215,90,0.85) 0 1.5px, transparent 2px) 0 0 / 10px 10px,
+    repeating-linear-gradient(45deg, rgba(255,255,255,0.14) 0 3px, transparent 3px 9px),
+    linear-gradient(160deg, #0d4a2c 0%, #b3202f 100%);
+  border-color: #e9c86a;
+}
+html[data-cardback="easter"] .pile-card.back,
+html[data-cardback="easter"] .card.back,
+.cbPrev.cbPrev-easter {
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.8) 0 2px, transparent 2.5px) 0 0 / 12px 14px,
+    linear-gradient(160deg, #f6c1d9 0%, #b9e3c6 50%, #c8d8ff 100%);
+  border-color: #e7a8c4;
+}
+
+/* --- Theme: Bordeaux (unlocked at level 25) --------------------------------- */
+[data-theme="bordeaux"] {
+  --bg: #2a0b16;
+  --bg-deep: #16050b;
+  --bg-glow: #5a1a2e;
+  --glass: rgba(255,255,255,0.06);
+  --glass-strong: rgba(255,255,255,0.11);
+  --glass-border: rgba(255,255,255,0.14);
+  --accent: #e8b86b;
+  --drawn: #5ad1ff; /* gold accent - the draw marker goes cyan, as in felt */
+  --accent-2: #c9944a;
+  --accent-ink: #2a1605;
+  --accent-soft: rgba(232,184,107,0.22);
+  --text: #f8eef0;
+  --text-muted: rgba(240,220,226,0.58);
+  --danger: #ff8a8a;
+  --success: #6fe0a8;
+  --card-bg: #fbf7f2;
+  --card-ink: #24161a;
+  --card-border: rgba(36,22,26,0.16);
+  --suit-red: #c8324b;
+  --suit-black: #281b1f;
+  --joker: #b38bd9;
+  --spot: rgba(232, 184, 107, 0.12);
+  --shadow-1: 0 1px 2px rgba(0,0,0,0.4);
+  --shadow-2: 0 4px 18px rgba(0,0,0,0.5);
+  --shadow-3: 0 14px 44px rgba(0,0,0,0.6);
+}
+.themeBtn[data-theme-choice="bordeaux"] { background: linear-gradient(145deg, #7a2440, #16050b); border-color: rgba(232,184,107,0.55); }
+.themeBtn.locked { opacity: 0.4; }
+.seatTitle { font-weight: 400; font-size: var(--fs-hint); color: var(--text-muted); }
+
 /* --- Theme: Omas Küchentisch (hell, warmes Holz) ---------------------------- */
 [data-theme="kitchen"] {
   /* VOLLSTÄNDIGER Variablensatz! Beim ersten Wurf fehlten 11 Variablen
