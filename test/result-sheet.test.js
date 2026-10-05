@@ -11,7 +11,7 @@ const { JSDOM } = require('jsdom');
 
 const pub = path.join(__dirname, '..', 'public');
 
-function boot() {
+function boot(storage = {}) {
   const html = fs.readFileSync(path.join(pub, 'index.html'), 'utf8');
   const dom = new JSDOM(html, { url: 'https://play.example/', runScripts: 'outside-only', pretendToBeVisual: true });
   const { window } = dom;
@@ -58,6 +58,7 @@ function boot() {
   window.onerror = (msg) => errors.push(String(msg));
   window.addEventListener('error', (e) => errors.push(String(e.message || e.error)));
 
+  for (const [k, v] of Object.entries(storage)) window.localStorage.setItem(k, v);
   for (const src of ['i18n.js', 'client.js']) window.eval(fs.readFileSync(path.join(pub, src), 'utf8'));
   window.document.dispatchEvent(new window.Event('DOMContentLoaded', { bubbles: true }));
   return { window, errors, scrolledInto, ws: () => ws };
@@ -115,6 +116,41 @@ test('result sheet: best-first one-line rows, folded own breakdown, emotes behin
   assert.deepEqual(errors, [], `Client-Fehler: ${errors.join(' | ')}`);
 });
 
+test('game over sheet: ranking leads, home next to rematch, personal line, chart on the result pane', async (t) => {
+  const { window, errors, ws } = boot();
+  t.after(() => window.close());
+  await new Promise((r) => setTimeout(r, 10));
+  const sock = ws();
+  const st = roundEndState();
+  Object.assign(st, {
+    phase: 'gameOver',
+    totals: { p1: 880, b1: 1045, b2: 610, b3: 320 },
+    scoreHistory: [{ round: 1, totals: { p1: 100, b1: 80, b2: 0, b3: 40 } }, { round: 2, totals: st.totals }],
+    gameOverInfo: { winnerId: 'b1', totalTurns: 90, totalRounds: 2, highlights: [], funTitle: { type: 'queenMagnet', name: 'Horst', count: 2 } },
+  });
+  sock._emit('message', { data: JSON.stringify({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'ABCD' }) });
+  sock._emit('message', { data: JSON.stringify({ type: 'state', state: st }) });
+  sock._emit('message', { data: JSON.stringify({ type: 'progress', gainedXp: 120, xp: 500, level: { level: 4 }, record: { played: 43, won: 17 } }) });
+  const doc = window.document;
+
+  const ranks = [...doc.querySelectorAll('#resultBody .resultRank')].map((n) => n.textContent);
+  assert.deepEqual(ranks, ['1.', '2.', '3.', '4.'], 'ranked by total');
+  assert.equal(doc.querySelector('#resultBody .resultTotalBig').textContent, '1045', 'total leads at game over');
+  assert.equal(doc.querySelectorAll('#resultBody details.resultBreakdown').length, 0, 'no last-round breakdown at game over');
+  assert.equal(doc.querySelectorAll('#resultBody .barGoal').length, 0, 'no 1000 tick at game over');
+  // Leader Klaus: 1045 now, 775 before the round; the scale is 1045, not 1000.
+  const solid = parseFloat(doc.querySelector('#resultBody .resultRow .barSolid').style.width);
+  assert.ok(Math.abs(solid - (775 / 1045) * 100) < 0.1, `solid ${solid}% on a scale of the best total`);
+  assert.match(doc.querySelector('#resultBody .resultMine').textContent, /Platz 2 von 4.*\+120.*17\/43/);
+  const panes = doc.querySelectorAll('#resultBody .resultPane');
+  assert.ok(panes[0].querySelector('.scoreChart'), 'chart sits on the result pane');
+  assert.ok(doc.querySelector('#resultBody .matchFacts'), 'facts as chips');
+  assert.equal(doc.getElementById('resultMore').open, false, '"Mehr" stays folded');
+  assert.ok(!doc.getElementById('resultHomeQuickBtn').classList.contains('hidden'), 'home button next to rematch');
+  assert.ok(doc.getElementById('resultHomeBtn').classList.contains('hidden'), 'no duplicate in "Mehr"');
+  assert.deepEqual(errors, [], `Client-Fehler: ${errors.join(' | ')}`);
+});
+
 test('result sheet: sort toggle switches to seat order and is remembered per device', async (t) => {
   const { window, errors, ws } = boot();
   t.after(() => window.close());
@@ -139,4 +175,48 @@ test('result sheet: sort toggle switches to seat order and is remembered per dev
   assert.deepEqual(order(), ['Klaus', 'Horst', 'Maria', 'Flo']);
   assert.equal(window.localStorage.getItem('pikdame_result_sort'), 'points');
   assert.deepEqual(errors, [], `Client-Fehler: ${errors.join(' | ')}`);
+});
+
+test('identity chip: avatar opens the progress sheet, name still edits; streak sits with the daily tasks', async (t) => {
+  const { window, errors, ws } = boot({ pikdame_player_name: 'Flo' });
+  t.after(() => window.close());
+  await new Promise((r) => setTimeout(r, 10));
+  const sock = ws();
+  const today = new Date().toISOString().slice(0, 10);
+  sock._emit('message', { data: JSON.stringify({
+    type: 'profiles', publicMode: false, globalStats: null,
+    quests: { date: today, ids: ['finish_game', 'win_game', 'meld_jokers_3'] },
+    players: [{ name: 'Flo', gamesPlayed: 3, gamesWon: 1, xp: 5320, dailyStreak: 6, daily: { streak: 6, best: 9, last: '2000-01-01', graceAt: null } }],
+  }) });
+  const doc = window.document;
+  assert.equal(doc.querySelector('#identityAvatar .identityLevel').textContent, '14');
+  assert.equal(doc.getElementById('questsSummary').textContent, '0/3 erledigt', 'tasks only, no level or streak');
+  const flame = doc.getElementById('identityStreak');
+  assert.ok(!flame.classList.contains('hidden'));
+  assert.equal(flame.textContent, '6', 'streak on the chip');
+  assert.ok(flame.classList.contains('pending'), 'not played today yet: outlined');
+
+  doc.getElementById('identityAvatarBtn').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  assert.ok(!doc.getElementById('progressOverlay').classList.contains('hidden'), 'avatar opens the sheet');
+  assert.match(doc.getElementById('progressContent').textContent, /Stufe 14/);
+  assert.ok(doc.querySelector('#progressContent .pgLadder li.current'), 'current title marked');
+  assert.match(doc.getElementById('progressContent').textContent, /Tagesserie.*6 Tage in Folge.*Rekord: 9 Tage/);
+  doc.getElementById('progressCloseBtn').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  assert.ok(doc.getElementById('progressOverlay').classList.contains('hidden'));
+
+  doc.getElementById('identityNameBtn').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  assert.ok(!doc.getElementById('nameInput').classList.contains('hidden'), 'name button still edits');
+  assert.deepEqual(errors, [], `Client-Fehler: ${errors.join(' | ')}`);
+});
+
+test('progress sheet: XP rules shown in the client match game/Progression.js', () => {
+  const { xpForGame } = require('../game/Progression');
+  const src = fs.readFileSync(path.join(pub, 'client.js'), 'utf8');
+  const m = src.match(/const XP_RULES = \{ base: (\d+), win: (\d+), perPoints: (\d+) \};/);
+  assert.ok(m, 'XP_RULES literal found in client.js');
+  const rec = (won, score) => ({ winnerId: won ? 'p' : 'x', finalTotals: { p: score } });
+  const base = xpForGame(rec(false, 0), 'p');
+  assert.equal(Number(m[1]), base);
+  assert.equal(Number(m[2]), xpForGame(rec(true, 0), 'p') - base);
+  assert.equal(Number(m[3]), 1000 / (xpForGame(rec(false, 1000), 'p') - base));
 });

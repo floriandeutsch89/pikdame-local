@@ -1242,6 +1242,11 @@ const registry = new SessionRegistry((session) => {
       const todaysQuests = questsForDate(questDate);
       // Welcome back (#316): only this game's XP doubles, the ladder mirror included.
       const xpFor = (p) => xpForGame(gameRecord, p.id) * (streaks[p.id] && streaks[p.id].welcomeBack ? 2 : 1);
+      // Lifetime win/loss for the personal line on the game-over sheet.
+      const recordOf = (name) => {
+        const prof = playerStore.getPlayerByName(name);
+        return prof ? { played: prof.gamesPlayed || 0, won: prof.gamesWon || 0 } : null;
+      };
       for (const p of gameRecord.players || []) {
         if (p.isBot) continue;
         try {
@@ -1269,6 +1274,7 @@ const registry = new SessionRegistry((session) => {
             level: levelFromXp(after.xp),
             quests: { date: questDate, ids: todaysQuests, progress: after.quests, completed },
             streak: streaks[p.id] || null,
+            record: recordOf(p.name),
           });
         } catch (err) {
           logCrash('progression', err, { player: p.name });

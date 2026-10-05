@@ -3,6 +3,17 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.56.0] - 2026-10-05
+
+### Changed
+- **Spielende zeigt die Rangliste zuerst**: Platzziffern, der Endstand steht groß, die letzte Runde klein daneben. „Mehr“ klappt nicht mehr von selbst auf (es schob die Hälfte der Spieler aus dem Bild); das Hauptmenü ist ein eigener Knopf neben „Rematch“
+- **Dein Ergebnis am Spielende**: eine Zeile mit Platz, gewonnener Erfahrung und deiner Bilanz (Siege/Partien); der Punkteverlauf steht jetzt direkt im Ergebnis. Züge, Runden und der „Damen-Magnet“ stehen als „Partie in Zahlen“ zusammen; die Aufschlüsselung der letzten Runde entfällt am Spielende
+- **Rundenende kompakter**: Der Rundensieger steht in einer Zeile statt drei. Die Balken zeigen jetzt in der Spielerfarbe den alten Stand, hell (Plus) oder rot schraffiert (Minus) die Bewegung dieser Runde und am Rundenende eine Marke bei 1000. Am Spielende entfällt die Marke, dort zeigen die Balken nur die Abstände der Spieler zueinander
+- **Sortier-Umschalter im Querformat** („Punkte | Reihenfolge“) sitzt neben den Reitern statt eine eigene Zeile zu belegen, damit alle vier Spieler ohne Scrollen sichtbar bleiben. Die Platzziffern am Spielende bleiben auch in der Sitzreihenfolge der echte Platz
+- **Rundenstatistik lesbarer**: Zahlen rechtsbündig, keine doppelten Pfeile; ausgelegte Pik Damen und Joker stehen als kleine Marke am Namen statt in fast immer leeren Spalten
+- **Punkteverlauf**: runde Achsenwerte (0/250/…/1000), gestrichelte Ziellinie bei 1000, Namen und Stand direkt am Linienende statt Legende, die eigene Linie hervorgehoben. Spielerfarben unterscheiden sich von der Auswahlfarbe und sind auch bei Farbsehschwäche trennbar
+- **Startseite**: Stufe und Tagesserie stehen am Namen: Erfahrungsring um den Avatar mit der Stufen-Zahl und daneben die Flamme mit der Serie (gefüllt, wenn heute schon gespielt wurde; als Umriss, solange heute noch offen ist). Ein Tipp darauf öffnet „Dein Fortschritt“: Stufe, Titel, Erfahrungsbalken, nächste Belohnung, die Tagesserie mit Rekord und Joker-Tag, wie man Erfahrung bekommt und die Titel-Leiter; auch die Stufen-Kachel in der Statistik öffnet es. Ein Tipp auf den Namen ändert ihn wie bisher. Die Tagesaufgaben zeigen nur noch Aufgaben; sie haben eigene Symbole statt Emoji
+- **Statistik neu geordnet** („Übersicht“): zuerst du (Siegquote, Partien, beste Partie, Stufe und der Verlauf der letzten 10 Partien), dann die drei nächsten Erfolge („Alle anzeigen“ klappt die Galerie auf), dann die Bestenliste als kompakte Tabelle mit deiner Zeile markiert, zuletzt die Server-Zahlen mit einer Pointe
 ## [2.55.0] - 2026-10-05
 
 ### Added

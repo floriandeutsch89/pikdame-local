@@ -42,7 +42,8 @@ Diese Datei kurz halten: Regeln + knappes Warum; Hintergrund gehört in docs/.
    ENDE von `style.css` (Vertragstest). Tisch-Layouts: Hochformat (Flex,
    Stapel über Hand), Querformat ≤540 px und Desktop ≥1100 px (Grid, Stapel
    in Seitenspalte). `--accent` (Auswahl) und `--drawn` in jedem Theme
-   unterscheidbar. Startbildschirm: eine Spalte `--lobby-w`, passt am iPhone
+   unterscheidbar; Spielerfarben nur aus `PLAYER_COLORS` (CVD-geprüft, ≠
+   `--accent`). Startbildschirm: eine Spalte `--lobby-w`, passt am iPhone
    OHNE Scrollen — Messlatte für neue Elemente. Tap-Ziele ≥ `--tap-min`
    (44 px). Größen nur aus der Skala (`--fs-*`, `--ctl-h`), nie rohe `rem`.
    **Keine nativen Dialoge** (`alert`/`confirm`/`prompt`): iOS unterdrückt sie
@@ -68,7 +69,9 @@ Diese Datei kurz halten: Regeln + knappes Warum; Hintergrund gehört in docs/.
   - `Mailer.js`: eigener SMTP-Client, Log-Fallback; Header RFC 2047, Body
     Quoted-Printable — nie rohes UTF-8 in Kopfzeilen.
   - `Badges.js` (Familien in `BADGE_FAMILIES`, Fakten aus `finishRound`),
-    `Progression.js` (XP, Tagesaufgaben, Serie mit Joker-Tag).
+    `Progression.js` (XP, Tagesaufgaben, Serie mit Joker-Tag; XP-Regeln
+    spiegelt `XP_RULES` im Client, Vertragstest). UI: Stufe + Serie am
+    Identitäts-Chip/Fortschritts-Blatt, Tagesaufgaben zeigen nur Aufgaben.
   - `GameDay.js`: EINZIGE Definition von „heute“ (Mitternacht Europe/Berlin,
     Rechnen nur auf Datums-Strings, nie 24-h-Schritte).
   - `DailyPuzzle.js`: Ergebnisobjekt ohne `type`-Feld (wird in WS gespreadet).

@@ -282,6 +282,8 @@
     try { renderPuzzle(); } catch (e) { /* dito */ }
     try { renderStammtisch(); renderStammtischRecent(); renderSessionBanner(); } catch (e) { /* dito */ }
     try { renderAchievements(); } catch (e) { /* dito */ }
+    try { renderStatsMe(); } catch (e) { /* dito */ }
+    try { renderProgressSheet(); } catch (e) { /* dito */ }
     try { renderAccountProgress(); } catch (e) { /* dito */ }
     // "Angemeldet als ..." steht dauerhaft in der Lobby - vom Vertragstest
     // unten gefunden, bevor es jemand melden konnte.
@@ -487,6 +489,7 @@
     'near_miss', 'cold_shower', 'rock_bottom', 'red_lantern', 'royal_flush', 'pik_royal',
   ];
   let globalStatsData = null;
+  let lastGameProgress = null; // XP + lifetime record of the match just finished
   let myGameHistory = null; // null = noch nicht angefragt, [] = angefragt und leer // anonyme Server-Zähler (Partien, Pik Damen, ...)
   // --- Fortschritt über Partien hinweg ------------------------------------
   // dailyQuests: {date, ids} kommt IMMER vom Server (alle Spieler weltweit
@@ -500,20 +503,21 @@
   let stammtischSummary = null; // standings / pairwise / series from the server
   let accountProgress = null; // {xp, seasonXp, season, games, wins, rank}
 
+  // icon = sprite id (i-…): emoji are content, never icons.
   function questMeta(id) {
     const M = {
-      finish_game: { icon: '🏁', text: L('Eine Partie zu Ende spielen', 'Finish one match') },
-      win_game: { icon: '🏆', text: L('Eine Partie gewinnen', 'Win a match') },
-      win_rounds_3: { icon: '🎯', text: L('3 Runden gewinnen', 'Win 3 rounds') },
-      meld_queen: { icon: '♠', text: L('Eine Pik Dame auslegen', 'Meld a Queen of Spades') },
-      meld_jokers_3: { icon: '👑', text: L('3 Joker auslegen', 'Meld 3 jokers') },
-      round_150: { icon: '💥', text: L('Eine Runde mit 150+ Punkten', 'Score 150+ in one round') },
-      clean_hands: { icon: '🧼', text: L('Partie ohne erwischte Pik Dame', 'Finish a match never caught with the Queen') },
-      hand_aus: { icon: '🚀', text: L('Eine Runde mit „Hand aus“ gewinnen', 'Win a round with "out in one"') },
-      score_400: { icon: '💯', text: L('400+ Punkte Endstand', 'Finish a match with 400+ points') },
-      beat_zen: { icon: '⚔️', text: L('Eine Partie gegen einen Zen-Bot gewinnen', 'Beat a table with a zen bot') },
+      finish_game: { icon: 'flag', text: L('Eine Partie zu Ende spielen', 'Finish one match') },
+      win_game: { icon: 'trophy', text: L('Eine Partie gewinnen', 'Win a match') },
+      win_rounds_3: { icon: 'target', text: L('3 Runden gewinnen', 'Win 3 rounds') },
+      meld_queen: { icon: 'spade', text: L('Eine Pik Dame auslegen', 'Meld a Queen of Spades') },
+      meld_jokers_3: { icon: 'crown', text: L('3 Joker auslegen', 'Meld 3 jokers') },
+      round_150: { icon: 'bolt', text: L('Eine Runde mit 150+ Punkten', 'Score 150+ in one round') },
+      clean_hands: { icon: 'shield', text: L('Partie ohne erwischte Pik Dame', 'Finish a match never caught with the Queen') },
+      hand_aus: { icon: 'rocket', text: L('Eine Runde mit „Hand aus“ gewinnen', 'Win a round with "out in one"') },
+      score_400: { icon: 'trend', text: L('400+ Punkte Endstand', 'Finish a match with 400+ points') },
+      beat_zen: { icon: 'swords', text: L('Eine Partie gegen einen Zen-Bot gewinnen', 'Beat a table with a zen bot') },
     };
-    return M[id] || { icon: '🎲', text: id };
+    return M[id] || { icon: 'cards', text: id };
   }
   // Targets mirror game/Progression.js - the server is the authority and
   // sends the progress; these numbers only draw the bar.
@@ -1162,6 +1166,7 @@
     }
     if (msg.type === 'state') {
       lastState = msg.state;
+      if (lastState.phase !== 'gameOver') lastGameProgress = null;
       // Solo-Spiel abgebrochen (Challenge/Tutorial, nicht rechtzeitig
       // zurueckgekehrt): klar ansagen, den Wiederaufnehmen-Code wegwerfen -
       // die Sitzung existiert serverseitig nicht mehr.
@@ -1249,6 +1254,7 @@
     }
     if (msg.type === 'gameHistory') {
       myGameHistory = msg.games || [];
+      if (!el('statsOverlay').classList.contains('hidden')) renderStatsMe();
       if (!el('statsOverlay').classList.contains('hidden') && !el('statsPaneHistory').classList.contains('hidden')) {
         renderGameHistory();
       }
@@ -1282,6 +1288,7 @@
     if (msg.type === 'progress') {
       // End of a match: experience, level and the daily quests that ticked.
       myProgress = { xp: msg.xp, level: msg.level };
+      lastGameProgress = { gainedXp: msg.gainedXp || 0, welcomeBack: !!msg.welcomeBack, record: msg.record || null };
       if (msg.streak) myStreak = msg.streak;
       if (msg.quests) {
         dailyQuests = { date: msg.quests.date, ids: msg.quests.ids };
@@ -1289,6 +1296,7 @@
       }
       renderQuests();
       celebrateProgress(msg);
+      if (lastState && lastState.phase === 'gameOver' && !el('resultOverlay').classList.contains('hidden')) renderResultOverlay();
       try { renderEmoteLocks(); } catch (e) { /* cosmetic */ }
       return;
     }
@@ -2796,21 +2804,21 @@
         countUpScore(head.querySelector('.resultWinnerScore'), wr ? wr.roundScore : 0, { signed: true });
       }
 
-      // Everyone else: the round delta is the number that changed, so it gets
-      // the size; the running total is context underneath. A bar shows how far
-      // each player has come towards the 1000-point finish - the round table
-      // alone never showed how close the match actually is.
+      // Round end: the delta leads, the total is context. Game over: the
+      // standing is the result, so total and rank lead, the delta recedes.
       const list = document.createElement('div');
-      list.className = 'resultList';
-      // EVERY player stays in the list, the winner included. Promoting them
-      // into the headline and dropping their row left a 4-player game showing
-      // three lines, which reads as a missing player (report) - and the race
-      // bars are only comparable if all of them are there.
-      // Best first: by the round's delta (by the standing once the match is
-      // over), so the order itself answers "who did well".
-      // The viewer may switch to seat order instead (remembered per device).
+      list.className = 'resultList' + (isGameOver ? ' isFinal' : '');
+      // EVERY player stays in the list, the winner included: a 4-player game
+      // showing three rows read as a missing player (report).
       const deltaOf = (pl) => (lastState.lastRoundResult[pl.id] ? lastState.lastRoundResult[pl.id].roundScore : 0);
       const totalOf = (pl) => lastState.totals[pl.id] || 0;
+      // One scale for every bar. Round end: up to the 1000 goal (tick marks
+      // it). Game over: the goal is reached, bars only compare the players,
+      // so the scale is the best total and there is no tick (read as a
+      // per-player marker).
+      const scaleMax = Math.max(isGameOver ? 1 : SCORE_TARGET, ...lastState.players.map((pl) => Math.max(totalOf(pl), totalOf(pl) - deltaOf(pl))));
+      const pctOf = (v) => Math.max(0, Math.min(100, (v / scaleMax) * 100));
+      // Points order by default; the viewer may switch to seat order (#322).
       const fillList = () => {
         list.innerHTML = '';
         orderResultPlayers((a, b) => (isGameOver
@@ -2818,27 +2826,39 @@
           : deltaOf(b) - deltaOf(a) || totalOf(b) - totalOf(a)))
           .forEach((p) => {
             const r = lastState.lastRoundResult[p.id];
-            const total = lastState.totals[p.id] || 0;
-            const pct = Math.max(0, Math.min(100, (total / SCORE_TARGET) * 100));
+            const total = totalOf(p);
             const delta = r ? r.roundScore : 0;
+            const prev = total - delta;
             const row = document.createElement('div');
             row.className = 'resultRow' + (r && r.breakdown.isWinner ? ' winner' : '') +
               (p.id === playerId ? ' isMe' : '');
-            // The delta is coloured by its SIGN, nothing else. Marking "me" or
-            // the round winner in green painted -170 the same celebratory green
-            // as +230 (player report).
+            // Colour = sign only (green on a -170 read as "well done").
             const deltaCls = delta > 0 ? ' pos' : delta < 0 ? ' neg' : '';
-            row.innerHTML =
-              `<div class="resultRowTop">` +
-              `<span class="resultName">${nameWithHeart(p.name)}${botMark(p)}</span>` +
-              `<span class="resultTotal">${L('gesamt', 'total')} ${total}</span>` +
-              `<span class="resultDelta${deltaCls}">${signed(delta)}</span>` +
-              `</div>` +
-              `<div class="resultRowBar"><i style="width:${pct}%"></i></div>`;
-            // Per-card breakdown: which cards made the number - for MY row
-            // only. An opponent's leftover hand is hidden (it reveals their play
-            // style); the server does not even send it (_roundStatsFor).
-            const stats = p.id === playerId ? (lastState.lastRoundStats || []).find((s) => s.id === p.id) : null;
+            const rank = 1 + lastState.players.filter((o) => totalOf(o) > total).length;
+            const lo = pctOf(Math.min(prev, total));
+            const hi = pctOf(Math.max(prev, total));
+            // Solid = where the player stood, ghost = what this round moved.
+            const bar =
+              `<div class="resultRowBar" style="--pc:${playerColor(p.id)}">` +
+              `<i class="barSolid" style="width:${delta >= 0 ? pctOf(prev) : lo}%"></i>` +
+              (hi > lo ? `<i class="barGhost ${delta >= 0 ? 'gain' : 'loss'}" style="left:${lo}%;width:${hi - lo}%"></i>` : '') +
+              (isGameOver ? '' : `<span class="barGoal" style="left:${pctOf(SCORE_TARGET)}%"></span>`) +
+              `</div>`;
+            row.innerHTML = isGameOver
+              ? `<div class="resultRowTop">` +
+                `<span class="resultRank">${rank}.</span>` +
+                `<span class="resultName">${nameWithHeart(p.name)}${botMark(p)}</span>` +
+                `<span class="resultDelta resultDeltaSmall${deltaCls}">${signed(delta)}</span>` +
+                `<span class="resultTotal resultTotalBig">${total}</span>` +
+                `</div>` + bar
+              : `<div class="resultRowTop">` +
+                `<span class="resultName">${nameWithHeart(p.name)}${botMark(p)}</span>` +
+                `<span class="resultTotal">${L('gesamt', 'total')} ${total}</span>` +
+                `<span class="resultDelta${deltaCls}">${signed(delta)}</span>` +
+                `</div>` + bar;
+            // Per-card breakdown: MY row only (an opponent's leftover hand is
+            // not even sent), and not at game over - the match is decided then.
+            const stats = p.id === playerId && !isGameOver ? (lastState.lastRoundStats || []).find((s) => s.id === p.id) : null;
             if (stats && (stats.laidLines || stats.handLines)) {
               const det = document.createElement('details');
               det.className = 'resultBreakdown';
@@ -2874,38 +2894,34 @@
       paneResult.append(buildResultSortControl(() => { fillList(); updateResultScrollEdges(); }), list);
     }
 
-    // Rundenstatistiken (Details)
+    // Round details: four numeric columns, right-aligned. Melded ♠Q/jokers
+    // are rare, so they ride as marks on the name instead of zero columns.
     if (!forfeited && lastState.lastRoundStats) {
       const statsTable = document.createElement('table');
       statsTable.className = 'statsTable';
-      // ♠Q/🃏 zeigen die AUSGELEGTEN Karten (die Hand-Zaehler waren am
-      // Rundenende fast immer 0 - deshalb wirkten die Spalten 'kaputt').
-      // Fallback ?? 0 fuer Runden, die vor diesem Update gespielt wurden.
+      const marks = (s) =>
+        (s.pikDameLaidOut ? `<span class="statMark" title="${L('Pik Dame ausgelegt', 'Queen of Spades melded')}">♠Q${s.pikDameLaidOut > 1 ? `×${s.pikDameLaidOut}` : ''}</span>` : '') +
+        (s.jokersLaidOut ? `<span class="statMark" title="${L('Joker ausgelegt', 'Jokers melded')}">${JOKER_MARK_SVG}${s.jokersLaidOut > 1 ? `×${s.jokersLaidOut}` : ''}</span>` : '');
       statsTable.innerHTML = `
-        <thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('Runde', 'Round')}</th><th>${L('Ausgelegt', 'Melded')}</th><th>${L('Auf Hand', 'In hand')}</th><th title="${L('Pik Damen ausgelegt', 'Queens of Spades melded')}">♠Q</th><th title="${L('Joker ausgelegt', 'Jokers melded')}">🃏</th></tr></thead>
+        <thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('Runde', 'Round')}</th><th>${L('Ausgelegt', 'Melded')}</th><th>${L('Hand', 'Hand')}</th></tr></thead>
         <tbody>${lastState.lastRoundStats
           .map((s) => {
             const r = lastState.lastRoundResult && lastState.lastRoundResult[s.id];
             const delta = r ? r.roundScore : null;
-            const deltaCell =
-              delta === null
-                ? '–'
-                : delta > 0
-                  ? `<span class="deltaUp">+${delta} ▲</span>`
-                  : delta < 0
-                    ? `<span class="deltaDown">${delta} ▼</span>`
-                    : '±0';
-            return `<tr${s.id === lastState.lastRoundWinnerId ? ' class="winnerRow"' : ''}><td>${escapeHtml(s.name)}${s.id === lastState.lastRoundWinnerId ? ' 🏆' : ''}</td><td>${deltaCell}</td><td>${s.laidOutCount}</td><td>${s.handCount}</td><td>${s.pikDameLaidOut ?? 0}</td><td>${s.jokersLaidOut ?? 0}</td></tr>`;
+            const deltaCell = delta === null
+              ? '–'
+              : `<span class="${delta > 0 ? 'deltaUp' : delta < 0 ? 'deltaDown' : ''}">${delta > 0 ? `+${delta}` : delta === 0 ? '±0' : delta}</span>`;
+            return `<tr${s.id === lastState.lastRoundWinnerId ? ' class="winnerRow"' : ''}><td><span class="statName">${escapeHtml(s.name)}</span>${marks(s)}</td><td>${deltaCell}</td><td>${s.laidOutCount}</td><td>${s.handCount}</td></tr>`;
           })
           .join('')}</tbody>`;
       paneStats.appendChild(statsTable);
     }
 
     // Punkteverlauf über alle Runden als kleines SVG-Chart (ab 2 Runden)
+    // At game over the chart IS the story of the match: on the result pane.
     const history = lastState.scoreHistory || [];
-    if (history.length >= 2) {
-      paneStats.appendChild(renderScoreChart(history));
-    }
+    const chart = history.length >= 2 ? renderScoreChart(history) : null;
+    if (chart && !isGameOver) paneStats.appendChild(chart);
 
     if (isGameOver && !forfeited && lastState.gameOverInfo) {
       const winner = lastState.players.find((p) => p.id === lastState.gameOverInfo.winnerId);
@@ -2988,28 +3004,44 @@
         box.innerHTML = `<h4>${L('Schlüsselmomente', 'Key moments')}</h4><ul class="momentList">${rows}</ul>`;
         paneResult.appendChild(box);
       }
-      // Brotato-artige Anti-Auszeichnung: liebevoller Spott, rein kosmetisch.
-      const ft = isGameOver && lastState.gameOverInfo && lastState.gameOverInfo.funTitle;
-      if (ft && ft.type === 'queenMagnet') {
-        const t = document.createElement('p');
-        t.className = 'funTitleLine';
-        t.textContent = `🎩 ${L(
-          `Damen-Magnet der Partie: ${ft.name} (${ft.count}× mit der ♠Q erwischt)`,
-          `Queen magnet of the match: ${ft.name} (caught with the ♠Q ${ft.count}×)`
-        )}`;
-        paneResult.appendChild(t);
+      // The trip from this match into the lifetime numbers.
+      const me = lastState.players.find((p) => p.id === playerId && !p.isBot);
+      if (me) {
+        const myTotal = lastState.totals[me.id] || 0;
+        const place = 1 + lastState.players.filter((o) => (lastState.totals[o.id] || 0) > myTotal).length;
+        const bits = [`<b>${L(`Platz ${place} von ${lastState.players.length}`, `Place ${place} of ${lastState.players.length}`)}</b>`];
+        const gp = lastGameProgress;
+        if (gp && gp.gainedXp > 0) bits.push(`+${gp.gainedXp} ${L('EP', 'XP')}${gp.welcomeBack ? ' (×2)' : ''}`);
+        if (gp && gp.record && gp.record.played > 0) {
+          bits.push(L(`Bilanz ${gp.record.won}/${gp.record.played} Siege`, `Record ${gp.record.won}/${gp.record.played} wins`));
+        }
+        const mine = document.createElement('p');
+        mine.className = 'resultMine';
+        mine.innerHTML = bits.join('<span class="dot"> · </span>');
+        paneResult.insertBefore(mine, paneResult.querySelector('.resultSort'));
       }
-      // Nice visual stat: how many turns (and rounds) the whole game took.
+      if (chart) paneResult.insertBefore(chart, paneResult.querySelector('.matchMoments'));
+      // Small facts of the match: chips, not three loose lines of prose.
       const gi = lastState.gameOverInfo;
+      const facts = [];
       if (typeof gi.totalTurns === 'number') {
-        const statLine = document.createElement('p');
-        statLine.className = 'gameOverStats';
         const rounds = gi.totalRounds || 0;
-        statLine.textContent = L(
-          `🎲 ${gi.totalTurns} Züge in ${rounds} ${rounds === 1 ? 'Runde' : 'Runden'}`,
-          `🎲 ${gi.totalTurns} turns across ${rounds} ${rounds === 1 ? 'round' : 'rounds'}`
-        );
-        paneResult.appendChild(statLine);
+        facts.push(L(`<b>${gi.totalTurns}</b> Züge`, `<b>${gi.totalTurns}</b> turns`));
+        facts.push(L(`<b>${rounds}</b> ${rounds === 1 ? 'Runde' : 'Runden'}`, `<b>${rounds}</b> ${rounds === 1 ? 'round' : 'rounds'}`));
+      }
+      const ft = gi.funTitle;
+      if (ft && ft.type === 'queenMagnet') {
+        facts.push(L(
+          `Damen-Magnet: <b>${escapeHtml(ft.name)}</b> (${ft.count}×)`,
+          `Queen magnet: <b>${escapeHtml(ft.name)}</b> (${ft.count}×)`
+        ));
+      }
+      if (facts.length) {
+        const box = document.createElement('div');
+        box.className = 'matchFacts';
+        box.innerHTML = `<h4>${L('Partie in Zahlen', 'Match in numbers')}</h4>` +
+          facts.map((f) => `<span class="factChip">${f}</span>`).join('');
+        paneResult.appendChild(box);
       }
     }
 
@@ -3079,11 +3111,12 @@
     // header's home button is unreachable and the only exits were "next round"
     // or forfeiting the entire game (player report). The table keeps running
     // and the session code still resumes it, so leaving is safe here.
-    el('resultHomeBtn').classList.remove('hidden');
-    // At game over "Weiter" is no longer the obvious next step - unfold the
-    // secondary actions so the way out is visible without a tap.
+    // At game over the way home sits next to the rematch; unfolding "Mehr"
+    // instead pushed half the ranking below the fold.
+    el('resultHomeBtn').classList.toggle('hidden', isGameOver);
+    el('resultHomeQuickBtn').classList.toggle('hidden', !isGameOver);
     const moreBox = el('resultMore');
-    if (moreBox) moreBox.open = isGameOver;
+    if (moreBox) moreBox.open = false;
     // Forfeit the whole game straight from the points overview (round end only,
     // not once the game is already over). Same unanimous vote as in-game.
     const rfBtn = el('resultForfeitBtn');
@@ -3289,13 +3322,15 @@
     const chip = el('identityChip');
     chip.classList.toggle('hidden', showInput || inSession || !name);
     chip.classList.toggle('locked', locked);
-    chip.disabled = locked;
-    chip.title = locked
+    const nameBtn = el('identityNameBtn');
+    nameBtn.disabled = locked;
+    nameBtn.title = locked
       ? L('Name ist durch dein Konto festgelegt', 'Name is fixed by your account')
       : L('Namen ändern', 'Change name');
     if (name) {
       el('identityAvatar').innerHTML = avatarFor(name, false);
       el('identityName').textContent = name;
+      try { renderIdentityProgress(); } catch (e) { /* cosmetic */ }
     }
   }
   function startNameEdit() {
@@ -3324,7 +3359,8 @@
       send({ type: 'joinSession', code: sessionCode, playerId, playerToken: storageGet(tokenKeyFor(sessionCode)) || undefined, name: myName, accountToken: accountToken() || undefined });
     }
   }
-  el('identityChip').addEventListener('click', startNameEdit);
+  el('identityNameBtn').addEventListener('click', startNameEdit);
+  el('identityAvatarBtn').addEventListener('click', () => openProgressSheet());
   el('nameInput').addEventListener('blur', () => { try { commitNameEdit(); } catch (e) { /* cosmetic */ } });
 
   function currentName() {
@@ -3728,9 +3764,11 @@
     window.location.href = window.location.pathname;
   });
   // After the match: a direct way back to the main menu (rematch stays too).
-  el('resultHomeBtn').addEventListener('click', () => {
-    window.location.href = window.location.pathname;
-  });
+  for (const id of ['resultHomeBtn', 'resultHomeQuickBtn']) {
+    el(id).addEventListener('click', () => {
+      window.location.href = window.location.pathname;
+    });
+  }
 
   // Lobby verlassen: Server räumt den Sitz, wir vergessen die Zugangsdaten
   // (sonst würde der Auto-Resume sofort wieder in die Session springen) und
@@ -4936,7 +4974,13 @@
   }
 
   // --- Punkteverlauf-Chart ---------------------------------------------------
-  const CHART_COLORS = ['#2fd6b0', '#8f90f8', '#ff9f5a', '#ff7d8c'];
+  // One colour per seat, shared by the result bars and the chart. Validated
+  // for colour-blind separation; teal is left out, it is the default --accent.
+  const PLAYER_COLORS = ['#2a78d6', '#eb6834', '#4a3aa7', '#e87ba4'];
+  function playerColor(id) {
+    const i = lastState && lastState.players ? lastState.players.findIndex((p) => p.id === id) : -1;
+    return PLAYER_COLORS[Math.max(0, i) % PLAYER_COLORS.length];
+  }
   function renderScoreChart(history) {
     const wrap = document.createElement('div');
     wrap.className = 'scoreChart';
@@ -4945,45 +4989,69 @@
     title.textContent = L('Punkteverlauf', 'Score history');
     wrap.appendChild(title);
 
-    const W = 300;
-    const H = 130;
-    const PAD = { l: 34, r: 8, t: 8, b: 18 };
+    const TARGET = 1000;
+    const W = 320;
+    const H = 150;
+    // Right padding holds the end labels (they replace the legend).
+    const PAD = { l: 30, r: 74, t: 8, b: 18 };
     const players = lastState.players;
-    const allValues = history.flatMap((h) => players.map((p) => h.totals[p.id] || 0));
-    const maxV = Math.max(10, ...allValues);
+    const valueAt = (h, p) => h.totals[p.id] || 0;
+    const allValues = history.flatMap((h) => players.map((p) => valueAt(h, p)));
+    // The goal is always on the chart: "how close is it?" is the question.
+    const maxV = Math.max(TARGET, ...allValues);
     const minV = Math.min(0, ...allValues);
     const x = (i) => PAD.l + (i / Math.max(1, history.length - 1)) * (W - PAD.l - PAD.r);
     const y = (v) => PAD.t + (1 - (v - minV) / (maxV - minV || 1)) * (H - PAD.t - PAD.b);
 
     const svgParts = [];
-    // Nulllinie + Gitter (Min/Mitte/Max)
-    for (const v of [minV, (minV + maxV) / 2, maxV]) {
-      svgParts.push(`<line x1="${PAD.l}" y1="${y(v)}" x2="${W - PAD.r}" y2="${y(v)}" class="gridLine"/>`);
-      svgParts.push(`<text x="${PAD.l - 5}" y="${y(v) + 3}" class="axisLabel" text-anchor="end">${Math.round(v)}</text>`);
+    for (let v = 0; v <= maxV; v += 250) {
+      const goal = v === TARGET;
+      svgParts.push(`<line x1="${PAD.l}" y1="${y(v)}" x2="${W - PAD.r}" y2="${y(v)}" class="${goal ? 'goalLine' : 'gridLine'}"/>`);
+      svgParts.push(`<text x="${PAD.l - 4}" y="${y(v) + 3}" class="axisLabel${goal ? ' goal' : ''}" text-anchor="end">${v}</text>`);
     }
-    players.forEach((p, pi) => {
-      const color = CHART_COLORS[pi % CHART_COLORS.length];
-      const points = history.map((h, i) => `${x(i).toFixed(1)},${y(h.totals[p.id] || 0).toFixed(1)}`).join(' ');
-      svgParts.push(`<polyline points="${points}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`);
+    // Others first and muted, mine last and on top.
+    const order = players.slice().sort((a, b) => (a.id === playerId) - (b.id === playerId));
+    order.forEach((p) => {
+      const color = playerColor(p.id);
+      const mine = p.id === playerId;
+      const points = history.map((h, i) => `${x(i).toFixed(1)},${y(valueAt(h, p)).toFixed(1)}`).join(' ');
+      svgParts.push(`<polyline points="${points}" fill="none" stroke="${color}" stroke-width="${mine ? 3 : 2}" stroke-linejoin="round" stroke-linecap="round" class="${mine ? 'mine' : 'other'}"/>`);
       const last = history[history.length - 1];
-      svgParts.push(`<circle cx="${x(history.length - 1).toFixed(1)}" cy="${y(last.totals[p.id] || 0).toFixed(1)}" r="3.4" fill="${color}"/>`);
+      svgParts.push(`<circle cx="${x(history.length - 1).toFixed(1)}" cy="${y(valueAt(last, p)).toFixed(1)}" r="${mine ? 4 : 3.2}" fill="${color}" class="endDot"/>`);
     });
-    // Runden-Beschriftung (erste/letzte)
-    svgParts.push(`<text x="${x(0)}" y="${H - 4}" class="axisLabel" text-anchor="middle">R${history[0].round}</text>`);
-    svgParts.push(`<text x="${x(history.length - 1)}" y="${H - 4}" class="axisLabel" text-anchor="middle">R${history[history.length - 1].round}</text>`);
+    // Direct end labels, nudged apart so close finishes stay readable.
+    const last = history[history.length - 1];
+    const labels = players
+      .map((p) => ({ p, v: valueAt(last, p), y: y(valueAt(last, p)) }))
+      .sort((a, b) => a.y - b.y);
+    const GAP = 12;
+    for (let i = 1; i < labels.length; i++) labels[i].y = Math.max(labels[i].y, labels[i - 1].y + GAP);
+    const overflow = labels.length ? labels[labels.length - 1].y - (H - PAD.b) : 0;
+    if (overflow > 0) labels.forEach((l) => { l.y -= overflow; });
+    for (let i = labels.length - 2; i >= 0; i--) labels[i].y = Math.min(labels[i].y, labels[i + 1].y - GAP);
+    const lx = W - PAD.r + 8;
+    for (const l of labels) {
+      const name = l.p.name.length > 8 ? `${l.p.name.slice(0, 7)}…` : l.p.name;
+      svgParts.push(
+        `<text x="${lx}" y="${(l.y + 3.5).toFixed(1)}" class="endLabel${l.p.id === playerId ? ' mine' : ''}">` +
+        `<tspan fill="${playerColor(l.p.id)}">●</tspan> ${escapeHtml(name)} <tspan class="endValue">${l.v}</tspan></text>`
+      );
+    }
+    // Every round labelled while it fits, otherwise first/last and a few between.
+    const step = Math.ceil(history.length / 8);
+    history.forEach((h, i) => {
+      if (i % step !== 0 && i !== history.length - 1) return;
+      svgParts.push(`<text x="${x(i)}" y="${H - 4}" class="axisLabel" text-anchor="middle">R${h.round}</text>`);
+    });
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', L('Punkteverlauf', 'Score history') + ': ' +
+      labels.map((l) => `${l.p.name} ${l.v}`).join(', '));
     svg.classList.add('scoreChartSvg');
     svg.innerHTML = svgParts.join('');
     wrap.appendChild(svg);
-
-    const legend = document.createElement('div');
-    legend.className = 'scoreChartLegend';
-    legend.innerHTML = players
-      .map((p, pi) => `<span><i style="background:${CHART_COLORS[pi % CHART_COLORS.length]}"></i>${nameWithHeart(p.name)}</span>`)
-      .join('');
-    wrap.appendChild(legend);
     return wrap;
   }
 
@@ -6032,7 +6100,127 @@
     box.addEventListener('toggle', () => storageSet(QUESTS_OPEN_KEY, box.open ? '1' : '0'));
   })();
 
+  /** Level of the local profile, fresher myProgress included. */
+  function myLevelInfo() {
+    const me = myProfile();
+    return levelFromXpClient(Math.max(me ? me.xp || 0 : 0, myProgress ? myProgress.xp || 0 : 0));
+  }
+  // Streak state from the profile; "today" is the server's game day (the
+  // quests' date), never the device clock.
+  function myStreakInfo() {
+    const me = myProfile();
+    const daily = (me && me.daily) || {};
+    const today = dailyQuests && dailyQuests.date;
+    const playedToday = !!(today && (daily.last === today || (myStreak && myStreak.event)));
+    return {
+      streak: (myStreak && myStreak.streak) || (me && me.dailyStreak) || 0,
+      best: Math.max((myStreak && myStreak.best) || 0, daily.best || 0),
+      graceFree: myStreak ? !!myStreak.graceFree : !daily.graceAt,
+      playedToday,
+    };
+  }
+  function progressEnabled() {
+    return !publicMode && !!(dailyQuests && dailyQuests.ids && dailyQuests.ids.length);
+  }
+  // Lifetime progress on the identity chip: XP ring + level badge. The
+  // avatar button opens the progress sheet.
+  function renderIdentityProgress() {
+    const av = el('identityAvatar');
+    const btn = el('identityAvatarBtn');
+    if (!av || !btn) return;
+    const on = progressEnabled();
+    const lv = myLevelInfo();
+    av.classList.toggle('hasLevel', on);
+    av.style.setProperty('--xp', on ? String(Math.round((lv.into / lv.need) * 100)) : '0');
+    let badge = av.querySelector('.identityLevel');
+    if (on && !badge) {
+      badge = document.createElement('span');
+      badge.className = 'identityLevel';
+      av.appendChild(badge);
+    }
+    if (badge) {
+      badge.classList.toggle('hidden', !on);
+      badge.textContent = String(lv.level);
+    }
+    // Flame: filled once today counts, outlined while today is still open.
+    const st = el('identityStreak');
+    const si = myStreakInfo();
+    if (st) {
+      st.classList.toggle('hidden', !on || si.streak <= 0);
+      st.classList.toggle('pending', !si.playedToday);
+      st.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#i-flame"/></svg><span>${si.streak}</span>`;
+    }
+    btn.disabled = !on;
+    const streakText = si.streak > 0
+      ? si.playedToday
+        ? L(`, ${si.streak} Tage in Folge`, `, ${si.streak}-day streak`)
+        : L(`, ${si.streak} Tage in Folge - heute noch nicht gespielt`, `, ${si.streak}-day streak - not played today yet`)
+      : '';
+    const label = on
+      ? L(`Fortschritt: Stufe ${lv.level}, ${lv.into}/${lv.need} EP`, `Progress: level ${lv.level}, ${lv.into}/${lv.need} XP`) + streakText
+      : L('Fortschritt', 'Progress');
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
+  }
+
+  // Mirrors game/Progression.js (XP_BASE, XP_WIN, XP_PER_POINT) - display only.
+  const XP_RULES = { base: 10, win: 50, perPoints: 10 };
+  function renderProgressSheet() {
+    const box = el('progressContent');
+    if (!box) return;
+    const lv = myLevelInfo();
+    const pct = Math.round((lv.into / lv.need) * 100);
+    const next = nextRewards(levelRewards(), lv.level);
+    const cur = LEVEL_TITLES.reduce((idx, row, i) => (lv.level >= row[0] ? i : idx), 0);
+    const ladder = LEVEL_TITLES.map(([level, de, en], i) => {
+      const cls = i === cur ? 'current' : i < cur ? 'done' : '';
+      return `<li class="${cls}"><span class="plLevel">${level}</span><span>${escapeHtml(L(de, en))}</span>` +
+        (cls === 'current' ? `<b>${escapeHtml(L('aktuell', 'current'))}</b>` : cls === 'done' ? '<svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>' : '') + `</li>`;
+    }).join('');
+    box.innerHTML =
+      `<div class="pgHead"><span class="pgLevel">${lv.level}</span><span class="pgText"><b>${L(`Stufe ${lv.level}`, `Level ${lv.level}`)}</b><span>${escapeHtml(titleForLevel(lv.level))}</span></span></div>` +
+      `<div class="levelUpBar pgBar"><i style="width:${pct}%"></i></div>` +
+      `<p class="pgXp">${L(`${lv.into}/${lv.need} EP · noch ${lv.need - lv.into} bis Stufe ${lv.level + 1}`, `${lv.into}/${lv.need} XP · ${lv.need - lv.into} to level ${lv.level + 1}`)}</p>` +
+      (next.length
+        ? `<h3>${escapeHtml(L(`Nächste Belohnung (Stufe ${next[0].level})`, `Next reward (level ${next[0].level})`))}</h3><ul class="pgNext">${next.map((r) => `<li>${escapeHtml(r.label)}</li>`).join('')}</ul>`
+        : '') +
+      streakSectionHtml() +
+      `<h3>${escapeHtml(L('So gibt es Erfahrung', 'How to earn XP'))}</h3>` +
+      `<p class="pgRules">${escapeHtml(L(
+        `${XP_RULES.base} EP pro beendeter Partie, +${XP_RULES.win} für einen Sieg, +1 je ${XP_RULES.perPoints} Punkte Endstand.`,
+        `${XP_RULES.base} XP per finished match, +${XP_RULES.win} for a win, +1 per ${XP_RULES.perPoints} points of your final score.`
+      ))}</p>` +
+      `<h3>${escapeHtml(L('Titel', 'Titles'))}</h3><ol class="pgLadder">${ladder}</ol>`;
+  }
+  function streakSectionHtml() {
+    const si = myStreakInfo();
+    const status = si.streak <= 0
+      ? L('Spiel heute eine Partie zu Ende oder löse das Tagesrätsel, um eine Serie zu starten.', 'Finish a match or solve the daily puzzle today to start a streak.')
+      : si.playedToday
+        ? L('Heute schon gespielt - die Serie läuft.', 'Played today - the streak is safe.')
+        : L('Heute noch nicht gespielt - eine beendete Partie oder das gelöste Tagesrätsel hält die Serie.', 'Not played today yet - a finished match or the solved daily puzzle keeps it going.');
+    return `<h3>${escapeHtml(L('Tagesserie', 'Daily streak'))}</h3>` +
+      `<div class="pgStreak${si.playedToday ? '' : ' pending'}">` +
+      `<span class="pgStreakNum"><svg class="icon" aria-hidden="true"><use href="#i-flame"/></svg>${si.streak}</span>` +
+      `<span class="pgStreakText"><b>${escapeHtml(si.streak === 1 ? L('1 Tag in Folge', '1 day running') : L(`${si.streak} Tage in Folge`, `${si.streak} days running`))}</b>` +
+      `<span>${escapeHtml(status)}</span></span></div>` +
+      `<p class="pgRules">${escapeHtml(L(
+        `Rekord: ${si.best} ${si.best === 1 ? 'Tag' : 'Tage'} · Joker-Tag ${si.graceFree ? 'frei' : 'diese Woche verbraucht'}. Ein verpasster Tag pro Woche wird überbrückt.`,
+        `Best: ${si.best} ${si.best === 1 ? 'day' : 'days'} · grace day ${si.graceFree ? 'free' : 'used this week'}. One missed day per week is bridged.`
+      ))}</p>`;
+  }
+  function openProgressSheet() {
+    if (!progressEnabled()) return;
+    renderProgressSheet();
+    el('progressOverlay').classList.remove('hidden');
+  }
+  el('progressCloseBtn').addEventListener('click', () => el('progressOverlay').classList.add('hidden'));
+  el('progressOverlay').addEventListener('click', (ev) => {
+    if (ev.target === el('progressOverlay')) el('progressOverlay').classList.add('hidden');
+  });
+
   function renderQuests() {
+    try { renderIdentityProgress(); } catch (e) { /* cosmetic */ }
     const box = el('questsSection');
     const list = el('questList');
     if (!box || !list) return;
@@ -6043,31 +6231,12 @@
       return;
     }
     box.classList.remove('hidden');
-    // Level and daily streak above the tasks: the two numbers that grow
-    // every day, on the screen people see every day.
-    const me = myProfile();
-    const lv = levelFromXpClient(Math.max(me ? me.xp || 0 : 0, myProgress ? myProgress.xp || 0 : 0));
-    const streak = (myStreak && myStreak.streak) || (me && me.dailyStreak) || 0;
-    const graceFree = myStreak ? myStreak.graceFree : !(me && me.daily && me.daily.graceAt);
-    const strip = el('progressStrip');
-    if (strip) {
-      strip.innerHTML =
-        `<span class="psLevel"><b>${L(`Stufe ${lv.level}`, `Level ${lv.level}`)}</b> <i class="levelBar"><u style="width:${Math.round((lv.into / lv.need) * 100)}%"></u></i> <small>${lv.into}/${lv.need} ${L('EP', 'XP')}</small></span>` +
-        `<span class="psStreak" title="${escapeHtml(L('Tagesserie: an aufeinanderfolgenden Tagen spielen. Ein verpasster Tag pro Woche wird überbrückt (Joker-Tag).', 'Daily streak: play on consecutive days. One missed day per week is bridged (grace day).'))}">🔥 ${
-          streak > 0 ? L(`${streak} ${streak === 1 ? 'Tag' : 'Tage'} in Folge`, `${streak} ${streak === 1 ? 'day' : 'days'} running`) : L('Heute spielen startet die Serie', 'Play today to start a streak')
-        }${streak > 0 ? ` <small>${graceFree ? L('· Joker-Tag frei', '· grace day free') : L('· Joker-Tag verbraucht', '· grace day used')}</small>` : ''}</span>`;
-    }
-    // Summary line on the collapsed panel: the three numbers that matter
-    // without opening it.
+    // Tasks only: level and streak live on the identity chip / progress sheet.
     const sum = el('questsSummary');
     if (sum) {
       const total = dailyQuests.ids.length;
       const done = dailyQuests.ids.filter((id) => (questProgress[id] || 0) >= (QUEST_NEED[id] || 1)).length;
-      sum.textContent = [
-        L(`Stufe ${lv.level}`, `Level ${lv.level}`),
-        streak > 0 ? `🔥 ${streak}` : null,
-        `${done}/${total} ${L('erledigt', 'done')}`,
-      ].filter(Boolean).join(' · ');
+      sum.textContent = `${done}/${total} ${L('erledigt', 'done')}`;
     }
     list.innerHTML = dailyQuests.ids
       .map((id) => {
@@ -6077,7 +6246,7 @@
         const done = have >= need;
         const pct = Math.round((have / need) * 100);
         return `<div class="questRow${done ? ' done' : ''}">
-          <span class="questIcon">${done ? '✅' : meta.icon}</span>
+          <span class="questIcon"><svg class="icon" aria-hidden="true"><use href="#i-${done ? 'check' : meta.icon}"/></svg></span>
           <span class="questText">${escapeHtml(meta.text)}</span>
           <span class="questCount">${need > 1 ? `${have}/${need}` : ''}</span>
           <span class="questBar"><i style="width:${pct}%"></i></span>
@@ -6162,7 +6331,7 @@
       showLevelUp(before, lvl, msg.gainedXp, msg.xp - (msg.gainedXp || 0), !!msg.welcomeBack);
     } else if (msg.welcomeBack && msg.gainedXp > 0) {
       showToast(`👋 ${L('Willkommen zurück! Doppelte Erfahrung', 'Welcome back! Double XP')}: +${msg.gainedXp}`);
-    } else if (!completed.length && msg.gainedXp > 0) {
+    } else if (!completed.length && msg.gainedXp > 0 && el('resultOverlay').classList.contains('hidden')) {
       showToast(`✨ +${msg.gainedXp} ${L('Erfahrung', 'XP')}`);
     }
     if (lvl) lastLevelSeen = lvl;
@@ -6224,10 +6393,16 @@
       ? `<h4 class="achSection">${escapeHtml(title)} (${keys.length})</h4><div class="achGrid">${keys.map(tile).join('')}</div>`
       : '');
     box.classList.remove('hidden');
+    // Folded: the three closest goals - a wall of 30+ locked tiles said nothing.
+    const near = [...new Set([...(order.nearest || []), ...order.locked])].slice(0, 3);
+    const body = achShowAll
+      ? section(L('Freigeschaltet', 'Unlocked'), order.unlocked) + section(L('Noch offen', 'Still open'), order.locked)
+      : near.length
+        ? section(L('Fast geschafft', 'Almost there'), near)
+        : section(L('Zuletzt freigeschaltet', 'Recently unlocked'), order.unlocked.slice(0, 3));
     box.innerHTML =
-      `<h3>${L('🏅 Erfolge', '🏅 Achievements')} <span class="achCount">${have} / ${total}</span></h3>` +
-      section(L('Freigeschaltet', 'Unlocked'), order.unlocked) +
-      section(L('Noch offen', 'Still open'), order.locked);
+      `<h3>${L('Erfolge', 'Achievements')} <span class="achCount">${have} / ${total}</span></h3>` + body +
+      `<button type="button" class="achAllBtn">${achShowAll ? L('Weniger anzeigen', 'Show less') : L(`Alle ${total} anzeigen`, `Show all ${total}`)}</button>`;
     // Re-render (new profile data) keeps the open detail open.
     if (openAchId) showAchDetail(openAchId, false);
   }
@@ -6245,6 +6420,10 @@
     return {
       unlocked: items.filter((it) => it.at).sort((a, b) => b.at - a.at).map((it) => it.key),
       locked: items.filter((it) => !it.at)
+        .sort((a, b) => ratio(b) - ratio(a) || plain(a.name).localeCompare(plain(b.name)))
+        .map((it) => it.key),
+      // Next goals with real progress, next family tiers included.
+      nearest: items.filter((it) => it.p && it.p.have > 0 && it.p.have < it.p.need)
         .sort((a, b) => ratio(b) - ratio(a) || plain(a.name).localeCompare(plain(b.name)))
         .map((it) => it.key),
     };
@@ -6298,6 +6477,7 @@
   // Tap (phone) or click (desktop) on a tile: how to earn it, right below
   // its row. Hover additionally shows the same text via title.
   let openAchId = null;
+  let achShowAll = false;
   function achDetailHtml(key) {
     const me = myProfile() || {};
     const owned = me.badges || {};
@@ -6349,6 +6529,7 @@
   }
   el('achievementsBox').addEventListener('click', (ev) => {
     if (ev.target.closest('.achDetailClose')) { showAchDetail(null); return; }
+    if (ev.target.closest('.achAllBtn')) { achShowAll = !achShowAll; renderAchievements(); return; }
     const fav = ev.target.closest('.achFavBtn');
     if (fav) { toggleFavorite(fav.dataset.fav); return; }
     const tile = ev.target.closest('.achTile');
@@ -6442,6 +6623,8 @@
   // --- Statistik ---------------------------------------------------------------
   el('statsBtn').addEventListener('click', () => {
     send({ type: 'listProfiles' }); // frische Daten anfordern
+    // The "you" sparkline needs the history too; refresh it on every open.
+    send({ type: 'getGameHistory', name: currentName() });
     renderStats();
     el('statsOverlay').classList.remove('hidden');
   });
@@ -6463,7 +6646,7 @@
   // Record details: tapping a profile row expands its personal records
   // (best round, queen/joker balance, hand-aus wins) right beneath it.
   el('statsContent').addEventListener('click', (ev) => {
-    const card = ev.target.closest('.statsCard');
+    const card = ev.target.closest('.boardRow');
     if (!card) return;
     const existing = card.nextElementSibling;
     if (existing && existing.classList.contains('recordRow')) {
@@ -6478,7 +6661,7 @@
     const bits = [
       `${L('Beste Runde', 'Best round')}: <b>${p.bestRoundScore ?? '–'}</b>`,
       `♠Q ${L('ausgelegt/erwischt', 'melded/caught')}: <b>${p.totalQueensLaid || 0}/${p.totalQueensCaught || 0}</b>`,
-      `🃏: <b>${p.totalJokersLaid || 0}</b>`,
+      `${L('Joker', 'Jokers')}: <b>${p.totalJokersLaid || 0}</b>`,
       `${L('Hand aus', 'Out in one')}: <b>${p.totalHandAus || 0}</b>`,
     ];
     detail.innerHTML = `<div class="recordCell">${bits.join(' · ')}</div>`;
@@ -6535,19 +6718,28 @@
 
   function renderStats() {
     renderAchievements();
+    renderStatsMe();
     const box = el('statsContent');
-    // Globale, anonyme Server-Statistik (funktioniert auch im Public Mode)
+    // Server-wide counters: a footer with one punchline, not five bare rows.
     const gsBox = el('globalStatsBox');
     if (globalStatsData && globalStatsData.games > 0) {
       const g = globalStatsData;
-      const row = (label, value) => `<div class="statRow"><span>${label}</span><b>${value}</b></div>`;
+      const queens = (g.pikDamesLaidOut || 0) + (g.pikDamesCaught || 0);
+      const share = queens > 0 ? g.pikDamesCaught / queens : 0;
+      const n = share > 0 ? Math.round(1 / share) : 0;
+      const ordDe = ['', '', 'zweite', 'dritte', 'vierte', 'fünfte', 'sechste', 'siebte', 'achte', 'neunte', 'zehnte'][n] || '';
+      const punch = n >= 2 && n <= 10
+        ? L(`Jede ${ordDe} Pik Dame bleibt auf der Hand hängen.`, `One in ${n} Queens of Spades gets caught in hand.`)
+        : queens > 0
+          ? L(`${Math.round(share * 100)} % aller Pik Damen bleiben auf der Hand hängen.`, `${Math.round(share * 100)}% of all Queens of Spades get caught in hand.`)
+          : '';
+      const fmt = (v) => Number(v || 0).toLocaleString(lang === 'en' ? 'en-GB' : 'de-DE');
       gsBox.innerHTML =
-        `<h3>${L('🌍 Server-Statistik (alle Spiele)', '🌍 Server statistics (all games)')}</h3>` +
-        row(L('Partien gespielt', 'Games played'), g.games) +
-        row(L('Runden gespielt', 'Rounds played'), g.rounds) +
-        row(L('♠ Pik Damen ausgelegt (+100)', '♠ Queens of Spades melded (+100)'), g.pikDamesLaidOut) +
-        row(L('♠ Pik Damen auf der Hand erwischt (−100)', '♠ Queens of Spades caught in hand (−100)'), g.pikDamesCaught) +
-        row(L('„Hand aus“-Runden', '"Out in one" rounds'), g.handAusRounds);
+        (punch ? `<p class="gsPunch">${punch}</p>` : '') +
+        `<p class="gsLine">${L(
+          `Auf diesem Server: ${fmt(g.games)} Partien · ${fmt(g.rounds)} Runden · ${fmt(g.handAusRounds)}× Hand aus`,
+          `On this server: ${fmt(g.games)} games · ${fmt(g.rounds)} rounds · ${fmt(g.handAusRounds)}× out in one`
+        )}</p>`;
       gsBox.classList.remove('hidden');
     } else {
       gsBox.classList.add('hidden');
@@ -6555,36 +6747,82 @@
 
     const profiles = (knownProfiles || []).filter((p) => (p.gamesPlayed || 0) > 0);
     if (profiles.length === 0) {
-      // Präzise sagen, WARUM hier nichts steht (Nutzer-Frage 'immer leer?'):
-      // gezählt wird erst eine KOMPLETT zu Ende gespielte Partie.
+      // Say WHY it is empty (user question "always empty?").
       box.innerHTML = `<p class="lobby-hint">${L(
-        'Noch keine abgeschlossenen Partien. Die Statistik zählt nur komplett zu Ende gespielte Partien (bis 1000 Punkte) - aufgegebene oder vorzeitig verlassene Spiele zählen nicht. 🃏',
-        'No finished games yet. Statistics only count matches played to the end (1000 points) - forfeited or abandoned games do not count. 🃏'
+        'Noch keine abgeschlossenen Partien. Die Statistik zählt nur komplett zu Ende gespielte Partien (bis 1000 Punkte) - aufgegebene oder vorzeitig verlassene Spiele zählen nicht.',
+        'No finished games yet. Statistics only count matches played to the end (1000 points) - forfeited or abandoned games do not count.'
       )}</p>`;
       return;
     }
     const sorted = profiles.slice().sort((a, b) => (b.gamesWon || 0) - (a.gamesWon || 0) || (b.totalScore || 0) - (a.totalScore || 0));
-    const cards = sorted
-      .map((p) => {
+    const meName = (currentName() || '').toLowerCase();
+    // Compact rank table; tapping a row still opens the personal records.
+    const rows = sorted
+      .map((p, i) => {
         const played = p.gamesPlayed || 0;
         const won = p.gamesWon || 0;
         const rate = played > 0 ? Math.round((won / played) * 100) : 0;
-        const best = p.bestGameScore !== undefined ? p.bestGameScore : '–';
-        const badgeChips = Object.keys(p.badges || {})
-          .map((id) => {
-            const m = badgeMeta(id);
-            return `<span class="statsBadgeChip" title="${escapeHtml(m.desc)}">${m.emoji} ${escapeHtml(m.name)}</span>`;
-          })
-          .join('');
-        return `<div class="statsCard" data-name="${escapeHtml(p.name)}">
-          <div class="statsCardHead"><span class="statsCardName">${nameWithHeart(p.name)}${favoriteBadgesHtml(p)}</span><span class="statsCardRate">${rate}% · ${won}/${played} ${L('Siege', 'wins')}</span></div>
-          <div class="statsCardMeta">${L('Stufe', 'Level')} <b>${levelFromXpClient(p.xp || 0).level}</b> · ${escapeHtml(titleForLevel(levelFromXpClient(p.xp || 0).level))}</div>
-          <div class="statsCardMeta">${L('Spiele', 'Games')}: <b>${played}</b> · ${L('Beste Partie', 'Best game')}: <b>${best}</b></div>
-          <div class="statsCardBadges">${badgeChips || `<span class="statsNoBadge">${L('Noch keine Erfolge', 'No badges yet')}</span>`}</div>
-        </div>`;
+        const mine = p.name.toLowerCase() === meName;
+        return `<button type="button" class="boardRow${mine ? ' isMe' : ''}" data-name="${escapeHtml(p.name)}">` +
+          `<span class="boardRank">${i + 1}</span>` +
+          `<span class="boardName">${nameWithHeart(p.name)}${favoriteBadgesHtml(p)}</span>` +
+          `<span class="boardNum"><b>${won}</b>/${played}</span>` +
+          `<span class="boardNum">${rate} %</span>` +
+          `<span class="boardNum boardLevel">${levelFromXpClient(p.xp || 0).level}</span>` +
+          `</button>`;
       })
       .join('');
-    box.innerHTML = `<div class="statsCards">${cards}</div>`;
+    box.innerHTML =
+      `<div class="boardHead"><span>#</span><span>${L('Spieler', 'Player')}</span><span>${L('Siege', 'Wins')}</span><span>${L('Quote', 'Rate')}</span><span>${L('Stufe', 'Level')}</span></div>` +
+      `<div class="boardList">${rows}</div>`;
+  }
+
+  // "You" first: four numbers and the trend of the last games.
+  el('statsMeBox').addEventListener('click', (ev) => {
+    if (ev.target.closest('[data-open="progress"]')) openProgressSheet();
+  });
+  function renderStatsMe() {
+    const box = el('statsMeBox');
+    if (!box) return;
+    const me = myProfile();
+    if (publicMode || !me || !(me.gamesPlayed > 0)) {
+      box.classList.add('hidden');
+      return;
+    }
+    const played = me.gamesPlayed || 0;
+    const won = me.gamesWon || 0;
+    const lv = levelFromXpClient(Math.max(me.xp || 0, myProgress ? myProgress.xp || 0 : 0));
+    const kpi = (value, label) => `<div class="kpiTile"><b>${value}</b><span>${label}</span></div>`;
+    const games = (myGameHistory || []).slice(0, 10).reverse();
+    let spark = '';
+    if (games.length >= 2) {
+      const W = 300;
+      const H = 44;
+      const vals = games.map((g) => g.myScore || 0);
+      const max = Math.max(1000, ...vals) + 40;
+      const min = Math.min(1000, ...vals) - 120;
+      const sx = (i) => 6 + (i / (games.length - 1)) * (W - 12);
+      const sy = (v) => 4 + (1 - (v - min) / (max - min || 1)) * (H - 8);
+      const pts = games.map((g, i) => `${sx(i).toFixed(1)},${sy(g.myScore || 0).toFixed(1)}`).join(' ');
+      // Filled dot = won, ring = lost: identity never by colour alone.
+      const dots = games.map((g, i) =>
+        `<circle cx="${sx(i).toFixed(1)}" cy="${sy(g.myScore || 0).toFixed(1)}" r="3.6" class="${g.won ? 'won' : 'lost'}"/>`
+      ).join('');
+      spark = `<div class="meSpark"><span class="meSparkLabel">${L(`Letzte ${games.length} Partien`, `Last ${games.length} games`)}</span>` +
+        `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeHtml(L(`Endstände der letzten ${games.length} Partien`, `Final scores of the last ${games.length} games`))}: ${vals.join(', ')}">` +
+        `<line x1="6" x2="${W - 6}" y1="${sy(1000).toFixed(1)}" y2="${sy(1000).toFixed(1)}" class="goalLine"/>` +
+        `<polyline points="${pts}" class="sparkLine"/>${dots}</svg>` +
+        `<span class="meSparkKey"><i class="won"></i>${L('Sieg', 'win')} <i class="lost"></i>${L('Niederlage', 'loss')}</span></div>`;
+    }
+    box.innerHTML =
+      `<div class="meHead"><span class="meName">${nameWithHeart(me.name)}</span><span class="meTitle">${escapeHtml(titleForLevel(lv.level))}</span></div>` +
+      `<div class="kpiGrid">` +
+      kpi(`${played > 0 ? Math.round((won / played) * 100) : 0} %`, L(`Siegquote (${won}/${played})`, `Win rate (${won}/${played})`)) +
+      kpi(played, L('Partien', 'Games')) +
+      kpi(me.bestGameScore !== undefined ? me.bestGameScore : '–', L('Beste Partie', 'Best game')) +
+      `<button type="button" class="kpiTile kpiLink" data-open="progress"><b>${lv.level}</b><span>${L('Stufe', 'Level')}</span></button>` +
+      `</div>` + spark;
+    box.classList.remove('hidden');
   }
 
   // Bei Orientierungswechsel/Fenstergröße die Hand-Überlappung neu berechnen.
