@@ -86,6 +86,11 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
       p.totalQueensCaught = (p.totalQueensCaught || 0) + (f.pdCaught || 0);
       p.totalJokersLaid = (p.totalJokersLaid || 0) + (f.jokersLaid || 0);
       p.totalHandAus = (p.totalHandAus || 0) + (f.handAusWins || 0);
+      // Derived, so profiles from before the "purple heart" count all old losses too.
+      p.gamesLost = p.gamesPlayed - (p.gamesWon || 0);
+      p.lastPlaceStreak = f.lastPlace ? (p.lastPlaceStreak || 0) + 1 : 0;
+      if (f.challenge) p.totalChallenges = (p.totalChallenges || 0) + 1;
+      if (f.stammtisch) p.totalStammtischGames = (p.totalStammtischGames || 0) + 1;
       // Bester Endstand einer einzelnen Partie (für die Statistik-Seite)
       if (p.bestGameScore === undefined || (r.score || 0) > p.bestGameScore) {
         p.bestGameScore = r.score || 0;
@@ -229,6 +234,7 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
       if (solved) {
         day.solved = true;
         justSolved = !day.revealed; // a revealed solution earns nothing
+        if (justSolved) p.totalPuzzlesSolved = (p.totalPuzzlesSolved || 0) + 1;
       }
     }
     saveStore(store);

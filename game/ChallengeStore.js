@@ -1,15 +1,16 @@
 // game/ChallengeStore.js
 // Daily-challenge leaderboard: everyone plays the SAME seeded deck against
 // the same medium bots; this store keeps each player's BEST score per day.
-// Retention is deliberately short (7 days) - it is a daily race, not an
-// archive - which also keeps the privacy footprint small (nickname + score).
+// Retention is deliberately short (14 days: the board shows 7, the own trend
+// graph 14) - a daily race, not an archive; only nickname + score are kept.
 
 const path = require('path');
 const { createAtomicJsonFile } = require('./AtomicJsonFile');
 const { gameDay, addDays, weekdayIndex } = require('./GameDay');
 
 const DEFAULT_DATA_FILE = path.join(process.env.PIKDAME_DATA_DIR || path.join(__dirname, '..', 'data'), 'challenges.json');
-const KEEP_DAYS = 7;
+const KEEP_DAYS = 14;
+const BOARD_DAYS = 7;
 const MAX_ENTRIES_PER_DAY = 100;
 
 /** Stable numeric seed from a YYYY-MM-DD string (djb2). */
@@ -71,7 +72,7 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
   }
 
   /**
-   * The last KEEP_DAYS days at a glance (today first): per day the top
+   * The last BOARD_DAYS days at a glance (today first): per day the top
    * entries plus - if a name is given - that player's own score and rank.
    * This is what makes '7 Tage sichtbar' actually TRUE in the UI: before,
    * only the current day was ever shown and yesterday silently vanished
@@ -81,7 +82,7 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
     const store = load();
     const days = [];
     const today = gameDay(now);
-    for (let i = 0; i < KEEP_DAYS; i++) {
+    for (let i = 0; i < BOARD_DAYS; i++) {
       const date = addDays(today, -i);
       const list = store.days[date] || [];
       if (list.length === 0 && i > 0) continue; // leere Vortage nicht auflisten
@@ -134,7 +135,48 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
     };
   }
 
-  return { submit, getBoard, rankOf, getHistory, getWeekly };
+  /**
+   * Trend graph: the player's daily scores plus the `top` OTHER players of
+   * the window (sum of their daily bests), oldest day first; a day without a
+   * result is null (a gap, not a zero). The top set is fixed for the window.
+   */
+  function getTrend(name, { days = KEEP_DAYS, top = 5 } = {}, now = Date.now()) {
+    const store = load();
+    const key = String(name || '').trim().toLowerCase();
+    const today = gameDay(now);
+    const dates = [];
+    for (let i = Math.min(days, KEEP_DAYS) - 1; i >= 0; i--) dates.push(addDays(today, -i));
+    const players = new Map(); // lower-case name -> { name, scores[] }
+    dates.forEach((date, d) => {
+      for (const e of store.days[date] || []) {
+        const k = e.name.toLowerCase();
+        if (!players.has(k)) players.set(k, { name: e.name, scores: dates.map(() => null) });
+        players.get(k).scores[d] = e.score;
+      }
+    });
+    const sum = (p) => p.scores.reduce((a, v) => a + (v || 0), 0);
+    const others = [...players.entries()]
+      .filter(([k]) => k !== key)
+      .map(([, p]) => ({ ...p, total: sum(p), days: p.scores.filter((v) => v != null).length }))
+      .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name))
+      .slice(0, top);
+    const mine = key && players.get(key);
+    return {
+      dates,
+      me: mine ? { ...mine, total: sum(mine), days: mine.scores.filter((v) => v != null).length } : null,
+      top: others,
+    };
+  }
+
+  /** Was `name` first on a challenge day that is already over (still kept)? */
+  function wasChampion(name, now = Date.now()) {
+    const key = String(name || '').trim().toLowerCase();
+    if (!key) return false;
+    const today = gameDay(now);
+    return Object.entries(load().days).some(([date, list]) => date < today && list[0] && list[0].name.toLowerCase() === key);
+  }
+
+  return { submit, getBoard, rankOf, getHistory, getWeekly, getTrend, wasChampion };
 }
 
 module.exports = { createChallengeStore, seedForDate, todayDate, DEFAULT_DATA_FILE };
