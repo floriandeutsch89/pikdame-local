@@ -23,8 +23,8 @@
 # It only labels the log - the images come from the registry tags in your
 # compose file - but anything that is not a 40-character commit id is refused.
 #
-# Beta (docs/admin/beta.md): a second key forced to `pikdame-deploy beta`.
-# The mode comes from authorized_keys, never from the client.
+# Beta (docs/admin/beta.md): on the beta host, a key forced to
+# `pikdame-deploy beta`. The mode comes from authorized_keys, never the client.
 #
 # Optional /etc/pikdame-deploy.conf (sourced):
 #   PIKDAME_DIR=/opt/stacks/pikdame          # default: /opt/pikdame/docker
@@ -76,11 +76,13 @@ docker compose -f "$FILE" up -d
 docker image prune -f >/dev/null
 docker compose -f "$FILE" ps
 if [ "$MODE" = beta ]; then
-  # :beta moves - prove the container runs this push.
-  GOT=$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' pikdame-beta 2>/dev/null || true)
-  if [ "$GOT" != "$REF" ]; then
-    echo "pikdame-deploy: beta runs revision '${GOT:-unknown}', expected $REF" >&2
-    exit 4
-  fi
+  # :beta moves - prove app and proxy run this push.
+  for C in pikdame-beta pikdame-beta-caddy; do
+    GOT=$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$C" 2>/dev/null || true)
+    if [ "$GOT" != "$REF" ]; then
+      echo "pikdame-deploy: $C runs revision '${GOT:-unknown}', expected $REF" >&2
+      exit 4
+    fi
+  done
 fi
 echo "pikdame-deploy: done ($REF)"
