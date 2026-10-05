@@ -1748,6 +1748,9 @@ class GameManager {
               }
               if (round.isHandAus && round.winnerId === p.id) facts.handAusWins += 1;
             }
+            // Last place (ties at the bottom included) feeds the "red lantern" streak.
+            const lowest = Math.min(...this.players.map((pl) => this.totals[pl.id] || 0));
+            facts.lastPlace = p.id !== over.winnerId && (this.totals[p.id] || 0) <= lowest;
             return { id: p.id, name: p.name, score: this.totals[p.id] || 0, won: p.id === over.winnerId, facts };
           });
         try {

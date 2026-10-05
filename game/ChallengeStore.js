@@ -168,7 +168,15 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
     };
   }
 
-  return { submit, getBoard, rankOf, getHistory, getWeekly, getTrend };
+  /** Was `name` first on a challenge day that is already over (still kept)? */
+  function wasChampion(name, now = Date.now()) {
+    const key = String(name || '').trim().toLowerCase();
+    if (!key) return false;
+    const today = gameDay(now);
+    return Object.entries(load().days).some(([date, list]) => date < today && list[0] && list[0].name.toLowerCase() === key);
+  }
+
+  return { submit, getBoard, rankOf, getHistory, getWeekly, getTrend, wasChampion };
 }
 
 module.exports = { createChallengeStore, seedForDate, todayDate, DEFAULT_DATA_FILE };

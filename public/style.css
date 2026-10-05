@@ -3078,6 +3078,7 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
   gap: 8px; margin: 0 0 8px; font-size: var(--fs-label);
 }
 .achCount { font-size: var(--fs-hint); font-weight: 700; color: var(--text-muted); }
+.achSection { margin: 10px 0 6px; font-size: var(--fs-hint); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
 .achGrid {
   display: grid; gap: 6px;
   grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));

@@ -421,6 +421,41 @@
         how: L('Gewinne eine Partie gegen drei Zen-Meister-Bots.', 'Win a game against three zen master bots.') },
       no_joker_win: { emoji: '🃏', name: L('Ohne Joker', 'No jokers'), desc: L('Eine Partie gewonnen, ohne je einen Joker auszulegen', 'Won a game without ever melding a joker'),
         how: L('Gewinne eine Partie, ohne einen einzigen Joker auszulegen.', 'Win a game without melding a single joker.') },
+      // Consolation and curiosity badges (v2.48)
+      purple_heart_10: { emoji: '💜', name: L('Tapferes Herz', 'Brave heart'), desc: L('10 Partien verloren - und weitergespielt', 'Lost 10 games - and kept playing'),
+        how: L('Verliere 10 Partien. Dranbleiben zählt!', 'Lose 10 games. Sticking with it counts!') },
+      purple_heart_50: { emoji: '💜', name: L('Unverwüstlich', 'Unbreakable'), desc: L('50 Partien verloren - und weitergespielt', 'Lost 50 games - and kept playing'),
+        how: L('Verliere insgesamt 50 Partien.', 'Lose 50 games in total.') },
+      purple_heart_100: { emoji: '💜', name: L('Herz aus Gold', 'Heart of gold'), desc: L('100 Partien verloren - und weitergespielt', 'Lost 100 games - and kept playing'),
+        how: L('Verliere insgesamt 100 Partien.', 'Lose 100 games in total.') },
+      red_lantern: { emoji: '😤', name: L('Rote Laterne', 'Red lantern'), desc: L('3 Partien in Folge Letzter', 'Last place in 3 games in a row'),
+        how: L('Werde 3 Partien hintereinander Letzter (Gleichstand ganz unten zählt mit).', 'Finish last in 3 games in a row (a tie at the bottom counts).') },
+      rock_bottom: { emoji: '😡', name: L('Tiefpunkt', 'Rock bottom'), desc: L('Partie mit negativem Endstand beendet', 'Finished a game below zero'),
+        how: L('Beende eine Partie mit weniger als 0 Punkten.', 'Finish a game with fewer than 0 points.') },
+      cold_shower: { emoji: '🥶', name: L('Kalte Dusche', 'Cold shower'), desc: L('Beide Pik Damen in einer Runde auf der Hand erwischt (−200)', 'Caught with both Queens of Spades in one round (−200)'),
+        how: L('Halte am Ende einer Runde beide Pik Damen auf der Hand.', 'Hold both Queens of Spades when a round ends.') },
+      joker_king: { emoji: '🤹', name: L('Jokerkönig', 'Joker king'), desc: L('4+ Joker in einer Runde ausgelegt', 'Melded 4+ jokers in one round'),
+        how: L('Lege in einer einzigen Runde mindestens 4 Joker aus.', 'Meld at least 4 jokers in a single round.') },
+      quick_start: { emoji: '⚡', name: L('Blitzstart', 'Lightning start'), desc: L('„Hand aus“ schon in Runde 1', 'Out in one in round 1'),
+        how: L('Mach gleich in der ersten Runde einer Partie per „Hand aus“ aus.', 'Go out in one in the very first round of a game.') },
+      near_miss: { emoji: '😅', name: L('Knapp vorbei', 'So close'), desc: L('Mit weniger als 20 Punkten Rückstand verloren', 'Lost by less than 20 points'),
+        how: L('Verliere eine Partie mit weniger als 20 Punkten Rückstand auf den Sieger.', 'Lose a game by less than 20 points to the winner.') },
+      landslide: { emoji: '🏔️', name: L('Erdrutschsieg', 'Landslide'), desc: L('Mit 500+ Punkten Vorsprung gewonnen', 'Won by 500+ points'),
+        how: L('Gewinne eine Partie mit mindestens 500 Punkten Vorsprung auf Platz 2.', 'Win a game at least 500 points ahead of second place.') },
+      night_owl: { emoji: '🦉', name: L('Nachteule', 'Night owl'), desc: L('Partie zwischen 0 und 4 Uhr beendet', 'Finished a game between midnight and 4 am'),
+        how: L('Beende eine Partie zwischen 0 und 4 Uhr nachts (deutsche Zeit).', 'Finish a game between midnight and 4 am (German time).') },
+      stammtisch_10: { emoji: '🍻', name: L('Stammtischbruder', 'Table regular'), desc: L('10 Partien am Stammtisch', '10 games at a regulars table'),
+        how: L('Spiele 10 Partien an einem Stammtisch.', 'Play 10 games at a regulars table.') },
+      challenger_7: { emoji: '🏁', name: L('Herausforderer', 'Challenger'), desc: L('7 Tages-Challenges gespielt', 'Played 7 daily challenges'),
+        how: L('Spiele 7 Tages-Challenges (an beliebigen Tagen).', 'Play 7 daily challenges (any days).') },
+      challenger_30: { emoji: '🏁', name: L('Challenge-Profi', 'Challenge pro'), desc: L('30 Tages-Challenges gespielt', 'Played 30 daily challenges'),
+        how: L('Spiele 30 Tages-Challenges.', 'Play 30 daily challenges.') },
+      challenge_champ: { emoji: '🥇', name: L('Tagesbester', 'Champion of the day'), desc: L('Platz 1 einer Tages-Challenge', 'First place in a daily challenge'),
+        how: L('Steh am Ende eines Tages auf Platz 1 der Tages-Challenge. Vergeben wird es bei deiner nächsten Partie.', 'Be first in a daily challenge when the day ends. Awarded with your next game.') },
+      puzzle_7: { emoji: '🧩', name: L('Rätselfuchs', 'Puzzle fox'), desc: L('7 Tagesrätsel gelöst', 'Solved 7 daily puzzles'),
+        how: L('Löse 7 Tagesrätsel, ohne „Lösung zeigen“ zu tippen.', 'Solve 7 daily puzzles without tapping "show solution".') },
+      puzzle_30: { emoji: '🧩', name: L('Rätselmeister', 'Puzzle master'), desc: L('30 Tagesrätsel gelöst', 'Solved 30 daily puzzles'),
+        how: L('Löse 30 Tagesrätsel.', 'Solve 30 daily puzzles.') },
     };
     return M[id] || { emoji: '🎖️', name: id, desc: '', how: '' };
   }
@@ -433,10 +468,15 @@
     { id: 'streak', tiers: ['streak_3', 'streak_5', 'streak_10'] },
     { id: 'handaus', tiers: ['hand_aus_win', 'hand_aus_5'] },
     { id: 'daily', tiers: ['daily_7', 'daily_30'] },
+    { id: 'hearts', tiers: ['purple_heart_10', 'purple_heart_50', 'purple_heart_100'] },
+    { id: 'challenger', tiers: ['challenger_7', 'challenger_30'] },
+    { id: 'puzzles', tiers: ['puzzle_7', 'puzzle_30'] },
   ];
   const BADGE_SINGLES = [
     'pd_caught', 'round_300', 'score_500', 'pd_triple', 'double_queen_round',
     'comeback', 'zen_slayer', 'zen_trio', 'ring_run', 'run_13', 'pile_glutton', 'no_joker_win',
+    'quick_start', 'joker_king', 'landslide', 'challenge_champ', 'stammtisch_10', 'night_owl',
+    'near_miss', 'cold_shower', 'rock_bottom', 'red_lantern',
   ];
   let globalStatsData = null;
   let myGameHistory = null; // null = noch nicht angefragt, [] = angefragt und leer // anonyme Server-Zähler (Partien, Pik Damen, ...)
@@ -4476,6 +4516,9 @@
         if (msg.level) myProgress = { xp: myProgress ? Math.max(myProgress.xp || 0, (msg.level.total || 0)) : (msg.level.total || 0), level: msg.level };
         if (msg.streak) myStreak = msg.streak;
         try { renderQuests(); renderEmoteLocks(); } catch (e) { /* cosmetic */ }
+        if (msg.badges && msg.badges.length) {
+          showToast(`🏅 ${L('Neuer Erfolg', 'New badge')}: ${msg.badges.map((id) => `${badgeMeta(id).emoji} ${badgeMeta(id).name}`).join(', ')}`);
+        }
       } else {
         setPuzzleStatus(
           L(`Gültig, aber nur ${msg.points} von ${msg.targetPoints} Punkten - da geht mehr.`, `Valid, but only ${msg.points} of ${msg.targetPoints} points - there is more.`),
@@ -5982,13 +6025,13 @@
         <span class="achSub">${escapeHtml(sub)}</span>
       </button>`;
     };
-    const tiles = BADGE_FAMILIES.map(familyTile).join('') + BADGE_SINGLES.map(singleTile).join('');
     const total = BADGE_FAMILIES.reduce((n, f) => n + f.tiers.length, 0) + BADGE_SINGLES.length;
     const have = Object.keys(owned).filter((id) => BADGE_SINGLES.includes(id) || BADGE_FAMILIES.some((f) => f.tiers.includes(id))).length;
     box.classList.remove('hidden');
     box.innerHTML =
       `<h3>${L('🏅 Erfolge', '🏅 Achievements')} <span class="achCount">${have} / ${total}</span></h3>` +
-      `<div class="achGrid">${tiles}</div>`;
+      `<h4 class="achSection">${escapeHtml(L('Mit Stufen', 'With tiers'))}</h4><div class="achGrid">${BADGE_FAMILIES.map(familyTile).join('')}</div>` +
+      `<h4 class="achSection">${escapeHtml(L('Einzeln', 'Single'))}</h4><div class="achGrid">${BADGE_SINGLES.map(singleTile).join('')}</div>`;
     // Re-render (new profile data) keeps the open detail open.
     if (openAchId) showAchDetail(openAchId, false);
   }
@@ -6029,21 +6072,20 @@
       `<ul class="${fam ? 'achTierList' : ''}">${(fam ? fam.tiers : [key]).map(line).join('')}</ul>`;
   }
   function showAchDetail(key, scroll = true) {
-    const grid = el('achievementsBox').querySelector('.achGrid');
-    if (!grid) return;
-    const old = grid.querySelector('.achDetail');
+    const box = el('achievementsBox');
+    const old = box.querySelector('.achDetail');
     if (old) old.remove();
-    for (const t of grid.querySelectorAll('.achTile')) t.setAttribute('aria-expanded', 'false');
-    const tile = key ? grid.querySelector(`.achTile[data-ach="${CSS.escape(key)}"]`) : null;
+    for (const t of box.querySelectorAll('.achTile')) t.setAttribute('aria-expanded', 'false');
+    const tile = key ? box.querySelector(`.achTile[data-ach="${CSS.escape(key)}"]`) : null;
     openAchId = tile ? key : null;
     if (!tile) return;
     tile.setAttribute('aria-expanded', 'true');
-    const box = document.createElement('div');
-    box.className = 'achDetail';
-    box.setAttribute('role', 'note');
-    box.innerHTML = achDetailHtml(key);
-    tile.after(box); // grid-auto-flow: dense keeps the row full, the detail goes below it
-    if (scroll) box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    const detail = document.createElement('div');
+    detail.className = 'achDetail';
+    detail.setAttribute('role', 'note');
+    detail.innerHTML = achDetailHtml(key);
+    tile.after(detail); // grid-auto-flow: dense keeps the row full, the detail goes below it
+    if (scroll) detail.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
   el('achievementsBox').addEventListener('click', (ev) => {
     if (ev.target.closest('.achDetailClose')) { showAchDetail(null); return; }
@@ -6066,6 +6108,12 @@
       streak_3: cap(p.winStreak, 3), streak_5: cap(p.winStreak, 5), streak_10: cap(p.winStreak, 10),
       marathon_10: cap(p.gamesPlayed, 10), marathon_50: cap(p.gamesPlayed, 50), marathon_100: cap(p.gamesPlayed, 100),
       daily_7: cap(p.dailyStreak, 7), daily_30: cap(p.dailyStreak, 30),
+      // Older profiles have no gamesLost yet (it is written per finished game).
+      ...Object.fromEntries([10, 50, 100].map((n) => [`purple_heart_${n}`, cap(p.gamesLost != null ? p.gamesLost : (p.gamesPlayed || 0) - (p.gamesWon || 0), n)])),
+      challenger_7: cap(p.totalChallenges, 7), challenger_30: cap(p.totalChallenges, 30),
+      puzzle_7: cap(p.totalPuzzlesSolved, 7), puzzle_30: cap(p.totalPuzzlesSolved, 30),
+      red_lantern: cap(p.lastPlaceStreak, 3),
+      stammtisch_10: cap(p.totalStammtischGames, 10),
     };
   }
 

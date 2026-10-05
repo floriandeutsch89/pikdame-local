@@ -189,6 +189,8 @@ function badgeProgress(profile = {}) {
     pd_caught: { have: Math.min(p.totalQueensCaught || 0, 1), need: 1 },
     score_500: { have: Math.min(p.bestGameScore || 0, 500), need: 500 },
     round_300: { have: Math.min(p.bestRoundScore || 0, 300), need: 300 },
+    red_lantern: { have: Math.min(p.lastPlaceStreak || 0, 3), need: 3 },
+    stammtisch_10: { have: Math.min(p.totalStammtischGames || 0, 10), need: 10 },
   };
   // Every tier of every counter family, from the same profile field.
   const { BADGE_FAMILIES } = require('./Badges');

@@ -205,6 +205,9 @@ test('onGameOver-Hook wird mit Namen/Score/Sieger-Flag beim Spielende aufgerufen
   assert.deepEqual(names, ['Anna', 'Florian']);
   const florianResult = calls[0].find((r) => r.name === 'Florian');
   assert.equal(florianResult.won, true);
+  // Badge fact (v2.48): the loser at the bottom is last, the winner never.
+  assert.equal(florianResult.facts.lastPlace, false);
+  assert.equal(calls[0].find((r) => r.name === 'Anna').facts.lastPlace, true);
 });
 
 test('finishRound zeichnet jede Runde in roundHistory auf', () => {

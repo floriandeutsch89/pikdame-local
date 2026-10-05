@@ -51,8 +51,9 @@ test('computeEarnedBadges: Gewinner mit Hand-aus, 3 PD, 500+ und Comeback', () =
   const earned = computeEarnedBadges(record(), 'p1', { gamesWon: 1, winStreak: 3 });
   assert.deepEqual(
     earned.sort(),
-    // no_joker_win: the fixture melds no joker and p1 wins (v2.25)
-    ['comeback', 'double_queen_round', 'first_win', 'hand_aus_win', 'no_joker_win', 'pd_laid', 'pd_triple', 'score_500', 'streak_3'].sort()
+    // no_joker_win: the fixture melds no joker and p1 wins (v2.25);
+    // quick_start: the fixture's hand-aus is round 1 (v2.48)
+    ['comeback', 'double_queen_round', 'first_win', 'hand_aus_win', 'no_joker_win', 'pd_laid', 'pd_triple', 'quick_start', 'score_500', 'streak_3'].sort()
   );
 });
 
@@ -161,6 +162,7 @@ test('computeEarnedBadges: counter tiers follow the profile, streak/wins tiers o
   const { BADGE_FAMILIES } = require('../game/Badges');
   const won = computeEarnedBadges(record(), 'p1', {
     gamesWon: 50, gamesPlayed: 100, winStreak: 10, totalQueensLaid: 50, totalHandAus: 5, dailyStreak: 30,
+    gamesLost: 100, totalChallenges: 30, totalPuzzlesSolved: 30,
   });
   for (const fam of BADGE_FAMILIES) for (const [id] of fam.tiers) assert.ok(won.includes(id), `winner with maxed counters gets ${id}`);
   const lost = computeEarnedBadges(record(), 'p2', { gamesWon: 50, gamesPlayed: 100, winStreak: 10, totalQueensLaid: 50, dailyStreak: 30 });
@@ -239,4 +241,89 @@ test('every badge has a de/en "how to earn" text in the client (#300)', () => {
   for (const fam of BADGE_FAMILIES) {
     assert.match(client, new RegExp(`id: '${fam.id}', tiers: \\[${fam.tiers.map(([id]) => `'${id}'`).join(', ')}\\]`), fam.id);
   }
+});
+
+// --- v2.48: consolation and curiosity badges -----------------------------------
+test('computeEarnedBadges: round facts - cold shower (both queens caught) and joker king (4+ jokers)', () => {
+  const rec = record();
+  rec.rounds[1].results.p2.breakdown = { pikDameLaidOut: 0, pikDameCount: 2, jokersLaidOut: 0 };
+  rec.rounds[1].results.p1.breakdown = { pikDameLaidOut: 1, pikDameCount: 0, jokersLaidOut: 4 };
+  assert.ok(computeEarnedBadges(rec, 'p2', {}).includes('cold_shower'));
+  assert.ok(computeEarnedBadges(rec, 'p1', {}).includes('joker_king'));
+  assert.ok(!computeEarnedBadges(record(), 'p2', {}).includes('cold_shower'), 'one queen is just "Autsch"');
+});
+
+test('computeEarnedBadges: final margins - rock bottom, near miss, landslide; quick start only for round 1', () => {
+  const close = record({ finalTotals: { p1: 1010, p2: 995 } });
+  assert.ok(computeEarnedBadges(close, 'p2', {}).includes('near_miss'), 'lost by 15');
+  assert.ok(!computeEarnedBadges(record(), 'p2', {}).includes('near_miss'), 'lost by 320');
+  assert.ok(!computeEarnedBadges(close, 'p1', {}).includes('near_miss'), 'the winner never misses');
+  const big = record({ finalTotals: { p1: 1100, p2: 600 } });
+  assert.ok(computeEarnedBadges(big, 'p1', {}).includes('landslide'), 'won by 500');
+  assert.ok(!computeEarnedBadges(record(), 'p1', {}).includes('landslide'), 'won by 320');
+  const minus = record({ finalTotals: { p1: 1000, p2: -40 } });
+  assert.ok(computeEarnedBadges(minus, 'p2', {}).includes('rock_bottom'));
+  assert.ok(!computeEarnedBadges(record(), 'p2', {}).includes('rock_bottom'));
+  assert.ok(!computeEarnedBadges(record(), 'p2', {}).includes('quick_start'), 'round 1 was not theirs');
+  const late = record();
+  late.rounds[0].isHandAus = false;
+  late.rounds[1].isHandAus = true;
+  late.rounds[1].winnerId = 'p1';
+  assert.ok(!computeEarnedBadges(late, 'p1', {}).includes('quick_start'), 'hand out in round 2 is no quick start');
+});
+
+test('computeEarnedBadges: night owl by German time, profile streaks and the challenge champion', () => {
+  // 23:30Z in October = 01:30 in Germany; 10:00Z = 12:00.
+  assert.ok(computeEarnedBadges(record({ finishedAt: Date.parse('2026-10-04T23:30:00Z') }), 'p2', {}).includes('night_owl'));
+  assert.ok(!computeEarnedBadges(record({ finishedAt: Date.parse('2026-10-05T10:00:00Z') }), 'p2', {}).includes('night_owl'));
+  assert.ok(!computeEarnedBadges(record({ finishedAt: Date.parse('2026-10-05T02:30:00Z') }), 'p2', {}).includes('night_owl'), '04:30 is morning');
+  assert.ok(computeEarnedBadges(record(), 'p2', { lastPlaceStreak: 3 }).includes('red_lantern'));
+  assert.ok(!computeEarnedBadges(record(), 'p2', { lastPlaceStreak: 2 }).includes('red_lantern'));
+  assert.ok(computeEarnedBadges(record(), 'p2', { totalStammtischGames: 10 }).includes('stammtisch_10'));
+  assert.ok(computeEarnedBadges(record(), 'p2', {}, { challengeChamp: true }).includes('challenge_champ'));
+  assert.ok(!computeEarnedBadges(record(), 'p2', {}).includes('challenge_champ'));
+});
+
+test('PlayerStore: losses, last-place streak, challenge/Stammtisch games and solved puzzles are counted', () => {
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikbadge-')), 'players.json');
+  const store = createPlayerStore(file);
+  const game = (won, facts = {}) => store.recordGameResult([{ name: 'Ute', score: 100, won, facts }]);
+  game(false, { lastPlace: true, challenge: true });
+  game(false, { lastPlace: true, stammtisch: true });
+  let u = store.getPlayerByName('Ute');
+  assert.deepEqual([u.gamesLost, u.lastPlaceStreak, u.totalChallenges, u.totalStammtischGames], [2, 2, 1, 1]);
+  game(true);
+  u = store.getPlayerByName('Ute');
+  assert.deepEqual([u.gamesLost, u.lastPlaceStreak], [2, 0], 'a game off the bottom resets the streak');
+  store.recordPuzzleAttempt('Ute', '2026-10-01', true);
+  store.recordPuzzleAttempt('Ute', '2026-10-01', true); // same day again: no second count
+  store.revealPuzzle('Ute', '2026-10-02');
+  store.recordPuzzleAttempt('Ute', '2026-10-02', true); // revealed first: earns nothing
+  assert.equal(store.getPlayerByName('Ute').totalPuzzlesSolved, 1);
+  const { familyBadges } = require('../game/Badges');
+  assert.deepEqual(familyBadges({ totalPuzzlesSolved: 7, gamesLost: 10, totalChallenges: 30 }).sort(),
+    ['challenger_30', 'challenger_7', 'puzzle_7', 'purple_heart_10'].sort());
+});
+
+test('ChallengeStore.wasChampion: first place counts only once the day is over', () => {
+  const { createChallengeStore } = require('../game/ChallengeStore');
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikchamp-')), 'challenges.json');
+  const cs = createChallengeStore(file);
+  const now = Date.parse('2026-10-05T10:00:00Z');
+  cs.submit('2026-10-05', 'Ada', 900, now); // today: still open
+  assert.equal(cs.wasChampion('ada', now), false);
+  cs.submit('2026-10-04', 'Ben', 300, now);
+  cs.submit('2026-10-04', 'Ada', 500, now);
+  assert.equal(cs.wasChampion('Ada', now), true);
+  assert.equal(cs.wasChampion('Ben', now), false, 'second place is not first');
+});
+
+test('client lists every badge exactly once (families + singles)', () => {
+  const { BADGE_IDS } = require('../game/Badges');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'client.js'), 'utf8');
+  const fams = src.match(/const BADGE_FAMILIES = \[([\s\S]*?)\n  \];/)[1];
+  const singles = src.match(/const BADGE_SINGLES = \[([\s\S]*?)\n  \];/)[1];
+  const listed = [...fams.matchAll(/tiers: \[([^\]]*)\]/g)].flatMap((m) => [...m[1].matchAll(/'([a-z0-9_]+)'/g)].map((x) => x[1]))
+    .concat([...singles.matchAll(/'([a-z0-9_]+)'/g)].map((x) => x[1]));
+  assert.deepEqual([...listed].sort(), [...BADGE_IDS].sort());
 });
