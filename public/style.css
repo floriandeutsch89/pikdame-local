@@ -3127,6 +3127,10 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 .achTierList li + li { border-top: 0; }
 .achTierNo { display: block; font-size: var(--fs-micro); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
 .achTierList li.next .achTierNo { color: inherit; }
+.achHow { display: block; }
+/* Reached tier: the condition is done (greyed, struck), the name stays. */
+.achTierList li.done b { font-style: italic; }
+.achTierList li.done .achHow { color: var(--text-muted); text-decoration: line-through; }
 
 /* Level + season ladder in the account card. */
 .levelBox { text-align: left; margin: 10px 0; }

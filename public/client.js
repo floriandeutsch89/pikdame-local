@@ -6015,7 +6015,7 @@
         ? `<span class="achTierNo">${escapeHtml(L(`Stufe ${i + 1}`, `Tier ${i + 1}`))}${id === next ? ` · ${escapeHtml(L('als Nächstes', 'next'))}` : ''}</span>`
         : '';
       return `<li class="${cls}">${tier}<b>${escapeHtml(m.name)}</b>` +
-        `${state ? ` <span class="achDetailState">${escapeHtml(state)}</span>` : ''}<br>${escapeHtml(m.how)}</li>`;
+        `${state ? ` <span class="achDetailState">${escapeHtml(state)}</span>` : ''}<span class="achHow">${escapeHtml(m.how)}</span></li>`;
     };
     const head = badgeMeta(fam ? (fam.tiers.filter((id) => owned[id]).pop() || fam.tiers[0]) : key);
     const title = fam
