@@ -2,6 +2,9 @@
 
 Pik Dame: Online-Multiplayer-Kartenspiel (Familien-Rommé). Regeln für JEDE Änderung.
 Diese Datei kurz halten: Regeln + knappes Warum; Hintergrund gehört in docs/.
+**Aus Fehlern lernen:** Passiert der KI ein vermeidbarer Fehler (rot gepusht,
+Werkzeug-Falle, falsche Annahme), die Ursache als kurze Regel hier oder im
+passenden Skill festhalten, im selben PR, solange er offen ist.
 
 ## Sprache
 
@@ -139,9 +142,12 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
    Ablauf Schritt für Schritt: Skill `steward`; Browser-Check, Layout-Audit
    und PR-Screenshots: Skill `ui-shots` (eigener Temp-Datenordner);
    Design-Review nach unseren Regeln: Skill `ui-review`.
-2. **SemVer-Bump + CHANGELOG-Abschnitt.** Version direkt vor dem Push aus
-   `origin/main:package.json` ableiten (nach `git fetch`); offene PRs mit
-   belegten Nummern beachten. Hat sich main bewegt: erst mergen, dann pushen.
+2. **SemVer-Bump + CHANGELOG-Abschnitt, wenn sich das Spiel ändert**
+   (`public/`, `server.js`, `game/`, `models/`, `docker/`, Abhängigkeiten im
+   Image). Nur Doku, Skills, Tests oder CI: **keine Version, kein CHANGELOG**
+   (der Release-Workflow baut nur bei neuer Version). Version direkt vor dem
+   Push aus `origin/main:package.json` ableiten (nach `git fetch`); offene PRs
+   mit belegten Nummern beachten. Hat sich main bewegt: erst mergen, dann pushen.
 3. Push → PR → CI → Squash-Merge (macht der Nutzer) → Branch löschen.
    Tag, Release und GHCR-Image erzeugt der Release-Workflow — nichts manuell.
 4. **Branch-Hygiene:**
@@ -174,6 +180,12 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
 
 ## Tests
 
+- **Eigene Server nie auf `data/`:** immer `PIKDAME_DATA_DIR=<temp>` (Skill
+  `ui-shots` macht das). Ein Server auf `data/` hält `users.db` offen →
+  `npm test` scheitert mit SQLite „disk I/O error“. Nach Gebrauch stoppen und
+  auf das Ende warten (SIGTERM schreibt noch den Snapshot); vor `npm test`
+  `pgrep -af "node server.js"`. Nach vielen WS-Verbindungen drosselt der
+  Server → neu starten, nicht weiterprobieren.
 - Engine: E2E-Botspiele über alle 4 Stufen (Deadlocks, kein Joker-Abwurf,
   kein Doppel-Satz).
 - **Kartenerhaltung** (`test/card-conservation.test.js`): nach JEDEM Zug exakt

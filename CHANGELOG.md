@@ -3,11 +3,6 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
-## [2.57.1] - 2026-10-06
-
-### Added
-- **Entwicklung: drei Skills im Repo** (`.claude/skills/`): `ui-shots` macht Screenshots des echten Clients mit Testdaten in allen Layouts (Hochformat, Querformat, Desktop, iPhone SE), nutzt dabei einen eigenen, temporären Datenordner und prüft auf Wunsch automatisch abgeschnittene Texte, zu kleine Tippflächen, Icon-Knöpfe ohne Namen und eine Startseite, die am iPhone scrollen muss; `ui-review` ist das Design-Review nach den Regeln dieses Projekts; `steward` beschreibt den PR-Ablauf von Branch über Version und CHANGELOG bis zu roter CI. Am Spiel ändert sich nichts
-
 ## [2.57.0] - 2026-10-06
 
 ### Changed

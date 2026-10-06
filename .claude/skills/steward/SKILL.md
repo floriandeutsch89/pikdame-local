@@ -18,6 +18,10 @@ it without missing a step. Read CLAUDE.md first if you have not.
 
 ## Version and CHANGELOG
 
+- **Only when the game changes**: `public/`, `server.js`, `game/`,
+  `models/`, `docker/` or a dependency in the image. Docs, skills, tests or
+  CI alone get **no version and no CHANGELOG entry**; the release workflow
+  only builds on a new version, so nothing is shipped for them.
 - Next version = `origin/main:package.json` + bump, **skipping numbers that
   open PRs already use** (look at open PR titles: `(... vX.Y.Z)`).
 - Bump `package.json` and the two `"version"` lines at the top of
