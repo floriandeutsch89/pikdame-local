@@ -7,7 +7,7 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 
 ### Changed
 - **Startseite: neuer Bereich „Heute“**: Tagesrätsel und Challenge stehen dort als eigene Kacheln mit ihrem Stand von heute (Rätsel „Neu“ / „2 Versuche“ / „Gelöst“, Challenge „Noch offen“ / „Platz 3 · 1120 Pkt“ / „Läuft · fortsetzen“); Offenes ist mit einem Punkt markiert. Die Tagesaufgaben stehen als aufklappbare Zeile darunter
-- **Tutorial und Stammtisch als zwei breite Knöpfe**: „Stammtisch“ wird nicht mehr abgeschnitten. Beigetretene Stammtische stehen als eigene Zeilen mit Name, Serienstand und Pfeil darunter, ohne Emoji
+- **Tutorial und Stammtisch als zwei breite Knöpfe**, mit etwas Abstand zur Zeile „Spiel beitreten“: „Stammtisch“ wird nicht mehr abgeschnitten. Beigetretene Stammtische stehen als eigene Zeilen mit Name, Serienstand und Pfeil darunter, ohne Emoji
 - **Name nur noch einmal sichtbar**: Der Konto-Knopf heißt nach dem Anmelden weiter „Konto“ und zeigt einen Haken; der Name steht nur am Chip oben, dort mit einem Schild-Symbol statt des Stifts (mit Konto ist er nicht änderbar)
 - **„Meine Partien“ ausführlicher**: oben Partien, Siege und Durchschnitt; jede Partie mit Platz, Datum („Heute, 21:00“), Dauer, Runden, Gegnern mit Bot-Stufe, Challenge- bzw. Stammtisch-Marke und kleinen Balken für alle Endstände. Ein Tipp öffnet den Punkteverlauf der Partie und die Endstände. Gruppiert nach „Letzte 7 Tage“ und „Früher“
 
