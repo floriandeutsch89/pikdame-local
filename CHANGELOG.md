@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.57.2] - 2026-10-06
+
+### Changed
+- **Aufgeräumte Fußzeile auf der Startseite**: Die fünf Links zu den Themenseiten (Rommé-Regeln, Pik-Dame-Regel, Zu zweit spielen, Strategie, Pik Dame oder Hearts?) stehen nicht mehr unter den Werkzeugen, sondern nur noch im aufklappbaren Einsteiger-Text ganz unten. Übrig bleiben Impressum, Version und GitHub
+
 ## [2.57.1] - 2026-10-06
 
 ### Fixed

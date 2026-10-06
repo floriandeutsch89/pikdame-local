@@ -2213,8 +2213,8 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   align-items: center; justify-content: center;
   width: 100%; max-width: min(100%, 780px);
 }
-/* One link never breaks inside itself ("Pik Dame / oder / Hearts?" stacked
-   four lines high on an iPhone); the row wraps between links instead. */
+/* One link never breaks inside itself (long labels stacked several lines
+   high on an iPhone); the row wraps between links instead. */
 .lobbyFooterLinks .legal-link { white-space: nowrap; margin-top: 0; line-height: 2; }
 .versionBtn {
   background: transparent;
