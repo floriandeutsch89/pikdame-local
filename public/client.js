@@ -3431,7 +3431,6 @@
   function renderSessionBanner() {
     const inSession = !!sessionCode && !!playerId;
     el('sessionSetup').classList.toggle('hidden', inSession);
-    el('todayTiles').classList.toggle('hidden', inSession);
     el('sessionBanner').classList.toggle('hidden', !inSession);
     if (inSession) {
       // At a Stammtisch the GROUP code is the one to hand around - it works
