@@ -136,6 +136,8 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
 ## Workflow
 
 1. Branch von **aktuellem `origin/main`** → bauen → `npm test` (== CI).
+   Ablauf Schritt für Schritt: Skill `steward`; Browser-Check und
+   PR-Screenshots: Skill `ui-shots` (eigener Temp-Datenordner).
 2. **SemVer-Bump + CHANGELOG-Abschnitt.** Version direkt vor dem Push aus
    `origin/main:package.json` ableiten (nach `git fetch`); offene PRs mit
    belegten Nummern beachten. Hat sich main bewegt: erst mergen, dann pushen.
