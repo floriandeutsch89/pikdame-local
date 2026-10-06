@@ -38,7 +38,9 @@ the next `npm test` then fails in `reconnect-race.test.js` with a SQLite
 ## How the mocks work
 
 Playwright routes the WebSocket to the real server and rewrites messages on
-the way to the page (`profiles`, `gameHistory`, `stammtischInfo`). Result
+the way to the page (`profiles`, `gameHistory`). `getStammtisch` is answered
+by the script itself: the server counts an unknown code as a failed join and
+blocks the IP after a few, which looks like the server "throttling". Result
 screens get `joined` + `state` (+ `progress`) injected. Edit the mock
 objects at the top of the script when a scene needs other data, e.g. a
 4-player game, a long name or a solved puzzle.

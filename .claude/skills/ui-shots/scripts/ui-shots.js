@@ -107,7 +107,6 @@ const GAME_OVER = { ...BASE_STATE, phase: 'gameOver', roundNumber: 6, totals: { 
 function rewrite(msg) {
   if (msg.type === 'profiles') { msg.players = PROFILES; msg.globalStats = GLOBAL_STATS; }
   if (msg.type === 'gameHistory') msg.games = HISTORY;
-  if (msg.type === 'stammtischInfo') { msg.exists = true; msg.gamesPlayed = 7; msg.series = { games: 2, wins: { a: 1, b: 1 } }; }
   return msg;
 }
 
@@ -218,6 +217,18 @@ function waitForHttp(port, ms = 20000) {
         sock = ws;
         const srv = ws.connectToServer();
         srv.onMessage((m) => { try { m = JSON.stringify(rewrite(JSON.parse(m))); } catch (e) { /* binary */ } ws.send(m); });
+        // Answer Stammtisch probes here: the server counts an unknown code as a
+        // failed join and blocks the IP after a few (it looked like throttling).
+        ws.onMessage((m) => {
+          let msg = null;
+          try { msg = JSON.parse(m); } catch (e) { /* binary */ }
+          if (msg && msg.type === 'getStammtisch') {
+            ws.send(JSON.stringify({ type: 'stammtischInfo', code: msg.code, exists: true, name: 'Familie Deutsch',
+              gamesPlayed: 7, series: { games: 2, wins: { a: 1, b: 1 } } }));
+            return;
+          }
+          srv.send(m);
+        });
       });
       await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(1200);

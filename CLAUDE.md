@@ -184,8 +184,9 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
   `ui-shots` macht das). Ein Server auf `data/` hält `users.db` offen →
   `npm test` scheitert mit SQLite „disk I/O error“. Nach Gebrauch stoppen und
   auf das Ende warten (SIGTERM schreibt noch den Snapshot); vor `npm test`
-  `pgrep -af "node server.js"`. Nach vielen WS-Verbindungen drosselt der
-  Server → neu starten, nicht weiterprobieren.
+  `pgrep -af "node server.js"`. Unbekannte Stammtisch-/Spiel-Codes zählen als
+  Fehlversuch und sperren nach einigen die IP (sieht aus wie Drosseln) →
+  Mocks beantworten `getStammtisch` selbst; gesperrt = Server neu starten.
 - Engine: E2E-Botspiele über alle 4 Stufen (Deadlocks, kein Joker-Abwurf,
   kein Doppel-Satz).
 - **Kartenerhaltung** (`test/card-conservation.test.js`): nach JEDEM Zug exakt
