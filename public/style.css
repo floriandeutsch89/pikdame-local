@@ -1421,8 +1421,14 @@ button:focus-visible, input:focus-visible, select:focus-visible {
    scannable; folded by default, the summary shows the two sums. */
 .resultBreakdown { margin-top: 4px; font-size: var(--fs-hint); color: var(--text-muted); }
 .resultBreakdown summary {
+  position: relative;
   cursor: pointer; list-style: none; font-weight: 600;
   min-height: 28px; display: inline-flex; align-items: center; gap: 4px;
+}
+/* Compact line, full --tap-min hit area (::before is the triangle). */
+.resultBreakdown summary::after {
+  content: ''; position: absolute; left: 0; right: 0;
+  top: 50%; height: var(--tap-min); transform: translateY(-50%);
 }
 .resultBreakdown summary::before { content: '▸'; font-size: 0.7em; }
 .resultBreakdown[open] summary::before { content: '▾'; }
@@ -3111,6 +3117,7 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
   background: rgba(0, 0, 0, 0.06);
 }
 .resultTabBtn {
+  position: relative;
   appearance: none; border: none; background: transparent;
   color: var(--card-ink); opacity: 0.6;
   min-height: 36px; padding: 8px 18px; border-radius: var(--r-pill);
@@ -3120,6 +3127,11 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 .resultTabBtn.active {
   background: var(--card-bg); opacity: 1;
   box-shadow: var(--shadow-1);
+}
+/* 36 px pill, --tap-min hit area: landscape has no height to spare. */
+.resultTabBtn::after {
+  content: ''; position: absolute; left: 0; right: 0;
+  top: 50%; height: var(--tap-min); transform: translateY(-50%);
 }
 .resultPane { min-height: 40px; }
 .resultSort {
@@ -3193,12 +3205,12 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 }
 .todayTile[data-state="new"] .ttStatus, .todayTile[data-state="open"] .ttStatus { color: var(--accent); font-weight: 700; }
 .todayTile[data-state="done"] { background: transparent; }
-/* Collapsed by default on a phone: the summary line carries level, streak
-   and the done-count, the list opens on tap (state remembered per device). */
+/* Collapsed by default on a phone: the summary shows the done-count, the
+   list opens on tap (state remembered per device). */
 .questsSection summary {
   list-style: none; cursor: pointer;
   display: flex; align-items: center; gap: 8px;
-  min-height: calc(var(--tap-min) - 12px);
+  min-height: var(--tap-min);
 }
 .questsSection summary::-webkit-details-marker { display: none; }
 .questsTitle { flex-shrink: 0; font-size: var(--fs-label); font-weight: 700; color: var(--text); }
