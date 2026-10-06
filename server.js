@@ -286,8 +286,11 @@ function serveStatic(req, res) {
     // laengst, war aber nur nach einer beendeten Partie zu sehen.
     // Trend graph: the top 5 of the last 14 days, plus ?name= as "me".
     const trendName = sanitizeName(new URL(req.url, 'http://x').searchParams.get('name') || '');
+    // ?name= also gets its own result today, for the start screen tile.
+    const yourRank = trendName ? challengeStore.rankOf(date, trendName) : null;
     res.end(JSON.stringify({
       date,
+      you: yourRank ? { rank: yourRank, score: challengeStore.getBoard(date, yourRank)[yourRank - 1].score } : null,
       board: challengeStore.getBoard(date, 5),
       weekly: challengeStore.getWeekly(null, 5),
       trend: challengeStore.getTrend(trendName),
@@ -1198,7 +1201,8 @@ const registry = new SessionRegistry((session) => {
       // Counters the record alone does not know (challenger / Stammtisch badges).
       for (const r of results) r.facts = { ...(r.facts || {}), challenge: !!gameRecord.challengeDate, stammtisch: !!session.stammtisch };
       playerStore.recordGameResult(results);
-      gameHistoryStore.saveGame(gameRecord);
+      // A flag, never the code: history is readable by name, codes stay secret.
+      gameHistoryStore.saveGame(session.stammtisch ? { ...gameRecord, stammtisch: true } : gameRecord);
 
       // Daily streak: "played today" - BEFORE the badges, so the 7/30-day
       // tiers see the updated counter in the profile.

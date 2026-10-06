@@ -190,6 +190,7 @@
   // The resumable game is today's running daily challenge (server says so).
   let resumeIsChallenge = false;
   function updateResumeBtn() {
+    try { renderToday(); } catch (e) { /* cosmetic, defined further down */ }
     try {
       const btn = document.getElementById('resumeBtn');
       if (!btn) return;
@@ -283,6 +284,7 @@
     try { renderStammtisch(); renderStammtischRecent(); renderSessionBanner(); } catch (e) { /* dito */ }
     try { renderAchievements(); } catch (e) { /* dito */ }
     try { renderStatsMe(); } catch (e) { /* dito */ }
+    try { renderToday(); } catch (e) { /* dito */ }
     try { renderProgressSheet(); } catch (e) { /* dito */ }
     try { renderAccountProgress(); } catch (e) { /* dito */ }
     // "Angemeldet als ..." steht dauerhaft in der Lobby - vom Vertragstest
@@ -1240,6 +1242,7 @@
     }
     if (msg.type === 'puzzle' || msg.type === 'puzzleResult' || msg.type === 'puzzleSolution') {
       try { handlePuzzleMessage(msg); } catch (e) { /* a broken puzzle never breaks the client */ }
+      try { renderToday(); } catch (e) { /* cosmetic */ }
       return;
     }
     if (msg.type === 'challengeBoard') {
@@ -1274,6 +1277,7 @@
       publicMode = !!msg.publicMode;
       el('statsBtn').classList.toggle('hidden', publicMode);
       if (msg.quests) dailyQuests = msg.quests;
+      try { fetchChallengeToday(); } catch (e) { /* cosmetic */ }
       // My own counters live on my profile (name-based, like every other
       // statistic) - no extra round trip and no extra server state.
       if (dailyQuests) {
@@ -4428,7 +4432,9 @@
     const list = recentStammtische();
     box.classList.toggle('hidden', list.length === 0);
     box.innerHTML = list
-      .map((t) => `<button type="button" data-code="${escapeHtml(t.code)}"><span>🍻 ${escapeHtml(t.name)}</span><small class="stChipInfo"></small></button>`)
+      .map((t) => `<button type="button" class="stRecentRow" data-code="${escapeHtml(t.code)}" title="${escapeHtml(L('Zum Stammtisch', 'Go to the table'))}">` +
+        `<svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span class="stName">${escapeHtml(t.name)}</span>` +
+        `<small class="stChipInfo"></small><svg class="icon stGo" aria-hidden="true"><use href="#i-chevron"/></svg></button>`)
       .join('');
     box.querySelectorAll('button[data-code]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -4654,6 +4660,7 @@
     if (msg.type === 'puzzle') {
       puzzleData = { date: msg.date, hand: msg.hand || [], targetPoints: msg.targetPoints || 0, status: msg.status || {} };
       renderPuzzle();
+      try { renderToday(); } catch (e) { /* cosmetic */ }
       return true;
     }
     if (msg.type === 'puzzleResult') {
@@ -4981,7 +4988,8 @@
     const i = lastState && lastState.players ? lastState.players.findIndex((p) => p.id === id) : -1;
     return PLAYER_COLORS[Math.max(0, i) % PLAYER_COLORS.length];
   }
-  function renderScoreChart(history) {
+  /** opts.players / opts.meId: a stored game (history); default the live table. */
+  function renderScoreChart(history, opts = {}) {
     const wrap = document.createElement('div');
     wrap.className = 'scoreChart';
     const title = document.createElement('div');
@@ -4993,8 +5001,10 @@
     const W = 320;
     const H = 150;
     // Right padding holds the end labels (they replace the legend).
-    const PAD = { l: 30, r: 74, t: 8, b: 18 };
-    const players = lastState.players;
+    const PAD = { l: 30, r: 84, t: 8, b: 18 };
+    const players = opts.players || lastState.players;
+    const meId = opts.meId !== undefined ? opts.meId : playerId;
+    const colorOf = (id) => PLAYER_COLORS[Math.max(0, players.findIndex((p) => p.id === id)) % PLAYER_COLORS.length];
     const valueAt = (h, p) => h.totals[p.id] || 0;
     const allValues = history.flatMap((h) => players.map((p) => valueAt(h, p)));
     // The goal is always on the chart: "how close is it?" is the question.
@@ -5010,10 +5020,10 @@
       svgParts.push(`<text x="${PAD.l - 4}" y="${y(v) + 3}" class="axisLabel${goal ? ' goal' : ''}" text-anchor="end">${v}</text>`);
     }
     // Others first and muted, mine last and on top.
-    const order = players.slice().sort((a, b) => (a.id === playerId) - (b.id === playerId));
+    const order = players.slice().sort((a, b) => (a.id === meId) - (b.id === meId));
     order.forEach((p) => {
-      const color = playerColor(p.id);
-      const mine = p.id === playerId;
+      const color = colorOf(p.id);
+      const mine = p.id === meId;
       const points = history.map((h, i) => `${x(i).toFixed(1)},${y(valueAt(h, p)).toFixed(1)}`).join(' ');
       svgParts.push(`<polyline points="${points}" fill="none" stroke="${color}" stroke-width="${mine ? 3 : 2}" stroke-linejoin="round" stroke-linecap="round" class="${mine ? 'mine' : 'other'}"/>`);
       const last = history[history.length - 1];
@@ -5033,8 +5043,8 @@
     for (const l of labels) {
       const name = l.p.name.length > 8 ? `${l.p.name.slice(0, 7)}…` : l.p.name;
       svgParts.push(
-        `<text x="${lx}" y="${(l.y + 3.5).toFixed(1)}" class="endLabel${l.p.id === playerId ? ' mine' : ''}">` +
-        `<tspan fill="${playerColor(l.p.id)}">●</tspan> ${escapeHtml(name)} <tspan class="endValue">${l.v}</tspan></text>`
+        `<text x="${lx}" y="${(l.y + 3.5).toFixed(1)}" class="endLabel${l.p.id === meId ? ' mine' : ''}">` +
+        `<tspan fill="${colorOf(l.p.id)}">●</tspan> ${escapeHtml(name)} <tspan class="endValue">${l.v}</tspan></text>`
       );
     }
     // Every round labelled while it fits, otherwise first/last and a few between.
@@ -5365,7 +5375,11 @@
       ? L(`Angemeldet als ${accountUsername}`, `Signed in as ${accountUsername}`)
       : '–';
     // Label span only - the button carries an <svg class="icon">.
-    setLabelText(el('accountBtn'), loggedIn ? accountUsername : L('Konto', 'Account'));
+    // Always "Konto": the name is on the identity chip already; a badge says
+    // "signed in".
+    setLabelText(el('accountBtn'), L('Konto', 'Account'));
+    el('accountBtn').classList.toggle('signedIn', loggedIn);
+    el('accountBtn').title = loggedIn ? L(`Konto: angemeldet als ${accountUsername}`, `Account: signed in as ${accountUsername}`) : L('Konto', 'Account');
     // Angemeldet: der Spielername IST der Kontoname (Fortschritt haengt dran)
     if (loggedIn) {
       el('nameInput').value = accountUsername;
@@ -6219,7 +6233,42 @@
     if (ev.target === el('progressOverlay')) el('progressOverlay').classList.add('hidden');
   });
 
+  // --- "Heute": status of the daily puzzle and challenge on their tiles ----
+  let challengeToday = null; // {date, you:{rank,score}|null} from /challengeboardz
+  let challengeTodayFetched = '';
+  function fetchChallengeToday() {
+    const name = currentName();
+    const key = `${(dailyQuests && dailyQuests.date) || ''}|${name}`;
+    if (challengeTodayFetched === key) return;
+    challengeTodayFetched = key;
+    fetch(`/challengeboardz${name ? `?name=${encodeURIComponent(name)}` : ''}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { challengeToday = d; renderToday(); })
+      .catch(() => { challengeTodayFetched = ''; });
+  }
+  function setTileStatus(tile, statusEl, text, state) {
+    statusEl.textContent = text;
+    tile.dataset.state = state; // new | open | done
+  }
+  function renderToday() {
+    const today = dailyQuests && dailyQuests.date;
+    const me = myProfile();
+    // Puzzle: the open overlay is freshest, else the profile (server truth).
+    const ps = (puzzleData && puzzleData.date === today && puzzleData.status)
+      || (me && me.puzzles && today && me.puzzles[today]) || {};
+    if (ps.solved) setTileStatus(el('puzzleBtn'), el('puzzleTileStatus'), L('Gelöst', 'Solved'), 'done');
+    else if (ps.revealed) setTileStatus(el('puzzleBtn'), el('puzzleTileStatus'), L('Lösung angesehen', 'Solution shown'), 'done');
+    else if (ps.tries) setTileStatus(el('puzzleBtn'), el('puzzleTileStatus'), L(`${ps.tries} ${ps.tries === 1 ? 'Versuch' : 'Versuche'}`, `${ps.tries} ${ps.tries === 1 ? 'try' : 'tries'}`), 'open');
+    else setTileStatus(el('puzzleBtn'), el('puzzleTileStatus'), L('Neu', 'New'), 'new');
+    const you = challengeToday && challengeToday.date === today ? challengeToday.you : null;
+    if (resumeCode && resumeIsChallenge) setTileStatus(el('challengeBtn'), el('challengeTileStatus'), L('Läuft · fortsetzen', 'Running · resume'), 'open');
+    else if (you) setTileStatus(el('challengeBtn'), el('challengeTileStatus'), L(`Platz ${you.rank} · ${you.score} Pkt`, `Rank ${you.rank} · ${you.score} pts`), 'done');
+    else if (challengeToday) setTileStatus(el('challengeBtn'), el('challengeTileStatus'), L('Noch offen', 'Still open'), 'new');
+    else setTileStatus(el('challengeBtn'), el('challengeTileStatus'), '', '');
+  }
+
   function renderQuests() {
+    try { renderToday(); } catch (e) { /* cosmetic */ }
     try { renderIdentityProgress(); } catch (e) { /* cosmetic */ }
     const box = el('questsSection');
     const list = el('questList');
@@ -6673,6 +6722,32 @@
     if (ev.target === el('statsOverlay')) el('statsOverlay').classList.add('hidden');
   });
 
+  // "Meine Partien": summary, grouped cards (place, opponents, standings,
+  // duration); a tap opens the score chart of that game.
+  let openHistoryId = null;
+  function historyDayLabel(ts) {
+    const d = new Date(ts);
+    const today = new Date();
+    const yest = new Date();
+    yest.setDate(today.getDate() - 1);
+    const time = d.toLocaleTimeString(lang === 'en' ? 'en-GB' : 'de-DE', { hour: '2-digit', minute: '2-digit' });
+    if (d.toDateString() === today.toDateString()) return L(`Heute, ${time}`, `Today, ${time}`);
+    if (d.toDateString() === yest.toDateString()) return L(`Gestern, ${time}`, `Yesterday, ${time}`);
+    return d.toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+  }
+  function historyGameView(g) {
+    const players = g.players || [];
+    const totals = g.finalTotals || {};
+    // Older records carry no ids: find "me" by name (humans only).
+    const myName = (currentName() || '').toLowerCase();
+    const me = (g.myId ? players.find((p) => p.id === g.myId) : players.find((p) => !p.isBot && (p.name || '').toLowerCase() === myName)) || null;
+    const myTotal = me && me.id ? totals[me.id] || 0 : g.myScore || 0;
+    const place = 1 + players.filter((p) => (totals[p.id] || 0) > myTotal).length;
+    const opps = players.filter((p) => p !== me).map((p) =>
+      p.isBot && BOT_DIFF[p.botDifficulty] ? `${p.name} (${BOT_DIFF[p.botDifficulty].short()})` : p.name);
+    const mins = g.startedAt && g.finishedAt ? Math.round((g.finishedAt - g.startedAt) / 60000) : 0;
+    return { players, totals, me, myTotal, place, opps, mins };
+  }
   function renderGameHistory() {
     const box = el('historyContent');
     if (myGameHistory === null) {
@@ -6686,35 +6761,73 @@
       )}</p>`;
       return;
     }
-    const rows = myGameHistory
-      .map((g) => {
-        const date = g.finishedAt ? new Date(g.finishedAt) : null;
-        const dateStr = date
-          ? date.toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
-          : '–';
-        const others = (g.players || [])
-          .filter((p) => !p.isBot)
-          .map((p) => p.name)
-          .filter((n) => n.toLowerCase() !== (currentName() || '').toLowerCase());
-        const oppLabel = others.length
-          ? L(`gegen ${others.join(', ')}`, `vs ${others.join(', ')}`)
-          : L('Solo (Bots)', 'Solo (bots)');
-        const tag = g.challengeDate
-          ? `<span class="historyTag historyTagChallenge">${L('Challenge', 'Challenge')}</span>`
-          : '';
-        return `<div class="historyRow${g.won ? ' historyRowWon' : ''}">
-          <div class="historyRowMain">
-            <span class="historyResult">${g.won ? '🏆' : '　'}</span>
-            <span class="historyDate">${dateStr}</span>
-            ${tag}
-            <span class="historyOpp">${escapeHtml(oppLabel)}</span>
-          </div>
-          <div class="historyScore">${g.myScore !== undefined ? g.myScore : '–'} ${L('Pkt', 'pts')} · ${g.rounds} ${L('Runden', 'rounds')}</div>
-        </div>`;
-      })
-      .join('');
-    box.innerHTML = `<div class="historyList">${rows}</div>`;
+    const games = myGameHistory;
+    const wins = games.filter((g) => g.won).length;
+    const avg = Math.round(games.reduce((a, g) => a + (g.myScore || 0), 0) / games.length);
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const card = (g) => {
+      const v = historyGameView(g);
+      const max = Math.max(1, ...v.players.map((p) => v.totals[p.id] || 0));
+      const bars = v.players
+        .slice()
+        .sort((x, y) => (v.totals[y.id] || 0) - (v.totals[x.id] || 0))
+        .map((p) => {
+          const i = v.players.indexOf(p);
+          const w = Math.max(2, Math.round(((v.totals[p.id] || 0) / max) * 100));
+          return `<i class="${p === v.me ? 'me' : ''}" style="width:${w}%;background:${PLAYER_COLORS[i % PLAYER_COLORS.length]}"></i>`;
+        }).join('');
+      const tags = (g.challengeDate ? `<span class="historyTag historyTagChallenge">${L('Challenge', 'Challenge')}</span>` : '') +
+        (g.stammtisch ? `<span class="historyTag">${L('Stammtisch', 'Stammtisch')}</span>` : '');
+      const meta = [historyDayLabel(g.finishedAt), v.mins > 0 && v.mins < 24 * 60 ? `${v.mins} min` : null].filter(Boolean).join(' · ');
+      const standingText = v.players.map((p) => `${p.name} ${v.totals[p.id] || 0}`).join(', ');
+      const open = openHistoryId === g.id;
+      return `<button type="button" class="histCard${g.won ? ' won' : ''}" data-id="${escapeHtml(g.id)}" aria-expanded="${open}">` +
+        `<span class="histPlace" title="${escapeHtml(L(`Platz ${v.place} von ${v.players.length}`, `Place ${v.place} of ${v.players.length}`))}">${v.place}.</span>` +
+        `<span class="histMain">` +
+        `<span class="histMeta">${escapeHtml(meta)}${tags}</span>` +
+        `<span class="histOpp">${escapeHtml(v.opps.length ? L(`gegen ${v.opps.join(', ')}`, `vs ${v.opps.join(', ')}`) : L('Solo', 'Solo'))}</span>` +
+        `<span class="histBars" role="img" aria-label="${escapeHtml(standingText)}">${bars}</span>` +
+        `</span>` +
+        `<span class="histScore">${v.myTotal}<small>${escapeHtml(L(`${g.rounds} Runden`, `${g.rounds} rounds`))}</small></span>` +
+        `</button>` +
+        (open ? `<div class="histDetail" data-detail="${escapeHtml(g.id)}"></div>` : '');
+    };
+    const recent = games.filter((g) => g.finishedAt && new Date(g.finishedAt) >= weekAgo);
+    const older = games.filter((g) => !recent.includes(g));
+    const group = (title, list) => (list.length
+      ? `<h4 class="histGroup">${escapeHtml(title)}</h4><div class="historyList">${list.map(card).join('')}</div>`
+      : '');
+    box.innerHTML =
+      `<div class="histSummary">` +
+      `<div><b>${games.length}</b><span>${L('Partien', 'Games')}</span></div>` +
+      `<div><b>${wins}</b><span>${L('Siege', 'Wins')}</span></div>` +
+      `<div><b>${avg}</b><span>${L('Ø Punkte', 'Avg. points')}</span></div>` +
+      `</div>` +
+      group(L('Letzte 7 Tage', 'Last 7 days'), recent) + group(L('Früher', 'Earlier'), older);
+    // The opened game: its score chart (stored totals after each round).
+    const detail = box.querySelector('.histDetail');
+    const g = detail && games.find((x) => x.id === detail.dataset.detail);
+    if (g) {
+      const v = historyGameView(g);
+      const hist = (g.roundTotals || []).map((t, i) => ({ round: i + 1, totals: t }));
+      if (hist.length >= 2) detail.appendChild(renderScoreChart(hist, { players: v.players, meId: g.myId }));
+      const list = document.createElement('ol');
+      list.className = 'histStandings';
+      list.innerHTML = v.players
+        .slice()
+        .sort((x, y) => (v.totals[y.id] || 0) - (v.totals[x.id] || 0))
+        .map((p) => `<li class="${p === v.me ? 'me' : ''}"><span>${escapeHtml(p.name)}${p.isBot && BOT_DIFF[p.botDifficulty] ? ` <small>${escapeHtml(BOT_DIFF[p.botDifficulty].short())}</small>` : ''}</span><b>${v.totals[p.id] || 0}</b></li>`)
+        .join('');
+      detail.appendChild(list);
+    }
   }
+  el('historyContent').addEventListener('click', (ev) => {
+    const cardEl = ev.target.closest('.histCard');
+    if (!cardEl) return;
+    openHistoryId = openHistoryId === cardEl.dataset.id ? null : cardEl.dataset.id;
+    renderGameHistory();
+  });
 
   function renderStats() {
     renderAchievements();

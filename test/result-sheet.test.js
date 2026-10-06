@@ -220,3 +220,53 @@ test('progress sheet: XP rules shown in the client match game/Progression.js', (
   assert.equal(Number(m[2]), xpForGame(rec(true, 0), 'p') - base);
   assert.equal(Number(m[3]), 1000 / (xpForGame(rec(false, 1000), 'p') - base));
 });
+
+test('"Heute": puzzle and challenge tiles show today\'s status; tasks sit below', async (t) => {
+  const today = new Date().toISOString().slice(0, 10);
+  const { window, errors, ws } = boot({ pikdame_player_name: 'Flo' });
+  t.after(() => window.close());
+  window.fetch = (url) => Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve(String(url).startsWith('/challengeboardz') ? { date: today, you: { rank: 3, score: 1120 } } : { version: '0' }),
+    text: () => Promise.resolve(''),
+  });
+  await new Promise((r) => setTimeout(r, 10));
+  ws()._emit('message', { data: JSON.stringify({
+    type: 'profiles', publicMode: false, globalStats: null,
+    quests: { date: today, ids: ['finish_game', 'win_game', 'meld_jokers_3'] },
+    players: [{ name: 'Flo', gamesPlayed: 3, xp: 100, puzzles: { [today]: { tries: 2, solved: false } } }],
+  }) });
+  await new Promise((r) => setTimeout(r, 10));
+  const doc = window.document;
+  assert.equal(doc.getElementById('puzzleTileStatus').textContent, '2 Versuche');
+  assert.equal(doc.getElementById('puzzleBtn').dataset.state, 'open');
+  assert.equal(doc.getElementById('challengeTileStatus').textContent, 'Platz 3 · 1120 Pkt');
+  assert.equal(doc.getElementById('challengeBtn').dataset.state, 'done');
+  assert.ok(doc.getElementById('todaySection').contains(doc.getElementById('questsSection')), 'tasks inside "Heute"');
+  assert.equal(doc.querySelectorAll('.menuChips button').length, 2, 'mode row: tutorial + stammtisch');
+  assert.deepEqual(errors, [], `Client-Fehler: ${errors.join(' | ')}`);
+});
+
+test('"Meine Partien": summary, place badge, opponents with bot level, tap opens the chart', async (t) => {
+  const { window, errors, ws } = boot({ pikdame_player_name: 'Flo' });
+  t.after(() => window.close());
+  await new Promise((r) => setTimeout(r, 10));
+  const doc = window.document;
+  doc.getElementById('statsBtn').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  doc.getElementById('statsTabHistoryBtn').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  ws()._emit('message', { data: JSON.stringify({ type: 'gameHistory', games: [{
+    id: 'g1', finishedAt: Date.now(), startedAt: Date.now() - 42 * 60000, rounds: 2, won: false, myScore: 880, myId: 'p1',
+    players: [{ id: 'p1', name: 'Flo', isBot: false }, { id: 'b1', name: 'Klaus', isBot: true, botDifficulty: 'zen' }],
+    finalTotals: { p1: 880, b1: 1045 }, winnerId: 'b1', roundTotals: [{ p1: 300, b1: 200 }, { p1: 880, b1: 1045 }],
+  }] }) });
+  const box = doc.getElementById('historyContent');
+  assert.match(box.querySelector('.histSummary').textContent, /1Partien0Siege880Ø Punkte/);
+  assert.equal(box.querySelector('.histPlace').textContent, '2.');
+  assert.equal(box.querySelector('.histOpp').textContent, 'gegen Klaus (Zen)');
+  assert.match(box.querySelector('.histMeta').textContent, /42 min/);
+  assert.match(box.querySelector('.histScore').textContent, /880.*2 Runden/);
+  box.querySelector('.histCard').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  assert.ok(box.querySelector('.histDetail .scoreChart'), 'chart of the opened game');
+  assert.equal(box.querySelectorAll('.histStandings li').length, 2);
+  assert.deepEqual(errors, [], `Client-Fehler: ${errors.join(' | ')}`);
+});

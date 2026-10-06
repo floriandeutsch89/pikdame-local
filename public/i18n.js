@@ -63,6 +63,7 @@ window.I18N_STATIC = {
   'Fehlende Plätze werden mit Bots aufgefüllt.': 'Empty seats are filled with bots.',
   'Hausregeln': 'House rules',
   'Tagesaufgaben': 'Daily tasks',
+  'Heute': 'Today',
   'Hand aus zählt doppelt': 'Going out in one turn counts double',
   'Anfänger': 'Beginner',
   'Fortgeschritten': 'Advanced',
