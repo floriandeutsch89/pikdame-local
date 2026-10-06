@@ -3,7 +3,11 @@
 // Starts its own server on a temp data dir (never touches data/), routes the
 // WebSocket through Playwright and rewrites/injects messages per scene.
 //
-//   node .claude/skills/ui-shots/scripts/ui-shots.js [--out DIR] [--views a,b] [--scenes a,b] [--port N]
+//   node .claude/skills/ui-shots/scripts/ui-shots.js [--out DIR] [--views a,b] [--scenes a,b] [--port N] [--audit]
+//
+// --audit also checks every shot for truncated text, tap targets < 44 px,
+// icon buttons without a name and (start screen) content below the fold;
+// the report goes to <out>/audit.md.
 //
 // Views: phone (393x852), land (874x402), desk (1440x900), se (375x667).
 // Scenes: lobby, lobby-open, progress, stats, history, roundend, roundend-stats, gameover.
@@ -35,6 +39,8 @@ const VIEWS = {
 };
 const views = arg('views', 'phone,land,desk').split(',');
 const scenes = arg('scenes', 'lobby,stats,history,roundend,gameover').split(',');
+const AUDIT = process.argv.includes('--audit');
+const TAP_MIN = 44; // CLAUDE.md --tap-min
 // A normal UA: the server treats headless defaults as a crawler (no WebSocket).
 const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
 
@@ -105,6 +111,69 @@ function rewrite(msg) {
   return msg;
 }
 
+// --- layout audit (runs in the page) ------------------------------------------
+// Only the topmost open overlay counts when one is open: the blurred page
+// behind it is not what the player can touch.
+function auditPage(tapMin) {
+  const overlays = [...document.querySelectorAll('.overlay:not(.hidden)')]
+    .filter((o) => getComputedStyle(o).display !== 'none');
+  const root = overlays.length ? overlays[overlays.length - 1] : document.body;
+  const visible = (el) => {
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) return false;
+    for (let n = el; n && n !== document.body; n = n.parentElement) {
+      const cs = getComputedStyle(n);
+      if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0) return false;
+      if (n.tagName === 'DETAILS' && !n.open && n !== el && !n.querySelector('summary').contains(el)) return false;
+    }
+    return true;
+  };
+  const label = (el) => {
+    const id = el.id ? `#${el.id}` : '';
+    const cls = !id && typeof el.className === 'string' && el.className.trim() ? `.${el.className.trim().split(/\s+/)[0]}` : '';
+    const text = (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40);
+    return `${el.tagName.toLowerCase()}${id}${cls}${text ? ` "${text}"` : ''}`;
+  };
+  const out = { truncated: [], smallTargets: [], unnamed: [], fold: null };
+  for (const el of root.querySelectorAll('*')) {
+    if (!visible(el) || el.closest('.seoIntro')) continue;
+    const cs = getComputedStyle(el);
+    // Text clipped by its own box. Measure the text itself (a Range), not
+    // scrollWidth: decorative pseudo-elements inflate scrollWidth.
+    if ((cs.textOverflow === 'ellipsis' || cs.overflowX === 'hidden' || cs.overflowX === 'clip') &&
+        (el.textContent || '').trim() && !el.querySelector('svg, canvas, img')) {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const textW = range.getBoundingClientRect().width;
+      const box = el.getBoundingClientRect().width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      if (textW > box + 1) out.truncated.push(label(el));
+    }
+    const interactive = el.matches('button, a[href], input:not([type=hidden]), select, summary, [role=button]');
+    if (interactive) {
+      const r = el.getBoundingClientRect();
+      // Inline links in running text are exempt (WCAG 2.5.8 inline exception).
+      const inline = el.tagName === 'A' && cs.display === 'inline';
+      // A hit area stretched by an absolute ::after (e.g. .resultSortBtn) counts.
+      const after = getComputedStyle(el, '::after');
+      const stretched = after.content !== 'none' && after.position === 'absolute' && parseFloat(after.height) >= tapMin;
+      if (!inline && !stretched && Math.min(r.width, r.height) < tapMin) out.smallTargets.push(`${label(el)} ${Math.round(r.width)}x${Math.round(r.height)}`);
+      if (el.matches('button, [role=button]') && !(el.textContent || '').trim() &&
+          !el.getAttribute('aria-label') && !el.getAttribute('aria-labelledby') && !el.getAttribute('title')) {
+        out.unnamed.push(label(el));
+      }
+    }
+  }
+  // Start screen must fit a portrait phone without scrolling (landscape may
+  // scroll): where do the tools end?
+  const tools = document.querySelector('.lobbyTools');
+  const portrait = window.innerHeight > window.innerWidth;
+  if (portrait && !overlays.length && tools && visible(tools)) {
+    const bottom = tools.getBoundingClientRect().bottom + window.scrollY;
+    if (bottom > window.innerHeight) out.fold = `.lobbyTools ends at ${Math.round(bottom)} px, viewport ${window.innerHeight} px`;
+  }
+  return out;
+}
+
 // --- server ------------------------------------------------------------------
 function waitForHttp(port, ms = 20000) {
   const until = Date.now() + ms;
@@ -118,11 +187,16 @@ function waitForHttp(port, ms = 20000) {
 (async () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-shots-data-'));
   const server = spawn('node', ['server.js'], { cwd: ROOT, env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir }, stdio: 'ignore' });
-  const cleanup = () => { try { server.kill(); } catch (e) { /* gone */ } fs.rmSync(dataDir, { recursive: true, force: true }); };
-  process.on('exit', cleanup);
+  // The server flushes its snapshot on SIGTERM: wait for it before deleting.
+  const exited = new Promise((r) => server.once('exit', r));
+  const cleanup = async () => {
+    if (server.exitCode === null) { server.kill(); await Promise.race([exited, new Promise((r) => setTimeout(r, 5000))]); }
+    fs.rmSync(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  };
   fs.mkdirSync(OUT, { recursive: true });
   const { chromium } = loadPlaywright();
   const written = [];
+  const audits = [];
   try {
     await waitForHttp(PORT);
     const browser = await chromium.launch();
@@ -151,6 +225,7 @@ function waitForHttp(port, ms = 20000) {
         const file = path.join(OUT, `${vn}-${name}.png`);
         await page.screenshot({ path: file });
         written.push(file);
+        if (AUDIT) audits.push({ view: vn, scene: name, ...(await page.evaluate(auditPage, TAP_MIN)) });
       };
       const inject = (obj) => sock.send(JSON.stringify(obj));
       for (const sc of scenes) {
@@ -183,7 +258,23 @@ function waitForHttp(port, ms = 20000) {
     }
     await browser.close();
   } finally {
-    cleanup();
+    await cleanup();
   }
   console.log(written.join('\n'));
+  if (AUDIT) {
+    const lines = ['# UI audit', ''];
+    let findings = 0;
+    for (const a of audits) {
+      const items = [
+        ...a.truncated.map((t) => `- **truncated** ${t}`),
+        ...a.smallTargets.map((t) => `- **tap target < ${TAP_MIN}px** ${t}`),
+        ...a.unnamed.map((t) => `- **icon button without a name** ${t}`),
+        ...(a.fold ? [`- **below the fold** ${a.fold}`] : []),
+      ];
+      findings += items.length;
+      lines.push(`## ${a.view} / ${a.scene}`, '', ...(items.length ? items : ['- nothing found']), '');
+    }
+    fs.writeFileSync(path.join(OUT, 'audit.md'), lines.join('\n'));
+    console.log(`audit: ${findings} finding(s) -> ${path.join(OUT, 'audit.md')}`);
+  }
 })().catch((e) => { console.error(e.message || e); process.exit(1); });

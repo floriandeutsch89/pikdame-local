@@ -24,6 +24,11 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   `roundend-stats`, `gameover`.
 - Prints the written PNG paths. Look at them with the Read tool; don't
   just trust that they exist.
+- `--audit` also checks every shot and writes `<out>/audit.md`: truncated
+  text (measured on the text itself), tap targets under 44 px (a hit area
+  stretched by an absolute `::after` counts), icon buttons without a name,
+  and a portrait start screen that needs scrolling. Findings are evidence
+  to judge, not automatic failures; the `ui-review` skill explains how.
 
 The script starts its own server on a **temp `PIKDAME_DATA_DIR`** and kills it
 afterwards. That matters: a dev server on `data/` keeps `users.db` open, and
