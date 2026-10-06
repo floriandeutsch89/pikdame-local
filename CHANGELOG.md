@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.57.1] - 2026-10-06
+
+### Fixed
+- **Größere Tippflächen**: Die Reiter „Ergebnis/Statistik“ und „Übersicht/Meine Partien“ sowie „Aufschlüsselung“ am Rundenende reagieren jetzt auf mindestens 44 px Höhe, ohne größer auszusehen. Die Zeile „Tagesaufgaben“ ist 44 px hoch. Vorher waren es 28–36 px, am Handy leicht daneben getippt
+
 ## [2.57.0] - 2026-10-06
 
 ### Changed
