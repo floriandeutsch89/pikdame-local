@@ -266,6 +266,7 @@ function waitForHttp(port, ms = 20000) {
           await page.waitForTimeout(1200);
           // --css <file>: extra CSS for quick layout mockups (never shipped).
           if (arg('css', '')) await page.addStyleTag({ content: fs.readFileSync(arg('css', ''), 'utf8') });
+          if (arg('js', '')) await page.evaluate(fs.readFileSync(arg('js', ''), 'utf8')); // --js <file>: DOM mockups
           await page.waitForTimeout(200);
           await shot('table');
         }
