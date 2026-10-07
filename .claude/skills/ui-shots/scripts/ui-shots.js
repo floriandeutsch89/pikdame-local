@@ -205,14 +205,15 @@ function waitForHttp(port, ms = 20000) {
       const vp = VIEWS[vn];
       if (!vp) throw new Error(`unknown view ${vn}`);
       const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, userAgent: UA, deviceScaleFactor: 2, isMobile: vp.mobile, hasTouch: vp.mobile });
-      await ctx.addInitScript(([me]) => {
+      await ctx.addInitScript(([me, theme]) => {
         try {
           localStorage.setItem('pikdame_player_name', me);
+          if (theme) localStorage.setItem('pikdame_theme', theme); // --theme table|night|felt|love|bordeaux|kitchen
           localStorage.setItem('pikdame_splash_device', '1'); // skip the studio intro
           sessionStorage.setItem('pikdame_splash_seen', '1');
           localStorage.setItem('pikdame_stammtische', JSON.stringify([{ code: 'STMOCK1', name: 'Familie Deutsch' }]));
         } catch (e) { /* storage blocked */ }
-      }, [ME]);
+      }, [ME, arg('theme', '')]);
       const page = await ctx.newPage();
       let sock = null;
       await page.routeWebSocket(/.*/, (ws) => {

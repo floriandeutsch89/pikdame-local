@@ -241,8 +241,8 @@ setTimeout(() => {
       else if (!drawPile.classList.contains('tutorialGlowTarget')) {
         errors.push('tutorial must highlight the draw pile during the draw step');
       }
-      // Singular/Plural im Kartenzaehler: bei genau einer Karte stand hier
-      // "1 Karten" - ausgerechnet im spannendsten Moment der Runde.
+      // Hand counter follows the hand. It reads "n Kt" like the opponent chips
+      // (the abbreviation has no singular/plural trap: "1 Karten" once showed).
       {
         const one = {
           ...tutorialState,
@@ -252,10 +252,10 @@ setTimeout(() => {
         };
         feed(one);
         const label = doc.getElementById('handCount').textContent;
-        if (label !== '1 Karte') errors.push(`hand counter must read "1 Karte" for a single card, got: ${label}`);
+        if (label !== '1 Kt') errors.push(`hand counter must read "1 Kt" for a single card, got: ${label}`);
         feed(tutorialState);
         const many = doc.getElementById('handCount').textContent;
-        if (many !== '3 Karten') errors.push(`hand counter must read "3 Karten" for three cards, got: ${many}`);
+        if (many !== '3 Kt') errors.push(`hand counter must read "3 Kt" for three cards, got: ${many}`);
       }
       // Gegenprobe im selben Lauf: ohne Tutorial-Kennzeichnung keine Markierung.
       feed({ ...tutorialState, tutorialMode: false, turnPhase: 'meld' });

@@ -1170,32 +1170,12 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   margin-bottom: 8px;
 }
 
-/* Score pill. The colour carries meaning: accent only while the score is
-   actually working for you. A negative total used to sit in the same
-   celebratory green as a leading one, which read as "all fine" at a glance. */
-#myScore {
-  font-size: var(--fs-label); font-weight: 800;
-  color: var(--accent);
-  background: var(--accent-soft);
-  border-radius: var(--r-pill);
-  padding: 4px 11px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  transition: color 0.3s ease, background 0.3s ease;
-}
-#myScore.scoreNeutral {
-  color: var(--text-muted);
-  background: var(--glass-strong);
-}
-#myScore.scoreNegative {
-  color: var(--danger);
-  background: rgba(255, 125, 125, 0.16); /* fallback: iOS < 16.2 has no color-mix */
-  background: color-mix(in srgb, var(--danger) 18%, transparent);
-}
-#myScore.scoreLeading {
-  color: var(--accent);
-  background: var(--accent-soft);
-}
+/* Own total in the hand toolbar, same "<b>n</b> Pkt" as the opponent chips.
+   Red only backs up the minus sign (never colour alone). */
+.handScore:not(:empty)::before { content: '·'; margin: 0 6px; }
+.handScore { font-variant-numeric: tabular-nums; }
+.handMeta b { color: var(--text); font-weight: 800; }
+.handScore.scoreNegative b { color: var(--danger); }
 
 /* Kompakte Auslagen-Karten: nur der Ecken-Index (bei starker Überlappung
    bleibt genau dieser sichtbar) */
@@ -2713,7 +2693,9 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 /* --- Score progress bars + round delta (v1.25.0) ------------------------------ */
 .scoreBar {
   height: 4px; border-radius: 999px; margin-top: 4px;
-  background: rgba(255,255,255,0.18); overflow: hidden;
+  background: rgba(255,255,255,0.18); /* fallback: iOS < 16.2 has no color-mix */
+  background: color-mix(in srgb, var(--text) 18%, transparent);
+  overflow: hidden;
 }
 .scoreBar i {
   display: block; height: 100%;
@@ -2721,7 +2703,12 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
   border-radius: 999px;
   transition: width 0.6s ease;
 }
-#myScoreBar { width: min(60%, 320px); margin: 6px auto 2px; height: 5px; }
+/* Own progress: a hairline along the hand panel's top edge, no row of its own
+   (a bottom row let the outer fan cards cover the score). */
+#myScoreBar {
+  position: absolute; top: 0; left: 18px; right: 18px;
+  height: 3px; margin: 0; z-index: 6; pointer-events: none;
+}
 .deltaUp { color: #1e9e57; font-weight: 700; }
 .deltaDown { color: #d34b3a; font-weight: 700; }
 
@@ -2733,13 +2720,6 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .headerRight { display: inline-flex; align-items: center; gap: 6px; }
-#myScoreBar { margin: 3px 0 0 12px; }
-#myStatusLine {
-  padding: 2px 14px 0;
-  font-size: 0.72rem; font-weight: 600;
-  color: var(--text-muted);
-  display: flex; align-items: center; gap: 6px;
-}
 
 .timerUrgent { color: #ff6b5e; font-weight: 800; }
 
@@ -4217,18 +4197,6 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
   .card-compact .corner { font-size: 0.78rem; }
 }
 
-/* --- Phone portrait: score pill at the end of its progress bar --------------
-   The pill had a line of its own under the fan, alone in the bottom-left
-   corner. It now closes the bar it belongs to ("progress to 1000 - you are
-   here") on one shared row. The toolbar was tried first: with the card count
-   centred there, a three-digit score touched it. */
-@media (orientation: portrait) and (max-width: 1099px) {
-  #myScoreBar { width: auto; margin: 6px 92px 10px 14px; }
-  #myStatusLine {
-    position: absolute; right: 12px; bottom: calc(2px + var(--safe-bottom));
-    height: 26px; padding: 0; align-items: center;
-  }
-}
 
 /* --- Landscape phone, second pass --------------------------------------------
    Playthrough on iPhone 16 Pro / Pro Max turned sideways (874x402, 956x440):
@@ -4274,16 +4242,6 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
      of 110px wasted ~30px of the scarce height). */
   #hand { min-height: 82px; }
   #actionBar { min-height: 0; padding-top: 2px; padding-bottom: 2px; }
-  /* The score pill moves up into the hand toolbar row (left of the card
-     count, where the row is empty anyway) instead of a line of its own
-     below the fan: ~34px more for the melds. The thin progress bar would
-     reach into the lift zone of selected cards, so landscape drops it -
-     the pill's colour still carries the standing. */
-  #myStatusLine {
-    position: absolute; top: 7px; left: calc(64px + var(--safe-left));
-    height: 30px; padding: 0; align-items: center; z-index: 6;
-  }
-  #myScoreBar { display: none; }
 
   /* Overlays: use the height there is. */
   .overlay { padding: 8px calc(8px + var(--safe-right)) 8px calc(8px + var(--safe-left)); }

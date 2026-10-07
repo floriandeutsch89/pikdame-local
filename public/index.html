@@ -610,16 +610,16 @@
       </div>
 
       <div id="handWrapper">
+        <!-- Progress to 1000 runs along the panel's top edge: no row of its own. -->
+        <div id="myScoreBar" class="scoreBar" title="Fortschritt bis 1000 Punkte"><i></i></div>
         <div class="handToolbar">
           <button id="handToggleBtn" class="sortToggle handToggle tapExpand" title="Karten ein-/ausblenden" aria-label="Karten ein-/ausblenden"><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></button>
           <!-- Card count + round/dealer. The round line used to be a second
                header row on phones; down here it costs no height. -->
-          <span class="handMeta"><span id="handCount" class="handCount" title="Karten auf deiner Hand">–</span><span id="roundInfo" class="handRoundInfo"></span></span>
+          <span class="handMeta"><span id="handCount" class="handCount" title="Karten auf deiner Hand">–</span><span id="myScore" class="handScore" title="Deine Gesamtpunkte">–</span><span id="roundInfo" class="handRoundInfo"></span></span>
           <button id="sortToggleBtn" class="sortToggle tapExpand" title="Sortierung umschalten">♠♥ Farbe</button>
         </div>
         <div id="hand"></div>
-        <div id="myScoreBar" class="scoreBar" title="Fortschritt bis 1000 Punkte"><i></i></div>
-        <div id="myStatusLine"><span id="myScore" title="Deine Gesamtpunkte">–</span></div>
       </div>
     </section>
 
