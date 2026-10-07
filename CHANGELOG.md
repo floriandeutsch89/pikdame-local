@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.57.3] - 2026-10-06
+
+### Fixed
+- **Keine Tastatur mehr beim App-Start**: Auf manchen iPhones sprang die installierte App beim Öffnen ohne Berührung ins Feld „Spiel-Code“ und öffnete die Tastatur. Die Felder für Code und Namen bekommen den Fokus jetzt nur noch durch einen echten Tipp
+
 ## [2.57.2] - 2026-10-06
 
 ### Changed

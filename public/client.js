@@ -3383,6 +3383,17 @@
   el('codeInput').addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter') el('joinGameBtn').click();
   });
+  // iOS standalone PWAs focus the first visible text field on launch/resume
+  // without any touch (keyboard pops up). Only a recent gesture may focus it.
+  let lastGestureAt = 0;
+  ['pointerdown', 'touchstart', 'mousedown', 'keydown', 'click'].forEach((type) => {
+    document.addEventListener(type, () => { lastGestureAt = Date.now(); }, { capture: true, passive: true });
+  });
+  ['codeInput', 'nameInput'].forEach((id) => {
+    el(id).addEventListener('focus', () => {
+      if (Date.now() - lastGestureAt > 1500) el(id).blur();
+    });
+  });
   el('nameInput').addEventListener('keydown', (ev) => {
     if (ev.key !== 'Enter') return;
     if (editingName) { ev.preventDefault(); el('nameInput').blur(); return; }
