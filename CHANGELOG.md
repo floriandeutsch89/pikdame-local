@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.57.4] - 2026-10-07
+
+### Fixed
+- **Angemeldete Spieler wurden nach einem Verbindungsabbruch abgewiesen**: Beim automatischen Wiedereintritt (Handy gesperrt, App im Hintergrund, Seite neu geladen) schickte die App die Anmeldung nicht mit. Wer mit Konto spielte, sah dann nur „Dieser Name gehört zu einem registrierten Konto - bitte zuerst anmelden“, auch nach Ab- und wieder Anmelden
+
 ## [2.57.3] - 2026-10-06
 
 ### Fixed

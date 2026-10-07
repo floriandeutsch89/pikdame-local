@@ -916,7 +916,8 @@
       // Link mit gespeicherter playerId). Ohne Code entscheidet der Nutzer
       // im UI: neues Spiel erstellen oder Code eingeben.
       if (sessionCode && playerId) {
-        ws.send(JSON.stringify({ type: 'joinSession', code: sessionCode, playerId, playerToken: storageGet(tokenKeyFor(sessionCode)) || undefined, name: myName }));
+        // accountToken is required: the server rejects a registered name without it.
+        ws.send(JSON.stringify({ type: 'joinSession', code: sessionCode, playerId, playerToken: storageGet(tokenKeyFor(sessionCode)) || undefined, name: myName, accountToken: accountToken() || undefined }));
       } else {
         // Start screen: only offer 'resume' if that game still exists.
         const last = storageGet(LAST_SESSION_KEY);

@@ -640,3 +640,12 @@ test('CSS contract: fixed layers use the z-index scale; pause and forfeit stay o
     assert.match(html, new RegExp(`id="${id}" class="overlay overlayTop`), `${id} must use .overlayTop`);
   }
 });
+
+test('client contract: every joinSession/createSession carries the account token', () => {
+  // The auto-rejoin on reconnect once omitted it: signed-in players got
+  // "Dieser Name gehört zu einem registrierten Konto" after every reconnect.
+  const sends = [...clientJs.matchAll(/type: '(?:joinSession|createSession)'[^\n]*/g)].map((m) => m[0]);
+  assert.ok(sends.length >= 5, `only ${sends.length} join/create sends found`);
+  const missing = sends.filter((line) => !line.includes('accountToken'));
+  assert.deepEqual(missing, [], 'join/create without accountToken');
+});
