@@ -649,3 +649,10 @@ test('client contract: every joinSession/createSession carries the account token
   const missing = sends.filter((line) => !line.includes('accountToken'));
   assert.deepEqual(missing, [], 'join/create without accountToken');
 });
+
+test('client contract: own score sits in the hand toolbar, not in a row below the fan', () => {
+  // A bottom-corner pill was covered by the outer fan cards on 440 px phones.
+  const meta = html.match(/<span class="handMeta">([\s\S]*?)<\/span><\/span>/);
+  assert.ok(meta && meta[1].includes('id="myScore"'), '#myScore must live inside .handMeta');
+  assert.ok(!html.includes('myStatusLine'), 'the old bottom status line is back');
+});

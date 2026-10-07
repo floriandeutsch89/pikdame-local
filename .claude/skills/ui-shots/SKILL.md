@@ -18,7 +18,16 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
 ```
 
 - **Views:** `phone` 393×852 (the yardstick), `land` 874×402 (only ~400 px
-  high), `desk` 1440×900, `se` 375×667 (small phones).
+  high), `desk` 1440×900, `se` 375×667 (small phones), `max` 440×956
+  (Pro Max: 15 cards fit ONE fanned row there, at 393 they split into two;
+  a layout bug at the hand can show on one and not the other).
+- **Table scene:** `--scenes table --state <file>` injects a live game. Build
+  the state from the real engine (`GameManager` + `fillWithBots` +
+  `runBotTurn`, then `publicState('p1')`), not by hand.
+- **Themes:** `--theme table|night|felt|love|bordeaux|kitchen`. `kitchen` is
+  the light one; check it whenever a colour or a translucent white changes.
+- **Mockups:** `--css <file>` / `--js <file>` patch the table scene before the
+  shot, to show options before building them.
 - **Scenes:** `lobby`, `lobby-open` (daily tasks unfolded), `progress`
   ("Dein Fortschritt"), `stats`, `history` ("Meine Partien"), `roundend`,
   `roundend-stats`, `gameover`.

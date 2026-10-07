@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.57.5] - 2026-10-07
+
+### Fixed
+- **Eigene Punkte nicht mehr unter den Karten versteckt**: Auf großen iPhones (z. B. Pro Max) lag die Punkteanzeige unten rechts unter der letzten Handkarte. Die eigenen Punkte stehen jetzt in der Zeile über der Hand, im selben Format wie bei den Mitspielern („15 Kt · 115 Pkt · R2“); der Fortschritt bis 1000 läuft als dünne Linie an der Oberkante der Hand. Die Hand bekommt dadurch etwas mehr Platz. Ein negativer Stand bleibt am Minuszeichen erkennbar und ist rot
+- **Fortschrittsbalken im hellen Küchen-Theme sichtbar**: Die leere Spur der Punktebalken war im hellen Theme weiß auf hell und kaum zu sehen
+
 ## [2.57.4] - 2026-10-07
 
 ### Fixed

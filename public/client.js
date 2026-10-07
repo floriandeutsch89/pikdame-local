@@ -1774,30 +1774,21 @@
   function renderTable() {
     const SCORE_TARGET = 1000;
     const myTotal = (lastState.totals && lastState.totals[playerId]) || 0;
-    const scorePill = el('myScore');
-    scorePill.textContent = L(`${myTotal} Pkt`, `${myTotal} pts`);
-    // Colour carries the standing: accent only while I am actually ahead,
-    // red when the total is negative, neutral otherwise. Before this a -245
-    // read in the same celebratory green as a winning score.
-    const bestOther = Math.max(
-      0,
-      ...lastState.players.filter((p) => p.id !== playerId).map((p) => (lastState.totals && lastState.totals[p.id]) || 0)
-    );
-    const negative = myTotal < 0;
-    const leading = myTotal > 0 && myTotal >= bestOther;
-    scorePill.classList.toggle('scoreNegative', negative);
-    scorePill.classList.toggle('scoreLeading', leading);
-    scorePill.classList.toggle('scoreNeutral', !negative && !leading);
+    // Same "<b>n</b> Pkt" format as the opponent chips; a negative total
+    // keeps its minus sign, red only reinforces it.
+    const scoreEl = el('myScore');
+    scoreEl.innerHTML = `<b>${myTotal}</b> ${L('Pkt', 'pts')}`;
+    scoreEl.classList.toggle('scoreNegative', myTotal < 0);
     // Progress towards the 1000-point finish line (negatives clamp to 0)
     el('myScoreBar').querySelector('i').style.width =
       `${Math.max(0, Math.min(100, (myTotal / SCORE_TARGET) * 100))}%`;
     const dealer = lastState.players.find((p) => p.id === lastState.dealerId);
     const iAmDealer = dealer && dealer.id === playerId;
-    // Kompakte Topbar: Der Geber ist jetzt per ⭐ direkt am jeweiligen
-    // Gegner-Chip markiert - die Topbar nennt ihn nur noch, wenn ICH es bin.
+    // Star alone, as on the opponent chips; the title names it.
     el('roundInfo').innerHTML = iAmDealer
-      ? `R${lastState.roundNumber} · ${L('Du gibst', 'You deal')} <svg class="icon dealerIcon" aria-hidden="true"><use href="#i-star"/></svg>`
+      ? `R${lastState.roundNumber} <svg class="icon dealerIcon" aria-hidden="true"><use href="#i-star"/></svg>`
       : `R${lastState.roundNumber}`;
+    el('roundInfo').title = iAmDealer ? L('Du gibst diese Runde', 'You deal this round') : '';
     const cp = lastState.players.find((p) => p.id === lastState.currentPlayerId);
     const isMyTurn = lastState.currentPlayerId === playerId;
     updateTurnTitleNotice(isMyTurn && lastState.phase === 'playing');
@@ -2135,9 +2126,7 @@
       // Wert (gut für Sätze). Joker immer ans Ende.
       // Card count above the fan: with 15+ overlapping cards you cannot count
       // them by eye, and the number decides whether you can still go out.
-      el('handCount').textContent = myPlayer.hand.length === 1
-        ? L('1 Karte', '1 card')
-        : L(`${myPlayer.hand.length} Karten`, `${myPlayer.hand.length} cards`);
+      el('handCount').innerHTML = `<b>${myPlayer.hand.length}</b> ${L('Kt', 'cd')}`;
       const sorted = myPlayer.hand.slice().sort((a, b) => {
         // ZWEI Joker: stabil nach id sortieren statt 0 zurueckzugeben.
         // '0' heisst "diese beiden sind aus Sortier-Sicht gleich" - deren
