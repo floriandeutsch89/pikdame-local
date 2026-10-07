@@ -9,8 +9,9 @@
 // icon buttons without a name and (start screen) content below the fold;
 // the report goes to <out>/audit.md.
 //
-// Views: phone (393x852), land (874x402), desk (1440x900), se (375x667).
-// Scenes: lobby, lobby-open, progress, stats, history, roundend, roundend-stats, gameover.
+// Views: phone (393x852), land (874x402), desk (1440x900), se (375x667), max (440x956).
+// Scenes: lobby, lobby-open, progress, stats, history, roundend, roundend-stats, gameover,
+// table (needs --state <file>: a GameManager.publicState('p1') JSON in the playing phase).
 'use strict';
 const { spawn } = require('child_process');
 const fs = require('fs');
@@ -36,6 +37,7 @@ const VIEWS = {
   land: { width: 874, height: 402, mobile: true },
   desk: { width: 1440, height: 900, mobile: false },
   se: { width: 375, height: 667, mobile: true },
+  max: { width: 440, height: 956, mobile: true }, // iPhone Pro Max: 15 cards still fit one row
 };
 const views = arg('views', 'phone,land,desk').split(',');
 const scenes = arg('scenes', 'lobby,stats,history,roundend,gameover').split(',');
@@ -255,6 +257,17 @@ function waitForHttp(port, ms = 20000) {
           if (sc === 'history') { await page.click('#statsTabHistoryBtn'); await page.waitForTimeout(600); }
           await shot(sc);
           await page.click('#statsCloseBtn');
+        }
+        if (sc === 'table') {
+          // Live table: needs --state <file> with a publicState('p1') JSON (playing phase).
+          const st = JSON.parse(fs.readFileSync(arg('state', ''), 'utf8'));
+          inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
+          inject({ type: 'state', state: st });
+          await page.waitForTimeout(1200);
+          // --css <file>: extra CSS for quick layout mockups (never shipped).
+          if (arg('css', '')) await page.addStyleTag({ content: fs.readFileSync(arg('css', ''), 'utf8') });
+          await page.waitForTimeout(200);
+          await shot('table');
         }
         if (sc.startsWith('roundend') || sc === 'gameover') {
           inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
