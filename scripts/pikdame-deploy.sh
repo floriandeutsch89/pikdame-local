@@ -76,8 +76,8 @@ docker compose -f "$FILE" up -d
 docker image prune -f >/dev/null
 docker compose -f "$FILE" ps
 if [ "$MODE" = beta ]; then
-  # :beta moves - prove app and proxy run this push.
-  for C in pikdame-beta pikdame-beta-caddy; do
+  # :beta moves - prove the app runs this push.
+  for C in pikdame-beta; do
     GOT=$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$C" 2>/dev/null || true)
     if [ "$GOT" != "$REF" ]; then
       echo "pikdame-deploy: $C runs revision '${GOT:-unknown}', expected $REF" >&2

@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.58.1] - 2026-10-08
+
+### Changed
+- **Beta-Vorschau läuft hinter dem gemeinsamen Caddy ihres Servers**: Die Vorschau für Pull Requests bekommt TLS und CrowdSec-Schutz wie die Produktion vom geteilten Caddy-Stack. Das eigene Beta-Proxy-Image entfällt, jeder Beta-Lauf baut nur noch das Spiel
+
 ## [2.58.0] - 2026-10-08
 
 ### Changed

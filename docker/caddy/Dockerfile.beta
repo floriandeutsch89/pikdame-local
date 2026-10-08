@@ -1,8 +1,0 @@
-# Beta proxy (docs/admin/beta.md): stock Caddy, no CrowdSec plugin, so the
-# per-PR build takes seconds instead of an xcaddy compile.
-FROM caddy:2-alpine
-LABEL org.opencontainers.image.title="Pik Dame Caddy (beta)" \
-      org.opencontainers.image.source="https://github.com/floriandeutsch89/pikdame-local" \
-      org.opencontainers.image.licenses="Apache-2.0"
-COPY site.caddy /etc/caddy/site.caddy
-COPY Caddyfile.beta /etc/caddy/Caddyfile

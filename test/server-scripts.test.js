@@ -31,17 +31,11 @@ test('server-update.sh downloads only scripts that exist under scripts/', () => 
 test('every local file the prod compose mounts or builds from is fetched by server-update.sh', () => {
   const fetched = new Set(forList(read('scripts/server-update.sh'), 'f'));
   const compose = read('docker/docker-compose.prod.yml');
-  // Bind mounts "./x:/y" (not commented out) and the Caddy build context.
+  // Bind mounts "./x:/y" (not commented out).
   const mounts = [...compose.matchAll(/^\s*-\s+\.\/([^:\s]+):/gm)].map((m) => m[1]);
   for (const m of mounts) {
     if (m.startsWith('secrets/')) continue; // stay on the server, never downloaded
     assert.ok(fetched.has(m), `prod compose mounts ./${m}, but server-update.sh does not fetch it`);
-  }
-  // Only when Caddy is built on the server (an uncommented build: line);
-  // the default pulls the prebuilt image from GHCR.
-  if (/^\s+build:\s*\.\/caddy/m.test(compose)) {
-    const caddyFiles = fs.readdirSync(path.join(ROOT, 'docker', 'caddy')).map((f) => `caddy/${f}`);
-    for (const f of caddyFiles) assert.ok(fetched.has(f), `Caddy build needs ${f}, but server-update.sh does not fetch it`);
   }
 });
 
