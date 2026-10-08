@@ -42,6 +42,7 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const playerStore = createPlayerStore();
 const { createChallengeStore, seedForDate } = require('./game/ChallengeStore');
 const { gameDay } = require('./game/GameDay');
+const { createSecurityHeaders } = require('./game/SecurityHeaders');
 const challengeStore = createChallengeStore();
 // Tutorial-Deck: per scripts-Suche ermittelt (siehe CLAUDE.md). Nicht aendern,
 // ohne die Tutorial-Texte gegenzupruefen - sie nennen konkrete Karten.
@@ -374,7 +375,15 @@ function serveStatic(req, res) {
   });
 }
 
-const server = http.createServer(serveStatic);
+// CSP/HSTS etc. come from the app, not the proxy: they ship with this image.
+const securityHeadersFor = createSecurityHeaders({
+  html: fs.readFileSync(path.join(PUBLIC_DIR, 'index.html'), 'utf8'),
+  baseUrl: process.env.PIKDAME_BASE_URL,
+});
+const server = http.createServer((req, res) => {
+  for (const [k, v] of Object.entries(securityHeadersFor(req.headers.host))) res.setHeader(k, v);
+  serveStatic(req, res);
+});
 
 // --- WebSocket-Server ---------------------------------------------------------
 

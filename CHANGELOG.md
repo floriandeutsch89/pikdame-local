@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.58.0] - 2026-10-08
+
+### Changed
+- **Server läuft hinter dem gemeinsamen Caddy des Hosts**: TLS, CrowdSec-Schutz, Web-Firewall und automatische Updates übernimmt jetzt ein für alle Seiten des Servers geteilter Caddy. Der Pik-Dame-Stack enthält nur noch Spiel, Datenbank und Mail-Weiterleitung. Laufende Partien überstehen ein Neuladen des Proxys
+- **Sicherheitsrichtlinien kommen vom Spiel selbst**: Die Content-Security-Policy und die übrigen Schutz-Kopfzeilen sendet der Spielserver. Sie passen dadurch immer genau zur ausgelieferten Version
+
+### Removed
+- Eigener Caddy, eigenes CrowdSec und eigener Watchtower im Produktions-Stack (Umstieg: docs/admin/shared-caddy.md)
+
 ## [2.57.5] - 2026-10-07
 
 ### Fixed

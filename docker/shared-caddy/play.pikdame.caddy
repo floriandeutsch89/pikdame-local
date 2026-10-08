@@ -1,0 +1,11 @@
+# Site file for the shared Caddy stack (github.com/floriandeutsch89/caddy-crowdsec):
+# copy to <caddy stack>/config/sites/, then reload Caddy (docs/admin/shared-caddy.md).
+# Security headers (CSP, HSTS, ...) come from the app; `common` overrides only
+# its own (nosniff, Referrer-Policy, HSTS without includeSubDomains).
+play.pikdame.online {
+	import common
+	reverse_proxy pikdame:8080 {
+		# A Caddy reload must not drop running games.
+		stream_close_delay 5m
+	}
+}

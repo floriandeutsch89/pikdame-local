@@ -45,14 +45,22 @@ test('every local file the prod compose mounts or builds from is fetched by serv
   }
 });
 
-test('prod compose: Caddy is the prebuilt GHCR image and updates with the app', () => {
+test('prod compose: joins the shared Caddy only through its own external network', () => {
   const compose = read('docker/docker-compose.prod.yml');
-  const caddy = compose.slice(compose.indexOf('\n  caddy:'), compose.indexOf('\n  crowdsec:'));
-  assert.match(caddy, /^\s+image:\s*ghcr\.io\/[^/]+\/pikdame-local-caddy:/m, 'no build on the server by default');
-  assert.doesNotMatch(caddy, /^\s+build:/m);
-  // The image carries the CSP hash of the app's inline script: if Watchtower
-  // updated only the app, the two would drift apart overnight.
-  assert.match(caddy, /com\.centurylinklabs\.watchtower\.enable=true/);
+  assert.match(compose, /\n {2}caddy_play_pikdame:\n\s+external:\s*true/, 'app network must be external');
+  assert.doesNotMatch(compose, /^\s+ports:/m, 'only the shared Caddy publishes ports');
+  // caddy_egress sits next to CrowdSec's API (caddy-crowdsec README).
+  assert.doesNotMatch(compose.replace(/^\s*#.*$/gm, ''), /caddy_egress/);
+  // The shared stack runs Caddy, CrowdSec and Watchtower; a second copy would fight it.
+  for (const svc of ['caddy', 'crowdsec', 'watchtower', 'dockerproxy']) {
+    assert.doesNotMatch(compose, new RegExp(`\\n {2}${svc}:\\n`), `prod still runs its own ${svc}`);
+  }
+  const alias = compose.match(/caddy_play_pikdame:\n\s+aliases:\s*\[(\w[\w-]*)\]/);
+  assert.ok(alias, 'the app needs a stack-independent alias on caddy_play_pikdame');
+  const site = read('docker/shared-caddy/play.pikdame.caddy');
+  assert.match(site, new RegExp(`reverse_proxy ${alias[1]}:8080`), 'site file proxies to another name');
+  assert.match(site, /import common/, 'site file must use the shared hardening snippet');
+  assert.doesNotMatch(site, /Content-Security-Policy/, 'the CSP comes from the app');
 });
 
 test('pikdame-deploy.sh only pulls and restarts - it never fetches stack files', () => {

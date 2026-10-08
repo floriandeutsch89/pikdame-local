@@ -10,7 +10,7 @@ const active = (src) => src.split(/\r?\n/).filter((l) => !/^\s*#/.test(l)).join(
 
 const beta = active(read('docker/docker-compose.beta.yml'));
 const prod = active(read('docker/docker-compose.prod.yml'));
-const prodCaddyfile = active(read('docker/caddy/Caddyfile'));
+const prodSite = active(read('docker/shared-caddy/play.pikdame.caddy'));
 const betaCaddyfile = active(read('docker/caddy/Caddyfile.beta'));
 const workflow = read('.github/workflows/beta.yml');
 const deploy = active(read('scripts/pikdame-deploy.sh'));
@@ -39,9 +39,9 @@ test('beta: self-contained, needs nothing from a prod stack', () => {
   assert.match(beta, /file:\s*\.\/secrets\/beta_db_password\.txt/);
 });
 
-test('prod: no trace of beta in its compose file or Caddyfile', () => {
+test('prod: no trace of beta in its compose file or site file', () => {
   assert.doesNotMatch(prod, /beta/i, 'prod compose still references beta');
-  assert.doesNotMatch(prodCaddyfile, /beta/i, 'prod Caddyfile still serves beta');
+  assert.doesNotMatch(prodSite, /beta/i, 'prod site file still serves beta');
 });
 
 test('beta: the app carries the full OWASP hardening of prod', () => {

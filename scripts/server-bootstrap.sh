@@ -4,13 +4,12 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/floriandeutsch89/pikdame-local/main/scripts/server-bootstrap.sh | bash
 #
+# TLS and CrowdSec come from the shared Caddy stack (docs/admin/shared-caddy.md).
 # Afterwards (one-time):
-#   1. cd /opt/pikdame/docker && nano .env            # domain, ACME mail, SMTP user
+#   1. cd /opt/pikdame/docker && nano .env            # domain, SMTP user
 #   2. put passwords into secrets/db_password.txt and secrets/smtp_password.txt
-#   3. docker compose -f docker-compose.prod.yml up -d
-#   4. docker compose -f docker-compose.prod.yml exec crowdsec cscli bouncers add caddy-bouncer
-#      -> paste the key into .env (CROWDSEC_API_KEY=...) and:
-#   5. docker compose -f docker-compose.prod.yml up -d --force-recreate caddy
+#   3. join the shared Caddy: network on its caddy service + shared-caddy/play.pikdame.caddy
+#   4. docker compose -f docker-compose.prod.yml up -d
 set -euo pipefail
 
 echo "== 1/6 System updates =="
@@ -56,7 +55,7 @@ ufw allow 80/tcp   # HTTP (ACME + redirect)
 ufw allow 443/tcp  # HTTPS
 ufw --force enable
 # Note: Docker publishes ports past UFW (direct iptables). Published here:
-# only 80/443 via Caddy - which is exactly what UFW allows anyway.
+# only 80/443 via the shared Caddy - which is exactly what UFW allows anyway.
 
 echo "== 5/6 Docker (official repository) =="
 if ! command -v docker > /dev/null; then
@@ -73,7 +72,7 @@ echo "== 6/6 Fetch the production stack =="
 mkdir -p /opt/pikdame/docker/secrets
 cd /opt/pikdame/docker
 BASE=https://raw.githubusercontent.com/floriandeutsch89/pikdame-local/main/docker
-for f in docker-compose.prod.yml .env.example caddy/Caddyfile caddy/site.caddy caddy/Dockerfile crowdsec/acquis.yaml; do
+for f in docker-compose.prod.yml .env.example shared-caddy/play.pikdame.caddy; do
   mkdir -p "$(dirname "$f")"
   curl -fsSL "$BASE/$f" -o "$f"
 done
@@ -86,15 +85,18 @@ touch secrets/db_password.txt secrets/smtp_password.txt
 # only root can read them (mode 400).
 chown 10001:10001 secrets/*.txt
 chmod 400 secrets/*.txt
+# The shared Caddy's app network; owned by no stack (idempotent).
+docker network inspect caddy_play_pikdame > /dev/null 2>&1 \
+  || docker network create --internal caddy_play_pikdame
 
 echo
 echo "Bootstrap done. Next steps:"
-echo "  1. nano /opt/pikdame/docker/.env                  (domain, ACME mail, SMTP user)"
+echo "  1. nano /opt/pikdame/docker/.env                  (domain, SMTP user)"
 echo "  2. echo -n 'STRONG-PW' > /opt/pikdame/docker/secrets/db_password.txt"
 echo "     echo -n 'MAILGUN-SMTP-PW' > /opt/pikdame/docker/secrets/smtp_password.txt"
-echo "  3. cd /opt/pikdame/docker && docker compose -f docker-compose.prod.yml up -d"
-echo "  4. docker compose -f docker-compose.prod.yml exec crowdsec cscli bouncers add caddy-bouncer"
-echo "     -> key into .env (CROWDSEC_API_KEY=...), then: docker compose -f docker-compose.prod.yml up -d --force-recreate caddy"
+echo "  3. shared Caddy: add caddy_play_pikdame to its caddy service, copy"
+echo "     /opt/pikdame/docker/shared-caddy/play.pikdame.caddy to its config/sites/, reload"
+echo "  4. cd /opt/pikdame/docker && docker compose -f docker-compose.prod.yml up -d"
 echo
 echo "Updates later: curl -fsSL $BASE/../scripts/server-update.sh | bash"
 echo

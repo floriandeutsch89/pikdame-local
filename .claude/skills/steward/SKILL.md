@@ -40,7 +40,7 @@ because the commands were chained.
 ```bash
 rm -f data/*.json data/crash.log data/users.db data/users.db-shm data/users.db-wal
 npm test                     # == CI; must be all pass
-npm run -s docs:check && npm run -s csp:check && npm run -s secrets:check
+npm run -s docs:check && npm run -s secrets:check
 git fetch origin main && git log --oneline HEAD..origin/main   # main moved? merge it first
 git status --short           # stage ONLY your files, never `git add -A`
 ```

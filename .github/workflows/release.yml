@@ -6,9 +6,8 @@ name: Release
 # 2. Docker image on GHCR: ghcr.io/<owner>/pikdame-local:latest + :vX.Y.Z
 #    (Debian slim, trained ONNX bots built in - the one image)
 #    (amd64 + arm64 - also runs on Raspberry Pi & Apple Silicon)
-# 3. The Caddy reverse-proxy image (ghcr.io/<owner>/pikdame-local-caddy) -
-#    but only rebuilt when the recipe or a Caddy base image actually changed;
-#    otherwise the existing image is simply retagged for the new version.
+# Prod's reverse proxy is the shared Caddy stack (docs/admin/shared-caddy.md);
+# only beta still builds a Caddy image (beta.yml).
 
 on:
   push:
@@ -85,123 +84,6 @@ jobs:
           VERSION="${{ needs.meta.outputs.version }}"
           echo "$GH_TOKEN" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
           helm push "pikdame-${VERSION}.tgz" "oci://ghcr.io/${{ github.repository_owner }}/charts"
-
-  docker-caddy:
-    # Third image: the reverse proxy - official Caddy with the CrowdSec bouncer
-    # plugin compiled in via xcaddy (plugins cannot be loaded at runtime).
-    #
-    # This build is SLOW (xcaddy compiles Go, and arm64 runs under QEMU), so it
-    # runs only when something that ends up IN the image actually changed:
-    #   * the recipe - a hash over docker/caddy/**, i.e. the Dockerfile and the
-    #     Caddyfile (which carries the CSP hash of the inline head script), or
-    #   * the Caddy VERSION of the base image, read from the
-    #     org.opencontainers.image.version label of caddy:2-alpine.
-    # If neither changed we skip the build and just RETAG the published image
-    # for this release (a manifest operation, seconds), so :vX.Y.Z exists for
-    # every version and the prod compose keeps working.
-    #
-    # DELIBERATE TRADE-OFF (changed in v2.10.0): this used to compare base
-    # image DIGESTS, which also fired when upstream merely republished the same
-    # Caddy version - e.g. an Alpine CVE patch. That kept an internet-facing
-    # binary fresh but rebuilt often. Version-based means such a republish is
-    # NOT picked up on its own; a Caddy release, a Dockerfile change or a
-    # Caddyfile change (including every CSP hash change) still rebuilds. To
-    # force a fresh base in between, touch docker/caddy/ or bump the pinned
-    # tag - both change the recipe hash.
-    #
-    # Why the version comes from the RUNTIME image only: caddy:2-builder-alpine
-    # carries no version label, and both tags are published together from the
-    # same caddy-docker release. xcaddy compiles the current Caddy release,
-    # which is exactly what that label reports.
-    needs: [meta, release]
-    if: needs.meta.outputs.is_new == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v4
-      - name: GHCR login
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Decide - rebuild or retag?
-        id: gate
-        run: |
-          set -uo pipefail
-          IMAGE="ghcr.io/${{ github.repository }}-caddy"
-
-          # Fingerprint of the build recipe (every file in docker/caddy:
-          # the Dockerfile AND the Caddyfile that gets COPYed into the image).
-          RECIPE=$(find docker/caddy -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d" " -f1)
-
-          # Caddy version of the runtime base, from its OCI label ("v2.11.4").
-          # jq walk: the inspect output is a map platform -> config for a
-          # multi-arch tag and a plain object for a single-arch one.
-          BASE_VERSION=$(docker buildx imagetools inspect caddy:2-alpine --format "{{json .Image}}" 2>/dev/null \
-            | jq -r "[.. | objects | .config? // empty | .Labels? // empty | .\"org.opencontainers.image.version\"? // empty] | first // \"\"")
-          [ -n "$BASE_VERSION" ] || BASE_VERSION="unknown"
-          echo "recipe=$RECIPE" >> "$GITHUB_OUTPUT"
-          echo "base_version=$BASE_VERSION" >> "$GITHUB_OUTPUT"
-
-          # What did we bake into the published image last time? (Labels; the
-          # image may not exist yet on the very first run -> then we build.)
-          PREV=$(docker buildx imagetools inspect "$IMAGE:latest" --format "{{json .Image}}" 2>/dev/null || echo "")
-          if [ -z "$PREV" ]; then
-            echo "No published image yet -> build."
-            echo "rebuild=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          P_RECIPE=$(echo "$PREV" | jq -r "[.. | objects | .config? // empty | .Labels? // empty | .\"online.pikdame.caddy.recipe\"? // empty] | first // \"\"")
-          P_VERSION=$(echo "$PREV" | jq -r "[.. | objects | .config? // empty | .Labels? // empty | .\"online.pikdame.caddy.base.version\"? // empty] | first // \"\"")
-
-          echo "recipe      : $P_RECIPE -> $RECIPE"
-          echo "base version: $P_VERSION -> $BASE_VERSION"
-
-          # An unreadable label must never be treated as "unchanged". This also
-          # covers the first run after switching from digests to versions: the
-          # published image has no base.version label yet -> one rebuild.
-          if [ "$BASE_VERSION" = "unknown" ]; then
-            echo "Could not read the base image version -> build to be safe."
-            echo "rebuild=true" >> "$GITHUB_OUTPUT"
-          elif [ "$P_RECIPE" = "$RECIPE" ] && [ "$P_VERSION" = "$BASE_VERSION" ]; then
-            echo "Recipe and Caddy base version unchanged -> retag only."
-            echo "rebuild=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "Recipe or base version changed -> rebuild."
-            echo "rebuild=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Build & push Caddy image (amd64 + arm64)
-        if: steps.gate.outputs.rebuild == 'true'
-        uses: docker/build-push-action@v7
-        with:
-          context: docker/caddy
-          file: docker/caddy/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}-caddy:latest
-            ghcr.io/${{ github.repository }}-caddy:v${{ needs.meta.outputs.version }}
-          labels: |
-            org.opencontainers.image.version=${{ needs.meta.outputs.version }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            online.pikdame.caddy.recipe=${{ steps.gate.outputs.recipe }}
-            online.pikdame.caddy.base.version=${{ steps.gate.outputs.base_version }}
-          cache-from: type=gha,scope=caddy
-          cache-to: type=gha,mode=max,scope=caddy
-
-      - name: Retag existing image for this release (nothing changed)
-        if: steps.gate.outputs.rebuild == 'false'
-        run: |
-          set -euo pipefail
-          IMAGE="ghcr.io/${{ github.repository }}-caddy"
-          docker buildx imagetools create \
-            -t "$IMAGE:v${{ needs.meta.outputs.version }}" \
-            "$IMAGE:latest"
-          echo "Reused the published image (no Caddy or base-image change)."
 
   docker:
     needs: [meta, release]

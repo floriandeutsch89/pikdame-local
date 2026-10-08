@@ -222,10 +222,9 @@ not red), Watchtower carries on nightly. To revoke the key for good, empty
 3. In your stack directory: `docker compose -f <file> pull --ignore-buildable`,
    `up -d`, `docker image prune -f`, `ps`.
 
-Caddy is pulled too: it is the prebuilt `pikdame-local-caddy` image, published
-with every release. It carries the Caddyfile, which pins the hash of the app's
-inline start-up script, so app and proxy must always be updated together - the
-deploy and Watchtower both do that.
+Caddy is not part of this stack (see {doc}`shared-caddy`). The CSP that pins the
+hash of the app's inline start-up script is sent by the app itself, so it
+always matches the deployed image.
 
 Trust model, stated plainly: whoever can merge to `main` decides which images
 run on the server - as with Watchtower before. Branch protection on `main`
