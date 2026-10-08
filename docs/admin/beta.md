@@ -70,8 +70,39 @@ chmod 0644 /opt/docker/caddy/config/sites/beta.play.pikdame.caddy
 cd /opt/docker/caddy && docker compose up -d caddy   # recreate: a new network needs more than a reload
 ```
 
-SSH (22) must be reachable from GitHub's runners; a cloud firewall that allows
-SSH only from your own address makes every deploy time out.
+SSH (22) must be reachable from GitHub's runners: either publicly, or over
+Tailscale (next section). A firewall that allows SSH only from your own
+address makes every deploy time out.
+
+#### SSH only over Tailscale
+
+GitHub's runners have no fixed addresses, so an allowlist does not work. With
+`TS_OAUTH_CLIENT_ID` set, the workflow joins the tailnet first as an ephemeral
+node tagged `tag:ci`, authenticated by GitHub's OIDC token (workload identity
+federation): no Tailscale secret is stored in GitHub.
+
+1. **Policy** (Access controls). Any branch can trigger this, so `tag:ci` gets
+   the beta host's port 22 and nothing else. Replace the default allow-all
+   rule: `*` includes tagged nodes.
+   ```json
+   "tagOwners": { "tag:ci": ["autogroup:admin"], "tag:beta": ["autogroup:admin"] },
+   "grants": [
+     { "src": ["autogroup:member"], "dst": ["*"], "ip": ["*"] },
+     { "src": ["tag:ci"], "dst": ["tag:beta"], "ip": ["tcp:22"] }
+   ]
+   ```
+   Tag the beta host `tag:beta` (Machines → Edit tags; keep its other tags).
+   Leave the policy's `ssh` section alone: the deploy uses OpenSSH with the
+   forced command, not Tailscale SSH.
+2. **Trust credential** (Settings → Trust credentials → OpenID Connect): issuer
+   GitHub, subject `repo:floriandeutsch89/pikdame-local:environment:beta`,
+   scope `auth_keys` (write), tag `tag:ci`.
+3. **Variables in the `beta` environment** (not secrets, neither is sensitive):
+   `TS_OAUTH_CLIENT_ID` and `TS_AUDIENCE` from that credential.
+4. `BETA_HOST` = the beta host's Tailscale name or `100.x` address, and
+   `DEPLOY_KNOWN_HOSTS` with exactly that name in front. `BETA_URL` stays public.
+
+The step pings `BETA_HOST` until the new node is visible (up to 3 minutes).
 
 ### 2. Stack files
 
@@ -197,6 +228,18 @@ Push to any open pull request. A green **Beta** run ends with
 `Beta live: v2.48.0 (abc1234)`. Pull requests branched before this change still
 carry the old workflow (aimed at `DEPLOY_HOST`): merge `main` into them.
 
+## Checking a beta deploy
+
+After a green **Beta** run:
+
+```bash
+curl -fsS https://beta.play.pikdame.online/statusz | jq -r .version          # version of the PR
+curl -sI https://beta.play.pikdame.online | grep -iE 'x-robots|content-security'
+docker inspect pikdame-beta --format '{{index .Config.Labels "org.opencontainers.image.revision"}}'   # on the beta host: the PR's head commit
+```
+
+In the browser: start a game (WebSocket) and register (mail arrives).
+
 ## Turning it off
 
 Delete `BETA_URL` (runs are skipped, shown grey). On the beta host:
@@ -211,6 +254,7 @@ beta database), or delete the server. To revoke the key, empty
 | Beta run skipped (grey) | `BETA_HOST` or `BETA_URL` unset, a fork PR, or a `dependabot/` branch |
 | `must be set in the 'beta' environment` | Secrets stored in `production` or as repository secrets |
 | `pikdame-beta runs revision '…', expected …` | The pull did not get the new `:beta` image, e.g. GHCR was briefly unreachable. Re-run the job. Also: a `pikdame-deploy` from before v2.58.1 still checks `pikdame-beta-caddy`; reinstall it (step 3) |
+| `Permission denied (publickey…)`, sshd log `account is locked` | `deploy` was created with a locked password: `usermod -p '*' deploy` ({doc}`auto-deploy`, step 1) |
 | `Host key verification failed` | `DEPLOY_KNOWN_HOSTS` in `beta` still holds the prod host key, or its host name differs from `BETA_HOST` |
 | `502` on beta | App not running (`docker compose -f docker-compose.beta.yml ps` / `logs pikdame-beta`), or not on `caddy_beta_play_pikdame`: `docker network inspect caddy_beta_play_pikdame` must list `caddy` and `pikdame-beta` |
 | Certificate error on beta | DNS not pointing at the beta host yet: `docker compose -f /opt/docker/caddy/compose.yaml logs caddy` |
