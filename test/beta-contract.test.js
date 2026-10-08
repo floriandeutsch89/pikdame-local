@@ -11,7 +11,7 @@ const active = (src) => src.split(/\r?\n/).filter((l) => !/^\s*#/.test(l)).join(
 const beta = active(read('docker/docker-compose.beta.yml'));
 const prod = active(read('docker/docker-compose.prod.yml'));
 const prodSite = active(read('docker/shared-caddy/play.pikdame.caddy'));
-const betaSite = active(read('docker/shared-caddy/beta.pikdame.caddy'));
+const betaSite = active(read('docker/shared-caddy/beta.play.pikdame.caddy'));
 const workflow = read('.github/workflows/beta.yml');
 const deploy = active(read('scripts/pikdame-deploy.sh'));
 
@@ -34,7 +34,7 @@ test('beta: its own compose project, no container name shared with prod', () => 
 
 test('beta: self-contained, needs nothing from a prod stack', () => {
   const externals = [...beta.matchAll(/\n {2}([\w-]+):\n\s+external:\s*true/g)].map((m) => m[1]);
-  assert.deepEqual(externals, ['caddy_beta_pikdame'], 'only the beta host\'s Caddy network may be external');
+  assert.deepEqual(externals, ['caddy_beta_play_pikdame'], 'only the beta host\'s Caddy network may be external');
   assert.doesNotMatch(beta, /caddy_play_pikdame/, 'beta joins the prod app network');
   assert.doesNotMatch(beta, /pikdame-(data|pgdata):/, 'beta uses a prod volume');
   assert.doesNotMatch(beta, /^\s+-\s+db_password\s*$/m, 'beta reads the prod DB password');
@@ -62,8 +62,8 @@ test('beta: the app carries the full OWASP hardening of prod', () => {
 test('beta: no published ports, reached only through the shared Caddy', () => {
   assert.doesNotMatch(beta, /^\s+ports:/m);
   assert.doesNotMatch(beta, /caddy_egress/, 'caddy_egress sits next to CrowdSec\'s API');
-  const alias = beta.match(/caddy_beta_pikdame:\n\s+aliases:\s*\[([\w-]+)\]/);
-  assert.ok(alias, 'the app needs an alias on caddy_beta_pikdame');
+  const alias = beta.match(/caddy_beta_play_pikdame:\n\s+aliases:\s*\[([\w-]+)\]/);
+  assert.ok(alias, 'the app needs an alias on caddy_beta_play_pikdame');
   assert.match(betaSite, new RegExp(`reverse_proxy ${alias[1]}:8080`), 'site file proxies to another name');
 });
 
@@ -72,7 +72,7 @@ test('beta: Watchtower never updates it (deploys only through the beta workflow)
 });
 
 test('beta site file: shared hardening, beta domain only, noindex', () => {
-  assert.match(betaSite, /^beta\.pikdame\.online \{$/m);
+  assert.match(betaSite, /^beta\.play\.pikdame\.online \{$/m);
   assert.match(betaSite, /import common/);
   assert.match(betaSite, /X-Robots-Tag "noindex/);
 });

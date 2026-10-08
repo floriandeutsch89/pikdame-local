@@ -1,8 +1,8 @@
 # Pik Dame - beta preview stack on its OWN host (docs/admin/beta.md), behind
-# that host's caddy-crowdsec stack (site file: shared-caddy/beta.pikdame.caddy).
+# that host's caddy-crowdsec stack (site file: shared-caddy/beta.play.pikdame.caddy).
 # Self-contained otherwise: own database and mail egress; nothing from prod.
 # No Watchtower label: only the beta deploy updates it.
-#   docker network create --internal caddy_beta_pikdame   # once
+#   docker network create --internal caddy_beta_play_pikdame   # once
 #   cp .env.beta.example .env && docker compose -f docker-compose.beta.yml up -d
 
 name: pikdame-beta
@@ -37,7 +37,7 @@ services:
     volumes:
       - beta-data:/app/data
     networks:
-      caddy_beta_pikdame:
+      caddy_beta_play_pikdame:
         aliases: [pikdame-beta] # upstream in the shared Caddy's site file
       beta: {}
       beta_smtp: {}
@@ -130,7 +130,7 @@ secrets:
 
 networks:
   # Shared Caddy <-> app only; owned by no stack.
-  caddy_beta_pikdame:
+  caddy_beta_play_pikdame:
     external: true
   beta:
     internal: true
