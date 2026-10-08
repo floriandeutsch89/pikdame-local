@@ -197,6 +197,18 @@ Push to any open pull request. A green **Beta** run ends with
 `Beta live: v2.48.0 (abc1234)`. Pull requests branched before this change still
 carry the old workflow (aimed at `DEPLOY_HOST`): merge `main` into them.
 
+## Checking a beta deploy
+
+After a green **Beta** run:
+
+```bash
+curl -fsS https://beta.play.pikdame.online/statusz | jq -r .version          # version of the PR
+curl -sI https://beta.play.pikdame.online | grep -iE 'x-robots|content-security'
+docker inspect pikdame-beta --format '{{index .Config.Labels "org.opencontainers.image.revision"}}'   # on the beta host: the PR's head commit
+```
+
+In the browser: start a game (WebSocket) and register (mail arrives).
+
 ## Turning it off
 
 Delete `BETA_URL` (runs are skipped, shown grey). On the beta host:
