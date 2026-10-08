@@ -51,12 +51,14 @@ fi
 DIR="${PIKDAME_DIR:-/opt/pikdame/docker}"
 if [ "$MODE" = beta ]; then
   FILE="${PIKDAME_BETA_COMPOSE_FILE:-docker-compose.beta.yml}"
+  FILE_VAR=PIKDAME_BETA_COMPOSE_FILE
 else
   FILE="${PIKDAME_COMPOSE_FILE:-docker-compose.prod.yml}"
+  FILE_VAR=PIKDAME_COMPOSE_FILE
 fi
 cd "$DIR"
 if [ ! -f "$FILE" ]; then
-  echo "pikdame-deploy: $DIR/$FILE not found - set PIKDAME_DIR / PIKDAME_COMPOSE_FILE in /etc/pikdame-deploy.conf" >&2
+  echo "pikdame-deploy: $DIR/$FILE not found - set PIKDAME_DIR / $FILE_VAR in /etc/pikdame-deploy.conf" >&2
   exit 5
 fi
 
