@@ -1,0 +1,10 @@
+# Site file for the BETA host's caddy-crowdsec stack (docs/admin/beta.md):
+# copy to <caddy stack>/config/sites/, then reload Caddy.
+beta.pikdame.online {
+	import common
+	header X-Robots-Tag "noindex, nofollow"
+	reverse_proxy pikdame-beta:8080 {
+		# A Caddy reload must not drop running games.
+		stream_close_delay 5m
+	}
+}

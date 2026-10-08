@@ -4,13 +4,12 @@ Every push to a pull request is live on **beta.pikdame.online** a few minutes
 later, on a server of its own. You can try the change on the iPhone before it
 is merged. No extra branch is needed: the pull request *is* the beta.
 
-1. The **Beta** workflow builds two images from the pull request's head
-   commit (amd64 only) and pushes them to GHCR: the app as
-   `pikdame-local:beta` and the proxy as `pikdame-local-caddy:beta`.
+1. The **Beta** workflow builds the app image from the pull request's head
+   commit (amd64 only) and pushes it to GHCR as `pikdame-local:beta`.
 2. It logs in to the **beta host**, a server of its own, with a deploy key
    that can only run `pikdame-deploy beta`.
 3. The server pulls and restarts `docker-compose.beta.yml`. It then checks that
-   app and proxy were built from exactly the pushed commit.
+   the app was built from exactly the pushed commit.
 4. The job waits until `https://beta…/statusz` answers. The pull request shows
    **View deployment** next to the `beta` environment.
 
@@ -26,12 +25,12 @@ repository and the Mailgun account.
 | | Production | Beta |
 | --- | --- | --- |
 | Host | `play.pikdame.online` | own server (`BETA_HOST`) |
-| Proxy | shared Caddy stack with CrowdSec ({doc}`shared-caddy`) | own stock Caddy, no CrowdSec |
+| Proxy | caddy-crowdsec stack ({doc}`shared-caddy`) | its own caddy-crowdsec stack on the beta host |
 | Database | `pikdame-postgres` | own `pikdame-beta-postgres`; data **persists** between deploys |
 | Accounts and passkeys | play domain | beta domain only (the passkey RP-ID is the host name) |
 | Mail | Mailgun, production SMTP login | Mailgun, **own** SMTP login |
 | Admin page | `PIKDAME_ADMIN_TOKEN` | `PIKDAME_BETA_ADMIN_TOKEN` (off while unset) |
-| Updates | release → deploy, Watchtower nightly | beta workflow only, **no** Watchtower |
+| Updates | release → deploy, Watchtower nightly | beta workflow only; the beta containers carry no Watchtower label |
 | Limits | 1 CPU / 512 MB | same, 20 tables |
 | Search engines | indexed | `X-Robots-Tag: noindex, nofollow` |
 
@@ -53,26 +52,36 @@ keeps it that way.
 Steps 1–5 run on the **beta host** as root, step 6 on the **production host**,
 steps 7–8 on **GitHub**.
 
-### 1. DNS
+### 1. DNS and the shared Caddy
 
 Point `beta.pikdame.online` (`A`, plus `AAAA` if the host has IPv6) at the
-**beta host**.
-
-### 2. Base system and stack files
-
-Docker, firewall (22/80/443), fail2ban and unattended upgrades, as on prod.
-`server-bootstrap.sh` does exactly that; its last step drops prod files you
-then replace:
+**beta host**. Set up the [caddy-crowdsec](https://github.com/floriandeutsch89/caddy-crowdsec)
+stack there as on prod (its `infra/` also hardens the host: key-only SSH,
+fail2ban, security updates). Then, as in {doc}`shared-caddy`, with the beta
+names:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/floriandeutsch89/pikdame-local/main/scripts/server-bootstrap.sh | bash
-cd /opt/pikdame/docker
-rm -rf docker-compose.prod.yml shared-caddy secrets/db_password.txt .env .env.example
+docker network create --internal caddy_beta_pikdame
+# /opt/caddy/compose.yaml: caddy_beta_pikdame: {} under the caddy service's networks,
+#                          caddy_beta_pikdame: { external: true } under the top-level networks
+curl -fsSL https://raw.githubusercontent.com/floriandeutsch89/pikdame-local/main/docker/shared-caddy/beta.pikdame.caddy \
+  -o /opt/caddy/config/sites/beta.pikdame.caddy
+chmod 0644 /opt/caddy/config/sites/beta.pikdame.caddy
+cd /opt/caddy && docker compose up -d caddy   # recreate: a new network needs more than a reload
+```
+
+SSH (22) must be reachable from GitHub's runners; a cloud firewall that allows
+SSH only from your own address makes every deploy time out.
+
+### 2. Stack files
+
+```bash
+mkdir -p /opt/pikdame/docker/secrets && cd /opt/pikdame/docker
 BASE=https://raw.githubusercontent.com/floriandeutsch89/pikdame-local/main/docker
 curl -fsSL "$BASE/docker-compose.beta.yml" -o docker-compose.beta.yml
 curl -fsSL "$BASE/.env.beta.example" -o .env
 chmod 600 .env
-nano .env    # ACME_EMAIL, SMTP user of the beta login
+nano .env    # SMTP user of the beta login
 ```
 
 Secrets. Use a **separate** Mailgun SMTP login for beta (Mailgun → Sending →
@@ -82,6 +91,7 @@ Domain settings → SMTP credentials), never the production one:
 openssl rand -base64 24 | tr -d '\n' > secrets/beta_db_password.txt
 echo -n '<beta SMTP password>' > secrets/smtp_password.txt
 chown 10001:10001 secrets/*.txt && chmod 400 secrets/*.txt
+docker compose -f docker-compose.beta.yml config -q
 ```
 
 Optional, for `/admin` on beta (generate a hash with a **different** password
@@ -144,9 +154,7 @@ sed -i '/^PIKDAME_BETA_/d' .env
 sed -i '/github-beta/d' /home/deploy/.ssh/authorized_keys   # beta key no longer works here
 ```
 
-After the release with this change: `server-update.sh` as usual. Caddy then
-runs without the beta site; `docker network rm pikdame-caddy-beta` removes the
-leftover network.
+Then `server-update.sh` as usual.
 
 ### 7. The `beta` environment on GitHub
 
@@ -196,9 +204,8 @@ beta database), or delete the server. To revoke the key, empty
 | --- | --- |
 | Beta run skipped (grey) | `BETA_HOST` or `BETA_URL` unset, a fork PR, or a `dependabot/` branch |
 | `must be set in the 'beta' environment` | Secrets stored in `production` or as repository secrets |
-| `pikdame-beta… runs revision '…', expected …` | The pull did not get the new `:beta` image, e.g. GHCR was briefly unreachable. Re-run the job |
+| `pikdame-beta runs revision '…', expected …` | The pull did not get the new `:beta` image, e.g. GHCR was briefly unreachable. Re-run the job. Also: a `pikdame-deploy` from before v2.58.1 still checks `pikdame-beta-caddy`; reinstall it (step 3) |
 | `Host key verification failed` | `DEPLOY_KNOWN_HOSTS` in `beta` still holds the prod host key, or its host name differs from `BETA_HOST` |
-| `Bind for 0.0.0.0:80 failed: port is already allocated` | The beta stack was started on the prod host. It belongs on the beta host only |
-| `502` on beta | App not running: `docker compose -f docker-compose.beta.yml ps` / `logs pikdame-beta` |
-| Certificate error on beta | `PIKDAME_BETA_DOMAIN` not in `.env`, or DNS not pointing at the host yet. Recreate Caddy after fixing |
+| `502` on beta | App not running (`docker compose -f docker-compose.beta.yml ps` / `logs pikdame-beta`), or not on `caddy_beta_pikdame`: `docker network inspect caddy_beta_pikdame` must list `caddy` and `pikdame-beta` |
+| Certificate error on beta | DNS not pointing at the beta host yet: `docker compose -f /opt/caddy/compose.yaml logs caddy` |
 | Registration mail does not arrive | Same causes as prod ({doc}`mail`): `docker compose -f docker-compose.beta.yml logs smtp-egress-beta` |

@@ -65,20 +65,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Proxy with this commit's Caddyfile.
-      - name: Build & push Caddy :beta
-        uses: docker/build-push-action@v7
-        with:
-          context: docker/caddy
-          file: docker/caddy/Dockerfile.beta
-          platforms: linux/amd64
-          push: true
-          tags: ghcr.io/${{ github.repository }}-caddy:beta
-          labels: |
-            org.opencontainers.image.revision=${{ env.HEAD_SHA }}
-          cache-from: type=gha,scope=caddy-beta
-          cache-to: type=gha,mode=max,scope=caddy-beta
-
       - name: SSH to the server
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}

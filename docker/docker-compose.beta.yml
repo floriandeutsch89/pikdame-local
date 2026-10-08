@@ -1,41 +1,13 @@
-# Pik Dame - beta preview stack on its OWN host (docs/admin/beta.md).
-# Self-contained: own Caddy, database and mail egress; nothing from prod.
-# No Watchtower: only the beta deploy updates it.
+# Pik Dame - beta preview stack on its OWN host (docs/admin/beta.md), behind
+# that host's caddy-crowdsec stack (site file: shared-caddy/beta.pikdame.caddy).
+# Self-contained otherwise: own database and mail egress; nothing from prod.
+# No Watchtower label: only the beta deploy updates it.
+#   docker network create --internal caddy_beta_pikdame   # once
 #   cp .env.beta.example .env && docker compose -f docker-compose.beta.yml up -d
 
 name: pikdame-beta
 
 services:
-  caddy-beta:
-    # Built per PR push from docker/caddy/Dockerfile.beta.
-    image: ghcr.io/floriandeutsch89/pikdame-local-caddy:beta
-    container_name: pikdame-beta-caddy
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    environment:
-      - PIKDAME_BETA_DOMAIN=${PIKDAME_BETA_DOMAIN:?set PIKDAME_BETA_DOMAIN in .env}
-      - ACME_EMAIL=${ACME_EMAIL:?set ACME_EMAIL in .env}
-    volumes:
-      - beta-caddy-data:/data      # certificates - MUST persist
-      - beta-caddy-config:/config
-    networks:
-      - caddy_egress
-      - caddy_beta
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 256M
-    logging:
-      driver: json-file
-      options:
-        max-size: "5m"
-        max-file: "2"
-    security_opt:
-      - no-new-privileges:true
-
   pikdame-beta:
     image: ghcr.io/floriandeutsch89/pikdame-local:beta
     container_name: pikdame-beta
@@ -65,9 +37,10 @@ services:
     volumes:
       - beta-data:/app/data
     networks:
-      - caddy_beta
-      - beta
-      - beta_smtp
+      caddy_beta_pikdame:
+        aliases: [pikdame-beta] # upstream in the shared Caddy's site file
+      beta: {}
+      beta_smtp: {}
     depends_on:
       postgres-beta:
         condition: service_healthy
@@ -156,20 +129,16 @@ secrets:
     file: ./secrets/smtp_password.txt
 
 networks:
-  # Internet-facing: ACME and clients
-  caddy_egress:
-  # Caddy <-> app only
-  caddy_beta:
-    internal: true
+  # Shared Caddy <-> app only; owned by no stack.
+  caddy_beta_pikdame:
+    external: true
   beta:
     internal: true
   beta_smtp:
     internal: true
-  # SMTP proxy only
+  # SMTP proxy only - never caddy_egress (next to CrowdSec's API)
   egress:
 
 volumes:
-  beta-caddy-data:
-  beta-caddy-config:
   beta-data:
   beta-pgdata:

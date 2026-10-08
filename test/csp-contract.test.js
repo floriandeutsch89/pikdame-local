@@ -55,9 +55,9 @@ test('HSTS only over https; local stacks follow the Host header, never a hostile
   assert.match(local("evil; script-src *")['Content-Security-Policy'], /connect-src 'self';/);
 });
 
-test('no Caddy config sets a CSP again (it would drift from index.html)', () => {
-  for (const f of fs.readdirSync(path.join(root, 'docker/caddy'))) {
-    assert.ok(!/Content-Security-Policy/.test(read(`docker/caddy/${f}`)), `docker/caddy/${f} sets a CSP`);
+test('no Caddy site file sets a CSP again (it would drift from index.html)', () => {
+  for (const f of fs.readdirSync(path.join(root, 'docker/shared-caddy'))) {
+    assert.ok(!/Content-Security-Policy/.test(read(`docker/shared-caddy/${f}`)), `docker/shared-caddy/${f} sets a CSP`);
   }
 });
 
