@@ -1,6 +1,6 @@
 # Site file for the BETA host's caddy-crowdsec stack (docs/admin/beta.md):
 # copy to <caddy stack>/config/sites/, then reload Caddy.
-beta.pikdame.online {
+beta.play.pikdame.online {
 	import common
 	header X-Robots-Tag "noindex, nofollow"
 	reverse_proxy pikdame-beta:8080 {

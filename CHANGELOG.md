@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.58.2] - 2026-10-08
+
+### Changed
+- Beta-Vorschau unter `beta.play.pikdame.online`
+
 ## [2.58.1] - 2026-10-08
 
 ### Changed

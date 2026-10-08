@@ -1,6 +1,6 @@
 # Beta preview for pull requests
 
-Every push to a pull request is live on **beta.pikdame.online** a few minutes
+Every push to a pull request is live on **beta.play.pikdame.online** a few minutes
 later, on a server of its own. You can try the change on the iPhone before it
 is merged. No extra branch is needed: the pull request *is* the beta.
 
@@ -54,20 +54,20 @@ steps 7–8 on **GitHub**.
 
 ### 1. DNS and the shared Caddy
 
-Point `beta.pikdame.online` (`A`, plus `AAAA` if the host has IPv6) at the
+Point `beta.play.pikdame.online` (`A`, plus `AAAA` if the host has IPv6) at the
 **beta host**. Set up the [caddy-crowdsec](https://github.com/floriandeutsch89/caddy-crowdsec)
 stack there as on prod (its `infra/` also hardens the host: key-only SSH,
 fail2ban, security updates). Then, as in {doc}`shared-caddy`, with the beta
 names:
 
 ```bash
-docker network create --internal caddy_beta_pikdame
-# /opt/caddy/compose.yaml: caddy_beta_pikdame: {} under the caddy service's networks,
-#                          caddy_beta_pikdame: { external: true } under the top-level networks
-curl -fsSL https://raw.githubusercontent.com/floriandeutsch89/pikdame-local/main/docker/shared-caddy/beta.pikdame.caddy \
-  -o /opt/caddy/config/sites/beta.pikdame.caddy
-chmod 0644 /opt/caddy/config/sites/beta.pikdame.caddy
-cd /opt/caddy && docker compose up -d caddy   # recreate: a new network needs more than a reload
+docker network create --internal caddy_beta_play_pikdame
+# /opt/docker/caddy/compose.yaml: caddy_beta_play_pikdame: {} under the caddy service's networks,
+#                                 caddy_beta_play_pikdame: { external: true } under the top-level networks
+curl -fsSL https://raw.githubusercontent.com/floriandeutsch89/pikdame-local/main/docker/shared-caddy/beta.play.pikdame.caddy \
+  -o /opt/docker/caddy/config/sites/beta.play.pikdame.caddy
+chmod 0644 /opt/docker/caddy/config/sites/beta.play.pikdame.caddy
+cd /opt/docker/caddy && docker compose up -d caddy   # recreate: a new network needs more than a reload
 ```
 
 SSH (22) must be reachable from GitHub's runners; a cloud firewall that allows
@@ -76,7 +76,7 @@ SSH only from your own address makes every deploy time out.
 ### 2. Stack files
 
 ```bash
-mkdir -p /opt/pikdame/docker/secrets && cd /opt/pikdame/docker
+mkdir -p /opt/docker/beta.play.pikdame.online/secrets && cd /opt/docker/beta.play.pikdame.online
 BASE=https://raw.githubusercontent.com/floriandeutsch89/pikdame-local/main/docker
 curl -fsSL "$BASE/docker-compose.beta.yml" -o docker-compose.beta.yml
 curl -fsSL "$BASE/.env.beta.example" -o .env
@@ -92,6 +92,12 @@ openssl rand -base64 24 | tr -d '\n' > secrets/beta_db_password.txt
 echo -n '<beta SMTP password>' > secrets/smtp_password.txt
 chown 10001:10001 secrets/*.txt && chmod 400 secrets/*.txt
 docker compose -f docker-compose.beta.yml config -q
+```
+
+The deploy script defaults to `/opt/pikdame/docker`; point it at this directory:
+
+```bash
+echo 'PIKDAME_DIR=/opt/docker/beta.play.pikdame.online' > /etc/pikdame-deploy.conf
 ```
 
 Optional, for `/admin` on beta (generate a hash with a **different** password
@@ -182,8 +188,8 @@ creates it empty, which leaves the run red for lack of secrets.
 
 | Variable | Value |
 | --- | --- |
-| `BETA_HOST` | address of the beta host, e.g. `beta.pikdame.online` |
-| `BETA_URL` | `https://beta.pikdame.online` |
+| `BETA_HOST` | address of the beta host, e.g. `beta.play.pikdame.online` |
+| `BETA_URL` | `https://beta.play.pikdame.online` |
 | `BETA_USER` | optional, default `deploy` |
 | `BETA_PORT` | optional, default `22` |
 
@@ -206,6 +212,6 @@ beta database), or delete the server. To revoke the key, empty
 | `must be set in the 'beta' environment` | Secrets stored in `production` or as repository secrets |
 | `pikdame-beta runs revision '…', expected …` | The pull did not get the new `:beta` image, e.g. GHCR was briefly unreachable. Re-run the job. Also: a `pikdame-deploy` from before v2.58.1 still checks `pikdame-beta-caddy`; reinstall it (step 3) |
 | `Host key verification failed` | `DEPLOY_KNOWN_HOSTS` in `beta` still holds the prod host key, or its host name differs from `BETA_HOST` |
-| `502` on beta | App not running (`docker compose -f docker-compose.beta.yml ps` / `logs pikdame-beta`), or not on `caddy_beta_pikdame`: `docker network inspect caddy_beta_pikdame` must list `caddy` and `pikdame-beta` |
-| Certificate error on beta | DNS not pointing at the beta host yet: `docker compose -f /opt/caddy/compose.yaml logs caddy` |
+| `502` on beta | App not running (`docker compose -f docker-compose.beta.yml ps` / `logs pikdame-beta`), or not on `caddy_beta_play_pikdame`: `docker network inspect caddy_beta_play_pikdame` must list `caddy` and `pikdame-beta` |
+| Certificate error on beta | DNS not pointing at the beta host yet: `docker compose -f /opt/docker/caddy/compose.yaml logs caddy` |
 | Registration mail does not arrive | Same causes as prod ({doc}`mail`): `docker compose -f docker-compose.beta.yml logs smtp-egress-beta` |
