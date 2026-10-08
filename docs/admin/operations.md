@@ -162,8 +162,9 @@ curl -fsSL https://raw.githubusercontent.com/floriandeutsch89/pikdame-local/main
 ```
 
 **Automatically after every merge to `main`:** set up once as described in
-{doc}`auto-deploy` - the release workflow then runs the command above for the
-merged commit and checks that the new version is live.
+{doc}`auto-deploy` - the release workflow then pulls the new images and
+checks that the new version is live. It never fetches stack files: after a
+change to compose or the site file, run the command above by hand.
 
 **Images only** (or just wait for the nightly Watchtower run):
 
