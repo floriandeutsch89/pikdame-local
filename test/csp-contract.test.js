@@ -1,42 +1,28 @@
-/** The Content-Security-Policy lives in docker/caddy/site.caddy (prod and beta
- *  import it), the inline script it allows lives in public/index.html. Nothing links the two at runtime: if the
- *  splash pre-check is edited, its sha256 changes and the browser silently
- *  refuses to run it (lobby flashes, or worse). These tests recompute the hash
- *  from the HTML and fail the build on any drift. */
+/** The app sends the Content-Security-Policy itself (game/SecurityHeaders.js)
+ *  and hashes index.html's inline scripts at startup, so script and hash ship
+ *  in one image. These tests pin the policy's shape and that coverage. */
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const crypto = require('node:crypto');
+const { createSecurityHeaders, inlineScripts, hashOf } = require('../game/SecurityHeaders');
 
 const root = path.join(__dirname, '..');
 // Git stores LF, the Windows working copy has CRLF (core.autocrlf) - the
 // browser only ever sees the LF bytes from the Linux checkout, so normalise.
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8').replace(/\r\n/g, '\n');
 const html = read('public/index.html');
-const caddyfile = read('docker/caddy/site.caddy');
+const prod = createSecurityHeaders({ html, baseUrl: 'https://play.pikdame.online' });
+const cspLine = prod('ignored')['Content-Security-Policy'];
 
-/** Inline <script> bodies: no src attribute, and JSON-LD data blocks excluded
- *  (they are not executed, so CSP script-src does not apply to them). */
-function inlineScripts(source) {
-  const re = /<script(?![^>]*\bsrc=)(?![^>]*application\/ld\+json)[^>]*>([\s\S]*?)<\/script>/g;
-  const out = [];
-  let m;
-  while ((m = re.exec(source))) out.push(m[1]);
-  return out;
-}
-
-const cspLine = caddyfile
-  .split('\n')
-  .find((l) => l.trim().startsWith('Content-Security-Policy '));
-
-test('Caddyfile ships a Content-Security-Policy', () => {
-  assert.ok(cspLine, 'no Content-Security-Policy header found in docker/caddy/site.caddy');
+test('the app ships a Content-Security-Policy', () => {
+  assert.ok(cspLine, 'no Content-Security-Policy header');
   for (const directive of [
     "default-src 'self'",
     "object-src 'none'",
     "base-uri 'none'",
     "frame-ancestors 'none'",
+    'connect-src \'self\' wss://play.pikdame.online',
   ]) {
     assert.ok(cspLine.includes(directive), `CSP is missing: ${directive}`);
   }
@@ -50,104 +36,29 @@ test('every inline script in index.html is allowed by a CSP hash', () => {
   const scripts = inlineScripts(html);
   assert.ok(scripts.length > 0, 'expected at least the splash pre-check');
   for (const body of scripts) {
-    const hash = `sha256-${crypto.createHash('sha256').update(body, 'utf8').digest('base64')}`;
-    assert.ok(
-      cspLine.includes(`'${hash}'`),
-      `inline script not covered by the CSP. Run: npm run csp:sync (adds '${hash}' to docker/caddy/site.caddy).`
-    );
+    assert.ok(cspLine.includes(`'${hashOf(body)}'`), 'inline script not covered by the CSP');
   }
 });
 
 test('the CSP carries no stale script hashes', () => {
-  const allowed = new Set(
-    inlineScripts(html).map(
-      (b) => `sha256-${crypto.createHash('sha256').update(b, 'utf8').digest('base64')}`
-    )
-  );
+  const allowed = new Set(inlineScripts(html).map(hashOf));
   for (const [, hash] of cspLine.matchAll(/'(sha256-[A-Za-z0-9+/=]+)'/g)) {
     assert.ok(allowed.has(hash), `CSP allows a hash no inline script uses any more: '${hash}'`);
   }
 });
 
-/** The CSP hash only protects anything if the Caddyfile that carries it
- *  actually reaches the server WITH the matching index.html. It used to be
- *  bind-mounted, i.e. versioned separately from the app image - a host with a
- *  stale copy silently blocked the head script. These two tests keep the
- *  config inside the image and out of the compose mounts. */
-test('the Caddy images bake the Caddyfile and the CSP snippet in', () => {
-  for (const [file, config] of [['Dockerfile', 'Caddyfile'], ['Dockerfile.beta', 'Caddyfile.beta']]) {
-    const dockerfile = read(`docker/caddy/${file}`);
-    assert.match(
-      dockerfile,
-      new RegExp(`^COPY\\s+${config.replace('.', '\\.')}\\s+\\/etc\\/caddy\\/Caddyfile\\s*$`, 'm'),
-      `docker/caddy/${file} must COPY ${config} - otherwise the image ships without a config`
-    );
-    assert.match(dockerfile, /^COPY\s+site\.caddy\s+\/etc\/caddy\/site\.caddy\s*$/m,
-      `docker/caddy/${file} must COPY site.caddy - the CSP lives there`);
-    assert.match(read(`docker/caddy/${config}`), /^import site\.caddy$/m, `${config} must import the shared snippet`);
+test('HSTS only over https; local stacks follow the Host header, never a hostile one', () => {
+  assert.match(prod('x')['Strict-Transport-Security'], /max-age=31536000/);
+  const local = createSecurityHeaders({ html, baseUrl: undefined });
+  assert.strictEqual(local('192.168.1.5:8080')['Strict-Transport-Security'], undefined);
+  assert.match(local('192.168.1.5:8080')['Content-Security-Policy'], /connect-src 'self' ws:\/\/192\.168\.1\.5:8080;/);
+  assert.match(local("evil; script-src *")['Content-Security-Policy'], /connect-src 'self';/);
+});
+
+test('no Caddy config sets a CSP again (it would drift from index.html)', () => {
+  for (const f of fs.readdirSync(path.join(root, 'docker/caddy'))) {
+    assert.ok(!/Content-Security-Policy/.test(read(`docker/caddy/${f}`)), `docker/caddy/${f} sets a CSP`);
   }
-  // It has to sit in the build context, or the COPY cannot see it AND the
-  // release workflow's rebuild gate (a fingerprint over docker/caddy/**)
-  // would retag a stale image instead of rebuilding it.
-  assert.ok(
-    ['Caddyfile', 'site.caddy'].every((f) => fs.existsSync(path.join(root, 'docker/caddy', f))),
-    'the Caddyfile and site.caddy must live next to the Dockerfile that copies them'
-  );
-});
-
-test('no compose file bind-mounts a Caddyfile over the baked-in one', () => {
-  for (const f of ['docker/docker-compose.yml', 'docker/docker-compose.ghcr.yml', 'docker/docker-compose.prod.yml', 'docker/docker-compose.beta.yml']) {
-    const active = read(f)
-      .split('\n')
-      .filter((l) => !l.trim().startsWith('#')) // a documented opt-out is fine
-      .join('\n');
-    assert.ok(
-      !/:\/etc\/caddy\/Caddyfile/.test(active),
-      `${f} mounts a Caddyfile over the image - it would age out of sync with the CSP hash`
-    );
-  }
-});
-
-/** Third layer. The first two catch a WRONG hash; this one catches a right
- *  hash that never ships. The release workflow rebuilds the Caddy image only
- *  when its recipe fingerprint changes - a hash over docker/caddy/**. That is
- *  the only reason the Caddyfile lives in that directory. Move it out and a
- *  CSP change would be silently RETAGGED onto the old image. */
-test('the release workflow rebuilds the Caddy image when the Caddyfile changes', () => {
-  const wf = read('.github/workflows/release.yml');
-  const fingerprint = wf.split('\n').find((l) => l.includes('RECIPE=') && l.includes('find'));
-  assert.ok(fingerprint, 'the caddy rebuild gate no longer fingerprints anything');
-  assert.match(
-    fingerprint, /find\s+docker\/caddy\s/,
-    'the fingerprint must cover docker/caddy/** - that is what makes a Caddyfile change rebuild the image'
-  );
-  // And the build must read the Dockerfile from that same directory, or the
-  // COPY would not see the Caddyfile at all.
-  assert.match(wf, /context:\s*docker\/caddy/, 'the Caddy build context must be docker/caddy');
-});
-
-/** The gate is only half a contract if the base image can silently stop being
- *  watched: a Caddy release would then never reach the proxy. Digest-based
- *  comparison was dropped on purpose (v2.10.0) - it fired on every upstream
- *  republish of the same version - so the VERSION comparison is now the only
- *  thing keeping the base fresh, and it has to stay wired up. */
-test('the Caddy gate still tracks the base image version', () => {
-  const wf = read('.github/workflows/release.yml');
-  assert.match(
-    wf, /org\.opencontainers\.image\.version/,
-    'the gate no longer reads the base image version label'
-  );
-  // Read from upstream, compared against the label baked into the published
-  // image, and written back on build - break any link and the gate freezes.
-  assert.match(wf, /BASE_VERSION=\$\(docker buildx imagetools inspect caddy:2-alpine/,
-    'the base version must come from the runtime base image');
-  assert.match(wf, /P_VERSION=[\s\S]{0,200}?online\.pikdame\.caddy\.base\.version/,
-    'the gate must compare against the base.version label of the published image');
-  assert.match(wf, /online\.pikdame\.caddy\.base\.version=\$\{\{ steps\.gate\.outputs\.base_version \}\}/,
-    'the build must write the base.version label back, or the next run compares against nothing');
-  // An unreadable version must never be read as "unchanged".
-  assert.match(wf, /if \[ "\$BASE_VERSION" = "unknown" \]/,
-    'an unreadable base version must fall back to rebuilding');
 });
 
 test('index.html loads no third-party resources (hotspot has no internet)', () => {

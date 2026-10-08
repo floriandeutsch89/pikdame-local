@@ -1,4 +1,4 @@
-# Pik Dame - production stack: Caddy (TLS/ACME) -> app -> PostgreSQL.
+# Pik Dame - production stack: app -> PostgreSQL, behind the shared Caddy.
 #
 #   cd docker
 #   cp .env.example .env                     # domain, ACME e-mail, non-secrets
@@ -10,65 +10,19 @@
 # /run/secrets, never visible in `docker inspect`/environment); .env only
 # carries non-sensitive configuration. See https://pik-dame.readthedocs.io/en/latest/admin/operations.html
 #
+# TLS, CrowdSec/AppSec, rate limits and Watchtower come from the host's shared
+# Caddy stack (github.com/floriandeutsch89/caddy-crowdsec); this stack only
+# joins its app network. Once per host, before the first start (docs/admin/shared-caddy.md):
+#   docker network create --internal caddy_play_pikdame
+#
 # Network layout (least privilege):
-#   caddy_egress   - internet-facing (ACME, future CrowdSec plugins)
-#   caddy_pikdame  - internal: Caddy <-> app only
-#   pikdame        - internal: app <-> PostgreSQL only
-# The app has NO route to the internet. NOTE: that also blocks outbound
-# SMTP - to send confirmation mails either attach the app to an egress
-# network as well, or run a mail relay inside the internal network.
+#   caddy_play_pikdame - external, internal: shared Caddy <-> app only
+#   pikdame            - internal: app <-> PostgreSQL only
+#   pikdame_smtp       - internal: app <-> SMTP egress proxy only
+#   pikdame_egress     - internet for the SMTP proxy only (never caddy_egress:
+#                        it sits next to CrowdSec's API)
 
 services:
-  caddy:
-    # Official Caddy + CrowdSec bouncer plugin (xcaddy), PREBUILT by the release
-    # workflow for every version - nothing is compiled on the server. The image
-    # carries the Caddyfile, which pins the hash of index.html's inline script,
-    # so it must move in step with the app: same Watchtower label, and the
-    # automatic deploy pulls both together.
-    # To build on the server instead (e.g. to try a plugin), replace the image
-    # line with:
-    #   build: ./caddy
-    #   image: pikdame-caddy:latest
-    image: ghcr.io/floriandeutsch89/pikdame-local-caddy:latest
-    container_name: pikdame-caddy
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    environment:
-      - PIKDAME_DOMAIN=${PIKDAME_DOMAIN:?set PIKDAME_DOMAIN in .env}
-      - ACME_EMAIL=${ACME_EMAIL:?set ACME_EMAIL in .env}
-      # Created once via: docker compose exec crowdsec cscli bouncers add caddy-bouncer
-      - CROWDSEC_API_KEY=${CROWDSEC_API_KEY:?run cscli bouncers add and set CROWDSEC_API_KEY in .env}
-    volumes:
-      # No Caddyfile mount: the config is BAKED INTO the image (see
-      # caddy/Dockerfile). It pins the inline head script of index.html by
-      # sha256, so it has to travel with the app release instead of ageing
-      # separately on the host. To override for a single experiment, add:
-      #   - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data      # certificates - MUST persist
-      - caddy-config:/config
-      - caddy-logs:/var/log/caddy
-    depends_on:
-      - crowdsec
-    labels:
-      - com.centurylinklabs.watchtower.enable=true
-    networks:
-      - caddy_egress
-      - caddy_pikdame
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 256M
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    security_opt:
-      - no-new-privileges:true
-
   pikdame:
     image: ghcr.io/floriandeutsch89/pikdame-local:latest # pin :vX.Y.Z in production
     # --- Bots ------------------------------------------------------------------
@@ -83,7 +37,7 @@ services:
     container_name: pikdame
     restart: unless-stopped
     stop_grace_period: 30s
-    # No published ports - only Caddy reaches the app.
+    # No published ports - only the shared Caddy reaches the app.
     environment:
       - PORT=8080
       - PIKDAME_MAX_SESSIONS=200
@@ -115,7 +69,7 @@ services:
       #
       # DIRECT SMTP instead of the proxy: set in .env
       #     PIKDAME_SMTP_HOST=smtp.eu.mailgun.org
-      # and give this service an internet route by adding "- caddy_egress"
+      # and give this service an internet route by adding "pikdame_egress: {}"
       # to its networks: block below. That drops the app's "no outbound
       # route" property - a deliberate trade, not an accident: outbound 587
       # to one relay is a small surface, and it removes the proxy as a
@@ -128,9 +82,10 @@ services:
     labels:
       - com.centurylinklabs.watchtower.enable=true
     networks:
-      - caddy_pikdame
-      - pikdame
-      - pikdame_smtp
+      caddy_play_pikdame:
+        aliases: [pikdame] # upstream in the shared Caddy's site file
+      pikdame: {}
+      pikdame_smtp: {}
     depends_on:
       postgres:
         condition: service_healthy
@@ -161,34 +116,6 @@ services:
         soft: 4096
         hard: 4096
 
-  crowdsec:
-    image: crowdsecurity/crowdsec:latest
-    container_name: pikdame-crowdsec
-    restart: unless-stopped
-    environment:
-      # Parsers + scenarios for Caddy access logs and common HTTP attacks
-      - COLLECTIONS=crowdsecurity/caddy crowdsecurity/http-cve
-    volumes:
-      - ./crowdsec/acquis.yaml:/etc/crowdsec/acquis.yaml:ro
-      - crowdsec-data:/var/lib/crowdsec/data
-      - crowdsec-config:/etc/crowdsec
-      - caddy-logs:/var/log/caddy:ro
-    networks:
-      # Internet for hub/scenario updates; Caddy reaches the LAPI here too.
-      - caddy_egress
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 256M
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    security_opt:
-      - no-new-privileges:true
-
   # SMTP egress proxy: the ONLY path from the app towards the internet, and
   # it can only reach ONE destination. The app itself stays on internal
   # networks without any route to the outside.
@@ -203,7 +130,7 @@ services:
     command: tcp-listen:587,fork,reuseaddr tcp-connect:${PIKDAME_SMTP_RELAY_HOST:-smtp.eu.mailgun.org}:${PIKDAME_SMTP_RELAY_PORT:-587}
     networks:
       - pikdame_smtp
-      - caddy_egress
+      - pikdame_egress
     deploy:
       resources:
         limits:
@@ -217,52 +144,6 @@ services:
     security_opt:
       - no-new-privileges:true
     read_only: true
-
-  # Docker socket proxy: Watchtower uses this instead of a raw docker.sock
-  # mount, limiting it to only the operations it actually needs.
-  dockerproxy:
-    image: tecnativa/docker-socket-proxy:latest
-    container_name: dockerproxy
-    restart: unless-stopped
-    environment:
-      - CONTAINERS=1 # Allow container management
-      - IMAGES=1     # Allow image pulling
-      - POST=1       # Required for Watchtower to execute changes
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    networks:
-      - socket_net
-    security_opt:
-      - no-new-privileges:true
-
-  # Auto-updates for the stack: Watchtower polls the registry daily at 04:00
-  # and recreates opted-in containers (label below) with the new image.
-  # Keep it label-scoped: the custom-built Caddy image cannot be pulled.
-  # NOTE: nickfedor/watchtower is the actively maintained drop-in fork -
-  # the original containrrr image ships a Docker client (API 1.25) that
-  # Docker Engine >= 29 rejects (min API 1.44), causing a crash loop.
-  watchtower:
-    image: nickfedor/watchtower:latest
-    container_name: pikdame-watchtower
-    restart: unless-stopped
-    environment:
-      - WATCHTOWER_LABEL_ENABLE=true
-      - WATCHTOWER_CLEANUP=true
-      - WATCHTOWER_SCHEDULE=0 0 4 * * *
-      # Use the socket proxy instead of a direct docker.sock mount.
-      - DOCKER_HOST=tcp://dockerproxy:2375
-    networks:
-      - caddy_egress
-      - socket_net
-    depends_on:
-      - dockerproxy
-    logging:
-      driver: json-file
-      options:
-        max-size: "5m"
-        max-file: "2"
-    security_opt:
-      - no-new-privileges:true
 
   postgres:
     image: postgres:18-alpine
@@ -311,26 +192,18 @@ secrets:
     file: ./secrets/smtp_password.txt
 
 networks:
-  # Internet-facing (ACME today; attach CrowdSec bouncer/plugins here later)
-  caddy_egress:
-  # Proxy path only - no internet route
-  caddy_pikdame:
-    internal: true
+  # Owned by no stack, so the shared Caddy and this stack redeploy independently.
+  caddy_play_pikdame:
+    external: true
   # App <-> database only - no internet route
   pikdame:
     internal: true
   # App <-> SMTP egress proxy only - no internet route for the app itself
   pikdame_smtp:
     internal: true
-  # Docker socket proxy - Watchtower talks to dockerproxy, never the raw socket
-  socket_net:
-    internal: true
+  # Internet for the SMTP proxy only
+  pikdame_egress: {}
 
 volumes:
   pikdame-data:
   pikdame-pgdata:
-  caddy-data:
-  caddy-config:
-  caddy-logs:
-  crowdsec-data:
-  crowdsec-config:

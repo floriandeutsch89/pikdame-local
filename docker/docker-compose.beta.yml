@@ -7,7 +7,7 @@ name: pikdame-beta
 
 services:
   caddy-beta:
-    # Built per PR push from docker/caddy/Dockerfile.beta (CSP of that commit).
+    # Built per PR push from docker/caddy/Dockerfile.beta.
     image: ghcr.io/floriandeutsch89/pikdame-local-caddy:beta
     container_name: pikdame-beta-caddy
     restart: unless-stopped

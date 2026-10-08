@@ -121,7 +121,7 @@ PIKDAME_MAIL_FROM=Pik Dame <noreply@…>
 ```
 
 **Going direct instead.** If the proxy is more trouble than it is worth, set
-`PIKDAME_SMTP_HOST` to the mail server itself and add `- caddy_egress` to the
+`PIKDAME_SMTP_HOST` to the mail server itself and add `pikdame_egress: {}` to the
 app service's `networks:` block; the socat service can then be removed. That
 gives the app container an outbound route — a deliberate trade: outbound 587
 to one relay is a small surface, and it removes a moving part from the mail

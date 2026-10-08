@@ -14,7 +14,7 @@ BASE="https://raw.githubusercontent.com/floriandeutsch89/pikdame-local/$REF"
 cd "$DIR"
 
 echo "== 1/4 Fetching stack files from $REF (keeps .env and secrets/) =="
-for f in docker-compose.prod.yml .env.example caddy/Caddyfile caddy/site.caddy caddy/Dockerfile crowdsec/acquis.yaml; do
+for f in docker-compose.prod.yml .env.example shared-caddy/play.pikdame.caddy; do
   mkdir -p "$(dirname "$f")"
   curl -fsSL "$BASE/docker/$f" -o "$f"
 done
@@ -24,6 +24,7 @@ for s in backup.sh restore.sh server-update.sh server-bootstrap.sh; do
 done
 chmod +x /opt/pikdame/scripts/*.sh
 echo "   Hint: diff your .env against the refreshed .env.example for new variables."
+echo "   Hint: the shared Caddy's site file is shared-caddy/play.pikdame.caddy - copy it over if it changed."
 
 echo "== 2/4 Secret file permissions (app runs as UID 10001) =="
 chown 10001:10001 secrets/*.txt 2>/dev/null || true
@@ -31,11 +32,6 @@ chmod 400 secrets/*.txt 2>/dev/null || true
 
 echo "== 3/4 Pulling images =="
 docker compose -f docker-compose.prod.yml pull --ignore-buildable
-# Caddy comes prebuilt from GHCR. Only a stack switched back to building it
-# on the server (build: ./caddy) rebuilds it here.
-if grep -qE '^[[:space:]]+build:[[:space:]]*\./caddy' docker-compose.prod.yml; then
-  docker compose -f docker-compose.prod.yml build --pull caddy
-fi
 
 echo "== 4/4 Rolling out =="
 docker compose -f docker-compose.prod.yml up -d --remove-orphans

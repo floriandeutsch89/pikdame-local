@@ -1,17 +1,18 @@
 # Operations runbook
 
-The full production runbook: server bootstrap, the Caddy/PostgreSQL stack, DNS,
-auto-updates, CrowdSec, health checks and upgrades.
+The full production runbook: server bootstrap, the app/PostgreSQL stack behind
+the shared Caddy ({doc}`shared-caddy`), DNS, auto-updates, health checks and
+upgrades.
 
 ## Start (Docker)
 
 Everything Docker-specific lives under `docker/` (Dockerfile, compose files,
-Caddyfile, `.env.example`, `secrets/`).
+the shared-Caddy site file, `.env.example`, `secrets/`).
 
 ```sh
-# Production (Caddy with automatic TLS/ACME -> app -> PostgreSQL):
+# Production (shared Caddy -> app -> PostgreSQL; Caddy setup: shared-caddy.md):
 cd docker
-cp .env.example .env                              # PIKDAME_DOMAIN, ACME_EMAIL
+cp .env.example .env                              # PIKDAME_DOMAIN, SMTP user
 echo -n 'strong-password' > secrets/db_password.txt
 echo -n 'smtp-password'   > secrets/smtp_password.txt   # optional
 docker compose -f docker-compose.prod.yml up -d
@@ -28,7 +29,7 @@ docker compose -f docker/docker-compose.yml up -d
   real secrets: DB password, SMTP password. They never appear in the
   container environment or `docker inspect`; the app and the Postgres image
   read them via `*_FILE` variables. Files are git-ignored.
-- **`.env`** only for non-sensitive configuration: domain, ACME e-mail,
+- **`.env`** only for non-sensitive configuration: domain, SMTP user,
   feature toggles. Also git-ignored, but treated as config, not as a vault.
 - **Docker (Swarm) secrets** would add encrypted-at-rest distribution - only
   relevant if you ever run Swarm; plain Compose file secrets are the right
@@ -36,11 +37,11 @@ docker compose -f docker/docker-compose.yml up -d
 
 ### Network layout (prod stack, least privilege)
 
-`caddy_egress` (internet: ACME, future CrowdSec) ← Caddy → `caddy_pikdame`
-(internal) ← app → `pikdame` (internal) ← PostgreSQL. The app and the
-database have **no route to the internet**. Note: that also blocks outbound
-SMTP - to send confirmation mails, attach the app to an egress network or
-run an internal mail relay.
+Shared Caddy → `caddy_play_pikdame` (external, internal) ← app → `pikdame`
+(internal) ← PostgreSQL; app → `pikdame_smtp` (internal) ← `smtp-egress` →
+`pikdame_egress` (internet). The app and the database have **no route to the
+internet**; mail leaves only through the egress proxy. Never attach a
+Pik Dame container to the shared `caddy_egress`: it sits next to CrowdSec's API.
 
 ## Server bootstrap (fresh Ubuntu/Debian host)
 
@@ -54,7 +55,9 @@ curl -fsSL https://raw.githubusercontent.com/floriandeutsch89/pikdame-local/main
 ```
 
 The script prints the remaining one-time steps (fill `.env`, write the two
-secret files, `up -d`, create the CrowdSec bouncer key). After switching to
+secret files, join the shared Caddy, `up -d`). It creates the
+`caddy_play_pikdame` network; the shared Caddy stack itself is set up per
+{doc}`shared-caddy`. After switching to
 SSH keys: set `PasswordAuthentication no` and `PermitRootLogin
 prohibit-password`, reload sshd, and rotate the root password.
 
@@ -68,52 +71,21 @@ certificate automatically once the record resolves.
 
 ## Auto-updates for the stack
 
-Kept deliberately simple: **Watchtower** (the maintained
-`nickfedor/watchtower` fork - the original `containrrr` image is
-unmaintained and crash-loops on Docker Engine >= 29 with "client version
-1.25 is too old") runs inside the prod stack, polls the registry daily at
-04:00 and recreates containers that opted in via label: the app, the Caddy
-proxy and PostgreSQL minor updates. Caddy (with the CrowdSec plugin) is
-prebuilt by the release workflow as `pikdame-local-caddy` - nothing is compiled
-on the server - and must update together with the app, because its Caddyfile
-pins the hash of the app's inline start-up script. With {doc}`auto-deploy` the
-same pull happens right after every release instead of at 04:00.
+**Watchtower** runs in the shared Caddy stack, polls the registry daily at
+04:00 and recreates every container on the host that opted in via label: here
+the app and PostgreSQL (minor updates). With {doc}`auto-deploy` the same pull
+happens right after every release instead of at 04:00.
 
-Alternatives, if you outgrow this: **Portainer** (web UI, manual pulls,
-stack management - nice for visibility, no automation by default) or
-GitOps-style tools (Komodo, Dokploy). For a single host, Watchtower +
-versioned GHCR tags is the sweet spot; pin exact versions instead and drop
-Watchtower if you ever need change control.
+## CrowdSec, AppSec, rate limits
 
-## CrowdSec (bouncer in Caddy)
-
-Caddy is a custom build (`docker/caddy/Dockerfile`, via xcaddy) with the
-CrowdSec bouncer compiled in - plugins cannot be loaded at runtime. The release
-workflow builds it and publishes it as `pikdame-local-caddy`; the server only
-pulls it. The
-`crowdsec` service tails Caddy's JSON access log (shared volume) with the
-`crowdsecurity/caddy` collection and bans attacking IPs; Caddy checks every
-request against the local API. One-time bootstrap after the first start:
+All in the shared Caddy (`import common` in the site file), see
+{doc}`shared-caddy` and the caddy-crowdsec README. Bans and alerts:
 
 ```sh
-docker compose -f docker-compose.prod.yml exec crowdsec cscli bouncers add caddy-bouncer
-# -> put the printed key into .env as CROWDSEC_API_KEY, then:
-docker compose -f docker-compose.prod.yml up -d --force-recreate caddy
-# Inspect decisions/bans:
-docker compose -f docker-compose.prod.yml exec crowdsec cscli decisions list
+cd /opt/caddy
+docker compose exec crowdsec cscli decisions list
+docker compose exec crowdsec cscli alerts list
 ```
-
-### Troubleshooting: bouncer gets `403` on `/v1/decisions/stream`
-
-The API key Caddy carries does not match any bouncer registered in
-CrowdSec. Check `cscli bouncers list`: if `caddy-bouncer` is missing (or
-the key was issued by an earlier CrowdSec instance), (re)create it via
-`cscli bouncers delete caddy-bouncer` + `cscli bouncers add caddy-bouncer`
-and put the new key into `.env`. Then recreate Caddy with
-`docker compose -f docker-compose.prod.yml up -d --force-recreate caddy` -
-a plain `restart` does NOT re-read `.env`. Success looks like a fresh
-"last pull" timestamp in `cscli bouncers list` and no more 403 lines in
-the Caddy log.
 
 ## SMTP egress (app stays offline)
 
@@ -148,16 +120,10 @@ docker compose -f docker-compose.prod.yml exec --privileged -u root pikdame chow
 
 ## Security model (anti-cheat & hardening)
 
-**IP logging & retention:** the Caddy access log exists solely to feed
-CrowdSec. Retention is capped at 48 hours (`roll_keep_for 48h`, two 10 MB
-rolls) to match the privacy policy. For extended debugging, temporarily
-raise `roll_keep_for` in `docker/caddy/Caddyfile` and roll out a new proxy
-image - and revert afterwards. The config is baked into the image (it pins the
-inline head script of `index.html` by sha256, so it has to travel with the
-release); for a one-off experiment on the server, mount over it instead:
-add `- ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro` to the caddy service and run
-`docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile`. The
-app container itself never logs IP addresses.
+**IP logging & retention:** the shared Caddy's access log exists solely to feed
+CrowdSec. Retention is capped at 48 hours (`roll_keep_for 48h` in its
+`(common)` snippet, two 10 MB rolls) to match the privacy policy; keep it that
+way when editing the shared stack. The app container itself never logs IP addresses.
 
 
 The server is fully **authoritative**: every action (draw, meld, lay-off,
@@ -187,7 +153,7 @@ sitting next to each other - no online game can stop analog cheating.
 
 ## Update & rollback
 
-**Stack files changed in the repo** (compose, Caddyfile, scripts) - one
+**Stack files changed in the repo** (compose, site file, scripts) - one
 command fetches and rolls out everything, leaving `.env` and `secrets/`
 untouched:
 
@@ -196,8 +162,9 @@ curl -fsSL https://raw.githubusercontent.com/floriandeutsch89/pikdame-local/main
 ```
 
 **Automatically after every merge to `main`:** set up once as described in
-{doc}`auto-deploy` - the release workflow then runs the command above for the
-merged commit and checks that the new version is live.
+{doc}`auto-deploy` - the release workflow then pulls the new images and
+checks that the new version is live. It never fetches stack files: after a
+change to compose or the site file, run the command above by hand.
 
 **Images only** (or just wait for the nightly Watchtower run):
 

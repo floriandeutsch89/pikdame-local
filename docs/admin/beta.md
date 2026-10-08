@@ -26,7 +26,7 @@ repository and the Mailgun account.
 | | Production | Beta |
 | --- | --- | --- |
 | Host | `play.pikdame.online` | own server (`BETA_HOST`) |
-| Proxy | Caddy + CrowdSec, config of the last **release** | stock Caddy, config of the **PR commit**, no CrowdSec |
+| Proxy | shared Caddy stack with CrowdSec ({doc}`shared-caddy`) | own stock Caddy, no CrowdSec |
 | Database | `pikdame-postgres` | own `pikdame-beta-postgres`; data **persists** between deploys |
 | Accounts and passkeys | play domain | beta domain only (the passkey RP-ID is the host name) |
 | Mail | Mailgun, production SMTP login | Mailgun, **own** SMTP login |
@@ -35,8 +35,8 @@ repository and the Mailgun account.
 | Limits | 1 CPU / 512 MB | same, 20 tables |
 | Search engines | indexed | `X-Robots-Tag: noindex, nofollow` |
 
-Because the proxy is built per push, a pull request that edits the inline head
-script of `index.html` gets its matching CSP hash on beta as well.
+The CSP comes from the app on both, so a pull request that edits the inline head
+script of `index.html` gets its matching hash automatically.
 
 :::{warning}
 **Trust model:** anyone who can push a branch to this repository can run code on
@@ -67,7 +67,7 @@ then replace:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/floriandeutsch89/pikdame-local/main/scripts/server-bootstrap.sh | bash
 cd /opt/pikdame/docker
-rm -rf docker-compose.prod.yml caddy crowdsec secrets/db_password.txt .env .env.example
+rm -rf docker-compose.prod.yml shared-caddy secrets/db_password.txt .env .env.example
 BASE=https://raw.githubusercontent.com/floriandeutsch89/pikdame-local/main/docker
 curl -fsSL "$BASE/docker-compose.beta.yml" -o docker-compose.beta.yml
 curl -fsSL "$BASE/.env.beta.example" -o .env

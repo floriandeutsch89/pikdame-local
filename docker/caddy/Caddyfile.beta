@@ -1,5 +1,5 @@
 # Pik Dame - beta preview host (docs/admin/beta.md): latest PR push, own server.
-# Built per PR push (Dockerfile.beta), so the CSP hash matches that commit.
+# Built per PR push (Dockerfile.beta); security headers come from the app.
 # No CrowdSec: throwaway data, not indexed.
 {
 	admin off

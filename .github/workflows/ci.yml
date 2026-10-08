@@ -134,11 +134,6 @@ jobs:
         with:
           dockerfile: docker/Dockerfile
           ignore: DL3066,DL3025
-      - name: Lint Caddy Dockerfile (hadolint)
-        uses: hadolint/hadolint-action@v3.5.0
-        with:
-          dockerfile: docker/caddy/Dockerfile
-          ignore: DL3018
       - name: Lint beta Caddy Dockerfile (hadolint)
         uses: hadolint/hadolint-action@v3.5.0
         with:
@@ -177,11 +172,10 @@ jobs:
             echo "::error::compose config: ${ERR}"
             exit 1
           fi
-      - name: Validate prod compose (Caddy + secrets + networks)
+      - name: Validate prod compose (secrets + networks)
         run: |
           cd docker
           cp .env.example .env
-          echo "CROWDSEC_API_KEY=ci-dummy" >> .env
           echo test-password > secrets/db_password.txt
           echo test-smtp > secrets/smtp_password.txt
           if ! ERR=$(docker compose -f docker-compose.prod.yml config 2>&1 > /dev/null); then
@@ -202,6 +196,12 @@ jobs:
           docker run --rm -v "$PWD/docker/caddy:/etc/caddy:ro" \
             -e PIKDAME_BETA_DOMAIN=beta.example.org -e ACME_EMAIL=ci@example.org \
             caddy:2-alpine caddy adapt --config /etc/caddy/Caddyfile.beta --adapter caddyfile > /dev/null
+      # The shared stack defines (common); a stub is enough to parse the site file.
+      - name: Validate shared-Caddy site file
+        run: |
+          printf '(common) {\n}\nimport /site/play.pikdame.caddy\n' > /tmp/Caddyfile
+          docker run --rm -v /tmp/Caddyfile:/etc/caddy/Caddyfile:ro -v "$PWD/docker/shared-caddy:/site:ro" \
+            caddy:2-alpine caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile > /dev/null
       - name: Build image
         run: docker compose -f docker/docker-compose.yml build
       - name: Compose up (hardened configuration)

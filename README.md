@@ -58,8 +58,10 @@ external frontend dependencies.
 ### ☁️ Hosted (Docker)
 
 ```sh
-# Full production stack (Caddy TLS/ACME -> app -> PostgreSQL):
-cd docker && cp .env.example .env   # set PIKDAME_DOMAIN + ACME_EMAIL
+# Production stack (app -> PostgreSQL) behind the shared Caddy stack
+# (TLS, CrowdSec; setup: docs/admin/shared-caddy.md):
+docker network create --internal caddy_play_pikdame
+cd docker && cp .env.example .env   # set PIKDAME_DOMAIN
 echo -n 'strong-pw' > secrets/db_password.txt
 docker compose -f docker-compose.prod.yml up -d
 # → https://<your-domain>
