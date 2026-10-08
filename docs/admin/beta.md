@@ -70,8 +70,39 @@ chmod 0644 /opt/docker/caddy/config/sites/beta.play.pikdame.caddy
 cd /opt/docker/caddy && docker compose up -d caddy   # recreate: a new network needs more than a reload
 ```
 
-SSH (22) must be reachable from GitHub's runners; a cloud firewall that allows
-SSH only from your own address makes every deploy time out.
+SSH (22) must be reachable from GitHub's runners: either publicly, or over
+Tailscale (next section). A firewall that allows SSH only from your own
+address makes every deploy time out.
+
+#### SSH only over Tailscale
+
+GitHub's runners have no fixed addresses, so an allowlist does not work. With
+`TS_OAUTH_CLIENT_ID` set, the workflow joins the tailnet first as an ephemeral
+node tagged `tag:ci`, authenticated by GitHub's OIDC token (workload identity
+federation): no Tailscale secret is stored in GitHub.
+
+1. **Policy** (Access controls). Any branch can trigger this, so `tag:ci` gets
+   the beta host's port 22 and nothing else. Replace the default allow-all
+   rule: `*` includes tagged nodes.
+   ```json
+   "tagOwners": { "tag:ci": ["autogroup:admin"], "tag:beta": ["autogroup:admin"] },
+   "grants": [
+     { "src": ["autogroup:member"], "dst": ["*"], "ip": ["*"] },
+     { "src": ["tag:ci"], "dst": ["tag:beta"], "ip": ["tcp:22"] }
+   ]
+   ```
+   Tag the beta host `tag:beta` (Machines → Edit tags; keep its other tags).
+   Leave the policy's `ssh` section alone: the deploy uses OpenSSH with the
+   forced command, not Tailscale SSH.
+2. **Trust credential** (Settings → Trust credentials → OpenID Connect): issuer
+   GitHub, subject `repo:floriandeutsch89/pikdame-local:environment:beta`,
+   scope `auth_keys` (write), tag `tag:ci`.
+3. **Variables in the `beta` environment** (not secrets, neither is sensitive):
+   `TS_OAUTH_CLIENT_ID` and `TS_AUDIENCE` from that credential.
+4. `BETA_HOST` = the beta host's Tailscale name or `100.x` address, and
+   `DEPLOY_KNOWN_HOSTS` with exactly that name in front. `BETA_URL` stays public.
+
+The step pings `BETA_HOST` until the new node is visible (up to 3 minutes).
 
 ### 2. Stack files
 

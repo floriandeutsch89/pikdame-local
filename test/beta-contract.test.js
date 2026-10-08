@@ -108,6 +108,18 @@ test('beta workflow: labels the image with the head commit it hands the server',
   assert.match(workflow, /cancel-in-progress:\s*false/, 'a rollout must never be cut off halfway');
 });
 
+test('beta workflow: the optional tailnet hop stores no Tailscale secret and is tagged', () => {
+  const step = workflow.slice(workflow.indexOf('tailscale/github-action@'));
+  assert.ok(workflow.includes('tailscale/github-action@'), 'tailnet step missing');
+  assert.ok(workflow.indexOf('tailscale/github-action@') < workflow.indexOf('- name: SSH to the server'),
+    'the tailnet must be up before the SSH step');
+  // Workload identity: a stolen beta secret must not be a tailnet credential.
+  assert.doesNotMatch(step.slice(0, 600), /oauth-secret|authkey/);
+  assert.match(step.slice(0, 600), /tags:\s*tag:ci\s*$/m, 'the policy restricts tag:ci to the beta host');
+  assert.match(workflow, /id-token:\s*write/);
+  assert.match(workflow, /if:\s*vars\.TS_OAUTH_CLIENT_ID != ''/, 'without Tailscale vars the run must use plain SSH');
+});
+
 test('deploy script: the mode comes from authorized_keys, never from the client', () => {
   assert.match(deploy, /if \[ "\$\{1:-\}" = "beta" \]; then/);
   assert.doesNotMatch(deploy, /SSH_ORIGINAL_COMMAND[^\n]*beta/);

@@ -13,6 +13,7 @@ on:
 permissions:
   contents: read
   packages: write # push the :beta images to GHCR
+  id-token: write # Tailscale workload identity (no stored Tailscale secret)
 
 # Never cut a rollout off; newer pushes replace the one pending run.
 concurrency:
@@ -64,6 +65,17 @@ jobs:
             org.opencontainers.image.revision=${{ env.HEAD_SHA }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Optional: reach a host whose SSH is open on Tailscale only. Ephemeral
+      # node tagged tag:ci; the tailnet policy must limit it to the beta host's :22.
+      - name: Join the tailnet
+        if: vars.TS_OAUTH_CLIENT_ID != ''
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ vars.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ vars.TS_AUDIENCE }}
+          tags: tag:ci
+          ping: ${{ vars.BETA_HOST }}
 
       - name: SSH to the server
         env:
