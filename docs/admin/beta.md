@@ -254,6 +254,7 @@ beta database), or delete the server. To revoke the key, empty
 | Beta run skipped (grey) | `BETA_HOST` or `BETA_URL` unset, a fork PR, or a `dependabot/` branch |
 | `must be set in the 'beta' environment` | Secrets stored in `production` or as repository secrets |
 | `pikdame-beta runs revision '…', expected …` | The pull did not get the new `:beta` image, e.g. GHCR was briefly unreachable. Re-run the job. Also: a `pikdame-deploy` from before v2.58.1 still checks `pikdame-beta-caddy`; reinstall it (step 3) |
+| `Permission denied (publickey…)`, sshd log `account is locked` | `deploy` was created with a locked password: `usermod -p '*' deploy` ({doc}`auto-deploy`, step 1) |
 | `Host key verification failed` | `DEPLOY_KNOWN_HOSTS` in `beta` still holds the prod host key, or its host name differs from `BETA_HOST` |
 | `502` on beta | App not running (`docker compose -f docker-compose.beta.yml ps` / `logs pikdame-beta`), or not on `caddy_beta_play_pikdame`: `docker network inspect caddy_beta_play_pikdame` must list `caddy` and `pikdame-beta` |
 | Certificate error on beta | DNS not pointing at the beta host yet: `docker compose -f /opt/docker/caddy/compose.yaml logs caddy` |

@@ -38,6 +38,9 @@ see step 3.
 
 ```bash
 adduser --system --group --shell /bin/sh --home /home/deploy deploy
+# --system locks the password ("!"); with UsePAM no, sshd then refuses even the key
+# ("account is locked"). "*" = no valid password, but not locked.
+usermod -p '*' deploy
 install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
 ```
 
