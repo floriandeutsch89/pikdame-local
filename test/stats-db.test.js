@@ -111,12 +111,15 @@ test('PgDocument: vanished rows are deleted only when the codec allows it', asyn
   d.write({ items: { a: 1 } });
   await d.flush();
   assert.match(pool.dataStatements().at(-1).text, /^DELETE FROM kv/);
-  const keep = createPgDocument({ pool: createFakePool(), codec: { ...kvCodec, deleteRow: undefined }, flushDelayMs: 60000, log: quiet });
+  const keepPool = createFakePool();
+  const keep = createPgDocument({ pool: keepPool, codec: { ...kvCodec, deleteRow: undefined }, flushDelayMs: 60000, log: quiet });
   await keep.load();
   keep.write({ items: { a: 1 } });
   await keep.flush();
   keep.write({ items: {} });
   await keep.flush();
+  assert.equal(keepPool.dataStatements().length, 1, 'only the insert, no delete');
+  assert.equal(keepPool.dataStatements().filter((q) => /^DELETE/.test(q.text)).length, 0);
   assert.deepEqual(keep.pendingStatements(), []);
 });
 
@@ -201,4 +204,139 @@ test('PgDocument: round trip through Postgres', { skip: !hasPg && 'needs PIKDAME
     await d2.load();
     assert.deepEqual(d2.read(), { items: { a: 1, b: 2 } });
   } finally { await s.drop(); }
+});
+
+// Fix round 1: backoff, outage logging, concurrency and replay of bad rows.
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const connErr = () => Object.assign(new Error('connection refused'), { code: 'ECONNREFUSED' });
+const badErr = () => Object.assign(new Error('invalid byte sequence'), { code: '22P05' });
+const oneStmt = { text: 'INSERT INTO kv (k, v) VALUES ($1, $2)', values: ['a', 1] };
+const countWB = (overrides = {}) => {
+  let committed = 0;
+  return {
+    get committed() { return committed; },
+    opts: { collect: () => ({ statements: [oneStmt], token: 1 }), commit: () => { committed += 1; }, ...overrides },
+  };
+};
+
+test('WriteBehind: a failed write is retried by the backoff timer alone, status back to ok', async () => {
+  const pool = createFakePool();
+  const c = countWB();
+  const wb = createWriteBehind({ pool, name: 'kv', flushDelayMs: 5, backoffMs: [20, 40], log: quiet, ...c.opts });
+  pool.failNext(connErr());
+  wb.markDirty();
+  await sleep(120);
+  assert.equal(c.committed, 1);
+  assert.equal(wb.status(), 'ok');
+  assert.equal(pool.dataStatements().length, 2, 'one failed attempt, one retry');
+});
+
+test('WriteBehind: during an outage with ongoing writes, retries follow the backoff, not flushDelayMs', async () => {
+  const pool = createFakePool();
+  pool.delay(10);
+  for (let i = 0; i < 500; i += 1) pool.failNext(connErr());
+  const c = countWB();
+  const wb = createWriteBehind({ pool, name: 'kv', flushDelayMs: 5, backoffMs: [100, 100], log: quiet, ...c.opts });
+  const start = Date.now();
+  while (Date.now() - start < 600) { wb.markDirty(); await sleep(2); }
+  const elapsed = Date.now() - start;
+  const attempts = pool.dataStatements().length;
+  assert.ok(attempts <= Math.floor(elapsed / 100) + 2, `${attempts} attempts in ${elapsed} ms`);
+  assert.equal(wb.status(), 'degraded');
+});
+
+test('WriteBehind: one error line per outage, and one "reachable again" on recovery', async () => {
+  const pool = createFakePool();
+  const logs = [];
+  const errors = [];
+  const c = countWB();
+  const wb = createWriteBehind({
+    pool, name: 'kv', flushDelayMs: 5, backoffMs: [20, 40],
+    log: { log: (m) => logs.push(m), error: (m) => errors.push(m) }, ...c.opts,
+  });
+  pool.failNext(connErr());
+  pool.failNext(connErr());
+  pool.failNext(connErr());
+  wb.markDirty();
+  await sleep(300);
+  assert.equal(errors.length, 1, 'logged once for the whole outage');
+  assert.equal(logs.filter((m) => /reachable again/.test(m)).length, 1);
+  assert.equal(wb.status(), 'ok');
+  pool.failNext(connErr());
+  wb.markDirty();
+  await sleep(150);
+  assert.equal(errors.length, 2, 'a new outage logs again');
+  assert.equal(logs.filter((m) => /reachable again/.test(m)).length, 2);
+});
+
+test('PgDocument: a write that arrives during an in-flight flush is saved by the next flush', async () => {
+  const pool = createFakePool();
+  const d = createPgDocument({ pool, codec: kvCodec, flushDelayMs: 60000, log: quiet });
+  await d.load();
+  d.write({ items: { a: 1 } });
+  const hold = pool.holdNext();
+  const first = d.flush();
+  d.write({ items: { a: 1, b: 2 } });
+  hold.release();
+  await first;
+  await d.flush();
+  assert.deepEqual(pool.committed().map((q) => q.values), [['a', 1], ['b', 2]]);
+  assert.deepEqual(d.pendingStatements(), []);
+});
+
+test('PgDocument: concurrent flush() calls run one transaction at a time', async () => {
+  const pool = createFakePool();
+  const d = createPgDocument({ pool, codec: kvCodec, flushDelayMs: 60000, log: quiet });
+  await d.load();
+  d.write({ items: { a: 1 } });
+  const hold = pool.holdNext();
+  const p1 = d.flush();
+  d.write({ items: { a: 1, b: 2 } });
+  const p2 = d.flush();
+  hold.release();
+  await Promise.all([p1, p2]);
+  const tx = pool.log.map((q) => q.text).filter((t) => /^(BEGIN|COMMIT|ROLLBACK)$/.test(t));
+  assert.deepEqual(tx, ['BEGIN', 'COMMIT', 'BEGIN', 'COMMIT']);
+  assert.deepEqual(pool.committed().map((q) => q.values), [['a', 1], ['b', 2]]);
+});
+
+test('PgDocument: pendingStatements() during an in-flight flush still lists the in-flight rows', async () => {
+  const pool = createFakePool();
+  const d = createPgDocument({ pool, codec: kvCodec, flushDelayMs: 60000, log: quiet });
+  await d.load();
+  d.write({ items: { a: 1 } });
+  const hold = pool.holdNext();
+  const p = d.flush();
+  assert.equal(d.pendingStatements().length, 1);
+  hold.release();
+  await p;
+  assert.deepEqual(d.pendingStatements(), []);
+});
+
+test('replayPending: a data-error statement is skipped and logged, the rest applied, file removed', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikpend-'));
+  const file = path.join(dir, 'pending-stats.json');
+  const stmts = [
+    upsert('kv', ['k', 'v'], ['k'], ['a', 1]),
+    upsert('kv', ['k', 'v'], ['k'], ['bad', 2]),
+    upsert('kv', ['k', 'v'], ['k'], ['c', 3]),
+  ];
+  fs.writeFileSync(file, JSON.stringify({ version: 1, statements: stmts }));
+  const pool = createFakePool();
+  pool.failWhere((q) => q.values[0] === 'bad', badErr());
+  const errors = [];
+  assert.equal(await replayPending(pool, file, { log() {}, error: (m) => errors.push(m) }), 3);
+  assert.deepEqual(pool.committed().map((q) => q.values[0]), ['a', 'c']);
+  assert.match(errors.join('\n'), /skipped.*bad/);
+  assert.equal(fs.existsSync(file), false);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('replayPending: a corrupt pending file rejects, names the file, and is kept', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikpend-'));
+  const file = path.join(dir, 'pending-stats.json');
+  fs.writeFileSync(file, '{not json');
+  await assert.rejects(replayPending(createFakePool(), file, quiet), (e) => e.message.includes(file));
+  assert.equal(fs.existsSync(file), true);
+  fs.rmSync(dir, { recursive: true, force: true });
 });

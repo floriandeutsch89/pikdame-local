@@ -3,7 +3,7 @@
 // replayed (upserts, idempotent) before anything else on the next start.
 const fs = require('fs');
 const path = require('path');
-const { runInTransaction } = require('./WriteBehind');
+const { writeStatements } = require('./WriteBehind');
 
 function writePending(file, statements) {
   if (!statements.length) return false;
@@ -14,10 +14,20 @@ function writePending(file, statements) {
   return true;
 }
 
-async function replayPending(pool, file) {
+// Bad rows are skipped and logged by writeStatements; a corrupt file is kept and reported by name.
+async function replayPending(pool, file, log = console) {
   if (!fs.existsSync(file)) return 0;
-  const { statements } = JSON.parse(fs.readFileSync(file, 'utf8'));
-  await runInTransaction(pool, statements);
+  let parsed;
+  try {
+    parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (e) {
+    throw new Error(`pending stats file ${file} is corrupt: ${e.message}`);
+  }
+  if (!parsed || !Array.isArray(parsed.statements)) {
+    throw new Error(`pending stats file ${file} is corrupt: no statements array`);
+  }
+  const { statements } = parsed;
+  await writeStatements(pool, statements, { name: 'pending-stats', log });
   fs.unlinkSync(file);
   return statements.length;
 }

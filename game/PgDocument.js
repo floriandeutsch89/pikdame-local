@@ -3,7 +3,7 @@
 // (read/write/flushSync), plus load/flush/pendingStatements/status.
 const { createWriteBehind } = require('./WriteBehind');
 
-function createPgDocument({ pool, codec, flushDelayMs = 800, log = console }) {
+function createPgDocument({ pool, codec, flushDelayMs = 800, backoffMs, log = console }) {
   let doc;
   let loaded = false;
   let persisted = new Map(); // key -> serialized values as last written
@@ -31,7 +31,7 @@ function createPgDocument({ pool, codec, flushDelayMs = 800, log = console }) {
   const remember = (cur) => new Map([...cur].map(([k, r]) => [k, r.json]));
 
   const wb = createWriteBehind({
-    pool, name: codec.name, flushDelayMs, log,
+    pool, name: codec.name, flushDelayMs, backoffMs, log,
     collect() {
       const cur = rowsOf(doc);
       return { statements: changes(cur), token: cur };
