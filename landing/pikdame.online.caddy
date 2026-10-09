@@ -1,0 +1,22 @@
+# Site file for the shared Caddy stack (docs/admin/shared-caddy.md).
+# The landing page is the only file served here; every other path belongs to
+# the points tracker, which moved to punkte.pikdame.online (old bookmarks and
+# mail links keep working).
+pikdame.online {
+	import common
+	header Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+
+	@landing path / /index.html
+	handle @landing {
+		root * /etc/caddy/www/pikdame.online
+		file_server
+	}
+	# 308 keeps method and body: an old POST to /api/* still reaches the tracker.
+	handle {
+		redir https://punkte.pikdame.online{uri} 308
+	}
+}
+
+www.pikdame.online {
+	redir https://pikdame.online{uri} permanent
+}

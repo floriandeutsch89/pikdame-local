@@ -1,61 +1,33 @@
-# Landing Page für pikdame.online
+# Landing page for pikdame.online
 
-Eigenständige statische Seite (`index.html`) als Startseite von
-pikdame.online: Besucher wählen zwischen dem **Kartenspiel** und dem
-bisherigen **Schreibblock**.
+`index.html` is the start page of pikdame.online: visitors pick the card game
+(`play.pikdame.online`) or the points tracker (`punkte.pikdame.online`, repo
+`floriandeutsch89/pikdame`). One static file: no build, no script, no external
+resources.
 
-## Einrichten
+## Hosting (shared Caddy stack)
 
-1. Die zwei `href`-Adressen in `index.html` anpassen (deutlich markierter
-   Kommentar-Block):
-   - Kartenspiel-Link → dorthin, wo der Node-Server des Spiels läuft
-   - Schreibblock-Link → die bisherige Schreibblock-App
-2. `index.html` als Startseite von pikdame.online hosten (jeder statische
-   Webspace reicht - kein Build, keine Abhängigkeiten).
+Served by the host's caddy-crowdsec stack ([docs/admin/shared-caddy.md](../docs/admin/shared-caddy.md)),
+no container of its own:
 
-## Empfehlung: Subdomains statt Unterpfade
-
-Das Kartenspiel erwartet, unter der **Wurzel** seiner Adresse zu laufen
-(`/client.js`, WebSocket auf `/`, PWA-Manifest). Am einfachsten:
-
-- `pikdame.online`        → diese Landing Page (statisch)
-- `spiel.pikdame.online`  → Reverse-Proxy auf den Spiel-Container (Port 8080, inkl. WebSocket-Upgrade)
-- `block.pikdame.online`  → der bisherige Schreibblock
-
-Beispiel nginx für das Spiel:
-
-```nginx
-server {
-  server_name spiel.pikdame.online;
-  location / {
-    proxy_pass http://127.0.0.1:8080;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;   # WebSocket
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  }
-}
+```sh
+cd /opt/docker/caddy          # the shared stack
+mkdir -p config/www/pikdame.online
+curl -fsSL https://raw.githubusercontent.com/floriandeutsch89/pikdame-local/main/landing/index.html \
+  -o config/www/pikdame.online/index.html
+curl -fsSL https://raw.githubusercontent.com/floriandeutsch89/pikdame-local/main/landing/pikdame.online.caddy \
+  -o config/sites/pikdame.online.caddy
+chmod 0644 config/www/pikdame.online/index.html config/sites/pikdame.online.caddy
+docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
 ```
 
-Beispiel **Caddy** (Caddyfile) - Caddy kümmert sich automatisch um
-HTTPS-Zertifikate UND um das WebSocket-Upgrade, es ist keine
-Zusatzkonfiguration nötig:
+`config/` is mounted read-only as `/etc/caddy`, so the page lives at
+`/etc/caddy/www/pikdame.online`. Updating the page is the first `curl` again;
+no reload needed.
 
-```caddyfile
-pikdame.online {
-    root * /var/www/pikdame-landing
-    file_server
-}
+## Order when moving the tracker
 
-spiel.pikdame.online {
-    reverse_proxy 127.0.0.1:8080
-}
-
-block.pikdame.online {
-    reverse_proxy 127.0.0.1:9090   # Port des Schreibblocks anpassen
-}
-```
-
-Unterpfad-Hosting (`pikdame.online/spiel/`) würde Anpassungen an allen
-absoluten Pfaden des Spiels erfordern - bei Bedarf melden.
+`pikdame.online.caddy` redirects every path except `/` to
+`punkte.pikdame.online` (308, so old bookmarks, mail links and `/api/*` calls
+keep working). Switch it on only **after** the tracker answers on
+`punkte.pikdame.online`; until then the old tracker site file stays in place.

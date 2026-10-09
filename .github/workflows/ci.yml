@@ -187,10 +187,10 @@ jobs:
             exit 1
           fi
       # The shared stack defines (common); a stub is enough to parse the site file.
-      - name: Validate shared-Caddy site files (prod + beta)
+      - name: Validate shared-Caddy site files (prod, beta, landing)
         run: |
-          printf '(common) {\n}\nimport /site/*.caddy\n' > /tmp/Caddyfile
-          docker run --rm -v /tmp/Caddyfile:/etc/caddy/Caddyfile:ro -v "$PWD/docker/shared-caddy:/site:ro" \
+          printf '(common) {\n}\nimport /site/*.caddy\nimport /landing/*.caddy\n' > /tmp/Caddyfile
+          docker run --rm -v /tmp/Caddyfile:/etc/caddy/Caddyfile:ro -v "$PWD/docker/shared-caddy:/site:ro" -v "$PWD/landing:/landing:ro" \
             caddy:2-alpine caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile > /dev/null
       - name: Build image
         run: docker compose -f docker/docker-compose.yml build

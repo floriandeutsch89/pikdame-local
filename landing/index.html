@@ -4,13 +4,11 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>pikdame.online</title>
-  <meta name="description" content="pikdame.online – Kartenspiel und Schreibblock. Wähle deine App." />
+  <meta name="description" content="pikdame.online – das Kartenspiel online oder der Punkte-Tracker für eure Runde am Tisch." />
+  <meta name="color-scheme" content="dark" />
   <style>
-    /* ------------------------------------------------------------------
-       Landing Page fuer pikdame.online
-       Eigenstaendige Datei: kein Build, keine externen Ressourcen -
-       einfach als Startseite hosten. Farbwelt = Studio-Theme des Spiels.
-       ------------------------------------------------------------------ */
+    /* Self-contained: no build, no external resources, no script (the CSP in
+       pikdame.online.caddy allows none). Colours follow the game's studio theme. */
     :root {
       --bg-deep: #14171c;
       --bg-soft: #1b1f26;
@@ -75,10 +73,13 @@
       outline: none;
     }
     .app .icon {
-      font-size: 3.2rem;
-      line-height: 1;
+      width: 56px; height: 56px;
+      fill: none; stroke: currentColor; stroke-width: 1.6;
+      stroke-linecap: round; stroke-linejoin: round;
       filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.35));
     }
+    .app--game .icon { color: var(--accent); }
+    .app--pad .icon { color: var(--accent-2); }
     .app h2 { font-size: 1.25rem; font-weight: 800; }
     .app p {
       color: var(--text-muted);
@@ -88,6 +89,8 @@
     }
     .app .cta {
       margin-top: 4px;
+      min-height: 44px;
+      display: inline-flex; align-items: center;
       padding: 10px 22px;
       border-radius: 999px;
       font-weight: 700;
@@ -104,7 +107,17 @@
       color: var(--text-muted);
       font-size: 0.72rem;
     }
-    footer a { color: inherit; }
+    footer a { color: inherit; display: inline-block; padding: 12px 8px; }
+    /* Phones in landscape have ~400 px of height: tighter spacing, no blurb. */
+    @media (orientation: landscape) and (max-height: 540px) {
+      body { gap: 14px; padding-top: 14px; padding-bottom: calc(6px + env(safe-area-inset-bottom)); }
+      header h1 { font-size: 1.8rem; }
+      header p { margin-top: 2px; }
+      .app { gap: 8px; padding: 16px 20px 14px; }
+      .app .icon { width: 40px; height: 40px; }
+      .app p { display: none; }
+      footer a { padding: 6px 8px; }
+    }
     @media (prefers-reduced-motion: reduce) {
       .app { transition: none; }
       .app:hover, .app:focus-visible { transform: none; }
@@ -114,32 +127,27 @@
 <body>
   <header>
     <h1>pikdame<span class="dot">.online</span></h1>
-    <p>Zwei Apps, eine Adresse – was darf’s sein?</p>
+    <p>Online spielen oder am Tisch Punkte zählen?</p>
   </header>
 
   <nav class="apps" aria-label="App-Auswahl">
-    <!-- ================================================================
-         HIER DIE ZWEI ZIEL-ADRESSEN ANPASSEN:
-         href des ersten Links  -> Kartenspiel-Server
-         href des zweiten Links -> bisheriger Schreibblock
-         ================================================================ -->
     <a class="app app--game" href="https://play.pikdame.online">
-      <span class="icon">🃏</span>
-      <h2>Pik Dame – das Kartenspiel</h2>
-      <p>Das Familien-Kartenspiel für 2–4 Spieler: Sätze, Folgen, Joker – und die gefürchtete Pik Dame. Mit Bots, Statistik und Erfolgen.</p>
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8.5" y="5" width="11" height="15" rx="2"/><path d="M5.6 7.4 4.2 8a2 2 0 0 0-1.1 2.6l3.3 8.1"/></svg>
+      <h2>Kartenspiel</h2>
+      <p>Pik Dame online für 2–4 Spieler: Sätze, Folgen, Joker – und die gefürchtete Pik Dame. Mit Bots, Statistik und Erfolgen.</p>
       <span class="cta">Jetzt spielen</span>
     </a>
 
-    <a class="app app--pad" href="https://block.pikdame.online">
-      <span class="icon">📝</span>
-      <h2>Schreibblock</h2>
-      <p>Der digitale Schreibblock – Notizen festhalten, wie gewohnt.</p>
-      <span class="cta">Zum Schreibblock</span>
+    <a class="app app--pad" href="https://punkte.pikdame.online">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3.5" width="14" height="17" rx="2"/><path d="M8.5 8h7M8.5 11.5h7M8.5 15h4"/></svg>
+      <h2>Punkte-Tracker</h2>
+      <p>Ihr spielt mit echten Karten? Hier notiert ihr die Punkte jeder Runde – mit Verlauf und Statistik.</p>
+      <span class="cta">Punkte zählen</span>
     </a>
   </nav>
 
   <footer>
-    <a href="/impressum.html">Impressum &amp; Datenschutz</a>
+    <a href="https://play.pikdame.online/impressum.html">Impressum &amp; Datenschutz</a>
   </footer>
 </body>
 </html>
