@@ -17,7 +17,8 @@ For the exact numbers the engine plays with, see {doc}`developer/game-constants`
 
 ### A round starts
 
-The dealer rotates each round. Before dealing, the player to the dealer's
+The dealer rotates each round; a rematch (and the next evening at a
+Stammtisch) starts with the last game's winner as dealer. Before dealing, the player to the dealer's
 right **cuts the deck** — picking the spot themselves. **Dealing starts at
 the cut spot;** the lifted packet then returns to the draw pile, so no card
 ever leaves the game and the opening draw pile has a constant size. Nothing

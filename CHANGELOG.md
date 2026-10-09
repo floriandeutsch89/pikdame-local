@@ -8,6 +8,7 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Changed
 - Bei einer Revanche gibt der Gewinner der letzten Partie – so haben die anderen die Chance auf einen Glücksgriff beim Abheben. Der Organisator kann den Geber weiterhin ändern.
 - Am Stammtisch gilt das auch für einen neuen Abend: Wer die letzte Partie gewonnen hat, gibt die erste Runde.
+- Spielregeln ergänzt: Der Gewinner gibt die Revanche.
 
 ## [2.58.2] - 2026-10-08
 
