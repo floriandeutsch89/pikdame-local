@@ -10,6 +10,7 @@ const http = require('node:http');
 const { spawn } = require('node:child_process');
 const WebSocket = require('ws');
 const { hasPg, freshSchema } = require('./helpers/pg');
+const { enumerateMeldOptions } = require('../game/Rules');
 
 const ROOT = path.join(__dirname, '..');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -94,32 +95,77 @@ async function waitForGameOver(ws, timeoutMs = 120000) {
   assert.ok(reachedGameOver(ws), 'the game reached gameOver');
 }
 
+// Melds with the picked-up discard card, smallest first (they spare a hand card).
+function meldsWith(hand, mustId) {
+  const must = hand.find((c) => c.id === mustId);
+  const others = hand.filter((c) => c.id !== mustId);
+  const out = [];
+  const pick = (from, size, chosen) => {
+    if (chosen.length === size) {
+      const opts = enumerateMeldOptions([must, ...chosen]);
+      if (opts.length) out.push({ cardIds: [mustId, ...chosen.map((c) => c.id)], jokerAssignments: opts[0].jokerAssignments || {} });
+      return;
+    }
+    for (let i = from; i < others.length; i++) pick(i + 1, size, [...chosen, others[i]]);
+  };
+  if (must) for (let size = 2; size <= 3; size++) pick(0, size, []);
+  return out;
+}
+
 // A passive player: draws, throws away a card, confirms every round. Enough for
-// the bots to finish the game around it.
+// the bots to finish the game around it. Two ways it used to stall the table:
+// an empty draw pile (the discard top must be taken and laid, family rule) and
+// the server's flood guard (>25 messages/s per socket are dropped).
 function autoPlay(ws, playerId) {
   let seen = 0;
-  let discardAt = 0;
-  let lastKey = '';
+  let tries = 0;
+  let turnKey = '';
+  let actedKey = '';
+  let last = null;
+  let holdUntil = 0;
+  const sentAt = [];
+  const myTurn = (s) => s.phase === 'playing' && s.currentPlayerId === playerId;
+  const send = (o) => { sentAt.push(Date.now()); ws.send(JSON.stringify(o)); };
+  // One move per (turn, attempt): repeated broadcasts of the same state must not repeat it.
+  const act = (s) => {
+    const turn = `${s.roundNumber}/${s.turnIndexInRound}/${s.turnPhase}/${s.mustLayOffCardId || ''}`;
+    if (turn !== turnKey) { turnKey = turn; tries = 0; }
+    let key = `${s.phase}/${s.roundNumber}#${tries}`;
+    let move = null;
+    if (s.phase === 'cutting' && s.cutterId === playerId) move = { type: 'performCut', position: 0.5 };
+    else if (s.phase === 'roundEnd' && !(s.nextRoundReady || []).includes(playerId)) move = { type: 'nextRound' };
+    else if (myTurn(s)) {
+      key = `${turn}#${tries}`;
+      const me = s.players.find((p) => p.id === playerId);
+      const hand = (me && me.hand) || [];
+      if (s.turnPhase === 'draw') {
+        // An empty pile with an untakeable top ends the round via drawFromPile.
+        move = { type: s.drawPileCount === 0 && s.discardTakeable ? 'drawFromDiscard' : 'drawFromPile' };
+      } else if (s.mustLayOffCardId) {
+        const meld = meldsWith(hand, s.mustLayOffCardId)[tries];
+        if (meld) move = { type: 'layoutMeld', ...meld };
+      } else if (hand.length && tries <= hand.length) {
+        move = { type: 'discard', cardId: hand[Math.max(0, hand.length - 1 - tries)].id };
+      }
+    }
+    if (!move || key === actedKey) return;
+    actedKey = key;
+    send(move);
+  };
+  let dirty = false;
   const timer = setInterval(() => {
     for (; seen < ws.inbox.length; seen++) {
       const m = ws.inbox[seen];
-      if (m.type === 'error') discardAt++; // a refused discard: try another card next time
-      if (m.type !== 'state') continue;
-      const s = m.state;
-      const key = `${s.roundNumber}/${s.turnIndexInRound}/${s.turnPhase}/${s.phase}`;
-      if (s.phase === 'cutting' && s.cutterId === playerId) ws.send(JSON.stringify({ type: 'performCut', position: 0.5 }));
-      else if (s.phase === 'roundEnd') ws.send(JSON.stringify({ type: 'nextRound' }));
-      else if (s.phase === 'playing' && s.currentPlayerId === playerId) {
-        if (key !== lastKey) discardAt = 0;
-        lastKey = key;
-        const me = s.players.find((p) => p.id === playerId);
-        if (s.turnPhase === 'draw') ws.send(JSON.stringify({ type: 'drawFromPile' }));
-        else if (me && me.hand && me.hand.length) {
-          const card = me.hand[Math.max(0, me.hand.length - 1 - discardAt)];
-          ws.send(JSON.stringify({ type: 'discard', cardId: card.id }));
-        }
-      }
+      if (m.type === 'state') { last = m.state; dirty = true; }
+      // Dropped by the flood guard: resend the same move once the window has passed.
+      else if (m.type === 'error' && /Zu viele Aktionen/.test(m.error)) { actedKey = ''; holdUntil = Date.now() + 1100; dirty = true; }
+      // A refused move brings no new state: try the next option.
+      else if (m.type === 'error') { tries++; dirty = true; }
     }
+    while (sentAt.length && Date.now() - sentAt[0] >= 1000) sentAt.shift();
+    if (!dirty || !last || sentAt.length >= 20 || Date.now() < holdUntil) return;
+    dirty = false;
+    act(last);
   }, 5);
   return () => clearInterval(timer);
 }
