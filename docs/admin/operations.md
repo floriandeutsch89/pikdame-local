@@ -196,10 +196,17 @@ Recommendation: run nightly via cron and copy the archive off-site.
 
 ## Observability
 
-- `GET /healthz` — liveness (also used by the Docker healthcheck)
+- `GET /healthz` — liveness (also used by the Docker healthcheck). Answers `ok`
+  normally and `ok (stats degraded)` while statistics cannot be written to
+  PostgreSQL. Rows are kept and retried (log: `[stats] … write failed, will
+  retry`, later `database reachable again`). If it stays degraded, check the
+  database.
 - `GET /statusz` — version, session/player counts, memory, accountsEnabled
 - Logs: `docker logs -f pikdame` (rotation 10 MB × 3 is configured)
 - Crash diagnostics: `data/crash.log` inside the volume
+- `data/pending-stats.json` appears only after a shutdown while the database was
+  unreachable. It is applied and removed on the next start. If the start
+  refuses because the file is unreadable, the error names the file.
 
 ## Kubernetes
 

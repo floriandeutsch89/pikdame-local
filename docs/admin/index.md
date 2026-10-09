@@ -37,7 +37,7 @@ All persistent data lives in **one directory**, mounted into the container at
 
 | File | Contents |
 | --- | --- |
-| `*.json.imported` | Old statistics files after the import into PostgreSQL — keep as a backup or delete |
+| `*.json.imported` | Old statistics files after the import into PostgreSQL — keep as a backup or delete. A table that already has data is not imported: the log says `already has data - not imported, file left as is` and the `.json` file stays |
 | `pending-stats.json` | Only after a shutdown while the database was unreachable; applied on the next start |
 | `sessions-snapshot.json` | Running tables, written every minute and on shutdown so games survive a restart or crash |
 

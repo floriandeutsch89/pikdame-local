@@ -32,8 +32,10 @@ can still play, they just get no profile).
 On the first start with a database, existing JSON files in the data directory
 (`players.json`, `games.json`, `stats.json`, `challenges.json`,
 `stammtisch.json`) are imported automatically and renamed to
-`*.json.imported`. The log shows one line per file. If a file cannot be
-imported exactly, the server refuses to start and names the file.
+`*.json.imported`. The log shows one line per file. If a table already has
+data, that file is skipped (log: `already has data - not imported, file left as
+is`) and stays in place. If a file cannot be imported exactly, the server
+refuses to start and names the file.
 
 Old SQLite account files (`users.db`) are not migrated.
 
