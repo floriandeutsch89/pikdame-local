@@ -14,8 +14,9 @@ function genId() {
   return `game-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function createGameHistoryStore(filePath = DEFAULT_DATA_FILE) {
-  const file = createAtomicJsonFile(filePath);
+function createGameHistoryStore(backend = DEFAULT_DATA_FILE) {
+  // File (tests) or memory (no database). Production uses createPgGameHistoryStore.
+  const file = typeof backend === 'string' ? createAtomicJsonFile(backend) : backend;
 
   function loadAll() {
     const parsed = file.read();
@@ -48,7 +49,12 @@ function createGameHistoryStore(filePath = DEFAULT_DATA_FILE) {
   }
 
   return {
-    flushSync: file.flushSync, filePath, loadAll, saveGame, listGames, getGame };
+    flushSync: file.flushSync, filePath: typeof backend === 'string' ? backend : null, loadAll, saveGame, listGames, getGame,
+    historyFor: async (name, limit = 20) => historyForPlayer(loadAll(), name, limit),
+    flush: file.flush || (async () => {}),
+    pendingStatements: file.pendingStatements || (() => []),
+    status: file.status || (() => 'ok'),
+  };
 }
 
 /**
@@ -92,4 +98,83 @@ function historyForPlayer(allGames, name, limit = 20) {
     });
 }
 
-module.exports = { createGameHistoryStore, historyForPlayer, DEFAULT_DATA_FILE };
+// --- Postgres: append-only queue, async reads ---------------------------------
+const { upsert, stableJson } = require('./SqlRows');
+const { createWriteBehind } = require('./WriteBehind');
+
+/** Insert statements for one stored game: the record, then one row per seat. */
+function gameStatements(stored) {
+  const out = [upsert('game_records', ['id', 'finished_at', 'record'], ['id'],
+    [stored.id, stored.finishedAt == null ? null : Math.round(Number(stored.finishedAt)), stableJson(stored)])];
+  (stored.players || []).forEach((p, seat) => {
+    out.push(upsert('game_record_players', ['game_id', 'seat', 'name_key', 'is_bot'], ['game_id', 'seat'],
+      [stored.id, seat, String((p && p.name) || '').toLowerCase(), !!(p && p.isBot)]));
+  });
+  return out;
+}
+
+function createPgGameHistoryStore(pool, { flushDelayMs = 800, backoffMs, log = console } = {}) {
+  const queue = []; // { record, statements } not yet in the database
+  const wb = createWriteBehind({
+    pool, name: 'game_records', flushDelayMs, backoffMs, log,
+    collect: () => ({ statements: queue.flatMap((g) => g.statements), token: queue.length }),
+    commit: (n) => { queue.splice(0, n); },
+  });
+
+  function saveGame(record) {
+    const stored = { id: genId(), ...record };
+    queue.push({ record: stored, statements: gameStatements(stored) });
+    wb.markDirty();
+    return stored;
+  }
+
+  async function historyFor(name, limit = 20) {
+    const key = String(name || '').trim().toLowerCase();
+    if (!key) return [];
+    await wb.flush().catch(() => {}); // DB down: still answer with what is queued
+    let rows = [];
+    try {
+      rows = (await pool.query(
+        `SELECT r.record FROM game_records r
+         WHERE EXISTS (SELECT 1 FROM game_record_players p WHERE p.game_id = r.id AND p.name_key = $1 AND NOT p.is_bot)
+         ORDER BY r.finished_at DESC NULLS LAST LIMIT $2`, [key, limit])).rows;
+    } catch (e) {
+      log.error(`[stats] game history read failed: ${e.message}`);
+    }
+    const byId = new Map(rows.map((r) => [r.record.id, r.record]));
+    for (const g of queue) byId.set(g.record.id, g.record);
+    return historyForPlayer([...byId.values()], name, limit);
+  }
+
+  return {
+    saveGame,
+    historyFor,
+    flush: wb.flush,
+    flushSync() { wb.flush().catch(() => {}); },
+    pendingStatements: () => queue.flatMap((g) => g.statements),
+    status: wb.status,
+  };
+}
+
+// Import only (games.json -> Postgres) and its verification.
+const gameHistoryCodec = {
+  name: 'game_records',
+  table: 'game_records',
+  normalize: (parsed) => ({ games: parsed && Array.isArray(parsed.games) ? parsed.games.filter((g) => g && g.id) : [] }),
+  *rows(doc) {
+    const seen = new Set();
+    for (const g of doc.games) {
+      if (seen.has(g.id)) continue;
+      seen.add(g.id);
+      const [rec, ...seats] = gameStatements(g);
+      yield [`r|${g.id}`, rec];
+      for (let i = 0; i < seats.length; i++) yield [`p|${g.id}|${i}`, seats[i]];
+    }
+  },
+  async load(q) {
+    const r = await q.query('SELECT record FROM game_records ORDER BY finished_at NULLS FIRST, id');
+    return { games: r.rows.map((x) => x.record) };
+  },
+};
+
+module.exports = { createGameHistoryStore, createPgGameHistoryStore, gameHistoryCodec, gameStatements, historyForPlayer, DEFAULT_DATA_FILE };

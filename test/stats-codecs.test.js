@@ -159,3 +159,48 @@ test('Stammtisch on Postgres: tables and games round-trip; remove deletes', { sk
     assert.equal((await s.pool.query('SELECT count(*)::int AS n FROM stammtisch_games')).rows[0].n, 0, 'games go with the table');
   } finally { await s.drop(); }
 });
+
+const { createGameHistoryStore, createPgGameHistoryStore, gameHistoryCodec } = require('../game/GameHistoryStore');
+const { createFakePool } = require('./helpers/fake-pool');
+
+const gameRec = (finishedAt, names) => ({
+  finishedAt, startedAt: finishedAt - 10, winnerId: 'p0', finalTotals: { p0: 100 },
+  players: names.map((n, i) => ({ id: `p${i}`, name: n, isBot: n.startsWith('Bot') })),
+  rounds: [{ totalsAfter: { p0: 100 } }],
+});
+
+test('GameHistory (memory): historyFor is async and filters by human name', async () => {
+  const h = createGameHistoryStore(createMemoryDocument());
+  h.saveGame(gameRec(1, ['Anna', 'Bot Bert']));
+  assert.equal((await h.historyFor('anna')).length, 1);
+  assert.equal((await h.historyFor('Bot Bert')).length, 0);
+});
+
+test('GameHistory (Postgres): unsaved games stay pending while the DB is down', async () => {
+  const pool = createFakePool();
+  const h = createPgGameHistoryStore(pool, { flushDelayMs: 60000, log: { log() {}, error() {} } });
+  pool.failNext(Object.assign(new Error('down'), { code: 'ECONNREFUSED' }));
+  h.saveGame(gameRec(1, ['Anna']));
+  await assert.rejects(h.flush());
+  assert.equal(h.status(), 'degraded');
+  assert.equal(h.pendingStatements().length, 2, 'record + one seat');
+  await h.flush();
+  assert.deepEqual(h.pendingStatements(), []);
+});
+
+test('GameHistory on Postgres: newest first, bots ignored, unflushed games included', { skip: PG }, async () => {
+  const s = await freshSchema();
+  try {
+    await ensureStatsSchema(s.pool);
+    const h = createPgGameHistoryStore(s.pool, { flushDelayMs: 60000, log: quiet });
+    const a = h.saveGame(gameRec(100, ['Anna', 'Bot Bert']));
+    await h.flush();
+    const b = h.saveGame(gameRec(200, ['anna', 'Bo'])); // not flushed yet
+    const mine = await h.historyFor('ANNA', 20);
+    assert.deepEqual(mine.map((g) => g.id), [b.id, a.id]);
+    assert.equal(mine[1].won, true);
+    assert.deepEqual(await h.historyFor('Bot Bert'), []);
+    const all = await gameHistoryCodec.load(s.pool, { all: true });
+    assert.deepEqual(all.games.map((g) => g.id), [a.id, b.id], 'flushed by historyFor');
+  } finally { await s.drop(); }
+});
