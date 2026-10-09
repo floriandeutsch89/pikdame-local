@@ -67,3 +67,21 @@ test('playerCodec: non-integer counters round-trip through extra', { skip: PG },
   assert.equal(again.players[0].gamesPlayed, 2.5);
   assert.equal(again.players[0].xp, '7');
 });
+
+const { createGlobalStatsStore, globalStatsCodec } = require('../game/GlobalStatsStore');
+
+test('GlobalStats on Postgres: counters round-trip; empty table = undefined', { skip: PG }, async () => {
+  const doc = { games: 12, rounds: 80, pikDamesLaidOut: 9, pikDamesCaught: 4, handAusRounds: 3 };
+  const { again, rewritten } = await roundTrip(globalStatsCodec, doc);
+  assert.deepEqual(again, doc);
+  assert.deepEqual(rewritten, []);
+  const s = await freshSchema();
+  try { await ensureStatsSchema(s.pool); assert.equal(await globalStatsCodec.load(s.pool), undefined); } finally { await s.drop(); }
+});
+
+test('GlobalStats: works on a memory document', () => {
+  const g = createGlobalStatsStore(createMemoryDocument());
+  g.recordGame({ rounds: [{ isHandAus: true, results: {} }] });
+  assert.equal(g.getStats().games, 1);
+  assert.equal(g.getStats().handAusRounds, 1);
+});
