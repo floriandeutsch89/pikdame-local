@@ -44,7 +44,11 @@ function randomToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
+// One multi-statement query = one transaction. The advisory lock serialises
+// concurrent migrations (instances, parallel tests): two ALTER TABLE runs on
+// users otherwise deadlock on their lock upgrade.
 const SCHEMA = `
+  SELECT pg_advisory_xact_lock(7203410051);
   CREATE TABLE IF NOT EXISTS users (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     username TEXT NOT NULL,

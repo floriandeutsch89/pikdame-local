@@ -11,6 +11,7 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 
 ### Fixed
 - Ein Challenge-Ergebnis kurz vor einem Neustart des Servers ging verloren
+- Starteten zwei Server gleichzeitig an derselben Datenbank, konnten sie sich beim Einrichten der Konto-Tabellen gegenseitig blockieren; Konto-Aktionen meldeten dann „Konto-Datenbank nicht erreichbar“
 
 ### Removed
 - **SQLite für Konten**: Konten und Statistik brauchen PostgreSQL. Ohne Datenbank läuft das Spiel nur noch zum Spielen, ohne Konten und ohne gespeicherte Statistik
