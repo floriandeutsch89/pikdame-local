@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS player_profiles (
   name_key    TEXT PRIMARY KEY,            -- name.toLowerCase(), today's lookup key
   seq         BIGINT GENERATED ALWAYS AS IDENTITY,  -- keeps list order
   name        TEXT NOT NULL,
-  legacy_id   TEXT,                        -- "profile-<ts>-<rand>"
+  profile_id  TEXT,                        -- "profile-<ts>-<rand>"
   games_played INT, games_won INT, games_lost INT, total_score BIGINT,
   win_streak INT, best_game_score INT, best_round_score INT,
   total_queens_laid INT, total_queens_caught INT, total_jokers_laid INT,
@@ -157,7 +157,7 @@ CREATE TABLE IF NOT EXISTS stammtisch_tables (
 CREATE TABLE IF NOT EXISTS stammtisch_games (
   code TEXT NOT NULL REFERENCES stammtisch_tables(code) ON DELETE CASCADE,
   idx  INT NOT NULL,                       -- position in the table's game list
-  at BIGINT, series_no INT, players JSONB NOT NULL,
+  at BIGINT, series_no INT, players JSONB NOT NULL, extra JSONB,
   PRIMARY KEY (code, idx)
 );
 
