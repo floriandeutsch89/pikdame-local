@@ -284,3 +284,52 @@ test('checkSession flags a running challenge of today, not a normal table', asyn
   assert.strictEqual(ch.finished, false, 'neither is the running challenge');
   for (const ws of [host, probe]) ws.close();
 });
+
+test('Stammtisch: a new evening starts with the last winner as dealer', async (t) => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-std-'));
+  const now = Date.now();
+  fs.writeFileSync(path.join(dataDir, 'stammtisch.json'), JSON.stringify({ tables: { ST2345: {
+    code: 'ST2345', name: 'Familie', createdAt: now, lastActivity: now, members: {}, owner: null,
+    series: { no: 1, bestOf: 3, wins: { anna: 1 }, games: 1, winner: null, finishedAt: null },
+    games: [{ at: now, seriesNo: 1, players: [
+      { name: 'Flo', isBot: false, score: 400, won: false },
+      { name: 'Anna', isBot: false, score: 1010, won: true },
+    ] }],
+  } } }));
+  const { server } = startServer(dataDir);
+  t.after(async () => {
+    const gone = server.exitCode !== null ? null : new Promise((r) => server.once('exit', r));
+    server.kill();
+    await gone;
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  });
+  await waitForServer(PORT);
+  const open = () => new Promise((resolve, reject) => {
+    const ws = new WebSocket(`ws://localhost:${PORT}`);
+    ws.inbox = [];
+    ws.on('message', (raw) => ws.inbox.push(JSON.parse(raw)));
+    ws.once('open', () => resolve(ws));
+    ws.once('error', reject);
+  });
+  const waitFor = (ws, type, timeoutMs = 4000) => new Promise((resolve, reject) => {
+    const started = Date.now();
+    const tick = () => {
+      const m = ws.inbox.find((x) => x.type === type);
+      if (m) return resolve(m);
+      if (Date.now() - started > timeoutMs) return reject(new Error(`no ${type} message`));
+      setTimeout(tick, 25);
+    };
+    tick();
+  });
+
+  const flo = await open();
+  flo.send(JSON.stringify({ type: 'joinSession', code: 'ST2345', name: 'Flo' }));
+  await waitFor(flo, 'joined');
+  const anna = await open();
+  anna.send(JSON.stringify({ type: 'joinSession', code: 'st2345', name: 'anna' }));
+  const annaId = (await waitFor(anna, 'joined')).playerId;
+  await new Promise((r) => setTimeout(r, 200));
+  const last = [...flo.inbox].reverse().find((m) => m.type === 'state');
+  assert.strictEqual(last.state.dealerId, annaId, 'the last winner deals the first round');
+  for (const ws of [flo, anna]) ws.close();
+});

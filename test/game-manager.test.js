@@ -277,6 +277,40 @@ test('prepareRematch setzt Punkte/Verlauf zurück, behält aber die Spieler', ()
   assert.equal(game.players.length, 2); // Spieler bleiben erhalten
 });
 
+test('rematch: the winner deals, so someone else gets the lucky cut; seat changes keep it', () => {
+  const { game } = makeGame(3);
+  game.phase = 'gameOver';
+  game.gameOverInfo = { gameOver: true, winnerId: 'p2' };
+  game.prepareRematch();
+  assert.equal(game.publicState('p1').dealerId, 'p2');
+  game.reorderPlayers(['p2', 'p3', 'p1']);
+  assert.equal(game.publicState('p1').dealerId, 'p2', 'reordering keeps the winner as dealer');
+  game.syncLobbyBots(); // fills the free seat with a bot behind p1
+  assert.equal(game.publicState('p1').dealerId, 'p2');
+  game.startNewRound();
+  if (game.phase === 'cutting') game._autoCut('test');
+  assert.equal(game.publicState('p1').dealerId, 'p2');
+  assert.equal(game.publicState('p1').currentPlayerId, 'p3', 'the player after the winner starts');
+
+  // The winner left the lobby: back to the default seat.
+  const { game: g2 } = makeGame(3);
+  g2.phase = 'gameOver';
+  g2.gameOverInfo = { gameOver: true, winnerId: 'p3' };
+  g2.prepareRematch();
+  g2.leaveLobby('p3');
+  assert.equal(g2.publicState('p1').dealerId, 'p1');
+  assert.equal(g2.explicitDealerSet, false);
+
+  // Daily challenge retry: round 1 must replay identically, dealer stays seat 0.
+  const { game: g3 } = makeGame(2);
+  g3.challengeDate = '2026-10-09';
+  g3.phase = 'gameOver';
+  g3.gameOverInfo = { gameOver: true, winnerId: 'p2' };
+  g3.prepareRematch();
+  assert.equal(g3.publicState('p1').dealerId, 'p1');
+  for (const g of [game, g2, g3]) g.destroy();
+});
+
 test('forfeit: erst wenn ALLE aktiven Spieler zustimmen, endet das ganze Spiel (Abbruch, kein Sieger)', () => {
   const { game } = makeGame(3);
   game.phase = 'playing';

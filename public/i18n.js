@@ -345,7 +345,7 @@ window.I18N_RULES_EN = `
 
   <h3>Dealing &amp; the lucky cut</h3>
   <ul>
-    <li>The dealer rotates each round; the player after the dealer starts.</li>
+    <li>The dealer rotates each round; the player after the dealer starts. <b>Rematch:</b> the winner of the last game deals the first round – at a Stammtisch also at the next meetup. That gives the others a chance at the lucky cut.</li>
     <li>Before dealing, the player to the dealer's right cuts the deck – <b>choosing the spot themselves</b> (the daily challenge auto-cuts so decks stay identical worldwide). <b>Dealing starts at the cut spot;</b> the lifted packet then returns to the draw pile – no card ever leaves the game. <b>Lucky cut:</b> If the Queen of Spades or jokers sit at the cut, they go straight into that player's hand (the next ordinary card stops the run and stays in play) – dealing skips accordingly, so everyone ends up with 15 cards.</li>
     <li><b>Fairly shuffled:</b> Every round a brand-new deck is shuffled purely at random (Fisher-Yates). There is no hand-balancing – everyone has the exact same chance at the good cards each round. A single round is down to luck; over many rounds it evens out.</li>
   </ul>

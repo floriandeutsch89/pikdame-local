@@ -1621,6 +1621,13 @@ wss.on('connection', (ws, req) => {
     session.sockets.set(playerId, ws);
     registry.touch(session);
     const stammtisch = session.stammtisch ? stammtischStore.touch(session.stammtisch, player.name) : null;
+    // A new evening at the Stammtisch: the last match's winner deals again
+    // (the host can still pick someone else; a rematch sets it itself).
+    const g = session.game;
+    if (stammtisch && g.phase === 'lobby' && g.roundNumber === 0 && !g.explicitDealerSet) {
+      const winner = stammtischStore.lastWinner(stammtisch.code);
+      if (winner && winner.toLowerCase() === String(player.name).trim().toLowerCase()) g.setExplicitDealer(player.id);
+    }
     ws.send(JSON.stringify({
       type: 'joined', playerId, playerToken, sessionCode: session.code,
       stammtisch: stammtisch ? { code: stammtisch.code, name: stammtisch.name } : null,
