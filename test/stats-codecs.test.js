@@ -120,3 +120,42 @@ test('ChallengeStore on Postgres: window load vs full load; pruned days stay in 
     assert.ok(all.days[old], 'a day outside the window is never deleted');
   } finally { await s.drop(); }
 });
+
+const { createStammtischStore, stammtischCodec } = require('../game/StammtischStore');
+
+const TABLE = {
+  code: 'STAB12', name: 'Donnerstag', createdAt: 1, lastActivity: 5, owner: null, // legacy: no owner
+  members: { anna: { name: 'Anna', games: 2, wins: 1, points: 300, lastSeen: 5 } },
+  games: [
+    { at: 3, seriesNo: 1, players: [{ name: 'Anna', isBot: false, score: 200, won: true }] },
+    { at: 5, seriesNo: 1, players: [{ name: 'Anna', isBot: false, score: 100, won: false }] },
+  ],
+  series: { no: 1, bestOf: 3, wins: { anna: 1 }, games: 2, winner: null, finishedAt: null },
+};
+
+test('Stammtisch: no pruning of old tables, no cap on games', () => {
+  const st = createStammtischStore(createMemoryDocument());
+  const { table } = st.create('Alt', 'Anna', 0);
+  st.create('Neu', 'Bo', Date.now()); // used to prune tables inactive for 180 days
+  assert.ok(st.get(table.code), 'old table survives');
+  for (let i = 0; i < 120; i++) st.recordGame(table.code, { players: [{ id: 'a', name: 'Anna' }], finalTotals: { a: 1 }, winnerId: 'a', finishedAt: i });
+  assert.equal(st.summary(table.code).gamesPlayed, 120);
+});
+
+test('Stammtisch on Postgres: tables and games round-trip; remove deletes', { skip: PG }, async () => {
+  const doc = { tables: { STAB12: TABLE } };
+  const { again, rewritten } = await roundTrip(stammtischCodec, doc);
+  assert.deepEqual(again, doc);
+  assert.deepEqual(rewritten, []);
+  const s = await freshSchema();
+  try {
+    await ensureStatsSchema(s.pool);
+    const d = createPgDocument({ pool: s.pool, codec: stammtischCodec, log: quiet });
+    await d.load();
+    d.write(structuredClone(doc));
+    await d.flush();
+    d.write({ tables: {} });
+    await d.flush();
+    assert.equal((await s.pool.query('SELECT count(*)::int AS n FROM stammtisch_games')).rows[0].n, 0, 'games go with the table');
+  } finally { await s.drop(); }
+});

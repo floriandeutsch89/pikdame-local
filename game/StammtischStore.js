@@ -18,9 +18,6 @@ const DEFAULT_DATA_FILE = path.join(process.env.PIKDAME_DATA_DIR || path.join(__
 // is typed for years, it should be easy to say out loud.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTWXYZ23456789';
 const CODE_LENGTH = 6;
-const MAX_TABLES = 300;
-const MAX_GAMES_PER_TABLE = 100;
-const INACTIVE_DAYS = 180;
 const SERIES_BEST_OF = 3;
 
 function generateCode() {
@@ -46,31 +43,18 @@ function newSeries(no) {
   return { no, bestOf: SERIES_BEST_OF, wins: {}, games: 0, winner: null, finishedAt: null };
 }
 
-function createStammtischStore(filePath = DEFAULT_DATA_FILE) {
-  const file = createAtomicJsonFile(filePath);
+function createStammtischStore(backend = DEFAULT_DATA_FILE) {
+  const file = typeof backend === 'string' ? createAtomicJsonFile(backend) : backend;
 
   function load() {
     const parsed = file.read();
     return parsed && parsed.tables && typeof parsed.tables === 'object' ? parsed : { tables: {} };
   }
 
-  function prune(store, now) {
-    const cutoff = now - INACTIVE_DAYS * 86400000;
-    for (const [code, t] of Object.entries(store.tables)) {
-      if ((t.lastActivity || t.createdAt || 0) < cutoff) delete store.tables[code];
-    }
-    const codes = Object.keys(store.tables);
-    if (codes.length > MAX_TABLES) {
-      codes.sort((a, b) => (store.tables[a].lastActivity || 0) - (store.tables[b].lastActivity || 0));
-      for (const code of codes.slice(0, codes.length - MAX_TABLES)) delete store.tables[code];
-    }
-  }
-
   /** @param {string|null} ownerAccount account username; only it may delete
    *  @returns {{table}|{error:string}} */
   function create(name, founderName, now = Date.now(), ownerAccount = null) {
     const store = load();
-    prune(store, now);
     const title = cleanName(name) || 'Stammtisch';
     let code;
     do { code = generateCode(); } while (store.tables[code]);
@@ -161,7 +145,6 @@ function createStammtischStore(filePath = DEFAULT_DATA_FILE) {
         won: p.id === gameRecord.winnerId,
       })),
     });
-    while (t.games.length > MAX_GAMES_PER_TABLE) t.games.shift();
     t.lastActivity = now;
     file.write(store);
     return { summary: summarize(t), seriesEvent };
@@ -256,7 +239,68 @@ function createStammtischStore(filePath = DEFAULT_DATA_FILE) {
     return t ? summarize(t) : null;
   }
 
-  return { create, get, touch, recordGame, summary, listFor, remove, leave, flushSync: file.flushSync, filePath, SERIES_BEST_OF };
+  return {
+    create, get, touch, recordGame, summary, listFor, remove, leave, filePath: typeof backend === 'string' ? backend : null, SERIES_BEST_OF,
+    flushSync: file.flushSync,
+    flush: file.flush || (async () => {}),
+    pendingStatements: file.pendingStatements || (() => []),
+    status: file.status || (() => 'ok'),
+  };
 }
 
-module.exports = { createStammtischStore, normalizeCode, generateCode, DEFAULT_DATA_FILE, SERIES_BEST_OF };
+// --- Postgres codec: a table row, then one row per game (position = idx) -----
+const { upsert, stableJson, num, json } = require('./SqlRows');
+
+const TABLE_FIELDS = new Set(['code', 'name', 'owner', 'createdAt', 'lastActivity', 'members', 'games', 'series']);
+const GAME_FIELDS = new Set(['at', 'seriesNo', 'players']);
+const extraOf = (obj, known) => {
+  const extra = {};
+  for (const [k, v] of Object.entries(obj)) if (!known.has(k) && v !== undefined) extra[k] = v;
+  return Object.keys(extra).length ? stableJson(extra) : null;
+};
+const intOrNull = (v) => (v === undefined || v === null ? null : Math.round(Number(v)));
+
+const stammtischCodec = {
+  name: 'stammtisch',
+  table: 'stammtisch_tables',
+  normalize(parsed) {
+    return { tables: parsed && parsed.tables && typeof parsed.tables === 'object' ? parsed.tables : {} };
+  },
+  *rows(doc) {
+    for (const [code, t] of Object.entries(doc.tables)) {
+      yield [`t|${code}`, upsert('stammtisch_tables',
+        ['code', 'name', 'owner', 'created_at', 'last_activity', 'members', 'series', 'extra'], ['code'],
+        [code, t.name ?? null, t.owner ?? null, intOrNull(t.createdAt), intOrNull(t.lastActivity),
+          stableJson(t.members || {}), stableJson(t.series), extraOf(t, TABLE_FIELDS)])];
+      const games = t.games || [];
+      for (let idx = 0; idx < games.length; idx++) {
+        const g = games[idx];
+        // Games are append-only (no cap any more), so the position is a stable key.
+        yield [`g|${code}|${idx}`, upsert('stammtisch_games',
+          ['code', 'idx', 'at', 'series_no', 'players', 'extra'], ['code', 'idx'],
+          [code, idx, intOrNull(g.at), intOrNull(g.seriesNo), stableJson(g.players || []), extraOf(g, GAME_FIELDS)])];
+      }
+    }
+  },
+  deleteRow(key) {
+    // A removed table takes its games along (ON DELETE CASCADE).
+    return key.startsWith('t|') ? { text: 'DELETE FROM stammtisch_tables WHERE code = $1', values: [key.slice(2)] } : null;
+  },
+  async load(q) {
+    const tables = {};
+    for (const row of (await q.query('SELECT * FROM stammtisch_tables ORDER BY code')).rows) {
+      const t = { code: row.code, name: row.name ?? undefined, createdAt: num(row.created_at), lastActivity: num(row.last_activity),
+        members: row.members, games: [], series: json(row.series), owner: row.owner };
+      for (const k of Object.keys(t)) if (t[k] === undefined) delete t[k];
+      tables[row.code] = Object.assign(t, row.extra || {});
+    }
+    for (const row of (await q.query('SELECT * FROM stammtisch_games ORDER BY code, idx')).rows) {
+      const g = { at: num(row.at), seriesNo: num(row.series_no), players: row.players };
+      for (const k of Object.keys(g)) if (g[k] === undefined) delete g[k];
+      if (tables[row.code]) tables[row.code].games.push(Object.assign(g, row.extra || {}));
+    }
+    return { tables };
+  },
+};
+
+module.exports = { createStammtischStore, stammtischCodec, normalizeCode, generateCode, DEFAULT_DATA_FILE, SERIES_BEST_OF };
