@@ -25,10 +25,11 @@ function genId(prefix) {
  * eigener (temporärer) Pfad übergeben werden, um die echte Datei nicht
  * anzufassen.
  */
-function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
-  // Gecacht + debounced + atomar: blockiert die Event-Loop nie (wichtig
-  // bei vielen parallelen Spielen, wo staendig Partien enden).
-  const file = createAtomicJsonFile(filePath);
+function createPlayerStore(backend = DEFAULT_DATA_FILE) {
+  // A path = atomic JSON file (tests, tools); the server passes a document
+  // backend (Postgres, or memory without a database).
+  const file = typeof backend === 'string' ? createAtomicJsonFile(backend) : backend;
+  const filePath = typeof backend === 'string' ? backend : null;
 
   function loadStore() {
     const parsed = file.read();
@@ -96,13 +97,6 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
       if (p.bestGameScore === undefined || (r.score || 0) > p.bestGameScore) {
         p.bestGameScore = r.score || 0;
       }
-    }
-    // Cap gegen unbegrenztes Wachstum auf einem oeffentlichen Server: bei
-    // mehr als 500 Profilen fliegen die mit den wenigsten Partien zuerst.
-    const MAX_PROFILES = 500;
-    if (store.players.length > MAX_PROFILES) {
-      store.players.sort((a, b) => (b.gamesPlayed || 0) - (a.gamesPlayed || 0));
-      store.players.length = MAX_PROFILES;
     }
     saveStore(store);
     return store.players;
@@ -294,6 +288,9 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
   return {
     filePath,
     flushSync: file.flushSync,
+    flush: file.flush || (async () => {}),
+    pendingStatements: file.pendingStatements || (() => []),
+    status: file.status || (() => 'ok'),
     loadStore,
     saveStore,
     upsertPlayerProfile,
@@ -312,4 +309,77 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
   };
 }
 
-module.exports = { createPlayerStore, DEFAULT_DATA_FILE };
+// --- Postgres codec (see game/PgDocument.js) --------------------------------
+const { upsert, stableJson, num, json } = require('./SqlRows');
+
+// [profile field, column, kind]; a field not listed here is kept in `extra`.
+const PROFILE_COLUMNS = [
+  ['gamesPlayed', 'games_played', 'int'], ['gamesWon', 'games_won', 'int'], ['gamesLost', 'games_lost', 'int'],
+  ['totalScore', 'total_score', 'int'], ['winStreak', 'win_streak', 'int'], ['bestGameScore', 'best_game_score', 'int'],
+  ['bestRoundScore', 'best_round_score', 'int'], ['totalQueensLaid', 'total_queens_laid', 'int'],
+  ['totalQueensCaught', 'total_queens_caught', 'int'], ['totalJokersLaid', 'total_jokers_laid', 'int'],
+  ['totalHandAus', 'total_hand_aus', 'int'], ['lastPlaceStreak', 'last_place_streak', 'int'],
+  ['totalChallenges', 'total_challenges', 'int'], ['totalStammtischGames', 'total_stammtisch_games', 'int'],
+  ['totalPuzzlesSolved', 'total_puzzles_solved', 'int'], ['xp', 'xp', 'int'], ['dailyStreak', 'daily_streak', 'int'],
+  ['badges', 'badges', 'json'], ['favoriteBadges', 'favorite_badges', 'json'], ['seasonalBacks', 'seasonal_backs', 'json'],
+  ['quests', 'quests', 'json'], ['daily', 'daily', 'json'], ['puzzles', 'puzzles', 'json'],
+];
+const KNOWN_FIELDS = new Set(['id', 'name', ...PROFILE_COLUMNS.map(([f]) => f)]);
+const PROFILE_SQL_COLUMNS = ['name_key', 'name', 'profile_id', ...PROFILE_COLUMNS.map(([, c]) => c), 'extra'];
+const INT_LIMIT = 2147483647; // INT columns; BIGINT ones (total_score, xp) take more
+
+function profileRow(p, key) {
+  const extra = {};
+  for (const [k, v] of Object.entries(p)) if (!KNOWN_FIELDS.has(k) && v !== undefined) extra[k] = v;
+  const values = [key, String(p.name), p.id == null ? null : String(p.id)];
+  for (const [field, column, kind] of PROFILE_COLUMNS) {
+    const v = p[field];
+    if (v === undefined || v === null) values.push(null);
+    else if (kind === 'json') values.push(stableJson(v));
+    else if (Number.isInteger(v) && (column === 'total_score' || column === 'xp' || Math.abs(v) <= INT_LIMIT)) values.push(v);
+    else { extra[field] = v; values.push(null); } // keeps odd legacy values unchanged
+  }
+  values.push(Object.keys(extra).length ? stableJson(extra) : null);
+  return upsert('player_profiles', PROFILE_SQL_COLUMNS, ['name_key'], values);
+}
+
+function rowToProfile(row) {
+  const p = {};
+  if (row.profile_id !== null) p.id = row.profile_id;
+  p.name = row.name;
+  for (const [field, column, kind] of PROFILE_COLUMNS) {
+    const v = kind === 'json' ? json(row[column]) : num(row[column]);
+    if (v !== undefined) p[field] = v;
+  }
+  return Object.assign(p, row.extra || {});
+}
+
+const playerCodec = {
+  name: 'player_profiles',
+  table: 'player_profiles',
+  // report(reason, entry) is called for every entry that is not carried over.
+  normalize(parsed, report = () => {}) {
+    const list = parsed && Array.isArray(parsed.players) ? parsed.players : [];
+    const players = [];
+    for (const p of list) {
+      if (p && typeof p.name === 'string') players.push(p);
+      else report('profile without a name', p);
+    }
+    return { players };
+  },
+  *rows(doc, report = () => {}) {
+    const seen = new Set();
+    for (const p of doc.players) {
+      const key = p.name.toLowerCase(); // the store's lookup key (findPlayerByName)
+      if (seen.has(key)) { report('duplicate profile name (first one kept)', p); continue; } // find() returns the first
+      seen.add(key);
+      yield [key, profileRow(p, key)];
+    }
+  },
+  async load(q) {
+    const r = await q.query('SELECT * FROM player_profiles ORDER BY seq');
+    return { players: r.rows.map(rowToProfile) };
+  },
+};
+
+module.exports = { createPlayerStore, playerCodec, DEFAULT_DATA_FILE };

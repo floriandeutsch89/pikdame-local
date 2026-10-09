@@ -43,7 +43,7 @@ function parseUrl(value) {
 /**
  * @param {object} env  process.env (or a test double)
  * @param {object} facts runtime facts the env alone cannot tell:
- *   dataDir, dataDirWritable, accountsEnabled, accountsBackend ('postgres'|'sqlite'),
+ *   dataDir, dataDirWritable, accountsEnabled, accountsBackend ('postgres'),
  *   onnxActive (bool|null), adminMode ('off'|'argon2'|'plain'|'invalid'|'unsupported')
  * @returns {{ id, label, status: 'ok'|'warn'|'off'|'error', detail: string, missing: string[],
  *            vars: { name: string, set: boolean, value?: string, secret?: boolean }[] }[]}
@@ -83,9 +83,9 @@ function buildConfigReport(env, facts = {}) {
   if (accountsOff) {
     add('accounts', 'Benutzerkonten', 'off', 'abgeschaltet (PIKDAME_ACCOUNTS=0)');
   } else if (!facts.accountsEnabled) {
-    add('accounts', 'Benutzerkonten', 'error', 'nicht verfügbar (node:sqlite fehlt und keine PostgreSQL-URL)');
+    add('accounts', 'Benutzerkonten', 'off', 'aus - keine Datenbank (PIKDAME_DATABASE_URL fehlt): Spiel ohne Konten und Statistik');
   } else {
-    add('accounts', 'Benutzerkonten', 'ok', `aktiv (${facts.accountsBackend === 'postgres' ? 'PostgreSQL' : 'SQLite im Datenverzeichnis'})`);
+    add('accounts', 'Benutzerkonten', 'ok', 'aktiv (PostgreSQL)');
   }
   if (env.PIKDAME_DATABASE_URL) {
     const url = parseUrl(env.PIKDAME_DATABASE_URL);

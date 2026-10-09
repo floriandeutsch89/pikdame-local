@@ -14,6 +14,7 @@ shared-caddy
 beta
 onnx
 operations
+upgrade-3.0
 ```
 
 ## Where to start
@@ -28,6 +29,7 @@ operations
 | **Deploy automatically after every merge** (instead of nightly) | {doc}`auto-deploy` |
 | Try every pull request on a beta site before merging | {doc}`beta` |
 | Reverse proxy: the shared Caddy stack (TLS, CrowdSec) | {doc}`shared-caddy` |
+| **Upgrade to 3.0.0** (statistics move into PostgreSQL) | {doc}`upgrade-3.0` |
 | Upgrades, monitoring, CrowdSec, the full ops runbook | {doc}`operations` |
 
 ## The one thing to get right
@@ -37,18 +39,15 @@ All persistent data lives in **one directory**, mounted into the container at
 
 | File | Contents |
 | --- | --- |
-| `players.json` | Player profiles, statistics, achievements |
-| `stats.json` | Anonymous global server statistics |
-| `games.json` | Game history |
-| `challenges.json` | Daily-challenge leaderboard (7-day retention) |
-| `users.db` | Accounts — **only** when using SQLite (with PostgreSQL they live in the database) |
+| `*.json.imported` | Old statistics files after the import into PostgreSQL — keep as a backup or delete. A table that already has data is not imported: the log says `already has data - not imported, file left as is` and the `.json` file stays |
+| `pending-stats.json` | Only after a shutdown while the database was unreachable; applied on the next start |
 | `sessions-snapshot.json` | Running tables, written every minute and on shutdown so games survive a restart or crash |
 
 If that directory is not writable, **nothing is saved** and everything is lost on
 restart. Since v1.54.4 the server checks this at startup and says so loudly:
 
 ```
-Datenverzeichnis beschreibbar: /app/data [players.json 4821B, stats.json 812B, ...]
+Datenverzeichnis beschreibbar: /app/data [sessions-snapshot.json 2310B, pending-stats.json –]
 ```
 
 or, if something is wrong:

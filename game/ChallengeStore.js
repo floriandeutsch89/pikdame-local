@@ -1,8 +1,7 @@
 // game/ChallengeStore.js
 // Daily-challenge leaderboard: everyone plays the SAME seeded deck against
 // the same medium bots; this store keeps each player's BEST score per day.
-// Retention is deliberately short (14 days: the board shows 7, the own trend
-// graph 14) - a daily race, not an archive; only nickname + score are kept.
+// RAM keeps 14 days (the board shows 7, the trend 14); the database keeps every day.
 
 const path = require('path');
 const { createAtomicJsonFile } = require('./AtomicJsonFile');
@@ -11,7 +10,6 @@ const { gameDay, addDays, weekdayIndex } = require('./GameDay');
 const DEFAULT_DATA_FILE = path.join(process.env.PIKDAME_DATA_DIR || path.join(__dirname, '..', 'data'), 'challenges.json');
 const KEEP_DAYS = 14;
 const BOARD_DAYS = 7;
-const MAX_ENTRIES_PER_DAY = 100;
 
 /** Stable numeric seed from a YYYY-MM-DD string (djb2). */
 function seedForDate(dateStr) {
@@ -23,8 +21,8 @@ function seedForDate(dateStr) {
 /** Today's challenge date (German midnight, see GameDay) - one deck for everyone. */
 const todayDate = gameDay;
 
-function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
-  const file = createAtomicJsonFile(filePath);
+function createChallengeStore(backend = DEFAULT_DATA_FILE) {
+  const file = typeof backend === 'string' ? createAtomicJsonFile(backend) : backend;
 
   function load() {
     const parsed = file.read();
@@ -54,7 +52,7 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
       list.push({ name: cleanName, score, at: now });
     }
     list.sort((a, b) => b.score - a.score || a.at - b.at);
-    store.days[date] = list.slice(0, MAX_ENTRIES_PER_DAY);
+    store.days[date] = list;
     file.write(store);
     return getBoard(date, 10, store);
   }
@@ -176,7 +174,57 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
     return Object.entries(load().days).some(([date, list]) => date < today && list[0] && list[0].name.toLowerCase() === key);
   }
 
-  return { submit, getBoard, rankOf, getHistory, getWeekly, getTrend, wasChampion };
+  return {
+    submit, getBoard, rankOf, getHistory, getWeekly, getTrend, wasChampion,
+    flushSync: file.flushSync,
+    flush: file.flush || (async () => {}),
+    pendingStatements: file.pendingStatements || (() => []),
+    status: file.status || (() => 'ok'),
+  };
 }
 
-module.exports = { createChallengeStore, seedForDate, todayDate, DEFAULT_DATA_FILE };
+// --- Postgres codec ----------------------------------------------------------
+const { upsert, num } = require('./SqlRows');
+
+const challengeCodec = {
+  name: 'challenge_scores',
+  table: 'challenge_scores',
+  // report(reason, entry) is called for every entry that is not carried over.
+  normalize(parsed, report = () => {}) {
+    const days = {};
+    const src = parsed && parsed.days && typeof parsed.days === 'object' ? parsed.days : {};
+    for (const [day, list] of Object.entries(src)) {
+      if (!Array.isArray(list)) { report('challenge day is not a list', { day, value: list }); continue; }
+      days[day] = [];
+      for (const e of list) {
+        if (e && typeof e.name === 'string') days[day].push(e);
+        else report('challenge entry without a name', { day, entry: e });
+      }
+    }
+    return { days };
+  },
+  *rows(doc, report = () => {}) {
+    for (const [day, list] of Object.entries(doc.days)) {
+      const seen = new Set();
+      for (const e of list) {
+        const key = e.name.toLowerCase();
+        if (seen.has(key)) { report('duplicate challenge entry (first one kept)', { day, entry: e }); continue; } // submit() keeps one per name and day
+        seen.add(key);
+        yield [`${day}|${key}`, upsert('challenge_scores', ['day', 'name_key', 'name', 'score', 'at'], ['day', 'name_key'],
+          [day, key, e.name, Math.round(Number(e.score) || 0), Math.round(Number(e.at) || 0)])];
+      }
+    }
+  },
+  // No deleteRow: days pruned from RAM stay in the database.
+  async load(q, { all = false } = {}) {
+    const cutoff = addDays(gameDay(Date.now()), -KEEP_DAYS);
+    const r = all
+      ? await q.query('SELECT day, name, score, at FROM challenge_scores ORDER BY day, score DESC, at')
+      : await q.query('SELECT day, name, score, at FROM challenge_scores WHERE day >= $1 ORDER BY day, score DESC, at', [cutoff]);
+    const days = {};
+    for (const row of r.rows) (days[row.day] = days[row.day] || []).push({ name: row.name, score: num(row.score), at: num(row.at) });
+    return { days };
+  },
+};
+
+module.exports = { createChallengeStore, challengeCodec, seedForDate, todayDate, DEFAULT_DATA_FILE };

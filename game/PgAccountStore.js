@@ -1,11 +1,7 @@
 // game/PgAccountStore.js
-// PostgreSQL backend for user accounts - same API surface as the SQLite
-// store in AccountStore.js, but async (every method returns a promise).
-//
-// Why Postgres for larger deployments: a NETWORKED shared database is the
-// prerequisite for ever running more than one server instance - a local
-// SQLite file on a volume structurally rules that out. For a single
-// container SQLite remains a perfectly fine zero-config fallback.
+// PostgreSQL backend for user accounts (async, every method returns a promise).
+// Accounts exist only with a database; a networked database is also the
+// prerequisite for ever running more than one server instance.
 //
 // The 'pg' package is pure JavaScript (no native module) and is required
 // LAZILY: environments without it (or without PIKDAME_DATABASE_URL, e.g.
@@ -48,7 +44,11 @@ function randomToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
+// One multi-statement query = one transaction. The advisory lock serialises
+// concurrent migrations (instances, parallel tests): two ALTER TABLE runs on
+// users otherwise deadlock on their lock upgrade.
 const SCHEMA = `
+  SELECT pg_advisory_xact_lock(7203410051);
   CREATE TABLE IF NOT EXISTS users (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     username TEXT NOT NULL,
@@ -106,32 +106,25 @@ const SCHEMA = `
  * @returns {Object|null} async store API, or null when 'pg' is unavailable
  */
 function createPgAccountStore(databaseUrl, options = {}) {
-  let Pool;
-  try {
-    ({ Pool } = require('pg'));
-  } catch (e) {
-    return null; // pg not installed (e.g. stripped-down environment)
+  let pool = options.pool || null;
+  const ownsPool = !pool;
+  if (!pool) {
+    let Pool;
+    try {
+      ({ Pool } = require('pg'));
+    } catch (e) {
+      return null; // pg not installed (e.g. stripped-down environment)
+    }
+    const { connectionStringFor } = require('./Db');
+    pool = new Pool({
+      connectionString: connectionStringFor(databaseUrl, options.password),
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000,
+    });
+    // A broken idle client must never crash the process.
+    pool.on('error', (err) => console.error('Postgres pool error:', err.message));
   }
-
-  // An explicit password (e.g. from a Docker secret file) is injected into
-  // the connection URL - the compose file can then carry a secret-free URL.
-  // (Passing it as a separate pool option is unreliable when a
-  // connectionString is present, verified empirically against pg 8.)
-  let connectionString = databaseUrl;
-  if (options.password) {
-    const u = new URL(databaseUrl);
-    u.password = options.password; // URL handles the encoding
-    connectionString = u.toString();
-  }
-
-  const pool = new Pool({
-    connectionString,
-    max: 10,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000,
-  });
-  // A broken idle client must never crash the process.
-  pool.on('error', (err) => console.error('Postgres pool error:', err.message));
 
   let readyPromise = null;
   function ensureReady() {
@@ -279,8 +272,8 @@ function createPgAccountStore(databaseUrl, options = {}) {
   }
 
   // --- Progression: XP, level and the seasonal ladder ----------------------
-  // Same contract as the SQLite store. Every path fails SOFT (null / empty
-  // list): a ladder that cannot be read must never break a finished game.
+  // Every path fails SOFT (null / empty list): a ladder that cannot be read
+  // must never break a finished game.
 
   async function addGameResult(username, { xp = 0, won = false, season = null } = {}) {
     try {
@@ -410,7 +403,7 @@ function createPgAccountStore(databaseUrl, options = {}) {
   }
 
   // --- Passkeys (WebAuthn) and e-mail login links ----------------------------
-  // Same contract as AccountStore.js (SQLite); see the comments there.
+  // Fails soft like the rest of the store (null / empty on database errors).
 
   const credRow = (r) => ({
     id: r.id,
@@ -749,7 +742,7 @@ function createPgAccountStore(databaseUrl, options = {}) {
   }
 
   async function close() {
-    await pool.end().catch(() => {});
+    if (ownsPool) await pool.end().catch(() => {});
   }
 
   return {

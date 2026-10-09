@@ -16,8 +16,8 @@ const EMPTY = {
   handAusRounds: 0, // Runden, die mit "Hand aus" endeten
 };
 
-function createGlobalStatsStore(filePath = DEFAULT_STATS_FILE) {
-  const file = createAtomicJsonFile(filePath);
+function createGlobalStatsStore(backend = DEFAULT_STATS_FILE) {
+  const file = typeof backend === 'string' ? createAtomicJsonFile(backend) : backend;
 
   function getStats() {
     const raw = file.read();
@@ -43,7 +43,36 @@ function createGlobalStatsStore(filePath = DEFAULT_STATS_FILE) {
     file.write(s);
   }
 
-  return { getStats, recordGame, flushSync: file.flushSync };
+  return {
+    getStats, recordGame, flushSync: file.flushSync,
+    flush: file.flush || (async () => {}),
+    pendingStatements: file.pendingStatements || (() => []),
+    status: file.status || (() => 'ok'),
+  };
 }
 
-module.exports = { createGlobalStatsStore };
+// --- Postgres codec: one row ------------------------------------------------
+const { upsert, num } = require('./SqlRows');
+
+const globalStatsCodec = {
+  name: 'global_stats',
+  table: 'global_stats',
+  normalize: (parsed) => (parsed && typeof parsed === 'object' ? { ...EMPTY, ...parsed } : undefined),
+  *rows(doc) {
+    const s = { ...EMPTY, ...doc };
+    yield ['global', upsert('global_stats',
+      ['id', 'games', 'rounds', 'pik_dames_laid_out', 'pik_dames_caught', 'hand_aus_rounds'], ['id'],
+      [true, s.games, s.rounds, s.pikDamesLaidOut, s.pikDamesCaught, s.handAusRounds])];
+  },
+  async load(q) {
+    const r = await q.query('SELECT * FROM global_stats WHERE id');
+    if (r.rows.length === 0) return undefined;
+    const row = r.rows[0];
+    return {
+      games: num(row.games), rounds: num(row.rounds), pikDamesLaidOut: num(row.pik_dames_laid_out),
+      pikDamesCaught: num(row.pik_dames_caught), handAusRounds: num(row.hand_aus_rounds),
+    };
+  },
+};
+
+module.exports = { createGlobalStatsStore, globalStatsCodec };

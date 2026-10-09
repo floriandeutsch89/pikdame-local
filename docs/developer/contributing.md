@@ -120,6 +120,18 @@ unchanged as `public/vendor-*.js` with the npm integrity hash in the header —
 never installed for the client, never loaded from a CDN: QR codes, uPlot,
 `@simplewebauthn/browser`.
 
+## Tests with PostgreSQL
+
+Account and statistics tests run against a real PostgreSQL and are skipped
+without `PIKDAME_TEST_PG_URL` (CI sets it). Each test gets its own schema
+(`test/helpers/pg.js`). Locally:
+
+```bash
+docker run -d --name pikdame-testpg -e POSTGRES_USER=pikdame   -e POSTGRES_PASSWORD=testpass -e POSTGRES_DB=pikdame_test   -p 5432:5432 postgres:18-alpine
+export PIKDAME_TEST_PG_URL=postgres://pikdame:testpass@127.0.0.1:5432/pikdame_test
+npm test
+```
+
 ## Documentation
 
 The docs live in `docs/` and are built with Sphinx + MyST (Markdown). Pages that

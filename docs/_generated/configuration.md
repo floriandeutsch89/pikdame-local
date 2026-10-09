@@ -10,9 +10,9 @@ generated from the source, so it cannot go stale.
 | `PIKDAME_ACCOUNTS` | unset (compare against `0`) | Set to `0` to disable user accounts entirely (pure guest play). |
 | `PIKDAME_ALLOWED_ORIGIN` | unset | If set, only WebSocket connections from this origin are accepted (CSRF hardening). |
 | `PIKDAME_BASE_URL` | the request's own host | Public base URL used to build invite links and QR codes (e.g. `https://play.example.com`). |
-| `PIKDAME_DATA_DIR` | `<app>/data` | Directory for all persistent data (profiles, stats, accounts, session snapshot). Point this at your mounted volume. |
+| `PIKDAME_DATA_DIR` | `<app>/data` | Directory for the server local files: session snapshot, monitor history, crash log, `pending-stats.json` (unsaved rows after an outage) and `*.json.imported` (old stats files after their import). Statistics and accounts live in PostgreSQL. Point this at your mounted volume. |
 | `PIKDAME_DATABASE_PASSWORD` | unset | Password for the PostgreSQL connection (also readable from a `_FILE` secret; see Configuration). |
-| `PIKDAME_DATABASE_URL` | unset | PostgreSQL connection string for accounts. If unset, a local SQLite file (`users.db`) inside the data directory is used. |
+| `PIKDAME_DATABASE_URL` | unset | PostgreSQL connection string for accounts. If unset, the game runs play-only: no accounts, statistics are not saved. |
 | `PIKDAME_HEARTBEAT_MS` | `30000` | WebSocket ping interval used to detect dead connections. |
 | `PIKDAME_LOG_GAMES` | — | Set to `1` to log human moves to JSONL for imitation learning. |
 | `PIKDAME_LOG_PATH` | `<app>/data` | Where the move log is written. |

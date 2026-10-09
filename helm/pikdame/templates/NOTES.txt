@@ -10,5 +10,4 @@ No ingress enabled - port-forward for a quick look:
 Health:  kubectl get pods -l app.kubernetes.io/name={{ include "pikdame.name" . }}
 Status:  curl <url>/statusz
 
-Reminder: this app is single-instance by design (in-memory sessions,
-local SQLite) - keep replicaCount at 1.
+Reminder: this app is single-instance by design (in-memory sessions) - keep replicaCount at 1.

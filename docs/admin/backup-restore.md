@@ -9,17 +9,17 @@ bottom of this page once — it takes five minutes and is the only way to know.
 
 | What | Where | Lose it and… |
 | --- | --- | --- |
-| Profiles, stats, achievements, history | `players.json`, `stats.json`, `games.json`, `challenges.json` in the data volume | …everyone's statistics and badges are gone. The game still works. |
-| Accounts (SQLite) | `users.db` in the data volume | …people can't log in. Guests unaffected. |
-| Accounts (PostgreSQL) | the database | …same, but it lives outside the volume. |
-| Running games | `sessions-snapshot.json` | …nothing, long-term. Rewritten every minute while tables change and on shutdown; deleted once restored. |
+| Accounts, profiles, stats, achievements, history | PostgreSQL (`pg_dump`) — **the required backup** | …people can't log in and everyone's statistics and badges are gone. |
+| Running games | `sessions-snapshot.json` (volume) | …nothing, long-term. Rewritten every minute while tables change and on shutdown; deleted once restored. |
+| Old statistics files | `*.json.imported` (volume) | …nothing, if the database is backed up. They are the pre-import copies. |
+| Unwritten stats after an outage | `pending-stats.json` (volume) | …the last few changes from a shutdown while the database was down. Applied automatically on the next start, then removed. |
 
 Everything else — the image, the code, the config — is reproducible from Git and
-the registry. **The volume is the only thing that is irreplaceable.**
+the registry. **The PostgreSQL database is the only thing that is irreplaceable;** the volume is secondary.
 
 ## Backing up the data volume
 
-Stop the app first so the JSON files are not mid-write. (The server flushes and
+Stop the app first so the session snapshot is complete. (The server flushes and
 writes a clean snapshot on `SIGTERM`, which is exactly what `docker compose stop`
 sends — so a graceful stop is enough; do not `kill -9`.)
 
@@ -44,16 +44,19 @@ copy them off the host (that is the point). A daily cron job plus
 `rsync`/`rclone` to somewhere else is plenty.
 :::
 
-## Backing up PostgreSQL (if you use accounts with Postgres)
+## Backing up PostgreSQL (required)
 
 ```bash
 docker compose exec -T db pg_dump -U pikdame pikdame \
   | gzip > pikdame-db-$(date +%F).sql.gz
 ```
 
-This can run while the app is up.
+This can run while the app is up. It is the primary backup: accounts and all
+statistics are in it.
 
 ## Restoring
+
+Restore the database first, then the volume.
 
 ### Data volume
 
@@ -92,8 +95,8 @@ Do this **once**, on a throwaway host or locally — not for the first time duri
 an actual outage.
 
 1. Take a backup as above.
-2. `docker compose down` and **delete** the volume (`docker volume rm …`).
-3. Restore from the archive, including the `chown`.
+2. `docker compose down`, **delete** the volume (`docker volume rm …`) and the database data.
+3. Restore the database from the dump, and the volume from the archive, including the `chown`.
 4. `docker compose up -d`, then check the startup log:
 
    ```bash
@@ -102,7 +105,7 @@ an actual outage.
 
    You want the line saying the data directory is **writable**, with non-zero
    file sizes listed — that proves both the permissions and the data are back.
-5. Open the app and check that the lobby statistics show the old profiles.
+5. Open the app and check that the profiles, statistics and game history show the old values. If `pending-stats.json` was in the volume, the log says it was re-applied and the file is gone.
 
 If step 4 prints the loud "NICHT BESCHREIBBAR" warning, the `chown` was missed.
 

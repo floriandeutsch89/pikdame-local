@@ -11,7 +11,7 @@ const AdminPage = require('../game/AdminPage');
 const { createAdminTokenVerifier, hashAdminToken, parsePhc, hasArgon2 } = require('../game/AdminToken');
 
 const byId = (report, id) => report.find((i) => i.id === id);
-const FACTS = { dataDir: '/data', dataDirWritable: true, accountsEnabled: true, accountsBackend: 'sqlite', onnxActive: false, adminMode: 'off' };
+const FACTS = { dataDir: '/data', dataDirWritable: true, accountsEnabled: true, accountsBackend: 'postgres', onnxActive: false, adminMode: 'off' };
 
 test('config report: accounts without SMTP warn that links only reach the log', () => {
   const r = buildConfigReport({}, FACTS);

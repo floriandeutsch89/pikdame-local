@@ -68,7 +68,7 @@ no profiles are stored, and the tasks and cabinet stay hidden accordingly.
 | --- | --- |
 | **Server** | Node.js, no framework. One WebSocket per player, the server is the single source of truth and validates every move. |
 | **Client** | Plain HTML/CSS/JS — no build step, no framework, no bundler. |
-| **Storage** | JSON files on a volume (profiles, statistics, history, daily-task progress) plus SQLite or PostgreSQL for optional accounts and the season ladder. |
+| **Storage** | PostgreSQL for accounts, profiles, statistics, history, daily-challenge progress and the season ladder; the session snapshot is a file on a volume. Without a database the game runs play-only. |
 | **Bots** | A heuristic engine by default; optionally a trained ONNX policy. |
 | **Deployment** | One container. Optionally the full stack with Caddy (automatic TLS) and PostgreSQL. |
 

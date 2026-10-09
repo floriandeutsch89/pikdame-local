@@ -14,6 +14,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const WebSocket = require('ws');
+const { hasPg, freshSchema } = require('./helpers/pg');
 
 const ROOT = path.join(__dirname, '..');
 const PORT = 8093;
@@ -36,10 +37,10 @@ async function waitForServer(port, timeoutMs = 15000) {
   throw new Error(`server on port ${port} did not come up within ${timeoutMs}ms`);
 }
 
-function startServer(dataDir) {
+function startServer(dataDir, extraEnv = {}) {
   const server = spawn('node', ['server.js'], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(PORT), PIKDAME_PUBLIC_MODE: '1', PIKDAME_DATA_DIR: dataDir },
+    env: { ...process.env, PORT: String(PORT), PIKDAME_PUBLIC_MODE: '1', PIKDAME_DATA_DIR: dataDir, ...extraEnv },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let out = '';
@@ -109,14 +110,16 @@ test('a disconnected human does not keep a bare GameManager process alive', () =
 // Stammtisch over the wire: founding (with an account) binds a live session
 // to the group code, the group code joins that same session (guests too), and
 // a member who dropped out gets their seat back by NAME (no seat token there).
-test('Stammtisch: found, join by group code, reclaim seat by name', async (t) => {
+test('Stammtisch: found, join by group code, reclaim seat by name', { skip: !hasPg && 'needs PIKDAME_TEST_PG_URL (accounts need Postgres)' }, async (t) => {
+  const schema = await freshSchema();
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-st-'));
-  const { server, output } = startServer(dataDir);
+  const { server, output } = startServer(dataDir, { PIKDAME_DATABASE_URL: schema.url });
   t.after(async () => {
     const gone = server.exitCode !== null ? null : new Promise((r) => server.once('exit', r));
     server.kill();
     await gone;
     fs.rmSync(dataDir, { recursive: true, force: true });
+    await schema.drop();
   });
   await waitForServer(PORT);
   const http = require('node:http');
@@ -285,23 +288,34 @@ test('checkSession flags a running challenge of today, not a normal table', asyn
   for (const ws of [host, probe]) ws.close();
 });
 
-test('Stammtisch: a new evening starts with the last winner as dealer', async (t) => {
+// Stammtisch tables live in Postgres now (no stammtisch.json), so the past
+// evening is seeded into a fresh schema before the server boots.
+test('Stammtisch: a new evening starts with the last winner as dealer', { skip: !hasPg && 'needs PIKDAME_TEST_PG_URL (Stammtisch data lives in Postgres)' }, async (t) => {
+  const schema = await freshSchema();
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-std-'));
   const now = Date.now();
-  fs.writeFileSync(path.join(dataDir, 'stammtisch.json'), JSON.stringify({ tables: { ST2345: {
+  const { ensureStatsSchema } = require('../game/StatsSchema');
+  const { createPgDocument } = require('../game/PgDocument');
+  const { stammtischCodec } = require('../game/StammtischStore');
+  await ensureStatsSchema(schema.pool);
+  const seed = createPgDocument({ pool: schema.pool, codec: stammtischCodec, log: { log() {}, error() {} } });
+  await seed.load();
+  seed.write({ tables: { ST2345: {
     code: 'ST2345', name: 'Familie', createdAt: now, lastActivity: now, members: {}, owner: null,
     series: { no: 1, bestOf: 3, wins: { anna: 1 }, games: 1, winner: null, finishedAt: null },
     games: [{ at: now, seriesNo: 1, players: [
       { name: 'Flo', isBot: false, score: 400, won: false },
       { name: 'Anna', isBot: false, score: 1010, won: true },
     ] }],
-  } } }));
-  const { server } = startServer(dataDir);
+  } } });
+  await seed.flush();
+  const { server } = startServer(dataDir, { PIKDAME_DATABASE_URL: schema.url });
   t.after(async () => {
     const gone = server.exitCode !== null ? null : new Promise((r) => server.once('exit', r));
     server.kill();
     await gone;
     fs.rmSync(dataDir, { recursive: true, force: true });
+    await schema.drop();
   });
   await waitForServer(PORT);
   const open = () => new Promise((resolve, reject) => {

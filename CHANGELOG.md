@@ -3,6 +3,20 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [3.0.0] - 2026-10-09
+
+### Changed
+- **Alle Statistiken liegen in der Datenbank**: Profile, Abzeichen, Spielverlauf, Tages-Challenge, Stammtisch und die Gesamtzahlen werden in PostgreSQL gespeichert statt in Dateien. Vorhandene Dateien werden beim ersten Start automatisch übernommen, kein Wert geht verloren
+- **Keine Obergrenzen mehr**: Profile, Partien, Stammtische und Challenge-Tage werden nicht mehr nach einer Höchstzahl oder Inaktivität gelöscht
+
+### Fixed
+- Ein Challenge-Ergebnis kurz vor einem Neustart des Servers ging verloren
+- Starteten zwei Server gleichzeitig an derselben Datenbank, konnten sie sich beim Einrichten der Konto-Tabellen gegenseitig blockieren; Konto-Aktionen meldeten dann „Konto-Datenbank nicht erreichbar“
+
+### Removed
+- **SQLite für Konten**: Konten und Statistik brauchen PostgreSQL. Ohne Datenbank läuft das Spiel nur noch zum Spielen, ohne Konten und ohne gespeicherte Statistik
+- **Hinweis zum Upgrade**: Vor dem Update PostgreSQL einrichten (`PIKDAME_DATABASE_URL`). Die JSON-Statistikdateien (`players.json`, `games.json`, `stats.json`, `challenges.json`, `stammtisch.json`) werden beim ersten Start mit Datenbank automatisch importiert. Ohne Datenbank warnt der Server beim Start und lädt sie nicht. Bestehende SQLite-Konten (`users.db`) werden nicht übernommen. Anleitung: docs/admin/upgrade-3.0.md
+
 ## [2.59.0] - 2026-10-09
 
 ### Changed

@@ -34,9 +34,8 @@ services:
     #   - .env
     environment:
       - PORT=8080
-      # Account database: PostgreSQL (shared, networked - the prerequisite
-      # for ever scaling beyond one app instance). Without this URL the
-      # server falls back to zero-config SQLite in data/users.db.
+      # Accounts and all statistics need PostgreSQL. Without this URL the
+      # game runs play-only (no accounts, statistics not saved).
       - PIKDAME_DATABASE_URL=postgres://pikdame:${POSTGRES_PASSWORD:-change-me}@postgres:5432/pikdame
       - PIKDAME_MAX_SESSIONS=200
       # Base URL for the confirmation links, plus the optional mail relay.
@@ -62,7 +61,7 @@ services:
       # - PIKDAME_LOG_GAMES=0
     volumes:
       - pikdame-data:/app/data
-      # The data dir (session snapshots, optional SQLite, and any
+      # The data dir (session snapshot, pending-stats.json, and any
       # human-moves.jsonl) is auto-created and persisted in the named
       # volume above. To reach the files directly from the host, swap it
       # for a bind mount, e.g.:

@@ -50,6 +50,7 @@ exclude_patterns = [
     "Thumbs.db",
     ".DS_Store",
     "_generated/*",
+    "superpowers/*",  # design specs and plans, not user docs
     ".venv",
 ]
 

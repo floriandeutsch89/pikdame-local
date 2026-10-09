@@ -3,8 +3,8 @@
 ## Wichtigste Betriebs-Eigenschaft zuerst
 
 **Der Server ist bewusst eine Einzel-Instanz** (`replicas: 1`,
-`strategy: Recreate`): Spielsitzungen leben im Prozess-Speicher, die
-Konten-Datenbank ist eine lokale SQLite-Datei auf dem PVC. Horizontal
+`strategy: Recreate`): Spielsitzungen leben im Prozess-Speicher, Konten
+und Statistik liegen in PostgreSQL. Horizontal
 skalieren würde Spieler auf Instanzen verteilen, die nichts voneinander
 wissen. Für den Zweck (Familien- und Freundesrunden, 200-Session-Limit)
 reicht eine Instanz mit großem Abstand — Updates überbrückt der

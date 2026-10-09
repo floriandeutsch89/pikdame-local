@@ -19,17 +19,26 @@ PIKDAME_DATABASE_PASSWORD_FILE=/run/secrets/db_password
 
 The file's contents are read once at startup and trimmed.
 
-## Accounts: SQLite or PostgreSQL?
+## Accounts and statistics need PostgreSQL
 
 Accounts are **optional** (`PIKDAME_ACCOUNTS=0` disables them entirely — guests
 can still play, they just get no profile).
 
-- **No `PIKDAME_DATABASE_URL`** → accounts go into a SQLite file, `users.db`,
-  inside the data directory. Perfect for a family server. Back up the file.
-- **`PIKDAME_DATABASE_URL` set** → PostgreSQL. Use this for a public server; back
-  it up with `pg_dump` (see {doc}`backup-restore`).
+- **`PIKDAME_DATABASE_URL` set** → PostgreSQL holds the accounts and all
+  statistics. Back it up with `pg_dump` (see {doc}`backup-restore`).
+- **No `PIKDAME_DATABASE_URL`** → the game runs play-only: no accounts, and
+  statistics are not saved.
 
-Switching from SQLite to PostgreSQL does **not** migrate existing accounts.
+On the first start with a database, existing JSON files in the data directory
+(`players.json`, `games.json`, `stats.json`, `challenges.json`,
+`stammtisch.json`) are imported automatically and renamed to
+`*.json.imported`. The log shows one line per file. If a table already has
+data, that file is skipped (log: `already has data - not imported, file left as
+is`) and stays in place. If a file cannot be imported exactly, the server
+refuses to start and names the file.
+
+Old SQLite account files (`users.db`) are not migrated. Step-by-step upgrade:
+{doc}`upgrade-3.0`.
 
 ## Sign-up, passkeys and sign-in links
 

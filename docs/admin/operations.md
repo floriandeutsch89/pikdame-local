@@ -188,18 +188,25 @@ version is available as its own tag on GHCR.
 ```
 
 The backup stops the app container for a few seconds — this guarantees a
-consistent archive of the data volume (flushed JSON stores; SQLite WAL
-checkpoint when running the fallback). If the compose stack contains the
+consistent archive of the data volume (the session snapshot; statistics come
+from `pg_dump`). If the compose stack contains the
 PostgreSQL service, the script additionally writes a `pg_dump` of the
 accounts database (`pikdame-pgdump-<stamp>.sql.gz`).
 Recommendation: run nightly via cron and copy the archive off-site.
 
 ## Observability
 
-- `GET /healthz` — liveness (also used by the Docker healthcheck)
+- `GET /healthz` — liveness (also used by the Docker healthcheck). Answers `ok`
+  normally and `ok (stats degraded)` while statistics cannot be written to
+  PostgreSQL. Rows are kept and retried (log: `[stats] … write failed, will
+  retry`, later `database reachable again`). If it stays degraded, check the
+  database.
 - `GET /statusz` — version, session/player counts, memory, accountsEnabled
 - Logs: `docker logs -f pikdame` (rotation 10 MB × 3 is configured)
 - Crash diagnostics: `data/crash.log` inside the volume
+- `data/pending-stats.json` appears only after a shutdown while the database was
+  unreachable. It is applied and removed on the next start. If the start
+  refuses because the file is unreadable, the error names the file.
 
 ## Kubernetes
 
@@ -208,7 +215,7 @@ artifact on GHCR with every release):
 `helm install pikdame oci://ghcr.io/floriandeutsch89/charts/pikdame`.
 Raw manifests are available as an alternative under `k8s/` (Deployment,
 Service, Ingress with WebSocket timeouts, PVC). **Key point: one replica,
-strategy Recreate** — sessions live in RAM, SQLite on the PVC; details in
+strategy Recreate** — sessions live in RAM, accounts and stats in PostgreSQL; details in
 `k8s/README.md`.
 
 ## Best-practice checklist (beyond the stack itself)

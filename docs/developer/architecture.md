@@ -14,8 +14,8 @@
                                     │   ├── Deck.js     (shuffle/deal) │
                                     │   └── ScoreBoard.js (scoring)    │
                                     │                                  │
-                                    │ Stores → /app/data/*.json        │
-                                    │ AccountStore → SQLite | Postgres │
+                                    │ Stats stores → PostgreSQL        │
+                                    │ PgAccountStore → PostgreSQL      │
                                     └──────────────────────────────────┘
 ```
 
@@ -73,11 +73,13 @@ external state store — not a quick hack.
 
 ## Persistence
 
-Small JSON files, written **atomically** (temp file + rename) and **debounced**
-(~800 ms), so a busy server does not hammer the disk. On shutdown — and after an
-uncaught exception — everything is flushed synchronously, so nothing is lost.
-
-Accounts are the exception: SQLite (default) or PostgreSQL.
+Accounts and all statistics live in PostgreSQL. The stats stores keep their data
+in memory behind a synchronous API and write changes **debounced** in the
+background (write-behind); only game-history reads are asynchronous. Without a
+database the stores run in RAM only (play-only). On shutdown the pending writes
+are flushed; if the database is unreachable they go to `data/pending-stats.json`,
+which is applied on the next start. `/healthz` answers `ok (stats degraded)`
+while stats cannot be written. The running tables' snapshot stays a file.
 
 ## Testing
 

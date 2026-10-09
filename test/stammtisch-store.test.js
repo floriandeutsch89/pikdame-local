@@ -72,12 +72,13 @@ test('touch: registers a member on join and survives a reload', () => {
   assert.strictEqual(fresh.touch('NOPE12', 'x'), null);
 });
 
-test('recordGame: unknown code is a no-op, game list is capped', () => {
+test('recordGame: unknown code is a no-op, game list is not capped', () => {
   const st = tempStore();
   assert.strictEqual(st.recordGame('NOPE12', rec('a', {})), null);
   const { table } = st.create('Runde', 'Flo');
   for (let i = 0; i < 120; i++) st.recordGame(table.code, rec('a', { a: 1000, b: 0, x: 0 }));
-  assert.strictEqual(st.get(table.code).games.length, 100);
+  // The spec removed the 100-game limit: every game is kept.
+  assert.strictEqual(st.get(table.code).games.length, 120);
 });
 
 test('my Stammtische: list by account, only the owner deletes, members leave (#307)', () => {

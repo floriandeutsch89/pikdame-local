@@ -32,7 +32,7 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
    Browser-Libs werden VENDORT (`public/vendor-*.js`, unverändert, npm-Hash im
    Kopf): qrcode, uPlot, @simplewebauthn/browser. Keine nativen Module (außer
    `onnxruntime-node` NUR im Dockerfile), kein Build-Schritt. Features mit
-   neueren Node-Features (z. B. `node:sqlite`, Node ≥ 22) schalten sich auf
+   neueren Node-Features (Node-Version-abhängig) schalten sich auf
    alten Versionen selbst ab (Factory → `null`, Client blendet aus).
 2. **Kein CDN, keine fremden Hosts im Ladepfad.** Icons = Inline-SVG-Sprite
    (`<svg class="icon"><use href="#i-name"/></svg>`), keine Icon-Fonts.
@@ -67,8 +67,8 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   `/api/*`, `/verify`, `/admin`) + WebSocket, ein `GameManager` pro Session.
 - `game/` — Logik ohne I/O: `Rules.js` (Melds, Ring-Folgen K-A-2, max 13),
   `ScoreBoard.js`, `GameManager.js` (Zustand, Bots, Snapshot), `Bot.js`
-  (easy/medium/hard/zen), JSON-Stores (atomar), `AccountStore.js` (SQLite) /
-  `PgAccountStore.js` (Postgres, Prod) — **jede Konto-Änderung in beiden**.
+  (easy/medium/hard/zen), Stats-Stores (Dokument-API; Postgres über `PgDocument`/Codec, ohne DB nur RAM),
+  `PgAccountStore.js` (Konten, nur Postgres). Spielverlauf liest asynchron (`historyFor`).
   - `Mailer.js`: eigener SMTP-Client, Log-Fallback; Header RFC 2047, Body
     Quoted-Printable — nie rohes UTF-8 in Kopfzeilen.
   - `Badges.js` (Familien in `BADGE_FAMILIES`, Fakten aus `finishRound`),
@@ -159,7 +159,7 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
    - **Nur eigene Dateien stagen, nie `git add -A`:** Trainingsläufe des
      Nutzers schreiben in `data/`, `models/`, `python/`.
    - Commits/cherry-picks immer mit `-c user.email=… -c user.name=…`.
-5. Vor Commits `rm -f data/*.json data/crash.log data/users.db`. Secrets nie
+5. Vor Commits `rm -f data/*.json data/*.imported data/crash.log`. Secrets nie
    ins Repo (nur `*.example`; `npm run secrets:check`, CI `secret-scan`).
    Gepushtes Secret zuerst ROTIEREN, dann entfernen.
 6. PR-Screenshots nur, wenn die Änderung sichtbar ist (Branch `pr-screenshots`).
@@ -181,8 +181,7 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
 ## Tests
 
 - **Eigene Server nie auf `data/`:** immer `PIKDAME_DATA_DIR=<temp>` (Skill
-  `ui-shots` macht das). Ein Server auf `data/` hält `users.db` offen →
-  `npm test` scheitert mit SQLite „disk I/O error“. Nach Gebrauch stoppen und
+  `ui-shots` macht das). Ein eigener Server auf `data/` importiert dort liegende JSON-Dateien in die DB und benennt sie um. Nach Gebrauch stoppen und
   auf das Ende warten (SIGTERM schreibt noch den Snapshot); vor `npm test`
   `pgrep -af "node server.js"`. Unbekannte Stammtisch-/Spiel-Codes zählen als
   Fehlversuch und sperren nach einigen die IP (sieht aus wie Drosseln) →
@@ -196,7 +195,7 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
 - Snapshot-Änderungen: Roundtrip `JSON.stringify/parse` + Restore.
 - `.canScroll*`-Klassen: wer sie gestaltet, setzt sie auch (Vertragstest;
   am iPhone die einzige Scroll-Andeutung).
-- Konten: Tests laufen gegen SQLite UND Postgres (`PIKDAME_TEST_PG_URL`).
+- Konten und Statistik: Tests laufen gegen Postgres (`PIKDAME_TEST_PG_URL`, je Test ein eigenes Schema über `test/helpers/pg.js`); ohne URL werden sie übersprungen.
 - RL: `OBS_SIZE`/`ACTION_SIZE` sind Verträge — `test/state-encoder.test.js`
   UND `scripts/rl-env-server.js` prüfen.
 - **UI im Browser prüfen**, nicht nur `npm test`: alle drei Layouts. Headless
