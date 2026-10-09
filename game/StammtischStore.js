@@ -251,12 +251,20 @@ function createStammtischStore(filePath = DEFAULT_DATA_FILE) {
     return { ok: true, code: t.code };
   }
 
+  /** Name of the human who won the table's latest match, or null. */
+  function lastWinner(rawCode) {
+    const t = get(rawCode);
+    const last = t && t.games && t.games[t.games.length - 1];
+    const w = last && last.players.find((p) => p.won && !p.isBot);
+    return w ? w.name : null;
+  }
+
   function summary(rawCode) {
     const t = get(rawCode);
     return t ? summarize(t) : null;
   }
 
-  return { create, get, touch, recordGame, summary, listFor, remove, leave, flushSync: file.flushSync, filePath, SERIES_BEST_OF };
+  return { create, get, touch, recordGame, lastWinner, summary, listFor, remove, leave, flushSync: file.flushSync, filePath, SERIES_BEST_OF };
 }
 
 module.exports = { createStammtischStore, normalizeCode, generateCode, DEFAULT_DATA_FILE, SERIES_BEST_OF };

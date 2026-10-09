@@ -154,7 +154,7 @@ class GameManager {
     if (this.phase !== 'lobby') return { error: 'Verlassen geht nur in der Lobby - im Spiel gibt es 🏳️ Aufgeben.' };
     const p = this.players.find((pl) => pl.id === playerId && !pl.isBot);
     if (!p) return { error: 'Du sitzt nicht an diesem Tisch.' };
-    this.players = this.players.filter((pl) => pl.id !== playerId);
+    this._keepDealer(() => { this.players = this.players.filter((pl) => pl.id !== playerId); });
     delete this.totals[playerId];
     if (this._lobbyReady) this._lobbyReady.delete(playerId);
     this.addLog(`${p.name} hat die Lobby verlassen.`);
@@ -298,12 +298,14 @@ class GameManager {
   syncLobbyBots() {
     if (this.phase !== 'lobby') return;
     // Trim surplus bots from the end first (e.g. after lowering maxSeats).
-    while (this.players.length > this.maxSeats) {
-      const idx = [...this.players].map((p, i) => [p, i]).reverse().find(([p]) => p.isBot)?.[1];
-      if (idx === undefined) break; // only humans left - nothing to trim
-      const [removed] = this.players.splice(idx, 1);
-      if (removed) delete this.totals[removed.id];
-    }
+    this._keepDealer(() => {
+      while (this.players.length > this.maxSeats) {
+        const idx = [...this.players].map((p, i) => [p, i]).reverse().find(([p]) => p.isBot)?.[1];
+        if (idx === undefined) break; // only humans left - nothing to trim
+        const [removed] = this.players.splice(idx, 1);
+        if (removed) delete this.totals[removed.id];
+      }
+    });
     this.fillWithBots();
   }
 
@@ -375,7 +377,7 @@ class GameManager {
       if (!p) return { error: `Unbekannte Spieler-ID in der Sitzordnung: ${id}` };
       reordered.push(p);
     }
-    this.players = reordered;
+    this._keepDealer(() => { this.players = reordered; });
     this.broadcastState();
     return { ok: true };
   }
@@ -385,6 +387,20 @@ class GameManager {
    * automatischen Rotation ab Platz 0). Wirkt sich erst auf den nächsten
    * Aufruf von startNewRound() aus.
    */
+  /** Lobby seat changes keep the dealer the same PERSON (e.g. the rematch
+   *  winner); if they left, the deal falls back to seat 0. */
+  _keepDealer(mutate) {
+    const dealerId = this.players[this.dealerIndex]?.id;
+    mutate();
+    const idx = this.players.findIndex((p) => p.id === dealerId);
+    if (idx >= 0) {
+      this.dealerIndex = idx;
+    } else {
+      this.dealerIndex = 0;
+      this.explicitDealerSet = false;
+    }
+  }
+
   setExplicitDealer(playerId) {
     const idx = this.players.findIndex((p) => p.id === playerId);
     if (idx === -1) return { error: 'Spieler nicht gefunden.' };
@@ -1887,6 +1903,7 @@ class GameManager {
   }
 
   prepareRematch() {
+    const lastWinnerId = this.gameOverInfo ? this.gameOverInfo.winnerId : null;
     this._lobbyReady = new Set(); // Revanche: alle melden sich frisch bereit
     this.gameStatsTotals = {};
     this.totals = {};
@@ -1904,6 +1921,13 @@ class GameManager {
     this.roundNumber = 0;
     this.dealerIndex = 0;
     this.explicitDealerSet = false;
+    // The winner deals the rematch, so the lucky cut goes to someone else.
+    // Not in the challenge: its retry must replay round 1 identically.
+    const winnerIdx = this.players.findIndex((p) => p.id === lastWinnerId);
+    if (winnerIdx >= 0 && !this.challengeDate) {
+      this.dealerIndex = winnerIdx;
+      this.explicitDealerSet = true;
+    }
     this.broadcastState();
   }
 
