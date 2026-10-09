@@ -2185,27 +2185,6 @@ async function flushStatsForShutdown() {
   const pending = collectPendingStats();
   if (writePending(PENDING_STATS_FILE, pending)) {
     console.error(`[stats] ${pending.length} unsaved statement(s) written to ${PENDING_STATS_FILE}${timedOut ? ' (flush timed out)' : ''}`);
-  } else {
-    if (dbPool) removePendingFile(); // everything saved: an outage-time copy would only replay older rows
-  }
-}
-
-function removePendingFile() {
-  try { fs.unlinkSync(PENDING_STATS_FILE); } catch (e) { /* none there */ }
-}
-
-// During a database outage keep the unsaved rows on disk too, so a hard kill
-// loses ~30 s at most. Once everything is saved the copy is deleted again:
-// replaying it later would put older rows over newer ones.
-const PENDING_PERSIST_MS = Number(process.env.PIKDAME_PENDING_PERSIST_MS) || 30000; // env: tests only
-let pendingPersisted = false;
-function persistPendingWhileDegraded() {
-  if (shuttingDown) return;
-  if (STATS_STORES.some((s) => s.status() === 'degraded')) {
-    if (writePending(PENDING_STATS_FILE, collectPendingStats())) pendingPersisted = true;
-  } else if (pendingPersisted && collectPendingStats().length === 0) {
-    removePendingFile();
-    pendingPersisted = false;
   }
 }
 
@@ -2296,7 +2275,6 @@ bootStats().then(
     if (shuttingDown) return; // SIGTERM during boot: shutdown() exits; keep the snapshot untouched
     restoreSessionsSnapshot();
     server.listen(PORT, onListening);
-    if (dbPool) setInterval(persistPendingWhileDegraded, PENDING_PERSIST_MS).unref(); // after the boot replay
   },
   (err) => {
     if (shuttingDown) return;

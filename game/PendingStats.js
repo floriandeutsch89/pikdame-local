@@ -9,6 +9,10 @@ const { STATS_TABLES } = require('./StatsSchema');
 // The file sits in a writable data dir: replay only what the stores can produce.
 const ALLOWED = new RegExp(`^(?:INSERT INTO (?:${STATS_TABLES.join('|')}) |DELETE FROM stammtisch_tables )`);
 
+// No ';' (values-less statements run as a simple query, which allows chaining); params are required.
+const isAllowed = (st) => !!st && typeof st.text === 'string' && ALLOWED.test(st.text)
+  && !st.text.includes(';') && Array.isArray(st.values) && st.values.length > 0;
+
 function writePending(file, statements) {
   if (!statements.length) return false;
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -32,7 +36,7 @@ async function replayPending(pool, file, log = console) {
   }
   const statements = [];
   for (const st of parsed.statements) {
-    if (st && typeof st.text === 'string' && ALLOWED.test(st.text)) statements.push(st);
+    if (isAllowed(st)) statements.push(st);
     else log.error(`[stats] pending-stats: rejected statement, not executed: ${JSON.stringify(st)}`);
   }
   await writeStatements(pool, statements, { name: 'pending-stats', log });

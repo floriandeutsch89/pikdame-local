@@ -220,38 +220,3 @@ test('e2e with Postgres: a Stammtisch game is booked in stammtisch_games',
       await s.drop();
     }
   });
-
-test('e2e with Postgres: during an outage unsaved rows are persisted periodically and cleaned up after recovery',
-  { skip: !hasPg && 'needs PIKDAME_TEST_PG_URL', timeout: 150000 }, async () => {
-    const { PG_URL } = require('./helpers/pg');
-    const { Pool } = require('pg');
-    const { ensureStatsSchema } = require('../game/StatsSchema');
-    const s = await freshSchema();
-    let srv = null;
-    let ws = null;
-    try {
-      srv = await startServer(18944, { PIKDAME_DATABASE_URL: s.url, PIKDAME_PENDING_PERSIST_MS: '300' });
-      const pendingFile = path.join(srv.dataDir, 'pending-stats.json');
-      // Outage: the tables vanish, every flush fails with a non-data error.
-      const admin = new Pool({ connectionString: PG_URL, max: 1 });
-      await admin.query(`DROP SCHEMA ${s.name} CASCADE`);
-      ws = await finishChallenge(18944, 'Anna');
-      for (let i = 0; i < 100 && !fs.existsSync(pendingFile); i++) await sleep(100);
-      assert.ok(fs.existsSync(pendingFile), 'unsaved statements were written while the store is degraded');
-      const written = JSON.parse(fs.readFileSync(pendingFile, 'utf8'));
-      assert.ok(written.statements.some((st) => /player_profiles/.test(st.text)));
-
-      // Recovery: the schema is back, the stores flush on their own, the copy is removed.
-      await admin.query(`CREATE SCHEMA ${s.name}`);
-      await ensureStatsSchema(s.pool);
-      for (let i = 0; i < 400 && fs.existsSync(pendingFile); i++) await sleep(100);
-      assert.ok(!fs.existsSync(pendingFile), 'the outage copy is gone once everything is saved');
-      const n = (await s.pool.query('SELECT count(*)::int AS n FROM game_records')).rows[0].n;
-      assert.equal(n, 1, 'the game was saved after the recovery');
-      await admin.end();
-    } finally {
-      if (ws) ws.close();
-      if (srv) { await srv.stop(); fs.rmSync(srv.dataDir, { recursive: true, force: true }); }
-      await s.drop();
-    }
-  });

@@ -110,3 +110,24 @@ test('SIGTERM while the database is unreachable: exits cleanly, snapshot untouch
       fs.rmSync(srv.dataDir, { recursive: true, force: true });
     }
   });
+
+test('SIGTERM during boot (database unreachable) keeps an existing pending-stats.json byte-identical',
+  { skip: process.platform === 'win32' && 'SIGTERM is a hard kill on Windows' }, async () => {
+    const pending = JSON.stringify({ version: 1, statements: [{ text: 'INSERT INTO player_profiles (name_key) VALUES ($1)', values: ['anna'] }] });
+    const srv = await startServer({
+      vars: { PIKDAME_DATABASE_URL: 'postgres://nouser:nopass@127.0.0.1:59999/nodb' },
+      files: {},
+    }, 18935, { waitHealthy: false });
+    try {
+      const file = path.join(srv.dataDir, 'pending-stats.json');
+      fs.writeFileSync(file, pending);
+      for (let i = 0; i < 100 && !/not reachable/.test(srv.log()); i++) await new Promise((r) => setTimeout(r, 100));
+      assert.match(srv.log(), /not reachable/);
+      const code = await new Promise((resolve) => { srv.proc.once('exit', resolve); srv.proc.kill('SIGTERM'); });
+      assert.equal(code, 0);
+      assert.equal(fs.readFileSync(file, 'utf8'), pending, 'never replayed, so it must survive');
+    } finally {
+      await srv.stop();
+      fs.rmSync(srv.dataDir, { recursive: true, force: true });
+    }
+  });

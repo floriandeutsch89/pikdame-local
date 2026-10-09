@@ -363,3 +363,19 @@ test('replayPending: only stats-table inserts and the Stammtisch delete run, eve
   assert.equal(fs.existsSync(file), false);
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('replayPending: a statement with ";" or without parameters is rejected and not executed', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikpend-'));
+  const file = path.join(dir, 'pending-stats.json');
+  const ok = upsert('player_profiles', ['name_key', 'name'], ['name_key'], ['a', 'A']);
+  const noValues = { text: "INSERT INTO player_profiles (name_key) VALUES ('x')", values: [] };
+  const missingValues = { text: "INSERT INTO player_profiles (name_key) VALUES ('y')" };
+  const chained = { text: 'INSERT INTO player_profiles (name_key) VALUES ($1); DROP TABLE users', values: ['z'] };
+  fs.writeFileSync(file, JSON.stringify({ version: 1, statements: [noValues, ok, missingValues, chained] }));
+  const pool = createFakePool();
+  const errors = [];
+  await replayPending(pool, file, { log() {}, error: (m) => errors.push(m) });
+  assert.deepEqual(pool.committed().map((q) => q.text), [ok.text]);
+  assert.equal(errors.filter((m) => /rejected/.test(m)).length, 3, errors.join('\n'));
+  fs.rmSync(dir, { recursive: true, force: true });
+});
