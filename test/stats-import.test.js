@@ -54,11 +54,47 @@ test('import: a verification mismatch rolls back, keeps the file and throws', { 
   } finally { await s.drop(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
+test('import: dropped entries are logged in full and counted, an id-less game is kept', { skip: PG }, async () => {
+  const s = await freshSchema();
+  const dir = tmp();
+  const errors = [];
+  const logs = [];
+  const capture = { log: (m) => logs.push(m), error: (m) => errors.push(m) };
+  try {
+    await ensureStatsSchema(s.pool);
+    put(dir, 'players.json', { players: [
+      { id: 'profile-1', name: 'Oma Inge', gamesPlayed: 7 },
+      { id: 'profile-2', gamesPlayed: 3 }, // nameless
+      { id: 'profile-3', name: 'oma inge', gamesPlayed: 1 }, // duplicate
+    ] });
+    put(dir, 'challenges.json', { days: { '2026-10-01': [{ name: 'Anna', score: 50, at: 1 }, { score: 9, at: 2 }] } });
+    put(dir, 'games.json', { games: [
+      { id: 'game-1', finishedAt: 5, players: [{ id: 'p0', name: 'Anna', isBot: false }], rounds: [] },
+      { finishedAt: 6, players: [{ id: 'p0', name: 'Bea', isBot: false }], rounds: [] }, // no id
+      { id: 'game-1', finishedAt: 7, players: [], rounds: [] }, // duplicate id
+    ] });
+    const done = await importStats({ pool: s.pool, dataDir: dir, log: capture });
+    assert.deepEqual(done.map((d) => d.file).sort(), ['challenges.json', 'games.json', 'players.json']);
+    assert.equal(await count(s.pool, 'game_records'), 2, 'the id-less game is kept, the duplicate is not');
+    assert.equal(await count(s.pool, 'player_profiles'), 1);
+    assert.equal(await count(s.pool, 'challenge_scores'), 1);
+    const dropped = errors.filter((e) => e.includes('dropped'));
+    assert.equal(dropped.length, 4, dropped.join('\n'));
+    assert.ok(dropped.some((e) => e.includes('players.json: dropped profile without a name') && e.includes('profile-2')));
+    assert.ok(dropped.some((e) => e.includes('players.json: dropped duplicate profile name') && e.includes('oma inge')));
+    assert.ok(dropped.some((e) => e.includes('challenges.json: dropped challenge entry without a name') && e.includes('2026-10-01')));
+    assert.ok(dropped.some((e) => e.includes('games.json: dropped duplicate game id')));
+    assert.ok(!dropped.some((e) => e.includes('games.json') && e.includes('without')), 'an id-less game is not a drop');
+    assert.ok(logs.some((m) => m.includes('games.json') && m.includes('4 rows, 1 dropped')), logs.join('\n'));
+  } finally { await s.drop(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
 test('import: an empty file is renamed, a corrupt one refuses the start', { skip: PG }, async () => {
   const s = await freshSchema();
   const dir = tmp();
   try {
     await ensureStatsSchema(s.pool);
+    // Relies on DEFAULT_IMPORTS handling stats.json before players.json.
     put(dir, 'stats.json', '');
     put(dir, 'players.json', '{"players": [');
     await assert.rejects(importStats({ pool: s.pool, dataDir: dir, log: quiet }), /players\.json/);

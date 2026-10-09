@@ -357,14 +357,21 @@ function rowToProfile(row) {
 const playerCodec = {
   name: 'player_profiles',
   table: 'player_profiles',
-  normalize(parsed) {
-    return { players: parsed && Array.isArray(parsed.players) ? parsed.players.filter((p) => p && typeof p.name === 'string') : [] };
+  // report(reason, entry) is called for every entry that is not carried over.
+  normalize(parsed, report = () => {}) {
+    const list = parsed && Array.isArray(parsed.players) ? parsed.players : [];
+    const players = [];
+    for (const p of list) {
+      if (p && typeof p.name === 'string') players.push(p);
+      else report('profile without a name', p);
+    }
+    return { players };
   },
-  *rows(doc) {
+  *rows(doc, report = () => {}) {
     const seen = new Set();
     for (const p of doc.players) {
       const key = p.name.toLowerCase(); // the store's lookup key (findPlayerByName)
-      if (seen.has(key)) continue; // unreachable duplicates: find() returns the first
+      if (seen.has(key)) { report('duplicate profile name (first one kept)', p); continue; } // find() returns the first
       seen.add(key);
       yield [key, profileRow(p, key)];
     }

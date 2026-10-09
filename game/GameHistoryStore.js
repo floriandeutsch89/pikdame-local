@@ -160,11 +160,20 @@ function createPgGameHistoryStore(pool, { flushDelayMs = 800, backoffMs, log = c
 const gameHistoryCodec = {
   name: 'game_records',
   table: 'game_records',
-  normalize: (parsed) => ({ games: parsed && Array.isArray(parsed.games) ? parsed.games.filter((g) => g && g.id) : [] }),
-  *rows(doc) {
+  // A game without an id is kept with a generated one; only non-objects are dropped.
+  normalize(parsed, report = () => {}) {
+    const list = parsed && Array.isArray(parsed.games) ? parsed.games : [];
+    const games = [];
+    for (const g of list) {
+      if (!g || typeof g !== 'object') report('game entry is not an object', g);
+      else games.push(g.id ? g : { ...g, id: genId() });
+    }
+    return { games };
+  },
+  *rows(doc, report = () => {}) {
     const seen = new Set();
     for (const g of doc.games) {
-      if (seen.has(g.id)) continue;
+      if (seen.has(g.id)) { report('duplicate game id (first one kept)', g); continue; }
       seen.add(g.id);
       const [rec, ...seats] = gameStatements(g);
       yield [`r|${g.id}`, rec];

@@ -17,10 +17,11 @@ const DEFAULT_IMPORTS = [
   { file: 'games.json', codec: gameHistoryCodec },
 ];
 
-function rowMap(codec, doc) {
+// Only the file side passes a report: the database side must not count drops twice.
+function rowMap(codec, doc, report) {
   const m = new Map();
   if (doc === undefined) return m;
-  for (const [key, stmt] of codec.rows(doc)) if (!m.has(key)) m.set(key, stmt);
+  for (const [key, stmt] of codec.rows(doc, report)) if (!m.has(key)) m.set(key, stmt);
   return m;
 }
 
@@ -50,8 +51,14 @@ async function importStats({ pool, dataDir, log = console, imports = DEFAULT_IMP
     const filePath = path.join(dataDir, file);
     if (!fs.existsSync(filePath)) continue;
     const parsed = readJson(filePath, file);
-    const doc = parsed === undefined ? undefined : codec.normalize(parsed);
-    const expected = rowMap(codec, doc);
+    let dropped = 0;
+    // Every entry that is not carried over is logged in full, so nothing vanishes silently.
+    const report = (reason, entry) => {
+      dropped++;
+      log.error(`[stats] ${file}: dropped ${reason}: ${JSON.stringify(entry)}`);
+    };
+    const doc = parsed === undefined ? undefined : codec.normalize(parsed, report);
+    const expected = rowMap(codec, doc, report);
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -72,8 +79,7 @@ async function importStats({ pool, dataDir, log = console, imports = DEFAULT_IMP
       client.release();
     }
     fs.renameSync(filePath, `${filePath}.imported`);
-    const dropped = codec === playerCodec && doc ? doc.players.length - expected.size : 0;
-    log.log(`[stats] imported ${file}: ${expected.size} rows${dropped ? `, ${dropped} unreachable duplicate profile(s) skipped` : ''}`);
+    log.log(`[stats] imported ${file}: ${expected.size} rows, ${dropped} dropped`);
     done.push({ file, rows: expected.size });
   }
   return done;

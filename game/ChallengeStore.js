@@ -189,20 +189,26 @@ const { upsert, num } = require('./SqlRows');
 const challengeCodec = {
   name: 'challenge_scores',
   table: 'challenge_scores',
-  normalize(parsed) {
+  // report(reason, entry) is called for every entry that is not carried over.
+  normalize(parsed, report = () => {}) {
     const days = {};
     const src = parsed && parsed.days && typeof parsed.days === 'object' ? parsed.days : {};
     for (const [day, list] of Object.entries(src)) {
-      if (Array.isArray(list)) days[day] = list.filter((e) => e && typeof e.name === 'string');
+      if (!Array.isArray(list)) { report('challenge day is not a list', { day, value: list }); continue; }
+      days[day] = [];
+      for (const e of list) {
+        if (e && typeof e.name === 'string') days[day].push(e);
+        else report('challenge entry without a name', { day, entry: e });
+      }
     }
     return { days };
   },
-  *rows(doc) {
+  *rows(doc, report = () => {}) {
     for (const [day, list] of Object.entries(doc.days)) {
       const seen = new Set();
       for (const e of list) {
         const key = e.name.toLowerCase();
-        if (seen.has(key)) continue; // submit() keeps one entry per name and day
+        if (seen.has(key)) { report('duplicate challenge entry (first one kept)', { day, entry: e }); continue; } // submit() keeps one per name and day
         seen.add(key);
         yield [`${day}|${key}`, upsert('challenge_scores', ['day', 'name_key', 'name', 'score', 'at'], ['day', 'name_key'],
           [day, key, e.name, Math.round(Number(e.score) || 0), Math.round(Number(e.at) || 0)])];
