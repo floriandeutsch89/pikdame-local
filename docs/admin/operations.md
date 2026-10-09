@@ -188,8 +188,8 @@ version is available as its own tag on GHCR.
 ```
 
 The backup stops the app container for a few seconds — this guarantees a
-consistent archive of the data volume (flushed JSON stores; SQLite WAL
-checkpoint when running the fallback). If the compose stack contains the
+consistent archive of the data volume (the session snapshot; statistics come
+from `pg_dump`). If the compose stack contains the
 PostgreSQL service, the script additionally writes a `pg_dump` of the
 accounts database (`pikdame-pgdump-<stamp>.sql.gz`).
 Recommendation: run nightly via cron and copy the archive off-site.
@@ -208,7 +208,7 @@ artifact on GHCR with every release):
 `helm install pikdame oci://ghcr.io/floriandeutsch89/charts/pikdame`.
 Raw manifests are available as an alternative under `k8s/` (Deployment,
 Service, Ingress with WebSocket timeouts, PVC). **Key point: one replica,
-strategy Recreate** — sessions live in RAM, SQLite on the PVC; details in
+strategy Recreate** — sessions live in RAM, accounts and stats in PostgreSQL; details in
 `k8s/README.md`.
 
 ## Best-practice checklist (beyond the stack itself)

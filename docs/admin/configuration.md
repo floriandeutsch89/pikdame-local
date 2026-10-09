@@ -29,7 +29,13 @@ can still play, they just get no profile).
 - **No `PIKDAME_DATABASE_URL`** → the game runs play-only: no accounts, and
   statistics are not saved.
 
-Old `users.db` files (SQLite) are no longer read and are not migrated.
+On the first start with a database, existing JSON files in the data directory
+(`players.json`, `games.json`, `stats.json`, `challenges.json`,
+`stammtisch.json`) are imported automatically and renamed to
+`*.json.imported`. The log shows one line per file. If a file cannot be
+imported exactly, the server refuses to start and names the file.
+
+Old SQLite account files (`users.db`) are not migrated.
 
 ## Sign-up, passkeys and sign-in links
 

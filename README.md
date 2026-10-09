@@ -36,8 +36,8 @@ external frontend dependencies.
 - **User accounts** (hosted mode only): registration with e-mail
   confirmation, login with a 90-day session — your name is protected against
   impersonation and your progress is kept permanently. Stored in
-  **PostgreSQL** in the Docker/K8s stack (SQLite as zero-config fallback for
-  a single container); automatically disabled and invisible where it is not
+  **PostgreSQL** in the Docker/K8s stack (without a database: play-only, no
+  accounts); automatically disabled and invisible where it is not
   configured.
 - **Robust in operation**: reconnect with bot takeover, running games survive
   server restarts (session snapshot), heartbeat against zombie connections,
@@ -192,13 +192,13 @@ server runs with its defaults):
 | `PIKDAME_TRUST_PROXY=1` | Client IP from `X-Forwarded-For` (behind a reverse proxy) |
 | `PIKDAME_ALLOWED_ORIGIN` | WebSocket only from your own domain |
 | `PIKDAME_ACCOUNTS=0` | Disable user accounts |
-| `PIKDAME_DATABASE_URL` | PostgreSQL for accounts (compose sets it; without it: SQLite fallback) |
+| `PIKDAME_DATABASE_URL` | PostgreSQL for accounts and statistics (compose sets it; without it: play-only) |
 | `PIKDAME_BASE_URL`, `PIKDAME_SMTP_*` | Confirmation e-mails (see `.env.example`) |
 
 Built-in hardening: name sanitizing + HTML escaping (double XSS protection),
 IP-based brute-force protection on codes and the account API, rate limits,
 16 KB message limit, session cleanup, heartbeat, graceful shutdown with
-session snapshot, atomic persistence, SQLite in WAL mode, scrypt passwords.
+session snapshot, atomic persistence, scrypt passwords.
 Observability via `GET /statusz` (version, sessions, memory — no names) and
 `GET /healthz`.
 
@@ -266,7 +266,7 @@ Running, switching off and swapping the trained bots:
 ## Deliberate limits
 
 - **A single server instance by design**: sessions live in process memory and
-  the accounts DB is local SQLite — scaling out would split players across
+  accounts and stats live in PostgreSQL — scaling out would split players across
   instances that know nothing about each other. For the purpose (family and
   friends rounds, 200-session cap) one instance is plenty; the session
   snapshot bridges updates.

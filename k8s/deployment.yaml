@@ -1,7 +1,7 @@
 # Pik Dame - Kubernetes Deployment
 #
 # IMPORTANT: replicas MUST stay 1. Game sessions live in process memory and
-# the accounts DB is a local SQLite file on the PVC - the server is
+# accounts and stats live in PostgreSQL - the server is
 # deliberately a single-instance stateful app. "strategy: Recreate" prevents
 # two pods from ever writing to the same volume during an update; the
 # session snapshot + restore mechanism bridges the short restart gap.

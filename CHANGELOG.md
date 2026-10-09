@@ -3,6 +3,18 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [3.0.0] - 2026-10-09
+
+### Changed
+- **Alle Statistiken liegen in der Datenbank**: Profile, Abzeichen, Spielverlauf, Tages-Challenge, Stammtisch und die Gesamtzahlen werden in PostgreSQL gespeichert statt in Dateien. Vorhandene Dateien werden beim ersten Start automatisch übernommen, kein Wert geht verloren
+- **Keine Obergrenzen mehr**: Profile, Partien, Stammtische und Challenge-Tage werden nicht mehr nach einer Höchstzahl oder Inaktivität gelöscht
+
+### Fixed
+- Ein Challenge-Ergebnis kurz vor einem Neustart des Servers ging verloren
+
+### Removed
+- **SQLite für Konten**: Konten und Statistik brauchen PostgreSQL. Ohne Datenbank läuft das Spiel nur noch zum Spielen, ohne Konten und ohne gespeicherte Statistik
+
 ## [2.58.2] - 2026-10-08
 
 ### Changed
