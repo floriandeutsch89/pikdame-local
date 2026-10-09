@@ -281,7 +281,7 @@ function serveStatic(req, res) {
   // ---------------- Benutzerkonten-API ----------------
   if (filePath.startsWith('/api/') || filePath === '/verify') {
     // handleAccountRequest ist async: eine unerwartete Exception (z.B. aus
-    // SQLite) darf weder als unhandledRejection enden noch die HTTP-Antwort
+    // der Datenbank) darf weder als unhandledRejection enden noch die HTTP-Antwort
     // ewig offen lassen - der Client bekommt ein sauberes 500.
     handleAccountRequest(req, res, filePath).catch((err) => {
       logCrash('account-api', err, { path: filePath });
@@ -1570,7 +1570,7 @@ wss.on('connection', (ws, req) => {
     // PROGRESS PROTECTION: a name belonging to a verified account may only
     // be used with a valid login token - otherwise anyone could hijack an
     // account's statistics/badges. Async because the Postgres backend
-    // queries over the network; the SQLite path resolves immediately.
+    // queries over the network.
     if (ACCOUNTS_ENABLED) {
       const wantedName = sanitizeName(msg.name);
       if (await accountStore.isRegisteredName(wantedName)) {
@@ -2189,7 +2189,7 @@ async function bootStats() {
     console.log('[stats] No PIKDAME_DATABASE_URL: play-only mode - no accounts, statistics are not saved.');
     return;
   }
-  for (let attempt = 1; ; attempt++) {
+  for (let attempt = 1; !shuttingDown; attempt++) {
     try {
       await dbPool.query('SELECT 1');
       break;
@@ -2199,6 +2199,7 @@ async function bootStats() {
       await new Promise((r) => setTimeout(r, wait));
     }
   }
+  if (shuttingDown) return;
   await ensureStatsSchema(dbPool);
   const replayed = await replayPending(dbPool, PENDING_STATS_FILE, console);
   if (replayed) console.log(`[stats] re-applied ${replayed} unsaved statement(s) from ${PENDING_STATS_FILE}`);
@@ -2254,10 +2255,12 @@ function onListening() {
 
 bootStats().then(
   () => {
+    if (shuttingDown) return; // SIGTERM during boot: shutdown() exits; keep the snapshot untouched
     restoreSessionsSnapshot();
     server.listen(PORT, onListening);
   },
   (err) => {
+    if (shuttingDown) return;
     logCrash('stats-boot', err);
     console.error(`[stats] startup failed, refusing to start: ${err.message}`);
     process.exit(1);

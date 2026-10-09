@@ -78,3 +78,93 @@ test('PgAccountStore: expired unverified accounts are purged on next register (n
     await store.close();
   }
 });
+
+// Names are unique per run: these tests share the public schema of PG_URL.
+const uniq = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+test('PgAccountStore: register validation and duplicates', { skip: !PG_URL }, async () => {
+  const store = createPgAccountStore(PG_URL);
+  const u = uniq();
+  const name = `Anna${u}`;
+  try {
+    const r = await store.register(name, `anna${u}@example.com`, 'passwort99');
+    await store.verifyEmail(r.verifyToken);
+    assert.match((await store.login(name, 'falsch1234')).error, /falsch/);
+    assert.match((await store.register(name.toLowerCase(), `other${u}@example.com`, 'passwort99')).error, /bereits registriert/); // case-insensitive
+    assert.match((await store.register(`Neu${u}`, `ANNA${u}@example.com`, 'passwort99')).error, /bereits registriert/);
+    assert.match((await store.register('x', 'a@b.de', 'passwort99')).error, /2-24 Zeichen/);
+    assert.match((await store.register('Okname', 'keinemail', 'passwort99')).error, /gültige E-Mail/);
+    assert.match((await store.register('Okname', 'a@b.de', 'kurz')).error, /8 Zeichen/);
+  } finally {
+    await store.deleteUser(name).catch(() => {});
+    await store.close();
+  }
+});
+
+test('PgAccountStore: isRegisteredName protects only VERIFIED names', { skip: !PG_URL }, async () => {
+  const store = createPgAccountStore(PG_URL);
+  const name = `Opa${uniq()}`;
+  try {
+    const r = await store.register(name, `${name.toLowerCase()}@example.com`, 'passwort99');
+    assert.equal(await store.isRegisteredName(name), false, 'unverified = unprotected');
+    await store.verifyEmail(r.verifyToken);
+    assert.equal(await store.isRegisteredName(name), true);
+    assert.equal(await store.isRegisteredName(`Fremder${uniq()}`), false);
+  } finally {
+    await store.deleteUser(name).catch(() => {});
+    await store.close();
+  }
+});
+
+test('PgAccountStore: season ladder books XP, ranks players and resets per season', { skip: !PG_URL }, async () => {
+  const store = createPgAccountStore(PG_URL);
+  const u = uniq();
+  // A season label no other test or run uses, so the board holds only our players.
+  const s1 = `T${u}-a`;
+  const s2 = `T${u}-b`;
+  const names = [`Flo${u}`, `Erika${u}`, `Gast${u}`];
+  const [flo, erika, gast] = names;
+  const signUp = async (name) => {
+    const r = await store.register(name, `${name.toLowerCase()}@example.com`, 'geheim123');
+    await store.verifyEmail(r.verifyToken);
+  };
+  try {
+    await signUp(flo);
+    await signUp(erika);
+
+    assert.equal((await store.progressFor(flo)).xp, 0, 'a fresh account starts at zero');
+    assert.deepEqual(await store.ladder(s1), [], 'nobody has played yet');
+
+    await store.addGameResult(flo, { xp: 160, won: true, season: s1 });
+    await store.addGameResult(flo, { xp: 50, won: false, season: s1 });
+    await store.addGameResult(erika, { xp: 300, won: true, season: s1 });
+
+    const f = await store.progressFor(flo);
+    assert.equal(f.xp, 210);
+    assert.equal(f.seasonXp, 210);
+    assert.equal(f.games, 2);
+    assert.equal(f.wins, 1);
+    assert.equal(f.rank, 2, 'Erika has more seasonal XP');
+    assert.equal((await store.progressFor(erika)).rank, 1);
+
+    assert.deepEqual((await store.ladder(s1)).map((e) => e.username), [erika, flo], 'highest seasonal XP first');
+
+    // New season: the seasonal counter restarts, the lifetime total does not.
+    await store.addGameResult(flo, { xp: 40, won: false, season: s2 });
+    const next = await store.progressFor(flo);
+    assert.equal(next.seasonXp, 40, 'season reset');
+    assert.equal(next.xp, 250, 'lifetime XP keeps accumulating');
+    assert.deepEqual((await store.ladder(s1)).map((e) => e.username), [erika], 'old season keeps its own board');
+
+    // Unknown and unverified accounts are never booked.
+    assert.equal(await store.addGameResult(`Niemand${u}`, { xp: 100, season: s2 }), null);
+    assert.ok((await store.register(gast, `${gast.toLowerCase()}@example.com`, 'geheim123')).ok);
+    // Postgres answers with the unchanged progress (the UPDATE only matches verified rows).
+    const unbooked = await store.addGameResult(gast, { xp: 100, season: s2 });
+    assert.ok(!unbooked || (unbooked.xp === 0 && unbooked.games === 0), 'unverified accounts are never booked');
+    assert.ok(!(await store.ladder(s2)).some((e) => e.username === gast), 'unverified accounts stay out of the ladder');
+  } finally {
+    for (const n of names) await store.deleteUser(n).catch(() => {});
+    await store.close();
+  }
+});

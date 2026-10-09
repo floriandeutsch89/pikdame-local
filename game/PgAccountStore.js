@@ -1,11 +1,7 @@
 // game/PgAccountStore.js
-// PostgreSQL backend for user accounts - same API surface as the SQLite
-// store in AccountStore.js, but async (every method returns a promise).
-//
-// Why Postgres for larger deployments: a NETWORKED shared database is the
-// prerequisite for ever running more than one server instance - a local
-// SQLite file on a volume structurally rules that out. For a single
-// container SQLite remains a perfectly fine zero-config fallback.
+// PostgreSQL backend for user accounts (async, every method returns a promise).
+// Accounts exist only with a database; a networked database is also the
+// prerequisite for ever running more than one server instance.
 //
 // The 'pg' package is pure JavaScript (no native module) and is required
 // LAZILY: environments without it (or without PIKDAME_DATABASE_URL, e.g.
@@ -272,8 +268,8 @@ function createPgAccountStore(databaseUrl, options = {}) {
   }
 
   // --- Progression: XP, level and the seasonal ladder ----------------------
-  // Same contract as the SQLite store. Every path fails SOFT (null / empty
-  // list): a ladder that cannot be read must never break a finished game.
+  // Every path fails SOFT (null / empty list): a ladder that cannot be read
+  // must never break a finished game.
 
   async function addGameResult(username, { xp = 0, won = false, season = null } = {}) {
     try {
@@ -403,7 +399,7 @@ function createPgAccountStore(databaseUrl, options = {}) {
   }
 
   // --- Passkeys (WebAuthn) and e-mail login links ----------------------------
-  // Same contract as AccountStore.js (SQLite); see the comments there.
+  // Fails soft like the rest of the store (null / empty on database errors).
 
   const credRow = (r) => ({
     id: r.id,
