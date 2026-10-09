@@ -45,11 +45,21 @@ function readJson(filePath, file) {
   }
 }
 
+async function tableHasData(q, table) {
+  return (await q.query(`SELECT count(*)::int AS n FROM ${table}`)).rows[0].n > 0;
+}
+
 async function importStats({ pool, dataDir, log = console, imports = DEFAULT_IMPORTS }) {
   const done = [];
   for (const { file, codec } of imports) {
     const filePath = path.join(dataDir, file);
     if (!fs.existsSync(filePath)) continue;
+    // Checked before parsing: a leftover file next to a filled table must neither
+    // block the start (corrupt) nor repeat its drop report on every boot.
+    if (await tableHasData(pool, codec.table)) {
+      log.log(`[stats] ${file}: ${codec.table} already has data - not imported, file left as is`);
+      continue;
+    }
     const parsed = readJson(filePath, file);
     let dropped = 0;
     // Every entry that is not carried over is logged in full, so nothing vanishes silently.
@@ -60,10 +70,10 @@ async function importStats({ pool, dataDir, log = console, imports = DEFAULT_IMP
     const doc = parsed === undefined ? undefined : codec.normalize(parsed, report);
     const expected = rowMap(codec, doc, report);
     const client = await pool.connect();
+    let failure;
     try {
       await client.query('BEGIN');
-      const { n } = (await client.query(`SELECT count(*)::int AS n FROM ${codec.table}`)).rows[0];
-      if (n > 0) {
+      if (await tableHasData(client, codec.table)) { // lost a race with another instance
         await client.query('ROLLBACK');
         log.log(`[stats] ${file}: ${codec.table} already has data - not imported, file left as is`);
         continue;
@@ -73,10 +83,11 @@ async function importStats({ pool, dataDir, log = console, imports = DEFAULT_IMP
       if (problem) throw new Error(`${file}: verification failed - ${problem}`);
       await client.query('COMMIT');
     } catch (e) {
+      failure = e;
       await client.query('ROLLBACK').catch(() => {});
       throw e;
     } finally {
-      client.release();
+      client.release(failure); // a failed client may be broken: drop it instead of pooling it
     }
     fs.renameSync(filePath, `${filePath}.imported`);
     log.log(`[stats] imported ${file}: ${expected.size} rows, ${dropped} dropped`);

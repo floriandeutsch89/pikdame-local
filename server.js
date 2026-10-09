@@ -2169,17 +2169,43 @@ function shutdown(signal) {
   setTimeout(() => process.exit(0), 8000).unref();
 }
 
+/** Statements no store has committed yet (one throwing codec must not hide the others). */
+function collectPendingStats() {
+  const pending = [];
+  for (const s of STATS_STORES) {
+    try { pending.push(...s.pendingStatements()); } catch (e) { logCrash('stats-pending', e); }
+  }
+  return pending;
+}
+
 /** Flush every stats store (5 s at most); whatever is still unsaved goes to pending-stats.json. */
 async function flushStatsForShutdown() {
   const all = Promise.allSettled(STATS_STORES.map((s) => { try { return Promise.resolve(s.flush()); } catch (e) { return Promise.reject(e); } }));
   const timedOut = await Promise.race([all.then(() => false), new Promise((r) => setTimeout(() => r(true), 5000).unref())]);
-  const pending = [];
-  for (const s of STATS_STORES) {
-    // One throwing codec must not abort the dump for the other stores.
-    try { pending.push(...s.pendingStatements()); } catch (e) { logCrash('stats-pending', e); }
-  }
+  const pending = collectPendingStats();
   if (writePending(PENDING_STATS_FILE, pending)) {
     console.error(`[stats] ${pending.length} unsaved statement(s) written to ${PENDING_STATS_FILE}${timedOut ? ' (flush timed out)' : ''}`);
+  } else {
+    if (dbPool) removePendingFile(); // everything saved: an outage-time copy would only replay older rows
+  }
+}
+
+function removePendingFile() {
+  try { fs.unlinkSync(PENDING_STATS_FILE); } catch (e) { /* none there */ }
+}
+
+// During a database outage keep the unsaved rows on disk too, so a hard kill
+// loses ~30 s at most. Once everything is saved the copy is deleted again:
+// replaying it later would put older rows over newer ones.
+const PENDING_PERSIST_MS = Number(process.env.PIKDAME_PENDING_PERSIST_MS) || 30000; // env: tests only
+let pendingPersisted = false;
+function persistPendingWhileDegraded() {
+  if (shuttingDown) return;
+  if (STATS_STORES.some((s) => s.status() === 'degraded')) {
+    if (writePending(PENDING_STATS_FILE, collectPendingStats())) pendingPersisted = true;
+  } else if (pendingPersisted && collectPendingStats().length === 0) {
+    removePendingFile();
+    pendingPersisted = false;
   }
 }
 
@@ -2187,6 +2213,18 @@ async function flushStatsForShutdown() {
 async function bootStats() {
   if (!dbPool) {
     console.log('[stats] No PIKDAME_DATABASE_URL: play-only mode - no accounts, statistics are not saved.');
+    const found = ['players.json', 'games.json', 'stats.json', 'challenges.json', 'stammtisch.json', 'users.db']
+      .filter((f) => fs.existsSync(path.join(DATA_DIR, f)));
+    if (found.length) {
+      console.error('');
+      console.error('*** ⚠️  ALTE STATISTIK-DATEIEN GEFUNDEN - NICHT GELADEN ***');
+      console.error(`***     In ${DATA_DIR}: ${found.join(', ')}`);
+      console.error('***     Ohne Datenbank läuft der Server nur zum Spielen: Profile, Statistiken und');
+      console.error('***     Konten sind leer, die Dateien bleiben unangetastet. PIKDAME_DATABASE_URL');
+      console.error('***     (PostgreSQL) setzen, dann werden die JSON-Dateien beim nächsten Start');
+      console.error('***     automatisch importiert. users.db (SQLite-Konten) wird nicht übernommen.');
+      console.error('');
+    }
     return;
   }
   for (let attempt = 1; !shuttingDown; attempt++) {
@@ -2258,6 +2296,7 @@ bootStats().then(
     if (shuttingDown) return; // SIGTERM during boot: shutdown() exits; keep the snapshot untouched
     restoreSessionsSnapshot();
     server.listen(PORT, onListening);
+    if (dbPool) setInterval(persistPendingWhileDegraded, PENDING_PERSIST_MS).unref(); // after the boot replay
   },
   (err) => {
     if (shuttingDown) return;

@@ -50,6 +50,22 @@ test('server without a database: play-only, no stats files written', async () =>
   fs.rmSync(srv.dataDir, { recursive: true, force: true });
 });
 
+test('server without a database but with old stats files: loud warning, files untouched', async () => {
+  const players = { players: [{ id: 'profile-1', name: 'Oma Inge', gamesPlayed: 7 }] };
+  const srv = await startServer({ vars: { PIKDAME_DATABASE_URL: '' }, files: { 'players.json': players, 'users.db': {} } }, 18934);
+  try {
+    const log = srv.log();
+    assert.match(log, /NICHT GELADEN/);
+    assert.match(log, /players\.json/);
+    assert.match(log, /users\.db/);
+    assert.match(log, /PIKDAME_DATABASE_URL/);
+    assert.doesNotMatch(log, /games\.json/, 'only files that exist are listed');
+  } finally { await srv.stop(); }
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(srv.dataDir, 'players.json'), 'utf8')), players);
+  assert.ok(!fs.existsSync(path.join(srv.dataDir, 'players.json.imported')));
+  fs.rmSync(srv.dataDir, { recursive: true, force: true });
+});
+
 test('server with Postgres: imports the files, loads stats before listening and restoring sessions', { skip: !hasPg && 'needs PIKDAME_TEST_PG_URL' }, async () => {
   const s = await freshSchema();
   let srv = null;

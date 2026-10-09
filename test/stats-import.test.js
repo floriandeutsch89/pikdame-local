@@ -114,3 +114,18 @@ test('import: a table that already has rows is left alone', { skip: PG }, async 
     assert.ok(fs.existsSync(path.join(dir, 'players.json')));
   } finally { await s.drop(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('import: a table with data skips its file without parsing it (corrupt leftover cannot block boot)', { skip: PG }, async () => {
+  const s = await freshSchema();
+  const dir = tmp();
+  try {
+    await ensureStatsSchema(s.pool);
+    await s.pool.query("INSERT INTO player_profiles (name_key, name) VALUES ('x', 'X')");
+    put(dir, 'players.json', '{"players": [');
+    const logs = [];
+    const done = await importStats({ pool: s.pool, dataDir: dir, log: { log: (m) => logs.push(m), error: (m) => logs.push(m) } });
+    assert.deepEqual(done, []);
+    assert.equal(fs.readFileSync(path.join(dir, 'players.json'), 'utf8'), '{"players": [');
+    assert.ok(logs.some((m) => m.includes('already has data')), logs.join('\n'));
+  } finally { await s.drop(); fs.rmSync(dir, { recursive: true, force: true }); }
+});

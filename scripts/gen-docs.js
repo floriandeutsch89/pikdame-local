@@ -25,7 +25,7 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 // Human-readable notes; the NAME, DEFAULT and USED-IN columns come from the code.
 const ENV_NOTES = {
   PORT: 'HTTP/WebSocket port the server listens on.',
-  PIKDAME_DATA_DIR: 'Directory for all persistent data (profiles, stats, accounts, session snapshot). Point this at your mounted volume.',
+  PIKDAME_DATA_DIR: 'Directory for the server local files: session snapshot, monitor history, crash log, `pending-stats.json` (unsaved rows after an outage) and `*.json.imported` (old stats files after their import). Statistics and accounts live in PostgreSQL. Point this at your mounted volume.',
   PIKDAME_MAX_SESSIONS: 'Maximum number of concurrent games. Beyond it, new games are rejected with "server full".',
   PIKDAME_PUBLIC_MODE: 'Set to `1` on a public server: no player profiles are persisted and the lobby shows no player list. Anonymous global stats are still counted.',
   PIKDAME_ACCOUNTS: 'Set to `0` to disable user accounts entirely (pure guest play).',

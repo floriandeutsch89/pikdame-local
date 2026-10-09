@@ -5,7 +5,8 @@
 //
 // Scoped by its code - only people who hold it see the names in it - so it
 // stays available on a public server, unlike the server-wide profiles.
-// Storage is the same atomic JSON file pattern as the other stores.
+// Storage is a document like the other stores: PostgreSQL (stammtischCodec) in the
+// server, memory or an atomic JSON file in tests and scripts.
 
 const path = require('path');
 const crypto = require('crypto');

@@ -38,7 +38,7 @@ A failing test must stop you; once a push went out with a red test
 because the commands were chained.
 
 ```bash
-rm -f data/*.json data/crash.log data/users.db data/users.db-shm data/users.db-wal
+rm -f data/*.json data/*.imported data/crash.log
 npm test                     # == CI; must be all pass
 npm run -s docs:check && npm run -s secrets:check
 git fetch origin main && git log --oneline HEAD..origin/main   # main moved? merge it first
@@ -47,7 +47,7 @@ git status --short           # stage ONLY your files, never `git add -A`
 
 - If tests fail with "server on port … did not come up", check for a server
   of your own on `data/` first (`pgrep -af "node server.js"`). It holds
-  `users.db`, and that is not a flaky test. The `ui-shots` skill avoids it.
+  the port and the data dir, and that is not a flaky test. The `ui-shots` skill avoids it.
 - Commit with `-c user.email=… -c user.name=…` and the attribution lines.
 - After the push: `git ls-remote origin <branch>` must equal `git rev-parse HEAD`.
 

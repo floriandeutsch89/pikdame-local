@@ -182,7 +182,7 @@ test('PendingStats: dump on shutdown, replay in order on start, file removed', a
   const file = path.join(dir, 'pending-stats.json');
   assert.equal(writePending(file, []), false, 'nothing pending, no file');
   assert.equal(fs.existsSync(file), false);
-  const stmts = [upsert('kv', ['k', 'v'], ['k'], ['a', 1]), upsert('kv', ['k', 'v'], ['k'], ['b', 2])];
+  const stmts = [upsert('player_profiles', ['k', 'v'], ['k'], ['a', 1]), upsert('player_profiles', ['k', 'v'], ['k'], ['b', 2])];
   assert.equal(writePending(file, stmts), true);
   const pool = createFakePool();
   assert.equal(await replayPending(pool, file), 2);
@@ -317,9 +317,9 @@ test('replayPending: a data-error statement is skipped and logged, the rest appl
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikpend-'));
   const file = path.join(dir, 'pending-stats.json');
   const stmts = [
-    upsert('kv', ['k', 'v'], ['k'], ['a', 1]),
-    upsert('kv', ['k', 'v'], ['k'], ['bad', 2]),
-    upsert('kv', ['k', 'v'], ['k'], ['c', 3]),
+    upsert('player_profiles', ['k', 'v'], ['k'], ['a', 1]),
+    upsert('player_profiles', ['k', 'v'], ['k'], ['bad', 2]),
+    upsert('player_profiles', ['k', 'v'], ['k'], ['c', 3]),
   ];
   fs.writeFileSync(file, JSON.stringify({ version: 1, statements: stmts }));
   const pool = createFakePool();
@@ -338,5 +338,28 @@ test('replayPending: a corrupt pending file rejects, names the file, and is kept
   fs.writeFileSync(file, '{not json');
   await assert.rejects(replayPending(createFakePool(), file, quiet), (e) => e.message.includes(file));
   assert.equal(fs.existsSync(file), true);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('replayPending: only stats-table inserts and the Stammtisch delete run, everything else is rejected and logged', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikpend-'));
+  const file = path.join(dir, 'pending-stats.json');
+  const ok1 = upsert('player_profiles', ['name_key', 'name'], ['name_key'], ['a', 'A']);
+  const ok2 = { text: 'DELETE FROM stammtisch_tables WHERE code = $1', values: ['STAB12'] };
+  const evil = [
+    { text: 'DROP TABLE player_profiles', values: [] },
+    { text: 'DELETE FROM player_profiles', values: [] },
+    { text: 'INSERT INTO accounts (id) VALUES ($1)', values: ['x'] },
+    { text: 'UPDATE player_profiles SET name = $1', values: ['x'] },
+    { text: 42, values: [] },
+  ];
+  fs.writeFileSync(file, JSON.stringify({ version: 1, statements: [ok1, ...evil, ok2] }));
+  const pool = createFakePool();
+  const errors = [];
+  await replayPending(pool, file, { log() {}, error: (m) => errors.push(m) });
+  assert.deepEqual(pool.committed().map((q) => q.text), [ok1.text, ok2.text]);
+  assert.equal(errors.filter((m) => /rejected/.test(m)).length, evil.length, errors.join('\n'));
+  assert.match(errors.join('\n'), /DROP TABLE/);
+  assert.equal(fs.existsSync(file), false);
   fs.rmSync(dir, { recursive: true, force: true });
 });
