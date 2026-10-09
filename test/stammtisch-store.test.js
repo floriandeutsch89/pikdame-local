@@ -118,3 +118,14 @@ test('tables from before owners existed belong to their founder (first member)',
   assert.match(st.remove(table.code, 'Anna').error, /Nur wer/);
   assert.ok(st.remove(table.code, 'Flo').ok);
 });
+
+test('lastWinner: the human who won the latest match (bots never count)', () => {
+  const st = tempStore();
+  const { table } = st.create('Runde', 'Flo');
+  assert.strictEqual(st.lastWinner(table.code), null);
+  st.recordGame(table.code, rec('b', { a: 300, b: 1005, x: 200 }));
+  assert.strictEqual(st.lastWinner(table.code), 'Anna');
+  st.recordGame(table.code, rec('x', { a: 300, b: 200, x: 1100 }));
+  assert.strictEqual(st.lastWinner(table.code), null);
+  assert.strictEqual(st.lastWinner('NOPE12'), null);
+});

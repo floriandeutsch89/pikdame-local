@@ -16,6 +16,13 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 - **SQLite für Konten**: Konten und Statistik brauchen PostgreSQL. Ohne Datenbank läuft das Spiel nur noch zum Spielen, ohne Konten und ohne gespeicherte Statistik
 - **Hinweis zum Upgrade**: Vor dem Update PostgreSQL einrichten (`PIKDAME_DATABASE_URL`). Die JSON-Statistikdateien (`players.json`, `games.json`, `stats.json`, `challenges.json`, `stammtisch.json`) werden beim ersten Start mit Datenbank automatisch importiert. Ohne Datenbank warnt der Server beim Start und lädt sie nicht. Bestehende SQLite-Konten (`users.db`) werden nicht übernommen. Anleitung: docs/admin/upgrade-3.0.md
 
+## [2.59.0] - 2026-10-09
+
+### Changed
+- Bei einer Revanche gibt der Gewinner der letzten Partie – so haben die anderen die Chance auf einen Glücksgriff beim Abheben. Der Organisator kann den Geber weiterhin ändern.
+- Am Stammtisch gilt das auch für einen neuen Abend: Wer die letzte Partie gewonnen hat, gibt die erste Runde.
+- Spielregeln ergänzt: Der Gewinner gibt die Revanche.
+
 ## [2.58.2] - 2026-10-08
 
 ### Changed
