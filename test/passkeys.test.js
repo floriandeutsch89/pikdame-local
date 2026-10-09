@@ -10,12 +10,11 @@ const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
 const { spawn } = require('node:child_process');
+const { hasPg, freshSchema } = require('./helpers/pg');
 const { relyingParty, deviceName, createPasskeyService } = require('../game/Passkeys');
 
 let HAS_LIB = true;
 try { require('@simplewebauthn/server'); } catch (e) { HAS_LIB = false; }
-let HAS_SQLITE = true;
-try { require('node:sqlite'); } catch (e) { HAS_SQLITE = false; }
 
 test('relying party: https or localhost only, never a bare IP', () => {
   assert.deepEqual(relyingParty('https://play.pikdame.online'), { rpID: 'play.pikdame.online', origin: 'https://play.pikdame.online' });
@@ -117,36 +116,37 @@ const get = (urlPath) => new Promise((resolve, reject) => {
   http.get({ host: '127.0.0.1', port: PORT, path: urlPath }, (res) => { res.resume(); resolve(res.statusCode); }).on('error', reject);
 });
 
-test('AccountStore (SQLite): sign-up code renews, admin resend knows password-less accounts', { skip: !HAS_SQLITE }, () => {
-  const { createAccountStore } = require('../game/AccountStore');
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-code-'));
-  const store = createAccountStore(path.join(dir, 'users.db'));
+test('PgAccountStore: sign-up code renews, admin resend knows password-less accounts', { skip: !PG_URL && 'needs PIKDAME_TEST_PG_URL' }, async () => {
+  const { createPgAccountStore } = require('../game/PgAccountStore');
+  const store = createPgAccountStore(PG_URL);
+  const sfx = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+  const name = `Inge ${sfx}`;
+  const mail = `inge${sfx}@example.org`;
   try {
-    const r = store.registerWithoutPassword('Oma Inge', 'inge@example.org');
-    assert.match(r.code, /^\d{6}$/);
-    assert.equal(store.renewVerification('Oma Inge').passwordless, true, 'admin resend sends code + link');
-    const fresh = store.renewSignupCode('INGE@example.org');
-    assert.match(fresh.code, /^\d{6}$/);
-    if (fresh.code !== r.code) assert.match(store.verifyCodeAndSignIn('inge@example.org', r.code).error, /stimmt nicht/, 'old code is gone');
-    const ok = store.verifyCodeAndSignIn('inge@example.org', fresh.code);
-    assert.equal(ok.username, 'Oma Inge');
-    assert.ok(store.sessionUser(ok.token));
-    assert.equal(store.renewSignupCode('inge@example.org'), null, 'no codes for a confirmed account');
-    assert.match(store.verifyCodeAndSignIn('inge@example.org', fresh.code).error, /stimmt nicht/);
+    const r = await store.registerWithoutPassword(name, mail);
+    assert.match(r.code, /^[0-9]{6}$/);
+    assert.equal((await store.renewVerification(name)).passwordless, true, 'admin resend sends code + link');
+    const fresh = await store.renewSignupCode(mail.toUpperCase());
+    assert.match(fresh.code, /^[0-9]{6}$/);
+    if (fresh.code !== r.code) assert.match((await store.verifyCodeAndSignIn(mail, r.code)).error, /stimmt nicht/, 'old code is gone');
+    const ok = await store.verifyCodeAndSignIn(mail, fresh.code);
+    assert.equal(ok.username, name);
+    assert.ok(await store.sessionUser(ok.token));
+    assert.equal(await store.renewSignupCode(mail), null, 'no codes for a confirmed account');
+    assert.match((await store.verifyCodeAndSignIn(mail, fresh.code)).error, /stimmt nicht/);
   } finally {
-    store.close();
-    fs.rmSync(dir, { recursive: true, force: true });
+    await store.deleteUser(name).catch(() => {});
+    await store.close();
   }
 });
 
-// The same journey on both account backends: SQLite (fallback) and
-// PostgreSQL (the production stack; CI provides it).
-test('server (SQLite): e-mail-first sign-up (code + link), passkey, sign-in, manage, login link', { skip: (!HAS_LIB || !HAS_SQLITE) && 'needs @simplewebauthn/server and node:sqlite' },
-  (t) => journey(t, 8098, '', 'Oma Inge', 'inge@example.org'));
-test('server (PostgreSQL): e-mail-first sign-up (code + link), passkey, sign-in, manage, login link', { skip: (!HAS_LIB || !PG_URL) && 'needs @simplewebauthn/server and PIKDAME_TEST_PG_URL' },
-  (t) => journey(t, 8099, PG_URL, `Opa ${Date.now() % 100000}`, `opa${Date.now() % 100000}@example.org`));
+test('server (PostgreSQL): e-mail-first sign-up (code + link), passkey, sign-in, manage, login link', { skip: (!HAS_LIB || !hasPg) && 'needs @simplewebauthn/server and PIKDAME_TEST_PG_URL' },
+  async (t) => {
+    const schema = await freshSchema();
+    await journey(t, 8099, schema.url, `Opa ${Date.now() % 100000}`, `opa${Date.now() % 100000}@example.org`, () => schema.drop());
+  });
 
-async function journey(t, port, databaseUrl, NAME, MAIL) {
+async function journey(t, port, databaseUrl, NAME, MAIL, cleanup = async () => {}) {
   PORT = port;
   ORIGIN = `http://localhost:${port}`;
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-passkeys-'));
@@ -163,6 +163,7 @@ async function journey(t, port, databaseUrl, NAME, MAIL) {
     server.kill();
     await gone;
     fs.rmSync(dataDir, { recursive: true, force: true });
+    await cleanup();
   });
   for (let i = 0; ; i++) {
     try { if ((await get('/healthz')) === 200) break; } catch (e) { /* booting */ }

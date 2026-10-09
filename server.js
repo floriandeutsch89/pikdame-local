@@ -11,8 +11,13 @@ const path = require('path');
 const crypto = require('crypto');
 const WebSocket = require('ws');
 const GameManager = require('./game/GameManager');
-const { createPlayerStore } = require('./game/PlayerStore');
-const { createGlobalStatsStore } = require('./game/GlobalStatsStore');
+const { createPool } = require('./game/Db');
+const { createPgDocument, createMemoryDocument } = require('./game/PgDocument');
+const { ensureStatsSchema } = require('./game/StatsSchema');
+const { importStats } = require('./game/StatsImport');
+const { writePending, replayPending } = require('./game/PendingStats');
+const { createPlayerStore, playerCodec } = require('./game/PlayerStore');
+const { createGlobalStatsStore, globalStatsCodec } = require('./game/GlobalStatsStore');
 const { computeEarnedBadges, familyBadges } = require('./game/Badges');
 const { seasonalBacksFor } = require('./game/SeasonalBacks');
 const {
@@ -33,36 +38,42 @@ const { createMonitor } = require('./game/Monitor');
 const { createPasskeyService, deviceName } = require('./game/Passkeys');
 const { isAllowedEmote, emoteLevel } = require('./game/Emotes');
 const { puzzleForDate, publicPuzzle, checkAnswer, XP_FOR_SOLVED } = require('./game/DailyPuzzle');
-const { createStammtischStore, normalizeCode: normalizeStammtischCode } = require('./game/StammtischStore');
-const { createGameHistoryStore, historyForPlayer } = require('./game/GameHistoryStore');
+const { createStammtischStore, stammtischCodec, normalizeCode: normalizeStammtischCode } = require('./game/StammtischStore');
+const { createGameHistoryStore, createPgGameHistoryStore } = require('./game/GameHistoryStore');
 const { SessionRegistry, sanitizeName } = require('./game/SessionRegistry');
 
 const PORT = process.env.PORT || 8080;
 const PUBLIC_DIR = path.join(__dirname, 'public');
-const playerStore = createPlayerStore();
-const { createChallengeStore, seedForDate } = require('./game/ChallengeStore');
+// One pool for accounts and stats; null = play-only (no accounts, stats in RAM).
+const dbPool = createPool(process.env);
+const statsDocs = []; // Postgres documents, loaded by bootStats() before listen
+function statsBackend(codec) {
+  if (!dbPool) return createMemoryDocument();
+  const doc = createPgDocument({ pool: dbPool, codec });
+  statsDocs.push(doc);
+  return doc;
+}
+const playerStore = createPlayerStore(statsBackend(playerCodec));
+const { createChallengeStore, challengeCodec, seedForDate } = require('./game/ChallengeStore');
 const { gameDay } = require('./game/GameDay');
 const { createSecurityHeaders } = require('./game/SecurityHeaders');
-const challengeStore = createChallengeStore();
+const challengeStore = createChallengeStore(statsBackend(challengeCodec));
 // Tutorial-Deck: per scripts-Suche ermittelt (siehe CLAUDE.md). Nicht aendern,
 // ohne die Tutorial-Texte gegenzupruefen - sie nennen konkrete Karten.
 const TUTORIAL_SEED = 22;
 // Eigenstaendige Themenseiten (public/<slug>.html). Eine Seite kann nur fuer
 // EIN Hauptthema ranken - deshalb je eine Seite statt eines Sammelblocks.
 const SEO_PAGES = ['romme-regeln', 'pik-dame-regeln', 'kartenspiele-zu-zweit', 'pik-dame-strategie', 'pik-dame-oder-hearts'];
-const globalStats = createGlobalStatsStore();
-// Benutzerkonten: aktiv, wenn Nodes eingebautes SQLite verfügbar ist
-// (Node >= 22, im Docker-Image gegeben) und nicht per Env abgeschaltet.
-// In der iOS CodeApp (ältere Node-Version) liefert die Factory null und
-// der Client blendet die komplette Account-UI aus - genau wie gewünscht.
-const accountStore = process.env.PIKDAME_ACCOUNTS === '0' ? null : createAccountStoreAuto();
+const globalStats = createGlobalStatsStore(statsBackend(globalStatsCodec));
+// Accounts need PostgreSQL; without a database the client hides the account UI.
+const accountStore = process.env.PIKDAME_ACCOUNTS === '0' ? null : createAccountStoreAuto(process.env, { pool: dbPool });
 const mailer = createMailer();
 // Passkeys need accounts, the WebAuthn library and an https origin
 // (PIKDAME_BASE_URL); otherwise null and the client hides them.
 const passkeys = accountStore ? createPasskeyService({ baseUrl: process.env.PIKDAME_BASE_URL }) : null;
 const ACCOUNTS_ENABLED = !!accountStore;
 if (ACCOUNTS_ENABLED) {
-  console.log(`Benutzerkonten: aktiv (Backend: ${accountStore.backend || 'sqlite'}, Mail-Treiber: ${mailer.configured ? 'SMTP' : 'Log-Fallback'})`);
+  console.log(`Benutzerkonten: aktiv (Backend: ${accountStore.backend || 'postgres'}, Mail-Treiber: ${mailer.configured ? 'SMTP' : 'Log-Fallback'})`);
   // Behind a reverse proxy the confirmation link falls back to the Host
   // header when PIKDAME_BASE_URL is unset - which a registrant controls. A
   // forged Host would send the victim a link to the attacker's domain.
@@ -70,12 +81,12 @@ if (ACCOUNTS_ENABLED) {
     console.log('[mail] WARNUNG: PIKDAME_BASE_URL ist nicht gesetzt - Bestätigungslinks werden aus dem Host-Header gebildet. Hinter einem Proxy die öffentliche URL setzen.');
   }
 } else {
-  console.log('Benutzerkonten: deaktiviert (node:sqlite nicht verfügbar oder PIKDAME_ACCOUNTS=0)');
+  console.log('Benutzerkonten: deaktiviert (keine Datenbank - PIKDAME_DATABASE_URL fehlt - oder PIKDAME_ACCOUNTS=0)');
 }
-const gameHistoryStore = createGameHistoryStore();
+const gameHistoryStore = dbPool ? createPgGameHistoryStore(dbPool) : createGameHistoryStore(createMemoryDocument());
 // Stammtisch: persistent group tables (code -> members, record, series).
 // Scoped by code, so it stays on in public mode - see StammtischStore.
-const stammtischStore = createStammtischStore();
+const stammtischStore = createStammtischStore(statsBackend(stammtischCodec));
 
 // --- Absturz-Diagnose ------------------------------------------------------
 // Schreibt Fehler zusätzlich in eine Log-Datei, falls die Konsole in der
@@ -83,6 +94,8 @@ const stammtischStore = createStammtischStore();
 // Liegt im data/-Verzeichnis: im Docker-Betrieb ist das ein Volume, das Log
 // überlebt also Container-Neustarts und ist von außen einsehbar.
 const DATA_DIR = process.env.PIKDAME_DATA_DIR || path.join(__dirname, 'data');
+const PENDING_STATS_FILE = path.join(DATA_DIR, 'pending-stats.json');
+const STATS_STORES = [playerStore, globalStats, gameHistoryStore, stammtischStore, challengeStore];
 try {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 } catch (e) {
@@ -98,7 +111,7 @@ let DATA_DIR_WRITABLE = true; // for the config report
     const probe = path.join(DATA_DIR, '.write-test');
     fs.writeFileSync(probe, String(Date.now()));
     fs.unlinkSync(probe);
-    const info = ['players.json', 'stats.json', 'games.json', 'sessions-snapshot.json']
+    const info = ['sessions-snapshot.json', 'pending-stats.json']
       .map((f) => {
         try {
           return `${f} ${fs.statSync(path.join(DATA_DIR, f)).size}B`;
@@ -156,9 +169,8 @@ process.on('unhandledRejection', (reason) => {
 // Persist pending buffered writes when something goes wrong, so stats survive
 // even if the process is killed right after a crash (the debounce hasn't fired).
 function flushStoresSafely() {
-  try { playerStore.flushSync(); } catch (e) { /* best effort */ }
-  try { globalStats.flushSync(); } catch (e) { /* best effort */ }
-  try { gameHistoryStore.flushSync(); } catch (e) { /* best effort */ }
+  // Postgres can only be asked to start a flush here; shutdown() awaits it.
+  for (const s of STATS_STORES) { try { s.flushSync(); } catch (e) { /* best effort */ } }
 }
 
 /**
@@ -305,7 +317,7 @@ function serveStatic(req, res) {
   }
   if (filePath === '/healthz') {
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
-    res.end('ok');
+    res.end(STATS_STORES.some((s) => s.status() === 'degraded') ? 'ok (stats degraded)' : 'ok');
     return;
   }
   if (filePath === '/') filePath = '/index.html';
@@ -1362,8 +1374,11 @@ const SNAPSHOT_MAX_AGE_MS = 30 * 60 * 1000;
 // reboot) can lose; before, the snapshot was only written on SIGTERM.
 const SNAPSHOT_INTERVAL_MS = 60 * 1000;
 let lastSnapshotBody = null;
+// Until the restore ran, the registry is empty - writing then would clobber the saved snapshot.
+let sessionsRestored = false;
 
 function writeSessionsSnapshot({ quiet = false } = {}) {
+  if (!sessionsRestored) return;
   try {
     const snapshot = [];
     for (const session of registry.sessions.values()) {
@@ -1390,6 +1405,7 @@ function writeSessionsSnapshot({ quiet = false } = {}) {
 }
 
 function restoreSessionsSnapshot() {
+  sessionsRestored = true;
   let raw;
   try {
     raw = fs.readFileSync(SNAPSHOT_FILE, 'utf8');
@@ -1421,7 +1437,6 @@ function restoreSessionsSnapshot() {
     /* already gone */
   }
 }
-restoreSessionsSnapshot();
 
 // The restore above deleted the file (crash-loop guard); from here on it is
 // rewritten periodically so a hard kill loses at most one interval of play.
@@ -1721,14 +1736,10 @@ wss.on('connection', (ws, req) => {
       return;
     }
     if (msg.type === 'getGameHistory') {
-      // Persönliche Spielhistorie (Feature-Wunsch): die letzten beendeten
-      // Partien, in denen dieser Name als echter Spieler dabei war. Dieselbe
-      // Sperre wie bei Profilen/Statistik - im öffentlichen Modus sieht
-      // niemand die Partien Fremder. Die Filter-/Kürzungslogik selbst lebt
-      // als reine Funktion in GameHistoryStore.js (dort ohne laufenden
-      // Server prüfbar).
-      const mine = PUBLIC_MODE ? [] : historyForPlayer(gameHistoryStore.listGames(), msg.name, 20);
-      ws.send(JSON.stringify({ type: 'gameHistory', games: mine }));
+      // Personal history: same lock as profiles - nobody sees others' games in public mode.
+      const reply = (games) => { try { ws.send(JSON.stringify({ type: 'gameHistory', games })); } catch (e) { /* socket gone */ } };
+      if (PUBLIC_MODE) { reply([]); return; }
+      gameHistoryStore.historyFor(msg.name, 20).then(reply, (e) => { logCrash('game-history', e); reply([]); });
       return;
     }
     if (msg.type === 'getPuzzle' || msg.type === 'solvePuzzle' || msg.type === 'revealPuzzle') {
@@ -2135,39 +2146,70 @@ wss.on('connection', (ws, req) => {
   });
 });
 
-// Graceful Shutdown: Docker sendet SIGTERM beim Stoppen des Containers -
-// offene Verbindungen sauber schließen statt sie hart zu kappen.
+// Graceful shutdown: Docker sends SIGTERM on stop; close connections cleanly.
+let shuttingDown = false;
 function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
   console.log(`${signal} empfangen - Server fährt herunter...`);
-  // Laufende Spiele überleben den Neustart; gepufferte Store-Writes landen
-  // sicher auf der Platte.
   writeSessionsSnapshot();
-  playerStore.flushSync();
-  gameHistoryStore.flushSync();
-  globalStats.flushSync();
-  stammtischStore.flushSync();
   try { if (adminMonitor) adminMonitor.flushSync(); } catch (e) { /* monitoring history is best effort */ }
-  if (accountStore) {
-    try {
-      const p = accountStore.close();
-      if (p && p.catch) p.catch(() => {});
-    } catch (e) { /* never block shutdown */ }
-  }
   for (const client of wss.clients) {
+    try { client.close(1001, 'Server wird neu gestartet'); } catch (e) { /* socket already closed */ }
+  }
+  server.close();
+  flushStatsForShutdown()
+    .catch((e) => logCrash('stats-shutdown', e))
+    .finally(async () => {
+      if (accountStore) await Promise.resolve(accountStore.close()).catch(() => {});
+      if (dbPool) await dbPool.end().catch(() => {});
+      process.exit(0);
+    });
+  // Hard exit if something hangs (keep-alives, a stuck pool).
+  setTimeout(() => process.exit(0), 8000).unref();
+}
+
+/** Flush every stats store (5 s at most); whatever is still unsaved goes to pending-stats.json. */
+async function flushStatsForShutdown() {
+  const all = Promise.allSettled(STATS_STORES.map((s) => { try { return Promise.resolve(s.flush()); } catch (e) { return Promise.reject(e); } }));
+  const timedOut = await Promise.race([all.then(() => false), new Promise((r) => setTimeout(() => r(true), 5000).unref())]);
+  const pending = [];
+  for (const s of STATS_STORES) {
+    // One throwing codec must not abort the dump for the other stores.
+    try { pending.push(...s.pendingStatements()); } catch (e) { logCrash('stats-pending', e); }
+  }
+  if (writePending(PENDING_STATS_FILE, pending)) {
+    console.error(`[stats] ${pending.length} unsaved statement(s) written to ${PENDING_STATS_FILE}${timedOut ? ' (flush timed out)' : ''}`);
+  }
+}
+
+/** Postgres first: schema, leftovers from the last shutdown, JSON import, then the caches. */
+async function bootStats() {
+  if (!dbPool) {
+    console.log('[stats] No PIKDAME_DATABASE_URL: play-only mode - no accounts, statistics are not saved.');
+    return;
+  }
+  for (let attempt = 1; ; attempt++) {
     try {
-      client.close(1001, 'Server wird neu gestartet');
+      await dbPool.query('SELECT 1');
+      break;
     } catch (e) {
-      /* Socket war schon zu */
+      const wait = Math.min(30000, 1000 * attempt);
+      console.error(`[stats] database not reachable (${e.message}) - retrying in ${wait / 1000}s`);
+      await new Promise((r) => setTimeout(r, wait));
     }
   }
-  server.close(() => process.exit(0));
-  // Falls server.close hängt (offene Keep-Alives): harter Ausstieg nach 5s.
-  setTimeout(() => process.exit(0), 5000).unref();
+  await ensureStatsSchema(dbPool);
+  const replayed = await replayPending(dbPool, PENDING_STATS_FILE, console);
+  if (replayed) console.log(`[stats] re-applied ${replayed} unsaved statement(s) from ${PENDING_STATS_FILE}`);
+  await importStats({ pool: dbPool, dataDir: DATA_DIR, log: console });
+  for (const doc of statsDocs) await doc.load();
+  console.log('[stats] statistics loaded from PostgreSQL');
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-server.listen(PORT, () => {
+function onListening() {
   console.log(`Pik Dame Server läuft auf Port ${PORT}`);
   console.log(`Lokal:    http://localhost:${PORT}`);
 
@@ -2208,4 +2250,16 @@ server.listen(PORT, () => {
       .then((r) => console.log(r.ok ? '[config] SMTP-Prüfung: Anmeldung erfolgreich.' : `[config] SMTP-Prüfung FEHLGESCHLAGEN: ${r.reason}`))
       .catch((e) => logCrash('smtp-probe', e));
   }
-});
+}
+
+bootStats().then(
+  () => {
+    restoreSessionsSnapshot();
+    server.listen(PORT, onListening);
+  },
+  (err) => {
+    logCrash('stats-boot', err);
+    console.error(`[stats] startup failed, refusing to start: ${err.message}`);
+    process.exit(1);
+  },
+);
