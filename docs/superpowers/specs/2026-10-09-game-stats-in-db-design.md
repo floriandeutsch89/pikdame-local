@@ -43,22 +43,31 @@ Out of scope: progression columns on `users` (`xp`, `games`, `wins`, `season`,
 
 ### Persistence layer
 
-A new `game/PgPersist.js` replaces `AtomicJsonFile` for the stats stores:
+Today every stats store reads one in-memory document (`file.read()`), mutates
+it, and hands it back (`file.write(doc)`). `AtomicJsonFile` writes the file
+800 ms later. The new backend keeps exactly that **document interface**, so
+the store logic barely changes:
 
-- `createPersister(pool, { name, flushDelayMs = 800 })` → `{ markDirty(key, row), flush(), close() }`.
-- Dirty rows collect in a map keyed by primary key (last write wins). 800 ms
-  after the first change, one transaction upserts them all, as today's file
-  debounce does.
-- **DB error during flush:** the rows stay dirty and are retried with backoff
-  (1 s → 30 s). The error is logged once per outage, and `/healthz` reports
-  `stats: degraded`. Nothing is dropped.
-- **Shutdown** (`SIGTERM`): `await flush()` with a 5 s timeout. If rows are
-  still unflushed, they are written to `data/pending-stats.json` and re-applied
-  on the next start before anything else. This is the only stats file that
-  can still appear.
-- Each store keeps its current **synchronous** public API: reads come from
-  RAM, writes update RAM and call `markDirty`. `server.js` call sites stay as
-  they are, except the cold reads listed below.
+- **`game/PgDocument.js`:** `createPgDocument({ pool, codec })` →
+  `{ read(), write(doc), flushSync(), load(), flush(), pendingStatements(), status() }`.
+  - **`codec.rows(doc)`** turns the document into keyed upsert statements. On
+    a flush, only rows whose serialized values changed since the last
+    successful flush are written, in one transaction. A row that vanished
+    from the document is deleted only if the codec says so (Stammtisch
+    tables); pruned windows (challenge days) stay in the DB.
+  - **DB error during a flush:** the rows stay dirty and are retried with
+    backoff (1 s → 30 s). The error is logged once per outage, and `/healthz`
+    answers `ok (stats degraded)`. Nothing is dropped.
+- **`createMemoryDocument()`** keeps the same interface in RAM only. It is
+  used when no database is configured.
+- **File paths** (a string argument) still give the `AtomicJsonFile` backend.
+  Only tests and tools use it; the server never does.
+- **Shutdown** (`SIGTERM`): `await flush()` of every persister, with a 5 s
+  timeout. Statements that are still unflushed are written to
+  `data/pending-stats.json` and re-applied on the next start before
+  anything else. This is the only stats file that can still appear.
+- **Store API:** each store keeps its **synchronous** public API, and
+  `server.js` call sites stay as they are, except game-history reads (below).
 
 ### Startup
 
@@ -74,9 +83,11 @@ server only listens after the caches are loaded, `/healthz` (and so Caddy
 traffic) only comes up once stats are safe. The game service's
 `depends_on: postgres (service_healthy)` already covers the normal start.
 
-Without `PIKDAME_DATABASE_URL`, stores run with a `null` persister: in-memory
+Without `PIKDAME_DATABASE_URL`, stores run on memory documents: in-memory
 only, gone on restart. Accounts stay off (`accountStore = null`; the client
 already hides account UI). A startup log line says so.
+
+The game and accounts share one `pg` pool (`game/Db.js`).
 
 ### What lives in RAM
 
@@ -85,92 +96,92 @@ already hides account UI). A startup log line says so.
 | PlayerStore | all profiles (small rows) | — |
 | GlobalStatsStore | the single counter row | — |
 | ChallengeStore | the last 14 days (board, weekly, trend windows) | older days are only kept, nothing reads them yet |
-| StammtischStore | all tables with the last 100 games each (display window) | — |
-| GameHistoryStore | nothing | `listGames`, `getGame` and `historyForPlayer` become **async** queries |
+| StammtischStore | all tables with all their games | — |
+| GameHistoryStore | nothing | `historyFor(name, limit)` is an **async** query |
 
 Game history is the one store that grows without bound and whose records are
-large, so it is write-through (insert per finished game, via the persister)
-with async reads. Its readers are request handlers (`server.js` ~1730 and the
-export), which become `await`ed. All other call sites are unchanged.
+large. Its Postgres variant queues an insert per finished game, flushed like
+the documents, and reads asynchronously. Its only reader is the
+`getGameHistory` WebSocket handler (`server.js` ~1730), which awaits the
+query. Every other call site is unchanged.
 
 ## Schema (database `pikdame`)
 
-```sql
-CREATE TABLE player_profiles (
-  name_key     TEXT PRIMARY KEY,          -- LOWER(TRIM(name)), today's lookup key
-  name         TEXT NOT NULL,             -- display case as last seen
-  user_id      BIGINT REFERENCES users(id) ON DELETE SET NULL,  -- set once linked to an account
-  games_played INT NOT NULL DEFAULT 0,  games_won INT NOT NULL DEFAULT 0,
-  games_lost   INT NOT NULL DEFAULT 0,  total_score BIGINT NOT NULL DEFAULT 0,
-  win_streak   INT NOT NULL DEFAULT 0,  best_game_score INT, best_round_score INT,
-  -- … one INT column per existing counter (totalQueensLaid, totalQueensCaught,
-  -- totalJokersLaid, totalHandAus, lastPlaceStreak, totalChallenges,
-  -- totalStammtischGames, totalPuzzlesSolved, xp, dailyStreak)
-  badges          JSONB NOT NULL DEFAULT '{}',   -- {id: ts}
-  favorite_badges JSONB NOT NULL DEFAULT '[]',
-  seasonal_backs  JSONB NOT NULL DEFAULT '{}',
-  quests          JSONB NOT NULL DEFAULT '{}',   -- 7-day window, pruned as today
-  daily           JSONB,
-  puzzles         JSONB NOT NULL DEFAULT '{}',   -- 7-day window, pruned as today
-  legacy_id       TEXT,                          -- old "profile-<ts>-<rand>"
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE UNIQUE INDEX player_profiles_user ON player_profiles (user_id) WHERE user_id IS NOT NULL;
+Times stay **epoch milliseconds (`BIGINT`)** and day keys stay
+**`'YYYY-MM-DD'` text**, as in the in-memory shapes and the existing `users`
+table. That rules out timezone conversions (`pg` turns `DATE` into a local
+JS `Date`).
 
-CREATE TABLE game_records (
-  id             TEXT PRIMARY KEY,           -- "game-<ts>-<rand>"
-  finished_at    TIMESTAMPTZ NOT NULL,
-  started_at     TIMESTAMPTZ,
-  challenge_date DATE,
-  stammtisch     BOOLEAN NOT NULL DEFAULT FALSE,
-  record         JSONB NOT NULL               -- the full gameRecord as today
+```sql
+CREATE TABLE IF NOT EXISTS player_profiles (
+  name_key    TEXT PRIMARY KEY,            -- name.toLowerCase(), today's lookup key
+  seq         BIGINT GENERATED ALWAYS AS IDENTITY,  -- keeps list order
+  name        TEXT NOT NULL,
+  legacy_id   TEXT,                        -- "profile-<ts>-<rand>"
+  games_played INT, games_won INT, games_lost INT, total_score BIGINT,
+  win_streak INT, best_game_score INT, best_round_score INT,
+  total_queens_laid INT, total_queens_caught INT, total_jokers_laid INT,
+  total_hand_aus INT, last_place_streak INT, total_challenges INT,
+  total_stammtisch_games INT, total_puzzles_solved INT, xp BIGINT, daily_streak INT,
+  badges JSONB, favorite_badges JSONB, seasonal_backs JSONB,
+  quests JSONB, daily JSONB, puzzles JSONB,
+  extra JSONB                              -- any other field, so nothing is lost
 );
-CREATE INDEX game_records_finished ON game_records (finished_at DESC);
-CREATE TABLE game_record_players (            -- for historyForPlayer
-  game_id  TEXT REFERENCES game_records(id) ON DELETE CASCADE,
-  seat     SMALLINT, name_key TEXT NOT NULL, is_bot BOOLEAN NOT NULL,
+
+CREATE TABLE IF NOT EXISTS game_records (
+  id          TEXT PRIMARY KEY,            -- "game-<ts>-<rand>"
+  finished_at BIGINT,
+  record      JSONB NOT NULL               -- the stored record, id included
+);
+CREATE INDEX IF NOT EXISTS game_records_finished ON game_records (finished_at DESC);
+CREATE TABLE IF NOT EXISTS game_record_players (
+  game_id  TEXT NOT NULL REFERENCES game_records(id) ON DELETE CASCADE,
+  seat     SMALLINT NOT NULL,
+  name_key TEXT NOT NULL,
+  is_bot   BOOLEAN NOT NULL,
   PRIMARY KEY (game_id, seat)
 );
-CREATE INDEX game_record_players_name ON game_record_players (name_key) WHERE NOT is_bot;
+CREATE INDEX IF NOT EXISTS game_record_players_name ON game_record_players (name_key) WHERE NOT is_bot;
 
-CREATE TABLE challenge_scores (
-  day      DATE NOT NULL, name_key TEXT NOT NULL, name TEXT NOT NULL,
-  score    INT NOT NULL,  at TIMESTAMPTZ NOT NULL,
-  PRIMARY KEY (day, name_key)                 -- best score per name and day
+CREATE TABLE IF NOT EXISTS challenge_scores (
+  day TEXT NOT NULL, name_key TEXT NOT NULL, name TEXT NOT NULL,
+  score INT NOT NULL, at BIGINT NOT NULL,
+  PRIMARY KEY (day, name_key)              -- best score per name and day
 );
 
-CREATE TABLE stammtisch_tables (
+CREATE TABLE IF NOT EXISTS stammtisch_tables (
   code TEXT PRIMARY KEY, name TEXT, owner TEXT,
-  created_at TIMESTAMPTZ NOT NULL, last_activity TIMESTAMPTZ NOT NULL,
-  members JSONB NOT NULL, series JSONB
+  created_at BIGINT, last_activity BIGINT,
+  members JSONB NOT NULL, series JSONB, extra JSONB
 );
-CREATE TABLE stammtisch_games (
-  id   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS stammtisch_games (
   code TEXT NOT NULL REFERENCES stammtisch_tables(code) ON DELETE CASCADE,
-  at TIMESTAMPTZ NOT NULL, series_no INT, players JSONB NOT NULL
+  idx  INT NOT NULL,                       -- position in the table's game list
+  at BIGINT, series_no INT, players JSONB NOT NULL,
+  PRIMARY KEY (code, idx)
 );
-CREATE INDEX stammtisch_games_code ON stammtisch_games (code, at DESC);
 
-CREATE TABLE global_stats (
-  id BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (id),  -- single row
-  games BIGINT, rounds BIGINT, pik_dames_laid_out BIGINT,
-  pik_dames_caught BIGINT, hand_aus_rounds BIGINT
+CREATE TABLE IF NOT EXISTS global_stats (
+  id BOOLEAN PRIMARY KEY CHECK (id),       -- single row
+  games BIGINT NOT NULL, rounds BIGINT NOT NULL, pik_dames_laid_out BIGINT NOT NULL,
+  pik_dames_caught BIGINT NOT NULL, hand_aus_rounds BIGINT NOT NULL
 );
 ```
 
-Counters are real columns, so they stay queryable (e.g. for a future ladder).
-Nested maps whose shape changes with features stay JSONB. Timestamps are
-converted from epoch ms on import and back when loaded, so in-memory shapes are
-unchanged.
+- **Counters are real columns**, so they stay queryable (e.g. for a future
+  ladder).
+- **Profile counters are nullable**, because the code tells "never set"
+  (`undefined`) apart from 0. `NULL` loads back as a missing field.
+- **Nested maps** whose shape changes with features stay JSONB.
+- **Profiles with a duplicate lower-case name** in an old file were never
+  reachable (`find` returns the first one). The import keeps the first one and
+  logs the dropped ones.
 
-### Guest → account link
+### Accounts
 
-`player_profiles.user_id` is set when `importGuestProfile` runs (after verify,
-login, code-verify, passkey, login link), and on import for every profile whose
-`name_key` equals a verified account's `LOWER(username)`. The existing
-`profile_imported` guard and the max-merge into account progression stay as
-they are. Admin `deleteUser` keeps clearing favourite badges; `ON DELETE SET
-NULL` turns the profile back into a guest profile, as today.
+Profiles stay keyed by name, and the account link works as today:
+`importGuestProfile` runs after sign-in and takes the profile by username. The
+link from a profile to an account id is added by sub-project 2.
 
 ## Retention changes
 
@@ -179,7 +190,7 @@ NULL` turns the profile back into a guest profile, as today.
 | 500 profiles, least active dropped | no cap |
 | 200 games | no cap |
 | 14 challenge days, 100 entries/day | all days and entries kept; reads still show 7/14-day windows |
-| 300 Stammtisch tables, 180 days inactive, 100 games/table | no cap, nothing evicted; RAM keeps the last 100 games per table |
+| 300 Stammtisch tables, 180 days inactive, 100 games/table | no cap, nothing evicted |
 | quests/puzzles 7 days | unchanged (they are daily state, not stats; their totals are counters) |
 
 ## Import from JSON
@@ -187,13 +198,15 @@ NULL` turns the profile back into a guest profile, as today.
 It runs at startup, per store, only when that store's table is empty and its
 file exists:
 
-1. Read the file through the existing loaders, so legacy shapes are handled
-   the same way as today.
+1. Read the file and normalize it the way the store's own loader does, so
+   legacy shapes are handled the same way as today.
 2. Insert everything in one transaction per store.
 3. Verify inside the transaction: row counts, plus summed `games_played`,
    `games_won`, `xp` and `total_score` equal the file's totals. On mismatch,
-   roll back, log loudly, and keep running on an empty cache **without**
-   renaming the file. Restarting after a fix retries.
+   roll back, log loudly, leave the file untouched, and **refuse to start**
+   (exit 1). Running on empty tables would let new stats fill them, the
+   import would never retry, and the old stats would be stranded. Restarting
+   after a fix retries.
 4. Commit, then rename the file to `<name>.json.imported`. It is kept and
    never read again.
 
@@ -207,8 +220,9 @@ restart is lost. With the shared persister, every store flushes on shutdown.
 
 ## Removing SQLite accounts
 
-- `game/AccountStore.js` (SQLite) is deleted, and `createAccountStoreAuto`
-  returns `PgAccountStore` or `null`.
+- The SQLite store in `game/AccountStore.js` is deleted. The file keeps only
+  `createAccountStoreAuto`, which returns `PgAccountStore` (on the shared
+  pool) or `null`.
 - The CLAUDE.md rule "every account change in both stores" becomes "Postgres
   only". The test rule "accounts tests run against SQLite AND Postgres"
   becomes Postgres only (`PIKDAME_TEST_PG_URL`, already in CI). DB tests skip
@@ -223,15 +237,15 @@ restart is lost. With the shared persister, every store flushes on shutdown.
 
 - **Persister:** batching, last-write-wins, retry on a failing pool,
   shutdown dump to `pending-stats.json` and re-apply on start.
-- **Each store:** existing tests run against the cache with a `null`
-  persister; new DB round-trip tests (write → flush → fresh store loads
-  identical data) run against Postgres.
+- **Each store:** existing tests keep running on the file backend. New
+  codec round-trip tests (write → flush → a fresh store loads identical data)
+  run against Postgres, each in its own schema.
 - **Import:** fixtures from real-shaped JSON (including legacy profiles with
   `teams` and Stammtisch tables without `owner`) import with identical totals.
   A broken total rolls back and keeps the file.
 - **Server:** an end-to-end bot game with Postgres. The profile, game record,
   global stats, Stammtisch game and challenge score appear in their tables.
-  `historyForPlayer` returns the game.
+  `getGameHistory` returns the game.
 - **No DB:** the server starts, games play, accounts are hidden, and nothing
   is written to `data/` except the snapshot and monitor files.
 
