@@ -14,6 +14,7 @@ shared-caddy
 beta
 onnx
 operations
+upgrade-3.0
 ```
 
 ## Where to start
@@ -28,6 +29,7 @@ operations
 | **Deploy automatically after every merge** (instead of nightly) | {doc}`auto-deploy` |
 | Try every pull request on a beta site before merging | {doc}`beta` |
 | Reverse proxy: the shared Caddy stack (TLS, CrowdSec) | {doc}`shared-caddy` |
+| **Upgrade to 3.0.0** (statistics move into PostgreSQL) | {doc}`upgrade-3.0` |
 | Upgrades, monitoring, CrowdSec, the full ops runbook | {doc}`operations` |
 
 ## The one thing to get right

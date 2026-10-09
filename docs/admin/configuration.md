@@ -37,7 +37,8 @@ data, that file is skipped (log: `already has data - not imported, file left as
 is`) and stays in place. If a file cannot be imported exactly, the server
 refuses to start and names the file.
 
-Old SQLite account files (`users.db`) are not migrated.
+Old SQLite account files (`users.db`) are not migrated. Step-by-step upgrade:
+{doc}`upgrade-3.0`.
 
 ## Sign-up, passkeys and sign-in links
 

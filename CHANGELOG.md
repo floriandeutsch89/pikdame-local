@@ -14,7 +14,7 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 
 ### Removed
 - **SQLite für Konten**: Konten und Statistik brauchen PostgreSQL. Ohne Datenbank läuft das Spiel nur noch zum Spielen, ohne Konten und ohne gespeicherte Statistik
-- **Hinweis zum Upgrade**: Vor dem Update PostgreSQL einrichten (`PIKDAME_DATABASE_URL`). Die JSON-Statistikdateien (`players.json`, `games.json`, `stats.json`, `challenges.json`, `stammtisch.json`) werden beim ersten Start mit Datenbank automatisch importiert. Ohne Datenbank warnt der Server beim Start und lädt sie nicht. Bestehende SQLite-Konten (`users.db`) werden nicht übernommen
+- **Hinweis zum Upgrade**: Vor dem Update PostgreSQL einrichten (`PIKDAME_DATABASE_URL`). Die JSON-Statistikdateien (`players.json`, `games.json`, `stats.json`, `challenges.json`, `stammtisch.json`) werden beim ersten Start mit Datenbank automatisch importiert. Ohne Datenbank warnt der Server beim Start und lädt sie nicht. Bestehende SQLite-Konten (`users.db`) werden nicht übernommen. Anleitung: docs/admin/upgrade-3.0.md
 
 ## [2.58.2] - 2026-10-08
 
