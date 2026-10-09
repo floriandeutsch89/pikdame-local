@@ -85,3 +85,38 @@ test('GlobalStats: works on a memory document', () => {
   assert.equal(g.getStats().games, 1);
   assert.equal(g.getStats().handAusRounds, 1);
 });
+
+const { createChallengeStore, challengeCodec } = require('../game/ChallengeStore');
+const { gameDay, addDays } = require('../game/GameDay');
+
+test('ChallengeStore: keeps every entry of a day (no 100 cap) and can be flushed', () => {
+  const c = createChallengeStore(createMemoryDocument());
+  const day = gameDay(Date.now());
+  for (let i = 0; i < 130; i++) c.submit(day, `P${i}`, i);
+  assert.equal(c.rankOf(day, 'P0'), 130);
+  assert.equal(typeof c.flushSync, 'function');
+});
+
+test('ChallengeStore on Postgres: window load vs full load; pruned days stay in the DB', { skip: PG }, async () => {
+  const today = gameDay(Date.now());
+  const old = addDays(today, -30);
+  const doc = { days: { [today]: [{ name: 'Anna', score: 50, at: 2 }, { name: 'Bo', score: 40, at: 1 }], [old]: [{ name: 'Cy', score: 9, at: 1 }] } };
+  const { again, rewritten } = await roundTrip(challengeCodec, doc, { all: true });
+  assert.deepEqual(again, doc);
+  assert.deepEqual(rewritten, []);
+  const s = await freshSchema();
+  try {
+    await ensureStatsSchema(s.pool);
+    const d = createPgDocument({ pool: s.pool, codec: challengeCodec, log: quiet });
+    await d.load();
+    d.write(doc);
+    await d.flush();
+    assert.deepEqual(Object.keys((await challengeCodec.load(s.pool)).days), [today], 'RAM window = KEEP_DAYS');
+    const d2 = createPgDocument({ pool: s.pool, codec: challengeCodec, log: quiet });
+    await d2.load();
+    d2.write(d2.read());
+    await d2.flush();
+    const all = await challengeCodec.load(s.pool, { all: true });
+    assert.ok(all.days[old], 'a day outside the window is never deleted');
+  } finally { await s.drop(); }
+});
