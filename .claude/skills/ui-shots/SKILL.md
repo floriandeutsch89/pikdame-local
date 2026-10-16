@@ -30,7 +30,10 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   shot, to show options before building them.
 - **Scenes:** `lobby`, `lobby-open` (daily tasks unfolded), `progress`
   ("Dein Fortschritt"), `stats`, `history` ("Meine Partien"), `roundend`,
-  `roundend-stats`, `gameover`.
+  `roundend-stats`, `gameover`, `gameover-challenge` (board + share),
+  `puzzle`, `puzzle-turn` / `puzzle-out` (that kind injected, one meld
+  laid), `challenge` (intro after the day's attempt), `gamelobby` (house
+  rules), `botdiff` (the strength picker).
 - Prints the written PNG paths. Look at them with the Read tool; don't
   just trust that they exist.
 - `--audit` also checks every shot and writes `<out>/audit.md`: truncated

@@ -78,3 +78,13 @@ test('the magnet badge goes to the holder of a day that is over', () => {
   assert.ok(computeEarnedBadges(rec, 'p1', {}, { queenMagnet: true }).includes('queen_magnet_day'));
   assert.ok(!computeEarnedBadges(rec, 'p1', {}, {}).includes('queen_magnet_day'));
 });
+
+test('resultOf: rank, score, caught queens and field size for sharing', () => {
+  const cs = freshStore();
+  assert.equal(cs.resultOf(TODAY, 'Flo'), null, 'no ranked game yet');
+  cs.submit(TODAY, 'Anna', 900, NOW);
+  cs.submit(TODAY, 'Flo', 1120, NOW, { queens: 2 });
+  cs.submit(TODAY, 'Ben', 400, NOW);
+  assert.deepEqual(cs.resultOf(TODAY, 'flo'), { rank: 1, score: 1120, queens: 2, players: 3 });
+  assert.deepEqual(cs.resultOf(TODAY, 'Ben'), { rank: 3, score: 400, queens: 0, players: 3 });
+});

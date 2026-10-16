@@ -79,6 +79,8 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   - `GameDay.js`: EINZIGE Definition von „heute“ (Mitternacht Europe/Berlin,
     Rechnen nur auf Datums-Strings, nie 24-h-Schritte).
   - `DailyPuzzle.js`: Ergebnisobjekt ohne `type`-Feld (wird in WS gespreadet).
+    Arten im Wochentakt (meld/turn/out); Tage vor `ROTATION_START` bleiben,
+    wie sie ausgespielt wurden (Archiv per `date`, ohne EP).
   - `StammtischStore.js`: Gruppen-Tische `ST…`, per Code abgeschottet (auch
     im Public-Mode aktiv). Codes nie in die Partien-Historie (per Name
     abrufbar), dort nur ein Flag. `Emotes.js`: EINZIGE Emote-Whitelist (Vertragstest).
@@ -102,8 +104,10 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   `GameManager` aus der Sitz-Sicht (`LegalActions.js`) — kein Regel-Zweitcode.
 
 ### Bot-KI
-- Heuristik (`Bot.js`): Kartenzählung, Damen-Disziplin (nur easy wirft ♠Q
-  sorglos), Zieh-Guards, Zen-Endspiel, Joker-Tausch nie mit letzter Karte.
+- Heuristik (`Bot.js`): Kartenzählung (Schwer/Zen), Damen-Disziplin (nur easy
+  wirft ♠Q sorglos), Zieh-Guards, Zähl-Endspiel, Joker-Tausch nie mit letzter Karte.
+- **Regel geändert → Bot-Annahmen prüfen** (auch Kommentare): ein Abwurf-Filter
+  für die alte Aufnahme-Regel kostete ~20 Pp Siegquote, bis 2.61 unentdeckt.
 - Untersucht, NICHT produktiv (getestete Infrastruktur per Flag):
   `MonteCarlo.js` (Null-Effekt), `Rollout.js` (~+2 Pkt/0,8σ, nicht signifikant).
 - **ONNX-Netz ist im Image Standard** (`PIKDAME_ONNX=1`, `=0` = Heuristik);
@@ -111,11 +115,13 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   fällt auf die Heuristik zurück.
   - `StateEncoder.js`: EINZIGE Kodierung (377 Obs, 54 Aktionen) für Training
     UND Laufzeit — einseitige Änderung macht `.onnx` inkompatibel.
-  - **Stufe ≠ Stärke:** Mit Netz spielen Mittel und Zen gleich stark (gemessen
-    2026-10, je 1000 Partien). Stärke-Änderungen mit aktivem ONNX messen
-    (Prod-Standard); `onnxruntime-node` dafür außerhalb des Repos installieren
+  - **Leiter:** Leicht < Mittel < Schwer (Heuristik) < Zen (Netz; ohne Netz =
+    Schwer). Jede Stufe muss die darunter signifikant schlagen:
+    `node scripts/sim-bots.js --ladder` mit aktivem ONNX (Prod-Standard);
+    `onnxruntime-node` dafür außerhalb des Repos installieren
     (`--ignore-scripts`, `NODE_PATH`), sonst schaltet Auto-Modus es in `npm test` ein.
-  - `OnnxPolicy.js` lädt `models/pikdame-<stufe>.onnx`. Training in `python/`
+    Neue Tische starten auf Mittel, die Challenge spielt Mittel.
+  - `OnnxPolicy.js` lädt nur `models/pikdame-zen.onnx`. Training in `python/`
     (MaskablePPO), Bridge `scripts/rl-env-server.js`, Doku
     `docs/developer/rl-setup.md`. Modelle werden committet, `.zip` nicht.
   - Steuer-Seams `cp.forcedDrawSource`, `cp.externalDiscard`, `_noMcts`:
@@ -138,7 +144,8 @@ in der Auslage. „Hand aus“ verdoppelt NUR mit Hausregel `handAusDoubles`
 Ablagekarte nicht nehmen kann, beendet die Runde (kein Sieger-Bonus).
 160 Züge ohne Auslage → Unentschieden. **Ablagekarte nicht nehmbar, wenn das
 Pflicht-Legen die Hand restlos verbraucht** (Ausnahmen: Reststapel folgt,
-Anlegen an eigene Auslage, Kombination verschont eine Karte). Bots werfen nie
+Kombination verschont eine Karte); Anlegbarkeit berechtigt nie zur Aufnahme
+(`canUseDiscardTop`). Bots werfen nie
 Joker ab (außer als letzte Karte). Punkte: 2–9=5, 10/B/D/K=10, Ass/Joker=20,
 ♠Q=100. Ende ab 1000 (Hausregel „streng“: >1000). `gameOverInfo` trägt
 `totalTurns`/`totalRounds` (aus `gameTurnCount`).

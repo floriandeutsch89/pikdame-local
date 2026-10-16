@@ -26,7 +26,8 @@ handler, so it always matches the running code.
 | `performCut` | Interactive round start: the cutter picks where to cut the freshly shuffled deck (position 0..1). Only valid in the cutting phase, only for the cutter; bots, the daily challenge and timeouts cut automatically. The next state carries `lastCutReveal` (the lucky cards kept plus the ordinary card that ended the run) for the reveal animation. |
 | `rematch` | Start a new match with the same table. |
 | `reorderSeats` | Host only: change the seating order. |
-| `setBotDifficulty` | Host only: set a bot seat's difficulty. |
+| `setAllBotDifficulty` | Host only: set every bot (and bots added later) to one difficulty. Refused in the daily challenge. |
+| `setBotDifficulty` | Host only: set a bot seat's difficulty (easy, medium, hard, zen). |
 | `setDealer` | Host only: choose the dealer. |
 | `setHouseRules` | Host only: change house rules (turn timer, bot speed, "hand aus" doubling, strict threshold). |
 | `setMaxSeats` | Host only: change the number of seats (2-4). |

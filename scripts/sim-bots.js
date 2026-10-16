@@ -1,6 +1,6 @@
 // Bot-vs-bot self-play harness: measures win rates per difficulty so bot
 // tuning is DATA-driven instead of vibes-driven. Usage: node scripts/sim-bots.js
-// (adjust the series at the bottom; ~3 games/second headless).
+// (adjust the series at the bottom; ~3 games/second headless), or --ladder.
 // Headless bot-vs-bot simulation: does zen actually beat the field?
 const GameManager = require('../game/GameManager');
 
@@ -78,7 +78,72 @@ function stderr(a) {
   return Math.sqrt(v / a.length);
 }
 
-if (process.argv.includes('--mc')) {
+// Prod-routed game: Zen plays the net when onnxruntime-node and the model are
+// there (PIKDAME_ONNX, auto mode), every other level the heuristic - exactly
+// like maybeRunBotTurn. Returns the winning seat index, or null.
+async function playGameProd(levels) {
+  const g = new GameManager(() => {});
+  g.addOrReconnectPlayer('h1', 'Host');
+  g.fillWithBots();
+  g.players = levels.map((d, i) => ({
+    id: `bot-${i}`, name: `B${i}-${d}`, isBot: true, hand: [], connected: true, laidOutCards: [], botDifficulty: d,
+  }));
+  g.maxSeats = levels.length;
+  g.startNewRound();
+  let guard = 0;
+  while (g.phase !== 'gameOver' && guard++ < 100000) {
+    if (g.phase === 'playing') {
+      const cp = g.currentPlayer();
+      const before = g.turnIndexInRound;
+      if (g._botTurnUsesOnnx(cp)) await g._runBotTurnWithOnnx(cp.id);
+      else g.runBotTurn(cp.id);
+      if (g.phase === 'playing' && g.turnIndexInRound === before && g.currentPlayer().id === cp.id) g.finishRound(null);
+    } else if (g.phase === 'roundEnd') g.startNewRound();
+    else break;
+  }
+  const totals = { ...g.totals };
+  g.destroy();
+  if (g.phase !== 'gameOver') return null;
+  return Number(Object.entries(totals).sort((a, b) => b[1] - a[1])[0][0].split('-')[1]);
+}
+
+// The bot ladder: for each pair "weak,strong", paired 2-vs-2 games with the
+// seats alternating; reports the STRONGER level's win share as mean +/- the
+// standard error over batches (50 % = no step). Run with the net installed
+// (CLAUDE.md: strength is measured with ONNX active, the prod default).
+//   node scripts/sim-bots.js --ladder [easy,medium medium,hard hard,zen] [--batches 10] [--games 200]
+async function ladder() {
+  const argAfter = (flag, def) => {
+    const i = process.argv.indexOf(flag);
+    return i > -1 ? Number(process.argv[i + 1]) : def;
+  };
+  const batches = argAfter('--batches', 10);
+  const games = argAfter('--games', 200);
+  const pairs = process.argv.slice(2).filter((a) => /^[a-z]+,[a-z]+$/.test(a));
+  const OnnxPolicy = require('../game/OnnxPolicy');
+  console.log(`Bot ladder, ${batches} batches x ${games} paired games, net ${OnnxPolicy.enabled() ? 'ON' : 'OFF'}`);
+  for (const pair of pairs.length ? pairs : ['easy,medium', 'medium,hard', 'hard,zen']) {
+    const [weak, strong] = pair.split(',');
+    const shares = [];
+    for (let b = 0; b < batches; b++) {
+      let wins = 0;
+      let played = 0;
+      for (let i = 0; i < games; i++) {
+        const seats = i % 2 ? [weak, strong, weak, strong] : [strong, weak, strong, weak];
+        const w = await playGameProd(seats);
+        if (w === null) continue;
+        played += 1;
+        if (seats[w] === strong) wins += 1;
+      }
+      shares.push(wins / played);
+    }
+    console.log(`  ${weak.padEnd(6)} -> ${strong.padEnd(6)}: ${(mean(shares) * 100).toFixed(1)}% +/- ${(stderr(shares) * 100).toFixed(1)} (strong side)`);
+  }
+}
+
+if (process.argv.includes('--ladder')) {
+  ladder();
+} else if (process.argv.includes('--mc')) {
   // A/B: does the Monte-Carlo endgame discard actually beat plain zen?
   // Seat 0 is zen; in the MC arm it also runs the sampler. We measure seat-0
   // win rate across BATCHES so we get a mean +/- standard error, not a single

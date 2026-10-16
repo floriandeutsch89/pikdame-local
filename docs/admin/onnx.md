@@ -71,7 +71,7 @@ services:
 ```
 
 `PIKDAME_MODELS_DIR` overrides where the server looks. Drop in a new
-`pikdame-medium.onnx`, restart the container, done — no rebuild.
+`pikdame-zen.onnx`, restart the container, done — no rebuild.
 
 ## Kubernetes / Helm
 
@@ -84,16 +84,17 @@ kubectl logs deploy/pikdame | grep -E "ONNX-Bots|ONNX-Modell"
 
 ## File naming
 
-The server loads **one model per difficulty**, by name:
+Only the **Zen** level plays the net, from:
 
 ```text
-<models dir>/pikdame-easy.onnx
-<models dir>/pikdame-medium.onnx
 <models dir>/pikdame-zen.onnx
 ```
 
-A difficulty with no model file simply keeps using the heuristic — you can ship a
-trained `zen` and leave `easy` heuristic, for example.
+Easy, Medium and Hard are always heuristic, so the four levels form a measured
+ladder (see {doc}`../developer/bots`). The medium network was as strong as the
+zen one, so a Medium that played it made the two levels identical; the file can
+stay in the folder, it is no longer loaded. Without a zen model (or without the
+runtime) Zen falls back to the Hard heuristic.
 
 ## Verifying it actually works
 

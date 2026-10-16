@@ -7,8 +7,10 @@ training output** (metrics, reward semantics, baselines), see
 
 This guide explains how to train the bot networks and export them as **ONNX**
 files that the Node game engine loads at runtime. Only **`medium`** and
-**`zen`** are trained as networks - see "Why `easy` isn't trained" below.
-(The old `hard` tier was identical to `medium` and was removed.) The policy can
+**`zen`** are trained as networks - see "Why `easy` isn't trained" below. At
+runtime only the **zen** network plays: both nets measured equally strong, so
+Medium stays heuristic and the levels form a ladder ({doc}`bots`). `hard` is a
+level again since 2.61: the counting (zen) heuristic. The policy can
 also be warm-started from **winning human games** - see "Learning from human
 games".
 
@@ -263,7 +265,8 @@ play.
 | easy vs any     | ~75% (easy discards randomly) |
 
 (The former `hard` tier was measured identical to `medium` - 0% discard
-disagreement - and has been removed.)
+disagreement - and was removed; since 2.61 `hard` is the counting heuristic
+that `zen` falls back to, so as a training opponent it equals heuristic `zen`.)
 
 So the heuristic bots offer only **three genuinely distinct styles**:
 `easy` (random), `medium` (value heuristic), and `zen` (counting-refined,

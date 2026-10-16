@@ -21,7 +21,8 @@ function botPaceFactor(houseRules) {
   return f === undefined ? 1 : f;
 }
 
-/** A bot's difficulty, defaulting to Zen (single source for the fallback). */
+/** A bot's difficulty; Zen is the fallback for seats without one (a stand-in
+ *  for a disconnected human plays as strong as possible). */
 function botDifficultyOf(player) {
   return (player && player.botDifficulty) || 'zen';
 }
@@ -287,7 +288,7 @@ class GameManager {
       const name = free.pop() || `Bot ${botIndex}`;
       this.players.push({
         id, name, isBot: true, hand: [], connected: true, laidOutCards: [],
-        botDifficulty: this.defaultBotDifficulty || 'zen', // per-bot; adjustable in the lobby, defaults to Zen
+        botDifficulty: this.defaultBotDifficulty || 'medium', // per-bot; adjustable in the lobby
       });
       this.totals[id] = this.totals[id] || 0;
       botIndex += 1;
@@ -357,7 +358,7 @@ class GameManager {
       ...clean,
     };
     // Bot difficulty is NOT a house rule - it is set PER BOT via
-    // setBotDifficulty (adjustable in the lobby), defaulting to Zen.
+    // setBotDifficulty / setAllBotsDifficulty (lobby), defaulting to Mittel.
   }
 
   /**
@@ -430,12 +431,23 @@ class GameManager {
    * Bots" versprachen (Spieler-Report).
    */
   setAllBotsDifficulty(difficulty) {
-    const ALLOWED = ['easy', 'medium', 'zen'];
-    if (!ALLOWED.includes(difficulty)) return { error: 'Unbekannte Schwierigkeit.' };
+    if (!Bot.BOT_LEVELS.includes(difficulty)) return { error: 'Unbekannte Schwierigkeit.' };
     for (const p of this.players) if (p.isBot) p.botDifficulty = difficulty;
     // Auch fuer spaeter aufgefuellte Bots merken: fillWithBots kann NACH
     // diesem Aufruf laufen (so macht es der Server beim Challenge-Start).
     this.defaultBotDifficulty = difficulty;
+    return { ok: true };
+  }
+
+  /** Lobby control "Bot-Stärke": one level for every bot (the server checks the host). */
+  setAllBotsDifficultyBy(requesterId, difficulty) {
+    if (this.challengeDate) {
+      return { error: 'In der Tages-Challenge ist die Bot-Stärke fest - sonst wäre die Bestenliste nicht vergleichbar.' };
+    }
+    if (!this.players.some((p) => p.id === requesterId && !p.isBot)) return { error: 'Nur Spieler am Tisch können das ändern.' };
+    const r = this.setAllBotsDifficulty(difficulty);
+    if (r.error) return r;
+    this.broadcastState();
     return { ok: true };
   }
 
@@ -444,7 +456,7 @@ class GameManager {
     if (this.challengeDate) {
       return { error: 'In der Tages-Challenge ist die Bot-Stärke fest - sonst wäre die Bestenliste nicht vergleichbar.' };
     }
-    const LABELS = { easy: 'Anfänger', medium: 'Fortgeschritten', zen: 'Zen-Meister' };
+    const LABELS = { easy: 'Anfänger', medium: 'Fortgeschritten', hard: 'Profi', zen: 'Zen-Meister' };
     if (!LABELS[difficulty]) return { error: 'Unbekannte Schwierigkeit.' };
     const requester = this.players.find((p) => p.id === requesterId && !p.isBot);
     if (!requester) return { error: 'Nur Spieler am Tisch können das ändern.' };
@@ -2049,7 +2061,7 @@ class GameManager {
       // ONNX runtime path is opt-in (PIKDAME_ONNX=1) and fully guarded: any
       // failure falls back to the normal synchronous heuristic turn. With the
       // flag off this is byte-for-byte the previous behaviour.
-      if (this._botTurnUsesOnnx()) {
+      if (this._botTurnUsesOnnx(cp)) {
         this._runBotTurnWithOnnx(cp.id).catch(() => {
           try { this.runBotTurn(cp.id); } catch (e) { /* swallow */ }
         });
@@ -2060,10 +2072,11 @@ class GameManager {
     if (this._botTimer.unref) this._botTimer.unref();
   }
 
-  /** The daily challenge always plays the heuristic: with the net, medium is as
-   *  strong as zen (measured, 1000 games) and the daily is meant to be fun. */
-  _botTurnUsesOnnx() {
-    return !this.challengeDate && require('./OnnxPolicy').enabled();
+  /** Only Zen plays the net: the medium model was as strong as zen (measured),
+   *  so the lower levels stay heuristic and form a ladder. The daily challenge
+   *  is always heuristic, so its board stays comparable. */
+  _botTurnUsesOnnx(cp) {
+    return !this.challengeDate && botDifficultyOf(cp) === 'zen' && require('./OnnxPolicy').enabled();
   }
 
   /**
@@ -2911,6 +2924,8 @@ class GameManager {
       tableMelds: this.tableMelds,
       retiredJokers: this.retiredJokers,
       houseRules: this.houseRules,
+      // Level for bots created later (lobby control "Bot-Stärke").
+      botLevel: this.defaultBotDifficulty || 'medium',
       maxSeats: this.maxSeats,
       hostId: this.effectiveHostId(),
       isHost: this.isHost(forPlayerId),

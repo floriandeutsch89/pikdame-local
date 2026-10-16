@@ -32,7 +32,7 @@ const { createAdminTokenVerifier } = require('./game/AdminToken');
 const { createMonitor } = require('./game/Monitor');
 const { createPasskeyService, deviceName } = require('./game/Passkeys');
 const { isAllowedEmote, emoteLevel } = require('./game/Emotes');
-const { puzzleForDate, publicPuzzle, checkAnswer, XP_FOR_SOLVED } = require('./game/DailyPuzzle');
+const { puzzleForDate, publicPuzzle, checkAnswer, XP_FOR_SOLVED, PUZZLE_EPOCH } = require('./game/DailyPuzzle');
 const { createStammtischStore, normalizeCode: normalizeStammtischCode } = require('./game/StammtischStore');
 const { createGameHistoryStore, historyForPlayer } = require('./game/GameHistoryStore');
 const { SessionRegistry, sanitizeName } = require('./game/SessionRegistry');
@@ -290,11 +290,10 @@ function serveStatic(req, res) {
     // laengst, war aber nur nach einer beendeten Partie zu sehen.
     // Trend graph: the top 5 of the last 14 days, plus ?name= as "me".
     const trendName = sanitizeName(new URL(req.url, 'http://x').searchParams.get('name') || '');
-    // ?name= also gets its own result today, for the start screen tile.
-    const yourRank = trendName ? challengeStore.rankOf(date, trendName) : null;
+    // ?name= also gets its own result today, for the start screen tile and sharing.
     res.end(JSON.stringify({
       date,
-      you: yourRank ? { rank: yourRank, score: challengeStore.getBoard(date, yourRank)[yourRank - 1].score } : null,
+      you: trendName ? challengeStore.resultOf(date, trendName) : null,
       board: challengeStore.getBoard(date, 5),
       attempted: trendName ? challengeStore.hasAttempted(date, trendName) : false,
       magnet: challengeStore.queenMagnet(date),
@@ -1339,6 +1338,9 @@ const registry = new SessionRegistry((session) => {
             board,
             yourScore: score,
             yourRank: challengeStore.rankOf(date, human.name),
+            // For "Ergebnis teilen": caught queens and today's field size.
+            yourQueens: queens,
+            players: challengeStore.getBoard(date, Infinity).length,
             magnet: challengeStore.queenMagnet(date),
             // Die versprochenen '7 Tage sichtbar': kompakter Rückblick
             history: challengeStore.getHistory(human.name),
@@ -1462,10 +1464,16 @@ snapshotTimer.unref();
 
 // One puzzle per day, built on first request (the subset search costs a few
 // milliseconds) and dropped when the date moves on.
-let dailyPuzzleCache = null;
+// A few days cached: today plus whatever the archive is browsing.
+const dailyPuzzleCache = new Map();
 function dailyPuzzleFor(date) {
-  if (!dailyPuzzleCache || dailyPuzzleCache.date !== date) dailyPuzzleCache = puzzleForDate(date);
-  return dailyPuzzleCache;
+  let p = dailyPuzzleCache.get(date);
+  if (!p) {
+    p = puzzleForDate(date);
+    dailyPuzzleCache.set(date, p);
+    if (dailyPuzzleCache.size > 8) dailyPuzzleCache.delete(dailyPuzzleCache.keys().next().value);
+  }
+  return p;
 }
 
 function broadcastToSession(session, message) {
@@ -1774,23 +1782,29 @@ wss.on('connection', (ws, req) => {
       // Daily puzzle: no session needed, it is a one-minute ritual on the
       // start screen. The hand is seeded from the date (identical worldwide),
       // the engine grades, the local profile remembers tries and the solve.
-      const date = gameDay();
+      // msg.date picks an archive day: graded, but no XP and nothing stored.
+      const today = gameDay();
+      const asked = typeof msg.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(msg.date) ? msg.date : today;
+      const date = asked < PUZZLE_EPOCH || asked > today ? today : asked;
+      const archive = date !== today;
       const puzzle = dailyPuzzleFor(date);
       const name = sanitizeName(msg.name);
-      const withProfile = !PUBLIC_MODE && !!name;
+      const withProfile = !PUBLIC_MODE && !!name && !archive;
+      const fresh = { tries: 0, solved: false, revealed: false };
       if (msg.type === 'getPuzzle') {
         ws.send(JSON.stringify({
-          type: 'puzzle', ...publicPuzzle(puzzle),
-          status: withProfile ? playerStore.puzzleStatus(name, date) : { tries: 0, solved: false, revealed: false },
+          type: 'puzzle', ...publicPuzzle(puzzle), archive, today, epoch: PUZZLE_EPOCH,
+          status: withProfile ? playerStore.puzzleStatus(name, date) : fresh,
         }));
         return;
       }
       if (msg.type === 'revealPuzzle') {
-        const status = withProfile ? playerStore.revealPuzzle(name, date) : { tries: 0, solved: false, revealed: true };
-        ws.send(JSON.stringify({ type: 'puzzleSolution', cardIds: puzzle.best ? puzzle.best.cardIds : [], points: puzzle.best ? puzzle.best.points : 0, status }));
+        const status = withProfile ? playerStore.revealPuzzle(name, date) : { ...fresh, revealed: true };
+        const best = puzzle.best || { cardIds: [], melds: [], points: 0 };
+        ws.send(JSON.stringify({ type: 'puzzleSolution', date, cardIds: best.cardIds, melds: best.melds || [best.cardIds], points: best.points, status }));
         return;
       }
-      const result = checkAnswer(puzzle, msg.cardIds);
+      const result = checkAnswer(puzzle, Array.isArray(msg.melds) ? msg.melds : msg.cardIds);
       let status = { tries: 1, solved: result.solved, revealed: false };
       let xp = 0;
       let level = null;
@@ -1808,7 +1822,8 @@ wss.on('connection', (ws, req) => {
           try { badges = playerStore.awardBadges(name, familyBadges(playerStore.getPlayerByName(name) || {})); } catch (err) { logCrash('badges', err, { player: name }); }
         }
       }
-      ws.send(JSON.stringify({ ...result, xp, level, streak, status, badges, type: 'puzzleResult' }));
+      if (archive) status = { tries: 0, solved: result.solved, revealed: false };
+      ws.send(JSON.stringify({ ...result, date, xp, level, streak, status, badges, type: 'puzzleResult' }));
       return;
     }
     if (msg.type === 'listProfiles') {
@@ -2111,6 +2126,12 @@ wss.on('connection', (ws, req) => {
       case 'setBotDifficulty': {
         if (!game.isHost(playerId)) { sendError(ws, 'Nur der Organisator kann die Einstellungen ändern.'); break; }
         const r = game.setBotDifficulty(playerId, msg.botId, msg.difficulty);
+        if (r && r.error) sendError(ws, r.error);
+        break;
+      }
+      case 'setAllBotDifficulty': {
+        if (!game.isHost(playerId)) { sendError(ws, 'Nur der Organisator kann die Einstellungen ändern.'); break; }
+        const r = game.setAllBotsDifficultyBy(playerId, msg.difficulty);
         if (r && r.error) sendError(ws, r.error);
         break;
       }
