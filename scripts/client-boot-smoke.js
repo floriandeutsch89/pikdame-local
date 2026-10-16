@@ -663,7 +663,36 @@ setTimeout(() => {
       if (!doc.querySelector('#opponents .botDiffBadge')) errors.push('a normal table must show the bot level on the opponent chip');
       feed({ ...table, challengeDate: '2026-10-16' });
       if (doc.querySelector('#opponents .botDiffBadge')) errors.push('the daily challenge must not show the bot level');
+      // Practice (the day's ranked game is used): said once at the start, and the board says it too.
+      const toast = doc.getElementById('toastContainer');
+      feed({ ...table, phase: 'gameOver', gameOverInfo: { winnerId: 'b1', finalTotals: {} } }); // a finished game frees round 1 again
+      toast.textContent = '';
+      feed({ ...table, challengeDate: '2026-10-16', challengePractice: true });
+      if (!/Übungspartie/.test(toast.textContent)) errors.push(`a practice game must say so, got: ${toast.textContent}`);
+      wsInstance._emit('message', { data: JSON.stringify({
+        type: 'challengeBoard', date: '2026-10-16', practice: true, yourScore: 910, yourRank: null,
+        ranked: { rank: 2, score: 700 }, magnet: { name: 'Oma Gerda', queens: 3 },
+        board: [{ rank: 1, name: 'Ben', score: 800 }, { rank: 2, name: 'Flo', score: 700 }], history: [], weekly: null,
+      }) });
+      const boardText = (doc.querySelector('.challengeBoardBox') || {}).textContent || '';
+      if (!/Übung: 910 Punkte/.test(boardText) || !/Gewertet: 700 Punkte · Platz 2/.test(boardText)) {
+        errors.push(`the board must tell practice from the ranked result: ${boardText.slice(0, 120)}`);
+      }
+      if (!/Damen-Magnet des Tages: Oma Gerda \(3×\)/.test(boardText)) errors.push(`the board must name the Damen-Magnet: ${boardText.slice(0, 160)}`);
       feed(table);
+      // Bot lines: a bubble under the speaker's chip; the settings switch mutes them.
+      const quip = () => wsInstance._emit('message', { data: JSON.stringify({ type: 'quip', playerId: 'b1', moment: 'queen_caught' }) });
+      quip();
+      const bubble = doc.querySelector('.quipBubble');
+      if (!bubble || !/Dame|Hundert/.test(bubble.textContent)) errors.push(`a bot line must show as a bubble: ${bubble ? bubble.textContent : 'none'}`);
+      doc.querySelectorAll('.quipBubble').forEach((n) => n.remove());
+      const quipsBox = doc.getElementById('botQuipsCheckbox');
+      quipsBox.checked = false;
+      quipsBox.dispatchEvent(new window.Event('change'));
+      quip();
+      if (doc.querySelector('.quipBubble')) errors.push('muted bot lines must not show');
+      quipsBox.checked = true;
+      quipsBox.dispatchEvent(new window.Event('change'));
     }
 
     // A freshly drawn card is marked - the Queen of Spades included (it used

@@ -36,10 +36,10 @@ async function waitForServer(port, timeoutMs = 15000) {
   throw new Error(`server on port ${port} did not come up within ${timeoutMs}ms`);
 }
 
-function startServer(dataDir) {
+function startServer(dataDir, extraEnv = {}) {
   const server = spawn('node', ['server.js'], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(PORT), PIKDAME_PUBLIC_MODE: '1', PIKDAME_DATA_DIR: dataDir },
+    env: { ...process.env, PORT: String(PORT), PIKDAME_PUBLIC_MODE: '1', PIKDAME_DATA_DIR: dataDir, ...extraEnv },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let out = '';
@@ -312,6 +312,50 @@ test('the daily challenge seats three medium bots', async (t) => {
   }
   ws.close();
   assert.deepStrictEqual(bots.map((p) => p.botDifficulty), ['medium', 'medium', 'medium']);
+});
+
+// One ranked attempt per day: the boot frees a ranked game the server lost,
+// the first start is ranked, a second one the same day is practice.
+test('daily challenge: first start ranked, second practice, lost game freed at boot', async (t) => {
+  const { gameDay } = require('../game/GameDay');
+  const today = gameDay();
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-cha-'));
+  fs.writeFileSync(path.join(dataDir, 'challenges.json'), JSON.stringify({
+    days: {}, attempts: { [today]: { flo: { name: 'Flo', code: 'GONE01', at: Date.now(), state: 'running' } } },
+  }));
+  const { server } = startServer(dataDir, { PIKDAME_PUBLIC_MODE: '0' });
+  t.after(async () => {
+    const gone = server.exitCode !== null ? null : new Promise((r) => server.once('exit', r));
+    server.kill();
+    await gone;
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  });
+  await waitForServer(PORT);
+  const attempted = async () => (await (await fetch(`http://127.0.0.1:${PORT}/challengeboardz?name=Flo`)).json()).attempted;
+  assert.strictEqual(await attempted(), false, 'the game lost before the restart does not count');
+  const start = async () => {
+    const ws = await new Promise((resolve, reject) => {
+      const s = new WebSocket(`ws://localhost:${PORT}`);
+      s.inbox = [];
+      s.on('message', (raw) => s.inbox.push(JSON.parse(raw)));
+      s.once('open', () => resolve(s));
+      s.once('error', reject);
+    });
+    ws.send(JSON.stringify({ type: 'startChallenge', name: 'Flo' }));
+    let st = null;
+    for (const deadline = Date.now() + 4000; !st && Date.now() < deadline;) {
+      await new Promise((r) => setTimeout(r, 25));
+      const m = ws.inbox.filter((x) => x.type === 'state' && x.state.players.length === 4).pop();
+      st = m ? m.state : null;
+    }
+    ws.close();
+    return st;
+  };
+  const first = await start();
+  assert.strictEqual(first.challengePractice, false, 'first game of the day is ranked');
+  assert.strictEqual(await attempted(), true);
+  const second = await start();
+  assert.strictEqual(second.challengePractice, true, 'a second start the same day is practice');
 });
 
 test('Stammtisch: a new evening starts with the last winner as dealer', async (t) => {
