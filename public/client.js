@@ -635,6 +635,34 @@
     if (navigator.vibrate) navigator.vibrate(pattern);
   }
 
+  // A sliding tone through a moving band pass: reads as a short "miau".
+  function playMeow() {
+    if (!soundEnabled) return;
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') ctx.resume();
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const band = ctx.createBiquadFilter();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(480, t);
+    osc.frequency.linearRampToValueAtTime(780, t + 0.12);
+    osc.frequency.linearRampToValueAtTime(440, t + 0.5);
+    band.type = 'bandpass';
+    band.Q.value = 3;
+    band.frequency.setValueAtTime(900, t);
+    band.frequency.linearRampToValueAtTime(1500, t + 0.15);
+    band.frequency.linearRampToValueAtTime(800, t + 0.5);
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.12, t + 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+    osc.connect(band).connect(gain).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.6);
+    scheduleAudioSuspend();
+  }
+
   const sound = {
     pikdame: () => { playTone([98, 147, 98], 520, 'sawtooth', 0.06); vibrate([60, 40, 60, 40, 120]); },
     turn: () => { playTone([523, 659], 180, 'sine', 0.06); vibrate([30, 60, 30]); },
@@ -643,7 +671,29 @@
     meld: () => { playTone([440, 554, 660], 220, 'sine', 0.06); vibrate([10, 30, 10]); },
     error: () => { playTone([140], 160, 'square', 0.05); vibrate(40); },
     roundEnd: () => { playTone([392, 494, 587, 784], 420, 'sine', 0.07); vibrate([15, 40, 15, 40]); },
+    meow: () => { playMeow(); vibrate([12, 60, 12]); },
   };
+
+  // A present for a cat lover, deliberately in no CHANGELOG or doc: five quick
+  // taps on the card fan of the start screen and a cat peeks out behind it.
+  (() => {
+    const hero = document.querySelector('.lobbyHero');
+    if (!hero) return;
+    let taps = [];
+    let hideTimer = null;
+    hero.addEventListener('click', () => {
+      const now = Date.now();
+      taps = taps.filter((at) => now - at < 2500).concat(now);
+      if (taps.length < 5 || hero.classList.contains('catOut')) return;
+      taps = [];
+      const says = hero.querySelector('.heroCatBubble text');
+      if (says) says.textContent = L('Miau!', 'Meow!');
+      hero.classList.add('catOut');
+      sound.meow();
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => hero.classList.remove('catOut'), 3500);
+    });
+  })();
 
   // Settings rows carry an <svg class="icon"> plus a label and a value span.
   // Never assign textContent to the row itself - that would wipe the icon.

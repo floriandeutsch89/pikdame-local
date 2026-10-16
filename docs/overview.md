@@ -15,6 +15,21 @@ at the end of a round she costs you 100. Much of the tactics revolve around her.
 
 For the exact numbers the engine plays with, see {doc}`developer/game-constants`.
 
+### At the table
+
+A table has 2 to 4 seats; in the lobby every free seat already shows a bot, so
+the order can be dragged into shape before the game starts and the star picks
+the first dealer. A friend who joins by code or link takes the bot seat that is
+**farthest from the other humans** around the table, never the one right behind
+the host: two people at four seats sit human, bot, human, bot, at three seats
+human, bot, human. The organizer can still move everyone afterwards.
+
+The bots come in four levels, each measurably stronger than the one below:
+Leicht, Mittel, Schwer (counts cards) and Zen (a trained network where the
+server has it, otherwise as strong as Schwer). New tables start on Mittel.
+"Bot-Stärke" in the lobby sets every bot at once; a single bot is changed by
+tapping its level. Details and measurements: {doc}`developer/bots`.
+
 ### A round starts
 
 The dealer rotates each round; a rematch (and the next evening at a
@@ -43,6 +58,25 @@ must stay deterministic so the whole world plays the identical deck.)
 3. **Discard** exactly one card. To go out you must still have a card left to
    discard; the final one is placed face down.
 
+### Every day
+
+Everything daily is seeded from the game date (the day flips at midnight German
+time), so the whole world plays the same thing and can talk about it:
+
+- **Daily challenge** — one game on the same deck against the same three Mittel
+  bots. Only the first started game of the day counts for the leaderboard.
+- **Daily puzzle** — one hand, one question, the rules engine grades the answer.
+  The kind rotates by weekday, easier early in the week: *Beste Auslage*
+  (Monday, Thursday: the most valuable single meld), *Ausmachen* (Tuesday,
+  Friday, Sunday: lay out every card but the one you discard) and *Bester Zug*
+  (Wednesday, Saturday: as many points as possible in one turn, several melds
+  allowed, one card stays for the discard). Solving pays 30 experience once a
+  day. The arrows browse every earlier puzzle as practice, without experience
+  and without storing anything.
+- **Sharing** — after the challenge and the puzzle, "Ergebnis teilen" hands a
+  short text to the phone's share sheet (or the clipboard), e.g.
+  "Platz 3 von 12 · 1120 Punkte · ♠Q nie erwischt" or "Gelöst im 2. Versuch 🟥🟩".
+
 ### Progress between matches
 
 Three layers, all optional and all degrading quietly where they cannot work:
@@ -50,7 +84,7 @@ Three layers, all optional and all degrading quietly where they cannot work:
 | | Where it lives | Works without an account |
 | --- | --- | --- |
 | **Daily tasks** | Three tasks seeded from the game date (the day flips at midnight German time) — identical for every player worldwide, like the daily challenge deck. Progress counts on the name-based profile. | yes |
-| **Achievements** | 13 badges, shown as a cabinet in the statistics panel with locked entries and their progress ("Damenjägerin 4/10"). | yes |
+| **Achievements** | 48 badges, shown as a cabinet in the statistics panel with locked entries and their progress ("Damenjägerin 4/10"). | yes |
 | **Level & season ladder** | Experience per finished match, a level, and a monthly ladder — bound to the **account**, so it follows the player across devices. | no (needs a login) |
 
 Experience is awarded for *finishing* a match, not only for winning: a base
@@ -69,7 +103,7 @@ no profiles are stored, and the tasks and cabinet stay hidden accordingly.
 | **Server** | Node.js, no framework. One WebSocket per player, the server is the single source of truth and validates every move. |
 | **Client** | Plain HTML/CSS/JS — no build step, no framework, no bundler. |
 | **Storage** | JSON files on a volume (profiles, statistics, history, daily-task progress) plus SQLite or PostgreSQL for optional accounts and the season ladder. |
-| **Bots** | A heuristic engine by default; optionally a trained ONNX policy. |
+| **Bots** | Four levels: three heuristic, Zen plays a trained ONNX policy where the runtime is installed. |
 | **Deployment** | One container. Optionally the full stack with Caddy (automatic TLS) and PostgreSQL. |
 
 ### Design decisions worth knowing

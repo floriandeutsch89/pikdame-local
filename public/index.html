@@ -291,6 +291,22 @@
              word is read. Pure SVG, themed, no download. -->
         <div class="lobbyHero" aria-hidden="true">
           <svg viewBox="0 0 132 96" class="lobbyHeroSvg">
+            <!-- Hidden on purpose (see client.js): drawn first, so the cards cover it. -->
+            <g class="heroCat"><g transform="translate(67 6) scale(0.85)">
+              <path d="M-14-6-11-21-2-10Z M14-6 11-21 2-10Z" fill="#e8913a"/>
+              <path d="M-12-8-10.5-17-5-10Z M12-8 10.5-17 5-10Z" fill="#f4b9a0"/>
+              <ellipse cx="-9" cy="12" rx="4.5" ry="3" fill="#e8913a"/>
+              <ellipse cx="9" cy="12" rx="4.5" ry="3" fill="#e8913a"/>
+              <ellipse rx="16" ry="13" fill="#e8913a"/>
+              <path d="M-4-12Q-3-8-4-5M0-13V-6M4-12Q3-8 4-5" stroke="#c46a1e" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+              <ellipse cy="6" rx="7" ry="4.6" fill="#fff3e6"/>
+              <ellipse cx="-6" cy="-1" rx="2.4" ry="3.1" fill="#2b2b2b"/>
+              <ellipse cx="6" cy="-1" rx="2.4" ry="3.1" fill="#2b2b2b"/>
+              <circle cx="-5.2" cy="-2" r="0.9" fill="#fff"/>
+              <circle cx="6.8" cy="-2" r="0.9" fill="#fff"/>
+              <path d="M-1.6 3.6h3.2l-1.6 1.9z" fill="#e57b8c"/>
+              <path d="M0 5.5q-1.5 2-3.2 1M0 5.5q1.5 2 3.2 1M-8 5l-9-1.6M-8 7l-9 1M8 5l9-1.6M8 7l9 1" stroke="#7a4a2a" stroke-width="0.7" stroke-linecap="round" fill="none"/>
+            </g></g>
             <g class="heroCard heroCardBack">
               <rect x="60" y="14" width="46" height="66" rx="7"/>
               <text x="83" y="52">♦</text>
@@ -303,6 +319,11 @@
               <rect x="43" y="18" width="48" height="70" rx="7"/>
               <text x="66.65" y="69.5" class="heroQueen">Q</text>
               <text x="67" y="43.5" class="heroSpade">♠</text>
+            </g>
+            <g class="heroCatBubble">
+              <rect x="99" y="-8" width="38" height="16" rx="8"/>
+              <path d="M101-2 91 0 101 4Z"/>
+              <text x="118" y="3.5"></text>
             </g>
           </svg>
         </div>

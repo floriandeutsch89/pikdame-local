@@ -118,8 +118,8 @@ class GameManager {
     }
     p = { id, name: name || `Spieler ${this.players.length + 1}`, isBot: false, hand: [], connected: true, laidOutCards: [] };
     // In der Lobby sind freie Plätze mit Bots vorbelegt - ein Beitritt ersetzt
-    // den ersten Bot AN SEINEM PLATZ, damit die Sitzordnung erhalten bleibt.
-    const botIdx = this.players.findIndex((pl) => pl.isBot);
+    // einen Bot AN SEINEM PLATZ, damit die Sitzordnung erhalten bleibt.
+    const botIdx = this._seatForNewHuman();
     if (botIdx !== -1) {
       const removed = this.players[botIdx];
       this.players[botIdx] = p;
@@ -130,6 +130,25 @@ class GameManager {
     this.totals[id] = this.totals[id] || 0;
     if (!this.hostId) this.hostId = id; // first human to join is the organizer
     return p;
+  }
+
+  /** Which bot seat a joining human takes. In the lobby the one farthest from
+   *  the other humans around the table, ties not right behind one: two humans
+   *  at four seats sit human, bot, human, bot. Otherwise the first bot. */
+  _seatForNewHuman() {
+    const n = this.players.length;
+    const bots = this.players.map((pl, i) => (pl.isBot ? i : -1)).filter((i) => i !== -1);
+    const humans = this.players.map((pl, i) => (pl.isBot ? -1 : i)).filter((i) => i !== -1);
+    if (bots.length === 0) return -1;
+    if (this.phase !== 'lobby' || humans.length === 0) return bots[0];
+    const since = (i) => Math.min(...humans.map((h) => (i - h + n) % n)); // seats after the last human
+    const until = (i) => Math.min(...humans.map((h) => (h - i + n) % n)); // seats before the next one
+    let best = bots[0];
+    for (const b of bots) {
+      const [gap, bestGap] = [Math.min(since(b), until(b)), Math.min(since(best), until(best))];
+      if (gap > bestGap || (gap === bestGap && since(b) > since(best))) best = b;
+    }
+    return best;
   }
 
   /** The effective organizer: the stored host if still present & connected,

@@ -1791,12 +1791,38 @@ test('a joining human replaces a bot in place (order preserved), not appended', 
   g.maxSeats = 4;
   g.addOrReconnectPlayer('h1', 'Anna');
   g.syncLobbyBots();
-  const beforeBotSeat = g.players.findIndex((p) => p.isBot); // first bot index
+  const botIds = g.players.filter((p) => p.isBot).map((p) => p.id);
   g.addOrReconnectPlayer('h2', 'Ben');
   g.syncLobbyBots();
   assert.equal(g.players.length, 4, 'still exactly maxSeats seats');
   assert.equal(g.players.filter((p) => !p.isBot).length, 2, 'two humans now');
-  assert.equal(g.players[beforeBotSeat].id, 'h2', 'human took the bot seat position');
+  assert.deepEqual(g.players.filter((p) => p.isBot).map((p) => p.id), [botIds[0], botIds[2]], 'the other bots kept their seats');
+});
+
+test('a joining human sits away from the others: human, bot, human, bot', () => {
+  const pattern = (g) => g.players.map((p) => (p.isBot ? 'B' : 'H')).join('');
+  const table = (seats) => {
+    const g = __autoCutHook(new GameManager(() => {}));
+    g.maxSeats = seats;
+    g.addOrReconnectPlayer('h1', 'Anna');
+    g.syncLobbyBots();
+    return g;
+  };
+  const four = table(4);
+  four.addOrReconnectPlayer('h2', 'Ben');
+  assert.equal(pattern(four), 'HBHB', 'not right behind the host');
+  assert.equal(four.players[2].id, 'h2');
+  four.addOrReconnectPlayer('h3', 'Cleo');
+  assert.equal(pattern(four), 'HHHB', 'then the next free seat');
+  const three = table(3);
+  three.addOrReconnectPlayer('h2', 'Ben');
+  assert.equal(pattern(three), 'HBH', 'three seats: a bot between host and guest');
+  // The host moved to seat 1 by dragging: the guest still sits opposite.
+  const moved = table(4);
+  moved.reorderPlayers([moved.players[1].id, 'h1', moved.players[2].id, moved.players[3].id]);
+  moved.addOrReconnectPlayer('h2', 'Ben');
+  assert.equal(moved.players[3].id, 'h2');
+  for (const g of [four, three, moved]) g.destroy();
 });
 
 test('table is full only when maxSeats HUMANS have joined', () => {

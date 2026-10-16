@@ -14,6 +14,7 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 
 ### Changed
 - **Neue Tische starten mit mittleren Bots** statt mit Zen. Auch das Tutorial spielt gegen die mittlere Stufe, ohne Netz
+- **Eingeladene Mitspieler sitzen verteilt:** Wer per Code oder Link an einen Tisch kommt, bekommt den freien Platz, der am weitesten von den anderen Mitspielern entfernt ist. Zu zweit an vier Plätzen heißt das Spieler, Bot, Spieler, Bot, zu dritt Spieler, Bot, Spieler. Bisher saß man direkt hinter dem Gastgeber. Umsetzen kann der Organisator wie gewohnt
 - **Die Bots spielen nach den aktuellen Regeln:** Sie hielten bisher Karten zurück, die an fremde Auslagen gepasst hätten – in der Annahme, der Nächste dürfe damit den Ablagestapel nehmen. Das erlaubt nur eine neue Kombination mit Handkarten, nie das Anlegen. Ohne diesen Irrtum gewinnen die Bots rund 70 % der Vergleichspartien. Das betrifft auch die Tages-Challenge: Ihre Bots sind dadurch stärker als gestern, bleiben aber klar unter Zen
 - **Querformat am Handy: alle Auslagen auf einen Blick.** Die Auslagen aller Spieler stehen nebeneinander, mit dem Namen als Überschrift. Bisher sah man ohne Scrollen nur die eigenen
 - **Tagesrätsel kompakter:** kleinere Karten, die Hand sortiert wie am Tisch. Im Querformat stehen die Karten links und die Knöpfe rechts
