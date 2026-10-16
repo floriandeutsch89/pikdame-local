@@ -5,3 +5,5 @@ sphinx-copybutton>=0.5
 sphinx-design>=0.6
 linkify-it-py>=2.0
 sphinxcontrib-mermaid>=2.0
+sphinx-notfound-page>=1.0
+sphinxext-opengraph[social_cards]>=0.10
