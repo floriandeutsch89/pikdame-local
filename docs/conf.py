@@ -27,12 +27,14 @@ release = version
 # -- General ----------------------------------------------------------------
 
 extensions = [
-    "myst_parser",         # Markdown
-    "sphinx_copybutton",   # copy button on code blocks
-    "sphinx_design",       # cards/grids on the landing page
+    "myst_parser",           # Markdown
+    "sphinx_copybutton",     # copy button on code blocks
+    "sphinx_design",         # cards, grids, tabs, dropdowns, badges
+    "sphinxcontrib.mermaid",  # diagrams as code (rendered in the browser)
 ]
 
 myst_enable_extensions = [
+    "attrs_inline",    # {.class} on inline elements
     "colon_fence",     # ::: fenced directives
     "deflist",
     "linkify",         # bare URLs become links
@@ -40,6 +42,28 @@ myst_enable_extensions = [
     "tasklist",
 ]
 myst_heading_anchors = 3  # auto anchors for h1-h3
+myst_substitutions = {
+    "version": version,
+    # Substitutions are parsed as Markdown, so a role can live inside one.
+    "version_badge": "{bdg-primary}`v" + version + "`",
+}
+# Mermaid blocks are written as ```mermaid fences so GitHub renders the same
+# source; MyST maps the fence onto the directive.
+myst_fence_as_directive = ["mermaid"]
+
+# -- Mermaid ----------------------------------------------------------------
+# Rendered client-side; the library comes from jsdelivr (docs only - the game
+# itself loads nothing from a CDN). Themes follow Furo's light/dark switch.
+mermaid_version = "11.12.1"
+mermaid_light_theme = "neutral"
+mermaid_dark_theme = "dark"
+mermaid_d3_zoom = True  # scroll to zoom, drag to pan the bigger diagrams
+mermaid_init_config = {
+    "startOnLoad": False,
+    "securityLevel": "strict",
+    "flowchart": {"curve": "basis"},
+    "sequence": {"mirrorActors": False},
+}
 
 source_suffix = {".md": "markdown"}
 master_doc = "index"
@@ -57,8 +81,37 @@ exclude_patterns = [
 
 html_theme = "furo"
 html_title = f"Pik Dame {version}"
-html_static_path = []  # no static assets; an empty dir does not survive Git
+html_static_path = ["_static"]
+html_css_files = ["pikdame.css"]
+html_js_files = ["pikdame.js"]
+# The app's own icon, straight from public/ - no second copy to keep in sync.
+html_logo = "../public/icons/favicon.svg"
+html_favicon = "../public/icons/favicon.svg"
+
+# The game's accent colours (public/style.css: table theme) so the docs feel
+# like the app. Light mode gets a darker teal for contrast on white.
+_ACCENT_DARK = "#2fd6b0"
+_ACCENT_LIGHT = "#0f8f74"
 html_theme_options = {
+    "light_css_variables": {
+        "color-brand-primary": _ACCENT_LIGHT,
+        "color-brand-content": _ACCENT_LIGHT,
+        "color-brand-visited": "#0b6e5a",
+        "color-sidebar-brand-text": "#101318",
+        "font-stack--headings": "Georgia, 'Times New Roman', serif",
+    },
+    "dark_css_variables": {
+        "color-brand-primary": _ACCENT_DARK,
+        "color-brand-content": _ACCENT_DARK,
+        "color-brand-visited": "#8de3cf",
+        "color-background-primary": "#101318",
+        "color-background-secondary": "#0a0c10",
+        "color-sidebar-brand-text": "#eef1f4",
+        "font-stack--headings": "Georgia, 'Times New Roman', serif",
+    },
+    "sidebar_hide_name": False,
+    "navigation_with_keys": True,
+    "top_of_page_buttons": ["view", "edit"],
     "source_repository": "https://github.com/floriandeutsch89/pikdame-local/",
     "source_branch": "main",
     "source_directory": "docs/",

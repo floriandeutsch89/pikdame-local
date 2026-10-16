@@ -1,5 +1,14 @@
 # ♠ Pik Dame
 
+[![CI](https://github.com/floriandeutsch89/pikdame-local/actions/workflows/ci.yml/badge.svg)](https://github.com/floriandeutsch89/pikdame-local/actions/workflows/ci.yml)
+[![Release](https://github.com/floriandeutsch89/pikdame-local/actions/workflows/release.yml/badge.svg)](https://github.com/floriandeutsch89/pikdame-local/actions/workflows/release.yml)
+[![Docs](https://app.readthedocs.org/projects/pik-dame/badge/?version=latest)](https://pik-dame.readthedocs.io/en/latest/)
+[![Latest release](https://img.shields.io/github/v/release/floriandeutsch89/pikdame-local?label=release&color=2fd6b0)](https://github.com/floriandeutsch89/pikdame-local/releases)
+[![License: MIT](https://img.shields.io/github/license/floriandeutsch89/pikdame-local)](LICENSE)
+![Node ≥ 22](https://img.shields.io/badge/node-%E2%89%A5%2022-339933?logo=node.js&logoColor=white)
+![No build step](https://img.shields.io/badge/build%20step-none-blue)
+![Image](https://img.shields.io/badge/image-amd64%20%7C%20arm64-555?logo=docker&logoColor=white)
+
 Multiplayer card game (family rummy variant) for 2–4 players — empty seats
 are filled by bots with three difficulty levels. Runs in **two operating
 modes** from the same codebase:
@@ -44,8 +53,8 @@ external frontend dependencies.
 - **Robust in operation**: reconnect with bot takeover, running games survive
   server restarts (session snapshot), heartbeat against zombie connections,
   armored error handling on client and server.
-- **Five design themes** (table/night/felt/queen-of-hearts/grandma's kitchen —
-  the last one light instead of dark), card fan, synthesized sound
+- **Six design themes** (table/night/felt/queen-of-hearts/bordeaux/grandma's
+  kitchen — the last one light instead of dark; bordeaux unlocks at level 25), card fan, synthesized sound
   (offline-capable, no audio files), haptics.
 - **Unlockable card backs** tied to your own record (10 wins, 25 games,
   3× out-in-one), shown in a gallery with the goal on every locked tile.
@@ -71,6 +80,10 @@ docker compose -f docker-compose.prod.yml up -d
 # Or minimal without a domain (prebuilt image, amd64 + arm64):
 docker compose -f docker/docker-compose.ghcr.yml up -d   # → http://<host>:8080
 ```
+
+> [!IMPORTANT]
+> Always mount a volume at `/app/data`. Profiles, statistics, accounts (SQLite)
+> and the snapshot that lets running games survive a restart all live there.
 
 Or on Kubernetes via Helm (the chart is published as an OCI artifact with
 every release):
@@ -206,6 +219,24 @@ Observability via `GET /statusz` (version, sessions, memory — no names) and
 
 ## Development
 
+```mermaid
+flowchart LR
+  subgraph browser["public/ · vanilla JS, PWA"]
+    C["client.js"]
+  end
+  subgraph node["server.js · one process"]
+    R["SessionRegistry<br/>code → table"]
+    GM["GameManager<br/>one per table"]
+    RULES["Rules · ScoreBoard · Deck"]
+    BOT["Bot.js · OnnxPolicy"]
+    R --> GM --> RULES
+    GM --> BOT
+  end
+  C <-- "WebSocket · JSON" --> R
+  GM --> V[("/app/data<br/>JSON stores, snapshot")]
+  R -.-> PG[("PostgreSQL<br/>accounts, optional")]
+```
+
 ```
 server.js          HTTP + WebSocket, account API, session registry
 game/              Pure game logic (Rules, GameManager, Bot, stores, …)
@@ -256,6 +287,32 @@ dependency:
 npm i --no-save onnxruntime-node@1.27.0   # glibc systems only (not Alpine)
 node server.js                             # picks up models/ by itself
 ```
+
+<details>
+<summary><b>How the training loop is wired</b></summary>
+
+```mermaid
+sequenceDiagram
+  participant Py as Python · MaskablePPO
+  participant Env as scripts/rl-env-server.js
+  participant GM as GameManager (real engine)
+  Py->>Env: reset()
+  Env->>GM: new table, opponents: zen heuristic and/or self-play
+  GM-->>Env: state → StateEncoder (377 obs, 54-action mask)
+  Env-->>Py: observation + mask
+  loop every draw / discard decision
+    Py->>Env: step(action)
+    Env->>GM: apply move, let the engine meld
+    GM-->>Env: next state, reward per round, ±1 at game over
+    Env-->>Py: observation + mask + reward
+  end
+  Py->>Py: export → models/pikdame-{tier}.onnx
+```
+
+`game/StateEncoder.js` is the single encoding for training **and** runtime — a
+one-sided change makes every `.onnx` file incompatible, which is why a contract
+test pins `OBS_SIZE`/`ACTION_SIZE`.
+</details>
 
 Full training guide (Ubuntu 24.04 / WSL2, uv, RTX-class GPU) and — importantly —
 **[how to read the training output](https://pik-dame.readthedocs.io/en/latest/developer/rl-training.html)**:
