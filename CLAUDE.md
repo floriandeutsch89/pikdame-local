@@ -97,6 +97,9 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
 - `public/` — Vanilla-JS-Client, `i18n.js`, PWA. Studio-Vorspann ab dem
   ersten Bild per CSS sichtbar, Kopf-Skript entscheidet, CSS-Notbremse nach 9 s.
 - `landing/` (pikdame.online), `terraform/` (Hetzner), `docker/`, `k8s/`.
+- `mcp/` — MCP-Server: LLM sitzt als normaler WS-Spieler am Tisch (eigenes
+  Paket mit MCP-SDK, nicht im Image). Legale Züge prüft ein Schatten-
+  `GameManager` aus der Sitz-Sicht (`LegalActions.js`) — kein Regel-Zweitcode.
 
 ### Bot-KI
 - Heuristik (`Bot.js`): Kartenzählung, Damen-Disziplin (nur easy wirft ♠Q
