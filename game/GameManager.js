@@ -12,6 +12,7 @@ const Bot = require('./Bot');
 const StateEncoder = require('./StateEncoder');
 const MoveLogger = require('./MoveLogger');
 const { dayEnd } = require('./GameDay');
+const { isQuipMoment } = require('./BotQuips');
 
 // Bot think time multiplier per table (house rule `botPace`, default normal).
 const BOT_PACE_FACTOR = { fast: 0.5, normal: 1, slow: 2 };
@@ -49,7 +50,10 @@ class GameManager {
     this.abandoned = false;
     this.soloPausedUntil = null;
     this.challengeDate = options.challengeDate || null;
+    this.challengeRanked = true; // false = practice: the day's ranked attempt is used (server sets it)
     this.onBotEmote = options.onBotEmote || null; // (botId, emoji) => void - Bot-Reaktionen an den Tisch
+    this.onBotQuip = options.onBotQuip || null; // (botId, moment) => void - a short bot line (BotQuips.js)
+    this._lastQuipAt = 0; // table-wide throttle, transient
     this._emoteTimers = new Set(); // pendende Emote-Timeouts (destroy räumt auf)
     this._undoStack = []; // meld-phase actions of the running turn a human may take back
     this._lastBotEmote = {}; // botId -> Zeitstempel (Eigen-Drosselung)
@@ -437,9 +441,7 @@ class GameManager {
   }
 
   setBotDifficulty(requesterId, botId, difficulty) {
-    // Tages-Challenge: Die Bestenliste lebt davon, dass ALLE gegen dieselben
-    // Gegner spielen - drei Zen-Meister, weltweit. Wer sich leichtere Bots
-    // einstellen könnte, würde jede Vergleichbarkeit zerstören.
+    // Daily challenge: the leaderboard only works if everyone faces the same bots.
     if (this.challengeDate) {
       return { error: 'In der Tages-Challenge ist die Bot-Stärke fest - sonst wäre die Bestenliste nicht vergleichbar.' };
     }
@@ -1046,6 +1048,7 @@ class GameManager {
       this.addLog(`${player.name} nimmt die restlichen ${rest.length} Karten des Ablagestapels auf.`);
       // Einen dicken Stapel zu schlucken, entlockt selbst dem Bot ein Seufzen.
       if (rest.length >= 4) this.maybeBotEmote(player.id, '😅', 0.55);
+      if (rest.length >= 6) this.maybeBotQuip(player.id, 'big_pile', 0.4);
     }
   }
 
@@ -1716,6 +1719,8 @@ class GameManager {
       }
     }
 
+    this._roundEndQuip(winnerId, roundResult, over);
+
     // Runde in die Verlaufsaufzeichnung der laufenden Partie aufnehmen.
     this.roundHistory.push({
       roundNumber: this.roundNumber,
@@ -1744,6 +1749,7 @@ class GameManager {
 
       this.lastGameRecord = {
         challengeDate: this.challengeDate || undefined,
+        challengePractice: this.challengeDate && !this.challengeRanked ? true : undefined,
         players: this.players.map((p) => ({ id: p.id, name: p.name, isBot: p.isBot, botDifficulty: p.isBot ? p.botDifficulty : undefined })),
         rounds: this.roundHistory,
         finalTotals: this.totals,
@@ -1942,6 +1948,7 @@ class GameManager {
   /** A laid/attached Pik Dame electrifies the table (same reaction wherever it
    *  happens - melded or laid off). */
   _celebratePikDame(playerId) {
+    this.maybeBotQuip(playerId, 'queen_laid', 0.45);
     this.maybeBotEmote(playerId, '🎉', 0.3, { force: true, fast: true, minHand: 3 });
     this.botsReact(playerId, '😱', 0.4, { force: true, fast: true, minHand: 3 });
   }
@@ -2044,8 +2051,7 @@ class GameManager {
       // ONNX runtime path is opt-in (PIKDAME_ONNX=1) and fully guarded: any
       // failure falls back to the normal synchronous heuristic turn. With the
       // flag off this is byte-for-byte the previous behaviour.
-      const OnnxPolicy = require('./OnnxPolicy');
-      if (OnnxPolicy.enabled()) {
+      if (this._botTurnUsesOnnx()) {
         this._runBotTurnWithOnnx(cp.id).catch(() => {
           try { this.runBotTurn(cp.id); } catch (e) { /* swallow */ }
         });
@@ -2054,6 +2060,12 @@ class GameManager {
       }
     }, (700 + Math.random() * 600) * botPaceFactor(this.houseRules));
     if (this._botTimer.unref) this._botTimer.unref();
+  }
+
+  /** The daily challenge always plays the heuristic: with the net, medium is as
+   *  strong as zen (measured, 1000 games) and the daily is meant to be fun. */
+  _botTurnUsesOnnx() {
+    return !this.challengeDate && require('./OnnxPolicy').enabled();
   }
 
   /**
@@ -2216,6 +2228,42 @@ class GameManager {
     this.maybeBotEmote(bot.id, reply, chance, { force: true, reply: true });
   }
 
+  /** A bot says a short line - rare on purpose: a chance per moment and one
+   *  line per table every QUIP_GAP_MS at most. The client may mute them. */
+  maybeBotQuip(botId, moment, chance) {
+    if (!this.onBotQuip || !isQuipMoment(moment)) return;
+    const bot = this.players.find((p) => p.id === botId);
+    if (!bot || !bot.isBot) return;
+    const now = Date.now();
+    if (now - (this._lastQuipAt || 0) < GameManager.QUIP_GAP_MS) return;
+    if (Math.random() > chance) return;
+    this._lastQuipAt = now;
+    const delay = this._emoteDelayForTest !== undefined ? this._emoteDelayForTest : 400 + Math.random() * 900;
+    const t = setTimeout(() => {
+      this._emoteTimers.delete(t);
+      this.onBotQuip(botId, moment);
+    }, delay);
+    if (t.unref) t.unref();
+    this._emoteTimers.add(t);
+  }
+
+  /** One line per round end at most: a bot's match win, else its round win
+   *  ("Hand aus" first), else a bot caught with the Queen of Spades. */
+  _roundEndQuip(winnerId, roundResult, over) {
+    if (over && over.gameOver) {
+      this.maybeBotQuip(over.winnerId, 'game_win', 0.7);
+      return;
+    }
+    const winner = this.players.find((p) => p.id === winnerId);
+    if (winner && winner.isBot) {
+      if (this.lastRoundWasHandAus) this.maybeBotQuip(winnerId, 'hand_aus', 0.8);
+      else this.maybeBotQuip(winnerId, 'round_win', 0.35);
+      return;
+    }
+    const caught = this.players.find((p) => p.isBot && ((((roundResult || {})[p.id] || {}).breakdown || {}).pikDameCount || 0) > 0);
+    if (caught) this.maybeBotQuip(caught.id, 'queen_caught', 0.5);
+  }
+
   /** Alle Bots AUSSER excludeId reagieren mit gegebener Chance. */
   botsReact(excludeId, emoji, chance, opts = {}) {
     for (const p of this.players) {
@@ -2259,6 +2307,8 @@ class GameManager {
         key === 'broadcast' ||
         key === 'onGameOver' ||
         key === 'onBotEmote' ||
+        key === 'onBotQuip' ||
+        key === '_lastQuipAt' ||
         key === '_botTimer' ||
         key === '_turnTimer' ||
         key === '_cutTimer' ||
@@ -2328,6 +2378,7 @@ class GameManager {
     // '_emoteTimers.add is not a function' scheitern.
     this._emoteTimers = new Set();
     this._lastBotEmote = {};
+    this._lastQuipAt = 0;
     this._botTimer = null;
     for (const p of this.players) {
       if (!p.isBot) p.connected = false;
@@ -2870,6 +2921,7 @@ class GameManager {
       cutDeadline: this.phase === 'cutting' ? this.cutDeadline : null,
       lastCutReveal: this._cutRevealFor(forPlayerId),
       challengeDate: this.challengeDate || null,
+      challengePractice: !!(this.challengeDate && !this.challengeRanked),
       tutorialMode: this.tutorialMode || false,
       soloPausedUntil: this.soloPausedUntil || null,
       abandoned: this.abandoned || false,
@@ -3016,6 +3068,8 @@ GameManager.SOLO_GRACE_MS = 90 * 1000;
 // Solo-Spiel ohne Wertung abgebrochen wird - 20 Minuten reichen fuer eine
 // echte Unterbrechung (Essen, Anruf), ohne die Sitzung endlos offen zu halten.
 GameManager.SOLO_PAUSED_GRACE_MS = 20 * 60 * 1000;
+// Bot lines are seasoning: one per table every 20 s at most.
+GameManager.QUIP_GAP_MS = 20 * 1000;
 GameManager.MIN_SEATS = MIN_SEATS;
 GameManager.MAX_SEATS_LIMIT = MAX_SEATS_LIMIT;
 GameManager.DEFAULT_MAX_SEATS = DEFAULT_MAX_SEATS;

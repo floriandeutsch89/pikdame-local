@@ -214,6 +214,7 @@
          spokes read as a sun/brightness icon, not a cog. -->
     <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.6"/><circle cx="12" cy="12" r="2.6"/><path d="M12 5.4V2.8M12 18.6v2.6M18.6 12h2.6M5.4 12H2.8M16.67 7.33 18.5 5.5M7.33 16.67 5.5 18.5M16.67 16.67l1.83 1.83M7.33 7.33 5.5 5.5"/></symbol>
     <symbol id="i-smile" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0"/><path d="M9 9.5h.01M15 9.5h.01"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4.5 5h15a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-4.5 3.5V16h-1a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></symbol>
     <symbol id="i-pause" viewBox="0 0 24 24"><path d="M9.5 4.5v15M14.5 4.5v15"/></symbol>
     <symbol id="i-textsize" viewBox="0 0 24 24"><path d="M3 19 8 5l5 14M4.8 14.5h6.4"/><path d="M14 19l3.5-9 3.5 9M15.2 16.2h4.6"/></symbol>
     <symbol id="i-bug" viewBox="0 0 24 24"><path d="M8 9.5a4 4 0 0 1 8 0v5a4 4 0 0 1-8 0z"/><path d="M9.6 6.6 8.4 4.4M14.4 6.6l1.2-2.2M8 11H4.6M19.4 11H16M8 15.2H4.6M19.4 15.2H16M12 9.5v8"/></symbol>
@@ -712,10 +713,12 @@
     <section id="challengeIntroOverlay" class="overlay hidden">
       <div class="overlay-card">
         <h2><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg><span>Tages-Challenge</span></h2>
-        <p>Heute spielen alle Spieler weltweit exakt dasselbe Kartendeck – gegen drei Zen-Meister, die stärksten Bots. Wer holt die meisten Punkte aus den gleichen Karten?</p>
-        <p>Dein bestes Tagesergebnis landet mit deinem Spielernamen in der Bestenliste (7 Tage sichtbar). Mehrere Versuche sind erlaubt – nur der beste zählt.</p>
+        <p>Heute spielen alle Spieler weltweit exakt dasselbe Kartendeck – gegen dieselben drei Bots. Wer holt die meisten Punkte aus den gleichen Karten?</p>
+        <p>Nur deine erste Partie des Tages kommt mit deinem Spielernamen in die Bestenliste (7 Tage sichtbar) – danach kannst du dasselbe Deck beliebig oft üben.</p>
+        <p id="challengePracticeNote" class="challengePracticeNote hidden">Deine gewertete Partie für heute hast du schon begonnen – ab jetzt wird geübt.</p>
         <p class="challengeLead">Heute führt:</p>
         <p id="challengeTopLine" class="challengeTop">…</p>
+        <p id="challengeMagnetLine" class="challengeTop hidden"></p>
         <p class="challengeLead">Diese Woche:</p>
         <p id="challengeWeekLine" class="challengeTop">…</p>
         <p class="settingsHint">Gewertet werden deine besten fünf Tage der laufenden Woche.</p>
@@ -831,6 +834,11 @@
           <button id="aidLayOffToggle" class="sheetRow" title="Anlege-Hinweis ein/aus">
             <svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>
             <span class="sheetRowLabel">Anlege-Hinweis</span>
+            <span class="sheetRowValue">–</span>
+          </button>
+          <button id="botQuipsToggle" class="sheetRow" title="Bot-Sprüche ein/aus">
+            <svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg>
+            <span class="sheetRowLabel">Bot-Sprüche</span>
             <span class="sheetRowValue">–</span>
           </button>
           <button id="fullscreenBtn" class="sheetRow hidden" title="Vollbild">
@@ -964,6 +972,14 @@
               <input type="checkbox" id="aidLayOffCheckbox" class="settingsCheckbox" />
             </label>
             <p class="settingsHint">Grüne Rahmen an deinen Auslagen, wenn die gewählte Karte dort anlegen kann. Aus: Du prüfst das selbst. Im Tutorial sind beide Hinweise immer an.</p>
+          </div>
+
+          <div class="settingsItem">
+            <label class="settingsRow" for="botQuipsCheckbox">
+              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg><span>Bot-Sprüche</span></span>
+              <input type="checkbox" id="botQuipsCheckbox" class="settingsCheckbox" />
+            </label>
+            <p class="settingsHint">Kurze Sätze der Bots in besonderen Momenten – selten, nur zum Spaß. Gilt für dieses Gerät.</p>
           </div>
 
           <div class="settingsItem">

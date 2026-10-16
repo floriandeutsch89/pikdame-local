@@ -3,6 +3,19 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.60.0] - 2026-10-16
+
+### Added
+- **Nur der erste Versuch zählt:** In der Tages-Challenge kommt nur deine erste begonnene Partie des Tages in die Bestenliste. Danach kannst du dasselbe Deck beliebig oft üben – Übungspartien sagen das beim Start und im Ergebnis, daneben steht dein gewertetes Ergebnis. Wer aufgibt, hat den Versuch verbraucht; geht eine Partie durch einen Server-Neustart verloren, gibt es einen neuen
+- **Damen-Magnet des Tages:** Wer im gewerteten Versuch am häufigsten mit der Pik Dame auf der Hand erwischt wird, steht als Damen-Magnet an der Bestenliste und bekommt nach Tagesende ein seltenes Abzeichen, das es nur so gibt
+- **Bot-Sprüche:** Bots sagen in besonderen Momenten ab und zu einen kurzen Satz – nach einem Rundensieg, bei „Hand aus“, wenn sie mit der Pik Dame erwischt werden oder sie auslegen, oder wenn sie einen dicken Ablagestapel aufnehmen. Abschaltbar in den Einstellungen unter „Bot-Sprüche“
+
+### Changed
+- **Tages-Challenge entspannter:** Die Bots dort sind jetzt spürbar leichter zu schlagen – die tägliche Partie soll Spaß machen. Weiterhin bekommen alle dasselbe Deck und dieselben Gegner, die Bestenliste bleibt vergleichbar
+- **Keine Bot-Stufe mehr in der Challenge:** Sie steht weder am Bot noch im Erklär-Fenster noch bei Challenge-Partien unter „Meine Partien“
+- Nach einer Challenge-Partie heißt der Knopf „Noch mal üben“. Übungspartien zählen nicht für die Abzeichen „Herausforderer“ und „Challenge-Profi“ – gezählt wird ein gewerteter Versuch pro Tag
+- Abhängigkeiten aktualisiert: jsdom 30.1.2→30.1.3 (Test-Abhängigkeit; der CI-Job `dependency-check` war seit dem Erscheinen der Version für jeden PR rot)
+
 ## [2.59.0] - 2026-10-09
 
 ### Changed

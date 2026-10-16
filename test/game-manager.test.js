@@ -1555,7 +1555,7 @@ test('daily challenge: identical seed deals identical hands, different days diff
   assert.notEqual(mk(), other, 'a new day deals a new deck');
 });
 
-test('challenge store: best score per name, ranked board, 7-day cleanup', () => {
+test('challenge store: first result per name, ranked board, 7-day cleanup', () => {
   const { createChallengeStore } = require('../game/ChallengeStore');
   const file = require('path').join(require('os').tmpdir(), `pikdame-chal-${Date.now()}.json`);
   const store = createChallengeStore(file);
@@ -1567,11 +1567,12 @@ test('challenge store: best score per name, ranked board, 7-day cleanup', () => 
   const today = dayStr(0);
   const longAgo = dayStr(40); // safely outside the 7-day window
   store.submit(today, 'Anna', 480);
-  store.submit(today, 'anna', 350); // worse + case-insensitive: ignored
+  store.submit(today, 'anna', 350); // case-insensitive: the first result stays
+  store.submit(today, 'ANNA', 900); // a better later game is practice, too
   store.submit(today, 'Ben', 620);
   const board = store.getBoard(today);
   assert.equal(board[0].name, 'Ben');
-  assert.equal(board[1].score, 480, 'best score kept, worse retry ignored');
+  assert.equal(board[1].score, 480, 'first result kept, later games ignored');
   assert.equal(store.rankOf(today, 'ANNA'), 2);
   // Old day vanishes on the next submit (7-day retention)
   store.submit(longAgo, 'Old', 100);
@@ -2901,32 +2902,6 @@ test('a normal game still lets a bot take over after the grace period', () => {
 });
 
 // --- Bot-Stufe in Challenge/Tutorial: gesetzt heißt auch gesetzt ---------------
-test('challenge runs at zen, tutorial at medium - the levels do not drift apart', () => {
-  // Tischentscheidung: Die Tages-Challenge ist die harte (Zen-Meister),
-  // das Tutorial die sanfte Uebung (mittel). Beide Modi teilen sich denselben
-  // Setup-Weg, deshalb wird die Trennung hier festgehalten.
-  const setup = (options, difficulty) => {
-    const game = new GameManager(() => {}, options);
-    game.addOrReconnectPlayer('me', 'Flodex');
-    game.setAllBotsDifficulty(difficulty);
-    game.fillWithBots();
-    game.startNewRound();
-    const levels = game.publicState('me').players.filter((p) => p.isBot).map((p) => p.botDifficulty);
-    game.destroy();
-    return levels;
-  };
-  assert.deepEqual(
-    setup({ deckSeed: 1, challengeDate: '2026-08-09' }, 'zen'),
-    ['zen', 'zen', 'zen'],
-    'the daily challenge faces the strongest bots'
-  );
-  assert.deepEqual(
-    setup({ deckSeed: 22, tutorialMode: true }, 'medium'),
-    ['medium', 'medium', 'medium'],
-    'the tutorial stays gentler - zen masters would be brutal for a beginner'
-  );
-});
-
 test('solo setup really applies the bot difficulty (it is NOT a house rule)', () => {
   // Spieler-Report: Changelog und Erklär-Fenster versprachen "drei mittlere
   // Bots", angezeigt wurde Zen. Ursache: setHouseRules verwirft unbekannte

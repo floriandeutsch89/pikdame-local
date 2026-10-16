@@ -56,6 +56,7 @@ const BADGE_IDS = [
   'challenger_7', // 7 daily challenges played (tier 30 below)
   'challenger_30',
   'challenge_champ', // first place of a daily challenge once the day was over
+  'queen_magnet_day', // "Damen-Magnet des Tages": most queens caught in a ranked challenge, day over
   'puzzle_7', // 7 daily puzzles solved (tier 30 below)
   'puzzle_30',
   'royal_flush', // melded 10-J-Q-K-A of one suit, all real cards
@@ -83,7 +84,7 @@ const BADGE_FAMILIES = [
  * @param {Object} gameRecord GameManager.lastGameRecord (rounds, finalTotals, winnerId)
  * @param {string} playerId   player id inside the match
  * @param {Object} profile    player profile AFTER recordGameResult (winStreak/gamesWon/...)
- * @param {Object} [context]  facts outside the record: {challengeChamp:boolean}
+ * @param {Object} [context]  facts outside the record: {challengeChamp, queenMagnet}
  * @returns {string[]} earned badge ids
  */
 function computeEarnedBadges(gameRecord, playerId, profile = {}, context = {}) {
@@ -166,6 +167,7 @@ function computeEarnedBadges(gameRecord, playerId, profile = {}, context = {}) {
   if ((profile.lastPlaceStreak || 0) >= 3) earned.push('red_lantern');
   if ((profile.totalStammtischGames || 0) >= 10) earned.push('stammtisch_10');
   if (context.challengeChamp) earned.push('challenge_champ');
+  if (context.queenMagnet) earned.push('queen_magnet_day');
 
   earned.push(...familyBadges(profile, won));
   return earned;

@@ -160,6 +160,11 @@
     if (quoteShownForRound === key) return;
     quoteShownForRound = key;
     if (lastState.roundNumber === 0) return;
+    // Round 1 of a practice game says so instead of the quote (same slot, no race).
+    if (lastState.challengePractice && lastState.roundNumber === 1) {
+      showToast(L('Übungspartie – zählt nicht für die Bestenliste.', 'Practice game – does not count for the leaderboard.'), { duration: 6000, priority: true });
+      return;
+    }
     // Wichtige Rundenstart-Meldungen (Endspurt ⚠️, Glücksgriff 🍀) haben
     // Vorfahrt - der Spruch drängelt sich dann nicht dazwischen.
     const latest = (lastState.log || [])[lastState.log.length - 1];
@@ -274,7 +279,7 @@
     updateResumeBtn();    // "Weiterspielen (CODE)" - enthaelt einen Wert
     try { updateStudioLogoBtn(); } catch (e) { /* erst spaeter definiert */ }
     try { applyCardback(); } catch (e) { /* erst spaeter definiert */ }
-    try { setTipsEnabled(gameTipsEnabled); renderAidControls(); } catch (e) { /* Einstellungsblatt ist nie kritisch */ }
+    try { setTipsEnabled(gameTipsEnabled); renderAidControls(); renderBotQuipsControls(); } catch (e) { /* Einstellungsblatt ist nie kritisch */ }
     // Aus dem Code erzeugte Listen: Ihre Texte kommen aus L(), werden aber nur
     // beim Rendern gesetzt - ohne erneuten Aufruf bleiben sie in der alten
     // Sprache stehen (Nutzer-Report zu den Tagesaufgaben). Betrifft alle drei
@@ -460,6 +465,8 @@
         how: L('Spiele 30 Tages-Challenges.', 'Play 30 daily challenges.') },
       challenge_champ: { emoji: '🥇', name: L('Tagesbester', 'Champion of the day'), desc: L('Platz 1 einer Tages-Challenge', 'First place in a daily challenge'),
         how: L('Steh am Ende eines Tages auf Platz 1 der Tages-Challenge. Vergeben wird es bei deiner nächsten Partie.', 'Be first in a daily challenge when the day ends. Awarded with your next game.') },
+      queen_magnet_day: { emoji: '🧲', name: L('Damen-Magnet des Tages', 'Queen magnet of the day'), desc: L('Tages-Challenge: am häufigsten mit der Pik Dame erwischt', 'Daily challenge: caught with the Queen of Spades the most'),
+        how: L('Werde in deinem gewerteten Versuch der Tages-Challenge am häufigsten mit der Pik Dame auf der Hand erwischt. Gibt es nur dort, einmal pro Tag; vergeben bei deiner nächsten Partie nach Tagesende.', 'Get caught with the Queen of Spades in hand the most in your ranked daily challenge game. Only there, once per day; awarded with your next game after the day ends.') },
       puzzle_7: { emoji: '🧩', name: L('Rätselfuchs', 'Puzzle fox'), desc: L('7 Tagesrätsel gelöst', 'Solved 7 daily puzzles'),
         how: L('Löse 7 Tagesrätsel, ohne „Lösung zeigen“ zu tippen.', 'Solve 7 daily puzzles without tapping "show solution".') },
       puzzle_30: { emoji: '🧩', name: L('Rätsel\u00admeister', 'Puzzle master'), desc: L('30 Tagesrätsel gelöst', 'Solved 30 daily puzzles'),
@@ -487,7 +494,7 @@
   const BADGE_SINGLES = [
     'pd_caught', 'round_300', 'score_500', 'pd_triple', 'double_queen_round',
     'comeback', 'zen_slayer', 'zen_trio', 'ring_run', 'run_13', 'pile_glutton', 'no_joker_win',
-    'quick_start', 'joker_king', 'landslide', 'challenge_champ', 'stammtisch_10', 'night_owl',
+    'quick_start', 'joker_king', 'landslide', 'challenge_champ', 'queen_magnet_day', 'stammtisch_10', 'night_owl',
     'near_miss', 'cold_shower', 'rock_bottom', 'red_lantern', 'royal_flush', 'pik_royal',
   ];
   let globalStatsData = null;
@@ -1170,6 +1177,7 @@
     if (msg.type === 'state') {
       lastState = msg.state;
       if (lastState.phase !== 'gameOver') lastGameProgress = null;
+      else quoteShownForRound = null; // the next game's round 1 gets its quote (or practice hint) again
       // Solo-Spiel abgebrochen (Challenge/Tutorial, nicht rechtzeitig
       // zurueckgekehrt): klar ansagen, den Wiederaufnehmen-Code wegwerfen -
       // die Sitzung existiert serverseitig nicht mehr.
@@ -1312,6 +1320,10 @@
     }
     if (msg.type === 'emote') {
       showEmote(msg.playerId, msg.emoji);
+      return;
+    }
+    if (msg.type === 'quip') {
+      showQuip(msg.playerId, msg.moment);
       return;
     }
     if (msg.type === 'gameExport') {
@@ -1842,7 +1854,8 @@
         const opProgress = Math.max(0, Math.min(100, (opTotal / 1000) * 100));
         if (reconnecting) d.classList.add('disconnected');
         d.innerHTML = `<div class="opName">${avatarFor(p.name, p.isBot)}${nameWithHeart(p.name)}${diffBadge}${dealerStar}${reconnecting ? ` <span class="reconnectTag">${L('getrennt', 'offline')}</span>` : ''}</div><div class="opCount"><b>${p.handCount}</b> ${L('Kt', 'cd')} · <b>${opTotal}</b> ${L('Pkt', 'pts')}</div><div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>`;
-        if (p.isBot) {
+        // Daily challenge: the level is fixed and deliberately not shown.
+        if (p.isBot && !lastState.challengeDate) {
           const meta = BOT_DIFF[p.botDifficulty] || BOT_DIFF.zen;
           const badgeBtn = document.createElement('button');
           badgeBtn.className = 'botDiffBadge';
@@ -3136,7 +3149,7 @@
       // gleiches Deck, frische Chance (der Server startet solo direkt neu).
       const ser = stammtischInfo && stammtischSummary && stammtischSummary.series;
       contBtn.textContent = lastState.challengeDate
-        ? L('🔁 Noch mal probieren', '🔁 Try again')
+        ? L('Noch mal üben', 'Practise again')
         : ser
           ? ser.winner
             ? L('Neue Serie starten', 'Start a new series')
@@ -4216,6 +4229,7 @@
   }
 
   let lastChallengeBoard = null;
+  const magnetText = (m) => L(`🧲 Damen-Magnet des Tages: ${m.name} (${m.queens}×)`, `🧲 Queen magnet of the day: ${m.name} (${m.queens}×)`);
   function renderChallengeBoard() {
     if (!lastChallengeBoard) return;
     const body = el('resultBody');
@@ -4239,7 +4253,8 @@
         const mine = d.yourScore != null
           ? ` — ${L(`du: ${d.yourScore} (Platz ${d.yourRank})`, `you: ${d.yourScore} (rank ${d.yourRank})`)}`
           : '';
-        return `<div class="challengeHistDay"><span>${escapeHtml(d.date)}</span><span>${win}${mine}</span></div>`;
+        const magnet = d.magnet ? ` · 🧲 ${escapeHtml(d.magnet.name)}` : '';
+        return `<div class="challengeHistDay"><span>${escapeHtml(d.date)}</span><span>${win}${magnet}${mine}</span></div>`;
       })
       .join('');
     const histBlock = histRows
@@ -4255,9 +4270,14 @@
           : '') +
         `<p class="weeklyHint">${L('Deine besten 5 Tage der Woche zählen.', 'Your best 5 days of the week count.')}</p></div>`
       : '';
+    const yourLine = b.practice
+      ? L(`Übung: ${b.yourScore} Punkte – zählt nicht.`, `Practice: ${b.yourScore} points – does not count.`) +
+        (b.ranked ? ` ${L(`Gewertet: ${b.ranked.score} Punkte · Platz ${b.ranked.rank}`, `Ranked: ${b.ranked.score} points · rank ${b.ranked.rank}`)}` : '')
+      : L(`Dein Ergebnis: ${b.yourScore} Punkte${b.yourRank ? ` · Platz ${b.yourRank}` : ''}`, `Your result: ${b.yourScore} points${b.yourRank ? ` · rank ${b.yourRank}` : ''}`);
+    const magnetBlock = b.magnet ? `<p class="challengeMagnet">${escapeHtml(magnetText(b.magnet))}</p>` : '';
     box.innerHTML = `<h3>🗓️ ${L('Tages-Challenge', 'Daily challenge')} ${escapeHtml(b.date)}</h3>
-      <p class="challengeYour">${L(`Dein Ergebnis: ${b.yourScore} Punkte${b.yourRank ? ` · Platz ${b.yourRank}` : ''}`, `Your result: ${b.yourScore} points${b.yourRank ? ` · rank ${b.yourRank}` : ''}`)}</p>
-      <table class="statsTable"><tbody>${rows}</tbody></table>${weeklyBlock}${histBlock}`;
+      <p class="challengeYour">${escapeHtml(yourLine)}</p>
+      <table class="statsTable"><tbody>${rows}</tbody></table>${magnetBlock}${weeklyBlock}${histBlock}`;
     body.appendChild(box);
   }
 
@@ -4272,6 +4292,8 @@
     // Explain first, play second: the cold start straight into a running
     // game left people wondering what was going on.
     el('challengeTopLine').textContent = '…';
+    el('challengePracticeNote').classList.add('hidden');
+    el('challengeMagnetLine').classList.add('hidden');
     el('challengeIntroOverlay').classList.remove('hidden');
     el('challengeWeekLine').textContent = '';
     challengeTrendData = null;
@@ -4286,6 +4308,9 @@
         el('challengeTopLine').textContent = top
           ? `🥇 ${top.name} – ${top.score} ${L('Punkte', 'points')}${d.board[1] ? `  ·  🥈 ${d.board[1].name} – ${d.board[1].score}` : ''}`
           : L('Noch niemand - sichere dir Platz 1!', 'Nobody yet - claim first place!');
+        el('challengePracticeNote').classList.toggle('hidden', !(d && d.attempted));
+        el('challengeMagnetLine').classList.toggle('hidden', !(d && d.magnet));
+        if (d && d.magnet) el('challengeMagnetLine').textContent = magnetText(d.magnet);
         // Wochenwertung: beste 5 von 7 Tagen - belohnt Regelmaessigkeit statt
         // eines einzelnen Gluckstreffers.
         // ACHTUNG: getWeekly liefert das Feld "top" (nicht "board" wie die
@@ -6102,6 +6127,64 @@
     setTimeout(() => bubble.remove(), 1600);
   }
 
+  // --- Bot lines: the server names the moment, the client picks a line ------
+  // Mirrors game/BotQuips.js QUIP_MOMENTS (contract test). Per device, default on.
+  const BOT_QUIPS_KEY = 'pikdame_bot_quips';
+  let botQuipsOn = storageGet(BOT_QUIPS_KEY) !== 'off';
+  const BOT_QUIPS = {
+    round_win: () => [L('Das war\'s – Karten her!', 'That\'s it – cards in!'), L('Manchmal hat man\'s einfach.', 'Sometimes you\'ve just got it.'), L('Gelernt ist gelernt.', 'Practice pays off.')],
+    hand_aus: () => [L('Hand aus! Tschüss zusammen.', 'Out in one! Bye, everyone.'), L('Einmal ziehen, alles weg.', 'One draw, all gone.'), L('Hab ich gar nicht geübt, ehrlich.', 'I never even practised that, honest.')],
+    game_win: () => [L('Gut gespielt, alle zusammen!', 'Well played, everyone!'), L('Revanche? Ich bin dabei.', 'Rematch? I\'m in.'), L('Das war knapper, als es aussah.', 'That was closer than it looked.')],
+    queen_caught: () => [L('Schon wieder die Dame …', 'The Queen again …'), L('Die Dame mag mich einfach.', 'The Queen just likes me.'), L('Hundert Punkte weg. Na prima.', 'A hundred points gone. Lovely.')],
+    queen_laid: () => [L('Hundert Punkte, danke schön!', 'A hundred points, thank you!'), L('Die Dame bleibt bei mir.', 'The Queen stays with me.'), L('Pik Dame – endlich draußen.', 'Queen of Spades – out at last.')],
+    big_pile: () => [L('Den nehm ich mit.', 'I\'ll take that.'), L('Mehr Karten, mehr Möglichkeiten.', 'More cards, more chances.'), L('Hoffentlich weiß ich, was ich tue.', 'I hope I know what I\'m doing.')],
+  };
+  function showQuip(fromPlayerId, moment) {
+    const lines = BOT_QUIPS[moment];
+    const sender = ((lastState && lastState.players) || []).find((p) => p.id === fromPlayerId);
+    if (!botQuipsOn || !lines || !sender) return;
+    const options = lines();
+    const text = options[Math.floor(Math.random() * options.length)];
+    // Round end: the result overlay covers the chips - the line joins the reactions there.
+    if (!el('resultOverlay').classList.contains('hidden')) {
+      const chip = document.createElement('span');
+      chip.className = 'resultEmoteChip';
+      chip.textContent = `${sender.name}: ${text}`;
+      const box = el('resultEmotes');
+      while (box.children.length >= 6) box.firstChild.remove();
+      box.appendChild(chip);
+      setTimeout(() => chip.remove(), 6000);
+      return;
+    }
+    const anchor = document.querySelector(`#opponents .opponent[data-player-id="${CSS.escape(fromPlayerId)}"]`);
+    if (!anchor) return;
+    document.querySelectorAll('.quipBubble').forEach((n) => { if (n.dataset.playerId === fromPlayerId) n.remove(); });
+    const rect = anchor.getBoundingClientRect();
+    const bubble = document.createElement('div');
+    bubble.className = 'quipBubble';
+    bubble.dataset.playerId = fromPlayerId;
+    bubble.textContent = text;
+    document.body.appendChild(bubble);
+    // Under the speaker's chip, kept inside the 16 px side gutter.
+    const left = Math.max(16, Math.min(window.innerWidth - 16 - bubble.offsetWidth, rect.left + rect.width / 2 - bubble.offsetWidth / 2));
+    bubble.style.left = `${left}px`;
+    bubble.style.top = `${rect.bottom + 8}px`;
+    setTimeout(() => bubble.remove(), 3600);
+  }
+  // Two switches, one setting: lobby settings (checkbox) and the in-game sheet (row).
+  function setBotQuips(on) {
+    botQuipsOn = on;
+    storageSet(BOT_QUIPS_KEY, on ? 'on' : 'off');
+    renderBotQuipsControls();
+  }
+  function renderBotQuipsControls() {
+    el('botQuipsCheckbox').checked = botQuipsOn;
+    setRowValue(el('botQuipsToggle'), botQuipsOn ? L('An', 'On') : L('Aus', 'Off'));
+  }
+  renderBotQuipsControls();
+  el('botQuipsCheckbox').addEventListener('change', () => setBotQuips(el('botQuipsCheckbox').checked));
+  el('botQuipsToggle').addEventListener('click', () => setBotQuips(!botQuipsOn));
+
   // --- Fortschritt: Tagesaufgaben, Erfolge-Galerie, Saison-Rangliste -------
 
   // The daily-task panel is a <details>: closed on a phone (it sat below
@@ -6264,6 +6347,7 @@
     const you = challengeToday && challengeToday.date === today ? challengeToday.you : null;
     if (resumeCode && resumeIsChallenge) setTileStatus(el('challengeBtn'), el('challengeTileStatus'), L('Läuft · fortsetzen', 'Running · resume'), 'open');
     else if (you) setTileStatus(el('challengeBtn'), el('challengeTileStatus'), L(`Platz ${you.rank} · ${you.score} Pkt`, `Rank ${you.rank} · ${you.score} pts`), 'done');
+    else if (challengeToday && challengeToday.date === today && challengeToday.attempted) setTileStatus(el('challengeBtn'), el('challengeTileStatus'), L('Versuch genutzt', 'Attempt used'), 'done');
     else if (challengeToday) setTileStatus(el('challengeBtn'), el('challengeTileStatus'), L('Noch offen', 'Still open'), 'new');
     else setTileStatus(el('challengeBtn'), el('challengeTileStatus'), '', '');
   }
@@ -6744,10 +6828,12 @@
     const me = (g.myId ? players.find((p) => p.id === g.myId) : players.find((p) => !p.isBot && (p.name || '').toLowerCase() === myName)) || null;
     const myTotal = me && me.id ? totals[me.id] || 0 : g.myScore || 0;
     const place = 1 + players.filter((p) => (totals[p.id] || 0) > myTotal).length;
+    // Challenge games never show the bot level, here neither.
+    const diffOf = (p) => (p.isBot && !g.challengeDate && BOT_DIFF[p.botDifficulty]) || null;
     const opps = players.filter((p) => p !== me).map((p) =>
-      p.isBot && BOT_DIFF[p.botDifficulty] ? `${p.name} (${BOT_DIFF[p.botDifficulty].short()})` : p.name);
+      diffOf(p) ? `${p.name} (${diffOf(p).short()})` : p.name);
     const mins = g.startedAt && g.finishedAt ? Math.round((g.finishedAt - g.startedAt) / 60000) : 0;
-    return { players, totals, me, myTotal, place, opps, mins };
+    return { players, totals, me, myTotal, place, opps, mins, diffOf };
   }
   function renderGameHistory() {
     const box = el('historyContent');
@@ -6818,7 +6904,7 @@
       list.innerHTML = v.players
         .slice()
         .sort((x, y) => (v.totals[y.id] || 0) - (v.totals[x.id] || 0))
-        .map((p) => `<li class="${p === v.me ? 'me' : ''}"><span>${escapeHtml(p.name)}${p.isBot && BOT_DIFF[p.botDifficulty] ? ` <small>${escapeHtml(BOT_DIFF[p.botDifficulty].short())}</small>` : ''}</span><b>${v.totals[p.id] || 0}</b></li>`)
+        .map((p) => `<li class="${p === v.me ? 'me' : ''}"><span>${escapeHtml(p.name)}${v.diffOf(p) ? ` <small>${escapeHtml(v.diffOf(p).short())}</small>` : ''}</span><b>${v.totals[p.id] || 0}</b></li>`)
         .join('');
       detail.appendChild(list);
     }

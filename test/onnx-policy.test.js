@@ -72,3 +72,21 @@ test('ONNX: the models folder ships at least one committed model', () => {
   const models = fs.readdirSync(dir).filter((f) => f.endsWith('.onnx'));
   assert.ok(models.length >= 1, `expected committed .onnx models, found: ${models.join(', ') || 'none'}`);
 });
+
+test('ONNX: the daily challenge always plays the heuristic, other tables the net', () => {
+  // With the net, medium is as strong as zen (measured) - the daily stays fun.
+  const GameManager = require('../game/GameManager');
+  const prev = process.env.PIKDAME_ONNX;
+  process.env.PIKDAME_ONNX = '1';
+  const challenge = new GameManager(() => {}, { deckSeed: 1, challengeDate: '2026-10-16' });
+  const normal = new GameManager(() => {});
+  try {
+    assert.equal(challenge._botTurnUsesOnnx(), false, 'challenge bots skip the net');
+    assert.equal(normal._botTurnUsesOnnx(), true, 'normal tables keep the net');
+  } finally {
+    challenge.destroy();
+    normal.destroy();
+    if (prev === undefined) delete process.env.PIKDAME_ONNX;
+    else process.env.PIKDAME_ONNX = prev;
+  }
+});

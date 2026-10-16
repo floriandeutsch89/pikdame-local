@@ -24,14 +24,17 @@ external frontend dependencies.
 ## Features
 
 - **Bots with character**: three difficulties (Anfänger → Zen with card counting),
-  human names (Uwe, Inge, Maria …) and random emote reactions — including the
-  occasional Queen-of-Spades bluff.
+  human names (Uwe, Inge, Maria …), random emote reactions — including the
+  occasional Queen-of-Spades bluff — and rare short lines at key moments
+  (can be muted per device).
 - **Statistics & achievements**: player profiles (games/wins/points/streaks),
   13 unlockable badges, global server counters, round statistics and a JSON
   game-history export. Statistics only count matches played through to 1000
   points — forfeited or abandoned games are deliberately not recorded.
-- **Daily challenge**: one identical deck for the whole world each day, with a
-  daily leaderboard, a seven-day history and a weekly ranking (your best five
+- **Daily challenge**: one identical deck for the whole world each day against
+  the same medium bots. Only your first game of the day is ranked (later ones
+  are practice), with a daily leaderboard, a "Damen-Magnet des Tages" title
+  (a rare badge), a seven-day history and a weekly ranking (your best five
   days of the current week count).
 - **User accounts** (hosted mode only): registration with e-mail
   confirmation, login with a 90-day session — your name is protected against

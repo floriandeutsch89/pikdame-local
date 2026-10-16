@@ -158,6 +158,7 @@
   /* --- Layer scale ---------------------------------------------------------
      Every fixed layer takes its z-index from here (contract test). Small raw
      values (< 10) are only for stacking inside a component. */
+  --z-table-fx: 40;      /* table effects under every dialog: bot lines */
   --z-overlay: 50;       /* dialogs (.overlay) */
   --z-overlay-ui: 55;    /* log panel, round stamp */
   --z-hint: 60;          /* tutorial banner, cut reveal, points pop */
@@ -1764,6 +1765,22 @@ body.raidActive #toastContainer { margin-top: 132px; }
 @media (prefers-reduced-motion: reduce) {
   .emoteFloat { animation: none; opacity: 1; }
 }
+/* Bot line: a speech bubble under the speaker's chip; never blocks a tap,
+   and stays under dialogs (it belongs to the table, not to the sheet). */
+.quipBubble {
+  position: fixed; z-index: var(--z-table-fx);
+  max-width: min(260px, calc(100vw - 32px));
+  padding: 6px 12px; border-radius: var(--r-md);
+  background: var(--card-bg); color: var(--card-ink);
+  font-size: var(--fs-label); font-weight: 600; line-height: 1.35;
+  box-shadow: var(--shadow-2);
+  pointer-events: none;
+  animation: quipIn 0.2s ease-out;
+}
+@keyframes quipIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .quipBubble { animation: none; }
+}
 
 .statsContent { max-height: 52vh; overflow-y: auto; width: 100%; }
 .statsPageTable {
@@ -2737,6 +2754,13 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 .challengeBoardBox { margin-top: 12px; }
 .challengeBoardBox h3 { margin: 0 0 4px; font-size: 0.92rem; }
 .challengeYour { font-size: 0.8rem; margin: 0 0 6px; font-weight: 600; }
+.challengeMagnet { margin: 6px 0 0; font-size: var(--fs-label); font-weight: 600; }
+/* Intro: the day's ranked game is already used - the next one is practice. */
+#challengeIntroOverlay .challengePracticeNote {
+  margin: 6px 0 0; padding: 2px 0 2px 8px;
+  border-left: 3px solid var(--text-muted);
+  font-size: var(--fs-label); font-weight: 600;
+}
 
 
 /* --- Menu chips + challenge intro (v1.35.0) ------------------------------------ */

@@ -249,11 +249,11 @@ test('challenge lock: bot difficulty and house rules cannot be changed mid-chall
   g.fillWithBots();
   g.startNewRound();
   const bot = g.players.find((p) => p.isBot);
-  assert.equal(bot.botDifficulty || 'zen', 'zen', 'challenge bots are zen');
+  const level = bot.botDifficulty;
 
   const r1 = g.setBotDifficulty('p1', bot.id, 'easy');
   assert.ok(r1.error, 'difficulty change rejected');
-  assert.equal(bot.botDifficulty || 'zen', 'zen', 'difficulty unchanged');
+  assert.equal(bot.botDifficulty, level, 'difficulty unchanged');
 
   const before = JSON.stringify(g.houseRules);
   const r2 = g.setHouseRules({ turnTimerSeconds: 90, strictThreshold: true });

@@ -1,6 +1,7 @@
 // game/ChallengeStore.js
 // Daily-challenge leaderboard: everyone plays the SAME seeded deck against
-// the same medium bots; this store keeps each player's BEST score per day.
+// the same medium bots. Only the FIRST game a player starts on a day is ranked
+// (begun = used, later games that day are practice), so the board keeps it.
 // Retention is deliberately short (14 days: the board shows 7, the own trend
 // graph 14) - a daily race, not an archive; only nickname + score are kept.
 
@@ -26,37 +27,106 @@ const todayDate = gameDay;
 function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
   const file = createAtomicJsonFile(filePath);
 
+  // attempts[date][lower-case name] = { name, code, at, state: running|done|lost }
   function load() {
     const parsed = file.read();
-    return parsed && typeof parsed.days === 'object' ? parsed : { days: {} };
+    if (!parsed || typeof parsed.days !== 'object') return { days: {}, attempts: {} };
+    if (!parsed.attempts || typeof parsed.attempts !== 'object') parsed.attempts = {};
+    return parsed;
   }
 
   function cleanup(store, now = Date.now()) {
     const cutoff = addDays(gameDay(now), -KEEP_DAYS);
-    for (const day of Object.keys(store.days)) {
-      if (day < cutoff) delete store.days[day];
+    for (const map of [store.days, store.attempts]) {
+      for (const day of Object.keys(map)) {
+        if (day < cutoff) delete map[day];
+      }
     }
   }
 
-  /** Records a result; keeps only the best score per (day, name). */
-  function submit(date, name, score, now = Date.now()) {
-    const cleanName = String(name || '').trim().slice(0, 24) || 'Spieler';
+  const cleanNameOf = (name) => String(name || '').trim().slice(0, 24) || 'Spieler';
+
+  /** Records the ranked result; the FIRST one per (day, name) stays. */
+  function submit(date, name, score, now = Date.now(), facts = {}) {
+    const cleanName = cleanNameOf(name);
+    const key = cleanName.toLowerCase();
     const store = load();
     cleanup(store, now);
     const list = store.days[date] || [];
-    const existing = list.find((e) => e.name.toLowerCase() === cleanName.toLowerCase());
-    if (existing) {
-      if (score > existing.score) {
-        existing.score = score;
-        existing.at = now;
-      }
-    } else {
-      list.push({ name: cleanName, score, at: now });
+    if (!list.some((e) => e.name.toLowerCase() === key)) {
+      const entry = { name: cleanName, score, at: now };
+      if (facts.queens > 0) entry.queens = facts.queens;
+      list.push(entry);
     }
     list.sort((a, b) => b.score - a.score || a.at - b.at);
     store.days[date] = list.slice(0, MAX_ENTRIES_PER_DAY);
+    const attempt = store.attempts[date] && store.attempts[date][key];
+    if (attempt) attempt.state = 'done';
     file.write(store);
     return getBoard(date, 10, store);
+  }
+
+  // A result or an attempt that was not lost by the server uses up the day.
+  function usedAttempt(store, date, key) {
+    if ((store.days[date] || []).some((e) => e.name.toLowerCase() === key)) return true;
+    const attempt = store.attempts[date] && store.attempts[date][key];
+    return !!attempt && attempt.state !== 'lost';
+  }
+
+  /** A challenge game starts: ranked if it is the player's first of the day. */
+  function beginAttempt(date, name, code, now = Date.now()) {
+    const cleanName = cleanNameOf(name);
+    const key = cleanName.toLowerCase();
+    const store = load();
+    cleanup(store, now);
+    if (usedAttempt(store, date, key)) return { ranked: false };
+    if (!store.attempts[date]) store.attempts[date] = {};
+    store.attempts[date][key] = { name: cleanName, code: String(code || ''), at: now, state: 'running' };
+    file.write(store);
+    return { ranked: true };
+  }
+
+  /** The ranked game ended without a result (given up): the day stays used. */
+  function closeAttempt(date, name) {
+    const store = load();
+    const attempt = store.attempts[date] && store.attempts[date][cleanNameOf(name).toLowerCase()];
+    if (!attempt || attempt.state !== 'running') return;
+    attempt.state = 'done';
+    file.write(store);
+  }
+
+  /** Server start: a running ranked game whose session did not come back was
+   *  lost by the server, not given up - its player gets a new ranked attempt. */
+  function markLostAttempts(liveCodes) {
+    const store = load();
+    let changed = false;
+    for (const day of Object.values(store.attempts)) {
+      for (const attempt of Object.values(day)) {
+        if (attempt.state === 'running' && !liveCodes.has(attempt.code)) {
+          attempt.state = 'lost';
+          changed = true;
+        }
+      }
+    }
+    if (changed) file.write(store);
+  }
+
+  function hasAttempted(date, name) {
+    return usedAttempt(load(), date, cleanNameOf(name).toLowerCase());
+  }
+
+  /** "Damen-Magnet des Tages": most Queens of Spades caught in a ranked game
+   *  (tie: lower score, then the earlier finish); null while nobody was caught. */
+  function queenMagnet(date, preloaded = null) {
+    const store = preloaded || load();
+    let best = null;
+    for (const e of store.days[date] || []) {
+      if (!(e.queens > 0)) continue;
+      const better = !best || e.queens > best.queens ||
+        (e.queens === best.queens && (e.score < best.score || (e.score === best.score && e.at < best.at)));
+      if (better) best = e;
+    }
+    return best ? { name: best.name, queens: best.queens } : null;
   }
 
   function getBoard(date, top = 10, preloaded = null) {
@@ -95,6 +165,7 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
         yourScore: me === -1 ? null : list[me].score,
         yourRank: me === -1 ? null : me + 1,
         players: list.length,
+        magnet: queenMagnet(date, store),
       });
     }
     return days;
@@ -176,7 +247,22 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
     return Object.entries(load().days).some(([date, list]) => date < today && list[0] && list[0].name.toLowerCase() === key);
   }
 
-  return { submit, getBoard, rankOf, getHistory, getWeekly, getTrend, wasChampion };
+  /** Was `name` the Damen-Magnet of a challenge day that is already over? */
+  function wasQueenMagnet(name, now = Date.now()) {
+    const key = String(name || '').trim().toLowerCase();
+    if (!key) return false;
+    const today = gameDay(now);
+    const store = load();
+    return Object.keys(store.days).some((date) => {
+      const magnet = date < today && queenMagnet(date, store);
+      return !!magnet && magnet.name.toLowerCase() === key;
+    });
+  }
+
+  return {
+    submit, getBoard, rankOf, getHistory, getWeekly, getTrend, wasChampion,
+    beginAttempt, closeAttempt, markLostAttempts, hasAttempted, queenMagnet, wasQueenMagnet,
+  };
 }
 
 module.exports = { createChallengeStore, seedForDate, todayDate, DEFAULT_DATA_FILE };
