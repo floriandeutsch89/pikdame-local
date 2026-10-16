@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.60.1] - 2026-10-16
+
+### Changed
+- **Tages-Challenge: ein Versuch pro Tag, Punkt.** Die Übungspartien aus 2.60.0 sind wieder weg: Nach deiner Partie gibt es kein „Noch mal üben“ mehr, der Knopf führt ins Hauptmenü. Die Challenge-Kachel zeigt danach nur noch Bestenliste und dein Ergebnis, ein Start ist erst morgen wieder möglich. Wer aufgibt, hat den Versuch trotzdem verbraucht
+
 ## [2.60.0] - 2026-10-16
 
 ### Added

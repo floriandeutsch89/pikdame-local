@@ -2755,8 +2755,8 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 .challengeBoardBox h3 { margin: 0 0 4px; font-size: 0.92rem; }
 .challengeYour { font-size: 0.8rem; margin: 0 0 6px; font-weight: 600; }
 .challengeMagnet { margin: 6px 0 0; font-size: var(--fs-label); font-weight: 600; }
-/* Intro: the day's ranked game is already used - the next one is practice. */
-#challengeIntroOverlay .challengePracticeNote {
+/* Intro: today's attempt is used - the sheet is the board, no start. */
+#challengeIntroOverlay .challengePlayedNote {
   margin: 6px 0 0; padding: 2px 0 2px 8px;
   border-left: 3px solid var(--text-muted);
   font-size: var(--fs-label); font-weight: 600;

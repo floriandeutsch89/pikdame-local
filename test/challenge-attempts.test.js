@@ -1,5 +1,5 @@
-// Daily challenge: only the first game a player STARTS on a day is ranked,
-// later ones are practice; plus the "Damen-Magnet des Tages" title.
+// Daily challenge: one attempt per player and day (begun = used); plus the
+// "Damen-Magnet des Tages" title.
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
@@ -7,18 +7,17 @@ const os = require('os');
 const path = require('path');
 const { createChallengeStore } = require('../game/ChallengeStore');
 const { computeEarnedBadges } = require('../game/Badges');
-const GameManager = require('../game/GameManager');
 
 const NOW = Date.parse('2026-10-16T10:00:00Z'); // game day 2026-10-16
 const TODAY = '2026-10-16';
 const freshStore = () => createChallengeStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikatt-')), 'challenges.json'));
 
-test('the first started game of a day is ranked, later ones are practice', () => {
+test('the first started game of a day is the attempt, a restart is refused', () => {
   const cs = freshStore();
   assert.equal(cs.hasAttempted(TODAY, 'Flo'), false);
   assert.deepEqual(cs.beginAttempt(TODAY, 'Flo', 'AAAA01', NOW), { ranked: true });
   assert.equal(cs.hasAttempted(TODAY, 'flo'), true, 'begun = used, case-insensitive');
-  assert.deepEqual(cs.beginAttempt(TODAY, 'FLO', 'AAAA02', NOW), { ranked: false }, 'a restart is practice');
+  assert.deepEqual(cs.beginAttempt(TODAY, 'FLO', 'AAAA02', NOW), { ranked: false }, 'a restart is refused');
   assert.deepEqual(cs.beginAttempt('2026-10-17', 'Flo', 'AAAA03', NOW), { ranked: true }, 'a new day, a new attempt');
   assert.deepEqual(cs.beginAttempt(TODAY, 'Anna', 'AAAA04', NOW), { ranked: true }, 'per player');
 });
@@ -78,21 +77,4 @@ test('the magnet badge goes to the holder of a day that is over', () => {
   const rec = { players: [{ id: 'p1', name: 'Ada' }], rounds: [], finalTotals: { p1: 0 }, winnerId: null };
   assert.ok(computeEarnedBadges(rec, 'p1', {}, { queenMagnet: true }).includes('queen_magnet_day'));
   assert.ok(!computeEarnedBadges(rec, 'p1', {}, {}).includes('queen_magnet_day'));
-});
-
-test('practice games say so in the state and the record, and survive a snapshot', () => {
-  const game = new GameManager(() => {}, { deckSeed: 7, challengeDate: TODAY });
-  game.addOrReconnectPlayer('me', 'Flo');
-  assert.equal(game.publicState('me').challengePractice, false, 'ranked by default');
-  game.challengeRanked = false;
-  assert.equal(game.publicState('me').challengePractice, true);
-  const copy = new GameManager(() => {}, {});
-  copy.deserialize(JSON.parse(JSON.stringify(game.serialize())));
-  assert.equal(copy.challengeRanked, false, 'snapshot roundtrip');
-  assert.equal(copy.publicState('me').challengePractice, true);
-  const normal = new GameManager(() => {});
-  normal.addOrReconnectPlayer('me', 'Flo');
-  normal.challengeRanked = false;
-  assert.equal(normal.publicState('me').challengePractice, false, 'only challenges know practice');
-  for (const g of [game, copy, normal]) g.destroy();
 });

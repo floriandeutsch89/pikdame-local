@@ -1215,8 +1215,7 @@ const registry = new SessionRegistry((session) => {
       // verschiedenen Gruppen teilen sich kein Profil.
       if (PUBLIC_MODE) return;
       // Counters the record alone does not know (challenger / Stammtisch badges).
-      const rankedChallenge = !!gameRecord.challengeDate && !gameRecord.challengePractice;
-      for (const r of results) r.facts = { ...(r.facts || {}), challenge: rankedChallenge, stammtisch: !!session.stammtisch };
+      for (const r of results) r.facts = { ...(r.facts || {}), challenge: !!gameRecord.challengeDate, stammtisch: !!session.stammtisch };
       playerStore.recordGameResult(results);
       // A flag, never the code: history is readable by name, codes stay secret.
       gameHistoryStore.saveGame(session.stammtisch ? { ...gameRecord, stammtisch: true } : gameRecord);
@@ -1326,25 +1325,20 @@ const registry = new SessionRegistry((session) => {
         }
       }
 
-      // Daily challenge: the ranked game goes on the board, practice only shows it.
+      // Daily challenge: record the human's score and hand out the board.
       if (gameRecord.challengeDate) {
         const human = (gameRecord.players || []).find((p) => !p.isBot);
         if (human) {
           const date = gameRecord.challengeDate;
           const score = (gameRecord.finalTotals || {})[human.id] || 0;
-          const practice = !!gameRecord.challengePractice;
           const queens = (gameRecord.rounds || []).reduce((n, r) => n + ((((r.results || {})[human.id] || {}).breakdown || {}).pikDameCount || 0), 0);
-          const board = practice ? challengeStore.getBoard(date, 10) : challengeStore.submit(date, human.name, score, Date.now(), { queens });
-          const yourRank = challengeStore.rankOf(date, human.name);
+          const board = challengeStore.submit(date, human.name, score, Date.now(), { queens });
           sendTo(human.id, {
             type: 'challengeBoard',
             date,
             board,
-            practice,
             yourScore: score,
-            yourRank: practice ? null : yourRank,
-            // Practice: the day's ranked result for comparison (null if none).
-            ranked: practice && yourRank ? { rank: yourRank, score: challengeStore.getBoard(date, yourRank)[yourRank - 1].score } : null,
+            yourRank: challengeStore.rankOf(date, human.name),
             magnet: challengeStore.queenMagnet(date),
             // Die versprochenen '7 Tage sichtbar': kompakter Rückblick
             history: challengeStore.getHistory(human.name),
@@ -1443,21 +1437,16 @@ function restoreSessionsSnapshot() {
 }
 restoreSessionsSnapshot();
 
-// --- Daily challenge: one ranked attempt per player and day ----------------
-// Ranked games that did not come back with the snapshot were lost by the
-// server, not given up; their players may start a new ranked attempt.
+// --- Daily challenge: one attempt per player and day ----------------------
+// Games that did not come back with the snapshot were lost by the server,
+// not given up; their players may start again.
 try { challengeStore.markLostAttempts(new Set(registry.sessions.keys())); } catch (err) { logCrash('challenge-lost', err); }
 
-/** Ranked if this is the player's first challenge game of the day (no names are kept in public mode). */
-function beginChallengeAttempt(game, code) {
+/** Books the day's attempt (no names are kept in public mode). */
+function registerChallengeAttempt(game, code) {
   const human = game.players.find((p) => !p.isBot);
-  if (PUBLIC_MODE || !human) return true;
-  try {
-    return challengeStore.beginAttempt(game.challengeDate, human.name, code).ranked;
-  } catch (err) {
-    logCrash('challenge-attempt', err, { player: human.name });
-    return true;
-  }
+  if (PUBLIC_MODE || !human) return;
+  try { challengeStore.beginAttempt(game.challengeDate, human.name, code); } catch (err) { logCrash('challenge-attempt', err, { player: human.name }); }
 }
 
 function closeChallengeAttempt(game) {
@@ -1747,6 +1736,10 @@ wss.on('connection', (ws, req) => {
       // the identical cut (both seeded from the game date, German midnight)
       // against the same bots - level locked so the leaderboard stays comparable.
       const date = gameDay();
+      // One attempt per name and day; a running game of today is resumed via the tile.
+      if (!PUBLIC_MODE && sanitizeName(msg.name) && challengeStore.hasAttempted(date, sanitizeName(msg.name))) {
+        return sendError(ws, 'Die heutige Tages-Challenge hast du schon gespielt - morgen gibt es ein neues Deck.');
+      }
       const created = registry.create({
         deckSeed: seedForDate(date),
         challengeDate: date,
@@ -1760,7 +1753,7 @@ wss.on('connection', (ws, req) => {
         // Bot level is NOT a house rule (setHouseRules drops the key silently);
         // set it before fillWithBots so the new bots get it too.
         game.setAllBotsDifficulty(CHALLENGE_BOT_DIFFICULTY);
-        game.challengeRanked = beginChallengeAttempt(game, created.session.code);
+        registerChallengeAttempt(game, created.session.code);
         game.fillWithBots();
         game.startNewRound();
       }
@@ -2018,27 +2011,10 @@ wss.on('connection', (ws, req) => {
       }
       case 'rematch': {
         // Neue Partie mit denselben (noch verbundenen) Spielern.
+        // The daily challenge is one attempt per day: no rematch, the client
+        // offers none, and a hand-crafted message gets a plain error.
+        if (game.challengeDate) { sendError(ws, 'In der Tages-Challenge gibt es nur einen Versuch pro Tag.'); break; }
         game.prepareRematch();
-        // Challenge-Solo ('Noch mal probieren'): direkt wieder ins heutige
-        // Deck springen statt in der Lobby zu landen - challengeDate und
-        // deckSeed überleben prepareRematch, roundNumber startet bei 0, also
-        // ist Runde 1 deterministisch identisch. Mit mehreren Menschen bleibt
-        // das Lobby-Bereit-Gate (alle sollen zustimmen).
-        const humans = game.players.filter((p) => !p.isBot && p.connected !== false);
-        if (game.challengeDate && humans.length === 1) {
-          // Past midnight the retry is today's challenge, not yesterday's
-          // deck (and not yesterday's leaderboard).
-          const today = gameDay();
-          if (game.challengeDate !== today) {
-            game.challengeDate = today;
-            game.deckSeed = seedForDate(today);
-          }
-          // Re-applied: a game from before a level change (snapshot) must not retry at the old one.
-          game.setAllBotsDifficulty(CHALLENGE_BOT_DIFFICULTY);
-          game.challengeRanked = beginChallengeAttempt(game, session.code);
-          game.fillWithBots();
-          game.startNewRound();
-        }
         break;
       }
       case 'exportLastGame': {
@@ -2141,7 +2117,7 @@ wss.on('connection', (ws, req) => {
       case 'forfeitRound': {
         const r = game.forfeitRound(playerId);
         if (r && r.error) sendError(ws, r.error);
-        else if (game.challengeDate && game.challengeRanked && game.gameOverInfo && game.gameOverInfo.forfeited) closeChallengeAttempt(game);
+        else if (game.challengeDate && game.gameOverInfo && game.gameOverInfo.forfeited) closeChallengeAttempt(game);
         break;
       }
       case 'undoMeld': {
