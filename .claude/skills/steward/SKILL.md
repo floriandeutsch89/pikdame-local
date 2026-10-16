@@ -73,6 +73,10 @@ Refresh them when a follow-up commit changes what they show.
    `package-lock.json`, commit it into the current PR with a CHANGELOG
    "Fixed" line, since every other branch is blocked until it lands. A fix
    that needs a major bump: ask, majors are never automatic (CLAUDE.md §8).
+   `npm outdated` red: bump the lockfile (`npm update <pkg>`), CHANGELOG
+   "Changed" line like the jsdom ones. Locally, its "Latest" column only
+   lists versions whose `engines.node` fits YOUR Node (jsdom 30 needs
+   >= 22.22.2), so an old local Node shows a stale "Latest" - trust CI's.
 3. A failing test is never "flaky" until you reproduced it locally with a
    clean `data/` and no stray server.
 4. Never skip, disable or loosen a test to get green. When behaviour

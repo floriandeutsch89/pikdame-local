@@ -14,6 +14,7 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 - **Tages-Challenge entspannter:** Die Bots dort sind jetzt spürbar leichter zu schlagen – die tägliche Partie soll Spaß machen. Weiterhin bekommen alle dasselbe Deck und dieselben Gegner, die Bestenliste bleibt vergleichbar
 - **Keine Bot-Stufe mehr in der Challenge:** Sie steht weder am Bot noch im Erklär-Fenster noch bei Challenge-Partien unter „Meine Partien“
 - Nach einer Challenge-Partie heißt der Knopf „Noch mal üben“. Übungspartien zählen nicht für die Abzeichen „Herausforderer“ und „Challenge-Profi“ – gezählt wird ein gewerteter Versuch pro Tag
+- Abhängigkeiten aktualisiert: jsdom 30.1.2→30.1.3 (Test-Abhängigkeit; der CI-Job `dependency-check` war seit dem Erscheinen der Version für jeden PR rot)
 
 ## [2.59.0] - 2026-10-09
 
