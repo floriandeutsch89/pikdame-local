@@ -437,9 +437,7 @@ class GameManager {
   }
 
   setBotDifficulty(requesterId, botId, difficulty) {
-    // Tages-Challenge: Die Bestenliste lebt davon, dass ALLE gegen dieselben
-    // Gegner spielen - drei Zen-Meister, weltweit. Wer sich leichtere Bots
-    // einstellen könnte, würde jede Vergleichbarkeit zerstören.
+    // Daily challenge: the leaderboard only works if everyone faces the same bots.
     if (this.challengeDate) {
       return { error: 'In der Tages-Challenge ist die Bot-Stärke fest - sonst wäre die Bestenliste nicht vergleichbar.' };
     }

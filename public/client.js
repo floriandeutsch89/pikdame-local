@@ -1842,7 +1842,8 @@
         const opProgress = Math.max(0, Math.min(100, (opTotal / 1000) * 100));
         if (reconnecting) d.classList.add('disconnected');
         d.innerHTML = `<div class="opName">${avatarFor(p.name, p.isBot)}${nameWithHeart(p.name)}${diffBadge}${dealerStar}${reconnecting ? ` <span class="reconnectTag">${L('getrennt', 'offline')}</span>` : ''}</div><div class="opCount"><b>${p.handCount}</b> ${L('Kt', 'cd')} · <b>${opTotal}</b> ${L('Pkt', 'pts')}</div><div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>`;
-        if (p.isBot) {
+        // Daily challenge: the level is fixed and deliberately not shown.
+        if (p.isBot && !lastState.challengeDate) {
           const meta = BOT_DIFF[p.botDifficulty] || BOT_DIFF.zen;
           const badgeBtn = document.createElement('button');
           badgeBtn.className = 'botDiffBadge';
@@ -6744,10 +6745,12 @@
     const me = (g.myId ? players.find((p) => p.id === g.myId) : players.find((p) => !p.isBot && (p.name || '').toLowerCase() === myName)) || null;
     const myTotal = me && me.id ? totals[me.id] || 0 : g.myScore || 0;
     const place = 1 + players.filter((p) => (totals[p.id] || 0) > myTotal).length;
+    // Challenge games never show the bot level, here neither.
+    const diffOf = (p) => (p.isBot && !g.challengeDate && BOT_DIFF[p.botDifficulty]) || null;
     const opps = players.filter((p) => p !== me).map((p) =>
-      p.isBot && BOT_DIFF[p.botDifficulty] ? `${p.name} (${BOT_DIFF[p.botDifficulty].short()})` : p.name);
+      diffOf(p) ? `${p.name} (${diffOf(p).short()})` : p.name);
     const mins = g.startedAt && g.finishedAt ? Math.round((g.finishedAt - g.startedAt) / 60000) : 0;
-    return { players, totals, me, myTotal, place, opps, mins };
+    return { players, totals, me, myTotal, place, opps, mins, diffOf };
   }
   function renderGameHistory() {
     const box = el('historyContent');
@@ -6818,7 +6821,7 @@
       list.innerHTML = v.players
         .slice()
         .sort((x, y) => (v.totals[y.id] || 0) - (v.totals[x.id] || 0))
-        .map((p) => `<li class="${p === v.me ? 'me' : ''}"><span>${escapeHtml(p.name)}${p.isBot && BOT_DIFF[p.botDifficulty] ? ` <small>${escapeHtml(BOT_DIFF[p.botDifficulty].short())}</small>` : ''}</span><b>${v.totals[p.id] || 0}</b></li>`)
+        .map((p) => `<li class="${p === v.me ? 'me' : ''}"><span>${escapeHtml(p.name)}${v.diffOf(p) ? ` <small>${escapeHtml(v.diffOf(p).short())}</small>` : ''}</span><b>${v.totals[p.id] || 0}</b></li>`)
         .join('');
       detail.appendChild(list);
     }

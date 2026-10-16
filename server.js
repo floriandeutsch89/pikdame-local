@@ -44,6 +44,9 @@ const { createChallengeStore, seedForDate } = require('./game/ChallengeStore');
 const { gameDay } = require('./game/GameDay');
 const { createSecurityHeaders } = require('./game/SecurityHeaders');
 const challengeStore = createChallengeStore();
+// One level for every challenge game, retries included (comparable board).
+// Medium, not zen: the daily is meant to be fun, not a grind.
+const CHALLENGE_BOT_DIFFICULTY = 'medium';
 // Tutorial-Deck: per scripts-Suche ermittelt (siehe CLAUDE.md). Nicht aendern,
 // ohne die Tutorial-Texte gegenzupruefen - sie nennen konkrete Karten.
 const TUTORIAL_SEED = 22;
@@ -1701,10 +1704,8 @@ wss.on('connection', (ws, req) => {
     }
     if (msg.type === 'startChallenge') {
       // Daily challenge: everyone on the planet gets the identical deck AND
-      // the identical cut (both seeded from the game date, German midnight) against three ZEN
-      // bots - the difficulty is locked so the leaderboard stays comparable.
-      // Zen by table decision: the daily is meant to be the hard one; the
-      // tutorial is where medium belongs.
+      // the identical cut (both seeded from the game date, German midnight)
+      // against the same bots - level locked so the leaderboard stays comparable.
       const date = gameDay();
       const created = registry.create({
         deckSeed: seedForDate(date),
@@ -1716,12 +1717,9 @@ wss.on('connection', (ws, req) => {
       if (ok) {
         const game = created.session.game;
         game.setHouseRules({ turnTimerSeconds: 0 }, { system: true });
-        // ZEN (Tischentscheidung): Die Tages-Challenge soll fordernd sein -
-        // gleiche Karten, gleiche Gegner, und die Gegner sind die staerksten.
-        // Bot-Stufe ist KEINE Hausregel (setHouseRules verwirft den Schluessel
-        // still), deshalb die ausdrueckliche Methode - vor fillWithBots, damit
-        // sie auch fuer neu erzeugte Bots gilt.
-        game.setAllBotsDifficulty('zen');
+        // Bot level is NOT a house rule (setHouseRules drops the key silently);
+        // set it before fillWithBots so the new bots get it too.
+        game.setAllBotsDifficulty(CHALLENGE_BOT_DIFFICULTY);
         game.fillWithBots();
         game.startNewRound();
       }
@@ -1994,6 +1992,8 @@ wss.on('connection', (ws, req) => {
             game.challengeDate = today;
             game.deckSeed = seedForDate(today);
           }
+          // Re-applied: a game from before a level change (snapshot) must not retry at the old one.
+          game.setAllBotsDifficulty(CHALLENGE_BOT_DIFFICULTY);
           game.fillWithBots();
           game.startNewRound();
         }

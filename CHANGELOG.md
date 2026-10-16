@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.60.0] - 2026-10-16
+
+### Changed
+- **Tages-Challenge entspannter:** Die Bots dort spielen nicht mehr auf der stärksten Stufe – die tägliche Partie soll Spaß machen. Weiterhin bekommen alle dasselbe Deck und dieselben Gegner, die Bestenliste bleibt vergleichbar.
+- **Keine Bot-Stufe mehr in der Challenge:** Sie steht weder am Bot noch im Erklär-Fenster noch bei Challenge-Partien unter „Meine Partien“.
+
 ## [2.59.0] - 2026-10-09
 
 ### Changed

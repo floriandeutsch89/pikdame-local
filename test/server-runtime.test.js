@@ -285,6 +285,35 @@ test('checkSession flags a running challenge of today, not a normal table', asyn
   for (const ws of [host, probe]) ws.close();
 });
 
+// The real startChallenge path: the GameManager unit tests pass the level in themselves.
+test('the daily challenge seats three medium bots', async (t) => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-chl-'));
+  const { server } = startServer(dataDir);
+  t.after(async () => {
+    const gone = server.exitCode !== null ? null : new Promise((r) => server.once('exit', r));
+    server.kill();
+    await gone;
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  });
+  await waitForServer(PORT);
+  const ws = await new Promise((resolve, reject) => {
+    const s = new WebSocket(`ws://localhost:${PORT}`);
+    s.inbox = [];
+    s.on('message', (raw) => s.inbox.push(JSON.parse(raw)));
+    s.once('open', () => resolve(s));
+    s.once('error', reject);
+  });
+  ws.send(JSON.stringify({ type: 'startChallenge', name: 'Flo' }));
+  let bots = [];
+  for (const deadline = Date.now() + 4000; bots.length < 3 && Date.now() < deadline;) {
+    await new Promise((r) => setTimeout(r, 25));
+    const last = ws.inbox.filter((m) => m.type === 'state').pop();
+    bots = last ? last.state.players.filter((p) => p.isBot) : [];
+  }
+  ws.close();
+  assert.deepStrictEqual(bots.map((p) => p.botDifficulty), ['medium', 'medium', 'medium']);
+});
+
 test('Stammtisch: a new evening starts with the last winner as dealer', async (t) => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-std-'));
   const now = Date.now();

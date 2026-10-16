@@ -125,6 +125,26 @@ setTimeout(() => {
         if (!/rounds/.test(afterSwitch)) errors.push(`history did not follow the language switch: ${afterSwitch.slice(0, 80)}`);
         doc.getElementById('langBtnLobby').dispatchEvent(new window.MouseEvent('click', { bubbles: true })); // zurueck auf Deutsch
 
+        // Challenge games never reveal the bot level, normal games keep it (card and opened standings).
+        const game = (id, challengeDate, bot) => ({
+          id, finishedAt: Date.now(), challengeDate, rounds: 4, myId: 'p1',
+          players: [{ id: 'p1', name: 'Flodex', isBot: false }, { id: bot.id, name: bot.name, isBot: true, botDifficulty: bot.level }],
+          finalTotals: { p1: 1010, [bot.id]: 300 }, winnerId: 'p1', won: true, myScore: 1010,
+        });
+        wsInstance._emit('message', { data: JSON.stringify({ type: 'gameHistory', games: [
+          game('g2', '2026-10-16', { id: 'b1', name: 'Gisela', level: 'medium' }),
+          game('g3', null, { id: 'b2', name: 'Uwe', level: 'zen' }),
+        ] }) });
+        const opps = [...historyBox.querySelectorAll('.histOpp')].map((n) => n.textContent).join(' | ');
+        if (!/Uwe \(Zen\)/.test(opps)) errors.push(`a normal game must still show the bot level in the history: ${opps}`);
+        if (/Gisela \(/.test(opps)) errors.push(`a challenge game must not show the bot level in the history: ${opps}`);
+        const openCard = (id) => historyBox.querySelector(`.histCard[data-id="${id}"]`).dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        openCard('g2');
+        if (historyBox.querySelector('.histStandings small')) errors.push('an opened challenge game must not show the bot level');
+        openCard('g3');
+        if (!historyBox.querySelector('.histStandings small')) errors.push('an opened normal game must still show the bot level');
+        openCard('g3'); // close again
+
         boardBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); // aufraeumen fuer folgende Pruefungen
       }
     }
@@ -628,6 +648,22 @@ setTimeout(() => {
       feed({ ...pauseBase, paused: true, pauseVotes: [] });
       if (pauseBtn.dataset.votes) errors.push('pause tally must clear once the game is paused');
       feed({ ...pauseBase, pauseVotes: [] });
+    }
+
+    // Daily challenge: the bot level is not shown at all; a normal table keeps the badge.
+    {
+      const doc = window.document;
+      const table = {
+        ...base, phase: 'playing', roundNumber: 1, currentPlayerId: 'b1',
+        turnPhase: 'draw', dealerId: 'b1', turnDeadline: null,
+        discardTop: { id: 'cz0', suit: 'H', rank: '4' }, drawCount: 20, discardCount: 1,
+        players: base.players.map((p) => ({ ...p, handCount: 5 })),
+      };
+      feed(table);
+      if (!doc.querySelector('#opponents .botDiffBadge')) errors.push('a normal table must show the bot level on the opponent chip');
+      feed({ ...table, challengeDate: '2026-10-16' });
+      if (doc.querySelector('#opponents .botDiffBadge')) errors.push('the daily challenge must not show the bot level');
+      feed(table);
     }
 
     // A freshly drawn card is marked - the Queen of Spades included (it used
