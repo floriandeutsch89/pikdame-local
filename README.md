@@ -32,8 +32,7 @@ external frontend dependencies.
   game-history export. Statistics only count matches played through to 1000
   points — forfeited or abandoned games are deliberately not recorded.
 - **Daily challenge**: one identical deck for the whole world each day against
-  the same medium bots. Only your first game of the day is ranked (later ones
-  are practice), with a daily leaderboard, a "Damen-Magnet des Tages" title
+  the same medium bots. One attempt per day, with a daily leaderboard, a "Damen-Magnet des Tages" title
   (a rare badge), a seven-day history and a weekly ranking (your best five
   days of the current week count).
 - **User accounts** (hosted mode only): registration with e-mail

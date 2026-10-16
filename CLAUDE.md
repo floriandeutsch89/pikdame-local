@@ -84,8 +84,8 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
     abrufbar), dort nur ein Flag. `Emotes.js`: EINZIGE Emote-Whitelist (Vertragstest).
   - `BotQuips.js`: EINZIGE Liste der Bot-Spruch-Anlässe; nur die ID geht über
     die Leitung, Texte DE/EN im Client (Vertragstest).
-  - Tages-Challenge: nur die erste BEGONNENE Partie pro Name und Tag wird
-    gewertet (`ChallengeStore.beginAttempt`), Bots immer Heuristik-Mittel.
+  - Tages-Challenge: EIN Versuch pro Name und Tag, begonnen = verbraucht
+    (`ChallengeStore.beginAttempt`), keine Revanche; Bots immer Heuristik-Mittel.
   - `Passkeys.js`: WebAuthn; aus ohne Library oder https-`PIKDAME_BASE_URL`.
     RP-ID = deren Hostname (Domainwechsel killt alle Passkeys; Rückweg:
     Anmelde-Link). `user.name` = E-Mail, `displayName` = Spielername (sonst

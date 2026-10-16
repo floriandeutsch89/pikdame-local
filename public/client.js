@@ -160,11 +160,6 @@
     if (quoteShownForRound === key) return;
     quoteShownForRound = key;
     if (lastState.roundNumber === 0) return;
-    // Round 1 of a practice game says so instead of the quote (same slot, no race).
-    if (lastState.challengePractice && lastState.roundNumber === 1) {
-      showToast(L('Übungspartie – zählt nicht für die Bestenliste.', 'Practice game – does not count for the leaderboard.'), { duration: 6000, priority: true });
-      return;
-    }
     // Wichtige Rundenstart-Meldungen (Endspurt ⚠️, Glücksgriff 🍀) haben
     // Vorfahrt - der Spruch drängelt sich dann nicht dazwischen.
     const latest = (lastState.log || [])[lastState.log.length - 1];
@@ -1177,7 +1172,7 @@
     if (msg.type === 'state') {
       lastState = msg.state;
       if (lastState.phase !== 'gameOver') lastGameProgress = null;
-      else quoteShownForRound = null; // the next game's round 1 gets its quote (or practice hint) again
+      else quoteShownForRound = null; // the next game's round 1 gets its quote again
       // Solo-Spiel abgebrochen (Challenge/Tutorial, nicht rechtzeitig
       // zurueckgekehrt): klar ansagen, den Wiederaufnehmen-Code wegwerfen -
       // die Sitzung existiert serverseitig nicht mehr.
@@ -3121,7 +3116,7 @@
     // At game over the way home sits next to the rematch; unfolding "Mehr"
     // instead pushed half the ranking below the fold.
     el('resultHomeBtn').classList.toggle('hidden', isGameOver);
-    el('resultHomeQuickBtn').classList.toggle('hidden', !isGameOver);
+    el('resultHomeQuickBtn').classList.toggle('hidden', !isGameOver || !!lastState.challengeDate);
     const moreBox = el('resultMore');
     if (moreBox) moreBox.open = false;
     // Forfeit the whole game straight from the points overview (round end only,
@@ -3145,11 +3140,10 @@
     }
     if (isGameOver) {
       contBtn.disabled = false;
-      // Challenge: dieselbe Tages-Herausforderung noch einmal versuchen -
-      // gleiches Deck, frische Chance (der Server startet solo direkt neu).
+      // Challenge: one attempt per day, so the primary action leads home.
       const ser = stammtischInfo && stammtischSummary && stammtischSummary.series;
       contBtn.textContent = lastState.challengeDate
-        ? L('Noch mal üben', 'Practise again')
+        ? L('Zum Hauptmenü', 'Main menu')
         : ser
           ? ser.winner
             ? L('Neue Serie starten', 'Start a new series')
@@ -4270,10 +4264,7 @@
           : '') +
         `<p class="weeklyHint">${L('Deine besten 5 Tage der Woche zählen.', 'Your best 5 days of the week count.')}</p></div>`
       : '';
-    const yourLine = b.practice
-      ? L(`Übung: ${b.yourScore} Punkte – zählt nicht.`, `Practice: ${b.yourScore} points – does not count.`) +
-        (b.ranked ? ` ${L(`Gewertet: ${b.ranked.score} Punkte · Platz ${b.ranked.rank}`, `Ranked: ${b.ranked.score} points · rank ${b.ranked.rank}`)}` : '')
-      : L(`Dein Ergebnis: ${b.yourScore} Punkte${b.yourRank ? ` · Platz ${b.yourRank}` : ''}`, `Your result: ${b.yourScore} points${b.yourRank ? ` · rank ${b.yourRank}` : ''}`);
+    const yourLine = L(`Dein Ergebnis: ${b.yourScore} Punkte${b.yourRank ? ` · Platz ${b.yourRank}` : ''}`, `Your result: ${b.yourScore} points${b.yourRank ? ` · rank ${b.yourRank}` : ''}`);
     const magnetBlock = b.magnet ? `<p class="challengeMagnet">${escapeHtml(magnetText(b.magnet))}</p>` : '';
     box.innerHTML = `<h3>🗓️ ${L('Tages-Challenge', 'Daily challenge')} ${escapeHtml(b.date)}</h3>
       <p class="challengeYour">${escapeHtml(yourLine)}</p>
@@ -4292,7 +4283,9 @@
     // Explain first, play second: the cold start straight into a running
     // game left people wondering what was going on.
     el('challengeTopLine').textContent = '…';
-    el('challengePracticeNote').classList.add('hidden');
+    el('challengePlayedNote').classList.add('hidden');
+    el('challengeStartBtn').classList.remove('hidden');
+    el('challengeCancelBtn').textContent = L('Abbrechen', 'Cancel');
     el('challengeMagnetLine').classList.add('hidden');
     el('challengeIntroOverlay').classList.remove('hidden');
     el('challengeWeekLine').textContent = '';
@@ -4308,7 +4301,11 @@
         el('challengeTopLine').textContent = top
           ? `🥇 ${top.name} – ${top.score} ${L('Punkte', 'points')}${d.board[1] ? `  ·  🥈 ${d.board[1].name} – ${d.board[1].score}` : ''}`
           : L('Noch niemand - sichere dir Platz 1!', 'Nobody yet - claim first place!');
-        el('challengePracticeNote').classList.toggle('hidden', !(d && d.attempted));
+        // Attempt used: no start, the sheet is the day's board.
+        const played = !!(d && d.attempted);
+        el('challengePlayedNote').classList.toggle('hidden', !played);
+        el('challengeStartBtn').classList.toggle('hidden', played);
+        if (played) el('challengeCancelBtn').textContent = L('Schließen', 'Close');
         el('challengeMagnetLine').classList.toggle('hidden', !(d && d.magnet));
         if (d && d.magnet) el('challengeMagnetLine').textContent = magnetText(d.magnet);
         // Wochenwertung: beste 5 von 7 Tagen - belohnt Regelmaessigkeit statt
@@ -4839,6 +4836,7 @@
 
   el('resultContinueBtn').addEventListener('click', () => {
     const isGameOver = lastState && lastState.phase === 'gameOver';
+    if (isGameOver && lastState.challengeDate) { window.location.href = window.location.pathname; return; }
     send({ type: isGameOver ? 'rematch' : 'nextRound' });
     // Round end: the overlay STAYS open - the ready check may still be
     // waiting for others (the button reflects that). It closes on its own
@@ -6347,7 +6345,7 @@
     const you = challengeToday && challengeToday.date === today ? challengeToday.you : null;
     if (resumeCode && resumeIsChallenge) setTileStatus(el('challengeBtn'), el('challengeTileStatus'), L('Läuft · fortsetzen', 'Running · resume'), 'open');
     else if (you) setTileStatus(el('challengeBtn'), el('challengeTileStatus'), L(`Platz ${you.rank} · ${you.score} Pkt`, `Rank ${you.rank} · ${you.score} pts`), 'done');
-    else if (challengeToday && challengeToday.date === today && challengeToday.attempted) setTileStatus(el('challengeBtn'), el('challengeTileStatus'), L('Versuch genutzt', 'Attempt used'), 'done');
+    else if (challengeToday && challengeToday.date === today && challengeToday.attempted) setTileStatus(el('challengeBtn'), el('challengeTileStatus'), L('Heute gespielt', 'Played today'), 'done');
     else if (challengeToday) setTileStatus(el('challengeBtn'), el('challengeTileStatus'), L('Noch offen', 'Still open'), 'new');
     else setTileStatus(el('challengeBtn'), el('challengeTileStatus'), '', '');
   }
