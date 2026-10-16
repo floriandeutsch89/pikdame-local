@@ -116,3 +116,53 @@ pre.mermaid > svg { height: auto !important; }
   .pd-deck { gap: 0.15rem; padding: 0.4rem; }
   .pd-deck .pd-card { border-radius: 0.15rem; padding: 0.05rem 0.1rem; }
 }
+
+/* --- Rules lab (developer/game-constants) --------------------------------- */
+.pd-lab-picker {
+  display: grid;
+  grid-template-columns: repeat(13, minmax(0, 1fr));
+  gap: 0.25rem;
+  margin: 0.75rem 0;
+}
+.pd-lab-picker .pd-card { width: auto; height: auto; aspect-ratio: 5 / 7; cursor: pointer; font-size: clamp(0.5rem, 1.3vw, 0.8rem); }
+.pd-lab-picker .pd-card:focus-visible { outline: 2px solid var(--pd-accent); }
+.pd-lab-picker .pd-card.joker { grid-column: span 2; aspect-ratio: auto; }
+.pd-lab-hand { min-height: 3.6rem; }
+.pd-lab-hand .pd-card { cursor: pointer; }
+.pd-lab-verdict {
+  padding: 0.6rem 0.9rem;
+  border-left: 4px solid var(--color-background-border);
+  background: var(--color-background-secondary);
+  border-radius: 0.3rem;
+}
+.pd-lab-verdict.good { border-left-color: var(--pd-accent); }
+.pd-lab-verdict.bad { border-left-color: var(--pd-red); }
+.pd-lab-verdict.warn { border-left-color: #d49a1c; }
+.pd-lab-verdict q { font-style: italic; }
+.pd-lab-options { display: block; font-size: var(--font-size--small); color: var(--color-foreground-secondary); }
+.pd-lab-seed input { width: 6rem; margin-left: 0.3rem; font: inherit; padding: 0.2rem 0.4rem; border: 1px solid var(--color-background-border); border-radius: 0.3rem; background: var(--color-background-primary); color: inherit; }
+
+/* --- Konami overlay ------------------------------------------------------- */
+.pd-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(10, 12, 16, 0.75);
+  cursor: pointer;
+}
+.pd-overlay-box {
+  max-width: min(42rem, 92vw);
+  padding: 1.25rem 1.5rem;
+  border-radius: 0.75rem;
+  background: radial-gradient(ellipse at top, #1a6b4a, #0d3524 70%);
+  color: #eef1f4;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.pd-overlay-box .pd-hand { flex-wrap: wrap; row-gap: 0.4rem; justify-content: center; }
+
+/* --- 404 ------------------------------------------------------------------ */
+.pd-404 { margin: 1rem 0 1.5rem; }
+.pd-card--big { width: 4.4rem; height: 6.2rem; font-size: 1.5rem; }
+.pd-card--big .pd-st { font-size: 2.2rem; }
+
+/* Footer commit badge (conf.py adds it to footer_icons). */
+.pd-build code { font-size: var(--font-size--small--2); opacity: 0.8; }
