@@ -11,7 +11,9 @@ they are stale (`npm run docs:check`).
 """
 
 import json
+import os
 import pathlib
+import subprocess
 
 # -- Project ----------------------------------------------------------------
 
@@ -31,6 +33,8 @@ extensions = [
     "sphinx_copybutton",     # copy button on code blocks
     "sphinx_design",         # cards, grids, tabs, dropdowns, badges
     "sphinxcontrib.mermaid",  # diagrams as code (rendered in the browser)
+    "notfound.extension",     # a themed 404 page that Read the Docs serves
+    "sphinxext.opengraph",    # link previews with generated social cards
 ]
 
 myst_enable_extensions = [
@@ -81,9 +85,25 @@ exclude_patterns = [
 
 html_theme = "furo"
 html_title = f"Pik Dame {version}"
-html_static_path = ["_static"]
+# The three engine modules are copied into _static unchanged: the docs load
+# them in the browser (a tiny CommonJS shim in pikdame.js) so the rules lab
+# and the Konami hand run the REAL rules, not a second implementation.
+html_static_path = ["_static", "../game/Card.js", "../game/Deck.js", "../game/Rules.js"]
 html_css_files = ["pikdame.css"]
-html_js_files = ["pikdame.js"]
+html_js_files = ["pikdame.js", "pikdame-lab.js"]
+html_last_updated_fmt = "%Y-%m-%d"
+
+# Which commit built this page: Read the Docs exports it, a local build asks git.
+def _git_sha():
+    sha = os.environ.get("READTHEDOCS_GIT_COMMIT_HASH", "")
+    if not sha:
+        try:
+            sha = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+        except Exception:  # noqa: BLE001 - no git, no badge
+            sha = ""
+    return sha
+
+_sha = _git_sha()
 # The app's own icon, straight from public/ - no second copy to keep in sync.
 html_logo = "../public/icons/favicon.svg"
 html_favicon = "../public/icons/favicon.svg"
@@ -110,7 +130,7 @@ html_theme_options = {
         "font-stack--headings": "Georgia, 'Times New Roman', serif",
     },
     "sidebar_hide_name": False,
-    "navigation_with_keys": True,
+    "navigation_with_keys": False,  # arrows belong to the Konami code
     "top_of_page_buttons": ["view", "edit"],
     "source_repository": "https://github.com/floriandeutsch89/pikdame-local/",
     "source_branch": "main",
@@ -132,6 +152,34 @@ html_theme_options = {
             ),
         },
     ],
+}
+
+if _sha:
+    html_theme_options["footer_icons"].append({
+        "name": f"Built from commit {_sha}",
+        "url": f"https://github.com/floriandeutsch89/pikdame-local/commit/{_sha}",
+        "class": "pd-build",
+        "html": f"<code>{_sha[:7]}</code>",
+    })
+
+# -- 404 --------------------------------------------------------------------
+# docs/404.md is the page; the extension rewrites asset paths to absolute ones
+# so the page works from any URL. The prefix comes from Read the Docs' env.
+notfound_context = {"title": "Page not found"}
+
+# -- Link previews (OpenGraph) ----------------------------------------------
+_canonical = os.environ.get("READTHEDOCS_CANONICAL_URL", "https://pik-dame.readthedocs.io/en/latest/")
+ogp_site_url = _canonical
+ogp_site_name = "Pik Dame"
+ogp_description_length = 200
+ogp_enable_meta_description = True
+ogp_image_alt = "Pik Dame documentation"
+ogp_social_cards = {
+    "enable": True,
+    "image": "../public/icons/icon-512.png",
+    "image_mini": "../public/icons/icon-192.png",
+    "line_color": "#2fd6b0",
+    "site_url": "pik-dame.readthedocs.io",
 }
 
 # External links used across pages
