@@ -10,7 +10,7 @@
 ![Image](https://img.shields.io/badge/image-amd64%20%7C%20arm64-555?logo=docker&logoColor=white)
 
 Multiplayer card game (family rummy variant) for 2–4 players — empty seats
-are filled by bots with three difficulty levels. Runs in **two operating
+are filled by bots with four difficulty levels. Runs in **two operating
 modes** from the same codebase:
 
 **▶ Live demo: [play.pikdame.online](https://play.pikdame.online)** — try it in
@@ -32,7 +32,8 @@ external frontend dependencies.
 
 ## Features
 
-- **Bots with character**: three difficulties (Anfänger → Zen with card counting),
+- **Bots with character**: four measured difficulties (Anfänger → Profi with card
+  counting → Zen with the trained net),
   human names (Uwe, Inge, Maria …), random emote reactions — including the
   occasional Queen-of-Spades bluff — and rare short lines at key moments
   (can be muted per device).

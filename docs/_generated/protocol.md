@@ -4,7 +4,7 @@
 
 The client talks to the server over a single WebSocket. Every message is JSON
 with a `type` field. Both lists below are generated from the server's message
-handlers, so they always match the running code: **41** message
+handlers, so they always match the running code: **42** message
 types go up, **27** come down.
 
 ## Client → server
@@ -44,7 +44,7 @@ Only valid while the table is in the `lobby` phase; most of them host-only.
 | `setMaxSeats` | Host only: change the number of seats (2-4). |
 | `reorderSeats` | Host only: change the seating order. |
 | `setDealer` | Host only: choose the dealer. |
-| `setBotDifficulty` | Host only: set a bot seat's difficulty. |
+| `setBotDifficulty` | Host only: set a bot seat's difficulty (easy, medium, hard, zen). |
 | `setHouseRules` | Host only: change house rules (turn timer, bot speed, "hand aus" doubling, strict threshold). |
 | `leaveLobby` | Leave an unstarted lobby and free the seat (bots re-sync, host succession is automatic). Refused mid-game - use the forfeit vote instead. The server confirms with `leftLobby` so the client may clear its stored per-session credentials. |
 
@@ -77,6 +77,12 @@ Allowed from any seat at any time during a match.
 | `nextRound` | Signal readiness for the next round. |
 | `rematch` | Start a new match with the same table. |
 | `exportLastGame` | Download the last finished game as JSON. |
+
+### Other {bdg-secondary}`1`
+
+| `type` | Purpose |
+| --- | --- |
+| `setAllBotDifficulty` | Host only: set every bot (and bots added later) to one difficulty. Refused in the daily challenge. |
 
 ## Server → client
 

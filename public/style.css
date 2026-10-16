@@ -280,6 +280,16 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .heroQueen { font-size: 30px !important; letter-spacing: -0.02em; }
 .heroSpade { font-size: 22px !important; }
 .heroCardFront .heroQueen, .heroCardFront .heroSpade { fill: var(--suit-black); }
+/* Not announced anywhere on purpose (see client.js): the cat behind the fan. */
+.heroCat { transform: translateY(34px); visibility: hidden; transition: transform 0.5s var(--ease), visibility 0s linear 0.5s; }
+.lobbyHero.catOut .heroCat { transform: none; visibility: visible; transition: transform 0.5s var(--ease), visibility 0s; }
+.heroCatBubble { opacity: 0; transition: opacity 0.25s ease; }
+.lobbyHero.catOut .heroCatBubble { opacity: 1; transition-delay: 0.45s; }
+.heroCatBubble rect, .heroCatBubble path { fill: #fff; }
+.heroCatBubble text { text-anchor: middle; font-family: var(--font); font-weight: 800; font-size: 10px; fill: #2b2b2b; }
+@media (prefers-reduced-motion: reduce) {
+  .heroCat, .lobbyHero.catOut .heroCat, .heroCatBubble, .lobbyHero.catOut .heroCatBubble { transition: none; }
+}
 
 /* --- Lobby utility row ------------------------------------------------------
    Statistik / Regeln / Konto / Sprache / Mehr used to be five full-width
@@ -473,7 +483,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
    its neighbour. Size every button in the row identically instead. */
 .overlay-card .dialog-actions { display: flex; align-items: stretch; gap: 8px; width: 100%; }
 .overlay-card .dialog-actions > button {
-  flex: 1 1 0; max-width: none; margin-top: 8px;
+  flex: 1 1 0; max-width: none; margin-top: 8px; min-height: var(--tap-min);
   padding: 13px 14px; font-size: 0.9rem;
 }
 
@@ -2025,6 +2035,20 @@ body.raidActive #toastContainer { margin-top: 132px; }
   #table .card .suitMark { font-size: 1.05rem; margin-top: 3px; }
   #table .card { font-size: 0.82rem; }
   .opponent { padding: 4px 9px; font-size: 0.66rem; }
+  /* All owner groups in one row, the own one a bit wider, the name in the
+     top padding: stacked, every meld but the own sat below the fold of the
+     ~400px screen (you count cards from the others' melds). */
+  .meldOwnerGroup { flex: 1 1 0; min-width: 0; width: auto; position: relative; padding: 14px 6px 4px; gap: 0; margin-bottom: 0; }
+  .meldOwnerGroup.own { flex-grow: 1.2; }
+  .meldOwnerHeader .ownerWord { display: none; } /* the name alone says whose */
+  .meldOwnerGroup .meldOwnerHeader {
+    position: absolute; top: 3px; left: 8px; right: 8px;
+    font-size: var(--fs-micro); line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .meldRow { gap: 4px; }
+  .meldGroup { padding: 3px; gap: 0; } /* two melds per row in a quarter column */
+  #melds .card-compact { width: 34px; height: 48px; min-width: 34px; margin-left: -20px; }
+  #melds .card-compact:first-child { margin-left: 0; }
 }
 
 /* --- Pik-Dame-Ankündigung (Raid-Warning-Stil) ----------------------------- */
@@ -2644,16 +2668,23 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 .opponent .opName { padding-right: 4px; }
 .botDiffOptions { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 12px; }
 .botDiffOptions button {
-  display: flex; align-items: center; gap: 10px;
-  border: 1px solid rgba(0,0,0,0.1); border-radius: 12px;
-  background: rgba(0,0,0,0.03); padding: 11px 14px;
-  font-size: 0.9rem; font-weight: 600; cursor: pointer; text-align: left;
+  display: flex; align-items: center; gap: 12px; min-height: var(--tap-min);
+  border: 1px solid rgba(0,0,0,0.1); border-radius: var(--r-sm);
+  background: rgba(0,0,0,0.03); padding: 10px 14px;
+  font-size: var(--fs-body); font-weight: 600; cursor: pointer; text-align: left;
 }
 .botDiffOptions button.current {
   border-color: var(--accent); background: rgba(0,0,0,0.06);
 }
-.botDiffOptions button .diffIcon { font-size: 1.2rem; }
-.botDiffOptions button small { display: block; font-weight: 500; opacity: 0.65; font-size: 0.72rem; }
+.botDiffOptions button small { display: block; font-weight: 500; opacity: 0.65; font-size: var(--fs-hint); }
+/* Strength as rising bars (1-4), the ladder at a glance - no emoji icons. */
+.diffBars { display: inline-flex; align-items: flex-end; gap: 2px; height: 18px; flex: none; }
+.diffBars i { display: block; width: 4px; border-radius: 1px; background: currentColor; opacity: 0.2; }
+.diffBars i:nth-child(1) { height: 6px; }
+.diffBars i:nth-child(2) { height: 10px; }
+.diffBars i:nth-child(3) { height: 14px; }
+.diffBars i:nth-child(4) { height: 18px; }
+.diffBars i.on { opacity: 0.85; }
 
 /* --- Home + gear menu (v1.23.0) ---------------------------------------------- */
 /* --- In-game settings sheet -------------------------------------------------
@@ -3282,6 +3313,32 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 .puzzleStatus.ok { color: #1e9e57; }
 .puzzleStatus.bad { color: #d34b3a; }
 .puzzleHand .card.solution { box-shadow: 0 0 0 3px var(--drawn), var(--shadow-2); }
+/* Day switcher: today plus the archive (older days, no XP). */
+.puzzleNav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -4px 0 6px; }
+.puzzleDay { flex: 1; text-align: center; font-weight: 700; font-size: var(--fs-label); }
+.puzzleNavBtn { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.14); color: var(--card-ink); }
+.puzzleNavBtn:disabled { opacity: 0.3; }
+#puzzlePrevBtn .icon { transform: rotate(90deg); }
+#puzzleNextBtn .icon { transform: rotate(-90deg); }
+/* Laid melds of a multi-meld puzzle: a tap puts one back on the hand. */
+.puzzleMelds { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 0 0 10px; }
+.puzzleMeld {
+  display: flex; padding: 6px 8px 6px 30px; min-height: var(--tap-min);
+  border-radius: var(--r-sm); background: rgba(0,0,0,0.05); border: 2px solid transparent;
+}
+.puzzleMeld .card { margin-left: -22px; }
+/* Compact cards: up to 13 of them plus the melds must fit an iPhone. */
+.puzzleHand .card, .puzzleMeld .card { width: 48px; height: 68px; min-width: 48px; }
+.puzzleHand .card .corner, .puzzleMeld .card .corner { top: 3px; left: 4px; font-size: var(--fs-hint); }
+.puzzleHand .card .suitMark, .puzzleMeld .card .suitMark { font-size: var(--fs-lead); margin-top: 4px; }
+/* Several melds: "Auslegen" and "Prüfen" share a row, the reveal gets its own. */
+#puzzleOverlay[data-kind="turn"] .dialog-actions,
+#puzzleOverlay[data-kind="out"] .dialog-actions { flex-wrap: wrap; }
+#puzzleOverlay[data-kind="turn"] #puzzleRevealBtn,
+#puzzleOverlay[data-kind="out"] #puzzleRevealBtn { flex-basis: 100%; }
+.puzzleMeld.bad { border-color: #d34b3a; }
+.puzzleMeld:disabled { cursor: default; }
+.shareBtn { margin-top: 8px; }
 /* Level + daily streak strip above the tasks */
 /* Family tiles: tier dots under the name */
 .achTiers { display: inline-flex; gap: 3px; }
@@ -4308,4 +4365,18 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
   #resultBody { position: relative; }
   #resultBody .resultTabs { margin-left: 0; }
   #resultBody .resultSort { position: absolute; top: 0; right: 0; margin: 0; }
+
+  /* Daily puzzle at ~400px: cards left, buttons right (like the round
+     result); the day line and the target say what to do, so title and
+     question make room. */
+  #puzzleOverlay h2, #puzzleQuestion { display: none; }
+  #puzzleOverlay .overlay-card {
+    display: grid; grid-template-columns: minmax(0, 1fr) 190px; column-gap: 18px;
+    align-content: start; max-width: 760px; padding: 12px 18px;
+  }
+  #puzzleOverlay .overlay-card > * { grid-column: 1; }
+  #puzzleOverlay .puzzleNav { margin-top: 0; }
+  #puzzleOverlay .puzzleActions { grid-column: 2; grid-row: 1 / span 6; align-self: end; }
+  #puzzleOverlay .dialog-actions { flex-direction: column; }
+  #puzzleOverlay .dialog-actions > button { flex: 0 0 auto; }
 }

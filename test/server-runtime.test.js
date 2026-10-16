@@ -407,3 +407,52 @@ test('Stammtisch: a new evening starts with the last winner as dealer', async (t
   assert.strictEqual(last.state.dealerId, annaId, 'the last winner deals the first round');
   for (const ws of [flo, anna]) ws.close();
 });
+
+// The puzzle archive: any day since the first puzzle, graded, never stored.
+test('puzzle archive: past days are graded without XP, out-of-range dates fall back to today', async (t) => {
+  const { gameDay, addDays } = require('../game/GameDay');
+  const { puzzleForDate, PUZZLE_EPOCH } = require('../game/DailyPuzzle');
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-pz-'));
+  const { server } = startServer(dataDir, { PIKDAME_PUBLIC_MODE: '' });
+  t.after(async () => {
+    const gone = server.exitCode !== null ? null : new Promise((r) => server.once('exit', r));
+    server.kill();
+    await gone;
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  });
+  await waitForServer(PORT);
+  const ws = await new Promise((resolve, reject) => {
+    const s = new WebSocket(`ws://localhost:${PORT}`);
+    s.inbox = [];
+    s.on('message', (raw) => s.inbox.push(JSON.parse(raw)));
+    s.once('open', () => resolve(s));
+    s.once('error', reject);
+  });
+  const ask = async (msg, type) => {
+    const before = ws.inbox.length;
+    ws.send(JSON.stringify(msg));
+    for (const deadline = Date.now() + 4000; Date.now() < deadline;) {
+      const hit = ws.inbox.slice(before).find((m) => m.type === type);
+      if (hit) return hit;
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    throw new Error(`no ${type}`);
+  };
+  const today = gameDay();
+  const past = addDays(today, -3) < PUZZLE_EPOCH ? PUZZLE_EPOCH : addDays(today, -3);
+  const pz = await ask({ type: 'getPuzzle', name: 'Ina', date: past }, 'puzzle');
+  assert.deepStrictEqual({ date: pz.date, archive: pz.archive, today: pz.today, epoch: pz.epoch }, { date: past, archive: past !== today, today, epoch: PUZZLE_EPOCH });
+  const best = puzzleForDate(past).best;
+  const solved = await ask({ type: 'solvePuzzle', name: 'Ina', date: past, melds: best.melds }, 'puzzleResult');
+  assert.strictEqual(solved.solved, true);
+  if (past !== today) {
+    assert.strictEqual(solved.xp, 0, 'the archive earns no XP');
+    const again = await ask({ type: 'getPuzzle', name: 'Ina', date: past }, 'puzzle');
+    assert.deepStrictEqual(again.status, { tries: 0, solved: false, revealed: false }, 'nothing stored for archive days');
+  }
+  const future = await ask({ type: 'getPuzzle', name: 'Ina', date: addDays(today, 5) }, 'puzzle');
+  assert.strictEqual(future.date, today, 'no peeking ahead');
+  const ancient = await ask({ type: 'getPuzzle', name: 'Ina', date: '2020-01-01' }, 'puzzle');
+  assert.strictEqual(ancient.date, today, 'nothing before the first puzzle');
+  ws.close();
+});

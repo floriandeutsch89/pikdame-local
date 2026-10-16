@@ -79,7 +79,7 @@
       {
         "@type": "Question",
         "name": "Wie spielt man Rommé mit Freunden online?",
-        "acceptedAnswer": { "@type": "Answer", "text": "Ein Spiel erstellen, den Einladungslink oder den Spiel-Code teilen und losspielen – zu zweit bis zu viert. Freie Plätze übernehmen Bots in drei Schwierigkeitsstufen." }
+        "acceptedAnswer": { "@type": "Answer", "text": "Ein Spiel erstellen, den Einladungslink oder den Spiel-Code teilen und losspielen – zu zweit bis zu viert. Freie Plätze übernehmen Bots in vier Schwierigkeitsstufen." }
       },
       {
         "@type": "Question",
@@ -109,7 +109,7 @@
       {
         "@type": "Question",
         "name": "Kann man Pik Dame auch alleine gegen den Computer spielen?",
-        "acceptedAnswer": { "@type": "Answer", "text": "Ja. Freie Plätze am Tisch füllen Bots in drei Stärken - vom Anfänger bis zum Zen-Meister, der mitzählt. Dazu gibt es eine Tages-Challenge, in der alle Spieler weltweit dasselbe Kartendeck gegen dieselben Gegner bekommen, und ein Tutorial mit festen Karten für den Einstieg." }
+        "acceptedAnswer": { "@type": "Answer", "text": "Ja. Freie Plätze am Tisch füllen Bots in vier Stärken - vom Anfänger bis zum Zen-Meister. Dazu gibt es eine Tages-Challenge, in der alle Spieler weltweit dasselbe Kartendeck gegen dieselben Gegner bekommen, und ein Tutorial mit festen Karten für den Einstieg." }
       },
       {
         "@type": "Question",
@@ -291,6 +291,22 @@
              word is read. Pure SVG, themed, no download. -->
         <div class="lobbyHero" aria-hidden="true">
           <svg viewBox="0 0 132 96" class="lobbyHeroSvg">
+            <!-- Hidden on purpose (see client.js): drawn first, so the cards cover it. -->
+            <g class="heroCat"><g transform="translate(67 6) scale(0.85)">
+              <path d="M-14-6-11-21-2-10Z M14-6 11-21 2-10Z" fill="#e8913a"/>
+              <path d="M-12-8-10.5-17-5-10Z M12-8 10.5-17 5-10Z" fill="#f4b9a0"/>
+              <ellipse cx="-9" cy="12" rx="4.5" ry="3" fill="#e8913a"/>
+              <ellipse cx="9" cy="12" rx="4.5" ry="3" fill="#e8913a"/>
+              <ellipse rx="16" ry="13" fill="#e8913a"/>
+              <path d="M-4-12Q-3-8-4-5M0-13V-6M4-12Q3-8 4-5" stroke="#c46a1e" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+              <ellipse cy="6" rx="7" ry="4.6" fill="#fff3e6"/>
+              <ellipse cx="-6" cy="-1" rx="2.4" ry="3.1" fill="#2b2b2b"/>
+              <ellipse cx="6" cy="-1" rx="2.4" ry="3.1" fill="#2b2b2b"/>
+              <circle cx="-5.2" cy="-2" r="0.9" fill="#fff"/>
+              <circle cx="6.8" cy="-2" r="0.9" fill="#fff"/>
+              <path d="M-1.6 3.6h3.2l-1.6 1.9z" fill="#e57b8c"/>
+              <path d="M0 5.5q-1.5 2-3.2 1M0 5.5q1.5 2 3.2 1M-8 5l-9-1.6M-8 7l-9 1M8 5l9-1.6M8 7l9 1" stroke="#7a4a2a" stroke-width="0.7" stroke-linecap="round" fill="none"/>
+            </g></g>
             <g class="heroCard heroCardBack">
               <rect x="60" y="14" width="46" height="66" rx="7"/>
               <text x="83" y="52">♦</text>
@@ -303,6 +319,11 @@
               <rect x="43" y="18" width="48" height="70" rx="7"/>
               <text x="66.65" y="69.5" class="heroQueen">Q</text>
               <text x="67" y="43.5" class="heroSpade">♠</text>
+            </g>
+            <g class="heroCatBubble">
+              <rect x="99" y="-8" width="38" height="16" rx="8"/>
+              <path d="M101-2 91 0 101 4Z"/>
+              <text x="118" y="3.5"></text>
             </g>
           </svg>
         </div>
@@ -419,6 +440,16 @@
             <option value="slow">Gemütlich</option>
           </select>
         </label>
+        <!-- One level for every bot; a single bot is still changed on its seat. -->
+        <label class="rule-toggle"><span>Bot-Stärke</span>
+          <select id="ruleBotLevel">
+            <option value="easy">Leicht</option>
+            <option value="medium" selected>Mittel</option>
+            <option value="hard">Schwer</option>
+            <option value="zen">Zen</option>
+            <option value="mixed" disabled hidden>Gemischt</option>
+          </select>
+        </label>
       </div>
       </div><!-- /sessionPanels -->
 
@@ -471,7 +502,7 @@
               <em>Familien-Romm&eacute;</em> kennen. Hier kannst du das <strong>Pik Dame Kartenspiel</strong>
               und damit <strong>Romm&eacute; kostenlos online spielen</strong> &ndash;
               direkt im Browser, <strong>ohne Anmeldung und ohne Download</strong>, auf Handy, Tablet oder PC.
-              Spiele <strong>Romm&eacute; mit Freunden</strong> per Einladungslink oder gegen Bots in drei Schwierigkeitsstufen.
+              Spiele <strong>Romm&eacute; mit Freunden</strong> per Einladungslink oder gegen Bots in vier Schwierigkeitsstufen.
             </p>
             <h3>Wie funktioniert Pik Dame?</h3>
             <p>
@@ -725,6 +756,7 @@
         <!-- My points vs. the top 5 others (14 days): collapsed by default, remembered. -->
         <button id="challengeTrendBtn" type="button" class="challengeTrendToggle" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-chart"/></svg><span>Du vs. Top 5 (14 Tage)</span><svg class="icon chev" aria-hidden="true"><use href="#i-chevron"/></svg></button>
         <div id="challengeTrend" class="challengeTrend hidden"></div>
+        <button id="challengeShareBtn" type="button" class="btn-secondary shareBtn hidden"><svg class="icon" aria-hidden="true"><use href="#i-share"/></svg><span>Ergebnis teilen</span></button>
         <button id="challengeStartBtn" class="btn-primary">Los geht's!</button>
         <button id="challengeCancelBtn" class="btn-secondary">Abbrechen</button>
       </div>
@@ -753,19 +785,30 @@
       </div>
     </section>
 
-    <!-- DAILY PUZZLE: one hand, one question, the engine grades -->
+    <!-- DAILY PUZZLE: one hand, one question, the engine grades. The kind
+         rotates by weekday; the arrows browse the archive (no XP there). -->
     <section id="puzzleOverlay" class="overlay hidden">
       <div class="overlay-card">
         <h2><svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg><span>Tagesrätsel</span></h2>
-        <p class="lobby-hint">Welche Karten ergeben zusammen die wertvollste Auslage? Tippe sie an und prüfe - die Regeln entscheiden.</p>
+        <div class="puzzleNav">
+          <button id="puzzlePrevBtn" type="button" class="btn-icon puzzleNavBtn" title="Vorheriger Tag" aria-label="Vorheriger Tag"><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></button>
+          <span id="puzzleDay" class="puzzleDay"></span>
+          <button id="puzzleNextBtn" type="button" class="btn-icon puzzleNavBtn" title="Nächster Tag" aria-label="Nächster Tag"><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></button>
+        </div>
+        <p id="puzzleQuestion" class="lobby-hint"></p>
         <p id="puzzleTarget" class="puzzleTarget"></p>
+        <div id="puzzleMelds" class="puzzleMelds hidden"></div>
         <div id="puzzleHand" class="puzzleHand"></div>
         <p id="puzzleStatus" class="puzzleStatus"></p>
-        <div class="dialog-actions">
-          <button id="puzzleCheckBtn" class="btn-primary">Prüfen</button>
-          <button id="puzzleRevealBtn" class="btn-secondary">Lösung zeigen</button>
+        <div class="puzzleActions">
+          <div class="dialog-actions">
+            <button id="puzzleLayBtn" class="btn-secondary hidden">Auslegen</button>
+            <button id="puzzleCheckBtn" class="btn-primary">Prüfen</button>
+            <button id="puzzleRevealBtn" class="btn-secondary">Lösung zeigen</button>
+          </div>
+          <button id="puzzleShareBtn" type="button" class="btn-secondary shareBtn hidden"><svg class="icon" aria-hidden="true"><use href="#i-share"/></svg><span>Ergebnis teilen</span></button>
+          <button id="puzzleCloseBtn" class="btn-secondary">Schließen</button>
         </div>
-        <button id="puzzleCloseBtn" class="btn-secondary">Schließen</button>
       </div>
     </section>
 
@@ -1039,7 +1082,7 @@
 
           <h3>Hausregeln (beim Erstellen wählbar)</h3>
           <ul>
-            <li><b>Bot-Schwierigkeit:</b> Anfänger, Fortgeschritten oder Zen-Meister – auch pro Bot einzeln umstellbar (Tipp auf das Symbol am Bot).</li>
+            <li><b>Bot-Stärke:</b> Anfänger, Fortgeschritten, Profi oder Zen-Meister – für alle Bots in der Lobby oder pro Bot einzeln (Tipp auf die Stufe am Bot).</li>
             <li><b>⏱ Zug-Timer:</b> 30/60/90 Sekunden pro Zug. Läuft die Zeit ab, spielt die Bot-Logik den Zug fair zu Ende – der Tisch wartet nie ewig.</li>
             <li><b>Hand aus zählt doppelt</b> (siehe Punkte).</li>
             <li><b>1000 streng:</b> Sieg erst, wenn jemand über 1000 Punkten liegt.</li>

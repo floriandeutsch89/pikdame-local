@@ -3,6 +3,23 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.61.0] - 2026-10-17
+
+### Added
+- **Vier Bot-Stärken, die halten, was sie versprechen:** Leicht, Mittel, Schwer und Zen. Jede Stufe schlägt die darunter deutlich – gemessen in jeweils 3000 Partien. Neu ist **Schwer**: Diese Bots zählen die Karten mit. Zen spielt mit dem trainierten Netz. Bisher waren Mittel und Zen gleich stark, es gab praktisch nur „Anfänger“ und „sehr stark“
+- **Bot-Stärke in der Spiel-Lobby:** Unter den Hausregeln stellt der Organisator alle Bots auf einmal ein, wie das Bot-Tempo. Einzelne Bots lassen sich weiter an ihrer Stufe umstellen. Die Auswahl zeigt die Stärke als Balken
+- **Neue Tagesrätsel im Wochentakt:** Montags und donnerstags „Beste Auslage“ wie bisher, dienstags, freitags und sonntags **„Ausmachen“** (alle Karten bis auf eine auslegen) und mittwochs und samstags **„Bester Zug“** (so viele Punkte wie möglich in einem Zug, auch in mehreren Auslagen). Zum Wochenende hin werden sie schwerer. Ausgelegte Gruppen tippt man zum Zurücknehmen einfach an
+- **Rätsel-Archiv:** Mit den Pfeilen im Tagesrätsel lassen sich alle früheren Rätsel nachspielen – ohne EP und ohne dass etwas gespeichert wird
+- **Ergebnis teilen:** Nach der Tages-Challenge und nach dem Tagesrätsel gibt es „Ergebnis teilen“, zum Beispiel „Platz 3 von 12 · 1120 Punkte · ♠Q nie erwischt“ oder „Gelöst im 2. Versuch 🟥🟩“. Am Handy öffnet sich das Teilen-Menü, sonst wird der Text kopiert
+
+### Changed
+- **Neue Tische starten mit mittleren Bots** statt mit Zen. Auch das Tutorial spielt gegen die mittlere Stufe, ohne Netz
+- **Eingeladene Mitspieler sitzen verteilt:** Wer per Code oder Link an einen Tisch kommt, bekommt den freien Platz, der am weitesten von den anderen Mitspielern entfernt ist. Zu zweit an vier Plätzen heißt das Spieler, Bot, Spieler, Bot, zu dritt Spieler, Bot, Spieler. Bisher saß man direkt hinter dem Gastgeber. Umsetzen kann der Organisator wie gewohnt
+- **Die Bots spielen nach den aktuellen Regeln:** Sie hielten bisher Karten zurück, die an fremde Auslagen gepasst hätten – in der Annahme, der Nächste dürfe damit den Ablagestapel nehmen. Das erlaubt nur eine neue Kombination mit Handkarten, nie das Anlegen. Ohne diesen Irrtum gewinnen die Bots rund 70 % der Vergleichspartien. Das betrifft auch die Tages-Challenge: Ihre Bots sind dadurch stärker als gestern, bleiben aber klar unter Zen
+- **Querformat am Handy: alle Auslagen auf einen Blick.** Die Auslagen aller Spieler stehen nebeneinander, mit dem Namen als Überschrift. Bisher sah man ohne Scrollen nur die eigenen
+- **Tagesrätsel kompakter:** kleinere Karten, die Hand sortiert wie am Tisch. Im Querformat stehen die Karten links und die Knöpfe rechts
+- Knöpfe in Dialogen sind jetzt mindestens 44 px hoch (vorher 43 px)
+
 ## [2.60.1] - 2026-10-16
 
 ### Changed

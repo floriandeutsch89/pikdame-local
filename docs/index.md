@@ -89,8 +89,9 @@ flowchart LR
 - **Real multiplayer, no accounts required.** Create a game, share the link or
   the six-character code, play. Accounts are optional and only add profiles and
   statistics.
-- **Bots that hold up.** Three difficulty levels in the lobby (a fourth, Zen, is the strongest and card-counting); every behavioural change to
-  them is A/B-measured in self-play before it ships (see {doc}`developer/bots`).
+- **Bots that hold up.** Four difficulty levels, each measurably stronger than
+  the one below (Zen plays a trained net); every behavioural change to them is
+  A/B-measured in self-play before it ships (see {doc}`developer/bots`).
 - **Self-hosted.** One container plus a volume. No telemetry, no ads, no
   third-party services in the game path.
 - **Survives deployments.** Running tables are snapshotted and restored across

@@ -1,16 +1,36 @@
 # Bots
 
-Three difficulty levels in the lobby. The default engine is **heuristic** — hand-written rules
-for drawing, melding and discarding. In the Docker image a trained **ONNX
-policy** makes the draw and discard decisions instead ({doc}`../admin/onnx`);
-melding stays with the engine either way, because a meld is either legal or
-not.
+Four difficulty levels, each measurably stronger than the one below. Three are
+**heuristic** — hand-written rules for drawing, melding and discarding. Zen lets
+a trained **ONNX policy** make the draw and discard decisions where the runtime
+is installed ({doc}`../admin/onnx`) and falls back to the Hard heuristic
+otherwise; melding stays with the engine either way, because a meld is either
+legal or not. New tables start on Medium.
+
+| Level | Engine | Step up (2 vs 2, win share of the stronger level) |
+| --- | --- | --- |
+| Leicht (`easy`) | heuristic, random discards, often misses the pile | — |
+| Mittel (`medium`) | heuristic value play | 88.7 % ± 0.8 over Leicht |
+| Schwer (`hard`) | heuristic with card counting (the old zen heuristic) | 57.4 % ± 0.7 over Mittel |
+| Zen (`zen`) | trained network | 77.5 % ± 0.8 over Schwer |
+
+Measured 2026-10-17 with the net active (the prod default), 10 batches × 300
+paired games per step, ± = standard error of the batch means:
+
+```bash
+node scripts/sim-bots.js --ladder            # needs onnxruntime-node for Zen
+node scripts/sim-bots.js --ladder medium,hard --batches 10 --games 300
+```
+
+Before 2.61 Medium also played the net. Medium and Zen nets were equally strong
+(50.6 % ± 1.3), so the game effectively had two levels: Leicht and "the net".
+The daily challenge always plays heuristic Medium.
 
 ## One bot turn
 
 ```mermaid
 flowchart TD
-  T([runBotTurn]) --> Q{ONNX policy<br/>loaded for this tier?}
+  T([runBotTurn]) --> Q{Zen, with the<br/>net loaded?}
   Q -- yes --> N["network picks<br/>draw source"]
   Q -- no --> H["decideDraw()<br/>take the pile if its top card<br/>forms a combination"]
   N & H --> M["planBotMelds()<br/>findHandMelds · lay-offs · joker swaps<br/>never the last card"]
@@ -41,6 +61,24 @@ node scripts/sim-ab.js 5000 <knob> <value>
 
 It reports the variant's win share (50 % = no effect) with a standard error, plus
 the average score margin.
+
+## A rule change the bots missed
+
+Until 2.61 the discard heuristic avoided every card that fit an opponent's meld,
+on the belief that this lets the next player take the whole pile. The rule had
+long been different: only a **new** meld with hand cards allows the pickup
+(`GameManager.canUseDiscardTop`), laying off never does. The filter only made
+the bots keep the wrong cards. Removing it (and the same check for the Queen of
+Spades in the endgame) measured, in paired self-play:
+
+| Bot | Win share without the filter |
+| --- | --- |
+| Medium | 70.6 % ± 0.8 (n = 3000) |
+| Zen heuristic | 73.4 % ± 0.8 (n = 3000) |
+
+It also uncovered the counting heuristic: before, zen beat medium by 53.1 %
+± 1.4, after the fix by 58.7 % ± 1.3. Lesson: when a rule changes, search the
+bot code (comments included) for reasoning built on the old rule.
 
 ## Ideas that were measured and rejected
 

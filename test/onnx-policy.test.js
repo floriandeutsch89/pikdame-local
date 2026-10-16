@@ -73,16 +73,22 @@ test('ONNX: the models folder ships at least one committed model', () => {
   assert.ok(models.length >= 1, `expected committed .onnx models, found: ${models.join(', ') || 'none'}`);
 });
 
-test('ONNX: the daily challenge always plays the heuristic, other tables the net', () => {
-  // With the net, medium is as strong as zen (measured) - the daily stays fun.
+test('ONNX: only Zen plays the net, and never in the daily challenge', () => {
+  // With the net, medium was as strong as zen (measured): the lower levels
+  // stay heuristic so the four levels form a ladder.
   const GameManager = require('../game/GameManager');
   const prev = process.env.PIKDAME_ONNX;
   process.env.PIKDAME_ONNX = '1';
   const challenge = new GameManager(() => {}, { deckSeed: 1, challengeDate: '2026-10-16' });
   const normal = new GameManager(() => {});
+  const seat = (botDifficulty) => ({ id: 'b', isBot: true, botDifficulty });
   try {
-    assert.equal(challenge._botTurnUsesOnnx(), false, 'challenge bots skip the net');
-    assert.equal(normal._botTurnUsesOnnx(), true, 'normal tables keep the net');
+    assert.equal(challenge._botTurnUsesOnnx(seat('zen')), false, 'challenge bots skip the net');
+    assert.equal(normal._botTurnUsesOnnx(seat('zen')), true, 'zen plays the net');
+    assert.equal(normal._botTurnUsesOnnx({ id: 'h', isBot: false }), true, 'a stand-in for a human plays zen');
+    for (const level of ['easy', 'medium', 'hard']) {
+      assert.equal(normal._botTurnUsesOnnx(seat(level)), false, `${level} stays heuristic`);
+    }
   } finally {
     challenge.destroy();
     normal.destroy();

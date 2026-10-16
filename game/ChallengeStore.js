@@ -134,6 +134,15 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
     return (store.days[date] || []).slice(0, top).map((e, i) => ({ rank: i + 1, name: e.name, score: e.score }));
   }
 
+  /** One player's ranked result of the day, for sharing: rank, score, caught
+   *  Queens of Spades and how many played. Null without a ranked game. */
+  function resultOf(date, name) {
+    const list = load().days[date] || [];
+    const idx = list.findIndex((e) => e.name.toLowerCase() === String(name || '').toLowerCase());
+    if (idx === -1) return null;
+    return { rank: idx + 1, score: list[idx].score, queens: list[idx].queens || 0, players: list.length };
+  }
+
   function rankOf(date, name) {
     const store = load();
     const list = store.days[date] || [];
@@ -260,7 +269,7 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
   }
 
   return {
-    submit, getBoard, rankOf, getHistory, getWeekly, getTrend, wasChampion,
+    submit, getBoard, rankOf, resultOf, getHistory, getWeekly, getTrend, wasChampion,
     beginAttempt, closeAttempt, markLostAttempts, hasAttempted, queenMagnet, wasQueenMagnet,
   };
 }

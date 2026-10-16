@@ -635,6 +635,34 @@
     if (navigator.vibrate) navigator.vibrate(pattern);
   }
 
+  // A sliding tone through a moving band pass: reads as a short "miau".
+  function playMeow() {
+    if (!soundEnabled) return;
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') ctx.resume();
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const band = ctx.createBiquadFilter();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(480, t);
+    osc.frequency.linearRampToValueAtTime(780, t + 0.12);
+    osc.frequency.linearRampToValueAtTime(440, t + 0.5);
+    band.type = 'bandpass';
+    band.Q.value = 3;
+    band.frequency.setValueAtTime(900, t);
+    band.frequency.linearRampToValueAtTime(1500, t + 0.15);
+    band.frequency.linearRampToValueAtTime(800, t + 0.5);
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.12, t + 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+    osc.connect(band).connect(gain).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.6);
+    scheduleAudioSuspend();
+  }
+
   const sound = {
     pikdame: () => { playTone([98, 147, 98], 520, 'sawtooth', 0.06); vibrate([60, 40, 60, 40, 120]); },
     turn: () => { playTone([523, 659], 180, 'sine', 0.06); vibrate([30, 60, 30]); },
@@ -643,7 +671,29 @@
     meld: () => { playTone([440, 554, 660], 220, 'sine', 0.06); vibrate([10, 30, 10]); },
     error: () => { playTone([140], 160, 'square', 0.05); vibrate(40); },
     roundEnd: () => { playTone([392, 494, 587, 784], 420, 'sine', 0.07); vibrate([15, 40, 15, 40]); },
+    meow: () => { playMeow(); vibrate([12, 60, 12]); },
   };
+
+  // A present for a cat lover, deliberately in no CHANGELOG or doc: five quick
+  // taps on the card fan of the start screen and a cat peeks out behind it.
+  (() => {
+    const hero = document.querySelector('.lobbyHero');
+    if (!hero) return;
+    let taps = [];
+    let hideTimer = null;
+    hero.addEventListener('click', () => {
+      const now = Date.now();
+      taps = taps.filter((at) => now - at < 2500).concat(now);
+      if (taps.length < 5 || hero.classList.contains('catOut')) return;
+      taps = [];
+      const says = hero.querySelector('.heroCatBubble text');
+      if (says) says.textContent = L('Miau!', 'Meow!');
+      hero.classList.add('catOut');
+      sound.meow();
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => hero.classList.remove('catOut'), 3500);
+    });
+  })();
 
   // Settings rows carry an <svg class="icon"> plus a label and a value span.
   // Never assign textContent to the row itself - that would wipe the icon.
@@ -1599,6 +1649,9 @@
     setCtl('ruleStrict1000', hr.strictThreshold, true);
     setCtl('ruleTurnTimer', hr.turnTimerSeconds != null ? hr.turnTimerSeconds : 0);
     setCtl('ruleBotPace', hr.botPace || 'normal');
+    // Bot strength: the bots' common level, "Gemischt" once one bot differs.
+    const botLevels = new Set(lastState.players.filter((p) => p.isBot).map((p) => p.botDifficulty || 'zen'));
+    setCtl('ruleBotLevel', botLevels.size === 0 ? (lastState.botLevel || 'medium') : botLevels.size === 1 ? [...botLevels][0] : 'mixed');
     // House rules are read-only for non-hosts.
     el('houseRulesSection').querySelectorAll('input, select, button').forEach((ctrl) => {
       // ruleSound is a personal (per-device) setting - never lock it.
@@ -1953,7 +2006,7 @@
       header.className = 'meldOwnerHeader';
       header.innerHTML = isMine
         ? L('Deine Auslagen', 'Your melds')
-        : L(`Auslagen von ${escapeHtml(owner.name)}${botMark(owner)}`, `${escapeHtml(owner.name)}'s melds${botMark(owner)}`);
+        : L(`<span class="ownerWord">Auslagen von </span>${escapeHtml(owner.name)}${botMark(owner)}`, `${escapeHtml(owner.name)}<span class="ownerWord">'s melds</span>${botMark(owner)}`);
       header.addEventListener('click', () => {
         meldFilterPlayerId = meldFilterPlayerId === owner.id ? null : owner.id;
         render();
@@ -3677,6 +3730,10 @@
 
   // Host changes to house rules sync LIVE so every player sees them and the
   // bots follow immediately (ruleSound stays local - it's a personal setting).
+  el('ruleBotLevel').addEventListener('change', () => {
+    const level = el('ruleBotLevel').value;
+    if (lastState && lastState.isHost && !lastState.challengeDate && level !== 'mixed') send({ type: 'setAllBotDifficulty', difficulty: level });
+  });
   ['ruleHandAus', 'ruleStrict1000', 'ruleTurnTimer', 'ruleBotPace'].forEach((id) => {
     el(id).addEventListener('change', () => {
       if (lastState && lastState.isHost && !lastState.challengeDate) send({ type: 'setHouseRules', houseRules: collectHouseRules() });
@@ -3795,11 +3852,16 @@
   el('resultForfeitBtn').addEventListener('click', () => toggleForfeit('roundEnd'));
 
   // --- Per-bot difficulty ---------------------------------------------------
+  // Weakest first, like game/Bot.js BOT_LEVELS; `bars` draws the strength.
   const BOT_DIFF = {
-    easy: { icon: '🌱', short: () => L('Leicht', 'Easy'), label: () => L('Anfänger', 'Beginner'), hint: () => L('macht Anfängerfehler', 'makes beginner mistakes') },
-    medium: { icon: '🙂', short: () => L('Mittel', 'Medium'), label: () => L('Fortgeschritten', 'Advanced'), hint: () => L('solides Familienspiel', 'solid family play') },
-    zen: { icon: '🧘', short: () => L('Zen', 'Zen'), label: () => L('Zen-Meister', 'Zen master'), hint: () => L('zählt die Karten mit', 'counts the cards') },
+    easy: { bars: 1, short: () => L('Leicht', 'Easy'), label: () => L('Anfänger', 'Beginner'), hint: () => L('macht Anfängerfehler', 'makes beginner mistakes') },
+    medium: { bars: 2, short: () => L('Mittel', 'Medium'), label: () => L('Fortgeschritten', 'Advanced'), hint: () => L('solides Familienspiel', 'solid family play') },
+    hard: { bars: 3, short: () => L('Schwer', 'Hard'), label: () => L('Profi', 'Expert'), hint: () => L('zählt die Karten mit', 'counts the cards') },
+    zen: { bars: 4, short: () => L('Zen', 'Zen'), label: () => L('Zen-Meister', 'Zen master'), hint: () => L('spielt am stärksten', 'plays strongest') },
   };
+  function diffBarsHtml(n) {
+    return `<span class="diffBars" aria-hidden="true">${[1, 2, 3, 4].map((i) => `<i${i <= n ? ' class="on"' : ''}></i>`).join('')}</span>`;
+  }
   function openBotDiffOverlay(bot) {
     // Tages-Challenge: Bot-Stärke ist fest (mittel für alle) - Menü gar nicht anbieten.
     if (lastState && lastState.challengeDate) return;
@@ -3809,7 +3871,7 @@
     for (const [key, meta] of Object.entries(BOT_DIFF)) {
       const btn = document.createElement('button');
       if (key === bot.botDifficulty) btn.classList.add('current');
-      btn.innerHTML = `<span class="diffIcon">${meta.icon}</span><span>${meta.label()}<small>${meta.hint()}</small></span>`;
+      btn.innerHTML = `${diffBarsHtml(meta.bars)}<span>${meta.label()}<small>${meta.hint()}</small></span>`;
       btn.addEventListener('click', () => {
         send({ type: 'setBotDifficulty', botId: bot.id, difficulty: key });
         el('botDiffOverlay').classList.add('hidden');
@@ -4222,7 +4284,41 @@
     requestAnimationFrame(() => applyTutorialHighlight(tutorialHighlight));
   }
 
+  // --- Sharing results (Wordle style): emoji are content here, not icons ---
+  function shareDay(iso) {
+    const d = new Date(`${iso}T12:00:00`);
+    return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-DE', { day: 'numeric', month: 'short' });
+  }
+  // The system share sheet where it exists, else the clipboard.
+  async function shareResult(text) {
+    const url = `${window.location.origin}/`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Pik Dame', text, url });
+        return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return; // the player closed the sheet
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(`${text}\n${url}`);
+      showHint(L('Ergebnis kopiert - jetzt einfügen und teilen.', 'Result copied - paste it to share.'), false);
+    } catch (e) {
+      showHint(L('Teilen ist hier nicht möglich.', 'Sharing is not available here.'), true);
+    }
+  }
+  function challengeShareText(r) {
+    const queens = r.queens > 0
+      ? L(`♠Q ${r.queens}× erwischt`, `♠Q caught ${r.queens}×`)
+      : L('♠Q nie erwischt', '♠Q never caught');
+    const place = r.players ? L(`Platz ${r.rank} von ${r.players}`, `Rank ${r.rank} of ${r.players}`) : L(`Platz ${r.rank}`, `Rank ${r.rank}`);
+    return `${L('Pik Dame · Tages-Challenge', 'Pik Dame · Daily challenge')} ${shareDay(r.date)}\n${place} · ${r.score} ${L('Punkte', 'points')} · ${queens}`;
+  }
+  const shareBtnHtml = (cls, de, en) =>
+    `<button type="button" class="btn-secondary shareBtn ${cls}"><svg class="icon" aria-hidden="true"><use href="#i-share"/></svg><span>${L(de, en)}</span></button>`;
+
   let lastChallengeBoard = null;
+  let challengeIntroResult = null; // today's ranked result in the intro sheet, for sharing
   const magnetText = (m) => L(`🧲 Damen-Magnet des Tages: ${m.name} (${m.queens}×)`, `🧲 Queen magnet of the day: ${m.name} (${m.queens}×)`);
   function renderChallengeBoard() {
     if (!lastChallengeBoard) return;
@@ -4266,9 +4362,16 @@
       : '';
     const yourLine = L(`Dein Ergebnis: ${b.yourScore} Punkte${b.yourRank ? ` · Platz ${b.yourRank}` : ''}`, `Your result: ${b.yourScore} points${b.yourRank ? ` · rank ${b.yourRank}` : ''}`);
     const magnetBlock = b.magnet ? `<p class="challengeMagnet">${escapeHtml(magnetText(b.magnet))}</p>` : '';
+    const shareBlock = b.yourRank ? shareBtnHtml('challengeShareBtn', 'Ergebnis teilen', 'Share result') : '';
     box.innerHTML = `<h3>🗓️ ${L('Tages-Challenge', 'Daily challenge')} ${escapeHtml(b.date)}</h3>
-      <p class="challengeYour">${escapeHtml(yourLine)}</p>
+      <p class="challengeYour">${escapeHtml(yourLine)}</p>${shareBlock}
       <table class="statsTable"><tbody>${rows}</tbody></table>${magnetBlock}${weeklyBlock}${histBlock}`;
+    const shareBtn = box.querySelector('.challengeShareBtn');
+    if (shareBtn) {
+      shareBtn.addEventListener('click', () => shareResult(challengeShareText({
+        date: b.date, rank: b.yourRank, players: b.players, score: b.yourScore, queens: b.yourQueens,
+      })));
+    }
     body.appendChild(box);
   }
 
@@ -4284,6 +4387,7 @@
     // game left people wondering what was going on.
     el('challengeTopLine').textContent = '…';
     el('challengePlayedNote').classList.add('hidden');
+    el('challengeShareBtn').classList.add('hidden');
     el('challengeStartBtn').classList.remove('hidden');
     el('challengeCancelBtn').textContent = L('Abbrechen', 'Cancel');
     el('challengeMagnetLine').classList.add('hidden');
@@ -4304,6 +4408,8 @@
         // Attempt used: no start, the sheet is the day's board.
         const played = !!(d && d.attempted);
         el('challengePlayedNote').classList.toggle('hidden', !played);
+        challengeIntroResult = d && d.you ? { ...d.you, date: d.date } : null;
+        el('challengeShareBtn').classList.toggle('hidden', !challengeIntroResult);
         el('challengeStartBtn').classList.toggle('hidden', played);
         if (played) el('challengeCancelBtn').textContent = L('Schließen', 'Close');
         el('challengeMagnetLine').classList.toggle('hidden', !(d && d.magnet));
@@ -4321,6 +4427,9 @@
         el('challengeTopLine').textContent = L('Bestenliste gerade nicht erreichbar.', 'Leaderboard unavailable right now.');
         el('challengeWeekLine').textContent = '';
       });
+  });
+  el('challengeShareBtn').addEventListener('click', () => {
+    if (challengeIntroResult) shareResult(challengeShareText(challengeIntroResult));
   });
   // My points vs. the top 5 others of the last 14 days. Optional: collapsed
   // unless opened before (remembered); uPlot loads only when it opens.
@@ -4607,20 +4716,52 @@
   try { renderStammtischRecent(); } catch (e) { /* cosmetic */ }
 
   // --- Daily puzzle --------------------------------------------------------
-  // One hand, one question, the engine grades. Selection lives here; the
-  // server owns tries/solved (local profile) and hands out the XP once.
-  let puzzleData = null;      // {date, hand, targetPoints, status}
+  // One hand, one question, the engine grades. The kind rotates by weekday
+  // (game/DailyPuzzle.js): one meld, a whole turn, or going out. The arrows
+  // browse past days: graded too, but no XP and nothing stored.
+  let puzzleData = null; // {date, kind, hand, targetPoints, status, archive, today, epoch}
   const puzzleSelected = new Set();
+  let puzzleGroups = []; // laid melds of a 'turn'/'out' puzzle (card id arrays)
+  let puzzleBadGroup = 0; // 1-based meld the server rejected
   let puzzleSolutionIds = null;
+  let puzzleSolutionMelds = null;
+  const PUZZLE_KINDS = {
+    meld: {
+      name: () => L('Beste Auslage', 'Best meld'),
+      question: () => L('Welche Karten ergeben zusammen die wertvollste Auslage? Tippe sie an und prüfe - die Regeln entscheiden.', 'Which cards together make the most valuable meld? Tap them and check - the rules decide.'),
+    },
+    turn: {
+      name: () => L('Bester Zug', 'Best turn'),
+      question: () => L('Lege in einem Zug so viele Punkte wie möglich aus, gern in mehreren Auslagen. Eine Karte bleibt zum Abwerfen.', 'Lay out as many points as you can in one turn, in several melds if you like. One card stays for the discard.'),
+    },
+    out: {
+      name: () => L('Ausmachen', 'Go out'),
+      question: () => L('Mach in einem Zug aus: Lege alle Karten bis auf eine aus - die letzte wirfst du ab.', 'Go out in one turn: lay out every card but one - the last one is your discard.'),
+    },
+  };
+  const puzzleKind = () => (puzzleData && PUZZLE_KINDS[puzzleData.kind] ? puzzleData.kind : 'meld');
   function openPuzzle() {
+    el('puzzleOverlay').classList.remove('hidden');
+    loadPuzzle(null);
+  }
+  // null = today, else an archive day (YYYY-MM-DD).
+  function loadPuzzle(date) {
     puzzleSelected.clear();
+    puzzleGroups = [];
+    puzzleBadGroup = 0;
     puzzleSolutionIds = null;
+    puzzleSolutionMelds = null;
     puzzleData = null;
     el('puzzleHand').innerHTML = '';
+    el('puzzleMelds').classList.add('hidden');
     el('puzzleTarget').textContent = '…';
     setPuzzleStatus('', '');
-    el('puzzleOverlay').classList.remove('hidden');
-    send({ type: 'getPuzzle', name: currentName() });
+    send({ type: 'getPuzzle', name: currentName(), ...(date ? { date } : {}) });
+  }
+  // Calendar arithmetic on the date string (no 24-hour steps, see GameDay.js).
+  function shiftDay(iso, n) {
+    const [y, m, d] = String(iso).split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
   }
   function setPuzzleStatus(text, cls) {
     const n = el('puzzleStatus');
@@ -4633,17 +4774,62 @@
     const st = status || {};
     return !!st.solved || !!st.revealed || !!solutionIds;
   }
+  // Same order as the own hand at the table (suit or rank, see the toggle).
+  function puzzleSort(a, b) {
+    const dr = RANK_ORDER.indexOf(a.rank) - RANK_ORDER.indexOf(b.rank);
+    if (handSortMode === 'rank') return dr || a.suit.localeCompare(b.suit);
+    return a.suit.localeCompare(b.suit) || dr;
+  }
+  function puzzleTargetText() {
+    const kind = puzzleKind();
+    if (kind === 'out') return L('Ziel: alle Karten bis auf eine auslegen', 'Target: lay out every card but one');
+    if (kind === 'turn') return L(`Ziel: ${puzzleData.targetPoints} Punkte in einem Zug`, `Target: ${puzzleData.targetPoints} points in one turn`);
+    return L(`Ziel: ${puzzleData.targetPoints} Punkte in einer Auslage`, `Target: ${puzzleData.targetPoints} points in one meld`);
+  }
   function renderPuzzle() {
     if (!puzzleData) return;
     const st = puzzleData.status || {};
-    el('puzzleTarget').textContent = L(
-      `Ziel: ${puzzleData.targetPoints} Punkte in einer Auslage`,
-      `Target: ${puzzleData.targetPoints} points in one meld`
-    ) + (st.tries ? ` · ${L(`${st.tries}. Versuch`, `attempt ${st.tries}`)}` : '');
+    const kind = puzzleKind();
+    const multi = kind !== 'meld';
+    const done = puzzleLocked(st, puzzleSolutionIds);
+    el('puzzleOverlay').dataset.kind = kind;
+    el('puzzleQuestion').textContent = PUZZLE_KINDS[kind].question();
+    el('puzzleDay').textContent = `${puzzleData.archive ? shareDay(puzzleData.date) : L('Heute', 'Today')} · ${PUZZLE_KINDS[kind].name()}`;
+    el('puzzlePrevBtn').disabled = puzzleData.date <= puzzleData.epoch;
+    el('puzzleNextBtn').disabled = !puzzleData.archive;
+    el('puzzlePrevBtn').setAttribute('aria-label', L('Vorheriger Tag', 'Previous day'));
+    el('puzzleNextBtn').setAttribute('aria-label', L('Nächster Tag', 'Next day'));
+    el('puzzleTarget').textContent = puzzleTargetText()
+      + (st.tries ? ` · ${L(`${st.tries}. Versuch`, `attempt ${st.tries}`)}` : '')
+      + (puzzleData.archive ? ` · ${L('Archiv, ohne EP', 'archive, no XP')}` : '');
+    // Laid melds of a multi-meld puzzle; after "Lösung zeigen" the solution.
+    const groups = multi && puzzleSolutionMelds ? puzzleSolutionMelds : puzzleGroups;
+    const meldsBox = el('puzzleMelds');
+    meldsBox.innerHTML = '';
+    meldsBox.classList.toggle('hidden', !multi || groups.length === 0);
+    groups.forEach((ids, gi) => {
+      const g = document.createElement('button');
+      g.type = 'button';
+      g.className = `puzzleMeld${puzzleBadGroup === gi + 1 ? ' bad' : ''}`;
+      g.disabled = done;
+      g.setAttribute('aria-label', L(`Auslage ${gi + 1}: zurück auf die Hand`, `Meld ${gi + 1}: back to the hand`));
+      for (const id of ids) {
+        const card = puzzleData.hand.find((c) => c.id === id);
+        if (card) g.appendChild(cardEl(card, {}));
+      }
+      g.addEventListener('click', () => {
+        puzzleGroups = puzzleGroups.filter((_, i) => i !== gi);
+        puzzleBadGroup = 0;
+        setPuzzleStatus('', '');
+        renderPuzzle();
+      });
+      meldsBox.appendChild(g);
+    });
+    const laid = new Set(groups.flat());
     const box = el('puzzleHand');
     box.innerHTML = '';
-    const done = puzzleLocked(st, puzzleSolutionIds);
-    for (const card of puzzleData.hand) {
+    for (const card of puzzleData.hand.slice().sort(puzzleSort)) {
+      if (laid.has(card.id)) continue;
       const cEl = cardEl(card, {
         selectable: !done,
         selected: puzzleSelected.has(card.id),
@@ -4657,8 +4843,11 @@
       if (puzzleSolutionIds && puzzleSolutionIds.includes(card.id)) cEl.classList.add('solution');
       box.appendChild(cEl);
     }
-    el('puzzleCheckBtn').disabled = done || puzzleSelected.size < 3;
+    el('puzzleLayBtn').classList.toggle('hidden', !multi || done);
+    el('puzzleLayBtn').disabled = puzzleSelected.size < 3;
+    el('puzzleCheckBtn').disabled = done || (multi ? puzzleGroups.length === 0 : puzzleSelected.size < 3);
     el('puzzleRevealBtn').classList.toggle('hidden', done);
+    el('puzzleShareBtn').classList.toggle('hidden', puzzleData.archive || !(st.solved || st.revealed));
     // Reopened after a solve: say so - but never overwrite the fresh
     // "Gelöst! +30 EP" line right after the winning check.
     if (st.solved && !puzzleSolutionIds && !el('puzzleStatus').textContent) {
@@ -4667,36 +4856,77 @@
       setPuzzleStatus(L('Lösung heute schon angezeigt - morgen gibt es ein neues.', 'Solution already shown today - a new one comes tomorrow.'), '');
     }
   }
+  // Wordle style: one red square per miss, green for the solve.
+  function puzzleShareText() {
+    const st = puzzleData.status || {};
+    const tries = Math.max(1, st.tries || 1);
+    const line = st.solved
+      ? `${L(`Gelöst im ${tries}. Versuch`, `Solved on try ${tries}`)} ${'🟥'.repeat(tries - 1)}🟩`
+      : `${L('Lösung angesehen', 'Looked at the solution')} ${'🟥'.repeat(st.tries || 0)}⬛`;
+    return `${L('Pik Dame · Tagesrätsel', 'Pik Dame · Daily puzzle')} ${shareDay(puzzleData.date)} (${PUZZLE_KINDS[puzzleKind()].name()})\n${line}`;
+  }
   el('puzzleBtn').addEventListener('click', openPuzzle);
   el('puzzleCloseBtn').addEventListener('click', () => el('puzzleOverlay').classList.add('hidden'));
   el('puzzleOverlay').addEventListener('click', (ev) => {
     if (ev.target === el('puzzleOverlay')) el('puzzleOverlay').classList.add('hidden');
   });
-  el('puzzleCheckBtn').addEventListener('click', () => {
+  el('puzzlePrevBtn').addEventListener('click', () => {
+    if (puzzleData && puzzleData.date > puzzleData.epoch) loadPuzzle(shiftDay(puzzleData.date, -1));
+  });
+  el('puzzleNextBtn').addEventListener('click', () => {
+    if (!puzzleData || !puzzleData.archive) return;
+    const next = shiftDay(puzzleData.date, 1);
+    loadPuzzle(next >= puzzleData.today ? null : next);
+  });
+  el('puzzleLayBtn').addEventListener('click', () => {
     if (puzzleSelected.size < 3) return;
-    send({ type: 'solvePuzzle', name: currentName(), cardIds: [...puzzleSelected] });
+    puzzleGroups.push([...puzzleSelected]);
+    puzzleSelected.clear();
+    puzzleBadGroup = 0;
+    setPuzzleStatus('', '');
+    renderPuzzle();
+  });
+  el('puzzleCheckBtn').addEventListener('click', () => {
+    if (!puzzleData) return;
+    const base = { type: 'solvePuzzle', name: currentName(), date: puzzleData.date };
+    if (puzzleKind() !== 'meld') {
+      if (puzzleGroups.length) send({ ...base, melds: puzzleGroups });
+      return;
+    }
+    if (puzzleSelected.size < 3) return;
+    send({ ...base, cardIds: [...puzzleSelected] });
   });
   el('puzzleRevealBtn').addEventListener('click', () => {
-    send({ type: 'revealPuzzle', name: currentName() });
+    send({ type: 'revealPuzzle', name: currentName(), ...(puzzleData ? { date: puzzleData.date } : {}) });
+  });
+  el('puzzleShareBtn').addEventListener('click', () => {
+    if (puzzleData) shareResult(puzzleShareText());
   });
   function handlePuzzleMessage(msg) {
     if (msg.type === 'puzzle') {
-      puzzleData = { date: msg.date, hand: msg.hand || [], targetPoints: msg.targetPoints || 0, status: msg.status || {} };
+      puzzleData = {
+        date: msg.date, kind: msg.kind || 'meld', hand: msg.hand || [], targetPoints: msg.targetPoints || 0,
+        status: msg.status || {}, archive: !!msg.archive, today: msg.today || msg.date, epoch: msg.epoch || msg.date,
+      };
       renderPuzzle();
       try { renderToday(); } catch (e) { /* cosmetic */ }
       return true;
     }
+    // Answers for another day (navigated away meanwhile) are stale.
+    if (!puzzleData || (msg.date && msg.date !== puzzleData.date)) return true;
     if (msg.type === 'puzzleResult') {
-      if (!puzzleData) return true;
       puzzleData.status = msg.status || puzzleData.status;
+      puzzleBadGroup = 0;
       if (!msg.valid) {
-        setPuzzleStatus(`❌ ${trs(msg.reason || '')}`, 'bad');
+        puzzleBadGroup = msg.badMeld || 0;
+        const where = msg.badMeld ? L(`Auslage ${msg.badMeld}: `, `Meld ${msg.badMeld}: `) : '';
+        setPuzzleStatus(`❌ ${where}${trs(msg.reason || '')}`, 'bad');
       } else if (msg.solved) {
         sound.meld();
-        setPuzzleStatus(
-          `✅ ${L(`Gelöst! ${msg.points} Punkte`, `Solved! ${msg.points} points`)}${msg.xp ? ` · +${msg.xp} ${L('EP', 'XP')}` : ''}`,
-          'ok'
-        );
+        const what = puzzleKind() === 'out'
+          ? L('Ausgemacht! Die letzte Karte wirfst du ab.', 'Out! The last card is your discard.')
+          : L(`Gelöst! ${msg.points} Punkte`, `Solved! ${msg.points} points`);
+        setPuzzleStatus(`✅ ${what}${msg.xp ? ` · +${msg.xp} ${L('EP', 'XP')}` : ''}`, 'ok');
         if (msg.level) myProgress = { xp: myProgress ? Math.max(myProgress.xp || 0, (msg.level.total || 0)) : (msg.level.total || 0), level: msg.level };
         if (msg.level && msg.xp) {
           const from = levelFromXpClient((msg.level.total || 0) - msg.xp).level;
@@ -4707,6 +4937,11 @@
         if (msg.badges && msg.badges.length) {
           showToast(`🏅 ${L('Neuer Erfolg', 'New badge')}: ${msg.badges.map((id) => `${badgeMeta(id).emoji} ${badgeMeta(id).name}`).join(', ')}`);
         }
+      } else if (puzzleKind() === 'out') {
+        setPuzzleStatus(
+          L(`Gültig, aber noch ${msg.left} Karten übrig - nur eine darf bleiben.`, `Valid, but ${msg.left} cards are left - only one may stay.`),
+          'bad'
+        );
       } else {
         setPuzzleStatus(
           L(`Gültig, aber nur ${msg.points} von ${msg.targetPoints} Punkten - da geht mehr.`, `Valid, but only ${msg.points} of ${msg.targetPoints} points - there is more.`),
@@ -4717,12 +4952,15 @@
       return true;
     }
     if (msg.type === 'puzzleSolution') {
-      if (!puzzleData) return true;
       puzzleSolutionIds = msg.cardIds || [];
+      puzzleSolutionMelds = Array.isArray(msg.melds) ? msg.melds : [puzzleSolutionIds];
       puzzleData.status = msg.status || puzzleData.status;
       puzzleSelected.clear();
-      for (const id of puzzleSolutionIds) puzzleSelected.add(id);
-      setPuzzleStatus(L(`Lösung: ${msg.points} Punkte (markiert). Ohne EP - morgen gibt es ein neues.`, `Solution: ${msg.points} points (highlighted). No XP - a new one comes tomorrow.`), '');
+      if (puzzleKind() === 'meld') for (const id of puzzleSolutionIds) puzzleSelected.add(id);
+      const what = puzzleKind() === 'out'
+        ? L('Lösung: so geht es raus (markiert).', 'Solution: this is the way out (highlighted).')
+        : L(`Lösung: ${msg.points} Punkte (markiert).`, `Solution: ${msg.points} points (highlighted).`);
+      setPuzzleStatus(puzzleData.archive ? what : `${what} ${L('Ohne EP - morgen gibt es ein neues.', 'No XP - a new one comes tomorrow.')}`, '');
       renderPuzzle();
       return true;
     }

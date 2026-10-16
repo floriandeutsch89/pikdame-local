@@ -1338,10 +1338,11 @@ test('setBotDifficulty: validation, effect and per-bot resolution in guards', ()
   g.fillWithBots();
 
   const bot = g.players.find((p) => p.isBot);
-  assert.equal(bot.botDifficulty, 'zen', 'bots default to Zen (no global setting)');
+  assert.equal(bot.botDifficulty, 'medium', 'bots default to Mittel (no global setting)');
 
   assert.match(g.setBotDifficulty('p1', bot.id, 'brutal').error, /Unbekannte/);
-  assert.match(g.setBotDifficulty('p1', bot.id, 'hard').error, /Unbekannte/, "'hard' no longer exists");
+  assert.equal(g.setBotDifficulty('p1', bot.id, 'hard').ok, true, "'hard' (Schwer) is a level again");
+  assert.ok(g.log.some((e) => e.text.includes('stellt') && e.text.includes('Profi')));
   assert.match(g.setBotDifficulty(bot.id, bot.id, 'easy').error, /Nur Spieler/, 'bots cannot request');
   assert.match(g.setBotDifficulty('p1', 'p1', 'easy').error, /Bot gibt es nicht/);
 
@@ -1790,12 +1791,38 @@ test('a joining human replaces a bot in place (order preserved), not appended', 
   g.maxSeats = 4;
   g.addOrReconnectPlayer('h1', 'Anna');
   g.syncLobbyBots();
-  const beforeBotSeat = g.players.findIndex((p) => p.isBot); // first bot index
+  const botIds = g.players.filter((p) => p.isBot).map((p) => p.id);
   g.addOrReconnectPlayer('h2', 'Ben');
   g.syncLobbyBots();
   assert.equal(g.players.length, 4, 'still exactly maxSeats seats');
   assert.equal(g.players.filter((p) => !p.isBot).length, 2, 'two humans now');
-  assert.equal(g.players[beforeBotSeat].id, 'h2', 'human took the bot seat position');
+  assert.deepEqual(g.players.filter((p) => p.isBot).map((p) => p.id), [botIds[0], botIds[2]], 'the other bots kept their seats');
+});
+
+test('a joining human sits away from the others: human, bot, human, bot', () => {
+  const pattern = (g) => g.players.map((p) => (p.isBot ? 'B' : 'H')).join('');
+  const table = (seats) => {
+    const g = __autoCutHook(new GameManager(() => {}));
+    g.maxSeats = seats;
+    g.addOrReconnectPlayer('h1', 'Anna');
+    g.syncLobbyBots();
+    return g;
+  };
+  const four = table(4);
+  four.addOrReconnectPlayer('h2', 'Ben');
+  assert.equal(pattern(four), 'HBHB', 'not right behind the host');
+  assert.equal(four.players[2].id, 'h2');
+  four.addOrReconnectPlayer('h3', 'Cleo');
+  assert.equal(pattern(four), 'HHHB', 'then the next free seat');
+  const three = table(3);
+  three.addOrReconnectPlayer('h2', 'Ben');
+  assert.equal(pattern(three), 'HBH', 'three seats: a bot between host and guest');
+  // The host moved to seat 1 by dragging: the guest still sits opposite.
+  const moved = table(4);
+  moved.reorderPlayers([moved.players[1].id, 'h1', moved.players[2].id, moved.players[3].id]);
+  moved.addOrReconnectPlayer('h2', 'Ben');
+  assert.equal(moved.players[3].id, 'h2');
+  for (const g of [four, three, moved]) g.destroy();
 });
 
 test('table is full only when maxSeats HUMANS have joined', () => {
@@ -1908,17 +1935,17 @@ test('start gate counts seated humans; a minimised player still blocks the start
 });
 
 // --- v1.52.0: per-bot difficulty in the lobby (no global setting) -----------
-test('bots default to Zen and are configured PER bot in the lobby', () => {
+test('bots default to Mittel and are configured PER bot in the lobby', () => {
   const g = __autoCutHook(new GameManager(() => {}));
   g.maxSeats = 4;
   g.addOrReconnectPlayer('h', 'Host');
   g.syncLobbyBots();
   const bots = g.players.filter((p) => p.isBot);
-  assert.ok(bots.every((b) => b.botDifficulty === 'zen'), 'every bot defaults to Zen');
+  assert.ok(bots.every((b) => b.botDifficulty === 'medium'), 'every bot defaults to Mittel');
   // setting one bot does not touch the others (per-bot, in the lobby)
   assert.equal(g.setBotDifficulty('h', bots[0].id, 'easy').ok, true);
   assert.equal(g.players.find((p) => p.id === bots[0].id).botDifficulty, 'easy');
-  assert.ok(bots.slice(1).every((b) => g.players.find((p) => p.id === b.id).botDifficulty === 'zen'), 'others unchanged');
+  assert.ok(bots.slice(1).every((b) => g.players.find((p) => p.id === b.id).botDifficulty === 'medium'), 'others unchanged');
   // botDifficulty is no longer a house rule
   assert.equal(g.houseRules.botDifficulty, undefined);
 });
@@ -2931,11 +2958,11 @@ test('the house-rule route never silently changed bot difficulty', () => {
   // Test hält fest, warum es eine eigene Methode braucht.
   const game = new GameManager(() => {}, { deckSeed: 1, challengeDate: '2026-08-09' });
   game.addOrReconnectPlayer('me', 'Flodex');
-  game.setHouseRules({ botDifficulty: 'medium', turnTimerSeconds: 0 }, { system: true });
+  game.setHouseRules({ botDifficulty: 'easy', turnTimerSeconds: 0 }, { system: true });
   game.fillWithBots();
   assert.equal(game.houseRules.botDifficulty, undefined, 'botDifficulty is not a house rule');
   for (const bot of game.players.filter((p) => p.isBot)) {
-    assert.equal(bot.botDifficulty, 'zen', 'without setAllBotsDifficulty the bots stay at the default');
+    assert.equal(bot.botDifficulty, 'medium', 'without setAllBotsDifficulty the bots stay at the default');
   }
   game.destroy();
 });
@@ -3464,4 +3491,28 @@ test('Stammtisch start gate: one human cannot start, two can; rematch too (#301)
   game.players = game.players.filter((p) => p.id !== 'p2');
   assert.match(game.lobbyStartGate({ minHumans: 2 }).error, /mindestens 2 Spieler/);
   game.destroy();
+});
+
+// --- Lobby control "Bot-Stärke": one level for every bot ---------------------
+test('setAllBotsDifficultyBy: every bot and later bots get the level; refused in the challenge', () => {
+  const g = __autoCutHook(new GameManager(() => {}));
+  g.maxSeats = 4;
+  g.addOrReconnectPlayer('h', 'Host');
+  g.syncLobbyBots();
+  assert.equal(g.publicState('h').botLevel, 'medium', 'Mittel is the default level');
+  assert.equal(g.setAllBotsDifficultyBy('h', 'hard').ok, true);
+  assert.ok(g.players.filter((p) => p.isBot).every((b) => b.botDifficulty === 'hard'));
+  assert.equal(g.publicState('h').botLevel, 'hard');
+  g.setMaxSeats(2);
+  g.setMaxSeats(4);
+  assert.ok(g.players.filter((p) => p.isBot).every((b) => b.botDifficulty === 'hard'), 'refilled seats follow the level');
+  assert.match(g.setAllBotsDifficultyBy('h', 'brutal').error, /Unbekannte/);
+  assert.match(g.setAllBotsDifficultyBy('bot-1', 'easy').error, /Nur Spieler/);
+  g.destroy();
+
+  const c = new GameManager(() => {}, { deckSeed: 1, challengeDate: '2026-10-17' });
+  c.addOrReconnectPlayer('me', 'Flodex');
+  c.fillWithBots();
+  assert.match(c.setAllBotsDifficultyBy('me', 'easy').error, /Tages-Challenge/);
+  c.destroy();
 });

@@ -5,11 +5,12 @@
  *
  * Activated by the env var PIKDAME_ONNX=1. For each difficulty it lazily loads
  * models/pikdame-<difficulty>.onnx (via onnxruntime-node, an optional
- * dependency). Given a live game it encodes the state with the SAME
- * StateEncoder used during training, runs the model, applies the legal-action
- * mask, and returns the chosen discard card. Any problem (flag off, runtime
- * not installed, model file missing, inference error) makes it return null so
- * the caller transparently keeps the heuristic discard.
+ * dependency); only Zen is routed here (GameManager._botTurnUsesOnnx). Given a
+ * live game it encodes the state with the SAME StateEncoder used during
+ * training, runs the model, applies the legal-action mask, and returns the
+ * chosen discard card. Any problem (flag off, runtime not installed, model
+ * file missing, inference error) makes it return null so the caller
+ * transparently keeps the heuristic discard.
  */
 
 const fs = require('fs');
@@ -178,7 +179,7 @@ async function runPolicy(game, playerId, difficulty, ctx) {
 }
 
 /** Pre-load a difficulty's session (call once at startup to avoid first-turn lag). */
-async function warmup(difficulties = ['medium', 'zen']) {
+async function warmup(difficulties = ['zen']) {
   if (!enabled()) return;
   await Promise.all(difficulties.map((d) => getSession(d)));
 }

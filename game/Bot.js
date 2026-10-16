@@ -13,6 +13,15 @@ const { validateMeld, tryLayOff, tryJokerSwap, canFormMeldWithCard, enumerateMel
  *      offensichtlich nutzt, sofern eine Alternative existiert).
  */
 
+// Bot levels, weakest first. 'zen' plays the trained net where it runs
+// (GameManager._botTurnUsesOnnx); its heuristic fallback equals 'hard'.
+const BOT_LEVELS = ['easy', 'medium', 'hard', 'zen'];
+
+/** Levels whose heuristic counts cards (dead duos, endgame damage control). */
+function countsCards(difficulty) {
+  return difficulty === 'hard' || difficulty === 'zen';
+}
+
 function groupByRank(cards) {
   const map = {};
   for (const c of cards) {
@@ -325,10 +334,7 @@ function decideDraw(hand, discardPile, tableMelds, opts = {}) {
  *    ein abgeworfener Joker ist ein doppeltes Geschenk an den nächsten
  *    Spieler - er darf den Stapel damit fast immer aufnehmen UND bekommt
  *    die flexibelste Karte des Spiels.
- * 3. Keine Karte abwerfen, die an eine bestehende Tisch-Auslage anlegbar
- *    ist - der nächste Spieler dürfte den Ablagestapel damit sofort
- *    aufnehmen (sofern es sichere Alternativen gibt).
- * 4. Unter den verbleibenden Kandidaten: isolierte Karten (kein Paar,
+ * 3. Unter den verbleibenden Kandidaten: isolierte Karten (kein Paar,
  *    kein Farb-Nachbar in der Hand) zuerst, davon die punkthöchste.
  */
 /**
@@ -341,18 +347,21 @@ function decideDraw(hand, discardPile, tableMelds, opts = {}) {
  * opts.difficulty steuert die Spielstärke:
  * - 'easy':   wirft eine zufällige Nicht-Joker-Karte ab (auch mal die
  *             Pik Dame) - spielt wie ein unbekümmerter Anfänger.
- * - 'medium': bisheriges Verhalten (isolierte hohe Karten zuerst, Tisch-
- *             bewusstes Abwerfen, Pik Dame bei kleiner Hand loswerden).
  * - 'medium': solides Wertspiel, die Pik Dame wird nie freiwillig abgeworfen,
  *             solange es Alternativen gibt (100 Punkte verschenkt man nicht).
- * - 'zen':    wie medium, plus Kartenzählung über opts.visibleCards: Karten,
- *             deren Kombinationspartner nachweislich nicht mehr im Umlauf
- *             sind ("tote Duos"), gelten als isoliert. Im Endspiel
- *             (opts.lowestOpponentHand <= 3) zählt nur noch Schadens-
+ * - 'hard' / 'zen': wie medium, plus Kartenzählung über opts.visibleCards:
+ *             Karten, deren Kombinationspartner nachweislich nicht mehr im
+ *             Umlauf sind ("tote Duos"), gelten als isoliert. Im Endspiel
+ *             (opts.lowestOpponentHand <= 4) zählt nur noch Schadens-
  *             begrenzung: die höchsten Punktwerte fliegen zuerst,
- *             notfalls auch die Pik Dame.
+ *             notfalls auch die Pik Dame. (Zen spielt mit dem Netz, wo es
+ *             läuft; das hier ist sein Rückfall.)
+ *
+ * _tableMelds (fremde Auslagen) is unused: a card that fits someone's meld
+ * does not let them take the pile, only a NEW meld with hand cards does
+ * (GameManager.canUseDiscardTop). The old filter on it cost ~20 % win share.
  */
-function chooseDiscard(hand, tableMelds = [], opts = {}) {
+function chooseDiscard(hand, _tableMelds = [], opts = {}) {
   if (hand.length === 0) return null;
   const difficulty = opts.difficulty || 'medium';
 
@@ -365,9 +374,10 @@ function chooseDiscard(hand, tableMelds = [], opts = {}) {
     return nonJokers[Math.floor(Math.random() * nonJokers.length)];
   }
 
+  const counting = countsCards(difficulty);
   // One turn earlier than before (<=4): measured in self-play, waiting for
   // <=3 often reacted only AFTER an opponent had already gone out.
-  const endgame = difficulty === 'zen' && (opts.lowestOpponentHand || 99) <= 4;
+  const endgame = counting && (opts.lowestOpponentHand || 99) <= 4;
 
   let candidates = nonJokers;
   if (difficulty !== 'easy') {
@@ -378,13 +388,6 @@ function chooseDiscard(hand, tableMelds = [], opts = {}) {
     const withoutPd = candidates.filter((c) => !isPikDame(c));
     if (withoutPd.length > 0) candidates = withoutPd;
   }
-
-  // Karten meiden, die der nächste Spieler direkt an eine Auslage anlegen
-  // könnte (= Erlaubnis, den gesamten Ablagestapel aufzunehmen).
-  const safeCandidates = candidates.filter(
-    (card) => !tableMelds.some((meld) => tryLayOff(meld, card))
-  );
-  if (safeCandidates.length > 0) candidates = safeCandidates;
 
   // Never feed the queen hunters (medium and up - the easy branch returned
   // earlier): while a Queen of Spades can still show up (melded queens plus
@@ -422,7 +425,7 @@ function chooseDiscard(hand, tableMelds = [], opts = {}) {
   const allReal = hand.filter((c) => !c.isJoker);
   let isolated = candidates.filter((c) => isIsolated(c, allReal));
 
-  if (difficulty === 'zen' && Array.isArray(opts.visibleCards)) {
+  if (counting && Array.isArray(opts.visibleCards)) {
     // Kartenzählung: Wie viele Exemplare eines Rangs/einer Karte sind noch
     // "unsichtbar" (weder in Auslagen noch offen abgelegt noch in der
     // eigenen Hand)? Ein Duo, dessen fehlende Partner komplett verbraucht
@@ -479,18 +482,14 @@ function chooseDiscard(hand, tableMelds = [], opts = {}) {
     const withPd = hand.find((cd) => isPikDame(cd));
     if (withPd && !panicPool.includes(withPd)) {
       // Queen discipline: the 100 points on hand hurt, but GIFTING her
-      // hurts more - a discarded ♠Q makes the pile irresistible and can
-      // hand an opponent an instant +100 lay-off. She only becomes
-      // expendable as the VERY last resort: an opponent is one discard
-      // from going out (<=2 cards) AND nobody could attach her to a meld
-      // on the table (checked with the real rule simulation - open
-      // information, no cheating).
-      const opponentCanUseHer = tableMelds.some((meld) => tryLayOff(meld, withPd));
+      // hurts more - a discarded ♠Q can complete an opponent's new meld for
+      // +100. She only becomes expendable as the VERY last resort: an
+      // opponent is one discard from going out (<=2 cards).
       // The 100-point dump only pays off on a SMALL own hand: losing this
       // round is certain with 15 cards anyway, so gifting the Queen to the
       // pile (bug report) is pure downside - she stays put.
       const lastResort = (opts.lowestOpponentHand || 99) <= 2 && hand.length <= (opts.queenDumpMaxHand || 6);
-      if (lastResort && !opponentCanUseHer) panicPool.push(withPd);
+      if (lastResort) panicPool.push(withPd);
     }
     const panicPotential =
       typeof opts._zenPotential === 'function' ? opts._zenPotential : () => 0;
@@ -516,7 +515,7 @@ function chooseDiscard(hand, tableMelds = [], opts = {}) {
   // höchster Punktwert zuerst abwerfen (reduziert Verlustrisiko am Rundenende)
   pool.sort((a, b) => cardValue(b) - cardValue(a));
 
-  if (difficulty === 'zen') {
+  if (counting) {
     // Card counting, part 2: among the top-value candidates (within 5
     // points of the best), prefer the SAFEST discard. Danger first: how
     // well does this card combine with cards an opponent is publicly
@@ -633,6 +632,8 @@ function planBotMelds(hand, tableMeldsSnapshot, opts = {}) {
 }
 
 module.exports = {
+  BOT_LEVELS,
+  countsCards,
   findHandMelds,
   findLayOffs,
   findJokerSwaps,

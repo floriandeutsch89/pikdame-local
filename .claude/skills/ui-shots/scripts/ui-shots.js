@@ -11,7 +11,9 @@
 //
 // Views: phone (393x852), land (874x402), desk (1440x900), se (375x667), max (440x956).
 // Scenes: lobby, lobby-open, progress, stats, history, roundend, roundend-stats, gameover,
-// table (needs --state <file>: a GameManager.publicState('p1') JSON in the playing phase).
+// table (needs --state <file>: a GameManager.publicState('p1') JSON in the playing phase),
+// puzzle / puzzle-turn / puzzle-out (one meld laid), challenge (intro, attempt used),
+// gamelobby (seats + house rules), botdiff (the strength picker), gameover-challenge.
 'use strict';
 const { spawn } = require('child_process');
 const fs = require('fs');
@@ -106,9 +108,22 @@ const GAME_OVER = { ...BASE_STATE, phase: 'gameOver', roundNumber: 6, totals: { 
     funTitle: { type: 'queenMagnet', name: 'Horst', count: 2 } } };
 
 // Rewrite server -> client messages so the lobby shows the mock profile.
+// --puzzle-kind turn|out: today's puzzle message carries a puzzle of that kind.
+let puzzleKind = null;
+function kindPuzzle(kind) {
+  const DP = require(path.join(ROOT, 'game', 'DailyPuzzle'));
+  const { addDays } = require(path.join(ROOT, 'game', 'GameDay'));
+  let date = DP.ROTATION_START;
+  while (DP.kindForDate(date).kind !== kind) date = addDays(date, 1);
+  return DP.puzzleForDate(date);
+}
 function rewrite(msg) {
   if (msg.type === 'profiles') { msg.players = PROFILES; msg.globalStats = GLOBAL_STATS; }
   if (msg.type === 'gameHistory') msg.games = HISTORY;
+  if (msg.type === 'puzzle' && puzzleKind) {
+    const DP = require(path.join(ROOT, 'game', 'DailyPuzzle'));
+    Object.assign(msg, DP.publicPuzzle(kindPuzzle(puzzleKind)), { date: msg.today, archive: false });
+  }
   return msg;
 }
 
@@ -244,6 +259,46 @@ function waitForHttp(port, ms = 20000) {
       const inject = (obj) => sock.send(JSON.stringify(obj));
       for (const sc of scenes) {
         if (sc === 'lobby') await shot('lobby');
+        if (sc.startsWith('puzzle')) {
+          puzzleKind = sc === 'puzzle' ? null : sc.slice('puzzle-'.length);
+          await page.click('#puzzleBtn'); await page.waitForTimeout(600);
+          if (puzzleKind) {
+            // Lay the first meld of the solution so the meld row shows.
+            const p = kindPuzzle(puzzleKind);
+            for (const id of p.best.melds[0]) {
+              await page.evaluate((cid) => {
+                const card = [...document.querySelectorAll('#puzzleHand .card')].find((c) => c.dataset.cardId === cid);
+                if (card) card.click();
+              }, id);
+            }
+            await page.click('#puzzleLayBtn'); await page.waitForTimeout(200);
+          }
+          await shot(sc);
+          await page.click('#puzzleCloseBtn');
+          puzzleKind = null;
+        }
+        if (sc === 'challenge') {
+          await page.route('**/challengeboardz*', (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify({
+            date: TODAY, you: { rank: 3, score: 1120, queens: 1, players: 12 }, attempted: true, magnet: { name: 'Klaus', queens: 3 },
+            board: [{ rank: 1, name: 'Oma Gerda', score: 1380 }, { rank: 2, name: 'Klaus', score: 1205 }, { rank: 3, name: ME, score: 1120 }],
+            weekly: { week: TODAY, players: 3, top: [{ rank: 1, name: 'Oma Gerda', weekScore: 5400, days: 5 }] }, trend: { dates: [], me: null, top: [] },
+          }) }));
+          await page.click('#challengeBtn'); await page.waitForTimeout(700);
+          await shot('challenge');
+          await page.click('#challengeCancelBtn');
+        }
+        if (sc === 'gamelobby' || sc === 'botdiff') {
+          if (!(await page.isVisible('#houseRulesSection'))) { await page.click('#createGameBtn'); await page.waitForTimeout(900); }
+          if (sc === 'gamelobby') {
+            await page.evaluate(() => document.getElementById('houseRulesSection').scrollIntoView({ block: 'center' }));
+            await shot('gamelobby');
+          }
+          else {
+            await page.click('.seatDiff'); await page.waitForTimeout(300);
+            await shot('botdiff');
+            await page.click('#botDiffCloseBtn');
+          }
+        }
         if (sc === 'lobby-open') {
           await page.evaluate(() => { const d = document.getElementById('questsSection'); if (d) d.open = true; });
           await shot('lobby-open');
@@ -271,12 +326,21 @@ function waitForHttp(port, ms = 20000) {
           await page.waitForTimeout(200);
           await shot('table');
         }
-        if (sc.startsWith('roundend') || sc === 'gameover') {
+        if (sc.startsWith('roundend') || sc.startsWith('gameover')) {
           inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
-          inject({ type: 'state', state: sc === 'gameover' ? GAME_OVER : ROUND_END });
-          if (sc === 'gameover') inject({ type: 'progress', gainedXp: 120, xp: 5440, level: { level: 14 }, record: { played: 43, won: 17 } });
+          const challenge = sc === 'gameover-challenge';
+          inject({ type: 'state', state: sc.startsWith('gameover') ? { ...GAME_OVER, challengeDate: challenge ? TODAY : null } : ROUND_END });
+          if (challenge) {
+            inject({ type: 'challengeBoard', date: TODAY, yourScore: 880, yourRank: 2, yourQueens: 1, players: 9,
+              board: [{ rank: 1, name: 'Oma Gerda', score: 1210 }, { rank: 2, name: ME, score: 880 }], history: [], weekly: null });
+          }
+          if (sc.startsWith('gameover')) inject({ type: 'progress', gainedXp: 120, xp: 5440, level: { level: 14 }, record: { played: 43, won: 17 } });
           await page.waitForTimeout(1600); // count-up + winner animation
           if (sc === 'roundend-stats') { await page.click('#resultBody .resultTabBtn:nth-child(2)'); await page.waitForTimeout(300); }
+          if (sc === 'gameover-challenge') {
+            await page.evaluate(() => { const b = document.querySelector('.challengeBoardBox'); if (b) b.scrollIntoView({ block: 'center' }); });
+            await page.waitForTimeout(200);
+          }
           await shot(sc);
         }
       }

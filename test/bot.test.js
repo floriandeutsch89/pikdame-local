@@ -61,38 +61,39 @@ test('chooseDiscard: liefert NIE einen Joker - bei Nur-Joker-Hand kommt null (Au
   assert.equal(chooseDiscard([makeJoker(0), makeJoker(1)]), null);
 });
 
-test('chooseDiscard: meidet Karten, die an eine Tisch-Auslage anlegbar wären', () => {
-  // Herz-10 wäre an die Folge 7-8-9 anlegbar -> der nächste Spieler dürfte
-  // damit den ganzen Ablagestapel aufnehmen. Karo-2 ist harmlos.
-  const dangerous = H('10');
-  const safe = D('2');
-  const hand = [dangerous, safe];
+test('chooseDiscard: foreign melds do not matter - fitting one gives nobody the pile', () => {
+  // The pickup rule only counts a NEW meld with hand cards (canUseDiscardTop),
+  // so the heart 10 that would extend a foreign 7-8-9 run is no gift. The old
+  // filter that kept such cards cost ~20 % win share (paired self-play).
+  const fits = H('10');
+  const low = D('2');
   const tableMelds = [
-    {
-      id: 'm1',
-      type: 'run',
-      suit: 'H',
-      rank: null,
-      slots: [{ real: H('7') }, { real: H('8') }, { real: H('9') }],
-    },
+    { id: 'm1', type: 'run', suit: 'H', rank: null, slots: [{ real: H('7') }, { real: H('8') }, { real: H('9') }] },
   ];
-  const discard = chooseDiscard(hand, tableMelds);
-  assert.equal(discard.id, safe.id, 'sollte die harmlose Karte abwerfen, nicht das Gegner-Geschenk');
+  for (const difficulty of ['medium', 'hard', 'zen']) {
+    const discard = chooseDiscard([fits, low], tableMelds, { difficulty });
+    assert.equal(discard.id, fits.id, `${difficulty}: the higher card goes, table melds or not`);
+  }
 });
 
-test('chooseDiscard: wirft anlegbare Karte ab, wenn es KEINE sichere Alternative gibt', () => {
-  const dangerous = H('10');
-  const tableMelds = [
-    {
-      id: 'm1',
-      type: 'run',
-      suit: 'H',
-      rank: null,
-      slots: [{ real: H('7') }, { real: H('8') }, { real: H('9') }],
-    },
-  ];
-  const discard = chooseDiscard([dangerous], tableMelds);
-  assert.equal(discard.id, dangerous.id);
+test('chooseDiscard: hard counts cards exactly like the zen fallback', () => {
+  const { makeStandardCard: mk } = require('../game/Card');
+  assert.equal(Bot.countsCards('hard'), true);
+  assert.equal(Bot.countsCards('zen'), true);
+  assert.equal(Bot.countsCards('medium'), false);
+  assert.deepEqual(Bot.BOT_LEVELS, ['easy', 'medium', 'hard', 'zen'], 'weakest first');
+  const suits = ['S', 'H', 'D', 'C'];
+  const ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+  let seed = 7;
+  const rnd = (n) => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n; };
+  for (let i = 0; i < 300; i++) {
+    const hand = Array.from({ length: 2 + rnd(9) }, (_, k) => mk(suits[rnd(4)], ranks[rnd(13)], k % 2));
+    const visibleCards = Array.from({ length: rnd(20) }, () => mk(suits[rnd(4)], ranks[rnd(13)], rnd(2)));
+    const opts = { lowestOpponentHand: 1 + rnd(8), visibleCards, opponentKnownCards: visibleCards.slice(0, 3) };
+    const hard = chooseDiscard(hand, [], { ...opts, difficulty: 'hard' });
+    const zen = chooseDiscard(hand, [], { ...opts, difficulty: 'zen' });
+    assert.equal(hard.id, zen.id, `hand ${i}: hard and zen heuristic must agree`);
+  }
 });
 
 test('chooseDiscard: isolierte Karten werden vor Paaren/Nachbarn abgeworfen (Regression: Selbst-Vergleich)', () => {
@@ -244,23 +245,22 @@ test('zen endgame: keeps the Queen while opponents are not on their last cards',
   assert.ok(pick.rank !== 'Q' || pick.suit !== 'S', 'no ♠Q gift at 3 opponent cards');
 });
 
-test('zen endgame: Queen only as last resort AND only if no table meld could take her', () => {
+test('zen endgame: Queen only as last resort, table melds do not change that', () => {
   const { chooseDiscard } = require('../game/Bot');
   const { makeStandardCard: mk } = require('../game/Card');
   const pd = mk('S', 'Q', 0);
   const hand = [pd, mk('H', '3', 0)];
-  // Opponent has a queen set on the table that could absorb her -> keep her
+  // A foreign queen set cannot take her: laying off never allows a pickup.
   const queenMeld = {
     id: 'm1', ownerId: 'foe', type: 'set', rank: 'Q',
     slots: [
       { real: mk('H', 'Q', 0) }, { real: mk('C', 'Q', 0) }, { real: mk('D', 'Q', 0) },
     ],
   };
-  const guarded = chooseDiscard(hand, [queenMeld], { difficulty: 'zen', lowestOpponentHand: 2 });
-  assert.ok(guarded.rank !== 'Q' || guarded.suit !== 'S', 'never feed a queen meld');
-  // No usable meld anywhere -> at 2 cards she may finally go (point dump)
-  const dumped = chooseDiscard(hand, [], { difficulty: 'zen', lowestOpponentHand: 2 });
-  assert.ok(dumped.rank === 'Q' && dumped.suit === 'S', 'last-resort dump allowed');
+  for (const melds of [[queenMeld], []]) {
+    const dumped = chooseDiscard(hand, melds, { difficulty: 'zen', lowestOpponentHand: 2 });
+    assert.ok(dumped.rank === 'Q' && dumped.suit === 'S', 'last-resort dump allowed at 2 opponent cards');
+  }
 });
 
 // --- v1.37.0: exhaustion weighting -----------------------------------------------

@@ -36,6 +36,13 @@ window.I18N_STATIC = {
   'Schnell': 'Fast',
   'Normal': 'Normal',
   'Gemütlich': 'Relaxed',
+  'Bot-Stärke': 'Bot strength',
+  'Ergebnis teilen': 'Share result',
+  'Leicht': 'Easy',
+  'Mittel': 'Medium',
+  'Schwer': 'Hard',
+  'Zen': 'Zen',
+  'Gemischt': 'Mixed',
   'Challenge': 'Challenge',
   'Tutorial': 'Tutorial',
   'Konto': 'Account',
@@ -188,7 +195,8 @@ window.I18N_STATIC = {
   'Du hast schon einen Code? Gib ihn einfach oben bei „Beitreten“ ein.': 'Already have a code? Just enter it under "Join" above.',
   // Tagesrätsel
   'Tagesrätsel': 'Daily puzzle',
-  'Welche Karten ergeben zusammen die wertvollste Auslage? Tippe sie an und prüfe - die Regeln entscheiden.': 'Which cards together make the most valuable meld? Tap them and check - the rules decide.',
+  'Vorheriger Tag': 'Previous day',
+  'Nächster Tag': 'Next day',
   'Prüfen': 'Check',
   'Lösung zeigen': 'Show solution',
 };
@@ -306,6 +314,7 @@ window.I18N_SERVER_PATTERNS = [
   [/^Dieses Emote gibt es ab Stufe (\d+)\.$/, 'This reaction unlocks at level $1.'],
   [/^(.+) stellt (.+) auf Anfänger\.$/, '$1 sets $2 to Beginner.'],
   [/^(.+) stellt (.+) auf Fortgeschritten\.$/, '$1 sets $2 to Advanced.'],
+  [/^(.+) stellt (.+) auf Profi\.$/, '$1 sets $2 to Expert.'],
   [/^(.+) stellt (.+) auf Zen-Meister\.$/, '$1 sets $2 to Zen master.'],
   [/^Zum Ausmachen musst du deine letzte Karte abwerfen - mindestens eine Handkarte muss übrig bleiben\.$/, 'To go out you must discard your last card - at least one hand card has to remain.'],
   [/^Du bist nicht am Zug\.$/, "It's not your turn."],
@@ -317,6 +326,9 @@ window.I18N_SERVER_PATTERNS = [
   [/^Spieler nicht gefunden\.$/, 'Player not found.'],
   [/^Karte nicht in der Hand gefunden\.$/, 'Card not found in your hand.'],
   [/^Karte\(n\) nicht in der Hand gefunden\.$/, 'Card(s) not found in your hand.'],
+  [/^Hier ist genau eine Auslage gefragt\.$/, 'This puzzle asks for exactly one meld.'],
+  [/^Jede Karte darf nur in einer Auslage liegen\.$/, 'Each card can only be in one meld.'],
+  [/^Eine Karte muss zum Abwerfen übrig bleiben\.$/, 'One card has to stay for the discard.'],
   [/^Karte passt nicht an diese Auslage\.$/, "This card doesn't fit this meld."],
   [/^Diese Karte passt nicht auf einen Joker in dieser Auslage\.$/, "This card doesn't match a joker in this meld."],
   [/^Diese Kombination ergibt keinen gültigen Satz oder keine gültige Folge\.$/, 'This combination is neither a valid set nor a valid run.'],
@@ -387,7 +399,7 @@ window.I18N_RULES_EN = `
 
   <h3>House rules (chosen when creating a game)</h3>
   <ul>
-    <li><b>Bot difficulty:</b> Beginner, Advanced or Zen master – adjustable per bot, too (tap the icon on a bot).</li>
+    <li><b>Bot strength:</b> Beginner, Advanced, Expert or Zen master – for all bots in the lobby or per bot (tap the level on a bot).</li>
     <li><b>⏱ Turn timer:</b> 30/60/90 seconds per turn. When time runs out, the bot logic finishes that turn fairly – the table never waits forever.</li>
     <li><b>Out in one counts double</b> (see scoring).</li>
     <li><b>Strict 1000:</b> victory only once someone is above 1000 points.</li>

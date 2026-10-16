@@ -502,9 +502,9 @@ test('client contract: functions that build translated markup are refreshed by c
     'updateStammtischChip',
     // "My Stammtische": rebuilt from the server reply each time the overlay opens.
     'renderStammtischList',
-    // Puzzle overlay: opened fresh on every click; the hand and status are
-    // rendered by renderPuzzle, which cycleLang re-runs.
-    'openPuzzle',
+    // Puzzle overlay: opened fresh on every click (or day switch); the hand
+    // and status are rendered by renderPuzzle, which cycleLang re-runs.
+    'openPuzzle', 'loadPuzzle',
     // Joker choice dialog: rebuilt from scratch every time the server
     // reports an ambiguous meld; its buttons reach L() only through send().
     'showJokerChoice',
