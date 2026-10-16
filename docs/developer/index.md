@@ -9,6 +9,7 @@ game-constants
 bots
 rl-training
 rl-setup
+mcp
 contributing
 ```
 
@@ -39,6 +40,7 @@ There is **no build step**. The client is plain HTML/CSS/JS served as-is: edit
 | `game/*Store.js` | Persistence (profiles, stats, history, challenges, accounts) |
 | `public/` | The entire client |
 | `scripts/` | Tooling: A/B bot simulation, load test, docs generator |
+| `mcp/` | MCP server: an LLM agent plays a seat (see {doc}`mcp`) |
 | `test/` | The test suite (`node --test`) |
 
 ## Useful tooling

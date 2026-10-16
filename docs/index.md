@@ -28,7 +28,7 @@ Configuration, backup & restore, ONNX bots, monitoring, upgrades.
 :link: developer/index
 :link-type: doc
 
-Architecture, WebSocket protocol, contributing, running the tests.
+Architecture, WebSocket protocol, LLM players via MCP, contributing, running the tests.
 :::
 
 :::{grid-item-card} ❓ FAQ
