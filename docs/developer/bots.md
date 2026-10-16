@@ -1,8 +1,30 @@
 # Bots
 
-Three difficulty levels. The default engine is **heuristic** — hand-written rules
-for drawing, melding and discarding. Optionally a trained ONNX policy can be used
-instead ({doc}`../admin/onnx`).
+Three difficulty levels in the lobby. The default engine is **heuristic** — hand-written rules
+for drawing, melding and discarding. In the Docker image a trained **ONNX
+policy** makes the draw and discard decisions instead ({doc}`../admin/onnx`);
+melding stays with the engine either way, because a meld is either legal or
+not.
+
+## One bot turn
+
+```mermaid
+flowchart TD
+  T([runBotTurn]) --> Q{ONNX policy<br/>loaded for this tier?}
+  Q -- yes --> N["network picks<br/>draw source"]
+  Q -- no --> H["decideDraw()<br/>take the pile if its top card<br/>forms a combination"]
+  N & H --> M["planBotMelds()<br/>findHandMelds · lay-offs · joker swaps<br/>never the last card"]
+  M --> Q2{ONNX?}
+  Q2 -- yes --> N2["network picks<br/>the discard"]
+  Q2 -- no --> H2["chooseDiscard()<br/>card counting, queen discipline,<br/>never a joker"]
+  N2 & H2 --> D([discard · one state to every seat])
+  N -. any error .-> H
+  N2 -. any error .-> H2
+```
+
+Every network call is guarded: an exception, a missing model or a missing
+runtime falls back to the heuristic for that decision, and the server says so
+once in the log.
 
 ## The rule: bot changes are measured, never guessed
 
@@ -28,10 +50,11 @@ the data said no. They remain in the code as off-by-default knobs.
 
 | Idea | Result | Verdict |
 | --- | --- | --- |
-| Dump the Queen of Spades a bit earlier in the endgame (hand ≤ 5 instead of ≤ 6) | 50.24 % win share (z = 0.34) | **No effect** — the situation is too rare to matter |
-| Prefer the draw pile for the first few turns (more chance at an unseen Queen) | 44.58 % (z = −7.71), **−30 pts** | **Clearly worse** |
-| Discard spades J/K more freely once an opponent has laid a joker | 50.34 % (z = 0.48) | **No effect** |
-| If taking the discard would only form *another* set while you already have one, draw instead | 46.08 % (z = −5.56), **−33 pts** | **Clearly worse** |
+| Dump the Queen of Spades a bit earlier in the endgame (hand ≤ 5 instead of ≤ 6) | 50.24 % win share (z = 0.34) | {bdg-secondary}`no effect` the situation is too rare to matter |
+| Prefer the draw pile for the first few turns (more chance at an unseen Queen) | 44.58 % (z = −7.71), **−30 pts** | {bdg-danger}`clearly worse` |
+| Discard spades J/K more freely once an opponent has laid a joker | 50.34 % (z = 0.48) | {bdg-secondary}`no effect` |
+| If taking the discard would only form *another* set while you already have one, draw instead | 46.08 % (z = −5.56), **−33 pts** | {bdg-danger}`clearly worse` |
+| Monte-Carlo rollouts for the discard (`MonteCarlo.js`, `Rollout.js`) | ~+2 pts, 0.8 σ | {bdg-secondary}`not significant` infrastructure kept behind a flag |
 
 ### The recurring lesson
 
@@ -56,3 +79,10 @@ is therefore well supported by data, not just intuition.
 4. Ship the new default **only** if the win share is significantly above 50 %.
    Otherwise keep it off and document the measurement (that is a useful result
    too — see the table above).
+
+:::{tip}
+Measure with the ONNX policy active, because that is what production plays:
+with the network, *medium* and *zen* are equally strong (measured 2026-10,
+1000 games each). Install `onnxruntime-node` outside the repository
+(`--ignore-scripts`, `NODE_PATH`) so `npm test` does not pick it up.
+:::

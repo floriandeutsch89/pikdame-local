@@ -2,13 +2,42 @@
 
 ## Workflow
 
+```mermaid
+gitGraph
+  commit id: "v2.60.0"
+  commit id: "v2.60.1" tag: "v2.60.1"
+  branch feat/your-change
+  checkout feat/your-change
+  commit id: "change + tests"
+  commit id: "bump + CHANGELOG"
+  checkout main
+  merge feat/your-change id: "squash-merge" tag: "v2.61.0" type: HIGHLIGHT
+  commit id: "release.yml: tag, image, chart"
+```
+
 1. Branch off `main` (`feat/…`, `fix/…`, `perf/…`, `chore/…`).
 2. Make the change **plus tests**.
 3. `npm test` — everything green.
 4. Bump the version in `package.json` and add a `CHANGELOG.md` entry
    (*documentation-only changes need no version bump*).
 5. Open a PR. CI runs the suite; squash-merge when green. A release is tagged
-   automatically from the version in `package.json`.
+   automatically from the version in `package.json` ({doc}`../releases`).
+
+### What CI runs on every pull request
+
+```mermaid
+flowchart LR
+  PR([pull request]) --> S["secret-scan"]
+  PR --> T["test<br/>node --test · docs:check"]
+  PR --> D["dependency-check<br/>npm audit · npm outdated"]
+  PR --> DS["docker-security<br/>hadolint · Trivy"]
+  PR --> DK["docker-smoke<br/>hardened compose boots"]
+  PR --> H["helm-validate"]
+  S & T & D & DS & DK & H --> M{{"all required → squash-merge"}}
+```
+
+`test` includes `npm run docs:check`: the generated documentation pages must
+match the code (see below).
 
 ## Dependency updates (Dependabot)
 
@@ -28,7 +57,8 @@ npm updates are deliberately **grouped**: the CI job `dependency-check` runs
 `npm outdated` and fails while any package is behind, so one pull request per
 package would keep every pull request red.
 
-### One-time setup
+:::{dropdown} One-time setup of the Dependabot GitHub App
+:icon: gear
 
 The workflow acts through a **GitHub App token**, not `GITHUB_TOKEN`: GitHub
 does not start workflow runs for events created with `GITHUB_TOKEN`, so the
@@ -87,6 +117,7 @@ access token used before.
 
 7. **Create the labels** `dependencies`, `docker`, `github-actions` and
    `needs-review`; Dependabot silently ignores labels that do not exist.
+:::
 
 ## House rules for the code
 
@@ -122,33 +153,66 @@ never installed for the client, never loaded from a CDN: QR codes, uPlot,
 
 ## Documentation
 
-The docs live in `docs/` and are built with Sphinx + MyST (Markdown). Pages that
-must never drift from the code — environment variables, the WebSocket protocol,
-game constants — are **generated**:
+The docs live in `docs/` and are built with Sphinx + MyST (Markdown) on Read
+the Docs, with sphinx-design for tabs, cards and badges and Mermaid for the
+diagrams — every diagram is text in the page source, so it is reviewed in the
+same diff as the code it describes.
+
+Pages that must never drift from the code are **generated** by
+`scripts/gen-docs.js` from the source itself and committed under
+`docs/_generated/`:
+
+| Page | Generated from |
+| --- | --- |
+| {doc}`../admin/configuration` | every `process.env.*` read in `server.js` and `game/` |
+| {doc}`protocol` | the message handlers in `server.js` (both directions) |
+| {doc}`game-constants` | `Deck.js`, `Card.js`, `Rules.js`, `ScoreBoard.js` — including the deck you can shuffle |
+| {doc}`progression` | `Progression.js`, `Badges.js`, `Emotes.js`, `BotQuips.js` plus the client's names |
+| the tiles on the {doc}`landing page <../index>` | all of the above |
 
 ```bash
 npm run docs:gen      # regenerate docs/_generated/*.md
 npm run docs:check    # fails if they are stale (CI runs this)
 ```
 
-If you change an env var, a protocol message or a game constant, run
-`npm run docs:gen` and commit the result — otherwise CI will fail.
+If you change an env var, a protocol message, a game constant or a badge, run
+`npm run docs:gen` and commit the result — otherwise CI will fail. The
+check is byte-exact on purpose: documentation that *silently* lies is worse
+than none.
 
-To build the docs locally:
+### Building the docs locally
 
+::::{tab-set}
+
+:::{tab-item} Linux / macOS
 ```bash
 # One-time: create a venv and install dependencies
 uv venv docs/.venv
-uv pip install --python docs/.venv/Scripts/python.exe -r docs/requirements.txt sphinx-autobuild
+uv pip install --python docs/.venv/bin/python -r docs/requirements.txt sphinx-autobuild
 
 # Live-reload server → http://127.0.0.1:8000
-docs/.venv/Scripts/sphinx-autobuild.exe docs docs/_build/html
+docs/.venv/bin/sphinx-autobuild docs docs/_build/html
 
 # Or a one-shot build → docs/_build/html/index.html
+docs/.venv/bin/sphinx-build -b html docs docs/_build/html
+```
+:::
+
+:::{tab-item} Windows
+```powershell
+uv venv docs/.venv
+uv pip install --python docs/.venv/Scripts/python.exe -r docs/requirements.txt sphinx-autobuild
+
+docs/.venv/Scripts/sphinx-autobuild.exe docs docs/_build/html
+# or
 docs/.venv/Scripts/sphinx-build.exe -b html docs docs/_build/html
 ```
+:::
 
-On Linux/macOS replace `Scripts/` with `bin/`.
+::::
+
+The Mermaid library is loaded from jsdelivr **by the docs pages only**; the
+game itself never loads anything from a CDN.
 
 ## Reporting bugs
 

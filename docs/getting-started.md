@@ -1,8 +1,13 @@
 # Getting started
 
-Three ways to run it, from "one command" to "production with TLS".
+Four ways to run it, from "one command" to "production with TLS". Pick a tab;
+the choice sticks across the page.
 
-## 1. Quickest: a single container
+:::::{tab-set}
+:sync-group: install
+
+::::{tab-item} Docker
+:sync: docker
 
 Prebuilt images are published to GitHub Container Registry (amd64 + arm64):
 
@@ -20,14 +25,26 @@ Always mount a volume at `/app/data`. Everything persistent lives there
 (profiles, statistics, game history, accounts, and the snapshot that lets running
 games survive a restart). Without it, all of that is lost on every restart.
 :::
+::::
 
-## 2. Production: Docker Compose with automatic TLS
+::::{tab-item} Compose + TLS
+:sync: compose
 
 The full stack is Caddy (TLS/ACME) → app → PostgreSQL. Caddy obtains and renews
 certificates from Let's Encrypt automatically; you only need a domain pointing at
 the host.
 
-### Prerequisites
+```mermaid
+flowchart LR
+  I((Internet)) -- ":443 · :80 ACME" --> C["Caddy<br/>TLS, HTTP/3"]
+  C -- ":8080 · WebSocket" --> P["pikdame<br/>read-only FS, cap_drop ALL"]
+  P -- "accounts" --> DB[("PostgreSQL")]
+  P -- "snapshot · JSON stores" --> V[("volume /app/data")]
+  P -. "mail only" .-> S["smtp-egress"] -.-> I
+  classDef net fill:none,stroke-dasharray:4 3
+```
+
+**Prerequisites**
 
 - A host with Docker and the Compose plugin.
 - **DNS**: an `A` record (and `AAAA` if you have IPv6) for your domain pointing
@@ -35,7 +52,7 @@ the host.
 - **Ports 80 and 443 reachable** from the internet. Port 80 is required for the
   ACME HTTP challenge — don't firewall it away.
 
-### Configure
+**Configure**
 
 ```bash
 git clone https://github.com/floriandeutsch89/pikdame-local.git
@@ -54,7 +71,7 @@ ACME_EMAIL=you@example.com
 POSTGRES_PASSWORD=<a long random string>
 ```
 
-### Start
+**Start**
 
 ```bash
 docker compose -f docker-compose.ghcr.yml up -d
@@ -68,15 +85,16 @@ docker compose -f docker-compose.ghcr.yml logs -f caddy
 
 Then open `https://play.example.com`.
 
-:::{tip}
-**ACME troubleshooting.** If the certificate does not arrive, it is almost always
-one of three things: DNS not resolving yet (`dig +short play.example.com`), port
-80 blocked, or Let's Encrypt rate limits after repeated failed attempts. For
-testing, point Caddy at the *staging* ACME endpoint first so you don't burn the
-rate limit.
+:::{dropdown} ACME troubleshooting
+:icon: alert
+
+If the certificate does not arrive, it is almost always one of three things:
+DNS not resolving yet (`dig +short play.example.com`), port 80 blocked, or
+Let's Encrypt rate limits after repeated failed attempts. For testing, point
+Caddy at the *staging* ACME endpoint first so you don't burn the rate limit.
 :::
 
-### Secrets
+**Secrets**
 
 Any secret can be supplied as a file instead of an environment variable — append
 `_FILE` and point it at the path (Docker secrets):
@@ -88,26 +106,39 @@ secrets:
   - db_password
 ```
 
-See {doc}`admin/configuration` for every variable.
+See {doc}`admin/configuration` for every variable, and {doc}`admin/shared-caddy`
+if the host already runs a Caddy for other sites.
+::::
 
-## 3. Kubernetes
+::::{tab-item} Kubernetes
+:sync: k8s
 
-There is no Helm chart (deliberately — the app is one stateless container plus a
-volume), but the deployment is straightforward:
+A Helm chart is published as an OCI artifact with every release; raw manifests
+live in `k8s/` for those who prefer them.
+
+```bash
+helm install pikdame oci://ghcr.io/floriandeutsch89/charts/pikdame \
+  --version <X.Y.Z> \
+  --set ingress.host=spiel.example.org \
+  --set image.tag=v<X.Y.Z>
+```
+
+What the chart creates:
 
 - **Deployment**: one replica of the image.
-  :::{warning}
-  Do **not** scale beyond one replica. Game state lives in the process's memory;
-  two replicas would each hold different tables and players would land on the
-  wrong one. To scale out you would need session affinity *and* a shared store —
-  see {doc}`faq`.
-  :::
 - **PersistentVolumeClaim** mounted at `/app/data` (ReadWriteOnce is fine).
-- **Service** on port 8080, **Ingress** with WebSocket support enabled and TLS
-  from cert-manager (which handles ACME the same way Caddy does).
-- Set `PIKDAME_TRUST_PROXY=1` so client IPs are read from `X-Forwarded-For`.
+- **Service** on port 8080, **Ingress** with WebSocket support and TLS from
+  cert-manager (which handles ACME the same way Caddy does).
+- `PIKDAME_TRUST_PROXY=1`, so client IPs are read from `X-Forwarded-For`.
 - The **trained ONNX bots** are on by default; `--set onnx.enabled=false`
   switches to the heuristic bots — see {doc}`admin/onnx`.
+
+:::{warning}
+Do **not** scale beyond one replica. Game state lives in the process's memory;
+two replicas would each hold different tables and players would land on the
+wrong one. To scale out you would need session affinity *and* a shared store —
+see {doc}`faq`.
+:::
 
 :::{important}
 The ingress must not buffer or time out WebSocket connections. On nginx-ingress,
@@ -115,11 +146,17 @@ raise `proxy-read-timeout`/`proxy-send-timeout` well above the game's heartbeat
 interval (30 s by default), or connections will be cut mid-game.
 :::
 
-The container runs as a **non-root user (UID 10001)**. If your storage class
-creates the volume owned by root, the app cannot write and will say so loudly in
-its logs on startup. Set `fsGroup: 10001` in the pod's security context.
+:::{dropdown} "The app says the data directory is not writable"
+:icon: alert
 
-## 4. Local development
+The container runs as a **non-root user (UID 10001)**. If your storage class
+creates the volume owned by root, the app cannot write and says so loudly in its
+logs on startup. Set `fsGroup: 10001` in the pod's security context.
+:::
+::::
+
+::::{tab-item} From source
+:sync: source
 
 ```bash
 git clone https://github.com/floriandeutsch89/pikdame-local.git
@@ -129,7 +166,12 @@ npm start          # → http://localhost:8080
 npm test           # the full suite
 ```
 
-No build step: edit `public/client.js` and reload the page.
+No build step: edit `public/client.js` and reload the page. Without
+`onnxruntime-node` the bots play the heuristic; see {doc}`admin/onnx` for how
+to add the learned ones outside the image.
+::::
+
+:::::
 
 ## Next steps
 
