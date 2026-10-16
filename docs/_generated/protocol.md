@@ -3,51 +3,118 @@
 # WebSocket protocol
 
 The client talks to the server over a single WebSocket. Every message is JSON
-with a `type` field. The list below is generated from the server's message
-handler, so it always matches the running code.
+with a `type` field. Both lists below are generated from the server's message
+handlers, so they always match the running code: **42** message
+types go up, **27** come down.
 
 ## Client → server
 
+### Before a table {bdg-secondary}`17`
+
+Sent on a fresh connection, before the socket is bound to a table. These carry `msg.name` because the server has no seat to look up yet.
+
 | `type` | Purpose |
 | --- | --- |
-| `discard` | Discard exactly one card and end your turn. |
-| `drawFromDiscard` | Take the discard pile. Only allowed if its top card immediately forms a new combination - it must then be laid this turn. |
+| `createSession` | Create a new game and receive its code. |
+| `joinSession` | Join an existing game by code. |
+| `checkSession` | Ask whether a stored session still exists (used by the "resume" button). |
+| `listProfiles` | Player profiles, server statistics and today's quests for the start screen - server-wide data, hence before the table guard. |
+| `getGameHistory` | The finished matches of a player name ("Meine Partien"). |
+| `setFavoriteBadges` | Pin up to three badges to the identity chip. |
+| `ping` | Keep-alive from the client; answered immediately. Lets a phone notice a dead connection before the server-side heartbeat does. |
+| `getPuzzle` | Today's daily puzzle (same for everyone, derived from the game day). |
+| `solvePuzzle` | Submit a puzzle answer; the server grades it and returns the solution. |
+| `revealPuzzle` | Give up on the puzzle and see the solution (no points). |
+| `startChallenge` | Begin today's daily challenge. Beginning counts as the one attempt of the day. |
+| `startTutorial` | Open a tutorial table against easy bots; the hints themselves are client-side. |
+| `createStammtisch` | Create a Stammtisch (a standing group table with its own code). |
+| `getStammtisch` | Resolve a Stammtisch code. Unknown codes count as a failed attempt (brute-force guard). |
+| `listStammtische` | The Stammtische a player name belongs to. |
+| `leaveStammtisch` | Leave a Stammtisch. |
+| `deleteStammtisch` | Founder only: dissolve a Stammtisch. |
+
+### Lobby {bdg-secondary}`8`
+
+Only valid while the table is in the `lobby` phase; most of them host-only.
+
+| `type` | Purpose |
+| --- | --- |
+| `lobbyReady` | Mark yourself ready in the lobby; the host sees who is still missing. |
+| `startGame` | Host only: start the game (empty seats are filled with bots). |
+| `setMaxSeats` | Host only: change the number of seats (2-4). |
+| `reorderSeats` | Host only: change the seating order. |
+| `setDealer` | Host only: choose the dealer. |
+| `setBotDifficulty` | Host only: set a bot seat's difficulty (easy, medium, hard, zen). |
+| `setHouseRules` | Host only: change house rules (turn timer, bot speed, "hand aus" doubling, strict threshold). |
+| `leaveLobby` | Leave an unstarted lobby and free the seat (bots re-sync, host succession is automatic). Refused mid-game - use the forfeit vote instead. The server confirms with `leftLobby` so the client may clear its stored per-session credentials. |
+
+### Your turn {bdg-secondary}`10`
+
+The moves. The server rejects every one of them with a reason when it is not your turn or the rules say no.
+
+| `type` | Purpose |
+| --- | --- |
+| `performCut` | Interactive round start: the cutter picks where to cut the freshly shuffled deck (position 0..1). Only valid in the cutting phase, only for the cutter; bots, the daily challenge and timeouts cut automatically. The next state carries `lastCutReveal` (the lucky cards kept plus the ordinary card that ended the run) for the reveal animation. |
 | `drawFromPile` | Draw the top card of the face-down draw pile. |
-| `emote` | Send an emoji reaction to the table. |
-| `exportLastGame` | Download the last finished game as JSON. |
-| `forfeitRound` | Vote to forfeit the whole game. The match only ends once every connected player agrees. |
+| `drawFromDiscard` | Take the discard pile. Only allowed if its top card immediately forms a new combination - it must then be laid this turn. |
+| `layoutMeld` | Lay out a new set or run. |
 | `layOff` | Add a single card to one of your own melds. |
 | `layOffMulti` | Add several cards to one of your own melds in one go. |
-| `layoutMeld` | Lay out a new set or run. |
-| `leaveLobby` | Leave an unstarted lobby and free the seat (bots re-sync, host succession is automatic). Refused mid-game - use the forfeit vote instead. The server confirms with `leftLobby` so the client may clear its stored per-session credentials. |
-| `listProfiles` | _(see source)_ |
-| `lobbyReady` | _(see source)_ |
-| `nextRound` | Signal readiness for the next round. |
-| `performCut` | Interactive round start: the cutter picks where to cut the freshly shuffled deck (position 0..1). Only valid in the cutting phase, only for the cutter; bots, the daily challenge and timeouts cut automatically. The next state carries `lastCutReveal` (the lucky cards kept plus the ordinary card that ended the run) for the reveal animation. |
-| `rematch` | Start a new match with the same table. |
-| `reorderSeats` | Host only: change the seating order. |
-| `setAllBotDifficulty` | Host only: set every bot (and bots added later) to one difficulty. Refused in the daily challenge. |
-| `setBotDifficulty` | Host only: set a bot seat's difficulty (easy, medium, hard, zen). |
-| `setDealer` | Host only: choose the dealer. |
-| `setHouseRules` | Host only: change house rules (turn timer, bot speed, "hand aus" doubling, strict threshold). |
-| `setMaxSeats` | Host only: change the number of seats (2-4). |
-| `startGame` | Host only: start the game (empty seats are filled with bots). |
 | `swapJoker` | Swap a joker on the table for the card it represents (the joker leaves play permanently). |
-| `togglePause` | Vote to pause. The game only pauses once every connected player agrees. |
 | `undoMeld` | Take back the last meld-phase action of the running turn (new meld, lay-off, joker swap) - everything it changed is restored. Not possible anymore once the mandatory pickup card has been laid (the rest of the pile was handed over), and never after the discard. |
 | `undoPileTake` | Take back a discard-pile pickup - only while the mandatory top card has not been played yet (phase 1 of the two-phase pickup). Fair by construction: the card was public anyway and nothing on the table changed. |
+| `discard` | Discard exactly one card and end your turn. |
+
+### Table talk and votes {bdg-secondary}`6`
+
+Allowed from any seat at any time during a match.
+
+| `type` | Purpose |
+| --- | --- |
+| `emote` | Send an emoji reaction to the table. |
+| `togglePause` | Vote to pause. The game only pauses once every connected player agrees. |
+| `forfeitRound` | Vote to forfeit the whole game. The match only ends once every connected player agrees. |
+| `nextRound` | Signal readiness for the next round. |
+| `rematch` | Start a new match with the same table. |
+| `exportLastGame` | Download the last finished game as JSON. |
+
+### Other {bdg-secondary}`1`
+
+| `type` | Purpose |
+| --- | --- |
+| `setAllBotDifficulty` | Host only: set every bot (and bots added later) to one difficulty. Refused in the daily challenge. |
 
 ## Server → client
 
 | `type` | Purpose |
 | --- | --- |
-| `state` | The full game state as that player may see it (their own hand, everyone else's card counts). Sent after every change. |
-| `sessionCreated` / `sessionJoined` | Confirms a game was created/joined; carries the code and the player's id. |
-| `sessionStatus` | Answer to `checkSession`. |
-| `error` | Something was rejected (with a human-readable reason). |
+| `accountProgress` | The account-bound progression on login (so a new device shows the right level). |
+| `badges` | Badges earned by this match, for the celebration overlay. |
+| `bestRound` | A new personal best round score for this player. |
+| `challengeBoard` | Today's daily-challenge leaderboard and weekly ranking. |
 | `emote` | Someone (or a bot) sent a reaction. |
-| `jokerChoice` | The move is ambiguous (a joker could stand for several cards); the client must pick one of the offered options. |
+| `error` | Something was rejected, with a human-readable reason (German; the client translates known patterns). |
 | `gameExport` | The requested game export (JSON). |
+| `gameHistory` | Answer to `getGameHistory`. |
+| `handAus` | Somebody went out in one turn - the table gets a moment to appreciate it. |
+| `joined` | Confirms a table was created or joined; carries the code, the player id and the seat token. |
+| `layOffAmbiguous` | Same for a lay-off: the card fits more than one place. |
+| `leftLobby` | Confirms `leaveLobby`; the client may forget its per-table credentials. |
+| `meldAmbiguous` | A new meld could be read several ways (joker roles); the client must pick one of the offered options. |
+| `profiles` | Answer to `listProfiles`. |
+| `progress` | XP, level and daily-quest progress after a finished match. |
+| `puzzle` | Today's puzzle (answer to `getPuzzle`). |
+| `puzzleResult` | Grading of a `solvePuzzle` attempt. |
+| `puzzleSolution` | The solution, after `revealPuzzle` or a correct answer. |
+| `queenCaught` | A Queen of Spades was caught in a hand at round end (-100). |
+| `queenLaid` | A Queen of Spades was melded (+100). Drives the table reaction and the badge counters. |
+| `queenMagnet` | Who is currently the "Damen-Magnet des Tages" in the challenge. |
+| `quip` | A bot says a short line. Only the moment id travels; the texts live in the client (`game/BotQuips.js`). |
+| `sessionStatus` | Answer to `checkSession`. |
+| `stammtisch` | A Stammtisch was created or resolved; carries its code and members. |
+| `stammtischInfo` | Details of one Stammtisch (members, last evening, open table). |
+| `stammtischList` | Answer to `listStammtische`. |
+| `state` | The full game state as that player may see it (their own hand, everyone else's card counts). Sent after every change, coalesced to one send per tick. |
 
 :::{note}
 The server is the single source of truth: it validates every move and never

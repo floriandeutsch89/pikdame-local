@@ -43,6 +43,25 @@ Shared Caddy → `caddy_play_pikdame` (external, internal) ← app → `pikdame`
 internet**; mail leaves only through the egress proxy. Never attach a
 Pik Dame container to the shared `caddy_egress`: it sits next to CrowdSec's API.
 
+```mermaid
+flowchart LR
+  I((Internet)) --> C["shared Caddy<br/>TLS · CrowdSec · AppSec"]
+  subgraph n1["caddy_play_pikdame · internal"]
+    C --> APP["pikdame"]
+  end
+  subgraph n2["pikdame · internal"]
+    APP --> DB[("PostgreSQL")]
+  end
+  subgraph n3["pikdame_smtp · internal"]
+    APP -. "SMTP only" .-> EG["smtp-egress"]
+  end
+  subgraph n4["pikdame_egress"]
+    EG -.-> OUT((mail provider))
+  end
+  X["caddy_egress · CrowdSec API"]:::never
+  classDef never stroke-dasharray:4 3,opacity:0.6
+```
+
 ## Server bootstrap (fresh Ubuntu/Debian host)
 
 One command as root - system updates, unattended-upgrades with a nightly

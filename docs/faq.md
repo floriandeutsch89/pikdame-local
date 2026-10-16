@@ -18,6 +18,11 @@ game (this is about fairness, not cryptography). The **daily challenge** is the
 exception: it uses a seeded deterministic generator so that *everyone worldwide
 gets the identical deck* — fairness there through identical conditions.
 
+:::{tip}
+The {doc}`game constants page <developer/game-constants>` renders the whole
+110-card deck with a **Shuffle** button that runs that same Fisher-Yates — try it.
+:::
+
 ## Can I run more than one replica?
 
 **No — not as-is.** Game state lives in the process's memory. A second replica

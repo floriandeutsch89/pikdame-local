@@ -22,6 +22,21 @@ still part of every install:
 | `0` / `false` | Heuristic bots, even though runtime and models are there. |
 | *unset* (only outside the image) | **Auto**: learned bots when runtime **and** at least one model are present, heuristic otherwise — silently, so `node server.js` without the runtime behaves as before. |
 
+The decision, as the server makes it on startup (`game/OnnxPolicy.js`):
+
+```mermaid
+flowchart TD
+  E{PIKDAME_ONNX}
+  E -- "0 / false" --> H([heuristic bots])
+  E -- "1 / true" --> F{runtime and<br/>a model present?}
+  F -- yes --> L([learned bots])
+  F -- no --> W["loud warning in the log"] --> H
+  E -- "unset" --> A{runtime and<br/>a model present?}
+  A -- yes --> L
+  A -- "no (plain checkout, CodeApp)" --> H
+  L -. "any error at inference" .-> H
+```
+
 Compose:
 
 ```yaml

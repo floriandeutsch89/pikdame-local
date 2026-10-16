@@ -129,12 +129,39 @@ secrets), e.g. \`PIKDAME_DATABASE_PASSWORD_FILE=/run/secrets/db_password\`.
 }
 
 /* ------------------------------------------------------- websocket protocol */
+// Which phase a client message belongs to. Everything not listed lands in "other".
+const MSG_GROUPS = [
+  ['Before a table', 'Sent on a fresh connection, before the socket is bound to a table. These carry `msg.name` because the server has no seat to look up yet.',
+    ['createSession', 'joinSession', 'checkSession', 'listProfiles', 'getGameHistory', 'setFavoriteBadges', 'ping',
+      'getPuzzle', 'solvePuzzle', 'revealPuzzle', 'startChallenge', 'startTutorial',
+      'createStammtisch', 'getStammtisch', 'listStammtische', 'leaveStammtisch', 'deleteStammtisch']],
+  ['Lobby', 'Only valid while the table is in the `lobby` phase; most of them host-only.',
+    ['setName', 'ready', 'lobbyReady', 'startGame', 'setMaxSeats', 'reorderSeats', 'setDealer', 'setBotDifficulty', 'setHouseRules', 'leaveLobby']],
+  ['Your turn', 'The moves. The server rejects every one of them with a reason when it is not your turn or the rules say no.',
+    ['performCut', 'drawFromPile', 'drawFromDiscard', 'layoutMeld', 'layOff', 'layOffMulti', 'swapJoker', 'undoMeld', 'undoPileTake', 'discard']],
+  ['Table talk and votes', 'Allowed from any seat at any time during a match.',
+    ['emote', 'togglePause', 'forfeitRound', 'nextRound', 'rematch', 'exportLastGame']],
+];
+
 const MSG_NOTES = {
+  listProfiles: 'Player profiles, server statistics and today\'s quests for the start screen - server-wide data, hence before the table guard.',
+  ping: 'Keep-alive from the client; answered immediately. Lets a phone notice a dead connection before the server-side heartbeat does.',
+  getGameHistory: 'The finished matches of a player name ("Meine Partien").',
+  setFavoriteBadges: 'Pin up to three badges to the identity chip.',
+  getPuzzle: 'Today\'s daily puzzle (same for everyone, derived from the game day).',
+  solvePuzzle: 'Submit a puzzle answer; the server grades it and returns the solution.',
+  revealPuzzle: 'Give up on the puzzle and see the solution (no points).',
+  startChallenge: 'Begin today\'s daily challenge. Beginning counts as the one attempt of the day.',
+  startTutorial: 'Open a tutorial table against easy bots; the hints themselves are client-side.',
+  createStammtisch: 'Create a Stammtisch (a standing group table with its own code).',
+  getStammtisch: 'Resolve a Stammtisch code. Unknown codes count as a failed attempt (brute-force guard).',
+  listStammtische: 'The Stammtische a player name belongs to.',
+  leaveStammtisch: 'Leave a Stammtisch.',
+  deleteStammtisch: 'Founder only: dissolve a Stammtisch.',
   createSession: 'Create a new game and receive its code.',
   joinSession: 'Join an existing game by code.',
   checkSession: 'Ask whether a stored session still exists (used by the "resume" button).',
-  setName: 'Set or change the display name.',
-  ready: 'Toggle lobby readiness.',
+  lobbyReady: 'Mark yourself ready in the lobby; the host sees who is still missing.',
   startGame: 'Host only: start the game (empty seats are filled with bots).',
   setMaxSeats: 'Host only: change the number of seats (2-4).',
   reorderSeats: 'Host only: change the seating order.',
@@ -159,40 +186,91 @@ const MSG_NOTES = {
   rematch: 'Start a new match with the same table.',
   emote: 'Send an emoji reaction to the table.',
   exportLastGame: 'Download the last finished game as JSON.',
-  submitChallenge: 'Submit a daily-challenge score.',
-  login: 'Log in to an account.',
-  register: 'Create an account.',
-  logout: 'Log out.',
+};
+
+// Server -> client. The type literals come from the code; this map adds the
+// prose. Unlisted types are still emitted (with a pointer to the source).
+const S2C_NOTES = {
+  state: 'The full game state as that player may see it (their own hand, everyone else\'s card counts). Sent after every change, coalesced to one send per tick.',
+  joined: 'Confirms a table was created or joined; carries the code, the player id and the seat token.',
+  sessionStatus: 'Answer to `checkSession`.',
+  leftLobby: 'Confirms `leaveLobby`; the client may forget its per-table credentials.',
+  error: 'Something was rejected, with a human-readable reason (German; the client translates known patterns).',
+  emote: 'Someone (or a bot) sent a reaction.',
+  quip: 'A bot says a short line. Only the moment id travels; the texts live in the client (`game/BotQuips.js`).',
+  meldAmbiguous: 'A new meld could be read several ways (joker roles); the client must pick one of the offered options.',
+  layOffAmbiguous: 'Same for a lay-off: the card fits more than one place.',
+  handAus: 'Somebody went out in one turn - the table gets a moment to appreciate it.',
+  queenLaid: 'A Queen of Spades was melded (+100). Drives the table reaction and the badge counters.',
+  queenCaught: 'A Queen of Spades was caught in a hand at round end (-100).',
+  bestRound: 'A new personal best round score for this player.',
+  badges: 'Badges earned by this match, for the celebration overlay.',
+  progress: 'XP, level and daily-quest progress after a finished match.',
+  accountProgress: 'The account-bound progression on login (so a new device shows the right level).',
+  gameHistory: 'Answer to `getGameHistory`.',
+  gameExport: 'The requested game export (JSON).',
+  profiles: 'Answer to `listProfiles`.',
+  puzzle: 'Today\'s puzzle (answer to `getPuzzle`).',
+  puzzleResult: 'Grading of a `solvePuzzle` attempt.',
+  puzzleSolution: 'The solution, after `revealPuzzle` or a correct answer.',
+  challengeBoard: 'Today\'s daily-challenge leaderboard and weekly ranking.',
+  queenMagnet: 'Who is currently the "Damen-Magnet des Tages" in the challenge.',
+  stammtisch: 'A Stammtisch was created or resolved; carries its code and members.',
+  stammtischInfo: 'Details of one Stammtisch (members, last evening, open table).',
+  stammtischList: 'Answer to `listStammtische`.',
 };
 
 function generateProtocol() {
   const src = read('server.js');
-  const types = [...new Set([...src.matchAll(/case\s+'([a-zA-Z]+)'\s*:/g)].map((m) => m[1]))].sort();
-  const rows = types.map((t) => `| \`${t}\` | ${MSG_NOTES[t] || '_(see source)_'} |`);
+  // Two handler styles live in server.js: the pre-table `if (msg.type === …)`
+  // chain and the per-table `switch`. Both are the protocol.
+  const fromSwitch = [...src.matchAll(/case\s+'([a-zA-Z]+)'\s*:/g)].map((m) => m[1]);
+  const fromIf = [...src.matchAll(/msg\.type\s*===\s*'([a-zA-Z]+)'/g)].map((m) => m[1]);
+  const types = [...new Set([...fromSwitch, ...fromIf])].sort();
 
-  return `${BANNER}# WebSocket protocol
+  const grouped = new Set();
+  const sections = MSG_GROUPS.map(([title, intro, ids]) => {
+    const present = ids.filter((id) => types.includes(id));
+    present.forEach((id) => grouped.add(id));
+    const rows = present.map((t) => `| \`${t}\` | ${MSG_NOTES[t] || '_(see source)_'} |`);
+    return `### ${title} {bdg-secondary}\`${present.length}\`
 
-The client talks to the server over a single WebSocket. Every message is JSON
-with a \`type\` field. The list below is generated from the server's message
-handler, so it always matches the running code.
-
-## Client → server
+${intro}
 
 | \`type\` | Purpose |
 | --- | --- |
 ${rows.join('\n')}
+`;
+  });
+  const rest = types.filter((t) => !grouped.has(t));
+  if (rest.length) {
+    sections.push(`### Other {bdg-secondary}\`${rest.length}\`
 
+| \`type\` | Purpose |
+| --- | --- |
+${rest.map((t) => `| \`${t}\` | ${MSG_NOTES[t] || '_(see source)_'} |`).join('\n')}
+`);
+  }
+
+  const s2cSrc = src + read('game/GameManager.js');
+  const s2cTypes = [...new Set([...s2cSrc.matchAll(/\btype:\s*'([a-zA-Z]+)'/g)].map((m) => m[1]))].sort();
+  const s2cRows = s2cTypes.map((t) => `| \`${t}\` | ${S2C_NOTES[t] || '_(see source)_'} |`);
+
+  return `${BANNER}# WebSocket protocol
+
+The client talks to the server over a single WebSocket. Every message is JSON
+with a \`type\` field. Both lists below are generated from the server's message
+handlers, so they always match the running code: **${types.length}** message
+types go up, **${s2cTypes.length}** come down.
+
+## Client → server
+
+${sections.join('\n')}
 ## Server → client
 
 | \`type\` | Purpose |
 | --- | --- |
-| \`state\` | The full game state as that player may see it (their own hand, everyone else's card counts). Sent after every change. |
-| \`sessionCreated\` / \`sessionJoined\` | Confirms a game was created/joined; carries the code and the player's id. |
-| \`sessionStatus\` | Answer to \`checkSession\`. |
-| \`error\` | Something was rejected (with a human-readable reason). |
-| \`emote\` | Someone (or a bot) sent a reaction. |
-| \`jokerChoice\` | The move is ambiguous (a joker could stand for several cards); the client must pick one of the offered options. |
-| \`gameExport\` | The requested game export (JSON). |
+${s2cRows.join('\n')}
 
 :::{note}
 The server is the single source of truth: it validates every move and never
@@ -203,23 +281,49 @@ another player's hand.
 }
 
 /* ---------------------------------------------------------- game constants */
+// A card as a tiny HTML face. CSS lives in docs/_static/pikdame.css; on GitHub
+// (no CSS) the spans still read as "A ♥".
+const SUIT_GLYPH = { H: '♥', D: '♦', C: '♣', S: '♠' };
+function cardFace(card, opts = {}) {
+  const { cardValue, isPikDame } = require(path.join(ROOT, 'game', 'Card'));
+  const cls = ['pd-card'];
+  if (card.isJoker) cls.push('joker');
+  else if (card.suit === 'H' || card.suit === 'D') cls.push('red');
+  if (!card.isJoker && isPikDame(card)) cls.push('queen');
+  const order = opts.order !== undefined ? ` data-order="${opts.order}"` : '';
+  const title = card.isJoker ? 'Joker' : `${card.rank}${SUIT_GLYPH[card.suit]}`;
+  const pts = opts.points ? `<span class="pd-pts">${cardValue(card)}</span>` : '';
+  const face = card.isJoker
+    ? '<span class="pd-rk">JK</span><span class="pd-st">★</span>'
+    : `<span class="pd-rk">${card.rank}</span><span class="pd-st">${SUIT_GLYPH[card.suit]}</span>`;
+  return `<span class="${cls.join(' ')}"${order} title="${title}, ${cardValue(card)} points">${face}${pts}</span>`;
+}
+
 function generateGameConstants() {
   const Deck = require(path.join(ROOT, 'game', 'Deck'));
   const ScoreBoard = require(path.join(ROOT, 'game', 'ScoreBoard'));
   const Rules = require(path.join(ROOT, 'game', 'Rules'));
-  const { cardValue, makeStandardCard, makeJoker } = require(path.join(ROOT, 'game', 'Card'));
+  const { RANKS, cardValue, makeStandardCard, makeJoker } = require(path.join(ROOT, 'game', 'Card'));
 
   const deck = Deck.createDeck();
   const jokers = deck.filter((c) => c.isJoker).length;
 
   const v = (suit, rank) => cardValue(makeStandardCard(suit, rank, 0));
   const values = [
-    ['Queen of Spades (Pik Dame)', v('S', 'Q')],
-    ['Joker', cardValue(makeJoker(0))],
-    ['Ace', v('H', 'A')],
-    ['10, Jack, Queen, King', v('H', '10')],
-    ['2 - 9', v('H', '5')],
+    ['Queen of Spades (Pik Dame)', [makeStandardCard('S', 'Q', 0)]],
+    ['Joker', [makeJoker(0)]],
+    ['Ace', [makeStandardCard('H', 'A', 0)]],
+    ['10, Jack, Queen, King', [makeStandardCard('C', '10', 0), makeStandardCard('C', 'J', 0), makeStandardCard('C', 'Q', 0), makeStandardCard('C', 'K', 0)]],
+    ['2 - 9', [makeStandardCard('D', '2', 0), makeStandardCard('D', '9', 0)]],
   ];
+
+  // The deck exactly as createDeck() builds it: in order, so the "fresh deck"
+  // button has something to return to and the shuffle visibly destroys it.
+  const deckHtml = deck.map((c, i) => cardFace(c, { order: i })).join('');
+
+  // The rank ring as a diagram, so "K-A-2 is a run" needs no explanation.
+  const ring = RANKS.map((r, i) => `  r${i}(("${r}"))`).join('\n');
+  const edges = RANKS.map((_, i) => `  r${i} --> r${(i + 1) % RANKS.length}`).join('\n');
 
   const hr = ScoreBoard.DEFAULT_HOUSE_RULES;
 
@@ -228,7 +332,14 @@ function generateGameConstants() {
 Generated from the game engine, so the numbers here are exactly the ones the
 server plays with.
 
-## Deck and deal
+## The deck
+
+<div class="pd-deck-bar"><button type="button" data-pd-shuffle>Shuffle (Fisher-Yates)</button> <button type="button" data-pd-sort>Fresh deck</button> <span data-pd-status>${deck.length} cards, as \`createDeck()\` builds them</span></div>
+<div class="pd-deck">${deckHtml}</div>
+
+Two standard decks plus jokers. The shuffle button runs the same algorithm as
+\`game/Deck.js\` - unbiased, every order equally likely - which is the whole
+answer to "is the shuffle fair?" in the {doc}\`../faq\`.
 
 | | |
 | --- | --- |
@@ -239,16 +350,25 @@ server plays with.
 
 ## Card values
 
-| Card | Points |
-| --- | --- |
-${values.map(([n, p]) => `| ${n} | **${p}** |`).join('\n')}
+| Card | | Points |
+| --- | --- | --- |
+${values.map(([n, cards]) => `| ${n} | ${cards.map((c) => cardFace(c)).join(' ')} | **${cardValue(cards[0])}** |`).join('\n')}
 
 ## Combinations
 
 | | |
 | --- | --- |
 | Set (same rank) | ${3} - **${Rules.MAX_SET_SIZE}** cards, each suit at most **${Rules.MAX_PER_SUIT_IN_SET}×** (two decks) |
-| Run (same suit) | ${3} - **13** cards, circular: \`K-A-2\` is valid, no rank twice |
+| Run (same suit) | ${3} - **${RANKS.length}** cards, circular: \`K-A-2\` is valid, no rank twice |
+
+Runs live on a ring: after the king comes the ace, after the ace the two. A
+run may start anywhere on it and use at most every rank once.
+
+\`\`\`mermaid
+flowchart LR
+${ring}
+${edges}
+\`\`\`
 
 ## Scoring
 
@@ -264,12 +384,181 @@ The winner of a round scores only their melds. Everyone else scores
 `;
 }
 
+/* ------------------------------------------------------------- progression */
+// Display names live in the client (bilingual). Pull the English half out of
+// public/client.js so the docs show names, not ids.
+function clientBadgeMeta() {
+  const src = read('public/client.js');
+  const re = /(\w+): \{ emoji: '([^']+)', name: L\('([^']*)', '([^']*)'\), desc: L\('([^']*)', '([^']*)'\)/g;
+  const out = {};
+  let m;
+  while ((m = re.exec(src)) !== null) out[m[1]] = { emoji: m[2], name: m[4].replace(/­/g, ''), desc: m[6] };
+  return out;
+}
+function clientQuestText() {
+  const src = read('public/client.js');
+  const re = /(\w+): \{ icon: '[^']+', text: L\('[^']*', '([^']*)'\) \}/g;
+  const out = {};
+  let m;
+  while ((m = re.exec(src)) !== null) out[m[1]] = m[2];
+  return out;
+}
+
+function generateProgression() {
+  const P = require(path.join(ROOT, 'game', 'Progression'));
+  const { BADGE_IDS, BADGE_FAMILIES } = require(path.join(ROOT, 'game', 'Badges'));
+  const { EMOTE_DEFS, SEASONAL_EMOTES } = require(path.join(ROOT, 'game', 'Emotes'));
+  const { QUIP_MOMENTS } = require(path.join(ROOT, 'game', 'BotQuips'));
+
+  // XP per point is not exported; measure it instead of duplicating the constant.
+  const probe = P.xpForGame({ winnerId: 'other', finalTotals: { me: 1000 } }, 'me') - P.XP_BASE;
+  const perPoints = Math.round(1000 / probe);
+
+  const levels = [1, 2, 3, 5, 10, 20, 50];
+  let cumulative = 0;
+  const cum = {};
+  for (let l = 1; l <= 50; l++) { cum[l] = cumulative; cumulative += P.xpForLevel(l); }
+  const levelRows = levels.map((l) => `| ${l} | ${P.xpForLevel(l)} | ${cum[l]} |`);
+  const curveX = Array.from({ length: 30 }, (_, i) => i + 1);
+  const curveY = curveX.map((l) => P.xpForLevel(l));
+
+  const questText = clientQuestText();
+  const questRows = P.QUEST_IDS.map((id) => {
+    const q = P.questDef(id);
+    return `| \`${id}\` | ${questText[id] || '_(see client)_'} | ${q ? q.need : '?'} |`;
+  });
+
+  const meta = clientBadgeMeta();
+  const inFamily = new Set(BADGE_FAMILIES.flatMap((f) => f.tiers.map(([id]) => id)));
+  const famRows = BADGE_FAMILIES.map((f) => {
+    const tiers = f.tiers.map(([id, need]) => `${(meta[id] || {}).emoji || ''} ${(meta[id] || {}).name || id} {bdg-secondary}\`${need}\``).join(' → ');
+    return `| \`${f.id}\` | \`${f.field}\` | ${tiers} |`;
+  });
+  const oneOffs = BADGE_IDS.filter((id) => !inFamily.has(id));
+  const badgeRows = oneOffs.map((id) => {
+    const m = meta[id] || {};
+    return `| ${m.emoji || ''} | **${m.name || id}** | ${m.desc || ''} | \`${id}\` |`;
+  });
+
+  const emoteRows = EMOTE_DEFS.map((e) => `| ${e.id === 'pikdame' ? '♠Q (mini card)' : e.id} | ${e.level === 1 ? 'always' : `level ${e.level}`} |`);
+
+  return `${BANNER}# Progression
+
+Generated from \`game/Progression.js\`, \`game/Badges.js\`, \`game/Emotes.js\`
+and \`game/BotQuips.js\`; the display names come from the client's own
+bilingual tables. Ids are stable, names may change.
+
+## Experience
+
+| Event | XP |
+| --- | --- |
+| Finishing a match (won or lost) | **${P.XP_BASE}** |
+| Winning it | **+${P.XP_WIN}** |
+| Final score | **+1 per ${perPoints} points** (never negative) |
+
+Each level costs a little more than the last, so the first levels arrive
+after an evening of play and the later ones stay meaningful:
+
+\`\`\`mermaid
+xychart-beta
+  title "XP needed to clear a level"
+  x-axis "Level" [${curveX.join(', ')}]
+  y-axis "XP" 0 --> ${Math.max(...curveY) + 100}
+  bar [${curveY.join(', ')}]
+  line [${curveY.join(', ')}]
+\`\`\`
+
+| Level | XP for this level | Total XP to reach it |
+| --- | --- | --- |
+${levelRows.join('\n')}
+
+Seasons are calendar months; the ladder resets so late starters have
+something reachable.
+
+## Daily quests
+
+**${P.QUESTS_PER_DAY}** of these per game day, the same three for everyone
+(seeded from the date, like the challenge deck):
+
+| Id | Task | Count |
+| --- | --- | --- |
+${questRows.join('\n')}
+
+A daily streak survives one missed day every ${P.STREAK_GRACE_EVERY_DAYS} days
+(the "joker day"); after ${P.WELCOME_BACK_DAYS} days away the app says welcome
+back instead of showing a broken streak.
+
+## Badges
+
+**${BADGE_IDS.length}** badges. ${BADGE_FAMILIES.length} of them are *families*: one tile, rising
+thresholds on the same counter.
+
+| Family | Counter | Tiers |
+| --- | --- | --- |
+${famRows.join('\n')}
+
+The other **${oneOffs.length}** are earned by a fact about one match (computed in
+\`computeEarnedBadges\` from the finished game record):
+
+| | Badge | Earned by | Id |
+| --- | --- | --- | --- |
+${badgeRows.join('\n')}
+
+## Table talk
+
+Reactions are a whitelist on the server (a safety filter) and unlock by level
+on the client:
+
+| Emote | Unlocked |
+| --- | --- |
+${emoteRows.join('\n')}
+
+Seasonal extras the client offers in autumn and around New Year: ${SEASONAL_EMOTES.join(' ')}
+(always accepted server-side).
+
+Bots may say a short line at **${QUIP_MOMENTS.length}** moments
+(\`${QUIP_MOMENTS.join('`, `')}\`). Only the moment id travels over the wire;
+the lines themselves are in the client, in both languages.
+`;
+}
+
+/* ----------------------------------------------------------------- numbers */
+// Tiles for the landing page. Only facts that change rarely belong here: the
+// generated docs are checked in CI, so a number that moves with every PR would
+// turn that check into a chore.
+function generateNumbers(protocolMd, configurationMd) {
+  const Deck = require(path.join(ROOT, 'game', 'Deck'));
+  const { BADGE_IDS } = require(path.join(ROOT, 'game', 'Badges'));
+  const { EMOTE_DEFS } = require(path.join(ROOT, 'game', 'Emotes'));
+  const css = read('public/style.css');
+  const themes = new Set([...css.matchAll(/data-theme="([a-z-]+)"/g)].map((m) => m[1]));
+  const up = Number((protocolMd.match(/\*\*(\d+)\*\* message\s*types go up/) || [])[1]);
+  const down = Number((protocolMd.match(/\*\*(\d+)\*\* come down/) || [])[1]);
+  const envVars = (configurationMd.match(/^\| `[A-Z_]+` \|/gm) || []).length;
+  const deps = Object.keys(JSON.parse(read('package.json')).dependencies || {}).length;
+
+  const tile = (n, label) => `<div class="pd-stat"><b>${n}</b><span>${label}</span></div>`;
+  return `${BANNER}<div class="pd-stats">
+${tile(Deck.createDeck().length, 'cards in the deck')}
+${tile(up + down, 'WebSocket message types')}
+${tile(envVars, 'environment variables, no config file')}
+${tile(BADGE_IDS.length, 'badges to earn')}
+${tile(EMOTE_DEFS.length, 'emotes, unlocked by level')}
+${tile(themes.size, 'themes, from felt to grandma\'s kitchen')}
+${tile(deps, 'runtime npm dependencies')}
+${tile(0, 'build steps')}
+</div>
+`;
+}
+
 /* ---------------------------------------------------------------------- run */
 const outputs = {
   'configuration.md': generateConfiguration(),
   'protocol.md': generateProtocol(),
   'game-constants.md': generateGameConstants(),
+  'progression.md': generateProgression(),
 };
+outputs['numbers.md'] = generateNumbers(outputs['protocol.md'], outputs['configuration.md']);
 
 const check = process.argv.includes('--check');
 fs.mkdirSync(OUT_DIR, { recursive: true });

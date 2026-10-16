@@ -2,26 +2,46 @@
 
 ## The shape of it
 
-```text
-  Browser (public/)                    Node process (server.js)
- ┌──────────────────┐               ┌──────────────────────────────────┐
- │ client.js        │  WebSocket    │ SessionRegistry                  │
- │  - renders state │◄─────────────►│   code → { GameManager, sockets }│
- │  - sends moves   │   JSON msgs   │                                  │
- └──────────────────┘               │ GameManager  (one per table)     │
-                                    │   ├── Rules.js    (validation)   │
-                                    │   ├── Bot.js      (bot moves)    │
-                                    │   ├── Deck.js     (shuffle/deal) │
-                                    │   └── ScoreBoard.js (scoring)    │
-                                    │                                  │
-                                    │ Stores → /app/data/*.json        │
-                                    │ AccountStore → SQLite | Postgres │
-                                    └──────────────────────────────────┘
+```mermaid
+flowchart TB
+  subgraph browser["Browser · public/"]
+    CJ["client.js · renders state, sends moves"]
+  end
+  subgraph node["Node process · server.js"]
+    REG["SessionRegistry<br/>code → { GameManager, sockets }"]
+    GM["GameManager · one per table<br/>Rules.js (validation) · Bot.js / OnnxPolicy.js (bot moves)<br/>Deck.js (shuffle, deal, cut) · ScoreBoard.js (scoring)"]
+    STORES[("JSON stores → /app/data<br/>atomic writes, debounced")]
+    ACC[("AccountStore · PgAccountStore<br/>SQLite | PostgreSQL")]
+    REG --> GM
+    GM --> STORES
+    REG --> ACC
+  end
+  CJ <-- "WebSocket · JSON messages" --> REG
 ```
 
 One `GameManager` per table, held in memory, keyed by the six-character session
 code. Tables are fully isolated: a manager's broadcast function only reaches the
 sockets of its own session.
+
+## A table's life
+
+The phase field on the manager is the whole state machine. `abandoned` is
+reachable from everywhere (forfeit vote, nobody left to play).
+
+```mermaid
+stateDiagram-v2
+  direction LR
+  [*] --> lobby: createSession
+  lobby --> cutting: startGame<br/>bots fill empty seats
+  cutting --> playing: performCut<br/>(or automatic)
+  playing --> roundEnd: last card discarded<br/>or draw pile empty
+  roundEnd --> cutting: nextRound
+  roundEnd --> gameOver: someone ≥ 1000
+  gameOver --> lobby: rematch
+  gameOver --> [*]
+  playing --> abandoned: forfeit vote
+  abandoned --> [*]
+```
 
 ## Principles that shaped the code
 
@@ -50,6 +70,24 @@ discard). Broadcasting after each step meant up to four full states per player
 per turn, even though nobody can see the intermediate ones — they happen in the
 same tick. `broadcastState()` therefore schedules **one** send per tick
 (`setImmediate`), which cut broadcast volume by ~63 % under load.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant B as Bot turn
+  participant G as GameManager
+  participant L as event loop
+  participant P as every player
+  B->>G: drawFromPile
+  G-->>L: broadcastState() → schedule once
+  B->>G: layoutMeld
+  G-->>L: already scheduled, no-op
+  B->>G: layOff
+  G-->>L: already scheduled, no-op
+  B->>G: discard
+  G-->>L: already scheduled, no-op
+  L->>P: one `state` per player (own hand only)
+```
 
 The canonical **sorting** of table melds stays *synchronous*, because it is game
 state, not a network detail.

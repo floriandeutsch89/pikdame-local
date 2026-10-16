@@ -6,6 +6,7 @@
 architecture
 protocol
 game-constants
+progression
 bots
 rl-training
 rl-setup
@@ -38,10 +39,19 @@ There is **no build step**. The client is plain HTML/CSS/JS served as-is: edit
 | `game/ScoreBoard.js` | Scoring and game-over logic |
 | `game/Deck.js` | Deck creation, the (Fisher-Yates) shuffle, dealing |
 | `game/*Store.js` | Persistence (profiles, stats, history, challenges, accounts) |
+| `game/Progression.js`, `game/Badges.js` | XP, quests, badges — pure functions over a finished game (see {doc}`progression`) |
 | `public/` | The entire client |
 | `scripts/` | Tooling: A/B bot simulation, load test, docs generator |
 | `mcp/` | MCP server: an LLM agent plays a seat (see {doc}`mcp`) |
 | `test/` | The test suite (`node --test`) |
+
+## Generated, not written
+
+Four pages of this guide are produced by `scripts/gen-docs.js` straight from
+the source and verified in CI, so they cannot go stale:
+{bdg-primary-line}`configuration` {bdg-primary-line}`protocol`
+{bdg-primary-line}`game-constants` {bdg-primary-line}`progression`.
+See {doc}`contributing` for how that works.
 
 ## Useful tooling
 
