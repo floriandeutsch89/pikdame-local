@@ -104,6 +104,10 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   fällt auf die Heuristik zurück.
   - `StateEncoder.js`: EINZIGE Kodierung (377 Obs, 54 Aktionen) für Training
     UND Laufzeit — einseitige Änderung macht `.onnx` inkompatibel.
+  - **Stufe ≠ Stärke:** Mit Netz spielen Mittel und Zen gleich stark (gemessen
+    2026-10, je 1000 Partien). Stärke-Änderungen mit aktivem ONNX messen
+    (Prod-Standard); `onnxruntime-node` dafür außerhalb des Repos installieren
+    (`--ignore-scripts`, `NODE_PATH`), sonst schaltet Auto-Modus es in `npm test` ein.
   - `OnnxPolicy.js` lädt `models/pikdame-<stufe>.onnx`. Training in `python/`
     (MaskablePPO), Bridge `scripts/rl-env-server.js`, Doku
     `docs/developer/rl-setup.md`. Modelle werden committet, `.zip` nicht.
