@@ -50,7 +50,6 @@ class GameManager {
     this.abandoned = false;
     this.soloPausedUntil = null;
     this.challengeDate = options.challengeDate || null;
-    this.challengeRanked = true; // false = practice: the day's ranked attempt is used (server sets it)
     this.onBotEmote = options.onBotEmote || null; // (botId, emoji) => void - Bot-Reaktionen an den Tisch
     this.onBotQuip = options.onBotQuip || null; // (botId, moment) => void - a short bot line (BotQuips.js)
     this._lastQuipAt = 0; // table-wide throttle, transient
@@ -1749,7 +1748,6 @@ class GameManager {
 
       this.lastGameRecord = {
         challengeDate: this.challengeDate || undefined,
-        challengePractice: this.challengeDate && !this.challengeRanked ? true : undefined,
         players: this.players.map((p) => ({ id: p.id, name: p.name, isBot: p.isBot, botDifficulty: p.isBot ? p.botDifficulty : undefined })),
         rounds: this.roundHistory,
         finalTotals: this.totals,
@@ -2921,7 +2919,6 @@ class GameManager {
       cutDeadline: this.phase === 'cutting' ? this.cutDeadline : null,
       lastCutReveal: this._cutRevealFor(forPlayerId),
       challengeDate: this.challengeDate || null,
-      challengePractice: !!(this.challengeDate && !this.challengeRanked),
       tutorialMode: this.tutorialMode || false,
       soloPausedUntil: this.soloPausedUntil || null,
       abandoned: this.abandoned || false,

@@ -314,9 +314,9 @@ test('the daily challenge seats three medium bots', async (t) => {
   assert.deepStrictEqual(bots.map((p) => p.botDifficulty), ['medium', 'medium', 'medium']);
 });
 
-// One ranked attempt per day: the boot frees a ranked game the server lost,
-// the first start is ranked, a second one the same day is practice.
-test('daily challenge: first start ranked, second practice, lost game freed at boot', async (t) => {
+// One attempt per day: the boot frees a game the server lost, the first
+// start plays, a second one the same day is refused.
+test('daily challenge: first start plays, second refused, lost game freed at boot', async (t) => {
   const { gameDay } = require('../game/GameDay');
   const today = gameDay();
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-cha-'));
@@ -342,20 +342,21 @@ test('daily challenge: first start ranked, second practice, lost game freed at b
       s.once('error', reject);
     });
     ws.send(JSON.stringify({ type: 'startChallenge', name: 'Flo' }));
-    let st = null;
-    for (const deadline = Date.now() + 4000; !st && Date.now() < deadline;) {
+    let got = null;
+    for (const deadline = Date.now() + 4000; !got && Date.now() < deadline;) {
       await new Promise((r) => setTimeout(r, 25));
-      const m = ws.inbox.filter((x) => x.type === 'state' && x.state.players.length === 4).pop();
-      st = m ? m.state : null;
+      got = ws.inbox.find((x) => x.type === 'error' || (x.type === 'state' && x.state.players.length === 4)) || null;
     }
     ws.close();
-    return st;
+    return got;
   };
   const first = await start();
-  assert.strictEqual(first.challengePractice, false, 'first game of the day is ranked');
+  assert.strictEqual(first.type, 'state', 'first game of the day plays');
+  assert.strictEqual(first.state.challengeDate, today);
   assert.strictEqual(await attempted(), true);
   const second = await start();
-  assert.strictEqual(second.challengePractice, true, 'a second start the same day is practice');
+  assert.strictEqual(second.type, 'error', 'a second start the same day is refused');
+  assert.match(second.error, /schon gespielt/);
 });
 
 test('Stammtisch: a new evening starts with the last winner as dealer', async (t) => {

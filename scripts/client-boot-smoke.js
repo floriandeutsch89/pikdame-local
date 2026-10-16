@@ -663,22 +663,6 @@ setTimeout(() => {
       if (!doc.querySelector('#opponents .botDiffBadge')) errors.push('a normal table must show the bot level on the opponent chip');
       feed({ ...table, challengeDate: '2026-10-16' });
       if (doc.querySelector('#opponents .botDiffBadge')) errors.push('the daily challenge must not show the bot level');
-      // Practice (the day's ranked game is used): said once at the start, and the board says it too.
-      const toast = doc.getElementById('toastContainer');
-      feed({ ...table, phase: 'gameOver', gameOverInfo: { winnerId: 'b1', finalTotals: {} } }); // a finished game frees round 1 again
-      toast.textContent = '';
-      feed({ ...table, challengeDate: '2026-10-16', challengePractice: true });
-      if (!/Übungspartie/.test(toast.textContent)) errors.push(`a practice game must say so, got: ${toast.textContent}`);
-      wsInstance._emit('message', { data: JSON.stringify({
-        type: 'challengeBoard', date: '2026-10-16', practice: true, yourScore: 910, yourRank: null,
-        ranked: { rank: 2, score: 700 }, magnet: { name: 'Oma Gerda', queens: 3 },
-        board: [{ rank: 1, name: 'Ben', score: 800 }, { rank: 2, name: 'Flo', score: 700 }], history: [], weekly: null,
-      }) });
-      const boardText = (doc.querySelector('.challengeBoardBox') || {}).textContent || '';
-      if (!/Übung: 910 Punkte/.test(boardText) || !/Gewertet: 700 Punkte · Platz 2/.test(boardText)) {
-        errors.push(`the board must tell practice from the ranked result: ${boardText.slice(0, 120)}`);
-      }
-      if (!/Damen-Magnet des Tages: Oma Gerda \(3×\)/.test(boardText)) errors.push(`the board must name the Damen-Magnet: ${boardText.slice(0, 160)}`);
       feed(table);
       // Bot lines: a bubble under the speaker's chip; the settings switch mutes them.
       const quip = () => wsInstance._emit('message', { data: JSON.stringify({ type: 'quip', playerId: 'b1', moment: 'queen_caught' }) });
@@ -833,6 +817,22 @@ setTimeout(() => {
         if (!winnerBox.querySelector('.trophyMark')) errors.push('match win must show the TROPHY icon');
         if (winnerBox.querySelector('.jokerMark')) errors.push('match win must NOT reuse the round-win crown icon');
       }
+      const contBtn = doc.getElementById('resultContinueBtn');
+      if (!/Rematch/.test(contBtn.textContent)) errors.push(`a normal game offers the rematch, got: ${contBtn.textContent}`);
+      // Game over in the challenge: one attempt per day, so no rematch - the primary action leads home.
+      const over = { ...roundEndState, phase: 'gameOver', houseRules: {}, totals: { p1: 120, b1: 80, b2: -40, b3: 1010 },
+        gameOverInfo: { winnerId: 'b3', finalTotals: { p1: 120, b1: 80, b2: -40, b3: 1010 }, highlights: [] } };
+      feed({ ...over, challengeDate: '2026-10-16' });
+      wsInstance._emit('message', { data: JSON.stringify({
+        type: 'challengeBoard', date: '2026-10-16', yourScore: 120, yourRank: 2, magnet: { name: 'Oma Gerda', queens: 3 },
+        board: [{ rank: 1, name: 'Ben', score: 800 }, { rank: 2, name: 'Flo', score: 120 }], history: [], weekly: null,
+      }) });
+      if (!/Hauptmenü/.test(contBtn.textContent)) errors.push(`the challenge must not offer a rematch, got: ${contBtn.textContent}`);
+      if (!doc.getElementById('resultHomeQuickBtn').classList.contains('hidden')) errors.push('no second home button next to the home action');
+      const boardText = (doc.querySelector('.challengeBoardBox') || {}).textContent || '';
+      if (!/Dein Ergebnis: 120 Punkte · Platz 2/.test(boardText)) errors.push(`the board must show the result: ${boardText.slice(0, 120)}`);
+      if (!/Damen-Magnet des Tages: Oma Gerda \(3×\)/.test(boardText)) errors.push(`the board must name the Damen-Magnet: ${boardText.slice(0, 160)}`);
+      feed(over); // back to the normal game-over for the tab checks below
     }
     setTimeout(() => {
       const doc = window.document;

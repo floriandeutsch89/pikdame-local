@@ -41,8 +41,8 @@ window.I18N_STATIC = {
   'Konto': 'Account',
   'Tages-Challenge': 'Daily challenge',
   'Heute spielen alle Spieler weltweit exakt dasselbe Kartendeck – gegen dieselben drei Bots. Wer holt die meisten Punkte aus den gleichen Karten?': 'Today every player worldwide gets the exact same deck – against the same three bots. Who squeezes the most points out of identical cards?',
-  'Nur deine erste Partie des Tages kommt mit deinem Spielernamen in die Bestenliste (7 Tage sichtbar) – danach kannst du dasselbe Deck beliebig oft üben.': 'Only your first game of the day enters the leaderboard under your player name (visible for 7 days) – after that you can practise the same deck as often as you like.',
-  'Deine gewertete Partie für heute hast du schon begonnen – ab jetzt wird geübt.': 'You already started your ranked game for today – from now on it is practice.',
+  'Ein Versuch pro Tag: Dein Ergebnis kommt mit deinem Spielernamen in die Bestenliste (7 Tage sichtbar).': 'One attempt per day: your result enters the leaderboard under your player name (visible for 7 days).',
+  'Heute hast du die Challenge schon gespielt – morgen gibt es ein neues Deck.': 'You already played today\u2019s challenge – a new deck comes tomorrow.',
   'Bot-Sprüche': 'Bot lines',
   'Bot-Sprüche ein/aus': 'Bot lines on/off',
   'Kurze Sätze der Bots in besonderen Momenten – selten, nur zum Spaß. Gilt für dieses Gerät.': 'Short lines from the bots at special moments – rare, just for fun. Applies to this device.',
@@ -198,6 +198,8 @@ window.I18N_STATIC = {
 window.I18N_SERVER_PATTERNS = [
   // --- Log ---
   [/^Runde (\d+) gestartet\. Geber: (.+)\.$/, 'Round $1 started. Dealer: $2.'],
+  [/^Die heutige Tages-Challenge hast du schon gespielt - morgen gibt es ein neues Deck\.$/, 'You already played today\u2019s challenge - a new deck comes tomorrow.'],
+  [/^In der Tages-Challenge gibt es nur einen Versuch pro Tag\.$/, 'The daily challenge allows one attempt per day.'],
   [/^Pausiert - die Tages-Challenge wartet bis Mitternacht auf dich\.$/, 'Paused - the daily challenge waits for you until midnight (German time).'],
   [/^Pausiert - das Spiel wartet (\d+) Minuten auf dich\.$/, 'Paused - the game waits $1 minutes for you.'],
   [/^Pausiert - das Spiel wartet 90 Sekunden auf dich\.$/, 'Paused - the game waits 90 seconds for you.'],
