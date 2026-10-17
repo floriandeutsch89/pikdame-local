@@ -10,11 +10,31 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { JSDOM, VirtualConsole } = require('jsdom');
 const GameManager = require('../game/GameManager');
+const { createDeck } = require('../game/Deck');
 
 const pub = path.join(__dirname, '..', 'public');
 const html = fs.readFileSync(path.join(pub, 'index.html'), 'utf8');
 const ME = 'p1';
 const BOT_MS = 1500; // virtual think time per bot move
+
+// Card conservation (same census as card-conservation.test.js): the tutorial's
+// stock swap must never create or lose a card.
+const REFERENCE = (() => {
+  const counts = new Map();
+  for (const card of createDeck()) counts.set(card.id, (counts.get(card.id) || 0) + 1);
+  return counts;
+})();
+function assertDeck(game, when) {
+  const found = new Map();
+  const add = (card) => { if (card && card.id) found.set(card.id, (found.get(card.id) || 0) + 1); };
+  for (const p of game.players) (p.hand || []).forEach(add);
+  for (const meld of game.tableMelds || []) for (const s of meld.slots || []) { add(s.real); add(s.joker); }
+  for (const pile of [game.drawPile, game.discardPile, game.retiredJokers]) (pile || []).forEach(add);
+  const errors = [];
+  for (const [id, n] of REFERENCE) if ((found.get(id) || 0) !== n) errors.push(`${id}: ${found.get(id) || 0}x instead of ${n}x`);
+  for (const id of found.keys()) if (!REFERENCE.has(id)) errors.push(`unknown card ${id}`);
+  assert.deepStrictEqual(errors, [], `card conservation broken ${when}`);
+}
 
 function boot({ storage = {} } = {}) {
   const errors = [];
@@ -198,6 +218,7 @@ function boot({ storage = {} } = {}) {
 async function tapTheGlow(t) {
   if (t.visible('tutorialNextBtn') && t.coach()) { await t.click(t.$('#tutorialNextBtn')); return true; }
   if (t.$('#drawPile.tutorialGlowTarget')) { await t.click(t.$('#drawPile')); return true; }
+  if (t.$('#discardPile.tutorialGlowTarget')) { await t.click(t.$('#discardPile')); return true; }
   const stray = t.$('#hand .card.selected:not(.tutorialGlow)');
   if (stray) { await t.click(stray); return true; }
   const marked = t.$$('#hand .card.tutorialGlow');
@@ -237,6 +258,7 @@ async function playToTheEnd(t) {
       continue;
     }
     if (!(await tapTheGlow(t))) assert.fail(`dead end: my turn, lesson ${c && c.step}, nothing marked`);
+    assertDeck(t.server.game, `after step ${i} (${c && c.step})`);
   }
   return { seen, notes, counts, resultLesson };
 }
@@ -260,9 +282,10 @@ test('tutorial: following the marks plays round 1 to "Tutorial geschafft", lesso
     assert.equal(t.server.game.phase, 'roundEnd');
     assert.equal(t.server.game.roundNumber, 1, 'the tutorial ends with the scoring of round 1');
     assert.equal(t.server.game.lastRoundWinnerId, ME, 'following the marks wins the round');
-    // "Fast geschafft" comes with the last hand card, while the bots play;
-    // turn 2 then lays off the drawn joker before going out.
-    const order = ['welcome', 'draw', 'firstSet', 'pikdame', 'queenSet', 'joker', 'moreMelds', 'discard', 'endgame', 'layOff'];
+    // Turn 1 takes the 7♥ from the pile and melds it (pileDuty); "Fast geschafft"
+    // comes with two cards left, while the bots play. Turns 2 and 3 each lay off
+    // the drawn card before going out.
+    const order = ['welcome', 'draw', 'pileDuty', 'firstSet', 'pikdame', 'queenSet', 'joker', 'discard', 'endgame', 'layOff'];
     assert.deepStrictEqual(seen, order, 'every lesson once, in order');
     // One channel: the coach card answers own moves; the bots' moves stay news.
     assert.ok(!t.toasts.some((x) => x.startsWith('Neuling ')), `no echo of own moves (toasts: ${t.toasts.join(' | ')})`);
@@ -306,14 +329,22 @@ test('tutorial: "Zum Hauptmenü" ends on a plain start screen', async () => {
   }
 });
 
-test('tutorial: a taken pile is settled first, with the rule behind a refused move', async () => {
+test('tutorial: the first move takes the fitting 7♥ from the pile and settles it before anything else', async () => {
   const t = boot();
   try {
     await t.run(100);
     await t.click(t.$('#tutorialBtn'));
     await t.click(t.$('#tutorialNextBtn')); // welcome
-    assert.equal(t.coach().step, 'draw');
-    await t.click(t.$('#discardPile')); // 7♥ fits 5♥ 6♥ - off the marked path on purpose
+    assert.deepStrictEqual(t.coach(), {
+      step: 'draw',
+      title: 'Die Ablage',
+      text: 'Die 7♥ auf der Ablage passt zu deiner 5♥ und 6♥. Tippe auf die Ablage – dann legst du sie sofort mit beiden aus.',
+      count: '2 / 10',
+    }, 'not "draw from the stock" while the top discard fits');
+    assert.ok(t.$('#discardPile.tutorialGlowTarget'), 'the pile is the marked target');
+    assert.ok(!t.$('#drawPile.tutorialGlowTarget'), 'the stock is not');
+    assert.deepStrictEqual(markedNames(t), ['5H', '6H'], 'the cards it joins are marked');
+    await t.click(t.$('#discardPile'));
     assert.ok(t.server.game.mustLayOffCardId, 'the pile was taken');
     assert.equal(t.coach().step, 'pileDuty');
     assert.equal(t.coach().text, 'Leg die 7♥ jetzt aus – zusammen mit 5♥ und 6♥.');
@@ -335,17 +366,90 @@ test('tutorial: a taken pile is settled first, with the rule behind a refused mo
     }
     assert.equal(t.server.game.mustLayOffCardId, null, 'settled by following the marks');
     assert.match(t.note().text, /^Erledigt/);
-    // On with the lessons; the duty meld already counts as the first one.
+    // A run is not a set: the four threes still get their lesson.
+    assert.equal(t.coach().step, 'firstSet');
+    assert.equal(t.coach().text, 'Tippe die vier Dreien an und dann auf „Auslegen“.');
     for (let i = 0; i < 40 && t.myTurn(); i++) {
       const c = t.coach();
-      assert.ok(!c || !['firstSet', 'pileDuty'].includes(c.step), `no lesson for what is done: ${c && c.step}`);
+      assert.ok(!c || c.step !== 'pileDuty', 'the duty stays settled');
       assert.ok(await tapTheGlow(t), `dead end at ${c && c.step}`);
+      assertDeck(t.server.game, `after ${c && c.step}`);
     }
     assert.ok(!t.myTurn(), 'turn 1 ends by following the marks');
     assert.deepStrictEqual(t.errors, []);
   } finally {
     t.close();
   }
+});
+
+test('tutorial: with no fitting top discard the first lesson is the stock', async () => {
+  const t = boot();
+  try {
+    await t.run(100);
+    await t.click(t.$('#tutorialBtn'));
+    // Swap the 7♥ for a stock card the hand cannot use (a swap keeps the deck whole).
+    const g = t.server.game;
+    const me = g.players.find((p) => p.id === ME);
+    let swapped = false;
+    for (let i = 0; i < g.drawPile.length && !swapped; i++) {
+      [g.discardPile[0], g.drawPile[i]] = [g.drawPile[i], g.discardPile[0]];
+      swapped = !g.discardPile[0].isJoker && !g.canTakeDiscardTop(me, g.discardPile[0]);
+      if (!swapped) [g.discardPile[0], g.drawPile[i]] = [g.drawPile[i], g.discardPile[0]];
+    }
+    assert.ok(swapped, 'a stock card that does not fit');
+    assertDeck(g, 'after the swap');
+    g.broadcastState();
+    await t.run(50);
+    await t.click(t.$('#tutorialNextBtn')); // welcome
+    assert.deepStrictEqual(t.coach(), {
+      step: 'draw', title: 'Karte ziehen', text: 'Tippe auf den verdeckten Stapel und zieh eine Karte.', count: '2 / 10',
+    });
+    assert.ok(t.$('#drawPile.tutorialGlowTarget'));
+    assert.ok(!t.$('#discardPile.tutorialGlowTarget'));
+    assert.equal(t.$$('#hand .card.tutorialGlow').length, 0, 'no hand card to join');
+    await t.click(t.$('#drawPile'));
+    assert.equal(g.turnPhase, 'meld');
+    assert.equal(t.coach().step, 'firstSet');
+    assert.deepStrictEqual(t.errors, []);
+  } finally {
+    t.close();
+  }
+});
+
+test('tutorial round 1: the learner\'s stock draw fits an own meld; nothing else changes the stock', () => {
+  const name = (cd) => `${cd.rank}${cd.suit}`;
+  const setup = (tutorialMode) => {
+    const g = new GameManager(() => {}, { deckSeed: GameManager.TUTORIAL_SEED, tutorialMode });
+    g.addOrReconnectPlayer(ME, 'Neuling');
+    g.startTutorialRound();
+    const me = g.players.find((p) => p.id === ME);
+    // Turn 1 on the marked path: the 7♥ from the pile, melded with 5♥ 6♥.
+    assert.ok(g.drawFromDiscard(ME).ok);
+    const ids = ['5H', '6H', '7H'].map((n) => me.hand.find((cd) => name(cd) === n).id);
+    assert.ok(g.layoutMeld(ME, ids).ok);
+    return { g, me };
+  };
+  const { tryLayOff } = require('../game/Rules');
+
+  const tut = setup(true);
+  const before = tut.g.drawPile.map((cd) => cd.id).sort();
+  tut.g._tutorialFittingDraw(tut.me);
+  const top = tut.g.drawPile[0];
+  const run = tut.g.tableMelds.find((m) => m.ownerId === ME);
+  assert.ok(!top.isJoker, `a real card first, not ${name(top)}`);
+  assert.ok(tryLayOff(run, top), `${name(top)} fits the own run 5♥ 6♥ 7♥`);
+  assert.deepStrictEqual(tut.g.drawPile.map((cd) => cd.id).sort(), before, 'a swap inside the stock');
+  assertDeck(tut.g, 'after the tutorial draw');
+
+  const normal = setup(false);
+  const order = normal.g.drawPile.map((cd) => cd.id);
+  normal.g._tutorialFittingDraw(normal.me);
+  assert.deepStrictEqual(normal.g.drawPile.map((cd) => cd.id), order, 'a normal game keeps its stock');
+  const later = setup(true);
+  later.g.roundNumber = 2;
+  const order2 = later.g.drawPile.map((cd) => cd.id);
+  later.g._tutorialFittingDraw(later.me);
+  assert.deepStrictEqual(later.g.drawPile.map((cd) => cd.id), order2, 'only round 1 of the tutorial');
 });
 
 test('tutorial: refused moves get the rule behind them, in the engine\'s own words', async () => {
