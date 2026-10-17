@@ -216,7 +216,8 @@ Recommendation: run nightly via cron and copy the archive off-site.
 ## Observability
 
 - `GET /healthz` — liveness (also used by the Docker healthcheck)
-- `GET /statusz` — version, session/player counts, memory, accountsEnabled
+- `GET /statusz` — version, session/player counts, memory, accountsEnabled, today's quests and the
+  holiday decor windows for today/tomorrow (`occasions`, German game day)
 - Logs: `docker logs -f pikdame` (rotation 10 MB × 3 is configured)
 - Crash diagnostics: `data/crash.log` inside the volume
 

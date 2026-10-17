@@ -410,7 +410,8 @@ function clientQuestText() {
 function generateProgression() {
   const P = require(path.join(ROOT, 'game', 'Progression'));
   const { BADGE_IDS, BADGE_FAMILIES } = require(path.join(ROOT, 'game', 'Badges'));
-  const { EMOTE_DEFS, SEASONAL_EMOTES, GREETING_EMOTE } = require(path.join(ROOT, 'game', 'Emotes'));
+  const { EMOTE_DEFS, SEASONAL_EMOTES, GREETING_EMOTE, HOLIDAY_EMOTES } = require(path.join(ROOT, 'game', 'Emotes'));
+  const holidayEmotes = [...new Set(Object.values(HOLIDAY_EMOTES))].filter((e) => !SEASONAL_EMOTES.includes(e));
   const { QUIP_MOMENTS } = require(path.join(ROOT, 'game', 'BotQuips'));
 
   // XP per point is not exported; measure it instead of duplicating the constant.
@@ -517,7 +518,8 @@ on the client:
 ${emoteRows.join('\n')}
 
 Seasonal extras the client offers in autumn and around New Year: ${SEASONAL_EMOTES.join(' ')}
-(always accepted server-side). On a configured greeting day (\`PIKDAME_BIRTHDAY\`) that
+(always accepted server-side). On their holiday everyone also gets ${holidayEmotes.join(' ')}
+(\`game/Holidays.js\`). On a configured greeting day (\`PIKDAME_BIRTHDAY\`) that
 account also gets ${GREETING_EMOTE}.
 
 Bots may say a short line at **${QUIP_MOMENTS.length}** moments
