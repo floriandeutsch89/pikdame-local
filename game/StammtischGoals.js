@@ -10,7 +10,7 @@ const XP_PER_EXTRA_HUMAN = 5; // playing together is what a Stammtisch is for
 const LEVEL_BASE = 50;
 const LEVEL_STEP = 25;
 const LEVEL_CAP = 200;
-const WEEKLY_GOAL = 10;
+const WEEKLY_GOAL = 5;
 const WEEKS_KEPT = 60;
 
 function gameXp(humanCount) {

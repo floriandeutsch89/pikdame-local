@@ -41,15 +41,17 @@ test('points, curve and week keys', () => {
   assert.strictEqual(G.weekOf('2026-10-19'), '2026-10-19');
 });
 
-test('the weekly goal: reached once with the 10th match, with an event', () => {
+test('the weekly goal: reached once with the goal-th match, with an event', () => {
   const { st } = tempStore();
   const { table } = st.create('Runde', 'Flo');
-  assert.deepStrictEqual(play(st, table.code, 9, at(1)).filter((e) => e.type === 'week'), []);
-  const tenth = play(st, table.code, 1, at(2));
-  assert.deepStrictEqual(tenth.filter((e) => e.type === 'week'), [{ type: 'week', streak: 1, goal: 10 }]);
-  assert.deepStrictEqual(play(st, table.code, 1, at(3)).filter((e) => e.type === 'week'), [], 'the 11th says nothing');
+  const GOAL = G.WEEKLY_GOAL;
+  assert.strictEqual(GOAL, 5, 'a family plays about five matches a week');
+  assert.deepStrictEqual(play(st, table.code, GOAL - 1, at(1)).filter((e) => e.type === 'week'), []);
+  const last = play(st, table.code, 1, at(2));
+  assert.deepStrictEqual(last.filter((e) => e.type === 'week'), [{ type: 'week', streak: 1, goal: GOAL }]);
+  assert.deepStrictEqual(play(st, table.code, 1, at(3)).filter((e) => e.type === 'week'), [], 'one more says nothing');
   const g = st.chipInfo(table.code, at(4)).goals;
-  assert.deepStrictEqual(g.week, { start: '2026-10-12', games: 11, goal: 10, reached: true });
+  assert.deepStrictEqual(g.week, { start: '2026-10-12', games: GOAL + 1, goal: GOAL, reached: true });
   assert.strictEqual(g.streak, 1);
   assert.strictEqual(g.weeksReached, 1);
 });
@@ -68,9 +70,9 @@ test('the week turns at midnight German time, not UTC', () => {
 test('streak: weeks in a row, alive through the running week, gone after a missed one', () => {
   const { st } = tempStore();
   const { table } = st.create('Runde', 'Flo');
-  play(st, table.code, 10, at(0));
-  const second = play(st, table.code, 10, at(7)).filter((e) => e.type === 'week');
-  assert.deepStrictEqual(second, [{ type: 'week', streak: 2, goal: 10 }]);
+  play(st, table.code, G.WEEKLY_GOAL, at(0));
+  const second = play(st, table.code, G.WEEKLY_GOAL, at(7)).filter((e) => e.type === 'week');
+  assert.deepStrictEqual(second, [{ type: 'week', streak: 2, goal: G.WEEKLY_GOAL }]);
   const running = st.chipInfo(table.code, at(14)).goals;
   assert.deepStrictEqual([running.week.games, running.streak], [0, 2], 'not lost before the week is over');
   assert.strictEqual(st.chipInfo(table.code, at(21)).goals.streak, 0, 'a missed week ends it');

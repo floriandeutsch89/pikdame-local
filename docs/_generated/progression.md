@@ -125,7 +125,7 @@ same shape as the player curve with smaller steps (50 + 25 per level):
 | 10 | 275 | 1350 |
 | 20 | 525 | 5225 |
 
-The weekly goal is **10 matches**, Monday to Sunday of the game day
+The weekly goal is **5 matches**, Monday to Sunday of the game day
 (Europe/Berlin). Reaching it counts once per week; reached weeks in a row form
 the streak, which stays alive through the running week and ends with a
 missed one. Tables from before this feature start from their kept match list.

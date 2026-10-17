@@ -144,6 +144,6 @@ test('chipInfo: the record for the start-screen chip and sheet, without activity
   assert.deepStrictEqual(info.pairwise.flo.anna, { ahead: 2, behind: 1 });
   assert.strictEqual(info.series.winner, 'Flo');
   assert.deepStrictEqual(Object.keys(info).sort(), ['code', 'gamesPlayed', 'goals', 'members', 'name', 'pairwise', 'series'], 'no game list');
-  assert.deepStrictEqual([info.goals.xp, info.goals.week.games, info.goals.week.goal], [45, 3, 10], 'the group goals ride along');
+  assert.deepStrictEqual([info.goals.xp, info.goals.week.games, info.goals.week.goal], [45, 3, require('../game/StammtischGoals').WEEKLY_GOAL], 'the group goals ride along');
   assert.strictEqual(st.chipInfo('NOPE12'), null);
 });
