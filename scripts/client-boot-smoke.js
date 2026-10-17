@@ -120,10 +120,10 @@ setTimeout(() => {
         }
         // Sprachwechsel darf die geladene Historie nicht in der alten
         // Sprache stehen lassen.
-        doc.getElementById('langBtnLobby').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+        doc.getElementById('langBtn').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
         const afterSwitch = historyBox.textContent;
         if (!/rounds/.test(afterSwitch)) errors.push(`history did not follow the language switch: ${afterSwitch.slice(0, 80)}`);
-        doc.getElementById('langBtnLobby').dispatchEvent(new window.MouseEvent('click', { bubbles: true })); // zurueck auf Deutsch
+        doc.getElementById('langBtn').dispatchEvent(new window.MouseEvent('click', { bubbles: true })); // zurueck auf Deutsch
 
         // Challenge games never reveal the bot level, normal games keep it (card and opened standings).
         const game = (id, challengeDate, bot) => ({
@@ -183,15 +183,17 @@ setTimeout(() => {
         }),
       });
       const list = doc.getElementById('questList');
-      const langBtn = doc.getElementById('langBtnLobby');
+      const langBtn = doc.getElementById('langBtn');
       if (!list || !langBtn) errors.push('quest list or language toggle missing');
       else if (!/Partie/.test(list.textContent)) {
         errors.push(`quest list did not render in German: ${list.textContent.slice(0, 60)}`);
       } else {
+        if (langBtn.textContent !== 'English') errors.push(`language button should name the other language: ${langBtn.textContent}`);
         langBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));   // -> Englisch
         if (!/Finish one match/.test(list.textContent)) {
           errors.push(`daily quests did not follow the language switch: ${list.textContent.slice(0, 80)}`);
         }
+        if (langBtn.textContent !== 'Deutsch') errors.push(`language button should name the other language: ${langBtn.textContent}`);
         langBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));   // -> Deutsch
         if (!/Partie zu Ende spielen/.test(list.textContent)) {
           errors.push(`daily quests did not switch back: ${list.textContent.slice(0, 80)}`);
@@ -209,7 +211,7 @@ setTimeout(() => {
         data: JSON.stringify({ type: 'sessionStatus', exists: true, code: 'AQM93Q' }),
       });
       const resume = doc.getElementById('resumeBtn');
-      const langBtn = doc.getElementById('langBtnLobby');
+      const langBtn = doc.getElementById('langBtn');
       if (!resume || !langBtn) errors.push('resume button or language toggle missing');
       else {
         if (!/Weiterspielen/.test(resume.textContent)) {

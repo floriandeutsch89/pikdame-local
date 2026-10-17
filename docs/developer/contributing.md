@@ -149,7 +149,10 @@ Today the server has `ws`, `pg` (lazy, only with `PIKDAME_DATABASE_URL`) and
 `@simplewebauthn/server` (lazy, passkeys). Browser libraries are **vendored**
 unchanged as `public/vendor-*.js` with the npm integrity hash in the header —
 never installed for the client, never loaded from a CDN: QR codes, uPlot,
-`@simplewebauthn/browser`.
+`@simplewebauthn/browser`. The one display font (Rubik, OFL-1.1, for the
+wordmark, titles and big scores) is vendored the same way in `public/fonts/`,
+unchanged, with its licence and hash in `public/fonts/README.md`; body text
+stays on the system font stack.
 
 ## Documentation
 

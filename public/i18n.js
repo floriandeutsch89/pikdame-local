@@ -64,7 +64,7 @@ window.I18N_STATIC = {
   'Weiter': 'Continue',
   'Name': 'Name',
   'Dein Name': 'Your name',
-  'SPIEL-CODE': 'GAME CODE',
+  'Spiel-Code': 'Game code',
   'Spiel-Code – zum Mitspielen weitergeben': 'Game code – share it to let others join',
   'Teilen': 'Share',
   'QR-Code': 'QR code',
@@ -95,6 +95,7 @@ window.I18N_STATIC = {
   'Abgehakt wird ein Punkt, sobald du ihn mit „Verstanden“ bestätigt hast oder die Situation vorbei ist. Bonus-Punkte hängen an einer seltenen Spielsituation und zählen nicht zum Fortschritt.':
     'A step is ticked once you confirm it with "Got it" - or once its situation has passed. Bonus steps depend on a rare table situation and do not count towards your progress.',
   'Erscheinungsbild': 'Appearance',
+  'Sprache': 'Language',
   'Spielverlauf': 'Game log',
   'Anzeigegröße': 'Display size',
   'Studio-Logo': 'Studio logo',
