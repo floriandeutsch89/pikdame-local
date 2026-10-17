@@ -133,7 +133,7 @@ secrets), e.g. \`PIKDAME_DATABASE_PASSWORD_FILE=/run/secrets/db_password\`.
 // Which phase a client message belongs to. Everything not listed lands in "other".
 const MSG_GROUPS = [
   ['Before a table', 'Sent on a fresh connection, before the socket is bound to a table. These carry `msg.name` because the server has no seat to look up yet.',
-    ['createSession', 'joinSession', 'checkSession', 'listProfiles', 'getGameHistory', 'setFavoriteBadges', 'ping',
+    ['createSession', 'joinSession', 'checkSession', 'abandonSession', 'listProfiles', 'getGameHistory', 'setFavoriteBadges', 'ping',
       'getPuzzle', 'solvePuzzle', 'revealPuzzle', 'startChallenge', 'startTutorial',
       'createStammtisch', 'getStammtisch', 'listStammtische', 'leaveStammtisch', 'deleteStammtisch']],
   ['Lobby', 'Only valid while the table is in the `lobby` phase; most of them host-only.',
@@ -161,7 +161,8 @@ const MSG_NOTES = {
   deleteStammtisch: 'Founder only: dissolve a Stammtisch.',
   createSession: 'Create a new game and receive its code.',
   joinSession: 'Join an existing game by code.',
-  checkSession: 'Ask whether a stored session still exists (used by the "resume" button).',
+  checkSession: 'Ask whether a stored session still exists (used by the "resume" button). With the seat token it also tells whether this device still holds a seat there.',
+  abandonSession: 'One game at a time: give up the seat of this device\'s open game before starting another (seat token required; a stale code is answered quietly, no failed-join strike).',
   lobbyReady: 'Mark yourself ready in the lobby; the host sees who is still missing.',
   startGame: 'Host only: start the game (empty seats are filled with bots).',
   setMaxSeats: 'Host only: change the number of seats (2-4).',
@@ -195,6 +196,7 @@ const S2C_NOTES = {
   state: 'The full game state as that player may see it (their own hand, everyone else\'s card counts). Sent after every change, coalesced to one send per tick.',
   joined: 'Confirms a table was created or joined; carries the code, the player id and the seat token.',
   sessionStatus: 'Answer to `checkSession`.',
+  sessionAbandoned: 'Answer to `abandonSession` (`lobby`, `ended`, `left` or `none`); also sent to another tab still sitting on that seat.',
   leftLobby: 'Confirms `leaveLobby`; the client may forget its per-table credentials.',
   error: 'Something was rejected, with a human-readable reason (German; the client translates known patterns).',
   emote: 'Someone (or a bot) sent a reaction.',

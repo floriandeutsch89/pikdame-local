@@ -509,6 +509,21 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   padding: 13px 14px; font-size: 0.9rem;
 }
 
+/* One game at a time: an open game puts "back to the game" first on the start
+   screen; the sheet that asks to give it up names what you lose. */
+#sessionSetup.hasOpenGame #resumeBtn { order: -1; margin-top: 0; }
+.openGameSummary { margin: 0 0 6px; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* Icon as its own flex item: the same 9px gap as icon+label buttons, and a
+   wrapped second line starts under the text, not under the icon. */
+.overlay-card h2.iconTitle { display: flex; align-items: flex-start; gap: 9px; }
+.overlay-card h2.iconTitle .icon { width: 1.1em; height: 1.1em; margin-top: 0.08em; vertical-align: 0; }
+#openGameOverlay .btn-danger {
+  width: 100%; min-height: var(--ctl-h); margin-top: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: var(--fs-body);
+}
+#openGameOverlay .btn-danger.armed { box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 45%, transparent); }
+
 /* Impressum / Datenschutz */
 .legal-link {
   font-size: 0.7rem; font-weight: 500;
@@ -824,6 +839,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   font-size: var(--fs-micro); font-weight: 800; line-height: 1.35; white-space: nowrap;
 }
 .opLowTag .icon { width: 1.1em; height: 1.1em; vertical-align: 0; }
+/* Same slot, calm colours: a player who gave the game up (a bot plays on). */
+.opLowTag.opLeftTag { background: var(--glass-strong); color: var(--text); border: 1px solid var(--glass-border); padding: 0 7px; }
 
 /* Auslagen */
 
