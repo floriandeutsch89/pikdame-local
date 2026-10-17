@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.74.0] - 2026-10-17
+
+### Changed
+- Das Tutorial zeigt gleich im ersten Zug, wie man eine passende Karte von der Ablage nimmt und sofort auslegt, statt vom Stapel ziehen zu lassen.
+- Bis zum Ausmachen markiert das Tutorial in jedem Zug einen nächsten Schritt: anlegen, auslegen oder eine Karte abwerfen.
+
+### Fixed
+- Der Tutorial-Hinweis zum Joker-Tausch sagte, der Joker komme auf die Hand – er scheidet aber aus dem Spiel aus.
+
 ## [2.73.0] - 2026-10-17
 
 ### Changed
