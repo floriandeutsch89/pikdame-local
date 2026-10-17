@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.67.1] - 2026-10-17
+
+### Fixed
+- Das Impressum zeigt Anbieter und Kontakt wieder an – die Sicherheitsrichtlinie der Seite hatte das Skript blockiert, das beides einblendet.
+
 ## [2.67.0] - 2026-10-17
 
 ### Changed

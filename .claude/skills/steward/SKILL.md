@@ -50,6 +50,8 @@ git status --short           # stage ONLY your files, never `git add -A`
   `users.db`, and that is not a flaky test. The `ui-shots` skill avoids it.
 - Commit with `-c user.email=… -c user.name=…` and the attribution lines.
 - After the push: `git ls-remote origin <branch>` must equal `git rev-parse HEAD`.
+- Moved or rewrote code with `\uXXXX` escapes or HTML entities? Check them in
+  `git diff`: the write tools once turned them into literal characters.
 
 ## UI changes
 
