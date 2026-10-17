@@ -2900,14 +2900,15 @@ input:disabled { opacity: 0.65; }
 .tutorialDoneActions .btn-primary, .tutorialDoneActions .btn-secondary {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: var(--ctl-h);
 }
-.tutorialDoneActions .linkBtn { align-self: center; }
+/* The two quiet exits share one row: the sheet stays as high as before. */
+.tutorialDoneLinks { display: flex; flex-wrap: wrap; justify-content: center; column-gap: 20px; }
 /* ~400 px high: the two buttons side by side, or "Weiterspielen" falls off the sheet. */
 @media (orientation: landscape) and (max-height: 540px) {
   .overlay-card.tutorialDone { max-width: 560px; }
   .tutorialDonePoints { margin-bottom: 8px; }
   .tutorialDonePoints li { padding: 5px 2px; }
   .tutorialDoneActions { display: grid; grid-template-columns: 1fr 1fr; }
-  .tutorialDoneActions .linkBtn { grid-column: 1 / -1; justify-self: center; }
+  .tutorialDoneLinks { grid-column: 1 / -1; }
 }
 
 /* --- Per-bot difficulty (v1.22.0) ------------------------------------------- */
