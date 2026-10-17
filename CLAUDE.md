@@ -212,6 +212,8 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
   `pgrep -af "node server.js"`. Unbekannte Stammtisch-/Spiel-Codes zählen als
   Fehlversuch und sperren nach einigen die IP (sieht aus wie Drosseln) →
   Mocks beantworten `getStammtisch` selbst; gesperrt = Server neu starten.
+- **`npm test` nie parallel** (z. B. mehrere Worktrees): Server-Tests nutzen
+  feste Ports, ein zweiter Lauf trifft den fremden Server und scheitert wie ein Flake.
 - Engine: E2E-Botspiele über alle 4 Stufen (Deadlocks, kein Joker-Abwurf,
   kein Doppel-Satz).
 - **Kartenerhaltung** (`test/card-conservation.test.js`): nach JEDEM Zug exakt
