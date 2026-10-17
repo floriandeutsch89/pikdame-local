@@ -27,6 +27,13 @@ function botDifficultyOf(player) {
   return (player && player.botDifficulty) || 'zen';
 }
 
+// Bot steering seams on a seat: never from a client, never in a snapshot, and
+// gone when a human takes the seat over.
+const SEAT_CONTROL_FIELDS = [
+  'forcedDrawSource', 'externalDiscard', 'mctsEnabled', 'mctsForceOff',
+  'mctsDeterminizations', 'mctsEndgameAt', 'mctsMaxHand', 'mcEnabled', 'earlyDrawBiasTurns', 'queenDumpMaxHand', 'relaxQueenBaitOnJoker', 'preferDrawOnRedundantSet', 'capMeldSize', 'mod3Trim',
+];
+
 const MIN_SEATS = 2;
 const MAX_SEATS_LIMIT = 4; // Spielmaterial (Kartenanzahl, Joker) ist auf max. 4 Spieler ausgelegt
 const DEFAULT_MAX_SEATS = 4;
@@ -114,13 +121,18 @@ class GameManager {
       if (!this.hostId && !p.isBot) this.hostId = id;
       return p;
     }
-    if (this.players.filter((pl) => !pl.isBot).length >= this.maxSeats) {
-      return null; // Tisch voll (nach Menschen)
+    if (this.players.filter((pl) => !pl.isBot && !pl.leftGame).length >= this.maxSeats) {
+      return null; // Tisch voll (nach Menschen; ein aufgegebener Platz ist wieder frei)
     }
-    p = { id, name: name || `Spieler ${this.players.length + 1}`, isBot: false, hand: [], connected: true, laidOutCards: [] };
+    // Challenge and tutorial stay single-player: nobody joins them by code.
+    if (this.isSoloMode() && this.players.some((pl) => !pl.isBot)) return null;
     // In der Lobby sind freie Plätze mit Bots vorbelegt - ein Beitritt ersetzt
     // einen Bot AN SEINEM PLATZ, damit die Sitzordnung erhalten bleibt.
     const botIdx = this._seatForNewHuman();
+    // A started game: the seat is taken over as it is - a fresh seat dropped
+    // the bot's cards and broke the 110-card deck.
+    if (this.phase !== 'lobby') return botIdx === -1 ? null : this._takeOverSeat(this.players[botIdx], name);
+    p = { id, name: name || `Spieler ${this.players.length + 1}`, isBot: false, hand: [], connected: true, laidOutCards: [] };
     if (botIdx !== -1) {
       const removed = this.players[botIdx];
       this.players[botIdx] = p;
@@ -133,15 +145,41 @@ class GameManager {
     return p;
   }
 
+  /** A human joins a started game and takes over a seat a bot plays (a bot's,
+   *  or one given up for good). The seat keeps its id: hand, lay-outs, points,
+   *  roles and turn all hang on it; the newcomer's result counts. */
+  _takeOverSeat(seat, name) {
+    const botName = seat.name;
+    seat.isBot = false;
+    seat.connected = true;
+    if (name) seat.name = name;
+    delete seat.leftGame;
+    delete seat.botDifficulty;
+    delete seat.disconnectedAt;
+    for (const f of SEAT_CONTROL_FIELDS) delete seat[f];
+    this.totals[seat.id] = this.totals[seat.id] || 0;
+    if (!this.hostId) this.hostId = seat.id;
+    this.addLog(`${seat.name} übernimmt den Platz von ${botName}.`);
+    // On the bot's turn the pending bot move is dropped; the human plays on.
+    if (this.phase === 'playing' && this.currentPlayer()?.id === seat.id) {
+      clearTimeout(this._botTimer);
+      this._botTimer = null;
+      this._armTurnTimer();
+    }
+    return seat;
+  }
+
   /** Which bot seat a joining human takes. In the lobby the one farthest from
    *  the other humans around the table, ties not right behind one: two humans
-   *  at four seats sit human, bot, human, bot. Otherwise the first bot. */
+   *  at four seats sit human, bot, human, bot. Otherwise the first seat a bot
+   *  plays - a bot's own or one given up for good (leftGame). */
   _seatForNewHuman() {
+    if (this.phase !== 'lobby') return this.players.findIndex((pl) => pl.isBot || pl.leftGame);
     const n = this.players.length;
     const bots = this.players.map((pl, i) => (pl.isBot ? i : -1)).filter((i) => i !== -1);
     const humans = this.players.map((pl, i) => (pl.isBot ? -1 : i)).filter((i) => i !== -1);
     if (bots.length === 0) return -1;
-    if (this.phase !== 'lobby' || humans.length === 0) return bots[0];
+    if (humans.length === 0) return bots[0];
     const since = (i) => Math.min(...humans.map((h) => (i - h + n) % n)); // seats after the last human
     const until = (i) => Math.min(...humans.map((h) => (h - i + n) % n)); // seats before the next one
     let best = bots[0];
@@ -2203,6 +2241,7 @@ class GameManager {
       const SE = StateEncoder;
       if (SE.pileTakeLegal(this, botId)) {
         const src = await OnnxPolicy.chooseDrawSource(this, botId, difficulty);
+        if (!this.isBotControlled(cp)) return; // a human took the seat while the model thought
         if (src === 'drawPile' || src === 'discardPile') cp.forcedDrawSource = src;
       }
     } catch (e) {
@@ -2225,6 +2264,8 @@ class GameManager {
     } catch (e) {
       chosen = null;
     }
+    // Taken over meanwhile: the human discards themselves.
+    if (!this.isBotControlled(cp) || this.phase !== 'playing' || this.currentPlayer()?.id !== botId) return;
     if (!chosen) {
       // Heuristic fallback for the discard among the legal ids.
       const legal = pending.legalIds
@@ -2287,7 +2328,8 @@ class GameManager {
           : 300 + Math.random() * 1500;
     const t = setTimeout(() => {
       this._emoteTimers.delete(t);
-      this.onBotEmote(botId, emoji);
+      // Still a bot? A human may have taken the seat over in the meantime.
+      if (this.players.some((p) => p.id === botId && p.isBot)) this.onBotEmote(botId, emoji);
     }, delay);
     this._emoteTimers.add(t);
   }
@@ -2359,7 +2401,7 @@ class GameManager {
     const delay = this._emoteDelayForTest !== undefined ? this._emoteDelayForTest : 400 + Math.random() * 900;
     const t = setTimeout(() => {
       this._emoteTimers.delete(t);
-      this.onBotQuip(botId, moment);
+      if (this.players.some((p) => p.id === botId && p.isBot)) this.onBotQuip(botId, moment);
     }, delay);
     if (t.unref) t.unref();
     this._emoteTimers.add(t);
@@ -2403,12 +2445,8 @@ class GameManager {
    * them. Used by deserialize().
    */
   static _sanitizeControlFields(game) {
-    const SEAT_FIELDS = [
-      'forcedDrawSource', 'externalDiscard', 'mctsEnabled', 'mctsForceOff',
-      'mctsDeterminizations', 'mctsEndgameAt', 'mctsMaxHand', 'mcEnabled', 'earlyDrawBiasTurns', 'queenDumpMaxHand', 'relaxQueenBaitOnJoker', 'preferDrawOnRedundantSet', 'capMeldSize', 'mod3Trim',
-    ];
     for (const p of game.players || []) {
-      for (const f of SEAT_FIELDS) delete p[f];
+      for (const f of SEAT_CONTROL_FIELDS) delete p[f];
     }
     game._agentAwaitingDiscard = null;
     game._noMcts = false;
@@ -2448,13 +2486,9 @@ class GameManager {
     }
     // Never persist per-seat external-control fields either.
     if (Array.isArray(state.players)) {
-      const SEAT_FIELDS = [
-        'forcedDrawSource', 'externalDiscard', 'mctsEnabled', 'mctsForceOff',
-        'mctsDeterminizations', 'mctsEndgameAt', 'mctsMaxHand', 'mcEnabled', 'earlyDrawBiasTurns', 'queenDumpMaxHand', 'relaxQueenBaitOnJoker', 'preferDrawOnRedundantSet', 'capMeldSize', 'mod3Trim',
-      ];
       state.players = state.players.map((p) => {
         const clean = { ...p };
-        for (const f of SEAT_FIELDS) delete clean[f];
+        for (const f of SEAT_CONTROL_FIELDS) delete clean[f];
         return clean;
       });
     }
