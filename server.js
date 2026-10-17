@@ -33,6 +33,7 @@ const { createMonitor } = require('./game/Monitor');
 const { createPasskeyService, deviceName } = require('./game/Passkeys');
 const { isAllowedEmote, emoteLevel } = require('./game/Emotes');
 const { parseGreetingDays, greetingWindow } = require('./game/GreetingDays');
+const { holidayStatus } = require('./game/Holidays');
 const { puzzleForDate, publicPuzzle, checkAnswer, XP_FOR_SOLVED, PUZZLE_EPOCH } = require('./game/DailyPuzzle');
 const { createStammtischStore, normalizeCode: normalizeStammtischCode } = require('./game/StammtischStore');
 const { createGameHistoryStore, historyForPlayer } = require('./game/GameHistoryStore');
@@ -258,6 +259,8 @@ function serveStatic(req, res) {
           const date = gameDay();
           return { date, ids: questsForDate(date) };
         })(),
+        // Holiday decor windows (today/tomorrow), the same for everyone.
+        occasions: holidayStatus(),
         // Which mail driver the process actually picked up. Answers the
         // "SMTP is set but nothing is sent" question without a shell on
         // the box: 'log' means the container never saw PIKDAME_SMTP_HOST.
