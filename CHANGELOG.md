@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.73.0] - 2026-10-17
+
+### Changed
+- Die Stammtisch-Chips auf dem Startbildschirm zeigen jetzt, wer führt, statt „Serie 2:1“. Ein Tipp öffnet die Bilanz mit Tabelle, laufender Best-of-3-Serie und Direktvergleich, „Platz nehmen“ führt an den Tisch.
+
 ## [2.72.0] - 2026-10-17
 
 ### Added
