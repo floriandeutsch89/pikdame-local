@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.63.0] - 2026-10-17
+
+### Changed
+- Aufgeräumtere Auslagen: Die Kombinationen stehen ohne eigenen Rahmen nebeneinander, nur noch mit Abstand getrennt. Das wirkt leichter und spart Platz; im Querformat passen oft mehr Auslagen ohne Scrollen. Passt eine ausgewählte Karte an, leuchtet die ganze Kombination grün auf
+- Dialoge erscheinen am Handy im Hochformat als Blatt am unteren Rand, gut mit dem Daumen erreichbar. Dialoge mit Schließen- oder Abbrechen-Knopf lassen sich mit einem Wisch nach unten schließen (wirkt genau wie der Knopf); Rundenende, Pause und Abheben bleiben offen, bis du dort weitermachst. Querformat und Desktop bleiben unverändert
+- Die „Aufschlüsselung“ im Rundenende öffnet mit demselben Pfeil wie „Mehr“
+
+### Fixed
+- Der grüne Anlege-Hinweis pulsiert nicht mehr weiter, während die App im Hintergrund ist (schont den Akku)
+
 ## [2.62.0] - 2026-10-17
 
 ### Added
