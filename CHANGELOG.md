@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.75.0] - 2026-10-17
+
+### Changed
+- Der erste Schritt im Tutorial erklärt jetzt, warum die passende 7♥ auf der Ablage liegen bleiben sollte: Sie würde die drei Fünfen kosten. Gezogen wird vom Stapel.
+
 ## [2.74.0] - 2026-10-17
 
 ### Changed
