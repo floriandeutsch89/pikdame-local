@@ -208,6 +208,7 @@ test('Stammtisch: found, join by group code, reclaim seat by name', async (t) =>
   assert.strictEqual(info.exists, true);
   assert.strictEqual(info.name, 'Familie');
   assert.ok(Array.isArray(info.members) && info.pairwise && info.series, 'the chip sheet gets the record');
+  assert.strictEqual(info.goals && info.goals.week.goal, require('../game/StammtischGoals').WEEKLY_GOAL, 'and the group goals');
 
   // "My Stammtische" (#307): Flo founded it; deleting removes it for everyone.
   flo.inbox.length = 0;

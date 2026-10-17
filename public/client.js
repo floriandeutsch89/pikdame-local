@@ -1504,12 +1504,16 @@
     if (msg.type === 'stammtisch') {
       stammtischSummary = msg.summary || null;
       try { renderStammtisch(); } catch (e) { /* never critical */ }
+      // One toast for everything this match settled: the series, the week, the level.
+      const said = [];
       const ev = msg.seriesEvent;
       if (ev && ev.type === 'won') {
         const w = msg.summary && msg.summary.series && msg.summary.series.wins;
         const scores = w ? Object.values(w).sort((a, b) => b - a) : [];
-        showToast(`🏆 ${trs(`${ev.winner} gewinnt die Serie ${scores[0] || 0}:${scores[1] || 0}!`)}`, { duration: 6000, priority: true });
+        said.push(`🏆 ${trs(`${ev.winner} gewinnt die Serie ${scores[0] || 0}:${scores[1] || 0}!`)}`);
       }
+      for (const g of msg.goalEvents || []) said.push(stammtischGoalEventText(g));
+      if (said.length) showToast(said.filter(Boolean).join(' · '), { duration: 6000, priority: true });
       if (!el('resultOverlay').classList.contains('hidden')) renderResultOverlay();
       return;
     }
@@ -5443,6 +5447,40 @@
     }
     return out;
   }
+  function stammtischGoalEventText(g) {
+    if (g.type === 'week') {
+      return g.streak > 1
+        ? L(`Wochenziel geschafft – ${g.streak} Wochen in Folge!`, `Weekly goal reached – ${g.streak} weeks in a row!`)
+        : L(`Wochenziel geschafft: ${g.goal} Partien diese Woche!`, `Weekly goal reached: ${g.goal} games this week!`);
+    }
+    if (g.type === 'level') return L(`Stammtisch-Stufe ${g.level} erreicht!`, `Stammtisch level ${g.level} reached!`);
+    return '';
+  }
+  /** The group's level, this week's target and the streak of reached weeks. */
+  function stammtischGoalsHtml(goals) {
+    if (!goals || !goals.week) return '';
+    const wk = goals.week;
+    const games = Math.max(0, Number(wk.games) || 0);
+    const goal = Math.max(1, Number(wk.goal) || 1);
+    const pct = Math.min(100, Math.round((games / goal) * 100));
+    const weekText = wk.reached
+      ? L(`Wochenziel geschafft · ${games}/${goal}`, `Weekly goal reached · ${games}/${goal}`)
+      : L(`${games}/${goal} Partien diese Woche`, `${games}/${goal} games this week`);
+    const extra = [];
+    if (goals.streak > 1) extra.push(L(`${goals.streak} Wochen in Folge`, `${goals.streak} weeks in a row`));
+    if (goals.weeksReached) extra.push(L(`${goals.weeksReached}× geschafft`, `reached ${goals.weeksReached}×`));
+    return `<div class="stGoals">` +
+      `<div class="stGoalLevel"><svg class="icon" aria-hidden="true"><use href="#i-crown"/></svg>` +
+      `<b>${escapeHtml(L(`Stufe ${goals.level}`, `Level ${goals.level}`))}</b>` +
+      `<small>${escapeHtml(L(`${goals.into}/${goals.need} Punkte`, `${goals.into}/${goals.need} points`))}</small></div>` +
+      `<div class="stGoalWeek${wk.reached ? ' reached' : ''}">` +
+      `<svg class="icon" aria-hidden="true"><use href="#i-${wk.reached ? 'check' : 'target'}"/></svg>` +
+      `<span>${escapeHtml(weekText)}</span>` +
+      (extra.length ? `<small>${escapeHtml(extra.join(' · '))}</small>` : '') +
+      `<span class="stWeekBar" role="progressbar" aria-valuemin="0" aria-valuemax="${goal}" aria-valuenow="${Math.min(games, goal)}"` +
+      ` aria-label="${escapeHtml(L('Wochenziel', 'Weekly goal'))}"><i style="width:${pct}%"></i></span>` +
+      `</div></div>`;
+  }
   /** Series, standings and head-to-head: one renderer for the lobby and the chip sheet. */
   function stammtischStatsHtml(sum, { pairNames = null, maxPairs = Infinity } = {}) {
     const members = sum.members || [];
@@ -5451,7 +5489,8 @@
       .join('');
     const pairs = stammtischPairs(sum, pairNames).slice(0, maxPairs)
       .map(({ a, b, rec }) => `<b>${escapeHtml(a)}</b> ${rec.ahead}:${rec.behind} <b>${escapeHtml(b)}</b>`);
-    return (sum.series ? `<div class="stSeries">${seriesLineHtml(sum)}</div>` : '') +
+    return stammtischGoalsHtml(sum.goals) +
+      (sum.series ? `<div class="stSeries">${seriesLineHtml(sum)}</div>` : '') +
       (members.some((m) => m.games > 0)
         ? `<table class="stTable"><thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('Siege', 'Wins')}</th><th>${L('Partien', 'Games')}</th><th>Ø</th></tr></thead><tbody>${rows}</tbody></table>`
         : `<p class="lobby-hint">${L('Noch keine Partie gespielt - die Bilanz beginnt mit der ersten.', 'No match yet - the record starts with the first one.')}</p>`) +
