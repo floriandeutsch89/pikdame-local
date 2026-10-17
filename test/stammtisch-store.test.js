@@ -128,3 +128,21 @@ test('lastWinner: the human who won the latest match (bots never count)', () => 
   assert.strictEqual(st.lastWinner(table.code), null);
   assert.strictEqual(st.lastWinner('NOPE12'), null);
 });
+
+test('chipInfo: the record for the start-screen chip and sheet, without activity data', () => {
+  const st = tempStore();
+  const { table } = st.create('Runde', 'Flo');
+  st.recordGame(table.code, rec('a', { a: 1010, b: 400, x: 200 }));
+  st.recordGame(table.code, rec('b', { a: 300, b: 1005, x: 200 }));
+  st.recordGame(table.code, rec('a', { a: 1020, b: 500, x: 100 }));
+  const info = st.chipInfo(table.code.toLowerCase());
+  assert.strictEqual(info.code, table.code);
+  assert.strictEqual(info.name, 'Runde');
+  assert.strictEqual(info.gamesPlayed, 3);
+  assert.deepStrictEqual(info.members.map((m) => [m.name, m.wins, m.games]), [['Flo', 2, 3], ['Anna', 1, 3]]);
+  for (const m of info.members) assert.deepStrictEqual(Object.keys(m).sort(), ['avg', 'games', 'name', 'wins'], 'no lastSeen/points');
+  assert.deepStrictEqual(info.pairwise.flo.anna, { ahead: 2, behind: 1 });
+  assert.strictEqual(info.series.winner, 'Flo');
+  assert.deepStrictEqual(Object.keys(info).sort(), ['code', 'gamesPlayed', 'members', 'name', 'pairwise', 'series'], 'no game list');
+  assert.strictEqual(st.chipInfo('NOPE12'), null);
+});

@@ -1900,19 +1900,19 @@ wss.on('connection', (ws, req) => {
       return;
     }
     if (msg.type === 'getStammtisch') {
-      // Start-screen chips: name + series at a glance. Guarded like a join
-      // probe - a Stammtisch code is a shared secret, guessing is counted.
+      // Start-screen chips and their sheet: the group's record. Guarded like a
+      // join probe - a Stammtisch code is a shared secret, guessing is counted.
       if (ipIsBlocked(ip)) {
         ws.close(1008, 'Zu viele Fehlversuche');
         return;
       }
-      const summary = stammtischStore.summary(msg.code);
-      if (!summary) {
+      const info = stammtischStore.chipInfo(msg.code);
+      if (!info) {
         registerFailedJoin(ip);
         ws.send(JSON.stringify({ type: 'stammtischInfo', code: normalizeStammtischCode(msg.code), exists: false }));
         return;
       }
-      ws.send(JSON.stringify({ type: 'stammtischInfo', code: summary.code, exists: true, name: summary.name, series: summary.series, gamesPlayed: summary.gamesPlayed }));
+      ws.send(JSON.stringify({ type: 'stammtischInfo', exists: true, ...info }));
       return;
     }
     if (msg.type === 'checkSession') {

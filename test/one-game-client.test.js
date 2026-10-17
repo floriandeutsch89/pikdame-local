@@ -141,8 +141,12 @@ test('Stammtisch: its own table resumes, another one asks first', () => {
   const recent = JSON.stringify([{ code: 'STHOME', name: 'Familie' }, { code: 'STOTHR', name: 'Kegelclub' }]);
   const t = withOpenGame({ stammtisch: 'STHOME' }, { pikdame_stammtische: recent });
   t.doc.querySelector('#stammtischRecent button[data-code="STHOME"]').click();
+  assert.ok(t.shown('stammtischSheetOverlay'), 'the chip shows the record first');
+  assert.strictEqual(t.sent('joinSession').length, 0);
+  t.doc.getElementById('stammtischSheetJoinBtn').click();
   assert.strictEqual(t.sent('joinSession').length, 1, 'the open game IS this Stammtisch table');
   t.doc.querySelector('#stammtischRecent button[data-code="STOTHR"]').click();
+  t.doc.getElementById('stammtischSheetJoinBtn').click();
   assert.strictEqual(t.sent('joinSession').length, 1);
   assert.ok(t.shown('openGameOverlay'));
   t.window.close();

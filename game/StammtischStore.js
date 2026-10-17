@@ -264,7 +264,21 @@ function createStammtischStore(filePath = DEFAULT_DATA_FILE) {
     return t ? summarize(t) : null;
   }
 
-  return { create, get, touch, recordGame, lastWinner, summary, listFor, remove, leave, flushSync: file.flushSync, filePath, SERIES_BEST_OF };
+  /** Start-screen chip and its sheet: the record without activity data. */
+  function chipInfo(rawCode) {
+    const s = summary(rawCode);
+    if (!s) return null;
+    return {
+      code: s.code,
+      name: s.name,
+      gamesPlayed: s.gamesPlayed,
+      series: s.series,
+      pairwise: s.pairwise,
+      members: s.members.map((m) => ({ name: m.name, wins: m.wins, games: m.games, avg: m.avg })),
+    };
+  }
+
+  return { create, get, touch, recordGame, lastWinner, summary, chipInfo, listFor, remove, leave, flushSync: file.flushSync, filePath, SERIES_BEST_OF };
 }
 
 module.exports = { createStammtischStore, normalizeCode, generateCode, DEFAULT_DATA_FILE, SERIES_BEST_OF };
