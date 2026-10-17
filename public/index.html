@@ -906,6 +906,17 @@
       </div>
     </section>
 
+    <!-- A start-screen Stammtisch chip opens the group's record; the table is one tap further. -->
+    <section id="stammtischSheetOverlay" class="overlay hidden" data-sheet-close="stammtischSheetCloseBtn">
+      <div class="overlay-card stammtischSheet" role="dialog" aria-labelledby="stammtischSheetName">
+        <h2><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span id="stammtischSheetName"></span></h2>
+        <p id="stammtischSheetMeta" class="stammtischSheetMeta"></p>
+        <div id="stammtischSheetBody" class="stammtischSheetBody"></div>
+        <button id="stammtischSheetJoinBtn" class="btn-primary"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>Platz nehmen</span></button>
+        <button id="stammtischSheetCloseBtn" class="btn-secondary"><span>Schließen</span></button>
+      </div>
+    </section>
+
     <!-- DAILY PUZZLE: one hand, one question, the engine grades. The kind
          rotates by weekday; the arrows browse the archive (no XP there). -->
     <section id="puzzleOverlay" class="overlay hidden" data-sheet-close="puzzleCloseBtn">

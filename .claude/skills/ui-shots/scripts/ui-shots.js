@@ -64,6 +64,20 @@ const PROFILES = [
   { name: 'Oma Gerda', gamesPlayed: 120, gamesWon: 61, totalScore: 99000, bestGameScore: 1610, xp: 18000, badges: { first_win: 1 } },
   { name: 'Klaus', gamesPlayed: 15, gamesWon: 3, totalScore: 8000, bestGameScore: 1040, xp: 1200, badges: {} },
 ];
+// The start-screen Stammtisch chip and its sheet (answered by the script, see below).
+const STAMMTISCH = {
+  name: 'Familie Deutsch', gamesPlayed: 7,
+  series: { no: 3, games: 2, wins: { 'oma gerda': 1, flo: 1 }, bestOf: 3, needed: 2 },
+  members: [
+    { name: 'Oma Gerda', wins: 4, games: 7, avg: 612 }, { name: ME, wins: 2, games: 7, avg: 540 },
+    { name: 'Klaus', wins: 1, games: 6, avg: 455 },
+  ],
+  pairwise: {
+    'oma gerda': { flo: { ahead: 5, behind: 2 }, klaus: { ahead: 4, behind: 2 } },
+    flo: { 'oma gerda': { ahead: 2, behind: 5 }, klaus: { ahead: 3, behind: 3 } },
+    klaus: { 'oma gerda': { ahead: 2, behind: 4 }, flo: { ahead: 3, behind: 3 } },
+  },
+};
 const GLOBAL_STATS = { games: 8123, rounds: 61234, pikDamesLaidOut: 9001, pikDamesCaught: 4521, handAusRounds: 777 };
 const HISTORY = [
   { id: 'g1', finishedAt: NOW - 3600e3, startedAt: NOW - 3600e3 - 41 * 60e3, rounds: 3, won: true, myScore: 1040, myId: 'p1', stammtisch: true,
@@ -250,8 +264,7 @@ function waitForHttp(port, ms = 20000) {
           let msg = null;
           try { msg = JSON.parse(m); } catch (e) { /* binary */ }
           if (msg && msg.type === 'getStammtisch') {
-            ws.send(JSON.stringify({ type: 'stammtischInfo', code: msg.code, exists: true, name: 'Familie Deutsch',
-              gamesPlayed: 7, series: { games: 2, wins: { a: 1, b: 1 } } }));
+            ws.send(JSON.stringify({ type: 'stammtischInfo', code: msg.code, exists: true, ...STAMMTISCH }));
             return;
           }
           srv.send(m);
@@ -275,10 +288,15 @@ function waitForHttp(port, ms = 20000) {
         await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(1200);
       };
-      const LOBBY_SCENES = /^(lobby|lobby-open|progress|stats|history|settings|settings-aids|challenge|puzzle.*)$/;
+      const LOBBY_SCENES = /^(lobby|lobby-open|progress|stats|history|settings|settings-aids|challenge|stammtisch|puzzle.*)$/;
       for (const sc of scenes) {
         if (LOBBY_SCENES.test(sc)) await toStart();
         if (sc === 'lobby') await shot('lobby');
+        if (sc === 'stammtisch') {
+          await page.click('#stammtischRecent button[data-code]'); await page.waitForTimeout(500);
+          await shot('stammtisch');
+          await page.click('#stammtischSheetCloseBtn');
+        }
         if (sc.startsWith('puzzle')) {
           puzzleKind = sc === 'puzzle' ? null : sc.slice('puzzle-'.length);
           await page.click('#puzzleBtn'); await page.waitForTimeout(600);

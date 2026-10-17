@@ -5231,6 +5231,10 @@
   });
   // --- Stammtisch ------------------------------------------------------------
   const STAMMTISCH_KEY = 'pikdame_stammtische';
+  const stammtischChipInfo = {}; // code -> latest stammtischInfo (chip + sheet)
+  let stammtischSheetCode = null;
+  const winsText = (n) => L(`${n} ${n === 1 ? 'Sieg' : 'Siege'}`, `${n} ${n === 1 ? 'win' : 'wins'}`);
+  const gamesText = (n) => L(`${n} ${n === 1 ? 'Partie' : 'Partien'}`, `${n} ${n === 1 ? 'game' : 'games'}`);
   function recentStammtische() {
     try { const v = JSON.parse(storageGet(STAMMTISCH_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; }
   }
@@ -5246,33 +5250,43 @@
     const list = recentStammtische();
     box.classList.toggle('hidden', list.length === 0);
     box.innerHTML = list
-      .map((t) => `<button type="button" class="stRecentRow" data-code="${escapeHtml(t.code)}" title="${escapeHtml(L('Zum Stammtisch', 'Go to the table'))}">` +
+      .map((t) => `<button type="button" class="stRecentRow" data-code="${escapeHtml(t.code)}" aria-haspopup="dialog" title="${escapeHtml(L('Bilanz ansehen', 'View the record'))}">` +
         `<svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span class="stName">${escapeHtml(t.name)}</span>` +
         `<small class="stChipInfo"></small><svg class="icon stGo" aria-hidden="true"><use href="#i-chevron"/></svg></button>`)
       .join('');
     box.querySelectorAll('button[data-code]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        guardOpenGame('join', () => send({ type: 'joinSession', code: btn.dataset.code, name: currentName(), accountToken: accountToken() || undefined, tablePrefs: tablePrefs() }), btn.dataset.code);
-      });
+      btn.addEventListener('click', () => openStammtischSheet(btn.dataset.code));
+      const known = stammtischChipInfo[btn.dataset.code]; // e.g. after a language switch
+      if (known) btn.querySelector('.stChipInfo').textContent = stammtischLeadText(known);
     });
-    // Ask for the series state so the chip says "Serie 1:1" without a tap.
+    // Ask for the record so the chip names the leader without a tap.
     for (const t of list) send({ type: 'getStammtisch', code: t.code });
+  }
+  /** The chip's one-liner: who leads the overall record (not the best-of-3 series). */
+  function stammtischLeadText(info) {
+    const ranked = (info.members || []).filter((m) => m.games > 0).sort((a, b) => b.wins - a.wins);
+    const top = ranked[0];
+    if (!info.gamesPlayed) return L('Noch keine Partie', 'No game yet');
+    if (!top || !top.wins) return gamesText(info.gamesPlayed);
+    if (ranked.length === 1) return `${top.name} · ${winsText(top.wins)}`;
+    if (ranked[1].wins === top.wins) return L(`Gleichstand · je ${winsText(top.wins)}`, `Tied · ${winsText(top.wins)} each`);
+    return L(`${top.name} führt · ${winsText(top.wins)}`, `${top.name} leads · ${winsText(top.wins)}`);
   }
   function updateStammtischChip(info) {
     const btn = document.querySelector(`#stammtischRecent button[data-code="${CSS.escape(info.code)}"]`);
-    if (!btn) return;
     if (!info.exists) {
+      delete stammtischChipInfo[info.code];
+      if (stammtischSheetCode === info.code) closeStammtischSheet();
+      if (!btn) return;
       // Gone (pruned after months of silence): forget it quietly.
       storageSet(STAMMTISCH_KEY, JSON.stringify(recentStammtische().filter((t) => t.code !== info.code)));
       btn.remove();
       if (!el('stammtischRecent').children.length) el('stammtischRecent').classList.add('hidden');
       return;
     }
-    const w = (info.series && info.series.wins) || {};
-    const scores = Object.values(w).sort((a, b) => b - a);
-    btn.querySelector('.stChipInfo').textContent = info.series && info.series.games
-      ? L(`Serie ${scores[0] || 0}:${scores[1] || 0}`, `series ${scores[0] || 0}:${scores[1] || 0}`)
-      : L(`${info.gamesPlayed || 0} Partien`, `${info.gamesPlayed || 0} games`);
+    stammtischChipInfo[info.code] = info;
+    if (btn) btn.querySelector('.stChipInfo').textContent = stammtischLeadText(info);
+    if (stammtischSheetCode === info.code) renderStammtischSheet();
   }
   function seriesLineHtml(sum) {
     const ser = sum.series;
@@ -5283,7 +5297,7 @@
       .map(([k, n]) => `${escapeHtml(byKey[k] || k)} ${n}`);
     const score = parts.length ? parts.join(' – ') : L('noch 0:0', 'still 0:0');
     if (ser.winner) {
-      return `🏆 ${escapeHtml(L(`${ser.winner} hat Serie ${ser.no} gewonnen`, `${ser.winner} won series ${ser.no}`))}<small>${score}</small>`;
+      return `<svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg> <span>${escapeHtml(L(`${ser.winner} hat Serie ${ser.no} gewonnen`, `${ser.winner} won series ${ser.no}`))}</span><small>${score}</small>`;
     }
     return `${escapeHtml(L(`Serie ${ser.no} · Best of ${ser.bestOf}`, `Series ${ser.no} · best of ${ser.bestOf}`))}: ${score}<small>${escapeHtml(
       L(`${ser.needed} Siege entscheiden · Spiel ${ser.games + 1} von ${ser.bestOf}`, `${ser.needed} wins decide · game ${ser.games + 1} of ${ser.bestOf}`)
@@ -5298,31 +5312,75 @@
     }
     box.classList.remove('hidden');
     const sum = stammtischSummary;
+    // Pairwise record for the humans at THIS table: "who finished ahead".
+    const humans = ((lastState && lastState.players) || []).filter((p) => !p.isBot).map((p) => p.name);
+    box.querySelector('#stammtischBody').innerHTML =
+      `<div class="stName">🍻 ${escapeHtml(sum.name)} <span class="stCode">${escapeHtml(sum.code)}</span> <small>· ${L(`${sum.gamesPlayed} Partien`, `${sum.gamesPlayed} games`)}</small></div>` +
+      stammtischStatsHtml(sum, { pairNames: humans });
+  }
+  /** Head-to-head pairs. Given names: those, in seat order (lobby); else all
+   *  members, closest records first (chip sheet). */
+  function stammtischPairs(sum, names) {
+    const list = names || (sum.members || []).map((m) => m.name);
+    const out = [];
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const pw = sum.pairwise && sum.pairwise[list[i].toLowerCase()];
+        const rec = pw && pw[list[j].toLowerCase()];
+        if (rec && rec.ahead + rec.behind > 0) out.push({ a: list[i], b: list[j], rec });
+      }
+    }
+    if (!names) {
+      const gap = (p) => Math.abs(p.rec.ahead - p.rec.behind);
+      out.sort((x, y) => gap(x) - gap(y) || (y.rec.ahead + y.rec.behind) - (x.rec.ahead + x.rec.behind));
+    }
+    return out;
+  }
+  /** Series, standings and head-to-head: one renderer for the lobby and the chip sheet. */
+  function stammtischStatsHtml(sum, { pairNames = null, maxPairs = Infinity } = {}) {
     const members = sum.members || [];
     const rows = members
       .map((m) => `<tr><td class="stName">${nameWithHeart(m.name)}</td><td>${m.wins}</td><td>${m.games}</td><td>${m.avg}</td></tr>`)
       .join('');
-    // Pairwise record for the humans at THIS table: "who finished ahead".
-    const humans = ((lastState && lastState.players) || []).filter((p) => !p.isBot).map((p) => p.name);
-    const pairs = [];
-    for (let i = 0; i < humans.length; i++) {
-      for (let j = i + 1; j < humans.length; j++) {
-        const a = humans[i].toLowerCase();
-        const b = humans[j].toLowerCase();
-        const rec = sum.pairwise && sum.pairwise[a] && sum.pairwise[a][b];
-        if (rec && rec.ahead + rec.behind > 0) {
-          pairs.push(`<b>${escapeHtml(humans[i])}</b> ${rec.ahead}:${rec.behind} <b>${escapeHtml(humans[j])}</b>`);
-        }
-      }
-    }
-    box.querySelector('#stammtischBody').innerHTML =
-      `<div class="stName">🍻 ${escapeHtml(sum.name)} <span class="stCode">${escapeHtml(sum.code)}</span> <small>· ${L(`${sum.gamesPlayed} Partien`, `${sum.gamesPlayed} games`)}</small></div>` +
-      `<div class="stSeries">${seriesLineHtml(sum)}</div>` +
-      (members.length
+    const pairs = stammtischPairs(sum, pairNames).slice(0, maxPairs)
+      .map(({ a, b, rec }) => `<b>${escapeHtml(a)}</b> ${rec.ahead}:${rec.behind} <b>${escapeHtml(b)}</b>`);
+    return (sum.series ? `<div class="stSeries">${seriesLineHtml(sum)}</div>` : '') +
+      (members.some((m) => m.games > 0)
         ? `<table class="stTable"><thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('Siege', 'Wins')}</th><th>${L('Partien', 'Games')}</th><th>Ø</th></tr></thead><tbody>${rows}</tbody></table>`
         : `<p class="lobby-hint">${L('Noch keine Partie gespielt - die Bilanz beginnt mit der ersten.', 'No match yet - the record starts with the first one.')}</p>`) +
       (pairs.length ? `<div class="stPairs">${L('Direktvergleich', 'Head to head')}: ${pairs.join(' · ')}</div>` : '');
   }
+  // Start-screen chip -> its record, with the way to the table one tap further.
+  function renderStammtischSheet() {
+    const code = stammtischSheetCode;
+    if (!code) return;
+    const info = stammtischChipInfo[code];
+    const known = recentStammtische().find((t) => t.code === code);
+    el('stammtischSheetName').textContent = (info && info.name) || (known && known.name) || code;
+    el('stammtischSheetMeta').textContent = info ? `Code ${code} · ${gamesText(info.gamesPlayed || 0)}` : `Code ${code}`;
+    el('stammtischSheetBody').innerHTML = info
+      ? stammtischStatsHtml(info, { maxPairs: 3 })
+      : `<p class="lobby-hint">${escapeHtml(L('Bilanz wird geladen …', 'Loading the record …'))}</p>`;
+  }
+  function openStammtischSheet(code) {
+    stammtischSheetCode = code;
+    renderStammtischSheet();
+    el('stammtischSheetOverlay').classList.remove('hidden');
+    send({ type: 'getStammtisch', code }); // fresh standings; a known code is never a failed attempt
+  }
+  function closeStammtischSheet() {
+    stammtischSheetCode = null;
+    el('stammtischSheetOverlay').classList.add('hidden');
+  }
+  el('stammtischSheetJoinBtn').addEventListener('click', () => {
+    const code = stammtischSheetCode;
+    closeStammtischSheet();
+    if (code) guardOpenGame('join', () => send({ type: 'joinSession', code, name: currentName(), accountToken: accountToken() || undefined, tablePrefs: tablePrefs() }), code);
+  });
+  el('stammtischSheetCloseBtn').addEventListener('click', closeStammtischSheet);
+  el('stammtischSheetOverlay').addEventListener('click', (ev) => {
+    if (ev.target === el('stammtischSheetOverlay')) closeStammtischSheet();
+  });
   // With accounts on the server, founding and "my tables" need a sign-in
   // (the account owns the table); joining by code stays open for guests.
   el('stammtischBtn').addEventListener('click', () => {

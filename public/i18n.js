@@ -220,6 +220,7 @@ window.I18N_STATIC = {
   'Meine Stammtische': 'My regulars tables',
   'Zum Gründen und für die Liste deiner Stammtische brauchst du ein Konto. Mitspielen per Code geht auch ohne.': 'Founding a table and listing your tables needs an account. Playing via a code works without one.',
   'Du hast schon einen Code? Gib ihn einfach oben bei „Beitreten“ ein.': 'Already have a code? Just enter it under "Join" above.',
+  'Platz nehmen': 'Take a seat',
   // Tagesrätsel
   'Tagesrätsel': 'Daily puzzle',
   'Vorheriger Tag': 'Previous day',

@@ -207,6 +207,7 @@ test('Stammtisch: found, join by group code, reclaim seat by name', async (t) =>
   const info = await waitFor(probe, 'stammtischInfo');
   assert.strictEqual(info.exists, true);
   assert.strictEqual(info.name, 'Familie');
+  assert.ok(Array.isArray(info.members) && info.pairwise && info.series, 'the chip sheet gets the record');
 
   // "My Stammtische" (#307): Flo founded it; deleting removes it for everyone.
   flo.inbox.length = 0;

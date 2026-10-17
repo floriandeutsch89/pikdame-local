@@ -508,6 +508,9 @@ test('client contract: functions that build translated markup are refreshed by c
     // Joker choice dialog: rebuilt from scratch every time the server
     // reports an ambiguous meld; its buttons reach L() only through send().
     'showJokerChoice',
+    // "Open game" sheet (#352): its text is written on every opening, and it
+    // is closed before any language switch.
+    'openOpenGameSheet',
   ]);
 
   const stale = functions
