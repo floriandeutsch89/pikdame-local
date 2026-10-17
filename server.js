@@ -49,9 +49,6 @@ const challengeStore = createChallengeStore();
 // One level for every challenge game, retries included (comparable board).
 // Medium, not zen: the daily is meant to be fun, not a grind.
 const CHALLENGE_BOT_DIFFICULTY = 'medium';
-// Tutorial-Deck: per scripts-Suche ermittelt (siehe CLAUDE.md). Nicht aendern,
-// ohne die Tutorial-Texte gegenzupruefen - sie nennen konkrete Karten.
-const TUTORIAL_SEED = 22;
 // Eigenstaendige Themenseiten (public/<slug>.html). Eine Seite kann nur fuer
 // EIN Hauptthema ranken - deshalb je eine Seite statt eines Sammelblocks.
 const SEO_PAGES = ['romme-regeln', 'pik-dame-regeln', 'kartenspiele-zu-zweit', 'pik-dame-strategie', 'pik-dame-oder-hearts'];
@@ -1669,10 +1666,14 @@ wss.on('connection', (ws, req) => {
       sendError(ws, 'Tisch ist voll.');
       return false;
     }
+    // Joining a started game takes over a seat a bot plays, which keeps its own
+    // id. A fresh token then: a seat given up for good still had the leaver's.
+    const tookOverSeat = player.id !== playerId;
+    playerId = player.id;
     // In der Lobby freie Plätze mit Bots vorbelegen, damit sie sichtbar und
     // sortierbar sind (ein späterer Beitritt ersetzt wieder einen Bot).
     targetSession.game.syncLobbyBots();
-    let playerToken = targetSession.playerTokens.get(playerId);
+    let playerToken = tookOverSeat ? null : targetSession.playerTokens.get(playerId);
     if (!playerToken) {
       playerToken = crypto.randomBytes(18).toString('base64url');
       targetSession.playerTokens.set(playerId, playerToken);
@@ -1732,7 +1733,7 @@ wss.on('connection', (ws, req) => {
       // Damen INKLUSIVE Pik Dame (auslegen bringt +100 statt -100) und genau
       // einen Joker. So sind die Lehrmomente kuratiert statt erhofft.
       const created = registry.create({
-        deckSeed: TUTORIAL_SEED,
+        deckSeed: GameManager.TUTORIAL_SEED,
         tutorialMode: true,
         // Abgebrochenes Solo-Spiel: Sitzung sofort weg, damit sie auch nicht
         // ueber den Code wiederaufgenommen werden kann.
@@ -1740,23 +1741,7 @@ wss.on('connection', (ws, req) => {
       });
       if (created.error) return sendError(ws, created.error);
       const ok = await joinSession(created.session, msg);
-      if (ok) {
-        const game = created.session.game;
-        // Mittlere Bots: die Anfaenger-Stufe wuerfelt beim Abwurf, das waere
-        // im Tutorial nicht reproduzierbar. Kein Zugtimer - niemand soll
-        // beim Lesen unter Druck geraten.
-        game.setHouseRules({ turnTimerSeconds: 0 }, { system: true });
-        // Bot-Stufe ist KEINE Hausregel: setHouseRules verwirft den Schluessel
-        // still, die Bots blieben deshalb auf Zen (Spieler-Report). Vor
-        // fillWithBots aufrufen - der Wert gilt auch fuer neu erzeugte Bots.
-        game.setAllBotsDifficulty('medium');
-        game.fillWithBots();
-        // Der Lernende sitzt auf Platz 0 und soll BEGINNEN - also gibt der
-        // letzte Platz (sonst faengt immer der Bot links vom Geber an).
-        const last = game.players[game.players.length - 1];
-        if (last) game.setExplicitDealer(last.id);
-        game.startNewRound();
-      }
+      if (ok) created.session.game.startTutorialRound();
       return;
     }
     if (msg.type === 'startChallenge') {
@@ -2019,6 +2004,11 @@ wss.on('connection', (ws, req) => {
     const game = session.game;
     if (game.players.some((p) => p.id === playerId && p.leftGame)) {
       return sendError(ws, 'Du hast dieses Spiel aufgegeben - ein Bot spielt deinen Platz zu Ende.');
+    }
+    // Only the seat's current socket acts for it: an old tab of someone who
+    // gave the seat up stays out once a newcomer has taken it over.
+    if (session.sockets.get(playerId) !== ws) {
+      return sendError(ws, 'Dieser Platz wird inzwischen von jemand anderem gespielt.');
     }
 
     switch (msg.type) {
