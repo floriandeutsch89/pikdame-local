@@ -928,12 +928,27 @@ class GameManager {
       this.finishRound(null, { stalemate: true });
       return { ok: true, roundEnded: true };
     }
+    this._tutorialFittingDraw(this.currentPlayer());
     const card = this.drawPile.shift();
     this.currentPlayer().hand.push(card);
     this.turnPhase = 'meld';
     this.addLog(`${this.currentPlayer().name} zieht eine Karte vom Stapel.`);
     this.broadcastState();
     return { ok: true };
+  }
+
+  /** Tutorial round 1: the learner's stock draw fits an own meld when the stock
+   *  holds one (a swap inside the stock). Taking the pile first left two dead cards. */
+  _tutorialFittingDraw(player) {
+    if (!this.tutorialMode || this.roundNumber !== 1 || !player || player.isBot) return;
+    const own = this.tableMelds.filter((m) => m.ownerId === player.id);
+    // Not the card a joker there stands for: tapping that one swaps instead of laying off.
+    const isJokersCard = (m, cd) => m.slots.some((s) => s.joker && s.representsRank === cd.rank && s.representsSuit === cd.suit);
+    const fits = (cd) => own.some((m) => tryLayOff(m, cd) && !isJokersCard(m, cd));
+    // A real card first: a run of lucky jokers would look rigged.
+    let i = this.drawPile.findIndex((cd) => !cd.isJoker && fits(cd));
+    if (i < 0) i = this.drawPile.findIndex(fits);
+    if (i > 0) [this.drawPile[0], this.drawPile[i]] = [this.drawPile[i], this.drawPile[0]];
   }
 
   /** True when no player can make any move: the draw pile is empty and the

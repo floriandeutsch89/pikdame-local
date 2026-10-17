@@ -4493,7 +4493,9 @@
     if (!me || !me.hand || me.hand.length <= 1) return null;
     const mine = (st.tableMelds || []).filter((m) => m.ownerId === me.id);
     for (const meld of mine) {
-      const fit = me.hand.find((cd) => cardFitsMeldPureAdd(meld, cd));
+      // The card a joker in this meld stands for swaps on tap (layOffToMeld), it does not lay off.
+      const jokersCard = (cd) => (meld.slots || []).some((s) => s.joker && s.representsRank === cd.rank && s.representsSuit === cd.suit);
+      const fit = me.hand.find((cd) => cardFitsMeldPureAdd(meld, cd) && !jokersCard(cd));
       if (fit) return { cardId: fit.id, meldId: meld.id, card: fit };
     }
     const joker = me.hand.find((cd) => cd.isJoker);
@@ -4546,6 +4548,14 @@
     };
   }
   const freeToMeld = (c) => c.meldPhase && !c.duty;
+  /** The top discard and its hand partners when taking it is legal now (server truth). */
+  function tutorialPileFit(c) {
+    const top = c.st.discardTop;
+    if (!c.drawPhase || !c.st.discardTakeable || !top || top.faceDown) return null;
+    const combo = findTutorialDutyMeld([...c.hand, top], top.id);
+    return combo ? { top, partners: combo.filter((cd) => cd.id !== top.id) } : null;
+  }
+  const tutorialJokersLaid = (c) => c.myMelds.reduce((n, m) => n + (m.slots || []).filter((s) => s.joker).length, 0);
   const jokerOntoOwnSet = (c) => c.hand.length > 1 && c.hand.some((cd) => cd.isJoker) &&
     c.myMelds.some((m) => m.type === 'set' && (m.slots || []).length < 8);
 
@@ -4586,24 +4596,35 @@
         'Meld your cards and discard the last one – that wins you the round.'),
     },
     {
+      // A fitting top discard is the better first move: teach the pile, not the stock.
       key: 'draw', block: true,
       when: (c) => c.drawPhase,
       done: (c) => (c.myTurn && !c.drawPhase) || c.st.turnIndexInRound > 0,
-      highlight: () => ({ targets: ['drawPile'] }),
-      title: () => L('Karte ziehen', 'Draw a card'),
-      text: () => L('Tippe auf den verdeckten Stapel und zieh eine Karte.', 'Tap the face-down stock to draw a card.'),
+      highlight: (c) => {
+        const fit = tutorialPileFit(c);
+        return fit ? { cardIds: fit.partners.map((cd) => cd.id), targets: ['discardPile'] } : { targets: ['drawPile'] };
+      },
+      title: (c) => (tutorialPileFit(c) ? L('Die Ablage', 'The discard pile') : L('Karte ziehen', 'Draw a card')),
+      text: (c) => {
+        const fit = tutorialPileFit(c);
+        return fit
+          ? L(`Die ${tCard(fit.top)} auf der Ablage passt zu deiner ${tList(fit.partners)}. Tippe auf die Ablage – dann legst du sie sofort mit beiden aus.`,
+            `The ${tCard(fit.top)} on the discard pile fits your ${tList(fit.partners)}. Tap the pile – then you meld it with both at once.`)
+          : L('Tippe auf den verdeckten Stapel und zieh eine Karte.', 'Tap the face-down stock to draw a card.');
+      },
     },
     {
       key: 'firstSet', block: true,
       when: (c) => freeToMeld(c) && !!findTutorialMeld(c.hand, { skipQueens: reservesQueens(c.hand) }),
-      done: (c) => c.myMelds.length > 0,
+      // A set, not just any meld: the pile lesson already laid a run.
+      done: (c) => c.myMelds.some((m) => m.type === 'set'),
       highlight: (c) => ({ cardIds: findTutorialMeld(c.hand, { skipQueens: reservesQueens(c.hand) }), targets: ['confirmMeldBtn'] }),
       title: () => L('Dein erster Satz', 'Your first set'),
       text: (c) => {
         const combo = tByIds(c.hand, findTutorialMeld(c.hand, { skipQueens: reservesQueens(c.hand) }) || []);
         return L(`Tippe ${tCombo(combo)} an und dann auf „Auslegen“.`, `Tap ${tCombo(combo)}, then “Meld”.`);
       },
-      success: () => L('Gut gemacht – deine erste Auslage liegt.', 'Well done – your first meld is down.'),
+      success: () => L('Gut gemacht – ein Satz: gleicher Wert, verschiedene Farben.', 'Well done – a set: same rank, different suits.'),
     },
     {
       key: 'pikdame', info: true, block: true,
@@ -4721,16 +4742,18 @@
     {
       key: 'jokerSwap', optional: true,
       when: (c) => freeToMeld(c) && !!findTutorialJokerSwap(c.st, c.me),
-      done: (c, base) => base !== undefined && !findTutorialJokerSwap(c.st, c.me) && c.hand.some((cd) => cd.isJoker),
+      // The freed joker leaves the game (engine rule), so count the jokers left in own melds.
+      done: (c, base) => base !== undefined && tutorialJokersLaid(c) < base,
+      metric: (c) => tutorialJokersLaid(c),
       highlight: (c) => {
         const hit = findTutorialJokerSwap(c.st, c.me);
         return hit ? { cardIds: [hit.cardId], meldIds: [hit.meldId] } : null;
       },
-      title: () => L('Joker zurückholen', 'Win the joker back'),
+      title: () => L('Joker tauschen', 'Swap the joker'),
       text: (c) => {
         const hit = findTutorialJokerSwap(c.st, c.me);
-        return L(`Tippe die ${tCard(hit.card)} an und dann die Auslage – der Joker kommt auf deine Hand.`,
-          `Tap the ${tCard(hit.card)}, then the meld – the joker comes back to your hand.`);
+        return L(`Tippe die ${tCard(hit.card)} an und dann die Auslage – sie ersetzt den Joker, der aus dem Spiel geht.`,
+          `Tap the ${tCard(hit.card)}, then the meld – it replaces the joker, which leaves the game.`);
       },
       success: () => L('Getauscht – der Joker zählt in der Auslage trotzdem 20.', 'Swapped – the joker still counts 20 in that meld.'),
     },
@@ -4878,6 +4901,14 @@
     if (!c.myTurn) {
       return { title: L('Die Bots sind dran', 'The bots are playing'), text: L('Schau zu, was sie auslegen – gleich bist du wieder dran.', 'Watch what they meld – your turn comes next.') };
     }
+    const fit = tutorialPileFit(c);
+    if (fit) {
+      return {
+        title: L('Du bist dran', 'Your turn'),
+        text: L(`Nimm die ${tCard(fit.top)} von der Ablage – oder zieh vom Stapel.`, `Take the ${tCard(fit.top)} from the pile – or draw from the stock.`),
+        highlight: { targets: ['discardPile', 'drawPile'] },
+      };
+    }
     if (c.drawPhase) return { title: L('Du bist dran', 'Your turn'), text: L('Zieh eine Karte vom Stapel.', 'Draw a card from the stock.'), highlight: { targets: ['drawPile'] } };
     if (c.duty) return null;
     if (c.hand.length === 1) {
@@ -4887,7 +4918,22 @@
         highlight: { cardIds: [c.hand[0].id], targets: ['discardBtn'] },
       };
     }
-    return { title: L('Du bist dran', 'Your turn'), text: L('Leg aus, leg an oder wirf eine Karte ab.', 'Meld, lay off or discard a card.') };
+    // Later turns follow the glow too: lay off, meld, else a discard tip - never an unmarked turn.
+    const turn = (text, highlight) => ({ title: L('Du bist dran', 'Your turn'), text, highlight });
+    const hit = findTutorialLayOff(c.st, c.me);
+    if (hit) {
+      const what = hit.card.isJoker ? L('den Joker', 'the joker') : L(`die ${tCard(hit.card)}`, `the ${tCard(hit.card)}`);
+      return turn(L(`Leg ${what} an deine markierte Auslage an.`, `Lay ${what} off onto your marked meld.`), { cardIds: [hit.cardId], meldIds: [hit.meldId] });
+    }
+    const ids = findTutorialMeld(c.hand, { skipQueens: reservesQueens(c.hand) });
+    if (ids && c.hand.length - ids.length >= 1) {
+      return turn(L(`Leg ${tCombo(tByIds(c.hand, ids))} aus.`, `Meld ${tCombo(tByIds(c.hand, ids))}.`), { cardIds: ids, targets: ['confirmMeldBtn'] });
+    }
+    const pick = suggestTutorialDiscard(c.hand);
+    if (pick) {
+      return turn(L(`Wirf eine Karte ab – zum Beispiel die ${tCard(pick)}.`, `Discard a card – the ${tCard(pick)}, for example.`), { cardIds: [pick.id], targets: ['discardBtn'] });
+    }
+    return turn(L('Leg aus, leg an oder wirf eine Karte ab.', 'Meld, lay off or discard a card.'));
   }
 
   function updateTutorial() {
@@ -5711,7 +5757,7 @@
   });
   const TUTORIAL_LABELS = {
     welcome: () => L('Das Ziel des Spiels', 'The goal of the game'),
-    draw: () => L('Karte ziehen', 'Draw a card'),
+    draw: () => L('Karte aufnehmen', 'Take a card'),
     pileDuty: () => L('Ablage nehmen und auslegen', 'Take the pile and meld'),
     firstSet: () => L('Einen Satz auslegen', 'Meld a set'),
     pikdame: () => L('Pik Dame: +100 oder −100', 'Queen of spades: +100 or −100'),
@@ -5721,7 +5767,7 @@
     discard: () => L('Zug mit Abwerfen beenden', 'End the turn by discarding'),
     pile: () => L('Die Ablage lesen', 'Read the discard pile'),
     layOff: () => L('An eigene Auslage anlegen', 'Lay off onto your meld'),
-    jokerSwap: () => L('Joker zurückholen', 'Win a joker back'),
+    jokerSwap: () => L('Joker tauschen', 'Swap a joker'),
     endgame: () => L('Ausmachen: letzte Karte abwerfen', 'Go out: discard the last card'),
     roundend: () => L('Wertung verstehen', 'Understand the scoring'),
   };
