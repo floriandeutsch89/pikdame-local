@@ -2776,20 +2776,19 @@ test('tutorial deck is fixed and teaches: set, three queens incl. the spade one,
   // Das Tutorial erklärt konkrete Karten ("tippe die markierten Damen an").
   // Ändert sich der Seed, stimmen die Texte nicht mehr - deshalb ist die
   // Starthand hier festgenagelt.
-  const TUTORIAL_SEED = 22;
   const deal = () => {
-    const g = new GameManager(() => {}, { deckSeed: TUTORIAL_SEED, tutorialMode: true });
+    const g = new GameManager(() => {}, { deckSeed: GameManager.TUTORIAL_SEED, tutorialMode: true });
     g.addOrReconnectPlayer('me', 'Du');
-    g.fillWithBots();
-    g.setHouseRules({ botDifficulty: 'medium', turnTimerSeconds: 0 }, { system: true });
-    g.setExplicitDealer(g.players[g.players.length - 1].id);
-    g.startNewRound();
+    g.startTutorialRound(); // the server's own setup
     const me = g.players.find((p) => p.id === 'me');
     const out = {
       phase: g.phase,
       startsWithMe: g.currentPlayer().id === 'me',
       hand: me.hand.map((c) => (c.isJoker ? 'J' : `${c.rank}${c.suit}`)).join(' '),
       tutorialMode: g.publicState('me').tutorialMode,
+      bots: g.players.filter((p) => p.isBot).map((p) => p.botDifficulty).join(','),
+      pace: g.houseRules.botPace,
+      timer: g.houseRules.turnTimerSeconds,
     };
     g.destroy();
     return out;
@@ -2801,6 +2800,9 @@ test('tutorial deck is fixed and teaches: set, three queens incl. the spade one,
   assert.equal(a.phase, 'playing', 'never stops for a manual cut');
   assert.equal(a.startsWithMe, true, 'the learner moves first');
   assert.equal(a.tutorialMode, true, 'the client can tell this is a tutorial');
+  assert.equal(a.bots, 'medium,medium,medium', 'reproducible bots (easy rolls dice)');
+  assert.equal(a.pace, 'slow', 'a learner watches the bots, not a blur');
+  assert.equal(a.timer, 0, 'no clock while reading');
 
   const cards = a.hand.split(' ');
   const rankOf = (c) => (c === 'J' ? 'JOKER' : c.slice(0, -1));

@@ -18,9 +18,8 @@ const dom = new JSDOM(html, {
 const { window } = dom;
 window.matchMedia = window.matchMedia || (() => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
 window.navigator.vibrate = () => true;
-// Tutorial vor dem Laden aktivieren: Der Client liest den Speicher beim Start,
-// und die Ziel-Markierungen (Ziehstapel/Abwerfen) sollen NUR dann erscheinen.
-try { window.localStorage.setItem('pikdame_tutorial', 'on'); } catch (e) { /* ohne Speicher egal */ }
+// No storage flag for the tutorial: its hints follow the session's tutorialMode
+// (checked below, with a normal game as the counter-check).
 // Bildwechsel SOFORT ausfuehren: Der Client setzt manche Effekte (u. a. die
 // Tutorial-Markierungen) in requestAnimationFrame - im Rauchtest waere die
 // Pruefung sonst schneller als die Anzeige. Tiefenbremse gegen Schleifen,
@@ -253,7 +252,7 @@ setTimeout(() => {
       // (phase 'lobby' never reaches the client there - the tutorial session
       // starts its round immediately). Confirm it like a player would, THEN
       // the draw step and its target highlight are due.
-      const welcome = doc.getElementById('tutorialText').textContent;
+      const welcome = doc.getElementById('coachTitle').textContent;
       if (!/Willkommen|Welcome/.test(welcome)) {
         errors.push(`tutorial must open with the welcome step, got: ${welcome}`);
       }
