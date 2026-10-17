@@ -4552,7 +4552,7 @@
           ? L(`Leg die ${tCard(duty)} jetzt aus – zusammen mit ${tList(rest)}.`, `Meld the ${tCard(duty)} now – together with ${tList(rest)}.`)
           : L('Leg die markierte Karte jetzt in einer neuen Kombination aus.', 'Meld the marked card now, in a new combination.');
       },
-      success: () => L('Erledigt – der Rest des Stapels ist jetzt auf deiner Hand.', 'Done – the rest of the pile is in your hand now.'),
+      success: () => L('Erledigt – jetzt ist der Weg frei.', 'Done – the way is clear now.'),
     },
     {
       key: 'welcome', info: true, block: true,
@@ -4770,11 +4770,11 @@
       [/EIGENEN Auslagen|fremde Stapel/i, L(
         'Anlegen geht nur an deine eigenen Auslagen – so bleibt jedem sein Punktestand.',
         'You can only lay off onto your own melds – that keeps everyone’s score their own.')],
-      [/mindestens drei|zu kurz|keine gültige/i, L(
+      [/mindestens (drei|3)|zu kurz|keine gültige/i, L(
         'Eine Kombination braucht mindestens drei Karten: gleicher Wert oder eine Folge in einer Farbe.',
         'A combination needs at least three cards: the same rank, or a run in one suit.')],
       // The most common beginner mistake: mixing suits into a run.
-      [/dieselbe Farbe|gleiche Farbe|lückenlos|keine Reihe/i, L(
+      [/dieselbe Farbe|gleiche Farbe|zusammenhängend|lückenlos|keine Reihe/i, L(
         'Eine Folge läuft lückenlos in einer Farbe, etwa 5♥ 6♥ 7♥. Gleiche Werte in verschiedenen Farben sind ein Satz.',
         'A run climbs without gaps in one suit, like 5♥ 6♥ 7♥. Same ranks in different suits are a set.')],
       [/nur EIN|bereits einen Satz|schon einen Satz/i, L(
@@ -6087,10 +6087,10 @@
         const isWarning = latest.text.startsWith('⚠️');
         // My own moves need no echo: I just made them, and the toast sat
         // right on top of the melds I was looking at (playthrough finding).
-        // The tutorial keeps them - there the echo explains what happened.
+        // In the tutorial the coach card answers them, the final discard too.
         const me = lastState.players && lastState.players.find((p) => p.id === playerId);
-        const ownMove = !isWarning && me &&
-          lastState.currentPlayerId === playerId && latest.text.startsWith(`${me.name} `);
+        const ownMove = !isWarning && me && latest.text.startsWith(`${me.name} `) &&
+          (lastState.currentPlayerId === playerId || tutorialHintsOn());
         if (!chipStatus && !ownMove) {
           showToast(trs(latest.text), isWarning ? { duration: 6000, priority: true } : {});
         }
