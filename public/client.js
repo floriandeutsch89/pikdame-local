@@ -1964,8 +1964,8 @@
     } else {
       orderedOpponents.push(...lastState.players.filter((p) => p.id !== playerId));
     }
-    // The level badge only says something when the bots differ; three equal
-    // "Mittel" tags were noise. The host keeps an icon-only badge to change one bot.
+    // Guests see the level badge only when the bots differ (three equal tags were
+    // noise); the host always keeps it, it is the control to change one bot.
     const levelsDiffer = new Set(lastState.players.filter((p) => p.isBot).map((p) => p.botDifficulty || 'zen')).size > 1;
     orderedOpponents
       .forEach((p) => {
@@ -2007,8 +2007,9 @@
         if (p.isBot && !lastState.challengeDate && (levelsDiffer || lastState.isHost)) {
           const meta = BOT_DIFF[p.botDifficulty] || BOT_DIFF.zen;
           const badgeBtn = document.createElement('button');
-          badgeBtn.className = `botDiffBadge tapExpand${levelsDiffer ? '' : ' iconOnly'}`;
-          badgeBtn.innerHTML = `${levelIconHtml(meta)}${levelsDiffer ? `<span>${meta.short()}</span>` : ''}`;
+          badgeBtn.className = 'botDiffBadge tapExpand';
+          // In the game the spade rating alone; the level's name is in title + aria-label.
+          badgeBtn.innerHTML = levelIconHtml(meta);
           if (lastState.isHost) {
             badgeBtn.title = L(`Schwierigkeit ändern (${meta.short()})`, `Change difficulty (${meta.short()})`);
             badgeBtn.addEventListener('click', (ev) => {

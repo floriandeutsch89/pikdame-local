@@ -106,7 +106,7 @@ test('seat chips and the strength picker show the level symbol next to the name'
   assert.equal(options.querySelectorAll('.lvlIcon.lvlZen').length, 1);
 });
 
-test('opponent badges: the symbol per bot; equal levels give the host the symbol alone', async (t) => {
+test('opponent badges: the symbol per bot and never the word; the name stays in title and aria-label', async (t) => {
   const { doc, feed } = await setup(t);
   const base = {
     phase: 'playing', roundNumber: 1, currentPlayerId: 'p1', turnPhase: 'draw', dealerId: 'b1', isHost: true,
@@ -117,8 +117,10 @@ test('opponent badges: the symbol per bot; equal levels give the host the symbol
   feed({ ...base, players: [me, ...bots(['easy', 'hard', 'zen'])] });
   const badges = () => [...doc.querySelectorAll('#opponents .botDiffBadge')];
   assert.deepEqual(badges().map((b) => used(b)[0]), ['i-lvl-1', 'i-lvl-3', 'i-lvl-zen']);
-  assert.deepEqual(badges().map((b) => b.textContent), ['Leicht', 'Schwer', 'Zen']);
+  assert.ok(badges().every((b) => b.textContent === ''), 'mixed levels: the symbol alone in the game');
+  assert.deepEqual(badges().map((b) => b.getAttribute('aria-label')), ['Schwierigkeit ändern (Leicht)', 'Schwierigkeit ändern (Schwer)', 'Schwierigkeit ändern (Zen)']);
+  assert.ok(badges().every((b) => b.title === b.getAttribute('aria-label')), 'the tooltip names the level');
   feed({ ...base, players: [me, ...bots(['medium', 'medium', 'medium'])] });
-  assert.ok(badges().every((b) => b.classList.contains('iconOnly') && b.textContent === '' && used(b)[0] === 'i-lvl-2'));
+  assert.ok(badges().every((b) => b.textContent === '' && used(b)[0] === 'i-lvl-2'));
   assert.ok(badges().every((b) => /Mittel/.test(b.getAttribute('aria-label'))), 'the icon-only badge keeps its name');
 });
