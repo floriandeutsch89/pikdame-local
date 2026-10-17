@@ -12,7 +12,8 @@
 // Views: phone (393x852), land (874x402), desk (1440x900), se (375x667), max (440x956).
 // Scenes: lobby, lobby-open, progress, stats, history, roundend, roundend-stats, gameover,
 // table (needs --state <file>: a GameManager.publicState('p1') JSON in the playing phase),
-// puzzle / puzzle-turn / puzzle-out (one meld laid), challenge (intro, attempt used),
+// puzzle / puzzle-turn / puzzle-out (one meld laid), puzzle-solved (3 stars + the tile),
+// challenge (intro, attempt used),
 // gamelobby (seats + house rules), botdiff (the strength picker), gameover-challenge,
 // settings / settings-aids (the start screen's "Mehr" sheet, top / play aids).
 // Start-screen scenes may follow table or result scenes in any order: the page
@@ -128,6 +129,7 @@ const GAME_OVER = { ...BASE_STATE, phase: 'gameOver', roundNumber: 6, totals: { 
 // Rewrite server -> client messages so the lobby shows the mock profile.
 // --puzzle-kind turn|out: today's puzzle message carries a puzzle of that kind.
 let puzzleKind = null;
+let puzzleSolved = false; // scene puzzle-solved: today solved first try, a perfect run of 4
 function kindPuzzle(kind) {
   const DP = require(path.join(ROOT, 'game', 'DailyPuzzle'));
   const { addDays } = require(path.join(ROOT, 'game', 'GameDay'));
@@ -144,6 +146,9 @@ function rewrite(msg) {
   if (msg.type === 'puzzle' && puzzleKind) {
     const DP = require(path.join(ROOT, 'game', 'DailyPuzzle'));
     Object.assign(msg, DP.publicPuzzle(kindPuzzle(puzzleKind)), { date: msg.today, archive: false });
+  }
+  if (msg.type === 'puzzle' && puzzleSolved) {
+    Object.assign(msg, { status: { tries: 1, solved: true, revealed: false, stars: 3 }, dayStars: 3, perfectStreak: { current: 4, best: 6 } });
   }
   return msg;
 }
@@ -301,7 +306,15 @@ function waitForHttp(port, ms = 20000) {
           await shot('stammtisch');
           await page.click('#stammtischSheetCloseBtn');
         }
-        if (sc.startsWith('puzzle')) {
+        if (sc === 'puzzle-solved') {
+          // Solved with three stars; then the "Heute" tile shows them on the start screen.
+          puzzleSolved = true;
+          await page.click('#puzzleBtn'); await page.waitForTimeout(600);
+          await shot(sc);
+          await page.click('#puzzleCloseBtn'); await page.waitForTimeout(200);
+          await shot('lobby-solved');
+          puzzleSolved = false;
+        } else if (sc.startsWith('puzzle')) {
           puzzleKind = sc === 'puzzle' ? null : sc.slice('puzzle-'.length);
           await page.click('#puzzleBtn'); await page.waitForTimeout(600);
           if (puzzleKind) {

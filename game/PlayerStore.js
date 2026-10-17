@@ -6,6 +6,8 @@
 
 const path = require('path');
 const { createAtomicJsonFile } = require('./AtomicJsonFile');
+const { starsFor } = require('./DailyPuzzle');
+const { addDays } = require('./GameDay');
 
 const DEFAULT_DATA_DIR = process.env.PIKDAME_DATA_DIR || path.join(__dirname, '..', 'data');
 const DEFAULT_DATA_FILE = path.join(DEFAULT_DATA_DIR, 'players.json');
@@ -263,8 +265,21 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     const p = findPlayerByName(loadStore(), name);
     return (p && p.puzzles && p.puzzles[date]) || { tries: 0, solved: false, revealed: false };
   }
-  /** @returns {{tries,solved,revealed,justSolved:boolean}} */
-  function recordPuzzleAttempt(name, date, solved) {
+  // Stars per solved day for the archive: compact and capped, and left out of
+  // the profiles broadcast (server.js) - every client gets every profile.
+  const PUZZLE_STARS_DAYS = 60;
+  function rememberStars(p, date, stars) {
+    p.puzzleStars = p.puzzleStars || {};
+    p.puzzleStars[date] = stars;
+    const days = Object.keys(p.puzzleStars).sort();
+    while (days.length > PUZZLE_STARS_DAYS) delete p.puzzleStars[days.shift()];
+  }
+  function puzzleStarsFor(name, date) {
+    const p = findPlayerByName(loadStore(), name);
+    return (p && p.puzzleStars && p.puzzleStars[date]) || 0;
+  }
+  /** @returns {{tries,solved,revealed,stars?,justSolved:boolean}} */
+  function recordPuzzleAttempt(name, date, solved, kind = 'meld') {
     upsertPlayerProfile(name);
     const store = loadStore();
     const p = findPlayerByName(store, name);
@@ -275,7 +290,19 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
       if (solved) {
         day.solved = true;
         justSolved = !day.revealed; // a revealed solution earns nothing
-        if (justSolved) p.totalPuzzlesSolved = (p.totalPuzzlesSolved || 0) + 1;
+        if (justSolved) {
+          p.totalPuzzlesSolved = (p.totalPuzzlesSolved || 0) + 1;
+          day.stars = starsFor(kind, day.tries);
+          rememberStars(p, date, day.stars);
+          if (day.stars === 3) {
+            p.totalPerfectPuzzles = (p.totalPerfectPuzzles || 0) + 1;
+            p.perfectPuzzleStreak = p.lastPerfectPuzzleDay === addDays(date, -1) ? (p.perfectPuzzleStreak || 0) + 1 : 1;
+            p.lastPerfectPuzzleDay = date;
+            p.bestPerfectPuzzleStreak = Math.max(p.bestPerfectPuzzleStreak || 0, p.perfectPuzzleStreak);
+          } else {
+            p.perfectPuzzleStreak = 0;
+          }
+        }
       }
     }
     saveStore(store);
@@ -286,6 +313,8 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     const store = loadStore();
     const p = findPlayerByName(store, name);
     const day = puzzleDay(p, date);
+    // Today can no longer be perfect: the run ends now, not at midnight.
+    if (!day.solved) p.perfectPuzzleStreak = 0;
     day.revealed = true;
     saveStore(store);
     return { ...day };
@@ -307,6 +336,7 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     touchDailyStreak,
     setFavoriteBadges,
     puzzleStatus,
+    puzzleStarsFor,
     recordPuzzleAttempt,
     revealPuzzle,
   };
