@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.77.0] - 2026-10-17
+
+### Added
+- Stammtische sammeln jetzt gemeinsam Punkte und steigen in Stufen auf – jede Partie am Stammtisch zählt, mit mehreren Menschen am Tisch etwas mehr.
+- Jeder Stammtisch hat ein Wochenziel von 5 Partien (Montag bis Sonntag) mit Fortschrittsbalken; geschaffte Wochen werden gezählt, mehrere in Folge als Serie. Zu sehen in der Stammtisch-Bilanz und in der Spiel-Lobby, ein erreichtes Ziel oder eine neue Stufe meldet sich nach der Partie.
+
 ## [2.76.0] - 2026-10-17
 
 ### Added
