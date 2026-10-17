@@ -674,25 +674,45 @@
     meow: () => { playMeow(); vibrate([12, 60, 12]); },
   };
 
-  // A present for a cat lover, deliberately in no CHANGELOG or doc: five quick
-  // taps on the card fan of the start screen and a cat peeks out behind it.
+  // A present for a cat lover, deliberately in no CHANGELOG, doc or commit message: five quick
+  // taps on the start screen's card fan bring out a cat; on 17 December it is out all day.
   (() => {
     const hero = document.querySelector('.lobbyHero');
     if (!hero) return;
+    const says = hero.querySelector('.heroCatBubble text');
+    // Device date, like the seasonal snow.
+    const catDay = () => { const d = new Date(); return d.getMonth() === 11 && d.getDate() === 17; };
     let taps = [];
-    let hideTimer = null;
+    let hushTimer = null;
+    const speak = (stay) => {
+      if (says) says.textContent = L('Miau!', 'Meow!');
+      hero.classList.add('catOut', 'catTalk');
+      clearTimeout(hushTimer);
+      hushTimer = setTimeout(() => {
+        hero.classList.remove('catTalk');
+        if (!stay) hero.classList.remove('catOut');
+      }, 3500);
+    };
     hero.addEventListener('click', () => {
+      if (hero.classList.contains('catTalk')) return;
       const now = Date.now();
       taps = taps.filter((at) => now - at < 2500).concat(now);
-      if (taps.length < 5 || hero.classList.contains('catOut')) return;
+      if (taps.length < 5 && !catDay()) return;
       taps = [];
-      const says = hero.querySelector('.heroCatBubble text');
-      if (says) says.textContent = L('Miau!', 'Meow!');
-      hero.classList.add('catOut');
+      speak(catDay());
       sound.meow();
-      clearTimeout(hideTimer);
-      hideTimer = setTimeout(() => hero.classList.remove('catOut'), 3500);
     });
+    // Waits for the intro; re-checked when the app returns, as a PWA may sleep over midnight.
+    const checkDay = () => {
+      if (!catDay()) {
+        if (!hero.classList.contains('catTalk')) hero.classList.remove('catOut');
+      } else if (!hero.classList.contains('catOut')) {
+        if (document.getElementById('studioSplash')) setTimeout(checkDay, 500);
+        else speak(true);
+      }
+    };
+    setTimeout(checkDay, 900);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) checkDay(); });
   })();
 
   // Settings rows carry an <svg class="icon"> plus a label and a value span.

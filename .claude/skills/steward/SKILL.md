@@ -64,6 +64,9 @@ Refresh them when a follow-up commit changes what they show.
 - Update the description when follow-up commits change scope. Reviewers
   read the description, not the commit list.
 - The user squash-merges. Never merge yourself.
+- The squash commit on main carries every commit message of the PR, bodies
+  included: what must stay out of the history (a surprise, a private
+  detail) never goes into a commit message.
 
 ## Red CI
 
