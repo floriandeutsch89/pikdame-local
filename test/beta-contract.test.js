@@ -94,10 +94,11 @@ test('beta workflow: never aims at the prod host', () => {
   assert.match(workflow, /@\$\{\{ vars\.BETA_HOST \}\}/);
 });
 
-test('beta workflow: forks and Dependabot never deploy', () => {
+test('beta workflow: forks, Dependabot and the release PR never deploy', () => {
   assert.doesNotMatch(workflow, /^\s*pull_request_target:/m, 'pull_request_target would hand secrets to fork code');
   assert.match(workflow, /github\.event\.pull_request\.head\.repo\.full_name == github\.repository/);
   assert.match(workflow, /!startsWith\(github\.head_ref, 'dependabot\/'\)/);
+  assert.match(workflow, /github\.head_ref != 'release\/next'/, 'rebuilt on every merge, it would hog the one slot');
   assert.match(workflow, /name:\s*beta\b/, 'secrets must come from the beta environment, not production');
 });
 

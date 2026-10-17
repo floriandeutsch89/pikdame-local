@@ -1,11 +1,17 @@
 # Releases
 
-Every merge to `main` with a version bump is tagged and released automatically.
-Nothing is done by hand — not the tag, not the release notes, not the image.
+Pull requests that change the game bring a changelog fragment
+(`changes/<topic>.md`). On every push to `main` a bot collects them into the
+pull request **Release vX.Y.Z** (version bump + new `CHANGELOG.md` section);
+merging it — automatically for minor and patch releases — tags and releases
+the version. Nothing is done by hand — not the version, not the tag, not the
+release notes, not the image.
 
 ```mermaid
 flowchart TB
-  P([push to main]) --> M["meta<br/>version from package.json<br/>tag exists already?"]
+  F(["PR with changes/*.md merged"]) --> RP["release-pr<br/>release/next = main + version + CHANGELOG<br/>PR 'Release vX.Y.Z', auto-merge"]
+  RP -- "CI green, merged" --> P([push to main])
+  P --> M["meta<br/>version from package.json<br/>tag exists already?"]
   M -- "new version" --> R["release<br/>git tag · GitHub release<br/>notes from CHANGELOG.md"]
   M -- "known version" --> X([nothing to do])
   R --> D["docker<br/>amd64 + arm64 → GHCR"]
@@ -47,6 +53,10 @@ timeline
 - **Major** — a breaking change to how you run or configure it.
 - **Minor** — new features, new gameplay, notable behaviour changes.
 - **Patch** — bug fixes, performance, internals.
+
+The release PR picks the level from its fragments: only `Fixed`/`Security`
+entries make a patch, anything else a minor, and a major needs an explicit
+`<!-- bump: major -->` in a fragment — that release waits for a review.
 
 ## Changelog
 

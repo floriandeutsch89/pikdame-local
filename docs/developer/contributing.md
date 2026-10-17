@@ -4,40 +4,72 @@
 
 ```mermaid
 gitGraph
-  commit id: "v2.60.0"
-  commit id: "v2.60.1" tag: "v2.60.1"
+  commit id: "v2.71.0" tag: "v2.71.0"
   branch feat/your-change
   checkout feat/your-change
   commit id: "change + tests"
-  commit id: "bump + CHANGELOG"
+  commit id: "changes/your-change.md"
   checkout main
-  merge feat/your-change id: "squash-merge" tag: "v2.61.0" type: HIGHLIGHT
+  merge feat/your-change id: "squash-merge"
+  branch release/next
+  checkout release/next
+  commit id: "chore(release): v2.72.0"
+  checkout main
+  merge release/next id: "Release v2.72.0" tag: "v2.72.0" type: HIGHLIGHT
   commit id: "release.yml: tag, image, chart"
 ```
 
-1. Branch off `main` (`feat/…`, `fix/…`, `perf/…`, `chore/…`).
+1. Branch off `main` (`feat/…`, `fix/…`, `perf/…`, `chore/…`). Work that
+   depends on an open pull request is **stacked**: branch off that PR's
+   branch and use it as the base. Independent work is never stacked.
 2. Make the change **plus tests**.
 3. `npm test` — everything green.
-4. Bump the version in `package.json` and add a `CHANGELOG.md` entry
-   (*documentation-only changes need no version bump*).
-5. Open a PR. CI runs the suite; squash-merge when green. A release is tagged
-   automatically from the version in `package.json` ({doc}`../releases`).
+4. If the game changes (`public/`, `server.js`, `game/`, `models/`,
+   `docker/`, dependencies): add a **changelog fragment** `changes/<topic>.md`
+   — format in [`changes/README.md`](https://github.com/floriandeutsch89/pikdame-local/blob/main/changes/README.md).
+   Never edit the version or `CHANGELOG.md`; documentation, tests and CI
+   need no fragment.
+5. Open a PR. CI runs the suite; the branch must be **up to date with
+   `main`** before it can merge (*Update branch* on GitHub when there is no
+   conflict). Squash-merge when green.
+
+### Releases
+
+Every push to `main` rebuilds the pull request **Release vX.Y.Z** on the
+bot-owned branch `release/next` (`.github/workflows/release-pr.yml`):
+`scripts/release.js` turns all fragments into the version bump and the new
+`CHANGELOG.md` section, and deletes them. Minor and patch releases merge
+themselves once CI is green; a major release (only with
+`<!-- bump: major -->` in a fragment) waits for a review. That merge is the
+release: `release.yml` tags the version, publishes the image and the chart,
+and deploys ({doc}`../releases`).
+
+```bash
+node scripts/release.js --dry-run   # the next version and section, from the fragments
+node scripts/check-changes.js       # what CI says about your branch
+```
+
+Parallel pull requests therefore never conflict over the version or the
+changelog, and the merge order does not matter.
 
 ### What CI runs on every pull request
 
 ```mermaid
 flowchart LR
   PR([pull request]) --> S["secret-scan"]
+  PR --> C["changelog-fragment<br/>check-changes.js"]
   PR --> T["test<br/>node --test · docs:check"]
   PR --> D["dependency-check<br/>npm audit · npm outdated"]
   PR --> DS["docker-security<br/>hadolint · Trivy"]
   PR --> DK["docker-smoke<br/>hardened compose boots"]
   PR --> H["helm-validate"]
-  S & T & D & DS & DK & H --> M{{"all required → squash-merge"}}
+  S & C & T & D & DS & DK & H --> M{{"all required → squash-merge"}}
 ```
 
 `test` includes `npm run docs:check`: the generated documentation pages must
-match the code (see below).
+match the code (see below). `changelog-fragment` fails when a game change
+has no fragment, a fragment is malformed, or a pull request other than the
+release PR edits the version or a released `CHANGELOG.md` section.
 
 ## Dependency updates (Dependabot)
 
@@ -46,9 +78,10 @@ base images, the images used in the compose files and the GitHub Actions every
 Monday at 03:00 UTC; `.github/workflows/dependabot-auto.yml` then does the two
 things Dependabot cannot:
 
-- it appends the SemVer bump and the German `CHANGELOG.md` line, because
-  `release.yml` skips a version whose tag already exists — without the bump a
-  merged update would produce no tag and no image;
+- it adds the changelog fragment `changes/deps-<PR>.md` (one German
+  `### Changed` line; patch updates carry `<!-- bump: patch -->`), so the
+  update reaches the next release PR — without it the merged update would
+  never produce a tag or an image;
 - it enables auto-merge for **minor and patch** updates. **Major** updates
   (a new Node base image, a Postgres major) get a label, a reviewer and a
   comment listing what has to move with them; they never merge on their own.
@@ -62,8 +95,9 @@ package would keep every pull request red.
 
 The workflow acts through a **GitHub App token**, not `GITHUB_TOKEN`: GitHub
 does not start workflow runs for events created with `GITHUB_TOKEN`, so the
-bump commit would never be tested and the merge would never trigger
-`release.yml`. An App token also has no expiry date, unlike the personal
+fragment commit would never be tested and the merge would never reach the
+release PR. The release PR (`release-pr.yml`) uses the same App, for the
+same reason. An App token also has no expiry date, unlike the personal
 access token used before.
 
 1. **Register the App** — *Settings → Developer settings → GitHub Apps → New
@@ -100,8 +134,10 @@ access token used before.
    this repository.
 
 5. **Store the credentials as _Dependabot_ secrets** — *Settings → Secrets and
-   variables → **Dependabot***, not Actions: workflow runs triggered by a
-   Dependabot pull request cannot read Actions secrets.
+   variables → **Dependabot*** — **and the same two as _Actions_ secrets**:
+   workflow runs triggered by a Dependabot pull request read only the
+   Dependabot store, the release PR workflow (a push to `main`) only the
+   Actions store.
 
    | Secret | Value |
    | --- | --- |
@@ -110,10 +146,11 @@ access token used before.
 
 6. **Repository settings**: enable *Allow auto-merge* (*Settings → General →
    Pull Requests*), and protect `main` with **required status checks**
-   (`test`, `dependency-check`, `docker-security`, `docker-smoke`) but
-   **no required approvals** — without required checks GitHub merges an
-   auto-merge pull request immediately, and required approvals would put the
-   manual step back in.
+   (`test`, `dependency-check`, `docker-security`, `docker-smoke`, optionally
+   `changelog-fragment`) with **Require branches to be up to date before
+   merging**, but **no required approvals** — without required checks GitHub
+   merges an auto-merge pull request immediately, and required approvals
+   would put the manual step back in.
 
 7. **Create the labels** `dependencies`, `docker`, `github-actions` and
    `needs-review`; Dependabot silently ignores labels that do not exist.

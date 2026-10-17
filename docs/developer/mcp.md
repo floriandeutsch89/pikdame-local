@@ -131,5 +131,5 @@ Neither test needs the MCP SDK; both run in the normal `npm test` and CI.
 - **Strength unmeasured.** No `sim-bots.js` numbers exist for LLM seats; they
   would cost real API money. Expect them to be weaker than the zen bot.
 - **Dependencies.** The packages in `mcp/` are not covered by Dependabot
-  (`dependabot-auto.yml` would bump the game version for them). Update them
+  (`dependabot-auto.yml` would turn every update there into a game release). Update them
   with `npm update` in `mcp/` from time to time.

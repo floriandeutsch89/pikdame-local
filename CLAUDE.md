@@ -12,7 +12,8 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   Repo-Doku (README, docs/; k8s/ und landing/ READMEs bei nächster Berührung).
   Deutsche Bestandskommentare beim Berühren migrieren.
 - **Deutsch:** alle nutzersichtbaren Texte (Quellsprache, über i18n).
-  CHANGELOG: Überschriften englisch (Added/Changed/Fixed/Removed), Inhalt deutsch.
+  Changelog-Fragmente: Überschriften englisch (Added/Changed/Fixed/Removed),
+  Inhalt deutsch.
 - **Kommentare 1–2 Zeilen**, nur Warum/Falle/Vertrag; Erklärungen in docs/,
   Commit oder PR. Lange Bestandskommentare sind kein Vorbild.
 
@@ -163,14 +164,17 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
    Ablauf Schritt für Schritt: Skill `steward`; Browser-Check, Layout-Audit
    und PR-Screenshots: Skill `ui-shots` (eigener Temp-Datenordner);
    Design-Review nach unseren Regeln: Skill `ui-review`.
-2. **SemVer-Bump + CHANGELOG-Abschnitt, wenn sich das Spiel ändert**
-   (`public/`, `server.js`, `game/`, `models/`, `docker/`, Abhängigkeiten im
-   Image). Nur Doku, Skills, Tests oder CI: **keine Version, kein CHANGELOG**
-   (der Release-Workflow baut nur bei neuer Version). Version direkt vor dem
-   Push aus `origin/main:package.json` ableiten (nach `git fetch`); offene PRs
-   mit belegten Nummern beachten. Hat sich main bewegt: erst mergen, dann pushen.
+2. **Changelog-Fragment, wenn sich das Spiel ändert** (`public/`, `server.js`,
+   `game/`, `models/`, `docker/`, Abhängigkeiten im Image): neue Datei
+   `changes/<thema>.md`, Format in `changes/README.md`. Version und
+   `CHANGELOG.md` schreibt NUR der Release-PR (`release/next`, automatisch);
+   CI `changelog-fragment` prüft beides. Nur Doku, Skills, Tests oder CI:
+   kein Fragment. Hat sich main bewegt: erst mergen, dann pushen.
 3. Push → PR → CI → Squash-Merge (macht der Nutzer) → Branch löschen.
-   Tag, Release und GHCR-Image erzeugt der Release-Workflow — nichts manuell.
+   Release-PR, Tag, Release und GHCR-Image erzeugen die Workflows — nichts
+   manuell. Abhängige Arbeit als Stack (Basis = Branch des Vorgängers),
+   unabhängige PRs nie stapeln. Vor dem Merge muss der Branch auf main-Stand
+   sein: ohne Konflikt per „Update branch“ (`update_pull_request_branch`).
 4. **Branch-Hygiene:**
    - Vor jedem Push `gh pr view <nr> --json state`: Ist der PR schon gemergt,
      kommt der Folge-Commit auf einen NEUEN Branch von main.
@@ -187,12 +191,12 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
 7. WS-Nachrichten VOR dem Session-Beitritt (Profile, Rätsel, Stammtisch)
    stehen vor der Session-Sperre und tragen `msg.name`. Stammtisch-Codes löst
    `joinSession` auf; Platz-Rückgabe per Name nur für GETRENNTE Sitze.
-8. **Dependabot** (montags): `dependabot-auto.yml` hängt Bump + CHANGELOG an
-   und mergt Minor/Patch automatisch; **Majors nie automatisch**. Läuft über
+8. **Dependabot** (montags): `dependabot-auto.yml` legt `changes/deps-<nr>.md`
+   an und mergt Minor/Patch automatisch; **Majors nie automatisch**. Läuft über
    ein GitHub-App-Token (`DEPS_BOT_APP_ID`/`DEPS_BOT_PRIVATE_KEY` im
-   **Dependabot**-Speicher, nicht bei den Actions-Secrets), weil
-   `GITHUB_TOKEN`-Pushes keine CI/Release auslösen. main braucht
-   Pflicht-Checks, keine Pflicht-Reviews. npm ist gruppiert, weil
+   **Dependabot**-Speicher; `release-pr.yml` braucht sie zusätzlich als
+   Actions-Secrets), weil `GITHUB_TOKEN`-Pushes keine CI/Release auslösen.
+   main braucht Pflicht-Checks, keine Pflicht-Reviews. npm ist gruppiert, weil
    `dependency-check` bei jedem veralteten Paket rot wird.
 9. **Compose:** alle drei Dateien in `docker/` (yml, ghcr.yml, prod.yml)
    synchron; OWASP-Härtung (cap_drop ALL, read_only, AppArmor, pids_limit)
@@ -208,6 +212,8 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
   `pgrep -af "node server.js"`. Unbekannte Stammtisch-/Spiel-Codes zählen als
   Fehlversuch und sperren nach einigen die IP (sieht aus wie Drosseln) →
   Mocks beantworten `getStammtisch` selbst; gesperrt = Server neu starten.
+- **`npm test` nie parallel** (z. B. mehrere Worktrees): Server-Tests nutzen
+  feste Ports, ein zweiter Lauf trifft den fremden Server und scheitert wie ein Flake.
 - Engine: E2E-Botspiele über alle 4 Stufen (Deadlocks, kein Joker-Abwurf,
   kein Doppel-Satz).
 - **Kartenerhaltung** (`test/card-conservation.test.js`): nach JEDEM Zug exakt
