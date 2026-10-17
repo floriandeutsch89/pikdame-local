@@ -1913,7 +1913,7 @@
         ? L('Schwierigkeit ändern', 'Change difficulty')
         : L(`Schwierigkeit: ${diff.short()}`, `Difficulty: ${diff.short()}`);
       const diffChip = p.isBot
-        ? `<button class="seatDiff tapExpand${canEdit ? '' : ' readonly'}" title="${diffTitle}">${diff.short()}</button>`
+        ? `<button class="seatDiff tapExpand${canEdit ? '' : ' readonly'}" title="${diffTitle}">${levelIconHtml(diff)}<span>${diff.short()}</span></button>`
         : '';
       const readyMark = multiHuman && !p.isBot && ready.has(p.id)
         ? `<span class="seatReady" title="${L('bereit', 'ready')}"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></span>`
@@ -2087,8 +2087,8 @@
     } else {
       orderedOpponents.push(...lastState.players.filter((p) => p.id !== playerId));
     }
-    // The level badge only says something when the bots differ; three equal
-    // "Mittel" tags were noise. The host keeps a bars-only badge to change one bot.
+    // Guests see the level badge only when the bots differ (three equal tags were
+    // noise); the host always keeps it, it is the control to change one bot.
     const levelsDiffer = new Set(lastState.players.filter((p) => p.isBot).map((p) => p.botDifficulty || 'zen')).size > 1;
     orderedOpponents
       .forEach((p) => {
@@ -2135,8 +2135,9 @@
         if (p.isBot && !lastState.challengeDate && (levelsDiffer || lastState.isHost)) {
           const meta = BOT_DIFF[p.botDifficulty] || BOT_DIFF.zen;
           const badgeBtn = document.createElement('button');
-          badgeBtn.className = `botDiffBadge tapExpand${levelsDiffer ? '' : ' barsOnly'}`;
-          badgeBtn.innerHTML = `${diffBarsHtml(meta.bars)}${levelsDiffer ? `<span>${meta.short()}</span>` : ''}`;
+          badgeBtn.className = 'botDiffBadge tapExpand';
+          // In the game the spade rating alone; the level's name is in title + aria-label.
+          badgeBtn.innerHTML = levelIconHtml(meta);
           if (lastState.isHost) {
             badgeBtn.title = L(`Schwierigkeit ändern (${meta.short()})`, `Change difficulty (${meta.short()})`);
             badgeBtn.addEventListener('click', (ev) => {
@@ -4291,16 +4292,17 @@
   el('resultForfeitBtn').addEventListener('click', () => toggleForfeit('roundEnd'));
 
   // --- Per-bot difficulty ---------------------------------------------------
-  // Weakest first, like game/Bot.js BOT_LEVELS; `bars` draws the strength.
+  // Weakest first, like game/Bot.js BOT_LEVELS; `icon` is the spade rating in the sprite.
   // One name per level everywhere (seat chip, picker, house rules, log).
   const BOT_DIFF = {
-    easy: { bars: 1, short: () => L('Leicht', 'Easy'), hint: () => L('macht Anfängerfehler', 'makes beginner mistakes') },
-    medium: { bars: 2, short: () => L('Mittel', 'Medium'), hint: () => L('solides Familienspiel', 'solid family play') },
-    hard: { bars: 3, short: () => L('Schwer', 'Hard'), hint: () => L('zählt die Karten mit', 'counts the cards') },
-    zen: { bars: 4, short: () => L('Zen', 'Zen'), hint: () => L('spielt am stärksten', 'plays strongest') },
+    easy: { icon: 'i-lvl-1', short: () => L('Leicht', 'Easy'), hint: () => L('macht Anfängerfehler', 'makes beginner mistakes') },
+    medium: { icon: 'i-lvl-2', short: () => L('Mittel', 'Medium'), hint: () => L('solides Familienspiel', 'solid family play') },
+    hard: { icon: 'i-lvl-3', short: () => L('Schwer', 'Hard'), hint: () => L('zählt die Karten mit', 'counts the cards') },
+    zen: { icon: 'i-lvl-zen', short: () => L('Zen', 'Zen'), hint: () => L('spielt am stärksten', 'plays strongest') },
   };
-  function diffBarsHtml(n) {
-    return `<span class="diffBars" aria-hidden="true">${[1, 2, 3, 4].map((i) => `<i${i <= n ? ' class="on"' : ''}></i>`).join('')}</span>`;
+  // A fixed-size slot per icon; the Zen crown rises above it unless the context reserves it (CSS).
+  function levelIconHtml(meta) {
+    return `<span class="lvlSlot"><svg class="icon lvlIcon${meta.icon === 'i-lvl-zen' ? ' lvlZen' : ''}" aria-hidden="true"><use href="#${meta.icon}"/></svg></span>`;
   }
   function openBotDiffOverlay(bot) {
     // Tages-Challenge: Bot-Stärke ist fest (mittel für alle) - Menü gar nicht anbieten.
@@ -4311,7 +4313,7 @@
     for (const [key, meta] of Object.entries(BOT_DIFF)) {
       const btn = document.createElement('button');
       if (key === bot.botDifficulty) btn.classList.add('current');
-      btn.innerHTML = `${diffBarsHtml(meta.bars)}<span>${meta.short()}<small>${meta.hint()}</small></span>`;
+      btn.innerHTML = `${levelIconHtml(meta)}<span>${meta.short()}<small>${meta.hint()}</small></span>`;
       btn.addEventListener('click', () => {
         send({ type: 'setBotDifficulty', botId: bot.id, difficulty: key });
         el('botDiffOverlay').classList.add('hidden');
