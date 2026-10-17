@@ -677,74 +677,175 @@
     meow: () => { playMeow(); vibrate([12, 60, 12]); },
   };
 
-  // Greeting day of the signed-in account (server: PIKDAME_BIRTHDAY). The server
-  // sends the window; this side only compares instants and never knows a date.
+  // Occasion days on the start screen: the signed-in account's greeting day
+  // (server: PIKDAME_BIRTHDAY, via /api/me) and holidays for everyone (/statusz).
+  // The server sends windows; this side only compares instants and never knows a date.
   const GREETING_EMOTE = '🎂'; // = GREETING_EMOTE in game/Emotes.js (contract test)
+  // = HOLIDAY_EMOTES in game/Emotes.js (contract test)
+  const HOLIDAY_EMOTES = { halloween: '🎃', nikolaus: '🎅', christmas: '🎄', silvester: '🎆', newyear: '🎆', easter: '🐣' };
+  const OCCASIONS = {
+    birthday: { icon: 'i-cake', particles: 'confetti', line: () => L(`Alles Gute zum Geburtstag, ${greetingName}!`, `Happy birthday, ${greetingName}!`) },
+    halloween: { icon: 'i-pumpkin', particles: 'bats', line: () => L('Süßes oder Saures!', 'Trick or treat!') },
+    nikolaus: { icon: 'i-mitre', particles: '', line: () => L('Frohen Nikolaus!', "Happy St. Nicholas' Day!") }, // the December snow is enough
+    christmas: { icon: 'i-tree', particles: 'stars', line: () => L('Frohe Weihnachten!', 'Merry Christmas!') },
+    silvester: { icon: 'i-sparkle', particles: 'fireworks', line: () => L('Guten Rutsch!', "Happy New Year's Eve!") },
+    newyear: { icon: 'i-sparkle', particles: 'fireworks', line: () => L('Frohes neues Jahr!', 'Happy New Year!') },
+    easter: { icon: 'i-egg', particles: 'blossoms', line: () => L('Frohe Ostern!', 'Happy Easter!') },
+  };
   let greetingWindow = null; // { from, until } in epoch ms
   let greetingName = '';
-  let greetingTimer = null;
-  let greetingCatCheck = null; // the cat below re-checks at the window's edges
-  function greetingActive() {
-    const now = Date.now();
-    return !!greetingWindow && now >= greetingWindow.from && now < greetingWindow.until;
+  let holidayWindows = []; // [{ id, from, until }]
+  let holidayRefreshAt = 0;
+  let holidayRefreshTimer = null;
+  let occasionTimer = null;
+  let occasionCatCheck = null; // the cat below re-checks at the windows' edges
+  const inWindow = (w, now) => !!w && now >= w.from && now < w.until;
+  const validWindow = (w) => !!w && Number.isFinite(w.from) && Number.isFinite(w.until) && w.until > w.from;
+  // The greeting day wins over a holiday on the same day.
+  function currentOccasion(now = Date.now()) {
+    if (inWindow(greetingWindow, now)) return 'birthday';
+    const h = holidayWindows.find((w) => inWindow(w, now));
+    return h ? h.id : null;
   }
   function setGreeting(win, name) {
-    const ok = !!win && Number.isFinite(win.from) && Number.isFinite(win.until) && win.until > win.from;
-    greetingWindow = ok ? { from: win.from, until: win.until } : null;
+    greetingWindow = validWindow(win) ? { from: win.from, until: win.until } : null;
     greetingName = String(name || '');
-    applyGreeting();
+    applyOccasion();
   }
-  function applyGreeting() {
-    clearTimeout(greetingTimer);
-    const on = greetingActive();
-    document.body.classList.toggle('greetingDay', on);
+  function setHolidays(status) {
+    const list = status && Array.isArray(status.windows) ? status.windows : [];
+    holidayWindows = list.filter((w) => validWindow(w) && w.id !== 'birthday' && OCCASIONS[w.id])
+      .map((w) => ({ id: w.id, from: w.from, until: w.until }));
+    holidayRefreshAt = status && Number.isFinite(status.refreshAt) ? status.refreshAt : 0;
+    clearTimeout(holidayRefreshTimer);
+    const wait = holidayRefreshAt - Date.now();
+    // Spread over ten minutes: every open client asks again after midnight.
+    if (wait > 0) holidayRefreshTimer = setTimeout(refreshHolidays, Math.min(wait + Math.random() * 600000, 0x7fffffff));
+    applyOccasion();
+  }
+  function refreshHolidays() {
+    return fetch('/statusz').then((r) => r.json()).then((s) => setHolidays(s && s.occasions)).catch(() => {});
+  }
+  function applyOccasion() {
+    clearTimeout(occasionTimer);
+    // One instant for the decision AND the next edge: read twice, an edge passing
+    // in between was skipped and the decor stuck until the following one.
+    const now = Date.now();
+    const id = currentOccasion(now);
+    const occ = id ? OCCASIONS[id] : null;
+    document.body.classList.toggle('greetingDay', !!occ);
+    if (occ) document.body.dataset.occasion = id;
+    else delete document.body.dataset.occasion;
     const text = el('greetLineText');
-    if (text) text.textContent = on ? L(`Alles Gute zum Geburtstag, ${greetingName}!`, `Happy birthday, ${greetingName}!`) : '';
-    renderGreetingConfetti(on);
-    renderGreetingEmote(on);
-    if (greetingCatCheck) greetingCatCheck();
-    if (greetingWindow) {
-      const now = Date.now();
-      const next = now < greetingWindow.from ? greetingWindow.from : greetingWindow.until;
-      if (next > now) greetingTimer = setTimeout(applyGreeting, Math.min(next - now + 50, 0x7fffffff));
-    }
+    if (text) text.textContent = occ ? occ.line() : '';
+    const icon = el('greetLineIcon');
+    if (icon && occ) icon.setAttribute('href', `#${occ.icon}`);
+    document.querySelectorAll('.heroCostume, .heroDeco').forEach((g) => {
+      g.classList.toggle('on', !!id && (g.getAttribute('data-for') || '').split(' ').includes(id));
+    });
+    renderOccasionParticles(occ ? occ.particles : '');
+    renderOccasionEmote(id === 'birthday' ? GREETING_EMOTE : (id && HOLIDAY_EMOTES[id]) || null);
+    if (occasionCatCheck) occasionCatCheck();
+    const edges = [greetingWindow, ...holidayWindows].filter(Boolean)
+      .flatMap((w) => [w.from, w.until]).filter((t) => t > now);
+    if (edges.length) occasionTimer = setTimeout(applyOccasion, Math.min(Math.min(...edges) - now + 50, 0x7fffffff));
   }
-  function renderGreetingConfetti(on) {
+  // Built once per switch; positions in %, motion in CSS (gone with reduced motion).
+  function renderOccasionParticles(kind) {
     const box = el('greetConfetti');
-    if (!box || !on) { if (box) box.textContent = ''; return; }
-    if (box.childElementCount) return;
+    if (!box) return;
+    let still = false;
+    try { still = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { /* old browser */ }
+    if (still) kind = '';
+    if ((box.dataset.kind || '') === kind) return;
+    box.textContent = '';
+    box.dataset.kind = kind;
+    const rnd = (a, b) => a + Math.random() * (b - a);
+    const piece = (cls, symbol) => {
+      const p = document.createElement('i');
+      if (cls) p.className = cls;
+      if (symbol) p.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#${symbol}"/></svg>`;
+      box.appendChild(p);
+      return p;
+    };
     const colors = ['#f6c453', '#ff8fa3', '#8ab4ff', '#b28dff', '#7ee0c3'];
-    for (let i = 0; i < 18; i++) {
-      const c = document.createElement('i');
-      c.style.left = `${Math.random() * 100}%`;
-      c.style.background = colors[i % colors.length];
-      c.style.animationDuration = `${7 + Math.random() * 6}s`;
-      c.style.animationDelay = `-${Math.random() * 13}s`;
-      box.appendChild(c);
+    if (kind === 'confetti') {
+      for (let i = 0; i < 18; i++) {
+        const c = piece('', '');
+        c.style.left = `${rnd(0, 100)}%`;
+        c.style.background = colors[i % colors.length];
+        c.style.animationDuration = `${rnd(7, 13)}s`;
+        c.style.animationDelay = `-${rnd(0, 13)}s`;
+      }
+    } else if (kind === 'bats') {
+      for (let i = 0; i < 6; i++) {
+        const b = piece(i % 2 ? 'occBat back' : 'occBat', 'i-bat');
+        b.style.top = `${rnd(4, 62)}%`;
+        b.style.animationDuration = `${rnd(10, 16)}s`;
+        b.style.animationDelay = `-${rnd(0, 16)}s`;
+      }
+    } else if (kind === 'stars') {
+      for (let i = 0; i < 12; i++) {
+        const s = piece('occStar', 'i-twinkle');
+        s.style.left = `${rnd(2, 96)}%`;
+        s.style.top = `${rnd(2, 78)}%`;
+        s.style.setProperty('--s', rnd(0.6, 1.15).toFixed(2));
+        s.style.animationDelay = `-${rnd(0, 3)}s`;
+      }
+    } else if (kind === 'fireworks') {
+      // The sides first: the middle carries the wordmark and the greeting.
+      [10, 88, 24, 74, 50].forEach((x, i) => {
+        const burst = piece('occBurst', '');
+        burst.style.left = `${x + rnd(-5, 5)}%`;
+        burst.style.top = `${rnd(8, 52)}%`;
+        burst.style.color = colors[i % colors.length];
+        burst.style.animationDelay = `-${rnd(0, 3.4).toFixed(2)}s`;
+        for (let k = 0; k < 10; k++) {
+          const spark = document.createElement('b');
+          spark.style.setProperty('--a', `${k * 36}deg`);
+          burst.appendChild(spark);
+        }
+      });
+    } else if (kind === 'blossoms') {
+      const petals = ['#ffc2d6', '#fff3e6', '#f6e07a', '#c9f0d2'];
+      for (let i = 0; i < 14; i++) {
+        const p = piece('occPetal', 'i-blossom');
+        p.style.left = `${rnd(0, 100)}%`;
+        p.style.color = petals[i % petals.length];
+        p.style.animationDuration = `${rnd(8, 14)}s`;
+        p.style.animationDelay = `-${rnd(0, 14)}s`;
+      }
     }
   }
-  function renderGreetingEmote(on) {
+  function renderOccasionEmote(emoji) {
     const bar = el('emoteBar');
-    const old = bar && bar.querySelector('.greetEmote');
-    if (!bar || !!old === on) return;
-    if (old) { old.remove(); return; }
+    if (!bar) return;
+    const old = bar.querySelector('.greetEmote');
+    if (old && old.dataset.emote === emoji) return;
+    if (old) old.remove();
+    // The seasonal set may already show it (🎃 in October, 🎆 around New Year).
+    if (!emoji || [...bar.querySelectorAll('button[data-emote]')].some((b) => b.dataset.emote === emoji)) return;
     const sample = bar.querySelector('button[data-emote]');
     if (!sample) return;
     const b = sample.cloneNode(false);
     b.classList.add('greetEmote');
-    b.dataset.emote = GREETING_EMOTE;
-    b.textContent = GREETING_EMOTE;
+    b.dataset.emote = emoji;
+    b.textContent = emoji;
     b.addEventListener('click', () => {
-      send({ type: 'emote', emoji: GREETING_EMOTE });
+      send({ type: 'emote', emoji });
       bar.classList.add('hidden');
     });
     bar.appendChild(b);
   }
   // A PWA may sleep across an edge: the timers then fire late or never.
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) applyGreeting(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    if (holidayRefreshAt && Date.now() >= holidayRefreshAt) refreshHolidays();
+    applyOccasion();
+  });
 
   // A present for a cat lover, deliberately in no CHANGELOG, doc or commit message: five quick
-  // taps on the start screen's card fan bring out a cat; on the greeting day it is out all day.
+  // taps on the start screen's card fan bring out a cat; on an occasion day it is out all day.
   (() => {
     const hero = document.querySelector('.lobbyHero');
     if (!hero) return;
@@ -757,28 +858,28 @@
       clearTimeout(hushTimer);
       hushTimer = setTimeout(() => {
         hero.classList.remove('catTalk');
-        if (!greetingActive()) hero.classList.remove('catOut');
+        if (!currentOccasion()) hero.classList.remove('catOut');
       }, 3500);
     };
     hero.addEventListener('click', () => {
       if (hero.classList.contains('catTalk')) return;
       const now = Date.now();
       taps = taps.filter((at) => now - at < 2500).concat(now);
-      if (taps.length < 5 && !greetingActive()) return;
+      if (taps.length < 5 && !currentOccasion()) return;
       taps = [];
       speak();
       sound.meow();
     });
     // Waits for the intro; also runs at the window's edges and when the app returns.
     const checkDay = () => {
-      if (!greetingActive()) {
+      if (!currentOccasion()) {
         if (!hero.classList.contains('catTalk')) hero.classList.remove('catOut');
       } else if (!hero.classList.contains('catOut')) {
         if (document.getElementById('studioSplash')) setTimeout(checkDay, 500);
         else speak();
       }
     };
-    greetingCatCheck = checkDay;
+    occasionCatCheck = checkDay;
     setTimeout(checkDay, 900);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) checkDay(); });
   })();
@@ -5898,7 +5999,7 @@
     renderAccountProgress();
     // The greeting belongs to the account: gone on sign-out, re-rendered on a language switch.
     if (!loggedIn) greetingWindow = null;
-    applyGreeting();
+    applyOccasion();
   }
   let greetingFetchedAt = 0;
   async function refreshGreeting() {
@@ -6359,6 +6460,7 @@
         }
       }
       initAccount(!!(s && s.accountsEnabled), !!(s && s.passkeysEnabled));
+      setHolidays(s && s.occasions);
       // Daily tasks belong on the FIRST screen - progress you only see after
       // a match motivates nobody. The counters arrive with the profiles.
       if (s && s.quests) {
