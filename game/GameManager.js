@@ -562,6 +562,17 @@ class GameManager {
     return { ok: true };
   }
 
+  /** The tutorial table (server and flow test share it): no turn timer, slow
+   *  medium bots (easy rolls dice - not reproducible), the learner moves first. */
+  startTutorialRound() {
+    this.setHouseRules({ turnTimerSeconds: 0, botPace: 'slow' }, { system: true });
+    this.setAllBotsDifficulty('medium');
+    this.fillWithBots();
+    const last = this.players[this.players.length - 1];
+    if (last) this.setExplicitDealer(last.id); // seat 0 sits left of the dealer
+    this.startNewRound();
+  }
+
   /** Lobby control "Bot-Stärke": one level for every bot (the server checks the host). */
   setAllBotsDifficultyBy(requesterId, difficulty) {
     if (this.challengeDate) {
@@ -3207,6 +3218,8 @@ GameManager.TAKEOVER_GRACE_MS = 75 * 1000;
 // Einzelspieler-Modi: laengere Frist als bei der Bot-Uebernahme, weil hier
 // niemand am Tisch wartet - dafuer endet sie hart im Abbruch.
 GameManager.SOLO_GRACE_MS = 90 * 1000;
+// The tutorial deck: its lessons name concrete cards - change it only with them.
+GameManager.TUTORIAL_SEED = 22;
 // Explizit pausiert (Pause-Knopf gedrueckt): grosszuegigere Frist, bevor ein
 // Solo-Spiel ohne Wertung abgebrochen wird - 20 Minuten reichen fuer eine
 // echte Unterbrechung (Essen, Anruf), ohne die Sitzung endlos offen zu halten.

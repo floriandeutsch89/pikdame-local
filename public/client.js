@@ -156,6 +156,7 @@
 
   function maybeShowRoundQuote() {
     if (!lastState || lastState.phase !== 'playing') return;
+    if (lastState.tutorialMode && tutorialHintsOn()) return; // the coach card talks here
     const key = `${lastState.roundNumber}`;
     if (quoteShownForRound === key) return;
     quoteShownForRound = key;
@@ -1174,6 +1175,12 @@
         // Start screen: only offer 'resume' if that game still exists - and
         // learn whether this device still holds a seat there (one game at a time).
         probeOpenGame();
+        const next = storageGet('pikdame_after_tutorial');
+        if (next) {
+          storageRemove('pikdame_after_tutorial');
+          afterTutorial = next;
+          el('createGameBtn').click();
+        }
       }
     });
 
@@ -1407,18 +1414,15 @@
       if (/Kein Spiel mit diesem Code/.test(msg.error || '')) {
         storageRemove('pikdame_last_session');
       }
-      showHint(trs(msg.error), true);
-      // Im Tutorial ist eine Ablehnung der beste Lehrmoment: zusaetzlich zur
-      // Meldung die REGEL dahinter in einfachen Worten.
-      if (tutorialActive) {
-        const why = tutorialExplainError(msg.error || '');
-        // The raw error below takes a PRIORITY toast, which locks the toast
-        // slot for its full 5s - a plain follow-up at +900ms was dropped by
-        // showToast every single time, so this explanation has never actually
-        // reached a player. It now waits for the error to be read and then
-        // takes the slot itself.
-        if (why) setTimeout(() => showToast(`🎓 ${why}`, { duration: 8000, priority: true }), 2600);
+      // Tutorial: a refusal is the best teaching moment - the rule behind it
+      // goes into the coach card, alone (the centred toast covered the card).
+      const why = tutorialActive ? tutorialExplainError(msg.error || '') : null;
+      if (why) {
+        sound.error();
+        coachNote(why, 'error');
+        return;
       }
+      showHint(trs(msg.error), true);
       // Wichtige Fehler (z.B. Ablagestapel nicht aufnehmbar) deutlich und
       // laenger in der Bildmitte zeigen - die Hint-Zeile allein wird auf
       // kleinen Displays leicht uebersehen.
@@ -1479,6 +1483,14 @@
       maybeShowRoundQuote();
       checkPikdameAnnouncement();
       render();
+      // After "Tutorial geschafft": the new game exists - start it with bots
+      // straight away, or leave the lobby open for sharing the code.
+      if (afterTutorial && lastState.phase === 'lobby' && lastState.isHost) {
+        const next = afterTutorial;
+        afterTutorial = null;
+        if (next === 'bots') el('startBtn').click();
+        else showToast(L('Teile den Code mit deinen Freunden – sie spielen dann mit.', 'Share the code with your friends – then they join in.'), { duration: 6000 });
+      }
       return;
     }
     if (msg.type === 'stammtisch') {
@@ -1571,6 +1583,7 @@
       return;
     }
     if (msg.type === 'emote') {
+      if (tutorialHintsOn() && msg.playerId !== playerId) return; // bots stay quiet in the tutorial
       showEmote(msg.playerId, msg.emoji);
       return;
     }
@@ -2616,7 +2629,9 @@
     }
     prevForfeitVoteCount = forfeitVotes.length;
 
-    if (lastState.mustLayOffCardId && isMyTurn) {
+    if (lastState.mustLayOffCardId && isMyTurn && tutorialHintsOn()) {
+      clearHintIfNotError(); // the coach card names the combination instead
+    } else if (lastState.mustLayOffCardId && isMyTurn) {
       // WICHTIG bleibt persistent sichtbar
       showHint(L('Pflicht: Die aufgenommene Ablagekarte muss zuerst in einer neuen Kombination mit Handkarten ausgelegt werden.', 'Required: the picked-up discard must first be melded in a new combination with hand cards.'), false);
     } else if (isMyTurn && lastState.turnPhase === 'meld') {
@@ -2630,7 +2645,7 @@
       // settings is an explicit "show me that again" and resets the count.
       const turnKey = `${lastState.roundNumber}-${lastState.turnIndexInRound}`;
       if (
-        gameTipsEnabled &&
+        gameTipsEnabled && !tutorialHintsOn() &&
         tipShownForTurn !== turnKey &&
         selectedCardIds.size === 0 &&
         tipSeenCount < TIP_MAX_SHOWS
@@ -3459,7 +3474,8 @@
       const iAmReady = ready.has(playerId);
       contBtn.disabled = iAmReady;
       if (humans.length <= 1) {
-        contBtn.textContent = L('Nächste Runde', 'Next round');
+        // Tutorial: this button leads to "Tutorial geschafft", not to round 2.
+        contBtn.textContent = tutorialHintsOn() ? L('Weiter', 'Continue') : L('Nächste Runde', 'Next round');
       } else if (iAmReady) {
         const waiting = humans.filter((h) => !ready.has(h.id)).map((h) => h.name).join(', ');
         contBtn.textContent = L(`Warte auf ${waiting}…`, `Waiting for ${waiting}…`);
@@ -4311,238 +4327,95 @@
     if (ev.target === el('botDiffOverlay')) el('botDiffOverlay').classList.add('hidden');
   });
 
-  // --- Tutorial mode: contextual hints for first-time players --------------
-  // Fully client-side (works offline in CodeApp): each rule is explained
-  // the moment it first becomes relevant during a real game vs easy bots.
-  let tutorialActive = storageGet('pikdame_tutorial') === 'on';
-  let tutorialSeen = new Set();
-  try { tutorialSeen = new Set(JSON.parse(storageGet('pikdame_tutorial_seen') || '[]')); } catch (e) { /* fresh start */ }
+  // --- Tutorial: a guided first game (tutorial sessions only) --------------
+  // The server deals a fixed deck (seed 22) and flags the session. Hints,
+  // marks and rule explanations exist only there and end with the scoring of
+  // round 1. Progress belongs to that session, so a reload resumes it and
+  // nothing leaks into a normal game (the old global switch did).
+  const TUTORIAL_KEY = 'pikdame_tutorial_progress';
+  storageRemove('pikdame_tutorial');
+  storageRemove('pikdame_tutorial_seen');
+  let tutorialProgress = null;
+  try { tutorialProgress = JSON.parse(storageGet(TUTORIAL_KEY) || 'null'); } catch (e) { tutorialProgress = null; }
+  let tutorialActive = false; // hints on right now (see tutorialHintsOn)
   let tutorialCurrentStep = null;
+  let tutorialBaseline; // what the current action step measures against
+  let tutorialNoteTimer = null;
+  let afterTutorial = null; // 'bots' | 'invite': the next game after "Tutorial geschafft"
 
-  const TUTORIAL_STEPS = [
-    {
-      // Reachable from BOTH entry points. The tutorial button starts its
-      // session immediately (server: startTutorial -> startNewRound), so the
-      // client never sees phase 'lobby' there - the welcome was dead code and
-      // its checklist item could never be ticked, which in turn kept
-      // `tutorialActive` switched on forever (the retire branch below never
-      // fired). Second condition: the opening draw of the tutorial round.
-      key: 'lobby',
-      when: (st, me, myTurn) =>
-        st.phase === 'lobby' ||
-        (st.tutorialMode && st.phase === 'playing' && st.roundNumber === 1 &&
-          myTurn && st.turnPhase === 'draw'),
-      text: (st) => (st && st.tutorialMode
-        ? L(
-          'Willkommen bei Pik Dame! 🎓 Ziel: alle Karten auslegen und die LETZTE Karte abwerfen. Du sitzt gegen drei Bots - lass dir Zeit, hier läuft kein Zug-Timer.',
-          'Welcome to Pik Dame! 🎓 Goal: meld all your cards and discard the LAST one. You are playing three bots - take your time, there is no turn timer here.'
-        )
-        : L(
-          'Willkommen bei Pik Dame! 🎓 Ziel: alle Karten auslegen und die LETZTE Karte abwerfen. Tippe unten auf "Spiel starten" - freie Plätze übernehmen Bots.',
-          'Welcome to Pik Dame! 🎓 Goal: meld all your cards and discard the LAST one. Tap "Start game" below - empty seats are filled by bots.'
-        )),
-    },
-    {
-      key: 'draw',
-      when: (st, me, myTurn) => myTurn && st.turnPhase === 'draw',
-      highlight: () => ({ cardIds: [], meldIds: [], targets: ['drawPile'] }),
-      text: () => L(
-        'Du bist dran! Ziehe eine Karte: verdeckt vom Stapel ODER nimm den Ablagestapel. Achtung beim Ablagestapel: Du bekommst ALLE Karten darin, und die oberste musst du sofort verwenden.',
-        'Your turn! Draw a card: face-down from the stock OR take the discard pile. Careful with the pile: you get ALL of its cards, and you must use the top one immediately.'
-      ),
-    },
-    {
-      // OPTIONAL (bonus row): pointing at the two play aids. Both are always
-      // on in the tutorial; afterwards each player decides per device.
-      key: 'aids',
-      optional: true,
-      when: (st, me, myTurn) => st.tutorialMode && myTurn && st.turnPhase === 'draw',
-      highlight: () => ({ cardIds: [], meldIds: [], targets: ['discardPile'] }),
-      text: () => L(
-        'Spielhilfen: Der Ablagestapel leuchtet nur, wenn die oberste Karte zu deiner Hand passt, und beim Anlegen markieren grüne Rahmen passende Auslagen. Beides ist hier immer an. Später kannst du beides in den Einstellungen abschalten, wenn du lieber selbst prüfst.',
-        'Play aids: the discard pile only glows when its top card fits your hand, and green frames mark melds a card can be added to. Both are always on here. Later you can switch each off in the settings if you prefer to check yourself.'
-      ),
-    },
-    {
-      // OPTIONAL: needs the top discard to immediately form a combination -
-      // that may simply never come up in a session. Optional steps are shown
-      // as bonus rows and do not block the "everything explained" retire.
-      key: 'pickupRest',
-      optional: true,
-      when: (st, me, myTurn) => myTurn && !!st.mustLayOffCardId,
-      highlight: (st, me) => ({ cardIds: [st.mustLayOffCardId], meldIds: [] }),
-      // Kein meldIds-Vorschlag mehr: weder Anlegen noch Joker-Tausch
-      // erfüllen die Pflicht - nur eine neue Kombination mit Handkarten
-      // (layoutMeld). Eine bestehende Auslage zu markieren wäre also
-      // irreführend, egal welche.
-      text: () => L(
-        'Ablagestapel genommen: Die oberste Karte MUSS jetzt zuerst in einer NEUEN Kombination mit Handkarten ausgelegt werden - danach kommt der Rest des Stapels auf deine Hand.',
-        'Pile taken: the top card MUST now be melded in a NEW combination with hand cards - then the rest of the pile joins your hand.'
-      ),
-    },
-    {
-      key: 'meld',
-      when: (st, me, myTurn) => myTurn && st.turnPhase === 'meld' && !st.mustLayOffCardId,
-      highlight: (st, me) => {
-        if (!me || !me.hand) return null;
-        // 'Auslegen' is hidden until cards are selected; applyTutorialHighlight
-        // skips hidden nodes and the render after the first tap brings the
-        // glow in - same mechanism the discard step relies on.
-        const targets = ['confirmMeldBtn'];
-        const combo = findTutorialMeld(me.hand);
-        if (combo) return { cardIds: combo, meldIds: [], targets };
-        // keine neue Kombination? Dann eine anlegbare Einzelkarte + ihr Ziel zeigen
-        for (const meld of st.tableMelds || []) {
-          if (meld.ownerId !== me.id) continue;
-          const fit = me.hand.length > 1 && me.hand.find((cd) => cardFitsMeld(meld, cd));
-          if (fit) return { cardIds: [fit.id], meldIds: [meld.id], targets };
-        }
-        return { cardIds: [], meldIds: [], targets };
-      },
-      text: () => L(
-        'Auslegen (freiwillig): Tippe 3+ Karten gleichen Werts (Satz) oder eine Folge derselben Farbe an und lege sie. Einzelkarten kannst du an DEINE eigenen Auslagen anlegen. Zum Schluss eine Karte abwerfen - das beendet den Zug.',
-        'Melding (optional): tap 3+ cards of the same rank (set) or a same-suit run and lay them down. Single cards can be added to YOUR OWN melds. Finish by discarding one card - that ends your turn.'
-      ),
-    },
-    {
-      // BEFORE queenSet on purpose: what the ♠Q is worth has to be understood
-      // before the tutorial tells you to meld her. The other way round the
-      // player followed the queenSet advice, the queen left the hand, and this
-      // step's condition could never become true again in that round.
-      key: 'pikdame',
-      when: (st, me) => me && me.hand && me.hand.some((cd) => cd.rank === 'Q' && cd.suit === 'S'),
-      highlight: (st, me) => ({
-        cardIds: me.hand.filter((cd) => cd.rank === 'Q' && cd.suit === 'S').map((cd) => cd.id),
-        meldIds: [],
-      }),
-      text: () => L(
-        'Du hältst die Pik Dame! ♠Q ausgelegt = +100 Punkte. Am Rundenende auf der Hand erwischt = -100. Werde sie rechtzeitig los - oder lege sie aus.',
-        'You hold the Queen of Spades! ♠Q melded = +100 points. Caught in hand at round end = -100. Shed her in time - or meld her.'
-      ),
-    },
-    {
-      // Tutorial-Deck: Die Starthand enthaelt DREI Damen inklusive der Pik
-      // Dame - der beste Moment, den Unterschied zwischen +100 und -100 zu
-      // zeigen, statt nur davor zu warnen.
-      key: 'queenSet',
-      when: (st, me, myTurn) =>
-        st.tutorialMode && myTurn && st.turnPhase === 'meld' && me && me.hand &&
-        me.hand.filter((cd) => cd.rank === 'Q').length >= 3 &&
-        me.hand.some((cd) => cd.rank === 'Q' && cd.suit === 'S'),
-      highlight: (st, me) => ({
-        cardIds: me.hand.filter((cd) => cd.rank === 'Q').map((cd) => cd.id),
-        meldIds: [],
-        targets: [],
-      }),
-      text: () => L(
-        'Chance! Du hast drei Damen - eine davon ist die Pik Dame. Legst du sie aus, bringt sie dir +100 statt am Ende -100. Tippe die markierten Damen an und lege sie.',
-        'Opportunity! You hold three queens - one is the Queen of Spades. Melded she scores +100 instead of -100 at the end. Tap the highlighted queens and lay them down.'
-      ),
-    },
-    {
-      key: 'joker',
-      when: (st, me) => me && me.hand && me.hand.some((cd) => cd.isJoker),
-      highlight: (st, me) => ({
-        cardIds: me.hand.filter((cd) => cd.isJoker).map((cd) => cd.id),
-        meldIds: [],
-      }),
-      text: () => L(
-        'Ein Joker! 🃏 Er ersetzt jede Karte in Sätzen und Folgen (20 Punkte). Abwerfen ist fast nie klug - und getauschte Joker sind dauerhaft aus dem Spiel.',
-        'A joker! 🃏 It substitutes any card in sets and runs (20 points). Discarding one is almost never wise - and swapped jokers leave the game for good.'
-      ),
-    },
-    {
-      // Anlegen was mentioned inside the meld text but never demonstrated -
-      // no step ever pointed at a lay-off target, so beginners kept collecting
-      // full combinations instead of feeding their own melds card by card.
-      key: 'layOff',
-      when: (st, me, myTurn) =>
-        myTurn && st.turnPhase === 'meld' && !st.mustLayOffCardId && !!findTutorialLayOff(st, me),
-      highlight: (st, me) => {
-        const hit = findTutorialLayOff(st, me);
-        return hit ? { cardIds: [hit.cardId], meldIds: [hit.meldId], targets: [] } : null;
-      },
-      text: () => L(
-        'Anlegen: Eine einzelne Karte passt an eine DEINER Auslagen. Tippe die markierte Karte an und dann auf die markierte Auslage - so wirst du Karten los, ohne eine ganze Kombination zu sammeln.',
-        'Laying off: a single card fits one of YOUR melds. Tap the highlighted card, then the highlighted meld - that sheds cards without collecting a whole new combination.'
-      ),
-    },
-    {
-      // OPTIONAL: needs a joker on your own table standing in for a card you
-      // happen to hold. Rare, but it is the most elegant move in the game and
-      // the joker step referenced "swapped jokers" without ever showing one.
-      key: 'jokerSwap',
-      optional: true,
-      when: (st, me, myTurn) =>
-        myTurn && st.turnPhase === 'meld' && !st.mustLayOffCardId && !!findTutorialJokerSwap(st, me),
-      highlight: (st, me) => {
-        const hit = findTutorialJokerSwap(st, me);
-        return hit ? { cardIds: [hit.cardId], meldIds: [hit.meldId], targets: [] } : null;
-      },
-      text: () => L(
-        'Joker-Tausch! Du hältst genau die Karte, die ein Joker in deiner Auslage vertritt. Tippe sie an und dann auf die Auslage: Die echte Karte nimmt den Platz ein, der Joker wandert auf deine Hand - und der Joker zählt in der Auslage trotzdem weiter 20 Punkte.',
-        'Joker swap! You hold exactly the card a joker stands in for in your own meld. Tap it, then the meld: the real card takes the slot, the joker moves to your hand - and the joker still counts 20 points in that meld.'
-      ),
-    },
-    {
-      key: 'discardStep',
-      when: (st, me, myTurn) =>
-        st.tutorialMode && myTurn && st.turnPhase === 'meld' && !st.mustLayOffCardId &&
-        me && me.hand && me.hand.length > 1 && !findTutorialMeld(me.hand),
-      // The hand comes first: 'Abwerfen' only exists once a card is selected,
-      // so pointing at the button alone highlighted nothing at the moment the
-      // hint appeared. The fan says "pick one", the button lights up after.
-      highlight: () => ({ cardIds: [], meldIds: [], targets: ['handWrapper', 'discardBtn'] }),
-      text: () => L(
-        'Zug beenden: Wähle im Fächer eine Karte, die du am wenigsten brauchst - dann erscheint „Abwerfen“. Erst damit ist dein Zug vorbei.',
-        'End your turn: pick the card you need least from your fan - then "Discard" appears. Only that ends your turn.'
-      ),
-    },
-    {
-      key: 'endgame',
-      when: (st, me, myTurn) => st.phase === 'playing' && me && me.hand && me.hand.length <= 3 && me.hand.length > 0,
-      text: () => L(
-        'Fast geschafft! Wichtig: Ausmachen geht NUR, indem du deine letzte Karte ABWIRFST - nicht durch Auslegen der ganzen Hand.',
-        'Almost there! Important: you can only go out by DISCARDING your last card - not by melding your whole hand.'
-      ),
-    },
-    {
-      key: 'roundend',
-      when: (st) => st.phase === 'roundEnd',
-      text: () => L(
-        // Button label, verbatim: it says "Nächste Runde", not "Weiter".
-        'Rundenende! Wertung: Ausgelegtes zählt PLUS, Restkarten auf der Hand MINUS. Ab 1000 Punkten endet die Partie. Mit „Nächste Runde“ geht es weiter.',
-        'Round over! Scoring: melded cards count PLUS, cards left in hand MINUS. The game ends at 1000 points. "Next round" carries on.'
-      ),
-    },
-  ];
+  function saveTutorial() { storageSet(TUTORIAL_KEY, JSON.stringify(tutorialProgress)); }
+  // Progress of the CURRENT tutorial session; a new session starts fresh.
+  function tutorialSessionProgress() {
+    if (!lastState || !lastState.tutorialMode || !sessionCode) return null;
+    if (!tutorialProgress || tutorialProgress.code !== sessionCode) {
+      tutorialProgress = { code: sessionCode, done: [], skipped: [], off: false, finished: false };
+      saveTutorial();
+    }
+    if (!Array.isArray(tutorialProgress.skipped)) tutorialProgress.skipped = [];
+    return tutorialProgress;
+  }
+  function tutorialHintsOn() {
+    const prog = tutorialSessionProgress();
+    return !!(prog && !prog.off && !prog.finished);
+  }
+
+  // Card words for the coach lines: the fixed deck lets them name real cards.
+  const T_SUITS = { S: '♠', H: '♥', D: '♦', C: '♣' };
+  const T_RANKS = {
+    2: ['Zweien', 'twos', 'eine Zwei', 'a two'], 3: ['Dreien', 'threes', 'eine Drei', 'a three'],
+    4: ['Vieren', 'fours', 'eine Vier', 'a four'], 5: ['Fünfen', 'fives', 'eine Fünf', 'a five'],
+    6: ['Sechsen', 'sixes', 'eine Sechs', 'a six'], 7: ['Siebenen', 'sevens', 'eine Sieben', 'a seven'],
+    8: ['Achten', 'eights', 'eine Acht', 'an eight'], 9: ['Neunen', 'nines', 'eine Neun', 'a nine'],
+    10: ['Zehnen', 'tens', 'eine Zehn', 'a ten'], J: ['Buben', 'jacks', 'einen Buben', 'a jack'],
+    Q: ['Damen', 'queens', 'eine Dame', 'a queen'], K: ['Könige', 'kings', 'einen König', 'a king'],
+    A: ['Asse', 'aces', 'ein Ass', 'an ace'],
+  };
+  const T_COUNT = { 2: ['zwei', 'two'], 3: ['drei', 'three'], 4: ['vier', 'four'], 5: ['fünf', 'five'], 6: ['sechs', 'six'] };
+  const tCard = (cd) => (cd.isJoker ? L('Joker', 'joker') : `${cd.rank}${T_SUITS[cd.suit] || ''}`);
+  function tList(cards) {
+    const names = cards.map(tCard);
+    if (names.length < 2) return names.join('');
+    return `${names.slice(0, -1).join(', ')} ${L('und', 'and')} ${names[names.length - 1]}`;
+  }
+  // "die vier Dreien" for a set, "5♥, 6♥ und 7♥" for anything else.
+  function tCombo(cards) {
+    const real = cards.filter((cd) => !cd.isJoker);
+    const words = T_RANKS[real[0] && real[0].rank];
+    if (real.length === cards.length && words && real.every((cd) => cd.rank === real[0].rank) && T_COUNT[real.length]) {
+      return L(`die ${T_COUNT[real.length][0]} ${words[0]}`, `the ${T_COUNT[real.length][1]} ${words[1]}`);
+    }
+    return tList(cards);
+  }
+
+  const tByIds = (hand, ids) => ids.map((id) => hand.find((cd) => cd.id === id)).filter(Boolean);
+  const isSpadeQueen = (cd) => !!cd && cd.rank === 'Q' && cd.suit === 'S';
+  // The queens wait for their own lesson while it is still to come.
+  const reservesQueens = (hand) => hand.some(isSpadeQueen) && hand.filter((cd) => cd.rank === 'Q').length >= 3;
 
   /**
-   * Findet EINE sicher legbare Kombination in der Hand für den Tutorial-Glow:
-   * zuerst Sätze (3+ gleicher Rang, max. 2 pro Farbe - zwei Decks im Spiel),
-   * dann einfache Folgen (gleiche Farbe, lückenlos). Bewusst konservativ:
-   * ohne Joker und ohne Ring-Folgen (K-A-2) - lieber nichts markieren als
-   * etwas Falsches. Der Server bleibt die einzige Regel-Autorität.
+   * ONE combination for the meld mark: the biggest set first (ties: the lower
+   * rank), then plain runs. Conservative on purpose - no jokers, no ring runs
+   * (K-A-2): better no mark than a wrong one. The server stays the judge.
    */
-  function findTutorialMeld(hand) {
-    const real = hand.filter((cd) => !cd.isJoker);
+  function findTutorialMeld(hand, { skipQueens = false } = {}) {
+    const real = hand.filter((cd) => !cd.isJoker && !(skipQueens && cd.rank === 'Q'));
+    let best = null;
     const byRank = {};
     for (const cd of real) (byRank[cd.rank] = byRank[cd.rank] || []).push(cd);
     for (const cards of Object.values(byRank)) {
       const perSuit = {};
-      const pick = [];
-      for (const cd of cards) {
-        perSuit[cd.suit] = (perSuit[cd.suit] || 0) + 1;
-        if (perSuit[cd.suit] <= 2) pick.push(cd);
-      }
-      if (pick.length >= 3) return pick.slice(0, 4).map((cd) => cd.id);
+      const pick = cards.filter((cd) => (perSuit[cd.suit] = (perSuit[cd.suit] || 0) + 1) <= 2);
+      if (pick.length < 3) continue;
+      const better = !best || pick.length > best.length ||
+        (pick.length === best.length && RANK_ORDER.indexOf(pick[0].rank) < RANK_ORDER.indexOf(best[0].rank));
+      if (better) best = pick;
     }
-    const ORDER = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+    if (best) return best.slice(0, 8).map((cd) => cd.id);
     const bySuit = {};
     for (const cd of real) (bySuit[cd.suit] = bySuit[cd.suit] || new Map()).set(cd.rank, cd);
     for (const m of Object.values(bySuit)) {
       let run = [];
-      for (const r of ORDER) {
+      for (const r of RANK_ORDER) {
         if (m.has(r)) {
           run.push(m.get(r));
           if (run.length >= 3) return run.slice(-3).map((cd) => cd.id);
@@ -4552,23 +4425,65 @@
     return null;
   }
 
-  /**
-   * Findet EINE Handkarte, die an eine EIGENE Auslage passt (reines Anlegen,
-   * kein Joker-Tausch - der hat einen eigenen Schritt). Gleiche Vorsicht wie
-   * findTutorialMeld: lieber nichts markieren als etwas Falsches.
-   */
-  function findTutorialLayOff(st, me) {
-    if (!me || !me.hand) return null;
-    for (const meld of st.tableMelds || []) {
-      if (meld.ownerId !== me.id) continue;
-      const fit = me.hand.find((cd) => cardFitsMeldPureAdd(meld, cd));
-      if (fit) return { cardId: fit.id, meldId: meld.id };
+  /** A pair (or a run with one gap) that a joker completes: the joker lesson. */
+  function findTutorialJokerMeld(hand) {
+    const joker = hand.find((cd) => cd.isJoker);
+    if (!joker) return null;
+    const real = hand.filter((cd) => !cd.isJoker && !(reservesQueens(hand) && cd.rank === 'Q'));
+    const byRank = {};
+    for (const cd of real) (byRank[cd.rank] = byRank[cd.rank] || []).push(cd);
+    let pair = null;
+    for (const cards of Object.values(byRank)) {
+      if (cards.length !== 2) continue; // three of a kind needs no joker
+      const distinct = cards[0].suit !== cards[1].suit;
+      const better = !pair || (distinct && !pair.distinct) ||
+        (distinct === pair.distinct && RANK_ORDER.indexOf(cards[0].rank) > RANK_ORDER.indexOf(pair.cards[0].rank));
+      if (better) pair = { cards, distinct };
+    }
+    if (pair) return { cardIds: [...pair.cards.map((cd) => cd.id), joker.id], cards: pair.cards, rank: pair.cards[0].rank };
+    for (const a of real) {
+      const b = real.find((cd) => cd.suit === a.suit && RANK_ORDER.indexOf(cd.rank) === RANK_ORDER.indexOf(a.rank) + 2);
+      if (b) return { cardIds: [a.id, joker.id, b.id], cards: [a, b], rank: RANK_ORDER[RANK_ORDER.indexOf(a.rank) + 1] };
     }
     return null;
   }
 
-  /** Handkarte, die genau das ersetzt, wofuer ein Joker in EINER EIGENEN
-   *  Auslage steht - die Voraussetzung des Joker-Tauschs. */
+  /** The combination that settles a taken discard: the duty card plus hand cards. */
+  function findTutorialDutyMeld(hand, dutyId) {
+    const duty = hand.find((cd) => cd.id === dutyId);
+    if (!duty || duty.isJoker) return null;
+    const others = hand.filter((cd) => cd.id !== dutyId && !cd.isJoker);
+    const same = others.filter((cd) => cd.rank === duty.rank);
+    if (same.length >= 2 && hand.length - 3 >= 1) return [duty, ...same.slice(0, 2)];
+    const at = (r) => others.find((cd) => cd.suit === duty.suit && cd.rank === r);
+    const i = RANK_ORDER.indexOf(duty.rank);
+    for (const [x, y] of [[i - 2, i - 1], [i - 1, i + 1], [i + 1, i + 2]]) {
+      const a = x >= 0 && at(RANK_ORDER[x]);
+      const b = y < RANK_ORDER.length && at(RANK_ORDER[y]);
+      if (a && b && hand.length - 3 >= 1) return [a, b, duty].sort((p, q) => RANK_ORDER.indexOf(p.rank) - RANK_ORDER.indexOf(q.rank));
+    }
+    return null;
+  }
+
+  /**
+   * ONE hand card that goes onto an OWN meld. Plain adds first; a joker joins
+   * an own set (never a run - that would ask which card it plays). Never the
+   * last card: that one is discarded to go out.
+   */
+  function findTutorialLayOff(st, me) {
+    if (!me || !me.hand || me.hand.length <= 1) return null;
+    const mine = (st.tableMelds || []).filter((m) => m.ownerId === me.id);
+    for (const meld of mine) {
+      const fit = me.hand.find((cd) => cardFitsMeldPureAdd(meld, cd));
+      if (fit) return { cardId: fit.id, meldId: meld.id, card: fit };
+    }
+    const joker = me.hand.find((cd) => cd.isJoker);
+    const set = mine.find((m) => m.type === 'set' && m.slots.length < 8);
+    if (joker && set) return { cardId: joker.id, meldId: set.id, card: joker };
+    return null;
+  }
+
+  /** Hand card that is exactly what a joker in an OWN meld stands for. */
   function findTutorialJokerSwap(st, me) {
     if (!me || !me.hand || me.hand.length <= 1) return null; // last card is discarded
     for (const meld of st.tableMelds || []) {
@@ -4578,49 +4493,325 @@
         const fit = me.hand.find(
           (cd) => !cd.isJoker && cd.rank === slot.representsRank && cd.suit === slot.representsSuit
         );
-        if (fit) return { cardId: fit.id, meldId: meld.id };
+        if (fit) return { cardId: fit.id, meldId: meld.id, card: fit };
       }
     }
     return null;
   }
 
-  /** Erklaert die Regel hinter einer Ablehnung - nur im Tutorial. */
+  /** The card that helps least: no partner of its rank, no neighbour in its suit. Never a joker or the ♠Q. */
+  function suggestTutorialDiscard(hand) {
+    const pool = hand.filter((cd) => !cd.isJoker && !isSpadeQueen(cd));
+    if (!pool.length) return null;
+    const links = (cd) => pool.filter((o) => o !== cd && (o.rank === cd.rank ||
+      (o.suit === cd.suit && Math.abs(RANK_ORDER.indexOf(o.rank) - RANK_ORDER.indexOf(cd.rank)) <= 2))).length;
+    return pool.reduce((best, cd) => (links(cd) < links(best) ? cd : best), pool[0]);
+  }
+
+  // What the steps look at.
+  function tutorialContext() {
+    const st = lastState;
+    const me = (st.players || []).find((p) => p.id === playerId) || null;
+    const hand = (me && me.hand) || [];
+    const myMelds = (st.tableMelds || []).filter((m) => me && m.ownerId === me.id);
+    const myTurn = st.phase === 'playing' && st.currentPlayerId === playerId;
+    return {
+      st, me, hand, myMelds, myTurn,
+      playing: st.phase === 'playing',
+      drawPhase: myTurn && st.turnPhase === 'draw',
+      meldPhase: myTurn && st.turnPhase === 'meld',
+      duty: myTurn ? st.mustLayOffCardId : null,
+      meldedCards: myMelds.reduce((n, m) => n + (m.slots || []).length, 0),
+      queenLaid: myMelds.some((m) => (m.slots || []).some((s) => isSpadeQueen(s.real))),
+      jokerLaid: myMelds.some((m) => (m.slots || []).some((s) => s.joker)),
+    };
+  }
+  const freeToMeld = (c) => c.meldPhase && !c.duty;
+  const jokerOntoOwnSet = (c) => c.hand.length > 1 && c.hand.some((cd) => cd.isJoker) &&
+    c.myMelds.some((m) => m.type === 'set' && (m.slots || []).length < 8);
+
+  /**
+   * The lessons, in order. A step is shown while `when` holds; `done` proves it
+   * from the table (actions) or "Weiter" ends it (info). `block` steps are the
+   * guided first turn: nothing after them shows before they are done, so no
+   * mandatory lesson can be skipped by playing ahead. `gone` drops a step that
+   * can no longer happen (the ♠Q discarded, the round over).
+   */
+  const TUTORIAL_STEPS = [
+    {
+      // First on purpose: a taken pile's top card must go out at once, in a NEW
+      // combination - that outranks every lesson (named, not a "Pflicht" line).
+      key: 'pileDuty', optional: true,
+      when: (c) => !!c.duty,
+      done: (c, base) => base !== undefined && !c.duty,
+      highlight: (c) => {
+        const combo = findTutorialDutyMeld(c.hand, c.duty);
+        return { cardIds: combo ? combo.map((cd) => cd.id) : [c.duty], targets: ['confirmMeldBtn'] };
+      },
+      title: () => L('Ablage genommen', 'Pile taken'),
+      text: (c) => {
+        const duty = c.hand.find((cd) => cd.id === c.duty);
+        const combo = findTutorialDutyMeld(c.hand, c.duty);
+        const rest = combo ? combo.filter((cd) => cd.id !== c.duty) : [];
+        return combo
+          ? L(`Leg die ${tCard(duty)} jetzt aus – zusammen mit ${tList(rest)}.`, `Meld the ${tCard(duty)} now – together with ${tList(rest)}.`)
+          : L('Leg die markierte Karte jetzt in einer neuen Kombination aus.', 'Meld the marked card now, in a new combination.');
+      },
+      success: () => L('Erledigt – jetzt ist der Weg frei.', 'Done – the way is clear now.'),
+    },
+    {
+      key: 'welcome', info: true, block: true,
+      when: (c) => c.playing,
+      title: () => L('Willkommen am Tisch', 'Welcome to the table'),
+      text: () => L('Leg deine Karten aus und wirf die letzte ab – dann gewinnst du die Runde.',
+        'Meld your cards and discard the last one – that wins you the round.'),
+    },
+    {
+      key: 'draw', block: true,
+      when: (c) => c.drawPhase,
+      done: (c) => (c.myTurn && !c.drawPhase) || c.st.turnIndexInRound > 0,
+      highlight: () => ({ targets: ['drawPile'] }),
+      title: () => L('Karte ziehen', 'Draw a card'),
+      text: () => L('Tippe auf den verdeckten Stapel und zieh eine Karte.', 'Tap the face-down stock to draw a card.'),
+    },
+    {
+      key: 'firstSet', block: true,
+      when: (c) => freeToMeld(c) && !!findTutorialMeld(c.hand, { skipQueens: reservesQueens(c.hand) }),
+      done: (c) => c.myMelds.length > 0,
+      highlight: (c) => ({ cardIds: findTutorialMeld(c.hand, { skipQueens: reservesQueens(c.hand) }), targets: ['confirmMeldBtn'] }),
+      title: () => L('Dein erster Satz', 'Your first set'),
+      text: (c) => {
+        const combo = tByIds(c.hand, findTutorialMeld(c.hand, { skipQueens: reservesQueens(c.hand) }) || []);
+        return L(`Tippe ${tCombo(combo)} an und dann auf „Auslegen“.`, `Tap ${tCombo(combo)}, then “Meld”.`);
+      },
+      success: () => L('Gut gemacht – deine erste Auslage liegt.', 'Well done – your first meld is down.'),
+    },
+    {
+      key: 'pikdame', info: true, block: true,
+      when: (c) => c.hand.some(isSpadeQueen) || c.queenLaid,
+      highlight: (c) => ({ cardIds: c.hand.filter(isSpadeQueen).map((cd) => cd.id) }),
+      title: () => L('Die Pik Dame', 'The queen of spades'),
+      text: (c) => (c.queenLaid
+        ? L('Sie liegt schon aus: +100 für dich. Auf der Hand hätte sie dich am Ende 100 gekostet.',
+          'She is already down: +100 for you. Left in your hand she would have cost you 100.')
+        : L('Leg sie aus: +100. Bleibt sie am Rundenende auf der Hand: −100.',
+          'Meld her: +100. Still in your hand at round end: −100.')),
+    },
+    {
+      key: 'queenSet', block: true,
+      when: (c) => freeToMeld(c) && c.hand.some(isSpadeQueen) && c.hand.filter((cd) => cd.rank === 'Q').length >= 3,
+      done: (c) => c.queenLaid,
+      gone: (c) => !c.queenLaid && !c.hand.some(isSpadeQueen),
+      highlight: (c) => ({ cardIds: c.hand.filter((cd) => cd.rank === 'Q').map((cd) => cd.id), targets: ['confirmMeldBtn'] }),
+      title: () => L('Damen auslegen', 'Meld the queens'),
+      text: () => L('Tippe die drei Damen an und leg sie aus – die Pik Dame ist dabei.',
+        'Tap the three queens and meld them – the queen of spades is one of them.'),
+      success: () => L('Stark – die Pik Dame zählt jetzt +100 für dich.', 'Great – the queen of spades now scores +100 for you.'),
+    },
+    {
+      key: 'joker', block: true,
+      when: (c) => freeToMeld(c) && (!!findTutorialJokerMeld(c.hand) || jokerOntoOwnSet(c)),
+      done: (c) => c.jokerLaid,
+      gone: (c) => !c.jokerLaid && !c.hand.some((cd) => cd.isJoker),
+      highlight: (c) => {
+        const jm = findTutorialJokerMeld(c.hand);
+        if (jm) return { cardIds: jm.cardIds, targets: ['confirmMeldBtn'] };
+        const joker = c.hand.find((cd) => cd.isJoker);
+        const set = c.myMelds.find((m) => m.type === 'set');
+        return { cardIds: joker ? [joker.id] : [], meldIds: set ? [set.id] : [] };
+      },
+      title: () => L('Der Joker', 'The joker'),
+      text: (c) => {
+        const jm = findTutorialJokerMeld(c.hand);
+        if (jm && jm.cards[0].rank === jm.cards[1].rank) {
+          const w = T_RANKS[jm.rank];
+          return L(`Er ersetzt jede Karte. Leg die zwei ${w[0]} mit dem Joker aus.`, `It stands in for any card. Meld the two ${w[1]} with the joker.`);
+        }
+        if (jm) return L(`Er ersetzt jede Karte. Leg ${tList(jm.cards)} mit dem Joker dazwischen aus.`, `It stands in for any card. Meld ${tList(jm.cards)} with the joker in between.`);
+        return L('Er ersetzt jede Karte. Tippe ihn an und dann deine markierte Auslage.', 'It stands in for any card. Tap it, then your marked meld.');
+      },
+      success: (c) => {
+        const slot = c.myMelds.flatMap((m) => m.slots || []).find((s) => s.joker && s.representsRank);
+        const w = slot && T_RANKS[slot.representsRank];
+        return w
+          ? L(`Der Joker spielt jetzt ${w[2]}.`, `The joker now plays ${w[3]}.`)
+          : L('Der Joker liegt jetzt in deiner Auslage.', 'The joker is in your meld now.');
+      },
+    },
+    {
+      // Bonus: the rest of the deal still holds a set - lay it too.
+      key: 'moreMelds', optional: true,
+      when: (c) => freeToMeld(c) && c.myMelds.length > 0 && (() => {
+        const ids = findTutorialMeld(c.hand, { skipQueens: reservesQueens(c.hand) });
+        return !!ids && c.hand.length - ids.length >= 1;
+      })(),
+      done: (c, base) => base !== undefined && c.myMelds.length > base,
+      metric: (c) => c.myMelds.length,
+      highlight: (c) => ({ cardIds: findTutorialMeld(c.hand, { skipQueens: reservesQueens(c.hand) }), targets: ['confirmMeldBtn'] }),
+      title: () => L('Noch eine Auslage', 'One more meld'),
+      text: (c) => {
+        const combo = tByIds(c.hand, findTutorialMeld(c.hand, { skipQueens: reservesQueens(c.hand) }) || []);
+        return L(`Leg auch ${tCombo(combo)} aus – jede Auslage zählt Punkte.`, `Meld ${tCombo(combo)} too – every meld scores.`);
+      },
+      success: () => L('Gut – nur noch wenige Karten auf der Hand.', 'Good – only a few cards left in your hand.'),
+    },
+    {
+      key: 'discard', block: true,
+      when: (c) => freeToMeld(c) && c.hand.length > 1,
+      done: (c, base) => base !== undefined && !c.myTurn,
+      highlight: (c) => {
+        const pick = suggestTutorialDiscard(c.hand);
+        return { cardIds: pick ? [pick.id] : [], targets: ['discardBtn'] };
+      },
+      title: () => L('Zug beenden', 'End your turn'),
+      text: (c) => {
+        const pick = suggestTutorialDiscard(c.hand);
+        return pick
+          ? L(`Wirf eine Karte ab, die dir wenig bringt – zum Beispiel die ${tCard(pick)}.`, `Discard a card you need least – the ${tCard(pick)}, for example.`)
+          : L('Wähle eine Karte und tippe auf „Abwerfen“.', 'Pick a card and tap “Discard card”.');
+      },
+      success: () => L('Zug beendet – jetzt sind die Bots dran.', 'Turn over – the bots play now.'),
+    },
+    {
+      key: 'pile', info: true, optional: true,
+      when: (c) => c.drawPhase && !!c.st.discardTakeable,
+      highlight: () => ({ targets: ['discardPile'] }),
+      title: () => L('Die Ablage', 'The discard pile'),
+      text: () => L('Leuchtet sie, passt ihre oberste Karte zu dir. Nimmst du sie, legst du diese Karte sofort aus.',
+        'When it glows, its top card fits your hand. Take it and you meld that card at once.'),
+    },
+    {
+      key: 'layOff',
+      when: (c) => freeToMeld(c) && !!findTutorialLayOff(c.st, c.me),
+      done: (c, base) => base !== undefined && c.meldedCards > base,
+      metric: (c) => c.meldedCards,
+      gone: (c) => !c.playing,
+      highlight: (c) => {
+        const hit = findTutorialLayOff(c.st, c.me);
+        return hit ? { cardIds: [hit.cardId], meldIds: [hit.meldId] } : null;
+      },
+      title: () => L('Anlegen', 'Lay off'),
+      text: (c) => {
+        const hit = findTutorialLayOff(c.st, c.me);
+        return hit && hit.card.isJoker
+          ? L('Tippe den Joker an und dann deine markierte Auslage.', 'Tap the joker, then your marked meld.')
+          : L(`Tippe die ${tCard(hit.card)} an und dann deine markierte Auslage.`, `Tap the ${tCard(hit.card)}, then your marked meld.`);
+      },
+      success: () => L('Angelegt – so wirst du einzelne Karten los.', 'Laid off – that is how single cards leave your hand.'),
+    },
+    {
+      key: 'jokerSwap', optional: true,
+      when: (c) => freeToMeld(c) && !!findTutorialJokerSwap(c.st, c.me),
+      done: (c, base) => base !== undefined && !findTutorialJokerSwap(c.st, c.me) && c.hand.some((cd) => cd.isJoker),
+      highlight: (c) => {
+        const hit = findTutorialJokerSwap(c.st, c.me);
+        return hit ? { cardIds: [hit.cardId], meldIds: [hit.meldId] } : null;
+      },
+      title: () => L('Joker zurückholen', 'Win the joker back'),
+      text: (c) => {
+        const hit = findTutorialJokerSwap(c.st, c.me);
+        return L(`Tippe die ${tCard(hit.card)} an und dann die Auslage – der Joker kommt auf deine Hand.`,
+          `Tap the ${tCard(hit.card)}, then the meld – the joker comes back to your hand.`);
+      },
+      success: () => L('Getauscht – der Joker zählt in der Auslage trotzdem 20.', 'Swapped – the joker still counts 20 in that meld.'),
+    },
+    {
+      key: 'endgame', info: true,
+      when: (c) => c.playing && c.hand.length > 0 && c.hand.length <= 2 && !c.drawPhase,
+      gone: (c) => !c.playing,
+      title: () => L('Fast geschafft', 'Almost there'),
+      text: () => L('Du machst aus, indem du deine letzte Karte abwirfst.', 'You go out by discarding your last card.'),
+    },
+    {
+      // Shown inside the round-end sheet (#resultCoach), never over it.
+      key: 'roundend', info: true,
+      when: (c) => c.st.phase === 'roundEnd',
+      title: () => L('So wird gewertet', 'How scoring works'),
+      text: () => L('Ausgelegtes zählt plus, Karten auf der Hand minus. Ab 1000 Punkten ist die Partie vorbei.',
+        'Melded cards count plus, cards in hand minus. The match ends at 1000 points.'),
+    },
+  ];
+  const TUTORIAL_MANDATORY = TUTORIAL_STEPS.filter((s) => !s.optional);
+
+  const tutorialPassed = (prog, key) => prog.done.includes(key) || prog.skipped.includes(key);
+  function tutorialPick(c, prog) {
+    const roundOver = c.st.phase === 'roundEnd';
+    for (const s of TUTORIAL_STEPS) {
+      if (tutorialPassed(prog, s.key)) continue;
+      const wasCurrent = tutorialCurrentStep === s.key;
+      if (s.done && s.done(c, wasCurrent ? tutorialBaseline : undefined)) {
+        prog.done.push(s.key);
+        saveTutorial();
+        if (wasCurrent && s.success) {
+          coachNote(s.success(c), 'success');
+          vibrate([12, 40, 12]);
+        }
+        continue;
+      }
+      // Could not happen (or the round is over before it did): passed, not ticked.
+      if ((roundOver && s.key !== 'roundend') || (s.gone && s.gone(c))) {
+        prog.skipped.push(s.key);
+        saveTutorial();
+        continue;
+      }
+      if (s.when(c)) return s;
+      if (s.block) return null;
+    }
+    return null;
+  }
+
+  /** Explains the rule behind a refusal - tutorial only, inside the coach card. */
   function tutorialExplainError(error) {
     const RULES = [
-      [/abzuwerfen|abwerfen übrig|keine Karte zum Abwerfen/i, L(
-        'Ausmachen geht nur, indem du deine LETZTE Karte abwirfst. Deshalb darfst du den Ablagestapel nicht nehmen, wenn danach nichts zum Abwerfen übrig bliebe.',
-        'You can only go out by DISCARDING your last card. That is why you cannot take the discard pile if nothing would be left to discard.')],
+      [/SOFORT gelegt|zuerst in einer neuen Kombination|NEUEN Kombination mit deinen Handkarten/i, L(
+        'Wer die Ablage nimmt, legt deren oberste Karte zuerst aus – in einer neuen Kombination mit Handkarten. Erst danach geht alles andere.',
+        'Whoever takes the pile melds its top card first – in a new combination with hand cards. Everything else comes after.')],
+      [/abzuwerfen|abwerfen übrig|keine Karte zum Abwerfen|letzte Karte abwerfen/i, L(
+        'Ausmachen geht nur mit dem Abwurf deiner letzten Karte. Darum muss nach jedem Zug eine Karte übrig bleiben.',
+        'You can only go out by discarding your last card. So one card must be left after every move.')],
       [/passt zu keiner Kombination/i, L(
-        'Die oberste Ablagekarte darfst du nur nehmen, wenn sie SOFORT mit deinen Handkarten eine neue Kombination bildet - an eine Auslage anlegen reicht nicht.',
-        'You may only take the top discard if it IMMEDIATELY forms a new combination with your hand - being able to add it to a meld is not enough.')],
+        'Die oberste Ablagekarte darfst du nur nehmen, wenn sie sofort eine neue Kombination mit deiner Hand bildet.',
+        'You may only take the top discard if it forms a new combination with your hand right away.')],
       [/EIGENEN Auslagen|fremde Stapel/i, L(
-        'Anlegen darfst du nur an deine eigenen Auslagen. Fremde Auslagen sind tabu - so bleibt jedem sein Punktestand.',
-        'You may only add to your own melds. Other players\' melds are off limits - that keeps everyone\'s score their own.')],
-      [/mindestens drei|zu kurz|keine gültige/i, L(
-        'Eine Kombination braucht mindestens DREI Karten: gleicher Wert (Satz) oder lückenlose Folge derselben Farbe.',
-        'A combination needs at least THREE cards: same rank (set) or a gap-free run in one suit.')],
-      // The single most common beginner mistake - mixing suits into a run -
-      // used to come back as the bare server line with no rule behind it.
-      [/dieselbe Farbe|gleiche Farbe|lückenlos|keine Reihe/i, L(
-        'Eine Folge läuft in EINER Farbe lückenlos aufwärts (z. B. 5♥ 6♥ 7♥). Karten gleichen Werts in verschiedenen Farben sind dagegen ein SATZ - beides zusammen geht nicht.',
-        'A run climbs gap-free within ONE suit (e.g. 5♥ 6♥ 7♥). Same-rank cards in different suits are a SET instead - you cannot mix the two.')],
+        'Anlegen geht nur an deine eigenen Auslagen – so bleibt jedem sein Punktestand.',
+        'You can only lay off onto your own melds – that keeps everyone’s score their own.')],
+      [/mindestens (drei|3)|zu kurz|keine gültige/i, L(
+        'Eine Kombination braucht mindestens drei Karten: gleicher Wert oder eine Folge in einer Farbe.',
+        'A combination needs at least three cards: the same rank, or a run in one suit.')],
+      // The most common beginner mistake: mixing suits into a run.
+      [/dieselbe Farbe|gleiche Farbe|zusammenhängend|lückenlos|keine Reihe/i, L(
+        'Eine Folge läuft lückenlos in einer Farbe, etwa 5♥ 6♥ 7♥. Gleiche Werte in verschiedenen Farben sind ein Satz.',
+        'A run climbs without gaps in one suit, like 5♥ 6♥ 7♥. Same ranks in different suits are a set.')],
       [/nur EIN|bereits einen Satz|schon einen Satz/i, L(
-        'Pro Spieler gibt es nur EINEN Satz je Wert. Weitere Karten desselben Werts legst du an deinen bestehenden Satz an.',
-        'Each player may hold only ONE set per rank. Further cards of that rank are added to your existing set.')],
+        'Pro Wert gibt es nur einen Satz. Weitere Karten dieses Werts legst du an ihn an.',
+        'There is one set per rank. Further cards of that rank go onto it.')],
       [/nicht am Zug|bist nicht dran/i, L(
-        'Erst wenn du am Zug bist. Oben steht immer, wer gerade dran ist.',
-        'Only when it is your turn. The top line always shows whose turn it is.')],
+        'Warte, bis du dran bist – oben steht immer, wer gerade spielt.',
+        'Wait for your turn – the top line always shows who is playing.')],
     ];
     for (const [pattern, explanation] of RULES) if (pattern.test(error)) return explanation;
     return null;
+  }
+
+  // A short line in the card: praise after a right move, the rule after a refused one.
+  function coachNote(text, kind, ms = kind === 'error' ? 8000 : 3200) {
+    const note = el('coachNote');
+    if (!note || !text) return;
+    el('coachNoteText').textContent = text;
+    note.classList.toggle('error', kind === 'error');
+    const use = note.querySelector('use');
+    if (use) use.setAttribute('href', kind === 'error' ? '#i-alert' : '#i-check');
+    note.classList.remove('hidden');
+    clearTimeout(tutorialNoteTimer);
+    tutorialNoteTimer = setTimeout(() => { note.classList.add('hidden'); syncTutorialLayout(); }, ms);
+    syncTutorialLayout();
   }
 
   let tutorialHighlight = null;
   function applyTutorialHighlight(hl) {
     document.querySelectorAll('.tutorialGlow').forEach((n) => n.classList.remove('tutorialGlow'));
     document.querySelectorAll('.tutorialGlowMeld').forEach((n) => n.classList.remove('tutorialGlowMeld'));
-    // ZIELE (Ziehstapel, Abwerfen-Knopf ...) - nur im Tutorial, nie im
-    // normalen Spiel.
+    // Targets (stock, buttons, own melds) exist only in the tutorial, never in a normal game.
     document.querySelectorAll('.tutorialGlowTarget').forEach((n) => n.classList.remove('tutorialGlowTarget'));
     if (hl && Array.isArray(hl.targets) && tutorialActive) {
       for (const id of hl.targets) {
@@ -4628,86 +4819,132 @@
         if (node && !node.classList.contains('hidden')) node.classList.add('tutorialGlowTarget');
       }
     }
-    if (!hl) return;
-    for (const id of hl.cardIds || []) {
-      const n = document.querySelector(`#hand [data-card-id="${CSS.escape(String(id))}"]`);
-      if (n) n.classList.add('tutorialGlow');
+    let marked = 0;
+    if (hl && tutorialActive) {
+      for (const id of hl.cardIds || []) {
+        const n = document.querySelector(`#hand [data-card-id="${CSS.escape(String(id))}"]`);
+        if (n) { n.classList.add('tutorialGlow'); marked += 1; }
+      }
+      for (const id of hl.meldIds || []) {
+        const n = document.querySelector(`[data-meld-id="${CSS.escape(String(id))}"]`);
+        if (n) n.classList.add('tutorialGlowMeld');
+      }
     }
-    for (const id of hl.meldIds || []) {
-      const n = document.querySelector(`[data-meld-id="${CSS.escape(String(id))}"]`);
-      if (n) n.classList.add('tutorialGlowMeld');
-    }
+    // The rest of the fan dims, so the marked cards stand out (F5).
+    el('hand').classList.toggle('coachSpot', marked > 0);
   }
 
-  function persistTutorial() {
-    storageSet('pikdame_tutorial', tutorialActive ? 'on' : 'off');
-    storageSet('pikdame_tutorial_seen', JSON.stringify([...tutorialSeen]));
-  }
-
-  /**
-   * The banner is position:fixed, so it used to paint straight over #turnInfo
-   * and #roundInfo - the very line tutorialExplainError points at ("oben steht
-   * immer, wer gerade dran ist"). Instead of guessing a top offset we measure
-   * the banner and hand its height to the layout, which reserves exactly that
-   * much room above the screens AND above overlay cards.
-   */
+  /** Landscape/desktop: the corner card sits over the melds - keep their scroll room. */
   function syncTutorialLayout() {
-    const banner = el('tutorialBanner');
-    const open = !banner.classList.contains('hidden');
-    document.body.classList.toggle('tutorialOpen', open);
-    document.documentElement.style.setProperty(
-      '--tutorial-h',
-      open ? `${Math.ceil(banner.getBoundingClientRect().bottom) + 8}px` : '0px'
-    );
+    const coach = el('tutorialCoach');
+    const open = !coach.classList.contains('hidden');
+    el('table').classList.toggle('coachOpen', open);
+    document.body.classList.toggle('coachOpen', open); // toasts make room (style.css)
+    el('table').style.setProperty('--coach-h', open ? `${Math.ceil(coach.getBoundingClientRect().height)}px` : '0px');
   }
   window.addEventListener('resize', () => { try { syncTutorialLayout(); } catch (e) { /* never break the table */ } });
 
-  function updateTutorial() {
-    const banner = el('tutorialBanner');
-    if (!tutorialActive || !lastState) {
-      banner.classList.add('hidden');
-      syncTutorialLayout();
-      return;
-    }
-    const me = (lastState.players || []).find((p) => p.id === playerId);
-    const myTurn = lastState.phase === 'playing' && lastState.currentPlayerId === playerId;
-    const step = TUTORIAL_STEPS.find((s) => !tutorialSeen.has(s.key) && s.when(lastState, me, myTurn));
-    // BUGFIX (v1.71): Ein Hinweis, dessen Situation vorbei ist (Bedingung wird
-    // false oder ein anderer Step löst ihn ab), gilt als GESEHEN - vorher
-    // wurde 'seen' nur beim aktiven Weiter-Klick gesetzt, wodurch z.B.
-    // "Du bist dran!" jede Runde erneut auftauchte.
-    const nextKey = step ? step.key : null;
-    if (tutorialCurrentStep && tutorialCurrentStep !== nextKey) {
-      tutorialSeen.add(tutorialCurrentStep);
-      persistTutorial();
-    }
-    if (!step) {
-      banner.classList.add('hidden');
-      syncTutorialLayout();
-      tutorialCurrentStep = null;
-      tutorialHighlight = null;
-      requestAnimationFrame(() => applyTutorialHighlight(null));
-      // Everything explained once -> the tutorial retires itself. Optional
-      // steps are deliberately excluded: they depend on a table situation that
-      // may never occur, and requiring them left the tutorial switched on for
-      // good (it then leaked its hints into every later normal game).
-      if (TUTORIAL_STEPS.filter((s) => !s.optional).every((s) => tutorialSeen.has(s.key))) {
-        tutorialActive = false;
-        persistTutorial();
-      }
-      return;
-    }
-    if (tutorialCurrentStep !== step.key) {
-      tutorialCurrentStep = step.key;
-      el('tutorialText').textContent = step.text(lastState, me);
-    }
-    banner.classList.remove('hidden');
+  function hideCoach() {
+    el('tutorialCoach').classList.add('hidden');
+    el('resultCoach').classList.add('hidden');
+    tutorialCurrentStep = null;
+    tutorialHighlight = null;
     syncTutorialLayout();
-    // Kontextuelle Markierung: die konkreten Karten (und ggf. die Ziel-
-    // Auslage) glühen. Nach dem synchronen Render anwenden (rAF), weil das
-    // Hand-/Auslagen-DOM bei jedem State neu aufgebaut wird.
-    tutorialHighlight = typeof step.highlight === 'function' ? step.highlight(lastState, me) : null;
+    requestAnimationFrame(() => applyTutorialHighlight(null));
+  }
+
+  // Lines between lessons: who is on, what you can do - no counter jump, no button.
+  function passiveCoachLine(c) {
+    if (!c.playing) return null;
+    if (!c.myTurn) {
+      return { title: L('Die Bots sind dran', 'The bots are playing'), text: L('Schau zu, was sie auslegen – gleich bist du wieder dran.', 'Watch what they meld – your turn comes next.') };
+    }
+    if (c.drawPhase) return { title: L('Du bist dran', 'Your turn'), text: L('Zieh eine Karte vom Stapel.', 'Draw a card from the stock.'), highlight: { targets: ['drawPile'] } };
+    if (c.duty) return null;
+    if (c.hand.length === 1) {
+      return {
+        title: L('Ausmachen', 'Go out'),
+        text: L('Wirf deine letzte Karte ab – dann ist die Runde deine.', 'Discard your last card – and the round is yours.'),
+        highlight: { cardIds: [c.hand[0].id], targets: ['discardBtn'] },
+      };
+    }
+    return { title: L('Du bist dran', 'Your turn'), text: L('Leg aus, leg an oder wirf eine Karte ab.', 'Meld, lay off or discard a card.') };
+  }
+
+  function updateTutorial() {
+    tutorialActive = tutorialHintsOn();
+    const menuRow = el('tutorialHintsBtn');
+    if (menuRow) menuRow.classList.toggle('hidden', !(tutorialProgress && lastState && lastState.tutorialMode && tutorialProgress.code === sessionCode && tutorialProgress.off && !tutorialProgress.finished));
+    if (!tutorialActive || !lastState) { hideCoach(); return; }
+    const prog = tutorialProgress;
+    // The tutorial ends with the scoring of round 1 - also when the next round
+    // was started from elsewhere.
+    if (lastState.phase === 'gameOver' || (lastState.roundNumber > 1 && lastState.phase !== 'cutting')) {
+      finishTutorial();
+      return;
+    }
+    const c = tutorialContext();
+    const step = tutorialPick(c, prog);
+    const doneCount = TUTORIAL_MANDATORY.filter((s) => tutorialPassed(prog, s.key)).length;
+    const counter = `${Math.min(doneCount + 1, TUTORIAL_MANDATORY.length)} / ${TUTORIAL_MANDATORY.length}`;
+    el('coachCountText').textContent = counter;
+    el('tutorialProgressBtn').setAttribute('aria-label', L(`Schritt ${counter} – Fortschritt anzeigen`, `Step ${counter} – show progress`));
+
+    // Round end: the scoring lesson docks in the sheet instead of covering it.
+    const atRoundEnd = lastState.phase === 'roundEnd';
+    el('resultCoach').classList.toggle('hidden', !(atRoundEnd && step && step.key === 'roundend'));
+    if (atRoundEnd && step && step.key === 'roundend') {
+      el('resultCoachTitle').textContent = step.title(c);
+      el('resultCoachText').textContent = step.text(c);
+    }
+    const shown = atRoundEnd ? null : step || passiveCoachLine(c);
+    const coach = el('tutorialCoach');
+    if (!shown) {
+      coach.classList.add('hidden');
+      if (step && tutorialCurrentStep !== step.key) tutorialCurrentStep = step.key;
+      tutorialHighlight = null;
+      syncTutorialLayout();
+      requestAnimationFrame(() => applyTutorialHighlight(null));
+      return;
+    }
+    const key = step ? step.key : null;
+    if (step && tutorialCurrentStep !== key) {
+      tutorialCurrentStep = key;
+      tutorialBaseline = step.metric ? step.metric(c) : 0;
+    }
+    if (!step) tutorialCurrentStep = null;
+    el('coachTitle').textContent = step ? step.title(c) : shown.title;
+    el('tutorialText').textContent = step ? step.text(c) : shown.text;
+    coach.dataset.step = key || 'passive';
+    coach.classList.toggle('passive', !step);
+    el('tutorialNextBtn').classList.toggle('hidden', !(step && step.info));
+    coach.classList.remove('hidden');
+    syncTutorialLayout();
+    // Marks after the synchronous render (rAF): hand and melds are rebuilt on every state.
+    tutorialHighlight = step ? (typeof step.highlight === 'function' ? step.highlight(c) : null) : (shown.highlight || null);
     requestAnimationFrame(() => applyTutorialHighlight(tutorialHighlight));
+  }
+
+  function finishTutorial() {
+    const prog = tutorialSessionProgress();
+    if (!prog || prog.finished) return;
+    prog.finished = true;
+    if (!prog.done.includes('roundend')) prog.done.push('roundend');
+    saveTutorial();
+    tutorialActive = false;
+    hideCoach();
+    el('tutorialDoneOverlay').classList.remove('hidden');
+  }
+
+  function stopTutorial() {
+    const prog = tutorialSessionProgress();
+    if (!prog) return;
+    prog.off = true;
+    saveTutorial();
+    tutorialActive = false;
+    hideCoach();
+    showToast(L('Tutorial beendet. Die Hinweise holst du im Menü zurück.', 'Tutorial ended. You can bring the hints back from the menu.'));
+    try { updateTutorial(); } catch (e) { /* menu row only */ }
   }
 
   // --- Sharing results (Wordle style): emoji are content here, not icons ---
@@ -5406,54 +5643,77 @@
   });
   el('undoMeldBtn').addEventListener('click', () => send({ type: 'undoMeld' }));
 
-  el('tutorialBtn').addEventListener('click', () => guardOpenGame('tutorial', startTutorial));
+  // Tutorial button: its own session with a FIXED deck (server: startTutorial),
+  // so the lessons meet the cards they name. Unfinished progress is not
+  // dropped silently: the first tap says so. One game at a time still applies.
+  let tutorialArmTimer = null;
+  el('tutorialBtn').addEventListener('click', () => {
+    const btn = el('tutorialBtn');
+    const unfinished = !!(tutorialProgress && !tutorialProgress.finished && !tutorialProgress.off &&
+      (tutorialProgress.done || []).length > 1);
+    const disarm = () => {
+      clearTimeout(tutorialArmTimer);
+      delete btn.dataset.armed;
+      btn.classList.remove('armed');
+      setLabelText(btn, L('Tutorial', 'Tutorial'));
+    };
+    if (unfinished && btn.dataset.armed !== '1') {
+      btn.dataset.armed = '1';
+      btn.classList.add('armed');
+      setLabelText(btn, L('Von vorn beginnen?', 'Start over?'));
+      clearTimeout(tutorialArmTimer);
+      tutorialArmTimer = setTimeout(disarm, 4000);
+      return;
+    }
+    disarm();
+    guardOpenGame('tutorial', startTutorial);
+  });
   function startTutorial() {
-    tutorialActive = true;
-    tutorialSeen = new Set();
-    persistTutorial();
-    // Eigene Sitzung mit FESTEM Deck (Server: startTutorial). Vorher lief das
-    // Tutorial auf einem zufaelligen Spiel - ob ein Satz, ein Joker oder die
-    // Pik Dame ueberhaupt auftauchte, entschied das Mischgluck.
-    // A learner who has not typed a name became "Spieler417" in every log
-    // line of their first game. A tutorial should not label you with a random
-    // number - name the seat after what it is.
+    tutorialProgress = null;
+    storageRemove(TUTORIAL_KEY);
+    // A seat called "Spieler417" (the random stand-in) in every log line of a
+    // first game labels the learner with a number: name it after what it is.
     const typed = el('nameInput').value.trim();
+    const auto = !typed || /^Spieler\d{1,3}$/.test(typed);
     send({
       type: 'startTutorial',
-      name: typed || L('Neuling', 'Rookie'),
+      name: auto ? L('Neuling', 'Rookie') : typed,
       accountToken: accountToken() || undefined,
     });
   }
   el('tutorialNextBtn').addEventListener('click', () => {
-    if (tutorialCurrentStep) tutorialSeen.add(tutorialCurrentStep);
+    const prog = tutorialSessionProgress();
+    if (prog && tutorialCurrentStep && !prog.done.includes(tutorialCurrentStep)) {
+      prog.done.push(tutorialCurrentStep);
+      saveTutorial();
+    }
     tutorialCurrentStep = null;
-    persistTutorial();
     updateTutorial();
   });
   const TUTORIAL_LABELS = {
-    lobby: () => L('Spiel starten', 'Start a game'),
+    welcome: () => L('Das Ziel des Spiels', 'The goal of the game'),
     draw: () => L('Karte ziehen', 'Draw a card'),
-    meld: () => L('Kombination auslegen', 'Lay down a combination'),
-    queenSet: () => L('Pik Dame auslegen (+100)', 'Meld the Queen of Spades (+100)'),
-    discardStep: () => L('Zug mit Abwerfen beenden', 'End the turn by discarding'),
-    aids: () => L('Spielhilfen kennenlernen', 'Meet the play aids'),
-    pickupRest: () => L('Ablagestapel aufnehmen', 'Take the discard pile'),
-    pikdame: () => L('Pik Dame: +100 oder -100', 'Queen of Spades: +100 or -100'),
+    pileDuty: () => L('Ablage nehmen und auslegen', 'Take the pile and meld'),
+    firstSet: () => L('Einen Satz auslegen', 'Meld a set'),
+    pikdame: () => L('Pik Dame: +100 oder −100', 'Queen of spades: +100 or −100'),
+    queenSet: () => L('Pik Dame auslegen', 'Meld the queen of spades'),
     joker: () => L('Joker einsetzen', 'Use a joker'),
-    layOff: () => L('An eigene Auslage anlegen', 'Lay off onto your own meld'),
-    jokerSwap: () => L('Joker zurücktauschen', 'Swap a joker back'),
-    endgame: () => L('Ausmachen: letzte Karte abwerfen', 'Going out: discard the last card'),
+    moreMelds: () => L('Weitere Auslagen', 'More melds'),
+    discard: () => L('Zug mit Abwerfen beenden', 'End the turn by discarding'),
+    pile: () => L('Die Ablage lesen', 'Read the discard pile'),
+    layOff: () => L('An eigene Auslage anlegen', 'Lay off onto your meld'),
+    jokerSwap: () => L('Joker zurückholen', 'Win a joker back'),
+    endgame: () => L('Ausmachen: letzte Karte abwerfen', 'Go out: discard the last card'),
     roundend: () => L('Wertung verstehen', 'Understand the scoring'),
   };
   function renderTutorialChecklist() {
     const list = document.getElementById('tutorialChecklist');
     if (!list) return;
     list.innerHTML = '';
+    const prog = tutorialSessionProgress() || tutorialProgress || { done: [] };
     let done = 0;
-    let total = 0;
-    // Optional steps sort to the bottom and count separately - they hang on a
-    // table situation nobody can force, so counting them made 100% look
-    // unreachable even after every rule had been explained.
+    // Bonus steps sort to the bottom and never count: they hang on a table
+    // situation nobody can force.
     const ordered = [
       ...TUTORIAL_STEPS.filter((s) => !s.optional),
       ...TUTORIAL_STEPS.filter((s) => s.optional),
@@ -5461,25 +5721,30 @@
     for (const step of ordered) {
       const label = TUTORIAL_LABELS[step.key];
       if (!label) continue;
-      const seen = tutorialSeen.has(step.key);
-      if (!step.optional) {
-        total += 1;
-        if (seen) done += 1;
-      }
+      const seen = (prog.done || []).includes(step.key);
+      if (!step.optional && seen) done += 1;
       const li = document.createElement('li');
       if (seen) li.className = 'done';
+      // Done = check in a filled disc, open = an empty ring (CSS): shape, not colour.
       const tick = document.createElement('span');
       tick.className = 'tick';
-      tick.textContent = seen ? '✅' : '⬜';
+      tick.setAttribute('aria-hidden', 'true');
+      if (seen) tick.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>';
       const txt = document.createElement('span');
-      txt.textContent = step.optional
-        ? `${label()} · ${L('Bonus', 'bonus')}`
-        : label();
+      txt.textContent = label();
       li.append(tick, txt);
+      if (step.optional) {
+        const bonus = document.createElement('span');
+        bonus.className = 'bonus';
+        bonus.textContent = L('Bonus', 'Bonus');
+        li.append(bonus);
+      }
+      li.setAttribute('aria-label', `${label()}: ${seen ? L('erledigt', 'done') : L('offen', 'open')}`);
       list.appendChild(li);
     }
-    const title = document.getElementById('tutorialChecklistTitle');
-    if (title) title.textContent = `🎓 ${L('Dein Fortschritt', 'Your progress')} ${done}/${total}`;
+    // The heading keeps its sprite icon: only the label span is rewritten.
+    const title = document.querySelector('#tutorialChecklistTitle span');
+    if (title) title.textContent = `${L('Dein Fortschritt', 'Your progress')} ${done}/${TUTORIAL_MANDATORY.length}`;
   }
   try {
     const progressBtn = el('tutorialProgressBtn');
@@ -5492,14 +5757,37 @@
     if (overlay) overlay.addEventListener('click', (ev) => { if (ev.target === overlay) overlay.classList.add('hidden'); });
   } catch (e) { /* Lernhilfe ist nie kritisch */ }
 
-  el('tutorialOffBtn').addEventListener('click', () => {
-    tutorialActive = false;
-    persistTutorial();
-    el('tutorialBanner').classList.add('hidden');
-    syncTutorialLayout();
+  // "Überspringen": two taps, then the hints stop; the menu brings them back.
+  confirmByTap(el('tutorialOffBtn'), L('Tutorial beenden?', 'End the tutorial?'), stopTutorial);
+  el('tutorialHintsBtn').addEventListener('click', () => {
+    const prog = tutorialSessionProgress();
+    if (prog) { prog.off = false; saveTutorial(); }
+    el('gameSettingsOverlay').classList.add('hidden');
+    updateTutorial();
+  });
+
+  // "Tutorial geschafft": where to go next. A new game is created on the start
+  // screen after the reload (afterTutorial, picked up in connect()).
+  const AFTER_TUTORIAL_KEY = 'pikdame_after_tutorial';
+  function leaveTutorialFor(next) {
+    storageSet(AFTER_TUTORIAL_KEY, next);
+    if (sessionCode && storageGet('pikdame_last_session') === sessionCode) storageRemove('pikdame_last_session');
+    window.location.href = window.location.pathname;
+  }
+  el('tutorialDoneBotsBtn').addEventListener('click', () => leaveTutorialFor('bots'));
+  el('tutorialDoneInviteBtn').addEventListener('click', () => leaveTutorialFor('invite'));
+  el('tutorialDoneStayBtn').addEventListener('click', () => {
+    el('tutorialDoneOverlay').classList.add('hidden');
+    // Practice on without hints: the next round starts like after any round end.
+    if (lastState && lastState.phase === 'roundEnd') {
+      send({ type: 'nextRound' });
+      el('resultContinueBtn').disabled = true;
+    }
   });
 
   el('resultContinueBtn').addEventListener('click', () => {
+    // Tutorial: "Weiter" after the scoring of round 1 is the ending, not round 2.
+    if (tutorialActive && lastState && lastState.phase === 'roundEnd') { finishTutorial(); return; }
     const isGameOver = lastState && lastState.phase === 'gameOver';
     if (isGameOver && lastState.challengeDate) { window.location.href = window.location.pathname; return; }
     send({ type: isGameOver ? 'rematch' : 'nextRound' });
@@ -5805,10 +6093,10 @@
         const isWarning = latest.text.startsWith('⚠️');
         // My own moves need no echo: I just made them, and the toast sat
         // right on top of the melds I was looking at (playthrough finding).
-        // The tutorial keeps them - there the echo explains what happened.
+        // In the tutorial the coach card answers them, the final discard too.
         const me = lastState.players && lastState.players.find((p) => p.id === playerId);
-        const ownMove = !isWarning && !lastState.tutorialMode && me &&
-          lastState.currentPlayerId === playerId && latest.text.startsWith(`${me.name} `);
+        const ownMove = !isWarning && me && latest.text.startsWith(`${me.name} `) &&
+          (lastState.currentPlayerId === playerId || tutorialHintsOn());
         if (!chipStatus && !ownMove) {
           showToast(trs(latest.text), isWarning ? { duration: 6000, priority: true } : {});
         }
@@ -6900,7 +7188,7 @@
   function showQuip(fromPlayerId, moment) {
     const lines = BOT_QUIPS[moment];
     const sender = ((lastState && lastState.players) || []).find((p) => p.id === fromPlayerId);
-    if (!botQuipsOn || !lines || !sender) return;
+    if (!botQuipsOn || !lines || !sender || tutorialHintsOn()) return;
     const options = lines();
     const text = options[Math.floor(Math.random() * options.length)];
     // Round end: the result overlay covers the chips - the line joins the reactions there.
