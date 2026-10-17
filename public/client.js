@@ -3066,7 +3066,7 @@
               const isWinner = !!(r && r.breakdown && r.breakdown.isWinner);
               const mult = r && r.breakdown && r.breakdown.multiplier > 1 ? r.breakdown.multiplier : 1;
               det.innerHTML =
-                `<summary>${L('Aufschlüsselung', 'Breakdown')} <span class="bdSums"><span class="bdSumPlus">+${plusSum}</span>${isWinner ? '' : ` <span class="bdSumMinus">−${minusSum}</span>`}</span></summary>` +
+                `<summary><span>${L('Aufschlüsselung', 'Breakdown')}</span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg> <span class="bdSums"><span class="bdSumPlus">+${plusSum}</span>${isWinner ? '' : ` <span class="bdSumMinus">−${minusSum}</span>`}</span></summary>` +
                 `<div class="bdLine bdPlus"><span>${L('Ausgelegt', 'Melded')}</span><span>${plus ? escapeHtml(plus) : '–'}</span><b>+${plusSum}</b></div>` +
                 (isWinner
                   ? `<div class="bdLine bdNote"><span>${L('Rundensieg: keine Minuspunkte', 'Round winner: no minus points')}</span><span></span><b></b></div>`
@@ -5592,6 +5592,82 @@
   });
   document.querySelectorAll('.overlay').forEach((o) =>
     overlayToastWatcher.observe(o, { attributes: true, attributeFilter: ['class'], attributeOldValue: true }));
+
+  // Phone sheets: swiping a dialog down presses its own close button (named in
+  // data-sheet-close), so the gesture never dismisses what a tap could not.
+  const SHEET_QUERY = '(max-width: 600px) and (orientation: portrait)';
+  function initSheetSwipe(overlay) {
+    const card = overlay.querySelector('.overlay-card');
+    if (!card) return;
+    const grip = document.createElement('div');
+    grip.className = 'sheetGrabber';
+    grip.setAttribute('aria-hidden', 'true');
+    card.prepend(grip);
+    let drag = null;
+    let resetTimer = null;
+    const reset = () => {
+      card.style.transform = '';
+      card.style.transition = '';
+      overlay.classList.remove('sheetDragging');
+      overlay.style.removeProperty('--sheet-fade');
+    };
+    card.addEventListener('touchstart', (ev) => {
+      drag = null;
+      if (ev.touches.length !== 1 || !window.matchMedia || !window.matchMedia(SHEET_QUERY).matches) return;
+      const t = ev.target;
+      if (!grip.contains(t)) {
+        // Off the grip only from the top of the content and never on a control.
+        if (t.closest && t.closest('input, textarea, select, canvas')) return;
+        for (let n = t; n && n !== overlay; n = n.parentElement) if (n.scrollTop > 0) return;
+      }
+      drag = { x: ev.touches[0].clientX, y: ev.touches[0].clientY, at: Date.now(), dy: 0, on: false };
+    }, { passive: true });
+    card.addEventListener('touchmove', (ev) => {
+      if (!drag) return;
+      const dx = ev.touches[0].clientX - drag.x;
+      const dy = ev.touches[0].clientY - drag.y;
+      if (!drag.on) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        if (dy <= Math.abs(dx)) { drag = null; return; } // up or sideways: the content scrolls
+        drag.on = true;
+        clearTimeout(resetTimer);
+        card.style.transition = 'none';
+        overlay.classList.add('sheetDragging');
+      }
+      ev.preventDefault();
+      drag.dy = Math.max(0, dy);
+      card.style.transform = `translateY(${drag.dy}px)`;
+      overlay.style.setProperty('--sheet-fade', String(Math.max(0, 1 - drag.dy / (card.offsetHeight || 1))));
+    }, { passive: false });
+    const end = (cancelled) => {
+      const d = drag;
+      drag = null;
+      if (!d || !d.on) return;
+      const btn = document.getElementById(overlay.dataset.sheetClose);
+      const usable = btn && !btn.disabled && !btn.closest('.hidden, [hidden]');
+      const far = d.dy > Math.min(140, card.offsetHeight * 0.3);
+      const flick = d.dy > 40 && d.dy / Math.max(1, Date.now() - d.at) > 0.6;
+      card.style.transition = 'transform 0.2s ease-out';
+      if (!cancelled && usable && (far || flick)) {
+        card.style.transform = 'translateY(100%)';
+        setTimeout(() => {
+          btn.click();
+          if (overlay.classList.contains('hidden')) { reset(); return; }
+          card.style.transform = ''; // the handler kept it open: slide back
+          resetTimer = setTimeout(reset, 200);
+        }, 180);
+      } else {
+        card.style.transform = '';
+        overlay.classList.remove('sheetDragging');
+        resetTimer = setTimeout(reset, 200);
+      }
+    };
+    card.addEventListener('touchend', () => end(false));
+    card.addEventListener('touchcancel', () => end(true));
+  }
+  document.querySelectorAll('.overlay[data-sheet-close]').forEach((o) => {
+    try { initSheetSwipe(o); } catch (e) { /* swiping is a convenience */ }
+  });
 
   // --- Vollbild ("Kiosk-Modus" wie bei Videos) -------------------------------
   // Fullscreen-API gibt es auf Android/Desktop (Chrome/Edge/Firefox). iOS
