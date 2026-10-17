@@ -133,7 +133,7 @@ secrets), e.g. \`PIKDAME_DATABASE_PASSWORD_FILE=/run/secrets/db_password\`.
 // Which phase a client message belongs to. Everything not listed lands in "other".
 const MSG_GROUPS = [
   ['Before a table', 'Sent on a fresh connection, before the socket is bound to a table. These carry `msg.name` because the server has no seat to look up yet.',
-    ['createSession', 'joinSession', 'checkSession', 'abandonSession', 'listProfiles', 'getGameHistory', 'setFavoriteBadges', 'ping',
+    ['createSession', 'joinSession', 'checkSession', 'abandonSession', 'listProfiles', 'getGameHistory', 'setFavoriteBadges', 'setCelebration', 'ping',
       'getPuzzle', 'solvePuzzle', 'revealPuzzle', 'startChallenge', 'startTutorial',
       'createStammtisch', 'getStammtisch', 'listStammtische', 'leaveStammtisch', 'deleteStammtisch']],
   ['Lobby', 'Only valid while the table is in the `lobby` phase; most of them host-only.',
@@ -149,6 +149,7 @@ const MSG_NOTES = {
   ping: 'Keep-alive from the client; answered immediately. Lets a phone notice a dead connection before the server-side heartbeat does.',
   getGameHistory: 'The finished matches of a player name ("Meine Partien").',
   setFavoriteBadges: 'Pin up to three badges to the identity chip.',
+  setCelebration: 'Pick the victory celebration the whole table sees when you win (an id from `game/Celebrations.js`; signed-in owner of the name, unlocked by level).',
   getPuzzle: 'Today\'s daily puzzle (same for everyone, derived from the game day).',
   solvePuzzle: 'Submit a puzzle answer; the server grades it and returns the solution.',
   revealPuzzle: 'Give up on the puzzle and see the solution (no points).',
@@ -422,6 +423,7 @@ function generateProgression() {
   const { EMOTE_DEFS, SEASONAL_EMOTES, GREETING_EMOTE, HOLIDAY_EMOTES } = require(path.join(ROOT, 'game', 'Emotes'));
   const holidayEmotes = [...new Set(Object.values(HOLIDAY_EMOTES))].filter((e) => !SEASONAL_EMOTES.includes(e));
   const { QUIP_MOMENTS } = require(path.join(ROOT, 'game', 'BotQuips'));
+  const { CELEBRATION_DEFS } = require(path.join(ROOT, 'game', 'Celebrations'));
   const SG = require(path.join(ROOT, 'game', 'StammtischGoals'));
   const stLevels = [1, 2, 3, 5, 10, 20];
   let stCum = 0;
@@ -463,6 +465,7 @@ function generateProgression() {
   const award = (id) => `${(sa[id] || {}).emoji || ''} ${(sa[id] || {}).name || id}`;
 
   const emoteRows = EMOTE_DEFS.map((e) => `| ${e.id === 'pikdame' ? '♠Q (mini card)' : e.id} | ${e.level === 1 ? 'always' : `level ${e.level}`} |`);
+  const celebrationRows = CELEBRATION_DEFS.map((c) => `| \`${c.id}\` | ${c.level === 1 ? 'always' : `level ${c.level}`} |`);
 
   return `${BANNER}# Progression
 
@@ -579,6 +582,19 @@ account also gets ${GREETING_EMOTE}.
 Bots may say a short line at **${QUIP_MOMENTS.length}** moments
 (\`${QUIP_MOMENTS.join('`, `')}\`). Only the moment id travels over the wire;
 the lines themselves are in the client, in both languages.
+
+## Victory celebrations
+
+What the whole table sees at the top of the result sheet when a player wins a
+round or the match (\`game/Celebrations.js\`). The signed-in owner of a name
+picks one in the settings; the server accepts only these ids, at the
+profile's level, and only the id travels over the wire:
+
+| Id | Unlocked |
+| --- | --- |
+${celebrationRows.join('\n')}
+
+\`standard\` is the classic confetti only the winner sees.
 `;
 }
 

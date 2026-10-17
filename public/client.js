@@ -280,6 +280,7 @@
     applyUiScale();       // Auswahlfeld Anzeigegröße
     updateResumeBtn();    // "Weiterspielen (CODE)" - enthaelt einen Wert
     try { updateStudioLogoBtn(); } catch (e) { /* erst spaeter definiert */ }
+    try { updateCelebrationSetting(); } catch (e) { /* erst spaeter definiert */ }
     try { applyCardback(); } catch (e) { /* erst spaeter definiert */ }
     try { setTipsEnabled(gameTipsEnabled); renderAidControls(); renderBotQuipsControls(); } catch (e) { /* Einstellungsblatt ist nie kritisch */ }
     // Aus dem Code erzeugte Listen: Ihre Texte kommen aus L(), werden aber nur
@@ -1424,6 +1425,10 @@
       if (/Kein Spiel mit diesem Code/.test(msg.error || '')) {
         storageRemove('pikdame_last_session');
       }
+      // A refused celebration choice: the select shows the stored one again.
+      if (/Siegesjubel/.test(msg.error || '')) {
+        try { updateCelebrationSetting(); } catch (e) { /* cosmetic */ }
+      }
       // Tutorial: a refusal is the best teaching moment - the rule behind it
       // goes into the coach card, alone (the centred toast covered the card).
       const why = tutorialActive ? tutorialExplainError(msg.error || '') : null;
@@ -1563,6 +1568,7 @@
       // Öffentlicher Server: Profile/Statistik sind deaktiviert.
       publicMode = !!msg.publicMode;
       el('statsBtn').classList.toggle('hidden', publicMode);
+      try { updateCelebrationSetting(); } catch (e) { /* cosmetic */ }
       if (msg.quests) dailyQuests = msg.quests;
       try { fetchChallengeToday(); } catch (e) { /* cosmetic */ }
       // My own counters live on my profile (name-based, like every other
@@ -2980,6 +2986,81 @@
     }
   }
 
+  // --- Victory celebrations (game/Celebrations.js) ---------------------------
+  // A band at the top of a card, drawn behind its text: it never takes a tap
+  // and is gone after a few seconds. Reduced motion gets a still picture.
+  const CELEBRATION_MS = 3400;
+  const FX_COLORS = ['#2fd6b0', '#8f90f8', '#ff9f5a', '#ff7d8c', '#f5d76e'];
+  const CAT_FURS = ['#e8913a', '#9aa0a6', '#3a3a3a', '#f3ece2'];
+  /** The special celebration the whole table sees, or null (none, bot, forfeit). */
+  function winnerCelebration(st) {
+    const over = st.phase === 'gameOver' ? st.gameOverInfo : null;
+    if (over && over.forfeited) return null;
+    const winnerId = (over && over.winnerId) || st.lastRoundWinnerId;
+    const seat = winnerId ? (st.players || []).find((p) => p.id === winnerId) : null;
+    const id = seat && !seat.isBot ? seat.celebration : null;
+    return id && id !== 'standard' && CELEBRATIONS.some((c) => c.id === id) ? id : null;
+  }
+  function fxCatSvg(fur) {
+    const eye = fur === '#3a3a3a' ? '#f6d36b' : '#2b2b2b';
+    return `<svg viewBox="-17 -23 34 32" aria-hidden="true"><path d="M-14-6-11-21-2-10Z M14-6 11-21 2-10Z" fill="${fur}"/>` +
+      `<ellipse rx="15" ry="12.5" fill="${fur}" stroke="rgba(0,0,0,0.35)"/>` +
+      `<ellipse cx="-5.5" cy="-1.5" rx="2.2" ry="2.9" fill="${eye}"/><ellipse cx="5.5" cy="-1.5" rx="2.2" ry="2.9" fill="${eye}"/>` +
+      '<path d="M-1.6 3.4h3.2l-1.6 1.8z" fill="#e57b8c"/></svg>';
+  }
+  function celebrationMarkup(id, still) {
+    const r = (a, b) => (a + Math.random() * (b - a)).toFixed(2);
+    const pick = (arr, i) => arr[i % arr.length];
+    let html = '';
+    if (id === 'cats') {
+      const n = still ? 5 : 16;
+      for (let i = 0; i < n; i++) {
+        const x = still ? 46 + i * 10 : r(2, 92); // still: a row right of the title
+        html += `<span class="fxCat" style="--x:${x}%;--sz:${r(24, 34)}px;--delay:${r(0, 1.8)}s;--dur:${r(1.4, 2.2)}s;` +
+          `--spin:${r(-200, 200)}deg;--drift:${r(-30, 30)}px;--tilt:${r(-14, 14)}deg">${fxCatSvg(pick(CAT_FURS, i))}</span>`;
+      }
+    } else if (id === 'fireworks') {
+      const bursts = still ? [[56, 36], [74, 56], [88, 32]] : [[18, 48], [50, 34], [82, 50], [34, 62], [66, 40]];
+      bursts.forEach(([x, y], b) => {
+        let sparks = '';
+        for (let i = 0; i < 12; i++) sparks += `<i style="--a:${i * 30}deg;--c:${pick(FX_COLORS, b + i)}"></i>`;
+        html += `<span class="fxBurst" style="--x:${x}%;--y:${y}%;--delay:${(b * 0.45).toFixed(2)}s">${sparks}</span>`;
+      });
+    } else if (id === 'cardfan') {
+      [['A', '♠'], ['K', '♥'], ['Q', '♠'], ['J', '♦'], ['10', '♣']].forEach(([rank, suit], i) => {
+        const red = suit === '♥' || suit === '♦';
+        html += `<span class="fxCard${red ? ' red' : ''}" style="--r:${(i - 2) * 16}deg;--i:${i}"><b>${rank}</b><em>${suit}</em></span>`;
+      });
+    } else if (id === 'goldqueen') {
+      for (let i = 0; i < 12; i++) {
+        html += `<i class="fxGlint" style="--x:${r(8, 92)}%;--y:${r(10, 85)}%;--delay:${r(0.4, 2.2)}s;--sz:${r(6, 12)}px"></i>`;
+      }
+      html += '<span class="fxQueen"><svg class="icon fxCrown" aria-hidden="true"><use href="#i-crown"/></svg><b>Q</b><em>♠</em></span>';
+    } else {
+      // 'standard' in the preview: the confetti the winner sees, in small.
+      for (let i = 0; i < 26; i++) {
+        html += `<i class="fxBit" style="--x:${r(2, 98)}%;--c:${pick(FX_COLORS, i)};--delay:${r(0, 1.4)}s;--dur:${r(1.1, 1.8)}s;--spin:${r(-300, 300)}deg"></i>`;
+      }
+    }
+    return html;
+  }
+  function playCelebration(id, host) {
+    if (!host || !CELEBRATIONS.some((c) => c.id === id)) return;
+    const old = [...host.children].find((c) => c.classList.contains('celebrationBand'));
+    if (old) old.remove();
+    const still = reducedMotion;
+    const band = document.createElement('div');
+    band.className = `celebrationBand fx-${id}${still ? ' still' : ''}`;
+    band.setAttribute('aria-hidden', 'true');
+    band.innerHTML = celebrationMarkup(id, still);
+    host.prepend(band);
+    host.classList.add('celebrating');
+    setTimeout(() => {
+      band.remove();
+      if (![...host.children].some((c) => c.classList.contains('celebrationBand'))) host.classList.remove('celebrating');
+    }, still ? 2400 : CELEBRATION_MS);
+  }
+
   /**
    * Count a score up from zero. The final number is written immediately as the
    * element's text, so a reduced-motion user (or a mid-animation re-render)
@@ -3043,12 +3124,19 @@
     const forfeited = lastState.phase === 'gameOver' && lastState.gameOverInfo && lastState.gameOverInfo.forfeited;
     if (!lastState.lastRoundResult && !forfeited) return;
     el('resultOverlay').classList.remove('hidden');
-    // Konfetti, wenn ICH die Runde gewonnen habe (einmal pro Runde)
+    // Once per round: the winner's own celebration for the whole table,
+    // otherwise the classic confetti for the winner alone.
     const winKey = `${lastState.roundNumber}`;
     const myResult = lastState.lastRoundResult && lastState.lastRoundResult[playerId];
-    if (myResult && myResult.breakdown && myResult.breakdown.isWinner && confettiShownForRound !== winKey) {
-      confettiShownForRound = winKey;
-      launchConfetti();
+    if (confettiShownForRound !== winKey) {
+      const fx = winnerCelebration(lastState);
+      if (fx) {
+        confettiShownForRound = winKey;
+        playCelebration(fx, el('resultOverlay').querySelector('.overlay-card'));
+      } else if (myResult && myResult.breakdown && myResult.breakdown.isWinner) {
+        confettiShownForRound = winKey;
+        launchConfetti();
+      }
     }
     const isGameOver = lastState.phase === 'gameOver';
     el('resultTitle').textContent = forfeited
@@ -7262,7 +7350,12 @@
     const openBtn = el('settingsBtnLobby');
     const overlay = el('settingsOverlay');
     const closeBtn = el('settingsOverlayCloseBtn');
-    if (openBtn && overlay) openBtn.addEventListener('click', () => overlay.classList.remove('hidden'));
+    if (openBtn && overlay) {
+      openBtn.addEventListener('click', () => {
+        try { updateCelebrationSetting(); } catch (e) { /* cosmetic */ } // sign-in may have changed
+        overlay.classList.remove('hidden');
+      });
+    }
     if (closeBtn && overlay) closeBtn.addEventListener('click', () => overlay.classList.add('hidden'));
     if (overlay) overlay.addEventListener('click', (ev) => { if (ev.target === overlay) overlay.classList.add('hidden'); });
   } catch (e) { /* Menue ist Komfort */ }
@@ -8498,6 +8591,7 @@
     }
     for (const [id, level] of Object.entries(THEME_LEVELS)) out.push({ level, kind: 'theme', id, label: `🎨 ${L(`Tischfarbe „${themeName(id)}“`, `table colour "${themeName(id)}"`)}` });
     for (const [level, de, en] of LEVEL_TITLES) if (level > 1) out.push({ level, kind: 'title', id: de, label: `🏷️ ${L(`Titel „${de}“`, `title "${en}"`)}` });
+    for (const c of CELEBRATIONS) if (c.level > 1) out.push({ level: c.level, kind: 'celebration', id: c.id, label: `🎉 ${L(`Siegesjubel „${c.de}“`, `victory celebration "${c.en}"`)}` });
     return out.sort((a, b) => a.level - b.level);
   }
   function themeName(id) {
@@ -8521,6 +8615,14 @@
   // Mirrors game/Emotes.js - the server is the authority, this only draws
   // the locks. Public servers keep no profiles, so nothing is locked there.
   const EMOTE_UNLOCK = { '👏': 2, '🙈': 3, '🤔': 4, '🍀': 5, '😎': 6, '🔥': 8, '😴': 10, '🙏': 12, '🤩': 14, '🥳': 16, '💪': 18 };
+  // Mirrors game/Celebrations.js (contract test); the names live here.
+  const CELEBRATIONS = [
+    { id: 'standard', level: 1, de: 'Standard', en: 'Standard' },
+    { id: 'cats', level: 10, de: 'Katzen-Konfetti', en: 'Cat confetti' },
+    { id: 'fireworks', level: 20, de: 'Feuerwerk', en: 'Fireworks' },
+    { id: 'cardfan', level: 35, de: 'Kartenfächer', en: 'Card fan' },
+    { id: 'goldqueen', level: 50, de: 'Goldene Pik Dame', en: 'Golden queen of spades' },
+  ];
   function emoteUnlockLevel(id) {
     return publicMode ? 1 : EMOTE_UNLOCK[id] || 1;
   }
@@ -8751,6 +8853,39 @@
       });
       updateStudioLogoBtn();
     }
+  } catch (e) { /* Einstellung ist Komfort */ }
+
+  // Victory celebration: kept on the profile (others see it), so only the
+  // signed-in owner picks it - same rule as favourite badges.
+  function myCelebration() {
+    const me = myProfile();
+    return (me && me.celebration) || 'standard';
+  }
+  function updateCelebrationSetting() {
+    el('celebrationItem').classList.toggle('hidden', publicMode);
+    const sel = el('celebrationSelect');
+    const level = myLevel();
+    for (const opt of sel.options) {
+      const c = CELEBRATIONS.find((x) => x.id === opt.value);
+      if (!c) continue;
+      const locked = level < c.level;
+      opt.disabled = locked;
+      opt.textContent = locked ? `${L(c.de, c.en)} · ${L(`ab Stufe ${c.level}`, `level ${c.level}`)}` : L(c.de, c.en);
+    }
+    sel.value = myCelebration();
+    const allowed = canPickFavorites();
+    sel.disabled = !allowed;
+    el('celebrationHint').textContent = allowed
+      ? L('Gewinnst du, sehen alle am Tisch deinen Jubel.', 'When you win, everyone at the table sees it.')
+      : L('Melde dich an, um deinen Siegesjubel zu wählen.', 'Sign in to pick your victory celebration.');
+  }
+  try {
+    el('celebrationSelect').addEventListener('change', () => {
+      if (!canPickFavorites()) { updateCelebrationSetting(); return; }
+      send({ type: 'setCelebration', name: myName, celebration: el('celebrationSelect').value, accountToken: accountToken() || undefined });
+    });
+    el('celebrationPreviewBtn').addEventListener('click', () => playCelebration(el('celebrationSelect').value, el('celebrationPreview')));
+    updateCelebrationSetting();
   } catch (e) { /* Einstellung ist Komfort */ }
 
   try {

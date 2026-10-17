@@ -148,6 +148,26 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     return { favorites: unique };
   }
 
+  /**
+   * Victory celebration (game/Celebrations.js), unlocked by the profile's level.
+   * 'standard' clears the choice. The caller checks the account.
+   * @returns {{celebration:string}|{error:string}}
+   */
+  function setCelebration(name, id) {
+    const { isCelebration, celebrationLevel } = require('./Celebrations');
+    const { levelFromXp } = require('./Progression');
+    const store = loadStore();
+    const p = findPlayerByName(store, name);
+    if (!p) return { error: 'Profil nicht gefunden.' };
+    if (!isCelebration(id)) return { error: 'Diesen Siegesjubel gibt es nicht.' };
+    const need = celebrationLevel(id);
+    if (levelFromXp(p.xp || 0).level < need) return { error: `Diesen Siegesjubel gibt es ab Stufe ${need}.` };
+    if (id === 'standard') delete p.celebration;
+    else p.celebration = id;
+    saveStore(store);
+    return { celebration: id };
+  }
+
   function awardBadges(name, badgeIds = []) {
     const store = loadStore();
     const p = findPlayerByName(store, name);
@@ -335,6 +355,7 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     questProgress,
     touchDailyStreak,
     setFavoriteBadges,
+    setCelebration,
     puzzleStatus,
     puzzleStarsFor,
     recordPuzzleAttempt,

@@ -1,0 +1,2 @@
+### Added
+- Siegesjubel: In den Einstellungen wählst du mit deinem Konto, wie dein Sieg gefeiert wird – Katzen-Konfetti ab Stufe 10, Feuerwerk ab Stufe 20, Kartenfächer ab Stufe 35 und die Goldene Pik Dame ab Stufe 50. Gewinnst du eine Runde oder die Partie, sehen alle am Tisch deinen Jubel oben im Ergebnisblatt; er verdeckt nichts und ist nach wenigen Sekunden vorbei. Mit „Bewegung reduzieren“ erscheint ein ruhiges Standbild.
