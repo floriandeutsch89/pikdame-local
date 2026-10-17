@@ -211,12 +211,14 @@ function scratchRepo(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-release-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const env = cleanEnv();
-  const git = (...args) =>
+  const gitWith = (extraEnv, args) =>
     execFileSync(
       'git',
       ['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', '-c', 'commit.gpgsign=false', '-c', 'tag.gpgsign=false', '-c', 'core.hooksPath=/dev/null', ...args],
-      { cwd: dir, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+      { cwd: dir, env: { ...env, ...extraEnv }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
     );
+  const git = (...args) => gitWith({}, args);
+  const gitAt = (date, ...args) => gitWith({ GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date }, args);
   const file = (p) => path.join(dir, p);
   const write = (p, text) => {
     fs.mkdirSync(path.dirname(file(p)), { recursive: true });
@@ -229,7 +231,7 @@ function scratchRepo(t) {
   };
   const cli = (...args) => spawnSync(process.execPath, [SCRIPT, `--root=${dir}`, '--date=2026-10-18', ...args], { env, encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
-  return { dir, git, file, write, read, commit, cli };
+  return { dir, git, gitAt, file, write, read, commit, cli };
 }
 
 const manifest = (v) => `${JSON.stringify({ name: 'demo', version: v, dependencies: { ws: '^8.0.0' } }, null, 2)}\n`;
@@ -298,6 +300,24 @@ test('CLI: git order, mixed mode, apply, and a second run is a no-op', (t) => {
   assert.deepStrictEqual(JSON.parse(again.stdout), { release: false });
   assert.deepStrictEqual(['package.json', 'package-lock.json', 'CHANGELOG.md'].map(r.read), before);
   assert.match(r.cli().stdout, /No changelog fragments in changes\/ - nothing to release\./);
+});
+
+test('CLI: a merged branch counts at its merge commit, not at its old commit date', (t) => {
+  const r = scratchRepo(t);
+  r.write('package.json', manifest('2.71.0'));
+  r.write('CHANGELOG.md', '# Changelog\n\n## [2.71.0] - 2026-10-01\n');
+  r.commit('init', '.');
+  r.git('switch', '-q', '-c', 'feature');
+  r.write('changes/early.md', '### Added\n- Lag lange auf dem Branch\n');
+  r.git('add', 'changes/early.md');
+  r.gitAt('2020-01-01T12:00:00Z', 'commit', '-q', '-m', 'old branch commit');
+  r.git('switch', '-q', 'main');
+  r.write('changes/direct.md', '### Added\n- Direkt auf main\n');
+  r.commit('direct', 'changes/direct.md');
+  r.git('merge', '-q', '--no-ff', 'feature', '-m', 'Merge pull request #1 from feature');
+  const res = r.cli('--json');
+  assert.strictEqual(res.status, 0, res.stderr);
+  assert.deepStrictEqual(JSON.parse(res.stdout).fragments.map((f) => f.file), ['changes/direct.md', 'changes/early.md']);
 });
 
 test('CLI: a malformed fragment fails with its location and writes nothing', (t) => {

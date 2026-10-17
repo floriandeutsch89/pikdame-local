@@ -46,8 +46,9 @@ deleted) and opens or updates the pull request **Release vX.Y.Z**:
 | up to v2.70.0 (transition) | no auto-merge: the number may still belong to an open pull request from before the fragments — merge those first, or the release PR by hand |
 
 Its merge is an ordinary push to `main` with a new, untagged version, so
-`release.yml` tags, publishes and deploys exactly as before. Pull requests
-that still bump the version themselves keep working the same way.
+`release.yml` tags, publishes and deploys exactly as before. The same holds
+for the last pull requests that still bump the version themselves
+(transition, up to v2.70.0).
 
 ### One-time setup
 

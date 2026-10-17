@@ -148,7 +148,7 @@ function checkChanges({ diff, read, branch = '' }) {
     });
   } else if (shipped.length && fragments.length) {
     notes.push(`Shipped change with fragment(s): ${fragments.join(', ')}.`);
-  } else if (!shipped.length && !isRelease) {
+  } else if (!shipped.length && !isRelease && !errors.length) {
     notes.push('No shipped change - no fragment needed.');
   }
   return { errors, notes, shipped, fragments, legacy };

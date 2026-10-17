@@ -245,14 +245,15 @@ function listFragments(root) {
     .map((d) => d.name);
 }
 
-/** Oldest add commit first (a re-added name counts from its newest add);
- *  uncommitted fragments last; ties by name, so the order is stable. */
+/** Merge order on the first-parent line (a merge commit counts, not the branch
+ *  commit's date); re-added names count from the newest add, uncommitted last. */
 function orderFragments(root, names) {
   let log = '';
   try {
-    log = git(root, ['log', '--diff-filter=A', '--no-renames', '--name-only', '--format=%x00', '--', `${CHANGES}/`]);
+    log = git(root, ['log', '--first-parent', '--diff-merges=first-parent', '--diff-filter=A', '--no-renames',
+      '--name-only', '--format=%x00', '--', `${CHANGES}/`]);
   } catch (e) {
-    log = '';
+    if (names.length) console.error('release: no git history for changes/ - fragments ordered by name');
   }
   const age = new Map(); // name -> index of its newest add commit (0 = newest)
   log.split('\0').slice(1).forEach((chunk, i) => {
@@ -340,7 +341,7 @@ function main(argv = process.argv.slice(2)) {
   console.log(`Base: ${plan.base} (package.json ${plan.packageVersion}, highest tag ${plan.tag ? `v${plan.tag}` : 'none'})`);
   console.log('Fragments, oldest first:');
   for (const f of plan.fragments) console.log(`  ${f.file} (${f.level})`);
-  console.log(`\n${plan.section}`);
+  console.log(`\n${plan.section.trimEnd()}\n`);
   console.log(apply
     ? `Applied: package.json, package-lock.json and CHANGELOG.md updated, ${plan.fragments.length} fragment(s) deleted.`
     : 'Dry run - nothing written. --apply writes it.');
@@ -351,7 +352,8 @@ function main(argv = process.argv.slice(2)) {
 function annotation(message, file, line) {
   if (process.env.GITHUB_ACTIONS !== 'true') return `error: ${message}`;
   const esc = (s) => String(s).replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
-  const where = file ? ` file=${file}${line ? `,line=${line}` : ''}` : '';
+  const prop = (s) => esc(s).replace(/:/g, '%3A').replace(/,/g, '%2C');
+  const where = file ? ` file=${prop(file)}${line ? `,line=${line}` : ''}` : '';
   return `::error${where}::${esc(message)}`;
 }
 
