@@ -656,7 +656,7 @@
     </section>
 
     <!-- KONTO (nur auf Servern mit aktivierten Accounts sichtbar) -->
-    <section id="accountOverlay" class="overlay hidden">
+    <section id="accountOverlay" class="overlay hidden" data-sheet-close="accountCloseBtn">
       <div class="overlay-card">
         <h2 id="accountTitle"><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span>Konto</span></h2>
         <div id="accountLoggedOut">
@@ -741,7 +741,7 @@
     </section>
 
     <!-- TAGES-CHALLENGE: Erklaerung VOR dem Start (statt Kaltstart ins Spiel) -->
-    <section id="challengeIntroOverlay" class="overlay hidden">
+    <section id="challengeIntroOverlay" class="overlay hidden" data-sheet-close="challengeCancelBtn">
       <div class="overlay-card">
         <h2><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg><span>Tages-Challenge</span></h2>
         <p>Heute spielen alle Spieler weltweit exakt dasselbe Kartendeck – gegen dieselben drei Bots. Wer holt die meisten Punkte aus den gleichen Karten?</p>
@@ -763,7 +763,7 @@
     </section>
 
     <!-- STAMMTISCH: my tables (account) + found a persistent group table -->
-    <section id="stammtischOverlay" class="overlay hidden">
+    <section id="stammtischOverlay" class="overlay hidden" data-sheet-close="stammtischCancelBtn">
       <div class="overlay-card">
         <h2><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span>Stammtisch</span></h2>
         <p class="lobby-hint">Ein fester Tisch für deine Runde: ein Code für immer, eine Bilanz über alle Partien und eine Revanche-Serie (Best of 3). Wer den Code kennt, landet immer am aktuellen Tisch.</p>
@@ -787,7 +787,7 @@
 
     <!-- DAILY PUZZLE: one hand, one question, the engine grades. The kind
          rotates by weekday; the arrows browse the archive (no XP there). -->
-    <section id="puzzleOverlay" class="overlay hidden">
+    <section id="puzzleOverlay" class="overlay hidden" data-sheet-close="puzzleCloseBtn">
       <div class="overlay-card">
         <h2><svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg><span>Tagesrätsel</span></h2>
         <div class="puzzleNav">
@@ -813,7 +813,7 @@
     </section>
 
     <!-- HOME (Tisch verlassen, zurueck zum Startbildschirm) -->
-    <section id="homeOverlay" class="overlay hidden">
+    <section id="homeOverlay" class="overlay hidden" data-sheet-close="homeCancelBtn">
       <div class="overlay-card">
         <h2><svg class="icon" aria-hidden="true"><use href="#i-home"/></svg><span>Zum Startbildschirm?</span></h2>
         <p>Du verlässt den Tisch. Kommst du nicht bald zurück, übernimmt ein Bot deinen Platz - mit dem Spiel-Code kannst du jederzeit wieder einsteigen.</p>
@@ -835,7 +835,7 @@
          the header: on a 393px phone that row overflowed, pushed the gear and
          pause buttons off-screen and made the table scroll. A sheet fits any
          width, labels every switch and keeps the header at three buttons. -->
-    <section id="gameSettingsOverlay" class="overlay hidden">
+    <section id="gameSettingsOverlay" class="overlay hidden" data-sheet-close="gameSettingsCloseBtn">
       <div class="overlay-card">
         <h2>Einstellungen</h2>
         <div class="sheetList">
@@ -915,7 +915,7 @@
     </section>
 
     <!-- BOT-SCHWIERIGKEIT (pro Bot einstellbar, per Tipp aufs Badge) -->
-    <section id="botDiffOverlay" class="overlay hidden">
+    <section id="botDiffOverlay" class="overlay hidden" data-sheet-close="botDiffCloseBtn">
       <div class="overlay-card">
         <h2 id="botDiffTitle">Bot-Schwierigkeit</h2>
         <div id="botDiffOptions" class="botDiffOptions"></div>
@@ -924,7 +924,7 @@
     </section>
 
     <!-- PARTIE-RUECKBLICK (Runde fuer Runde durch die beendete Partie) -->
-    <section id="replayOverlay" class="overlay hidden">
+    <section id="replayOverlay" class="overlay hidden" data-sheet-close="replayCloseBtn">
       <div class="overlay-card">
         <h2><svg class="icon" aria-hidden="true"><use href="#i-film"/></svg><span>Partie-Rückblick</span></h2>
         <div class="replayNav">
@@ -938,7 +938,7 @@
     </section>
 
     <!-- SPIELREGELN -->
-    <section id="tutorialChecklistOverlay" class="overlay hidden">
+    <section id="tutorialChecklistOverlay" class="overlay hidden" data-sheet-close="tutorialChecklistCloseBtn">
       <div class="overlay-card">
         <h2 id="tutorialChecklistTitle"><svg class="icon" aria-hidden="true"><use href="#i-cap"/></svg><span>Dein Fortschritt</span></h2>
         <ul id="tutorialChecklist" class="tutorialChecklist"></ul>
@@ -947,7 +947,7 @@
       </div>
     </section>
 
-    <section id="settingsOverlay" class="overlay hidden">
+    <section id="settingsOverlay" class="overlay hidden" data-sheet-close="settingsOverlayCloseBtn">
       <div class="overlay-card">
         <h2 id="settingsOverlayTitle"><svg class="icon" aria-hidden="true"><use href="#i-gear"/></svg><span>Einstellungen</span></h2>
         <div class="settingsList">
@@ -1037,7 +1037,7 @@
       </div>
     </section>
 
-    <section id="rulesOverlay" class="overlay hidden">
+    <section id="rulesOverlay" class="overlay hidden" data-sheet-close="rulesCloseBtn">
       <div class="overlay-card">
         <h2 id="rulesTitle"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span>Spielregeln</span></h2>
         <div id="rulesContent" class="changelogContent">
@@ -1099,7 +1099,7 @@
     </section>
 
     <!-- CHANGELOG -->
-    <section id="changelogOverlay" class="overlay hidden">
+    <section id="changelogOverlay" class="overlay hidden" data-sheet-close="changelogCloseBtn">
       <div class="overlay-card">
         <h2>Was ist neu?</h2>
         <div id="changelogContent" class="changelogContent"></div>
@@ -1108,7 +1108,7 @@
     </section>
 
     <!-- STATISTIK -->
-    <section id="statsOverlay" class="overlay hidden">
+    <section id="statsOverlay" class="overlay hidden" data-sheet-close="statsCloseBtn">
       <div class="overlay-card">
         <h2><svg class="icon" aria-hidden="true"><use href="#i-chart"/></svg><span>Statistik</span></h2>
         <!-- Zwei Ansichten: Bestenliste (alle Spieler) und die eigene
@@ -1139,7 +1139,7 @@
     </section>
 
     <!-- QR-CODE ZUM BEITRETEN -->
-    <section id="qrOverlay" class="overlay hidden">
+    <section id="qrOverlay" class="overlay hidden" data-sheet-close="qrCloseBtn">
       <div class="overlay-card">
         <h2>Zum Mitspielen scannen</h2>
         <p class="lobby-hint">Mit der Kamera scannen – der Spiel-Code wird automatisch übernommen.</p>
@@ -1150,7 +1150,7 @@
     </section>
 
     <!-- ABWURF-SCHUTZ FÜR WERTVOLLE KARTEN -->
-    <section id="confirmDiscardOverlay" class="overlay hidden">
+    <section id="confirmDiscardOverlay" class="overlay hidden" data-sheet-close="confirmDiscardNoBtn">
       <div class="overlay-card">
         <h2 id="confirmDiscardTitle">Wirklich abwerfen?</h2>
         <p class="lobby-hint" id="confirmDiscardText"></p>
@@ -1162,7 +1162,7 @@
     </section>
 
     <!-- ABLAGESTAPEL-VORSCHAU -->
-    <section id="discardPreviewOverlay" class="overlay hidden">
+    <section id="discardPreviewOverlay" class="overlay hidden" data-sheet-close="discardPreviewCloseBtn">
       <div class="overlay-card">
         <h2><span id="discardPreviewTitle">Ablagestapel</span> <span id="discardPreviewCount"></span></h2>
         <p class="lobby-hint">Oberste Karte zuerst – alle Karten wurden offen abgelegt.</p>
@@ -1189,7 +1189,7 @@
       </div>
     </section>
 
-    <section id="jokerChoiceOverlay" class="overlay hidden">
+    <section id="jokerChoiceOverlay" class="overlay hidden" data-sheet-close="jokerChoiceCancelBtn">
       <div class="overlay-card">
         <h2>Was soll der Joker sein?</h2>
         <p class="lobby-hint">Mehrere Kombinationen sind möglich – bitte wählen.</p>
@@ -1234,7 +1234,7 @@
 
     <!-- PROGRESS: level, XP, next reward, title ladder. Lifetime progress,
          so it lives on the identity chip, not under the daily tasks. -->
-    <section id="progressOverlay" class="overlay hidden">
+    <section id="progressOverlay" class="overlay hidden" data-sheet-close="progressCloseBtn">
       <div class="overlay-card progressCard" role="dialog" aria-labelledby="progressTitle">
         <h2 id="progressTitle">Dein Fortschritt</h2>
         <div id="progressContent"></div>
@@ -1244,7 +1244,7 @@
 
     <!-- LEVEL UP (#315): after the result overlay in the DOM, so it wins at
          the same layer; pause/forfeit (.overlayTop) still cover it. -->
-    <section id="levelUpOverlay" class="overlay hidden">
+    <section id="levelUpOverlay" class="overlay hidden" data-sheet-close="levelUpCloseBtn">
       <div class="overlay-card levelUpCard" role="dialog" aria-labelledby="levelUpTitle">
         <div id="levelUpConfetti" class="levelUpConfetti" aria-hidden="true"></div>
         <h2 id="levelUpTitle" class="levelUpTitle"></h2>
@@ -1258,7 +1258,7 @@
 
     <!-- Forfeit confirmation in the app, not window.confirm (iOS can suppress
          native dialogs silently). .overlayTop: above every game effect. -->
-    <section id="confirmForfeitOverlay" class="overlay overlayTop hidden">
+    <section id="confirmForfeitOverlay" class="overlay overlayTop hidden" data-sheet-close="confirmForfeitNoBtn">
       <div class="overlay-card">
         <h2>Spiel aufgeben?</h2>
         <p class="lobby-hint">Die Partie endet nur, wenn ALLE aktiven Spieler zustimmen - dann wird das Spiel sofort abgebrochen (kein Sieger, keine Wertung).</p>
