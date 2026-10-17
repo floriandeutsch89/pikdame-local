@@ -838,14 +838,13 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   display: flex; flex-flow: row wrap; align-content: flex-start;
   gap: 8px;
 }
+/* No frame of its own (v2.63): spacing separates the melds. The transparent
+   padding is the area the lay-off ring, drop target and tutorial glow light up. */
 .meldGroup {
   display: flex; gap: 3px; flex-wrap: nowrap;
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
   border-radius: var(--r-sm);
-  padding: 6px;
+  padding: 4px;
   flex: 0 0 auto;
-  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
 }
 
 
@@ -1228,8 +1227,9 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 /* Kombinationen nebeneinander; Umbruch erst bei Platzmangel */
 .meldRow {
   display: flex; flex-wrap: wrap;
-  gap: 10px 14px;
+  gap: 4px 12px;
   align-items: flex-start;
+  margin: 0 -4px -4px; /* cards line up with the header despite the meld padding */
 }
 .meldRow .meldGroup { flex: 0 0 auto; }
 /* "Du bist dran": kurzer Puls der Topbar */
@@ -1320,6 +1320,43 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   background: rgba(0,0,0,0.06); color: var(--card-ink);
   border: none; backdrop-filter: none; -webkit-backdrop-filter: none;
 }
+
+/* Grip of a sheet that can be swiped away (only dialogs with a close button,
+   see data-sheet-close); shown in the phone sheet layout only. */
+.sheetGrabber {
+  display: none;
+  position: absolute; top: 0; left: 0; right: 0; z-index: 1;
+  height: 26px;
+  touch-action: none;
+}
+.sheetGrabber::before {
+  content: ''; display: block;
+  width: 36px; height: 5px; border-radius: 3px;
+  margin: 10px auto 0;
+  background: rgba(0, 0, 0, 0.18);
+}
+/* Phones held upright: dialogs dock to the bottom edge as sheets (thumb reach,
+   the native pattern). Landscape and desktop keep the centred card. */
+@media (max-width: 600px) and (orientation: portrait) {
+  .overlay {
+    align-items: flex-end;
+    padding: calc(16px + var(--safe-top)) 0 0;
+    animation: sheetBackdropIn 0.25s ease-out;
+  }
+  .overlay-card {
+    max-width: none; max-height: 100%;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    padding-bottom: calc(22px + var(--safe-bottom));
+    /* No overshoot: a bouncing sheet would lift off the bottom edge. */
+    animation: sheetIn 0.34s cubic-bezier(0.2, 0.9, 0.25, 1);
+  }
+  /* The result card sets its own footer padding with an id selector. */
+  #resultOverlay.overlay .overlay-card { padding-bottom: calc(12px + var(--safe-bottom)); }
+  .sheetGrabber { display: block; }
+  .overlay.sheetDragging { background-color: rgba(0, 0, 0, calc(0.5 * var(--sheet-fade, 1))); }
+}
+@keyframes sheetIn { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes sheetBackdropIn { from { background-color: transparent; } }
 
 /* --- Round result ----------------------------------------------------------
    The winner is whoever went OUT - frequently not the highest total on
@@ -1495,13 +1532,14 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   cursor: pointer; list-style: none; font-weight: 600;
   min-height: 28px; display: inline-flex; align-items: center; gap: 4px;
 }
-/* Compact line, full --tap-min hit area (::before is the triangle). */
+/* Compact line, full --tap-min hit area. */
 .resultBreakdown summary::after {
   content: ''; position: absolute; left: 0; right: 0;
   top: 50%; height: var(--tap-min); transform: translateY(-50%);
 }
-.resultBreakdown summary::before { content: '▸'; font-size: 0.7em; }
-.resultBreakdown[open] summary::before { content: '▾'; }
+/* Same chevron as "Mehr" below, turning the same way. */
+.resultBreakdown summary .icon { width: 1.1em; height: 1.1em; transition: transform 0.2s var(--ease); }
+.resultBreakdown[open] summary .icon { transform: rotate(180deg); }
 .resultBreakdown summary::-webkit-details-marker { display: none; }
 .bdLine {
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px;
@@ -2164,7 +2202,7 @@ body.raidActive #toastContainer { margin-top: 132px; }
     position: absolute; top: 3px; left: 8px; right: 8px;
     font-size: var(--fs-micro); line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .meldRow { gap: 4px; }
+  .meldRow { gap: 2px 6px; margin: 0 -3px -3px; }
   .meldGroup { padding: 3px; gap: 0; } /* two melds per row in a quarter column */
   #melds .card-compact { width: 34px; height: 48px; min-width: 34px; margin-left: -20px; }
   #melds .card-compact:first-child { margin-left: 0; }
@@ -2239,6 +2277,9 @@ body.raidActive #toastContainer { margin-top: 132px; }
 }
 .meldGroup.layOffTarget {
   border-radius: var(--r-sm);
+  /* Melds have no frame any more: the tint marks the whole target area. */
+  background: rgba(67, 221, 154, 0.12);
+  background: color-mix(in srgb, var(--success) 16%, transparent);
   animation: layOffTargetPulse 1.4s ease-in-out infinite;
 }
 /* Desktop drag-and-drop: the dragged card ghosts, the target under the
@@ -3090,7 +3131,7 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
    Compositing-Arbeit. `.appHidden` wird vom Client bei visibilitychange gesetzt.
    Zusätzlich respektieren wir die System-Einstellung "Bewegung reduzieren". */
 .appHidden .pile.glow,
-.appHidden .meld.layOffTarget,
+.appHidden .meldGroup.layOffTarget,
 .appHidden .opponent.active,
 .appHidden .yourTurnPulse {
   animation: none !important;
@@ -3098,7 +3139,7 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 
 @media (prefers-reduced-motion: reduce) {
   .pile.glow,
-  .meld.layOffTarget,
+  .meldGroup.layOffTarget,
   .opponent.active,
   .yourTurnPulse {
     animation: none !important;
