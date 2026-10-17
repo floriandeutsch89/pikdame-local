@@ -3758,6 +3758,15 @@ input:disabled { opacity: 0.65; }
   font-size: var(--fs-hint); font-variant-numeric: tabular-nums;
 }
 .ladderRow.isMe { background: rgba(47, 214, 176, 0.18); font-weight: 700; }
+/* Season finale: last season's place + the permanent season badges. */
+.ladderLast { margin: 8px 0 0; font-size: var(--fs-hint); color: var(--text-muted); }
+.seasonAwards { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.seasonAward {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px;
+  border-radius: 999px; background: var(--accent-soft);
+  font-size: var(--fs-hint); font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.achTile.achSeason { cursor: default; }
 
 /* --- Challenge: Rückblick auf vergangene Tage ------------------------------ */
 .challengeHistory { margin-top: 8px; font-size: 0.88em; opacity: 0.9; }
