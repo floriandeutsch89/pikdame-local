@@ -40,6 +40,17 @@ test('every inline script in index.html is allowed by a CSP hash', () => {
   }
 });
 
+test('every inline script on every served page is allowed by the CSP', () => {
+  // One global CSP hashes index.html only; the legal page sat empty for months.
+  const pages = fs.readdirSync(path.join(root, 'public')).filter((f) => f.endsWith('.html'));
+  assert.ok(pages.includes('impressum.html'));
+  for (const page of pages) {
+    for (const body of inlineScripts(read(`public/${page}`))) {
+      assert.ok(cspLine.includes(`'${hashOf(body)}'`), `public/${page}: inline script blocked by the CSP - load it as a file`);
+    }
+  }
+});
+
 test('the CSP carries no stale script hashes', () => {
   const allowed = new Set(inlineScripts(html).map(hashOf));
   for (const [, hash] of cspLine.matchAll(/'(sha256-[A-Za-z0-9+/=]+)'/g)) {

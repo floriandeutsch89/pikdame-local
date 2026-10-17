@@ -41,7 +41,8 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
    (`--font-display`, `public/fonts/`, OFL, Hash im README; Vertragstest).
    **Emoji sind keine Icons** (nur als Inhalt: Bot-Avatare, Reaktionen,
    Abzeichen). Text neben Icon in eigenes `<span>` — `applyStaticLang()`
-   überschreibt `textContent` von Blatt-Elementen.
+   überschreibt `textContent` von Blatt-Elementen. Inline-Skripte nur in
+   `index.html` (CSP-Hash); andere Seiten laden Skripte als Datei (Vertragstest).
 2b. **Mobile zuerst** (iPhone 393×852). Jede UI-Änderung prüfen in: hoch,
    **quer** (874×402, nur ~400 px Höhe!) und Desktop. Der letzte
    `@media (orientation: landscape) and (max-height: 540px)`-Block steht am
