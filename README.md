@@ -253,10 +253,11 @@ docs/ · scripts/   Operations guide, backup/restore
   runs exactly the same — plus dependency audit, Dockerfile lint, Trivy scan,
   Helm validation and a smoke test that boots the fully hardened compose
   configuration. Everything on Node 26.
-- **Releases are automated**: bump the version in `package.json` + write the
-  CHANGELOG section → on push to `main` the workflow creates the git tag, the
-  GitHub release (notes from the CHANGELOG), the multi-arch image and the
-  Helm chart on GHCR.
+- **Releases are automated**: a game change brings a changelog fragment in
+  `changes/` → a bot collects them into the pull request "Release vX.Y.Z"
+  (version + CHANGELOG section) → its merge creates the git tag, the GitHub
+  release (notes from the CHANGELOG), the multi-arch image and the Helm chart
+  on GHCR.
 - **Conventions** (language, constraints, workflow): [CLAUDE.md](CLAUDE.md).
   Most important rule: external packages only when they are really sensible
   and necessary — when building it ourselves would be security-critical or

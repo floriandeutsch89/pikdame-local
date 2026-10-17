@@ -22,7 +22,7 @@
 
 - [ ] `git log --oneline origin/main..HEAD` shows only this PR's commits
 - [ ] `npm test` passes
-- [ ] SemVer bump in `package.json` (+ `package-lock.json`) and a CHANGELOG section (headings English, content German)
+- [ ] Changelog fragment in `changes/` (game changes; headings English, bullets German) - no version bump, no `CHANGELOG.md` edit
 - [ ] New visible text has i18n entries (`I18N_STATIC` / `L(de, en)` / `I18N_SERVER_PATTERNS`)
 - [ ] UI checked in the browser in all three layouts, not only via tests
 - [ ] No new npm dependency (or explicitly approved)

@@ -1,0 +1,139 @@
+name: Release PR
+
+# Collects the changelog fragments on main (changes/*.md) into ONE pull
+# request "Release vX.Y.Z", rebuilt on every push to main:
+#   release/next = main HEAD + `node scripts/release.js --apply`
+#   (version in package.json/package-lock.json, new CHANGELOG.md section,
+#   fragments deleted). Merging it IS the release: release.yml sees the
+#   untagged version and tags, publishes and deploys as before.
+# - Minor/patch: auto-merge (squash) once the required checks pass.
+# - Major (only via <!-- bump: major --> in a fragment): no auto-merge, label
+#   needs-review and a review request.
+# - Transition: a number up to LEGACY_LAST (scripts/release.js) may still
+#   belong to an old-style PR - the release PR then waits for a manual merge.
+#
+# Acts through the GitHub App of dependabot-auto.yml, not GITHUB_TOKEN: what
+# GITHUB_TOKEN pushes, opens or merges starts no workflow, so CI would never
+# run on the release PR and its merge would never start release.yml.
+#
+# Setup (once), details in docs/admin/auto-deploy.md:
+#   1. DEPS_BOT_APP_ID + DEPS_BOT_PRIVATE_KEY as *Actions* secrets as well
+#      (Settings -> Secrets and variables -> Actions). The Dependabot store
+#      that dependabot-auto.yml reads is invisible to this workflow.
+#   2. Settings -> General -> Pull Requests -> "Allow auto-merge".
+#   3. Rules for main: "Require status checks to pass" with "Require branches
+#      to be up to date before merging".
+# Without the secrets the run only warns (never red); fragments wait on main.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read # every write goes through the App token
+
+# A newer push rebuilds the branch from scratch anyway.
+concurrency:
+  group: release-pr
+  cancel-in-progress: true
+
+jobs:
+  release-pr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # tags (next version) and history (fragment order)
+          persist-credentials: false
+
+      - name: Plan the release
+        id: plan
+        run: |
+          node scripts/release.js --dry-run --json > "$RUNNER_TEMP/plan.json"
+          RELEASE=$(jq -r .release "$RUNNER_TEMP/plan.json")
+          echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
+          if [ "$RELEASE" = "true" ]; then
+            echo "Next: v$(jq -r .version "$RUNNER_TEMP/plan.json") from $(jq -r '.fragments | length' "$RUNNER_TEMP/plan.json") fragment(s)"
+          else
+            echo "No changelog fragments on main - nothing to release."
+          fi
+
+      - name: App credentials present?
+        id: creds
+        if: steps.plan.outputs.release == 'true'
+        env:
+          APP_ID: ${{ secrets.DEPS_BOT_APP_ID }}
+          APP_KEY: ${{ secrets.DEPS_BOT_PRIVATE_KEY }}
+        run: |
+          if [ -n "$APP_ID" ] && [ -n "$APP_KEY" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=No release PR::DEPS_BOT_APP_ID and DEPS_BOT_PRIVATE_KEY are not Actions secrets (the Dependabot store is not readable here). The changelog fragments wait on main until they are - setup: docs/admin/auto-deploy.md"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Mint a GitHub App token
+        id: app
+        if: steps.creds.outputs.ok == 'true'
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.DEPS_BOT_APP_ID }}
+          private-key: ${{ secrets.DEPS_BOT_PRIVATE_KEY }}
+
+      - name: Rebuild release/next from main
+        id: build
+        if: steps.creds.outputs.ok == 'true'
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/release.json"
+          git switch -C release/next
+          node scripts/release.js --apply --json > "$OUT"
+          VERSION=$(jq -r .version "$OUT")
+          git add CHANGELOG.md package.json package-lock.json changes
+          git -c user.name=pikdame-release-bot -c user.email=release-bot@pikdame.local \
+            commit -q -m "chore(release): v$VERSION"
+          {
+            echo "version=$VERSION"
+            echo "auto_merge=$(jq -r .autoMerge "$OUT")"
+            echo "hold=$(jq -r .hold "$OUT")"
+          } >> "$GITHUB_OUTPUT"
+          {
+            jq -r .section "$OUT"
+            echo "---"
+            echo "Built by release-pr.yml from $(jq -r '.fragments | length' "$OUT") changelog fragment(s) and rebuilt on every push to main. Merging it releases v$VERSION: release.yml tags it, publishes the image and deploys."
+          } > "$RUNNER_TEMP/body.md"
+
+      - name: Push release/next, open or update the release PR
+        if: steps.creds.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ steps.build.outputs.version }}
+          AUTO_MERGE: ${{ steps.build.outputs.auto_merge }}
+          HOLD: ${{ steps.build.outputs.hold }}
+        run: |
+          set -euo pipefail
+          # Bot-owned branch: always main + exactly one release commit.
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:refs/heads/release/next
+          PR=$(gh pr list --head release/next --base main --state open --json url --jq '.[0].url // ""')
+          if [ -z "$PR" ]; then
+            PR=$(gh pr create --head release/next --base main --title "Release v$VERSION" --body-file "$RUNNER_TEMP/body.md")
+          else
+            gh pr edit "$PR" --title "Release v$VERSION" --body-file "$RUNNER_TEMP/body.md"
+          fi
+          echo "Release PR: $PR (v$VERSION)"
+          if [ "$AUTO_MERGE" = "true" ]; then
+            gh pr merge "$PR" --auto --squash \
+              || echo "::warning title=No auto-merge::could not enable auto-merge on $PR - is 'Allow auto-merge' on? (Settings -> General)"
+            exit 0
+          fi
+          # An earlier minor/patch build may have switched auto-merge on.
+          gh pr merge "$PR" --disable-auto > /dev/null 2>&1 || true
+          if [ "$HOLD" = "major" ]; then
+            gh pr edit "$PR" --add-label needs-review --add-reviewer floriandeutsch89 \
+              || echo "::warning::labelling/review request failed (non-fatal)"
+            echo "::notice title=Major release::v$VERSION waits for a review - no auto-merge."
+          else
+            echo "::notice title=Transition::v$VERSION may still belong to an open old-style PR - merge those first, or this PR by hand (no auto-merge up to the LEGACY_LAST version in scripts/release.js)."
+          fi

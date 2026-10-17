@@ -1,15 +1,17 @@
 # Automatic deploy after a merge
 
-Without this, Watchtower picks up a new release at 04:00. With it, a merge to
-`main` is live a few minutes later:
+Without this, Watchtower picks up a new release at 04:00. With it, a merged
+release is live a few minutes later:
 
-1. The release workflow builds the images and pushes them to GHCR (as before):
+1. The **release PR** *Release vX.Y.Z* is merged — by itself for minor and
+   patch releases (see [below](#the-release-pr)).
+2. The release workflow builds the images and pushes them to GHCR (as before):
    the app and the Caddy proxy.
-2. The **Deploy** job logs in to the server over SSH.
-3. The server runs `docker compose -f docker-compose.prod.yml pull` and
+3. The **Deploy** job logs in to the server over SSH.
+4. The server runs `docker compose -f docker-compose.prod.yml pull` and
    `up -d` on **your** compose file - Watchtower's job, right away. Nothing is
    downloaded from the repository and nothing is compiled on the server.
-4. The job waits until `/statusz` reports the new version. If it does not
+5. The job waits until `/statusz` reports the new version. If it does not
    within 3 minutes, the job turns red.
 
 Watchtower keeps running as a nightly safety net.
@@ -27,6 +29,46 @@ mentions such a change, compare and apply it by hand, or run
 `scripts/server-update.sh` (it replaces `docker-compose.prod.yml` with the
 repository version and keeps `.env` and `secrets/`).
 :::
+
+## The release PR
+
+Feature pull requests no longer bump the version. A game change brings a
+changelog fragment (`changes/<topic>.md`); on every push to `main`,
+`.github/workflows/release-pr.yml` rebuilds the bot-owned branch
+`release/next` from `main` with `node scripts/release.js --apply` (version in
+`package.json` and `package-lock.json`, new `CHANGELOG.md` section, fragments
+deleted) and opens or updates the pull request **Release vX.Y.Z**:
+
+| Release | What happens |
+| --- | --- |
+| minor / patch | auto-merge (squash) as soon as the required checks pass |
+| major (`<!-- bump: major -->` in a fragment) | no auto-merge: label `needs-review`, review request to the owner |
+| up to v2.70.0 (transition) | no auto-merge: the number may still belong to an open pull request from before the fragments — merge those first, or the release PR by hand |
+
+Its merge is an ordinary push to `main` with a new, untagged version, so
+`release.yml` tags, publishes and deploys exactly as before. Pull requests
+that still bump the version themselves keep working the same way.
+
+### One-time setup
+
+The workflow uses the GitHub App from the Dependabot setup
+({doc}`../developer/contributing`) — a release PR opened or merged with
+`GITHUB_TOKEN` would start neither CI nor `release.yml`.
+
+1. **Actions secrets** — *Settings → Secrets and variables → **Actions***:
+   add `DEPS_BOT_APP_ID` and `DEPS_BOT_PRIVATE_KEY` with the same values as
+   in the Dependabot store. A push to `main` cannot read the Dependabot
+   store, and Dependabot runs cannot read the Actions store, so both need
+   them.
+2. **Allow auto-merge** — *Settings → General → Pull Requests*.
+3. **Branch rule for `main`** — *Settings → Rules* (or *Branches*) → the rule
+   for `main` → *Require status checks to pass* with *Require branches to be
+   up to date before merging*. Optionally add the check
+   `changelog-fragment` to the required checks.
+
+Without the secrets the workflow only prints a warning and stays green; the
+fragments then wait on `main` and nothing is released. To pause releases,
+disable the workflow (*Actions → Release PR → Disable workflow*).
 
 ## Tutorial (about 15 minutes)
 
@@ -191,8 +233,8 @@ Repository → **Settings → Secrets and variables → Actions → Variables**:
 Live: v2.42.0
 ```
 
-From now on every merge that creates a release deploys by itself — including
-Dependabot's automatic minor/patch merges.
+From now on every release deploys by itself — including the release PRs that
+merge on their own, e.g. with Dependabot's minor/patch updates.
 
 ## Turning it off
 

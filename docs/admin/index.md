@@ -26,6 +26,7 @@ operations
 | **Back up my data — and prove the restore works** | {doc}`backup-restore` |
 | Run a trained (ONNX) bot instead of the heuristic one | {doc}`onnx` |
 | **Deploy automatically after every merge** (instead of nightly) | {doc}`auto-deploy` |
+| Releases from changelog fragments: the automatic release PR (one-time setup) | {doc}`auto-deploy` |
 | Try every pull request on a beta site before merging | {doc}`beta` |
 | Reverse proxy: the shared Caddy stack (TLS, CrowdSec) | {doc}`shared-caddy` |
 | Upgrades, monitoring, CrowdSec, the full ops runbook | {doc}`operations` |
