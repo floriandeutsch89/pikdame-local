@@ -36,7 +36,9 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   rules), `botdiff` (the strength picker), `stammtisch` (the record
   sheet behind the start-screen chip), `stammtisch-lobby` (a game lobby
   shown as a seat at the mock Stammtisch: its record panel), `settings` / `settings-aids`
-  (the "Mehr" sheet: top / scrolled to the play aids). Any order works:
+  (the "Mehr" sheet: top / scrolled to the play aids), `tower` (the bot
+  tower sheet, opened from the progress sheet), `gameover-tower` (a stage
+  verdict on the result sheet). Any order works:
   a start-screen scene after `table` or a result reloads the start screen
   first (its buttons are hidden there and the clicks used to time out).
 - Prints the written PNG paths. Look at them with the Read tool; don't

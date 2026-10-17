@@ -2539,8 +2539,9 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 .pgTowerGo { transform: rotate(-90deg); color: var(--text-muted); }
 .towerSummary { margin: 0 0 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .towerList { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+/* The bot column holds three level icons (11px x 2.544 each), so the handicap lines up. */
 .twStage {
-  display: grid; grid-template-columns: 28px auto 1fr auto; align-items: center; gap: 10px;
+  display: grid; grid-template-columns: 28px 92px 1fr auto; align-items: center; gap: 10px;
   width: 100%; min-height: var(--tap-min); padding: 4px 10px;
   border: 1.5px solid transparent; border-radius: var(--r-sm); background: rgba(0,0,0,0.04);
   font: inherit; color: var(--card-ink); text-align: left; cursor: pointer;
