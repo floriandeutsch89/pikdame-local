@@ -10,6 +10,7 @@ generated from the source, so it cannot go stale.
 | `PIKDAME_ACCOUNTS` | unset (compare against `0`) | Set to `0` to disable user accounts entirely (pure guest play). |
 | `PIKDAME_ALLOWED_ORIGIN` | unset | If set, only WebSocket connections from this origin are accepted (CSRF hardening). |
 | `PIKDAME_BASE_URL` | the request's own host | Public base URL used to build invite links and QR codes (e.g. `https://play.example.com`). |
+| `PIKDAME_BIRTHDAY` | — | Optional greeting days: comma-separated `MM-DD:account` entries (account = user name, case-insensitive). On that game day (German time) only that signed-in account sees a small greeting on the start screen; nobody else sees anything. Broken entries are skipped and logged by position. |
 | `PIKDAME_DATA_DIR` | `<app>/data` | Directory for all persistent data (profiles, stats, accounts, session snapshot). Point this at your mounted volume. |
 | `PIKDAME_DATABASE_PASSWORD` | unset | Password for the PostgreSQL connection (also readable from a `_FILE` secret; see Configuration). |
 | `PIKDAME_DATABASE_URL` | unset | PostgreSQL connection string for accounts. If unset, a local SQLite file (`users.db`) inside the data directory is used. |

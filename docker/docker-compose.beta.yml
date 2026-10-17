@@ -31,6 +31,7 @@ services:
       - PIKDAME_SMTP_PASS_FILE=/run/secrets/smtp_password
       - PIKDAME_MAIL_FROM=${PIKDAME_MAIL_FROM:-}
       - PIKDAME_ADMIN_TOKEN=${PIKDAME_BETA_ADMIN_TOKEN:-}
+      - PIKDAME_BIRTHDAY=${PIKDAME_BIRTHDAY:-}
     secrets:
       - beta_db_password
       - smtp_password

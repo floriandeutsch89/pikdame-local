@@ -66,6 +66,8 @@ services:
       #     in .env inside SINGLE quotes. Or PIKDAME_ADMIN_TOKEN_FILE for a secret.
       #     Docs: docs/admin/admin-page.md
       - PIKDAME_ADMIN_TOKEN=${PIKDAME_ADMIN_TOKEN:-}
+      # Optional greeting days (MM-DD:account, comma-separated); see .env.example.
+      - PIKDAME_BIRTHDAY=${PIKDAME_BIRTHDAY:-}
       #
       # DIRECT SMTP instead of the proxy: set in .env
       #     PIKDAME_SMTP_HOST=smtp.eu.mailgun.org

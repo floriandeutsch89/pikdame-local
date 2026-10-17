@@ -32,6 +32,7 @@ const { createAdminTokenVerifier } = require('./game/AdminToken');
 const { createMonitor } = require('./game/Monitor');
 const { createPasskeyService, deviceName } = require('./game/Passkeys');
 const { isAllowedEmote, emoteLevel } = require('./game/Emotes');
+const { parseGreetingDays, greetingWindow } = require('./game/GreetingDays');
 const { puzzleForDate, publicPuzzle, checkAnswer, XP_FOR_SOLVED, PUZZLE_EPOCH } = require('./game/DailyPuzzle');
 const { createStammtischStore, normalizeCode: normalizeStammtischCode } = require('./game/StammtischStore');
 const { createGameHistoryStore, historyForPlayer } = require('./game/GameHistoryStore');
@@ -75,6 +76,16 @@ if (ACCOUNTS_ENABLED) {
 } else {
   console.log('Benutzerkonten: deaktiviert (node:sqlite nicht verfügbar oder PIKDAME_ACCOUNTS=0)');
 }
+// Parsed once; a broken entry is skipped and logged by position only (the values are personal).
+const greetingDays = (() => {
+  try {
+    const { entries, invalid } = parseGreetingDays(process.env.PIKDAME_BIRTHDAY);
+    if (invalid.length) console.log(`[greeting] PIKDAME_BIRTHDAY: ignored entry ${invalid.join(', ')} (expected MM-DD:account)`);
+    return entries;
+  } catch (e) {
+    return [];
+  }
+})();
 const gameHistoryStore = createGameHistoryStore();
 // Stammtisch: persistent group tables (code -> members, record, series).
 // Scoped by code, so it stays on in public mode - see StammtischStore.
@@ -1056,7 +1067,8 @@ async function handleAccountRequest(req, res, filePath) {
   if (filePath === '/api/me') {
     const u = await accountStore.sessionUser(body.token);
     if (!u) return sendJson(res, 401, { error: 'Nicht angemeldet.' });
-    return sendJson(res, 200, { ok: true, username: u.username });
+    const greeting = greetingWindow(greetingDays, u.username);
+    return sendJson(res, 200, { ok: true, username: u.username, ...(greeting ? { greeting } : {}) });
   }
   if (filePath === '/api/ladder') {
     // Season ladder. The board itself is public (usernames + XP only, no

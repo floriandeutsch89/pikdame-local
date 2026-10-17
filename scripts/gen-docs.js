@@ -40,6 +40,7 @@ const ENV_NOTES = {
   PIKDAME_LOG_GAMES: 'Set to `1` to log human moves to JSONL for imitation learning.',
   PIKDAME_LOG_PATH: 'Where the move log is written.',
   PIKDAME_SMTP_EHLO: 'Host name announced in SMTP `EHLO`. Defaults to the host of `PIKDAME_BASE_URL`, else the machine name.',
+  PIKDAME_BIRTHDAY: 'Optional greeting days: comma-separated `MM-DD:account` entries (account = user name, case-insensitive). On that game day (German time) only that signed-in account sees a small greeting on the start screen; nobody else sees anything. Broken entries are skipped and logged by position.',
 };
 
 function generateConfiguration() {
@@ -407,7 +408,7 @@ function clientQuestText() {
 function generateProgression() {
   const P = require(path.join(ROOT, 'game', 'Progression'));
   const { BADGE_IDS, BADGE_FAMILIES } = require(path.join(ROOT, 'game', 'Badges'));
-  const { EMOTE_DEFS, SEASONAL_EMOTES } = require(path.join(ROOT, 'game', 'Emotes'));
+  const { EMOTE_DEFS, SEASONAL_EMOTES, GREETING_EMOTE } = require(path.join(ROOT, 'game', 'Emotes'));
   const { QUIP_MOMENTS } = require(path.join(ROOT, 'game', 'BotQuips'));
 
   // XP per point is not exported; measure it instead of duplicating the constant.
@@ -514,7 +515,8 @@ on the client:
 ${emoteRows.join('\n')}
 
 Seasonal extras the client offers in autumn and around New Year: ${SEASONAL_EMOTES.join(' ')}
-(always accepted server-side).
+(always accepted server-side). On a configured greeting day (\`PIKDAME_BIRTHDAY\`) that
+account also gets ${GREETING_EMOTE}.
 
 Bots may say a short line at **${QUIP_MOMENTS.length}** moments
 (\`${QUIP_MOMENTS.join('`, `')}\`). Only the moment id travels over the wire;
