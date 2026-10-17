@@ -43,12 +43,12 @@ deleted) and opens or updates the pull request **Release vX.Y.Z**:
 | --- | --- |
 | minor / patch | auto-merge (squash) as soon as the required checks pass |
 | major (`<!-- bump: major -->` in a fragment) | no auto-merge: label `needs-review`, review request to the owner |
-| up to v2.70.0 (transition) | no auto-merge: the number may still belong to an open pull request from before the fragments — merge those first, or the release PR by hand |
+| up to v2.71.0 (transition) | no auto-merge: the number may still belong to an open pull request from before the fragments — merge those first, or the release PR by hand |
 
 Its merge is an ordinary push to `main` with a new, untagged version, so
 `release.yml` tags, publishes and deploys exactly as before. The same holds
 for the last pull requests that still bump the version themselves
-(transition, up to v2.70.0).
+(transition, up to v2.71.0).
 
 ### One-time setup
 

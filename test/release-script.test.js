@@ -176,11 +176,12 @@ test('refuses to write below a CHANGELOG that is already at or above the next ve
 
 test('auto-merge: off for a major release and for numbers still reserved by old-style PRs', () => {
   const plan = (packageVersion, text) => R.planRelease({ fragments: [frag(text)], packageVersion, date: 'd' });
-  assert.strictEqual(R.LEGACY_LAST, '2.70.0');
+  assert.strictEqual(R.LEGACY_LAST, '2.71.0');
   assert.deepStrictEqual(pick(plan('2.67.0', '### Added\n- x')), { version: '2.68.0', autoMerge: false, hold: 'transition' });
   assert.deepStrictEqual(pick(plan('2.69.0', '### Fixed\n- x')), { version: '2.69.1', autoMerge: false, hold: 'transition' });
-  assert.deepStrictEqual(pick(plan('2.70.0', '### Fixed\n- x')), { version: '2.70.1', autoMerge: true, hold: '' });
-  assert.deepStrictEqual(pick(plan('2.70.0', '### Added\n- x')), { version: '2.71.0', autoMerge: true, hold: '' });
+  assert.deepStrictEqual(pick(plan('2.70.0', '### Added\n- x')), { version: '2.71.0', autoMerge: false, hold: 'transition' });
+  assert.deepStrictEqual(pick(plan('2.71.0', '### Fixed\n- x')), { version: '2.71.1', autoMerge: true, hold: '' });
+  assert.deepStrictEqual(pick(plan('2.71.0', '### Added\n- x')), { version: '2.72.0', autoMerge: true, hold: '' });
   assert.deepStrictEqual(pick(plan('2.71.0', '<!-- bump: major -->\n### Changed\n- x')), { version: '3.0.0', autoMerge: false, hold: 'major' });
   function pick(p) {
     return { version: p.version, autoMerge: p.autoMerge, hold: p.hold };

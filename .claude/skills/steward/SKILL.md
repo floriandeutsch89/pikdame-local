@@ -35,7 +35,7 @@ it without missing a step. Read CLAUDE.md first if you have not.
 - Follow-up commits in the same PR extend that fragment. A stacked PR may
   extend its predecessor's fragment or add its own.
 - Preview the release: `node scripts/release.js --dry-run`.
-- Transition: PRs opened before fragments with a bump up to v2.70.0 stay as
+- Transition: PRs opened before fragments with a bump up to v2.71.0 stay as
   they are. If main has passed their number, convert them: section body
   into `changes/<topic>.md`, version lines and CHANGELOG.md back to main.
 
@@ -73,6 +73,8 @@ Refresh them when a follow-up commit changes what they show.
   Screenshots / Checklist). Delete sections that do not apply.
 - Update the description when follow-up commits change scope. Reviewers
   read the description, not the commit list.
+- Read the body back after creating or editing it: image links came out as
+  escaped backtick/quote junk three times (#349, #355, #356).
 - The user squash-merges. Never merge yourself.
 - The squash commit on main carries every commit message of the PR, bodies
   included: what must stay out of the history (a surprise, a private

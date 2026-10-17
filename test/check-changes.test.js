@@ -94,8 +94,8 @@ test('package-lock.json: a dependency change is shipped; its version lines belon
 });
 
 test('a feature PR may not bump the version or write a CHANGELOG release section', () => {
-  const bump = run({ head: { 'package.json': pkg({ version: '2.71.0' }), 'changes/x.md': FRAGMENT } });
-  assert.match(messages(bump), /belong to the release PR.*v2\.71\.0 is above v2\.70\.0/s);
+  const bump = run({ head: { 'package.json': pkg({ version: '2.72.0' }), 'changes/x.md': FRAGMENT } });
+  assert.match(messages(bump), /belong to the release PR.*v2\.72\.0 is above v2\.71\.0/s);
   const sectionOnly = run({ head: { 'CHANGELOG.md': INTRO + section('2.71.0') + RELEASED, 'changes/x.md': FRAGMENT } });
   assert.match(messages(sectionOnly), /belong to the release PR.*the version did not change/s);
   assert.strictEqual(sectionOnly.errors[0].file, 'CHANGELOG.md');
@@ -103,8 +103,8 @@ test('a feature PR may not bump the version or write a CHANGELOG release section
   assert.match(messages(history), /belong to the release PR/, 'released sections are history');
 });
 
-test('transition: old-style PRs up to v2.70.0 keep their bump (#351, #353, the tutorial PR)', () => {
-  for (const v of ['2.68.0', '2.69.0', '2.70.0']) {
+test('transition: old-style PRs up to v2.71.0 keep their bump (#351, #353, #355, #356)', () => {
+  for (const v of ['2.68.0', '2.69.0', '2.70.0', '2.71.0']) {
     const r = run({
       head: {
         'package.json': pkg({ version: v }),
@@ -145,9 +145,9 @@ test('transition: what it does not cover', () => {
 
 test('the release PR (release/next) may write the version and the CHANGELOG section', () => {
   const head = {
-    'package.json': pkg({ version: '2.71.0' }),
-    'package-lock.json': lock('2.71.0'),
-    'CHANGELOG.md': INTRO + section('2.71.0') + RELEASED,
+    'package.json': pkg({ version: '2.72.0' }),
+    'package-lock.json': lock('2.72.0'),
+    'CHANGELOG.md': INTRO + section('2.72.0') + RELEASED,
     'changes/a.md': null,
   };
   const base = { 'changes/a.md': FRAGMENT };

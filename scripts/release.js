@@ -20,9 +20,9 @@ const CHANGES = 'changes';
 const HEADINGS = ['Added', 'Changed', 'Fixed', 'Removed', 'Deprecated', 'Security'];
 const PATCH_HEADINGS = new Set(['Fixed', 'Security']);
 const LEVELS = ['patch', 'minor', 'major'];
-// Transition, delete once main is past it: old-style PRs (#351, #353, tutorial)
+// Transition, delete once main is past it: old-style PRs (#353, #355, #356)
 // hold the numbers up to here; check-changes.js accepts them, no auto-merge into them.
-const LEGACY_LAST = '2.70.0';
+const LEGACY_LAST = '2.71.0';
 // The usual slip (bump-deps.js once wrote "### Geändert"), answered in English.
 const GERMAN_HEADINGS = {
   hinzugefügt: 'Added',
