@@ -134,6 +134,7 @@ window.I18N_STATIC = {
   'Debug-Overlay umschalten': 'Toggle debug overlay',
   'Zurück zum Hauptmenü': 'Back to main menu',
   'Hauptmenü': 'Main menu',
+  'Zum Hauptmenü': 'Main menu',
   'Spielregeln': 'How to play',
   'Statistik': 'Statistics',
   'Übersicht': 'Overview',

@@ -5785,16 +5785,19 @@
     updateTutorial();
   });
 
-  // "Tutorial geschafft": where to go next. A new game is created on the start
-  // screen after the reload (afterTutorial, picked up in connect()).
+  // "Tutorial geschafft": where to go next. 'bots'/'invite' create a new game on
+  // the start screen after the reload (afterTutorial, picked up in connect()).
   const AFTER_TUTORIAL_KEY = 'pikdame_after_tutorial';
   function leaveTutorialFor(next) {
-    storageSet(AFTER_TUTORIAL_KEY, next);
+    if (next) storageSet(AFTER_TUTORIAL_KEY, next);
+    else storageRemove(AFTER_TUTORIAL_KEY);
     if (sessionCode && storageGet('pikdame_last_session') === sessionCode) storageRemove('pikdame_last_session');
     window.location.href = window.location.pathname;
   }
   el('tutorialDoneBotsBtn').addEventListener('click', () => leaveTutorialFor('bots'));
   el('tutorialDoneInviteBtn').addEventListener('click', () => leaveTutorialFor('invite'));
+  // Plain start screen: no follow-up game, and without the last session no resume offer.
+  el('tutorialDoneMenuBtn').addEventListener('click', () => leaveTutorialFor(null));
   el('tutorialDoneStayBtn').addEventListener('click', () => {
     el('tutorialDoneOverlay').classList.add('hidden');
     // Practice on without hints: the next round starts like after any round end.

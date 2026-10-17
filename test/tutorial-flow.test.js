@@ -215,6 +215,32 @@ async function tapTheGlow(t) {
   return true;
 }
 
+/** Taps along the marks until "Tutorial geschafft"; returns what the run saw. */
+async function playToTheEnd(t) {
+  const seen = [];
+  const notes = [];
+  const counts = new Set();
+  let resultLesson = null;
+  for (let i = 0; i < 400 && !t.visible('tutorialDoneOverlay'); i++) {
+    const c = t.coach();
+    if (c && c.step !== 'passive' && !seen.includes(c.step)) seen.push(c.step);
+    if (c) counts.add(c.count);
+    const n = t.note();
+    if (n && notes[notes.length - 1] !== n.text) notes.push(n.text);
+    const g = t.server.game;
+    if (g.mustLayOffCardId && t.myTurn()) assert.equal(c && c.step, 'pileDuty', 'an open pile duty outranks every lesson');
+    if (t.visible('resultOverlay')) {
+      if (t.visible('resultCoach')) resultLesson = t.$('#resultCoachTitle').textContent;
+      assert.equal(c, null, 'the coach card never sits over the round sheet');
+      assert.equal(t.$('#resultContinueBtn').textContent, 'Weiter', 'leads to the ending, not to round 2');
+      await t.click(t.$('#resultContinueBtn'));
+      continue;
+    }
+    if (!(await tapTheGlow(t))) assert.fail(`dead end: my turn, lesson ${c && c.step}, nothing marked`);
+  }
+  return { seen, notes, counts, resultLesson };
+}
+
 const cardName = (cd) => (cd.isJoker ? 'JOKER' : `${cd.rank}${cd.suit}`);
 const markedNames = (t) => t.$$('#hand .card.tutorialGlow')
   .map((n) => t.hand().find((cd) => String(cd.id) === n.dataset.cardId))
@@ -228,27 +254,7 @@ test('tutorial: following the marks plays round 1 to "Tutorial geschafft", lesso
     assert.equal(t.server.joinName, 'Neuling', 'no "SpielerNNN" seat name for a learner');
     assert.equal(t.server.game.houseRules.botPace, 'slow');
 
-    const seen = [];
-    const notes = [];
-    const counts = new Set();
-    let resultLesson = null;
-    for (let i = 0; i < 400 && !t.visible('tutorialDoneOverlay'); i++) {
-      const c = t.coach();
-      if (c && c.step !== 'passive' && !seen.includes(c.step)) seen.push(c.step);
-      if (c) counts.add(c.count);
-      const n = t.note();
-      if (n && notes[notes.length - 1] !== n.text) notes.push(n.text);
-      const g = t.server.game;
-      if (g.mustLayOffCardId && t.myTurn()) assert.equal(c && c.step, 'pileDuty', 'an open pile duty outranks every lesson');
-      if (t.visible('resultOverlay')) {
-        if (t.visible('resultCoach')) resultLesson = t.$('#resultCoachTitle').textContent;
-        assert.equal(c, null, 'the coach card never sits over the round sheet');
-        assert.equal(t.$('#resultContinueBtn').textContent, 'Weiter', 'leads to the ending, not to round 2');
-        await t.click(t.$('#resultContinueBtn'));
-        continue;
-      }
-      if (!(await tapTheGlow(t))) assert.fail(`dead end: my turn, lesson ${c && c.step}, nothing marked`);
-    }
+    const { seen, notes, counts, resultLesson } = await playToTheEnd(t);
 
     assert.ok(t.visible('tutorialDoneOverlay'), `"Tutorial geschafft" after round 1 (lessons: ${seen.join(', ')})`);
     assert.equal(t.server.game.phase, 'roundEnd');
@@ -274,6 +280,27 @@ test('tutorial: following the marks plays round 1 to "Tutorial geschafft", lesso
     assert.equal(t.$$('.tutorialGlow, .tutorialGlowMeld, .tutorialGlowTarget').length, 0);
     assert.ok(!t.visible('tutorialHintsBtn'), 'nothing to switch back on after the ending');
     assert.deepStrictEqual(t.errors, []);
+  } finally {
+    t.close();
+  }
+});
+
+test('tutorial: "Zum Hauptmenü" ends on a plain start screen', async () => {
+  const t = boot();
+  try {
+    await t.run(100);
+    await t.click(t.$('#tutorialBtn'));
+    await playToTheEnd(t);
+    assert.ok(t.visible('tutorialDoneOverlay'));
+    const store = t.window.localStorage;
+    assert.equal(store.getItem('pikdame_last_session'), t.server.code, 'until then the tutorial is the open game');
+    await t.click(t.$('#tutorialDoneMenuBtn'));
+    assert.equal(store.getItem('pikdame_last_session'), null, 'no open game to resume on the start screen');
+    assert.equal(store.getItem('pikdame_after_tutorial'), null, 'no follow-up game');
+    // jsdom cannot navigate: the only error is the reload to the start page.
+    const errors = t.errors.map((e) => String((e && e.message) || e));
+    assert.equal(errors.length, 1, errors.join(' | '));
+    assert.match(errors[0], /^Not implemented: navigation/);
   } finally {
     t.close();
   }
