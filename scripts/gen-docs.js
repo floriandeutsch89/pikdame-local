@@ -408,6 +408,15 @@ function clientQuestText() {
   return out;
 }
 
+function clientSeasonAwards() {
+  const src = read('public/client.js');
+  const re = /(\w+): \{ emoji: '([^']+)', name: \(\) => L\('[^']*', '([^']*)'\)/g;
+  const out = {};
+  let m;
+  while ((m = re.exec(src)) !== null) out[m[1]] = { emoji: m[2], name: m[3] };
+  return out;
+}
+
 function generateProgression() {
   const P = require(path.join(ROOT, 'game', 'Progression'));
   const { BADGE_IDS, BADGE_FAMILIES } = require(path.join(ROOT, 'game', 'Badges'));
@@ -452,6 +461,9 @@ function generateProgression() {
     return `| ${m.emoji || ''} | **${m.name || id}** | ${m.desc || ''} | \`${id}\` |`;
   });
 
+  const sa = clientSeasonAwards();
+  const award = (id) => `${(sa[id] || {}).emoji || ''} ${(sa[id] || {}).name || id}`;
+
   const emoteRows = EMOTE_DEFS.map((e) => `| ${e.id === 'pikdame' ? '♠Q (mini card)' : e.id} | ${e.level === 1 ? 'always' : `level ${e.level}`} |`);
   const celebrationRows = CELEBRATION_DEFS.map((c) => `| \`${c.id}\` | ${c.level === 1 ? 'always' : `level ${c.level}`} |`);
 
@@ -487,6 +499,26 @@ ${levelRows.join('\n')}
 
 Seasons are calendar months; the ladder resets so late starters have
 something reachable.
+
+### Season finale
+
+Once a season has ended, its final standings are written down exactly once:
+the place comes from season XP, ties share the place. Accounts only, like the
+ladder itself. Each account gets one badge per season (the best it reached),
+kept for good and named after the season:
+
+| Place | Badge |
+| --- | --- |
+| 1 | ${award('gold')} |
+| 2 | ${award('silver')} |
+| 3 | ${award('bronze')} |
+| 4 to ${P.SEASON_TOP} | ${award('top10')} |
+| below, with at least ${P.SEASON_PARTICIPATION_GAMES} matches that season | ${award('participant')} |
+
+The next start shows the result once; the ladder shows last season's place.
+Only seasons that ended after the server first ran the finale count (older
+rollovers overwrote the numbers); in that first season the game counter
+started late, so every ranked account gets at least the last badge.
 
 ## Daily quests
 

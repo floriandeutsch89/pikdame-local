@@ -54,6 +54,44 @@ function seasonForDate(dateStr) {
   return /^\d{4}-\d{2}/.test(s) ? s.slice(0, 7) : '1970-01';
 }
 
+// --- Season finale -------------------------------------------------------------
+// An ended season's standings are written down once (AccountStore.finalizeSeasons).
+// A place counts like the ladder's rank: 1 + everyone with more season XP, so a
+// tie shares the place and the medal.
+const SEASON_ID_RE = /^\d{4}-\d{2}$/;
+const SEASON_PARTICIPATION_GAMES = 3;
+const SEASON_TOP = 10;
+
+/**
+ * @param {{userId:*, seasonXp:number, seasonGames:number}[]} entries one per account
+ * @param {{gamesCounted?:boolean}} [opts] false for the first archived season,
+ *   whose game counter started mid-season: every ranked account takes part
+ * @returns {{userId:*, seasonXp:number, seasonGames:number, place:number, award:string|null}[]}
+ *   every ranked entry (season XP > 0), best first; award: gold|silver|bronze|top10|participant|null
+ */
+function seasonStandings(entries, { gamesCounted = true } = {}) {
+  const minGames = gamesCounted ? SEASON_PARTICIPATION_GAMES : 0;
+  const byUser = new Map();
+  for (const e of entries || []) {
+    if (!e) continue;
+    const xp = Math.max(0, Math.floor(Number(e.seasonXp) || 0));
+    const games = Math.max(0, Math.floor(Number(e.seasonGames) || 0));
+    const prev = byUser.get(e.userId);
+    if (xp > 0 && (!prev || xp > prev.seasonXp)) byUser.set(e.userId, { ...e, seasonXp: xp, seasonGames: games });
+  }
+  const ranked = [...byUser.values()].sort((a, b) => b.seasonXp - a.seasonXp);
+  let place = 0;
+  return ranked.map((e, i) => {
+    if (i === 0 || e.seasonXp < ranked[i - 1].seasonXp) place = i + 1;
+    const award = place === 1 ? 'gold'
+      : place === 2 ? 'silver'
+        : place === 3 ? 'bronze'
+          : place <= SEASON_TOP ? 'top10'
+            : e.seasonGames >= minGames ? 'participant' : null;
+    return { ...e, place, award };
+  });
+}
+
 // --- Daily quests ----------------------------------------------------------
 // Every quest counts something that is derivable from the finished
 // gameRecord alone - no extra hooks in the game loop, nothing to keep in
@@ -271,6 +309,10 @@ module.exports = {
   xpForLevel,
   levelFromXp,
   seasonForDate,
+  SEASON_ID_RE,
+  SEASON_PARTICIPATION_GAMES,
+  SEASON_TOP,
+  seasonStandings,
   questsForDate,
   questDef,
   evaluateQuests,

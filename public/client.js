@@ -521,6 +521,8 @@
   let stammtischInfo = null;  // {code, name} when this session is bound to a Stammtisch
   let stammtischSummary = null; // standings / pairwise / series from the server
   let accountProgress = null; // {xp, seasonXp, season, games, wins, rank}
+  let seasonAwards = [];        // account: finished seasons with an award, newest first
+  let lastSeasonResult = null;  // account: place in the last finished season, or null
 
   // icon = sprite id (i-…): emoji are content, never icons.
   function questMeta(id) {
@@ -6811,6 +6813,8 @@
       el('nameInput').disabled = false;
       el('nameInput').title = '';
       accountProgress = null;
+      seasonAwards = [];
+      lastSeasonResult = null;
       el('ladderBox').classList.add('hidden');
     }
     try { renderIdentity(); } catch (e) { /* cosmetic */ }
@@ -6824,7 +6828,10 @@
     if (!accountToken()) return;
     const me = await accountApi('/api/me', { token: accountToken() });
     greetingFetchedAt = Date.now();
-    if (me.ok) setGreeting(me.greeting, me.username);
+    if (me.ok) {
+      setGreeting(me.greeting, me.username);
+      applySeasonInfo(me);
+    }
   }
   // A PWA can sleep for days; past a few hours the server is asked again (cheap endpoint).
   document.addEventListener('visibilitychange', () => {
@@ -6873,6 +6880,7 @@
       if (me.ok) {
         accountUsername = me.username;
         setGreeting(me.greeting, me.username);
+        applySeasonInfo(me);
       } else storageRemove(ACC_TOKEN_KEY);
     }
     refreshAccountUi();
@@ -7951,11 +7959,16 @@
     box.classList.remove('hidden');
     // Folded: the three closest goals - a wall of 30+ locked tiles said nothing.
     const near = [...new Set([...(order.nearest || []), ...order.locked])].slice(0, 3);
-    const body = achShowAll
+    // Season badges belong to the account; folded shows the newest three.
+    const seasonTiles = canPickFavorites() && seasonAwards.length
+      ? `<h4 class="achSection">${escapeHtml(L('Saison-Abzeichen', 'Season badges'))} (${seasonAwards.length})</h4>` +
+        `<div class="achGrid">${(achShowAll ? seasonAwards : seasonAwards.slice(0, 3)).map(seasonAwardTile).join('')}</div>`
+      : '';
+    const body = seasonTiles + (achShowAll
       ? section(L('Freigeschaltet', 'Unlocked'), order.unlocked) + section(L('Noch offen', 'Still open'), order.locked)
       : near.length
         ? section(L('Fast geschafft', 'Almost there'), near)
-        : section(L('Zuletzt freigeschaltet', 'Recently unlocked'), order.unlocked.slice(0, 3));
+        : section(L('Zuletzt freigeschaltet', 'Recently unlocked'), order.unlocked.slice(0, 3)));
     box.innerHTML =
       `<h3>${L('Erfolge', 'Achievements')} <span class="achCount">${have} / ${total}</span></h3>` + body +
       `<button type="button" class="achAllBtn">${achShowAll ? L('Weniger anzeigen', 'Show less') : L(`Alle ${total} anzeigen`, `Show all ${total}`)}</button>`;
@@ -8130,7 +8143,7 @@
       `<div class="levelHead"><b>${L(`Stufe ${lv.level}`, `Level ${lv.level}`)}</b>` +
       `<span>${lv.into} / ${lv.need} ${L('EP', 'XP')}</span></div>` +
       `<div class="levelBar"><i style="width:${pct}%"></i></div>` +
-      `<div class="levelMeta">${L('Saison', 'Season')} ${escapeHtml(accountProgress.season || '–')}: ` +
+      `<div class="levelMeta">${L('Saison', 'Season')} ${escapeHtml(accountProgress.season ? seasonLabel(accountProgress.season) : '–')}: ` +
       `<b>${accountProgress.seasonXp}</b> ${L('EP', 'XP')}` +
       (accountProgress.rank ? ` · ${L('Platz', 'Rank')} <b>${accountProgress.rank}</b>` : '') +
       ` · ${accountProgress.wins}/${accountProgress.games} ${L('Siege', 'wins')}</div>`;
@@ -8149,6 +8162,67 @@
     return { level, into: xp, need: need(level) };
   }
 
+  // --- Season finale: month names, awards and the one-time start-up hint ----
+  // The emoji here ARE the badges (as in the trophy cabinet), not icons.
+  const SEASON_AWARDS = {
+    gold: { emoji: '🥇', name: () => L('Saisonsieg', 'Season winner'), cheer: () => L('Saisonsieg!', 'season winner!') },
+    silver: { emoji: '🥈', name: () => L('Saison-Silber', 'Season silver'), cheer: () => L('Silber!', 'silver!') },
+    bronze: { emoji: '🥉', name: () => L('Saison-Bronze', 'Season bronze'), cheer: () => L('Bronze!', 'bronze!') },
+    top10: { emoji: '🏅', name: () => L('Saison-Top-10', 'Season top 10'), cheer: () => L('Top 10!', 'top 10!') },
+    participant: { emoji: '🎟️', name: () => L('Saison-Teilnahme', 'Season participant'), cheer: () => L('danke fürs Mitspielen!', 'thanks for playing!') },
+  };
+  /** "2026-10" -> "Oktober 2026" / "October 2026" (a season is a month). */
+  function seasonLabel(id) {
+    const m = /^(\d{4})-(\d{2})$/.exec(String(id || ''));
+    if (!m) return String(id || '');
+    try {
+      return new Intl.DateTimeFormat(L('de-DE', 'en-GB'), { month: 'long', year: 'numeric', timeZone: 'UTC' })
+        .format(Date.UTC(Number(m[1]), Number(m[2]) - 1, 1));
+    } catch (e) {
+      return `${m[2]}/${m[1]}`;
+    }
+  }
+  function seasonPlaceText(r) {
+    return L(`Platz ${r.place} von ${r.ranked}`, `place ${r.place} of ${r.ranked}`);
+  }
+  function applySeasonInfo(d) {
+    if (!d) return;
+    if (Array.isArray(d.seasonAwards)) {
+      seasonAwards = d.seasonAwards;
+      try { renderAchievements(); } catch (e) { /* cosmetic */ }
+    }
+    if ('lastSeason' in d) lastSeasonResult = d.lastSeason || null;
+    if (d.seasonResult) announceSeasonResult(d.seasonResult);
+  }
+  function announceSeasonResult(r) {
+    if (!r || !r.season || !r.place) return;
+    // After the studio intro - a toast underneath it would expire unseen.
+    if (document.getElementById('studioSplash')) {
+      setTimeout(() => announceSeasonResult(r), 500);
+      return;
+    }
+    const a = SEASON_AWARDS[r.award];
+    const text = L(`Saison ${seasonLabel(r.season)} beendet: `, `Season ${seasonLabel(r.season)} is over: `) +
+      seasonPlaceText(r) + (a ? ` – ${a.emoji} ${a.cheer()}` : '.');
+    showToast(text, { duration: 7000, priority: true });
+    accountApi('/api/season-result/seen', { token: accountToken(), season: r.season }).catch(() => {});
+  }
+  function seasonAwardChip(a) {
+    const meta = SEASON_AWARDS[a.award];
+    if (!meta) return '';
+    const label = `${seasonLabel(a.season)} · ${L(`Platz ${a.place}`, `place ${a.place}`)}`;
+    return `<span class="seasonAward" title="${escapeHtml(meta.name())}">` +
+      `<span>${meta.emoji}</span><span>${escapeHtml(label)}</span></span>`;
+  }
+  function seasonAwardTile(a) {
+    const meta = SEASON_AWARDS[a.award];
+    if (!meta) return '';
+    return `<div class="achTile earned achSeason" title="${escapeHtml(meta.name())}">` +
+      `<span class="achEmoji">${meta.emoji}</span>` +
+      `<span class="achName">${escapeHtml(seasonLabel(a.season))}</span>` +
+      `<span class="achSub">${escapeHtml(seasonPlaceText(a))}</span></div>`;
+  }
+
   async function loadLadder() {
     const box = el('ladderBox');
     if (!box) return;
@@ -8164,6 +8238,7 @@
       accountProgress = r.me;
       renderAccountProgress();
     }
+    if (r.me) applySeasonInfo({ seasonAwards: r.seasonAwards, lastSeason: r.lastSeason });
     const rows = r.board.length
       ? r.board
           .map((e, i) => {
@@ -8174,7 +8249,15 @@
           })
           .join('')
       : `<p class="lobby-hint">${L('Diese Saison hat noch niemand gepunktet - hol dir Platz 1!', 'Nobody has scored this season - claim first place!')}</p>`;
-    box.innerHTML = `<h3>${L('Saison-Rangliste', 'Season ladder')} <span class="achCount">${escapeHtml(r.season || '')}</span></h3>${rows}`;
+    const last = r.me && lastSeasonResult
+      ? `<p class="ladderLast">${escapeHtml(L(`Letzte Saison (${seasonLabel(lastSeasonResult.season)}): `, `Last season (${seasonLabel(lastSeasonResult.season)}): `) + seasonPlaceText(lastSeasonResult))}</p>`
+      : '';
+    // Hall of fame: podium and top 10 only - a year of mementos would bury it.
+    const fame = r.me ? seasonAwards.filter((a) => a.award !== 'participant') : [];
+    const awards = fame.length
+      ? `<div class="seasonAwards" aria-label="${escapeHtml(L('Saison-Abzeichen', 'Season badges'))}">${fame.map(seasonAwardChip).join('')}</div>`
+      : '';
+    box.innerHTML = `<h3>${L('Saison-Rangliste', 'Season ladder')} <span class="achCount">${escapeHtml(seasonLabel(r.season))}</span></h3>${rows}${last}${awards}`;
   }
 
   // --- Statistik ---------------------------------------------------------------
