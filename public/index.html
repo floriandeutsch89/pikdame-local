@@ -658,6 +658,21 @@
         </div>
       </div>
 
+      <!-- Tutorial coach: above the hand in portrait, a corner card over the
+           melds in landscape and on desktop (style.css). Never over a sheet. -->
+      <div id="tutorialCoach" class="coachCard hidden" role="status" aria-live="polite" aria-labelledby="coachTitle">
+        <div class="coachHead">
+          <button id="tutorialProgressBtn" class="coachCount tapExpand" type="button" title="Fortschritt anzeigen" aria-label="Fortschritt anzeigen"><svg class="icon" aria-hidden="true"><use href="#i-cap"/></svg><span id="coachCountText"></span></button>
+          <h3 id="coachTitle" class="coachTitle"></h3>
+        </div>
+        <p id="tutorialText" class="coachText"></p>
+        <p id="coachNote" class="coachNote hidden"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span id="coachNoteText"></span></p>
+        <div class="coachActions">
+          <button id="tutorialNextBtn" class="btn-primary coachNext" type="button">Weiter</button>
+          <button id="tutorialOffBtn" class="coachSkip" type="button"><span>Überspringen</span></button>
+        </div>
+      </div>
+
       <div id="actionBar">
         <!-- Fixed slots: inside .actionSlots a hidden button keeps its space
              (see style.css), so nothing ever slides into another's place. -->
@@ -921,6 +936,12 @@
             <span class="sheetRowLabel">Bot-Sprüche</span>
             <span class="sheetRowValue">–</span>
           </button>
+          <!-- Only in a tutorial whose hints were skipped: the way back. -->
+          <button id="tutorialHintsBtn" class="sheetRow hidden" title="Tutorial-Hinweise wieder einschalten">
+            <svg class="icon" aria-hidden="true"><use href="#i-cap"/></svg>
+            <span class="sheetRowLabel">Tutorial-Hinweise</span>
+            <span class="sheetRowValue">Wieder an</span>
+          </button>
           <button id="fullscreenBtn" class="sheetRow hidden" title="Vollbild">
             <svg class="icon" aria-hidden="true"><use href="#i-fullscreen"/></svg>
             <span class="sheetRowLabel">Vollbild</span>
@@ -979,7 +1000,7 @@
       <div class="overlay-card">
         <h2 id="tutorialChecklistTitle"><svg class="icon" aria-hidden="true"><use href="#i-cap"/></svg><span>Dein Fortschritt</span></h2>
         <ul id="tutorialChecklist" class="tutorialChecklist"></ul>
-        <p class="settingsHint" id="tutorialChecklistHint">Abgehakt wird ein Punkt, sobald du ihn mit „Verstanden“ bestätigt hast oder die Situation vorbei ist. Bonus-Punkte hängen an einer seltenen Spielsituation und zählen nicht zum Fortschritt.</p>
+        <p class="settingsHint" id="tutorialChecklistHint">Abgehakt wird ein Punkt, sobald du ihn erledigt oder mit „Weiter“ bestätigt hast. Bonus-Punkte hängen an einer seltenen Spielsituation.</p>
         <button id="tutorialChecklistCloseBtn" class="btn-secondary">Schließen</button>
       </div>
     </section>
@@ -1268,6 +1289,11 @@
     <section id="resultOverlay" class="overlay hidden">
       <div class="overlay-card">
         <h2 id="resultTitle">Rundenende</h2>
+        <!-- Tutorial: the scoring lesson docks here instead of covering the sheet. -->
+        <div id="resultCoach" class="resultCoach hidden" role="status" aria-live="polite">
+          <svg class="icon" aria-hidden="true"><use href="#i-cap"/></svg>
+          <div><strong id="resultCoachTitle"></strong><span id="resultCoachText"></span></div>
+        </div>
         <div id="resultEmotes"></div>
         <div id="resultBody"></div>
         <!-- Action footer: pinned, never scrolls. The key-moments timeline
@@ -1294,6 +1320,24 @@
               <button id="resultHomeBtn" class="btn-secondary hidden"><svg class="icon" aria-hidden="true"><use href="#i-home"/></svg><span>Hauptmenü</span></button>
             </div>
           </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- TUTORIAL GESCHAFFT: the ending after the scoring of round 1. -->
+    <section id="tutorialDoneOverlay" class="overlay hidden" data-sheet-close="tutorialDoneStayBtn">
+      <div class="overlay-card tutorialDone">
+        <h2><svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg><span>Tutorial geschafft</span></h2>
+        <p class="tutorialDoneLead">Das kannst du jetzt:</p>
+        <ul class="tutorialDonePoints">
+          <li><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><span>Sätze und Folgen ab drei Karten auslegen</span></li>
+          <li><svg class="icon" aria-hidden="true"><use href="#i-spade"/></svg><span>Die Pik Dame auslegen: +100 statt −100</span></li>
+          <li><svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg><span>Ausmachen mit der letzten Karte</span></li>
+        </ul>
+        <div class="tutorialDoneActions">
+          <button id="tutorialDoneBotsBtn" class="btn-primary"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>Gegen Bots spielen</span></button>
+          <button id="tutorialDoneInviteBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-share"/></svg><span>Freunde einladen</span></button>
+          <button id="tutorialDoneStayBtn" class="linkBtn"><span>Weiterspielen</span></button>
         </div>
       </div>
     </section>
@@ -1334,16 +1378,6 @@
         </div>
       </div>
     </section>
-
-    <!-- TUTORIAL-BANNER (kontextuelle Hinweise fuer neue Spieler) -->
-    <div id="tutorialBanner" class="hidden">
-      <span id="tutorialText"></span>
-      <div class="tutorialBtns">
-        <button id="tutorialNextBtn">Verstanden ✓</button>
-        <button id="tutorialProgressBtn">Fortschritt</button>
-        <button id="tutorialOffBtn">Hinweise beenden</button>
-      </div>
-    </div>
 
     <!-- SPIELVERLAUF. Was a bare 240px box pinned under the header with no
          title and no way to close it except finding the toggle again. Now a

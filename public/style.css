@@ -200,6 +200,9 @@
      card vanished among selected ones (playthrough finding). Themes whose
      accent is close to amber override it (see felt). */
   --drawn: #ffc53d;
+  /* Tutorial spotlight: neutral light, so it never matches an accent, the
+     drawn marker or a joker in any theme (kitchen turns it dark). */
+  --coach: #ffffff;
   --ctl-h: 48px;         /* standard button height */
   --ctl-h-sm: 40px;      /* dense contexts (seat controls, chips) */
   --ctl-pad-x: 20px;
@@ -2773,42 +2776,113 @@ input:disabled { opacity: 0.65; }
 @keyframes emoteChipIn { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 .gameTotalsBox { margin-top: 10px; }
 
-/* --- Tutorial mode (v1.21.0) ------------------------------------------------ */
-#tutorialBanner {
-  /* Was top:52px/z-index:40 - a hardcoded guess at the header height that
-     covered #turnInfo and #roundInfo in BOTH layouts (the very line the
-     tutorial tells beginners to read), and at round end it hid behind the
-     result overlay (z-index 50), so the scoring lesson was ticked off
-     without ever having been on screen. It now sits at the top edge and the
-     layout below reserves --tutorial-h for it - it overlaps nothing. */
-  position: fixed; top: calc(6px + var(--safe-top, 0px)); left: 10px; right: 10px;
-  z-index: var(--z-hint); /* above overlays - they reserve room for it, see .overlay */
-  background: linear-gradient(135deg, var(--accent), var(--accent-strong, var(--accent)));
-  color: #fff; border-radius: 14px;
-  padding: 11px 14px;
-  font-size: 0.82rem; line-height: 1.45; font-weight: 500;
-  box-shadow: 0 6px 24px rgba(0,0,0,0.28);
-  animation: tutorialIn 0.3s ease-out;
+/* --- Tutorial coach (v2.69) -------------------------------------------------
+   Was a full-width teal banner over everything: white on accent (~1.9:1),
+   26 px buttons, and it covered the round-end title. Now a card from the
+   theme's own surface: in portrait it sits in the flow above the hand (the
+   melds give up the room), in landscape and on desktop it is a corner card
+   over the melds (#melds keeps scroll room for it). Sheets cover it, never
+   the other way round. */
+.coachCard {
+  margin: 2px 10px 4px calc(10px + var(--safe-left));
+  margin-right: calc(10px + var(--safe-right));
+  padding: 10px 12px 6px;
+  background: linear-gradient(var(--glass), var(--glass)), var(--bg);
+  border: 1px solid var(--glass-border);
+  border-left: 4px solid var(--coach);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-2);
+  color: var(--text);
+  animation: coachIn 0.25s var(--ease);
+  flex: 0 0 auto;
 }
-@keyframes tutorialIn { from { transform: translateY(-12px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-#tutorialBanner .tutorialBtns { display: flex; gap: 8px; margin-top: 8px; }
-#tutorialBanner button {
-  border: none; border-radius: 9px; padding: 6px 12px;
-  font-size: 0.74rem; font-weight: 700; cursor: pointer;
+.coachCard.hidden { display: none; }
+@keyframes coachIn { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+.coachHead { display: flex; align-items: center; gap: 8px; min-height: 28px; }
+.coachTitle {
+  margin: 0; font-family: var(--font-display); font-weight: 700;
+  font-size: var(--fs-body); line-height: 1.2; color: var(--text);
 }
-#tutorialNextBtn { background: rgba(255,255,255,0.92); color: #1a1e24; }
-#tutorialOffBtn { background: rgba(255,255,255,0.18); color: rgba(255,255,255,0.85); }
-/* Room for the fixed banner. --tutorial-h is MEASURED in syncTutorialLayout()
-   (the text is 1-4 lines depending on step and width), so no offset has to be
-   guessed here. .screen is border-box and flex:1, so the padding simply
-   shrinks the meld area; in landscape #table is a grid and the 1fr row gives
-   the same space back. Overlay cards move down with it instead of under it. */
-body.tutorialOpen .screen { padding-top: var(--tutorial-h, 0px); }
-body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
-/* (#tutorialBtn had margin-top:8px from when these buttons were stacked. In
-   the .menuChips flex row that margin ate 8px of its stretched height, so
-   Tutorial rendered 40px tall next to a 48px Challenge. Row spacing belongs
-   to the container's gap, never to one member's ID rule.) */
+/* Step counter, also the way into the progress list. Small on purpose, the
+   tap area is stretched by .tapExpand to the 44 px floor. */
+.coachCount {
+  display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto;
+  min-height: 28px; padding: 0 9px; border-radius: 999px;
+  background: var(--glass); border: 1px solid var(--glass-border);
+  color: var(--text-muted); font: inherit; font-size: var(--fs-micro); font-weight: 700;
+  font-variant-numeric: tabular-nums; cursor: pointer;
+}
+.coachCount .icon { width: 1.15em; height: 1.15em; }
+.coachText { margin: 4px 0 0; font-size: var(--fs-label); line-height: 1.4; color: var(--text); }
+.coachText:empty { display: none; }
+.coachNote {
+  display: flex; align-items: flex-start; gap: 6px;
+  margin: 6px 0 0; font-size: var(--fs-label); line-height: 1.35; font-weight: 600;
+  color: var(--success);
+}
+.coachNote.hidden { display: none; }
+.coachNote .icon { flex: 0 0 auto; width: 1.1em; height: 1.1em; margin-top: 0.12em; }
+.coachNote.error { color: var(--danger); }
+.coachActions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
+.coachNext {
+  width: auto; min-height: var(--tap-min); padding: 0 20px;
+  font-size: var(--fs-label);
+}
+.coachNext.hidden { display: none; }
+.coachSkip {
+  margin-left: auto; min-height: var(--tap-min); padding: 0 4px;
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted); font: inherit; font-size: var(--fs-hint); font-weight: 600;
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.coachSkip.armed { color: var(--danger); text-decoration: none; }
+/* A passive line (bots on turn, "your move") needs no button row. */
+.coachCard.passive .coachActions .coachNext { display: none; }
+@media (prefers-reduced-motion: reduce) { .coachCard { animation: none; } }
+/* Landscape (~400 px high) and desktop: no room in the flow - the card sits
+   in the bottom corner of the meld area, and the melds keep scroll room. */
+@media (orientation: landscape) and (max-height: 540px), (min-width: 1100px) {
+  .coachCard {
+    grid-area: melds; align-self: end; justify-self: end;
+    position: relative; z-index: 3;
+    width: min(420px, calc(100% - 16px)); margin: 0 8px 8px 0;
+  }
+  #table.coachOpen #melds { padding-bottom: calc(var(--coach-h, 0px) + 14px); }
+}
+@media (orientation: landscape) and (max-height: 540px) {
+  .coachCard { padding: 7px 10px 4px; width: min(380px, calc(100% - 16px)); }
+  .coachText { margin-top: 2px; line-height: 1.3; }
+  .coachActions { margin-top: 2px; }
+}
+/* The scoring lesson inside the round-end sheet (light paper card). */
+.resultCoach {
+  display: flex; gap: 10px; align-items: flex-start;
+  margin: 0 0 12px; padding: 10px 12px;
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--card-ink) 5%, transparent);
+  border-left: 4px solid color-mix(in srgb, var(--card-ink) 80%, transparent);
+  color: var(--card-ink); text-align: left;
+  font-size: var(--fs-label); line-height: 1.4;
+}
+.resultCoach.hidden { display: none; }
+.resultCoach .icon { flex: 0 0 auto; width: 1.3em; height: 1.3em; margin-top: 0.1em; }
+.resultCoach strong { display: block; font-family: var(--font-display); font-weight: 700; }
+/* "Tutorial geschafft": what you learnt, then where to go next. */
+.tutorialDone h2 { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.tutorialDoneLead { margin: 0 0 8px; color: var(--text-muted); font-size: var(--fs-label); }
+.tutorialDonePoints { list-style: none; margin: 0 0 16px; padding: 0; text-align: left; }
+.tutorialDonePoints li {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 2px; border-bottom: 1px solid var(--glass-border);
+  font-size: var(--fs-body); color: var(--card-ink);
+}
+.tutorialDonePoints li:last-child { border-bottom: none; }
+.tutorialDonePoints .icon { flex: 0 0 auto; width: 1.25em; height: 1.25em; color: var(--accent-2); }
+.tutorialDoneActions { display: flex; flex-direction: column; gap: 8px; }
+.tutorialDoneActions .btn-primary, .tutorialDoneActions .btn-secondary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: var(--ctl-h);
+}
+.tutorialDoneActions .linkBtn { align-self: center; }
 
 /* --- Per-bot difficulty (v1.22.0) ------------------------------------------- */
 .opponent { position: relative; }
@@ -3273,21 +3347,30 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
 }
 .raidWarning.lucky .rwTitle { color: var(--success); }
 
-/* --- Tutorial: kontextuelle Markierung ------------------------------------ */
+/* --- Tutorial spotlight ------------------------------------------------------
+   Its own colour (--coach): the old yellow glow was nearly --drawn, so the
+   freshly drawn card read as a fifth marked card, and the target rings were
+   --accent, the selection colour. Marked fan cards lift a little and the rest
+   of the hand dims, so a mark never hides behind its neighbour. */
 .card.tutorialGlow {
-  outline: 3px solid #ffd54a; outline-offset: -1px;
-  animation: tutorialPulse 1.2s ease-in-out infinite;
+  box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 5px var(--coach), var(--shadow-2);
+  animation: coachPulse 1.4s ease-in-out infinite;
 }
+#hand .card.tutorialGlow:not(.selected) { top: -8px; }
+/* Selected AND marked: both rings, the selection innermost. */
+.card.tutorialGlow.selected { box-shadow: 0 0 0 3px var(--accent), 0 0 0 6px var(--coach), var(--shadow-2); }
+#hand.coachSpot .card:not(.tutorialGlow):not(.selected) { filter: brightness(0.72) saturate(0.85); }
+#hand.coachSpot .card.just-drawn:not(.tutorialGlow) { animation: none; box-shadow: var(--shadow-1), 0 3px 8px rgba(0,0,0,0.28); }
 .meldGroup.tutorialGlowMeld {
-  outline: 3px solid #ffd54a; border-radius: 10px;
-  animation: tutorialPulse 1.2s ease-in-out infinite;
+  box-shadow: 0 0 0 3px var(--coach);
+  animation: coachPulse 1.4s ease-in-out infinite;
 }
-@keyframes tutorialPulse {
-  0%, 100% { box-shadow: 0 0 6px rgba(255, 213, 74, 0.5); }
-  50%      { box-shadow: 0 0 18px rgba(255, 213, 74, 0.95); }
+@keyframes coachPulse {
+  0%, 100% { filter: none; }
+  50% { filter: drop-shadow(0 0 7px var(--coach)); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .card.tutorialGlow, .meldGroup.tutorialGlowMeld { animation: none; box-shadow: 0 0 10px rgba(255,213,74,0.7); }
+  .card.tutorialGlow, .meldGroup.tutorialGlowMeld { animation: none; }
 }
 
 /* --- PWA (installierte App): Hand tiefer setzen ---------------------------
@@ -3821,6 +3904,7 @@ html[data-cardback="easter"] .card.back,
   --accent: #b0552a;
   --accent-2: #8a6a2e;
   --accent-ink: #fff6ea;
+  --coach: #2b2118; /* the light spotlight vanishes on light wood */
   --accent-soft: rgba(176, 85, 42, 0.28);
   --text: #33261a;
   --text-dim: rgba(51, 38, 26, 0.62);
@@ -4209,14 +4293,13 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
    Zahnrad bei den übrigen seltenen Aktionen - ein bewusster Tipp entfernt. */
 
 
-/* --- Tutorial: Ziel-Markierungen (NUR im Tutorial aktiv) --------------------
-   Der Karten-Glow allein zeigt nur die HALBE Aktion. Erst mit dem markierten
-   ZIEL (Ziehstapel, Abwerfen-Knopf, eigene Auslage) erzaehlt der Hinweis den
-   ganzen Zug. Gesetzt wird die Klasse ausschliesslich aus dem Tutorial-Code. */
+/* --- Tutorial: target marks (set only by the tutorial code) ------------------
+   The card mark alone shows half a move; the target (stock, discard button,
+   own meld) tells the rest. --coach, never --accent: that one means "selected". */
 .tutorialGlowTarget {
   position: relative;
   animation: tutTargetPulse 1.6s ease-in-out infinite;
-  outline: 3px solid var(--accent);
+  outline: 3px solid var(--coach);
   outline-offset: 3px;
   border-radius: var(--r-sm);
 }
@@ -4224,21 +4307,29 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
    (overflow-x:auto), so its ring goes INSIDE instead of 3px outside. */
 #handWrapper.tutorialGlowTarget { outline-offset: -3px; }
 @keyframes tutTargetPulse {
-  0%, 100% { outline-color: var(--accent); }
+  0%, 100% { outline-color: var(--coach); }
   50% { outline-color: transparent; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .tutorialGlowTarget { animation: none; outline-color: var(--accent); }
+  .tutorialGlowTarget { animation: none; outline-color: var(--coach); }
 }
 .tutorialChecklist { list-style: none; margin: 6px 0 14px; padding: 0; text-align: left; }
 .tutorialChecklist li {
-  display: flex; align-items: flex-start; gap: 10px;
+  display: flex; align-items: center; gap: 10px;
   padding: 9px 2px; border-bottom: 1px solid var(--glass-border);
-  font-size: 0.92rem; color: var(--card-ink);
+  font-size: var(--fs-body); color: var(--card-ink);
 }
 .tutorialChecklist li:last-child { border-bottom: none; }
-.tutorialChecklist li.done { opacity: 0.62; }
-.tutorialChecklist .tick { flex: 0 0 auto; }
+.tutorialChecklist li.done { color: var(--text-muted); }
+/* Done = check in a filled disc, open = an empty ring: shape, not colour. */
+.tutorialChecklist .tick {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 1.4em; height: 1.4em; border-radius: 50%;
+  border: 2px solid currentColor;
+}
+.tutorialChecklist li.done .tick { background: var(--success); border-color: var(--success); color: #fff; }
+.tutorialChecklist .tick .icon { width: 0.9em; height: 0.9em; }
+.tutorialChecklist .bonus { color: var(--text-muted); font-size: var(--fs-hint); margin-left: 4px; }
 
 /* --- v2.33: start screen, session lobby, emoji-free markers ---------------- */
 
