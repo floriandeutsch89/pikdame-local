@@ -149,3 +149,15 @@ test('tablePrefs: a new table starts with them, nothing else does', async (t) =>
     assert.deepStrictEqual(botLevels(s), ['medium']);
   });
 });
+
+test('setHouseRules: botPace takes only its own keys, never inherited ones', () => {
+  const GameManager = require('../game/GameManager');
+  const game = new GameManager(() => {});
+  const before = game.houseRules.botPace;
+  for (const pace of ['__proto__', 'constructor', 'toString', 'hasOwnProperty']) {
+    game.setHouseRules({ botPace: pace });
+    assert.strictEqual(game.houseRules.botPace, before, pace);
+  }
+  game.setHouseRules({ botPace: 'slow' });
+  assert.strictEqual(game.houseRules.botPace, 'slow');
+});

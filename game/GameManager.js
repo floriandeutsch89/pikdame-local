@@ -17,8 +17,8 @@ const { isQuipMoment } = require('./BotQuips');
 // Bot think time multiplier per table (house rule `botPace`, default normal).
 const BOT_PACE_FACTOR = { fast: 0.5, normal: 1, slow: 2 };
 function botPaceFactor(houseRules) {
-  const f = houseRules && BOT_PACE_FACTOR[houseRules.botPace];
-  return f === undefined ? 1 : f;
+  // Own keys only: '__proto__' or 'constructor' would turn the delay into NaN (no pause).
+  return houseRules && Object.hasOwn(BOT_PACE_FACTOR, houseRules.botPace) ? BOT_PACE_FACTOR[houseRules.botPace] : 1;
 }
 
 /** A bot's difficulty; Zen is the fallback for seats without one (a stand-in
@@ -436,7 +436,7 @@ class GameManager {
     if (typeof partial.strictThreshold === 'boolean') clean.strictThreshold = partial.strictThreshold;
     if ([0, 30, 60, 90].includes(Number(partial.turnTimerSeconds))) clean.turnTimerSeconds = Number(partial.turnTimerSeconds);
     // Pure pacing, no effect on play: how long a bot "thinks" per turn.
-    if (typeof partial.botPace === 'string' && BOT_PACE_FACTOR[partial.botPace] !== undefined) clean.botPace = partial.botPace;
+    if (typeof partial.botPace === 'string' && Object.hasOwn(BOT_PACE_FACTOR, partial.botPace)) clean.botPace = partial.botPace;
     this.houseRules = {
       ...DEFAULT_HOUSE_RULES,
       ...this.houseRules,
