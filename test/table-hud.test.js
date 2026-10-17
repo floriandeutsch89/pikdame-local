@@ -150,12 +150,12 @@ test('low-card warning: a stored ON is honoured on start, the settings switch tu
   assert.equal(window.localStorage.getItem('pikdame_aid_lowcards'), 'off');
 });
 
-test('bot level badge: equal levels give the host a bars-only badge and guests none; mixed levels show the word', async (t) => {
+test('bot level badge: equal levels give the host an icon-only badge and guests none; mixed levels show the word', async (t) => {
   const { doc, feed, click } = await setup(t);
   const badges = () => [...doc.querySelectorAll('#opponents .botDiffBadge')];
   feed(table({ isHost: true }));
   assert.equal(badges().length, 3, 'the host keeps the tap target to change one bot');
-  assert.ok(badges().every((b) => b.classList.contains('barsOnly') && b.textContent === ''), 'no "Mittel" three times');
+  assert.ok(badges().every((b) => b.classList.contains('iconOnly') && b.textContent === ''), 'no "Mittel" three times');
   assert.match(badges()[0].getAttribute('aria-label'), /Schwierigkeit ändern \(Mittel\)/);
   click(badges()[0]);
   assert.ok(!doc.getElementById('botDiffOverlay').classList.contains('hidden'), 'the badge still opens the picker');

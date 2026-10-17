@@ -662,15 +662,12 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 .segBtn:active { transform: scale(0.96); }
 .segBtn:disabled { cursor: default; transform: none; }
-.segBtn:disabled:not(.active) { opacity: 0.45; }
-/* Bot strength: bars above the word, so four levels fit an iPhone SE row. */
+/* Guests still read the options: 0.45 dropped below 3:1 in the light kitchen theme. */
+.segBtn:disabled:not(.active) { opacity: 0.6; }
+/* Bot strength: the spade rating above the word, so four levels fit an iPhone
+   SE row; the slot reserves the Zen crown so all four labels share one line. */
 .segStack .segBtn { flex-direction: column; gap: 3px; padding: 5px 2px; }
-.segBtn .diffBars { height: 12px; gap: 2px; }
-.segBtn .diffBars i { width: 3px; }
-.segBtn .diffBars i:nth-child(1) { height: 4px; }
-.segBtn .diffBars i:nth-child(2) { height: 7px; }
-.segBtn .diffBars i:nth-child(3) { height: 10px; }
-.segBtn .diffBars i:nth-child(4) { height: 12px; }
+.segStack .lvlSlot { --lvl-h: 12px; height: calc(var(--lvl-h) * 1.528); }
 
 .reconnectTag { color: var(--accent); font-weight: 500; font-size: 0.65rem; }
 
@@ -2821,16 +2818,10 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
   font-size: 0.72rem; cursor: pointer; line-height: 1.3;
   box-shadow: 0 1px 4px rgba(0,0,0,0.3);
 }
-/* Bars always, the word only when the bots' levels differ (v2.62). */
+/* Spade rating always, the word only when the bots' levels differ (v2.62). */
 .botDiffBadge { display: inline-flex; align-items: center; gap: 4px; }
-.botDiffBadge.barsOnly { padding: 3px 5px; }
-.botDiffBadge .diffBars { height: 9px; gap: 1px; }
-.botDiffBadge .diffBars i { width: 2px; }
-.botDiffBadge .diffBars i:nth-child(1) { height: 3px; }
-.botDiffBadge .diffBars i:nth-child(2) { height: 5px; }
-.botDiffBadge .diffBars i:nth-child(3) { height: 7px; }
-.botDiffBadge .diffBars i:nth-child(4) { height: 9px; }
-.botDiffBadge .diffBars i:not(.on) { opacity: 0.35; }
+.botDiffBadge.iconOnly { padding: 3px 5px; }
+.botDiffBadge .lvlSlot { --lvl-h: 11px; }
 /* Read-only difficulty badge for non-hosts: clearly visible, not interactive
    (no faint "disabled" look - it's an indicator, not a broken button). */
 .botDiffBadge.readonly, .seatDiff.readonly {
@@ -2848,14 +2839,17 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
   border-color: var(--accent); background: rgba(0,0,0,0.06);
 }
 .botDiffOptions button small { display: block; font-weight: 500; opacity: 0.65; font-size: var(--fs-hint); }
-/* Strength as rising bars (1-4), the ladder at a glance - no emoji icons. */
-.diffBars { display: inline-flex; align-items: flex-end; gap: 2px; height: 18px; flex: none; }
-.diffBars i { display: block; width: 4px; border-radius: 1px; background: currentColor; opacity: 0.2; }
-.diffBars i:nth-child(1) { height: 6px; }
-.diffBars i:nth-child(2) { height: 10px; }
-.diffBars i:nth-child(3) { height: 14px; }
-.diffBars i:nth-child(4) { height: 18px; }
-.diffBars i.on { opacity: 0.85; }
+.botDiffOptions .lvlSlot { --lvl-h: 15px; }
+/* Strength as a spade rating (sprite i-lvl-*): three slots, filled = strength,
+   outline = free; shape carries the meaning, colour is currentColor. The Zen
+   crown rises above the slot unless a context reserves its height. */
+.lvlSlot {
+  --lvl-h: 14px;
+  display: inline-flex; align-items: flex-end; justify-content: center; flex: none;
+  height: var(--lvl-h); width: calc(var(--lvl-h) * 2.544);
+}
+.icon.lvlIcon { width: calc(var(--lvl-h) * 2.544); height: var(--lvl-h); vertical-align: 0; overflow: visible; }
+.icon.lvlIcon.lvlZen { height: calc(var(--lvl-h) * 1.528); }
 
 /* --- Home + gear menu (v1.23.0) ---------------------------------------------- */
 /* --- In-game settings sheet -------------------------------------------------
@@ -4348,6 +4342,7 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
 .seatReady .icon { width: 1.1em; height: 1.1em; stroke-width: 2.6; }
 .seatControls { align-items: center; gap: 6px; flex: 0 0 auto; }
 .seatDiff {
+  display: inline-flex; align-items: center; gap: 5px;
   height: var(--ctl-h-sm); padding: 0 12px;
   border-radius: var(--r-pill);
   background: var(--glass-strong); border: 1px solid var(--glass-border);
@@ -4356,6 +4351,7 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
   transition: transform 0.15s var(--ease);
 }
 .seatDiff:active { transform: scale(0.94); }
+.seatDiff .lvlSlot { --lvl-h: 11px; }
 .seatControls .btn-icon.seatDealer {
   width: auto; min-width: var(--ctl-h-sm); height: var(--ctl-h-sm);
   padding: 0 8px; gap: 5px;

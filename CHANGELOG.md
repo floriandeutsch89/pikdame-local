@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.68.0] - 2026-10-17
+
+### Changed
+- Die Bot-Stärke zeigt jetzt Pik statt Signalbalken: drei Plätze, ein bis drei davon gefüllt (Leicht, Mittel, Schwer), Zen hat drei Pik mit Krone – in den Hausregeln, an den Sitzen der Spiel-Lobby, im Stärke-Dialog und am Bot-Abzeichen im Spiel
+- Gesperrte Hausregeln (für Gäste) sind etwas kräftiger und bleiben auch im hellen Küchen-Theme gut lesbar
+
 ## [2.65.0] - 2026-10-17
 
 ### Added
