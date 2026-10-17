@@ -33,14 +33,18 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   `roundend-stats`, `gameover`, `gameover-challenge` (board + share),
   `puzzle`, `puzzle-turn` / `puzzle-out` (that kind injected, one meld
   laid), `challenge` (intro after the day's attempt), `gamelobby` (house
-  rules), `botdiff` (the strength picker).
+  rules), `botdiff` (the strength picker), `settings` / `settings-aids`
+  (the "Mehr" sheet: top / scrolled to the play aids). Any order works:
+  a start-screen scene after `table` or a result reloads the start screen
+  first (its buttons are hidden there and the clicks used to time out).
 - Prints the written PNG paths. Look at them with the Read tool; don't
   just trust that they exist.
 - `--audit` also checks every shot and writes `<out>/audit.md`: truncated
   text (measured on the text itself), tap targets under 44 px (a hit area
-  stretched by an absolute `::after` counts), icon buttons without a name,
-  and a portrait start screen that needs scrolling. Findings are evidence
-  to judge, not automatic failures; the `ui-review` skill explains how.
+  stretched by an absolute `::after` or the `<label>` row around a switch
+  counts), icon buttons without a name, and a portrait start screen that
+  needs scrolling. Findings are evidence to judge, not automatic failures;
+  the `ui-review` skill explains how.
 
 The script starts its own server on a **temp `PIKDAME_DATA_DIR`** and kills it
 afterwards. That matters: a dev server on `data/` keeps `users.db` open, and

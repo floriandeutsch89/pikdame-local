@@ -262,6 +262,7 @@
     <symbol id="i-rocket" viewBox="0 0 24 24"><path d="M12 2.8c3.2 2 5 5.6 5 9.7l-2.2 3.3H9.2L7 12.5c0-4.1 1.8-7.7 5-9.7z"/><circle cx="12" cy="9.5" r="1.8"/><path d="M7 12.5 4.5 15l1 3.5 3.5-2.7M17 12.5l2.5 2.5-1 3.5-3.5-2.7M10.5 18.5 12 21.5l1.5-3"/></symbol>
     <symbol id="i-trend" viewBox="0 0 24 24"><path d="M3.5 17 9 11.5l4 4 7.5-7.5"/><path d="M15 8h5.5v5.5"/></symbol>
     <symbol id="i-swords" viewBox="0 0 24 24"><path d="M4 4.5 15 15.5M20 4.5 9 15.5"/><path d="M13 18l5-5M11 18l-5-5"/><path d="m16.5 17 3 3M7.5 17l-3 3"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 4.2 2.9 17.5a2 2 0 0 0 1.7 3h14.8a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4.5M12 17.2v.1"/></symbol>
   </svg>
 
   <div id="app">
@@ -422,34 +423,56 @@
 
       <div id="houseRulesSection" class="lobby-section hidden">
         <h2>Hausregeln</h2>
-        <label class="rule-toggle"><input type="checkbox" id="ruleHandAus" /> Hand aus zählt doppelt</label>
-        <label class="rule-toggle"><input type="checkbox" id="ruleStrict1000" /> Über 1000 Punkte zum Gewinnen (genau 1000 reicht nicht)</label>
-        <label class="rule-toggle"><input type="checkbox" id="ruleSound" checked /> Sound &amp; Vibration</label>
-        <label class="rule-toggle"><span>Zug-Timer</span>
-          <select id="ruleTurnTimer">
+        <label class="rule-toggle"><span>Hand aus zählt doppelt</span><input type="checkbox" id="ruleHandAus" class="ruleSwitch" /></label>
+        <label class="rule-toggle"><span>Über 1000 Punkte zum Gewinnen (genau 1000 reicht nicht)</span><input type="checkbox" id="ruleStrict1000" class="ruleSwitch" /></label>
+        <!-- Segment buttons only write the hidden <select>: it stays the single
+             source of truth for render, collectHouseRules and the change events. -->
+        <div class="rule-choice">
+          <span id="ruleTurnTimerLabel" class="rule-choice-label">Zug-Timer</span>
+          <div class="segmented" role="group" aria-labelledby="ruleTurnTimerLabel" data-select="ruleTurnTimer">
+            <button type="button" class="segBtn" data-value="0">Aus</button>
+            <button type="button" class="segBtn" data-value="30" title="30 Sekunden">30 s</button>
+            <button type="button" class="segBtn" data-value="60" title="60 Sekunden">60 s</button>
+            <button type="button" class="segBtn" data-value="90" title="90 Sekunden">90 s</button>
+          </div>
+          <select id="ruleTurnTimer" hidden>
             <option value="0" selected>Aus</option>
             <option value="30">30 Sekunden</option>
             <option value="60">60 Sekunden</option>
             <option value="90">90 Sekunden</option>
           </select>
-        </label>
-        <label class="rule-toggle"><span>Bot-Tempo</span>
-          <select id="ruleBotPace">
+        </div>
+        <div class="rule-choice">
+          <span id="ruleBotPaceLabel" class="rule-choice-label">Bot-Tempo</span>
+          <div class="segmented" role="group" aria-labelledby="ruleBotPaceLabel" data-select="ruleBotPace">
+            <button type="button" class="segBtn" data-value="fast">Schnell</button>
+            <button type="button" class="segBtn" data-value="normal">Normal</button>
+            <button type="button" class="segBtn" data-value="slow">Gemütlich</button>
+          </div>
+          <select id="ruleBotPace" hidden>
             <option value="fast">Schnell</option>
             <option value="normal" selected>Normal</option>
             <option value="slow">Gemütlich</option>
           </select>
-        </label>
+        </div>
         <!-- One level for every bot; a single bot is still changed on its seat. -->
-        <label class="rule-toggle"><span>Bot-Stärke</span>
-          <select id="ruleBotLevel">
+        <div class="rule-choice">
+          <span id="ruleBotLevelLabel" class="rule-choice-label">Bot-Stärke</span>
+          <div class="segmented segStack" role="group" aria-labelledby="ruleBotLevelLabel" data-select="ruleBotLevel">
+            <button type="button" class="segBtn" data-value="easy"><span class="diffBars" aria-hidden="true"><i class="on"></i><i></i><i></i><i></i></span><span>Leicht</span></button>
+            <button type="button" class="segBtn" data-value="medium"><span class="diffBars" aria-hidden="true"><i class="on"></i><i class="on"></i><i></i><i></i></span><span>Mittel</span></button>
+            <button type="button" class="segBtn" data-value="hard"><span class="diffBars" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span><span>Schwer</span></button>
+            <button type="button" class="segBtn" data-value="zen"><span class="diffBars" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span>Zen</span></button>
+          </div>
+          <p id="ruleBotLevelMixed" class="rule-choice-hint hidden">Gemischt – pro Bot am Sitz eingestellt</p>
+          <select id="ruleBotLevel" hidden>
             <option value="easy">Leicht</option>
             <option value="medium" selected>Mittel</option>
             <option value="hard">Schwer</option>
             <option value="zen">Zen</option>
             <option value="mixed" disabled hidden>Gemischt</option>
           </select>
-        </label>
+        </div>
       </div>
       </div><!-- /sessionPanels -->
 
@@ -594,7 +617,7 @@
            und Rundeninfo wohnen unten bei der Hand - dort schaut man hin. -->
       <header id="topBar">
         <button id="homeBtn" class="btn-icon" title="Zum Startbildschirm" aria-label="Zum Startbildschirm"><svg class="icon" aria-hidden="true"><use href="#i-home"/></svg></button>
-        <div id="turnInfo" class="headerCenter">–</div>
+        <div id="turnInfo" class="headerCenter"><span id="turnStatus" class="turnStatus">–</span><span id="turnTimer" class="turnTimer"></span></div>
         <div class="headerRight">
           <button id="emoteBtn" class="btn-icon" title="Reaktion senden" aria-label="Reaktion senden"><svg class="icon" aria-hidden="true"><use href="#i-smile"/></svg></button>
           <button id="pauseBtn" class="btn-icon hidden" title="Pause (alle müssen zustimmen)" aria-label="Pause"><svg class="icon" aria-hidden="true"><use href="#i-pause"/></svg></button>
@@ -879,6 +902,11 @@
             <span class="sheetRowLabel">Anlege-Hinweis</span>
             <span class="sheetRowValue">–</span>
           </button>
+          <button id="aidLowCardsToggle" class="sheetRow" title="Hinweis bei wenigen Karten ein/aus">
+            <svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg>
+            <span class="sheetRowLabel">Hinweis bei wenigen Karten</span>
+            <span class="sheetRowValue">–</span>
+          </button>
           <button id="botQuipsToggle" class="sheetRow" title="Bot-Sprüche ein/aus">
             <svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg>
             <span class="sheetRowLabel">Bot-Sprüche</span>
@@ -999,6 +1027,15 @@
             </div>
           </div>
 
+          <!-- Per device, so it lives here and not in the host's house rules. -->
+          <div class="settingsItem">
+            <label class="settingsRow" for="soundCheckbox">
+              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-sound-on"/></svg><span>Sound &amp; Vibration</span></span>
+              <input type="checkbox" id="soundCheckbox" class="settingsCheckbox" />
+            </label>
+            <p class="settingsHint">Gilt nur für dieses Gerät.</p>
+          </div>
+
           <div class="settingsItem">
             <h3 class="settingsGroupTitle">Spielhilfen</h3>
             <label class="settingsRow" for="aidTipsCheckbox">
@@ -1015,6 +1052,11 @@
               <input type="checkbox" id="aidLayOffCheckbox" class="settingsCheckbox" />
             </label>
             <p class="settingsHint">Grüne Rahmen an deinen Auslagen, wenn die gewählte Karte dort anlegen kann. Aus: Du prüfst das selbst. Im Tutorial sind beide Hinweise immer an.</p>
+            <label class="settingsRow" for="aidLowCardsCheckbox">
+              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg><span>Hinweis bei wenigen Karten</span></span>
+              <input type="checkbox" id="aidLowCardsCheckbox" class="settingsCheckbox" />
+            </label>
+            <p class="settingsHint">Markiert Mitspieler, die nur noch eine oder zwei Karten haben. Aus: Du zählst selbst mit.</p>
           </div>
 
           <div class="settingsItem">
@@ -1082,7 +1124,7 @@
 
           <h3>Hausregeln (beim Erstellen wählbar)</h3>
           <ul>
-            <li><b>Bot-Stärke:</b> Anfänger, Fortgeschritten, Profi oder Zen-Meister – für alle Bots in der Lobby oder pro Bot einzeln (Tipp auf die Stufe am Bot).</li>
+            <li><b>Bot-Stärke:</b> Leicht, Mittel, Schwer oder Zen – für alle Bots in der Lobby oder pro Bot einzeln (Tipp auf die Stufe am Bot).</li>
             <li><b>⏱ Zug-Timer:</b> 30/60/90 Sekunden pro Zug. Läuft die Zeit ab, spielt die Bot-Logik den Zug fair zu Ende – der Tisch wartet nie ewig.</li>
             <li><b>Hand aus zählt doppelt</b> (siehe Punkte).</li>
             <li><b>1000 streng:</b> Sieg erst, wenn jemand über 1000 Punkten liegt.</li>

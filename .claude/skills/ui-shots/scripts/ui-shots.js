@@ -13,7 +13,10 @@
 // Scenes: lobby, lobby-open, progress, stats, history, roundend, roundend-stats, gameover,
 // table (needs --state <file>: a GameManager.publicState('p1') JSON in the playing phase),
 // puzzle / puzzle-turn / puzzle-out (one meld laid), challenge (intro, attempt used),
-// gamelobby (seats + house rules), botdiff (the strength picker), gameover-challenge.
+// gamelobby (seats + house rules), botdiff (the strength picker), gameover-challenge,
+// settings / settings-aids (the start screen's "Mehr" sheet, top / play aids).
+// Start-screen scenes may follow table or result scenes in any order: the page
+// is reloaded to the start screen first.
 'use strict';
 const { spawn } = require('child_process');
 const fs = require('fs');
@@ -152,7 +155,7 @@ function auditPage(tapMin) {
   };
   const out = { truncated: [], smallTargets: [], unnamed: [], fold: null };
   for (const el of root.querySelectorAll('*')) {
-    if (!visible(el) || el.closest('.seoIntro')) continue;
+    if (!visible(el) || el.closest('.seoIntro, .visuallyHidden')) continue;
     const cs = getComputedStyle(el);
     // Text clipped by its own box. Measure the text itself (a Range), not
     // scrollWidth: decorative pseudo-elements inflate scrollWidth.
@@ -172,7 +175,11 @@ function auditPage(tapMin) {
       // A hit area stretched by an absolute ::after (e.g. .resultSortBtn) counts.
       const after = getComputedStyle(el, '::after');
       const stretched = after.content !== 'none' && after.position === 'absolute' && parseFloat(after.height) >= tapMin;
-      if (!inline && !stretched && Math.min(r.width, r.height) < tapMin) out.smallTargets.push(`${label(el)} ${Math.round(r.width)}x${Math.round(r.height)}`);
+      // So does the <label> around (or for) an input: a switch row is the target.
+      const lab = el.matches('input') && (el.closest('label') || (el.id && document.querySelector(`label[for="${el.id}"]`)));
+      const lr = lab ? lab.getBoundingClientRect() : null;
+      const labelled = !!lr && Math.min(lr.width, lr.height) >= tapMin;
+      if (!inline && !stretched && !labelled && Math.min(r.width, r.height) < tapMin) out.smallTargets.push(`${label(el)} ${Math.round(r.width)}x${Math.round(r.height)}`);
       if (el.matches('button, [role=button]') && !(el.textContent || '').trim() &&
           !el.getAttribute('aria-label') && !el.getAttribute('aria-labelledby') && !el.getAttribute('title')) {
         out.unnamed.push(label(el));
@@ -183,7 +190,9 @@ function auditPage(tapMin) {
   // scroll): where do the tools end?
   const tools = document.querySelector('.lobbyTools');
   const portrait = window.innerHeight > window.innerWidth;
-  if (portrait && !overlays.length && tools && visible(tools)) {
+  // Only the start screen must fit; a game lobby (seats, house rules) scrolls.
+  const start = document.getElementById('createGameBtn');
+  if (portrait && !overlays.length && tools && visible(tools) && start && visible(start)) {
     const bottom = tools.getBoundingClientRect().bottom + window.scrollY;
     if (bottom > window.innerHeight) out.fold = `.lobbyTools ends at ${Math.round(bottom)} px, viewport ${window.innerHeight} px`;
   }
@@ -257,7 +266,18 @@ function waitForHttp(port, ms = 20000) {
         if (AUDIT) audits.push({ view: vn, scene: name, ...(await page.evaluate(auditPage, TAP_MIN)) });
       };
       const inject = (obj) => sock.send(JSON.stringify(obj));
+      // A table/result scene leaves the start screen, and its buttons are then
+      // invisible (clicks time out). Reload without the mock session, so the
+      // client neither rejoins nor probes an unknown code (that blocks the IP).
+      const toStart = async () => {
+        if (await page.isVisible('#createGameBtn')) return;
+        await page.evaluate(() => { try { localStorage.removeItem('pikdame_last_session'); } catch (e) { /* blocked */ } });
+        await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
+        await page.waitForTimeout(1200);
+      };
+      const LOBBY_SCENES = /^(lobby|lobby-open|progress|stats|history|settings|settings-aids|challenge|puzzle.*)$/;
       for (const sc of scenes) {
+        if (LOBBY_SCENES.test(sc)) await toStart();
         if (sc === 'lobby') await shot('lobby');
         if (sc.startsWith('puzzle')) {
           puzzleKind = sc === 'puzzle' ? null : sc.slice('puzzle-'.length);
@@ -288,7 +308,7 @@ function waitForHttp(port, ms = 20000) {
           await page.click('#challengeCancelBtn');
         }
         if (sc === 'gamelobby' || sc === 'botdiff') {
-          if (!(await page.isVisible('#houseRulesSection'))) { await page.click('#createGameBtn'); await page.waitForTimeout(900); }
+          if (!(await page.isVisible('#houseRulesSection'))) { await toStart(); await page.click('#createGameBtn'); await page.waitForTimeout(900); }
           if (sc === 'gamelobby') {
             await page.evaluate(() => document.getElementById('houseRulesSection').scrollIntoView({ block: 'center' }));
             await shot('gamelobby');
@@ -307,6 +327,13 @@ function waitForHttp(port, ms = 20000) {
           await page.click('#identityAvatarBtn'); await page.waitForTimeout(300);
           await shot('progress');
           await page.click('#progressCloseBtn');
+        }
+        if (sc === 'settings' || sc === 'settings-aids') {
+          await page.click('#settingsBtnLobby'); await page.waitForTimeout(400);
+          // settings-aids: scrolled to the play aids at the end of the sheet.
+          if (sc === 'settings-aids') await page.evaluate(() => document.getElementById('aidLowCardsCheckbox').scrollIntoView({ block: 'center' }));
+          await shot(sc);
+          await page.click('#settingsOverlayCloseBtn');
         }
         if (sc === 'stats' || sc === 'history') {
           await page.click('#statsBtn'); await page.waitForTimeout(500);
