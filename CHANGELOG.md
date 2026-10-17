@@ -13,6 +13,11 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 - Die Kartenrücken-Auswahl lässt sich wieder durchscrollen: Bei zwölf Rücken war das Fenster höher als der Bildschirm und unten abgeschnitten. Quer liegen alle Rücken in zwei Reihen nebeneinander, am Desktop in drei.
 - Die Studio-Logo-Einstellung wirkte scheinbar nicht: „Voll“ spielte das Logo nur einmal pro Browser-Sitzung ab, ein Neuladen zählte nicht. Wer „Voll“ gewählt hatte, bekommt jetzt „Bei jedem Start“.
 
+## [2.67.1] - 2026-10-17
+
+### Fixed
+- Das Impressum zeigt Anbieter und Kontakt wieder an – die Sicherheitsrichtlinie der Seite hatte das Skript blockiert, das beides einblendet.
+
 ## [2.67.0] - 2026-10-17
 
 ### Changed
