@@ -10,6 +10,13 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 - Das gilt auch für den Platz von jemandem, der das Spiel verlassen hat: Wer neu dazukommt, spielt ihn mit allem weiter, und die Partie zählt für ihn ganz normal
 - Tages-Challenge und Tutorial bleiben Einzelspiele: Über den Code kann dort niemand mehr dazukommen
 
+## [2.68.0] - 2026-10-17
+
+### Changed
+- Die Bot-Stärke zeigt jetzt Pik statt Signalbalken: drei Plätze, ein bis drei davon gefüllt (Leicht, Mittel, Schwer), Zen hat drei Pik mit Krone – in den Hausregeln, an den Sitzen der Spiel-Lobby, im Stärke-Dialog und am Bot-Abzeichen im Spiel
+- Im Spiel zeigt das Bot-Abzeichen nur noch das Pik-Symbol, auch wenn die Bots unterschiedlich stark sind; die Stufe steht im Tooltip
+- Gesperrte Hausregeln (für Gäste) sind etwas kräftiger und bleiben auch im hellen Küchen-Theme gut lesbar
+
 ## [2.67.1] - 2026-10-17
 
 ### Fixed
