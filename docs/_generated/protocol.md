@@ -4,12 +4,12 @@
 
 The client talks to the server over a single WebSocket. Every message is JSON
 with a `type` field. Both lists below are generated from the server's message
-handlers, so they always match the running code: **42** message
-types go up, **27** come down.
+handlers, so they always match the running code: **43** message
+types go up, **28** come down.
 
 ## Client → server
 
-### Before a table {bdg-secondary}`17`
+### Before a table {bdg-secondary}`18`
 
 Sent on a fresh connection, before the socket is bound to a table. These carry `msg.name` because the server has no seat to look up yet.
 
@@ -17,7 +17,8 @@ Sent on a fresh connection, before the socket is bound to a table. These carry `
 | --- | --- |
 | `createSession` | Create a new game and receive its code. |
 | `joinSession` | Join an existing game by code. |
-| `checkSession` | Ask whether a stored session still exists (used by the "resume" button). |
+| `checkSession` | Ask whether a stored session still exists (used by the "resume" button). With the seat token it also tells whether this device still holds a seat there. |
+| `abandonSession` | One game at a time: give up the seat of this device's open game before starting another (seat token required; a stale code is answered quietly, no failed-join strike). |
 | `listProfiles` | Player profiles, server statistics and today's quests for the start screen - server-wide data, hence before the table guard. |
 | `getGameHistory` | The finished matches of a player name ("Meine Partien"). |
 | `setFavoriteBadges` | Pin up to three badges to the identity chip. |
@@ -110,6 +111,7 @@ Allowed from any seat at any time during a match.
 | `queenLaid` | A Queen of Spades was melded (+100). Drives the table reaction and the badge counters. |
 | `queenMagnet` | Who is currently the "Damen-Magnet des Tages" in the challenge. |
 | `quip` | A bot says a short line. Only the moment id travels; the texts live in the client (`game/BotQuips.js`). |
+| `sessionAbandoned` | Answer to `abandonSession` (`lobby`, `ended`, `left` or `none`); also sent to another tab still sitting on that seat. |
 | `sessionStatus` | Answer to `checkSession`. |
 | `stammtisch` | A Stammtisch was created or resolved; carries its code and members. |
 | `stammtischInfo` | Details of one Stammtisch (members, last evening, open table). |
