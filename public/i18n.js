@@ -23,6 +23,16 @@ window.I18N_STATIC = {
   // Lobby
   'Das Familien-Rommé – online mit Freunden & Bots': 'The family rummy – online with friends & bots',
   'Neues Spiel erstellen': 'Create a new game',
+  // One game at a time: home dialog + the sheet that asks to give up the open game
+  'Zum Startbildschirm?': 'Back to the start screen?',
+  'Du verlässt den Tisch. Kommst du nicht bald zurück, übernimmt ein Bot deinen Platz - mit dem Spiel-Code kannst du jederzeit wieder einsteigen.':
+    'You leave the table. If you do not come back soon, a bot takes your seat - with the game code you can rejoin at any time.',
+  'Das Spiel bleibt offen. Ein neues kannst du erst starten, wenn du dieses aufgibst.': 'The game stays open. You can only start a new one after giving this one up.',
+  'Das Tutorial wartet kurz auf dich – danach beginnt es von vorn.': 'The tutorial waits for you briefly - after that it starts over.',
+  'Die Challenge wartet bis Mitternacht auf dich – unter „Heute“ geht es weiter.': 'The challenge waits for you until midnight - continue it under "Today".',
+  'Tisch verlassen': 'Leave the table',
+  'Du hast noch ein laufendes Spiel': 'You still have a game running',
+  'Weiterspielen': 'Keep playing',
   'Zug-Timer': 'Turn timer',
   'Spielhilfen': 'Play aids',
   'Spiel-Tipps': 'Game tips',
@@ -224,6 +234,10 @@ window.I18N_SERVER_PATTERNS = [
   [/^(.+?) legt die Ablagekarte zurück und zieht neu\.$/, '$1 puts the discard card back and draws again.'],
   [/^(.+?) hat die Lobby verlassen\.$/, '$1 left the lobby.'],
   [/^(.+) übernimmt den Platz von (.+)\.$/, '$1 takes over $2\'s seat.'],
+  [/^Automatisch abgehoben \(Spieler hat das Spiel verlassen\)\.$/, 'Auto-cut (a player left the game).'],
+  [/^(.+?) hat das Spiel verlassen - ein Bot spielt weiter\.$/, '$1 left the game - a bot plays on.'],
+  [/^(.+?) hat aufgegeben - die Partie endet ohne Wertung\.$/, '$1 gave up - the match ends unscored.'],
+  [/^Du hast dieses Spiel aufgegeben - ein Bot spielt deinen Platz zu Ende\.$/, 'You gave up this game - a bot plays your seat to the end.'],
   [/^Verlassen geht nur in der Lobby - im Spiel gibt es 🏳️ Aufgeben\.$/, 'Leaving is only possible in the lobby - in a running game use 🏳️ forfeit.'],
   [/^Du sitzt nicht an diesem Tisch\.$/, 'You are not seated at this table.'],
   [/^(.+?) zieht eine Karte vom Stapel\.$/, '$1 draws a card from the pile.'],

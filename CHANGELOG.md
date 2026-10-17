@@ -7,7 +7,23 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 
 ### Fixed
 - Wer einem laufenden Spiel beitritt, übernimmt den Platz eines Bots jetzt mit dessen Karten, Auslagen und Punkten – vorher verschwanden die Karten des Bots, und man saß mitten in der Runde ohne Hand da
+- Das gilt auch für den Platz von jemandem, der das Spiel verlassen hat: Wer neu dazukommt, spielt ihn mit allem weiter, und die Partie zählt für ihn ganz normal
 - Tages-Challenge und Tutorial bleiben Einzelspiele: Über den Code kann dort niemand mehr dazukommen
+
+## [2.67.0] - 2026-10-17
+
+### Changed
+- Immer nur ein Spiel gleichzeitig: Läuft auf deinem Gerät noch eine Partie, ist „Weiterspielen“ der Hauptknopf auf dem Startbildschirm. Neues Spiel, Beitreten, Stammtisch und Tutorial fragen dann zuerst, ob du das laufende Spiel aufgeben willst – bestätigt mit zwei Taps.
+- Aufgeben vom Startbildschirm: Sitzt du allein mit Bots am Tisch, endet die Partie ohne Wertung. Spielen noch andere Menschen mit, übernimmt ein Bot deinen Platz bis zum Ende; du kannst nicht zurück, und für dich wird die Partie nicht gewertet. In der Lobby wird dein Platz einfach frei.
+- Tages-Challenge und Tagesrätsel bleiben davon unberührt; ein offenes Tutorial wird beim nächsten Spiel still beendet.
+- „Zum Startbildschirm?“ sagt jetzt dazu, dass das Spiel offen bleibt und ein neues erst nach dem Aufgeben geht.
+
+### Added
+- Mitspieler, die das Spiel aufgegeben haben, tragen am Tisch den Hinweis „hat verlassen“.
+
+### Fixed
+- Der Dialog „Zum Startbildschirm?“ war auf Englisch nicht übersetzt.
+- Im Tutorial und in der Tages-Challenge versprach „Zum Startbildschirm?“ eine Bot-Übernahme, die es dort nicht gibt – jetzt steht da, wie lange das Spiel auf dich wartet. Ein offenes Tutorial heißt auf dem Startbildschirm „Tutorial fortsetzen“.
 
 ## [2.66.0] - 2026-10-17
 

@@ -106,6 +106,7 @@ class GameManager {
   addOrReconnectPlayer(id, name) {
     // (reconnect path below clears disconnectedAt via the connected flag)
     let p = this.players.find((pl) => pl.id === id);
+    if (p && p.leftGame) return null; // given up for good (abandonSeat)
     if (p) {
       p.connected = true;
       delete p.disconnectedAt; // back in time - cancel the bot takeover
@@ -220,8 +221,73 @@ class GameManager {
     return { ok: true };
   }
 
+  /**
+   * One game at a time: a human gives up this table from the start screen to
+   * start something else. Lobby: the seat is freed. Alone with bots: the match
+   * ends unscored like the consensus forfeit. With other humans (connected or
+   * not): a bot plays the seat to the end, the leaver can never reclaim it and
+   * is not scored. Returns { outcome: 'lobby' | 'ended' | 'left' | 'none' }.
+   */
+  abandonSeat(playerId) {
+    const p = this.players.find((pl) => pl.id === playerId && !pl.isBot);
+    if (!p || p.leftGame) return { outcome: 'none' };
+    if (this.phase === 'lobby') return this.leaveLobby(playerId).ok ? { outcome: 'lobby' } : { outcome: 'none' };
+    // The daily challenge is one attempt per day and has its own resume path.
+    if (this.challengeDate || !['playing', 'roundEnd', 'cutting'].includes(this.phase)) return { outcome: 'none' };
+    const others = this.players.filter((pl) => pl.id !== playerId && !pl.isBot && !pl.leftGame);
+    if (others.length === 0) {
+      if (this.tutorialMode) this._abandonSolo();
+      else this._forfeitGame(`${p.name} hat aufgegeben - die Partie endet ohne Wertung.`);
+      return { outcome: 'ended' };
+    }
+    p.leftGame = true;
+    p.connected = false;
+    delete p.disconnectedAt; // no grace window: the bot plays this seat right away
+    // The stand-in plays at the table's level, not as the Zen fallback.
+    p.botDifficulty = this._tableBotLevel();
+    if (this._takeoverTimers) {
+      clearTimeout(this._takeoverTimers.get(playerId));
+      this._takeoverTimers.delete(playerId);
+    }
+    for (const votes of [this._pauseVotes, this._forfeitVotes, this._nextRoundReady]) {
+      if (votes) votes.delete(playerId);
+    }
+    this.addLog(`${p.name} hat das Spiel verlassen - ein Bot spielt weiter.`);
+    if (this.phase === 'cutting' && playerId === this.cutterId) this._autoCut('Spieler hat das Spiel verlassen');
+    this._evaluatePauseVotes();
+    this._evaluateForfeitVotes();
+    if (this.phase === 'roundEnd') this._maybeStartNextRound();
+    if (this.phase === 'playing') this.maybeRunBotTurn();
+    this.broadcastState();
+    return { outcome: 'left' };
+  }
+
+  /** The level most bots at this table play (ties: the table default). */
+  _tableBotLevel() {
+    const counts = {};
+    for (const pl of this.players) if (pl.isBot && pl.botDifficulty) counts[pl.botDifficulty] = (counts[pl.botDifficulty] || 0) + 1;
+    let best = this.defaultBotDifficulty || 'medium';
+    for (const [level, n] of Object.entries(counts)) if (n > (counts[best] || 0)) best = level;
+    return best;
+  }
+
+  /** What the start screen needs about this device's seat: no cards, no ids. */
+  seatStatus(playerId) {
+    const p = this.players.find((pl) => pl.id === playerId && !pl.isBot);
+    if (!p) return null;
+    return {
+      phase: this.phase,
+      round: this.roundNumber || 0,
+      score: (this.totals && this.totals[playerId]) || 0,
+      left: !!p.leftGame,
+      alone: !this.players.some((pl) => pl.id !== playerId && !pl.isBot && !pl.leftGame),
+      tutorial: !!this.tutorialMode,
+    };
+  }
+
   markDisconnected(id) {
     const p = this.players.find((pl) => pl.id === id);
+    if (p && p.leftGame) return; // a bot owns that seat for good
     if (p) {
       p.connected = false;
       // Der Abheber ist weg -> automatisch abheben, damit die Runde für den
@@ -1623,7 +1689,7 @@ class GameManager {
   /** All active players agreed to give up the whole MATCH. Ends the game right
    *  away and shows the final standings (current cumulative totals). It is an
    *  abort: no official winner and NOT recorded as a completed game. */
-  _forfeitGame() {
+  _forfeitGame(logText = '🏳️ Spiel einvernehmlich aufgegeben - alle waren einverstanden. Partie beendet.') {
     this._forfeitVotes = new Set();
     clearTimeout(this._turnTimer);
     this._turnTimer = null;
@@ -1644,7 +1710,7 @@ class GameManager {
       totalTurns: this.gameTurnCount || 0,
       totalRounds: this.roundNumber || 0,
     };
-    this.addLog('🏳️ Spiel einvernehmlich aufgegeben - alle waren einverstanden. Partie beendet.');
+    this.addLog(logText);
     // Abgebrochene Spiele werden markiert - der Trainings-Loader überspringt
     // sie (halbe Partien lehren halbe Strategien).
     MoveLogger.flush(this, 'forfeit');
@@ -1814,7 +1880,11 @@ class GameManager {
 
       this.lastGameRecord = {
         challengeDate: this.challengeDate || undefined,
-        players: this.players.map((p) => ({ id: p.id, name: p.name, isBot: p.isBot, botDifficulty: p.isBot ? p.botDifficulty : undefined })),
+        // A seat given up mid-game counts as a bot from then on: no stats, XP or history for the leaver.
+        players: this.players.map((p) => {
+          const bot = p.isBot || !!p.leftGame;
+          return { id: p.id, name: p.name, isBot: bot, leftGame: p.leftGame || undefined, botDifficulty: bot ? p.botDifficulty : undefined };
+        }),
         rounds: this.roundHistory,
         finalTotals: this.totals,
         winnerId: over.winnerId,
@@ -1825,7 +1895,7 @@ class GameManager {
 
       if (this.onGameOver) {
         const results = this.players
-          .filter((p) => !p.isBot) // nur echte Spielerprofile persistieren
+          .filter((p) => !p.isBot && !p.leftGame) // nur echte Spielerprofile persistieren
           .map((p) => {
             // Per-player facts for records & cumulative badge counters -
             // computed here because roundHistory lives in the manager.
@@ -1991,6 +2061,12 @@ class GameManager {
     this.roundNumber = 0;
     this.dealerIndex = 0;
     this.explicitDealerSet = false;
+    // Whoever gave the last match up is not at the rematch: a lobby bot takes the seat.
+    if (this.players.some((p) => p.leftGame)) {
+      for (const p of this.players) if (p.leftGame) delete this.totals[p.id];
+      this.players = this.players.filter((p) => !p.leftGame);
+      this.syncLobbyBots();
+    }
     // The winner deals the rematch, so the lucky cut goes to someone else.
     // Not in the challenge: its retry must replay round 1 identically.
     const winnerIdx = this.players.findIndex((p) => p.id === lastWinnerId);
@@ -2425,7 +2501,7 @@ class GameManager {
     // timers, otherwise a table whose current player never returns would
     // wait forever (the timer itself did not survive the restart).
     for (const p of this.players || []) {
-      if (!p.isBot && !p.connected) this._scheduleTakeover(p.id);
+      if (!p.isBot && !p.connected && !p.leftGame) this._scheduleTakeover(p.id);
     }
     this._armTurnTimer(); // fresh deadline for a restored running turn
     // Neustart mitten im Abheben: Nach dem Restore gelten alle Spieler als
@@ -3017,6 +3093,7 @@ class GameManager {
         botDifficulty: p.isBot ? botDifficultyOf(p) : undefined,
         connected: p.connected,
         controlledByBot: this.isBotControlled(p),
+        leftGame: p.leftGame || undefined,
         handCount: p.hand.length,
         hand: p.id === forPlayerId ? p.hand : undefined,
       })),

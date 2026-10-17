@@ -1639,7 +1639,7 @@ wss.on('connection', (ws, req) => {
     if (targetSession.stammtisch && !msg.playerId) {
       const wanted = sanitizeName(msg.name).toLowerCase();
       const mine = targetSession.game.players.find(
-        (p) => !p.isBot && !p.connected && wanted && p.name.toLowerCase() === wanted
+        (p) => !p.isBot && !p.connected && !p.leftGame && wanted && p.name.toLowerCase() === wanted
       );
       if (mine) {
         msg = { ...msg, playerId: mine.id, playerToken: targetSession.playerTokens.get(mine.id) };
@@ -1647,6 +1647,10 @@ wss.on('connection', (ws, req) => {
     }
     const wantsExistingSeat =
       msg.playerId && targetSession.game.players.some((p) => p.id === msg.playerId && !p.isBot);
+    if (wantsExistingSeat && targetSession.game.players.some((p) => p.id === msg.playerId && p.leftGame)) {
+      sendError(ws, 'Du hast dieses Spiel aufgegeben - ein Bot spielt deinen Platz zu Ende.');
+      return false;
+    }
     if (wantsExistingSeat) {
       const expected = targetSession.playerTokens.get(msg.playerId);
       if (expected && expected !== msg.playerToken) {
@@ -1941,7 +1945,36 @@ wss.on('connection', (ws, req) => {
       const challenge = !!(g && g.challengeDate && g.challengeDate === gameDay() && g.phase !== 'gameOver' && g.phase !== 'abandoned');
       // A finished match (a winner is decided) is not worth a 'resume' button.
       const finished = !!(g && g.phase === 'gameOver');
-      ws.send(JSON.stringify({ type: 'sessionStatus', code: msg.code, exists, challenge, finished }));
+      // Seat details only for the device holding the seat token: the start
+      // screen blocks a second game while this one is open (one game at a time).
+      const owned = g && msg.playerId && msg.playerToken && probed.playerTokens
+        && probed.playerTokens.get(msg.playerId) === msg.playerToken;
+      const seat = owned ? g.seatStatus(msg.playerId) : null;
+      if (seat) seat.stammtisch = probed.stammtisch || null;
+      ws.send(JSON.stringify({ type: 'sessionStatus', code: msg.code, exists, challenge, finished, seat }));
+      return;
+    }
+    if (msg.type === 'abandonSession') {
+      // The start screen gives up this device's open game before starting
+      // another. Same answer for a stale code and a wrong token - no oracle
+      // for guessing codes, so no failed-join strike either.
+      const target = registry.get(msg.code);
+      let outcome = 'none';
+      const ownsSeat = target && msg.playerId && msg.playerToken && target.playerTokens
+        && target.playerTokens.get(msg.playerId) === msg.playerToken;
+      if (ownsSeat) {
+        outcome = target.game.abandonSeat(msg.playerId).outcome;
+        if (outcome !== 'none') {
+          // Another tab still sitting on that seat goes back to the start screen.
+          const other = target.sockets.get(msg.playerId);
+          target.sockets.delete(msg.playerId);
+          if (other && other !== ws && other.readyState === WebSocket.OPEN) {
+            try { other.send(JSON.stringify({ type: 'sessionAbandoned', code: target.code, outcome })); } catch (e) { /* gone */ }
+          }
+          if (outcome === 'lobby') target.playerTokens.delete(msg.playerId);
+        }
+      }
+      ws.send(JSON.stringify({ type: 'sessionAbandoned', code: String(msg.code || '').toUpperCase(), outcome }));
       return;
     }
     if (msg.type === 'joinSession') {
@@ -1986,6 +2019,9 @@ wss.on('connection', (ws, req) => {
     }
     registry.touch(session);
     const game = session.game;
+    if (game.players.some((p) => p.id === playerId && p.leftGame)) {
+      return sendError(ws, 'Du hast dieses Spiel aufgegeben - ein Bot spielt deinen Platz zu Ende.');
+    }
 
     switch (msg.type) {
       case 'startGame': {
