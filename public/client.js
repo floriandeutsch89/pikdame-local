@@ -686,7 +686,7 @@
   const OCCASIONS = {
     birthday: { icon: 'i-cake', particles: 'confetti', line: () => L(`Alles Gute zum Geburtstag, ${greetingName}!`, `Happy birthday, ${greetingName}!`) },
     halloween: { icon: 'i-pumpkin', particles: 'bats', line: () => L('Süßes oder Saures!', 'Trick or treat!') },
-    nikolaus: { icon: 'i-boot', particles: '', line: () => L('Frohen Nikolaus!', "Happy St. Nicholas' Day!") }, // the December snow is enough
+    nikolaus: { icon: 'i-mitre', particles: '', line: () => L('Frohen Nikolaus!', "Happy St. Nicholas' Day!") }, // the December snow is enough
     christmas: { icon: 'i-tree', particles: 'stars', line: () => L('Frohe Weihnachten!', 'Merry Christmas!') },
     silvester: { icon: 'i-sparkle', particles: 'fireworks', line: () => L('Guten Rutsch!', "Happy New Year's Eve!") },
     newyear: { icon: 'i-sparkle', particles: 'fireworks', line: () => L('Frohes neues Jahr!', 'Happy New Year!') },

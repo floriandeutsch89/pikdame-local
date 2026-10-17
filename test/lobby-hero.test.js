@@ -220,7 +220,7 @@ test('holiday: everyone gets it without an account - costume, line, props, bats,
 
 test('holiday: each one has its own costume, line, icon, particles and emote', async () => {
   const cases = [
-    { id: 'nikolaus', line: 'Frohen Nikolaus!', icon: '#i-boot', worn: ['nikolaus', 'nikolaus'], particles: [], emote: '🎅' },
+    { id: 'nikolaus', line: 'Frohen Nikolaus!', icon: '#i-mitre', worn: ['nikolaus'], particles: [], emote: '🎅' },
     { id: 'christmas', line: 'Frohe Weihnachten!', icon: '#i-tree', worn: ['christmas', 'christmas'], particles: ['.occStar', 12], emote: '🎄' },
     { id: 'silvester', line: 'Guten Rutsch!', icon: '#i-sparkle', worn: ['silvester newyear'], particles: ['.occBurst', 5], emote: '🎆' },
     { id: 'newyear', line: 'Frohes neues Jahr!', icon: '#i-sparkle', worn: ['silvester newyear'], particles: ['.occBurst', 5], emote: '🎆' },
