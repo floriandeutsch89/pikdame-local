@@ -150,13 +150,15 @@ test('low-card warning: a stored ON is honoured on start, the settings switch tu
   assert.equal(window.localStorage.getItem('pikdame_aid_lowcards'), 'off');
 });
 
-test('bot level badge: equal levels give the host a bars-only badge and guests none; mixed levels show the word', async (t) => {
+test('bot level badge: the host always, guests only for mixed levels; in the game never the word, the name in title/aria-label', async (t) => {
   const { doc, feed, click } = await setup(t);
   const badges = () => [...doc.querySelectorAll('#opponents .botDiffBadge')];
   feed(table({ isHost: true }));
   assert.equal(badges().length, 3, 'the host keeps the tap target to change one bot');
-  assert.ok(badges().every((b) => b.classList.contains('barsOnly') && b.textContent === ''), 'no "Mittel" three times');
+  assert.ok(badges().every((b) => b.textContent === ''), 'no "Mittel" three times');
   assert.match(badges()[0].getAttribute('aria-label'), /Schwierigkeit ändern \(Mittel\)/);
+  assert.equal(badges()[0].title, badges()[0].getAttribute('aria-label'), 'the tooltip names the level too');
+  assert.ok(badges().every((b) => b.classList.contains('tapExpand')), 'the host keeps the 44 px hit area');
   click(badges()[0]);
   assert.ok(!doc.getElementById('botDiffOverlay').classList.contains('hidden'), 'the badge still opens the picker');
   feed(table({ isHost: false }));
@@ -164,8 +166,9 @@ test('bot level badge: equal levels give the host a bars-only badge and guests n
   const mixed = table({ isHost: false });
   mixed.players[2] = { ...mixed.players[2], botDifficulty: 'hard' };
   feed(mixed);
-  assert.deepEqual(badges().map((b) => b.textContent).sort(), ['Mittel', 'Mittel', 'Schwer']);
-  assert.ok(badges().every((b) => b.classList.contains('readonly')));
+  assert.ok(badges().every((b) => b.textContent === ''), 'mixed levels: still the symbol alone');
+  assert.deepEqual(badges().map((b) => b.getAttribute('aria-label')).sort(), ['Schwierigkeit: Mittel', 'Schwierigkeit: Mittel', 'Schwierigkeit: Schwer']);
+  assert.ok(badges().every((b) => b.title === b.getAttribute('aria-label') && b.classList.contains('readonly')));
 });
 
 function lobby(extra = {}) {
