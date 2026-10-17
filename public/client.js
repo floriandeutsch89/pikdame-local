@@ -473,6 +473,12 @@
         how: L('Löse 7 Tagesrätsel, ohne „Lösung zeigen“ zu tippen.', 'Solve 7 daily puzzles without tapping "show solution".') },
       puzzle_30: { emoji: '🧩', name: L('Rätsel\u00admeister', 'Puzzle master'), desc: L('30 Tagesrätsel gelöst', 'Solved 30 daily puzzles'),
         how: L('Löse 30 Tagesrätsel.', 'Solve 30 daily puzzles.') },
+      puzzle_perfect_10: { emoji: '🌟', name: L('Sternstunde', 'Star moment'), desc: L('10 Tagesrätsel mit 3 Sternen gelöst', 'Solved 10 daily puzzles with 3 stars'),
+        how: L('Löse 10 Tagesrätsel jeweils im ersten Versuch - das gibt 3 Sterne.', 'Solve 10 daily puzzles on the first try - that is 3 stars.') },
+      puzzle_perfect_30: { emoji: '🌟', name: L('Sternen\u00adsammler', 'Star collector'), desc: L('30 Tagesrätsel mit 3 Sternen gelöst', 'Solved 30 daily puzzles with 3 stars'),
+        how: L('Löse 30 Tagesrätsel im ersten Versuch.', 'Solve 30 daily puzzles on the first try.') },
+      puzzle_perfect_100: { emoji: '🌟', name: L('Rätsel-Ass', 'Puzzle ace'), desc: L('100 Tagesrätsel mit 3 Sternen gelöst', 'Solved 100 daily puzzles with 3 stars'),
+        how: L('Löse 100 Tagesrätsel im ersten Versuch.', 'Solve 100 daily puzzles on the first try.') },
       royal_flush: { emoji: '💎', name: L('Royal Flush', 'Royal flush'), desc: L('10-B-D-K-A einer Farbe ausgelegt, ohne Joker', 'Melded 10-J-Q-K-A of one suit, no jokers'),
         how: L('Lege eine Folge mit 10, Bube, Dame, König und Ass derselben Farbe aus - alles echte Karten, kein Joker.', 'Meld a run with 10, jack, queen, king and ace of one suit - all real cards, no joker.') },
       pik_royal: { emoji: '👑', name: L('Pik Royal', 'Spade royal'), desc: L('Royal Flush in Pik - mit der Pik Dame', 'Royal flush in spades - with the Queen of Spades'),
@@ -492,6 +498,7 @@
     { id: 'hearts', tiers: ['purple_heart_10', 'purple_heart_50', 'purple_heart_100'] },
     { id: 'challenger', tiers: ['challenger_7', 'challenger_30'] },
     { id: 'puzzles', tiers: ['puzzle_7', 'puzzle_30'] },
+    { id: 'puzzlePerfect', tiers: ['puzzle_perfect_10', 'puzzle_perfect_30', 'puzzle_perfect_100'] },
   ];
   const BADGE_SINGLES = [
     'pd_caught', 'round_300', 'score_500', 'pd_triple', 'double_queen_round',
@@ -5580,6 +5587,56 @@
     },
   };
   const puzzleKind = () => (puzzleData && PUZZLE_KINDS[puzzleData.kind] ? puzzleData.kind : 'meld');
+  // Mirrors game/DailyPuzzle.js STAR_TRIES: [max tries for 3 stars, for 2].
+  const PUZZLE_STAR_TRIES = { meld: [1, 2], turn: [1, 3], out: [1, 3] };
+  function puzzleStarsFor(kind, tries) {
+    const [three, two] = PUZZLE_STAR_TRIES[kind] || PUZZLE_STAR_TRIES.meld;
+    if (!(tries >= 1)) return 0;
+    return tries <= three ? 3 : tries <= two ? 2 : 1;
+  }
+  // Sprite stars: filled = earned; `possible` draws the still reachable ones as outlines.
+  function puzzleStarsEl(n, possible) {
+    const box = document.createElement('span');
+    box.className = `puzzleStars${possible ? ' possible' : ''}`;
+    box.setAttribute('role', 'img');
+    box.setAttribute('aria-label', possible ? L(`${n} von 3 Sternen möglich`, `${n} of 3 stars possible`) : L(`${n} von 3 Sternen`, `${n} of 3 stars`));
+    for (let i = 1; i <= 3; i++) box.insertAdjacentHTML('beforeend', `<svg class="icon${i <= n ? ' on' : ''}" aria-hidden="true"><use href="#i-star"/></svg>`);
+    return box;
+  }
+  // Today: the stars still possible, then the earned ones plus the perfect run.
+  // An archive day shows what was earned on the day itself.
+  function renderPuzzleStars() {
+    const row = el('puzzleStars');
+    row.innerHTML = '';
+    const st = puzzleData.status || {};
+    let stars = 0;
+    let possible = false;
+    let text = '';
+    if (puzzleData.archive) {
+      stars = puzzleData.dayStars || 0;
+      text = L('am Tag selbst', 'on the day itself');
+    } else if (st.stars) {
+      stars = st.stars;
+      text = stars === 3 ? L('Perfekt - im ersten Versuch', 'Perfect - first try') : stars === 2 ? L('Gut gelöst', 'Well solved') : L('Gelöst', 'Solved');
+    } else if (puzzleData.starsOn && !puzzleLocked(st, puzzleSolutionIds)) {
+      stars = puzzleStarsFor(puzzleKind(), (st.tries || 0) + 1);
+      possible = true;
+      text = L('möglich', 'possible');
+    }
+    row.classList.toggle('hidden', !stars);
+    if (!stars) return;
+    row.appendChild(puzzleStarsEl(stars, possible));
+    const label = document.createElement('span');
+    label.textContent = text;
+    row.appendChild(label);
+    const run = !puzzleData.archive && st.stars === 3 && puzzleData.perfectStreak ? puzzleData.perfectStreak.current : 0;
+    if (run >= 2) {
+      const r = document.createElement('span');
+      r.className = 'puzzleRun';
+      r.textContent = L(`${run} Tage in Folge perfekt`, `${run} perfect days in a row`);
+      row.appendChild(r);
+    }
+  }
   function openPuzzle() {
     el('puzzleOverlay').classList.remove('hidden');
     loadPuzzle(null);
@@ -5695,13 +5752,15 @@
     } else if (st.revealed && !puzzleSolutionIds && !el('puzzleStatus').textContent) {
       setPuzzleStatus(L('Lösung heute schon angezeigt - morgen gibt es ein neues.', 'Solution already shown today - a new one comes tomorrow.'), '');
     }
+    renderPuzzleStars();
   }
   // Wordle style: one red square per miss, green for the solve.
   function puzzleShareText() {
     const st = puzzleData.status || {};
     const tries = Math.max(1, st.tries || 1);
+    const stars = st.stars ? ` ${'★'.repeat(st.stars)}${'☆'.repeat(3 - st.stars)}` : '';
     const line = st.solved
-      ? `${L(`Gelöst im ${tries}. Versuch`, `Solved on try ${tries}`)} ${'🟥'.repeat(tries - 1)}🟩`
+      ? `${L(`Gelöst im ${tries}. Versuch`, `Solved on try ${tries}`)} ${'🟥'.repeat(tries - 1)}🟩${stars}`
       : `${L('Lösung angesehen', 'Looked at the solution')} ${'🟥'.repeat(st.tries || 0)}⬛`;
     return `${L('Pik Dame · Tagesrätsel', 'Pik Dame · Daily puzzle')} ${shareDay(puzzleData.date)} (${PUZZLE_KINDS[puzzleKind()].name()})\n${line}`;
   }
@@ -5747,6 +5806,8 @@
       puzzleData = {
         date: msg.date, kind: msg.kind || 'meld', hand: msg.hand || [], targetPoints: msg.targetPoints || 0,
         status: msg.status || {}, archive: !!msg.archive, today: msg.today || msg.date, epoch: msg.epoch || msg.date,
+        // Stars need a stored profile: the server sends dayStars only then.
+        starsOn: msg.dayStars !== undefined, dayStars: msg.dayStars || 0, perfectStreak: msg.perfectStreak || null,
       };
       renderPuzzle();
       try { renderToday(); } catch (e) { /* cosmetic */ }
@@ -5754,6 +5815,7 @@
     }
     // Answers for another day (navigated away meanwhile) are stale.
     if (!puzzleData || (msg.date && msg.date !== puzzleData.date)) return true;
+    if (msg.perfectStreak) puzzleData.perfectStreak = msg.perfectStreak;
     if (msg.type === 'puzzleResult') {
       puzzleData.status = msg.status || puzzleData.status;
       puzzleBadGroup = 0;
@@ -7566,8 +7628,10 @@
     // Puzzle: the open overlay is freshest, else the profile (server truth).
     const ps = (puzzleData && puzzleData.date === today && puzzleData.status)
       || (me && me.puzzles && today && me.puzzles[today]) || {};
-    if (ps.solved) setTileStatus(el('puzzleBtn'), el('puzzleTileStatus'), L('Gelöst', 'Solved'), 'done');
-    else if (ps.revealed) setTileStatus(el('puzzleBtn'), el('puzzleTileStatus'), L('Lösung angesehen', 'Solution shown'), 'done');
+    if (ps.solved) {
+      setTileStatus(el('puzzleBtn'), el('puzzleTileStatus'), L('Gelöst', 'Solved'), 'done');
+      if (ps.stars) el('puzzleTileStatus').appendChild(puzzleStarsEl(ps.stars));
+    } else if (ps.revealed) setTileStatus(el('puzzleBtn'), el('puzzleTileStatus'), L('Lösung angesehen', 'Solution shown'), 'done');
     else if (ps.tries) setTileStatus(el('puzzleBtn'), el('puzzleTileStatus'), L(`${ps.tries} ${ps.tries === 1 ? 'Versuch' : 'Versuche'}`, `${ps.tries} ${ps.tries === 1 ? 'try' : 'tries'}`), 'open');
     else setTileStatus(el('puzzleBtn'), el('puzzleTileStatus'), L('Neu', 'New'), 'new');
     const you = challengeToday && challengeToday.date === today ? challengeToday.you : null;
@@ -7914,6 +7978,7 @@
       ...Object.fromEntries([10, 50, 100].map((n) => [`purple_heart_${n}`, cap(p.gamesLost != null ? p.gamesLost : (p.gamesPlayed || 0) - (p.gamesWon || 0), n)])),
       challenger_7: cap(p.totalChallenges, 7), challenger_30: cap(p.totalChallenges, 30),
       puzzle_7: cap(p.totalPuzzlesSolved, 7), puzzle_30: cap(p.totalPuzzlesSolved, 30),
+      ...Object.fromEntries([10, 30, 100].map((n) => [`puzzle_perfect_${n}`, cap(p.totalPerfectPuzzles, n)])),
       red_lantern: cap(p.lastPlaceStreak, 3),
       stammtisch_10: cap(p.totalStammtischGames, 10),
     };

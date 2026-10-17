@@ -71,11 +71,15 @@ time), so the whole world plays the same thing and can talk about it:
   Friday, Sunday: lay out every card but the one you discard) and *Bester Zug*
   (Wednesday, Saturday: as many points as possible in one turn, several melds
   allowed, one card stays for the discard). Solving pays 30 experience once a
-  day. The arrows browse every earlier puzzle as practice, without experience
-  and without storing anything.
+  day. Stars grade how directly: 3 for a solve on the first check, 2 on the
+  second (*Beste Auslage*) or by the third (the other kinds), 1 after that; a
+  shown solution earns none. Three stars on consecutive days build a perfect
+  run, and 10/30/100 perfect solves are a badge family. The arrows browse
+  every earlier puzzle as practice, without experience and without storing
+  anything; they show the stars earned on the day itself.
 - **Sharing** — after the challenge and the puzzle, "Ergebnis teilen" hands a
   short text to the phone's share sheet (or the clipboard), e.g.
-  "Platz 3 von 12 · 1120 Punkte · ♠Q nie erwischt" or "Gelöst im 2. Versuch 🟥🟩".
+  "Platz 3 von 12 · 1120 Punkte · ♠Q nie erwischt" or "Gelöst im 2. Versuch 🟥🟩 ★★☆".
 
 ### Progress between matches
 

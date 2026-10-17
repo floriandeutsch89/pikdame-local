@@ -3602,6 +3602,17 @@ input:disabled { opacity: 0.65; }
 .puzzleStatus.ok { color: #1e9e57; }
 .puzzleStatus.bad { color: #d34b3a; }
 .puzzleHand .card.solution { box-shadow: 0 0 0 3px var(--drawn), var(--shadow-2); }
+/* Puzzle stars: filled = earned, outline = still possible today, faint = gone. */
+.puzzleStars { display: inline-flex; gap: 2px; vertical-align: -0.12em; color: color-mix(in srgb, #b8860b 82%, var(--card-ink)); }
+.puzzleStars .icon { width: 1.1em; height: 1.1em; opacity: 0.3; vertical-align: 0; }
+.puzzleStars .icon.on { opacity: 1; fill: currentColor; }
+.puzzleStars.possible .icon.on { fill: none; }
+.puzzleStarsRow { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 2px 8px; margin: -4px 0 8px; font-size: var(--fs-label); font-weight: 600; }
+.puzzleStarsRow.hidden { display: none; }
+.puzzleStarsRow .puzzleStars { font-size: var(--fs-lead); }
+.puzzleRun { color: var(--text-muted); font-weight: 500; }
+/* On the table the tile's gold, not the paper ink. */
+.ttStatus .puzzleStars { margin-left: 4px; color: color-mix(in srgb, #e9c21f 70%, var(--text)); }
 /* Day switcher: today plus the archive (older days, no XP). */
 .puzzleNav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -4px 0 6px; }
 .puzzleDay { flex: 1; text-align: center; font-weight: 700; font-size: var(--fs-label); }
