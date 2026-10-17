@@ -39,6 +39,26 @@ xychart-beta
 Seasons are calendar months; the ladder resets so late starters have
 something reachable.
 
+### Season finale
+
+Once a season has ended, its final standings are written down exactly once:
+the place comes from season XP, ties share the place. Accounts only, like the
+ladder itself. Each account gets one badge per season (the best it reached),
+kept for good and named after the season:
+
+| Place | Badge |
+| --- | --- |
+| 1 | 🥇 Season winner |
+| 2 | 🥈 Season silver |
+| 3 | 🥉 Season bronze |
+| 4 to 10 | 🏅 Season top 10 |
+| below, with at least 3 matches that season | 🎟️ Season participant |
+
+The next start shows the result once; the ladder shows last season's place.
+Only seasons that ended after the server first ran the finale count (older
+rollovers overwrote the numbers); in that first season the game counter
+started late, so every ranked account gets at least the last badge.
+
 ## Daily quests
 
 **3** of these per game day, the same three for everyone
