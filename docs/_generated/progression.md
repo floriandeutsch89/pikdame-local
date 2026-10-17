@@ -63,7 +63,7 @@ back instead of showing a broken streak.
 
 ## Badges
 
-**48** badges. 9 of them are *families*: one tile, rising
+**55** badges. 12 of them are *families*: one tile, rising
 thresholds on the same counter.
 
 | Family | Counter | Tiers |
@@ -77,6 +77,9 @@ thresholds on the same counter.
 | `hearts` | `gamesLost` | 💜 Brave heart {bdg-secondary}`10` → 💜 Unbreakable {bdg-secondary}`50` → 💜 Heart of gold {bdg-secondary}`100` |
 | `challenger` | `totalChallenges` | 🏁 Challenger {bdg-secondary}`7` → 🏁 Challenge pro {bdg-secondary}`30` |
 | `puzzles` | `totalPuzzlesSolved` | 🧩 Puzzle fox {bdg-secondary}`7` → 🧩 Puzzle master {bdg-secondary}`30` |
+| `puzzlePerfect` | `totalPerfectPuzzles` | 🌟 Star moment {bdg-secondary}`10` → 🌟 Star collector {bdg-secondary}`30` → 🌟 Puzzle ace {bdg-secondary}`100` |
+| `tower` | `towerCleared` | 🗼 Tower climber {bdg-secondary}`3` → 🗼 Tower stormer {bdg-secondary}`6` → 🗼 Tower top {bdg-secondary}`10` |
+| `towerStars` | `towerStars` | 🌠 Starry sky {bdg-secondary}`30` |
 
 The other **25** are earned by a fact about one match (computed in
 `computeEarnedBadges` from the finished game record):
@@ -108,6 +111,27 @@ The other **25** are earned by a fact about one match (computed in
 | 🧲 | **Queen magnet of the day** | Daily challenge: caught with the Queen of Spades the most | `queen_magnet_day` |
 | 💎 | **Royal flush** | Melded 10-J-Q-K-A of one suit, no jokers | `royal_flush` |
 | 👑 | **Spade royal** | Royal flush in spades - with the Queen of Spades | `pik_royal` |
+
+## Stammtisch goals
+
+A Stammtisch earns points together (`game/StammtischGoals.js`): every
+finished match there gives **10**, plus **5** for every further
+human at the table (two humans: 15, four: 25). Its level follows the
+same shape as the player curve with smaller steps (50 + 25 per level):
+
+| Level | Points for this level | Total points to reach it |
+| --- | --- | --- |
+| 1 | 50 | 0 |
+| 2 | 75 | 50 |
+| 3 | 100 | 125 |
+| 5 | 150 | 350 |
+| 10 | 275 | 1350 |
+| 20 | 525 | 5225 |
+
+The weekly goal is **5 matches**, Monday to Sunday of the game day
+(Europe/Berlin). Reaching it counts once per week; reached weeks in a row form
+the streak, which stays alive through the running week and ends with a
+missed one. Tables from before this feature start from their kept match list.
 
 ## Table talk
 

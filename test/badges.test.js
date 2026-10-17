@@ -162,7 +162,8 @@ test('computeEarnedBadges: counter tiers follow the profile, streak/wins tiers o
   const { BADGE_FAMILIES } = require('../game/Badges');
   const won = computeEarnedBadges(record(), 'p1', {
     gamesWon: 50, gamesPlayed: 100, winStreak: 10, totalQueensLaid: 50, totalHandAus: 5, dailyStreak: 30,
-    gamesLost: 100, totalChallenges: 30, totalPuzzlesSolved: 30, towerCleared: 10, towerStars: 30,
+    gamesLost: 100, totalChallenges: 30, totalPuzzlesSolved: 30, totalPerfectPuzzles: 100,
+    towerCleared: 10, towerStars: 30,
   });
   for (const fam of BADGE_FAMILIES) for (const [id] of fam.tiers) assert.ok(won.includes(id), `winner with maxed counters gets ${id}`);
   const lost = computeEarnedBadges(record(), 'p2', { gamesWon: 50, gamesPlayed: 100, winStreak: 10, totalQueensLaid: 50, dailyStreak: 30 });

@@ -3620,6 +3620,15 @@ input:disabled { opacity: 0.65; }
   color: inherit; font: inherit; font-size: var(--fs-hint); font-weight: 700; cursor: pointer;
 }
 .stAction.armed { background: var(--danger, #c0392b); border-color: transparent; color: #fff; }
+/* Group goals: the level, then this week's target with a thin bar. currentColor
+   keeps the bar legible on the dark lobby glass and on the light chip sheet. */
+.stGoals { display: flex; flex-direction: column; gap: 4px; margin: 2px 0 10px; font-size: var(--fs-label); }
+.stGoalLevel, .stGoalWeek { display: flex; flex-wrap: wrap; align-items: center; column-gap: 6px; row-gap: 3px; }
+.stGoals .icon { width: 1.1em; height: 1.1em; flex: 0 0 auto; }
+.stGoals small { color: var(--text-muted); font-size: var(--fs-hint); font-variant-numeric: tabular-nums; }
+.stGoalWeek > span:not(.stWeekBar) { font-weight: 600; font-variant-numeric: tabular-nums; }
+.stWeekBar { flex: 1 0 100%; height: 4px; border-radius: 999px; background: color-mix(in srgb, currentColor 18%, transparent); overflow: hidden; }
+.stWeekBar > i { display: block; height: 100%; min-width: 4px; background: currentColor; border-radius: inherit; }
 .stSeries { font-weight: 700; margin: 2px 0 8px; }
 .stSeries small { display: block; color: var(--text-muted); font-weight: 500; }
 .stTable { width: 100%; border-collapse: collapse; font-size: var(--fs-label); font-variant-numeric: tabular-nums; }
@@ -3651,6 +3660,17 @@ input:disabled { opacity: 0.65; }
 .puzzleStatus.ok { color: #1e9e57; }
 .puzzleStatus.bad { color: #d34b3a; }
 .puzzleHand .card.solution { box-shadow: 0 0 0 3px var(--drawn), var(--shadow-2); }
+/* Puzzle stars: filled = earned, outline = still possible today, faint = gone. */
+.puzzleStars { display: inline-flex; gap: 2px; vertical-align: -0.12em; color: color-mix(in srgb, #b8860b 82%, var(--card-ink)); }
+.puzzleStars .icon { width: 1.1em; height: 1.1em; opacity: 0.3; vertical-align: 0; }
+.puzzleStars .icon.on { opacity: 1; fill: currentColor; }
+.puzzleStars.possible .icon.on { fill: none; }
+.puzzleStarsRow { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 2px 8px; margin: -4px 0 8px; font-size: var(--fs-label); font-weight: 600; }
+.puzzleStarsRow.hidden { display: none; }
+.puzzleStarsRow .puzzleStars { font-size: var(--fs-lead); }
+.puzzleRun { color: var(--text-muted); font-weight: 500; }
+/* On the table the tile's gold, not the paper ink. */
+.ttStatus .puzzleStars { margin-left: 4px; color: color-mix(in srgb, #e9c21f 70%, var(--text)); }
 /* Day switcher: today plus the archive (older days, no XP). */
 .puzzleNav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -4px 0 6px; }
 .puzzleDay { flex: 1; text-align: center; font-weight: 700; font-size: var(--fs-label); }
@@ -4905,6 +4925,14 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
   .cardbackGalleryBox h3 { margin-bottom: 8px; }
   .cardbackGrid { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
   .cardbackTile { padding: 8px 4px; }
+
+  /* Stammtisch record at ~400 px: wider, goals on one row, the two buttons
+     side by side - stacked, the goals pushed "Platz nehmen" below the fold. */
+  .overlay-card.stammtischSheet { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; max-width: 640px; }
+  .overlay-card.stammtischSheet > :not(button) { grid-column: 1 / -1; }
+  .stammtischSheet .stGoals { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 14px; }
+  .stammtischSheet .stGoalLevel small { display: none; }
+  .stammtischSheet .stGoalWeek { flex: 1 1 auto; }
 
   /* Bot tower at ~400 px: the explanation left, the stages right in their own scroller. */
   .towerCard {

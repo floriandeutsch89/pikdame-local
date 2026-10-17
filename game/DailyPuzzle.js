@@ -19,7 +19,7 @@
 const { createDeck, shuffle, seededRandom } = require('./Deck');
 const { validateMeld } = require('./Rules');
 const { cardValue, makeStandardCard, SUITS, RANKS } = require('./Card');
-const { weekdayIndex } = require('./GameDay');
+const { weekdayIndex, addDays } = require('./GameDay');
 
 const HAND_SIZE = 11; // the classic single-meld puzzle; 2^11 subsets - instant
 const MIN_BEST_POINTS = 40; // below this the answer is too obvious
@@ -37,6 +37,9 @@ const KIND_BY_WEEKDAY = [ // Monday first
   { kind: 'out', size: 13 },
 ];
 const MAX_ATTEMPTS = 300;
+// Stars for a live solve: a solve already hits the target (best points, or out),
+// so the stars grade how directly - [max tries for 3 stars, max tries for 2].
+const STAR_TRIES = { meld: [1, 2], turn: [1, 3], out: [1, 3] };
 
 /** Stable seed from a string (djb2) - kept local so the puzzle cannot drift
  *  when the challenge store changes its own hashing. */
@@ -355,8 +358,23 @@ function checkAnswer(puzzle, answer) {
   return result;
 }
 
+/** 1-3 stars for a solve after `tries` checks (0 = no solve to grade). */
+function starsFor(kind, tries) {
+  const [three, two] = STAR_TRIES[kind] || STAR_TRIES.meld;
+  if (!(tries >= 1)) return 0;
+  return tries <= three ? 3 : tries <= two ? 2 : 1;
+}
+
+/** The perfect run as of `today`: alive only if its last day is today or yesterday. */
+function perfectStreakOn(profile, today) {
+  const p = profile || {};
+  const last = p.lastPerfectPuzzleDay;
+  const alive = !!last && (last === today || last === addDays(today, -1));
+  return { current: alive ? p.perfectPuzzleStreak || 0 : 0, best: p.bestPerfectPuzzleStreak || 0 };
+}
+
 module.exports = {
   puzzleForDate, publicPuzzle, checkAnswer, searchMelds, kindForDate,
-  enumerateMelds, bestPacking, countCovers,
-  HAND_SIZE, XP_FOR_SOLVED, MIN_BEST_POINTS, PUZZLE_EPOCH, ROTATION_START,
+  enumerateMelds, bestPacking, countCovers, starsFor, perfectStreakOn,
+  HAND_SIZE, XP_FOR_SOLVED, MIN_BEST_POINTS, PUZZLE_EPOCH, ROTATION_START, STAR_TRIES,
 };

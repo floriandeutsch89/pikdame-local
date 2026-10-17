@@ -59,6 +59,9 @@ const BADGE_IDS = [
   'queen_magnet_day', // "Damen-Magnet des Tages": most queens caught in a ranked challenge, day over
   'puzzle_7', // 7 daily puzzles solved (tier 30 below)
   'puzzle_30',
+  'puzzle_perfect_10', // 10 daily puzzles solved with three stars (tiers 30/100 below)
+  'puzzle_perfect_30',
+  'puzzle_perfect_100',
   'royal_flush', // melded 10-J-Q-K-A of one suit, all real cards
   'pik_royal', // ... in spades (with the Queen of Spades)
   // --- bot tower (BotTower.js): stages cleared, all stars ---------------------
@@ -81,6 +84,7 @@ const BADGE_FAMILIES = [
   { id: 'hearts', field: 'gamesLost', tiers: [['purple_heart_10', 10], ['purple_heart_50', 50], ['purple_heart_100', 100]] },
   { id: 'challenger', field: 'totalChallenges', tiers: [['challenger_7', 7], ['challenger_30', 30]] },
   { id: 'puzzles', field: 'totalPuzzlesSolved', tiers: [['puzzle_7', 7], ['puzzle_30', 30]] },
+  { id: 'puzzlePerfect', field: 'totalPerfectPuzzles', tiers: [['puzzle_perfect_10', 10], ['puzzle_perfect_30', 30], ['puzzle_perfect_100', 100]] },
   { id: 'tower', field: 'towerCleared', tiers: [['tower_3', 3], ['tower_6', 6], ['tower_10', 10]] },
   { id: 'towerStars', field: 'towerStars', tiers: [['tower_stars_30', 30]] },
 ];

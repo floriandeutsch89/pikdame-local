@@ -71,11 +71,29 @@ time), so the whole world plays the same thing and can talk about it:
   Friday, Sunday: lay out every card but the one you discard) and *Bester Zug*
   (Wednesday, Saturday: as many points as possible in one turn, several melds
   allowed, one card stays for the discard). Solving pays 30 experience once a
-  day. The arrows browse every earlier puzzle as practice, without experience
-  and without storing anything.
+  day. Stars grade how directly: 3 for a solve on the first check, 2 on the
+  second (*Beste Auslage*) or by the third (the other kinds), 1 after that; a
+  shown solution earns none. Three stars on consecutive days build a perfect
+  run, and 10/30/100 perfect solves are a badge family. The arrows browse
+  every earlier puzzle as practice, without experience and without storing
+  anything; they show the stars earned on the day itself.
 - **Sharing** — after the challenge and the puzzle, "Ergebnis teilen" hands a
   short text to the phone's share sheet (or the clipboard), e.g.
-  "Platz 3 von 12 · 1120 Punkte · ♠Q nie erwischt" or "Gelöst im 2. Versuch 🟥🟩".
+  "Platz 3 von 12 · 1120 Punkte · ♠Q nie erwischt" or "Gelöst im 2. Versuch 🟥🟩 ★★☆".
+
+### Bot tower
+
+Ten fixed stages, defined only in `game/BotTower.js`: each stage is one round
+on its own seeded deal (deck and cut) against fixed bots, from two Leicht bots
+up to three Zen bots with a 100-point head start. One star for more points than
+every bot plus the head start, two for at least 100 points ahead, three for
+that and going out yourself. One star unlocks the next stage; tries are
+unlimited and the best per stage counts (name-based, like the badges). Tower
+rounds earn no experience and no match statistics, so retries cannot farm
+them. The seeds were picked by simulation (the Schwer heuristic in the human
+seat, the Zen net at stages 7-10): every stage is winnable, and the winning
+margin shrinks from about 200 to 15 points. The way in is the progress sheet
+(tap your avatar).
 
 ### Progress between matches
 

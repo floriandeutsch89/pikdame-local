@@ -4,12 +4,12 @@
 
 The client talks to the server over a single WebSocket. Every message is JSON
 with a `type` field. Both lists below are generated from the server's message
-handlers, so they always match the running code: **43** message
-types go up, **28** come down.
+handlers, so they always match the running code: **45** message
+types go up, **30** come down.
 
 ## Client → server
 
-### Before a table {bdg-secondary}`18`
+### Before a table {bdg-secondary}`20`
 
 Sent on a fresh connection, before the socket is bound to a table. These carry `msg.name` because the server has no seat to look up yet.
 
@@ -28,6 +28,8 @@ Sent on a fresh connection, before the socket is bound to a table. These carry `
 | `revealPuzzle` | Give up on the puzzle and see the solution (no points). |
 | `startChallenge` | Begin today's daily challenge. Beginning counts as the one attempt of the day. |
 | `startTutorial` | Open a tutorial table against easy bots; the hints themselves are client-side. |
+| `getTower` | The bot tower stages (bots and handicap, never the seeds) and a player name's best stars per stage. |
+| `startTower` | Start one bot tower stage: a solo table with its fixed deal and bots, one round. Refused while the stage is locked and in public mode. |
 | `createStammtisch` | Create a Stammtisch (a standing group table with its own code). |
 | `getStammtisch` | Resolve a Stammtisch code. Unknown codes count as a failed attempt (brute-force guard). |
 | `listStammtische` | The Stammtische a player name belongs to. |
@@ -117,6 +119,8 @@ Allowed from any seat at any time during a match.
 | `stammtischInfo` | Details of one Stammtisch (members, last evening, open table). |
 | `stammtischList` | Answer to `listStammtische`. |
 | `state` | The full game state as that player may see it (their own hand, everyone else's card counts). Sent after every change, coalesced to one send per tick. |
+| `towerInfo` | Answer to `getTower`: the stages, best stars per stage, total stars, cleared stages and the highest unlocked stage. |
+| `towerResult` | The verdict of a finished bot tower stage: stars, own score, best bot, handicap, margin, and the updated best. |
 
 :::{note}
 The server is the single source of truth: it validates every move and never

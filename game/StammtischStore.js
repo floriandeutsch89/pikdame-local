@@ -10,6 +10,7 @@
 const path = require('path');
 const crypto = require('crypto');
 const { createAtomicJsonFile } = require('./AtomicJsonFile');
+const { bookGame, goalsView } = require('./StammtischGoals');
 
 const DEFAULT_DATA_FILE = path.join(process.env.PIKDAME_DATA_DIR || path.join(__dirname, '..', 'data'), 'stammtisch.json');
 
@@ -114,10 +115,10 @@ function createStammtischStore(filePath = DEFAULT_DATA_FILE) {
   }
 
   /**
-   * Books a finished match: head-to-head counters, the game list and the
-   * rematch series. Only HUMAN seats count - a bot never wins a series.
+   * Books a finished match: head-to-head counters, the game list, the
+   * rematch series and the group goals. Only HUMAN seats count - a bot never wins a series.
    * @param {Object} gameRecord GameManager.lastGameRecord
-   * @returns {{summary:Object, seriesEvent:null|{type:'won',winner:string,no:number}}|null}
+   * @returns {{summary:Object, seriesEvent:null|{type:'won',winner:string,no:number}, goalEvents:Array}|null}
    */
   function recordGame(rawCode, gameRecord, now = Date.now()) {
     const store = load();
@@ -151,6 +152,8 @@ function createStammtischStore(filePath = DEFAULT_DATA_FILE) {
         seriesEvent = { type: 'won', winner: t.series.winner, no: t.series.no };
       }
     }
+    // Before the push: an old table's goals are rebuilt from t.games once.
+    const goalEvents = bookGame(t, humans.length, now);
     t.games.push({
       at: gameRecord.finishedAt || now,
       seriesNo: t.series.no,
@@ -164,14 +167,14 @@ function createStammtischStore(filePath = DEFAULT_DATA_FILE) {
     while (t.games.length > MAX_GAMES_PER_TABLE) t.games.shift();
     t.lastActivity = now;
     file.write(store);
-    return { summary: summarize(t), seriesEvent };
+    return { summary: summarize(t, now), seriesEvent, goalEvents };
   }
 
   /**
    * Everything the client shows: standings, the pairwise record and the
    * series. Pairwise = "in matches where both sat, who finished ahead".
    */
-  function summarize(t) {
+  function summarize(t, now = Date.now()) {
     const members = Object.values(t.members || {})
       .map((m) => ({ ...m, avg: m.games ? Math.round(m.points / m.games) : 0 }))
       .sort((a, b) => b.wins - a.wins || b.avg - a.avg || a.name.localeCompare(b.name));
@@ -200,6 +203,7 @@ function createStammtischStore(filePath = DEFAULT_DATA_FILE) {
       members,
       pairwise,
       series: { ...series, needed },
+      goals: goalsView(t, now),
       recent: (t.games || []).slice(-5).reverse(),
     };
   }
@@ -259,20 +263,21 @@ function createStammtischStore(filePath = DEFAULT_DATA_FILE) {
     return w ? w.name : null;
   }
 
-  function summary(rawCode) {
+  function summary(rawCode, now = Date.now()) {
     const t = get(rawCode);
-    return t ? summarize(t) : null;
+    return t ? summarize(t, now) : null;
   }
 
   /** Start-screen chip and its sheet: the record without activity data. */
-  function chipInfo(rawCode) {
-    const s = summary(rawCode);
+  function chipInfo(rawCode, now = Date.now()) {
+    const s = summary(rawCode, now);
     if (!s) return null;
     return {
       code: s.code,
       name: s.name,
       gamesPlayed: s.gamesPlayed,
       series: s.series,
+      goals: s.goals,
       pairwise: s.pairwise,
       members: s.members.map((m) => ({ name: m.name, wins: m.wins, games: m.games, avg: m.avg })),
     };
