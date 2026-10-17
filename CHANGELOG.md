@@ -10,6 +10,11 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 - Im Spiel zeigt das Bot-Abzeichen nur noch das Pik-Symbol, auch wenn die Bots unterschiedlich stark sind; die Stufe steht im Tooltip
 - Gesperrte Hausregeln (für Gäste) sind etwas kräftiger und bleiben auch im hellen Küchen-Theme gut lesbar
 
+## [2.67.1] - 2026-10-17
+
+### Fixed
+- Das Impressum zeigt Anbieter und Kontakt wieder an – die Sicherheitsrichtlinie der Seite hatte das Skript blockiert, das beides einblendet.
+
 ## [2.67.0] - 2026-10-17
 
 ### Changed
