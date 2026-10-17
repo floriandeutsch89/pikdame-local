@@ -10,6 +10,13 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 - Im Spiel zeigt das Bot-Abzeichen nur noch das Pik-Symbol, auch wenn die Bots unterschiedlich stark sind; die Stufe steht im Tooltip
 - Gesperrte Hausregeln (für Gäste) sind etwas kräftiger und bleiben auch im hellen Küchen-Theme gut lesbar
 
+## [2.66.0] - 2026-10-17
+
+### Added
+- Feiertage auf dem Startbildschirm, für alle Spieler: An Halloween, Nikolaus, Weihnachten (24.–26.12.), Silvester, Neujahr und Ostern (Sonntag und Montag) wird der Start festlich – mit Gruß, kleinen Überraschungen und passendem Himmel (Fledermäuse, Sterne zum Schnee, Feuerwerk statt Schnee, Blüten)
+- Ein Feiertags-Emote für diesen Tag: 🎅 am Nikolaus, 🎄 an Weihnachten, 🐣 an Ostern; an Halloween und Silvester bleiben 🎃 und 🎆
+- Der Tag richtet sich nach deutscher Zeit und wechselt um Mitternacht von selbst, auch wenn die App offen bleibt; mit „Bewegung reduzieren“ bleiben Gruß und Deko, die Animationen entfallen
+
 ## [2.65.0] - 2026-10-17
 
 ### Added
