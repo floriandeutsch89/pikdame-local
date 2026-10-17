@@ -1512,6 +1512,14 @@ function findStammtischSession(code) {
   return null;
 }
 
+/** A NEW table starts with the host's last lobby choices (kept per device,
+ *  sent along); the lobby controls' own validation drops anything unknown. */
+function applyTablePrefs(game, prefs) {
+  if (!prefs || typeof prefs !== 'object' || game.challengeDate || game.tutorialMode) return;
+  if (prefs.houseRules && typeof prefs.houseRules === 'object') game.setHouseRules(prefs.houseRules);
+  if (typeof prefs.botLevel === 'string') game.setAllBotsDifficulty(prefs.botLevel);
+}
+
 function sendProfilesTo(ws) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   // Today's quests ride along with the profiles: the client needs the ids
@@ -1842,6 +1850,7 @@ wss.on('connection', (ws, req) => {
     if (msg.type === 'createSession') {
       const created = registry.create();
       if (created.error) return sendError(ws, created.error);
+      applyTablePrefs(created.session.game, msg.tablePrefs);
       await joinSession(created.session, msg);
       return;
     }
@@ -1859,6 +1868,7 @@ wss.on('connection', (ws, req) => {
       if (founded.error) return sendError(ws, founded.error);
       const created = registry.create({ stammtisch: founded.table.code });
       if (created.error) return sendError(ws, created.error);
+      applyTablePrefs(created.session.game, msg.tablePrefs);
       await joinSession(created.session, msg);
       return;
     }
@@ -1976,6 +1986,7 @@ wss.on('connection', (ws, req) => {
             const created = registry.create({ stammtisch: table.code });
             if (created.error) return sendError(ws, created.error);
             target = created.session;
+            applyTablePrefs(target.game, msg.tablePrefs);
           }
           await joinSession(target, { ...msg, playerId: undefined, playerToken: undefined });
           return;

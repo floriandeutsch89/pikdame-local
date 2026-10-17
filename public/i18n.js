@@ -126,7 +126,8 @@ window.I18N_STATIC = {
   'Kartenrücken': 'Card back',
   'Debug-Ansicht': 'Debug view',
   'Blendet Gitter und Messwerte ein - nur für die Fehlersuche.': 'Shows the grid and live metrics - for troubleshooting only.',
-  'Beim Start der App. „Automatisch“ folgt der Systemeinstellung „Bewegung reduzieren“.': 'On app start. "Automatic" follows the system setting "reduce motion".',
+  'Antippen überspringt es. Ist „Bewegung reduzieren“ an, läuft es nur bei „Bei jedem Start“ - und dann ruhiger.':
+    'Tap to skip it. With "reduce motion" on, it only plays with "Every start" - and then calmer.',
   'Schließen': 'Close',
   'Omas Küchentisch': "Grandma's kitchen table",
   'Debug-Overlay umschalten': 'Toggle debug overlay',

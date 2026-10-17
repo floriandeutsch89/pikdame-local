@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.71.0] - 2026-10-17
+
+### Added
+- Die Lobby merkt sich deine Wahl: Bot-Stärke und Hausregeln (Hand aus doppelt, über 1000, Zug-Timer, Bot-Tempo), die du als Gastgeber zuletzt eingestellt hast, gelten für deinen nächsten neuen Tisch – auch für einen neuen Stammtisch-Abend. Gespeichert wird auf diesem Gerät; ohne gespeicherte Wahl startet der Tisch wie bisher auf „Mittel“. Die Tages-Challenge bleibt unverändert.
+- Studio-Logo: neue Wahl „Bei jedem Start“ – das Logo läuft bei jedem Öffnen der App, auch nach dem Neuladen. „Nur beim ersten Start“ (Standard) zeigt es einmal auf diesem Gerät, „Aus“ nie. Mit „Bewegung reduzieren“ läuft die ruhige Fassung.
+
+### Fixed
+- Die Kartenrücken-Auswahl lässt sich wieder durchscrollen: Bei zwölf Rücken war das Fenster höher als der Bildschirm und unten abgeschnitten. Quer liegen alle Rücken in zwei Reihen nebeneinander, am Desktop in drei.
+- Die Studio-Logo-Einstellung wirkte scheinbar nicht: „Voll“ spielte das Logo nur einmal pro Browser-Sitzung ab, ein Neuladen zählte nicht. Wer „Voll“ gewählt hatte, bekommt jetzt „Bei jedem Start“.
+
 ## [2.70.0] - 2026-10-17
 
 ### Fixed

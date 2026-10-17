@@ -129,24 +129,18 @@
   <script src="/i18n.js" defer></script>
   <script src="/client.js" defer></script>
   <script>
-    /* Laeuft VOR dem ersten Bild und entscheidet ueber den Studio-Vorspann.
-       Uebersprungen wird er, wenn er in dieser Sitzung schon lief, per
-       Einstellung abgeschaltet ist, ein CRAWLER die Seite rendert oder
-       reduzierte Bewegung gewuenscht ist. Umgekehrt liegt er dank CSS sofort
-       ueber der Lobby - vorher blitzte sie kurz auf.
-       Eigener Gueltigkeitsbereich: die Variablen duerfen nicht als globale
-       Namen (bot, mode, ...) im Fenster landen. */
+    /* Runs before the first paint: html.noSplash drops the studio intro that
+       CSS otherwise shows at once. Own scope - nothing may leak into window. */
     (function () {
       try {
         var mode = null, seen = false;
         try { mode = localStorage.getItem('pikdame_studio_logo'); } catch (e) { mode = null; }
-        try { seen = sessionStorage.getItem('pikdame_splash_seen') === '1'; } catch (e) { seen = false; }
-        /* Ein Vorspann von ~8 s bei JEDEM App-Start ist zu viel: automatisch
-           laeuft er nur einmal pro Geraet und nie bei einem Einladungslink
-           (?session=...) - wer mitspielen will, soll sofort tippen koennen.
-           Wer 'Voll' waehlt, bekommt ihn weiter bei jeder Sitzung. */
-        if (mode !== 'full') {
-          try { if (localStorage.getItem('pikdame_splash_device') === '1') seen = true; } catch (e) { /* egal */ }
+        /* 'always' (pre-2.71 name: 'full') plays on every load; the default
+           plays once per device and never for an invite link (?session=). */
+        var always = mode === 'always' || mode === 'full';
+        if (!always) {
+          try { seen = sessionStorage.getItem('pikdame_splash_seen') === '1'; } catch (e) { seen = false; }
+          try { if (localStorage.getItem('pikdame_splash_device') === '1') seen = true; } catch (e) { /* no storage */ }
           if (/[?&]session=/.test(location.search)) seen = true;
         }
         /* Crawler sahen bisher NUR das Logo - der Live-Test der Search
@@ -161,9 +155,8 @@
            (Facebook, WhatsApp) heissen ebenfalls nicht 'bot'. */
         var ua = navigator.userAgent || '';
         var bot = /bot|crawl|spider|slurp|lighthouse|headlesschrome|pagespeed|yandex|preview|google-inspectiontool|googleother|google-extended|mediapartners|google-site-verification|facebookexternalhit|whatsapp|snapchat|embedly|validator/i.test(ua);
-        /* Reduzierte Bewegung heisst hier: gar kein Vorspann. Wer ihn per
-           Einstellung ausdruecklich auf 'full' gestellt hat, bekommt ihn. */
-        var reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) && mode !== 'full';
+        /* Reduced motion skips the default intro; 'always' plays its calm cut. */
+        var reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) && !always;
         if (seen || mode === 'off' || bot || reduce) document.documentElement.classList.add('noSplash');
         /* Eigene Klasse, NICHT noSplash wiederverwenden: die traegt auch ein
            wiederkehrender Besucher und eine reduzierte Bewegung. Nur diese
@@ -1148,12 +1141,12 @@
             <label class="settingsRow" for="studioLogoSelect">
               <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-film"/></svg><span>Studio-Logo</span></span>
               <select id="studioLogoSelect" class="settingsSelect">
-                <option value="auto">Automatisch</option>
-                <option value="full">Voll</option>
+                <option value="auto">Nur beim ersten Start</option>
+                <option value="always">Bei jedem Start</option>
                 <option value="off">Aus</option>
               </select>
             </label>
-            <p class="settingsHint" id="studioLogoHint">Beim Start der App. „Automatisch“ folgt der Systemeinstellung „Bewegung reduzieren“.</p>
+            <p class="settingsHint" id="studioLogoHint">Antippen überspringt es. Ist „Bewegung reduzieren“ an, läuft es nur bei „Bei jedem Start“ - und dann ruhiger.</p>
           </div>
 
           <div class="settingsItem">

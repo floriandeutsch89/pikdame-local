@@ -19,6 +19,7 @@
 
   const NAME_KEY = 'pikdame_player_name';
   const SPLASH_DEVICE_KEY = 'pikdame_splash_device'; // intro played once on this device
+  const TABLE_PREFS_KEY = 'pikdame_table_prefs'; // host's last lobby choices, seed the next new table
   const THEME_KEY = 'pikdame_theme';
   const SOUND_KEY = 'pikdame_sound_enabled';
 
@@ -2011,6 +2012,17 @@
       botPace: el('ruleBotPace').value,
     };
   }
+  // Rides along with every message that may open a NEW table; the server
+  // validates it like the lobby controls and ignores it for existing tables.
+  function tablePrefs() {
+    try {
+      const v = JSON.parse(storageGet(TABLE_PREFS_KEY) || 'null');
+      return v && typeof v === 'object' ? v : undefined;
+    } catch (e) { return undefined; }
+  }
+  function rememberTablePrefs(patch) {
+    storageSet(TABLE_PREFS_KEY, JSON.stringify({ ...(tablePrefs() || {}), ...patch }));
+  }
 
   let shownPointsSeq = 0;
   let stampKnownRound = null;
@@ -3692,7 +3704,7 @@
   }
 
   el('createGameBtn').addEventListener('click', () => {
-    guardOpenGame('create', () => send({ type: 'createSession', name: currentName(), accountToken: accountToken() || undefined }));
+    guardOpenGame('create', () => send({ type: 'createSession', name: currentName(), accountToken: accountToken() || undefined, tablePrefs: tablePrefs() }));
   });
 
   // Desktop-Tastatur: Enter im Code-Feld tritt bei, Enter im Namensfeld
@@ -3726,7 +3738,7 @@
     }
     guardOpenGame('join', () => {
       const storedId = storageGet(playerKeyFor(code));
-      send({ type: 'joinSession', code, name: currentName(), playerId: storedId || undefined, playerToken: storageGet(tokenKeyFor(code)) || undefined, accountToken: accountToken() || undefined });
+      send({ type: 'joinSession', code, name: currentName(), playerId: storedId || undefined, playerToken: storageGet(tokenKeyFor(code)) || undefined, accountToken: accountToken() || undefined, tablePrefs: tablePrefs() });
     }, code);
   });
 
@@ -4028,11 +4040,18 @@
   // bots follow immediately (sound is per device and lives in the settings).
   el('ruleBotLevel').addEventListener('change', () => {
     const level = el('ruleBotLevel').value;
-    if (lastState && lastState.isHost && !lastState.challengeDate && level !== 'mixed') send({ type: 'setAllBotDifficulty', difficulty: level });
+    if (lastState && lastState.isHost && !lastState.challengeDate && level !== 'mixed') {
+      send({ type: 'setAllBotDifficulty', difficulty: level });
+      rememberTablePrefs({ botLevel: level });
+    }
   });
   ['ruleHandAus', 'ruleStrict1000', 'ruleTurnTimer', 'ruleBotPace'].forEach((id) => {
     el(id).addEventListener('change', () => {
-      if (lastState && lastState.isHost && !lastState.challengeDate) send({ type: 'setHouseRules', houseRules: collectHouseRules() });
+      if (lastState && lastState.isHost && !lastState.challengeDate) {
+        const houseRules = collectHouseRules();
+        send({ type: 'setHouseRules', houseRules });
+        rememberTablePrefs({ houseRules });
+      }
     });
   });
 
@@ -5233,7 +5252,7 @@
       .join('');
     box.querySelectorAll('button[data-code]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        guardOpenGame('join', () => send({ type: 'joinSession', code: btn.dataset.code, name: currentName(), accountToken: accountToken() || undefined }), btn.dataset.code);
+        guardOpenGame('join', () => send({ type: 'joinSession', code: btn.dataset.code, name: currentName(), accountToken: accountToken() || undefined, tablePrefs: tablePrefs() }), btn.dataset.code);
       });
     });
     // Ask for the series state so the chip says "Serie 1:1" without a tap.
@@ -5347,7 +5366,7 @@
         `<button type="button" class="stAction"><span>${escapeHtml(t.isOwner ? L('Löschen', 'Delete') : L('Verlassen', 'Leave'))}</span></button>`;
       row.querySelector('.stJoin').addEventListener('click', () => {
         el('stammtischOverlay').classList.add('hidden');
-        guardOpenGame('join', () => send({ type: 'joinSession', code: t.code, name: currentName(), accountToken: accountToken() || undefined }), t.code);
+        guardOpenGame('join', () => send({ type: 'joinSession', code: t.code, name: currentName(), accountToken: accountToken() || undefined, tablePrefs: tablePrefs() }), t.code);
       });
       confirmByTap(row.querySelector('.stAction'), L('Wirklich?', 'Sure?'), () => {
         send({ type: t.isOwner ? 'deleteStammtisch' : 'leaveStammtisch', code: t.code, name: currentName(), accountToken: accountToken() || undefined });
@@ -5371,7 +5390,7 @@
       return;
     }
     el('stammtischOverlay').classList.add('hidden');
-    guardOpenGame('create', () => send({ type: 'createStammtisch', stammtischName, name: currentName(), accountToken: accountToken() || undefined }));
+    guardOpenGame('create', () => send({ type: 'createStammtisch', stammtischName, name: currentName(), accountToken: accountToken() || undefined, tablePrefs: tablePrefs() }));
   });
   el('stammtischNameInput').addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter') el('stammtischCreateBtn').click();
@@ -8188,7 +8207,7 @@
     wrap.className = 'cardbackGallery';
     const box = document.createElement('div');
     box.className = 'cardbackGalleryBox';
-    box.innerHTML = `<h3>🎴 ${L('Kartenrücken', 'Card backs')}</h3>`;
+    box.innerHTML = `<h3><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><span>${L('Kartenrücken', 'Card backs')}</span></h3>`;
     const grid = document.createElement('div');
     grid.className = 'cardbackGrid';
     for (const cb of CARDBACKS) {
@@ -8196,7 +8215,8 @@
       const tile = document.createElement('button');
       tile.type = 'button';
       tile.className = `cardbackTile${cb.id === cur ? ' active' : ''}${unlocked ? '' : ' locked'}`;
-      tile.innerHTML = `<span class="cbPrev cbPrev-${cb.id}">${unlocked ? '' : '🔒'}</span>` +
+      const lock = unlocked ? '' : '<svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg>';
+      tile.innerHTML = `<span class="cbPrev cbPrev-${cb.id}">${lock}</span>` +
         `<span class="cbName">${L(cb.label, cb.labelEn)}</span>` +
         `<span class="cbGate">${unlocked ? (cb.id === cur ? '✓' : '') : L(cb.gate.de, cb.gate.en)}</span>`;
       tile.addEventListener('click', () => {
@@ -8211,6 +8231,11 @@
     wrap.appendChild(box);
     wrap.addEventListener('click', (e) => { if (e.target === wrap) wrap.remove(); });
     document.body.appendChild(wrap);
+    // The grid scrolls inside the box; on iOS the fade edge is the only hint.
+    const edges = () => grid.classList.toggle('canScrollDown', grid.scrollHeight - grid.clientHeight - grid.scrollTop > 8);
+    grid.addEventListener('scroll', edges, { passive: true });
+    if (typeof ResizeObserver === 'function') new ResizeObserver(edges).observe(grid);
+    requestAnimationFrame(edges);
   }
   // --- Saisonale Akzente (klein & abschaltfrei): Dezember-Schnee,
   // Oktober-Kürbis-Emote, Silvester-Feuerwerk-Emoji im Emote-Set. -------------
@@ -8345,24 +8370,25 @@
   } catch (e) { /* optional */ }
 
   // --- Studio-Vorspann "Flodex Interactive" ---------------------------------
-  // Einmal pro Sitzung, Antippen ueberspringt. Drei Einstellungen:
-  //   automatisch = folgt der Systemeinstellung "Bewegung reduzieren"
-  //   voll        = immer der volle Wirbel
-  //   aus         = gar kein Vorspann
-  // Phase 2 haengt am ECHTEN Ende der Klingen-Animation, nicht an einer
-  // ausgerechneten Uhrzeit - feste Zeiten koennen mit der laufenden
-  // Animation auseinanderdriften.
+  // auto = once per device, always = every load, off = never; a tap skips it.
+  // Phase 2 follows the REAL end of the blade animation, not a fixed time.
   const LOGO_MODE_KEY = 'pikdame_studio_logo';
-  const LOGO_MODES = ['auto', 'full', 'off'];
+  const LOGO_MODES = ['auto', 'always', 'off'];
+  // 'full' was the pre-2.71 name of 'always' (same rule as the head script).
+  function logoMode() {
+    const v = storageGet(LOGO_MODE_KEY);
+    if (v === 'full') return 'always';
+    return LOGO_MODES.includes(v) ? v : 'auto';
+  }
   function logoModeLabel(mode) {
-    if (mode === 'full') return L('Voll', 'Full');
+    if (mode === 'always') return L('Bei jedem Start', 'Every start');
     if (mode === 'off') return L('Aus', 'Off');
-    return L('Automatisch', 'Automatic');
+    return L('Nur beim ersten Start', 'First start only');
   }
   function updateStudioLogoBtn() {
     const sel = document.getElementById('studioLogoSelect');
     if (sel) {
-      sel.value = storageGet(LOGO_MODE_KEY) || 'auto';
+      sel.value = logoMode();
       for (const opt of sel.options) if (LOGO_MODES.includes(opt.value)) opt.textContent = logoModeLabel(opt.value);
     }
   }
@@ -8383,12 +8409,11 @@
     const splash = el('studioSplash');
     if (splash) {
       let seen = false;
-      try { seen = sessionStorage.getItem('pikdame_splash_seen') === '1'; } catch (e) { seen = false; }
-      const mode = storageGet(LOGO_MODE_KEY) || 'auto';
-      // Same rule as the head script: automatic = once per DEVICE and never
-      // for an invite link; only the explicit 'full' mode replays it every
-      // session.
-      if (mode !== 'full') {
+      const mode = logoMode();
+      // Same rule as the head script: 'auto' = once per DEVICE and never for
+      // an invite link; 'always' ignores both flags and plays on every load.
+      if (mode !== 'always') {
+        try { seen = sessionStorage.getItem('pikdame_splash_seen') === '1'; } catch (e) { seen = false; }
         if (storageGet(SPLASH_DEVICE_KEY) === '1') seen = true;
         if (urlSessionCode) seen = true;
       }
@@ -8397,7 +8422,7 @@
       // or reduced motion). Honour it: drop the overlay out of the document
       // WITHOUT marking the intro as seen - a crawler must not leave traces in
       // sessionStorage, and a reduced-motion visitor who later switches the
-      // setting to 'full' should still get the intro.
+      // setting to 'always' should still get the intro.
       const skipped = document.documentElement.classList.contains('noSplash');
 
       if (skipped || seen || mode === 'off') {
@@ -8405,7 +8430,8 @@
       } else {
         try { sessionStorage.setItem('pikdame_splash_seen', '1'); } catch (e) { /* egal */ }
         storageSet(SPLASH_DEVICE_KEY, '1');
-        if (mode === 'full' || !reduce) splash.classList.add('fullMotion');
+        // Reduced motion gets the calm cut: blades fade in, no swirl.
+        if (!reduce) splash.classList.add('fullMotion');
         splash.classList.add('play');
 
         let finished = false;
