@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.65.0] - 2026-10-17
+
+### Added
+- Kleine Überraschung für besondere Tage
+
 ## [2.61.1] - 2026-10-17
 
 ### Changed

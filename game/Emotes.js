@@ -35,9 +35,11 @@ const EMOTE_DEFS = [
 // Seasonal offers the client adds in October / December-January. Allowed
 // year-round server-side.
 const SEASONAL_EMOTES = ['🎃', '🎆'];
+// Offered only to the account whose greeting day it is (game/GreetingDays.js).
+const GREETING_EMOTE = '🎂';
 
 const EMOTE_IDS = EMOTE_DEFS.map((e) => e.id);
-const ALL_ALLOWED = new Set([...EMOTE_IDS, ...SEASONAL_EMOTES]);
+const ALL_ALLOWED = new Set([...EMOTE_IDS, ...SEASONAL_EMOTES, GREETING_EMOTE]);
 
 function isAllowedEmote(id) {
   return ALL_ALLOWED.has(id);
@@ -50,4 +52,4 @@ function emoteLevel(id) {
   return def ? def.level : 1;
 }
 
-module.exports = { EMOTE_DEFS, EMOTE_IDS, SEASONAL_EMOTES, isAllowedEmote, emoteLevel };
+module.exports = { EMOTE_DEFS, EMOTE_IDS, SEASONAL_EMOTES, GREETING_EMOTE, isAllowedEmote, emoteLevel };

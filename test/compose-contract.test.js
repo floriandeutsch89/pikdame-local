@@ -73,3 +73,10 @@ test('compose contract: no committed compose file carries a real SMTP password',
     assert.deepEqual(bad, [], `Klartext-Passwort in ${file}: ${bad.join(' | ')}`);
   }
 });
+
+test('compose contract: every stack forwards the greeting days from .env, never a value', () => {
+  for (const file of ['docker-compose.yml', 'docker-compose.ghcr.yml', 'docker-compose.prod.yml', 'docker-compose.beta.yml']) {
+    const lines = read(file).split(/\r?\n/).map((l) => l.trim());
+    assert.ok(lines.includes('- PIKDAME_BIRTHDAY=${PIKDAME_BIRTHDAY:-}'), `${file} must forward PIKDAME_BIRTHDAY from .env`);
+  }
+});

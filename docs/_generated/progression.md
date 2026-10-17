@@ -136,7 +136,8 @@ on the client:
 | 💪 | level 18 |
 
 Seasonal extras the client offers in autumn and around New Year: 🎃 🎆
-(always accepted server-side).
+(always accepted server-side). On a configured greeting day (`PIKDAME_BIRTHDAY`) that
+account also gets 🎂.
 
 Bots may say a short line at **6** moments
 (`round_win`, `hand_aus`, `game_win`, `queen_caught`, `queen_laid`, `big_pile`). Only the moment id travels over the wire;

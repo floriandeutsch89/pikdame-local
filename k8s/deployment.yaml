@@ -40,7 +40,7 @@ spec:
               value: "8080"
             - name: PIKDAME_MAX_SESSIONS
               value: "200"
-            # Secrets (SMTP, base URL) via a Secret - see k8s/README.md:
+            # Secrets (SMTP, base URL, optional PIKDAME_BIRTHDAY) via a Secret - see k8s/README.md:
             # envFrom:
             #   - secretRef:
             #       name: pikdame-env

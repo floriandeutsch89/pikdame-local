@@ -674,43 +674,108 @@
     meow: () => { playMeow(); vibrate([12, 60, 12]); },
   };
 
+  // Greeting day of the signed-in account (server: PIKDAME_BIRTHDAY). The server
+  // sends the window; this side only compares instants and never knows a date.
+  const GREETING_EMOTE = '🎂'; // = GREETING_EMOTE in game/Emotes.js (contract test)
+  let greetingWindow = null; // { from, until } in epoch ms
+  let greetingName = '';
+  let greetingTimer = null;
+  let greetingCatCheck = null; // the cat below re-checks at the window's edges
+  function greetingActive() {
+    const now = Date.now();
+    return !!greetingWindow && now >= greetingWindow.from && now < greetingWindow.until;
+  }
+  function setGreeting(win, name) {
+    const ok = !!win && Number.isFinite(win.from) && Number.isFinite(win.until) && win.until > win.from;
+    greetingWindow = ok ? { from: win.from, until: win.until } : null;
+    greetingName = String(name || '');
+    applyGreeting();
+  }
+  function applyGreeting() {
+    clearTimeout(greetingTimer);
+    const on = greetingActive();
+    document.body.classList.toggle('greetingDay', on);
+    const text = el('greetLineText');
+    if (text) text.textContent = on ? L(`Alles Gute zum Geburtstag, ${greetingName}!`, `Happy birthday, ${greetingName}!`) : '';
+    renderGreetingConfetti(on);
+    renderGreetingEmote(on);
+    if (greetingCatCheck) greetingCatCheck();
+    if (greetingWindow) {
+      const now = Date.now();
+      const next = now < greetingWindow.from ? greetingWindow.from : greetingWindow.until;
+      if (next > now) greetingTimer = setTimeout(applyGreeting, Math.min(next - now + 50, 0x7fffffff));
+    }
+  }
+  function renderGreetingConfetti(on) {
+    const box = el('greetConfetti');
+    if (!box || !on) { if (box) box.textContent = ''; return; }
+    if (box.childElementCount) return;
+    const colors = ['#f6c453', '#ff8fa3', '#8ab4ff', '#b28dff', '#7ee0c3'];
+    for (let i = 0; i < 18; i++) {
+      const c = document.createElement('i');
+      c.style.left = `${Math.random() * 100}%`;
+      c.style.background = colors[i % colors.length];
+      c.style.animationDuration = `${7 + Math.random() * 6}s`;
+      c.style.animationDelay = `-${Math.random() * 13}s`;
+      box.appendChild(c);
+    }
+  }
+  function renderGreetingEmote(on) {
+    const bar = el('emoteBar');
+    const old = bar && bar.querySelector('.greetEmote');
+    if (!bar || !!old === on) return;
+    if (old) { old.remove(); return; }
+    const sample = bar.querySelector('button[data-emote]');
+    if (!sample) return;
+    const b = sample.cloneNode(false);
+    b.classList.add('greetEmote');
+    b.dataset.emote = GREETING_EMOTE;
+    b.textContent = GREETING_EMOTE;
+    b.addEventListener('click', () => {
+      send({ type: 'emote', emoji: GREETING_EMOTE });
+      bar.classList.add('hidden');
+    });
+    bar.appendChild(b);
+  }
+  // A PWA may sleep across an edge: the timers then fire late or never.
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) applyGreeting(); });
+
   // A present for a cat lover, deliberately in no CHANGELOG, doc or commit message: five quick
-  // taps on the start screen's card fan bring out a cat; on 17 December it is out all day.
+  // taps on the start screen's card fan bring out a cat; on the greeting day it is out all day.
   (() => {
     const hero = document.querySelector('.lobbyHero');
     if (!hero) return;
     const says = hero.querySelector('.heroCatBubble text');
-    // Device date, like the seasonal snow.
-    const catDay = () => { const d = new Date(); return d.getMonth() === 11 && d.getDate() === 17; };
     let taps = [];
     let hushTimer = null;
-    const speak = (stay) => {
+    const speak = () => {
       if (says) says.textContent = L('Miau!', 'Meow!');
       hero.classList.add('catOut', 'catTalk');
       clearTimeout(hushTimer);
       hushTimer = setTimeout(() => {
         hero.classList.remove('catTalk');
-        if (!stay) hero.classList.remove('catOut');
+        if (!greetingActive()) hero.classList.remove('catOut');
       }, 3500);
     };
     hero.addEventListener('click', () => {
       if (hero.classList.contains('catTalk')) return;
       const now = Date.now();
       taps = taps.filter((at) => now - at < 2500).concat(now);
-      if (taps.length < 5 && !catDay()) return;
+      if (taps.length < 5 && !greetingActive()) return;
       taps = [];
-      speak(catDay());
+      speak();
       sound.meow();
     });
-    // Waits for the intro; re-checked when the app returns, as a PWA may sleep over midnight.
+    // Waits for the intro; also runs at the window's edges and when the app returns.
     const checkDay = () => {
-      if (!catDay()) {
+      if (!greetingActive()) {
         if (!hero.classList.contains('catTalk')) hero.classList.remove('catOut');
       } else if (!hero.classList.contains('catOut')) {
         if (document.getElementById('studioSplash')) setTimeout(checkDay, 500);
-        else speak(true);
+        else speak();
       }
     };
+    greetingCatCheck = checkDay;
     setTimeout(checkDay, 900);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) checkDay(); });
   })();
@@ -5675,7 +5740,21 @@
     }
     try { renderIdentity(); } catch (e) { /* cosmetic */ }
     renderAccountProgress();
+    // The greeting belongs to the account: gone on sign-out, re-rendered on a language switch.
+    if (!loggedIn) greetingWindow = null;
+    applyGreeting();
   }
+  let greetingFetchedAt = 0;
+  async function refreshGreeting() {
+    if (!accountToken()) return;
+    const me = await accountApi('/api/me', { token: accountToken() });
+    greetingFetchedAt = Date.now();
+    if (me.ok) setGreeting(me.greeting, me.username);
+  }
+  // A PWA can sleep for days; past a few hours the server is asked again (cheap endpoint).
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && accountUsername && Date.now() - greetingFetchedAt > 3 * 60 * 60 * 1000) refreshGreeting().catch(() => {});
+  });
   async function initAccount(enabled, passkeysOn) {
     if (!enabled) return; // Button bleibt versteckt (CodeApp/Hotspot)
     accountsServer = true;
@@ -5715,8 +5794,11 @@
     }
     if (accountToken()) {
       const me = await accountApi('/api/me', { token: accountToken() });
-      if (me.ok) accountUsername = me.username;
-      else storageRemove(ACC_TOKEN_KEY);
+      greetingFetchedAt = Date.now();
+      if (me.ok) {
+        accountUsername = me.username;
+        setGreeting(me.greeting, me.username);
+      } else storageRemove(ACC_TOKEN_KEY);
     }
     refreshAccountUi();
   }
@@ -5841,6 +5923,7 @@
     refreshAccountUi();
     showToast(L(`Angemeldet als ${r.username}`, `Signed in as ${r.username}`));
     loadLadder().catch(() => {}); // fills level + season rank for next open
+    refreshGreeting().catch(() => {}); // sign-in answers carry no greeting; /api/me does
     if (fromLink || confirmed) {
       // Signed in by link, usually because the passkey or password is gone -
       // or just signed up: open the dialog on the sign-in methods so one is a
