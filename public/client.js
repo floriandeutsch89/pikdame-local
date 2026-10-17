@@ -732,8 +732,8 @@
     const toggleBtn = el('soundToggle');
     setRowIcon(toggleBtn, enabled ? 'i-sound-on' : 'i-sound-off');
     setRowValue(toggleBtn, enabled ? L('An', 'On') : L('Aus', 'Off'));
-    const ruleCheckbox = el('ruleSound');
-    if (ruleCheckbox) ruleCheckbox.checked = enabled;
+    const box = el('soundCheckbox');
+    if (box) box.checked = enabled;
   }
   setSoundEnabled(soundEnabled);
 
@@ -766,10 +766,14 @@
   // Defaults: discard hint OFF (new in 2.37, so nobody loses a habit), lay-off
   // hint ON (it has always been there). Nothing here changes a rule - the
   // server stays the only judge of every move.
+  //   - low-card warning (2.62, default OFF): marks opponents down to 1-2 cards;
+  //     counting them yourself is part of the game, so the tutorial leaves it alone.
   const AID_DISCARD_KEY = 'pikdame_aid_discard';
   const AID_LAYOFF_KEY = 'pikdame_aid_layoff';
+  const AID_LOWCARDS_KEY = 'pikdame_aid_lowcards';
   let aidDiscard = storageGet(AID_DISCARD_KEY) === 'on';
   let aidLayOff = storageGet(AID_LAYOFF_KEY) !== 'off';
+  let aidLowCards = storageGet(AID_LOWCARDS_KEY) === 'on';
   const inTutorial = () => !!(lastState && lastState.tutorialMode);
   const discardAidOn = () => aidDiscard || inTutorial();
   const layOffAidOn = () => aidLayOff || inTutorial();
@@ -779,6 +783,8 @@
         L('Ablage-Hinweis ausblenden', 'Hide discard hint'), L('Ablage-Hinweis anzeigen', 'Show discard hint')],
       ['aidLayOffToggle', 'aidLayOffCheckbox', aidLayOff,
         L('Anlege-Hinweis ausblenden', 'Hide lay-off hint'), L('Anlege-Hinweis anzeigen', 'Show lay-off hint')],
+      ['aidLowCardsToggle', 'aidLowCardsCheckbox', aidLowCards,
+        L('Hinweis bei wenigen Karten ausblenden', 'Hide low-card warning'), L('Hinweis bei wenigen Karten anzeigen', 'Show low-card warning')],
     ]) {
       const btn = document.getElementById(btnId);
       if (btn) {
@@ -795,6 +801,9 @@
     if (which === 'discard') {
       aidDiscard = enabled;
       storageSet(AID_DISCARD_KEY, enabled ? 'on' : 'off');
+    } else if (which === 'lowcards') {
+      aidLowCards = enabled;
+      storageSet(AID_LOWCARDS_KEY, enabled ? 'on' : 'off');
     } else {
       aidLayOff = enabled;
       storageSet(AID_LAYOFF_KEY, enabled ? 'on' : 'off');
@@ -1544,7 +1553,6 @@
 
   function render() {
     try { updateTutorial(); } catch (e) { /* hints must never break the table */ }
-    delete el('turnInfo').dataset.baseText; // countdown suffix rebuilds fresh
     try { updateCountdownTimer(); } catch (e) { /* timer must never break the table */ }
     try { renderCutOverlay(); } catch (e) { /* cut overlay must never break the table */ }
     try { maybeShowCutReveal(); } catch (e) { /* reveal must never break the table */ }
@@ -1674,9 +1682,9 @@
     setCtl('ruleBotLevel', botLevels.size === 0 ? (lastState.botLevel || 'medium') : botLevels.size === 1 ? [...botLevels][0] : 'mixed');
     // House rules are read-only for non-hosts.
     el('houseRulesSection').querySelectorAll('input, select, button').forEach((ctrl) => {
-      // ruleSound is a personal (per-device) setting - never lock it.
-      ctrl.disabled = !isHost && ctrl.id !== 'ruleSound';
+      ctrl.disabled = !isHost;
     });
+    syncSegments();
 
     document.querySelectorAll('.seatCountBtn').forEach((btn) => {
       const count = Number(btn.dataset.seatCount);
@@ -1712,7 +1720,7 @@
       const diff = BOT_DIFF[p.botDifficulty] || BOT_DIFF.zen;
       const diffTitle = canEdit
         ? L('Schwierigkeit ändern', 'Change difficulty')
-        : L(`Schwierigkeit: ${diff.label()}`, `Difficulty: ${diff.label()}`);
+        : L(`Schwierigkeit: ${diff.short()}`, `Difficulty: ${diff.short()}`);
       const diffChip = p.isBot
         ? `<button class="seatDiff tapExpand${canEdit ? '' : ' readonly'}" title="${diffTitle}">${diff.short()}</button>`
         : '';
@@ -1869,12 +1877,9 @@
       ? `R${lastState.roundNumber} <svg class="icon dealerIcon" aria-hidden="true"><use href="#i-star"/></svg>`
       : `R${lastState.roundNumber}`;
     el('roundInfo').title = iAmDealer ? L('Du gibst diese Runde', 'You deal this round') : '';
-    const cp = lastState.players.find((p) => p.id === lastState.currentPlayerId);
     const isMyTurn = lastState.currentPlayerId === playerId;
     updateTurnTitleNotice(isMyTurn && lastState.phase === 'playing');
-    el('turnInfo').textContent = isMyTurn
-      ? `Du bist am Zug (${phaseLabel(lastState.turnPhase)})`
-      : `${cp ? cp.name : '?'} ist am Zug`;
+    el('turnStatus').innerHTML = turnStatusHtml(lastState, playerId);
 
     // Gegner
     const opponentsDiv = el('opponents');
@@ -1891,6 +1896,9 @@
     } else {
       orderedOpponents.push(...lastState.players.filter((p) => p.id !== playerId));
     }
+    // The level badge only says something when the bots differ; three equal
+    // "Mittel" tags were noise. The host keeps a bars-only badge to change one bot.
+    const levelsDiffer = new Set(lastState.players.filter((p) => p.isBot).map((p) => p.botDifficulty || 'zen')).size > 1;
     orderedOpponents
       .forEach((p) => {
         const d = document.createElement('div');
@@ -1913,23 +1921,28 @@
         const reconnecting = !p.isBot && p.controlledByBot;
         const opTotal = (lastState.totals && lastState.totals[p.id]) || 0;
         const dealerStar = p.id === lastState.dealerId ? `<span class="opDealer" title="${L('Geber dieser Runde', 'Dealer this round')}"><svg class="icon dealerIcon" aria-hidden="true"><use href="#i-star"/></svg></span>` : '';
-        // Bots wear their difficulty as a tappable badge (per-bot adjustable)
-        // Badge lives OUTSIDE the name div (appended below): inside it, the
-        // name ellipsis on narrow chips (3 bots, portrait) swallowed the
-        // button - invisible and untappable.
-        const diffBadge = '';
-        d.title = L(`${p.handCount} Karten · ${opTotal} Punkte`, `${p.handCount} cards · ${opTotal} points`);
+        const cardsText = p.handCount === 1 ? L('1 Karte', '1 card') : L(`${p.handCount} Karten`, `${p.handCount} cards`);
+        d.title = L(`${cardsText} · ${opTotal} Punkte`, `${cardsText} · ${opTotal} points`);
         const opProgress = Math.max(0, Math.min(100, (opTotal / 1000) * 100));
         if (reconnecting) d.classList.add('disconnected');
-        d.innerHTML = `<div class="opName">${avatarFor(p.name, p.isBot)}${nameWithHeart(p.name)}${diffBadge}${dealerStar}${reconnecting ? ` <span class="reconnectTag">${L('getrennt', 'offline')}</span>` : ''}</div><div class="opCount"><b>${p.handCount}</b> ${L('Kt', 'cd')} · <b>${opTotal}</b> ${L('Pkt', 'pts')}</div><div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>`;
+        // Play aid "low-card warning" (default off): a tag on the chip's edge,
+        // so the chip keeps its height and the melds below do not jump.
+        const lowCards = aidLowCards && lastState.phase === 'playing' && p.handCount > 0 && p.handCount <= 2;
+        if (lowCards) d.classList.add('lowCards');
+        const lowTag = lowCards
+          ? `<span class="opLowTag"><svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg><span>${p.handCount === 1 ? L('Letzte Karte!', 'Last card!') : L('Noch 2 Karten!', '2 cards left!')}</span></span>`
+          : '';
+        d.innerHTML = `<div class="opName">${avatarFor(p.name, p.isBot)}${nameWithHeart(p.name)}${dealerStar}${reconnecting ? ` <span class="reconnectTag">${L('getrennt', 'offline')}</span>` : ''}</div><div class="opCount"><span class="opCards" title="${cardsText}"><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><b>${p.handCount}</b></span><b class="opPts" title="${L(`${opTotal} Punkte`, `${opTotal} points`)}">${opTotal}</b></div><div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>${lowTag}`;
         // Daily challenge: the level is fixed and deliberately not shown.
-        if (p.isBot && !lastState.challengeDate) {
+        // Badge lives OUTSIDE the name div: inside it, the name ellipsis on
+        // narrow chips (3 bots, portrait) swallowed the button.
+        if (p.isBot && !lastState.challengeDate && (levelsDiffer || lastState.isHost)) {
           const meta = BOT_DIFF[p.botDifficulty] || BOT_DIFF.zen;
           const badgeBtn = document.createElement('button');
-          badgeBtn.className = 'botDiffBadge';
-          badgeBtn.textContent = meta.short();
+          badgeBtn.className = `botDiffBadge tapExpand${levelsDiffer ? '' : ' barsOnly'}`;
+          badgeBtn.innerHTML = `${diffBarsHtml(meta.bars)}${levelsDiffer ? `<span>${meta.short()}</span>` : ''}`;
           if (lastState.isHost) {
-            badgeBtn.title = L('Schwierigkeit ändern', 'Change difficulty');
+            badgeBtn.title = L(`Schwierigkeit ändern (${meta.short()})`, `Change difficulty (${meta.short()})`);
             badgeBtn.addEventListener('click', (ev) => {
               ev.stopPropagation(); // chip click keeps its meld-filter role
               openBotDiffOverlay(p);
@@ -1937,8 +1950,9 @@
           } else {
             // Non-hosts see the difficulty read-only (clearly visible, not tappable).
             badgeBtn.classList.add('readonly');
-            badgeBtn.title = L(`Schwierigkeit: ${meta.label()}`, `Difficulty: ${meta.label()}`);
+            badgeBtn.title = L(`Schwierigkeit: ${meta.short()}`, `Difficulty: ${meta.short()}`);
           }
+          badgeBtn.setAttribute('aria-label', badgeBtn.title);
           d.appendChild(badgeBtn); // absolute corner - immune to ellipsis
         }
         opponentsDiv.appendChild(d);
@@ -2207,7 +2221,7 @@
       // Wert (gut für Sätze). Joker immer ans Ende.
       // Card count above the fan: with 15+ overlapping cards you cannot count
       // them by eye, and the number decides whether you can still go out.
-      el('handCount').innerHTML = `<b>${myPlayer.hand.length}</b> ${L('Kt', 'cd')}`;
+      el('handCount').innerHTML = `<svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><b>${myPlayer.hand.length}</b>`;
       const sorted = myPlayer.hand.slice().sort((a, b) => {
         // ZWEI Joker: stabil nach id sortieren statt 0 zurueckzugeben.
         // '0' heisst "diese beiden sind aus Sortier-Sicht gleich" - deren
@@ -2647,8 +2661,41 @@
       meld.slots.some((s) => s.joker && s.representsRank === card.rank && s.representsSuit === card.suit);
   }
 
-  function phaseLabel(phase) {
-    return phase === 'draw' ? 'Karte ziehen' : 'Auslegen/Abwerfen';
+  // Topbar status. On my turn the three steps of a turn, current one marked
+  // (the old "(Karte ziehen)" bracket wrapped to two lines on a phone);
+  // otherwise who is on turn. Returns markup; names are escaped.
+  function turnStatusHtml(st, me) {
+    if (st.phase === 'roundEnd') return escapeHtml(L('Runde vorbei', 'Round over'));
+    if (st.phase === 'gameOver') return escapeHtml(L('Partie vorbei', 'Game over'));
+    const who = (id) => st.players.find((p) => p.id === id) || null;
+    if (st.phase === 'cutting') {
+      const cutter = who(st.cutterId);
+      if (st.cutterId === me) return escapeHtml(L('Du hebst ab', 'Your cut'));
+      const name = nameWithHeart(cutter ? cutter.name : '?');
+      return `<span class="turnWho">${L(`${name} hebt ab`, `${name} cuts the deck`)}</span>`;
+    }
+    if (st.currentPlayerId !== me) {
+      const cp = who(st.currentPlayerId);
+      if (!cp) return '–';
+      const name = nameWithHeart(cp.name);
+      return `${avatarFor(cp.name, cp.isBot)}<span class="turnWho">${L(`${name} ist dran`, `${name}'s turn`)}</span>`;
+    }
+    const draw = st.turnPhase === 'draw';
+    // Took the discard top: it must be laid before anything else, discarding included.
+    const mustLay = !draw && !!st.mustLayOffCardId;
+    const steps = [
+      [L('Ziehen', 'Draw'), draw ? 'current' : 'done'],
+      [L('Legen', 'Meld'), draw ? 'todo' : 'current'],
+      [L('Abwerfen', 'Discard'), draw || mustLay ? 'todo' : 'next'],
+    ];
+    const said = draw ? L('Du bist am Zug: Karte ziehen', 'Your turn: draw a card')
+      : mustLay ? L('Du bist am Zug: die aufgenommene Karte legen', 'Your turn: lay the card you took')
+        : L('Du bist am Zug: auslegen, anlegen oder abwerfen', 'Your turn: meld, lay off or discard');
+    const check = '<svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>';
+    const sep = '<svg class="icon turnStepSep" aria-hidden="true"><use href="#i-chevron"/></svg>';
+    const html = steps.map(([label, state]) =>
+      `<span class="turnStep ${state}">${state === 'done' ? check : ''}<span class="turnStepLabel">${label}</span></span>`).join(sep);
+    return `<span class="turnSteps" aria-hidden="true">${html}</span><span class="visuallyHidden">${said}</span>`;
   }
 
   let hintIsError = false;
@@ -3737,19 +3784,46 @@
   el('aidLayOffToggle').addEventListener('click', () => setAid('layoff', !aidLayOff));
   el('aidDiscardCheckbox').addEventListener('change', () => setAid('discard', el('aidDiscardCheckbox').checked));
   el('aidLayOffCheckbox').addEventListener('change', () => setAid('layoff', el('aidLayOffCheckbox').checked));
+  el('aidLowCardsToggle').addEventListener('click', () => setAid('lowcards', !aidLowCards));
+  el('aidLowCardsCheckbox').addEventListener('change', () => setAid('lowcards', el('aidLowCardsCheckbox').checked));
   el('aidTipsCheckbox').addEventListener('change', () => {
     if (el('aidTipsCheckbox').checked !== gameTipsEnabled) el('tipsToggle').click();
   });
   el('soundToggle').addEventListener('click', () => {
     setSoundEnabled(!soundEnabled);
   });
+  el('soundCheckbox').addEventListener('change', () => setSoundEnabled(el('soundCheckbox').checked));
 
-  el('ruleSound').addEventListener('change', () => {
-    setSoundEnabled(el('ruleSound').checked);
+  // Segment buttons write their hidden <select> and fire its change event, so
+  // the select stays the one source of truth; syncSegments() mirrors it back.
+  function syncSegments() {
+    document.querySelectorAll('.segmented[data-select]').forEach((group) => {
+      const sel = document.getElementById(group.dataset.select);
+      if (!sel) return;
+      group.querySelectorAll('.segBtn').forEach((btn) => {
+        const on = btn.dataset.value === sel.value;
+        btn.classList.toggle('active', on);
+        btn.setAttribute('aria-pressed', String(on));
+        btn.disabled = sel.disabled;
+      });
+    });
+    const mixed = el('ruleBotLevel').value === 'mixed';
+    el('ruleBotLevelMixed').classList.toggle('hidden', !mixed);
+  }
+  document.querySelectorAll('.segmented[data-select]').forEach((group) => {
+    group.addEventListener('click', (ev) => {
+      const btn = ev.target.closest('.segBtn');
+      const sel = document.getElementById(group.dataset.select);
+      if (!btn || !sel || sel.disabled || btn.disabled || sel.value === btn.dataset.value) return;
+      sel.value = btn.dataset.value;
+      syncSegments();
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    });
   });
+  syncSegments();
 
   // Host changes to house rules sync LIVE so every player sees them and the
-  // bots follow immediately (ruleSound stays local - it's a personal setting).
+  // bots follow immediately (sound is per device and lives in the settings).
   el('ruleBotLevel').addEventListener('change', () => {
     const level = el('ruleBotLevel').value;
     if (lastState && lastState.isHost && !lastState.challengeDate && level !== 'mixed') send({ type: 'setAllBotDifficulty', difficulty: level });
@@ -3780,13 +3854,11 @@
       if (n) n.textContent = L(`Automatisch in ${rem}s`, `Auto-cut in ${rem}s`);
       return;
     }
-    const el2 = el('turnInfo');
-    if (!el2 || !lastState || !lastState.turnDeadline) return;
+    if (!lastState || !lastState.turnDeadline) return;
+    // Own span next to the status: the status is markup now (turn steps).
     const remaining = Math.max(0, Math.ceil((lastState.turnDeadline - Date.now()) / 1000));
-    const base = el2.dataset.baseText || el2.textContent;
-    el2.dataset.baseText = base;
-    el2.textContent = `${base} ⏱${remaining}s`;
-    el2.classList.toggle('timerUrgent', remaining <= 10);
+    el('turnTimer').textContent = `⏱${remaining}s`;
+    el('turnTimer').classList.toggle('timerUrgent', remaining <= 10);
   }
   function updateCountdownTimer() {
     if (countdownWanted()) {
@@ -3794,10 +3866,14 @@
         tickCountdown(); // paint immediately, don't wait a second
         countdownTimer = setInterval(tickCountdown, 1000);
       }
-    } else if (countdownTimer) {
+      return;
+    }
+    if (countdownTimer) {
       clearInterval(countdownTimer);
       countdownTimer = null;
     }
+    el('turnTimer').textContent = '';
+    el('turnTimer').classList.remove('timerUrgent');
   }
   document.addEventListener('visibilitychange', updateCountdownTimer);
 
@@ -3873,11 +3949,12 @@
 
   // --- Per-bot difficulty ---------------------------------------------------
   // Weakest first, like game/Bot.js BOT_LEVELS; `bars` draws the strength.
+  // One name per level everywhere (seat chip, picker, house rules, log).
   const BOT_DIFF = {
-    easy: { bars: 1, short: () => L('Leicht', 'Easy'), label: () => L('Anfänger', 'Beginner'), hint: () => L('macht Anfängerfehler', 'makes beginner mistakes') },
-    medium: { bars: 2, short: () => L('Mittel', 'Medium'), label: () => L('Fortgeschritten', 'Advanced'), hint: () => L('solides Familienspiel', 'solid family play') },
-    hard: { bars: 3, short: () => L('Schwer', 'Hard'), label: () => L('Profi', 'Expert'), hint: () => L('zählt die Karten mit', 'counts the cards') },
-    zen: { bars: 4, short: () => L('Zen', 'Zen'), label: () => L('Zen-Meister', 'Zen master'), hint: () => L('spielt am stärksten', 'plays strongest') },
+    easy: { bars: 1, short: () => L('Leicht', 'Easy'), hint: () => L('macht Anfängerfehler', 'makes beginner mistakes') },
+    medium: { bars: 2, short: () => L('Mittel', 'Medium'), hint: () => L('solides Familienspiel', 'solid family play') },
+    hard: { bars: 3, short: () => L('Schwer', 'Hard'), hint: () => L('zählt die Karten mit', 'counts the cards') },
+    zen: { bars: 4, short: () => L('Zen', 'Zen'), hint: () => L('spielt am stärksten', 'plays strongest') },
   };
   function diffBarsHtml(n) {
     return `<span class="diffBars" aria-hidden="true">${[1, 2, 3, 4].map((i) => `<i${i <= n ? ' class="on"' : ''}></i>`).join('')}</span>`;
@@ -3891,7 +3968,7 @@
     for (const [key, meta] of Object.entries(BOT_DIFF)) {
       const btn = document.createElement('button');
       if (key === bot.botDifficulty) btn.classList.add('current');
-      btn.innerHTML = `${diffBarsHtml(meta.bars)}<span>${meta.label()}<small>${meta.hint()}</small></span>`;
+      btn.innerHTML = `${diffBarsHtml(meta.bars)}<span>${meta.short()}<small>${meta.hint()}</small></span>`;
       btn.addEventListener('click', () => {
         send({ type: 'setBotDifficulty', botId: bot.id, difficulty: key });
         el('botDiffOverlay').classList.add('hidden');

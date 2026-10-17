@@ -1342,13 +1342,13 @@ test('setBotDifficulty: validation, effect and per-bot resolution in guards', ()
 
   assert.match(g.setBotDifficulty('p1', bot.id, 'brutal').error, /Unbekannte/);
   assert.equal(g.setBotDifficulty('p1', bot.id, 'hard').ok, true, "'hard' (Schwer) is a level again");
-  assert.ok(g.log.some((e) => e.text.includes('stellt') && e.text.includes('Profi')));
+  assert.ok(g.log.some((e) => e.text.includes('stellt') && e.text.includes('auf Schwer.')));
   assert.match(g.setBotDifficulty(bot.id, bot.id, 'easy').error, /Nur Spieler/, 'bots cannot request');
   assert.match(g.setBotDifficulty('p1', 'p1', 'easy').error, /Bot gibt es nicht/);
 
   assert.equal(g.setBotDifficulty('p1', bot.id, 'easy').ok, true);
   assert.equal(bot.botDifficulty, 'easy');
-  assert.ok(g.log.some((e) => e.text.includes('stellt') && e.text.includes('Anfänger')));
+  assert.ok(g.log.some((e) => e.text.includes('stellt') && e.text.includes('auf Leicht.')));
   const pub = g.publicState('p1').players.find((p) => p.id === bot.id);
   assert.equal(pub.botDifficulty, 'easy', 'visible in the public state');
 
