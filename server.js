@@ -34,7 +34,7 @@ const { createPasskeyService, deviceName } = require('./game/Passkeys');
 const { isAllowedEmote, emoteLevel } = require('./game/Emotes');
 const { parseGreetingDays, greetingWindow } = require('./game/GreetingDays');
 const { holidayStatus } = require('./game/Holidays');
-const { puzzleForDate, publicPuzzle, checkAnswer, XP_FOR_SOLVED, PUZZLE_EPOCH } = require('./game/DailyPuzzle');
+const { puzzleForDate, publicPuzzle, checkAnswer, perfectStreakOn, XP_FOR_SOLVED, PUZZLE_EPOCH } = require('./game/DailyPuzzle');
 const { createStammtischStore, normalizeCode: normalizeStammtischCode } = require('./game/StammtischStore');
 const { createGameHistoryStore, historyForPlayer } = require('./game/GameHistoryStore');
 const { SessionRegistry, sanitizeName } = require('./game/SessionRegistry');
@@ -1531,7 +1531,8 @@ function sendProfilesTo(ws) {
     JSON.stringify(
       PUBLIC_MODE
         ? { type: 'profiles', players: [], publicMode: true, globalStats: globalStats.getStats(), quests }
-        : { type: 'profiles', players: playerStore.listPlayers(), publicMode: false, globalStats: globalStats.getStats(), quests }
+        // puzzleStars is the archive's per-day history - served with the puzzle, not to everyone.
+        : { type: 'profiles', players: playerStore.listPlayers().map(({ puzzleStars, ...p }) => p), publicMode: false, globalStats: globalStats.getStats(), quests }
     )
   );
 }
@@ -1804,17 +1805,23 @@ wss.on('connection', (ws, req) => {
       const name = sanitizeName(msg.name);
       const withProfile = !PUBLIC_MODE && !!name && !archive;
       const fresh = { tries: 0, solved: false, revealed: false };
+      // Stars and the perfect run belong to the live day; an archive day shows the stars earned back then.
+      const starInfo = () => (PUBLIC_MODE || !name ? {} : {
+        dayStars: playerStore.puzzleStarsFor(name, date),
+        perfectStreak: perfectStreakOn(playerStore.getPlayerByName(name), today),
+      });
       if (msg.type === 'getPuzzle') {
         ws.send(JSON.stringify({
           type: 'puzzle', ...publicPuzzle(puzzle), archive, today, epoch: PUZZLE_EPOCH,
           status: withProfile ? playerStore.puzzleStatus(name, date) : fresh,
+          ...starInfo(),
         }));
         return;
       }
       if (msg.type === 'revealPuzzle') {
         const status = withProfile ? playerStore.revealPuzzle(name, date) : { ...fresh, revealed: true };
         const best = puzzle.best || { cardIds: [], melds: [], points: 0 };
-        ws.send(JSON.stringify({ type: 'puzzleSolution', date, cardIds: best.cardIds, melds: best.melds || [best.cardIds], points: best.points, status }));
+        ws.send(JSON.stringify({ type: 'puzzleSolution', date, cardIds: best.cardIds, melds: best.melds || [best.cardIds], points: best.points, status, ...(withProfile ? starInfo() : {}) }));
         return;
       }
       const result = checkAnswer(puzzle, Array.isArray(msg.melds) ? msg.melds : msg.cardIds);
@@ -1824,7 +1831,7 @@ wss.on('connection', (ws, req) => {
       let streak = null;
       let badges = [];
       if (withProfile) {
-        status = playerStore.recordPuzzleAttempt(name, date, result.solved);
+        status = playerStore.recordPuzzleAttempt(name, date, result.solved, puzzle.kind || 'meld');
         if (status.justSolved) {
           const after = playerStore.addProgress(name, { xp: XP_FOR_SOLVED });
           xp = XP_FOR_SOLVED;
@@ -1836,7 +1843,7 @@ wss.on('connection', (ws, req) => {
         }
       }
       if (archive) status = { tries: 0, solved: result.solved, revealed: false };
-      ws.send(JSON.stringify({ ...result, date, xp, level, streak, status, badges, type: 'puzzleResult' }));
+      ws.send(JSON.stringify({ ...result, date, xp, level, streak, status, badges, ...(withProfile ? starInfo() : {}), type: 'puzzleResult' }));
       return;
     }
     if (msg.type === 'listProfiles') {

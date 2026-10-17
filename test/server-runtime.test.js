@@ -455,5 +455,18 @@ test('puzzle archive: past days are graded without XP, out-of-range dates fall b
   assert.strictEqual(future.date, today, 'no peeking ahead');
   const ancient = await ask({ type: 'getPuzzle', name: 'Ina', date: '2020-01-01' }, 'puzzle');
   assert.strictEqual(ancient.date, today, 'nothing before the first puzzle');
+
+  // Stars belong to the live day: a first-try solve earns three and starts the perfect run.
+  const live = await ask({ type: 'solvePuzzle', name: 'Stella', melds: puzzleForDate(today).best.melds }, 'puzzleResult');
+  assert.strictEqual(live.status.stars, 3);
+  assert.deepStrictEqual(live.perfectStreak, { current: 1, best: 1 });
+  assert.strictEqual(live.dayStars, 3);
+  assert.strictEqual((await ask({ type: 'getPuzzle', name: 'Stella' }, 'puzzle')).status.stars, 3);
+  if (past !== today) {
+    assert.strictEqual((await ask({ type: 'getPuzzle', name: 'Stella', date: past }, 'puzzle')).dayStars, 0, 'an archive day shows only stars earned on it');
+  }
+  const stella = (await ask({ type: 'listProfiles' }, 'profiles')).players.find((p) => p.name === 'Stella');
+  assert.strictEqual(stella.totalPerfectPuzzles, 1);
+  assert.strictEqual(stella.puzzleStars, undefined, 'the per-day history is not broadcast to everyone');
   ws.close();
 });

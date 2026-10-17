@@ -63,7 +63,7 @@ back instead of showing a broken streak.
 
 ## Badges
 
-**48** badges. 9 of them are *families*: one tile, rising
+**51** badges. 10 of them are *families*: one tile, rising
 thresholds on the same counter.
 
 | Family | Counter | Tiers |
@@ -77,6 +77,7 @@ thresholds on the same counter.
 | `hearts` | `gamesLost` | 💜 Brave heart {bdg-secondary}`10` → 💜 Unbreakable {bdg-secondary}`50` → 💜 Heart of gold {bdg-secondary}`100` |
 | `challenger` | `totalChallenges` | 🏁 Challenger {bdg-secondary}`7` → 🏁 Challenge pro {bdg-secondary}`30` |
 | `puzzles` | `totalPuzzlesSolved` | 🧩 Puzzle fox {bdg-secondary}`7` → 🧩 Puzzle master {bdg-secondary}`30` |
+| `puzzlePerfect` | `totalPerfectPuzzles` | 🌟 Star moment {bdg-secondary}`10` → 🌟 Star collector {bdg-secondary}`30` → 🌟 Puzzle ace {bdg-secondary}`100` |
 
 The other **25** are earned by a fact about one match (computed in
 `computeEarnedBadges` from the finished game record):
