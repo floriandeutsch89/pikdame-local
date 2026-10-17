@@ -1669,12 +1669,14 @@ wss.on('connection', (ws, req) => {
       sendError(ws, 'Tisch ist voll.');
       return false;
     }
-    // Joining a started game takes over a bot seat, which keeps its own id.
+    // Joining a started game takes over a seat a bot plays, which keeps its own
+    // id. A fresh token then: a seat given up for good still had the leaver's.
+    const tookOverSeat = player.id !== playerId;
     playerId = player.id;
     // In der Lobby freie Plätze mit Bots vorbelegen, damit sie sichtbar und
     // sortierbar sind (ein späterer Beitritt ersetzt wieder einen Bot).
     targetSession.game.syncLobbyBots();
-    let playerToken = targetSession.playerTokens.get(playerId);
+    let playerToken = tookOverSeat ? null : targetSession.playerTokens.get(playerId);
     if (!playerToken) {
       playerToken = crypto.randomBytes(18).toString('base64url');
       targetSession.playerTokens.set(playerId, playerToken);
@@ -2021,6 +2023,11 @@ wss.on('connection', (ws, req) => {
     const game = session.game;
     if (game.players.some((p) => p.id === playerId && p.leftGame)) {
       return sendError(ws, 'Du hast dieses Spiel aufgegeben - ein Bot spielt deinen Platz zu Ende.');
+    }
+    // Only the seat's current socket acts for it: an old tab of someone who
+    // gave the seat up stays out once a newcomer has taken it over.
+    if (session.sockets.get(playerId) !== ws) {
+      return sendError(ws, 'Dieser Platz wird inzwischen von jemand anderem gespielt.');
     }
 
     switch (msg.type) {

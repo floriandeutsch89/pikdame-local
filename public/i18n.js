@@ -234,6 +234,7 @@ window.I18N_SERVER_PATTERNS = [
   [/^(.+?) legt die Ablagekarte zurück und zieht neu\.$/, '$1 puts the discard card back and draws again.'],
   [/^(.+?) hat die Lobby verlassen\.$/, '$1 left the lobby.'],
   [/^(.+) übernimmt den Platz von (.+)\.$/, '$1 takes over $2\'s seat.'],
+  [/^Dieser Platz wird inzwischen von jemand anderem gespielt\.$/, 'Someone else plays this seat now.'],
   [/^Automatisch abgehoben \(Spieler hat das Spiel verlassen\)\.$/, 'Auto-cut (a player left the game).'],
   [/^(.+?) hat das Spiel verlassen - ein Bot spielt weiter\.$/, '$1 left the game - a bot plays on.'],
   [/^(.+?) hat aufgegeben - die Partie endet ohne Wertung\.$/, '$1 gave up - the match ends unscored.'],

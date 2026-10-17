@@ -223,6 +223,54 @@ test('a taken-over seat survives a snapshot roundtrip', () => {
   restored.destroy();
 });
 
+test('a seat given up for good is taken over like a bot seat, and the newcomer is scored', () => {
+  const scored = [];
+  const game = new GameManager(() => {}, { onGameOver: (results) => scored.push(...results.map((r) => r.name)) });
+  game.addOrReconnectPlayer('p1', 'Anna');
+  game.addOrReconnectPlayer('p2', 'Bob');
+  game.fillWithBots();
+  game.startNewRound();
+  const bob = game.players.find((p) => p.id === 'p2');
+  playUntil(game, (g) => g.phase === 'playing' && meldIdsOf(g, 'p2').length > 0 && bob.hand.length >= 2);
+  assert.equal(game.abandonSeat('p2').outcome, 'left', 'Bob gives the seat up, Anna plays on');
+  const before = { hand: handIds(bob), melds: meldIdsOf(game, 'p2'), total: game.totals.p2 };
+  assertDeck(game, 'after Bob left');
+
+  const seat = game.addOrReconnectPlayer('p-new', 'Neu');
+  assert.equal(seat.id, 'p2', 'the given-up seat comes before the bots');
+  assert.equal(seat.leftGame, undefined, 'the newcomer is no leaver');
+  assert.equal(seat.botDifficulty, undefined);
+  assert.equal(game.isBotControlled(seat), false);
+  assert.equal(seat.name, 'Neu');
+  assert.deepEqual(handIds(seat), before.hand);
+  assert.deepEqual(meldIdsOf(game, 'p2'), before.melds);
+  assert.equal(game.totals.p2, before.total);
+  assert.ok(game.log.some((e) => e.text === 'Neu übernimmt den Platz von Bob.'));
+  assertDeck(game, 'right after the takeover');
+
+  playOutChecked(game, seat.id);
+  assert.ok(scored.includes('Neu'), 'the newcomer\'s result counts');
+  assert.ok(!scored.includes('Bob'), 'the leaver is not scored');
+  const record = game.lastGameRecord.players.find((p) => p.id === 'p2');
+  assert.equal(record.isBot, false);
+  assert.equal(record.leftGame, undefined);
+  game.destroy();
+});
+
+test('a table of humans where one gave up has room again for exactly that seat', () => {
+  const game = new GameManager(() => {});
+  for (let i = 1; i <= 4; i++) game.addOrReconnectPlayer(`p${i}`, `P${i}`);
+  game.startNewRound();
+  if (game.phase === 'cutting') game.performCut(game.cutterId, 0.5);
+  assert.equal(game.addOrReconnectPlayer('p5', 'Late'), null, 'full while all four play');
+  assert.equal(game.abandonSeat('p3').outcome, 'left');
+  const seat = game.addOrReconnectPlayer('p6', 'Neu');
+  assert.equal(seat && seat.id, 'p3');
+  assert.equal(game.addOrReconnectPlayer('p7', 'Noch wer'), null, 'and then it is full again');
+  assertDeck(game, 'after the takeover');
+  game.destroy();
+});
+
 test('lobby joins still replace a bot with a fresh seat; a full started table and solo games stay closed', () => {
   const lobby = newGame();
   const seat = lobby.addOrReconnectPlayer('p2', 'Ben');
@@ -351,4 +399,84 @@ test('server: joining a running session by code takes over a bot seat with its c
   host.close();
   guest.close();
   again.close();
+});
+
+test('server: a newcomer takes over a seat given up for good; the leaver\'s tab and token are locked out', async (t) => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-join-left-'));
+  const server = spawn('node', ['server.js'], {
+    cwd: path.join(__dirname, '..'),
+    env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  t.after(async () => {
+    server.kill();
+    await new Promise((r) => server.once('exit', r));
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  });
+  await waitForServer(PORT);
+
+  // Anna and Ben at a table for two; whoever has to cut, cuts.
+  const anna = await openSocket();
+  const annaJoined = waitFor(anna, (m) => m.type === 'joined');
+  anna.send(JSON.stringify({ type: 'createSession', name: 'Anna' }));
+  const a = await annaJoined;
+  const lobbyForTwo = waitFor(anna, (m) => m.type === 'state' && m.state.maxSeats === 2);
+  anna.send(JSON.stringify({ type: 'setMaxSeats', count: 2 }));
+  await lobbyForTwo;
+  const ben = await openSocket();
+  const benJoined = waitFor(ben, (m) => m.type === 'joined');
+  ben.send(JSON.stringify({ type: 'joinSession', code: a.sessionCode, name: 'Ben' }));
+  const b = await benJoined;
+  for (const [ws, id] of [[anna, a.playerId], [ben, b.playerId]]) {
+    ws.on('message', (raw) => {
+      const m = JSON.parse(raw);
+      if (m.type === 'state' && m.state.phase === 'cutting' && m.state.cutterId === id) ws.send(JSON.stringify({ type: 'performCut', position: 0.5 }));
+    });
+  }
+  // With two humans both must be ready before the host starts.
+  const bothReady = waitFor(anna, (m) => m.type === 'state' && (m.state.lobbyReady || []).length === 2);
+  anna.send(JSON.stringify({ type: 'lobbyReady' }));
+  ben.send(JSON.stringify({ type: 'lobbyReady' }));
+  await bothReady;
+  const playing = waitFor(anna, (m) => m.type === 'state' && m.state.phase === 'playing');
+  anna.send(JSON.stringify({ type: 'startGame', houseRules: {} }));
+  await playing;
+
+  // Ben gives the game up from his start screen (a fresh socket); his old tab stays open.
+  const start = await openSocket();
+  const gaveUp = waitFor(start, (m) => m.type === 'sessionAbandoned');
+  start.send(JSON.stringify({ type: 'abandonSession', code: a.sessionCode, playerId: b.playerId, playerToken: b.playerToken, name: 'Ben' }));
+  assert.equal((await gaveUp).outcome, 'left');
+
+  // Cleo joins by code and gets Ben's seat - with a token of her own.
+  const cleo = await openSocket();
+  const cleoJoined = waitFor(cleo, (m) => m.type === 'joined');
+  const cleoState = waitFor(cleo, (m) => m.type === 'state');
+  cleo.send(JSON.stringify({ type: 'joinSession', code: a.sessionCode, name: 'Cleo' }));
+  const c = await cleoJoined;
+  const { state } = await cleoState;
+  assert.equal(c.playerId, b.playerId, 'Cleo takes the seat Ben gave up');
+  assert.notEqual(c.playerToken, b.playerToken, 'with a fresh token');
+  const me = state.players.find((p) => p.id === c.playerId);
+  assert.equal(me.name, 'Cleo');
+  assert.equal(me.leftGame, undefined);
+  if (state.phase === 'playing') {
+    assert.equal(me.hand.length, me.handCount);
+    assert.equal(publicCardCount(state), 110, 'all 110 cards are still in the game');
+  }
+
+  // Ben's old tab cannot act for the seat any more (an accepted vote would broadcast) ...
+  const refused = waitFor(ben, (m) => m.type === 'error');
+  const voted = waitFor(anna, (m) => m.type === 'state' && (m.state.forfeitVotes || []).length > 0, 1500).then(() => true, () => false);
+  ben.send(JSON.stringify({ type: 'forfeitRound' }));
+  assert.equal((await refused).error, 'Dieser Platz wird inzwischen von jemand anderem gespielt.');
+  assert.equal(await voted, false, 'no forfeit vote in Cleo\'s name');
+
+  // ... and his old token does not open it again.
+  const back = await openSocket();
+  const backRefused = waitFor(back, (m) => m.type === 'error' || m.type === 'joined');
+  back.send(JSON.stringify({ type: 'joinSession', code: a.sessionCode, name: 'Ben', playerId: b.playerId, playerToken: b.playerToken }));
+  assert.equal((await backRefused).type, 'error', 'the old token is no key to the seat');
+
+  for (const ws of [anna, ben, start, cleo, back]) ws.close();
 });

@@ -121,8 +121,8 @@ class GameManager {
       if (!this.hostId && !p.isBot) this.hostId = id;
       return p;
     }
-    if (this.players.filter((pl) => !pl.isBot).length >= this.maxSeats) {
-      return null; // Tisch voll (nach Menschen)
+    if (this.players.filter((pl) => !pl.isBot && !pl.leftGame).length >= this.maxSeats) {
+      return null; // Tisch voll (nach Menschen; ein aufgegebener Platz ist wieder frei)
     }
     // Challenge and tutorial stay single-player: nobody joins them by code.
     if (this.isSoloMode() && this.players.some((pl) => !pl.isBot)) return null;
@@ -131,7 +131,7 @@ class GameManager {
     const botIdx = this._seatForNewHuman();
     // A started game: the seat is taken over as it is - a fresh seat dropped
     // the bot's cards and broke the 110-card deck.
-    if (this.phase !== 'lobby') return botIdx === -1 ? null : this._takeOverBotSeat(this.players[botIdx], name);
+    if (this.phase !== 'lobby') return botIdx === -1 ? null : this._takeOverSeat(this.players[botIdx], name);
     p = { id, name: name || `Spieler ${this.players.length + 1}`, isBot: false, hand: [], connected: true, laidOutCards: [] };
     if (botIdx !== -1) {
       const removed = this.players[botIdx];
@@ -145,13 +145,15 @@ class GameManager {
     return p;
   }
 
-  /** A human joins a started game and takes over a bot's seat. The seat keeps
-   *  its id: hand, lay-outs, points, roles and turn all hang on it. */
-  _takeOverBotSeat(seat, name) {
+  /** A human joins a started game and takes over a seat a bot plays (a bot's,
+   *  or one given up for good). The seat keeps its id: hand, lay-outs, points,
+   *  roles and turn all hang on it; the newcomer's result counts. */
+  _takeOverSeat(seat, name) {
     const botName = seat.name;
     seat.isBot = false;
     seat.connected = true;
     if (name) seat.name = name;
+    delete seat.leftGame;
     delete seat.botDifficulty;
     delete seat.disconnectedAt;
     for (const f of SEAT_CONTROL_FIELDS) delete seat[f];
@@ -169,13 +171,15 @@ class GameManager {
 
   /** Which bot seat a joining human takes. In the lobby the one farthest from
    *  the other humans around the table, ties not right behind one: two humans
-   *  at four seats sit human, bot, human, bot. Otherwise the first bot. */
+   *  at four seats sit human, bot, human, bot. Otherwise the first seat a bot
+   *  plays - a bot's own or one given up for good (leftGame). */
   _seatForNewHuman() {
+    if (this.phase !== 'lobby') return this.players.findIndex((pl) => pl.isBot || pl.leftGame);
     const n = this.players.length;
     const bots = this.players.map((pl, i) => (pl.isBot ? i : -1)).filter((i) => i !== -1);
     const humans = this.players.map((pl, i) => (pl.isBot ? -1 : i)).filter((i) => i !== -1);
     if (bots.length === 0) return -1;
-    if (this.phase !== 'lobby' || humans.length === 0) return bots[0];
+    if (humans.length === 0) return bots[0];
     const since = (i) => Math.min(...humans.map((h) => (i - h + n) % n)); // seats after the last human
     const until = (i) => Math.min(...humans.map((h) => (h - i + n) % n)); // seats before the next one
     let best = bots[0];
