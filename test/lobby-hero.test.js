@@ -76,7 +76,7 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const aroundNow = (now) => ({ from: now - HOUR, until: now + HOUR });
 
 test('start screen hero: a device date alone brings nothing out, the five quick taps still do', async () => {
-  const { hero, has, greetingShown, errors, window } = boot({ date: [2026, 11, 17] });
+  const { hero, has, greetingShown, errors, window } = boot({ date: [2026, 2, 9] });
   try {
     await wait(150);
     assert.ok(!has('catOut'), 'stays hidden by itself, whatever the device date');
