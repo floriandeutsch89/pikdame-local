@@ -59,8 +59,8 @@ external frontend dependencies.
   (offline-capable, no audio files), haptics.
 - **Unlockable card backs** tied to your own record (10 wins, 25 games,
   3× out-in-one), shown in a gallery with the goal on every locked tile.
-- **Studio splash** on start-up (once per session, tap to skip) — with a
-  setting for full motion, the calm variant or off.
+- **Studio splash** on the first start of a device (tap to skip) — with a
+  setting for every start or off; reduced motion gets the calm variant.
 - **Tutorial mode** for first-time players: contextual hints explain each
   rule the moment it becomes relevant during a real game against easy bots
   (fully client-side, works offline).
