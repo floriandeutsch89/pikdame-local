@@ -18,6 +18,11 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Fixed
 - Tutorial: Die Pik-Dame-Lektionen konnten übersprungen werden, und nach dem Aufnehmen der Ablage schlug das Tutorial Züge vor, die der Tisch ablehnt.
 
+## [2.67.1] - 2026-10-17
+
+### Fixed
+- Das Impressum zeigt Anbieter und Kontakt wieder an – die Sicherheitsrichtlinie der Seite hatte das Skript blockiert, das beides einblendet.
+
 ## [2.67.0] - 2026-10-17
 
 ### Changed
