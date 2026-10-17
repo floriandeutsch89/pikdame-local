@@ -1414,13 +1414,15 @@
       if (/Kein Spiel mit diesem Code/.test(msg.error || '')) {
         storageRemove('pikdame_last_session');
       }
-      showHint(trs(msg.error), true);
       // Tutorial: a refusal is the best teaching moment - the rule behind it
-      // goes into the coach card (one channel), the raw message stays a toast.
-      if (tutorialActive) {
-        const why = tutorialExplainError(msg.error || '');
-        if (why) coachNote(why, 'error');
+      // goes into the coach card, alone (the centred toast covered the card).
+      const why = tutorialActive ? tutorialExplainError(msg.error || '') : null;
+      if (why) {
+        sound.error();
+        coachNote(why, 'error');
+        return;
       }
+      showHint(trs(msg.error), true);
       // Wichtige Fehler (z.B. Ablagestapel nicht aufnehmbar) deutlich und
       // laenger in der Bildmitte zeigen - die Hint-Zeile allein wird auf
       // kleinen Displays leicht uebersehen.
@@ -3471,7 +3473,8 @@
       const iAmReady = ready.has(playerId);
       contBtn.disabled = iAmReady;
       if (humans.length <= 1) {
-        contBtn.textContent = L('Nächste Runde', 'Next round');
+        // Tutorial: this button leads to "Tutorial geschafft", not to round 2.
+        contBtn.textContent = tutorialHintsOn() ? L('Weiter', 'Continue') : L('Nächste Runde', 'Next round');
       } else if (iAmReady) {
         const waiting = humans.filter((h) => !ready.has(h.id)).map((h) => h.name).join(', ');
         contBtn.textContent = L(`Warte auf ${waiting}…`, `Waiting for ${waiting}…`);
@@ -4834,6 +4837,7 @@
     const coach = el('tutorialCoach');
     const open = !coach.classList.contains('hidden');
     el('table').classList.toggle('coachOpen', open);
+    document.body.classList.toggle('coachOpen', open); // toasts make room (style.css)
     el('table').style.setProperty('--coach-h', open ? `${Math.ceil(coach.getBoundingClientRect().height)}px` : '0px');
   }
   window.addEventListener('resize', () => { try { syncTutorialLayout(); } catch (e) { /* never break the table */ } });

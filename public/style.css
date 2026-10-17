@@ -2855,6 +2855,8 @@ input:disabled { opacity: 0.65; }
 .coachSkip.armed { color: var(--danger); text-decoration: none; }
 /* A passive line (bots on turn, "your move") needs no button row. */
 .coachCard.passive .coachActions .coachNext { display: none; }
+/* One channel: the coach card replaces the empty-table instruction. */
+#table.coachOpen .meldsEmptyState { display: none; }
 @media (prefers-reduced-motion: reduce) { .coachCard { animation: none; } }
 /* Landscape (~400 px high) and desktop: no room in the flow - the card sits
    in the bottom corner of the meld area, and the melds keep scroll room. */
@@ -2870,6 +2872,8 @@ input:disabled { opacity: 0.65; }
   .coachCard { padding: 7px 10px 4px; width: min(380px, calc(100% - 16px)); }
   .coachText { margin-top: 2px; line-height: 1.3; }
   .coachActions { margin-top: 2px; }
+  /* The corner card sits mid-height here: a centred toast ran through its text. */
+  body.coachOpen #toastContainer { top: 26%; }
 }
 /* The scoring lesson inside the round-end sheet (light paper card). */
 .resultCoach {
@@ -2900,6 +2904,14 @@ input:disabled { opacity: 0.65; }
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: var(--ctl-h);
 }
 .tutorialDoneActions .linkBtn { align-self: center; }
+/* ~400 px high: the two buttons side by side, or "Weiterspielen" falls off the sheet. */
+@media (orientation: landscape) and (max-height: 540px) {
+  .overlay-card.tutorialDone { max-width: 560px; }
+  .tutorialDonePoints { margin-bottom: 8px; }
+  .tutorialDonePoints li { padding: 5px 2px; }
+  .tutorialDoneActions { display: grid; grid-template-columns: 1fr 1fr; }
+  .tutorialDoneActions .linkBtn { grid-column: 1 / -1; justify-self: center; }
+}
 
 /* --- Per-bot difficulty (v1.22.0) ------------------------------------------- */
 .opponent { position: relative; }

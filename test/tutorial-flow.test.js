@@ -243,6 +243,7 @@ test('tutorial: following the marks plays round 1 to "Tutorial geschafft", lesso
       if (t.visible('resultOverlay')) {
         if (t.visible('resultCoach')) resultLesson = t.$('#resultCoachTitle').textContent;
         assert.equal(c, null, 'the coach card never sits over the round sheet');
+        assert.equal(t.$('#resultContinueBtn').textContent, 'Weiter', 'leads to the ending, not to round 2');
         await t.click(t.$('#resultContinueBtn'));
         continue;
       }
@@ -340,6 +341,8 @@ test('tutorial: refused moves get the rule behind them, in the engine\'s own wor
     const run = 'Eine Folge läuft lückenlos in einer Farbe, etwa 5♥ 6♥ 7♥. Gleiche Werte in verschiedenen Farben sind ein Satz.';
     assert.deepStrictEqual(await tryMeld('3D', '5H', '6H'), { text: run, error: true }, 'mixed suits');
     assert.deepStrictEqual(await tryMeld('3S', '5S', '10S'), { text: run, error: true }, 'a gap');
+    assert.ok(!t.toasts.some((x) => /Folge/.test(x)), `one channel: no toast over the card (toasts: ${t.toasts.join(' | ')})`);
+    assert.ok(!/Folge/.test(t.$('#hint').textContent), 'and no second line under it');
     for (let i = 0; i < 40 && t.myTurn(); i++) assert.ok(await tapTheGlow(t));
     t.server.receive({ type: 'drawFromPile' });
     await t.run(50);
