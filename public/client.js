@@ -4555,6 +4555,52 @@
     const combo = findTutorialDutyMeld([...c.hand, top], top.id);
     return combo ? { top, partners: combo.filter((cd) => cd.id !== top.id) } : null;
   }
+  /** Sets and plain runs (3+) already in the hand - conservative like findTutorialMeld. */
+  function tutorialHandCombos(hand) {
+    const real = hand.filter((cd) => !cd.isJoker);
+    const combos = [];
+    const byRank = {};
+    for (const cd of real) (byRank[cd.rank] = byRank[cd.rank] || []).push(cd);
+    for (const cards of Object.values(byRank)) {
+      const perSuit = {};
+      const pick = cards.filter((cd) => (perSuit[cd.suit] = (perSuit[cd.suit] || 0) + 1) <= 2);
+      if (pick.length >= 3) combos.push({ type: 'set', cards: pick });
+    }
+    const bySuit = {};
+    for (const cd of real) (bySuit[cd.suit] = bySuit[cd.suit] || new Map()).set(cd.rank, cd);
+    for (const m of Object.values(bySuit)) {
+      let run = [];
+      for (const r of [...RANK_ORDER, null]) {
+        if (r && m.has(r)) { run.push(m.get(r)); continue; }
+        if (run.length >= 3) combos.push({ type: 'run', cards: run });
+        run = [];
+      }
+    }
+    return combos;
+  }
+  /** What taking the pile would break: a hand combination that loses a partner card. */
+  function tutorialPileCost(hand, fit) {
+    const used = new Set(fit.partners.map((cd) => cd.id));
+    const after = new Set(tutorialHandCombos(hand.filter((cd) => !used.has(cd.id))).flatMap((x) => x.cards.map((cd) => cd.id)));
+    for (const combo of tutorialHandCombos(hand)) {
+      const lost = combo.cards.find((cd) => used.has(cd.id));
+      if (lost && combo.cards.some((cd) => !used.has(cd.id) && !after.has(cd.id))) return { card: lost, combo };
+    }
+    return null;
+  }
+  // "deine drei Fünfen" / "your three fives"; a run is named card by card.
+  function tutorialYourCombo(combo) {
+    const w = T_RANKS[combo.cards[0].rank];
+    const n = T_COUNT[combo.cards.length];
+    if (combo.type === 'set' && w) return n ? [`deine ${n[0]} ${w[0]}`, `your ${n[1]} ${w[1]}`] : [`deine ${w[0]}`, `your ${w[1]}`];
+    return [`deine Folge ${tList(combo.cards)}`, `your run ${tList(combo.cards)}`];
+  }
+  /** The first draw: the pile when it fits for free, else the stock - explained when the pile would cost a combination. */
+  function tutorialFirstDraw(c) {
+    const fit = tutorialPileFit(c);
+    const cost = fit && tutorialPileCost(c.hand, fit);
+    return { mode: !fit ? 'stock' : cost ? 'explain' : 'pile', fit, cost };
+  }
   const tutorialJokersLaid = (c) => c.myMelds.reduce((n, m) => n + (m.slots || []).filter((s) => s.joker).length, 0);
   const jokerOntoOwnSet = (c) => c.hand.length > 1 && c.hand.some((cd) => cd.isJoker) &&
     c.myMelds.some((m) => m.type === 'set' && (m.slots || []).length < 8);
@@ -4596,18 +4642,25 @@
         'Meld your cards and discard the last one – that wins you the round.'),
     },
     {
-      // A fitting top discard is the better first move: teach the pile, not the stock.
+      // A fitting top discard is never ignored silently: taken when free, explained
+      // when it costs a hand combination (seed 22: the 7♥ would take the fives' 5♥).
       key: 'draw', block: true,
       when: (c) => c.drawPhase,
       done: (c) => (c.myTurn && !c.drawPhase) || c.st.turnIndexInRound > 0,
       highlight: (c) => {
-        const fit = tutorialPileFit(c);
-        return fit ? { cardIds: fit.partners.map((cd) => cd.id), targets: ['discardPile'] } : { targets: ['drawPile'] };
+        const d = tutorialFirstDraw(c);
+        return d.mode === 'pile' ? { cardIds: d.fit.partners.map((cd) => cd.id), targets: ['discardPile'] } : { targets: ['drawPile'] };
       },
-      title: (c) => (tutorialPileFit(c) ? L('Die Ablage', 'The discard pile') : L('Karte ziehen', 'Draw a card')),
+      title: (c) => (tutorialFirstDraw(c).mode === 'pile' ? L('Die Ablage', 'The discard pile') : L('Karte ziehen', 'Draw a card')),
       text: (c) => {
-        const fit = tutorialPileFit(c);
-        return fit
+        const { mode, fit, cost } = tutorialFirstDraw(c);
+        if (mode === 'explain') {
+          const [mine, mineEn] = tutorialYourCombo(cost.combo);
+          const with2 = fit.partners.map(tCard).join(' ');
+          return L(`Die ${tCard(fit.top)} passt zu ${with2} – aber dann fehlt dir die ${tCard(cost.card)} für ${mine}. Zieh lieber vom Stapel.`,
+            `The ${tCard(fit.top)} fits your ${with2} – but then ${mineEn} lose the ${tCard(cost.card)}. Draw from the stock instead.`);
+        }
+        return mode === 'pile'
           ? L(`Die ${tCard(fit.top)} auf der Ablage passt zu deiner ${tList(fit.partners)}. Tippe auf die Ablage – dann legst du sie sofort mit beiden aus.`,
             `The ${tCard(fit.top)} on the discard pile fits your ${tList(fit.partners)}. Tap the pile – then you meld it with both at once.`)
           : L('Tippe auf den verdeckten Stapel und zieh eine Karte.', 'Tap the face-down stock to draw a card.');
@@ -4901,11 +4954,12 @@
     if (!c.myTurn) {
       return { title: L('Die Bots sind dran', 'The bots are playing'), text: L('Schau zu, was sie auslegen – gleich bist du wieder dran.', 'Watch what they meld – your turn comes next.') };
     }
-    const fit = tutorialPileFit(c);
-    if (fit) {
+    // Offer the pile only when it costs no hand combination - same rule as the first draw.
+    const draw = tutorialFirstDraw(c);
+    if (draw.mode === 'pile') {
       return {
         title: L('Du bist dran', 'Your turn'),
-        text: L(`Nimm die ${tCard(fit.top)} von der Ablage – oder zieh vom Stapel.`, `Take the ${tCard(fit.top)} from the pile – or draw from the stock.`),
+        text: L(`Nimm die ${tCard(draw.fit.top)} von der Ablage – oder zieh vom Stapel.`, `Take the ${tCard(draw.fit.top)} from the pile – or draw from the stock.`),
         highlight: { targets: ['discardPile', 'drawPile'] },
       };
     }
