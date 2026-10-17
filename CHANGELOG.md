@@ -8,6 +8,15 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 ### Added
 - Kleine Überraschung für besondere Tage
 
+## [2.64.0] - 2026-10-17
+
+### Changed
+- Am PC wachsen die Karten mit dem Fenster: Hand, Auslagen und Stapel nutzen große Bildschirme aus, statt in Handygröße unter einem leeren Streifen zu liegen. „Groß“ und „Sehr groß“ bleiben auf jedem Monitor größer als „Normal“
+- Eigene Schrift für Logo, Überschriften und Punktzahlen (Rubik, liegt direkt auf unserem Server – kein fremder Dienst)
+- Ruhigere Beschriftungen: Abschnittstitel wie „Heute“, „Hausregeln“ oder „Auslagen von …“ stehen in normaler Schreibweise statt in gesperrten Großbuchstaben
+- Startbildschirm aufgeräumt: „Sprache“ und „Was ist neu?“ (mit der Versionsnummer) sind unter „Mehr“ zu finden, die Symbolleiste hat vier breitere Einträge
+- Impressum und GitHub-Link sind größere Tippziele, der Einführungstext klappt mit demselben Pfeil auf wie der Rest der App
+
 ## [2.63.0] - 2026-10-17
 
 ### Changed

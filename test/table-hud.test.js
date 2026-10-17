@@ -96,7 +96,7 @@ test('turn status: the steps of my turn, who is on turn otherwise, in both langu
   feed(table({ phase: 'roundEnd' }));
   assert.equal(doc.getElementById('turnStatus').textContent, 'Runde vorbei', 'no stale "X is on turn" behind the result');
   feed(table({ turnPhase: 'meld' }));
-  click(doc.getElementById('langBtnLobby'));
+  click(doc.getElementById('langBtn'));
   assert.deepEqual(steps(doc), ['done:Draw', 'current:Meld', 'next:Discard']);
   assert.deepEqual(errors, []);
 });

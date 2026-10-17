@@ -36,6 +36,8 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
    alten Versionen selbst ab (Factory → `null`, Client blendet aus).
 2. **Kein CDN, keine fremden Hosts im Ladepfad.** Icons = Inline-SVG-Sprite
    (`<svg class="icon"><use href="#i-name"/></svg>`), keine Icon-Fonts.
+   Schrift: Systemschrift, nur Logo/Titel/Punktzahlen in der vendorten Rubik
+   (`--font-display`, `public/fonts/`, OFL, Hash im README; Vertragstest).
    **Emoji sind keine Icons** (nur als Inhalt: Bot-Avatare, Reaktionen,
    Abzeichen). Text neben Icon in eigenes `<span>` — `applyStaticLang()`
    überschreibt `textContent` von Blatt-Elementen.

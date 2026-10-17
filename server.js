@@ -206,6 +206,7 @@ const MIME_TYPES = {
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
+  '.woff2': 'font/woff2',
 };
 
 /** Does the client already hold this exact representation?
@@ -351,10 +352,10 @@ function serveStatic(req, res) {
     // one of them, and the version also covers the stamp injected below.
     const etag = `W/"${stat.size.toString(16)}-${stat.mtimeMs.toString(16)}-${APP_VERSION}"`;
     const ext = path.extname(resolved);
-    // Icons are content-stable between releases and are re-requested on
+    // Icons and fonts are content-stable between releases and are re-requested on
     // every cold start; everything else must revalidate so a new release
     // actually reaches the player.
-    const cacheControl = filePath.startsWith('/icons/')
+    const cacheControl = filePath.startsWith('/icons/') || filePath.startsWith('/fonts/')
       ? 'public, max-age=86400'
       : 'no-cache';
     if (etagMatches(req.headers['if-none-match'], etag)) {
