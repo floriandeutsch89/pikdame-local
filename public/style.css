@@ -603,15 +603,50 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 #newTeamDetails input::placeholder { color: var(--text-muted); }
 
+/* House rules: label left, switch right; the whole row is the tap target. */
 .rule-toggle {
-  display: flex; align-items: center; gap: 11px;
-  font-size: 0.87rem; font-weight: 500;
-  padding: 9px 0;
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  min-height: var(--tap-min); padding: 6px 0;
+  font-size: var(--fs-label); font-weight: 500; cursor: pointer;
 }
-.rule-toggle input {
-  width: 20px; height: 20px; flex-shrink: 0;
-  accent-color: var(--accent);
+/* The settings switch (.ruleSwitch shares its shape) with a light track for
+   the dark glass; the settings one is tuned for the light overlay card. */
+.rule-toggle .ruleSwitch { background: var(--glass-strong); box-shadow: inset 0 0 0 1px var(--glass-border); }
+.rule-toggle .ruleSwitch:checked { background: var(--accent); box-shadow: none; }
+.rule-toggle .ruleSwitch:disabled { opacity: 0.45; cursor: default; }
+
+/* Choices as segment buttons, the same language as the seat count 2/3/4. */
+.rule-choice { padding: 8px 0 4px; }
+.rule-choice-label { display: block; margin-bottom: 6px; font-size: var(--fs-label); font-weight: 500; }
+.rule-choice-hint { margin: 6px 0 0; font-size: var(--fs-hint); color: var(--text-muted); }
+.segmented {
+  display: flex; gap: 3px; padding: 3px;
+  background: var(--glass); border: 1px solid var(--glass-border); border-radius: var(--r-sm);
 }
+.segBtn {
+  flex: 1 1 0; min-width: 0; min-height: var(--tap-min);
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  padding: 4px; border: none; border-radius: 9px;
+  background: transparent; color: var(--text);
+  font-size: var(--fs-label); font-weight: 700; line-height: 1.15;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.15s var(--ease);
+}
+.segBtn.active {
+  background: linear-gradient(145deg, var(--accent), var(--accent-2));
+  color: var(--accent-ink);
+  box-shadow: 0 4px 14px var(--accent-soft);
+}
+.segBtn:active { transform: scale(0.96); }
+.segBtn:disabled { cursor: default; transform: none; }
+.segBtn:disabled:not(.active) { opacity: 0.45; }
+/* Bot strength: bars above the word, so four levels fit an iPhone SE row. */
+.segStack .segBtn { flex-direction: column; gap: 3px; padding: 5px 2px; }
+.segBtn .diffBars { height: 12px; gap: 2px; }
+.segBtn .diffBars i { width: 3px; }
+.segBtn .diffBars i:nth-child(1) { height: 4px; }
+.segBtn .diffBars i:nth-child(2) { height: 7px; }
+.segBtn .diffBars i:nth-child(3) { height: 10px; }
+.segBtn .diffBars i:nth-child(4) { height: 12px; }
 
 .reconnectTag { color: var(--accent); font-weight: 500; font-size: 0.65rem; }
 
@@ -746,7 +781,25 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   box-shadow: 0 0 20px var(--accent-soft);
 }
 .opponent .opName { font-weight: 700; margin-bottom: 1px; }
-.opponent .opCount { color: var(--text-muted); font-weight: 500; }
+/* Cards as icon + number, the total right above the end of its progress bar
+   (was "1 Kt · 0 Pkt"). */
+.opponent .opCount {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  color: var(--text-muted); font-weight: 500;
+}
+.opCards { display: inline-flex; align-items: center; gap: 3px; }
+.opCards .icon { width: 1.15em; height: 1.15em; opacity: 0.75; vertical-align: 0; }
+/* Play aid "low-card warning": a tag on the bottom edge, so the chip keeps
+   its height and the melds below never jump; the text carries the meaning. */
+.opponent.lowCards { border-color: var(--danger); }
+.opLowTag {
+  position: absolute; left: 50%; bottom: -9px; z-index: 2; transform: translateX(-50%);
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 1px 7px 1px 5px; border-radius: var(--r-pill);
+  background: var(--danger); color: #2a0a0a; box-shadow: var(--shadow-1);
+  font-size: var(--fs-micro); font-weight: 800; line-height: 1.35; white-space: nowrap;
+}
+.opLowTag .icon { width: 1.1em; height: 1.1em; vertical-align: 0; }
 
 /* Auslagen */
 
@@ -1697,6 +1750,7 @@ body.raidActive #toastContainer { margin-top: 132px; }
   letter-spacing: 0.04em;
   white-space: nowrap;
 }
+.handCount .icon { width: 1.15em; height: 1.15em; margin-right: 3px; vertical-align: -0.2em; opacity: 0.75; }
 .sortToggle {
   padding: 5px 11px;
   border-radius: var(--r-pill);
@@ -1957,17 +2011,58 @@ body.raidActive #toastContainer { margin-top: 132px; }
 }
 
 /* Topbar in ONE row (v2.33): home, turn status, actions. Phones used three
-   rows (buttons / round / status), ~96px of an 852px screen. The status may
-   wrap to two lines rather than being cut off; the round info moved down
-   into the hand toolbar. */
+   rows (buttons / round / status), ~96px of an 852px screen. The round info
+   moved down into the hand toolbar. */
 #turnInfo {
   flex: 1 1 auto; min-width: 0;
-  text-align: center;
-  white-space: normal;
-  display: -webkit-box; -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2; line-clamp: 2;
+  display: flex; align-items: center; justify-content: center;
   overflow: hidden;
   line-height: 1.25;
+  /* The steps adapt to the width they get (container queries below). */
+  container-type: inline-size;
+}
+
+/* --- Turn status (v2.62) ------------------------------------------------------
+   My turn: Ziehen › Legen › Abwerfen with the current step filled; a done step
+   shrinks to a check, the others stay readable. Otherwise "<Name> ist dran". */
+.turnStatus { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+.turnStatus .opAvatar { width: 22px; height: 22px; font-size: 12px; margin-right: 0; }
+.turnWho { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Phone portrait (~165px): plain words, the current step filled, a done step
+   shrinks to its check. Wider containers get the pill and the chevrons. */
+.turnSteps { display: inline-flex; align-items: center; gap: 4px; }
+.turnStep {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 4px 2px; border-radius: var(--r-pill);
+  font-size: var(--fs-hint); font-weight: 700; white-space: nowrap;
+  color: var(--text-muted);
+}
+.turnStep.current {
+  padding: 4px 8px;
+  background: linear-gradient(145deg, var(--accent), var(--accent-2));
+  color: var(--accent-ink); font-weight: 800;
+}
+.turnStep.next { color: var(--text); }
+.turnStep.done .turnStepLabel { display: none; }
+.turnStep .icon { width: 13px; height: 13px; }
+.turnStepSep { display: none; width: 12px; height: 12px; transform: rotate(-90deg); opacity: 0.4; flex: none; }
+.turnTimer { margin-left: 6px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.turnTimer:empty { display: none; }
+@container (min-width: 21em) {
+  .turnSteps {
+    gap: 2px; padding: 2px;
+    border: 1px solid var(--accent-soft); border-radius: var(--r-pill); background: var(--glass);
+  }
+  .turnStep { padding: 4px 9px; }
+  .turnStep.done .turnStepLabel { display: inline; }
+  .turnStepSep { display: block; }
+}
+/* Large display size on a phone: only the current step keeps its word. */
+@container (max-width: 12.5em) {
+  .turnStep:not(.current) .turnStepLabel { display: none; }
+  .turnStep.todo::before, .turnStep.next::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+  }
 }
 #uiScaleBtn { margin-left: auto; } /* schiebt die Button-Gruppe nach rechts */
 
@@ -2660,6 +2755,16 @@ body.tutorialOpen .overlay { padding-top: calc(18px + var(--tutorial-h, 0px)); }
   font-size: 0.72rem; cursor: pointer; line-height: 1.3;
   box-shadow: 0 1px 4px rgba(0,0,0,0.3);
 }
+/* Bars always, the word only when the bots' levels differ (v2.62). */
+.botDiffBadge { display: inline-flex; align-items: center; gap: 4px; }
+.botDiffBadge.barsOnly { padding: 3px 5px; }
+.botDiffBadge .diffBars { height: 9px; gap: 1px; }
+.botDiffBadge .diffBars i { width: 2px; }
+.botDiffBadge .diffBars i:nth-child(1) { height: 3px; }
+.botDiffBadge .diffBars i:nth-child(2) { height: 5px; }
+.botDiffBadge .diffBars i:nth-child(3) { height: 7px; }
+.botDiffBadge .diffBars i:nth-child(4) { height: 9px; }
+.botDiffBadge .diffBars i:not(.on) { opacity: 0.35; }
 /* Read-only difficulty badge for non-hosts: clearly visible, not interactive
    (no faint "disabled" look - it's an indicator, not a broken button). */
 .botDiffBadge.readonly, .seatDiff.readonly {
@@ -3973,20 +4078,21 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
   font: inherit; font-size: 0.92rem; font-weight: 600; padding: 10px 18px;
 }
 .settingsAction:hover { background: rgba(0, 0, 0, 0.09); }
-/* Schalter statt nacktem Ankreuzkasten, Touchziel 52x32. */
-.settingsCheckbox {
+/* Schalter statt nacktem Ankreuzkasten, Touchziel 52x32. .ruleSwitch is the
+   same switch on the dark lobby glass (track colour: .rule-toggle). */
+.settingsCheckbox, .ruleSwitch {
   appearance: none; -webkit-appearance: none; flex: 0 0 auto; margin: 0;
   width: 52px; height: 32px; border-radius: 999px; position: relative; cursor: pointer;
   background: rgba(0, 0, 0, 0.22); transition: background .18s ease;
 }
-.settingsCheckbox::after {
+.settingsCheckbox::after, .ruleSwitch::after {
   content: ''; position: absolute; top: 3px; left: 3px; width: 26px; height: 26px;
   border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
   transition: transform .18s var(--ease);
 }
-.settingsCheckbox:checked { background: var(--accent); }
-.settingsCheckbox:checked::after { transform: translateX(20px); }
-.settingsCheckbox:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.settingsCheckbox:checked, .ruleSwitch:checked { background: var(--accent); }
+.settingsCheckbox:checked::after, .ruleSwitch:checked::after { transform: translateX(20px); }
+.settingsCheckbox:focus-visible, .ruleSwitch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* Erklaerzeile gehoert zu IHRER Zeile - deshalb im selben Kasten, ohne
    Trennlinie dazwischen (vorher stand sie optisch beim naechsten Punkt). */
 .settingsHint { margin: 8px 2px 0; font-size: 0.78rem; color: var(--text-muted); line-height: 1.45; }
@@ -4293,10 +4399,9 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
   .screen { max-width: none; }
   #handWrapper { margin-bottom: 0; border-radius: var(--r-lg) var(--r-lg) 0 0; }
 
-  /* Topbar: one row, and at ~400px height the status stays on ONE line
-     (there is width to spare, not height). The round info sits in the
-     hand toolbar next to the card count. */
-  #turnInfo { -webkit-line-clamp: 1; line-clamp: 1; }
+  /* Topbar: one row (the turn steps take the width there is, not height).
+     The round info sits in the hand toolbar next to the card count. */
+  #turnInfo .opAvatar { width: 18px; height: 18px; font-size: 10px; }
   #roundInfo { font-size: var(--fs-micro); }
 
   /* Piles side by side in the right column, spanning opponents + melds -

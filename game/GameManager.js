@@ -475,7 +475,8 @@ class GameManager {
     if (this.challengeDate) {
       return { error: 'In der Tages-Challenge ist die Bot-Stärke fest - sonst wäre die Bestenliste nicht vergleichbar.' };
     }
-    const LABELS = { easy: 'Anfänger', medium: 'Fortgeschritten', hard: 'Profi', zen: 'Zen-Meister' };
+    // Same names as every client control (one vocabulary for the levels).
+    const LABELS = { easy: 'Leicht', medium: 'Mittel', hard: 'Schwer', zen: 'Zen' };
     if (!LABELS[difficulty]) return { error: 'Unbekannte Schwierigkeit.' };
     const requester = this.players.find((p) => p.id === requesterId && !p.isBot);
     if (!requester) return { error: 'Nur Spieler am Tisch können das ändern.' };
