@@ -3,6 +3,14 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.66.0] - 2026-10-17
+
+### Added
+- Feiertage auf dem Startbildschirm, für alle Spieler: An Halloween, Nikolaus, Weihnachten (24.–26.12.), Silvester, Neujahr und Ostern (Sonntag und Montag) schaut eine verkleidete Katze hinter den Karten hervor – mit Hexenhut, Bischofsmütze, Weihnachtsmütze, Zylinder und Wunderkerze oder Hasenohren
+- Dazu je ein Gruß („Süßes oder Saures!“, „Frohe Weihnachten!“, „Guten Rutsch!“ …), passende Deko an den Karten (Kürbis, Nikolausstiefel, Lichterkette, Osterei) und ein eigener Himmel: Fledermäuse, Sterne zum Schnee, Feuerwerk statt Schnee, Blüten
+- Ein Feiertags-Emote für diesen Tag: 🎅 am Nikolaus, 🎄 an Weihnachten, 🐣 an Ostern; an Halloween und Silvester bleiben 🎃 und 🎆
+- Der Tag richtet sich nach deutscher Zeit und wechselt um Mitternacht von selbst, auch wenn die App offen bleibt; mit „Bewegung reduzieren“ bleiben Katze und Gruß, die Animationen entfallen
+
 ## [2.65.0] - 2026-10-17
 
 ### Added

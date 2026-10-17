@@ -3856,24 +3856,36 @@ html[data-cardback="easter"] .card.back,
 }
 @media (prefers-reduced-motion: reduce) { .seasonFlake { display: none; } }
 
-/* --- Greeting day (client.js applyGreeting): only the configured account sees it */
-.greetLine, .greetConfetti, .heroHat { display: none; }
-body.greetingDay .subtitle, body.greetingDay .seasonFlake { display: none; }
+/* --- Occasion days (client.js applyOccasion): the account's greeting day, holidays for all */
+.greetLine, .greetConfetti, .heroCostume, .heroDeco { display: none; }
+.heroCostume.on, .heroDeco.on { display: inline; }
+body.greetingDay .subtitle { display: none; }
+/* Nikolaus and Christmas keep the December snow; these bring their own sky. */
+body[data-occasion="birthday"] .seasonFlake,
+body[data-occasion="silvester"] .seasonFlake,
+body[data-occasion="newyear"] .seasonFlake { display: none; }
 body.greetingDay .greetLine {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   margin: 0; font-size: var(--fs-label); font-weight: 700; line-height: 1.25; text-wrap: balance;
 }
-.greetLine { color: #f2c35b; }
-[data-theme="kitchen"] .greetLine { color: #7a4f08; }
+body[data-occasion] { --occ-line: #f2c35b; --occ-glow: rgba(246, 196, 83, 0.16); }
+body[data-occasion="halloween"] { --occ-line: #f5a04a; --occ-glow: rgba(236, 132, 35, 0.2); }
+body[data-occasion="nikolaus"] { --occ-line: #ff9e94; --occ-glow: rgba(200, 48, 60, 0.2); }
+body[data-occasion="christmas"] { --occ-glow: rgba(212, 47, 60, 0.15); }
+body[data-occasion="easter"] { --occ-line: #a8e2cd; --occ-glow: rgba(159, 216, 196, 0.18); }
+[data-theme="kitchen"] body[data-occasion] { --occ-line: #7a4f08; }
+[data-theme="kitchen"] body[data-occasion="halloween"] { --occ-line: #8a4306; }
+[data-theme="kitchen"] body[data-occasion="nikolaus"] { --occ-line: #9a1f2b; }
+[data-theme="kitchen"] body[data-occasion="easter"] { --occ-line: #2f6b57; }
+.greetLine { color: var(--occ-line, #f2c35b); }
 .greetLine .icon { width: 1.25em; height: 1.25em; }
-body.greetingDay .heroHat { display: inline; }
-/* The hat sticks out above the fan: room for it, or the screen edge cuts the tip. */
+/* Hats stick out above the fan: room for them, or the screen edge cuts the tip. */
 body.greetingDay .lobbyHero { margin-top: 12px; }
 /* Behind the header's content, never over text; the header's own stacking context. */
 body.greetingDay .lobbyHeader { position: relative; isolation: isolate; align-self: stretch; }
 body.greetingDay .lobbyHeader::before {
   content: ''; position: absolute; inset: -18px -12px 0; z-index: -2; pointer-events: none;
-  background: radial-gradient(ellipse 60% 60% at 50% 0%, rgba(246, 196, 83, 0.16), transparent 72%);
+  background: radial-gradient(ellipse 60% 60% at 50% 0%, var(--occ-glow), transparent 72%);
 }
 body.greetingDay .greetConfetti {
   display: block; position: absolute; inset: -18px -12px 0; z-index: -1;
@@ -3882,8 +3894,10 @@ body.greetingDay .greetConfetti {
   -webkit-mask-image: linear-gradient(90deg, #000 18%, rgba(0, 0, 0, 0.3) 34% 66%, #000 82%);
   mask-image: linear-gradient(90deg, #000 18%, rgba(0, 0, 0, 0.3) 34% 66%, #000 82%);
 }
-.greetConfetti i {
-  position: absolute; top: -12px; width: 6px; height: 11px; border-radius: 1.5px;
+.greetConfetti i { position: absolute; }
+.greetConfetti svg { display: block; width: 100%; height: 100%; fill: currentColor; }
+.greetConfetti[data-kind="confetti"] i {
+  top: -12px; width: 6px; height: 11px; border-radius: 1.5px;
   opacity: 0; animation: greetFall linear infinite;
 }
 @keyframes greetFall {
@@ -3891,7 +3905,62 @@ body.greetingDay .greetConfetti {
   80% { opacity: 0.6; }
   to { transform: translateY(calc(100cqh + 12px)) rotate(420deg); opacity: 0; }
 }
-@media (prefers-reduced-motion: reduce) { .greetConfetti i { display: none; } }
+/* Halloween: a black cat in a witch's hat, bats crossing the sky. */
+body[data-occasion="halloween"] .heroCat .catFur { fill: #3a3446; }
+body[data-occasion="halloween"] .heroCat .catEarIn { fill: #6a5470; }
+body[data-occasion="halloween"] .heroCat .catStripe { stroke: #2a2532; }
+body[data-occasion="halloween"] .heroCat .catMuzzle { fill: #4a4356; }
+body[data-occasion="halloween"] .heroCat .catEye { fill: #e8d84a; }
+body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
+.occBat { left: 0; width: 26px; height: 26px; color: #8d7bb8; opacity: 0.85; animation: occBatFly linear infinite; }
+[data-theme="kitchen"] .occBat { color: #5b4a73; }
+.occBat.back { animation-direction: reverse; }
+.occBat svg { transform-origin: 50% 45%; animation: occFlap 0.32s ease-in-out infinite alternate; }
+@keyframes occBatFly {
+  from { transform: translate(-30px, 0); }
+  25% { transform: translate(calc(25cqw - 30px), -8px); }
+  50% { transform: translate(calc(50cqw - 30px), 4px); }
+  75% { transform: translate(calc(75cqw - 30px), -6px); }
+  to { transform: translate(calc(100cqw + 10px), 0); }
+}
+@keyframes occFlap { to { transform: scaleY(0.62); } }
+/* Christmas: fairy lights over the cards, stars over the snow. */
+.heroLights circle { animation: occBulb 1.6s ease-in-out infinite alternate; }
+.heroLights circle:nth-of-type(odd) { animation-delay: -0.8s; }
+@keyframes occBulb { from { opacity: 0.55; } to { opacity: 1; } }
+.occStar { width: 12px; height: 12px; color: #ffe39a; animation: occTwinkle 2.8s ease-in-out infinite; }
+[data-theme="kitchen"] .occStar { color: #c98a12; }
+@keyframes occTwinkle {
+  0%, 100% { opacity: 0.25; transform: scale(calc(var(--s, 1) * 0.7)); }
+  50% { opacity: 1; transform: scale(var(--s, 1)); }
+}
+/* New Year's Eve and New Year: a sparkler and fireworks instead of snow. */
+.heroSparkler path { transform-box: fill-box; transform-origin: center; animation: occSparkle 0.35s ease-in-out infinite alternate; }
+@keyframes occSparkle { from { transform: scale(0.7) rotate(0deg); opacity: 0.65; } to { transform: scale(1.1) rotate(22deg); opacity: 1; } }
+.occBurst { width: 0; height: 0; }
+.occBurst b {
+  position: absolute; left: -4px; top: -1px; width: 8px; height: 2.4px; border-radius: 2px;
+  background: currentColor; opacity: 0;
+  animation: occSpark 3.4s ease-out infinite; animation-delay: inherit;
+}
+@keyframes occSpark {
+  0% { transform: rotate(var(--a)) translateX(0); opacity: 0; }
+  6% { opacity: 1; }
+  40% { transform: rotate(var(--a)) translateX(24px) scale(0.9); opacity: 0.9; }
+  58%, 100% { transform: rotate(var(--a)) translateX(30px) scale(0.4); opacity: 0; }
+}
+/* Easter: blossoms drifting down. */
+.occPetal { top: -16px; width: 15px; height: 15px; opacity: 0; animation: occPetalFall linear infinite; }
+@keyframes occPetalFall {
+  10% { opacity: 0.9; }
+  50% { transform: translate(10px, calc(50cqh + 7px)) rotate(180deg); }
+  85% { opacity: 0.7; }
+  to { transform: translate(-6px, calc(100cqh + 14px)) rotate(360deg); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .greetConfetti i { display: none; }
+  .heroLights circle, .heroSparkler path { animation: none; }
+}
 
 /* --- Wochenwertung im Challenge-Panel --------------------------------------- */
 .challengeWeekly { margin-top: 10px; }
