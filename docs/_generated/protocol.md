@@ -4,12 +4,12 @@
 
 The client talks to the server over a single WebSocket. Every message is JSON
 with a `type` field. Both lists below are generated from the server's message
-handlers, so they always match the running code: **43** message
-types go up, **28** come down.
+handlers, so they always match the running code: **44** message
+types go up, **29** come down.
 
 ## Client → server
 
-### Before a table {bdg-secondary}`18`
+### Before a table {bdg-secondary}`19`
 
 Sent on a fresh connection, before the socket is bound to a table. These carry `msg.name` because the server has no seat to look up yet.
 
@@ -33,6 +33,7 @@ Sent on a fresh connection, before the socket is bound to a table. These carry `
 | `listStammtische` | The Stammtische a player name belongs to. |
 | `leaveStammtisch` | Leave a Stammtisch. |
 | `deleteStammtisch` | Founder only: dissolve a Stammtisch. |
+| `getYearReview` | The December year review of a player name ("Dein Pik-Dame-Jahr"); outside December it answers that none is available. |
 
 ### Lobby {bdg-secondary}`8`
 
@@ -117,6 +118,7 @@ Allowed from any seat at any time during a match.
 | `stammtischInfo` | Details of one Stammtisch (members, last evening, open table). |
 | `stammtischList` | Answer to `listStammtische`. |
 | `state` | The full game state as that player may see it (their own hand, everyone else's card counts). Sent after every change, coalesced to one send per tick. |
+| `yearReview` | Answer to `getYearReview`: the review, or `available: false` (not December, or no game this year). |
 
 :::{note}
 The server is the single source of truth: it validates every move and never

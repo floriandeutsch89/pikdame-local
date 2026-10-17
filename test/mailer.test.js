@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const net = require('net');
-const { createMailer, encodeHeaderValue, quotedPrintable } = require('../game/Mailer');
+const { createMailer, encodeHeaderValue, quotedPrintable, extraHeaderLines, mimeBody } = require('../game/Mailer');
 
 test('Mailer: Log-Fallback ohne SMTP-Konfiguration', async () => {
   const logs = [];
@@ -142,4 +142,66 @@ test('Mailer: konfigurierter, aber fehlschlagender Server loggt den Link trotzde
   assert.notEqual(r.reason, 'smtp_not_configured', 'Grund muss den echten Fehler nennen');
   assert.ok(logs.some((l) => l.includes('fehlgeschlagen')), 'Fehler muss im Log stehen');
   assert.ok(logs.some((l) => l.includes('token=abc')), 'Bestätigungslink muss auch bei Fehlversand im Log stehen');
+});
+
+// Year-review mail: text + HTML as multipart/alternative, plus the
+// List-Unsubscribe headers; every header line stays 7-bit ASCII.
+test('Mailer: multipart/alternative with extra headers, all 7-bit and injection-proof', async () => {
+  let data = '';
+  const server = net.createServer((sock) => {
+    sock.write('220 fake ESMTP\r\n');
+    let inData = false;
+    sock.on('data', (chunk) => {
+      const text = chunk.toString('utf8');
+      if (inData) {
+        data += text;
+        if (data.includes('\r\n.\r\n')) { inData = false; sock.write('250 OK\r\n'); }
+        return;
+      }
+      const line = text.trim();
+      if (line.startsWith('EHLO')) sock.write('250 fake\r\n');
+      else if (line === 'DATA') { inData = true; sock.write('354 go\r\n'); }
+      else if (line === 'QUIT') { sock.write('221 bye\r\n'); sock.end(); }
+      else sock.write('250 OK\r\n');
+    });
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const mailer = createMailer({
+    PIKDAME_SMTP_HOST: '127.0.0.1', PIKDAME_SMTP_PORT: String(server.address().port), PIKDAME_SMTP_SECURE: 'none',
+    PIKDAME_MAIL_FROM: 'Pik Dame <noreply@pikdame.online>',
+  }, () => {});
+  const url = 'https://play.example/unsubscribe?t=abc';
+  const r = await mailer.send({
+    to: 'flo@example.com', subject: 'Dein Pik-Dame-Jahr 2026', text: 'Grüße von der Katze', html: '<p>Grüße von der Katze</p>',
+    headers: {
+      'List-Unsubscribe': `<${url}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      'X-Evil': 'a\r\nBcc: victim@example.com', 'Bad Name': 'dropped', 'X-Umlaut': 'Grüße',
+    },
+  });
+  server.close();
+  assert.equal(r.delivered, true);
+  const head = data.slice(0, data.indexOf('\r\n\r\n'));
+  const body = data.slice(data.indexOf('\r\n\r\n') + 4);
+  assert.ok(head.includes(`\r\nList-Unsubscribe: <${url}>`));
+  assert.ok(head.includes('\r\nList-Unsubscribe-Post: List-Unsubscribe=One-Click'));
+  assert.match(head, /\r\nX-Evil: a Bcc: victim@example\.com/, 'CR/LF folded into the value, no new header');
+  assert.doesNotMatch(data, /\r\nBcc:/);
+  assert.doesNotMatch(head, /Bad Name/);
+  assert.ok(head.includes(`X-Umlaut: ${encodeHeaderValue('Grüße')}`), 'non-ASCII header value is RFC 2047 encoded');
+  for (const line of head.split('\r\n')) assert.match(line, /^[\x20-\x7e]*$/, `raw non-ASCII in a header: ${line}`);
+  const boundary = (head.match(/Content-Type: multipart\/alternative; boundary="([^"]+)"/) || [])[1];
+  assert.ok(boundary, 'multipart/alternative with a boundary');
+  const parts = body.split(`--${boundary}`);
+  assert.match(parts[1], /Content-Type: text\/plain; charset=utf-8\r\nContent-Transfer-Encoding: quoted-printable/);
+  assert.match(parts[2], /Content-Type: text\/html; charset=utf-8\r\nContent-Transfer-Encoding: quoted-printable/);
+  assert.ok(parts[1].includes('Gr=C3=BC=C3=9Fe'), 'text part is quoted-printable');
+  assert.ok(parts[2].includes('<p>Gr=C3=BC=C3=9Fe'), 'html part is quoted-printable');
+  assert.ok(parts[3].startsWith('--'), 'closing boundary');
+  for (const line of body.split('\r\n')) assert.ok(line.length <= 78, `body line too long: ${line.length}`);
+});
+
+test('Mailer: without html the body stays a single text/plain part', () => {
+  const lines = mimeBody('Hallo', null);
+  assert.deepStrictEqual(lines.slice(0, 2), ['Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: quoted-printable']);
+  assert.deepStrictEqual(extraHeaderLines({ 'X-A': 'b', '': 'x', 'X:Y': 'z', 'X-N': null }), ['X-A: b']);
 });

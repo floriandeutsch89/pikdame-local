@@ -64,6 +64,39 @@ function quotedPrintable(text) {
   return out.join(CRLF);
 }
 
+// Extra headers from the caller: names are a fixed token set, values lose any
+// CR/LF (no header injection) and non-ASCII goes through RFC 2047.
+function extraHeaderLines(headers) {
+  const out = [];
+  for (const [name, value] of Object.entries(headers || {})) {
+    if (!/^[A-Za-z][A-Za-z0-9-]{0,62}$/.test(name) || value === undefined || value === null) continue;
+    out.push(`${name}: ${encodeHeaderValue(String(value).replace(/[\r\n]+/g, ' '))}`);
+  }
+  return out;
+}
+
+/** Plain text alone, or text + HTML as multipart/alternative (both quoted-printable). */
+function mimeBody(text, html) {
+  if (!html) {
+    return ['Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: quoted-printable', '', quotedPrintable(text)];
+  }
+  const boundary = `=_pikdame_${crypto.randomBytes(12).toString('hex')}`;
+  const part = (type, body) => [
+    `--${boundary}`,
+    `Content-Type: ${type}; charset=utf-8`,
+    'Content-Transfer-Encoding: quoted-printable',
+    '',
+    quotedPrintable(body),
+  ];
+  return [
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    '',
+    ...part('text/plain', text),
+    ...part('text/html', html),
+    `--${boundary}--`,
+  ];
+}
+
 function smtpExchange(socket, expectCode, lineToSend) {
   return new Promise((resolve, reject) => {
     let buffer = '';
@@ -192,7 +225,8 @@ function createMailer(env = process.env, log = console.log) {
     }
   }
 
-  async function send({ to, subject, text }) {
+  /** `html` adds a multipart/alternative HTML part; `headers` extra header lines (e.g. List-Unsubscribe). */
+  async function send({ to, subject, text, html = null, headers = {} }) {
     if (!configured) {
       log(`[mail] SMTP nicht konfiguriert - Mail an ${to} wird nur geloggt:`);
       log(`[mail] Betreff: ${subject}`);
@@ -223,11 +257,9 @@ function createMailer(env = process.env, log = console.log) {
           `Subject: ${encodeHeaderValue(subject)}`,
           `Date: ${new Date().toUTCString().replace('GMT', '+0000')}`,
           `Message-ID: ${messageId}`,
+          ...extraHeaderLines(headers),
           'MIME-Version: 1.0',
-          'Content-Type: text/plain; charset=utf-8',
-          'Content-Transfer-Encoding: quoted-printable',
-          '',
-          quotedPrintable(text),
+          ...mimeBody(text, html),
         ]
           .join(CRLF)
           // Dot stuffing per RFC 5321 (QP already encodes a leading dot in
@@ -257,4 +289,4 @@ function createMailer(env = process.env, log = console.log) {
   return { send, probe, configured };
 }
 
-module.exports = { createMailer, encodeHeaderValue, quotedPrintable };
+module.exports = { createMailer, encodeHeaderValue, quotedPrintable, extraHeaderLines, mimeBody };

@@ -15,6 +15,10 @@
 // puzzle / puzzle-turn / puzzle-out (one meld laid), challenge (intro, attempt used),
 // gamelobby (seats + house rules), botdiff (the strength picker), gameover-challenge,
 // settings / settings-aids (the start screen's "Mehr" sheet, top / play aids).
+// --december: the client clock stands on 28 December and the server's year review
+// is mocked - adds the "Heute" chip and the scenes year / year-mid / year-bots /
+// year-end (story cards), year-image (the share PNG, via the download fallback),
+// account-mail (opt-in switch, simulated sign-in) and mail (the review mail HTML).
 // Start-screen scenes may follow table or result scenes in any order: the page
 // is reloaded to the start screen first.
 'use strict';
@@ -47,6 +51,7 @@ const VIEWS = {
 const views = arg('views', 'phone,land,desk').split(',');
 const scenes = arg('scenes', 'lobby,stats,history,roundend,gameover').split(',');
 const AUDIT = process.argv.includes('--audit');
+const DECEMBER = process.argv.includes('--december');
 const TAP_MIN = 44; // CLAUDE.md --tap-min
 // A normal UA: the server treats headless defaults as a crawler (no WebSocket).
 const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
@@ -124,6 +129,10 @@ const GAME_OVER = { ...BASE_STATE, phase: 'gameOver', roundNumber: 6, totals: { 
     highlights: [{ type: 'queenCaught', round: 2, name: 'Horst' }, { type: 'bestRound', round: 3, name: 'Klaus', score: 270 }],
     funTitle: { type: 'queenMagnet', name: 'Horst', count: 2 } } };
 
+// --december: the admin preview's example numbers, under the mock name.
+const DEC_NOW = Date.parse('2026-12-28T10:00:00Z');
+const YEAR_REVIEW = { ...require(path.join(ROOT, 'game', 'YearReviewMail')).sampleReview('2026'), name: ME };
+
 // Rewrite server -> client messages so the lobby shows the mock profile.
 // --puzzle-kind turn|out: today's puzzle message carries a puzzle of that kind.
 let puzzleKind = null;
@@ -137,6 +146,7 @@ function kindPuzzle(kind) {
 function rewrite(msg) {
   if (msg.type === 'profiles') { msg.players = PROFILES; msg.globalStats = GLOBAL_STATS; }
   if (msg.type === 'gameHistory') msg.games = HISTORY;
+  if (msg.type === 'yearReview' && DECEMBER) Object.assign(msg, { available: true, season: true, review: YEAR_REVIEW });
   if (msg.type === 'puzzle' && puzzleKind) {
     const DP = require(path.join(ROOT, 'game', 'DailyPuzzle'));
     Object.assign(msg, DP.publicPuzzle(kindPuzzle(puzzleKind)), { date: msg.today, archive: false });
@@ -253,6 +263,7 @@ function waitForHttp(port, ms = 20000) {
         } catch (e) { /* storage blocked */ }
       }, [ME, arg('theme', '')]);
       const page = await ctx.newPage();
+      if (DECEMBER) await page.clock.setFixedTime(new Date(DEC_NOW));
       let sock = null;
       await page.routeWebSocket(/.*/, (ws) => {
         sock = ws;
@@ -288,10 +299,51 @@ function waitForHttp(port, ms = 20000) {
         await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(1200);
       };
-      const LOBBY_SCENES = /^(lobby|lobby-open|progress|stats|history|settings|settings-aids|challenge|stammtisch|puzzle.*)$/;
+      const LOBBY_SCENES = /^(lobby|lobby-open|progress|stats|history|settings|settings-aids|challenge|stammtisch|puzzle.*|year.*|account-mail)$/;
       for (const sc of scenes) {
         if (LOBBY_SCENES.test(sc)) await toStart();
         if (sc === 'lobby') await shot('lobby');
+        if (/^year(-mid|-bots|-end)?$/.test(sc)) {
+          await page.click('#yearReviewBtn'); await page.waitForTimeout(400);
+          const steps = { year: 0, 'year-mid': 2, 'year-bots': 5, 'year-end': 99 }[sc];
+          for (let i = 0; i < steps && !(await page.isDisabled('#yearReviewNextBtn')); i++) await page.click('#yearReviewNextBtn');
+          await page.waitForTimeout(500); // slide-in
+          await shot(sc);
+          await page.click('#yearReviewCloseBtn');
+        }
+        if (sc === 'year-image') {
+          await page.click('#yearReviewBtn'); await page.waitForTimeout(1500); // drawn in the background
+          const download = page.waitForEvent('download', { timeout: 8000 });
+          await page.click('#yearReviewShareBtn');
+          const file = path.join(OUT, `${vn}-year-image.png`);
+          await (await download).saveAs(file);
+          written.push(file);
+          await page.click('#yearReviewCloseBtn');
+        }
+        if (sc === 'account-mail') {
+          // Simulated sign-in: /api/me and the methods answer for the mock name.
+          const json = (body) => (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
+          await page.route('**/api/me', json({ ok: true, username: ME }));
+          await page.route('**/api/account/methods', json({ ok: true, hasPassword: true, passkeysAvailable: false, passkeys: [], reviewMail: false }));
+          await page.evaluate(() => { try { localStorage.setItem('pikdame_account_token', 'mock'); } catch (e) { /* blocked */ } });
+          await page.reload({ waitUntil: 'networkidle' }); await page.waitForTimeout(1200);
+          await page.click('#accountBtn'); await page.waitForTimeout(600);
+          await page.evaluate(() => document.getElementById('accountMailPrefs').scrollIntoView({ block: 'center' }));
+          await shot('account-mail');
+          await page.click('#accountCloseBtn');
+          await page.evaluate(() => { try { localStorage.removeItem('pikdame_account_token'); } catch (e) { /* blocked */ } });
+          await page.unroute('**/api/me'); await page.unroute('**/api/account/methods');
+        }
+        if (sc === 'mail') {
+          const { composeReviewMail } = require(path.join(ROOT, 'game', 'YearReviewMail'));
+          const m = composeReviewMail({ review: YEAR_REVIEW, name: ME, lang: 'de', appUrl: 'https://play.pikdame.online/?jahr=2026', unsubscribeUrl: 'https://play.pikdame.online/unsubscribe?t=…' });
+          const mp = await ctx.newPage();
+          await mp.setContent(m.html, { waitUntil: 'load' });
+          const file = path.join(OUT, `${vn}-mail.png`);
+          await mp.screenshot({ path: file, fullPage: true });
+          written.push(file);
+          await mp.close();
+        }
         if (sc === 'stammtisch') {
           await page.click('#stammtischRecent button[data-code]'); await page.waitForTimeout(500);
           await shot('stammtisch');

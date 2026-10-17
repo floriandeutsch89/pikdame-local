@@ -254,6 +254,7 @@
     <symbol id="i-mitre" viewBox="0 0 24 24"><path d="M6.5 20.5 6 9.5C7.6 6.6 9.6 4.6 12 3c2.4 1.6 4.4 3.6 6 6.5l-.5 11z"/><path d="M12 3v17.5M6.4 17h11.2M10 10h4"/></symbol>
     <symbol id="i-tree" viewBox="0 0 24 24"><path d="M12 3.5 7 10h2.8L6 15.5h3.5L5.5 20h13l-4-4.5H18L14.2 10H17z"/><path d="M12 20v1.5"/></symbol>
     <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3v4.5M12 16.5V21M3 12h4.5M16.5 12H21M5.6 5.6l3 3M15.4 15.4l3 3M5.6 18.4l3-3M15.4 8.6l3-3"/></symbol>
+    <symbol id="i-cat" viewBox="0 0 24 24"><path d="M5.2 9.6 4.6 3.8l4.3 3.1a8.4 8.4 0 0 1 6.2 0l4.3-3.1-.6 5.8c.8 1.1 1.2 2.5 1.2 3.9 0 4.1-3.6 6.9-8 6.9s-8-2.8-8-6.9c0-1.4.4-2.8 1.2-3.9z"/><path d="M9.2 12.4v1.2M14.8 12.4v1.2M11.2 15.8h1.6L12 16.7zM2.6 14.6l3.4.6M2.9 17.6l3.2-.9M21.4 14.6l-3.4.6M21.1 17.6l-3.2-.9"/></symbol>
     <symbol id="i-egg" viewBox="0 0 24 24"><path d="M12 3.5c3.3 0 6.2 5 6.2 9.6a6.2 6.2 0 0 1-12.4 0c0-4.6 2.9-9.6 6.2-9.6z"/><path d="M6.2 12.4l2-1.4 1.9 1.4 1.9-1.4 1.9 1.4 1.9-1.4 2 1.4"/></symbol>
     <!-- Filled shapes for the start screen's holiday particles, not line icons. -->
     <symbol id="i-bat" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M12 10.4 13.2 8.2 13.5 9.9C15.8 8.8 19 7.2 23 7.9 21.6 9.2 20.6 10.9 20.3 12.9 19.3 11.9 17.8 11.6 16.8 12.4 16.1 11.5 14.9 11.6 14 12.8 13.4 13.6 12.6 15 12 16.2 11.4 15 10.6 13.6 10 12.8 9.1 11.6 7.9 11.5 7.2 12.4 6.2 11.6 4.7 11.9 3.7 12.9 3.4 10.9 2.4 9.2 1 7.9 5 7.2 8.2 8.8 10.5 9.9L10.8 8.2Z"/></symbol>
@@ -446,6 +447,9 @@
              an open puzzle or challenge is visible without opening it. -->
         <section id="todaySection" class="lobby-section todaySection">
           <h2>Heute</h2>
+          <!-- December only (the server decides): "Dein Pik-Dame-Jahr". In the
+               heading's corner, so the start screen gets no taller. -->
+          <button id="yearReviewBtn" type="button" class="yearChip hidden"><svg class="icon" aria-hidden="true"><use href="#i-cat"/></svg><span>Dein Jahr</span></button>
           <div id="todayTiles" class="todayTiles">
             <button id="puzzleBtn" type="button" class="todayTile"><svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg><span class="ttTitle">Tagesrätsel</span><span id="puzzleTileStatus" class="ttStatus"></span></button>
             <button id="challengeBtn" type="button" class="todayTile"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg><span class="ttTitle">Challenge</span><span id="challengeTileStatus" class="ttStatus"></span></button>
@@ -854,6 +858,15 @@
               <button id="accSavePasswordBtn" type="submit" class="btn-primary">Passwort speichern</button>
             </form>
           </div>
+          <!-- Consent for the yearly review mail: off until switched on, per account. -->
+          <div id="accountMailPrefs" class="accountMailPrefs hidden">
+            <h3>E-Mails</h3>
+            <label class="settingsRow" for="accReviewMailCheckbox">
+              <span class="settingsLabel">Jahresrückblick im Dezember per E-Mail</span>
+              <input type="checkbox" id="accReviewMailCheckbox" class="settingsCheckbox" />
+            </label>
+            <p class="settingsHint">Einmal im Jahr, Ende Dezember: deine Partien, Siege und geretteten Pik Damen. Abbestellen jederzeit hier oder mit einem Klick in der Mail.</p>
+          </div>
           <button id="accLogoutBtn" class="btn-secondary">Abmelden</button>
         </div>
         <p id="accountStatus" class="lobby-hint"></p>
@@ -941,6 +954,22 @@
           <button id="puzzleShareBtn" type="button" class="btn-secondary shareBtn hidden"><svg class="icon" aria-hidden="true"><use href="#i-share"/></svg><span>Ergebnis teilen</span></button>
           <button id="puzzleCloseBtn" class="btn-secondary">Schließen</button>
         </div>
+      </div>
+    </section>
+
+    <!-- "Dein Pik-Dame-Jahr" (December): one fact per card, tap or swipe to
+         flip. The share button sends a picture drawn on a canvas (no host). -->
+    <section id="yearReviewOverlay" class="overlay hidden" data-sheet-close="yearReviewCloseBtn">
+      <div class="overlay-card yearReviewCard" role="dialog" aria-labelledby="yearReviewTitle">
+        <h2 id="yearReviewTitle" class="visuallyHidden">Dein Pik-Dame-Jahr</h2>
+        <div id="yearReviewStage" class="yrStage" aria-live="polite"></div>
+        <div class="yrNav">
+          <button id="yearReviewPrevBtn" type="button" class="btn-icon yrNavBtn" title="Vorherige Karte"><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></button>
+          <span id="yearReviewCount" class="yrCount"></span>
+          <button id="yearReviewNextBtn" type="button" class="btn-icon yrNavBtn" title="Nächste Karte"><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></button>
+        </div>
+        <button id="yearReviewShareBtn" type="button" class="btn-secondary shareBtn"><svg class="icon" aria-hidden="true"><use href="#i-share"/></svg><span>Als Bild teilen</span></button>
+        <button id="yearReviewCloseBtn" type="button" class="btn-secondary"><span>Schließen</span></button>
       </div>
     </section>
 
