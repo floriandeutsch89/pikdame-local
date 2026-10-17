@@ -10,6 +10,11 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 - Das gilt auch für den Platz von jemandem, der das Spiel verlassen hat: Wer neu dazukommt, spielt ihn mit allem weiter, und die Partie zählt für ihn ganz normal
 - Tages-Challenge und Tutorial bleiben Einzelspiele: Über den Code kann dort niemand mehr dazukommen
 
+## [2.67.1] - 2026-10-17
+
+### Fixed
+- Das Impressum zeigt Anbieter und Kontakt wieder an – die Sicherheitsrichtlinie der Seite hatte das Skript blockiert, das beides einblendet.
+
 ## [2.67.0] - 2026-10-17
 
 ### Changed
