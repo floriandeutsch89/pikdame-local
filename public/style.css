@@ -3190,6 +3190,7 @@ input:disabled { opacity: 0.65; }
 }
 .celebrationPreview.celebrating { height: 116px; margin-top: 8px; }
 .celebrationPreview .celebrationBand { z-index: 0; }
+.celebrationFoot { margin-top: 8px; }
 .celebrationFoot .settingsHint { flex: 1 1 auto; margin: 0; }
 /* Capped: a select is as wide as its longest option ("… · ab Stufe 50"),
    which squeezed the label off its line. Locked options are never shown closed. */
