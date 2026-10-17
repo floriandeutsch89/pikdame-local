@@ -13,6 +13,13 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 - Die Kartenrücken-Auswahl lässt sich wieder durchscrollen: Bei zwölf Rücken war das Fenster höher als der Bildschirm und unten abgeschnitten. Quer liegen alle Rücken in zwei Reihen nebeneinander, am Desktop in drei.
 - Die Studio-Logo-Einstellung wirkte scheinbar nicht: „Voll“ spielte das Logo nur einmal pro Browser-Sitzung ab, ein Neuladen zählte nicht. Wer „Voll“ gewählt hatte, bekommt jetzt „Bei jedem Start“.
 
+## [2.68.0] - 2026-10-17
+
+### Changed
+- Die Bot-Stärke zeigt jetzt Pik statt Signalbalken: drei Plätze, ein bis drei davon gefüllt (Leicht, Mittel, Schwer), Zen hat drei Pik mit Krone – in den Hausregeln, an den Sitzen der Spiel-Lobby, im Stärke-Dialog und am Bot-Abzeichen im Spiel
+- Im Spiel zeigt das Bot-Abzeichen nur noch das Pik-Symbol, auch wenn die Bots unterschiedlich stark sind; die Stufe steht im Tooltip
+- Gesperrte Hausregeln (für Gäste) sind etwas kräftiger und bleiben auch im hellen Küchen-Theme gut lesbar
+
 ## [2.67.1] - 2026-10-17
 
 ### Fixed
