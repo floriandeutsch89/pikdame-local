@@ -3905,12 +3905,17 @@ body.greetingDay .greetConfetti {
   80% { opacity: 0.6; }
   to { transform: translateY(calc(100cqh + 12px)) rotate(420deg); opacity: 0; }
 }
+/* Dark costumes get a light edge on the dark backgrounds and a dark one on the
+   light kitchen theme, or they vanish into the page (black cat, black top hat). */
+[data-theme="kitchen"] .heroTopHat .hatEdge { stroke: #1d1b24; }
+[data-theme="kitchen"] .heroWitchHat .hatEdge,
+[data-theme="kitchen"] body[data-occasion="halloween"] .heroCat .catFur { stroke: #8a4306; }
 /* Halloween: a black cat in a witch's hat, bats crossing the sky. */
-body[data-occasion="halloween"] .heroCat .catFur { fill: #3a3446; }
+body[data-occasion="halloween"] .heroCat .catFur { fill: #3a3446; stroke: #f39a3d; stroke-width: 1.1; stroke-linejoin: round; }
 body[data-occasion="halloween"] .heroCat .catEarIn { fill: #6a5470; }
 body[data-occasion="halloween"] .heroCat .catStripe { stroke: #2a2532; }
 body[data-occasion="halloween"] .heroCat .catMuzzle { fill: #4a4356; }
-body[data-occasion="halloween"] .heroCat .catEye { fill: #e8d84a; }
+body[data-occasion="halloween"] .heroCat .catEye { fill: #ffe95c; }
 body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
 .occBat { left: 0; width: 26px; height: 26px; color: #8d7bb8; opacity: 0.85; animation: occBatFly linear infinite; }
 [data-theme="kitchen"] .occBat { color: #5b4a73; }
