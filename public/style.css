@@ -4102,14 +4102,33 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
   position: fixed; inset: 0; z-index: var(--z-gallery);
   background: rgba(0, 0, 0, 0.45);
   display: flex; align-items: center; justify-content: center;
+  padding: calc(12px + var(--safe-top)) calc(12px + var(--safe-right)) calc(12px + var(--safe-bottom)) calc(12px + var(--safe-left));
 }
+/* 12 backs no longer fit a phone: the box keeps to the screen, the grid scrolls. */
 .cardbackGalleryBox {
   background: var(--bg-glow); border: 1px solid var(--glass-border);
   border-radius: var(--r-md); padding: 16px 18px; max-width: 340px; width: 88vw;
   box-shadow: var(--shadow-3);
+  display: flex; flex-direction: column; max-height: 100%; min-height: 0;
 }
-.cardbackGalleryBox h3 { margin: 0 0 12px; text-align: center; font-size: 1.05rem; }
-.cardbackGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cardbackGalleryBox h3 {
+  margin: 0 0 12px; font-size: var(--fs-lead);
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.cardbackGrid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 3px; margin: -3px; /* room for the active ring at the scroll edges */
+}
+.cardbackGrid.canScrollDown {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent 100%);
+}
+@media (min-width: 1100px) {
+  .cardbackGalleryBox { max-width: 640px; }
+  .cardbackGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
 .cardbackTile {
   appearance: none; border: 1px solid var(--glass-border); border-radius: var(--r-sm);
   background: var(--glass); color: var(--text); padding: 10px 8px;
@@ -4120,7 +4139,7 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
 .cbPrev {
   width: 44px; height: 62px; border-radius: 7px;
   border: 1px solid rgba(0,0,0,0.25);
-  display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
+  display: flex; align-items: center; justify-content: center;
   /* classic - same recipe as .pile-card.back, so the preview matches */
   background:
     repeating-linear-gradient(45deg, rgba(255,255,255,0.13) 0 1px, transparent 1px 6px),
@@ -4145,8 +4164,10 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
     repeating-linear-gradient(45deg, rgba(255,255,255,0.12) 0 8px, transparent 8px 16px),
     linear-gradient(150deg, #7a1f5c 0%, #c2338f 100%);
 }
-.cbName { font-size: 0.85rem; font-weight: 700; }
-.cbGate { font-size: 0.7rem; opacity: 0.75; min-height: 1em; text-align: center; }
+/* Light and dark backs alike: a white lock with a dark halo. */
+.cbPrev .icon { color: #fff; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.7)); }
+.cbName { font-size: var(--fs-label); font-weight: 700; }
+.cbGate { font-size: var(--fs-micro); opacity: 0.75; min-height: 1em; text-align: center; }
 
 
 /* --- Studio-Vorspann (Flodex Interactive) ---------------------------------
@@ -4721,4 +4742,10 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
   #puzzleOverlay .puzzleActions { grid-column: 2; grid-row: 1 / span 6; align-self: end; }
   #puzzleOverlay .dialog-actions { flex-direction: column; }
   #puzzleOverlay .dialog-actions > button { flex: 0 0 auto; }
+
+  /* Card-back gallery at ~400 px: six per row instead of a narrow column. */
+  .cardbackGalleryBox { max-width: 760px; width: 100%; padding: 10px 14px; }
+  .cardbackGalleryBox h3 { margin-bottom: 8px; }
+  .cardbackGrid { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+  .cardbackTile { padding: 8px 4px; }
 }

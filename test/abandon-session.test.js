@@ -66,9 +66,12 @@ test('abandonSession: seat status, quiet stale codes, a given-up seat stays a bo
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const sockets = [];
-  t.after(() => {
+  const exited = new Promise((r) => server.once('exit', r));
+  t.after(async () => {
     for (const s of sockets) { try { s.close(); } catch (e) { /* closing */ } }
     server.kill();
+    // SIGTERM still writes the snapshot into dataDir (ENOTEMPTY otherwise).
+    await Promise.race([exited, new Promise((r) => setTimeout(r, 5000))]);
     fs.rmSync(dataDir, { recursive: true, force: true });
   });
   await waitForServer();

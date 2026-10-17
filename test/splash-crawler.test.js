@@ -114,13 +114,16 @@ test('a normal first visit still shows the intro', () => {
   }
 });
 
-test('prefers-reduced-motion skips the intro, an explicit "full" setting overrides it', () => {
+test('prefers-reduced-motion skips the intro, an explicit "every start" setting overrides it', () => {
   assert.strictEqual(skipped(boot({ userAgent: IPHONE, reduceMotion: true })), true);
-  assert.strictEqual(
-    skipped(boot({ userAgent: IPHONE, reduceMotion: true, storage: { pikdame_studio_logo: 'full' } })),
-    false,
-    "an explicit 'full' choice must still play the intro"
-  );
+  // 'full' is the pre-2.71 name of 'always' and must keep working.
+  for (const mode of ['always', 'full']) {
+    assert.strictEqual(
+      skipped(boot({ userAgent: IPHONE, reduceMotion: true, storage: { pikdame_studio_logo: mode } })),
+      false,
+      `an explicit '${mode}' choice must still play the intro`
+    );
+  }
 });
 
 test('the existing reasons to skip keep working (already seen, switched off)', () => {
@@ -189,17 +192,49 @@ test('a normal visitor still gets the intro, and it is marked as seen', () => {
 // v2.37.0: the ~8 s intro no longer replays on every app start.
 test('automatic mode: intro plays once per DEVICE, not once per session', () => {
   assert.strictEqual(skipped(boot({ userAgent: IPHONE, storage: { pikdame_splash_device: '1' } })), true);
-  // 'full' = the explicit "every time" setting keeps replaying it
+  // 'always' = the explicit "every start" setting keeps replaying it
   assert.strictEqual(
-    skipped(boot({ userAgent: IPHONE, storage: { pikdame_splash_device: '1', pikdame_studio_logo: 'full' } })),
+    skipped(boot({ userAgent: IPHONE, storage: { pikdame_splash_device: '1', pikdame_studio_logo: 'always' } })),
     false
   );
 });
 
-test('an invite link (?session=CODE) skips the intro unless "full" is chosen', () => {
+test('an invite link (?session=CODE) skips the intro unless "every start" is chosen', () => {
   const url = 'https://play.example/?session=ABC123';
   assert.strictEqual(skipped(boot({ userAgent: IPHONE, url })), true);
-  assert.strictEqual(skipped(boot({ userAgent: IPHONE, url, storage: { pikdame_studio_logo: 'full' } })), false);
+  assert.strictEqual(skipped(boot({ userAgent: IPHONE, url, storage: { pikdame_studio_logo: 'always' } })), false);
+});
+
+// v2.71.0: "Voll" only replayed once per browser session, so a reload showed
+// nothing and the setting looked broken. "Bei jedem Start" means every load.
+test('"every start" plays on every load: neither the session nor the device flag stops it', () => {
+  const seen = { session: { pikdame_splash_seen: '1' } };
+  for (const mode of ['always', 'full']) {
+    const storage = { pikdame_studio_logo: mode, pikdame_splash_device: '1' };
+    assert.strictEqual(skipped(boot({ userAgent: IPHONE, storage, ...seen })), false, `head script skipped '${mode}' on a reload`);
+    const w = boot({ userAgent: IPHONE, storage, ...seen, withClient: true });
+    const splash = w.document.getElementById('studioSplash');
+    assert.ok(splash && splash.classList.contains('play'), `client.js did not replay the intro for '${mode}'`);
+  }
+  // The default keeps its once-per-device rule.
+  assert.strictEqual(boot({ userAgent: IPHONE, ...seen, withClient: true }).document.getElementById('studioSplash'), null);
+});
+
+test('reduced motion gets the calm cut with "every start", the swirl otherwise', () => {
+  const calm = boot({ userAgent: IPHONE, reduceMotion: true, storage: { pikdame_studio_logo: 'always' }, withClient: true });
+  const splash = calm.document.getElementById('studioSplash');
+  assert.ok(splash && splash.classList.contains('play'), 'intro not played');
+  assert.ok(!splash.classList.contains('fullMotion'), 'reduced motion must not get the swirl');
+  const full = boot({ userAgent: IPHONE, withClient: true }).document.getElementById('studioSplash');
+  assert.ok(full.classList.contains('fullMotion'), 'without reduced motion the first start swirls');
+});
+
+test('the settings show the stored mode; the old "full" reads as "every start"', () => {
+  const w = boot({ userAgent: IPHONE, storage: { pikdame_studio_logo: 'full', pikdame_splash_device: '1' }, withClient: true });
+  const sel = w.document.getElementById('studioLogoSelect');
+  assert.strictEqual(sel.value, 'always');
+  assert.deepStrictEqual([...sel.options].map((o) => o.value), ['auto', 'always', 'off']);
+  assert.strictEqual(sel.options[sel.selectedIndex].textContent, 'Bei jedem Start');
 });
 
 test('client.js marks the device after the first intro and drops the overlay afterwards', () => {

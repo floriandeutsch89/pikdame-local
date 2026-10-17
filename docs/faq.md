@@ -69,7 +69,9 @@ choosier both made them **worse** by ~30 points.
 Some, via house rules in the lobby: turn timer (30/60/90 s), whether going out in
 one turn doubles the score, and whether the 1000-point threshold is strict. A fourth setting, the bot speed
 (fast / normal / relaxed), only changes how long bots take per turn. The
-core rules are fixed — they are the rules the family plays by.
+host's last choices, bot strength included, are remembered on that device
+for their next new table. The core rules are fixed — they are the rules the
+family plays by.
 
 ## Do games survive a server restart or update?
 
