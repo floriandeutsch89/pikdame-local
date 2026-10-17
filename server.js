@@ -1217,7 +1217,7 @@ const registry = new SessionRegistry((session) => {
       if (session.stammtisch) {
         try {
           const booked = stammtischStore.recordGame(session.stammtisch, gameRecord);
-          if (booked) broadcastToSession(session, { type: 'stammtisch', summary: booked.summary, seriesEvent: booked.seriesEvent });
+          if (booked) broadcastToSession(session, { type: 'stammtisch', summary: booked.summary, seriesEvent: booked.seriesEvent, goalEvents: booked.goalEvents });
         } catch (err) {
           logCrash('stammtisch', err, { code: session.stammtisch });
         }

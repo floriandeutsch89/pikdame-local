@@ -68,6 +68,7 @@ const PROFILES = [
 const STAMMTISCH = {
   name: 'Familie Deutsch', gamesPlayed: 7,
   series: { no: 3, games: 2, wins: { 'oma gerda': 1, flo: 1 }, bestOf: 3, needed: 2 },
+  goals: { level: 3, into: 40, need: 100, xp: 165, week: { start: '2026-10-12', games: 7, goal: 10, reached: false }, streak: 2, weeksReached: 4 },
   members: [
     { name: 'Oma Gerda', wins: 4, games: 7, avg: 612 }, { name: ME, wins: 2, games: 7, avg: 540 },
     { name: 'Klaus', wins: 1, games: 6, avg: 455 },
@@ -134,7 +135,10 @@ function kindPuzzle(kind) {
   while (DP.kindForDate(date).kind !== kind) date = addDays(date, 1);
   return DP.puzzleForDate(date);
 }
+// stammtisch-lobby: the next join is shown as a seat at the mock Stammtisch.
+let bindStammtisch = false;
 function rewrite(msg) {
+  if (msg.type === 'joined' && bindStammtisch) msg.stammtisch = { code: 'STMOCK1', name: STAMMTISCH.name };
   if (msg.type === 'profiles') { msg.players = PROFILES; msg.globalStats = GLOBAL_STATS; }
   if (msg.type === 'gameHistory') msg.games = HISTORY;
   if (msg.type === 'puzzle' && puzzleKind) {
@@ -324,6 +328,18 @@ function waitForHttp(port, ms = 20000) {
           await page.click('#challengeBtn'); await page.waitForTimeout(700);
           await shot('challenge');
           await page.click('#challengeCancelBtn');
+        }
+        if (sc === 'stammtisch-lobby') {
+          // A real game lobby whose join is rewritten to the mock Stammtisch:
+          // the record panel (goals, series, standings) with mock numbers.
+          await toStart();
+          bindStammtisch = true;
+          await page.click('#createGameBtn'); await page.waitForTimeout(900);
+          inject({ type: 'stammtisch', summary: { code: 'STMOCK1', ...STAMMTISCH }, seriesEvent: null });
+          await page.waitForTimeout(300);
+          await page.evaluate(() => document.getElementById('stammtischSection').scrollIntoView({ block: 'start' }));
+          await shot('stammtisch-lobby');
+          bindStammtisch = false;
         }
         if (sc === 'gamelobby' || sc === 'botdiff') {
           if (!(await page.isVisible('#houseRulesSection'))) { await toStart(); await page.click('#createGameBtn'); await page.waitForTimeout(900); }

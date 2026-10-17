@@ -140,3 +140,50 @@ test('the sheet closes by button or a tap outside, waits for data, and goes when
   assert.deepStrictEqual(t.errors, []);
   t.window.close();
 });
+
+test('the sheet shows the group goals: level, this week and the streak of reached weeks', () => {
+  const t = boot();
+  t.doc.querySelector('#stammtischRecent button[data-code="STHOME"]').click();
+  const week = (games, reached) => ({ start: '2026-10-12', games, goal: 10, reached });
+  t.info({ goals: { level: 3, into: 20, need: 100, xp: 145, week: week(7, false), streak: 2, weeksReached: 5 } });
+  const body = t.doc.getElementById('stammtischSheetBody');
+  const goals = body.querySelector('.stGoals');
+  assert.ok(goals, 'goals sit in the sheet');
+  assert.strictEqual(body.firstElementChild, goals, 'above the series and the table');
+  assert.match(goals.querySelector('.stGoalLevel').textContent, /^Stufe 3\s*20\/100 Punkte$/);
+  assert.match(goals.querySelector('.stGoalWeek').textContent, /7\/10 Partien diese Woche\s*2 Wochen in Folge · 5× geschafft/);
+  const bar = goals.querySelector('.stWeekBar');
+  assert.deepStrictEqual([bar.getAttribute('role'), bar.getAttribute('aria-valuenow'), bar.getAttribute('aria-valuemax')], ['progressbar', '7', '10']);
+  assert.strictEqual(bar.firstElementChild.style.width, '70%');
+  assert.ok(goals.querySelector('use[href="#i-target"]'), 'sprite icons, no emoji');
+
+  t.info({ goals: { level: 3, into: 40, need: 100, xp: 165, week: week(12, true), streak: 1, weeksReached: 1 } });
+  const reached = t.doc.querySelector('#stammtischSheetBody .stGoalWeek');
+  assert.ok(reached.classList.contains('reached'));
+  assert.match(reached.textContent, /Wochenziel geschafft · 12\/10\s*1× geschafft/);
+  assert.doesNotMatch(reached.textContent, /in Folge/, 'a streak of one week is not a streak yet');
+  assert.ok(reached.querySelector('use[href="#i-check"]'));
+  assert.strictEqual(reached.querySelector('.stWeekBar i').style.width, '100%', 'the bar never runs over');
+
+  // Without goals (an older server) the sheet simply has none.
+  t.info({ goals: undefined });
+  assert.strictEqual(t.doc.querySelector('#stammtischSheetBody .stGoals'), null);
+  assert.deepStrictEqual(t.errors, []);
+  t.window.close();
+});
+
+test('a match that reaches the weekly goal or a new level says so in one toast, with the series', () => {
+  const t = boot();
+  t.ws.fire('message', {
+    type: 'stammtisch',
+    summary: { code: 'STHOME', name: 'Familie', gamesPlayed: 21, members: [], pairwise: {}, series: { no: 2, games: 2, wins: { anna: 2 }, bestOf: 3, needed: 2, winner: 'Anna' } },
+    seriesEvent: { type: 'won', winner: 'Anna', no: 2 },
+    goalEvents: [{ type: 'week', streak: 3, goal: 10 }, { type: 'level', level: 4 }],
+  });
+  assert.strictEqual(t.doc.getElementById('toastContainer').textContent,
+    '🏆 Anna gewinnt die Serie 2:0! · Wochenziel geschafft – 3 Wochen in Folge! · Stammtisch-Stufe 4 erreicht!');
+  t.ws.fire('message', { type: 'stammtisch', summary: null, seriesEvent: null, goalEvents: [{ type: 'week', streak: 1, goal: 10 }] });
+  assert.strictEqual(t.doc.getElementById('toastContainer').textContent, 'Wochenziel geschafft: 10 Partien diese Woche!');
+  assert.deepStrictEqual(t.errors, []);
+  t.window.close();
+});

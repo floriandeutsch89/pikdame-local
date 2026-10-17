@@ -109,6 +109,27 @@ The other **25** are earned by a fact about one match (computed in
 | 💎 | **Royal flush** | Melded 10-J-Q-K-A of one suit, no jokers | `royal_flush` |
 | 👑 | **Spade royal** | Royal flush in spades - with the Queen of Spades | `pik_royal` |
 
+## Stammtisch goals
+
+A Stammtisch earns points together (`game/StammtischGoals.js`): every
+finished match there gives **10**, plus **5** for every further
+human at the table (two humans: 15, four: 25). Its level follows the
+same shape as the player curve with smaller steps (50 + 25 per level):
+
+| Level | Points for this level | Total points to reach it |
+| --- | --- | --- |
+| 1 | 50 | 0 |
+| 2 | 75 | 50 |
+| 3 | 100 | 125 |
+| 5 | 150 | 350 |
+| 10 | 275 | 1350 |
+| 20 | 525 | 5225 |
+
+The weekly goal is **10 matches**, Monday to Sunday of the game day
+(Europe/Berlin). Reaching it counts once per week; reached weeks in a row form
+the streak, which stays alive through the running week and ends with a
+missed one. Tables from before this feature start from their kept match list.
+
 ## Table talk
 
 Reactions are a whitelist on the server (a safety filter) and unlock by level
