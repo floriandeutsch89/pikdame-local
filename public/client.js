@@ -259,9 +259,12 @@
     // Both carry an <svg class="icon"> - write the label span, never the
     // button itself, or the icon is wiped on the next language switch.
     setLabelText(el('rulesTitle'), L('Spielregeln', 'How to play'));
-    // Short label in the icon row; the current language lives in the tooltip.
-    setLabelText(el('langBtnLobby'), lang === 'en' ? 'Language' : 'Sprache');
-    el('langBtnLobby').title = lang === 'en' ? 'Switch language (English)' : 'Sprache wechseln (Deutsch)';
+    // Names the language you switch TO, in that language - readable for
+    // exactly the person who needs it.
+    const langBtn = el('langBtn');
+    langBtn.textContent = lang === 'en' ? 'Deutsch' : 'English';
+    langBtn.lang = lang === 'en' ? 'de' : 'en';
+    langBtn.title = lang === 'en' ? 'Auf Deutsch umstellen' : 'Switch to English';
     document.documentElement.lang = lang;
   }
   function cycleLang() {
@@ -3595,7 +3598,7 @@
       });
     }
   } catch (e) { /* Einstellung ist Komfort */ }
-  el('langBtnLobby').addEventListener('click', cycleLang);
+  el('langBtn').addEventListener('click', cycleLang);
   applyStaticLang();
 
   el('handToggleBtn').addEventListener('click', () => {
