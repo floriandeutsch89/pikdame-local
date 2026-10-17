@@ -32,6 +32,10 @@ window.I18N_STATIC = {
   'Anlege-Hinweis ein/aus': 'Lay-off hint on/off',
   'Zeigt in der Zieh-Phase, ob die oberste Ablagekarte zu deiner Hand passt. Aus: Du prüfst das selbst.': 'Shows in the draw phase whether the top discard fits your hand. Off: you check it yourself.',
   'Grüne Rahmen an deinen Auslagen, wenn die gewählte Karte dort anlegen kann. Aus: Du prüfst das selbst. Im Tutorial sind beide Hinweise immer an.': 'Green frames on your melds when the selected card can be added there. Off: you check it yourself. Both hints are always on in the tutorial.',
+  'Hinweis bei wenigen Karten': 'Low-card warning',
+  'Hinweis bei wenigen Karten ein/aus': 'Low-card warning on/off',
+  'Markiert Mitspieler, die nur noch eine oder zwei Karten haben. Aus: Du zählst selbst mit.': 'Marks players who have only one or two cards left. Off: you keep count yourself.',
+  'Gilt nur für dieses Gerät.': 'Applies to this device only.',
   'Bot-Tempo': 'Bot speed',
   'Schnell': 'Fast',
   'Normal': 'Normal',
@@ -76,9 +80,7 @@ window.I18N_STATIC = {
   'Tagesaufgaben': 'Daily tasks',
   'Heute': 'Today',
   'Hand aus zählt doppelt': 'Going out in one turn counts double',
-  'Anfänger': 'Beginner',
-  'Fortgeschritten': 'Advanced',
-  'Zen-Meister': 'Zen master',
+  'Gemischt – pro Bot am Sitz eingestellt': 'Mixed – set per bot at the seat',
   'Nur der Organisator kann die Einstellungen ändern.': 'Only the organizer can change the settings.',
   'Namen ändern': 'Change name',
   'Spiel pausiert': 'Game paused',
@@ -313,10 +315,10 @@ window.I18N_SERVER_PATTERNS = [
   [/^Nur Mitspieler am Tisch können sich bereit melden\.$/, 'Only players at the table can mark themselves ready.'],
   [/^Zu viele Aktionen - bitte kurz durchatmen\.$/, 'Too many actions - please take a breath.'],
   [/^Dieses Emote gibt es ab Stufe (\d+)\.$/, 'This reaction unlocks at level $1.'],
-  [/^(.+) stellt (.+) auf Anfänger\.$/, '$1 sets $2 to Beginner.'],
-  [/^(.+) stellt (.+) auf Fortgeschritten\.$/, '$1 sets $2 to Advanced.'],
-  [/^(.+) stellt (.+) auf Profi\.$/, '$1 sets $2 to Expert.'],
-  [/^(.+) stellt (.+) auf Zen-Meister\.$/, '$1 sets $2 to Zen master.'],
+  [/^(.+) stellt (.+) auf Leicht\.$/, '$1 sets $2 to Easy.'],
+  [/^(.+) stellt (.+) auf Mittel\.$/, '$1 sets $2 to Medium.'],
+  [/^(.+) stellt (.+) auf Schwer\.$/, '$1 sets $2 to Hard.'],
+  [/^(.+) stellt (.+) auf Zen\.$/, '$1 sets $2 to Zen.'],
   [/^Zum Ausmachen musst du deine letzte Karte abwerfen - mindestens eine Handkarte muss übrig bleiben\.$/, 'To go out you must discard your last card - at least one hand card has to remain.'],
   [/^Du bist nicht am Zug\.$/, "It's not your turn."],
   [/^Du hast bereits gezogen\.$/, 'You have already drawn.'],
@@ -400,7 +402,7 @@ window.I18N_RULES_EN = `
 
   <h3>House rules (chosen when creating a game)</h3>
   <ul>
-    <li><b>Bot strength:</b> Beginner, Advanced, Expert or Zen master – for all bots in the lobby or per bot (tap the level on a bot).</li>
+    <li><b>Bot strength:</b> Easy, Medium, Hard or Zen – for all bots in the lobby or per bot (tap the level on a bot).</li>
     <li><b>⏱ Turn timer:</b> 30/60/90 seconds per turn. When time runs out, the bot logic finishes that turn fairly – the table never waits forever.</li>
     <li><b>Out in one counts double</b> (see scoring).</li>
     <li><b>Strict 1000:</b> victory only once someone is above 1000 points.</li>

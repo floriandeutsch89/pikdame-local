@@ -263,8 +263,8 @@ setTimeout(() => {
       else if (!drawPile.classList.contains('tutorialGlowTarget')) {
         errors.push('tutorial must highlight the draw pile during the draw step');
       }
-      // Hand counter follows the hand. It reads "n Kt" like the opponent chips
-      // (the abbreviation has no singular/plural trap: "1 Karten" once showed).
+      // Hand counter follows the hand. Cards icon + number like the opponent
+      // chips (v2.62; no word, so no singular/plural trap: "1 Karten" once showed).
       {
         const one = {
           ...tutorialState,
@@ -274,10 +274,11 @@ setTimeout(() => {
         };
         feed(one);
         const label = doc.getElementById('handCount').textContent;
-        if (label !== '1 Kt') errors.push(`hand counter must read "1 Kt" for a single card, got: ${label}`);
+        if (label !== '1') errors.push(`hand counter must read "1" for a single card, got: ${label}`);
+        if (!doc.querySelector('#handCount use[href="#i-cards"]')) errors.push('hand counter must carry the cards icon');
         feed(tutorialState);
         const many = doc.getElementById('handCount').textContent;
-        if (many !== '3 Kt') errors.push(`hand counter must read "3 Kt" for three cards, got: ${many}`);
+        if (many !== '3') errors.push(`hand counter must read "3" for three cards, got: ${many}`);
       }
       // Gegenprobe im selben Lauf: ohne Tutorial-Kennzeichnung keine Markierung.
       feed({ ...tutorialState, tutorialMode: false, turnPhase: 'meld' });
@@ -652,7 +653,8 @@ setTimeout(() => {
       feed({ ...pauseBase, pauseVotes: [] });
     }
 
-    // Daily challenge: the bot level is not shown at all; a normal table keeps the badge.
+    // Daily challenge: the bot level is not shown at all. A normal table keeps
+    // the badge for the host (the tap target to change one bot, v2.62).
     {
       const doc = window.document;
       const table = {
@@ -661,9 +663,9 @@ setTimeout(() => {
         discardTop: { id: 'cz0', suit: 'H', rank: '4' }, drawCount: 20, discardCount: 1,
         players: base.players.map((p) => ({ ...p, handCount: 5 })),
       };
-      feed(table);
-      if (!doc.querySelector('#opponents .botDiffBadge')) errors.push('a normal table must show the bot level on the opponent chip');
-      feed({ ...table, challengeDate: '2026-10-16' });
+      feed({ ...table, isHost: true });
+      if (!doc.querySelector('#opponents .botDiffBadge')) errors.push('a normal table must keep the bot level badge for the host');
+      feed({ ...table, isHost: true, challengeDate: '2026-10-16' });
       if (doc.querySelector('#opponents .botDiffBadge')) errors.push('the daily challenge must not show the bot level');
       feed(table);
       // Bot lines: a bubble under the speaker's chip; the settings switch mutes them.

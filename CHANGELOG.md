@@ -12,6 +12,19 @@ Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung na
 - Startbildschirm aufgeräumt: „Sprache“ und „Was ist neu?“ (mit der Versionsnummer) sind unter „Mehr“ zu finden, die Symbolleiste hat vier breitere Einträge
 - Impressum und GitHub-Link sind größere Tippziele, der Einführungstext klappt mit demselben Pfeil auf wie der Rest der App
 
+## [2.62.0] - 2026-10-17
+
+### Added
+- **Zugschritte oben in der Leiste:** Statt „Du bist am Zug (Karte ziehen)“ zeigt die Kopfleiste die drei Schritte **Ziehen · Legen · Abwerfen**, der aktuelle ist hervorgehoben, ein erledigter wird zum Haken. Hat man die oberste Ablagekarte genommen, bleibt „Abwerfen“ grau, bis sie gelegt ist. Ist jemand anderes dran, steht dort „Horst ist dran“ mit seinem Avatar, am Rundenende „Runde vorbei“. Die Zeile bricht am Handy nicht mehr um und ist jetzt auch auf Englisch übersetzt
+- **Neue Spielhilfe „Hinweis bei wenigen Karten“** (Standard: aus): Markiert Mitspieler mit „Letzte Karte!“ oder „Noch 2 Karten!“ und einem roten Rahmen. Einschalten unter Mehr › Spielhilfen oder im Spiel über das Zahnrad
+
+### Changed
+- **Hausregeln ohne Ausklapplisten:** Zug-Timer, Bot-Tempo und Bot-Stärke wählt man jetzt mit großen Knöpfen nebeneinander, wie die Spieleranzahl. Die Bot-Stärke zeigt ihre Balken. Haben die Bots verschiedene Stufen, ist kein Knopf aktiv und ein Hinweis erklärt es
+- **Schalter statt Kästchen** bei „Hand aus zählt doppelt“ und „Über 1000 Punkte“, die ganze Zeile ist antippbar. Die beiden Texte werden jetzt auch auf Englisch übersetzt
+- **„Sound & Vibration“ steht jetzt unter Mehr** statt bei den Hausregeln: Es gilt nur für das eigene Gerät, nicht für den Tisch
+- **Ein Name pro Bot-Stärke:** Leicht, Mittel, Schwer und Zen heißen jetzt überall gleich, auch in der Auswahl am Bot und im Spielverlauf (vorher „Anfänger“, „Fortgeschritten“, „Profi“, „Zen-Meister“)
+- **Mitspieler-Kärtchen aufgeräumt:** Kartenzahl mit Karten-Symbol statt „Kt“, die Punkte stehen rechts über dem Fortschrittsbalken. Die Bot-Stärke steht nur noch dabei, wenn die Bots verschieden stark sind. Der Organisator behält ein kleines Balken-Symbol, um einen Bot umzustellen. Auch die eigene Kartenzahl unten zeigt das Karten-Symbol
+
 ## [2.61.1] - 2026-10-17
 
 ### Changed
