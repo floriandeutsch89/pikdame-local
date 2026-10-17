@@ -136,7 +136,8 @@ on the client:
 | 💪 | level 18 |
 
 Seasonal extras the client offers in autumn and around New Year: 🎃 🎆
-(always accepted server-side). On a configured greeting day (`PIKDAME_BIRTHDAY`) that
+(always accepted server-side). On their holiday everyone also gets 🎅 🎄 🐣
+(`game/Holidays.js`). On a configured greeting day (`PIKDAME_BIRTHDAY`) that
 account also gets 🎂.
 
 Bots may say a short line at **6** moments
