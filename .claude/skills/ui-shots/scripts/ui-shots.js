@@ -3,7 +3,10 @@
 // Starts its own server on a temp data dir (never touches data/), routes the
 // WebSocket through Playwright and rewrites/injects messages per scene.
 //
-//   node .claude/skills/ui-shots/scripts/ui-shots.js [--out DIR] [--views a,b] [--scenes a,b] [--port N] [--audit]
+//   node .claude/skills/ui-shots/scripts/ui-shots.js [--out DIR] [--views a,b] [--scenes a,b] [--port N] [--audit] [--signed-in]
+//
+// --signed-in mocks a signed-in account (the /api/* answers below), season
+// finale included: the start-up hint shows on the first start-screen shot.
 //
 // --audit also checks every shot for truncated text, tap targets < 44 px,
 // icon buttons without a name and (start screen) content below the fold;
@@ -15,7 +18,8 @@
 // puzzle / puzzle-turn / puzzle-out (one meld laid), puzzle-solved (3 stars + the tile),
 // challenge (intro, attempt used),
 // gamelobby (seats + house rules), botdiff (the strength picker), gameover-challenge,
-// settings / settings-aids (the start screen's "Mehr" sheet, top / play aids).
+// settings / settings-aids (the start screen's "Mehr" sheet, top / play aids),
+// account (the account sheet: level, season ladder; needs --signed-in).
 // Start-screen scenes may follow table or result scenes in any order: the page
 // is reloaded to the start screen first.
 'use strict';
@@ -48,6 +52,7 @@ const VIEWS = {
 const views = arg('views', 'phone,land,desk').split(',');
 const scenes = arg('scenes', 'lobby,stats,history,roundend,gameover').split(',');
 const AUDIT = process.argv.includes('--audit');
+const SIGNED_IN = process.argv.includes('--signed-in');
 const TAP_MIN = 44; // CLAUDE.md --tap-min
 // A normal UA: the server treats headless defaults as a crawler (no WebSocket).
 const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
@@ -79,6 +84,23 @@ const STAMMTISCH = {
     flo: { 'oma gerda': { ahead: 2, behind: 5 }, klaus: { ahead: 3, behind: 3 } },
     klaus: { 'oma gerda': { ahead: 2, behind: 4 }, flo: { ahead: 3, behind: 3 } },
   },
+};
+// --signed-in: account answers by path. Seasons are months counted back from today.
+const monthsBack = (n) => {
+  const d = new Date(`${TODAY.slice(0, 7)}-15T12:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() - n);
+  return d.toISOString().slice(0, 7);
+};
+const SEASON_RESULT = { season: monthsBack(1), place: 2, award: 'silver', seasonXp: 640, ranked: 14 };
+const SEASON_AWARDS = [SEASON_RESULT,
+  { season: monthsBack(2), place: 7, award: 'top10', seasonXp: 310, ranked: 12 },
+  { season: monthsBack(3), place: 11, award: 'participant', seasonXp: 95, ranked: 12 }];
+const ACCOUNT_API = {
+  '/api/me': { ok: true, username: ME, seasonResult: SEASON_RESULT, lastSeason: SEASON_RESULT, seasonAwards: SEASON_AWARDS },
+  '/api/ladder': { ok: true, season: TODAY.slice(0, 7), lastSeason: SEASON_RESULT, seasonAwards: SEASON_AWARDS,
+    me: { username: ME, xp: 5320, seasonXp: 410, season: TODAY.slice(0, 7), games: 43, wins: 17, rank: 2 },
+    board: [{ username: 'Oma Gerda', seasonXp: 520 }, { username: ME, seasonXp: 410 }, { username: 'Klaus', seasonXp: 150 }] },
+  '/api/account/methods': { ok: true, hasPassword: false, passkeys: [{ id: 'pk1', name: 'iPhone', createdAt: NOW - 9e8, lastUsedAt: NOW - 3e6 }] },
 };
 const GLOBAL_STATS = { games: 8123, rounds: 61234, pikDamesLaidOut: 9001, pikDamesCaught: 4521, handAusRounds: 777 };
 const HISTORY = [
@@ -261,6 +283,15 @@ function waitForHttp(port, ms = 20000) {
           localStorage.setItem('pikdame_stammtische', JSON.stringify([{ code: 'STMOCK1', name: 'Familie Deutsch' }]));
         } catch (e) { /* storage blocked */ }
       }, [ME, arg('theme', '')]);
+      if (SIGNED_IN) {
+        await ctx.addInitScript(() => { try { localStorage.setItem('pikdame_account_token', 'mock-token'); } catch (e) { /* blocked */ } });
+        await ctx.route('**/api/**', (route) => route.fulfill({ contentType: 'application/json',
+          body: JSON.stringify(ACCOUNT_API[new URL(route.request().url()).pathname] || { ok: true }) }));
+        await ctx.route('**/statusz', async (route) => {
+          const res = await route.fetch();
+          route.fulfill({ response: res, body: JSON.stringify({ ...(await res.json()), accountsEnabled: true }) });
+        });
+      }
       const page = await ctx.newPage();
       let sock = null;
       await page.routeWebSocket(/.*/, (ws) => {
@@ -297,7 +328,7 @@ function waitForHttp(port, ms = 20000) {
         await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(1200);
       };
-      const LOBBY_SCENES = /^(lobby|lobby-open|progress|stats|history|settings|settings-aids|challenge|stammtisch|puzzle.*)$/;
+      const LOBBY_SCENES = /^(lobby|lobby-open|progress|stats|history|settings|settings-aids|challenge|stammtisch|account|puzzle.*)$/;
       for (const sc of scenes) {
         if (LOBBY_SCENES.test(sc)) await toStart();
         if (sc === 'lobby') await shot('lobby');
@@ -381,6 +412,13 @@ function waitForHttp(port, ms = 20000) {
           if (sc === 'settings-aids') await page.evaluate(() => document.getElementById('aidLowCardsCheckbox').scrollIntoView({ block: 'center' }));
           await shot(sc);
           await page.click('#settingsOverlayCloseBtn');
+        }
+        if (sc === 'account') {
+          await page.click('#accountBtn'); await page.waitForTimeout(700);
+          await page.evaluate(() => document.getElementById('ladderBox').scrollIntoView({ block: 'center' }));
+          await page.waitForTimeout(200);
+          await shot('account');
+          await page.click('#accountCloseBtn');
         }
         if (sc === 'stats' || sc === 'history') {
           await page.click('#statsBtn'); await page.waitForTimeout(500);
