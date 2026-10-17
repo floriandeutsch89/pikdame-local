@@ -223,6 +223,7 @@ window.I18N_SERVER_PATTERNS = [
   [/^Automatisch abgehoben \(Server-Neustart\)\.$/, 'Auto-cut (server restart).'],
   [/^(.+?) legt die Ablagekarte zurück und zieht neu\.$/, '$1 puts the discard card back and draws again.'],
   [/^(.+?) hat die Lobby verlassen\.$/, '$1 left the lobby.'],
+  [/^(.+) übernimmt den Platz von (.+)\.$/, '$1 takes over $2\'s seat.'],
   [/^Verlassen geht nur in der Lobby - im Spiel gibt es 🏳️ Aufgeben\.$/, 'Leaving is only possible in the lobby - in a running game use 🏳️ forfeit.'],
   [/^Du sitzt nicht an diesem Tisch\.$/, 'You are not seated at this table.'],
   [/^(.+?) zieht eine Karte vom Stapel\.$/, '$1 draws a card from the pile.'],

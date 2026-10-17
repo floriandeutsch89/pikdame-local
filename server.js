@@ -1662,6 +1662,8 @@ wss.on('connection', (ws, req) => {
       sendError(ws, 'Tisch ist voll.');
       return false;
     }
+    // Joining a started game takes over a bot seat, which keeps its own id.
+    playerId = player.id;
     // In der Lobby freie Plätze mit Bots vorbelegen, damit sie sichtbar und
     // sortierbar sind (ein späterer Beitritt ersetzt wieder einen Bot).
     targetSession.game.syncLobbyBots();

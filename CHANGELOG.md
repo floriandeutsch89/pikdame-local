@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.70.0] - 2026-10-17
+
+### Fixed
+- Wer einem laufenden Spiel beitritt, übernimmt den Platz eines Bots jetzt mit dessen Karten, Auslagen und Punkten – vorher verschwanden die Karten des Bots, und man saß mitten in der Runde ohne Hand da
+- Tages-Challenge und Tutorial bleiben Einzelspiele: Über den Code kann dort niemand mehr dazukommen
+
 ## [2.65.0] - 2026-10-17
 
 ### Added
