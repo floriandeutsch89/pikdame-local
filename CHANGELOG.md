@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.72.0] - 2026-10-17
+
+### Added
+- Am Ende des Tutorials führt „Zum Hauptmenü“ direkt zurück zum Startbildschirm.
+
 ## [2.71.0] - 2026-10-17
 
 ### Added
