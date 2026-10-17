@@ -291,6 +291,29 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     return { ...day };
   }
 
+  // --- Bot tower (see game/BotTower.js): best stars per stage --------------
+  /** Best stars per stage, e.g. { "1": 3, "2": 1 } (never null). */
+  function towerBest(name) {
+    const p = findPlayerByName(loadStore(), name);
+    return { ...((p && p.tower) || {}) };
+  }
+  /** Keeps the best result of a stage; the flat counters feed the badge families. */
+  function recordTowerResult(name, stage, stars) {
+    upsertPlayerProfile(name);
+    const store = loadStore();
+    const p = findPlayerByName(store, name);
+    const { summarize } = require('./BotTower');
+    p.tower = p.tower || {};
+    const before = p.tower[stage] || 0;
+    const improved = stars > before;
+    if (improved) p.tower[stage] = stars;
+    const sum = summarize(p.tower);
+    p.towerStars = sum.stars;
+    p.towerCleared = sum.cleared;
+    saveStore(store);
+    return { best: { ...p.tower }, improved, ...sum };
+  }
+
   return {
     filePath,
     flushSync: file.flushSync,
@@ -309,6 +332,8 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     puzzleStatus,
     recordPuzzleAttempt,
     revealPuzzle,
+    towerBest,
+    recordTowerResult,
   };
 }
 
