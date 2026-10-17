@@ -702,8 +702,7 @@
   const inWindow = (w, now) => !!w && now >= w.from && now < w.until;
   const validWindow = (w) => !!w && Number.isFinite(w.from) && Number.isFinite(w.until) && w.until > w.from;
   // The greeting day wins over a holiday on the same day.
-  function currentOccasion() {
-    const now = Date.now();
+  function currentOccasion(now = Date.now()) {
     if (inWindow(greetingWindow, now)) return 'birthday';
     const h = holidayWindows.find((w) => inWindow(w, now));
     return h ? h.id : null;
@@ -729,7 +728,10 @@
   }
   function applyOccasion() {
     clearTimeout(occasionTimer);
-    const id = currentOccasion();
+    // One instant for the decision AND the next edge: read twice, an edge passing
+    // in between was skipped and the decor stuck until the following one.
+    const now = Date.now();
+    const id = currentOccasion(now);
     const occ = id ? OCCASIONS[id] : null;
     document.body.classList.toggle('greetingDay', !!occ);
     if (occ) document.body.dataset.occasion = id;
@@ -744,7 +746,6 @@
     renderOccasionParticles(occ ? occ.particles : '');
     renderOccasionEmote(id === 'birthday' ? GREETING_EMOTE : (id && HOLIDAY_EMOTES[id]) || null);
     if (occasionCatCheck) occasionCatCheck();
-    const now = Date.now();
     const edges = [greetingWindow, ...holidayWindows].filter(Boolean)
       .flatMap((w) => [w.from, w.until]).filter((t) => t > now);
     if (edges.length) occasionTimer = setTimeout(applyOccasion, Math.min(Math.min(...edges) - now + 50, 0x7fffffff));
