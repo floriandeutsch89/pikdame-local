@@ -929,9 +929,26 @@
     <section id="homeOverlay" class="overlay hidden" data-sheet-close="homeCancelBtn">
       <div class="overlay-card">
         <h2><svg class="icon" aria-hidden="true"><use href="#i-home"/></svg><span>Zum Startbildschirm?</span></h2>
-        <p>Du verlässt den Tisch. Kommst du nicht bald zurück, übernimmt ein Bot deinen Platz - mit dem Spiel-Code kannst du jederzeit wieder einsteigen.</p>
+        <!-- Mode-aware (client.js): solo tables have no bot takeover and close by themselves. -->
+        <p class="homeTable">Du verlässt den Tisch. Kommst du nicht bald zurück, übernimmt ein Bot deinen Platz - mit dem Spiel-Code kannst du jederzeit wieder einsteigen.</p>
+        <p class="lobby-hint homeTable">Das Spiel bleibt offen. Ein neues kannst du erst starten, wenn du dieses aufgibst.</p>
+        <p class="homeTutorial hidden">Das Tutorial wartet kurz auf dich – danach beginnt es von vorn.</p>
+        <p class="homeChallenge hidden">Die Challenge wartet bis Mitternacht auf dich – unter „Heute“ geht es weiter.</p>
         <button id="homeConfirmBtn" class="btn-primary">Tisch verlassen</button>
         <button id="homeCancelBtn" class="btn-secondary">Abbrechen</button>
+      </div>
+    </section>
+
+    <!-- ONE GAME AT A TIME: starting or joining another table while this
+         device still holds a seat asks to give that game up first. -->
+    <section id="openGameOverlay" class="overlay hidden" data-sheet-close="openGameCancelBtn">
+      <div class="overlay-card">
+        <h2 class="iconTitle"><svg class="icon" aria-hidden="true"><use href="#i-resume"/></svg><span>Du hast noch ein laufendes Spiel</span></h2>
+        <p id="openGameSummary" class="openGameSummary"></p>
+        <p id="openGameConsequence" class="lobby-hint"></p>
+        <button id="openGameResumeBtn" class="btn-primary"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>Weiterspielen</span></button>
+        <button id="openGameGiveUpBtn" class="btn-danger"><span></span></button>
+        <button id="openGameCancelBtn" class="btn-secondary">Abbrechen</button>
       </div>
     </section>
 

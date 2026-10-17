@@ -189,6 +189,7 @@
   let resumeCode = null;
   // The resumable game is today's running daily challenge (server says so).
   let resumeIsChallenge = false;
+  let resumeIsTutorial = false; // known once the server reported this device's seat
   function updateResumeBtn() {
     try { renderToday(); } catch (e) { /* cosmetic, defined further down */ }
     try {
@@ -198,7 +199,8 @@
         btn.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-resume"/></svg><span></span>';
         btn.querySelector('span').textContent = resumeIsChallenge
           ? L('Challenge fortsetzen', 'Resume challenge')
-          : L(`Weiterspielen (${resumeCode})`, `Resume game (${resumeCode})`);
+          : resumeIsTutorial ? L('Tutorial fortsetzen', 'Resume tutorial')
+            : L(`Weiterspielen (${resumeCode})`, `Resume game (${resumeCode})`);
         btn.classList.remove('hidden');
       } else {
         btn.classList.add('hidden');
@@ -1169,9 +1171,9 @@
         // accountToken is required: the server rejects a registered name without it.
         ws.send(JSON.stringify({ type: 'joinSession', code: sessionCode, playerId, playerToken: storageGet(tokenKeyFor(sessionCode)) || undefined, name: myName, accountToken: accountToken() || undefined }));
       } else {
-        // Start screen: only offer 'resume' if that game still exists.
-        const last = storageGet(LAST_SESSION_KEY);
-        if (last) ws.send(JSON.stringify({ type: 'checkSession', code: last }));
+        // Start screen: only offer 'resume' if that game still exists - and
+        // learn whether this device still holds a seat there (one game at a time).
+        probeOpenGame();
       }
     });
 
@@ -1376,11 +1378,17 @@
         if (!msg.exists && msg.code === last) storageRemove('pikdame_last_session');
         resumeCode = null;
         resumeIsChallenge = false;
+        resumeIsTutorial = false;
       }
       // Beschriftung kommt aus updateResumeBtn(), damit ein SPAeTERER
       // Sprachwechsel sie mitnimmt - vorher wurde sie hier einmalig gesetzt
       // und blieb danach in der alten Sprache stehen (Nutzer-Report).
       updateResumeBtn();
+      if (msg.code === last) setOpenGame(msg);
+      return;
+    }
+    if (msg.type === 'sessionAbandoned') {
+      onSessionAbandoned(msg);
       return;
     }
     if (msg.type === 'leftLobby') {
@@ -1428,6 +1436,7 @@
         try { storageRemove('pikdame_last_session'); } catch (e) { /* egal */ }
         resumeCode = null;
         resumeIsChallenge = false;
+        resumeIsTutorial = false;
         try { updateResumeBtn(); } catch (e) { /* egal */ }
         showToast(
           L('⏹️ Spiel abgebrochen - du warst zu lange weg. Es wurde nicht gewertet und nicht gespeichert.',
@@ -2087,20 +2096,25 @@
           meldFilterPlayerId = meldFilterPlayerId === p.id ? null : p.id;
           render();
         });
-        const reconnecting = !p.isBot && p.controlledByBot;
+        // Gave the game up for good (one game at a time): a bot plays the seat.
+        const leftGame = !p.isBot && !!p.leftGame;
+        const reconnecting = !p.isBot && p.controlledByBot && !leftGame;
         const opTotal = (lastState.totals && lastState.totals[p.id]) || 0;
         const dealerStar = p.id === lastState.dealerId ? `<span class="opDealer" title="${L('Geber dieser Runde', 'Dealer this round')}"><svg class="icon dealerIcon" aria-hidden="true"><use href="#i-star"/></svg></span>` : '';
         const cardsText = p.handCount === 1 ? L('1 Karte', '1 card') : L(`${p.handCount} Karten`, `${p.handCount} cards`);
         d.title = L(`${cardsText} · ${opTotal} Punkte`, `${cardsText} · ${opTotal} points`);
         const opProgress = Math.max(0, Math.min(100, (opTotal / 1000) * 100));
-        if (reconnecting) d.classList.add('disconnected');
+        if (reconnecting || leftGame) d.classList.add('disconnected');
         // Play aid "low-card warning" (default off): a tag on the chip's edge,
         // so the chip keeps its height and the melds below do not jump.
-        const lowCards = aidLowCards && lastState.phase === 'playing' && p.handCount > 0 && p.handCount <= 2;
+        const lowCards = aidLowCards && !leftGame && lastState.phase === 'playing' && p.handCount > 0 && p.handCount <= 2;
         if (lowCards) d.classList.add('lowCards');
-        const lowTag = lowCards
-          ? `<span class="opLowTag"><svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg><span>${p.handCount === 1 ? L('Letzte Karte!', 'Last card!') : L('Noch 2 Karten!', '2 cards left!')}</span></span>`
-          : '';
+        // The same edge slot says who gave the game up (the name row would truncate it).
+        const lowTag = leftGame
+          ? `<span class="opLowTag opLeftTag"><span>${L('hat verlassen', 'left')}</span></span>`
+          : lowCards
+            ? `<span class="opLowTag"><svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg><span>${p.handCount === 1 ? L('Letzte Karte!', 'Last card!') : L('Noch 2 Karten!', '2 cards left!')}</span></span>`
+            : '';
         d.innerHTML = `<div class="opName">${avatarFor(p.name, p.isBot)}${nameWithHeart(p.name)}${dealerStar}${reconnecting ? ` <span class="reconnectTag">${L('getrennt', 'offline')}</span>` : ''}</div><div class="opCount"><span class="opCards" title="${cardsText}"><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><b>${p.handCount}</b></span><b class="opPts" title="${L(`${opTotal} Punkte`, `${opTotal} points`)}">${opTotal}</b></div><div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>${lowTag}`;
         // Daily challenge: the level is fixed and deliberately not shown.
         // Badge lives OUTSIDE the name div: inside it, the name ellipsis on
@@ -3662,7 +3676,7 @@
   }
 
   el('createGameBtn').addEventListener('click', () => {
-    send({ type: 'createSession', name: currentName(), accountToken: accountToken() || undefined });
+    guardOpenGame('create', () => send({ type: 'createSession', name: currentName(), accountToken: accountToken() || undefined }));
   });
 
   // Desktop-Tastatur: Enter im Code-Feld tritt bei, Enter im Namensfeld
@@ -3694,8 +3708,10 @@
       showHint(L('Bitte den Spiel-Code eingeben.', 'Please enter the game code.'), true);
       return;
     }
-    const storedId = storageGet(playerKeyFor(code));
-    send({ type: 'joinSession', code, name: currentName(), playerId: storedId || undefined, playerToken: storageGet(tokenKeyFor(code)) || undefined, accountToken: accountToken() || undefined });
+    guardOpenGame('join', () => {
+      const storedId = storageGet(playerKeyFor(code));
+      send({ type: 'joinSession', code, name: currentName(), playerId: storedId || undefined, playerToken: storageGet(tokenKeyFor(code)) || undefined, accountToken: accountToken() || undefined });
+    }, code);
   });
 
   // Opens the name editor; the rename is sent when the field is left.
@@ -4055,6 +4071,11 @@
     el('gameSettingsOverlay').classList.add('hidden');
   });
   el('homeBtn').addEventListener('click', () => {
+    // Solo tables (tutorial, challenge) have no bot takeover: say what really happens.
+    const mode = lastState && lastState.tutorialMode ? 'homeTutorial' : lastState && lastState.challengeDate ? 'homeChallenge' : 'homeTable';
+    for (const cls of ['homeTable', 'homeTutorial', 'homeChallenge']) {
+      el('homeOverlay').querySelectorAll(`.${cls}`).forEach((n) => n.classList.toggle('hidden', cls !== mode));
+    }
     el('homeOverlay').classList.remove('hidden');
   });
   el('homeCancelBtn').addEventListener('click', () => el('homeOverlay').classList.add('hidden'));
@@ -4068,16 +4089,153 @@
     // Never reveal the button from localStorage alone - a stored code may point
     // at a game that no longer exists. Keep it hidden and ask the server; the
     // 'sessionStatus' reply reveals it only when the game is still live.
-    const last = storageGet(LAST_SESSION_KEY);
     const btn = el('resumeBtn');
     btn.classList.add('hidden');
-    if (last && !sessionCode && ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'checkSession', code: last }));
-    }
+    if (!sessionCode) probeOpenGame();
   }
   el('resumeBtn').addEventListener('click', () => {
     const last = storageGet(LAST_SESSION_KEY);
     if (last) window.location.href = `${window.location.pathname}?session=${encodeURIComponent(last)}`;
+  });
+
+  // --- One game at a time ------------------------------------------------------
+  // The device's open game as the server reports it (sessionStatus.seat). While
+  // it runs, creating or joining another table asks to give it up first; the
+  // daily challenge and the puzzle stay separate, an open tutorial never blocks.
+  let openGame = null;
+  let openGameCheck = null; // a probe in flight: gated taps wait for its answer
+  let pendingStart = null; // what the sheet continues with after giving up
+  let pendingAfterAbandon = null;
+  function probeOpenGame() {
+    const last = storageGet(LAST_SESSION_KEY);
+    if (!last || !ws || ws.readyState !== WebSocket.OPEN) return;
+    let done;
+    const promise = new Promise((resolve) => { done = resolve; });
+    const timer = setTimeout(() => settleOpenGameCheck(promise), 2500); // no answer: never lock the start screen
+    openGameCheck = { promise, done: () => { clearTimeout(timer); done(); } };
+    ws.send(JSON.stringify({
+      type: 'checkSession', code: last,
+      playerId: storageGet(playerKeyFor(last)) || undefined,
+      playerToken: storageGet(tokenKeyFor(last)) || undefined,
+    }));
+  }
+  function settleOpenGameCheck(promise) {
+    if (!openGameCheck || (promise && openGameCheck.promise !== promise)) return;
+    const check = openGameCheck;
+    openGameCheck = null;
+    check.done();
+  }
+  function forgetSession(code) {
+    storageRemove(playerKeyFor(code));
+    storageRemove(tokenKeyFor(code));
+    if (storageGet(LAST_SESSION_KEY) === code) storageRemove(LAST_SESSION_KEY);
+    if (resumeCode === code) {
+      resumeCode = null;
+      resumeIsChallenge = false;
+      resumeIsTutorial = false;
+      updateResumeBtn();
+    }
+  }
+  function setOpenGame(status) {
+    const seat = status.seat;
+    const live = !!(status.exists && !status.finished && !status.challenge && seat && !seat.left
+      && ['lobby', 'playing', 'roundEnd', 'cutting'].includes(seat.phase));
+    openGame = live ? { ...seat, code: status.code } : null;
+    resumeIsTutorial = !!(seat && seat.tutorial && resumeCode === status.code);
+    updateResumeBtn();
+    if (seat && seat.left) forgetSession(status.code); // given up elsewhere: never offered again
+    renderOpenGame();
+    settleOpenGameCheck();
+  }
+  function renderOpenGame() {
+    // A real open game makes "back to the game" the main action of the start screen.
+    const blocking = !!(openGame && !openGame.tutorial);
+    el('sessionSetup').classList.toggle('hasOpenGame', blocking);
+    el('resumeBtn').classList.toggle('btn-primary', blocking);
+    el('resumeBtn').classList.toggle('btn-secondary', !blocking);
+    el('createGameBtn').classList.toggle('btn-primary', !blocking);
+    el('createGameBtn').classList.toggle('btn-secondary', blocking);
+  }
+  /** Runs start() unless the open game blocks it - then the sheet asks first.
+   *  targetCode: joining that same table (or its Stammtisch) is just resuming. */
+  function guardOpenGame(intent, start, targetCode) {
+    if (openGameCheck) {
+      openGameCheck.promise.then(() => guardOpenGame(intent, start, targetCode));
+      return;
+    }
+    const og = openGame;
+    const code = targetCode ? String(targetCode).trim().toUpperCase() : null;
+    if (!og || (code && (code === og.code || code === og.stammtisch))) { start(); return; }
+    if (og.tutorial) { abandonOpenGame(start); return; } // practice never blocks
+    openOpenGameSheet(intent, start);
+  }
+  function abandonOpenGame(after) {
+    const og = openGame;
+    if (!og) { after(); return; }
+    pendingAfterAbandon = { code: og.code, run: after };
+    send({
+      type: 'abandonSession', code: og.code, name: myName,
+      playerId: storageGet(playerKeyFor(og.code)) || undefined,
+      playerToken: storageGet(tokenKeyFor(og.code)) || undefined,
+    });
+  }
+  function onSessionAbandoned(msg) {
+    forgetSession(msg.code);
+    if (openGame && openGame.code === msg.code) openGame = null;
+    renderOpenGame();
+    // Another tab gave up the game this tab still sits at: back to the start.
+    if (sessionCode && sessionCode === msg.code) {
+      window.location.href = window.location.pathname;
+      return;
+    }
+    const next = pendingAfterAbandon && pendingAfterAbandon.code === msg.code ? pendingAfterAbandon.run : null;
+    pendingAfterAbandon = null;
+    el('openGameOverlay').classList.add('hidden');
+    if (next) next();
+  }
+  function disarmTap(btn) {
+    if (!btn.dataset.armed) return;
+    clearTimeout(Number(btn.dataset.timer));
+    delete btn.dataset.armed;
+    btn.classList.remove('armed');
+  }
+  function openOpenGameSheet(intent, start) {
+    const og = openGame;
+    pendingStart = start;
+    el('openGameSummary').textContent = og.phase === 'lobby'
+      ? L(`Spiel ${og.code} · noch in der Lobby`, `Game ${og.code} · still in the lobby`)
+      : L(`Spiel ${og.code} · Runde ${og.round} · ${og.score} Punkte`, `Game ${og.code} · round ${og.round} · ${og.score} points`);
+    el('openGameConsequence').textContent = og.phase === 'lobby'
+      ? L('Dein Platz in der Lobby wird frei.', 'Your seat in the lobby is freed.')
+      : og.alone
+        ? L('Die Partie endet und wird nicht gewertet.', 'The match ends and is not scored.')
+        : L('Ein Bot übernimmt deinen Platz bis zum Ende, die anderen spielen weiter. Du kannst nicht zurück. Für dich wird die Partie nicht gewertet.',
+          'A bot takes your seat until the end, the others play on. You cannot come back. The match is not scored for you.');
+    const target = intent === 'tutorial' ? L('Tutorial', 'tutorial')
+      : intent === 'join' ? L('beitreten', 'join') : L('neues Spiel', 'new game');
+    const btn = el('openGameGiveUpBtn');
+    disarmTap(btn);
+    btn.disabled = false;
+    setLabelText(btn, og.phase === 'lobby'
+      ? L(`Lobby verlassen & ${target}`, `Leave the lobby & ${target}`)
+      : L(`Aufgeben & ${target}`, `Give up & ${target}`));
+    el('openGameOverlay').classList.remove('hidden');
+  }
+  el('openGameResumeBtn').addEventListener('click', () => {
+    if (openGame) window.location.href = `${window.location.pathname}?session=${encodeURIComponent(openGame.code)}`;
+  });
+  confirmByTap(el('openGameGiveUpBtn'), L('Wirklich?', 'Sure?'), () => {
+    const start = pendingStart;
+    pendingStart = null;
+    el('openGameGiveUpBtn').disabled = true; // one request; the answer closes the sheet
+    abandonOpenGame(() => { if (start) start(); });
+  });
+  el('openGameCancelBtn').addEventListener('click', () => {
+    pendingStart = null;
+    el('openGameOverlay').classList.add('hidden');
+  });
+  el('openGameOverlay').addEventListener('click', (ev) => {
+    if (ev.target === el('openGameOverlay')) el('openGameCancelBtn').click();
   });
   updateResumeButton();
 
@@ -4838,7 +4996,7 @@
       .join('');
     box.querySelectorAll('button[data-code]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        send({ type: 'joinSession', code: btn.dataset.code, name: currentName(), accountToken: accountToken() || undefined });
+        guardOpenGame('join', () => send({ type: 'joinSession', code: btn.dataset.code, name: currentName(), accountToken: accountToken() || undefined }), btn.dataset.code);
       });
     });
     // Ask for the series state so the chip says "Serie 1:1" without a tap.
@@ -4952,7 +5110,7 @@
         `<button type="button" class="stAction"><span>${escapeHtml(t.isOwner ? L('Löschen', 'Delete') : L('Verlassen', 'Leave'))}</span></button>`;
       row.querySelector('.stJoin').addEventListener('click', () => {
         el('stammtischOverlay').classList.add('hidden');
-        send({ type: 'joinSession', code: t.code, name: currentName(), accountToken: accountToken() || undefined });
+        guardOpenGame('join', () => send({ type: 'joinSession', code: t.code, name: currentName(), accountToken: accountToken() || undefined }), t.code);
       });
       confirmByTap(row.querySelector('.stAction'), L('Wirklich?', 'Sure?'), () => {
         send({ type: t.isOwner ? 'deleteStammtisch' : 'leaveStammtisch', code: t.code, name: currentName(), accountToken: accountToken() || undefined });
@@ -4976,7 +5134,7 @@
       return;
     }
     el('stammtischOverlay').classList.add('hidden');
-    send({ type: 'createStammtisch', stammtischName, name: currentName(), accountToken: accountToken() || undefined });
+    guardOpenGame('create', () => send({ type: 'createStammtisch', stammtischName, name: currentName(), accountToken: accountToken() || undefined }));
   });
   el('stammtischNameInput').addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter') el('stammtischCreateBtn').click();
@@ -5248,7 +5406,8 @@
   });
   el('undoMeldBtn').addEventListener('click', () => send({ type: 'undoMeld' }));
 
-  el('tutorialBtn').addEventListener('click', () => {
+  el('tutorialBtn').addEventListener('click', () => guardOpenGame('tutorial', startTutorial));
+  function startTutorial() {
     tutorialActive = true;
     tutorialSeen = new Set();
     persistTutorial();
@@ -5264,7 +5423,7 @@
       name: typed || L('Neuling', 'Rookie'),
       accountToken: accountToken() || undefined,
     });
-  });
+  }
   el('tutorialNextBtn').addEventListener('click', () => {
     if (tutorialCurrentStep) tutorialSeen.add(tutorialCurrentStep);
     tutorialCurrentStep = null;
