@@ -3,6 +3,21 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.69.0] - 2026-10-17
+
+### Changed
+- Neues Tutorial: Ein Coach-Kärtchen führt dich durch die erste Runde – mit Schrittzähler, „Weiter“ und „Überspringen“. Im Hochformat sitzt es über deiner Hand, im Querformat und am Computer als Karte in der Ecke; Dialoge verdeckt es nie.
+- Die Lektionen kommen in fester Reihenfolge und nennen die Karten, die du wirklich auf der Hand hast: erster Satz, Pik Dame, Joker, Abwerfen, Anlegen, Ausmachen. Markierte Karten heben sich ab, der Rest der Hand tritt zurück.
+- Der Joker wird jetzt wirklich vorgeführt: Du legst ihn selbst aus und siehst, welche Karte er spielt.
+- Während des Tutorials spricht nur das Kärtchen: keine Tipps, Rundensprüche, Bot-Sprüche oder Bot-Emotes. Lehnt der Tisch einen Zug ab, erklärt das Kärtchen die Regel dahinter; richtige Züge bestätigt es kurz (mit Vibration, wo das Gerät sie kann).
+- Die Bots spielen im Tutorial gemütlich und ohne Zugzeit.
+- Das Tutorial endet mit der Wertung der ersten Runde: „Tutorial geschafft“ zeigt, was du jetzt kannst, und bietet „Gegen Bots spielen“, „Freunde einladen“ oder „Weiterspielen“ an.
+- Hinweise gibt es nur noch in Tutorial-Partien, nie mehr in normalen Spielen. „Überspringen“ fragt mit zwei Taps nach, im Spielmenü holst du die Hinweise zurück, und der Tutorial-Knopf setzt angefangenen Fortschritt nicht mehr stillschweigend zurück.
+- Ohne eigenen Namen heißt du im Tutorial „Neuling“ statt „Spieler123“.
+
+### Fixed
+- Tutorial: Die Pik-Dame-Lektionen konnten übersprungen werden, und nach dem Aufnehmen der Ablage schlug das Tutorial Züge vor, die der Tisch ablehnt.
+
 ## [2.67.0] - 2026-10-17
 
 ### Changed

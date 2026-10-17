@@ -1742,13 +1742,11 @@ wss.on('connection', (ws, req) => {
       const ok = await joinSession(created.session, msg);
       if (ok) {
         const game = created.session.game;
-        // Mittlere Bots: die Anfaenger-Stufe wuerfelt beim Abwurf, das waere
-        // im Tutorial nicht reproduzierbar. Kein Zugtimer - niemand soll
-        // beim Lesen unter Druck geraten.
-        game.setHouseRules({ turnTimerSeconds: 0 }, { system: true });
-        // Bot-Stufe ist KEINE Hausregel: setHouseRules verwirft den Schluessel
-        // still, die Bots blieben deshalb auf Zen (Spieler-Report). Vor
-        // fillWithBots aufrufen - der Wert gilt auch fuer neu erzeugte Bots.
+        // No turn timer and slow bots ("Gemütlich"): a learner reads a line,
+        // then watches what a bot does - nobody plays against the clock here.
+        game.setHouseRules({ turnTimerSeconds: 0, botPace: 'slow' }, { system: true });
+        // Medium bots (easy rolls dice on its discards - not reproducible). Not a
+        // house rule (setHouseRules drops it); call before fillWithBots.
         game.setAllBotsDifficulty('medium');
         game.fillWithBots();
         // Der Lernende sitzt auf Platz 0 und soll BEGINNEN - also gibt der
