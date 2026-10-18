@@ -15,6 +15,7 @@
 // comparisons via timingSafeEqual. Tokens are 32-byte random values.
 const crypto = require('crypto');
 const path = require('path');
+const { SEASON_ID_RE, seasonStandings } = require('./Progression');
 
 const DEFAULT_DB_FILE = path.join(process.env.PIKDAME_DATA_DIR || path.join(__dirname, '..', 'data'), 'users.db');
 const SCRYPT_KEYLEN = 64;
@@ -103,6 +104,7 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
     add('wins', 'INTEGER NOT NULL DEFAULT 0');
     add('season', 'TEXT');
     add('season_xp', 'INTEGER NOT NULL DEFAULT 0');
+    add('season_games', 'INTEGER NOT NULL DEFAULT 0');
     // Set once the name-based profile's progress was carried over (see
     // importProfile) - a second import would count the same games twice.
     add('profile_imported', 'INTEGER NOT NULL DEFAULT 0');
@@ -139,6 +141,48 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
     );
     CREATE INDEX IF NOT EXISTS webauthn_credentials_user ON webauthn_credentials (user_id);
   `);
+  // Season finale: a rollover keeps the finished season's numbers (the users
+  // row only holds the current one), finals/results are written once per season.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS season_archive (
+      user_id INTEGER NOT NULL,
+      season TEXT NOT NULL,
+      season_xp INTEGER NOT NULL,
+      season_games INTEGER NOT NULL,
+      PRIMARY KEY (user_id, season)
+    );
+    CREATE TABLE IF NOT EXISTS season_finals (
+      season TEXT PRIMARY KEY,
+      finalized_at INTEGER NOT NULL,
+      ranked INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS season_results (
+      user_id INTEGER NOT NULL,
+      season TEXT NOT NULL,
+      place INTEGER NOT NULL,
+      season_xp INTEGER NOT NULL,
+      season_games INTEGER NOT NULL,
+      award TEXT,
+      seen INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (user_id, season)
+    );
+    CREATE TABLE IF NOT EXISTS season_meta (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+  `);
+
+  function inTransaction(fn, mode = '') {
+    db.exec(`BEGIN ${mode}`);
+    try {
+      const out = fn();
+      db.exec('COMMIT');
+      return out;
+    } catch (e) {
+      try { db.exec('ROLLBACK'); } catch (_) { /* nothing open */ }
+      throw e;
+    }
+  }
 
   /** Name/e-mail checks shared by password and passkey registration. */
   function validateNewAccount(username, email) {
@@ -266,15 +310,26 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
    */
   function addGameResult(username, { xp = 0, won = false, season = null } = {}) {
     const name = String(username || '').trim();
-    const row = db.prepare('SELECT id, xp, season, season_xp FROM users WHERE username = ? AND verified = 1').get(name);
+    const row = db.prepare('SELECT id, xp, season, season_xp, season_games FROM users WHERE username = ? AND verified = 1').get(name);
     if (!row) return null;
     const gain = Math.max(0, Math.round(Number(xp) || 0));
     const sameSeason = season && row.season === season;
-    db.prepare(
-      `UPDATE users SET xp = xp + ?, games = games + 1, wins = wins + ?, season = ?, season_xp = ?
-       WHERE id = ?`
-    ).run(gain, won ? 1 : 0, season, (sameSeason ? row.season_xp : 0) + gain, row.id);
+    inTransaction(() => {
+      if (season && !sameSeason) archiveSeason(row);
+      db.prepare(
+        `UPDATE users SET xp = xp + ?, games = games + 1, wins = wins + ?, season = ?, season_xp = ?, season_games = ?
+         WHERE id = ?`
+      ).run(gain, won ? 1 : 0, season, (sameSeason ? row.season_xp : 0) + gain, (sameSeason ? row.season_games || 0 : 0) + 1, row.id);
+    });
     return progressFor(name);
+  }
+
+  /** Before a row moves on to a new season: keep the old one for its finale. */
+  function archiveSeason(row) {
+    if (!row.season || !((row.season_xp || 0) > 0 || (row.season_games || 0) > 0)) return;
+    db.prepare(
+      'INSERT OR IGNORE INTO season_archive (user_id, season, season_xp, season_games) VALUES (?, ?, ?, ?)'
+    ).run(row.id, row.season, row.season_xp || 0, row.season_games || 0);
   }
 
   /** @returns {{username, xp, seasonXp, season, games, wins, rank}|null} */
@@ -319,6 +374,90 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
   }
 
   /**
+   * Writes the final standings of every ended season once: places, awards,
+   * the finals row as idempotence key. `from` overrides the first season (tests).
+   * @returns {{season:string, ranked:number, awards:number}[]} newly finalized
+   */
+  function finalizeSeasons(currentSeason, { from = null } = {}) {
+    const cur = String(currentSeason || '');
+    if (!SEASON_ID_RE.test(cur)) return [];
+    // Rollovers are archived since the season this code first ran in; older
+    // ones were overwritten in place and are never finalized.
+    let since = from;
+    if (!since) {
+      db.prepare("INSERT OR IGNORE INTO season_meta (key, value) VALUES ('archive_from', ?)").run(cur);
+      since = db.prepare("SELECT value FROM season_meta WHERE key = 'archive_from'").get().value;
+    }
+    const pending = db
+      .prepare(
+        `SELECT DISTINCT season FROM (
+           SELECT season FROM users WHERE season IS NOT NULL
+           UNION SELECT season FROM season_archive
+         ) WHERE season < ? AND season >= ? AND season NOT IN (SELECT season FROM season_finals)
+         ORDER BY season`
+      )
+      .all(cur, since)
+      .map((r) => r.season);
+    const done = [];
+    for (const season of pending) {
+      const result = inTransaction(() => {
+        if (db.prepare('SELECT 1 FROM season_finals WHERE season = ?').get(season)) return null;
+        const entries = db
+          .prepare(
+            `SELECT id AS userId, season_xp AS seasonXp, season_games AS seasonGames
+               FROM users WHERE season = ? AND verified = 1
+             UNION ALL
+             SELECT a.user_id, a.season_xp, a.season_games
+               FROM season_archive a JOIN users u ON u.id = a.user_id
+              WHERE a.season = ? AND u.verified = 1`
+          )
+          .all(season, season);
+        const standings = seasonStandings(entries, { gamesCounted: season !== since });
+        const insert = db.prepare(
+          `INSERT OR IGNORE INTO season_results (user_id, season, place, season_xp, season_games, award, seen)
+           VALUES (?, ?, ?, ?, ?, ?, 0)`
+        );
+        for (const s of standings) insert.run(s.userId, season, s.place, s.seasonXp, s.seasonGames, s.award);
+        db.prepare('INSERT INTO season_finals (season, finalized_at, ranked) VALUES (?, ?, ?)').run(season, Date.now(), standings.length);
+        return { season, ranked: standings.length, awards: standings.filter((s) => s.award).length };
+      }, 'IMMEDIATE');
+      if (result) done.push(result);
+    }
+    return done;
+  }
+
+  /** The account's finished seasons, newest first. */
+  function seasonResultsFor(username, limit = 24) {
+    return db
+      .prepare(
+        `SELECT r.season, r.place, r.award, r.season_xp, r.season_games, r.seen, f.ranked
+           FROM season_results r
+           JOIN users u ON u.id = r.user_id
+           JOIN season_finals f ON f.season = r.season
+          WHERE u.username = ?
+          ORDER BY r.season DESC LIMIT ?`
+      )
+      .all(String(username || '').trim(), Math.max(1, Math.min(120, limit)))
+      .map((r) => ({
+        season: r.season,
+        place: r.place,
+        award: r.award || null,
+        seasonXp: r.season_xp || 0,
+        seasonGames: r.season_games || 0,
+        ranked: r.ranked || 0,
+        seen: !!r.seen,
+      }));
+  }
+
+  /** The start-up hint was shown (newest season): older unseen ones are moot too. */
+  function markSeasonResultSeen(username, season) {
+    const r = db
+      .prepare('UPDATE season_results SET seen = 1 WHERE season <= ? AND user_id = (SELECT id FROM users WHERE username = ?)')
+      .run(String(season || ''), String(username || '').trim());
+    return { ok: r.changes > 0 };
+  }
+
+  /**
    * Carries the name-based profile's progress (PlayerStore) over to the
    * account, ONCE: players who registered after playing as guests keep their
    * level and their place in the current season. Lifts the account up TO the
@@ -330,24 +469,28 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
   function importProfile(username, { xp = 0, games = 0, wins = 0, season = null } = {}) {
     const name = String(username || '').trim();
     const row = db
-      .prepare('SELECT id, xp, games, wins, season, season_xp, profile_imported FROM users WHERE username = ? AND verified = 1')
+      .prepare('SELECT id, xp, games, wins, season, season_xp, season_games, profile_imported FROM users WHERE username = ? AND verified = 1')
       .get(name);
     if (!row || row.profile_imported) return { imported: false, progress: row ? progressFor(name) : null };
     const n = (v) => Math.max(0, Math.round(Number(v) || 0));
     const newXp = Math.max(row.xp || 0, n(xp));
     const delta = newXp - (row.xp || 0);
-    const sameSeason = season && row.season === season;
-    db.prepare(
-      `UPDATE users SET xp = ?, games = ?, wins = ?, season = ?, season_xp = ?, profile_imported = 1
-       WHERE id = ?`
-    ).run(
-      newXp,
-      Math.max(row.games || 0, n(games)),
-      Math.max(row.wins || 0, n(wins)),
-      season || row.season,
-      (sameSeason || !season ? row.season_xp || 0 : 0) + delta,
-      row.id
-    );
+    const keepSeason = !season || row.season === season;
+    inTransaction(() => {
+      if (!keepSeason) archiveSeason(row);
+      db.prepare(
+        `UPDATE users SET xp = ?, games = ?, wins = ?, season = ?, season_xp = ?, season_games = ?, profile_imported = 1
+         WHERE id = ?`
+      ).run(
+        newXp,
+        Math.max(row.games || 0, n(games)),
+        Math.max(row.wins || 0, n(wins)),
+        season || row.season,
+        (keepSeason ? row.season_xp || 0 : 0) + delta,
+        keepSeason ? row.season_games || 0 : 0,
+        row.id
+      );
+    });
     return { imported: true, progress: progressFor(name) };
   }
 
@@ -387,6 +530,8 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
     if (!row) return { error: 'Benutzer nicht gefunden.' };
     db.prepare('DELETE FROM sessions WHERE user_id = ?').run(row.id);
     db.prepare('DELETE FROM webauthn_credentials WHERE user_id = ?').run(row.id);
+    db.prepare('DELETE FROM season_archive WHERE user_id = ?').run(row.id);
+    db.prepare('DELETE FROM season_results WHERE user_id = ?').run(row.id);
     db.prepare('DELETE FROM users WHERE id = ?').run(row.id);
     return { ok: true, username: row.username };
   }
@@ -633,6 +778,7 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
   return {
     register, verifyEmail, login, sessionUser, logout, isRegisteredName,
     addGameResult, progressFor, ladder, importProfile, listUsers, deleteUser, renewVerification,
+    finalizeSeasons, seasonResultsFor, markSeasonResultSeen,
     validateNewAccount, registerWithoutPassword, verifyAndSignIn, renewSignupCode, verifyCodeAndSignIn, accountForSession, setWebauthnUserId, addCredential,
     credentialById, touchCredential, deleteCredential, setPassword, removePassword, sessionForUser,
     createLoginLink, consumeLoginLink,

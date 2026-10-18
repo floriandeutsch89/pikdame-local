@@ -3,6 +3,29 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.78.0] - 2026-10-17
+
+### Added
+- Saison-Finale: Am Monatsende wird die Saison-Rangliste einmal festgeschrieben.
+  Platz 1–3 bekommen Gold, Silber und Bronze, Platz 4–10 ein Top-10-Abzeichen,
+  alle anderen mit mindestens 3 Partien ein Teilnahme-Andenken – dauerhaft und
+  mit dem Namen der Saison (z. B. „Oktober 2026 · Platz 2“).
+- Beim nächsten Start nennt ein kurzer Hinweis einmalig dein Ergebnis; die
+  Rangliste zeigt „Letzte Saison: Platz …“, die Erfolge zeigen die Saison-Abzeichen.
+
+## [2.77.0] - 2026-10-17
+
+### Added
+- Stammtische sammeln jetzt gemeinsam Punkte und steigen in Stufen auf – jede Partie am Stammtisch zählt, mit mehreren Menschen am Tisch etwas mehr.
+- Jeder Stammtisch hat ein Wochenziel von 5 Partien (Montag bis Sonntag) mit Fortschrittsbalken; geschaffte Wochen werden gezählt, mehrere in Folge als Serie. Zu sehen in der Stammtisch-Bilanz und in der Spiel-Lobby, ein erreichtes Ziel oder eine neue Stufe meldet sich nach der Partie.
+
+## [2.76.0] - 2026-10-17
+
+### Added
+- Sterne für das Tagesrätsel: Im ersten Versuch gibt es 3 Sterne, mit jedem weiteren Versuch weniger. Vor dem Prüfen zeigt das Rätsel, wie viele noch möglich sind, und die Kachel „Heute“ zeigt die Sterne des Tages.
+- Wer an mehreren Tagen hintereinander perfekt löst, sieht seine Serie. Im Archiv stehen die Sterne, die man am Tag selbst geholt hat.
+- Neue Erfolgsreihe für Rätsel mit 3 Sternen: Sternstunde (10), Sternensammler (30) und Rätsel-Ass (100).
+
 ## [2.75.0] - 2026-10-17
 
 ### Changed

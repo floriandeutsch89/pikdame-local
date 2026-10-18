@@ -474,6 +474,12 @@
         how: L('Löse 7 Tagesrätsel, ohne „Lösung zeigen“ zu tippen.', 'Solve 7 daily puzzles without tapping "show solution".') },
       puzzle_30: { emoji: '🧩', name: L('Rätsel\u00admeister', 'Puzzle master'), desc: L('30 Tagesrätsel gelöst', 'Solved 30 daily puzzles'),
         how: L('Löse 30 Tagesrätsel.', 'Solve 30 daily puzzles.') },
+      puzzle_perfect_10: { emoji: '🌟', name: L('Sternstunde', 'Star moment'), desc: L('10 Tagesrätsel mit 3 Sternen gelöst', 'Solved 10 daily puzzles with 3 stars'),
+        how: L('Löse 10 Tagesrätsel jeweils im ersten Versuch - das gibt 3 Sterne.', 'Solve 10 daily puzzles on the first try - that is 3 stars.') },
+      puzzle_perfect_30: { emoji: '🌟', name: L('Sternen\u00adsammler', 'Star collector'), desc: L('30 Tagesrätsel mit 3 Sternen gelöst', 'Solved 30 daily puzzles with 3 stars'),
+        how: L('Löse 30 Tagesrätsel im ersten Versuch.', 'Solve 30 daily puzzles on the first try.') },
+      puzzle_perfect_100: { emoji: '🌟', name: L('Rätsel-Ass', 'Puzzle ace'), desc: L('100 Tagesrätsel mit 3 Sternen gelöst', 'Solved 100 daily puzzles with 3 stars'),
+        how: L('Löse 100 Tagesrätsel im ersten Versuch.', 'Solve 100 daily puzzles on the first try.') },
       royal_flush: { emoji: '💎', name: L('Royal Flush', 'Royal flush'), desc: L('10-B-D-K-A einer Farbe ausgelegt, ohne Joker', 'Melded 10-J-Q-K-A of one suit, no jokers'),
         how: L('Lege eine Folge mit 10, Bube, Dame, König und Ass derselben Farbe aus - alles echte Karten, kein Joker.', 'Meld a run with 10, jack, queen, king and ace of one suit - all real cards, no joker.') },
       pik_royal: { emoji: '👑', name: L('Pik Royal', 'Spade royal'), desc: L('Royal Flush in Pik - mit der Pik Dame', 'Royal flush in spades - with the Queen of Spades'),
@@ -493,6 +499,7 @@
     { id: 'hearts', tiers: ['purple_heart_10', 'purple_heart_50', 'purple_heart_100'] },
     { id: 'challenger', tiers: ['challenger_7', 'challenger_30'] },
     { id: 'puzzles', tiers: ['puzzle_7', 'puzzle_30'] },
+    { id: 'puzzlePerfect', tiers: ['puzzle_perfect_10', 'puzzle_perfect_30', 'puzzle_perfect_100'] },
   ];
   const BADGE_SINGLES = [
     'pd_caught', 'round_300', 'score_500', 'pd_triple', 'double_queen_round',
@@ -514,6 +521,8 @@
   let stammtischInfo = null;  // {code, name} when this session is bound to a Stammtisch
   let stammtischSummary = null; // standings / pairwise / series from the server
   let accountProgress = null; // {xp, seasonXp, season, games, wins, rank}
+  let seasonAwards = [];        // account: finished seasons with an award, newest first
+  let lastSeasonResult = null;  // account: place in the last finished season, or null
 
   // icon = sprite id (i-…): emoji are content, never icons.
   function questMeta(id) {
@@ -1500,12 +1509,16 @@
     if (msg.type === 'stammtisch') {
       stammtischSummary = msg.summary || null;
       try { renderStammtisch(); } catch (e) { /* never critical */ }
+      // One toast for everything this match settled: the series, the week, the level.
+      const said = [];
       const ev = msg.seriesEvent;
       if (ev && ev.type === 'won') {
         const w = msg.summary && msg.summary.series && msg.summary.series.wins;
         const scores = w ? Object.values(w).sort((a, b) => b - a) : [];
-        showToast(`🏆 ${trs(`${ev.winner} gewinnt die Serie ${scores[0] || 0}:${scores[1] || 0}!`)}`, { duration: 6000, priority: true });
+        said.push(`🏆 ${trs(`${ev.winner} gewinnt die Serie ${scores[0] || 0}:${scores[1] || 0}!`)}`);
       }
+      for (const g of msg.goalEvents || []) said.push(stammtischGoalEventText(g));
+      if (said.length) showToast(said.filter(Boolean).join(' · '), { duration: 6000, priority: true });
       if (!el('resultOverlay').classList.contains('hidden')) renderResultOverlay();
       return;
     }
@@ -5445,6 +5458,40 @@
     }
     return out;
   }
+  function stammtischGoalEventText(g) {
+    if (g.type === 'week') {
+      return g.streak > 1
+        ? L(`Wochenziel geschafft – ${g.streak} Wochen in Folge!`, `Weekly goal reached – ${g.streak} weeks in a row!`)
+        : L(`Wochenziel geschafft: ${g.goal} Partien diese Woche!`, `Weekly goal reached: ${g.goal} games this week!`);
+    }
+    if (g.type === 'level') return L(`Stammtisch-Stufe ${g.level} erreicht!`, `Stammtisch level ${g.level} reached!`);
+    return '';
+  }
+  /** The group's level, this week's target and the streak of reached weeks. */
+  function stammtischGoalsHtml(goals) {
+    if (!goals || !goals.week) return '';
+    const wk = goals.week;
+    const games = Math.max(0, Number(wk.games) || 0);
+    const goal = Math.max(1, Number(wk.goal) || 1);
+    const pct = Math.min(100, Math.round((games / goal) * 100));
+    const weekText = wk.reached
+      ? L(`Wochenziel geschafft · ${games}/${goal}`, `Weekly goal reached · ${games}/${goal}`)
+      : L(`${games}/${goal} Partien diese Woche`, `${games}/${goal} games this week`);
+    const extra = [];
+    if (goals.streak > 1) extra.push(L(`${goals.streak} Wochen in Folge`, `${goals.streak} weeks in a row`));
+    if (goals.weeksReached) extra.push(L(`${goals.weeksReached}× geschafft`, `reached ${goals.weeksReached}×`));
+    return `<div class="stGoals">` +
+      `<div class="stGoalLevel"><svg class="icon" aria-hidden="true"><use href="#i-crown"/></svg>` +
+      `<b>${escapeHtml(L(`Stufe ${goals.level}`, `Level ${goals.level}`))}</b>` +
+      `<small>${escapeHtml(L(`${goals.into}/${goals.need} Punkte`, `${goals.into}/${goals.need} points`))}</small></div>` +
+      `<div class="stGoalWeek${wk.reached ? ' reached' : ''}">` +
+      `<svg class="icon" aria-hidden="true"><use href="#i-${wk.reached ? 'check' : 'target'}"/></svg>` +
+      `<span>${escapeHtml(weekText)}</span>` +
+      (extra.length ? `<small>${escapeHtml(extra.join(' · '))}</small>` : '') +
+      `<span class="stWeekBar" role="progressbar" aria-valuemin="0" aria-valuemax="${goal}" aria-valuenow="${Math.min(games, goal)}"` +
+      ` aria-label="${escapeHtml(L('Wochenziel', 'Weekly goal'))}"><i style="width:${pct}%"></i></span>` +
+      `</div></div>`;
+  }
   /** Series, standings and head-to-head: one renderer for the lobby and the chip sheet. */
   function stammtischStatsHtml(sum, { pairNames = null, maxPairs = Infinity } = {}) {
     const members = sum.members || [];
@@ -5453,7 +5500,8 @@
       .join('');
     const pairs = stammtischPairs(sum, pairNames).slice(0, maxPairs)
       .map(({ a, b, rec }) => `<b>${escapeHtml(a)}</b> ${rec.ahead}:${rec.behind} <b>${escapeHtml(b)}</b>`);
-    return (sum.series ? `<div class="stSeries">${seriesLineHtml(sum)}</div>` : '') +
+    return stammtischGoalsHtml(sum.goals) +
+      (sum.series ? `<div class="stSeries">${seriesLineHtml(sum)}</div>` : '') +
       (members.some((m) => m.games > 0)
         ? `<table class="stTable"><thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('Siege', 'Wins')}</th><th>${L('Partien', 'Games')}</th><th>Ø</th></tr></thead><tbody>${rows}</tbody></table>`
         : `<p class="lobby-hint">${L('Noch keine Partie gespielt - die Bilanz beginnt mit der ersten.', 'No match yet - the record starts with the first one.')}</p>`) +
@@ -5589,6 +5637,56 @@
     },
   };
   const puzzleKind = () => (puzzleData && PUZZLE_KINDS[puzzleData.kind] ? puzzleData.kind : 'meld');
+  // Mirrors game/DailyPuzzle.js STAR_TRIES: [max tries for 3 stars, for 2].
+  const PUZZLE_STAR_TRIES = { meld: [1, 2], turn: [1, 3], out: [1, 3] };
+  function puzzleStarsFor(kind, tries) {
+    const [three, two] = PUZZLE_STAR_TRIES[kind] || PUZZLE_STAR_TRIES.meld;
+    if (!(tries >= 1)) return 0;
+    return tries <= three ? 3 : tries <= two ? 2 : 1;
+  }
+  // Sprite stars: filled = earned; `possible` draws the still reachable ones as outlines.
+  function puzzleStarsEl(n, possible) {
+    const box = document.createElement('span');
+    box.className = `puzzleStars${possible ? ' possible' : ''}`;
+    box.setAttribute('role', 'img');
+    box.setAttribute('aria-label', possible ? L(`${n} von 3 Sternen möglich`, `${n} of 3 stars possible`) : L(`${n} von 3 Sternen`, `${n} of 3 stars`));
+    for (let i = 1; i <= 3; i++) box.insertAdjacentHTML('beforeend', `<svg class="icon${i <= n ? ' on' : ''}" aria-hidden="true"><use href="#i-star"/></svg>`);
+    return box;
+  }
+  // Today: the stars still possible, then the earned ones plus the perfect run.
+  // An archive day shows what was earned on the day itself.
+  function renderPuzzleStars() {
+    const row = el('puzzleStars');
+    row.innerHTML = '';
+    const st = puzzleData.status || {};
+    let stars = 0;
+    let possible = false;
+    let text = '';
+    if (puzzleData.archive) {
+      stars = puzzleData.dayStars || 0;
+      text = L('am Tag selbst', 'on the day itself');
+    } else if (st.stars) {
+      stars = st.stars;
+      text = stars === 3 ? L('Perfekt - im ersten Versuch', 'Perfect - first try') : stars === 2 ? L('Gut gelöst', 'Well solved') : L('Gelöst', 'Solved');
+    } else if (puzzleData.starsOn && !puzzleLocked(st, puzzleSolutionIds)) {
+      stars = puzzleStarsFor(puzzleKind(), (st.tries || 0) + 1);
+      possible = true;
+      text = L('möglich', 'possible');
+    }
+    row.classList.toggle('hidden', !stars);
+    if (!stars) return;
+    row.appendChild(puzzleStarsEl(stars, possible));
+    const label = document.createElement('span');
+    label.textContent = text;
+    row.appendChild(label);
+    const run = !puzzleData.archive && st.stars === 3 && puzzleData.perfectStreak ? puzzleData.perfectStreak.current : 0;
+    if (run >= 2) {
+      const r = document.createElement('span');
+      r.className = 'puzzleRun';
+      r.textContent = L(`${run} Tage in Folge perfekt`, `${run} perfect days in a row`);
+      row.appendChild(r);
+    }
+  }
   function openPuzzle() {
     el('puzzleOverlay').classList.remove('hidden');
     loadPuzzle(null);
@@ -5704,13 +5802,15 @@
     } else if (st.revealed && !puzzleSolutionIds && !el('puzzleStatus').textContent) {
       setPuzzleStatus(L('Lösung heute schon angezeigt - morgen gibt es ein neues.', 'Solution already shown today - a new one comes tomorrow.'), '');
     }
+    renderPuzzleStars();
   }
   // Wordle style: one red square per miss, green for the solve.
   function puzzleShareText() {
     const st = puzzleData.status || {};
     const tries = Math.max(1, st.tries || 1);
+    const stars = st.stars ? ` ${'★'.repeat(st.stars)}${'☆'.repeat(3 - st.stars)}` : '';
     const line = st.solved
-      ? `${L(`Gelöst im ${tries}. Versuch`, `Solved on try ${tries}`)} ${'🟥'.repeat(tries - 1)}🟩`
+      ? `${L(`Gelöst im ${tries}. Versuch`, `Solved on try ${tries}`)} ${'🟥'.repeat(tries - 1)}🟩${stars}`
       : `${L('Lösung angesehen', 'Looked at the solution')} ${'🟥'.repeat(st.tries || 0)}⬛`;
     return `${L('Pik Dame · Tagesrätsel', 'Pik Dame · Daily puzzle')} ${shareDay(puzzleData.date)} (${PUZZLE_KINDS[puzzleKind()].name()})\n${line}`;
   }
@@ -5756,6 +5856,8 @@
       puzzleData = {
         date: msg.date, kind: msg.kind || 'meld', hand: msg.hand || [], targetPoints: msg.targetPoints || 0,
         status: msg.status || {}, archive: !!msg.archive, today: msg.today || msg.date, epoch: msg.epoch || msg.date,
+        // Stars need a stored profile: the server sends dayStars only then.
+        starsOn: msg.dayStars !== undefined, dayStars: msg.dayStars || 0, perfectStreak: msg.perfectStreak || null,
       };
       renderPuzzle();
       try { renderToday(); } catch (e) { /* cosmetic */ }
@@ -5763,6 +5865,7 @@
     }
     // Answers for another day (navigated away meanwhile) are stale.
     if (!puzzleData || (msg.date && msg.date !== puzzleData.date)) return true;
+    if (msg.perfectStreak) puzzleData.perfectStreak = msg.perfectStreak;
     if (msg.type === 'puzzleResult') {
       puzzleData.status = msg.status || puzzleData.status;
       puzzleBadGroup = 0;
@@ -6631,6 +6734,8 @@
       el('nameInput').disabled = false;
       el('nameInput').title = '';
       accountProgress = null;
+      seasonAwards = [];
+      lastSeasonResult = null;
       el('ladderBox').classList.add('hidden');
     }
     try { renderIdentity(); } catch (e) { /* cosmetic */ }
@@ -6646,7 +6751,10 @@
     if (!accountToken()) return;
     const me = await accountApi('/api/me', { token: accountToken() });
     greetingFetchedAt = Date.now();
-    if (me.ok) setGreeting(me.greeting, me.username);
+    if (me.ok) {
+      setGreeting(me.greeting, me.username);
+      applySeasonInfo(me);
+    }
   }
   // A PWA can sleep for days; past a few hours the server is asked again (cheap endpoint).
   document.addEventListener('visibilitychange', () => {
@@ -6695,6 +6803,7 @@
       if (me.ok) {
         accountUsername = me.username;
         setGreeting(me.greeting, me.username);
+        applySeasonInfo(me);
       } else storageRemove(ACC_TOKEN_KEY);
     }
     refreshAccountUi();
@@ -7602,8 +7711,10 @@
     // Puzzle: the open overlay is freshest, else the profile (server truth).
     const ps = (puzzleData && puzzleData.date === today && puzzleData.status)
       || (me && me.puzzles && today && me.puzzles[today]) || {};
-    if (ps.solved) setTileStatus(el('puzzleBtn'), el('puzzleTileStatus'), L('Gelöst', 'Solved'), 'done');
-    else if (ps.revealed) setTileStatus(el('puzzleBtn'), el('puzzleTileStatus'), L('Lösung angesehen', 'Solution shown'), 'done');
+    if (ps.solved) {
+      setTileStatus(el('puzzleBtn'), el('puzzleTileStatus'), L('Gelöst', 'Solved'), 'done');
+      if (ps.stars) el('puzzleTileStatus').appendChild(puzzleStarsEl(ps.stars));
+    } else if (ps.revealed) setTileStatus(el('puzzleBtn'), el('puzzleTileStatus'), L('Lösung angesehen', 'Solution shown'), 'done');
     else if (ps.tries) setTileStatus(el('puzzleBtn'), el('puzzleTileStatus'), L(`${ps.tries} ${ps.tries === 1 ? 'Versuch' : 'Versuche'}`, `${ps.tries} ${ps.tries === 1 ? 'try' : 'tries'}`), 'open');
     else setTileStatus(el('puzzleBtn'), el('puzzleTileStatus'), L('Neu', 'New'), 'new');
     const you = challengeToday && challengeToday.date === today ? challengeToday.you : null;
@@ -8176,11 +8287,16 @@
     box.classList.remove('hidden');
     // Folded: the three closest goals - a wall of 30+ locked tiles said nothing.
     const near = [...new Set([...(order.nearest || []), ...order.locked])].slice(0, 3);
-    const body = achShowAll
+    // Season badges belong to the account; folded shows the newest three.
+    const seasonTiles = canPickFavorites() && seasonAwards.length
+      ? `<h4 class="achSection">${escapeHtml(L('Saison-Abzeichen', 'Season badges'))} (${seasonAwards.length})</h4>` +
+        `<div class="achGrid">${(achShowAll ? seasonAwards : seasonAwards.slice(0, 3)).map(seasonAwardTile).join('')}</div>`
+      : '';
+    const body = seasonTiles + (achShowAll
       ? section(L('Freigeschaltet', 'Unlocked'), order.unlocked) + section(L('Noch offen', 'Still open'), order.locked)
       : near.length
         ? section(L('Fast geschafft', 'Almost there'), near)
-        : section(L('Zuletzt freigeschaltet', 'Recently unlocked'), order.unlocked.slice(0, 3));
+        : section(L('Zuletzt freigeschaltet', 'Recently unlocked'), order.unlocked.slice(0, 3)));
     box.innerHTML =
       `<h3>${L('Erfolge', 'Achievements')} <span class="achCount">${have} / ${total}</span></h3>` + body +
       `<button type="button" class="achAllBtn">${achShowAll ? L('Weniger anzeigen', 'Show less') : L(`Alle ${total} anzeigen`, `Show all ${total}`)}</button>`;
@@ -8335,6 +8451,7 @@
       ...Object.fromEntries([10, 50, 100].map((n) => [`purple_heart_${n}`, cap(p.gamesLost != null ? p.gamesLost : (p.gamesPlayed || 0) - (p.gamesWon || 0), n)])),
       challenger_7: cap(p.totalChallenges, 7), challenger_30: cap(p.totalChallenges, 30),
       puzzle_7: cap(p.totalPuzzlesSolved, 7), puzzle_30: cap(p.totalPuzzlesSolved, 30),
+      ...Object.fromEntries([10, 30, 100].map((n) => [`puzzle_perfect_${n}`, cap(p.totalPerfectPuzzles, n)])),
       red_lantern: cap(p.lastPlaceStreak, 3),
       stammtisch_10: cap(p.totalStammtischGames, 10),
     };
@@ -8354,7 +8471,7 @@
       `<div class="levelHead"><b>${L(`Stufe ${lv.level}`, `Level ${lv.level}`)}</b>` +
       `<span>${lv.into} / ${lv.need} ${L('EP', 'XP')}</span></div>` +
       `<div class="levelBar"><i style="width:${pct}%"></i></div>` +
-      `<div class="levelMeta">${L('Saison', 'Season')} ${escapeHtml(accountProgress.season || '–')}: ` +
+      `<div class="levelMeta">${L('Saison', 'Season')} ${escapeHtml(accountProgress.season ? seasonLabel(accountProgress.season) : '–')}: ` +
       `<b>${accountProgress.seasonXp}</b> ${L('EP', 'XP')}` +
       (accountProgress.rank ? ` · ${L('Platz', 'Rank')} <b>${accountProgress.rank}</b>` : '') +
       ` · ${accountProgress.wins}/${accountProgress.games} ${L('Siege', 'wins')}</div>`;
@@ -8373,6 +8490,67 @@
     return { level, into: xp, need: need(level) };
   }
 
+  // --- Season finale: month names, awards and the one-time start-up hint ----
+  // The emoji here ARE the badges (as in the trophy cabinet), not icons.
+  const SEASON_AWARDS = {
+    gold: { emoji: '🥇', name: () => L('Saisonsieg', 'Season winner'), cheer: () => L('Saisonsieg!', 'season winner!') },
+    silver: { emoji: '🥈', name: () => L('Saison-Silber', 'Season silver'), cheer: () => L('Silber!', 'silver!') },
+    bronze: { emoji: '🥉', name: () => L('Saison-Bronze', 'Season bronze'), cheer: () => L('Bronze!', 'bronze!') },
+    top10: { emoji: '🏅', name: () => L('Saison-Top-10', 'Season top 10'), cheer: () => L('Top 10!', 'top 10!') },
+    participant: { emoji: '🎟️', name: () => L('Saison-Teilnahme', 'Season participant'), cheer: () => L('danke fürs Mitspielen!', 'thanks for playing!') },
+  };
+  /** "2026-10" -> "Oktober 2026" / "October 2026" (a season is a month). */
+  function seasonLabel(id) {
+    const m = /^(\d{4})-(\d{2})$/.exec(String(id || ''));
+    if (!m) return String(id || '');
+    try {
+      return new Intl.DateTimeFormat(L('de-DE', 'en-GB'), { month: 'long', year: 'numeric', timeZone: 'UTC' })
+        .format(Date.UTC(Number(m[1]), Number(m[2]) - 1, 1));
+    } catch (e) {
+      return `${m[2]}/${m[1]}`;
+    }
+  }
+  function seasonPlaceText(r) {
+    return L(`Platz ${r.place} von ${r.ranked}`, `place ${r.place} of ${r.ranked}`);
+  }
+  function applySeasonInfo(d) {
+    if (!d) return;
+    if (Array.isArray(d.seasonAwards)) {
+      seasonAwards = d.seasonAwards;
+      try { renderAchievements(); } catch (e) { /* cosmetic */ }
+    }
+    if ('lastSeason' in d) lastSeasonResult = d.lastSeason || null;
+    if (d.seasonResult) announceSeasonResult(d.seasonResult);
+  }
+  function announceSeasonResult(r) {
+    if (!r || !r.season || !r.place) return;
+    // After the studio intro - a toast underneath it would expire unseen.
+    if (document.getElementById('studioSplash')) {
+      setTimeout(() => announceSeasonResult(r), 500);
+      return;
+    }
+    const a = SEASON_AWARDS[r.award];
+    const text = L(`Saison ${seasonLabel(r.season)} beendet: `, `Season ${seasonLabel(r.season)} is over: `) +
+      seasonPlaceText(r) + (a ? ` – ${a.emoji} ${a.cheer()}` : '.');
+    showToast(text, { duration: 7000, priority: true });
+    accountApi('/api/season-result/seen', { token: accountToken(), season: r.season }).catch(() => {});
+  }
+  function seasonAwardChip(a) {
+    const meta = SEASON_AWARDS[a.award];
+    if (!meta) return '';
+    const label = `${seasonLabel(a.season)} · ${L(`Platz ${a.place}`, `place ${a.place}`)}`;
+    return `<span class="seasonAward" title="${escapeHtml(meta.name())}">` +
+      `<span>${meta.emoji}</span><span>${escapeHtml(label)}</span></span>`;
+  }
+  function seasonAwardTile(a) {
+    const meta = SEASON_AWARDS[a.award];
+    if (!meta) return '';
+    return `<div class="achTile earned achSeason" title="${escapeHtml(meta.name())}">` +
+      `<span class="achEmoji">${meta.emoji}</span>` +
+      `<span class="achName">${escapeHtml(seasonLabel(a.season))}</span>` +
+      `<span class="achSub">${escapeHtml(seasonPlaceText(a))}</span></div>`;
+  }
+
   async function loadLadder() {
     const box = el('ladderBox');
     if (!box) return;
@@ -8388,6 +8566,7 @@
       accountProgress = r.me;
       renderAccountProgress();
     }
+    if (r.me) applySeasonInfo({ seasonAwards: r.seasonAwards, lastSeason: r.lastSeason });
     const rows = r.board.length
       ? r.board
           .map((e, i) => {
@@ -8398,7 +8577,15 @@
           })
           .join('')
       : `<p class="lobby-hint">${L('Diese Saison hat noch niemand gepunktet - hol dir Platz 1!', 'Nobody has scored this season - claim first place!')}</p>`;
-    box.innerHTML = `<h3>${L('Saison-Rangliste', 'Season ladder')} <span class="achCount">${escapeHtml(r.season || '')}</span></h3>${rows}`;
+    const last = r.me && lastSeasonResult
+      ? `<p class="ladderLast">${escapeHtml(L(`Letzte Saison (${seasonLabel(lastSeasonResult.season)}): `, `Last season (${seasonLabel(lastSeasonResult.season)}): `) + seasonPlaceText(lastSeasonResult))}</p>`
+      : '';
+    // Hall of fame: podium and top 10 only - a year of mementos would bury it.
+    const fame = r.me ? seasonAwards.filter((a) => a.award !== 'participant') : [];
+    const awards = fame.length
+      ? `<div class="seasonAwards" aria-label="${escapeHtml(L('Saison-Abzeichen', 'Season badges'))}">${fame.map(seasonAwardChip).join('')}</div>`
+      : '';
+    box.innerHTML = `<h3>${L('Saison-Rangliste', 'Season ladder')} <span class="achCount">${escapeHtml(seasonLabel(r.season))}</span></h3>${rows}${last}${awards}`;
   }
 
   // --- Statistik ---------------------------------------------------------------

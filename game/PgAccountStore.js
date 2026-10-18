@@ -15,6 +15,7 @@
 // connection errors - if Postgres is temporarily down, account API calls
 // fail with a clear message and recover automatically once it is back.
 const crypto = require('crypto');
+const { SEASON_ID_RE, seasonStandings } = require('./Progression');
 
 const SCRYPT_KEYLEN = 64;
 const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
@@ -74,7 +75,35 @@ const SCHEMA = `
   ALTER TABLE users ADD COLUMN IF NOT EXISTS wins INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS season TEXT;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS season_xp BIGINT NOT NULL DEFAULT 0;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS season_games INTEGER NOT NULL DEFAULT 0;
   CREATE INDEX IF NOT EXISTS users_season_xp ON users (season, season_xp DESC);
+  -- Season finale: rollovers keep the finished season, finals/results once per season.
+  CREATE TABLE IF NOT EXISTS season_archive (
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    season TEXT NOT NULL,
+    season_xp BIGINT NOT NULL,
+    season_games INTEGER NOT NULL,
+    PRIMARY KEY (user_id, season)
+  );
+  CREATE TABLE IF NOT EXISTS season_finals (
+    season TEXT PRIMARY KEY,
+    finalized_at BIGINT NOT NULL,
+    ranked INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS season_results (
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    season TEXT NOT NULL,
+    place INTEGER NOT NULL,
+    season_xp BIGINT NOT NULL,
+    season_games INTEGER NOT NULL,
+    award TEXT,
+    seen BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (user_id, season)
+  );
+  CREATE TABLE IF NOT EXISTS season_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
   -- Set once the guest profile's progress was carried over (importProfile).
   ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_imported BOOLEAN NOT NULL DEFAULT FALSE;
   -- Passkeys: per-account WebAuthn user handle, e-mail login link (only a
@@ -152,6 +181,31 @@ function createPgAccountStore(databaseUrl, options = {}) {
   }
 
   const DB_DOWN = { error: 'Konto-Datenbank ist gerade nicht erreichbar - bitte später erneut versuchen.' };
+
+  async function withTransaction(fn) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const out = await fn(client);
+      await client.query('COMMIT');
+      return out;
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  /** Before a row moves on to a new season: keep the old one for its finale. */
+  async function archiveSeason(client, row) {
+    if (!row.season || !(Number(row.season_xp) > 0 || Number(row.season_games) > 0)) return;
+    await client.query(
+      `INSERT INTO season_archive (user_id, season, season_xp, season_games) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (user_id, season) DO NOTHING`,
+      [row.id, row.season, Number(row.season_xp) || 0, Number(row.season_games) || 0]
+    );
+  }
 
   async function register(username, email, password) {
     // Opt-in-Hygiene (siehe AccountStore): abgelaufene Unbestätigte räumen.
@@ -293,19 +347,30 @@ function createPgAccountStore(databaseUrl, options = {}) {
     try {
       await ensureReady();
       const gain = Math.max(0, Math.round(Number(xp) || 0));
-      // season_xp resets when the stored season differs from the current one;
-      // lifetime xp keeps accumulating. Done in ONE statement so two games
-      // finishing at the same moment cannot lose an update.
-      await pool.query(
-        `UPDATE users
-            SET xp = xp + $2,
-                games = games + 1,
-                wins = wins + $3,
-                season_xp = CASE WHEN season IS NOT DISTINCT FROM $4 THEN season_xp + $2 ELSE $2 END,
-                season = $4
-          WHERE LOWER(username) = LOWER($1) AND verified = TRUE`,
-        [String(username || '').trim(), gain, won ? 1 : 0, season]
-      );
+      // season_xp/season_games reset when the stored season differs from the
+      // current one; lifetime xp keeps accumulating. The row lock serializes
+      // two games finishing at once, the archive keeps the finished season.
+      await withTransaction(async (c) => {
+        const r = await c.query(
+          `SELECT id, season, season_xp, season_games FROM users
+            WHERE LOWER(username) = LOWER($1) AND verified = TRUE FOR UPDATE`,
+          [String(username || '').trim()]
+        );
+        const row = r.rows[0];
+        if (!row) return;
+        if (season && row.season !== season) await archiveSeason(c, row);
+        await c.query(
+          `UPDATE users
+              SET xp = xp + $2,
+                  games = games + 1,
+                  wins = wins + $3,
+                  season_xp = CASE WHEN season IS NOT DISTINCT FROM $4 THEN season_xp + $2 ELSE $2 END,
+                  season_games = CASE WHEN season IS NOT DISTINCT FROM $4 THEN season_games + 1 ELSE 1 END,
+                  season = $4
+            WHERE id = $1`,
+          [row.id, gain, won ? 1 : 0, season]
+        );
+      });
       return await progressFor(username);
     } catch (e) {
       console.error('Postgres addGameResult failed:', e.message);
@@ -316,27 +381,38 @@ function createPgAccountStore(databaseUrl, options = {}) {
   /**
    * Same contract as AccountStore.importProfile: once per account, lift the
    * account up TO the guest profile's values (no double counting), the XP
-   * difference also into the given season. ONE statement: SET expressions
-   * read the old row, and the profile_imported guard makes a concurrent
-   * second call a no-op.
+   * difference also into the given season. The row lock plus the
+   * profile_imported guard make a concurrent second call a no-op.
    */
   async function importProfile(username, { xp = 0, games = 0, wins = 0, season = null } = {}) {
     const n = (v) => Math.max(0, Math.round(Number(v) || 0));
     try {
       await ensureReady();
-      const r = await pool.query(
-        `UPDATE users
-            SET xp = GREATEST(xp, $2),
-                games = GREATEST(games, $3),
-                wins = GREATEST(wins, $4),
-                season_xp = (CASE WHEN $5::text IS NULL OR season IS NOT DISTINCT FROM $5 THEN season_xp ELSE 0 END)
-                            + GREATEST($2 - xp, 0),
-                season = COALESCE($5, season),
-                profile_imported = TRUE
-          WHERE LOWER(username) = LOWER($1) AND verified = TRUE AND profile_imported = FALSE`,
-        [String(username || '').trim(), n(xp), n(games), n(wins), season]
-      );
-      return { imported: r.rowCount > 0, progress: await progressFor(username) };
+      const imported = await withTransaction(async (c) => {
+        const r = await c.query(
+          `SELECT id, season, season_xp, season_games FROM users
+            WHERE LOWER(username) = LOWER($1) AND verified = TRUE AND profile_imported = FALSE FOR UPDATE`,
+          [String(username || '').trim()]
+        );
+        const row = r.rows[0];
+        if (!row) return false;
+        if (season && row.season !== season) await archiveSeason(c, row);
+        await c.query(
+          `UPDATE users
+              SET xp = GREATEST(xp, $2),
+                  games = GREATEST(games, $3),
+                  wins = GREATEST(wins, $4),
+                  season_xp = (CASE WHEN $5::text IS NULL OR season IS NOT DISTINCT FROM $5 THEN season_xp ELSE 0 END)
+                              + GREATEST($2 - xp, 0),
+                  season_games = CASE WHEN $5::text IS NULL OR season IS NOT DISTINCT FROM $5 THEN season_games ELSE 0 END,
+                  season = COALESCE($5, season),
+                  profile_imported = TRUE
+            WHERE id = $1`,
+          [row.id, n(xp), n(games), n(wins), season]
+        );
+        return true;
+      });
+      return { imported, progress: await progressFor(username) };
     } catch (e) {
       console.error('Postgres importProfile failed:', e.message);
       return { imported: false, progress: null };
@@ -816,6 +892,111 @@ function createPgAccountStore(databaseUrl, options = {}) {
     }
   }
 
+  /** Same contract as AccountStore.finalizeSeasons; one finalizer at a time
+   *  (advisory lock), the finals row is the idempotence key. Fails soft:
+   *  null = not done (the server asks again). */
+  async function finalizeSeasons(currentSeason, { from = null } = {}) {
+    const cur = String(currentSeason || '');
+    if (!SEASON_ID_RE.test(cur)) return [];
+    try {
+      await ensureReady();
+      return await withTransaction(async (c) => {
+        await c.query('SELECT pg_advisory_xact_lock(7311001)');
+        // Same first-season rule as the SQLite store.
+        let since = from;
+        if (!since) {
+          await c.query(
+            "INSERT INTO season_meta (key, value) VALUES ('archive_from', $1) ON CONFLICT (key) DO NOTHING",
+            [cur]
+          );
+          since = (await c.query("SELECT value FROM season_meta WHERE key = 'archive_from'")).rows[0].value;
+        }
+        const pending = await c.query(
+          `SELECT season FROM (
+             SELECT season FROM users WHERE season IS NOT NULL
+             UNION SELECT season FROM season_archive
+           ) s WHERE season < $1 AND season >= $2 AND season NOT IN (SELECT season FROM season_finals)
+           ORDER BY season`,
+          [cur, since]
+        );
+        const done = [];
+        for (const { season } of pending.rows) {
+          // ONE statement: a rollover committing meanwhile shows the account
+          // either in users or in the archive, never in both or neither.
+          const e = await c.query(
+            `SELECT id AS user_id, season_xp, season_games FROM users WHERE season = $1 AND verified = TRUE
+             UNION ALL
+             SELECT a.user_id, a.season_xp, a.season_games
+               FROM season_archive a JOIN users u ON u.id = a.user_id
+              WHERE a.season = $1 AND u.verified = TRUE`,
+            [season]
+          );
+          const standings = seasonStandings(e.rows.map((r) => ({
+            userId: Number(r.user_id), seasonXp: Number(r.season_xp) || 0, seasonGames: Number(r.season_games) || 0,
+          })), { gamesCounted: season !== since });
+          for (const s of standings) {
+            await c.query(
+              `INSERT INTO season_results (user_id, season, place, season_xp, season_games, award, seen)
+               VALUES ($1, $2, $3, $4, $5, $6, FALSE) ON CONFLICT (user_id, season) DO NOTHING`,
+              [s.userId, season, s.place, s.seasonXp, s.seasonGames, s.award]
+            );
+          }
+          await c.query(
+            'INSERT INTO season_finals (season, finalized_at, ranked) VALUES ($1, $2, $3) ON CONFLICT (season) DO NOTHING',
+            [season, Date.now(), standings.length]
+          );
+          done.push({ season, ranked: standings.length, awards: standings.filter((s) => s.award).length });
+        }
+        return done;
+      });
+    } catch (e) {
+      console.error('Postgres finalizeSeasons failed:', e.message);
+      return null;
+    }
+  }
+
+  async function seasonResultsFor(username, limit = 24) {
+    try {
+      await ensureReady();
+      const r = await pool.query(
+        `SELECT r.season, r.place, r.award, r.season_xp, r.season_games, r.seen, f.ranked
+           FROM season_results r
+           JOIN users u ON u.id = r.user_id
+           JOIN season_finals f ON f.season = r.season
+          WHERE LOWER(u.username) = LOWER($1)
+          ORDER BY r.season DESC LIMIT $2`,
+        [String(username || '').trim(), Math.max(1, Math.min(120, Number(limit) || 24))]
+      );
+      return r.rows.map((row) => ({
+        season: row.season,
+        place: row.place,
+        award: row.award || null,
+        seasonXp: Number(row.season_xp) || 0,
+        seasonGames: row.season_games || 0,
+        ranked: row.ranked || 0,
+        seen: !!row.seen,
+      }));
+    } catch (e) {
+      console.error('Postgres seasonResultsFor failed:', e.message);
+      return [];
+    }
+  }
+
+  async function markSeasonResultSeen(username, season) {
+    try {
+      await ensureReady();
+      const r = await pool.query(
+        `UPDATE season_results SET seen = TRUE
+          WHERE season <= $2 AND user_id = (SELECT id FROM users WHERE LOWER(username) = LOWER($1))`,
+        [String(username || '').trim(), String(season || '')]
+      );
+      return { ok: r.rowCount > 0 };
+    } catch (e) {
+      console.error('Postgres markSeasonResultSeen failed:', e.message);
+      return { ok: false };
+    }
+  }
+
   async function close() {
     await pool.end().catch(() => {});
   }
@@ -824,6 +1005,7 @@ function createPgAccountStore(databaseUrl, options = {}) {
     backend: 'postgres',
     register, verifyEmail, login, sessionUser, logout, isRegisteredName,
     addGameResult, progressFor, ladder, importProfile, listUsers, deleteUser, renewVerification,
+    finalizeSeasons, seasonResultsFor, markSeasonResultSeen,
     validateNewAccount, registerWithoutPassword, verifyAndSignIn, renewSignupCode, verifyCodeAndSignIn, accountForSession, setWebauthnUserId, addCredential,
     credentialById, touchCredential, deleteCredential, setPassword, removePassword, sessionForUser,
     createLoginLink, consumeLoginLink,

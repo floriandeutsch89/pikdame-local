@@ -39,6 +39,26 @@ xychart-beta
 Seasons are calendar months; the ladder resets so late starters have
 something reachable.
 
+### Season finale
+
+Once a season has ended, its final standings are written down exactly once:
+the place comes from season XP, ties share the place. Accounts only, like the
+ladder itself. Each account gets one badge per season (the best it reached),
+kept for good and named after the season:
+
+| Place | Badge |
+| --- | --- |
+| 1 | 🥇 Season winner |
+| 2 | 🥈 Season silver |
+| 3 | 🥉 Season bronze |
+| 4 to 10 | 🏅 Season top 10 |
+| below, with at least 3 matches that season | 🎟️ Season participant |
+
+The next start shows the result once; the ladder shows last season's place.
+Only seasons that ended after the server first ran the finale count (older
+rollovers overwrote the numbers); in that first season the game counter
+started late, so every ranked account gets at least the last badge.
+
 ## Daily quests
 
 **3** of these per game day, the same three for everyone
@@ -63,7 +83,7 @@ back instead of showing a broken streak.
 
 ## Badges
 
-**48** badges. 9 of them are *families*: one tile, rising
+**51** badges. 10 of them are *families*: one tile, rising
 thresholds on the same counter.
 
 | Family | Counter | Tiers |
@@ -77,6 +97,7 @@ thresholds on the same counter.
 | `hearts` | `gamesLost` | 💜 Brave heart {bdg-secondary}`10` → 💜 Unbreakable {bdg-secondary}`50` → 💜 Heart of gold {bdg-secondary}`100` |
 | `challenger` | `totalChallenges` | 🏁 Challenger {bdg-secondary}`7` → 🏁 Challenge pro {bdg-secondary}`30` |
 | `puzzles` | `totalPuzzlesSolved` | 🧩 Puzzle fox {bdg-secondary}`7` → 🧩 Puzzle master {bdg-secondary}`30` |
+| `puzzlePerfect` | `totalPerfectPuzzles` | 🌟 Star moment {bdg-secondary}`10` → 🌟 Star collector {bdg-secondary}`30` → 🌟 Puzzle ace {bdg-secondary}`100` |
 
 The other **25** are earned by a fact about one match (computed in
 `computeEarnedBadges` from the finished game record):
@@ -108,6 +129,27 @@ The other **25** are earned by a fact about one match (computed in
 | 🧲 | **Queen magnet of the day** | Daily challenge: caught with the Queen of Spades the most | `queen_magnet_day` |
 | 💎 | **Royal flush** | Melded 10-J-Q-K-A of one suit, no jokers | `royal_flush` |
 | 👑 | **Spade royal** | Royal flush in spades - with the Queen of Spades | `pik_royal` |
+
+## Stammtisch goals
+
+A Stammtisch earns points together (`game/StammtischGoals.js`): every
+finished match there gives **10**, plus **5** for every further
+human at the table (two humans: 15, four: 25). Its level follows the
+same shape as the player curve with smaller steps (50 + 25 per level):
+
+| Level | Points for this level | Total points to reach it |
+| --- | --- | --- |
+| 1 | 50 | 0 |
+| 2 | 75 | 50 |
+| 3 | 100 | 125 |
+| 5 | 150 | 350 |
+| 10 | 275 | 1350 |
+| 20 | 525 | 5225 |
+
+The weekly goal is **5 matches**, Monday to Sunday of the game day
+(Europe/Berlin). Reaching it counts once per week; reached weeks in a row form
+the streak, which stays alive through the running week and ends with a
+missed one. Tables from before this feature start from their kept match list.
 
 ## Table talk
 

@@ -410,12 +410,27 @@ function clientQuestText() {
   return out;
 }
 
+function clientSeasonAwards() {
+  const src = read('public/client.js');
+  const re = /(\w+): \{ emoji: '([^']+)', name: \(\) => L\('[^']*', '([^']*)'\)/g;
+  const out = {};
+  let m;
+  while ((m = re.exec(src)) !== null) out[m[1]] = { emoji: m[2], name: m[3] };
+  return out;
+}
+
 function generateProgression() {
   const P = require(path.join(ROOT, 'game', 'Progression'));
   const { BADGE_IDS, BADGE_FAMILIES } = require(path.join(ROOT, 'game', 'Badges'));
   const { EMOTE_DEFS, SEASONAL_EMOTES, GREETING_EMOTE, HOLIDAY_EMOTES } = require(path.join(ROOT, 'game', 'Emotes'));
   const holidayEmotes = [...new Set(Object.values(HOLIDAY_EMOTES))].filter((e) => !SEASONAL_EMOTES.includes(e));
   const { QUIP_MOMENTS } = require(path.join(ROOT, 'game', 'BotQuips'));
+  const SG = require(path.join(ROOT, 'game', 'StammtischGoals'));
+  const stLevels = [1, 2, 3, 5, 10, 20];
+  let stCum = 0;
+  const stCumAt = {};
+  for (let l = 1; l <= 20; l++) { stCumAt[l] = stCum; stCum += SG.xpForLevel(l); }
+  const stLevelRows = stLevels.map((l) => `| ${l} | ${SG.xpForLevel(l)} | ${stCumAt[l]} |`);
 
   // XP per point is not exported; measure it instead of duplicating the constant.
   const probe = P.xpForGame({ winnerId: 'other', finalTotals: { me: 1000 } }, 'me') - P.XP_BASE;
@@ -446,6 +461,9 @@ function generateProgression() {
     const m = meta[id] || {};
     return `| ${m.emoji || ''} | **${m.name || id}** | ${m.desc || ''} | \`${id}\` |`;
   });
+
+  const sa = clientSeasonAwards();
+  const award = (id) => `${(sa[id] || {}).emoji || ''} ${(sa[id] || {}).name || id}`;
 
   const emoteRows = EMOTE_DEFS.map((e) => `| ${e.id === 'pikdame' ? '♠Q (mini card)' : e.id} | ${e.level === 1 ? 'always' : `level ${e.level}`} |`);
 
@@ -482,6 +500,26 @@ ${levelRows.join('\n')}
 Seasons are calendar months; the ladder resets so late starters have
 something reachable.
 
+### Season finale
+
+Once a season has ended, its final standings are written down exactly once:
+the place comes from season XP, ties share the place. Accounts only, like the
+ladder itself. Each account gets one badge per season (the best it reached),
+kept for good and named after the season:
+
+| Place | Badge |
+| --- | --- |
+| 1 | ${award('gold')} |
+| 2 | ${award('silver')} |
+| 3 | ${award('bronze')} |
+| 4 to ${P.SEASON_TOP} | ${award('top10')} |
+| below, with at least ${P.SEASON_PARTICIPATION_GAMES} matches that season | ${award('participant')} |
+
+The next start shows the result once; the ladder shows last season's place.
+Only seasons that ended after the server first ran the finale count (older
+rollovers overwrote the numbers); in that first season the game counter
+started late, so every ranked account gets at least the last badge.
+
 ## Daily quests
 
 **${P.QUESTS_PER_DAY}** of these per game day, the same three for everyone
@@ -510,6 +548,22 @@ The other **${oneOffs.length}** are earned by a fact about one match (computed i
 | | Badge | Earned by | Id |
 | --- | --- | --- | --- |
 ${badgeRows.join('\n')}
+
+## Stammtisch goals
+
+A Stammtisch earns points together (\`game/StammtischGoals.js\`): every
+finished match there gives **${SG.XP_PER_GAME}**, plus **${SG.XP_PER_EXTRA_HUMAN}** for every further
+human at the table (two humans: ${SG.gameXp(2)}, four: ${SG.gameXp(4)}). Its level follows the
+same shape as the player curve with smaller steps (${SG.LEVEL_BASE} + ${SG.LEVEL_STEP} per level):
+
+| Level | Points for this level | Total points to reach it |
+| --- | --- | --- |
+${stLevelRows.join('\n')}
+
+The weekly goal is **${SG.WEEKLY_GOAL} matches**, Monday to Sunday of the game day
+(Europe/Berlin). Reaching it counts once per week; reached weeks in a row form
+the streak, which stays alive through the running week and ends with a
+missed one. Tables from before this feature start from their kept match list.
 
 ## Table talk
 

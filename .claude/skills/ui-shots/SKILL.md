@@ -28,13 +28,18 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   the light one; check it whenever a colour or a translucent white changes.
 - **Mockups:** `--css <file>` / `--js <file>` patch the table scene before the
   shot, to show options before building them.
+- **Signed in:** `--signed-in` answers `/api/*` with a mock account (mock
+  objects `ACCOUNT_API` at the top of the script): the season-finale hint
+  shows on the first start-screen shot, `stats` gets the season badges, and
+  the scene `account` opens the account sheet (level, season ladder).
 - **Scenes:** `lobby`, `lobby-open` (daily tasks unfolded), `progress`
   ("Dein Fortschritt"), `stats`, `history` ("Meine Partien"), `roundend`,
   `roundend-stats`, `gameover`, `gameover-challenge` (board + share),
   `puzzle`, `puzzle-turn` / `puzzle-out` (that kind injected, one meld
-  laid), `challenge` (intro after the day's attempt), `gamelobby` (house
+  laid), `puzzle-solved` (three stars, then the "Heute" tile), `challenge` (intro after the day's attempt), `gamelobby` (house
   rules), `botdiff` (the strength picker), `stammtisch` (the record
-  sheet behind the start-screen chip), `settings` / `settings-aids`
+  sheet behind the start-screen chip), `stammtisch-lobby` (a game lobby
+  shown as a seat at the mock Stammtisch: its record panel), `settings` / `settings-aids`
   (the "Mehr" sheet: top / scrolled to the play aids). Any order works:
   a start-screen scene after `table` or a result reloads the start screen
   first (its buttons are hidden there and the clicks used to time out).
@@ -75,9 +80,9 @@ Traps that cost time before:
   default as a crawler and never opens the WebSocket.
 - **Splash and name come from storage:** the script sets
   `pikdame_splash_device`, `pikdame_splash_seen` and `pikdame_player_name`.
-- **Signed-in look:** there is no real account in the mock. Add the classes
-  the client sets (`#accountBtn.signedIn`, `#identityChip.locked`) via
-  `page.evaluate` and say in the PR that it was simulated.
+- **Signed-in look:** there is no real account in the mock. Use
+  `--signed-in` (routes the account API) and say in the PR that it was
+  simulated.
 
 ## What to check in the images
 

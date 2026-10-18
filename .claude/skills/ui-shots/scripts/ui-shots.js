@@ -3,7 +3,10 @@
 // Starts its own server on a temp data dir (never touches data/), routes the
 // WebSocket through Playwright and rewrites/injects messages per scene.
 //
-//   node .claude/skills/ui-shots/scripts/ui-shots.js [--out DIR] [--views a,b] [--scenes a,b] [--port N] [--audit]
+//   node .claude/skills/ui-shots/scripts/ui-shots.js [--out DIR] [--views a,b] [--scenes a,b] [--port N] [--audit] [--signed-in]
+//
+// --signed-in mocks a signed-in account (the /api/* answers below), season
+// finale included: the start-up hint shows on the first start-screen shot.
 //
 // --audit also checks every shot for truncated text, tap targets < 44 px,
 // icon buttons without a name and (start screen) content below the fold;
@@ -12,13 +15,16 @@
 // Views: phone (393x852), land (874x402), desk (1440x900), se (375x667), max (440x956).
 // Scenes: lobby, lobby-open, progress, stats, history, roundend, roundend-stats, gameover,
 // table (needs --state <file>: a GameManager.publicState('p1') JSON in the playing phase),
-// puzzle / puzzle-turn / puzzle-out (one meld laid), challenge (intro, attempt used),
+// puzzle / puzzle-turn / puzzle-out (one meld laid), puzzle-solved (3 stars + the tile),
+// challenge (intro, attempt used),
 // gamelobby (seats + house rules), botdiff (the strength picker), gameover-challenge,
-// settings / settings-aids (the start screen's "Mehr" sheet, top / play aids).
+// settings / settings-aids (the start screen's "Mehr" sheet, top / play aids),
+// account (the account sheet: level, season ladder; needs --signed-in),
+// account-mail (its year-review mail switch; needs --signed-in).
 // --december: the client clock stands on 28 December and the server's year review
 // is mocked - adds the "Heute" chip and the scenes year / year-mid / year-bots /
-// year-end (story cards), year-image (the share PNG, via the download fallback),
-// account-mail (opt-in switch, simulated sign-in) and mail (the review mail HTML).
+// year-end (story cards), year-image (the share PNG, via the download fallback)
+// and mail (the review mail's HTML).
 // Start-screen scenes may follow table or result scenes in any order: the page
 // is reloaded to the start screen first.
 'use strict';
@@ -51,6 +57,7 @@ const VIEWS = {
 const views = arg('views', 'phone,land,desk').split(',');
 const scenes = arg('scenes', 'lobby,stats,history,roundend,gameover').split(',');
 const AUDIT = process.argv.includes('--audit');
+const SIGNED_IN = process.argv.includes('--signed-in');
 const DECEMBER = process.argv.includes('--december');
 const TAP_MIN = 44; // CLAUDE.md --tap-min
 // A normal UA: the server treats headless defaults as a crawler (no WebSocket).
@@ -73,6 +80,7 @@ const PROFILES = [
 const STAMMTISCH = {
   name: 'Familie Deutsch', gamesPlayed: 7,
   series: { no: 3, games: 2, wins: { 'oma gerda': 1, flo: 1 }, bestOf: 3, needed: 2 },
+  goals: { level: 3, into: 40, need: 100, xp: 165, week: { start: '2026-10-12', games: 7, goal: 10, reached: false }, streak: 2, weeksReached: 4 },
   members: [
     { name: 'Oma Gerda', wins: 4, games: 7, avg: 612 }, { name: ME, wins: 2, games: 7, avg: 540 },
     { name: 'Klaus', wins: 1, games: 6, avg: 455 },
@@ -82,6 +90,23 @@ const STAMMTISCH = {
     flo: { 'oma gerda': { ahead: 2, behind: 5 }, klaus: { ahead: 3, behind: 3 } },
     klaus: { 'oma gerda': { ahead: 2, behind: 4 }, flo: { ahead: 3, behind: 3 } },
   },
+};
+// --signed-in: account answers by path. Seasons are months counted back from today.
+const monthsBack = (n) => {
+  const d = new Date(`${TODAY.slice(0, 7)}-15T12:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() - n);
+  return d.toISOString().slice(0, 7);
+};
+const SEASON_RESULT = { season: monthsBack(1), place: 2, award: 'silver', seasonXp: 640, ranked: 14 };
+const SEASON_AWARDS = [SEASON_RESULT,
+  { season: monthsBack(2), place: 7, award: 'top10', seasonXp: 310, ranked: 12 },
+  { season: monthsBack(3), place: 11, award: 'participant', seasonXp: 95, ranked: 12 }];
+const ACCOUNT_API = {
+  '/api/me': { ok: true, username: ME, seasonResult: SEASON_RESULT, lastSeason: SEASON_RESULT, seasonAwards: SEASON_AWARDS },
+  '/api/ladder': { ok: true, season: TODAY.slice(0, 7), lastSeason: SEASON_RESULT, seasonAwards: SEASON_AWARDS,
+    me: { username: ME, xp: 5320, seasonXp: 410, season: TODAY.slice(0, 7), games: 43, wins: 17, rank: 2 },
+    board: [{ username: 'Oma Gerda', seasonXp: 520 }, { username: ME, seasonXp: 410 }, { username: 'Klaus', seasonXp: 150 }] },
+  '/api/account/methods': { ok: true, hasPassword: false, passkeys: [{ id: 'pk1', name: 'iPhone', createdAt: NOW - 9e8, lastUsedAt: NOW - 3e6 }], reviewMail: false },
 };
 const GLOBAL_STATS = { games: 8123, rounds: 61234, pikDamesLaidOut: 9001, pikDamesCaught: 4521, handAusRounds: 777 };
 const HISTORY = [
@@ -136,6 +161,7 @@ const YEAR_REVIEW = { ...require(path.join(ROOT, 'game', 'YearReviewMail')).samp
 // Rewrite server -> client messages so the lobby shows the mock profile.
 // --puzzle-kind turn|out: today's puzzle message carries a puzzle of that kind.
 let puzzleKind = null;
+let puzzleSolved = false; // scene puzzle-solved: today solved first try, a perfect run of 4
 function kindPuzzle(kind) {
   const DP = require(path.join(ROOT, 'game', 'DailyPuzzle'));
   const { addDays } = require(path.join(ROOT, 'game', 'GameDay'));
@@ -143,13 +169,19 @@ function kindPuzzle(kind) {
   while (DP.kindForDate(date).kind !== kind) date = addDays(date, 1);
   return DP.puzzleForDate(date);
 }
+// stammtisch-lobby: the next join is shown as a seat at the mock Stammtisch.
+let bindStammtisch = false;
 function rewrite(msg) {
+  if (msg.type === 'joined' && bindStammtisch) msg.stammtisch = { code: 'STMOCK1', name: STAMMTISCH.name };
   if (msg.type === 'profiles') { msg.players = PROFILES; msg.globalStats = GLOBAL_STATS; }
   if (msg.type === 'gameHistory') msg.games = HISTORY;
   if (msg.type === 'yearReview' && DECEMBER) Object.assign(msg, { available: true, season: true, review: YEAR_REVIEW });
   if (msg.type === 'puzzle' && puzzleKind) {
     const DP = require(path.join(ROOT, 'game', 'DailyPuzzle'));
     Object.assign(msg, DP.publicPuzzle(kindPuzzle(puzzleKind)), { date: msg.today, archive: false });
+  }
+  if (msg.type === 'puzzle' && puzzleSolved) {
+    Object.assign(msg, { status: { tries: 1, solved: true, revealed: false, stars: 3 }, dayStars: 3, perfectStreak: { current: 4, best: 6 } });
   }
   return msg;
 }
@@ -262,6 +294,15 @@ function waitForHttp(port, ms = 20000) {
           localStorage.setItem('pikdame_stammtische', JSON.stringify([{ code: 'STMOCK1', name: 'Familie Deutsch' }]));
         } catch (e) { /* storage blocked */ }
       }, [ME, arg('theme', '')]);
+      if (SIGNED_IN) {
+        await ctx.addInitScript(() => { try { localStorage.setItem('pikdame_account_token', 'mock-token'); } catch (e) { /* blocked */ } });
+        await ctx.route('**/api/**', (route) => route.fulfill({ contentType: 'application/json',
+          body: JSON.stringify(ACCOUNT_API[new URL(route.request().url()).pathname] || { ok: true }) }));
+        await ctx.route('**/statusz', async (route) => {
+          const res = await route.fetch();
+          route.fulfill({ response: res, body: JSON.stringify({ ...(await res.json()), accountsEnabled: true }) });
+        });
+      }
       const page = await ctx.newPage();
       if (DECEMBER) await page.clock.setFixedTime(new Date(DEC_NOW));
       let sock = null;
@@ -299,7 +340,7 @@ function waitForHttp(port, ms = 20000) {
         await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(1200);
       };
-      const LOBBY_SCENES = /^(lobby|lobby-open|progress|stats|history|settings|settings-aids|challenge|stammtisch|puzzle.*|year.*|account-mail)$/;
+      const LOBBY_SCENES = /^(lobby|lobby-open|progress|stats|history|settings|settings-aids|challenge|stammtisch|account|account-mail|puzzle.*|year.*)$/;
       for (const sc of scenes) {
         if (LOBBY_SCENES.test(sc)) await toStart();
         if (sc === 'lobby') await shot('lobby');
@@ -321,18 +362,11 @@ function waitForHttp(port, ms = 20000) {
           await page.click('#yearReviewCloseBtn');
         }
         if (sc === 'account-mail') {
-          // Simulated sign-in: /api/me and the methods answer for the mock name.
-          const json = (body) => (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
-          await page.route('**/api/me', json({ ok: true, username: ME }));
-          await page.route('**/api/account/methods', json({ ok: true, hasPassword: true, passkeysAvailable: false, passkeys: [], reviewMail: false }));
-          await page.evaluate(() => { try { localStorage.setItem('pikdame_account_token', 'mock'); } catch (e) { /* blocked */ } });
-          await page.reload({ waitUntil: 'networkidle' }); await page.waitForTimeout(1200);
-          await page.click('#accountBtn'); await page.waitForTimeout(600);
+          await page.click('#accountBtn'); await page.waitForTimeout(700);
           await page.evaluate(() => document.getElementById('accountMailPrefs').scrollIntoView({ block: 'center' }));
+          await page.waitForTimeout(200);
           await shot('account-mail');
           await page.click('#accountCloseBtn');
-          await page.evaluate(() => { try { localStorage.removeItem('pikdame_account_token'); } catch (e) { /* blocked */ } });
-          await page.unroute('**/api/me'); await page.unroute('**/api/account/methods');
         }
         if (sc === 'mail') {
           const { composeReviewMail } = require(path.join(ROOT, 'game', 'YearReviewMail'));
@@ -349,7 +383,15 @@ function waitForHttp(port, ms = 20000) {
           await shot('stammtisch');
           await page.click('#stammtischSheetCloseBtn');
         }
-        if (sc.startsWith('puzzle')) {
+        if (sc === 'puzzle-solved') {
+          // Solved with three stars; then the "Heute" tile shows them on the start screen.
+          puzzleSolved = true;
+          await page.click('#puzzleBtn'); await page.waitForTimeout(600);
+          await shot(sc);
+          await page.click('#puzzleCloseBtn'); await page.waitForTimeout(200);
+          await shot('lobby-solved');
+          puzzleSolved = false;
+        } else if (sc.startsWith('puzzle')) {
           puzzleKind = sc === 'puzzle' ? null : sc.slice('puzzle-'.length);
           await page.click('#puzzleBtn'); await page.waitForTimeout(600);
           if (puzzleKind) {
@@ -376,6 +418,18 @@ function waitForHttp(port, ms = 20000) {
           await page.click('#challengeBtn'); await page.waitForTimeout(700);
           await shot('challenge');
           await page.click('#challengeCancelBtn');
+        }
+        if (sc === 'stammtisch-lobby') {
+          // A real game lobby whose join is rewritten to the mock Stammtisch:
+          // the record panel (goals, series, standings) with mock numbers.
+          await toStart();
+          bindStammtisch = true;
+          await page.click('#createGameBtn'); await page.waitForTimeout(900);
+          inject({ type: 'stammtisch', summary: { code: 'STMOCK1', ...STAMMTISCH }, seriesEvent: null });
+          await page.waitForTimeout(300);
+          await page.evaluate(() => document.getElementById('stammtischSection').scrollIntoView({ block: 'start' }));
+          await shot('stammtisch-lobby');
+          bindStammtisch = false;
         }
         if (sc === 'gamelobby' || sc === 'botdiff') {
           if (!(await page.isVisible('#houseRulesSection'))) { await toStart(); await page.click('#createGameBtn'); await page.waitForTimeout(900); }
@@ -404,6 +458,13 @@ function waitForHttp(port, ms = 20000) {
           if (sc === 'settings-aids') await page.evaluate(() => document.getElementById('aidLowCardsCheckbox').scrollIntoView({ block: 'center' }));
           await shot(sc);
           await page.click('#settingsOverlayCloseBtn');
+        }
+        if (sc === 'account') {
+          await page.click('#accountBtn'); await page.waitForTimeout(700);
+          await page.evaluate(() => document.getElementById('ladderBox').scrollIntoView({ block: 'center' }));
+          await page.waitForTimeout(200);
+          await shot('account');
+          await page.click('#accountCloseBtn');
         }
         if (sc === 'stats' || sc === 'history') {
           await page.click('#statsBtn'); await page.waitForTimeout(500);

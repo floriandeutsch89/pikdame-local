@@ -19,6 +19,7 @@ const {
   xpForGame,
   levelFromXp,
   seasonForDate,
+  SEASON_ID_RE,
   questsForDate,
   evaluateQuests,
   questDef,
@@ -34,7 +35,7 @@ const { createPasskeyService, deviceName } = require('./game/Passkeys');
 const { isAllowedEmote, emoteLevel } = require('./game/Emotes');
 const { parseGreetingDays, greetingWindow } = require('./game/GreetingDays');
 const { holidayStatus } = require('./game/Holidays');
-const { puzzleForDate, publicPuzzle, checkAnswer, XP_FOR_SOLVED, PUZZLE_EPOCH } = require('./game/DailyPuzzle');
+const { puzzleForDate, publicPuzzle, checkAnswer, perfectStreakOn, XP_FOR_SOLVED, PUZZLE_EPOCH } = require('./game/DailyPuzzle');
 const { createStammtischStore, normalizeCode: normalizeStammtischCode } = require('./game/StammtischStore');
 const { createGameHistoryStore, historyForPlayer } = require('./game/GameHistoryStore');
 const { createYearStatsStore } = require('./game/YearStatsStore');
@@ -460,6 +461,7 @@ const accountApiByIp = new Map(); // ip -> { count, windowStart }
 const ACCOUNT_CHEAP_ENDPOINTS = new Set([
   '/api/me', '/api/ladder', '/api/account/methods',
   '/api/passkey/login/options', '/api/passkey/add/options',
+  '/api/season-result/seen',
 ]);
 const accountCheapByIp = new Map();
 function accountRateLimited(ip, filePath = '') {
@@ -862,6 +864,44 @@ async function importGuestProfile(username) {
   }
 }
 
+// Season finale: an ended season is written down once (idempotent in the store,
+// so a restart or a second instance is harmless); checked again per new season.
+let seasonsCheckedFor = null;
+async function maybeFinalizeSeasons() {
+  if (!ACCOUNTS_ENABLED || typeof accountStore.finalizeSeasons !== 'function') return;
+  const season = seasonForDate(gameDay());
+  if (seasonsCheckedFor === season) return;
+  seasonsCheckedFor = season;
+  try {
+    const done = await accountStore.finalizeSeasons(season);
+    if (!done) seasonsCheckedFor = null; // database down: next request tries again
+    for (const d of done || []) console.log(`[season] Saison ${d.season} abgeschlossen: ${d.ranked} in der Wertung, ${d.awards} Abzeichen`);
+  } catch (err) {
+    seasonsCheckedFor = null;
+    logCrash('season-finale', err);
+  }
+}
+
+/** The account's finished seasons for /api/me and /api/ladder. Fails soft:
+ *  a failing /api/me would sign the client out. */
+async function seasonInfoFor(username) {
+  if (typeof accountStore.seasonResultsFor !== 'function') return {};
+  try {
+    await maybeFinalizeSeasons();
+    const results = (await accountStore.seasonResultsFor(username)) || [];
+    const view = (r) => ({ season: r.season, place: r.place, award: r.award, seasonXp: r.seasonXp, ranked: r.ranked });
+    const unseen = results.find((r) => !r.seen);
+    return {
+      lastSeason: results[0] ? view(results[0]) : null,
+      seasonAwards: results.filter((r) => r.award).map(view),
+      ...(unseen ? { seasonResult: view(unseen) } : {}),
+    };
+  } catch (err) {
+    logCrash('season-info', err);
+    return {};
+  }
+}
+
 // The confirmation mail - at registration and when the admin page sends it
 // again. Base URL from the environment (Docker), else from the request.
 function publicBase(req) {
@@ -1139,7 +1179,17 @@ async function handleAccountRequest(req, res, filePath) {
     const u = await accountStore.sessionUser(body.token);
     if (!u) return sendJson(res, 401, { error: 'Nicht angemeldet.' });
     const greeting = greetingWindow(greetingDays, u.username);
-    return sendJson(res, 200, { ok: true, username: u.username, ...(greeting ? { greeting } : {}) });
+    const season = await seasonInfoFor(u.username);
+    return sendJson(res, 200, { ok: true, username: u.username, ...(greeting ? { greeting } : {}), ...season });
+  }
+  if (filePath === '/api/season-result/seen') {
+    const u = await accountStore.sessionUser(body.token);
+    if (!u) return sendJson(res, 401, { error: 'Nicht angemeldet.' });
+    if (!SEASON_ID_RE.test(String(body.season || '')) || typeof accountStore.markSeasonResultSeen !== 'function') {
+      return sendJson(res, 400, { error: 'Ungültige Anfrage.' });
+    }
+    await accountStore.markSeasonResultSeen(u.username, body.season);
+    return sendJson(res, 200, { ok: true });
   }
   if (filePath === '/api/ladder') {
     // Season ladder. The board itself is public (usernames + XP only, no
@@ -1151,11 +1201,16 @@ async function handleAccountRequest(req, res, filePath) {
     const season = seasonForDate(gameDay());
     const board = (await accountStore.ladder(season, 20)) || [];
     let me = null;
+    let seasonInfo = {};
     if (body.token) {
       const u = await accountStore.sessionUser(body.token);
-      if (u) me = await accountStore.progressFor(u.username);
+      if (u) {
+        me = await accountStore.progressFor(u.username);
+        const { lastSeason = null, seasonAwards = [] } = await seasonInfoFor(u.username);
+        seasonInfo = { lastSeason, seasonAwards };
+      }
     }
-    return sendJson(res, 200, { ok: true, season, board, me });
+    return sendJson(res, 200, { ok: true, season, board, me, ...seasonInfo });
   }
   return sendJson(res, 404, { error: 'Unbekannter Endpunkt.' });
 }
@@ -1288,7 +1343,7 @@ const registry = new SessionRegistry((session) => {
       if (session.stammtisch) {
         try {
           const booked = stammtischStore.recordGame(session.stammtisch, gameRecord);
-          if (booked) broadcastToSession(session, { type: 'stammtisch', summary: booked.summary, seriesEvent: booked.seriesEvent });
+          if (booked) broadcastToSession(session, { type: 'stammtisch', summary: booked.summary, seriesEvent: booked.seriesEvent, goalEvents: booked.goalEvents });
         } catch (err) {
           logCrash('stammtisch', err, { code: session.stammtisch });
         }
@@ -1643,7 +1698,8 @@ function sendProfilesTo(ws) {
     JSON.stringify(
       PUBLIC_MODE
         ? { type: 'profiles', players: [], publicMode: true, globalStats: globalStats.getStats(), quests }
-        : { type: 'profiles', players: playerStore.listPlayers(), publicMode: false, globalStats: globalStats.getStats(), quests }
+        // puzzleStars is the archive's per-day history - served with the puzzle, not to everyone.
+        : { type: 'profiles', players: playerStore.listPlayers().map(({ puzzleStars, ...p }) => p), publicMode: false, globalStats: globalStats.getStats(), quests }
     )
   );
 }
@@ -1916,17 +1972,23 @@ wss.on('connection', (ws, req) => {
       const name = sanitizeName(msg.name);
       const withProfile = !PUBLIC_MODE && !!name && !archive;
       const fresh = { tries: 0, solved: false, revealed: false };
+      // Stars and the perfect run belong to the live day; an archive day shows the stars earned back then.
+      const starInfo = () => (PUBLIC_MODE || !name ? {} : {
+        dayStars: playerStore.puzzleStarsFor(name, date),
+        perfectStreak: perfectStreakOn(playerStore.getPlayerByName(name), today),
+      });
       if (msg.type === 'getPuzzle') {
         ws.send(JSON.stringify({
           type: 'puzzle', ...publicPuzzle(puzzle), archive, today, epoch: PUZZLE_EPOCH,
           status: withProfile ? playerStore.puzzleStatus(name, date) : fresh,
+          ...starInfo(),
         }));
         return;
       }
       if (msg.type === 'revealPuzzle') {
         const status = withProfile ? playerStore.revealPuzzle(name, date) : { ...fresh, revealed: true };
         const best = puzzle.best || { cardIds: [], melds: [], points: 0 };
-        ws.send(JSON.stringify({ type: 'puzzleSolution', date, cardIds: best.cardIds, melds: best.melds || [best.cardIds], points: best.points, status }));
+        ws.send(JSON.stringify({ type: 'puzzleSolution', date, cardIds: best.cardIds, melds: best.melds || [best.cardIds], points: best.points, status, ...(withProfile ? starInfo() : {}) }));
         return;
       }
       const result = checkAnswer(puzzle, Array.isArray(msg.melds) ? msg.melds : msg.cardIds);
@@ -1936,7 +1998,7 @@ wss.on('connection', (ws, req) => {
       let streak = null;
       let badges = [];
       if (withProfile) {
-        status = playerStore.recordPuzzleAttempt(name, date, result.solved);
+        status = playerStore.recordPuzzleAttempt(name, date, result.solved, puzzle.kind || 'meld');
         if (status.justSolved) {
           const after = playerStore.addProgress(name, { xp: XP_FOR_SOLVED });
           xp = XP_FOR_SOLVED;
@@ -1948,7 +2010,7 @@ wss.on('connection', (ws, req) => {
         }
       }
       if (archive) status = { tries: 0, solved: result.solved, revealed: false };
-      ws.send(JSON.stringify({ ...result, date, xp, level, streak, status, badges, type: 'puzzleResult' }));
+      ws.send(JSON.stringify({ ...result, date, xp, level, streak, status, badges, ...(withProfile ? starInfo() : {}), type: 'puzzleResult' }));
       return;
     }
     if (msg.type === 'listProfiles') {
@@ -2417,6 +2479,7 @@ server.listen(PORT, () => {
     for (const line of formatConfigReport(currentConfigReport())) console.log(line);
   } catch (e) { logCrash('config-report', e); }
   try { startAdminMonitor(); } catch (e) { logCrash('admin-monitor', e); }
+  maybeFinalizeSeasons().catch((e) => logCrash('season-finale', e));
   // Load the ONNX runtime + models now, not in the first bot turn: the one-off
   // ~40 MB then sits in the baseline instead of looking like a leak (#306).
   try {
