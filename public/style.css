@@ -47,6 +47,11 @@
   --text-muted: rgba(226,234,238,0.6);
   --danger: #ff7d7d;
   --success: #43dd9a;
+  /* Ink for text and controls on the light dialog paper (test/theme-contrast). */
+  --paper-accent: #007b5d;
+  --paper-success: #007c46;
+  --paper-danger: #b94548;
+  --danger-ink: #2a0a0a;
   --card-bg: #fcfdfd;
   --card-ink: #1a1e24;
   --card-border: rgba(26,30,36,0.15);
@@ -74,6 +79,10 @@
   --text-muted: rgba(210,215,240,0.55);
   --danger: #ff7d8c;
   --success: #4fd9ab;
+  --paper-accent: #5f5db8;
+  --paper-success: #007652;
+  --paper-danger: #b24052;
+  --danger-ink: #2a0a0a;
   --card-bg: #f5f5f9;
   --card-ink: #191922;
   --card-border: rgba(25,25,34,0.15);
@@ -103,6 +112,10 @@
   --text-muted: rgba(220,235,222,0.55);
   --danger: #ff8a80;
   --success: #6fe0a8;
+  --paper-accent: #806400;
+  --paper-success: #00774b;
+  --paper-danger: #ac4741;
+  --danger-ink: #2a0a0a;
   --card-bg: #f7f6f0;
   --card-ink: #1d221d;
   --card-border: rgba(29,34,29,0.16);
@@ -130,6 +143,10 @@
   --text-muted: rgba(248,220,232,0.6);
   --danger: #ff8f9e;
   --success: #5fdcae;
+  --paper-accent: #b14475;
+  --paper-success: #007a55;
+  --paper-danger: #ad4b5b;
+  --danger-ink: #2a0a0a;
   --card-bg: #fffafc;
   --card-ink: #241019;
   --card-border: rgba(36,16,25,0.15);
@@ -207,6 +224,8 @@
   --ctl-h-sm: 40px;      /* dense contexts (seat controls, chips) */
   --ctl-pad-x: 20px;
   --icon-size: 1.35em;   /* glyph size inside .icon */
+  /* Edges of controls on the dialog paper (fields, off switches): 3:1 on every paper. */
+  --paper-line: rgba(0, 0, 0, 0.46);
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -415,7 +434,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 
 .btn-danger {
   border-radius: var(--r-pill);
-  background: var(--danger); color: #2a0a0a;
+  background: var(--danger); color: var(--danger-ink);
   border: none;
   font-weight: 700;
   padding: 12px 16px;
@@ -1313,8 +1332,9 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   position: relative; /* anchor for #resultEmotes */
   /* Overlay cards are LIGHT in every theme, but --text-muted is tuned for
      the dark table - remap it (and the border tone) locally so rules,
-     statistics, charts and legends stay readable everywhere. */
-  --text-muted: rgba(0, 0, 0, 0.56);
+     statistics, charts and legends stay readable everywhere. 0.62 keeps
+     4.5:1 on tinted rows too (accent-soft in kitchen). */
+  --text-muted: rgba(0, 0, 0, 0.62);
   --glass-border: rgba(0, 0, 0, 0.12);
   background: var(--card-bg); color: var(--card-ink);
   border-radius: var(--r-lg);
@@ -1327,6 +1347,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   from { opacity: 0; transform: translateY(24px) scale(0.97); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
+/* The theme accent is tuned for the dark table; on the paper it reached 1.5:1. */
+.overlay-card :focus-visible { outline-color: var(--paper-accent); }
 .overlay-card h2 {
   margin: 0 0 12px;
   font-family: var(--font-display);
@@ -1418,7 +1440,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   font-family: var(--font-display);
   font-size: 1.7rem; font-weight: 700; letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
-  color: #0e7a4d;
+  color: var(--paper-success);
 }
 
 /* Round winner: one line everywhere - the same number is in the list right
@@ -1474,7 +1496,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
    green next to a -170 read as "well done". Colour is reserved for sign. */
 .resultRow.isMe {
   padding-left: 10px;
-  box-shadow: inset 3px 0 0 var(--accent);
+  box-shadow: inset 3px 0 0 var(--paper-accent);
   border-radius: 3px;
 }
 .resultRow.isMe .resultName { font-weight: 800; }
@@ -1483,8 +1505,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   font-size: var(--fs-lead); font-weight: 700;
   font-variant-numeric: tabular-nums; color: var(--card-ink);
 }
-.resultDelta.pos { color: #0e7a4d; }
-.resultDelta.neg { color: #c0281f; }
+.resultDelta.pos { color: var(--paper-success); }
+.resultDelta.neg { color: var(--paper-danger); }
 /* Race to 1000: same visual language as the score bar under the hand. */
 /* Solid = standing before the round in the seat colour (--pc, same as the
    chart), ghost = this round's move, tick = the 1000 goal. */
@@ -1564,8 +1586,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 .bdLine span:first-child { font-weight: 600; }
 .bdLine b { text-align: right; }
-.bdPlus b { color: #1e9e57; }
-.bdMinus b { color: #d34b3a; }
+.bdPlus b { color: var(--paper-success); }
+.bdMinus b { color: var(--paper-danger); }
 .bdNote { opacity: 0.8; }
 .handAusNote {
   background: var(--accent-soft); color: var(--card-ink);
@@ -1577,10 +1599,10 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   padding: 7px 6px; text-align: right; white-space: nowrap;
   border-bottom: 1px solid rgba(0,0,0,0.07); font-variant-numeric: tabular-nums;
 }
-.statsTable th { font-weight: 700; font-size: var(--fs-micro); text-transform: uppercase; letter-spacing: 0.05em; color: rgba(0,0,0,0.5); }
+.statsTable th { font-weight: 700; font-size: var(--fs-micro); text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
 .statsTable th:first-child, .statsTable td:first-child { text-align: left; white-space: normal; }
-.statsTable .deltaUp { color: #0e7a4d; font-weight: 700; }
-.statsTable .deltaDown { color: #c0281f; font-weight: 700; }
+.statsTable .deltaUp { color: var(--paper-success); font-weight: 700; }
+.statsTable .deltaDown { color: var(--paper-danger); font-weight: 700; }
 .statName { margin-right: 4px; }
 .statMark {
   display: inline-flex; align-items: center; gap: 1px; vertical-align: 1px;
@@ -1589,7 +1611,11 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   font-size: var(--fs-micro); font-weight: 700; color: var(--card-ink);
 }
 .statMark .jokerMark { width: 1em; height: 1em; fill: currentColor; }
-#exportGameBtn { background: rgba(14,122,77,0.1); color: #0e7a4d; }
+#exportGameBtn {
+  background: rgba(0, 120, 75, 0.08); /* fallback: iOS < 16.2 has no color-mix */
+  background: color-mix(in srgb, var(--paper-success) 8%, transparent);
+  color: var(--paper-success);
+}
 
 .jokerChoiceOptions { display: flex; flex-direction: column; gap: 9px; margin: 16px 0 8px; }
 .jokerChoiceOptions button {
@@ -1742,7 +1768,10 @@ button:focus-visible, input:focus-visible, select:focus-visible {
      Breite + abgerundetes Rechteck statt Pille lassen Text mehrzeilig
      ruhig umbrechen. */
   max-width: min(340px, 82vw);
-  background: var(--glass-strong);
+  /* A surface of its own: on glass, light text vanished over the light dialog
+     paper and the white cards (1.0:1). --bg-deep pairs with --text in every theme. */
+  background: var(--bg-deep);
+  background: color-mix(in srgb, var(--bg-deep) 92%, transparent);
   border: 1px solid var(--glass-border);
   backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
   border-radius: var(--r-md);
@@ -1971,13 +2000,13 @@ body.raidActive #toastContainer { margin-top: 132px; }
   border: 1px solid var(--glass-border); border-radius: var(--r-md);
   background: transparent; color: var(--card-ink); font: inherit; text-align: left; cursor: pointer;
 }
-.histCard[aria-expanded="true"] { border-color: var(--accent); }
+.histCard[aria-expanded="true"] { border-color: var(--paper-accent); }
 .histPlace {
   width: 2em; height: 2em; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
   background: rgba(0,0,0,0.07); font-size: var(--fs-label); font-weight: 800; font-variant-numeric: tabular-nums;
 }
-.histCard.won .histPlace { background: var(--accent); color: #0b0b0b; }
+.histCard.won .histPlace { background: var(--accent); color: var(--accent-ink); }
 .histMain { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .histMeta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: var(--fs-label); font-weight: 700; font-variant-numeric: tabular-nums; }
 .histOpp { font-size: var(--fs-hint); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1990,7 +2019,7 @@ body.raidActive #toastContainer { margin-top: 132px; }
   font-size: var(--fs-micro); font-weight: 700; padding: 1px 7px; border-radius: 999px;
   background: rgba(0,0,0,0.08); color: var(--text-muted);
 }
-.historyTagChallenge { background: var(--accent); color: #0b0b0b; }
+.historyTagChallenge { background: var(--accent); color: var(--accent-ink); }
 .histDetail { padding: 2px 4px 8px; }
 .histStandings { list-style: none; margin: 6px 0 0; padding: 0; font-size: var(--fs-label); }
 .histStandings li { display: flex; justify-content: space-between; padding: 3px 4px; border-bottom: 1px solid rgba(0,0,0,0.06); font-variant-numeric: tabular-nums; }
@@ -2429,8 +2458,9 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 .changelogContent h3 {
   margin: 12px 0 4px;
   font-size: 0.9rem;
-  color: var(--accent);
+  color: var(--paper-accent);
 }
+.changelogContent a { color: var(--paper-accent); }
 .changelogContent h4 {
   margin: 10px 0 2px;
   font-size: 0.76rem;
@@ -2478,13 +2508,13 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 .meSpark svg { display: block; width: 100%; height: auto; margin: 2px 0; }
 .meSpark .goalLine { stroke: rgba(0,0,0,0.35); stroke-width: 1; stroke-dasharray: 4 3; }
 .meSpark .sparkLine { fill: none; stroke: var(--card-ink); stroke-width: 1.6; stroke-linejoin: round; opacity: 0.55; }
-.meSpark circle.won { fill: #0e7a4d; }
+.meSpark circle.won { fill: var(--paper-success); }
 .meSpark circle.lost { fill: var(--card-bg); stroke: var(--card-ink); stroke-width: 1.4; }
 .meSparkKey { text-align: right; }
 .meSparkKey i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin: 0 3px 0 8px; vertical-align: 0; }
-.meSparkKey i.won { background: #0e7a4d; }
+.meSparkKey i.won { background: var(--paper-success); }
 .meSparkKey i.lost { border: 1.4px solid var(--card-ink); }
-.kpiLink { border: 0; font: inherit; color: inherit; cursor: pointer; min-height: var(--tap-min); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.kpiLink { border: 0; font: inherit; color: inherit; cursor: pointer; min-height: var(--tap-min); box-shadow: inset 0 0 0 1.5px var(--paper-accent); }
 .kpiLink:active { transform: scale(0.97); }
 /* Progress sheet (identity chip / level tile). */
 .progressCard { text-align: left; }
@@ -2493,7 +2523,7 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 .pgLevel {
   flex: 0 0 auto; width: 48px; height: 48px; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
-  background: var(--accent); color: #0b0b0b;
+  background: var(--accent); color: var(--accent-ink);
   font-size: var(--fs-title); font-weight: 800; font-variant-numeric: tabular-nums;
 }
 .pgText { display: flex; flex-direction: column; }
@@ -2524,6 +2554,57 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 .pgLadder li b { font-size: var(--fs-micro); text-transform: uppercase; letter-spacing: 0.04em; }
 .pgLadder li .icon { width: 1em; height: 1em; color: var(--text-muted); }
 .plLevel { font-variant-numeric: tabular-nums; font-weight: 700; }
+/* Bot tower: entry on the progress sheet, the stage sheet, the stage verdict.
+   Overlay cards are light in every theme, so the star gold is fixed. */
+.pgTower {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: var(--tap-min);
+  padding: 8px 12px; border: 0; border-radius: var(--r-sm); background: rgba(0,0,0,0.05);
+  font: inherit; color: var(--card-ink); text-align: left; cursor: pointer;
+}
+.pgTower:active { transform: scale(0.98); }
+.pgTowerIcon { color: #b07800; }
+.pgTowerText { display: flex; flex-direction: column; flex: 1; min-width: 0; font-size: var(--fs-label); }
+.pgTowerText b { font-size: var(--fs-body); font-variant-numeric: tabular-nums; }
+.pgTowerText span { color: var(--text-muted); }
+.pgTowerGo { transform: rotate(-90deg); color: var(--text-muted); }
+.towerSummary { margin: 0 0 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.towerList { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+/* The bot column holds three level icons (11px x 2.544 each), so the handicap lines up. */
+.twStage {
+  display: grid; grid-template-columns: 28px 92px 1fr auto; align-items: center; gap: 10px;
+  width: 100%; min-height: var(--tap-min); padding: 4px 10px;
+  border: 1.5px solid transparent; border-radius: var(--r-sm); background: rgba(0,0,0,0.04);
+  font: inherit; color: var(--card-ink); text-align: left; cursor: pointer;
+}
+.twStage:active { transform: scale(0.98); }
+.twStage.next { border-color: var(--accent); background: var(--accent-soft); }
+.twStage.locked { color: var(--text-muted); cursor: default; }
+.twStage.locked .twBots { opacity: 0.45; }
+.twNum {
+  width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.08); font-size: var(--fs-label); font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.twBots { display: inline-flex; gap: 4px; }
+.twBots .lvlSlot { --lvl-h: 11px; }
+.twHandicap { font-size: var(--fs-hint); font-weight: 700; color: var(--text-muted); white-space: nowrap; }
+.twStars, .twResultStars { display: inline-flex; gap: 1px; }
+.twStars .icon { width: 18px; height: 18px; color: rgba(0,0,0,0.28); }
+.twStars .icon.on, .twResultStars .icon.on { color: #b07800; fill: #f2b51d; }
+.towerResultBox {
+  margin: 0 0 12px; padding: 10px 14px; text-align: center;
+  border: 1px solid var(--glass-border); border-radius: var(--r-md);
+}
+.twResultStars .icon { width: 30px; height: 30px; color: rgba(0,0,0,0.25); }
+.twResultSum { margin: 4px 0 0; font-size: var(--fs-label); font-variant-numeric: tabular-nums; }
+.twResultSum b { display: block; font-size: var(--fs-body); }
+.twResultBest { margin: 4px 0 0; font-size: var(--fs-label); font-weight: 700; }
+.twResultXp { margin: 4px 0 0; font-size: var(--fs-label); font-weight: 800; color: var(--card-ink); font-variant-numeric: tabular-nums; }
+.twResultHint { margin: 4px 0 0; font-size: var(--fs-hint); color: var(--text-muted); }
+.twResultActions { display: flex; gap: 8px; margin-top: 4px; }
+.twResultActions .btn-secondary {
+  flex: 1; min-height: var(--tap-min); display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: var(--fs-body);
+}
 .achAllBtn {
   display: block; width: 100%; min-height: var(--tap-min); margin-top: 6px;
   border: 0; border-radius: var(--r-sm); background: transparent;
@@ -2570,7 +2651,7 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   100% { transform: scale(1); opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) { .badgeBox { animation: none; } }
-.badgeBox h3 { margin: 0 0 8px; font-size: 0.9rem; color: var(--accent); }
+.badgeBox h3 { margin: 0 0 8px; font-size: 0.9rem; color: var(--paper-accent); }
 .badgeRow {
   display: flex; align-items: center; gap: 10px;
   font-size: 0.8rem; line-height: 1.45;
@@ -2593,8 +2674,10 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 
 /* --- Benutzerkonto ---------------------------------------------------------- */
 .accountTabs { display: flex; gap: 8px; width: 100%; margin-bottom: 12px; }
-.accountTab { flex: 1; opacity: 0.6; }
-.accountTab.active { opacity: 1; border-color: var(--accent); }
+/* Unselected ink 0.6 dropped below 4.5:1; the dialog's btn-secondary has no
+   border, so the selection is an inset ring (3:1 against the grey pill). */
+.accountTabs .accountTab { flex: 1; color: var(--text-muted); }
+.accountTabs .accountTab.active { color: var(--card-ink); box-shadow: inset 0 0 0 2px var(--paper-accent); }
 #accountLoginForm, #accountRegisterForm, #accountCodeForm, #accSetPasswordForm, .accountSetup {
   display: flex; flex-direction: column; gap: 10px; width: 100%;
 }
@@ -2609,20 +2692,19 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 .accountSetup { margin: 4px 0 16px; text-align: center; }
 .accountSetup p { margin: 0; }
 .setupDone { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-weight: 700; }
-.setupDone .icon { color: var(--accent-2); }
+.setupDone .icon { color: var(--paper-accent); }
 /* Secondary actions in the account dialog ("Anmelde-Link per E-Mail",
    "Neuen Code senden"): text, but still a full tap target. */
 .linkBtn {
   background: none; border: none; padding: 0 4px;
   min-height: var(--tap-min);
-  color: var(--accent-2); font-weight: 600; font-size: var(--fs-label);
+  color: var(--paper-accent); font-weight: 600; font-size: var(--fs-label);
   text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
   align-self: center;
 }
 .linkBtn.hidden { display: none; }
-/* Armed by the first tap of a two-tap removal (confirmByTap); darkened
-   towards the ink so it stays readable on the light dialog card. */
-.linkBtn.armed { color: color-mix(in srgb, var(--danger) 65%, var(--card-ink)); }
+/* Armed by the first tap of a two-tap removal (confirmByTap). */
+.linkBtn.armed { color: var(--paper-danger); }
 .passkeyList .linkBtn { white-space: nowrap; flex-shrink: 0; }
 /* Present for password managers (pairs the new password with the account),
    invisible for people. */
@@ -2631,7 +2713,7 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
 .accountMethods { width: 100%; margin: 12px 0; display: flex; flex-direction: column; gap: 8px; }
-.accountMethods h3, .accountMailPrefs h3 { margin: 0; font-size: var(--fs-label); color: color-mix(in srgb, var(--card-ink) 60%, transparent); }
+.accountMethods h3, .accountMailPrefs h3 { margin: 0; font-size: var(--fs-label); color: var(--text-muted); }
 /* Year-review mail consent: a switch row like the settings sheet, same heading as "Anmeldewege". */
 .accountMailPrefs { width: 100%; margin: 4px 0 8px; text-align: left; }
 .accountMailPrefs .settingsHint { margin-top: 2px; }
@@ -2641,11 +2723,11 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   padding: 8px 10px; border: 1px solid var(--card-border); border-radius: var(--r-sm);
 }
 .passkeyList .pkName { font-weight: 600; }
-.passkeyList .pkMeta { display: block; font-size: var(--fs-hint); color: color-mix(in srgb, var(--card-ink) 55%, transparent); font-weight: 400; }
+.passkeyList .pkMeta { display: block; font-size: var(--fs-hint); color: var(--text-muted); font-weight: 400; }
 .passwordRow { display: flex; align-items: center; justify-content: space-between; gap: 4px 8px; flex-wrap: wrap; }
 .passwordActions { display: inline-flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 .pkLabel { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
-.pkLabel .icon { flex-shrink: 0; color: var(--accent-2); }
+.pkLabel .icon { flex-shrink: 0; color: var(--paper-accent); }
 /* The dialog is a light card (--card-bg / --card-ink). The fields used the
    page's --text, which is LIGHT in the dark themes - typed text was nearly
    invisible, and a prefilled name looked like a placeholder. */
@@ -2653,14 +2735,21 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   background: rgba(0, 0, 0, 0.04); /* fallback: iOS < 16.2 has no color-mix */
   background: color-mix(in srgb, var(--card-ink) 4%, transparent);
   color: var(--card-ink);
-  border: 1px solid var(--card-border);
+  border: 1px solid var(--paper-line);
   border-radius: var(--r-sm);
   padding: 11px 12px;
   font-size: 0.9rem;
 }
 #accountLoginForm input::placeholder, #accountRegisterForm input::placeholder, #accountCodeForm input::placeholder, #accSetPasswordForm input::placeholder {
-  color: color-mix(in srgb, var(--card-ink) 45%, transparent);
+  color: var(--text-muted);
 }
+/* A visible name above each field: the placeholder was the only label (2.7:1)
+   and disappears on the first keystroke. */
+.fieldLabel {
+  display: block; margin: 2px 2px -6px;
+  font-size: var(--fs-label); font-weight: 600; color: var(--card-ink); text-align: left;
+}
+#accountCodeForm .fieldLabel { text-align: center; }
 #accountLoggedOut, #accountLoggedIn { width: 100%; }
 #accountWhoami { font-weight: 700; margin-bottom: 10px; text-align: center; }
 #accountStatus { min-height: 1.2em; }
@@ -2779,10 +2868,10 @@ input:disabled { opacity: 0.65; }
   /* The sheet is light: the dark-theme glass look of .btn-icon vanishes here. */
   background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.14); color: var(--card-ink);
 }
-.resultActions .btn-icon[aria-expanded="true"] { background: var(--accent-soft); border-color: var(--accent); }
+.resultActions .btn-icon[aria-expanded="true"] { background: var(--accent-soft); border-color: var(--paper-accent); }
 .bdSums { margin-left: 6px; font-variant-numeric: tabular-nums; font-weight: 800; }
-.bdSumPlus { color: #0e7a4d; }
-.bdSumMinus { color: #c0281f; }
+.bdSumPlus { color: var(--paper-success); }
+.bdSumMinus { color: var(--paper-danger); }
 #resultEmotes .resultEmoteChip {
   display: inline-flex; align-items: center; gap: 5px;
   background: rgba(0,0,0,0.06); border-radius: 999px;
@@ -2898,7 +2987,7 @@ input:disabled { opacity: 0.65; }
   font-size: var(--fs-body); color: var(--card-ink);
 }
 .tutorialDonePoints li:last-child { border-bottom: none; }
-.tutorialDonePoints .icon { flex: 0 0 auto; width: 1.25em; height: 1.25em; color: var(--accent-2); }
+.tutorialDonePoints .icon { flex: 0 0 auto; width: 1.25em; height: 1.25em; color: var(--paper-accent); }
 .tutorialDoneActions { display: flex; flex-direction: column; gap: 8px; }
 .tutorialDoneActions .btn-primary, .tutorialDoneActions .btn-secondary {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: var(--ctl-h);
@@ -2942,7 +3031,8 @@ input:disabled { opacity: 0.65; }
   font-size: var(--fs-body); font-weight: 600; cursor: pointer; text-align: left;
 }
 .botDiffOptions button.current {
-  border-color: var(--accent); background: rgba(0,0,0,0.06);
+  border-color: var(--paper-accent); background: rgba(0,0,0,0.06);
+  box-shadow: inset 0 0 0 1px var(--paper-accent);
 }
 .botDiffOptions button small { display: block; font-weight: 500; opacity: 0.65; font-size: var(--fs-hint); }
 .botDiffOptions .lvlSlot { --lvl-h: 15px; }
@@ -2993,9 +3083,8 @@ input:disabled { opacity: 0.65; }
   font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 /* Forfeit ends the whole match - it reads as destructive, not as another
-   toggle. The overlay card is light in every theme, so this is a fixed ink
-   red rather than --danger (which is tuned for the dark table). */
-.sheetRowDanger { color: #c0281f; }
+   toggle. --danger is tuned for the dark table; the paper takes its own red. */
+.sheetRowDanger { color: var(--paper-danger); }
 .sheetRowDanger .sheetRowValue { color: inherit; }
 .sheetRow.active { background: rgba(192, 40, 31, 0.12); }
 
@@ -3004,7 +3093,8 @@ input:disabled { opacity: 0.65; }
   box-shadow: 0 0 0 2px #2ecc71, var(--shadow-1);
 }
 .statsTable tr.winnerRow td {
-  background: rgba(46, 204, 113, 0.14);
+  background: rgba(0, 120, 75, 0.08); /* fallback: iOS < 16.2 has no color-mix */
+  background: color-mix(in srgb, var(--paper-success) 8%, transparent);
   font-weight: 700;
 }
 #resumeBtn { margin-top: 8px; }
@@ -3028,8 +3118,8 @@ input:disabled { opacity: 0.65; }
   position: absolute; top: 0; left: 18px; right: 18px;
   height: 3px; margin: 0; z-index: 6; pointer-events: none;
 }
-.deltaUp { color: #1e9e57; font-weight: 700; }
-.deltaDown { color: #d34b3a; font-weight: 700; }
+.deltaUp { color: var(--paper-success); font-weight: 700; }
+.deltaDown { color: var(--paper-danger); font-weight: 700; }
 
 /* --- Header redesign + bottom status line (v1.30.0) --------------------------- */
 #topBar { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
@@ -3558,14 +3648,15 @@ input:disabled { opacity: 0.65; }
 .resultTabBtn {
   position: relative;
   appearance: none; border: none; background: transparent;
-  color: var(--card-ink); opacity: 0.6;
+  color: var(--card-ink); opacity: 0.72;
   min-height: 36px; padding: 8px 18px; border-radius: var(--r-pill);
   font-size: var(--fs-label); font-weight: 700;
   cursor: pointer; transition: background 0.15s ease, opacity 0.15s ease;
 }
+/* A white pill on the grey track was 1.1:1: the ring carries the selection. */
 .resultTabBtn.active {
   background: var(--card-bg); opacity: 1;
-  box-shadow: var(--shadow-1);
+  box-shadow: var(--shadow-1), inset 0 0 0 2px var(--paper-accent);
 }
 /* 36 px pill, --tap-min hit area: landscape has no height to spare. */
 .resultTabBtn::after {
@@ -3583,7 +3674,7 @@ input:disabled { opacity: 0.65; }
 .resultSortBtn {
   position: relative;
   appearance: none; border: none; background: transparent;
-  color: var(--card-ink); opacity: 0.6;
+  color: var(--card-ink); opacity: 0.72;
   min-height: 28px; padding: 4px 12px; border-radius: var(--r-pill);
   font-size: var(--fs-hint); font-weight: 700;
   cursor: pointer; transition: background 0.15s ease, opacity 0.15s ease;
@@ -3594,7 +3685,7 @@ input:disabled { opacity: 0.65; }
 }
 .resultSortBtn.active {
   background: var(--card-bg); opacity: 1;
-  box-shadow: var(--shadow-1);
+  box-shadow: var(--shadow-1), inset 0 0 0 2px var(--paper-accent);
 }
 
 /* Secondary actions folded away so "Weiter" stands alone. */
@@ -3711,7 +3802,7 @@ input:disabled { opacity: 0.65; }
   border: 1px solid var(--glass-border); border-radius: var(--r-sm); background: none;
   color: inherit; font: inherit; font-size: var(--fs-hint); font-weight: 700; cursor: pointer;
 }
-.stAction.armed { background: var(--danger, #c0392b); border-color: transparent; color: #fff; }
+.stAction.armed { background: var(--danger); border-color: transparent; color: var(--danger-ink); }
 /* Group goals: the level, then this week's target with a thin bar. currentColor
    keeps the bar legible on the dark lobby glass and on the light chip sheet. */
 .stGoals { display: flex; flex-direction: column; gap: 4px; margin: 2px 0 10px; font-size: var(--fs-label); }
@@ -3749,8 +3840,8 @@ input:disabled { opacity: 0.65; }
 .puzzleHand .card { position: relative; margin-left: 0; cursor: pointer; }
 .puzzleHand .card.selected { top: -6px; }
 .puzzleStatus { min-height: 1.4em; font-weight: 600; margin: 0 0 8px; }
-.puzzleStatus.ok { color: #1e9e57; }
-.puzzleStatus.bad { color: #d34b3a; }
+.puzzleStatus.ok { color: var(--paper-success); }
+.puzzleStatus.bad { color: var(--paper-danger); }
 .puzzleHand .card.solution { box-shadow: 0 0 0 3px var(--drawn), var(--shadow-2); }
 /* Puzzle stars: filled = earned, outline = still possible today, faint = gone. */
 .puzzleStars { display: inline-flex; gap: 2px; vertical-align: -0.12em; color: color-mix(in srgb, #b8860b 82%, var(--card-ink)); }
@@ -3838,15 +3929,15 @@ input:disabled { opacity: 0.65; }
 #puzzleOverlay[data-kind="out"] .dialog-actions { flex-wrap: wrap; }
 #puzzleOverlay[data-kind="turn"] #puzzleRevealBtn,
 #puzzleOverlay[data-kind="out"] #puzzleRevealBtn { flex-basis: 100%; }
-.puzzleMeld.bad { border-color: #d34b3a; }
+.puzzleMeld.bad { border-color: var(--paper-danger); }
 .puzzleMeld:disabled { cursor: default; }
 .shareBtn { margin-top: 8px; }
 /* Level + daily streak strip above the tasks */
 /* Family tiles: tier dots under the name */
 .achTiers { display: inline-flex; gap: 3px; }
 .achTiers i { width: 7px; height: 7px; border-radius: 50%; background: rgba(0,0,0,0.15); display: inline-block; }
-.achTiers i.on { background: var(--accent); }
-.achTile.maxed { box-shadow: inset 0 0 0 2px var(--accent); }
+.achTiers i.on { background: var(--paper-accent); }
+.achTile.maxed { box-shadow: inset 0 0 0 2px var(--paper-accent); }
 .questList { display: flex; flex-direction: column; gap: 8px; }
 .questRow {
   display: grid;
@@ -3887,15 +3978,17 @@ input:disabled { opacity: 0.65; }
   padding: 9px 4px; border-radius: var(--r-sm);
   min-height: var(--tap-min); border: 0; font: inherit; color: inherit; cursor: pointer;
   background: rgba(0, 0, 0, 0.05);
-  /* Locked tiles stay readable but clearly secondary - "what am I missing"
-     is the whole point of showing them at all. */
-  opacity: 0.55;
 }
-.achTile.earned { opacity: 1; background: rgba(47, 214, 176, 0.16); }
+/* Locked tiles: "what am I missing" must stay readable (fading the whole tile
+   left 2.1:1), so only the emoji and the surface step back. */
+.achTile:not(.earned) { background: rgba(0, 0, 0, 0.03); }
+.achTile:not(.earned) .achEmoji { filter: grayscale(1); opacity: 0.45; }
+.achTile:not(.earned) .achName { color: var(--text-muted); }
+.achTile.earned { background: var(--accent-soft); }
 .achTile .achEmoji { font-size: 1.25rem; line-height: 1.1; }
 .achTile .achName { font-size: var(--fs-hint); font-weight: 700; text-align: center; line-height: 1.15; hyphens: auto; overflow-wrap: anywhere; max-width: 100%; }
 .achTile .achSub { font-size: var(--fs-hint); color: var(--text-muted); font-variant-numeric: tabular-nums; }
-.achTile[aria-expanded="true"] { opacity: 1; box-shadow: inset 0 0 0 2px var(--accent); }
+.achTile[aria-expanded="true"] { box-shadow: inset 0 0 0 2px var(--paper-accent); }
 .achDetail {
   grid-column: 1 / -1;
   padding: 8px 10px; border-radius: var(--r-sm);
@@ -3917,10 +4010,10 @@ input:disabled { opacity: 0.65; }
 .achTierList li:not(:last-child)::after {
   content: ''; position: absolute; left: 7px; top: 9px; bottom: -9px; width: 1px; background: rgba(0, 0, 0, 0.15);
 }
-.achTierList li.done:not(:last-child)::after { left: 6px; width: 3px; top: 4px; border-radius: 2px; background: var(--accent); }
+.achTierList li.done:not(:last-child)::after { left: 6px; width: 3px; top: 4px; border-radius: 2px; background: var(--paper-accent); }
 .achTierList li.here::before {
   content: ''; position: absolute; left: 2px; top: 8px; width: 11px; height: 11px; z-index: 1;
-  border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+  border-radius: 50%; background: var(--paper-accent); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
 }
 .achTierList li + li { border-top: 0; }
 .achTierNo { display: block; font-size: var(--fs-micro); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
@@ -3930,20 +4023,20 @@ input:disabled { opacity: 0.65; }
   display: inline-flex; align-items: center; gap: 6px; min-height: var(--tap-min); margin-top: 4px; padding: 0 12px;
   border: 1px solid var(--glass-border); border-radius: 999px; background: none; color: inherit; font: inherit; cursor: pointer;
 }
-/* Favourite badges: a star on the tile (dark rim: the accent alone is too pale on paper)
-   and a list on top of the cabinet with a remove button each. */
+/* Favourite badges: a star on the tile and a list on top of the cabinet with a
+   remove button each, in the paper accent (the table accent is too pale here). */
 .achTile.fav { position: relative; }
 .achTile .achFavMark {
   position: absolute; top: 4px; right: 4px; width: 16px; height: 16px;
-  color: var(--accent); fill: currentColor; stroke: var(--card-ink); stroke-width: 1.5;
+  color: var(--paper-accent); fill: currentColor;
 }
 .achFavStrip { margin-bottom: 4px; }
 .achFavStrip .achSection { display: flex; align-items: center; gap: 6px; }
-.achFavStrip .achSection .icon { color: var(--accent); fill: currentColor; stroke: var(--card-ink); stroke-width: 1.5; }
+.achFavStrip .achSection .icon { color: var(--paper-accent); fill: currentColor; }
 .achFavList { display: flex; flex-wrap: wrap; gap: 6px; }
 .achFavChip {
   display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-height: var(--tap-min);
-  padding-left: 10px; border: 1px solid var(--accent); border-radius: 999px; background: rgba(0, 0, 0, 0.05);
+  padding-left: 10px; border: 1px solid var(--paper-accent); border-radius: 999px; background: rgba(0, 0, 0, 0.05);
 }
 .achFavEmoji { font-size: var(--fs-lead); line-height: 1; }
 .achFavName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-label); font-weight: 700; }
@@ -3971,7 +4064,7 @@ input:disabled { opacity: 0.65; }
   padding: 5px 8px; border-radius: var(--r-sm);
   font-size: var(--fs-hint); font-variant-numeric: tabular-nums;
 }
-.ladderRow.isMe { background: rgba(47, 214, 176, 0.18); font-weight: 700; }
+.ladderRow.isMe { background: var(--accent-soft); font-weight: 700; }
 /* Season finale: last season's place + the permanent season badges. */
 .ladderLast { margin: 8px 0 0; font-size: var(--fs-hint); color: var(--text-muted); }
 .seasonAwards { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
@@ -4125,6 +4218,10 @@ html[data-cardback="easter"] .card.back,
   --text-muted: rgba(240,220,226,0.58);
   --danger: #ff8a8a;
   --success: #6fe0a8;
+  --paper-accent: #896114;
+  --paper-success: #00784c;
+  --paper-danger: #ae484b;
+  --danger-ink: #2a0a0a;
   --card-bg: #fbf7f2;
   --card-ink: #24161a;
   --card-border: rgba(36,22,26,0.16);
@@ -4186,6 +4283,11 @@ html[data-cardback="easter"] .card.back,
   --text-muted: rgba(51, 38, 26, 0.55);
   --danger: #b3372b;
   --success: #33702a;
+  /* Kitchen's danger is already dark: white ink on it, the paper inks as is. */
+  --paper-accent: #aa542d;
+  --paper-success: #33702a;
+  --paper-danger: #b3372b;
+  --danger-ink: #ffffff;
   --card-bg: #fffdf8;
   --card-ink: #241a10;
   --card-border: rgba(90, 60, 25, 0.22);
@@ -4361,8 +4463,8 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
   background: var(--text-muted);
   box-shadow: 0 0 0 3px var(--card-bg);
 }
-.momentItem.good::before { background: #0e7a4d; }
-.momentItem.bad::before { background: #c0281f; }
+.momentItem.good::before { background: var(--paper-success); }
+.momentItem.bad::before { background: var(--paper-danger); }
 .momentRound {
   flex-shrink: 0;
   min-width: 26px; padding: 2px 6px;
@@ -4381,8 +4483,8 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
 }
-.momentItem.good .momentSwing { color: #0e7a4d; }
-.momentItem.bad .momentSwing { color: #c0281f; }
+.momentItem.good .momentSwing { color: var(--paper-success); }
+.momentItem.bad .momentSwing { color: var(--paper-danger); }
 
 /* --- Feel: Punkte-Popups (Brotato-Prinzip: Punkte fühlbar machen) ----------- */
 .pointsPop {
@@ -4477,7 +4579,8 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
   display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer;
 }
 .cardbackTile.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
-.cardbackTile.locked { opacity: 0.62; }
+/* Locked: the name and the condition stay readable, only the preview fades. */
+.cardbackTile.locked .cbPrev { opacity: 0.55; filter: grayscale(0.5); }
 .cbPrev {
   width: 44px; height: 62px; border-radius: 7px;
   border: 1px solid rgba(0,0,0,0.25);
@@ -4509,7 +4612,7 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
 /* Light and dark backs alike: a white lock with a dark halo. */
 .cbPrev .icon { color: #fff; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.7)); }
 .cbName { font-size: var(--fs-label); font-weight: 700; }
-.cbGate { font-size: var(--fs-micro); opacity: 0.75; min-height: 1em; text-align: center; }
+.cbGate { font-size: var(--fs-micro); min-height: 1em; text-align: center; }
 
 
 /* --- Studio-Vorspann (Flodex Interactive) ---------------------------------
@@ -4621,7 +4724,7 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
 .settingsSelect {
   appearance: none; -webkit-appearance: none;
   background-color: rgba(0, 0, 0, 0.05); color: var(--card-ink);
-  border: 1px solid rgba(0, 0, 0, 0.18); border-radius: var(--r-sm);
+  border: 1px solid var(--paper-line); border-radius: var(--r-sm);
   font: inherit; font-size: 0.92rem; font-weight: 600;
   padding: 10px 34px 10px 13px;
   background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
@@ -4633,7 +4736,7 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
 .settingsAction {
   appearance: none; cursor: pointer;
   background: rgba(0, 0, 0, 0.05); color: var(--card-ink);
-  border: 1px solid rgba(0, 0, 0, 0.18); border-radius: var(--r-pill);
+  border: 1px solid var(--paper-line); border-radius: var(--r-pill);
   font: inherit; font-size: 0.92rem; font-weight: 600; padding: 10px 18px;
 }
 .settingsAction:hover { background: rgba(0, 0, 0, 0.09); }
@@ -4654,6 +4757,10 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
 .settingsCheckbox:checked, .ruleSwitch:checked { background: var(--accent); }
 .settingsCheckbox:checked::after, .ruleSwitch:checked::after { transform: translateX(20px); }
 .settingsCheckbox:focus-visible, .ruleSwitch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* On the paper both tracks need 3:1 (were 1.7:1 off, 1.5:1 on in felt). */
+.settingsCheckbox { background: var(--paper-line); }
+.settingsCheckbox:checked { background: var(--paper-accent); }
+.settingsCheckbox:focus-visible { outline-color: var(--paper-accent); }
 /* Erklaerzeile gehoert zu IHRER Zeile - deshalb im selben Kasten, ohne
    Trennlinie dazwischen (vorher stand sie optisch beim naechsten Punkt). */
 .settingsHint { margin: 8px 2px 0; font-size: 0.78rem; color: var(--text-muted); line-height: 1.45; }
@@ -4699,7 +4806,7 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
   width: 1.4em; height: 1.4em; border-radius: 50%;
   border: 2px solid currentColor;
 }
-.tutorialChecklist li.done .tick { background: var(--success); border-color: var(--success); color: #fff; }
+.tutorialChecklist li.done .tick { background: var(--paper-success); border-color: var(--paper-success); color: #fff; }
 .tutorialChecklist .tick .icon { width: 0.9em; height: 0.9em; }
 .tutorialChecklist .bonus { color: var(--text-muted); font-size: var(--fs-hint); margin-left: 4px; }
 
@@ -4745,7 +4852,7 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
   position: absolute; right: -5px; bottom: -3px;
   min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px;
   display: inline-flex; align-items: center; justify-content: center;
-  background: var(--accent); color: #0b0b0b; border: 2px solid var(--bg, #111);
+  background: var(--accent); color: var(--accent-ink); border: 2px solid var(--bg, #111);
   font-size: var(--fs-micro); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums;
 }
 .identityAvatar .opAvatar { width: 34px; height: 34px; margin-right: 0; font-size: 15px; }
@@ -4758,7 +4865,7 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
 #accountBtn .accountCheck {
   display: none; position: absolute; top: 4px; left: calc(50% + 5px);
   width: 14px; height: 14px; padding: 2px; border-radius: 50%;
-  background: var(--accent); color: #0b0b0b; stroke-width: 3.2;
+  background: var(--accent); color: var(--accent-ink); stroke-width: 3.2;
   box-shadow: 0 0 0 2px var(--bg, #111);
 }
 #accountBtn.signedIn .accountCheck { display: block; }
@@ -5110,6 +5217,14 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
   .stammtischSheet .stGoalLevel small { display: none; }
   .stammtischSheet .stGoalWeek { flex: 1 1 auto; }
 
+  /* Bot tower at ~400 px: the explanation left, the stages right in their own scroller. */
+  .towerCard {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); grid-template-rows: auto auto 1fr auto;
+    column-gap: 18px; align-content: start; max-width: 760px; padding: 12px 18px; overflow: hidden;
+  }
+  .towerCard > * { grid-column: 1; }
+  .towerCard .towerList { grid-column: 2; grid-row: 1 / -1; margin: 0; max-height: calc(82vh - 24px); overflow-y: auto; }
+
   /* Year review at ~400 px: the story card left, its controls bottom right. */
   #yearReviewOverlay .overlay-card {
     display: grid; grid-template-columns: minmax(0, 1fr) 190px; grid-template-rows: minmax(0, 1fr) auto auto auto;
@@ -5122,4 +5237,15 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
   .yrSlide { padding: 24px 20px 16px; gap: 6px; }
   .yrBig { font-size: calc(var(--fs-title) * 2.2); }
   .yrCat-big { width: 72px; }
+
+  /* Account fields at ~400 px: each label beside its field, so the visible
+     labels cost no height. */
+  #accountLoginForm, #accountRegisterForm {
+    display: grid; grid-template-columns: max-content minmax(0, 1fr);
+    align-items: center; column-gap: 12px; row-gap: 8px;
+  }
+  #accountLoginForm.hidden, #accountRegisterForm.hidden { display: none; }
+  #accountLoginForm > :not(.fieldLabel):not(input), #accountRegisterForm > :not(.fieldLabel):not(input) { grid-column: 1 / -1; }
+  #accountLoginForm .fieldLabel, #accountRegisterForm .fieldLabel { margin: 0; }
+  #accountLoginForm .linkBtn { justify-self: center; }
 }

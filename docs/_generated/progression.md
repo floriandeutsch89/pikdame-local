@@ -13,6 +13,7 @@ bilingual tables. Ids are stable, names may change.
 | Finishing a match (won or lost) | **10** |
 | Winning it | **+50** |
 | Final score | **+1 per 10 points** (never negative) |
+| First star of a bot tower stage (once per stage, no game counted) | **+25** |
 
 Each level costs a little more than the last, so the first levels arrive
 after an evening of play and the later ones stay meaningful:
@@ -83,7 +84,7 @@ back instead of showing a broken streak.
 
 ## Badges
 
-**51** badges. 10 of them are *families*: one tile, rising
+**55** badges. 12 of them are *families*: one tile, rising
 thresholds on the same counter.
 
 | Family | Counter | Tiers |
@@ -98,6 +99,8 @@ thresholds on the same counter.
 | `challenger` | `totalChallenges` | 🏁 Challenger {bdg-secondary}`7` → 🏁 Challenge pro {bdg-secondary}`30` |
 | `puzzles` | `totalPuzzlesSolved` | 🧩 Puzzle fox {bdg-secondary}`7` → 🧩 Puzzle master {bdg-secondary}`30` |
 | `puzzlePerfect` | `totalPerfectPuzzles` | 🌟 Star moment {bdg-secondary}`10` → 🌟 Star collector {bdg-secondary}`30` → 🌟 Puzzle ace {bdg-secondary}`100` |
+| `tower` | `towerCleared` | 🗼 Tower climber {bdg-secondary}`3` → 🗼 Tower stormer {bdg-secondary}`6` → 🗼 Tower top {bdg-secondary}`10` |
+| `towerStars` | `towerStars` | 🌠 Starry sky {bdg-secondary}`30` |
 
 The other **25** are earned by a fact about one match (computed in
 `computeEarnedBadges` from the finished game record):

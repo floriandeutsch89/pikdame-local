@@ -22,7 +22,8 @@
 // settings / settings-aids / settings-music (the start screen's "Mehr" sheet: top / play aids / music),
 // game-settings (the in-game gear sheet), music-hint (first click: music starts, one-time hint),
 // account (the account sheet: level, season ladder; needs --signed-in),
-// account-mail (its year-review mail switch; needs --signed-in).
+// account-mail (its year-review mail switch; needs --signed-in),
+// tower (the bot tower sheet via the progress sheet), gameover-tower (a stage verdict).
 // --december: the client clock stands on 28 December and the server's year review
 // is mocked - adds the "Heute" chip and the scenes year / year-mid / year-bots /
 // year-end (story cards), year-image (the share PNG, via the download fallback)
@@ -75,7 +76,8 @@ const PROFILES = [
   { name: ME, gamesPlayed: 43, gamesWon: 17, totalScore: 31000, bestGameScore: 1385, xp: 5320, dailyStreak: 6,
     daily: { streak: 6, best: 11, last: '2000-01-01', graceAt: null },
     badges: { first_win: NOW - 9e8, pd_laid: NOW - 5e8, marathon_10: NOW - 2e8 }, favoriteBadges: ['games', 'wins'],
-    puzzles: { [TODAY]: { tries: 1, solved: false } } },
+    puzzles: { [TODAY]: { tries: 1, solved: false } },
+    tower: { 1: 3, 2: 3, 3: 2, 4: 1, 5: 1 }, towerStars: 10, towerCleared: 5 },
   { name: 'Oma Gerda', gamesPlayed: 120, gamesWon: 61, totalScore: 99000, bestGameScore: 1610, xp: 18000, badges: { first_win: 1 } },
   { name: 'Klaus', gamesPlayed: 15, gamesWon: 3, totalScore: 8000, bestGameScore: 1040, xp: 1200, badges: {} },
 ];
@@ -83,7 +85,7 @@ const PROFILES = [
 const STAMMTISCH = {
   name: 'Familie Deutsch', gamesPlayed: 7,
   series: { no: 3, games: 2, wins: { 'oma gerda': 1, flo: 1 }, bestOf: 3, needed: 2 },
-  goals: { level: 3, into: 40, need: 100, xp: 165, week: { start: '2026-10-12', games: 7, goal: 10, reached: false }, streak: 2, weeksReached: 4 },
+  goals: { level: 3, into: 40, need: 100, xp: 165, week: { start: '2026-10-12', games: 3, goal: 5, reached: false }, streak: 2, weeksReached: 4 },
   members: [
     { name: 'Oma Gerda', wins: 4, games: 7, avg: 612 }, { name: ME, wins: 2, games: 7, avg: 540 },
     { name: 'Klaus', wins: 1, games: 6, avg: 455 },
@@ -157,6 +159,15 @@ const GAME_OVER = { ...BASE_STATE, phase: 'gameOver', roundNumber: 6, totals: { 
     highlights: [{ type: 'queenCaught', round: 2, name: 'Horst' }, { type: 'bestRound', round: 3, name: 'Klaus', score: 270 }],
     funTitle: { type: 'queenMagnet', name: 'Horst', count: 2 } } };
 
+// Bot tower: a stage-6 verdict (handicap 20) on a one-round game over.
+const TOWER_STATE = { ...BASE_STATE, phase: 'gameOver', roundNumber: 1, towerStage: 6, scoreHistory: [],
+  players: [PLAYERS[0], { ...PLAYERS[1], botDifficulty: 'hard' }, { ...PLAYERS[2], botDifficulty: 'hard' }, { ...PLAYERS[3], botDifficulty: 'medium' }],
+  totals: { p1: 235, b1: 150, b2: 90, b3: -20 }, lastRoundWinnerId: 'p1',
+  lastRoundResult: { p1: mk(235, true), b1: mk(150), b2: mk(90), b3: mk(-20) },
+  gameOverInfo: { winnerId: 'p1', finalTotals: {}, totalTurns: 41, totalRounds: 1, highlights: [], funTitle: null } };
+const TOWER_RESULT = { type: 'towerResult', stage: 6, stars: 1, myScore: 235, bestBot: 150, handicap: 20, margin: 65, wentOut: true,
+  clearMargin: 100, progress: { best: { ...PROFILES[0].tower, 6: 1 }, improved: true, stars: 11, cleared: 6, unlocked: 7 },
+  xp: 25, level: { level: 14, into: 145, need: 750, total: PROFILES[0].xp + 25 } }; // the stage's first star
 // --december: the admin preview's example numbers, under the mock name.
 const DEC_NOW = Date.parse('2026-12-28T10:00:00Z');
 const YEAR_REVIEW = { ...require(path.join(ROOT, 'game', 'YearReviewMail')).sampleReview('2026'), name: ME };
@@ -178,6 +189,10 @@ function rewrite(msg) {
   if (msg.type === 'joined' && bindStammtisch) msg.stammtisch = { code: 'STMOCK1', name: STAMMTISCH.name };
   if (msg.type === 'profiles') { msg.players = PROFILES; msg.globalStats = GLOBAL_STATS; }
   if (msg.type === 'gameHistory') msg.games = HISTORY;
+  if (msg.type === 'towerInfo') {
+    const best = PROFILES[0].tower;
+    Object.assign(msg, { best }, require(path.join(ROOT, 'game', 'BotTower')).summarize(best));
+  }
   // Like the server: favourite opponent and Stammtisch only for the signed-in owner.
   if (msg.type === 'yearReview' && DECEMBER) {
     Object.assign(msg, { available: true, season: true, review: SIGNED_IN ? YEAR_REVIEW : { ...YEAR_REVIEW, favorite: null, table: null } });
@@ -349,7 +364,7 @@ function waitForHttp(port, ms = 20000) {
         await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(1200);
       };
-      const LOBBY_SCENES = /^(lobby|lobby-open|progress|stats|history|settings|settings-aids|settings-music|game-settings|music-hint|challenge|stammtisch|account|account-mail|puzzle.*|year.*)$/;
+      const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|stats|history|settings|settings-aids|settings-music|game-settings|music-hint|challenge|stammtisch|account|account-mail|puzzle.*|year.*)$/;
       for (const sc of scenes) {
         if (LOBBY_SCENES.test(sc)) await toStart();
         if (sc === 'lobby') await shot('lobby');
@@ -461,6 +476,12 @@ function waitForHttp(port, ms = 20000) {
           await shot('progress');
           await page.click('#progressCloseBtn');
         }
+        if (sc === 'tower') {
+          await page.click('#identityAvatarBtn'); await page.waitForTimeout(300);
+          await page.click('#progressContent .pgTower'); await page.waitForTimeout(600);
+          await shot('tower');
+          await page.click('#towerCloseBtn');
+        }
         if (sc === 'settings' || sc === 'settings-aids' || sc === 'settings-music') {
           await page.click('#settingsBtnLobby'); await page.waitForTimeout(400);
           // settings-aids: scrolled to the play aids at the end of the sheet.
@@ -519,7 +540,13 @@ function waitForHttp(port, ms = 20000) {
           await page.waitForTimeout(200);
           await shot('table');
         }
-        if (sc.startsWith('roundend') || sc.startsWith('gameover')) {
+        if (sc === 'gameover-tower') {
+          inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
+          inject({ type: 'state', state: TOWER_STATE });
+          inject(TOWER_RESULT);
+          await page.waitForTimeout(1600);
+          await shot(sc);
+        } else if (sc.startsWith('roundend') || sc.startsWith('gameover')) {
           inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
           const challenge = sc === 'gameover-challenge';
           inject({ type: 'state', state: sc.startsWith('gameover') ? { ...GAME_OVER, challengeDate: challenge ? TODAY : null } : ROUND_END });

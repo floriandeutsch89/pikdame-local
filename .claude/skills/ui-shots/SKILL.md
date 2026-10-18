@@ -46,7 +46,9 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   shown as a seat at the mock Stammtisch: its record panel), `settings` / `settings-aids` /
   `settings-music` (the "Mehr" sheet: top / play aids / music), `game-settings`
   (the in-game gear sheet), `music-hint` (the first click starts the music and
-  its one-time hint shows; every other run marks the hint as seen). Any order works:
+  its one-time hint shows; every other run marks the hint as seen), `tower`
+  (the bot tower sheet, opened from the progress sheet), `gameover-tower` (a
+  stage verdict on the result sheet). Any order works:
   a start-screen scene after `table` or a result reloads the start screen
   first (its buttons are hidden there and the clicks used to time out).
 - **December:** `--december` stands the client clock on 28 December and

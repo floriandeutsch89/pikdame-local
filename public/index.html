@@ -799,8 +799,10 @@
           <form id="accountLoginForm" action="/api/login" method="post" novalidate>
             <!-- "webauthn" in autocomplete: the iPhone / password manager offers
                  saved passkeys right in this field (conditional UI). -->
-            <input id="accLoginUser" name="username" type="text" placeholder="Benutzername oder E-Mail" autocomplete="username webauthn" autocapitalize="none" spellcheck="false" />
-            <input id="accLoginPass" name="password" type="password" placeholder="Passwort" autocomplete="current-password" />
+            <label class="fieldLabel" for="accLoginUser">Benutzername oder E-Mail</label>
+            <input id="accLoginUser" name="username" type="text" autocomplete="username webauthn" autocapitalize="none" spellcheck="false" />
+            <label class="fieldLabel" for="accLoginPass">Passwort</label>
+            <input id="accLoginPass" name="password" type="password" autocomplete="current-password" />
             <button id="accLoginBtn" type="submit" class="btn-primary">Anmelden</button>
             <button id="accPasskeyLoginBtn" type="button" class="btn-secondary hidden"><svg class="icon" aria-hidden="true"><use href="#i-key"/></svg><span>Mit Passkey anmelden</span></button>
             <button id="accLoginLinkBtn" type="button" class="linkBtn">Anmelde-Link per E-Mail</button>
@@ -810,8 +812,10 @@
                a passkey or a password is chosen - no sign-in method ever
                exists for an unconfirmed address. -->
           <form id="accountRegisterForm" class="hidden" action="/api/register-passwordless" method="post" novalidate>
-            <input id="accRegUser" name="username" type="text" placeholder="Benutzername (2-24 Zeichen)" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="24" />
-            <input id="accRegEmail" name="email" type="email" inputmode="email" placeholder="E-Mail-Adresse" autocomplete="email" autocapitalize="none" spellcheck="false" />
+            <label class="fieldLabel" for="accRegUser">Benutzername (2-24 Zeichen)</label>
+            <input id="accRegUser" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="24" />
+            <label class="fieldLabel" for="accRegEmail">E-Mail-Adresse</label>
+            <input id="accRegEmail" name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false" />
             <button id="accRegisterBtn" type="submit" class="btn-primary">Weiter</button>
             <p class="lobby-hint">Dein Fortschritt (Statistik, Erfolge, Siegesserien) bleibt mit einem Konto dauerhaft erhalten - und niemand sonst kann deinen Namen verwenden.</p>
           </form>
@@ -819,7 +823,8 @@
                the keyboard. -->
           <form id="accountCodeForm" class="hidden" action="/api/verify-code" method="post" novalidate>
             <p id="accCodeHint" class="lobby-hint"></p>
-            <input id="accRegCode" name="code" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" maxlength="6" placeholder="6-stelliger Code" class="codeInput" />
+            <label class="fieldLabel" for="accRegCode">6-stelliger Code</label>
+            <input id="accRegCode" name="code" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" maxlength="6" class="codeInput" />
             <button id="accVerifyCodeBtn" type="submit" class="btn-primary">Bestätigen</button>
             <span class="codeActions">
               <button id="accResendCodeBtn" type="button" class="linkBtn">Neuen Code senden</button>
@@ -857,7 +862,8 @@
             </div>
             <form id="accSetPasswordForm" class="hidden" action="/api/password/set" method="post" novalidate>
               <input type="text" name="username" id="accSetPasswordUser" autocomplete="username" class="visuallyHidden" tabindex="-1" aria-hidden="true" />
-              <input id="accNewPass" name="password" type="password" placeholder="Neues Passwort (mind. 8 Zeichen)" autocomplete="new-password" passwordrules="minlength: 8;" />
+              <label class="fieldLabel" for="accNewPass">Neues Passwort (mind. 8 Zeichen)</label>
+              <input id="accNewPass" name="password" type="password" autocomplete="new-password" passwordrules="minlength: 8;" />
               <button id="accSavePasswordBtn" type="submit" class="btn-primary">Passwort speichern</button>
             </form>
           </div>
@@ -986,8 +992,21 @@
         <p class="lobby-hint homeTable">Das Spiel bleibt offen. Ein neues kannst du erst starten, wenn du dieses aufgibst.</p>
         <p class="homeTutorial hidden">Das Tutorial wartet kurz auf dich – danach beginnt es von vorn.</p>
         <p class="homeChallenge hidden">Die Challenge wartet bis Mitternacht auf dich – unter „Heute“ geht es weiter.</p>
+        <p class="homeTower hidden">Die Turmstufe wartet kurz auf dich – danach endet sie ohne Sterne.</p>
         <button id="homeConfirmBtn" class="btn-primary">Tisch verlassen</button>
         <button id="homeCancelBtn" class="btn-secondary">Abbrechen</button>
+      </div>
+    </section>
+
+    <!-- Bot tower (game/BotTower.js): ten fixed stages, best stars each. Before
+         the open-game sheet in the DOM, so that one stacks above it. -->
+    <section id="towerOverlay" class="overlay hidden" data-sheet-close="towerCloseBtn">
+      <div class="overlay-card towerCard" role="dialog" aria-labelledby="towerTitle">
+        <h2 id="towerTitle" class="iconTitle"><svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg><span>Bot-Turm</span></h2>
+        <p id="towerSummary" class="towerSummary"></p>
+        <ol id="towerList" class="towerList" reversed></ol>
+        <p id="towerRules" class="pgRules towerRules"></p>
+        <button id="towerCloseBtn" class="btn-secondary">Schließen</button>
       </div>
     </section>
 
