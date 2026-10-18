@@ -90,6 +90,20 @@ test('a place without a badge still gets its line; English reads naturally', asy
   en.window.close();
 });
 
+test('the live ladder hands out medals by shared place, like the finale', async () => {
+  const board = [
+    { username: 'Anna', seasonXp: 500 }, { username: 'Ben', seasonXp: 500 }, { username: 'Cleo', seasonXp: 300 },
+    { username: 'Dora', seasonXp: 200 }, { username: 'Testkonto', seasonXp: 200 },
+  ];
+  const t = boot({ ladder: { board } });
+  await t.settle();
+  t.doc.getElementById('accountBtn').click();
+  await t.settle();
+  const rows = [...t.doc.querySelectorAll('#ladderBox .ladderRow span')].map((s) => s.textContent);
+  assert.deepStrictEqual(rows, ['🥇 Anna', '🥇 Ben', '🥉 Cleo', '4. Dora', '4. Testkonto']);
+  t.window.close();
+});
+
 test('the ladder names last season and the podium badges; the trophy cabinet shows all season badges', async () => {
   const t = boot({ me: { lastSeason: SILVER, seasonAwards: [SILVER, MEMENTO] }, ladder: { lastSeason: SILVER, seasonAwards: [SILVER, MEMENTO] } });
   await t.settle();

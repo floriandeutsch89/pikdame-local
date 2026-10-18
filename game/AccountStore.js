@@ -460,37 +460,24 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
   /**
    * Carries the name-based profile's progress (PlayerStore) over to the
    * account, ONCE: players who registered after playing as guests keep their
-   * level and their place in the current season. Lifts the account up TO the
-   * profile's values instead of adding them, so games already booked on the
-   * account since verification are not counted twice; the XP difference also
-   * goes into the given (current) season.
+   * level. Lifts the account up TO the profile's values instead of adding
+   * them, so games already booked on the account since verification are not
+   * counted twice. The season stays untouched: guest XP never buys a podium.
    * @returns {{imported:boolean, progress:object|null}}
    */
-  function importProfile(username, { xp = 0, games = 0, wins = 0, season = null } = {}) {
+  function importProfile(username, { xp = 0, games = 0, wins = 0 } = {}) {
     const name = String(username || '').trim();
     const row = db
-      .prepare('SELECT id, xp, games, wins, season, season_xp, season_games, profile_imported FROM users WHERE username = ? AND verified = 1')
+      .prepare('SELECT id, xp, games, wins, profile_imported FROM users WHERE username = ? AND verified = 1')
       .get(name);
     if (!row || row.profile_imported) return { imported: false, progress: row ? progressFor(name) : null };
     const n = (v) => Math.max(0, Math.round(Number(v) || 0));
-    const newXp = Math.max(row.xp || 0, n(xp));
-    const delta = newXp - (row.xp || 0);
-    const keepSeason = !season || row.season === season;
-    inTransaction(() => {
-      if (!keepSeason) archiveSeason(row);
-      db.prepare(
-        `UPDATE users SET xp = ?, games = ?, wins = ?, season = ?, season_xp = ?, season_games = ?, profile_imported = 1
-         WHERE id = ?`
-      ).run(
-        newXp,
-        Math.max(row.games || 0, n(games)),
-        Math.max(row.wins || 0, n(wins)),
-        season || row.season,
-        (keepSeason ? row.season_xp || 0 : 0) + delta,
-        keepSeason ? row.season_games || 0 : 0,
-        row.id
-      );
-    });
+    db.prepare('UPDATE users SET xp = ?, games = ?, wins = ?, profile_imported = 1 WHERE id = ?').run(
+      Math.max(row.xp || 0, n(xp)),
+      Math.max(row.games || 0, n(games)),
+      Math.max(row.wins || 0, n(wins)),
+      row.id
+    );
     return { imported: true, progress: progressFor(name) };
   }
 

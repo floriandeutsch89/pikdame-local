@@ -24,7 +24,7 @@ async function storeContract(store, uniq) {
   const r = await store.register(name, `flo${uniq}@example.org`, 'long-password-1');
   assert.ok(r.ok, r.error);
   // Unverified accounts get nothing.
-  assert.equal((await store.importProfile(name, { xp: 100, games: 3, wins: 1, season: '2026-10' })).imported, false);
+  assert.equal((await store.importProfile(name, { xp: 100, games: 3, wins: 1 })).imported, false);
 
   // Resend: a fresh link replaces the old one.
   const renewed = await store.renewVerification(name);
@@ -37,15 +37,15 @@ async function storeContract(store, uniq) {
   // A game booked after verification, then the import: lifted TO the
   // profile, not added on top (the 40 XP game is part of the profile too).
   await store.addGameResult(name, { xp: 40, won: true, season: '2026-10' });
-  const imp = await store.importProfile(name, { xp: 250, games: 5, wins: 2, season: '2026-10' });
+  const imp = await store.importProfile(name, { xp: 250, games: 5, wins: 2 });
   assert.equal(imp.imported, true);
   assert.equal(imp.progress.xp, 250);
   assert.equal(imp.progress.games, 5);
   assert.equal(imp.progress.wins, 2);
-  assert.equal(imp.progress.seasonXp, 250, 'old games count into the current season');
+  assert.equal(imp.progress.seasonXp, 40, 'guest XP never enters the season');
   assert.equal(imp.progress.season, '2026-10');
   // Once only.
-  const again = await store.importProfile(name, { xp: 900, games: 50, wins: 20, season: '2026-10' });
+  const again = await store.importProfile(name, { xp: 900, games: 50, wins: 20 });
   assert.equal(again.imported, false);
   assert.equal(again.progress.xp, 250);
 
@@ -70,17 +70,17 @@ test('AccountStore (SQLite): profile import, resend, list, delete', { skip: !HAS
   try { await storeContract(store, ''); } finally { store.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
-test('AccountStore (SQLite): import into an account from an older season starts the new season', { skip: !HAS_SQLITE }, async () => {
+test('AccountStore (SQLite): the import leaves the season of an older account alone', { skip: !HAS_SQLITE }, async () => {
   const dir = tmpDir('pikdame-acc-');
   const store = createAccountStore(path.join(dir, 'users.db'));
   try {
     const r = store.register('Max', 'max@example.org', 'long-password-1');
     store.verifyEmail(r.verifyToken);
     store.addGameResult('Max', { xp: 30, season: '2026-09' });
-    const imp = store.importProfile('Max', { xp: 100, games: 2, wins: 0, season: '2026-10' });
-    assert.equal(imp.progress.xp, 100);
-    assert.equal(imp.progress.season, '2026-10');
-    assert.equal(imp.progress.seasonXp, 70, 'only the not yet booked difference, in the new season');
+    const imp = store.importProfile('Max', { xp: 100, games: 2, wins: 0 });
+    assert.equal(imp.progress.xp, 100, 'level and lifetime XP lifted');
+    assert.equal(imp.progress.season, '2026-09', 'no rollover by import');
+    assert.equal(imp.progress.seasonXp, 30);
   } finally { store.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -263,7 +263,7 @@ test('server: guest progress follows the name into the account; admin users + mo
   page = await request('GET', '/admin/users', { auth });
   assert.match(page.body, /bestätigt/);
   assert.match(page.body, /data-label="EP">420<\/td><td class="num" data-label="Spiele">7<\/td><td class="num" data-label="Siege">3<\/td>/, 'XP, games, wins carried over');
-  assert.match(page.body, /data-label="Saison-EP">420 /, 'into the current season too');
+  assert.match(page.body, /data-label="Saison-EP">0<\/td>/, 'guest XP stays out of the season');
   assert.match(log, /Gast-Fortschritt übernommen: Oma Inge/);
 
   // Delete is two-step: ask, then confirm.
