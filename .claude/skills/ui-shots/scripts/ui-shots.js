@@ -13,7 +13,8 @@
 // the report goes to <out>/audit.md.
 //
 // Views: phone (393x852), land (874x402), desk (1440x900), se (375x667), max (440x956).
-// Scenes: lobby, lobby-open, progress, stats, history, roundend, roundend-stats, gameover,
+// Scenes: lobby, lobby-open, progress, stats, stats-badges (trophy cabinet + a favourite's
+// detail; favourites show with --signed-in), history, roundend, roundend-stats, gameover,
 // table (needs --state <file>: a GameManager.publicState('p1') JSON in the playing phase),
 // puzzle / puzzle-turn / puzzle-out (one meld laid), puzzle-solved (3 stars + the tile),
 // challenge (intro, attempt used),
@@ -73,7 +74,7 @@ const ME = 'Flo';
 const PROFILES = [
   { name: ME, gamesPlayed: 43, gamesWon: 17, totalScore: 31000, bestGameScore: 1385, xp: 5320, dailyStreak: 6,
     daily: { streak: 6, best: 11, last: '2000-01-01', graceAt: null },
-    badges: { first_win: NOW - 9e8, pd_laid: NOW - 5e8, marathon_10: NOW - 2e8 },
+    badges: { first_win: NOW - 9e8, pd_laid: NOW - 5e8, marathon_10: NOW - 2e8 }, favoriteBadges: ['games', 'wins'],
     puzzles: { [TODAY]: { tries: 1, solved: false } } },
   { name: 'Oma Gerda', gamesPlayed: 120, gamesWon: 61, totalScore: 99000, bestGameScore: 1610, xp: 18000, badges: { first_win: 1 } },
   { name: 'Klaus', gamesPlayed: 15, gamesWon: 3, totalScore: 8000, bestGameScore: 1040, xp: 1200, badges: {} },
@@ -488,6 +489,19 @@ function waitForHttp(port, ms = 20000) {
           await page.click('#statsBtn'); await page.waitForTimeout(500);
           if (sc === 'history') { await page.click('#statsTabHistoryBtn'); await page.waitForTimeout(600); }
           await shot(sc);
+          await page.click('#statsCloseBtn');
+        }
+        if (sc === 'stats-badges') {
+          // Trophy cabinet: folded with the favourites on top, then a favourite's detail.
+          await page.click('#statsBtn'); await page.waitForTimeout(500);
+          await page.evaluate(() => document.getElementById('achievementsBox').scrollIntoView({ block: 'start' }));
+          await page.waitForTimeout(200);
+          await shot('stats-badges');
+          await page.click('#achievementsBox .achAllBtn'); await page.waitForTimeout(200);
+          await page.click('#achievementsBox .achTile[data-ach="games"]'); await page.waitForTimeout(300);
+          await page.evaluate(() => document.querySelector('#achievementsBox .achTile[data-ach="games"]').scrollIntoView({ block: 'start' }));
+          await page.waitForTimeout(200);
+          await shot('stats-badges-open');
           await page.click('#statsCloseBtn');
         }
         if (sc === 'table') {

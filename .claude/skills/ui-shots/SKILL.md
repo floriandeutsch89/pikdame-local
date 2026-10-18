@@ -37,7 +37,7 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
 - **Reduced motion:** `--reduced-motion` emulates `prefers-reduced-motion:
   reduce` - the still pictures instead of the animations.
 - **Scenes:** `lobby`, `lobby-open` (daily tasks unfolded), `progress`
-  ("Dein Fortschritt"), `stats`, `history` ("Meine Partien"), `roundend`,
+  ("Dein Fortschritt"), `stats`, `stats-badges` (trophy cabinet folded, then a favourite's detail; favourites need `--signed-in`), `history` ("Meine Partien"), `roundend`,
   `roundend-stats`, `gameover`, `gameover-challenge` (board + share),
   `puzzle`, `puzzle-turn` / `puzzle-out` (that kind injected, one meld
   laid), `puzzle-solved` (three stars, then the "Heute" tile), `challenge` (intro after the day's attempt), `gamelobby` (house
