@@ -238,6 +238,16 @@ window.I18N_STATIC = {
   // Bot tower
   'Bot-Turm': 'Bot tower',
   'Die Turmstufe wartet kurz auf dich – danach endet sie ohne Sterne.': 'The tower stage waits for you briefly - after that it ends without stars.',
+  // Year review (December) + its mail
+  'Dein Jahr': 'Your year',
+  'Dein Pik-Dame-Jahr': 'Your Pik Dame year',
+  'Vorherige Karte': 'Previous card',
+  'Nächste Karte': 'Next card',
+  'Als Bild teilen': 'Share as image',
+  'E-Mails': 'E-mails',
+  'Jahresrückblick per E-Mail': 'Year review by e-mail',
+  'Einmal im Jahr, Ende Dezember: deine Partien, Siege und geretteten Pik Damen. Abbestellen jederzeit hier oder mit einem Klick in der Mail.':
+    'Once a year, at the end of December: your games, wins and rescued queens of spades. Unsubscribe any time here or with one click in the mail.',
 };
 
 // Muster für Server-Texte (Log + Fehler). Reihenfolge: speziell vor generisch.

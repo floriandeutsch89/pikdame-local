@@ -31,7 +31,8 @@ const ENV_NOTES = {
   PIKDAME_ACCOUNTS: 'Set to `0` to disable user accounts entirely (pure guest play).',
   PIKDAME_DATABASE_URL: 'PostgreSQL connection string for accounts. If unset, a local SQLite file (`users.db`) inside the data directory is used.',
   PIKDAME_DATABASE_PASSWORD: 'Password for the PostgreSQL connection (also readable from a `_FILE` secret; see Configuration).',
-  PIKDAME_BASE_URL: 'Public base URL used to build invite links and QR codes (e.g. `https://play.example.com`).',
+  PIKDAME_BASE_URL: 'Public base URL used to build invite links, QR codes and the links in mails (e.g. `https://play.example.com`). With SMTP configured, the year-review mail is only sent when this is set: its unsubscribe link must work.',
+  PIKDAME_YEAR_REVIEW_PREVIEW: 'Set to `1` to offer the December year review in the app all year (local checks, screenshots). Not for production. The review mail keeps its own date (27 December, 10:00 German time).',
   PIKDAME_ALLOWED_ORIGIN: 'If set, only WebSocket connections from this origin are accepted (CSRF hardening).',
   PIKDAME_TRUST_PROXY: 'Set to `1` when running behind a reverse proxy so client IPs are read from `X-Forwarded-For`.',
   PIKDAME_HEARTBEAT_MS: 'WebSocket ping interval used to detect dead connections.',
@@ -135,7 +136,7 @@ const MSG_GROUPS = [
   ['Before a table', 'Sent on a fresh connection, before the socket is bound to a table. These carry `msg.name` because the server has no seat to look up yet.',
     ['createSession', 'joinSession', 'checkSession', 'abandonSession', 'listProfiles', 'getGameHistory', 'setFavoriteBadges', 'setCelebration', 'ping',
       'getPuzzle', 'solvePuzzle', 'revealPuzzle', 'startChallenge', 'startTutorial', 'getTower', 'startTower',
-      'createStammtisch', 'getStammtisch', 'listStammtische', 'leaveStammtisch', 'deleteStammtisch']],
+      'createStammtisch', 'getStammtisch', 'listStammtische', 'leaveStammtisch', 'deleteStammtisch', 'getYearReview']],
   ['Lobby', 'Only valid while the table is in the `lobby` phase; most of them host-only.',
     ['setName', 'ready', 'lobbyReady', 'startGame', 'setMaxSeats', 'reorderSeats', 'setDealer', 'setBotDifficulty', 'setHouseRules', 'leaveLobby']],
   ['Your turn', 'The moves. The server rejects every one of them with a reason when it is not your turn or the rules say no.',
@@ -162,6 +163,7 @@ const MSG_NOTES = {
   listStammtische: 'The Stammtische a player name belongs to.',
   leaveStammtisch: 'Leave a Stammtisch.',
   deleteStammtisch: 'Founder only: dissolve a Stammtisch.',
+  getYearReview: 'The December year review of a player name ("Dein Pik-Dame-Jahr"); outside December it answers that none is available.',
   createSession: 'Create a new game and receive its code.',
   joinSession: 'Join an existing game by code.',
   checkSession: 'Ask whether a stored session still exists (used by the "resume" button). With the seat token it also tells whether this device still holds a seat there.',
@@ -226,6 +228,7 @@ const S2C_NOTES = {
   stammtisch: 'A Stammtisch was created or resolved; carries its code and members.',
   stammtischInfo: 'Details of one Stammtisch (members, last evening, open table).',
   stammtischList: 'Answer to `listStammtische`.',
+  yearReview: 'Answer to `getYearReview`: the review, or `available: false` (not December, or no game this year).',
 };
 
 function generateProtocol() {

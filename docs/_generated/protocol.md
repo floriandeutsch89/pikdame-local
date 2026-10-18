@@ -4,12 +4,12 @@
 
 The client talks to the server over a single WebSocket. Every message is JSON
 with a `type` field. Both lists below are generated from the server's message
-handlers, so they always match the running code: **46** message
-types go up, **30** come down.
+handlers, so they always match the running code: **47** message
+types go up, **31** come down.
 
 ## Client → server
 
-### Before a table {bdg-secondary}`21`
+### Before a table {bdg-secondary}`22`
 
 Sent on a fresh connection, before the socket is bound to a table. These carry `msg.name` because the server has no seat to look up yet.
 
@@ -36,6 +36,7 @@ Sent on a fresh connection, before the socket is bound to a table. These carry `
 | `listStammtische` | The Stammtische a player name belongs to. |
 | `leaveStammtisch` | Leave a Stammtisch. |
 | `deleteStammtisch` | Founder only: dissolve a Stammtisch. |
+| `getYearReview` | The December year review of a player name ("Dein Pik-Dame-Jahr"); outside December it answers that none is available. |
 
 ### Lobby {bdg-secondary}`8`
 
@@ -122,6 +123,7 @@ Allowed from any seat at any time during a match.
 | `state` | The full game state as that player may see it (their own hand, everyone else's card counts). Sent after every change, coalesced to one send per tick. |
 | `towerInfo` | Answer to `getTower`: the stages, best stars per stage, total stars, cleared stages and the highest unlocked stage. |
 | `towerResult` | The verdict of a finished bot tower stage: stars, own score, best bot, handicap, margin, and the updated best. |
+| `yearReview` | Answer to `getYearReview`: the review, or `available: false` (not December, or no game this year). |
 
 :::{note}
 The server is the single source of truth: it validates every move and never
