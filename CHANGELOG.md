@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.81.0] - 2026-10-18
+
+### Changed
+- Beim Registrieren übernommene Gast-Erfahrung zählt nur noch für Stufe und
+  Gesamt-EP, nicht mehr für die laufende Saison: Aufs Saison-Podest kommt man
+  nur mit Partien, die mit dem Konto gespielt wurden.
+- Die Saison-Rangliste vergibt Medaillen nach Platz: Bei Punktgleichstand teilen
+  sich die Spieler die Medaille, wie beim Saison-Finale.
+
 ## [2.80.0] - 2026-10-18
 
 ### Added
