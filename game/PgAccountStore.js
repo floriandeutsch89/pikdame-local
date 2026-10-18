@@ -373,39 +373,24 @@ function createPgAccountStore(databaseUrl, options = {}) {
 
   /**
    * Same contract as AccountStore.importProfile: once per account, lift the
-   * account up TO the guest profile's values (no double counting), the XP
-   * difference also into the given season. The row lock plus the
-   * profile_imported guard make a concurrent second call a no-op.
+   * account up TO the guest profile's values (no double counting), season
+   * untouched. ONE statement: the profile_imported guard makes a concurrent
+   * second call a no-op.
    */
-  async function importProfile(username, { xp = 0, games = 0, wins = 0, season = null } = {}) {
+  async function importProfile(username, { xp = 0, games = 0, wins = 0 } = {}) {
     const n = (v) => Math.max(0, Math.round(Number(v) || 0));
     try {
       await ensureReady();
-      const imported = await withTransaction(async (c) => {
-        const r = await c.query(
-          `SELECT id, season, season_xp, season_games FROM users
-            WHERE LOWER(username) = LOWER($1) AND verified = TRUE AND profile_imported = FALSE FOR UPDATE`,
-          [String(username || '').trim()]
-        );
-        const row = r.rows[0];
-        if (!row) return false;
-        if (season && row.season !== season) await archiveSeason(c, row);
-        await c.query(
-          `UPDATE users
-              SET xp = GREATEST(xp, $2),
-                  games = GREATEST(games, $3),
-                  wins = GREATEST(wins, $4),
-                  season_xp = (CASE WHEN $5::text IS NULL OR season IS NOT DISTINCT FROM $5 THEN season_xp ELSE 0 END)
-                              + GREATEST($2 - xp, 0),
-                  season_games = CASE WHEN $5::text IS NULL OR season IS NOT DISTINCT FROM $5 THEN season_games ELSE 0 END,
-                  season = COALESCE($5, season),
-                  profile_imported = TRUE
-            WHERE id = $1`,
-          [row.id, n(xp), n(games), n(wins), season]
-        );
-        return true;
-      });
-      return { imported, progress: await progressFor(username) };
+      const r = await pool.query(
+        `UPDATE users
+            SET xp = GREATEST(xp, $2),
+                games = GREATEST(games, $3),
+                wins = GREATEST(wins, $4),
+                profile_imported = TRUE
+          WHERE LOWER(username) = LOWER($1) AND verified = TRUE AND profile_imported = FALSE`,
+        [String(username || '').trim(), n(xp), n(games), n(wins)]
+      );
+      return { imported: r.rowCount > 0, progress: await progressFor(username) };
     } catch (e) {
       console.error('Postgres importProfile failed:', e.message);
       return { imported: false, progress: null };

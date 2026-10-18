@@ -180,14 +180,20 @@ test('SQLite: seen - the newest result marks the older ones too', { skip: !HAS_S
   store.close();
 });
 
-test('SQLite: importing a guest profile into a new season archives the old one', { skip: !HAS_SQLITE }, async () => {
+test('SQLite: a guest import at the end of the month buys no podium', { skip: !HAS_SQLITE }, async () => {
   const store = createAccountStore(sqliteFile());
   store.finalizeSeasons('2026-10');
   await signUp(store, 'Anna');
-  play(store, 'Anna', '2026-10', 40, 40);
-  assert.ok(store.importProfile('Anna', { xp: 500, games: 9, wins: 2, season: '2026-11' }).imported);
+  await signUp(store, 'Ben');
+  play(store, 'Anna', '2026-10', 120, 80);
+  play(store, 'Ben', '2026-10', 30);
+  // Ben played for a year as a guest and registers on the 31st.
+  assert.ok(store.importProfile('Ben', { xp: 9000, games: 300, wins: 120 }).imported);
+  const ben = store.progressFor('Ben');
+  assert.deepStrictEqual([ben.xp, ben.seasonXp, ben.season, ben.rank], [9000, 30, '2026-10', 2]);
   store.finalizeSeasons('2026-11');
-  assert.deepStrictEqual(brief(store, 'Anna'), ['2026-10 1/1 gold 80xp 2g']);
+  assert.deepStrictEqual(brief(store, 'Anna'), ['2026-10 1/2 gold 200xp 2g']);
+  assert.deepStrictEqual(brief(store, 'Ben'), ['2026-10 2/2 silver 30xp 1g']);
   store.close();
 });
 

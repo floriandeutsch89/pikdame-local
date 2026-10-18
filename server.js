@@ -812,9 +812,9 @@ async function handleAdminRequest(req, res, filePath) {
 // Guest -> account: players who played under a name first and registered it
 // later keep their progress. The name-based profile (PlayerStore) is theirs
 // already - joinSession only lets a verified account's owner use the name -
-// and this carries its numbers into the account-bound ladder, once per
-// account (see AccountStore.importProfile). Best effort: never blocks verify
-// or login.
+// and this carries its level numbers into the account, once per account,
+// never into the season (see AccountStore.importProfile). Best effort: never
+// blocks verify or login.
 async function importGuestProfile(username) {
   if (!ACCOUNTS_ENABLED || typeof accountStore.importProfile !== 'function') return null;
   try {
@@ -824,7 +824,6 @@ async function importGuestProfile(username) {
       xp: profile.xp || 0,
       games: profile.gamesPlayed || 0,
       wins: profile.gamesWon || 0,
-      season: seasonForDate(gameDay()),
     });
     if (r && r.imported) console.log(`[account] Gast-Fortschritt übernommen: ${username} (${profile.xp || 0} EP, ${profile.gamesPlayed || 0} Spiele)`);
     return r;
