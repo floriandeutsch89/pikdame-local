@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.84.1] - 2026-10-18
+
+### Fixed
+- Hintergrundmusik deutlich lauter: „Leise“ war am Handy kaum zu hören, selbst
+  „Laut“ blieb sehr zurückhaltend.
+
 ## [2.84.0] - 2026-10-18
 
 ### Added
