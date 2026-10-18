@@ -152,7 +152,7 @@ const MSG_NOTES = {
   setFavoriteBadges: 'Pin up to three badges to the identity chip.',
   setCelebration: 'Pick the victory celebration the whole table sees when you win (an id from `game/Celebrations.js`; signed-in owner of the name, unlocked by level).',
   getPuzzle: 'Today\'s daily puzzle (same for everyone, derived from the game day).',
-  solvePuzzle: 'Submit a puzzle answer; the server grades it and returns the solution.',
+  solvePuzzle: 'Submit a puzzle answer; the server grades it and returns the solution. With the owner\'s login token, the day\'s first solve also counts for the account and its season.',
   revealPuzzle: 'Give up on the puzzle and see the solution (no points).',
   startChallenge: 'Begin today\'s daily challenge. Beginning counts as the one attempt of the day.',
   startTutorial: 'Open a tutorial table against easy bots; the hints themselves are client-side.',
@@ -214,7 +214,7 @@ const S2C_NOTES = {
   bestRound: 'A new personal best round score for this player.',
   badges: 'Badges earned by this match, for the celebration overlay.',
   progress: 'XP, level and daily-quest progress after a finished match.',
-  accountProgress: 'The account-bound progression on login (so a new device shows the right level).',
+  accountProgress: 'The account-bound progression on login (so a new device shows the right level), and after XP from outside a match (a solved puzzle, a tower stage\'s first star).',
   gameHistory: 'Answer to `getGameHistory`.',
   gameExport: 'The requested game export (JSON).',
   profiles: 'Answer to `listProfiles`.',
@@ -432,6 +432,7 @@ function generateProgression() {
   const { QUIP_MOMENTS } = require(path.join(ROOT, 'game', 'BotQuips'));
   const { CELEBRATION_DEFS } = require(path.join(ROOT, 'game', 'Celebrations'));
   const SG = require(path.join(ROOT, 'game', 'StammtischGoals'));
+  const { XP_FOR_SOLVED } = require(path.join(ROOT, 'game', 'DailyPuzzle'));
   const stLevels = [1, 2, 3, 5, 10, 20];
   let stCum = 0;
   const stCumAt = {};
@@ -487,6 +488,7 @@ bilingual tables. Ids are stable, names may change.
 | Finishing a match (won or lost) | **${P.XP_BASE}** |
 | Winning it | **+${P.XP_WIN}** |
 | Final score | **+1 per ${perPoints} points** (never negative) |
+| Solving the daily puzzle (once a day, no game counted) | **+${XP_FOR_SOLVED}** |
 | First star of a bot tower stage (once per stage, no game counted) | **+${P.XP_TOWER_FIRST_STAR}** |
 
 Each level costs a little more than the last, so the first levels arrive

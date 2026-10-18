@@ -1622,13 +1622,23 @@ function recordTowerStage(gameRecord, sendTo) {
   const level = xp && progress ? levelFromXp(progress.totalXp) : null;
   sendTo(human.id, { type: 'towerResult', ...outcome, clearMargin: BotTower.CLEAR_MARGIN, progress, xp, level });
   if (badges.length) sendTo(human.id, { type: 'badges', earned: [{ name: human.name, badges }] });
-  // Only a verified account is booked (guests keep the profile XP alone).
-  if (xp && ACCOUNTS_ENABLED && typeof accountStore.addXp === 'function') {
-    Promise.resolve(accountStore.addXp(human.name, { xp, season: seasonForDate(gameDay()) }))
-      .then((prog) => {
-        if (prog) sendTo(human.id, { type: 'accountProgress', progress: prog });
-      })
-      .catch((err) => logCrash('tower-xp', err, { player: human.name }));
+  bookAccountXp(human.name, xp, { seated: true }, (prog) => sendTo(human.id, { type: 'accountProgress', progress: prog }));
+}
+
+/** XP earned outside a match (daily puzzle, bot tower): the verified account behind
+ *  `name` books it as lifetime and season XP, no game. A pre-table message needs its
+ *  owner's login token (a seat was checked at join). Guests keep the profile XP. Never throws. */
+async function bookAccountXp(name, xp, { seated = false, accountToken = null } = {}, onBooked = null) {
+  if (!xp || !ACCOUNTS_ENABLED || typeof accountStore.addXp !== 'function') return;
+  try {
+    if (!seated) {
+      const owner = await stammtischAccount({ accountToken });
+      if (!owner || owner.toLowerCase() !== String(name).trim().toLowerCase()) return;
+    }
+    const prog = await accountStore.addXp(name, { xp, season: seasonForDate(gameDay()) });
+    if (prog && onBooked) onBooked(prog);
+  } catch (err) {
+    logCrash('account-xp', err, { player: name });
   }
 }
 
@@ -2086,6 +2096,10 @@ wss.on('connection', (ws, req) => {
           const after = playerStore.addProgress(name, { xp: XP_FOR_SOLVED });
           xp = XP_FOR_SOLVED;
           level = levelFromXp(after.xp);
+          // The signed-in owner's account counts it too, season included.
+          bookAccountXp(name, XP_FOR_SOLVED, { accountToken: msg.accountToken }, (prog) => {
+            if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'accountProgress', progress: prog }));
+          });
           // A solved puzzle is a played day - it keeps the daily streak alive.
           try { streak = playerStore.touchDailyStreak(name, date); } catch (err) { logCrash('streak', err, { player: name }); }
           // Puzzle tiers (and a daily streak tier) right away, not at the next match.
