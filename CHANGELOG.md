@@ -3,6 +3,13 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.87.0] - 2026-10-18
+
+### Added
+- Der Bot-Turm steht jetzt auch auf dem Startbildschirm, unter den Stammtischen:
+  aktuelle Stufe und Sterne auf einen Blick, ein Tipp öffnet den Turm. Bei drei
+  gemerkten Stammtischen weicht dafür der älteste (er bleibt gespeichert).
+
 ## [2.86.0] - 2026-10-18
 
 ### Changed
