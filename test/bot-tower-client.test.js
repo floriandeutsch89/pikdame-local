@@ -254,3 +254,47 @@ test('public servers keep no profiles: no tower request, no tower sheet', () => 
   assert.strictEqual(t.sent('getTower').length, 0);
   t.window.close();
 });
+
+test('start screen: tower chip under the Stammtische, at most three rows in all', () => {
+  const tables = [{ code: 'ST1', name: 'Eins' }, { code: 'ST2', name: 'Zwei' }, { code: 'ST3', name: 'Drei' }];
+  const t = startScreen({ pikdame_stammtische: JSON.stringify(tables) });
+  const box = t.doc.getElementById('stammtischRecent');
+  const visible = () => [...box.querySelectorAll('.stRecentRow:not(.hidden)')];
+  assert.strictEqual(box.querySelector('.stTowerRow'), null, 'no chip without tower data');
+  assert.strictEqual(visible().length, 3);
+
+  t.ws.fire('message', towerInfo());
+  const chip = box.querySelector('.stTowerRow');
+  assert.ok(chip, 'chip once the data is there');
+  assert.strictEqual(box.lastElementChild, chip, 'below the Stammtische');
+  assert.strictEqual(chip.querySelector('.stChipInfo').textContent, 'Stufe 3 · 4/30');
+  assert.strictEqual(chip.getAttribute('aria-label'), 'Bot-Turm: Stufe 3, 4 von 30 Sternen');
+  assert.ok(chip.querySelector('.stTowerStar'));
+  assert.deepStrictEqual(visible().map((b) => b.dataset.code || 'tower'), ['ST1', 'ST2', 'tower'], 'the oldest table yields');
+  assert.strictEqual(JSON.parse(t.window.localStorage.getItem('pikdame_stammtische')).length, 3, 'but stays stored');
+
+  chip.click();
+  assert.ok(t.shown('towerOverlay'), 'a tap opens the tower sheet');
+  assert.deepStrictEqual(t.errors, []);
+  t.window.close();
+});
+
+test('start screen: invitation without stars, nothing in public mode', () => {
+  const t = startScreen();
+  t.ws.fire('message', towerInfo({ best: {}, stars: 0, cleared: 0, unlocked: 1 }));
+  const box = t.doc.getElementById('stammtischRecent');
+  const chip = box.querySelector('.stTowerRow');
+  assert.ok(!box.classList.contains('hidden'), 'shown even without a Stammtisch');
+  assert.strictEqual(chip.textContent, 'Bot-Turm10 Stufen');
+  assert.strictEqual(chip.querySelector('.stTowerStar'), null);
+  t.window.close();
+
+  const p = boot();
+  p.ws.fire('open');
+  p.ws.fire('message', { type: 'profiles', players: [], publicMode: true });
+  p.ws.fire('message', towerInfo());
+  assert.strictEqual(p.doc.querySelector('#stammtischRecent .stTowerRow'), null);
+  assert.ok(!p.shown('stammtischRecent'));
+  assert.deepStrictEqual(p.errors, []);
+  p.window.close();
+});
