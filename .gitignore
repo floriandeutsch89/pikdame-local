@@ -2,7 +2,7 @@ node_modules/
 *.log
 .DS_Store
 data/*.json
-# SQLite database + WAL/SHM sidecars (local account store, node:sqlite)
+# SQLite files of versions before PostgreSQL became mandatory
 data/*.db
 data/*.db-shm
 data/*.db-wal

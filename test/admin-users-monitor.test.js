@@ -7,18 +7,14 @@ const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
 const { spawn } = require('node:child_process');
-const { createAccountStore } = require('../game/AccountStore');
 const { createPgAccountStore } = require('../game/PgAccountStore');
 const { createMonitor, readCgroup, TIERS } = require('../game/Monitor');
 const AdminPage = require('../game/AdminPage');
 
-let HAS_SQLITE = true;
-try { require('node:sqlite'); } catch (e) { HAS_SQLITE = false; }
-const PG_URL = process.env.PIKDAME_TEST_PG_URL || '';
+const { testDatabaseUrl } = require('./helpers/test-db');
 
 function tmpDir(prefix) { return fs.mkdtempSync(path.join(os.tmpdir(), prefix)); }
 
-// The same contract for both backends.
 async function storeContract(store, uniq) {
   const name = `Flo${uniq}`;
   const r = await store.register(name, `flo${uniq}@example.org`, 'long-password-1');
@@ -64,29 +60,22 @@ async function storeContract(store, uniq) {
   assert.ok((await store.register(name, `flo${uniq}@example.org`, 'long-password-1')).ok, 'name and e-mail are free again');
 }
 
-test('AccountStore (SQLite): profile import, resend, list, delete', { skip: !HAS_SQLITE }, async () => {
-  const dir = tmpDir('pikdame-acc-');
-  const store = createAccountStore(path.join(dir, 'users.db'));
-  try { await storeContract(store, ''); } finally { store.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+test('AccountStore: profile import, resend, list, delete', async () => {
+  const store = createPgAccountStore(testDatabaseUrl('admusers'));
+  try { await storeContract(store, ''); } finally { await store.close(); }
 });
 
-test('AccountStore (SQLite): the import leaves the season of an older account alone', { skip: !HAS_SQLITE }, async () => {
-  const dir = tmpDir('pikdame-acc-');
-  const store = createAccountStore(path.join(dir, 'users.db'));
+test('AccountStore: the import leaves the season of an older account alone', async () => {
+  const store = createPgAccountStore(testDatabaseUrl('admusers'));
   try {
-    const r = store.register('Max', 'max@example.org', 'long-password-1');
-    store.verifyEmail(r.verifyToken);
-    store.addGameResult('Max', { xp: 30, season: '2026-09' });
-    const imp = store.importProfile('Max', { xp: 100, games: 2, wins: 0 });
+    const r = await store.register('Max', 'max@example.org', 'long-password-1');
+    await store.verifyEmail(r.verifyToken);
+    await store.addGameResult('Max', { xp: 30, season: '2026-09' });
+    const imp = await store.importProfile('Max', { xp: 100, games: 2, wins: 0 });
     assert.equal(imp.progress.xp, 100, 'level and lifetime XP lifted');
     assert.equal(imp.progress.season, '2026-09', 'no rollover by import');
     assert.equal(imp.progress.seasonXp, 30);
-  } finally { store.close(); fs.rmSync(dir, { recursive: true, force: true }); }
-});
-
-test('PgAccountStore: profile import, resend, list, delete', { skip: !PG_URL }, async () => {
-  const store = createPgAccountStore(PG_URL);
-  try { await storeContract(store, `${Date.now()}`.slice(-8)); } finally { await store.close(); }
+  } finally { await store.close(); }
 });
 
 test('Monitor: reads cgroup v2 numbers, keeps a capped history', () => {
@@ -198,7 +187,7 @@ function request(method, urlPath, { auth, body, json, headers = {} } = {}) {
   });
 }
 
-test('server: guest progress follows the name into the account; admin users + monitor tabs', { skip: !HAS_SQLITE }, async (t) => {
+test('server: guest progress follows the name into the account; admin users + monitor tabs', async (t) => {
   const dataDir = tmpDir('pikdame-adminusers-');
   // A guest who has played before registering.
   fs.writeFileSync(path.join(dataDir, 'players.json'), JSON.stringify({
@@ -206,7 +195,7 @@ test('server: guest progress follows the name into the account; admin users + mo
   }));
   const server = spawn('node', ['server.js'], {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_ADMIN_TOKEN: 'admin-test-token', PIKDAME_SMTP_HOST: '', PIKDAME_DATABASE_URL: '', PIKDAME_PUBLIC_MODE: '' },
+    env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_ADMIN_TOKEN: 'admin-test-token', PIKDAME_SMTP_HOST: '', PIKDAME_DATABASE_URL: testDatabaseUrl('admusers'), PIKDAME_PUBLIC_MODE: '' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let log = '';

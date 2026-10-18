@@ -1,115 +1,82 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
-const { createAccountStore } = require('../game/AccountStore');
+const { Pool } = require('pg');
+const { createPgAccountStore } = require('../game/PgAccountStore');
+const { testDatabaseUrl } = require('./helpers/test-db');
 
-// node:sqlite gibt es erst ab Node 22 - auf 18/20 (CI-Matrix) wird der
-// Store null und die Accounts sind deaktiviert. Genau das testen wir mit.
-const probe = createAccountStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikacc-')), 'probe.db'));
-const HAS_SQLITE = probe !== null;
-if (probe) probe.close();
-
-function freshStore() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikacc-'));
-  return createAccountStore(path.join(dir, 'users.db'));
+/** A store on a fresh schema; sql() reads and writes it directly. */
+function fresh() {
+  const url = testDatabaseUrl('acc');
+  const store = createPgAccountStore(url);
+  const pool = new Pool({ connectionString: url, max: 1 });
+  const close = async () => { await pool.end(); await store.close(); };
+  return { url, store, sql: async (q, params) => (await pool.query(q, params)).rows, close };
 }
 
-test('AccountStore: ohne node:sqlite (Node < 22) liefert die Factory null', () => {
-  if (HAS_SQLITE) {
-    assert.ok(createAccountStore !== null); // trivial - Verhalten gilt nur ohne sqlite
-    return;
-  }
-  assert.equal(probe, null);
-});
-
-test('AccountStore: Registrierung -> Verifikation -> Login (kompletter Flow)', { skip: !HAS_SQLITE }, () => {
-  const store = freshStore();
-  const r = store.register('Florian', 'flo@example.com', 'geheim123');
+test('AccountStore: Registrierung -> Verifikation -> Login (kompletter Flow)', async () => {
+  const { store, close } = fresh();
+  const r = await store.register('Florian', 'flo@example.com', 'geheim123');
   assert.ok(r.ok, JSON.stringify(r));
   assert.ok(r.verifyToken.length >= 32);
 
   // Vor der Bestätigung: Login verweigert
-  const early = store.login('Florian', 'geheim123');
+  const early = await store.login('Florian', 'geheim123');
   assert.match(early.error, /bestätigen/);
-
-  const v = store.verifyEmail(r.verifyToken);
-  assert.equal(v.ok, true);
-  assert.equal(v.username, 'Florian');
-  // Token ist verbraucht
-  assert.match(store.verifyEmail(r.verifyToken).error, /Ungültiger/);
-
-  const l = store.login('flo@example.com', 'geheim123'); // Login auch per E-Mail
-  assert.equal(l.ok, true);
-  assert.equal(l.username, 'Florian');
-  assert.deepEqual(store.sessionUser(l.token), { username: 'Florian' });
-
-  store.logout(l.token);
-  assert.equal(store.sessionUser(l.token), null);
-  store.close();
-});
-
-test('AccountStore: falsches Passwort, Duplikate, Validierung', { skip: !HAS_SQLITE }, () => {
-  const store = freshStore();
-  const r = store.register('Anna', 'anna@example.com', 'passwort99');
-  store.verifyEmail(r.verifyToken);
-  assert.match(store.login('Anna', 'falsch1234').error, /falsch/);
-  assert.match(store.register('anna', 'other@example.com', 'passwort99').error, /bereits registriert/); // case-insensitive
-  assert.match(store.register('Neu', 'ANNA@example.com', 'passwort99').error, /bereits registriert/);
-  assert.match(store.register('x', 'a@b.de', 'passwort99').error, /2-24 Zeichen/);
-  assert.match(store.register('Okname', 'keinemail', 'passwort99').error, /gültige E-Mail/);
-  assert.match(store.register('Okname', 'a@b.de', 'kurz').error, /8 Zeichen/);
-  store.close();
-});
-
-test('AccountStore: isRegisteredName schützt nur VERIFIZIERTE Namen', { skip: !HAS_SQLITE }, () => {
-  const store = freshStore();
-  const r = store.register('Opa', 'opa@example.com', 'passwort99');
-  assert.equal(store.isRegisteredName('Opa'), false, 'unverifiziert = ungeschützt');
-  store.verifyEmail(r.verifyToken);
-  assert.equal(store.isRegisteredName('Opa'), true);
-  assert.equal(store.isRegisteredName('Fremder'), false);
-  store.close();
-});
-
-// --- v1.17.0: PostgreSQL backend - same behavior as SQLite ------------------
-// Runs only when a test database is reachable (locally via installed
-// Postgres, in CI via a service container providing PIKDAME_TEST_PG_URL).
-const PG_URL = process.env.PIKDAME_TEST_PG_URL || '';
-const { createPgAccountStore } = require('../game/PgAccountStore');
-
-test('PgAccountStore: full flow (register -> verify -> login -> me -> logout)', { skip: !PG_URL }, async () => {
-  const store = createPgAccountStore(PG_URL);
-  assert.ok(store, "the 'pg' package must be installed for this test");
-  const suffix = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  const name = `Pg_${suffix}`;
-  const mail = `pg_${suffix}@example.com`;
-
-  const r = await store.register(name, mail, 'geheim123');
-  assert.ok(r.ok, JSON.stringify(r));
-  assert.match((await store.login(name, 'geheim123')).error, /bestätigen/);
 
   const v = await store.verifyEmail(r.verifyToken);
   assert.equal(v.ok, true);
+  assert.equal(v.username, 'Florian');
+  // Token ist verbraucht
   assert.match((await store.verifyEmail(r.verifyToken)).error, /Ungültiger/);
 
-  const l = await store.login(mail.toUpperCase(), 'geheim123'); // case-insensitive
-  assert.equal(l.ok, true, JSON.stringify(l));
-  assert.deepEqual(await store.sessionUser(l.token), { username: name });
-  assert.match((await store.login(name, 'falsch1234')).error, /falsch/);
-
-  assert.equal(await store.isRegisteredName(name.toUpperCase()), true);
-  assert.equal(await store.isRegisteredName('NobodyHere'), false);
-  assert.match((await store.register(name.toLowerCase(), 'x@y.de', 'geheim123')).error, /bereits registriert/);
+  const l = await store.login('flo@example.com', 'geheim123'); // Login auch per E-Mail
+  assert.equal(l.ok, true);
+  assert.equal(l.username, 'Florian');
+  assert.deepEqual(await store.sessionUser(l.token), { username: 'Florian' });
 
   await store.logout(l.token);
   assert.equal(await store.sessionUser(l.token), null);
-  await store.close();
+  await close();
 });
 
-test('AccountStore: season ladder books XP, ranks players and resets per season', { skip: !HAS_SQLITE }, async () => {
-  const store = freshStore();
+test('AccountStore: falsches Passwort, Duplikate, Validierung', async () => {
+  const { store, close } = fresh();
+  const r = await store.register('Anna', 'anna@example.com', 'passwort99');
+  await store.verifyEmail(r.verifyToken);
+  assert.match((await store.login('Anna', 'falsch1234')).error, /falsch/);
+  assert.match((await store.register('anna', 'other@example.com', 'passwort99')).error, /bereits registriert/); // case-insensitive
+  assert.match((await store.register('Neu', 'ANNA@example.com', 'passwort99')).error, /bereits registriert/);
+  assert.match((await store.register('x', 'a@b.de', 'passwort99')).error, /2-24 Zeichen/);
+  assert.match((await store.register('Okname', 'keinemail', 'passwort99')).error, /gültige E-Mail/);
+  assert.match((await store.register('Okname', 'a@b.de', 'kurz')).error, /8 Zeichen/);
+  await close();
+});
+
+test('AccountStore: isRegisteredName schützt nur VERIFIZIERTE Namen', async () => {
+  const { store, close } = fresh();
+  const r = await store.register('Opa', 'opa@example.com', 'passwort99');
+  assert.equal(await store.isRegisteredName('Opa'), false, 'unverifiziert = ungeschützt');
+  await store.verifyEmail(r.verifyToken);
+  assert.equal(await store.isRegisteredName('Opa'), true);
+  assert.equal(await store.isRegisteredName('Fremder'), false);
+  await close();
+});
+
+test('AccountStore: expired unverified accounts are purged on the next register (name and mail become free)', async () => {
+  const { store, sql, close } = fresh();
+  assert.ok((await store.register('Flo', 'flo@example.org', 'geheim123')).ok, 'first register works');
+  assert.ok((await store.register('Flo', 'flo@example.org', 'geheim123')).error, 'unverified but unexpired still blocks');
+  await sql('UPDATE users SET verify_expires = $1 WHERE username = $2', [Date.now() - 1000, 'Flo']);
+  const r3 = await store.register('Flo', 'flo@example.org', 'geheim123');
+  assert.ok(r3.ok, 'expired unverified account was purged - re-register works');
+  assert.match((await store.login('Flo', 'geheim123')).error, /bestätigen/, 'login stays blocked until verified');
+  assert.ok((await store.verifyEmail(r3.verifyToken)).ok);
+  assert.ok((await store.login('Flo', 'geheim123')).ok, 'login works after confirmation');
+  await close();
+});
+
+test('AccountStore: season ladder books XP, ranks players and resets per season', async () => {
+  const { store, close } = fresh();
   const signUp = async (name) => {
     const r = await store.register(name, `${name.toLowerCase()}@example.com`, 'geheim123');
     await store.verifyEmail(r.verifyToken);
@@ -117,99 +84,75 @@ test('AccountStore: season ladder books XP, ranks players and resets per season'
   await signUp('Flo');
   await signUp('Erika');
 
-  assert.equal(store.progressFor('Flo').xp, 0, 'a fresh account starts at zero');
-  assert.deepEqual(store.ladder('2026-08'), [], 'nobody has played yet');
+  assert.equal((await store.progressFor('Flo')).xp, 0, 'a fresh account starts at zero');
+  assert.deepEqual(await store.ladder('2026-08'), [], 'nobody has played yet');
 
-  store.addGameResult('Flo', { xp: 160, won: true, season: '2026-08' });
-  store.addGameResult('Flo', { xp: 50, won: false, season: '2026-08' });
-  store.addGameResult('Erika', { xp: 300, won: true, season: '2026-08' });
+  await store.addGameResult('Flo', { xp: 160, won: true, season: '2026-08' });
+  await store.addGameResult('Flo', { xp: 50, won: false, season: '2026-08' });
+  await store.addGameResult('Erika', { xp: 300, won: true, season: '2026-08' });
 
-  const flo = store.progressFor('Flo');
+  const flo = await store.progressFor('Flo');
   assert.equal(flo.xp, 210);
   assert.equal(flo.seasonXp, 210);
   assert.equal(flo.games, 2);
   assert.equal(flo.wins, 1);
   assert.equal(flo.rank, 2, 'Erika has more seasonal XP');
-  assert.equal(store.progressFor('Erika').rank, 1);
+  assert.equal((await store.progressFor('Erika')).rank, 1);
 
-  const board = store.ladder('2026-08');
+  const board = await store.ladder('2026-08');
   assert.deepEqual(board.map((e) => e.username), ['Erika', 'Flo'], 'highest seasonal XP first');
 
   // New season: the seasonal counter restarts, the lifetime total does not.
-  store.addGameResult('Flo', { xp: 40, won: false, season: '2026-09' });
-  const next = store.progressFor('Flo');
+  await store.addGameResult('Flo', { xp: 40, won: false, season: '2026-09' });
+  const next = await store.progressFor('Flo');
   assert.equal(next.seasonXp, 40, 'season reset');
   assert.equal(next.xp, 250, 'lifetime XP keeps accumulating');
-  assert.deepEqual(store.ladder('2026-08').map((e) => e.username), ['Erika'], 'old season keeps its own board');
+  assert.deepEqual((await store.ladder('2026-08')).map((e) => e.username), ['Erika'], 'old season keeps its own board');
 
   // Unknown and unverified accounts are never booked.
-  assert.equal(store.addGameResult('Niemand', { xp: 100, season: '2026-09' }), null);
+  assert.equal(await store.addGameResult('Niemand', { xp: 100, season: '2026-09' }), null);
   const unverified = await store.register('Gast', 'gast@example.com', 'geheim123');
   assert.ok(unverified.ok);
-  assert.equal(store.addGameResult('Gast', { xp: 100, season: '2026-09' }), null, 'unverified accounts stay out of the ladder');
-  await store.close();
+  assert.equal(await store.addGameResult('Gast', { xp: 100, season: '2026-09' }), null, 'unverified accounts stay out of the ladder');
+  await close();
 });
 
-test('AccountStore: addXp books lifetime and season XP without counting a game (bot tower)', { skip: !HAS_SQLITE }, async () => {
-  const store = freshStore();
+test('AccountStore: addXp books lifetime and season XP without counting a game (bot tower)', async () => {
+  const { store, sql, close } = fresh();
   const r = await store.register('Turm', 'turm@example.com', 'geheim123');
   await store.verifyEmail(r.verifyToken);
-  store.addGameResult('Turm', { xp: 60, won: true, season: '2026-10' });
-  const p = store.addXp('Turm', { xp: 25, season: '2026-10' });
+  await store.addGameResult('Turm', { xp: 60, won: true, season: '2026-10' });
+  const p = await store.addXp('Turm', { xp: 25, season: '2026-10' });
   assert.deepEqual([p.xp, p.seasonXp, p.games, p.wins], [85, 85, 1, 1], 'XP grows, the game counters do not');
-  const next = store.addXp('Turm', { xp: 25, season: '2026-11' });
+  const next = await store.addXp('Turm', { xp: 25, season: '2026-11' });
   assert.deepEqual([next.xp, next.seasonXp, next.games], [110, 25, 1], 'a new season starts from this XP');
-  assert.equal(store._db.prepare('SELECT season_games FROM users WHERE username = ?').get('Turm').season_games, 0, 'no season game either');
-  const archived = store._db.prepare('SELECT season, season_xp, season_games FROM season_archive WHERE user_id = (SELECT id FROM users WHERE username = ?)').get('Turm');
+  assert.equal((await sql('SELECT season_games FROM users WHERE username = $1', ['Turm']))[0].season_games, 0, 'no season game either');
+  const [archived] = await sql('SELECT season, season_xp::int AS season_xp, season_games FROM season_archive WHERE user_id = (SELECT id FROM users WHERE username = $1)', ['Turm']);
   assert.deepEqual({ ...archived }, { season: '2026-10', season_xp: 85, season_games: 1 }, 'the finished season is archived');
-  assert.equal(store.addXp('Niemand', { xp: 25, season: '2026-11' }), null, 'a guest has no account to book');
+  assert.equal(await store.addXp('Niemand', { xp: 25, season: '2026-11' }), null, 'a guest has no account to book');
   const unverified = await store.register('Gast', 'gast@example.com', 'geheim123');
   assert.ok(unverified.ok);
-  assert.equal(store.addXp('Gast', { xp: 25, season: '2026-11' }), null, 'unverified accounts are not booked');
-  await store.close();
+  assert.equal(await store.addXp('Gast', { xp: 25, season: '2026-11' }), null, 'unverified accounts are not booked');
+  await close();
 });
 
-test('PgAccountStore: addXp books lifetime and season XP without counting a game (bot tower)', { skip: !PG_URL }, async () => {
-  const store = createPgAccountStore(PG_URL);
-  const suffix = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  const name = `Turm_${suffix}`;
-  const r = await store.register(name, `turm_${suffix}@example.com`, 'geheim123');
-  await store.verifyEmail(r.verifyToken);
-  await store.addGameResult(name, { xp: 60, won: true, season: '2026-10' });
-  const p = await store.addXp(name, { xp: 25, season: '2026-10' });
-  assert.deepEqual([p.xp, p.seasonXp, p.games, p.wins], [85, 85, 1, 1], 'XP grows, the game counters do not');
-  const next = await store.addXp(name, { xp: 25, season: '2026-11' });
-  assert.deepEqual([next.xp, next.seasonXp, next.games], [110, 25, 1], 'a new season starts from this XP');
-  assert.equal(await store.addXp(`Niemand_${suffix}`, { xp: 25, season: '2026-11' }), null, 'a guest has no account to book');
-  await store.close();
-});
-
-test('AccountStore: an existing database without the progression columns migrates', { skip: !HAS_SQLITE }, async () => {
-  // The data volume survives updates, so users.db from an older version must
-  // gain the new columns instead of throwing "no such column" forever.
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikacc-'));
-  const dbFile = path.join(dir, 'users.db');
-  const { DatabaseSync } = require('node:sqlite');
-  const old = new DatabaseSync(dbFile);
-  old.exec(`CREATE TABLE users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT NOT NULL UNIQUE COLLATE NOCASE,
-    email TEXT NOT NULL UNIQUE COLLATE NOCASE,
-    password_hash BLOB NOT NULL, salt TEXT NOT NULL,
-    verified INTEGER NOT NULL DEFAULT 0, verify_token TEXT,
-    verify_expires INTEGER, created_at INTEGER NOT NULL);`);
-  old.close();
-
-  const store = createAccountStore(dbFile);
+test('AccountStore: an existing database without the progression columns migrates', async () => {
+  // The database survives updates, so a users table from an older version must
+  // gain the new columns instead of failing with "column does not exist" forever.
+  const { store, sql, close } = fresh();
+  await sql(`CREATE TABLE users (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, username TEXT NOT NULL, email TEXT NOT NULL,
+    password_hash BYTEA NOT NULL, salt TEXT NOT NULL, verified BOOLEAN NOT NULL DEFAULT FALSE,
+    verify_token TEXT, verify_expires BIGINT, created_at BIGINT NOT NULL)`);
   const r = await store.register('Alt', 'alt@example.com', 'geheim123');
   await store.verifyEmail(r.verifyToken);
-  assert.equal(store.progressFor('Alt').xp, 0, 'migrated column readable');
-  store.addGameResult('Alt', { xp: 70, won: true, season: '2026-08' });
-  assert.equal(store.progressFor('Alt').seasonXp, 70);
-  await store.close();
+  assert.equal((await store.progressFor('Alt')).xp, 0, 'migrated column readable');
+  await store.addGameResult('Alt', { xp: 70, won: true, season: '2026-08' });
+  assert.equal((await store.progressFor('Alt')).seasonXp, 70);
+  await close();
 });
 
-// --- Year-review mail (opt-in): one contract, SQLite AND Postgres ----------
+// --- Year-review mail (opt-in) ----------------------------------------------
 // raw.forceOptIn flips the flag in the database directly: the API cannot reach
 // an unverified account, and exactly that one must still never get mail.
 // raw.consentOf reads the stored version of the consent text.
@@ -267,54 +210,32 @@ async function reviewMailContract(store, tag, raw) {
   assert.strictEqual(await raw.consentOf(a), 'v2', 'switching off records no consent');
 }
 
-test('AccountStore: year-review mail opt-in, once per year, unsubscribe token', { skip: !HAS_SQLITE }, async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikacc-'));
-  const dbFile = path.join(dir, 'users.db');
-  const store = createAccountStore(dbFile);
-  const { DatabaseSync } = require('node:sqlite');
-  const sql = (fn) => { const db = new DatabaseSync(dbFile); try { return fn(db); } finally { db.close(); } };
-  await reviewMailContract(store, 'S', {
-    forceOptIn: (name) => sql((db) => db.prepare('UPDATE users SET review_mail = 1 WHERE username = ?').run(name)),
-    consentOf: (name) => sql((db) => db.prepare('SELECT review_mail_consent AS v FROM users WHERE username = ?').get(name).v),
-  });
-  await store.close();
-});
-
-test('PgAccountStore: year-review mail opt-in, once per year, unsubscribe token', { skip: !PG_URL }, async () => {
-  const store = createPgAccountStore(PG_URL);
-  const { Pool } = require('pg');
-  const pool = new Pool({ connectionString: PG_URL });
+test('AccountStore: year-review mail opt-in, once per year, unsubscribe token', async () => {
+  const { store, sql, close } = fresh();
   try {
-    await reviewMailContract(store, Date.now().toString(36).slice(-5), {
-      forceOptIn: (name) => pool.query('UPDATE users SET review_mail = TRUE WHERE username = $1', [name]),
-      consentOf: async (name) => (await pool.query('SELECT review_mail_consent AS v FROM users WHERE username = $1', [name])).rows[0].v,
+    await reviewMailContract(store, 'P', {
+      forceOptIn: (name) => sql('UPDATE users SET review_mail = TRUE WHERE username = $1', [name]),
+      consentOf: async (name) => (await sql('SELECT review_mail_consent AS v FROM users WHERE username = $1', [name]))[0].v,
     });
   } finally {
-    await pool.end();
-    await store.close();
+    await close();
   }
 });
 
-test('AccountStore: a database from before the year review gains its columns, all off', { skip: !HAS_SQLITE }, async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikacc-'));
-  const dbFile = path.join(dir, 'users.db');
-  const first = createAccountStore(dbFile);
+test('AccountStore: a database from before the year review gains its columns, all off', async () => {
+  const { url, store: first, sql, close } = fresh();
   const r = await first.register('Vorher', 'vorher@example.com', 'geheim123');
   await first.verifyEmail(r.verifyToken);
-  await first.close();
   // Back to the schema before the year review: the columns did not exist yet.
-  const { DatabaseSync } = require('node:sqlite');
-  const raw = new DatabaseSync(dbFile);
   for (const col of ['review_mail', 'review_mail_at', 'review_mail_lang', 'review_mail_year', 'review_unsub_hash', 'review_mail_consent']) {
-    raw.exec(`ALTER TABLE users DROP COLUMN ${col}`);
+    await sql(`ALTER TABLE users DROP COLUMN ${col}`);
   }
-  raw.close();
-
-  const store = createAccountStore(dbFile);
+  const store = createPgAccountStore(url); // a restart runs the schema again
   const acc = await store.accountForSession((await store.login('Vorher', 'geheim123')).token);
   assert.strictEqual(acc.reviewMail, false, 'the migration never opts an old account in');
   assert.deepStrictEqual(await store.reviewMailRecipients('2026'), []);
   await store.close();
+  await close();
 });
 
 test('PgAccountStore: unreachable database degrades gracefully (no throw, fails closed)', async () => {

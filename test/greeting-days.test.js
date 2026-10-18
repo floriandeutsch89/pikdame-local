@@ -10,9 +10,7 @@ const { spawn } = require('node:child_process');
 const { parseGreetingDays, greetingWindow } = require('../game/GreetingDays');
 const { gameDay } = require('../game/GameDay');
 
-let HAS_SQLITE = true;
-try { require('node:sqlite'); } catch (e) { HAS_SQLITE = false; }
-const PG_URL = process.env.PIKDAME_TEST_PG_URL || '';
+const { testDatabaseUrl } = require('./helpers/test-db');
 const HOUR = 60 * 60 * 1000;
 
 test('greeting days: parsing keeps valid entries and reports broken ones by position only', () => {
@@ -137,7 +135,4 @@ async function meJourney(t, port, databaseUrl, suffix) {
   assert.ok(!warning.includes(other) && !warning.includes('02-30'), 'logged by position, never by value');
 }
 
-test('greeting days: /api/me tells the configured account only (SQLite)', { skip: !HAS_SQLITE && 'needs node:sqlite' },
-  (t) => meJourney(t, 8101, '', ''));
-test('greeting days: /api/me tells the configured account only (PostgreSQL)', { skip: !PG_URL && 'needs PIKDAME_TEST_PG_URL' },
-  (t) => meJourney(t, 8102, PG_URL, String(Date.now() % 100000)));
+test('greeting days: /api/me tells the configured account only', (t) => meJourney(t, 8101, testDatabaseUrl('greeting'), ''));

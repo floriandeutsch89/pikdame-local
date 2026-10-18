@@ -1,21 +1,14 @@
 // game/PgAccountStore.js
-// PostgreSQL backend for user accounts - same API surface as the SQLite
-// store in AccountStore.js, but async (every method returns a promise).
-//
-// Why Postgres for larger deployments: a NETWORKED shared database is the
-// prerequisite for ever running more than one server instance - a local
-// SQLite file on a volume structurally rules that out. For a single
-// container SQLite remains a perfectly fine zero-config fallback.
-//
-// The 'pg' package is pure JavaScript (no native module) and is required
-// LAZILY: environments without it (or without PIKDAME_DATABASE_URL, e.g.
-// iOS CodeApp) never touch this file's fast path.
+// User accounts in PostgreSQL (the only backend; every method is async).
+// Registration with e-mail confirmation, login, passkeys, progression and
+// season ladder; passwords hashed with scrypt + salt, tokens 32 random bytes.
 //
 // Resilience: ensureReady() creates the schema on first use and retries on
 // connection errors - if Postgres is temporarily down, account API calls
 // fail with a clear message and recover automatically once it is back.
 const crypto = require('crypto');
 const { SEASON_ID_RE, seasonStandings } = require('./Progression');
+const { createPool } = require('./Database');
 
 const SCRYPT_KEYLEN = 64;
 const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
@@ -139,36 +132,13 @@ const SCHEMA = `
 `;
 
 /**
- * @param {string} databaseUrl postgres://user:pass@host:5432/db
- * @returns {Object|null} async store API, or null when 'pg' is unavailable
+ * @param {string|import('pg').Pool} db connection string (own pool, ended by
+ *   close()) or the server's shared pool (left open by close())
+ * @returns {Object} async store API
  */
-function createPgAccountStore(databaseUrl, options = {}) {
-  let Pool;
-  try {
-    ({ Pool } = require('pg'));
-  } catch (e) {
-    return null; // pg not installed (e.g. stripped-down environment)
-  }
-
-  // An explicit password (e.g. from a Docker secret file) is injected into
-  // the connection URL - the compose file can then carry a secret-free URL.
-  // (Passing it as a separate pool option is unreliable when a
-  // connectionString is present, verified empirically against pg 8.)
-  let connectionString = databaseUrl;
-  if (options.password) {
-    const u = new URL(databaseUrl);
-    u.password = options.password; // URL handles the encoding
-    connectionString = u.toString();
-  }
-
-  const pool = new Pool({
-    connectionString,
-    max: 10,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000,
-  });
-  // A broken idle client must never crash the process.
-  pool.on('error', (err) => console.error('Postgres pool error:', err.message));
+function createPgAccountStore(db) {
+  const ownsPool = typeof db === 'string';
+  const pool = ownsPool ? createPool(db) : db;
 
   let readyPromise = null;
   function ensureReady() {
@@ -209,10 +179,8 @@ function createPgAccountStore(databaseUrl, options = {}) {
   }
 
   async function register(username, email, password) {
-    // Opt-in-Hygiene (siehe AccountStore): abgelaufene Unbestätigte räumen.
-    // Fehler-tolerant: Hygiene darf die Registrierung nie blockieren - und
-    // bei unerreichbarer DB übernimmt die reguläre Fehlerbehandlung unten
-    // (fails closed, wirft nicht - siehe Degradations-Test).
+    // Unconfirmed accounts with an expired link would block name and e-mail
+    // forever. Best effort: an unreachable DB is handled below (fails closed).
     try {
       await pool.query('DELETE FROM users WHERE verified = FALSE AND verify_expires < $1', [Date.now()]);
     } catch (e) { /* Cleanup ist Komfort */ }
@@ -286,7 +254,7 @@ function createPgAccountStore(databaseUrl, options = {}) {
       if (!row || !match) return { error: 'Benutzername/E-Mail oder Passwort ist falsch.' };
       if (!row.verified) return { error: 'Bitte zuerst die E-Mail-Adresse bestätigen (Link in der Mail).' };
       const token = randomToken();
-      // Prune expired sessions on login (see AccountStore) - failure-tolerant,
+      // Prune expired sessions on login - failure-tolerant,
       // housekeeping must never block a login.
       await pool.query('DELETE FROM sessions WHERE created_at < $1', [Date.now() - SESSION_TTL_MS]).catch(() => {});
       await pool.query('INSERT INTO sessions (token, user_id, created_at) VALUES ($1, $2, $3)', [token, row.id, Date.now()]);
@@ -341,8 +309,8 @@ function createPgAccountStore(databaseUrl, options = {}) {
   }
 
   // --- Progression: XP, level and the seasonal ladder ----------------------
-  // Same contract as the SQLite store. Every path fails SOFT (null / empty
-  // list): a ladder that cannot be read must never break a finished game.
+  // Every path fails SOFT (null / empty list): a ladder that cannot be read
+  // must never break a finished game.
 
   async function addGameResult(username, { xp = 0, won = false, season = null } = {}) {
     try {
@@ -351,14 +319,14 @@ function createPgAccountStore(databaseUrl, options = {}) {
       // season_xp/season_games reset when the stored season differs from the
       // current one; lifetime xp keeps accumulating. The row lock serializes
       // two games finishing at once, the archive keeps the finished season.
-      await withTransaction(async (c) => {
+      const booked = await withTransaction(async (c) => {
         const r = await c.query(
           `SELECT id, season, season_xp, season_games FROM users
             WHERE LOWER(username) = LOWER($1) AND verified = TRUE FOR UPDATE`,
           [String(username || '').trim()]
         );
         const row = r.rows[0];
-        if (!row) return;
+        if (!row) return false;
         if (season && row.season !== season) await archiveSeason(c, row);
         await c.query(
           `UPDATE users
@@ -371,15 +339,16 @@ function createPgAccountStore(databaseUrl, options = {}) {
             WHERE id = $1`,
           [row.id, gain, won ? 1 : 0, season]
         );
+        return true;
       });
-      return await progressFor(username);
+      return booked ? await progressFor(username) : null;
     } catch (e) {
       console.error('Postgres addGameResult failed:', e.message);
       return null;
     }
   }
 
-  /** Same contract as AccountStore.addXp: lifetime and season XP, no game booked. */
+  /** XP from outside a match (bot tower first star): lifetime and season XP, no game booked. */
   async function addXp(username, { xp = 0, season = null } = {}) {
     try {
       await ensureReady();
@@ -413,9 +382,9 @@ function createPgAccountStore(databaseUrl, options = {}) {
   }
 
   /**
-   * Same contract as AccountStore.importProfile: once per account, lift the
-   * account up TO the guest profile's values (no double counting), season
-   * untouched. ONE statement: the profile_imported guard makes a concurrent
+   * The guest profile's progress (PlayerStore) once per account: lift the
+   * account up TO its values (no double counting), season untouched - guest
+   * XP never buys a podium. ONE statement: the profile_imported guard makes a concurrent
    * second call a no-op.
    */
   async function importProfile(username, { xp = 0, games = 0, wins = 0 } = {}) {
@@ -512,7 +481,8 @@ function createPgAccountStore(databaseUrl, options = {}) {
   }
 
   // --- Passkeys (WebAuthn) and e-mail login links ----------------------------
-  // Same contract as AccountStore.js (SQLite); see the comments there.
+  // The WebAuthn ceremony lives in Passkeys.js; this store keeps the
+  // credential's public key and signature counter.
 
   const credRow = (r) => ({
     id: r.id,
@@ -933,8 +903,9 @@ function createPgAccountStore(databaseUrl, options = {}) {
     }
   }
 
-  /** Same contract as AccountStore.finalizeSeasons; one finalizer at a time
-   *  (advisory lock), the finals row is the idempotence key. Fails soft:
+  /** Final standings of every ended season, once: places, awards; one
+   *  finalizer at a time (advisory lock), the finals row is the idempotence
+   *  key. `from` overrides the first season (tests). Fails soft:
    *  null = not done (the server asks again). */
   async function finalizeSeasons(currentSeason, { from = null } = {}) {
     const cur = String(currentSeason || '');
@@ -943,7 +914,7 @@ function createPgAccountStore(databaseUrl, options = {}) {
       await ensureReady();
       return await withTransaction(async (c) => {
         await c.query('SELECT pg_advisory_xact_lock(7311001)');
-        // Same first-season rule as the SQLite store.
+        // Rollovers are archived since the season this code first ran in; older ones are never finalized.
         let since = from;
         if (!since) {
           await c.query(
@@ -1039,7 +1010,7 @@ function createPgAccountStore(databaseUrl, options = {}) {
   }
 
   async function close() {
-    await pool.end().catch(() => {});
+    if (ownsPool) await pool.end().catch(() => {});
   }
 
   return {

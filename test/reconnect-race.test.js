@@ -17,6 +17,7 @@ const assert = require('node:assert');
 const { spawn } = require('node:child_process');
 const path = require('node:path');
 const WebSocket = require('ws');
+const { testDatabaseUrl } = require('./helpers/test-db');
 
 const ROOT = path.join(__dirname, '..');
 const PORT = 8091;
@@ -68,7 +69,7 @@ function waitFor(ws, type, timeoutMs = 4000) {
 test('a late close from the OLD socket must not mark a reconnected player as gone', async (t) => {
   const server = spawn('node', ['server.js'], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(PORT), PIKDAME_PUBLIC_MODE: '1' },
+    env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('reconnect_race'), PORT: String(PORT), PIKDAME_PUBLIC_MODE: '1' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   t.after(() => server.kill());

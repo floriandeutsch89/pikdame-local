@@ -43,7 +43,7 @@ function parseUrl(value) {
 /**
  * @param {object} env  process.env (or a test double)
  * @param {object} facts runtime facts the env alone cannot tell:
- *   dataDir, dataDirWritable, accountsEnabled, accountsBackend ('postgres'|'sqlite'),
+ *   dataDir, dataDirWritable, accountsEnabled,
  *   onnxActive (bool|null), adminMode ('off'|'argon2'|'plain'|'invalid'|'unsupported')
  * @returns {{ id, label, status: 'ok'|'warn'|'off'|'error', detail: string, missing: string[],
  *            vars: { name: string, set: boolean, value?: string, secret?: boolean }[] }[]}
@@ -82,12 +82,13 @@ function buildConfigReport(env, facts = {}) {
   const accountsOff = env.PIKDAME_ACCOUNTS === '0';
   if (accountsOff) {
     add('accounts', 'Benutzerkonten', 'off', 'abgeschaltet (PIKDAME_ACCOUNTS=0)');
-  } else if (!facts.accountsEnabled) {
-    add('accounts', 'Benutzerkonten', 'error', 'nicht verfügbar (node:sqlite fehlt und keine PostgreSQL-URL)');
   } else {
-    add('accounts', 'Benutzerkonten', 'ok', `aktiv (${facts.accountsBackend === 'postgres' ? 'PostgreSQL' : 'SQLite im Datenverzeichnis'})`);
+    add('accounts', 'Benutzerkonten', 'ok', 'aktiv');
   }
-  if (env.PIKDAME_DATABASE_URL) {
+  // Mandatory: the server does not start without it, the report says so anyway.
+  if (!env.PIKDAME_DATABASE_URL) {
+    add('database', 'Datenbank', 'error', 'PIKDAME_DATABASE_URL fehlt - ohne PostgreSQL startet der Server nicht', ['PIKDAME_DATABASE_URL']);
+  } else {
     const url = parseUrl(env.PIKDAME_DATABASE_URL);
     const hasPassword = !!(url && url.password) || isSet(env, 'PIKDAME_DATABASE_PASSWORD');
     if (!url) add('database', 'Datenbank', 'error', 'PIKDAME_DATABASE_URL ist keine gültige URL', ['PIKDAME_DATABASE_URL']);

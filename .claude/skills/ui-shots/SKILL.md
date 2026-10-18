@@ -68,9 +68,9 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   the `ui-review` skill explains how.
 
 The script starts its own server on a **temp `PIKDAME_DATA_DIR`** and kills it
-afterwards. That matters: a dev server on `data/` keeps `users.db` open, and
-the next `npm test` then fails in `reconnect-race.test.js` with a SQLite
-"disk I/O error". Never leave a server of your own running on `data/`.
+afterwards. PostgreSQL is required: with `PIKDAME_TEST_PG_URL` set it uses a
+fresh schema of that database (like the tests), otherwise `PIKDAME_DATABASE_URL`.
+Never leave a server of your own running on `data/`.
 
 ## How the mocks work
 

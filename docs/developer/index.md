@@ -21,6 +21,9 @@ contributing
 git clone https://github.com/floriandeutsch89/pikdame-local.git
 cd pikdame-local
 npm install
+# PostgreSQL is required, for the server and for the tests:
+export PIKDAME_DATABASE_URL=postgres://pikdame@localhost:5432/pikdame
+export PIKDAME_TEST_PG_URL=postgres://pikdame@localhost:5432/pikdame_test
 npm start                 # → http://localhost:8080
 npm test                  # full suite (~240 tests)
 node scripts/client-boot-smoke.js   # renders the client headlessly

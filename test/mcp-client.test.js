@@ -11,6 +11,7 @@ const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
 const { PikdameClient } = require('../mcp/PikdameClient');
+const { testDatabaseUrl } = require('./helpers/test-db');
 
 const ROOT = path.join(__dirname, '..');
 const PORT = 8097;
@@ -33,7 +34,7 @@ test('an MCP seat plays a full round against bots on a real server', { timeout: 
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-mcp-'));
   const server = spawn('node', ['server.js'], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(PORT), PIKDAME_PUBLIC_MODE: '1', PIKDAME_DATA_DIR: dataDir, PIKDAME_ONNX: '0' },
+    env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('mcp_client'), PORT: String(PORT), PIKDAME_PUBLIC_MODE: '1', PIKDAME_DATA_DIR: dataDir, PIKDAME_ONNX: '0' },
     stdio: ['ignore', 'ignore', 'ignore'],
   });
   const client = new PikdameClient({ url: `ws://127.0.0.1:${PORT}`, name: 'Claude' });

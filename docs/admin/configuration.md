@@ -19,17 +19,19 @@ PIKDAME_DATABASE_PASSWORD_FILE=/run/secrets/db_password
 
 The file's contents are read once at startup and trimmed.
 
-## Accounts: SQLite or PostgreSQL?
+## Database: PostgreSQL is required
+
+**`PIKDAME_DATABASE_URL` is mandatory.** Without it the server logs why and
+exits. The compose files in `docker/` start a PostgreSQL container and set the
+URL. Back it up with `pg_dump` (see {doc}`backup-restore`).
 
 Accounts are **optional** (`PIKDAME_ACCOUNTS=0` disables them entirely — guests
-can still play, they just get no profile).
+can still play, they just get no profile). The database stays required either
+way.
 
-- **No `PIKDAME_DATABASE_URL`** → accounts go into a SQLite file, `users.db`,
-  inside the data directory. Perfect for a family server. Back up the file.
-- **`PIKDAME_DATABASE_URL` set** → PostgreSQL. Use this for a public server; back
-  it up with `pg_dump` (see {doc}`backup-restore`).
-
-Switching from SQLite to PostgreSQL does **not** migrate existing accounts.
+Older versions kept accounts in a SQLite file (`users.db`) when no URL was set.
+That fallback is gone and such a file is **not** migrated: move to PostgreSQL
+with an earlier version first if you still run one.
 
 ## Sign-up, passkeys and sign-in links
 

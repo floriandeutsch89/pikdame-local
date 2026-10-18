@@ -288,7 +288,12 @@ function waitForHttp(port, ms = 20000) {
 
 (async () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-shots-data-'));
-  const server = spawn('node', ['server.js'], { cwd: ROOT, env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir }, stdio: 'ignore' });
+  // Postgres is mandatory: a fresh schema of the test database, like the tests use.
+  const databaseUrl = process.env.PIKDAME_TEST_PG_URL
+    ? require(path.join(ROOT, 'test/helpers/test-db.js')).testDatabaseUrl('uishots')
+    : process.env.PIKDAME_DATABASE_URL;
+  if (!databaseUrl) throw new Error('set PIKDAME_TEST_PG_URL (or PIKDAME_DATABASE_URL): the server needs PostgreSQL');
+  const server = spawn('node', ['server.js'], { cwd: ROOT, env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_DATABASE_URL: databaseUrl }, stdio: 'ignore' });
   // The server flushes its snapshot on SIGTERM: wait for it before deleting.
   const exited = new Promise((r) => server.once('exit', r));
   const cleanup = async () => {

@@ -10,6 +10,7 @@ const { spawn } = require('node:child_process');
 const WebSocket = require('ws');
 const GameManager = require('../game/GameManager');
 const { createDeck } = require('../game/Deck');
+const { testDatabaseUrl } = require('./helpers/test-db');
 
 const REFERENCE = (() => {
   const counts = new Map();
@@ -347,7 +348,7 @@ test('server: joining a running session by code takes over a bot seat with its c
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-join-'));
   const server = spawn('node', ['server.js'], {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir },
+    env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('join_takeover'), PORT: String(PORT), PIKDAME_DATA_DIR: dataDir },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   t.after(async () => {
@@ -405,7 +406,7 @@ test('server: a newcomer takes over a seat given up for good; the leaver\'s tab 
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-join-left-'));
   const server = spawn('node', ['server.js'], {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir },
+    env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('join_takeover'), PORT: String(PORT), PIKDAME_DATA_DIR: dataDir },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   t.after(async () => {

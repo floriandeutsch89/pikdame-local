@@ -10,8 +10,7 @@ bottom of this page once — it takes five minutes and is the only way to know.
 | What | Where | Lose it and… |
 | --- | --- | --- |
 | Profiles, stats, achievements, history | `players.json`, `stats.json`, `games.json`, `challenges.json` in the data volume | …everyone's statistics and badges are gone. The game still works. |
-| Accounts (SQLite) | `users.db` in the data volume | …people can't log in. Guests unaffected. |
-| Accounts (PostgreSQL) | the database | …same, but it lives outside the volume. |
+| Accounts | the PostgreSQL database | …people can't log in. Guests unaffected. It lives outside the volume. |
 | Running games | `sessions-snapshot.json` | …nothing, long-term. Rewritten every minute while tables change and on shutdown; deleted once restored. |
 
 Everything else — the image, the code, the config — is reproducible from Git and

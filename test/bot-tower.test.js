@@ -15,6 +15,7 @@ const GameManager = require('../game/GameManager');
 const { createDeck } = require('../game/Deck');
 const { createPlayerStore } = require('../game/PlayerStore');
 const { familyBadges, BADGE_IDS } = require('../game/Badges');
+const { testDatabaseUrl } = require('./helpers/test-db');
 
 const { TOWER_STAGES, starsFor, outcomeFromRecord, unlockedStage, summarize } = BotTower;
 
@@ -340,7 +341,7 @@ async function startServer(t, port, env = {}, prepare = null) {
   if (prepare) prepare(dataDir); // seed the data dir (accounts, a session snapshot) before the boot
   const server = spawn('node', ['server.js'], {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PORT: String(port), PIKDAME_DATA_DIR: dataDir, PIKDAME_ONNX: '0', ...env },
+    env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('bot_tower'), PORT: String(port), PIKDAME_DATA_DIR: dataDir, PIKDAME_ONNX: '0', ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const sockets = [];
@@ -400,10 +401,7 @@ test('server: public mode keeps no profiles, so the tower is off', async (t) => 
 });
 
 // --- XP for a stage's first star, through the real server ---------------------------
-const { createAccountStore } = require('../game/AccountStore');
-const sqliteProbe = createAccountStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-tower-probe-')), 'probe.db'));
-const HAS_SQLITE = sqliteProbe !== null;
-if (sqliteProbe) sqliteProbe.close();
+const { createPgAccountStore } = require('../game/PgAccountStore');
 
 /** A stage-1 table one discard from its end: the human has melded all but one card. */
 function stageAtTheEnd(playerId, name) {
@@ -436,18 +434,18 @@ async function waitIn(box, type, timeoutMs = 4000) {
   throw new Error(`no ${type}`);
 }
 
-test('server: the first star pays 25 XP (account and season too), a repeat and a guest only what is theirs', { skip: !HAS_SQLITE }, async (t) => {
+test('server: the first star pays 25 XP (account and season too), a repeat and a guest only what is theirs', async (t) => {
   const tables = {
     first: { code: 'TWRAA2', id: 'p-ada1', token: 'tok-ada1', name: 'Ada', ...stageAtTheEnd('p-ada1', 'Ada') },
     again: { code: 'TWRAA3', id: 'p-ada2', token: 'tok-ada2', name: 'Ada', ...stageAtTheEnd('p-ada2', 'Ada') },
     guest: { code: 'TWRBB4', id: 'p-ben', token: 'tok-ben', name: 'Ben', ...stageAtTheEnd('p-ben', 'Ben') },
   };
-  let accountToken = null;
-  const srv = await startServer(t, 8139, {}, (dataDir) => {
-    const accounts = createAccountStore(path.join(dataDir, 'users.db'));
-    accounts.verifyEmail(accounts.register('Ada', 'ada@example.com', 'geheim123').verifyToken);
-    accountToken = accounts.login('Ada', 'geheim123').token;
-    accounts.close();
+  const databaseUrl = testDatabaseUrl('bot_tower');
+  const accounts = createPgAccountStore(databaseUrl);
+  await accounts.verifyEmail((await accounts.register('Ada', 'ada@example.com', 'geheim123')).verifyToken);
+  const accountToken = (await accounts.login('Ada', 'geheim123')).token;
+  await accounts.close();
+  const srv = await startServer(t, 8139, { PIKDAME_DATABASE_URL: databaseUrl }, (dataDir) => {
     const now = Date.now();
     const sessions = Object.values(tables).map((x) => ({
       code: x.code, createdAt: now, lastActivity: now, playerTokens: { [x.id]: x.token }, stammtisch: null, state: x.state,

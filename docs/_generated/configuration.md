@@ -13,7 +13,7 @@ generated from the source, so it cannot go stale.
 | `PIKDAME_BIRTHDAY` | — | Optional greeting days: comma-separated `MM-DD:account` entries (account = user name, case-insensitive). On that game day (German time) only that signed-in account sees a small greeting on the start screen; nobody else sees anything. Broken entries are skipped and logged by position. |
 | `PIKDAME_DATA_DIR` | `<app>/data` | Directory for all persistent data (profiles, stats, accounts, session snapshot). Point this at your mounted volume. |
 | `PIKDAME_DATABASE_PASSWORD` | unset | Password for the PostgreSQL connection (also readable from a `_FILE` secret; see Configuration). |
-| `PIKDAME_DATABASE_URL` | unset | PostgreSQL connection string for accounts. If unset, a local SQLite file (`users.db`) inside the data directory is used. |
+| `PIKDAME_DATABASE_URL` | unset | PostgreSQL connection string. **Required**: without it the server does not start. |
 | `PIKDAME_HEARTBEAT_MS` | `30000` | WebSocket ping interval used to detect dead connections. |
 | `PIKDAME_LOG_GAMES` | — | Set to `1` to log human moves to JSONL for imitation learning. |
 | `PIKDAME_LOG_PATH` | `<app>/data` | Where the move log is written. |

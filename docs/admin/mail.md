@@ -173,7 +173,7 @@ The startup banner names the active driver, so you can check without
 registering anything:
 
 ```
-Benutzerkonten: aktiv (Backend: sqlite, Mail-Treiber: SMTP)
+Benutzerkonten: aktiv (Backend: postgres, Mail-Treiber: SMTP)
 ```
 
 `Log-Fallback` there means the process never saw `PIKDAME_SMTP_HOST` — the

@@ -53,8 +53,8 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    # Real PostgreSQL for the account-store integration tests (they skip
-    # automatically when PIKDAME_TEST_PG_URL is absent, e.g. locally)
+    # PostgreSQL is required: every test that touches the database works in
+    # its own schema of this one (test/helpers/test-db.js).
     services:
       postgres:
         image: postgres:18-alpine
@@ -73,8 +73,7 @@ jobs:
       PIKDAME_TEST_PG_URL: postgres://pikdame:testpass@127.0.0.1:5432/pikdame_test
     steps:
       - uses: actions/checkout@v7
-      # Single Node line (26) - identical to the Docker image, so the account
-      # tests (node:sqlite, available since Node 22) always run for real.
+      # Single Node line (26) - identical to the Docker image.
       # 26 is the CURRENT line, not LTS: it becomes Active LTS in October 2026.
       - name: Use Node.js 26
         uses: actions/setup-node@v7

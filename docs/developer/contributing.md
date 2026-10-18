@@ -23,7 +23,8 @@ gitGraph
    depends on an open pull request is **stacked**: branch off that PR's
    branch and use it as the base. Independent work is never stacked.
 2. Make the change **plus tests**.
-3. `npm test` — everything green.
+3. `npm test` — everything green. It needs `PIKDAME_TEST_PG_URL` (a PostgreSQL
+   database; every test file works in its own schema).
 4. If the game changes (`public/`, `server.js`, `game/`, `models/`,
    `docker/`, dependencies): add a **changelog fragment** `changes/<topic>.md`
    — format in [`changes/README.md`](https://github.com/floriandeutsch89/pikdame-local/blob/main/changes/README.md).

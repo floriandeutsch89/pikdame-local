@@ -48,16 +48,17 @@ count (`git log HEAD..origin/main | wc -l`) never stops `&&`, and a push
 went out 7 commits behind main that way (#382).
 
 ```bash
-rm -f data/*.json data/crash.log data/users.db data/users.db-shm data/users.db-wal
-npm test                     # == CI; must be all pass
+rm -f data/*.json data/crash.log
+npm test                     # == CI; must be all pass (needs PIKDAME_TEST_PG_URL)
 npm run -s docs:check && npm run -s secrets:check
 git fetch origin main && git log --oneline HEAD..origin/main   # main moved? merge it first
 git status --short           # stage ONLY your files, never `git add -A`
 ```
 
 - If tests fail with "server on port … did not come up", check for a server
-  of your own on `data/` first (`pgrep -af "node server.js"`). It holds
-  `users.db`, and that is not a flaky test. The `ui-shots` skill avoids it.
+  of your own first (`pgrep -af "node server.js"`): it holds the port, and
+  that is not a flaky test. Then check that PostgreSQL is reachable at
+  `PIKDAME_TEST_PG_URL`.
 - Commit with `-c user.email=… -c user.name=…` and the attribution lines.
 - After the push: `git ls-remote origin <branch>` must equal `git rev-parse HEAD`.
 - Moved or rewrote code with `\uXXXX` escapes or HTML entities? Check them in

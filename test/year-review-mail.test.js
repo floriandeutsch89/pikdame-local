@@ -8,7 +8,9 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { composeReviewMail, sampleReview, dueYear, createYearReviewMailer, REVIEW_MAIL_CONSENT_VERSION } = require('../game/YearReviewMail');
-const { createAccountStore } = require('../game/AccountStore');
+const { Pool } = require('pg');
+const { createPgAccountStore } = require('../game/PgAccountStore');
+const { testDatabaseUrl } = require('./helpers/test-db');
 
 test('the consent version names the German opt-in text: new wording, new version', () => {
   const { JSDOM } = require('jsdom');
@@ -22,9 +24,6 @@ test('the consent version names the German opt-in text: new wording, new version
     `the opt-in text changed: give REVIEW_MAIL_CONSENT_VERSION (game/YearReviewMail.js) today's date and the hash ${hash}`);
 });
 
-const HAS_SQLITE = (() => {
-  try { require('node:sqlite'); return true; } catch (e) { return false; }
-})();
 const BASE = 'https://play.example';
 const URLS = { appUrl: `${BASE}/?jahr=2026`, unsubscribeUrl: `${BASE}/unsubscribe?t=${'a'.repeat(64)}` };
 const at = (iso) => Date.parse(iso);
@@ -80,12 +79,12 @@ test('due from 27 December 10:00 German time until New Year, never before', () =
   assert.strictEqual(dueYear(at('2027-12-28T12:00:00Z')), '2027');
 });
 
-/** Real SQLite account store, a recording mailer, reviews only for the names in `played`. */
+/** Real account store on its own schema, a recording mailer, reviews only for the names in `played`. */
 function setup(t) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-yrmail-'));
-  const dbFile = path.join(dir, 'users.db');
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const env = { dbFile, store: createAccountStore(dbFile), sent: [], played: new Set(['Anna']), result: { delivered: true }, logs: [] };
+  const url = testDatabaseUrl('yrmail');
+  const pool = new Pool({ connectionString: url, max: 1 });
+  t.after(() => pool.end());
+  const env = { url, sql: async (q, params) => (await pool.query(q, params)).rows, store: createPgAccountStore(url), sent: [], played: new Set(['Anna']), result: { delivered: true }, logs: [] };
   env.mailer = { send: async (m) => { env.sent.push(m); return env.result; } };
   env.make = () => createYearReviewMailer({
     accountStore: env.store, mailer: env.mailer, baseUrl: BASE, log: (l) => env.logs.push(l),
@@ -97,10 +96,7 @@ async function account(env, name, { verify = true, optIn = true, lang = 'de' } =
   const r = await env.store.register(name, `${name.toLowerCase()}@example.com`, 'geheim123');
   assert.ok(r.ok, JSON.stringify(r));
   if (!verify) {
-    const { DatabaseSync } = require('node:sqlite');
-    const raw = new DatabaseSync(env.dbFile);
-    raw.prepare('UPDATE users SET review_mail = 1 WHERE username = ?').run(name);
-    raw.close();
+    await env.sql('UPDATE users SET review_mail = TRUE WHERE username = $1', [name]);
     return null;
   }
   await env.store.verifyEmail(r.verifyToken);
@@ -109,7 +105,7 @@ async function account(env, name, { verify = true, optIn = true, lang = 'de' } =
   return acc;
 }
 
-test('sends once per account and year: opted-in and verified only, nothing without a game', { skip: !HAS_SQLITE }, async (t) => {
+test('sends once per account and year: opted-in and verified only, nothing without a game', async (t) => {
   const env = setup(t);
   await account(env, 'Anna', { lang: 'en' });
   await account(env, 'Bert'); // opted in, but no game this year
@@ -137,7 +133,7 @@ test('sends once per account and year: opted-in and verified only, nothing witho
 
   // A restart: new store connection, new sender - the database remembers.
   await env.store.close();
-  env.store = createAccountStore(env.dbFile);
+  env.store = createPgAccountStore(env.url);
   await env.make().tick(at('2026-12-28T09:00:00Z'));
   assert.strictEqual(env.sent.length, 1, 'no second mail after a restart');
 
@@ -150,7 +146,7 @@ test('sends once per account and year: opted-in and verified only, nothing witho
   await env.store.close();
 });
 
-test('every mail gets a fresh link; only its hash is stored', { skip: !HAS_SQLITE }, async (t) => {
+test('every mail gets a fresh link; only its hash is stored', async (t) => {
   const env = setup(t);
   await account(env, 'Anna');
   await env.make().tick(at('2026-12-27T10:00:00Z'));
@@ -159,15 +155,12 @@ test('every mail gets a fresh link; only its hash is stored', { skip: !HAS_SQLIT
   assert.strictEqual(tokens.length, 2);
   assert.notStrictEqual(tokens[0], tokens[1]);
   assert.deepStrictEqual(await env.store.unsubscribeReviewMail(tokens[0]), { error: 'invalid' }, 'the old link is replaced');
-  const { DatabaseSync } = require('node:sqlite');
-  const raw = new DatabaseSync(env.dbFile);
-  const row = raw.prepare('SELECT review_unsub_hash FROM users WHERE username = ?').get('Anna');
-  raw.close();
+  const [row] = await env.sql('SELECT review_unsub_hash FROM users WHERE username = $1', ['Anna']);
   assert.strictEqual(row.review_unsub_hash, crypto.createHash('sha256').update(tokens[1]).digest('hex'), 'hash, never the token');
   await env.store.close();
 });
 
-test('a failing relay is retried three times per process, a restart tries again; no relay = log only', { skip: !HAS_SQLITE }, async (t) => {
+test('a failing relay is retried three times per process, a restart tries again; no relay = log only', async (t) => {
   const env = setup(t);
   await account(env, 'Anna');
   env.result = { delivered: false, reason: 'timeout' };
