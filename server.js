@@ -14,6 +14,7 @@ const GameManager = require('./game/GameManager');
 const { createPlayerStore } = require('./game/PlayerStore');
 const { createGlobalStatsStore } = require('./game/GlobalStatsStore');
 const { computeEarnedBadges, familyBadges } = require('./game/Badges');
+const BotTower = require('./game/BotTower');
 const { seasonalBacksFor } = require('./game/SeasonalBacks');
 const {
   xpForGame,
@@ -1329,6 +1330,7 @@ const registry = new SessionRegistry((session) => {
     deckSeed: typeof session.deckSeed === 'number' ? session.deckSeed : undefined,
     challengeDate: session.challengeDate || undefined,
     tutorialMode: !!session.tutorialMode,
+    towerStage: Number.isInteger(session.towerStage) ? session.towerStage : undefined,
     // Abbruch eines Solo-Spiels: Der Rueckruf kennt hier den Code, den der
     // Aufrufer beim Erzeugen noch nicht hatte.
     onAbandon: typeof session.onAbandon === 'function'
@@ -1345,6 +1347,11 @@ const registry = new SessionRegistry((session) => {
     // Only the moment id: the client holds the bilingual lines (BotQuips.js).
     onBotQuip: (botId, moment) => broadcastToSession(session, { type: 'quip', playerId: botId, moment }),
     onGameOver: (results, gameRecord) => {
+      // Bot tower: one round scored in stars (the first one pays XP) - no match stats or history.
+      if (gameRecord.towerStage) {
+        recordTowerStage(gameRecord, sendTo);
+        return;
+      }
       // Globale Zähler sind ANONYM aggregiert (keine Namen) und daher auch
       // im öffentlichen Modus unbedenklich.
       globalStats.recordGame(gameRecord);
@@ -1593,6 +1600,37 @@ restoreSessionsSnapshot();
 // Games that did not come back with the snapshot were lost by the server,
 // not given up; their players may start again.
 try { challengeStore.markLostAttempts(new Set(registry.sessions.keys())); } catch (err) { logCrash('challenge-lost', err); }
+
+/** Bot tower: grades the stage round, keeps the best stars, pays a stage's first
+ *  star (profile; account and season too, without booking a game), awards badges. */
+function recordTowerStage(gameRecord, sendTo) {
+  const human = (gameRecord.players || []).find((p) => !p.isBot);
+  const outcome = human && BotTower.outcomeFromRecord(gameRecord, human.id);
+  if (!outcome) return;
+  let progress = null;
+  let badges = [];
+  let xp = 0;
+  if (!PUBLIC_MODE) {
+    try {
+      progress = playerStore.recordTowerResult(human.name, outcome.stage, outcome.stars);
+      xp = progress.xp;
+      badges = playerStore.awardBadges(human.name, familyBadges(playerStore.getPlayerByName(human.name) || {}));
+    } catch (err) {
+      logCrash('tower', err, { player: human.name });
+    }
+  }
+  const level = xp && progress ? levelFromXp(progress.totalXp) : null;
+  sendTo(human.id, { type: 'towerResult', ...outcome, clearMargin: BotTower.CLEAR_MARGIN, progress, xp, level });
+  if (badges.length) sendTo(human.id, { type: 'badges', earned: [{ name: human.name, badges }] });
+  // Only a verified account is booked (guests keep the profile XP alone).
+  if (xp && ACCOUNTS_ENABLED && typeof accountStore.addXp === 'function') {
+    Promise.resolve(accountStore.addXp(human.name, { xp, season: seasonForDate(gameDay()) }))
+      .then((prog) => {
+        if (prog) sendTo(human.id, { type: 'accountProgress', progress: prog });
+      })
+      .catch((err) => logCrash('tower-xp', err, { player: human.name }));
+  }
+}
 
 /** Books the day's attempt (no names are kept in public mode). */
 function registerChallengeAttempt(game, code) {
@@ -1968,6 +2006,31 @@ wss.on('connection', (ws, req) => {
       }
       return;
     }
+    if (msg.type === 'getTower') {
+      // Bot tower: the stages and this name's best stars (pre-session, like the puzzle).
+      const name = sanitizeName(msg.name);
+      const best = !PUBLIC_MODE && name ? playerStore.towerBest(name) : {};
+      ws.send(JSON.stringify({ type: 'towerInfo', stages: BotTower.publicStages(), clearMargin: BotTower.CLEAR_MARGIN, best, ...BotTower.summarize(best) }));
+      return;
+    }
+    if (msg.type === 'startTower') {
+      // Bot tower stage: a fixed deal against fixed bots, one round, solo like the challenge.
+      if (PUBLIC_MODE) return sendError(ws, 'Der Bot-Turm braucht gespeicherte Profile - auf diesem Server ist er aus.');
+      const cfg = BotTower.stageConfig(msg.stage);
+      if (!cfg) return sendError(ws, 'Diese Turmstufe gibt es nicht.');
+      const name = sanitizeName(msg.name);
+      if (!name) return sendError(ws, 'Für den Bot-Turm brauchst du einen Namen - dort werden deine Sterne gespeichert.');
+      if (cfg.stage > BotTower.unlockedStage(playerStore.towerBest(name))) {
+        return sendError(ws, 'Diese Turmstufe ist noch gesperrt - hol dir erst einen Stern auf der Stufe davor.');
+      }
+      const created = registry.create({ deckSeed: cfg.seed, towerStage: cfg.stage, onAbandon: (code) => registry.delete(code) });
+      if (created.error) return sendError(ws, created.error);
+      const ok = await joinSession(created.session, msg);
+      if (!ok) { registry.delete(created.session.code); return; }
+      const started = created.session.game.startTowerRound();
+      if (started.error) sendError(ws, started.error);
+      return;
+    }
     if (msg.type === 'getGameHistory') {
       // Persönliche Spielhistorie (Feature-Wunsch): die letzten beendeten
       // Partien, in denen dieser Name als echter Spieler dabei war. Dieselbe
@@ -2308,6 +2371,8 @@ wss.on('connection', (ws, req) => {
         // The daily challenge is one attempt per day: no rematch, the client
         // offers none, and a hand-crafted message gets a plain error.
         if (game.challengeDate) { sendError(ws, 'In der Tages-Challenge gibt es nur einen Versuch pro Tag.'); break; }
+        // A new try of a tower stage is a fresh session (startTower), with the same deal.
+        if (game.towerStage) { sendError(ws, 'Eine Turmstufe startest du über den Bot-Turm neu.'); break; }
         game.prepareRematch();
         break;
       }

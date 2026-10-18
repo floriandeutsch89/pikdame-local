@@ -379,6 +379,39 @@ function createPgAccountStore(databaseUrl, options = {}) {
     }
   }
 
+  /** Same contract as AccountStore.addXp: lifetime and season XP, no game booked. */
+  async function addXp(username, { xp = 0, season = null } = {}) {
+    try {
+      await ensureReady();
+      const gain = Math.max(0, Math.round(Number(xp) || 0));
+      let booked = false;
+      await withTransaction(async (c) => {
+        const r = await c.query(
+          `SELECT id, season, season_xp, season_games FROM users
+            WHERE LOWER(username) = LOWER($1) AND verified = TRUE FOR UPDATE`,
+          [String(username || '').trim()]
+        );
+        const row = r.rows[0];
+        if (!row) return;
+        if (season && row.season !== season) await archiveSeason(c, row);
+        await c.query(
+          `UPDATE users
+              SET xp = xp + $2,
+                  season_xp = CASE WHEN season IS NOT DISTINCT FROM $3 THEN season_xp + $2 ELSE $2 END,
+                  season_games = CASE WHEN season IS NOT DISTINCT FROM $3 THEN season_games ELSE 0 END,
+                  season = $3
+            WHERE id = $1`,
+          [row.id, gain, season]
+        );
+        booked = true;
+      });
+      return booked ? await progressFor(username) : null;
+    } catch (e) {
+      console.error('Postgres addXp failed:', e.message);
+      return null;
+    }
+  }
+
   /**
    * Same contract as AccountStore.importProfile: once per account, lift the
    * account up TO the guest profile's values (no double counting), season
@@ -1012,7 +1045,7 @@ function createPgAccountStore(databaseUrl, options = {}) {
   return {
     backend: 'postgres',
     register, verifyEmail, login, sessionUser, logout, isRegisteredName,
-    addGameResult, progressFor, ladder, importProfile, listUsers, deleteUser, renewVerification,
+    addGameResult, addXp, progressFor, ladder, importProfile, listUsers, deleteUser, renewVerification,
     finalizeSeasons, seasonResultsFor, markSeasonResultSeen,
     validateNewAccount, registerWithoutPassword, verifyAndSignIn, renewSignupCode, verifyCodeAndSignIn, accountForSession, setWebauthnUserId, addCredential,
     credentialById, touchCredential, deleteCredential, setPassword, removePassword, sessionForUser,

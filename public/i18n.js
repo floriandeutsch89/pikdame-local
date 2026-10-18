@@ -247,6 +247,9 @@ window.I18N_STATIC = {
   'Nächster Tag': 'Next day',
   'Prüfen': 'Check',
   'Lösung zeigen': 'Show solution',
+  // Bot tower
+  'Bot-Turm': 'Bot tower',
+  'Die Turmstufe wartet kurz auf dich – danach endet sie ohne Sterne.': 'The tower stage waits for you briefly - after that it ends without stars.',
   // Year review (December) + its mail
   'Dein Jahr': 'Your year',
   'Dein Pik-Dame-Jahr': 'Your Pik Dame year',
@@ -412,6 +415,16 @@ window.I18N_SERVER_PATTERNS = [
   [/^Der Server ist derzeit voll - bitte später erneut versuchen\.$/, 'The server is currently full – please try again later.'],
   [/^Mindestens 2 Spieler nötig\.$/, 'At least 2 players are required.'],
   [/^(.+?) gewinnt die Serie (\d+):(\d+)!$/, '$1 wins the series $2:$3!'],
+  // Bot tower (BotTower.js)
+  [/^Bot-Turm, Stufe (\d+): Hol in dieser Runde mehr Punkte als jeder Bot - die Bots bekommen (\d+) Punkte Vorgabe\.$/, 'Bot tower, stage $1: score more points than every bot this round - the bots get a $2-point head start.'],
+  [/^Bot-Turm, Stufe (\d+): Hol in dieser Runde mehr Punkte als jeder Bot\.$/, 'Bot tower, stage $1: score more points than every bot this round.'],
+  [/^Der Bot-Turm braucht gespeicherte Profile - auf diesem Server ist er aus\.$/, 'The bot tower needs saved profiles - it is off on this server.'],
+  [/^Diese Turmstufe gibt es nicht\.$/, 'This tower stage does not exist.'],
+  [/^Für den Bot-Turm brauchst du einen Namen - dort werden deine Sterne gespeichert\.$/, 'The bot tower needs a name - your stars are saved under it.'],
+  [/^Diese Turmstufe ist noch gesperrt - hol dir erst einen Stern auf der Stufe davor\.$/, 'This tower stage is still locked - earn a star on the stage before it first.'],
+  [/^Eine Turmstufe startest du über den Bot-Turm neu\.$/, 'Restart a tower stage from the bot tower.'],
+  [/^Diese Turmstufe lässt sich nicht starten\.$/, 'This tower stage cannot be started.'],
+  [/^Im Bot-Turm sind Regeln und Bots fest - jeder Versuch einer Stufe läuft gleich\.$/, 'In the bot tower, rules and bots are fixed - every try of a stage plays the same.'],
   // Meld validation reasons (Rules.js) - surfaced by the daily puzzle
   [/^Ein Satz braucht 3 bis (\d+) Karten\.$/, 'A set needs 3 to $1 cards.'],
   [/^Ein Satz braucht mindestens eine echte Karte\.$/, 'A set needs at least one real card.'],

@@ -199,10 +199,12 @@
       if (!btn) return;
       if (resumeCode) {
         btn.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-resume"/></svg><span></span>';
+        const tower = openGame && openGame.code === resumeCode && openGame.tower;
         btn.querySelector('span').textContent = resumeIsChallenge
           ? L('Challenge fortsetzen', 'Resume challenge')
           : resumeIsTutorial ? L('Tutorial fortsetzen', 'Resume tutorial')
-            : L(`Weiterspielen (${resumeCode})`, `Resume game (${resumeCode})`);
+            : tower ? L(`Bot-Turm fortsetzen (Stufe ${tower})`, `Resume bot tower (stage ${tower})`)
+              : L(`Weiterspielen (${resumeCode})`, `Resume game (${resumeCode})`);
         btn.classList.remove('hidden');
       } else {
         btn.classList.add('hidden');
@@ -296,6 +298,7 @@
     try { renderToday(); } catch (e) { /* dito */ }
     try { renderYearSlide(); } catch (e) { /* dito */ }
     try { renderProgressSheet(); } catch (e) { /* dito */ }
+    try { renderTower(); } catch (e) { /* dito */ }
     try { renderAccountProgress(); } catch (e) { /* dito */ }
     // "Angemeldet als ..." steht dauerhaft in der Lobby - vom Vertragstest
     // unten gefunden, bevor es jemand melden konnte.
@@ -486,6 +489,15 @@
         how: L('Lege eine Folge mit 10, Bube, Dame, König und Ass derselben Farbe aus - alles echte Karten, kein Joker.', 'Meld a run with 10, jack, queen, king and ace of one suit - all real cards, no joker.') },
       pik_royal: { emoji: '👑', name: L('Pik Royal', 'Spade royal'), desc: L('Royal Flush in Pik - mit der Pik Dame', 'Royal flush in spades - with the Queen of Spades'),
         how: L('Lege 10, Bube, Dame, König und Ass in Pik als Folge aus - alles echte Karten, kein Joker.', 'Meld 10, jack, queen, king and ace of spades as a run - all real cards, no joker.') },
+      // Bot tower (game/BotTower.js): stages cleared, then every star
+      tower_3: { emoji: '🗼', name: L('Turm\u00adkletterer', 'Tower climber'), desc: L('3 Stufen im Bot-Turm geschafft', 'Cleared 3 bot tower stages'),
+        how: L('Hol dir im Bot-Turm (Fortschritt → Bot-Turm) auf 3 Stufen mindestens einen Stern.', 'Earn at least one star on 3 bot tower stages (Progress → Bot tower).') },
+      tower_6: { emoji: '🗼', name: L('Turm\u00adstürmer', 'Tower stormer'), desc: L('6 Stufen im Bot-Turm geschafft', 'Cleared 6 bot tower stages'),
+        how: L('Hol dir im Bot-Turm auf 6 Stufen mindestens einen Stern.', 'Earn at least one star on 6 bot tower stages.') },
+      tower_10: { emoji: '🗼', name: L('Turm\u00adspitze', 'Tower top'), desc: L('Alle 10 Stufen im Bot-Turm geschafft', 'Cleared all 10 bot tower stages'),
+        how: L('Schaff alle 10 Stufen des Bot-Turms - die letzte gegen drei Zen-Bots.', 'Clear all 10 bot tower stages - the last one against three Zen bots.') },
+      tower_stars_30: { emoji: '🌠', name: L('Sternen\u00adhimmel', 'Starry sky'), desc: L('Alle 30 Sterne im Bot-Turm', 'All 30 stars in the bot tower'),
+        how: L('Hol dir auf allen 10 Stufen des Bot-Turms drei Sterne: klar vorn und selbst ausgemacht.', 'Earn three stars on all 10 bot tower stages: clearly ahead and out yourself.') },
     };
     return M[id] || { emoji: '🎖️', name: id, desc: '', how: '' };
   }
@@ -502,6 +514,8 @@
     { id: 'challenger', tiers: ['challenger_7', 'challenger_30'] },
     { id: 'puzzles', tiers: ['puzzle_7', 'puzzle_30'] },
     { id: 'puzzlePerfect', tiers: ['puzzle_perfect_10', 'puzzle_perfect_30', 'puzzle_perfect_100'] },
+    { id: 'tower', tiers: ['tower_3', 'tower_6', 'tower_10'] },
+    { id: 'towerStars', tiers: ['tower_stars_30'] },
   ];
   const BADGE_SINGLES = [
     'pd_caught', 'round_300', 'score_500', 'pd_triple', 'double_queen_round',
@@ -1288,6 +1302,12 @@
           afterTutorial = next;
           el('createGameBtn').click();
         }
+        // Back from a finished tower stage (leaveTowerFor): the tower or the next try.
+        const towerNext = storageGet('pikdame_after_tower');
+        if (towerNext) {
+          storageRemove('pikdame_after_tower');
+          afterTower(towerNext);
+        }
       }
     });
 
@@ -1642,6 +1662,27 @@
       renderChallengeBoard();
       return;
     }
+    if (msg.type === 'towerInfo') {
+      towerInfo = { ...msg, forName: towerAskedFor };
+      renderTower();
+      if (!el('progressOverlay').classList.contains('hidden')) renderProgressSheet();
+      return;
+    }
+    if (msg.type === 'towerResult') {
+      lastTowerResult = msg;
+      const pr = msg.progress;
+      if (pr && towerInfo) Object.assign(towerInfo, { best: pr.best, stars: pr.stars, cleared: pr.cleared, unlocked: pr.unlocked });
+      // A stage's first star pays XP: same level bookkeeping as the solved puzzle.
+      if (msg.xp && msg.level) {
+        const total = msg.level.total || 0;
+        myProgress = { xp: Math.max((myProgress && myProgress.xp) || 0, total), level: msg.level };
+        const from = levelFromXpClient(total - msg.xp).level;
+        if (msg.level.level > from) showLevelUp(from, msg.level.level, msg.xp, total - msg.xp);
+        try { renderQuests(); renderEmoteLocks(); } catch (e) { /* cosmetic */ }
+      }
+      renderTowerResult();
+      return;
+    }
     if (msg.type === 'badges') {
       lastEarnedBadges = msg.earned || null;
       if (!el('resultOverlay').classList.contains('hidden')) renderResultOverlay();
@@ -1669,6 +1710,7 @@
       publicMode = !!msg.publicMode;
       el('statsBtn').classList.toggle('hidden', publicMode);
       try { updateCelebrationSetting(); } catch (e) { /* cosmetic */ }
+      if (!publicMode && !towerInfo) requestTower();
       if (msg.quests) dailyQuests = msg.quests;
       try { fetchChallengeToday(); } catch (e) { /* cosmetic */ }
       // My own counters live on my profile (name-based, like every other
@@ -2270,7 +2312,8 @@
           badgeBtn.className = 'botDiffBadge tapExpand';
           // In the game the spade rating alone; the level's name is in title + aria-label.
           badgeBtn.innerHTML = levelIconHtml(meta);
-          if (lastState.isHost) {
+          // Bot tower: the stage fixes the bots, so the badge only tells.
+          if (lastState.isHost && !lastState.towerStage) {
             badgeBtn.title = L(`Schwierigkeit ändern (${meta.short()})`, `Change difficulty (${meta.short()})`);
             badgeBtn.addEventListener('click', (ev) => {
               ev.stopPropagation(); // chip click keeps its meld-filter role
@@ -3242,7 +3285,8 @@
     const isGameOver = lastState.phase === 'gameOver';
     el('resultTitle').textContent = forfeited
       ? L('Spiel aufgegeben', 'Game forfeited')
-      : isGameOver ? L('Spielende!', 'Game over!') : L('Rundenende', 'End of round');
+      : isGameOver && lastState.towerStage ? L(`Bot-Turm · Stufe ${lastState.towerStage}`, `Bot tower · stage ${lastState.towerStage}`)
+        : isGameOver ? L('Spielende!', 'Game over!') : L('Rundenende', 'End of round');
 
     const body = el('resultBody');
     body.innerHTML = '';
@@ -3473,9 +3517,11 @@
         `<div class="resultWinnerCrown resultWinnerTrophy">${TROPHY_MARK_SVG}</div>` +
         `<div class="resultWinnerName">${nameWithHeart(winner ? winner.name : '?')}${winner ? botMark(winner) : ''}</div>` +
         `<div class="resultWinnerSub">${
-          winner && winner.id === playerId
-            ? L('Du gewinnst die Partie', 'You win the match')
-            : L('gewinnt die Partie', 'wins the match')
+          lastState.towerStage
+            ? winner && winner.id === playerId ? L('Du schaffst die Stufe', 'You clear the stage') : L('hält dich auf dieser Stufe', 'holds you on this stage')
+            : winner && winner.id === playerId
+              ? L('Du gewinnst die Partie', 'You win the match')
+              : L('gewinnt die Partie', 'wins the match')
         }</div>` +
         `<div class="resultWinnerScore"></div>`;
       paneResult.insertBefore(head, paneResult.firstChild);
@@ -3589,6 +3635,7 @@
     el('exportGameBtn').classList.toggle('hidden', !(isGameOver && lastState.hasExportableGame));
     el('replayBtn').classList.toggle('hidden', !(isGameOver && lastState.hasExportableGame));
     if (isGameOver) renderChallengeBoard();
+    if (isGameOver) renderTowerResult();
     // Toggleable game totals: how many Queens of Spades / jokers each
     // player melded across the WHOLE game.
     const oldTotals = el('resultBody').querySelector('.gameTotalsBox');
@@ -3677,7 +3724,9 @@
       const ser = stammtischInfo && stammtischSummary && stammtischSummary.series;
       contBtn.textContent = lastState.challengeDate
         ? L('Zum Hauptmenü', 'Main menu')
-        : ser
+        : lastState.towerStage
+          ? L('Zum Bot-Turm', 'To the bot tower')
+          : ser
           ? ser.winner
             ? L('Neue Serie starten', 'Start a new series')
             : L(`Revanche (Spiel ${ser.games + 1} von ${ser.bestOf})`, `Rematch (game ${ser.games + 1} of ${ser.bestOf})`)
@@ -4313,8 +4362,9 @@
   });
   el('homeBtn').addEventListener('click', () => {
     // Solo tables (tutorial, challenge) have no bot takeover: say what really happens.
-    const mode = lastState && lastState.tutorialMode ? 'homeTutorial' : lastState && lastState.challengeDate ? 'homeChallenge' : 'homeTable';
-    for (const cls of ['homeTable', 'homeTutorial', 'homeChallenge']) {
+    const mode = lastState && lastState.tutorialMode ? 'homeTutorial' : lastState && lastState.challengeDate ? 'homeChallenge'
+      : lastState && lastState.towerStage ? 'homeTower' : 'homeTable';
+    for (const cls of ['homeTable', 'homeTutorial', 'homeChallenge', 'homeTower']) {
       el('homeOverlay').querySelectorAll(`.${cls}`).forEach((n) => n.classList.toggle('hidden', cls !== mode));
     }
     el('homeOverlay').classList.remove('hidden');
@@ -4443,17 +4493,22 @@
   function openOpenGameSheet(intent, start) {
     const og = openGame;
     pendingStart = start;
-    el('openGameSummary').textContent = og.phase === 'lobby'
-      ? L(`Spiel ${og.code} · noch in der Lobby`, `Game ${og.code} · still in the lobby`)
-      : L(`Spiel ${og.code} · Runde ${og.round} · ${og.score} Punkte`, `Game ${og.code} · round ${og.round} · ${og.score} points`);
-    el('openGameConsequence').textContent = og.phase === 'lobby'
-      ? L('Dein Platz in der Lobby wird frei.', 'Your seat in the lobby is freed.')
-      : og.alone
-        ? L('Die Partie endet und wird nicht gewertet.', 'The match ends and is not scored.')
-        : L('Ein Bot übernimmt deinen Platz bis zum Ende, die anderen spielen weiter. Du kannst nicht zurück. Für dich wird die Partie nicht gewertet.',
-          'A bot takes your seat until the end, the others play on. You cannot come back. The match is not scored for you.');
+    el('openGameSummary').textContent = og.tower
+      ? L(`Bot-Turm · Stufe ${og.tower}`, `Bot tower · stage ${og.tower}`)
+      : og.phase === 'lobby'
+        ? L(`Spiel ${og.code} · noch in der Lobby`, `Game ${og.code} · still in the lobby`)
+        : L(`Spiel ${og.code} · Runde ${og.round} · ${og.score} Punkte`, `Game ${og.code} · round ${og.round} · ${og.score} points`);
+    el('openGameConsequence').textContent = og.tower
+      ? L('Die Stufe endet ohne Sterne - du kannst sie jederzeit neu starten.', 'The stage ends without stars - you can restart it any time.')
+      : og.phase === 'lobby'
+        ? L('Dein Platz in der Lobby wird frei.', 'Your seat in the lobby is freed.')
+        : og.alone
+          ? L('Die Partie endet und wird nicht gewertet.', 'The match ends and is not scored.')
+          : L('Ein Bot übernimmt deinen Platz bis zum Ende, die anderen spielen weiter. Du kannst nicht zurück. Für dich wird die Partie nicht gewertet.',
+            'A bot takes your seat until the end, the others play on. You cannot come back. The match is not scored for you.');
     const target = intent === 'tutorial' ? L('Tutorial', 'tutorial')
-      : intent === 'join' ? L('beitreten', 'join') : L('neues Spiel', 'new game');
+      : intent === 'tower' ? L('Bot-Turm', 'bot tower')
+        : intent === 'join' ? L('beitreten', 'join') : L('neues Spiel', 'new game');
     const btn = el('openGameGiveUpBtn');
     disarmTap(btn);
     btn.disabled = false;
@@ -6266,6 +6321,7 @@
     if (tutorialActive && lastState && lastState.phase === 'roundEnd') { finishTutorial(); return; }
     const isGameOver = lastState && lastState.phase === 'gameOver';
     if (isGameOver && lastState.challengeDate) { window.location.href = window.location.pathname; return; }
+    if (isGameOver && lastState.towerStage) { leaveTowerFor('open'); return; }
     send({ type: isGameOver ? 'rematch' : 'nextRound' });
     // Round end: the overlay STAYS open - the ready check may still be
     // waiting for others (the button reflects that). It closes on its own
@@ -7822,7 +7878,7 @@
   }
 
   // Mirrors game/Progression.js (XP_BASE, XP_WIN, XP_PER_POINT) - display only.
-  const XP_RULES = { base: 10, win: 50, perPoints: 10 };
+  const XP_RULES = { base: 10, win: 50, perPoints: 10, towerFirstStar: 25 };
   function renderProgressSheet() {
     const box = el('progressContent');
     if (!box) return;
@@ -7843,6 +7899,7 @@
         ? `<h3>${escapeHtml(L(`Nächste Belohnung (Stufe ${next[0].level})`, `Next reward (level ${next[0].level})`))}</h3><ul class="pgNext">${next.map((r) => `<li>${escapeHtml(r.label)}</li>`).join('')}</ul>`
         : '') +
       streakSectionHtml() +
+      towerSectionHtml() +
       `<h3>${escapeHtml(L('So gibt es Erfahrung', 'How to earn XP'))}</h3>` +
       `<p class="pgRules">${escapeHtml(L(
         `${XP_RULES.base} EP pro beendeter Partie, +${XP_RULES.win} für einen Sieg, +1 je ${XP_RULES.perPoints} Punkte Endstand.`,
@@ -7869,6 +7926,7 @@
   }
   function openProgressSheet() {
     if (!progressEnabled()) return;
+    if (!towerFresh()) requestTower();
     renderProgressSheet();
     el('progressOverlay').classList.remove('hidden');
   }
@@ -7876,6 +7934,167 @@
   el('progressOverlay').addEventListener('click', (ev) => {
     if (ev.target === el('progressOverlay')) el('progressOverlay').classList.add('hidden');
   });
+  el('progressContent').addEventListener('click', (ev) => {
+    if (ev.target.closest('[data-open-tower]')) openTowerSheet();
+  });
+
+  // --- Bot tower (game/BotTower.js): ten fixed one-round stages -------------
+  // The server owns stages and stars; the client draws them and starts a stage
+  // like the challenge (solo, one game at a time).
+  let towerInfo = null; // 'towerInfo' + forName: stages, best, stars, cleared, unlocked
+  let towerAskedFor = '';
+  let towerScrollPending = false;
+  let lastTowerResult = null; // 'towerResult' of the stage just played
+  const AFTER_TOWER_KEY = 'pikdame_after_tower';
+  function requestTower() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    towerAskedFor = myName || '';
+    ws.send(JSON.stringify({ type: 'getTower', name: towerAskedFor }));
+  }
+  /** Tower data for the current name (a renamed player sees their own). */
+  function towerFresh() {
+    return towerInfo && towerInfo.forName === (myName || '') ? towerInfo : null;
+  }
+  const towerStarsHtml = (n) => [1, 2, 3]
+    .map((i) => `<svg class="icon${i <= n ? ' on' : ''}" aria-hidden="true"><use href="#i-star"/></svg>`).join('');
+  function towerSectionHtml() {
+    const info = towerFresh();
+    const me = myProfile() || {};
+    const stars = info ? info.stars : me.towerStars || 0;
+    const cleared = info ? info.cleared : me.towerCleared || 0;
+    const size = info ? info.stages.length : 0;
+    return `<h3>${escapeHtml(L('Bot-Turm', 'Bot tower'))}</h3>` +
+      `<button type="button" class="pgTower" data-open-tower="1">` +
+      `<svg class="icon pgTowerIcon" aria-hidden="true"><use href="#i-trophy"/></svg>` +
+      `<span class="pgTowerText"><b>${escapeHtml(size ? L(`${stars}/${size * 3} Sterne`, `${stars}/${size * 3} stars`) : L(`${stars} Sterne`, `${stars} stars`))}</b>` +
+      `<span>${escapeHtml(size
+        ? L(`${cleared} von ${size} Stufen geschafft`, `${cleared} of ${size} stages cleared`)
+        : L(`${cleared} Stufen geschafft`, `${cleared} stages cleared`))}</span></span>` +
+      `<svg class="icon pgTowerGo" aria-hidden="true"><use href="#i-chevron"/></svg></button>`;
+  }
+  function towerRowHtml(s, info) {
+    const stars = Math.max(0, Math.min(3, Number(info.best[s.stage]) || 0));
+    const locked = s.stage > info.unlocked;
+    const next = !locked && !stars;
+    const metas = s.bots.map((b) => BOT_DIFF[b] || BOT_DIFF.zen);
+    const names = metas.map((m) => m.short()).join(', ');
+    const label = L(
+      `Stufe ${s.stage}: gegen ${names}${s.handicap ? `, die Bots bekommen ${s.handicap} Punkte Vorgabe` : ''} - ${locked ? 'gesperrt' : `${stars} von 3 Sternen`}`,
+      `Stage ${s.stage}: against ${names}${s.handicap ? `, the bots get a ${s.handicap}-point head start` : ''} - ${locked ? 'locked' : `${stars} of 3 stars`}`
+    );
+    return `<li><button type="button" class="twStage${locked ? ' locked' : ''}${next ? ' next' : ''}" data-stage="${s.stage}" aria-label="${escapeHtml(label)}"${locked ? ' aria-disabled="true"' : ''}>` +
+      `<span class="twNum">${s.stage}</span>` +
+      `<span class="twBots">${metas.map(levelIconHtml).join('')}</span>` +
+      `<span class="twHandicap">${s.handicap ? escapeHtml(L(`Bots +${s.handicap}`, `bots +${s.handicap}`)) : ''}</span>` +
+      `<span class="twStars">${locked ? '<svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg>' : towerStarsHtml(stars)}</span>` +
+      `</button></li>`;
+  }
+  function renderTower() {
+    const info = towerFresh();
+    const size = info ? info.stages.length : 0;
+    el('towerSummary').textContent = info
+      ? L(`${info.stars}/${size * 3} Sterne · ${info.cleared} von ${size} Stufen geschafft`, `${info.stars}/${size * 3} stars · ${info.cleared} of ${size} stages cleared`)
+      : L('Lädt …', 'Loading …');
+    // The top of the tower first: you climb it.
+    el('towerList').innerHTML = info ? [...info.stages].reverse().map((s) => towerRowHtml(s, info)).join('') : '';
+    el('towerRules').textContent = info
+      ? L(`Ein Stern: mehr Punkte als jeder Bot samt Vorgabe. Zwei: mindestens ${info.clearMargin} Punkte vorn. Drei: dazu selbst ausmachen. Jede Stufe ist eine Runde mit immer demselben Blatt; ab einem Stern ist die nächste frei. Versuche unbegrenzt, der beste zählt. Der erste Stern jeder Stufe bringt einmal ${XP_RULES.towerFirstStar} EP.`,
+        `One star: more points than every bot plus its head start. Two: at least ${info.clearMargin} points ahead. Three: and go out yourself. Each stage is one round with the same deal every time; one star unlocks the next. Unlimited tries, the best counts. The first star of each stage pays ${XP_RULES.towerFirstStar} XP once.`)
+      : '';
+    if (info && towerScrollPending && !el('towerOverlay').classList.contains('hidden')) {
+      towerScrollPending = false;
+      const target = el('towerList').querySelector('.twStage.next') || el('towerList').querySelector('.twStage:not(.locked)');
+      if (target && target.scrollIntoView) target.scrollIntoView({ block: 'nearest' });
+    }
+  }
+  function openTowerSheet() {
+    if (publicMode) return;
+    if (!towerFresh()) requestTower();
+    el('progressOverlay').classList.add('hidden');
+    el('towerOverlay').classList.remove('hidden');
+    towerScrollPending = true;
+    renderTower();
+  }
+  function startTowerStage(stage) {
+    el('towerOverlay').classList.add('hidden');
+    send({ type: 'startTower', stage, name: currentName(), accountToken: accountToken() || undefined });
+  }
+  el('towerList').addEventListener('click', (ev) => {
+    const btn = ev.target.closest('.twStage');
+    if (!btn) return;
+    if (btn.classList.contains('locked')) {
+      const open = (towerFresh() || {}).unlocked || 1;
+      showToast(L(`Noch gesperrt - schaff erst Stufe ${open}.`, `Still locked - clear stage ${open} first.`));
+      return;
+    }
+    const stage = Number(btn.dataset.stage);
+    guardOpenGame('tower', () => startTowerStage(stage));
+  });
+  el('towerCloseBtn').addEventListener('click', () => el('towerOverlay').classList.add('hidden'));
+  el('towerOverlay').addEventListener('click', (ev) => {
+    if (ev.target === el('towerOverlay')) el('towerOverlay').classList.add('hidden');
+  });
+  /** Leaves a finished stage through a reload (the socket belongs to that table):
+   *  'open' shows the tower, a stage number starts that stage. */
+  function leaveTowerFor(next) {
+    storageSet(AFTER_TOWER_KEY, String(next));
+    if (sessionCode && storageGet('pikdame_last_session') === sessionCode) storageRemove('pikdame_last_session');
+    window.location.href = window.location.pathname;
+  }
+  function afterTower(next) {
+    const stage = Number(next);
+    if (Number.isInteger(stage) && stage > 0) guardOpenGame('tower', () => startTowerStage(stage));
+    else openTowerSheet();
+  }
+  /** The stage verdict on the result sheet: stars, the sum behind them, the way on. */
+  function renderTowerResult() {
+    const body = el('resultBody');
+    const old = body.querySelector('.towerResultBox');
+    if (old) old.remove();
+    const r = lastTowerResult;
+    if (!r || !lastState || lastState.phase !== 'gameOver' || lastState.towerStage !== r.stage) return;
+    const box = document.createElement('div');
+    box.className = 'towerResultBox';
+    const botLine = r.handicap
+      ? L(`bester Bot ${r.bestBot} + ${r.handicap} Vorgabe = ${r.bestBot + r.handicap}`, `best bot ${r.bestBot} + ${r.handicap} head start = ${r.bestBot + r.handicap}`)
+      : L(`bester Bot ${r.bestBot}`, `best bot ${r.bestBot}`);
+    const verdict = r.margin > 0
+      ? L(`${r.margin} Punkte vorn`, `${r.margin} points ahead`)
+      : r.margin < 0
+        ? L(`${-r.margin} Punkte hinten`, `${-r.margin} points behind`)
+        : L('Gleichstand reicht nicht', 'a tie is not enough');
+    const hint = [
+      L('Für einen Stern brauchst du mehr Punkte als jeder Bot samt Vorgabe.', 'For a star you need more points than every bot plus its head start.'),
+      L(`Für zwei Sterne: mindestens ${r.clearMargin} Punkte vorn.`, `For two stars: at least ${r.clearMargin} points ahead.`),
+      L('Für drei Sterne: zusätzlich selbst ausmachen.', 'For three stars: also go out yourself.'),
+      L('Alle drei Sterne - besser geht es nicht.', 'All three stars - it does not get better.'),
+    ][r.stars] || '';
+    const pr = r.progress;
+    const unlocked = pr ? pr.unlocked : (towerFresh() || {}).unlocked || r.stage;
+    const best = pr && pr.best ? Number(pr.best[r.stage]) || 0 : r.stars;
+    const bestLine = pr && pr.improved && r.stars
+      ? L('Neuer Bestwert für diese Stufe!', 'New best for this stage!')
+      : best > r.stars ? L(`Dein Bestwert hier bleibt bei ${best} Sternen.`, `Your best here stays at ${best} stars.`) : '';
+    box.innerHTML =
+      `<div class="twResultStars" role="img" aria-label="${escapeHtml(L(`${r.stars} von 3 Sternen`, `${r.stars} of 3 stars`))}">${towerStarsHtml(r.stars)}</div>` +
+      `<p class="twResultSum">${escapeHtml(L(`Du ${r.myScore} · ${botLine}`, `You ${r.myScore} · ${botLine}`))} <b>${escapeHtml(verdict)}</b></p>` +
+      (bestLine ? `<p class="twResultBest">${escapeHtml(bestLine)}</p>` : '') +
+      (r.xp ? `<p class="twResultXp">${escapeHtml(L(`+${r.xp} EP · erster Stern`, `+${r.xp} XP · first star`))}</p>` : '') +
+      `<p class="twResultHint">${escapeHtml(hint)}</p>` +
+      `<div class="twResultActions">` +
+      `<button type="button" class="btn-secondary twRetry"><svg class="icon" aria-hidden="true"><use href="#i-undo"/></svg><span>${escapeHtml(L('Nochmal', 'Try again'))}</span></button>` +
+      (r.stage < unlocked
+        ? `<button type="button" class="btn-secondary twNext"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>${escapeHtml(L(`Stufe ${r.stage + 1}`, `Stage ${r.stage + 1}`))}</span></button>`
+        : '') +
+      `</div>`;
+    box.querySelector('.twRetry').addEventListener('click', () => leaveTowerFor(r.stage));
+    const nextBtn = box.querySelector('.twNext');
+    if (nextBtn) nextBtn.addEventListener('click', () => leaveTowerFor(r.stage + 1));
+    const pane = body.querySelector('.resultPane') || body;
+    const head = pane.querySelector('.resultWinnerGame');
+    pane.insertBefore(box, head ? head.nextSibling : pane.firstChild);
+    requestAnimationFrame(() => updateResultScrollEdges());
+  }
 
   // --- "Heute": status of the daily puzzle and challenge on their tiles ----
   let challengeToday = null; // {date, you:{rank,score}|null} from /challengeboardz
@@ -8677,6 +8896,8 @@
       challenger_7: cap(p.totalChallenges, 7), challenger_30: cap(p.totalChallenges, 30),
       puzzle_7: cap(p.totalPuzzlesSolved, 7), puzzle_30: cap(p.totalPuzzlesSolved, 30),
       ...Object.fromEntries([10, 30, 100].map((n) => [`puzzle_perfect_${n}`, cap(p.totalPerfectPuzzles, n)])),
+      tower_3: cap(p.towerCleared, 3), tower_6: cap(p.towerCleared, 6), tower_10: cap(p.towerCleared, 10),
+      tower_stars_30: cap(p.towerStars, 30),
       red_lantern: cap(p.lastPlaceStreak, 3),
       stammtisch_10: cap(p.totalStammtischGames, 10),
     };

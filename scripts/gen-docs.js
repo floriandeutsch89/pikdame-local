@@ -135,7 +135,7 @@ secrets), e.g. \`PIKDAME_DATABASE_PASSWORD_FILE=/run/secrets/db_password\`.
 const MSG_GROUPS = [
   ['Before a table', 'Sent on a fresh connection, before the socket is bound to a table. These carry `msg.name` because the server has no seat to look up yet.',
     ['createSession', 'joinSession', 'checkSession', 'abandonSession', 'listProfiles', 'getGameHistory', 'setFavoriteBadges', 'setCelebration', 'ping',
-      'getPuzzle', 'solvePuzzle', 'revealPuzzle', 'startChallenge', 'startTutorial',
+      'getPuzzle', 'solvePuzzle', 'revealPuzzle', 'startChallenge', 'startTutorial', 'getTower', 'startTower',
       'createStammtisch', 'getStammtisch', 'listStammtische', 'leaveStammtisch', 'deleteStammtisch', 'getYearReview']],
   ['Lobby', 'Only valid while the table is in the `lobby` phase; most of them host-only.',
     ['setName', 'ready', 'lobbyReady', 'startGame', 'setMaxSeats', 'reorderSeats', 'setDealer', 'setBotDifficulty', 'setHouseRules', 'leaveLobby']],
@@ -156,6 +156,8 @@ const MSG_NOTES = {
   revealPuzzle: 'Give up on the puzzle and see the solution (no points).',
   startChallenge: 'Begin today\'s daily challenge. Beginning counts as the one attempt of the day.',
   startTutorial: 'Open a tutorial table against easy bots; the hints themselves are client-side.',
+  getTower: 'The bot tower stages (bots and handicap, never the seeds) and a player name\'s best stars per stage.',
+  startTower: 'Start one bot tower stage: a solo table with its fixed deal and bots, one round. Refused while the stage is locked and in public mode.',
   createStammtisch: 'Create a Stammtisch (a standing group table with its own code).',
   getStammtisch: 'Resolve a Stammtisch code. Unknown codes count as a failed attempt (brute-force guard).',
   listStammtische: 'The Stammtische a player name belongs to.',
@@ -220,6 +222,8 @@ const S2C_NOTES = {
   puzzleResult: 'Grading of a `solvePuzzle` attempt.',
   puzzleSolution: 'The solution, after `revealPuzzle` or a correct answer.',
   challengeBoard: 'Today\'s daily-challenge leaderboard and weekly ranking.',
+  towerInfo: 'Answer to `getTower`: the stages, best stars per stage, total stars, cleared stages and the highest unlocked stage.',
+  towerResult: 'The verdict of a finished bot tower stage: stars, own score, best bot, handicap, margin, and the updated best.',
   queenMagnet: 'Who is currently the "Damen-Magnet des Tages" in the challenge.',
   stammtisch: 'A Stammtisch was created or resolved; carries its code and members.',
   stammtischInfo: 'Details of one Stammtisch (members, last evening, open table).',
@@ -483,6 +487,7 @@ bilingual tables. Ids are stable, names may change.
 | Finishing a match (won or lost) | **${P.XP_BASE}** |
 | Winning it | **+${P.XP_WIN}** |
 | Final score | **+1 per ${perPoints} points** (never negative) |
+| First star of a bot tower stage (once per stage, no game counted) | **+${P.XP_TOWER_FIRST_STAR}** |
 
 Each level costs a little more than the last, so the first levels arrive
 after an evening of play and the later ones stay meaningful:

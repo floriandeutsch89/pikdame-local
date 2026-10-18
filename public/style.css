@@ -2524,6 +2524,57 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 .pgLadder li b { font-size: var(--fs-micro); text-transform: uppercase; letter-spacing: 0.04em; }
 .pgLadder li .icon { width: 1em; height: 1em; color: var(--text-muted); }
 .plLevel { font-variant-numeric: tabular-nums; font-weight: 700; }
+/* Bot tower: entry on the progress sheet, the stage sheet, the stage verdict.
+   Overlay cards are light in every theme, so the star gold is fixed. */
+.pgTower {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: var(--tap-min);
+  padding: 8px 12px; border: 0; border-radius: var(--r-sm); background: rgba(0,0,0,0.05);
+  font: inherit; color: var(--card-ink); text-align: left; cursor: pointer;
+}
+.pgTower:active { transform: scale(0.98); }
+.pgTowerIcon { color: #b07800; }
+.pgTowerText { display: flex; flex-direction: column; flex: 1; min-width: 0; font-size: var(--fs-label); }
+.pgTowerText b { font-size: var(--fs-body); font-variant-numeric: tabular-nums; }
+.pgTowerText span { color: var(--text-muted); }
+.pgTowerGo { transform: rotate(-90deg); color: var(--text-muted); }
+.towerSummary { margin: 0 0 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.towerList { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+/* The bot column holds three level icons (11px x 2.544 each), so the handicap lines up. */
+.twStage {
+  display: grid; grid-template-columns: 28px 92px 1fr auto; align-items: center; gap: 10px;
+  width: 100%; min-height: var(--tap-min); padding: 4px 10px;
+  border: 1.5px solid transparent; border-radius: var(--r-sm); background: rgba(0,0,0,0.04);
+  font: inherit; color: var(--card-ink); text-align: left; cursor: pointer;
+}
+.twStage:active { transform: scale(0.98); }
+.twStage.next { border-color: var(--accent); background: var(--accent-soft); }
+.twStage.locked { color: var(--text-muted); cursor: default; }
+.twStage.locked .twBots { opacity: 0.45; }
+.twNum {
+  width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.08); font-size: var(--fs-label); font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.twBots { display: inline-flex; gap: 4px; }
+.twBots .lvlSlot { --lvl-h: 11px; }
+.twHandicap { font-size: var(--fs-hint); font-weight: 700; color: var(--text-muted); white-space: nowrap; }
+.twStars, .twResultStars { display: inline-flex; gap: 1px; }
+.twStars .icon { width: 18px; height: 18px; color: rgba(0,0,0,0.28); }
+.twStars .icon.on, .twResultStars .icon.on { color: #b07800; fill: #f2b51d; }
+.towerResultBox {
+  margin: 0 0 12px; padding: 10px 14px; text-align: center;
+  border: 1px solid var(--glass-border); border-radius: var(--r-md);
+}
+.twResultStars .icon { width: 30px; height: 30px; color: rgba(0,0,0,0.25); }
+.twResultSum { margin: 4px 0 0; font-size: var(--fs-label); font-variant-numeric: tabular-nums; }
+.twResultSum b { display: block; font-size: var(--fs-body); }
+.twResultBest { margin: 4px 0 0; font-size: var(--fs-label); font-weight: 700; }
+.twResultXp { margin: 4px 0 0; font-size: var(--fs-label); font-weight: 800; color: var(--card-ink); font-variant-numeric: tabular-nums; }
+.twResultHint { margin: 4px 0 0; font-size: var(--fs-hint); color: var(--text-muted); }
+.twResultActions { display: flex; gap: 8px; margin-top: 4px; }
+.twResultActions .btn-secondary {
+  flex: 1; min-height: var(--tap-min); display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: var(--fs-body);
+}
 .achAllBtn {
   display: block; width: 100%; min-height: var(--tap-min); margin-top: 6px;
   border: 0; border-radius: var(--r-sm); background: transparent;
@@ -5109,6 +5160,14 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
   .stammtischSheet .stGoals { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 14px; }
   .stammtischSheet .stGoalLevel small { display: none; }
   .stammtischSheet .stGoalWeek { flex: 1 1 auto; }
+
+  /* Bot tower at ~400 px: the explanation left, the stages right in their own scroller. */
+  .towerCard {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); grid-template-rows: auto auto 1fr auto;
+    column-gap: 18px; align-content: start; max-width: 760px; padding: 12px 18px; overflow: hidden;
+  }
+  .towerCard > * { grid-column: 1; }
+  .towerCard .towerList { grid-column: 2; grid-row: 1 / -1; margin: 0; max-height: calc(82vh - 24px); overflow-y: auto; }
 
   /* Year review at ~400 px: the story card left, its controls bottom right. */
   #yearReviewOverlay .overlay-card {

@@ -14,6 +14,9 @@ const MoveLogger = require('./MoveLogger');
 const { dayEnd } = require('./GameDay');
 const { isQuipMoment } = require('./BotQuips');
 const { isCelebration } = require('./Celebrations');
+const BotTower = require('./BotTower');
+// Every try of a tower stage plays the same deal under the same rules and bots.
+const TOWER_FIXED_ERROR = 'Im Bot-Turm sind Regeln und Bots fest - jeder Versuch einer Stufe läuft gleich.';
 
 // Bot think time multiplier per table (house rule `botPace`, default normal).
 const BOT_PACE_FACTOR = { fast: 0.5, normal: 1, slow: 2 };
@@ -53,6 +56,8 @@ class GameManager {
     // seine Lernhilfen nur hier einblendet. Ein zufaelliges Deck laesst sich
     // nicht erklaeren - im Tutorial ist jede Karte vorhersehbar.
     this.tutorialMode = !!options.tutorialMode;
+    // Bot tower (BotTower.js): a solo stage of exactly one round.
+    this.towerStage = Number.isInteger(options.towerStage) ? options.towerStage : null;
     // Wird vom Server gesetzt: raeumt die Sitzung weg, wenn ein Solo-Spiel
     // abgebrochen wird (nicht wiederaufnehmbar, keine Wertung).
     this.onAbandon = typeof options.onAbandon === 'function' ? options.onAbandon : null;
@@ -251,7 +256,7 @@ class GameManager {
     if (this.challengeDate || !['playing', 'roundEnd', 'cutting'].includes(this.phase)) return { outcome: 'none' };
     const others = this.players.filter((pl) => pl.id !== playerId && !pl.isBot && !pl.leftGame);
     if (others.length === 0) {
-      if (this.tutorialMode) this._abandonSolo();
+      if (this.tutorialMode || this.towerStage) this._abandonSolo();
       else this._forfeitGame(`${p.name} hat aufgegeben - die Partie endet ohne Wertung.`);
       return { outcome: 'ended' };
     }
@@ -297,6 +302,7 @@ class GameManager {
       left: !!p.leftGame,
       alone: !this.players.some((pl) => pl.id !== playerId && !pl.isBot && !pl.leftGame),
       tutorial: !!this.tutorialMode,
+      tower: this.towerStage || null,
     };
   }
 
@@ -347,8 +353,8 @@ class GameManager {
       // Daily challenge: any disconnect (app minimised, tab closed) keeps the
       // game open until the challenge day ends (German midnight, when the deck
       // changes anyway) - players want to come back later that day. The
-      // tutorial keeps the short windows: 90s, or 20 min after an explicit
-      // pause (otherwise the short clock would abandon a paused game).
+      // tutorial and the bot tower keep the short windows: 90s, or 20 min after
+      // an explicit pause (otherwise the short clock would abandon a paused game).
       const graceMs = this.challengeDate
         ? Math.max(GameManager.SOLO_GRACE_MS, dayEnd(this.challengeDate) - Date.now())
         : this.paused ? GameManager.SOLO_PAUSED_GRACE_MS : GameManager.SOLO_GRACE_MS;
@@ -479,6 +485,7 @@ class GameManager {
     if (this.challengeDate && !system) {
       return { error: 'In der Tages-Challenge sind die Regeln fest - sonst wäre die Bestenliste nicht vergleichbar.' };
     }
+    if (this.towerStage && !system) return { error: TOWER_FIXED_ERROR };
     // Nur bekannte Regeln übernehmen (Client-Eingaben nie blind spreaden).
     const clean = {};
     if (typeof partial.handAusDoubles === 'boolean') clean.handAusDoubles = partial.handAusDoubles;
@@ -584,11 +591,30 @@ class GameManager {
     this.startNewRound();
   }
 
+  /** A bot tower stage (server and tests share it): the stage's bots in seat
+   *  order after the human, as calibrated in BotTower.js, the human moves first. */
+  startTowerRound() {
+    const cfg = BotTower.stageConfig(this.towerStage);
+    if (!cfg || this.phase !== 'lobby') return { error: 'Diese Turmstufe lässt sich nicht starten.' };
+    this.setHouseRules({ turnTimerSeconds: 0 }, { system: true });
+    this.maxSeats = cfg.bots.length + 1;
+    this.syncLobbyBots();
+    this.players.sort((a, b) => Number(a.isBot) - Number(b.isBot));
+    this.players.filter((p) => p.isBot).forEach((b, i) => { b.botDifficulty = cfg.bots[i]; });
+    this.setExplicitDealer(this.players[this.players.length - 1].id);
+    this.addLog(cfg.handicap
+      ? `Bot-Turm, Stufe ${cfg.stage}: Hol in dieser Runde mehr Punkte als jeder Bot - die Bots bekommen ${cfg.handicap} Punkte Vorgabe.`
+      : `Bot-Turm, Stufe ${cfg.stage}: Hol in dieser Runde mehr Punkte als jeder Bot.`);
+    this.startNewRound();
+    return { ok: true };
+  }
+
   /** Lobby control "Bot-Stärke": one level for every bot (the server checks the host). */
   setAllBotsDifficultyBy(requesterId, difficulty) {
     if (this.challengeDate) {
       return { error: 'In der Tages-Challenge ist die Bot-Stärke fest - sonst wäre die Bestenliste nicht vergleichbar.' };
     }
+    if (this.towerStage) return { error: TOWER_FIXED_ERROR };
     if (!this.players.some((p) => p.id === requesterId && !p.isBot)) return { error: 'Nur Spieler am Tisch können das ändern.' };
     const r = this.setAllBotsDifficulty(difficulty);
     if (r.error) return r;
@@ -601,6 +627,7 @@ class GameManager {
     if (this.challengeDate) {
       return { error: 'In der Tages-Challenge ist die Bot-Stärke fest - sonst wäre die Bestenliste nicht vergleichbar.' };
     }
+    if (this.towerStage) return { error: TOWER_FIXED_ERROR };
     // Same names as every client control (one vocabulary for the levels).
     const LABELS = { easy: 'Leicht', medium: 'Mittel', hard: 'Schwer', zen: 'Zen' };
     if (!LABELS[difficulty]) return { error: 'Unbekannte Schwierigkeit.' };
@@ -1850,7 +1877,15 @@ class GameManager {
         .map(([pid, score]) => `${this.players.find((p) => p.id === pid)?.name || pid}=${score}`)
         .join(', ')}`
     );
-    const over = checkGameOver(totalsForGameOverCheck, this.houseRules);
+    // Bot tower: the match is its one round, won by the human only with a star.
+    const towerCfg = this.towerStage ? BotTower.stageConfig(this.towerStage) : null;
+    const over = towerCfg
+      ? {
+        gameOver: true,
+        winnerId: BotTower.stageWinner(totalsForGameOverCheck, winnerId, this.players.find((p) => !p.isBot)?.id, towerCfg.handicap),
+        finalTotals: totalsForGameOverCheck,
+      }
+      : checkGameOver(totalsForGameOverCheck, this.houseRules);
     // Gleichstand an der Spitze: Es geht weiter. Ohne Ansage wirkt das wie
     // ein Fehler ("warum ist das Spiel nicht vorbei?").
     if (over.tieBreak) {
@@ -1906,6 +1941,7 @@ class GameManager {
 
       this.lastGameRecord = {
         challengeDate: this.challengeDate || undefined,
+        towerStage: this.towerStage || undefined,
         // A seat given up mid-game counts as a bot from then on: no stats, XP or history for the leaver.
         players: this.players.map((p) => {
           const bot = p.isBot || !!p.leftGame;
@@ -2554,9 +2590,9 @@ class GameManager {
    * Bot ist, ODER ein menschlicher Spieler gerade die Verbindung verloren hat
    * (Reconnect-Robustheit: der Tisch blockiert nicht, bis er zurückkehrt).
    */
-  /** Challenge und Tutorial sind Einzelspieler-Erlebnisse. */
+  /** Challenge, tutorial and bot tower are single-player experiences. */
   isSoloMode() {
-    return !!(this.challengeDate || this.tutorialMode);
+    return !!(this.challengeDate || this.tutorialMode || this.towerStage);
   }
 
   isBotControlled(player) {
@@ -3087,6 +3123,7 @@ class GameManager {
       lastCutReveal: this._cutRevealFor(forPlayerId),
       challengeDate: this.challengeDate || null,
       tutorialMode: this.tutorialMode || false,
+      towerStage: this.towerStage || null,
       soloPausedUntil: this.soloPausedUntil || null,
       abandoned: this.abandoned || false,
       canUndoMeld: !!(
