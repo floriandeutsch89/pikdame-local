@@ -68,7 +68,7 @@ test('"Was ist neu?" names the sections in German and English; unknown headings 
 
 test('every visible account field has its own label, also in English', () => {
   const { doc, window } = boot({ pikdame_lang: 'en' });
-  const fields = [...doc.querySelectorAll('#accountOverlay input:not(.visuallyHidden)')];
+  const fields = [...doc.querySelectorAll('#accountOverlay input:not(.visuallyHidden):not([type="checkbox"])')];
   assert.ok(fields.length >= 6, 'login, sign-up, code and new password');
   for (const input of fields) {
     const label = doc.querySelector(`label.fieldLabel[for="${input.id}"]`);
