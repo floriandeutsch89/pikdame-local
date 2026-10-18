@@ -32,6 +32,10 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   objects `ACCOUNT_API` at the top of the script): the season-finale hint
   shows on the first start-screen shot, `stats` gets the season badges, and
   the scene `account` opens the account sheet (level, season ladder).
+  The mock result is a podium place, so the first start-screen shot also
+  catches the fireworks band behind the header.
+- **Reduced motion:** `--reduced-motion` emulates `prefers-reduced-motion:
+  reduce` - the still pictures instead of the animations.
 - **Scenes:** `lobby`, `lobby-open` (daily tasks unfolded), `progress`
   ("Dein Fortschritt"), `stats`, `history` ("Meine Partien"), `roundend`,
   `roundend-stats`, `gameover`, `gameover-challenge` (board + share),

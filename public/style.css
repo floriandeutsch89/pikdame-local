@@ -3183,6 +3183,10 @@ input:disabled { opacity: 0.65; }
   position: absolute; top: 0; left: 0; right: 0; height: 116px; z-index: -1;
   overflow: hidden; pointer-events: none; border-radius: inherit;
 }
+/* Season podium (announceSeasonResult): the band fills the start screen's
+   header and ends with it - behind the content, never over a button below. */
+.lobbyHeader.celebrating { position: relative; isolation: isolate; align-self: stretch; }
+.lobbyHeader > .celebrationBand { height: auto; bottom: 0; }
 /* Settings preview: the same band in a box that opens while it plays. */
 .celebrationPreview {
   position: relative; height: 0; overflow: hidden; border-radius: var(--r-sm);
