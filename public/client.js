@@ -8348,6 +8348,10 @@
     }
     const owned = me.badges || {};
     const progress = badgeProgressFor(me);
+    const favKeys = canPickFavorites() ? myFavoriteKeys(me) : [];
+    const favMark = (key) => (favKeys.includes(key)
+      ? `<svg class="icon achFavMark" aria-hidden="true"><use href="#i-star"/></svg><span class="visuallyHidden">${escapeHtml(L('Lieblingsabzeichen', 'Favourite badge'))}</span>`
+      : '');
     const singleTile = (id) => {
       const m = badgeMeta(id);
       const at = owned[id];
@@ -8357,10 +8361,10 @@
         : p && p.need > 1
           ? `${p.have}/${p.need}`
           : L('gesperrt', 'locked');
-      return `<button type="button" class="achTile${at ? ' earned' : ''}" data-ach="${id}" aria-expanded="false" title="${escapeHtml(m.how)}">
+      return `<button type="button" class="achTile${at ? ' earned' : ''}${favKeys.includes(id) ? ' fav' : ''}" data-ach="${id}" aria-expanded="false" title="${escapeHtml(m.how)}">
         <span class="achEmoji">${at ? m.emoji : '🔒'}</span>
         <span class="achName">${escapeHtml(m.name)}</span>
-        <span class="achSub">${escapeHtml(sub)}</span>
+        <span class="achSub">${escapeHtml(sub)}</span>${favMark(id)}
       </button>`;
     };
     // A family is ONE tile: the highest earned tier gives it name and
@@ -8376,11 +8380,11 @@
         ? p && p.need > 1 ? `${p.have}/${p.need}` : L('gesperrt', 'locked')
         : L('alle Stufen', 'all tiers');
       const title = next ? badgeMeta(next).how : m.desc;
-      return `<button type="button" class="achTile achFamily${top ? ' earned' : ''}${!next ? ' maxed' : ''}" data-ach="${fam.id}" aria-expanded="false" title="${escapeHtml(title)}">
+      return `<button type="button" class="achTile achFamily${top ? ' earned' : ''}${!next ? ' maxed' : ''}${favKeys.includes(fam.id) ? ' fav' : ''}" data-ach="${fam.id}" aria-expanded="false" title="${escapeHtml(title)}">
         <span class="achEmoji">${top ? m.emoji : '🔒'}</span>
         <span class="achName">${escapeHtml(m.name)}</span>
         <span class="achTiers">${dots}</span>
-        <span class="achSub">${escapeHtml(sub)}</span>
+        <span class="achSub">${escapeHtml(sub)}</span>${favMark(fam.id)}
       </button>`;
     };
     const total = BADGE_FAMILIES.reduce((n, f) => n + f.tiers.length, 0) + BADGE_SINGLES.length;
@@ -8406,8 +8410,27 @@
       : near.length
         ? section(L('Fast geschafft', 'Almost there'), near)
         : section(L('Zuletzt freigeschaltet', 'Recently unlocked'), order.unlocked.slice(0, 3)));
+    // Favourites on top, folded too: a family tile changes name and emoji with
+    // each tier, so this list is where a favourite is found and removed.
+    const favs = favKeys.map((key) => ({ key, m: favoriteEmoji(me, key) })).filter((f) => f.m);
+    const favChip = ({ key, m }) => {
+      const name = String(m.name).replace(/­/g, '');
+      return `<span class="achFavChip"><span class="achFavEmoji" aria-hidden="true">${m.emoji}</span>` +
+        `<span class="achFavName">${escapeHtml(m.name)}</span>` +
+        `<button type="button" class="achFavRemove" data-fav-remove="${escapeHtml(key)}" aria-label="${escapeHtml(L(`${name} entfernen`, `Remove ${name}`))}">` +
+        `<svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></span>`;
+    };
+    const favStrip = canPickFavorites() && (favs.length || have)
+      ? `<div class="achFavStrip"><h4 class="achSection"><svg class="icon" aria-hidden="true"><use href="#i-star"/></svg>` +
+        `<span>${escapeHtml(L('Lieblingsabzeichen', 'Favourite badges'))} (${favs.length}/${FAVORITES_MAX})</span></h4>` +
+        (favs.length ? `<div class="achFavList">${favs.map(favChip).join('')}</div>` : '') +
+        (favs.length < FAVORITES_MAX
+          ? `<p class="achFavHint">${escapeHtml(L('Stehen am Tisch neben deinem Namen. Tippe ein Abzeichen an, um eins hinzuzufügen.', 'Shown next to your name at the table. Tap a badge to add one.'))}</p>`
+          : '') +
+        '</div>'
+      : '';
     box.innerHTML =
-      `<h3>${L('Erfolge', 'Achievements')} <span class="achCount">${have} / ${total}</span></h3>` + body +
+      `<h3>${L('Erfolge', 'Achievements')} <span class="achCount">${have} / ${total}</span></h3>` + favStrip + body +
       `<button type="button" class="achAllBtn">${achShowAll ? L('Weniger anzeigen', 'Show less') : L(`Alle ${total} anzeigen`, `Show all ${total}`)}</button>`;
     // Re-render (new profile data) keeps the open detail open.
     if (openAchId) showAchDetail(openAchId, false);
@@ -8448,6 +8471,14 @@
     if (!metas.length) return '';
     return ` <span class="favBadges" title="${escapeHtml(metas.map((m) => m.name).join(', '))}">${metas.map((m) => m.emoji).join('')}</span>`;
   }
+  // A stored tier id belongs to its family's tile - else no tile could remove it.
+  function favoriteTileKey(key) {
+    const fam = BADGE_FAMILIES.find((f) => f.tiers.includes(key));
+    return fam ? fam.id : key;
+  }
+  function myFavoriteKeys(me) {
+    return [...new Set(((me && me.favoriteBadges) || []).map(favoriteTileKey))];
+  }
   function profileByName(name) {
     const n = String(name || '').toLowerCase();
     return (knownProfiles || []).find((p) => p.name && p.name.toLowerCase() === n) || null;
@@ -8460,17 +8491,16 @@
   function favoriteToggleHtml(key) {
     const me = myProfile();
     if (!canPickFavorites() || !me || !favoriteEmoji(me, key)) return '';
-    const favs = me.favoriteBadges || [];
-    const on = favs.includes(key);
-    const label = on
-      ? L(`Lieblingsabzeichen (${favs.length}/${FAVORITES_MAX})`, `Favourite badge (${favs.length}/${FAVORITES_MAX})`)
-      : L('Als Lieblingsabzeichen zeigen', 'Show as favourite badge');
-    return `<button type="button" class="achFavBtn${on ? ' active' : ''}" data-fav="${escapeHtml(key)}" aria-pressed="${on}"><svg class="icon" aria-hidden="true"><use href="#i-star"/></svg><span>${escapeHtml(label)}</span></button>`;
+    const favs = myFavoriteKeys(me);
+    // The detail only adds; removing happens in the list on top of the cabinet.
+    if (favs.includes(key)) return '';
+    const label = L(`Als Lieblingsabzeichen zeigen (${favs.length}/${FAVORITES_MAX})`, `Show as favourite badge (${favs.length}/${FAVORITES_MAX})`);
+    return `<button type="button" class="achFavBtn" data-fav="${escapeHtml(key)}"><svg class="icon" aria-hidden="true"><use href="#i-star"/></svg><span>${escapeHtml(label)}</span></button>`;
   }
   function toggleFavorite(key) {
     const me = myProfile();
     if (!me || !canPickFavorites()) return;
-    const favs = (me.favoriteBadges || []).slice();
+    const favs = myFavoriteKeys(me);
     const at = favs.indexOf(key);
     if (at >= 0) favs.splice(at, 1);
     else if (favs.length >= FAVORITES_MAX) {
@@ -8538,6 +8568,8 @@
     if (ev.target.closest('.achAllBtn')) { achShowAll = !achShowAll; renderAchievements(); return; }
     const fav = ev.target.closest('.achFavBtn');
     if (fav) { toggleFavorite(fav.dataset.fav); return; }
+    const remove = ev.target.closest('.achFavRemove');
+    if (remove) { toggleFavorite(remove.dataset.favRemove); return; }
     const tile = ev.target.closest('.achTile');
     if (!tile) return;
     showAchDetail(openAchId === tile.dataset.ach ? null : tile.dataset.ach);

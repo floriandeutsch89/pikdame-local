@@ -142,10 +142,13 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     };
     const unique = [...new Set(keys.map(String))];
     if (unique.length > FAVORITE_BADGES_MAX) return { error: 'Höchstens 3 Lieblingsabzeichen.' };
-    if (!unique.every(earned)) return { error: 'Nur verdiente Abzeichen können Lieblingsabzeichen sein.' };
-    p.favoriteBadges = unique;
+    // A stored key that no longer counts (renamed badge) must not block every
+    // later change: it may be sent back and is dropped.
+    const stored = new Set(p.favoriteBadges || []);
+    if (!unique.every((k) => earned(k) || stored.has(k))) return { error: 'Nur verdiente Abzeichen können Lieblingsabzeichen sein.' };
+    p.favoriteBadges = unique.filter(earned);
     saveStore(store);
-    return { favorites: unique };
+    return { favorites: p.favoriteBadges };
   }
 
   /**
