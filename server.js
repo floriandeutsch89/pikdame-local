@@ -39,6 +39,9 @@ const { holidayStatus } = require('./game/Holidays');
 const { puzzleForDate, publicPuzzle, checkAnswer, perfectStreakOn, XP_FOR_SOLVED, PUZZLE_EPOCH } = require('./game/DailyPuzzle');
 const { createStammtischStore, normalizeCode: normalizeStammtischCode } = require('./game/StammtischStore');
 const { createGameHistoryStore, historyForPlayer } = require('./game/GameHistoryStore');
+const { createYearStatsStore } = require('./game/YearStatsStore');
+const { buildReview, isReviewSeason, yearOf } = require('./game/YearReview');
+const { createYearReviewMailer, composeReviewMail, sampleReview } = require('./game/YearReviewMail');
 const { SessionRegistry, sanitizeName } = require('./game/SessionRegistry');
 
 const PORT = process.env.PORT || 8080;
@@ -55,6 +58,8 @@ const CHALLENGE_BOT_DIFFICULTY = 'medium';
 // EIN Hauptthema ranken - deshalb je eine Seite statt eines Sammelblocks.
 const SEO_PAGES = ['romme-regeln', 'pik-dame-regeln', 'kartenspiele-zu-zweit', 'pik-dame-strategie', 'pik-dame-oder-hearts'];
 const globalStats = createGlobalStatsStore();
+// "Dein Pik-Dame-Jahr": per-year counters behind the December review.
+const yearStats = createYearStatsStore();
 // Benutzerkonten: aktiv, wenn Nodes eingebautes SQLite verfügbar ist
 // (Node >= 22, im Docker-Image gegeben) und nicht per Env abgeschaltet.
 // In der iOS CodeApp (ältere Node-Version) liefert die Factory null und
@@ -173,6 +178,7 @@ function flushStoresSafely() {
   try { playerStore.flushSync(); } catch (e) { /* best effort */ }
   try { globalStats.flushSync(); } catch (e) { /* best effort */ }
   try { gameHistoryStore.flushSync(); } catch (e) { /* best effort */ }
+  try { yearStats.flushSync(); } catch (e) { /* best effort */ }
 }
 
 /**
@@ -284,7 +290,7 @@ function serveStatic(req, res) {
     return;
   }
   // ---------------- Benutzerkonten-API ----------------
-  if (filePath.startsWith('/api/') || filePath === '/verify') {
+  if (filePath.startsWith('/api/') || filePath === '/verify' || filePath === '/unsubscribe') {
     // handleAccountRequest ist async: eine unerwartete Exception (z.B. aus
     // SQLite) darf weder als unhandledRejection enden noch die HTTP-Antwort
     // ewig offen lassen - der Client bekommt ein sauberes 500.
@@ -422,6 +428,7 @@ try {
 }
 
 const PUBLIC_MODE = process.env.PIKDAME_PUBLIC_MODE === '1';
+const YEAR_REVIEW_PREVIEW = process.env.PIKDAME_YEAR_REVIEW_PREVIEW === '1';
 const TRUST_PROXY = process.env.PIKDAME_TRUST_PROXY === '1';
 const ALLOWED_ORIGIN = process.env.PIKDAME_ALLOWED_ORIGIN || null;
 const HEARTBEAT_MS = Number(process.env.PIKDAME_HEARTBEAT_MS) || 30000;
@@ -698,6 +705,29 @@ async function handleAdminRequest(req, res, filePath) {
           ? { ok: true, text: `Testmail an ${to} wurde vom SMTP-Server angenommen.` }
           : { ok: false, text: `Versand fehlgeschlagen: ${r.reason}` };
       }
+    } else if (form.get('action') === 'review') {
+      // The year-review mail as the player would get it: real numbers for a
+      // name, else example numbers; the unsubscribe link is a dead dummy.
+      const to = String(form.get('to') || '').trim();
+      const player = String(form.get('player') || '').trim();
+      if (!AdminPage.validRecipient(to)) {
+        notice = { ok: false, text: 'Bitte eine gültige Empfängeradresse eingeben.' };
+      } else if (bump(adminMailsByIp, ip, 10 * 60 * 1000) > 5) {
+        notice = { ok: false, text: 'Höchstens 5 Testmails in 10 Minuten.' };
+      } else {
+        const year = yearOf(gameDay());
+        const real = player ? yearReviewFor(player, year) : null;
+        const base = publicBase(req);
+        const mail = composeReviewMail({
+          review: real || sampleReview(year), name: player || 'Katzenfreund', lang: 'de',
+          appUrl: `${base}/?jahr=${year}`, unsubscribeUrl: `${base}/unsubscribe?t=vorschau`,
+        });
+        const r = await mailer.send({ to, subject: `[Vorschau] ${mail.subject}`, text: mail.text, html: mail.html });
+        const what = real ? `Zahlen von ${player}` : player ? `Beispielzahlen - für ${player} gibt es ${year} keine Partie` : 'Beispielzahlen';
+        notice = r.delivered
+          ? { ok: true, text: `Jahresrückblick-Vorschau (${what}) an ${to} wurde vom SMTP-Server angenommen.` }
+          : { ok: false, text: mailer.configured ? `Versand fehlgeschlagen: ${r.reason}` : 'Kein SMTP-Server konfiguriert - die Vorschau steht nur im Log.' };
+      }
     } else {
       const r = await runSmtpProbe();
       notice = mailer.configured
@@ -813,9 +843,9 @@ async function handleAdminRequest(req, res, filePath) {
 // Guest -> account: players who played under a name first and registered it
 // later keep their progress. The name-based profile (PlayerStore) is theirs
 // already - joinSession only lets a verified account's owner use the name -
-// and this carries its numbers into the account-bound ladder, once per
-// account (see AccountStore.importProfile). Best effort: never blocks verify
-// or login.
+// and this carries its level numbers into the account, once per account,
+// never into the season (see AccountStore.importProfile). Best effort: never
+// blocks verify or login.
 async function importGuestProfile(username) {
   if (!ACCOUNTS_ENABLED || typeof accountStore.importProfile !== 'function') return null;
   try {
@@ -825,7 +855,6 @@ async function importGuestProfile(username) {
       xp: profile.xp || 0,
       games: profile.gamesPlayed || 0,
       wins: profile.gamesWon || 0,
-      season: seasonForDate(gameDay()),
     });
     if (r && r.imported) console.log(`[account] Gast-Fortschritt übernommen: ${username} (${profile.xp || 0} EP, ${profile.gamesPlayed || 0} Spiele)`);
     return r;
@@ -933,6 +962,37 @@ async function handleAccountRequest(req, res, filePath) {
 <div><h1>${ok ? '✅ E-Mail bestätigt!' : '❌ Bestätigung fehlgeschlagen'}</h1>
 <p>${ok ? `Willkommen, ${escapeHtml(result.username)}! Du kannst dich jetzt im Spiel anmelden.` : escapeHtml(result.error)}</p>
 <p><a href="/" style="color:#2fd6b0">Zurück zum Spiel</a></p></div></body></html>`);
+    return;
+  }
+
+  // Unsubscribe link from the year-review mail: GET = the link in the text,
+  // POST = RFC 8058 one-click from the mail client. Both switch the mail off.
+  if (filePath === '/unsubscribe') {
+    // HEAD and friends (link checkers) must not switch anything off.
+    if (req.method !== 'GET' && req.method !== 'POST') return sendJson(res, 405, { error: 'Nur GET oder POST.' });
+    const url = new URL(req.url, 'http://localhost');
+    const r = ACCOUNTS_ENABLED && typeof accountStore.unsubscribeReviewMail === 'function'
+      ? await accountStore.unsubscribeReviewMail(url.searchParams.get('t'))
+      : { error: 'invalid' };
+    if (r.ok) console.log(`[account] Jahresrückblick-Mail abbestellt: ${r.username}`);
+    if (req.method === 'POST') {
+      res.writeHead(r.ok ? 200 : 400, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end(r.ok ? 'OK' : 'Invalid');
+      return;
+    }
+    const en = r.lang === 'en';
+    const title = r.ok ? (en ? 'Unsubscribed' : 'Abbestellt') : 'Link ungültig · Invalid link';
+    const text = r.ok
+      ? (en
+        ? 'You will not get the year-review mail any more. You can switch it back on in your account.'
+        : 'Du bekommst den Jahresrückblick nicht mehr per Mail. Wieder einschalten kannst du ihn in deinem Konto.')
+      : 'Dieser Abmeldelink ist ungültig oder abgelaufen. This unsubscribe link is invalid or expired.';
+    res.writeHead(r.ok ? 200 : 400, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(`<!DOCTYPE html><html lang="${en ? 'en' : 'de'}"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pik Dame - ${escapeHtml(title)}</title>
+<body style="font-family:sans-serif;background:#14171c;color:#eef1f4;display:flex;min-height:100dvh;align-items:center;justify-content:center;text-align:center;padding:20px">
+<div><h1>${escapeHtml(title)}</h1><p>${escapeHtml(text)}</p>
+<p><a href="/" style="color:#2fd6b0">${en ? 'Back to the game' : 'Zurück zum Spiel'}</a></p></div></body></html>`);
     return;
   }
 
@@ -1064,7 +1124,17 @@ async function handleAccountRequest(req, res, filePath) {
       hasPassword: acc.hasPassword,
       passkeysAvailable: !!passkeys,
       passkeys: acc.credentials.map((c) => ({ id: c.id, name: c.name, createdAt: c.createdAt, lastUsedAt: c.lastUsedAt, synced: c.backedUp })),
+      reviewMail: !!acc.reviewMail,
     });
+  }
+  if (filePath === '/api/account/review-mail') {
+    // Opt-in for the year-review mail; consent is an explicit tap, never a default.
+    const acc = await needAccount();
+    if (!acc) return;
+    if (typeof body.enabled !== 'boolean') return sendJson(res, 400, { error: 'Ungültige Anfrage.' });
+    const r = await accountStore.setReviewMail(acc.id, body.enabled, body.lang === 'en' ? 'en' : 'de');
+    if (!r.error) console.log(`[account] Jahresrückblick-Mail ${body.enabled ? 'an' : 'aus'}: ${acc.username}`);
+    return sendJson(res, r.error ? 503 : 200, r);
   }
   if (filePath === '/api/password/set') {
     const acc = await needAccount();
@@ -1296,6 +1366,7 @@ const registry = new SessionRegistry((session) => {
         if (p.isBot) continue;
         try { streaks[p.id] = playerStore.touchDailyStreak(p.name, questDate); } catch (err) { logCrash('streak', err, { player: p.name }); }
       }
+      recordYearStats(session, results, gameRecord, questDate, streaks);
 
       // Seasonal card backs: a finished game in the month unlocks it for good.
       for (const seasonalBack of seasonalBacksFor(questDate)) {
@@ -1531,6 +1602,24 @@ function closeChallengeAttempt(game) {
 const snapshotTimer = setInterval(() => writeSessionsSnapshot({ quiet: true }), SNAPSHOT_INTERVAL_MS);
 snapshotTimer.unref();
 
+// Year-review mail (27.12. from 10:00 German time): the account store marks
+// each account+year as sent, so restarts and a 10-minute tick never mail twice.
+// A real relay needs the public URL - a localhost unsubscribe link would be dead.
+const reviewMailBase = (process.env.PIKDAME_BASE_URL || (mailer.configured ? '' : `http://localhost:${PORT}`)).replace(/\/$/, '');
+if (ACCOUNTS_ENABLED && reviewMailBase) {
+  const reviewMailer = createYearReviewMailer({
+    accountStore,
+    reviewFor: (name, year) => yearReviewFor(name, year),
+    mailer,
+    baseUrl: reviewMailBase,
+  });
+  const reviewTick = () => reviewMailer.tick().catch((err) => logCrash('year-review-mail', err));
+  setInterval(reviewTick, 10 * 60 * 1000).unref();
+  setTimeout(reviewTick, 30 * 1000).unref();
+} else if (ACCOUNTS_ENABLED) {
+  console.log('[mail] Jahresrückblick-Mail aus: PIKDAME_BASE_URL fehlt (Abmeldelinks brauchen die öffentliche URL).');
+}
+
 // One puzzle per day, built on first request (the subset search costs a few
 // milliseconds) and dropped when the date moves on.
 // A few days cached: today plus whatever the archive is browsing.
@@ -1583,6 +1672,28 @@ function applyTablePrefs(game, prefs) {
   if (!prefs || typeof prefs !== 'object' || game.challengeDate || game.tutorialMode) return;
   if (prefs.houseRules && typeof prefs.houseRules === 'object') game.setHouseRules(prefs.houseRules);
   if (typeof prefs.botLevel === 'string') game.setAllBotsDifficulty(prefs.botLevel);
+}
+
+// Year review counters (YearReview.js) for every human seat of a finished game.
+// The Stammtisch counts by NAME - its code is a secret and never stored here.
+function recordYearStats(session, results, gameRecord, date, streaks) {
+  try {
+    const t = session.stammtisch ? stammtischStore.get(session.stammtisch) : null;
+    yearStats.recordFinishedGame(results, gameRecord.players, date, { table: t && t.name ? t.name : null, streaks });
+  } catch (err) {
+    logCrash('year-stats', err);
+  }
+}
+
+/** The December review for a name, or null (public mode, no game that year). */
+function yearReviewFor(name, year) {
+  if (PUBLIC_MODE || !name) return null;
+  return buildReview({
+    year,
+    profile: playerStore.getPlayerByName(name),
+    bucket: yearStats.yearFor(name, year),
+    trackingSince: yearStats.trackingSince(),
+  });
 }
 
 function sendProfilesTo(ws) {
@@ -2005,6 +2116,15 @@ wss.on('connection', (ws, req) => {
       ws.send(JSON.stringify({ type: 'stammtischInfo', exists: true, ...info }));
       return;
     }
+    if (msg.type === 'getYearReview') {
+      // "Dein Pik-Dame-Jahr": only in December (German game day). The preview
+      // flag is for screenshots and local checks, never set in production.
+      const today = gameDay();
+      const open = isReviewSeason(today) || YEAR_REVIEW_PREVIEW;
+      const review = open ? yearReviewFor(sanitizeName(msg.name), yearOf(today)) : null;
+      ws.send(JSON.stringify({ type: 'yearReview', available: !!review, season: open, review }));
+      return;
+    }
     if (msg.type === 'checkSession') {
       // Lightweight existence probe so the client only offers a 'resume' button
       // for a game that still exists (sessions are in-memory and vanish on
@@ -2336,6 +2456,7 @@ function shutdown(signal) {
   gameHistoryStore.flushSync();
   globalStats.flushSync();
   stammtischStore.flushSync();
+  try { yearStats.flushSync(); } catch (e) { /* the year review is best effort */ }
   try { if (adminMonitor) adminMonitor.flushSync(); } catch (e) { /* monitoring history is best effort */ }
   if (accountStore) {
     try {

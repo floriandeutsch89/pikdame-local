@@ -32,6 +32,10 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   objects `ACCOUNT_API` at the top of the script): the season-finale hint
   shows on the first start-screen shot, `stats` gets the season badges, and
   the scene `account` opens the account sheet (level, season ladder).
+  The mock result is a podium place, so the first start-screen shot also
+  catches the fireworks band behind the header.
+- **Reduced motion:** `--reduced-motion` emulates `prefers-reduced-motion:
+  reduce` - the still pictures instead of the animations.
 - **Scenes:** `lobby`, `lobby-open` (daily tasks unfolded), `progress`
   ("Dein Fortschritt"), `stats`, `history` ("Meine Partien"), `roundend`,
   `roundend-stats`, `gameover`, `gameover-challenge` (board + share),
@@ -43,6 +47,12 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   (the "Mehr" sheet: top / scrolled to the play aids). Any order works:
   a start-screen scene after `table` or a result reloads the start screen
   first (its buttons are hidden there and the clicks used to time out).
+- **December:** `--december` stands the client clock on 28 December and
+  mocks the server's year review (the server keeps its real date). Then
+  `lobby` shows the "Heute" chip, and `year`, `year-mid`, `year-bots`,
+  `year-end` (story cards), `year-image` (the share PNG, saved through the
+  download fallback), `account-mail` (opt-in switch, simulated sign-in) and
+  `mail` (the review mail's HTML, full page) are available.
 - Prints the written PNG paths. Look at them with the Read tool; don't
   just trust that they exist.
 - `--audit` also checks every shot and writes `<out>/audit.md`: truncated

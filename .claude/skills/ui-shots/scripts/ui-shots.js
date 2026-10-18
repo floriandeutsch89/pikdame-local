@@ -3,7 +3,7 @@
 // Starts its own server on a temp data dir (never touches data/), routes the
 // WebSocket through Playwright and rewrites/injects messages per scene.
 //
-//   node .claude/skills/ui-shots/scripts/ui-shots.js [--out DIR] [--views a,b] [--scenes a,b] [--port N] [--audit] [--signed-in]
+//   node .claude/skills/ui-shots/scripts/ui-shots.js [--out DIR] [--views a,b] [--scenes a,b] [--port N] [--audit] [--signed-in] [--reduced-motion]
 //
 // --signed-in mocks a signed-in account (the /api/* answers below), season
 // finale included: the start-up hint shows on the first start-screen shot.
@@ -19,7 +19,12 @@
 // challenge (intro, attempt used),
 // gamelobby (seats + house rules), botdiff (the strength picker), gameover-challenge,
 // settings / settings-aids (the start screen's "Mehr" sheet, top / play aids),
-// account (the account sheet: level, season ladder; needs --signed-in).
+// account (the account sheet: level, season ladder; needs --signed-in),
+// account-mail (its year-review mail switch; needs --signed-in).
+// --december: the client clock stands on 28 December and the server's year review
+// is mocked - adds the "Heute" chip and the scenes year / year-mid / year-bots /
+// year-end (story cards), year-image (the share PNG, via the download fallback)
+// and mail (the review mail's HTML).
 // Start-screen scenes may follow table or result scenes in any order: the page
 // is reloaded to the start screen first.
 'use strict';
@@ -53,6 +58,8 @@ const views = arg('views', 'phone,land,desk').split(',');
 const scenes = arg('scenes', 'lobby,stats,history,roundend,gameover').split(',');
 const AUDIT = process.argv.includes('--audit');
 const SIGNED_IN = process.argv.includes('--signed-in');
+const STILL = process.argv.includes('--reduced-motion'); // prefers-reduced-motion: reduce
+const DECEMBER = process.argv.includes('--december');
 const TAP_MIN = 44; // CLAUDE.md --tap-min
 // A normal UA: the server treats headless defaults as a crawler (no WebSocket).
 const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
@@ -100,7 +107,7 @@ const ACCOUNT_API = {
   '/api/ladder': { ok: true, season: TODAY.slice(0, 7), lastSeason: SEASON_RESULT, seasonAwards: SEASON_AWARDS,
     me: { username: ME, xp: 5320, seasonXp: 410, season: TODAY.slice(0, 7), games: 43, wins: 17, rank: 2 },
     board: [{ username: 'Oma Gerda', seasonXp: 520 }, { username: ME, seasonXp: 410 }, { username: 'Klaus', seasonXp: 150 }] },
-  '/api/account/methods': { ok: true, hasPassword: false, passkeys: [{ id: 'pk1', name: 'iPhone', createdAt: NOW - 9e8, lastUsedAt: NOW - 3e6 }] },
+  '/api/account/methods': { ok: true, hasPassword: false, passkeys: [{ id: 'pk1', name: 'iPhone', createdAt: NOW - 9e8, lastUsedAt: NOW - 3e6 }], reviewMail: false },
 };
 const GLOBAL_STATS = { games: 8123, rounds: 61234, pikDamesLaidOut: 9001, pikDamesCaught: 4521, handAusRounds: 777 };
 const HISTORY = [
@@ -148,6 +155,10 @@ const GAME_OVER = { ...BASE_STATE, phase: 'gameOver', roundNumber: 6, totals: { 
     highlights: [{ type: 'queenCaught', round: 2, name: 'Horst' }, { type: 'bestRound', round: 3, name: 'Klaus', score: 270 }],
     funTitle: { type: 'queenMagnet', name: 'Horst', count: 2 } } };
 
+// --december: the admin preview's example numbers, under the mock name.
+const DEC_NOW = Date.parse('2026-12-28T10:00:00Z');
+const YEAR_REVIEW = { ...require(path.join(ROOT, 'game', 'YearReviewMail')).sampleReview('2026'), name: ME };
+
 // Rewrite server -> client messages so the lobby shows the mock profile.
 // --puzzle-kind turn|out: today's puzzle message carries a puzzle of that kind.
 let puzzleKind = null;
@@ -165,6 +176,7 @@ function rewrite(msg) {
   if (msg.type === 'joined' && bindStammtisch) msg.stammtisch = { code: 'STMOCK1', name: STAMMTISCH.name };
   if (msg.type === 'profiles') { msg.players = PROFILES; msg.globalStats = GLOBAL_STATS; }
   if (msg.type === 'gameHistory') msg.games = HISTORY;
+  if (msg.type === 'yearReview' && DECEMBER) Object.assign(msg, { available: true, season: true, review: YEAR_REVIEW });
   if (msg.type === 'puzzle' && puzzleKind) {
     const DP = require(path.join(ROOT, 'game', 'DailyPuzzle'));
     Object.assign(msg, DP.publicPuzzle(kindPuzzle(puzzleKind)), { date: msg.today, archive: false });
@@ -273,7 +285,8 @@ function waitForHttp(port, ms = 20000) {
     for (const vn of views) {
       const vp = VIEWS[vn];
       if (!vp) throw new Error(`unknown view ${vn}`);
-      const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, userAgent: UA, deviceScaleFactor: 2, isMobile: vp.mobile, hasTouch: vp.mobile });
+      const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, userAgent: UA, deviceScaleFactor: 2, isMobile: vp.mobile, hasTouch: vp.mobile,
+        ...(STILL ? { reducedMotion: 'reduce' } : {}) });
       await ctx.addInitScript(([me, theme]) => {
         try {
           localStorage.setItem('pikdame_player_name', me);
@@ -293,6 +306,7 @@ function waitForHttp(port, ms = 20000) {
         });
       }
       const page = await ctx.newPage();
+      if (DECEMBER) await page.clock.setFixedTime(new Date(DEC_NOW));
       let sock = null;
       await page.routeWebSocket(/.*/, (ws) => {
         sock = ws;
@@ -328,10 +342,44 @@ function waitForHttp(port, ms = 20000) {
         await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(1200);
       };
-      const LOBBY_SCENES = /^(lobby|lobby-open|progress|stats|history|settings|settings-aids|challenge|stammtisch|account|puzzle.*)$/;
+      const LOBBY_SCENES = /^(lobby|lobby-open|progress|stats|history|settings|settings-aids|challenge|stammtisch|account|account-mail|puzzle.*|year.*)$/;
       for (const sc of scenes) {
         if (LOBBY_SCENES.test(sc)) await toStart();
         if (sc === 'lobby') await shot('lobby');
+        if (/^year(-mid|-bots|-end)?$/.test(sc)) {
+          await page.click('#yearReviewBtn'); await page.waitForTimeout(400);
+          const steps = { year: 0, 'year-mid': 2, 'year-bots': 5, 'year-end': 99 }[sc];
+          for (let i = 0; i < steps && !(await page.isDisabled('#yearReviewNextBtn')); i++) await page.click('#yearReviewNextBtn');
+          await page.waitForTimeout(500); // slide-in
+          await shot(sc);
+          await page.click('#yearReviewCloseBtn');
+        }
+        if (sc === 'year-image') {
+          await page.click('#yearReviewBtn'); await page.waitForTimeout(1500); // drawn in the background
+          const download = page.waitForEvent('download', { timeout: 8000 });
+          await page.click('#yearReviewShareBtn');
+          const file = path.join(OUT, `${vn}-year-image.png`);
+          await (await download).saveAs(file);
+          written.push(file);
+          await page.click('#yearReviewCloseBtn');
+        }
+        if (sc === 'account-mail') {
+          await page.click('#accountBtn'); await page.waitForTimeout(700);
+          await page.evaluate(() => document.getElementById('accountMailPrefs').scrollIntoView({ block: 'center' }));
+          await page.waitForTimeout(200);
+          await shot('account-mail');
+          await page.click('#accountCloseBtn');
+        }
+        if (sc === 'mail') {
+          const { composeReviewMail } = require(path.join(ROOT, 'game', 'YearReviewMail'));
+          const m = composeReviewMail({ review: YEAR_REVIEW, name: ME, lang: 'de', appUrl: 'https://play.pikdame.online/?jahr=2026', unsubscribeUrl: 'https://play.pikdame.online/unsubscribe?t=…' });
+          const mp = await ctx.newPage();
+          await mp.setContent(m.html, { waitUntil: 'load' });
+          const file = path.join(OUT, `${vn}-mail.png`);
+          await mp.screenshot({ path: file, fullPage: true });
+          written.push(file);
+          await mp.close();
+        }
         if (sc === 'stammtisch') {
           await page.click('#stammtischRecent button[data-code]'); await page.waitForTimeout(500);
           await shot('stammtisch');

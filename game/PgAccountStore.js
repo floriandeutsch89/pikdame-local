@@ -115,6 +115,13 @@ const SCHEMA = `
   ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_code_hash TEXT;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_code_expires BIGINT;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_code_tries INTEGER NOT NULL DEFAULT 0;
+  -- Year-review mail: opt-in (default off), when it changed, language, the
+  -- last year sent, and a SHA-256 of the unsubscribe token in that mail.
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS review_mail BOOLEAN NOT NULL DEFAULT FALSE;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS review_mail_at BIGINT;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS review_mail_lang TEXT;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS review_mail_year TEXT;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS review_unsub_hash TEXT;
   CREATE TABLE IF NOT EXISTS webauthn_credentials (
     id TEXT PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -373,39 +380,24 @@ function createPgAccountStore(databaseUrl, options = {}) {
 
   /**
    * Same contract as AccountStore.importProfile: once per account, lift the
-   * account up TO the guest profile's values (no double counting), the XP
-   * difference also into the given season. The row lock plus the
-   * profile_imported guard make a concurrent second call a no-op.
+   * account up TO the guest profile's values (no double counting), season
+   * untouched. ONE statement: the profile_imported guard makes a concurrent
+   * second call a no-op.
    */
-  async function importProfile(username, { xp = 0, games = 0, wins = 0, season = null } = {}) {
+  async function importProfile(username, { xp = 0, games = 0, wins = 0 } = {}) {
     const n = (v) => Math.max(0, Math.round(Number(v) || 0));
     try {
       await ensureReady();
-      const imported = await withTransaction(async (c) => {
-        const r = await c.query(
-          `SELECT id, season, season_xp, season_games FROM users
-            WHERE LOWER(username) = LOWER($1) AND verified = TRUE AND profile_imported = FALSE FOR UPDATE`,
-          [String(username || '').trim()]
-        );
-        const row = r.rows[0];
-        if (!row) return false;
-        if (season && row.season !== season) await archiveSeason(c, row);
-        await c.query(
-          `UPDATE users
-              SET xp = GREATEST(xp, $2),
-                  games = GREATEST(games, $3),
-                  wins = GREATEST(wins, $4),
-                  season_xp = (CASE WHEN $5::text IS NULL OR season IS NOT DISTINCT FROM $5 THEN season_xp ELSE 0 END)
-                              + GREATEST($2 - xp, 0),
-                  season_games = CASE WHEN $5::text IS NULL OR season IS NOT DISTINCT FROM $5 THEN season_games ELSE 0 END,
-                  season = COALESCE($5, season),
-                  profile_imported = TRUE
-            WHERE id = $1`,
-          [row.id, n(xp), n(games), n(wins), season]
-        );
-        return true;
-      });
-      return { imported, progress: await progressFor(username) };
+      const r = await pool.query(
+        `UPDATE users
+            SET xp = GREATEST(xp, $2),
+                games = GREATEST(games, $3),
+                wins = GREATEST(wins, $4),
+                profile_imported = TRUE
+          WHERE LOWER(username) = LOWER($1) AND verified = TRUE AND profile_imported = FALSE`,
+        [String(username || '').trim(), n(xp), n(games), n(wins)]
+      );
+      return { imported: r.rowCount > 0, progress: await progressFor(username) };
     } catch (e) {
       console.error('Postgres importProfile failed:', e.message);
       return { imported: false, progress: null };
@@ -620,14 +612,75 @@ function createPgAccountStore(databaseUrl, options = {}) {
     const s = await sessionUser(token);
     if (!s) return null;
     try {
-      const u = await pool.query('SELECT id, username, email, salt, webauthn_user_id FROM users WHERE LOWER(username) = LOWER($1)', [s.username]);
+      const u = await pool.query('SELECT id, username, email, salt, webauthn_user_id, review_mail FROM users WHERE LOWER(username) = LOWER($1)', [s.username]);
       const row = u.rows[0];
       if (!row) return null;
       const c = await pool.query('SELECT * FROM webauthn_credentials WHERE user_id = $1 ORDER BY created_at', [row.id]);
-      return { id: Number(row.id), username: row.username, email: row.email, hasPassword: !!row.salt, webauthnUserId: row.webauthn_user_id || null, credentials: c.rows.map(credRow) };
+      return { id: Number(row.id), username: row.username, email: row.email, hasPassword: !!row.salt, webauthnUserId: row.webauthn_user_id || null, credentials: c.rows.map(credRow), reviewMail: !!row.review_mail };
     } catch (e) {
       console.error('Postgres accountForSession failed:', e.message);
       return null;
+    }
+  }
+
+  // --- Year-review mail (opt-in, see game/YearReviewMail.js) ---------------
+  async function setReviewMail(userId, enabled, lang) {
+    const on = !!enabled;
+    try {
+      await ensureReady();
+      await pool.query('UPDATE users SET review_mail = $2, review_mail_at = $3, review_mail_lang = $4 WHERE id = $1', [userId, on, Date.now(), lang === 'en' ? 'en' : 'de']);
+      return { ok: true, enabled: on };
+    } catch (e) {
+      console.error('Postgres setReviewMail failed:', e.message);
+      return DB_DOWN;
+    }
+  }
+
+  /** Verified, opted-in accounts without this year's mail. */
+  async function reviewMailRecipients(year) {
+    try {
+      await ensureReady();
+      const r = await pool.query(
+        `SELECT id, username, email, review_mail_lang FROM users
+         WHERE verified AND review_mail AND (review_mail_year IS NULL OR review_mail_year <> $1) ORDER BY id`,
+        [String(year)]
+      );
+      return r.rows.map((row) => ({ id: Number(row.id), username: row.username, email: row.email, lang: row.review_mail_lang === 'en' ? 'en' : 'de' }));
+    } catch (e) {
+      console.error('Postgres reviewMailRecipients failed:', e.message);
+      return [];
+    }
+  }
+
+  // Both writes throw on failure: the sender must not mail a dead link or
+  // believe a year is done when the database never heard of it.
+  async function setReviewUnsubHash(userId, hash) {
+    await ensureReady();
+    await pool.query('UPDATE users SET review_unsub_hash = $2 WHERE id = $1', [userId, hash]);
+  }
+
+  async function markReviewMailSent(userId, year) {
+    await ensureReady();
+    await pool.query('UPDATE users SET review_mail_year = $2 WHERE id = $1', [userId, String(year)]);
+  }
+
+  /** The link in the mail: idempotent, the token keeps answering after the opt-out. */
+  async function unsubscribeReviewMail(token) {
+    const t = String(token || '');
+    if (!/^[a-f0-9]{64}$/.test(t)) return { error: 'invalid' };
+    try {
+      await ensureReady();
+      const hash = crypto.createHash('sha256').update(t).digest('hex');
+      const r = await pool.query(
+        'UPDATE users SET review_mail = FALSE, review_mail_at = $2 WHERE review_unsub_hash = $1 RETURNING username, review_mail_lang',
+        [hash, Date.now()]
+      );
+      const row = r.rows[0];
+      if (!row) return { error: 'invalid' };
+      return { ok: true, username: row.username, lang: row.review_mail_lang === 'en' ? 'en' : 'de' };
+    } catch (e) {
+      console.error('Postgres unsubscribeReviewMail failed:', e.message);
+      return { error: 'unavailable' };
     }
   }
 
@@ -941,6 +994,7 @@ function createPgAccountStore(databaseUrl, options = {}) {
     validateNewAccount, registerWithoutPassword, verifyAndSignIn, renewSignupCode, verifyCodeAndSignIn, accountForSession, setWebauthnUserId, addCredential,
     credentialById, touchCredential, deleteCredential, setPassword, removePassword, sessionForUser,
     createLoginLink, consumeLoginLink,
+    setReviewMail, reviewMailRecipients, setReviewUnsubHash, markReviewMailSent, unsubscribeReviewMail,
     close,
   };
 }

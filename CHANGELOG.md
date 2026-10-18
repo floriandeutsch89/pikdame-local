@@ -3,6 +3,34 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.82.0] - 2026-10-18
+
+### Added
+- Saison-Podest mit Feuerwerk: Wer eine Saison auf Platz 1–3 beendet, sieht beim
+  einmaligen Saison-Hinweis zusätzlich das Feuerwerk aus dem Siegesjubel – hinter
+  der Überschrift des Startbildschirms, bei „Bewegung reduzieren“ als ruhiges Bild.
+
+## [2.81.0] - 2026-10-18
+
+### Changed
+- Beim Registrieren übernommene Gast-Erfahrung zählt nur noch für Stufe und
+  Gesamt-EP, nicht mehr für die laufende Saison: Aufs Saison-Podest kommt man
+  nur mit Partien, die mit dem Konto gespielt wurden.
+- Die Saison-Rangliste vergibt Medaillen nach Platz: Bei Punktgleichstand teilen
+  sich die Spieler die Medaille, wie beim Saison-Finale.
+
+## [2.80.0] - 2026-10-18
+
+### Added
+- „Dein Pik-Dame-Jahr“: Im Dezember zeigt die Katze unter „Heute“ deinen Jahresrückblick
+  in Karten zum Durchtippen oder Wischen – Partien und Siege, Lieblingsgegner, gerettete
+  Pik Damen, beste Runde, Siegquote gegen jede Bot-Stufe, längste Serie und dein Stammtisch.
+  Was es nicht gibt, wird weggelassen statt geschätzt.
+- Den Rückblick kannst du als Bild teilen oder speichern – nur mit deinen eigenen Zahlen,
+  ohne Namen anderer.
+- Jahresrückblick per E-Mail: im Konto einschaltbar (standardmäßig aus), kommt einmal im
+  Jahr am 27. Dezember und lässt sich in jeder Mail mit einem Klick abbestellen.
+
 ## [2.79.0] - 2026-10-17
 
 ### Added

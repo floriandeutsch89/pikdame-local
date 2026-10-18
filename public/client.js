@@ -293,6 +293,7 @@
     try { renderAchievements(); } catch (e) { /* dito */ }
     try { renderStatsMe(); } catch (e) { /* dito */ }
     try { renderToday(); } catch (e) { /* dito */ }
+    try { renderYearSlide(); } catch (e) { /* dito */ }
     try { renderProgressSheet(); } catch (e) { /* dito */ }
     try { renderAccountProgress(); } catch (e) { /* dito */ }
     // "Angemeldet als ..." steht dauerhaft in der Lobby - vom Vertragstest
@@ -1173,6 +1174,8 @@
       // heutigen Aufgaben-Fortschritt, und der steht im eigenen Profil - ohne
       // diese Anfrage stünde dort bis zum Beitritt immer 0/3.
       ws.send(JSON.stringify({ type: 'listProfiles' }));
+      // A new connection asks for the year review again (the profiles reply triggers it).
+      yearReviewName = '';
       // Stammtisch chips on the start screen: series state per remembered code.
       try { renderStammtischRecent(); } catch (e) { /* cosmetic */ }
       // Automatischer Wiedereintritt NUR, wenn wir bereits Teil einer
@@ -1537,6 +1540,10 @@
       try { renderToday(); } catch (e) { /* cosmetic */ }
       return;
     }
+    if (msg.type === 'yearReview') {
+      try { handleYearReview(msg); } catch (e) { /* the review never breaks the client */ }
+      return;
+    }
     if (msg.type === 'challengeBoard') {
       lastChallengeBoard = msg;
       renderChallengeBoard();
@@ -1579,6 +1586,7 @@
       }
       renderQuests();
       try { renderEmoteLocks(); } catch (e) { /* cosmetic */ }
+      try { requestYearReview(); } catch (e) { /* cosmetic */ }
       if (!el('statsOverlay').classList.contains('hidden')) renderStats();
       return;
     }
@@ -3787,6 +3795,7 @@
       el('nameInput').value = myName;
     }
     renderIdentity();
+    if (changed) { try { requestYearReview(); } catch (e) { /* cosmetic */ } }
     // Renaming inside a session re-joins under the new name (what the
     // "Name" button used to do after typing into the field above).
     if (changed && sessionCode && playerId) {
@@ -6822,6 +6831,8 @@
     // The greeting belongs to the account: gone on sign-out, re-rendered on a language switch.
     if (!loggedIn) greetingWindow = null;
     applyOccasion();
+    // Signing in can change the name the year review belongs to.
+    try { requestYearReview(); } catch (e) { /* cosmetic */ }
   }
   let greetingFetchedAt = 0;
   async function refreshGreeting() {
@@ -7157,7 +7168,15 @@
   async function renderLoginMethods() {
     const box = el('accountMethods');
     const m = await accountApi('/api/account/methods', { token: accountToken() });
-    if (!m.ok) { box.classList.add('hidden'); el('accountSetup').classList.add('hidden'); return; }
+    if (!m.ok) {
+      box.classList.add('hidden');
+      el('accountSetup').classList.add('hidden');
+      el('accountMailPrefs').classList.add('hidden');
+      return;
+    }
+    // Year-review mail: shown with the stored consent, never pre-ticked.
+    el('accountMailPrefs').classList.toggle('hidden', typeof m.reviewMail !== 'boolean');
+    el('accReviewMailCheckbox').checked = m.reviewMail === true;
     // No way to sign in yet (just confirmed, or signed up and left): the
     // setup choice replaces the list until one exists.
     const none = !m.hasPassword && !m.passkeys.length;
@@ -7195,6 +7214,22 @@
     el('accRemovePasswordBtn').classList.toggle('hidden', !m.hasPassword || !m.passkeys.length);
   }
 
+  el('accReviewMailCheckbox').addEventListener('change', async (ev) => {
+    const box = ev.target;
+    const want = box.checked;
+    box.disabled = true;
+    // The mail is written in the language the player uses while opting in.
+    const r = await accountApi('/api/account/review-mail', { token: accountToken(), enabled: want, lang });
+    box.disabled = false;
+    if (!r.ok) {
+      box.checked = !want;
+      setAccountStatus(r.error === 'Nicht angemeldet.' ? trs(r.error) : L('Konnte nicht gespeichert werden – bitte später noch einmal.', 'Could not be saved – please try again later.'), true);
+      return;
+    }
+    setAccountStatus(want
+      ? L('Abgemacht: Ende Dezember schickt dir die Katze deinen Jahresrückblick.', 'Deal: at the end of December the cat mails you your year review.')
+      : L('Kein Jahresrückblick per Mail mehr.', 'No more year review by mail.'));
+  });
   el('accAddPasskeyBtn').addEventListener('click', () => addPasskey());
   el('accSetupPasskeyBtn').addEventListener('click', () => addPasskey());
   el('accSetupPasswordBtn').addEventListener('click', () => {
@@ -7249,6 +7284,7 @@
     accountUsername = null;
     el('accountMethods').classList.add('hidden');
     el('accountSetup').classList.add('hidden');
+    el('accountMailPrefs').classList.add('hidden');
     el('accSetPasswordForm').classList.add('hidden');
     refreshAccountUi();
     el('accountOverlay').classList.add('hidden');
@@ -7796,6 +7832,8 @@
     else if (challengeToday && challengeToday.date === today && challengeToday.attempted) setTileStatus(el('challengeBtn'), el('challengeTileStatus'), L('Heute gespielt', 'Played today'), 'done');
     else if (challengeToday) setTileStatus(el('challengeBtn'), el('challengeTileStatus'), L('Noch offen', 'Still open'), 'new');
     else setTileStatus(el('challengeBtn'), el('challengeTileStatus'), '', '');
+    // try: the first render runs before the year-review state further down exists.
+    try { renderYearEntry(); } catch (e) { /* cosmetic */ }
   }
 
   function renderQuests() {
@@ -7834,6 +7872,389 @@
       })
       .join('');
   }
+
+  // --- "Dein Pik-Dame-Jahr" (December) ----------------------------------------
+  // The server decides the season (GameDay) and counts; the client tells the
+  // story card by card and draws the share picture.
+  let yearReview = null;
+  let yearReviewName = ''; // asked for this name with this many games (refresh after own games)
+  let yearReviewGames = -1;
+  let yearSlideIdx = 0;
+  let yearShareFile = null; // drawn on opening: iOS only shares inside the tap itself
+  let yearSwipeAt = 0;
+  const YEAR_SEEN_KEY = 'pikdame_year_seen';
+  // ?jahr=2026 from the review mail: opens once the server has answered.
+  let yearDeepLink = null;
+  try {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('jahr')) {
+      yearDeepLink = /^\d{4}$/.test(url.searchParams.get('jahr')) ? url.searchParams.get('jahr') : null;
+      url.searchParams.delete('jahr');
+      window.history.replaceState(null, '', url.toString());
+    }
+  } catch (e) { /* cosmetic */ }
+
+  function requestYearReview() {
+    if (publicMode || !ws || ws.readyState !== WebSocket.OPEN) return;
+    const name = signedInName() || myName;
+    if (!name) {
+      if (yearDeepLink) {
+        yearDeepLink = null;
+        showToast(L('Melde dich an oder gib deinen Namen ein – dann zeigt dir die Katze dein Jahr.', 'Sign in or enter your name – then the cat shows you your year.'), { duration: 6000, priority: true });
+      }
+      return;
+    }
+    const me = myProfile();
+    const games = me ? me.gamesPlayed || 0 : 0;
+    if (name === yearReviewName && games === yearReviewGames) return;
+    yearReviewName = name;
+    yearReviewGames = games;
+    ws.send(JSON.stringify({ type: 'getYearReview', name }));
+  }
+
+  function handleYearReview(msg) {
+    yearReview = msg.available && msg.review && msg.review.totals ? msg.review : null;
+    renderYearEntry();
+    if (!yearDeepLink) return;
+    yearDeepLink = null;
+    if (yearReview) openYearReview();
+    else if (!msg.season) showToast(L('Den Jahresrückblick zeigt die Katze nur im Dezember.', 'The cat only shows the year review in December.'), { duration: 6000, priority: true });
+    else showToast(L(`Für „${yearReviewName}“ hat die Katze dieses Jahr noch keine Partie gezählt.`, `The cat has not counted a game for “${yearReviewName}” this year yet.`), { duration: 6000, priority: true });
+  }
+
+  function renderYearEntry() {
+    const btn = el('yearReviewBtn');
+    if (!btn) return;
+    btn.classList.toggle('hidden', !yearReview);
+    if (!yearReview) return;
+    setLabelText(btn, L(`Dein Jahr ${yearReview.year}`, `Your ${yearReview.year}`));
+    btn.dataset.state = storageGet(YEAR_SEEN_KEY) === yearReview.year ? 'seen' : 'new';
+  }
+
+  function fmtNum(n) {
+    return Number(n || 0).toLocaleString(lang === 'en' ? 'en-GB' : 'de-DE');
+  }
+  function fmtYearDay(date) {
+    const d = new Date(`${date}T12:00:00Z`);
+    return Number.isNaN(d.getTime()) ? String(date) : d.toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-DE', { day: 'numeric', month: 'long', timeZone: 'UTC' });
+  }
+
+  /** The numbers worth a tile: always games and wins, the rest only when earned. */
+  function yearShareStats(r) {
+    const t = r.totals;
+    const pct = t.games ? Math.round((t.wins / t.games) * 100) : 0;
+    return [
+      { value: fmtNum(t.games), label: L('Partien', 'Games') },
+      { value: fmtNum(t.wins), label: L(`Siege · ${pct} %`, `Wins · ${pct} %`) },
+      t.queensLaid > 0 && { value: `${fmtNum(t.queensLaid)}×`, label: L('Pik Dame gerettet', 'Queen of spades rescued') },
+      t.bestRound > 0 && { value: `+${fmtNum(t.bestRound)}`, label: L('Beste Runde', 'Best round') },
+      t.bestStreak > 1 && { value: fmtNum(t.bestStreak), label: L('Tage Serie', 'Day streak') },
+      t.bestGame > 0 && { value: fmtNum(t.bestGame), label: L('Bestes Spiel', 'Best game') },
+    ].filter(Boolean);
+  }
+
+  /** One fact per card; a fact without data is left out, never guessed. */
+  function yearSlides(r) {
+    const t = r.totals;
+    const pct = t.games ? Math.round((t.wins / t.games) * 100) : 0;
+    // Opponents, bots and tables are counted per year only since the counter exists.
+    const since = r.breakdownSince ? L(`Gezählt seit dem ${fmtYearDay(r.breakdownSince)}.`, `Counted since ${fmtYearDay(r.breakdownSince)}.`) : '';
+    const slides = [{
+      tone: 'night', cat: 'big', kicker: L('Dein Pik-Dame-Jahr', 'Your Pik Dame year'), big: r.year,
+      lines: [L('Die Katze hat nachgezählt.', 'The cat has done the counting.'), L('Tippen oder wischen zum Blättern.', 'Tap or swipe to flip through.')],
+      note: r.totalsSince ? L(`Gezählt seit dem ${fmtYearDay(r.totalsSince)}.`, `Counted since ${fmtYearDay(r.totalsSince)}.`) : '',
+    }, {
+      tone: 'felt', kicker: L('Partien', 'Games'), big: fmtNum(t.games),
+      lines: [
+        L(`${fmtNum(t.wins)} davon gewonnen – ${pct} %.`, `${fmtNum(t.wins)} of them won – ${pct} %.`),
+        // Praise follows the win rate: "great job" at 5 % would read as mockery.
+        pct >= 50 ? L('Die Katze nickt anerkennend.', 'The cat nods approvingly.')
+          : pct >= 25 ? L('Solide. Die Katze schnurrt.', 'Solid. The cat purrs.')
+            : L('Dabei sein ist alles – sagt jedenfalls die Katze.', 'Taking part is what counts – says the cat, at least.'),
+        r.activeDays > 1 && !r.breakdownSince ? L(`An ${r.activeDays} Tagen warst du am Tisch.`, `You were at the table on ${r.activeDays} days.`) : '',
+      ],
+    }];
+    if (r.favorite) {
+      const f = r.favorite;
+      slides.push({
+        tone: 'bordeaux', kicker: L('Lieblingsgegner', 'Favourite opponent'), big: f.name, bigText: true, note: since,
+        lines: [
+          L(`${f.games} ${f.games === 1 ? 'Partie' : 'Partien'} zusammen – ${f.wins} davon gingen an dich.`, `${f.games} ${f.games === 1 ? 'game' : 'games'} together – ${f.wins} of them went to you.`),
+          f.wins * 2 > f.games ? L(`Ob ${f.name} das auch so entspannt sieht?`, `Does ${f.name} take it that calmly?`) : L('Revanche? Die Katze hält die Karten bereit.', 'Rematch? The cat is holding the cards.'),
+        ],
+      });
+    }
+    if (t.queensLaid || t.queensCaught) {
+      slides.push({
+        tone: 'gold', kicker: L('Pik Damen gerettet', 'Queens of spades rescued'), big: `${fmtNum(t.queensLaid)}×`,
+        lines: [t.queensCaught
+          ? L(`${fmtNum(t.queensCaught)}-mal blieb sie dir auf der Hand. Passiert den Besten.`, `${fmtNum(t.queensCaught)} ${t.queensCaught === 1 ? 'time' : 'times'} she stayed in your hand. Happens to the best of us.`)
+          : L('Und kein einziges Mal blieb sie dir auf der Hand. Respekt.', 'And not once did she stay in your hand. Respect.')],
+      });
+    }
+    if (t.bestRound > 0) {
+      slides.push({
+        tone: 'plum', kicker: L('Beste Runde', 'Best round'), big: `+${fmtNum(t.bestRound)}`,
+        lines: [
+          L('Da hat sogar die Katze kurz aufgehört, sich zu putzen.', 'Even the cat stopped grooming for a second.'),
+          t.bestGame > 0 ? L(`Bestes Spiel: ${fmtNum(t.bestGame)} Punkte.`, `Best game: ${fmtNum(t.bestGame)} points.`) : '',
+        ],
+      });
+    }
+    if (r.bots && r.bots.length) {
+      slides.push({
+        tone: 'night', kicker: L('Gegen die Bots', 'Against the bots'), bots: r.bots, note: since,
+        lines: [r.bots.some((b) => b.wins > 0) ? L('Die Bots reden nicht gern darüber.', "The bots don't like to talk about it.") : L('Die Bots lassen schön grüßen.', 'The bots send their regards.')],
+      });
+    }
+    if (t.bestStreak > 1) {
+      slides.push({
+        tone: 'felt', kicker: L('Längste Serie', 'Longest streak'), big: fmtNum(t.bestStreak), unit: L('Tage', 'days'),
+        lines: [L('am Stück gespielt. Die Katze hat keinen davon verschlafen – fast.', 'in a row. The cat slept through none of them – almost.')],
+      });
+    }
+    if (r.table) {
+      const s = r.table;
+      slides.push({
+        tone: 'bordeaux', kicker: L('Dein Stammtisch', 'Your regulars table'), big: s.name, bigText: true, note: since,
+        lines: [L(`${fmtNum(s.games)}-mal gemischt – ${fmtNum(s.wins)}-mal hattest du das letzte Wort.`, `Dealt ${fmtNum(s.games)} ${s.games === 1 ? 'time' : 'times'} – you had the last word ${fmtNum(s.wins)} ${s.wins === 1 ? 'time' : 'times'}.`)],
+      });
+    }
+    slides.push({
+      tone: 'gold', cat: 'hat', summary: true, kicker: L(`Gut Blatt für ${Number(r.year) + 1}!`, `A good hand for ${Number(r.year) + 1}!`),
+      lines: [L('Teil dein Jahr als Bild – die Katze posiert gern.', 'Share your year as an image – the cat loves to pose.')],
+    });
+    return slides;
+  }
+
+  // The start screen's cat (lobby hero), cloned: one drawing everywhere. The
+  // last card gets its New Year's top hat, every other costume stays home.
+  function yearCatSvg(kind) {
+    const src = document.querySelector('.heroCat > g');
+    if (!src) return '';
+    const g = src.cloneNode(true);
+    g.querySelectorAll('.heroCostume').forEach((c) => {
+      if (kind === 'hat' && (c.getAttribute('data-for') || '').split(' ').includes('silvester')) c.classList.add('on');
+      else c.remove();
+    });
+    const box = kind === 'hat' ? '-19 -32 46 48' : '-18 -22 36 38';
+    return `<svg class="yrCat yrCat-${kind || 'peek'}" viewBox="${box}" aria-hidden="true">${g.innerHTML}</svg>`;
+  }
+
+  function renderYearSlide() {
+    const r = yearReview;
+    const stage = el('yearReviewStage');
+    if (!r || !stage) return;
+    const slides = yearSlides(r);
+    yearSlideIdx = Math.max(0, Math.min(yearSlideIdx, slides.length - 1));
+    const s = slides[yearSlideIdx];
+    const bars = slides.map((_, i) => `<i class="${i <= yearSlideIdx ? 'on' : ''}"></i>`).join('');
+    const bots = s.bots ? `<div class="yrBots">${s.bots.map((b) => {
+      const p = b.games ? Math.round((b.wins / b.games) * 100) : 0;
+      const name = BOT_DIFF[b.level] ? BOT_DIFF[b.level].short() : b.level;
+      return `<div class="yrBotRow"><span class="yrBotName">${escapeHtml(name)}</span><span class="yrBotBar"><i style="width:${p}%"></i></span><span class="yrBotVal">${L(`${b.wins} von ${b.games}`, `${b.wins} of ${b.games}`)}</span></div>`;
+    }).join('')}</div>` : '';
+    const summary = s.summary ? `<div class="yrSummary">${yearShareStats(r).slice(0, 4).map((x) =>
+      `<div><b>${escapeHtml(x.value)}</b><span>${escapeHtml(x.label)}</span></div>`).join('')}</div>` : '';
+    stage.innerHTML = `<div class="yrBars" aria-hidden="true">${bars}</div>
+      <article class="yrSlide" data-tone="${s.tone}">
+        <p class="yrKicker">${escapeHtml(s.kicker)}</p>
+        ${s.big ? `<p class="yrBig${s.bigText ? ' yrBigText' : ''}">${escapeHtml(s.big)}${s.unit ? ` <small>${escapeHtml(s.unit)}</small>` : ''}</p>` : ''}
+        ${bots}${summary}
+        ${s.lines.filter(Boolean).map((l) => `<p class="yrLine">${escapeHtml(l)}</p>`).join('')}
+        ${s.note ? `<p class="yrNote">${escapeHtml(s.note)}</p>` : ''}
+        ${yearCatSvg(s.cat)}
+      </article>`;
+    el('yearReviewCount').textContent = `${yearSlideIdx + 1} / ${slides.length}`;
+    el('yearReviewPrevBtn').disabled = yearSlideIdx === 0;
+    el('yearReviewNextBtn').disabled = yearSlideIdx === slides.length - 1;
+  }
+
+  function stepYear(delta) {
+    if (!yearReview) return;
+    const last = yearSlides(yearReview).length - 1;
+    const next = Math.max(0, Math.min(last, yearSlideIdx + delta));
+    if (next === yearSlideIdx) return;
+    yearSlideIdx = next;
+    renderYearSlide();
+  }
+
+  function openYearReview() {
+    if (!yearReview) return;
+    yearSlideIdx = 0;
+    storageSet(YEAR_SEEN_KEY, yearReview.year);
+    renderYearEntry();
+    renderYearSlide();
+    el('yearReviewOverlay').classList.remove('hidden');
+    const share = el('yearReviewShareBtn');
+    yearShareFile = null;
+    share.disabled = true;
+    buildYearImage(yearReview)
+      .then((file) => { yearShareFile = file; share.disabled = false; share.classList.toggle('hidden', !file); })
+      .catch(() => share.classList.add('hidden'));
+  }
+
+  // --- Share picture: drawn on a canvas, 1080x1350 (portrait for messengers).
+  // Only the player's own numbers - no opponent or table names leave the app.
+  function roundRectPath(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+  function fitCanvasFont(ctx, text, maxW, font, px) {
+    let size = px;
+    ctx.font = font(size);
+    while (size > 18 && ctx.measureText(text).width > maxW) {
+      size -= 4;
+      ctx.font = font(size);
+    }
+  }
+  // The hero cat once more, painted from its own path data (an SVG image on a
+  // canvas can taint it in Safari, then toBlob throws).
+  function drawYearCat(ctx, x, y, scale) {
+    const src = document.querySelector('.heroCat > g');
+    if (!src) return;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    for (const n of src.children) {
+      const num = (k) => Number(n.getAttribute(k)) || 0;
+      let path = null;
+      if (n.localName === 'path') path = new Path2D(n.getAttribute('d') || '');
+      else if (n.localName === 'ellipse') { path = new Path2D(); path.ellipse(num('cx'), num('cy'), num('rx'), num('ry'), 0, 0, Math.PI * 2); }
+      else if (n.localName === 'circle') { path = new Path2D(); path.arc(num('cx'), num('cy'), num('r'), 0, Math.PI * 2); }
+      if (!path) continue; // costumes (<g>) stay off the picture
+      const fill = n.getAttribute('fill');
+      const stroke = n.getAttribute('stroke');
+      if (fill && fill !== 'none') { ctx.fillStyle = fill; ctx.fill(path); }
+      if (stroke && stroke !== 'none') {
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = Number(n.getAttribute('stroke-width')) || 1;
+        ctx.lineCap = n.getAttribute('stroke-linecap') || 'butt';
+        ctx.stroke(path);
+      }
+    }
+    ctx.restore();
+  }
+  async function buildYearImage(r) {
+    const canvas = document.createElement('canvas');
+    if (typeof canvas.toBlob !== 'function' || typeof window.Path2D !== 'function') return null;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    const W = 1080;
+    const H = 1350;
+    canvas.width = W;
+    canvas.height = H;
+    try { await document.fonts.load('800 100px Rubik'); } catch (e) { /* the fallback face then */ }
+    const display = (w, px) => `${w} ${px}px Rubik, "Rubik Fallback", Arial, sans-serif`;
+    const body = (w, px) => `${w} ${px}px -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#174a3b');
+    bg.addColorStop(1, '#0a231b');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+    const glow = ctx.createRadialGradient(860, 200, 10, 860, 200, 560);
+    glow.addColorStop(0, 'rgba(242, 195, 91, 0.30)');
+    glow.addColorStop(1, 'rgba(242, 195, 91, 0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#f2c35b';
+    ctx.font = display(700, 44);
+    ctx.fillText(L('MEIN PIK-DAME-JAHR', 'MY PIK DAME YEAR'), 90, 170);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = display(800, 220);
+    ctx.fillText(String(r.year), 80, 380);
+    drawYearCat(ctx, 850, 255, 7.5);
+    const stats = yearShareStats(r).slice(0, 6);
+    const gap = 30;
+    const tw = (W - 180 - gap) / 2;
+    const th = 215;
+    stats.forEach((s, i) => {
+      const x = 90 + (i % 2) * (tw + gap);
+      const y = 460 + Math.floor(i / 2) * (th + gap);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.09)';
+      roundRectPath(ctx, x, y, tw, th, 28);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      fitCanvasFont(ctx, s.value, tw - 72, (px) => display(800, px), 104);
+      ctx.fillText(s.value, x + 36, y + 126);
+      ctx.fillStyle = '#cfe3da';
+      fitCanvasFont(ctx, s.label, tw - 72, (px) => body(600, px), 38);
+      ctx.fillText(s.label, x + 36, y + 180);
+    });
+    ctx.fillStyle = '#cfe3da';
+    ctx.font = body(500, 38);
+    ctx.fillText(L('Die Katze hat nachgezählt.', 'The cat has done the counting.'), 90, H - 120);
+    ctx.fillStyle = '#f2c35b';
+    ctx.font = display(700, 38);
+    ctx.fillText(window.location.host, 90, H - 66);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    return blob ? new File([blob], `pikdame-${r.year}.png`, { type: 'image/png' }) : null;
+  }
+  async function shareYearImage() {
+    const file = yearShareFile;
+    if (!file || !yearReview) return;
+    const title = L(`Mein Pik-Dame-Jahr ${yearReview.year}`, `My Pik Dame year ${yearReview.year}`);
+    // No await before share(): Safari only allows it inside the tap itself.
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title });
+        return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return; // the player closed the sheet
+      }
+    }
+    // No share sheet (desktop): save the picture instead.
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    showToast(L('Bild gespeichert.', 'Image saved.'));
+  }
+
+  el('yearReviewBtn').addEventListener('click', () => openYearReview());
+  el('yearReviewPrevBtn').addEventListener('click', () => stepYear(-1));
+  el('yearReviewNextBtn').addEventListener('click', () => stepYear(1));
+  el('yearReviewShareBtn').addEventListener('click', () => { shareYearImage().catch(() => {}); });
+  el('yearReviewCloseBtn').addEventListener('click', () => el('yearReviewOverlay').classList.add('hidden'));
+  el('yearReviewOverlay').addEventListener('click', (ev) => {
+    if (ev.target === el('yearReviewOverlay')) el('yearReviewOverlay').classList.add('hidden');
+  });
+  // Story controls: the left third goes back, the rest forward; swipes and arrow keys too.
+  el('yearReviewStage').addEventListener('click', (ev) => {
+    if (Date.now() - yearSwipeAt < 500) return; // the swipe already turned the card
+    const box = el('yearReviewStage').getBoundingClientRect();
+    stepYear(ev.clientX - box.left < box.width / 3 ? -1 : 1);
+  });
+  let yearTouch = null;
+  el('yearReviewStage').addEventListener('touchstart', (ev) => {
+    yearTouch = ev.touches.length === 1 ? { x: ev.touches[0].clientX, y: ev.touches[0].clientY } : null;
+  }, { passive: true });
+  el('yearReviewStage').addEventListener('touchend', (ev) => {
+    const t = yearTouch;
+    yearTouch = null;
+    const end = ev.changedTouches && ev.changedTouches[0];
+    if (!t || !end) return;
+    const dx = end.clientX - t.x;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(end.clientY - t.y)) {
+      yearSwipeAt = Date.now();
+      stepYear(dx < 0 ? 1 : -1);
+    }
+  });
+  document.addEventListener('keydown', (ev) => {
+    if (el('yearReviewOverlay').classList.contains('hidden')) return;
+    if (ev.key === 'ArrowRight') { ev.preventDefault(); stepYear(1); }
+    else if (ev.key === 'ArrowLeft') { ev.preventDefault(); stepYear(-1); }
+    else if (ev.key === 'Escape') el('yearReviewOverlay').classList.add('hidden');
+  });
 
   // Ein Höhepunkt pro Partie-Ende, nicht drei gleichzeitig: erst die
   // erledigten Aufgaben, dann ein Stufenaufstieg, sonst nur die XP.
@@ -8221,6 +8642,12 @@
     const text = L(`Saison ${seasonLabel(r.season)} beendet: `, `Season ${seasonLabel(r.season)} is over: `) +
       seasonPlaceText(r) + (a ? ` – ${a.emoji} ${a.cheer()}` : '.');
     showToast(text, { duration: 7000, priority: true });
+    // Podium: the fireworks band once, behind the start screen's header (not
+    // when the start finds an open game).
+    const lobby = el('lobby');
+    if (r.place <= 3 && !lobby.classList.contains('hidden') && !lobby.classList.contains('inSession')) {
+      playCelebration('fireworks', lobby.querySelector('.lobbyHeader'));
+    }
     accountApi('/api/season-result/seen', { token: accountToken(), season: r.season }).catch(() => {});
   }
   function seasonAwardChip(a) {
@@ -8257,8 +8684,10 @@
     if (r.me) applySeasonInfo({ seasonAwards: r.seasonAwards, lastSeason: r.lastSeason });
     const rows = r.board.length
       ? r.board
-          .map((e, i) => {
-            const medal = ['🥇', '🥈', '🥉'][i] || `${i + 1}.`;
+          .map((e) => {
+            // Shared place, as in the finale: a tie shares the medal.
+            const place = 1 + r.board.filter((o) => o.seasonXp > e.seasonXp).length;
+            const medal = ['🥇', '🥈', '🥉'][place - 1] || `${place}.`;
             const mine = accountUsername && e.username.toLowerCase() === accountUsername.toLowerCase();
             return `<div class="ladderRow${mine ? ' isMe' : ''}"><span>${medal} ${escapeHtml(e.username)}</span>` +
               `<b>${e.seasonXp} ${L('EP', 'XP')}</b></div>`;
