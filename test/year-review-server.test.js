@@ -1,6 +1,7 @@
 /** The year review through the real server: the review request over the
- *  WebSocket, the opt-in switch of the account API and the unsubscribe link
- *  (GET from the mail text, POST as RFC 8058 one-click, HEAD changes nothing). */
+ *  WebSocket (private cards only for the name's account), the opt-in switch
+ *  with its consent version, and the unsubscribe link (GET only asks, POST
+ *  switches off - the page's button and the RFC 8058 one-click). */
 const test = require('node:test');
 const assert = require('node:assert');
 const crypto = require('node:crypto');
@@ -12,6 +13,7 @@ const { spawn } = require('node:child_process');
 const WebSocket = require('ws');
 const { createAccountStore } = require('../game/AccountStore');
 const { gameDay } = require('../game/GameDay');
+const { REVIEW_MAIL_CONSENT_VERSION } = require('../game/YearReviewMail');
 
 const ROOT = path.join(__dirname, '..');
 const PORT = 8137;
@@ -68,20 +70,25 @@ function wsAsk(msg, answerType) {
 test('year review over the WebSocket, opt-in switch and unsubscribe link', { skip: !HAS_SQLITE }, async (t) => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-yrsrv-'));
   const year = gameDay().slice(0, 4);
-  // A counted year for "Flo" (years.json) and a confirmed account with a
-  // session and a known unsubscribe token, written before the server starts.
+  // A counted year for "Flo" (years.json), the confirmed accounts Flo and
+  // Gerda with sessions, and a known unsubscribe token - before the server starts.
   fs.writeFileSync(path.join(dataDir, 'years.json'), JSON.stringify({
     since: `${year}-01-01`,
     players: { flo: { name: 'Flo', years: { [year]: {
       games: 12, wins: 5, queensLaid: 3, queensCaught: 1, bestRound: 240, bestGame: 1100, handAus: 0, jokers: 9, days: 6,
       lastDay: `${year}-03-01`, bestStreak: 4, opponents: { gerda: { name: 'Gerda', games: 7, wins: 3 } },
-      bots: { hard: { games: 5, wins: 2 } }, tables: {},
+      bots: { hard: { games: 5, wins: 2 } }, tables: { familie: { name: 'Familie', games: 4, wins: 2 } },
     } } } },
   }));
-  const seed = createAccountStore(path.join(dataDir, 'users.db'));
-  const reg = await seed.register('Flo', 'flo@example.com', 'geheim123');
-  await seed.verifyEmail(reg.verifyToken);
-  const token = (await seed.login('Flo', 'geheim123')).token;
+  const dbFile = path.join(dataDir, 'users.db');
+  const seed = createAccountStore(dbFile);
+  const signUp = async (name) => {
+    const reg = await seed.register(name, `${name.toLowerCase()}@example.com`, 'geheim123');
+    await seed.verifyEmail(reg.verifyToken);
+    return (await seed.login(name, 'geheim123')).token;
+  };
+  const token = await signUp('Flo');
+  const gerdaToken = await signUp('Gerda');
   const acc = await seed.accountForSession(token);
   const unsub = crypto.randomBytes(32).toString('hex');
   await seed.setReviewUnsubHash(acc.id, crypto.createHash('sha256').update(unsub).digest('hex'));
@@ -100,15 +107,23 @@ test('year review over the WebSocket, opt-in switch and unsubscribe link', { ski
   });
   await waitForServer();
 
-  const mine = await wsAsk({ type: 'getYearReview', name: 'flo' }, 'yearReview');
-  assert.strictEqual(mine.available, true);
-  assert.strictEqual(mine.season, true, 'the preview switch opens the season');
-  assert.strictEqual(mine.review.year, year);
-  assert.strictEqual(mine.review.totals.games, 12);
-  assert.deepStrictEqual(mine.review.favorite, { name: 'Gerda', games: 7, wins: 3 });
-  assert.deepStrictEqual(mine.review.bots, [{ level: 'hard', games: 5, wins: 2 }]);
-  assert.strictEqual(mine.review.table, null);
-  assert.strictEqual(mine.review.opponents, undefined, 'only the favourite leaves the server, not the list');
+  // Favourite opponent and Stammtisch name only for the account owning the name.
+  const ask = (extra) => wsAsk({ type: 'getYearReview', name: 'flo', ...extra }, 'yearReview');
+  const owner = await ask({ accountToken: token });
+  assert.strictEqual(owner.available, true);
+  assert.strictEqual(owner.season, true, 'the preview switch opens the season');
+  assert.strictEqual(owner.review.year, year);
+  assert.strictEqual(owner.review.totals.games, 12);
+  assert.deepStrictEqual(owner.review.favorite, { name: 'Gerda', games: 7, wins: 3 });
+  assert.deepStrictEqual(owner.review.table, { name: 'Familie', games: 4, wins: 2 });
+  assert.deepStrictEqual(owner.review.bots, [{ level: 'hard', games: 5, wins: 2 }]);
+  assert.strictEqual(owner.review.opponents, undefined, 'only the favourite leaves the server, not the list');
+  for (const [why, extra] of [['no token', {}], ['a wrong token', { accountToken: 'f'.repeat(64) }], ["another account's token", { accountToken: gerdaToken }]]) {
+    const r = await ask(extra);
+    assert.strictEqual(r.available, true, why);
+    assert.strictEqual(r.review.totals.games, 12, `${why}: the rest of the review stays`);
+    assert.deepStrictEqual([r.review.favorite, r.review.table], [null, null], `${why}: no opponent, no Stammtisch name`);
+  }
   const nobody = await wsAsk({ type: 'getYearReview', name: 'Niemand' }, 'yearReview');
   assert.deepStrictEqual({ available: nobody.available, review: nobody.review }, { available: false, review: null });
 
@@ -119,23 +134,44 @@ test('year review over the WebSocket, opt-in switch and unsubscribe link', { ski
   const on = await request('POST', '/api/account/review-mail', { token, enabled: true, lang: 'en' });
   assert.deepStrictEqual(on.json, { ok: true, enabled: true });
   assert.strictEqual((await methods()).reviewMail, true);
+  const { DatabaseSync } = require('node:sqlite');
+  const raw = new DatabaseSync(dbFile);
+  const consent = raw.prepare('SELECT review_mail_consent AS v FROM users WHERE username = ?').get('Flo').v;
+  raw.close();
+  assert.strictEqual(consent, REVIEW_MAIL_CONSENT_VERSION, 'the opt-in records the consent text version');
 
-  // HEAD (link checkers) and a wrong token change nothing.
+  // GET only asks: a link scanner opening the link changes nothing.
+  const ask1 = await request('GET', `/unsubscribe?t=${unsub}`);
+  assert.strictEqual(ask1.status, 200);
+  assert.match(ask1.text, /<html lang="en">/, 'answered in the language of the opt-in');
+  assert.match(ask1.text, /Unsubscribe from the year review\?/);
+  assert.ok(ask1.text.includes(`<form method="post" action="/unsubscribe?t=${unsub}">`), 'the button posts to the same link');
+  assert.doesNotMatch(ask1.text, /<script/i, 'no script: the CSP stays as it is');
+  assert.strictEqual((await methods()).reviewMail, true, 'GET leaves the opt-in on');
+
+  // HEAD and a wrong token change nothing either.
   assert.strictEqual((await request('HEAD', `/unsubscribe?t=${unsub}`)).status, 405);
-  const wrong = await request('GET', `/unsubscribe?t=${'0'.repeat(64)}`);
-  assert.strictEqual(wrong.status, 400);
-  assert.match(wrong.text, /ungültig/);
-  assert.strictEqual((await methods()).reviewMail, true);
+  for (const method of ['GET', 'POST']) {
+    const wrong = await request(method, `/unsubscribe?t=${'0'.repeat(64)}`, method === 'POST' ? 'List-Unsubscribe=One-Click' : undefined);
+    assert.strictEqual(wrong.status, 400, method);
+    assert.match(wrong.text, /ungültig/);
+    assert.doesNotMatch(wrong.text, /<form/);
+  }
+  assert.strictEqual((await methods()).reviewMail, true, 'a wrong token stays neutral');
 
-  const off = await request('GET', `/unsubscribe?t=${unsub}`);
+  // The button on the page: POST switches it off and confirms.
+  const off = await request('POST', `/unsubscribe?t=${unsub}`, '');
   assert.strictEqual(off.status, 200);
-  assert.match(off.text, /<html lang="en">/, 'answered in the language of the opt-in');
-  assert.match(off.text, /Unsubscribed/);
-  assert.strictEqual((await methods()).reviewMail, false, 'the link switched it off');
+  assert.match(off.text, /<html lang="en">[\s\S]*Unsubscribed/);
+  assert.strictEqual((await methods()).reviewMail, false, 'POST switched it off');
+  const again = await request('GET', `/unsubscribe?t=${unsub}`);
+  assert.match(again.text, /Already unsubscribed/);
+  assert.doesNotMatch(again.text, /<form/, 'nothing left to switch off');
 
+  // RFC 8058 one-click from the mail client: one POST, no page visit.
   await request('POST', '/api/account/review-mail', { token, enabled: true, lang: 'de' });
   const oneClick = await request('POST', `/unsubscribe?t=${unsub}`, 'List-Unsubscribe=One-Click');
-  assert.deepStrictEqual([oneClick.status, oneClick.text], [200, 'OK'], 'RFC 8058 one-click from the mail client');
+  assert.strictEqual(oneClick.status, 200, 'RFC 8058 one-click from the mail client');
+  assert.match(oneClick.text, /<html lang="de">[\s\S]*Abbestellt/);
   assert.strictEqual((await methods()).reviewMail, false);
-  assert.strictEqual((await request('POST', `/unsubscribe?t=${'f'.repeat(64)}`, 'List-Unsubscribe=One-Click')).status, 400);
 });

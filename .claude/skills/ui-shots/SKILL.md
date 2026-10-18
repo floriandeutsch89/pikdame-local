@@ -48,7 +48,8 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   a start-screen scene after `table` or a result reloads the start screen
   first (its buttons are hidden there and the clicks used to time out).
 - **December:** `--december` stands the client clock on 28 December and
-  mocks the server's year review (the server keeps its real date). Then
+  mocks the server's year review (the server keeps its real date; like the
+  server, favourite opponent and Stammtisch only with `--signed-in`). Then
   `lobby` shows the "Heute" chip, and `year`, `year-mid`, `year-bots`,
   `year-end` (story cards), `year-image` (the share PNG, saved through the
   download fallback), `account-mail` (opt-in switch, simulated sign-in) and

@@ -7879,6 +7879,7 @@
   let yearReview = null;
   let yearReviewName = ''; // asked for this name with this many games (refresh after own games)
   let yearReviewGames = -1;
+  let yearReviewToken = '';
   let yearSlideIdx = 0;
   let yearShareFile = null; // drawn on opening: iOS only shares inside the tap itself
   let yearSwipeAt = 0;
@@ -7906,10 +7907,13 @@
     }
     const me = myProfile();
     const games = me ? me.gamesPlayed || 0 : 0;
-    if (name === yearReviewName && games === yearReviewGames) return;
+    // Signed in, the server adds favourite opponent and Stammtisch: ask again after a sign-in.
+    const token = signedInName() ? accountToken() : '';
+    if (name === yearReviewName && games === yearReviewGames && token === yearReviewToken) return;
     yearReviewName = name;
     yearReviewGames = games;
-    ws.send(JSON.stringify({ type: 'getYearReview', name }));
+    yearReviewToken = token;
+    ws.send(JSON.stringify({ type: 'getYearReview', name, accountToken: token || undefined }));
   }
 
   function handleYearReview(msg) {
