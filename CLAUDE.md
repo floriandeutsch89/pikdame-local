@@ -8,7 +8,7 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
 
 ## Sprache
 
-- **Englisch:** Code, Kommentare, Bezeichner, Commits, Workflows, Infra, Tests,
+- **Englisch:** Code, Kommentare, Bezeichner, Commits, PR-Titel und -Texte (Titel = Squash-Commit), Workflows, Infra, Tests,
   Repo-Doku (README, docs/; k8s/ und landing/ READMEs bei nächster Berührung).
   Deutsche Bestandskommentare beim Berühren migrieren.
 - **Deutsch:** alle nutzersichtbaren Texte (Quellsprache, über i18n).
