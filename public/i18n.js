@@ -242,7 +242,7 @@ window.I18N_STATIC = {
   'Nächste Karte': 'Next card',
   'Als Bild teilen': 'Share as image',
   'E-Mails': 'E-mails',
-  'Jahresrückblick im Dezember per E-Mail': 'Year review by e-mail in December',
+  'Jahresrückblick per E-Mail': 'Year review by e-mail',
   'Einmal im Jahr, Ende Dezember: deine Partien, Siege und geretteten Pik Damen. Abbestellen jederzeit hier oder mit einem Klick in der Mail.':
     'Once a year, at the end of December: your games, wins and rescued queens of spades. Unsubscribe any time here or with one click in the mail.',
 };

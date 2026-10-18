@@ -2631,7 +2631,10 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
 .accountMethods { width: 100%; margin: 12px 0; display: flex; flex-direction: column; gap: 8px; }
-.accountMethods h3 { margin: 0; font-size: var(--fs-label); color: color-mix(in srgb, var(--card-ink) 60%, transparent); }
+.accountMethods h3, .accountMailPrefs h3 { margin: 0; font-size: var(--fs-label); color: color-mix(in srgb, var(--card-ink) 60%, transparent); }
+/* Year-review mail consent: a switch row like the settings sheet, same heading as "Anmeldewege". */
+.accountMailPrefs { width: 100%; margin: 4px 0 8px; text-align: left; }
+.accountMailPrefs .settingsHint { margin-top: 2px; }
 .passkeyList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .passkeyList li {
   display: flex; align-items: center; gap: 10px; justify-content: space-between;
