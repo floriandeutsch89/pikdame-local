@@ -1525,7 +1525,13 @@ test('turn timer: deadline armed for humans, expiry auto-finishes the turn once'
   const handBefore = game.players.find((p) => p.id === 'p1').hand.length;
   game._onTurnTimeout('p1'); // simulate expiry (no real waiting in tests)
   assert.ok(game.log.some((e) => e.text.startsWith('⏰ Zeit abgelaufen')), 'transparent log line');
-  assert.notEqual(game.currentPlayer().id, 'p1', 'turn was finished and passed on');
+  // FLAKE FIX: ~1 deal in 600 lets the auto-played turn go out ("Hand aus"); the
+  // round then ends with p1 still current - finished too, just not passed on.
+  if (game.phase === 'roundEnd') {
+    assert.equal(game.players.find((p) => p.id === 'p1').hand.length, 0, 'only going out may end the round here');
+  } else {
+    assert.notEqual(game.currentPlayer().id, 'p1', 'turn was finished and passed on');
+  }
 
   // Invalid values are rejected by the whitelist
   game.setHouseRules({ turnTimerSeconds: 45 });
