@@ -169,13 +169,16 @@ async function journey(t, port, databaseUrl, NAME, MAIL) {
     if (i > 150) throw new Error('server did not come up');
     await new Promise((r) => setTimeout(r, 100));
   }
-  const lastFromLog = async (re) => {
-    for (let i = 0; i < 50; i++) {
+  // The mail is logged after the HTTP answer: pass the count from before the
+  // request, or under load an older line (the old code or link) wins the race.
+  const countInLog = (re) => [...log.matchAll(re)].length;
+  const lastFromLog = async (re, after = 0) => {
+    for (let i = 0; i < 100; i++) {
       const all = [...log.matchAll(re)];
-      if (all.length) return all[all.length - 1][1];
+      if (all.length > after) return all[all.length - 1][1];
       await new Promise((r) => setTimeout(r, 50));
     }
-    throw new Error(`nothing in the log for ${re}`);
+    throw new Error(`nothing new in the log for ${re}`);
   };
   const auth = softAuthenticator(ORIGIN, 'localhost');
   const ua = { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)' };
@@ -184,7 +187,7 @@ async function journey(t, port, databaseUrl, NAME, MAIL) {
   CLIENT_IP = '10.0.0.1';
   const reg = await post('/api/register-passwordless', { username: NAME, email: MAIL });
   assert.equal(reg.status, 200, reg.body);
-  assert.match(log, new RegExp(`Registrierung: ${NAME}`));
+  await lastFromLog(new RegExp(`Registrierung: (${NAME})`, 'g'));
   // The name is taken now, by name and by e-mail.
   assert.equal((await post('/api/register-passwordless', { username: NAME.toLowerCase(), email: 'x@example.org' })).status, 400);
   assert.equal((await post('/api/register-passwordless', { username: 'Someone Else', email: MAIL.toUpperCase() })).status, 400);
@@ -205,9 +208,10 @@ async function journey(t, port, databaseUrl, NAME, MAIL) {
   // same for an address without a pending sign-up.
   CLIENT_IP = '10.0.0.2';
   const linkBefore = await lastFromLog(/\?verify=([a-f0-9]{64})/g);
+  const codesBeforeResend = countInLog(/Bestätigungscode (\d{6})/g);
   assert.deepEqual((await post('/api/verify-code/resend', { email: 'nobody@example.org' })).json, { ok: true });
   assert.deepEqual((await post('/api/verify-code/resend', { email: MAIL })).json, { ok: true });
-  const code2 = await lastFromLog(/Bestätigungscode (\d{6})/g);
+  const code2 = await lastFromLog(/Bestätigungscode (\d{6})/g, codesBeforeResend);
   assert.equal((await post('/api/verify-signin', { token: linkBefore })).status, 400, 'the old link died with the old code');
   // The right code confirms AND signs in - no sign-in method exists yet.
   v = await post('/api/verify-code', { email: MAIL, code: code2 });
@@ -291,8 +295,9 @@ async function journey(t, port, databaseUrl, NAME, MAIL) {
   // The link from the sign-up mail confirms and signs in, too (second account).
   const OTHER = `${NAME} Zwei`.slice(0, 24);
   const otherMail = MAIL.replace('@', '.zwei@');
+  const linksBefore = countInLog(/\?verify=([a-f0-9]{64})/g);
   assert.equal((await post('/api/register-passwordless', { username: OTHER, email: otherMail })).status, 200);
-  const setupLink = await lastFromLog(/\?verify=([a-f0-9]{64})/g);
+  const setupLink = await lastFromLog(/\?verify=([a-f0-9]{64})/g, linksBefore);
   const vs = await post('/api/verify-signin', { token: setupLink });
   assert.equal(vs.status, 200, vs.body);
   assert.equal(vs.json.username, OTHER);

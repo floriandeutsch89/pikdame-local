@@ -214,6 +214,8 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
   Mocks beantworten `getStammtisch` selbst; gesperrt = Server neu starten.
 - **`npm test` nie parallel** (z. B. mehrere Worktrees): Server-Tests nutzen
   feste Ports, ein zweiter Lauf trifft den fremden Server und scheitert wie ein Flake.
+- **Server-Log in Tests:** stdout kommt nach der HTTP-Antwort an. Trefferzahl
+  vor der Anfrage merken, auf eine NEUE Zeile warten (`lastFromLog(re, after)`).
 - Engine: E2E-Botspiele über alle 4 Stufen (Deadlocks, kein Joker-Abwurf,
   kein Doppel-Satz).
 - **Kartenerhaltung** (`test/card-conservation.test.js`): nach JEDEM Zug exakt
