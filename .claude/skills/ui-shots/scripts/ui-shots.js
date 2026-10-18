@@ -3,7 +3,7 @@
 // Starts its own server on a temp data dir (never touches data/), routes the
 // WebSocket through Playwright and rewrites/injects messages per scene.
 //
-//   node .claude/skills/ui-shots/scripts/ui-shots.js [--out DIR] [--views a,b] [--scenes a,b] [--port N] [--audit] [--signed-in]
+//   node .claude/skills/ui-shots/scripts/ui-shots.js [--out DIR] [--views a,b] [--scenes a,b] [--port N] [--audit] [--signed-in] [--reduced-motion]
 //
 // --signed-in mocks a signed-in account (the /api/* answers below), season
 // finale included: the start-up hint shows on the first start-screen shot.
@@ -59,6 +59,7 @@ const views = arg('views', 'phone,land,desk').split(',');
 const scenes = arg('scenes', 'lobby,stats,history,roundend,gameover').split(',');
 const AUDIT = process.argv.includes('--audit');
 const SIGNED_IN = process.argv.includes('--signed-in');
+const STILL = process.argv.includes('--reduced-motion'); // prefers-reduced-motion: reduce
 const DECEMBER = process.argv.includes('--december');
 const TAP_MIN = 44; // CLAUDE.md --tap-min
 // A normal UA: the server treats headless defaults as a crawler (no WebSocket).
@@ -285,7 +286,8 @@ function waitForHttp(port, ms = 20000) {
     for (const vn of views) {
       const vp = VIEWS[vn];
       if (!vp) throw new Error(`unknown view ${vn}`);
-      const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, userAgent: UA, deviceScaleFactor: 2, isMobile: vp.mobile, hasTouch: vp.mobile });
+      const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, userAgent: UA, deviceScaleFactor: 2, isMobile: vp.mobile, hasTouch: vp.mobile,
+        ...(STILL ? { reducedMotion: 'reduce' } : {}) });
       await ctx.addInitScript(([me, theme, musicHint]) => {
         try {
           localStorage.setItem('pikdame_player_name', me);
