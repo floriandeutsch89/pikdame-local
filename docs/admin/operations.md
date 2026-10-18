@@ -199,6 +199,23 @@ start. **Rollback:** pin the image tag in the compose file from `:latest` to
 the last good version (e.g. `:v1.12.0`) and run `up -d` again — every release
 version is available as its own tag on GHCR.
 
+**Rollback across the PostgreSQL store move** (to a version that still reads
+`players.json`/`stammtisch.json`): the first start of the new version
+imported these files and renamed them `*.migrated`. An older version finds
+no file, starts with empty profiles and Stammtische and writes new, empty
+files. Before the old version starts, rename the files back in the data
+volume:
+
+```sh
+docker compose -f docker-compose.prod.yml stop pikdame
+docker compose -f docker-compose.prod.yml run --rm --no-deps --entrypoint sh pikdame -c \
+  'cd /app/data && for f in players stammtisch; do mv "$f.json.migrated" "$f.json"; done'
+```
+
+The files hold the state at the moment of the upgrade: everything changed
+since then lives only in PostgreSQL and is lost on such a rollback. So take a
+backup (below) right before the upgrade.
+
 ## Backup & restore
 
 ```sh
