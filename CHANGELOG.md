@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.86.0] - 2026-10-18
+
+### Changed
+- Tagesrätsel-EP zählen jetzt auch für Konto und Saison-Rangliste (angemeldet), ohne als Partie zu zählen
+
 ## [2.85.1] - 2026-10-18
 
 ### Fixed
