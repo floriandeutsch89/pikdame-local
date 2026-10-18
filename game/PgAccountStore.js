@@ -122,6 +122,7 @@ const SCHEMA = `
   ALTER TABLE users ADD COLUMN IF NOT EXISTS review_mail_lang TEXT;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS review_mail_year TEXT;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS review_unsub_hash TEXT;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS review_mail_consent TEXT;
   CREATE TABLE IF NOT EXISTS webauthn_credentials (
     id TEXT PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -624,11 +625,16 @@ function createPgAccountStore(databaseUrl, options = {}) {
   }
 
   // --- Year-review mail (opt-in, see game/YearReviewMail.js) ---------------
-  async function setReviewMail(userId, enabled, lang) {
+  /** `consent`: version of the consent text shown (kept on opt-out: what was agreed to last). */
+  async function setReviewMail(userId, enabled, lang, consent = null) {
     const on = !!enabled;
     try {
       await ensureReady();
-      await pool.query('UPDATE users SET review_mail = $2, review_mail_at = $3, review_mail_lang = $4 WHERE id = $1', [userId, on, Date.now(), lang === 'en' ? 'en' : 'de']);
+      await pool.query(
+        `UPDATE users SET review_mail = $2, review_mail_at = $3, review_mail_lang = $4,
+         review_mail_consent = CASE WHEN $2 THEN $5 ELSE review_mail_consent END WHERE id = $1`,
+        [userId, on, Date.now(), lang === 'en' ? 'en' : 'de', consent]
+      );
       return { ok: true, enabled: on };
     } catch (e) {
       console.error('Postgres setReviewMail failed:', e.message);
@@ -665,6 +671,23 @@ function createPgAccountStore(databaseUrl, options = {}) {
   }
 
   /** The link in the mail: idempotent, the token keeps answering after the opt-out. */
+  /** Read only: whose link it is (the page asks before anything changes). */
+  async function reviewUnsubInfo(token) {
+    const t = String(token || '');
+    if (!/^[a-f0-9]{64}$/.test(t)) return { error: 'invalid' };
+    try {
+      await ensureReady();
+      const hash = crypto.createHash('sha256').update(t).digest('hex');
+      const r = await pool.query('SELECT username, review_mail, review_mail_lang FROM users WHERE review_unsub_hash = $1', [hash]);
+      const row = r.rows[0];
+      if (!row) return { error: 'invalid' };
+      return { ok: true, username: row.username, lang: row.review_mail_lang === 'en' ? 'en' : 'de', active: !!row.review_mail };
+    } catch (e) {
+      console.error('Postgres reviewUnsubInfo failed:', e.message);
+      return { error: 'unavailable' };
+    }
+  }
+
   async function unsubscribeReviewMail(token) {
     const t = String(token || '');
     if (!/^[a-f0-9]{64}$/.test(t)) return { error: 'invalid' };
@@ -994,7 +1017,7 @@ function createPgAccountStore(databaseUrl, options = {}) {
     validateNewAccount, registerWithoutPassword, verifyAndSignIn, renewSignupCode, verifyCodeAndSignIn, accountForSession, setWebauthnUserId, addCredential,
     credentialById, touchCredential, deleteCredential, setPassword, removePassword, sessionForUser,
     createLoginLink, consumeLoginLink,
-    setReviewMail, reviewMailRecipients, setReviewUnsubHash, markReviewMailSent, unsubscribeReviewMail,
+    setReviewMail, reviewMailRecipients, setReviewUnsubHash, markReviewMailSent, reviewUnsubInfo, unsubscribeReviewMail,
     close,
   };
 }

@@ -161,7 +161,7 @@ const MSG_NOTES = {
   listStammtische: 'The Stammtische a player name belongs to.',
   leaveStammtisch: 'Leave a Stammtisch.',
   deleteStammtisch: 'Founder only: dissolve a Stammtisch.',
-  getYearReview: 'The December year review of a player name ("Dein Pik-Dame-Jahr"); outside December it answers that none is available.',
+  getYearReview: 'The December year review of a player name ("Dein Pik-Dame-Jahr"); outside December it answers that none is available. Favourite opponent and Stammtisch name only with `accountToken` of the account owning the name.',
   createSession: 'Create a new game and receive its code.',
   joinSession: 'Join an existing game by code.',
   checkSession: 'Ask whether a stored session still exists (used by the "resume" button). With the seat token it also tells whether this device still holds a seat there.',
