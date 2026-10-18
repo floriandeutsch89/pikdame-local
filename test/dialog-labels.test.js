@@ -10,7 +10,7 @@ const { JSDOM, VirtualConsole } = require('jsdom');
 const pub = path.join(__dirname, '..', 'public');
 const html = fs.readFileSync(path.join(pub, 'index.html'), 'utf8');
 const CHANGELOG = [
-  '# Changelog', '', '## [2.80.0] - 2026-10-18', '', '### Added', '- Etwas Neues',
+  '# Changelog', '', '## [2.80.0] - 2026-10-18', '', '### Added', '- Etwas Neues,', '  über zwei Zeilen',
   '### Fixed', '- Ein Fehler, siehe https://example.org/x', '### constructor', '- kein Abschnitt', '',
 ].join('\n');
 
@@ -53,6 +53,8 @@ test('"Was ist neu?" names the sections in German and English; unknown headings 
   de.doc.getElementById('versionBtn').click();
   await de.settle();
   assert.deepStrictEqual(sections(de.doc), ['Neu', 'Behoben', 'constructor']);
+  assert.strictEqual(de.doc.querySelector('#changelogContent li').textContent, 'Etwas Neues, über zwei Zeilen',
+    'an indented line continues its bullet instead of a stray paragraph');
   assert.strictEqual(de.doc.querySelector('#changelogContent a').getAttribute('href'), 'https://example.org/x');
   assert.deepStrictEqual(de.errors, []);
   de.window.close();

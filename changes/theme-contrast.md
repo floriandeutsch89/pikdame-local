@@ -4,4 +4,4 @@
 - Konto: Die Eingabefelder haben jetzt sichtbare Beschriftungen und deutliche Ränder.
 - „Wirklich?“ im Stammtisch und „Ja, abwerfen“/„Ja, aufgeben“ im Küchentisch-Theme sind wieder gut lesbar.
 - Gesperrte Erfolge und Kartenrücken: Name und Bedingung sind voll lesbar, nur Bild und Fläche treten zurück.
-- „Was ist neu?“ zeigt die Abschnitte auf Deutsch (Neu, Geändert, Behoben …) und Links in der Theme-Farbe.
+- „Was ist neu?“ zeigt die Abschnitte auf Deutsch (Neu, Geändert, Behoben …), Links in der Theme-Farbe, und mehrzeilige Einträge bleiben ein Punkt.

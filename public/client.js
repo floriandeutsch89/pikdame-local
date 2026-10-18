@@ -7404,6 +7404,11 @@
     for (const raw of lines) {
       const line = inline(escapeHtml(raw));
       const isItem = /^\s*-\s+/.test(raw);
+      // Indented lines continue the bullet above (changes/README.md).
+      if (inList && !isItem && /^\s+\S/.test(raw)) {
+        out[out.length - 1] = out[out.length - 1].replace(/<\/li>$/, ` ${line.trim()}</li>`);
+        continue;
+      }
       if (inList && !isItem) { out.push('</ul>'); inList = false; }
       const key = raw.replace(/^###\s+/, '').trim().toLowerCase();
       const section = Object.prototype.hasOwnProperty.call(SECTIONS, key) ? SECTIONS[key] : null;
