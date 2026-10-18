@@ -44,7 +44,9 @@ faded and then moves to the piece that waited longest.
 - One normalisation gain per piece (its loudest segment), the soft clip of the
   original sketches, peak 0.8 so that a tail plus the next downbeat stays below
   full scale. The pieces are trimmed to the quietest one (`trimDb`).
-- **"Leise" sits 6 dB below the game's sound effects (RMS).** The renderer
+- **"Leise" sits 8 dB above the game's sound effects (RMS).** The effects are
+  short beeps that cut through; 6 dB under them (v2.84.0) was inaudible on
+  phones, even "Laut" was quiet. The renderer
   reads the `playTone()` calls in `client.js`, computes each one's RMS with its
   envelope (10 ms attack, exponential decay) and takes the median. "Mittel" and
   "Laut" add 6 dB each. The gains are in `manifest.json` (`levels`).
