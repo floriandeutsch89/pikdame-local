@@ -16,7 +16,7 @@
   const ROTATE_AFTER = 120; // seconds before "mix" moves on, at the end of a form
   const PAUSE_BETWEEN = 2; // silence after an ending, before the next track
   const CACHE_NAME = 'pikdame-music';
-  const FALLBACK_LEVELS = { low: 0.1, mid: 0.2, high: 0.4 };
+  const FALLBACK_LEVELS = { low: 0.18, mid: 0.36, high: 0.72 };
 
   /** Stored choices, else the defaults: quiet and rotating, off for players
    *  who silenced the sound before or ask the browser to save data. */

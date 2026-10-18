@@ -1,12 +1,11 @@
 {
   "version": 1,
   "sfxRms": 0.013849,
-  "lowBelowSfxDb": 6,
   "musicRms": 0.194752,
   "levels": {
-    "low": 0.0356,
-    "mid": 0.0711,
-    "high": 0.1419
+    "low": 0.1786,
+    "mid": 0.3564,
+    "high": 0.7111
   },
   "tracks": [
     {
@@ -165,5 +164,6 @@
         }
       ]
     }
-  ]
+  ],
+  "lowVsSfxDb": 8
 }

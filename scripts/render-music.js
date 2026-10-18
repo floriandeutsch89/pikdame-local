@@ -23,8 +23,9 @@ const MANIFEST = path.join(OUT_DIR, 'manifest.json');
 const TAIL = 4; // seconds after the last bar: releases and reverb overlap the next segment
 const TAIL_FADE = 1; // only the end of the tail fades, under the next segment's start
 const PEAK = 0.8; // headroom: a tail still rings into the next segment's downbeat
-// "Leise" sits this far below the in-game sound effects (RMS); Mittel/Laut add 6 dB each.
-const LOW_BELOW_SFX_DB = 6;
+// "Leise" sits this far ABOVE the effects' RMS: short beeps cut through, and 6 dB
+// under them was inaudible on phones (v2.84.0). Mittel/Laut add 6 dB each.
+const LOW_VS_SFX_DB = 8;
 const LEVEL_STEP_DB = 6;
 
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
@@ -646,7 +647,7 @@ function sfxReference(clientSrc) {
 
 /** Level gains from the reference and the (trimmed) music RMS. */
 function levelGains(sfxRms, musicRms) {
-  const low = sfxRms * dbToGain(-LOW_BELOW_SFX_DB) / musicRms;
+  const low = sfxRms * dbToGain(LOW_VS_SFX_DB) / musicRms;
   const round = (g) => Math.round(Math.min(1, g) * 10000) / 10000;
   return { low: round(low), mid: round(low * dbToGain(LEVEL_STEP_DB)), high: round(low * dbToGain(2 * LEVEL_STEP_DB)) };
 }
@@ -698,7 +699,7 @@ function render({ quality = 6 } = {}) {
   const manifest = {
     version: 1,
     sfxRms: round6(sfx.median),
-    lowBelowSfxDb: LOW_BELOW_SFX_DB,
+    lowVsSfxDb: LOW_VS_SFX_DB,
     musicRms: round6(common),
     levels: levelGains(sfx.median, common),
     tracks: [],
@@ -783,6 +784,8 @@ function relevel() {
   const sfx = sfxReference(fs.readFileSync(path.join(ROOT, 'public', 'client.js'), 'utf8'));
   manifest.sfxRms = round6(sfx.median);
   manifest.levels = levelGains(sfx.median, manifest.musicRms);
+  delete manifest.lowBelowSfxDb;
+  manifest.lowVsSfxDb = LOW_VS_SFX_DB;
   fs.writeFileSync(MANIFEST, JSON.stringify(manifest, null, 2) + '\n');
   console.log(`levels ${JSON.stringify(manifest.levels)}`);
 }
@@ -794,4 +797,4 @@ if (require.main === module) {
   else render();
 }
 
-module.exports = { TRACKS, sfxReference, toneRms, levelGains, hashOf, LOW_BELOW_SFX_DB, LEVEL_STEP_DB };
+module.exports = { TRACKS, sfxReference, toneRms, levelGains, hashOf, LOW_VS_SFX_DB, LEVEL_STEP_DB };
