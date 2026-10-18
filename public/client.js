@@ -1665,6 +1665,7 @@
     if (msg.type === 'towerInfo') {
       towerInfo = { ...msg, forName: towerAskedFor };
       renderTower();
+      renderTowerChip();
       if (!el('progressOverlay').classList.contains('hidden')) renderProgressSheet();
       return;
     }
@@ -1672,6 +1673,7 @@
       lastTowerResult = msg;
       const pr = msg.progress;
       if (pr && towerInfo) Object.assign(towerInfo, { best: pr.best, stars: pr.stars, cleared: pr.cleared, unlocked: pr.unlocked });
+      try { renderTowerChip(); } catch (e) { /* cosmetic */ }
       // A stage's first star pays XP: same level bookkeeping as the solved puzzle.
       if (msg.xp && msg.level) {
         const total = msg.level.total || 0;
@@ -1711,6 +1713,7 @@
       el('statsBtn').classList.toggle('hidden', publicMode);
       try { updateCelebrationSetting(); } catch (e) { /* cosmetic */ }
       if (!publicMode && !towerInfo) requestTower();
+      try { renderTowerChip(); } catch (e) { /* cosmetic */ }
       if (msg.quests) dailyQuests = msg.quests;
       try { fetchChallengeToday(); } catch (e) { /* cosmetic */ }
       // My own counters live on my profile (name-based, like every other
@@ -3938,6 +3941,8 @@
     }
     renderIdentity();
     if (changed) { try { requestYearReview(); } catch (e) { /* cosmetic */ } }
+    // Tower progress is per name: hide the old name's chip until the new data arrives.
+    if (changed && !publicMode) { try { requestTower(); renderTowerChip(); } catch (e) { /* cosmetic */ } }
     // Renaming inside a session re-joins under the new name (what the
     // "Name" button used to do after typing into the field above).
     if (changed && sessionCode && playerId) {
@@ -5620,6 +5625,7 @@
       const known = stammtischChipInfo[btn.dataset.code]; // e.g. after a language switch
       if (known) btn.querySelector('.stChipInfo').textContent = stammtischLeadText(known);
     });
+    try { renderTowerChip(); } catch (e) { /* cosmetic; towerInfo not declared yet at boot */ }
     // Ask for the record so the chip names the leader without a tap.
     for (const t of list) send({ type: 'getStammtisch', code: t.code });
   }
@@ -5642,7 +5648,7 @@
       // Gone (pruned after months of silence): forget it quietly.
       storageSet(STAMMTISCH_KEY, JSON.stringify(recentStammtische().filter((t) => t.code !== info.code)));
       btn.remove();
-      if (!el('stammtischRecent').children.length) el('stammtischRecent').classList.add('hidden');
+      renderTowerChip(); // a hidden third chip may return
       return;
     }
     stammtischChipInfo[info.code] = info;
@@ -7971,6 +7977,34 @@
   /** Tower data for the current name (a renamed player sees their own). */
   function towerFresh() {
     return towerInfo && towerInfo.forName === (myName || '') ? towerInfo : null;
+  }
+  /** Start-screen chip under the Stammtische. At most three rows (iPhone fit):
+   *  with three remembered tables the oldest one yields, it stays stored. */
+  function renderTowerChip() {
+    const box = el('stammtischRecent');
+    if (!box) return;
+    const old = box.querySelector('.stTowerRow');
+    if (old) old.remove();
+    const info = publicMode ? null : towerFresh();
+    const rows = [...box.querySelectorAll('.stRecentRow')];
+    rows.forEach((r, i) => r.classList.toggle('hidden', i >= (info ? 2 : 3)));
+    if (info) {
+      const size = info.stages.length;
+      const stage = Math.min(info.unlocked || 1, size);
+      const text = info.stars
+        ? L(`Stufe ${stage} · ${info.stars}/${size * 3}`, `Stage ${stage} · ${info.stars}/${size * 3}`)
+        : L(`${size} Stufen`, `${size} stages`);
+      const label = info.stars
+        ? L(`Bot-Turm: Stufe ${stage}, ${info.stars} von ${size * 3} Sternen`, `Bot tower: stage ${stage}, ${info.stars} of ${size * 3} stars`)
+        : L(`Bot-Turm: ${size} Stufen gegen die Bots`, `Bot tower: ${size} stages against the bots`);
+      box.insertAdjacentHTML('beforeend', `<button type="button" class="stRecentRow stTowerRow" aria-haspopup="dialog" aria-label="${escapeHtml(label)}">` +
+        `<svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg><span class="stName">${escapeHtml(L('Bot-Turm', 'Bot tower'))}</span>` +
+        `<small class="stChipInfo">${escapeHtml(text)}</small>` +
+        (info.stars ? '<svg class="icon stTowerStar" aria-hidden="true"><use href="#i-star"/></svg>' : '') +
+        `<svg class="icon stGo" aria-hidden="true"><use href="#i-chevron"/></svg></button>`);
+      box.querySelector('.stTowerRow').addEventListener('click', openTowerSheet);
+    }
+    box.classList.toggle('hidden', !box.querySelector('.stRecentRow:not(.hidden)'));
   }
   const towerStarsHtml = (n) => [1, 2, 3]
     .map((i) => `<svg class="icon${i <= n ? ' on' : ''}" aria-hidden="true"><use href="#i-star"/></svg>`).join('');
