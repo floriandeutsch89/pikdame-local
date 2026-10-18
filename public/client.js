@@ -7580,11 +7580,27 @@
         )
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
         .replace(/(^|[^*])\*(?!\s)([^*]+?)\*(?!\*)/g, '$1<em>$2</em>');
+    // CHANGELOG sections are English by convention; players read them translated.
+    const SECTIONS = {
+      added: () => L('Neu', 'Added'),
+      changed: () => L('Geändert', 'Changed'),
+      fixed: () => L('Behoben', 'Fixed'),
+      removed: () => L('Entfernt', 'Removed'),
+      security: () => L('Sicherheit', 'Security'),
+      deprecated: () => L('Veraltet', 'Deprecated'),
+    };
     for (const raw of lines) {
       const line = inline(escapeHtml(raw));
       const isItem = /^\s*-\s+/.test(raw);
+      // Indented lines continue the bullet above (changes/README.md).
+      if (inList && !isItem && /^\s+\S/.test(raw)) {
+        out[out.length - 1] = out[out.length - 1].replace(/<\/li>$/, ` ${line.trim()}</li>`);
+        continue;
+      }
       if (inList && !isItem) { out.push('</ul>'); inList = false; }
-      if (/^###\s+/.test(raw)) out.push(`<h4>${line.replace(/^###\s+/, '')}</h4>`);
+      const key = raw.replace(/^###\s+/, '').trim().toLowerCase();
+      const section = Object.prototype.hasOwnProperty.call(SECTIONS, key) ? SECTIONS[key] : null;
+      if (/^###\s+/.test(raw)) out.push(`<h4>${section ? escapeHtml(section()) : line.replace(/^###\s+/, '')}</h4>`);
       else if (/^##\s+/.test(raw)) out.push(`<h3>${line.replace(/^##\s+/, '')}</h3>`);
       else if (/^#\s+/.test(raw)) continue; // Haupttitel steht schon im Overlay
       else if (isItem) {
