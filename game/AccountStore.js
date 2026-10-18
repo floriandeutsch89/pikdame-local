@@ -125,6 +125,7 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
     add('review_mail_lang', 'TEXT');
     add('review_mail_year', 'TEXT');
     add('review_unsub_hash', 'TEXT');
+    add('review_mail_consent', 'TEXT');
   }
   db.exec(`
     CREATE TABLE IF NOT EXISTS webauthn_credentials (
@@ -636,10 +637,12 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
   }
 
   // --- Year-review mail (opt-in, see game/YearReviewMail.js) ---------------
-  function setReviewMail(userId, enabled, lang) {
+  /** `consent`: version of the consent text shown (kept on opt-out: what was agreed to last). */
+  function setReviewMail(userId, enabled, lang, consent = null) {
     const on = !!enabled;
-    db.prepare('UPDATE users SET review_mail = ?, review_mail_at = ?, review_mail_lang = ? WHERE id = ?')
-      .run(on ? 1 : 0, Date.now(), lang === 'en' ? 'en' : 'de', userId);
+    db.prepare(`UPDATE users SET review_mail = ?, review_mail_at = ?, review_mail_lang = ?,
+                review_mail_consent = CASE WHEN ? THEN ? ELSE review_mail_consent END WHERE id = ?`)
+      .run(on ? 1 : 0, Date.now(), lang === 'en' ? 'en' : 'de', on ? 1 : 0, consent, userId);
     return { ok: true, enabled: on };
   }
 
@@ -660,11 +663,22 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
   }
 
   /** The link in the mail: idempotent, the token keeps answering after the opt-out. */
-  function unsubscribeReviewMail(token) {
+  function unsubRow(token) {
     const t = String(token || '');
-    if (!/^[a-f0-9]{64}$/.test(t)) return { error: 'invalid' };
+    if (!/^[a-f0-9]{64}$/.test(t)) return null;
     const hash = crypto.createHash('sha256').update(t).digest('hex');
-    const row = db.prepare('SELECT id, username, review_mail_lang FROM users WHERE review_unsub_hash = ?').get(hash);
+    return db.prepare('SELECT id, username, review_mail, review_mail_lang FROM users WHERE review_unsub_hash = ?').get(hash) || null;
+  }
+
+  /** Read only: whose link it is (the page asks before anything changes). */
+  function reviewUnsubInfo(token) {
+    const row = unsubRow(token);
+    if (!row) return { error: 'invalid' };
+    return { ok: true, username: row.username, lang: row.review_mail_lang === 'en' ? 'en' : 'de', active: !!row.review_mail };
+  }
+
+  function unsubscribeReviewMail(token) {
+    const row = unsubRow(token);
     if (!row) return { error: 'invalid' };
     db.prepare('UPDATE users SET review_mail = 0, review_mail_at = ? WHERE id = ?').run(Date.now(), row.id);
     return { ok: true, username: row.username, lang: row.review_mail_lang === 'en' ? 'en' : 'de' };
@@ -769,7 +783,7 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
     validateNewAccount, registerWithoutPassword, verifyAndSignIn, renewSignupCode, verifyCodeAndSignIn, accountForSession, setWebauthnUserId, addCredential,
     credentialById, touchCredential, deleteCredential, setPassword, removePassword, sessionForUser,
     createLoginLink, consumeLoginLink,
-    setReviewMail, reviewMailRecipients, setReviewUnsubHash, markReviewMailSent, unsubscribeReviewMail,
+    setReviewMail, reviewMailRecipients, setReviewUnsubHash, markReviewMailSent, reviewUnsubInfo, unsubscribeReviewMail,
     close, _db: db, // _db: Test-Seam (Ablauf-Simulation)
   };
 }

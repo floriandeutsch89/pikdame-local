@@ -34,7 +34,7 @@ Sent on a fresh connection, before the socket is bound to a table. These carry `
 | `listStammtische` | The Stammtische a player name belongs to. |
 | `leaveStammtisch` | Leave a Stammtisch. |
 | `deleteStammtisch` | Founder only: dissolve a Stammtisch. |
-| `getYearReview` | The December year review of a player name ("Dein Pik-Dame-Jahr"); outside December it answers that none is available. |
+| `getYearReview` | The December year review of a player name ("Dein Pik-Dame-Jahr"); outside December it answers that none is available. Favourite opponent and Stammtisch name only with `accountToken` of the account owning the name. |
 
 ### Lobby {bdg-secondary}`8`
 

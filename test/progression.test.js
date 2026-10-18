@@ -355,6 +355,19 @@ test('favourite badges (#317): only earned keys, max 3, order kept, families all
   assert.deepEqual(store.setFavoriteBadges('Anna', []).favorites, []);
 });
 
+test('favourite badges: a stored key that no longer counts never blocks a change', () => {
+  const store = tempStore();
+  store.recordGameResult([{ name: 'Anna', score: 10, won: true }]);
+  store.awardBadges('Anna', ['first_win', 'night_owl']);
+  // Written by an older release, unknown today (e.g. a renamed badge).
+  store.getPlayerByName('Anna').favoriteBadges = ['old_badge', 'night_owl'];
+  // The client sends the rest after removing night_owl: allowed, the stale key goes too.
+  assert.deepEqual(store.setFavoriteBadges('Anna', ['old_badge']).favorites, []);
+  assert.ok(store.setFavoriteBadges('Anna', ['old_badge']).error, 'gone keys do not come back');
+  store.getPlayerByName('Anna').favoriteBadges = ['old_badge'];
+  assert.deepEqual(store.setFavoriteBadges('Anna', ['old_badge', 'first_win']).favorites, ['first_win'], 'adding works next to it');
+});
+
 test('favourite badges: the server accepts them only from the signed-in owner of the name', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
   const i = src.indexOf("msg.type === 'setFavoriteBadges'");
