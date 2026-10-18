@@ -74,22 +74,35 @@ test('a favourite family can be removed after it reached a new tier', async () =
   await t.settle();
   let box = await openCabinet(t);
   box.querySelector('.achTile[data-ach="games"]').click();
-  let btn = box.querySelector('.achFavBtn');
-  assert.ok(btn, 'the detail offers the favourite toggle');
-  assert.strictEqual(btn.getAttribute('aria-pressed'), 'true');
+  assert.ok(box.querySelector('.achDetail'), 'the detail opens');
+  assert.strictEqual(box.querySelector('.achFavBtn'), null, 'a favourite is removed in the list on top, not here');
+  const name = () => box.querySelector('.achFavChip .achFavName').textContent;
+  const before = name();
 
   // A game later the family has its second tier: the tile shows the new name and emoji.
   t.profiles({ badges: { marathon_10: T1, marathon_50: T2 }, favoriteBadges: ['games'] });
   await t.settle();
   box = await openCabinet(t);
-  if (!box.querySelector('.achFavBtn')) box.querySelector('.achTile[data-ach="games"]').click();
-  btn = box.querySelector('.achFavBtn');
-  assert.ok(btn, 'still offered after the new tier');
-  assert.strictEqual(btn.getAttribute('aria-pressed'), 'true');
-  assert.match(btn.textContent, /Lieblingsabzeichen · entfernen/, 'the button says it removes');
-  btn.click();
+  assert.notStrictEqual(name(), before, 'the list follows the new tier');
+  box.querySelector('.achFavRemove[data-fav-remove="games"]').click();
   assert.deepStrictEqual(t.favSends().map((m) => m.badges), [[]], 'removing sends the empty list');
   assert.deepStrictEqual(t.errors, []);
+  t.window.close();
+});
+
+test('the detail of an earned badge that is no favourite adds it', async () => {
+  const t = boot();
+  await t.settle();
+  t.ws().fire('open');
+  await t.settle();
+  t.profiles({ badges: { marathon_10: T1, first_win: T1 }, favoriteBadges: ['games'] });
+  await t.settle();
+  const box = await openCabinet(t);
+  box.querySelector('.achTile[data-ach="wins"]').click();
+  const btn = box.querySelector('.achFavBtn');
+  assert.match(btn.textContent, /Als Lieblingsabzeichen zeigen \(1\/3\)/);
+  btn.click();
+  assert.deepStrictEqual(t.favSends().map((m) => m.badges), [['games', 'wins']]);
   t.window.close();
 });
 

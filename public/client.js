@@ -8476,11 +8476,10 @@
     const me = myProfile();
     if (!canPickFavorites() || !me || !favoriteEmoji(me, key)) return '';
     const favs = myFavoriteKeys(me);
-    const on = favs.includes(key);
-    const label = on
-      ? L('Lieblingsabzeichen · entfernen', 'Favourite badge · remove')
-      : L(`Als Lieblingsabzeichen zeigen (${favs.length}/${FAVORITES_MAX})`, `Show as favourite badge (${favs.length}/${FAVORITES_MAX})`);
-    return `<button type="button" class="achFavBtn${on ? ' active' : ''}" data-fav="${escapeHtml(key)}" aria-pressed="${on}"><svg class="icon" aria-hidden="true"><use href="#i-star"/></svg><span>${escapeHtml(label)}</span></button>`;
+    // The detail only adds; removing happens in the list on top of the cabinet.
+    if (favs.includes(key)) return '';
+    const label = L(`Als Lieblingsabzeichen zeigen (${favs.length}/${FAVORITES_MAX})`, `Show as favourite badge (${favs.length}/${FAVORITES_MAX})`);
+    return `<button type="button" class="achFavBtn" data-fav="${escapeHtml(key)}"><svg class="icon" aria-hidden="true"><use href="#i-star"/></svg><span>${escapeHtml(label)}</span></button>`;
   }
   function toggleFavorite(key) {
     const me = myProfile();
