@@ -77,6 +77,17 @@ function stageRecord({ stage = 4, my = 230, bots = [145, 60], winnerId = 'me' } 
   };
 }
 
+test('XP: the first star of a stage pays once, more stars and retries nothing', () => {
+  const { xpForTowerStage, XP_TOWER_FIRST_STAR } = require('../game/Progression');
+  assert.strictEqual(XP_TOWER_FIRST_STAR, 25);
+  assert.strictEqual(xpForTowerStage(0, 1), 25, 'first star');
+  assert.strictEqual(xpForTowerStage(0, 3), 25, 'three at once are still one first star');
+  assert.strictEqual(xpForTowerStage(1, 2), 0, 'a second star');
+  assert.strictEqual(xpForTowerStage(3, 3), 0, 'a repeat');
+  assert.strictEqual(xpForTowerStage(0, 0), 0, 'no star');
+  assert.strictEqual(TOWER_STAGES.length * xpForTowerStage(0, 1), 250, 'the whole tower: at most 250');
+});
+
 test('stageWinner: the human wins exactly with a star, the handicap included', () => {
   const { stageWinner } = BotTower;
   assert.strictEqual(stageWinner({ me: 145, a: 140, b: 30 }, 'me', 'me', 20), 'a', 'ahead on points, behind after the handicap');
@@ -243,10 +254,16 @@ test('best stars per stage, never worse; the counters feed the tower badges', ()
   let r = store.recordTowerResult('Ada', 1, 1);
   assert.deepStrictEqual({ best: r.best, improved: r.improved, stars: r.stars, cleared: r.cleared, unlocked: r.unlocked },
     { best: { 1: 1 }, improved: true, stars: 1, cleared: 1, unlocked: 2 });
+  assert.deepStrictEqual([r.xp, r.totalXp, store.getPlayerByName('Ada').xp], [25, 25, 25], 'the first star pays into the profile');
   r = store.recordTowerResult('ada', 1, 3);
   assert.strictEqual(r.improved, true);
+  assert.strictEqual(r.xp, 0, 'more stars on the same stage pay nothing');
   r = store.recordTowerResult('ADA', 1, 2);
   assert.strictEqual(r.improved, false, 'a worse try never overwrites');
+  assert.strictEqual(r.xp, 0, 'nor does a repeat');
+  assert.strictEqual(store.recordTowerResult('Ada', 2, 0).xp, 0, 'a missed stage pays nothing');
+  assert.strictEqual(store.getPlayerByName('Ada').xp, 25);
+  assert.strictEqual(store.getPlayerByName('Ada').gamesPlayed, 0, 'no game counted');
   assert.deepStrictEqual(store.towerBest('Ada'), { 1: 3 });
   store.recordTowerResult('Ada', 1, 0);
   assert.deepStrictEqual(store.towerBest('Ada'), { 1: 3 }, 'nor does a lost one');
@@ -318,8 +335,9 @@ async function ask(ws, msg, replyType) {
   return reply;
 }
 
-async function startServer(t, port, env = {}) {
+async function startServer(t, port, env = {}, prepare = null) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-tower-srv-'));
+  if (prepare) prepare(dataDir); // seed the data dir (accounts, a session snapshot) before the boot
   const server = spawn('node', ['server.js'], {
     cwd: path.join(__dirname, '..'),
     env: { ...process.env, PORT: String(port), PIKDAME_DATA_DIR: dataDir, PIKDAME_ONNX: '0', ...env },
@@ -379,4 +397,95 @@ test('server: public mode keeps no profiles, so the tower is off', async (t) => 
   assert.deepStrictEqual(info.best, {});
   const off = await ask(ws, { type: 'startTower', stage: 1, name: 'Ada' }, 'error');
   assert.match(off.error, /auf diesem Server ist er aus/);
+});
+
+// --- XP for a stage's first star, through the real server ---------------------------
+const { createAccountStore } = require('../game/AccountStore');
+const sqliteProbe = createAccountStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-tower-probe-')), 'probe.db'));
+const HAS_SQLITE = sqliteProbe !== null;
+if (sqliteProbe) sqliteProbe.close();
+
+/** A stage-1 table one discard from its end: the human has melded all but one card. */
+function stageAtTheEnd(playerId, name) {
+  const g = new GameManager(() => {}, { deckSeed: BotTower.stageConfig(1).seed, towerStage: 1 });
+  g.addOrReconnectPlayer(playerId, name);
+  g.syncLobbyBots();
+  g.startTowerRound();
+  const me = g.players.find((p) => p.id === playerId);
+  me.laidOutCards = me.hand.slice(1);
+  me.hand = me.hand.slice(0, 1);
+  g.turnPhase = 'meld'; // as if drawn: the last card is the discard that goes out
+  const lastCardId = me.hand[0].id;
+  const state = JSON.parse(JSON.stringify(g.serialize()));
+  g.destroy();
+  return { state, lastCardId };
+}
+
+function inbox(ws) {
+  const box = [];
+  ws.on('message', (raw) => { try { box.push(JSON.parse(raw)); } catch (e) { /* binary */ } });
+  return box;
+}
+
+async function waitIn(box, type, timeoutMs = 4000) {
+  for (const deadline = Date.now() + timeoutMs; Date.now() < deadline;) {
+    const m = box.find((x) => x.type === type);
+    if (m) return m;
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  throw new Error(`no ${type}`);
+}
+
+test('server: the first star pays 25 XP (account and season too), a repeat and a guest only what is theirs', { skip: !HAS_SQLITE }, async (t) => {
+  const tables = {
+    first: { code: 'TWRAA2', id: 'p-ada1', token: 'tok-ada1', name: 'Ada', ...stageAtTheEnd('p-ada1', 'Ada') },
+    again: { code: 'TWRAA3', id: 'p-ada2', token: 'tok-ada2', name: 'Ada', ...stageAtTheEnd('p-ada2', 'Ada') },
+    guest: { code: 'TWRBB4', id: 'p-ben', token: 'tok-ben', name: 'Ben', ...stageAtTheEnd('p-ben', 'Ben') },
+  };
+  let accountToken = null;
+  const srv = await startServer(t, 8139, {}, (dataDir) => {
+    const accounts = createAccountStore(path.join(dataDir, 'users.db'));
+    accounts.verifyEmail(accounts.register('Ada', 'ada@example.com', 'geheim123').verifyToken);
+    accountToken = accounts.login('Ada', 'geheim123').token;
+    accounts.close();
+    const now = Date.now();
+    const sessions = Object.values(tables).map((x) => ({
+      code: x.code, createdAt: now, lastActivity: now, playerTokens: { [x.id]: x.token }, stammtisch: null, state: x.state,
+    }));
+    fs.writeFileSync(path.join(dataDir, 'sessions-snapshot.json'), JSON.stringify({ savedAt: now, sessions }));
+  });
+
+  /** Back at the restored table, then the last card: the verdict and what followed it. */
+  const finish = async (x, withAccount) => {
+    const ws = await srv.socket();
+    const box = inbox(ws);
+    ws.send(JSON.stringify({ type: 'joinSession', code: x.code, playerId: x.id, playerToken: x.token, name: x.name, accountToken: withAccount ? accountToken : undefined }));
+    await waitIn(box, 'joined');
+    ws.send(JSON.stringify({ type: 'discard', cardId: x.lastCardId }));
+    const verdict = await waitIn(box, 'towerResult');
+    await new Promise((r) => setTimeout(r, 300)); // room for the account booking
+    return { verdict, account: box.find((m) => m.type === 'accountProgress') || null };
+  };
+
+  const first = await finish(tables.first, true);
+  assert.ok(first.verdict.stars >= 1, 'went out far ahead: a star');
+  assert.strictEqual(first.verdict.xp, 25);
+  assert.strictEqual(first.verdict.level.total, 25, 'level bookkeeping like the solved puzzle');
+  assert.ok(first.account, 'the account is booked');
+  assert.deepStrictEqual([first.account.progress.xp, first.account.progress.seasonXp, first.account.progress.games], [25, 25, 0],
+    'lifetime and season XP, no game counted');
+
+  const again = await finish(tables.again, true);
+  assert.strictEqual(again.verdict.xp, 0, 'a repeat of a cleared stage pays nothing');
+  assert.strictEqual(again.account, null, 'nor books the account');
+
+  const guest = await finish(tables.guest, false);
+  assert.strictEqual(guest.verdict.xp, 25, 'a guest earns the profile XP');
+  assert.strictEqual(guest.account, null, 'but has no account to book');
+
+  const ws = await srv.socket();
+  const profiles = await ask(ws, { type: 'listProfiles' }, 'profiles');
+  const p = (name) => profiles.players.find((x) => x.name === name);
+  assert.deepStrictEqual([p('Ada').xp, p('Ada').gamesPlayed], [25, 0], 'profile: XP once, no game');
+  assert.deepStrictEqual([p('Ben').xp, p('Ben').gamesPlayed], [25, 0]);
 });

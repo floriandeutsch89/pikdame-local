@@ -102,6 +102,7 @@ test('progress sheet: the tower entry leads to the stage sheet, top of the tower
   assert.strictEqual(row(10).querySelector('.twHandicap').textContent, 'Bots +100');
   assert.ok(row(10).querySelectorAll('.twBots .lvlIcon').length === 3, 'one level icon per bot');
   assert.match(t.doc.getElementById('towerRules').textContent, /mindestens 100 Punkte vorn/);
+  assert.match(t.doc.getElementById('towerRules').textContent, /erste Stern jeder Stufe bringt einmal 25 EP/);
   assert.ok(t.scrolled.includes(row(3)), 'the next stage scrolled into view');
   assert.deepStrictEqual(t.errors, []);
   t.window.close();
@@ -130,6 +131,7 @@ test('the language switch redraws the tower sheet', () => {
   t.doc.querySelector('#progressContent .pgTower').click();
   t.doc.getElementById('langBtn').click();
   assert.strictEqual(t.doc.getElementById('towerSummary').textContent, '4/30 stars · 2 of 10 stages cleared');
+  assert.match(t.doc.getElementById('towerRules').textContent, /first star of each stage pays 25 XP once/);
   assert.strictEqual(t.doc.querySelector('#towerTitle span').textContent, 'Bot tower');
   t.window.close();
 });
@@ -180,9 +182,13 @@ test('result sheet: stars, the sum behind them and the way on', () => {
   t.ws.fire('message', { type: 'joined', playerId: 'me', playerToken: 't', sessionCode: 'TOWER1' });
   t.ws.fire('message', { type: 'state', state });
   const verdict = { ...outcome, stars: 1, margin: 25, myScore: 140, bestBot: 115, handicap: 0, wentOut: true };
-  t.ws.fire('message', { type: 'towerResult', ...verdict, clearMargin: 100, progress: { best: { 1: 3, 2: 1 }, improved: true, stars: 4, cleared: 2, unlocked: 3 } });
+  t.ws.fire('message', {
+    type: 'towerResult', ...verdict, clearMargin: 100, xp: 25, level: { level: 1, into: 25, need: 100, total: 25 },
+    progress: { best: { 1: 3, 2: 1 }, improved: true, stars: 4, cleared: 2, unlocked: 3 },
+  });
   assert.ok(t.shown('resultOverlay'));
   assert.strictEqual(t.doc.getElementById('resultTitle').textContent, 'Bot-Turm · Stufe 2');
+  assert.strictEqual(t.doc.querySelector('#resultBody .twResultXp').textContent, '+25 EP · erster Stern');
   const box = t.doc.querySelector('#resultBody .towerResultBox');
   assert.ok(box, 'verdict box');
   assert.strictEqual(box.querySelectorAll('.twResultStars .icon.on').length, 1);
@@ -221,6 +227,7 @@ test('a missed stage says by how much, with the handicap in the sum', () => {
   assert.match(box.textContent, /15 Punkte hinten/);
   assert.strictEqual(box.querySelectorAll('.twResultStars .icon.on').length, 0);
   assert.ok(!box.querySelector('.twNext'), 'stage 3 is not open yet');
+  assert.ok(!box.querySelector('.twResultXp'), 'no star, no XP line');
   t.window.close();
 });
 

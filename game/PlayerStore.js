@@ -346,21 +346,25 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     const p = findPlayerByName(loadStore(), name);
     return { ...((p && p.tower) || {}) };
   }
-  /** Keeps the best result of a stage; the flat counters feed the badge families. */
+  /** Keeps the best result of a stage; the flat counters feed the badge families.
+   *  The first star of a stage also pays its XP, in the same write. */
   function recordTowerResult(name, stage, stars) {
     upsertPlayerProfile(name);
     const store = loadStore();
     const p = findPlayerByName(store, name);
     const { summarize } = require('./BotTower');
+    const { xpForTowerStage } = require('./Progression');
     p.tower = p.tower || {};
     const before = p.tower[stage] || 0;
     const improved = stars > before;
     if (improved) p.tower[stage] = stars;
+    const xp = xpForTowerStage(before, stars);
+    if (xp) p.xp = (p.xp || 0) + xp;
     const sum = summarize(p.tower);
     p.towerStars = sum.stars;
     p.towerCleared = sum.cleared;
     saveStore(store);
-    return { best: { ...p.tower }, improved, ...sum };
+    return { best: { ...p.tower }, improved, xp, totalXp: p.xp || 0, ...sum };
   }
 
   return {

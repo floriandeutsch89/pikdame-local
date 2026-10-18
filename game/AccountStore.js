@@ -324,6 +324,25 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
     return progressFor(name);
   }
 
+  /**
+   * XP from outside a match (a bot tower stage's first star): lifetime and
+   * season XP grow like in addGameResult, the game counters do not.
+   * @returns {{xp:number, seasonXp:number, games:number, wins:number}|null}
+   */
+  function addXp(username, { xp = 0, season = null } = {}) {
+    const name = String(username || '').trim();
+    const row = db.prepare('SELECT id, season, season_xp, season_games FROM users WHERE username = ? AND verified = 1').get(name);
+    if (!row) return null;
+    const gain = Math.max(0, Math.round(Number(xp) || 0));
+    const sameSeason = season && row.season === season;
+    inTransaction(() => {
+      if (season && !sameSeason) archiveSeason(row);
+      db.prepare('UPDATE users SET xp = xp + ?, season = ?, season_xp = ?, season_games = ? WHERE id = ?')
+        .run(gain, season, (sameSeason ? row.season_xp : 0) + gain, sameSeason ? row.season_games || 0 : 0, row.id);
+    });
+    return progressFor(name);
+  }
+
   /** Before a row moves on to a new season: keep the old one for its finale. */
   function archiveSeason(row) {
     if (!row.season || !((row.season_xp || 0) > 0 || (row.season_games || 0) > 0)) return;
@@ -764,7 +783,7 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
 
   return {
     register, verifyEmail, login, sessionUser, logout, isRegisteredName,
-    addGameResult, progressFor, ladder, importProfile, listUsers, deleteUser, renewVerification,
+    addGameResult, addXp, progressFor, ladder, importProfile, listUsers, deleteUser, renewVerification,
     finalizeSeasons, seasonResultsFor, markSeasonResultSeen,
     validateNewAccount, registerWithoutPassword, verifyAndSignIn, renewSignupCode, verifyCodeAndSignIn, accountForSession, setWebauthnUserId, addCredential,
     credentialById, touchCredential, deleteCredential, setPassword, removePassword, sessionForUser,

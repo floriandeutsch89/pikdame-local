@@ -487,6 +487,7 @@ bilingual tables. Ids are stable, names may change.
 | Finishing a match (won or lost) | **${P.XP_BASE}** |
 | Winning it | **+${P.XP_WIN}** |
 | Final score | **+1 per ${perPoints} points** (never negative) |
+| First star of a bot tower stage (once per stage, no game counted) | **+${P.XP_TOWER_FIRST_STAR}** |
 
 Each level costs a little more than the last, so the first levels arrive
 after an evening of play and the later ones stay meaningful:

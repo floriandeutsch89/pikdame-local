@@ -1579,6 +1579,14 @@
       lastTowerResult = msg;
       const pr = msg.progress;
       if (pr && towerInfo) Object.assign(towerInfo, { best: pr.best, stars: pr.stars, cleared: pr.cleared, unlocked: pr.unlocked });
+      // A stage's first star pays XP: same level bookkeeping as the solved puzzle.
+      if (msg.xp && msg.level) {
+        const total = msg.level.total || 0;
+        myProgress = { xp: Math.max((myProgress && myProgress.xp) || 0, total), level: msg.level };
+        const from = levelFromXpClient(total - msg.xp).level;
+        if (msg.level.level > from) showLevelUp(from, msg.level.level, msg.xp, total - msg.xp);
+        try { renderQuests(); renderEmoteLocks(); } catch (e) { /* cosmetic */ }
+      }
       renderTowerResult();
       return;
     }
@@ -7774,7 +7782,7 @@
   }
 
   // Mirrors game/Progression.js (XP_BASE, XP_WIN, XP_PER_POINT) - display only.
-  const XP_RULES = { base: 10, win: 50, perPoints: 10 };
+  const XP_RULES = { base: 10, win: 50, perPoints: 10, towerFirstStar: 25 };
   function renderProgressSheet() {
     const box = el('progressContent');
     if (!box) return;
@@ -7894,8 +7902,8 @@
     // The top of the tower first: you climb it.
     el('towerList').innerHTML = info ? [...info.stages].reverse().map((s) => towerRowHtml(s, info)).join('') : '';
     el('towerRules').textContent = info
-      ? L(`Ein Stern: mehr Punkte als jeder Bot samt Vorgabe. Zwei: mindestens ${info.clearMargin} Punkte vorn. Drei: dazu selbst ausmachen. Jede Stufe ist eine Runde mit immer demselben Blatt; ab einem Stern ist die nächste frei. Versuche unbegrenzt, der beste zählt.`,
-        `One star: more points than every bot plus its head start. Two: at least ${info.clearMargin} points ahead. Three: and go out yourself. Each stage is one round with the same deal every time; one star unlocks the next. Unlimited tries, the best counts.`)
+      ? L(`Ein Stern: mehr Punkte als jeder Bot samt Vorgabe. Zwei: mindestens ${info.clearMargin} Punkte vorn. Drei: dazu selbst ausmachen. Jede Stufe ist eine Runde mit immer demselben Blatt; ab einem Stern ist die nächste frei. Versuche unbegrenzt, der beste zählt. Der erste Stern jeder Stufe bringt einmal ${XP_RULES.towerFirstStar} EP.`,
+        `One star: more points than every bot plus its head start. Two: at least ${info.clearMargin} points ahead. Three: and go out yourself. Each stage is one round with the same deal every time; one star unlocks the next. Unlimited tries, the best counts. The first star of each stage pays ${XP_RULES.towerFirstStar} XP once.`)
       : '';
     if (info && towerScrollPending && !el('towerOverlay').classList.contains('hidden')) {
       towerScrollPending = false;
@@ -7975,6 +7983,7 @@
       `<div class="twResultStars" role="img" aria-label="${escapeHtml(L(`${r.stars} von 3 Sternen`, `${r.stars} of 3 stars`))}">${towerStarsHtml(r.stars)}</div>` +
       `<p class="twResultSum">${escapeHtml(L(`Du ${r.myScore} · ${botLine}`, `You ${r.myScore} · ${botLine}`))} <b>${escapeHtml(verdict)}</b></p>` +
       (bestLine ? `<p class="twResultBest">${escapeHtml(bestLine)}</p>` : '') +
+      (r.xp ? `<p class="twResultXp">${escapeHtml(L(`+${r.xp} EP · erster Stern`, `+${r.xp} XP · first star`))}</p>` : '') +
       `<p class="twResultHint">${escapeHtml(hint)}</p>` +
       `<div class="twResultActions">` +
       `<button type="button" class="btn-secondary twRetry"><svg class="icon" aria-hidden="true"><use href="#i-undo"/></svg><span>${escapeHtml(L('Nochmal', 'Try again'))}</span></button>` +

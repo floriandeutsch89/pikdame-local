@@ -150,6 +150,40 @@ test('AccountStore: season ladder books XP, ranks players and resets per season'
   await store.close();
 });
 
+test('AccountStore: addXp books lifetime and season XP without counting a game (bot tower)', { skip: !HAS_SQLITE }, async () => {
+  const store = freshStore();
+  const r = await store.register('Turm', 'turm@example.com', 'geheim123');
+  await store.verifyEmail(r.verifyToken);
+  store.addGameResult('Turm', { xp: 60, won: true, season: '2026-10' });
+  const p = store.addXp('Turm', { xp: 25, season: '2026-10' });
+  assert.deepEqual([p.xp, p.seasonXp, p.games, p.wins], [85, 85, 1, 1], 'XP grows, the game counters do not');
+  const next = store.addXp('Turm', { xp: 25, season: '2026-11' });
+  assert.deepEqual([next.xp, next.seasonXp, next.games], [110, 25, 1], 'a new season starts from this XP');
+  assert.equal(store._db.prepare('SELECT season_games FROM users WHERE username = ?').get('Turm').season_games, 0, 'no season game either');
+  const archived = store._db.prepare('SELECT season, season_xp, season_games FROM season_archive WHERE user_id = (SELECT id FROM users WHERE username = ?)').get('Turm');
+  assert.deepEqual({ ...archived }, { season: '2026-10', season_xp: 85, season_games: 1 }, 'the finished season is archived');
+  assert.equal(store.addXp('Niemand', { xp: 25, season: '2026-11' }), null, 'a guest has no account to book');
+  const unverified = await store.register('Gast', 'gast@example.com', 'geheim123');
+  assert.ok(unverified.ok);
+  assert.equal(store.addXp('Gast', { xp: 25, season: '2026-11' }), null, 'unverified accounts are not booked');
+  await store.close();
+});
+
+test('PgAccountStore: addXp books lifetime and season XP without counting a game (bot tower)', { skip: !PG_URL }, async () => {
+  const store = createPgAccountStore(PG_URL);
+  const suffix = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const name = `Turm_${suffix}`;
+  const r = await store.register(name, `turm_${suffix}@example.com`, 'geheim123');
+  await store.verifyEmail(r.verifyToken);
+  await store.addGameResult(name, { xp: 60, won: true, season: '2026-10' });
+  const p = await store.addXp(name, { xp: 25, season: '2026-10' });
+  assert.deepEqual([p.xp, p.seasonXp, p.games, p.wins], [85, 85, 1, 1], 'XP grows, the game counters do not');
+  const next = await store.addXp(name, { xp: 25, season: '2026-11' });
+  assert.deepEqual([next.xp, next.seasonXp, next.games], [110, 25, 1], 'a new season starts from this XP');
+  assert.equal(await store.addXp(`Niemand_${suffix}`, { xp: 25, season: '2026-11' }), null, 'a guest has no account to book');
+  await store.close();
+});
+
 test('AccountStore: an existing database without the progression columns migrates', { skip: !HAS_SQLITE }, async () => {
   // The data volume survives updates, so users.db from an older version must
   // gain the new columns instead of throwing "no such column" forever.

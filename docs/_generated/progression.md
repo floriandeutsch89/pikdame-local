@@ -13,6 +13,7 @@ bilingual tables. Ids are stable, names may change.
 | Finishing a match (won or lost) | **10** |
 | Winning it | **+50** |
 | Final score | **+1 per 10 points** (never negative) |
+| First star of a bot tower stage (once per stage, no game counted) | **+25** |
 
 Each level costs a little more than the last, so the first levels arrive
 after an evening of play and the later ones stay meaningful:

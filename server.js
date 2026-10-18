@@ -1337,7 +1337,7 @@ const registry = new SessionRegistry((session) => {
     // Only the moment id: the client holds the bilingual lines (BotQuips.js).
     onBotQuip: (botId, moment) => broadcastToSession(session, { type: 'quip', playerId: botId, moment }),
     onGameOver: (results, gameRecord) => {
-      // Bot tower: one round scored in stars only - no match stats, XP or history.
+      // Bot tower: one round scored in stars (the first one pays XP) - no match stats or history.
       if (gameRecord.towerStage) {
         recordTowerStage(gameRecord, sendTo);
         return;
@@ -1591,23 +1591,35 @@ restoreSessionsSnapshot();
 // not given up; their players may start again.
 try { challengeStore.markLostAttempts(new Set(registry.sessions.keys())); } catch (err) { logCrash('challenge-lost', err); }
 
-/** Bot tower: grades the stage round, keeps the best stars, hands out the tower badges. */
+/** Bot tower: grades the stage round, keeps the best stars, pays a stage's first
+ *  star (profile; account and season too, without booking a game), awards badges. */
 function recordTowerStage(gameRecord, sendTo) {
   const human = (gameRecord.players || []).find((p) => !p.isBot);
   const outcome = human && BotTower.outcomeFromRecord(gameRecord, human.id);
   if (!outcome) return;
   let progress = null;
   let badges = [];
+  let xp = 0;
   if (!PUBLIC_MODE) {
     try {
       progress = playerStore.recordTowerResult(human.name, outcome.stage, outcome.stars);
+      xp = progress.xp;
       badges = playerStore.awardBadges(human.name, familyBadges(playerStore.getPlayerByName(human.name) || {}));
     } catch (err) {
       logCrash('tower', err, { player: human.name });
     }
   }
-  sendTo(human.id, { type: 'towerResult', ...outcome, clearMargin: BotTower.CLEAR_MARGIN, progress });
+  const level = xp && progress ? levelFromXp(progress.totalXp) : null;
+  sendTo(human.id, { type: 'towerResult', ...outcome, clearMargin: BotTower.CLEAR_MARGIN, progress, xp, level });
   if (badges.length) sendTo(human.id, { type: 'badges', earned: [{ name: human.name, badges }] });
+  // Only a verified account is booked (guests keep the profile XP alone).
+  if (xp && ACCOUNTS_ENABLED && typeof accountStore.addXp === 'function') {
+    Promise.resolve(accountStore.addXp(human.name, { xp, season: seasonForDate(gameDay()) }))
+      .then((prog) => {
+        if (prog) sendTo(human.id, { type: 'accountProgress', progress: prog });
+      })
+      .catch((err) => logCrash('tower-xp', err, { player: human.name }));
+  }
 }
 
 /** Books the day's attempt (no names are kept in public mode). */

@@ -163,7 +163,8 @@ const TOWER_STATE = { ...BASE_STATE, phase: 'gameOver', roundNumber: 1, towerSta
   lastRoundResult: { p1: mk(235, true), b1: mk(150), b2: mk(90), b3: mk(-20) },
   gameOverInfo: { winnerId: 'p1', finalTotals: {}, totalTurns: 41, totalRounds: 1, highlights: [], funTitle: null } };
 const TOWER_RESULT = { type: 'towerResult', stage: 6, stars: 1, myScore: 235, bestBot: 150, handicap: 20, margin: 65, wentOut: true,
-  clearMargin: 100, progress: { best: { ...PROFILES[0].tower, 6: 1 }, improved: true, stars: 11, cleared: 6, unlocked: 7 } };
+  clearMargin: 100, progress: { best: { ...PROFILES[0].tower, 6: 1 }, improved: true, stars: 11, cleared: 6, unlocked: 7 },
+  xp: 25, level: { level: 14, into: 145, need: 750, total: PROFILES[0].xp + 25 } }; // the stage's first star
 // --december: the admin preview's example numbers, under the mock name.
 const DEC_NOW = Date.parse('2026-12-28T10:00:00Z');
 const YEAR_REVIEW = { ...require(path.join(ROOT, 'game', 'YearReviewMail')).sampleReview('2026'), name: ME };

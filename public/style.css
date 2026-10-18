@@ -2568,6 +2568,7 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 .twResultSum { margin: 4px 0 0; font-size: var(--fs-label); font-variant-numeric: tabular-nums; }
 .twResultSum b { display: block; font-size: var(--fs-body); }
 .twResultBest { margin: 4px 0 0; font-size: var(--fs-label); font-weight: 700; }
+.twResultXp { margin: 4px 0 0; font-size: var(--fs-label); font-weight: 800; color: var(--card-ink); font-variant-numeric: tabular-nums; }
 .twResultHint { margin: 4px 0 0; font-size: var(--fs-hint); color: var(--text-muted); }
 .twResultActions { display: flex; gap: 8px; margin-top: 4px; }
 .twResultActions .btn-secondary {
