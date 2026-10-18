@@ -3,6 +3,13 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.82.0] - 2026-10-18
+
+### Added
+- Saison-Podest mit Feuerwerk: Wer eine Saison auf Platz 1–3 beendet, sieht beim
+  einmaligen Saison-Hinweis zusätzlich das Feuerwerk aus dem Siegesjubel – hinter
+  der Überschrift des Startbildschirms, bei „Bewegung reduzieren“ als ruhiges Bild.
+
 ## [2.81.0] - 2026-10-18
 
 ### Changed
