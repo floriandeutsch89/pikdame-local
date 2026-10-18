@@ -7,8 +7,20 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { composeReviewMail, sampleReview, dueYear, createYearReviewMailer } = require('../game/YearReviewMail');
+const { composeReviewMail, sampleReview, dueYear, createYearReviewMailer, REVIEW_MAIL_CONSENT_VERSION } = require('../game/YearReviewMail');
 const { createAccountStore } = require('../game/AccountStore');
+
+test('the consent version names the German opt-in text: new wording, new version', () => {
+  const { JSDOM } = require('jsdom');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+  const box = new JSDOM(html).window.document.getElementById('accountMailPrefs');
+  const text = [...box.querySelectorAll('.settingsLabel, .settingsHint')].map((n) => n.textContent.replace(/\s+/g, ' ').trim()).join('\n');
+  assert.match(text, /^Jahresrückblick per E-Mail\nEinmal im Jahr/, 'label and hint found');
+  const hash = crypto.createHash('sha256').update(text).digest('hex').slice(0, 8);
+  assert.match(REVIEW_MAIL_CONSENT_VERSION, /^\d{4}-\d{2}-\d{2}\.[0-9a-f]{8}$/);
+  assert.strictEqual(REVIEW_MAIL_CONSENT_VERSION.split('.')[1], hash,
+    `the opt-in text changed: give REVIEW_MAIL_CONSENT_VERSION (game/YearReviewMail.js) today's date and the hash ${hash}`);
+});
 
 const HAS_SQLITE = (() => {
   try { require('node:sqlite'); return true; } catch (e) { return false; }

@@ -37,20 +37,23 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
 - **Reduced motion:** `--reduced-motion` emulates `prefers-reduced-motion:
   reduce` - the still pictures instead of the animations.
 - **Scenes:** `lobby`, `lobby-open` (daily tasks unfolded), `progress`
-  ("Dein Fortschritt"), `stats`, `history` ("Meine Partien"), `roundend`,
+  ("Dein Fortschritt"), `stats`, `stats-badges` (trophy cabinet folded, then a favourite's detail; favourites need `--signed-in`), `history` ("Meine Partien"), `roundend`,
   `roundend-stats`, `gameover`, `gameover-challenge` (board + share),
   `puzzle`, `puzzle-turn` / `puzzle-out` (that kind injected, one meld
   laid), `puzzle-solved` (three stars, then the "Heute" tile), `challenge` (intro after the day's attempt), `gamelobby` (house
   rules), `botdiff` (the strength picker), `stammtisch` (the record
   sheet behind the start-screen chip), `stammtisch-lobby` (a game lobby
-  shown as a seat at the mock Stammtisch: its record panel), `settings` / `settings-aids`
-  (the "Mehr" sheet: top / scrolled to the play aids), `tower` (the bot
-  tower sheet, opened from the progress sheet), `gameover-tower` (a stage
-  verdict on the result sheet). Any order works:
+  shown as a seat at the mock Stammtisch: its record panel), `settings` / `settings-aids` /
+  `settings-music` (the "Mehr" sheet: top / play aids / music), `game-settings`
+  (the in-game gear sheet), `music-hint` (the first click starts the music and
+  its one-time hint shows; every other run marks the hint as seen), `tower`
+  (the bot tower sheet, opened from the progress sheet), `gameover-tower` (a
+  stage verdict on the result sheet). Any order works:
   a start-screen scene after `table` or a result reloads the start screen
   first (its buttons are hidden there and the clicks used to time out).
 - **December:** `--december` stands the client clock on 28 December and
-  mocks the server's year review (the server keeps its real date). Then
+  mocks the server's year review (the server keeps its real date; like the
+  server, favourite opponent and Stammtisch only with `--signed-in`). Then
   `lobby` shows the "Heute" chip, and `year`, `year-mid`, `year-bots`,
   `year-end` (story cards), `year-image` (the share PNG, saved through the
   download fallback), `account-mail` (opt-in switch, simulated sign-in) and

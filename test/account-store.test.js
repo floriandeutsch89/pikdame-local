@@ -210,9 +210,10 @@ test('AccountStore: an existing database without the progression columns migrate
 });
 
 // --- Year-review mail (opt-in): one contract, SQLite AND Postgres ----------
-// forceOptIn flips the flag in the database directly: the API cannot reach an
-// unverified account, and exactly that one must still never get mail.
-async function reviewMailContract(store, tag, forceOptIn) {
+// raw.forceOptIn flips the flag in the database directly: the API cannot reach
+// an unverified account, and exactly that one must still never get mail.
+// raw.consentOf reads the stored version of the consent text.
+async function reviewMailContract(store, tag, raw) {
   const crypto = require('node:crypto');
   const names = ['A', 'B', 'C'].map((s) => `Rv${tag}${s}`);
   const mine = async (year) => (await store.reviewMailRecipients(year)).map((r) => r.username).filter((n) => names.includes(n));
@@ -227,9 +228,11 @@ async function reviewMailContract(store, tag, forceOptIn) {
   assert.strictEqual(acc.reviewMail, false, 'off until the player switches it on');
   assert.deepStrictEqual(await mine('2026'), [], 'nobody opted in yet');
 
-  assert.deepStrictEqual(await store.setReviewMail(acc.id, true, 'en'), { ok: true, enabled: true });
+  assert.strictEqual(await raw.consentOf(a), null);
+  assert.deepStrictEqual(await store.setReviewMail(acc.id, true, 'en', 'v1'), { ok: true, enabled: true });
   assert.strictEqual((await store.accountForSession(session)).reviewMail, true);
-  await forceOptIn(c);
+  assert.strictEqual(await raw.consentOf(a), 'v1', 'the consent text version is stored with the opt-in');
+  await raw.forceOptIn(c);
   assert.deepStrictEqual(await mine('2026'), [a], 'only verified accounts that opted in (not B, not the unverified C)');
   const rec = (await store.reviewMailRecipients('2026')).find((r) => r.username === a);
   assert.deepStrictEqual({ email: rec.email, lang: rec.lang }, { email: `${a.toLowerCase()}@example.com`, lang: 'en' });
@@ -241,19 +244,27 @@ async function reviewMailContract(store, tag, forceOptIn) {
   const token = crypto.randomBytes(32).toString('hex');
   await store.setReviewUnsubHash(acc.id, crypto.createHash('sha256').update(token).digest('hex'));
   for (const wrong of ['f'.repeat(64), token.toUpperCase(), token.slice(1), '', null, `${token}00`]) {
+    assert.deepStrictEqual(await store.reviewUnsubInfo(wrong), { error: 'invalid' }, `unknown: ${String(wrong).slice(0, 8)}`);
     assert.deepStrictEqual(await store.unsubscribeReviewMail(wrong), { error: 'invalid' }, `rejected: ${String(wrong).slice(0, 8)}`);
   }
+  assert.deepStrictEqual(await store.reviewUnsubInfo(token), { ok: true, username: a, lang: 'en', active: true });
+  assert.strictEqual((await store.accountForSession(session)).reviewMail, true, 'looking the link up changes nothing');
   assert.strictEqual((await store.accountForSession(session)).reviewMail, true, 'a wrong token changes nothing');
   assert.deepStrictEqual(await store.unsubscribeReviewMail(token), { ok: true, username: a, lang: 'en' });
   assert.strictEqual((await store.accountForSession(session)).reviewMail, false);
   assert.deepStrictEqual(await mine('2027'), [], 'opted out by the link');
   assert.deepStrictEqual(await store.unsubscribeReviewMail(token), { ok: true, username: a, lang: 'en' }, 'a second click still answers');
+  assert.deepStrictEqual(await store.reviewUnsubInfo(token), { ok: true, username: a, lang: 'en', active: false });
+  assert.strictEqual(await raw.consentOf(a), 'v1', 'the last consent stays on record after the opt-out');
 
   // Back on in the account: the year already mailed stays mailed.
-  await store.setReviewMail(acc.id, true, 'de');
+  await store.setReviewMail(acc.id, true, 'de', 'v2');
+  assert.strictEqual(await raw.consentOf(a), 'v2', 'a new opt-in records the text shown now');
   assert.deepStrictEqual(await mine('2026'), []);
   assert.deepStrictEqual(await mine('2027'), [a]);
   assert.strictEqual((await store.reviewMailRecipients('2027')).find((r) => r.username === a).lang, 'de');
+  await store.setReviewMail(acc.id, false, 'de', 'v3');
+  assert.strictEqual(await raw.consentOf(a), 'v2', 'switching off records no consent');
 }
 
 test('AccountStore: year-review mail opt-in, once per year, unsubscribe token', { skip: !HAS_SQLITE }, async () => {
@@ -261,10 +272,10 @@ test('AccountStore: year-review mail opt-in, once per year, unsubscribe token', 
   const dbFile = path.join(dir, 'users.db');
   const store = createAccountStore(dbFile);
   const { DatabaseSync } = require('node:sqlite');
-  await reviewMailContract(store, 'S', (name) => {
-    const raw = new DatabaseSync(dbFile);
-    raw.prepare('UPDATE users SET review_mail = 1 WHERE username = ?').run(name);
-    raw.close();
+  const sql = (fn) => { const db = new DatabaseSync(dbFile); try { return fn(db); } finally { db.close(); } };
+  await reviewMailContract(store, 'S', {
+    forceOptIn: (name) => sql((db) => db.prepare('UPDATE users SET review_mail = 1 WHERE username = ?').run(name)),
+    consentOf: (name) => sql((db) => db.prepare('SELECT review_mail_consent AS v FROM users WHERE username = ?').get(name).v),
   });
   await store.close();
 });
@@ -274,7 +285,10 @@ test('PgAccountStore: year-review mail opt-in, once per year, unsubscribe token'
   const { Pool } = require('pg');
   const pool = new Pool({ connectionString: PG_URL });
   try {
-    await reviewMailContract(store, Date.now().toString(36).slice(-5), (name) => pool.query('UPDATE users SET review_mail = TRUE WHERE username = $1', [name]));
+    await reviewMailContract(store, Date.now().toString(36).slice(-5), {
+      forceOptIn: (name) => pool.query('UPDATE users SET review_mail = TRUE WHERE username = $1', [name]),
+      consentOf: async (name) => (await pool.query('SELECT review_mail_consent AS v FROM users WHERE username = $1', [name])).rows[0].v,
+    });
   } finally {
     await pool.end();
     await store.close();
@@ -291,7 +305,7 @@ test('AccountStore: a database from before the year review gains its columns, al
   // Back to the schema before the year review: the columns did not exist yet.
   const { DatabaseSync } = require('node:sqlite');
   const raw = new DatabaseSync(dbFile);
-  for (const col of ['review_mail', 'review_mail_at', 'review_mail_lang', 'review_mail_year', 'review_unsub_hash']) {
+  for (const col of ['review_mail', 'review_mail_at', 'review_mail_lang', 'review_mail_year', 'review_unsub_hash', 'review_mail_consent']) {
     raw.exec(`ALTER TABLE users DROP COLUMN ${col}`);
   }
   raw.close();

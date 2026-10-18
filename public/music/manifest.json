@@ -1,0 +1,169 @@
+{
+  "version": 1,
+  "sfxRms": 0.013849,
+  "lowBelowSfxDb": 6,
+  "musicRms": 0.194752,
+  "levels": {
+    "low": 0.0356,
+    "mid": 0.0711,
+    "high": 0.1419
+  },
+  "tracks": [
+    {
+      "id": "kaffeehaus",
+      "bpm": 84,
+      "trimDb": 0,
+      "segments": [
+        {
+          "id": "a",
+          "role": "A",
+          "bars": 8,
+          "seconds": 22.857143,
+          "duration": 26.857143,
+          "file": "kaffeehaus-a.441f11bb.mp3",
+          "bytes": 291372
+        },
+        {
+          "id": "a2",
+          "role": "A",
+          "bars": 8,
+          "seconds": 22.857143,
+          "duration": 26.857143,
+          "file": "kaffeehaus-a2.653881ab.mp3",
+          "bytes": 294744
+        },
+        {
+          "id": "b",
+          "role": "B",
+          "bars": 8,
+          "seconds": 22.857143,
+          "duration": 26.857143,
+          "file": "kaffeehaus-b.c1ceca5a.mp3",
+          "bytes": 292923
+        },
+        {
+          "id": "b2",
+          "role": "B",
+          "bars": 8,
+          "seconds": 22.857143,
+          "duration": 26.857143,
+          "file": "kaffeehaus-b2.55176b1c.mp3",
+          "bytes": 284589
+        },
+        {
+          "id": "end",
+          "role": "END",
+          "bars": 1,
+          "seconds": 2.857143,
+          "duration": 7.357143,
+          "file": "kaffeehaus-end.af2764ff.mp3",
+          "bytes": 51060
+        }
+      ]
+    },
+    {
+      "id": "lounge",
+      "bpm": 126,
+      "trimDb": -0.24,
+      "segments": [
+        {
+          "id": "a",
+          "role": "A",
+          "bars": 8,
+          "seconds": 15.238095,
+          "duration": 19.238095,
+          "file": "lounge-a.3a15a053.mp3",
+          "bytes": 232611
+        },
+        {
+          "id": "a2",
+          "role": "A",
+          "bars": 8,
+          "seconds": 15.238095,
+          "duration": 19.238095,
+          "file": "lounge-a2.bfd51aab.mp3",
+          "bytes": 233212
+        },
+        {
+          "id": "b",
+          "role": "B",
+          "bars": 8,
+          "seconds": 15.238095,
+          "duration": 19.238095,
+          "file": "lounge-b.2d40af58.mp3",
+          "bytes": 232227
+        },
+        {
+          "id": "b2",
+          "role": "B",
+          "bars": 8,
+          "seconds": 15.238095,
+          "duration": 19.238095,
+          "file": "lounge-b2.01563aec.mp3",
+          "bytes": 231052
+        },
+        {
+          "id": "end",
+          "role": "END",
+          "bars": 1,
+          "seconds": 1.904762,
+          "duration": 6.904762,
+          "file": "lounge-end.a71a8e86.mp3",
+          "bytes": 43705
+        }
+      ]
+    },
+    {
+      "id": "kaetzchen",
+      "bpm": 96,
+      "trimDb": -0.462,
+      "segments": [
+        {
+          "id": "a",
+          "role": "A",
+          "bars": 8,
+          "seconds": 20,
+          "duration": 24,
+          "file": "kaetzchen-a.6b070151.mp3",
+          "bytes": 290875
+        },
+        {
+          "id": "a2",
+          "role": "A",
+          "bars": 8,
+          "seconds": 20,
+          "duration": 24,
+          "file": "kaetzchen-a2.ab4c8413.mp3",
+          "bytes": 302345
+        },
+        {
+          "id": "b",
+          "role": "B",
+          "bars": 8,
+          "seconds": 20,
+          "duration": 24,
+          "file": "kaetzchen-b.243bf5ef.mp3",
+          "bytes": 292711
+        },
+        {
+          "id": "b2",
+          "role": "B",
+          "bars": 8,
+          "seconds": 20,
+          "duration": 24,
+          "file": "kaetzchen-b2.a433fc29.mp3",
+          "bytes": 301745
+        },
+        {
+          "id": "end",
+          "role": "END",
+          "bars": 1,
+          "seconds": 2.5,
+          "duration": 6.5,
+          "file": "kaetzchen-end.c5508b3a.mp3",
+          "bytes": 39296
+        }
+      ]
+    }
+  ]
+}

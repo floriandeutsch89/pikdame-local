@@ -283,6 +283,7 @@
     updateResumeBtn();    // "Weiterspielen (CODE)" - enthaelt einen Wert
     try { updateStudioLogoBtn(); } catch (e) { /* erst spaeter definiert */ }
     try { updateCelebrationSetting(); } catch (e) { /* erst spaeter definiert */ }
+    try { updateMusicSetting(); } catch (e) { /* erst spaeter definiert */ }
     try { applyCardback(); } catch (e) { /* erst spaeter definiert */ }
     try { setTipsEnabled(gameTipsEnabled); renderAidControls(); renderBotQuipsControls(); } catch (e) { /* Einstellungsblatt ist nie kritisch */ }
     // Aus dem Code erzeugte Listen: Ihre Texte kommen aus L(), werden aber nur
@@ -631,14 +632,56 @@
   function scheduleAudioSuspend() {
     clearTimeout(audioIdleTimer);
     audioIdleTimer = setTimeout(() => {
+      if (music && music.isActive()) return; // background music needs the context running
       if (audioCtx && audioCtx.state === 'running') audioCtx.suspend().catch(() => {});
     }, 3000);
   }
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && audioCtx && audioCtx.state === 'running') {
       audioCtx.suspend().catch(() => {});
+    } else if (!document.hidden && music) {
+      music.wake();
     }
   });
+
+  // --- Background music: public/music-player.js plays what scripts/render-music.js composed.
+  // Without the module or Web Audio the settings hide and nothing plays.
+  const MUSIC_LEVEL_KEY = 'pikdame_music_level';
+  const MUSIC_CHOICE_KEY = 'pikdame_music_track';
+  const MUSIC_HINT_KEY = 'pikdame_music_hint';
+  const musicLib = window.PikdameMusic || null;
+  const musicSupported = !!(musicLib && (window.AudioContext || window.webkitAudioContext));
+  let musicPrefs = musicLib
+    ? musicLib.resolvePrefs({
+      level: storageGet(MUSIC_LEVEL_KEY),
+      choice: storageGet(MUSIC_CHOICE_KEY),
+      soundOff: storageGet(SOUND_KEY) === 'off',
+      saveData: !!(navigator.connection && navigator.connection.saveData),
+    })
+    : { level: 'off', choice: 'mix', explicit: false };
+  let music = null;
+  try {
+    if (musicSupported) {
+      music = musicLib.createPlayer({
+        getContext: getAudioCtx,
+        fetchImpl: (url, opts) => fetch(url, opts),
+        cachesImpl: window.caches || null, // only in secure contexts; plain fetch otherwise
+        onStart: () => {
+          if (musicPrefs.explicit || storageGet(MUSIC_HINT_KEY) === '1') return;
+          if (Date.now() < toastLockUntil) return; // a priority toast would swallow it: next start
+          storageSet(MUSIC_HINT_KEY, '1');
+          showToast(L('Musik läuft leise – ändern unter Einstellungen › Musik', 'Music plays quietly – change it under Settings › Music'), { duration: 6000 });
+        },
+      });
+      music.setChoice(musicPrefs.choice);
+      music.setLevel(musicPrefs.level);
+      // iOS starts audio only inside a gesture; unlock() is cheap to repeat.
+      const unlockMusic = () => { try { music.unlock(); } catch (e) { /* music is never critical */ } };
+      for (const type of ['pointerup', 'touchend', 'keydown']) document.addEventListener(type, unlockMusic, { capture: true, passive: true });
+    }
+  } catch (e) {
+    music = null;
+  }
 
   function playTone(freqs, durationMs, type = 'sine', gainValue = 0.06) {
     if (!soundEnabled) return;
@@ -934,6 +977,56 @@
     if (box) box.checked = enabled;
   }
   setSoundEnabled(soundEnabled);
+
+  const MUSIC_LEVELS = ['off', 'low', 'mid', 'high'];
+  function musicLevelName(level) {
+    return { off: L('Aus', 'Off'), low: L('Leise', 'Quiet'), mid: L('Mittel', 'Medium'), high: L('Laut', 'Loud') }[level];
+  }
+  function musicChoiceName(choice) {
+    return {
+      mix: L('Wechselnd', 'Shuffle'),
+      kaffeehaus: L('Kaffeehaus', 'Coffee house'),
+      lounge: L('Lounge-Bossa', 'Lounge bossa'),
+      kaetzchen: L('Kätzchen', 'Kitten'),
+    }[choice];
+  }
+  function updateMusicSetting() {
+    el('musicItem').classList.toggle('hidden', !musicSupported);
+    el('musicToggle').classList.toggle('hidden', !musicSupported);
+    const levelSel = el('musicLevelSelect');
+    for (const opt of levelSel.options) opt.textContent = musicLevelName(opt.value) || opt.textContent;
+    levelSel.value = musicPrefs.level;
+    const choiceSel = el('musicTrackSelect');
+    for (const opt of choiceSel.options) opt.textContent = musicChoiceName(opt.value) || opt.textContent;
+    choiceSel.value = musicPrefs.choice;
+    setRowValue(el('musicToggle'), musicPrefs.level === 'off'
+      ? musicLevelName('off')
+      : `${musicLevelName(musicPrefs.level)} · ${musicChoiceName(musicPrefs.choice)}`);
+  }
+  function setMusicLevel(level) {
+    if (!MUSIC_LEVELS.includes(level)) return;
+    musicPrefs = { ...musicPrefs, level, explicit: true };
+    storageSet(MUSIC_LEVEL_KEY, level);
+    if (music) {
+      music.setLevel(level);
+      if (level === 'off') scheduleAudioSuspend(); // the context may sleep again
+      else music.unlock();
+    }
+    updateMusicSetting();
+  }
+  function setMusicChoice(choice) {
+    if (!musicChoiceName(choice)) return;
+    musicPrefs = { ...musicPrefs, choice };
+    storageSet(MUSIC_CHOICE_KEY, choice);
+    if (music) music.setChoice(choice);
+    updateMusicSetting();
+  }
+  function cycleMusicLevel() {
+    const next = MUSIC_LEVELS[(MUSIC_LEVELS.indexOf(musicPrefs.level) + 1) % MUSIC_LEVELS.length];
+    setMusicLevel(next);
+    showToast(L(`Musik: ${musicLevelName(next)}`, `Music: ${musicLevelName(next)}`));
+  }
+  try { updateMusicSetting(); } catch (e) { /* settings are comfort */ }
 
   // Spiel-Tipps (der 'Tipp: 3+ Karten...'-Toast pro Zug): erfahrene Spieler
   // koennen sie hinterm Zahnrad dauerhaft abschalten. Persistiert lokal auf
@@ -4166,6 +4259,9 @@
     setSoundEnabled(!soundEnabled);
   });
   el('soundCheckbox').addEventListener('change', () => setSoundEnabled(el('soundCheckbox').checked));
+  el('musicToggle').addEventListener('click', cycleMusicLevel);
+  el('musicLevelSelect').addEventListener('change', () => setMusicLevel(el('musicLevelSelect').value));
+  el('musicTrackSelect').addEventListener('change', () => setMusicChoice(el('musicTrackSelect').value));
 
   // Segment buttons write their hidden <select> and fire its change event, so
   // the select stays the one source of truth; syncSegments() mirrors it back.
@@ -8083,6 +8179,7 @@
   let yearReview = null;
   let yearReviewName = ''; // asked for this name with this many games (refresh after own games)
   let yearReviewGames = -1;
+  let yearReviewToken = '';
   let yearSlideIdx = 0;
   let yearShareFile = null; // drawn on opening: iOS only shares inside the tap itself
   let yearSwipeAt = 0;
@@ -8110,10 +8207,13 @@
     }
     const me = myProfile();
     const games = me ? me.gamesPlayed || 0 : 0;
-    if (name === yearReviewName && games === yearReviewGames) return;
+    // Signed in, the server adds favourite opponent and Stammtisch: ask again after a sign-in.
+    const token = signedInName() ? accountToken() : '';
+    if (name === yearReviewName && games === yearReviewGames && token === yearReviewToken) return;
     yearReviewName = name;
     yearReviewGames = games;
-    ws.send(JSON.stringify({ type: 'getYearReview', name }));
+    yearReviewToken = token;
+    ws.send(JSON.stringify({ type: 'getYearReview', name, accountToken: token || undefined }));
   }
 
   function handleYearReview(msg) {
@@ -8552,6 +8652,10 @@
     }
     const owned = me.badges || {};
     const progress = badgeProgressFor(me);
+    const favKeys = canPickFavorites() ? myFavoriteKeys(me) : [];
+    const favMark = (key) => (favKeys.includes(key)
+      ? `<svg class="icon achFavMark" aria-hidden="true"><use href="#i-star"/></svg><span class="visuallyHidden">${escapeHtml(L('Lieblingsabzeichen', 'Favourite badge'))}</span>`
+      : '');
     const singleTile = (id) => {
       const m = badgeMeta(id);
       const at = owned[id];
@@ -8561,10 +8665,10 @@
         : p && p.need > 1
           ? `${p.have}/${p.need}`
           : L('gesperrt', 'locked');
-      return `<button type="button" class="achTile${at ? ' earned' : ''}" data-ach="${id}" aria-expanded="false" title="${escapeHtml(m.how)}">
+      return `<button type="button" class="achTile${at ? ' earned' : ''}${favKeys.includes(id) ? ' fav' : ''}" data-ach="${id}" aria-expanded="false" title="${escapeHtml(m.how)}">
         <span class="achEmoji">${at ? m.emoji : '🔒'}</span>
         <span class="achName">${escapeHtml(m.name)}</span>
-        <span class="achSub">${escapeHtml(sub)}</span>
+        <span class="achSub">${escapeHtml(sub)}</span>${favMark(id)}
       </button>`;
     };
     // A family is ONE tile: the highest earned tier gives it name and
@@ -8580,11 +8684,11 @@
         ? p && p.need > 1 ? `${p.have}/${p.need}` : L('gesperrt', 'locked')
         : L('alle Stufen', 'all tiers');
       const title = next ? badgeMeta(next).how : m.desc;
-      return `<button type="button" class="achTile achFamily${top ? ' earned' : ''}${!next ? ' maxed' : ''}" data-ach="${fam.id}" aria-expanded="false" title="${escapeHtml(title)}">
+      return `<button type="button" class="achTile achFamily${top ? ' earned' : ''}${!next ? ' maxed' : ''}${favKeys.includes(fam.id) ? ' fav' : ''}" data-ach="${fam.id}" aria-expanded="false" title="${escapeHtml(title)}">
         <span class="achEmoji">${top ? m.emoji : '🔒'}</span>
         <span class="achName">${escapeHtml(m.name)}</span>
         <span class="achTiers">${dots}</span>
-        <span class="achSub">${escapeHtml(sub)}</span>
+        <span class="achSub">${escapeHtml(sub)}</span>${favMark(fam.id)}
       </button>`;
     };
     const total = BADGE_FAMILIES.reduce((n, f) => n + f.tiers.length, 0) + BADGE_SINGLES.length;
@@ -8610,8 +8714,27 @@
       : near.length
         ? section(L('Fast geschafft', 'Almost there'), near)
         : section(L('Zuletzt freigeschaltet', 'Recently unlocked'), order.unlocked.slice(0, 3)));
+    // Favourites on top, folded too: a family tile changes name and emoji with
+    // each tier, so this list is where a favourite is found and removed.
+    const favs = favKeys.map((key) => ({ key, m: favoriteEmoji(me, key) })).filter((f) => f.m);
+    const favChip = ({ key, m }) => {
+      const name = String(m.name).replace(/­/g, '');
+      return `<span class="achFavChip"><span class="achFavEmoji" aria-hidden="true">${m.emoji}</span>` +
+        `<span class="achFavName">${escapeHtml(m.name)}</span>` +
+        `<button type="button" class="achFavRemove" data-fav-remove="${escapeHtml(key)}" aria-label="${escapeHtml(L(`${name} entfernen`, `Remove ${name}`))}">` +
+        `<svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></span>`;
+    };
+    const favStrip = canPickFavorites() && (favs.length || have)
+      ? `<div class="achFavStrip"><h4 class="achSection"><svg class="icon" aria-hidden="true"><use href="#i-star"/></svg>` +
+        `<span>${escapeHtml(L('Lieblingsabzeichen', 'Favourite badges'))} (${favs.length}/${FAVORITES_MAX})</span></h4>` +
+        (favs.length ? `<div class="achFavList">${favs.map(favChip).join('')}</div>` : '') +
+        (favs.length < FAVORITES_MAX
+          ? `<p class="achFavHint">${escapeHtml(L('Stehen am Tisch neben deinem Namen. Tippe ein Abzeichen an, um eins hinzuzufügen.', 'Shown next to your name at the table. Tap a badge to add one.'))}</p>`
+          : '') +
+        '</div>'
+      : '';
     box.innerHTML =
-      `<h3>${L('Erfolge', 'Achievements')} <span class="achCount">${have} / ${total}</span></h3>` + body +
+      `<h3>${L('Erfolge', 'Achievements')} <span class="achCount">${have} / ${total}</span></h3>` + favStrip + body +
       `<button type="button" class="achAllBtn">${achShowAll ? L('Weniger anzeigen', 'Show less') : L(`Alle ${total} anzeigen`, `Show all ${total}`)}</button>`;
     // Re-render (new profile data) keeps the open detail open.
     if (openAchId) showAchDetail(openAchId, false);
@@ -8652,6 +8775,14 @@
     if (!metas.length) return '';
     return ` <span class="favBadges" title="${escapeHtml(metas.map((m) => m.name).join(', '))}">${metas.map((m) => m.emoji).join('')}</span>`;
   }
+  // A stored tier id belongs to its family's tile - else no tile could remove it.
+  function favoriteTileKey(key) {
+    const fam = BADGE_FAMILIES.find((f) => f.tiers.includes(key));
+    return fam ? fam.id : key;
+  }
+  function myFavoriteKeys(me) {
+    return [...new Set(((me && me.favoriteBadges) || []).map(favoriteTileKey))];
+  }
   function profileByName(name) {
     const n = String(name || '').toLowerCase();
     return (knownProfiles || []).find((p) => p.name && p.name.toLowerCase() === n) || null;
@@ -8664,17 +8795,16 @@
   function favoriteToggleHtml(key) {
     const me = myProfile();
     if (!canPickFavorites() || !me || !favoriteEmoji(me, key)) return '';
-    const favs = me.favoriteBadges || [];
-    const on = favs.includes(key);
-    const label = on
-      ? L(`Lieblingsabzeichen (${favs.length}/${FAVORITES_MAX})`, `Favourite badge (${favs.length}/${FAVORITES_MAX})`)
-      : L('Als Lieblingsabzeichen zeigen', 'Show as favourite badge');
-    return `<button type="button" class="achFavBtn${on ? ' active' : ''}" data-fav="${escapeHtml(key)}" aria-pressed="${on}"><svg class="icon" aria-hidden="true"><use href="#i-star"/></svg><span>${escapeHtml(label)}</span></button>`;
+    const favs = myFavoriteKeys(me);
+    // The detail only adds; removing happens in the list on top of the cabinet.
+    if (favs.includes(key)) return '';
+    const label = L(`Als Lieblingsabzeichen zeigen (${favs.length}/${FAVORITES_MAX})`, `Show as favourite badge (${favs.length}/${FAVORITES_MAX})`);
+    return `<button type="button" class="achFavBtn" data-fav="${escapeHtml(key)}"><svg class="icon" aria-hidden="true"><use href="#i-star"/></svg><span>${escapeHtml(label)}</span></button>`;
   }
   function toggleFavorite(key) {
     const me = myProfile();
     if (!me || !canPickFavorites()) return;
-    const favs = (me.favoriteBadges || []).slice();
+    const favs = myFavoriteKeys(me);
     const at = favs.indexOf(key);
     if (at >= 0) favs.splice(at, 1);
     else if (favs.length >= FAVORITES_MAX) {
@@ -8742,6 +8872,8 @@
     if (ev.target.closest('.achAllBtn')) { achShowAll = !achShowAll; renderAchievements(); return; }
     const fav = ev.target.closest('.achFavBtn');
     if (fav) { toggleFavorite(fav.dataset.fav); return; }
+    const remove = ev.target.closest('.achFavRemove');
+    if (remove) { toggleFavorite(remove.dataset.favRemove); return; }
     const tile = ev.target.closest('.achTile');
     if (!tile) return;
     showAchDetail(openAchId === tile.dataset.ach ? null : tile.dataset.ach);

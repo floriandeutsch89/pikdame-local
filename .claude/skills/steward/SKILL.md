@@ -43,7 +43,9 @@ it without missing a step. Read CLAUDE.md first if you have not.
 
 Run these as **separate steps**, never `npm test ... && git push` chains.
 A failing test must stop you; once a push went out with a red test
-because the commands were chained.
+because the commands were chained. The same for any check: a printed
+count (`git log HEAD..origin/main | wc -l`) never stops `&&`, and a push
+went out 7 commits behind main that way (#382).
 
 ```bash
 rm -f data/*.json data/crash.log data/users.db data/users.db-shm data/users.db-wal

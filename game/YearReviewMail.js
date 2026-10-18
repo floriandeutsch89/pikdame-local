@@ -9,6 +9,9 @@ const { isReviewSeason } = require('./YearReview');
 const SEND_DAY = 27; // 27.12., after Christmas and before New Year's Eve
 const SEND_HOUR = 10; // German time
 const MAX_ATTEMPTS = 3; // per account and process: a broken relay must not loop
+// Stored with every opt-in: the consent text's date + the first 8 hex of the SHA-256
+// of its German wording (#accountMailPrefs) - new wording, new version (contract test).
+const REVIEW_MAIL_CONSENT_VERSION = '2026-10-18.2fdbb3a5';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -93,8 +96,8 @@ function composeReviewMail({ review, name, lang = 'de', appUrl, unsubscribeUrl }
   const cta = en ? 'The whole review with every card is in the game until 31 December:' : 'Den ganzen Rückblick mit allen Karten gibt’s bis Silvester im Spiel:';
   const bye = en ? `A good hand for ${Number(year) + 1}!\nYour Pik Dame cat` : `Gut Blatt für ${Number(year) + 1}!\nDeine Pik-Dame-Katze`;
   const footer = en
-    ? 'You get this mail once a year because you switched on the year review in your account. Unsubscribe with one click:'
-    : 'Du bekommst diese Mail einmal im Jahr, weil du den Jahresrückblick in deinem Konto eingeschaltet hast. Abbestellen mit einem Klick:';
+    ? 'You get this mail once a year because you switched on the year review in your account. You can unsubscribe any time:'
+    : 'Du bekommst diese Mail einmal im Jahr, weil du den Jahresrückblick in deinem Konto eingeschaltet hast. Abbestellen kannst du jederzeit:';
 
   const text = [
     hello, '', intro, sinceNote, '',
@@ -214,4 +217,6 @@ function createYearReviewMailer({ accountStore, reviewFor, mailer, baseUrl, log 
   return { tick };
 }
 
-module.exports = { composeReviewMail, reviewLines, sampleReview, dueYear, createYearReviewMailer, SEND_DAY, SEND_HOUR };
+module.exports = {
+  composeReviewMail, reviewLines, sampleReview, dueYear, createYearReviewMailer, SEND_DAY, SEND_HOUR, REVIEW_MAIL_CONSENT_VERSION,
+};

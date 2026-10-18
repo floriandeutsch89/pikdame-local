@@ -229,6 +229,8 @@ test('account: the review mail is off until switched on, and a failed save switc
     },
   });
   await t.flush();
+  assert.deepStrictEqual(t.asked().pop(), { type: 'getYearReview', name: 'Ben', accountToken: 'tok' },
+    'signed in, the request carries the token: only the owner sees opponent and Stammtisch');
   t.$('accountBtn').click();
   await t.flush();
   assert.ok(t.shown('accountMailPrefs'));

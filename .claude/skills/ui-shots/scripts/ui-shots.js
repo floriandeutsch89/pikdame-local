@@ -13,12 +13,14 @@
 // the report goes to <out>/audit.md.
 //
 // Views: phone (393x852), land (874x402), desk (1440x900), se (375x667), max (440x956).
-// Scenes: lobby, lobby-open, progress, stats, history, roundend, roundend-stats, gameover,
+// Scenes: lobby, lobby-open, progress, stats, stats-badges (trophy cabinet + a favourite's
+// detail; favourites show with --signed-in), history, roundend, roundend-stats, gameover,
 // table (needs --state <file>: a GameManager.publicState('p1') JSON in the playing phase),
 // puzzle / puzzle-turn / puzzle-out (one meld laid), puzzle-solved (3 stars + the tile),
 // challenge (intro, attempt used),
 // gamelobby (seats + house rules), botdiff (the strength picker), gameover-challenge,
-// settings / settings-aids (the start screen's "Mehr" sheet, top / play aids),
+// settings / settings-aids / settings-music (the start screen's "Mehr" sheet: top / play aids / music),
+// game-settings (the in-game gear sheet), music-hint (first click: music starts, one-time hint),
 // account (the account sheet: level, season ladder; needs --signed-in),
 // account-mail (its year-review mail switch; needs --signed-in),
 // tower (the bot tower sheet via the progress sheet), gameover-tower (a stage verdict).
@@ -73,7 +75,7 @@ const ME = 'Flo';
 const PROFILES = [
   { name: ME, gamesPlayed: 43, gamesWon: 17, totalScore: 31000, bestGameScore: 1385, xp: 5320, dailyStreak: 6,
     daily: { streak: 6, best: 11, last: '2000-01-01', graceAt: null },
-    badges: { first_win: NOW - 9e8, pd_laid: NOW - 5e8, marathon_10: NOW - 2e8 },
+    badges: { first_win: NOW - 9e8, pd_laid: NOW - 5e8, marathon_10: NOW - 2e8 }, favoriteBadges: ['games', 'wins'],
     puzzles: { [TODAY]: { tries: 1, solved: false } },
     tower: { 1: 3, 2: 3, 3: 2, 4: 1, 5: 1 }, towerStars: 10, towerCleared: 5 },
   { name: 'Oma Gerda', gamesPlayed: 120, gamesWon: 61, totalScore: 99000, bestGameScore: 1610, xp: 18000, badges: { first_win: 1 } },
@@ -191,7 +193,10 @@ function rewrite(msg) {
     const best = PROFILES[0].tower;
     Object.assign(msg, { best }, require(path.join(ROOT, 'game', 'BotTower')).summarize(best));
   }
-  if (msg.type === 'yearReview' && DECEMBER) Object.assign(msg, { available: true, season: true, review: YEAR_REVIEW });
+  // Like the server: favourite opponent and Stammtisch only for the signed-in owner.
+  if (msg.type === 'yearReview' && DECEMBER) {
+    Object.assign(msg, { available: true, season: true, review: SIGNED_IN ? YEAR_REVIEW : { ...YEAR_REVIEW, favorite: null, table: null } });
+  }
   if (msg.type === 'puzzle' && puzzleKind) {
     const DP = require(path.join(ROOT, 'game', 'DailyPuzzle'));
     Object.assign(msg, DP.publicPuzzle(kindPuzzle(puzzleKind)), { date: msg.today, archive: false });
@@ -302,15 +307,17 @@ function waitForHttp(port, ms = 20000) {
       if (!vp) throw new Error(`unknown view ${vn}`);
       const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, userAgent: UA, deviceScaleFactor: 2, isMobile: vp.mobile, hasTouch: vp.mobile,
         ...(STILL ? { reducedMotion: 'reduce' } : {}) });
-      await ctx.addInitScript(([me, theme]) => {
+      await ctx.addInitScript(([me, theme, musicHint]) => {
         try {
           localStorage.setItem('pikdame_player_name', me);
           if (theme) localStorage.setItem('pikdame_theme', theme); // --theme table|night|felt|love|bordeaux|kitchen
           localStorage.setItem('pikdame_splash_device', '1'); // skip the studio intro
           sessionStorage.setItem('pikdame_splash_seen', '1');
           localStorage.setItem('pikdame_stammtische', JSON.stringify([{ code: 'STMOCK1', name: 'Familie Deutsch' }]));
+          // The first click starts the music; its one-time hint would sit on every later shot.
+          if (!musicHint) localStorage.setItem('pikdame_music_hint', '1');
         } catch (e) { /* storage blocked */ }
-      }, [ME, arg('theme', '')]);
+      }, [ME, arg('theme', ''), scenes.includes('music-hint')]);
       if (SIGNED_IN) {
         await ctx.addInitScript(() => { try { localStorage.setItem('pikdame_account_token', 'mock-token'); } catch (e) { /* blocked */ } });
         await ctx.route('**/api/**', (route) => route.fulfill({ contentType: 'application/json',
@@ -357,7 +364,7 @@ function waitForHttp(port, ms = 20000) {
         await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(1200);
       };
-      const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|stats|history|settings|settings-aids|challenge|stammtisch|account|account-mail|puzzle.*|year.*)$/;
+      const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|stats|history|settings|settings-aids|settings-music|game-settings|music-hint|challenge|stammtisch|account|account-mail|puzzle.*|year.*)$/;
       for (const sc of scenes) {
         if (LOBBY_SCENES.test(sc)) await toStart();
         if (sc === 'lobby') await shot('lobby');
@@ -475,12 +482,25 @@ function waitForHttp(port, ms = 20000) {
           await shot('tower');
           await page.click('#towerCloseBtn');
         }
-        if (sc === 'settings' || sc === 'settings-aids') {
+        if (sc === 'settings' || sc === 'settings-aids' || sc === 'settings-music') {
           await page.click('#settingsBtnLobby'); await page.waitForTimeout(400);
           // settings-aids: scrolled to the play aids at the end of the sheet.
           if (sc === 'settings-aids') await page.evaluate(() => document.getElementById('aidLowCardsCheckbox').scrollIntoView({ block: 'center' }));
+          if (sc === 'settings-music') await page.evaluate(() => document.getElementById('musicItem').scrollIntoView({ block: 'center' }));
           await shot(sc);
           await page.click('#settingsOverlayCloseBtn');
+        }
+        if (sc === 'music-hint') {
+          // The first gesture on a fresh start screen: music starts, the hint shows once.
+          await page.click('#lobby h1'); await page.waitForTimeout(1800);
+          await shot('music-hint');
+        }
+        if (sc === 'game-settings') {
+          // The in-game gear sheet, opened over the start screen: same markup and styles.
+          await page.evaluate(() => document.getElementById('gameSettingsOverlay').classList.remove('hidden'));
+          await page.waitForTimeout(300);
+          await shot('game-settings');
+          await page.evaluate(() => document.getElementById('gameSettingsOverlay').classList.add('hidden'));
         }
         if (sc === 'account') {
           await page.click('#accountBtn'); await page.waitForTimeout(700);
@@ -493,6 +513,19 @@ function waitForHttp(port, ms = 20000) {
           await page.click('#statsBtn'); await page.waitForTimeout(500);
           if (sc === 'history') { await page.click('#statsTabHistoryBtn'); await page.waitForTimeout(600); }
           await shot(sc);
+          await page.click('#statsCloseBtn');
+        }
+        if (sc === 'stats-badges') {
+          // Trophy cabinet: folded with the favourites on top, then a favourite's detail.
+          await page.click('#statsBtn'); await page.waitForTimeout(500);
+          await page.evaluate(() => document.getElementById('achievementsBox').scrollIntoView({ block: 'start' }));
+          await page.waitForTimeout(200);
+          await shot('stats-badges');
+          await page.click('#achievementsBox .achAllBtn'); await page.waitForTimeout(200);
+          await page.click('#achievementsBox .achTile[data-ach="games"]'); await page.waitForTimeout(300);
+          await page.evaluate(() => document.querySelector('#achievementsBox .achTile[data-ach="games"]').scrollIntoView({ block: 'start' }));
+          await page.waitForTimeout(200);
+          await shot('stats-badges-open');
           await page.click('#statsCloseBtn');
         }
         if (sc === 'table') {
