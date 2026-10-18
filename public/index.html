@@ -1197,6 +1197,26 @@
             </div>
           </div>
 
+          <!-- On the profile, not the device: the whole table sees it (client.js updateCelebrationSetting). -->
+          <div class="settingsItem" id="celebrationItem">
+            <label class="settingsRow" for="celebrationSelect">
+              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-sparkle"/></svg><span>Siegesjubel</span></span>
+              <select id="celebrationSelect" class="settingsSelect">
+                <option value="standard">Standard</option>
+                <option value="cats">Katzen-Konfetti</option>
+                <option value="fireworks">Feuerwerk</option>
+                <option value="cardfan">Kartenfächer</option>
+                <option value="goldqueen">Goldene Pik Dame</option>
+              </select>
+            </label>
+            <div class="settingsRow celebrationFoot">
+              <p class="settingsHint" id="celebrationHint">Gewinnst du, sehen alle am Tisch deinen Jubel.</p>
+              <button type="button" id="celebrationPreviewBtn" class="settingsAction"><span>Vorschau</span></button>
+            </div>
+            <!-- Below the button, so a second tap finds it where it was. -->
+            <div id="celebrationPreview" class="celebrationPreview" aria-hidden="true"></div>
+          </div>
+
           <!-- Per device, so it lives here and not in the host's house rules. -->
           <div class="settingsItem">
             <label class="settingsRow" for="soundCheckbox">

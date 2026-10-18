@@ -33,6 +33,7 @@ const { createAdminTokenVerifier } = require('./game/AdminToken');
 const { createMonitor } = require('./game/Monitor');
 const { createPasskeyService, deviceName } = require('./game/Passkeys');
 const { isAllowedEmote, emoteLevel } = require('./game/Emotes');
+const { isCelebration, celebrationLevel } = require('./game/Celebrations');
 const { parseGreetingDays, greetingWindow } = require('./game/GreetingDays');
 const { holidayStatus } = require('./game/Holidays');
 const { puzzleForDate, publicPuzzle, checkAnswer, perfectStreakOn, XP_FOR_SOLVED, PUZZLE_EPOCH } = require('./game/DailyPuzzle');
@@ -1642,6 +1643,15 @@ function broadcastToSession(session, message) {
 }
 
 const FAVORITES_LOGIN_ERROR = 'Lieblingsabzeichen gibt es nur mit Konto - bitte zuerst anmelden.';
+const CELEBRATION_LOGIN_ERROR = 'Den Siegesjubel wählst du mit deinem Konto - bitte zuerst anmelden.';
+/** The profile's victory celebration while its level still holds it ('standard' otherwise). */
+function seatCelebration(name) {
+  if (PUBLIC_MODE || !name) return 'standard';
+  const p = playerStore.getPlayerByName(name);
+  const id = p && p.celebration;
+  if (!isCelebration(id)) return 'standard';
+  return levelFromXp(p.xp || 0).level >= celebrationLevel(id) ? id : 'standard';
+}
 const STAMMTISCH_LOGIN_ERROR = 'Für deine Stammtische brauchst du ein Konto - bitte zuerst anmelden.';
 /** Account username behind msg.accountToken, or null (not signed in). */
 async function stammtischAccount(msg) {
@@ -1846,6 +1856,7 @@ wss.on('connection', (ws, req) => {
     // id. A fresh token then: a seat given up for good still had the leaver's.
     const tookOverSeat = player.id !== playerId;
     playerId = player.id;
+    targetSession.game.setPlayerCelebration(playerId, seatCelebration(player.name));
     // In der Lobby freie Plätze mit Bots vorbelegen, damit sie sichtbar und
     // sortierbar sind (ein späterer Beitritt ersetzt wieder einen Bot).
     targetSession.game.syncLobbyBots();
@@ -2054,6 +2065,23 @@ wss.on('connection', (ws, req) => {
       }
       const r = playerStore.setFavoriteBadges(owner, msg.badges);
       if (r.error) return sendError(ws, r.error);
+      sendProfilesTo(ws);
+      return;
+    }
+    if (msg.type === 'setCelebration') {
+      // Like favourite badges: the whole table sees it, so only the account owning the name sets it.
+      const owner = ACCOUNTS_ENABLED && !PUBLIC_MODE ? await stammtischAccount(msg) : null;
+      if (!owner || owner.toLowerCase() !== String(sanitizeName(msg.name)).toLowerCase()) {
+        return sendError(ws, CELEBRATION_LOGIN_ERROR);
+      }
+      const r = playerStore.setCelebration(owner, msg.celebration);
+      if (r.error) return sendError(ws, r.error);
+      // Seated right now: the next win already shows the new one.
+      const seat = session && playerId ? session.game.players.find((p) => p.id === playerId) : null;
+      if (seat && seat.name.toLowerCase() === owner.toLowerCase()) {
+        session.game.setPlayerCelebration(playerId, r.celebration);
+        session.game.broadcastState();
+      }
       sendProfilesTo(ws);
       return;
     }
