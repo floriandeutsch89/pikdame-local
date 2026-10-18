@@ -183,7 +183,8 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
      `git ls-remote origin <branch>` == `git rev-parse HEAD`.
    - **Nur eigene Dateien stagen, nie `git add -A`:** Trainingsläufe des
      Nutzers schreiben in `data/`, `models/`, `python/`.
-   - Commits/cherry-picks immer mit `-c user.email=… -c user.name=…`.
+   - Commits/cherry-picks/Merges immer mit `-c user.email=… -c user.name=…`
+     (ein konfliktfreier `git merge` committet sofort).
 5. Vor Commits `rm -f data/*.json data/crash.log data/users.db`. Secrets nie
    ins Repo (nur `*.example`; `npm run secrets:check`, CI `secret-scan`).
    Gepushtes Secret zuerst ROTIEREN, dann entfernen.
