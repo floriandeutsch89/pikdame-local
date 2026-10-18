@@ -71,7 +71,9 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   `/api/*`, `/verify`, `/admin`) + WebSocket, ein `GameManager` pro Session.
 - `game/` — Logik ohne I/O: `Rules.js` (Melds, Ring-Folgen K-A-2, max 13),
   `ScoreBoard.js`, `GameManager.js` (Zustand, Bots, Snapshot), `Bot.js`
-  (easy/medium/hard/zen), JSON-Stores (atomar), `PgAccountStore.js` (Konten).
+  (easy/medium/hard/zen), `PgAccountStore.js` (Konten), `PgDocStore.js`
+  (Profile, Stammtisch: RAM + Write-behind, vor `load()` wirft jeder Zugriff;
+  Tests: `loadedStore()`), übrige Stores noch JSON (atomar).
   - `Mailer.js`: eigener SMTP-Client, Log-Fallback; Header RFC 2047, Body
     Quoted-Printable — nie rohes UTF-8 in Kopfzeilen.
   - `Badges.js` (Familien in `BADGE_FAMILIES`, Fakten aus `finishRound`),

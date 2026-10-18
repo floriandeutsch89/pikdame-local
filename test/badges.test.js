@@ -5,6 +5,7 @@ const os = require('os');
 const path = require('path');
 const { computeEarnedBadges } = require('../game/Badges');
 const { createPlayerStore } = require('../game/PlayerStore');
+const { loadedStore } = require('./helpers/test-db');
 
 // v1.67 interactive cutting: unit tests exercise the game AFTER the deal, so
 // every locally constructed game auto-cuts. Dedicated cutting tests live in
@@ -62,9 +63,8 @@ test('computeEarnedBadges: Verlierer bekommt nur das Autsch-Badge', () => {
   assert.deepEqual(earned, ['pd_caught']);
 });
 
-test('PlayerStore: winStreak zaehlt hoch und reisst bei Niederlage ab', () => {
-  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikbadge-')), 'players.json');
-  const store = createPlayerStore(file);
+test('PlayerStore: winStreak zaehlt hoch und reisst bei Niederlage ab', async () => {
+  const store = await loadedStore(createPlayerStore, 'badges');
   store.recordGameResult([{ name: 'Anna', score: 100, won: true }]);
   store.recordGameResult([{ name: 'Anna', score: 100, won: true }]);
   assert.equal(store.getPlayerByName('Anna').winStreak, 2);
@@ -72,14 +72,12 @@ test('PlayerStore: winStreak zaehlt hoch und reisst bei Niederlage ab', () => {
   assert.equal(store.getPlayerByName('Anna').winStreak, 0);
 });
 
-test('PlayerStore.awardBadges: vergibt nur NEUE Badges und persistiert sie', () => {
-  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikbadge-')), 'players.json');
-  const store = createPlayerStore(file);
+test('PlayerStore.awardBadges: vergibt nur NEUE Badges und persistiert sie', async () => {
+  const store = await loadedStore(createPlayerStore, 'badges');
   store.recordGameResult([{ name: 'Anna', score: 100, won: true }]);
   assert.deepEqual(store.awardBadges('Anna', ['first_win', 'pd_laid']), ['first_win', 'pd_laid']);
   assert.deepEqual(store.awardBadges('Anna', ['first_win', 'score_500']), ['score_500']);
-  store.flushSync();
-  const fresh = createPlayerStore(file);
+  const fresh = await store.reopen();
   assert.deepEqual(Object.keys(fresh.getPlayerByName('Anna').badges).sort(), ['first_win', 'pd_laid', 'score_500']);
 });
 
@@ -138,9 +136,8 @@ test('computeEarnedBadges: zen_slayer requires WINNING against a zen bot', () =>
 });
 
 // --- v1.32.0: player records pipeline -------------------------------------------
-test('recordGameResult: records and cumulative counters from facts', () => {
-  const file = require('path').join(require('os').tmpdir(), `pikdame-store-test-${Date.now()}.json`);
-  const store = createPlayerStore(file);
+test('recordGameResult: records and cumulative counters from facts', async () => {
+  const store = await loadedStore(createPlayerStore, 'badges');
   store.recordGameResult([
     { name: 'Anna', score: 480, won: true, facts: { bestRound: 185, pdLaid: 2, pdCaught: 1, jokersLaid: 3, handAusWins: 1 } },
   ]);
@@ -285,9 +282,8 @@ test('computeEarnedBadges: night owl by German time, profile streaks and the cha
   assert.ok(!computeEarnedBadges(record(), 'p2', {}).includes('challenge_champ'));
 });
 
-test('PlayerStore: losses, last-place streak, challenge/Stammtisch games and solved puzzles are counted', () => {
-  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikbadge-')), 'players.json');
-  const store = createPlayerStore(file);
+test('PlayerStore: losses, last-place streak, challenge/Stammtisch games and solved puzzles are counted', async () => {
+  const store = await loadedStore(createPlayerStore, 'badges');
   const game = (won, facts = {}) => store.recordGameResult([{ name: 'Ute', score: 100, won, facts }]);
   game(false, { lastPlace: true, challenge: true });
   game(false, { lastPlace: true, stammtisch: true });

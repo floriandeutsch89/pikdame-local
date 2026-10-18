@@ -38,7 +38,6 @@ All persistent data lives in **one directory**, mounted into the container at
 
 | File | Contents |
 | --- | --- |
-| `players.json` | Player profiles, statistics, achievements |
 | `stats.json` | Anonymous global server statistics |
 | `games.json` | Game history |
 | `challenges.json` | Daily-challenge leaderboard and the day's ranked attempts (14-day retention) |
@@ -48,7 +47,7 @@ If that directory is not writable, **nothing is saved** and everything is lost o
 restart. Since v1.54.4 the server checks this at startup and says so loudly:
 
 ```
-Datenverzeichnis beschreibbar: /app/data [players.json 4821B, stats.json 812B, ...]
+Datenverzeichnis beschreibbar: /app/data [stats.json 812B, games.json 20311B, ...]
 ```
 
 or, if something is wrong:

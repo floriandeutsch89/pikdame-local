@@ -5,14 +5,11 @@
 //
 // Scoped by its code - only people who hold it see the names in it - so it
 // stays available on a public server, unlike the server-wide profiles.
-// Storage is the same atomic JSON file pattern as the other stores.
+// One row per table in PostgreSQL (table stammtisch_tables), held in RAM by PgDocStore.
 
-const path = require('path');
 const crypto = require('crypto');
-const { createAtomicJsonFile } = require('./AtomicJsonFile');
+const { createPgDocStore } = require('./PgDocStore');
 const { bookGame, goalsView } = require('./StammtischGoals');
-
-const DEFAULT_DATA_FILE = path.join(process.env.PIKDAME_DATA_DIR || path.join(__dirname, '..', 'data'), 'stammtisch.json');
 
 // Codes share the session alphabet (no O/0, I/1/L) but start with a letter
 // pair that a random session code is unlikely to produce - a Stammtisch code
@@ -47,8 +44,15 @@ function newSeries(no) {
   return { no, bestOf: SERIES_BEST_OF, wins: {}, games: 0, winner: null, finishedAt: null };
 }
 
-function createStammtischStore(filePath = DEFAULT_DATA_FILE) {
-  const file = createAtomicJsonFile(filePath);
+/** db: connection string or the shared pool; legacyFile: stammtisch.json of
+ *  the file store, imported once. Call (and await) load() first. */
+function createStammtischStore(db, { legacyFile = null } = {}) {
+  const file = createPgDocStore(db, {
+    table: 'stammtisch_tables',
+    legacyFile,
+    toRows: (store) => Object.entries((store && store.tables) || {}),
+    fromRows: (rows) => ({ tables: Object.fromEntries(rows.map((r) => [r.key, r.doc])) }),
+  });
 
   function load() {
     const parsed = file.read();
@@ -283,7 +287,7 @@ function createStammtischStore(filePath = DEFAULT_DATA_FILE) {
     };
   }
 
-  return { create, get, touch, recordGame, lastWinner, summary, chipInfo, listFor, remove, leave, flushSync: file.flushSync, filePath, SERIES_BEST_OF };
+  return { load: file.load, flush: file.flush, close: file.close, create, get, touch, recordGame, lastWinner, summary, chipInfo, listFor, remove, leave, SERIES_BEST_OF };
 }
 
-module.exports = { createStammtischStore, normalizeCode, generateCode, DEFAULT_DATA_FILE, SERIES_BEST_OF };
+module.exports = { createStammtischStore, normalizeCode, generateCode, SERIES_BEST_OF };

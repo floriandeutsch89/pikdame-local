@@ -15,7 +15,7 @@ const { CELEBRATION_DEFS, CELEBRATION_IDS, isCelebration, celebrationLevel } = r
 const { createPlayerStore } = require('../game/PlayerStore');
 const { xpForLevel } = require('../game/Progression');
 const GameManager = require('../game/GameManager');
-const { testDatabaseUrl } = require('./helpers/test-db');
+const { testDatabaseUrl, loadedStore } = require('./helpers/test-db');
 
 const ROOT = path.join(__dirname, '..');
 const pub = path.join(ROOT, 'public');
@@ -62,9 +62,8 @@ test('whitelist: one list, ordered by level, mirrored by client, select and i18n
   }
 });
 
-test('PlayerStore.setCelebration: whitelist and level checked, standard clears', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-cel-store-'));
-  const store = createPlayerStore(path.join(dir, 'players.json'));
+test('PlayerStore.setCelebration: whitelist and level checked, standard clears', async () => {
+  const store = await loadedStore(createPlayerStore, 'cel');
   store.upsertPlayerProfile('Flo');
   store.addProgress('Flo', { xp: xpAt(20) });
 
@@ -83,7 +82,6 @@ test('PlayerStore.setCelebration: whitelist and level checked, standard clears',
   store.addProgress('Flo', { xp: xpAt(35) - xpAt(20) });
   assert.deepEqual(store.setCelebration('Flo', 'cardfan'), { celebration: 'cardfan' });
   assert.match(store.setCelebration('Flo', 'goldqueen').error, /ab Stufe 50/);
-  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test('GameManager: the seat carries it to everyone; bots, leavers, junk and a new owner do not', () => {
@@ -130,14 +128,16 @@ test('GameManager: the seat carries it to everyone; bots, leavers, junk and a ne
 test('server: only the signed-in owner picks, only unlocked ids; the whole table sees it', async (t) => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-cel-'));
   // Flo is level 20: fireworks yes, card fan (35) and golden queen (50) not yet.
-  const seed = createPlayerStore(path.join(dataDir, 'players.json'));
+  const databaseUrl = testDatabaseUrl('cel');
+  const seed = createPlayerStore(databaseUrl);
+  await seed.load();
   seed.upsertPlayerProfile('Flo');
   seed.addProgress('Flo', { xp: xpAt(20) + 30 });
-  seed.flushSync();
+  await seed.close();
 
   const server = spawn('node', ['server.js'], {
     cwd: ROOT,
-    env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('celebrations'), PORT: String(PORT), PIKDAME_PUBLIC_MODE: '0', PIKDAME_DATA_DIR: dataDir },
+    env: { ...process.env, PIKDAME_DATABASE_URL: databaseUrl, PORT: String(PORT), PIKDAME_PUBLIC_MODE: '0', PIKDAME_DATA_DIR: dataDir },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let out = '';

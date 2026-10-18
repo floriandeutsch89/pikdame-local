@@ -1,32 +1,26 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
 const { createPlayerStore } = require('../game/PlayerStore');
+const { loadedStore } = require('./helpers/test-db');
 
-function tmpStore() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-test-'));
-  const filePath = path.join(dir, 'players.json');
-  return createPlayerStore(filePath);
-}
+const tmpStore = () => loadedStore(createPlayerStore, 'players');
 
-test('loadStore liefert leeren Store, wenn Datei noch nicht existiert', () => {
-  const store = tmpStore();
+test('loadStore liefert leeren Store, wenn die Tabelle noch leer ist', async () => {
+  const store = await tmpStore();
   const data = store.loadStore();
   assert.deepEqual(data, { players: [] });
 });
 
-test('upsertPlayerProfile legt neuen Spieler an und ist idempotent (case-insensitive)', () => {
-  const store = tmpStore();
+test('upsertPlayerProfile legt neuen Spieler an und ist idempotent (case-insensitive)', async () => {
+  const store = await tmpStore();
   const p1 = store.upsertPlayerProfile('Florian');
   const p2 = store.upsertPlayerProfile('florian');
   assert.equal(p1.id, p2.id);
   assert.equal(store.listPlayers().length, 1);
 });
 
-test('recordGameResult aktualisiert Statistiken über mehrere Partien hinweg', () => {
-  const store = tmpStore();
+test('recordGameResult aktualisiert Statistiken über mehrere Partien hinweg', async () => {
+  const store = await tmpStore();
   store.recordGameResult([
     { name: 'Florian', score: 250, won: true },
     { name: 'Anna', score: -40, won: false },
@@ -49,16 +43,10 @@ test('recordGameResult aktualisiert Statistiken über mehrere Partien hinweg', (
   assert.equal(anna.totalScore, 260);
 });
 
-
-test('Daten überleben einen Neustart (neue Store-Instanz, gleiche Datei)', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-test-'));
-  const filePath = path.join(dir, 'players.json');
-  const store1 = createPlayerStore(filePath);
+test('Daten überleben einen Neustart (neue Store-Instanz, gleiche Datenbank)', async () => {
+  const store1 = await tmpStore();
   store1.upsertPlayerProfile('Florian');
-  // Writes sind jetzt gecacht/debounced - flushSync entspricht dem
-  // Graceful Shutdown vor einem Neustart.
-  store1.flushSync();
-
-  const store2 = createPlayerStore(filePath); // simuliert Server-Neustart
+  const store2 = await store1.reopen(); // flush like a graceful shutdown, then a fresh load
   assert.equal(store2.listPlayers().length, 1);
+  assert.equal(store2.getPlayerByName('florian').name, 'Florian');
 });

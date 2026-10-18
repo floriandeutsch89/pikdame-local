@@ -1,16 +1,11 @@
 // game/PlayerStore.js
-// Persistiert Spielerprofile (Name, Statistiken über mehrere Partien) in
-// einer einfachen JSON-Datei. (Die frühere Team-Funktion wurde entfernt -
-// ein teams-Feld in Altdateien wird schlicht ignoriert.) Bewusst dependency-frei (kein DB-Treiber nötig) und
-// für den Offline-Hotspot-Use-Case völlig ausreichend.
+// Player profiles (name, statistics across games), one row per profile in
+// PostgreSQL (table player_profiles), held in RAM by PgDocStore.
 
-const path = require('path');
-const { createAtomicJsonFile } = require('./AtomicJsonFile');
+const { createPgDocStore } = require('./PgDocStore');
 const { starsFor } = require('./DailyPuzzle');
 const { addDays } = require('./GameDay');
 
-const DEFAULT_DATA_DIR = process.env.PIKDAME_DATA_DIR || path.join(__dirname, '..', 'data');
-const DEFAULT_DATA_FILE = path.join(DEFAULT_DATA_DIR, 'players.json');
 const FAVORITE_BADGES_MAX = 3;
 
 function emptyStore() {
@@ -22,15 +17,20 @@ function genId(prefix) {
 }
 
 /**
- * Erzeugt eine PlayerStore-Instanz, die auf einer bestimmten Datei arbeitet.
- * Standardmäßig `data/players.json` im Projektordner - für Tests kann ein
- * eigener (temporärer) Pfad übergeben werden, um die echte Datei nicht
- * anzufassen.
+ * @param {string|import('pg').Pool} db connection string or the shared pool
+ * @param {{legacyFile?: string}} [opts] players.json of the file store, imported once
+ * Call (and await) load() before anything else.
  */
-function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
-  // Gecacht + debounced + atomar: blockiert die Event-Loop nie (wichtig
-  // bei vielen parallelen Spielen, wo staendig Partien enden).
-  const file = createAtomicJsonFile(filePath);
+function createPlayerStore(db, { legacyFile = null } = {}) {
+  const file = createPgDocStore(db, {
+    table: 'player_profiles',
+    legacyFile,
+    toRows: (store) => (Array.isArray(store.players) ? store.players : []).map((p) => {
+      if (!p.id) p.id = genId('profile'); // very old files had none
+      return [p.id, p];
+    }),
+    fromRows: (rows) => ({ players: rows.map((r) => r.doc) }),
+  });
 
   function loadStore() {
     const parsed = file.read();
@@ -371,8 +371,9 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
   }
 
   return {
-    filePath,
-    flushSync: file.flushSync,
+    load: file.load,
+    flush: file.flush,
+    close: file.close,
     loadStore,
     saveStore,
     upsertPlayerProfile,
@@ -395,4 +396,4 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
   };
 }
 
-module.exports = { createPlayerStore, DEFAULT_DATA_FILE };
+module.exports = { createPlayerStore };

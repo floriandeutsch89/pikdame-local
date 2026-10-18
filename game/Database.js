@@ -23,6 +23,7 @@ function createPool(connectionString) {
     max: 10,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
+    allowExitOnIdle: true, // idle connections never keep a finished script or test alive
   });
   // A broken idle client must never crash the process.
   pool.on('error', (err) => console.error('Postgres pool error:', err.message));

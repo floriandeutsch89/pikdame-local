@@ -6,9 +6,10 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { createStammtischStore, normalizeCode } = require('../game/StammtischStore');
+const { loadedStore } = require('./helpers/test-db');
 
-function tempStore() {
-  return createStammtischStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikst-')), 'stammtisch.json'));
+async function tempStore() {
+  return await loadedStore(createStammtischStore, 'st');
 }
 function rec(winnerId, totals, players) {
   return {
@@ -19,8 +20,8 @@ function rec(winnerId, totals, players) {
   };
 }
 
-test('create: a ST-prefixed code, the founder as first member, sanitized name', () => {
-  const st = tempStore();
+test('create: a ST-prefixed code, the founder as first member, sanitized name', async () => {
+  const st = await tempStore();
   const { table } = st.create('  Familie <Müller>  ', 'Flo');
   assert.match(table.code, /^ST[A-Z2-9]{4}$/);
   assert.strictEqual(table.name, 'Familie Müller');
@@ -30,8 +31,8 @@ test('create: a ST-prefixed code, the founder as first member, sanitized name', 
   assert.strictEqual(normalizeCode(' st-9e wh '), 'ST9EWH');
 });
 
-test('recordGame: standings, pairwise record and a best-of-3 series that only humans can win', () => {
-  const st = tempStore();
+test('recordGame: standings, pairwise record and a best-of-3 series that only humans can win', async () => {
+  const st = await tempStore();
   const { table } = st.create('Runde', 'Flo');
   assert.strictEqual(st.recordGame(table.code, rec('a', { a: 1010, b: 400, x: 200 })).seriesEvent, null);
   assert.strictEqual(st.recordGame(table.code, rec('b', { a: 300, b: 1005, x: 200 })).seriesEvent, null);
@@ -54,34 +55,33 @@ test('recordGame: standings, pairwise record and a best-of-3 series that only hu
   assert.strictEqual(next.summary.series.winner, null);
 });
 
-test('recordGame: a forfeited match (no winner) counts as played but scores nobody', () => {
-  const st = tempStore();
+test('recordGame: a forfeited match (no winner) counts as played but scores nobody', async () => {
+  const st = await tempStore();
   const { table } = st.create('Runde', 'Flo');
   const r = st.recordGame(table.code, rec(null, { a: 10, b: 20, x: 0 }));
   assert.deepStrictEqual(r.summary.series.wins, {});
   assert.strictEqual(r.summary.series.games, 1);
 });
 
-test('touch: registers a member on join and survives a reload', () => {
-  const st = tempStore();
+test('touch: registers a member on join and survives a reload', async () => {
+  const st = await tempStore();
   const { table } = st.create('Runde', 'Flo');
   st.touch(table.code, 'Anna');
-  st.flushSync();
-  const fresh = createStammtischStore(st.filePath);
+  const fresh = await st.reopen();
   assert.deepStrictEqual(Object.keys(fresh.get(table.code).members).sort(), ['anna', 'flo']);
   assert.strictEqual(fresh.touch('NOPE12', 'x'), null);
 });
 
-test('recordGame: unknown code is a no-op, game list is capped', () => {
-  const st = tempStore();
+test('recordGame: unknown code is a no-op, game list is capped', async () => {
+  const st = await tempStore();
   assert.strictEqual(st.recordGame('NOPE12', rec('a', {})), null);
   const { table } = st.create('Runde', 'Flo');
   for (let i = 0; i < 120; i++) st.recordGame(table.code, rec('a', { a: 1000, b: 0, x: 0 }));
   assert.strictEqual(st.get(table.code).games.length, 100);
 });
 
-test('my Stammtische: list by account, only the owner deletes, members leave (#307)', () => {
-  const st = tempStore();
+test('my Stammtische: list by account, only the owner deletes, members leave (#307)', async () => {
+  const st = await tempStore();
   const { table } = st.create('Familie', 'Flo', Date.now() - 1000, 'Flo');
   const other = st.create('Skatrunde', 'Anna', Date.now(), 'Anna').table;
   st.touch(table.code, 'Anna');
@@ -108,8 +108,8 @@ test('my Stammtische: list by account, only the owner deletes, members leave (#3
   assert.match(st.remove(table.code, 'Flo').error, /gibt es nicht/);
 });
 
-test('tables from before owners existed belong to their founder (first member)', () => {
-  const st = tempStore();
+test('tables from before owners existed belong to their founder (first member)', async () => {
+  const st = await tempStore();
   const { table } = st.create('Alt', 'Flo'); // no owner account: legacy shape
   st.touch(table.code, 'Anna');
   assert.strictEqual(table.owner, null);
@@ -118,8 +118,8 @@ test('tables from before owners existed belong to their founder (first member)',
   assert.ok(st.remove(table.code, 'Flo').ok);
 });
 
-test('lastWinner: the human who won the latest match (bots never count)', () => {
-  const st = tempStore();
+test('lastWinner: the human who won the latest match (bots never count)', async () => {
+  const st = await tempStore();
   const { table } = st.create('Runde', 'Flo');
   assert.strictEqual(st.lastWinner(table.code), null);
   st.recordGame(table.code, rec('b', { a: 300, b: 1005, x: 200 }));
@@ -129,8 +129,8 @@ test('lastWinner: the human who won the latest match (bots never count)', () => 
   assert.strictEqual(st.lastWinner('NOPE12'), null);
 });
 
-test('chipInfo: the record for the start-screen chip and sheet, without activity data', () => {
-  const st = tempStore();
+test('chipInfo: the record for the start-screen chip and sheet, without activity data', async () => {
+  const st = await tempStore();
   const { table } = st.create('Runde', 'Flo');
   st.recordGame(table.code, rec('a', { a: 1010, b: 400, x: 200 }));
   st.recordGame(table.code, rec('b', { a: 300, b: 1005, x: 200 }));

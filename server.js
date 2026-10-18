@@ -47,7 +47,17 @@ const { SessionRegistry, sanitizeName } = require('./game/SessionRegistry');
 
 const PORT = process.env.PORT || 8080;
 const PUBLIC_DIR = path.join(__dirname, 'public');
-const playerStore = createPlayerStore();
+const DATA_DIR = process.env.PIKDAME_DATA_DIR || path.join(__dirname, 'data');
+// PostgreSQL is mandatory: without it nothing could be stored for good.
+const DATABASE_URL = connectionStringFromEnv(process.env);
+if (!DATABASE_URL) {
+  console.error('PIKDAME_DATABASE_URL is not set - Pik Dame needs PostgreSQL (see docs/admin/configuration.md). Exiting.');
+  process.exit(1);
+}
+const db = createPool(DATABASE_URL);
+// Stores below load from Postgres before the server listens (see startServer).
+// The legacy files are the JSON stores of older versions, imported once.
+const playerStore = createPlayerStore(db, { legacyFile: path.join(DATA_DIR, 'players.json') });
 const { createChallengeStore, seedForDate } = require('./game/ChallengeStore');
 const { gameDay } = require('./game/GameDay');
 const { createSecurityHeaders } = require('./game/SecurityHeaders');
@@ -61,13 +71,6 @@ const SEO_PAGES = ['romme-regeln', 'pik-dame-regeln', 'kartenspiele-zu-zweit', '
 const globalStats = createGlobalStatsStore();
 // "Dein Pik-Dame-Jahr": per-year counters behind the December review.
 const yearStats = createYearStatsStore();
-// PostgreSQL is mandatory: without it nothing could be stored for good.
-const DATABASE_URL = connectionStringFromEnv(process.env);
-if (!DATABASE_URL) {
-  console.error('PIKDAME_DATABASE_URL is not set - Pik Dame needs PostgreSQL (see docs/admin/configuration.md). Exiting.');
-  process.exit(1);
-}
-const db = createPool(DATABASE_URL);
 // PIKDAME_ACCOUNTS=0 switches the account feature off; the database stays required.
 const accountStore = process.env.PIKDAME_ACCOUNTS === '0' ? null : createPgAccountStore(db);
 const mailer = createMailer();
@@ -99,14 +102,13 @@ const greetingDays = (() => {
 const gameHistoryStore = createGameHistoryStore();
 // Stammtisch: persistent group tables (code -> members, record, series).
 // Scoped by code, so it stays on in public mode - see StammtischStore.
-const stammtischStore = createStammtischStore();
+const stammtischStore = createStammtischStore(db, { legacyFile: path.join(DATA_DIR, 'stammtisch.json') });
 
 // --- Absturz-Diagnose ------------------------------------------------------
 // Schreibt Fehler zusätzlich in eine Log-Datei, falls die Konsole in der
 // verwendeten Umgebung (z. B. iOS CodeApp) nicht sichtbar/durchsuchbar ist.
 // Liegt im data/-Verzeichnis: im Docker-Betrieb ist das ein Volume, das Log
 // überlebt also Container-Neustarts und ist von außen einsehbar.
-const DATA_DIR = process.env.PIKDAME_DATA_DIR || path.join(__dirname, 'data');
 try {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 } catch (e) {
@@ -122,7 +124,7 @@ let DATA_DIR_WRITABLE = true; // for the config report
     const probe = path.join(DATA_DIR, '.write-test');
     fs.writeFileSync(probe, String(Date.now()));
     fs.unlinkSync(probe);
-    const info = ['players.json', 'stats.json', 'games.json', 'sessions-snapshot.json']
+    const info = ['stats.json', 'games.json', 'sessions-snapshot.json']
       .map((f) => {
         try {
           return `${f} ${fs.statSync(path.join(DATA_DIR, f)).size}B`;
@@ -180,7 +182,8 @@ process.on('unhandledRejection', (reason) => {
 // Persist pending buffered writes when something goes wrong, so stats survive
 // even if the process is killed right after a crash (the debounce hasn't fired).
 function flushStoresSafely() {
-  try { playerStore.flushSync(); } catch (e) { /* best effort */ }
+  playerStore.flush(); // Postgres stores: async, never rejects
+  stammtischStore.flush();
   try { globalStats.flushSync(); } catch (e) { /* best effort */ }
   try { gameHistoryStore.flushSync(); } catch (e) { /* best effort */ }
   try { yearStats.flushSync(); } catch (e) { /* best effort */ }
@@ -1538,8 +1541,12 @@ const SNAPSHOT_MAX_AGE_MS = 30 * 60 * 1000;
 // reboot) can lose; before, the snapshot was only written on SIGTERM.
 const SNAPSHOT_INTERVAL_MS = 60 * 1000;
 let lastSnapshotBody = null;
+// Until the restore ran (it waits for Postgres), an empty registry must not
+// overwrite the snapshot of the running tables.
+let snapshotRestored = false;
 
 function writeSessionsSnapshot({ quiet = false } = {}) {
+  if (!snapshotRestored) return;
   try {
     const snapshot = [];
     for (const session of registry.sessions.values()) {
@@ -1566,6 +1573,7 @@ function writeSessionsSnapshot({ quiet = false } = {}) {
 }
 
 function restoreSessionsSnapshot() {
+  snapshotRestored = true;
   let raw;
   try {
     raw = fs.readFileSync(SNAPSHOT_FILE, 'utf8');
@@ -1597,12 +1605,13 @@ function restoreSessionsSnapshot() {
     /* already gone */
   }
 }
-restoreSessionsSnapshot();
 
 // --- Daily challenge: one attempt per player and day ----------------------
 // Games that did not come back with the snapshot were lost by the server,
-// not given up; their players may start again.
-try { challengeStore.markLostAttempts(new Set(registry.sessions.keys())); } catch (err) { logCrash('challenge-lost', err); }
+// not given up; their players may start again (called at startup).
+function markLostChallengeAttempts() {
+  try { challengeStore.markLostAttempts(new Set(registry.sessions.keys())); } catch (err) { logCrash('challenge-lost', err); }
+}
 
 /** Bot tower: grades the stage round, keeps the best stars, pays a stage's first
  *  star (profile; account and season too, without booking a game), awards badges. */
@@ -2544,18 +2553,20 @@ wss.on('connection', (ws, req) => {
 
 // Graceful Shutdown: Docker sendet SIGTERM beim Stoppen des Containers -
 // offene Verbindungen sauber schließen statt sie hart zu kappen.
-function shutdown(signal) {
+let shuttingDown = false;
+async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
   console.log(`${signal} empfangen - Server fährt herunter...`);
+  // Falls etwas hängt (Keep-Alives, eine langsame Datenbank): harter Ausstieg nach 5s.
+  setTimeout(() => process.exit(0), 5000).unref();
   // Laufende Spiele überleben den Neustart; gepufferte Store-Writes landen
   // sicher auf der Platte.
   writeSessionsSnapshot();
-  playerStore.flushSync();
   gameHistoryStore.flushSync();
   globalStats.flushSync();
-  stammtischStore.flushSync();
   try { yearStats.flushSync(); } catch (e) { /* the year review is best effort */ }
   try { if (adminMonitor) adminMonitor.flushSync(); } catch (e) { /* monitoring history is best effort */ }
-  db.end().catch(() => {}); // never block shutdown
   for (const client of wss.clients) {
     try {
       client.close(1001, 'Server wird neu gestartet');
@@ -2563,14 +2574,41 @@ function shutdown(signal) {
       /* Socket war schon zu */
     }
   }
+  // The last Postgres batch must land before the pool closes (capped below the hard exit).
+  const flushed = Promise.all([playerStore.flush(), stammtischStore.flush()]);
+  await Promise.race([flushed, new Promise((r) => setTimeout(r, 4000).unref())]);
+  await db.end().catch(() => {});
   server.close(() => process.exit(0));
-  // Falls server.close hängt (offene Keep-Alives): harter Ausstieg nach 5s.
-  setTimeout(() => process.exit(0), 5000).unref();
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-server.listen(PORT, () => {
+/** The Postgres stores load before the first request; an unreachable
+ *  database is retried (the orchestrator sees /healthz down meanwhile). */
+async function loadStores() {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await Promise.all([playerStore.load(), stammtischStore.load()]);
+      return;
+    } catch (e) {
+      const wait = Math.min(30, attempt * 2);
+      console.error(`[store] PostgreSQL not ready (attempt ${attempt}, retry in ${wait} s): ${e.message}`);
+      await new Promise((r) => setTimeout(r, wait * 1000));
+    }
+  }
+}
+
+loadStores().then(() => {
+  if (shuttingDown) return;
+  restoreSessionsSnapshot();
+  markLostChallengeAttempts();
+  server.listen(PORT, onListening);
+}).catch((e) => {
+  logCrash('startup', e);
+  process.exit(1);
+});
+
+function onListening() {
   console.log(`Pik Dame Server läuft auf Port ${PORT}`);
   console.log(`Lokal:    http://localhost:${PORT}`);
 
@@ -2604,4 +2642,4 @@ server.listen(PORT, () => {
       .then((r) => console.log(r.ok ? '[config] SMTP-Prüfung: Anmeldung erfolgreich.' : `[config] SMTP-Prüfung FEHLGESCHLAGEN: ${r.reason}`))
       .catch((e) => logCrash('smtp-probe', e));
   }
-});
+}

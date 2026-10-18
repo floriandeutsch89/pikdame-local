@@ -11,13 +11,12 @@ const { createPlayerStore } = require('../game/PlayerStore');
 const { BADGE_FAMILIES, familyBadges } = require('../game/Badges');
 const { addDays } = require('../game/GameDay');
 const { makeStandardCard } = require('../game/Card');
+const { loadedStore } = require('./helpers/test-db');
 
 const pub = path.join(__dirname, '..', 'public');
 
-function tempStore(t) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikstars-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  return createPlayerStore(path.join(dir, 'players.json'));
+function tempStore() {
+  return loadedStore(createPlayerStore, 'stars');
 }
 
 /** Solves `date` after `misses` wrong checks. */
@@ -39,8 +38,8 @@ test('starsFor: three on the first try; two for a second (meld) or up to a third
   assert.deepStrictEqual(JSON.parse(m[1].replace(/(\w+):/g, '"$1":')), STAR_TRIES);
 });
 
-test('PlayerStore: stars are stored with the solve, kept for the archive, never after a reveal', (t) => {
-  const store = tempStore(t);
+test('PlayerStore: stars are stored with the solve, kept for the archive, never after a reveal', async (t) => {
+  const store = await tempStore(t);
   assert.strictEqual(solve(store, 'Ann', '2026-10-20', 'meld').stars, 3);
   assert.strictEqual(solve(store, 'Ann', '2026-10-21', 'meld', 1).stars, 2);
   assert.strictEqual(solve(store, 'Ann', '2026-10-22', 'turn', 2).stars, 2);
@@ -68,8 +67,8 @@ test('PlayerStore: stars are stored with the solve, kept for the archive, never 
   assert.strictEqual(Object.keys(p.puzzles).length, 7);
 });
 
-test('perfect run: consecutive game days, across the DST change and a month end; a gap or a weaker solve ends it', (t) => {
-  const store = tempStore(t);
+test('perfect run: consecutive game days, across the DST change and a month end; a gap or a weaker solve ends it', async (t) => {
+  const store = await tempStore(t);
   const run = () => store.getPlayerByName('Dee').perfectPuzzleStreak;
   for (const d of ['2026-10-24', '2026-10-25', '2026-10-26']) solve(store, 'Dee', d, 'meld'); // DST ends on the 25th
   assert.strictEqual(run(), 3);

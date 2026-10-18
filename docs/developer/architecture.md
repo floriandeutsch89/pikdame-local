@@ -111,11 +111,22 @@ external state store — not a quick hack.
 
 ## Persistence
 
-Small JSON files, written **atomically** (temp file + rename) and **debounced**
-(~800 ms), so a busy server does not hammer the disk. On shutdown — and after an
-uncaught exception — everything is flushed synchronously, so nothing is lost.
+PostgreSQL is required. Accounts live in it directly (`PgAccountStore`, async).
 
-Accounts are the exception: they live in PostgreSQL, which the server requires.
+Player profiles and Stammtisch tables use **`PgDocStore`**: one row per
+record (`key TEXT`, `doc JSONB`, `updated_at`), the whole store **in RAM**, so
+the game code keeps its synchronous API. The server waits for the stores to
+load (retrying while the database is unreachable) before it restores the
+session snapshot and listens. Changes are **written behind**: debounced
+(~800 ms), only rows whose JSON changed are upserted in one batch, and removed
+records are deleted. A failed write stays pending and is retried after 5 s.
+SIGTERM awaits the last batch before the pool closes. Each table imports the
+JSON file of the old file store **once** (marker in `pikdame_imports`, same
+transaction); the file is then renamed `*.migrated`.
+
+The remaining stores (statistics, history, challenges, year review, monitor)
+are still small JSON files, written **atomically** (temp file + rename) and
+debounced, flushed synchronously on shutdown.
 
 ## Testing
 

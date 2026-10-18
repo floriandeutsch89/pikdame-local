@@ -15,7 +15,7 @@ const GameManager = require('../game/GameManager');
 const { createDeck } = require('../game/Deck');
 const { createPlayerStore } = require('../game/PlayerStore');
 const { familyBadges, BADGE_IDS } = require('../game/Badges');
-const { testDatabaseUrl } = require('./helpers/test-db');
+const { testDatabaseUrl, loadedStore } = require('./helpers/test-db');
 
 const { TOWER_STAGES, starsFor, outcomeFromRecord, unlockedStage, summarize } = BotTower;
 
@@ -249,8 +249,8 @@ test('snapshot roundtrip: a running stage comes back as a tower stage and still 
 
 // --- Storage + badges -------------------------------------------------------------
 
-test('best stars per stage, never worse; the counters feed the tower badges', () => {
-  const store = createPlayerStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-tower-')), 'players.json'));
+test('best stars per stage, never worse; the counters feed the tower badges', async () => {
+  const store = await loadedStore(createPlayerStore, 'tower');
   assert.deepStrictEqual(store.towerBest('Ada'), {}, 'unknown name: nothing yet');
   let r = store.recordTowerResult('Ada', 1, 1);
   assert.deepStrictEqual({ best: r.best, improved: r.improved, stars: r.stars, cleared: r.cleared, unlocked: r.unlocked },

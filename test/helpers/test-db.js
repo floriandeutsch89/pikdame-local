@@ -40,4 +40,20 @@ function dropAll() {
   } catch (e) { /* a leftover schema in a test database is harmless */ }
 }
 
-module.exports = { testDatabaseUrl };
+/** A store from `create(url)` on a fresh schema, loaded; reopen() flushes and
+ *  loads a second instance from the same schema, like a server restart. */
+async function loadedStore(create, tag = 'store') {
+  const url = testDatabaseUrl(tag);
+  const store = create(url);
+  await store.load();
+  store.reopen = async () => {
+    await store.flush();
+    const next = create(url);
+    await next.load();
+    next.reopen = store.reopen;
+    return next;
+  };
+  return store;
+}
+
+module.exports = { testDatabaseUrl, loadedStore };
