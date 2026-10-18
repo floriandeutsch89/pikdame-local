@@ -5155,4 +5155,15 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
   .yrSlide { padding: 24px 20px 16px; gap: 6px; }
   .yrBig { font-size: calc(var(--fs-title) * 2.2); }
   .yrCat-big { width: 72px; }
+
+  /* Account fields at ~400 px: each label beside its field, so the visible
+     labels cost no height. */
+  #accountLoginForm, #accountRegisterForm {
+    display: grid; grid-template-columns: max-content minmax(0, 1fr);
+    align-items: center; column-gap: 12px; row-gap: 8px;
+  }
+  #accountLoginForm.hidden, #accountRegisterForm.hidden { display: none; }
+  #accountLoginForm > :not(.fieldLabel):not(input), #accountRegisterForm > :not(.fieldLabel):not(input) { grid-column: 1 / -1; }
+  #accountLoginForm .fieldLabel, #accountRegisterForm .fieldLabel { margin: 0; }
+  #accountLoginForm .linkBtn { justify-self: center; }
 }
