@@ -4689,6 +4689,8 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
   font: inherit; font-size: 0.92rem; font-weight: 600; padding: 10px 18px;
 }
 .settingsAction:hover { background: rgba(0, 0, 0, 0.09); }
+/* Two selects stacked in one item (music): one width, so they line up. */
+.settingsPair .settingsSelect { min-width: 11em; }
 /* Schalter statt nacktem Ankreuzkasten, Touchziel 52x32. .ruleSwitch is the
    same switch on the dark lobby glass (track colour: .rule-toggle). */
 .settingsCheckbox, .ruleSwitch {

@@ -3,6 +3,22 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.83.0] - 2026-10-18
+
+### Changed
+- Lieblingsabzeichen sind im Erfolge-Schrank mit einem Stern markiert und stehen
+  oben in einer eigenen Leiste. Dort lassen sie sich mit × entfernen – auch wenn
+  ein Abzeichen inzwischen eine neue Stufe erreicht und dabei Name und Symbol
+  gewechselt hat.
+- Jahresrückblick: Der Abmeldelink in der Mail fragt jetzt noch einmal nach, erst der Knopf
+  „Abbestellen“ meldet ab. So können automatische Link-Prüfer in Postfächern niemanden mehr
+  versehentlich abmelden. Der Abbestellen-Knopf deines Mailprogramms wirkt weiter mit einem Klick.
+- Lieblingsgegner und Stammtisch-Name im Jahresrückblick siehst nur du: Sie erscheinen, wenn du
+  mit dem Konto zu deinem Namen angemeldet bist. Alle anderen sehen deinen Rückblick ohne diese
+  beiden Karten.
+- Beim Einschalten der Jahresrückblick-Mail wird jetzt auch die Fassung des Einwilligungstexts
+  gespeichert, die du dabei gesehen hast.
+
 ## [2.82.0] - 2026-10-18
 
 ### Added

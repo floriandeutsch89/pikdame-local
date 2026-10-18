@@ -60,7 +60,7 @@ window.WebSocket.CONNECTING = 0;
 window.onerror = (msg) => { errors.push(String(msg)); };
 window.addEventListener('error', (e) => errors.push(String(e.message || e.error)));
 
-for (const src of ['i18n.js', 'client.js']) {
+for (const src of ['i18n.js', 'music-player.js', 'client.js']) {
   const code = fs.readFileSync(path.join(pub, src), 'utf8');
   try {
     window.eval(code);

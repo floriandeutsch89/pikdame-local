@@ -11,6 +11,7 @@ bots
 rl-training
 rl-setup
 mcp
+music
 contributing
 ```
 
@@ -41,6 +42,7 @@ There is **no build step**. The client is plain HTML/CSS/JS served as-is: edit
 | `game/*Store.js` | Persistence (profiles, stats, history, challenges, accounts) |
 | `game/Progression.js`, `game/Badges.js` | XP, quests, badges — pure functions over a finished game (see {doc}`progression`) |
 | `public/` | The entire client |
+| `public/music/`, `scripts/render-music.js` | Background music, composed as code and rendered to MP3 (see {doc}`music`) |
 | `scripts/` | Tooling: A/B bot simulation, load test, docs generator |
 | `mcp/` | MCP server: an LLM agent plays a seat (see {doc}`mcp`) |
 | `test/` | The test suite (`node --test`) |
