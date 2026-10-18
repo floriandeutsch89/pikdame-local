@@ -175,7 +175,10 @@ function rewrite(msg) {
   if (msg.type === 'joined' && bindStammtisch) msg.stammtisch = { code: 'STMOCK1', name: STAMMTISCH.name };
   if (msg.type === 'profiles') { msg.players = PROFILES; msg.globalStats = GLOBAL_STATS; }
   if (msg.type === 'gameHistory') msg.games = HISTORY;
-  if (msg.type === 'yearReview' && DECEMBER) Object.assign(msg, { available: true, season: true, review: YEAR_REVIEW });
+  // Like the server: favourite opponent and Stammtisch only for the signed-in owner.
+  if (msg.type === 'yearReview' && DECEMBER) {
+    Object.assign(msg, { available: true, season: true, review: SIGNED_IN ? YEAR_REVIEW : { ...YEAR_REVIEW, favorite: null, table: null } });
+  }
   if (msg.type === 'puzzle' && puzzleKind) {
     const DP = require(path.join(ROOT, 'game', 'DailyPuzzle'));
     Object.assign(msg, DP.publicPuzzle(kindPuzzle(puzzleKind)), { date: msg.today, archive: false });
