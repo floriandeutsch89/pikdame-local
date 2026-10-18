@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.79.0] - 2026-10-17
+
+### Added
+- Siegesjubel: In den Einstellungen wählst du mit deinem Konto, wie dein Sieg gefeiert wird – Katzen-Konfetti ab Stufe 10, Feuerwerk ab Stufe 20, Kartenfächer ab Stufe 35 und die Goldene Pik Dame ab Stufe 50. Gewinnst du eine Runde oder die Partie, sehen alle am Tisch deinen Jubel oben im Ergebnisblatt; er verdeckt nichts und ist nach wenigen Sekunden vorbei. Mit „Bewegung reduzieren“ erscheint ein ruhiges Standbild.
+
 ## [2.78.0] - 2026-10-17
 
 ### Added

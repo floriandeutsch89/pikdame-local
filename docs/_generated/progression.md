@@ -187,3 +187,20 @@ account also gets 🎂.
 Bots may say a short line at **6** moments
 (`round_win`, `hand_aus`, `game_win`, `queen_caught`, `queen_laid`, `big_pile`). Only the moment id travels over the wire;
 the lines themselves are in the client, in both languages.
+
+## Victory celebrations
+
+What the whole table sees at the top of the result sheet when a player wins a
+round or the match (`game/Celebrations.js`). The signed-in owner of a name
+picks one in the settings; the server accepts only these ids, at the
+profile's level, and only the id travels over the wire:
+
+| Id | Unlocked |
+| --- | --- |
+| `standard` | always |
+| `cats` | level 10 |
+| `fireworks` | level 20 |
+| `cardfan` | level 35 |
+| `goldqueen` | level 50 |
+
+`standard` is the classic confetti only the winner sees.

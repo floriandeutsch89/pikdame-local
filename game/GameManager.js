@@ -13,6 +13,7 @@ const StateEncoder = require('./StateEncoder');
 const MoveLogger = require('./MoveLogger');
 const { dayEnd } = require('./GameDay');
 const { isQuipMoment } = require('./BotQuips');
+const { isCelebration } = require('./Celebrations');
 const BotTower = require('./BotTower');
 // Every try of a tower stage plays the same deal under the same rules and bots.
 const TOWER_FIXED_ERROR = 'Im Bot-Turm sind Regeln und Bots fest - jeder Versuch einer Stufe läuft gleich.';
@@ -161,6 +162,7 @@ class GameManager {
     delete seat.leftGame;
     delete seat.botDifficulty;
     delete seat.disconnectedAt;
+    delete seat.celebration; // the newcomer's own one is set by the server right after
     for (const f of SEAT_CONTROL_FIELDS) delete seat[f];
     this.totals[seat.id] = this.totals[seat.id] || 0;
     if (!this.hostId) this.hostId = seat.id;
@@ -172,6 +174,15 @@ class GameManager {
       this._armTurnTimer();
     }
     return seat;
+  }
+
+  /** A human seat's victory celebration (game/Celebrations.js). The server
+   *  checks the level; anything unknown or 'standard' clears it. */
+  setPlayerCelebration(playerId, id) {
+    const seat = this.players.find((p) => p.id === playerId);
+    if (!seat || seat.isBot) return;
+    if (id !== 'standard' && isCelebration(id)) seat.celebration = id;
+    else delete seat.celebration;
   }
 
   /** Which bot seat a joining human takes. In the lobby the one farthest from
@@ -3146,6 +3157,8 @@ class GameManager {
         connected: p.connected,
         controlledByBot: this.isBotControlled(p),
         leftGame: p.leftGame || undefined,
+        // Victory celebration the whole table sees when this seat wins (whitelist only, even from a snapshot).
+        celebration: !p.isBot && !p.leftGame && isCelebration(p.celebration) ? p.celebration : undefined,
         handCount: p.hand.length,
         hand: p.id === forPlayerId ? p.hand : undefined,
       })),
