@@ -177,6 +177,8 @@ function configBody({ report, smtpProbe, csrf, mailConfigured }) {
 <input type="email" name="to" placeholder="Empfänger für die Testmail" autocomplete="email">
 <button type="submit" name="action" value="probe">Verbindung prüfen</button>
 <button type="submit" name="action" value="send" class="primary">Testmail senden</button>
+<input type="text" name="player" placeholder="Spielername für echte Zahlen (optional)" autocomplete="off">
+<button type="submit" name="action" value="review">Jahresrückblick-Vorschau senden</button>
 </form></div>`;
 }
 
