@@ -65,9 +65,10 @@ Three tabs:
 Players who played as guests first and then register **the same name** keep
 everything: the name-based profile was theirs all along. Once, when the e-mail
 is confirmed (or, for accounts confirmed earlier, at the next login), the
-account's own counters - level, games, wins and the **current season's
-ladder** - are lifted to the profile's values. Lifted, not added: games already
-booked on the account are not counted twice. The log says
+account's own counters - level, games and wins - are lifted to the profile's
+values. Lifted, not added: games already booked on the account are not counted
+twice. The season ladder stays untouched: guest XP never buys a place in the
+season finale. The log says
 `[account] Gast-Fortschritt übernommen: <name> (… EP, … Spiele)`.
 
 ### Monitoring: what the numbers mean

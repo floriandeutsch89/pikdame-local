@@ -118,6 +118,13 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
     add('verify_code_hash', 'TEXT');
     add('verify_code_expires', 'INTEGER');
     add('verify_code_tries', 'INTEGER NOT NULL DEFAULT 0');
+    // Year-review mail: opt-in (default off), when it changed, language, the
+    // last year sent, and a SHA-256 of the unsubscribe token in that mail.
+    add('review_mail', 'INTEGER NOT NULL DEFAULT 0');
+    add('review_mail_at', 'INTEGER');
+    add('review_mail_lang', 'TEXT');
+    add('review_mail_year', 'TEXT');
+    add('review_unsub_hash', 'TEXT');
   }
   db.exec(`
     CREATE TABLE IF NOT EXISTS webauthn_credentials (
@@ -453,37 +460,24 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
   /**
    * Carries the name-based profile's progress (PlayerStore) over to the
    * account, ONCE: players who registered after playing as guests keep their
-   * level and their place in the current season. Lifts the account up TO the
-   * profile's values instead of adding them, so games already booked on the
-   * account since verification are not counted twice; the XP difference also
-   * goes into the given (current) season.
+   * level. Lifts the account up TO the profile's values instead of adding
+   * them, so games already booked on the account since verification are not
+   * counted twice. The season stays untouched: guest XP never buys a podium.
    * @returns {{imported:boolean, progress:object|null}}
    */
-  function importProfile(username, { xp = 0, games = 0, wins = 0, season = null } = {}) {
+  function importProfile(username, { xp = 0, games = 0, wins = 0 } = {}) {
     const name = String(username || '').trim();
     const row = db
-      .prepare('SELECT id, xp, games, wins, season, season_xp, season_games, profile_imported FROM users WHERE username = ? AND verified = 1')
+      .prepare('SELECT id, xp, games, wins, profile_imported FROM users WHERE username = ? AND verified = 1')
       .get(name);
     if (!row || row.profile_imported) return { imported: false, progress: row ? progressFor(name) : null };
     const n = (v) => Math.max(0, Math.round(Number(v) || 0));
-    const newXp = Math.max(row.xp || 0, n(xp));
-    const delta = newXp - (row.xp || 0);
-    const keepSeason = !season || row.season === season;
-    inTransaction(() => {
-      if (!keepSeason) archiveSeason(row);
-      db.prepare(
-        `UPDATE users SET xp = ?, games = ?, wins = ?, season = ?, season_xp = ?, season_games = ?, profile_imported = 1
-         WHERE id = ?`
-      ).run(
-        newXp,
-        Math.max(row.games || 0, n(games)),
-        Math.max(row.wins || 0, n(wins)),
-        season || row.season,
-        (keepSeason ? row.season_xp || 0 : 0) + delta,
-        keepSeason ? row.season_games || 0 : 0,
-        row.id
-      );
-    });
+    db.prepare('UPDATE users SET xp = ?, games = ?, wins = ?, profile_imported = 1 WHERE id = ?').run(
+      Math.max(row.xp || 0, n(xp)),
+      Math.max(row.games || 0, n(games)),
+      Math.max(row.wins || 0, n(wins)),
+      row.id
+    );
     return { imported: true, progress: progressFor(name) };
   }
 
@@ -635,10 +629,45 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
   function accountForSession(token) {
     const s = sessionUser(token);
     if (!s) return null;
-    const row = db.prepare('SELECT id, username, email, salt, webauthn_user_id FROM users WHERE username = ?').get(s.username);
+    const row = db.prepare('SELECT id, username, email, salt, webauthn_user_id, review_mail FROM users WHERE username = ?').get(s.username);
     if (!row) return null;
     const creds = db.prepare('SELECT * FROM webauthn_credentials WHERE user_id = ? ORDER BY created_at').all(row.id).map(credRow);
-    return { id: row.id, username: row.username, email: row.email, hasPassword: !!row.salt, webauthnUserId: row.webauthn_user_id || null, credentials: creds };
+    return { id: row.id, username: row.username, email: row.email, hasPassword: !!row.salt, webauthnUserId: row.webauthn_user_id || null, credentials: creds, reviewMail: !!row.review_mail };
+  }
+
+  // --- Year-review mail (opt-in, see game/YearReviewMail.js) ---------------
+  function setReviewMail(userId, enabled, lang) {
+    const on = !!enabled;
+    db.prepare('UPDATE users SET review_mail = ?, review_mail_at = ?, review_mail_lang = ? WHERE id = ?')
+      .run(on ? 1 : 0, Date.now(), lang === 'en' ? 'en' : 'de', userId);
+    return { ok: true, enabled: on };
+  }
+
+  /** Verified, opted-in accounts without this year's mail. */
+  function reviewMailRecipients(year) {
+    return db.prepare(
+      `SELECT id, username, email, review_mail_lang FROM users
+       WHERE verified = 1 AND review_mail = 1 AND (review_mail_year IS NULL OR review_mail_year <> ?) ORDER BY id`
+    ).all(String(year)).map((r) => ({ id: r.id, username: r.username, email: r.email, lang: r.review_mail_lang === 'en' ? 'en' : 'de' }));
+  }
+
+  function setReviewUnsubHash(userId, hash) {
+    db.prepare('UPDATE users SET review_unsub_hash = ? WHERE id = ?').run(hash, userId);
+  }
+
+  function markReviewMailSent(userId, year) {
+    db.prepare('UPDATE users SET review_mail_year = ? WHERE id = ?').run(String(year), userId);
+  }
+
+  /** The link in the mail: idempotent, the token keeps answering after the opt-out. */
+  function unsubscribeReviewMail(token) {
+    const t = String(token || '');
+    if (!/^[a-f0-9]{64}$/.test(t)) return { error: 'invalid' };
+    const hash = crypto.createHash('sha256').update(t).digest('hex');
+    const row = db.prepare('SELECT id, username, review_mail_lang FROM users WHERE review_unsub_hash = ?').get(hash);
+    if (!row) return { error: 'invalid' };
+    db.prepare('UPDATE users SET review_mail = 0, review_mail_at = ? WHERE id = ?').run(Date.now(), row.id);
+    return { ok: true, username: row.username, lang: row.review_mail_lang === 'en' ? 'en' : 'de' };
   }
 
   function setWebauthnUserId(userId, handle) {
@@ -740,6 +769,7 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
     validateNewAccount, registerWithoutPassword, verifyAndSignIn, renewSignupCode, verifyCodeAndSignIn, accountForSession, setWebauthnUserId, addCredential,
     credentialById, touchCredential, deleteCredential, setPassword, removePassword, sessionForUser,
     createLoginLink, consumeLoginLink,
+    setReviewMail, reviewMailRecipients, setReviewUnsubHash, markReviewMailSent, unsubscribeReviewMail,
     close, _db: db, // _db: Test-Seam (Ablauf-Simulation)
   };
 }
