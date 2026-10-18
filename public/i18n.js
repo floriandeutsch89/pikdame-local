@@ -243,8 +243,8 @@ window.I18N_STATIC = {
   'Als Bild teilen': 'Share as image',
   'E-Mails': 'E-mails',
   'Jahresrückblick per E-Mail': 'Year review by e-mail',
-  'Einmal im Jahr, Ende Dezember: deine Partien, Siege und geretteten Pik Damen. Abbestellen jederzeit hier oder mit einem Klick in der Mail.':
-    'Once a year, at the end of December: your games, wins and rescued queens of spades. Unsubscribe any time here or with one click in the mail.',
+  'Einmal im Jahr, Ende Dezember: deine Partien, Siege und geretteten Pik Damen. Abbestellen jederzeit hier oder über den Link in jeder Mail.':
+    'Once a year, at the end of December: your games, wins and rescued queens of spades. Unsubscribe any time here or via the link in every mail.',
 };
 
 // Muster für Server-Texte (Log + Fehler). Reihenfolge: speziell vor generisch.
