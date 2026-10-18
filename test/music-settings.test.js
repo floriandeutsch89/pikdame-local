@@ -51,12 +51,17 @@ function boot({ storage = {}, withPlayer = true, withAudio = true, saveData = fa
       decodeAudioData(bytes, ok) { const b = { duration: JSON.parse(Buffer.from(bytes).toString()).duration }; ok(b); return Promise.resolve(b); }
     };
   }
+  const sockets = [];
   class FakeSocket {
-    constructor() { this.readyState = 0; this.listeners = {}; this.sent = []; }
+    constructor() { this.readyState = 0; this.listeners = {}; this.sent = []; sockets.push(this); }
     addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); }
     removeEventListener() {}
     send(data) { this.sent.push(JSON.parse(data)); }
     close() {}
+    fire(type, payload) {
+      if (type === 'open') this.readyState = 1;
+      for (const fn of this.listeners[type] || []) fn(payload === undefined ? {} : { data: JSON.stringify(payload) });
+    }
   }
   FakeSocket.CONNECTING = 0;
   FakeSocket.OPEN = 1;
@@ -70,7 +75,8 @@ function boot({ storage = {}, withPlayer = true, withAudio = true, saveData = fa
   const $ = (id) => doc.getElementById(id);
   const rowValue = () => $('musicToggle').querySelector('.sheetRowValue').textContent;
   const toast = () => $('toastContainer').textContent;
-  return { window, doc, $, rowValue, toast, fetched, contexts, errors };
+  const socket = () => { const ws = sockets[sockets.length - 1]; if (ws.readyState !== 1) ws.fire('open'); return ws; };
+  return { window, doc, $, rowValue, toast, socket, fetched, contexts, errors };
 }
 const flush = async () => { for (let i = 0; i < 30; i++) await new Promise((r) => setImmediate(r)); };
 
@@ -161,6 +167,18 @@ test('first gesture: the music starts and says once where to change it', async (
   await flush();
   assert.doesNotMatch(chosen.toast(), /Musik läuft leise/, 'no hint for a level the player picked');
   chosen.window.close();
+});
+
+test('first gesture: a priority toast on screen keeps the hint for the next start', async () => {
+  const t = boot();
+  // A server error is a priority toast: it holds the container for its full time.
+  t.socket().fire('message', { type: 'error', error: 'Server kaputt' });
+  t.doc.dispatchEvent(new t.window.Event('pointerup'));
+  await flush();
+  assert.ok(t.contexts[0].started.length >= 1, 'the music starts anyway');
+  assert.match(t.toast(), /Server kaputt/, 'the priority toast stays');
+  assert.strictEqual(t.window.localStorage.getItem('pikdame_music_hint'), null, 'the hint is still owed');
+  t.window.close();
 });
 
 test('fallback: without the player module or Web Audio the music settings hide', () => {

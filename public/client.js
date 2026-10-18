@@ -654,6 +654,7 @@
         cachesImpl: window.caches || null, // only in secure contexts; plain fetch otherwise
         onStart: () => {
           if (musicPrefs.explicit || storageGet(MUSIC_HINT_KEY) === '1') return;
+          if (Date.now() < toastLockUntil) return; // a priority toast would swallow it: next start
           storageSet(MUSIC_HINT_KEY, '1');
           showToast(L('Musik läuft leise – ändern unter Einstellungen › Musik', 'Music plays quietly – change it under Settings › Music'), { duration: 6000 });
         },
