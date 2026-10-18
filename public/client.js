@@ -8874,8 +8874,10 @@
     if (r.me) applySeasonInfo({ seasonAwards: r.seasonAwards, lastSeason: r.lastSeason });
     const rows = r.board.length
       ? r.board
-          .map((e, i) => {
-            const medal = ['🥇', '🥈', '🥉'][i] || `${i + 1}.`;
+          .map((e) => {
+            // Shared place, as in the finale: a tie shares the medal.
+            const place = 1 + r.board.filter((o) => o.seasonXp > e.seasonXp).length;
+            const medal = ['🥇', '🥈', '🥉'][place - 1] || `${place}.`;
             const mine = accountUsername && e.username.toLowerCase() === accountUsername.toLowerCase();
             return `<div class="ladderRow${mine ? ' isMe' : ''}"><span>${medal} ${escapeHtml(e.username)}</span>` +
               `<b>${e.seasonXp} ${L('EP', 'XP')}</b></div>`;
