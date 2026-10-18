@@ -81,6 +81,21 @@ time), so the whole world plays the same thing and can talk about it:
   short text to the phone's share sheet (or the clipboard), e.g.
   "Platz 3 von 12 · 1120 Punkte · ♠Q nie erwischt" or "Gelöst im 2. Versuch 🟥🟩 ★★☆".
 
+### Bot tower
+
+Ten fixed stages, defined only in `game/BotTower.js`: each stage is one round
+on its own seeded deal (deck and cut) against fixed bots, from two Leicht bots
+up to three Zen bots with a 100-point head start. One star for more points than
+every bot plus the head start, two for at least 100 points ahead, three for
+that and going out yourself. One star unlocks the next stage; tries are
+unlimited and the best per stage counts (name-based, like the badges). The
+first star of a stage pays 25 experience once, with an account also into its
+lifetime and season XP, without counting as a game; more stars and retries pay
+nothing, and tower rounds count for no match statistics. The seeds were picked by simulation (the Schwer heuristic in the human
+seat, the Zen net at stages 7-10): every stage is winnable, and the winning
+margin shrinks from about 200 to 15 points. The way in is the progress sheet
+(tap your avatar).
+
 ### Progress between matches
 
 Three layers, all optional and all degrading quietly where they cannot work:

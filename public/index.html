@@ -992,8 +992,21 @@
         <p class="lobby-hint homeTable">Das Spiel bleibt offen. Ein neues kannst du erst starten, wenn du dieses aufgibst.</p>
         <p class="homeTutorial hidden">Das Tutorial wartet kurz auf dich – danach beginnt es von vorn.</p>
         <p class="homeChallenge hidden">Die Challenge wartet bis Mitternacht auf dich – unter „Heute“ geht es weiter.</p>
+        <p class="homeTower hidden">Die Turmstufe wartet kurz auf dich – danach endet sie ohne Sterne.</p>
         <button id="homeConfirmBtn" class="btn-primary">Tisch verlassen</button>
         <button id="homeCancelBtn" class="btn-secondary">Abbrechen</button>
+      </div>
+    </section>
+
+    <!-- Bot tower (game/BotTower.js): ten fixed stages, best stars each. Before
+         the open-game sheet in the DOM, so that one stacks above it. -->
+    <section id="towerOverlay" class="overlay hidden" data-sheet-close="towerCloseBtn">
+      <div class="overlay-card towerCard" role="dialog" aria-labelledby="towerTitle">
+        <h2 id="towerTitle" class="iconTitle"><svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg><span>Bot-Turm</span></h2>
+        <p id="towerSummary" class="towerSummary"></p>
+        <ol id="towerList" class="towerList" reversed></ol>
+        <p id="towerRules" class="pgRules towerRules"></p>
+        <button id="towerCloseBtn" class="btn-secondary">Schließen</button>
       </div>
     </section>
 

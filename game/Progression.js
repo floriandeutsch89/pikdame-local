@@ -25,6 +25,13 @@ function xpForGame(gameRecord, playerId) {
   return XP_BASE + (won ? XP_WIN : 0) + Math.max(0, Math.round(score * XP_PER_POINT));
 }
 
+// Bot tower (BotTower.js): a stage pays once, for its FIRST star. More stars
+// and retries pay nothing, so unlimited tries cannot farm XP (10 stages: 250).
+const XP_TOWER_FIRST_STAR = 25;
+function xpForTowerStage(bestBefore, starsNow) {
+  return (Number(bestBefore) || 0) < 1 && (Number(starsNow) || 0) >= 1 ? XP_TOWER_FIRST_STAR : 0;
+}
+
 // Level curve: each level costs a bit more than the previous one, so the
 // early levels arrive quickly (a family player who finishes two games sees
 // progress) and later ones stay meaningful.
@@ -303,6 +310,8 @@ function streakGraceAvailable(state, date) {
 module.exports = {
   XP_BASE,
   XP_WIN,
+  XP_TOWER_FIRST_STAR,
+  xpForTowerStage,
   QUEST_IDS,
   QUESTS_PER_DAY,
   xpForGame,

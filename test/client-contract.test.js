@@ -511,6 +511,8 @@ test('client contract: functions that build translated markup are refreshed by c
     // "Open game" sheet (#352): its text is written on every opening, and it
     // is closed before any language switch.
     'openOpenGameSheet',
+    // Bot tower verdict: part of the result sheet, rebuilt with it (like the challenge board).
+    'renderTowerResult',
   ]);
 
   const stale = functions
