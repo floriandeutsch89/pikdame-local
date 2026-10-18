@@ -72,7 +72,7 @@ faded and then moves to the piece that waited longest.
 
 ## Defaults
 
-- Quiet and "Wechselnd". Off for players who switched "Sound & Vibration" off
+- Quiet and "Wechselnd". Off for players who switched "Soundeffekte & Vibration" off
   before and when the browser asks to save data (`navigator.connection.saveData`),
   unless the player picked a level.
 - Starts after the first tap or key press (iOS only starts audio there) and

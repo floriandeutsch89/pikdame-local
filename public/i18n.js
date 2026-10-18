@@ -193,7 +193,7 @@ window.I18N_STATIC = {
   'Reaktion senden': 'Send a reaction',
   'Spiel aufgeben': 'Forfeit game',
   'Sortierung umschalten': 'Toggle sorting',
-  'Sound ein/aus': 'Sound on/off',
+  'Soundeffekte ein/aus': 'Sound effects on/off',
   'Vollbild': 'Fullscreen',
   'Was ist neu?': "What's new?",
   'Spieltisch': 'Table',
@@ -219,7 +219,7 @@ window.I18N_STATIC = {
   'Rundenende': 'End of round',
 
   // Themes-Zeile etc.
-  'Sound & Vibration': 'Sound & vibration',
+  'Soundeffekte & Vibration': 'Sound effects & vibration',
   // Background music ('Mittel' and 'Aus' exist above)
   'Musik': 'Music',
   'Musik ändern': 'Change music',

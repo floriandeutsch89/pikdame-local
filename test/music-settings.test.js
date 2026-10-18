@@ -42,12 +42,12 @@ function boot({ storage = {}, withPlayer = true, withAudio = true, saveData = fa
   if (withAudio) {
     const param = () => ({ value: 1, setValueAtTime() {}, linearRampToValueAtTime() {}, cancelScheduledValues() {}, exponentialRampToValueAtTime() {} });
     window.AudioContext = class {
-      constructor() { this.state = 'suspended'; this.currentTime = 1; this.destination = {}; this.started = []; contexts.push(this); }
+      constructor() { this.state = 'suspended'; this.currentTime = 1; this.destination = {}; this.started = []; this.stopped = []; contexts.push(this); }
       resume() { this.state = 'running'; return Promise.resolve(); }
       suspend() { this.state = 'suspended'; return Promise.resolve(); }
       createGain() { return { gain: param(), connect() {}, disconnect() {} }; }
       createOscillator() { return { type: 'sine', frequency: param(), connect: (n) => n, start() {}, stop() {} }; }
-      createBufferSource() { const c = this; return { connect() {}, disconnect() {}, start(t) { c.started.push(t); }, stop() {} }; }
+      createBufferSource() { const c = this; return { connect() {}, disconnect() {}, start(t) { c.started.push(t); }, stop(t) { c.stopped.push(t); } }; }
       decodeAudioData(bytes, ok) { const b = { duration: JSON.parse(Buffer.from(bytes).toString()).duration }; ok(b); return Promise.resolve(b); }
     };
   }
@@ -178,6 +178,41 @@ test('first gesture: a priority toast on screen keeps the hint for the next star
   assert.ok(t.contexts[0].started.length >= 1, 'the music starts anyway');
   assert.match(t.toast(), /Server kaputt/, 'the priority toast stays');
   assert.strictEqual(t.window.localStorage.getItem('pikdame_music_hint'), null, 'the hint is still owed');
+  t.window.close();
+});
+
+test('sound effects and music are separate: the label says so, effects off leaves the music playing', async () => {
+  const t = boot();
+  const effectsLabels = () => [
+    t.$('soundToggle').querySelector('.sheetRowLabel').textContent,
+    t.doc.querySelector('label[for="soundCheckbox"] .settingsLabel span').textContent,
+  ];
+  assert.deepStrictEqual(effectsLabels(), ['Soundeffekte & Vibration', 'Soundeffekte & Vibration']);
+  assert.strictEqual(t.$('soundToggle').title, 'Soundeffekte ein/aus');
+  // The music rows sit right below the effects in both sheets.
+  assert.strictEqual(t.$('soundToggle').nextElementSibling.id, 'musicToggle');
+  assert.strictEqual(t.doc.querySelector('label[for="soundCheckbox"]').closest('.settingsItem').nextElementSibling.id, 'musicItem');
+
+  t.doc.dispatchEvent(new t.window.Event('pointerup'));
+  await flush();
+  const ctx = t.contexts[0];
+  assert.ok(ctx.started.length >= 1, 'music plays');
+  const box = t.$('soundCheckbox');
+  box.checked = false;
+  box.dispatchEvent(new t.window.Event('change'));
+  assert.strictEqual(t.window.localStorage.getItem('pikdame_sound_enabled'), 'off');
+  t.$('soundToggle').click(); // in-game: on again
+  t.$('soundToggle').click(); // and off
+  await flush();
+  assert.deepStrictEqual(ctx.stopped, [], 'no music source was stopped');
+  assert.strictEqual(ctx.state, 'running');
+  assert.strictEqual(t.$('musicLevelSelect').value, 'low');
+  assert.strictEqual(t.rowValue(), 'Leise · Wechselnd');
+
+  t.$('langBtn').click();
+  assert.deepStrictEqual(effectsLabels(), ['Sound effects & vibration', 'Sound effects & vibration']);
+  assert.strictEqual(t.$('soundToggle').title, 'Sound effects on/off');
+  assert.deepStrictEqual(t.errors, []);
   t.window.close();
 });
 
