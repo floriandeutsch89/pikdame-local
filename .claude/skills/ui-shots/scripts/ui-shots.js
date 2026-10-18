@@ -74,7 +74,7 @@ const PROFILES = [
 const STAMMTISCH = {
   name: 'Familie Deutsch', gamesPlayed: 7,
   series: { no: 3, games: 2, wins: { 'oma gerda': 1, flo: 1 }, bestOf: 3, needed: 2 },
-  goals: { level: 3, into: 40, need: 100, xp: 165, week: { start: '2026-10-12', games: 7, goal: 10, reached: false }, streak: 2, weeksReached: 4 },
+  goals: { level: 3, into: 40, need: 100, xp: 165, week: { start: '2026-10-12', games: 3, goal: 5, reached: false }, streak: 2, weeksReached: 4 },
   members: [
     { name: 'Oma Gerda', wins: 4, games: 7, avg: 612 }, { name: ME, wins: 2, games: 7, avg: 540 },
     { name: 'Klaus', wins: 1, games: 6, avg: 455 },
