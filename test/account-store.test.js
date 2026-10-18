@@ -175,6 +175,100 @@ test('AccountStore: an existing database without the progression columns migrate
   await store.close();
 });
 
+// --- Year-review mail (opt-in): one contract, SQLite AND Postgres ----------
+// forceOptIn flips the flag in the database directly: the API cannot reach an
+// unverified account, and exactly that one must still never get mail.
+async function reviewMailContract(store, tag, forceOptIn) {
+  const crypto = require('node:crypto');
+  const names = ['A', 'B', 'C'].map((s) => `Rv${tag}${s}`);
+  const mine = async (year) => (await store.reviewMailRecipients(year)).map((r) => r.username).filter((n) => names.includes(n));
+  for (const [i, name] of names.entries()) {
+    const r = await store.register(name, `${name.toLowerCase()}@example.com`, 'geheim123');
+    assert.ok(r.ok, JSON.stringify(r));
+    if (i < 2) await store.verifyEmail(r.verifyToken);
+  }
+  const [a, , c] = names;
+  const session = (await store.login(a, 'geheim123')).token;
+  const acc = await store.accountForSession(session);
+  assert.strictEqual(acc.reviewMail, false, 'off until the player switches it on');
+  assert.deepStrictEqual(await mine('2026'), [], 'nobody opted in yet');
+
+  assert.deepStrictEqual(await store.setReviewMail(acc.id, true, 'en'), { ok: true, enabled: true });
+  assert.strictEqual((await store.accountForSession(session)).reviewMail, true);
+  await forceOptIn(c);
+  assert.deepStrictEqual(await mine('2026'), [a], 'only verified accounts that opted in (not B, not the unverified C)');
+  const rec = (await store.reviewMailRecipients('2026')).find((r) => r.username === a);
+  assert.deepStrictEqual({ email: rec.email, lang: rec.lang }, { email: `${a.toLowerCase()}@example.com`, lang: 'en' });
+
+  await store.markReviewMailSent(acc.id, '2026');
+  assert.deepStrictEqual(await mine('2026'), [], 'once per year');
+  assert.deepStrictEqual(await mine('2027'), [a], 'the next year counts anew');
+
+  const token = crypto.randomBytes(32).toString('hex');
+  await store.setReviewUnsubHash(acc.id, crypto.createHash('sha256').update(token).digest('hex'));
+  for (const wrong of ['f'.repeat(64), token.toUpperCase(), token.slice(1), '', null, `${token}00`]) {
+    assert.deepStrictEqual(await store.unsubscribeReviewMail(wrong), { error: 'invalid' }, `rejected: ${String(wrong).slice(0, 8)}`);
+  }
+  assert.strictEqual((await store.accountForSession(session)).reviewMail, true, 'a wrong token changes nothing');
+  assert.deepStrictEqual(await store.unsubscribeReviewMail(token), { ok: true, username: a, lang: 'en' });
+  assert.strictEqual((await store.accountForSession(session)).reviewMail, false);
+  assert.deepStrictEqual(await mine('2027'), [], 'opted out by the link');
+  assert.deepStrictEqual(await store.unsubscribeReviewMail(token), { ok: true, username: a, lang: 'en' }, 'a second click still answers');
+
+  // Back on in the account: the year already mailed stays mailed.
+  await store.setReviewMail(acc.id, true, 'de');
+  assert.deepStrictEqual(await mine('2026'), []);
+  assert.deepStrictEqual(await mine('2027'), [a]);
+  assert.strictEqual((await store.reviewMailRecipients('2027')).find((r) => r.username === a).lang, 'de');
+}
+
+test('AccountStore: year-review mail opt-in, once per year, unsubscribe token', { skip: !HAS_SQLITE }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikacc-'));
+  const dbFile = path.join(dir, 'users.db');
+  const store = createAccountStore(dbFile);
+  const { DatabaseSync } = require('node:sqlite');
+  await reviewMailContract(store, 'S', (name) => {
+    const raw = new DatabaseSync(dbFile);
+    raw.prepare('UPDATE users SET review_mail = 1 WHERE username = ?').run(name);
+    raw.close();
+  });
+  await store.close();
+});
+
+test('PgAccountStore: year-review mail opt-in, once per year, unsubscribe token', { skip: !PG_URL }, async () => {
+  const store = createPgAccountStore(PG_URL);
+  const { Pool } = require('pg');
+  const pool = new Pool({ connectionString: PG_URL });
+  try {
+    await reviewMailContract(store, Date.now().toString(36).slice(-5), (name) => pool.query('UPDATE users SET review_mail = TRUE WHERE username = $1', [name]));
+  } finally {
+    await pool.end();
+    await store.close();
+  }
+});
+
+test('AccountStore: a database from before the year review gains its columns, all off', { skip: !HAS_SQLITE }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikacc-'));
+  const dbFile = path.join(dir, 'users.db');
+  const first = createAccountStore(dbFile);
+  const r = await first.register('Vorher', 'vorher@example.com', 'geheim123');
+  await first.verifyEmail(r.verifyToken);
+  await first.close();
+  // Back to the schema before the year review: the columns did not exist yet.
+  const { DatabaseSync } = require('node:sqlite');
+  const raw = new DatabaseSync(dbFile);
+  for (const col of ['review_mail', 'review_mail_at', 'review_mail_lang', 'review_mail_year', 'review_unsub_hash']) {
+    raw.exec(`ALTER TABLE users DROP COLUMN ${col}`);
+  }
+  raw.close();
+
+  const store = createAccountStore(dbFile);
+  const acc = await store.accountForSession((await store.login('Vorher', 'geheim123')).token);
+  assert.strictEqual(acc.reviewMail, false, 'the migration never opts an old account in');
+  assert.deepStrictEqual(await store.reviewMailRecipients('2026'), []);
+  await store.close();
+});
+
 test('PgAccountStore: unreachable database degrades gracefully (no throw, fails closed)', async () => {
   const store = createPgAccountStore('postgres://nouser:nopass@127.0.0.1:59999/nodb');
   assert.ok(store);
