@@ -25,7 +25,7 @@ Sent on a fresh connection, before the socket is bound to a table. These carry `
 | `setCelebration` | Pick the victory celebration the whole table sees when you win (an id from `game/Celebrations.js`; signed-in owner of the name, unlocked by level). |
 | `ping` | Keep-alive from the client; answered immediately. Lets a phone notice a dead connection before the server-side heartbeat does. |
 | `getPuzzle` | Today's daily puzzle (same for everyone, derived from the game day). |
-| `solvePuzzle` | Submit a puzzle answer; the server grades it and returns the solution. |
+| `solvePuzzle` | Submit a puzzle answer; the server grades it and returns the solution. With the owner's login token, the day's first solve also counts for the account and its season. |
 | `revealPuzzle` | Give up on the puzzle and see the solution (no points). |
 | `startChallenge` | Begin today's daily challenge. Beginning counts as the one attempt of the day. |
 | `startTutorial` | Open a tutorial table against easy bots; the hints themselves are client-side. |
@@ -93,7 +93,7 @@ Allowed from any seat at any time during a match.
 
 | `type` | Purpose |
 | --- | --- |
-| `accountProgress` | The account-bound progression on login (so a new device shows the right level). |
+| `accountProgress` | The account-bound progression on login (so a new device shows the right level), and after XP from outside a match (a solved puzzle, a tower stage's first star). |
 | `badges` | Badges earned by this match, for the celebration overlay. |
 | `bestRound` | A new personal best round score for this player. |
 | `challengeBoard` | Today's daily-challenge leaderboard and weekly ranking. |

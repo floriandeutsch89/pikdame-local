@@ -5980,7 +5980,8 @@
   });
   el('puzzleCheckBtn').addEventListener('click', () => {
     if (!puzzleData) return;
-    const base = { type: 'solvePuzzle', name: currentName(), date: puzzleData.date };
+    // The login token lets a solve also count for the account and its season.
+    const base = { type: 'solvePuzzle', name: currentName(), date: puzzleData.date, accountToken: accountToken() || undefined };
     if (puzzleKind() !== 'meld') {
       if (puzzleGroups.length) send({ ...base, melds: puzzleGroups });
       return;
