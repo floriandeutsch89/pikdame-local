@@ -127,6 +127,7 @@
        vendor-qrcode.js is NOT loaded here - it is only needed once the QR
        overlay is opened, and client.js fetches it then (see loadQrLib). -->
   <script src="/i18n.js" defer></script>
+  <script src="/music-player.js" defer></script>
   <script src="/client.js" defer></script>
   <script>
     /* Runs before the first paint: html.noSplash drops the studio intro that
@@ -215,6 +216,8 @@
     <symbol id="i-bug" viewBox="0 0 24 24"><path d="M8 9.5a4 4 0 0 1 8 0v5a4 4 0 0 1-8 0z"/><path d="M9.6 6.6 8.4 4.4M14.4 6.6l1.2-2.2M8 11H4.6M19.4 11H16M8 15.2H4.6M19.4 15.2H16M12 9.5v8"/></symbol>
     <symbol id="i-sound-on" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z"/><path d="M15.5 9.2a4 4 0 0 1 0 5.6M18.2 6.5a8 8 0 0 1 0 11"/></symbol>
     <symbol id="i-sound-off" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z"/><path d="m16 10 4.5 4.5M20.5 10 16 14.5"/></symbol>
+    <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 17.5V6l11-2v11.5"/><circle cx="6.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="15.5" r="2.5"/></symbol>
+    <symbol id="i-disc" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><path d="M12 5.5a6.5 6.5 0 0 1 6.5 6.5"/></symbol>
     <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 17.5h6M10 20.5h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.1 1 1.8v.3h5v-.3c0-.7.4-1.3 1-1.8A6 6 0 0 0 12 3z"/></symbol>
     <symbol id="i-bulb-off" viewBox="0 0 24 24"><path d="M9 17.5h6M10 20.5h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.1 1 1.8v.3h5v-.3c0-.7.4-1.3 1-1.8A6 6 0 0 0 12 3z"/><path d="M4 3.5 20 20"/></symbol>
     <symbol id="i-fullscreen" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
@@ -1051,9 +1054,14 @@
             <span class="sheetRowLabel">Anzeigegröße</span>
             <span class="sheetRowValue">–</span>
           </button>
-          <button id="soundToggle" class="sheetRow" title="Sound ein/aus">
+          <button id="soundToggle" class="sheetRow" title="Soundeffekte ein/aus">
             <svg class="icon" aria-hidden="true"><use href="#i-sound-on"/></svg>
-            <span class="sheetRowLabel">Sound &amp; Vibration</span>
+            <span class="sheetRowLabel">Soundeffekte &amp; Vibration</span>
+            <span class="sheetRowValue">–</span>
+          </button>
+          <button id="musicToggle" class="sheetRow" title="Musik ändern">
+            <svg class="icon" aria-hidden="true"><use href="#i-music"/></svg>
+            <span class="sheetRowLabel">Musik</span>
             <span class="sheetRowValue">–</span>
           </button>
           <button id="tipsToggle" class="sheetRow" title="Spiel-Tipps ein/aus">
@@ -1233,10 +1241,33 @@
           <!-- Per device, so it lives here and not in the host's house rules. -->
           <div class="settingsItem">
             <label class="settingsRow" for="soundCheckbox">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-sound-on"/></svg><span>Sound &amp; Vibration</span></span>
+              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-sound-on"/></svg><span>Soundeffekte &amp; Vibration</span></span>
               <input type="checkbox" id="soundCheckbox" class="settingsCheckbox" />
             </label>
             <p class="settingsHint">Gilt nur für dieses Gerät.</p>
+          </div>
+
+          <!-- Per device like the sound; composed in scripts/render-music.js. -->
+          <div class="settingsItem settingsPair" id="musicItem">
+            <label class="settingsRow" for="musicLevelSelect">
+              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-music"/></svg><span>Musik</span></span>
+              <select id="musicLevelSelect" class="settingsSelect">
+                <option value="off">Aus</option>
+                <option value="low">Leise</option>
+                <option value="mid">Mittel</option>
+                <option value="high">Laut</option>
+              </select>
+            </label>
+            <label class="settingsRow" for="musicTrackSelect">
+              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-disc"/></svg><span>Stück</span></span>
+              <select id="musicTrackSelect" class="settingsSelect">
+                <option value="mix">Wechselnd</option>
+                <option value="kaffeehaus">Kaffeehaus</option>
+                <option value="lounge">Lounge-Bossa</option>
+                <option value="kaetzchen">Kätzchen</option>
+              </select>
+            </label>
+            <p class="settingsHint">Eigens für Pik Dame komponiert. Gilt für dieses Gerät; jedes Stück wird nur einmal geladen.</p>
           </div>
 
           <div class="settingsItem">
