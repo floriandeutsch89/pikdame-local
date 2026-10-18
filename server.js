@@ -2583,8 +2583,8 @@ async function shutdown(signal) {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-/** The Postgres stores load before the first request; an unreachable
- *  database is retried (the orchestrator sees /healthz down meanwhile). */
+/** The Postgres stores load before the first request; an unreachable database or an
+ *  unreadable old JSON file is retried (the orchestrator sees /healthz down meanwhile). */
 async function loadStores() {
   for (let attempt = 1; ; attempt++) {
     try {
@@ -2592,7 +2592,7 @@ async function loadStores() {
       return;
     } catch (e) {
       const wait = Math.min(30, attempt * 2);
-      console.error(`[store] PostgreSQL not ready (attempt ${attempt}, retry in ${wait} s): ${e.message}`);
+      console.error(`[store] load failed (attempt ${attempt}, retry in ${wait} s): ${e.message}`);
       await new Promise((r) => setTimeout(r, wait * 1000));
     }
   }

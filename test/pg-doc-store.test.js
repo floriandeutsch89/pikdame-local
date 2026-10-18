@@ -124,3 +124,21 @@ test('a failed write stays pending and lands on the next flush', async () => {
   assert.deepEqual((await rowsOf(url, 'docs')).map((r) => r.key), ['a']);
   await real.end();
 });
+
+test('an unreadable old file stops the load and is imported once it is fixed', async () => {
+  const dir = tmpDir();
+  const url = testDatabaseUrl('pgdoc');
+  const file = path.join(dir, 'docs.json');
+  fs.writeFileSync(file, '{"items": {"a": ');
+  const broken = docStore(url, { legacyFile: file });
+  await assert.rejects(broken.load(), /unreadable/);
+  await broken.close();
+  assert.ok(fs.existsSync(file), 'the broken file stays for the operator');
+
+  fs.writeFileSync(file, JSON.stringify({ items: { a: { n: 1 } } }));
+  const fixed = docStore(url, { legacyFile: file });
+  await fixed.load();
+  assert.deepEqual(fixed.read(), { items: { a: { n: 1 } } });
+  assert.ok(fs.existsSync(`${file}.migrated`));
+  await fixed.close();
+});

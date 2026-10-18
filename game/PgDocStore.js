@@ -39,8 +39,9 @@ function createPgDocStore(db, { table, toRows, fromRows, legacyFile = null, flus
     try {
       return JSON.parse(fs.readFileSync(legacyFile, 'utf8'));
     } catch (e) {
-      if (e.code !== 'ENOENT') log.error(`[store] ${table}: ${legacyFile} unreadable, not imported: ${e.message}`);
-      return null;
+      if (e.code === 'ENOENT') return null;
+      // Throw instead of marking the import done: a broken file would otherwise be skipped forever.
+      throw new Error(`[store] ${table}: ${legacyFile} is unreadable, fix or remove it before starting: ${e.message}`);
     }
   }
 

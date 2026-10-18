@@ -40,7 +40,7 @@ test('an unreachable database is retried; SIGTERM meanwhile keeps the snapshot',
   const s = boot({ PIKDAME_DATABASE_URL: 'postgres://nobody@127.0.0.1:59998/none' });
   const snapshot = JSON.stringify({ savedAt: Date.now(), sessions: [{ code: 'KEEPME' }] });
   fs.writeFileSync(path.join(s.dataDir, 'sessions-snapshot.json'), snapshot);
-  await until(() => /PostgreSQL not ready \(attempt 1/.test(s.out.log));
+  await until(() => /load failed \(attempt 1/.test(s.out.log));
   s.child.kill('SIGTERM');
   assert.equal(await s.exited, 0);
   assert.equal(fs.readFileSync(path.join(s.dataDir, 'sessions-snapshot.json'), 'utf8'), snapshot, 'not overwritten by an empty registry');
