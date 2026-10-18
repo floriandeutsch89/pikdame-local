@@ -132,8 +132,8 @@ test('puzzle XP: the owner\'s first solve counts for account and season, a guest
   assert.strictEqual(unsigned.hit.xp, XP_FOR_SOLVED);
   assert.ok(!unsigned.after.includes('accountProgress'));
   assert.deepStrictEqual([(await ladderMe(cleoToken)).xp, (await ladderMe(cleoToken)).seasonXp], [0, 0]);
-  const wrong = await ask({ type: 'getPuzzle', name: 'Cleo' }, 'puzzle');
-  assert.strictEqual(wrong.hit.status.solved, true, 'the profile still remembers the solve');
+  const cleo = await ask({ type: 'getPuzzle', name: 'Cleo' }, 'puzzle');
+  assert.strictEqual(cleo.hit.status.solved, true, 'the profile still remembers the solve');
 
   const players = (await ask({ type: 'listProfiles' }, 'profiles')).hit.players;
   assert.strictEqual(players.find((p) => p.name === 'Ben').xp, XP_FOR_SOLVED);
