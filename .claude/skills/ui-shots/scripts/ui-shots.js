@@ -18,7 +18,8 @@
 // puzzle / puzzle-turn / puzzle-out (one meld laid), puzzle-solved (3 stars + the tile),
 // challenge (intro, attempt used),
 // gamelobby (seats + house rules), botdiff (the strength picker), gameover-challenge,
-// settings / settings-aids (the start screen's "Mehr" sheet, top / play aids),
+// settings / settings-aids / settings-music (the start screen's "Mehr" sheet: top / play aids / music),
+// game-settings (the in-game gear sheet), music-hint (first click: music starts, one-time hint),
 // account (the account sheet: level, season ladder; needs --signed-in).
 // Start-screen scenes may follow table or result scenes in any order: the page
 // is reloaded to the start screen first.
@@ -274,15 +275,17 @@ function waitForHttp(port, ms = 20000) {
       const vp = VIEWS[vn];
       if (!vp) throw new Error(`unknown view ${vn}`);
       const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, userAgent: UA, deviceScaleFactor: 2, isMobile: vp.mobile, hasTouch: vp.mobile });
-      await ctx.addInitScript(([me, theme]) => {
+      await ctx.addInitScript(([me, theme, musicHint]) => {
         try {
           localStorage.setItem('pikdame_player_name', me);
           if (theme) localStorage.setItem('pikdame_theme', theme); // --theme table|night|felt|love|bordeaux|kitchen
           localStorage.setItem('pikdame_splash_device', '1'); // skip the studio intro
           sessionStorage.setItem('pikdame_splash_seen', '1');
           localStorage.setItem('pikdame_stammtische', JSON.stringify([{ code: 'STMOCK1', name: 'Familie Deutsch' }]));
+          // The first click starts the music; its one-time hint would sit on every later shot.
+          if (!musicHint) localStorage.setItem('pikdame_music_hint', '1');
         } catch (e) { /* storage blocked */ }
-      }, [ME, arg('theme', '')]);
+      }, [ME, arg('theme', ''), scenes.includes('music-hint')]);
       if (SIGNED_IN) {
         await ctx.addInitScript(() => { try { localStorage.setItem('pikdame_account_token', 'mock-token'); } catch (e) { /* blocked */ } });
         await ctx.route('**/api/**', (route) => route.fulfill({ contentType: 'application/json',
@@ -328,7 +331,7 @@ function waitForHttp(port, ms = 20000) {
         await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(1200);
       };
-      const LOBBY_SCENES = /^(lobby|lobby-open|progress|stats|history|settings|settings-aids|challenge|stammtisch|account|puzzle.*)$/;
+      const LOBBY_SCENES = /^(lobby|lobby-open|progress|stats|history|settings|settings-aids|settings-music|game-settings|music-hint|challenge|stammtisch|account|puzzle.*)$/;
       for (const sc of scenes) {
         if (LOBBY_SCENES.test(sc)) await toStart();
         if (sc === 'lobby') await shot('lobby');
@@ -406,12 +409,25 @@ function waitForHttp(port, ms = 20000) {
           await shot('progress');
           await page.click('#progressCloseBtn');
         }
-        if (sc === 'settings' || sc === 'settings-aids') {
+        if (sc === 'settings' || sc === 'settings-aids' || sc === 'settings-music') {
           await page.click('#settingsBtnLobby'); await page.waitForTimeout(400);
           // settings-aids: scrolled to the play aids at the end of the sheet.
           if (sc === 'settings-aids') await page.evaluate(() => document.getElementById('aidLowCardsCheckbox').scrollIntoView({ block: 'center' }));
+          if (sc === 'settings-music') await page.evaluate(() => document.getElementById('musicItem').scrollIntoView({ block: 'center' }));
           await shot(sc);
           await page.click('#settingsOverlayCloseBtn');
+        }
+        if (sc === 'music-hint') {
+          // The first gesture on a fresh start screen: music starts, the hint shows once.
+          await page.click('#lobby h1'); await page.waitForTimeout(1800);
+          await shot('music-hint');
+        }
+        if (sc === 'game-settings') {
+          // The in-game gear sheet, opened over the start screen: same markup and styles.
+          await page.evaluate(() => document.getElementById('gameSettingsOverlay').classList.remove('hidden'));
+          await page.waitForTimeout(300);
+          await shot('game-settings');
+          await page.evaluate(() => document.getElementById('gameSettingsOverlay').classList.add('hidden'));
         }
         if (sc === 'account') {
           await page.click('#accountBtn'); await page.waitForTimeout(700);

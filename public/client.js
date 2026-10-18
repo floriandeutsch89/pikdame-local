@@ -281,6 +281,7 @@
     updateResumeBtn();    // "Weiterspielen (CODE)" - enthaelt einen Wert
     try { updateStudioLogoBtn(); } catch (e) { /* erst spaeter definiert */ }
     try { updateCelebrationSetting(); } catch (e) { /* erst spaeter definiert */ }
+    try { updateMusicSetting(); } catch (e) { /* erst spaeter definiert */ }
     try { applyCardback(); } catch (e) { /* erst spaeter definiert */ }
     try { setTipsEnabled(gameTipsEnabled); renderAidControls(); renderBotQuipsControls(); } catch (e) { /* Einstellungsblatt ist nie kritisch */ }
     // Aus dem Code erzeugte Listen: Ihre Texte kommen aus L(), werden aber nur
@@ -616,14 +617,55 @@
   function scheduleAudioSuspend() {
     clearTimeout(audioIdleTimer);
     audioIdleTimer = setTimeout(() => {
+      if (music && music.isActive()) return; // background music needs the context running
       if (audioCtx && audioCtx.state === 'running') audioCtx.suspend().catch(() => {});
     }, 3000);
   }
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && audioCtx && audioCtx.state === 'running') {
       audioCtx.suspend().catch(() => {});
+    } else if (!document.hidden && music) {
+      music.wake();
     }
   });
+
+  // --- Background music: public/music-player.js plays what scripts/render-music.js composed.
+  // Without the module or Web Audio the settings hide and nothing plays.
+  const MUSIC_LEVEL_KEY = 'pikdame_music_level';
+  const MUSIC_CHOICE_KEY = 'pikdame_music_track';
+  const MUSIC_HINT_KEY = 'pikdame_music_hint';
+  const musicLib = window.PikdameMusic || null;
+  const musicSupported = !!(musicLib && (window.AudioContext || window.webkitAudioContext));
+  let musicPrefs = musicLib
+    ? musicLib.resolvePrefs({
+      level: storageGet(MUSIC_LEVEL_KEY),
+      choice: storageGet(MUSIC_CHOICE_KEY),
+      soundOff: storageGet(SOUND_KEY) === 'off',
+      saveData: !!(navigator.connection && navigator.connection.saveData),
+    })
+    : { level: 'off', choice: 'mix', explicit: false };
+  let music = null;
+  try {
+    if (musicSupported) {
+      music = musicLib.createPlayer({
+        getContext: getAudioCtx,
+        fetchImpl: (url, opts) => fetch(url, opts),
+        cachesImpl: window.caches || null, // only in secure contexts; plain fetch otherwise
+        onStart: () => {
+          if (musicPrefs.explicit || storageGet(MUSIC_HINT_KEY) === '1') return;
+          storageSet(MUSIC_HINT_KEY, '1');
+          showToast(L('Musik läuft leise – ändern unter Einstellungen › Musik', 'Music plays quietly – change it under Settings › Music'), { duration: 6000 });
+        },
+      });
+      music.setChoice(musicPrefs.choice);
+      music.setLevel(musicPrefs.level);
+      // iOS starts audio only inside a gesture; unlock() is cheap to repeat.
+      const unlockMusic = () => { try { music.unlock(); } catch (e) { /* music is never critical */ } };
+      for (const type of ['pointerup', 'touchend', 'keydown']) document.addEventListener(type, unlockMusic, { capture: true, passive: true });
+    }
+  } catch (e) {
+    music = null;
+  }
 
   function playTone(freqs, durationMs, type = 'sine', gainValue = 0.06) {
     if (!soundEnabled) return;
@@ -919,6 +961,56 @@
     if (box) box.checked = enabled;
   }
   setSoundEnabled(soundEnabled);
+
+  const MUSIC_LEVELS = ['off', 'low', 'mid', 'high'];
+  function musicLevelName(level) {
+    return { off: L('Aus', 'Off'), low: L('Leise', 'Quiet'), mid: L('Mittel', 'Medium'), high: L('Laut', 'Loud') }[level];
+  }
+  function musicChoiceName(choice) {
+    return {
+      mix: L('Wechselnd', 'Shuffle'),
+      kaffeehaus: L('Kaffeehaus', 'Coffee house'),
+      lounge: L('Lounge-Bossa', 'Lounge bossa'),
+      kaetzchen: L('Kätzchen', 'Kitten'),
+    }[choice];
+  }
+  function updateMusicSetting() {
+    el('musicItem').classList.toggle('hidden', !musicSupported);
+    el('musicToggle').classList.toggle('hidden', !musicSupported);
+    const levelSel = el('musicLevelSelect');
+    for (const opt of levelSel.options) opt.textContent = musicLevelName(opt.value) || opt.textContent;
+    levelSel.value = musicPrefs.level;
+    const choiceSel = el('musicTrackSelect');
+    for (const opt of choiceSel.options) opt.textContent = musicChoiceName(opt.value) || opt.textContent;
+    choiceSel.value = musicPrefs.choice;
+    setRowValue(el('musicToggle'), musicPrefs.level === 'off'
+      ? musicLevelName('off')
+      : `${musicLevelName(musicPrefs.level)} · ${musicChoiceName(musicPrefs.choice)}`);
+  }
+  function setMusicLevel(level) {
+    if (!MUSIC_LEVELS.includes(level)) return;
+    musicPrefs = { ...musicPrefs, level, explicit: true };
+    storageSet(MUSIC_LEVEL_KEY, level);
+    if (music) {
+      music.setLevel(level);
+      if (level === 'off') scheduleAudioSuspend(); // the context may sleep again
+      else music.unlock();
+    }
+    updateMusicSetting();
+  }
+  function setMusicChoice(choice) {
+    if (!musicChoiceName(choice)) return;
+    musicPrefs = { ...musicPrefs, choice };
+    storageSet(MUSIC_CHOICE_KEY, choice);
+    if (music) music.setChoice(choice);
+    updateMusicSetting();
+  }
+  function cycleMusicLevel() {
+    const next = MUSIC_LEVELS[(MUSIC_LEVELS.indexOf(musicPrefs.level) + 1) % MUSIC_LEVELS.length];
+    setMusicLevel(next);
+    showToast(L(`Musik: ${musicLevelName(next)}`, `Music: ${musicLevelName(next)}`));
+  }
+  try { updateMusicSetting(); } catch (e) { /* settings are comfort */ }
 
   // Spiel-Tipps (der 'Tipp: 3+ Karten...'-Toast pro Zug): erfahrene Spieler
   // koennen sie hinterm Zahnrad dauerhaft abschalten. Persistiert lokal auf
@@ -4108,6 +4200,9 @@
     setSoundEnabled(!soundEnabled);
   });
   el('soundCheckbox').addEventListener('change', () => setSoundEnabled(el('soundCheckbox').checked));
+  el('musicToggle').addEventListener('click', cycleMusicLevel);
+  el('musicLevelSelect').addEventListener('change', () => setMusicLevel(el('musicLevelSelect').value));
+  el('musicTrackSelect').addEventListener('change', () => setMusicChoice(el('musicTrackSelect').value));
 
   // Segment buttons write their hidden <select> and fire its change event, so
   // the select stays the one source of truth; syncSegments() mirrors it back.

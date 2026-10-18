@@ -220,6 +220,18 @@ window.I18N_STATIC = {
 
   // Themes-Zeile etc.
   'Sound & Vibration': 'Sound & vibration',
+  // Background music ('Mittel' and 'Aus' exist above)
+  'Musik': 'Music',
+  'Musik ändern': 'Change music',
+  'Stück': 'Piece',
+  'Leise': 'Quiet',
+  'Laut': 'Loud',
+  'Wechselnd': 'Shuffle',
+  'Kaffeehaus': 'Coffee house',
+  'Lounge-Bossa': 'Lounge bossa',
+  'Kätzchen': 'Kitten',
+  'Eigens für Pik Dame komponiert. Gilt für dieses Gerät; jedes Stück wird nur einmal geladen.':
+    'Composed for Pik Dame. Applies to this device; each piece downloads only once.',
   // Stammtisch
   'Stammtisch': 'Regulars table',
   'Stammtisch gründen': 'Found a regulars table',

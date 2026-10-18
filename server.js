@@ -207,7 +207,11 @@ const MIME_TYPES = {
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
+  '.mp3': 'audio/mpeg',
 };
+// Music segments carry their content hash in the name (scripts/render-music.js),
+// so a cached copy can never go stale; the manifest naming them revalidates.
+const HASHED_MUSIC_RE = /^\/music\/[a-z0-9-]+\.[0-9a-f]{8}\.mp3$/;
 
 /** Does the client already hold this exact representation?
  *  If-None-Match is a LIST, entries may be weak, and a compressing proxy
@@ -359,7 +363,7 @@ function serveStatic(req, res) {
     // actually reaches the player.
     const cacheControl = filePath.startsWith('/icons/') || filePath.startsWith('/fonts/')
       ? 'public, max-age=86400'
-      : 'no-cache';
+      : HASHED_MUSIC_RE.test(filePath) ? 'public, max-age=31536000, immutable' : 'no-cache';
     if (etagMatches(req.headers['if-none-match'], etag)) {
       res.writeHead(304, { ETag: etag, 'Cache-Control': cacheControl });
       res.end();
