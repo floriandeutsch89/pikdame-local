@@ -9,7 +9,7 @@ generated from the source, so it cannot go stale.
 | --- | --- | --- |
 | `PIKDAME_ACCOUNTS` | unset (compare against `0`) | Set to `0` to disable user accounts entirely (pure guest play). |
 | `PIKDAME_ALLOWED_ORIGIN` | unset | If set, only WebSocket connections from this origin are accepted (CSRF hardening). |
-| `PIKDAME_BASE_URL` | the request's own host | Public base URL used to build invite links and QR codes (e.g. `https://play.example.com`). |
+| `PIKDAME_BASE_URL` | the request's own host | Public base URL used to build invite links, QR codes and the links in mails (e.g. `https://play.example.com`). With SMTP configured, the year-review mail is only sent when this is set: its unsubscribe link must work. |
 | `PIKDAME_BIRTHDAY` | — | Optional greeting days: comma-separated `MM-DD:account` entries (account = user name, case-insensitive). On that game day (German time) only that signed-in account sees a small greeting on the start screen; nobody else sees anything. Broken entries are skipped and logged by position. |
 | `PIKDAME_DATA_DIR` | `<app>/data` | Directory for all persistent data (profiles, stats, accounts, session snapshot). Point this at your mounted volume. |
 | `PIKDAME_DATABASE_PASSWORD` | unset | Password for the PostgreSQL connection (also readable from a `_FILE` secret; see Configuration). |
@@ -22,6 +22,7 @@ generated from the source, so it cannot go stale.
 | `PIKDAME_ONNX` | — | Three-valued. **Unset = auto**: the trained ONNX bot policy is used whenever the runtime and the models are both present, and silently falls back to the heuristic where they are not. `1` forces it on (and says so loudly if it cannot be honoured), `0` forces the heuristic. See {doc}`onnx`. |
 | `PIKDAME_PUBLIC_MODE` | unset (compare against `1`) | Set to `1` on a public server: no player profiles are persisted and the lobby shows no player list. Anonymous global stats are still counted. |
 | `PIKDAME_TRUST_PROXY` | unset (compare against `1`) | Set to `1` when running behind a reverse proxy so client IPs are read from `X-Forwarded-For`. |
+| `PIKDAME_YEAR_REVIEW_PREVIEW` | unset (compare against `1`) | Set to `1` to offer the December year review in the app all year (local checks, screenshots). Not for production. The review mail keeps its own date (27 December, 10:00 German time). |
 | `PORT` | `8080` | HTTP/WebSocket port the server listens on. |
 
 :::{note}
