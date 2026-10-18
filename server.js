@@ -42,7 +42,7 @@ const { createStammtischStore, normalizeCode: normalizeStammtischCode } = requir
 const { createGameHistoryStore, historyForPlayer } = require('./game/GameHistoryStore');
 const { createYearStatsStore } = require('./game/YearStatsStore');
 const { buildReview, isReviewSeason, yearOf } = require('./game/YearReview');
-const { createYearReviewMailer, composeReviewMail, sampleReview } = require('./game/YearReviewMail');
+const { createYearReviewMailer, composeReviewMail, sampleReview, REVIEW_MAIL_CONSENT_VERSION } = require('./game/YearReviewMail');
 const { SessionRegistry, sanitizeName } = require('./game/SessionRegistry');
 
 const PORT = process.env.PORT || 8080;
@@ -966,33 +966,38 @@ async function handleAccountRequest(req, res, filePath) {
     return;
   }
 
-  // Unsubscribe link from the year-review mail: GET = the link in the text,
-  // POST = RFC 8058 one-click from the mail client. Both switch the mail off.
+  // Unsubscribe link from the year-review mail. GET only asks (mailbox link
+  // scanners open links); POST switches off: the page's button and the RFC 8058
+  // one-click from the mail client (List-Unsubscribe=One-Click).
   if (filePath === '/unsubscribe') {
-    // HEAD and friends (link checkers) must not switch anything off.
     if (req.method !== 'GET' && req.method !== 'POST') return sendJson(res, 405, { error: 'Nur GET oder POST.' });
-    const url = new URL(req.url, 'http://localhost');
-    const r = ACCOUNTS_ENABLED && typeof accountStore.unsubscribeReviewMail === 'function'
-      ? await accountStore.unsubscribeReviewMail(url.searchParams.get('t'))
-      : { error: 'invalid' };
-    if (r.ok) console.log(`[account] Jahresrückblick-Mail abbestellt: ${r.username}`);
-    if (req.method === 'POST') {
-      res.writeHead(r.ok ? 200 : 400, { 'Content-Type': 'text/plain; charset=utf-8' });
-      res.end(r.ok ? 'OK' : 'Invalid');
-      return;
-    }
+    const token = new URL(req.url, 'http://localhost').searchParams.get('t');
+    const store = ACCOUNTS_ENABLED && typeof accountStore.unsubscribeReviewMail === 'function' ? accountStore : null;
+    const post = req.method === 'POST';
+    const r = !store ? { error: 'invalid' } : post ? await store.unsubscribeReviewMail(token) : await store.reviewUnsubInfo(token);
+    if (post && r.ok) console.log(`[account] Jahresrückblick-Mail abbestellt: ${r.username}`);
     const en = r.lang === 'en';
-    const title = r.ok ? (en ? 'Unsubscribed' : 'Abbestellt') : 'Link ungültig · Invalid link';
-    const text = r.ok
-      ? (en
-        ? 'You will not get the year-review mail any more. You can switch it back on in your account.'
-        : 'Du bekommst den Jahresrückblick nicht mehr per Mail. Wieder einschalten kannst du ihn in deinem Konto.')
-      : 'Dieser Abmeldelink ist ungültig oder abgelaufen. This unsubscribe link is invalid or expired.';
+    let page;
+    if (!r.ok) {
+      page = { title: 'Link ungültig · Invalid link', text: 'Dieser Abmeldelink ist ungültig oder abgelaufen. This unsubscribe link is invalid or expired.' };
+    } else if (post || !r.active) {
+      page = en
+        ? { title: post ? 'Unsubscribed' : 'Already unsubscribed', text: 'You will not get the year-review mail any more. You can switch it back on in your account.' }
+        : { title: post ? 'Abbestellt' : 'Schon abbestellt', text: 'Du bekommst den Jahresrückblick nicht mehr per Mail. Wieder einschalten kannst du ihn in deinem Konto.' };
+    } else {
+      page = en
+        ? { title: 'Unsubscribe from the year review?', text: 'Then the Pik Dame year review will not come by mail any more. In the game you can still see it in December.', button: 'Unsubscribe' }
+        : { title: 'Jahresrückblick abbestellen?', text: 'Dann kommt der Pik-Dame-Jahresrückblick nicht mehr per Mail. Im Spiel kannst du ihn im Dezember trotzdem ansehen.', button: 'Abbestellen' };
+    }
+    // A plain form, no script: the CSP allows posting to our own origin only.
+    const form = page.button
+      ? `<form method="post" action="/unsubscribe?t=${escapeHtml(token)}"><button type="submit" style="min-height:44px;padding:10px 28px;border:0;border-radius:999px;background:#2fd6b0;color:#0b1f1a;font:inherit;font-weight:700;cursor:pointer">${escapeHtml(page.button)}</button></form>`
+      : '';
     res.writeHead(r.ok ? 200 : 400, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(`<!DOCTYPE html><html lang="${en ? 'en' : 'de'}"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pik Dame - ${escapeHtml(title)}</title>
+<title>Pik Dame - ${escapeHtml(page.title)}</title>
 <body style="font-family:sans-serif;background:#14171c;color:#eef1f4;display:flex;min-height:100dvh;align-items:center;justify-content:center;text-align:center;padding:20px">
-<div><h1>${escapeHtml(title)}</h1><p>${escapeHtml(text)}</p>
+<div style="max-width:28em"><h1>${escapeHtml(page.title)}</h1><p>${escapeHtml(page.text)}</p>${form}
 <p><a href="/" style="color:#2fd6b0">${en ? 'Back to the game' : 'Zurück zum Spiel'}</a></p></div></body></html>`);
     return;
   }
@@ -1133,7 +1138,8 @@ async function handleAccountRequest(req, res, filePath) {
     const acc = await needAccount();
     if (!acc) return;
     if (typeof body.enabled !== 'boolean') return sendJson(res, 400, { error: 'Ungültige Anfrage.' });
-    const r = await accountStore.setReviewMail(acc.id, body.enabled, body.lang === 'en' ? 'en' : 'de');
+    // The version of the consent text goes along: proof of what was agreed to (Art. 7 (1) GDPR).
+    const r = await accountStore.setReviewMail(acc.id, body.enabled, body.lang === 'en' ? 'en' : 'de', REVIEW_MAIL_CONSENT_VERSION);
     if (!r.error) console.log(`[account] Jahresrückblick-Mail ${body.enabled ? 'an' : 'aus'}: ${acc.username}`);
     return sendJson(res, r.error ? 503 : 200, r);
   }
@@ -2184,7 +2190,13 @@ wss.on('connection', (ws, req) => {
       // flag is for screenshots and local checks, never set in production.
       const today = gameDay();
       const open = isReviewSeason(today) || YEAR_REVIEW_PREVIEW;
-      const review = open ? yearReviewFor(sanitizeName(msg.name), yearOf(today)) : null;
+      const name = sanitizeName(msg.name);
+      let review = open ? yearReviewFor(name, yearOf(today)) : null;
+      // Who someone plays with and their Stammtisch's name: only for the account owning the name.
+      if (review && (review.favorite || review.table)) {
+        const owner = ACCOUNTS_ENABLED && msg.accountToken ? await stammtischAccount(msg) : null;
+        if (!owner || owner.toLowerCase() !== String(name).toLowerCase()) review = { ...review, favorite: null, table: null };
+      }
       ws.send(JSON.stringify({ type: 'yearReview', available: !!review, season: open, review }));
       return;
     }
