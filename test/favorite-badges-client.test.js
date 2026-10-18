@@ -1,6 +1,6 @@
-/** Favourite badges in the trophy cabinet: a favourite stays findable and
- *  removable, also after its family reached a new tier. Boots the REAL
- *  markup and client in jsdom. */
+/** Favourite badges in the trophy cabinet: a star on the tile, a list on top
+ *  with a remove button each, findable and removable also after a family
+ *  reached a new tier. Boots the REAL markup and client in jsdom. */
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
@@ -10,7 +10,7 @@ const { JSDOM, VirtualConsole } = require('jsdom');
 const pub = path.join(__dirname, '..', 'public');
 const html = fs.readFileSync(path.join(pub, 'index.html'), 'utf8');
 
-function boot() {
+function boot({ signedIn = true } = {}) {
   const errors = [];
   const virtualConsole = new VirtualConsole();
   virtualConsole.on('jsdomError', (e) => errors.push(e));
@@ -44,7 +44,7 @@ function boot() {
   window.WebSocket.OPEN = 1;
   window.sessionStorage.setItem('pikdame_splash_seen', '1');
   window.localStorage.setItem('pikdame_player_name', 'Testkonto');
-  window.localStorage.setItem('pikdame_account_token', 'tok');
+  if (signedIn) window.localStorage.setItem('pikdame_account_token', 'tok');
   for (const src of ['i18n.js', 'client.js']) window.eval(fs.readFileSync(path.join(pub, src), 'utf8'));
   const doc = window.document;
   const settle = async () => { for (let i = 0; i < 6; i++) await new Promise((r) => setImmediate(r)); };
@@ -86,8 +86,75 @@ test('a favourite family can be removed after it reached a new tier', async () =
   btn = box.querySelector('.achFavBtn');
   assert.ok(btn, 'still offered after the new tier');
   assert.strictEqual(btn.getAttribute('aria-pressed'), 'true');
+  assert.match(btn.textContent, /Lieblingsabzeichen · entfernen/, 'the button says it removes');
   btn.click();
   assert.deepStrictEqual(t.favSends().map((m) => m.badges), [[]], 'removing sends the empty list');
   assert.deepStrictEqual(t.errors, []);
+  t.window.close();
+});
+
+async function signedInWith(me) {
+  const t = boot();
+  await t.settle();
+  t.ws().fire('open');
+  await t.settle();
+  t.profiles(me);
+  await t.settle();
+  t.doc.getElementById('statsBtn').click();
+  await t.settle();
+  return t;
+}
+
+test('folded cabinet: the favourite list on top, a star on the tile, × removes', async () => {
+  const t = await signedInWith({ badges: { marathon_10: T1, marathon_50: T2, first_win: T1, wins_10: T2 }, favoriteBadges: ['games', 'wins'] });
+  const box = t.doc.getElementById('achievementsBox');
+  const strip = box.querySelector('.achFavStrip');
+  assert.ok(strip, 'the list is there while the cabinet is folded');
+  assert.match(strip.querySelector('.achSection').textContent, /Lieblingsabzeichen \(2\/3\)/);
+  const chips = [...strip.querySelectorAll('.achFavChip')];
+  assert.strictEqual(chips.length, 2);
+  assert.ok(strip.querySelector('.achFavHint'), 'a free slot explains how to add one');
+  // The chip shows the family's CURRENT tier, as the tile does.
+  assert.ok(chips.every((c) => c.querySelector('.achFavName').textContent.trim()));
+  box.querySelector('.achAllBtn').click();
+  const tile = box.querySelector('.achTile[data-ach="games"]');
+  assert.ok(tile.classList.contains('fav'));
+  assert.ok(tile.querySelector('.achFavMark'), 'star on the tile');
+  assert.ok(!box.querySelector('.achTile[data-ach="queens"]').classList.contains('fav'));
+  box.querySelector('.achFavRemove[data-fav-remove="games"]').click();
+  assert.deepStrictEqual(t.favSends().map((m) => m.badges), [['wins']]);
+  assert.deepStrictEqual(t.errors, []);
+  t.window.close();
+});
+
+test('a stored tier id counts as its family: marked, listed, removable', async () => {
+  const t = await signedInWith({ badges: { marathon_10: T1, marathon_50: T2 }, favoriteBadges: ['marathon_10'] });
+  const box = t.doc.getElementById('achievementsBox');
+  assert.strictEqual(box.querySelectorAll('.achFavChip').length, 1);
+  box.querySelector('.achAllBtn').click();
+  assert.ok(box.querySelector('.achTile[data-ach="games"]').classList.contains('fav'));
+  box.querySelector('.achFavRemove').click();
+  assert.deepStrictEqual(t.favSends().map((m) => m.badges), [[]], 'the tier id does not linger');
+  t.window.close();
+});
+
+test('three favourites: no hint; signed out: no list and no stars', async () => {
+  const full = await signedInWith({ badges: { marathon_10: T1, first_win: T1, pd_laid: T1 }, favoriteBadges: ['games', 'wins', 'queens'] });
+  const strip = full.doc.querySelector('#achievementsBox .achFavStrip');
+  assert.strictEqual(strip.querySelectorAll('.achFavChip').length, 3);
+  assert.strictEqual(strip.querySelector('.achFavHint'), null);
+  full.window.close();
+
+  const t = boot({ signedIn: false });
+  await t.settle();
+  t.ws().fire('open');
+  await t.settle();
+  t.profiles({ badges: { marathon_10: T1 }, favoriteBadges: ['games'] });
+  await t.settle();
+  t.doc.getElementById('statsBtn').click();
+  await t.settle();
+  const box = t.doc.getElementById('achievementsBox');
+  assert.strictEqual(box.querySelector('.achFavStrip'), null);
+  assert.strictEqual(box.querySelector('.achFavMark'), null);
   t.window.close();
 });
