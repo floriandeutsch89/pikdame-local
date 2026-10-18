@@ -8630,6 +8630,12 @@
     const text = L(`Saison ${seasonLabel(r.season)} beendet: `, `Season ${seasonLabel(r.season)} is over: `) +
       seasonPlaceText(r) + (a ? ` – ${a.emoji} ${a.cheer()}` : '.');
     showToast(text, { duration: 7000, priority: true });
+    // Podium: the fireworks band once, behind the start screen's header (not
+    // when the start finds an open game).
+    const lobby = el('lobby');
+    if (r.place <= 3 && !lobby.classList.contains('hidden') && !lobby.classList.contains('inSession')) {
+      playCelebration('fireworks', lobby.querySelector('.lobbyHeader'));
+    }
     accountApi('/api/season-result/seen', { token: accountToken(), season: r.season }).catch(() => {});
   }
   function seasonAwardChip(a) {
