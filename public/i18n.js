@@ -418,7 +418,7 @@ window.I18N_SERVER_PATTERNS = [
   [/^Der Server ist derzeit voll - bitte später erneut versuchen\.$/, 'The server is currently full – please try again later.'],
   [/^Mindestens 2 Spieler nötig\.$/, 'At least 2 players are required.'],
   [/^(.+?) gewinnt die Serie (\d+):(\d+)!$/, '$1 wins the series $2:$3!'],
-  // Bot tower (BotTower.js)
+  // Kartenhaus (BotTower.js)
   [/^Kartenhaus, Etage (\d+): Hol in dieser Runde mehr Punkte als jeder Bot - die Bots bekommen (\d+) Punkte Vorgabe\.$/, 'House of Cards, floor $1: score more points than every bot this round - the bots get a $2-point head start.'],
   [/^Kartenhaus, Etage (\d+): Hol in dieser Runde mehr Punkte als jeder Bot\.$/, 'House of Cards, floor $1: score more points than every bot this round.'],
   [/^Erschwernis: Du startest mit der Pik Dame auf der Hand\.$/, 'Handicap: you start with the Queen of Spades in your hand.'],

@@ -2581,8 +2581,8 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 .pgLadder li b { font-size: var(--fs-micro); text-transform: uppercase; letter-spacing: 0.04em; }
 .pgLadder li .icon { width: 1em; height: 1em; color: var(--text-muted); }
 .plLevel { font-variant-numeric: tabular-nums; font-weight: 700; }
-/* Bot tower: entry on the progress sheet, the stage sheet, the stage verdict.
-   Overlay cards are light in every theme, so the star gold is fixed. */
+/* Kartenhaus: entry on the progress sheet and the floor verdict. Overlay
+   cards are light in every theme, so the star gold is one set (--star-*). */
 .pgTower {
   display: flex; align-items: center; gap: 12px; width: 100%; min-height: var(--tap-min);
   padding: 8px 12px; border: 0; border-radius: var(--r-sm); background: rgba(0,0,0,0.05);
