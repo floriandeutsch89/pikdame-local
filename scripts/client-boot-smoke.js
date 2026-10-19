@@ -667,19 +667,21 @@ setTimeout(() => {
       feed({ ...table, isHost: true, challengeDate: '2026-10-16' });
       if (doc.querySelector('#opponents .botDiffBadge')) errors.push('the daily challenge must not show the bot level');
       feed(table);
-      // Bot lines: a bubble under the speaker's chip; the settings switch mutes them.
+      // Bot lines: off by default; switched on, a bubble under the speaker's chip.
       const quip = () => wsInstance._emit('message', { data: JSON.stringify({ type: 'quip', playerId: 'b1', moment: 'queen_caught' }) });
+      const quipsBox = doc.getElementById('botQuipsCheckbox');
+      quip();
+      if (doc.querySelector('.quipBubble')) errors.push('bot lines must be off by default');
+      quipsBox.checked = true;
+      quipsBox.dispatchEvent(new window.Event('change'));
       quip();
       const bubble = doc.querySelector('.quipBubble');
       if (!bubble || !/Dame|Hundert/.test(bubble.textContent)) errors.push(`a bot line must show as a bubble: ${bubble ? bubble.textContent : 'none'}`);
       doc.querySelectorAll('.quipBubble').forEach((n) => n.remove());
-      const quipsBox = doc.getElementById('botQuipsCheckbox');
       quipsBox.checked = false;
       quipsBox.dispatchEvent(new window.Event('change'));
       quip();
       if (doc.querySelector('.quipBubble')) errors.push('muted bot lines must not show');
-      quipsBox.checked = true;
-      quipsBox.dispatchEvent(new window.Event('change'));
     }
 
     // A freshly drawn card is marked - the Queen of Spades included (it used

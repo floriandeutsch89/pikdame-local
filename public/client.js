@@ -7790,9 +7790,9 @@
   }
 
   // --- Bot lines: the server names the moment, the client picks a line ------
-  // Mirrors game/BotQuips.js QUIP_MOMENTS (contract test). Per device, default on.
+  // Mirrors game/BotQuips.js QUIP_MOMENTS (contract test). Per device, default off.
   const BOT_QUIPS_KEY = 'pikdame_bot_quips';
-  let botQuipsOn = storageGet(BOT_QUIPS_KEY) !== 'off';
+  let botQuipsOn = storageGet(BOT_QUIPS_KEY) === 'on';
   const BOT_QUIPS = {
     round_win: () => [L('Das war\'s – Karten her!', 'That\'s it – cards in!'), L('Manchmal hat man\'s einfach.', 'Sometimes you\'ve just got it.'), L('Gelernt ist gelernt.', 'Practice pays off.')],
     hand_aus: () => [L('Hand aus! Tschüss zusammen.', 'Out in one! Bye, everyone.'), L('Einmal ziehen, alles weg.', 'One draw, all gone.'), L('Hab ich gar nicht geübt, ehrlich.', 'I never even practised that, honest.')],
