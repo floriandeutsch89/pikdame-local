@@ -166,8 +166,8 @@ const MSG_NOTES = {
   revealPuzzle: 'Give up on the puzzle and see the solution (no points).',
   startChallenge: 'Begin today\'s daily challenge. Beginning counts as the one attempt of the day.',
   startTutorial: 'Open a tutorial table against easy bots; the hints themselves are client-side.',
-  getTower: 'The bot tower stages (bots and handicap, never the seeds) and a player name\'s best stars per stage.',
-  startTower: 'Start one bot tower stage: a solo table with its fixed deal and bots, one round. Refused while the stage is locked and in public mode.',
+  getTower: 'This month\'s Kartenhaus: the floors (bots, handicap and modifiers, never the seeds) and a player name\'s best stars per floor, plus the earlier months.',
+  startTower: 'Start one floor of this month\'s Kartenhaus: a solo table with that month\'s deal and the floor\'s bots, one round. Refused while the floor is locked and in public mode.',
   createStammtisch: 'Create a Stammtisch (a standing group table with its own code).',
   getStammtisch: 'Resolve a Stammtisch code. Unknown codes count as a failed attempt (brute-force guard).',
   listStammtische: 'The Stammtische a player name belongs to.',
@@ -224,7 +224,7 @@ const S2C_NOTES = {
   bestRound: 'A new personal best round score for this player.',
   badges: 'Badges earned by this match, for the celebration overlay.',
   progress: 'XP, level and daily-quest progress after a finished match.',
-  accountProgress: 'The account-bound progression on login (so a new device shows the right level), and after XP from outside a match (a solved puzzle, a tower stage\'s first star).',
+  accountProgress: 'The account-bound progression on login (so a new device shows the right level), and after XP from outside a match (a solved puzzle, a Kartenhaus floor\'s first star or crown).',
   gameHistory: 'Answer to `getGameHistory`.',
   gameExport: 'The requested game export (JSON).',
   profiles: 'Answer to `listProfiles`.',
@@ -232,8 +232,8 @@ const S2C_NOTES = {
   puzzleResult: 'Grading of a `solvePuzzle` attempt.',
   puzzleSolution: 'The solution, after `revealPuzzle` or a correct answer.',
   challengeBoard: 'Today\'s daily-challenge leaderboard and weekly ranking.',
-  towerInfo: 'Answer to `getTower`: the stages, best stars per stage, total stars, cleared stages and the highest unlocked stage.',
-  towerResult: 'The verdict of a finished bot tower stage: stars, own score, best bot, handicap, margin, and the updated best.',
+  towerInfo: 'Answer to `getTower`: `month` and `today` (Europe/Berlin), the floors, best stars per floor this month, stars, cleared floors, the highest unlocked floor, `crowned`, `totalStars` over all months and `archive` (earlier months with their best stars and crown, read-only).',
+  towerResult: 'The verdict of a finished Kartenhaus floor: month, stars, own score, best bot, handicap, margin, modifiers, the XP and the updated best of the month (`crownedNow` when it completed the crown).',
   queenMagnet: 'Who is currently the "Damen-Magnet des Tages" in the challenge.',
   stammtisch: 'A Stammtisch was created or resolved; carries its code and members.',
   stammtischInfo: 'Details of one Stammtisch (members, last evening, open table).',
@@ -499,7 +499,8 @@ bilingual tables. Ids are stable, names may change.
 | Winning it | **+${P.XP_WIN}** |
 | Final score | **+1 per ${perPoints} points** (never negative) |
 | Solving the daily puzzle (once a day, no game counted) | **+${XP_FOR_SOLVED}** |
-| First star of a bot tower stage (once per stage, no game counted) | **+${P.XP_TOWER_FIRST_STAR}** |
+| First star of a Kartenhaus floor (once per floor and month, no game counted) | **+${P.XP_TOWER_FIRST_STAR}** |
+| Crowning the Kartenhaus (all 20 floors of a month starred, once per month) | **+${P.XP_TOWER_CROWN}** |
 
 Each level costs a little more than the last, so the first levels arrive
 after an evening of play and the later ones stay meaningful:

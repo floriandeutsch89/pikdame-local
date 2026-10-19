@@ -2,6 +2,7 @@
  *  sends them as tablePrefs, the server applies them only when it opens a
  *  table and only through the lobby controls' validation. Real server. */
 const test = require('node:test');
+const { freePort } = require('./helpers/free-port');
 const assert = require('node:assert');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
@@ -11,7 +12,7 @@ const http = require('node:http');
 const WebSocket = require('ws');
 
 const ROOT = path.join(__dirname, '..');
-const PORT = 8104;
+let PORT = 0;
 
 async function waitForServer(timeoutMs = 15000) {
   const deadline = Date.now() + timeoutMs;
@@ -73,6 +74,7 @@ const PREFS = { botLevel: 'hard', houseRules: { handAusDoubles: true, strictThre
 
 test('tablePrefs: a new table starts with them, nothing else does', async (t) => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-prefs-'));
+  PORT = await freePort();
   const server = spawn('node', ['server.js'], {
     cwd: ROOT,
     env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_PUBLIC_MODE: '1', PIKDAME_ACCOUNTS: '0', PIKDAME_ONNX: '0' },

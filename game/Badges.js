@@ -64,11 +64,15 @@ const BADGE_IDS = [
   'puzzle_perfect_100',
   'royal_flush', // melded 10-J-Q-K-A of one suit, all real cards
   'pik_royal', // ... in spades (with the Queen of Spades)
-  // --- bot tower (BotTower.js): stages cleared, all stars ---------------------
+  // --- Kartenhaus (BotTower.js): floors and stars in the best month ------------
+  // (the ids come from the old ten-stage tower, which is October 2026 now)
   'tower_3',
   'tower_6',
   'tower_10',
   'tower_stars_30',
+  'tower_crowned_1', // a crowned month: all 20 floors starred (tiers 3/12 below)
+  'tower_crowned_3',
+  'tower_crowned_12',
 ];
 
 // Badge families: the same counter at rising thresholds, shown as ONE tile
@@ -87,6 +91,7 @@ const BADGE_FAMILIES = [
   { id: 'puzzlePerfect', field: 'totalPerfectPuzzles', tiers: [['puzzle_perfect_10', 10], ['puzzle_perfect_30', 30], ['puzzle_perfect_100', 100]] },
   { id: 'tower', field: 'towerCleared', tiers: [['tower_3', 3], ['tower_6', 6], ['tower_10', 10]] },
   { id: 'towerStars', field: 'towerStars', tiers: [['tower_stars_30', 30]] },
+  { id: 'towerCrowned', field: 'towerCrownedMonths', tiers: [['tower_crowned_1', 1], ['tower_crowned_3', 3], ['tower_crowned_12', 12]] },
 ];
 
 /**

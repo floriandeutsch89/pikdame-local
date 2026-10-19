@@ -78,8 +78,8 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   - `Badges.js` (Familien in `BADGE_FAMILIES`, Fakten aus `finishRound`),
     `Progression.js` (XP, Tagesaufgaben, Serie mit Joker-Tag; XP-Regeln
     spiegelt `XP_RULES` im Client, Vertragstest). UI: Stufe + Serie am
-    Identitäts-Chip/Fortschritts-Blatt; Tägliches (Rätsel, Challenge,
-    Aufgaben) mit Status im Bereich „Heute“.
+    Identitäts-Chip/Fortschritts-Blatt; Rätsel, Challenge, Kartenhaus und
+    Tagesziele mit Status im Bereich „Aufgaben“.
   - `GameDay.js`: EINZIGE Definition von „heute“ (Mitternacht Europe/Berlin,
     Rechnen nur auf Datums-Strings, nie 24-h-Schritte).
   - `DailyPuzzle.js`: Ergebnisobjekt ohne `type`-Feld (wird in WS gespreadet).
@@ -164,6 +164,8 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
    Ablauf Schritt für Schritt: Skill `steward`; Browser-Check, Layout-Audit
    und PR-Screenshots: Skill `ui-shots` (eigener Temp-Datenordner);
    Design-Review nach unseren Regeln: Skill `ui-review`.
+   **Sub-Agenten:** Konzept, Design-Review und Auftrags-Prompt auf maximalem
+   Aufwand; die Umsetzung eines fertigen Auftrags auf mittlerem (Kosten).
 2. **Changelog-Fragment, wenn sich das Spiel ändert** (`public/`, `server.js`,
    `game/`, `models/`, `docker/`, Abhängigkeiten im Image): neue Datei
    `changes/<thema>.md`, Format in `changes/README.md`. Version und
@@ -206,6 +208,7 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
 
 ## Tests
 
+- **`npm test` ist parallelisierbar** (mehrere Worktrees gleichzeitig, kein Lock nötig): Test-Server nur über `freePort()` aus `test/helpers/free-port.js` (nie feste Ports) und `mkdtempSync`-Verzeichnisse; `--test-timeout=120000` lässt Hänger schnell scheitern.
 - **Eigene Server nie auf `data/`:** immer `PIKDAME_DATA_DIR=<temp>` (Skill
   `ui-shots` macht das). Ein Server auf `data/` hält `users.db` offen →
   `npm test` scheitert mit SQLite „disk I/O error“. Nach Gebrauch stoppen und

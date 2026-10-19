@@ -343,31 +343,43 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     return { ...day };
   }
 
-  // --- Bot tower (see game/BotTower.js): best stars per stage --------------
-  /** Best stars per stage, e.g. { "1": 3, "2": 1 } (never null). */
-  function towerBest(name) {
-    const p = findPlayerByName(loadStore(), name);
-    return { ...((p && p.tower) || {}) };
+  // --- Kartenhaus (see game/BotTower.js): best stars per month and floor ---
+  /** Best stars of one month, e.g. { "1": 3, "2": 1 } (never null; a copy). */
+  function towerBest(name, month) {
+    return require('./BotTower').monthBest(findPlayerByName(loadStore(), name), month);
   }
-  /** Keeps the best result of a stage; the flat counters feed the badge families.
-   *  The first star of a stage also pays its XP, in the same write. */
-  function recordTowerResult(name, stage, stars) {
+  /** Every month played, newest first: [{ month, best, stars, cleared, unlocked, crowned }]. */
+  function towerMonths(name) {
+    return require('./BotTower').monthsOf(findPlayerByName(loadStore(), name));
+  }
+  /** Keeps the best result of a floor in its month; the first star of a floor
+   *  in a month pays its XP (a floor starred in the old fixed tower does not pay
+   *  again), the month's crown pays once more. Badge counters only ever grow. */
+  function recordTowerResult(name, month, stage, stars) {
     upsertPlayerProfile(name);
     const store = loadStore();
     const p = findPlayerByName(store, name);
-    const { summarize } = require('./BotTower');
-    const { xpForTowerStage } = require('./Progression');
-    p.tower = p.tower || {};
-    const before = p.tower[stage] || 0;
+    const { monthBest, summarize, totalsOf } = require('./BotTower');
+    const { xpForTowerStage, XP_TOWER_CROWN } = require('./Progression');
+    const wasCrowned = summarize(monthBest(p, month)).crowned;
+    const before = monthBest(p, month)[stage] || 0;
     const improved = stars > before;
-    if (improved) p.tower[stage] = stars;
-    const xp = xpForTowerStage(before, stars);
+    if (improved) {
+      p.towers = p.towers || {};
+      p.towers[month] = { ...(p.towers[month] || {}), [stage]: stars };
+    }
+    const best = monthBest(p, month);
+    const sum = summarize(best);
+    const crownedNow = sum.crowned && !wasCrowned;
+    const xp = xpForTowerStage(before, stars) + (crownedNow ? XP_TOWER_CROWN : 0);
     if (xp) p.xp = (p.xp || 0) + xp;
-    const sum = summarize(p.tower);
-    p.towerStars = sum.stars;
-    p.towerCleared = sum.cleared;
+    // Badge counters: the best month's stars and floors, and the crowned months.
+    const total = totalsOf(p);
+    p.towerStars = Math.max(p.towerStars || 0, total.bestStars);
+    p.towerCleared = Math.max(p.towerCleared || 0, total.bestCleared);
+    p.towerCrownedMonths = Math.max(p.towerCrownedMonths || 0, total.crowned);
     saveStore(store);
-    return { best: { ...p.tower }, improved, xp, totalXp: p.xp || 0, ...sum };
+    return { best, improved, xp, crownedNow, totalXp: p.xp || 0, ...sum, totalStars: total.totalStars };
   }
 
   return {
@@ -391,6 +403,7 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     recordPuzzleAttempt,
     revealPuzzle,
     towerBest,
+    towerMonths,
     recordTowerResult,
   };
 }

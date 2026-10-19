@@ -1,5 +1,6 @@
 // Config report (startup log + /admin) and the read-only admin page.
 const test = require('node:test');
+const { freePort } = require('./helpers/free-port');
 const assert = require('node:assert');
 const { spawn } = require('node:child_process');
 const path = require('node:path');
@@ -129,7 +130,7 @@ test('admin page escapes report text', () => {
 });
 
 // --- Real server: the wiring between HTTP and the helpers -------------------
-let PORT = 8095;
+let PORT = 0;
 function request(method, urlPath, { auth, body, headers = {} } = {}) {
   return new Promise((resolve, reject) => {
     const h = { ...headers };
@@ -154,12 +155,12 @@ async function waitForServer(timeoutMs = 15000) {
   throw new Error('server did not come up');
 }
 
-function startServer(t, port, extraEnv) {
-  PORT = port;
+async function startServer(t, extraEnv) {
+  PORT = await freePort();
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-admin-'));
   const server = spawn('node', ['server.js'], {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PORT: String(port), PIKDAME_DATA_DIR: dataDir, PIKDAME_ADMIN_TOKEN: '', PIKDAME_SMTP_HOST: '', ...extraEnv },
+    env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_ADMIN_TOKEN: '', PIKDAME_SMTP_HOST: '', ...extraEnv },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const out = { log: '' };
@@ -175,14 +176,14 @@ function startServer(t, port, extraEnv) {
 }
 
 test('/admin without a token answers 404 like any unknown path', async (t) => {
-  startServer(t, 8096, {});
+  await startServer(t, {});
   await waitForServer();
   assert.equal((await request('GET', '/admin', { auth: 'admin:' })).status, 404);
   assert.equal((await request('GET', '/admin/', { auth: 'admin:' })).status, 404, 'disabled: no redirect that would reveal the page');
 });
 
 test('/admin with a token: Basic auth, CSRF, mail check', async (t) => {
-  const out = startServer(t, 8095, { PIKDAME_ADMIN_TOKEN: 'test-token' });
+  const out = await startServer(t, { PIKDAME_ADMIN_TOKEN: 'test-token' });
   await waitForServer();
 
   assert.equal((await request('GET', '/admin')).status, 401);
@@ -239,7 +240,7 @@ test('config report: a missing imprint variable warns and is named', () => {
 });
 
 test('/impressum.html is rendered from the environment and revalidates by content', async (t) => {
-  startServer(t, 8096, IMPRINT_ENV);
+  await startServer(t, IMPRINT_ENV);
   await waitForServer();
   const page = await request('GET', '/impressum.html');
   assert.equal(page.status, 200);

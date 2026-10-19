@@ -7,6 +7,7 @@
 //
 // --signed-in mocks a signed-in account (the /api/* answers below), season
 // finale included: the start-up hint shows on the first start-screen shot.
+// --stammtische N (0-3, default 1): remembered Stammtische on the start screen.
 //
 // --audit also checks every shot for truncated text, tap targets < 44 px,
 // icon buttons without a name and (start screen) content below the fold;
@@ -15,6 +16,7 @@
 // Views: phone (393x852), land (874x402), desk (1440x900), se (375x667), max (440x956).
 // Scenes: lobby, lobby-open, progress, stats, stats-badges (trophy cabinet + a favourite's
 // detail; favourites show with --signed-in), history, roundend, roundend-stats, gameover,
+// gameover-stats (its Statistik tab: game totals open, new achievements),
 // table (needs --state <file>: a GameManager.publicState('p1') JSON in the playing phase),
 // puzzle / puzzle-turn / puzzle-out (one meld laid), puzzle-solved (3 stars + the tile),
 // challenge (intro, attempt used),
@@ -23,9 +25,16 @@
 // game-settings (the in-game gear sheet), music-hint (first click: music starts, one-time hint),
 // account (the account sheet: level, season ladder; needs --signed-in),
 // account-mail (its year-review mail switch; needs --signed-in),
-// tower (the bot tower sheet via the progress sheet), gameover-tower (a stage verdict).
+// tower (the Kartenhaus sheet via its tile in "Aufgaben"), tower-detail (a tapped
+// locked floor 14), tower-motion (frames: month change, a landing star and a
+// wobble), gameover-tower (a floor verdict). --tower mid|new|high|crowned
+// picks the month in the mock (default mid: floors 1-8 built, 9 next).
+// gameover-win (I win the match, a new badge), stats-empty (a brand-new name: statistics
+// empty state, then "Meine Partien" empty).
+// --lang en: the English client (text length). SHOTS_ROOT=<checkout>: shoot another
+// checkout with this script (before/after pictures from one set of scenes).
 // --december: the client clock stands on 28 December and the server's year review
-// is mocked - adds the "Heute" chip and the scenes year / year-mid / year-bots /
+// is mocked - adds the "Aufgaben" chip and the scenes year / year-mid / year-bots /
 // year-end (story cards), year-image (the share PNG, via the download fallback)
 // and mail (the review mail's HTML).
 // Start-screen scenes may follow table or result scenes in any order: the page
@@ -47,7 +56,7 @@ const arg = (name, def) => {
   const i = process.argv.indexOf(`--${name}`);
   return i > -1 ? process.argv[i + 1] : def;
 };
-const ROOT = path.resolve(__dirname, '../../../..');
+const ROOT = path.resolve(process.env.SHOTS_ROOT || path.resolve(__dirname, '../../../..'));
 const OUT = path.resolve(arg('out', path.join(os.tmpdir(), 'pikdame-shots')));
 const PORT = Number(arg('port', 3477));
 const VIEWS = {
@@ -63,6 +72,7 @@ const AUDIT = process.argv.includes('--audit');
 const SIGNED_IN = process.argv.includes('--signed-in');
 const STILL = process.argv.includes('--reduced-motion'); // prefers-reduced-motion: reduce
 const DECEMBER = process.argv.includes('--december');
+const TOWER_MOCK = arg('tower', 'mid');
 const TAP_MIN = 44; // CLAUDE.md --tap-min
 // A normal UA: the server treats headless defaults as a crawler (no WebSocket).
 const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
@@ -77,7 +87,7 @@ const PROFILES = [
     daily: { streak: 6, best: 11, last: '2000-01-01', graceAt: null },
     badges: { first_win: NOW - 9e8, pd_laid: NOW - 5e8, marathon_10: NOW - 2e8 }, favoriteBadges: ['games', 'wins'],
     puzzles: { [TODAY]: { tries: 1, solved: false } },
-    tower: { 1: 3, 2: 3, 3: 2, 4: 1, 5: 1 }, towerStars: 10, towerCleared: 5 },
+    towerStars: 17, towerCleared: 8 },
   { name: 'Oma Gerda', gamesPlayed: 120, gamesWon: 61, totalScore: 99000, bestGameScore: 1610, xp: 18000, badges: { first_win: 1 } },
   { name: 'Klaus', gamesPlayed: 15, gamesWon: 3, totalScore: 8000, bestGameScore: 1040, xp: 1200, badges: {} },
 ];
@@ -122,6 +132,12 @@ const HISTORY = [
   { id: 'g2', finishedAt: NOW - 30 * 3600e3, startedAt: NOW - 30 * 3600e3 - 55 * 60e3, rounds: 8, won: false, myScore: 880, myId: 'p1', challengeDate: TODAY,
     players: [{ id: 'p1', name: ME }, { id: 'b1', name: 'Horst', isBot: true, botDifficulty: 'medium' }],
     finalTotals: { p1: 880, b1: 1010 }, roundTotals: [] },
+  // Older games, so "Letzte Partien" on the statistics sheet has ten to show.
+  ...[[2, true, 1120, 905, 760], [3, false, 760, 1030, 610], [5, true, 1015, 880, 940], [9, true, 1050, 700, 985],
+    [12, false, 640, 1005, 820], [15, false, 905, 990, 1040], [18, true, 1210, 980, 400], [21, false, 455, 1000, 870]].map(([days, won, me, a, b], i) => ({
+    id: `gx${i}`, finishedAt: NOW - days * 86400e3, startedAt: NOW - days * 86400e3 - 48 * 60e3, rounds: 6, won, myScore: me, myId: 'p1',
+    players: [{ id: 'p1', name: ME }, { id: 'p2', name: 'Oma Gerda' }, { id: 'b1', name: 'Klaus', isBot: true, botDifficulty: 'medium' }],
+    finalTotals: { p1: me, p2: a, b1: b }, roundTotals: [] })),
 ];
 const mk = (s, win) => ({ roundScore: s, breakdown: { isWinner: !!win, multiplier: 1 } });
 const PLAYERS = [
@@ -159,15 +175,33 @@ const GAME_OVER = { ...BASE_STATE, phase: 'gameOver', roundNumber: 6, totals: { 
     highlights: [{ type: 'queenCaught', round: 2, name: 'Horst' }, { type: 'bestRound', round: 3, name: 'Klaus', score: 270 }],
     funTitle: { type: 'queenMagnet', name: 'Horst', count: 2 } } };
 
-// Bot tower: a stage-6 verdict (handicap 20) on a one-round game over.
+// gameover-win: I win the match (and earn a badge, injected in the scene).
+const GAME_OVER_WIN = { ...GAME_OVER, totals: { p1: 1045, b1: 880, b2: 610, b3: 320 },
+  scoreHistory: GAME_OVER.scoreHistory.map((h, i, a) => (i === a.length - 1 ? { round: h.round, totals: { p1: 1045, b1: 880, b2: 610, b3: 320 } }
+    : i === a.length - 2 ? { round: h.round, totals: { p1: 820, b1: 700, b2: 500, b3: 260 } } : h)),
+  lastRoundResult: { p1: mk(225, true), b1: mk(180), b2: mk(110), b3: mk(60) },
+  gameOverInfo: { ...GAME_OVER.gameOverInfo, winnerId: 'p1' } };
+
+// Kartenhaus months for --tower (best stars per floor), and the archive behind them.
+const TOWER_BEST = {
+  mid: { 1: 3, 2: 3, 3: 3, 4: 2, 5: 2, 6: 2, 7: 1, 8: 1 },
+  new: {},
+  high: { 1: 3, 2: 3, 3: 3, 4: 3, 5: 2, 6: 2, 7: 2, 8: 1, 9: 1, 10: 1, 11: 2, 12: 1, 13: 1 },
+  crowned: { 1: 3, 2: 3, 3: 3, 4: 3, 5: 3, 6: 2, 7: 3, 8: 2, 9: 2, 10: 2, 11: 1, 12: 2, 13: 1, 14: 1, 15: 2, 16: 1, 17: 1, 18: 1, 19: 1, 20: 1 },
+};
+const TOWER_ARCHIVE = [
+  { month: monthsBack(1), best: Object.fromEntries(Array.from({ length: 20 }, (_, i) => [i + 1, i < 6 ? 3 : i < 14 ? 2 : 1])) },
+  { month: monthsBack(2), best: { 1: 3, 2: 2, 3: 2, 4: 1, 5: 1, 6: 1, 7: 1 } },
+];
+// Kartenhaus: a floor-6 verdict (handicap 20) on a one-round game over.
 const TOWER_STATE = { ...BASE_STATE, phase: 'gameOver', roundNumber: 1, towerStage: 6, scoreHistory: [],
   players: [PLAYERS[0], { ...PLAYERS[1], botDifficulty: 'hard' }, { ...PLAYERS[2], botDifficulty: 'hard' }, { ...PLAYERS[3], botDifficulty: 'medium' }],
   totals: { p1: 235, b1: 150, b2: 90, b3: -20 }, lastRoundWinnerId: 'p1',
   lastRoundResult: { p1: mk(235, true), b1: mk(150), b2: mk(90), b3: mk(-20) },
   gameOverInfo: { winnerId: 'p1', finalTotals: {}, totalTurns: 41, totalRounds: 1, highlights: [], funTitle: null } };
-const TOWER_RESULT = { type: 'towerResult', stage: 6, stars: 1, myScore: 235, bestBot: 150, handicap: 20, margin: 65, wentOut: true,
-  clearMargin: 100, progress: { best: { ...PROFILES[0].tower, 6: 1 }, improved: true, stars: 11, cleared: 6, unlocked: 7 },
-  xp: 25, level: { level: 14, into: 145, need: 750, total: PROFILES[0].xp + 25 } }; // the stage's first star
+const TOWER_RESULT = { type: 'towerResult', month: TODAY.slice(0, 7), stage: 6, stars: 1, myScore: 235, bestBot: 150, handicap: 20, margin: 65, wentOut: true,
+  clearMargin: 100, progress: { best: { 1: 3, 2: 3, 3: 3, 4: 2, 5: 2, 6: 1 }, improved: true, stars: 14, cleared: 6, unlocked: 7, crowned: false, crownedNow: false },
+  xp: 10, level: { level: 14, into: 145, need: 750, total: PROFILES[0].xp + 10 } }; // the floor's first star
 // --december: the admin preview's example numbers, under the mock name.
 const DEC_NOW = Date.parse('2026-12-28T10:00:00Z');
 const YEAR_REVIEW = { ...require(path.join(ROOT, 'game', 'YearReviewMail')).sampleReview('2026'), name: ME };
@@ -185,13 +219,16 @@ function kindPuzzle(kind) {
 }
 // stammtisch-lobby: the next join is shown as a seat at the mock Stammtisch.
 let bindStammtisch = false;
+let emptyMe = false; // scene stats-empty: a brand-new name (no games, no history)
 function rewrite(msg) {
   if (msg.type === 'joined' && bindStammtisch) msg.stammtisch = { code: 'STMOCK1', name: STAMMTISCH.name };
-  if (msg.type === 'profiles') { msg.players = PROFILES; msg.globalStats = GLOBAL_STATS; }
-  if (msg.type === 'gameHistory') msg.games = HISTORY;
+  if (msg.type === 'profiles') { msg.players = emptyMe ? PROFILES.slice(1) : PROFILES; msg.globalStats = GLOBAL_STATS; }
+  if (msg.type === 'gameHistory') msg.games = emptyMe ? [] : HISTORY;
   if (msg.type === 'towerInfo') {
-    const best = PROFILES[0].tower;
-    Object.assign(msg, { best }, require(path.join(ROOT, 'game', 'BotTower')).summarize(best));
+    const BT = require(path.join(ROOT, 'game', 'BotTower'));
+    const best = TOWER_BEST[TOWER_MOCK] || TOWER_BEST.mid;
+    const archive = TOWER_ARCHIVE.map((m) => ({ month: m.month, best: m.best, ...BT.summarize(m.best) }));
+    Object.assign(msg, { best }, BT.summarize(best), { archive, totalStars: BT.summarize(best).stars + archive.reduce((n, m) => n + m.stars, 0) });
   }
   // Like the server: favourite opponent and Stammtisch only for the signed-in owner.
   if (msg.type === 'yearReview' && DECEMBER) {
@@ -307,17 +344,20 @@ function waitForHttp(port, ms = 20000) {
       if (!vp) throw new Error(`unknown view ${vn}`);
       const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, userAgent: UA, deviceScaleFactor: 2, isMobile: vp.mobile, hasTouch: vp.mobile,
         ...(STILL ? { reducedMotion: 'reduce' } : {}) });
-      await ctx.addInitScript(([me, theme, musicHint]) => {
+      await ctx.addInitScript(([me, theme, musicHint, stammtische, uiLang]) => {
         try {
           localStorage.setItem('pikdame_player_name', me);
+          if (uiLang) localStorage.setItem('pikdame_lang', uiLang); // --lang en
           if (theme) localStorage.setItem('pikdame_theme', theme); // --theme table|night|felt|love|bordeaux|kitchen
           localStorage.setItem('pikdame_splash_device', '1'); // skip the studio intro
           sessionStorage.setItem('pikdame_splash_seen', '1');
-          localStorage.setItem('pikdame_stammtische', JSON.stringify([{ code: 'STMOCK1', name: 'Familie Muster' }]));
+          // --stammtische 3: the most the start screen lists (its tallest form).
+          const tables = [{ code: 'STMOCK1', name: 'Familie Muster' }, { code: 'STMOCK2', name: 'Skatrunde Mittwoch' }, { code: 'STMOCK3', name: 'Nachbarn' }];
+          localStorage.setItem('pikdame_stammtische', JSON.stringify(tables.slice(0, stammtische)));
           // The first click starts the music; its one-time hint would sit on every later shot.
           if (!musicHint) localStorage.setItem('pikdame_music_hint', '1');
         } catch (e) { /* storage blocked */ }
-      }, [ME, arg('theme', ''), scenes.includes('music-hint')]);
+      }, [ME, arg('theme', ''), scenes.includes('music-hint'), Math.max(0, Math.min(3, Number(arg('stammtische', 1)))), arg('lang', '')]);
       if (SIGNED_IN) {
         await ctx.addInitScript(() => { try { localStorage.setItem('pikdame_account_token', 'mock-token'); } catch (e) { /* blocked */ } });
         await ctx.route('**/api/**', (route) => route.fulfill({ contentType: 'application/json',
@@ -364,7 +404,7 @@ function waitForHttp(port, ms = 20000) {
         await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(1200);
       };
-      const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|stats|stats-badges|history|settings|settings-aids|settings-music|game-settings|music-hint|challenge|challenge-open|stammtisch|account|account-mail|puzzle.*|year.*)$/;
+      const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|tower-detail|tower-motion|stats|stats-badges|stats-empty|history|settings|settings-aids|settings-music|game-settings|music-hint|challenge|challenge-open|stammtisch|account|account-mail|puzzle.*|year.*)$/;
       for (const sc of scenes) {
         if (LOBBY_SCENES.test(sc)) await toStart();
         if (sc === 'lobby') await shot('lobby');
@@ -408,7 +448,7 @@ function waitForHttp(port, ms = 20000) {
           await page.click('#stammtischSheetCloseBtn');
         }
         if (sc === 'puzzle-solved') {
-          // Solved with three stars; then the "Heute" tile shows them on the start screen.
+          // Solved with three stars; then the "Aufgaben" tile shows them on the start screen.
           puzzleSolved = true;
           await page.click('#puzzleBtn'); await page.waitForTimeout(600);
           await shot(sc);
@@ -486,10 +526,31 @@ function waitForHttp(port, ms = 20000) {
           await shot('progress');
           await page.click('#progressCloseBtn');
         }
-        if (sc === 'tower') {
-          await page.click('#identityAvatarBtn'); await page.waitForTimeout(300);
-          await page.click('#progressContent .pgTower'); await page.waitForTimeout(600);
-          await shot('tower');
+        if (sc === 'tower' || sc === 'tower-detail') {
+          await page.click('#towerTile'); await page.waitForTimeout(2800); // after the first-visit build-up
+          if (sc === 'tower-detail') { await page.click('#towerHouse [data-stage="14"]'); await page.waitForTimeout(400); }
+          await shot(sc);
+          await page.click('#towerCloseBtn');
+        }
+        // Motion frames: a new month collapses and rises, a new star lands next to
+        // a lost try's wobble, and (--tower crowned) the Queen of Spades lands.
+        if (sc === 'tower-motion') {
+          const best = TOWER_BEST[TOWER_MOCK] || TOWER_BEST.mid;
+          const seen = (month, b, crowned = false) => page.evaluate(([v]) => localStorage.setItem('pikdame_tower_seen', v),
+            [JSON.stringify({ name: ME, month, best: b, crowned })]);
+          await seen(monthsBack(1), TOWER_ARCHIVE[1].best);
+          await page.click('#towerTile'); await page.waitForTimeout(380);
+          await shot('tower-motion-1-collapse');
+          await page.waitForTimeout(1050);
+          await shot('tower-motion-2-rise');
+          await page.click('#towerCloseBtn'); await page.waitForTimeout(300);
+          const top = Math.max(...Object.keys(best).map(Number));
+          const before = { ...best }; delete before[top];
+          await seen(TODAY.slice(0, 7), before, false);
+          await page.evaluate(([v]) => localStorage.setItem('pikdame_tower_last', v),
+            [JSON.stringify({ name: ME, month: TODAY.slice(0, 7), stage: top + 1, stars: 0 })]);
+          await page.click('#towerTile'); await page.waitForTimeout(TOWER_MOCK === 'crowned' ? 650 : 420);
+          await shot('tower-motion-3-land');
           await page.click('#towerCloseBtn');
         }
         if (sc === 'settings' || sc === 'settings-aids' || sc === 'settings-music') {
@@ -525,6 +586,17 @@ function waitForHttp(port, ms = 20000) {
           await shot(sc);
           await page.click('#statsCloseBtn');
         }
+        if (sc === 'stats-empty') {
+          // A new name: the statistics empty state, then "Meine Partien" empty.
+          emptyMe = true;
+          await page.click('#statsBtn'); await page.waitForTimeout(700);
+          await shot(sc);
+          await page.click('#statsTabHistoryBtn'); await page.waitForTimeout(600);
+          await shot('history-empty');
+          await page.click('#statsTabBoardBtn'); await page.waitForTimeout(200);
+          await page.click('#statsCloseBtn');
+          emptyMe = false;
+        }
         if (sc === 'stats-badges') {
           // Trophy cabinet: folded with the favourites on top, then a favourite's detail.
           await page.click('#statsBtn'); await page.waitForTimeout(500);
@@ -559,13 +631,24 @@ function waitForHttp(port, ms = 20000) {
         } else if (sc.startsWith('roundend') || sc.startsWith('gameover')) {
           inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
           const challenge = sc === 'gameover-challenge';
-          inject({ type: 'state', state: sc.startsWith('gameover') ? { ...GAME_OVER, challengeDate: challenge ? TODAY : null } : ROUND_END });
+          const over = sc === 'gameover-win' ? GAME_OVER_WIN : GAME_OVER;
+          inject({ type: 'state', state: sc.startsWith('gameover') ? { ...over, challengeDate: challenge ? TODAY : null } : ROUND_END });
           if (challenge) {
             inject({ type: 'challengeBoard', date: TODAY, yourScore: 880, yourRank: 2, yourQueens: 1, players: 9,
               board: [{ rank: 1, name: 'Oma Gerda', score: 1210 }, { rank: 2, name: ME, score: 880 }], history: [], weekly: null });
           }
+          if (sc === 'gameover-stats') inject({ type: 'badges', earned: [{ name: ME, badges: ['marathon_10', 'queen_magnet_day'] }] });
           if (sc.startsWith('gameover')) inject({ type: 'progress', gainedXp: 120, xp: 5440, level: { level: 14 }, record: { played: 43, won: 17 } });
+          if (sc === 'gameover-win') inject({ type: 'badges', earned: [{ name: ME, badges: ['score_500'] }] });
           await page.waitForTimeout(1600); // count-up + winner animation
+          // A re-render keeps the body's scroll position: start every result shot at the top.
+          await page.evaluate(() => { const b = document.getElementById('resultBody'); if (b) b.scrollTop = 0; });
+          await page.waitForTimeout(100);
+          if (sc === 'gameover-stats') {
+            await page.click('#resultBody .resultTabBtn:nth-child(2)');
+            await page.click('.gameTotalsBox button');
+            await page.waitForTimeout(300);
+          }
           if (sc === 'roundend-stats') { await page.click('#resultBody .resultTabBtn:nth-child(2)'); await page.waitForTimeout(300); }
           if (sc === 'gameover-challenge') {
             await page.evaluate(() => { const b = document.querySelector('.challengeBoardBox'); if (b) b.scrollIntoView({ block: 'center' }); });

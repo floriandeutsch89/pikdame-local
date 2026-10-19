@@ -3,6 +3,48 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.91.0] - 2026-10-20
+
+### Added
+- Statistik: Mit einem neuen Namen erklärt das Blatt, was nach der ersten Partie hier steht, und bietet „Gegen Bots spielen“ an
+
+### Changed
+- Spielende: Der Sieger steht in einer Zeile oben, die Punkte nur noch in der Liste darunter. Gewinnst du selbst, leuchtet ein goldenes Banner „Du gewinnst die Partie!“
+- Spielende: Dein eigenes Ergebnis steht direkt über „Neue Partie“: Platz und Abstand („165 hinter Klaus“), gewonnene Erfahrung mit Stufen-Balken, neue Erfolge, Tages-Challenge, Serie, Saisonplatz und deine Bilanz
+- Spielende: Der Punkteverlauf ist am iPhone ohne Scrollen zu sehen; am großen Bildschirm steht das Ergebnis zweispaltig wie im Querformat
+- Statistik: Jede Zahl nur noch einmal – Partien, Siege mit Quote und Bestwert (mit Tausenderpunkt); Titel und Stufe führen zu deinem Fortschritt
+- Statistik: Die letzten Partien stehen als S/N-Kästchen mit Endstand statt als Linie
+- Statistik: Deine Zeile in der Bestenliste ist am linken Rand markiert statt farbig hinterlegt
+
+## [2.90.0] - 2026-10-20
+
+### Changed
+- Statistik, Rundenende und Challenge: Zahlen mit Tausenderpunkt (1.385) und echtem Minuszeichen, Daten in deiner Sprache (Erfolge, Diagramm-Achse, Challenge-Überschrift mit „19. Okt. 2026“ statt ISO-Datum)
+- Symbole statt Emoji bei „Tages-Challenge“, „Wochenwertung“, „Neue Erfolge“, Joker-Anzeige, Challenge-Rückblick und den Belohnungen im Fortschritt
+- Die eigene Zeile ist überall gleich markiert (Strich links, fett); der Rundensieger trägt statt einer grünen Zeile ein „Sieg“-Kennzeichen
+- Punkteverlauf: Linien der anderen in voller Farbe (dünner), Beschriftung bleibt auch am Handy gut lesbar
+
+### Fixed
+- „1 Siege“, „1 Runden“, „1 Partien“ heißen jetzt „1 Sieg“, „1 Runde“, „1 Partie“ (Deutsch und Englisch)
+- „777× Hand aus“ bricht nicht mehr hinter dem „×“ um
+- Challenge-Tabelle: Namen stehen linksbündig, die doppelte „Dein Ergebnis“-Zeile entfällt
+
+## [2.89.0] - 2026-10-19
+
+### Added
+- 13 neue Reaktionen am Tisch: 🃏 😅 🤞 👀 🙄 😬 🙃 🤝 😇 ☕ 🐢 🍻 ❤️ – freigeschaltet zwischen Stufe 20 und 40.
+
+### Changed
+- Die Reaktionsleiste zeigt zuerst deine meistgenutzten Reaktionen (gezählt auf diesem Gerät), der Rest liegt hinter einem Pfeil – sortiert wie auf der iPhone-Tastatur: Smileys, Natur, Essen, Aktivitäten, Objekte, Symbole. Ob die Leiste auf- oder zugeklappt ist, merkt sich das Gerät.
+
+### Fixed
+- Reaktionen und die Reaktionsleiste liegen immer vor den Bot-Sprüchen.
+
+## [2.88.1] - 2026-10-19
+
+### Changed
+- Bot-Sprüche sind jetzt standardmäßig aus. Einschalten unter Einstellungen → „Bot-Sprüche“; wer sie dort schon einmal eingeschaltet hatte, behält sie.
+
 ## [2.88.0] - 2026-10-19
 
 ### Changed

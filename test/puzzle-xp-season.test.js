@@ -1,8 +1,9 @@
-/** Daily puzzle XP for the account and its season (like the bot tower's first
+/** Daily puzzle XP for the account and its season (like the Kartenhaus floor's first
  *  star): the signed-in owner's first solve of the day books lifetime and season
  *  XP without a game; a guest keeps the profile XP, archive days pay nothing and
  *  a second solve books nothing twice. Real server, temp data dir. */
 const test = require('node:test');
+const { freePort } = require('./helpers/free-port');
 const assert = require('node:assert');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
@@ -14,7 +15,7 @@ const { createAccountStore } = require('../game/AccountStore');
 const { puzzleForDate, XP_FOR_SOLVED, PUZZLE_EPOCH } = require('../game/DailyPuzzle');
 const { gameDay, addDays } = require('../game/GameDay');
 
-const PORT = 8140;
+let PORT = 0;
 const probe = createAccountStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-pxp-probe-')), 'probe.db'));
 const HAS_SQLITE = probe !== null;
 if (probe) probe.close();
@@ -55,6 +56,7 @@ test('puzzle XP: the owner\'s first solve counts for account and season, a guest
   const token = accounts.login('Ada', 'geheim123').token;
   const cleoToken = accounts.login('Cleo', 'geheim123').token;
   accounts.close();
+  PORT = await freePort();
   const server = spawn('node', ['server.js'], {
     cwd: path.join(__dirname, '..'),
     env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_PUBLIC_MODE: '0', PIKDAME_ONNX: '0' },

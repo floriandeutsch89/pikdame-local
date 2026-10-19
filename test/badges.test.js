@@ -139,7 +139,7 @@ test('computeEarnedBadges: zen_slayer requires WINNING against a zen bot', () =>
 
 // --- v1.32.0: player records pipeline -------------------------------------------
 test('recordGameResult: records and cumulative counters from facts', () => {
-  const file = require('path').join(require('os').tmpdir(), `pikdame-store-test-${Date.now()}.json`);
+  const file = require('path').join(require('os').tmpdir(), `pikdame-store-test-${process.pid}-${Date.now()}.json`);
   const store = createPlayerStore(file);
   store.recordGameResult([
     { name: 'Anna', score: 480, won: true, facts: { bestRound: 185, pdLaid: 2, pdCaught: 1, jokersLaid: 3, handAusWins: 1 } },
@@ -163,7 +163,7 @@ test('computeEarnedBadges: counter tiers follow the profile, streak/wins tiers o
   const won = computeEarnedBadges(record(), 'p1', {
     gamesWon: 50, gamesPlayed: 100, winStreak: 10, totalQueensLaid: 50, totalHandAus: 5, dailyStreak: 30,
     gamesLost: 100, totalChallenges: 30, totalPuzzlesSolved: 30, totalPerfectPuzzles: 100,
-    towerCleared: 10, towerStars: 30,
+    towerCleared: 10, towerStars: 30, towerCrownedMonths: 12,
   });
   for (const fam of BADGE_FAMILIES) for (const [id] of fam.tiers) assert.ok(won.includes(id), `winner with maxed counters gets ${id}`);
   const lost = computeEarnedBadges(record(), 'p2', { gamesWon: 50, gamesPlayed: 100, winStreak: 10, totalQueensLaid: 50, dailyStreak: 30 });

@@ -114,7 +114,7 @@ setTimeout(() => {
           }],
         }) });
         const historyBox = doc.getElementById('historyContent');
-        if (!historyBox || !/1040/.test(historyBox.textContent)) {
+        if (!historyBox || !/1\.?040/.test(historyBox.textContent)) {
           errors.push(`history did not render the received game: ${historyBox ? historyBox.textContent.slice(0, 80) : 'missing'}`);
         }
         // Sprachwechsel darf die geladene Historie nicht in der alten
@@ -667,19 +667,21 @@ setTimeout(() => {
       feed({ ...table, isHost: true, challengeDate: '2026-10-16' });
       if (doc.querySelector('#opponents .botDiffBadge')) errors.push('the daily challenge must not show the bot level');
       feed(table);
-      // Bot lines: a bubble under the speaker's chip; the settings switch mutes them.
+      // Bot lines: off by default; switched on, a bubble under the speaker's chip.
       const quip = () => wsInstance._emit('message', { data: JSON.stringify({ type: 'quip', playerId: 'b1', moment: 'queen_caught' }) });
+      const quipsBox = doc.getElementById('botQuipsCheckbox');
+      quip();
+      if (doc.querySelector('.quipBubble')) errors.push('bot lines must be off by default');
+      quipsBox.checked = true;
+      quipsBox.dispatchEvent(new window.Event('change'));
       quip();
       const bubble = doc.querySelector('.quipBubble');
       if (!bubble || !/Dame|Hundert/.test(bubble.textContent)) errors.push(`a bot line must show as a bubble: ${bubble ? bubble.textContent : 'none'}`);
       doc.querySelectorAll('.quipBubble').forEach((n) => n.remove());
-      const quipsBox = doc.getElementById('botQuipsCheckbox');
       quipsBox.checked = false;
       quipsBox.dispatchEvent(new window.Event('change'));
       quip();
       if (doc.querySelector('.quipBubble')) errors.push('muted bot lines must not show');
-      quipsBox.checked = true;
-      quipsBox.dispatchEvent(new window.Event('change'));
     }
 
     // A freshly drawn card is marked - the Queen of Spades included (it used
@@ -833,7 +835,9 @@ setTimeout(() => {
       if (!/Hauptmenü/.test(contBtn.textContent)) errors.push(`the challenge must not offer a rematch, got: ${contBtn.textContent}`);
       if (!doc.getElementById('resultHomeQuickBtn').classList.contains('hidden')) errors.push('no second home button next to the home action');
       const boardText = (doc.querySelector('.challengeBoardBox') || {}).textContent || '';
-      if (!/Dein Ergebnis: 120 Punkte · Platz 2/.test(boardText)) errors.push(`the board must show the result: ${boardText.slice(0, 120)}`);
+      const ownRow = doc.querySelector('.challengeBoardBox tr.isMe');
+      if (!ownRow || !/2\.\s*Flo\s*120/.test(ownRow.textContent)) errors.push(`the board must mark the own row with rank and score: ${boardText.slice(0, 120)}`);
+      if (/Dein Ergebnis/.test(boardText)) errors.push('the own row already says it: no second "Dein Ergebnis" line');
       if (!/Damen-Magnet des Tages: Oma Gerda \(3×\)/.test(boardText)) errors.push(`the board must name the Damen-Magnet: ${boardText.slice(0, 160)}`);
       feed(over); // back to the normal game-over for the tab checks below
     }

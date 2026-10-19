@@ -522,6 +522,7 @@ test('a normal game has no tutorial hints, whatever an older version stored', as
       pikdame_tutorial: 'on',
       pikdame_tutorial_seen: '1',
       pikdame_tutorial_progress: JSON.stringify({ code: 'OLD123', done: ['welcome'], skipped: [], off: false, finished: false }),
+      pikdame_bot_quips: 'on',
     },
   });
   try {
@@ -537,6 +538,28 @@ test('a normal game has no tutorial hints, whatever an older version stored', as
     await t.click(t.$('#discardPile'));
     assert.match(t.$('#hint').textContent, /^Pflicht/);
     const bot = t.server.game.players.find((p) => p.isBot);
+    t.server.deliver({ type: 'quip', playerId: bot.id, moment: 'queen_laid' });
+    await t.run(50);
+    assert.equal(t.$$('.quipBubble').length, 1);
+    assert.deepStrictEqual(t.errors, []);
+  } finally {
+    t.close();
+  }
+});
+
+test('bot lines are off by default; switched on they show', async () => {
+  const t = boot();
+  try {
+    await t.run(100);
+    await t.click(t.$('#createGameBtn'));
+    await t.run(50);
+    const bot = t.server.game.players.find((p) => p.isBot);
+    t.server.deliver({ type: 'quip', playerId: bot.id, moment: 'queen_laid' });
+    await t.run(50);
+    assert.equal(t.$$('.quipBubble').length, 0, 'no line without a choice');
+    assert.equal(t.$('#botQuipsCheckbox').checked, false);
+    await t.click(t.$('#botQuipsCheckbox'));
+    assert.equal(t.window.localStorage.getItem('pikdame_bot_quips'), 'on');
     t.server.deliver({ type: 'quip', playerId: bot.id, moment: 'queen_laid' });
     await t.run(50);
     assert.equal(t.$$('.quipBubble').length, 1);

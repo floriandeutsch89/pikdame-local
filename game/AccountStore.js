@@ -326,7 +326,7 @@ function createAccountStore(dbFile = DEFAULT_DB_FILE) {
   }
 
   /**
-   * XP from outside a match (a bot tower stage's first star): lifetime and
+   * XP from outside a match (a Kartenhaus floor's first star): lifetime and
    * season XP grow like in addGameResult, the game counters do not.
    * @returns {{xp:number, seasonXp:number, games:number, wins:number}|null}
    */

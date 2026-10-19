@@ -185,6 +185,49 @@
     return lang === 'en' ? en : de;
   }
 
+  // --- Formatting for the active UI language (one place, exposed for tests) ---
+  const MINUS = '\u2212';
+  const NBSP = '\u00a0';
+  const localeOf = (l = lang) => (l === 'en' ? 'en-GB' : 'de-DE');
+  /** 1385 -> "1.385" (de) / "1,385" (en); negatives use the true minus sign U+2212. */
+  function fmtNum(n, l = lang) {
+    return new Intl.NumberFormat(localeOf(l)).format(Number(n) || 0).replace('-', MINUS);
+  }
+  /** Explicit sign for deltas: +270, \u221235, 0. */
+  function fmtSigned(n, l = lang) {
+    const v = Number(n) || 0;
+    return v > 0 ? `+${fmtNum(v, l)}` : fmtNum(v, l);
+  }
+  /** Date or timestamp in the UI language; opts as for toLocaleDateString. */
+  function fmtDate(d, opts, l = lang) {
+    const date = d instanceof Date ? d : new Date(d);
+    return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(localeOf(l), opts);
+  }
+  /** A game-day string "2026-10-19" as a human date ("19. Okt. 2026" / "19 Oct 2026"). */
+  function fmtDay(iso, opts, l = lang) {
+    const d = new Date(`${iso}T12:00:00Z`);
+    return Number.isNaN(d.getTime()) ? String(iso) : fmtDate(d, opts || { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }, l);
+  }
+  const COUNT_WORDS = {
+    game: [['Partie', 'Partien'], ['game', 'games']],
+    win: [['Sieg', 'Siege'], ['win', 'wins']],
+    round: [['Runde', 'Runden'], ['round', 'rounds']],
+    turn: [['Zug', 'Züge'], ['turn', 'turns']],
+    day: [['Tag', 'Tage'], ['day', 'days']],
+  };
+  /** The noun alone, singular for exactly 1: unitWord(1, 'win') -> "Sieg". */
+  function unitWord(n, key, l = lang) {
+    const [one, many] = COUNT_WORDS[key][l === 'en' ? 1 : 0];
+    return Number(n) === 1 ? one : many;
+  }
+  /** Number and noun: "1 Sieg", "1.385 Partien". */
+  function fmtCount(n, key, l = lang) {
+    return `${fmtNum(n, l)} ${unitWord(n, key, l)}`;
+  }
+  /** Sprite icon; put the text next to it in its own <span>. */
+  const iconHtml = (name) => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+  window.PikFormat = { fmtNum, fmtSigned, fmtDate, fmtDay, unitWord, fmtCount, MINUS };
+
   // Dynamische Beschriftungen (enthalten Werte wie den Spiel-Code) koennen
   // nicht ueber I18N_STATIC laufen. Sie werden hier zentral neu gesetzt -
   // beim Erzeugen UND bei jedem Sprachwechsel.
@@ -203,7 +246,7 @@
         btn.querySelector('span').textContent = resumeIsChallenge
           ? L('Challenge fortsetzen', 'Resume challenge')
           : resumeIsTutorial ? L('Tutorial fortsetzen', 'Resume tutorial')
-            : tower ? L(`Bot-Turm fortsetzen (Stufe ${tower})`, `Resume bot tower (stage ${tower})`)
+            : tower ? L(`Kartenhaus fortsetzen (Etage ${tower})`, `Resume House of Cards (floor ${tower})`)
               : L(`Weiterspielen (${resumeCode})`, `Resume game (${resumeCode})`);
         btn.classList.remove('hidden');
       } else {
@@ -298,7 +341,8 @@
     try { renderToday(); } catch (e) { /* dito */ }
     try { renderYearSlide(); } catch (e) { /* dito */ }
     try { renderProgressSheet(); } catch (e) { /* dito */ }
-    try { renderTower(); } catch (e) { /* dito */ }
+    try { renderTower(); renderTowerTile(); } catch (e) { /* dito */ }
+    try { arrangeEmoteBar(el('emoteBar')); arrangeEmoteBar(el('resultEmoteBar')); } catch (e) { /* toggle label */ }
     try { renderAccountProgress(); } catch (e) { /* dito */ }
     // "Angemeldet als ..." steht dauerhaft in der Lobby - vom Vertragstest
     // unten gefunden, bevor es jemand melden konnte.
@@ -489,15 +533,21 @@
         how: L('Lege eine Folge mit 10, Bube, Dame, König und Ass derselben Farbe aus - alles echte Karten, kein Joker.', 'Meld a run with 10, jack, queen, king and ace of one suit - all real cards, no joker.') },
       pik_royal: { emoji: '👑', name: L('Pik Royal', 'Spade royal'), desc: L('Royal Flush in Pik - mit der Pik Dame', 'Royal flush in spades - with the Queen of Spades'),
         how: L('Lege 10, Bube, Dame, König und Ass in Pik als Folge aus - alles echte Karten, kein Joker.', 'Meld 10, jack, queen, king and ace of spades as a run - all real cards, no joker.') },
-      // Bot tower (game/BotTower.js): stages cleared, then every star
-      tower_3: { emoji: '🗼', name: L('Turm\u00adkletterer', 'Tower climber'), desc: L('3 Stufen im Bot-Turm geschafft', 'Cleared 3 bot tower stages'),
-        how: L('Hol dir im Bot-Turm (Fortschritt → Bot-Turm) auf 3 Stufen mindestens einen Stern.', 'Earn at least one star on 3 bot tower stages (Progress → Bot tower).') },
-      tower_6: { emoji: '🗼', name: L('Turm\u00adstürmer', 'Tower stormer'), desc: L('6 Stufen im Bot-Turm geschafft', 'Cleared 6 bot tower stages'),
-        how: L('Hol dir im Bot-Turm auf 6 Stufen mindestens einen Stern.', 'Earn at least one star on 6 bot tower stages.') },
-      tower_10: { emoji: '🗼', name: L('Turm\u00adspitze', 'Tower top'), desc: L('Alle 10 Stufen im Bot-Turm geschafft', 'Cleared all 10 bot tower stages'),
-        how: L('Schaff alle 10 Stufen des Bot-Turms - die letzte gegen drei Zen-Bots.', 'Clear all 10 bot tower stages - the last one against three Zen bots.') },
-      tower_stars_30: { emoji: '🌠', name: L('Sternen\u00adhimmel', 'Starry sky'), desc: L('Alle 30 Sterne im Bot-Turm', 'All 30 stars in the bot tower'),
-        how: L('Hol dir auf allen 10 Stufen des Bot-Turms drei Sterne: klar vorn und selbst ausgemacht.', 'Earn three stars on all 10 bot tower stages: clearly ahead and out yourself.') },
+      // Kartenhaus (game/BotTower.js): floors and stars in the best month, crowned months
+      tower_3: { emoji: '🏠', name: L('Karten\u00adstapler/in', 'Card stacker'), desc: L('3 Etagen in einem Monat geschafft', 'Cleared 3 floors in one month'),
+        how: L('Hol dir in einem Monat im Kartenhaus (Aufgaben → Kartenhaus) auf den Etagen 1 bis 3 je mindestens einen Stern.', 'Earn at least one star on floors 1 to 3 of the House of Cards in one month (Tasks → House of Cards).') },
+      tower_6: { emoji: '🏠', name: L('Karten\u00adkünstler/in', 'Card artist'), desc: L('6 Etagen in einem Monat geschafft', 'Cleared 6 floors in one month'),
+        how: L('Hol dir in einem Monat im Kartenhaus auf den Etagen 1 bis 6 je mindestens einen Stern.', 'Earn at least one star on floors 1 to 6 of the House of Cards in one month.') },
+      tower_10: { emoji: '🏠', name: L('Hoch\u00adstapler/in', 'High stacker'), desc: L('10 Etagen in einem Monat geschafft', 'Cleared 10 floors in one month'),
+        how: L('Schaff in einem Monat die Etagen 1 bis 10 des Kartenhauses - die zehnte gegen drei Zen-Bots.', 'Clear floors 1 to 10 of the House of Cards in one month - the tenth against three Zen bots.') },
+      tower_stars_30: { emoji: '🌠', name: L('Sternen\u00adhimmel', 'Starry sky'), desc: L('30 Sterne in einem Monat', '30 stars in one month'),
+        how: L('Sammle in einem Monat im Kartenhaus 30 Sterne: drei pro Etage gibt es für klar vorn und selbst ausgemacht.', 'Collect 30 stars in the House of Cards in one month: three per floor for clearly ahead and out yourself.') },
+      tower_crowned_1: { emoji: '👷', name: L('Lehrling', 'Apprentice'), desc: L('Ein Kartenhaus gekrönt: alle 20 Etagen eines Monats', 'Crowned a House of Cards: all 20 floors of a month'),
+        how: L('Hol dir in einem Monat auf allen 20 Etagen des Kartenhauses mindestens einen Stern - dann kommt die Pik Dame obenauf.', 'Earn at least one star on all 20 floors of the House of Cards in one month - then the Queen of Spades goes on top.') },
+      tower_crowned_3: { emoji: '👷', name: L('Polier/in', 'Foreman'), desc: L('3 Monate das Kartenhaus gekrönt', 'Crowned the House of Cards in 3 months'),
+        how: L('Kröne das Kartenhaus in 3 Monaten: jedes Mal alle 20 Etagen mit mindestens einem Stern.', 'Crown the House of Cards in 3 months: every time all 20 floors with at least one star.') },
+      tower_crowned_12: { emoji: '👷', name: L('Bau\u00admeister/in', 'Master Builder'), desc: L('12 Monate das Kartenhaus gekrönt', 'Crowned the House of Cards in 12 months'),
+        how: L('Kröne das Kartenhaus in 12 Monaten.', 'Crown the House of Cards in 12 months.') },
     };
     return M[id] || { emoji: '🎖️', name: id, desc: '', how: '' };
   }
@@ -516,6 +566,7 @@
     { id: 'puzzlePerfect', tiers: ['puzzle_perfect_10', 'puzzle_perfect_30', 'puzzle_perfect_100'] },
     { id: 'tower', tiers: ['tower_3', 'tower_6', 'tower_10'] },
     { id: 'towerStars', tiers: ['tower_stars_30'] },
+    { id: 'towerCrowned', tiers: ['tower_crowned_1', 'tower_crowned_3', 'tower_crowned_12'] },
   ];
   const BADGE_SINGLES = [
     'pd_caught', 'round_300', 'score_500', 'pd_triple', 'double_queen_round',
@@ -900,7 +951,7 @@
     const sample = bar.querySelector('button[data-emote]');
     if (!sample) return;
     const b = sample.cloneNode(false);
-    b.classList.add('greetEmote');
+    b.className = 'emoteChoice emoteSpecial greetEmote';
     b.dataset.emote = emoji;
     b.textContent = emoji;
     b.addEventListener('click', () => {
@@ -1302,7 +1353,7 @@
           afterTutorial = next;
           el('createGameBtn').click();
         }
-        // Back from a finished tower stage (leaveTowerFor): the tower or the next try.
+        // Back from a finished Kartenhaus floor (leaveTowerFor): the house or the next try.
         const towerNext = storageGet('pikdame_after_tower');
         if (towerNext) {
           storageRemove('pikdame_after_tower');
@@ -1660,21 +1711,26 @@
     if (msg.type === 'challengeBoard') {
       lastChallengeBoard = msg;
       renderChallengeBoard();
+      if (lastState && lastState.phase === 'gameOver' && !el('resultOverlay').classList.contains('hidden')) renderResultMe(true);
       return;
     }
     if (msg.type === 'towerInfo') {
       towerInfo = { ...msg, forName: towerAskedFor };
       renderTower();
-      renderTowerChip();
+      renderTowerTile();
       if (!el('progressOverlay').classList.contains('hidden')) renderProgressSheet();
       return;
     }
     if (msg.type === 'towerResult') {
       lastTowerResult = msg;
+      // For the house's next opening: a missed floor wobbles there (after the reload).
+      storageSet(TOWER_LAST_KEY, JSON.stringify({ name: myName || '', month: msg.month, stage: msg.stage, stars: msg.stars }));
       const pr = msg.progress;
-      if (pr && towerInfo) Object.assign(towerInfo, { best: pr.best, stars: pr.stars, cleared: pr.cleared, unlocked: pr.unlocked });
-      try { renderTowerChip(); } catch (e) { /* cosmetic */ }
-      // A stage's first star pays XP: same level bookkeeping as the solved puzzle.
+      if (pr && towerInfo && towerInfo.month === msg.month) {
+        Object.assign(towerInfo, { best: pr.best, stars: pr.stars, cleared: pr.cleared, unlocked: pr.unlocked, crowned: pr.crowned, totalStars: pr.totalStars });
+      }
+      try { renderTowerTile(); } catch (e) { /* cosmetic */ }
+      // A floor's first star pays XP: same level bookkeeping as the solved puzzle.
       if (msg.xp && msg.level) {
         const total = msg.level.total || 0;
         myProgress = { xp: Math.max((myProgress && myProgress.xp) || 0, total), level: msg.level };
@@ -1713,7 +1769,7 @@
       el('statsBtn').classList.toggle('hidden', publicMode);
       try { updateCelebrationSetting(); } catch (e) { /* cosmetic */ }
       if (!publicMode && !towerInfo) requestTower();
-      try { renderTowerChip(); } catch (e) { /* cosmetic */ }
+      try { renderTowerTile(); } catch (e) { /* cosmetic */ }
       if (msg.quests) dailyQuests = msg.quests;
       try { fetchChallengeToday(); } catch (e) { /* cosmetic */ }
       // My own counters live on my profile (name-based, like every other
@@ -1731,7 +1787,7 @@
     if (msg.type === 'progress') {
       // End of a match: experience, level and the daily quests that ticked.
       myProgress = { xp: msg.xp, level: msg.level };
-      lastGameProgress = { gainedXp: msg.gainedXp || 0, welcomeBack: !!msg.welcomeBack, record: msg.record || null };
+      lastGameProgress = { gainedXp: msg.gainedXp || 0, welcomeBack: !!msg.welcomeBack, record: msg.record || null, streak: msg.streak || null };
       if (msg.streak) myStreak = msg.streak;
       if (msg.quests) {
         dailyQuests = { date: msg.quests.date, ids: msg.quests.ids };
@@ -1746,6 +1802,11 @@
     if (msg.type === 'accountProgress') {
       accountProgress = msg.progress || null;
       renderAccountProgress();
+      // Sent right after a finished match: its season place joins the result strip.
+      if (lastGameProgress && accountProgress && lastState && lastState.phase === 'gameOver') {
+        lastGameProgress.seasonRank = accountProgress.rank || null;
+        if (!el('resultOverlay').classList.contains('hidden')) renderResultMe(true);
+      }
       return;
     }
     if (msg.type === 'emote') {
@@ -2315,7 +2376,7 @@
           badgeBtn.className = 'botDiffBadge tapExpand';
           // In the game the spade rating alone; the level's name is in title + aria-label.
           badgeBtn.innerHTML = levelIconHtml(meta);
-          // Bot tower: the stage fixes the bots, so the badge only tells.
+          // Kartenhaus: the floor fixes the bots, so the badge only tells.
           if (lastState.isHost && !lastState.towerStage) {
             badgeBtn.title = L(`Schwierigkeit ändern (${meta.short()})`, `Change difficulty (${meta.short()})`);
             badgeBtn.addEventListener('click', (ev) => {
@@ -2553,7 +2614,9 @@
     el('drawPile').classList.toggle('glow', canDraw && lastState.drawPileCount > 0);
     // Server truth: glow the discard only when taking it is actually legal.
     // `null`/missing (older server, no answer) keeps the old optimistic glow.
-    const discardBlocked = discardAidOn() && canDraw && !!lastState.discardTop && lastState.discardTakeable === false;
+    // A Kartenhaus floor without the discard pile shows it blocked even with the aid off.
+    const noDiscardFloor = !!(lastState.towerMods && lastState.towerMods.includes('noDiscard'));
+    const discardBlocked = (discardAidOn() || noDiscardFloor) && canDraw && !!lastState.discardTop && lastState.discardTakeable === false;
     el('discardPile').classList.toggle('glow', canDraw && !!lastState.discardTop && !discardBlocked);
     el('discardPile').classList.toggle('noTake', discardBlocked);
 
@@ -3286,9 +3349,10 @@
       }
     }
     const isGameOver = lastState.phase === 'gameOver';
+    el('resultOverlay').classList.toggle('isFinal', isGameOver); // desktop: two columns
     el('resultTitle').textContent = forfeited
       ? L('Spiel aufgegeben', 'Game forfeited')
-      : isGameOver && lastState.towerStage ? L(`Bot-Turm · Stufe ${lastState.towerStage}`, `Bot tower · stage ${lastState.towerStage}`)
+      : isGameOver && lastState.towerStage ? `${towerName()} · ${L(`Etage ${lastState.towerStage}`, `floor ${lastState.towerStage}`)}`
         : isGameOver ? L('Spielende!', 'Game over!') : L('Rundenende', 'End of round');
 
     const body = el('resultBody');
@@ -3361,7 +3425,6 @@
     }
     if (!forfeited && lastState.lastRoundResult) {
       const SCORE_TARGET = 1000;
-      const signed = (n) => (n > 0 ? `+${n}` : `${n}`);
 
       // The winner is whoever went OUT, which is often not the biggest number
       // on screen - as a green table row among four that read like a bug
@@ -3430,13 +3493,13 @@
               ? `<div class="resultRowTop">` +
                 `<span class="resultRank">${rank}.</span>` +
                 `<span class="resultName">${nameWithHeart(p.name)}${botMark(p)}</span>` +
-                `<span class="resultDelta resultDeltaSmall${deltaCls}">${signed(delta)}</span>` +
-                `<span class="resultTotal resultTotalBig">${total}</span>` +
+                `<span class="resultDelta resultDeltaSmall${deltaCls}">${fmtSigned(delta)}</span>` +
+                `<span class="resultTotal resultTotalBig">${fmtNum(total)}</span>` +
                 `</div>` + bar
               : `<div class="resultRowTop">` +
                 `<span class="resultName">${nameWithHeart(p.name)}${botMark(p)}</span>` +
-                `<span class="resultTotal">${L('gesamt', 'total')} ${total}</span>` +
-                `<span class="resultDelta${deltaCls}">${signed(delta)}</span>` +
+                `<span class="resultTotal">${L('gesamt', 'total')} ${fmtNum(total)}</span>` +
+                `<span class="resultDelta${deltaCls}">${fmtSigned(delta)}</span>` +
                 `</div>` + bar;
             // Per-card breakdown: MY row only (an opponent's leftover hand is
             // not even sent), and not at game over - the match is decided then.
@@ -3452,7 +3515,7 @@
                   pikdame: '♠Q', joker: L('Joker', 'Joker'), ace: L('Ass', 'Ace'),
                   face: L('10/B/D/K', '10/J/Q/K'), low: '2–9',
                 }[ln.kind] || ln.kind;
-                return `${ln.count > 1 ? `${ln.count}× ` : ''}${label} ${ln.points}`;
+                return `${ln.count > 1 ? `${ln.count}×${NBSP}` : ''}${label} ${ln.points}`;
               };
               const plus = (stats.laidLines || []).map(lineText).join(', ');
               const minus = (stats.handLines || []).map(lineText).join(', ');
@@ -3461,11 +3524,11 @@
               const isWinner = !!(r && r.breakdown && r.breakdown.isWinner);
               const mult = r && r.breakdown && r.breakdown.multiplier > 1 ? r.breakdown.multiplier : 1;
               det.innerHTML =
-                `<summary><span>${L('Aufschlüsselung', 'Breakdown')}</span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg> <span class="bdSums"><span class="bdSumPlus">+${plusSum}</span>${isWinner ? '' : ` <span class="bdSumMinus">−${minusSum}</span>`}</span></summary>` +
-                `<div class="bdLine bdPlus"><span>${L('Ausgelegt', 'Melded')}</span><span>${plus ? escapeHtml(plus) : '–'}</span><b>+${plusSum}</b></div>` +
+                `<summary><span>${L('Aufschlüsselung', 'Breakdown')}</span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg> <span class="bdSums"><span class="bdSumPlus">+${fmtNum(plusSum)}</span>${isWinner ? '' : ` <span class="bdSumMinus">${MINUS}${fmtNum(minusSum)}</span>`}</span></summary>` +
+                `<div class="bdLine bdPlus"><span>${L('Ausgelegt', 'Melded')}</span><span>${plus ? escapeHtml(plus) : '–'}</span><b>+${fmtNum(plusSum)}</b></div>` +
                 (isWinner
                   ? `<div class="bdLine bdNote"><span>${L('Rundensieg: keine Minuspunkte', 'Round winner: no minus points')}</span><span></span><b></b></div>`
-                  : `<div class="bdLine bdMinus"><span>${L('Auf der Hand', 'In hand')}</span><span>${minus ? escapeHtml(minus) : '–'}</span><b>−${minusSum}</b></div>`) +
+                  : `<div class="bdLine bdMinus"><span>${L('Auf der Hand', 'In hand')}</span><span>${minus ? escapeHtml(minus) : '–'}</span><b>${MINUS}${fmtNum(minusSum)}</b></div>`) +
                 (mult > 1 ? `<div class="bdLine bdNote"><span>${L(`Hand aus: ×${mult}`, `Out in one: ×${mult}`)}</span><span></span><b></b></div>` : '');
               row.appendChild(det);
             }
@@ -3484,6 +3547,9 @@
       const marks = (s) =>
         (s.pikDameLaidOut ? `<span class="statMark" title="${L('Pik Dame ausgelegt', 'Queen of Spades melded')}">♠Q${s.pikDameLaidOut > 1 ? `×${s.pikDameLaidOut}` : ''}</span>` : '') +
         (s.jokersLaidOut ? `<span class="statMark" title="${L('Joker ausgelegt', 'Jokers melded')}">${JOKER_MARK_SVG}${s.jokersLaidOut > 1 ? `×${s.jokersLaidOut}` : ''}</span>` : '');
+      // Own row = edge line + bold (.isMe), round winner = check chip: the two
+      // used to share one green row and read as the same thing.
+      const winMark = `<span class="winChip" title="${L('Rundensieg', 'Round win')}">${iconHtml('check')}<span>${L('Sieg', 'Win')}</span></span>`;
       statsTable.innerHTML = `
         <thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('Runde', 'Round')}</th><th>${L('Ausgelegt', 'Melded')}</th><th>${L('Hand', 'Hand')}</th></tr></thead>
         <tbody>${lastState.lastRoundStats
@@ -3492,8 +3558,9 @@
             const delta = r ? r.roundScore : null;
             const deltaCell = delta === null
               ? '–'
-              : `<span class="${delta > 0 ? 'deltaUp' : delta < 0 ? 'deltaDown' : ''}">${delta > 0 ? `+${delta}` : delta === 0 ? '±0' : delta}</span>`;
-            return `<tr${s.id === lastState.lastRoundWinnerId ? ' class="winnerRow"' : ''}><td><span class="statName">${escapeHtml(s.name)}</span>${marks(s)}</td><td>${deltaCell}</td><td>${s.laidOutCount}</td><td>${s.handCount}</td></tr>`;
+              : `<span class="${delta > 0 ? 'deltaUp' : delta < 0 ? 'deltaDown' : ''}">${delta === 0 ? '±0' : fmtSigned(delta)}</span>`;
+            const win = s.id === lastState.lastRoundWinnerId;
+            return `<tr${s.id === playerId ? ' class="isMe"' : ''}><td><span class="statName">${escapeHtml(s.name)}</span>${marks(s)}${win ? winMark : ''}</td><td>${deltaCell}</td><td>${s.laidOutCount}</td><td>${s.handCount}</td></tr>`;
           })
           .join('')}</tbody>`;
       paneStats.appendChild(statsTable);
@@ -3510,28 +3577,22 @@
       // The match winner belongs at the TOP. It used to be a line of body text
       // below four score rows - the single most important sentence on the
       // screen, and you had to read past everything else to reach it.
+      const iWon = !!winner && winner.id === playerId;
+      // One line, no score: the total is in the list right below. The trophy
+      // (not the round's crown) marks the match; my own win gets the gold banner.
       const head = document.createElement('div');
-      head.className = 'resultWinner resultWinnerGame';
-      // Pokal statt Krone: die Krone markiert schon JEDEN Rundengewinn (siehe
-      // .resultWinner ohne "Game"-Zusatz weiter oben in dieser Funktion) -
-      // ohne eigenes Symbol für den PARTIE-Gewinn sahen beide Momente
-      // identisch aus.
+      head.className = 'resultWinner resultWinnerGame' + (iWon ? ' isMe' : '');
       head.innerHTML =
-        `<div class="resultWinnerCrown resultWinnerTrophy">${TROPHY_MARK_SVG}</div>` +
-        `<div class="resultWinnerName">${nameWithHeart(winner ? winner.name : '?')}${winner ? botMark(winner) : ''}</div>` +
-        `<div class="resultWinnerSub">${
+        `<span class="resultWinnerTrophy">${TROPHY_MARK_SVG}</span>` +
+        (iWon ? '' : `<span class="resultWinnerName">${nameWithHeart(winner ? winner.name : '?')}${winner ? botMark(winner) : ''}</span>`) +
+        `<span class="resultWinnerSub">${
           lastState.towerStage
-            ? winner && winner.id === playerId ? L('Du schaffst die Stufe', 'You clear the stage') : L('hält dich auf dieser Stufe', 'holds you on this stage')
-            : winner && winner.id === playerId
-              ? L('Du gewinnst die Partie', 'You win the match')
+            ? iWon ? L('Du schaffst die Etage!', 'You clear the floor!') : L('hält dich auf dieser Etage', 'holds you on this floor')
+            : iWon
+              ? L('Du gewinnst die Partie!', 'You win the match!')
               : L('gewinnt die Partie', 'wins the match')
-        }</div>` +
-        `<div class="resultWinnerScore"></div>`;
+        }</span>`;
       paneResult.insertBefore(head, paneResult.firstChild);
-      countUpScore(
-        head.querySelector('.resultWinnerScore'),
-        (lastState.totals && lastState.totals[winner ? winner.id : '']) || 0
-      );
       // Schlüsselmomente der Partie: 3 erzählte Zeilen statt nur Zahlen.
       const hl = isGameOver && lastState.gameOverInfo && lastState.gameOverInfo.highlights;
       if (hl && hl.length) {
@@ -3543,7 +3604,7 @@
         const moment = (h) => {
           if (h.type === 'queenCaught') {
             return {
-              kind: 'bad', swing: '-100',
+              kind: 'bad', swing: `${MINUS}100`,
               title: L(`${h.name} erwischt`, `${h.name} caught out`),
               text: L('Die Pik Dame blieb auf der Hand liegen.', 'Left holding the Queen of Spades.'),
             };
@@ -3564,7 +3625,7 @@
           }
           if (h.type === 'bestRound') {
             return {
-              kind: 'good', swing: h.score > 0 ? `+${h.score}` : `${h.score}`,
+              kind: 'good', swing: fmtSigned(h.score),
               title: L(`Beste Runde der Partie: ${h.name}`, `Best round of the match: ${h.name}`),
               text: L('Keine Runde brachte jemandem mehr ein.', 'No round earned anyone more.'),
             };
@@ -3588,30 +3649,14 @@
         box.innerHTML = `<h4>${L('Schlüsselmomente', 'Key moments')}</h4><ul class="momentList">${rows}</ul>`;
         paneResult.appendChild(box);
       }
-      // The trip from this match into the lifetime numbers.
-      const me = lastState.players.find((p) => p.id === playerId && !p.isBot);
-      if (me) {
-        const myTotal = lastState.totals[me.id] || 0;
-        const place = 1 + lastState.players.filter((o) => (lastState.totals[o.id] || 0) > myTotal).length;
-        const bits = [`<b>${L(`Platz ${place} von ${lastState.players.length}`, `Place ${place} of ${lastState.players.length}`)}</b>`];
-        const gp = lastGameProgress;
-        if (gp && gp.gainedXp > 0) bits.push(`+${gp.gainedXp} ${L('EP', 'XP')}${gp.welcomeBack ? ' (×2)' : ''}`);
-        if (gp && gp.record && gp.record.played > 0) {
-          bits.push(L(`Bilanz ${gp.record.won}/${gp.record.played} Siege`, `Record ${gp.record.won}/${gp.record.played} wins`));
-        }
-        const mine = document.createElement('p');
-        mine.className = 'resultMine';
-        mine.innerHTML = bits.join('<span class="dot"> · </span>');
-        paneResult.insertBefore(mine, paneResult.querySelector('.resultSort'));
-      }
       if (chart) paneResult.insertBefore(chart, paneResult.querySelector('.matchMoments'));
       // Small facts of the match: chips, not three loose lines of prose.
       const gi = lastState.gameOverInfo;
       const facts = [];
       if (typeof gi.totalTurns === 'number') {
         const rounds = gi.totalRounds || 0;
-        facts.push(L(`<b>${gi.totalTurns}</b> Züge`, `<b>${gi.totalTurns}</b> turns`));
-        facts.push(L(`<b>${rounds}</b> ${rounds === 1 ? 'Runde' : 'Runden'}`, `<b>${rounds}</b> ${rounds === 1 ? 'round' : 'rounds'}`));
+        facts.push(`<b>${fmtNum(gi.totalTurns)}</b>${NBSP}${unitWord(gi.totalTurns, 'turn')}`);
+        facts.push(`<b>${fmtNum(rounds)}</b>${NBSP}${unitWord(rounds, 'round')}`);
       }
       const ft = gi.funTitle;
       if (ft && ft.type === 'queenMagnet') {
@@ -3648,31 +3693,39 @@
       box.className = 'gameTotalsBox';
       const tBtn = document.createElement('button');
       tBtn.className = 'btn-secondary';
-      tBtn.textContent = L('♠Q & 🃏 der Partie anzeigen', 'Show game totals ♠Q & 🃏');
+      const totalsLabel = (hidden) => (lang === 'en'
+        ? `<span>${hidden ? 'Show' : 'Hide'} game totals ♠Q &amp;</span> ${JOKER_MARK_SVG}`
+        : `<span>♠Q &amp;</span> ${JOKER_MARK_SVG} <span>${hidden ? 'der Partie anzeigen' : 'ausblenden'}</span>`);
+      tBtn.innerHTML = totalsLabel(true);
       const tbl = document.createElement('table');
       tbl.className = 'statsTable hidden';
       const rows = (lastState.players || [])
         .map((p) => ({ name: p.name, t: lastState.gameStatsTotals[p.id] || { pikDames: 0, jokers: 0 } }))
         .sort((a, b) => b.t.pikDames - a.t.pikDames || b.t.jokers - a.t.jokers)
-        .map((r) => `<tr><td>${escapeHtml(r.name)}</td><td>${r.t.pikDames > 0 ? '♠'.repeat(r.t.pikDames) : '–'}</td><td>${r.t.jokers > 0 ? '🃏'.repeat(Math.min(r.t.jokers, 8)) + (r.t.jokers > 8 ? '×' + r.t.jokers : '') : '–'}</td></tr>`)
+        .map((r) => `<tr><td>${escapeHtml(r.name)}</td><td>${r.t.pikDames > 0 ? '♠'.repeat(r.t.pikDames) : '–'}</td><td>${r.t.jokers > 0 ? `<span class="statMark">${JOKER_MARK_SVG}×${r.t.jokers}</span>` : '–'}</td></tr>`)
         .join('');
-      tbl.innerHTML = `<thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('♠Q ausgelegt', '♠Q melded')}</th><th>${L('🃏 ausgelegt', '🃏 melded')}</th></tr></thead><tbody>${rows}</tbody>`;
+      tbl.innerHTML = `<thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('♠Q ausgelegt', '♠Q melded')}</th><th><span class="statMark">${JOKER_MARK_SVG}</span> <span>${L('ausgelegt', 'melded')}</span></th></tr></thead><tbody>${rows}</tbody>`;
       tBtn.addEventListener('click', () => {
         const nowHidden = tbl.classList.toggle('hidden');
-        tBtn.textContent = nowHidden ? L('♠Q & 🃏 der Partie anzeigen', 'Show game totals ♠Q & 🃏') : L('♠Q & 🃏 ausblenden', 'Hide game totals');
+        tBtn.innerHTML = totalsLabel(nowHidden);
       });
       box.appendChild(tBtn);
       box.appendChild(tbl);
       paneStats.appendChild(box);
     }
-    // 🎖️ Frisch verdiente Erfolge feiern (kommen per Server-Nachricht)
+    // Frisch verdiente Erfolge feiern (kommen per Server-Nachricht)
     const oldBadgeBox = el('resultBody').querySelector('.badgeBox');
     if (oldBadgeBox) oldBadgeBox.remove();
-    if (isGameOver && lastEarnedBadges && lastEarnedBadges.length > 0) {
+    const stripShown = renderResultMe(isGameOver && !forfeited);
+    const mySeat = (lastState.players || []).find((p) => p.id === playerId);
+    const myName = String((mySeat && mySeat.name) || '').toLowerCase();
+    // Mine are chips in the result strip; the box keeps the table's other badges.
+    const tableBadges = (lastEarnedBadges || []).filter((e) => !stripShown || String(e.name || '').toLowerCase() !== myName);
+    if (isGameOver && tableBadges.length > 0) {
       const box = document.createElement('div');
       box.className = 'badgeBox';
-      box.innerHTML = `<h3>🎖️ ${L('Neue Erfolge', 'New achievements')}</h3>`;
-      for (const entry of lastEarnedBadges) {
+      box.innerHTML = `<h3>${iconHtml('medal')}<span>${L('Neue Erfolge', 'New achievements')}</span></h3>`;
+      for (const entry of tableBadges) {
         for (const id of entry.badges) {
           const m = badgeMeta(id);
           const row = document.createElement('div');
@@ -3728,7 +3781,7 @@
       contBtn.textContent = lastState.challengeDate
         ? L('Zum Hauptmenü', 'Main menu')
         : lastState.towerStage
-          ? L('Zum Bot-Turm', 'To the bot tower')
+          ? L('Zum Kartenhaus', 'To the House of Cards')
           : ser
           ? ser.winner
             ? L('Neue Serie starten', 'Start a new series')
@@ -3756,6 +3809,81 @@
     requestAnimationFrame(() => updateResultScrollEdges());
   }
 
+  // Own result first (game over): place and gap, XP with the level bar, then
+  // chips for what is new. Pinned above "Neue Partie"; landscape/desktop: right column.
+  function renderResultMe(isFinal) {
+    const box = el('resultMe');
+    if (!box) return false;
+    const me = isFinal && lastState && !lastState.towerStage
+      ? (lastState.players || []).find((p) => p.id === playerId && !p.isBot)
+      : null;
+    if (!me) {
+      box.classList.add('hidden');
+      box.innerHTML = '';
+      return false;
+    }
+    const totalOf = (p) => (lastState.totals && lastState.totals[p.id]) || 0;
+    const myTotal = totalOf(me);
+    const ranked = lastState.players.slice().sort((a, b) => totalOf(b) - totalOf(a));
+    const place = 1 + lastState.players.filter((o) => totalOf(o) > myTotal).length;
+    const rival = place === 1 ? ranked.find((p) => p.id !== me.id) : ranked[0];
+    const gap = rival ? Math.abs(myTotal - totalOf(rival)) : 0;
+    const rn = rival ? escapeHtml(rival.name) : '';
+    const gapText = !rival ? ''
+      : gap === 0 ? L(`gleichauf mit ${rn}`, `level with ${rn}`)
+        : place === 1 ? L(`${fmtNum(gap)} vor ${rn}`, `${fmtNum(gap)} ahead of ${rn}`)
+          : L(`${fmtNum(gap)} hinter ${rn}`, `${fmtNum(gap)} behind ${rn}`);
+    const gp = lastGameProgress;
+    const xp = gp && gp.gainedXp > 0
+      ? `<span class="rmXp">+${fmtNum(gp.gainedXp)} ${L('EP', 'XP')}${gp.welcomeBack ? ' (×2)' : ''}</span>`
+      : '';
+    // Level bar: solid = before this match, green = what it brought (from 0 after a level-up).
+    let level = '';
+    if (gp && myProgress && typeof myProgress.xp === 'number') {
+      const now = levelFromXpClient(myProgress.xp);
+      const before = levelFromXpClient(myProgress.xp - (gp.gainedXp || 0));
+      const pct = (lv) => Math.round((lv.into / lv.need) * 100);
+      const from = before.level === now.level ? pct(before) : 0;
+      const to = pct(now);
+      level = `<div class="rmLevel"><span class="rmLv">${L('Stufe', 'Level')} ${now.level}</span>` +
+        `<span class="rmBar" role="img" aria-label="${escapeHtml(L(`${now.into} von ${now.need} EP zur nächsten Stufe`, `${now.into} of ${now.need} XP to the next level`))}">` +
+        `<i class="rmOld" style="width:${from}%"></i><i class="rmGain" style="left:${from}%;width:${Math.max(0, to - from)}%"></i></span>` +
+        `<span class="rmNext">${L(`noch ${fmtNum(now.need - now.into)} EP`, `${fmtNum(now.need - now.into)} XP to go`)}</span></div>`;
+    }
+    const chips = [];
+    const myName = String(me.name || '').toLowerCase();
+    for (const entry of lastEarnedBadges || []) {
+      if (String(entry.name || '').toLowerCase() !== myName) continue;
+      for (const id of entry.badges || []) {
+        const m = badgeMeta(id);
+        // The emoji IS the badge (content, as in the trophy cabinet), not an icon.
+        chips.push(`<span class="rmChip isNew" title="${escapeHtml(m.desc)}"><span class="rmChipEmoji" aria-hidden="true">${m.emoji}</span><span>${L('Neu', 'New')}: ${escapeHtml(m.name)}</span></span>`);
+      }
+    }
+    const cb = lastChallengeBoard;
+    if (lastState.challengeDate && cb && cb.date === lastState.challengeDate && cb.yourRank) {
+      chips.push(`<span class="rmChip"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg><span>${L(`Tages-Challenge: Platz ${cb.yourRank}`, `Daily challenge: rank ${cb.yourRank}`)}</span></span>`);
+    }
+    const st = gp && gp.streak;
+    if (st && (st.event === 'extended' || st.event === 'bridged') && st.streak >= 2) {
+      chips.push(`<span class="rmChip"><svg class="icon" aria-hidden="true"><use href="#i-flame"/></svg><span>${L(`${st.streak} Tage in Folge`, `${st.streak} days in a row`)}</span></span>`);
+    }
+    if (gp && gp.seasonRank) {
+      chips.push(`<span class="rmChip"><svg class="icon" aria-hidden="true"><use href="#i-trend"/></svg><span>${L(`Saison: Platz ${gp.seasonRank}`, `Season: rank ${gp.seasonRank}`)}</span></span>`);
+    }
+    if (gp && gp.record && gp.record.played > 0) {
+      const r = gp.record;
+      chips.push(`<span class="rmChip" title="${escapeHtml(L(`${r.won} Siege in ${r.played} Partien`, `${r.won} wins in ${r.played} games`))}"><span>${L(`Bilanz ${r.won}/${r.played}`, `Record ${r.won}/${r.played}`)}</span></span>`);
+    }
+    box.innerHTML =
+      `<div class="rmTop"><span class="rmPlace">${L(`Platz ${place} von ${lastState.players.length}`, `Place ${place} of ${lastState.players.length}`)}</span>` +
+      (gapText ? `<span class="rmGap">· ${gapText}</span>` : '') + xp + `</div>` +
+      level +
+      (chips.length ? `<div class="rmChips">${chips.join('')}</div>` : '');
+    box.classList.remove('hidden');
+    return true;
+  }
+
   function updateResultScrollEdges() {
     const b = el('resultBody');
     if (!b) return;
@@ -3771,6 +3899,7 @@
   el('resultEmoteToggle').addEventListener('click', () => {
     const bar = el('resultEmoteBar');
     const show = bar.classList.contains('hidden');
+    if (show) arrangeEmoteBar(bar);
     bar.classList.toggle('hidden', !show);
     el('resultEmoteToggle').setAttribute('aria-expanded', String(show));
     updateResultScrollEdges();
@@ -3941,8 +4070,8 @@
     }
     renderIdentity();
     if (changed) { try { requestYearReview(); } catch (e) { /* cosmetic */ } }
-    // Tower progress is per name: hide the old name's chip until the new data arrives.
-    if (changed && !publicMode) { try { requestTower(); renderTowerChip(); } catch (e) { /* cosmetic */ } }
+    // Kartenhaus progress is per name: clear the old name's tile until the new data arrives.
+    if (changed && !publicMode) { try { requestTower(); renderTowerTile(); } catch (e) { /* cosmetic */ } }
     // Renaming inside a session re-joins under the new name (what the
     // "Name" button used to do after typing into the field above).
     if (changed && sessionCode && playerId) {
@@ -4499,7 +4628,7 @@
     const og = openGame;
     pendingStart = start;
     el('openGameSummary').textContent = og.tower
-      ? L(`Bot-Turm · Stufe ${og.tower}`, `Bot tower · stage ${og.tower}`)
+      ? `${towerName()} · ${L(`Etage ${og.tower}`, `floor ${og.tower}`)}`
       : og.phase === 'lobby'
         ? L(`Spiel ${og.code} · noch in der Lobby`, `Game ${og.code} · still in the lobby`)
         : L(`Spiel ${og.code} · Runde ${og.round} · ${og.score} Punkte`, `Game ${og.code} · round ${og.round} · ${og.score} points`);
@@ -4512,7 +4641,7 @@
           : L('Ein Bot übernimmt deinen Platz bis zum Ende, die anderen spielen weiter. Du kannst nicht zurück. Für dich wird die Partie nicht gewertet.',
             'A bot takes your seat until the end, the others play on. You cannot come back. The match is not scored for you.');
     const target = intent === 'tutorial' ? L('Tutorial', 'tutorial')
-      : intent === 'tower' ? L('Bot-Turm', 'bot tower')
+      : intent === 'tower' ? L('Kartenhaus', 'House of Cards')
         : intent === 'join' ? L('beitreten', 'join') : L('neues Spiel', 'new game');
     const btn = el('openGameGiveUpBtn');
     disarmTap(btn);
@@ -5334,8 +5463,7 @@
 
   // --- Sharing results (Wordle style): emoji are content here, not icons ---
   function shareDay(iso) {
-    const d = new Date(`${iso}T12:00:00`);
-    return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-DE', { day: 'numeric', month: 'short' });
+    return fmtDay(iso, { day: 'numeric', month: 'short', timeZone: 'UTC' });
   }
   // The system share sheet where it exists, else the clipboard.
   async function shareResult(text) {
@@ -5367,7 +5495,8 @@
 
   let lastChallengeBoard = null;
   let challengeIntroResult = null; // today's ranked result in the intro sheet, for sharing
-  const magnetText = (m) => L(`🧲 Damen-Magnet des Tages: ${m.name} (${m.queens}×)`, `🧲 Queen magnet of the day: ${m.name} (${m.queens}×)`);
+  const magnetText = (m) => L(`Damen-Magnet des Tages: ${m.name} (${m.queens}×)`, `Queen magnet of the day: ${m.name} (${m.queens}×)`);
+  const withIcon = (name, text) => `${iconHtml(name)} <span>${escapeHtml(text)}</span>`;
   function renderChallengeBoard() {
     if (!lastChallengeBoard) return;
     const body = el('resultBody');
@@ -5377,8 +5506,13 @@
     const b = lastChallengeBoard;
     const box = document.createElement('div');
     box.className = 'challengeBoardBox';
+    // Own row: by name; by rank only when the name is not on the board.
+    const myName = (currentName() || '').toLowerCase();
+    const byName = (b.board || []).some((e) => (e.name || '').toLowerCase() === myName);
+    const isMine = (e) => (byName ? (e.name || '').toLowerCase() === myName : !!b.yourRank && e.rank === b.yourRank);
+    const ownRowShown = (b.board || []).some(isMine);
     const rows = (b.board || [])
-      .map((e) => `<tr${e.rank === b.yourRank ? ' class="winnerRow"' : ''}><td>${e.rank}.</td><td>${escapeHtml(e.name)}</td><td>${e.score}</td></tr>`)
+      .map((e) => `<tr${isMine(e) ? ' class="isMe"' : ''}><td>${e.rank}.</td><td class="nameCell">${escapeHtml(e.name)}</td><td>${fmtNum(e.score)}</td></tr>`)
       .join('');
     // '7 Tage sichtbar' jetzt wörtlich: kompakter Rückblick auf die letzten
     // Tage (Tagessieger + eigener Platz), aufklappbar unter der Tagesliste.
@@ -5386,13 +5520,13 @@
     const histRows = past
       .map((d) => {
         const win = d.top && d.top[0]
-          ? `🥇 ${escapeHtml(d.top[0].name)} · ${d.top[0].score}`
-          : L('keine Teilnahmen', 'no entries');
+          ? `${iconHtml('medal')} <span>${escapeHtml(d.top[0].name)} · ${fmtNum(d.top[0].score)}</span>`
+          : escapeHtml(L('keine Teilnahmen', 'no entries'));
         const mine = d.yourScore != null
-          ? ` — ${L(`du: ${d.yourScore} (Platz ${d.yourRank})`, `you: ${d.yourScore} (rank ${d.yourRank})`)}`
+          ? ` — ${L(`du: ${fmtNum(d.yourScore)} (Platz ${d.yourRank})`, `you: ${fmtNum(d.yourScore)} (rank ${d.yourRank})`)}`
           : '';
-        const magnet = d.magnet ? ` · 🧲 ${escapeHtml(d.magnet.name)}` : '';
-        return `<div class="challengeHistDay"><span>${escapeHtml(d.date)}</span><span>${win}${magnet}${mine}</span></div>`;
+        const magnet = d.magnet ? ` · ${iconHtml('magnet')} <span>${escapeHtml(d.magnet.name)}</span>` : '';
+        return `<div class="challengeHistDay"><span>${escapeHtml(fmtDay(d.date, { day: 'numeric', month: 'short', timeZone: 'UTC' }))}</span><span>${win}${magnet}${escapeHtml(mine)}</span></div>`;
       })
       .join('');
     const histBlock = histRows
@@ -5401,19 +5535,22 @@
     // Wochenwertung: beste 5 Tages-Scores der laufenden Woche (Mo-So).
     const wk = b.weekly;
     const weeklyBlock = wk && wk.players > 0
-      ? `<div class="challengeWeekly"><h4>🗓️ ${L('Wochenwertung', 'Weekly ranking')} <span class="weekRange">${escapeHtml(wk.week)}</span></h4>` +
-        wk.top.map((e) => `<div class="challengeHistDay"><span>#${e.rank} ${escapeHtml(e.name)}</span><span>${e.weekScore} ${L('Pkt', 'pts')} · ${e.days} ${L('Tage', 'days')}</span></div>`).join('') +
+      ? `<div class="challengeWeekly"><h4>${iconHtml('calendar')}<span>${L('Wochenwertung', 'Weekly ranking')}</span> <span class="weekRange">${escapeHtml(wk.week)}</span></h4>` +
+        wk.top.map((e) => `<div class="challengeHistDay"><span>#${e.rank} ${escapeHtml(e.name)}</span><span>${fmtNum(e.weekScore)} ${L('Pkt', 'pts')} · ${fmtCount(e.days, 'day')}</span></div>`).join('') +
         (wk.yourRank && wk.yourRank > wk.top.length
-          ? `<div class="challengeHistDay"><span>#${wk.yourRank} ${L('du', 'you')}</span><span>${wk.yourScore} ${L('Pkt', 'pts')}</span></div>`
+          ? `<div class="challengeHistDay"><span>#${wk.yourRank} ${L('du', 'you')}</span><span>${fmtNum(wk.yourScore)} ${L('Pkt', 'pts')}</span></div>`
           : '') +
         `<p class="weeklyHint">${L('Deine besten 5 Tage der Woche zählen.', 'Your best 5 days of the week count.')}</p></div>`
       : '';
-    const yourLine = L(`Dein Ergebnis: ${b.yourScore} Punkte${b.yourRank ? ` · Platz ${b.yourRank}` : ''}`, `Your result: ${b.yourScore} points${b.yourRank ? ` · rank ${b.yourRank}` : ''}`);
-    const magnetBlock = b.magnet ? `<p class="challengeMagnet">${escapeHtml(magnetText(b.magnet))}</p>` : '';
+    // The table row already says rank and score; the line only helps when
+    // the own row is not on the board.
+    const yourLine = L(`Dein Ergebnis: ${fmtNum(b.yourScore)} Punkte${b.yourRank ? ` · Platz ${b.yourRank}` : ''}`, `Your result: ${fmtNum(b.yourScore)} points${b.yourRank ? ` · rank ${b.yourRank}` : ''}`);
+    const yourBlock = ownRowShown || b.yourScore == null ? '' : `<p class="challengeYour">${escapeHtml(yourLine)}</p>`;
+    const magnetBlock = b.magnet ? `<p class="challengeMagnet">${withIcon('magnet', magnetText(b.magnet))}</p>` : '';
     const shareBlock = b.yourRank ? shareBtnHtml('challengeShareBtn', 'Ergebnis teilen', 'Share result') : '';
-    box.innerHTML = `<h3>🗓️ ${L('Tages-Challenge', 'Daily challenge')} ${escapeHtml(b.date)}</h3>
-      <p class="challengeYour">${escapeHtml(yourLine)}</p>${shareBlock}
-      <table class="statsTable"><tbody>${rows}</tbody></table>${magnetBlock}${weeklyBlock}${histBlock}`;
+    box.innerHTML = `<h3>${iconHtml('calendar')}<span>${L('Tages-Challenge', 'Daily challenge')} ${escapeHtml(fmtDay(b.date))}</span></h3>
+      ${yourBlock}${shareBlock}
+      <table class="statsTable challengeTable"><tbody>${rows}</tbody></table>${magnetBlock}${weeklyBlock}${histBlock}`;
     const shareBtn = box.querySelector('.challengeShareBtn');
     if (shareBtn) {
       shareBtn.addEventListener('click', () => shareResult(challengeShareText({
@@ -5465,7 +5602,7 @@
         el('challengeStartBtn').classList.toggle('hidden', played);
         if (played) el('challengeCancelBtn').textContent = L('Schließen', 'Close');
         el('challengeMagnetLine').classList.toggle('hidden', !(d && d.magnet));
-        if (d && d.magnet) el('challengeMagnetLine').textContent = magnetText(d.magnet);
+        if (d && d.magnet) el('challengeMagnetLine').innerHTML = withIcon('magnet', magnetText(d.magnet));
         // Wochenwertung: beste 5 von 7 Tagen - belohnt Regelmaessigkeit statt
         // eines einzelnen Gluckstreffers.
         // ACHTUNG: getWeekly liefert das Feld "top" (nicht "board" wie die
@@ -5551,7 +5688,7 @@
     // Game days as UTC midnights (labels in UTC too): ticks sit on the points
     // and no local DST shift can move a label to the neighbouring day.
     const xs = trend.dates.map((d) => Date.parse(`${d}T00:00:00Z`) / 1000);
-    const dayLabel = (ts) => new Date(ts * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'numeric', timeZone: 'UTC' });
+    const dayLabel = (ts) => fmtDate(ts * 1000, { day: 'numeric', month: 'numeric', timeZone: 'UTC' });
     const people = trend.top.map((p, i) => ({ ...p, color: TREND_COLORS[i], me: false }));
     if (trend.me) people.push({ ...trend.me, name: L('Du', 'You'), color: ink, me: true });
     const axis = { stroke: muted, grid: { stroke: 'rgba(0,0,0,0.08)', width: 1 }, ticks: { show: false }, font: '11px sans-serif' };
@@ -5564,7 +5701,7 @@
       const head = idx == null ? L('Tag', 'Day') : dayLabel(xs[idx]);
       table.innerHTML = `<thead><tr><th></th><th>${escapeHtml(head)}</th><th>${escapeHtml(L('14 Tage', '14 days'))}</th></tr></thead><tbody>` +
         people.map((p) => `<tr class="${p.me ? 'me' : ''}"><td><i style="background:${p.color}"></i>${escapeHtml(p.name)}</td>` +
-          `<td>${idx == null || p.scores[idx] == null ? '–' : p.scores[idx]}</td><td>${p.total}</td></tr>`).join('') +
+          `<td>${idx == null || p.scores[idx] == null ? '–' : fmtNum(p.scores[idx])}</td><td>${fmtNum(p.total)}</td></tr>`).join('') +
         '</tbody>';
     };
     renderTable(null);
@@ -5611,8 +5748,8 @@
   const STAMMTISCH_KEY = 'pikdame_stammtische';
   const stammtischChipInfo = {}; // code -> latest stammtischInfo (chip + sheet)
   let stammtischSheetCode = null;
-  const winsText = (n) => L(`${n} ${n === 1 ? 'Sieg' : 'Siege'}`, `${n} ${n === 1 ? 'win' : 'wins'}`);
-  const gamesText = (n) => L(`${n} ${n === 1 ? 'Partie' : 'Partien'}`, `${n} ${n === 1 ? 'game' : 'games'}`);
+  const winsText = (n) => fmtCount(n, 'win');
+  const gamesText = (n) => fmtCount(n, 'game');
   function recentStammtische() {
     try { const v = JSON.parse(storageGet(STAMMTISCH_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; }
   }
@@ -5637,7 +5774,6 @@
       const known = stammtischChipInfo[btn.dataset.code]; // e.g. after a language switch
       if (known) btn.querySelector('.stChipInfo').textContent = stammtischLeadText(known);
     });
-    try { renderTowerChip(); } catch (e) { /* cosmetic; towerInfo not declared yet at boot */ }
     // Ask for the record so the chip names the leader without a tap.
     for (const t of list) send({ type: 'getStammtisch', code: t.code });
   }
@@ -5660,7 +5796,7 @@
       // Gone (pruned after months of silence): forget it quietly.
       storageSet(STAMMTISCH_KEY, JSON.stringify(recentStammtische().filter((t) => t.code !== info.code)));
       btn.remove();
-      renderTowerChip(); // a hidden third chip may return
+      if (!el('stammtischRecent').children.length) el('stammtischRecent').classList.add('hidden');
       return;
     }
     stammtischChipInfo[info.code] = info;
@@ -5679,7 +5815,7 @@
       return `<svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg> <span>${escapeHtml(L(`${ser.winner} hat Serie ${ser.no} gewonnen`, `${ser.winner} won series ${ser.no}`))}</span><small>${score}</small>`;
     }
     return `${escapeHtml(L(`Serie ${ser.no} · Best of ${ser.bestOf}`, `Series ${ser.no} · best of ${ser.bestOf}`))}: ${score}<small>${escapeHtml(
-      L(`${ser.needed} Siege entscheiden · Spiel ${ser.games + 1} von ${ser.bestOf}`, `${ser.needed} wins decide · game ${ser.games + 1} of ${ser.bestOf}`)
+      L(`${fmtCount(ser.needed, 'win')} ${ser.needed === 1 ? 'entscheidet' : 'entscheiden'} · Spiel ${ser.games + 1} von ${ser.bestOf}`, `${fmtCount(ser.needed, 'win')} ${ser.needed === 1 ? 'decides' : 'decide'} · game ${ser.games + 1} of ${ser.bestOf}`)
     )}</small>`;
   }
   function renderStammtisch() {
@@ -5694,7 +5830,7 @@
     // Pairwise record for the humans at THIS table: "who finished ahead".
     const humans = ((lastState && lastState.players) || []).filter((p) => !p.isBot).map((p) => p.name);
     box.querySelector('#stammtischBody').innerHTML =
-      `<div class="stName">🍻 ${escapeHtml(sum.name)} <span class="stCode">${escapeHtml(sum.code)}</span> <small>· ${L(`${sum.gamesPlayed} Partien`, `${sum.gamesPlayed} games`)}</small></div>` +
+      `<div class="stName">🍻 ${escapeHtml(sum.name)} <span class="stCode">${escapeHtml(sum.code)}</span> <small>· ${gamesText(sum.gamesPlayed)}</small></div>` +
       stammtischStatsHtml(sum, { pairNames: humans });
   }
   /** Head-to-head pairs. Given names: those, in seat order (lobby); else all
@@ -5719,7 +5855,7 @@
     if (g.type === 'week') {
       return g.streak > 1
         ? L(`Wochenziel geschafft – ${g.streak} Wochen in Folge!`, `Weekly goal reached – ${g.streak} weeks in a row!`)
-        : L(`Wochenziel geschafft: ${g.goal} Partien diese Woche!`, `Weekly goal reached: ${g.goal} games this week!`);
+        : L(`Wochenziel geschafft: ${fmtCount(g.goal, 'game')} diese Woche!`, `Weekly goal reached: ${fmtCount(g.goal, 'game')} this week!`);
     }
     if (g.type === 'level') return L(`Stammtisch-Stufe ${g.level} erreicht!`, `Stammtisch level ${g.level} reached!`);
     return '';
@@ -6529,7 +6665,7 @@
     const W = 320;
     const H = 150;
     // Right padding holds the end labels (they replace the legend).
-    const PAD = { l: 30, r: 84, t: 8, b: 18 };
+    const PAD = { l: 34, r: 92, t: 8, b: 20 };
     const players = opts.players || lastState.players;
     const meId = opts.meId !== undefined ? opts.meId : playerId;
     const colorOf = (id) => PLAYER_COLORS[Math.max(0, players.findIndex((p) => p.id === id)) % PLAYER_COLORS.length];
@@ -6545,15 +6681,15 @@
     for (let v = 0; v <= maxV; v += 250) {
       const goal = v === TARGET;
       svgParts.push(`<line x1="${PAD.l}" y1="${y(v)}" x2="${W - PAD.r}" y2="${y(v)}" class="${goal ? 'goalLine' : 'gridLine'}"/>`);
-      svgParts.push(`<text x="${PAD.l - 4}" y="${y(v) + 3}" class="axisLabel${goal ? ' goal' : ''}" text-anchor="end">${v}</text>`);
+      svgParts.push(`<text x="${PAD.l - 4}" y="${y(v) + 3}" class="axisLabel${goal ? ' goal' : ''}" text-anchor="end">${fmtNum(v)}</text>`);
     }
-    // Others first and muted, mine last and on top.
+    // Others first (thinner, full colour: a translucent line failed contrast), mine last and on top.
     const order = players.slice().sort((a, b) => (a.id === meId) - (b.id === meId));
     order.forEach((p) => {
       const color = colorOf(p.id);
       const mine = p.id === meId;
       const points = history.map((h, i) => `${x(i).toFixed(1)},${y(valueAt(h, p)).toFixed(1)}`).join(' ');
-      svgParts.push(`<polyline points="${points}" fill="none" stroke="${color}" stroke-width="${mine ? 3 : 2}" stroke-linejoin="round" stroke-linecap="round" class="${mine ? 'mine' : 'other'}"/>`);
+      svgParts.push(`<polyline points="${points}" fill="none" stroke="${color}" stroke-width="${mine ? 3 : 1.6}" stroke-linejoin="round" stroke-linecap="round" class="${mine ? 'mine' : 'other'}"/>`);
       const last = history[history.length - 1];
       svgParts.push(`<circle cx="${x(history.length - 1).toFixed(1)}" cy="${y(valueAt(last, p)).toFixed(1)}" r="${mine ? 4 : 3.2}" fill="${color}" class="endDot"/>`);
     });
@@ -6572,7 +6708,7 @@
       const name = l.p.name.length > 8 ? `${l.p.name.slice(0, 7)}…` : l.p.name;
       svgParts.push(
         `<text x="${lx}" y="${(l.y + 3.5).toFixed(1)}" class="endLabel${l.p.id === meId ? ' mine' : ''}">` +
-        `<tspan fill="${colorOf(l.p.id)}">●</tspan> ${escapeHtml(name)} <tspan class="endValue">${l.v}</tspan></text>`
+        `<tspan fill="${colorOf(l.p.id)}">●</tspan> ${escapeHtml(name)} <tspan class="endValue">${fmtNum(l.v)}</tspan></text>`
       );
     }
     // Every round labelled while it fits, otherwise first/last and a few between.
@@ -6586,9 +6722,15 @@
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     svg.setAttribute('role', 'img');
     svg.setAttribute('aria-label', L('Punkteverlauf', 'Score history') + ': ' +
-      labels.map((l) => `${l.p.name} ${l.v}`).join(', '));
+      labels.map((l) => `${l.p.name} ${fmtNum(l.v)}`).join(', '));
     svg.classList.add('scoreChartSvg');
     svg.innerHTML = svgParts.join('');
+    // Chart text stays at --fs-micro on screen: --k = viewBox units per CSS px.
+    const fit = () => {
+      const w = svg.getBoundingClientRect().width;
+      if (w > 0) svg.style.setProperty('--k', (W / w).toFixed(3));
+    };
+    try { if (typeof ResizeObserver === 'function') new ResizeObserver(fit).observe(svg); } catch (e) { /* cosmetic */ }
     wrap.appendChild(svg);
     return wrap;
   }
@@ -7303,13 +7445,13 @@
 
   // --- Sign-in methods of the signed-in account ---------------------------------
   function fmtShortDate(ms) {
-    return ms ? new Date(ms).toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-DE') : '–';
+    return ms ? fmtDate(ms) : '–';
   }
   // With time: two passkeys made on the same day on the same phone are told
   // apart by it.
   function fmtDateTime(ms) {
     return ms
-      ? new Date(ms).toLocaleString(lang === 'en' ? 'en-GB' : 'de-DE', { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      ? new Date(ms).toLocaleString(localeOf(), { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
       : '–';
   }
   /** Two-tap confirmation instead of window.confirm(): iOS can suppress the
@@ -7698,7 +7840,9 @@
   }
 
   el('emoteBtn').addEventListener('click', () => {
-    el('emoteBar').classList.toggle('hidden');
+    const bar = el('emoteBar');
+    if (bar.classList.contains('hidden')) arrangeEmoteBar(bar);
+    bar.classList.toggle('hidden');
   });
   document.querySelectorAll('.emoteChoice').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -7708,6 +7852,7 @@
         return;
       }
       send({ type: 'emote', emoji: btn.dataset.emote });
+      countEmote(btn.dataset.emote);
       el('emoteBar').classList.add('hidden');
     });
   });
@@ -7727,6 +7872,105 @@
       if (locked) btn.dataset.lock = String(need);
       else delete btn.dataset.lock;
     });
+  }
+  // Picker order like the iPhone keyboard: the most used first (own taps, per
+  // device), the rest behind a toggle in keyboard sections. Mirrors
+  // KEYBOARD_ORDER/EMOTE_CATEGORIES in game/Emotes.js (contract test).
+  const EMOTE_KEYBOARD = [
+    ['smileys', ['😅', '😂', '🙃', '😇', '🤩', '🤔', '😬', '🙄', '😴', '🥳', '😎', '😱', '😤', '🙈', '🤞', '👍', '👏', '🤝', '🙏', '💪', '👀']],
+    ['nature', ['🐢', '🍀', '🔥']],
+    ['food', ['☕', '🍻']],
+    ['activity', ['🎉', '🃏', 'pikdame']],
+    ['objects', ['⏳']],
+    ['symbols', ['❤️']],
+  ];
+  const EMOTE_TOP = 8;
+  const EMOTE_COUNTS_KEY = 'pikdame_emote_counts';
+  const EMOTE_MORE_KEY = 'pikdame_emote_more';
+  // The static markup order (= EMOTE_IDS) is the default before any use.
+  const EMOTE_DEFAULT_ORDER = [...el('emoteBar').querySelectorAll('.emoteChoice[data-emote]')].map((b) => b.dataset.emote);
+  function emoteCounts() {
+    try {
+      const c = JSON.parse(storageGet(EMOTE_COUNTS_KEY) || '{}');
+      return c && typeof c === 'object' ? c : {};
+    } catch (e) {
+      return {};
+    }
+  }
+  function countEmote(id) {
+    if (!EMOTE_DEFAULT_ORDER.includes(id)) return;
+    const c = emoteCounts();
+    c[id] = (Number(c[id]) || 0) + 1;
+    storageSet(EMOTE_COUNTS_KEY, JSON.stringify(c));
+  }
+  /** Top row (most used, ties in default order; never a locked one) and the
+   *  rest as keyboard sections. */
+  function emoteLayout(ids, counts, isLocked, slots) {
+    const top = ids
+      .filter((id) => !isLocked(id))
+      .map((id, i) => [id, Number(counts[id]) || 0, i])
+      .sort((a, b) => b[1] - a[1] || a[2] - b[2])
+      .slice(0, slots)
+      .map((r) => r[0]);
+    const rest = EMOTE_KEYBOARD
+      .map(([cat, list]) => [cat, list.filter((id) => ids.includes(id) && !top.includes(id))])
+      .filter(([, list]) => list.length);
+    return { top, rest };
+  }
+  function setEmoteMore(bar, open) {
+    bar.classList.toggle('emoteExpanded', open);
+    const t = bar.querySelector('.emoteMoreBtn');
+    if (!t) return;
+    const label = open ? L('Weniger Reaktionen', 'Fewer reactions') : L('Mehr Reaktionen', 'More reactions');
+    t.setAttribute('aria-expanded', String(open));
+    t.setAttribute('aria-label', label);
+    t.title = label;
+  }
+  function arrangeEmoteBar(bar) {
+    if (!bar) return;
+    renderEmoteLocks();
+    const buttons = new Map([...bar.querySelectorAll('.emoteChoice[data-emote]:not(.emoteSpecial)')].map((b) => [b.dataset.emote, b]));
+    const specials = [...bar.querySelectorAll('.emoteSpecial')];
+    const ids = EMOTE_DEFAULT_ORDER.filter((id) => buttons.has(id));
+    // One row: 40px per reaction, 44px toggle, 10px padding + border (style.css .emoteBar).
+    const room = bar.id === 'emoteBar' ? Math.min(window.innerWidth - 12, 374) : (bar.parentElement.clientWidth || window.innerWidth);
+    const fit = Math.min(EMOTE_TOP, Math.floor((room - 54) / 40));
+    const { top, rest } = emoteLayout(ids, emoteCounts(), (id) => emoteUnlockLevel(id) > myLevel(), Math.max(4, fit - specials.length));
+    bar.querySelectorAll('.emoteSep').forEach((n) => n.remove());
+    let toggle = bar.querySelector('.emoteMoreBtn');
+    if (!toggle) {
+      toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'emoteMoreBtn';
+      toggle.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg>';
+      toggle.addEventListener('click', () => {
+        const open = !bar.classList.contains('emoteExpanded');
+        storageSet(EMOTE_MORE_KEY, open ? '1' : '0');
+        setEmoteMore(bar, open);
+        if (bar.id === 'resultEmoteBar') updateResultScrollEdges();
+      });
+    }
+    for (const id of top) {
+      const b = buttons.get(id);
+      b.classList.remove('emoteRest');
+      bar.appendChild(b);
+    }
+    specials.forEach((b) => bar.appendChild(b));
+    bar.appendChild(toggle);
+    rest.forEach(([, list], i) => {
+      if (i > 0) {
+        const sep = document.createElement('span');
+        sep.className = 'emoteSep emoteRest';
+        sep.setAttribute('aria-hidden', 'true');
+        bar.appendChild(sep);
+      }
+      for (const id of list) {
+        const b = buttons.get(id);
+        b.classList.add('emoteRest');
+        bar.appendChild(b);
+      }
+    });
+    setEmoteMore(bar, storageGet(EMOTE_MORE_KEY) === '1');
   }
   // Tapping anywhere else dismisses the emote bar - it is a transient picker,
   // not a mode. Capture phase so it also closes when the tap lands on a card
@@ -7779,9 +8023,9 @@
   }
 
   // --- Bot lines: the server names the moment, the client picks a line ------
-  // Mirrors game/BotQuips.js QUIP_MOMENTS (contract test). Per device, default on.
+  // Mirrors game/BotQuips.js QUIP_MOMENTS (contract test). Per device, default off.
   const BOT_QUIPS_KEY = 'pikdame_bot_quips';
-  let botQuipsOn = storageGet(BOT_QUIPS_KEY) !== 'off';
+  let botQuipsOn = storageGet(BOT_QUIPS_KEY) === 'on';
   const BOT_QUIPS = {
     round_win: () => [L('Das war\'s – Karten her!', 'That\'s it – cards in!'), L('Manchmal hat man\'s einfach.', 'Sometimes you\'ve just got it.'), L('Gelernt ist gelernt.', 'Practice pays off.')],
     hand_aus: () => [L('Hand aus! Tschüss zusammen.', 'Out in one! Bye, everyone.'), L('Einmal ziehen, alles weg.', 'One draw, all gone.'), L('Hab ich gar nicht geübt, ehrlich.', 'I never even practised that, honest.')],
@@ -7913,7 +8157,7 @@
   }
 
   // Mirrors game/Progression.js (XP_BASE, XP_WIN, XP_PER_POINT) - display only.
-  const XP_RULES = { base: 10, win: 50, perPoints: 10, towerFirstStar: 25 };
+  const XP_RULES = { base: 10, win: 50, perPoints: 10, towerFirstStar: 10, towerCrown: 50 };
   function renderProgressSheet() {
     const box = el('progressContent');
     if (!box) return;
@@ -7931,7 +8175,7 @@
       `<div class="levelUpBar pgBar"><i style="width:${pct}%"></i></div>` +
       `<p class="pgXp">${L(`${lv.into}/${lv.need} EP · noch ${lv.need - lv.into} bis Stufe ${lv.level + 1}`, `${lv.into}/${lv.need} XP · ${lv.need - lv.into} to level ${lv.level + 1}`)}</p>` +
       (next.length
-        ? `<h3>${escapeHtml(L(`Nächste Belohnung (Stufe ${next[0].level})`, `Next reward (level ${next[0].level})`))}</h3><ul class="pgNext">${next.map((r) => `<li>${escapeHtml(r.label)}</li>`).join('')}</ul>`
+        ? `<h3>${escapeHtml(L(`Nächste Belohnung (Stufe ${next[0].level})`, `Next reward (level ${next[0].level})`))}</h3><ul class="pgNext">${next.map((r) => `<li>${rewardHtml(r)}</li>`).join('')}</ul>`
         : '') +
       streakSectionHtml() +
       towerSectionHtml() +
@@ -7973,14 +8217,26 @@
     if (ev.target.closest('[data-open-tower]')) openTowerSheet();
   });
 
-  // --- Bot tower (game/BotTower.js): ten fixed one-round stages -------------
-  // The server owns stages and stars; the client draws them and starts a stage
-  // like the challenge (solo, one game at a time).
-  let towerInfo = null; // 'towerInfo' + forName: stages, best, stars, cleared, unlocked
+  // --- Kartenhaus (game/BotTower.js): a monthly house of twenty floors -------
+  // The server owns floors, months and stars; the client draws the house as an
+  // SVG pyramid of card tents and starts a floor like the challenge (solo).
+  let towerInfo = null; // 'towerInfo' + forName: month, today, stages, best, stars, cleared, unlocked, crowned, totalStars, archive
   let towerAskedFor = '';
-  let towerScrollPending = false;
-  let lastTowerResult = null; // 'towerResult' of the stage just played
+  let towerSelected = 0; // the floor the detail shows (APEX = the top), 0 = the default
+  let towerAnimate = false; // set on opening: the next render with data may animate
+  let towerFxToken = 0; // a newer render cancels a pending rebuild
+  let lastTowerResult = null; // 'towerResult' of the floor just played
   const AFTER_TOWER_KEY = 'pikdame_after_tower';
+  const TOWER_SEEN_KEY = 'pikdame_tower_seen'; // what this device last showed: { name, month, best, crowned }
+  const TOWER_LAST_KEY = 'pikdame_tower_last'; // the last verdict, for the wobble: { name, month, stage, stars }
+  const APEX = 21;
+  const towerName = () => L('Kartenhaus', 'House of Cards');
+  const TOWER_MODS = {
+    queen: () => L('Pik Dame auf der Hand', 'Queen of Spades in hand'),
+    noDiscard: () => L('Ohne Ablage', 'No discard pile'),
+    goOut: () => L('Selbst ausmachen', 'Go out yourself'),
+  };
+  const towerModsText = (mods) => (mods || []).map((m) => (TOWER_MODS[m] ? TOWER_MODS[m]() : m)).join(' · ');
   function requestTower() {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     towerAskedFor = myName || '';
@@ -7990,115 +8246,372 @@
   function towerFresh() {
     return towerInfo && towerInfo.forName === (myName || '') ? towerInfo : null;
   }
-  /** Start-screen chip under the Stammtische. At most three rows (iPhone fit):
-   *  with three remembered tables the oldest one yields, it stays stored. */
-  function renderTowerChip() {
-    const box = el('stammtischRecent');
-    if (!box) return;
-    const old = box.querySelector('.stTowerRow');
-    if (old) old.remove();
-    const info = publicMode ? null : towerFresh();
-    const rows = [...box.querySelectorAll('.stRecentRow')];
-    rows.forEach((r, i) => r.classList.toggle('hidden', i >= (info ? 2 : 3)));
-    if (info) {
-      const size = info.stages.length;
-      const stage = Math.min(info.unlocked || 1, size);
-      const text = info.stars
-        ? L(`Stufe ${stage} · ${info.stars}/${size * 3}`, `Stage ${stage} · ${info.stars}/${size * 3}`)
-        : L(`${size} Stufen`, `${size} stages`);
-      const label = info.stars
-        ? L(`Bot-Turm: Stufe ${stage}, ${info.stars} von ${size * 3} Sternen`, `Bot tower: stage ${stage}, ${info.stars} of ${size * 3} stars`)
-        : L(`Bot-Turm: ${size} Stufen gegen die Bots`, `Bot tower: ${size} stages against the bots`);
-      box.insertAdjacentHTML('beforeend', `<button type="button" class="stRecentRow stTowerRow" aria-haspopup="dialog" aria-label="${escapeHtml(label)}">` +
-        `<svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg><span class="stName">${escapeHtml(L('Bot-Turm', 'Bot tower'))}</span>` +
-        `<small class="stChipInfo">${escapeHtml(text)}</small>` +
-        (info.stars ? '<svg class="icon stTowerStar" aria-hidden="true"><use href="#i-star"/></svg>' : '') +
-        `<svg class="icon stGo" aria-hidden="true"><use href="#i-chevron"/></svg></button>`);
-      box.querySelector('.stTowerRow').addEventListener('click', openTowerSheet);
-    }
-    box.classList.toggle('hidden', !box.querySelector('.stRecentRow:not(.hidden)'));
+  /** "Oktober" for '2026-10' (UTC mid-month, so no time zone shifts the month). */
+  function towerMonthName(month, withYear = false) {
+    const [y, m] = String(month || '').split('-').map(Number);
+    if (!y || !m) return '';
+    return new Date(Date.UTC(y, m - 1, 15)).toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-DE',
+      { month: 'long', ...(withYear ? { year: 'numeric' } : {}), timeZone: 'UTC' });
   }
+  /** Start screen, "Aufgaben": this month's floor and stars on the wide tile.
+   *  Hidden in public mode and while the data for this name is missing. */
+  function renderTowerTile() {
+    const tile = el('towerTile');
+    if (!tile) return;
+    const info = publicMode ? null : towerFresh();
+    tile.classList.toggle('hidden', !info);
+    if (!info) return;
+    const max = info.stages.length * 3;
+    const floor = Math.min(info.unlocked || 1, info.stages.length);
+    const month = towerMonthName(info.month);
+    const status = el('towerTileStatus');
+    status.textContent = info.crowned
+      ? L(`Gekrönt · ${info.stars}/${max}`, `Crowned · ${info.stars}/${max}`)
+      : L(`Etage ${floor} · ${info.stars}/${max}`, `Floor ${floor} · ${info.stars}/${max}`);
+    status.insertAdjacentHTML('beforeend', '<svg class="icon ttStar" aria-hidden="true"><use href="#i-star"/></svg>');
+    // A fresh month calls (like a new puzzle), a crowned one rests; in between it stays calm.
+    tile.dataset.state = info.crowned ? 'done' : info.stars ? '' : 'new';
+    tile.setAttribute('aria-label', info.crowned
+      ? L(`Kartenhaus im ${month}: gekrönt, ${info.stars} von ${max} Sternen`, `House of Cards in ${month}: crowned, ${info.stars} of ${max} stars`)
+      : L(`Kartenhaus im ${month}: Etage ${floor}, ${info.stars} von ${max} Sternen`, `House of Cards in ${month}: floor ${floor}, ${info.stars} of ${max} stars`));
+  }
+  el('towerTile').addEventListener('click', () => openTowerSheet());
   const towerStarsHtml = (n) => [1, 2, 3]
     .map((i) => `<svg class="icon${i <= n ? ' on' : ''}" aria-hidden="true"><use href="#i-star"/></svg>`).join('');
   function towerSectionHtml() {
     const info = towerFresh();
-    const me = myProfile() || {};
-    const stars = info ? info.stars : me.towerStars || 0;
-    const cleared = info ? info.cleared : me.towerCleared || 0;
     const size = info ? info.stages.length : 0;
-    return `<h3>${escapeHtml(L('Bot-Turm', 'Bot tower'))}</h3>` +
+    return `<h3>${escapeHtml(towerName())}</h3>` +
       `<button type="button" class="pgTower" data-open-tower="1">` +
-      `<svg class="icon pgTowerIcon" aria-hidden="true"><use href="#i-trophy"/></svg>` +
-      `<span class="pgTowerText"><b>${escapeHtml(size ? L(`${stars}/${size * 3} Sterne`, `${stars}/${size * 3} stars`) : L(`${stars} Sterne`, `${stars} stars`))}</b>` +
-      `<span>${escapeHtml(size
-        ? L(`${cleared} von ${size} Stufen geschafft`, `${cleared} of ${size} stages cleared`)
-        : L(`${cleared} Stufen geschafft`, `${cleared} stages cleared`))}</span></span>` +
+      `<svg class="icon pgTowerIcon" aria-hidden="true"><use href="#i-cardhouse"/></svg>` +
+      `<span class="pgTowerText"><b>${escapeHtml(info
+        ? L(`${towerMonthName(info.month)}: ${info.stars}/${size * 3} Sterne`, `${towerMonthName(info.month)}: ${info.stars}/${size * 3} stars`)
+        : towerName())}</b>` +
+      `<span>${escapeHtml(info
+        ? L(`${info.cleared} von ${size} Etagen · insgesamt ${info.totalStars} Sterne`, `${info.cleared} of ${size} floors · ${info.totalStars} stars in total`)
+        : L('Jeden Monat neue Blätter', 'New deals every month'))}</span></span>` +
       `<svg class="icon pgTowerGo" aria-hidden="true"><use href="#i-chevron"/></svg></button>`;
   }
-  function towerRowHtml(s, info) {
-    const stars = Math.max(0, Math.min(3, Number(info.best[s.stage]) || 0));
-    const locked = s.stage > info.unlocked;
-    const next = !locked && !stars;
-    const metas = s.bots.map((b) => BOT_DIFF[b] || BOT_DIFF.zen);
-    const names = metas.map((m) => m.short()).join(', ');
-    const label = L(
-      `Stufe ${s.stage}: gegen ${names}${s.handicap ? `, die Bots bekommen ${s.handicap} Punkte Vorgabe` : ''} - ${locked ? 'gesperrt' : `${stars} von 3 Sternen`}`,
-      `Stage ${s.stage}: against ${names}${s.handicap ? `, the bots get a ${s.handicap}-point head start` : ''} - ${locked ? 'locked' : `${stars} of 3 stars`}`
+  // Pyramid in SVG units: rows of 6-5-4-3-2 tents and the top. The hit areas tile
+  // the house; a row and a slot stay >= --tap-min even on an iPhone SE.
+  const KH = { w: 26, h: 42, tilt: 15, gap: 56, row: 46 };
+  const KH_ROWS = [6, 5, 4, 3, 2];
+  const KH_VIEW = '-172 -282 344 290';
+  function khSlots() {
+    const out = [];
+    let stage = 1;
+    KH_ROWS.forEach((n, r) => {
+      for (let i = 0; i < n; i++) out.push({ stage: stage++, row: r, x: (i - (n - 1) / 2) * KH.gap, base: -r * KH.row });
+    });
+    out.push({ stage: APEX, row: KH_ROWS.length, x: 0, base: -KH_ROWS.length * KH.row });
+    return out;
+  }
+  const khNum = (v) => Math.round(v * 10) / 10;
+  function khStarPoints(cx, cy, r) {
+    const pts = [];
+    for (let i = 0; i < 10; i++) {
+      const rr = i % 2 ? r * 0.45 : r;
+      const a = -Math.PI / 2 + (i * Math.PI) / 5;
+      pts.push(`${khNum(cx + rr * Math.cos(a))},${khNum(cy + rr * Math.sin(a))}`);
+    }
+    return pts.join(' ');
+  }
+  /** One leaning card, rotated around its foot; `inner` is drawn on its face. */
+  function khCard(x, base, rot, built, inner = '') {
+    const { w, h } = KH;
+    return `<g transform="translate(${khNum(x)} ${base}) rotate(${rot})">` +
+      `<rect class="khCard" x="${-w / 2}" y="${-h}" width="${w}" height="${h}" rx="3"/>` +
+      (built ? `<rect class="khRim" x="${-w / 2 + 2.4}" y="${-h + 2.4}" width="${w - 4.8}" height="${h - 4.8}" rx="1.6"/>` : '') +
+      inner + '</g>';
+  }
+  /** The flat card a floor stands on, laid across the tips of the two tents
+   *  below (floors of the first row stand on the ground). */
+  function khPlate(slot) {
+    if (slot.row === 0) return '';
+    const len = KH.gap - 2;
+    return `<rect class="khPlate" x="${khNum(slot.x - len / 2)}" y="${slot.base + 0.6}" width="${len}" height="4" rx="1.5"/>`;
+  }
+  function towerFloorState(info, stage) {
+    const stars = Math.max(0, Math.min(3, Math.floor(Number(info.best[stage]) || 0)));
+    if (stars) return { state: 'built', stars };
+    return { state: stage === info.unlocked && !info.crowned ? 'next' : 'locked', stars: 0 };
+  }
+  function towerFloorLabel(s, st, info) {
+    const names = s.bots.map((b) => (BOT_DIFF[b] || BOT_DIFF.zen).short()).join(', ');
+    const mods = towerModsText(s.mods);
+    const status = st.state === 'built'
+      ? L(`${st.stars} von 3 Sternen`, `${st.stars} of 3 stars`)
+      : st.state === 'next' ? L('noch kein Stern', 'no star yet') : L('gesperrt', 'locked');
+    return L(
+      `Etage ${s.stage}: gegen ${names}${s.handicap ? `, die Bots bekommen ${s.handicap} Punkte Vorgabe` : ''}${mods ? `, ${mods}` : ''} - ${status}`,
+      `Floor ${s.stage}: against ${names}${s.handicap ? `, the bots get a ${s.handicap}-point head start` : ''}${mods ? `, ${mods}` : ''} - ${status}`
     );
-    return `<li><button type="button" class="twStage${locked ? ' locked' : ''}${next ? ' next' : ''}" data-stage="${s.stage}" aria-label="${escapeHtml(label)}"${locked ? ' aria-disabled="true"' : ''}>` +
-      `<span class="twNum">${s.stage}</span>` +
-      `<span class="twBots">${metas.map(levelIconHtml).join('')}</span>` +
-      `<span class="twHandicap">${s.handicap ? escapeHtml(L(`Bots +${s.handicap}`, `bots +${s.handicap}`)) : ''}</span>` +
-      `<span class="twStars">${locked ? '<svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg>' : towerStarsHtml(stars)}</span>` +
-      `</button></li>`;
+  }
+  /** The house as inline SVG. fx: { land: [stages], pop: { stage: starsBefore }, wobble, crown, mode } */
+  function towerHouseSvg(info, fx = {}) {
+    const { w, h, tilt, row } = KH;
+    const lean = khNum(h * Math.sin((tilt * Math.PI) / 180));
+    const byStage = Object.fromEntries(info.stages.map((s) => [s.stage, s]));
+    const landAt = (stage) => (fx.land || []).indexOf(stage);
+    // The ring marks a floor the player picked; the default one (next, or the top) is marked already.
+    const sel = towerSelected;
+    const shown = towerSelected || towerDefaultSelection(info);
+    const parts = [];
+    const sec = (v) => Math.round(v * 100) / 100;
+    for (const slot of khSlots()) {
+      const delay = (v) => ` style="--kh-delay:${sec(v)}s"`;
+      if (slot.stage === APEX) {
+        const crowned = !!info.crowned;
+        const cls = ['khFloor', 'khApex', crowned ? 'built' : 'locked', sel === APEX ? 'sel' : '',
+          crowned && fx.crown ? 'khCrowning' : '', fx.mode === 'rebuild' ? 'khRise' : '', fx.mode === 'collapse' && crowned ? 'khFall' : ''].filter(Boolean).join(' ');
+        const label = crowned
+          ? L('Spitze: Das Kartenhaus ist gekrönt', 'Top: the House of Cards is crowned')
+          : L('Spitze: Alle 20 Etagen mit einem Stern krönen das Kartenhaus', 'Top: a star on all 20 floors crowns the House of Cards');
+        const top = slot.base - 44;
+        const card = crowned
+          ? `<g class="khQueen"><rect class="khQueenCard" x="-15" y="${top}" width="30" height="44" rx="3.5"/>` +
+            `<text class="khQueenQ" x="-10.5" y="${top + 12}">Q</text><text class="khQueenS" x="0" y="${top + 31}">♠</text></g>`
+          : `<rect class="khSpitze" x="-15" y="${top}" width="30" height="44" rx="3.5"/>` +
+            `<text class="khSpitzeText" x="0" y="${top + 25}">${escapeHtml(L('Spitze', 'Top'))}</text>`;
+        parts.push(`<g class="${cls}" data-stage="${APEX}" role="button" tabindex="0" aria-pressed="${shown === APEX}" aria-label="${escapeHtml(label)}"` +
+          `${delay(fx.mode === 'rebuild' ? 0.5 : fx.crownDelay || 0)}>` +
+          `<rect class="khSel" x="-27" y="${top - 5}" width="54" height="${44 + 9}" rx="9"/>` +
+          khPlate(slot) + card +
+          `<rect class="khHit" x="${-KH.gap / 2}" y="${top - 6}" width="${KH.gap}" height="${44 + 11}"/></g>`);
+        continue;
+      }
+      const s = byStage[slot.stage];
+      if (!s) continue;
+      const st = towerFloorState(info, slot.stage);
+      const mod = !!(s.mods && s.mods.length);
+      const li = landAt(slot.stage);
+      const cls = ['khFloor', st.state, mod ? 'mod' : '', sel === slot.stage ? 'sel' : '',
+        li > -1 ? 'khLanding' : '', fx.wobble === slot.stage ? 'khWobble' : '',
+        fx.mode === 'rebuild' ? 'khRise' : '', fx.mode === 'collapse' && st.state === 'built' ? 'khFall' : ''].filter(Boolean).join(' ');
+      const d = fx.mode === 'rebuild' ? slot.row * 0.08 + (slot.stage % 3) * 0.02
+        : fx.mode === 'collapse' ? (KH_ROWS.length - slot.row) * 0.05 : li > -1 ? li * (fx.land.length > 4 ? 0.07 : 0.14) : 0.25;
+      const popFrom = fx.pop && fx.pop[slot.stage] !== undefined ? fx.pop[slot.stage] : 3;
+      const stars = st.state === 'locked' ? '' : [0, 1, 2].map((i) =>
+        `<polygon class="khStar${i < st.stars ? ' on' : ''}${i < st.stars && i >= popFrom ? ' khPop' : ''}"` +
+        `${i < st.stars && i >= popFrom ? delay(0.35 + (i - popFrom) * 0.15) : ''} points="${khStarPoints(-7.5 + i * 7.5, -8.5, 3.5)}"/>`).join('');
+      const face = `<text class="khNum" x="0" y="${-h + 16}">${slot.stage}</text>${stars}`;
+      // Collapse: every card falls its own way (fixed per floor, no randomness).
+      const fall = fx.mode === 'collapse' ? `;--kh-dx:${((slot.stage * 37) % 70) - 35}px;--kh-rot:${((slot.stage * 53) % 90) - 45}deg` : '';
+      parts.push(`<g class="${cls}" data-stage="${slot.stage}" role="button" tabindex="0" aria-pressed="${shown === slot.stage}"` +
+        ` aria-label="${escapeHtml(towerFloorLabel(s, st, info))}" style="--kh-delay:${sec(d)}s${fall}">` +
+        `<rect class="khHalo" x="${slot.x - 29}" y="${slot.base - row + 1}" width="58" height="${row + 3}" rx="11"/>` +
+        `<rect class="khSel" x="${slot.x - 27.5}" y="${slot.base - row + 1.5}" width="55" height="${row + 2}" rx="10"/>` +
+        khPlate(slot) +
+        khCard(slot.x - lean / 2, slot.base, tilt, st.state === 'built') +
+        khCard(slot.x + lean / 2, slot.base, -tilt, st.state === 'built', face) +
+        `<rect class="khHit" x="${slot.x - KH.gap / 2}" y="${slot.base - row}" width="${KH.gap}" height="${row}"/></g>`);
+    }
+    return `<svg class="khSvg${fx.mode ? ` kh-${fx.mode}` : ''}" viewBox="${KH_VIEW}" role="group" aria-label="${escapeHtml(L(`Kartenhaus im ${towerMonthName(info.month)}`, `House of Cards in ${towerMonthName(info.month)}`))}">` +
+      `<defs><pattern id="khBack" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">` +
+      `<rect class="khBackBase" width="6" height="6"/><rect class="khBackLine" width="1.2" height="6"/></pattern></defs>` +
+      `<line class="khGround" x1="-168" x2="168" y1="0.5" y2="0.5"/>` + parts.join('') + '</svg>';
+  }
+  /** The default floor of the detail: the next one, or the top once crowned. */
+  function towerDefaultSelection(info) {
+    return info.crowned ? APEX : Math.min(info.unlocked || 1, info.stages.length);
+  }
+  function towerDaysLeftText(today) {
+    const [y, m, d] = String(today || '').split('-').map(Number);
+    if (!y || !m || !d) return '';
+    const left = new Date(Date.UTC(y, m, 0)).getUTCDate() - d;
+    if (left <= 0) return L('heute letzter Tag', 'last day today');
+    return left === 1 ? L('noch 1 Tag', '1 day left') : L(`noch ${left} Tage`, `${left} days left`);
+  }
+  /** The detail under the house: who plays, what the floor asks, and the way in. */
+  function towerDetailHtml(info, stage) {
+    const max = info.stages.length;
+    if (stage === APEX) {
+      if (!info.crowned) {
+        return `<div class="khDHead"><b class="khDTitle">${escapeHtml(L('Spitze', 'Top'))}</b></div>` +
+          `<p class="khDNote">${escapeHtml(L(`Hol dir auf allen ${max} Etagen mindestens einen Stern - dann krönt die Pik Dame dein Kartenhaus (+${XP_RULES.towerCrown} EP).`,
+            `Earn at least one star on all ${max} floors - then the Queen of Spades crowns your House of Cards (+${XP_RULES.towerCrown} XP).`))}</p>`;
+      }
+      // Still stars to collect: the highest floor that misses some.
+      const missing = [...info.stages].reverse().find((s) => (Number(info.best[s.stage]) || 0) < 3);
+      const gap = missing ? 3 - (Number(info.best[missing.stage]) || 0) : 0;
+      const more = !missing ? L(`Alle ${max * 3} Sterne - mehr geht nicht.`, `All ${max * 3} stars - it does not get better.`)
+        : gap === 1 ? L(`Auf Etage ${missing.stage} fehlt noch 1 Stern.`, `Floor ${missing.stage} still misses 1 star.`)
+          : L(`Auf Etage ${missing.stage} fehlen noch ${gap} Sterne.`, `Floor ${missing.stage} still misses ${gap} stars.`);
+      return `<div class="khDHead"><b class="khDTitle">${escapeHtml(L('Gekrönt!', 'Crowned!'))}</b></div>` +
+        `<p class="khDNote">${escapeHtml(L(`Alle ${max} Etagen im ${towerMonthName(info.month)} geschafft. ${more}`,
+          `All ${max} floors cleared in ${towerMonthName(info.month)}. ${more}`))}</p>` +
+        (missing
+          ? `<button type="button" class="btn-primary khPlay" data-play="${missing.stage}"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>` +
+            `<span>${escapeHtml(L(`Etage ${missing.stage} nochmal`, `Floor ${missing.stage} again`))}</span></button>`
+          : '');
+    }
+    const s = info.stages.find((x) => x.stage === stage);
+    if (!s) return '';
+    const st = towerFloorState(info, stage);
+    const metas = s.bots.map((b) => BOT_DIFF[b] || BOT_DIFF.zen);
+    const tag = st.state === 'built'
+      ? `<span class="khDStars" role="img" aria-label="${escapeHtml(L(`${st.stars} von 3 Sternen`, `${st.stars} of 3 stars`))}">${towerStarsHtml(st.stars)}</span>`
+      : st.state === 'next'
+        ? `<span class="khDTag next">${escapeHtml(L('als Nächstes', 'up next'))}</span>`
+        : `<span class="khDTag"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg><span>${escapeHtml(L('gesperrt', 'locked'))}</span></span>`;
+    const bots = L(`${metas.length} Bots: ${metas.map((m) => m.short()).join(', ')}`, `${metas.length} bots: ${metas.map((m) => m.short()).join(', ')}`) +
+      (s.handicap ? L(` · ${s.handicap} Punkte Vorgabe`, ` · ${s.handicap}-point head start`) : '');
+    const mods = (s.mods || []).map((m) => `<span class="khMod">${escapeHtml(TOWER_MODS[m] ? TOWER_MODS[m]() : m)}</span>`).join('');
+    const note = st.state === 'locked'
+      ? L(`Schaff erst Etage ${Math.min(info.unlocked || 1, max)}.`, `Clear floor ${Math.min(info.unlocked || 1, max)} first.`)
+      : st.state === 'next' ? L('Ein Stern: mehr Punkte als jeder Bot samt Vorgabe.', 'One star: more points than every bot plus its head start.')
+        : st.stars < 3 ? L(`Bestwert ${st.stars} von 3 - ein neuer Versuch spielt dasselbe Blatt.`, `Best ${st.stars} of 3 - a new try plays the same deal.`)
+          : L('Alle drei Sterne.', 'All three stars.');
+    const play = st.state === 'locked' ? ''
+      : `<button type="button" class="${st.state === 'next' ? 'btn-primary' : 'btn-secondary'} khPlay" data-play="${stage}"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>` +
+        `<span>${escapeHtml(st.state === 'next' ? L(`Etage ${stage} spielen`, `Play floor ${stage}`) : L(`Etage ${stage} nochmal`, `Floor ${stage} again`))}</span></button>`;
+    return `<div class="khDHead"><b class="khDTitle">${escapeHtml(L(`Etage ${stage}`, `Floor ${stage}`))}</b>${tag}</div>` +
+      `<p class="khDBots">${escapeHtml(bots)}</p>` +
+      (mods ? `<p class="khDMods" aria-label="${escapeHtml(L(`Erschwernis: ${towerModsText(s.mods)}`, `Handicap: ${towerModsText(s.mods)}`))}">${mods}</p>` : '') +
+      `<p class="khDNote">${escapeHtml(note)}</p>` + play;
+  }
+  function towerArchiveHtml(archive) {
+    return archive.map((m) => {
+      const label = L(`${towerMonthName(m.month, true)}: ${m.cleared} von 20 Etagen, ${m.stars} von 60 Sternen${m.crowned ? ', gekrönt' : ''}`,
+        `${towerMonthName(m.month, true)}: ${m.cleared} of 20 floors, ${m.stars} of 60 stars${m.crowned ? ', crowned' : ''}`);
+      return `<li class="khArchRow${m.crowned ? ' crowned' : ''}" aria-label="${escapeHtml(label)}">` +
+        `<span class="khArchMonth">${escapeHtml(towerMonthName(m.month, true))}</span>` +
+        `<span class="khArchFloors">${escapeHtml(L(`${m.cleared}/20 Etagen`, `${m.cleared}/20 floors`))}</span>` +
+        `<span class="khArchStars">${m.stars}/60<svg class="icon" aria-hidden="true"><use href="#i-star"/></svg></span>` +
+        (m.crowned ? `<span class="khArchCrown"><svg class="icon" aria-hidden="true"><use href="#i-crown"/></svg><span>${escapeHtml(L('gekrönt', 'crowned'))}</span></span>` : '') +
+        '</li>';
+    }).join('');
+  }
+  function towerMotionOk() {
+    try { return !window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
+  }
+  function towerStored(key) {
+    try { const v = JSON.parse(storageGet(key) || 'null'); return v && typeof v === 'object' ? v : null; } catch (e) { return null; }
+  }
+  function towerMarkSeen(info) {
+    storageSet(TOWER_SEEN_KEY, JSON.stringify({ name: myName || '', month: info.month, best: info.best || {}, crowned: !!info.crowned }));
+  }
+  /** What changed since this device last showed the house: new floors land,
+   *  new stars pop, a lost try wobbles, a fresh crown lands on top. */
+  function towerEffects(info, seen) {
+    const fx = { land: [], pop: {}, wobble: 0, crown: false };
+    const name = myName || '';
+    const before = seen && seen.name === name && seen.month === info.month ? seen.best || {} : seen && seen.name === name ? null : {};
+    if (before) {
+      for (const s of info.stages) {
+        const now = Math.min(3, Number(info.best[s.stage]) || 0);
+        const was = Math.min(3, Number(before[s.stage]) || 0);
+        if (now >= 1 && was < 1) fx.land.push(s.stage);
+        else if (now > was) fx.pop[s.stage] = was;
+      }
+      fx.crown = !!info.crowned && !(seen && seen.name === name && seen.month === info.month && seen.crowned);
+    }
+    const last = towerStored(TOWER_LAST_KEY);
+    storageRemove(TOWER_LAST_KEY);
+    if (last && last.name === name && last.month === info.month && !last.stars && !(Number(info.best[last.stage]) >= 1)) fx.wobble = last.stage;
+    fx.crownDelay = fx.land.length ? fx.land.length * (fx.land.length > 4 ? 0.07 : 0.14) + 0.55 : 0.3;
+    return fx;
+  }
+  function renderTowerDetail(info) {
+    el('towerDetail').innerHTML = info ? towerDetailHtml(info, towerSelected || towerDefaultSelection(info)) : '';
   }
   function renderTower() {
     const info = towerFresh();
-    const size = info ? info.stages.length : 0;
-    el('towerSummary').textContent = info
-      ? L(`${info.stars}/${size * 3} Sterne · ${info.cleared} von ${size} Stufen geschafft`, `${info.stars}/${size * 3} stars · ${info.cleared} of ${size} stages cleared`)
-      : L('Lädt …', 'Loading …');
-    // The top of the tower first: you climb it.
-    el('towerList').innerHTML = info ? [...info.stages].reverse().map((s) => towerRowHtml(s, info)).join('') : '';
+    const max = info ? info.stages.length * 3 : 0;
+    el('towerMonth').textContent = info ? towerMonthName(info.month, true) : '';
+    const days = info ? towerDaysLeftText(info.today) : '';
+    el('towerSummary').innerHTML = info
+      ? `<b>${info.stars} / ${max}</b> ${escapeHtml(L('Sterne diesen Monat', 'stars this month'))}${days ? ` · ${escapeHtml(days)}` : ''}`
+      : escapeHtml(L('Lädt …', 'Loading …'));
     el('towerRules').textContent = info
-      ? L(`Ein Stern: mehr Punkte als jeder Bot samt Vorgabe. Zwei: mindestens ${info.clearMargin} Punkte vorn. Drei: dazu selbst ausmachen. Jede Stufe ist eine Runde mit immer demselben Blatt; ab einem Stern ist die nächste frei. Versuche unbegrenzt, der beste zählt. Der erste Stern jeder Stufe bringt einmal ${XP_RULES.towerFirstStar} EP.`,
-        `One star: more points than every bot plus its head start. Two: at least ${info.clearMargin} points ahead. Three: and go out yourself. Each stage is one round with the same deal every time; one star unlocks the next. Unlimited tries, the best counts. The first star of each stage pays ${XP_RULES.towerFirstStar} XP once.`)
+      ? L(`Jeden Monat neue Blätter gegen dieselben Bots: ${info.stages.length} Etagen, jede eine Runde. Ein Stern: mehr Punkte als jeder Bot samt Vorgabe. Zwei: mindestens ${info.clearMargin} Punkte vorn. Drei: dazu selbst ausmachen. Ein Stern macht die nächste Etage frei; Versuche unbegrenzt, der beste zählt. Ab Etage 11 spielt eine Erschwernis gegen dich: die Pik Dame auf der Hand (ausgelegt +100, auf der Hand -100), keine Ablage (nur vom Stapel ziehen) oder Sterne nur, wenn du selbst ausmachst. Der erste Stern jeder Etage bringt pro Monat einmal ${XP_RULES.towerFirstStar} EP; alle ${info.stages.length} Etagen krönen dein Kartenhaus (+${XP_RULES.towerCrown} EP).`,
+        `New deals every month against the same bots: ${info.stages.length} floors, one round each. One star: more points than every bot plus its head start. Two: at least ${info.clearMargin} points ahead. Three: and go out yourself. One star unlocks the next floor; unlimited tries, the best counts. From floor 11 a handicap plays against you: the Queen of Spades in hand (+100 melded, -100 in hand), no discard pile (draw from the stock only) or stars only if you go out yourself. The first star of each floor pays ${XP_RULES.towerFirstStar} XP once a month; all ${info.stages.length} floors crown your House of Cards (+${XP_RULES.towerCrown} XP).`)
       : '';
-    if (info && towerScrollPending && !el('towerOverlay').classList.contains('hidden')) {
-      towerScrollPending = false;
-      const target = el('towerList').querySelector('.twStage.next') || el('towerList').querySelector('.twStage:not(.locked)');
-      if (target && target.scrollIntoView) target.scrollIntoView({ block: 'nearest' });
+    const archive = (info && info.archive) || [];
+    el('towerArchive').innerHTML = towerArchiveHtml(archive);
+    el('towerArchiveBox').classList.toggle('hidden', !archive.length);
+    const house = el('towerHouse');
+    if (!info) { house.innerHTML = ''; renderTowerDetail(null); return; }
+    const open = !el('towerOverlay').classList.contains('hidden');
+    const animate = open && towerAnimate && towerMotionOk();
+    if (open && towerAnimate && !animate) storageRemove(TOWER_LAST_KEY); // seen, without motion
+    if (open) towerAnimate = false;
+    // The same house again (a second reply, a re-render): keep the drawing, so a
+    // running animation is not cut off.
+    const sig = JSON.stringify([lang, info.month, info.best, info.crowned, info.unlocked, towerSelected]);
+    if (!animate && house.dataset.sig === sig && house.firstChild) {
+      if (open) towerMarkSeen(info);
+      renderTowerDetail(info);
+      return;
     }
+    house.dataset.sig = sig;
+    const token = ++towerFxToken;
+    const seen = animate ? towerStored(TOWER_SEEN_KEY) : null;
+    const name = myName || '';
+    if (animate && seen && seen.name === name && seen.month && seen.month !== info.month && Object.keys(seen.best || {}).length) {
+      // A new month: the last seen house collapses once, then the new one rises as a blueprint.
+      const old = { ...info, month: seen.month, best: seen.best, crowned: !!seen.crowned, unlocked: 0 };
+      house.innerHTML = towerHouseSvg(old, { mode: 'collapse' });
+      setTimeout(() => {
+        if (token !== towerFxToken) return;
+        house.innerHTML = towerHouseSvg(info, { mode: 'rebuild' });
+      }, 1150);
+    } else {
+      house.innerHTML = towerHouseSvg(info, animate ? towerEffects(info, seen) : {});
+    }
+    if (open) towerMarkSeen(info);
+    renderTowerDetail(info);
   }
   function openTowerSheet() {
     if (publicMode) return;
-    if (!towerFresh()) requestTower();
+    requestTower(); // fresh stars and the day count; the cached data draws meanwhile
     el('progressOverlay').classList.add('hidden');
     el('towerOverlay').classList.remove('hidden');
-    towerScrollPending = true;
+    towerSelected = 0;
+    towerAnimate = true;
     renderTower();
   }
   function startTowerStage(stage) {
     el('towerOverlay').classList.add('hidden');
     send({ type: 'startTower', stage, name: currentName(), accountToken: accountToken() || undefined });
   }
-  el('towerList').addEventListener('click', (ev) => {
-    const btn = ev.target.closest('.twStage');
-    if (!btn) return;
-    if (btn.classList.contains('locked')) {
-      const open = (towerFresh() || {}).unlocked || 1;
-      showToast(L(`Noch gesperrt - schaff erst Stufe ${open}.`, `Still locked - clear stage ${open} first.`));
-      return;
+  /** A tap or Enter on a floor shows its detail (it never starts it). */
+  function selectTowerFloor(stage) {
+    const info = towerFresh();
+    if (!info || !stage) return;
+    towerSelected = stage;
+    for (const g of el('towerHouse').querySelectorAll('[data-stage]')) {
+      const on = Number(g.dataset.stage) === stage;
+      g.classList.toggle('sel', on);
+      g.setAttribute('aria-pressed', String(on));
     }
-    const stage = Number(btn.dataset.stage);
+    const house = el('towerHouse');
+    house.dataset.sig = JSON.stringify([lang, info.month, info.best, info.crowned, info.unlocked, towerSelected]);
+    renderTowerDetail(info);
+  }
+  el('towerHouse').addEventListener('click', (ev) => {
+    const g = ev.target.closest && ev.target.closest('[data-stage]');
+    if (g) selectTowerFloor(Number(g.dataset.stage));
+  });
+  el('towerHouse').addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    const g = ev.target.closest && ev.target.closest('[data-stage]');
+    if (!g) return;
+    ev.preventDefault();
+    selectTowerFloor(Number(g.dataset.stage));
+  });
+  el('towerDetail').addEventListener('click', (ev) => {
+    const btn = ev.target.closest('[data-play]');
+    if (!btn) return;
+    const stage = Number(btn.dataset.play);
     guardOpenGame('tower', () => startTowerStage(stage));
   });
   el('towerCloseBtn').addEventListener('click', () => el('towerOverlay').classList.add('hidden'));
   el('towerOverlay').addEventListener('click', (ev) => {
     if (ev.target === el('towerOverlay')) el('towerOverlay').classList.add('hidden');
   });
-  /** Leaves a finished stage through a reload (the socket belongs to that table):
-   *  'open' shows the tower, a stage number starts that stage. */
+  /** Leaves a finished floor through a reload (the socket belongs to that table):
+   *  'open' shows the house, a floor number starts that floor. */
   function leaveTowerFor(next) {
     storageSet(AFTER_TOWER_KEY, String(next));
     if (sessionCode && storageGet('pikdame_last_session') === sessionCode) storageRemove('pikdame_last_session');
@@ -8109,7 +8622,7 @@
     if (Number.isInteger(stage) && stage > 0) guardOpenGame('tower', () => startTowerStage(stage));
     else openTowerSheet();
   }
-  /** The stage verdict on the result sheet: stars, the sum behind them, the way on. */
+  /** The floor verdict on the result sheet: stars, the sum behind them, the way on. */
   function renderTowerResult() {
     const body = el('resultBody');
     const old = body.querySelector('.towerResultBox');
@@ -8126,28 +8639,34 @@
       : r.margin < 0
         ? L(`${-r.margin} Punkte hinten`, `${-r.margin} points behind`)
         : L('Gleichstand reicht nicht', 'a tie is not enough');
-    const hint = [
-      L('Für einen Stern brauchst du mehr Punkte als jeder Bot samt Vorgabe.', 'For a star you need more points than every bot plus its head start.'),
-      L(`Für zwei Sterne: mindestens ${r.clearMargin} Punkte vorn.`, `For two stars: at least ${r.clearMargin} points ahead.`),
-      L('Für drei Sterne: zusätzlich selbst ausmachen.', 'For three stars: also go out yourself.'),
-      L('Alle drei Sterne - besser geht es nicht.', 'All three stars - it does not get better.'),
-    ][r.stars] || '';
+    const mustGoOut = (r.mods || []).includes('goOut');
+    const hint = mustGoOut && r.margin > 0 && !r.wentOut
+      ? L('Vorn, aber auf dieser Etage gibt es Sterne nur, wenn du selbst ausmachst.', 'Ahead, but on this floor stars need you to go out yourself.')
+      : [
+        L('Für einen Stern brauchst du mehr Punkte als jeder Bot samt Vorgabe.', 'For a star you need more points than every bot plus its head start.'),
+        L(`Für zwei Sterne: mindestens ${r.clearMargin} Punkte vorn.`, `For two stars: at least ${r.clearMargin} points ahead.`),
+        L('Für drei Sterne: zusätzlich selbst ausmachen.', 'For three stars: also go out yourself.'),
+        L('Alle drei Sterne - besser geht es nicht.', 'All three stars - it does not get better.'),
+      ][r.stars] || '';
     const pr = r.progress;
     const unlocked = pr ? pr.unlocked : (towerFresh() || {}).unlocked || r.stage;
     const best = pr && pr.best ? Number(pr.best[r.stage]) || 0 : r.stars;
     const bestLine = pr && pr.improved && r.stars
-      ? L('Neuer Bestwert für diese Stufe!', 'New best for this stage!')
+      ? L('Neuer Bestwert für diese Etage!', 'New best for this floor!')
       : best > r.stars ? L(`Dein Bestwert hier bleibt bei ${best} Sternen.`, `Your best here stays at ${best} stars.`) : '';
     box.innerHTML =
       `<div class="twResultStars" role="img" aria-label="${escapeHtml(L(`${r.stars} von 3 Sternen`, `${r.stars} of 3 stars`))}">${towerStarsHtml(r.stars)}</div>` +
       `<p class="twResultSum">${escapeHtml(L(`Du ${r.myScore} · ${botLine}`, `You ${r.myScore} · ${botLine}`))} <b>${escapeHtml(verdict)}</b></p>` +
       (bestLine ? `<p class="twResultBest">${escapeHtml(bestLine)}</p>` : '') +
-      (r.xp ? `<p class="twResultXp">${escapeHtml(L(`+${r.xp} EP · erster Stern`, `+${r.xp} XP · first star`))}</p>` : '') +
+      (pr && pr.crownedNow ? `<p class="twResultBest">${escapeHtml(L('Alle 20 Etagen - dein Kartenhaus ist gekrönt!', 'All 20 floors - your House of Cards is crowned!'))}</p>` : '') +
+      (r.xp ? `<p class="twResultXp">${escapeHtml(pr && pr.crownedNow
+        ? L(`+${r.xp} EP · erster Stern und Krone`, `+${r.xp} XP · first star and crown`)
+        : L(`+${r.xp} EP · erster Stern`, `+${r.xp} XP · first star`))}</p>` : '') +
       `<p class="twResultHint">${escapeHtml(hint)}</p>` +
       `<div class="twResultActions">` +
       `<button type="button" class="btn-secondary twRetry"><svg class="icon" aria-hidden="true"><use href="#i-undo"/></svg><span>${escapeHtml(L('Nochmal', 'Try again'))}</span></button>` +
       (r.stage < unlocked
-        ? `<button type="button" class="btn-secondary twNext"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>${escapeHtml(L(`Stufe ${r.stage + 1}`, `Stage ${r.stage + 1}`))}</span></button>`
+        ? `<button type="button" class="btn-secondary twNext"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>${escapeHtml(L(`Etage ${r.stage + 1}`, `Floor ${r.stage + 1}`))}</span></button>`
         : '') +
       `</div>`;
     box.querySelector('.twRetry').addEventListener('click', () => leaveTowerFor(r.stage));
@@ -8296,12 +8815,8 @@
     btn.dataset.state = storageGet(YEAR_SEEN_KEY) === yearReview.year ? 'seen' : 'new';
   }
 
-  function fmtNum(n) {
-    return Number(n || 0).toLocaleString(lang === 'en' ? 'en-GB' : 'de-DE');
-  }
   function fmtYearDay(date) {
-    const d = new Date(`${date}T12:00:00Z`);
-    return Number.isNaN(d.getTime()) ? String(date) : d.toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-DE', { day: 'numeric', month: 'long', timeZone: 'UTC' });
+    return fmtDay(date, { day: 'numeric', month: 'long', timeZone: 'UTC' });
   }
 
   /** The numbers worth a tile: always games and wins, the rest only when earned. */
@@ -8309,8 +8824,8 @@
     const t = r.totals;
     const pct = t.games ? Math.round((t.wins / t.games) * 100) : 0;
     return [
-      { value: fmtNum(t.games), label: L('Partien', 'Games') },
-      { value: fmtNum(t.wins), label: L(`Siege · ${pct} %`, `Wins · ${pct} %`) },
+      { value: fmtNum(t.games), label: unitWord(t.games, 'game').replace(/^./, (c) => c.toUpperCase()) },
+      { value: fmtNum(t.wins), label: `${unitWord(t.wins, 'win').replace(/^./, (c) => c.toUpperCase())} · ${pct} %` },
       t.queensLaid > 0 && { value: `${fmtNum(t.queensLaid)}×`, label: L('Pik Dame gerettet', 'Queen of spades rescued') },
       t.bestRound > 0 && { value: `+${fmtNum(t.bestRound)}`, label: L('Beste Runde', 'Best round') },
       t.bestStreak > 1 && { value: fmtNum(t.bestStreak), label: L('Tage Serie', 'Day streak') },
@@ -8344,7 +8859,7 @@
       slides.push({
         tone: 'bordeaux', kicker: L('Lieblingsgegner', 'Favourite opponent'), big: f.name, bigText: true, note: since,
         lines: [
-          L(`${f.games} ${f.games === 1 ? 'Partie' : 'Partien'} zusammen – ${f.wins} davon gingen an dich.`, `${f.games} ${f.games === 1 ? 'game' : 'games'} together – ${f.wins} of them went to you.`),
+          L(`${fmtCount(f.games, 'game')} zusammen – ${f.wins} davon gingen an dich.`, `${fmtCount(f.games, 'game')} together – ${f.wins} of them went to you.`),
           f.wins * 2 > f.games ? L(`Ob ${f.name} das auch so entspannt sieht?`, `Does ${f.name} take it that calmly?`) : L('Revanche? Die Katze hält die Karten bereit.', 'Rematch? The cat is holding the cards.'),
         ],
       });
@@ -8646,7 +9161,7 @@
     el('levelUpRank').classList.toggle('isNew', newTitle);
     el('levelUpXp').textContent = `${L(`Stufe ${from} → ${to}`, `Level ${from} → ${to}`)}${gainedXp ? ` · +${gainedXp} ${L('EP', 'XP')}` : ''}${welcomeBack ? ` (${L('×2 Willkommen zurück', '×2 welcome back')})` : ''}`;
     const start = levelFromXpClient(Math.max(0, beforeXp || 0));
-    const list = (items) => items.map((r) => `<li>${escapeHtml(r.label)}</li>`).join('');
+    const list = (items) => items.map((r) => `<li>${rewardHtml(r)}</li>`).join('');
     el('levelUpRewards').innerHTML =
       (got.length ? `<h3>${escapeHtml(L('Neu freigeschaltet', 'Newly unlocked'))}</h3><ul>${list(got)}</ul>` : '') +
       (next.length ? `<h3>${escapeHtml(L(`Nächste Belohnung (Stufe ${next[0].level})`, `Next reward (level ${next[0].level})`))}</h3><ul class="next">${list(next)}</ul>` : '');
@@ -8683,7 +9198,7 @@
   function celebrateProgress(msg) {
     const completed = (msg.quests && msg.quests.completed) || [];
     for (const id of completed) {
-      showToast(`✅ ${L('Tagesaufgabe geschafft', 'Daily task done')}: ${questMeta(id).text}`);
+      showToast(`✅ ${L('Tagesziel erreicht', 'Daily goal reached')}: ${questMeta(id).text}`);
     }
     const st = msg.streak;
     if (st && (st.event === 'extended' || st.event === 'bridged') && st.streak >= 2) {
@@ -8722,7 +9237,7 @@
       const at = owned[id];
       const p = progress[id];
       const sub = at
-        ? new Date(at).toLocaleDateString()
+        ? fmtDate(at, { day: 'numeric', month: 'numeric', year: 'numeric' })
         : p && p.need > 1
           ? `${p.have}/${p.need}`
           : L('gesperrt', 'locked');
@@ -8891,7 +9406,7 @@
       const m = badgeMeta(id);
       const p = progress[id];
       const state = owned[id]
-        ? `✓ ${new Date(owned[id]).toLocaleDateString()}`
+        ? `✓ ${fmtDate(owned[id], { day: 'numeric', month: 'numeric', year: 'numeric' })}`
         : p && p.need > 1 ? `${p.have}/${p.need}` : '';
       // "here" = the dot: the tier being worked on, or the last one when all are reached.
       const here = fam && (id === next || (!next && i === fam.tiers.length - 1));
@@ -8960,6 +9475,7 @@
       ...Object.fromEntries([10, 30, 100].map((n) => [`puzzle_perfect_${n}`, cap(p.totalPerfectPuzzles, n)])),
       tower_3: cap(p.towerCleared, 3), tower_6: cap(p.towerCleared, 6), tower_10: cap(p.towerCleared, 10),
       tower_stars_30: cap(p.towerStars, 30),
+      ...Object.fromEntries([1, 3, 12].map((n) => [`tower_crowned_${n}`, cap(p.towerCrownedMonths, n)])),
       red_lantern: cap(p.lastPlaceStreak, 3),
       stammtisch_10: cap(p.totalStammtischGames, 10),
     };
@@ -8982,7 +9498,7 @@
       `<div class="levelMeta">${L('Saison', 'Season')} ${escapeHtml(accountProgress.season ? seasonLabel(accountProgress.season) : '–')}: ` +
       `<b>${accountProgress.seasonXp}</b> ${L('EP', 'XP')}` +
       (accountProgress.rank ? ` · ${L('Platz', 'Rank')} <b>${accountProgress.rank}</b>` : '') +
-      ` · ${accountProgress.wins}/${accountProgress.games} ${L('Siege', 'wins')}</div>`;
+      ` · ${accountProgress.wins}/${accountProgress.games}${NBSP}${unitWord(accountProgress.games, 'win')}</div>`;
   }
 
   // Same curve as game/Progression.js - kept tiny and duplicated on purpose:
@@ -9165,10 +9681,10 @@
     const today = new Date();
     const yest = new Date();
     yest.setDate(today.getDate() - 1);
-    const time = d.toLocaleTimeString(lang === 'en' ? 'en-GB' : 'de-DE', { hour: '2-digit', minute: '2-digit' });
+    const time = d.toLocaleTimeString(localeOf(), { hour: '2-digit', minute: '2-digit' });
     if (d.toDateString() === today.toDateString()) return L(`Heute, ${time}`, `Today, ${time}`);
     if (d.toDateString() === yest.toDateString()) return L(`Gestern, ${time}`, `Yesterday, ${time}`);
-    return d.toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+    return fmtDate(d, { weekday: 'short', day: '2-digit', month: '2-digit' });
   }
   function historyGameView(g) {
     const players = g.players || [];
@@ -9226,7 +9742,7 @@
         `<span class="histOpp">${escapeHtml(v.opps.length ? L(`gegen ${v.opps.join(', ')}`, `vs ${v.opps.join(', ')}`) : L('Solo', 'Solo'))}</span>` +
         `<span class="histBars" role="img" aria-label="${escapeHtml(standingText)}">${bars}</span>` +
         `</span>` +
-        `<span class="histScore">${v.myTotal}<small>${escapeHtml(L(`${g.rounds} Runden`, `${g.rounds} rounds`))}</small></span>` +
+        `<span class="histScore">${fmtNum(v.myTotal)}<small>${escapeHtml(fmtCount(g.rounds, 'round'))}</small></span>` +
         `</button>` +
         (open ? `<div class="histDetail" data-detail="${escapeHtml(g.id)}"></div>` : '');
     };
@@ -9237,9 +9753,9 @@
       : '');
     box.innerHTML =
       `<div class="histSummary">` +
-      `<div><b>${games.length}</b><span>${L('Partien', 'Games')}</span></div>` +
-      `<div><b>${wins}</b><span>${L('Siege', 'Wins')}</span></div>` +
-      `<div><b>${avg}</b><span>${L('Ø Punkte', 'Avg. points')}</span></div>` +
+      `<div><b>${fmtNum(games.length)}</b><span>${unitWord(games.length, 'game').replace(/^./, (c) => c.toUpperCase())}</span></div>` +
+      `<div><b>${fmtNum(wins)}</b><span>${unitWord(wins, 'win').replace(/^./, (c) => c.toUpperCase())}</span></div>` +
+      `<div><b>${fmtNum(avg)}</b><span>${L('Ø Punkte', 'Avg. points')}</span></div>` +
       `</div>` +
       group(L('Letzte 7 Tage', 'Last 7 days'), recent) + group(L('Früher', 'Earlier'), older);
     // The opened game: its score chart (stored totals after each round).
@@ -9254,7 +9770,7 @@
       list.innerHTML = v.players
         .slice()
         .sort((x, y) => (v.totals[y.id] || 0) - (v.totals[x.id] || 0))
-        .map((p) => `<li class="${p === v.me ? 'me' : ''}"><span>${escapeHtml(p.name)}${v.diffOf(p) ? ` <small>${escapeHtml(v.diffOf(p).short())}</small>` : ''}</span><b>${v.totals[p.id] || 0}</b></li>`)
+        .map((p) => `<li class="${p === v.me ? 'me' : ''}"><span>${escapeHtml(p.name)}${v.diffOf(p) ? ` <small>${escapeHtml(v.diffOf(p).short())}</small>` : ''}</span><b>${fmtNum(v.totals[p.id] || 0)}</b></li>`)
         .join('');
       detail.appendChild(list);
     }
@@ -9283,12 +9799,12 @@
         : queens > 0
           ? L(`${Math.round(share * 100)} % aller Pik Damen bleiben auf der Hand hängen.`, `${Math.round(share * 100)}% of all Queens of Spades get caught in hand.`)
           : '';
-      const fmt = (v) => Number(v || 0).toLocaleString(lang === 'en' ? 'en-GB' : 'de-DE');
+      const fmt = fmtNum;
       gsBox.innerHTML =
         (punch ? `<p class="gsPunch">${punch}</p>` : '') +
         `<p class="gsLine">${L(
-          `Auf diesem Server: ${fmt(g.games)} Partien · ${fmt(g.rounds)} Runden · ${fmt(g.handAusRounds)}× Hand aus`,
-          `On this server: ${fmt(g.games)} games · ${fmt(g.rounds)} rounds · ${fmt(g.handAusRounds)}× out in one`
+          `Auf diesem Server: ${fmtCount(g.games, 'game')} · ${fmtCount(g.rounds, 'round')} · ${fmt(g.handAusRounds)}×${NBSP}Hand aus`,
+          `On this server: ${fmtCount(g.games, 'game')} · ${fmtCount(g.rounds, 'round')} · ${fmt(g.handAusRounds)}×${NBSP}out in one`
         )}</p>`;
       gsBox.classList.remove('hidden');
     } else {
@@ -9316,7 +9832,7 @@
         return `<button type="button" class="boardRow${mine ? ' isMe' : ''}" data-name="${escapeHtml(p.name)}">` +
           `<span class="boardRank">${i + 1}</span>` +
           `<span class="boardName">${nameWithHeart(p.name)}${favoriteBadgesHtml(p)}</span>` +
-          `<span class="boardNum"><b>${won}</b>/${played}</span>` +
+          `<span class="boardNum"><b>${fmtNum(won)}</b>/${fmtNum(played)}</span>` +
           `<span class="boardNum">${rate} %</span>` +
           `<span class="boardNum boardLevel">${levelFromXpClient(p.xp || 0).level}</span>` +
           `</button>`;
@@ -9327,51 +9843,62 @@
       `<div class="boardList">${rows}</div>`;
   }
 
-  // "You" first: four numbers and the trend of the last games.
+  // "You" first: three numbers once, the level as a link, the last games as W/L boxes.
   el('statsMeBox').addEventListener('click', (ev) => {
     if (ev.target.closest('[data-open="progress"]')) openProgressSheet();
+    if (ev.target.closest('[data-start="bots"]')) {
+      // Same path as "Gegen Bots spielen" after the tutorial: new game, started with bots.
+      el('statsOverlay').classList.add('hidden');
+      afterTutorial = 'bots';
+      el('createGameBtn').click();
+    }
   });
   function renderStatsMe() {
     const box = el('statsMeBox');
     if (!box) return;
     const me = myProfile();
-    if (publicMode || !me || !(me.gamesPlayed > 0)) {
+    if (publicMode) {
       box.classList.add('hidden');
+      return;
+    }
+    if (!me || !(me.gamesPlayed > 0)) {
+      // A new name: say what will show up here, and offer the way there.
+      box.innerHTML =
+        `<div class="meEmpty"><svg class="icon" aria-hidden="true"><use href="#i-chart"/></svg>` +
+        `<div><b>${L('Deine Zahlen starten mit der ersten Partie', 'Your numbers start with your first game')}</b>` +
+        `<span>${L('Spiel eine Partie bis 1000 Punkte, dann stehen hier deine Siege, dein Bestwert und deine letzten Partien.',
+          'Play a game to 1000 points, then your wins, best score and recent games show up here.')}</span></div></div>` +
+        `<button type="button" class="btn-secondary meEmptyCta" data-start="bots"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>${L('Gegen Bots spielen', 'Play against bots')}</span></button>`;
+      box.classList.remove('hidden');
       return;
     }
     const played = me.gamesPlayed || 0;
     const won = me.gamesWon || 0;
+    const rate = played > 0 ? Math.round((won / played) * 100) : 0;
     const lv = levelFromXpClient(Math.max(me.xp || 0, myProgress ? myProgress.xp || 0 : 0));
     const kpi = (value, label) => `<div class="kpiTile"><b>${value}</b><span>${label}</span></div>`;
-    const games = (myGameHistory || []).slice(0, 10).reverse();
-    let spark = '';
-    if (games.length >= 2) {
-      const W = 300;
-      const H = 44;
-      const vals = games.map((g) => g.myScore || 0);
-      const max = Math.max(1000, ...vals) + 40;
-      const min = Math.min(1000, ...vals) - 120;
-      const sx = (i) => 6 + (i / (games.length - 1)) * (W - 12);
-      const sy = (v) => 4 + (1 - (v - min) / (max - min || 1)) * (H - 8);
-      const pts = games.map((g, i) => `${sx(i).toFixed(1)},${sy(g.myScore || 0).toFixed(1)}`).join(' ');
-      // Filled dot = won, ring = lost: identity never by colour alone.
-      const dots = games.map((g, i) =>
-        `<circle cx="${sx(i).toFixed(1)}" cy="${sy(g.myScore || 0).toFixed(1)}" r="3.6" class="${g.won ? 'won' : 'lost'}"/>`
-      ).join('');
-      spark = `<div class="meSpark"><span class="meSparkLabel">${L(`Letzte ${games.length} Partien`, `Last ${games.length} games`)}</span>` +
-        `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeHtml(L(`Endstände der letzten ${games.length} Partien`, `Final scores of the last ${games.length} games`))}: ${vals.join(', ')}">` +
-        `<line x1="6" x2="${W - 6}" y1="${sy(1000).toFixed(1)}" y2="${sy(1000).toFixed(1)}" class="goalLine"/>` +
-        `<polyline points="${pts}" class="sparkLine"/>${dots}</svg>` +
-        `<span class="meSparkKey"><i class="won"></i>${L('Sieg', 'win')} <i class="lost"></i>${L('Niederlage', 'loss')}</span></div>`;
-    }
+    // Newest first; the letter carries win/loss, the fill only repeats it.
+    const games = (myGameHistory || []).slice(0, 10);
+    const form = games.length
+      ? `<div class="meForm"><div class="meFormHead"><span>${L('Letzte Partien', 'Recent games')}</span><span>${L('neueste links', 'newest first')}</span></div>` +
+        `<ol class="meFormRow" aria-label="${escapeHtml(L('Letzte Partien, neueste zuerst', 'Recent games, newest first'))}">` +
+        games.map((g) => {
+          const score = String(g.myScore || 0); // no separator: ten boxes share 350 px
+          const word = g.won ? L('Sieg', 'Win') : L('Niederlage', 'Loss');
+          return `<li class="formBox ${g.won ? 'won' : 'lost'}" title="${escapeHtml(`${word} · ${score}`)}">` +
+            `<b aria-hidden="true">${g.won ? L('S', 'W') : L('N', 'L')}</b><span class="visuallyHidden">${escapeHtml(word)}</span><small>${score}</small></li>`;
+        }).join('') +
+        `</ol></div>`
+      : '';
     box.innerHTML =
-      `<div class="meHead"><span class="meName">${nameWithHeart(me.name)}</span><span class="meTitle">${escapeHtml(titleForLevel(lv.level))}</span></div>` +
+      `<div class="meHead"><span class="meName">${nameWithHeart(me.name)}</span>` +
+      `<button type="button" class="meLevelLink" data-open="progress"><span>${escapeHtml(titleForLevel(lv.level))} · ${L('Stufe', 'Level')} ${lv.level}</span>` +
+      `<svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></button></div>` +
       `<div class="kpiGrid">` +
-      kpi(`${played > 0 ? Math.round((won / played) * 100) : 0} %`, L(`Siegquote (${won}/${played})`, `Win rate (${won}/${played})`)) +
-      kpi(played, L('Partien', 'Games')) +
-      kpi(me.bestGameScore !== undefined ? me.bestGameScore : '–', L('Beste Partie', 'Best game')) +
-      `<button type="button" class="kpiTile kpiLink" data-open="progress"><b>${lv.level}</b><span>${L('Stufe', 'Level')}</span></button>` +
-      `</div>` + spark;
+      kpi(fmtNum(played), unitWord(played, 'game').replace(/^./, (c) => c.toUpperCase())) +
+      kpi(fmtNum(won), `${unitWord(won, 'win').replace(/^./, (c) => c.toUpperCase())} · ${rate}${L(' %', '%')}`) +
+      kpi(me.bestGameScore !== undefined ? fmtNum(me.bestGameScore) : '–', L('Bestwert', 'Best score')) +
+      `</div>` + form;
     box.classList.remove('hidden');
   }
 
@@ -9431,12 +9958,17 @@
     const out = [];
     for (const [id, level] of Object.entries(EMOTE_UNLOCK)) out.push({ level, kind: 'emote', id, label: `${id} ${L('Emote', 'emote')}` });
     for (const cb of CARDBACKS) {
-      if (cb.gate && cb.gate.field === 'level') out.push({ level: cb.gate.min, kind: 'cardback', id: cb.id, label: `🎴 ${L(`Kartenrücken „${cb.label}“`, `card back "${cb.labelEn}"`)}` });
+      if (cb.gate && cb.gate.field === 'level') out.push({ level: cb.gate.min, kind: 'cardback', id: cb.id, label: L(`Kartenrücken „${cb.label}“`, `card back "${cb.labelEn}"`) });
     }
-    for (const [id, level] of Object.entries(THEME_LEVELS)) out.push({ level, kind: 'theme', id, label: `🎨 ${L(`Tischfarbe „${themeName(id)}“`, `table colour "${themeName(id)}"`)}` });
-    for (const [level, de, en] of LEVEL_TITLES) if (level > 1) out.push({ level, kind: 'title', id: de, label: `🏷️ ${L(`Titel „${de}“`, `title "${en}"`)}` });
-    for (const c of CELEBRATIONS) if (c.level > 1) out.push({ level: c.level, kind: 'celebration', id: c.id, label: `🎉 ${L(`Siegesjubel „${c.de}“`, `victory celebration "${c.en}"`)}` });
+    for (const [id, level] of Object.entries(THEME_LEVELS)) out.push({ level, kind: 'theme', id, label: L(`Tischfarbe „${themeName(id)}“`, `table colour "${themeName(id)}"`) });
+    for (const [level, de, en] of LEVEL_TITLES) if (level > 1) out.push({ level, kind: 'title', id: de, label: L(`Titel „${de}“`, `title "${en}"`) });
+    for (const c of CELEBRATIONS) if (c.level > 1) out.push({ level: c.level, kind: 'celebration', id: c.id, label: L(`Siegesjubel „${c.de}“`, `victory celebration "${c.en}"`) });
     return out.sort((a, b) => a.level - b.level);
+  }
+  // Icons from the sprite per kind; an emote IS its emoji (content), so its label keeps it.
+  const REWARD_ICONS = { cardback: 'cards', theme: 'palette', title: 'tag', celebration: 'sparkle' };
+  function rewardHtml(r) {
+    return REWARD_ICONS[r.kind] ? `${iconHtml(REWARD_ICONS[r.kind])}<span>${escapeHtml(r.label)}</span>` : `<span>${escapeHtml(r.label)}</span>`;
   }
   function themeName(id) {
     return ({ bordeaux: 'Bordeaux' })[id] || id;
@@ -9458,7 +9990,10 @@
   }
   // Mirrors game/Emotes.js - the server is the authority, this only draws
   // the locks. Public servers keep no profiles, so nothing is locked there.
-  const EMOTE_UNLOCK = { '👏': 2, '🙈': 3, '🤔': 4, '🍀': 5, '😎': 6, '🔥': 8, '😴': 10, '🙏': 12, '🤩': 14, '🥳': 16, '💪': 18 };
+  const EMOTE_UNLOCK = {
+    '👏': 2, '🙈': 3, '🤔': 4, '🍀': 5, '😎': 6, '🔥': 8, '😴': 10, '🙏': 12, '🤩': 14, '🥳': 16, '💪': 18,
+    '🃏': 20, '😅': 21, '🤞': 22, '👀': 23, '🙄': 24, '😬': 26, '🙃': 28, '🤝': 30, '😇': 32, '☕': 34, '🐢': 36, '🍻': 38, '❤️': 40,
+  };
   // Mirrors game/Celebrations.js (contract test); the names live here.
   const CELEBRATIONS = [
     { id: 'standard', level: 1, de: 'Standard', en: 'Standard' },
@@ -9553,6 +10088,7 @@
       const sample = bar && bar.querySelector('button[data-emote]');
       if (bar && sample) {
         const b = sample.cloneNode(false);
+        b.className = 'emoteChoice emoteSpecial';
         b.dataset.emote = seasonalEmote;
         b.textContent = seasonalEmote;
         b.addEventListener('click', () => {

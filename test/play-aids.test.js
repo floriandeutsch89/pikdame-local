@@ -107,6 +107,15 @@ test('discard hint: the tutorial forces it on even with the switch off', async (
   assert.ok(doc.getElementById('discardPile').classList.contains('noTake'));
 });
 
+test('discard hint: a Kartenhaus floor without the discard pile shows it blocked, aid or not', async (t) => {
+  const { doc, feed } = await setup(t);
+  const pile = doc.getElementById('discardPile');
+  feed({ ...state({ takeable: false }), towerStage: 13, towerMods: ['noDiscard'] });
+  assert.ok(pile.classList.contains('noTake') && !pile.classList.contains('glow'), 'blocked with the aid off');
+  feed({ ...state({ takeable: false }), towerStage: 12, towerMods: ['goOut'] });
+  assert.ok(!pile.classList.contains('noTake'), 'other floors keep the player\'s choice (off)');
+});
+
 test('lay-off hint: default ON frames the meld; OFF removes the frame; tutorial forces ON', async (t) => {
   const { doc, feed, window } = await setup(t);
   const frame = () => doc.querySelectorAll('#melds .meldGroup.layOffTarget').length;
