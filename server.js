@@ -307,24 +307,11 @@ function serveStatic(req, res) {
     return;
   }
   if (filePath === '/challengeboardz') {
-    // Today's top 5 for the intro overlay - names are already public by
-    // the leaderboard's very purpose; no other data leaves the store.
-    const date = gameDay();
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
-    // Zusaetzlich die Wochenwertung (beste 5 von 7 Tagen) - sie existierte
-    // laengst, war aber nur nach einer beendeten Partie zu sehen.
-    // Trend graph: the top 5 of the last 14 days, plus ?name= as "me".
-    const trendName = sanitizeName(new URL(req.url, 'http://x').searchParams.get('name') || '');
-    // ?name= also gets its own result today, for the start screen tile and sharing.
-    res.end(JSON.stringify({
-      date,
-      you: trendName ? challengeStore.resultOf(date, trendName) : null,
-      board: challengeStore.getBoard(date, 5),
-      attempted: trendName ? challengeStore.hasAttempted(date, trendName) : false,
-      magnet: challengeStore.queenMagnet(date),
-      weekly: challengeStore.getWeekly(null, 5),
-      trend: challengeStore.getTrend(trendName),
-    }));
+    challengeBoardResponse(req, res).catch((err) => {
+      logCrash('challenge-board', err);
+      if (!res.headersSent) sendJson(res, 500, { error: 'Interner Fehler - bitte erneut versuchen.' });
+      else res.end();
+    });
     return;
   }
   if (filePath === '/changelogz') {
@@ -1640,6 +1627,37 @@ async function bookAccountXp(name, xp, { seated = false, accountToken = null } =
   } catch (err) {
     logCrash('account-xp', err, { player: name });
   }
+}
+
+/** May `name` see today's challenge scores? Only after its own game ended
+ *  (played or given up). An account name must come with its login token;
+ *  a guest name is trusted like the attempt itself. */
+async function mayRevealChallenge(date, name, accountToken) {
+  if (!name || !challengeStore.hasFinished(date, name)) return false;
+  if (!ACCOUNTS_ENABLED || !(await accountStore.isRegisteredName(name))) return true;
+  const user = await accountStore.sessionUser(accountToken);
+  return !!user && user.username.toLowerCase() === name.toLowerCase();
+}
+
+/** Intro sheet and "Heute" tile. Today's scores (board, magnet, weekly and
+ *  trend share) stay hidden until the asking player has played today. */
+async function challengeBoardResponse(req, res) {
+  const date = gameDay();
+  const name = sanitizeName(new URL(req.url, 'http://x').searchParams.get('name') || '');
+  const revealed = await mayRevealChallenge(date, name, req.headers['x-account-token']);
+  const hide = revealed ? null : date;
+  res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+  res.end(JSON.stringify({
+    date,
+    revealed,
+    players: challengeStore.playerCount(date),
+    you: revealed ? challengeStore.resultOf(date, name) : null,
+    board: revealed ? challengeStore.getBoard(date, 5) : [],
+    attempted: name ? challengeStore.hasAttempted(date, name) : false,
+    magnet: revealed ? challengeStore.queenMagnet(date) : null,
+    weekly: challengeStore.getWeekly(null, 5, Date.now(), { exclude: hide }),
+    trend: challengeStore.getTrend(name, { exclude: hide }),
+  }));
 }
 
 /** Books the day's attempt (no names are kept in public mode). */

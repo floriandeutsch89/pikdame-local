@@ -88,3 +88,28 @@ test('resultOf: rank, score, caught queens and field size for sharing', () => {
   assert.deepEqual(cs.resultOf(TODAY, 'flo'), { rank: 1, score: 1120, queens: 2, players: 3 });
   assert.deepEqual(cs.resultOf(TODAY, 'Ben'), { rank: 3, score: 400, queens: 0, players: 3 });
 });
+
+test('hasFinished: a result or a given-up game opens the day, a running or lost one does not', () => {
+  const cs = freshStore();
+  assert.equal(cs.hasFinished(TODAY, 'Flo'), false);
+  cs.beginAttempt(TODAY, 'Flo', 'AAAA01', NOW);
+  assert.equal(cs.hasFinished(TODAY, 'Flo'), false, 'still running');
+  cs.closeAttempt(TODAY, 'Flo');
+  assert.equal(cs.hasFinished(TODAY, 'flo'), true, 'given up');
+  cs.beginAttempt(TODAY, 'Ben', 'AAAA02', NOW);
+  cs.markLostAttempts(new Set());
+  assert.equal(cs.hasFinished(TODAY, 'Ben'), false, 'lost by the server');
+  cs.submit(TODAY, 'Anna', 900, NOW);
+  assert.equal(cs.hasFinished(TODAY, 'Anna'), true, 'played');
+  assert.equal(cs.playerCount(TODAY), 1);
+});
+
+test('exclude: weekly and trend leave out the hidden day', () => {
+  const cs = freshStore();
+  cs.submit(TODAY, 'Anna', 900, NOW);
+  cs.submit('2026-10-15', 'Ben', 500, NOW - 864e5);
+  assert.deepEqual(cs.getWeekly(null, 5, NOW, { exclude: TODAY }).top.map((e) => e.name), ['Ben']);
+  const trend = cs.getTrend(null, { exclude: TODAY }, NOW);
+  assert.deepEqual(trend.top.map((p) => p.name), ['Ben']);
+  assert.equal(trend.dates[trend.dates.length - 1], TODAY, 'the day stays on the axis, empty');
+});
