@@ -33,7 +33,7 @@ const AdminPage = require('./game/AdminPage');
 const { createAdminTokenVerifier } = require('./game/AdminToken');
 const { createMonitor } = require('./game/Monitor');
 const { createPasskeyService, deviceName } = require('./game/Passkeys');
-const { isAllowedEmote, emoteLevel } = require('./game/Emotes');
+const { normalizeEmote, emoteLevel } = require('./game/Emotes');
 const { isCelebration, celebrationLevel } = require('./game/Celebrations');
 const { parseGreetingDays, greetingWindow } = require('./game/GreetingDays');
 const { holidayStatus } = require('./game/Holidays');
@@ -2474,16 +2474,17 @@ wss.on('connection', (ws, req) => {
       case 'emote': {
         // Emotes: short reactions to the whole table. Whitelist (game/Emotes.js)
         // + own rate limit (1 emote / 1.5 s) so nobody floods the table.
-        if (!isAllowedEmote(msg.emoji)) break;
+        const emoji = normalizeEmote(msg.emoji);
+        if (!emoji) break;
         // Level-gated emotes (see game/Emotes.js): checked against the local
         // profile where one exists. Public mode has no profiles, so nothing
         // is locked there.
-        if (!PUBLIC_MODE && emoteLevel(msg.emoji) > 1) {
+        if (!PUBLIC_MODE && emoteLevel(emoji) > 1) {
           const seat = game.players.find((p) => p.id === playerId);
           const profile = seat ? playerStore.getPlayerByName(seat.name) : null;
           const level = levelFromXp(profile ? profile.xp : 0).level;
-          if (level < emoteLevel(msg.emoji)) {
-            sendError(ws, `Dieses Emote gibt es ab Stufe ${emoteLevel(msg.emoji)}.`);
+          if (level < emoteLevel(emoji)) {
+            sendError(ws, `Dieses Emote gibt es ab Stufe ${emoteLevel(emoji)}.`);
             break;
           }
         }
@@ -2492,11 +2493,11 @@ wss.on('connection', (ws, req) => {
         ws._lastEmoteAt = now;
         for (const [, sock] of session.sockets) {
           if (sock && sock.readyState === WebSocket.OPEN) {
-            sock.send(JSON.stringify({ type: 'emote', playerId, emoji: msg.emoji }));
+            sock.send(JSON.stringify({ type: 'emote', playerId, emoji }));
           }
         }
         // Social layer: maybe one bot answers a human emote (see GameManager).
-        game.respondToHumanEmote(playerId, msg.emoji);
+        game.respondToHumanEmote(playerId, emoji);
         break;
       }
       case 'setBotDifficulty': {

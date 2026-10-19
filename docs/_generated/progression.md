@@ -180,6 +180,19 @@ on the client:
 | 🤩 | level 14 |
 | 🥳 | level 16 |
 | 💪 | level 18 |
+| 🃏 | level 20 |
+| 😅 | level 21 |
+| 🤞 | level 22 |
+| 👀 | level 23 |
+| 🙄 | level 24 |
+| 😬 | level 26 |
+| 🙃 | level 28 |
+| 🤝 | level 30 |
+| 😇 | level 32 |
+| ☕ | level 34 |
+| 🐢 | level 36 |
+| 🍻 | level 38 |
+| ❤️ | level 40 |
 
 Seasonal extras the client offers in autumn and around New Year: 🎃 🎆
 (always accepted server-side). On their holiday everyone also gets 🎅 🎄 🐣
