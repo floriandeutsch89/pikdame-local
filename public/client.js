@@ -5444,15 +5444,19 @@
     challengeTrendData = null;
     renderChallengeTrend();
     const trendName = el('nameInput').value.trim();
-    fetch(`/challengeboardz${trendName ? `?name=${encodeURIComponent(trendName)}` : ''}`)
-      .then((r) => r.json())
+    fetchChallengeBoard(trendName)
       .then((d) => {
         challengeTrendData = (d && d.trend) || { dates: [], me: null, top: [] };
         renderChallengeTrend();
         const top = d && d.board && d.board[0];
-        el('challengeTopLine').textContent = top
-          ? `🥇 ${top.name} – ${top.score} ${L('Punkte', 'points')}${d.board[1] ? `  ·  🥈 ${d.board[1].name} – ${d.board[1].score}` : ''}`
-          : L('Noch niemand - sichere dir Platz 1!', 'Nobody yet - claim first place!');
+        // Before your own game the server sends only how many played today.
+        const hidden = !!d && d.revealed === false && d.players > 0;
+        el('challengeTopLine').textContent = hidden
+          ? L(`Die Punkte siehst du nach deinem Spiel – heute ${d.players === 1 ? 'hat schon 1 Person' : `haben schon ${d.players} Leute`} gespielt.`,
+            `You see the scores after your game – ${d.players} played today so far.`)
+          : top
+            ? `🥇 ${top.name} – ${top.score} ${L('Punkte', 'points')}${d.board[1] ? `  ·  🥈 ${d.board[1].name} – ${d.board[1].score}` : ''}`
+            : L('Noch niemand - sichere dir Platz 1!', 'Nobody yet - claim first place!');
         // Attempt used: no start, the sheet is the day's board.
         const played = !!(d && d.attempted);
         el('challengePlayedNote').classList.toggle('hidden', !played);
@@ -5469,6 +5473,7 @@
         const week = (d && d.weekly && d.weekly.top) || [];
         el('challengeWeekLine').textContent = week.length
           ? week.slice(0, 3).map((e, i) => `${['🥇', '🥈', '🥉'][i]} ${e.name} – ${e.weekScore}`).join('  ·  ')
+            + (hidden ? L(' (ohne heute)', ' (without today)') : '')
           : L('Diese Woche noch offen.', 'Nothing this week yet.');
       })
       .catch(() => {
@@ -5476,6 +5481,13 @@
         el('challengeWeekLine').textContent = '';
       });
   });
+  /** Today's board for `name`; the account token proves the name, so the
+   *  server reveals today's scores only to whoever really played. */
+  function fetchChallengeBoard(name) {
+    const token = accountToken();
+    return fetch(`/challengeboardz${name ? `?name=${encodeURIComponent(name)}` : ''}`, token ? { headers: { 'X-Account-Token': token } } : undefined)
+      .then((r) => (r.ok ? r.json() : null));
+  }
   el('challengeShareBtn').addEventListener('click', () => {
     if (challengeIntroResult) shareResult(challengeShareText(challengeIntroResult));
   });
@@ -8155,8 +8167,7 @@
     const key = `${(dailyQuests && dailyQuests.date) || ''}|${name}`;
     if (challengeTodayFetched === key) return;
     challengeTodayFetched = key;
-    fetch(`/challengeboardz${name ? `?name=${encodeURIComponent(name)}` : ''}`)
-      .then((r) => (r.ok ? r.json() : null))
+    fetchChallengeBoard(name)
       .then((d) => { challengeToday = d; renderToday(); })
       .catch(() => { challengeTodayFetched = ''; });
   }
