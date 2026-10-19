@@ -204,7 +204,7 @@
           ? L('Challenge fortsetzen', 'Resume challenge')
           : resumeIsTutorial ? L('Tutorial fortsetzen', 'Resume tutorial')
             : tower ? (openGame.towerMonth
-              ? L(`Babel fortsetzen (Stufe ${tower})`, `Resume Babel (stage ${tower})`)
+              ? L(`Turmbau zu Babel fortsetzen (Stufe ${tower})`, `Resume Tower of Babel (stage ${tower})`)
               : L(`Bot-Turm fortsetzen (Stufe ${tower})`, `Resume bot tower (stage ${tower})`))
               : L(`Weiterspielen (${resumeCode})`, `Resume game (${resumeCode})`);
         btn.classList.remove('hidden');
@@ -8033,7 +8033,7 @@
     if (info) {
       const size = info.stages.length;
       const stage = Math.min(info.unlocked || 1, size);
-      const name = babel ? L('Babel', 'Babel') : towerName(false);
+      const name = towerName(!!babel);
       const text = info.stars
         ? L(`Stufe ${stage} · ${info.stars}/${size * 3}`, `Stage ${stage} · ${info.stars}/${size * 3}`)
         : babel ? babelMonthName(babel.month) : L(`${size} Stufen`, `${size} stages`);

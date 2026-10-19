@@ -345,7 +345,7 @@ test('Babel: the start chip shows the monthly tower once the fixed one is comple
   const all = Object.fromEntries(BotTower.TOWER_STAGES.map((s) => [s.stage, 1]));
   t.ws.fire('message', towerInfo({ best: all, stars: 10, cleared: 10, unlocked: 10, babel: BABEL }));
   assert.ok(chip().classList.contains('babel'));
-  assert.match(chip().textContent, /Babel/);
+  assert.match(chip().querySelector('.stName').textContent, /^Turmbau zu Babel$/);
   assert.match(chip().textContent, /Stufe 2 · 2\/30/);
   assert.match(chip().getAttribute('aria-label'), /^Turmbau zu Babel im Oktober: Stufe 2, 2 von 30 Sternen$/);
   chip().click();
