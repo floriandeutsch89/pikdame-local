@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.88.1] - 2026-10-19
+
+### Changed
+- Bot-Sprüche sind jetzt standardmäßig aus. Einschalten unter Einstellungen → „Bot-Sprüche“; wer sie dort schon einmal eingeschaltet hatte, behält sie.
+
 ## [2.88.0] - 2026-10-19
 
 ### Changed
