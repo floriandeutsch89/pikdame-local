@@ -3,6 +3,7 @@
 // of the name, and shown to the whole table when its owner wins - as a band
 // behind the round-end sheet that never takes a tap and cleans up after itself.
 const test = require('node:test');
+const { freePort } = require('./helpers/free-port');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -18,7 +19,7 @@ const GameManager = require('../game/GameManager');
 
 const ROOT = path.join(__dirname, '..');
 const pub = path.join(ROOT, 'public');
-const PORT = 8137;
+let PORT = 0;
 
 /** Total XP at the start of a level. */
 function xpAt(level) {
@@ -133,6 +134,8 @@ test('server: only the signed-in owner picks, only unlocked ids; the whole table
   seed.upsertPlayerProfile('Flo');
   seed.addProgress('Flo', { xp: xpAt(20) + 30 });
   seed.flushSync();
+
+  PORT = await freePort();
 
   const server = spawn('node', ['server.js'], {
     cwd: ROOT,

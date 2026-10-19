@@ -3,6 +3,7 @@
 // same bytes a phone or a password manager would send. Plus the e-mail
 // login link and the split account rate limit.
 const test = require('node:test');
+const { freePort } = require('./helpers/free-port');
 const assert = require('node:assert');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
@@ -93,7 +94,7 @@ function softAuthenticator(origin, rpID) {
   };
 }
 
-let PORT = 8098;
+let PORT = 0;
 let ORIGIN = `http://localhost:${PORT}`;
 const PG_URL = process.env.PIKDAME_TEST_PG_URL || '';
 // The server trusts X-Forwarded-For here, so each phase of the journey can
@@ -142,13 +143,13 @@ test('AccountStore (SQLite): sign-up code renews, admin resend knows password-le
 // The same journey on both account backends: SQLite (fallback) and
 // PostgreSQL (the production stack; CI provides it).
 test('server (SQLite): e-mail-first sign-up (code + link), passkey, sign-in, manage, login link', { skip: (!HAS_LIB || !HAS_SQLITE) && 'needs @simplewebauthn/server and node:sqlite' },
-  (t) => journey(t, 8098, '', 'Oma Inge', 'inge@example.org'));
+  (t) => journey(t, '', 'Oma Inge', 'inge@example.org'));
 test('server (PostgreSQL): e-mail-first sign-up (code + link), passkey, sign-in, manage, login link', { skip: (!HAS_LIB || !PG_URL) && 'needs @simplewebauthn/server and PIKDAME_TEST_PG_URL' },
-  (t) => journey(t, 8099, PG_URL, `Opa ${Date.now() % 100000}`, `opa${Date.now() % 100000}@example.org`));
+  (t) => journey(t, PG_URL, `Opa ${Date.now() % 100000}`, `opa${Date.now() % 100000}@example.org`));
 
-async function journey(t, port, databaseUrl, NAME, MAIL) {
-  PORT = port;
-  ORIGIN = `http://localhost:${port}`;
+async function journey(t, databaseUrl, NAME, MAIL) {
+  PORT = await freePort();
+  ORIGIN = `http://localhost:${PORT}`;
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-passkeys-'));
   const server = spawn('node', ['server.js'], {
     cwd: path.join(__dirname, '..'),
