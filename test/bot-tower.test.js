@@ -3,6 +3,7 @@
  *  card conservation, snapshot), best-of storage with the badge families,
  *  and the real server's getTower/startTower messages. */
 const test = require('node:test');
+const { freePort } = require('./helpers/free-port');
 const assert = require('node:assert');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
@@ -335,7 +336,8 @@ async function ask(ws, msg, replyType) {
   return reply;
 }
 
-async function startServer(t, port, env = {}, prepare = null) {
+async function startServer(t, env = {}, prepare = null) {
+  const port = await freePort();
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-tower-srv-'));
   if (prepare) prepare(dataDir); // seed the data dir (accounts, a session snapshot) before the boot
   const server = spawn('node', ['server.js'], {
@@ -357,7 +359,7 @@ async function startServer(t, port, env = {}, prepare = null) {
 }
 
 test('server: getTower lists the stages, startTower checks the lock and seats a solo stage', async (t) => {
-  const srv = await startServer(t, 8137);
+  const srv = await startServer(t);
   const ws = await srv.socket();
   const info = await ask(ws, { type: 'getTower', name: 'Ada' }, 'towerInfo');
   assert.strictEqual(info.stages.length, 10);
@@ -391,7 +393,7 @@ test('server: getTower lists the stages, startTower checks the lock and seats a 
 });
 
 test('server: public mode keeps no profiles, so the tower is off', async (t) => {
-  const srv = await startServer(t, 8138, { PIKDAME_PUBLIC_MODE: '1' });
+  const srv = await startServer(t, { PIKDAME_PUBLIC_MODE: '1' });
   const ws = await srv.socket();
   const info = await ask(ws, { type: 'getTower', name: 'Ada' }, 'towerInfo');
   assert.deepStrictEqual(info.best, {});
@@ -443,7 +445,7 @@ test('server: the first star pays 25 XP (account and season too), a repeat and a
     guest: { code: 'TWRBB4', id: 'p-ben', token: 'tok-ben', name: 'Ben', ...stageAtTheEnd('p-ben', 'Ben') },
   };
   let accountToken = null;
-  const srv = await startServer(t, 8139, {}, (dataDir) => {
+  const srv = await startServer(t, {}, (dataDir) => {
     const accounts = createAccountStore(path.join(dataDir, 'users.db'));
     accounts.verifyEmail(accounts.register('Ada', 'ada@example.com', 'geheim123').verifyToken);
     accountToken = accounts.login('Ada', 'geheim123').token;

@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test test/*.test.js",
+    "test": "node --test --require ./test/helpers/setup.js --test-timeout=120000 test/*.test.js",
     "docs:gen": "node scripts/gen-docs.js",
     "docs:check": "node scripts/gen-docs.js --check",
     "secrets:check": "node scripts/check-secret-files.js"

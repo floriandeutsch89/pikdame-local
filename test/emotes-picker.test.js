@@ -2,6 +2,7 @@
 // sections; the server takes ❤ with or without the variation selector; the
 // picker shows the most used first and the rest behind a toggle.
 const test = require('node:test');
+const { freePort } = require('./helpers/free-port');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -14,7 +15,7 @@ const { xpForLevel } = require('../game/Progression');
 
 const ROOT = path.join(__dirname, '..');
 const pub = path.join(ROOT, 'public');
-const PORT = 8143;
+let PORT = 0;
 const NEW = ['🃏', '😅', '🤞', '👀', '🙄', '😬', '🙃', '🤝', '😇', '☕', '🐢', '🍻', '❤️'];
 
 function xpAt(level) {
@@ -65,6 +66,7 @@ test('normalize: the heart with or without U+FE0F, junk refused', () => {
 
 test('server: a bare heart reaches the table as the listed ❤️', async (t) => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-emote-'));
+  PORT = await freePort();
   const server = spawn('node', ['server.js'], {
     cwd: ROOT,
     env: { ...process.env, PORT: String(PORT), PIKDAME_PUBLIC_MODE: '1', PIKDAME_DATA_DIR: dataDir },

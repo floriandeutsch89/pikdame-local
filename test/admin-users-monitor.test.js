@@ -1,6 +1,7 @@
 // Guest-profile import into accounts, the admin Users tab (list, resend,
 // delete) and the Monitoring tab.
 const test = require('node:test');
+const { freePort } = require('./helpers/free-port');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -178,7 +179,7 @@ test('Monitor: 5- and 30-minute averages with peaks, pruning, gaps, persistence'
 });
 
 // --- Real server: guest plays -> registers -> keeps progress; admin tabs ----
-const PORT = 8097;
+let PORT = 0;
 function request(method, urlPath, { auth, body, json, headers = {} } = {}) {
   return new Promise((resolve, reject) => {
     const h = { ...headers };
@@ -204,6 +205,7 @@ test('server: guest progress follows the name into the account; admin users + mo
   fs.writeFileSync(path.join(dataDir, 'players.json'), JSON.stringify({
     players: [{ id: 'profile-1', name: 'Oma Inge', gamesPlayed: 7, gamesWon: 3, totalScore: 900, xp: 420 }],
   }));
+  PORT = await freePort();
   const server = spawn('node', ['server.js'], {
     cwd: path.join(__dirname, '..'),
     env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_ADMIN_TOKEN: 'admin-test-token', PIKDAME_SMTP_HOST: '', PIKDAME_DATABASE_URL: '', PIKDAME_PUBLIC_MODE: '' },

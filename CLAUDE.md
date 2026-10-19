@@ -208,6 +208,7 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
 
 ## Tests
 
+- **`npm test` ist parallelisierbar** (mehrere Worktrees gleichzeitig, kein Lock nötig): Test-Server nur über `freePort()` aus `test/helpers/free-port.js` (nie feste Ports) und `mkdtempSync`-Verzeichnisse; `--test-timeout=120000` lässt Hänger schnell scheitern.
 - **Eigene Server nie auf `data/`:** immer `PIKDAME_DATA_DIR=<temp>` (Skill
   `ui-shots` macht das). Ein Server auf `data/` hält `users.db` offen →
   `npm test` scheitert mit SQLite „disk I/O error“. Nach Gebrauch stoppen und
