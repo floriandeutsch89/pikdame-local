@@ -1009,12 +1009,30 @@
          Before the open-game sheet in the DOM, so that one stacks above it. -->
     <section id="towerOverlay" class="overlay hidden" data-sheet-close="towerCloseBtn">
       <div class="overlay-card towerCard" role="dialog" aria-labelledby="towerTitle">
-        <h2 id="towerTitle" class="iconTitle"><svg class="icon" aria-hidden="true"><use href="#i-cardhouse"/></svg><span>Kartenhaus</span></h2>
-        <p id="towerSummary" class="towerSummary"></p>
-        <ol id="towerList" class="towerList" reversed></ol>
-        <p id="towerRules" class="pgRules towerRules"></p>
-        <p id="towerArchive" class="pgRules towerArchive hidden"></p>
-        <button id="towerCloseBtn" class="btn-secondary">Schließen</button>
+        <!-- Three groups: stacked on a phone; landscape and desktop put the
+             house left and the rest right. -->
+        <div class="khTop">
+          <div class="khHead">
+            <h2 id="towerTitle" class="iconTitle"><svg class="icon" aria-hidden="true"><use href="#i-cardhouse"/></svg><span>Kartenhaus</span></h2>
+            <span id="towerMonth" class="khMonth"></span>
+          </div>
+          <p id="towerSummary" class="khSummary"></p>
+        </div>
+        <!-- The house: an inline SVG pyramid of card tents (client.js renderTower). -->
+        <div id="towerHouse" class="khHouse"></div>
+        <div class="khSide">
+          <p class="khLegend"><svg class="khLegendMark" viewBox="0 0 14 18" aria-hidden="true"><rect x="2" y="2" width="10" height="14" rx="1.5"/></svg><span>Rote Kante: ab Etage 11 mit Erschwernis</span></p>
+          <div id="towerDetail" class="khDetail" aria-live="polite"></div>
+          <details id="towerRulesBox" class="khMore">
+            <summary><span>So funktioniert das Kartenhaus</span><svg class="icon khMoreChevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+            <p id="towerRules" class="pgRules"></p>
+          </details>
+          <details id="towerArchiveBox" class="khMore hidden">
+            <summary><span>Frühere Monate</span><svg class="icon khMoreChevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+            <ul id="towerArchive" class="khArchive"></ul>
+          </details>
+          <button id="towerCloseBtn" class="btn-secondary">Schließen</button>
+        </div>
       </div>
     </section>
 

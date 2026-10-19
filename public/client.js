@@ -1679,6 +1679,8 @@
     }
     if (msg.type === 'towerResult') {
       lastTowerResult = msg;
+      // For the house's next opening: a missed floor wobbles there (after the reload).
+      storageSet(TOWER_LAST_KEY, JSON.stringify({ name: myName || '', month: msg.month, stage: msg.stage, stars: msg.stars }));
       const pr = msg.progress;
       if (pr && towerInfo && towerInfo.month === msg.month) {
         Object.assign(towerInfo, { best: pr.best, stars: pr.stars, cleared: pr.cleared, unlocked: pr.unlocked, crowned: pr.crowned, totalStars: pr.totalStars });
@@ -8087,14 +8089,19 @@
     if (ev.target.closest('[data-open-tower]')) openTowerSheet();
   });
 
-  // --- Kartenhaus (game/BotTower.js): a monthly tower of twenty floors ------
-  // The server owns floors, months and stars; the client draws them and starts a
-  // floor like the challenge (solo, one game at a time).
-  let towerInfo = null; // 'towerInfo' + forName: month, stages, best, stars, cleared, unlocked, totalStars, archive
+  // --- Kartenhaus (game/BotTower.js): a monthly house of twenty floors -------
+  // The server owns floors, months and stars; the client draws the house as an
+  // SVG pyramid of card tents and starts a floor like the challenge (solo).
+  let towerInfo = null; // 'towerInfo' + forName: month, today, stages, best, stars, cleared, unlocked, crowned, totalStars, archive
   let towerAskedFor = '';
-  let towerScrollPending = false;
+  let towerSelected = 0; // the floor the detail shows (APEX = the top), 0 = the default
+  let towerAnimate = false; // set on opening: the next render with data may animate
+  let towerFxToken = 0; // a newer render cancels a pending rebuild
   let lastTowerResult = null; // 'towerResult' of the floor just played
   const AFTER_TOWER_KEY = 'pikdame_after_tower';
+  const TOWER_SEEN_KEY = 'pikdame_tower_seen'; // what this device last showed: { name, month, best, crowned }
+  const TOWER_LAST_KEY = 'pikdame_tower_last'; // the last verdict, for the wobble: { name, month, stage, stars }
+  const APEX = 21;
   const towerName = () => L('Kartenhaus', 'House of Cards');
   const TOWER_MODS = {
     queen: () => L('Pik Dame auf der Hand', 'Queen of Spades in hand'),
@@ -8157,70 +8164,319 @@
         : L('Jeden Monat neue Blätter', 'New deals every month'))}</span></span>` +
       `<svg class="icon pgTowerGo" aria-hidden="true"><use href="#i-chevron"/></svg></button>`;
   }
-  function towerRowHtml(s, info) {
-    const stars = Math.max(0, Math.min(3, Number(info.best[s.stage]) || 0));
-    const locked = s.stage > info.unlocked;
-    const next = !locked && !stars;
-    const metas = s.bots.map((b) => BOT_DIFF[b] || BOT_DIFF.zen);
-    const names = metas.map((m) => m.short()).join(', ');
+  // Pyramid geometry in SVG units: rows of 6-5-4-3-2 card tents, the apex on top.
+  // A row is one tent plus the flat card above it; at the narrowest phone a row
+  // and a slot still measure >= --tap-min (the hit areas tile the house).
+  const KH = { w: 26, h: 42, tilt: 15, gap: 56, row: 46 };
+  const KH_ROWS = [6, 5, 4, 3, 2];
+  const KH_VIEW = '-172 -282 344 290';
+  function khSlots() {
+    const out = [];
+    let stage = 1;
+    KH_ROWS.forEach((n, r) => {
+      for (let i = 0; i < n; i++) out.push({ stage: stage++, row: r, x: (i - (n - 1) / 2) * KH.gap, base: -r * KH.row });
+    });
+    out.push({ stage: APEX, row: KH_ROWS.length, x: 0, base: -KH_ROWS.length * KH.row });
+    return out;
+  }
+  const khNum = (v) => Math.round(v * 10) / 10;
+  function khStarPoints(cx, cy, r) {
+    const pts = [];
+    for (let i = 0; i < 10; i++) {
+      const rr = i % 2 ? r * 0.45 : r;
+      const a = -Math.PI / 2 + (i * Math.PI) / 5;
+      pts.push(`${khNum(cx + rr * Math.cos(a))},${khNum(cy + rr * Math.sin(a))}`);
+    }
+    return pts.join(' ');
+  }
+  /** One leaning card, rotated around its foot; `inner` is drawn on its face. */
+  function khCard(x, base, rot, built, inner = '') {
+    const { w, h } = KH;
+    return `<g transform="translate(${khNum(x)} ${base}) rotate(${rot})">` +
+      `<rect class="khCard" x="${-w / 2}" y="${-h}" width="${w}" height="${h}" rx="3"/>` +
+      (built ? `<rect class="khRim" x="${-w / 2 + 2.4}" y="${-h + 2.4}" width="${w - 4.8}" height="${h - 4.8}" rx="1.6"/>` : '') +
+      inner + '</g>';
+  }
+  /** The flat card a floor stands on, laid across the tips of the two tents
+   *  below (floors of the first row stand on the ground). */
+  function khPlate(slot) {
+    if (slot.row === 0) return '';
+    const len = KH.gap - 2;
+    return `<rect class="khPlate" x="${khNum(slot.x - len / 2)}" y="${slot.base + 0.6}" width="${len}" height="4" rx="1.5"/>`;
+  }
+  function towerFloorState(info, stage) {
+    const stars = Math.max(0, Math.min(3, Math.floor(Number(info.best[stage]) || 0)));
+    if (stars) return { state: 'built', stars };
+    return { state: stage === info.unlocked && !info.crowned ? 'next' : 'locked', stars: 0 };
+  }
+  function towerFloorLabel(s, st, info) {
+    const names = s.bots.map((b) => (BOT_DIFF[b] || BOT_DIFF.zen).short()).join(', ');
     const mods = towerModsText(s.mods);
-    const label = L(
-      `Etage ${s.stage}: gegen ${names}${s.handicap ? `, die Bots bekommen ${s.handicap} Punkte Vorgabe` : ''}${mods ? `, ${mods}` : ''} - ${locked ? 'gesperrt' : `${stars} von 3 Sternen`}`,
-      `Floor ${s.stage}: against ${names}${s.handicap ? `, the bots get a ${s.handicap}-point head start` : ''}${mods ? `, ${mods}` : ''} - ${locked ? 'locked' : `${stars} of 3 stars`}`
+    const status = st.state === 'built'
+      ? L(`${st.stars} von 3 Sternen`, `${st.stars} of 3 stars`)
+      : st.state === 'next' ? L('noch kein Stern', 'no star yet') : L('gesperrt', 'locked');
+    return L(
+      `Etage ${s.stage}: gegen ${names}${s.handicap ? `, die Bots bekommen ${s.handicap} Punkte Vorgabe` : ''}${mods ? `, ${mods}` : ''} - ${status}`,
+      `Floor ${s.stage}: against ${names}${s.handicap ? `, the bots get a ${s.handicap}-point head start` : ''}${mods ? `, ${mods}` : ''} - ${status}`
     );
-    return `<li><button type="button" class="twStage${locked ? ' locked' : ''}${next ? ' next' : ''}" data-stage="${s.stage}" aria-label="${escapeHtml(label)}"${locked ? ' aria-disabled="true"' : ''}>` +
-      `<span class="twNum">${s.stage}</span>` +
-      `<span class="twBots">${metas.map(levelIconHtml).join('')}</span>` +
-      `<span class="twHandicap">${s.handicap ? escapeHtml(L(`Bots +${s.handicap}`, `bots +${s.handicap}`)) : ''}` +
-      (mods ? `<small class="twMods">${escapeHtml(mods)}</small>` : '') + `</span>` +
-      `<span class="twStars">${locked ? '<svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg>' : towerStarsHtml(stars)}</span>` +
-      `</button></li>`;
+  }
+  /** The house as inline SVG. fx: { land: [stages], pop: { stage: starsBefore }, wobble, crown, mode } */
+  function towerHouseSvg(info, fx = {}) {
+    const { w, h, tilt, row } = KH;
+    const lean = khNum(h * Math.sin((tilt * Math.PI) / 180));
+    const byStage = Object.fromEntries(info.stages.map((s) => [s.stage, s]));
+    const landAt = (stage) => (fx.land || []).indexOf(stage);
+    // The ring marks a floor the player picked; the default one (next, or the top) is marked already.
+    const sel = towerSelected;
+    const shown = towerSelected || towerDefaultSelection(info);
+    const parts = [];
+    const sec = (v) => Math.round(v * 100) / 100;
+    for (const slot of khSlots()) {
+      const delay = (v) => ` style="--kh-delay:${sec(v)}s"`;
+      if (slot.stage === APEX) {
+        const crowned = !!info.crowned;
+        const cls = ['khFloor', 'khApex', crowned ? 'built' : 'locked', sel === APEX ? 'sel' : '',
+          crowned && fx.crown ? 'khCrowning' : '', fx.mode === 'rebuild' ? 'khRise' : '', fx.mode === 'collapse' && crowned ? 'khFall' : ''].filter(Boolean).join(' ');
+        const label = crowned
+          ? L('Spitze: Das Kartenhaus ist gekrönt', 'Top: the House of Cards is crowned')
+          : L('Spitze: Alle 20 Etagen mit einem Stern krönen das Kartenhaus', 'Top: a star on all 20 floors crowns the House of Cards');
+        const top = slot.base - 44;
+        const card = crowned
+          ? `<g class="khQueen"><rect class="khQueenCard" x="-15" y="${top}" width="30" height="44" rx="3.5"/>` +
+            `<text class="khQueenQ" x="-10.5" y="${top + 12}">Q</text><text class="khQueenS" x="0" y="${top + 31}">♠</text></g>`
+          : `<rect class="khSpitze" x="-15" y="${top}" width="30" height="44" rx="3.5"/>` +
+            `<text class="khSpitzeText" x="0" y="${top + 25}">${escapeHtml(L('Spitze', 'Top'))}</text>`;
+        parts.push(`<g class="${cls}" data-stage="${APEX}" role="button" tabindex="0" aria-pressed="${shown === APEX}" aria-label="${escapeHtml(label)}"` +
+          `${delay(fx.mode === 'rebuild' ? 0.5 : fx.crownDelay || 0)}>` +
+          `<rect class="khSel" x="-27" y="${top - 5}" width="54" height="${44 + 9}" rx="9"/>` +
+          khPlate(slot) + card +
+          `<rect class="khHit" x="${-KH.gap / 2}" y="${top - 6}" width="${KH.gap}" height="${44 + 11}"/></g>`);
+        continue;
+      }
+      const s = byStage[slot.stage];
+      if (!s) continue;
+      const st = towerFloorState(info, slot.stage);
+      const mod = !!(s.mods && s.mods.length);
+      const li = landAt(slot.stage);
+      const cls = ['khFloor', st.state, mod ? 'mod' : '', sel === slot.stage ? 'sel' : '',
+        li > -1 ? 'khLanding' : '', fx.wobble === slot.stage ? 'khWobble' : '',
+        fx.mode === 'rebuild' ? 'khRise' : '', fx.mode === 'collapse' && st.state === 'built' ? 'khFall' : ''].filter(Boolean).join(' ');
+      const d = fx.mode === 'rebuild' ? slot.row * 0.08 + (slot.stage % 3) * 0.02
+        : fx.mode === 'collapse' ? (KH_ROWS.length - slot.row) * 0.05 : li > -1 ? li * (fx.land.length > 4 ? 0.07 : 0.14) : 0.25;
+      const popFrom = fx.pop && fx.pop[slot.stage] !== undefined ? fx.pop[slot.stage] : 3;
+      const stars = st.state === 'locked' ? '' : [0, 1, 2].map((i) =>
+        `<polygon class="khStar${i < st.stars ? ' on' : ''}${i < st.stars && i >= popFrom ? ' khPop' : ''}"` +
+        `${i < st.stars && i >= popFrom ? delay(0.35 + (i - popFrom) * 0.15) : ''} points="${khStarPoints(-7.5 + i * 7.5, -8.5, 3.5)}"/>`).join('');
+      const face = `<text class="khNum" x="0" y="${-h + 16}">${slot.stage}</text>${stars}`;
+      // Collapse: every card falls its own way (fixed per floor, no randomness).
+      const fall = fx.mode === 'collapse' ? `;--kh-dx:${((slot.stage * 37) % 70) - 35}px;--kh-rot:${((slot.stage * 53) % 90) - 45}deg` : '';
+      parts.push(`<g class="${cls}" data-stage="${slot.stage}" role="button" tabindex="0" aria-pressed="${shown === slot.stage}"` +
+        ` aria-label="${escapeHtml(towerFloorLabel(s, st, info))}" style="--kh-delay:${sec(d)}s${fall}">` +
+        `<rect class="khHalo" x="${slot.x - 29}" y="${slot.base - row + 1}" width="58" height="${row + 3}" rx="11"/>` +
+        `<rect class="khSel" x="${slot.x - 27.5}" y="${slot.base - row + 1.5}" width="55" height="${row + 2}" rx="10"/>` +
+        khPlate(slot) +
+        khCard(slot.x - lean / 2, slot.base, tilt, st.state === 'built') +
+        khCard(slot.x + lean / 2, slot.base, -tilt, st.state === 'built', face) +
+        `<rect class="khHit" x="${slot.x - KH.gap / 2}" y="${slot.base - row}" width="${KH.gap}" height="${row}"/></g>`);
+    }
+    return `<svg class="khSvg${fx.mode ? ` kh-${fx.mode}` : ''}" viewBox="${KH_VIEW}" role="group" aria-label="${escapeHtml(L(`Kartenhaus im ${towerMonthName(info.month)}`, `House of Cards in ${towerMonthName(info.month)}`))}">` +
+      `<defs><pattern id="khBack" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">` +
+      `<rect class="khBackBase" width="6" height="6"/><rect class="khBackLine" width="1.2" height="6"/></pattern></defs>` +
+      `<line class="khGround" x1="-168" x2="168" y1="0.5" y2="0.5"/>` + parts.join('') + '</svg>';
+  }
+  /** The default floor of the detail: the next one, or the top once crowned. */
+  function towerDefaultSelection(info) {
+    return info.crowned ? APEX : Math.min(info.unlocked || 1, info.stages.length);
+  }
+  function towerDaysLeftText(today) {
+    const [y, m, d] = String(today || '').split('-').map(Number);
+    if (!y || !m || !d) return '';
+    const left = new Date(Date.UTC(y, m, 0)).getUTCDate() - d;
+    if (left <= 0) return L('heute letzter Tag', 'last day today');
+    return left === 1 ? L('noch 1 Tag', '1 day left') : L(`noch ${left} Tage`, `${left} days left`);
+  }
+  /** The detail under the house: who plays, what the floor asks, and the way in. */
+  function towerDetailHtml(info, stage) {
+    const max = info.stages.length;
+    if (stage === APEX) {
+      if (!info.crowned) {
+        return `<div class="khDHead"><b class="khDTitle">${escapeHtml(L('Spitze', 'Top'))}</b></div>` +
+          `<p class="khDNote">${escapeHtml(L(`Hol dir auf allen ${max} Etagen mindestens einen Stern - dann krönt die Pik Dame dein Kartenhaus (+${XP_RULES.towerCrown} EP).`,
+            `Earn at least one star on all ${max} floors - then the Queen of Spades crowns your House of Cards (+${XP_RULES.towerCrown} XP).`))}</p>`;
+      }
+      // Still stars to collect: the highest floor that misses some.
+      const missing = [...info.stages].reverse().find((s) => (Number(info.best[s.stage]) || 0) < 3);
+      const gap = missing ? 3 - (Number(info.best[missing.stage]) || 0) : 0;
+      const more = !missing ? L(`Alle ${max * 3} Sterne - mehr geht nicht.`, `All ${max * 3} stars - it does not get better.`)
+        : gap === 1 ? L(`Auf Etage ${missing.stage} fehlt noch 1 Stern.`, `Floor ${missing.stage} still misses 1 star.`)
+          : L(`Auf Etage ${missing.stage} fehlen noch ${gap} Sterne.`, `Floor ${missing.stage} still misses ${gap} stars.`);
+      return `<div class="khDHead"><b class="khDTitle">${escapeHtml(L('Gekrönt!', 'Crowned!'))}</b></div>` +
+        `<p class="khDNote">${escapeHtml(L(`Alle ${max} Etagen im ${towerMonthName(info.month)} geschafft. ${more}`,
+          `All ${max} floors cleared in ${towerMonthName(info.month)}. ${more}`))}</p>` +
+        (missing
+          ? `<button type="button" class="btn-primary khPlay" data-play="${missing.stage}"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>` +
+            `<span>${escapeHtml(L(`Etage ${missing.stage} nochmal`, `Floor ${missing.stage} again`))}</span></button>`
+          : '');
+    }
+    const s = info.stages.find((x) => x.stage === stage);
+    if (!s) return '';
+    const st = towerFloorState(info, stage);
+    const metas = s.bots.map((b) => BOT_DIFF[b] || BOT_DIFF.zen);
+    const tag = st.state === 'built'
+      ? `<span class="khDStars" role="img" aria-label="${escapeHtml(L(`${st.stars} von 3 Sternen`, `${st.stars} of 3 stars`))}">${towerStarsHtml(st.stars)}</span>`
+      : st.state === 'next'
+        ? `<span class="khDTag next">${escapeHtml(L('als Nächstes', 'up next'))}</span>`
+        : `<span class="khDTag"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg><span>${escapeHtml(L('gesperrt', 'locked'))}</span></span>`;
+    const bots = L(`${metas.length} Bots: ${metas.map((m) => m.short()).join(', ')}`, `${metas.length} bots: ${metas.map((m) => m.short()).join(', ')}`) +
+      (s.handicap ? L(` · ${s.handicap} Punkte Vorgabe`, ` · ${s.handicap}-point head start`) : '');
+    const mods = (s.mods || []).map((m) => `<span class="khMod">${escapeHtml(TOWER_MODS[m] ? TOWER_MODS[m]() : m)}</span>`).join('');
+    const note = st.state === 'locked'
+      ? L(`Schaff erst Etage ${Math.min(info.unlocked || 1, max)}.`, `Clear floor ${Math.min(info.unlocked || 1, max)} first.`)
+      : st.state === 'next' ? L('Ein Stern: mehr Punkte als jeder Bot samt Vorgabe.', 'One star: more points than every bot plus its head start.')
+        : st.stars < 3 ? L(`Bestwert ${st.stars} von 3 - ein neuer Versuch spielt dasselbe Blatt.`, `Best ${st.stars} of 3 - a new try plays the same deal.`)
+          : L('Alle drei Sterne.', 'All three stars.');
+    const play = st.state === 'locked' ? ''
+      : `<button type="button" class="${st.state === 'next' ? 'btn-primary' : 'btn-secondary'} khPlay" data-play="${stage}"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>` +
+        `<span>${escapeHtml(st.state === 'next' ? L(`Etage ${stage} spielen`, `Play floor ${stage}`) : L(`Etage ${stage} nochmal`, `Floor ${stage} again`))}</span></button>`;
+    return `<div class="khDHead"><b class="khDTitle">${escapeHtml(L(`Etage ${stage}`, `Floor ${stage}`))}</b>${tag}</div>` +
+      `<p class="khDBots">${escapeHtml(bots)}</p>` +
+      (mods ? `<p class="khDMods" aria-label="${escapeHtml(L(`Erschwernis: ${towerModsText(s.mods)}`, `Handicap: ${towerModsText(s.mods)}`))}">${mods}</p>` : '') +
+      `<p class="khDNote">${escapeHtml(note)}</p>` + play;
+  }
+  function towerArchiveHtml(archive) {
+    return archive.map((m) => {
+      const label = L(`${towerMonthName(m.month, true)}: ${m.cleared} von 20 Etagen, ${m.stars} von 60 Sternen${m.crowned ? ', gekrönt' : ''}`,
+        `${towerMonthName(m.month, true)}: ${m.cleared} of 20 floors, ${m.stars} of 60 stars${m.crowned ? ', crowned' : ''}`);
+      return `<li class="khArchRow${m.crowned ? ' crowned' : ''}" aria-label="${escapeHtml(label)}">` +
+        `<span class="khArchMonth">${escapeHtml(towerMonthName(m.month, true))}</span>` +
+        `<span class="khArchFloors">${escapeHtml(L(`${m.cleared}/20 Etagen`, `${m.cleared}/20 floors`))}</span>` +
+        `<span class="khArchStars">${m.stars}/60<svg class="icon" aria-hidden="true"><use href="#i-star"/></svg></span>` +
+        (m.crowned ? `<span class="khArchCrown"><svg class="icon" aria-hidden="true"><use href="#i-crown"/></svg><span>${escapeHtml(L('gekrönt', 'crowned'))}</span></span>` : '') +
+        '</li>';
+    }).join('');
+  }
+  function towerMotionOk() {
+    try { return !window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
+  }
+  function towerStored(key) {
+    try { const v = JSON.parse(storageGet(key) || 'null'); return v && typeof v === 'object' ? v : null; } catch (e) { return null; }
+  }
+  function towerMarkSeen(info) {
+    storageSet(TOWER_SEEN_KEY, JSON.stringify({ name: myName || '', month: info.month, best: info.best || {}, crowned: !!info.crowned }));
+  }
+  /** What changed since this device last showed the house: new floors land,
+   *  new stars pop, a lost try wobbles, a fresh crown lands on top. */
+  function towerEffects(info, seen) {
+    const fx = { land: [], pop: {}, wobble: 0, crown: false };
+    const name = myName || '';
+    const before = seen && seen.name === name && seen.month === info.month ? seen.best || {} : seen && seen.name === name ? null : {};
+    if (before) {
+      for (const s of info.stages) {
+        const now = Math.min(3, Number(info.best[s.stage]) || 0);
+        const was = Math.min(3, Number(before[s.stage]) || 0);
+        if (now >= 1 && was < 1) fx.land.push(s.stage);
+        else if (now > was) fx.pop[s.stage] = was;
+      }
+      fx.crown = !!info.crowned && !(seen && seen.name === name && seen.month === info.month && seen.crowned);
+    }
+    const last = towerStored(TOWER_LAST_KEY);
+    storageRemove(TOWER_LAST_KEY);
+    if (last && last.name === name && last.month === info.month && !last.stars && !(Number(info.best[last.stage]) >= 1)) fx.wobble = last.stage;
+    fx.crownDelay = fx.land.length ? fx.land.length * (fx.land.length > 4 ? 0.07 : 0.14) + 0.55 : 0.3;
+    return fx;
+  }
+  function renderTowerDetail(info) {
+    el('towerDetail').innerHTML = info ? towerDetailHtml(info, towerSelected || towerDefaultSelection(info)) : '';
   }
   function renderTower() {
     const info = towerFresh();
-    const size = info ? info.stages.length : 0;
-    el('towerSummary').textContent = info
-      ? L(`${towerMonthName(info.month)}: ${info.stars}/${size * 3} Sterne · ${info.crowned ? 'gekrönt' : `${info.cleared} von ${size} Etagen geschafft`}`,
-        `${towerMonthName(info.month)}: ${info.stars}/${size * 3} stars · ${info.crowned ? 'crowned' : `${info.cleared} of ${size} floors cleared`}`)
-      : L('Lädt …', 'Loading …');
-    // The top of the house first: you build it up.
-    el('towerList').innerHTML = info ? [...info.stages].reverse().map((s) => towerRowHtml(s, info)).join('') : '';
+    const max = info ? info.stages.length * 3 : 0;
+    el('towerMonth').textContent = info ? towerMonthName(info.month, true) : '';
+    const days = info ? towerDaysLeftText(info.today) : '';
+    el('towerSummary').innerHTML = info
+      ? `<b>${info.stars} / ${max}</b> ${escapeHtml(L('Sterne diesen Monat', 'stars this month'))}${days ? ` · ${escapeHtml(days)}` : ''}`
+      : escapeHtml(L('Lädt …', 'Loading …'));
     el('towerRules').textContent = info
-      ? L(`Jeden Monat neue Blätter, dieselben Gegner. Ein Stern: mehr Punkte als jeder Bot samt Vorgabe. Zwei: mindestens ${info.clearMargin} Punkte vorn. Drei: dazu selbst ausmachen. Ab Etage 11 gilt eine Erschwernis gegen dich. Ab einem Stern ist die nächste Etage frei, Versuche unbegrenzt, der beste zählt. Der erste Stern jeder Etage bringt pro Monat einmal ${XP_RULES.towerFirstStar} EP; alle 20 Etagen krönen dein Kartenhaus (+${XP_RULES.towerCrown} EP).`,
-        `New deals every month, the same opponents. One star: more points than every bot plus its head start. Two: at least ${info.clearMargin} points ahead. Three: and go out yourself. From floor 11 a rule works against you. One star unlocks the next floor, unlimited tries, the best counts. The first star of each floor pays ${XP_RULES.towerFirstStar} XP once a month; all 20 floors crown your house (+${XP_RULES.towerCrown} XP).`)
+      ? L(`Jeden Monat neue Blätter gegen dieselben Bots: ${info.stages.length} Etagen, jede eine Runde. Ein Stern: mehr Punkte als jeder Bot samt Vorgabe. Zwei: mindestens ${info.clearMargin} Punkte vorn. Drei: dazu selbst ausmachen. Ein Stern macht die nächste Etage frei; Versuche unbegrenzt, der beste zählt. Ab Etage 11 spielt eine Erschwernis gegen dich: die Pik Dame auf der Hand (ausgelegt +100, auf der Hand -100), keine Ablage (nur vom Stapel ziehen) oder Sterne nur, wenn du selbst ausmachst. Der erste Stern jeder Etage bringt pro Monat einmal ${XP_RULES.towerFirstStar} EP; alle ${info.stages.length} Etagen krönen dein Kartenhaus (+${XP_RULES.towerCrown} EP).`,
+        `New deals every month against the same bots: ${info.stages.length} floors, one round each. One star: more points than every bot plus its head start. Two: at least ${info.clearMargin} points ahead. Three: and go out yourself. One star unlocks the next floor; unlimited tries, the best counts. From floor 11 a handicap plays against you: the Queen of Spades in hand (+100 melded, -100 in hand), no discard pile (draw from the stock only) or stars only if you go out yourself. The first star of each floor pays ${XP_RULES.towerFirstStar} XP once a month; all ${info.stages.length} floors crown your House of Cards (+${XP_RULES.towerCrown} XP).`)
       : '';
     const archive = (info && info.archive) || [];
-    el('towerArchive').textContent = archive.length
-      ? `${L('Frühere Monate', 'Earlier months')}: ${archive.map((m) => `${towerMonthName(m.month, true)} ${m.stars}★${m.crowned ? ` ${L('gekrönt', 'crowned')}` : ''}`).join(' · ')}`
-      : '';
-    el('towerArchive').classList.toggle('hidden', !archive.length);
-    if (info && towerScrollPending && !el('towerOverlay').classList.contains('hidden')) {
-      towerScrollPending = false;
-      const target = el('towerList').querySelector('.twStage.next') || el('towerList').querySelector('.twStage:not(.locked)');
-      if (target && target.scrollIntoView) target.scrollIntoView({ block: 'nearest' });
+    el('towerArchive').innerHTML = towerArchiveHtml(archive);
+    el('towerArchiveBox').classList.toggle('hidden', !archive.length);
+    const house = el('towerHouse');
+    if (!info) { house.innerHTML = ''; renderTowerDetail(null); return; }
+    const open = !el('towerOverlay').classList.contains('hidden');
+    const animate = open && towerAnimate && towerMotionOk();
+    if (open && towerAnimate && !animate) storageRemove(TOWER_LAST_KEY); // seen, without motion
+    if (open) towerAnimate = false;
+    // The same house again (a second reply, a re-render): keep the drawing, so a
+    // running animation is not cut off.
+    const sig = JSON.stringify([lang, info.month, info.best, info.crowned, info.unlocked, towerSelected]);
+    if (!animate && house.dataset.sig === sig && house.firstChild) {
+      if (open) towerMarkSeen(info);
+      renderTowerDetail(info);
+      return;
     }
+    house.dataset.sig = sig;
+    const token = ++towerFxToken;
+    const seen = animate ? towerStored(TOWER_SEEN_KEY) : null;
+    const name = myName || '';
+    if (animate && seen && seen.name === name && seen.month && seen.month !== info.month && Object.keys(seen.best || {}).length) {
+      // A new month: the last seen house collapses once, then the new one rises as a blueprint.
+      const old = { ...info, month: seen.month, best: seen.best, crowned: !!seen.crowned, unlocked: 0 };
+      house.innerHTML = towerHouseSvg(old, { mode: 'collapse' });
+      setTimeout(() => {
+        if (token !== towerFxToken) return;
+        house.innerHTML = towerHouseSvg(info, { mode: 'rebuild' });
+      }, 1150);
+    } else {
+      house.innerHTML = towerHouseSvg(info, animate ? towerEffects(info, seen) : {});
+    }
+    if (open) towerMarkSeen(info);
+    renderTowerDetail(info);
   }
   function openTowerSheet() {
     if (publicMode) return;
-    if (!towerFresh()) requestTower();
+    requestTower(); // fresh stars and the day count; the cached data draws meanwhile
     el('progressOverlay').classList.add('hidden');
     el('towerOverlay').classList.remove('hidden');
-    towerScrollPending = true;
+    towerSelected = 0;
+    towerAnimate = true;
     renderTower();
   }
   function startTowerStage(stage) {
     el('towerOverlay').classList.add('hidden');
     send({ type: 'startTower', stage, name: currentName(), accountToken: accountToken() || undefined });
   }
-  el('towerList').addEventListener('click', (ev) => {
-    const btn = ev.target.closest('.twStage');
-    if (!btn) return;
-    if (btn.classList.contains('locked')) {
-      const open = (towerFresh() || {}).unlocked || 1;
-      showToast(L(`Noch gesperrt - schaff erst Etage ${open}.`, `Still locked - clear floor ${open} first.`));
-      return;
+  /** A tap or Enter on a floor shows its detail (it never starts it). */
+  function selectTowerFloor(stage) {
+    const info = towerFresh();
+    if (!info || !stage) return;
+    towerSelected = stage;
+    for (const g of el('towerHouse').querySelectorAll('[data-stage]')) {
+      const on = Number(g.dataset.stage) === stage;
+      g.classList.toggle('sel', on);
+      g.setAttribute('aria-pressed', String(on));
     }
-    const stage = Number(btn.dataset.stage);
+    const house = el('towerHouse');
+    house.dataset.sig = JSON.stringify([lang, info.month, info.best, info.crowned, info.unlocked, towerSelected]);
+    renderTowerDetail(info);
+  }
+  el('towerHouse').addEventListener('click', (ev) => {
+    const g = ev.target.closest && ev.target.closest('[data-stage]');
+    if (g) selectTowerFloor(Number(g.dataset.stage));
+  });
+  el('towerHouse').addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    const g = ev.target.closest && ev.target.closest('[data-stage]');
+    if (!g) return;
+    ev.preventDefault();
+    selectTowerFloor(Number(g.dataset.stage));
+  });
+  el('towerDetail').addEventListener('click', (ev) => {
+    const btn = ev.target.closest('[data-play]');
+    if (!btn) return;
+    const stage = Number(btn.dataset.play);
     guardOpenGame('tower', () => startTowerStage(stage));
   });
   el('towerCloseBtn').addEventListener('click', () => el('towerOverlay').classList.add('hidden'));

@@ -48,9 +48,13 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   (the in-game gear sheet), `music-hint` (the first click starts the music and
   its one-time hint shows; every other run marks the hint as seen), `tower`
   (the Kartenhaus sheet, opened from its tile in "Aufgaben"), `tower-detail`
-  (the same with the locked floor 14 tapped), `gameover-tower` (a floor
-  verdict on the result sheet). `--tower mid|new|high|crowned` picks the
-  month in the mock (default `mid`: floors 1-8 built, 9 next). Any order works:
+  (the same with the locked floor 14 tapped), `tower-motion` (animation
+  frames: a month change collapsing, a landing star next to a wobble; with
+  `--tower crowned` the crown landing), `gameover-tower` (a floor verdict on
+  the result sheet). `--tower mid|new|high|crowned` picks the month in the
+  mock (default `mid`: floors 1-8 built, 9 next). `--stammtische 0-3` sets
+  the remembered Stammtische (default 1; 3 is the start screen's tallest
+  form). Any order works:
   a start-screen scene after `table` or a result reloads the start screen
   first (its buttons are hidden there and the clicks used to time out).
 - **December:** `--december` stands the client clock on 28 December and

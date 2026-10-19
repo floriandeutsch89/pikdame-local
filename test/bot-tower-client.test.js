@@ -10,10 +10,15 @@ const { JSDOM, VirtualConsole } = require('jsdom');
 const GameManager = require('../game/GameManager');
 const BotTower = require('../game/BotTower');
 
+// Every booted client is closed after the file, also when a test failed half-way
+// (its timers would keep the run alive).
+const opened = [];
+test.after(() => { for (const w of opened) { try { w.close(); } catch (e) { /* closed */ } } });
+
 const pub = path.join(__dirname, '..', 'public');
 const html = fs.readFileSync(path.join(pub, 'index.html'), 'utf8');
 
-function boot({ storage = {} } = {}) {
+function boot({ storage = {}, reduceMotion = false } = {}) {
   const errors = [];
   const virtualConsole = new VirtualConsole();
   // jsdom cannot navigate: leaving via location.href is asserted through storage instead.
@@ -21,7 +26,8 @@ function boot({ storage = {} } = {}) {
   const { window } = new JSDOM(html, {
     url: 'https://play.example/', runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole,
   });
-  window.matchMedia = (q) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
+  opened.push(window);
+  window.matchMedia = (q) => ({ matches: reduceMotion && /reduced-motion/.test(q), media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
   window.navigator.vibrate = () => true;
   window.requestAnimationFrame = () => 0;
   window.scrollTo = () => {};
@@ -68,7 +74,14 @@ function startScreen(storage) {
   return t;
 }
 
-test('progress sheet: the Kartenhaus entry leads to the floor sheet, top floor first', () => {
+/** The Kartenhaus sheet opened from the progress sheet (data already there). */
+function openSheet(t) {
+  t.doc.getElementById('identityAvatarBtn').click();
+  t.doc.querySelector('#progressContent .pgTower').click();
+}
+const floorEl = (t, n) => t.doc.querySelector(`#towerHouse [data-stage="${n}"]`);
+
+test('progress sheet: the Kartenhaus entry opens the house - 20 floors and the top', () => {
   const t = startScreen();
   const ask = t.sent('getTower');
   assert.strictEqual(ask.length, 1, 'asked once, with the profiles');
@@ -84,58 +97,211 @@ test('progress sheet: the Kartenhaus entry leads to the floor sheet, top floor f
   entry.click();
   assert.ok(t.shown('towerOverlay'));
   assert.ok(!t.shown('progressOverlay'), 'one sheet at a time');
+  assert.strictEqual(t.sent('getTower').length, 2, 'opening asks for fresh stars');
 
-  assert.strictEqual(t.doc.getElementById('towerSummary').textContent, 'Oktober: 4/60 Sterne · 2 von 20 Etagen geschafft');
-  const rows = [...t.doc.querySelectorAll('#towerList .twStage')];
-  assert.deepStrictEqual(rows.map((r) => Number(r.dataset.stage)), Array.from({ length: 20 }, (_, i) => 20 - i));
-  const row = (n) => rows.find((r) => Number(r.dataset.stage) === n);
-  assert.strictEqual(row(1).querySelectorAll('.twStars .icon.on').length, 3);
-  assert.strictEqual(row(2).querySelectorAll('.twStars .icon.on').length, 1);
-  assert.ok(row(3).classList.contains('next'), 'the stage to climb stands out');
-  assert.strictEqual(t.doc.querySelectorAll('#towerList .twStage.next').length, 1);
-  for (const n of [4, 5, 10, 20]) {
-    assert.ok(row(n).classList.contains('locked'), `floor ${n} locked`);
-    assert.strictEqual(row(n).getAttribute('aria-disabled'), 'true');
+  assert.strictEqual(t.doc.getElementById('towerMonth').textContent, 'Oktober 2026');
+  assert.strictEqual(t.doc.getElementById('towerSummary').textContent, '4 / 60 Sterne diesen Monat · noch 12 Tage');
+  const svg = t.doc.querySelector('#towerHouse svg');
+  assert.ok(svg, 'the house is an inline SVG');
+  assert.strictEqual(svg.getAttribute('viewBox'), '-172 -282 344 290');
+  const floors = [...t.doc.querySelectorAll('#towerHouse [data-stage]')];
+  assert.deepStrictEqual(floors.map((g) => Number(g.dataset.stage)), Array.from({ length: 21 }, (_, i) => i + 1), '20 floors bottom-up, then the top');
+  const cls = (n) => floorEl(t, n).classList;
+  assert.ok(cls(1).contains('built') && cls(2).contains('built'), 'starred floors are built');
+  assert.ok(cls(3).contains('next'), 'the next floor stands out');
+  assert.strictEqual(t.doc.querySelectorAll('#towerHouse .khFloor.next').length, 1);
+  for (const n of [4, 10, 11, 20]) assert.ok(cls(n).contains('locked'), `floor ${n}: blueprint`);
+  for (let n = 1; n <= 20; n++) assert.strictEqual(cls(n).contains('mod'), n > 10, `floor ${n}: red edge exactly from 11`);
+  assert.ok(cls(21).contains('khApex') && cls(21).contains('locked'), 'the top waits for the crown');
+  assert.strictEqual(floorEl(t, 1).querySelectorAll('.khStar.on').length, 3);
+  assert.strictEqual(floorEl(t, 2).querySelectorAll('.khStar.on').length, 1);
+  assert.strictEqual(floorEl(t, 2).querySelector('.khNum').textContent, '2', 'the number on the front card');
+  assert.strictEqual(floorEl(t, 4).querySelectorAll('.khStar').length, 0, 'no stars on the blueprint');
+  // Tap targets: every floor carries a hit area of a full slot.
+  for (const g of floors) {
+    const hit = g.querySelector('.khHit');
+    assert.ok(hit, `floor ${g.dataset.stage}: hit area`);
+    assert.ok(Number(hit.getAttribute('width')) >= 56 && Number(hit.getAttribute('height')) >= 46, `floor ${g.dataset.stage}: a whole slot`);
+    assert.strictEqual(g.getAttribute('role'), 'button');
+    assert.strictEqual(g.getAttribute('tabindex'), '0');
   }
-  assert.strictEqual(row(2).getAttribute('aria-label'), 'Etage 2: gegen Leicht, Mittel - 1 von 3 Sternen');
-  assert.match(row(10).getAttribute('aria-label'), /^Etage 10: gegen Zen, Zen, Zen, die Bots bekommen 100 Punkte Vorgabe - gesperrt$/);
-  assert.match(row(20).getAttribute('aria-label'), /^Etage 20: gegen Zen, Zen, Zen, die Bots bekommen 160 Punkte Vorgabe, Pik Dame auf der Hand · Ohne Ablage · Selbst ausmachen - gesperrt$/);
-  assert.strictEqual(row(10).querySelector('.twHandicap').textContent, 'Bots +100');
-  assert.ok(row(10).querySelectorAll('.twBots .lvlIcon').length === 3, 'one level icon per bot');
+  assert.strictEqual(floorEl(t, 2).getAttribute('aria-label'), 'Etage 2: gegen Leicht, Mittel - 1 von 3 Sternen');
+  assert.strictEqual(floorEl(t, 3).getAttribute('aria-label'), 'Etage 3: gegen Mittel, Mittel - noch kein Stern');
+  assert.strictEqual(floorEl(t, 20).getAttribute('aria-label'),
+    'Etage 20: gegen Zen, Zen, Zen, die Bots bekommen 160 Punkte Vorgabe, Pik Dame auf der Hand · Ohne Ablage · Selbst ausmachen - gesperrt');
+  assert.strictEqual(floorEl(t, 3).getAttribute('aria-pressed'), 'true', 'the detail shows the next floor');
+
+  // The detail of the next floor, with the way in.
+  const detail = t.doc.getElementById('towerDetail');
+  assert.strictEqual(detail.querySelector('.khDTitle').textContent, 'Etage 3');
+  assert.match(detail.textContent, /2 Bots: Mittel, Mittel/);
+  assert.match(detail.textContent, /als Nächstes/);
+  assert.strictEqual(detail.querySelector('.khPlay').textContent.trim(), 'Etage 3 spielen');
   assert.match(t.doc.getElementById('towerRules').textContent, /mindestens 100 Punkte vorn/);
   assert.match(t.doc.getElementById('towerRules').textContent, /erste Stern jeder Etage bringt pro Monat einmal 10 EP/);
-  assert.ok(t.scrolled.includes(row(3)), 'the next stage scrolled into view');
+  assert.match(t.doc.getElementById('towerRules').textContent, /krönen dein Kartenhaus \(\+50 EP\)/);
+  assert.ok(!t.shown('towerArchiveBox'), 'no earlier month, no archive');
   assert.deepStrictEqual(t.errors, []);
   t.window.close();
 });
 
-test('a tap starts the stage, a locked one only explains', () => {
+test('a tap shows the floor, the button starts it; a locked floor only explains', () => {
   const t = startScreen();
   t.ws.fire('message', towerInfo());
-  t.doc.getElementById('identityAvatarBtn').click();
-  t.doc.querySelector('#progressContent .pgTower').click();
-  t.doc.querySelector('#towerList .twStage[data-stage="7"]').click();
-  assert.strictEqual(t.sent('startTower').length, 0, 'locked');
-  assert.match(t.doc.getElementById('toastContainer').textContent, /schaff erst Etage 3/);
-  t.doc.querySelector('#towerList .twStage[data-stage="2"]').click();
+  openSheet(t);
+  const detail = t.doc.getElementById('towerDetail');
+  floorEl(t, 14).dispatchEvent(new t.window.MouseEvent('click', { bubbles: true }));
+  assert.strictEqual(t.sent('startTower').length, 0, 'a tap never starts');
+  assert.strictEqual(detail.querySelector('.khDTitle').textContent, 'Etage 14');
+  assert.match(detail.textContent, /gesperrt/);
+  assert.match(detail.textContent, /3 Bots: Zen, Zen, Zen · 140 Punkte Vorgabe/);
+  assert.deepStrictEqual([...detail.querySelectorAll('.khMod')].map((m) => m.textContent), ['Pik Dame auf der Hand']);
+  assert.match(detail.textContent, /Schaff erst Etage 3\./);
+  assert.strictEqual(detail.querySelector('.khPlay'), null, 'no way into a locked floor');
+  assert.ok(floorEl(t, 14).classList.contains('sel'), 'the picked floor is ringed');
+  assert.strictEqual(floorEl(t, 14).getAttribute('aria-pressed'), 'true');
+  assert.strictEqual(floorEl(t, 3).getAttribute('aria-pressed'), 'false');
+
+  // Keyboard: Enter on a floor picks it too.
+  floorEl(t, 2).dispatchEvent(new t.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  assert.strictEqual(detail.querySelector('.khDTitle').textContent, 'Etage 2');
+  assert.ok(detail.querySelector('.khDStars'), 'its best stars');
+  assert.strictEqual(detail.querySelectorAll('.khDStars .icon.on').length, 1);
+  const again = detail.querySelector('.khPlay');
+  assert.strictEqual(again.textContent.trim(), 'Etage 2 nochmal');
+  again.click();
   const start = t.sent('startTower');
   assert.strictEqual(start.length, 1);
   assert.deepStrictEqual({ stage: start[0].stage, name: start[0].name }, { stage: 2, name: 'Ben' });
   assert.ok(!t.shown('towerOverlay'));
+  assert.deepStrictEqual(t.errors, []);
+  t.window.close();
+});
+
+test('crowned: the Queen of Spades on top, the detail names the next stars to collect', () => {
+  const t = startScreen();
+  const best = Object.fromEntries(BotTower.TOWER_STAGES.map((st) => [st.stage, st.stage === 20 ? 1 : 3]));
+  t.ws.fire('message', towerInfo({ best, stars: 58, cleared: 20, unlocked: 20, crowned: true, totalStars: 58 }));
+  openSheet(t);
+  const apex = floorEl(t, 21);
+  assert.ok(apex.classList.contains('built'));
+  assert.ok(apex.querySelector('.khQueen'), 'the Queen of Spades card');
+  assert.match(apex.querySelector('.khQueen').textContent, /Q♠/);
+  assert.strictEqual(t.doc.querySelectorAll('#towerHouse .khFloor.next').length, 0, 'nothing left to unlock');
+  const detail = t.doc.getElementById('towerDetail');
+  assert.strictEqual(detail.querySelector('.khDTitle').textContent, 'Gekrönt!');
+  assert.match(detail.textContent, /Alle 20 Etagen im Oktober geschafft\. Auf Etage 20 fehlen noch 2 Sterne\./);
+  assert.strictEqual(detail.querySelector('.khPlay').textContent.trim(), 'Etage 20 nochmal');
+  t.ws.fire('message', towerInfo({ best: Object.fromEntries(BotTower.TOWER_STAGES.map((st) => [st.stage, 3])), stars: 60, cleared: 20, unlocked: 20, crowned: true }));
+  assert.match(detail.textContent, /Alle 60 Sterne/);
+  assert.strictEqual(detail.querySelector('.khPlay'), null);
+  t.window.close();
+});
+
+test('earlier months stay as a read-only archive', () => {
+  const t = startScreen();
+  const full = Object.fromEntries(BotTower.TOWER_STAGES.map((st) => [st.stage, 2]));
+  t.ws.fire('message', towerInfo({
+    month: '2026-11', today: '2026-11-30',
+    archive: [{ month: '2026-10', best: full, stars: 40, cleared: 20, unlocked: 20, crowned: true },
+      { month: '2026-09', best: { 1: 1 }, stars: 1, cleared: 1, unlocked: 2, crowned: false }],
+  }));
+  openSheet(t);
+  assert.strictEqual(t.doc.getElementById('towerSummary').textContent, '4 / 60 Sterne diesen Monat · noch 0 Tage'.replace('noch 0 Tage', 'heute letzter Tag'));
+  assert.ok(t.shown('towerArchiveBox'));
+  const rows = [...t.doc.querySelectorAll('#towerArchive .khArchRow')];
+  assert.strictEqual(rows.length, 2);
+  assert.strictEqual(rows[0].getAttribute('aria-label'), 'Oktober 2026: 20 von 20 Etagen, 40 von 60 Sternen, gekrönt');
+  assert.ok(rows[0].classList.contains('crowned') && rows[0].querySelector('.khArchCrown'));
+  assert.strictEqual(rows[1].getAttribute('aria-label'), 'September 2026: 1 von 20 Etagen, 1 von 60 Sternen');
+  assert.strictEqual(rows[1].querySelector('.khArchCrown'), null);
+  assert.strictEqual(t.doc.querySelectorAll('#towerArchive button, #towerArchive [data-play]').length, 0, 'nothing to start there');
   t.window.close();
 });
 
 test('the language switch redraws the sheet and the tile', () => {
   const t = startScreen();
   t.ws.fire('message', towerInfo());
-  t.doc.getElementById('identityAvatarBtn').click();
-  t.doc.querySelector('#progressContent .pgTower').click();
+  openSheet(t);
   t.doc.getElementById('langBtn').click();
-  assert.strictEqual(t.doc.getElementById('towerSummary').textContent, 'October: 4/60 stars · 2 of 20 floors cleared');
+  assert.strictEqual(t.doc.getElementById('towerSummary').textContent, '4 / 60 stars this month · 12 days left');
+  assert.strictEqual(t.doc.getElementById('towerMonth').textContent, 'October 2026');
   assert.match(t.doc.getElementById('towerRules').textContent, /first star of each floor pays 10 XP once a month/);
   assert.strictEqual(t.doc.querySelector('#towerTitle span').textContent, 'House of Cards');
+  assert.strictEqual(t.doc.getElementById('towerDetail').querySelector('.khPlay').textContent.trim(), 'Play floor 3');
+  assert.strictEqual(floorEl(t, 2).getAttribute('aria-label'), 'Floor 2: against Easy, Medium - 1 of 3 stars');
+  assert.strictEqual(t.doc.querySelector('.khLegend span').textContent, 'Red edge: a handicap from floor 11');
   assert.strictEqual(t.doc.querySelector('#towerTile .ttTitle').textContent, 'House of Cards');
   assert.strictEqual(t.doc.getElementById('towerTileStatus').textContent, 'Floor 3 · 4/60');
+  t.window.close();
+});
+
+test('motion: the first visit builds the house, new stars land, a lost try wobbles, a crown lands', () => {
+  const seen = (best, extra = {}) => JSON.stringify({ name: 'Ben', month: '2026-10', best, crowned: false, ...extra });
+  const animated = (t) => [...t.doc.querySelectorAll('#towerHouse .khLanding')].map((g) => Number(g.dataset.stage));
+
+  // First visit on this device: the built floors land one after the other.
+  let t = startScreen();
+  t.ws.fire('message', towerInfo());
+  openSheet(t);
+  assert.deepStrictEqual(animated(t), [1, 2]);
+  assert.match(floorEl(t, 2).getAttribute('style'), /--kh-delay:0\.14s/, 'staggered');
+  assert.deepStrictEqual(JSON.parse(t.window.localStorage.getItem('pikdame_tower_seen')), { name: 'Ben', month: '2026-10', best: { 1: 3, 2: 1 }, crowned: false });
+  // A second reply with the same stars keeps the drawing (the animation runs on).
+  t.ws.fire('message', towerInfo());
+  assert.deepStrictEqual(animated(t), [1, 2]);
+  t.window.close();
+
+  // Seen before: nothing moves; a new star since then lands, a better floor pops its stars.
+  t = startScreen({ pikdame_tower_seen: seen({ 1: 2 }) });
+  t.ws.fire('message', towerInfo());
+  openSheet(t);
+  assert.deepStrictEqual(animated(t), [2]);
+  assert.strictEqual(floorEl(t, 1).querySelectorAll('.khStar.khPop').length, 1, 'the third star of floor 1 pops');
+  t.window.close();
+
+  // A lost try (verdict stored before the reload) wobbles that floor once.
+  t = startScreen({ pikdame_tower_seen: seen({ 1: 3, 2: 1 }), pikdame_tower_last: JSON.stringify({ name: 'Ben', month: '2026-10', stage: 3, stars: 0 }) });
+  t.ws.fire('message', towerInfo());
+  openSheet(t);
+  assert.deepStrictEqual(animated(t), []);
+  assert.ok(floorEl(t, 3).classList.contains('khWobble'));
+  assert.strictEqual(t.window.localStorage.getItem('pikdame_tower_last'), null, 'once');
+  t.window.close();
+
+  // The crown: all twenty starred since the last visit.
+  const all = Object.fromEntries(BotTower.TOWER_STAGES.map((st) => [st.stage, 1]));
+  t = startScreen({ pikdame_tower_seen: seen({ ...all, 20: 0 }) });
+  t.ws.fire('message', towerInfo({ best: all, stars: 20, cleared: 20, unlocked: 20, crowned: true }));
+  openSheet(t);
+  assert.deepStrictEqual(animated(t), [20]);
+  assert.ok(floorEl(t, 21).classList.contains('khCrowning'), 'the Queen of Spades lands on top');
+  t.window.close();
+
+  // prefers-reduced-motion: the house stands still.
+  t = boot({ reduceMotion: true });
+  t.ws.fire('open');
+  t.ws.fire('message', { type: 'profiles', players: [PROFILE], publicMode: false, quests: { date: '2026-10-17', ids: ['finish_game'] } });
+  t.ws.fire('message', towerInfo());
+  openSheet(t);
+  assert.strictEqual(t.doc.querySelectorAll('#towerHouse .khLanding, #towerHouse .khWobble, #towerHouse .khFall').length, 0);
+  t.window.close();
+});
+
+test('motion: a new month - the last house collapses once, the new one rises', async () => {
+  const t = startScreen({ pikdame_tower_seen: JSON.stringify({ name: 'Ben', month: '2026-09', best: { 1: 3, 2: 2, 3: 1 }, crowned: false }) });
+  t.ws.fire('message', towerInfo({ best: {}, stars: 0, cleared: 0, unlocked: 1, totalStars: 6 }));
+  openSheet(t);
+  const svg = () => t.doc.querySelector('#towerHouse svg');
+  assert.ok(svg().classList.contains('kh-collapse'), 'September falls first');
+  assert.deepStrictEqual([...t.doc.querySelectorAll('#towerHouse .khFall')].map((g) => Number(g.dataset.stage)), [1, 2, 3]);
+  assert.strictEqual(JSON.parse(t.window.localStorage.getItem('pikdame_tower_seen')).month, '2026-10', 'once: October is seen now');
+  assert.strictEqual(t.doc.getElementById('towerDetail').querySelector('.khDTitle').textContent, 'Etage 1', 'the detail is October already');
+  await new Promise((r) => setTimeout(r, 1300));
+  assert.ok(svg().classList.contains('kh-rebuild'), 'then October rises as a blueprint');
+  assert.strictEqual(t.doc.querySelectorAll('#towerHouse .khFloor.built').length, 0);
+  assert.ok(floorEl(t, 1).classList.contains('next'));
+  assert.deepStrictEqual(t.errors, []);
   t.window.close();
 });
 
@@ -149,9 +315,9 @@ test('one game at a time: an open stage resumes as such and is given up only aft
   });
   assert.strictEqual(t.doc.getElementById('resumeBtn').textContent.trim(), 'Kartenhaus fortsetzen (Etage 4)');
   t.ws.fire('message', towerInfo({ best: { 1: 3, 2: 1, 3: 1, 4: 0 }, unlocked: 4 }));
-  t.doc.getElementById('identityAvatarBtn').click();
-  t.doc.querySelector('#progressContent .pgTower').click();
-  t.doc.querySelector('#towerList .twStage[data-stage="1"]').click();
+  openSheet(t);
+  floorEl(t, 1).dispatchEvent(new t.window.MouseEvent('click', { bubbles: true }));
+  t.doc.querySelector('#towerDetail .khPlay').click();
   assert.strictEqual(t.sent('startTower').length, 0, 'nothing starts behind the sheet');
   assert.ok(t.shown('openGameOverlay'));
   assert.strictEqual(t.doc.getElementById('openGameSummary').textContent, 'Kartenhaus · Etage 4');
@@ -239,8 +405,9 @@ test('after the reload: the intent opens the Kartenhaus or starts the floor', ()
   assert.ok(open.shown('towerOverlay'));
   assert.strictEqual(open.window.localStorage.getItem('pikdame_after_tower'), null, 'used once');
   assert.match(open.doc.getElementById('towerSummary').textContent, /Lädt/);
+  assert.strictEqual(open.doc.querySelector('#towerHouse svg'), null, 'the box keeps its place while it loads');
   open.ws.fire('message', towerInfo());
-  assert.strictEqual(open.doc.querySelectorAll('#towerList .twStage').length, 20);
+  assert.strictEqual(open.doc.querySelectorAll('#towerHouse [data-stage]').length, 21);
   open.window.close();
 
   const retry = startScreen({ pikdame_after_tower: '3' });
