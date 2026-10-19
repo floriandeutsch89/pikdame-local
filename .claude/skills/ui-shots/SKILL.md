@@ -34,11 +34,18 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   the scene `account` opens the account sheet (level, season ladder).
   The mock result is a podium place, so the first start-screen shot also
   catches the fireworks band behind the header.
+- **English:** `--lang en` shoots the English client; check it whenever a
+  new label could outgrow its box.
+- **Before/after from one script:** `SHOTS_ROOT=<checkout>` shoots another
+  checkout (e.g. a detached `origin/main` worktree) with this script, so
+  new scenes exist for the "before" pictures too.
 - **Reduced motion:** `--reduced-motion` emulates `prefers-reduced-motion:
   reduce` - the still pictures instead of the animations.
 - **Scenes:** `lobby`, `lobby-open` (daily tasks unfolded), `progress`
-  ("Dein Fortschritt"), `stats`, `stats-badges` (trophy cabinet folded, then a favourite's detail; favourites need `--signed-in`), `history` ("Meine Partien"), `roundend`,
-  `roundend-stats`, `gameover`, `gameover-challenge` (board + share),
+  ("Dein Fortschritt"), `stats`, `stats-empty` (a brand-new name: the
+  statistics empty state, then "Meine Partien" empty), `stats-badges` (trophy cabinet folded, then a favourite's detail; favourites need `--signed-in`), `history` ("Meine Partien"), `roundend`,
+  `roundend-stats`, `gameover`, `gameover-win` (I win the match and earn a
+  badge: the gold banner and the badge chip), `gameover-challenge` (board + share),
   `puzzle`, `puzzle-turn` / `puzzle-out` (that kind injected, one meld
   laid), `puzzle-solved` (three stars, then the "Heute" tile), `challenge` (intro after the day's attempt), `challenge-open` (intro before it: only the count), `gamelobby` (house
   rules), `botdiff` (the strength picker), `stammtisch` (the record
