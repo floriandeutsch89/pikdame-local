@@ -249,6 +249,7 @@ window.I18N_STATIC = {
   'Lösung zeigen': 'Show solution',
   // Bot tower
   'Bot-Turm': 'Bot tower',
+  'Turmbau zu Babel': 'Tower of Babel',
   'Die Turmstufe wartet kurz auf dich – danach endet sie ohne Sterne.': 'The tower stage waits for you briefly - after that it ends without stars.',
   // Year review (December) + its mail
   'Dein Jahr': 'Your year',
@@ -418,6 +419,8 @@ window.I18N_SERVER_PATTERNS = [
   // Bot tower (BotTower.js)
   [/^Bot-Turm, Stufe (\d+): Hol in dieser Runde mehr Punkte als jeder Bot - die Bots bekommen (\d+) Punkte Vorgabe\.$/, 'Bot tower, stage $1: score more points than every bot this round - the bots get a $2-point head start.'],
   [/^Bot-Turm, Stufe (\d+): Hol in dieser Runde mehr Punkte als jeder Bot\.$/, 'Bot tower, stage $1: score more points than every bot this round.'],
+  [/^Turmbau zu Babel, Stufe (\d+): Hol in dieser Runde mehr Punkte als jeder Bot - die Bots bekommen (\d+) Punkte Vorgabe\.$/, 'Tower of Babel, stage $1: score more points than every bot this round - the bots get a $2-point head start.'],
+  [/^Turmbau zu Babel, Stufe (\d+): Hol in dieser Runde mehr Punkte als jeder Bot\.$/, 'Tower of Babel, stage $1: score more points than every bot this round.'],
   [/^Der Bot-Turm braucht gespeicherte Profile - auf diesem Server ist er aus\.$/, 'The bot tower needs saved profiles - it is off on this server.'],
   [/^Diese Turmstufe gibt es nicht\.$/, 'This tower stage does not exist.'],
   [/^Für den Bot-Turm brauchst du einen Namen - dort werden deine Sterne gespeichert\.$/, 'The bot tower needs a name - your stars are saved under it.'],

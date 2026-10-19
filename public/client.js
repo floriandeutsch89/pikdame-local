@@ -203,7 +203,9 @@
         btn.querySelector('span').textContent = resumeIsChallenge
           ? L('Challenge fortsetzen', 'Resume challenge')
           : resumeIsTutorial ? L('Tutorial fortsetzen', 'Resume tutorial')
-            : tower ? L(`Bot-Turm fortsetzen (Stufe ${tower})`, `Resume bot tower (stage ${tower})`)
+            : tower ? (openGame.towerMonth
+              ? L(`Babel fortsetzen (Stufe ${tower})`, `Resume Babel (stage ${tower})`)
+              : L(`Bot-Turm fortsetzen (Stufe ${tower})`, `Resume bot tower (stage ${tower})`))
               : L(`Weiterspielen (${resumeCode})`, `Resume game (${resumeCode})`);
         btn.classList.remove('hidden');
       } else {
@@ -498,6 +500,13 @@
         how: L('Schaff alle 10 Stufen des Bot-Turms - die letzte gegen drei Zen-Bots.', 'Clear all 10 bot tower stages - the last one against three Zen bots.') },
       tower_stars_30: { emoji: '🌠', name: L('Sternen\u00adhimmel', 'Starry sky'), desc: L('Alle 30 Sterne im Bot-Turm', 'All 30 stars in the bot tower'),
         how: L('Hol dir auf allen 10 Stufen des Bot-Turms drei Sterne: klar vorn und selbst ausgemacht.', 'Earn three stars on all 10 bot tower stages: clearly ahead and out yourself.') },
+      // Monthly Babel tower: stars over all months
+      babel_30: { emoji: '🧱', name: L('Babel-Maurer', 'Babel mason'), desc: L('30 Sterne im Turmbau zu Babel', '30 stars in the Tower of Babel'),
+        how: L('Sammle im Turmbau zu Babel (jeden Monat zehn neue Stufen) insgesamt 30 Sterne.', 'Collect 30 stars in the Tower of Babel (ten new stages every month).') },
+      babel_100: { emoji: '🏗️', name: L('Babel-Baumeister', 'Babel builder'), desc: L('100 Sterne im Turmbau zu Babel', '100 stars in the Tower of Babel'),
+        how: L('Sammle im Turmbau zu Babel über alle Monate 100 Sterne.', 'Collect 100 stars in the Tower of Babel over all months.') },
+      babel_300: { emoji: '🗣️', name: L('Sprach\u00adverwirrer', 'Tongue twister'), desc: L('300 Sterne im Turmbau zu Babel', '300 stars in the Tower of Babel'),
+        how: L('Sammle im Turmbau zu Babel über alle Monate 300 Sterne.', 'Collect 300 stars in the Tower of Babel over all months.') },
     };
     return M[id] || { emoji: '🎖️', name: id, desc: '', how: '' };
   }
@@ -516,6 +525,7 @@
     { id: 'puzzlePerfect', tiers: ['puzzle_perfect_10', 'puzzle_perfect_30', 'puzzle_perfect_100'] },
     { id: 'tower', tiers: ['tower_3', 'tower_6', 'tower_10'] },
     { id: 'towerStars', tiers: ['tower_stars_30'] },
+    { id: 'babel', tiers: ['babel_30', 'babel_100', 'babel_300'] },
   ];
   const BADGE_SINGLES = [
     'pd_caught', 'round_300', 'score_500', 'pd_triple', 'double_queen_round',
@@ -1672,7 +1682,8 @@
     if (msg.type === 'towerResult') {
       lastTowerResult = msg;
       const pr = msg.progress;
-      if (pr && towerInfo) Object.assign(towerInfo, { best: pr.best, stars: pr.stars, cleared: pr.cleared, unlocked: pr.unlocked });
+      const target = towerInfo && (msg.month ? (towerInfo.babel && towerInfo.babel.month === msg.month ? towerInfo.babel : null) : towerInfo);
+      if (pr && target) Object.assign(target, { best: pr.best, stars: pr.stars, cleared: pr.cleared, unlocked: pr.unlocked }, msg.month ? { totalStars: pr.totalStars } : {});
       try { renderTowerChip(); } catch (e) { /* cosmetic */ }
       // A stage's first star pays XP: same level bookkeeping as the solved puzzle.
       if (msg.xp && msg.level) {
@@ -3288,7 +3299,7 @@
     const isGameOver = lastState.phase === 'gameOver';
     el('resultTitle').textContent = forfeited
       ? L('Spiel aufgegeben', 'Game forfeited')
-      : isGameOver && lastState.towerStage ? L(`Bot-Turm · Stufe ${lastState.towerStage}`, `Bot tower · stage ${lastState.towerStage}`)
+      : isGameOver && lastState.towerStage ? `${towerName(!!lastState.towerMonth)} · ${L(`Stufe ${lastState.towerStage}`, `stage ${lastState.towerStage}`)}`
         : isGameOver ? L('Spielende!', 'Game over!') : L('Rundenende', 'End of round');
 
     const body = el('resultBody');
@@ -3728,7 +3739,7 @@
       contBtn.textContent = lastState.challengeDate
         ? L('Zum Hauptmenü', 'Main menu')
         : lastState.towerStage
-          ? L('Zum Bot-Turm', 'To the bot tower')
+          ? lastState.towerMonth ? L('Zum Turmbau zu Babel', 'To the Tower of Babel') : L('Zum Bot-Turm', 'To the bot tower')
           : ser
           ? ser.winner
             ? L('Neue Serie starten', 'Start a new series')
@@ -4499,7 +4510,7 @@
     const og = openGame;
     pendingStart = start;
     el('openGameSummary').textContent = og.tower
-      ? L(`Bot-Turm · Stufe ${og.tower}`, `Bot tower · stage ${og.tower}`)
+      ? `${towerName(!!og.towerMonth)} · ${L(`Stufe ${og.tower}`, `stage ${og.tower}`)}`
       : og.phase === 'lobby'
         ? L(`Spiel ${og.code} · noch in der Lobby`, `Game ${og.code} · still in the lobby`)
         : L(`Spiel ${og.code} · Runde ${og.round} · ${og.score} Punkte`, `Game ${og.code} · round ${og.round} · ${og.score} points`);
@@ -6328,7 +6339,7 @@
     if (tutorialActive && lastState && lastState.phase === 'roundEnd') { finishTutorial(); return; }
     const isGameOver = lastState && lastState.phase === 'gameOver';
     if (isGameOver && lastState.challengeDate) { window.location.href = window.location.pathname; return; }
-    if (isGameOver && lastState.towerStage) { leaveTowerFor('open'); return; }
+    if (isGameOver && lastState.towerStage) { leaveTowerFor(lastState.towerMonth ? 'bopen' : 'open'); return; }
     send({ type: isGameOver ? 'rematch' : 'nextRound' });
     // Round end: the overlay STAYS open - the ready check may still be
     // waiting for others (the button reflects that). It closes on its own
@@ -7901,7 +7912,7 @@
   }
 
   // Mirrors game/Progression.js (XP_BASE, XP_WIN, XP_PER_POINT) - display only.
-  const XP_RULES = { base: 10, win: 50, perPoints: 10, towerFirstStar: 25 };
+  const XP_RULES = { base: 10, win: 50, perPoints: 10, towerFirstStar: 25, babelFirstStar: 10 };
   function renderProgressSheet() {
     const box = el('progressContent');
     if (!box) return;
@@ -7958,7 +7969,8 @@
     if (ev.target === el('progressOverlay')) el('progressOverlay').classList.add('hidden');
   });
   el('progressContent').addEventListener('click', (ev) => {
-    if (ev.target.closest('[data-open-tower]')) openTowerSheet();
+    const btn = ev.target.closest('[data-open-tower]');
+    if (btn) openTowerSheet(btn.dataset.openTower === 'babel' ? 'babel' : 'fixed');
   });
 
   // --- Bot tower (game/BotTower.js): ten fixed one-round stages -------------
@@ -7978,6 +7990,22 @@
   function towerFresh() {
     return towerInfo && towerInfo.forName === (myName || '') ? towerInfo : null;
   }
+  // The sheet shows the fixed tower or this month's Babel tower (same ladder, new deals).
+  let towerView = 'fixed';
+  const towerName = (babel) => (babel ? L('Turmbau zu Babel', 'Tower of Babel') : L('Bot-Turm', 'Bot tower'));
+  /** The Babel part of the tower data: { month, best, stars, cleared, unlocked, totalStars }. */
+  function babelFresh() {
+    const info = towerFresh();
+    return info && info.babel ? { ...info.babel, stages: info.stages, clearMargin: info.clearMargin } : null;
+  }
+  /** "Oktober" for '2026-10' (UTC mid-month, so no time zone shifts the month). */
+  function babelMonthName(month) {
+    const [y, m] = String(month || '').split('-').map(Number);
+    if (!y || !m) return '';
+    return new Date(Date.UTC(y, m - 1, 15)).toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-DE', { month: 'long', timeZone: 'UTC' });
+  }
+  /** The chip and the sheet open on Babel once the fixed tower is complete. */
+  const towerDone = (info) => !!info && info.cleared >= info.stages.length;
   /** Start-screen chip under the Stammtische. At most three rows (iPhone fit):
    *  with three remembered tables the oldest one yields, it stays stored. */
   function renderTowerChip() {
@@ -7985,24 +8013,30 @@
     if (!box) return;
     const old = box.querySelector('.stTowerRow');
     if (old) old.remove();
-    const info = publicMode ? null : towerFresh();
+    const fixed = publicMode ? null : towerFresh();
+    const babel = towerDone(fixed) ? babelFresh() : null;
+    const info = babel || fixed;
     const rows = [...box.querySelectorAll('.stRecentRow')];
     rows.forEach((r, i) => r.classList.toggle('hidden', i >= (info ? 2 : 3)));
     if (info) {
       const size = info.stages.length;
       const stage = Math.min(info.unlocked || 1, size);
+      const name = babel ? L('Babel', 'Babel') : towerName(false);
       const text = info.stars
         ? L(`Stufe ${stage} · ${info.stars}/${size * 3}`, `Stage ${stage} · ${info.stars}/${size * 3}`)
-        : L(`${size} Stufen`, `${size} stages`);
-      const label = info.stars
-        ? L(`Bot-Turm: Stufe ${stage}, ${info.stars} von ${size * 3} Sternen`, `Bot tower: stage ${stage}, ${info.stars} of ${size * 3} stars`)
-        : L(`Bot-Turm: ${size} Stufen gegen die Bots`, `Bot tower: ${size} stages against the bots`);
-      box.insertAdjacentHTML('beforeend', `<button type="button" class="stRecentRow stTowerRow" aria-haspopup="dialog" aria-label="${escapeHtml(label)}">` +
-        `<svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg><span class="stName">${escapeHtml(L('Bot-Turm', 'Bot tower'))}</span>` +
+        : babel ? babelMonthName(babel.month) : L(`${size} Stufen`, `${size} stages`);
+      const label = babel
+        ? L(`Turmbau zu Babel im ${babelMonthName(babel.month)}: Stufe ${stage}, ${info.stars} von ${size * 3} Sternen`,
+          `Tower of Babel in ${babelMonthName(babel.month)}: stage ${stage}, ${info.stars} of ${size * 3} stars`)
+        : info.stars
+          ? L(`Bot-Turm: Stufe ${stage}, ${info.stars} von ${size * 3} Sternen`, `Bot tower: stage ${stage}, ${info.stars} of ${size * 3} stars`)
+          : L(`Bot-Turm: ${size} Stufen gegen die Bots`, `Bot tower: ${size} stages against the bots`);
+      box.insertAdjacentHTML('beforeend', `<button type="button" class="stRecentRow stTowerRow${babel ? ' babel' : ''}" aria-haspopup="dialog" aria-label="${escapeHtml(label)}">` +
+        `<svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg><span class="stName">${escapeHtml(name)}</span>` +
         `<small class="stChipInfo">${escapeHtml(text)}</small>` +
         (info.stars ? '<svg class="icon stTowerStar" aria-hidden="true"><use href="#i-star"/></svg>' : '') +
         `<svg class="icon stGo" aria-hidden="true"><use href="#i-chevron"/></svg></button>`);
-      box.querySelector('.stTowerRow').addEventListener('click', openTowerSheet);
+      box.querySelector('.stTowerRow').addEventListener('click', () => openTowerSheet(babel ? 'babel' : 'fixed'));
     }
     box.classList.toggle('hidden', !box.querySelector('.stRecentRow:not(.hidden)'));
   }
@@ -8021,6 +8055,19 @@
       `<span>${escapeHtml(size
         ? L(`${cleared} von ${size} Stufen geschafft`, `${cleared} of ${size} stages cleared`)
         : L(`${cleared} Stufen geschafft`, `${cleared} stages cleared`))}</span></span>` +
+      `<svg class="icon pgTowerGo" aria-hidden="true"><use href="#i-chevron"/></svg></button>` +
+      babelSectionHtml();
+  }
+  function babelSectionHtml() {
+    const b = babelFresh();
+    const total = b ? b.totalStars : (myProfile() || {}).babelStars || 0;
+    const month = b ? babelMonthName(b.month) : '';
+    return `<button type="button" class="pgTower" data-open-tower="babel">` +
+      `<svg class="icon pgTowerIcon" aria-hidden="true"><use href="#i-trophy"/></svg>` +
+      `<span class="pgTowerText"><b>${escapeHtml(towerName(true))}</b>` +
+      `<span>${escapeHtml(b
+        ? L(`${month}: ${b.stars}/${b.stages.length * 3} Sterne · insgesamt ${total}`, `${month}: ${b.stars}/${b.stages.length * 3} stars · ${total} in total`)
+        : L(`Jeden Monat zehn neue Stufen · insgesamt ${total} Sterne`, `Ten new stages every month · ${total} stars in total`))}</span></span>` +
       `<svg class="icon pgTowerGo" aria-hidden="true"><use href="#i-chevron"/></svg></button>`;
   }
   function towerRowHtml(s, info) {
@@ -8041,61 +8088,85 @@
       `</button></li>`;
   }
   function renderTower() {
-    const info = towerFresh();
+    const babel = towerView === 'babel';
+    const info = babel ? babelFresh() : towerFresh();
     const size = info ? info.stages.length : 0;
-    el('towerSummary').textContent = info
-      ? L(`${info.stars}/${size * 3} Sterne · ${info.cleared} von ${size} Stufen geschafft`, `${info.stars}/${size * 3} stars · ${info.cleared} of ${size} stages cleared`)
-      : L('Lädt …', 'Loading …');
+    el('towerTabs').setAttribute('aria-label', L('Turm wählen', 'Choose a tower'));
+    for (const b of el('towerTabs').querySelectorAll('.segBtn')) {
+      const on = (b.dataset.tower === 'babel') === babel;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', String(on));
+    }
+    el('towerSummary').textContent = !info
+      ? L('Lädt …', 'Loading …')
+      : babel
+        ? L(`${babelMonthName(info.month)}: ${info.stars}/${size * 3} Sterne · ${info.cleared} von ${size} Stufen · insgesamt ${info.totalStars}`,
+          `${babelMonthName(info.month)}: ${info.stars}/${size * 3} stars · ${info.cleared} of ${size} stages · ${info.totalStars} in total`)
+        : L(`${info.stars}/${size * 3} Sterne · ${info.cleared} von ${size} Stufen geschafft`, `${info.stars}/${size * 3} stars · ${info.cleared} of ${size} stages cleared`);
     // The top of the tower first: you climb it.
     el('towerList').innerHTML = info ? [...info.stages].reverse().map((s) => towerRowHtml(s, info)).join('') : '';
-    el('towerRules').textContent = info
-      ? L(`Ein Stern: mehr Punkte als jeder Bot samt Vorgabe. Zwei: mindestens ${info.clearMargin} Punkte vorn. Drei: dazu selbst ausmachen. Jede Stufe ist eine Runde mit immer demselben Blatt; ab einem Stern ist die nächste frei. Versuche unbegrenzt, der beste zählt. Der erste Stern jeder Stufe bringt einmal ${XP_RULES.towerFirstStar} EP.`,
-        `One star: more points than every bot plus its head start. Two: at least ${info.clearMargin} points ahead. Three: and go out yourself. Each stage is one round with the same deal every time; one star unlocks the next. Unlimited tries, the best counts. The first star of each stage pays ${XP_RULES.towerFirstStar} XP once.`)
-      : '';
+    const stars = L(`Ein Stern: mehr Punkte als jeder Bot samt Vorgabe. Zwei: mindestens ${info ? info.clearMargin : 0} Punkte vorn. Drei: dazu selbst ausmachen.`,
+      `One star: more points than every bot plus its head start. Two: at least ${info ? info.clearMargin : 0} points ahead. Three: and go out yourself.`);
+    el('towerRules').textContent = !info ? '' : babel
+      ? `${stars} ${L(`Jeden Monat bauen die Bots neu: zehn neue Blätter, dieselben Gegner. Ab einem Stern ist die nächste Stufe frei, Versuche unbegrenzt. Der erste Stern jeder Stufe bringt einmal ${XP_RULES.babelFirstStar} EP, die Sterne aller Monate zählen zusammen.`,
+        `Every month the bots rebuild: ten new deals, the same opponents. One star unlocks the next stage, unlimited tries. The first star of each stage pays ${XP_RULES.babelFirstStar} XP once; the stars of all months add up.`)}`
+      : `${stars} ${L(`Jede Stufe ist eine Runde mit immer demselben Blatt; ab einem Stern ist die nächste frei. Versuche unbegrenzt, der beste zählt. Der erste Stern jeder Stufe bringt einmal ${XP_RULES.towerFirstStar} EP.`,
+        `Each stage is one round with the same deal every time; one star unlocks the next. Unlimited tries, the best counts. The first star of each stage pays ${XP_RULES.towerFirstStar} XP once.`)}`;
     if (info && towerScrollPending && !el('towerOverlay').classList.contains('hidden')) {
       towerScrollPending = false;
       const target = el('towerList').querySelector('.twStage.next') || el('towerList').querySelector('.twStage:not(.locked)');
       if (target && target.scrollIntoView) target.scrollIntoView({ block: 'nearest' });
     }
   }
-  function openTowerSheet() {
+  /** view: 'fixed' or 'babel'; without one, Babel once the fixed tower is complete. */
+  function openTowerSheet(view) {
     if (publicMode) return;
+    towerView = view === 'babel' || view === 'fixed' ? view : towerDone(towerFresh()) ? 'babel' : 'fixed';
     if (!towerFresh()) requestTower();
     el('progressOverlay').classList.add('hidden');
     el('towerOverlay').classList.remove('hidden');
     towerScrollPending = true;
     renderTower();
   }
-  function startTowerStage(stage) {
+  function startTowerStage(stage, babel = false) {
     el('towerOverlay').classList.add('hidden');
-    send({ type: 'startTower', stage, name: currentName(), accountToken: accountToken() || undefined });
+    send({ type: 'startTower', stage, babel: babel || undefined, name: currentName(), accountToken: accountToken() || undefined });
   }
+  el('towerTabs').addEventListener('click', (ev) => {
+    const btn = ev.target.closest('[data-tower]');
+    if (!btn) return;
+    towerView = btn.dataset.tower === 'babel' ? 'babel' : 'fixed';
+    towerScrollPending = true;
+    renderTower();
+  });
   el('towerList').addEventListener('click', (ev) => {
     const btn = ev.target.closest('.twStage');
     if (!btn) return;
+    const babel = towerView === 'babel';
     if (btn.classList.contains('locked')) {
-      const open = (towerFresh() || {}).unlocked || 1;
+      const open = ((babel ? babelFresh() : towerFresh()) || {}).unlocked || 1;
       showToast(L(`Noch gesperrt - schaff erst Stufe ${open}.`, `Still locked - clear stage ${open} first.`));
       return;
     }
     const stage = Number(btn.dataset.stage);
-    guardOpenGame('tower', () => startTowerStage(stage));
+    guardOpenGame('tower', () => startTowerStage(stage, babel));
   });
   el('towerCloseBtn').addEventListener('click', () => el('towerOverlay').classList.add('hidden'));
   el('towerOverlay').addEventListener('click', (ev) => {
     if (ev.target === el('towerOverlay')) el('towerOverlay').classList.add('hidden');
   });
   /** Leaves a finished stage through a reload (the socket belongs to that table):
-   *  'open' shows the tower, a stage number starts that stage. */
+   *  'open' shows the tower, a stage number starts that stage; a 'b' prefix means Babel. */
   function leaveTowerFor(next) {
     storageSet(AFTER_TOWER_KEY, String(next));
     if (sessionCode && storageGet('pikdame_last_session') === sessionCode) storageRemove('pikdame_last_session');
     window.location.href = window.location.pathname;
   }
   function afterTower(next) {
-    const stage = Number(next);
-    if (Number.isInteger(stage) && stage > 0) guardOpenGame('tower', () => startTowerStage(stage));
-    else openTowerSheet();
+    const babel = String(next).startsWith('b');
+    const stage = Number(babel ? String(next).slice(1) : next);
+    if (Number.isInteger(stage) && stage > 0) guardOpenGame('tower', () => startTowerStage(stage, babel));
+    else openTowerSheet(babel ? 'babel' : 'fixed');
   }
   /** The stage verdict on the result sheet: stars, the sum behind them, the way on. */
   function renderTowerResult() {
@@ -8121,7 +8192,7 @@
       L('Alle drei Sterne - besser geht es nicht.', 'All three stars - it does not get better.'),
     ][r.stars] || '';
     const pr = r.progress;
-    const unlocked = pr ? pr.unlocked : (towerFresh() || {}).unlocked || r.stage;
+    const unlocked = pr ? pr.unlocked : ((r.month ? babelFresh() : towerFresh()) || {}).unlocked || r.stage;
     const best = pr && pr.best ? Number(pr.best[r.stage]) || 0 : r.stars;
     const bestLine = pr && pr.improved && r.stars
       ? L('Neuer Bestwert für diese Stufe!', 'New best for this stage!')
@@ -8138,9 +8209,10 @@
         ? `<button type="button" class="btn-secondary twNext"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>${escapeHtml(L(`Stufe ${r.stage + 1}`, `Stage ${r.stage + 1}`))}</span></button>`
         : '') +
       `</div>`;
-    box.querySelector('.twRetry').addEventListener('click', () => leaveTowerFor(r.stage));
+    const prefix = r.month ? 'b' : '';
+    box.querySelector('.twRetry').addEventListener('click', () => leaveTowerFor(`${prefix}${r.stage}`));
     const nextBtn = box.querySelector('.twNext');
-    if (nextBtn) nextBtn.addEventListener('click', () => leaveTowerFor(r.stage + 1));
+    if (nextBtn) nextBtn.addEventListener('click', () => leaveTowerFor(`${prefix}${r.stage + 1}`));
     const pane = body.querySelector('.resultPane') || body;
     const head = pane.querySelector('.resultWinnerGame');
     pane.insertBefore(box, head ? head.nextSibling : pane.firstChild);
@@ -8949,6 +9021,7 @@
       ...Object.fromEntries([10, 30, 100].map((n) => [`puzzle_perfect_${n}`, cap(p.totalPerfectPuzzles, n)])),
       tower_3: cap(p.towerCleared, 3), tower_6: cap(p.towerCleared, 6), tower_10: cap(p.towerCleared, 10),
       tower_stars_30: cap(p.towerStars, 30),
+      babel_30: cap(p.babelStars, 30), babel_100: cap(p.babelStars, 100), babel_300: cap(p.babelStars, 300),
       red_lantern: cap(p.lastPlaceStreak, 3),
       stammtisch_10: cap(p.totalStammtischGames, 10),
     };

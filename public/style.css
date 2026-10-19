@@ -2562,11 +2562,15 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   font: inherit; color: var(--card-ink); text-align: left; cursor: pointer;
 }
 .pgTower:active { transform: scale(0.98); }
+.pgTower + .pgTower { margin-top: 6px; }
 .pgTowerIcon { color: #b07800; }
 .pgTowerText { display: flex; flex-direction: column; flex: 1; min-width: 0; font-size: var(--fs-label); }
 .pgTowerText b { font-size: var(--fs-body); font-variant-numeric: tabular-nums; }
 .pgTowerText span { color: var(--text-muted); }
 .pgTowerGo { transform: rotate(-90deg); color: var(--text-muted); }
+/* On the light sheet: dark ink and a soft track (.segmented is styled for the dark table). */
+.towerTabs { margin: 0 0 10px; background: rgba(0, 0, 0, 0.05); border-color: var(--glass-border); }
+.towerTabs .segBtn:not(.active) { color: var(--card-ink); }
 .towerSummary { margin: 0 0 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .towerList { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 /* The bot column holds three level icons (11px x 2.544 each), so the handicap lines up. */

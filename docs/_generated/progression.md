@@ -15,6 +15,7 @@ bilingual tables. Ids are stable, names may change.
 | Final score | **+1 per 10 points** (never negative) |
 | Solving the daily puzzle (once a day, no game counted) | **+30** |
 | First star of a bot tower stage (once per stage, no game counted) | **+25** |
+| First star of a Babel tower stage (once per stage and month, no game counted) | **+10** |
 
 Each level costs a little more than the last, so the first levels arrive
 after an evening of play and the later ones stay meaningful:
@@ -85,7 +86,7 @@ back instead of showing a broken streak.
 
 ## Badges
 
-**55** badges. 12 of them are *families*: one tile, rising
+**58** badges. 13 of them are *families*: one tile, rising
 thresholds on the same counter.
 
 | Family | Counter | Tiers |
@@ -102,6 +103,7 @@ thresholds on the same counter.
 | `puzzlePerfect` | `totalPerfectPuzzles` | 🌟 Star moment {bdg-secondary}`10` → 🌟 Star collector {bdg-secondary}`30` → 🌟 Puzzle ace {bdg-secondary}`100` |
 | `tower` | `towerCleared` | 🗼 Tower climber {bdg-secondary}`3` → 🗼 Tower stormer {bdg-secondary}`6` → 🗼 Tower top {bdg-secondary}`10` |
 | `towerStars` | `towerStars` | 🌠 Starry sky {bdg-secondary}`30` |
+| `babel` | `babelStars` | 🧱 Babel mason {bdg-secondary}`30` → 🏗️ Babel builder {bdg-secondary}`100` → 🗣️ Tongue twister {bdg-secondary}`300` |
 
 The other **25** are earned by a fact about one match (computed in
 `computeEarnedBadges` from the finished game record):

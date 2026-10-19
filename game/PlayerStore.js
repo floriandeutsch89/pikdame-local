@@ -370,6 +370,33 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     return { best: { ...p.tower }, improved, xp, totalXp: p.xp || 0, ...sum };
   }
 
+  // --- Monthly Babel tower: best stars per month and stage ------------------
+  /** Best stars of one month, e.g. { "1": 2 } (never null). */
+  function babelBest(name, month) {
+    const p = findPlayerByName(loadStore(), name);
+    return { ...((p && p.babel && p.babel[month]) || {}) };
+  }
+  /** Like recordTowerResult, per month; the totals over all months feed the badges. */
+  function recordBabelResult(name, month, stage, stars) {
+    upsertPlayerProfile(name);
+    const store = loadStore();
+    const p = findPlayerByName(store, name);
+    const { summarize, babelTotals } = require('./BotTower');
+    const { xpForBabelStage } = require('./Progression');
+    p.babel = p.babel || {};
+    const best = (p.babel[month] = p.babel[month] || {});
+    const before = best[stage] || 0;
+    const improved = stars > before;
+    if (improved) best[stage] = stars;
+    const xp = xpForBabelStage(before, stars);
+    if (xp) p.xp = (p.xp || 0) + xp;
+    const total = babelTotals(p.babel);
+    p.babelStars = total.stars;
+    p.babelCleared = total.cleared;
+    saveStore(store);
+    return { best: { ...best }, improved, xp, totalXp: p.xp || 0, ...summarize(best), totalStars: total.stars };
+  }
+
   return {
     filePath,
     flushSync: file.flushSync,
@@ -392,6 +419,8 @@ function createPlayerStore(filePath = DEFAULT_DATA_FILE) {
     revealPuzzle,
     towerBest,
     recordTowerResult,
+    babelBest,
+    recordBabelResult,
   };
 }
 

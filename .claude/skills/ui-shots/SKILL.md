@@ -47,8 +47,10 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   `settings-music` (the "Mehr" sheet: top / play aids / music), `game-settings`
   (the in-game gear sheet), `music-hint` (the first click starts the music and
   its one-time hint shows; every other run marks the hint as seen), `tower`
-  (the bot tower sheet, opened from the progress sheet), `gameover-tower` (a
-  stage verdict on the result sheet). Any order works:
+  (the bot tower sheet, opened from the progress sheet), `tower-babel` (the
+  same sheet on this month's Babel tower), `gameover-tower` (a
+  stage verdict on the result sheet). `--tower-done` clears all ten fixed
+  stages in the mock, so the start-screen chip shows the Babel tower. Any order works:
   a start-screen scene after `table` or a result reloads the start screen
   first (its buttons are hidden there and the clicks used to time out).
 - **December:** `--december` stands the client clock on 28 December and

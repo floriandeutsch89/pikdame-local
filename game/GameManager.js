@@ -58,6 +58,8 @@ class GameManager {
     this.tutorialMode = !!options.tutorialMode;
     // Bot tower (BotTower.js): a solo stage of exactly one round.
     this.towerStage = Number.isInteger(options.towerStage) ? options.towerStage : null;
+    // With a month ('YYYY-MM') the stage belongs to that month's Babel tower.
+    this.towerMonth = this.towerStage && typeof options.towerMonth === 'string' ? options.towerMonth : null;
     // Wird vom Server gesetzt: raeumt die Sitzung weg, wenn ein Solo-Spiel
     // abgebrochen wird (nicht wiederaufnehmbar, keine Wertung).
     this.onAbandon = typeof options.onAbandon === 'function' ? options.onAbandon : null;
@@ -303,6 +305,7 @@ class GameManager {
       alone: !this.players.some((pl) => pl.id !== playerId && !pl.isBot && !pl.leftGame),
       tutorial: !!this.tutorialMode,
       tower: this.towerStage || null,
+      towerMonth: this.towerMonth || null,
     };
   }
 
@@ -594,8 +597,9 @@ class GameManager {
   /** A bot tower stage (server and tests share it): the stage's bots in seat
    *  order after the human, as calibrated in BotTower.js, the human moves first. */
   startTowerRound() {
-    const cfg = BotTower.stageConfig(this.towerStage);
+    const cfg = BotTower.stageConfig(this.towerStage, this.towerMonth);
     if (!cfg || this.phase !== 'lobby') return { error: 'Diese Turmstufe lässt sich nicht starten.' };
+    const tower = this.towerMonth ? 'Turmbau zu Babel' : 'Bot-Turm';
     this.setHouseRules({ turnTimerSeconds: 0 }, { system: true });
     this.maxSeats = cfg.bots.length + 1;
     this.syncLobbyBots();
@@ -603,8 +607,8 @@ class GameManager {
     this.players.filter((p) => p.isBot).forEach((b, i) => { b.botDifficulty = cfg.bots[i]; });
     this.setExplicitDealer(this.players[this.players.length - 1].id);
     this.addLog(cfg.handicap
-      ? `Bot-Turm, Stufe ${cfg.stage}: Hol in dieser Runde mehr Punkte als jeder Bot - die Bots bekommen ${cfg.handicap} Punkte Vorgabe.`
-      : `Bot-Turm, Stufe ${cfg.stage}: Hol in dieser Runde mehr Punkte als jeder Bot.`);
+      ? `${tower}, Stufe ${cfg.stage}: Hol in dieser Runde mehr Punkte als jeder Bot - die Bots bekommen ${cfg.handicap} Punkte Vorgabe.`
+      : `${tower}, Stufe ${cfg.stage}: Hol in dieser Runde mehr Punkte als jeder Bot.`);
     this.startNewRound();
     return { ok: true };
   }
@@ -1878,7 +1882,7 @@ class GameManager {
         .join(', ')}`
     );
     // Bot tower: the match is its one round, won by the human only with a star.
-    const towerCfg = this.towerStage ? BotTower.stageConfig(this.towerStage) : null;
+    const towerCfg = this.towerStage ? BotTower.stageConfig(this.towerStage, this.towerMonth) : null;
     const over = towerCfg
       ? {
         gameOver: true,
@@ -1942,6 +1946,7 @@ class GameManager {
       this.lastGameRecord = {
         challengeDate: this.challengeDate || undefined,
         towerStage: this.towerStage || undefined,
+        towerMonth: this.towerMonth || undefined,
         // A seat given up mid-game counts as a bot from then on: no stats, XP or history for the leaver.
         players: this.players.map((p) => {
           const bot = p.isBot || !!p.leftGame;
@@ -3124,6 +3129,7 @@ class GameManager {
       challengeDate: this.challengeDate || null,
       tutorialMode: this.tutorialMode || false,
       towerStage: this.towerStage || null,
+      towerMonth: this.towerMonth || null,
       soloPausedUntil: this.soloPausedUntil || null,
       abandoned: this.abandoned || false,
       canUndoMeld: !!(

@@ -210,9 +210,9 @@ test('identity chip: avatar opens the progress sheet, name still edits; streak s
 });
 
 test('progress sheet: XP rules shown in the client match game/Progression.js', () => {
-  const { xpForGame, xpForTowerStage } = require('../game/Progression');
+  const { xpForGame, xpForTowerStage, xpForBabelStage } = require('../game/Progression');
   const src = fs.readFileSync(path.join(pub, 'client.js'), 'utf8');
-  const m = src.match(/const XP_RULES = \{ base: (\d+), win: (\d+), perPoints: (\d+), towerFirstStar: (\d+) \};/);
+  const m = src.match(/const XP_RULES = \{ base: (\d+), win: (\d+), perPoints: (\d+), towerFirstStar: (\d+), babelFirstStar: (\d+) \};/);
   assert.ok(m, 'XP_RULES literal found in client.js');
   const rec = (won, score) => ({ winnerId: won ? 'p' : 'x', finalTotals: { p: score } });
   const base = xpForGame(rec(false, 0), 'p');
@@ -220,6 +220,7 @@ test('progress sheet: XP rules shown in the client match game/Progression.js', (
   assert.equal(Number(m[2]), xpForGame(rec(true, 0), 'p') - base);
   assert.equal(Number(m[3]), 1000 / (xpForGame(rec(false, 1000), 'p') - base));
   assert.equal(Number(m[4]), xpForTowerStage(0, 1), 'bot tower: the first star of a stage');
+  assert.equal(Number(m[5]), xpForBabelStage(0, 1), 'Babel tower: the first star of a monthly stage');
 });
 
 test('"Heute": puzzle and challenge tiles show today\'s status; tasks sit below', async (t) => {

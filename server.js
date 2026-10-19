@@ -1331,6 +1331,7 @@ const registry = new SessionRegistry((session) => {
     challengeDate: session.challengeDate || undefined,
     tutorialMode: !!session.tutorialMode,
     towerStage: Number.isInteger(session.towerStage) ? session.towerStage : undefined,
+    towerMonth: typeof session.towerMonth === 'string' ? session.towerMonth : undefined,
     // Abbruch eines Solo-Spiels: Der Rueckruf kennt hier den Code, den der
     // Aufrufer beim Erzeugen noch nicht hatte.
     onAbandon: typeof session.onAbandon === 'function'
@@ -1612,7 +1613,9 @@ function recordTowerStage(gameRecord, sendTo) {
   let xp = 0;
   if (!PUBLIC_MODE) {
     try {
-      progress = playerStore.recordTowerResult(human.name, outcome.stage, outcome.stars);
+      progress = outcome.month
+        ? playerStore.recordBabelResult(human.name, outcome.month, outcome.stage, outcome.stars)
+        : playerStore.recordTowerResult(human.name, outcome.stage, outcome.stars);
       xp = progress.xp;
       badges = playerStore.awardBadges(human.name, familyBadges(playerStore.getPlayerByName(human.name) || {}));
     } catch (err) {
@@ -2020,20 +2023,28 @@ wss.on('connection', (ws, req) => {
       // Bot tower: the stages and this name's best stars (pre-session, like the puzzle).
       const name = sanitizeName(msg.name);
       const best = !PUBLIC_MODE && name ? playerStore.towerBest(name) : {};
-      ws.send(JSON.stringify({ type: 'towerInfo', stages: BotTower.publicStages(), clearMargin: BotTower.CLEAR_MARGIN, best, ...BotTower.summarize(best) }));
+      // The month's Babel tower rides along: same ladder, its own stars.
+      const month = BotTower.babelMonthOf(gameDay());
+      const babelBest = !PUBLIC_MODE && name ? playerStore.babelBest(name, month) : {};
+      const me = !PUBLIC_MODE && name ? playerStore.getPlayerByName(name) : null;
+      const babel = { month, best: babelBest, ...BotTower.summarize(babelBest), totalStars: (me && me.babelStars) || 0 };
+      ws.send(JSON.stringify({ type: 'towerInfo', stages: BotTower.publicStages(), clearMargin: BotTower.CLEAR_MARGIN, best, ...BotTower.summarize(best), babel }));
       return;
     }
     if (msg.type === 'startTower') {
       // Bot tower stage: a fixed deal against fixed bots, one round, solo like the challenge.
       if (PUBLIC_MODE) return sendError(ws, 'Der Bot-Turm braucht gespeicherte Profile - auf diesem Server ist er aus.');
-      const cfg = BotTower.stageConfig(msg.stage);
+      // msg.babel: the CURRENT month's Babel tower (the server picks the month).
+      const month = msg.babel ? BotTower.babelMonthOf(gameDay()) : null;
+      const cfg = BotTower.stageConfig(msg.stage, month);
       if (!cfg) return sendError(ws, 'Diese Turmstufe gibt es nicht.');
       const name = sanitizeName(msg.name);
       if (!name) return sendError(ws, 'Für den Bot-Turm brauchst du einen Namen - dort werden deine Sterne gespeichert.');
-      if (cfg.stage > BotTower.unlockedStage(playerStore.towerBest(name))) {
+      const best = month ? playerStore.babelBest(name, month) : playerStore.towerBest(name);
+      if (cfg.stage > BotTower.unlockedStage(best)) {
         return sendError(ws, 'Diese Turmstufe ist noch gesperrt - hol dir erst einen Stern auf der Stufe davor.');
       }
-      const created = registry.create({ deckSeed: cfg.seed, towerStage: cfg.stage, onAbandon: (code) => registry.delete(code) });
+      const created = registry.create({ deckSeed: cfg.seed, towerStage: cfg.stage, towerMonth: month || undefined, onAbandon: (code) => registry.delete(code) });
       if (created.error) return sendError(ws, created.error);
       const ok = await joinSession(created.session, msg);
       if (!ok) { registry.delete(created.session.code); return; }

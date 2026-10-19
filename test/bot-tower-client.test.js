@@ -298,3 +298,58 @@ test('start screen: invitation without stars, nothing in public mode', () => {
   assert.deepStrictEqual(p.errors, []);
   p.window.close();
 });
+
+// --- Monthly Babel tower ---------------------------------------------------------
+const BABEL = { month: '2026-10', best: { 1: 2 }, stars: 2, cleared: 1, unlocked: 2, totalStars: 14 };
+
+test('Babel: the sheet switches to this month\'s tower, a tap starts its stage', () => {
+  const t = startScreen();
+  t.ws.fire('message', towerInfo({ babel: BABEL }));
+  t.doc.getElementById('identityAvatarBtn').click();
+  const entries = [...t.doc.querySelectorAll('#progressContent .pgTower')];
+  assert.strictEqual(entries.length, 2, 'fixed tower and Babel on the progress sheet');
+  assert.match(entries[1].textContent, /Turmbau zu Babel/);
+  assert.match(entries[1].textContent, /Oktober: 2\/30 Sterne · insgesamt 14/);
+  entries[1].click();
+  assert.ok(t.shown('towerOverlay'));
+  const tab = (v) => t.doc.querySelector(`#towerTabs [data-tower="${v}"]`);
+  assert.ok(tab('babel').classList.contains('active'));
+  assert.strictEqual(tab('babel').getAttribute('aria-pressed'), 'true');
+  assert.strictEqual(t.doc.getElementById('towerSummary').textContent, 'Oktober: 2/30 Sterne · 1 von 10 Stufen · insgesamt 14');
+  assert.match(t.doc.getElementById('towerRules').textContent, /Jeden Monat bauen die Bots neu/);
+  assert.match(t.doc.getElementById('towerRules').textContent, /einmal 10 EP/);
+  assert.ok(t.doc.querySelector('#towerList .twStage[data-stage="3"]').classList.contains('locked'));
+  t.doc.querySelector('#towerList .twStage[data-stage="2"]').click();
+  const start = t.sent('startTower');
+  assert.deepStrictEqual({ stage: start[0].stage, babel: start[0].babel }, { stage: 2, babel: true });
+
+  // The tab back shows the fixed tower; its stages start without the flag.
+  t.doc.getElementById('identityAvatarBtn').click();
+  t.doc.querySelector('#progressContent .pgTower').click();
+  assert.ok(tab('fixed').classList.contains('active'));
+  tab('babel').click();
+  assert.match(t.doc.getElementById('towerSummary').textContent, /^Oktober/);
+  tab('fixed').click();
+  assert.strictEqual(t.doc.getElementById('towerSummary').textContent, '4/30 Sterne · 2 von 10 Stufen geschafft');
+  t.doc.querySelector('#towerList .twStage[data-stage="1"]').click();
+  assert.strictEqual(t.sent('startTower')[1].babel, undefined);
+  assert.deepStrictEqual(t.errors, []);
+  t.window.close();
+});
+
+test('Babel: the start chip shows the monthly tower once the fixed one is complete', () => {
+  const t = startScreen();
+  t.ws.fire('message', towerInfo({ babel: BABEL }));
+  const chip = () => t.doc.querySelector('#stammtischRecent .stTowerRow');
+  assert.match(chip().textContent, /Bot-Turm/, 'fixed tower not complete yet');
+  const all = Object.fromEntries(BotTower.TOWER_STAGES.map((s) => [s.stage, 1]));
+  t.ws.fire('message', towerInfo({ best: all, stars: 10, cleared: 10, unlocked: 10, babel: BABEL }));
+  assert.ok(chip().classList.contains('babel'));
+  assert.match(chip().textContent, /Babel/);
+  assert.match(chip().textContent, /Stufe 2 · 2\/30/);
+  assert.match(chip().getAttribute('aria-label'), /^Turmbau zu Babel im Oktober: Stufe 2, 2 von 30 Sternen$/);
+  chip().click();
+  assert.ok(t.shown('towerOverlay'));
+  assert.ok(t.doc.querySelector('#towerTabs [data-tower="babel"]').classList.contains('active'));
+  t.window.close();
+});

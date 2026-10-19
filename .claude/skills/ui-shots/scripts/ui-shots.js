@@ -63,6 +63,8 @@ const AUDIT = process.argv.includes('--audit');
 const SIGNED_IN = process.argv.includes('--signed-in');
 const STILL = process.argv.includes('--reduced-motion'); // prefers-reduced-motion: reduce
 const DECEMBER = process.argv.includes('--december');
+// --tower-done: all ten fixed stages cleared, so the start chip shows the Babel tower.
+const TOWER_DONE = process.argv.includes('--tower-done');
 const TAP_MIN = 44; // CLAUDE.md --tap-min
 // A normal UA: the server treats headless defaults as a crawler (no WebSocket).
 const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
@@ -190,8 +192,11 @@ function rewrite(msg) {
   if (msg.type === 'profiles') { msg.players = PROFILES; msg.globalStats = GLOBAL_STATS; }
   if (msg.type === 'gameHistory') msg.games = HISTORY;
   if (msg.type === 'towerInfo') {
-    const best = PROFILES[0].tower;
-    Object.assign(msg, { best }, require(path.join(ROOT, 'game', 'BotTower')).summarize(best));
+    const BT = require(path.join(ROOT, 'game', 'BotTower'));
+    const best = TOWER_DONE ? Object.fromEntries(BT.TOWER_STAGES.map((st) => [st.stage, 2])) : PROFILES[0].tower;
+    const babelBest = { 1: 3, 2: 2, 3: 1 };
+    Object.assign(msg, { best }, BT.summarize(best));
+    msg.babel = { ...msg.babel, best: babelBest, ...BT.summarize(babelBest), totalStars: 41 };
   }
   // Like the server: favourite opponent and Stammtisch only for the signed-in owner.
   if (msg.type === 'yearReview' && DECEMBER) {
@@ -364,7 +369,7 @@ function waitForHttp(port, ms = 20000) {
         await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(1200);
       };
-      const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|stats|stats-badges|history|settings|settings-aids|settings-music|game-settings|music-hint|challenge|stammtisch|account|account-mail|puzzle.*|year.*)$/;
+      const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|tower-babel|stats|stats-badges|history|settings|settings-aids|settings-music|game-settings|music-hint|challenge|stammtisch|account|account-mail|puzzle.*|year.*)$/;
       for (const sc of scenes) {
         if (LOBBY_SCENES.test(sc)) await toStart();
         if (sc === 'lobby') await shot('lobby');
@@ -476,10 +481,10 @@ function waitForHttp(port, ms = 20000) {
           await shot('progress');
           await page.click('#progressCloseBtn');
         }
-        if (sc === 'tower') {
+        if (sc === 'tower' || sc === 'tower-babel') {
           await page.click('#identityAvatarBtn'); await page.waitForTimeout(300);
-          await page.click('#progressContent .pgTower'); await page.waitForTimeout(600);
-          await shot('tower');
+          await page.click(`#progressContent .pgTower${sc === 'tower-babel' ? '[data-open-tower="babel"]' : ''}`); await page.waitForTimeout(600);
+          await shot(sc);
           await page.click('#towerCloseBtn');
         }
         if (sc === 'settings' || sc === 'settings-aids' || sc === 'settings-music') {

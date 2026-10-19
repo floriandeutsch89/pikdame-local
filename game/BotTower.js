@@ -21,8 +21,32 @@ const MAX_STARS = TOWER_SIZE * 3;
 // Two stars: this many points ahead of the best bot (after the handicap).
 const CLEAR_MARGIN = 100;
 
-function stageConfig(stage) {
-  return TOWER_STAGES.find((s) => s.stage === Number(stage)) || null;
+// Monthly tower "Turmbau zu Babel": the same ladder, ten new deals per month
+// (BabelSeeds.js). Months past the list cycle through it, so it never runs dry.
+const BABEL_SEEDS = require('./BabelSeeds');
+const BABEL_MONTHS = Object.keys(BABEL_SEEDS).sort();
+const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+const monthIndex = (m) => Number(m.slice(0, 4)) * 12 + Number(m.slice(5, 7)) - 1;
+
+/** 'YYYY-MM' of a game day ('YYYY-MM-DD', GameDay.js). */
+function babelMonthOf(day) {
+  return String(day).slice(0, 7);
+}
+
+/** The ten seeds of a month: its own list, later (or earlier) months cycle. */
+function babelSeeds(month) {
+  if (BABEL_SEEDS[month]) return BABEL_SEEDS[month];
+  const n = BABEL_MONTHS.length;
+  const i = (((monthIndex(month) - monthIndex(BABEL_MONTHS[0])) % n) + n) % n;
+  return BABEL_SEEDS[BABEL_MONTHS[i]];
+}
+
+/** A stage of the fixed tower, or with `month` of that month's Babel tower. */
+function stageConfig(stage, month = null) {
+  const base = TOWER_STAGES.find((s) => s.stage === Number(stage)) || null;
+  if (!base || month == null) return base;
+  if (!MONTH_RE.test(String(month))) return null;
+  return { ...base, seed: babelSeeds(String(month))[base.stage - 1], month: String(month) };
 }
 
 /** One star: more points than every bot after the handicap; two: CLEAR_MARGIN
@@ -48,7 +72,7 @@ function stageWinner(totals, roundWinnerId, humanId, handicap = 0) {
 
 /** The stage outcome from a GameManager game record (one round, one human). */
 function outcomeFromRecord(record, humanId) {
-  const cfg = stageConfig(record && record.towerStage);
+  const cfg = stageConfig(record && record.towerStage, (record && record.towerMonth) || null);
   const round = record && record.rounds && record.rounds[0];
   if (!cfg || !round || !round.results || !round.results[humanId]) return null;
   const botIds = ((record.players) || []).filter((p) => p.isBot).map((p) => p.id);
@@ -58,6 +82,7 @@ function outcomeFromRecord(record, humanId) {
   const bestBot = botScores.length ? Math.max(...botScores) : 0;
   return {
     stage: cfg.stage,
+    ...(cfg.month ? { month: cfg.month } : {}),
     stars: starsFor({ myScore, botScores, wentOut, handicap: cfg.handicap }),
     myScore,
     bestBot,
@@ -86,6 +111,18 @@ function summarize(best = {}) {
   return { stars, cleared, unlocked: unlockedStage(best) };
 }
 
+/** Babel totals over every month played ({ 'YYYY-MM': best }): stars and cleared stages. */
+function babelTotals(byMonth = {}) {
+  let stars = 0;
+  let cleared = 0;
+  for (const best of Object.values(byMonth || {})) {
+    const sum = summarize(best);
+    stars += sum.stars;
+    cleared += sum.cleared;
+  }
+  return { stars, cleared };
+}
+
 /** What the client needs to draw the tower (no seeds: the deals stay a surprise). */
 function publicStages() {
   return TOWER_STAGES.map(({ stage, bots, handicap }) => ({ stage, bots: [...bots], handicap }));
@@ -93,5 +130,5 @@ function publicStages() {
 
 module.exports = {
   TOWER_STAGES, TOWER_SIZE, MAX_STARS, CLEAR_MARGIN,
-  stageConfig, starsFor, stageWinner, outcomeFromRecord, unlockedStage, summarize, publicStages,
+  babelMonthOf, babelSeeds, stageConfig, starsFor, stageWinner, outcomeFromRecord, unlockedStage, summarize, babelTotals, publicStages,
 };

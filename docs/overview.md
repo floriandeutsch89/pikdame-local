@@ -97,6 +97,16 @@ seat, the Zen net at stages 7-10): every stage is winnable, and the winning
 margin shrinks from about 200 to 15 points. The way in is the progress sheet
 (tap your avatar).
 
+**Turmbau zu Babel** is the monthly tower: the same ten-stage ladder, ten new
+deals every month (Europe/Berlin month, `game/BabelSeeds.js`), its own stars
+per month and a total over all months (badges at 30/100/300). The first star of
+a monthly stage pays 10 XP once. `scripts/tower-seeds.js` picks the deals with
+the same simulation (a seed passes when the Schwer heuristic in the human seat
+earns a star in 2 of 3 runs; late stages must stay within a margin cap) and
+rewrites the data file; months past the list cycle through it, so regenerate
+it before it runs out. The tower sheet switches between both towers; the
+start-screen chip shows Babel once all ten fixed stages are cleared.
+
 ### Progress between matches
 
 Three layers, all optional and all degrading quietly where they cannot work:

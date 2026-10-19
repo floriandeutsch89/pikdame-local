@@ -69,6 +69,10 @@ const BADGE_IDS = [
   'tower_6',
   'tower_10',
   'tower_stars_30',
+  // --- monthly Babel tower: stars over all months -----------------------------
+  'babel_30',
+  'babel_100',
+  'babel_300',
 ];
 
 // Badge families: the same counter at rising thresholds, shown as ONE tile
@@ -87,6 +91,7 @@ const BADGE_FAMILIES = [
   { id: 'puzzlePerfect', field: 'totalPerfectPuzzles', tiers: [['puzzle_perfect_10', 10], ['puzzle_perfect_30', 30], ['puzzle_perfect_100', 100]] },
   { id: 'tower', field: 'towerCleared', tiers: [['tower_3', 3], ['tower_6', 6], ['tower_10', 10]] },
   { id: 'towerStars', field: 'towerStars', tiers: [['tower_stars_30', 30]] },
+  { id: 'babel', field: 'babelStars', tiers: [['babel_30', 30], ['babel_100', 100], ['babel_300', 300]] },
 ];
 
 /**

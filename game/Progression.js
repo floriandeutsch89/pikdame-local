@@ -32,6 +32,12 @@ function xpForTowerStage(bestBefore, starsNow) {
   return (Number(bestBefore) || 0) < 1 && (Number(starsNow) || 0) >= 1 ? XP_TOWER_FIRST_STAR : 0;
 }
 
+// Monthly Babel tower: the same rule at 10 XP, so a month pays at most 100.
+const XP_BABEL_FIRST_STAR = 10;
+function xpForBabelStage(bestBefore, starsNow) {
+  return (Number(bestBefore) || 0) < 1 && (Number(starsNow) || 0) >= 1 ? XP_BABEL_FIRST_STAR : 0;
+}
+
 // Level curve: each level costs a bit more than the previous one, so the
 // early levels arrive quickly (a family player who finishes two games sees
 // progress) and later ones stay meaningful.
@@ -312,6 +318,8 @@ module.exports = {
   XP_WIN,
   XP_TOWER_FIRST_STAR,
   xpForTowerStage,
+  XP_BABEL_FIRST_STAR,
+  xpForBabelStage,
   QUEST_IDS,
   QUESTS_PER_DAY,
   xpForGame,

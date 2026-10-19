@@ -1003,6 +1003,10 @@
     <section id="towerOverlay" class="overlay hidden" data-sheet-close="towerCloseBtn">
       <div class="overlay-card towerCard" role="dialog" aria-labelledby="towerTitle">
         <h2 id="towerTitle" class="iconTitle"><svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg><span>Bot-Turm</span></h2>
+        <div id="towerTabs" class="segmented towerTabs" role="group" aria-label="Turm wählen">
+          <button type="button" class="segBtn active" data-tower="fixed" aria-pressed="true"><span>Bot-Turm</span></button>
+          <button type="button" class="segBtn" data-tower="babel" aria-pressed="false"><span>Turmbau zu Babel</span></button>
+        </div>
         <p id="towerSummary" class="towerSummary"></p>
         <ol id="towerList" class="towerList" reversed></ol>
         <p id="towerRules" class="pgRules towerRules"></p>
