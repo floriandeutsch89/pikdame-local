@@ -246,7 +246,7 @@
         btn.querySelector('span').textContent = resumeIsChallenge
           ? L('Challenge fortsetzen', 'Resume challenge')
           : resumeIsTutorial ? L('Tutorial fortsetzen', 'Resume tutorial')
-            : tower ? L(`Bot-Turm fortsetzen (Stufe ${tower})`, `Resume bot tower (stage ${tower})`)
+            : tower ? L(`Kartenhaus fortsetzen (Etage ${tower})`, `Resume House of Cards (floor ${tower})`)
               : L(`Weiterspielen (${resumeCode})`, `Resume game (${resumeCode})`);
         btn.classList.remove('hidden');
       } else {
@@ -341,7 +341,7 @@
     try { renderToday(); } catch (e) { /* dito */ }
     try { renderYearSlide(); } catch (e) { /* dito */ }
     try { renderProgressSheet(); } catch (e) { /* dito */ }
-    try { renderTower(); } catch (e) { /* dito */ }
+    try { renderTower(); renderTowerTile(); } catch (e) { /* dito */ }
     try { arrangeEmoteBar(el('emoteBar')); arrangeEmoteBar(el('resultEmoteBar')); } catch (e) { /* toggle label */ }
     try { renderAccountProgress(); } catch (e) { /* dito */ }
     // "Angemeldet als ..." steht dauerhaft in der Lobby - vom Vertragstest
@@ -533,15 +533,21 @@
         how: L('Lege eine Folge mit 10, Bube, Dame, König und Ass derselben Farbe aus - alles echte Karten, kein Joker.', 'Meld a run with 10, jack, queen, king and ace of one suit - all real cards, no joker.') },
       pik_royal: { emoji: '👑', name: L('Pik Royal', 'Spade royal'), desc: L('Royal Flush in Pik - mit der Pik Dame', 'Royal flush in spades - with the Queen of Spades'),
         how: L('Lege 10, Bube, Dame, König und Ass in Pik als Folge aus - alles echte Karten, kein Joker.', 'Meld 10, jack, queen, king and ace of spades as a run - all real cards, no joker.') },
-      // Bot tower (game/BotTower.js): stages cleared, then every star
-      tower_3: { emoji: '🗼', name: L('Turm\u00adkletterer', 'Tower climber'), desc: L('3 Stufen im Bot-Turm geschafft', 'Cleared 3 bot tower stages'),
-        how: L('Hol dir im Bot-Turm (Fortschritt → Bot-Turm) auf 3 Stufen mindestens einen Stern.', 'Earn at least one star on 3 bot tower stages (Progress → Bot tower).') },
-      tower_6: { emoji: '🗼', name: L('Turm\u00adstürmer', 'Tower stormer'), desc: L('6 Stufen im Bot-Turm geschafft', 'Cleared 6 bot tower stages'),
-        how: L('Hol dir im Bot-Turm auf 6 Stufen mindestens einen Stern.', 'Earn at least one star on 6 bot tower stages.') },
-      tower_10: { emoji: '🗼', name: L('Turm\u00adspitze', 'Tower top'), desc: L('Alle 10 Stufen im Bot-Turm geschafft', 'Cleared all 10 bot tower stages'),
-        how: L('Schaff alle 10 Stufen des Bot-Turms - die letzte gegen drei Zen-Bots.', 'Clear all 10 bot tower stages - the last one against three Zen bots.') },
-      tower_stars_30: { emoji: '🌠', name: L('Sternen\u00adhimmel', 'Starry sky'), desc: L('Alle 30 Sterne im Bot-Turm', 'All 30 stars in the bot tower'),
-        how: L('Hol dir auf allen 10 Stufen des Bot-Turms drei Sterne: klar vorn und selbst ausgemacht.', 'Earn three stars on all 10 bot tower stages: clearly ahead and out yourself.') },
+      // Kartenhaus (game/BotTower.js): floors and stars in the best month, crowned months
+      tower_3: { emoji: '🏠', name: L('Karten\u00adstapler/in', 'Card stacker'), desc: L('3 Etagen in einem Monat geschafft', 'Cleared 3 floors in one month'),
+        how: L('Hol dir in einem Monat im Kartenhaus (Aufgaben → Kartenhaus) auf den Etagen 1 bis 3 je mindestens einen Stern.', 'Earn at least one star on floors 1 to 3 of the House of Cards in one month (Tasks → House of Cards).') },
+      tower_6: { emoji: '🏠', name: L('Karten\u00adkünstler/in', 'Card artist'), desc: L('6 Etagen in einem Monat geschafft', 'Cleared 6 floors in one month'),
+        how: L('Hol dir in einem Monat im Kartenhaus auf den Etagen 1 bis 6 je mindestens einen Stern.', 'Earn at least one star on floors 1 to 6 of the House of Cards in one month.') },
+      tower_10: { emoji: '🏠', name: L('Hoch\u00adstapler/in', 'High stacker'), desc: L('10 Etagen in einem Monat geschafft', 'Cleared 10 floors in one month'),
+        how: L('Schaff in einem Monat die Etagen 1 bis 10 des Kartenhauses - die zehnte gegen drei Zen-Bots.', 'Clear floors 1 to 10 of the House of Cards in one month - the tenth against three Zen bots.') },
+      tower_stars_30: { emoji: '🌠', name: L('Sternen\u00adhimmel', 'Starry sky'), desc: L('30 Sterne in einem Monat', '30 stars in one month'),
+        how: L('Sammle in einem Monat im Kartenhaus 30 Sterne: drei pro Etage gibt es für klar vorn und selbst ausgemacht.', 'Collect 30 stars in the House of Cards in one month: three per floor for clearly ahead and out yourself.') },
+      tower_crowned_1: { emoji: '👷', name: L('Lehrling', 'Apprentice'), desc: L('Ein Kartenhaus gekrönt: alle 20 Etagen eines Monats', 'Crowned a House of Cards: all 20 floors of a month'),
+        how: L('Hol dir in einem Monat auf allen 20 Etagen des Kartenhauses mindestens einen Stern - dann kommt die Pik Dame obenauf.', 'Earn at least one star on all 20 floors of the House of Cards in one month - then the Queen of Spades goes on top.') },
+      tower_crowned_3: { emoji: '👷', name: L('Polier/in', 'Foreman'), desc: L('3 Monate das Kartenhaus gekrönt', 'Crowned the House of Cards in 3 months'),
+        how: L('Kröne das Kartenhaus in 3 Monaten: jedes Mal alle 20 Etagen mit mindestens einem Stern.', 'Crown the House of Cards in 3 months: every time all 20 floors with at least one star.') },
+      tower_crowned_12: { emoji: '👷', name: L('Bau\u00admeister/in', 'Master Builder'), desc: L('12 Monate das Kartenhaus gekrönt', 'Crowned the House of Cards in 12 months'),
+        how: L('Kröne das Kartenhaus in 12 Monaten.', 'Crown the House of Cards in 12 months.') },
     };
     return M[id] || { emoji: '🎖️', name: id, desc: '', how: '' };
   }
@@ -560,6 +566,7 @@
     { id: 'puzzlePerfect', tiers: ['puzzle_perfect_10', 'puzzle_perfect_30', 'puzzle_perfect_100'] },
     { id: 'tower', tiers: ['tower_3', 'tower_6', 'tower_10'] },
     { id: 'towerStars', tiers: ['tower_stars_30'] },
+    { id: 'towerCrowned', tiers: ['tower_crowned_1', 'tower_crowned_3', 'tower_crowned_12'] },
   ];
   const BADGE_SINGLES = [
     'pd_caught', 'round_300', 'score_500', 'pd_triple', 'double_queen_round',
@@ -1346,7 +1353,7 @@
           afterTutorial = next;
           el('createGameBtn').click();
         }
-        // Back from a finished tower stage (leaveTowerFor): the tower or the next try.
+        // Back from a finished Kartenhaus floor (leaveTowerFor): the house or the next try.
         const towerNext = storageGet('pikdame_after_tower');
         if (towerNext) {
           storageRemove('pikdame_after_tower');
@@ -1710,16 +1717,20 @@
     if (msg.type === 'towerInfo') {
       towerInfo = { ...msg, forName: towerAskedFor };
       renderTower();
-      renderTowerChip();
+      renderTowerTile();
       if (!el('progressOverlay').classList.contains('hidden')) renderProgressSheet();
       return;
     }
     if (msg.type === 'towerResult') {
       lastTowerResult = msg;
+      // For the house's next opening: a missed floor wobbles there (after the reload).
+      storageSet(TOWER_LAST_KEY, JSON.stringify({ name: myName || '', month: msg.month, stage: msg.stage, stars: msg.stars }));
       const pr = msg.progress;
-      if (pr && towerInfo) Object.assign(towerInfo, { best: pr.best, stars: pr.stars, cleared: pr.cleared, unlocked: pr.unlocked });
-      try { renderTowerChip(); } catch (e) { /* cosmetic */ }
-      // A stage's first star pays XP: same level bookkeeping as the solved puzzle.
+      if (pr && towerInfo && towerInfo.month === msg.month) {
+        Object.assign(towerInfo, { best: pr.best, stars: pr.stars, cleared: pr.cleared, unlocked: pr.unlocked, crowned: pr.crowned, totalStars: pr.totalStars });
+      }
+      try { renderTowerTile(); } catch (e) { /* cosmetic */ }
+      // A floor's first star pays XP: same level bookkeeping as the solved puzzle.
       if (msg.xp && msg.level) {
         const total = msg.level.total || 0;
         myProgress = { xp: Math.max((myProgress && myProgress.xp) || 0, total), level: msg.level };
@@ -1758,7 +1769,7 @@
       el('statsBtn').classList.toggle('hidden', publicMode);
       try { updateCelebrationSetting(); } catch (e) { /* cosmetic */ }
       if (!publicMode && !towerInfo) requestTower();
-      try { renderTowerChip(); } catch (e) { /* cosmetic */ }
+      try { renderTowerTile(); } catch (e) { /* cosmetic */ }
       if (msg.quests) dailyQuests = msg.quests;
       try { fetchChallengeToday(); } catch (e) { /* cosmetic */ }
       // My own counters live on my profile (name-based, like every other
@@ -2365,7 +2376,7 @@
           badgeBtn.className = 'botDiffBadge tapExpand';
           // In the game the spade rating alone; the level's name is in title + aria-label.
           badgeBtn.innerHTML = levelIconHtml(meta);
-          // Bot tower: the stage fixes the bots, so the badge only tells.
+          // Kartenhaus: the floor fixes the bots, so the badge only tells.
           if (lastState.isHost && !lastState.towerStage) {
             badgeBtn.title = L(`Schwierigkeit ändern (${meta.short()})`, `Change difficulty (${meta.short()})`);
             badgeBtn.addEventListener('click', (ev) => {
@@ -2603,7 +2614,9 @@
     el('drawPile').classList.toggle('glow', canDraw && lastState.drawPileCount > 0);
     // Server truth: glow the discard only when taking it is actually legal.
     // `null`/missing (older server, no answer) keeps the old optimistic glow.
-    const discardBlocked = discardAidOn() && canDraw && !!lastState.discardTop && lastState.discardTakeable === false;
+    // A Kartenhaus floor without the discard pile shows it blocked even with the aid off.
+    const noDiscardFloor = !!(lastState.towerMods && lastState.towerMods.includes('noDiscard'));
+    const discardBlocked = (discardAidOn() || noDiscardFloor) && canDraw && !!lastState.discardTop && lastState.discardTakeable === false;
     el('discardPile').classList.toggle('glow', canDraw && !!lastState.discardTop && !discardBlocked);
     el('discardPile').classList.toggle('noTake', discardBlocked);
 
@@ -3339,7 +3352,7 @@
     el('resultOverlay').classList.toggle('isFinal', isGameOver); // desktop: two columns
     el('resultTitle').textContent = forfeited
       ? L('Spiel aufgegeben', 'Game forfeited')
-      : isGameOver && lastState.towerStage ? L(`Bot-Turm · Stufe ${lastState.towerStage}`, `Bot tower · stage ${lastState.towerStage}`)
+      : isGameOver && lastState.towerStage ? `${towerName()} · ${L(`Etage ${lastState.towerStage}`, `floor ${lastState.towerStage}`)}`
         : isGameOver ? L('Spielende!', 'Game over!') : L('Rundenende', 'End of round');
 
     const body = el('resultBody');
@@ -3574,7 +3587,7 @@
         (iWon ? '' : `<span class="resultWinnerName">${nameWithHeart(winner ? winner.name : '?')}${winner ? botMark(winner) : ''}</span>`) +
         `<span class="resultWinnerSub">${
           lastState.towerStage
-            ? iWon ? L('Du schaffst die Stufe!', 'You clear the stage!') : L('hält dich auf dieser Stufe', 'holds you on this stage')
+            ? iWon ? L('Du schaffst die Etage!', 'You clear the floor!') : L('hält dich auf dieser Etage', 'holds you on this floor')
             : iWon
               ? L('Du gewinnst die Partie!', 'You win the match!')
               : L('gewinnt die Partie', 'wins the match')
@@ -3768,7 +3781,7 @@
       contBtn.textContent = lastState.challengeDate
         ? L('Zum Hauptmenü', 'Main menu')
         : lastState.towerStage
-          ? L('Zum Bot-Turm', 'To the bot tower')
+          ? L('Zum Kartenhaus', 'To the House of Cards')
           : ser
           ? ser.winner
             ? L('Neue Serie starten', 'Start a new series')
@@ -4057,8 +4070,8 @@
     }
     renderIdentity();
     if (changed) { try { requestYearReview(); } catch (e) { /* cosmetic */ } }
-    // Tower progress is per name: hide the old name's chip until the new data arrives.
-    if (changed && !publicMode) { try { requestTower(); renderTowerChip(); } catch (e) { /* cosmetic */ } }
+    // Kartenhaus progress is per name: clear the old name's tile until the new data arrives.
+    if (changed && !publicMode) { try { requestTower(); renderTowerTile(); } catch (e) { /* cosmetic */ } }
     // Renaming inside a session re-joins under the new name (what the
     // "Name" button used to do after typing into the field above).
     if (changed && sessionCode && playerId) {
@@ -4615,7 +4628,7 @@
     const og = openGame;
     pendingStart = start;
     el('openGameSummary').textContent = og.tower
-      ? L(`Bot-Turm · Stufe ${og.tower}`, `Bot tower · stage ${og.tower}`)
+      ? `${towerName()} · ${L(`Etage ${og.tower}`, `floor ${og.tower}`)}`
       : og.phase === 'lobby'
         ? L(`Spiel ${og.code} · noch in der Lobby`, `Game ${og.code} · still in the lobby`)
         : L(`Spiel ${og.code} · Runde ${og.round} · ${og.score} Punkte`, `Game ${og.code} · round ${og.round} · ${og.score} points`);
@@ -4628,7 +4641,7 @@
           : L('Ein Bot übernimmt deinen Platz bis zum Ende, die anderen spielen weiter. Du kannst nicht zurück. Für dich wird die Partie nicht gewertet.',
             'A bot takes your seat until the end, the others play on. You cannot come back. The match is not scored for you.');
     const target = intent === 'tutorial' ? L('Tutorial', 'tutorial')
-      : intent === 'tower' ? L('Bot-Turm', 'bot tower')
+      : intent === 'tower' ? L('Kartenhaus', 'House of Cards')
         : intent === 'join' ? L('beitreten', 'join') : L('neues Spiel', 'new game');
     const btn = el('openGameGiveUpBtn');
     disarmTap(btn);
@@ -5761,7 +5774,6 @@
       const known = stammtischChipInfo[btn.dataset.code]; // e.g. after a language switch
       if (known) btn.querySelector('.stChipInfo').textContent = stammtischLeadText(known);
     });
-    try { renderTowerChip(); } catch (e) { /* cosmetic; towerInfo not declared yet at boot */ }
     // Ask for the record so the chip names the leader without a tap.
     for (const t of list) send({ type: 'getStammtisch', code: t.code });
   }
@@ -5784,7 +5796,7 @@
       // Gone (pruned after months of silence): forget it quietly.
       storageSet(STAMMTISCH_KEY, JSON.stringify(recentStammtische().filter((t) => t.code !== info.code)));
       btn.remove();
-      renderTowerChip(); // a hidden third chip may return
+      if (!el('stammtischRecent').children.length) el('stammtischRecent').classList.add('hidden');
       return;
     }
     stammtischChipInfo[info.code] = info;
@@ -8145,7 +8157,7 @@
   }
 
   // Mirrors game/Progression.js (XP_BASE, XP_WIN, XP_PER_POINT) - display only.
-  const XP_RULES = { base: 10, win: 50, perPoints: 10, towerFirstStar: 25 };
+  const XP_RULES = { base: 10, win: 50, perPoints: 10, towerFirstStar: 10, towerCrown: 50 };
   function renderProgressSheet() {
     const box = el('progressContent');
     if (!box) return;
@@ -8205,14 +8217,26 @@
     if (ev.target.closest('[data-open-tower]')) openTowerSheet();
   });
 
-  // --- Bot tower (game/BotTower.js): ten fixed one-round stages -------------
-  // The server owns stages and stars; the client draws them and starts a stage
-  // like the challenge (solo, one game at a time).
-  let towerInfo = null; // 'towerInfo' + forName: stages, best, stars, cleared, unlocked
+  // --- Kartenhaus (game/BotTower.js): a monthly house of twenty floors -------
+  // The server owns floors, months and stars; the client draws the house as an
+  // SVG pyramid of card tents and starts a floor like the challenge (solo).
+  let towerInfo = null; // 'towerInfo' + forName: month, today, stages, best, stars, cleared, unlocked, crowned, totalStars, archive
   let towerAskedFor = '';
-  let towerScrollPending = false;
-  let lastTowerResult = null; // 'towerResult' of the stage just played
+  let towerSelected = 0; // the floor the detail shows (APEX = the top), 0 = the default
+  let towerAnimate = false; // set on opening: the next render with data may animate
+  let towerFxToken = 0; // a newer render cancels a pending rebuild
+  let lastTowerResult = null; // 'towerResult' of the floor just played
   const AFTER_TOWER_KEY = 'pikdame_after_tower';
+  const TOWER_SEEN_KEY = 'pikdame_tower_seen'; // what this device last showed: { name, month, best, crowned }
+  const TOWER_LAST_KEY = 'pikdame_tower_last'; // the last verdict, for the wobble: { name, month, stage, stars }
+  const APEX = 21;
+  const towerName = () => L('Kartenhaus', 'House of Cards');
+  const TOWER_MODS = {
+    queen: () => L('Pik Dame auf der Hand', 'Queen of Spades in hand'),
+    noDiscard: () => L('Ohne Ablage', 'No discard pile'),
+    goOut: () => L('Selbst ausmachen', 'Go out yourself'),
+  };
+  const towerModsText = (mods) => (mods || []).map((m) => (TOWER_MODS[m] ? TOWER_MODS[m]() : m)).join(' · ');
   function requestTower() {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     towerAskedFor = myName || '';
@@ -8222,115 +8246,372 @@
   function towerFresh() {
     return towerInfo && towerInfo.forName === (myName || '') ? towerInfo : null;
   }
-  /** Start-screen chip under the Stammtische. At most three rows (iPhone fit):
-   *  with three remembered tables the oldest one yields, it stays stored. */
-  function renderTowerChip() {
-    const box = el('stammtischRecent');
-    if (!box) return;
-    const old = box.querySelector('.stTowerRow');
-    if (old) old.remove();
-    const info = publicMode ? null : towerFresh();
-    const rows = [...box.querySelectorAll('.stRecentRow')];
-    rows.forEach((r, i) => r.classList.toggle('hidden', i >= (info ? 2 : 3)));
-    if (info) {
-      const size = info.stages.length;
-      const stage = Math.min(info.unlocked || 1, size);
-      const text = info.stars
-        ? L(`Stufe ${stage} · ${info.stars}/${size * 3}`, `Stage ${stage} · ${info.stars}/${size * 3}`)
-        : L(`${size} Stufen`, `${size} stages`);
-      const label = info.stars
-        ? L(`Bot-Turm: Stufe ${stage}, ${info.stars} von ${size * 3} Sternen`, `Bot tower: stage ${stage}, ${info.stars} of ${size * 3} stars`)
-        : L(`Bot-Turm: ${size} Stufen gegen die Bots`, `Bot tower: ${size} stages against the bots`);
-      box.insertAdjacentHTML('beforeend', `<button type="button" class="stRecentRow stTowerRow" aria-haspopup="dialog" aria-label="${escapeHtml(label)}">` +
-        `<svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg><span class="stName">${escapeHtml(L('Bot-Turm', 'Bot tower'))}</span>` +
-        `<small class="stChipInfo">${escapeHtml(text)}</small>` +
-        (info.stars ? '<svg class="icon stTowerStar" aria-hidden="true"><use href="#i-star"/></svg>' : '') +
-        `<svg class="icon stGo" aria-hidden="true"><use href="#i-chevron"/></svg></button>`);
-      box.querySelector('.stTowerRow').addEventListener('click', openTowerSheet);
-    }
-    box.classList.toggle('hidden', !box.querySelector('.stRecentRow:not(.hidden)'));
+  /** "Oktober" for '2026-10' (UTC mid-month, so no time zone shifts the month). */
+  function towerMonthName(month, withYear = false) {
+    const [y, m] = String(month || '').split('-').map(Number);
+    if (!y || !m) return '';
+    return new Date(Date.UTC(y, m - 1, 15)).toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-DE',
+      { month: 'long', ...(withYear ? { year: 'numeric' } : {}), timeZone: 'UTC' });
   }
+  /** Start screen, "Aufgaben": this month's floor and stars on the wide tile.
+   *  Hidden in public mode and while the data for this name is missing. */
+  function renderTowerTile() {
+    const tile = el('towerTile');
+    if (!tile) return;
+    const info = publicMode ? null : towerFresh();
+    tile.classList.toggle('hidden', !info);
+    if (!info) return;
+    const max = info.stages.length * 3;
+    const floor = Math.min(info.unlocked || 1, info.stages.length);
+    const month = towerMonthName(info.month);
+    const status = el('towerTileStatus');
+    status.textContent = info.crowned
+      ? L(`Gekrönt · ${info.stars}/${max}`, `Crowned · ${info.stars}/${max}`)
+      : L(`Etage ${floor} · ${info.stars}/${max}`, `Floor ${floor} · ${info.stars}/${max}`);
+    status.insertAdjacentHTML('beforeend', '<svg class="icon ttStar" aria-hidden="true"><use href="#i-star"/></svg>');
+    // A fresh month calls (like a new puzzle), a crowned one rests; in between it stays calm.
+    tile.dataset.state = info.crowned ? 'done' : info.stars ? '' : 'new';
+    tile.setAttribute('aria-label', info.crowned
+      ? L(`Kartenhaus im ${month}: gekrönt, ${info.stars} von ${max} Sternen`, `House of Cards in ${month}: crowned, ${info.stars} of ${max} stars`)
+      : L(`Kartenhaus im ${month}: Etage ${floor}, ${info.stars} von ${max} Sternen`, `House of Cards in ${month}: floor ${floor}, ${info.stars} of ${max} stars`));
+  }
+  el('towerTile').addEventListener('click', () => openTowerSheet());
   const towerStarsHtml = (n) => [1, 2, 3]
     .map((i) => `<svg class="icon${i <= n ? ' on' : ''}" aria-hidden="true"><use href="#i-star"/></svg>`).join('');
   function towerSectionHtml() {
     const info = towerFresh();
-    const me = myProfile() || {};
-    const stars = info ? info.stars : me.towerStars || 0;
-    const cleared = info ? info.cleared : me.towerCleared || 0;
     const size = info ? info.stages.length : 0;
-    return `<h3>${escapeHtml(L('Bot-Turm', 'Bot tower'))}</h3>` +
+    return `<h3>${escapeHtml(towerName())}</h3>` +
       `<button type="button" class="pgTower" data-open-tower="1">` +
-      `<svg class="icon pgTowerIcon" aria-hidden="true"><use href="#i-trophy"/></svg>` +
-      `<span class="pgTowerText"><b>${escapeHtml(size ? L(`${stars}/${size * 3} Sterne`, `${stars}/${size * 3} stars`) : L(`${stars} Sterne`, `${stars} stars`))}</b>` +
-      `<span>${escapeHtml(size
-        ? L(`${cleared} von ${size} Stufen geschafft`, `${cleared} of ${size} stages cleared`)
-        : L(`${cleared} Stufen geschafft`, `${cleared} stages cleared`))}</span></span>` +
+      `<svg class="icon pgTowerIcon" aria-hidden="true"><use href="#i-cardhouse"/></svg>` +
+      `<span class="pgTowerText"><b>${escapeHtml(info
+        ? L(`${towerMonthName(info.month)}: ${info.stars}/${size * 3} Sterne`, `${towerMonthName(info.month)}: ${info.stars}/${size * 3} stars`)
+        : towerName())}</b>` +
+      `<span>${escapeHtml(info
+        ? L(`${info.cleared} von ${size} Etagen · insgesamt ${info.totalStars} Sterne`, `${info.cleared} of ${size} floors · ${info.totalStars} stars in total`)
+        : L('Jeden Monat neue Blätter', 'New deals every month'))}</span></span>` +
       `<svg class="icon pgTowerGo" aria-hidden="true"><use href="#i-chevron"/></svg></button>`;
   }
-  function towerRowHtml(s, info) {
-    const stars = Math.max(0, Math.min(3, Number(info.best[s.stage]) || 0));
-    const locked = s.stage > info.unlocked;
-    const next = !locked && !stars;
-    const metas = s.bots.map((b) => BOT_DIFF[b] || BOT_DIFF.zen);
-    const names = metas.map((m) => m.short()).join(', ');
-    const label = L(
-      `Stufe ${s.stage}: gegen ${names}${s.handicap ? `, die Bots bekommen ${s.handicap} Punkte Vorgabe` : ''} - ${locked ? 'gesperrt' : `${stars} von 3 Sternen`}`,
-      `Stage ${s.stage}: against ${names}${s.handicap ? `, the bots get a ${s.handicap}-point head start` : ''} - ${locked ? 'locked' : `${stars} of 3 stars`}`
+  // Pyramid in SVG units: rows of 6-5-4-3-2 tents and the top. The hit areas tile
+  // the house; a row and a slot stay >= --tap-min even on an iPhone SE.
+  const KH = { w: 26, h: 42, tilt: 15, gap: 56, row: 46 };
+  const KH_ROWS = [6, 5, 4, 3, 2];
+  const KH_VIEW = '-172 -282 344 290';
+  function khSlots() {
+    const out = [];
+    let stage = 1;
+    KH_ROWS.forEach((n, r) => {
+      for (let i = 0; i < n; i++) out.push({ stage: stage++, row: r, x: (i - (n - 1) / 2) * KH.gap, base: -r * KH.row });
+    });
+    out.push({ stage: APEX, row: KH_ROWS.length, x: 0, base: -KH_ROWS.length * KH.row });
+    return out;
+  }
+  const khNum = (v) => Math.round(v * 10) / 10;
+  function khStarPoints(cx, cy, r) {
+    const pts = [];
+    for (let i = 0; i < 10; i++) {
+      const rr = i % 2 ? r * 0.45 : r;
+      const a = -Math.PI / 2 + (i * Math.PI) / 5;
+      pts.push(`${khNum(cx + rr * Math.cos(a))},${khNum(cy + rr * Math.sin(a))}`);
+    }
+    return pts.join(' ');
+  }
+  /** One leaning card, rotated around its foot; `inner` is drawn on its face. */
+  function khCard(x, base, rot, built, inner = '') {
+    const { w, h } = KH;
+    return `<g transform="translate(${khNum(x)} ${base}) rotate(${rot})">` +
+      `<rect class="khCard" x="${-w / 2}" y="${-h}" width="${w}" height="${h}" rx="3"/>` +
+      (built ? `<rect class="khRim" x="${-w / 2 + 2.4}" y="${-h + 2.4}" width="${w - 4.8}" height="${h - 4.8}" rx="1.6"/>` : '') +
+      inner + '</g>';
+  }
+  /** The flat card a floor stands on, laid across the tips of the two tents
+   *  below (floors of the first row stand on the ground). */
+  function khPlate(slot) {
+    if (slot.row === 0) return '';
+    const len = KH.gap - 2;
+    return `<rect class="khPlate" x="${khNum(slot.x - len / 2)}" y="${slot.base + 0.6}" width="${len}" height="4" rx="1.5"/>`;
+  }
+  function towerFloorState(info, stage) {
+    const stars = Math.max(0, Math.min(3, Math.floor(Number(info.best[stage]) || 0)));
+    if (stars) return { state: 'built', stars };
+    return { state: stage === info.unlocked && !info.crowned ? 'next' : 'locked', stars: 0 };
+  }
+  function towerFloorLabel(s, st, info) {
+    const names = s.bots.map((b) => (BOT_DIFF[b] || BOT_DIFF.zen).short()).join(', ');
+    const mods = towerModsText(s.mods);
+    const status = st.state === 'built'
+      ? L(`${st.stars} von 3 Sternen`, `${st.stars} of 3 stars`)
+      : st.state === 'next' ? L('noch kein Stern', 'no star yet') : L('gesperrt', 'locked');
+    return L(
+      `Etage ${s.stage}: gegen ${names}${s.handicap ? `, die Bots bekommen ${s.handicap} Punkte Vorgabe` : ''}${mods ? `, ${mods}` : ''} - ${status}`,
+      `Floor ${s.stage}: against ${names}${s.handicap ? `, the bots get a ${s.handicap}-point head start` : ''}${mods ? `, ${mods}` : ''} - ${status}`
     );
-    return `<li><button type="button" class="twStage${locked ? ' locked' : ''}${next ? ' next' : ''}" data-stage="${s.stage}" aria-label="${escapeHtml(label)}"${locked ? ' aria-disabled="true"' : ''}>` +
-      `<span class="twNum">${s.stage}</span>` +
-      `<span class="twBots">${metas.map(levelIconHtml).join('')}</span>` +
-      `<span class="twHandicap">${s.handicap ? escapeHtml(L(`Bots +${s.handicap}`, `bots +${s.handicap}`)) : ''}</span>` +
-      `<span class="twStars">${locked ? '<svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg>' : towerStarsHtml(stars)}</span>` +
-      `</button></li>`;
+  }
+  /** The house as inline SVG. fx: { land: [stages], pop: { stage: starsBefore }, wobble, crown, mode } */
+  function towerHouseSvg(info, fx = {}) {
+    const { w, h, tilt, row } = KH;
+    const lean = khNum(h * Math.sin((tilt * Math.PI) / 180));
+    const byStage = Object.fromEntries(info.stages.map((s) => [s.stage, s]));
+    const landAt = (stage) => (fx.land || []).indexOf(stage);
+    // The ring marks a floor the player picked; the default one (next, or the top) is marked already.
+    const sel = towerSelected;
+    const shown = towerSelected || towerDefaultSelection(info);
+    const parts = [];
+    const sec = (v) => Math.round(v * 100) / 100;
+    for (const slot of khSlots()) {
+      const delay = (v) => ` style="--kh-delay:${sec(v)}s"`;
+      if (slot.stage === APEX) {
+        const crowned = !!info.crowned;
+        const cls = ['khFloor', 'khApex', crowned ? 'built' : 'locked', sel === APEX ? 'sel' : '',
+          crowned && fx.crown ? 'khCrowning' : '', fx.mode === 'rebuild' ? 'khRise' : '', fx.mode === 'collapse' && crowned ? 'khFall' : ''].filter(Boolean).join(' ');
+        const label = crowned
+          ? L('Spitze: Das Kartenhaus ist gekrönt', 'Top: the House of Cards is crowned')
+          : L('Spitze: Alle 20 Etagen mit einem Stern krönen das Kartenhaus', 'Top: a star on all 20 floors crowns the House of Cards');
+        const top = slot.base - 44;
+        const card = crowned
+          ? `<g class="khQueen"><rect class="khQueenCard" x="-15" y="${top}" width="30" height="44" rx="3.5"/>` +
+            `<text class="khQueenQ" x="-10.5" y="${top + 12}">Q</text><text class="khQueenS" x="0" y="${top + 31}">♠</text></g>`
+          : `<rect class="khSpitze" x="-15" y="${top}" width="30" height="44" rx="3.5"/>` +
+            `<text class="khSpitzeText" x="0" y="${top + 25}">${escapeHtml(L('Spitze', 'Top'))}</text>`;
+        parts.push(`<g class="${cls}" data-stage="${APEX}" role="button" tabindex="0" aria-pressed="${shown === APEX}" aria-label="${escapeHtml(label)}"` +
+          `${delay(fx.mode === 'rebuild' ? 0.5 : fx.crownDelay || 0)}>` +
+          `<rect class="khSel" x="-27" y="${top - 5}" width="54" height="${44 + 9}" rx="9"/>` +
+          khPlate(slot) + card +
+          `<rect class="khHit" x="${-KH.gap / 2}" y="${top - 6}" width="${KH.gap}" height="${44 + 11}"/></g>`);
+        continue;
+      }
+      const s = byStage[slot.stage];
+      if (!s) continue;
+      const st = towerFloorState(info, slot.stage);
+      const mod = !!(s.mods && s.mods.length);
+      const li = landAt(slot.stage);
+      const cls = ['khFloor', st.state, mod ? 'mod' : '', sel === slot.stage ? 'sel' : '',
+        li > -1 ? 'khLanding' : '', fx.wobble === slot.stage ? 'khWobble' : '',
+        fx.mode === 'rebuild' ? 'khRise' : '', fx.mode === 'collapse' && st.state === 'built' ? 'khFall' : ''].filter(Boolean).join(' ');
+      const d = fx.mode === 'rebuild' ? slot.row * 0.08 + (slot.stage % 3) * 0.02
+        : fx.mode === 'collapse' ? (KH_ROWS.length - slot.row) * 0.05 : li > -1 ? li * (fx.land.length > 4 ? 0.07 : 0.14) : 0.25;
+      const popFrom = fx.pop && fx.pop[slot.stage] !== undefined ? fx.pop[slot.stage] : 3;
+      const stars = st.state === 'locked' ? '' : [0, 1, 2].map((i) =>
+        `<polygon class="khStar${i < st.stars ? ' on' : ''}${i < st.stars && i >= popFrom ? ' khPop' : ''}"` +
+        `${i < st.stars && i >= popFrom ? delay(0.35 + (i - popFrom) * 0.15) : ''} points="${khStarPoints(-7.5 + i * 7.5, -8.5, 3.5)}"/>`).join('');
+      const face = `<text class="khNum" x="0" y="${-h + 16}">${slot.stage}</text>${stars}`;
+      // Collapse: every card falls its own way (fixed per floor, no randomness).
+      const fall = fx.mode === 'collapse' ? `;--kh-dx:${((slot.stage * 37) % 70) - 35}px;--kh-rot:${((slot.stage * 53) % 90) - 45}deg` : '';
+      parts.push(`<g class="${cls}" data-stage="${slot.stage}" role="button" tabindex="0" aria-pressed="${shown === slot.stage}"` +
+        ` aria-label="${escapeHtml(towerFloorLabel(s, st, info))}" style="--kh-delay:${sec(d)}s${fall}">` +
+        `<rect class="khHalo" x="${slot.x - 29}" y="${slot.base - row + 1}" width="58" height="${row + 3}" rx="11"/>` +
+        `<rect class="khSel" x="${slot.x - 27.5}" y="${slot.base - row + 1.5}" width="55" height="${row + 2}" rx="10"/>` +
+        khPlate(slot) +
+        khCard(slot.x - lean / 2, slot.base, tilt, st.state === 'built') +
+        khCard(slot.x + lean / 2, slot.base, -tilt, st.state === 'built', face) +
+        `<rect class="khHit" x="${slot.x - KH.gap / 2}" y="${slot.base - row}" width="${KH.gap}" height="${row}"/></g>`);
+    }
+    return `<svg class="khSvg${fx.mode ? ` kh-${fx.mode}` : ''}" viewBox="${KH_VIEW}" role="group" aria-label="${escapeHtml(L(`Kartenhaus im ${towerMonthName(info.month)}`, `House of Cards in ${towerMonthName(info.month)}`))}">` +
+      `<defs><pattern id="khBack" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">` +
+      `<rect class="khBackBase" width="6" height="6"/><rect class="khBackLine" width="1.2" height="6"/></pattern></defs>` +
+      `<line class="khGround" x1="-168" x2="168" y1="0.5" y2="0.5"/>` + parts.join('') + '</svg>';
+  }
+  /** The default floor of the detail: the next one, or the top once crowned. */
+  function towerDefaultSelection(info) {
+    return info.crowned ? APEX : Math.min(info.unlocked || 1, info.stages.length);
+  }
+  function towerDaysLeftText(today) {
+    const [y, m, d] = String(today || '').split('-').map(Number);
+    if (!y || !m || !d) return '';
+    const left = new Date(Date.UTC(y, m, 0)).getUTCDate() - d;
+    if (left <= 0) return L('heute letzter Tag', 'last day today');
+    return left === 1 ? L('noch 1 Tag', '1 day left') : L(`noch ${left} Tage`, `${left} days left`);
+  }
+  /** The detail under the house: who plays, what the floor asks, and the way in. */
+  function towerDetailHtml(info, stage) {
+    const max = info.stages.length;
+    if (stage === APEX) {
+      if (!info.crowned) {
+        return `<div class="khDHead"><b class="khDTitle">${escapeHtml(L('Spitze', 'Top'))}</b></div>` +
+          `<p class="khDNote">${escapeHtml(L(`Hol dir auf allen ${max} Etagen mindestens einen Stern - dann krönt die Pik Dame dein Kartenhaus (+${XP_RULES.towerCrown} EP).`,
+            `Earn at least one star on all ${max} floors - then the Queen of Spades crowns your House of Cards (+${XP_RULES.towerCrown} XP).`))}</p>`;
+      }
+      // Still stars to collect: the highest floor that misses some.
+      const missing = [...info.stages].reverse().find((s) => (Number(info.best[s.stage]) || 0) < 3);
+      const gap = missing ? 3 - (Number(info.best[missing.stage]) || 0) : 0;
+      const more = !missing ? L(`Alle ${max * 3} Sterne - mehr geht nicht.`, `All ${max * 3} stars - it does not get better.`)
+        : gap === 1 ? L(`Auf Etage ${missing.stage} fehlt noch 1 Stern.`, `Floor ${missing.stage} still misses 1 star.`)
+          : L(`Auf Etage ${missing.stage} fehlen noch ${gap} Sterne.`, `Floor ${missing.stage} still misses ${gap} stars.`);
+      return `<div class="khDHead"><b class="khDTitle">${escapeHtml(L('Gekrönt!', 'Crowned!'))}</b></div>` +
+        `<p class="khDNote">${escapeHtml(L(`Alle ${max} Etagen im ${towerMonthName(info.month)} geschafft. ${more}`,
+          `All ${max} floors cleared in ${towerMonthName(info.month)}. ${more}`))}</p>` +
+        (missing
+          ? `<button type="button" class="btn-primary khPlay" data-play="${missing.stage}"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>` +
+            `<span>${escapeHtml(L(`Etage ${missing.stage} nochmal`, `Floor ${missing.stage} again`))}</span></button>`
+          : '');
+    }
+    const s = info.stages.find((x) => x.stage === stage);
+    if (!s) return '';
+    const st = towerFloorState(info, stage);
+    const metas = s.bots.map((b) => BOT_DIFF[b] || BOT_DIFF.zen);
+    const tag = st.state === 'built'
+      ? `<span class="khDStars" role="img" aria-label="${escapeHtml(L(`${st.stars} von 3 Sternen`, `${st.stars} of 3 stars`))}">${towerStarsHtml(st.stars)}</span>`
+      : st.state === 'next'
+        ? `<span class="khDTag next">${escapeHtml(L('als Nächstes', 'up next'))}</span>`
+        : `<span class="khDTag"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg><span>${escapeHtml(L('gesperrt', 'locked'))}</span></span>`;
+    const bots = L(`${metas.length} Bots: ${metas.map((m) => m.short()).join(', ')}`, `${metas.length} bots: ${metas.map((m) => m.short()).join(', ')}`) +
+      (s.handicap ? L(` · ${s.handicap} Punkte Vorgabe`, ` · ${s.handicap}-point head start`) : '');
+    const mods = (s.mods || []).map((m) => `<span class="khMod">${escapeHtml(TOWER_MODS[m] ? TOWER_MODS[m]() : m)}</span>`).join('');
+    const note = st.state === 'locked'
+      ? L(`Schaff erst Etage ${Math.min(info.unlocked || 1, max)}.`, `Clear floor ${Math.min(info.unlocked || 1, max)} first.`)
+      : st.state === 'next' ? L('Ein Stern: mehr Punkte als jeder Bot samt Vorgabe.', 'One star: more points than every bot plus its head start.')
+        : st.stars < 3 ? L(`Bestwert ${st.stars} von 3 - ein neuer Versuch spielt dasselbe Blatt.`, `Best ${st.stars} of 3 - a new try plays the same deal.`)
+          : L('Alle drei Sterne.', 'All three stars.');
+    const play = st.state === 'locked' ? ''
+      : `<button type="button" class="${st.state === 'next' ? 'btn-primary' : 'btn-secondary'} khPlay" data-play="${stage}"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>` +
+        `<span>${escapeHtml(st.state === 'next' ? L(`Etage ${stage} spielen`, `Play floor ${stage}`) : L(`Etage ${stage} nochmal`, `Floor ${stage} again`))}</span></button>`;
+    return `<div class="khDHead"><b class="khDTitle">${escapeHtml(L(`Etage ${stage}`, `Floor ${stage}`))}</b>${tag}</div>` +
+      `<p class="khDBots">${escapeHtml(bots)}</p>` +
+      (mods ? `<p class="khDMods" aria-label="${escapeHtml(L(`Erschwernis: ${towerModsText(s.mods)}`, `Handicap: ${towerModsText(s.mods)}`))}">${mods}</p>` : '') +
+      `<p class="khDNote">${escapeHtml(note)}</p>` + play;
+  }
+  function towerArchiveHtml(archive) {
+    return archive.map((m) => {
+      const label = L(`${towerMonthName(m.month, true)}: ${m.cleared} von 20 Etagen, ${m.stars} von 60 Sternen${m.crowned ? ', gekrönt' : ''}`,
+        `${towerMonthName(m.month, true)}: ${m.cleared} of 20 floors, ${m.stars} of 60 stars${m.crowned ? ', crowned' : ''}`);
+      return `<li class="khArchRow${m.crowned ? ' crowned' : ''}" aria-label="${escapeHtml(label)}">` +
+        `<span class="khArchMonth">${escapeHtml(towerMonthName(m.month, true))}</span>` +
+        `<span class="khArchFloors">${escapeHtml(L(`${m.cleared}/20 Etagen`, `${m.cleared}/20 floors`))}</span>` +
+        `<span class="khArchStars">${m.stars}/60<svg class="icon" aria-hidden="true"><use href="#i-star"/></svg></span>` +
+        (m.crowned ? `<span class="khArchCrown"><svg class="icon" aria-hidden="true"><use href="#i-crown"/></svg><span>${escapeHtml(L('gekrönt', 'crowned'))}</span></span>` : '') +
+        '</li>';
+    }).join('');
+  }
+  function towerMotionOk() {
+    try { return !window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
+  }
+  function towerStored(key) {
+    try { const v = JSON.parse(storageGet(key) || 'null'); return v && typeof v === 'object' ? v : null; } catch (e) { return null; }
+  }
+  function towerMarkSeen(info) {
+    storageSet(TOWER_SEEN_KEY, JSON.stringify({ name: myName || '', month: info.month, best: info.best || {}, crowned: !!info.crowned }));
+  }
+  /** What changed since this device last showed the house: new floors land,
+   *  new stars pop, a lost try wobbles, a fresh crown lands on top. */
+  function towerEffects(info, seen) {
+    const fx = { land: [], pop: {}, wobble: 0, crown: false };
+    const name = myName || '';
+    const before = seen && seen.name === name && seen.month === info.month ? seen.best || {} : seen && seen.name === name ? null : {};
+    if (before) {
+      for (const s of info.stages) {
+        const now = Math.min(3, Number(info.best[s.stage]) || 0);
+        const was = Math.min(3, Number(before[s.stage]) || 0);
+        if (now >= 1 && was < 1) fx.land.push(s.stage);
+        else if (now > was) fx.pop[s.stage] = was;
+      }
+      fx.crown = !!info.crowned && !(seen && seen.name === name && seen.month === info.month && seen.crowned);
+    }
+    const last = towerStored(TOWER_LAST_KEY);
+    storageRemove(TOWER_LAST_KEY);
+    if (last && last.name === name && last.month === info.month && !last.stars && !(Number(info.best[last.stage]) >= 1)) fx.wobble = last.stage;
+    fx.crownDelay = fx.land.length ? fx.land.length * (fx.land.length > 4 ? 0.07 : 0.14) + 0.55 : 0.3;
+    return fx;
+  }
+  function renderTowerDetail(info) {
+    el('towerDetail').innerHTML = info ? towerDetailHtml(info, towerSelected || towerDefaultSelection(info)) : '';
   }
   function renderTower() {
     const info = towerFresh();
-    const size = info ? info.stages.length : 0;
-    el('towerSummary').textContent = info
-      ? L(`${info.stars}/${size * 3} Sterne · ${info.cleared} von ${size} Stufen geschafft`, `${info.stars}/${size * 3} stars · ${info.cleared} of ${size} stages cleared`)
-      : L('Lädt …', 'Loading …');
-    // The top of the tower first: you climb it.
-    el('towerList').innerHTML = info ? [...info.stages].reverse().map((s) => towerRowHtml(s, info)).join('') : '';
+    const max = info ? info.stages.length * 3 : 0;
+    el('towerMonth').textContent = info ? towerMonthName(info.month, true) : '';
+    const days = info ? towerDaysLeftText(info.today) : '';
+    el('towerSummary').innerHTML = info
+      ? `<b>${info.stars} / ${max}</b> ${escapeHtml(L('Sterne diesen Monat', 'stars this month'))}${days ? ` · ${escapeHtml(days)}` : ''}`
+      : escapeHtml(L('Lädt …', 'Loading …'));
     el('towerRules').textContent = info
-      ? L(`Ein Stern: mehr Punkte als jeder Bot samt Vorgabe. Zwei: mindestens ${info.clearMargin} Punkte vorn. Drei: dazu selbst ausmachen. Jede Stufe ist eine Runde mit immer demselben Blatt; ab einem Stern ist die nächste frei. Versuche unbegrenzt, der beste zählt. Der erste Stern jeder Stufe bringt einmal ${XP_RULES.towerFirstStar} EP.`,
-        `One star: more points than every bot plus its head start. Two: at least ${info.clearMargin} points ahead. Three: and go out yourself. Each stage is one round with the same deal every time; one star unlocks the next. Unlimited tries, the best counts. The first star of each stage pays ${XP_RULES.towerFirstStar} XP once.`)
+      ? L(`Jeden Monat neue Blätter gegen dieselben Bots: ${info.stages.length} Etagen, jede eine Runde. Ein Stern: mehr Punkte als jeder Bot samt Vorgabe. Zwei: mindestens ${info.clearMargin} Punkte vorn. Drei: dazu selbst ausmachen. Ein Stern macht die nächste Etage frei; Versuche unbegrenzt, der beste zählt. Ab Etage 11 spielt eine Erschwernis gegen dich: die Pik Dame auf der Hand (ausgelegt +100, auf der Hand -100), keine Ablage (nur vom Stapel ziehen) oder Sterne nur, wenn du selbst ausmachst. Der erste Stern jeder Etage bringt pro Monat einmal ${XP_RULES.towerFirstStar} EP; alle ${info.stages.length} Etagen krönen dein Kartenhaus (+${XP_RULES.towerCrown} EP).`,
+        `New deals every month against the same bots: ${info.stages.length} floors, one round each. One star: more points than every bot plus its head start. Two: at least ${info.clearMargin} points ahead. Three: and go out yourself. One star unlocks the next floor; unlimited tries, the best counts. From floor 11 a handicap plays against you: the Queen of Spades in hand (+100 melded, -100 in hand), no discard pile (draw from the stock only) or stars only if you go out yourself. The first star of each floor pays ${XP_RULES.towerFirstStar} XP once a month; all ${info.stages.length} floors crown your House of Cards (+${XP_RULES.towerCrown} XP).`)
       : '';
-    if (info && towerScrollPending && !el('towerOverlay').classList.contains('hidden')) {
-      towerScrollPending = false;
-      const target = el('towerList').querySelector('.twStage.next') || el('towerList').querySelector('.twStage:not(.locked)');
-      if (target && target.scrollIntoView) target.scrollIntoView({ block: 'nearest' });
+    const archive = (info && info.archive) || [];
+    el('towerArchive').innerHTML = towerArchiveHtml(archive);
+    el('towerArchiveBox').classList.toggle('hidden', !archive.length);
+    const house = el('towerHouse');
+    if (!info) { house.innerHTML = ''; renderTowerDetail(null); return; }
+    const open = !el('towerOverlay').classList.contains('hidden');
+    const animate = open && towerAnimate && towerMotionOk();
+    if (open && towerAnimate && !animate) storageRemove(TOWER_LAST_KEY); // seen, without motion
+    if (open) towerAnimate = false;
+    // The same house again (a second reply, a re-render): keep the drawing, so a
+    // running animation is not cut off.
+    const sig = JSON.stringify([lang, info.month, info.best, info.crowned, info.unlocked, towerSelected]);
+    if (!animate && house.dataset.sig === sig && house.firstChild) {
+      if (open) towerMarkSeen(info);
+      renderTowerDetail(info);
+      return;
     }
+    house.dataset.sig = sig;
+    const token = ++towerFxToken;
+    const seen = animate ? towerStored(TOWER_SEEN_KEY) : null;
+    const name = myName || '';
+    if (animate && seen && seen.name === name && seen.month && seen.month !== info.month && Object.keys(seen.best || {}).length) {
+      // A new month: the last seen house collapses once, then the new one rises as a blueprint.
+      const old = { ...info, month: seen.month, best: seen.best, crowned: !!seen.crowned, unlocked: 0 };
+      house.innerHTML = towerHouseSvg(old, { mode: 'collapse' });
+      setTimeout(() => {
+        if (token !== towerFxToken) return;
+        house.innerHTML = towerHouseSvg(info, { mode: 'rebuild' });
+      }, 1150);
+    } else {
+      house.innerHTML = towerHouseSvg(info, animate ? towerEffects(info, seen) : {});
+    }
+    if (open) towerMarkSeen(info);
+    renderTowerDetail(info);
   }
   function openTowerSheet() {
     if (publicMode) return;
-    if (!towerFresh()) requestTower();
+    requestTower(); // fresh stars and the day count; the cached data draws meanwhile
     el('progressOverlay').classList.add('hidden');
     el('towerOverlay').classList.remove('hidden');
-    towerScrollPending = true;
+    towerSelected = 0;
+    towerAnimate = true;
     renderTower();
   }
   function startTowerStage(stage) {
     el('towerOverlay').classList.add('hidden');
     send({ type: 'startTower', stage, name: currentName(), accountToken: accountToken() || undefined });
   }
-  el('towerList').addEventListener('click', (ev) => {
-    const btn = ev.target.closest('.twStage');
-    if (!btn) return;
-    if (btn.classList.contains('locked')) {
-      const open = (towerFresh() || {}).unlocked || 1;
-      showToast(L(`Noch gesperrt - schaff erst Stufe ${open}.`, `Still locked - clear stage ${open} first.`));
-      return;
+  /** A tap or Enter on a floor shows its detail (it never starts it). */
+  function selectTowerFloor(stage) {
+    const info = towerFresh();
+    if (!info || !stage) return;
+    towerSelected = stage;
+    for (const g of el('towerHouse').querySelectorAll('[data-stage]')) {
+      const on = Number(g.dataset.stage) === stage;
+      g.classList.toggle('sel', on);
+      g.setAttribute('aria-pressed', String(on));
     }
-    const stage = Number(btn.dataset.stage);
+    const house = el('towerHouse');
+    house.dataset.sig = JSON.stringify([lang, info.month, info.best, info.crowned, info.unlocked, towerSelected]);
+    renderTowerDetail(info);
+  }
+  el('towerHouse').addEventListener('click', (ev) => {
+    const g = ev.target.closest && ev.target.closest('[data-stage]');
+    if (g) selectTowerFloor(Number(g.dataset.stage));
+  });
+  el('towerHouse').addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    const g = ev.target.closest && ev.target.closest('[data-stage]');
+    if (!g) return;
+    ev.preventDefault();
+    selectTowerFloor(Number(g.dataset.stage));
+  });
+  el('towerDetail').addEventListener('click', (ev) => {
+    const btn = ev.target.closest('[data-play]');
+    if (!btn) return;
+    const stage = Number(btn.dataset.play);
     guardOpenGame('tower', () => startTowerStage(stage));
   });
   el('towerCloseBtn').addEventListener('click', () => el('towerOverlay').classList.add('hidden'));
   el('towerOverlay').addEventListener('click', (ev) => {
     if (ev.target === el('towerOverlay')) el('towerOverlay').classList.add('hidden');
   });
-  /** Leaves a finished stage through a reload (the socket belongs to that table):
-   *  'open' shows the tower, a stage number starts that stage. */
+  /** Leaves a finished floor through a reload (the socket belongs to that table):
+   *  'open' shows the house, a floor number starts that floor. */
   function leaveTowerFor(next) {
     storageSet(AFTER_TOWER_KEY, String(next));
     if (sessionCode && storageGet('pikdame_last_session') === sessionCode) storageRemove('pikdame_last_session');
@@ -8341,7 +8622,7 @@
     if (Number.isInteger(stage) && stage > 0) guardOpenGame('tower', () => startTowerStage(stage));
     else openTowerSheet();
   }
-  /** The stage verdict on the result sheet: stars, the sum behind them, the way on. */
+  /** The floor verdict on the result sheet: stars, the sum behind them, the way on. */
   function renderTowerResult() {
     const body = el('resultBody');
     const old = body.querySelector('.towerResultBox');
@@ -8358,28 +8639,34 @@
       : r.margin < 0
         ? L(`${-r.margin} Punkte hinten`, `${-r.margin} points behind`)
         : L('Gleichstand reicht nicht', 'a tie is not enough');
-    const hint = [
-      L('Für einen Stern brauchst du mehr Punkte als jeder Bot samt Vorgabe.', 'For a star you need more points than every bot plus its head start.'),
-      L(`Für zwei Sterne: mindestens ${r.clearMargin} Punkte vorn.`, `For two stars: at least ${r.clearMargin} points ahead.`),
-      L('Für drei Sterne: zusätzlich selbst ausmachen.', 'For three stars: also go out yourself.'),
-      L('Alle drei Sterne - besser geht es nicht.', 'All three stars - it does not get better.'),
-    ][r.stars] || '';
+    const mustGoOut = (r.mods || []).includes('goOut');
+    const hint = mustGoOut && r.margin > 0 && !r.wentOut
+      ? L('Vorn, aber auf dieser Etage gibt es Sterne nur, wenn du selbst ausmachst.', 'Ahead, but on this floor stars need you to go out yourself.')
+      : [
+        L('Für einen Stern brauchst du mehr Punkte als jeder Bot samt Vorgabe.', 'For a star you need more points than every bot plus its head start.'),
+        L(`Für zwei Sterne: mindestens ${r.clearMargin} Punkte vorn.`, `For two stars: at least ${r.clearMargin} points ahead.`),
+        L('Für drei Sterne: zusätzlich selbst ausmachen.', 'For three stars: also go out yourself.'),
+        L('Alle drei Sterne - besser geht es nicht.', 'All three stars - it does not get better.'),
+      ][r.stars] || '';
     const pr = r.progress;
     const unlocked = pr ? pr.unlocked : (towerFresh() || {}).unlocked || r.stage;
     const best = pr && pr.best ? Number(pr.best[r.stage]) || 0 : r.stars;
     const bestLine = pr && pr.improved && r.stars
-      ? L('Neuer Bestwert für diese Stufe!', 'New best for this stage!')
+      ? L('Neuer Bestwert für diese Etage!', 'New best for this floor!')
       : best > r.stars ? L(`Dein Bestwert hier bleibt bei ${best} Sternen.`, `Your best here stays at ${best} stars.`) : '';
     box.innerHTML =
       `<div class="twResultStars" role="img" aria-label="${escapeHtml(L(`${r.stars} von 3 Sternen`, `${r.stars} of 3 stars`))}">${towerStarsHtml(r.stars)}</div>` +
       `<p class="twResultSum">${escapeHtml(L(`Du ${r.myScore} · ${botLine}`, `You ${r.myScore} · ${botLine}`))} <b>${escapeHtml(verdict)}</b></p>` +
       (bestLine ? `<p class="twResultBest">${escapeHtml(bestLine)}</p>` : '') +
-      (r.xp ? `<p class="twResultXp">${escapeHtml(L(`+${r.xp} EP · erster Stern`, `+${r.xp} XP · first star`))}</p>` : '') +
+      (pr && pr.crownedNow ? `<p class="twResultBest">${escapeHtml(L('Alle 20 Etagen - dein Kartenhaus ist gekrönt!', 'All 20 floors - your House of Cards is crowned!'))}</p>` : '') +
+      (r.xp ? `<p class="twResultXp">${escapeHtml(pr && pr.crownedNow
+        ? L(`+${r.xp} EP · erster Stern und Krone`, `+${r.xp} XP · first star and crown`)
+        : L(`+${r.xp} EP · erster Stern`, `+${r.xp} XP · first star`))}</p>` : '') +
       `<p class="twResultHint">${escapeHtml(hint)}</p>` +
       `<div class="twResultActions">` +
       `<button type="button" class="btn-secondary twRetry"><svg class="icon" aria-hidden="true"><use href="#i-undo"/></svg><span>${escapeHtml(L('Nochmal', 'Try again'))}</span></button>` +
       (r.stage < unlocked
-        ? `<button type="button" class="btn-secondary twNext"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>${escapeHtml(L(`Stufe ${r.stage + 1}`, `Stage ${r.stage + 1}`))}</span></button>`
+        ? `<button type="button" class="btn-secondary twNext"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>${escapeHtml(L(`Etage ${r.stage + 1}`, `Floor ${r.stage + 1}`))}</span></button>`
         : '') +
       `</div>`;
     box.querySelector('.twRetry').addEventListener('click', () => leaveTowerFor(r.stage));
@@ -8911,7 +9198,7 @@
   function celebrateProgress(msg) {
     const completed = (msg.quests && msg.quests.completed) || [];
     for (const id of completed) {
-      showToast(`✅ ${L('Tagesaufgabe geschafft', 'Daily task done')}: ${questMeta(id).text}`);
+      showToast(`✅ ${L('Tagesziel erreicht', 'Daily goal reached')}: ${questMeta(id).text}`);
     }
     const st = msg.streak;
     if (st && (st.event === 'extended' || st.event === 'bridged') && st.streak >= 2) {
@@ -9188,6 +9475,7 @@
       ...Object.fromEntries([10, 30, 100].map((n) => [`puzzle_perfect_${n}`, cap(p.totalPerfectPuzzles, n)])),
       tower_3: cap(p.towerCleared, 3), tower_6: cap(p.towerCleared, 6), tower_10: cap(p.towerCleared, 10),
       tower_stars_30: cap(p.towerStars, 30),
+      ...Object.fromEntries([1, 3, 12].map((n) => [`tower_crowned_${n}`, cap(p.towerCrownedMonths, n)])),
       red_lantern: cap(p.lastPlaceStreak, 3),
       stammtisch_10: cap(p.totalStammtischGames, 10),
     };

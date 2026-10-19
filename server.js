@@ -1318,6 +1318,7 @@ const registry = new SessionRegistry((session) => {
     challengeDate: session.challengeDate || undefined,
     tutorialMode: !!session.tutorialMode,
     towerStage: Number.isInteger(session.towerStage) ? session.towerStage : undefined,
+    towerMonth: typeof session.towerMonth === 'string' ? session.towerMonth : undefined,
     // Abbruch eines Solo-Spiels: Der Rueckruf kennt hier den Code, den der
     // Aufrufer beim Erzeugen noch nicht hatte.
     onAbandon: typeof session.onAbandon === 'function'
@@ -1334,7 +1335,7 @@ const registry = new SessionRegistry((session) => {
     // Only the moment id: the client holds the bilingual lines (BotQuips.js).
     onBotQuip: (botId, moment) => broadcastToSession(session, { type: 'quip', playerId: botId, moment }),
     onGameOver: (results, gameRecord) => {
-      // Bot tower: one round scored in stars (the first one pays XP) - no match stats or history.
+      // Kartenhaus: one round scored in stars (the first one pays XP) - no match stats or history.
       if (gameRecord.towerStage) {
         recordTowerStage(gameRecord, sendTo);
         return;
@@ -1588,7 +1589,7 @@ restoreSessionsSnapshot();
 // not given up; their players may start again.
 try { challengeStore.markLostAttempts(new Set(registry.sessions.keys())); } catch (err) { logCrash('challenge-lost', err); }
 
-/** Bot tower: grades the stage round, keeps the best stars, pays a stage's first
+/** Kartenhaus: grades the floor round, keeps the best stars of its month, pays a floor's first
  *  star (profile; account and season too, without booking a game), awards badges. */
 function recordTowerStage(gameRecord, sendTo) {
   const human = (gameRecord.players || []).find((p) => !p.isBot);
@@ -1599,7 +1600,7 @@ function recordTowerStage(gameRecord, sendTo) {
   let xp = 0;
   if (!PUBLIC_MODE) {
     try {
-      progress = playerStore.recordTowerResult(human.name, outcome.stage, outcome.stars);
+      progress = playerStore.recordTowerResult(human.name, outcome.month, outcome.stage, outcome.stars);
       xp = progress.xp;
       badges = playerStore.awardBadges(human.name, familyBadges(playerStore.getPlayerByName(human.name) || {}));
     } catch (err) {
@@ -1612,7 +1613,7 @@ function recordTowerStage(gameRecord, sendTo) {
   bookAccountXp(human.name, xp, { seated: true }, (prog) => sendTo(human.id, { type: 'accountProgress', progress: prog }));
 }
 
-/** XP earned outside a match (daily puzzle, bot tower): the verified account behind
+/** XP earned outside a match (daily puzzle, Kartenhaus): the verified account behind
  *  `name` books it as lifetime and season XP, no game. A pre-table message needs its
  *  owner's login token (a seat was checked at join). Guests keep the profile XP. Never throws. */
 async function bookAccountXp(name, xp, { seated = false, accountToken = null } = {}, onBooked = null) {
@@ -2035,23 +2036,30 @@ wss.on('connection', (ws, req) => {
       return;
     }
     if (msg.type === 'getTower') {
-      // Bot tower: the stages and this name's best stars (pre-session, like the puzzle).
+      // Kartenhaus: this month's floors, this name's best stars, earlier months read-only (pre-session, like the puzzle).
       const name = sanitizeName(msg.name);
-      const best = !PUBLIC_MODE && name ? playerStore.towerBest(name) : {};
-      ws.send(JSON.stringify({ type: 'towerInfo', stages: BotTower.publicStages(), clearMargin: BotTower.CLEAR_MARGIN, best, ...BotTower.summarize(best) }));
+      const today = gameDay();
+      const month = BotTower.monthOf(today);
+      const best = !PUBLIC_MODE && name ? playerStore.towerBest(name, month) : {};
+      const months = !PUBLIC_MODE && name ? playerStore.towerMonths(name) : [];
+      ws.send(JSON.stringify({
+        type: 'towerInfo', month, today, stages: BotTower.publicStages(), clearMargin: BotTower.CLEAR_MARGIN, best, ...BotTower.summarize(best),
+        totalStars: months.reduce((n, m) => n + m.stars, 0), archive: months.filter((m) => m.month !== month),
+      }));
       return;
     }
     if (msg.type === 'startTower') {
-      // Bot tower stage: a fixed deal against fixed bots, one round, solo like the challenge.
-      if (PUBLIC_MODE) return sendError(ws, 'Der Bot-Turm braucht gespeicherte Profile - auf diesem Server ist er aus.');
-      const cfg = BotTower.stageConfig(msg.stage);
-      if (!cfg) return sendError(ws, 'Diese Turmstufe gibt es nicht.');
+      // A floor of this month's Kartenhaus (the server picks the month): its deal and bots, one round, solo like the challenge.
+      if (PUBLIC_MODE) return sendError(ws, 'Das Kartenhaus braucht gespeicherte Profile - auf diesem Server ist es aus.');
+      const month = BotTower.monthOf(gameDay());
+      const cfg = BotTower.stageConfig(msg.stage, month);
+      if (!cfg) return sendError(ws, 'Diese Etage gibt es nicht.');
       const name = sanitizeName(msg.name);
-      if (!name) return sendError(ws, 'Für den Bot-Turm brauchst du einen Namen - dort werden deine Sterne gespeichert.');
-      if (cfg.stage > BotTower.unlockedStage(playerStore.towerBest(name))) {
-        return sendError(ws, 'Diese Turmstufe ist noch gesperrt - hol dir erst einen Stern auf der Stufe davor.');
+      if (!name) return sendError(ws, 'Für das Kartenhaus brauchst du einen Namen - dort werden deine Sterne gespeichert.');
+      if (cfg.stage > BotTower.unlockedStage(playerStore.towerBest(name, month))) {
+        return sendError(ws, 'Diese Etage ist noch gesperrt - hol dir erst einen Stern auf der Etage darunter.');
       }
-      const created = registry.create({ deckSeed: cfg.seed, towerStage: cfg.stage, onAbandon: (code) => registry.delete(code) });
+      const created = registry.create({ deckSeed: cfg.seed, towerStage: cfg.stage, towerMonth: month, onAbandon: (code) => registry.delete(code) });
       if (created.error) return sendError(ws, created.error);
       const ok = await joinSession(created.session, msg);
       if (!ok) { registry.delete(created.session.code); return; }
@@ -2403,8 +2411,8 @@ wss.on('connection', (ws, req) => {
         // The daily challenge is one attempt per day: no rematch, the client
         // offers none, and a hand-crafted message gets a plain error.
         if (game.challengeDate) { sendError(ws, 'In der Tages-Challenge gibt es nur einen Versuch pro Tag.'); break; }
-        // A new try of a tower stage is a fresh session (startTower), with the same deal.
-        if (game.towerStage) { sendError(ws, 'Eine Turmstufe startest du über den Bot-Turm neu.'); break; }
+        // A new try of a Kartenhaus floor is a fresh session (startTower), with the same deal.
+        if (game.towerStage) { sendError(ws, 'Eine Etage startest du über das Kartenhaus neu.'); break; }
         game.prepareRematch();
         break;
       }

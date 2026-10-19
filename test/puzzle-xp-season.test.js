@@ -1,4 +1,4 @@
-/** Daily puzzle XP for the account and its season (like the bot tower's first
+/** Daily puzzle XP for the account and its season (like the Kartenhaus floor's first
  *  star): the signed-in owner's first solve of the day books lifetime and season
  *  XP without a game; a guest keeps the profile XP, archive days pay nothing and
  *  a second solve books nothing twice. Real server, temp data dir. */

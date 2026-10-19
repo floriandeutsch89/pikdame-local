@@ -164,7 +164,7 @@ test('game over without a strip: spectator, bot tower, round end; no account = n
   const tower = await atGameOver(gameOverState('p1', { towerStage: 6 }));
   t.after(() => tower.window.close());
   assert.ok(tower.doc.getElementById('resultMe').classList.contains('hidden'), 'the tower verdict carries the result');
-  assert.equal(text(tower.doc.querySelector('#resultBody .resultWinnerGame')), 'Du schaffst die Stufe!');
+  assert.equal(text(tower.doc.querySelector('#resultBody .resultWinnerGame')), 'Du schaffst die Etage!');
 
   const pub = await atGameOver(gameOverState('b1'), { progress: false });
   t.after(() => pub.window.close());
