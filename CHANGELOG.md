@@ -3,6 +3,17 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.89.0] - 2026-10-19
+
+### Added
+- 13 neue Reaktionen am Tisch: 🃏 😅 🤞 👀 🙄 😬 🙃 🤝 😇 ☕ 🐢 🍻 ❤️ – freigeschaltet zwischen Stufe 20 und 40.
+
+### Changed
+- Die Reaktionsleiste zeigt zuerst deine meistgenutzten Reaktionen (gezählt auf diesem Gerät), der Rest liegt hinter einem Pfeil – sortiert wie auf der iPhone-Tastatur: Smileys, Natur, Essen, Aktivitäten, Objekte, Symbole. Ob die Leiste auf- oder zugeklappt ist, merkt sich das Gerät.
+
+### Fixed
+- Reaktionen und die Reaktionsleiste liegen immer vor den Bot-Sprüchen.
+
 ## [2.88.1] - 2026-10-19
 
 ### Changed

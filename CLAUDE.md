@@ -164,6 +164,8 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
    Ablauf Schritt für Schritt: Skill `steward`; Browser-Check, Layout-Audit
    und PR-Screenshots: Skill `ui-shots` (eigener Temp-Datenordner);
    Design-Review nach unseren Regeln: Skill `ui-review`.
+   **Sub-Agenten:** Konzept, Design-Review und Auftrags-Prompt auf maximalem
+   Aufwand; die Umsetzung eines fertigen Auftrags auf mittlerem (Kosten).
 2. **Changelog-Fragment, wenn sich das Spiel ändert** (`public/`, `server.js`,
    `game/`, `models/`, `docker/`, Abhängigkeiten im Image): neue Datei
    `changes/<thema>.md`, Format in `changes/README.md`. Version und

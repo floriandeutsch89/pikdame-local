@@ -1900,17 +1900,18 @@ body.raidActive #toastContainer { margin-top: 132px; }
 /* --- Paket C: Emotes & Statistik ---------------------------------------- */
 
 .emoteBar {
-  position: absolute;
+  position: fixed;
   top: calc(52px + var(--safe-top));
   right: 10px;
-  /* 15 reactions in two rows (8 + 7) - one row no longer fits a phone. */
-  display: flex; flex-wrap: wrap; gap: 4px; justify-content: center;
-  max-width: calc(8 * 44px + 7 * 4px + 16px);
+  /* First row: eight 38px reactions + the 44px toggle (client.js fits fewer on
+     narrow screens); the rest wraps below when unfolded. */
+  display: flex; flex-wrap: wrap; gap: 2px; justify-content: center;
+  max-width: calc(8 * 40px + 44px + 10px);
   background: var(--glass-strong);
   border: 1px solid var(--glass-border);
   backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
   border-radius: var(--r-pill);
-  padding: 6px 8px;
+  padding: 6px 4px;
   z-index: var(--z-emote-bar);
   box-shadow: var(--shadow-2);
 }
@@ -1921,6 +1922,24 @@ body.raidActive #toastContainer { margin-top: 132px; }
   border-radius: 10px;
 }
 .emoteChoice:active { transform: scale(1.25); }
+/* Picker: most used first, the rest behind the chevron (client.js arrangeEmoteBar). */
+.emoteBar:not(.emoteExpanded) .emoteRest,
+.resultEmoteBar:not(.emoteExpanded) .emoteRest { display: none; }
+.emoteBar.emoteExpanded {
+  max-height: calc(100dvh - 64px - var(--safe-top));
+  overflow-y: auto;
+  border-radius: var(--r-lg);
+}
+.emoteSep { width: 1px; align-self: stretch; margin: 8px 2px; background: var(--glass-border); }
+.emoteMoreBtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: var(--tap-min); min-height: var(--tap-min);
+  background: transparent; color: var(--text-muted);
+  border-radius: 10px;
+}
+.emoteMoreBtn .icon { transition: transform 0.2s var(--ease); }
+.emoteExpanded .emoteMoreBtn .icon { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .emoteMoreBtn .icon { transition: none; } }
 
 @keyframes emoteRise {
   0% { transform: translateY(0) scale(0.6); opacity: 0; }
@@ -5031,6 +5050,7 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
    cards. Only from 1100px up - tablets and phones keep their layouts. */
 @media (min-width: 1100px) {
   .screen { max-width: min(1400px, 100%); }
+  .emoteBar { right: calc(100vw - min(1400px, 100vw) + 10px); } /* table edge, not window edge */
   #table {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
