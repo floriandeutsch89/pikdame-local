@@ -181,6 +181,7 @@
      could sit at 17px, 15.3px, 13.6px and 12.24px because every context
      re-declared its own font-size - that is exactly how the "Pik Dame
      abwerfen?" row ended up mismatched. Pick a step, never a raw rem. */
+  --fs-display: 1.75rem; /* big score numbers (round / game result) */
   --fs-title: 1.35rem;   /* overlay headings */
   --fs-lead: 1.05rem;    /* prominent single lines */
   --fs-body: 0.95rem;    /* default copy + control labels */
@@ -1443,7 +1444,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .resultWinnerScore {
   margin-top: 4px;
   font-family: var(--font-display);
-  font-size: 1.7rem; font-weight: 700; letter-spacing: -0.02em;
+  font-size: var(--fs-display); font-weight: 700; letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   color: var(--paper-success);
 }
@@ -1460,7 +1461,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .resultWinnerGame { padding-top: 12px; }
 .resultWinnerCrown { width: 34px; height: 34px; margin-bottom: 2px; }
 .resultWinnerCrown .jokerMark { width: 100%; height: 100%; fill: var(--gold); }
-.resultWinnerGame .resultWinnerScore { font-size: 2rem; }
+.resultWinnerGame .resultWinnerScore { font-size: var(--fs-display); }
 
 /* Pokal statt Krone für den PARTIE-Gewinn (Feature-Wunsch, Vorbild
    Codenames): eigenes Symbol, eigene - etwas grössere und ausgelasseneres -
@@ -1522,6 +1523,28 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   border-radius: 3px;
 }
 .resultRow.isMe .resultName { font-weight: 800; }
+/* Same marking in every list: leaderboard, ladder, standings, challenge and
+   round tables. The round winner is NOT a row colour (.winChip). */
+.boardRow.isMe, .ladderRow.isMe, .histStandings li.me {
+  box-shadow: inset 3px 0 0 var(--paper-accent);
+  border-radius: 3px; font-weight: 800;
+}
+.histStandings li.me { padding-left: 10px; }
+.statsTable tr.isMe td { font-weight: 800; }
+.statsTable tr.isMe td:first-child { box-shadow: inset 3px 0 0 var(--paper-accent); padding-left: 10px; }
+.statsTable td.nameCell { text-align: left; white-space: normal; }
+.challengeTable td:first-child { width: 2.4em; }
+.winChip {
+  display: inline-flex; align-items: center; gap: 3px; vertical-align: 1px;
+  margin-right: 3px; padding: 0 6px; border-radius: var(--r-pill);
+  border: 1px solid var(--paper-success); color: var(--paper-success);
+  font-size: var(--fs-micro); font-weight: 700;
+}
+.winChip .icon { width: 1em; height: 1em; stroke-width: 2.6; }
+.gameTotalsBox .btn-secondary .jokerMark { display: inline-block; width: 1.15em; height: 1.15em; fill: currentColor; vertical-align: -0.2em; }
+.statsTable th .statMark { vertical-align: -1px; }
+.pgNext li, .levelUpRewards li { display: flex; align-items: center; gap: 6px; }
+.challengeHistDay .icon { width: 1.05em; height: 1.05em; vertical-align: -0.15em; }
 .resultDelta {
   font-family: var(--font-display);
   font-size: var(--fs-lead); font-weight: 700;
@@ -1642,7 +1665,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .handAusNote {
   background: var(--accent-soft); color: var(--card-ink);
   border-radius: var(--r-sm); padding: 11px 13px;
-  font-size: 0.85rem; font-weight: 500; margin: 0 0 12px;
+  font-size: var(--fs-label); font-weight: 500; margin: 0 0 12px;
 }
 .statsTable { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: var(--fs-label); }
 .statsTable th, .statsTable td {
@@ -1931,10 +1954,12 @@ body.raidActive #toastContainer { margin-top: 132px; }
 .scoreChartSvg { width: 100%; height: auto; }
 .scoreChartSvg .gridLine { stroke: var(--glass-border); stroke-width: 1; }
 .scoreChartSvg .goalLine { stroke: rgba(0,0,0,0.5); stroke-width: 1; stroke-dasharray: 4 3; }
-.scoreChartSvg .axisLabel { fill: var(--text-muted); font-size: 8.5px; font-weight: 600; }
+/* Text in viewBox units: --k (set from the real width, JS) keeps it at
+   --fs-micro on screen however far the SVG scales down. */
+.scoreChartSvg .axisLabel { fill: var(--text-muted); font-size: calc(var(--fs-micro) * var(--k, 1.1)); font-weight: 600; }
 .scoreChartSvg .axisLabel.goal { fill: var(--card-ink); font-weight: 800; }
-.scoreChartSvg polyline.other { opacity: 0.55; }
-.scoreChartSvg .endLabel { fill: var(--text-muted); font-size: 9px; font-weight: 600; }
+
+.scoreChartSvg .endLabel { fill: var(--text-muted); font-size: calc(var(--fs-micro) * var(--k, 1.1)); font-weight: 600; }
 .scoreChartSvg .endLabel.mine { fill: var(--card-ink); font-weight: 800; }
 .scoreChartSvg .endValue { fill: var(--card-ink); font-weight: 800; font-variant-numeric: tabular-nums; }
 .scoreChartLegend {
@@ -2092,7 +2117,7 @@ body.raidActive #toastContainer { margin-top: 132px; }
 .histDetail { padding: 2px 4px 8px; }
 .histStandings { list-style: none; margin: 6px 0 0; padding: 0; font-size: var(--fs-label); }
 .histStandings li { display: flex; justify-content: space-between; padding: 3px 4px; border-bottom: 1px solid rgba(0,0,0,0.06); font-variant-numeric: tabular-nums; }
-.histStandings li.me { font-weight: 800; }
+
 .histStandings small { color: var(--text-muted); font-weight: 600; }
 
 /* --- Desktop & grosse Bildschirme (Chrome/Edge/Firefox auf PC/Mac/Chromebook) --- */
@@ -2713,7 +2738,6 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   border: 0; border-top: 1px solid rgba(0,0,0,0.07); background: transparent;
   font: inherit; font-size: var(--fs-label); color: var(--card-ink); text-align: left; cursor: pointer;
 }
-.boardRow.isMe { box-shadow: inset 3px 0 0 var(--paper-accent); border-radius: 3px; font-weight: 800; }
 .boardRow.isMe .boardNum { color: var(--card-ink); }
 .boardRank { font-weight: 800; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .boardName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
@@ -2736,13 +2760,13 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   100% { transform: scale(1); opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) { .badgeBox { animation: none; } }
-.badgeBox h3 { margin: 0 0 8px; font-size: 0.9rem; color: var(--paper-accent); }
+.badgeBox h3 { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; font-size: var(--fs-body); color: var(--paper-accent); }
 .badgeRow {
   display: flex; align-items: center; gap: 10px;
-  font-size: 0.8rem; line-height: 1.45;
+  font-size: var(--fs-label); line-height: 1.45;
   margin-bottom: 6px;
 }
-.badgeEmoji { font-size: 1.3rem; }
+.badgeEmoji { font-size: var(--fs-title); }
 .badgeDesc { color: var(--text-muted); }
 .badgeCell { font-size: 0.95rem; letter-spacing: 2px; }
 
@@ -3177,11 +3201,6 @@ input:disabled { opacity: 0.65; }
 .opponent.roundWinner {
   box-shadow: 0 0 0 2px #2ecc71, var(--shadow-1);
 }
-.statsTable tr.winnerRow td {
-  background: rgba(0, 120, 75, 0.08); /* fallback: iOS < 16.2 has no color-mix */
-  background: color-mix(in srgb, var(--paper-success) 8%, transparent);
-  font-weight: 700;
-}
 #resumeBtn { margin-top: 8px; }
 
 /* --- Score progress bars + round delta (v1.25.0) ------------------------------ */
@@ -3229,9 +3248,11 @@ input:disabled { opacity: 0.65; }
 
 .challengeHint { font-size: 0.7rem; opacity: 0.75; margin: 2px 0 0; }
 .challengeBoardBox { margin-top: 12px; }
-.challengeBoardBox h3 { margin: 0 0 4px; font-size: 0.92rem; }
-.challengeYour { font-size: 0.8rem; margin: 0 0 6px; font-weight: 600; }
-.challengeMagnet { margin: 6px 0 0; font-size: var(--fs-label); font-weight: 600; }
+.challengeBoardBox h3 { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; font-size: var(--fs-body); }
+.challengeYour { font-size: var(--fs-label); margin: 0 0 6px; font-weight: 600; }
+.challengeMagnet { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; font-size: var(--fs-label); font-weight: 600; }
+#challengeIntroOverlay #challengeMagnetLine { display: flex; align-items: center; gap: 6px; }
+#challengeIntroOverlay #challengeMagnetLine.hidden { display: none; }
 /* Intro: today's attempt is used - the sheet is the board, no start. */
 #challengeIntroOverlay .challengePlayedNote {
   margin: 6px 0 0; padding: 2px 0 2px 8px;
@@ -3260,7 +3281,7 @@ input:disabled { opacity: 0.65; }
 .menuChipsTwo .btn-secondary { flex-direction: row; gap: 8px; min-height: var(--tap-min); font-size: var(--fs-label); }
 .menuChipsTwo .btn-secondary .icon { width: 1.3em; height: 1.3em; }
 #challengeIntroOverlay .challengeLead { font-weight: 700; margin: 8px 0 2px; }
-#challengeIntroOverlay .challengeTop { font-size: 0.82rem; color: var(--text-muted); min-height: 1.2em; }
+#challengeIntroOverlay .challengeTop { font-size: var(--fs-label); color: var(--text-muted); min-height: 1.2em; }
 #challengeIntroOverlay .challengeTrendToggle {
   display: inline-flex; align-items: center; gap: 6px;
   min-height: var(--tap-min); margin: 2px 0; padding: 0 4px;
@@ -4072,7 +4093,7 @@ input:disabled { opacity: 0.65; }
 .achTile:not(.earned) .achEmoji { filter: grayscale(1); opacity: 0.45; }
 .achTile:not(.earned) .achName { color: var(--text-muted); }
 .achTile.earned { background: var(--accent-soft); }
-.achTile .achEmoji { font-size: 1.25rem; line-height: 1.1; }
+.achTile .achEmoji { font-size: var(--fs-title); line-height: 1.1; }
 .achTile .achName { font-size: var(--fs-hint); font-weight: 700; text-align: center; line-height: 1.15; hyphens: auto; overflow-wrap: anywhere; max-width: 100%; }
 .achTile .achSub { font-size: var(--fs-hint); color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .achTile[aria-expanded="true"] { box-shadow: inset 0 0 0 2px var(--paper-accent); }
@@ -4151,7 +4172,7 @@ input:disabled { opacity: 0.65; }
   padding: 5px 8px; border-radius: var(--r-sm);
   font-size: var(--fs-hint); font-variant-numeric: tabular-nums;
 }
-.ladderRow.isMe { background: var(--accent-soft); font-weight: 700; }
+
 /* Season finale: last season's place + the permanent season badges. */
 .ladderLast { margin: 8px 0 0; font-size: var(--fs-hint); color: var(--text-muted); }
 .seasonAwards { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
@@ -4163,7 +4184,7 @@ input:disabled { opacity: 0.65; }
 .achTile.achSeason { cursor: default; }
 
 /* --- Challenge: Rückblick auf vergangene Tage ------------------------------ */
-.challengeHistory { margin-top: 8px; font-size: 0.88em; opacity: 0.9; }
+.challengeHistory { margin-top: 8px; font-size: var(--fs-label); opacity: 0.9; }
 .challengeHistory summary { cursor: pointer; opacity: 0.85; padding: 3px 0; }
 .challengeHistDay {
   display: flex; justify-content: space-between; gap: 10px;
@@ -4517,9 +4538,9 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
 
 /* --- Wochenwertung im Challenge-Panel --------------------------------------- */
 .challengeWeekly { margin-top: 10px; }
-.challengeWeekly h4 { margin: 0 0 4px; font-size: 0.95em; }
-.challengeWeekly .weekRange { opacity: 0.6; font-weight: 400; font-size: 0.85em; }
-.weeklyHint { margin: 4px 0 0; font-size: 0.8em; opacity: 0.6; }
+.challengeWeekly h4 { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; font-size: var(--fs-body); }
+.challengeWeekly .weekRange { opacity: 0.6; font-weight: 400; font-size: var(--fs-hint); }
+.weeklyHint { margin: 4px 0 0; font-size: var(--fs-hint); opacity: 0.6; }
 
 /* --- Schlüsselmomente im Partie-Ergebnis ------------------------------------ */
 /* --- Key moments -----------------------------------------------------------

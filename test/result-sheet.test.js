@@ -135,7 +135,7 @@ test('game over sheet: ranking leads, home next to rematch, personal line, chart
 
   const ranks = [...doc.querySelectorAll('#resultBody .resultRank')].map((n) => n.textContent);
   assert.deepEqual(ranks, ['1.', '2.', '3.', '4.'], 'ranked by total');
-  assert.equal(doc.querySelector('#resultBody .resultTotalBig').textContent, '1045', 'total leads at game over');
+  assert.equal(doc.querySelector('#resultBody .resultTotalBig').textContent, '1.045', 'total leads at game over');
   assert.equal(doc.querySelectorAll('#resultBody details.resultBreakdown').length, 0, 'no last-round breakdown at game over');
   assert.equal(doc.querySelectorAll('#resultBody .barGoal').length, 0, 'no 1000 tick at game over');
   // Leader Klaus: 1045 now, 775 before the round; the scale is 1045, not 1000.
@@ -262,7 +262,7 @@ test('"Meine Partien": summary, place badge, opponents with bot level, tap opens
     finalTotals: { p1: 880, b1: 1045 }, winnerId: 'b1', roundTotals: [{ p1: 300, b1: 200 }, { p1: 880, b1: 1045 }],
   }] }) });
   const box = doc.getElementById('historyContent');
-  assert.match(box.querySelector('.histSummary').textContent, /1Partien0Siege880Ø Punkte/);
+  assert.match(box.querySelector('.histSummary').textContent, /1Partie0Siege880Ø Punkte/);
   assert.equal(box.querySelector('.histPlace').textContent, '2.');
   assert.equal(box.querySelector('.histOpp').textContent, 'gegen Klaus (Zen)');
   assert.match(box.querySelector('.histMeta').textContent, /42 min/);
