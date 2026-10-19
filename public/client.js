@@ -299,6 +299,7 @@
     try { renderYearSlide(); } catch (e) { /* dito */ }
     try { renderProgressSheet(); } catch (e) { /* dito */ }
     try { renderTower(); } catch (e) { /* dito */ }
+    try { arrangeEmoteBar(el('emoteBar')); arrangeEmoteBar(el('resultEmoteBar')); } catch (e) { /* toggle label */ }
     try { renderAccountProgress(); } catch (e) { /* dito */ }
     // "Angemeldet als ..." steht dauerhaft in der Lobby - vom Vertragstest
     // unten gefunden, bevor es jemand melden konnte.
@@ -900,7 +901,7 @@
     const sample = bar.querySelector('button[data-emote]');
     if (!sample) return;
     const b = sample.cloneNode(false);
-    b.classList.add('greetEmote');
+    b.className = 'emoteChoice emoteSpecial greetEmote';
     b.dataset.emote = emoji;
     b.textContent = emoji;
     b.addEventListener('click', () => {
@@ -3771,6 +3772,7 @@
   el('resultEmoteToggle').addEventListener('click', () => {
     const bar = el('resultEmoteBar');
     const show = bar.classList.contains('hidden');
+    if (show) arrangeEmoteBar(bar);
     bar.classList.toggle('hidden', !show);
     el('resultEmoteToggle').setAttribute('aria-expanded', String(show));
     updateResultScrollEdges();
@@ -7698,7 +7700,9 @@
   }
 
   el('emoteBtn').addEventListener('click', () => {
-    el('emoteBar').classList.toggle('hidden');
+    const bar = el('emoteBar');
+    if (bar.classList.contains('hidden')) arrangeEmoteBar(bar);
+    bar.classList.toggle('hidden');
   });
   document.querySelectorAll('.emoteChoice').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -7708,6 +7712,7 @@
         return;
       }
       send({ type: 'emote', emoji: btn.dataset.emote });
+      countEmote(btn.dataset.emote);
       el('emoteBar').classList.add('hidden');
     });
   });
@@ -7727,6 +7732,105 @@
       if (locked) btn.dataset.lock = String(need);
       else delete btn.dataset.lock;
     });
+  }
+  // Picker order like the iPhone keyboard: the most used first (own taps, per
+  // device), the rest behind a toggle in keyboard sections. Mirrors
+  // KEYBOARD_ORDER/EMOTE_CATEGORIES in game/Emotes.js (contract test).
+  const EMOTE_KEYBOARD = [
+    ['smileys', ['😅', '😂', '🙃', '😇', '🤩', '🤔', '😬', '🙄', '😴', '🥳', '😎', '😱', '😤', '🙈', '🤞', '👍', '👏', '🤝', '🙏', '💪', '👀']],
+    ['nature', ['🐢', '🍀', '🔥']],
+    ['food', ['☕', '🍻']],
+    ['activity', ['🎉', '🃏', 'pikdame']],
+    ['objects', ['⏳']],
+    ['symbols', ['❤️']],
+  ];
+  const EMOTE_TOP = 8;
+  const EMOTE_COUNTS_KEY = 'pikdame_emote_counts';
+  const EMOTE_MORE_KEY = 'pikdame_emote_more';
+  // The static markup order (= EMOTE_IDS) is the default before any use.
+  const EMOTE_DEFAULT_ORDER = [...el('emoteBar').querySelectorAll('.emoteChoice[data-emote]')].map((b) => b.dataset.emote);
+  function emoteCounts() {
+    try {
+      const c = JSON.parse(storageGet(EMOTE_COUNTS_KEY) || '{}');
+      return c && typeof c === 'object' ? c : {};
+    } catch (e) {
+      return {};
+    }
+  }
+  function countEmote(id) {
+    if (!EMOTE_DEFAULT_ORDER.includes(id)) return;
+    const c = emoteCounts();
+    c[id] = (Number(c[id]) || 0) + 1;
+    storageSet(EMOTE_COUNTS_KEY, JSON.stringify(c));
+  }
+  /** Top row (most used, ties in default order; never a locked one) and the
+   *  rest as keyboard sections. */
+  function emoteLayout(ids, counts, isLocked, slots) {
+    const top = ids
+      .filter((id) => !isLocked(id))
+      .map((id, i) => [id, Number(counts[id]) || 0, i])
+      .sort((a, b) => b[1] - a[1] || a[2] - b[2])
+      .slice(0, slots)
+      .map((r) => r[0]);
+    const rest = EMOTE_KEYBOARD
+      .map(([cat, list]) => [cat, list.filter((id) => ids.includes(id) && !top.includes(id))])
+      .filter(([, list]) => list.length);
+    return { top, rest };
+  }
+  function setEmoteMore(bar, open) {
+    bar.classList.toggle('emoteExpanded', open);
+    const t = bar.querySelector('.emoteMoreBtn');
+    if (!t) return;
+    const label = open ? L('Weniger Reaktionen', 'Fewer reactions') : L('Mehr Reaktionen', 'More reactions');
+    t.setAttribute('aria-expanded', String(open));
+    t.setAttribute('aria-label', label);
+    t.title = label;
+  }
+  function arrangeEmoteBar(bar) {
+    if (!bar) return;
+    renderEmoteLocks();
+    const buttons = new Map([...bar.querySelectorAll('.emoteChoice[data-emote]:not(.emoteSpecial)')].map((b) => [b.dataset.emote, b]));
+    const specials = [...bar.querySelectorAll('.emoteSpecial')];
+    const ids = EMOTE_DEFAULT_ORDER.filter((id) => buttons.has(id));
+    // One row: 40px per reaction, 44px toggle, 10px padding + border (style.css .emoteBar).
+    const room = bar.id === 'emoteBar' ? Math.min(window.innerWidth - 12, 374) : (bar.parentElement.clientWidth || window.innerWidth);
+    const fit = Math.min(EMOTE_TOP, Math.floor((room - 54) / 40));
+    const { top, rest } = emoteLayout(ids, emoteCounts(), (id) => emoteUnlockLevel(id) > myLevel(), Math.max(4, fit - specials.length));
+    bar.querySelectorAll('.emoteSep').forEach((n) => n.remove());
+    let toggle = bar.querySelector('.emoteMoreBtn');
+    if (!toggle) {
+      toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'emoteMoreBtn';
+      toggle.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg>';
+      toggle.addEventListener('click', () => {
+        const open = !bar.classList.contains('emoteExpanded');
+        storageSet(EMOTE_MORE_KEY, open ? '1' : '0');
+        setEmoteMore(bar, open);
+        if (bar.id === 'resultEmoteBar') updateResultScrollEdges();
+      });
+    }
+    for (const id of top) {
+      const b = buttons.get(id);
+      b.classList.remove('emoteRest');
+      bar.appendChild(b);
+    }
+    specials.forEach((b) => bar.appendChild(b));
+    bar.appendChild(toggle);
+    rest.forEach(([, list], i) => {
+      if (i > 0) {
+        const sep = document.createElement('span');
+        sep.className = 'emoteSep emoteRest';
+        sep.setAttribute('aria-hidden', 'true');
+        bar.appendChild(sep);
+      }
+      for (const id of list) {
+        const b = buttons.get(id);
+        b.classList.add('emoteRest');
+        bar.appendChild(b);
+      }
+    });
+    setEmoteMore(bar, storageGet(EMOTE_MORE_KEY) === '1');
   }
   // Tapping anywhere else dismisses the emote bar - it is a transient picker,
   // not a mode. Capture phase so it also closes when the tap lands on a card
@@ -9458,7 +9562,10 @@
   }
   // Mirrors game/Emotes.js - the server is the authority, this only draws
   // the locks. Public servers keep no profiles, so nothing is locked there.
-  const EMOTE_UNLOCK = { '👏': 2, '🙈': 3, '🤔': 4, '🍀': 5, '😎': 6, '🔥': 8, '😴': 10, '🙏': 12, '🤩': 14, '🥳': 16, '💪': 18 };
+  const EMOTE_UNLOCK = {
+    '👏': 2, '🙈': 3, '🤔': 4, '🍀': 5, '😎': 6, '🔥': 8, '😴': 10, '🙏': 12, '🤩': 14, '🥳': 16, '💪': 18,
+    '🃏': 20, '😅': 21, '🤞': 22, '👀': 23, '🙄': 24, '😬': 26, '🙃': 28, '🤝': 30, '😇': 32, '☕': 34, '🐢': 36, '🍻': 38, '❤️': 40,
+  };
   // Mirrors game/Celebrations.js (contract test); the names live here.
   const CELEBRATIONS = [
     { id: 'standard', level: 1, de: 'Standard', en: 'Standard' },
@@ -9553,6 +9660,7 @@
       const sample = bar && bar.querySelector('button[data-emote]');
       if (bar && sample) {
         const b = sample.cloneNode(false);
+        b.className = 'emoteChoice emoteSpecial';
         b.dataset.emote = seasonalEmote;
         b.textContent = seasonalEmote;
         b.addEventListener('click', () => {
