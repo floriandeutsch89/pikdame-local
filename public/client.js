@@ -1661,6 +1661,7 @@
     if (msg.type === 'challengeBoard') {
       lastChallengeBoard = msg;
       renderChallengeBoard();
+      if (lastState && lastState.phase === 'gameOver' && !el('resultOverlay').classList.contains('hidden')) renderResultMe(true);
       return;
     }
     if (msg.type === 'towerInfo') {
@@ -1732,7 +1733,7 @@
     if (msg.type === 'progress') {
       // End of a match: experience, level and the daily quests that ticked.
       myProgress = { xp: msg.xp, level: msg.level };
-      lastGameProgress = { gainedXp: msg.gainedXp || 0, welcomeBack: !!msg.welcomeBack, record: msg.record || null };
+      lastGameProgress = { gainedXp: msg.gainedXp || 0, welcomeBack: !!msg.welcomeBack, record: msg.record || null, streak: msg.streak || null };
       if (msg.streak) myStreak = msg.streak;
       if (msg.quests) {
         dailyQuests = { date: msg.quests.date, ids: msg.quests.ids };
@@ -1747,6 +1748,11 @@
     if (msg.type === 'accountProgress') {
       accountProgress = msg.progress || null;
       renderAccountProgress();
+      // Sent right after a finished match: its season place joins the result strip.
+      if (lastGameProgress && accountProgress && lastState && lastState.phase === 'gameOver') {
+        lastGameProgress.seasonRank = accountProgress.rank || null;
+        if (!el('resultOverlay').classList.contains('hidden')) renderResultMe(true);
+      }
       return;
     }
     if (msg.type === 'emote') {
@@ -3287,6 +3293,7 @@
       }
     }
     const isGameOver = lastState.phase === 'gameOver';
+    el('resultOverlay').classList.toggle('isFinal', isGameOver); // desktop: two columns
     el('resultTitle').textContent = forfeited
       ? L('Spiel aufgegeben', 'Game forfeited')
       : isGameOver && lastState.towerStage ? L(`Bot-Turm · Stufe ${lastState.towerStage}`, `Bot tower · stage ${lastState.towerStage}`)
@@ -3511,28 +3518,22 @@
       // The match winner belongs at the TOP. It used to be a line of body text
       // below four score rows - the single most important sentence on the
       // screen, and you had to read past everything else to reach it.
+      const iWon = !!winner && winner.id === playerId;
+      // One line, no score: the total is in the list right below. The trophy
+      // (not the round's crown) marks the match; my own win gets the gold banner.
       const head = document.createElement('div');
-      head.className = 'resultWinner resultWinnerGame';
-      // Pokal statt Krone: die Krone markiert schon JEDEN Rundengewinn (siehe
-      // .resultWinner ohne "Game"-Zusatz weiter oben in dieser Funktion) -
-      // ohne eigenes Symbol für den PARTIE-Gewinn sahen beide Momente
-      // identisch aus.
+      head.className = 'resultWinner resultWinnerGame' + (iWon ? ' isMe' : '');
       head.innerHTML =
-        `<div class="resultWinnerCrown resultWinnerTrophy">${TROPHY_MARK_SVG}</div>` +
-        `<div class="resultWinnerName">${nameWithHeart(winner ? winner.name : '?')}${winner ? botMark(winner) : ''}</div>` +
-        `<div class="resultWinnerSub">${
+        `<span class="resultWinnerTrophy">${TROPHY_MARK_SVG}</span>` +
+        (iWon ? '' : `<span class="resultWinnerName">${nameWithHeart(winner ? winner.name : '?')}${winner ? botMark(winner) : ''}</span>`) +
+        `<span class="resultWinnerSub">${
           lastState.towerStage
-            ? winner && winner.id === playerId ? L('Du schaffst die Stufe', 'You clear the stage') : L('hält dich auf dieser Stufe', 'holds you on this stage')
-            : winner && winner.id === playerId
-              ? L('Du gewinnst die Partie', 'You win the match')
+            ? iWon ? L('Du schaffst die Stufe!', 'You clear the stage!') : L('hält dich auf dieser Stufe', 'holds you on this stage')
+            : iWon
+              ? L('Du gewinnst die Partie!', 'You win the match!')
               : L('gewinnt die Partie', 'wins the match')
-        }</div>` +
-        `<div class="resultWinnerScore"></div>`;
+        }</span>`;
       paneResult.insertBefore(head, paneResult.firstChild);
-      countUpScore(
-        head.querySelector('.resultWinnerScore'),
-        (lastState.totals && lastState.totals[winner ? winner.id : '']) || 0
-      );
       // Schlüsselmomente der Partie: 3 erzählte Zeilen statt nur Zahlen.
       const hl = isGameOver && lastState.gameOverInfo && lastState.gameOverInfo.highlights;
       if (hl && hl.length) {
@@ -3588,22 +3589,6 @@
           .join('');
         box.innerHTML = `<h4>${L('Schlüsselmomente', 'Key moments')}</h4><ul class="momentList">${rows}</ul>`;
         paneResult.appendChild(box);
-      }
-      // The trip from this match into the lifetime numbers.
-      const me = lastState.players.find((p) => p.id === playerId && !p.isBot);
-      if (me) {
-        const myTotal = lastState.totals[me.id] || 0;
-        const place = 1 + lastState.players.filter((o) => (lastState.totals[o.id] || 0) > myTotal).length;
-        const bits = [`<b>${L(`Platz ${place} von ${lastState.players.length}`, `Place ${place} of ${lastState.players.length}`)}</b>`];
-        const gp = lastGameProgress;
-        if (gp && gp.gainedXp > 0) bits.push(`+${gp.gainedXp} ${L('EP', 'XP')}${gp.welcomeBack ? ' (×2)' : ''}`);
-        if (gp && gp.record && gp.record.played > 0) {
-          bits.push(L(`Bilanz ${gp.record.won}/${gp.record.played} Siege`, `Record ${gp.record.won}/${gp.record.played} wins`));
-        }
-        const mine = document.createElement('p');
-        mine.className = 'resultMine';
-        mine.innerHTML = bits.join('<span class="dot"> · </span>');
-        paneResult.insertBefore(mine, paneResult.querySelector('.resultSort'));
       }
       if (chart) paneResult.insertBefore(chart, paneResult.querySelector('.matchMoments'));
       // Small facts of the match: chips, not three loose lines of prose.
@@ -3669,11 +3654,16 @@
     // 🎖️ Frisch verdiente Erfolge feiern (kommen per Server-Nachricht)
     const oldBadgeBox = el('resultBody').querySelector('.badgeBox');
     if (oldBadgeBox) oldBadgeBox.remove();
-    if (isGameOver && lastEarnedBadges && lastEarnedBadges.length > 0) {
+    const stripShown = renderResultMe(isGameOver && !forfeited);
+    const mySeat = (lastState.players || []).find((p) => p.id === playerId);
+    const myName = String((mySeat && mySeat.name) || '').toLowerCase();
+    // Mine are chips in the result strip; the box keeps the table's other badges.
+    const tableBadges = (lastEarnedBadges || []).filter((e) => !stripShown || String(e.name || '').toLowerCase() !== myName);
+    if (isGameOver && tableBadges.length > 0) {
       const box = document.createElement('div');
       box.className = 'badgeBox';
       box.innerHTML = `<h3>🎖️ ${L('Neue Erfolge', 'New achievements')}</h3>`;
-      for (const entry of lastEarnedBadges) {
+      for (const entry of tableBadges) {
         for (const id of entry.badges) {
           const m = badgeMeta(id);
           const row = document.createElement('div');
@@ -3755,6 +3745,81 @@
     // needs the same fade affordance as the hand and the melds: on iOS the
     // scrollbar is invisible at rest and nothing else says "more below".
     requestAnimationFrame(() => updateResultScrollEdges());
+  }
+
+  // Own result first (game over): place and gap, XP with the level bar, then
+  // chips for what is new. Pinned above "Neue Partie"; landscape/desktop: right column.
+  function renderResultMe(isFinal) {
+    const box = el('resultMe');
+    if (!box) return false;
+    const me = isFinal && lastState && !lastState.towerStage
+      ? (lastState.players || []).find((p) => p.id === playerId && !p.isBot)
+      : null;
+    if (!me) {
+      box.classList.add('hidden');
+      box.innerHTML = '';
+      return false;
+    }
+    const totalOf = (p) => (lastState.totals && lastState.totals[p.id]) || 0;
+    const myTotal = totalOf(me);
+    const ranked = lastState.players.slice().sort((a, b) => totalOf(b) - totalOf(a));
+    const place = 1 + lastState.players.filter((o) => totalOf(o) > myTotal).length;
+    const rival = place === 1 ? ranked.find((p) => p.id !== me.id) : ranked[0];
+    const gap = rival ? Math.abs(myTotal - totalOf(rival)) : 0;
+    const rn = rival ? escapeHtml(rival.name) : '';
+    const gapText = !rival ? ''
+      : gap === 0 ? L(`gleichauf mit ${rn}`, `level with ${rn}`)
+        : place === 1 ? L(`${fmtNum(gap)} vor ${rn}`, `${fmtNum(gap)} ahead of ${rn}`)
+          : L(`${fmtNum(gap)} hinter ${rn}`, `${fmtNum(gap)} behind ${rn}`);
+    const gp = lastGameProgress;
+    const xp = gp && gp.gainedXp > 0
+      ? `<span class="rmXp">+${fmtNum(gp.gainedXp)} ${L('EP', 'XP')}${gp.welcomeBack ? ' (×2)' : ''}</span>`
+      : '';
+    // Level bar: solid = before this match, green = what it brought (from 0 after a level-up).
+    let level = '';
+    if (gp && myProgress && typeof myProgress.xp === 'number') {
+      const now = levelFromXpClient(myProgress.xp);
+      const before = levelFromXpClient(myProgress.xp - (gp.gainedXp || 0));
+      const pct = (lv) => Math.round((lv.into / lv.need) * 100);
+      const from = before.level === now.level ? pct(before) : 0;
+      const to = pct(now);
+      level = `<div class="rmLevel"><span class="rmLv">${L('Stufe', 'Level')} ${now.level}</span>` +
+        `<span class="rmBar" role="img" aria-label="${escapeHtml(L(`${now.into} von ${now.need} EP zur nächsten Stufe`, `${now.into} of ${now.need} XP to the next level`))}">` +
+        `<i class="rmOld" style="width:${from}%"></i><i class="rmGain" style="left:${from}%;width:${Math.max(0, to - from)}%"></i></span>` +
+        `<span class="rmNext">${L(`noch ${fmtNum(now.need - now.into)} EP`, `${fmtNum(now.need - now.into)} XP to go`)}</span></div>`;
+    }
+    const chips = [];
+    const myName = String(me.name || '').toLowerCase();
+    for (const entry of lastEarnedBadges || []) {
+      if (String(entry.name || '').toLowerCase() !== myName) continue;
+      for (const id of entry.badges || []) {
+        const m = badgeMeta(id);
+        // The emoji IS the badge (content, as in the trophy cabinet), not an icon.
+        chips.push(`<span class="rmChip isNew" title="${escapeHtml(m.desc)}"><span class="rmChipEmoji" aria-hidden="true">${m.emoji}</span><span>${L('Neu', 'New')}: ${escapeHtml(m.name)}</span></span>`);
+      }
+    }
+    const cb = lastChallengeBoard;
+    if (lastState.challengeDate && cb && cb.date === lastState.challengeDate && cb.yourRank) {
+      chips.push(`<span class="rmChip"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg><span>${L(`Tages-Challenge: Platz ${cb.yourRank}`, `Daily challenge: rank ${cb.yourRank}`)}</span></span>`);
+    }
+    const st = gp && gp.streak;
+    if (st && (st.event === 'extended' || st.event === 'bridged') && st.streak >= 2) {
+      chips.push(`<span class="rmChip"><svg class="icon" aria-hidden="true"><use href="#i-flame"/></svg><span>${L(`${st.streak} Tage in Folge`, `${st.streak} days in a row`)}</span></span>`);
+    }
+    if (gp && gp.seasonRank) {
+      chips.push(`<span class="rmChip"><svg class="icon" aria-hidden="true"><use href="#i-trend"/></svg><span>${L(`Saison: Platz ${gp.seasonRank}`, `Season: rank ${gp.seasonRank}`)}</span></span>`);
+    }
+    if (gp && gp.record && gp.record.played > 0) {
+      const r = gp.record;
+      chips.push(`<span class="rmChip" title="${escapeHtml(L(`${r.won} Siege in ${r.played} Partien`, `${r.won} wins in ${r.played} games`))}"><span>${L(`Bilanz ${r.won}/${r.played}`, `Record ${r.won}/${r.played}`)}</span></span>`);
+    }
+    box.innerHTML =
+      `<div class="rmTop"><span class="rmPlace">${L(`Platz ${place} von ${lastState.players.length}`, `Place ${place} of ${lastState.players.length}`)}</span>` +
+      (gapText ? `<span class="rmGap">· ${gapText}</span>` : '') + xp + `</div>` +
+      level +
+      (chips.length ? `<div class="rmChips">${chips.join('')}</div>` : '');
+    box.classList.remove('hidden');
+    return true;
   }
 
   function updateResultScrollEdges() {
@@ -9431,51 +9496,62 @@
       `<div class="boardList">${rows}</div>`;
   }
 
-  // "You" first: four numbers and the trend of the last games.
+  // "You" first: three numbers once, the level as a link, the last games as W/L boxes.
   el('statsMeBox').addEventListener('click', (ev) => {
     if (ev.target.closest('[data-open="progress"]')) openProgressSheet();
+    if (ev.target.closest('[data-start="bots"]')) {
+      // Same path as "Gegen Bots spielen" after the tutorial: new game, started with bots.
+      el('statsOverlay').classList.add('hidden');
+      afterTutorial = 'bots';
+      el('createGameBtn').click();
+    }
   });
   function renderStatsMe() {
     const box = el('statsMeBox');
     if (!box) return;
     const me = myProfile();
-    if (publicMode || !me || !(me.gamesPlayed > 0)) {
+    if (publicMode) {
       box.classList.add('hidden');
+      return;
+    }
+    if (!me || !(me.gamesPlayed > 0)) {
+      // A new name: say what will show up here, and offer the way there.
+      box.innerHTML =
+        `<div class="meEmpty"><svg class="icon" aria-hidden="true"><use href="#i-chart"/></svg>` +
+        `<div><b>${L('Deine Zahlen starten mit der ersten Partie', 'Your numbers start with your first game')}</b>` +
+        `<span>${L('Spiel eine Partie bis 1000 Punkte, dann stehen hier deine Siege, dein Bestwert und deine letzten Partien.',
+          'Play a game to 1000 points, then your wins, best score and recent games show up here.')}</span></div></div>` +
+        `<button type="button" class="btn-secondary meEmptyCta" data-start="bots"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>${L('Gegen Bots spielen', 'Play against bots')}</span></button>`;
+      box.classList.remove('hidden');
       return;
     }
     const played = me.gamesPlayed || 0;
     const won = me.gamesWon || 0;
+    const rate = played > 0 ? Math.round((won / played) * 100) : 0;
     const lv = levelFromXpClient(Math.max(me.xp || 0, myProgress ? myProgress.xp || 0 : 0));
     const kpi = (value, label) => `<div class="kpiTile"><b>${value}</b><span>${label}</span></div>`;
-    const games = (myGameHistory || []).slice(0, 10).reverse();
-    let spark = '';
-    if (games.length >= 2) {
-      const W = 300;
-      const H = 44;
-      const vals = games.map((g) => g.myScore || 0);
-      const max = Math.max(1000, ...vals) + 40;
-      const min = Math.min(1000, ...vals) - 120;
-      const sx = (i) => 6 + (i / (games.length - 1)) * (W - 12);
-      const sy = (v) => 4 + (1 - (v - min) / (max - min || 1)) * (H - 8);
-      const pts = games.map((g, i) => `${sx(i).toFixed(1)},${sy(g.myScore || 0).toFixed(1)}`).join(' ');
-      // Filled dot = won, ring = lost: identity never by colour alone.
-      const dots = games.map((g, i) =>
-        `<circle cx="${sx(i).toFixed(1)}" cy="${sy(g.myScore || 0).toFixed(1)}" r="3.6" class="${g.won ? 'won' : 'lost'}"/>`
-      ).join('');
-      spark = `<div class="meSpark"><span class="meSparkLabel">${L(`Letzte ${games.length} Partien`, `Last ${games.length} games`)}</span>` +
-        `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeHtml(L(`Endstände der letzten ${games.length} Partien`, `Final scores of the last ${games.length} games`))}: ${vals.join(', ')}">` +
-        `<line x1="6" x2="${W - 6}" y1="${sy(1000).toFixed(1)}" y2="${sy(1000).toFixed(1)}" class="goalLine"/>` +
-        `<polyline points="${pts}" class="sparkLine"/>${dots}</svg>` +
-        `<span class="meSparkKey"><i class="won"></i>${L('Sieg', 'win')} <i class="lost"></i>${L('Niederlage', 'loss')}</span></div>`;
-    }
+    // Newest first; the letter carries win/loss, the fill only repeats it.
+    const games = (myGameHistory || []).slice(0, 10);
+    const form = games.length
+      ? `<div class="meForm"><div class="meFormHead"><span>${L('Letzte Partien', 'Recent games')}</span><span>${L('neueste links', 'newest first')}</span></div>` +
+        `<ol class="meFormRow" aria-label="${escapeHtml(L('Letzte Partien, neueste zuerst', 'Recent games, newest first'))}">` +
+        games.map((g) => {
+          const score = String(g.myScore || 0); // no separator: ten boxes share 350 px
+          const word = g.won ? L('Sieg', 'Win') : L('Niederlage', 'Loss');
+          return `<li class="formBox ${g.won ? 'won' : 'lost'}" title="${escapeHtml(`${word} · ${score}`)}">` +
+            `<b aria-hidden="true">${g.won ? L('S', 'W') : L('N', 'L')}</b><span class="visuallyHidden">${escapeHtml(word)}</span><small>${score}</small></li>`;
+        }).join('') +
+        `</ol></div>`
+      : '';
     box.innerHTML =
-      `<div class="meHead"><span class="meName">${nameWithHeart(me.name)}</span><span class="meTitle">${escapeHtml(titleForLevel(lv.level))}</span></div>` +
+      `<div class="meHead"><span class="meName">${nameWithHeart(me.name)}</span>` +
+      `<button type="button" class="meLevelLink" data-open="progress"><span>${escapeHtml(titleForLevel(lv.level))} · ${L('Stufe', 'Level')} ${lv.level}</span>` +
+      `<svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></button></div>` +
       `<div class="kpiGrid">` +
-      kpi(`${played > 0 ? Math.round((won / played) * 100) : 0} %`, L(`Siegquote (${won}/${played})`, `Win rate (${won}/${played})`)) +
-      kpi(played, L('Partien', 'Games')) +
-      kpi(me.bestGameScore !== undefined ? me.bestGameScore : '–', L('Beste Partie', 'Best game')) +
-      `<button type="button" class="kpiTile kpiLink" data-open="progress"><b>${lv.level}</b><span>${L('Stufe', 'Level')}</span></button>` +
-      `</div>` + spark;
+      kpi(fmtNum(played), L('Partien', 'Games')) +
+      kpi(fmtNum(won), L(`Siege · ${rate} %`, `Wins · ${rate}%`)) +
+      kpi(me.bestGameScore !== undefined ? fmtNum(me.bestGameScore) : '–', L('Bestwert', 'Best score')) +
+      `</div>` + form;
     box.classList.remove('hidden');
   }
 

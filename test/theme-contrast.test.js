@@ -79,6 +79,13 @@ for (const theme of THEMES) {
     check('muted text on an accent-soft row', ratio(parse(PAPER['--text-muted']), soft), 4.5);
   });
 
+  test(`theme contrast (${theme}): gold banner text and the filled win boxes`, () => {
+    const gold = over(parse(ROOT['--gold-soft']), paper);
+    check('ink on the gold banner', ratio(parse(v['--card-ink']), gold), 4.5);
+    check('muted text on the gold chip', ratio(parse(PAPER['--text-muted']), gold), 4.5);
+    check('white letter on a won box', ratio(WHITE, parse(v['--paper-success'])), 4.5);
+  });
+
   test(`theme contrast (${theme}): switches, fields and selection rings reach 3:1`, () => {
     const line = over(parse(ROOT['--paper-line']), paper);
     check('field edge / off track', ratio(line, paper), 3);

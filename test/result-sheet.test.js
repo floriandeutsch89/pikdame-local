@@ -141,7 +141,8 @@ test('game over sheet: ranking leads, home next to rematch, personal line, chart
   // Leader Klaus: 1045 now, 775 before the round; the scale is 1045, not 1000.
   const solid = parseFloat(doc.querySelector('#resultBody .resultRow .barSolid').style.width);
   assert.ok(Math.abs(solid - (775 / 1045) * 100) < 0.1, `solid ${solid}% on a scale of the best total`);
-  assert.match(doc.querySelector('#resultBody .resultMine').textContent, /Platz 2 von 4.*\+120.*17\/43/);
+  // The personal line moved into the pinned strip above the rematch button.
+  assert.match(doc.getElementById('resultMe').textContent, /Platz 2 von 4.*\+120.*17\/43/);
   const panes = doc.querySelectorAll('#resultBody .resultPane');
   assert.ok(panes[0].querySelector('.scoreChart'), 'chart sits on the result pane');
   assert.ok(doc.querySelector('#resultBody .matchFacts'), 'facts as chips');

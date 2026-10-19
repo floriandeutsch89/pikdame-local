@@ -23,7 +23,11 @@
 // game-settings (the in-game gear sheet), music-hint (first click: music starts, one-time hint),
 // account (the account sheet: level, season ladder; needs --signed-in),
 // account-mail (its year-review mail switch; needs --signed-in),
-// tower (the bot tower sheet via the progress sheet), gameover-tower (a stage verdict).
+// tower (the bot tower sheet via the progress sheet), gameover-tower (a stage verdict),
+// gameover-win (I win the match, a new badge), stats-empty (a brand-new name: statistics
+// empty state, then "Meine Partien" empty).
+// --lang en: the English client (text length). SHOTS_ROOT=<checkout>: shoot another
+// checkout with this script (before/after pictures from one set of scenes).
 // --december: the client clock stands on 28 December and the server's year review
 // is mocked - adds the "Heute" chip and the scenes year / year-mid / year-bots /
 // year-end (story cards), year-image (the share PNG, via the download fallback)
@@ -47,7 +51,7 @@ const arg = (name, def) => {
   const i = process.argv.indexOf(`--${name}`);
   return i > -1 ? process.argv[i + 1] : def;
 };
-const ROOT = path.resolve(__dirname, '../../../..');
+const ROOT = path.resolve(process.env.SHOTS_ROOT || path.resolve(__dirname, '../../../..'));
 const OUT = path.resolve(arg('out', path.join(os.tmpdir(), 'pikdame-shots')));
 const PORT = Number(arg('port', 3477));
 const VIEWS = {
@@ -122,6 +126,12 @@ const HISTORY = [
   { id: 'g2', finishedAt: NOW - 30 * 3600e3, startedAt: NOW - 30 * 3600e3 - 55 * 60e3, rounds: 8, won: false, myScore: 880, myId: 'p1', challengeDate: TODAY,
     players: [{ id: 'p1', name: ME }, { id: 'b1', name: 'Horst', isBot: true, botDifficulty: 'medium' }],
     finalTotals: { p1: 880, b1: 1010 }, roundTotals: [] },
+  // Older games, so "Letzte Partien" on the statistics sheet has ten to show.
+  ...[[2, true, 1120, 905, 760], [3, false, 760, 1030, 610], [5, true, 1015, 880, 940], [9, true, 1050, 700, 985],
+    [12, false, 640, 1005, 820], [15, false, 905, 990, 1040], [18, true, 1210, 980, 400], [21, false, 455, 1000, 870]].map(([days, won, me, a, b], i) => ({
+    id: `gx${i}`, finishedAt: NOW - days * 86400e3, startedAt: NOW - days * 86400e3 - 48 * 60e3, rounds: 6, won, myScore: me, myId: 'p1',
+    players: [{ id: 'p1', name: ME }, { id: 'p2', name: 'Oma Gerda' }, { id: 'b1', name: 'Klaus', isBot: true, botDifficulty: 'medium' }],
+    finalTotals: { p1: me, p2: a, b1: b }, roundTotals: [] })),
 ];
 const mk = (s, win) => ({ roundScore: s, breakdown: { isWinner: !!win, multiplier: 1 } });
 const PLAYERS = [
@@ -159,6 +169,13 @@ const GAME_OVER = { ...BASE_STATE, phase: 'gameOver', roundNumber: 6, totals: { 
     highlights: [{ type: 'queenCaught', round: 2, name: 'Horst' }, { type: 'bestRound', round: 3, name: 'Klaus', score: 270 }],
     funTitle: { type: 'queenMagnet', name: 'Horst', count: 2 } } };
 
+// gameover-win: I win the match (and earn a badge, injected in the scene).
+const GAME_OVER_WIN = { ...GAME_OVER, totals: { p1: 1045, b1: 880, b2: 610, b3: 320 },
+  scoreHistory: GAME_OVER.scoreHistory.map((h, i, a) => (i === a.length - 1 ? { round: h.round, totals: { p1: 1045, b1: 880, b2: 610, b3: 320 } }
+    : i === a.length - 2 ? { round: h.round, totals: { p1: 820, b1: 700, b2: 500, b3: 260 } } : h)),
+  lastRoundResult: { p1: mk(225, true), b1: mk(180), b2: mk(110), b3: mk(60) },
+  gameOverInfo: { ...GAME_OVER.gameOverInfo, winnerId: 'p1' } };
+
 // Bot tower: a stage-6 verdict (handicap 20) on a one-round game over.
 const TOWER_STATE = { ...BASE_STATE, phase: 'gameOver', roundNumber: 1, towerStage: 6, scoreHistory: [],
   players: [PLAYERS[0], { ...PLAYERS[1], botDifficulty: 'hard' }, { ...PLAYERS[2], botDifficulty: 'hard' }, { ...PLAYERS[3], botDifficulty: 'medium' }],
@@ -185,10 +202,11 @@ function kindPuzzle(kind) {
 }
 // stammtisch-lobby: the next join is shown as a seat at the mock Stammtisch.
 let bindStammtisch = false;
+let emptyMe = false; // scene stats-empty: a brand-new name (no games, no history)
 function rewrite(msg) {
   if (msg.type === 'joined' && bindStammtisch) msg.stammtisch = { code: 'STMOCK1', name: STAMMTISCH.name };
-  if (msg.type === 'profiles') { msg.players = PROFILES; msg.globalStats = GLOBAL_STATS; }
-  if (msg.type === 'gameHistory') msg.games = HISTORY;
+  if (msg.type === 'profiles') { msg.players = emptyMe ? PROFILES.slice(1) : PROFILES; msg.globalStats = GLOBAL_STATS; }
+  if (msg.type === 'gameHistory') msg.games = emptyMe ? [] : HISTORY;
   if (msg.type === 'towerInfo') {
     const best = PROFILES[0].tower;
     Object.assign(msg, { best }, require(path.join(ROOT, 'game', 'BotTower')).summarize(best));
@@ -307,9 +325,10 @@ function waitForHttp(port, ms = 20000) {
       if (!vp) throw new Error(`unknown view ${vn}`);
       const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, userAgent: UA, deviceScaleFactor: 2, isMobile: vp.mobile, hasTouch: vp.mobile,
         ...(STILL ? { reducedMotion: 'reduce' } : {}) });
-      await ctx.addInitScript(([me, theme, musicHint]) => {
+      await ctx.addInitScript(([me, theme, musicHint, uiLang]) => {
         try {
           localStorage.setItem('pikdame_player_name', me);
+          if (uiLang) localStorage.setItem('pikdame_lang', uiLang); // --lang en
           if (theme) localStorage.setItem('pikdame_theme', theme); // --theme table|night|felt|love|bordeaux|kitchen
           localStorage.setItem('pikdame_splash_device', '1'); // skip the studio intro
           sessionStorage.setItem('pikdame_splash_seen', '1');
@@ -317,7 +336,7 @@ function waitForHttp(port, ms = 20000) {
           // The first click starts the music; its one-time hint would sit on every later shot.
           if (!musicHint) localStorage.setItem('pikdame_music_hint', '1');
         } catch (e) { /* storage blocked */ }
-      }, [ME, arg('theme', ''), scenes.includes('music-hint')]);
+      }, [ME, arg('theme', ''), scenes.includes('music-hint'), arg('lang', '')]);
       if (SIGNED_IN) {
         await ctx.addInitScript(() => { try { localStorage.setItem('pikdame_account_token', 'mock-token'); } catch (e) { /* blocked */ } });
         await ctx.route('**/api/**', (route) => route.fulfill({ contentType: 'application/json',
@@ -364,7 +383,7 @@ function waitForHttp(port, ms = 20000) {
         await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(1200);
       };
-      const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|stats|stats-badges|history|settings|settings-aids|settings-music|game-settings|music-hint|challenge|challenge-open|stammtisch|account|account-mail|puzzle.*|year.*)$/;
+      const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|stats|stats-badges|stats-empty|history|settings|settings-aids|settings-music|game-settings|music-hint|challenge|challenge-open|stammtisch|account|account-mail|puzzle.*|year.*)$/;
       for (const sc of scenes) {
         if (LOBBY_SCENES.test(sc)) await toStart();
         if (sc === 'lobby') await shot('lobby');
@@ -525,6 +544,17 @@ function waitForHttp(port, ms = 20000) {
           await shot(sc);
           await page.click('#statsCloseBtn');
         }
+        if (sc === 'stats-empty') {
+          // A new name: the statistics empty state, then "Meine Partien" empty.
+          emptyMe = true;
+          await page.click('#statsBtn'); await page.waitForTimeout(700);
+          await shot(sc);
+          await page.click('#statsTabHistoryBtn'); await page.waitForTimeout(600);
+          await shot('history-empty');
+          await page.click('#statsTabBoardBtn'); await page.waitForTimeout(200);
+          await page.click('#statsCloseBtn');
+          emptyMe = false;
+        }
         if (sc === 'stats-badges') {
           // Trophy cabinet: folded with the favourites on top, then a favourite's detail.
           await page.click('#statsBtn'); await page.waitForTimeout(500);
@@ -559,13 +589,18 @@ function waitForHttp(port, ms = 20000) {
         } else if (sc.startsWith('roundend') || sc.startsWith('gameover')) {
           inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
           const challenge = sc === 'gameover-challenge';
-          inject({ type: 'state', state: sc.startsWith('gameover') ? { ...GAME_OVER, challengeDate: challenge ? TODAY : null } : ROUND_END });
+          const over = sc === 'gameover-win' ? GAME_OVER_WIN : GAME_OVER;
+          inject({ type: 'state', state: sc.startsWith('gameover') ? { ...over, challengeDate: challenge ? TODAY : null } : ROUND_END });
           if (challenge) {
             inject({ type: 'challengeBoard', date: TODAY, yourScore: 880, yourRank: 2, yourQueens: 1, players: 9,
               board: [{ rank: 1, name: 'Oma Gerda', score: 1210 }, { rank: 2, name: ME, score: 880 }], history: [], weekly: null });
           }
           if (sc.startsWith('gameover')) inject({ type: 'progress', gainedXp: 120, xp: 5440, level: { level: 14 }, record: { played: 43, won: 17 } });
+          if (sc === 'gameover-win') inject({ type: 'badges', earned: [{ name: ME, badges: ['score_500'] }] });
           await page.waitForTimeout(1600); // count-up + winner animation
+          // A re-render keeps the body's scroll position: start every result shot at the top.
+          await page.evaluate(() => { const b = document.getElementById('resultBody'); if (b) b.scrollTop = 0; });
+          await page.waitForTimeout(100);
           if (sc === 'roundend-stats') { await page.click('#resultBody .resultTabBtn:nth-child(2)'); await page.waitForTimeout(300); }
           if (sc === 'gameover-challenge') {
             await page.evaluate(() => { const b = document.querySelector('.challengeBoardBox'); if (b) b.scrollIntoView({ block: 'center' }); });
