@@ -62,7 +62,7 @@ Each one fixed a real complaint; cite them when they apply.
 - **Meaning never by colour alone.** Signs (+/−), labels, filled vs.
   outlined shapes carry the meaning; colour only reinforces it.
 - **Things that happen daily belong together; lifetime progress elsewhere.**
-  Level and streak sit on the identity chip, the daily items in "Heute".
+  Level and streak sit on the identity chip, puzzle, challenge, Kartenhaus and daily goals in "Aufgaben".
 - **Fewer, wider controls beat more, cramped ones.** Four tiles in a row
   cut "Stammtisch" off at 393 px; two wide ones fit at every size.
 - **Emphasis follows the question of the screen.** Round end: the round's

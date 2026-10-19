@@ -78,8 +78,8 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   - `Badges.js` (Familien in `BADGE_FAMILIES`, Fakten aus `finishRound`),
     `Progression.js` (XP, Tagesaufgaben, Serie mit Joker-Tag; XP-Regeln
     spiegelt `XP_RULES` im Client, Vertragstest). UI: Stufe + Serie am
-    Identitäts-Chip/Fortschritts-Blatt; Tägliches (Rätsel, Challenge,
-    Aufgaben) mit Status im Bereich „Heute“.
+    Identitäts-Chip/Fortschritts-Blatt; Rätsel, Challenge, Kartenhaus und
+    Tagesziele mit Status im Bereich „Aufgaben“.
   - `GameDay.js`: EINZIGE Definition von „heute“ (Mitternacht Europe/Berlin,
     Rechnen nur auf Datums-Strings, nie 24-h-Schritte).
   - `DailyPuzzle.js`: Ergebnisobjekt ohne `type`-Feld (wird in WS gespreadet).
