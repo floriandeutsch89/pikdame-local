@@ -364,7 +364,7 @@ function waitForHttp(port, ms = 20000) {
         await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(1200);
       };
-      const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|stats|stats-badges|history|settings|settings-aids|settings-music|game-settings|music-hint|challenge|stammtisch|account|account-mail|puzzle.*|year.*)$/;
+      const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|stats|stats-badges|history|settings|settings-aids|settings-music|game-settings|music-hint|challenge|challenge-open|stammtisch|account|account-mail|puzzle.*|year.*)$/;
       for (const sc of scenes) {
         if (LOBBY_SCENES.test(sc)) await toStart();
         if (sc === 'lobby') await shot('lobby');
@@ -441,6 +441,16 @@ function waitForHttp(port, ms = 20000) {
           }) }));
           await page.click('#challengeBtn'); await page.waitForTimeout(700);
           await shot('challenge');
+          await page.click('#challengeCancelBtn');
+        }
+        if (sc === 'challenge-open') {
+          // Before the own game the server sends only the count (week without today).
+          await page.route('**/challengeboardz*', (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify({
+            date: TODAY, revealed: false, players: 12, you: null, attempted: false, magnet: null, board: [],
+            weekly: { week: TODAY, players: 3, top: [{ rank: 1, name: 'Oma Gerda', weekScore: 4100, days: 4 }] }, trend: { dates: [], me: null, top: [] },
+          }) }));
+          await page.click('#challengeBtn'); await page.waitForTimeout(700);
+          await shot('challenge-open');
           await page.click('#challengeCancelBtn');
         }
         if (sc === 'stammtisch-lobby') {
