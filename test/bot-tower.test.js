@@ -3,6 +3,7 @@
  *  round, solo, frozen table, modifiers, card conservation, snapshot), best-of
  *  storage per month with XP, crown and badges, and the real server's messages. */
 const test = require('node:test');
+const { freePort } = require('./helpers/free-port');
 const assert = require('node:assert');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
@@ -439,7 +440,8 @@ async function ask(ws, msg, replyType) {
   return reply;
 }
 
-async function startServer(t, port, env = {}, prepare = null) {
+async function startServer(t, env = {}, prepare = null) {
+  const port = await freePort();
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-tower-srv-'));
   if (prepare) prepare(dataDir); // seed the data dir (accounts, a session snapshot) before the boot
   const server = spawn('node', ['server.js'], {
@@ -461,7 +463,7 @@ async function startServer(t, port, env = {}, prepare = null) {
 }
 
 test('server: getTower lists this month\'s floors, startTower checks the lock and seats a solo floor', async (t) => {
-  const srv = await startServer(t, 8137);
+  const srv = await startServer(t);
   const ws = await srv.socket();
   const info = await ask(ws, { type: 'getTower', name: 'Ada' }, 'towerInfo');
   assert.strictEqual(info.stages.length, 20);
@@ -498,7 +500,7 @@ test('server: getTower lists this month\'s floors, startTower checks the lock an
 });
 
 test('server: public mode keeps no profiles, so the tower is off', async (t) => {
-  const srv = await startServer(t, 8138, { PIKDAME_PUBLIC_MODE: '1' });
+  const srv = await startServer(t, { PIKDAME_PUBLIC_MODE: '1' });
   const ws = await srv.socket();
   const info = await ask(ws, { type: 'getTower', name: 'Ada' }, 'towerInfo');
   assert.deepStrictEqual(info.best, {});
@@ -508,7 +510,7 @@ test('server: public mode keeps no profiles, so the tower is off', async (t) => 
 
 test('server: a profile from the fixed tower climbs on at floor 11 in October, later it is the archive', async (t) => {
   const old = { 1: 3, 2: 3, 3: 2, 4: 2, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1, 10: 1 };
-  const srv = await startServer(t, 8144, {}, (dataDir) => {
+  const srv = await startServer(t, {}, (dataDir) => {
     fs.writeFileSync(path.join(dataDir, 'players.json'), JSON.stringify({ players: [
       { id: 'p1', name: 'Oma', gamesPlayed: 9, xp: 400, tower: old, towerStars: 16, towerCleared: 10, badges: { tower_10: 1 } },
     ] }));
@@ -582,7 +584,7 @@ test('server: the first star pays 10 XP (account and season too), a repeat and a
     guest: { code: 'TWRBB4', id: 'p-ben', token: 'tok-ben', name: 'Ben', ...stageAtTheEnd('p-ben', 'Ben') },
   };
   let accountToken = null;
-  const srv = await startServer(t, 8139, {}, (dataDir) => {
+  const srv = await startServer(t, {}, (dataDir) => {
     const accounts = createAccountStore(path.join(dataDir, 'users.db'));
     accounts.verifyEmail(accounts.register('Ada', 'ada@example.com', 'geheim123').verifyToken);
     accountToken = accounts.login('Ada', 'geheim123').token;

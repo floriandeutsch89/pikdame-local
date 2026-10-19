@@ -139,7 +139,7 @@ test('computeEarnedBadges: zen_slayer requires WINNING against a zen bot', () =>
 
 // --- v1.32.0: player records pipeline -------------------------------------------
 test('recordGameResult: records and cumulative counters from facts', () => {
-  const file = require('path').join(require('os').tmpdir(), `pikdame-store-test-${Date.now()}.json`);
+  const file = require('path').join(require('os').tmpdir(), `pikdame-store-test-${process.pid}-${Date.now()}.json`);
   const store = createPlayerStore(file);
   store.recordGameResult([
     { name: 'Anna', score: 480, won: true, facts: { bestRound: 185, pdLaid: 2, pdCaught: 1, jokersLaid: 3, handAusWins: 1 } },

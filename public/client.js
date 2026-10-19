@@ -185,6 +185,49 @@
     return lang === 'en' ? en : de;
   }
 
+  // --- Formatting for the active UI language (one place, exposed for tests) ---
+  const MINUS = '\u2212';
+  const NBSP = '\u00a0';
+  const localeOf = (l = lang) => (l === 'en' ? 'en-GB' : 'de-DE');
+  /** 1385 -> "1.385" (de) / "1,385" (en); negatives use the true minus sign U+2212. */
+  function fmtNum(n, l = lang) {
+    return new Intl.NumberFormat(localeOf(l)).format(Number(n) || 0).replace('-', MINUS);
+  }
+  /** Explicit sign for deltas: +270, \u221235, 0. */
+  function fmtSigned(n, l = lang) {
+    const v = Number(n) || 0;
+    return v > 0 ? `+${fmtNum(v, l)}` : fmtNum(v, l);
+  }
+  /** Date or timestamp in the UI language; opts as for toLocaleDateString. */
+  function fmtDate(d, opts, l = lang) {
+    const date = d instanceof Date ? d : new Date(d);
+    return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(localeOf(l), opts);
+  }
+  /** A game-day string "2026-10-19" as a human date ("19. Okt. 2026" / "19 Oct 2026"). */
+  function fmtDay(iso, opts, l = lang) {
+    const d = new Date(`${iso}T12:00:00Z`);
+    return Number.isNaN(d.getTime()) ? String(iso) : fmtDate(d, opts || { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }, l);
+  }
+  const COUNT_WORDS = {
+    game: [['Partie', 'Partien'], ['game', 'games']],
+    win: [['Sieg', 'Siege'], ['win', 'wins']],
+    round: [['Runde', 'Runden'], ['round', 'rounds']],
+    turn: [['Zug', 'Züge'], ['turn', 'turns']],
+    day: [['Tag', 'Tage'], ['day', 'days']],
+  };
+  /** The noun alone, singular for exactly 1: unitWord(1, 'win') -> "Sieg". */
+  function unitWord(n, key, l = lang) {
+    const [one, many] = COUNT_WORDS[key][l === 'en' ? 1 : 0];
+    return Number(n) === 1 ? one : many;
+  }
+  /** Number and noun: "1 Sieg", "1.385 Partien". */
+  function fmtCount(n, key, l = lang) {
+    return `${fmtNum(n, l)} ${unitWord(n, key, l)}`;
+  }
+  /** Sprite icon; put the text next to it in its own <span>. */
+  const iconHtml = (name) => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+  window.PikFormat = { fmtNum, fmtSigned, fmtDate, fmtDay, unitWord, fmtCount, MINUS };
+
   // Dynamische Beschriftungen (enthalten Werte wie den Spiel-Code) koennen
   // nicht ueber I18N_STATIC laufen. Sie werden hier zentral neu gesetzt -
   // beim Erzeugen UND bei jedem Sprachwechsel.
@@ -3375,7 +3418,6 @@
     }
     if (!forfeited && lastState.lastRoundResult) {
       const SCORE_TARGET = 1000;
-      const signed = (n) => (n > 0 ? `+${n}` : `${n}`);
 
       // The winner is whoever went OUT, which is often not the biggest number
       // on screen - as a green table row among four that read like a bug
@@ -3444,13 +3486,13 @@
               ? `<div class="resultRowTop">` +
                 `<span class="resultRank">${rank}.</span>` +
                 `<span class="resultName">${nameWithHeart(p.name)}${botMark(p)}</span>` +
-                `<span class="resultDelta resultDeltaSmall${deltaCls}">${signed(delta)}</span>` +
-                `<span class="resultTotal resultTotalBig">${total}</span>` +
+                `<span class="resultDelta resultDeltaSmall${deltaCls}">${fmtSigned(delta)}</span>` +
+                `<span class="resultTotal resultTotalBig">${fmtNum(total)}</span>` +
                 `</div>` + bar
               : `<div class="resultRowTop">` +
                 `<span class="resultName">${nameWithHeart(p.name)}${botMark(p)}</span>` +
-                `<span class="resultTotal">${L('gesamt', 'total')} ${total}</span>` +
-                `<span class="resultDelta${deltaCls}">${signed(delta)}</span>` +
+                `<span class="resultTotal">${L('gesamt', 'total')} ${fmtNum(total)}</span>` +
+                `<span class="resultDelta${deltaCls}">${fmtSigned(delta)}</span>` +
                 `</div>` + bar;
             // Per-card breakdown: MY row only (an opponent's leftover hand is
             // not even sent), and not at game over - the match is decided then.
@@ -3466,7 +3508,7 @@
                   pikdame: '♠Q', joker: L('Joker', 'Joker'), ace: L('Ass', 'Ace'),
                   face: L('10/B/D/K', '10/J/Q/K'), low: '2–9',
                 }[ln.kind] || ln.kind;
-                return `${ln.count > 1 ? `${ln.count}× ` : ''}${label} ${ln.points}`;
+                return `${ln.count > 1 ? `${ln.count}×${NBSP}` : ''}${label} ${ln.points}`;
               };
               const plus = (stats.laidLines || []).map(lineText).join(', ');
               const minus = (stats.handLines || []).map(lineText).join(', ');
@@ -3475,11 +3517,11 @@
               const isWinner = !!(r && r.breakdown && r.breakdown.isWinner);
               const mult = r && r.breakdown && r.breakdown.multiplier > 1 ? r.breakdown.multiplier : 1;
               det.innerHTML =
-                `<summary><span>${L('Aufschlüsselung', 'Breakdown')}</span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg> <span class="bdSums"><span class="bdSumPlus">+${plusSum}</span>${isWinner ? '' : ` <span class="bdSumMinus">−${minusSum}</span>`}</span></summary>` +
-                `<div class="bdLine bdPlus"><span>${L('Ausgelegt', 'Melded')}</span><span>${plus ? escapeHtml(plus) : '–'}</span><b>+${plusSum}</b></div>` +
+                `<summary><span>${L('Aufschlüsselung', 'Breakdown')}</span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg> <span class="bdSums"><span class="bdSumPlus">+${fmtNum(plusSum)}</span>${isWinner ? '' : ` <span class="bdSumMinus">${MINUS}${fmtNum(minusSum)}</span>`}</span></summary>` +
+                `<div class="bdLine bdPlus"><span>${L('Ausgelegt', 'Melded')}</span><span>${plus ? escapeHtml(plus) : '–'}</span><b>+${fmtNum(plusSum)}</b></div>` +
                 (isWinner
                   ? `<div class="bdLine bdNote"><span>${L('Rundensieg: keine Minuspunkte', 'Round winner: no minus points')}</span><span></span><b></b></div>`
-                  : `<div class="bdLine bdMinus"><span>${L('Auf der Hand', 'In hand')}</span><span>${minus ? escapeHtml(minus) : '–'}</span><b>−${minusSum}</b></div>`) +
+                  : `<div class="bdLine bdMinus"><span>${L('Auf der Hand', 'In hand')}</span><span>${minus ? escapeHtml(minus) : '–'}</span><b>${MINUS}${fmtNum(minusSum)}</b></div>`) +
                 (mult > 1 ? `<div class="bdLine bdNote"><span>${L(`Hand aus: ×${mult}`, `Out in one: ×${mult}`)}</span><span></span><b></b></div>` : '');
               row.appendChild(det);
             }
@@ -3498,6 +3540,9 @@
       const marks = (s) =>
         (s.pikDameLaidOut ? `<span class="statMark" title="${L('Pik Dame ausgelegt', 'Queen of Spades melded')}">♠Q${s.pikDameLaidOut > 1 ? `×${s.pikDameLaidOut}` : ''}</span>` : '') +
         (s.jokersLaidOut ? `<span class="statMark" title="${L('Joker ausgelegt', 'Jokers melded')}">${JOKER_MARK_SVG}${s.jokersLaidOut > 1 ? `×${s.jokersLaidOut}` : ''}</span>` : '');
+      // Own row = edge line + bold (.isMe), round winner = check chip: the two
+      // used to share one green row and read as the same thing.
+      const winMark = `<span class="winChip" title="${L('Rundensieg', 'Round win')}">${iconHtml('check')}<span>${L('Sieg', 'Win')}</span></span>`;
       statsTable.innerHTML = `
         <thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('Runde', 'Round')}</th><th>${L('Ausgelegt', 'Melded')}</th><th>${L('Hand', 'Hand')}</th></tr></thead>
         <tbody>${lastState.lastRoundStats
@@ -3506,8 +3551,9 @@
             const delta = r ? r.roundScore : null;
             const deltaCell = delta === null
               ? '–'
-              : `<span class="${delta > 0 ? 'deltaUp' : delta < 0 ? 'deltaDown' : ''}">${delta > 0 ? `+${delta}` : delta === 0 ? '±0' : delta}</span>`;
-            return `<tr${s.id === lastState.lastRoundWinnerId ? ' class="winnerRow"' : ''}><td><span class="statName">${escapeHtml(s.name)}</span>${marks(s)}</td><td>${deltaCell}</td><td>${s.laidOutCount}</td><td>${s.handCount}</td></tr>`;
+              : `<span class="${delta > 0 ? 'deltaUp' : delta < 0 ? 'deltaDown' : ''}">${delta === 0 ? '±0' : fmtSigned(delta)}</span>`;
+            const win = s.id === lastState.lastRoundWinnerId;
+            return `<tr${s.id === playerId ? ' class="isMe"' : ''}><td><span class="statName">${escapeHtml(s.name)}</span>${marks(s)}${win ? winMark : ''}</td><td>${deltaCell}</td><td>${s.laidOutCount}</td><td>${s.handCount}</td></tr>`;
           })
           .join('')}</tbody>`;
       paneStats.appendChild(statsTable);
@@ -3557,7 +3603,7 @@
         const moment = (h) => {
           if (h.type === 'queenCaught') {
             return {
-              kind: 'bad', swing: '-100',
+              kind: 'bad', swing: `${MINUS}100`,
               title: L(`${h.name} erwischt`, `${h.name} caught out`),
               text: L('Die Pik Dame blieb auf der Hand liegen.', 'Left holding the Queen of Spades.'),
             };
@@ -3578,7 +3624,7 @@
           }
           if (h.type === 'bestRound') {
             return {
-              kind: 'good', swing: h.score > 0 ? `+${h.score}` : `${h.score}`,
+              kind: 'good', swing: fmtSigned(h.score),
               title: L(`Beste Runde der Partie: ${h.name}`, `Best round of the match: ${h.name}`),
               text: L('Keine Runde brachte jemandem mehr ein.', 'No round earned anyone more.'),
             };
@@ -3611,7 +3657,7 @@
         const gp = lastGameProgress;
         if (gp && gp.gainedXp > 0) bits.push(`+${gp.gainedXp} ${L('EP', 'XP')}${gp.welcomeBack ? ' (×2)' : ''}`);
         if (gp && gp.record && gp.record.played > 0) {
-          bits.push(L(`Bilanz ${gp.record.won}/${gp.record.played} Siege`, `Record ${gp.record.won}/${gp.record.played} wins`));
+          bits.push(`${L('Bilanz', 'Record')} ${gp.record.won}/${gp.record.played}${NBSP}${unitWord(gp.record.played, 'win')}`);
         }
         const mine = document.createElement('p');
         mine.className = 'resultMine';
@@ -3624,8 +3670,8 @@
       const facts = [];
       if (typeof gi.totalTurns === 'number') {
         const rounds = gi.totalRounds || 0;
-        facts.push(L(`<b>${gi.totalTurns}</b> Züge`, `<b>${gi.totalTurns}</b> turns`));
-        facts.push(L(`<b>${rounds}</b> ${rounds === 1 ? 'Runde' : 'Runden'}`, `<b>${rounds}</b> ${rounds === 1 ? 'round' : 'rounds'}`));
+        facts.push(`<b>${fmtNum(gi.totalTurns)}</b>${NBSP}${unitWord(gi.totalTurns, 'turn')}`);
+        facts.push(`<b>${fmtNum(rounds)}</b>${NBSP}${unitWord(rounds, 'round')}`);
       }
       const ft = gi.funTitle;
       if (ft && ft.type === 'queenMagnet') {
@@ -3662,30 +3708,33 @@
       box.className = 'gameTotalsBox';
       const tBtn = document.createElement('button');
       tBtn.className = 'btn-secondary';
-      tBtn.textContent = L('♠Q & 🃏 der Partie anzeigen', 'Show game totals ♠Q & 🃏');
+      const totalsLabel = (hidden) => (lang === 'en'
+        ? `<span>${hidden ? 'Show' : 'Hide'} game totals ♠Q &amp;</span> ${JOKER_MARK_SVG}`
+        : `<span>♠Q &amp;</span> ${JOKER_MARK_SVG} <span>${hidden ? 'der Partie anzeigen' : 'ausblenden'}</span>`);
+      tBtn.innerHTML = totalsLabel(true);
       const tbl = document.createElement('table');
       tbl.className = 'statsTable hidden';
       const rows = (lastState.players || [])
         .map((p) => ({ name: p.name, t: lastState.gameStatsTotals[p.id] || { pikDames: 0, jokers: 0 } }))
         .sort((a, b) => b.t.pikDames - a.t.pikDames || b.t.jokers - a.t.jokers)
-        .map((r) => `<tr><td>${escapeHtml(r.name)}</td><td>${r.t.pikDames > 0 ? '♠'.repeat(r.t.pikDames) : '–'}</td><td>${r.t.jokers > 0 ? '🃏'.repeat(Math.min(r.t.jokers, 8)) + (r.t.jokers > 8 ? '×' + r.t.jokers : '') : '–'}</td></tr>`)
+        .map((r) => `<tr><td>${escapeHtml(r.name)}</td><td>${r.t.pikDames > 0 ? '♠'.repeat(r.t.pikDames) : '–'}</td><td>${r.t.jokers > 0 ? `<span class="statMark">${JOKER_MARK_SVG}×${r.t.jokers}</span>` : '–'}</td></tr>`)
         .join('');
-      tbl.innerHTML = `<thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('♠Q ausgelegt', '♠Q melded')}</th><th>${L('🃏 ausgelegt', '🃏 melded')}</th></tr></thead><tbody>${rows}</tbody>`;
+      tbl.innerHTML = `<thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('♠Q ausgelegt', '♠Q melded')}</th><th><span class="statMark">${JOKER_MARK_SVG}</span> <span>${L('ausgelegt', 'melded')}</span></th></tr></thead><tbody>${rows}</tbody>`;
       tBtn.addEventListener('click', () => {
         const nowHidden = tbl.classList.toggle('hidden');
-        tBtn.textContent = nowHidden ? L('♠Q & 🃏 der Partie anzeigen', 'Show game totals ♠Q & 🃏') : L('♠Q & 🃏 ausblenden', 'Hide game totals');
+        tBtn.innerHTML = totalsLabel(nowHidden);
       });
       box.appendChild(tBtn);
       box.appendChild(tbl);
       paneStats.appendChild(box);
     }
-    // 🎖️ Frisch verdiente Erfolge feiern (kommen per Server-Nachricht)
+    // Frisch verdiente Erfolge feiern (kommen per Server-Nachricht)
     const oldBadgeBox = el('resultBody').querySelector('.badgeBox');
     if (oldBadgeBox) oldBadgeBox.remove();
     if (isGameOver && lastEarnedBadges && lastEarnedBadges.length > 0) {
       const box = document.createElement('div');
       box.className = 'badgeBox';
-      box.innerHTML = `<h3>🎖️ ${L('Neue Erfolge', 'New achievements')}</h3>`;
+      box.innerHTML = `<h3>${iconHtml('medal')}<span>${L('Neue Erfolge', 'New achievements')}</span></h3>`;
       for (const entry of lastEarnedBadges) {
         for (const id of entry.badges) {
           const m = badgeMeta(id);
@@ -5349,8 +5398,7 @@
 
   // --- Sharing results (Wordle style): emoji are content here, not icons ---
   function shareDay(iso) {
-    const d = new Date(`${iso}T12:00:00`);
-    return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-DE', { day: 'numeric', month: 'short' });
+    return fmtDay(iso, { day: 'numeric', month: 'short', timeZone: 'UTC' });
   }
   // The system share sheet where it exists, else the clipboard.
   async function shareResult(text) {
@@ -5382,7 +5430,8 @@
 
   let lastChallengeBoard = null;
   let challengeIntroResult = null; // today's ranked result in the intro sheet, for sharing
-  const magnetText = (m) => L(`🧲 Damen-Magnet des Tages: ${m.name} (${m.queens}×)`, `🧲 Queen magnet of the day: ${m.name} (${m.queens}×)`);
+  const magnetText = (m) => L(`Damen-Magnet des Tages: ${m.name} (${m.queens}×)`, `Queen magnet of the day: ${m.name} (${m.queens}×)`);
+  const withIcon = (name, text) => `${iconHtml(name)} <span>${escapeHtml(text)}</span>`;
   function renderChallengeBoard() {
     if (!lastChallengeBoard) return;
     const body = el('resultBody');
@@ -5392,8 +5441,13 @@
     const b = lastChallengeBoard;
     const box = document.createElement('div');
     box.className = 'challengeBoardBox';
+    // Own row: by name; by rank only when the name is not on the board.
+    const myName = (currentName() || '').toLowerCase();
+    const byName = (b.board || []).some((e) => (e.name || '').toLowerCase() === myName);
+    const isMine = (e) => (byName ? (e.name || '').toLowerCase() === myName : !!b.yourRank && e.rank === b.yourRank);
+    const ownRowShown = (b.board || []).some(isMine);
     const rows = (b.board || [])
-      .map((e) => `<tr${e.rank === b.yourRank ? ' class="winnerRow"' : ''}><td>${e.rank}.</td><td>${escapeHtml(e.name)}</td><td>${e.score}</td></tr>`)
+      .map((e) => `<tr${isMine(e) ? ' class="isMe"' : ''}><td>${e.rank}.</td><td class="nameCell">${escapeHtml(e.name)}</td><td>${fmtNum(e.score)}</td></tr>`)
       .join('');
     // '7 Tage sichtbar' jetzt wörtlich: kompakter Rückblick auf die letzten
     // Tage (Tagessieger + eigener Platz), aufklappbar unter der Tagesliste.
@@ -5401,13 +5455,13 @@
     const histRows = past
       .map((d) => {
         const win = d.top && d.top[0]
-          ? `🥇 ${escapeHtml(d.top[0].name)} · ${d.top[0].score}`
-          : L('keine Teilnahmen', 'no entries');
+          ? `${iconHtml('medal')} <span>${escapeHtml(d.top[0].name)} · ${fmtNum(d.top[0].score)}</span>`
+          : escapeHtml(L('keine Teilnahmen', 'no entries'));
         const mine = d.yourScore != null
-          ? ` — ${L(`du: ${d.yourScore} (Platz ${d.yourRank})`, `you: ${d.yourScore} (rank ${d.yourRank})`)}`
+          ? ` — ${L(`du: ${fmtNum(d.yourScore)} (Platz ${d.yourRank})`, `you: ${fmtNum(d.yourScore)} (rank ${d.yourRank})`)}`
           : '';
-        const magnet = d.magnet ? ` · 🧲 ${escapeHtml(d.magnet.name)}` : '';
-        return `<div class="challengeHistDay"><span>${escapeHtml(d.date)}</span><span>${win}${magnet}${mine}</span></div>`;
+        const magnet = d.magnet ? ` · ${iconHtml('magnet')} <span>${escapeHtml(d.magnet.name)}</span>` : '';
+        return `<div class="challengeHistDay"><span>${escapeHtml(fmtDay(d.date, { day: 'numeric', month: 'short', timeZone: 'UTC' }))}</span><span>${win}${magnet}${escapeHtml(mine)}</span></div>`;
       })
       .join('');
     const histBlock = histRows
@@ -5416,19 +5470,22 @@
     // Wochenwertung: beste 5 Tages-Scores der laufenden Woche (Mo-So).
     const wk = b.weekly;
     const weeklyBlock = wk && wk.players > 0
-      ? `<div class="challengeWeekly"><h4>🗓️ ${L('Wochenwertung', 'Weekly ranking')} <span class="weekRange">${escapeHtml(wk.week)}</span></h4>` +
-        wk.top.map((e) => `<div class="challengeHistDay"><span>#${e.rank} ${escapeHtml(e.name)}</span><span>${e.weekScore} ${L('Pkt', 'pts')} · ${e.days} ${L('Tage', 'days')}</span></div>`).join('') +
+      ? `<div class="challengeWeekly"><h4>${iconHtml('calendar')}<span>${L('Wochenwertung', 'Weekly ranking')}</span> <span class="weekRange">${escapeHtml(wk.week)}</span></h4>` +
+        wk.top.map((e) => `<div class="challengeHistDay"><span>#${e.rank} ${escapeHtml(e.name)}</span><span>${fmtNum(e.weekScore)} ${L('Pkt', 'pts')} · ${fmtCount(e.days, 'day')}</span></div>`).join('') +
         (wk.yourRank && wk.yourRank > wk.top.length
-          ? `<div class="challengeHistDay"><span>#${wk.yourRank} ${L('du', 'you')}</span><span>${wk.yourScore} ${L('Pkt', 'pts')}</span></div>`
+          ? `<div class="challengeHistDay"><span>#${wk.yourRank} ${L('du', 'you')}</span><span>${fmtNum(wk.yourScore)} ${L('Pkt', 'pts')}</span></div>`
           : '') +
         `<p class="weeklyHint">${L('Deine besten 5 Tage der Woche zählen.', 'Your best 5 days of the week count.')}</p></div>`
       : '';
-    const yourLine = L(`Dein Ergebnis: ${b.yourScore} Punkte${b.yourRank ? ` · Platz ${b.yourRank}` : ''}`, `Your result: ${b.yourScore} points${b.yourRank ? ` · rank ${b.yourRank}` : ''}`);
-    const magnetBlock = b.magnet ? `<p class="challengeMagnet">${escapeHtml(magnetText(b.magnet))}</p>` : '';
+    // The table row already says rank and score; the line only helps when
+    // the own row is not on the board.
+    const yourLine = L(`Dein Ergebnis: ${fmtNum(b.yourScore)} Punkte${b.yourRank ? ` · Platz ${b.yourRank}` : ''}`, `Your result: ${fmtNum(b.yourScore)} points${b.yourRank ? ` · rank ${b.yourRank}` : ''}`);
+    const yourBlock = ownRowShown || b.yourScore == null ? '' : `<p class="challengeYour">${escapeHtml(yourLine)}</p>`;
+    const magnetBlock = b.magnet ? `<p class="challengeMagnet">${withIcon('magnet', magnetText(b.magnet))}</p>` : '';
     const shareBlock = b.yourRank ? shareBtnHtml('challengeShareBtn', 'Ergebnis teilen', 'Share result') : '';
-    box.innerHTML = `<h3>🗓️ ${L('Tages-Challenge', 'Daily challenge')} ${escapeHtml(b.date)}</h3>
-      <p class="challengeYour">${escapeHtml(yourLine)}</p>${shareBlock}
-      <table class="statsTable"><tbody>${rows}</tbody></table>${magnetBlock}${weeklyBlock}${histBlock}`;
+    box.innerHTML = `<h3>${iconHtml('calendar')}<span>${L('Tages-Challenge', 'Daily challenge')} ${escapeHtml(fmtDay(b.date))}</span></h3>
+      ${yourBlock}${shareBlock}
+      <table class="statsTable challengeTable"><tbody>${rows}</tbody></table>${magnetBlock}${weeklyBlock}${histBlock}`;
     const shareBtn = box.querySelector('.challengeShareBtn');
     if (shareBtn) {
       shareBtn.addEventListener('click', () => shareResult(challengeShareText({
@@ -5480,7 +5537,7 @@
         el('challengeStartBtn').classList.toggle('hidden', played);
         if (played) el('challengeCancelBtn').textContent = L('Schließen', 'Close');
         el('challengeMagnetLine').classList.toggle('hidden', !(d && d.magnet));
-        if (d && d.magnet) el('challengeMagnetLine').textContent = magnetText(d.magnet);
+        if (d && d.magnet) el('challengeMagnetLine').innerHTML = withIcon('magnet', magnetText(d.magnet));
         // Wochenwertung: beste 5 von 7 Tagen - belohnt Regelmaessigkeit statt
         // eines einzelnen Gluckstreffers.
         // ACHTUNG: getWeekly liefert das Feld "top" (nicht "board" wie die
@@ -5566,7 +5623,7 @@
     // Game days as UTC midnights (labels in UTC too): ticks sit on the points
     // and no local DST shift can move a label to the neighbouring day.
     const xs = trend.dates.map((d) => Date.parse(`${d}T00:00:00Z`) / 1000);
-    const dayLabel = (ts) => new Date(ts * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'numeric', timeZone: 'UTC' });
+    const dayLabel = (ts) => fmtDate(ts * 1000, { day: 'numeric', month: 'numeric', timeZone: 'UTC' });
     const people = trend.top.map((p, i) => ({ ...p, color: TREND_COLORS[i], me: false }));
     if (trend.me) people.push({ ...trend.me, name: L('Du', 'You'), color: ink, me: true });
     const axis = { stroke: muted, grid: { stroke: 'rgba(0,0,0,0.08)', width: 1 }, ticks: { show: false }, font: '11px sans-serif' };
@@ -5579,7 +5636,7 @@
       const head = idx == null ? L('Tag', 'Day') : dayLabel(xs[idx]);
       table.innerHTML = `<thead><tr><th></th><th>${escapeHtml(head)}</th><th>${escapeHtml(L('14 Tage', '14 days'))}</th></tr></thead><tbody>` +
         people.map((p) => `<tr class="${p.me ? 'me' : ''}"><td><i style="background:${p.color}"></i>${escapeHtml(p.name)}</td>` +
-          `<td>${idx == null || p.scores[idx] == null ? '–' : p.scores[idx]}</td><td>${p.total}</td></tr>`).join('') +
+          `<td>${idx == null || p.scores[idx] == null ? '–' : fmtNum(p.scores[idx])}</td><td>${fmtNum(p.total)}</td></tr>`).join('') +
         '</tbody>';
     };
     renderTable(null);
@@ -5626,8 +5683,8 @@
   const STAMMTISCH_KEY = 'pikdame_stammtische';
   const stammtischChipInfo = {}; // code -> latest stammtischInfo (chip + sheet)
   let stammtischSheetCode = null;
-  const winsText = (n) => L(`${n} ${n === 1 ? 'Sieg' : 'Siege'}`, `${n} ${n === 1 ? 'win' : 'wins'}`);
-  const gamesText = (n) => L(`${n} ${n === 1 ? 'Partie' : 'Partien'}`, `${n} ${n === 1 ? 'game' : 'games'}`);
+  const winsText = (n) => fmtCount(n, 'win');
+  const gamesText = (n) => fmtCount(n, 'game');
   function recentStammtische() {
     try { const v = JSON.parse(storageGet(STAMMTISCH_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; }
   }
@@ -5693,7 +5750,7 @@
       return `<svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg> <span>${escapeHtml(L(`${ser.winner} hat Serie ${ser.no} gewonnen`, `${ser.winner} won series ${ser.no}`))}</span><small>${score}</small>`;
     }
     return `${escapeHtml(L(`Serie ${ser.no} · Best of ${ser.bestOf}`, `Series ${ser.no} · best of ${ser.bestOf}`))}: ${score}<small>${escapeHtml(
-      L(`${ser.needed} Siege entscheiden · Spiel ${ser.games + 1} von ${ser.bestOf}`, `${ser.needed} wins decide · game ${ser.games + 1} of ${ser.bestOf}`)
+      L(`${fmtCount(ser.needed, 'win')} ${ser.needed === 1 ? 'entscheidet' : 'entscheiden'} · Spiel ${ser.games + 1} von ${ser.bestOf}`, `${fmtCount(ser.needed, 'win')} ${ser.needed === 1 ? 'decides' : 'decide'} · game ${ser.games + 1} of ${ser.bestOf}`)
     )}</small>`;
   }
   function renderStammtisch() {
@@ -5708,7 +5765,7 @@
     // Pairwise record for the humans at THIS table: "who finished ahead".
     const humans = ((lastState && lastState.players) || []).filter((p) => !p.isBot).map((p) => p.name);
     box.querySelector('#stammtischBody').innerHTML =
-      `<div class="stName">🍻 ${escapeHtml(sum.name)} <span class="stCode">${escapeHtml(sum.code)}</span> <small>· ${L(`${sum.gamesPlayed} Partien`, `${sum.gamesPlayed} games`)}</small></div>` +
+      `<div class="stName">🍻 ${escapeHtml(sum.name)} <span class="stCode">${escapeHtml(sum.code)}</span> <small>· ${gamesText(sum.gamesPlayed)}</small></div>` +
       stammtischStatsHtml(sum, { pairNames: humans });
   }
   /** Head-to-head pairs. Given names: those, in seat order (lobby); else all
@@ -5733,7 +5790,7 @@
     if (g.type === 'week') {
       return g.streak > 1
         ? L(`Wochenziel geschafft – ${g.streak} Wochen in Folge!`, `Weekly goal reached – ${g.streak} weeks in a row!`)
-        : L(`Wochenziel geschafft: ${g.goal} Partien diese Woche!`, `Weekly goal reached: ${g.goal} games this week!`);
+        : L(`Wochenziel geschafft: ${fmtCount(g.goal, 'game')} diese Woche!`, `Weekly goal reached: ${fmtCount(g.goal, 'game')} this week!`);
     }
     if (g.type === 'level') return L(`Stammtisch-Stufe ${g.level} erreicht!`, `Stammtisch level ${g.level} reached!`);
     return '';
@@ -6543,7 +6600,7 @@
     const W = 320;
     const H = 150;
     // Right padding holds the end labels (they replace the legend).
-    const PAD = { l: 30, r: 84, t: 8, b: 18 };
+    const PAD = { l: 34, r: 92, t: 8, b: 20 };
     const players = opts.players || lastState.players;
     const meId = opts.meId !== undefined ? opts.meId : playerId;
     const colorOf = (id) => PLAYER_COLORS[Math.max(0, players.findIndex((p) => p.id === id)) % PLAYER_COLORS.length];
@@ -6559,15 +6616,15 @@
     for (let v = 0; v <= maxV; v += 250) {
       const goal = v === TARGET;
       svgParts.push(`<line x1="${PAD.l}" y1="${y(v)}" x2="${W - PAD.r}" y2="${y(v)}" class="${goal ? 'goalLine' : 'gridLine'}"/>`);
-      svgParts.push(`<text x="${PAD.l - 4}" y="${y(v) + 3}" class="axisLabel${goal ? ' goal' : ''}" text-anchor="end">${v}</text>`);
+      svgParts.push(`<text x="${PAD.l - 4}" y="${y(v) + 3}" class="axisLabel${goal ? ' goal' : ''}" text-anchor="end">${fmtNum(v)}</text>`);
     }
-    // Others first and muted, mine last and on top.
+    // Others first (thinner, full colour: a translucent line failed contrast), mine last and on top.
     const order = players.slice().sort((a, b) => (a.id === meId) - (b.id === meId));
     order.forEach((p) => {
       const color = colorOf(p.id);
       const mine = p.id === meId;
       const points = history.map((h, i) => `${x(i).toFixed(1)},${y(valueAt(h, p)).toFixed(1)}`).join(' ');
-      svgParts.push(`<polyline points="${points}" fill="none" stroke="${color}" stroke-width="${mine ? 3 : 2}" stroke-linejoin="round" stroke-linecap="round" class="${mine ? 'mine' : 'other'}"/>`);
+      svgParts.push(`<polyline points="${points}" fill="none" stroke="${color}" stroke-width="${mine ? 3 : 1.6}" stroke-linejoin="round" stroke-linecap="round" class="${mine ? 'mine' : 'other'}"/>`);
       const last = history[history.length - 1];
       svgParts.push(`<circle cx="${x(history.length - 1).toFixed(1)}" cy="${y(valueAt(last, p)).toFixed(1)}" r="${mine ? 4 : 3.2}" fill="${color}" class="endDot"/>`);
     });
@@ -6586,7 +6643,7 @@
       const name = l.p.name.length > 8 ? `${l.p.name.slice(0, 7)}…` : l.p.name;
       svgParts.push(
         `<text x="${lx}" y="${(l.y + 3.5).toFixed(1)}" class="endLabel${l.p.id === meId ? ' mine' : ''}">` +
-        `<tspan fill="${colorOf(l.p.id)}">●</tspan> ${escapeHtml(name)} <tspan class="endValue">${l.v}</tspan></text>`
+        `<tspan fill="${colorOf(l.p.id)}">●</tspan> ${escapeHtml(name)} <tspan class="endValue">${fmtNum(l.v)}</tspan></text>`
       );
     }
     // Every round labelled while it fits, otherwise first/last and a few between.
@@ -6600,9 +6657,15 @@
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     svg.setAttribute('role', 'img');
     svg.setAttribute('aria-label', L('Punkteverlauf', 'Score history') + ': ' +
-      labels.map((l) => `${l.p.name} ${l.v}`).join(', '));
+      labels.map((l) => `${l.p.name} ${fmtNum(l.v)}`).join(', '));
     svg.classList.add('scoreChartSvg');
     svg.innerHTML = svgParts.join('');
+    // Chart text stays at --fs-micro on screen: --k = viewBox units per CSS px.
+    const fit = () => {
+      const w = svg.getBoundingClientRect().width;
+      if (w > 0) svg.style.setProperty('--k', (W / w).toFixed(3));
+    };
+    try { if (typeof ResizeObserver === 'function') new ResizeObserver(fit).observe(svg); } catch (e) { /* cosmetic */ }
     wrap.appendChild(svg);
     return wrap;
   }
@@ -7317,13 +7380,13 @@
 
   // --- Sign-in methods of the signed-in account ---------------------------------
   function fmtShortDate(ms) {
-    return ms ? new Date(ms).toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-DE') : '–';
+    return ms ? fmtDate(ms) : '–';
   }
   // With time: two passkeys made on the same day on the same phone are told
   // apart by it.
   function fmtDateTime(ms) {
     return ms
-      ? new Date(ms).toLocaleString(lang === 'en' ? 'en-GB' : 'de-DE', { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      ? new Date(ms).toLocaleString(localeOf(), { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
       : '–';
   }
   /** Two-tap confirmation instead of window.confirm(): iOS can suppress the
@@ -8047,7 +8110,7 @@
       `<div class="levelUpBar pgBar"><i style="width:${pct}%"></i></div>` +
       `<p class="pgXp">${L(`${lv.into}/${lv.need} EP · noch ${lv.need - lv.into} bis Stufe ${lv.level + 1}`, `${lv.into}/${lv.need} XP · ${lv.need - lv.into} to level ${lv.level + 1}`)}</p>` +
       (next.length
-        ? `<h3>${escapeHtml(L(`Nächste Belohnung (Stufe ${next[0].level})`, `Next reward (level ${next[0].level})`))}</h3><ul class="pgNext">${next.map((r) => `<li>${escapeHtml(r.label)}</li>`).join('')}</ul>`
+        ? `<h3>${escapeHtml(L(`Nächste Belohnung (Stufe ${next[0].level})`, `Next reward (level ${next[0].level})`))}</h3><ul class="pgNext">${next.map((r) => `<li>${rewardHtml(r)}</li>`).join('')}</ul>`
         : '') +
       streakSectionHtml() +
       towerSectionHtml() +
@@ -8687,12 +8750,8 @@
     btn.dataset.state = storageGet(YEAR_SEEN_KEY) === yearReview.year ? 'seen' : 'new';
   }
 
-  function fmtNum(n) {
-    return Number(n || 0).toLocaleString(lang === 'en' ? 'en-GB' : 'de-DE');
-  }
   function fmtYearDay(date) {
-    const d = new Date(`${date}T12:00:00Z`);
-    return Number.isNaN(d.getTime()) ? String(date) : d.toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-DE', { day: 'numeric', month: 'long', timeZone: 'UTC' });
+    return fmtDay(date, { day: 'numeric', month: 'long', timeZone: 'UTC' });
   }
 
   /** The numbers worth a tile: always games and wins, the rest only when earned. */
@@ -8700,8 +8759,8 @@
     const t = r.totals;
     const pct = t.games ? Math.round((t.wins / t.games) * 100) : 0;
     return [
-      { value: fmtNum(t.games), label: L('Partien', 'Games') },
-      { value: fmtNum(t.wins), label: L(`Siege · ${pct} %`, `Wins · ${pct} %`) },
+      { value: fmtNum(t.games), label: unitWord(t.games, 'game').replace(/^./, (c) => c.toUpperCase()) },
+      { value: fmtNum(t.wins), label: `${unitWord(t.wins, 'win').replace(/^./, (c) => c.toUpperCase())} · ${pct} %` },
       t.queensLaid > 0 && { value: `${fmtNum(t.queensLaid)}×`, label: L('Pik Dame gerettet', 'Queen of spades rescued') },
       t.bestRound > 0 && { value: `+${fmtNum(t.bestRound)}`, label: L('Beste Runde', 'Best round') },
       t.bestStreak > 1 && { value: fmtNum(t.bestStreak), label: L('Tage Serie', 'Day streak') },
@@ -8735,7 +8794,7 @@
       slides.push({
         tone: 'bordeaux', kicker: L('Lieblingsgegner', 'Favourite opponent'), big: f.name, bigText: true, note: since,
         lines: [
-          L(`${f.games} ${f.games === 1 ? 'Partie' : 'Partien'} zusammen – ${f.wins} davon gingen an dich.`, `${f.games} ${f.games === 1 ? 'game' : 'games'} together – ${f.wins} of them went to you.`),
+          L(`${fmtCount(f.games, 'game')} zusammen – ${f.wins} davon gingen an dich.`, `${fmtCount(f.games, 'game')} together – ${f.wins} of them went to you.`),
           f.wins * 2 > f.games ? L(`Ob ${f.name} das auch so entspannt sieht?`, `Does ${f.name} take it that calmly?`) : L('Revanche? Die Katze hält die Karten bereit.', 'Rematch? The cat is holding the cards.'),
         ],
       });
@@ -9037,7 +9096,7 @@
     el('levelUpRank').classList.toggle('isNew', newTitle);
     el('levelUpXp').textContent = `${L(`Stufe ${from} → ${to}`, `Level ${from} → ${to}`)}${gainedXp ? ` · +${gainedXp} ${L('EP', 'XP')}` : ''}${welcomeBack ? ` (${L('×2 Willkommen zurück', '×2 welcome back')})` : ''}`;
     const start = levelFromXpClient(Math.max(0, beforeXp || 0));
-    const list = (items) => items.map((r) => `<li>${escapeHtml(r.label)}</li>`).join('');
+    const list = (items) => items.map((r) => `<li>${rewardHtml(r)}</li>`).join('');
     el('levelUpRewards').innerHTML =
       (got.length ? `<h3>${escapeHtml(L('Neu freigeschaltet', 'Newly unlocked'))}</h3><ul>${list(got)}</ul>` : '') +
       (next.length ? `<h3>${escapeHtml(L(`Nächste Belohnung (Stufe ${next[0].level})`, `Next reward (level ${next[0].level})`))}</h3><ul class="next">${list(next)}</ul>` : '');
@@ -9113,7 +9172,7 @@
       const at = owned[id];
       const p = progress[id];
       const sub = at
-        ? new Date(at).toLocaleDateString()
+        ? fmtDate(at, { day: 'numeric', month: 'numeric', year: 'numeric' })
         : p && p.need > 1
           ? `${p.have}/${p.need}`
           : L('gesperrt', 'locked');
@@ -9282,7 +9341,7 @@
       const m = badgeMeta(id);
       const p = progress[id];
       const state = owned[id]
-        ? `✓ ${new Date(owned[id]).toLocaleDateString()}`
+        ? `✓ ${fmtDate(owned[id], { day: 'numeric', month: 'numeric', year: 'numeric' })}`
         : p && p.need > 1 ? `${p.have}/${p.need}` : '';
       // "here" = the dot: the tier being worked on, or the last one when all are reached.
       const here = fam && (id === next || (!next && i === fam.tiers.length - 1));
@@ -9374,7 +9433,7 @@
       `<div class="levelMeta">${L('Saison', 'Season')} ${escapeHtml(accountProgress.season ? seasonLabel(accountProgress.season) : '–')}: ` +
       `<b>${accountProgress.seasonXp}</b> ${L('EP', 'XP')}` +
       (accountProgress.rank ? ` · ${L('Platz', 'Rank')} <b>${accountProgress.rank}</b>` : '') +
-      ` · ${accountProgress.wins}/${accountProgress.games} ${L('Siege', 'wins')}</div>`;
+      ` · ${accountProgress.wins}/${accountProgress.games}${NBSP}${unitWord(accountProgress.games, 'win')}</div>`;
   }
 
   // Same curve as game/Progression.js - kept tiny and duplicated on purpose:
@@ -9557,10 +9616,10 @@
     const today = new Date();
     const yest = new Date();
     yest.setDate(today.getDate() - 1);
-    const time = d.toLocaleTimeString(lang === 'en' ? 'en-GB' : 'de-DE', { hour: '2-digit', minute: '2-digit' });
+    const time = d.toLocaleTimeString(localeOf(), { hour: '2-digit', minute: '2-digit' });
     if (d.toDateString() === today.toDateString()) return L(`Heute, ${time}`, `Today, ${time}`);
     if (d.toDateString() === yest.toDateString()) return L(`Gestern, ${time}`, `Yesterday, ${time}`);
-    return d.toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+    return fmtDate(d, { weekday: 'short', day: '2-digit', month: '2-digit' });
   }
   function historyGameView(g) {
     const players = g.players || [];
@@ -9618,7 +9677,7 @@
         `<span class="histOpp">${escapeHtml(v.opps.length ? L(`gegen ${v.opps.join(', ')}`, `vs ${v.opps.join(', ')}`) : L('Solo', 'Solo'))}</span>` +
         `<span class="histBars" role="img" aria-label="${escapeHtml(standingText)}">${bars}</span>` +
         `</span>` +
-        `<span class="histScore">${v.myTotal}<small>${escapeHtml(L(`${g.rounds} Runden`, `${g.rounds} rounds`))}</small></span>` +
+        `<span class="histScore">${fmtNum(v.myTotal)}<small>${escapeHtml(fmtCount(g.rounds, 'round'))}</small></span>` +
         `</button>` +
         (open ? `<div class="histDetail" data-detail="${escapeHtml(g.id)}"></div>` : '');
     };
@@ -9629,9 +9688,9 @@
       : '');
     box.innerHTML =
       `<div class="histSummary">` +
-      `<div><b>${games.length}</b><span>${L('Partien', 'Games')}</span></div>` +
-      `<div><b>${wins}</b><span>${L('Siege', 'Wins')}</span></div>` +
-      `<div><b>${avg}</b><span>${L('Ø Punkte', 'Avg. points')}</span></div>` +
+      `<div><b>${fmtNum(games.length)}</b><span>${unitWord(games.length, 'game').replace(/^./, (c) => c.toUpperCase())}</span></div>` +
+      `<div><b>${fmtNum(wins)}</b><span>${unitWord(wins, 'win').replace(/^./, (c) => c.toUpperCase())}</span></div>` +
+      `<div><b>${fmtNum(avg)}</b><span>${L('Ø Punkte', 'Avg. points')}</span></div>` +
       `</div>` +
       group(L('Letzte 7 Tage', 'Last 7 days'), recent) + group(L('Früher', 'Earlier'), older);
     // The opened game: its score chart (stored totals after each round).
@@ -9646,7 +9705,7 @@
       list.innerHTML = v.players
         .slice()
         .sort((x, y) => (v.totals[y.id] || 0) - (v.totals[x.id] || 0))
-        .map((p) => `<li class="${p === v.me ? 'me' : ''}"><span>${escapeHtml(p.name)}${v.diffOf(p) ? ` <small>${escapeHtml(v.diffOf(p).short())}</small>` : ''}</span><b>${v.totals[p.id] || 0}</b></li>`)
+        .map((p) => `<li class="${p === v.me ? 'me' : ''}"><span>${escapeHtml(p.name)}${v.diffOf(p) ? ` <small>${escapeHtml(v.diffOf(p).short())}</small>` : ''}</span><b>${fmtNum(v.totals[p.id] || 0)}</b></li>`)
         .join('');
       detail.appendChild(list);
     }
@@ -9675,12 +9734,12 @@
         : queens > 0
           ? L(`${Math.round(share * 100)} % aller Pik Damen bleiben auf der Hand hängen.`, `${Math.round(share * 100)}% of all Queens of Spades get caught in hand.`)
           : '';
-      const fmt = (v) => Number(v || 0).toLocaleString(lang === 'en' ? 'en-GB' : 'de-DE');
+      const fmt = fmtNum;
       gsBox.innerHTML =
         (punch ? `<p class="gsPunch">${punch}</p>` : '') +
         `<p class="gsLine">${L(
-          `Auf diesem Server: ${fmt(g.games)} Partien · ${fmt(g.rounds)} Runden · ${fmt(g.handAusRounds)}× Hand aus`,
-          `On this server: ${fmt(g.games)} games · ${fmt(g.rounds)} rounds · ${fmt(g.handAusRounds)}× out in one`
+          `Auf diesem Server: ${fmtCount(g.games, 'game')} · ${fmtCount(g.rounds, 'round')} · ${fmt(g.handAusRounds)}×${NBSP}Hand aus`,
+          `On this server: ${fmtCount(g.games, 'game')} · ${fmtCount(g.rounds, 'round')} · ${fmt(g.handAusRounds)}×${NBSP}out in one`
         )}</p>`;
       gsBox.classList.remove('hidden');
     } else {
@@ -9708,7 +9767,7 @@
         return `<button type="button" class="boardRow${mine ? ' isMe' : ''}" data-name="${escapeHtml(p.name)}">` +
           `<span class="boardRank">${i + 1}</span>` +
           `<span class="boardName">${nameWithHeart(p.name)}${favoriteBadgesHtml(p)}</span>` +
-          `<span class="boardNum"><b>${won}</b>/${played}</span>` +
+          `<span class="boardNum"><b>${fmtNum(won)}</b>/${fmtNum(played)}</span>` +
           `<span class="boardNum">${rate} %</span>` +
           `<span class="boardNum boardLevel">${levelFromXpClient(p.xp || 0).level}</span>` +
           `</button>`;
@@ -9760,8 +9819,8 @@
       `<div class="meHead"><span class="meName">${nameWithHeart(me.name)}</span><span class="meTitle">${escapeHtml(titleForLevel(lv.level))}</span></div>` +
       `<div class="kpiGrid">` +
       kpi(`${played > 0 ? Math.round((won / played) * 100) : 0} %`, L(`Siegquote (${won}/${played})`, `Win rate (${won}/${played})`)) +
-      kpi(played, L('Partien', 'Games')) +
-      kpi(me.bestGameScore !== undefined ? me.bestGameScore : '–', L('Beste Partie', 'Best game')) +
+      kpi(fmtNum(played), unitWord(played, 'game').replace(/^./, (c) => c.toUpperCase())) +
+      kpi(me.bestGameScore !== undefined ? fmtNum(me.bestGameScore) : '–', L('Beste Partie', 'Best game')) +
       `<button type="button" class="kpiTile kpiLink" data-open="progress"><b>${lv.level}</b><span>${L('Stufe', 'Level')}</span></button>` +
       `</div>` + spark;
     box.classList.remove('hidden');
@@ -9823,12 +9882,17 @@
     const out = [];
     for (const [id, level] of Object.entries(EMOTE_UNLOCK)) out.push({ level, kind: 'emote', id, label: `${id} ${L('Emote', 'emote')}` });
     for (const cb of CARDBACKS) {
-      if (cb.gate && cb.gate.field === 'level') out.push({ level: cb.gate.min, kind: 'cardback', id: cb.id, label: `🎴 ${L(`Kartenrücken „${cb.label}“`, `card back "${cb.labelEn}"`)}` });
+      if (cb.gate && cb.gate.field === 'level') out.push({ level: cb.gate.min, kind: 'cardback', id: cb.id, label: L(`Kartenrücken „${cb.label}“`, `card back "${cb.labelEn}"`) });
     }
-    for (const [id, level] of Object.entries(THEME_LEVELS)) out.push({ level, kind: 'theme', id, label: `🎨 ${L(`Tischfarbe „${themeName(id)}“`, `table colour "${themeName(id)}"`)}` });
-    for (const [level, de, en] of LEVEL_TITLES) if (level > 1) out.push({ level, kind: 'title', id: de, label: `🏷️ ${L(`Titel „${de}“`, `title "${en}"`)}` });
-    for (const c of CELEBRATIONS) if (c.level > 1) out.push({ level: c.level, kind: 'celebration', id: c.id, label: `🎉 ${L(`Siegesjubel „${c.de}“`, `victory celebration "${c.en}"`)}` });
+    for (const [id, level] of Object.entries(THEME_LEVELS)) out.push({ level, kind: 'theme', id, label: L(`Tischfarbe „${themeName(id)}“`, `table colour "${themeName(id)}"`) });
+    for (const [level, de, en] of LEVEL_TITLES) if (level > 1) out.push({ level, kind: 'title', id: de, label: L(`Titel „${de}“`, `title "${en}"`) });
+    for (const c of CELEBRATIONS) if (c.level > 1) out.push({ level: c.level, kind: 'celebration', id: c.id, label: L(`Siegesjubel „${c.de}“`, `victory celebration "${c.en}"`) });
     return out.sort((a, b) => a.level - b.level);
+  }
+  // Icons from the sprite per kind; an emote IS its emoji (content), so its label keeps it.
+  const REWARD_ICONS = { cardback: 'cards', theme: 'palette', title: 'tag', celebration: 'sparkle' };
+  function rewardHtml(r) {
+    return REWARD_ICONS[r.kind] ? `${iconHtml(REWARD_ICONS[r.kind])}<span>${escapeHtml(r.label)}</span>` : `<span>${escapeHtml(r.label)}</span>`;
   }
   function themeName(id) {
     return ({ bordeaux: 'Bordeaux' })[id] || id;

@@ -16,6 +16,7 @@
 // Views: phone (393x852), land (874x402), desk (1440x900), se (375x667), max (440x956).
 // Scenes: lobby, lobby-open, progress, stats, stats-badges (trophy cabinet + a favourite's
 // detail; favourites show with --signed-in), history, roundend, roundend-stats, gameover,
+// gameover-stats (its Statistik tab: game totals open, new achievements),
 // table (needs --state <file>: a GameManager.publicState('p1') JSON in the playing phase),
 // puzzle / puzzle-turn / puzzle-out (one meld laid), puzzle-solved (3 stars + the tile),
 // challenge (intro, attempt used),
@@ -605,8 +606,14 @@ function waitForHttp(port, ms = 20000) {
             inject({ type: 'challengeBoard', date: TODAY, yourScore: 880, yourRank: 2, yourQueens: 1, players: 9,
               board: [{ rank: 1, name: 'Oma Gerda', score: 1210 }, { rank: 2, name: ME, score: 880 }], history: [], weekly: null });
           }
+          if (sc === 'gameover-stats') inject({ type: 'badges', earned: [{ name: ME, badges: ['marathon_10', 'queen_magnet_day'] }] });
           if (sc.startsWith('gameover')) inject({ type: 'progress', gainedXp: 120, xp: 5440, level: { level: 14 }, record: { played: 43, won: 17 } });
           await page.waitForTimeout(1600); // count-up + winner animation
+          if (sc === 'gameover-stats') {
+            await page.click('#resultBody .resultTabBtn:nth-child(2)');
+            await page.click('.gameTotalsBox button');
+            await page.waitForTimeout(300);
+          }
           if (sc === 'roundend-stats') { await page.click('#resultBody .resultTabBtn:nth-child(2)'); await page.waitForTimeout(300); }
           if (sc === 'gameover-challenge') {
             await page.evaluate(() => { const b = document.querySelector('.challengeBoardBox'); if (b) b.scrollIntoView({ block: 'center' }); });

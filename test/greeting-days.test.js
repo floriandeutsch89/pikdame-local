@@ -1,6 +1,7 @@
 // Greeting days (PIKDAME_BIRTHDAY): parsing, the window on the German game
 // day, and /api/me telling only the matching signed-in account.
 const test = require('node:test');
+const { freePort } = require('./helpers/free-port');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -86,7 +87,8 @@ const healthz = (port) => new Promise((resolve, reject) => {
   http.get({ host: '127.0.0.1', port, path: '/healthz' }, (res) => { res.resume(); resolve(res.statusCode); }).on('error', reject);
 });
 
-async function meJourney(t, port, databaseUrl, suffix) {
+async function meJourney(t, databaseUrl, suffix) {
+  const port = await freePort();
   const name = `Testkonto${suffix}`;
   const other = `Andere${suffix}`;
   const md = gameDay().slice(5);
@@ -138,6 +140,6 @@ async function meJourney(t, port, databaseUrl, suffix) {
 }
 
 test('greeting days: /api/me tells the configured account only (SQLite)', { skip: !HAS_SQLITE && 'needs node:sqlite' },
-  (t) => meJourney(t, 8101, '', ''));
+  (t) => meJourney(t, '', ''));
 test('greeting days: /api/me tells the configured account only (PostgreSQL)', { skip: !PG_URL && 'needs PIKDAME_TEST_PG_URL' },
-  (t) => meJourney(t, 8102, PG_URL, String(Date.now() % 100000)));
+  (t) => meJourney(t, PG_URL, String(Date.now() % 100000)));
