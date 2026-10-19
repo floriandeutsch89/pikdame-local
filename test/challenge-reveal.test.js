@@ -2,6 +2,7 @@
  *  game ended (played or given up). /challengeboardz before that sends only the
  *  number of players; an account name needs its login token. Real server. */
 const test = require('node:test');
+const { freePort } = require('./helpers/free-port');
 const assert = require('node:assert');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
@@ -11,7 +12,7 @@ const http = require('node:http');
 const { createAccountStore } = require('../game/AccountStore');
 const { gameDay, addDays } = require('../game/GameDay');
 
-const PORT = 8142;
+let PORT = 0;
 const probe = createAccountStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-rev-probe-')), 'probe.db'));
 const HAS_SQLITE = probe !== null;
 if (probe) probe.close();
@@ -52,6 +53,7 @@ test('today\'s challenge scores show only after the own game; past days stay vis
       },
     },
   }));
+  PORT = await freePort();
   const server = spawn('node', ['server.js'], {
     cwd: path.join(__dirname, '..'),
     env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_PUBLIC_MODE: '0', PIKDAME_ONNX: '0' },

@@ -3,6 +3,7 @@
  *  with its consent version, and the unsubscribe link (GET only asks, POST
  *  switches off - the page's button and the RFC 8058 one-click). */
 const test = require('node:test');
+const { freePort } = require('./helpers/free-port');
 const assert = require('node:assert');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
@@ -16,7 +17,7 @@ const { gameDay } = require('../game/GameDay');
 const { REVIEW_MAIL_CONSENT_VERSION } = require('../game/YearReviewMail');
 
 const ROOT = path.join(__dirname, '..');
-const PORT = 8137;
+let PORT = 0;
 const HAS_SQLITE = (() => {
   try { require('node:sqlite'); return true; } catch (e) { return false; }
 })();
@@ -93,6 +94,8 @@ test('year review over the WebSocket, opt-in switch and unsubscribe link', { ski
   const unsub = crypto.randomBytes(32).toString('hex');
   await seed.setReviewUnsubHash(acc.id, crypto.createHash('sha256').update(unsub).digest('hex'));
   await seed.close();
+
+  PORT = await freePort();
 
   const server = spawn('node', ['server.js'], {
     cwd: ROOT,
