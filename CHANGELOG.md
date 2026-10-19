@@ -3,6 +3,13 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.88.0] - 2026-10-19
+
+### Changed
+- Tages-Challenge: Die Punkte der anderen siehst du erst, wenn deine eigene Partie
+  vorbei ist (gespielt oder aufgegeben). Vorher steht nur da, wie viele heute schon
+  gespielt haben; die Wochenwertung zählt bis dahin ohne den heutigen Tag.
+
 ## [2.87.0] - 2026-10-18
 
 ### Added
