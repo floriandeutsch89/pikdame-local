@@ -481,7 +481,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   content: ''; flex: 1; height: 1px; background: var(--glass-border);
 }
 .joinRow { display: flex; gap: 8px; width: 100%; }
-/* "Join a game" ends here: a little air before "Heute" starts. */
+/* "Join a game" ends here: a little air before "Aufgaben" starts. */
 .joinRow + .todaySection { margin-top: 8px; }
 #codeInput {
   flex: 1; min-width: 0;
@@ -2562,15 +2562,11 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   font: inherit; color: var(--card-ink); text-align: left; cursor: pointer;
 }
 .pgTower:active { transform: scale(0.98); }
-.pgTower + .pgTower { margin-top: 6px; }
 .pgTowerIcon { color: #b07800; }
 .pgTowerText { display: flex; flex-direction: column; flex: 1; min-width: 0; font-size: var(--fs-label); }
 .pgTowerText b { font-size: var(--fs-body); font-variant-numeric: tabular-nums; }
 .pgTowerText span { color: var(--text-muted); }
 .pgTowerGo { transform: rotate(-90deg); color: var(--text-muted); }
-/* On the light sheet: dark ink and a soft track (.segmented is styled for the dark table). */
-.towerTabs { margin: 0 0 10px; background: rgba(0, 0, 0, 0.05); border-color: var(--glass-border); }
-.towerTabs .segBtn:not(.active) { color: var(--card-ink); }
 .towerSummary { margin: 0 0 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .towerList { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 /* The bot column holds three level icons (11px x 2.544 each), so the handicap lines up. */
@@ -2591,6 +2587,7 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 .twBots { display: inline-flex; gap: 4px; }
 .twBots .lvlSlot { --lvl-h: 11px; }
 .twHandicap { font-size: var(--fs-hint); font-weight: 700; color: var(--text-muted); white-space: nowrap; }
+.twMods { display: block; font-weight: 600; white-space: normal; }
 .twStars, .twResultStars { display: inline-flex; gap: 1px; }
 .twStars .icon { width: 18px; height: 18px; color: rgba(0,0,0,0.28); }
 .twStars .icon.on, .twResultStars .icon.on { color: #b07800; fill: #f2b51d; }
@@ -3707,13 +3704,13 @@ input:disabled { opacity: 0.65; }
 .resultMore[open] summary .icon { transform: rotate(180deg); }
 .resultMoreBody { display: flex; flex-direction: column; gap: 2px; padding-top: 4px; }
 
-/* --- Fortschritt: Tagesaufgaben, Erfolge, Saison-Rangliste ----------------- */
+/* --- Fortschritt: Tagesziele, Erfolge, Saison-Rangliste -------------------- */
 /* Lobby panel. Uses the same lobby-section shell as the house rules, so it
    inherits width, radius and spacing instead of inventing its own. */
-/* Nested in "Heute": a row, not a card of its own. */
+/* Nested in "Aufgaben": a row, not a card of its own. */
 .questsSection { text-align: left; margin-top: 8px; border-top: 1px solid var(--glass-border); padding-top: 4px; }
 .questsSection[open] .questList { padding-bottom: 4px; }
-/* "Heute": the daily puzzle and challenge with their status. */
+/* "Aufgaben": the daily puzzle and challenge with their status, the Kartenhaus below. */
 .todaySection { padding: 12px 14px 8px; }
 .todaySection > h2 { margin-bottom: 8px; }
 .todayTiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -3739,6 +3736,15 @@ input:disabled { opacity: 0.65; }
 }
 .todayTile[data-state="new"] .ttStatus, .todayTile[data-state="open"] .ttStatus { color: var(--accent); font-weight: 700; }
 .todayTile[data-state="done"] { background: transparent; }
+/* Kartenhaus: one wide row under the daily tiles - name left, floor and stars right. */
+.todayTile.towerTile {
+  grid-column: 1 / -1; grid-template-columns: auto auto minmax(0, 1fr);
+  min-height: var(--tap-min); padding: 6px 12px;
+}
+.towerTile > .icon { grid-row: auto; color: #e0455a; color: color-mix(in srgb, var(--suit-red) 80%, var(--text)); }
+.towerTile .ttStatus { justify-self: end; display: inline-flex; align-items: center; gap: 3px; max-width: 100%; font-size: var(--fs-label); }
+.towerTile .ttStar { width: 1.15em; height: 1.15em; color: #b07800; fill: #f2b51d; }
+.towerTile[data-state="new"] { padding-right: 24px; }
 /* December: "Dein Jahr" sits in the heading's corner (no extra row). */
 .todaySection { position: relative; }
 .yearChip {
@@ -3784,8 +3790,6 @@ input:disabled { opacity: 0.65; }
   flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   color: var(--text-muted); font-weight: 500; font-variant-numeric: tabular-nums;
 }
-.stTowerRow > .icon:first-child { color: #e0a81a; color: color-mix(in srgb, #f2b51d 78%, var(--text)); }
-.stRecentRow .stTowerStar { width: 1em; height: 1em; flex: 0 0 auto; margin-left: -6px; color: #b07800; fill: #f2b51d; }
 .stRecentRow .stGo { width: 1em; height: 1em; flex: 0 0 auto; color: var(--text-muted); transform: rotate(-90deg); }
 /* "My Stammtische" in the overlay: tap the row to join, side button deletes/leaves. */
 .stammtischMine, .stammtischFound { text-align: left; margin: 8px 0; }

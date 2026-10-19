@@ -1,7 +1,7 @@
-/** Bot tower, client side: the entry on the progress sheet, the stage sheet
- *  (top of the tower first, locks, the next stage), starting a stage through
- *  the one-game guard, the verdict on the result sheet and the way back via
- *  the reload intent. Boots the REAL markup and client in jsdom. */
+/** Kartenhaus, client side: the start-screen tile in "Aufgaben", the entry on
+ *  the progress sheet, the floor sheet, starting a floor through the one-game
+ *  guard, the verdict on the result sheet and the way back via the reload
+ *  intent. Boots the REAL markup and client in jsdom. */
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
@@ -54,10 +54,10 @@ function boot({ storage = {} } = {}) {
   return { window, doc, ws, sent, shown, errors, scrolled };
 }
 
-const PROFILE = { name: 'Ben', gamesPlayed: 3, gamesWon: 1, towerStars: 4, towerCleared: 2, tower: { 1: 3, 2: 1 } };
+const PROFILE = { name: 'Ben', gamesPlayed: 3, gamesWon: 1, towerStars: 4, towerCleared: 2, towers: { '2026-10': { 1: 3, 2: 1 } } };
 const towerInfo = (over = {}) => ({
-  type: 'towerInfo', stages: BotTower.publicStages(), clearMargin: BotTower.CLEAR_MARGIN,
-  best: { 1: 3, 2: 1 }, stars: 4, cleared: 2, unlocked: 3, ...over,
+  type: 'towerInfo', month: '2026-10', today: '2026-10-19', stages: BotTower.publicStages(), clearMargin: BotTower.CLEAR_MARGIN,
+  best: { 1: 3, 2: 1 }, stars: 4, cleared: 2, unlocked: 3, crowned: false, totalStars: 4, archive: [], ...over,
 });
 
 /** Start screen with a profile, today's quests and the tower data. */
@@ -68,7 +68,7 @@ function startScreen(storage) {
   return t;
 }
 
-test('progress sheet: the tower entry leads to the stage sheet, top of the tower first', () => {
+test('progress sheet: the Kartenhaus entry leads to the floor sheet, top floor first', () => {
   const t = startScreen();
   const ask = t.sent('getTower');
   assert.strictEqual(ask.length, 1, 'asked once, with the profiles');
@@ -78,31 +78,32 @@ test('progress sheet: the tower entry leads to the stage sheet, top of the tower
   t.doc.getElementById('identityAvatarBtn').click();
   assert.ok(t.shown('progressOverlay'));
   const entry = t.doc.querySelector('#progressContent .pgTower');
-  assert.ok(entry, 'tower entry on the progress sheet');
-  assert.match(entry.textContent, /4\/30 Sterne/);
-  assert.match(entry.textContent, /2 von 10 Stufen geschafft/);
+  assert.ok(entry, 'Kartenhaus entry on the progress sheet');
+  assert.match(entry.textContent, /Oktober: 4\/60 Sterne/);
+  assert.match(entry.textContent, /2 von 20 Etagen · insgesamt 4 Sterne/);
   entry.click();
   assert.ok(t.shown('towerOverlay'));
   assert.ok(!t.shown('progressOverlay'), 'one sheet at a time');
 
-  assert.strictEqual(t.doc.getElementById('towerSummary').textContent, '4/30 Sterne · 2 von 10 Stufen geschafft');
+  assert.strictEqual(t.doc.getElementById('towerSummary').textContent, 'Oktober: 4/60 Sterne · 2 von 20 Etagen geschafft');
   const rows = [...t.doc.querySelectorAll('#towerList .twStage')];
-  assert.deepStrictEqual(rows.map((r) => Number(r.dataset.stage)), [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]);
+  assert.deepStrictEqual(rows.map((r) => Number(r.dataset.stage)), Array.from({ length: 20 }, (_, i) => 20 - i));
   const row = (n) => rows.find((r) => Number(r.dataset.stage) === n);
   assert.strictEqual(row(1).querySelectorAll('.twStars .icon.on').length, 3);
   assert.strictEqual(row(2).querySelectorAll('.twStars .icon.on').length, 1);
   assert.ok(row(3).classList.contains('next'), 'the stage to climb stands out');
   assert.strictEqual(t.doc.querySelectorAll('#towerList .twStage.next').length, 1);
-  for (const n of [4, 5, 10]) {
-    assert.ok(row(n).classList.contains('locked'), `stage ${n} locked`);
+  for (const n of [4, 5, 10, 20]) {
+    assert.ok(row(n).classList.contains('locked'), `floor ${n} locked`);
     assert.strictEqual(row(n).getAttribute('aria-disabled'), 'true');
   }
-  assert.strictEqual(row(2).getAttribute('aria-label'), 'Stufe 2: gegen Leicht, Mittel - 1 von 3 Sternen');
-  assert.match(row(10).getAttribute('aria-label'), /^Stufe 10: gegen Zen, Zen, Zen, die Bots bekommen 100 Punkte Vorgabe - gesperrt$/);
+  assert.strictEqual(row(2).getAttribute('aria-label'), 'Etage 2: gegen Leicht, Mittel - 1 von 3 Sternen');
+  assert.match(row(10).getAttribute('aria-label'), /^Etage 10: gegen Zen, Zen, Zen, die Bots bekommen 100 Punkte Vorgabe - gesperrt$/);
+  assert.match(row(20).getAttribute('aria-label'), /^Etage 20: gegen Zen, Zen, Zen, die Bots bekommen 160 Punkte Vorgabe, Pik Dame auf der Hand · Ohne Ablage · Selbst ausmachen - gesperrt$/);
   assert.strictEqual(row(10).querySelector('.twHandicap').textContent, 'Bots +100');
   assert.ok(row(10).querySelectorAll('.twBots .lvlIcon').length === 3, 'one level icon per bot');
   assert.match(t.doc.getElementById('towerRules').textContent, /mindestens 100 Punkte vorn/);
-  assert.match(t.doc.getElementById('towerRules').textContent, /erste Stern jeder Stufe bringt einmal 25 EP/);
+  assert.match(t.doc.getElementById('towerRules').textContent, /erste Stern jeder Etage bringt pro Monat einmal 10 EP/);
   assert.ok(t.scrolled.includes(row(3)), 'the next stage scrolled into view');
   assert.deepStrictEqual(t.errors, []);
   t.window.close();
@@ -115,7 +116,7 @@ test('a tap starts the stage, a locked one only explains', () => {
   t.doc.querySelector('#progressContent .pgTower').click();
   t.doc.querySelector('#towerList .twStage[data-stage="7"]').click();
   assert.strictEqual(t.sent('startTower').length, 0, 'locked');
-  assert.match(t.doc.getElementById('toastContainer').textContent, /schaff erst Stufe 3/);
+  assert.match(t.doc.getElementById('toastContainer').textContent, /schaff erst Etage 3/);
   t.doc.querySelector('#towerList .twStage[data-stage="2"]').click();
   const start = t.sent('startTower');
   assert.strictEqual(start.length, 1);
@@ -124,15 +125,17 @@ test('a tap starts the stage, a locked one only explains', () => {
   t.window.close();
 });
 
-test('the language switch redraws the tower sheet', () => {
+test('the language switch redraws the sheet and the tile', () => {
   const t = startScreen();
   t.ws.fire('message', towerInfo());
   t.doc.getElementById('identityAvatarBtn').click();
   t.doc.querySelector('#progressContent .pgTower').click();
   t.doc.getElementById('langBtn').click();
-  assert.strictEqual(t.doc.getElementById('towerSummary').textContent, '4/30 stars · 2 of 10 stages cleared');
-  assert.match(t.doc.getElementById('towerRules').textContent, /first star of each stage pays 25 XP once/);
-  assert.strictEqual(t.doc.querySelector('#towerTitle span').textContent, 'Bot tower');
+  assert.strictEqual(t.doc.getElementById('towerSummary').textContent, 'October: 4/60 stars · 2 of 20 floors cleared');
+  assert.match(t.doc.getElementById('towerRules').textContent, /first star of each floor pays 10 XP once a month/);
+  assert.strictEqual(t.doc.querySelector('#towerTitle span').textContent, 'House of Cards');
+  assert.strictEqual(t.doc.querySelector('#towerTile .ttTitle').textContent, 'House of Cards');
+  assert.strictEqual(t.doc.getElementById('towerTileStatus').textContent, 'Floor 3 · 4/60');
   t.window.close();
 });
 
@@ -144,20 +147,20 @@ test('one game at a time: an open stage resumes as such and is given up only aft
     type: 'sessionStatus', code: 'ABC123', exists: true, challenge: false, finished: false,
     seat: { phase: 'playing', round: 1, score: 0, left: false, alone: true, tutorial: false, tower: 4, stammtisch: null },
   });
-  assert.strictEqual(t.doc.getElementById('resumeBtn').textContent.trim(), 'Bot-Turm fortsetzen (Stufe 4)');
+  assert.strictEqual(t.doc.getElementById('resumeBtn').textContent.trim(), 'Kartenhaus fortsetzen (Etage 4)');
   t.ws.fire('message', towerInfo({ best: { 1: 3, 2: 1, 3: 1, 4: 0 }, unlocked: 4 }));
   t.doc.getElementById('identityAvatarBtn').click();
   t.doc.querySelector('#progressContent .pgTower').click();
   t.doc.querySelector('#towerList .twStage[data-stage="1"]').click();
   assert.strictEqual(t.sent('startTower').length, 0, 'nothing starts behind the sheet');
   assert.ok(t.shown('openGameOverlay'));
-  assert.strictEqual(t.doc.getElementById('openGameSummary').textContent, 'Bot-Turm · Stufe 4');
+  assert.strictEqual(t.doc.getElementById('openGameSummary').textContent, 'Kartenhaus · Etage 4');
   assert.match(t.doc.getElementById('openGameConsequence').textContent, /ohne Sterne/);
-  assert.strictEqual(t.doc.getElementById('openGameGiveUpBtn').textContent.trim(), 'Aufgeben & Bot-Turm');
+  assert.strictEqual(t.doc.getElementById('openGameGiveUpBtn').textContent.trim(), 'Aufgeben & Kartenhaus');
   t.window.close();
 });
 
-/** A finished stage 2 as the server would show it, plus the verdict message. */
+/** A finished floor 2 as the server would show it, plus the verdict message. */
 function finishedStage() {
   let record = null;
   const g = new GameManager(() => {}, { deckSeed: BotTower.stageConfig(2).seed, towerStage: 2, onGameOver: (r, rec) => { record = rec; } });
@@ -183,12 +186,12 @@ test('result sheet: stars, the sum behind them and the way on', () => {
   t.ws.fire('message', { type: 'state', state });
   const verdict = { ...outcome, stars: 1, margin: 25, myScore: 140, bestBot: 115, handicap: 0, wentOut: true };
   t.ws.fire('message', {
-    type: 'towerResult', ...verdict, clearMargin: 100, xp: 25, level: { level: 1, into: 25, need: 100, total: 25 },
-    progress: { best: { 1: 3, 2: 1 }, improved: true, stars: 4, cleared: 2, unlocked: 3 },
+    type: 'towerResult', ...verdict, clearMargin: 100, xp: 10, level: { level: 1, into: 10, need: 100, total: 10 },
+    progress: { best: { 1: 3, 2: 1 }, improved: true, stars: 4, cleared: 2, unlocked: 3, crowned: false, crownedNow: false },
   });
   assert.ok(t.shown('resultOverlay'));
-  assert.strictEqual(t.doc.getElementById('resultTitle').textContent, 'Bot-Turm · Stufe 2');
-  assert.strictEqual(t.doc.querySelector('#resultBody .twResultXp').textContent, '+25 EP · erster Stern');
+  assert.strictEqual(t.doc.getElementById('resultTitle').textContent, 'Kartenhaus · Etage 2');
+  assert.strictEqual(t.doc.querySelector('#resultBody .twResultXp').textContent, '+10 EP · erster Stern');
   const box = t.doc.querySelector('#resultBody .towerResultBox');
   assert.ok(box, 'verdict box');
   assert.strictEqual(box.querySelectorAll('.twResultStars .icon.on').length, 1);
@@ -196,25 +199,25 @@ test('result sheet: stars, the sum behind them and the way on', () => {
   assert.match(box.textContent, /25 Punkte vorn/);
   assert.match(box.textContent, /Neuer Bestwert/);
   assert.match(box.textContent, /mindestens 100 Punkte vorn/, 'what the next star needs');
-  assert.strictEqual(t.doc.getElementById('resultContinueBtn').textContent, 'Zum Bot-Turm');
-  assert.strictEqual(box.querySelector('.twNext').textContent.trim(), 'Stufe 3');
+  assert.strictEqual(t.doc.getElementById('resultContinueBtn').textContent, 'Zum Kartenhaus');
+  assert.strictEqual(box.querySelector('.twNext').textContent.trim(), 'Etage 3');
 
   // A state re-render keeps the box (the result sheet is rebuilt from scratch).
   t.ws.fire('message', { type: 'state', state });
   assert.strictEqual(t.doc.querySelectorAll('#resultBody .towerResultBox').length, 1);
 
   box.querySelector('.twNext').click();
-  assert.strictEqual(t.window.localStorage.getItem('pikdame_after_tower'), '3', 'the next stage after the reload');
+  assert.strictEqual(t.window.localStorage.getItem('pikdame_after_tower'), '3', 'the next floor after the reload');
   t.doc.querySelector('#resultBody .twRetry').click();
   assert.strictEqual(t.window.localStorage.getItem('pikdame_after_tower'), '2');
   t.doc.getElementById('resultContinueBtn').click();
   assert.strictEqual(t.window.localStorage.getItem('pikdame_after_tower'), 'open');
-  assert.strictEqual(t.sent('rematch').length, 0, 'never a rematch of a stage');
+  assert.strictEqual(t.sent('rematch').length, 0, 'never a rematch of a floor');
   assert.deepStrictEqual(t.errors, []);
   t.window.close();
 });
 
-test('a missed stage says by how much, with the handicap in the sum', () => {
+test('a missed floor says by how much, with the handicap in the sum', () => {
   const { state, outcome } = finishedStage();
   const t = boot();
   t.ws.fire('open');
@@ -226,18 +229,18 @@ test('a missed stage says by how much, with the handicap in the sum', () => {
   assert.match(box.textContent, /bester Bot 140 \+ 20 Vorgabe = 160/);
   assert.match(box.textContent, /15 Punkte hinten/);
   assert.strictEqual(box.querySelectorAll('.twResultStars .icon.on').length, 0);
-  assert.ok(!box.querySelector('.twNext'), 'stage 3 is not open yet');
+  assert.ok(!box.querySelector('.twNext'), 'floor 3 is not open yet');
   assert.ok(!box.querySelector('.twResultXp'), 'no star, no XP line');
   t.window.close();
 });
 
-test('after the reload: the intent opens the tower or starts the stage', () => {
+test('after the reload: the intent opens the Kartenhaus or starts the floor', () => {
   const open = startScreen({ pikdame_after_tower: 'open' });
   assert.ok(open.shown('towerOverlay'));
   assert.strictEqual(open.window.localStorage.getItem('pikdame_after_tower'), null, 'used once');
   assert.match(open.doc.getElementById('towerSummary').textContent, /Lädt/);
   open.ws.fire('message', towerInfo());
-  assert.strictEqual(open.doc.querySelectorAll('#towerList .twStage').length, 10);
+  assert.strictEqual(open.doc.querySelectorAll('#towerList .twStage').length, 20);
   open.window.close();
 
   const retry = startScreen({ pikdame_after_tower: '3' });
@@ -247,7 +250,7 @@ test('after the reload: the intent opens the tower or starts the stage', () => {
   retry.window.close();
 });
 
-test('public servers keep no profiles: no tower request, no tower sheet', () => {
+test('public servers keep no profiles: no Kartenhaus request, no tile', () => {
   const t = boot();
   t.ws.fire('open');
   t.ws.fire('message', { type: 'profiles', players: [], publicMode: true, quests: { date: '2026-10-17', ids: ['finish_game'] } });
@@ -255,101 +258,49 @@ test('public servers keep no profiles: no tower request, no tower sheet', () => 
   t.window.close();
 });
 
-test('start screen: tower chip under the Stammtische, at most three rows in all', () => {
+test('start screen: the Kartenhaus tile in "Aufgaben" shows this month\'s floor and stars', () => {
   const tables = [{ code: 'ST1', name: 'Eins' }, { code: 'ST2', name: 'Zwei' }, { code: 'ST3', name: 'Drei' }];
   const t = startScreen({ pikdame_stammtische: JSON.stringify(tables) });
-  const box = t.doc.getElementById('stammtischRecent');
-  const visible = () => [...box.querySelectorAll('.stRecentRow:not(.hidden)')];
-  assert.strictEqual(box.querySelector('.stTowerRow'), null, 'no chip without tower data');
-  assert.strictEqual(visible().length, 3);
+  const tile = t.doc.getElementById('towerTile');
+  assert.ok(t.doc.getElementById('todayTiles').contains(tile), 'in "Aufgaben", below puzzle and challenge');
+  assert.strictEqual(t.doc.getElementById('todayTiles').lastElementChild, tile);
+  assert.ok(tile.classList.contains('hidden'), 'hidden until the data is there');
+  // The Stammtische show all three again: no tower chip takes a row.
+  const rows = [...t.doc.querySelectorAll('#stammtischRecent .stRecentRow')];
+  assert.deepStrictEqual(rows.map((b) => b.dataset.code), ['ST1', 'ST2', 'ST3']);
+  assert.ok(rows.every((r) => !r.classList.contains('hidden')));
 
   t.ws.fire('message', towerInfo());
-  const chip = box.querySelector('.stTowerRow');
-  assert.ok(chip, 'chip once the data is there');
-  assert.strictEqual(box.lastElementChild, chip, 'below the Stammtische');
-  assert.strictEqual(chip.querySelector('.stChipInfo').textContent, 'Stufe 3 · 4/30');
-  assert.strictEqual(chip.getAttribute('aria-label'), 'Bot-Turm: Stufe 3, 4 von 30 Sternen');
-  assert.ok(chip.querySelector('.stTowerStar'));
-  assert.deepStrictEqual(visible().map((b) => b.dataset.code || 'tower'), ['ST1', 'ST2', 'tower'], 'the oldest table yields');
-  assert.strictEqual(JSON.parse(t.window.localStorage.getItem('pikdame_stammtische')).length, 3, 'but stays stored');
-
-  chip.click();
-  assert.ok(t.shown('towerOverlay'), 'a tap opens the tower sheet');
+  assert.ok(!tile.classList.contains('hidden'));
+  assert.strictEqual(tile.querySelector('.ttTitle').textContent, 'Kartenhaus');
+  assert.strictEqual(t.doc.getElementById('towerTileStatus').textContent, 'Etage 3 · 4/60');
+  assert.ok(t.doc.querySelector('#towerTileStatus .ttStar'), 'a star after the numbers');
+  assert.strictEqual(tile.getAttribute('aria-label'), 'Kartenhaus im Oktober: Etage 3, 4 von 60 Sternen');
+  assert.strictEqual(tile.dataset.state, '', 'mid-month: calm');
+  assert.strictEqual(t.doc.querySelectorAll('#stammtischRecent .stRecentRow:not(.hidden)').length, 3);
+  tile.click();
+  assert.ok(t.shown('towerOverlay'), 'a tap opens the Kartenhaus');
   assert.deepStrictEqual(t.errors, []);
   t.window.close();
 });
 
-test('start screen: invitation without stars, nothing in public mode', () => {
+test('start screen: a fresh month calls, a crowned one rests, public mode shows nothing', () => {
   const t = startScreen();
-  t.ws.fire('message', towerInfo({ best: {}, stars: 0, cleared: 0, unlocked: 1 }));
-  const box = t.doc.getElementById('stammtischRecent');
-  const chip = box.querySelector('.stTowerRow');
-  assert.ok(!box.classList.contains('hidden'), 'shown even without a Stammtisch');
-  assert.strictEqual(chip.textContent, 'Bot-Turm10 Stufen');
-  assert.strictEqual(chip.querySelector('.stTowerStar'), null);
+  t.ws.fire('message', towerInfo({ best: {}, stars: 0, cleared: 0, unlocked: 1, totalStars: 0 }));
+  assert.strictEqual(t.doc.getElementById('towerTileStatus').textContent, 'Etage 1 · 0/60');
+  assert.strictEqual(t.doc.getElementById('towerTile').dataset.state, 'new');
+  const all = Object.fromEntries(BotTower.TOWER_STAGES.map((st) => [st.stage, 2]));
+  t.ws.fire('message', towerInfo({ best: all, stars: 40, cleared: 20, unlocked: 20, crowned: true, totalStars: 40 }));
+  assert.strictEqual(t.doc.getElementById('towerTileStatus').textContent, 'Gekrönt · 40/60');
+  assert.strictEqual(t.doc.getElementById('towerTile').dataset.state, 'done');
+  assert.match(t.doc.getElementById('towerTile').getAttribute('aria-label'), /^Kartenhaus im Oktober: gekrönt, 40 von 60 Sternen$/);
   t.window.close();
 
   const p = boot();
   p.ws.fire('open');
   p.ws.fire('message', { type: 'profiles', players: [], publicMode: true });
   p.ws.fire('message', towerInfo());
-  assert.strictEqual(p.doc.querySelector('#stammtischRecent .stTowerRow'), null);
-  assert.ok(!p.shown('stammtischRecent'));
+  assert.ok(!p.shown('towerTile'));
   assert.deepStrictEqual(p.errors, []);
   p.window.close();
-});
-
-// --- Monthly Babel tower ---------------------------------------------------------
-const BABEL = { month: '2026-10', best: { 1: 2 }, stars: 2, cleared: 1, unlocked: 2, totalStars: 14 };
-
-test('Babel: the sheet switches to this month\'s tower, a tap starts its stage', () => {
-  const t = startScreen();
-  t.ws.fire('message', towerInfo({ babel: BABEL }));
-  t.doc.getElementById('identityAvatarBtn').click();
-  const entries = [...t.doc.querySelectorAll('#progressContent .pgTower')];
-  assert.strictEqual(entries.length, 2, 'fixed tower and Babel on the progress sheet');
-  assert.match(entries[1].textContent, /Turmbau zu Babel/);
-  assert.match(entries[1].textContent, /Oktober: 2\/30 Sterne · insgesamt 14/);
-  entries[1].click();
-  assert.ok(t.shown('towerOverlay'));
-  const tab = (v) => t.doc.querySelector(`#towerTabs [data-tower="${v}"]`);
-  assert.ok(tab('babel').classList.contains('active'));
-  assert.strictEqual(tab('babel').getAttribute('aria-pressed'), 'true');
-  assert.strictEqual(t.doc.getElementById('towerSummary').textContent, 'Oktober: 2/30 Sterne · 1 von 10 Stufen · insgesamt 14');
-  assert.match(t.doc.getElementById('towerRules').textContent, /Jeden Monat bauen die Bots neu/);
-  assert.match(t.doc.getElementById('towerRules').textContent, /einmal 10 EP/);
-  assert.ok(t.doc.querySelector('#towerList .twStage[data-stage="3"]').classList.contains('locked'));
-  t.doc.querySelector('#towerList .twStage[data-stage="2"]').click();
-  const start = t.sent('startTower');
-  assert.deepStrictEqual({ stage: start[0].stage, babel: start[0].babel }, { stage: 2, babel: true });
-
-  // The tab back shows the fixed tower; its stages start without the flag.
-  t.doc.getElementById('identityAvatarBtn').click();
-  t.doc.querySelector('#progressContent .pgTower').click();
-  assert.ok(tab('fixed').classList.contains('active'));
-  tab('babel').click();
-  assert.match(t.doc.getElementById('towerSummary').textContent, /^Oktober/);
-  tab('fixed').click();
-  assert.strictEqual(t.doc.getElementById('towerSummary').textContent, '4/30 Sterne · 2 von 10 Stufen geschafft');
-  t.doc.querySelector('#towerList .twStage[data-stage="1"]').click();
-  assert.strictEqual(t.sent('startTower')[1].babel, undefined);
-  assert.deepStrictEqual(t.errors, []);
-  t.window.close();
-});
-
-test('Babel: the start chip shows the monthly tower once the fixed one is complete', () => {
-  const t = startScreen();
-  t.ws.fire('message', towerInfo({ babel: BABEL }));
-  const chip = () => t.doc.querySelector('#stammtischRecent .stTowerRow');
-  assert.match(chip().textContent, /Bot-Turm/, 'fixed tower not complete yet');
-  const all = Object.fromEntries(BotTower.TOWER_STAGES.map((s) => [s.stage, 1]));
-  t.ws.fire('message', towerInfo({ best: all, stars: 10, cleared: 10, unlocked: 10, babel: BABEL }));
-  assert.ok(chip().classList.contains('babel'));
-  assert.match(chip().querySelector('.stName').textContent, /^Turmbau zu Babel$/);
-  assert.match(chip().textContent, /Stufe 2 · 2\/30/);
-  assert.match(chip().getAttribute('aria-label'), /^Turmbau zu Babel im Oktober: Stufe 2, 2 von 30 Sternen$/);
-  chip().click();
-  assert.ok(t.shown('towerOverlay'));
-  assert.ok(t.doc.querySelector('#towerTabs [data-tower="babel"]').classList.contains('active'));
-  t.window.close();
 });

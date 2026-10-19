@@ -25,17 +25,13 @@ function xpForGame(gameRecord, playerId) {
   return XP_BASE + (won ? XP_WIN : 0) + Math.max(0, Math.round(score * XP_PER_POINT));
 }
 
-// Bot tower (BotTower.js): a stage pays once, for its FIRST star. More stars
-// and retries pay nothing, so unlimited tries cannot farm XP (10 stages: 250).
-const XP_TOWER_FIRST_STAR = 25;
+// Kartenhaus (BotTower.js): a floor pays once per month, for its FIRST star.
+// More stars and retries pay nothing, so unlimited tries cannot farm XP (a month: 200).
+const XP_TOWER_FIRST_STAR = 10;
+// A crowned month (all 20 floors starred) pays once more.
+const XP_TOWER_CROWN = 50;
 function xpForTowerStage(bestBefore, starsNow) {
   return (Number(bestBefore) || 0) < 1 && (Number(starsNow) || 0) >= 1 ? XP_TOWER_FIRST_STAR : 0;
-}
-
-// Monthly Babel tower: the same rule at 10 XP, so a month pays at most 100.
-const XP_BABEL_FIRST_STAR = 10;
-function xpForBabelStage(bestBefore, starsNow) {
-  return (Number(bestBefore) || 0) < 1 && (Number(starsNow) || 0) >= 1 ? XP_BABEL_FIRST_STAR : 0;
 }
 
 // Level curve: each level costs a bit more than the previous one, so the
@@ -317,9 +313,8 @@ module.exports = {
   XP_BASE,
   XP_WIN,
   XP_TOWER_FIRST_STAR,
+  XP_TOWER_CROWN,
   xpForTowerStage,
-  XP_BABEL_FIRST_STAR,
-  xpForBabelStage,
   QUEST_IDS,
   QUESTS_PER_DAY,
   xpForGame,

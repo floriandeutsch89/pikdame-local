@@ -251,6 +251,8 @@
     <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
     <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3.5 11.2V4.5a1 1 0 0 1 1-1h6.7a1 1 0 0 1 .7.3l8.3 8.3a1 1 0 0 1 0 1.4l-6.7 6.7a1 1 0 0 1-1.4 0L3.8 11.9a1 1 0 0 1-.3-.7z"/><circle cx="8" cy="8" r="1.4"/></symbol>
     <symbol id="i-flame" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 3c.8 3.6 5 5.6 5 10.2a5 5 0 0 1-10 0c0-2.3 1-3.8 2.4-4.9.2 1.6.9 2.6 1.9 3.1C11.1 9.2 11.4 5.8 12 3zM12 20.2a2.3 2.3 0 0 0 2.3-2.3c0-1.4-1.1-2.2-2.3-3.9-1.2 1.7-2.3 2.5-2.3 3.9a2.3 2.3 0 0 0 2.3 2.3z"/></symbol>
+    <!-- Kartenhaus: two card tents, a floor card, one tent on top. -->
+    <symbol id="i-cardhouse" viewBox="0 0 24 24"><path d="M3.5 21 7.5 13.5l4 7.5M12.5 21l4-7.5 4 7.5"/><path d="M4.5 12.5h15"/><path d="M8 12.5 12 4.5l4 8"/></symbol>
     <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M7 4h10v4.5a5 5 0 0 1-10 0z"/><path d="M7 6H4.5a2.6 2.6 0 0 0 3 3.6M17 6h2.5a2.6 2.6 0 0 1-3 3.6"/><path d="M12 13.5V17M8.5 20.5h7M9.5 17h5v3.5h-5z"/></symbol>
     <symbol id="i-cake" viewBox="0 0 24 24"><path d="M3.5 20.5h17"/><path d="M5.5 20.5v-6.2A1.8 1.8 0 0 1 7.3 12.5h9.4a1.8 1.8 0 0 1 1.8 1.8v6.2"/><path d="M5.5 16.2c1.1.9 2.2.9 3.25 0s2.15-.9 3.25 0 2.15.9 3.25 0 2.15-.9 3.25 0"/><path d="M12 12.5V9.5"/><path d="M12 7.2c-1-.8-1-2 0-3.4 1 1.4 1 2.6 0 3.4z"/></symbol>
     <symbol id="i-pumpkin" viewBox="0 0 24 24"><path d="M12 7.6c-1.3-1.5-4.6-1.6-6.3.3-2.4 2.7-2.1 8.4.6 10.5 1.6 1.2 3.8 1.3 5.7.5 1.9.8 4.1.7 5.7-.5 2.7-2.1 3-7.8.6-10.5-1.7-1.9-5-1.8-6.3-.3z"/><path d="M12 7.6v11.2M9 8.4c-1.1 2.8-1.1 7.2 0 9.8M15 8.4c1.1 2.8 1.1 7.2 0 9.8"/><path d="M12 7.6c0-1.7.7-2.9 2.1-3.6"/></symbol>
@@ -446,20 +448,23 @@
           <input id="codeInput" type="text" placeholder="Spiel-Code" maxlength="6" autocapitalize="characters" autocomplete="off" spellcheck="false" />
           <button id="joinGameBtn" class="btn-secondary">Beitreten</button>
         </div>
-        <!-- "Heute": everything that is new every day, each with its status, so
-             an open puzzle or challenge is visible without opening it. -->
+        <!-- "Aufgaben": the daily puzzle and challenge, this month's Kartenhaus
+             and the daily goals, each with its status, so an open one is
+             visible without opening it. -->
         <section id="todaySection" class="lobby-section todaySection">
-          <h2>Heute</h2>
+          <h2>Aufgaben</h2>
           <!-- December only (the server decides): "Dein Pik-Dame-Jahr". In the
                heading's corner, so the start screen gets no taller. -->
           <button id="yearReviewBtn" type="button" class="yearChip hidden"><svg class="icon" aria-hidden="true"><use href="#i-cat"/></svg><span>Dein Jahr</span></button>
           <div id="todayTiles" class="todayTiles">
             <button id="puzzleBtn" type="button" class="todayTile"><svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg><span class="ttTitle">Tagesrätsel</span><span id="puzzleTileStatus" class="ttStatus"></span></button>
             <button id="challengeBtn" type="button" class="todayTile"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg><span class="ttTitle">Challenge</span><span id="challengeTileStatus" class="ttStatus"></span></button>
+            <!-- Monthly, so one wide row below the daily tiles: this month's floor and stars. -->
+            <button id="towerTile" type="button" class="todayTile towerTile hidden" aria-haspopup="dialog"><svg class="icon" aria-hidden="true"><use href="#i-cardhouse"/></svg><span class="ttTitle">Kartenhaus</span><span id="towerTileStatus" class="ttStatus"></span></button>
           </div>
           <details id="questsSection" class="questsSection hidden">
             <summary>
-              <span class="questsTitle">Tagesaufgaben</span>
+              <span class="questsTitle">Tagesziele</span>
               <span id="questsSummary" class="questsSummary"></span>
               <svg class="icon questsChevron" aria-hidden="true"><use href="#i-chevron"/></svg>
             </summary>
@@ -467,7 +472,7 @@
           </details>
         </section>
         <!-- Two modes, two wide tiles: four in a row cut "Stammtisch" off.
-             The daily modes live in "Heute" above, with their status. -->
+             The daily modes and the Kartenhaus live in "Aufgaben" above. -->
         <div class="menuChips menuChipsTwo" role="group" aria-label="Spielmodi">
           <button id="tutorialBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-cap"/></svg><span>Tutorial</span></button>
           <button id="stammtischBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span>Stammtisch</span></button>
@@ -991,25 +996,22 @@
         <p class="homeTable">Du verlässt den Tisch. Kommst du nicht bald zurück, übernimmt ein Bot deinen Platz - mit dem Spiel-Code kannst du jederzeit wieder einsteigen.</p>
         <p class="lobby-hint homeTable">Das Spiel bleibt offen. Ein neues kannst du erst starten, wenn du dieses aufgibst.</p>
         <p class="homeTutorial hidden">Das Tutorial wartet kurz auf dich – danach beginnt es von vorn.</p>
-        <p class="homeChallenge hidden">Die Challenge wartet bis Mitternacht auf dich – unter „Heute“ geht es weiter.</p>
-        <p class="homeTower hidden">Die Turmstufe wartet kurz auf dich – danach endet sie ohne Sterne.</p>
+        <p class="homeChallenge hidden">Die Challenge wartet bis Mitternacht auf dich – unter „Aufgaben“ geht es weiter.</p>
+        <p class="homeTower hidden">Die Etage wartet kurz auf dich – danach endet sie ohne Sterne.</p>
         <button id="homeConfirmBtn" class="btn-primary">Tisch verlassen</button>
         <button id="homeCancelBtn" class="btn-secondary">Abbrechen</button>
       </div>
     </section>
 
-    <!-- Bot tower (game/BotTower.js): ten fixed stages, best stars each. Before
-         the open-game sheet in the DOM, so that one stacks above it. -->
+    <!-- Kartenhaus (game/BotTower.js): this month's 20 floors, best stars each.
+         Before the open-game sheet in the DOM, so that one stacks above it. -->
     <section id="towerOverlay" class="overlay hidden" data-sheet-close="towerCloseBtn">
       <div class="overlay-card towerCard" role="dialog" aria-labelledby="towerTitle">
-        <h2 id="towerTitle" class="iconTitle"><svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg><span>Bot-Turm</span></h2>
-        <div id="towerTabs" class="segmented towerTabs" role="group" aria-label="Turm wählen">
-          <button type="button" class="segBtn active" data-tower="fixed" aria-pressed="true"><span>Bot-Turm</span></button>
-          <button type="button" class="segBtn" data-tower="babel" aria-pressed="false"><span>Turmbau zu Babel</span></button>
-        </div>
+        <h2 id="towerTitle" class="iconTitle"><svg class="icon" aria-hidden="true"><use href="#i-cardhouse"/></svg><span>Kartenhaus</span></h2>
         <p id="towerSummary" class="towerSummary"></p>
         <ol id="towerList" class="towerList" reversed></ol>
         <p id="towerRules" class="pgRules towerRules"></p>
+        <p id="towerArchive" class="pgRules towerArchive hidden"></p>
         <button id="towerCloseBtn" class="btn-secondary">Schließen</button>
       </div>
     </section>

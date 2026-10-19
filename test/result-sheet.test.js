@@ -210,20 +210,20 @@ test('identity chip: avatar opens the progress sheet, name still edits; streak s
 });
 
 test('progress sheet: XP rules shown in the client match game/Progression.js', () => {
-  const { xpForGame, xpForTowerStage, xpForBabelStage } = require('../game/Progression');
+  const { xpForGame, xpForTowerStage, XP_TOWER_CROWN } = require('../game/Progression');
   const src = fs.readFileSync(path.join(pub, 'client.js'), 'utf8');
-  const m = src.match(/const XP_RULES = \{ base: (\d+), win: (\d+), perPoints: (\d+), towerFirstStar: (\d+), babelFirstStar: (\d+) \};/);
+  const m = src.match(/const XP_RULES = \{ base: (\d+), win: (\d+), perPoints: (\d+), towerFirstStar: (\d+), towerCrown: (\d+) \};/);
   assert.ok(m, 'XP_RULES literal found in client.js');
   const rec = (won, score) => ({ winnerId: won ? 'p' : 'x', finalTotals: { p: score } });
   const base = xpForGame(rec(false, 0), 'p');
   assert.equal(Number(m[1]), base);
   assert.equal(Number(m[2]), xpForGame(rec(true, 0), 'p') - base);
   assert.equal(Number(m[3]), 1000 / (xpForGame(rec(false, 1000), 'p') - base));
-  assert.equal(Number(m[4]), xpForTowerStage(0, 1), 'bot tower: the first star of a stage');
-  assert.equal(Number(m[5]), xpForBabelStage(0, 1), 'Babel tower: the first star of a monthly stage');
+  assert.equal(Number(m[4]), xpForTowerStage(0, 1), 'Kartenhaus: the first star of a floor');
+  assert.equal(Number(m[5]), XP_TOWER_CROWN, 'Kartenhaus: a crowned month');
 });
 
-test('"Heute": puzzle and challenge tiles show today\'s status; tasks sit below', async (t) => {
+test('"Aufgaben": puzzle and challenge tiles show today\'s status; daily goals sit below', async (t) => {
   const today = new Date().toISOString().slice(0, 10);
   const { window, errors, ws } = boot({ pikdame_player_name: 'Flo' });
   t.after(() => window.close());
@@ -244,7 +244,9 @@ test('"Heute": puzzle and challenge tiles show today\'s status; tasks sit below'
   assert.equal(doc.getElementById('puzzleBtn').dataset.state, 'open');
   assert.equal(doc.getElementById('challengeTileStatus').textContent, 'Platz 3 · 1120 Pkt');
   assert.equal(doc.getElementById('challengeBtn').dataset.state, 'done');
-  assert.ok(doc.getElementById('todaySection').contains(doc.getElementById('questsSection')), 'tasks inside "Heute"');
+  assert.ok(doc.getElementById('todaySection').contains(doc.getElementById('questsSection')), 'daily goals inside "Aufgaben"');
+  assert.equal(doc.querySelector('#todaySection > h2').textContent, 'Aufgaben');
+  assert.equal(doc.querySelector('#questsSection .questsTitle').textContent, 'Tagesziele');
   assert.equal(doc.querySelectorAll('.menuChips button').length, 2, 'mode row: tutorial + stammtisch');
   assert.deepEqual(errors, [], `Client-Fehler: ${errors.join(' | ')}`);
 });

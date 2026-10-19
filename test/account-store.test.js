@@ -150,7 +150,7 @@ test('AccountStore: season ladder books XP, ranks players and resets per season'
   await store.close();
 });
 
-test('AccountStore: addXp books lifetime and season XP without counting a game (bot tower)', { skip: !HAS_SQLITE }, async () => {
+test('AccountStore: addXp books lifetime and season XP without counting a game (Kartenhaus)', { skip: !HAS_SQLITE }, async () => {
   const store = freshStore();
   const r = await store.register('Turm', 'turm@example.com', 'geheim123');
   await store.verifyEmail(r.verifyToken);
@@ -169,7 +169,7 @@ test('AccountStore: addXp books lifetime and season XP without counting a game (
   await store.close();
 });
 
-test('PgAccountStore: addXp books lifetime and season XP without counting a game (bot tower)', { skip: !PG_URL }, async () => {
+test('PgAccountStore: addXp books lifetime and season XP without counting a game (Kartenhaus)', { skip: !PG_URL }, async () => {
   const store = createPgAccountStore(PG_URL);
   const suffix = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const name = `Turm_${suffix}`;

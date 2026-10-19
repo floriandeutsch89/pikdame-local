@@ -82,30 +82,61 @@ time), so the whole world plays the same thing and can talk about it:
   short text to the phone's share sheet (or the clipboard), e.g.
   "Platz 3 von 12 · 1120 Punkte · ♠Q nie erwischt" or "Gelöst im 2. Versuch 🟥🟩 ★★☆".
 
-### Bot tower
+### Kartenhaus (monthly house of cards)
 
-Ten fixed stages, defined only in `game/BotTower.js`: each stage is one round
-on its own seeded deal (deck and cut) against fixed bots, from two Leicht bots
-up to three Zen bots with a 100-point head start. One star for more points than
-every bot plus the head start, two for at least 100 points ahead, three for
-that and going out yourself. One star unlocks the next stage; tries are
-unlimited and the best per stage counts (name-based, like the badges). The
-first star of a stage pays 25 experience once, with an account also into its
-lifetime and season XP, without counting as a game; more stars and retries pay
-nothing, and tower rounds count for no match statistics. The seeds were picked by simulation (the Schwer heuristic in the human
-seat, the Zen net at stages 7-10): every stage is winnable, and the winning
-margin shrinks from about 200 to 15 points. The way in is the progress sheet
-(tap your avatar).
+A house of 20 floors against the bots, rebuilt every month (Europe/Berlin
+month, `game/GameDay.js`); `game/BotTower.js` is the only definition of
+floors, modifiers, stars and months. Each floor is one round on its own seeded
+deal (deck and cut) against fixed bots. Floors 1-10 are the old bot tower's
+ladder, from two Leicht bots up to three Zen bots with a 100-point head start.
+Floors 11-20 play three Zen bots with 100-160 points head start plus
+modifiers against the human seat, enforced by `GameManager`:
 
-**Turmbau zu Babel** is the monthly tower: the same ten-stage ladder, ten new
-deals every month (Europe/Berlin month, `game/BabelSeeds.js`), its own stars
-per month and a total over all months (badges at 30/100/300). The first star of
-a monthly stage pays 10 XP once. `scripts/tower-seeds.js` picks the deals with
-the same simulation (a seed passes when the Schwer heuristic in the human seat
-earns a star in 2 of 3 runs; late stages must stay within a margin cap) and
-rewrites the data file; months past the list cycle through it, so regenerate
-it before it runs out. The tower sheet switches between both towers; the
-start-screen chip shows Babel once all ten fixed stages are cleared.
+- `queen`: a Queen of Spades is swapped into the hand (1:1 with the hand's
+  last plain card, so the 110-card deck stays complete and every try deals the
+  same). It risks -100 on the hand but pays +100 when melded, so it comes with
+  a bigger head start.
+- `noDiscard`: the human never takes the discard pile (`canTakeDiscardTop`
+  says no, the table shows the pile blocked); an empty stock with an untakeable
+  pile ends the round as usual. The bots play by the normal rules; their
+  discard safety still assumes the human could take the pile, which only makes
+  them a little more careful (the deals are calibrated with exactly that).
+- `goOut`: stars only when you go out yourself.
+
+One star for more points than every bot plus the head start, two for at least
+100 points ahead, three for that and going out yourself: at most 60 stars a
+month. One star unlocks the next floor (floor 11 after floor 10, within the
+month); tries are unlimited and the best per floor counts (name-based, like the
+badges). The first star of a floor pays 10 experience once per month; a
+crowned month (all 20 floors with a star) pays 50 once. With an account both
+go into its lifetime and season XP without counting as a game; tower rounds
+count for no match statistics. Badges: 3/6/10 floors and 30 stars in the best
+month, and 1/3/12 crowned months (Lehrling, Polier/in, Baumeister/in).
+
+The deals live in `game/TowerSeeds.js` (generated data, 2026-10 to 2027-12);
+months past the list cycle through it deterministically (`monthSeeds`), so
+regenerate it before it runs out or after a new Zen model. `scripts/tower-seeds.js`
+picks per month and floor the first candidate seed on which the Schwer
+heuristic in the human seat earns a star against the floor's bots and
+modifiers, with the Zen net on (onnxruntime-node outside the repo, see
+CLAUDE.md): 2 of 3 runs, or 34 of 40 where an easy bot plays randomly
+(`Math.random` is seeded per run, so a rerun picks the same deals); floors
+1-10 must also stay tight (median margin cap). `--rate N` measures how often
+the heuristic earns a star per floor over N random deals.
+
+**The old bot tower is October 2026.** Its ten fixed deals are October's
+floors 1-10, and a profile's pre-monthly `tower` stars count there
+(`BotTower.monthBest` merges them on read, idempotent, nothing is rewritten):
+whoever had floor 10 starred continues at floor 11. Those stars pay no XP
+again; the 25 XP they paid back then stay, and badges are never taken away.
+A tower snapshot from before the update (no `towerMonth`) plays and books as
+October.
+
+The way in is the "Aufgaben" box on the start screen (below the daily puzzle
+and challenge, with this month's floor and stars) and the progress sheet. The
+sheet draws the house as a pyramid of card tents (6-5-4-3-2 plus the apex);
+tapping a floor shows its bots, head start, modifiers and best stars with the
+play button. Earlier months stay as a read-only archive.
 
 ### Progress between matches
 

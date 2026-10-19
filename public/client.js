@@ -203,9 +203,7 @@
         btn.querySelector('span').textContent = resumeIsChallenge
           ? L('Challenge fortsetzen', 'Resume challenge')
           : resumeIsTutorial ? L('Tutorial fortsetzen', 'Resume tutorial')
-            : tower ? (openGame.towerMonth
-              ? L(`Turmbau zu Babel fortsetzen (Stufe ${tower})`, `Resume Tower of Babel (stage ${tower})`)
-              : L(`Bot-Turm fortsetzen (Stufe ${tower})`, `Resume bot tower (stage ${tower})`))
+            : tower ? L(`Kartenhaus fortsetzen (Etage ${tower})`, `Resume House of Cards (floor ${tower})`)
               : L(`Weiterspielen (${resumeCode})`, `Resume game (${resumeCode})`);
         btn.classList.remove('hidden');
       } else {
@@ -300,7 +298,7 @@
     try { renderToday(); } catch (e) { /* dito */ }
     try { renderYearSlide(); } catch (e) { /* dito */ }
     try { renderProgressSheet(); } catch (e) { /* dito */ }
-    try { renderTower(); } catch (e) { /* dito */ }
+    try { renderTower(); renderTowerTile(); } catch (e) { /* dito */ }
     try { renderAccountProgress(); } catch (e) { /* dito */ }
     // "Angemeldet als ..." steht dauerhaft in der Lobby - vom Vertragstest
     // unten gefunden, bevor es jemand melden konnte.
@@ -491,22 +489,21 @@
         how: L('Lege eine Folge mit 10, Bube, Dame, König und Ass derselben Farbe aus - alles echte Karten, kein Joker.', 'Meld a run with 10, jack, queen, king and ace of one suit - all real cards, no joker.') },
       pik_royal: { emoji: '👑', name: L('Pik Royal', 'Spade royal'), desc: L('Royal Flush in Pik - mit der Pik Dame', 'Royal flush in spades - with the Queen of Spades'),
         how: L('Lege 10, Bube, Dame, König und Ass in Pik als Folge aus - alles echte Karten, kein Joker.', 'Meld 10, jack, queen, king and ace of spades as a run - all real cards, no joker.') },
-      // Bot tower (game/BotTower.js): stages cleared, then every star
-      tower_3: { emoji: '🗼', name: L('Turm\u00adkletterer', 'Tower climber'), desc: L('3 Stufen im Bot-Turm geschafft', 'Cleared 3 bot tower stages'),
-        how: L('Hol dir im Bot-Turm (Fortschritt → Bot-Turm) auf 3 Stufen mindestens einen Stern.', 'Earn at least one star on 3 bot tower stages (Progress → Bot tower).') },
-      tower_6: { emoji: '🗼', name: L('Turm\u00adstürmer', 'Tower stormer'), desc: L('6 Stufen im Bot-Turm geschafft', 'Cleared 6 bot tower stages'),
-        how: L('Hol dir im Bot-Turm auf 6 Stufen mindestens einen Stern.', 'Earn at least one star on 6 bot tower stages.') },
-      tower_10: { emoji: '🗼', name: L('Turm\u00adspitze', 'Tower top'), desc: L('Alle 10 Stufen im Bot-Turm geschafft', 'Cleared all 10 bot tower stages'),
-        how: L('Schaff alle 10 Stufen des Bot-Turms - die letzte gegen drei Zen-Bots.', 'Clear all 10 bot tower stages - the last one against three Zen bots.') },
-      tower_stars_30: { emoji: '🌠', name: L('Sternen\u00adhimmel', 'Starry sky'), desc: L('Alle 30 Sterne im Bot-Turm', 'All 30 stars in the bot tower'),
-        how: L('Hol dir auf allen 10 Stufen des Bot-Turms drei Sterne: klar vorn und selbst ausgemacht.', 'Earn three stars on all 10 bot tower stages: clearly ahead and out yourself.') },
-      // Monthly Babel tower: stars over all months
-      babel_30: { emoji: '🧱', name: L('Babel-Maurer', 'Babel mason'), desc: L('30 Sterne im Turmbau zu Babel', '30 stars in the Tower of Babel'),
-        how: L('Sammle im Turmbau zu Babel (jeden Monat zehn neue Stufen) insgesamt 30 Sterne.', 'Collect 30 stars in the Tower of Babel (ten new stages every month).') },
-      babel_100: { emoji: '🏗️', name: L('Babel-Baumeister', 'Babel builder'), desc: L('100 Sterne im Turmbau zu Babel', '100 stars in the Tower of Babel'),
-        how: L('Sammle im Turmbau zu Babel über alle Monate 100 Sterne.', 'Collect 100 stars in the Tower of Babel over all months.') },
-      babel_300: { emoji: '🗣️', name: L('Sprach\u00adverwirrer', 'Tongue twister'), desc: L('300 Sterne im Turmbau zu Babel', '300 stars in the Tower of Babel'),
-        how: L('Sammle im Turmbau zu Babel über alle Monate 300 Sterne.', 'Collect 300 stars in the Tower of Babel over all months.') },
+      // Kartenhaus (game/BotTower.js): floors and stars in the best month, crowned months
+      tower_3: { emoji: '🏠', name: L('Karten\u00adstapler/in', 'Card stacker'), desc: L('3 Etagen in einem Monat geschafft', 'Cleared 3 floors in one month'),
+        how: L('Hol dir in einem Monat im Kartenhaus (Aufgaben → Kartenhaus) auf den Etagen 1 bis 3 je mindestens einen Stern.', 'Earn at least one star on floors 1 to 3 of the House of Cards in one month (Tasks → House of Cards).') },
+      tower_6: { emoji: '🏠', name: L('Karten\u00adkünstler/in', 'Card artist'), desc: L('6 Etagen in einem Monat geschafft', 'Cleared 6 floors in one month'),
+        how: L('Hol dir in einem Monat im Kartenhaus auf den Etagen 1 bis 6 je mindestens einen Stern.', 'Earn at least one star on floors 1 to 6 of the House of Cards in one month.') },
+      tower_10: { emoji: '🏠', name: L('Hoch\u00adstapler/in', 'High stacker'), desc: L('10 Etagen in einem Monat geschafft', 'Cleared 10 floors in one month'),
+        how: L('Schaff in einem Monat die Etagen 1 bis 10 des Kartenhauses - die zehnte gegen drei Zen-Bots.', 'Clear floors 1 to 10 of the House of Cards in one month - the tenth against three Zen bots.') },
+      tower_stars_30: { emoji: '🌠', name: L('Sternen\u00adhimmel', 'Starry sky'), desc: L('30 Sterne in einem Monat', '30 stars in one month'),
+        how: L('Sammle in einem Monat im Kartenhaus 30 Sterne: drei pro Etage gibt es für klar vorn und selbst ausgemacht.', 'Collect 30 stars in the House of Cards in one month: three per floor for clearly ahead and out yourself.') },
+      tower_crowned_1: { emoji: '👷', name: L('Lehrling', 'Apprentice'), desc: L('Ein Kartenhaus gekrönt: alle 20 Etagen eines Monats', 'Crowned a House of Cards: all 20 floors of a month'),
+        how: L('Hol dir in einem Monat auf allen 20 Etagen des Kartenhauses mindestens einen Stern - dann kommt die Pik Dame obenauf.', 'Earn at least one star on all 20 floors of the House of Cards in one month - then the Queen of Spades goes on top.') },
+      tower_crowned_3: { emoji: '👷', name: L('Polier/in', 'Foreman'), desc: L('3 Monate das Kartenhaus gekrönt', 'Crowned the House of Cards in 3 months'),
+        how: L('Kröne das Kartenhaus in 3 Monaten: jedes Mal alle 20 Etagen mit mindestens einem Stern.', 'Crown the House of Cards in 3 months: every time all 20 floors with at least one star.') },
+      tower_crowned_12: { emoji: '👷', name: L('Bau\u00admeister/in', 'Master Builder'), desc: L('12 Monate das Kartenhaus gekrönt', 'Crowned the House of Cards in 12 months'),
+        how: L('Kröne das Kartenhaus in 12 Monaten.', 'Crown the House of Cards in 12 months.') },
     };
     return M[id] || { emoji: '🎖️', name: id, desc: '', how: '' };
   }
@@ -525,7 +522,7 @@
     { id: 'puzzlePerfect', tiers: ['puzzle_perfect_10', 'puzzle_perfect_30', 'puzzle_perfect_100'] },
     { id: 'tower', tiers: ['tower_3', 'tower_6', 'tower_10'] },
     { id: 'towerStars', tiers: ['tower_stars_30'] },
-    { id: 'babel', tiers: ['babel_30', 'babel_100', 'babel_300'] },
+    { id: 'towerCrowned', tiers: ['tower_crowned_1', 'tower_crowned_3', 'tower_crowned_12'] },
   ];
   const BADGE_SINGLES = [
     'pd_caught', 'round_300', 'score_500', 'pd_triple', 'double_queen_round',
@@ -1312,7 +1309,7 @@
           afterTutorial = next;
           el('createGameBtn').click();
         }
-        // Back from a finished tower stage (leaveTowerFor): the tower or the next try.
+        // Back from a finished Kartenhaus floor (leaveTowerFor): the house or the next try.
         const towerNext = storageGet('pikdame_after_tower');
         if (towerNext) {
           storageRemove('pikdame_after_tower');
@@ -1675,17 +1672,18 @@
     if (msg.type === 'towerInfo') {
       towerInfo = { ...msg, forName: towerAskedFor };
       renderTower();
-      renderTowerChip();
+      renderTowerTile();
       if (!el('progressOverlay').classList.contains('hidden')) renderProgressSheet();
       return;
     }
     if (msg.type === 'towerResult') {
       lastTowerResult = msg;
       const pr = msg.progress;
-      const target = towerInfo && (msg.month ? (towerInfo.babel && towerInfo.babel.month === msg.month ? towerInfo.babel : null) : towerInfo);
-      if (pr && target) Object.assign(target, { best: pr.best, stars: pr.stars, cleared: pr.cleared, unlocked: pr.unlocked }, msg.month ? { totalStars: pr.totalStars } : {});
-      try { renderTowerChip(); } catch (e) { /* cosmetic */ }
-      // A stage's first star pays XP: same level bookkeeping as the solved puzzle.
+      if (pr && towerInfo && towerInfo.month === msg.month) {
+        Object.assign(towerInfo, { best: pr.best, stars: pr.stars, cleared: pr.cleared, unlocked: pr.unlocked, crowned: pr.crowned, totalStars: pr.totalStars });
+      }
+      try { renderTowerTile(); } catch (e) { /* cosmetic */ }
+      // A floor's first star pays XP: same level bookkeeping as the solved puzzle.
       if (msg.xp && msg.level) {
         const total = msg.level.total || 0;
         myProgress = { xp: Math.max((myProgress && myProgress.xp) || 0, total), level: msg.level };
@@ -1724,7 +1722,7 @@
       el('statsBtn').classList.toggle('hidden', publicMode);
       try { updateCelebrationSetting(); } catch (e) { /* cosmetic */ }
       if (!publicMode && !towerInfo) requestTower();
-      try { renderTowerChip(); } catch (e) { /* cosmetic */ }
+      try { renderTowerTile(); } catch (e) { /* cosmetic */ }
       if (msg.quests) dailyQuests = msg.quests;
       try { fetchChallengeToday(); } catch (e) { /* cosmetic */ }
       // My own counters live on my profile (name-based, like every other
@@ -2326,7 +2324,7 @@
           badgeBtn.className = 'botDiffBadge tapExpand';
           // In the game the spade rating alone; the level's name is in title + aria-label.
           badgeBtn.innerHTML = levelIconHtml(meta);
-          // Bot tower: the stage fixes the bots, so the badge only tells.
+          // Kartenhaus: the floor fixes the bots, so the badge only tells.
           if (lastState.isHost && !lastState.towerStage) {
             badgeBtn.title = L(`Schwierigkeit ändern (${meta.short()})`, `Change difficulty (${meta.short()})`);
             badgeBtn.addEventListener('click', (ev) => {
@@ -2564,7 +2562,9 @@
     el('drawPile').classList.toggle('glow', canDraw && lastState.drawPileCount > 0);
     // Server truth: glow the discard only when taking it is actually legal.
     // `null`/missing (older server, no answer) keeps the old optimistic glow.
-    const discardBlocked = discardAidOn() && canDraw && !!lastState.discardTop && lastState.discardTakeable === false;
+    // A Kartenhaus floor without the discard pile shows it blocked even with the aid off.
+    const noDiscardFloor = !!(lastState.towerMods && lastState.towerMods.includes('noDiscard'));
+    const discardBlocked = (discardAidOn() || noDiscardFloor) && canDraw && !!lastState.discardTop && lastState.discardTakeable === false;
     el('discardPile').classList.toggle('glow', canDraw && !!lastState.discardTop && !discardBlocked);
     el('discardPile').classList.toggle('noTake', discardBlocked);
 
@@ -3299,7 +3299,7 @@
     const isGameOver = lastState.phase === 'gameOver';
     el('resultTitle').textContent = forfeited
       ? L('Spiel aufgegeben', 'Game forfeited')
-      : isGameOver && lastState.towerStage ? `${towerName(!!lastState.towerMonth)} · ${L(`Stufe ${lastState.towerStage}`, `stage ${lastState.towerStage}`)}`
+      : isGameOver && lastState.towerStage ? `${towerName()} · ${L(`Etage ${lastState.towerStage}`, `floor ${lastState.towerStage}`)}`
         : isGameOver ? L('Spielende!', 'Game over!') : L('Rundenende', 'End of round');
 
     const body = el('resultBody');
@@ -3532,7 +3532,7 @@
         `<div class="resultWinnerName">${nameWithHeart(winner ? winner.name : '?')}${winner ? botMark(winner) : ''}</div>` +
         `<div class="resultWinnerSub">${
           lastState.towerStage
-            ? winner && winner.id === playerId ? L('Du schaffst die Stufe', 'You clear the stage') : L('hält dich auf dieser Stufe', 'holds you on this stage')
+            ? winner && winner.id === playerId ? L('Du schaffst die Etage', 'You clear the floor') : L('hält dich auf dieser Etage', 'holds you on this floor')
             : winner && winner.id === playerId
               ? L('Du gewinnst die Partie', 'You win the match')
               : L('gewinnt die Partie', 'wins the match')
@@ -3739,7 +3739,7 @@
       contBtn.textContent = lastState.challengeDate
         ? L('Zum Hauptmenü', 'Main menu')
         : lastState.towerStage
-          ? lastState.towerMonth ? L('Zum Turmbau zu Babel', 'To the Tower of Babel') : L('Zum Bot-Turm', 'To the bot tower')
+          ? L('Zum Kartenhaus', 'To the House of Cards')
           : ser
           ? ser.winner
             ? L('Neue Serie starten', 'Start a new series')
@@ -3952,8 +3952,8 @@
     }
     renderIdentity();
     if (changed) { try { requestYearReview(); } catch (e) { /* cosmetic */ } }
-    // Tower progress is per name: hide the old name's chip until the new data arrives.
-    if (changed && !publicMode) { try { requestTower(); renderTowerChip(); } catch (e) { /* cosmetic */ } }
+    // Kartenhaus progress is per name: clear the old name's tile until the new data arrives.
+    if (changed && !publicMode) { try { requestTower(); renderTowerTile(); } catch (e) { /* cosmetic */ } }
     // Renaming inside a session re-joins under the new name (what the
     // "Name" button used to do after typing into the field above).
     if (changed && sessionCode && playerId) {
@@ -4510,7 +4510,7 @@
     const og = openGame;
     pendingStart = start;
     el('openGameSummary').textContent = og.tower
-      ? `${towerName(!!og.towerMonth)} · ${L(`Stufe ${og.tower}`, `stage ${og.tower}`)}`
+      ? `${towerName()} · ${L(`Etage ${og.tower}`, `floor ${og.tower}`)}`
       : og.phase === 'lobby'
         ? L(`Spiel ${og.code} · noch in der Lobby`, `Game ${og.code} · still in the lobby`)
         : L(`Spiel ${og.code} · Runde ${og.round} · ${og.score} Punkte`, `Game ${og.code} · round ${og.round} · ${og.score} points`);
@@ -4523,7 +4523,7 @@
           : L('Ein Bot übernimmt deinen Platz bis zum Ende, die anderen spielen weiter. Du kannst nicht zurück. Für dich wird die Partie nicht gewertet.',
             'A bot takes your seat until the end, the others play on. You cannot come back. The match is not scored for you.');
     const target = intent === 'tutorial' ? L('Tutorial', 'tutorial')
-      : intent === 'tower' ? L('Bot-Turm', 'bot tower')
+      : intent === 'tower' ? L('Kartenhaus', 'House of Cards')
         : intent === 'join' ? L('beitreten', 'join') : L('neues Spiel', 'new game');
     const btn = el('openGameGiveUpBtn');
     disarmTap(btn);
@@ -5648,7 +5648,6 @@
       const known = stammtischChipInfo[btn.dataset.code]; // e.g. after a language switch
       if (known) btn.querySelector('.stChipInfo').textContent = stammtischLeadText(known);
     });
-    try { renderTowerChip(); } catch (e) { /* cosmetic; towerInfo not declared yet at boot */ }
     // Ask for the record so the chip names the leader without a tap.
     for (const t of list) send({ type: 'getStammtisch', code: t.code });
   }
@@ -5671,7 +5670,7 @@
       // Gone (pruned after months of silence): forget it quietly.
       storageSet(STAMMTISCH_KEY, JSON.stringify(recentStammtische().filter((t) => t.code !== info.code)));
       btn.remove();
-      renderTowerChip(); // a hidden third chip may return
+      if (!el('stammtischRecent').children.length) el('stammtischRecent').classList.add('hidden');
       return;
     }
     stammtischChipInfo[info.code] = info;
@@ -6351,7 +6350,7 @@
     if (tutorialActive && lastState && lastState.phase === 'roundEnd') { finishTutorial(); return; }
     const isGameOver = lastState && lastState.phase === 'gameOver';
     if (isGameOver && lastState.challengeDate) { window.location.href = window.location.pathname; return; }
-    if (isGameOver && lastState.towerStage) { leaveTowerFor(lastState.towerMonth ? 'bopen' : 'open'); return; }
+    if (isGameOver && lastState.towerStage) { leaveTowerFor('open'); return; }
     send({ type: isGameOver ? 'rematch' : 'nextRound' });
     // Round end: the overlay STAYS open - the ready check may still be
     // waiting for others (the button reflects that). It closes on its own
@@ -7924,7 +7923,7 @@
   }
 
   // Mirrors game/Progression.js (XP_BASE, XP_WIN, XP_PER_POINT) - display only.
-  const XP_RULES = { base: 10, win: 50, perPoints: 10, towerFirstStar: 25, babelFirstStar: 10 };
+  const XP_RULES = { base: 10, win: 50, perPoints: 10, towerFirstStar: 10, towerCrown: 50 };
   function renderProgressSheet() {
     const box = el('progressContent');
     if (!box) return;
@@ -7981,18 +7980,24 @@
     if (ev.target === el('progressOverlay')) el('progressOverlay').classList.add('hidden');
   });
   el('progressContent').addEventListener('click', (ev) => {
-    const btn = ev.target.closest('[data-open-tower]');
-    if (btn) openTowerSheet(btn.dataset.openTower === 'babel' ? 'babel' : 'fixed');
+    if (ev.target.closest('[data-open-tower]')) openTowerSheet();
   });
 
-  // --- Bot tower (game/BotTower.js): ten fixed one-round stages -------------
-  // The server owns stages and stars; the client draws them and starts a stage
-  // like the challenge (solo, one game at a time).
-  let towerInfo = null; // 'towerInfo' + forName: stages, best, stars, cleared, unlocked
+  // --- Kartenhaus (game/BotTower.js): a monthly tower of twenty floors ------
+  // The server owns floors, months and stars; the client draws them and starts a
+  // floor like the challenge (solo, one game at a time).
+  let towerInfo = null; // 'towerInfo' + forName: month, stages, best, stars, cleared, unlocked, totalStars, archive
   let towerAskedFor = '';
   let towerScrollPending = false;
-  let lastTowerResult = null; // 'towerResult' of the stage just played
+  let lastTowerResult = null; // 'towerResult' of the floor just played
   const AFTER_TOWER_KEY = 'pikdame_after_tower';
+  const towerName = () => L('Kartenhaus', 'House of Cards');
+  const TOWER_MODS = {
+    queen: () => L('Pik Dame auf der Hand', 'Queen of Spades in hand'),
+    noDiscard: () => L('Ohne Ablage', 'No discard pile'),
+    goOut: () => L('Selbst ausmachen', 'Go out yourself'),
+  };
+  const towerModsText = (mods) => (mods || []).map((m) => (TOWER_MODS[m] ? TOWER_MODS[m]() : m)).join(' · ');
   function requestTower() {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     towerAskedFor = myName || '';
@@ -8002,84 +8007,50 @@
   function towerFresh() {
     return towerInfo && towerInfo.forName === (myName || '') ? towerInfo : null;
   }
-  // The sheet shows the fixed tower or this month's Babel tower (same ladder, new deals).
-  let towerView = 'fixed';
-  const towerName = (babel) => (babel ? L('Turmbau zu Babel', 'Tower of Babel') : L('Bot-Turm', 'Bot tower'));
-  /** The Babel part of the tower data: { month, best, stars, cleared, unlocked, totalStars }. */
-  function babelFresh() {
-    const info = towerFresh();
-    return info && info.babel ? { ...info.babel, stages: info.stages, clearMargin: info.clearMargin } : null;
-  }
   /** "Oktober" for '2026-10' (UTC mid-month, so no time zone shifts the month). */
-  function babelMonthName(month) {
+  function towerMonthName(month, withYear = false) {
     const [y, m] = String(month || '').split('-').map(Number);
     if (!y || !m) return '';
-    return new Date(Date.UTC(y, m - 1, 15)).toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-DE', { month: 'long', timeZone: 'UTC' });
+    return new Date(Date.UTC(y, m - 1, 15)).toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-DE',
+      { month: 'long', ...(withYear ? { year: 'numeric' } : {}), timeZone: 'UTC' });
   }
-  /** The chip and the sheet open on Babel once the fixed tower is complete. */
-  const towerDone = (info) => !!info && info.cleared >= info.stages.length;
-  /** Start-screen chip under the Stammtische. At most three rows (iPhone fit):
-   *  with three remembered tables the oldest one yields, it stays stored. */
-  function renderTowerChip() {
-    const box = el('stammtischRecent');
-    if (!box) return;
-    const old = box.querySelector('.stTowerRow');
-    if (old) old.remove();
-    const fixed = publicMode ? null : towerFresh();
-    const babel = towerDone(fixed) ? babelFresh() : null;
-    const info = babel || fixed;
-    const rows = [...box.querySelectorAll('.stRecentRow')];
-    rows.forEach((r, i) => r.classList.toggle('hidden', i >= (info ? 2 : 3)));
-    if (info) {
-      const size = info.stages.length;
-      const stage = Math.min(info.unlocked || 1, size);
-      const name = towerName(!!babel);
-      const text = info.stars
-        ? L(`Stufe ${stage} · ${info.stars}/${size * 3}`, `Stage ${stage} · ${info.stars}/${size * 3}`)
-        : babel ? babelMonthName(babel.month) : L(`${size} Stufen`, `${size} stages`);
-      const label = babel
-        ? L(`Turmbau zu Babel im ${babelMonthName(babel.month)}: Stufe ${stage}, ${info.stars} von ${size * 3} Sternen`,
-          `Tower of Babel in ${babelMonthName(babel.month)}: stage ${stage}, ${info.stars} of ${size * 3} stars`)
-        : info.stars
-          ? L(`Bot-Turm: Stufe ${stage}, ${info.stars} von ${size * 3} Sternen`, `Bot tower: stage ${stage}, ${info.stars} of ${size * 3} stars`)
-          : L(`Bot-Turm: ${size} Stufen gegen die Bots`, `Bot tower: ${size} stages against the bots`);
-      box.insertAdjacentHTML('beforeend', `<button type="button" class="stRecentRow stTowerRow${babel ? ' babel' : ''}" aria-haspopup="dialog" aria-label="${escapeHtml(label)}">` +
-        `<svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg><span class="stName">${escapeHtml(name)}</span>` +
-        `<small class="stChipInfo">${escapeHtml(text)}</small>` +
-        (info.stars ? '<svg class="icon stTowerStar" aria-hidden="true"><use href="#i-star"/></svg>' : '') +
-        `<svg class="icon stGo" aria-hidden="true"><use href="#i-chevron"/></svg></button>`);
-      box.querySelector('.stTowerRow').addEventListener('click', () => openTowerSheet(babel ? 'babel' : 'fixed'));
-    }
-    box.classList.toggle('hidden', !box.querySelector('.stRecentRow:not(.hidden)'));
+  /** Start screen, "Aufgaben": this month's floor and stars on the wide tile.
+   *  Hidden in public mode and while the data for this name is missing. */
+  function renderTowerTile() {
+    const tile = el('towerTile');
+    if (!tile) return;
+    const info = publicMode ? null : towerFresh();
+    tile.classList.toggle('hidden', !info);
+    if (!info) return;
+    const max = info.stages.length * 3;
+    const floor = Math.min(info.unlocked || 1, info.stages.length);
+    const month = towerMonthName(info.month);
+    const status = el('towerTileStatus');
+    status.textContent = info.crowned
+      ? L(`Gekrönt · ${info.stars}/${max}`, `Crowned · ${info.stars}/${max}`)
+      : L(`Etage ${floor} · ${info.stars}/${max}`, `Floor ${floor} · ${info.stars}/${max}`);
+    status.insertAdjacentHTML('beforeend', '<svg class="icon ttStar" aria-hidden="true"><use href="#i-star"/></svg>');
+    // A fresh month calls (like a new puzzle), a crowned one rests; in between it stays calm.
+    tile.dataset.state = info.crowned ? 'done' : info.stars ? '' : 'new';
+    tile.setAttribute('aria-label', info.crowned
+      ? L(`Kartenhaus im ${month}: gekrönt, ${info.stars} von ${max} Sternen`, `House of Cards in ${month}: crowned, ${info.stars} of ${max} stars`)
+      : L(`Kartenhaus im ${month}: Etage ${floor}, ${info.stars} von ${max} Sternen`, `House of Cards in ${month}: floor ${floor}, ${info.stars} of ${max} stars`));
   }
+  el('towerTile').addEventListener('click', () => openTowerSheet());
   const towerStarsHtml = (n) => [1, 2, 3]
     .map((i) => `<svg class="icon${i <= n ? ' on' : ''}" aria-hidden="true"><use href="#i-star"/></svg>`).join('');
   function towerSectionHtml() {
     const info = towerFresh();
-    const me = myProfile() || {};
-    const stars = info ? info.stars : me.towerStars || 0;
-    const cleared = info ? info.cleared : me.towerCleared || 0;
     const size = info ? info.stages.length : 0;
-    return `<h3>${escapeHtml(L('Bot-Turm', 'Bot tower'))}</h3>` +
+    return `<h3>${escapeHtml(towerName())}</h3>` +
       `<button type="button" class="pgTower" data-open-tower="1">` +
-      `<svg class="icon pgTowerIcon" aria-hidden="true"><use href="#i-trophy"/></svg>` +
-      `<span class="pgTowerText"><b>${escapeHtml(size ? L(`${stars}/${size * 3} Sterne`, `${stars}/${size * 3} stars`) : L(`${stars} Sterne`, `${stars} stars`))}</b>` +
-      `<span>${escapeHtml(size
-        ? L(`${cleared} von ${size} Stufen geschafft`, `${cleared} of ${size} stages cleared`)
-        : L(`${cleared} Stufen geschafft`, `${cleared} stages cleared`))}</span></span>` +
-      `<svg class="icon pgTowerGo" aria-hidden="true"><use href="#i-chevron"/></svg></button>` +
-      babelSectionHtml();
-  }
-  function babelSectionHtml() {
-    const b = babelFresh();
-    const total = b ? b.totalStars : (myProfile() || {}).babelStars || 0;
-    const month = b ? babelMonthName(b.month) : '';
-    return `<button type="button" class="pgTower" data-open-tower="babel">` +
-      `<svg class="icon pgTowerIcon" aria-hidden="true"><use href="#i-trophy"/></svg>` +
-      `<span class="pgTowerText"><b>${escapeHtml(towerName(true))}</b>` +
-      `<span>${escapeHtml(b
-        ? L(`${month}: ${b.stars}/${b.stages.length * 3} Sterne · insgesamt ${total}`, `${month}: ${b.stars}/${b.stages.length * 3} stars · ${total} in total`)
-        : L(`Jeden Monat zehn neue Stufen · insgesamt ${total} Sterne`, `Ten new stages every month · ${total} stars in total`))}</span></span>` +
+      `<svg class="icon pgTowerIcon" aria-hidden="true"><use href="#i-cardhouse"/></svg>` +
+      `<span class="pgTowerText"><b>${escapeHtml(info
+        ? L(`${towerMonthName(info.month)}: ${info.stars}/${size * 3} Sterne`, `${towerMonthName(info.month)}: ${info.stars}/${size * 3} stars`)
+        : towerName())}</b>` +
+      `<span>${escapeHtml(info
+        ? L(`${info.cleared} von ${size} Etagen · insgesamt ${info.totalStars} Sterne`, `${info.cleared} of ${size} floors · ${info.totalStars} stars in total`)
+        : L('Jeden Monat neue Blätter', 'New deals every month'))}</span></span>` +
       `<svg class="icon pgTowerGo" aria-hidden="true"><use href="#i-chevron"/></svg></button>`;
   }
   function towerRowHtml(s, info) {
@@ -8088,99 +8059,83 @@
     const next = !locked && !stars;
     const metas = s.bots.map((b) => BOT_DIFF[b] || BOT_DIFF.zen);
     const names = metas.map((m) => m.short()).join(', ');
+    const mods = towerModsText(s.mods);
     const label = L(
-      `Stufe ${s.stage}: gegen ${names}${s.handicap ? `, die Bots bekommen ${s.handicap} Punkte Vorgabe` : ''} - ${locked ? 'gesperrt' : `${stars} von 3 Sternen`}`,
-      `Stage ${s.stage}: against ${names}${s.handicap ? `, the bots get a ${s.handicap}-point head start` : ''} - ${locked ? 'locked' : `${stars} of 3 stars`}`
+      `Etage ${s.stage}: gegen ${names}${s.handicap ? `, die Bots bekommen ${s.handicap} Punkte Vorgabe` : ''}${mods ? `, ${mods}` : ''} - ${locked ? 'gesperrt' : `${stars} von 3 Sternen`}`,
+      `Floor ${s.stage}: against ${names}${s.handicap ? `, the bots get a ${s.handicap}-point head start` : ''}${mods ? `, ${mods}` : ''} - ${locked ? 'locked' : `${stars} of 3 stars`}`
     );
     return `<li><button type="button" class="twStage${locked ? ' locked' : ''}${next ? ' next' : ''}" data-stage="${s.stage}" aria-label="${escapeHtml(label)}"${locked ? ' aria-disabled="true"' : ''}>` +
       `<span class="twNum">${s.stage}</span>` +
       `<span class="twBots">${metas.map(levelIconHtml).join('')}</span>` +
-      `<span class="twHandicap">${s.handicap ? escapeHtml(L(`Bots +${s.handicap}`, `bots +${s.handicap}`)) : ''}</span>` +
+      `<span class="twHandicap">${s.handicap ? escapeHtml(L(`Bots +${s.handicap}`, `bots +${s.handicap}`)) : ''}` +
+      (mods ? `<small class="twMods">${escapeHtml(mods)}</small>` : '') + `</span>` +
       `<span class="twStars">${locked ? '<svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg>' : towerStarsHtml(stars)}</span>` +
       `</button></li>`;
   }
   function renderTower() {
-    const babel = towerView === 'babel';
-    const info = babel ? babelFresh() : towerFresh();
+    const info = towerFresh();
     const size = info ? info.stages.length : 0;
-    el('towerTabs').setAttribute('aria-label', L('Turm wählen', 'Choose a tower'));
-    for (const b of el('towerTabs').querySelectorAll('.segBtn')) {
-      const on = (b.dataset.tower === 'babel') === babel;
-      b.classList.toggle('active', on);
-      b.setAttribute('aria-pressed', String(on));
-    }
-    el('towerSummary').textContent = !info
-      ? L('Lädt …', 'Loading …')
-      : babel
-        ? L(`${babelMonthName(info.month)}: ${info.stars}/${size * 3} Sterne · ${info.cleared} von ${size} Stufen · insgesamt ${info.totalStars}`,
-          `${babelMonthName(info.month)}: ${info.stars}/${size * 3} stars · ${info.cleared} of ${size} stages · ${info.totalStars} in total`)
-        : L(`${info.stars}/${size * 3} Sterne · ${info.cleared} von ${size} Stufen geschafft`, `${info.stars}/${size * 3} stars · ${info.cleared} of ${size} stages cleared`);
-    // The top of the tower first: you climb it.
+    el('towerSummary').textContent = info
+      ? L(`${towerMonthName(info.month)}: ${info.stars}/${size * 3} Sterne · ${info.crowned ? 'gekrönt' : `${info.cleared} von ${size} Etagen geschafft`}`,
+        `${towerMonthName(info.month)}: ${info.stars}/${size * 3} stars · ${info.crowned ? 'crowned' : `${info.cleared} of ${size} floors cleared`}`)
+      : L('Lädt …', 'Loading …');
+    // The top of the house first: you build it up.
     el('towerList').innerHTML = info ? [...info.stages].reverse().map((s) => towerRowHtml(s, info)).join('') : '';
-    const stars = L(`Ein Stern: mehr Punkte als jeder Bot samt Vorgabe. Zwei: mindestens ${info ? info.clearMargin : 0} Punkte vorn. Drei: dazu selbst ausmachen.`,
-      `One star: more points than every bot plus its head start. Two: at least ${info ? info.clearMargin : 0} points ahead. Three: and go out yourself.`);
-    el('towerRules').textContent = !info ? '' : babel
-      ? `${stars} ${L(`Jeden Monat bauen die Bots neu: zehn neue Blätter, dieselben Gegner. Ab einem Stern ist die nächste Stufe frei, Versuche unbegrenzt. Der erste Stern jeder Stufe bringt einmal ${XP_RULES.babelFirstStar} EP, die Sterne aller Monate zählen zusammen.`,
-        `Every month the bots rebuild: ten new deals, the same opponents. One star unlocks the next stage, unlimited tries. The first star of each stage pays ${XP_RULES.babelFirstStar} XP once; the stars of all months add up.`)}`
-      : `${stars} ${L(`Jede Stufe ist eine Runde mit immer demselben Blatt; ab einem Stern ist die nächste frei. Versuche unbegrenzt, der beste zählt. Der erste Stern jeder Stufe bringt einmal ${XP_RULES.towerFirstStar} EP.`,
-        `Each stage is one round with the same deal every time; one star unlocks the next. Unlimited tries, the best counts. The first star of each stage pays ${XP_RULES.towerFirstStar} XP once.`)}`;
+    el('towerRules').textContent = info
+      ? L(`Jeden Monat neue Blätter, dieselben Gegner. Ein Stern: mehr Punkte als jeder Bot samt Vorgabe. Zwei: mindestens ${info.clearMargin} Punkte vorn. Drei: dazu selbst ausmachen. Ab Etage 11 gilt eine Erschwernis gegen dich. Ab einem Stern ist die nächste Etage frei, Versuche unbegrenzt, der beste zählt. Der erste Stern jeder Etage bringt pro Monat einmal ${XP_RULES.towerFirstStar} EP; alle 20 Etagen krönen dein Kartenhaus (+${XP_RULES.towerCrown} EP).`,
+        `New deals every month, the same opponents. One star: more points than every bot plus its head start. Two: at least ${info.clearMargin} points ahead. Three: and go out yourself. From floor 11 a rule works against you. One star unlocks the next floor, unlimited tries, the best counts. The first star of each floor pays ${XP_RULES.towerFirstStar} XP once a month; all 20 floors crown your house (+${XP_RULES.towerCrown} XP).`)
+      : '';
+    const archive = (info && info.archive) || [];
+    el('towerArchive').textContent = archive.length
+      ? `${L('Frühere Monate', 'Earlier months')}: ${archive.map((m) => `${towerMonthName(m.month, true)} ${m.stars}★${m.crowned ? ` ${L('gekrönt', 'crowned')}` : ''}`).join(' · ')}`
+      : '';
+    el('towerArchive').classList.toggle('hidden', !archive.length);
     if (info && towerScrollPending && !el('towerOverlay').classList.contains('hidden')) {
       towerScrollPending = false;
       const target = el('towerList').querySelector('.twStage.next') || el('towerList').querySelector('.twStage:not(.locked)');
       if (target && target.scrollIntoView) target.scrollIntoView({ block: 'nearest' });
     }
   }
-  /** view: 'fixed' or 'babel'; without one, Babel once the fixed tower is complete. */
-  function openTowerSheet(view) {
+  function openTowerSheet() {
     if (publicMode) return;
-    towerView = view === 'babel' || view === 'fixed' ? view : towerDone(towerFresh()) ? 'babel' : 'fixed';
     if (!towerFresh()) requestTower();
     el('progressOverlay').classList.add('hidden');
     el('towerOverlay').classList.remove('hidden');
     towerScrollPending = true;
     renderTower();
   }
-  function startTowerStage(stage, babel = false) {
+  function startTowerStage(stage) {
     el('towerOverlay').classList.add('hidden');
-    send({ type: 'startTower', stage, babel: babel || undefined, name: currentName(), accountToken: accountToken() || undefined });
+    send({ type: 'startTower', stage, name: currentName(), accountToken: accountToken() || undefined });
   }
-  el('towerTabs').addEventListener('click', (ev) => {
-    const btn = ev.target.closest('[data-tower]');
-    if (!btn) return;
-    towerView = btn.dataset.tower === 'babel' ? 'babel' : 'fixed';
-    towerScrollPending = true;
-    renderTower();
-  });
   el('towerList').addEventListener('click', (ev) => {
     const btn = ev.target.closest('.twStage');
     if (!btn) return;
-    const babel = towerView === 'babel';
     if (btn.classList.contains('locked')) {
-      const open = ((babel ? babelFresh() : towerFresh()) || {}).unlocked || 1;
-      showToast(L(`Noch gesperrt - schaff erst Stufe ${open}.`, `Still locked - clear stage ${open} first.`));
+      const open = (towerFresh() || {}).unlocked || 1;
+      showToast(L(`Noch gesperrt - schaff erst Etage ${open}.`, `Still locked - clear floor ${open} first.`));
       return;
     }
     const stage = Number(btn.dataset.stage);
-    guardOpenGame('tower', () => startTowerStage(stage, babel));
+    guardOpenGame('tower', () => startTowerStage(stage));
   });
   el('towerCloseBtn').addEventListener('click', () => el('towerOverlay').classList.add('hidden'));
   el('towerOverlay').addEventListener('click', (ev) => {
     if (ev.target === el('towerOverlay')) el('towerOverlay').classList.add('hidden');
   });
-  /** Leaves a finished stage through a reload (the socket belongs to that table):
-   *  'open' shows the tower, a stage number starts that stage; a 'b' prefix means Babel. */
+  /** Leaves a finished floor through a reload (the socket belongs to that table):
+   *  'open' shows the tower, a floor number starts that floor. */
   function leaveTowerFor(next) {
     storageSet(AFTER_TOWER_KEY, String(next));
     if (sessionCode && storageGet('pikdame_last_session') === sessionCode) storageRemove('pikdame_last_session');
     window.location.href = window.location.pathname;
   }
   function afterTower(next) {
-    const babel = String(next).startsWith('b');
-    const stage = Number(babel ? String(next).slice(1) : next);
-    if (Number.isInteger(stage) && stage > 0) guardOpenGame('tower', () => startTowerStage(stage, babel));
-    else openTowerSheet(babel ? 'babel' : 'fixed');
+    const stage = Number(next);
+    if (Number.isInteger(stage) && stage > 0) guardOpenGame('tower', () => startTowerStage(stage));
+    else openTowerSheet();
   }
-  /** The stage verdict on the result sheet: stars, the sum behind them, the way on. */
+  /** The floor verdict on the result sheet: stars, the sum behind them, the way on. */
   function renderTowerResult() {
     const body = el('resultBody');
     const old = body.querySelector('.towerResultBox');
@@ -8197,34 +8152,39 @@
       : r.margin < 0
         ? L(`${-r.margin} Punkte hinten`, `${-r.margin} points behind`)
         : L('Gleichstand reicht nicht', 'a tie is not enough');
-    const hint = [
-      L('Für einen Stern brauchst du mehr Punkte als jeder Bot samt Vorgabe.', 'For a star you need more points than every bot plus its head start.'),
-      L(`Für zwei Sterne: mindestens ${r.clearMargin} Punkte vorn.`, `For two stars: at least ${r.clearMargin} points ahead.`),
-      L('Für drei Sterne: zusätzlich selbst ausmachen.', 'For three stars: also go out yourself.'),
-      L('Alle drei Sterne - besser geht es nicht.', 'All three stars - it does not get better.'),
-    ][r.stars] || '';
+    const mustGoOut = (r.mods || []).includes('goOut');
+    const hint = mustGoOut && r.margin > 0 && !r.wentOut
+      ? L('Vorn, aber auf dieser Etage gibt es Sterne nur, wenn du selbst ausmachst.', 'Ahead, but on this floor stars need you to go out yourself.')
+      : [
+        L('Für einen Stern brauchst du mehr Punkte als jeder Bot samt Vorgabe.', 'For a star you need more points than every bot plus its head start.'),
+        L(`Für zwei Sterne: mindestens ${r.clearMargin} Punkte vorn.`, `For two stars: at least ${r.clearMargin} points ahead.`),
+        L('Für drei Sterne: zusätzlich selbst ausmachen.', 'For three stars: also go out yourself.'),
+        L('Alle drei Sterne - besser geht es nicht.', 'All three stars - it does not get better.'),
+      ][r.stars] || '';
     const pr = r.progress;
-    const unlocked = pr ? pr.unlocked : ((r.month ? babelFresh() : towerFresh()) || {}).unlocked || r.stage;
+    const unlocked = pr ? pr.unlocked : (towerFresh() || {}).unlocked || r.stage;
     const best = pr && pr.best ? Number(pr.best[r.stage]) || 0 : r.stars;
     const bestLine = pr && pr.improved && r.stars
-      ? L('Neuer Bestwert für diese Stufe!', 'New best for this stage!')
+      ? L('Neuer Bestwert für diese Etage!', 'New best for this floor!')
       : best > r.stars ? L(`Dein Bestwert hier bleibt bei ${best} Sternen.`, `Your best here stays at ${best} stars.`) : '';
     box.innerHTML =
       `<div class="twResultStars" role="img" aria-label="${escapeHtml(L(`${r.stars} von 3 Sternen`, `${r.stars} of 3 stars`))}">${towerStarsHtml(r.stars)}</div>` +
       `<p class="twResultSum">${escapeHtml(L(`Du ${r.myScore} · ${botLine}`, `You ${r.myScore} · ${botLine}`))} <b>${escapeHtml(verdict)}</b></p>` +
       (bestLine ? `<p class="twResultBest">${escapeHtml(bestLine)}</p>` : '') +
-      (r.xp ? `<p class="twResultXp">${escapeHtml(L(`+${r.xp} EP · erster Stern`, `+${r.xp} XP · first star`))}</p>` : '') +
+      (pr && pr.crownedNow ? `<p class="twResultBest">${escapeHtml(L('Alle 20 Etagen - dein Kartenhaus ist gekrönt!', 'All 20 floors - your House of Cards is crowned!'))}</p>` : '') +
+      (r.xp ? `<p class="twResultXp">${escapeHtml(pr && pr.crownedNow
+        ? L(`+${r.xp} EP · erster Stern und Krone`, `+${r.xp} XP · first star and crown`)
+        : L(`+${r.xp} EP · erster Stern`, `+${r.xp} XP · first star`))}</p>` : '') +
       `<p class="twResultHint">${escapeHtml(hint)}</p>` +
       `<div class="twResultActions">` +
       `<button type="button" class="btn-secondary twRetry"><svg class="icon" aria-hidden="true"><use href="#i-undo"/></svg><span>${escapeHtml(L('Nochmal', 'Try again'))}</span></button>` +
       (r.stage < unlocked
-        ? `<button type="button" class="btn-secondary twNext"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>${escapeHtml(L(`Stufe ${r.stage + 1}`, `Stage ${r.stage + 1}`))}</span></button>`
+        ? `<button type="button" class="btn-secondary twNext"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>${escapeHtml(L(`Etage ${r.stage + 1}`, `Floor ${r.stage + 1}`))}</span></button>`
         : '') +
       `</div>`;
-    const prefix = r.month ? 'b' : '';
-    box.querySelector('.twRetry').addEventListener('click', () => leaveTowerFor(`${prefix}${r.stage}`));
+    box.querySelector('.twRetry').addEventListener('click', () => leaveTowerFor(r.stage));
     const nextBtn = box.querySelector('.twNext');
-    if (nextBtn) nextBtn.addEventListener('click', () => leaveTowerFor(`${prefix}${r.stage + 1}`));
+    if (nextBtn) nextBtn.addEventListener('click', () => leaveTowerFor(r.stage + 1));
     const pane = body.querySelector('.resultPane') || body;
     const head = pane.querySelector('.resultWinnerGame');
     pane.insertBefore(box, head ? head.nextSibling : pane.firstChild);
@@ -8755,7 +8715,7 @@
   function celebrateProgress(msg) {
     const completed = (msg.quests && msg.quests.completed) || [];
     for (const id of completed) {
-      showToast(`✅ ${L('Tagesaufgabe geschafft', 'Daily task done')}: ${questMeta(id).text}`);
+      showToast(`✅ ${L('Tagesziel erreicht', 'Daily goal reached')}: ${questMeta(id).text}`);
     }
     const st = msg.streak;
     if (st && (st.event === 'extended' || st.event === 'bridged') && st.streak >= 2) {
@@ -9032,7 +8992,7 @@
       ...Object.fromEntries([10, 30, 100].map((n) => [`puzzle_perfect_${n}`, cap(p.totalPerfectPuzzles, n)])),
       tower_3: cap(p.towerCleared, 3), tower_6: cap(p.towerCleared, 6), tower_10: cap(p.towerCleared, 10),
       tower_stars_30: cap(p.towerStars, 30),
-      babel_30: cap(p.babelStars, 30), babel_100: cap(p.babelStars, 100), babel_300: cap(p.babelStars, 300),
+      ...Object.fromEntries([1, 3, 12].map((n) => [`tower_crowned_${n}`, cap(p.towerCrownedMonths, n)])),
       red_lantern: cap(p.lastPlaceStreak, 3),
       stammtisch_10: cap(p.totalStammtischGames, 10),
     };

@@ -14,8 +14,8 @@ bilingual tables. Ids are stable, names may change.
 | Winning it | **+50** |
 | Final score | **+1 per 10 points** (never negative) |
 | Solving the daily puzzle (once a day, no game counted) | **+30** |
-| First star of a bot tower stage (once per stage, no game counted) | **+25** |
-| First star of a Babel tower stage (once per stage and month, no game counted) | **+10** |
+| First star of a Kartenhaus floor (once per floor and month, no game counted) | **+10** |
+| Crowning the Kartenhaus (all 20 floors of a month starred, once per month) | **+50** |
 
 Each level costs a little more than the last, so the first levels arrive
 after an evening of play and the later ones stay meaningful:
@@ -101,9 +101,9 @@ thresholds on the same counter.
 | `challenger` | `totalChallenges` | 🏁 Challenger {bdg-secondary}`7` → 🏁 Challenge pro {bdg-secondary}`30` |
 | `puzzles` | `totalPuzzlesSolved` | 🧩 Puzzle fox {bdg-secondary}`7` → 🧩 Puzzle master {bdg-secondary}`30` |
 | `puzzlePerfect` | `totalPerfectPuzzles` | 🌟 Star moment {bdg-secondary}`10` → 🌟 Star collector {bdg-secondary}`30` → 🌟 Puzzle ace {bdg-secondary}`100` |
-| `tower` | `towerCleared` | 🗼 Tower climber {bdg-secondary}`3` → 🗼 Tower stormer {bdg-secondary}`6` → 🗼 Tower top {bdg-secondary}`10` |
+| `tower` | `towerCleared` | 🏠 Card stacker {bdg-secondary}`3` → 🏠 Card artist {bdg-secondary}`6` → 🏠 High stacker {bdg-secondary}`10` |
 | `towerStars` | `towerStars` | 🌠 Starry sky {bdg-secondary}`30` |
-| `babel` | `babelStars` | 🧱 Babel mason {bdg-secondary}`30` → 🏗️ Babel builder {bdg-secondary}`100` → 🗣️ Tongue twister {bdg-secondary}`300` |
+| `towerCrowned` | `towerCrownedMonths` | 👷 Apprentice {bdg-secondary}`1` → 👷 Foreman {bdg-secondary}`3` → 👷 Master Builder {bdg-secondary}`12` |
 
 The other **25** are earned by a fact about one match (computed in
 `computeEarnedBadges` from the finished game record):
