@@ -29,6 +29,7 @@ const { createAccountStoreAuto } = require('./game/AccountStore');
 const { createMailer } = require('./game/Mailer');
 const { readSecret } = require('./game/secretEnv');
 const { buildConfigReport, formatConfigReport } = require('./game/ConfigReport');
+const { readImprint, renderImprintPage } = require('./game/Imprint');
 const AdminPage = require('./game/AdminPage');
 const { createAdminTokenVerifier } = require('./game/AdminToken');
 const { createMonitor } = require('./game/Monitor');
@@ -227,6 +228,12 @@ const HASHED_MUSIC_RE = /^\/music\/[a-z0-9-]+\.[0-9a-f]{8}\.mp3$/;
  *  the 304 would silently never happen behind the production proxy.
  *  Comparison is therefore weak and suffix-tolerant. */
 const ENCODING_SUFFIX = /-(?:gzip|zstd|br|deflate)"$/;
+// The legal page carries the operator's data from PIKDAME_IMPRINT_*; rendered once,
+// the ETag hashes the result so a changed .env never revalidates to a stale copy.
+const IMPRINT = readImprint(process.env);
+const IMPRINT_PAGE = Buffer.from(renderImprintPage(fs.readFileSync(path.join(PUBLIC_DIR, 'impressum.html'), 'utf8'), IMPRINT));
+const IMPRINT_ETAG = `W/"imprint-${crypto.createHash('sha256').update(IMPRINT_PAGE).digest('hex').slice(0, 16)}"`;
+
 function etagMatches(ifNoneMatch, etag) {
   if (!ifNoneMatch) return false;
   const normalize = (t) => t.trim().replace(/^W\//, '').replace(ENCODING_SUFFIX, '"');
@@ -343,6 +350,16 @@ function serveStatic(req, res) {
   // diese Form - zwei erreichbare Adressen fuer denselben Inhalt waeren
   // doppelter Inhalt.
   if (SEO_PAGES.includes(filePath.slice(1))) filePath = `${filePath}.html`;
+  if (filePath === '/impressum.html') {
+    if (etagMatches(req.headers['if-none-match'], IMPRINT_ETAG)) {
+      res.writeHead(304, { ETag: IMPRINT_ETAG, 'Cache-Control': 'no-cache' });
+      res.end();
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': MIME_TYPES['.html'], 'Cache-Control': 'no-cache', ETag: IMPRINT_ETAG });
+    res.end(IMPRINT_PAGE);
+    return;
+  }
   const resolved = path.normalize(path.join(PUBLIC_DIR, filePath));
 
   // Verhindert Verzeichnis-Traversal außerhalb von public/

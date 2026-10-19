@@ -3,7 +3,7 @@
 <div class="pd-stats">
 <div class="pd-stat"><b>110</b><span>cards in the deck</span></div>
 <div class="pd-stat"><b>78</b><span>WebSocket message types</span></div>
-<div class="pd-stat"><b>17</b><span>environment variables, no config file</span></div>
+<div class="pd-stat"><b>22</b><span>environment variables, no config file</span></div>
 <div class="pd-stat"><b>55</b><span>badges to earn</span></div>
 <div class="pd-stat"><b>18</b><span>emotes, unlocked by level</span></div>
 <div class="pd-stat"><b>6</b><span>themes, from felt to grandma's kitchen</span></div>

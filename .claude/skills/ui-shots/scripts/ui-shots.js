@@ -83,7 +83,7 @@ const PROFILES = [
 ];
 // The start-screen Stammtisch chip and its sheet (answered by the script, see below).
 const STAMMTISCH = {
-  name: 'Familie Deutsch', gamesPlayed: 7,
+  name: 'Familie Muster', gamesPlayed: 7,
   series: { no: 3, games: 2, wins: { 'oma gerda': 1, flo: 1 }, bestOf: 3, needed: 2 },
   goals: { level: 3, into: 40, need: 100, xp: 165, week: { start: '2026-10-12', games: 3, goal: 5, reached: false }, streak: 2, weeksReached: 4 },
   members: [
@@ -313,7 +313,7 @@ function waitForHttp(port, ms = 20000) {
           if (theme) localStorage.setItem('pikdame_theme', theme); // --theme table|night|felt|love|bordeaux|kitchen
           localStorage.setItem('pikdame_splash_device', '1'); // skip the studio intro
           sessionStorage.setItem('pikdame_splash_seen', '1');
-          localStorage.setItem('pikdame_stammtische', JSON.stringify([{ code: 'STMOCK1', name: 'Familie Deutsch' }]));
+          localStorage.setItem('pikdame_stammtische', JSON.stringify([{ code: 'STMOCK1', name: 'Familie Muster' }]));
           // The first click starts the music; its one-time hint would sit on every later shot.
           if (!musicHint) localStorage.setItem('pikdame_music_hint', '1');
         } catch (e) { /* storage blocked */ }

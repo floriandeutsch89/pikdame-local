@@ -5,6 +5,8 @@
 //
 // Secret VALUES never appear in the report - only whether they are set.
 
+const { readImprint, IMPRINT_VARS, COUNTRY_VAR } = require('./Imprint');
+
 const STATUS_ICON = { ok: '✓', warn: '⚠', off: '–', error: '✗' };
 
 function isSet(env, name) {
@@ -67,6 +69,7 @@ function buildConfigReport(env, facts = {}) {
     onnx: [v(env, 'PIKDAME_ONNX'), v(env, 'PIKDAME_MODELS_DIR')],
     admin: [v(env, 'PIKDAME_ADMIN_TOKEN', { secret: true })],
     publicMode: [v(env, 'PIKDAME_PUBLIC_MODE')],
+    imprint: [...Object.values(IMPRINT_VARS), COUNTRY_VAR].map((name) => v(env, name)),
   };
   const add = (id, label, status, detail, missing = []) =>
     items.push({ id, label, status, detail, missing, vars: VARS[id] || [] });
@@ -158,6 +161,12 @@ function buildConfigReport(env, facts = {}) {
   };
   const [adminStatus, adminDetail] = ADMIN[facts.adminMode] || ADMIN.off;
   add('admin', 'Admin-Seite', adminStatus, adminDetail);
+
+  // Legal page (§ 5 DDG): without these it shows "Impressum nicht konfiguriert".
+  const imprint = readImprint(env);
+  add('imprint', 'Impressum', imprint.configured ? 'ok' : 'warn',
+    imprint.configured ? 'Anbieterangaben hinterlegt' : 'unvollständig - die Seite zeigt „Impressum nicht konfiguriert“',
+    imprint.missing);
 
   add('publicMode', 'Öffentlicher Modus', env.PIKDAME_PUBLIC_MODE === '1' ? 'ok' : 'off',
     env.PIKDAME_PUBLIC_MODE === '1' ? 'an - keine Profile, keine Spielerliste' : 'aus');

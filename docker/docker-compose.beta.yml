@@ -32,6 +32,13 @@ services:
       - PIKDAME_MAIL_FROM=${PIKDAME_MAIL_FROM:-}
       - PIKDAME_ADMIN_TOKEN=${PIKDAME_BETA_ADMIN_TOKEN:-}
       - PIKDAME_BIRTHDAY=${PIKDAME_BIRTHDAY:-}
+      # Legal page (§ 5 DDG): provider data from .env, kept out of the public repo.
+      # Unset = the page shows "Impressum nicht konfiguriert".
+      - PIKDAME_IMPRINT_NAME=${PIKDAME_IMPRINT_NAME:-}
+      - PIKDAME_IMPRINT_STREET=${PIKDAME_IMPRINT_STREET:-}
+      - PIKDAME_IMPRINT_CITY=${PIKDAME_IMPRINT_CITY:-}
+      - PIKDAME_IMPRINT_EMAIL=${PIKDAME_IMPRINT_EMAIL:-}
+      - PIKDAME_IMPRINT_COUNTRY=${PIKDAME_IMPRINT_COUNTRY:-}
     secrets:
       - beta_db_password
       - smtp_password

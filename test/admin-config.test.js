@@ -225,3 +225,29 @@ test('config report: values on hover for plain settings, never for secrets', () 
   assert.match(html, /data-tip="geheim - Wert wird nicht angezeigt"/);
   for (const secret of ['TOPSECRET', 'ADMINSECRET', 'DBSECRET']) assert.ok(!html.includes(secret), `${secret} leaked into the page`);
 });
+
+const IMPRINT_ENV = {
+  PIKDAME_IMPRINT_NAME: 'Max Muster', PIKDAME_IMPRINT_STREET: 'Musterstraße 1',
+  PIKDAME_IMPRINT_CITY: '12345 Musterstadt', PIKDAME_IMPRINT_EMAIL: 'impressum@example.org',
+};
+
+test('config report: a missing imprint variable warns and is named', () => {
+  assert.equal(byId(buildConfigReport(IMPRINT_ENV, FACTS), 'imprint').status, 'ok');
+  const r = byId(buildConfigReport({ ...IMPRINT_ENV, PIKDAME_IMPRINT_CITY: '' }, FACTS), 'imprint');
+  assert.equal(r.status, 'warn');
+  assert.deepEqual(r.missing, ['PIKDAME_IMPRINT_CITY']);
+});
+
+test('/impressum.html is rendered from the environment and revalidates by content', async (t) => {
+  startServer(t, 8096, IMPRINT_ENV);
+  await waitForServer();
+  const page = await request('GET', '/impressum.html');
+  assert.equal(page.status, 200);
+  assert.match(page.headers['content-type'], /text\/html/);
+  assert.equal(page.headers['cache-control'], 'no-cache');
+  assert.ok(!page.body.includes('{{IMPRINT_'), 'placeholders filled');
+  assert.ok(!page.body.includes('Musterstraße') && !page.body.includes('impressum@example.org'), 'no plain text');
+  assert.match(page.body, /id="providerBlock" data-imprint="[A-Za-z0-9+/=]+"/);
+  const again = await request('GET', '/impressum.html', { headers: { 'If-None-Match': page.headers.etag } });
+  assert.equal(again.status, 304);
+});
