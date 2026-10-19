@@ -8164,9 +8164,8 @@
         : L('Jeden Monat neue Blätter', 'New deals every month'))}</span></span>` +
       `<svg class="icon pgTowerGo" aria-hidden="true"><use href="#i-chevron"/></svg></button>`;
   }
-  // Pyramid geometry in SVG units: rows of 6-5-4-3-2 card tents, the apex on top.
-  // A row is one tent plus the flat card above it; at the narrowest phone a row
-  // and a slot still measure >= --tap-min (the hit areas tile the house).
+  // Pyramid in SVG units: rows of 6-5-4-3-2 tents and the top. The hit areas tile
+  // the house; a row and a slot stay >= --tap-min even on an iPhone SE.
   const KH = { w: 26, h: 42, tilt: 15, gap: 56, row: 46 };
   const KH_ROWS = [6, 5, 4, 3, 2];
   const KH_VIEW = '-172 -282 344 290';
@@ -8484,7 +8483,7 @@
     if (ev.target === el('towerOverlay')) el('towerOverlay').classList.add('hidden');
   });
   /** Leaves a finished floor through a reload (the socket belongs to that table):
-   *  'open' shows the tower, a floor number starts that floor. */
+   *  'open' shows the house, a floor number starts that floor. */
   function leaveTowerFor(next) {
     storageSet(AFTER_TOWER_KEY, String(next));
     if (sessionCode && storageGet('pikdame_last_session') === sessionCode) storageRemove('pikdame_last_session');
