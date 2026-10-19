@@ -1900,7 +1900,7 @@ body.raidActive #toastContainer { margin-top: 132px; }
 /* --- Paket C: Emotes & Statistik ---------------------------------------- */
 
 .emoteBar {
-  position: absolute;
+  position: fixed;
   top: calc(52px + var(--safe-top));
   right: 10px;
   /* First row: eight 38px reactions + the 44px toggle (client.js fits fewer on
@@ -5042,6 +5042,7 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
    cards. Only from 1100px up - tablets and phones keep their layouts. */
 @media (min-width: 1100px) {
   .screen { max-width: min(1400px, 100%); }
+  .emoteBar { right: calc(100vw - min(1400px, 100vw) + 10px); } /* table edge, not window edge */
   #table {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;

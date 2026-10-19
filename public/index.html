@@ -715,9 +715,6 @@
         </div>
       </header>
 
-      <div id="emoteBar" class="emoteBar hidden">
-        <button class="emoteChoice" data-emote="👍">👍</button><button class="emoteChoice" data-emote="😂">😂</button><button class="emoteChoice" data-emote="😱">😱</button><button class="emoteChoice" data-emote="😤">😤</button><button class="emoteChoice" data-emote="🎉">🎉</button><button class="emoteChoice" data-emote="⏳" title="Tick tack...">⏳</button><button class="emoteChoice" data-emote="pikdame"><span class="miniPikdame">♠<b>Q</b></span></button><button class="emoteChoice" data-emote="👏">👏</button><button class="emoteChoice" data-emote="🙈">🙈</button><button class="emoteChoice" data-emote="🤔">🤔</button><button class="emoteChoice" data-emote="🍀">🍀</button><button class="emoteChoice" data-emote="😎">😎</button><button class="emoteChoice" data-emote="🔥">🔥</button><button class="emoteChoice" data-emote="😴">😴</button><button class="emoteChoice" data-emote="🙏">🙏</button><button class="emoteChoice" data-emote="🤩">🤩</button><button class="emoteChoice" data-emote="🥳">🥳</button><button class="emoteChoice" data-emote="💪">💪</button><button class="emoteChoice" data-emote="🃏">🃏</button><button class="emoteChoice" data-emote="😅">😅</button><button class="emoteChoice" data-emote="🤞">🤞</button><button class="emoteChoice" data-emote="👀">👀</button><button class="emoteChoice" data-emote="🙄">🙄</button><button class="emoteChoice" data-emote="😬">😬</button><button class="emoteChoice" data-emote="🙃">🙃</button><button class="emoteChoice" data-emote="🤝">🤝</button><button class="emoteChoice" data-emote="😇">😇</button><button class="emoteChoice" data-emote="☕">☕</button><button class="emoteChoice" data-emote="🐢">🐢</button><button class="emoteChoice" data-emote="🍻">🍻</button><button class="emoteChoice" data-emote="❤️">❤️</button>
-      </div>
       <div id="opponents"></div>
 
       <div id="melds"></div>
@@ -782,6 +779,11 @@
         <div id="hand"></div>
       </div>
     </section>
+
+    <!-- Outside #table: its isolated stacking context would put the bar under body-level banners (round stamp, bot lines). -->
+    <div id="emoteBar" class="emoteBar hidden">
+      <button class="emoteChoice" data-emote="👍">👍</button><button class="emoteChoice" data-emote="😂">😂</button><button class="emoteChoice" data-emote="😱">😱</button><button class="emoteChoice" data-emote="😤">😤</button><button class="emoteChoice" data-emote="🎉">🎉</button><button class="emoteChoice" data-emote="⏳" title="Tick tack...">⏳</button><button class="emoteChoice" data-emote="pikdame"><span class="miniPikdame">♠<b>Q</b></span></button><button class="emoteChoice" data-emote="👏">👏</button><button class="emoteChoice" data-emote="🙈">🙈</button><button class="emoteChoice" data-emote="🤔">🤔</button><button class="emoteChoice" data-emote="🍀">🍀</button><button class="emoteChoice" data-emote="😎">😎</button><button class="emoteChoice" data-emote="🔥">🔥</button><button class="emoteChoice" data-emote="😴">😴</button><button class="emoteChoice" data-emote="🙏">🙏</button><button class="emoteChoice" data-emote="🤩">🤩</button><button class="emoteChoice" data-emote="🥳">🥳</button><button class="emoteChoice" data-emote="💪">💪</button><button class="emoteChoice" data-emote="🃏">🃏</button><button class="emoteChoice" data-emote="😅">😅</button><button class="emoteChoice" data-emote="🤞">🤞</button><button class="emoteChoice" data-emote="👀">👀</button><button class="emoteChoice" data-emote="🙄">🙄</button><button class="emoteChoice" data-emote="😬">😬</button><button class="emoteChoice" data-emote="🙃">🙃</button><button class="emoteChoice" data-emote="🤝">🤝</button><button class="emoteChoice" data-emote="😇">😇</button><button class="emoteChoice" data-emote="☕">☕</button><button class="emoteChoice" data-emote="🐢">🐢</button><button class="emoteChoice" data-emote="🍻">🍻</button><button class="emoteChoice" data-emote="❤️">❤️</button>
+    </div>
 
     <!-- KONTO (nur auf Servern mit aktivierten Accounts sichtbar) -->
     <section id="accountOverlay" class="overlay hidden" data-sheet-close="accountCloseBtn">

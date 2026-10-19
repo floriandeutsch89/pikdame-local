@@ -631,6 +631,17 @@ test('no native browser dialogs in the client (iOS can suppress them silently)',
   assert.doesNotMatch(code, /\b(?:window\.)?(?:alert|confirm|prompt)\s*\(/, 'use an in-app dialog or confirmByTap');
 });
 
+test('emote bar sits outside #table so reactions stay in front of round stamp and bot lines', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'style.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const tableEnd = html.indexOf('\n    </section>\n', html.indexOf('<section id="table"'));
+  // #table is an isolated stacking context: anything inside it cannot out-stack body-level layers.
+  assert.ok(html.indexOf('id="emoteBar"') > tableEnd, '#emoteBar must not live inside #table');
+  const m = css.match(/\.emoteBar \{[^}]*\}/)[0];
+  assert.match(m, /position:\s*fixed/);
+  const z = (n) => Number(css.match(new RegExp(`--z-${n}:\\s*(\\d+)`))[1]);
+  for (const below of ['table-fx', 'overlay-ui', 'hint']) assert.ok(z('emote-bar') > z(below), `emote bar above --z-${below}`);
+});
+
 test('CSS contract: fixed layers use the z-index scale; pause and forfeit stay on top (#302)', () => {
   const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'style.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
   // Raw numbers are fine for stacking inside a component (< 10); every layer
