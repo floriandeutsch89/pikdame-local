@@ -114,7 +114,7 @@ setTimeout(() => {
           }],
         }) });
         const historyBox = doc.getElementById('historyContent');
-        if (!historyBox || !/1040/.test(historyBox.textContent)) {
+        if (!historyBox || !/1\.?040/.test(historyBox.textContent)) {
           errors.push(`history did not render the received game: ${historyBox ? historyBox.textContent.slice(0, 80) : 'missing'}`);
         }
         // Sprachwechsel darf die geladene Historie nicht in der alten
@@ -835,7 +835,9 @@ setTimeout(() => {
       if (!/Hauptmenü/.test(contBtn.textContent)) errors.push(`the challenge must not offer a rematch, got: ${contBtn.textContent}`);
       if (!doc.getElementById('resultHomeQuickBtn').classList.contains('hidden')) errors.push('no second home button next to the home action');
       const boardText = (doc.querySelector('.challengeBoardBox') || {}).textContent || '';
-      if (!/Dein Ergebnis: 120 Punkte · Platz 2/.test(boardText)) errors.push(`the board must show the result: ${boardText.slice(0, 120)}`);
+      const ownRow = doc.querySelector('.challengeBoardBox tr.isMe');
+      if (!ownRow || !/2\.\s*Flo\s*120/.test(ownRow.textContent)) errors.push(`the board must mark the own row with rank and score: ${boardText.slice(0, 120)}`);
+      if (/Dein Ergebnis/.test(boardText)) errors.push('the own row already says it: no second "Dein Ergebnis" line');
       if (!/Damen-Magnet des Tages: Oma Gerda \(3×\)/.test(boardText)) errors.push(`the board must name the Damen-Magnet: ${boardText.slice(0, 160)}`);
       feed(over); // back to the normal game-over for the tab checks below
     }
