@@ -92,6 +92,8 @@ for (const theme of THEMES) {
     check('white thumb on the off track', ratio(WHITE, line), 3);
     check('white thumb on the on track', ratio(WHITE, parse(v['--paper-accent'])), 3);
     check('selection ring on a grey track', ratio(parse(v['--paper-accent']), grey), 3);
+    check('white label on an active settings segment', ratio(WHITE, parse(v['--paper-accent'])), 4.5);
+    check('ink on an inactive settings segment', ratio(parse(v['--card-ink']), grey), 4.5);
   });
 
   test(`theme contrast (${theme}): filled buttons and the toast`, () => {
@@ -112,6 +114,8 @@ test('theme contrast: dialog parts use the paper inks, not the table colours', (
     ['.linkBtn.armed', /color:\s*var\(--paper-danger\)/],
     ['.settingsCheckbox', /background:\s*var\(--paper-line\)/],
     ['.settingsCheckbox:checked', /background:\s*var\(--paper-accent\)/],
+    ['.prefSeg .segBtn', /color:\s*var\(--card-ink\)/],
+    ['.prefSeg .segBtn.active', /background:\s*var\(--paper-accent\);\s*color:\s*#fff/],
     ['.resultTabBtn.active', /inset 0 0 0 2px var\(--paper-accent\)/],
     ['.resultSortBtn.active', /inset 0 0 0 2px var\(--paper-accent\)/],
     ['.accountTabs .accountTab.active', /inset 0 0 0 2px var\(--paper-accent\)/],

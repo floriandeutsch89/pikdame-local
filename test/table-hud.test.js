@@ -231,6 +231,43 @@ test('sound is a device setting in the settings sheet, no longer a house rule', 
   assert.equal(doc.querySelector('#soundToggle .sheetRowValue').textContent, 'Aus', 'the in-game row follows');
 });
 
+test('settings sheet: four groups, language in the header, segments drive the display size', async (t) => {
+  const { doc, window, click } = await setup(t);
+  const sheet = doc.getElementById('settingsOverlay');
+  assert.ok(doc.getElementById('langBtn').closest('.prefHead'), 'the language switch sits in the sheet header');
+  assert.equal(doc.getElementById('langBtn').textContent, 'English', 'it names the other language');
+  const groups = [...sheet.querySelectorAll('.prefGroup')].map((g) => [
+    g.querySelector('.prefGroupTitle').textContent,
+    [...g.querySelectorAll('[id]')].map((n) => n.id).filter((id) => /Checkbox$|Select$|Btn$/.test(id) && id !== 'celebrationPreviewBtn'),
+  ]);
+  assert.deepEqual(groups, [
+    ['Ton', ['soundCheckbox', 'musicLevelSelect', 'musicTrackSelect']],
+    ['Darstellung', ['uiScaleSelect', 'cardbackBtn', 'celebrationSelect']],
+    ['Spielhilfen', ['aidTipsCheckbox', 'aidDiscardCheckbox', 'aidLayOffCheckbox', 'aidLowCardsCheckbox', 'botQuipsCheckbox']],
+    ['Allgemein', ['versionBtn', 'studioLogoSelect', 'debugCheckbox']],
+  ]);
+  assert.equal(sheet.querySelectorAll('.prefSwatches .themeBtn').length, 6, 'the theme swatches live under Darstellung');
+  assert.equal(sheet.querySelectorAll('.prefNote').length, 1, 'the device note is said once');
+  assert.equal(doc.getElementById('themeNameValue').textContent, 'Spieltisch', 'the active theme is named');
+
+  const seg = (v) => sheet.querySelector(`.segmented[data-select="uiScaleSelect"] .segBtn[data-value="${v}"]`);
+  click(seg('xlarge'));
+  assert.equal(doc.getElementById('uiScaleSelect').value, 'xlarge');
+  assert.equal(window.localStorage.getItem('pikdame_ui_scale'), 'xlarge', 'same storage key as before');
+  assert.equal(doc.documentElement.dataset.uiscale, 'xlarge');
+  click(doc.getElementById('uiScaleBtn')); // in-game row cycles on: Sehr groß -> Normal
+  assert.equal(seg('normal').classList.contains('active'), true, 'the segments follow the in-game row');
+  assert.equal(seg('xlarge').classList.contains('active'), false);
+
+  click(doc.getElementById('langBtn'));
+  assert.equal(doc.getElementById('langBtn').textContent, 'Deutsch');
+  assert.ok(doc.querySelector('#langBtn svg use[href="#i-globe"]'), 'the globe icon survives the switch');
+  assert.deepEqual([...sheet.querySelectorAll('.prefGroupTitle')].map((n) => n.textContent), ['Sound', 'Display', 'Play aids', 'General']);
+  assert.deepEqual([...sheet.querySelectorAll('.prefScaleSeg .segBtn')].map((n) => n.textContent), ['Normal', 'Large', 'Extra large']);
+  assert.equal(doc.getElementById('themeNameValue').textContent, 'Table');
+  assert.equal(doc.querySelector('#studioLogoSelect option[value="auto"]').textContent, 'Once only');
+});
+
 test('one name per bot level: the strength picker uses the seat names', async (t) => {
   const { doc, feed, click } = await setup(t);
   feed(lobby());

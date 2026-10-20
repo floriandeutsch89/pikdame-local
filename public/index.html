@@ -604,12 +604,12 @@
            wrong (connecting, retrying, offline). -->
       <p id="connStatus" class="conn-status" data-state="pending" role="status">Verbinde...</p>
       <!-- Utility zone: one icon row with labels underneath. Language and
-           version live in "Mehr" - both are set once, not every visit. -->
+           version live in "Optionen" - both are set once, not every visit. -->
       <div class="lobbyTools" role="group" aria-label="Weitere Bereiche">
         <button id="statsBtn" class="lobbyTool" title="Statistik"><svg class="icon" aria-hidden="true"><use href="#i-chart"/></svg><span>Statistik</span></button>
         <button id="rulesBtnLobby" class="lobbyTool" title="Spielregeln"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span>Regeln</span></button>
         <button id="accountBtn" class="lobbyTool hidden" title="Konto"><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><svg class="icon accountCheck" aria-hidden="true"><use href="#i-check"/></svg><span>Konto</span></button>
-        <button id="settingsBtnLobby" class="lobbyTool" title="Einstellungen"><svg class="icon" aria-hidden="true"><use href="#i-gear"/></svg><span>Mehr</span></button>
+        <button id="settingsBtnLobby" class="lobbyTool" title="Optionen"><svg class="icon" aria-hidden="true"><use href="#i-gear"/></svg><span>Optionen</span></button>
       </div>
       <!-- Topic pages are linked from the seoIntro text below, not here: five
            links in the footer cluttered the lobby for regular players. -->
@@ -1202,162 +1202,175 @@
     </section>
 
     <section id="settingsOverlay" class="overlay hidden" data-sheet-close="settingsOverlayCloseBtn">
-      <div class="overlay-card">
-        <h2 id="settingsOverlayTitle"><svg class="icon" aria-hidden="true"><use href="#i-gear"/></svg><span>Einstellungen</span></h2>
-        <div class="settingsList">
-          <!-- Moved off the lobby's first screen: picking a look before you
-               have even typed your name is not the first decision anyone
-               needs. Same .themeBtn markup, so applyTheme() keeps all three
-               swatch rows (lobby settings, in-game sheet) in sync. -->
-          <div class="settingsItem">
-            <div class="settingsRow">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-palette"/></svg><span>Erscheinungsbild</span></span>
-            </div>
-            <div class="themeSwitch settingsThemeRow" role="group" aria-label="Erscheinungsbild wählen">
-              <button class="themeBtn tapExpand" data-theme-choice="table" title="Spieltisch" aria-label="Spieltisch"></button>
-              <button class="themeBtn tapExpand" data-theme-choice="night" title="Nacht" aria-label="Nacht"></button>
-              <button class="themeBtn tapExpand" data-theme-choice="love" title="Herzdame" aria-label="Herzdame"></button>
-              <button class="themeBtn tapExpand" data-theme-choice="felt" title="Filz" aria-label="Filz"></button>
-              <button class="themeBtn tapExpand" data-theme-choice="kitchen" title="Omas Küchentisch" aria-label="Omas Küchentisch"></button>
-              <button class="themeBtn tapExpand" data-theme-choice="bordeaux" title="Bordeaux" aria-label="Bordeaux"></button>
-            </div>
-          </div>
-
-          <div class="settingsItem">
-            <div class="settingsRow">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg><span>Sprache</span></span>
-              <!-- Names the OTHER language, like a language link on any website. -->
-              <button id="langBtn" class="settingsAction"></button>
-            </div>
-          </div>
-
-          <div class="settingsItem">
-            <label class="settingsRow" for="uiScaleSelect">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-textsize"/></svg><span>Anzeigegröße</span></span>
-              <select id="uiScaleSelect" class="settingsSelect">
-                <option value="normal">Normal</option>
-                <option value="large">Groß</option>
-                <option value="xlarge">Sehr groß</option>
-              </select>
-            </label>
-          </div>
-
-          <div class="settingsItem">
-            <label class="settingsRow" for="studioLogoSelect">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-film"/></svg><span>Studio-Logo</span></span>
-              <select id="studioLogoSelect" class="settingsSelect">
-                <option value="auto">Nur beim ersten Start</option>
-                <option value="always">Bei jedem Start</option>
-                <option value="off">Aus</option>
-              </select>
-            </label>
-            <p class="settingsHint" id="studioLogoHint">Antippen überspringt es. Ist „Bewegung reduzieren“ an, läuft es nur bei „Bei jedem Start“ - und dann ruhiger.</p>
-          </div>
-
-          <div class="settingsItem">
-            <div class="settingsRow">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><span>Kartenrücken</span></span>
-              <button id="cardbackBtn" class="settingsAction">Klassisch</button>
+      <div class="overlay-card prefCard">
+        <div class="prefHead">
+          <h2 id="settingsOverlayTitle"><svg class="icon" aria-hidden="true"><use href="#i-gear"/></svg><span>Optionen</span></h2>
+          <!-- Names the OTHER language in that language, top right like on any website. -->
+          <button type="button" id="langBtn" class="prefLang" title="Sprache"><svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg><span></span></button>
+        </div>
+        <!-- Four groups, most used first. Segment buttons only write their hidden
+             <select>: it stays the source of truth (ids, storage, change events). -->
+        <div class="prefList">
+          <div class="prefGroup">
+            <h3 class="prefGroupTitle">Ton</h3>
+            <div class="prefBox">
+              <label class="prefRow" for="soundCheckbox">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-sound-on"/></svg>
+                <span class="prefText"><span class="prefLabel">Soundeffekte &amp; Vibration</span></span>
+                <input type="checkbox" id="soundCheckbox" class="settingsCheckbox" />
+              </label>
+              <div id="musicItem" class="prefPart">
+                <div class="prefRow prefStack">
+                  <span class="prefStackHead">
+                    <svg class="icon prefIcon" aria-hidden="true"><use href="#i-music"/></svg>
+                    <span class="prefText"><span class="prefLabel" id="musicLevelLabel">Musik</span></span>
+                  </span>
+                  <div class="segmented prefSeg" role="group" aria-labelledby="musicLevelLabel" data-select="musicLevelSelect">
+                    <button type="button" class="segBtn" data-value="off">Aus</button>
+                    <button type="button" class="segBtn" data-value="low">Leise</button>
+                    <button type="button" class="segBtn" data-value="mid">Mittel</button>
+                    <button type="button" class="segBtn" data-value="high">Laut</button>
+                  </div>
+                  <select id="musicLevelSelect" hidden>
+                    <option value="off">Aus</option>
+                    <option value="low">Leise</option>
+                    <option value="mid">Mittel</option>
+                    <option value="high">Laut</option>
+                  </select>
+                </div>
+                <label class="prefRow" for="musicTrackSelect">
+                  <svg class="icon prefIcon" aria-hidden="true"><use href="#i-disc"/></svg>
+                  <span class="prefText"><span class="prefLabel">Musikstück</span></span>
+                  <select id="musicTrackSelect" class="settingsSelect">
+                    <option value="mix">Wechselnd</option>
+                    <option value="kaffeehaus">Kaffeehaus</option>
+                    <option value="lounge">Lounge-Bossa</option>
+                    <option value="kaetzchen">Kätzchen</option>
+                  </select>
+                </label>
+              </div>
             </div>
           </div>
 
-          <!-- On the profile, not the device: the whole table sees it (client.js updateCelebrationSetting). -->
-          <div class="settingsItem" id="celebrationItem">
-            <label class="settingsRow" for="celebrationSelect">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-sparkle"/></svg><span>Siegesjubel</span></span>
-              <select id="celebrationSelect" class="settingsSelect">
-                <option value="standard">Standard</option>
-                <option value="cats">Katzen-Konfetti</option>
-                <option value="fireworks">Feuerwerk</option>
-                <option value="cardfan">Kartenfächer</option>
-                <option value="goldqueen">Goldene Pik Dame</option>
-              </select>
-            </label>
-            <div class="settingsRow celebrationFoot">
-              <p class="settingsHint" id="celebrationHint">Gewinnst du, sehen alle am Tisch deinen Jubel.</p>
-              <button type="button" id="celebrationPreviewBtn" class="settingsAction"><span>Vorschau</span></button>
-            </div>
-            <!-- Below the button, so a second tap finds it where it was. -->
-            <div id="celebrationPreview" class="celebrationPreview" aria-hidden="true"></div>
-          </div>
-
-          <!-- Per device, so it lives here and not in the host's house rules. -->
-          <div class="settingsItem">
-            <label class="settingsRow" for="soundCheckbox">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-sound-on"/></svg><span>Soundeffekte &amp; Vibration</span></span>
-              <input type="checkbox" id="soundCheckbox" class="settingsCheckbox" />
-            </label>
-            <p class="settingsHint">Gilt nur für dieses Gerät.</p>
-          </div>
-
-          <!-- Per device like the sound; composed in scripts/render-music.js. -->
-          <div class="settingsItem settingsPair" id="musicItem">
-            <label class="settingsRow" for="musicLevelSelect">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-music"/></svg><span>Musik</span></span>
-              <select id="musicLevelSelect" class="settingsSelect">
-                <option value="off">Aus</option>
-                <option value="low">Leise</option>
-                <option value="mid">Mittel</option>
-                <option value="high">Laut</option>
-              </select>
-            </label>
-            <label class="settingsRow" for="musicTrackSelect">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-disc"/></svg><span>Stück</span></span>
-              <select id="musicTrackSelect" class="settingsSelect">
-                <option value="mix">Wechselnd</option>
-                <option value="kaffeehaus">Kaffeehaus</option>
-                <option value="lounge">Lounge-Bossa</option>
-                <option value="kaetzchen">Kätzchen</option>
-              </select>
-            </label>
-            <p class="settingsHint">Eigens für Pik Dame komponiert. Gilt für dieses Gerät; jedes Stück wird nur einmal geladen.</p>
-          </div>
-
-          <div class="settingsItem">
-            <h3 class="settingsGroupTitle">Spielhilfen</h3>
-            <label class="settingsRow" for="aidTipsCheckbox">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg><span>Spiel-Tipps</span></span>
-              <input type="checkbox" id="aidTipsCheckbox" class="settingsCheckbox" />
-            </label>
-            <label class="settingsRow" for="aidDiscardCheckbox">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><span>Ablage-Hinweis</span></span>
-              <input type="checkbox" id="aidDiscardCheckbox" class="settingsCheckbox" />
-            </label>
-            <p class="settingsHint">Zeigt in der Zieh-Phase, ob die oberste Ablagekarte zu deiner Hand passt. Aus: Du prüfst das selbst.</p>
-            <label class="settingsRow" for="aidLayOffCheckbox">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span>Anlege-Hinweis</span></span>
-              <input type="checkbox" id="aidLayOffCheckbox" class="settingsCheckbox" />
-            </label>
-            <p class="settingsHint">Grüne Rahmen an deinen Auslagen, wenn die gewählte Karte dort anlegen kann. Aus: Du prüfst das selbst. Im Tutorial sind beide Hinweise immer an.</p>
-            <label class="settingsRow" for="aidLowCardsCheckbox">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg><span>Hinweis bei wenigen Karten</span></span>
-              <input type="checkbox" id="aidLowCardsCheckbox" class="settingsCheckbox" />
-            </label>
-            <p class="settingsHint">Markiert Mitspieler, die nur noch eine oder zwei Karten haben. Aus: Du zählst selbst mit.</p>
-          </div>
-
-          <div class="settingsItem">
-            <label class="settingsRow" for="botQuipsCheckbox">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg><span>Bot-Sprüche</span></span>
-              <input type="checkbox" id="botQuipsCheckbox" class="settingsCheckbox" />
-            </label>
-            <p class="settingsHint">Kurze Sätze der Bots in besonderen Momenten – selten, nur zum Spaß. Gilt für dieses Gerät.</p>
-          </div>
-
-          <div class="settingsItem">
-            <label class="settingsRow" for="debugCheckbox">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-bug"/></svg><span>Debug-Ansicht</span></span>
-              <input type="checkbox" id="debugCheckbox" class="settingsCheckbox" />
-            </label>
-            <p class="settingsHint">Blendet Gitter und Messwerte ein - nur für die Fehlersuche.</p>
-          </div>
-
-          <div class="settingsItem">
-            <div class="settingsRow">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-tag"/></svg><span>Was ist neu?</span></span>
-              <button id="versionBtn" class="settingsAction" title="Was ist neu?">v–</button>
+          <div class="prefGroup">
+            <h3 class="prefGroupTitle">Darstellung</h3>
+            <div class="prefBox">
+              <div class="prefRow prefStack">
+                <span class="prefStackHead">
+                  <svg class="icon prefIcon" aria-hidden="true"><use href="#i-textsize"/></svg>
+                  <span class="prefText"><span class="prefLabel" id="uiScaleLabel">Anzeigegröße</span></span>
+                </span>
+                <!-- Each label in its own size: the choice previews itself. -->
+                <div class="segmented prefSeg prefScaleSeg" role="group" aria-labelledby="uiScaleLabel" data-select="uiScaleSelect">
+                  <button type="button" class="segBtn" data-value="normal">Normal</button>
+                  <button type="button" class="segBtn" data-value="large">Groß</button>
+                  <button type="button" class="segBtn" data-value="xlarge">Sehr groß</button>
+                </div>
+                <select id="uiScaleSelect" hidden>
+                  <option value="normal">Normal</option>
+                  <option value="large">Groß</option>
+                  <option value="xlarge">Sehr groß</option>
+                </select>
+              </div>
+              <!-- Same .themeBtn markup as the in-game sheet, so applyTheme() keeps both in sync. -->
+              <div class="prefRow prefStack">
+                <span class="prefStackHead">
+                  <svg class="icon prefIcon" aria-hidden="true"><use href="#i-palette"/></svg>
+                  <span class="prefText"><span class="prefLabel">Erscheinungsbild</span></span>
+                  <span class="prefValue" id="themeNameValue"></span>
+                </span>
+                <div class="themeSwitch prefSwatches" role="group" aria-label="Erscheinungsbild wählen">
+                  <button class="themeBtn tapExpand" data-theme-choice="table" title="Spieltisch" aria-label="Spieltisch"></button>
+                  <button class="themeBtn tapExpand" data-theme-choice="night" title="Nacht" aria-label="Nacht"></button>
+                  <button class="themeBtn tapExpand" data-theme-choice="love" title="Herzdame" aria-label="Herzdame"></button>
+                  <button class="themeBtn tapExpand" data-theme-choice="felt" title="Filz" aria-label="Filz"></button>
+                  <button class="themeBtn tapExpand" data-theme-choice="kitchen" title="Omas Küchentisch" aria-label="Omas Küchentisch"></button>
+                  <button class="themeBtn tapExpand" data-theme-choice="bordeaux" title="Bordeaux" aria-label="Bordeaux"></button>
+                </div>
+              </div>
+              <button type="button" id="cardbackBtn" class="prefRow prefLink">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-cards"/></svg>
+                <span class="prefText"><span class="prefLabel">Kartenrücken</span></span>
+                <span class="prefValue" id="cardbackValue">Klassisch</span>
+                <svg class="icon prefChevron" aria-hidden="true"><use href="#i-chevron"/></svg>
+              </button>
+              <!-- On the profile, not the device: the whole table sees it (client.js updateCelebrationSetting). -->
+              <div id="celebrationItem" class="prefPart">
+                <div class="prefRow prefCeleb">
+                  <svg class="icon prefIcon" aria-hidden="true"><use href="#i-sparkle"/></svg>
+                  <label class="prefText" for="celebrationSelect"><span class="prefLabel">Siegesjubel</span><span class="prefSub" id="celebrationHint">Alle am Tisch sehen ihn</span></label>
+                  <select id="celebrationSelect" class="settingsSelect">
+                    <option value="standard">Standard</option>
+                    <option value="cats">Katzen-Konfetti</option>
+                    <option value="fireworks">Feuerwerk</option>
+                    <option value="cardfan">Kartenfächer</option>
+                    <option value="goldqueen">Goldene Pik Dame</option>
+                  </select>
+                  <button type="button" id="celebrationPreviewBtn" class="prefIconBtn" title="Vorschau" aria-label="Vorschau"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg></button>
+                </div>
+                <!-- Below the button, so a second tap finds it where it was. -->
+                <div id="celebrationPreview" class="celebrationPreview" aria-hidden="true"></div>
+              </div>
             </div>
           </div>
+
+          <div class="prefGroup">
+            <h3 class="prefGroupTitle">Spielhilfen</h3>
+            <div class="prefBox">
+              <label class="prefRow" for="aidTipsCheckbox">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-bulb"/></svg>
+                <span class="prefText"><span class="prefLabel">Spiel-Tipps</span><span class="prefSub">Kurze Bedien-Tipps am Tisch</span></span>
+                <input type="checkbox" id="aidTipsCheckbox" class="settingsCheckbox" />
+              </label>
+              <label class="prefRow" for="aidDiscardCheckbox">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-cards"/></svg>
+                <span class="prefText"><span class="prefLabel">Ablage-Hinweis</span><span class="prefSub">Zeigt, ob die oberste Ablagekarte passt</span></span>
+                <input type="checkbox" id="aidDiscardCheckbox" class="settingsCheckbox" />
+              </label>
+              <label class="prefRow" for="aidLayOffCheckbox">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-check"/></svg>
+                <span class="prefText"><span class="prefLabel">Anlege-Hinweis</span><span class="prefSub">Grüne Rahmen an passenden Auslagen</span></span>
+                <input type="checkbox" id="aidLayOffCheckbox" class="settingsCheckbox" />
+              </label>
+              <label class="prefRow" for="aidLowCardsCheckbox">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-alert"/></svg>
+                <span class="prefText"><span class="prefLabel">Hinweis bei wenigen Karten</span><span class="prefSub">Markiert Mitspieler mit 1–2 Karten</span></span>
+                <input type="checkbox" id="aidLowCardsCheckbox" class="settingsCheckbox" />
+              </label>
+              <label class="prefRow" for="botQuipsCheckbox">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-chat"/></svg>
+                <span class="prefText"><span class="prefLabel">Bot-Sprüche</span><span class="prefSub">Kurze Sätze der Bots, selten</span></span>
+                <input type="checkbox" id="botQuipsCheckbox" class="settingsCheckbox" />
+              </label>
+            </div>
+          </div>
+
+          <div class="prefGroup">
+            <h3 class="prefGroupTitle">Allgemein</h3>
+            <div class="prefBox">
+              <button type="button" id="versionBtn" class="prefRow prefLink">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-tag"/></svg>
+                <span class="prefText"><span class="prefLabel">Was ist neu?</span></span>
+                <span class="prefValue" id="versionValue">v–</span>
+                <svg class="icon prefChevron" aria-hidden="true"><use href="#i-chevron"/></svg>
+              </button>
+              <label class="prefRow" for="studioLogoSelect">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-film"/></svg>
+                <span class="prefText"><span class="prefLabel">Vorspann</span><span class="prefSub">Antippen überspringt ihn</span></span>
+                <select id="studioLogoSelect" class="settingsSelect">
+                  <option value="auto">Nur einmal</option>
+                  <option value="always">Bei jedem Start</option>
+                  <option value="off">Aus</option>
+                </select>
+              </label>
+              <label class="prefRow" for="debugCheckbox">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-bug"/></svg>
+                <span class="prefText"><span class="prefLabel">Debug-Ansicht</span><span class="prefSub">Nur für die Fehlersuche</span></span>
+                <input type="checkbox" id="debugCheckbox" class="settingsCheckbox" />
+              </label>
+            </div>
+          </div>
+          <p class="prefNote">Alles hier gilt nur für dieses Gerät – außer dem Siegesjubel: Der gehört zu deinem Konto.</p>
         </div>
         <button id="settingsOverlayCloseBtn" class="btn-secondary">Schließen</button>
       </div>

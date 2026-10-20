@@ -468,7 +468,7 @@ test('settings: locked choices name their level; a pick sends only the id with t
   assert.equal(opt('cardfan').disabled, true);
   assert.equal(opt('cardfan').textContent, 'Kartenfächer · ab Stufe 35');
   assert.equal(opt('goldqueen').textContent, 'Goldene Pik Dame · ab Stufe 50');
-  assert.equal(doc.getElementById('celebrationHint').textContent, 'Gewinnst du, sehen alle am Tisch deinen Jubel.');
+  assert.equal(doc.getElementById('celebrationHint').textContent, 'Alle am Tisch sehen ihn');
 
   select.value = 'fireworks';
   select.dispatchEvent(new app.window.Event('change', { bubbles: true }));
@@ -487,7 +487,7 @@ test('settings: locked choices name their level; a pick sends only the id with t
   doc.getElementById('langBtn').dispatchEvent(new app.window.MouseEvent('click', { bubbles: true }));
   assert.equal(opt('cardfan').textContent, 'Card fan · level 35');
   assert.equal(opt('cats').textContent, 'Cat confetti');
-  assert.equal(doc.getElementById('celebrationHint').textContent, 'When you win, everyone at the table sees it.');
+  assert.equal(doc.getElementById('celebrationHint').textContent, 'Everyone at the table sees it');
   assert.deepEqual(app.errors, [], `Client-Fehler: ${app.errors.join(' | ')}`);
 });
 
@@ -498,7 +498,7 @@ test('settings: without an account the choice is shown but locked; public server
   guest.emit({ type: 'profiles', publicMode: false, globalStats: null, players: [{ name: 'Flo', xp: xpAt(50) }] });
   const select = guest.doc.getElementById('celebrationSelect');
   assert.equal(select.disabled, true, 'a name alone is spoofable');
-  assert.equal(guest.doc.getElementById('celebrationHint').textContent, 'Melde dich an, um deinen Siegesjubel zu wählen.');
+  assert.equal(guest.doc.getElementById('celebrationHint').textContent, 'Mit Konto wählbar');
   select.dispatchEvent(new guest.window.Event('change', { bubbles: true }));
   assert.equal(guest.sent.filter((m) => m.type === 'setCelebration').length, 0);
 

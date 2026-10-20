@@ -52,7 +52,7 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   rules), `botdiff` (the strength picker), `stammtisch` (the record
   sheet behind the start-screen chip), `stammtisch-lobby` (a game lobby
   shown as a seat at the mock Stammtisch: its record panel), `settings` / `settings-aids` /
-  `settings-music` (the "Mehr" sheet: top / play aids / music), `game-settings`
+  `settings-music` (the "Optionen" sheet: top / play aids / music), `game-settings`
   (the in-game gear sheet), `music-hint` (the first click starts the music and
   its one-time hint shows; every other run marks the hint as seen), `tower`
   (the Kartenhaus sheet, opened from its tile in "Aufgaben"), `tower-detail`

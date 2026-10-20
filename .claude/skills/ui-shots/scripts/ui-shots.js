@@ -21,7 +21,7 @@
 // puzzle / puzzle-turn / puzzle-out (one meld laid), puzzle-refused (two melds laid at once: refused), puzzle-solved (3 stars + the tile),
 // challenge (intro, attempt used),
 // gamelobby (seats + house rules), botdiff (the strength picker), gameover-challenge,
-// settings / settings-aids / settings-music (the start screen's "Mehr" sheet: top / play aids / music),
+// settings / settings-aids / settings-music (the start screen's "Optionen" sheet: top / play aids / music),
 // game-settings (the in-game gear sheet), game-settings-debug (its dividers + debug row on),
 // sheet-reopen (settings sheet scrolled, closed, reopened), cardback (the card-back gallery), music-hint (first click: music starts, one-time hint),
 // account (the account sheet: level, season ladder; needs --signed-in),

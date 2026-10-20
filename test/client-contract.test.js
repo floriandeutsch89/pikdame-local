@@ -198,7 +198,8 @@ test('CSS contract: overlay controls use card colours, not the dark-table palett
   // v2.0.0: .resultTabBtn / .settingsRow* live in the same light card. The
   // result tabs shipped as var(--text) on rgba(255,255,255,0.05) - near-white
   // on white, so the inactive tab was unreadable.
-  for (const selector of ['.settingsSelect', '.settingsAction', '.settingsCheckbox', '.settingsLabel', '.settingsList',
+  for (const selector of ['.settingsSelect', '.settingsCheckbox', '.settingsLabel', '.prefRow', '.prefBox', '.prefLang',
+    '.prefSeg', '.prefSeg .segBtn', '.prefIconBtn', '.prefValue', '.prefSub', '.prefNote', '.prefGroupTitle',
     '.resultTabBtn', '.settingsRow', '.sheetRowValue']) {
     // ALLE Vorkommen prüfen, nicht nur das erste: Ein versehentlich doppelt
     // im Stylesheet stehender Block gewinnt als SPÄTERE Regel gleicher

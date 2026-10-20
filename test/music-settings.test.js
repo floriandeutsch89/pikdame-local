@@ -129,6 +129,25 @@ test('settings: the selects store the choice, the in-game row cycles the level',
   t.window.close();
 });
 
+test('settings: the level segments write the select and follow the in-game row', () => {
+  const t = boot();
+  const seg = (v) => t.doc.querySelector(`.segmented[data-select="musicLevelSelect"] .segBtn[data-value="${v}"]`);
+  const active = () => [...t.doc.querySelectorAll('.segmented[data-select="musicLevelSelect"] .segBtn.active')].map((b) => b.dataset.value);
+  assert.deepStrictEqual(active(), ['low'], 'the default level is marked');
+  seg('mid').click();
+  assert.strictEqual(t.$('musicLevelSelect').value, 'mid');
+  assert.strictEqual(t.window.localStorage.getItem('pikdame_music_level'), 'mid', 'same storage key as the select');
+  assert.strictEqual(t.rowValue(), 'Mittel · Wechselnd');
+  t.$('musicToggle').click(); // in-game: Mittel -> Laut
+  assert.deepStrictEqual(active(), ['high'], 'the segments follow a change made elsewhere');
+  assert.strictEqual(seg('high').getAttribute('aria-pressed'), 'true');
+  t.$('langBtn').click();
+  assert.deepStrictEqual([...t.doc.querySelectorAll('.segmented[data-select="musicLevelSelect"] .segBtn')].map((b) => b.textContent),
+    ['Off', 'Quiet', 'Medium', 'Loud']);
+  assert.deepStrictEqual(t.errors, []);
+  t.window.close();
+});
+
 test('settings: labels follow the language switch', () => {
   const t = boot({ storage: { pikdame_music_track: 'kaffeehaus' } });
   t.$('langBtn').click();
@@ -150,7 +169,7 @@ test('first gesture: the music starts and says once where to change it', async (
   assert.strictEqual(t.contexts[0].state, 'running');
   assert.ok(t.contexts[0].started.length >= 1, 'a segment was scheduled');
   assert.ok(t.fetched.includes('/music/manifest.json'));
-  assert.match(t.toast(), /Musik läuft leise – ändern unter Einstellungen › Musik/);
+  assert.match(t.toast(), /Musik läuft leise – ändern unter Optionen › Musik/);
   assert.strictEqual(t.window.localStorage.getItem('pikdame_music_hint'), '1');
   assert.deepStrictEqual(t.errors, []);
   t.window.close();
@@ -185,13 +204,13 @@ test('sound effects and music are separate: the label says so, effects off leave
   const t = boot();
   const effectsLabels = () => [
     t.$('soundToggle').querySelector('.sheetRowLabel').textContent,
-    t.doc.querySelector('label[for="soundCheckbox"] .settingsLabel span').textContent,
+    t.doc.querySelector('label[for="soundCheckbox"] .prefLabel').textContent,
   ];
   assert.deepStrictEqual(effectsLabels(), ['Soundeffekte & Vibration', 'Soundeffekte & Vibration']);
   assert.strictEqual(t.$('soundToggle').title, 'Soundeffekte ein/aus');
   // The music rows sit right below the effects in both sheets.
   assert.strictEqual(t.$('soundToggle').nextElementSibling.id, 'musicToggle');
-  assert.strictEqual(t.doc.querySelector('label[for="soundCheckbox"]').closest('.settingsItem').nextElementSibling.id, 'musicItem');
+  assert.strictEqual(t.doc.querySelector('label[for="soundCheckbox"]').nextElementSibling.id, 'musicItem');
 
   t.doc.dispatchEvent(new t.window.Event('pointerup'));
   await flush();

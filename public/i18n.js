@@ -12,6 +12,26 @@
 // - I18N_RULES_EN: die komplette englische Spielregeln-Ansicht.
 
 window.I18N_STATIC = {
+  // Settings sheet groups (index.html #settingsOverlay)
+  'Sprache': 'Language', // #langBtn title until client.js names the target language
+  'Optionen': 'Options',
+  'Ton': 'Sound',
+  'Darstellung': 'Display',
+  'Allgemein': 'General',
+  'Musikstück': 'Track',
+  'Groß': 'Large',
+  'Sehr groß': 'Extra large',
+  'Alle am Tisch sehen ihn': 'Everyone at the table sees it',
+  'Kurze Bedien-Tipps am Tisch': 'Short how-to tips at the table',
+  'Zeigt, ob die oberste Ablagekarte passt': 'Shows whether the top discard fits',
+  'Grüne Rahmen an passenden Auslagen': 'Green frames on melds your card fits',
+  'Markiert Mitspieler mit 1–2 Karten': 'Marks players with 1–2 cards left',
+  'Kurze Sätze der Bots, selten': 'Rare short lines from the bots',
+  'Vorspann': 'Intro',
+  'Antippen überspringt ihn': 'Tap to skip it',
+  'Nur für die Fehlersuche': 'For troubleshooting only',
+  'Alles hier gilt nur für dieses Gerät – außer dem Siegesjubel: Der gehört zu deinem Konto.':
+    'Everything here applies to this device only – except the victory celebration, which belongs to your account.',
   // Abheben (interaktiver Rundenstart)
   'Abheben': 'Cutting the deck',
   'Wähle, wo du das frisch gemischte Deck abhebst. Liegen dort Pik Dame oder Joker, gehören sie sofort dir! Verteilt wird ab der Abhebestelle; der abgehobene Packen kommt danach zurück in den Nachziehstapel.':
@@ -40,12 +60,8 @@ window.I18N_STATIC = {
   'Anlege-Hinweis': 'Lay-off hint',
   'Ablage-Hinweis ein/aus': 'Discard hint on/off',
   'Anlege-Hinweis ein/aus': 'Lay-off hint on/off',
-  'Zeigt in der Zieh-Phase, ob die oberste Ablagekarte zu deiner Hand passt. Aus: Du prüfst das selbst.': 'Shows in the draw phase whether the top discard fits your hand. Off: you check it yourself.',
-  'Grüne Rahmen an deinen Auslagen, wenn die gewählte Karte dort anlegen kann. Aus: Du prüfst das selbst. Im Tutorial sind beide Hinweise immer an.': 'Green frames on your melds when the selected card can be added there. Off: you check it yourself. Both hints are always on in the tutorial.',
   'Hinweis bei wenigen Karten': 'Low-card warning',
   'Hinweis bei wenigen Karten ein/aus': 'Low-card warning on/off',
-  'Markiert Mitspieler, die nur noch eine oder zwei Karten haben. Aus: Du zählst selbst mit.': 'Marks players who have only one or two cards left. Off: you keep count yourself.',
-  'Gilt nur für dieses Gerät.': 'Applies to this device only.',
   'Bot-Tempo': 'Bot speed',
   'Schnell': 'Fast',
   'Normal': 'Normal',
@@ -66,7 +82,6 @@ window.I18N_STATIC = {
   'Heute hast du die Challenge schon gespielt – morgen gibt es ein neues Deck.': 'You already played today\u2019s challenge – a new deck comes tomorrow.',
   'Bot-Sprüche': 'Bot lines',
   'Bot-Sprüche ein/aus': 'Bot lines on/off',
-  'Kurze Sätze der Bots in besonderen Momenten – selten, nur zum Spaß. Gilt für dieses Gerät.': 'Short lines from the bots at special moments – rare, just for fun. Applies to this device.',
   'Heute führt:': 'Today\u2019s leader:',
   "Los geht's!": "Let\u2019s go!",
   'Aus': 'Off',
@@ -118,10 +133,8 @@ window.I18N_STATIC = {
   'Gegen Bots spielen': 'Play against bots',
   'Freunde einladen': 'Invite friends',
   'Erscheinungsbild': 'Appearance',
-  'Sprache': 'Language',
   'Spielverlauf': 'Game log',
   'Anzeigegröße': 'Display size',
-  'Studio-Logo': 'Studio logo',
   'Kartenrücken': 'Card back',
   'Siegesjubel': 'Victory celebration',
   'Standard': 'Standard',
@@ -129,12 +142,8 @@ window.I18N_STATIC = {
   'Feuerwerk': 'Fireworks',
   'Kartenfächer': 'Card fan',
   'Goldene Pik Dame': 'Golden queen of spades',
-  'Gewinnst du, sehen alle am Tisch deinen Jubel.': 'When you win, everyone at the table sees it.',
   'Vorschau': 'Preview',
   'Debug-Ansicht': 'Debug view',
-  'Blendet Gitter und Messwerte ein - nur für die Fehlersuche.': 'Shows the grid and live metrics - for troubleshooting only.',
-  'Antippen überspringt es. Ist „Bewegung reduzieren“ an, läuft es nur bei „Bei jedem Start“ - und dann ruhiger.':
-    'Tap to skip it. With "reduce motion" on, it only plays with "Every start" - and then calmer.',
   'Schließen': 'Close',
   'Omas Küchentisch': "Grandma's kitchen table",
   'Debug-Overlay umschalten': 'Toggle debug overlay',
@@ -242,15 +251,12 @@ window.I18N_STATIC = {
   // Background music ('Mittel' and 'Aus' exist above)
   'Musik': 'Music',
   'Musik ändern': 'Change music',
-  'Stück': 'Piece',
   'Leise': 'Quiet',
   'Laut': 'Loud',
   'Wechselnd': 'Shuffle',
   'Kaffeehaus': 'Coffee house',
   'Lounge-Bossa': 'Lounge bossa',
   'Kätzchen': 'Kitten',
-  'Eigens für Pik Dame komponiert. Gilt für dieses Gerät; jedes Stück wird nur einmal geladen.':
-    'Composed for Pik Dame. Applies to this device; each piece downloads only once.',
   // Stammtisch
   'Stammtisch': 'Regulars table',
   'Stammtisch gründen': 'Found a regulars table',
