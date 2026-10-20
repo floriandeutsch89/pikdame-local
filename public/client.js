@@ -288,6 +288,9 @@
         }
         if (n.title && map[n.title]) n.dataset.i18nTitleDe = n.title;
         if (n.placeholder && map[n.placeholder]) n.dataset.i18nPhDe = n.placeholder;
+        // The tutorial button's label carries a step counter set by the client.
+        const aria = n.getAttribute('aria-label');
+        if (aria && map[aria] && n.id !== 'tutorialProgressBtn') n.dataset.i18nAriaDe = aria;
       });
       rulesHtmlDe = el('rulesContent').innerHTML;
       i18nSnapshotDone = true;
@@ -299,6 +302,10 @@
     document.querySelectorAll('[data-i18n-title-de]').forEach((n) => {
       const de = n.dataset.i18nTitleDe;
       n.title = lang === 'en' ? map[de] || de : de;
+    });
+    document.querySelectorAll('[data-i18n-aria-de]').forEach((n) => {
+      const de = n.dataset.i18nAriaDe;
+      n.setAttribute('aria-label', lang === 'en' ? map[de] || de : de);
     });
     document.querySelectorAll('[data-i18n-ph-de]').forEach((n) => {
       const de = n.dataset.i18nPhDe;
