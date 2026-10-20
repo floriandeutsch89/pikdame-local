@@ -100,7 +100,7 @@ test('progress sheet: the Kartenhaus entry opens the house - 20 floors and the t
   assert.strictEqual(t.sent('getTower').length, 2, 'opening asks for fresh stars');
 
   assert.strictEqual(t.doc.getElementById('towerMonth').textContent, 'Oktober 2026');
-  assert.strictEqual(t.doc.getElementById('towerSummary').textContent, '4 / 60 Sterne diesen Monat · noch 12 Tage');
+  assert.strictEqual(t.doc.getElementById('towerSummary').textContent, '4 / 60 Sternen diesen Monat · noch 12 Tage');
   const svg = t.doc.querySelector('#towerHouse svg');
   assert.ok(svg, 'the house is an inline SVG');
   assert.strictEqual(svg.getAttribute('viewBox'), '-172 -282 344 290');
@@ -137,7 +137,8 @@ test('progress sheet: the Kartenhaus entry opens the house - 20 floors and the t
   assert.match(detail.textContent, /2 Bots: Mittel, Mittel/);
   assert.match(detail.textContent, /als Nächstes/);
   assert.strictEqual(detail.querySelector('.khPlay').textContent.trim(), 'Etage 3 spielen');
-  assert.match(t.doc.getElementById('towerRules').textContent, /mindestens 100 Punkte vorn/);
+  assert.strictEqual(t.doc.querySelectorAll('#towerRules ul')[0].querySelectorAll('li').length, 3);
+  assert.match(t.doc.getElementById('towerRules').textContent, /2 Sterne: mindestens 100 Punkte vorn/);
   assert.match(t.doc.getElementById('towerRules').textContent, /erste Stern jeder Etage bringt pro Monat einmal 10 EP/);
   assert.match(t.doc.getElementById('towerRules').textContent, /krönen dein Kartenhaus \(\+50 EP\)/);
   assert.ok(!t.shown('towerArchiveBox'), 'no earlier month, no archive');
@@ -207,7 +208,7 @@ test('earlier months stay as a read-only archive', () => {
       { month: '2026-09', best: { 1: 1 }, stars: 1, cleared: 1, unlocked: 2, crowned: false }],
   }));
   openSheet(t);
-  assert.strictEqual(t.doc.getElementById('towerSummary').textContent, '4 / 60 Sterne diesen Monat · noch 0 Tage'.replace('noch 0 Tage', 'heute letzter Tag'));
+  assert.strictEqual(t.doc.getElementById('towerSummary').textContent, '4 / 60 Sternen diesen Monat · noch 0 Tage'.replace('noch 0 Tage', 'heute letzter Tag'));
   assert.ok(t.shown('towerArchiveBox'));
   const rows = [...t.doc.querySelectorAll('#towerArchive .khArchRow')];
   assert.strictEqual(rows.length, 2);

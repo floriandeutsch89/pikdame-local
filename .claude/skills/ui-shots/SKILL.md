@@ -56,7 +56,8 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   (the in-game gear sheet), `music-hint` (the first click starts the music and
   its one-time hint shows; every other run marks the hint as seen), `tower`
   (the Kartenhaus sheet, opened from its tile in "Aufgaben"), `tower-detail`
-  (the same with the locked floor 14 tapped), `tower-motion` (animation
+  (the same with the locked floor 14 tapped), `tower-rules` (the "So funktioniert"
+  fold opened), `tower-motion` (animation
   frames: a month change collapsing, a landing star next to a wobble; with
   `--tower crowned` the crown landing), `gameover-tower` (a floor verdict on
   the result sheet). `--tower mid|new|high|crowned` picks the month in the

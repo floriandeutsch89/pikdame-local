@@ -1527,7 +1527,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   font-size: var(--fs-hint); font-weight: 600; color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
-.resultDelta { flex: 0 0 auto; min-width: 3.4em; text-align: right; }
+.resultDelta { flex: 0 0 auto; min-width: 3.1em; text-align: right; }
 /* "Me" is marked by weight and a rule down the left edge, NOT by colour:
    green next to a -170 read as "well done". Colour is reserved for sign. */
 .resultRow.isMe {
@@ -2799,6 +2799,12 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 .khMoreChevron { width: 1em; height: 1em; color: var(--text-muted); transition: transform 0.2s var(--ease); }
 .khMore[open] .khMoreChevron { transform: rotate(180deg); }
 .khMore .pgRules { margin: 0 0 8px; }
+.khRules p { margin: 0 0 6px; }
+.khRuleList { margin: 0 0 6px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.khRuleList li { display: flex; align-items: baseline; gap: 8px; }
+.khRuleList li.dot::before { content: "\2022"; color: var(--text-muted); }
+.khRuleStars { display: inline-flex; flex: none; gap: 1px; min-width: 3.1em; color: var(--star-edge); fill: var(--star-fill); }
+.khRuleStars .icon { width: 1em; height: 1em; align-self: center; }
 .khMore + .khMore { border-top: 1px solid var(--glass-border); }
 .khArchive { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .khArchRow {
@@ -5543,6 +5549,7 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
      detail; only the right column scrolls. */
   .overlay-card.towerCard { height: calc(100dvh - 16px); max-width: 820px; padding: 10px 16px; --kh-house-h: calc(100dvh - 36px); }
   .towerCard .khSide { overflow-y: auto; }
+  .towerCard .khSide > * { flex-shrink: 0; }  /* else an open fold squeezes the detail card into overlap */
   .towerCard .khDetail { min-height: 0; padding: 8px 12px; }
 
   /* Year review at ~400 px: the story card left, its controls bottom right. */
