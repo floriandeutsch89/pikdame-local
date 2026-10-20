@@ -8527,18 +8527,37 @@
   function renderTowerDetail(info) {
     el('towerDetail').innerHTML = info ? towerDetailHtml(info, towerSelected || towerDefaultSelection(info)) : '';
   }
+  // The help fold: intro, star levels and floor-11 handicaps as lists, then the rest.
+  function towerRulesHtml(info) {
+    const n = info.stages.length;
+    const stars = (k) => `<span class="khRuleStars" aria-hidden="true">${'<svg class="icon"><use href="#i-star"/></svg>'.repeat(k)}</span>`;
+    const li = (k, de, en) => `<li>${stars(k)}<span>${escapeHtml(L(de, en))}</span></li>`;
+    const p = (de, en) => `<p>${escapeHtml(L(de, en))}</p>`;
+    return p(`Jeden Monat neue Blätter gegen dieselben Bots: ${n} Etagen, jede eine Runde.`, `New deals every month against the same bots: ${n} floors, one round each.`) +
+      '<ul class="khRuleList">' +
+      li(1, '1 Stern: mehr Punkte als jeder Bot samt Vorgabe', '1 star: more points than every bot plus its head start') +
+      li(2, `2 Sterne: mindestens ${info.clearMargin} Punkte vorn`, `2 stars: at least ${info.clearMargin} points ahead`) +
+      li(3, '3 Sterne: dazu selbst ausmachen', '3 stars: and go out yourself') +
+      '</ul>' +
+      p('Ein Stern macht die nächste Etage frei. Versuche sind unbegrenzt, der beste zählt.', 'One star unlocks the next floor. Tries are unlimited, the best counts.') +
+      p('Ab Etage 11 spielt eine Erschwernis gegen dich:', 'From floor 11 a handicap plays against you:') +
+      '<ul class="khRuleList">' +
+      '<li class="dot"><span>' + escapeHtml(L('die Pik Dame auf der Hand (ausgelegt +100, auf der Hand -100)', 'the Queen of Spades in hand (+100 melded, -100 in hand)')) + '</span></li>' +
+      '<li class="dot"><span>' + escapeHtml(L('keine Ablage (nur vom Stapel ziehen)', 'no discard pile (draw from the stock only)')) + '</span></li>' +
+      '<li class="dot"><span>' + escapeHtml(L('Sterne nur, wenn du selbst ausmachst', 'stars only if you go out yourself')) + '</span></li>' +
+      '</ul>' +
+      p(`Der erste Stern jeder Etage bringt pro Monat einmal ${XP_RULES.towerFirstStar} EP; alle ${n} Etagen krönen dein Kartenhaus (+${XP_RULES.towerCrown} EP).`,
+        `The first star of each floor pays ${XP_RULES.towerFirstStar} XP once a month; all ${n} floors crown your House of Cards (+${XP_RULES.towerCrown} XP).`);
+  }
   function renderTower() {
     const info = towerFresh();
     const max = info ? info.stages.length * 3 : 0;
     el('towerMonth').textContent = info ? towerMonthName(info.month, true) : '';
     const days = info ? towerDaysLeftText(info.today) : '';
     el('towerSummary').innerHTML = info
-      ? `<b>${info.stars} / ${max}</b> ${escapeHtml(L('Sterne diesen Monat', 'stars this month'))}${days ? ` · ${escapeHtml(days)}` : ''}`
+      ? `<b>${info.stars} / ${max}</b> ${escapeHtml(L('Sternen diesen Monat', 'stars this month'))}${days ? ` · ${escapeHtml(days)}` : ''}`
       : escapeHtml(L('Lädt …', 'Loading …'));
-    el('towerRules').textContent = info
-      ? L(`Jeden Monat neue Blätter gegen dieselben Bots: ${info.stages.length} Etagen, jede eine Runde. Ein Stern: mehr Punkte als jeder Bot samt Vorgabe. Zwei: mindestens ${info.clearMargin} Punkte vorn. Drei: dazu selbst ausmachen. Ein Stern macht die nächste Etage frei; Versuche unbegrenzt, der beste zählt. Ab Etage 11 spielt eine Erschwernis gegen dich: die Pik Dame auf der Hand (ausgelegt +100, auf der Hand -100), keine Ablage (nur vom Stapel ziehen) oder Sterne nur, wenn du selbst ausmachst. Der erste Stern jeder Etage bringt pro Monat einmal ${XP_RULES.towerFirstStar} EP; alle ${info.stages.length} Etagen krönen dein Kartenhaus (+${XP_RULES.towerCrown} EP).`,
-        `New deals every month against the same bots: ${info.stages.length} floors, one round each. One star: more points than every bot plus its head start. Two: at least ${info.clearMargin} points ahead. Three: and go out yourself. One star unlocks the next floor; unlimited tries, the best counts. From floor 11 a handicap plays against you: the Queen of Spades in hand (+100 melded, -100 in hand), no discard pile (draw from the stock only) or stars only if you go out yourself. The first star of each floor pays ${XP_RULES.towerFirstStar} XP once a month; all ${info.stages.length} floors crown your House of Cards (+${XP_RULES.towerCrown} XP).`)
-      : '';
+    el('towerRules').innerHTML = info ? towerRulesHtml(info) : '';
     const archive = (info && info.archive) || [];
     el('towerArchive').innerHTML = towerArchiveHtml(archive);
     el('towerArchiveBox').classList.toggle('hidden', !archive.length);
