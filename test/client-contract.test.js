@@ -699,6 +699,14 @@ test('i18n-Vertrag: jeder sichtbare deutsche Text im HTML hat einen I18N_STATIC-
   assert.deepEqual(missing, [], `Texte ohne I18N_STATIC-Eintrag: ${missing.join(' | ')}`);
 });
 
+test('Warteraum-Banner hat keinen Name-Knopf (Namen legt der Startbildschirm fest)', () => {
+  assert.ok(!html.includes('updateNameBtn'), 'updateNameBtn ist wieder im HTML');
+  assert.ok(!clientJs.includes('updateNameBtn'), 'updateNameBtn ist wieder im Client');
+  const banner = html.match(/<div id="sessionBanner"[\s\S]*?<div class="session-banner-actions">([\s\S]*?)<\/div>/);
+  assert.ok(banner, 'Banner-Aktionen nicht gefunden');
+  assert.deepEqual([...banner[1].matchAll(/<button id="(\w+)"/g)].map((m) => m[1]), ['shareCodeBtn', 'showQrBtn']);
+});
+
 test('i18n-Vertrag: title, aria-label und placeholder im HTML haben einen I18N_STATIC-Eintrag', () => {
   // Attribute twin of the text test: applyStaticLang() translates these via
   // the same map, so an unmapped value stays German in the English UI.

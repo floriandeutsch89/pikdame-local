@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.93.1] - 2026-10-20
+
+### Fixed
+- Tägliches Rätsel („Bester Zug“, „Ausmachen“): „Auslegen“ prüft jede Auslage sofort und nennt bei einem Fehler den Grund. Eine ungültige Auswahl wird nicht mehr als Gruppe übernommen und kostet keinen Versuch.
+- Rätsel-Hinweis klarer: Jede Auslage wird einzeln ausgelegt.
+
 ## [2.93.0] - 2026-10-20
 
 ### Changed
