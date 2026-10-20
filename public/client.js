@@ -1706,7 +1706,7 @@
       try { updateStammtischChip(msg); } catch (e) { /* cosmetic */ }
       return;
     }
-    if (msg.type === 'puzzle' || msg.type === 'puzzleResult' || msg.type === 'puzzleSolution') {
+    if (msg.type === 'puzzle' || msg.type === 'puzzleResult' || msg.type === 'puzzleSolution' || msg.type === 'puzzleMeldCheck') {
       try { handlePuzzleMessage(msg); } catch (e) { /* a broken puzzle never breaks the client */ }
       try { renderToday(); } catch (e) { /* cosmetic */ }
       return;
@@ -6007,6 +6007,7 @@
   // browse past days: graded too, but no XP and nothing stored.
   let puzzleData = null; // {date, kind, hand, targetPoints, status, archive, today, epoch}
   const puzzleSelected = new Set();
+  let puzzleLayPending = null; // ids awaiting the server's check before they become a group
   let puzzleGroups = []; // laid melds of a 'turn'/'out' puzzle (card id arrays)
   let puzzleBadGroup = 0; // 1-based meld the server rejected
   let puzzleSolutionIds = null;
@@ -6018,11 +6019,11 @@
     },
     turn: {
       name: () => L('Bester Zug', 'Best turn'),
-      question: () => L('Lege in einem Zug so viele Punkte wie möglich aus, gern in mehreren Auslagen. Eine Karte bleibt zum Abwerfen.', 'Lay out as many points as you can in one turn, in several melds if you like. One card stays for the discard.'),
+      question: () => L('Lege jede Auslage einzeln aus (erst Karten wählen, dann „Auslegen“), so viele Punkte wie möglich. Eine Karte bleibt zum Abwerfen.', 'Lay each meld separately (pick its cards, then "Meld"), as many points as you can. One card stays for the discard.'),
     },
     out: {
       name: () => L('Ausmachen', 'Go out'),
-      question: () => L('Mach in einem Zug aus: Lege alle Karten bis auf eine aus - die letzte wirfst du ab.', 'Go out in one turn: lay out every card but one - the last one is your discard.'),
+      question: () => L('Lege jede Auslage einzeln aus - die letzte Karte wirfst du ab.', 'Lay each meld out separately - the last card is your discard.'),
     },
   };
   const puzzleKind = () => (puzzleData && PUZZLE_KINDS[puzzleData.kind] ? puzzleData.kind : 'meld');
@@ -6084,6 +6085,7 @@
   function loadPuzzle(date) {
     puzzleSelected.clear();
     puzzleGroups = [];
+    puzzleLayPending = null;
     puzzleBadGroup = 0;
     puzzleSolutionIds = null;
     puzzleSolutionMelds = null;
@@ -6217,12 +6219,11 @@
     loadPuzzle(next >= puzzleData.today ? null : next);
   });
   el('puzzleLayBtn').addEventListener('click', () => {
-    if (puzzleSelected.size < 3) return;
-    puzzleGroups.push([...puzzleSelected]);
-    puzzleSelected.clear();
-    puzzleBadGroup = 0;
-    setPuzzleStatus('', '');
-    renderPuzzle();
+    if (puzzleSelected.size < 3 || !puzzleData || puzzleLayPending) return;
+    // The server validates (no second rules implementation here); the group is
+    // only laid when it answers valid, see 'puzzleMeldCheck'.
+    puzzleLayPending = [...puzzleSelected];
+    send({ type: 'checkPuzzleMeld', name: currentName(), date: puzzleData.date, cardIds: puzzleLayPending });
   });
   el('puzzleCheckBtn').addEventListener('click', () => {
     if (!puzzleData) return;
@@ -6256,6 +6257,21 @@
     // Answers for another day (navigated away meanwhile) are stale.
     if (!puzzleData || (msg.date && msg.date !== puzzleData.date)) return true;
     if (msg.perfectStreak) puzzleData.perfectStreak = msg.perfectStreak;
+    if (msg.type === 'puzzleMeldCheck') {
+      const ids = puzzleLayPending;
+      puzzleLayPending = null;
+      if (!ids) return true;
+      if (!msg.valid) {
+        setPuzzleStatus(`❌ ${trs(msg.reason || '')}`, 'bad');
+        return true;
+      }
+      puzzleGroups.push(ids);
+      for (const id of ids) puzzleSelected.delete(id);
+      puzzleBadGroup = 0;
+      setPuzzleStatus('', '');
+      renderPuzzle();
+      return true;
+    }
     if (msg.type === 'puzzleResult') {
       puzzleData.status = msg.status || puzzleData.status;
       puzzleBadGroup = 0;
