@@ -22,7 +22,8 @@
 // challenge (intro, attempt used),
 // gamelobby (seats + house rules), botdiff (the strength picker), gameover-challenge,
 // settings / settings-aids / settings-music (the start screen's "Mehr" sheet: top / play aids / music),
-// game-settings (the in-game gear sheet), music-hint (first click: music starts, one-time hint),
+// game-settings (the in-game gear sheet), game-settings-debug (its dividers + debug row on),
+// sheet-reopen (settings sheet scrolled, closed, reopened), cardback (the card-back gallery), music-hint (first click: music starts, one-time hint),
 // account (the account sheet: level, season ladder; needs --signed-in),
 // account-mail (its year-review mail switch; needs --signed-in),
 // tower (the Kartenhaus sheet via its tile in "Aufgaben"), tower-detail (a tapped
@@ -410,7 +411,7 @@ function waitForHttp(port, ms = 20000) {
         await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(1200);
       };
-      const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|tower-detail|tower-motion|stats|stats-badges|stats-empty|history|settings|settings-aids|settings-music|game-settings|music-hint|challenge|challenge-open|stammtisch|account|account-mail|puzzle.*|year.*)$/;
+      const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|tower-detail|tower-motion|stats|stats-badges|stats-empty|history|settings|settings-aids|settings-music|game-settings|game-settings-debug|sheet-reopen|cardback|music-hint|challenge|challenge-open|stammtisch|account|account-mail|puzzle.*|year.*)$/;
       for (const sc of scenes) {
         if (LOBBY_SCENES.test(sc)) await toStart();
         if (sc === 'lobby') await shot('lobby');
@@ -583,6 +584,35 @@ function waitForHttp(port, ms = 20000) {
           await page.waitForTimeout(300);
           await shot('game-settings');
           await page.evaluate(() => document.getElementById('gameSettingsOverlay').classList.add('hidden'));
+        }
+        if (sc === 'game-settings-debug') {
+          // Gear sheet scrolled to the dividers and the debug row, debug view switched on.
+          await page.evaluate(() => {
+            document.getElementById('gameSettingsOverlay').classList.remove('hidden');
+            document.getElementById('debugBtn').click();
+            document.getElementById('debugBtn').scrollIntoView({ block: 'center' });
+          });
+          await page.waitForTimeout(300);
+          await shot('game-settings-debug');
+          await page.evaluate(() => { document.getElementById('debugBtn').click(); document.getElementById('gameSettingsOverlay').classList.add('hidden'); });
+        }
+        if (sc === 'sheet-reopen') {
+          // Scroll the settings sheet down, close, reopen: it must be at the top again.
+          await page.click('#settingsBtnLobby'); await page.waitForTimeout(400);
+          await page.evaluate(() => { const c = document.querySelector('#settingsOverlay .overlay-card'); c.scrollTop = c.scrollHeight; });
+          await page.waitForTimeout(200);
+          await page.click('#settingsOverlayCloseBtn'); await page.waitForTimeout(300);
+          await page.click('#settingsBtnLobby'); await page.waitForTimeout(500);
+          await shot('sheet-reopen');
+          await page.click('#settingsOverlayCloseBtn');
+        }
+        if (sc === 'cardback') {
+          await page.click('#settingsBtnLobby'); await page.waitForTimeout(400);
+          await page.evaluate(() => document.getElementById('cardbackBtn').click());
+          await page.waitForTimeout(400);
+          await shot('cardback');
+          await page.evaluate(() => document.querySelector('.cardbackGallery').remove());
+          await page.click('#settingsOverlayCloseBtn');
         }
         if (sc === 'account') {
           await page.click('#accountBtn'); await page.waitForTimeout(700);

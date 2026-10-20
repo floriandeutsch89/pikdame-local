@@ -6843,8 +6843,11 @@
     for (const r of records) {
       const wasHidden = (r.oldValue || '').split(/\s+/).includes('hidden');
       if (wasHidden && !r.target.classList.contains('hidden')) {
+        // Sheets always open at the top, not where they were left.
+        r.target.scrollTop = 0;
+        const card = r.target.querySelector('.overlay-card');
+        if (card) card.scrollTop = 0;
         hideToast();
-        return;
       }
     }
   });
@@ -10087,6 +10090,14 @@
       });
       grid.appendChild(tile);
     }
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'btn-icon cardbackClose';
+    closeBtn.setAttribute('aria-label', L('Schließen', 'Close'));
+    closeBtn.title = L('Schließen', 'Close');
+    closeBtn.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-close"/></svg>';
+    closeBtn.addEventListener('click', () => wrap.remove());
+    box.appendChild(closeBtn);
     box.appendChild(grid);
     wrap.appendChild(box);
     wrap.addEventListener('click', (e) => { if (e.target === wrap) wrap.remove(); });
@@ -10185,6 +10196,7 @@
       if (panel) panel.classList.toggle('hidden', !on);
       const box = document.getElementById('debugCheckbox');
       if (box) box.checked = on;
+      setRowValue(el('debugBtn'), on ? L('An', 'On') : L('Aus', 'Off'));
       clearInterval(debugTimer);
       if (on && panel) {
         updateDebugPanel();
