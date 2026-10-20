@@ -3,6 +3,14 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.94.2] - 2026-10-20
+
+### Fixed
+- Einstellungs-Blätter öffnen jetzt immer ganz oben statt dort, wo man sie verlassen hat
+- Im Spiel zeigt die Debug-Ansicht wie die anderen Schalter „An“ oder „Aus“
+- Die Trennlinien im Einstellungs-Blatt im Spiel haben keine gebogenen Enden mehr
+- Die Kartenrücken-Galerie hat einen Schließen-Knopf
+
 ## [2.94.1] - 2026-10-20
 
 ### Changed
