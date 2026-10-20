@@ -3,6 +3,17 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.92.2] - 2026-10-20
+
+### Fixed
+- Englische Oberfläche: Tooltips, Screenreader-Beschriftungen und Platzhalter (z. B. „Spielmodi“, „Weitere Bereiche“, „Name des Stammtischs“) sind jetzt übersetzt.
+
+## [2.92.1] - 2026-10-20
+
+### Fixed
+- Englische Oberfläche: „Rules“ und „More“ in der Fußleiste der Startseite sind jetzt übersetzt.
+  Ebenso der Hinweistext über der Partien-Liste in der Statistik.
+
 ## [2.92.0] - 2026-10-20
 
 ### Added

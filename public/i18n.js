@@ -1,7 +1,7 @@
 // public/i18n.js
 // Zweisprachigkeit Deutsch/Englisch. Deutsch ist die Quellsprache (steht im
 // HTML/Code), Englisch wird per Lookup übersetzt:
-// - I18N_STATIC: exakte Übersetzungen für statische HTML-Texte, title- und
+// - I18N_STATIC: exakte Übersetzungen für statische HTML-Texte, title-, aria-label- und
 //   placeholder-Attribute (Blatt-Elemente werden beim Start automatisch
 //   inventarisiert).
 // - I18N_SERVER_PATTERNS: Muster für die dynamischen SERVER-Texte
@@ -146,6 +146,22 @@ window.I18N_STATIC = {
   'Statistik': 'Statistics',
   'Regeln': 'Rules',
   'Mehr': 'More',
+  'Spielmodi': 'Game modes',
+  'Spieleranzahl wählen': 'Choose number of players',
+  'Weitere Bereiche': 'More sections',
+  'GitHub': 'GitHub',
+  'Zum Startbildschirm': 'To the start screen',
+  'Pause (alle müssen zustimmen)': 'Pause (everyone must agree)',
+  'Pause': 'Pause',
+  'Fortschritt bis 1000 Punkte': 'Progress to 1000 points',
+  'Karten auf deiner Hand': 'Cards in your hand',
+  'Tick tack...': 'Tick tock...',
+  'Name des Stammtischs': 'Name of the regulars table',
+  'Erscheinungsbild wählen': 'Choose appearance',
+  'Bordeaux': 'Bordeaux',
+  'Spiel-Tipps ein/aus': 'Game tips on/off',
+  'Spielverlauf ein-/ausblenden': 'Show/hide game log',
+  'Abhebe-Position': 'Cut position',
   'Pik Dame': 'Pik Dame',
   'Deine letzten abgeschlossenen Partien (bis 1000 Punkte) - nur auf diesem Gerät/mit diesem Spielernamen.': 'Your last completed games (up to 1000 points) - only on this device/with this player name.',
   'Übersicht': 'Overview',

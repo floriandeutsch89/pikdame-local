@@ -704,5 +704,32 @@ test('Warteraum-Banner hat keinen Name-Knopf (Namen legt der Startbildschirm fes
   assert.ok(!clientJs.includes('updateNameBtn'), 'updateNameBtn ist wieder im Client');
   const banner = html.match(/<div id="sessionBanner"[\s\S]*?<div class="session-banner-actions">([\s\S]*?)<\/div>/);
   assert.ok(banner, 'Banner-Aktionen nicht gefunden');
+});
   assert.deepEqual([...banner[1].matchAll(/<button id="(\w+)"/g)].map((m) => m[1]), ['shareCodeBtn', 'showQrBtn']);
+
+test('i18n-Vertrag: title, aria-label und placeholder im HTML haben einen I18N_STATIC-Eintrag', () => {
+  // Attribute twin of the text test: applyStaticLang() translates these via
+  // the same map, so an unmapped value stays German in the English UI.
+  const { JSDOM } = require('jsdom');
+  const ctx = { window: {} };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'public', 'i18n.js'), 'utf8'), ctx);
+  const map = ctx.window.I18N_STATIC;
+  const doc = new JSDOM(html).window.document;
+  // Same skips as the text test, plus elements whose attribute client.js sets via L().
+  const SKIP = [
+    'script', 'style', 'svg',
+    '#rulesContent', '.seoIntro',
+    '#uiScaleSelect option', '#studioLogoSelect option',
+    '#sortToggleBtn', '#accountWhoami', '#botDiffTitle', '#discardPreviewTitle', '#cardbackBtn',
+    '#tutorialProgressBtn',                       // aria-label carries the step counter
+  ].join(',');
+  const missing = [];
+  doc.querySelectorAll('[title],[aria-label],[placeholder]').forEach((n) => {
+    if (n.closest(SKIP)) return;
+    for (const a of ['title', 'aria-label', 'placeholder']) {
+      const v = (n.getAttribute(a) || '').trim();
+      if (v && /[A-Za-zÄÖÜäöüß]{2}/.test(v) && !map[v]) missing.push(`${a}="${v}"`);
+    }
+  });
+  assert.deepEqual([...new Set(missing)], [], `Attribute ohne I18N_STATIC-Eintrag: ${[...new Set(missing)].join(' | ')}`);
 });
