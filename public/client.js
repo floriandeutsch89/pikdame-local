@@ -318,7 +318,7 @@
     // Names the language you switch TO, in that language - readable for
     // exactly the person who needs it.
     const langBtn = el('langBtn');
-    langBtn.textContent = lang === 'en' ? 'Deutsch' : 'English';
+    setLabelText(langBtn, lang === 'en' ? 'Deutsch' : 'English');
     langBtn.lang = lang === 'en' ? 'de' : 'en';
     langBtn.title = lang === 'en' ? 'Auf Deutsch umstellen' : 'Switch to English';
     document.documentElement.lang = lang;
@@ -327,6 +327,7 @@
     lang = lang === 'de' ? 'en' : 'de';
     storageSet(LANG_KEY, lang);
     applyStaticLang();
+    updateThemeName();    // the swatch titles were just translated
     updateSortToggleLabel();
     updateHandToggle();
     applyUiScale();       // Auswahlfeld Anzeigegröße
@@ -386,6 +387,7 @@
       for (const opt of sel.options) if (UI_SCALES.includes(opt.value)) opt.textContent = uiScaleLabel(opt.value);
     }
     setRowValue(document.getElementById('uiScaleBtn'), uiScaleLabel(uiScale));
+    try { syncSegments(); } catch (e) { /* segments are cosmetic */ }
   }
   function cycleUiScale() {
     uiScale = UI_SCALES[(UI_SCALES.indexOf(uiScale) + 1) % UI_SCALES.length];
@@ -650,6 +652,14 @@
     document.querySelectorAll('.themeBtn').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.themeChoice === theme);
     });
+    updateThemeName();
+  }
+  // The swatch title is the translated name (applyStaticLang), so reuse it.
+  function updateThemeName() {
+    const out = document.getElementById('themeNameValue');
+    const theme = document.documentElement.getAttribute('data-theme');
+    const btn = document.querySelector(`.prefSwatches .themeBtn[data-theme-choice="${theme}"]`);
+    if (out) out.textContent = btn ? btn.title : '';
   }
 
   document.querySelectorAll('.themeBtn').forEach((btn) => {
@@ -728,7 +738,7 @@
           if (musicPrefs.explicit || storageGet(MUSIC_HINT_KEY) === '1') return;
           if (Date.now() < toastLockUntil) return; // a priority toast would swallow it: next start
           storageSet(MUSIC_HINT_KEY, '1');
-          showToast(L('Musik läuft leise – ändern unter Einstellungen › Musik', 'Music plays quietly – change it under Settings › Music'), { duration: 6000 });
+          showToast(L('Musik läuft leise – ändern unter Optionen › Musik', 'Music plays quietly – change it under Options › Music'), { duration: 6000 });
         },
       });
       music.setChoice(musicPrefs.choice);
@@ -1060,6 +1070,7 @@
     setRowValue(el('musicToggle'), musicPrefs.level === 'off'
       ? musicLevelName('off')
       : `${musicLevelName(musicPrefs.level)} · ${musicChoiceName(musicPrefs.choice)}`);
+    try { syncSegments(); } catch (e) { /* segments are cosmetic */ }
   }
   function setMusicLevel(level) {
     if (!MUSIC_LEVELS.includes(level)) return;
@@ -7625,7 +7636,7 @@
     .then((r) => r.json())
     .then((s) => {
       if (s && s.version) {
-        el('versionBtn').textContent = `v${s.version}`;
+        el('versionValue').textContent = `v${s.version}`;
         setRowValue(el('ingameVersion'), `v${s.version}`);
         // PWA auto-update, part 2: my bundle carries the version of the
         // server that SERVED it (__PIKDAME_BUILD). If the live server is
@@ -10052,10 +10063,10 @@
       const def = CARDBACKS.find((x) => x.id === chosen);
       if (!def || !cardbackUnlocked(def)) chosen = 'classic';
       document.documentElement.dataset.cardback = chosen;
-      const btn = el('cardbackBtn');
-      if (btn) {
+      const value = el('cardbackValue');
+      if (value) {
         const d = CARDBACKS.find((x) => x.id === chosen);
-        btn.textContent = L(d.label, d.labelEn);
+        value.textContent = L(d.label, d.labelEn);
       }
     } catch (e) { /* Kosmetik bricht nie den Start */ }
   }
@@ -10166,7 +10177,7 @@
     const app = document.getElementById('app');
     const vv = window.visualViewport;
     const lines = [
-      `Pik Dame ${el('versionBtn') ? el('versionBtn').textContent : ''}  ${new Date().toISOString().slice(11, 19)}Z`,
+      `Pik Dame ${el('versionValue') ? el('versionValue').textContent : ''}  ${new Date().toISOString().slice(11, 19)}Z`,
       `standalone: ${window.matchMedia('(display-mode: standalone)').matches}  dpr: ${window.devicePixelRatio}`,
       `innerH: ${window.innerHeight}  vv.h: ${vv ? Math.round(vv.height) : '-'}  100dvh: ${dvh}`,
       `--appvh: ${cs.getPropertyValue('--appvh').trim() || '-'}  #app.h: ${app ? app.clientHeight : '-'}`,
@@ -10256,7 +10267,7 @@
   function logoModeLabel(mode) {
     if (mode === 'always') return L('Bei jedem Start', 'Every start');
     if (mode === 'off') return L('Aus', 'Off');
-    return L('Nur beim ersten Start', 'First start only');
+    return L('Nur einmal', 'Once only');
   }
   function updateStudioLogoBtn() {
     const sel = document.getElementById('studioLogoSelect');
@@ -10272,7 +10283,7 @@
         const next = LOGO_MODES.includes(sel.value) ? sel.value : 'auto';
         storageSet(LOGO_MODE_KEY, next);
         updateStudioLogoBtn();
-        showToast(`🌀 ${L('Studio-Logo', 'Studio logo')}: ${logoModeLabel(next)}`);
+        showToast(`🌀 ${L('Vorspann', 'Intro')}: ${logoModeLabel(next)}`);
       });
       updateStudioLogoBtn();
     }
@@ -10299,8 +10310,8 @@
     const allowed = canPickFavorites();
     sel.disabled = !allowed;
     el('celebrationHint').textContent = allowed
-      ? L('Gewinnst du, sehen alle am Tisch deinen Jubel.', 'When you win, everyone at the table sees it.')
-      : L('Melde dich an, um deinen Siegesjubel zu wählen.', 'Sign in to pick your victory celebration.');
+      ? L('Alle am Tisch sehen ihn', 'Everyone at the table sees it')
+      : L('Mit Konto wählbar', 'Sign in to choose');
   }
   try {
     el('celebrationSelect').addEventListener('change', () => {
