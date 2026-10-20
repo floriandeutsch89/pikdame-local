@@ -4021,7 +4021,7 @@
 
   // Identity chip: a returning player sees avatar + name; a tap swaps in the
   // input. First-time players (no stored name) get the input straight away.
-  // In a session both stay hidden until "Name" in the code banner asks.
+  // In a session both stay hidden; the name is set on the start screen.
   let editingName = false;
   // accountUsername is declared further down; the first render runs before
   // that line, where touching it would throw (temporal dead zone).
@@ -4072,11 +4072,6 @@
     if (changed) { try { requestYearReview(); } catch (e) { /* cosmetic */ } }
     // Kartenhaus progress is per name: clear the old name's tile until the new data arrives.
     if (changed && !publicMode) { try { requestTower(); renderTowerTile(); } catch (e) { /* cosmetic */ } }
-    // Renaming inside a session re-joins under the new name (what the
-    // "Name" button used to do after typing into the field above).
-    if (changed && sessionCode && playerId) {
-      send({ type: 'joinSession', code: sessionCode, playerId, playerToken: storageGet(tokenKeyFor(sessionCode)) || undefined, name: myName, accountToken: accountToken() || undefined });
-    }
   }
   el('identityNameBtn').addEventListener('click', startNameEdit);
   el('identityAvatarBtn').addEventListener('click', () => openProgressSheet());
@@ -4126,12 +4121,6 @@
       const storedId = storageGet(playerKeyFor(code));
       send({ type: 'joinSession', code, name: currentName(), playerId: storedId || undefined, playerToken: storageGet(tokenKeyFor(code)) || undefined, accountToken: accountToken() || undefined, tablePrefs: tablePrefs() });
     }, code);
-  });
-
-  // Opens the name editor; the rename is sent when the field is left.
-  el('updateNameBtn').addEventListener('click', () => {
-    if (!sessionCode || !playerId) return;
-    startNameEdit();
   });
 
   el('shareCodeBtn').addEventListener('click', async () => {

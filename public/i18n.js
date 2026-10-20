@@ -76,7 +76,6 @@ window.I18N_STATIC = {
   'oder einem Spiel beitreten': 'or join a game',
   'Beitreten': 'Join',
   'Weiter': 'Continue',
-  'Name': 'Name',
   'Dein Name': 'Your name',
   'Spiel-Code': 'Game code',
   'Spiel-Code – zum Mitspielen weitergeben': 'Game code – share it to let others join',
