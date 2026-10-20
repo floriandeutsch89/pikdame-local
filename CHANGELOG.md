@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.94.0] - 2026-10-20
+
+### Removed
+- Der wirkungslose Knopf „Name“ im Warteraum ist entfernt; den Namen legst du auf dem Startbildschirm fest.
+
 ## [2.93.1] - 2026-10-20
 
 ### Fixed
