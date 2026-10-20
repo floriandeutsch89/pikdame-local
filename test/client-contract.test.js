@@ -672,3 +672,29 @@ test('client contract: own score sits in the hand toolbar, not in a row below th
   assert.ok(meta && meta[1].includes('id="myScore"'), '#myScore must live inside .handMeta');
   assert.ok(!html.includes('myStatusLine'), 'the old bottom status line is back');
 });
+
+test('i18n-Vertrag: jeder sichtbare deutsche Text im HTML hat einen I18N_STATIC-Eintrag', () => {
+  // Reverse of the test above: a leaf label missing from I18N_STATIC stays
+  // German in the English UI (the footer "Regeln"/"Mehr" did).
+  const { JSDOM } = require('jsdom');
+  const ctx = { window: {} };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'public', 'i18n.js'), 'utf8'), ctx);
+  const map = ctx.window.I18N_STATIC;
+  const doc = new JSDOM(html).window.document;
+  // Intentionally German or set by client.js via L(de, en) at runtime.
+  const SKIP = [
+    'script', 'style', 'svg',
+    '#rulesContent',                              // I18N_RULES_EN replaces the whole block
+    '.seoIntro',                                  // German search-engine text, indexed as such
+    '.ssName', '.ssSub',                          // studio brand
+    '#uiScaleSelect option', '#studioLogoSelect option', // labels via L() in client.js
+    '#sortToggleBtn', '#accountWhoami', '#botDiffTitle', '#discardPreviewTitle', '#cardbackBtn',
+  ].join(',');
+  const missing = [];
+  doc.querySelectorAll('body *').forEach((n) => {
+    if (n.closest(SKIP) || n.children.length) return;
+    const txt = n.textContent.trim();
+    if (txt && /[A-Za-zÄÖÜäöüß]{2}/.test(txt) && !map[txt]) missing.push(txt);
+  });
+  assert.deepEqual(missing, [], `Texte ohne I18N_STATIC-Eintrag: ${missing.join(' | ')}`);
+});
