@@ -38,7 +38,7 @@ const { normalizeEmote, emoteLevel } = require('./game/Emotes');
 const { isCelebration, celebrationLevel } = require('./game/Celebrations');
 const { parseGreetingDays, greetingWindow } = require('./game/GreetingDays');
 const { holidayStatus } = require('./game/Holidays');
-const { puzzleForDate, publicPuzzle, checkAnswer, perfectStreakOn, XP_FOR_SOLVED, PUZZLE_EPOCH } = require('./game/DailyPuzzle');
+const { puzzleForDate, publicPuzzle, checkAnswer, checkMeld, perfectStreakOn, XP_FOR_SOLVED, PUZZLE_EPOCH } = require('./game/DailyPuzzle');
 const { createStammtischStore, normalizeCode: normalizeStammtischCode } = require('./game/StammtischStore');
 const { createGameHistoryStore, historyForPlayer } = require('./game/GameHistoryStore');
 const { createYearStatsStore } = require('./game/YearStatsStore');
@@ -2095,7 +2095,7 @@ wss.on('connection', (ws, req) => {
       ws.send(JSON.stringify({ type: 'gameHistory', games: mine }));
       return;
     }
-    if (msg.type === 'getPuzzle' || msg.type === 'solvePuzzle' || msg.type === 'revealPuzzle') {
+    if (msg.type === 'getPuzzle' || msg.type === 'solvePuzzle' || msg.type === 'revealPuzzle' || msg.type === 'checkPuzzleMeld') {
       // Daily puzzle: no session needed, it is a one-minute ritual on the
       // start screen. The hand is seeded from the date (identical worldwide),
       // the engine grades, the local profile remembers tries and the solve.
@@ -2113,6 +2113,11 @@ wss.on('connection', (ws, req) => {
         dayStars: playerStore.puzzleStarsFor(name, date),
         perfectStreak: perfectStreakOn(playerStore.getPlayerByName(name), today),
       });
+      if (msg.type === 'checkPuzzleMeld') {
+        // Pure rules check of one laid meld: no try, star or attempt is recorded.
+        ws.send(JSON.stringify({ ...checkMeld(puzzle, msg.cardIds), date, type: 'puzzleMeldCheck' }));
+        return;
+      }
       if (msg.type === 'getPuzzle') {
         ws.send(JSON.stringify({
           type: 'puzzle', ...publicPuzzle(puzzle), archive, today, epoch: PUZZLE_EPOCH,

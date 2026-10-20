@@ -48,7 +48,7 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   `roundend-stats`, `gameover`, `gameover-win` (I win the match and earn a
   badge: the gold banner and the badge chip), `gameover-challenge` (board + share),
   `puzzle`, `puzzle-turn` / `puzzle-out` (that kind injected, one meld
-  laid), `puzzle-solved` (three stars, then the "Aufgaben" tile), `challenge` (intro after the day's attempt), `challenge-open` (intro before it: only the count), `gamelobby` (house
+  laid), `puzzle-refused` (two melds selected at once: "Auslegen" refused with the rule's reason), `puzzle-solved` (three stars, then the "Aufgaben" tile), `challenge` (intro after the day's attempt), `challenge-open` (intro before it: only the count), `gamelobby` (house
   rules), `botdiff` (the strength picker), `stammtisch` (the record
   sheet behind the start-screen chip), `stammtisch-lobby` (a game lobby
   shown as a seat at the mock Stammtisch: its record panel), `settings` / `settings-aids` /
