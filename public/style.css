@@ -238,6 +238,8 @@
   /* Trophy gold on the paper (light in every theme): the mark, a banner fill
      that keeps --card-ink at 4.5:1, and its edge (test/theme-contrast). */
   --gold: #d9a520;
+  /* The daily streak (flame on the identity chip); state colour, never an icon tint. */
+  --streak: #f39a2b;
   --gold-soft: rgba(217, 165, 32, 0.22);
   --gold-line: rgba(176, 128, 0, 0.55);
 }
@@ -368,7 +370,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   letter-spacing: 0.02em;
   transition: color 0.15s ease, background 0.15s ease, transform 0.15s var(--ease);
 }
-.lobbyTool .icon { width: 1.5em; height: 1.5em; }
+/* Thin labels next to them: a slightly heavier stroke matches the other start-screen icons. */
+.lobbyTool .icon { width: 1.5em; height: 1.5em; stroke-width: 2.2; }
 .lobbyTool span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .lobbyTool:active { transform: scale(0.94); color: var(--text); background: var(--glass); }
 
@@ -496,7 +499,9 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 .joinRow { display: flex; gap: 8px; width: 100%; }
 /* "Join a game" ends here: a little air before "Aufgaben" starts. */
-.joinRow + .todaySection { margin-top: 8px; }
+.joinRow + .lobbyDaily > .todaySection { margin-top: 8px; }
+/* Invisible in portrait; the right column of the two-column start screen (below). */
+.lobbyDaily { display: contents; }
 #codeInput {
   flex: 1; min-width: 0;
   padding: 13px 14px;
@@ -3976,8 +3981,6 @@ input:disabled { opacity: 0.65; }
 }
 .todayTile:active { transform: scale(0.97); background: var(--glass-strong); }
 .todayTile > .icon { width: 1.5em; height: 1.5em; grid-row: 1 / 3; }
-#puzzleBtn > .icon { color: #e8c93c; color: color-mix(in srgb, #e9c21f 70%, var(--text)); }
-#challengeBtn > .icon { color: #f0a53a; color: color-mix(in srgb, #f39a2b 72%, var(--text)); }
 .ttTitle { font-size: var(--fs-label); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ttStatus { font-size: var(--fs-hint); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 .ttStatus:empty::before { content: "\00a0"; }
@@ -3993,9 +3996,9 @@ input:disabled { opacity: 0.65; }
   grid-column: 1 / -1; grid-template-columns: auto auto minmax(0, 1fr);
   min-height: var(--tap-min); padding: 6px 12px;
 }
-.towerTile > .icon { grid-row: auto; color: #e0455a; color: color-mix(in srgb, var(--suit-red) 80%, var(--text)); }
+.towerTile > .icon { grid-row: auto; }
 .towerTile .ttStatus { justify-self: end; display: inline-flex; align-items: center; gap: 3px; max-width: 100%; font-size: var(--fs-label); }
-.towerTile .ttStar { width: 1.15em; height: 1.15em; color: #b07800; fill: #f2b51d; }
+.towerTile .ttStar { width: 1.15em; height: 1.15em; color: var(--star-edge); fill: var(--star-fill); }
 .towerTile[data-state="new"] { padding-right: 24px; }
 /* December: "Dein Jahr" sits in the heading's corner (no extra row). */
 .todaySection { position: relative; }
@@ -4008,7 +4011,7 @@ input:disabled { opacity: 0.65; }
   font: inherit; font-size: var(--fs-label); font-weight: 700; cursor: pointer;
 }
 .yearChip::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: var(--tap-min); transform: translateY(-50%); }
-.yearChip > .icon { width: 1.25em; height: 1.25em; color: #e8913a; color: color-mix(in srgb, #e8913a 78%, var(--text)); }
+.yearChip > .icon { width: 1.25em; height: 1.25em; }
 .yearChip[data-state="new"] { border-color: var(--accent); }
 .yearChip[data-state="new"]::before {
   content: ""; position: absolute; top: -3px; right: -3px;
@@ -4035,7 +4038,7 @@ input:disabled { opacity: 0.65; }
   border-radius: var(--r-md); padding: 8px 12px; min-height: var(--tap-min);
   font: inherit; font-size: var(--fs-label); font-weight: 600; text-align: left; cursor: pointer;
 }
-.stRecentRow > .icon:first-child { width: 1.3em; height: 1.3em; flex: 0 0 auto; color: #ec79a6; color: color-mix(in srgb, #ee6aa0 72%, var(--text)); }
+.stRecentRow > .icon:first-child { width: 1.3em; height: 1.3em; flex: 0 0 auto; }
 /* The leader line ("Gerda führt · 12 Siege") yields first; the table name keeps ~5 letters. */
 .stRecentRow .stName { flex: 1 1 auto; min-width: 5.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stRecentRow small {
@@ -4115,7 +4118,7 @@ input:disabled { opacity: 0.65; }
 .puzzleStarsRow .puzzleStars { font-size: var(--fs-lead); }
 .puzzleRun { color: var(--text-muted); font-weight: 500; }
 /* On the table the tile's gold, not the paper ink. */
-.ttStatus .puzzleStars { margin-left: 4px; color: color-mix(in srgb, #e9c21f 70%, var(--text)); }
+.ttStatus .puzzleStars { margin-left: 4px; color: color-mix(in srgb, var(--star-fill) 70%, var(--text)); }
 /* Day switcher: today plus the archive (older days, no XP). */
 .puzzleNav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -4px 0 6px; }
 .puzzleDay { flex: 1; text-align: center; font-weight: 700; font-size: var(--fs-label); }
@@ -5098,7 +5101,7 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
   display: inline-flex; align-items: center; gap: 2px; margin-left: 4px;
   font-size: var(--fs-label); font-weight: 800; font-variant-numeric: tabular-nums;
 }
-.identityStreak .icon { width: 1.05em; height: 1.05em; color: #f39a2b; color: color-mix(in srgb, #f39a2b 75%, var(--text)); fill: currentColor; }
+.identityStreak .icon { width: 1.05em; height: 1.05em; color: var(--streak); color: color-mix(in srgb, var(--streak) 75%, var(--text)); fill: currentColor; }
 /* Today still open: outlined and muted - "keep it alive" without a nag. */
 .identityStreak.pending { color: var(--text-muted); }
 .identityStreak.pending .icon { fill: none; color: var(--text-muted); }
@@ -5134,12 +5137,8 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
 }
 #accountBtn.signedIn .accountCheck { display: block; }
 
-/* Mode tiles: one tint per mode. Mixed with the theme's text colour, so the
-   same tile reads lighter on the dark themes and deeper on the light one. */
-#tutorialBtn .icon { color: #5aa2ff; color: color-mix(in srgb, #4d9bff 72%, var(--text)); }
-#challengeBtn .icon { color: #f0a53a; color: color-mix(in srgb, #f39a2b 72%, var(--text)); }
-#puzzleBtn .icon { color: #e8c93c; color: color-mix(in srgb, #e9c21f 70%, var(--text)); }
-#stammtischBtn .icon { color: #ec79a6; color: color-mix(in srgb, #ee6aa0 72%, var(--text)); }
+/* Start-screen icons stay in the text colour; colour marks state only (accent =
+   new/open, star gold, streak orange). Per-mode tints collided with the accent. */
 .menuChips .btn-secondary .icon { stroke-width: 2.1; }
 
 /* Session panels: invisible wrapper on phones (children join the lobby
@@ -5390,6 +5389,33 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
   #resultOverlay.isFinal .resultActions .btn-primary { flex-basis: 100%; }
   #resultOverlay.isFinal .rmTop { flex-wrap: wrap; }
   #resultOverlay.isFinal .rmGap { order: 3; flex-basis: 100%; }
+}
+
+/* --- Start screen in two columns -------------------------------------------
+   Phone landscape (~400 px high) and desktop: play left, "Aufgaben", modes and
+   Stammtische right, instead of one 340/400 px strip that scrolls. Portrait and
+   the session lobby keep one column, so do phones under 720 px wide (SE: labels
+   cut). The right column spans twelve auto rows; the spare empty ones absorb
+   its extra height (a 1fr row let it overlap). */
+@media (orientation: landscape) and (max-height: 540px) and (min-width: 720px), (min-width: 1100px) {
+  #lobby:not(.inSession) {
+    display: grid; justify-content: center; align-content: start; align-items: start;
+    grid-template-columns: repeat(2, minmax(0, var(--lobby-w)));
+    grid-template-rows: repeat(12, auto);
+    gap: 0 32px;
+  }
+  #lobby:not(.inSession) #sessionSetup { display: contents; }
+  /* Row spacing by margin: empty rows then cost nothing. */
+  #lobby:not(.inSession) > *, #lobby:not(.inSession) #sessionSetup > * { grid-column: 1; margin: 0 0 10px; }
+  /* Brand and identity first, so an open game's resume button (order: -1) stays below them. */
+  #lobby:not(.inSession) :is(.lobbyHeader, #identityChip, #nameInput) { order: -2; }
+  #lobby:not(.inSession) #identityChip { justify-self: center; }
+  #lobby:not(.inSession) #sessionSetup > .lobbyDaily {
+    grid-column: 2; grid-row: 1 / -1;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  #lobby:not(.inSession) .lobbyDaily > .todaySection { margin-top: 0; }
+  #lobby:not(.inSession) > .seoIntro { grid-column: 1 / -1; margin: 8px auto; }
 }
 
 /* --- Landscape phone, second pass --------------------------------------------

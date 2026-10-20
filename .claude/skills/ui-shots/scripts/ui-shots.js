@@ -13,7 +13,7 @@
 // icon buttons without a name and (start screen) content below the fold;
 // the report goes to <out>/audit.md.
 //
-// Views: phone (393x852), land (874x402), desk (1440x900), se (375x667), max (440x956).
+// Views: phone (393x852), land (874x402), desk (1440x900), se (375x667), max (440x956), lap (1366x657).
 // Scenes: lobby, lobby-open, progress, stats, stats-badges (trophy cabinet + a favourite's
 // detail; favourites show with --signed-in), history, roundend, roundend-stats, gameover,
 // gameover-stats (its Statistik tab: game totals open, new achievements),
@@ -65,6 +65,7 @@ const VIEWS = {
   desk: { width: 1440, height: 900, mobile: false },
   se: { width: 375, height: 667, mobile: true },
   max: { width: 440, height: 956, mobile: true }, // iPhone Pro Max: 15 cards still fit one row
+  lap: { width: 1366, height: 657, mobile: false }, // 1366x768 laptop minus browser chrome
 };
 const views = arg('views', 'phone,land,desk').split(',');
 const scenes = arg('scenes', 'lobby,stats,history,roundend,gameover').split(',');

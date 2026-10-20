@@ -205,6 +205,11 @@
        hotspot mode still needs no downloads. Emoji stay where they are CONTENT
        (bot avatars, emote bar, badges), not chrome. -->
   <svg class="iconSprite" aria-hidden="true" focusable="false">
+    <!-- One glyph per meaning: group = Stammtisch (a person alone is the account),
+         card with "?" = daily puzzle (the bulb is play tips), podium = daily challenge. -->
+    <symbol id="i-group" viewBox="0 0 24 24"><circle cx="9.5" cy="8.6" r="3.5"/><path d="M3 20.5a6.5 6.5 0 0 1 13 0"/><path d="M14.66 5.88A3.2 3.2 0 1 1 15.15 11.4"/><path d="M17.3 14.3c2.4.7 4.2 3.1 4.2 6.2"/></symbol>
+    <symbol id="i-puzzle" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2.2"/><path d="M9.7 9.8a2.35 2.35 0 1 1 3.3 2.15c-.65.3-1 .8-1 1.5v.7"/><path d="M12 17.1v.1"/></symbol>
+    <symbol id="i-podium" viewBox="0 0 24 24"><path d="M3.5 20.5V14H9v6.5M9 20.5V9.5h6v11M15 20.5V16h5.5v4.5M2.5 20.5h19"/><path d="M11.1 12.9l1.1-.9v4.6"/></symbol>
     <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/><path d="M9.5 20v-6h5v6"/></symbol>
     <!-- The teeth must start AT the ring: without the outer circle the eight
          spokes read as a sun/brightness icon, not a cog. -->
@@ -253,8 +258,9 @@
     <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
     <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3.5 11.2V4.5a1 1 0 0 1 1-1h6.7a1 1 0 0 1 .7.3l8.3 8.3a1 1 0 0 1 0 1.4l-6.7 6.7a1 1 0 0 1-1.4 0L3.8 11.9a1 1 0 0 1-.3-.7z"/><circle cx="8" cy="8" r="1.4"/></symbol>
     <symbol id="i-flame" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 3c.8 3.6 5 5.6 5 10.2a5 5 0 0 1-10 0c0-2.3 1-3.8 2.4-4.9.2 1.6.9 2.6 1.9 3.1C11.1 9.2 11.4 5.8 12 3zM12 20.2a2.3 2.3 0 0 0 2.3-2.3c0-1.4-1.1-2.2-2.3-3.9-1.2 1.7-2.3 2.5-2.3 3.9a2.3 2.3 0 0 0 2.3 2.3z"/></symbol>
-    <!-- Kartenhaus: two card tents, a floor card, one tent on top. -->
-    <symbol id="i-cardhouse" viewBox="0 0 24 24"><path d="M3.5 21 7.5 13.5l4 7.5M12.5 21l4-7.5 4 7.5"/><path d="M4.5 12.5h15"/><path d="M8 12.5 12 4.5l4 8"/></symbol>
+    <!-- Kartenhaus: two card tents, a floor card, one tent on top. The gaps between
+         the floors keep it from reading as letters ("A over M"). -->
+    <symbol id="i-cardhouse" viewBox="0 0 24 24"><path d="M3.8 21 7.3 14.4 10.8 21M13.2 21l3.5-6.6 3.5 6.6"/><path d="M5.2 12.2h13.6"/><path d="M8.7 12.2 12 5.4l3.3 6.8"/></symbol>
     <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M7 4h10v4.5a5 5 0 0 1-10 0z"/><path d="M7 6H4.5a2.6 2.6 0 0 0 3 3.6M17 6h2.5a2.6 2.6 0 0 1-3 3.6"/><path d="M12 13.5V17M8.5 20.5h7M9.5 17h5v3.5h-5z"/></symbol>
     <symbol id="i-cake" viewBox="0 0 24 24"><path d="M3.5 20.5h17"/><path d="M5.5 20.5v-6.2A1.8 1.8 0 0 1 7.3 12.5h9.4a1.8 1.8 0 0 1 1.8 1.8v6.2"/><path d="M5.5 16.2c1.1.9 2.2.9 3.25 0s2.15-.9 3.25 0 2.15.9 3.25 0 2.15-.9 3.25 0"/><path d="M12 12.5V9.5"/><path d="M12 7.2c-1-.8-1-2 0-3.4 1 1.4 1 2.6 0 3.4z"/></symbol>
     <symbol id="i-pumpkin" viewBox="0 0 24 24"><path d="M12 7.6c-1.3-1.5-4.6-1.6-6.3.3-2.4 2.7-2.1 8.4.6 10.5 1.6 1.2 3.8 1.3 5.7.5 1.9.8 4.1.7 5.7-.5 2.7-2.1 3-7.8.6-10.5-1.7-1.9-5-1.8-6.3-.3z"/><path d="M12 7.6v11.2M9 8.4c-1.1 2.8-1.1 7.2 0 9.8M15 8.4c1.1 2.8 1.1 7.2 0 9.8"/><path d="M12 7.6c0-1.7.7-2.9 2.1-3.6"/></symbol>
@@ -450,37 +456,41 @@
           <input id="codeInput" type="text" placeholder="Spiel-Code" maxlength="6" autocapitalize="characters" autocomplete="off" spellcheck="false" />
           <button id="joinGameBtn" class="btn-secondary">Beitreten</button>
         </div>
-        <!-- "Aufgaben": the daily puzzle and challenge, this month's Kartenhaus
-             and the daily goals, each with its status, so an open one is
-             visible without opening it. -->
-        <section id="todaySection" class="lobby-section todaySection">
-          <h2>Aufgaben</h2>
-          <!-- December only (the server decides): "Dein Pik-Dame-Jahr". In the
-               heading's corner, so the start screen gets no taller. -->
-          <button id="yearReviewBtn" type="button" class="yearChip hidden"><svg class="icon" aria-hidden="true"><use href="#i-cat"/></svg><span>Dein Jahr</span></button>
-          <div id="todayTiles" class="todayTiles">
-            <button id="puzzleBtn" type="button" class="todayTile"><svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg><span class="ttTitle">Tagesrätsel</span><span id="puzzleTileStatus" class="ttStatus"></span></button>
-            <button id="challengeBtn" type="button" class="todayTile"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg><span class="ttTitle">Challenge</span><span id="challengeTileStatus" class="ttStatus"></span></button>
-            <!-- Monthly, so one wide row below the daily tiles: this month's floor and stars. -->
-            <button id="towerTile" type="button" class="todayTile towerTile hidden" aria-haspopup="dialog"><svg class="icon" aria-hidden="true"><use href="#i-cardhouse"/></svg><span class="ttTitle">Kartenhaus</span><span id="towerTileStatus" class="ttStatus"></span></button>
+        <!-- Daily things and groups: the right column in landscape and on desktop
+             (style.css "two columns"); display: contents in portrait. -->
+        <div class="lobbyDaily">
+          <!-- "Aufgaben": the daily puzzle and challenge, this month's Kartenhaus
+               and the daily goals, each with its status, so an open one is
+               visible without opening it. -->
+          <section id="todaySection" class="lobby-section todaySection">
+            <h2>Aufgaben</h2>
+            <!-- December only (the server decides): "Dein Pik-Dame-Jahr". In the
+                 heading's corner, so the start screen gets no taller. -->
+            <button id="yearReviewBtn" type="button" class="yearChip hidden"><svg class="icon" aria-hidden="true"><use href="#i-cat"/></svg><span>Dein Jahr</span></button>
+            <div id="todayTiles" class="todayTiles">
+              <button id="puzzleBtn" type="button" class="todayTile"><svg class="icon" aria-hidden="true"><use href="#i-puzzle"/></svg><span class="ttTitle">Tagesrätsel</span><span id="puzzleTileStatus" class="ttStatus"></span></button>
+              <button id="challengeBtn" type="button" class="todayTile"><svg class="icon" aria-hidden="true"><use href="#i-podium"/></svg><span class="ttTitle">Challenge</span><span id="challengeTileStatus" class="ttStatus"></span></button>
+              <!-- Monthly, so one wide row below the daily tiles: this month's floor and stars. -->
+              <button id="towerTile" type="button" class="todayTile towerTile hidden" aria-haspopup="dialog"><svg class="icon" aria-hidden="true"><use href="#i-cardhouse"/></svg><span class="ttTitle">Kartenhaus</span><span id="towerTileStatus" class="ttStatus"></span></button>
+            </div>
+            <details id="questsSection" class="questsSection hidden">
+              <summary>
+                <span class="questsTitle">Tagesziele</span>
+                <span id="questsSummary" class="questsSummary"></span>
+                <svg class="icon questsChevron" aria-hidden="true"><use href="#i-chevron"/></svg>
+              </summary>
+              <div id="questList" class="questList"></div>
+            </details>
+          </section>
+          <!-- Two modes, two wide tiles: four in a row cut "Stammtisch" off.
+               The daily modes and the Kartenhaus live in "Aufgaben" above. -->
+          <div class="menuChips menuChipsTwo" role="group" aria-label="Spielmodi">
+            <button id="tutorialBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-cap"/></svg><span>Tutorial</span></button>
+            <button id="stammtischBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-group"/></svg><span>Stammtisch</span></button>
           </div>
-          <details id="questsSection" class="questsSection hidden">
-            <summary>
-              <span class="questsTitle">Tagesziele</span>
-              <span id="questsSummary" class="questsSummary"></span>
-              <svg class="icon questsChevron" aria-hidden="true"><use href="#i-chevron"/></svg>
-            </summary>
-            <div id="questList" class="questList"></div>
-          </details>
-        </section>
-        <!-- Two modes, two wide tiles: four in a row cut "Stammtisch" off.
-             The daily modes and the Kartenhaus live in "Aufgaben" above. -->
-        <div class="menuChips menuChipsTwo" role="group" aria-label="Spielmodi">
-          <button id="tutorialBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-cap"/></svg><span>Tutorial</span></button>
-          <button id="stammtischBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span>Stammtisch</span></button>
+          <!-- Recently visited Stammtische: one tap back to the group's table -->
+          <div id="stammtischRecent" class="stammtischRecent hidden"></div>
         </div>
-        <!-- Recently visited Stammtische: one tap back to the group's table -->
-        <div id="stammtischRecent" class="stammtischRecent hidden"></div>
       </div>
 
       <!-- Session lobby panels. Phone: one column in reading order - code,
@@ -895,7 +905,7 @@
     <!-- TAGES-CHALLENGE: Erklaerung VOR dem Start (statt Kaltstart ins Spiel) -->
     <section id="challengeIntroOverlay" class="overlay hidden" data-sheet-close="challengeCancelBtn">
       <div class="overlay-card">
-        <h2><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg><span>Tages-Challenge</span></h2>
+        <h2><svg class="icon" aria-hidden="true"><use href="#i-podium"/></svg><span>Tages-Challenge</span></h2>
         <p>Heute spielen alle Spieler weltweit exakt dasselbe Kartendeck – gegen dieselben drei Bots. Wer holt die meisten Punkte aus den gleichen Karten?</p>
         <p>Ein Versuch pro Tag: Dein Ergebnis kommt mit deinem Spielernamen in die Bestenliste (7 Tage sichtbar).</p>
         <p id="challengePlayedNote" class="challengePlayedNote hidden">Heute hast du die Challenge schon gespielt – morgen gibt es ein neues Deck.</p>
@@ -917,7 +927,7 @@
     <!-- STAMMTISCH: my tables (account) + found a persistent group table -->
     <section id="stammtischOverlay" class="overlay hidden" data-sheet-close="stammtischCancelBtn">
       <div class="overlay-card">
-        <h2><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span>Stammtisch</span></h2>
+        <h2><svg class="icon" aria-hidden="true"><use href="#i-group"/></svg><span>Stammtisch</span></h2>
         <p class="lobby-hint">Ein fester Tisch für deine Runde: ein Code für immer, eine Bilanz über alle Partien und eine Revanche-Serie (Best of 3). Wer den Code kennt, landet immer am aktuellen Tisch.</p>
         <div id="stammtischMine" class="stammtischMine hidden">
           <h3>Meine Stammtische</h3>
@@ -940,7 +950,7 @@
     <!-- A start-screen Stammtisch chip opens the group's record; the table is one tap further. -->
     <section id="stammtischSheetOverlay" class="overlay hidden" data-sheet-close="stammtischSheetCloseBtn">
       <div class="overlay-card stammtischSheet" role="dialog" aria-labelledby="stammtischSheetName">
-        <h2><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span id="stammtischSheetName"></span></h2>
+        <h2><svg class="icon" aria-hidden="true"><use href="#i-group"/></svg><span id="stammtischSheetName"></span></h2>
         <p id="stammtischSheetMeta" class="stammtischSheetMeta"></p>
         <div id="stammtischSheetBody" class="stammtischSheetBody"></div>
         <button id="stammtischSheetJoinBtn" class="btn-primary"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>Platz nehmen</span></button>
@@ -952,7 +962,7 @@
          rotates by weekday; the arrows browse the archive (no XP there). -->
     <section id="puzzleOverlay" class="overlay hidden" data-sheet-close="puzzleCloseBtn">
       <div class="overlay-card">
-        <h2><svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg><span>Tagesrätsel</span></h2>
+        <h2><svg class="icon" aria-hidden="true"><use href="#i-puzzle"/></svg><span>Tagesrätsel</span></h2>
         <div class="puzzleNav">
           <button id="puzzlePrevBtn" type="button" class="btn-icon puzzleNavBtn" title="Vorheriger Tag" aria-label="Vorheriger Tag"><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></button>
           <span id="puzzleDay" class="puzzleDay"></span>
