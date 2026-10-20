@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.94.1] - 2026-10-20
+
+### Changed
+- Kartenhaus: Die Hilfe „So funktioniert das Kartenhaus“ zeigt die drei Sternstufen und die Erschwernisse ab Etage 11 jetzt als Liste; in der Kopfzeile steht „Sternen diesen Monat“
+
 ## [2.94.0] - 2026-10-20
 
 ### Removed
