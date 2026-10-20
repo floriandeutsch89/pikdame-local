@@ -3331,7 +3331,12 @@ input:disabled { opacity: 0.65; }
   font-size: var(--fs-body); font-weight: 600; text-align: left;
   transition: background 0.15s ease;
 }
-.sheetRow + .sheetRow { border-top: 1px solid var(--glass-border); }
+.sheetRow { position: relative; }
+/* A drawn line, not border-top: the row's radius would curve its ends. */
+.sheetRow + .sheetRow::before {
+  content: ''; position: absolute; top: -1px; left: 0; right: 0; height: 1px;
+  background: var(--glass-border); pointer-events: none;
+}
 .sheetRow:active { background: rgba(0,0,0,0.06); }
 .sheetRowLabel { flex: 1; min-width: 0; }
 /* A row that only presents controls - not itself tappable. */
@@ -4828,6 +4833,8 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
   box-shadow: var(--shadow-3);
   display: flex; flex-direction: column; max-height: 100%; min-height: 0;
 }
+.cardbackGalleryBox { position: relative; }
+.cardbackClose { position: absolute; top: 6px; right: 6px; }
 .cardbackGalleryBox h3 {
   margin: 0 0 12px; font-size: var(--fs-lead);
   display: flex; align-items: center; justify-content: center; gap: 8px;
