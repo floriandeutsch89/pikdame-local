@@ -214,3 +214,19 @@ test('theme contrast: the Kartenhaus draws with the paper tokens', () => {
   assert.match(ruleBody('.khMod'), /color:\s*var\(--paper-mod\)/);
   assert.match(ruleBody('.khStar.on'), /fill:\s*var\(--star-fill\)/);
 });
+
+// Start screen: icons are drawn in --text, colour marks state only (accent =
+// new/open, star gold, streak orange). A neutral icon must never read as "new",
+// and the state colours must stand out from the neutral icons, in every theme.
+for (const theme of THEMES) {
+  test(`theme contrast (${theme}): start-screen icons in text colour stay apart from the state colours`, () => {
+    const v = { ...ROOT, ...themeVars(theme) };
+    const text = parse(v['--text']);
+    const check = (what, d, need) => assert.ok(d >= need, `${theme}: ΔE2000 ${what} ${d.toFixed(1)} < ${need}`);
+    for (const kind of ['normal', 'protan', 'deutan']) {
+      check(`--text vs --accent (${kind})`, cvdDistance(text, parse(v['--accent']), kind), 12);
+      check(`--text vs --star-fill (${kind})`, cvdDistance(text, parse(v['--star-fill']), kind), 20);
+      check(`--text vs --streak (${kind})`, cvdDistance(text, parse(v['--streak']), kind), 20);
+    }
+  });
+}

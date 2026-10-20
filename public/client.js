@@ -3869,7 +3869,7 @@
     }
     const cb = lastChallengeBoard;
     if (lastState.challengeDate && cb && cb.date === lastState.challengeDate && cb.yourRank) {
-      chips.push(`<span class="rmChip"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg><span>${L(`Tages-Challenge: Platz ${cb.yourRank}`, `Daily challenge: rank ${cb.yourRank}`)}</span></span>`);
+      chips.push(`<span class="rmChip"><svg class="icon" aria-hidden="true"><use href="#i-podium"/></svg><span>${L(`Tages-Challenge: Platz ${cb.yourRank}`, `Daily challenge: rank ${cb.yourRank}`)}</span></span>`);
     }
     const st = gp && gp.streak;
     if (st && (st.event === 'extended' || st.event === 'bridged') && st.streak >= 2) {
@@ -5555,7 +5555,7 @@
     const yourBlock = ownRowShown || b.yourScore == null ? '' : `<p class="challengeYour">${escapeHtml(yourLine)}</p>`;
     const magnetBlock = b.magnet ? `<p class="challengeMagnet">${withIcon('magnet', magnetText(b.magnet))}</p>` : '';
     const shareBlock = b.yourRank ? shareBtnHtml('challengeShareBtn', 'Ergebnis teilen', 'Share result') : '';
-    box.innerHTML = `<h3>${iconHtml('calendar')}<span>${L('Tages-Challenge', 'Daily challenge')} ${escapeHtml(fmtDay(b.date))}</span></h3>
+    box.innerHTML = `<h3>${iconHtml('podium')}<span>${L('Tages-Challenge', 'Daily challenge')} ${escapeHtml(fmtDay(b.date))}</span></h3>
       ${yourBlock}${shareBlock}
       <table class="statsTable challengeTable"><tbody>${rows}</tbody></table>${magnetBlock}${weeklyBlock}${histBlock}`;
     const shareBtn = box.querySelector('.challengeShareBtn');
@@ -5773,7 +5773,7 @@
     box.classList.toggle('hidden', list.length === 0);
     box.innerHTML = list
       .map((t) => `<button type="button" class="stRecentRow" data-code="${escapeHtml(t.code)}" aria-haspopup="dialog" title="${escapeHtml(L('Bilanz ansehen', 'View the record'))}">` +
-        `<svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span class="stName">${escapeHtml(t.name)}</span>` +
+        `<svg class="icon" aria-hidden="true"><use href="#i-group"/></svg><span class="stName">${escapeHtml(t.name)}</span>` +
         `<small class="stChipInfo"></small><svg class="icon stGo" aria-hidden="true"><use href="#i-chevron"/></svg></button>`)
       .join('');
     box.querySelectorAll('button[data-code]').forEach((btn) => {
