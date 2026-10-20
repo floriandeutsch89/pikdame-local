@@ -18,7 +18,7 @@
 // detail; favourites show with --signed-in), history, roundend, roundend-stats, gameover,
 // gameover-stats (its Statistik tab: game totals open, new achievements),
 // table (needs --state <file>: a GameManager.publicState('p1') JSON in the playing phase),
-// puzzle / puzzle-turn / puzzle-out (one meld laid), puzzle-solved (3 stars + the tile),
+// puzzle / puzzle-turn / puzzle-out (one meld laid), puzzle-refused (two melds laid at once: refused), puzzle-solved (3 stars + the tile),
 // challenge (intro, attempt used),
 // gamelobby (seats + house rules), botdiff (the strength picker), gameover-challenge,
 // settings / settings-aids / settings-music (the start screen's "Mehr" sheet: top / play aids / music),
@@ -209,6 +209,7 @@ const YEAR_REVIEW = { ...require(path.join(ROOT, 'game', 'YearReviewMail')).samp
 // Rewrite server -> client messages so the lobby shows the mock profile.
 // --puzzle-kind turn|out: today's puzzle message carries a puzzle of that kind.
 let puzzleKind = null;
+let mockToday = null; // the server's day, to answer a re-dated meld check as 'today'
 let puzzleSolved = false; // scene puzzle-solved: today solved first try, a perfect run of 4
 function kindPuzzle(kind) {
   const DP = require(path.join(ROOT, 'game', 'DailyPuzzle'));
@@ -234,6 +235,8 @@ function rewrite(msg) {
   if (msg.type === 'yearReview' && DECEMBER) {
     Object.assign(msg, { available: true, season: true, review: SIGNED_IN ? YEAR_REVIEW : { ...YEAR_REVIEW, favorite: null, table: null } });
   }
+  if (msg.type === 'puzzle') mockToday = msg.today;
+  if (msg.type === 'puzzleMeldCheck' && puzzleKind) msg.date = mockToday;
   if (msg.type === 'puzzle' && puzzleKind) {
     const DP = require(path.join(ROOT, 'game', 'DailyPuzzle'));
     Object.assign(msg, DP.publicPuzzle(kindPuzzle(puzzleKind)), { date: msg.today, archive: false });
@@ -383,6 +386,8 @@ function waitForHttp(port, ms = 20000) {
             ws.send(JSON.stringify({ type: 'stammtischInfo', code: msg.code, exists: true, ...STAMMTISCH }));
             return;
           }
+          // The injected puzzle is another day's hand: ask the server about that day.
+          if (msg && msg.type === 'checkPuzzleMeld' && puzzleKind) { srv.send(JSON.stringify({ ...msg, date: kindPuzzle(puzzleKind).date })); return; }
           srv.send(m);
         });
       });
@@ -456,18 +461,19 @@ function waitForHttp(port, ms = 20000) {
           await shot('lobby-solved');
           puzzleSolved = false;
         } else if (sc.startsWith('puzzle')) {
-          puzzleKind = sc === 'puzzle' ? null : sc.slice('puzzle-'.length);
+          const refused = sc === 'puzzle-refused'; // two melds selected at once, "Auslegen" is refused
+          puzzleKind = sc === 'puzzle' ? null : refused ? 'out' : sc.slice('puzzle-'.length);
           await page.click('#puzzleBtn'); await page.waitForTimeout(600);
           if (puzzleKind) {
             // Lay the first meld of the solution so the meld row shows.
             const p = kindPuzzle(puzzleKind);
-            for (const id of p.best.melds[0]) {
+            for (const id of refused ? p.best.melds[0].concat(p.best.melds[1]) : p.best.melds[0]) {
               await page.evaluate((cid) => {
                 const card = [...document.querySelectorAll('#puzzleHand .card')].find((c) => c.dataset.cardId === cid);
                 if (card) card.click();
               }, id);
             }
-            await page.click('#puzzleLayBtn'); await page.waitForTimeout(200);
+            await page.click('#puzzleLayBtn'); await page.waitForTimeout(refused ? 500 : 200);
           }
           await shot(sc);
           await page.click('#puzzleCloseBtn');

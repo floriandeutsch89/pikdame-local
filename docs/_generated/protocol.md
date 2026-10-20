@@ -4,8 +4,8 @@
 
 The client talks to the server over a single WebSocket. Every message is JSON
 with a `type` field. Both lists below are generated from the server's message
-handlers, so they always match the running code: **47** message
-types go up, **31** come down.
+handlers, so they always match the running code: **48** message
+types go up, **32** come down.
 
 ## Client → server
 
@@ -83,10 +83,11 @@ Allowed from any seat at any time during a match.
 | `rematch` | Start a new match with the same table. |
 | `exportLastGame` | Download the last finished game as JSON. |
 
-### Other {bdg-secondary}`1`
+### Other {bdg-secondary}`2`
 
 | `type` | Purpose |
 | --- | --- |
+| `checkPuzzleMeld` | _(see source)_ |
 | `setAllBotDifficulty` | Host only: set every bot (and bots added later) to one difficulty. Refused in the daily challenge. |
 
 ## Server → client
@@ -109,6 +110,7 @@ Allowed from any seat at any time during a match.
 | `profiles` | Answer to `listProfiles`. |
 | `progress` | XP, level and daily-quest progress after a finished match. |
 | `puzzle` | Today's puzzle (answer to `getPuzzle`). |
+| `puzzleMeldCheck` | _(see source)_ |
 | `puzzleResult` | Grading of a `solvePuzzle` attempt. |
 | `puzzleSolution` | The solution, after `revealPuzzle` or a correct answer. |
 | `queenCaught` | A Queen of Spades was caught in a hand at round end (-100). |

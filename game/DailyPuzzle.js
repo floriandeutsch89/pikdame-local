@@ -358,6 +358,20 @@ function checkAnswer(puzzle, answer) {
   return result;
 }
 
+/**
+ * Checks ONE meld while the player lays it (multi-meld puzzles): same lookup
+ * and validateMeld as checkAnswer, but no scoring, nothing stored.
+ * @returns {{valid:boolean, reason?:string}}
+ */
+function checkMeld(puzzle, ids) {
+  const list = Array.isArray(ids) ? ids.slice(0, puzzle.hand.length + 1).map(String) : [];
+  const unique = new Set(list);
+  const cards = [...unique].map((id) => puzzle.hand.find((c) => c.id === id)).filter(Boolean);
+  if (cards.length !== unique.size || cards.length === 0) return { valid: false, reason: 'Karte(n) nicht in der Hand gefunden.' };
+  const v = validateMeld(cards);
+  return v.valid ? { valid: true } : { valid: false, reason: v.reason };
+}
+
 /** 1-3 stars for a solve after `tries` checks (0 = no solve to grade). */
 function starsFor(kind, tries) {
   const [three, two] = STAR_TRIES[kind] || STAR_TRIES.meld;
@@ -374,7 +388,7 @@ function perfectStreakOn(profile, today) {
 }
 
 module.exports = {
-  puzzleForDate, publicPuzzle, checkAnswer, searchMelds, kindForDate,
+  puzzleForDate, publicPuzzle, checkAnswer, checkMeld, searchMelds, kindForDate,
   enumerateMelds, bestPacking, countCovers, starsFor, perfectStreakOn,
   HAND_SIZE, XP_FOR_SOLVED, MIN_BEST_POINTS, PUZZLE_EPOCH, ROTATION_START, STAR_TRIES,
 };
