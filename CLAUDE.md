@@ -242,6 +242,8 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
   das 110-Karten-Deck. Planungs-/Suchfunktionen arbeiten auf Kopien (eine
   Bot-Planung schrieb einmal in echte Auslagen → doppelte Pik Damen).
 - Client-Heuristiken gegen die Server-Wahrheit fuzzen: keine falschen Positiven.
+  Ein Bot-Zug kommt als EIN State (Broadcast pro Tick gebündelt): Diffs zweier
+  States aus Orten ableiten, nie aus Zählern (Pik-Dame-Momente, Engine-Fuzz).
 - Snapshot-Änderungen: Roundtrip `JSON.stringify/parse` + Restore.
 - `.canScroll*`-Klassen: wer sie gestaltet, setzt sie auch (Vertragstest;
   am iPhone die einzige Scroll-Andeutung).
