@@ -9,11 +9,11 @@
 // finale included: the start-up hint shows on the first start-screen shot.
 // --stammtische N (0-3, default 1): remembered Stammtische on the start screen.
 //
-// --audit also checks every shot for truncated text, tap targets < 44 px,
+// --audit also checks every shot for truncated or off-screen text, tap targets < 44 px,
 // icon buttons without a name and (start screen) content below the fold;
 // the report goes to <out>/audit.md.
 //
-// Views: phone (393x852), land (874x402), desk (1440x900), se (375x667), max (440x956), lap (1366x657).
+// Views: phone (393x852), land (874x402), desk (1440x900), se (375x667), max (440x956), lap (1366x657), nar (1100x680).
 // Scenes: lobby, lobby-open, progress, stats, stats-badges (trophy cabinet + a favourite's
 // detail; favourites show with --signed-in), history, roundend, roundend-stats, gameover,
 // gameover-stats (its Statistik tab: game totals open, new achievements),
@@ -30,6 +30,15 @@
 // locked floor 14), tower-motion (frames: month change, a landing star and a
 // wobble), gameover-tower (a floor verdict). --tower mid|new|high|crowned
 // picks the month in the mock (default mid: floors 1-8 built, 9 next).
+// tower-start / tower-play / tower-sheet / tower-lock: a live Kartenhaus floor from the
+// engine (its deal, bots, head start): the start card before the first move, the floor
+// card mid-game, its rules sheet, a tap on the locked discard pile. --floor queen|goOut|
+// noDiscard|all (the floor with exactly that handicap, looked up in BotTower.js) or a number;
+// --take stock|pile: tower-play in my meld phase (action bar; after a pile take the undo chip).
+// --fold full|compact: the floor card as the player chose it (stored); without it the automatic
+// fold (in full for the first own turn, folded from the second). --tap <selector>: tapped before the shot;
+// --tap-freeze <ms> holds every animation at that moment (a frame of a fold mid-glide).
+// --measure writes <out>/measure.json: the table regions (melds, hand, piles ...) per shot.
 // gameover-win (I win the match, a new badge), stats-empty (a brand-new name: statistics
 // empty state, then "Meine Partien" empty).
 // --lang en: the English client (text length). SHOTS_ROOT=<checkout>: shoot another
@@ -41,6 +50,8 @@
 // Start-screen scenes may follow table or result scenes in any order: the page
 // is reloaded to the start screen first.
 'use strict';
+// The tower scenes play engine games with a human seat: those are no human moves for training.
+process.env.PIKDAME_LOG_GAMES = '0';
 const { spawn } = require('child_process');
 const fs = require('fs');
 const os = require('os');
@@ -67,6 +78,7 @@ const VIEWS = {
   se: { width: 375, height: 667, mobile: true },
   max: { width: 440, height: 956, mobile: true }, // iPhone Pro Max: 15 cards still fit one row
   lap: { width: 1366, height: 657, mobile: false }, // 1366x768 laptop minus browser chrome
+  nar: { width: 1100, height: 680, mobile: false }, // the narrowest desktop layout
 };
 const views = arg('views', 'phone,land,desk').split(',');
 const scenes = arg('scenes', 'lobby,stats,history,roundend,gameover').split(',');
@@ -74,6 +86,7 @@ const AUDIT = process.argv.includes('--audit');
 const SIGNED_IN = process.argv.includes('--signed-in');
 const STILL = process.argv.includes('--reduced-motion'); // prefers-reduced-motion: reduce
 const DECEMBER = process.argv.includes('--december');
+const MEASURE = process.argv.includes('--measure');
 const TOWER_MOCK = arg('tower', 'mid');
 const TAP_MIN = 44; // CLAUDE.md --tap-min
 // A normal UA: the server treats headless defaults as a crawler (no WebSocket).
@@ -223,13 +236,14 @@ function kindPuzzle(kind) {
 // stammtisch-lobby: the next join is shown as a seat at the mock Stammtisch.
 let bindStammtisch = false;
 let emptyMe = false; // scene stats-empty: a brand-new name (no games, no history)
+let towerSceneBest = null; // tower-* scenes: one star already on the floor being played
 function rewrite(msg) {
   if (msg.type === 'joined' && bindStammtisch) msg.stammtisch = { code: 'STMOCK1', name: STAMMTISCH.name };
   if (msg.type === 'profiles') { msg.players = emptyMe ? PROFILES.slice(1) : PROFILES; msg.globalStats = GLOBAL_STATS; }
   if (msg.type === 'gameHistory') msg.games = emptyMe ? [] : HISTORY;
   if (msg.type === 'towerInfo') {
     const BT = require(path.join(ROOT, 'game', 'BotTower'));
-    const best = TOWER_BEST[TOWER_MOCK] || TOWER_BEST.mid;
+    const best = { ...(TOWER_BEST[TOWER_MOCK] || TOWER_BEST.mid), ...(towerSceneBest || {}) };
     const archive = TOWER_ARCHIVE.map((m) => ({ month: m.month, best: m.best, ...BT.summarize(m.best) }));
     Object.assign(msg, { best }, BT.summarize(best), { archive, totalStars: BT.summarize(best).stars + archive.reduce((n, m) => n + m.stars, 0) });
   }
@@ -247,6 +261,57 @@ function rewrite(msg) {
     Object.assign(msg, { status: { tries: 1, solved: true, revealed: false, stars: 3 }, dayStars: 3, perfectStreak: { current: 4, best: 6 } });
   }
   return msg;
+}
+
+// --- Kartenhaus floors from the engine (tower-* scenes) ------------------------
+// The floor is looked up by its handicaps, so new deals or head starts in
+// BotTower.js never break the scenes. turns = how many of my turns are played.
+function towerStageFor(want) {
+  const BT = require(path.join(ROOT, 'game', 'BotTower'));
+  if (/^\d+$/.test(want)) return Number(want);
+  const hit = BT.TOWER_STAGES.find((s) => {
+    const mods = s.mods || [];
+    return want === 'all' ? mods.length === BT.MODS.length : mods.length === 1 && mods[0] === want;
+  });
+  if (!hit) throw new Error(`no Kartenhaus floor with --floor ${want}`);
+  return hit.stage;
+}
+function towerState(stage, turns, take = '') {
+  const BT = require(path.join(ROOT, 'game', 'BotTower'));
+  const GM = require(path.join(ROOT, 'game', 'GameManager'));
+  const month = BT.monthOf(TODAY);
+  const cfg = BT.stageConfig(stage, month);
+  const g = new GM(() => {}, { deckSeed: cfg.seed, towerStage: stage, towerMonth: month });
+  g.addOrReconnectPlayer('p1', ME);
+  g.syncLobbyBots();
+  g.startTowerRound();
+  let st = g.publicState('p1');
+  for (let mine = 0, guard = 0; mine < turns && g.phase === 'playing' && guard < 600; guard++) {
+    const cp = g.currentPlayer();
+    g.runBotTurn(cp.id, { forced: !cp.isBot });
+    const next = g.currentPlayer();
+    if (g.phase === 'playing' && next && next.id === 'p1' && g.turnPhase === 'draw') { mine += 1; st = g.publicState('p1'); }
+  }
+  // --take stock|pile: my draw is done, the meld phase shows the action bar (and the undo chip).
+  if (take && g.phase === 'playing' && g.currentPlayer().id === 'p1') {
+    if (take === 'pile' && g.canTakeDiscardTop(g.currentPlayer(), g.discardPile[0])) g.drawFromDiscard('p1');
+    else g.drawFromPile('p1');
+    st = g.publicState('p1');
+  }
+  g.destroy();
+  return st;
+}
+// Where the table's regions sit (--measure): the floor card must not cost the melds or the hand.
+function measurePage() {
+  const box = (sel) => {
+    const n = document.querySelector(sel);
+    if (!n || n.classList.contains('hidden')) return null;
+    const r = n.getBoundingClientRect();
+    return r.width || r.height ? { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) } : null;
+  };
+  const out = {};
+  for (const sel of ['#topBar', '#opponents', '#melds', '#centerPiles', '#drawPile', '#discardPile', '#towerBar', '#towerBar .tbCard', '#towerBar .tbFold', '#towerStart', '#actionBar', '#handWrapper', '#hand']) out[sel] = box(sel);
+  return out;
 }
 
 // --- layout audit (runs in the page) ------------------------------------------
@@ -272,7 +337,14 @@ function auditPage(tapMin) {
     const text = (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40);
     return `${el.tagName.toLowerCase()}${id}${cls}${text ? ` "${text}"` : ''}`;
   };
-  const out = { truncated: [], smallTargets: [], unnamed: [], fold: null };
+  const out = { truncated: [], offscreen: [], smallTargets: [], unnamed: [], fold: null };
+  const vw = document.documentElement.clientWidth;
+  const inScroller = (el) => {
+    for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) {
+      if (/auto|scroll/.test(getComputedStyle(n).overflowX)) return true;
+    }
+    return false;
+  };
   for (const el of root.querySelectorAll('*')) {
     if (!visible(el) || el.closest('.seoIntro, .visuallyHidden')) continue;
     const cs = getComputedStyle(el);
@@ -285,6 +357,16 @@ function auditPage(tapMin) {
       const textW = range.getBoundingClientRect().width;
       const box = el.getBoundingClientRect().width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
       if (textW > box + 1) out.truncated.push(label(el));
+    }
+    // Text the screen edge cuts off: no box of its own clips it, the viewport does
+    // (English "Head start 160" ran past a landscape edge). Scrollers and pieces in flight are fine.
+    const own = [...el.childNodes].filter((n) => n.nodeType === 3 && n.textContent.trim());
+    if (own.length && !el.getAnimations().some((a) => a.playState === 'running')) {
+      const range = document.createRange();
+      range.setStartBefore(own[0]);
+      range.setEndAfter(own[own.length - 1]);
+      const tr = range.getBoundingClientRect();
+      if (tr.width && (tr.right > vw + 1 || tr.left < -1) && !inScroller(el)) out.offscreen.push(label(el));
     }
     const interactive = el.matches('button, a[href], input:not([type=hidden]), select, summary, [role=button]');
     if (interactive) {
@@ -341,6 +423,7 @@ function waitForHttp(port, ms = 20000) {
   const { chromium } = loadPlaywright();
   const written = [];
   const audits = [];
+  const measures = {};
   try {
     await waitForHttp(PORT);
     const browser = await chromium.launch();
@@ -400,6 +483,7 @@ function waitForHttp(port, ms = 20000) {
         await page.screenshot({ path: file });
         written.push(file);
         if (AUDIT) audits.push({ view: vn, scene: name, ...(await page.evaluate(auditPage, TAP_MIN)) });
+        if (MEASURE) measures[`${vn}-${name}`] = await page.evaluate(measurePage);
       };
       const inject = (obj) => sock.send(JSON.stringify(obj));
       // A table/result scene leaves the start screen, and its buttons are then
@@ -663,6 +747,39 @@ function waitForHttp(port, ms = 20000) {
           await page.waitForTimeout(200);
           await shot('table');
         }
+        if (/^tower-(start|play|sheet|lock)$/.test(sc)) {
+          // A live Kartenhaus floor: a fresh page each time, so the start card is
+          // shown once per scene (the client remembers it per game code).
+          const want = arg('floor', 'goOut');
+          const stage = towerStageFor(want);
+          const st = towerState(stage, sc === 'tower-start' ? 0 : Number(arg('turns', 3)), sc === 'tower-play' ? arg('take', '') : '');
+          towerSceneBest = { [stage]: 1 };
+          await page.evaluate((fold) => {
+            try {
+              localStorage.removeItem('pikdame_tower_intro'); localStorage.removeItem('pikdame_last_session');
+              if (fold) localStorage.setItem('pikdame_tower_fold', fold); else localStorage.removeItem('pikdame_tower_fold');
+            } catch (e) { /* blocked */ }
+          }, ['full', 'compact'].includes(arg('fold', '')) ? arg('fold', '') : '');
+          await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
+          await page.waitForTimeout(1200);
+          inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
+          inject({ type: 'state', state: st });
+          await page.waitForTimeout(1800); // deal-in and the start card
+          // Not the start scene: "Los" was tapped long ago (as in a real game).
+          if (sc !== 'tower-start' && await page.isVisible('#towerStartBtn')) { await page.click('#towerStartBtn'); await page.waitForTimeout(800); }
+          if (sc === 'tower-sheet') { await page.click('#towerBar .tbCard'); await page.waitForTimeout(500); }
+          if (arg('tap', '')) {
+            await page.click(arg('tap', ''));
+            if (arg('tap-freeze', '')) await page.evaluate((ms) => document.getAnimations().forEach((a) => { a.pause(); a.currentTime = ms; }), Number(arg('tap-freeze', 0)));
+            else await page.waitForTimeout(700);
+          }
+          if (sc === 'tower-lock') { await page.click('#discardTopCard'); await page.waitForTimeout(500); }
+          if (arg('css', '')) await page.addStyleTag({ content: fs.readFileSync(arg('css', ''), 'utf8') });
+          // --eval <file>: an expression evaluated in the page, printed (layout debugging).
+          if (arg('eval', '')) console.log(`${vn}-${sc}:`, JSON.stringify(await page.evaluate(fs.readFileSync(arg('eval', ''), 'utf8'))));
+          await shot(`${sc}-${want}`);
+          towerSceneBest = null;
+        }
         if (sc === 'gameover-tower') {
           inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
           inject({ type: 'state', state: TOWER_STATE });
@@ -705,12 +822,17 @@ function waitForHttp(port, ms = 20000) {
     await cleanup();
   }
   console.log(written.join('\n'));
+  if (MEASURE) {
+    fs.writeFileSync(path.join(OUT, 'measure.json'), JSON.stringify(measures, null, 1));
+    console.log(`measure: ${path.join(OUT, 'measure.json')}`);
+  }
   if (AUDIT) {
     const lines = ['# UI audit', ''];
     let findings = 0;
     for (const a of audits) {
       const items = [
         ...a.truncated.map((t) => `- **truncated** ${t}`),
+        ...a.offscreen.map((t) => `- **off screen** ${t}`),
         ...a.smallTargets.map((t) => `- **tap target < ${TAP_MIN}px** ${t}`),
         ...a.unnamed.map((t) => `- **icon button without a name** ${t}`),
         ...(a.fold ? [`- **below the fold** ${a.fold}`] : []),

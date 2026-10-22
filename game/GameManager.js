@@ -3163,6 +3163,9 @@ class GameManager {
       towerMonth: this.towerMonth || null,
       // The floor's rules against the human (the table shows the blocked discard pile).
       towerMods: (this.towerStage && (BotTower.stageConfig(this.towerStage) || {}).mods) || null,
+      // Head start and the two-star margin of this floor, for the floor card and its rules (never the seed).
+      towerHandicap: this.towerStage ? (BotTower.stageConfig(this.towerStage, this.towerMonth) || {}).handicap || 0 : null,
+      towerClearMargin: this.towerStage ? BotTower.CLEAR_MARGIN : null,
       soloPausedUntil: this.soloPausedUntil || null,
       abandoned: this.abandoned || false,
       canUndoMeld: !!(
