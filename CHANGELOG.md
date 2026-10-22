@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.102.0] - 2026-10-23
+
+### Changed
+- Der Dezember-Schnee rieselt nur noch auf dem Startbildschirm. Am Tisch fällt er nicht mehr über die Karten und die Fenster dort, und während die App im Hintergrund ist, ruht er ganz – das schont den Akku
+
 ## [2.101.1] - 2026-10-22
 
 ### Fixed
