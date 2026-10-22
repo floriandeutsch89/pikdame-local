@@ -64,3 +64,27 @@ for (const proxy of ['hard', 'zen']) {
     assert.deepStrictEqual(bad, [], 'the bots or the engine play these deals differently now');
   });
 }
+
+// A replay drives every turn itself. The game's own bot timer (700-1300 ms) once
+// played a turn behind its back while the net was slow (a cold model load, CPU
+// load), so a recorded proof did not replay. A slow policy must change nothing.
+test('a slow net answer never lets the game play a turn behind the replay', async (t) => {
+  const f = proofs['2026-11'][6]; // floor 7: Zen and Hard bots
+  const play = async (stallAt) => {
+    let n = 0;
+    t.mock.method(OnnxPolicy, 'enabled', () => true);
+    t.mock.method(OnnxPolicy, 'chooseDrawSource', async () => null); // the heuristic decides, deterministically
+    t.mock.method(OnnxPolicy, 'chooseDiscardCard', async () => {
+      if (++n === stallAt) await new Promise((resolve) => setTimeout(resolve, 1500));
+      return null;
+    });
+    try {
+      return (await playFloor({ seed: f.seed, stage: 7, month: '2026-11', proxy: 'hard' })).hash;
+    } finally {
+      t.mock.restoreAll();
+    }
+  };
+  const calm = await play(-1);
+  // Without the guard a stall at the 8th answer let the bot timer change this game.
+  for (const at of [4, 8]) assert.strictEqual(await play(at), calm, `a 1.5 s pause at answer ${at} changed the game`);
+});

@@ -157,6 +157,7 @@ test('a tap shows the floor, the button starts it; a locked floor only explains'
   assert.match(detail.textContent, /gesperrt/);
   assert.match(detail.textContent, /3 Bots: Zen, Zen, Zen · 140 Punkte Vorgabe/);
   assert.deepStrictEqual([...detail.querySelectorAll('.khMod')].map((m) => m.textContent), ['Risiko: Pik Dame auf der Hand']);
+  assert.ok(detail.querySelector('.khMod').classList.contains('risk'), 'the risk chip is gold, not a red handicap');
   assert.strictEqual(detail.querySelector('.khDMods').getAttribute('aria-label'), 'Risiko: Pik Dame auf der Hand – ausgelegt +100, auf der Hand −100', 'the queen is a risk, not a handicap');
   assert.match(detail.textContent, /Schaff erst Etage 3\./);
   assert.strictEqual(detail.querySelector('.khPlay'), null, 'no way into a locked floor');

@@ -35,13 +35,17 @@ function prng(seed) {
  * One game of `seed` as floor `stage` of `month`; the human seat plays `proxy`
  * ('hard', 'zen', 'medium', ...). `slip` > 0 makes it human-like: per turn, with
  * that chance each, a random legal draw source and a random legal discard
- * (seeded by `run`). Returns BotTower's outcome plus a short hash of the moves.
+ * (seeded by `run`). Returns BotTower's outcome plus a short hash of the moves;
+ * `steps` (an array) collects the hashed moves one by one.
  */
-async function playFloor({ seed, stage, month, proxy = 'hard', slip = 0, run = 0 }) {
+async function playFloor({ seed, stage, month, proxy = 'hard', slip = 0, run = 0, steps = null }) {
   const random = Math.random;
   const rnd = prng(mix(mix(seed) ^ mix(stage * 0x9e3779b1 + run * 7 + 13)));
   Math.random = prng(mix(seed ^ 0x2545f491) ^ run); // cosmetic draws only (bot names)
   const g = new GameManager(() => {}, { deckSeed: seed, towerStage: stage, towerMonth: month });
+  // This loop plays every turn. The game's own bot timer would play one behind its
+  // back whenever an awaited net answer takes longer than ~1 s (proof replays diverged).
+  g.maybeRunBotTurn = () => {};
   try {
     g.addOrReconnectPlayer('me', 'Sim');
     g.syncLobbyBots();
@@ -73,7 +77,9 @@ async function playFloor({ seed, stage, month, proxy = 'hard', slip = 0, run = 0
         cp.forcedDrawSource = null;
       }
       const top = g.discardPile[0];
-      trace.update(`${cp.id}:${cp.hand.length}:${top ? top.id : '-'};`);
+      const step = `${cp.id}:${cp.hand.length}:${top ? top.id : '-'};`;
+      trace.update(step);
+      if (steps) steps.push(step); // debugging a diverging replay
       if (g.phase === 'playing' && g.turnIndexInRound === before && g.currentPlayer().id === cp.id) g.finishRound(null);
     }
     const record = g.lastGameRecord;

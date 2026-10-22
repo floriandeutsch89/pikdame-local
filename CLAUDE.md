@@ -231,6 +231,8 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
   sonst füllt `data/human-moves.jsonl` die Platte (ein Seed-Lauf: 22 GB).
   Einzelne Testdateien nur mit `node --test --require ./test/helpers/setup.js`
   (wie `npm test`), sonst schreiben sie ebenfalls nach `data/`.
+  Wer Züge selbst treibt, schaltet den Bot-Timer ab (`g.maybeRunBotTurn = () => {}`):
+  er spielt sonst bei langsamer Netz-Antwort (> ~1 s) einen Zug mit (Beweise divergierten).
 - Engine: E2E-Botspiele über alle 4 Stufen (Deadlocks, kein Joker-Abwurf,
   kein Doppel-Satz).
 - **Kartenerhaltung** (`test/card-conservation.test.js`): nach JEDEM Zug exakt

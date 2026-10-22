@@ -8521,7 +8521,7 @@
         ? `<span class="khDTag next">${escapeHtml(L('als Nächstes', 'up next'))}</span>`
         : `<span class="khDTag"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg><span>${escapeHtml(L('gesperrt', 'locked'))}</span></span>`;
     const bots = towerBotsLine(s.bots, s.handicap);
-    const mods = (s.mods || []).map((m) => `<span class="khMod">${escapeHtml(towerModLabel(m))}</span>`).join('');
+    const mods = (s.mods || []).map((m) => `<span class="khMod ${towerModKind(m)}">${escapeHtml(towerModLabel(m))}</span>`).join('');
     const note = st.state === 'locked'
       ? L(`Schaff erst Etage ${Math.min(info.unlocked || 1, max)}.`, `Clear floor ${Math.min(info.unlocked || 1, max)} first.`)
       : st.state === 'next' ? L('Ein Stern: mehr Punkte als jeder Bot samt Vorgabe.', 'One star: more points than every bot plus its head start.')
