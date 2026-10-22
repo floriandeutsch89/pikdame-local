@@ -122,18 +122,22 @@ deterministic per deal and line of play: Zen and Schwer play no dice, and the
 easy bots on floors 1-2 draw their randomness from the deal
 (`GameManager._botRandom`, Kartenhaus only). So one game is a proof:
 `scripts/tower-seeds.js` (onnxruntime-node outside the repo, see CLAUDE.md)
-takes a deal only when BOTH Schwer and Zen in the human seat earn a star on it.
-Floors 1-10 must also stay tight (Schwer's margin under a cap). Floors 11-20
-aim at a medium player: Mittel with 10 % random moves earns a star in 100
-games at a rate inside a band around a target falling from 45 % (floor 11) to
-13 % (floor 20), window [T-6, T+10], at least 8 %; after 3000 candidates the
-deal closest to the band is taken. Each month draws from its own seed block,
-so months run in parallel (`--jobs`) and a rerun picks the same deals.
+takes a deal only when Zen in the human seat earns a star on it; Schwer's game
+is recorded too where it wins. Floors 1-10 also need Schwer's star under a
+margin cap (tight floors). Floors 11-20 aim at a medium player: Mittel with
+10 % random moves earns a star in 100 games at a rate within ±10 pp of a target
+falling from 45 % (floor 11) to 13 % (floor 20), at least 8 %, and at most
+5 pp above the floor below, so the staircase never gets easier
+(`scripts/tower-rule.js`, also checked by the test). There is no fallback: a
+floor without a deal after 20000 candidates is reported. A rerun keeps every
+floor that meets the rule and re-picks only the others; each month and floor
+draws from its own seed block, so months run in parallel (`--jobs`) and a
+rerun picks the same deals.
 `test/fixtures/tower-proofs.json` holds stars, margin and a move hash of every
 proof game; `test/tower-proofs.test.js` replays them (without onnxruntime only
-the floors without a Zen bot, all of them in the CI job `tower-proofs`). After
-an intended bot change, `--prove` refreshes the hashes and fails if a floor
-lost its star. `--rate N` measures Schwer's star rate per floor over N random deals.
+Schwer on the floors without a Zen bot, always including floors 1-2, all of
+them in the CI job `tower-proofs`). After an intended bot change, `--prove`
+refreshes the hashes and fails if Zen lost a star on a floor. `--rate N` measures Schwer's star rate per floor over N random deals.
 
 **The old bot tower is October 2026.** Its ten fixed deals are October's
 floors 1-10, and a profile's pre-monthly `tower` stars count there

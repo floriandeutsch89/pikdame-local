@@ -1,5 +1,5 @@
 ### Changed
-- Kartenhaus: Die Etagen ab 11 sind neu ausgewählt und fairer – jedes Blatt ist nachweislich gewinnbar und so gewählt, dass auch geübte Spieler eine echte Chance auf den Stern haben (Etage 11 etwa jedes zweite Mal, nach oben hin seltener)
+- Kartenhaus: Die Etagen ab 11 sind neu ausgewählt und fairer – jedes Blatt ist nachweislich gewinnbar, geübte Spieler haben eine echte Chance auf den Stern (Etage 11 etwa jedes zweite Mal), nach oben wird es gleichmäßig schwerer
 - Kartenhaus: Ab November 2026 sind alle Etagen neu ausgewählt, auch 1 bis 10
 - Kartenhaus: Die Pik-Dame-Etage ist jetzt ein Risiko statt einer Erschwernis – „Risiko: Pik Dame auf der Hand – ausgelegt +100, auf der Hand −100“
 - Kartenhaus: Leichte Bots spielen auf einer Etage bei gleichen Zügen immer gleich – ein neuer Versuch ist wirklich dasselbe Spiel

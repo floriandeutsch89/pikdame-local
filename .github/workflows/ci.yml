@@ -106,8 +106,8 @@ jobs:
       - name: Generated docs are up to date
         run: npm run docs:check
 
-  # Kartenhaus deals stay winnable: Hard and Zen replay every committed floor
-  # (test/tower-proofs.test.js). Zen needs the net, so this job installs the
+  # Kartenhaus deals stay winnable: Zen (and Hard where it has a proof) replays
+  # every committed floor (test/tower-proofs.test.js). Zen needs the net, so this job installs the
   # runtime the image pins - outside the repo, never in package.json. Per PR
   # (about a minute) rather than nightly: the PR that breaks a deal goes red.
   tower-proofs:

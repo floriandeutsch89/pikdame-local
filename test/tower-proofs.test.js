@@ -1,9 +1,10 @@
-/** Every committed Kartenhaus deal stays winnable: Hard and Zen in the human seat
- *  replay each floor (deterministic) and must earn a star with the recorded game
- *  hash (test/fixtures/tower-proofs.json, from scripts/tower-seeds.js). Floors
- *  with a Zen opponent need the net; without onnxruntime only the other floors
- *  run here, the CI job `tower-proofs` runs all of them. The old October tower
- *  (floors 1-10) predates the rule: only its hashes are checked.
+/** Every committed Kartenhaus deal stays winnable: Zen in the human seat replays
+ *  each floor (deterministic) and must earn a star with the recorded game hash
+ *  (test/fixtures/tower-proofs.json, from scripts/tower-seeds.js); Hard replays
+ *  where it has a proof (always on floors 1-2: the easy bots' dice). Without
+ *  onnxruntime only Hard on floors without a Zen bot runs here, the CI job
+ *  `tower-proofs` runs all of it. The old October tower (floors 1-10) predates
+ *  the rule: only its hashes are checked.
  *  Intended bot change: `node scripts/tower-seeds.js --prove` refreshes the hashes. */
 'use strict';
 const test = require('node:test');
@@ -13,6 +14,7 @@ const OnnxPolicy = require('../game/OnnxPolicy');
 const TowerSeeds = require('../game/TowerSeeds');
 const proofs = require('./fixtures/tower-proofs.json');
 const { playFloor, needsNet } = require('../scripts/tower-play');
+const { mediumWindow } = require('../scripts/tower-rule');
 
 const net = OnnxPolicy.enabled() && OnnxPolicy.available();
 const legacy = (month, stage) => month === BotTower.LEGACY_MONTH && stage <= 10;
@@ -21,9 +23,18 @@ test('every committed month has its proof games', () => {
   assert.deepStrictEqual(Object.keys(proofs).sort(), Object.keys(TowerSeeds).sort());
   for (const [month, seeds] of Object.entries(TowerSeeds)) {
     assert.deepStrictEqual(proofs[month].map((f) => f.seed), seeds, `${month}: proofs belong to the committed deals`);
+    let prev = null;
     proofs[month].forEach((f, i) => {
-      if (legacy(month, i + 1)) return;
-      assert.ok(f.hard[0] >= 1 && f.zen[0] >= 1, `${month} floor ${i + 1}: picked with a star for Hard and Zen`);
+      const stage = i + 1;
+      if (legacy(month, stage)) return;
+      assert.ok(f.zen[0] >= 1, `${month} floor ${stage}: picked with a star for Zen`);
+      if (f.hard) assert.ok(f.hard[0] >= 1, `${month} floor ${stage}: a Hard proof is a won game`);
+      if (stage <= 2) assert.ok(f.hard, `${month} floor ${stage}: Hard proves the easy bots' dice`);
+      if (stage > 10) {
+        const [lo, hi] = mediumWindow(stage, prev);
+        assert.ok(f.medium10 >= lo && f.medium10 <= hi, `${month} floor ${stage}: medium ${f.medium10} % outside ${lo.toFixed(1)}-${hi.toFixed(1)}`);
+        prev = f.medium10;
+      }
     });
   }
 });
@@ -35,7 +46,7 @@ test('the CI job really has the net', { skip: process.env.PIKDAME_TOWER_PROOFS_N
 for (const proxy of ['hard', 'zen']) {
   const cases = [];
   for (const month of Object.keys(proofs).sort()) {
-    proofs[month].forEach((f, i) => cases.push({ month, stage: i + 1, seed: f.seed, want: f[proxy] }));
+    proofs[month].forEach((f, i) => { if (f[proxy]) cases.push({ month, stage: i + 1, seed: f.seed, want: f[proxy] }); });
   }
   // Zen plays the net in the human seat; Hard's opponents may be Zen bots.
   const runnable = cases.filter((c) => net || (proxy === 'hard' && !needsNet(c.stage)));
