@@ -115,6 +115,14 @@ go into its lifetime and season XP without counting as a game; tower rounds
 count for no match statistics. Badges: 3/6/10 floors and 30 stars in the best
 month, and 1/3/12 crowned months (Lehrling, Polier/in, Baumeister/in).
 
+**The sheet** (`renderTower` in `public/client.js`) is also the floor picker:
+every starred floor stands as its floor card from the table, two leaning
+together as a tent (4-3-2-1 tents, the Queen of Spades on top once crowned);
+the next floor is a dashed card, a closed one a hatched outline with an
+hourglass or a lock. The first visit of a new month collects the old house
+once per device (`pikdame_tower_seen`); a tap skips it, and without motion a
+note says where the old month went.
+
 **The deals.** A floor is deterministic per deal and line of play: Zen and
 Schwer play no dice, and the easy bots on floors 1-2 draw their randomness from
 the deal (`GameManager._botRandom`, Kartenhaus only). So one game is a proof.
