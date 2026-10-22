@@ -3035,7 +3035,7 @@
     el('clearSelectionBtn').classList.toggle('hidden', selectedCardIds.size === 0);
     // Mis-tap escape: undo the pile take while the mandatory card is not yet
     // laid (server validates; the flag is only true for me). The button sits
-    // on the discard pile, which stays un-dimmed around it via .undoable.
+    // on the discard pile; a dimmed pile never dims it (style.css).
     el('undoPileBtn').classList.toggle('hidden', !lastState.canUndoPileTake);
     el('discardPile').classList.toggle('undoable', !!lastState.canUndoPileTake);
     el('undoMeldBtn').classList.toggle('hidden', !lastState.canUndoMeld);

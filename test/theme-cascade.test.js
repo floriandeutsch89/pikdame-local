@@ -112,3 +112,54 @@ test('theme cascade: the applied --drawn differs clearly from the applied --acce
   assert.strictEqual(applied('felt', '--drawn').value, '#5ad1ff');
   assert.strictEqual(applied('bordeaux', '--drawn').value, '#5ad1ff');
 });
+
+// Muted text (captions, counters, turn steps) must reach WCAG AA wherever it sits. Blended
+// in sRGB like the browser; grain, blur and glows are not modelled: check pixels (ui-review).
+function colour(value) {
+  const hex = /^#([0-9a-f]{6})$/i.exec(value);
+  if (hex) return { r: parseInt(hex[1].slice(0, 2), 16), g: parseInt(hex[1].slice(2, 4), 16), b: parseInt(hex[1].slice(4, 6), 16), a: 1 };
+  const m = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)\s*)?\)$/.exec(value);
+  assert.ok(m, `parsable colour: ${value}`);
+  return { r: +m[1], g: +m[2], b: +m[3], a: m[4] === undefined ? 1 : +m[4] };
+}
+const over = (top, under) => ({
+  r: top.r * top.a + under.r * (1 - top.a), g: top.g * top.a + under.g * (1 - top.a), b: top.b * top.a + under.b * (1 - top.a), a: 1,
+});
+function luminance({ r, g, b }) {
+  const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+}
+const contrast = (text, surface) => {
+  const [x, y] = [luminance(over(text, surface)), luminance(surface)];
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+};
+const token = (theme, prop) => colour(applied(theme, prop).value);
+/** The surfaces muted text sits on, built from the theme's tokens: [where, colour]. */
+function mutedSurfaces(theme) {
+  const [glass, strong, spot] = ['--glass', '--glass-strong', '--spot'].map((p) => token(theme, p));
+  const felt = { felt: token(theme, '--bg'), 'top glow': token(theme, '--bg-glow'), 'start-screen foot': token(theme, '--bg-deep') };
+  felt['lit felt'] = over(spot, felt.felt);
+  return [
+    ...Object.entries(felt),
+    ['pile pool (two spots)', over(spot, felt['lit felt'])],
+    ...Object.entries(felt).map(([k, v]) => [`glass panel on the ${k}`, over(glass, v)]),
+    ...['felt', 'top glow'].map((k) => [`pill on a glass bar on the ${k} (turn steps)`, over(glass, over(glass, felt[k]))]),
+    ['sort toggle on the hand tray', over(strong, over(glass, felt['lit felt']))],
+  ];
+}
+const sheetRule = RULES.find((r) => r.selectors.includes('.overlay-card'));
+const SHEET_MUTED = colour(declarations(sheetRule.body).get('--text-muted').value);
+
+for (const theme of THEMES) {
+  test(`theme cascade (${theme}): muted text reaches 4.5:1 on the felt, its glass and the sheets`, () => {
+    const muted = token(theme, '--text-muted');
+    const low = mutedSurfaces(theme).map(([where, bg]) => [where, contrast(muted, bg)]).filter(([, r]) => r < 4.5);
+    assert.deepEqual(low.map(([where, r]) => `${where}: ${r.toFixed(2)}`), [], `${theme}: --text-muted ${applied(theme, '--text-muted').value}`);
+    // Sheets are paper in every theme and remap the token (.overlay-card).
+    const sheet = contrast(SHEET_MUTED, token(theme, '--card-bg'));
+    assert.ok(sheet >= 4.5, `${theme}: muted text on a sheet ${sheet.toFixed(2)}`);
+    // Still secondary: on the felt it stays apart from the main text.
+    const apart = contrast(token(theme, '--text'), over(muted, token(theme, '--bg')));
+    assert.ok(apart >= 1.3, `${theme}: muted text ${apart.toFixed(2)}:1 from the main text, no longer secondary`);
+  });
+}
