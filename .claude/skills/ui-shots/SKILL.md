@@ -136,6 +136,12 @@ Traps that cost time before:
 - **Signed-in look:** there is no real account in the mock. Use
   `--signed-in` (routes the account API) and say in the PR that it was
   simulated.
+- **Frozen frames and repeated sheets:** pausing animations does not pause
+  the page's timers (the Kartenhaus month change also ends by a timer), so
+  shoot every frame from a fresh start, as `tower-film` does. And
+  `page.click` scrolls inner scrollers to its target: a sheet reopened in
+  the same scene keeps that scroll (the landscape Kartenhaus side column
+  showed its legend cut off).
 
 ## What to check in the images
 
