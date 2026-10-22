@@ -169,6 +169,13 @@ git push origin pr-screenshots && git rev-parse HEAD
 cd - && git worktree remove --force /tmp/prshots
 ```
 
+A session confined to its own worktree can build the same commit without
+a checkout: `git hash-object -w` per file, `git mktree` for `<topic>/` and
+for the new root (the old root's `git ls-tree` lines plus the topic), `git
+commit-tree <tree> -p origin/pr-screenshots`, then `git push origin
+<sha>:refs/heads/pr-screenshots`. The REST Git Data API (blobs, trees)
+refuses writes from these sessions.
+
 In the PR, link images by **commit SHA**, not by branch name
 (`raw.githubusercontent.com/<owner>/<repo>/<sha>/<topic>/x.png`). GitHub
 caches branch URLs, so a refreshed image would keep showing the old one.

@@ -173,7 +173,12 @@ function createPgAccountStore(databaseUrl, options = {}) {
   let readyPromise = null;
   function ensureReady() {
     if (!readyPromise) {
-      readyPromise = pool.query(SCHEMA).catch((err) => {
+      // Concurrent first starts (replicas, parallel test files) deadlock on
+      // CREATE/ALTER; one transaction-scoped advisory lock serialises them.
+      readyPromise = withTransaction(async (client) => {
+        await client.query('SELECT pg_advisory_xact_lock(726813)');
+        await client.query(SCHEMA);
+      }).catch((err) => {
         readyPromise = null; // retry on the next call
         throw err;
       });
