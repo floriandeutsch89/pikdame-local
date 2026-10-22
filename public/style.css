@@ -838,9 +838,9 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   flex-wrap: nowrap;
 }
 #opponents .opponent { flex: 1 1 0; min-width: 0; max-width: 180px; }
-#opponents .opName {
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
+#opponents .opName { white-space: nowrap; }
+/* Only the name clips: a clipping row cut a breathing face's ring (and gave no ellipsis). */
+#opponents .opNameText { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .opponent {
   background: var(--glass);
   border: 1px solid var(--glass-border);
@@ -2564,15 +2564,112 @@ body.dndActive #discardPile { outline: 2px dashed var(--accent-soft); outline-of
   max-width: 340px;
 }
 
-/* Spieler am Zug: sanfter Puls am Chip */
-@keyframes activeChipPulse {
-  0%, 100% { box-shadow: 0 0 0 2px var(--accent-soft); }
-  50% { box-shadow: 0 0 0 3px var(--accent), 0 0 14px var(--accent-soft); }
+/* --- Breathing bots -------------------------------------------------------------
+   Only the bot on turn breathes, in its level's rhythm; a human on turn keeps the
+   calm frame (.opponent.active: border + fill). client.js (botBreath) sets the
+   period (--br-dur, bot pace) and the phase (--br-delay, from the turn start).
+   Battery: transform/opacity of the small face only, will-change only while it runs. */
+.opAvatar.breathing {
+  position: relative; background: none; box-shadow: none;
+  /* The face is drawn at its 112 % peak and scaled back here (1 / 1.12): the breath
+     never enlarges a bitmap (iOS keeps an animated layer's first raster: soft emoji). */
+  transform-origin: 50% 85%; transform: scale(.8929);
 }
-.opponent.active { animation: activeChipPulse 2s ease-in-out infinite; }
+.opFace {
+  position: absolute; inset: -10.2% -6% -1.8%; /* 112 %, its 50 % 85 % point on the avatar's */
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; font-size: 1.12em;
+  box-shadow: inset 0 -2.24px 5.6px rgba(0,0,0,0.28), 0 1.12px 2.24px rgba(0,0,0,0.25);
+  transform-origin: 50% 85%; will-change: transform;
+  animation: var(--br-dur, 1200ms) linear var(--br-delay, 0ms) infinite;
+}
+.opAvatar[data-breath="easy"] > .opFace { animation-name: breathEasy; }
+.opAvatar[data-breath="medium"] > .opFace { animation-name: breathMedium; }
+.opAvatar[data-breath="hard"] > .opFace { animation-name: breathHard; }
+.opAvatar[data-breath="zen"] > .opFace { animation-name: breathZen; }
+/* The level's ring sits on the face (lengths at 112 %: 3 px off the face, 2 px wide). */
+.opFace::after {
+  content: ''; position: absolute; inset: calc(-3px * 1.12); border-radius: 50%;
+  border: calc(2px * 1.12) solid var(--accent); pointer-events: none;
+}
+.opAvatar[data-breath="easy"] > .opFace::after { border: calc(2.5px * 1.12) dotted var(--accent); }
+/* Schwer: a double ring that draws in while the breath is held. */
+.opAvatar[data-breath="hard"] > .opFace::after {
+  inset: calc(-5px * 1.12); border: calc(4px * 1.12) double var(--accent);
+  animation: breathHardRing var(--br-dur, 2600ms) linear var(--br-delay, 0ms) infinite;
+}
+/* Zen: an ensō, the brushed circle left open; it brightens on the inhale. */
+.opAvatar[data-breath="zen"] > .opFace::after {
+  inset: calc(-4px * 1.12); border-width: calc(2.5px * 1.12); transform: rotate(-30deg);
+  -webkit-mask: conic-gradient(transparent 0 26deg, #000 58deg 338deg, transparent 352deg);
+  mask: conic-gradient(transparent 0 26deg, #000 58deg 338deg, transparent 352deg);
+  animation: breathZenRing var(--br-dur, 5000ms) linear var(--br-delay, 0ms) infinite;
+}
+/* The header face ("X ist dran") breathes along; the turn info spans the bar's
+   height and the face keeps off its edges, so the overflow guard never cuts the ring. */
+#turnInfo { align-self: stretch; }
+.turnStatus .opAvatar.breathing { margin-inline: 6px 4px; }
+/* ~400 px high: a 4 px top padding let the ring cross the chip's edge. A smaller
+   face buys the room; the chip keeps its height, count and bar stay in place. */
+@media (orientation: landscape) and (max-height: 540px) {
+  .opponent { padding-top: 8px; }
+  .opponent .opAvatar { width: 22px; height: 22px; font-size: 11px; }
+}
+
+/* Leicht: a 2.3 s loop of seven uneven twitches (peaks 290/140/450/370/140/380 ms
+   apart), each a rise with overshoot and an eased decay. Lengths below are face px:
+   the design's -1/-2/-1.5 px times 1.12, written out as plain values. */
+@keyframes breathEasy {
+  0%, 2.5% { transform: none; animation-timing-function: cubic-bezier(.34,1.56,.64,1); }
+  5.7% { transform: translateY(-1.12px) scale(1.10) rotate(-7deg); animation-timing-function: ease-out; }
+  10.5%, 15.5% { transform: none; animation-timing-function: cubic-bezier(.34,1.56,.64,1); }
+  18.3% { transform: scale(1.05) rotate(4deg); animation-timing-function: ease-in-out; }
+  21% { transform: scale(1.01) rotate(-1deg); animation-timing-function: cubic-bezier(.34,1.56,.64,1); }
+  24.3% { transform: translateY(-2.24px) scale(1.12) rotate(6deg); animation-timing-function: ease-out; }
+  29.5%, 40.5% { transform: none; animation-timing-function: cubic-bezier(.34,1.56,.64,1); }
+  43.9% { transform: translateY(-1.12px) scale(1.07) rotate(-5deg); animation-timing-function: ease-out; }
+  48.5%, 57% { transform: none; animation-timing-function: cubic-bezier(.34,1.56,.64,1); }
+  60% { transform: translateY(-1.12px) scale(1.09) rotate(7deg); animation-timing-function: ease-in-out; }
+  63% { transform: scale(1.02) rotate(1deg); animation-timing-function: cubic-bezier(.34,1.56,.64,1); }
+  66.1% { transform: scale(1.04) rotate(-3deg); animation-timing-function: ease-out; }
+  70.5%, 79.5% { transform: none; animation-timing-function: cubic-bezier(.34,1.56,.64,1); }
+  82.6% { transform: translateY(-1.12px) scale(1.11) rotate(-6deg); animation-timing-function: ease-out; }
+  87.5%, 100% { transform: none; }
+}
+/* Mittel: an even sine, about one breath per bot turn. */
+@keyframes breathMedium {
+  0%, 100% { transform: none; animation-timing-function: cubic-bezier(.37,0,.63,1); }
+  50% { transform: translateY(-1.68px) scale(1.08); animation-timing-function: cubic-bezier(.37,0,.63,1); }
+}
+/* Schwer: 1.1 s deep in, 0.7 s held (focus), 0.8 s out. */
+@keyframes breathHard {
+  0% { transform: none; animation-timing-function: cubic-bezier(.45,.05,.35,1); }
+  42.3%, 69.2% { transform: translateY(-1.12px) scale(1.06); animation-timing-function: cubic-bezier(.45,0,.55,1); }
+  100% { transform: none; }
+}
+@keyframes breathHardRing {
+  0% { transform: none; animation-timing-function: cubic-bezier(.45,.05,.35,1); }
+  42.3%, 69.2% { transform: scale(.9); animation-timing-function: cubic-bezier(.45,0,.55,1); }
+  100% { transform: none; }
+}
+/* Zen: 5 s, the inhale in front (2 s), a long exhale (3 s); it barely moves. */
+@keyframes breathZen {
+  0% { transform: none; animation-timing-function: cubic-bezier(.33,1,.68,1); }
+  40% { transform: scale(1.035); animation-timing-function: cubic-bezier(.37,0,.63,1); }
+  100% { transform: none; }
+}
+@keyframes breathZenRing {
+  0%, 100% { opacity: .55; animation-timing-function: cubic-bezier(.33,1,.68,1); }
+  40% { opacity: 1; animation-timing-function: cubic-bezier(.37,0,.63,1); }
+}
+/* Still: reduced motion keeps the level's ring without motion; a hidden tab, a sheet
+   or the emote picker over the table (their backdrop blur would redo every frame) stop it. */
 @media (prefers-reduced-motion: reduce) {
-  .opponent.active { animation: none; box-shadow: 0 0 0 2px var(--accent); }
+  .opFace, .opFace::after { animation: none !important; will-change: auto; }
 }
+.appHidden .opFace, .appHidden .opFace::after { animation: none !important; will-change: auto; }
+#table:has(~ .overlay:not(.hidden), ~ #emoteBar:not(.hidden)) .opFace,
+#table:has(~ .overlay:not(.hidden), ~ #emoteBar:not(.hidden)) .opFace::after { animation: none !important; will-change: auto; }
 
 /* --- Hand ein-/ausklappbar (Pfeil in der Toolbar) ------------------------- */
 .handToggle {
@@ -4013,14 +4110,12 @@ input:disabled { opacity: 0.65; }
 }
 .seoIntroBody ul { margin: 0 0 6px; padding-left: 18px; }
 
-/* --- Akku: Dauer-Animationen im Hintergrund anhalten -----------------------
-   Die pulsierenden Hinweise (Ziehstapel, Anlege-Ziel, aktiver Gegner) laufen
-   endlos. Ist die App nicht sichtbar, bringen sie nichts, kosten aber weiter
-   Compositing-Arbeit. `.appHidden` wird vom Client bei visibilitychange gesetzt.
-   Zusätzlich respektieren wir die System-Einstellung "Bewegung reduzieren". */
+/* --- Battery: stop endless animations nobody sees ------------------------------
+   The pulsing hints (draw pile, lay-off target) loop forever; in a hidden app they
+   only cost compositing (client.js sets .appHidden). Reduced motion stops them too.
+   The breathing bot has its own still rules (see "Breathing bots"). */
 .appHidden .pile.glow,
 .appHidden .meldGroup.layOffTarget,
-.appHidden .opponent.active,
 .appHidden .yourTurnPulse {
   animation: none !important;
 }
@@ -4028,7 +4123,6 @@ input:disabled { opacity: 0.65; }
 @media (prefers-reduced-motion: reduce) {
   .pile.glow,
   .meldGroup.layOffTarget,
-  .opponent.active,
   .yourTurnPulse {
     animation: none !important;
   }
