@@ -2873,12 +2873,8 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   .khSvg *, .khSvg *::before { animation: none !important; }
 }
 
-/* --- Kartenhaus at the table ------------------------------------------------
-   The floor as a playing card: its number is the rank, the house the suit, the
-   best stars sit at its foot, a handicap floor has the sheet's red dashed edge.
-   Portrait: beside the piles (they move right, no row of its own); landscape: in
-   the side column under the piles; desktop: heading that column. Modifiers are
-   paper tokens with their own icon and the --paper-mod edge. */
+/* --- Kartenhaus at the table: the floor card sits beside the piles (portrait), under
+   them (landscape) or heads their column (desktop) - never in a row of its own. */
 #table.towerGame #centerPiles { justify-content: flex-end; gap: 18px; padding-left: 12px; padding-right: 18px; }
 #table.towerGame #centerPiles::before { inset: -6px 0 -2px 42%; }
 .towerBar {
@@ -2921,9 +2917,8 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 /* Fresh after the start card: the card is dealt to its place. */
 .towerBar.tfEnter .tfCard { animation: tfDeal 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
 @keyframes tfDeal { from { transform: translateY(-28px) rotate(18deg); opacity: 0; } to { transform: rotate(-4deg); opacity: 1; } }
-/* The start card: paper on the table, in the empty middle before the first move -
-   the floor card dealt beside the title, "Los" right of it; the queen keeps her note
-   (it explains the marked card), handicaps go by name (goOut is in the goal line). */
+/* The start card: paper in the empty meld area before the first move; the queen keeps her
+   note (it explains the marked card), handicaps go by name (goOut sits in the goal). */
 .towerStart {
   --text-muted: rgba(0, 0, 0, 0.62); /* the paper remap of .overlay-card */
   position: relative; z-index: 3; flex: 0 0 auto; margin: 6px 12px 2px;
@@ -3014,11 +3009,8 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 @media (prefers-reduced-motion: reduce) {
   .towerStart, .towerStart .tfCard.big, .towerBar.tfEnter .tfCard, .pileLock.nudge, #hand .card.towerSpot { animation: none; }
 }
-/* Desktop: the pile column spans the opponents band (as in landscape) and the floor
-   card heads it in one row - card, goal, modifiers - reaching over the band's empty
-   end (--tb-reach); the chips keep clear of it. Fixed width: inline-size containment
-   keeps the column (and the melds) as wide as before. The start card sits in the
-   middle of the meld area. A short window keeps the landscape layout (last block). */
+/* Desktop: the floor card heads the pile column and reaches over the opponents band's empty
+   end (--tb-reach, kept free by the chips); short windows keep the landscape layout. */
 @media (min-width: 1100px) and (min-height: 541px) {
   #table.towerGame { --tb-reach: 224px; grid-template-areas: 'top top' 'opp piles' 'melds piles' 'action action' 'hand hand'; }
   #table.towerGame #opponents { padding-right: calc(var(--tb-reach) + 4px); }
@@ -5798,9 +5790,8 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
   #accountLoginForm .fieldLabel, #accountRegisterForm .fieldLabel { margin: 0; }
   #accountLoginForm .linkBtn { justify-self: center; }
 
-  /* Kartenhaus at ~400 px: the floor card under the piles, spanning both pile columns
-     (inline-size containment: its text never widens them); the start card over the
-     empty meld area, "Los" beside the text. */
+  /* Kartenhaus at ~400 px: the floor card spans both pile columns under the piles;
+     inline-size containment keeps its text from widening them. */
   #table.towerGame #centerPiles {
     display: grid; grid-template-columns: auto auto; justify-content: center; align-content: start;
     gap: 8px 14px; padding: 6px calc(12px + var(--safe-right)) 4px 4px;
