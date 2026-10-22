@@ -2980,7 +2980,7 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 #discardPile.towerLocked .pileLabel { display: none; }
 #discardPile.towerLocked .pileLockLabel { display: block; color: var(--text); }
 #discardPile.towerLocked .pileLock {
-  position: absolute; top: -8px; left: -9px; z-index: 2;
+  position: absolute; top: -9px; left: -4px; z-index: 2;
   display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%;
   background: var(--card-bg); border: 1.5px dashed var(--paper-mod); color: var(--paper-mod); box-shadow: var(--shadow-1);
 }
@@ -5806,6 +5806,9 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
     gap: 8px 14px; padding: 6px calc(12px + var(--safe-right)) 4px 4px;
   }
   #table.towerGame #discardPile.towerLocked { width: 46px; }
+  /* Side by side, the draw pile's count badge reaches over: the lock token stays clear of it. */
+  #discardPile.towerLocked .pileLock { top: -9px; left: -3px; width: 20px; height: 20px; }
+  #discardPile.towerLocked .pileLock .icon { width: 11px; height: 11px; }
   #table.towerGame #centerPiles::before { inset: -6px 15% -2px; }
   /* The floor card sits under the piles: the undo chip takes the caption's place. */
   #table.towerGame .pileUndoBtn { top: auto; bottom: -8px; }
