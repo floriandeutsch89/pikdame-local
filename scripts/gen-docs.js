@@ -40,6 +40,8 @@ const ENV_NOTES = {
   PIKDAME_MODELS_DIR: 'Where the `.onnx` model files live. Override it to mount models on a volume and swap them without rebuilding the image. Default: the `models/` folder in the image.',
   PIKDAME_LOG_GAMES: 'Set to `1` to log human moves to JSONL for imitation learning.',
   PIKDAME_LOG_PATH: 'Where the move log is written.',
+  PIKDAME_TOWER_GEN: 'Set to `0` to stop the server from building Kartenhaus months (from 2027-01) in its background worker; the months already in `tower-months.json` are still served. Needs the ONNX runtime anyway: without it nothing is built.',
+  PIKDAME_ONNX_THREADS: 'ONNX intra-op threads per session. Unset = the runtime default; the Kartenhaus deal worker sets `1` for itself (throttled).',
   PIKDAME_SMTP_EHLO: 'Host name announced in SMTP `EHLO`. Defaults to the host of `PIKDAME_BASE_URL`, else the machine name.',
   PIKDAME_BIRTHDAY: 'Optional greeting days: comma-separated `MM-DD:account` entries (account = user name, case-insensitive). On that game day (German time) only that signed-in account sees a small greeting on the start screen; nobody else sees anything. Broken entries are skipped and logged by position.',
 };

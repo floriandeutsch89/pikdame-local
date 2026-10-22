@@ -141,6 +141,9 @@ let DATA_DIR_WRITABLE = true; // for the config report
   }
 })();
 const CRASH_LOG_FILE = path.join(DATA_DIR, 'crash.log');
+// Kartenhaus months from 2027-01: the server picks their deals (a throttled worker).
+const towerMonths = require('./game/TowerMonths').createTowerMonths({ file: path.join(DATA_DIR, 'tower-months.json') });
+BotTower.setMonthSource(towerMonths.seedsFor);
 function logCrash(context, err, extra = {}) {
   const entry = `[${new Date().toISOString()}] (${context}) ${err && err.stack ? err.stack : err} ${
     Object.keys(extra).length ? JSON.stringify(extra) : ''
@@ -2044,6 +2047,7 @@ wss.on('connection', (ws, req) => {
       const months = !PUBLIC_MODE && name ? playerStore.towerMonths(name) : [];
       ws.send(JSON.stringify({
         type: 'towerInfo', month, today, stages: BotTower.publicStages(), clearMargin: BotTower.CLEAR_MARGIN, best, ...BotTower.summarize(best),
+        closed: towerMonths.closedFloors(month), // floors without a proven deal: 'building' | 'locked'
         totalStars: months.reduce((n, m) => n + m.stars, 0), archive: months.filter((m) => m.month !== month),
       }));
       return;
@@ -2059,6 +2063,8 @@ wss.on('connection', (ws, req) => {
       if (cfg.stage > BotTower.unlockedStage(playerStore.towerBest(name, month))) {
         return sendError(ws, 'Diese Etage ist noch gesperrt - hol dir erst einen Stern auf der Etage darunter.');
       }
+      // Never an unproven deal: a floor still being built (or without one this month) stays closed.
+      if (cfg.seed == null) return sendError(ws, 'Diese Etage wird gerade gebaut - schau bald wieder vorbei.');
       const created = registry.create({ deckSeed: cfg.seed, towerStage: cfg.stage, towerMonth: month, onAbandon: (code) => registry.delete(code) });
       if (created.error) return sendError(ws, created.error);
       const ok = await joinSession(created.session, msg);
@@ -2579,6 +2585,7 @@ function shutdown(signal) {
   // Laufende Spiele überleben den Neustart; gepufferte Store-Writes landen
   // sicher auf der Platte.
   writeSessionsSnapshot();
+  try { towerMonths.stop(); } catch (e) { /* flushes first; never block shutdown */ }
   playerStore.flushSync();
   gameHistoryStore.flushSync();
   globalStats.flushSync();
@@ -2640,6 +2647,10 @@ server.listen(PORT, () => {
     const OnnxPolicy = require('./game/OnnxPolicy');
     if (OnnxPolicy.enabled()) OnnxPolicy.warmup().catch((e) => logCrash('onnx-warmup', e));
   } catch (e) { logCrash('onnx-warmup', e); }
+  // The Kartenhaus needs stored profiles: off in the public mode, so nothing to build there.
+  if (!PUBLIC_MODE && process.env.PIKDAME_TOWER_GEN !== '0') {
+    try { towerMonths.start(); } catch (e) { logCrash('tower-months', e); }
+  }
   // SMTP probe: log in and out once, so a wrong host/port/password shows up
   // now instead of at the first registration. Never blocks the start.
   if (mailer.configured) {

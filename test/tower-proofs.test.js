@@ -13,8 +13,8 @@ const BotTower = require('../game/BotTower');
 const OnnxPolicy = require('../game/OnnxPolicy');
 const TowerSeeds = require('../game/TowerSeeds');
 const proofs = require('./fixtures/tower-proofs.json');
-const { playFloor, needsNet } = require('../scripts/tower-play');
-const { mediumWindow } = require('../scripts/tower-rule');
+const { playFloor, needsNet } = require('../game/TowerPlay');
+const { mediumWindow } = require('../game/TowerRule');
 
 const net = OnnxPolicy.enabled() && OnnxPolicy.available();
 const legacy = (month, stage) => month === BotTower.LEGACY_MONTH && stage <= 10;
@@ -87,4 +87,37 @@ test('a slow net answer never lets the game play a turn behind the replay', asyn
   const calm = await play(-1);
   // Without the guard a stall at the 8th answer let the bot timer change this game.
   for (const at of [4, 8]) assert.strictEqual(await play(at), calm, `a 1.5 s pause at answer ${at} changed the game`);
+});
+
+// The CI job tower-proofs: the server's own path builds one real month (worker,
+// net, full rule) and every floor replays with the stored Zen proof.
+test('a real month: the server builds it end to end, Zen replays every floor', { skip: process.env.PIKDAME_TOWER_GEN_E2E !== '1' && 'CI job tower-proofs (PIKDAME_TOWER_GEN_E2E=1)', timeout: 3 * 60 * 60 * 1000 }, async () => {
+  assert.ok(net, 'needs onnxruntime-node');
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const { createTowerMonths } = require('../game/TowerMonths');
+  const TowerGen = require('../game/TowerGen');
+  const month = process.env.PIKDAME_TOWER_GEN_MONTH || '2027-01';
+  const [y, m] = month.split('-').map(Number);
+  const dayBefore = `${m === 1 ? y - 1 : y}-${String(m === 1 ? 12 : m - 1).padStart(2, '0')}-20`;
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-towergen-')), 'tower-months.json');
+  const lines = [];
+  const tm = createTowerMonths({ file, today: () => dayBefore, log: (l) => lines.push(l), warn: (l) => lines.push(`WARN ${l}`) });
+  await tm.tick();
+  await tm.stop();
+  const floors = JSON.parse(fs.readFileSync(file, 'utf8')).months[month].floors;
+  console.log(lines.filter((l) => /proven|WARN/.test(l)).join('\n'));
+  let prev = null;
+  for (let stage = 1; stage <= 20; stage++) {
+    const f = floors[stage - 1];
+    assert.ok(TowerGen.proven(f) && !f.relaxed, `${month} floor ${stage}: a proven deal by the full rule`);
+    const o = await playFloor({ seed: f.seed, stage, month, proxy: 'zen' });
+    assert.deepStrictEqual([o.stars, o.margin, o.hash], f.zen, `${month} floor ${stage}: Zen replays the stored proof`);
+    if (stage > 10) {
+      const [lo, hi] = mediumWindow(stage, prev);
+      assert.ok(f.medium10 >= lo && f.medium10 <= hi, `${month} floor ${stage}: medium ${f.medium10} %`);
+      prev = f.medium10;
+    }
+  }
 });

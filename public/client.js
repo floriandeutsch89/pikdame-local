@@ -8522,12 +8522,17 @@
         : `<span class="khDTag"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg><span>${escapeHtml(L('gesperrt', 'locked'))}</span></span>`;
     const bots = towerBotsLine(s.bots, s.handicap);
     const mods = (s.mods || []).map((m) => `<span class="khMod ${towerModKind(m)}">${escapeHtml(towerModLabel(m))}</span>`).join('');
-    const note = st.state === 'locked'
+    // The server builds the month's deals itself; a floor without a proven one stays closed.
+    const closed = st.state !== 'locked' && info.closed && info.closed[stage];
+    const note = closed === 'locked'
+      ? L('Für diese Etage gibt es diesen Monat kein geprüftes Blatt - sie bleibt zu.', 'There is no proven deal for this floor this month - it stays closed.')
+      : closed ? L('Diese Etage wird gerade gebaut - schau bald wieder vorbei.', 'This floor is still being built - check back soon.')
+      : st.state === 'locked'
       ? L(`Schaff erst Etage ${Math.min(info.unlocked || 1, max)}.`, `Clear floor ${Math.min(info.unlocked || 1, max)} first.`)
       : st.state === 'next' ? L('Ein Stern: mehr Punkte als jeder Bot samt Vorgabe.', 'One star: more points than every bot plus its head start.')
         : st.stars < 3 ? L(`Bestwert ${st.stars} von 3 - ein neuer Versuch spielt dasselbe Blatt.`, `Best ${st.stars} of 3 - a new try plays the same deal.`)
           : L('Alle drei Sterne.', 'All three stars.');
-    const play = st.state === 'locked' ? ''
+    const play = st.state === 'locked' || closed ? ''
       : `<button type="button" class="${st.state === 'next' ? 'btn-primary' : 'btn-secondary'} khPlay" data-play="${stage}"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>` +
         `<span>${escapeHtml(st.state === 'next' ? L(`Etage ${stage} spielen`, `Play floor ${stage}`) : L(`Etage ${stage} nochmal`, `Floor ${stage} again`))}</span></button>`;
     return `<div class="khDHead"><b class="khDTitle">${escapeHtml(L(`Etage ${stage}`, `Floor ${stage}`))}</b>${tag}</div>` +

@@ -56,27 +56,36 @@ test('twenty floors: the old ladder, then three Zen bots with modifiers; 60 star
   ]);
 });
 
-test('months: the first keeps the old fixed tower, every month twenty unique deals, later months cycle', () => {
+test('months: the static list ends 2026-12, later months come from the generator, nothing cycles', () => {
   const months = Object.keys(TowerSeeds).sort();
   assert.strictEqual(BotTower.LEGACY_MONTH, '2026-10');
-  assert.ok(months.length >= 12, `${months.length} months`);
+  assert.deepStrictEqual(months, ['2026-10', '2026-11', '2026-12']);
   assert.deepStrictEqual(TowerSeeds['2026-10'].slice(0, 10), [84, 10, 78, 24, 63, 131, 34, 89, 28, 170], 'stars of the old tower stay valid');
   const all = [];
   for (const m of months) {
-    assert.match(m, /^\d{4}-(0[1-9]|1[0-2])$/);
     assert.strictEqual(TowerSeeds[m].length, 20, `${m}: one deal per floor`);
     all.push(...TowerSeeds[m]);
   }
   assert.strictEqual(new Set(all).size, all.length, 'every deal once');
-  const n = months.length;
-  const plus = (k) => { const i = 2026 * 12 + 9 + k; return `${Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}`; };
-  assert.deepStrictEqual(BotTower.monthSeeds(plus(n)), TowerSeeds['2026-10'], 'one cycle later: the first month again');
-  assert.deepStrictEqual(BotTower.monthSeeds(plus(-1)), TowerSeeds[months[n - 1]], 'before the list: from its end');
   assert.strictEqual(BotTower.monthOf('2026-11-03'), '2026-11');
   const cfg = BotTower.stageConfig(12, '2026-11');
   assert.deepStrictEqual([cfg.seed, cfg.month, cfg.handicap], [TowerSeeds['2026-11'][11], '2026-11', TOWER_STAGES[11].handicap]);
   assert.strictEqual(BotTower.stageConfig(3).month, '2026-10', 'no month: the first one (an old snapshot)');
   assert.strictEqual(BotTower.stageConfig(3, 'nonsense'), null);
+  // No generator: a later month has no deals at all (never a repeated month).
+  BotTower.setMonthSource(null);
+  assert.deepStrictEqual(BotTower.monthSeeds('2027-01'), Array(20).fill(null));
+  const later = BotTower.stageConfig(5, '2027-01');
+  assert.deepStrictEqual([later.seed, later.bots], [null, TOWER_STAGES[4].bots], 'bots and rules stay, the deal is missing');
+  try {
+    BotTower.setMonthSource((m) => (m === '2027-01' ? Array.from({ length: 20 }, (_, i) => (i === 4 ? null : 7000 + i)) : null));
+    assert.strictEqual(BotTower.stageConfig(1, '2027-01').seed, 7000);
+    assert.strictEqual(BotTower.stageConfig(5, '2027-01').seed, null, 'a floor still being built has no deal');
+    assert.strictEqual(BotTower.stageConfig(1, '2027-02').seed, null);
+    assert.strictEqual(BotTower.stageConfig(1, '2026-11').seed, TowerSeeds['2026-11'][0], 'the static list wins');
+  } finally {
+    BotTower.setMonthSource(null);
+  }
 });
 
 test('the client never learns the seeds', () => {
