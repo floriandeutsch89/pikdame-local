@@ -1,13 +1,11 @@
-// scripts/tower-play.js - plays one Kartenhaus floor with a bot in the human
-// seat (tooling only: tower-seeds.js and test/tower-proofs.test.js).
-// Every floor is deterministic per seed and line of play (easy bots draw their
-// randomness from the deal), so one game by Hard or Zen proves a deal.
+// game/TowerPlay.js - plays one Kartenhaus floor with a bot in the human seat
+// (the deal generator TowerGen.js, scripts/tower-seeds.js, tests). Every floor
+// is deterministic per seed and line of play (easy bots draw their randomness
+// from the deal), so one game by Zen (or Hard) proves a deal.
 'use strict';
-// Simulated seats are no human moves: without this, data/human-moves.jsonl fills the disk.
-process.env.PIKDAME_LOG_GAMES = '0';
 const crypto = require('crypto');
-const GameManager = require('../game/GameManager');
-const BotTower = require('../game/BotTower');
+const GameManager = require('./GameManager');
+const BotTower = require('./BotTower');
 
 /** murmur3's finalizer: neighbouring inputs give unrelated PRNG seeds. */
 function mix(h) {
@@ -46,6 +44,7 @@ async function playFloor({ seed, stage, month, proxy = 'hard', slip = 0, run = 0
   // This loop plays every turn. The game's own bot timer would play one behind its
   // back whenever an awaited net answer takes longer than ~1 s (proof replays diverged).
   g.maybeRunBotTurn = () => {};
+  g._noMoveLog = true; // a simulated seat is no human move (a seed run once wrote 22 GB)
   try {
     g.addOrReconnectPlayer('me', 'Sim');
     g.syncLobbyBots();
@@ -96,9 +95,10 @@ async function playFloor({ seed, stage, month, proxy = 'hard', slip = 0, run = 0
 
 /** Star rate (0-100) of the medium heuristic with `slip` human-like mistakes over n games.
  *  With `within: [lo, hi]` it stops early and returns null once the rate cannot land inside. */
-async function slipRate({ seed, stage, month, n = 100, slip = 0.1, proxy = 'medium', within = null }) {
+async function slipRate({ seed, stage, month, n = 100, slip = 0.1, proxy = 'medium', within = null, beforeGame = null }) {
   let stars = 0;
   for (let run = 0; run < n; run++) {
+    if (beforeGame) beforeGame(); // the deal worker's stop check: never inside a game
     if ((await playFloor({ seed, stage, month, proxy, slip, run: 2000 + run })).stars >= 1) stars += 1;
     if (within && ((100 * stars) / n > within[1] || (100 * (stars + n - run - 1)) / n < within[0])) return null;
   }

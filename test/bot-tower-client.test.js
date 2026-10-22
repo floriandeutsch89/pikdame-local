@@ -474,3 +474,20 @@ test('start screen: a fresh month calls, a crowned one rests, public mode shows 
   assert.deepStrictEqual(p.errors, []);
   p.window.close();
 });
+
+test('a floor without a proven deal stays closed: being built, or locked for the month', () => {
+  const t = startScreen();
+  t.ws.fire('message', towerInfo({ closed: { 2: 'locked', 3: 'building' } }));
+  openSheet(t);
+  const detail = t.doc.getElementById('towerDetail');
+  floorEl(t, 3).dispatchEvent(new t.window.MouseEvent('click', { bubbles: true }));
+  assert.match(detail.textContent, /Diese Etage wird gerade gebaut - schau bald wieder vorbei\./);
+  assert.strictEqual(detail.querySelector('.khPlay'), null, 'no way into a floor without a deal');
+  floorEl(t, 2).dispatchEvent(new t.window.MouseEvent('click', { bubbles: true }));
+  assert.match(detail.textContent, /kein geprüftes Blatt - sie bleibt zu\./);
+  assert.strictEqual(detail.querySelector('.khPlay'), null);
+  floorEl(t, 14).dispatchEvent(new t.window.MouseEvent('click', { bubbles: true }));
+  assert.match(detail.textContent, /Schaff erst Etage 3\./, 'a floor locked by progress keeps its own hint');
+  assert.deepStrictEqual(t.errors, []);
+  t.window.close();
+});

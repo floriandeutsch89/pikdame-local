@@ -456,6 +456,7 @@ window.I18N_SERVER_PATTERNS = [
   [/^Diese Etage gibt es nicht\.$/, 'This floor does not exist.'],
   [/^Für das Kartenhaus brauchst du einen Namen - dort werden deine Sterne gespeichert\.$/, 'The House of Cards needs a name - your stars are saved under it.'],
   [/^Diese Etage ist noch gesperrt - hol dir erst einen Stern auf der Etage darunter\.$/, 'This floor is still locked - earn a star on the floor below first.'],
+  [/^Diese Etage wird gerade gebaut - schau bald wieder vorbei\.$/, 'This floor is still being built - check back soon.'],
   [/^Eine Etage startest du über das Kartenhaus neu\.$/, 'Restart a floor from the House of Cards.'],
   [/^Diese Etage lässt sich nicht starten\.$/, 'This floor cannot be started.'],
   [/^Im Kartenhaus sind Regeln und Bots fest - jeder Versuch einer Etage läuft gleich\.$/, 'In the House of Cards, rules and bots are fixed - every try of a floor plays the same.'],

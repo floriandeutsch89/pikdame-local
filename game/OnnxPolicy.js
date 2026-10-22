@@ -108,7 +108,11 @@ async function getSession(difficulty) {
   }
   console.log(`ONNX-Modell geladen: ${file} (Schwierigkeit "${difficulty}")`);
   try {
-    const session = await ort.InferenceSession.create(file);
+    // PIKDAME_ONNX_THREADS: the Kartenhaus deal worker runs on one thread (throttled).
+    const threads = Number(process.env.PIKDAME_ONNX_THREADS) || 0;
+    const session = threads > 0
+      ? await ort.InferenceSession.create(file, { intraOpNumThreads: threads, interOpNumThreads: 1 })
+      : await ort.InferenceSession.create(file);
     sessions.set(difficulty, session);
     return session;
   } catch (e) {

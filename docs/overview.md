@@ -115,29 +115,61 @@ go into its lifetime and season XP without counting as a game; tower rounds
 count for no match statistics. Badges: 3/6/10 floors and 30 stars in the best
 month, and 1/3/12 crowned months (Lehrling, Polier/in, Baumeister/in).
 
-The deals live in `game/TowerSeeds.js` (generated data, 2026-10 to 2027-12);
-months past the list cycle through it deterministically (`monthSeeds`), so
-regenerate it before it runs out or after a new Zen model. A floor is
-deterministic per deal and line of play: Zen and Schwer play no dice, and the
-easy bots on floors 1-2 draw their randomness from the deal
-(`GameManager._botRandom`, Kartenhaus only). So one game is a proof:
-`scripts/tower-seeds.js` (onnxruntime-node outside the repo, see CLAUDE.md)
-takes a deal only when Zen in the human seat earns a star on it; Schwer's game
-is recorded too where it wins. Floors 1-10 also need Schwer's star under a
-margin cap (tight floors). Floors 11-20 aim at a medium player: Mittel with
-10 % random moves earns a star in 100 games at a rate within ±10 pp of a target
-falling from 45 % (floor 11) to 13 % (floor 20), at least 8 %, and at most
-5 pp above the floor below, so the staircase never gets easier
-(`scripts/tower-rule.js`, also checked by the test). There is no fallback: a
-floor without a deal after 20000 candidates is reported. A rerun keeps every
-floor that meets the rule and re-picks only the others; each month and floor
-draws from its own seed block, so months run in parallel (`--jobs`) and a
-rerun picks the same deals.
-`test/fixtures/tower-proofs.json` holds stars, margin and a move hash of every
-proof game; `test/tower-proofs.test.js` replays them (without onnxruntime only
-Schwer on the floors without a Zen bot, always including floors 1-2, all of
-them in the CI job `tower-proofs`). After an intended bot change, `--prove`
-refreshes the hashes and fails if Zen lost a star on a floor. `--rate N` measures Schwer's star rate per floor over N random deals.
+**The deals.** A floor is deterministic per deal and line of play: Zen and
+Schwer play no dice, and the easy bots on floors 1-2 draw their randomness from
+the deal (`GameManager._botRandom`, Kartenhaus only). So one game is a proof.
+The ONE rule (`game/TowerRule.js`) and generator (`game/TowerGen.js`, playing
+through `game/TowerPlay.js`) take a deal only when Zen in the human seat earns a
+star on it undisturbed; Schwer's game is recorded too where it wins. Floors
+1-10 also need Schwer's star under a margin cap (tight floors). Floors 11-20 aim
+at a medium player: Mittel with 10 % random moves earns a star in 100 games at a
+rate within ±10 pp of a target falling from 45 % (floor 11) to 13 % (floor 20),
+at least 8 %, and at most 5 pp above the floor below, so the staircase never
+gets easier. When the floor below caps a floor, the search runs without the cap
+and re-picks the floor below to fit (one step back). Up to 20000 candidates per
+floor, no closest-deal fallback. Candidates come from the month
+(`candidateSeed`: FNV-1a over month, floor, lane and index), so the same month
+always gets the same deals.
+
+- **Up to 2026-12:** a static list, `game/TowerSeeds.js`, with
+  `test/fixtures/tower-proofs.json` (stars, margin and a move hash of every
+  proof game). `test/tower-proofs.test.js` replays them (without onnxruntime
+  only Schwer on the floors without a Zen bot, always including floors 1-2; all
+  of them in the CI job `tower-proofs`). `scripts/tower-seeds.js --prove`
+  refreshes the hashes after an intended bot change; `--rate N` measures
+  Schwer's star rate per floor.
+- **From 2027-01 the server builds every month itself** (`game/TowerMonths.js`):
+  - From the 15th it builds the NEXT month in a `worker_threads` worker
+    (`game/TowerWorker.js`): one worker, lowest priority for its thread and the
+    one ONNX thread it starts, a yield between candidates, so live games keep
+    their pace. Measured for 2027-01: 26 minutes, about 25 CPU minutes, about
+    +75 MB RSS while it runs (a second V8 isolate and ONNX session), no change
+    in event-loop delay or bot-turn time, also on a single core.
+  - `data/tower-months.json` (atomic writes like the other JSON stores) holds
+    per month the generator version and per floor the seed, Zen's proof
+    `[stars, margin, hash]`, Schwer's where it won, the medium rate. It is
+    written after every finished floor, so a restart resumes there.
+  - On start the Zen proofs of this and next month are replayed (seconds). A
+    floor Zen no longer wins (bots or net changed) is picked again, plus the
+    floor above if the staircase needs it; the rest stays (players have stars).
+  - Emergency: this month incomplete (e.g. the 1st and nothing ready) is built
+    right away with a smaller search; only the medium band may relax
+    (`relaxed`), never Zen's proof. A floor without any proven deal stays
+    locked, and the house says so (`towerInfo.closed`: `building` | `locked`).
+    An unproven deal is never served (`BotTower.stageConfig` gives `seed: null`,
+    `startTower` refuses).
+  - Without onnxruntime nothing is built (Zen would play the heuristic: no
+    proof); a warning is logged and whatever `data/` holds is used. Months do
+    not cycle any more.
+  - `PIKDAME_TOWER_GEN` (default `1`): `0` makes an instance read-only. It
+    never builds; it re-reads `data/tower-months.json` on every hourly pass
+    (a dedicated generator instance from the same image may write it) and
+    replays the proofs on start, only logging a floor Zen no longer wins. The
+    tests run with `0`.
+  - Shutdown: the worker is asked to stop and ends between two games; ending
+    it inside an ONNX run aborts the whole process (`Napi::Error`).
+  - Several replicas: the deals depend only on the month and the bots, so every
+    replica computes the same file; plain atomic writes are enough, no lock.
 
 **The old bot tower is October 2026.** Its ten fixed deals are October's
 floors 1-10, and a profile's pre-monthly `tower` stars count there

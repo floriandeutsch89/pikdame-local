@@ -32,6 +32,8 @@ services:
       - PIKDAME_MAIL_FROM=${PIKDAME_MAIL_FROM:-}
       - PIKDAME_ADMIN_TOKEN=${PIKDAME_BETA_ADMIN_TOKEN:-}
       - PIKDAME_BIRTHDAY=${PIKDAME_BIRTHDAY:-}
+      # Kartenhaus months from 2027-01: 1 = this instance builds them (ONNX), 0 = read only.
+      - PIKDAME_TOWER_GEN=${PIKDAME_TOWER_GEN:-1}
     secrets:
       - beta_db_password
       - smtp_password

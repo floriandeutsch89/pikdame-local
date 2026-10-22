@@ -90,6 +90,9 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   - `DailyPuzzle.js`: Ergebnisobjekt ohne `type`-Feld (wird in WS gespreadet).
     Arten im Wochentakt (meld/turn/out); Tage vor `ROTATION_START` bleiben,
     wie sie ausgespielt wurden (Archiv per `date`, ohne EP).
+  - Kartenhaus-Blätter ab 2027-01 baut der Server selbst (`TowerMonths.js`, Worker):
+    EINE Regel/Generator (`TowerRule.js`/`TowerGen.js`) für Server und Skript;
+    nie ein unbewiesenes Blatt ausliefern (Zen-Beweis Pflicht).
   - `StammtischStore.js`: Gruppen-Tische `ST…`, per Code abgeschottet (auch
     im Public-Mode aktiv). Codes nie in die Partien-Historie (per Name
     abrufbar), dort nur ein Flag. `Emotes.js`: EINZIGE Emote-Whitelist (Vertragstest).
