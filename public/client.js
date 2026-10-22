@@ -421,13 +421,41 @@
     return ' ' + BOT_FACES[h % BOT_FACES.length];
   }
 
-  function avatarFor(name, isBot) {
+  // Breathing bots: only the bot on turn breathes, in its level's rhythm (style.css).
+  // Periods scale with the bot pace, so a medium breath spans about one bot turn.
+  const BREATH_MS = new Map([['easy', 2300], ['medium', 1200], ['hard', 2600], ['zen', 5000]]);
+  const BREATH_PACE = new Map([['fast', 0.5], ['normal', 1], ['slow', 2]]); // = BOT_PACE_FACTOR (GameManager)
+  let breathTurn = '';
+  let breathSince = 0;
+  /** The current bot's breath, or null. The phase is anchored to the turn start: a
+   *  chip renderTable rebuilds breathes on (negative delay) instead of restarting. */
+  function botBreath(st) {
+    if (!st || st.phase !== 'playing' || st.paused || !Array.isArray(st.players)) return null;
+    if (st.challengeDate) return null; // the daily challenge never shows the bots' level
+
+    const p = st.players.find((x) => x.id === st.currentPlayerId);
+    if (!p || !p.isBot) return null; // a seat a bot covers on disconnect stays human
+    const level = BREATH_MS.has(p.botDifficulty) ? p.botDifficulty : 'zen';
+    const pace = BREATH_PACE.get(st.houseRules && st.houseRules.botPace) || 1;
+    const period = BREATH_MS.get(level) * pace;
+    const turn = `${st.roundNumber}:${st.turnIndexInRound}:${p.id}`;
+    const now = performance.now();
+    if (turn !== breathTurn) { breathTurn = turn; breathSince = now; }
+    // Leicht enters its uneven loop elsewhere every turn (the same for every viewer).
+    const skip = level === 'easy' ? (((Number(st.turnIndexInRound) || 0) * 7919) % 2300) / 2300 * period : 0;
+    return { id: p.id, level, period: Math.round(period), delay: -Math.round(now - breathSince + skip) };
+  }
+
+  function avatarFor(name, isBot, breath) {
     let h = 5381;
     for (const ch of String(name)) h = ((h * 33) ^ ch.codePointAt(0)) >>> 0;
     const hue = h % 360;
-    // Bots bekommen GESICHTER statt fünfmal 🤖 (Brotato-Prinzip: sofortige
-    // Wiedererkennung am Tisch) - deterministisch aus demselben Namens-Hash.
+    // Bots get faces instead of five robots (recognised at a glance), from the same name hash.
     const glyph = isBot ? BOT_FACES[h % BOT_FACES.length] : escapeHtml((Array.from(String(name).trim())[0] || '?').toUpperCase());
+    // Breathing: the face is its own element, drawn at peak size inside the avatar's box.
+    if (isBot && breath) {
+      return `<span class="opAvatar breathing" data-breath="${breath.level}" style="--br-dur:${breath.period}ms;--br-delay:${breath.delay}ms"><span class="opFace" style="background:hsl(${hue},46%,40%)">${glyph}</span></span>`;
+    }
     return `<span class="opAvatar" style="background:hsl(${hue},46%,40%)">${glyph}</span>`;
   }
 
@@ -2327,7 +2355,9 @@
     el('roundInfo').title = iAmDealer ? L('Du gibst diese Runde', 'You deal this round') : '';
     const isMyTurn = lastState.currentPlayerId === playerId;
     updateTurnTitleNotice(isMyTurn && lastState.phase === 'playing');
-    el('turnStatus').innerHTML = turnStatusHtml(lastState, playerId);
+    // One breath per render: the chip's face and the header's face stay in step.
+    const breath = botBreath(lastState);
+    el('turnStatus').innerHTML = turnStatusHtml(lastState, playerId, breath);
 
     // Gegner
     const opponentsDiv = el('opponents');
@@ -2385,7 +2415,8 @@
           : lowCards
             ? `<span class="opLowTag"><svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg><span>${p.handCount === 1 ? L('Letzte Karte!', 'Last card!') : L('Noch 2 Karten!', '2 cards left!')}</span></span>`
             : '';
-        d.innerHTML = `<div class="opName">${avatarFor(p.name, p.isBot)}${nameWithHeart(p.name)}${dealerStar}${reconnecting ? ` <span class="reconnectTag">${L('getrennt', 'offline')}</span>` : ''}</div><div class="opCount"><span class="opCards" title="${cardsText}"><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><b>${p.handCount}</b></span><b class="opPts" title="${L(`${opTotal} Punkte`, `${opTotal} points`)}">${opTotal}</b></div><div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>${lowTag}`;
+        const faceBreath = breath && breath.id === p.id ? breath : null;
+        d.innerHTML = `<div class="opName">${avatarFor(p.name, p.isBot, faceBreath)}<span class="opNameText">${nameWithHeart(p.name)}</span>${dealerStar}${reconnecting ? ` <span class="reconnectTag">${L('getrennt', 'offline')}</span>` : ''}</div><div class="opCount"><span class="opCards" title="${cardsText}"><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><b>${p.handCount}</b></span><b class="opPts" title="${L(`${opTotal} Punkte`, `${opTotal} points`)}">${opTotal}</b></div><div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>${lowTag}`;
         // Daily challenge: the level is fixed and deliberately not shown.
         // Badge lives OUTSIDE the name div: inside it, the name ellipsis on
         // narrow chips (3 bots, portrait) swallowed the button.
@@ -3125,7 +3156,7 @@
   // Topbar status. On my turn the three steps of a turn, current one marked
   // (the old "(Karte ziehen)" bracket wrapped to two lines on a phone);
   // otherwise who is on turn. Returns markup; names are escaped.
-  function turnStatusHtml(st, me) {
+  function turnStatusHtml(st, me, breath) {
     if (st.phase === 'roundEnd') return escapeHtml(L('Runde vorbei', 'Round over'));
     if (st.phase === 'gameOver') return escapeHtml(L('Partie vorbei', 'Game over'));
     const who = (id) => st.players.find((p) => p.id === id) || null;
@@ -3139,7 +3170,8 @@
       const cp = who(st.currentPlayerId);
       if (!cp) return '–';
       const name = nameWithHeart(cp.name);
-      return `${avatarFor(cp.name, cp.isBot)}<span class="turnWho">${L(`${name} ist dran`, `${name}'s turn`)}</span>`;
+      const faceBreath = breath && breath.id === cp.id ? breath : null;
+      return `${avatarFor(cp.name, cp.isBot, faceBreath)}<span class="turnWho">${L(`${name} ist dran`, `${name}'s turn`)}</span>`;
     }
     const draw = st.turnPhase === 'draw';
     // Took the discard top: it must be laid before anything else, discarding included.
@@ -6608,10 +6640,14 @@
       document.title = BASE_TITLE;
     }
   }
-  // BATTERY: mark the app as hidden so CSS can stop the endless pulse
-  // animations (draw pile glow, lay-off target, active opponent). They are
-  // pointless when nobody is looking but keep the compositor busy.
+  // BATTERY: mark the app as hidden so CSS can stop the endless animations
+  // (draw pile glow, lay-off target, a bot's breath) nobody is looking at.
   document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      // The breath restarts now: anchor it to its turn start again.
+      const b = botBreath(lastState);
+      if (b) document.querySelectorAll('.opAvatar.breathing').forEach((a) => a.style.setProperty('--br-delay', `${b.delay}ms`));
+    }
     document.documentElement.classList.toggle('appHidden', document.hidden);
   });
 
