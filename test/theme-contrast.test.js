@@ -211,10 +211,14 @@ for (const theme of THEMES) {
   });
 }
 
+// The house's floors are the floor cards of the table: the rim of a handicap is the red
+// edge, the next floor carries the paper accent, a closed one its icon in ink.
 test('theme contrast: the Kartenhaus draws with the paper tokens', () => {
-  assert.match(ruleBody('.khFloor.mod .khCard, .khFloor.mod .khPlate'), /stroke:\s*var\(--paper-mod\)/);
-  assert.match(ruleBody('.khFloor.built.mod .khCard, .khFloor.built.mod .khPlate'), /stroke:\s*var\(--paper-mod\)/);
-  assert.match(ruleBody('.khFloor.next .khHalo'), /stroke:\s*var\(--paper-accent\)/);
+  assert.match(ruleBody('.khRim.mod'), /stroke:\s*var\(--paper-mod\)/);
+  assert.match(ruleBody('.khRim.risk'), /stroke:\s*var\(--star-edge\)/);
+  assert.match(ruleBody('.khFloor.next .khGhost'), /stroke:\s*var\(--paper-accent\)/);
+  assert.match(ruleBody('.khFace'), /fill:\s*var\(--card-bg\);\s*stroke:\s*color-mix\(in srgb, var\(--card-ink\)/, 'a white card on the white sheet keeps an edge');
+  assert.match(ruleBody('.khGlyph'), /stroke:\s*color-mix\(in srgb, var\(--card-ink\)/, 'the closed icon is ink, never a colour');
   assert.match(ruleBody('.khMod'), /color:\s*var\(--paper-mod\)/);
   assert.match(ruleBody('.khStar.on'), /fill:\s*var\(--star-fill\)/);
 });

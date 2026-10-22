@@ -2794,11 +2794,14 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   font-size: var(--fs-body);
 }
 /* --- Kartenhaus sheet ---------------------------------------------------------
-   The house on the light paper, theme tokens only: built floors are dark card
-   backs (--suit-black), the next one carries the accent, floors 11-20 the red
-   --paper-mod edge (CVD-checked against the accents in theme-contrast.test.js)
-   with a shorter dash as the second cue. The SVG scales with the sheet; its
-   hit areas tile the house, one row >= --tap-min even on an iPhone SE. */
+   The house on the light paper, theme tokens only. A starred floor is its floor
+   card from the table: a white face with an edge and a shadow (white on white),
+   the dashed rim of its special rule (--paper-mod red for a handicap, CVD-checked
+   against the accents in theme-contrast.test.js; gold for a risk). The next floor
+   is a dashed card in the accent; a closed one a hatched outline whose icon
+   (hourglass: being built, lock: no deal this month) carries the meaning. The SVG
+   scales with the sheet; its hit areas tile the house, each floor >= --tap-min
+   even on an iPhone SE. */
 .towerCard { max-width: 440px; }
 .khHead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .overlay-card .khHead h2 { margin-bottom: 2px; }
@@ -2806,51 +2809,70 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 .khSummary { margin: 0 0 6px; font-size: var(--fs-label); color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .khSummary b { color: var(--star-ink); font-weight: 800; }
 /* The box keeps the house's shape while the data loads: nothing jumps. */
-.khHouse { width: 100%; aspect-ratio: 344 / 290; }
+.khHouse { position: relative; width: 100%; aspect-ratio: 356 / 278; }
+/* Phones upright: the house bleeds into the sheet's side padding, so a floor stays
+   44 px wide on an iPhone SE (eight cards in the bottom row). */
+@media (max-width: 600px) and (orientation: portrait) {
+  .towerCard .khHouse { width: calc(100% + 28px); margin: 0 -14px; --kh-cap-x: 14px; }
+}
 .khSvg { display: block; width: 100%; height: 100%; overflow: visible; -webkit-user-select: none; user-select: none; }
 .khGround { stroke: color-mix(in srgb, var(--card-ink) 22%, transparent); stroke-width: 1; }
 .khHit { fill: transparent; }
 .khFloor { cursor: pointer; outline: none; }
-.khHalo, .khSel { fill: none; stroke: none; }
-.khFloor.next .khHalo { fill: var(--accent-soft); stroke: var(--paper-accent); stroke-width: 1.4; }
-.khFloor.sel:not(.next) .khSel { stroke: var(--card-ink); stroke-opacity: 0.55; stroke-width: 1.5; }
+.khSel { fill: none; stroke: none; }
+.khFloor.sel:not(.isNext) .khSel { stroke: var(--card-ink); stroke-opacity: 0.55; stroke-width: 1.5; }
 .khFloor:focus-visible .khSel { stroke: var(--paper-accent); stroke-opacity: 1; stroke-width: 2; }
-/* Blueprint: not built yet. */
-.khCard, .khPlate {
-  fill: transparent; stroke: color-mix(in srgb, var(--card-ink) 38%, transparent);
-  stroke-width: 1.2; stroke-dasharray: 3.5 2.6;
-}
-.khFloor.mod .khCard, .khFloor.mod .khPlate { stroke: var(--paper-mod); stroke-width: 1.3; stroke-dasharray: 2.4 2.4; stroke-opacity: 0.85; }
-/* Built: the card backs. */
-.khFloor.built .khCard { fill: url(#khBack); stroke: var(--suit-black); stroke-width: 1; stroke-dasharray: none; }
-.khFloor.built .khPlate { fill: var(--suit-black); stroke: var(--suit-black); stroke-width: 1; stroke-dasharray: none; }
-.khFloor.built.mod .khCard, .khFloor.built.mod .khPlate { stroke: var(--paper-mod); stroke-width: 2.2; stroke-opacity: 1; }
+/* Built: the floor card face up. */
+.khFace { fill: var(--card-bg); stroke: color-mix(in srgb, var(--card-ink) 38%, transparent); stroke-width: 1; }
+.khFloor.built > g { filter: drop-shadow(0 1px 1.1px rgba(0, 0, 0, 0.22)); }
+.khRim { fill: none; stroke-width: 1.3; stroke-dasharray: 3 2.2; }
+.khRim.mod { stroke: var(--paper-mod); }
+.khRim.risk { stroke: var(--star-edge); }
+.khRank { font-family: var(--font-display); font-size: 13.5px; font-weight: 800; letter-spacing: -0.04em; fill: var(--card-ink); }
+.khPip { fill: none; stroke: var(--suit-red); stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
+.khStar { fill: none; stroke: color-mix(in srgb, var(--card-ink) 32%, transparent); stroke-width: 0.8; }
+.khStar.on { fill: var(--star-fill); stroke: var(--star-edge); }
+/* Next: a dashed card in the accent. Closed: hatched, its icon says why. */
+.khGhost { fill: none; stroke-width: 1.2; }
+.khFloor.next .khGhost { fill: var(--accent-soft); stroke: var(--paper-accent); stroke-width: 1.8; stroke-dasharray: 3.5 2.6; }
+.khFloor.next .khRank { fill: var(--paper-accent); }
+.khFloor.closed .khGhost { fill: url(#khHatch); stroke: color-mix(in srgb, var(--card-ink) 55%, transparent); }
+.khFloor.closed .khRank { fill: color-mix(in srgb, var(--card-ink) 55%, transparent); }
+.khFloor.closed.isNext .khGhost { stroke: var(--paper-accent); stroke-width: 1.8; }
+.khFloor.closed.isNext .khRank { fill: var(--paper-accent); }
+.khHatchBase { fill: color-mix(in srgb, var(--card-ink) 4%, transparent); }
+.khHatchLine { fill: color-mix(in srgb, var(--card-ink) 16%, transparent); }
+.khGlyph { fill: none; stroke: color-mix(in srgb, var(--card-ink) 75%, transparent); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+/* Not reachable yet: only its number marks the place. */
+.khPlan { font-family: var(--font-display); font-size: 11px; font-weight: 700; text-anchor: middle; fill: color-mix(in srgb, var(--card-ink) 45%, transparent); }
+.khPlate { fill: var(--suit-black); }
+/* The back, shown while a card is collected at a month change. */
+.khBack { opacity: 0; fill: url(#khBack); }
 .khBackBase { fill: var(--suit-black); }
 .khBackLine { fill: rgba(255, 255, 255, 0.1); }
-.khRim { fill: none; stroke: rgba(255, 255, 255, 0.5); stroke-width: 0.8; }
-/* Next: the one to build now. */
-.khFloor.next .khCard, .khFloor.next .khPlate { fill: var(--card-bg); stroke: var(--paper-accent); stroke-width: 1.8; stroke-dasharray: none; }
-.khFloor.next.mod .khCard, .khFloor.next.mod .khPlate { stroke: var(--paper-mod); stroke-width: 2.2; stroke-opacity: 1; }
-.khNum {
-  font-family: var(--font-display); font-size: 13px; font-weight: 800; text-anchor: middle;
-  fill: color-mix(in srgb, var(--card-ink) 50%, transparent);
-}
-.khFloor.built .khNum { fill: var(--card-bg); }
-.khFloor.next .khNum { fill: var(--card-ink); }
-.khStar { fill: none; stroke: rgba(255, 255, 255, 0.55); stroke-width: 0.8; }
-.khFloor.next .khStar { stroke: color-mix(in srgb, var(--card-ink) 45%, transparent); }
-.khStar.on { fill: var(--star-fill); stroke: var(--star-edge); stroke-width: 0.6; }
 /* The top: a dashed place for the Queen of Spades, then the card itself. */
 .khSpitze { fill: color-mix(in srgb, var(--star-fill) 10%, transparent); stroke: var(--star-edge); stroke-width: 1.3; stroke-dasharray: 3.5 2.6; }
 .khSpitzeText { font-size: 7.5px; font-weight: 800; text-anchor: middle; fill: var(--star-ink); }
 .khQueen { filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.25)); }
 .khQueenCard { fill: var(--card-bg); stroke: var(--star-edge); stroke-width: 2; }
-.khQueenQ { font-family: var(--font-display); font-size: 12px; font-weight: 800; fill: var(--suit-black); }
-.khQueenS { font-size: 20px; text-anchor: middle; fill: var(--suit-black); }
-.khApex.locked .khPlate { stroke: color-mix(in srgb, var(--star-edge) 70%, transparent); }
+.khQueenQ { font-family: var(--font-display); font-size: 13px; font-weight: 800; fill: var(--suit-black); }
+.khQueenS { font-size: 22px; text-anchor: middle; fill: var(--suit-black); }
+/* "September ist vorbei" in the house's empty corner: it ends at 40 % of the house,
+   clear of the top and floor 19 even on an iPhone SE. */
+.khCaption {
+  position: absolute; top: 0; left: var(--kh-cap-x, 0px); z-index: 1; max-width: calc(40% - var(--kh-cap-x, 0px)); margin: 0; padding: 6px 10px;
+  display: flex; flex-direction: column; gap: 1px;
+  border: 1px solid var(--glass-border); border-radius: var(--r-sm); background: color-mix(in srgb, var(--card-bg) 88%, transparent);
+  font-size: var(--fs-hint); color: var(--text-muted); pointer-events: none;
+}
+.khCaption b { font-size: var(--fs-label); color: var(--card-ink); }
+.khHouse.khBusy { cursor: pointer; }
+.khOldLayer { pointer-events: none; }
 .khLegend { display: flex; align-items: center; gap: 8px; margin: 2px 0 8px; font-size: var(--fs-hint); color: var(--text-muted); }
-.khLegendMark { width: 11px; height: 14px; flex-shrink: 0; }
-.khLegendMark rect { fill: none; stroke: var(--paper-mod); stroke-width: 2; stroke-dasharray: 2.5 1.6; }
+.khLegendMark { width: 20px; height: 14px; flex-shrink: 0; }
+.khLegendMark rect { fill: none; stroke-width: 2; stroke-dasharray: 2.5 1.6; }
+.khLegendMark .mod { stroke: var(--paper-mod); }
+.khLegendMark .risk { stroke: var(--star-edge); }
 /* The detail of the tapped floor; its height is reserved, so the sheet does not jump. */
 .khDetail {
   min-height: 168px; margin: 0 0 6px; padding: 12px 14px;
@@ -2907,22 +2929,19 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 .khArchCrown .icon { width: 1.1em; height: 1.1em; }
 .khArchRow:not(.crowned) { grid-template-columns: minmax(0, 1fr) auto auto; }
 /* Motion: transform and opacity only, inside the fixed box - nothing reflows.
-   A new star lands, a lost try wobbles, a new month collapses and rises again,
-   a crown lands on top. All of it stays still under prefers-reduced-motion. */
-.khFloor.khLanding, .khFloor.khWobble, .khFloor.khFall, .khFloor.khRise, .khFloor.khCrowning {
-  transform-box: fill-box; transform-origin: 50% 100%;
-}
-.khFloor.khLanding { animation: khLand 0.75s cubic-bezier(0.3, 0.7, 0.4, 1) var(--kh-delay, 0s) both; }
+   A new floor card is dealt, a better star pops, a lost try wobbles, a crown lands
+   on top. All of it stays still under prefers-reduced-motion. */
+.khFloor.khDealt, .khFloor.khWobble, .khFloor.khCrowning { transform-box: fill-box; transform-origin: 50% 100%; }
+.khFloor.khDealt { animation: khDeal 0.6s cubic-bezier(0.2, 0.8, 0.3, 1.1) var(--kh-delay, 0s) both; }
 .khFloor.khWobble { animation: khWobble 1.1s ease-in-out var(--kh-delay, 0s) both; }
-.khFloor.khFall { animation: khFall 0.75s cubic-bezier(0.5, 0, 0.9, 0.5) var(--kh-delay, 0s) both; }
-.khFloor.khRise { animation: khRise 0.45s ease-out var(--kh-delay, 0s) both; }
 .khApex.khCrowning { animation: khCrown 0.95s cubic-bezier(0.3, 0.7, 0.4, 1) var(--kh-delay, 0s) both; }
 .khStar.khPop { transform-box: fill-box; transform-origin: center; animation: khStarPop 0.45s ease-out var(--kh-delay, 0s) both; }
-.khFloor.next .khHalo { animation: khBreathe 2.8s ease-in-out infinite; }
-@keyframes khLand {
-  0% { transform: translateY(-80px) rotate(-16deg); opacity: 0; }
-  60% { transform: translateY(3px) rotate(2deg); opacity: 1; }
-  80% { transform: translateY(-2px) rotate(-1deg); }
+.khFloor.next > g { animation: khBreathe 2.8s ease-in-out infinite; }
+/* Dealt in from below, settling against its partner. */
+@keyframes khDeal {
+  0% { transform: translate(var(--kh-dx, 0px), 70px) scale(0.86); opacity: 0; }
+  15% { opacity: 1; }
+  70% { transform: translate(0, -4px) scale(1.03); }
   100% { transform: none; opacity: 1; }
 }
 @keyframes khWobble {
@@ -2932,8 +2951,6 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   60% { transform: rotate(-1.5deg); }
   80% { transform: rotate(0.8deg); }
 }
-@keyframes khFall { to { transform: translate(var(--kh-dx, 0px), 110px) rotate(var(--kh-rot, 20deg)); opacity: 0; } }
-@keyframes khRise { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes khCrown {
   0% { transform: translateY(-110px) rotate(-28deg); opacity: 0; }
   55% { transform: translateY(5px) rotate(3deg); opacity: 1; }
@@ -2941,6 +2958,35 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   100% { transform: none; opacity: 1; }
 }
 @keyframes khStarPop { 0% { transform: scale(0); } 70% { transform: scale(1.45); } 100% { transform: scale(1); } }
+@keyframes khBreathe { 0%, 100% { opacity: 0.7; } 50% { opacity: 1; } }
+/* A new month, once (2.55 s, KH_COLLECT_MS): the cards are collected, last laid first -
+   each lifts, turns face down at 39 % and floats onto one pile; the plates sink; the pile
+   glides away from 2.1 s and the new month fades in from 2.15 s. A tap skips it. */
+.khCollect { transform-box: fill-box; transform-origin: 50% 50%; }
+.kh-collect .khCollect { animation: khCollect 0.85s var(--kh-delay, 0s) both; }
+.kh-collect .khCollect .khBack { animation: khFlipBack 0.85s var(--kh-delay, 0s) both; }
+.kh-collect .khOldLayer > .khPlate { animation: khPlateOut 0.35s ease-in var(--kh-delay, 0s) both; }
+.kh-collect .khPile { animation: khPileOut 0.42s cubic-bezier(0.5, 0, 0.8, 0.4) 2.1s both; }
+.kh-collect .khNewLayer { animation: khAppear 0.4s ease-out 2.15s both; }
+.khCaption.moving { animation: khCaptionOut 0.3s ease-in 2.25s both; }
+@keyframes khCollect {
+  0% { transform: translate(0, 0) rotate(0deg) scale(1, 1); animation-timing-function: ease-out; }
+  12% { transform: translate(0, -6px) rotate(calc(var(--kh-rot) * 0.04)) scale(1.06, 1.06); animation-timing-function: ease-in-out; }
+  38% {
+    transform: translate(calc(var(--kh-fx) * 0.3 + var(--kh-sw)), calc(var(--kh-fy) * 0.24)) rotate(calc(var(--kh-rot) * 0.35)) scale(0.12, 1);
+    animation-timing-function: ease-in-out;
+  }
+  64% {
+    transform: translate(calc(var(--kh-fx) * 0.68 - var(--kh-sw) * 0.5), calc(var(--kh-fy) * 0.64)) rotate(calc(var(--kh-rot) * 0.78)) scale(1, 1);
+    animation-timing-function: ease-in;
+  }
+  100% { transform: translate(var(--kh-fx), var(--kh-fy)) rotate(var(--kh-rot)) scale(1, 1); }
+}
+@keyframes khFlipBack { 0%, 37% { opacity: 0; } 39%, 100% { opacity: 1; } }
+@keyframes khPlateOut { to { transform: translateY(8px); opacity: 0; } }
+@keyframes khPileOut { to { transform: translateX(-210px); opacity: 0; } }
+@keyframes khAppear { from { opacity: 0; } to { opacity: 1; } }
+@keyframes khCaptionOut { to { opacity: 0; } }
 /* Landscape phones and desktop: the house left, head and detail right. */
 @media (orientation: landscape) and (max-height: 540px), (min-width: 1100px) {
   .overlay-card.towerCard {
@@ -2955,9 +3001,8 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 @media (min-width: 1100px) {
   .overlay-card.towerCard { max-width: 940px; padding: 24px 26px; --kh-house-h: min(400px, calc(82vh - 48px)); }
 }
-@keyframes khBreathe { 0%, 100% { opacity: 0.7; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
-  .khSvg *, .khSvg *::before { animation: none !important; }
+  .khSvg *, .khSvg *::before, .khCaption { animation: none !important; }
 }
 
 /* --- Kartenhaus at the table: the floor card sits beside the piles (portrait), under
@@ -5863,12 +5908,16 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
   .stammtischSheet .stGoalLevel small { display: none; }
   .stammtischSheet .stGoalWeek { flex: 1 1 auto; }
 
-  /* Kartenhaus at ~400 px: the house left at full height, head right above the
-     detail; only the right column scrolls. */
-  .overlay-card.towerCard { height: calc(100dvh - 16px); max-width: 820px; padding: 10px 16px; --kh-house-h: calc(100dvh - 36px); }
+  /* Kartenhaus at ~400 px: the house left (at most 336 px high, so the detail keeps its
+     width and the play button stays in view), head right above the detail; only the
+     right column scrolls. */
+  .overlay-card.towerCard { height: calc(100dvh - 16px); max-width: 820px; padding: 10px 16px; --kh-house-h: min(calc(100dvh - 36px), 336px); }
   .towerCard .khSide { overflow-y: auto; }
   .towerCard .khSide > * { flex-shrink: 0; }  /* else an open fold squeezes the detail card into overlap */
-  .towerCard .khDetail { min-height: 0; padding: 8px 12px; }
+  .towerCard .khDetail { min-height: 0; margin-bottom: 2px; padding: 8px 12px; }
+  /* A few pixels less around the detail: "Schließen" fits under the next floor's play button. */
+  .towerCard .khLegend { margin: 0 0 4px; }
+  .towerCard .khPlay { margin-top: 8px; }
 
   /* Year review at ~400 px: the story card left, its controls bottom right. */
   #yearReviewOverlay .overlay-card {
