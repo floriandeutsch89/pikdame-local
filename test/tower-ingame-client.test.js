@@ -748,7 +748,9 @@ test('style contract: the ✕ is a 44 px target in a corner of its own; hidden, 
   };
   const px = (s, name) => Number((s.match(new RegExp(`${name}: (\\d+)px`)) || [])[1]);
   const land = css.slice(css.lastIndexOf('@media (orientation: landscape) and (max-height: 540px)'));
-  const desk = css.match(/@media \(min-width: 1100px\) and \(min-height: 541px\) \{[^@]*/)[0];
+  const desk = [...css.matchAll(/@media \(min-width: 1100px\) and \(min-height: 541px\) \{[^@]*/g)]
+    .map((m) => m[0]).find((b) => b.includes('#table.towerGame {'));
+  assert.ok(desk, 'the desktop Kartenhaus block');
   // Its own 44 px button in the bar's top right corner, above the card.
   assert.match(rule('.tbHide'), /grid-area: 1 \/ 1; justify-self: end; align-self: start; z-index: 2;/);
   assert.match(rule('.tbHide'), /width: var\(--tap-min\); height: var\(--tap-min\)/);
