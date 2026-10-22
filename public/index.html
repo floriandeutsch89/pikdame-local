@@ -733,9 +733,25 @@
 
       <div id="opponents"></div>
 
+      <!-- Kartenhaus start card: before the first move of a floor, in the empty
+           middle of the table (landscape/desktop: over the meld area). Never modal. -->
+      <section id="towerStart" class="towerStart hidden" aria-labelledby="towerStartTitle">
+        <div id="towerStartCard" class="tsStage" aria-hidden="true"></div>
+        <div class="tsBody">
+          <p class="tsEye"><svg class="icon" aria-hidden="true"><use href="#i-cardhouse"/></svg><span>Kartenhaus</span></p>
+          <h3 id="towerStartTitle" class="tsTitle"></h3>
+          <p id="towerStartGoal" class="tsGoal"></p>
+          <div id="towerStartMods" class="tsMods"></div>
+          <button id="towerStartBtn" class="btn-primary tsGo" type="button"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>Los</span></button>
+        </div>
+      </section>
+
       <div id="melds"></div>
 
       <div id="centerPiles">
+        <!-- Kartenhaus: the floor as a playing card beside the piles (side column in
+             landscape and on desktop); a tap opens the floor's rules. Filled by client.js. -->
+        <button id="towerBar" class="towerBar hidden" type="button" aria-haspopup="dialog" aria-label="Kartenhaus"></button>
         <div class="pile" id="drawPile">
           <div class="pile-card back"></div>
           <span id="drawCount">0</span>
@@ -749,6 +765,9 @@
                action bar: there it slid into the empty 'Abwerfen' slot. -->
           <button id="undoPileBtn" class="pileUndoBtn tapExpand hidden" title="Aufnahme zurücklegen" aria-label="Aufnahme zurücklegen"><svg class="icon" aria-hidden="true"><use href="#i-undo"/></svg><span>Zurücklegen</span></button>
           <div class="pileLabel">Ablage</div>
+          <!-- Kartenhaus "Ohne Ablage" (#discardPile.towerLocked): a lock on the card, the handicap as its caption. -->
+          <div id="discardLock" class="pileLock" aria-hidden="true"><svg class="icon"><use href="#i-lock"/></svg></div>
+          <div class="pileLabel pileLockLabel">Erschwernis</div>
         </div>
       </div>
 
@@ -1044,6 +1063,15 @@
           </details>
           <button id="towerCloseBtn" class="btn-secondary">Schließen</button>
         </div>
+      </div>
+    </section>
+
+    <!-- Kartenhaus at the table: the rules of the floor being played (tap on the floor card). -->
+    <section id="towerFloorOverlay" class="overlay hidden" data-sheet-close="towerFloorCloseBtn">
+      <div class="overlay-card towerFloorSheet" role="dialog" aria-labelledby="towerFloorTitle">
+        <h2 id="towerFloorTitle" class="iconTitle"><svg class="icon" aria-hidden="true"><use href="#i-cardhouse"/></svg><span id="towerFloorTitleText">Kartenhaus</span></h2>
+        <div id="towerFloorBody" class="tfSheet"></div>
+        <button id="towerFloorCloseBtn" class="btn-secondary">Weiterspielen</button>
       </div>
     </section>
 

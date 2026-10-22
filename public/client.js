@@ -1736,6 +1736,7 @@
       towerInfo = { ...msg, forName: towerAskedFor };
       renderTower();
       renderTowerTile();
+      if (lastState && lastState.towerStage) { try { renderTowerTable(); } catch (e) { /* cosmetic */ } }
       if (!el('progressOverlay').classList.contains('hidden')) renderProgressSheet();
       return;
     }
@@ -2637,6 +2638,7 @@
     const discardBlocked = (discardAidOn() || noDiscardFloor) && canDraw && !!lastState.discardTop && lastState.discardTakeable === false;
     el('discardPile').classList.toggle('glow', canDraw && !!lastState.discardTop && !discardBlocked);
     el('discardPile').classList.toggle('noTake', discardBlocked);
+    try { renderTowerTable(); } catch (e) { /* the floor card never breaks the table */ }
 
     // Hand
     const myPlayer = lastState.players.find((p) => p.id === playerId);
@@ -2708,6 +2710,7 @@
         if (DND_ENABLED && isMyTurn && lastState.turnPhase === 'meld') attachDragSource(cEl, card);
         // Gerade gezogene/aufgenommene Karte sichtbar machen
         if (freshCardIds.has(card.id)) cEl.classList.add('just-drawn');
+        if (towerSpotOn && card.rank === 'Q' && card.suit === 'S') cEl.classList.add('towerSpot');
         // Fächer-Optik: Karten leicht um die Mitte der Hand rotiert + angehoben.
         // Rotation flacht bei vielen Karten ab, sonst wird der Fächer unleserlich.
         const mid = (sorted.length - 1) / 2;
@@ -4266,6 +4269,8 @@
   });
 
   el('discardPile').addEventListener('click', () => {
+    // Kartenhaus "Ohne Ablage": explain instead of a silent tap or a server refusal.
+    if (el('discardPile').classList.contains('towerLocked')) { explainTowerLock(); return; }
     if (el('discardPile').classList.contains('disabled')) return;
     // Known-illegal take: still ask the server (it explains WHY in its
     // error toast) but skip the sound and the card flying to the hand - they
@@ -8448,6 +8453,13 @@
     if (left <= 0) return L('heute letzter Tag', 'last day today');
     return left === 1 ? L('noch 1 Tag', '1 day left') : L(`noch ${left} Tage`, `${left} days left`);
   }
+  /** "3 Bots: Zen, Zen, Zen · 160 Punkte Vorgabe" - the floor detail and the floor at the table. */
+  function towerBotsLine(bots, handicap) {
+    const names = (bots || []).map((b) => (BOT_DIFF[b] || BOT_DIFF.zen).short()).join(', ');
+    const n = (bots || []).length;
+    return L(`${n} Bots: ${names}`, `${n} bots: ${names}`) +
+      (handicap ? L(` · ${handicap} Punkte Vorgabe`, ` · ${handicap}-point head start`) : '');
+  }
   /** The detail under the house: who plays, what the floor asks, and the way in. */
   function towerDetailHtml(info, stage) {
     const max = info.stages.length;
@@ -8474,14 +8486,12 @@
     const s = info.stages.find((x) => x.stage === stage);
     if (!s) return '';
     const st = towerFloorState(info, stage);
-    const metas = s.bots.map((b) => BOT_DIFF[b] || BOT_DIFF.zen);
     const tag = st.state === 'built'
       ? `<span class="khDStars" role="img" aria-label="${escapeHtml(L(`${st.stars} von 3 Sternen`, `${st.stars} of 3 stars`))}">${towerStarsHtml(st.stars)}</span>`
       : st.state === 'next'
         ? `<span class="khDTag next">${escapeHtml(L('als Nächstes', 'up next'))}</span>`
         : `<span class="khDTag"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg><span>${escapeHtml(L('gesperrt', 'locked'))}</span></span>`;
-    const bots = L(`${metas.length} Bots: ${metas.map((m) => m.short()).join(', ')}`, `${metas.length} bots: ${metas.map((m) => m.short()).join(', ')}`) +
-      (s.handicap ? L(` · ${s.handicap} Punkte Vorgabe`, ` · ${s.handicap}-point head start`) : '');
+    const bots = towerBotsLine(s.bots, s.handicap);
     const mods = (s.mods || []).map((m) => `<span class="khMod">${escapeHtml(TOWER_MODS[m] ? TOWER_MODS[m]() : m)}</span>`).join('');
     const note = st.state === 'locked'
       ? L(`Schaff erst Etage ${Math.min(info.unlocked || 1, max)}.`, `Clear floor ${Math.min(info.unlocked || 1, max)} first.`)
@@ -8541,18 +8551,38 @@
   function renderTowerDetail(info) {
     el('towerDetail').innerHTML = info ? towerDetailHtml(info, towerSelected || towerDefaultSelection(info)) : '';
   }
+  // The star levels (BotTower.starsFor): generic in the help fold, exact for a floor
+  // at the table - its head start, and goOut leaves no 2-star outcome.
+  function towerStarRulesHtml({ clearMargin, handicap = null, goOut = false }) {
+    const stars = (k) => `<span class="khRuleStars" aria-hidden="true">${'<svg class="icon"><use href="#i-star"/></svg>'.repeat(k)}</span>`;
+    const li = (k, de, en, cls = '') => `<li${cls ? ` class="${cls}"` : ''}>${stars(k)}<span>${escapeHtml(L(de, en))}</span></li>`;
+    const m = clearMargin;
+    const h = handicap;
+    if (h === null) {
+      return '<ul class="khRuleList">' +
+        li(1, '1 Stern: mehr Punkte als jeder Bot samt Vorgabe', '1 star: more points than every bot plus its head start') +
+        li(2, `2 Sterne: mindestens ${m} Punkte vorn`, `2 stars: at least ${m} points ahead`) +
+        li(3, '3 Sterne: dazu selbst ausmachen', '3 stars: and go out yourself') + '</ul>';
+    }
+    const beat = h ? L(`mehr Punkte als jeder Bot samt ${h} Vorgabe`, `more points than every bot plus its ${h} head start`)
+      : L('mehr Punkte als jeder Bot', 'more points than every bot');
+    if (goOut) {
+      return '<ul class="khRuleList">' +
+        li(1, `1 Stern: selbst ausmachen und ${beat}`, `1 star: go out yourself with ${beat}`) +
+        li(2, '2 Sterne: gibt es hier nicht – ohne Ausmachen kein Stern', '2 stars: not on this floor – no star without going out', 'off') +
+        li(3, `3 Sterne: selbst ausmachen und mindestens ${m} Punkte vorn`, `3 stars: go out yourself at least ${m} points ahead`) + '</ul>';
+    }
+    return '<ul class="khRuleList">' +
+      li(1, `1 Stern: ${beat}`, `1 star: ${beat}`) +
+      li(2, `2 Sterne: mindestens ${m} Punkte vorn`, `2 stars: at least ${m} points ahead`) +
+      li(3, '3 Sterne: dazu selbst ausmachen', '3 stars: and go out yourself') + '</ul>';
+  }
   // The help fold: intro, star levels and floor-11 handicaps as lists, then the rest.
   function towerRulesHtml(info) {
     const n = info.stages.length;
-    const stars = (k) => `<span class="khRuleStars" aria-hidden="true">${'<svg class="icon"><use href="#i-star"/></svg>'.repeat(k)}</span>`;
-    const li = (k, de, en) => `<li>${stars(k)}<span>${escapeHtml(L(de, en))}</span></li>`;
     const p = (de, en) => `<p>${escapeHtml(L(de, en))}</p>`;
     return p(`Jeden Monat neue Blätter gegen dieselben Bots: ${n} Etagen, jede eine Runde.`, `New deals every month against the same bots: ${n} floors, one round each.`) +
-      '<ul class="khRuleList">' +
-      li(1, '1 Stern: mehr Punkte als jeder Bot samt Vorgabe', '1 star: more points than every bot plus its head start') +
-      li(2, `2 Sterne: mindestens ${info.clearMargin} Punkte vorn`, `2 stars: at least ${info.clearMargin} points ahead`) +
-      li(3, '3 Sterne: dazu selbst ausmachen', '3 stars: and go out yourself') +
-      '</ul>' +
+      towerStarRulesHtml({ clearMargin: info.clearMargin }) +
       p('Ein Stern macht die nächste Etage frei. Versuche sind unbegrenzt, der beste zählt.', 'One star unlocks the next floor. Tries are unlimited, the best counts.') +
       p('Ab Etage 11 spielt eine Erschwernis gegen dich:', 'From floor 11 a handicap plays against you:') +
       '<ul class="khRuleList">' +
@@ -8722,6 +8752,216 @@
     pane.insertBefore(box, head ? head.nextSibling : pane.firstChild);
     requestAnimationFrame(() => updateResultScrollEdges());
   }
+
+  // --- Kartenhaus at the table: floor card, start card, rules sheet, hints ----
+  const TOWER_INTRO_KEY = 'pikdame_tower_intro'; // the session whose start card was handled
+  const TOWER_MOD_ICON = { queen: 'spade', noDiscard: 'lock', goOut: 'flag' };
+  // The queen helps when melded (+100): a risk (gold), not a handicap (red edge).
+  const TOWER_MOD_KIND = { queen: 'risk' };
+  const towerModKind = (m) => TOWER_MOD_KIND[m] || 'handicap';
+  // The floor card is narrow: a shorter name where the sheet's one is long.
+  const TOWER_MOD_SHORT = { queen: () => L('Pik Dame', 'Queen of Spades') };
+  // One line on the start card; the exact rule on the sheet (BotTower.js, GameManager).
+  const TOWER_MOD_WHY = {
+    queen: () => L('ausgelegt +100, auf der Hand −100', '+100 melded, −100 in hand'),
+    noDiscard: () => L('du ziehst immer vom Stapel', 'you always draw from the stock'),
+    goOut: () => L('ohne Ausmachen kein Stern, auch nicht mit Vorsprung', 'no star without going out, even when ahead'),
+  };
+  const TOWER_MOD_RULE = {
+    queen: () => L('Du startest mit der Pik Dame auf der Hand. Ausgelegt bringt sie +100, bleibt sie auf der Hand, kostet sie −100.',
+      'You start with the Queen of Spades in hand. Melded she brings +100; left in hand she costs −100.'),
+    noDiscard: () => L('Du darfst die Ablage nie aufnehmen und ziehst immer vom Stapel. Die Bots dürfen sie weiter nehmen.',
+      'You may never take the discard pile and always draw from the stock. The bots may still take it.'),
+    goOut: () => L('Sterne gibt es nur, wenn du die Runde selbst beendest – mit dem Abwurf deiner letzten Karte. Vorsprung allein reicht nicht.',
+      'Stars only if you end the round yourself – by discarding your last card. Being ahead is not enough.'),
+  };
+  let towerStartOpen = false;
+  let towerIntroHandled = ''; // also without storage (private mode)
+  let towerInfoAskedFor = '';
+  let towerSpotOn = false;
+  let towerSpotTimer = null;
+  const towerModName = (m) => (TOWER_MODS[m] ? TOWER_MODS[m]() : m);
+  const towerModShort = (m) => (TOWER_MOD_SHORT[m] || TOWER_MODS[m])();
+  const towerModToken = (m) => `<span class="tfTok ${towerModKind(m)}" aria-hidden="true"><svg class="icon"><use href="#i-${TOWER_MOD_ICON[m]}"/></svg></span>`;
+  // Risks first, then handicaps; each group with its heading (start card, sheet, label).
+  const towerModGroups = (mods) => ['risk', 'handicap']
+    .map((kind) => ({ kind, mods: mods.filter((m) => towerModKind(m) === kind) })).filter((g) => g.mods.length);
+  const towerModGroupHead = (g) => (g.kind === 'risk' ? L('Risiko', 'Risk')
+    : g.mods.length > 1 ? L('Erschwernisse', 'Handicaps') : L('Erschwernis', 'Handicap'));
+
+  /** The floor being played: the state is the truth, this month's best stars come from the house. */
+  function towerFloor() {
+    const st = lastState;
+    if (!st || !st.towerStage || st.phase === 'lobby') return null;
+    const info = towerFresh();
+    const best = info && (!st.towerMonth || info.month === st.towerMonth) && info.best ? Number(info.best[st.towerStage]) || 0 : 0;
+    return {
+      stage: st.towerStage,
+      handicap: Number(st.towerHandicap) || 0,
+      clearMargin: Number(st.towerClearMargin) || (info && info.clearMargin) || 0,
+      mods: (Array.isArray(st.towerMods) ? st.towerMods : []).filter((m) => TOWER_MODS[m]),
+      bots: (st.players || []).filter((p) => p.isBot).map((p) => p.botDifficulty || 'zen'),
+      best: Math.max(0, Math.min(3, Math.floor(best))),
+    };
+  }
+  /** The floor as a playing card: its number the rank, the house the suit, the best stars at the foot. */
+  function towerFloorCardHtml(f, size = '') {
+    // The rim: red dashed for a handicap (as in the sheet), gold for a risk alone.
+    const rim = f.mods.some((m) => towerModKind(m) === 'handicap') ? ' mod' : f.mods.length ? ' risk' : '';
+    return `<span class="tfCard${rim}${size ? ` ${size}` : ''}" aria-hidden="true">` +
+      `<span class="tfRank"><b>${f.stage}</b><svg class="icon"><use href="#i-cardhouse"/></svg></span>` +
+      '<svg class="icon tfPip"><use href="#i-cardhouse"/></svg>' +
+      `<span class="tfStars">${towerStarsHtml(f.best)}</span></span>`;
+  }
+  function towerFloorAria(f) {
+    const stars = f.best ? L(`Bestwert ${f.best} von 3 Sternen`, `best ${f.best} of 3 stars`) : L('noch kein Stern', 'no star yet');
+    const head = f.handicap ? L(`Vorgabe ${f.handicap}`, `head start ${f.handicap}`) : L('ohne Vorgabe', 'no head start');
+    const mods = towerModGroups(f.mods).map((g) => `, ${towerModGroupHead(g)}: ${g.mods.map(towerModName).join(', ')}`).join('');
+    return L(`Kartenhaus, Etage ${f.stage}: ${stars}, ${head}${mods}. Regeln anzeigen`,
+      `House of Cards, floor ${f.stage}: ${stars}, ${head}${mods}. Show the rules`);
+  }
+  function renderTowerBar(f) {
+    const bar = el('towerBar');
+    bar.classList.toggle('hidden', !f);
+    if (!f) { bar.dataset.sig = ''; return; }
+    const sig = JSON.stringify([lang, f.stage, f.handicap, f.mods, f.best]);
+    if (bar.dataset.sig !== sig) {
+      bar.dataset.sig = sig;
+      const goal = f.handicap ? L(`Vorgabe <b>${f.handicap}</b>`, `Head start <b>${f.handicap}</b>`) : escapeHtml(L('Ohne Vorgabe', 'No head start'));
+      const mods = f.mods.map((m) => `<span class="tfMod">${towerModToken(m)}<span>${escapeHtml(towerModShort(m))}</span></span>`).join('');
+      bar.innerHTML = towerFloorCardHtml(f) + `<span class="tfCol"><span class="tfCap">${escapeHtml(towerName())}</span>` +
+        `<span class="tfGoal">${goal}</span>${mods ? `<span class="tfMods">${mods}</span>` : ''}</span>`;
+    }
+    bar.setAttribute('aria-label', towerFloorAria(f));
+  }
+  /** The very start of a try: the round runs, nobody moved yet, my draw. */
+  function towerAtStart(st) {
+    return st.phase === 'playing' && !st.turnIndexInRound && st.currentPlayerId === playerId && st.turnPhase === 'draw';
+  }
+  /** Once per try (a new try is a new session): shown at its start, never after a resume mid-floor. */
+  function updateTowerStart(f) {
+    const st = lastState;
+    const code = sessionCode || '';
+    if (f && code && towerIntroHandled !== code && storageGet(TOWER_INTRO_KEY) !== code) {
+      const fresh = towerAtStart(st);
+      if (fresh || st.phase !== 'cutting') {
+        towerIntroHandled = code;
+        storageSet(TOWER_INTRO_KEY, code);
+        if (fresh) openTowerStart(f);
+      }
+    }
+    if (towerStartOpen && (!f || !towerAtStart(st))) closeTowerStart(true);
+  }
+  function openTowerStart(f) {
+    towerStartOpen = true;
+    if (f.mods.includes('queen')) setTowerSpot(true);
+  }
+  /** "Los" lets the mark linger a moment; the first move ends it at once (cards get picked). */
+  function closeTowerStart(moved = false) {
+    if (!towerStartOpen) return;
+    towerStartOpen = false;
+    el('towerStart').classList.add('hidden');
+    el('table').classList.remove('towerStartOpen');
+    const bar = el('towerBar');
+    if (towerMotionOk()) {
+      bar.classList.add('tfEnter');
+      setTimeout(() => bar.classList.remove('tfEnter'), 700);
+    }
+    if (towerSpotOn) setTowerSpot(!moved, 1500);
+  }
+  /** "Pik Dame": the dealt queen stays marked while the start card explains it. */
+  function setTowerSpot(on, ms = 0) {
+    clearTimeout(towerSpotTimer);
+    towerSpotOn = on;
+    document.querySelectorAll('#hand .card.pikdame-card').forEach((q) => q.classList.toggle('towerSpot', on));
+    el('hand').classList.toggle('towerSpotOn', on); // the rest of the fan dims, as under the tutorial spotlight
+    if (on && ms) towerSpotTimer = setTimeout(() => setTowerSpot(false), ms);
+  }
+  function renderTowerStart(f) {
+    const box = el('towerStart');
+    const open = towerStartOpen && !!f;
+    box.classList.toggle('hidden', !open);
+    el('table').classList.toggle('towerStartOpen', open);
+    if (!open) { box.dataset.sig = ''; return; }
+    const sig = JSON.stringify([lang, f.stage, f.handicap, f.mods, f.best]);
+    if (box.dataset.sig === sig) return;
+    box.dataset.sig = sig;
+    el('towerStartCard').innerHTML = towerFloorCardHtml(f, 'big');
+    el('towerStartTitle').textContent = L(`Etage ${f.stage}`, `Floor ${f.stage}`);
+    // goOut belongs to the goal itself: no star without going out.
+    const out = f.mods.includes('goOut');
+    const h = `<b>${f.handicap}</b>`;
+    el('towerStartGoal').innerHTML = f.handicap
+      ? (out ? L(`Ziel: selbst ausmachen und mehr Punkte als jeder Bot samt ${h} Vorgabe.`, `Goal: go out yourself with more points than every bot plus its ${h} head start.`)
+        : L(`Ziel: mehr Punkte als jeder Bot samt ${h} Vorgabe.`, `Goal: more points than every bot plus its ${h} head start.`))
+      : escapeHtml(out ? L('Ziel: selbst ausmachen und mehr Punkte als jeder Bot.', 'Goal: go out yourself with more points than every bot.')
+        : L('Ziel: mehr Punkte als jeder Bot.', 'Goal: more points than every bot.'));
+    el('towerStartMods').innerHTML = towerModGroups(f.mods).map((g) =>
+      `<div class="tsGroup ${g.kind}"><p class="tsModsHead">${escapeHtml(towerModGroupHead(g))}</p><ul>` +
+      g.mods.map((m) => `<li><span class="tfMod ${g.kind}">${towerModToken(m)}<span>${escapeHtml(towerModName(m))}</span></span>` +
+        `<span class="tsWhy">${escapeHtml(TOWER_MOD_WHY[m]())}</span></li>`).join('') + '</ul></div>').join('');
+  }
+  /** The floor's rules (tap on the floor card): stars, bots, head start, each handicap exactly. */
+  function renderTowerFloorSheet(f) {
+    const overlay = el('towerFloorOverlay');
+    if (!f) { overlay.classList.add('hidden'); return; }
+    if (overlay.classList.contains('hidden')) return;
+    el('towerFloorTitleText').textContent = L(`Kartenhaus · Etage ${f.stage}`, `House of Cards · floor ${f.stage}`);
+    const h3 = (de, en) => `<h3>${escapeHtml(L(de, en))}</h3>`;
+    const p = (text, cls = '') => `<p${cls ? ` class="${cls}"` : ''}>${escapeHtml(text)}</p>`;
+    const best = f.best
+      ? L(`Dein Bestwert diesen Monat: ${f.best} von 3 Sternen`, `Your best this month: ${f.best} of 3 stars`)
+      : L('Auf dieser Etage hast du diesen Monat noch keinen Stern.', 'No star on this floor yet this month.');
+    // Sections never split (two columns in landscape).
+    const sec = (html) => `<div class="tfsSec">${html}</div>`;
+    el('towerFloorBody').innerHTML =
+      sec(`<div class="tfsHead">${towerFloorCardHtml(f)}<p>${escapeHtml(best)}</p></div>`) +
+      sec(h3('So holst du Sterne', 'How to earn stars') +
+        towerStarRulesHtml({ clearMargin: f.clearMargin, handicap: f.handicap, goOut: f.mods.includes('goOut') })) +
+      sec(h3('Gegner', 'Opponents') + p(towerBotsLine(f.bots, 0)) +
+        (f.handicap ? p(L(`Vorgabe ${f.handicap}: Für einen Stern brauchst du mehr Punkte als der beste Bot plus ${f.handicap}.`,
+          `Head start ${f.handicap}: for a star you need more points than the best bot plus ${f.handicap}.`), 'tfsNote') : '')) +
+      towerModGroups(f.mods).map((g) => sec(`<h3>${escapeHtml(towerModGroupHead(g))}</h3><ul class="tfsMods">` +
+        g.mods.map((m) => `<li>${towerModToken(m)}<span><b class="${g.kind}">${escapeHtml(towerModName(m))}:</b> ${escapeHtml(TOWER_MOD_RULE[m]())}</span></li>`).join('') + '</ul>')).join('') +
+      sec(p(L('Jeder Versuch spielt dasselbe Blatt, der beste zählt.', 'Every try plays the same deal, the best one counts.'), 'tfsNote'));
+  }
+  function openTowerFloorSheet() {
+    const f = towerFloor();
+    if (!f) return;
+    el('towerFloorOverlay').classList.remove('hidden');
+    renderTowerFloorSheet(f);
+  }
+  /** "Ohne Ablage": a tap on the locked pile says why instead of doing nothing. */
+  function explainTowerLock() {
+    showToast(L('Erschwernis „Ohne Ablage“: Auf dieser Etage ziehst du immer vom Stapel – die Ablage bleibt für dich gesperrt.',
+      'Handicap “No discard pile”: on this floor you always draw from the stock – the discard pile stays locked for you.'), { duration: 4500, priority: true });
+    const lock = el('discardLock');
+    lock.classList.remove('nudge');
+    void lock.offsetWidth; // restart the nudge
+    lock.classList.add('nudge');
+  }
+  /** Everything Kartenhaus on the table; part of every table render (and the language switch). */
+  function renderTowerTable() {
+    const f = towerFloor();
+    el('table').classList.toggle('towerGame', !!f);
+    // The best stars come with the house data: ask once per game when it is missing.
+    if (f && !towerFresh() && !publicMode && towerInfoAskedFor !== `${sessionCode}|${myName}`) {
+      towerInfoAskedFor = `${sessionCode}|${myName}`;
+      requestTower();
+    }
+    updateTowerStart(f);
+    renderTowerBar(f);
+    renderTowerStart(f);
+    renderTowerFloorSheet(f);
+    const locked = !!(f && f.mods.includes('noDiscard') && lastState.phase === 'playing');
+    el('discardPile').classList.toggle('towerLocked', locked);
+  }
+  el('towerBar').addEventListener('click', () => openTowerFloorSheet());
+  el('towerStartBtn').addEventListener('click', () => closeTowerStart());
+  el('towerFloorCloseBtn').addEventListener('click', () => el('towerFloorOverlay').classList.add('hidden'));
+  el('towerFloorOverlay').addEventListener('click', (ev) => {
+    if (ev.target === el('towerFloorOverlay')) el('towerFloorOverlay').classList.add('hidden');
+  });
 
   // --- "Heute": status of the daily puzzle and challenge on their tiles ----
   let challengeToday = null; // {date, you:{rank,score}|null} from /challengeboardz

@@ -21,7 +21,8 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   high), `desk` 1440×900, `se` 375×667 (small phones), `max` 440×956
   (Pro Max: 15 cards fit ONE fanned row there, at 393 they split into two;
   a layout bug at the hand can show on one and not the other), `lap`
-  1366×657 (laptop browser: desktop width, little height).
+  1366×657 (laptop browser: desktop width, little height), `nar` 1100×680
+  (the narrowest desktop layout: least room beside the opponents).
 - **Table scene:** `--scenes table --state <file>` injects a live game. Build
   the state from the real engine (`GameManager` + `fillWithBots` +
   `runBotTurn`, then `publicState('p1')`), not by hand.
@@ -61,7 +62,14 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   frames: a month change collapsing, a landing star next to a wobble; with
   `--tower crowned` the crown landing), `gameover-tower` (a floor verdict on
   the result sheet). `--tower mid|new|high|crowned` picks the month in the
-  mock (default `mid`: floors 1-8 built, 9 next). `--stammtische 0-3` sets
+  mock (default `mid`: floors 1-8 built, 9 next). A live Kartenhaus floor
+  from the engine (its deal, bots and head start): `tower-start` (the start
+  card before the first move), `tower-play` (the floor card mid-game,
+  `--turns N` of my turns, default 3), `tower-sheet` (its rules after a tap),
+  `tower-lock` (a tap on the locked discard pile). `--floor queen|goOut|
+  noDiscard|all` takes the floor with exactly that handicap from BotTower.js
+  (new deals or head starts never break the scene), or a floor number.
+  `--stammtische 0-3` sets
   the remembered Stammtische (default 1; 3 is the start screen's tallest
   form). Any order works:
   a start-screen scene after `table` or a result reloads the start screen
@@ -81,6 +89,12 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   counts), icon buttons without a name, and a portrait start screen that
   needs scrolling. Findings are evidence to judge, not automatic failures;
   the `ui-review` skill explains how.
+- `--measure` writes `<out>/measure.json`: the rectangles of the table's
+  regions (melds, piles, hand, action bar, the Kartenhaus floor and start
+  card) per shot. Run the same scenes with `SHOTS_ROOT=<origin/main
+  worktree>` for the "before" numbers: a new table element must not shrink
+  `#melds` or `#handWrapper`. `--eval <file>` prints a page expression per
+  tower scene (computed styles, grid tracks) when a layout puzzles you.
 
 The script starts its own server on a **temp `PIKDAME_DATA_DIR`** and kills it
 afterwards. That matters: a dev server on `data/` keeps `users.db` open, and

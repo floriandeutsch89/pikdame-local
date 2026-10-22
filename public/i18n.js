@@ -278,6 +278,9 @@ window.I18N_STATIC = {
   'So funktioniert das Kartenhaus': 'How the House of Cards works',
   'Frühere Monate': 'Earlier months',
   'Die Etage wartet kurz auf dich – danach endet sie ohne Sterne.': 'The floor waits for you briefly - after that it ends without stars.',
+  // Kartenhaus at the table: start card, locked discard pile
+  'Los': 'Go',
+  'Erschwernis': 'Handicap',
   // Year review (December) + its mail
   'Dein Jahr': 'Your year',
   'Dein Pik-Dame-Jahr': 'Your Pik Dame year',
