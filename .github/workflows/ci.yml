@@ -130,6 +130,31 @@ jobs:
           PIKDAME_TOWER_PROOFS_NET: '1'
         run: NODE_PATH="$RUNNER_TEMP/ort/node_modules" node --test --require ./test/helpers/setup.js test/tower-proofs.test.js
 
+  # The server's own path builds one real Kartenhaus month (worker, net, full
+  # rule) and Zen replays every floor. A month is ~25 CPU minutes, so it runs
+  # beside tower-proofs instead of in it.
+  tower-generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26.x
+          cache: 'npm'
+      - run: npm ci
+      - name: onnxruntime-node as pinned in the Dockerfile
+        run: |
+          ORT_VERSION=$(grep -oE 'onnxruntime-node@[0-9.]+' docker/Dockerfile | head -1 | cut -d@ -f2)
+          test -n "$ORT_VERSION"
+          npm install --prefix "$RUNNER_TEMP/ort" --no-save --ignore-scripts "onnxruntime-node@${ORT_VERSION}"
+      - name: Build 2027-01 like the server and replay it
+        env:
+          PIKDAME_ONNX: '1'
+          PIKDAME_TOWER_PROOFS_NET: '1'
+          PIKDAME_TOWER_GEN_E2E: '1'
+        run: NODE_PATH="$RUNNER_TEMP/ort/node_modules" node --test --require ./test/helpers/setup.js --test-name-pattern "a real month" test/tower-proofs.test.js
+
   dependency-check:
     runs-on: ubuntu-latest
     steps:

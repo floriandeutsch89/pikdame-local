@@ -142,7 +142,9 @@ always gets the same deals.
   - From the 15th it builds the NEXT month in a `worker_threads` worker
     (`game/TowerWorker.js`): one worker, lowest priority for its thread and the
     one ONNX thread it starts, a yield between candidates, so live games keep
-    their pace.
+    their pace. Measured for 2027-01: 26 minutes, about 25 CPU minutes, about
+    +75 MB RSS while it runs (a second V8 isolate and ONNX session), no change
+    in event-loop delay or bot-turn time, also on a single core.
   - `data/tower-months.json` (atomic writes like the other JSON stores) holds
     per month the generator version and per floor the seed, Zen's proof
     `[stars, margin, hash]`, Schwer's where it won, the medium rate. It is
@@ -164,6 +166,8 @@ always gets the same deals.
     (a dedicated generator instance from the same image may write it) and
     replays the proofs on start, only logging a floor Zen no longer wins. The
     tests run with `0`.
+  - Shutdown: the worker is asked to stop and ends between two games; ending
+    it inside an ONNX run aborts the whole process (`Napi::Error`).
   - Several replicas: the deals depend only on the month and the bots, so every
     replica computes the same file; plain atomic writes are enough, no lock.
 
