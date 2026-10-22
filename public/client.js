@@ -176,6 +176,9 @@
   // NEUE auf, gibt es die große Ankündigung (Raid-Warning-Stil).
   let prevTablePikdameIds = null;
   let prevPikdameRound = null;
+  // Her head turn: live moments by card id | 'pile' | 'pileOut' | 'result'.
+  const queenMoments = new Map();
+  let queenPrev = null; // facts of the previous state; null = the next one is only a baseline
   // --- Sprache (Deutsch/Englisch, Default Deutsch) ----------------------------
   const LANG_KEY = 'pikdame_lang';
   let lang = storageGet(LANG_KEY) === 'en' ? 'en' : 'de';
@@ -1588,6 +1591,7 @@
       if (msg.playerToken) storageSet(tokenKeyFor(msg.sessionCode), msg.playerToken);
       playerId = msg.playerId;
       sessionCode = msg.sessionCode;
+      queenPrev = null; // a (re)join is no queen moment: the state may have jumped
       storageSet(playerKeyFor(sessionCode), playerId);
       // URL aktualisieren, damit der Link direkt teilbar ist (?session=CODE)
       const url = new URL(window.location.href);
@@ -1709,6 +1713,7 @@
       updateWakeLock();
       maybeShowActionToast();
       maybeShowRoundQuote();
+      try { detectQueenMoments(); } catch (e) { /* cosmetic */ }
       checkPikdameAnnouncement();
       render();
       // After "Tutorial geschafft": the new game exists - start it with bots
@@ -1965,6 +1970,140 @@
     '</svg>';
   function suitColor(suit) {
     return suit === 'H' || suit === 'D' ? 'red' : 'black';
+  }
+
+  // --- The Queen of Spades turns her head on her real moments -----------------
+  // A bot turn arrives as ONE coalesced state, so moments come from where she
+  // is (hand, pile, table), never from pile counts. Timings: style.css qTurn*.
+  const QUEEN_TURN_MS = 580;
+  const QUEEN_EXIT_MS = 420;
+  const QUEEN_CHIP_MS = 1400; // the chip first waits for the result sheet (--q-lead)
+  // Her profile: the still cue in the index corner when motion is reduced.
+  const QUEEN_PROFILE_SVG =
+    '<svg class="qProfile" viewBox="6.6 7.6 27 35.4" aria-hidden="true"><path d="M15.4 13.2 15.9 9.6 17.9 11.6 19.8 8 21.6 11.4 23.8 9.5 24.3 12.8C26.3 13.6 27.5 15 27.9 16.8C30.9 16.4 33.3 18.6 33 21.6C32.8 24.2 30.6 25.9 28.1 25.6C27.6 27.2 26.8 28.6 25.9 29.7C26.8 32.6 29.1 34.5 32.2 35.6C33 37.6 32.7 39.8 31.6 41.6C27.8 42.6 12.2 42.6 8.4 41.6C7.3 39.8 7 37.6 7.8 35.6C11.4 34.8 14.3 33.2 15.4 30.6C15.6 29.9 15.6 29.3 15.3 28.8C14.2 28.8 13.2 28.4 12.8 27.7C12.5 27.1 12.7 26.6 12.6 26.1C12 25.8 11.8 25.3 12.1 24.8C11.6 24.4 11.5 23.9 11.9 23.5C10.9 23 9.8 22.4 9.9 21.6C10.1 20.8 11.6 20 12.3 18.9C12.5 16.9 13.4 14.9 15.4 13.2Z"/></svg>';
+  const isPikdameUp = (c) => !!c && !c.isJoker && !c.faceDown && c.rank === 'Q' && c.suit === 'S';
+  const motionReduced = () => {
+    try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
+  };
+
+  function queenFacts(st) {
+    const me = (st.players || []).find((p) => p.id === playerId);
+    const ids = (cards) => new Set((cards || []).filter(isPikdameUp).map((c) => c.id));
+    const table = new Set();
+    for (const m of st.tableMelds || []) for (const s of m.slots || []) if (isPikdameUp(s.real)) table.add(s.real.id);
+    const top = isPikdameUp(st.discardTop) ? st.discardTop.id : null; // the face-down last card never counts
+    const pile = ids(st.discardCards);
+    if (top) pile.add(top);
+    return { round: st.roundNumber, phase: st.phase, turn: st.turnIndexInRound, top, pile, table, hand: ids(me && me.hand) };
+  }
+
+  /** Every state, before render: starts her moments and drops the finished ones. */
+  function detectQueenMoments() {
+    const now = queenFacts(lastState);
+    const prev = queenPrev;
+    queenPrev = now;
+    // A moment lives for the turn it happened in, and only while she stays there.
+    const stays = (key, m) => {
+      if (m.kind === 'caught') return now.phase === 'roundEnd' || now.phase === 'gameOver';
+      if (m.kind === 'leave') return performance.now() - m.at < QUEEN_EXIT_MS;
+      if (now.turn !== m.turn) return false;
+      if (m.kind === 'discard') return now.top === m.id;
+      return m.kind === 'meld' ? now.table.has(key) : now.hand.has(key);
+    };
+    for (const [key, m] of queenMoments) if (!stays(key, m)) queenMoments.delete(key);
+    if (!prev || prev.round !== now.round) { queenMoments.clear(); return; } // (re)join, reload, new deal
+    const at = performance.now();
+    const start = (key, kind, id) => queenMoments.set(key, { kind, at, turn: now.turn, id });
+    if (prev.phase === 'playing' && now.phase === 'playing') {
+      for (const id of now.hand) {
+        if (prev.hand.has(id) || prev.table.has(id)) continue; // already mine, or an undone meld
+        start(id, prev.pile.has(id) ? 'pickup' : 'draw');
+      }
+      // Every turn ends with its discard; "Zurücklegen" puts her back within the turn.
+      if (now.top && now.top !== prev.top && now.turn !== prev.turn) start('pile', 'discard', now.top);
+      if (prev.top && !now.pile.has(prev.top)) start('pileOut', 'leave', prev.top);
+      for (const id of now.table) if (!prev.table.has(id)) start(id, 'meld');
+    } else if (prev.phase === 'playing' && (now.phase === 'roundEnd' || now.phase === 'gameOver')) {
+      const mine = (lastState.lastRoundStats || []).find((s) => s.id === playerId);
+      if (mine && mine.pikDameCount > 0) start('result', 'caught');
+    }
+  }
+
+  const QUEEN_PLACES = { hand: ['draw', 'pickup'], meld: ['meld'], pile: ['discard'], chip: ['caught'] };
+  /** Puts her live moment on a node: the turn (a re-render resumes it) and the still cue. */
+  function queenDecorate(node, key, place) {
+    const m = queenMoments.get(key);
+    if (!m || !QUEEN_PLACES[place].includes(m.kind)) {
+      node.classList.remove('qTurn', 'qStill');
+      delete node.dataset.qAt;
+      return false;
+    }
+    const age = performance.now() - m.at;
+    node.dataset.q = m.kind;
+    // A node kept across renders (the pile card) keeps its running animation.
+    if (node.dataset.qAt !== String(m.at)) {
+      node.dataset.qAt = String(m.at);
+      node.style.setProperty('--q-delay', `${-Math.round(age)}ms`);
+    }
+    if (age < (place === 'chip' ? QUEEN_CHIP_MS : QUEEN_TURN_MS)) node.classList.add('qTurn');
+    node.classList.add('qStill');
+    if (place !== 'chip' && !node.querySelector('.qProfile')) {
+      (node.querySelector('.corner') || node).insertAdjacentHTML('beforeend', QUEEN_PROFILE_SVG);
+    }
+    // The class goes with the turn, so another animation rule on the card (a coach glow) applies again.
+    node.onanimationend = (e) => {
+      if (e.target === node && !e.pseudoElement && e.animationName.startsWith('qTurn')) node.classList.remove('qTurn');
+    };
+    return true;
+  }
+
+  /** She was taken from the pile: a ghost of her card turns away on top of it. */
+  function queenGhost() {
+    const m = queenMoments.get('pileOut');
+    if (!m || m.ghost) return;
+    m.ghost = true;
+    const pile = el('discardPile');
+    pile.querySelectorAll('.qGhost').forEach((g) => g.remove());
+    const age = performance.now() - m.at;
+    if (age >= QUEEN_EXIT_MS || motionReduced()) return;
+    const ghost = document.createElement('div');
+    ghost.className = 'pile-card black qGhost';
+    ghost.setAttribute('aria-hidden', 'true');
+    ghost.textContent = `Q${suitSymbol('S')}`;
+    ghost.dataset.cardId = m.id;
+    ghost.dataset.qAt = String(m.at);
+    ghost.style.setProperty('--q-delay', `${-Math.round(age)}ms`);
+    const drop = () => ghost.remove();
+    ghost.addEventListener('animationend', (e) => { if (!e.pseudoElement) drop(); });
+    setTimeout(drop, QUEEN_EXIT_MS + 400);
+    pile.appendChild(ghost);
+  }
+
+  /** Round end with her on my hand: she shows herself next to my name, then her price. */
+  function queenChip() {
+    const mine = (lastState.lastRoundStats || []).find((s) => s.id === playerId);
+    const count = (mine && mine.pikDameCount) || 0;
+    if (!count) return null;
+    const r = lastState.lastRoundResult && lastState.lastRoundResult[playerId];
+    const mult = (r && r.breakdown && r.breakdown.multiplier) || 1;
+    const line = (mine.handLines || []).find((ln) => ln.kind === 'pikdame');
+    const price = `${MINUS}${fmtNum((line ? line.points : 100 * count) * mult)}`;
+    const chip = document.createElement('span');
+    chip.className = 'qChip';
+    chip.setAttribute('role', 'img');
+    chip.title = count > 1
+      ? L(`Beide Pik Damen auf der Hand: ${price}`, `Both Queens of Spades left in hand: ${price}`)
+      : L(`Pik Dame auf der Hand: ${price}`, `Queen of Spades left in hand: ${price}`);
+    chip.setAttribute('aria-label', chip.title);
+    chip.innerHTML = `<span class="qMini"><b>Q</b><i>${suitSymbol('S')}</i></span><span class="qPrice">${price}</span>`;
+    queenDecorate(chip, 'result', 'chip');
+    return chip;
+  }
+
+  /** The fan transform; her card mirrors it into --fan for the turn's keyframes. */
+  function setFan(c, t) {
+    c.style.transform = t;
+    if (c.style.getPropertyValue('--fan')) c.style.setProperty('--fan', t === 'none' ? 'rotate(0deg)' : t);
   }
 
   function cardEl(card, { selectable, selected, onClick, compact } = {}) {
@@ -2604,6 +2743,7 @@
             onClick: () => onMeldCardClick(meld),
             compact: true,
           });
+          if (isPikdameUp(slot.real)) queenDecorate(cEl, slot.real.id, 'meld');
           group.appendChild(cEl);
         });
         row.appendChild(group);
@@ -2644,6 +2784,9 @@
       lastState.discardPileCount > 1 && lastState.discardPileCount <= 6
     );
     el('discardCount').textContent = lastState.discardPileCount > 0 ? lastState.discardPileCount : '';
+    // Her turn on the pile folds the pop into it (style.css qTurnPile).
+    queenDecorate(discardTopDiv, 'pile', 'pile');
+    queenGhost();
     // Pop-Animation, wenn eine neue Karte oben liegt (z.B. Gegner-Abwurf)
     const topId = lastState.discardTop ? lastState.discardTop.id || 'facedown' : null;
     if (topId && topId !== prevDiscardTopId && prevDiscardTopId !== undefined) {
@@ -2758,6 +2901,10 @@
         const rotate = Math.max(-rotCap, Math.min(rotCap, offset * rotFactor));
         const lift = Math.min(dense ? 3 : 6, Math.abs(offset) * (dense ? 0.6 : 1.2));
         cEl.style.transform = `rotate(${rotate}deg) translateY(${lift}px)`;
+        if (isPikdameUp(card)) {
+          cEl.style.setProperty('--fan', cEl.style.transform); // her turn keeps the fan (setFan)
+          queenDecorate(cEl, card.id, 'hand');
+        }
         // Die Auswahl-Anhebung kommt AUSSCHLIESSLICH aus CSS (.card.selected
         // { top: -14px }) - die frühere zusätzliche translateY(-18px) hier
         // war redundant und hob Karten 32px an, weit über die Reserve des
@@ -2782,7 +2929,7 @@
         const cards = [...handDiv.querySelectorAll('.card')];
         if (handDiv.querySelector('.handRow')) {
           cards.forEach((c) => {
-            if (c.dataset.fan !== undefined) c.style.transform = c.dataset.fan;
+            if (c.dataset.fan !== undefined) setFan(c, c.dataset.fan);
             handDiv.appendChild(c);
           });
           handDiv.querySelectorAll('.handRow').forEach((r) => r.remove());
@@ -2819,7 +2966,7 @@
             row.className = 'handRow';
             rowCards.forEach((c, i) => {
               if (c.dataset.fan === undefined) c.dataset.fan = c.style.transform;
-              c.style.transform = 'none';
+              setFan(c, 'none');
               c.style.marginLeft = i === 0 ? '0' : `${rowVisible - cardWidth}px`;
               row.appendChild(c);
             });
@@ -3554,6 +3701,11 @@
                 `<span class="resultTotal">${L('gesamt', 'total')} ${fmtNum(total)}</span>` +
                 `<span class="resultDelta${deltaCls}">${fmtSigned(delta)}</span>` +
                 `</div>` + bar;
+            const queen = p.id === playerId ? queenChip() : null;
+            if (queen) {
+              row.classList.add('hasQueenChip');
+              row.querySelector('.resultName').after(queen);
+            }
             // Per-card breakdown: MY row only (an opponent's leftover hand is
             // not even sent), and not at game over - the match is decided then.
             const stats = p.id === playerId && !isGameOver ? (lastState.lastRoundStats || []).find((s) => s.id === p.id) : null;

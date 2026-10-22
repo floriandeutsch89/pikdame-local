@@ -43,6 +43,9 @@
   --accent-2: #14b394;
   --accent-ink: #03241b;
   --accent-soft: rgba(47,214,176,0.2);
+  /* Draw marker, never the selection colour. Default here, not in the later :root
+     block: that one has the same specificity and beat felt's override. */
+  --drawn: #ffc53d;
   --text: #f2f5f7;
   --text-muted: rgba(226,234,238,0.6);
   --danger: #ff7d7d;
@@ -217,11 +220,6 @@
   --z-splash: 900;
   --z-debug: 9998;
 
-  /* Marker for a freshly drawn card. Deliberately NOT --accent: the
-     selection ring is --accent, and with both in the same colour a drawn
-     card vanished among selected ones (playthrough finding). Themes whose
-     accent is close to amber override it (see felt). */
-  --drawn: #ffc53d;
   /* Tutorial spotlight: neutral light, so it never matches an accent, the
      drawn marker or a joker in any theme (kitchen turns it dark). */
   --coach: #ffffff;
@@ -1261,6 +1259,94 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 /* Drawn AND selected: both rings - selection inside, draw marker outside -
    so picking the new card up never hides where it came from. */
 .card.just-drawn.selected { box-shadow: 0 0 0 3px var(--accent), 0 0 0 6px var(--drawn), var(--shadow-2); }
+
+/* --- Pik Dame turns her head on her real moments (client.js queenMoments) ---
+   A shade on the paper, never a ring: rings mean selection and draw. */
+.qTurn, .qStill, .qGhost { --q-shade: color-mix(in srgb, var(--suit-black) 46%, transparent); }
+.card-compact.qTurn, .card-compact.qStill { --q-persp: 240px; --q-lift: -4px; }
+#discardTopCard.qTurn, #discardTopCard.qStill { position: relative; }
+/* Same function list in every frame (--fan = the fan transform), or it falls back to
+   matrix blending. z-index/lift only in here: at rest she covers no neighbour's strip. */
+@keyframes qTurn {
+  0%, 100% { transform: var(--fan, rotate(0deg)) translateY(0) perspective(var(--q-persp, 420px)) rotateY(0deg) translateZ(0); z-index: 3; }
+  36% { transform: var(--fan, rotate(0deg)) translateY(var(--q-lift, -8px)) perspective(var(--q-persp, 420px)) rotateY(-32deg) translateZ(8px); z-index: 3; }
+  70% { transform: var(--fan, rotate(0deg)) translateY(calc(var(--q-lift, -8px) / 2)) perspective(var(--q-persp, 420px)) rotateY(9deg) translateZ(3px); z-index: 3; }
+}
+/* Starts where discardPop starts, so the pile's pop lives inside her turn. */
+@keyframes qTurnPile {
+  0% { transform: scale(1.18) translateY(-6px) perspective(var(--q-persp, 380px)) rotateY(0deg); }
+  36% { transform: scale(1.04) translateY(-2px) perspective(var(--q-persp, 380px)) rotateY(-32deg); }
+  70% { transform: scale(1) translateY(0) perspective(var(--q-persp, 380px)) rotateY(9deg); }
+  100% { transform: scale(1) translateY(0) perspective(var(--q-persp, 380px)) rotateY(0deg); }
+}
+@keyframes qShade { 0%, 100% { opacity: 0; } 36% { opacity: 1; } 70% { opacity: 0.15; } }
+@keyframes qTurnAway {
+  from { transform: perspective(var(--q-persp, 380px)) rotateY(0deg); opacity: 1; }
+  to { transform: perspective(var(--q-persp, 380px)) rotateY(84deg); opacity: 0; }
+}
+@keyframes qShadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes qTurnIn {
+  0% { transform: perspective(110px) rotateY(88deg); opacity: 0; }
+  55% { transform: perspective(110px) rotateY(-14deg); opacity: 1; }
+  100% { transform: perspective(110px) rotateY(0deg); opacity: 1; }
+}
+@keyframes qPriceIn { from { opacity: 0; transform: translateX(-4px); } }
+.qGhost { position: absolute; top: 0; left: 0; right: 0; margin: 0 auto; pointer-events: none; z-index: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  .card.qTurn { animation: qTurn 580ms cubic-bezier(.33, 0, .2, 1) var(--q-delay, 0ms) backwards; }
+  /* drawnGlow runs on beside her turn (box-shadow vs transform); selected stops it as before. */
+  .card.qTurn.just-drawn { animation: qTurn 580ms cubic-bezier(.33, 0, .2, 1) var(--q-delay, 0ms) backwards, drawnGlow 1.4s ease-out forwards; }
+  .card.qTurn.just-drawn.selected { animation: qTurn 580ms cubic-bezier(.33, 0, .2, 1) var(--q-delay, 0ms) backwards; }
+  #discardTopCard.qTurn { animation: qTurnPile 580ms cubic-bezier(.33, 0, .2, 1) var(--q-delay, 0ms) backwards; }
+  .card.qTurn::after, #discardTopCard.qTurn::before, .qGhost::before {
+    content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background: linear-gradient(90deg, transparent 20%, var(--q-shade));
+    animation: qShade 580ms cubic-bezier(.33, 0, .2, 1) var(--q-delay, 0ms) both;
+  }
+  .qGhost { animation: qTurnAway 420ms cubic-bezier(.5, 0, .75, 0) var(--q-delay, 0ms) both; }
+  .qGhost::before { animation: qShadeIn 420ms cubic-bezier(.5, 0, .75, 0) var(--q-delay, 0ms) both; }
+  .qChip.qTurn .qMini { animation: qTurnIn 420ms cubic-bezier(.33, 0, .2, 1) calc(var(--q-lead) + var(--q-delay, 0ms)) backwards; }
+  .qChip.qTurn .qPrice { animation: qPriceIn 180ms ease-out calc(var(--q-lead) + 360ms + var(--q-delay, 0ms)) backwards; }
+}
+/* Reduced motion: she holds a turned pose, shaded, her profile in the index corner. */
+.qProfile { display: none; flex: 0 0 auto; width: 1.05em; height: 1.38em; margin-top: 2px; fill: var(--suit-black); }
+#discardTopCard .qProfile { position: absolute; top: 5px; left: 5px; width: 0.95em; height: 1.25em; margin: 0; }
+@media (prefers-reduced-motion: reduce) {
+  /* !important: the fan is an inline transform; --fan carries it into the pose. */
+  .card.qStill { transform: var(--fan, rotate(0deg)) perspective(var(--q-persp, 420px)) rotateY(-24deg) !important; }
+  #discardTopCard.qStill { transform: perspective(var(--q-persp, 380px)) rotateY(-24deg); }
+  .qChip.qStill .qMini { transform: perspective(110px) rotateY(-24deg); }
+  .card.qStill::after, #discardTopCard.qStill::before, .qChip.qStill .qMini::after {
+    content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background: linear-gradient(90deg, transparent 30%, var(--q-shade));
+  }
+  .qStill .qProfile { display: block; }
+  .qGhost { display: none; }
+}
+/* Round end, caught on my hand: her mini card, then her price, next to my name. */
+.resultRow.hasQueenChip .resultName { flex: 0 1 auto; }
+.qChip {
+  --q-lead: 560ms; /* overlayIn 300 ms + 260 ms: the sheet lands first */
+  flex: 0 0 auto; align-self: center; margin-right: auto;
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: var(--fs-label); font-weight: 800; line-height: 1;
+  color: var(--paper-danger); font-variant-numeric: tabular-nums;
+}
+.qChip .qMini {
+  position: relative; flex: 0 0 auto;
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+  width: 1.45em; height: 2em; border-radius: 4px;
+  background: var(--card-bg); border: 1px solid var(--card-border); box-shadow: var(--shadow-1);
+  color: var(--suit-black); font-size: var(--fs-micro); line-height: 0.95;
+}
+.qChip .qMini b { font-weight: 800; }
+.qChip .qMini i { font-style: normal; }
+@media (max-width: 600px) and (orientation: portrait) {
+  .qChip { --q-lead: 600ms; } /* sheetIn 340 ms + 260 ms */
+}
+@media (min-width: 1100px) and (min-height: 541px) {
+  #hand .card, #melds .card-compact, #centerPiles .pile-card { --q-persp: calc(var(--cw) * 7); }
+}
 
 /* eigene Karten in Auslagen */
 /* Auslagen nach Besitzer gruppiert: jeder Spieler hat seinen eigenen Stapel */
