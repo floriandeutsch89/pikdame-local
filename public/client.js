@@ -8262,20 +8262,41 @@
   const TOWER_LAST_KEY = 'pikdame_tower_last'; // the last verdict, for the wobble: { name, month, stage, stars }
   const APEX = 21;
   const towerName = () => L('Kartenhaus', 'House of Cards');
-  // The ONLY wording of the floor modifiers (sheet, help, table): 'queen' is a
-  // risk (+100 melded, -100 in hand), the others are handicaps.
+  // The ONLY wording of the floor modifiers (house, table, sheet, help): 'queen'
+  // is a risk (+100 melded, -100 in hand), the others are handicaps.
   const TOWER_MODS = {
-    queen: () => L('Risiko: Pik Dame auf der Hand', 'Risk: Queen of Spades in hand'),
+    queen: () => L('Pik Dame auf der Hand', 'Queen of Spades in hand'),
     noDiscard: () => L('Ohne Ablage', 'No discard pile'),
     goOut: () => L('Selbst ausmachen', 'Go out yourself'),
   };
-  const TOWER_MOD_RULES = {
-    queen: () => L('Risiko: Pik Dame auf der Hand – ausgelegt +100, auf der Hand −100', 'Risk: Queen of Spades in hand – +100 melded, −100 in hand'),
-    noDiscard: () => L('Erschwernis: keine Ablage (nur vom Stapel ziehen)', 'Handicap: no discard pile (draw from the stock only)'),
-    goOut: () => L('Erschwernis: Sterne nur, wenn du selbst ausmachst', 'Handicap: stars only if you go out yourself'),
+  const TOWER_MOD_ICON = { queen: 'spade', noDiscard: 'lock', goOut: 'flag' };
+  // The queen helps when melded (+100): a risk (gold), not a handicap (red edge).
+  const TOWER_MOD_KIND = { queen: 'risk' };
+  const towerModKind = (m) => TOWER_MOD_KIND[m] || 'handicap';
+  // The floor card is narrow: a shorter name where the sheet's one is long.
+  const TOWER_MOD_SHORT = { queen: () => L('Pik Dame', 'Queen of Spades') };
+  // One line on the start card; the exact rule on the sheet (BotTower.js, GameManager).
+  const TOWER_MOD_WHY = {
+    queen: () => L('ausgelegt +100, auf der Hand −100', '+100 melded, −100 in hand'),
+    noDiscard: () => L('du ziehst immer vom Stapel', 'you always draw from the stock'),
+    goOut: () => L('ohne Ausmachen kein Stern, auch nicht mit Vorsprung', 'no star without going out, even when ahead'),
   };
-  const towerModsText = (mods) => (mods || []).map((m) => (TOWER_MODS[m] ? TOWER_MODS[m]() : m)).join(' · ');
-  const towerModRulesText = (mods) => (mods || []).map((m) => (TOWER_MOD_RULES[m] ? TOWER_MOD_RULES[m]() : m)).join('; ');
+  const TOWER_MOD_RULE = {
+    queen: () => L('Du startest mit der Pik Dame auf der Hand. Ausgelegt bringt sie +100, bleibt sie auf der Hand, kostet sie −100.',
+      'You start with the Queen of Spades in hand. Melded she brings +100; left in hand she costs −100.'),
+    noDiscard: () => L('Du darfst die Ablage nie aufnehmen und ziehst immer vom Stapel. Die Bots dürfen sie weiter nehmen.',
+      'You may never take the discard pile and always draw from the stock. The bots may still take it.'),
+    goOut: () => L('Sterne gibt es nur, wenn du die Runde selbst beendest – mit dem Abwurf deiner letzten Karte. Vorsprung allein reicht nicht.',
+      'Stars only if you end the round yourself – by discarding your last card. Being ahead is not enough.'),
+  };
+  const towerModKindName = (m) => (towerModKind(m) === 'risk' ? L('Risiko', 'Risk') : L('Erschwernis', 'Handicap'));
+  const towerModName = (m) => (TOWER_MODS[m] ? TOWER_MODS[m]() : m);
+  /** "Risiko: Pik Dame auf der Hand" - house chips and floor labels. */
+  const towerModLabel = (m) => (TOWER_MODS[m] ? `${towerModKindName(m)}: ${towerModName(m)}` : m);
+  const towerModsText = (mods) => (mods || []).map(towerModLabel).join(' · ');
+  /** With the one-line why: "Risiko: Pik Dame auf der Hand – ausgelegt +100, auf der Hand −100". */
+  const towerModRuleLine = (m) => (TOWER_MOD_WHY[m] ? `${towerModLabel(m)} – ${TOWER_MOD_WHY[m]()}` : towerModLabel(m));
+  const towerModRulesText = (mods) => (mods || []).map(towerModRuleLine).join('; ');
   function requestTower() {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     towerAskedFor = myName || '';
@@ -8500,7 +8521,7 @@
         ? `<span class="khDTag next">${escapeHtml(L('als Nächstes', 'up next'))}</span>`
         : `<span class="khDTag"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg><span>${escapeHtml(L('gesperrt', 'locked'))}</span></span>`;
     const bots = towerBotsLine(s.bots, s.handicap);
-    const mods = (s.mods || []).map((m) => `<span class="khMod">${escapeHtml(TOWER_MODS[m] ? TOWER_MODS[m]() : m)}</span>`).join('');
+    const mods = (s.mods || []).map((m) => `<span class="khMod">${escapeHtml(towerModLabel(m))}</span>`).join('');
     const note = st.state === 'locked'
       ? L(`Schaff erst Etage ${Math.min(info.unlocked || 1, max)}.`, `Clear floor ${Math.min(info.unlocked || 1, max)} first.`)
       : st.state === 'next' ? L('Ein Stern: mehr Punkte als jeder Bot samt Vorgabe.', 'One star: more points than every bot plus its head start.')
@@ -8594,7 +8615,7 @@
       p('Ein Stern macht die nächste Etage frei. Versuche sind unbegrenzt, der beste zählt.', 'One star unlocks the next floor. Tries are unlimited, the best counts.') +
       p('Ab Etage 11 gilt eine Sonderregel – ein Risiko oder eine Erschwernis:', 'From floor 11 a special rule applies – a risk or a handicap:') +
       '<ul class="khRuleList">' +
-      Object.keys(TOWER_MOD_RULES).map((m) => '<li class="dot"><span>' + escapeHtml(TOWER_MOD_RULES[m]()) + '</span></li>').join('') +
+      Object.keys(TOWER_MODS).map((m) => '<li class="dot"><span>' + escapeHtml(towerModRuleLine(m)) + '</span></li>').join('') +
       '</ul>' +
       p(`Der erste Stern jeder Etage bringt pro Monat einmal ${XP_RULES.towerFirstStar} EP; alle ${n} Etagen krönen dein Kartenhaus (+${XP_RULES.towerCrown} EP).`,
         `The first star of each floor pays ${XP_RULES.towerFirstStar} XP once a month; all ${n} floors crown your House of Cards (+${XP_RULES.towerCrown} XP).`);
@@ -8762,26 +8783,6 @@
   // --- Kartenhaus at the table: floor card, start card, rules sheet, hints ----
   const TOWER_INTRO_KEY = 'pikdame_tower_intro'; // the session whose start card was handled
   const TOWER_FOLD_KEY = 'pikdame_tower_fold'; // 'full' | 'compact': the player's own tap beats the automatic fold
-  const TOWER_MOD_ICON = { queen: 'spade', noDiscard: 'lock', goOut: 'flag' };
-  // The queen helps when melded (+100): a risk (gold), not a handicap (red edge).
-  const TOWER_MOD_KIND = { queen: 'risk' };
-  const towerModKind = (m) => TOWER_MOD_KIND[m] || 'handicap';
-  // The floor card is narrow: a shorter name where the sheet's one is long.
-  const TOWER_MOD_SHORT = { queen: () => L('Pik Dame', 'Queen of Spades') };
-  // One line on the start card; the exact rule on the sheet (BotTower.js, GameManager).
-  const TOWER_MOD_WHY = {
-    queen: () => L('ausgelegt +100, auf der Hand −100', '+100 melded, −100 in hand'),
-    noDiscard: () => L('du ziehst immer vom Stapel', 'you always draw from the stock'),
-    goOut: () => L('ohne Ausmachen kein Stern, auch nicht mit Vorsprung', 'no star without going out, even when ahead'),
-  };
-  const TOWER_MOD_RULE = {
-    queen: () => L('Du startest mit der Pik Dame auf der Hand. Ausgelegt bringt sie +100, bleibt sie auf der Hand, kostet sie −100.',
-      'You start with the Queen of Spades in hand. Melded she brings +100; left in hand she costs −100.'),
-    noDiscard: () => L('Du darfst die Ablage nie aufnehmen und ziehst immer vom Stapel. Die Bots dürfen sie weiter nehmen.',
-      'You may never take the discard pile and always draw from the stock. The bots may still take it.'),
-    goOut: () => L('Sterne gibt es nur, wenn du die Runde selbst beendest – mit dem Abwurf deiner letzten Karte. Vorsprung allein reicht nicht.',
-      'Stars only if you end the round yourself – by discarding your last card. Being ahead is not enough.'),
-  };
   let towerStartOpen = false;
   let towerIntroHandled = ''; // also without storage (private mode)
   let towerInfoAskedFor = '';
@@ -8789,7 +8790,6 @@
   let towerSpotTimer = null;
   let towerFoldChoice = ''; // also without storage (private mode)
   let towerFoldTimer = null;
-  const towerModName = (m) => (TOWER_MODS[m] ? TOWER_MODS[m]() : m);
   const towerModShort = (m) => (TOWER_MOD_SHORT[m] || TOWER_MODS[m])();
   const towerModToken = (m) => `<span class="tfTok ${towerModKind(m)}" aria-hidden="true"><svg class="icon"><use href="#i-${TOWER_MOD_ICON[m]}"/></svg></span>`;
   // Risks first, then handicaps; each group with its heading (start card, sheet, label).

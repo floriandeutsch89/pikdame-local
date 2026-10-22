@@ -128,7 +128,7 @@ test('progress sheet: the Kartenhaus entry opens the house - 20 floors and the t
   assert.strictEqual(floorEl(t, 2).getAttribute('aria-label'), 'Etage 2: gegen Leicht, Mittel - 1 von 3 Sternen');
   assert.strictEqual(floorEl(t, 3).getAttribute('aria-label'), 'Etage 3: gegen Mittel, Mittel - noch kein Stern');
   assert.strictEqual(floorEl(t, 20).getAttribute('aria-label'),
-    'Etage 20: gegen Zen, Zen, Zen, die Bots bekommen 160 Punkte Vorgabe, Risiko: Pik Dame auf der Hand · Ohne Ablage · Selbst ausmachen - gesperrt');
+    'Etage 20: gegen Zen, Zen, Zen, die Bots bekommen 160 Punkte Vorgabe, Risiko: Pik Dame auf der Hand · Erschwernis: Ohne Ablage · Erschwernis: Selbst ausmachen - gesperrt');
   assert.strictEqual(floorEl(t, 3).getAttribute('aria-pressed'), 'true', 'the detail shows the next floor');
 
   // The detail of the next floor, with the way in.
