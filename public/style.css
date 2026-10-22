@@ -2786,6 +2786,7 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   border: 1.5px dashed var(--paper-mod); border-radius: var(--r-pill);
   font-size: var(--fs-hint); font-weight: 700; color: var(--paper-mod);
 }
+.khMod.risk { border-color: var(--star-edge); color: var(--star-ink); } /* gold like the risk at the table */
 .khDNote { margin: 6px 0 0; font-size: var(--fs-label); color: var(--text-muted); }
 .overlay-card .khPlay { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: var(--ctl-h); margin-top: 10px; }
 .khPlay .icon { width: 1.1em; height: 1.1em; }

@@ -128,7 +128,7 @@ test('progress sheet: the Kartenhaus entry opens the house - 20 floors and the t
   assert.strictEqual(floorEl(t, 2).getAttribute('aria-label'), 'Etage 2: gegen Leicht, Mittel - 1 von 3 Sternen');
   assert.strictEqual(floorEl(t, 3).getAttribute('aria-label'), 'Etage 3: gegen Mittel, Mittel - noch kein Stern');
   assert.strictEqual(floorEl(t, 20).getAttribute('aria-label'),
-    'Etage 20: gegen Zen, Zen, Zen, die Bots bekommen 160 Punkte Vorgabe, Pik Dame auf der Hand · Ohne Ablage · Selbst ausmachen - gesperrt');
+    'Etage 20: gegen Zen, Zen, Zen, die Bots bekommen 160 Punkte Vorgabe, Risiko: Pik Dame auf der Hand · Erschwernis: Ohne Ablage · Erschwernis: Selbst ausmachen - gesperrt');
   assert.strictEqual(floorEl(t, 3).getAttribute('aria-pressed'), 'true', 'the detail shows the next floor');
 
   // The detail of the next floor, with the way in.
@@ -156,7 +156,9 @@ test('a tap shows the floor, the button starts it; a locked floor only explains'
   assert.strictEqual(detail.querySelector('.khDTitle').textContent, 'Etage 14');
   assert.match(detail.textContent, /gesperrt/);
   assert.match(detail.textContent, /3 Bots: Zen, Zen, Zen · 140 Punkte Vorgabe/);
-  assert.deepStrictEqual([...detail.querySelectorAll('.khMod')].map((m) => m.textContent), ['Pik Dame auf der Hand']);
+  assert.deepStrictEqual([...detail.querySelectorAll('.khMod')].map((m) => m.textContent), ['Risiko: Pik Dame auf der Hand']);
+  assert.ok(detail.querySelector('.khMod').classList.contains('risk'), 'the risk chip is gold, not a red handicap');
+  assert.strictEqual(detail.querySelector('.khDMods').getAttribute('aria-label'), 'Risiko: Pik Dame auf der Hand – ausgelegt +100, auf der Hand −100', 'the queen is a risk, not a handicap');
   assert.match(detail.textContent, /Schaff erst Etage 3\./);
   assert.strictEqual(detail.querySelector('.khPlay'), null, 'no way into a locked floor');
   assert.ok(floorEl(t, 14).classList.contains('sel'), 'the picked floor is ringed');
@@ -231,7 +233,7 @@ test('the language switch redraws the sheet and the tile', () => {
   assert.strictEqual(t.doc.querySelector('#towerTitle span').textContent, 'House of Cards');
   assert.strictEqual(t.doc.getElementById('towerDetail').querySelector('.khPlay').textContent.trim(), 'Play floor 3');
   assert.strictEqual(floorEl(t, 2).getAttribute('aria-label'), 'Floor 2: against Easy, Medium - 1 of 3 stars');
-  assert.strictEqual(t.doc.querySelector('.khLegend span').textContent, 'Red edge: a handicap from floor 11');
+  assert.strictEqual(t.doc.querySelector('.khLegend span').textContent, 'Red edge: a special rule from floor 11');
   assert.strictEqual(t.doc.querySelector('#towerTile .ttTitle').textContent, 'House of Cards');
   assert.strictEqual(t.doc.getElementById('towerTileStatus').textContent, 'Floor 3 · 4/60');
   t.window.close();

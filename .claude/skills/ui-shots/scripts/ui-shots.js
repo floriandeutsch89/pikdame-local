@@ -620,7 +620,7 @@ function waitForHttp(port, ms = 20000) {
         }
         if (sc === 'tower' || sc === 'tower-detail' || sc === 'tower-rules') {
           await page.click('#towerTile'); await page.waitForTimeout(2800); // after the first-visit build-up
-          if (sc === 'tower-detail') { await page.click('#towerHouse [data-stage="14"]'); await page.waitForTimeout(400); }
+          if (sc === 'tower-detail') { await page.click(`#towerHouse [data-stage="${arg('stage', '14')}"]`); await page.waitForTimeout(400); }
           if (sc === 'tower-rules') {
             await page.evaluate(() => { const d = document.getElementById('towerRulesBox'); d.open = true; d.scrollIntoView({ block: 'center' }); });
             await page.waitForTimeout(400);

@@ -274,7 +274,7 @@ window.I18N_STATIC = {
   'Lösung zeigen': 'Show solution',
   // Kartenhaus (monthly tower)
   'Kartenhaus': 'House of Cards',
-  'Rote Kante: ab Etage 11 mit Erschwernis': 'Red edge: a handicap from floor 11',
+  'Rote Kante: ab Etage 11 mit Sonderregel': 'Red edge: a special rule from floor 11',
   'So funktioniert das Kartenhaus': 'How the House of Cards works',
   'Frühere Monate': 'Earlier months',
   'Die Etage wartet kurz auf dich – danach endet sie ohne Sterne.': 'The floor waits for you briefly - after that it ends without stars.',
@@ -448,7 +448,7 @@ window.I18N_SERVER_PATTERNS = [
   // Kartenhaus (BotTower.js)
   [/^Kartenhaus, Etage (\d+): Hol in dieser Runde mehr Punkte als jeder Bot - die Bots bekommen (\d+) Punkte Vorgabe\.$/, 'House of Cards, floor $1: score more points than every bot this round - the bots get a $2-point head start.'],
   [/^Kartenhaus, Etage (\d+): Hol in dieser Runde mehr Punkte als jeder Bot\.$/, 'House of Cards, floor $1: score more points than every bot this round.'],
-  [/^Erschwernis: Du startest mit der Pik Dame auf der Hand\.$/, 'Handicap: you start with the Queen of Spades in your hand.'],
+  [/^Risiko: Du startest mit der Pik Dame auf der Hand – ausgelegt \+100, auf der Hand −100\.$/, 'Risk: you start with the Queen of Spades in your hand – +100 melded, −100 in hand.'],
   [/^Erschwernis: Du darfst die Ablage nicht aufnehmen\.$/, 'Handicap: you may not take the discard pile.'],
   [/^Erschwernis: Sterne gibt es nur, wenn du selbst ausmachst\.$/, 'Handicap: stars only if you go out yourself.'],
   [/^Auf dieser Etage darfst du die Ablage nicht aufnehmen - zieh vom Stapel\.$/, 'On this floor you may not take the discard pile - draw from the stock.'],

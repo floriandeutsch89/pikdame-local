@@ -631,3 +631,74 @@ test('server: the first star pays 10 XP (account and season too), a repeat and a
   assert.deepStrictEqual([p('Ada').xp, p('Ada').gamesPlayed], [10, 0], 'profile: XP once, no game');
   assert.deepStrictEqual([p('Ben').xp, p('Ben').gamesPlayed], [10, 0]);
 });
+
+/** Plays floor `stage` out (human seat forced to the heuristic) and returns who discarded what. */
+function towerTrace(stage, { random = Math.random, restoreAt = -1 } = {}) {
+  const orig = Math.random;
+  Math.random = random;
+  try {
+    let g = towerGame(stage);
+    g.startTowerRound();
+    const trace = [];
+    let turns = 0;
+    while (g.phase === 'playing' && turns++ < 3000) {
+      if (turns === restoreAt) { // a server restart mid-floor
+        const fresh = new GameManager(() => {});
+        fresh.deserialize(JSON.parse(JSON.stringify(g.serialize())));
+        g.destroy();
+        g = fresh;
+      }
+      const cp = g.currentPlayer();
+      g.runBotTurn(cp.id, { forced: !cp.isBot });
+      assert.ok(conserved(g), `card conservation after turn ${turns}`);
+      trace.push(`${cp.id}:${g.discardPile[0] ? g.discardPile[0].id : '-'}`);
+    }
+    g.destroy();
+    return trace.join(' ');
+  } finally {
+    Math.random = orig;
+  }
+}
+
+test('easy bots on a floor draw their luck from the deal: one line of play, one game', () => {
+  assert.ok(TOWER_STAGES[0].bots.includes('easy') && TOWER_STAGES[1].bots.includes('easy'));
+  for (const stage of [1, 2]) {
+    const a = towerTrace(stage, { random: () => 0.01 });
+    const b = towerTrace(stage, { random: () => 0.99 });
+    assert.strictEqual(a, b, `floor ${stage}: Math.random does not steer the game`);
+    assert.strictEqual(towerTrace(stage, { restoreAt: 9 }), a, `floor ${stage}: a restore mid-floor plays on the same`);
+  }
+});
+
+test('normal tables keep Math.random for the easy bots', () => {
+  const orig = Math.random;
+  Math.random = () => 0.4242;
+  try {
+    const plain = new GameManager(() => {}, { deckSeed: 7 }); // a seeded deal alone (challenge) is no floor
+    assert.strictEqual(plain._botRandom('discard'), 0.4242);
+    plain.destroy();
+    const g = towerGame(1);
+    const r = g._botRandom('discard');
+    assert.ok(r !== 0.4242 && r >= 0 && r < 1);
+    assert.strictEqual(g._botRandom('discard'), r, 'same turn, same tag, same draw');
+    assert.notStrictEqual(g._botRandom('pile'), r, 'tags draw independently');
+    g.destroy();
+  } finally {
+    Math.random = orig;
+  }
+  const Bot = require('../game/Bot');
+  const hand = createDeck().filter((c) => !c.isJoker).slice(0, 5);
+  assert.strictEqual(Bot.chooseDiscard(hand, [], { difficulty: 'easy', random: () => 0.99 }).id, hand[4].id);
+});
+
+test('the net plays the human seat only when tooling forces it', async () => {
+  const g = towerGame(3);
+  g.startTowerRound();
+  assert.strictEqual(g.currentPlayer().id, 'me');
+  await g._runBotTurnWithOnnx('me');
+  assert.strictEqual(g.currentPlayer().id, 'me', 'a solo human seat is never taken over');
+  await g._runBotTurnWithOnnx('me', { forced: true });
+  assert.notStrictEqual(g.currentPlayer().id, 'me', 'forced (seed tooling): the turn is played');
+  assert.ok(conserved(g));
+  g.destroy();
+});
