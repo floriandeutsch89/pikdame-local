@@ -69,6 +69,11 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   `tower-lock` (a tap on the locked discard pile). `--floor queen|goOut|
   noDiscard|all` takes the floor with exactly that handicap from BotTower.js
   (new deals or head starts never break the scene), or a floor number.
+  The floor card is in full for the first own turn (`--turns 0`) and folded
+  from the second; `--fold full|compact` stores the player's own choice
+  instead, `--tap <selector>` taps something before the shot (e.g.
+  `'#towerBar .tbFold'` to see a fold settle; `--tap-freeze 120` holds every
+  animation at 120 ms, a frame mid-glide).
   `--stammtische 0-3` sets
   the remembered Stammtische (default 1; 3 is the start screen's tallest
   form). Any order works:
@@ -84,7 +89,8 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
 - Prints the written PNG paths. Look at them with the Read tool; don't
   just trust that they exist.
 - `--audit` also checks every shot and writes `<out>/audit.md`: truncated
-  text (measured on the text itself), tap targets under 44 px (a hit area
+  text (measured on the text itself), text the screen edge cuts off (outside
+  a horizontal scroller), tap targets under 44 px (a hit area
   stretched by an absolute `::after` or the `<label>` row around a switch
   counts), icon buttons without a name, and a portrait start screen that
   needs scrolling. Findings are evidence to judge, not automatic failures;

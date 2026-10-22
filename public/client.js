@@ -8755,6 +8755,7 @@
 
   // --- Kartenhaus at the table: floor card, start card, rules sheet, hints ----
   const TOWER_INTRO_KEY = 'pikdame_tower_intro'; // the session whose start card was handled
+  const TOWER_FOLD_KEY = 'pikdame_tower_fold'; // 'full' | 'compact': the player's own tap beats the automatic fold
   const TOWER_MOD_ICON = { queen: 'spade', noDiscard: 'lock', goOut: 'flag' };
   // The queen helps when melded (+100): a risk (gold), not a handicap (red edge).
   const TOWER_MOD_KIND = { queen: 'risk' };
@@ -8780,6 +8781,8 @@
   let towerInfoAskedFor = '';
   let towerSpotOn = false;
   let towerSpotTimer = null;
+  let towerFoldChoice = ''; // also without storage (private mode)
+  let towerFoldTimer = null;
   const towerModName = (m) => (TOWER_MODS[m] ? TOWER_MODS[m]() : m);
   const towerModShort = (m) => (TOWER_MOD_SHORT[m] || TOWER_MODS[m])();
   const towerModToken = (m) => `<span class="tfTok ${towerModKind(m)}" aria-hidden="true"><svg class="icon"><use href="#i-${TOWER_MOD_ICON[m]}"/></svg></span>`;
@@ -8823,16 +8826,77 @@
   function renderTowerBar(f) {
     const bar = el('towerBar');
     bar.classList.toggle('hidden', !f);
-    if (!f) { bar.dataset.sig = ''; return; }
+    if (!f) { bar.dataset.sig = ''; bar.dataset.fold = ''; return; }
     const sig = JSON.stringify([lang, f.stage, f.handicap, f.mods, f.best]);
     if (bar.dataset.sig !== sig) {
       bar.dataset.sig = sig;
+      bar.dataset.fold = '';
       const goal = f.handicap ? L(`Vorgabe <b>${f.handicap}</b>`, `Head start <b>${f.handicap}</b>`) : escapeHtml(L('Ohne Vorgabe', 'No head start'));
-      const mods = f.mods.map((m) => `<span class="tfMod">${towerModToken(m)}<span>${escapeHtml(towerModShort(m))}</span></span>`).join('');
-      bar.innerHTML = towerFloorCardHtml(f) + `<span class="tfCol"><span class="tfCap">${escapeHtml(towerName())}</span>` +
-        `<span class="tfGoal">${goal}</span>${mods ? `<span class="tfMods">${mods}</span>` : ''}</span>`;
+      const mods = f.mods.map((m) => `<span class="tfMod">${towerModToken(m)}<span class="tfLbl">${escapeHtml(towerModShort(m))}</span></span>`).join('');
+      const body = '<span class="tbSlot" aria-hidden="true"></span>' +
+        `<span class="tfCol"><span class="tfCap">${escapeHtml(towerName())}</span><span class="tfGoal">${goal}</span>` +
+        `${mods ? `<span class="tfMods">${mods}</span>` : ''}</span>`;
+      // Two targets: the card (its rules) lies on the slot of the fold button. Without tokens nothing folds.
+      bar.innerHTML = `<button type="button" class="tbCard" aria-haspopup="dialog">${towerFloorCardHtml(f)}</button>` +
+        (mods ? `<button type="button" class="tbFold">${body}</button>` : `<span class="tbFold">${body}</span>`);
     }
-    bar.setAttribute('aria-label', towerFloorAria(f));
+    bar.querySelector('.tbCard').setAttribute('aria-label', towerFloorAria(f));
+    applyTowerFold(bar);
+  }
+  /** Which of my own turns this round runs or ran last: 1 = the first, 0 = not yet. */
+  function towerOwnTurn(st) {
+    const ps = (st && st.players) || [];
+    const n = ps.length;
+    const me = ps.findIndex((p) => p.id === playerId);
+    if (!n || me < 0) return 0;
+    const opener = (ps.findIndex((p) => p.id === st.dealerId) + 1) % n; // the seat after the dealer opens the round
+    const t = (Number(st.turnIndexInRound) || 0) - ((me - opener + n) % n);
+    return t < 0 ? 0 : Math.floor(t / n) + 1;
+  }
+  /** In full for the round's first own turn, folded from the second; the player's own tap wins from then on. */
+  function applyTowerFold(bar) {
+    const fold = bar.querySelector('button.tbFold');
+    const own = towerFoldChoice || storageGet(TOWER_FOLD_KEY);
+    const compact = !!fold && (own === 'compact' || (own !== 'full' && towerOwnTurn(lastState) >= 2));
+    const now = compact ? 'compact' : 'full';
+    if (bar.dataset.fold === now) return;
+    // Never on the first paint: a resume mid-floor opens folded at once.
+    foldTowerBar(bar, compact, !!bar.dataset.fold && towerMotionOk());
+    bar.dataset.fold = now;
+  }
+  /** Card and tokens glide to their new places (FLIP), the words fade back in; reduced motion: at once. */
+  function foldTowerBar(bar, compact, glide) {
+    const fold = bar.querySelector('button.tbFold');
+    const parts = glide ? [...bar.querySelectorAll('.tfCard, .tfTok')] : [];
+    const from = parts.map((n) => n.getBoundingClientRect());
+    bar.classList.toggle('tbCompact', compact);
+    if (fold) {
+      fold.setAttribute('aria-expanded', String(!compact));
+      fold.title = compact ? L('Ausklappen', 'Expand') : L('Einklappen', 'Collapse');
+    }
+    parts.forEach((n, i) => {
+      const to = n.getBoundingClientRect();
+      const dx = from[i].left - to.left;
+      const dy = from[i].top - to.top;
+      if ((dx || dy) && typeof n.animate === 'function') {
+        n.animate([{ translate: `${dx}px ${dy}px` }, { translate: '0 0' }], { duration: 320, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+      }
+    });
+    clearTimeout(towerFoldTimer);
+    bar.classList.remove('tbUnfold');
+    if (glide && !compact) {
+      void bar.offsetWidth; // restart the fade-in
+      bar.classList.add('tbUnfold');
+      towerFoldTimer = setTimeout(() => bar.classList.remove('tbUnfold'), 600);
+    }
+  }
+  /** A tap folds or unfolds; from then on that is the player's choice on every floor (one key). */
+  function toggleTowerFold() {
+    const bar = el('towerBar');
+    if (!bar.querySelector('button.tbFold')) return;
+    towerFoldChoice = bar.classList.contains('tbCompact') ? 'full' : 'compact';
+    storageSet(TOWER_FOLD_KEY, towerFoldChoice);
+    applyTowerFold(bar);
   }
   /** The very start of a try: the round runs, nobody moved yet, my draw. */
   function towerAtStart(st) {
@@ -8956,7 +9020,10 @@
     const locked = !!(f && f.mods.includes('noDiscard') && lastState.phase === 'playing');
     el('discardPile').classList.toggle('towerLocked', locked);
   }
-  el('towerBar').addEventListener('click', () => openTowerFloorSheet());
+  el('towerBar').addEventListener('click', (ev) => {
+    if (ev.target.closest('.tbCard')) openTowerFloorSheet();
+    else if (ev.target.closest('button.tbFold')) toggleTowerFold();
+  });
   el('towerStartBtn').addEventListener('click', () => closeTowerStart());
   el('towerFloorCloseBtn').addEventListener('click', () => el('towerFloorOverlay').classList.add('hidden'));
   el('towerFloorOverlay').addEventListener('click', (ev) => {

@@ -67,6 +67,9 @@ Each one fixed a real complaint; cite them when they apply.
   cut "Stammtisch" off at 393 px; two wide ones fit at every size.
 - **Emphasis follows the question of the screen.** Round end: the round's
   delta leads. Game over: rank and total lead.
+- **A caption names the thing; its state goes on a mark.** The locked
+  discard pile was captioned "Erschwernis" instead of "Ablage": the pile lost
+  its name, and the lock token already said that it was locked.
 
 ## 4. Report
 

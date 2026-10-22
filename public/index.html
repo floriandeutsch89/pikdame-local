@@ -750,8 +750,9 @@
 
       <div id="centerPiles">
         <!-- Kartenhaus: the floor as a playing card beside the piles (side column in
-             landscape and on desktop); a tap opens the floor's rules. Filled by client.js. -->
-        <button id="towerBar" class="towerBar hidden" type="button" aria-haspopup="dialog" aria-label="Kartenhaus"></button>
+             landscape and on desktop). The card opens the floor's rules, the rest folds
+             to the card and its tokens. Filled by client.js. -->
+        <div id="towerBar" class="towerBar hidden"></div>
         <div class="pile" id="drawPile">
           <div class="pile-card back"></div>
           <span id="drawCount">0</span>
@@ -765,9 +766,8 @@
                action bar: there it slid into the empty 'Abwerfen' slot. -->
           <button id="undoPileBtn" class="pileUndoBtn tapExpand hidden" title="Aufnahme zurücklegen" aria-label="Aufnahme zurücklegen"><svg class="icon" aria-hidden="true"><use href="#i-undo"/></svg><span>Zurücklegen</span></button>
           <div class="pileLabel">Ablage</div>
-          <!-- Kartenhaus "Ohne Ablage" (#discardPile.towerLocked): a lock on the card, the handicap as its caption. -->
+          <!-- Kartenhaus "Ohne Ablage" (#discardPile.towerLocked): a lock on the card; the caption stays. -->
           <div id="discardLock" class="pileLock" aria-hidden="true"><svg class="icon"><use href="#i-lock"/></svg></div>
-          <div class="pileLabel pileLockLabel">Erschwernis</div>
         </div>
       </div>
 
