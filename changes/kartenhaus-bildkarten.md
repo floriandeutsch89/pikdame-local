@@ -4,4 +4,4 @@
 
 ### Fixed
 - Kartenhaus: Etagen, die noch gebaut werden oder diesen Monat geschlossen bleiben, erscheinen jetzt im Haus – schraffiert, mit Sanduhr oder Schloss.
-- Kartenhaus im Querformat: „Schließen“ ist ohne Scrollen ganz zu sehen.
+- Kartenhaus im Querformat: Bei der nächsten Etage passt „Schließen“ ohne Scrollen unter den Spielen-Knopf.
