@@ -274,7 +274,7 @@ window.I18N_STATIC = {
   'Lösung zeigen': 'Show solution',
   // Kartenhaus (monthly tower)
   'Kartenhaus': 'House of Cards',
-  'Rote Kante: ab Etage 11 mit Sonderregel': 'Red edge: a special rule from floor 11',
+  'Gestrichelte Kante: ab Etage 11 mit Sonderregel': 'Dashed edge: a special rule from floor 11',
   'So funktioniert das Kartenhaus': 'How the House of Cards works',
   'Frühere Monate': 'Earlier months',
   'Die Etage wartet kurz auf dich – danach endet sie ohne Sterne.': 'The floor waits for you briefly - after that it ends without stars.',

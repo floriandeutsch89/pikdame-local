@@ -27,9 +27,11 @@
 // account (the account sheet: level, season ladder; needs --signed-in),
 // account-mail (its year-review mail switch; needs --signed-in),
 // tower (the Kartenhaus sheet via its tile in "Aufgaben"), tower-detail (a tapped
-// locked floor 14), tower-motion (frames: month change, a landing star and a
-// wobble), gameover-tower (a floor verdict). --tower mid|new|high|crowned
-// picks the month in the mock (default mid: floors 1-8 built, 9 next).
+// locked floor 14), tower-motion (frames: month change, a dealt card and a
+// wobble), tower-film (the month change frozen at --film ms, then its end),
+// tower-skip (a real tap during the month change), gameover-tower (a floor verdict).
+// --tower mid|new|half|high|crowned|full picks the month in the mock (default mid:
+// floors 1-8 built, 9 next); --closed '{"13":"building"}' closes floors; --tag names the shot.
 // tower-start / tower-play / tower-sheet / tower-lock: a live Kartenhaus floor from the
 // engine (its deal, bots, head start): the start card before the first move, the floor
 // card mid-game, its rules sheet, a tap on the locked discard pile. --floor queen|goOut|
@@ -201,9 +203,13 @@ const GAME_OVER_WIN = { ...GAME_OVER, totals: { p1: 1045, b1: 880, b2: 610, b3: 
 const TOWER_BEST = {
   mid: { 1: 3, 2: 3, 3: 3, 4: 2, 5: 2, 6: 2, 7: 1, 8: 1 },
   new: {},
+  half: { 1: 3, 2: 3, 3: 3, 4: 2, 5: 3, 6: 2, 7: 3, 8: 2, 9: 3, 10: 2, 11: 2, 12: 2 }, // 30 of 60 stars, 13 next
   high: { 1: 3, 2: 3, 3: 3, 4: 3, 5: 2, 6: 2, 7: 2, 8: 1, 9: 1, 10: 1, 11: 2, 12: 1, 13: 1 },
   crowned: { 1: 3, 2: 3, 3: 3, 4: 3, 5: 3, 6: 2, 7: 3, 8: 2, 9: 2, 10: 2, 11: 1, 12: 2, 13: 1, 14: 1, 15: 2, 16: 1, 17: 1, 18: 1, 19: 1, 20: 1 },
+  full: Object.fromEntries(Array.from({ length: 20 }, (_, i) => [i + 1, 3])), // all 60 stars
 };
+// --closed '{"13":"building","17":"locked"}': floors the server has no proven deal for yet.
+const TOWER_CLOSED = JSON.parse(arg('closed', '{}'));
 const TOWER_ARCHIVE = [
   { month: monthsBack(1), best: Object.fromEntries(Array.from({ length: 20 }, (_, i) => [i + 1, i < 6 ? 3 : i < 14 ? 2 : 1])) },
   { month: monthsBack(2), best: { 1: 3, 2: 2, 3: 2, 4: 1, 5: 1, 6: 1, 7: 1 } },
@@ -246,6 +252,7 @@ function rewrite(msg) {
     const best = { ...(TOWER_BEST[TOWER_MOCK] || TOWER_BEST.mid), ...(towerSceneBest || {}) };
     const archive = TOWER_ARCHIVE.map((m) => ({ month: m.month, best: m.best, ...BT.summarize(m.best) }));
     Object.assign(msg, { best }, BT.summarize(best), { archive, totalStars: BT.summarize(best).stars + archive.reduce((n, m) => n + m.stars, 0) });
+    if (Object.keys(TOWER_CLOSED).length) msg.closed = TOWER_CLOSED;
   }
   // Like the server: favourite opponent and Stammtisch only for the signed-in owner.
   if (msg.type === 'yearReview' && DECEMBER) {
@@ -311,6 +318,21 @@ function measurePage() {
   };
   const out = {};
   for (const sel of ['#topBar', '#opponents', '#melds', '#centerPiles', '#drawPile', '#discardPile', '#towerBar', '#towerBar .tbCard', '#towerBar .tbFold', '#towerStart', '#actionBar', '#handWrapper', '#hand']) out[sel] = box(sel);
+  // The Kartenhaus sheet: the house, its play button, what scrolls and the smallest floor hit area.
+  const sheet = document.querySelector('#towerOverlay:not(.hidden) .overlay-card');
+  if (sheet) {
+    for (const sel of ['#towerHouse', '#towerDetail', '#towerDetail .khPlay', '#towerCloseBtn']) out[sel] = box(sel);
+    const side = sheet.querySelector('.khSide');
+    const hits = [...document.querySelectorAll('#towerHouse .khNewLayer .khHit, #towerHouse > svg > .khFloor .khHit')]
+      .map((h) => h.getBoundingClientRect()).map((r) => Math.round(Math.min(r.width, r.height) * 10) / 10);
+    // A floor card's own size (unrotated): its SVG size times the house's scale.
+    const svg = document.querySelector('#towerHouse svg');
+    const face = document.querySelector('#towerHouse .khFace');
+    const k = svg ? svg.getBoundingClientRect().width / svg.viewBox.baseVal.width : 0;
+    out.tower = { sheetScroll: sheet.scrollHeight - sheet.clientHeight, sideScroll: side ? side.scrollHeight - side.clientHeight : null,
+      minHit: hits.length ? Math.min(...hits) : null,
+      card: face && k ? `${(face.width.baseVal.value * k).toFixed(1)}x${(face.height.baseVal.value * k).toFixed(1)}` : null };
+  }
   return out;
 }
 
@@ -495,7 +517,7 @@ function waitForHttp(port, ms = 20000) {
         await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(1200);
       };
-      const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|tower-detail|tower-motion|stats|stats-badges|stats-empty|history|settings|settings-aids|settings-music|game-settings|game-settings-debug|sheet-reopen|cardback|music-hint|challenge|challenge-open|stammtisch|account|account-mail|puzzle.*|year.*)$/;
+      const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|tower-detail|tower-rules|tower-motion|tower-film|tower-skip|stats|stats-badges|stats-empty|history|settings|settings-aids|settings-music|game-settings|game-settings-debug|sheet-reopen|cardback|music-hint|challenge|challenge-open|stammtisch|account|account-mail|puzzle.*|year.*)$/;
       for (const sc of scenes) {
         if (LOBBY_SCENES.test(sc)) await toStart();
         if (sc === 'lobby') await shot('lobby');
@@ -619,26 +641,69 @@ function waitForHttp(port, ms = 20000) {
           await page.click('#progressCloseBtn');
         }
         if (sc === 'tower' || sc === 'tower-detail' || sc === 'tower-rules') {
-          await page.click('#towerTile'); await page.waitForTimeout(2800); // after the first-visit build-up
+          // After the first-visit deal (--tower-wait: another moment of it).
+          await page.click('#towerTile'); await page.waitForTimeout(Number(arg('tower-wait', 2800)));
           if (sc === 'tower-detail') { await page.click(`#towerHouse [data-stage="${arg('stage', '14')}"]`); await page.waitForTimeout(400); }
           if (sc === 'tower-rules') {
             await page.evaluate(() => { const d = document.getElementById('towerRulesBox'); d.open = true; d.scrollIntoView({ block: 'center' }); });
             await page.waitForTimeout(400);
           }
-          await shot(sc);
+          if (arg('eval', '')) console.log(`${vn}-${sc}:`, JSON.stringify(await page.evaluate(fs.readFileSync(arg('eval', ''), 'utf8'))));
+          await shot(arg('tag', '') ? `${sc}-${arg('tag', '')}` : sc); // --tag half: one name per mock month
           await page.click('#towerCloseBtn');
         }
-        // Motion frames: a new month collapses and rises, a new star lands next to
-        // a lost try's wobble, and (--tower crowned) the Queen of Spades lands.
+        // The month change frozen at --film times (ms; every house animation paused there),
+        // then its end: last month's crowned house (the archive) is collected, the new one appears.
+        if (sc === 'tower-film') {
+          const from = TOWER_ARCHIVE[0];
+          const lastMonth = JSON.stringify({ name: ME, month: from.month, best: from.best, crowned: Object.keys(from.best).length >= 20 });
+          // A fresh show per frame: the client ends a show by a timer, too, should it never finish.
+          for (const t of [...arg('film', '0,400,800,1200,1700,2300').split(',').map(Number), 'end']) {
+            await page.evaluate(([v]) => localStorage.setItem('pikdame_tower_seen', v), [lastMonth]);
+            await page.click('#towerTile'); await page.waitForTimeout(t === 'end' ? 3200 : 60);
+            if (t !== 'end') {
+              await page.evaluate((ms) => document.getElementById('towerHouse').getAnimations({ subtree: true })
+                .forEach((a) => { a.pause(); a.currentTime = ms; }), t);
+              await page.waitForTimeout(80);
+            }
+            await shot(`tower-film-${t === 'end' ? 'end' : String(t).padStart(4, '0')}`);
+            await page.click('#towerCloseBtn'); await page.waitForTimeout(300);
+          }
+        }
+        // A tap (touch on phones) on floor 5 during the month change: it skips to the end and
+        // picks nothing (printed: running show, picked floor, detail title).
+        if (sc === 'tower-skip') {
+          const from = TOWER_ARCHIVE[0];
+          await page.evaluate(([v]) => localStorage.setItem('pikdame_tower_seen', v),
+            [JSON.stringify({ name: ME, month: from.month, best: from.best, crowned: true })]);
+          await page.click('#towerTile'); await page.waitForTimeout(600);
+          const hit = await page.$('#towerHouse .khNewLayer [data-stage="5"] .khHit');
+          const b = await hit.boundingBox();
+          if (VIEWS[vn].mobile) await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2);
+          else await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+          await page.waitForTimeout(300);
+          console.log(`${vn}-tower-skip:`, JSON.stringify(await page.evaluate(() => ({
+            busy: document.getElementById('towerHouse').classList.contains('khBusy'),
+            picked: [...document.querySelectorAll('#towerHouse [aria-pressed="true"]')].map((g) => g.dataset.stage),
+            detail: document.querySelector('#towerDetail .khDTitle').textContent,
+          }))));
+          await shot('tower-skip');
+          await page.click('#towerCloseBtn'); await page.waitForTimeout(300);
+        }
+        // Motion frames: a new month is collected (frozen at 800 ms) and has appeared, a new
+        // card is dealt next to a lost try's wobble, and (--tower crowned) the Queen of Spades lands.
         if (sc === 'tower-motion') {
           const best = TOWER_BEST[TOWER_MOCK] || TOWER_BEST.mid;
           const seen = (month, b, crowned = false) => page.evaluate(([v]) => localStorage.setItem('pikdame_tower_seen', v),
             [JSON.stringify({ name: ME, month, best: b, crowned })]);
           await seen(monthsBack(1), TOWER_ARCHIVE[1].best);
-          await page.click('#towerTile'); await page.waitForTimeout(380);
-          await shot('tower-motion-1-collapse');
-          await page.waitForTimeout(1050);
-          await shot('tower-motion-2-rise');
+          await page.click('#towerTile'); await page.waitForTimeout(150);
+          await page.evaluate(() => document.getElementById('towerHouse').getAnimations({ subtree: true }).forEach((a) => { a.pause(); a.currentTime = 800; }));
+          await page.waitForTimeout(80);
+          await shot('tower-motion-1-collect');
+          await page.evaluate(() => document.getElementById('towerHouse').getAnimations({ subtree: true }).forEach((a) => a.play()));
+          await page.waitForTimeout(2600);
+          await shot('tower-motion-2-new');
           await page.click('#towerCloseBtn'); await page.waitForTimeout(300);
           const top = Math.max(...Object.keys(best).map(Number));
           const before = { ...best }; delete before[top];
