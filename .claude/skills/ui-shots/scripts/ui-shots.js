@@ -48,7 +48,8 @@
 // --december: the client clock stands on 28 December and the server's year review
 // is mocked - adds the "Aufgaben" chip and the scenes year / year-mid / year-bots /
 // year-end (story cards), year-image (the share PNG, via the download fallback)
-// and mail (the review mail's HTML).
+// and mail (the review mail's HTML). --settle <ms> waits before the lobby shot
+// (the December snow starts at load and needs a few seconds to fall into view).
 // Start-screen scenes may follow table or result scenes in any order: the page
 // is reloaded to the start screen first.
 'use strict';
@@ -520,7 +521,7 @@ function waitForHttp(port, ms = 20000) {
       const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|tower-detail|tower-rules|tower-motion|tower-film|tower-skip|stats|stats-badges|stats-empty|history|settings|settings-aids|settings-music|game-settings|game-settings-debug|sheet-reopen|cardback|music-hint|challenge|challenge-open|stammtisch|account|account-mail|puzzle.*|year.*)$/;
       for (const sc of scenes) {
         if (LOBBY_SCENES.test(sc)) await toStart();
-        if (sc === 'lobby') await shot('lobby');
+        if (sc === 'lobby') { await page.waitForTimeout(Number(arg('settle', 0))); await shot('lobby'); }
         if (/^year(-mid|-bots|-end)?$/.test(sc)) {
           await page.click('#yearReviewBtn'); await page.waitForTimeout(400);
           const steps = { year: 0, 'year-mid': 2, 'year-bots': 5, 'year-end': 99 }[sc];
