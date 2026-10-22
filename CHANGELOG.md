@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.98.0] - 2026-10-22
+
+### Changed
+- Kartenhaus: Ab Januar 2027 stellt der Server die Etagen jedes Monats selbst zusammen – kein Monat wiederholt sich mehr. Jedes Blatt ist vorher geprüft gewinnbar, und nach oben wird es gleichmäßig schwerer
+- Kartenhaus: Ist eine Etage noch nicht fertig oder gibt es für sie kein geprüftes Blatt, bleibt sie geschlossen und sagt das, statt ein ungeprüftes Blatt auszuteilen
+
 ## [2.97.0] - 2026-10-22
 
 ### Changed
