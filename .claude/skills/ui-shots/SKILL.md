@@ -96,7 +96,9 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   `lobby` shows the "Aufgaben" chip, and `year`, `year-mid`, `year-bots`,
   `year-end` (story cards), `year-image` (the share PNG, saved through the
   download fallback), `account-mail` (opt-in switch, simulated sign-in) and
-  `mail` (the review mail's HTML, full page) are available.
+  `mail` (the review mail's HTML, full page) are available. The snow starts
+  falling at load, so the `lobby` shot (~1 s) shows hardly a flake;
+  `--settle 8000` waits that long before it. It never falls at the table.
 - Prints the written PNG paths. Look at them with the Read tool; don't
   just trust that they exist.
 - `--audit` also checks every shot and writes `<out>/audit.md`: truncated
