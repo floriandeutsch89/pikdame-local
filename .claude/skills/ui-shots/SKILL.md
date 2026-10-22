@@ -59,10 +59,17 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   (the Kartenhaus sheet, opened from its tile in "Aufgaben"), `tower-detail`
   (the same with the locked floor 14 tapped, `--stage N` another floor), `tower-rules` (the "So funktioniert"
   fold opened), `tower-motion` (animation
-  frames: a month change collapsing, a landing star next to a wobble; with
-  `--tower crowned` the crown landing), `gameover-tower` (a floor verdict on
-  the result sheet). `--tower mid|new|high|crowned` picks the month in the
-  mock (default `mid`: floors 1-8 built, 9 next). A live Kartenhaus floor
+  frames: a month change being collected, frozen at 800 ms, and the new month;
+  a dealt card next to a wobble; with `--tower crowned` the crown landing),
+  `tower-film` (the month change frozen at `--film 0,400,...` ms plus its end:
+  last month's crowned house is collected; with `--reduced-motion` the note
+  instead), `tower-skip` (a real tap on floor 5 during the month change; prints
+  whether it skipped and picked nothing), `gameover-tower` (a floor verdict on
+  the result sheet). `--tower mid|new|half|high|crowned|full` picks the month in the
+  mock (default `mid`: floors 1-8 built, 9 next; `half`: 12 floors, 30 stars),
+  `--closed '{"13":"building","17":"locked"}'` closes floors (no proven deal),
+  `--tag half` names the shot `tower-half`, `--tower-wait <ms>` shoots the
+  first-visit deal earlier. A live Kartenhaus floor
   from the engine (its deal, bots and head start): `tower-start` (the start
   card before the first move), `tower-play` (the floor card mid-game,
   `--turns N` of my turns, default 3), `tower-sheet` (its rules after a tap),
@@ -97,7 +104,9 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   the `ui-review` skill explains how.
 - `--measure` writes `<out>/measure.json`: the rectangles of the table's
   regions (melds, piles, hand, action bar, the Kartenhaus floor and start
-  card) per shot. Run the same scenes with `SHOTS_ROOT=<origin/main
+  card) per shot; with the Kartenhaus sheet open also the house, the play
+  button, how far the sheet and its side column scroll, the smallest floor
+  hit area and a floor card's size. Run the same scenes with `SHOTS_ROOT=<origin/main
   worktree>` for the "before" numbers: a new table element must not shrink
   `#melds` or `#handWrapper`. `--eval <file>` prints a page expression per
   tower scene (computed styles, grid tracks) when a layout puzzles you.
@@ -127,6 +136,12 @@ Traps that cost time before:
 - **Signed-in look:** there is no real account in the mock. Use
   `--signed-in` (routes the account API) and say in the PR that it was
   simulated.
+- **Frozen frames and repeated sheets:** pausing animations does not pause
+  the page's timers (the Kartenhaus month change also ends by a timer), so
+  shoot every frame from a fresh start, as `tower-film` does. And
+  `page.click` scrolls inner scrollers to its target: a sheet reopened in
+  the same scene keeps that scroll (the landscape Kartenhaus side column
+  showed its legend cut off).
 
 ## What to check in the images
 
