@@ -612,7 +612,7 @@ class GameManager {
     this.startNewRound();
     const human = this.players.find((p) => !p.isBot);
     if (BotTower.hasMod(cfg, 'queen') && human) this._towerDealQueen(human);
-    if (BotTower.hasMod(cfg, 'queen')) this.addLog('Erschwernis: Du startest mit der Pik Dame auf der Hand.');
+    if (BotTower.hasMod(cfg, 'queen')) this.addLog('Risiko: Du startest mit der Pik Dame auf der Hand – ausgelegt +100, auf der Hand −100.');
     if (BotTower.hasMod(cfg, 'noDiscard')) this.addLog('Erschwernis: Du darfst die Ablage nicht aufnehmen.');
     if (BotTower.hasMod(cfg, 'goOut')) this.addLog('Erschwernis: Sterne gibt es nur, wenn du selbst ausmachst.');
     this.broadcastState();
@@ -2313,9 +2313,11 @@ class GameManager {
    * on any miss it falls through to the heuristic discard. Only ever invoked
    * when PIKDAME_ONNX is set.
    */
-  async _runBotTurnWithOnnx(botId) {
+  async _runBotTurnWithOnnx(botId, opts = {}) {
     const cp = this.players.find((p) => p.id === botId);
     if (!cp) return;
+    // opts.forced (server tooling only, like runBotTurn): the net plays a human seat.
+    const controlled = () => !!opts.forced || this.isBotControlled(cp);
     const OnnxPolicy = require('./OnnxPolicy');
     const difficulty =
       botDifficultyOf(cp);
@@ -2324,7 +2326,7 @@ class GameManager {
       const SE = StateEncoder;
       if (SE.pileTakeLegal(this, botId)) {
         const src = await OnnxPolicy.chooseDrawSource(this, botId, difficulty);
-        if (!this.isBotControlled(cp)) return; // a human took the seat while the model thought
+        if (!controlled()) return; // a human took the seat while the model thought
         if (src === 'drawPile' || src === 'discardPile') cp.forcedDrawSource = src;
       }
     } catch (e) {
@@ -2334,7 +2336,7 @@ class GameManager {
     cp.externalDiscard = 'pause';
     this._agentAwaitingDiscard = null;
     try {
-      this.runBotTurn(botId);
+      this.runBotTurn(botId, { forced: !!opts.forced });
     } finally {
       cp.externalDiscard = prev;
     }
@@ -2348,7 +2350,7 @@ class GameManager {
       chosen = null;
     }
     // Taken over meanwhile: the human discards themselves.
-    if (!this.isBotControlled(cp) || this.phase !== 'playing' || this.currentPlayer()?.id !== botId) return;
+    if (!controlled() || this.phase !== 'playing' || this.currentPlayer()?.id !== botId) return;
     if (!chosen) {
       // Heuristic fallback for the discard among the legal ids.
       const legal = pending.legalIds
@@ -2627,6 +2629,16 @@ class GameManager {
    * (Reconnect-Robustheit: der Tisch blockiert nicht, bis er zurückkehrt).
    */
   /** Challenge, tutorial and Kartenhaus are single-player experiences. */
+  /** Randomness of bot decisions (easy bots). Kartenhaus floors derive it from
+   *  the deal, so a floor plays the same for the same moves (seed proofs). */
+  _botRandom(tag) {
+    if (!this.towerStage || typeof this.deckSeed !== 'number') return Math.random();
+    const key = `${this.deckSeed}|${this.roundNumber}|${this.turnIndexInRound}|${this.currentPlayerIndex}|${tag}`;
+    let h = 0x811c9dc5; // FNV-1a over the key, then one mulberry32 draw
+    for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 0x01000193);
+    return seededRandom(h >>> 0)();
+  }
+
   isSoloMode() {
     return !!(this.challengeDate || this.tutorialMode || this.towerStage);
   }
@@ -2672,7 +2684,7 @@ class GameManager {
 
     // Leichte Bots schieben das Auslegen oft auf (wie zögerliche Anfänger) -
     // außer eine Pflichtkarte MUSS gelegt werden.
-    if (passIndex === 0 && difficulty === 'easy' && !this.mustLayOffCardId && Math.random() < 0.4) {
+    if (passIndex === 0 && difficulty === 'easy' && !this.mustLayOffCardId && this._botRandom('hold') < 0.4) {
       meldPlan.newMelds = [];
       meldPlan.layOffs = [];
     }
@@ -2781,7 +2793,7 @@ class GameManager {
       preferDrawOnRedundantSet: cp.preferDrawOnRedundantSet || false,
     });
     // Leichte Bots übersehen die Ablage-Chance meistens (wie Anfänger).
-    if (difficulty === 'easy' && plan.source === 'discardPile' && Math.random() < 0.6) {
+    if (difficulty === 'easy' && plan.source === 'discardPile' && this._botRandom('pile') < 0.6) {
       plan.source = 'drawPile';
     }
     // Pile-usability check (medium and up), replacing the old blunt
@@ -2950,6 +2962,7 @@ class GameManager {
     }
     let discardCard = Bot.chooseDiscard(cp.hand, foreignMelds, {
       difficulty,
+      random: () => this._botRandom('discard'),
       scoreLead,
       visibleCards,
       opponentKnownCards,

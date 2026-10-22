@@ -41,7 +41,7 @@ test('queen: the human starts with a Queen of Spades, the deck stays complete', 
     assert.ok(me.hand.some((c) => isPikDame(c)), `${month}: a Queen of Spades in hand`);
     assert.strictEqual(me.hand.length, 15);
     assert.ok(conserved(g), `${month}: card conservation`);
-    assert.ok(g.log.some((e) => e.text === 'Erschwernis: Du startest mit der Pik Dame auf der Hand.'));
+    assert.ok(g.log.some((e) => e.text === 'Risiko: Du startest mit der Pik Dame auf der Hand – ausgelegt +100, auf der Hand −100.'));
     g.destroy();
   }
   const ids = [1, 2].map(() => { const g = floor(stageWith(['queen'])); const h = g.players[0].hand.map((c) => c.id).join(); g.destroy(); return h; });

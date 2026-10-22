@@ -8257,12 +8257,20 @@
   const TOWER_LAST_KEY = 'pikdame_tower_last'; // the last verdict, for the wobble: { name, month, stage, stars }
   const APEX = 21;
   const towerName = () => L('Kartenhaus', 'House of Cards');
+  // The ONLY wording of the floor modifiers (sheet, help, table): 'queen' is a
+  // risk (+100 melded, -100 in hand), the others are handicaps.
   const TOWER_MODS = {
-    queen: () => L('Pik Dame auf der Hand', 'Queen of Spades in hand'),
+    queen: () => L('Risiko: Pik Dame auf der Hand', 'Risk: Queen of Spades in hand'),
     noDiscard: () => L('Ohne Ablage', 'No discard pile'),
     goOut: () => L('Selbst ausmachen', 'Go out yourself'),
   };
+  const TOWER_MOD_RULES = {
+    queen: () => L('Risiko: Pik Dame auf der Hand – ausgelegt +100, auf der Hand −100', 'Risk: Queen of Spades in hand – +100 melded, −100 in hand'),
+    noDiscard: () => L('Erschwernis: keine Ablage (nur vom Stapel ziehen)', 'Handicap: no discard pile (draw from the stock only)'),
+    goOut: () => L('Erschwernis: Sterne nur, wenn du selbst ausmachst', 'Handicap: stars only if you go out yourself'),
+  };
   const towerModsText = (mods) => (mods || []).map((m) => (TOWER_MODS[m] ? TOWER_MODS[m]() : m)).join(' · ');
+  const towerModRulesText = (mods) => (mods || []).map((m) => (TOWER_MOD_RULES[m] ? TOWER_MOD_RULES[m]() : m)).join('; ');
   function requestTower() {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     towerAskedFor = myName || '';
@@ -8493,7 +8501,7 @@
         `<span>${escapeHtml(st.state === 'next' ? L(`Etage ${stage} spielen`, `Play floor ${stage}`) : L(`Etage ${stage} nochmal`, `Floor ${stage} again`))}</span></button>`;
     return `<div class="khDHead"><b class="khDTitle">${escapeHtml(L(`Etage ${stage}`, `Floor ${stage}`))}</b>${tag}</div>` +
       `<p class="khDBots">${escapeHtml(bots)}</p>` +
-      (mods ? `<p class="khDMods" aria-label="${escapeHtml(L(`Erschwernis: ${towerModsText(s.mods)}`, `Handicap: ${towerModsText(s.mods)}`))}">${mods}</p>` : '') +
+      (mods ? `<p class="khDMods" aria-label="${escapeHtml(towerModRulesText(s.mods))}">${mods}</p>` : '') +
       `<p class="khDNote">${escapeHtml(note)}</p>` + play;
   }
   function towerArchiveHtml(archive) {
@@ -8554,11 +8562,9 @@
       li(3, '3 Sterne: dazu selbst ausmachen', '3 stars: and go out yourself') +
       '</ul>' +
       p('Ein Stern macht die nächste Etage frei. Versuche sind unbegrenzt, der beste zählt.', 'One star unlocks the next floor. Tries are unlimited, the best counts.') +
-      p('Ab Etage 11 spielt eine Erschwernis gegen dich:', 'From floor 11 a handicap plays against you:') +
+      p('Ab Etage 11 gilt eine Sonderregel – ein Risiko oder eine Erschwernis:', 'From floor 11 a special rule applies – a risk or a handicap:') +
       '<ul class="khRuleList">' +
-      '<li class="dot"><span>' + escapeHtml(L('die Pik Dame auf der Hand (ausgelegt +100, auf der Hand -100)', 'the Queen of Spades in hand (+100 melded, -100 in hand)')) + '</span></li>' +
-      '<li class="dot"><span>' + escapeHtml(L('keine Ablage (nur vom Stapel ziehen)', 'no discard pile (draw from the stock only)')) + '</span></li>' +
-      '<li class="dot"><span>' + escapeHtml(L('Sterne nur, wenn du selbst ausmachst', 'stars only if you go out yourself')) + '</span></li>' +
+      Object.keys(TOWER_MOD_RULES).map((m) => '<li class="dot"><span>' + escapeHtml(TOWER_MOD_RULES[m]()) + '</span></li>').join('') +
       '</ul>' +
       p(`Der erste Stern jeder Etage bringt pro Monat einmal ${XP_RULES.towerFirstStar} EP; alle ${n} Etagen krönen dein Kartenhaus (+${XP_RULES.towerCrown} EP).`,
         `The first star of each floor pays ${XP_RULES.towerFirstStar} XP once a month; all ${n} floors crown your House of Cards (+${XP_RULES.towerCrown} XP).`);
