@@ -96,3 +96,32 @@ test('E2E: every floor 11-20 plays to its end, cards conserved after every turn'
     g.destroy();
   }
 });
+
+test('publicState: the floor card gets head start, two-star margin and handicaps - never the seed', () => {
+  const keysDeep = (obj, out = []) => {
+    if (obj && typeof obj === 'object') for (const [k, v] of Object.entries(obj)) { out.push(k); keysDeep(v, out); }
+    return out;
+  };
+  for (const s of BotTower.TOWER_STAGES) {
+    const month = '2026-11';
+    const cfg = BotTower.stageConfig(s.stage, month);
+    const g = new GameManager(() => {}, { deckSeed: cfg.seed, towerStage: s.stage, towerMonth: month });
+    g.addOrReconnectPlayer('me', 'Ada');
+    g.syncLobbyBots();
+    g.startTowerRound();
+    const st = g.publicState('me');
+    assert.strictEqual(st.towerStage, s.stage);
+    assert.strictEqual(st.towerMonth, month);
+    assert.strictEqual(st.towerHandicap, cfg.handicap, `floor ${s.stage}: head start`);
+    assert.strictEqual(st.towerClearMargin, BotTower.CLEAR_MARGIN);
+    assert.deepStrictEqual(st.towerMods, cfg.mods || null);
+    assert.ok(!keysDeep(st).some((k) => /seed/i.test(k)), `floor ${s.stage}: no seed in the client state`);
+    g.destroy();
+  }
+  const plain = new GameManager(() => {});
+  plain.addOrReconnectPlayer('me', 'Ada');
+  const st = plain.publicState('me');
+  assert.strictEqual(st.towerHandicap, null);
+  assert.strictEqual(st.towerClearMargin, null);
+  plain.destroy();
+});

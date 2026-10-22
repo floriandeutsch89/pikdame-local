@@ -2872,6 +2872,187 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 @media (prefers-reduced-motion: reduce) {
   .khSvg *, .khSvg *::before { animation: none !important; }
 }
+
+/* --- Kartenhaus at the table: the floor card sits beside the piles (portrait), under
+   them (landscape) or heads their column (desktop) - never in a row of its own. */
+#table.towerGame #centerPiles { justify-content: flex-end; gap: 18px; padding-left: 12px; padding-right: 18px; }
+#table.towerGame #centerPiles::before { inset: -6px 0 -2px 42%; }
+/* Two targets, one spot: the card (its rules) lies on the slot of the fold button (the rest).
+   Both hug their content, so a near miss beside the draw pile hits neither. */
+.towerBar {
+  --tb-card-w: 46px; --tb-card-h: 64px;
+  order: -1; flex: 0 1 auto; min-width: 0; align-self: center; margin: -2px auto -2px 0;
+  display: grid; grid-template-columns: minmax(0, auto); align-items: center;
+}
+.tbCard, .tbFold {
+  grid-area: 1 / 1; min-width: 0; padding: 0; border: 0; border-radius: var(--r-sm); background: none;
+  color: var(--text); font: inherit; text-align: left; -webkit-tap-highlight-color: transparent;
+}
+.tbCard { z-index: 1; justify-self: start; display: flex; align-items: center; justify-content: center; width: var(--tb-card-w); height: var(--tb-card-h); }
+.tbCard:active .tfCard { transform: rotate(-4deg) scale(0.95); }
+.tbFold {
+  display: grid; grid-template-columns: var(--tb-card-w) minmax(0, auto); grid-template-areas: 'slot col';
+  align-items: center; column-gap: 8px; min-height: var(--tap-min); padding-right: 6px;
+}
+.tbSlot { grid-area: slot; width: var(--tb-card-w); height: var(--tb-card-h); }
+.tfCol { grid-area: col; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; }
+@media (hover: hover) and (pointer: fine) { button.tbFold:hover { background: var(--glass); } }
+/* Folded (from the second own turn, or by the player's tap): the card and its tokens. The
+   words leave the layout but stay for screen readers; the tokens' column keeps a 44 px target. */
+.towerBar.tbCompact .tfCap, .towerBar.tbCompact .tfGoal, .towerBar.tbCompact .tfLbl {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; opacity: 0;
+}
+.towerBar.tbCompact .tbFold { grid-template-columns: var(--tb-card-w) minmax(calc(var(--tap-min) - 14px), auto); }
+.towerBar.tbCompact .tfMods { margin: 0; }
+.towerBar.tbUnfold .tfCap, .towerBar.tbUnfold .tfGoal, .towerBar.tbUnfold .tfLbl { animation: tbWordsIn 0.3s ease-out 0.1s both; }
+@keyframes tbWordsIn { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+.tfCap { font-size: var(--fs-micro); font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
+.tfGoal { font-size: var(--fs-micro); font-weight: 700; color: var(--text-muted); white-space: nowrap; }
+.tfGoal b { font-size: var(--fs-label); font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+.tfMods { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; margin-top: 1px; }
+.tfMod { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-micro); font-weight: 700; line-height: 1.2; color: var(--text); }
+.tfTok {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 17px; height: 17px; border-radius: 50%;
+  background: var(--card-bg); border: 1.5px dashed var(--paper-mod); color: var(--paper-mod); box-shadow: var(--shadow-1);
+}
+.tfTok .icon { width: 10px; height: 10px; stroke-width: 2.4; }
+/* A risk (the dealt queen: +100 melded, −100 in hand) is gold and solid, never the red handicap edge. */
+.tfTok.risk { border-style: solid; border-color: var(--star-edge); color: var(--suit-black); }
+.tfTok.risk .icon { fill: currentColor; stroke-width: 1.2; }
+.tfCard {
+  position: relative; display: block; flex: none; width: 42px; height: 59px; border-radius: 8px;
+  background: var(--card-bg); color: var(--card-ink); border: 1px solid var(--card-border);
+  box-shadow: var(--shadow-2), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  transform: rotate(-4deg); transition: transform 0.15s var(--ease);
+}
+.tfCard.mod::before, .tfCard.risk::before { content: ''; position: absolute; inset: 3px; border: 1.5px dashed var(--paper-mod); border-radius: 5px; pointer-events: none; }
+.tfCard.risk::before { border-color: var(--star-edge); }
+.tfRank { position: absolute; top: 5px; left: 6px; display: flex; flex-direction: column; align-items: center; line-height: 0.9; }
+.tfRank b { font-family: var(--font-display); font-size: var(--fs-lead); font-weight: 800; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.tfRank .icon { width: 10px; height: 10px; margin-top: 1px; color: var(--suit-red); stroke-width: 2.5; }
+.tfPip { position: absolute; right: 4px; top: 19px; width: 16px; height: 16px; color: var(--suit-red); stroke-width: 2.1; }
+.tfStars { position: absolute; left: 0; right: 0; bottom: 6px; display: flex; justify-content: center; }
+.tfStars .icon { width: 10px; height: 10px; color: rgba(0, 0, 0, 0.3); stroke-width: 2; }
+.tfStars .icon.on { color: var(--star-edge); fill: var(--star-fill); }
+/* Fresh after the start card: the card is dealt to its place. */
+.towerBar.tfEnter .tfCard { animation: tfDeal 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+@keyframes tfDeal { from { transform: translateY(-28px) rotate(18deg); opacity: 0; } to { transform: rotate(-4deg); opacity: 1; } }
+/* The start card: paper in the empty meld area before the first move; the queen keeps her
+   note (it explains the marked card), handicaps go by name (goOut sits in the goal). */
+.towerStart {
+  --text-muted: rgba(0, 0, 0, 0.62); /* the paper remap of .overlay-card */
+  position: relative; z-index: 3; flex: 0 0 auto; margin: 6px 12px 2px;
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 4px 14px;
+  padding: 12px 14px 12px 12px; border-radius: var(--r-lg);
+  background: var(--card-bg); color: var(--card-ink);
+  box-shadow: var(--shadow-3), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  animation: tsIn 0.45s var(--ease) both;
+}
+@keyframes tsIn { from { transform: translateY(14px) scale(0.97); opacity: 0; } to { transform: none; opacity: 1; } }
+.towerStart :focus-visible { outline-color: var(--paper-accent); }
+#table.towerStartOpen .meldsEmptyState { display: none; }
+/* Before the first move the meld area is empty: in portrait it gives the card all its room. */
+@media (orientation: portrait) { #table.towerStartOpen #melds { padding-top: 0; padding-bottom: 0; } }
+/* One place at a time: the floor card waits in the start card until "Los". */
+#table.towerStartOpen .towerBar { visibility: hidden; }
+.tsStage { display: flex; align-items: center; justify-content: center; padding: 2px 0; }
+.tsBody {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'eye go' 'title go' 'goal goal' 'mods mods';
+  column-gap: 10px; row-gap: 3px; min-width: 0;
+}
+.tsEye { grid-area: eye; margin: 0; display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-micro); font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+.tsEye .icon { width: 1.4em; height: 1.4em; color: var(--suit-red); stroke-width: 2.2; }
+.tsTitle { grid-area: title; margin: 0; font-family: var(--font-display); font-size: var(--fs-title); font-weight: 800; line-height: 1.05; letter-spacing: -0.01em; }
+.tsGoal { grid-area: goal; margin: 2px 0 0; font-size: var(--fs-label); line-height: 1.35; }
+.tsMods { grid-area: mods; display: flex; flex-direction: column; gap: 3px; margin-top: 2px; }
+.tsGroup { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 1px; }
+.tsModsHead { margin: 0; font-size: var(--fs-micro); font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--paper-mod); }
+.tsGroup.risk .tsModsHead, .tsMods .tfMod.risk, .tfsMods b.risk { color: var(--star-ink); }
+.tsMods ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 1px 10px; }
+.tsMods li { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 5px; }
+.tsMods .tfMod { align-self: center; font-size: var(--fs-hint); font-weight: 800; color: var(--paper-mod); }
+.tsWhy { font-size: var(--fs-hint); line-height: 1.3; color: var(--text-muted); }
+.tsGroup.handicap .tsWhy { display: none; }
+.tsGo { grid-area: go; align-self: center; width: auto; max-width: none; min-height: var(--tap-min); margin: 0; padding: 0 20px; font-size: var(--fs-body); }
+.tsGo .icon { width: 1.05em; height: 1.05em; }
+.tfCard.big { width: 64px; height: 89px; border-radius: 10px; transform: rotate(-6deg); }
+.tfCard.big.mod::before, .tfCard.big.risk::before { inset: 4px; border-width: 2px; border-radius: 7px; }
+.tfCard.big .tfRank { top: 6px; left: 7px; }
+.tfCard.big .tfRank b { font-size: var(--fs-title); }
+.tfCard.big .tfRank .icon { width: 12px; height: 12px; }
+.tfCard.big .tfPip { right: 7px; top: 31px; width: 22px; height: 22px; }
+.tfCard.big .tfStars { bottom: 7px; gap: 1px; }
+.tfCard.big .tfStars .icon { width: 12px; height: 12px; stroke-width: 1.8; }
+.towerStart .tfCard.big { animation: tfDealBig 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2) 0.1s both; }
+@keyframes tfDealBig { from { transform: translate(40px, -60px) rotate(25deg); opacity: 0; } to { transform: rotate(-6deg); opacity: 1; } }
+/* "Ohne Ablage": the red edge and a lock token on the corner the count badge leaves
+   free; the caption stays "Ablage" (the lock says the rest). */
+#discardPile.towerLocked .pile-card:not(.back)::after {
+  content: ''; position: absolute; inset: 3px; border: 1.5px dashed var(--paper-mod); border-radius: 7px; pointer-events: none;
+}
+#discardPile.towerLocked .pile-card:not(.back) { position: relative; }
+.pileLock { display: none; }
+#discardPile.towerLocked .pileLock {
+  position: absolute; top: -9px; left: -4px; z-index: 2;
+  display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--card-bg); border: 1.5px dashed var(--paper-mod); color: var(--paper-mod); box-shadow: var(--shadow-1);
+}
+.pileLock .icon { width: 13px; height: 13px; stroke-width: 2.4; }
+.pileLock.nudge { animation: lockNudge 0.45s ease-in-out; }
+@keyframes lockNudge { 0%, 100% { transform: none; } 20% { transform: translateX(-3px) rotate(-8deg); } 50% { transform: translateX(3px) rotate(6deg); } 80% { transform: translateX(-1px); } }
+/* "Pik Dame": the dealt queen is marked while the start card says why - the
+   coach spotlight (--coach), so it never reads as selected or freshly drawn. */
+#hand .card.towerSpot { top: -10px; box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 5px var(--coach), var(--shadow-2); animation: coachPulse 1.4s ease-in-out infinite; }
+#hand .card.towerSpot.selected { box-shadow: 0 0 0 3px var(--accent), 0 0 0 6px var(--coach), var(--shadow-2); }
+#hand.towerSpotOn .card:not(.towerSpot):not(.selected) { filter: brightness(0.72) saturate(0.85); }
+/* The rules of the floor at the table (tap on the floor card). */
+.tfsSec { break-inside: avoid; }
+/* Same text size as the Kartenhaus sheet's own rules (.pgRules). */
+.tfSheet { font-size: var(--fs-label); }
+.tfSheet h3 { margin: 14px 0 6px; font-size: var(--fs-label); font-weight: 800; }
+.tfSheet p { margin: 0 0 6px; }
+.tfsHead { display: flex; align-items: center; gap: 16px; margin: 2px 0 4px; }
+.tfsHead .tfCard { width: 58px; height: 82px; border-radius: 10px; }
+.tfsHead .tfCard .tfRank b { font-size: var(--fs-title); }
+.tfsHead .tfCard .tfPip { top: 28px; width: 22px; height: 22px; }
+.tfsHead .tfCard .tfStars .icon { width: 12px; height: 12px; }
+.tfsHead p { margin: 0; font-weight: 700; }
+.tfsNote { color: var(--text-muted); }
+.tfSheet .khRuleList li.off { color: var(--text-muted); }
+.tfSheet .khRuleList li.off .khRuleStars { opacity: 0.35; }
+.tfsMods { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.tfsMods li { display: flex; align-items: flex-start; gap: 8px; line-height: 1.35; }
+.tfsMods .tfTok { margin-top: 1px; }
+.tfsMods b { color: var(--paper-mod); }
+@media (prefers-reduced-motion: reduce) {
+  .towerStart, .towerStart .tfCard.big, .towerBar.tfEnter .tfCard, .pileLock.nudge, #hand .card.towerSpot,
+  .towerBar.tbUnfold .tfCap, .towerBar.tbUnfold .tfGoal, .towerBar.tbUnfold .tfLbl { animation: none; }
+}
+/* Desktop: the floor card heads the pile column and reaches over the opponents band's empty
+   end (--tb-reach, kept free by the chips); short windows keep the landscape layout. */
+@media (min-width: 1100px) and (min-height: 541px) {
+  #table.towerGame { --tb-reach: 224px; grid-template-areas: 'top top' 'opp piles' 'melds piles' 'action action' 'hand hand'; }
+  #table.towerGame #opponents { padding-right: calc(var(--tb-reach) + 4px); }
+  #table.towerGame #centerPiles { justify-content: flex-start; padding: 8px 22px 8px 8px; }
+  .towerBar { align-self: stretch; contain: inline-size; margin: 2px -16px 0 calc(-1 * var(--tb-reach)); justify-content: end; }
+  .tbFold { grid-template-columns: var(--tb-card-w) auto auto; grid-template-areas: 'slot cap mods' 'slot goal mods'; column-gap: 10px; row-gap: 2px; }
+  .towerBar.tbCompact .tbFold { grid-template-areas: 'slot mods'; }
+  .tfCol { display: contents; }
+  .tfCap { grid-area: cap; align-self: end; }
+  .tfGoal { grid-area: goal; align-self: start; }
+  .tfMods { grid-area: mods; margin: 0 0 0 4px; }
+  .tfMod { white-space: nowrap; }
+  .towerStart { grid-area: melds; align-self: center; justify-self: center; margin: 0; width: min(640px, calc(100% - 32px)); padding: 20px 24px 20px 20px; gap: 6px 24px; align-items: center; }
+  .tsTitle { font-size: var(--fs-display); }
+  .tfCard.big { width: 84px; height: 117px; border-radius: 12px; }
+  .tfCard.big .tfRank { top: 8px; left: 9px; }
+  .tfCard.big .tfRank b { font-size: var(--fs-display); }
+  .tfCard.big .tfRank .icon { width: 15px; height: 15px; }
+  .tfCard.big .tfPip { right: 9px; top: 40px; width: 30px; height: 30px; }
+  .tfCard.big .tfStars { bottom: 9px; }
+  .tfCard.big .tfStars .icon { width: 16px; height: 16px; }
+}
 .achAllBtn {
   display: block; width: 100%; min-height: var(--tap-min); margin-top: 6px;
   border: 0; border-radius: var(--r-sm); background: transparent;
@@ -5625,4 +5806,57 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
   #accountLoginForm > :not(.fieldLabel):not(input), #accountRegisterForm > :not(.fieldLabel):not(input) { grid-column: 1 / -1; }
   #accountLoginForm .fieldLabel, #accountRegisterForm .fieldLabel { margin: 0; }
   #accountLoginForm .linkBtn { justify-self: center; }
+
+  /* Kartenhaus at ~400 px: the floor card spans both pile columns under the piles;
+     inline-size containment keeps its text from widening them. */
+  #table.towerGame #centerPiles {
+    display: grid; grid-template-columns: auto auto; justify-content: center; align-content: start;
+    gap: 8px 14px; padding: 6px calc(12px + var(--safe-right)) 4px 4px;
+  }
+  /* Side by side, the draw pile's count badge reaches over: the lock token stays clear of it. */
+  #discardPile.towerLocked .pileLock { top: -9px; left: -3px; width: 20px; height: 20px; }
+  #discardPile.towerLocked .pileLock .icon { width: 11px; height: 11px; }
+  #table.towerGame #centerPiles::before { inset: -6px 15% -2px; }
+  /* The floor card sits under the piles: the undo chip takes the caption's place. */
+  #table.towerGame .pileUndoBtn { top: auto; bottom: -8px; }
+  #table.towerGame #discardPile.undoable .pileLabel { visibility: hidden; }
+  .towerBar {
+    --tb-card-w: 44px; --tb-card-h: 56px;
+    grid-column: 1 / -1; grid-row: 2; justify-self: stretch; contain: inline-size; margin: 0 -10px 0 -4px; align-items: start;
+  }
+  .tbFold { grid-template-columns: var(--tb-card-w) minmax(0, 1fr); grid-template-areas: 'slot goal' 'mods mods'; column-gap: 5px; row-gap: 1px; padding-right: 0; }
+  .towerBar.tbCompact .tbFold { justify-self: start; grid-template-columns: var(--tb-card-w) minmax(calc(var(--tap-min) - 5px), auto); grid-template-areas: 'slot mods'; }
+  .tfTok { width: 15px; height: 15px; }
+  .tfTok .icon { width: 9px; height: 9px; }
+  .tfCol { display: contents; }
+  .towerBar .tfCard { width: 38px; height: 53px; border-radius: 7px; }
+  .towerBar .tfRank { top: 4px; left: 5px; }
+  .towerBar .tfRank b { font-size: var(--fs-body); }
+  .towerBar .tfRank .icon { width: 9px; height: 9px; }
+  .towerBar .tfPip { right: 3px; top: 17px; width: 14px; height: 14px; }
+  .towerBar .tfCard.mod::before, .towerBar .tfCard.risk::before { inset: 2px; border-radius: 5px; }
+  .towerBar .tfStars { bottom: 4px; }
+  .towerBar .tfStars .icon { width: 9px; height: 9px; }
+  /* 74 px beside the card: the house is on the card, the head start stands as a figure. */
+  .tfCap { display: none; }
+  .tfGoal { grid-area: goal; white-space: normal; line-height: 1.2; }
+  .tfGoal b { display: block; font-size: var(--fs-lead); }
+  .tfMods { grid-area: mods; margin: 5px 0 0 3px; gap: 1px; }
+  .towerBar.tbCompact .tfMods { gap: 3px; }
+  .tfMod { line-height: 1.15; gap: 4px; }
+  .towerStart { grid-area: melds; align-self: center; justify-self: center; margin: 0; width: min(640px, calc(100% - 16px)); padding: 10px 14px 10px 12px; align-items: center; }
+  /* The floor's rules at ~400 px: two columns instead of one long scroll. */
+  .overlay-card.towerFloorSheet { max-width: 780px; padding: 12px 20px 10px; }
+  .overlay-card.towerFloorSheet h2 { margin-bottom: 4px; }
+  .tfSheet { columns: 2; column-gap: 26px; }
+  .tfSheet h3 { margin: 8px 0 4px; }
+  .tfsHead { margin: 0; gap: 12px; }
+  .tfsHead .tfCard { width: 40px; height: 56px; border-radius: 7px; }
+  .tfsHead .tfCard .tfRank b { font-size: var(--fs-lead); }
+  .tfsHead .tfCard .tfPip { top: 18px; width: 15px; height: 15px; }
+  .tfsHead .tfCard .tfStars .icon { width: 9px; height: 9px; }
+  .overlay-card.towerFloorSheet .btn-secondary { margin-top: 4px; min-height: var(--tap-min); padding-top: 10px; padding-bottom: 10px; }
+  .tsStage { padding: 0; }
+  .tfCard.big { width: 58px; height: 81px; }
+  .tfCard.big .tfPip { top: 28px; width: 20px; height: 20px; }
 }

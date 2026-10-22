@@ -46,9 +46,12 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
 2b. **Mobile zuerst** (iPhone 393×852). Jede UI-Änderung prüfen in: hoch,
    **quer** (874×402, nur ~400 px Höhe!) und Desktop. Der letzte
    `@media (orientation: landscape) and (max-height: 540px)`-Block steht am
-   ENDE von `style.css` (Vertragstest). Tisch-Layouts: Hochformat (Flex,
-   Stapel über Hand), Querformat ≤540 px und Desktop ≥1100 px (Grid, Stapel
-   in Seitenspalte). `--accent` (Auswahl) und `--drawn` in jedem Theme
+   ENDE von `style.css` (Vertragstest); höhere Spezifität (`#table.x
+   #centerPiles`) schlägt ihn trotzdem — dort jeden Wert neu setzen.
+   Tisch-Layouts: Hochformat (Flex, Stapel über Hand), Querformat ≤540 px
+   und Desktop ≥1100 px (Grid, Stapel in Seitenspalte; Text dort mit
+   `contain: inline-size`, sonst verbreitert er die Spalte und kostet
+   Auslagen-Breite). `--accent` (Auswahl) und `--drawn` in jedem Theme
    unterscheidbar; Spielerfarben nur aus `PLAYER_COLORS` (CVD-geprüft, ≠
    `--accent`). Startbildschirm hochkant: eine Spalte `--lobby-w`, passt am
    iPhone OHNE Scrollen — Messlatte für neue Elemente; quer ≤540 px (ab
@@ -242,4 +245,6 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
   UND `scripts/rl-env-server.js` prüfen.
 - **UI im Browser prüfen**, nicht nur `npm test`: alle drei Layouts. Headless
   Chromium mit normalem User-Agent (sonst Crawler-Erkennung, kein WebSocket).
-  Passkeys mit dem virtuellen CDP-Authenticator.
+  Passkeys mit dem virtuellen CDP-Authenticator. jsdom lädt kein
+  `style.css`: CSS nie per `getComputedStyle` testen, sondern per
+  Quelltext-Vertrag und `ui-shots --measure` (Flächen vorher/nachher).
