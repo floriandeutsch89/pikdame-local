@@ -3,6 +3,24 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.96.0] - 2026-10-22
+
+### Added
+- Kartenhaus am Tisch: Bei den Stapeln liegt die Etagenkarte – Nummer, dein
+  Bestwert in Sternen, die Vorgabe und was auf der Etage gilt. Ein Tipp auf die
+  Karte zeigt alle Regeln dieser Etage: was 1, 2 und 3 Sterne brauchen, die
+  Bots, die Vorgabe und jede Erschwernis genau.
+- Ab deinem zweiten Zug klappt die Etagenkarte auf Karte und Symbole zusammen.
+  Ein Tipp auf die Symbole klappt sie wieder auf (und wieder zu); deine Wahl
+  gilt dann auf jeder Etage.
+- Vor dem ersten Zug einer Etage zeigt eine Startkarte Ziel, Erschwernisse und
+  Risiko; „Los“ oder einfach ziehen. Wer dieselbe Etage neu lädt, sieht sie
+  nicht noch einmal.
+- „Ohne Ablage“: Die Ablage trägt ein Schloss; ein Tipp darauf erklärt die
+  Regel, statt nichts zu tun.
+- „Pik Dame auf der Hand“ erscheint am Tisch als Risiko (ausgelegt +100, auf
+  der Hand −100), und die Pik Dame ist nach dem Austeilen kurz markiert.
+
 ## [2.95.0] - 2026-10-20
 
 ### Changed
