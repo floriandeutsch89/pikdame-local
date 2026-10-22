@@ -158,7 +158,12 @@ always gets the same deals.
     `startTower` refuses).
   - Without onnxruntime nothing is built (Zen would play the heuristic: no
     proof); a warning is logged and whatever `data/` holds is used. Months do
-    not cycle any more. `PIKDAME_TOWER_GEN=0` turns building off (tests).
+    not cycle any more.
+  - `PIKDAME_TOWER_GEN` (default `1`): `0` makes an instance read-only. It
+    never builds; it re-reads `data/tower-months.json` on every hourly pass
+    (a dedicated generator instance from the same image may write it) and
+    replays the proofs on start, only logging a floor Zen no longer wins. The
+    tests run with `0`.
   - Several replicas: the deals depend only on the month and the bots, so every
     replica computes the same file; plain atomic writes are enough, no lock.
 

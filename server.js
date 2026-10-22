@@ -142,7 +142,11 @@ let DATA_DIR_WRITABLE = true; // for the config report
 })();
 const CRASH_LOG_FILE = path.join(DATA_DIR, 'crash.log');
 // Kartenhaus months from 2027-01: the server picks their deals (a throttled worker).
-const towerMonths = require('./game/TowerMonths').createTowerMonths({ file: path.join(DATA_DIR, 'tower-months.json') });
+// PIKDAME_TOWER_GEN=0: this instance only reads data/tower-months.json and checks it (another one builds).
+const towerMonths = require('./game/TowerMonths').createTowerMonths({
+  file: path.join(DATA_DIR, 'tower-months.json'),
+  generate: process.env.PIKDAME_TOWER_GEN !== '0',
+});
 BotTower.setMonthSource(towerMonths.seedsFor);
 function logCrash(context, err, extra = {}) {
   const entry = `[${new Date().toISOString()}] (${context}) ${err && err.stack ? err.stack : err} ${
@@ -2585,7 +2589,9 @@ function shutdown(signal) {
   // Laufende Spiele überleben den Neustart; gepufferte Store-Writes landen
   // sicher auf der Platte.
   writeSessionsSnapshot();
-  try { towerMonths.stop(); } catch (e) { /* flushes first; never block shutdown */ }
+  // Flushes at once; the deal worker ends between two games (never inside an ONNX run).
+  let towerStopped = Promise.resolve();
+  try { towerStopped = towerMonths.stop({ graceMs: 4000 }); } catch (e) { /* never block shutdown */ }
   playerStore.flushSync();
   gameHistoryStore.flushSync();
   globalStats.flushSync();
@@ -2605,7 +2611,7 @@ function shutdown(signal) {
       /* Socket war schon zu */
     }
   }
-  server.close(() => process.exit(0));
+  server.close(() => { towerStopped.finally(() => process.exit(0)); });
   // Falls server.close hängt (offene Keep-Alives): harter Ausstieg nach 5s.
   setTimeout(() => process.exit(0), 5000).unref();
 }
@@ -2648,7 +2654,7 @@ server.listen(PORT, () => {
     if (OnnxPolicy.enabled()) OnnxPolicy.warmup().catch((e) => logCrash('onnx-warmup', e));
   } catch (e) { logCrash('onnx-warmup', e); }
   // The Kartenhaus needs stored profiles: off in the public mode, so nothing to build there.
-  if (!PUBLIC_MODE && process.env.PIKDAME_TOWER_GEN !== '0') {
+  if (!PUBLIC_MODE) {
     try { towerMonths.start(); } catch (e) { logCrash('tower-months', e); }
   }
   // SMTP probe: log in and out once, so a wrong host/port/password shows up

@@ -103,6 +103,27 @@ test('service: builds next month from the 15th in its worker, persists per floor
   }
 });
 
+test('service: a stop mid-month ends the worker between games; the next start resumes to the same month', async () => {
+  const file = tmpFile();
+  await withEnv({ TOWER_STUB_DELAY_MS: '3' }, async () => {
+    const s = service(file, '2027-04-16');
+    const run = s.tick();
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    const t = Date.now();
+    await s.stop();
+    await run;
+    assert.ok(Date.now() - t < 2000, 'ended between two games, not by the last-resort terminate');
+  });
+  const partial = JSON.parse(fs.readFileSync(file, 'utf8')).months['2027-05'];
+  const doneBefore = partial ? partial.floors.filter(Boolean).length : 0;
+  assert.ok(doneBefore < 20, `stopped mid-month (${doneBefore} floors)`);
+  const s2 = service(file, '2027-04-16');
+  await s2.tick();
+  await s2.stop();
+  const direct = await TowerGen.generateMonth({ month: '2027-05', play, rate, maxTries: 300, pause: async () => {} });
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(file, 'utf8')).months['2027-05'].floors, direct.floors, 'resumed to the same deals');
+});
+
 test('service: a stale proof (the bots changed) is picked again - that floor, and the next only if the staircase needs it', async () => {
   const file = tmpFile();
   const s = service(file, '2027-02-20');
@@ -164,6 +185,38 @@ test('service: without the net nothing is generated, data/ is used as it is', as
   assert.match(warnings[0], /no onnxruntime/);
   assert.deepStrictEqual(s.seedsFor('2027-01'), Array.from({ length: 20 }, (_, i) => 900 + i));
   assert.strictEqual(s.data().months['2027-02'], undefined, 'next month not built');
+});
+
+test('service, PIKDAME_TOWER_GEN=0: reads only, the start check just logs, a generator instance\'s file shows up', async () => {
+  const file = tmpFile();
+  const builder = service(file, '2027-08-20'); // the generator instance
+  await builder.tick();
+  await builder.stop();
+  const built = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const sep = built.months['2027-09'].floors;
+  const warnings = [];
+  await withEnv({ TOWER_STUB_ZEN_LOSES: String(sep[4].seed) }, async () => {
+    const reader = service(file, '2027-09-01', { generate: false, warn: (w) => warnings.push(w) });
+    await reader.tick();
+    try {
+      assert.ok(warnings.some((w) => /no longer wins floor\(s\) 5 - not picked again here/.test(w)), warnings.join(' | '));
+      assert.deepStrictEqual(reader.data().months['2027-09'].floors, sep, 'nothing changed by the reader');
+      assert.deepStrictEqual(JSON.parse(fs.readFileSync(file, 'utf8')), built, 'the file untouched');
+      assert.strictEqual(reader.data().months['2027-10'], undefined, 'no next month from a reader');
+      // The generator instance writes a new month: the reader's next pass sees it.
+      const next = { ...built, months: { ...built.months, '2027-10': { version: R.GEN_VERSION, floors: sep } } };
+      fs.writeFileSync(file, JSON.stringify(next));
+      await reader.tick();
+      assert.deepStrictEqual(reader.seedsFor('2027-10'), sep.map((f) => f.seed));
+    } finally {
+      await reader.stop();
+    }
+  });
+  // An empty month stays empty on a reader (closed floors, never generated).
+  const lone = service(tmpFile(), '2027-11-02', { generate: false });
+  await lone.tick();
+  assert.strictEqual(Object.keys(lone.closedFloors('2027-11')).length, 20);
+  await lone.stop();
 });
 
 test('a running floor of a generated month survives snapshot and restore', async () => {

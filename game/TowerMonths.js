@@ -13,7 +13,11 @@
 //   without any proven deal stays locked. An unproven deal is never served.
 // - Without onnxruntime nothing is generated (Zen would play the heuristic: no
 //   proof); whatever data/ holds is used.
+// - generate: false (PIKDAME_TOWER_GEN=0): this instance only reads the file
+//   (again on every pass, a generator instance may write it) and replays the
+//   proofs on start; a broken floor is only logged.
 'use strict';
+const fs = require('fs');
 const path = require('path');
 const { Worker } = require('worker_threads');
 const { createAtomicJsonFile } = require('./AtomicJsonFile');
@@ -36,12 +40,21 @@ function createTowerMonths({
   maxTries = R.MAX_TRIES,
   emergencyTries = 2000,
   startDay = 15,
+  generate: builds = true, // false: read and check only (a separate generator instance builds)
   log = (line) => console.log(line),
   warn = (line) => console.warn(line),
 } = {}) {
   const store = createAtomicJsonFile(file);
+  const valid = (d) => !!(d && typeof d.months === 'object' && d.months);
   let data = store.read();
-  if (!data || typeof data.months !== 'object' || !data.months) data = { months: {} };
+  if (!valid(data)) data = { months: {} };
+  /** Read-only instance: the generator instance's latest file. */
+  function reload() {
+    try {
+      const d = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (valid(d)) data = d;
+    } catch (e) { /* missing or mid-write: keep what we have */ }
+  }
 
   let worker = null;
   let jobSeq = 0;
@@ -50,6 +63,7 @@ function createTowerMonths({
   let timer = null;
   let verified = false;
   let warned = false;
+  let stopping = false;
   const ruledThisBoot = new Set(); // next month: one full-rule pass per boot (it is deterministic)
 
   const generated = (month) => month > STATIC_END;
@@ -128,6 +142,10 @@ function createTowerMonths({
       const m = data.months[month];
       if (!m) continue;
       const { bad } = await run({ type: 'verify', month, floors: m.floors });
+      if (!builds) {
+        if (bad.length) warn(`Kartenhaus ${month}: Zen no longer wins floor(s) ${bad.join(', ')} - not picked again here (PIKDAME_TOWER_GEN=0)`);
+        continue;
+      }
       let dirty = false;
       m.floors.forEach((f, i) => {
         // Stale proofs go; a locked floor gets one new try per start.
@@ -152,6 +170,8 @@ function createTowerMonths({
   function tick() {
     if (running) return running;
     running = (async () => {
+      if (stopping) return;
+      if (!builds) reload();
       if (!netReady()) {
         if (!warned) warn('Kartenhaus: no onnxruntime - new months are not generated, data/tower-months.json is used as it is');
         warned = true;
@@ -164,12 +184,13 @@ function createTowerMonths({
         await verifyOnce([cur, next].filter(generated));
         verified = true;
       }
+      if (!builds) return;
       if (generated(cur) && missing(cur)) await generate(cur, 'missing', true);
       if (generated(next) && Number(day.slice(8, 10)) >= startDay && !ruledThisBoot.has(next)) {
         await generate(next, 'rule', false);
         ruledThisBoot.add(next);
       }
-    })().catch((e) => warn(`Kartenhaus: generation failed - ${e && e.message}`)).finally(() => { running = null; });
+    })().catch((e) => { if (!stopping) warn(`Kartenhaus: generation failed - ${e && e.message}`); }).finally(() => { running = null; });
     return running;
   }
 
@@ -179,14 +200,23 @@ function createTowerMonths({
     if (timer.unref) timer.unref();
   }
 
-  /** Flushes at once (SIGTERM does not wait), then ends the worker. */
-  function stop() {
+  /** Flushes at once, then asks the worker to end between two games (ending it
+   *  inside an ONNX run aborts the process); terminate() only as a last resort. */
+  function stop({ graceMs = 5000 } = {}) {
     clearInterval(timer);
     timer = null;
+    stopping = true;
     store.flushSync();
     const w = worker;
     worker = null;
-    return w ? w.terminate() : Promise.resolve();
+    if (!w) return Promise.resolve();
+    return new Promise((resolve) => {
+      // Both stay referenced: the process waits for the worker (or the grace) to end.
+      const last = setTimeout(() => { w.terminate().catch(() => {}).finally(resolve); }, graceMs);
+      w.ref();
+      w.once('exit', () => { clearTimeout(last); resolve(); });
+      w.postMessage({ type: 'stop' });
+    });
   }
 
   return { seedsFor, closedFloors, tick, start, stop, data: () => data, STATIC_END };
