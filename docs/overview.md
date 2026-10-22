@@ -95,7 +95,9 @@ modifiers against the human seat, enforced by `GameManager`:
 - `queen`: a Queen of Spades is swapped into the hand (1:1 with the hand's
   last plain card, so the 110-card deck stays complete and every try deals the
   same). It risks -100 on the hand but pays +100 when melded, so it comes with
-  a bigger head start.
+  a bigger head start. Players see it as a risk ("Risiko"), the other two as
+  handicaps ("Erschwernis"); the wording lives only in `TOWER_MODS` /
+  `TOWER_MOD_RULES` in `public/client.js`.
 - `noDiscard`: the human never takes the discard pile (`canTakeDiscardTop`
   says no, the table shows the pile blocked); an empty stock with an untakeable
   pile ends the round as usual. The bots play by the normal rules; their
@@ -115,14 +117,23 @@ month, and 1/3/12 crowned months (Lehrling, Polier/in, Baumeister/in).
 
 The deals live in `game/TowerSeeds.js` (generated data, 2026-10 to 2027-12);
 months past the list cycle through it deterministically (`monthSeeds`), so
-regenerate it before it runs out or after a new Zen model. `scripts/tower-seeds.js`
-picks per month and floor the first candidate seed on which the Schwer
-heuristic in the human seat earns a star against the floor's bots and
-modifiers, with the Zen net on (onnxruntime-node outside the repo, see
-CLAUDE.md): 2 of 3 runs, or 34 of 40 where an easy bot plays randomly
-(`Math.random` is seeded per run, so a rerun picks the same deals); floors
-1-10 must also stay tight (median margin cap). `--rate N` measures how often
-the heuristic earns a star per floor over N random deals.
+regenerate it before it runs out or after a new Zen model. A floor is
+deterministic per deal and line of play: Zen and Schwer play no dice, and the
+easy bots on floors 1-2 draw their randomness from the deal
+(`GameManager._botRandom`, Kartenhaus only). So one game is a proof:
+`scripts/tower-seeds.js` (onnxruntime-node outside the repo, see CLAUDE.md)
+takes a deal only when BOTH Schwer and Zen in the human seat earn a star on it.
+Floors 1-10 must also stay tight (Schwer's margin under a cap). Floors 11-20
+aim at a medium player: Mittel with 10 % random moves earns a star in 100
+games at a rate inside a band around a target falling from 45 % (floor 11) to
+13 % (floor 20), window [T-6, T+10], at least 8 %; after 3000 candidates the
+deal closest to the band is taken. Each month draws from its own seed block,
+so months run in parallel (`--jobs`) and a rerun picks the same deals.
+`test/fixtures/tower-proofs.json` holds stars, margin and a move hash of every
+proof game; `test/tower-proofs.test.js` replays them (without onnxruntime only
+the floors without a Zen bot, all of them in the CI job `tower-proofs`). After
+an intended bot change, `--prove` refreshes the hashes and fails if a floor
+lost its star. `--rate N` measures Schwer's star rate per floor over N random deals.
 
 **The old bot tower is October 2026.** Its ten fixed deals are October's
 floors 1-10, and a profile's pre-monthly `tower` stars count there

@@ -106,6 +106,30 @@ jobs:
       - name: Generated docs are up to date
         run: npm run docs:check
 
+  # Kartenhaus deals stay winnable: Hard and Zen replay every committed floor
+  # (test/tower-proofs.test.js). Zen needs the net, so this job installs the
+  # runtime the image pins - outside the repo, never in package.json. Per PR
+  # (about a minute) rather than nightly: the PR that breaks a deal goes red.
+  tower-proofs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26.x
+          cache: 'npm'
+      - run: npm ci
+      - name: onnxruntime-node as pinned in the Dockerfile
+        run: |
+          ORT_VERSION=$(grep -oE 'onnxruntime-node@[0-9.]+' docker/Dockerfile | head -1 | cut -d@ -f2)
+          test -n "$ORT_VERSION"
+          npm install --prefix "$RUNNER_TEMP/ort" --no-save --ignore-scripts "onnxruntime-node@${ORT_VERSION}"
+      - name: Replay every floor with Hard and Zen
+        env:
+          PIKDAME_ONNX: '1'
+          PIKDAME_TOWER_PROOFS_NET: '1'
+        run: NODE_PATH="$RUNNER_TEMP/ort/node_modules" node --test --require ./test/helpers/setup.js test/tower-proofs.test.js
+
   dependency-check:
     runs-on: ubuntu-latest
     steps:
