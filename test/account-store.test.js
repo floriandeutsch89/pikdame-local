@@ -317,6 +317,28 @@ test('AccountStore: a database from before the year review gains its columns, al
   await store.close();
 });
 
+// CI runs test files in parallel against one database: several stores create
+// the schema at once (as replicas would). Without the advisory lock in
+// ensureReady this deadlocked or hit "relation already exists".
+test('PgAccountStore: concurrent first starts on an empty database all succeed', { skip: !PG_URL }, async () => {
+  const { Client } = require('pg');
+  const schema = `race_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const admin = new Client({ connectionString: PG_URL });
+  await admin.connect();
+  await admin.query(`CREATE SCHEMA ${schema}`);
+  const url = new URL(PG_URL);
+  url.searchParams.set('options', `-c search_path=${schema}`);
+  const stores = Array.from({ length: 6 }, () => createPgAccountStore(url.toString()));
+  try {
+    const res = await Promise.all(stores.map((s, i) => s.register(`Race${i}`, `race${i}@example.com`, 'geheim123')));
+    for (const r of res) assert.ok(r.ok, JSON.stringify(r));
+  } finally {
+    await Promise.all(stores.map((s) => s.close()));
+    await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+    await admin.end();
+  }
+});
+
 test('PgAccountStore: unreachable database degrades gracefully (no throw, fails closed)', async () => {
   const store = createPgAccountStore('postgres://nouser:nopass@127.0.0.1:59999/nodb');
   assert.ok(store);
