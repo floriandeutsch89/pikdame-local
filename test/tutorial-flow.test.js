@@ -11,6 +11,7 @@ const path = require('node:path');
 const { JSDOM, VirtualConsole } = require('jsdom');
 const GameManager = require('../game/GameManager');
 const { createDeck } = require('../game/Deck');
+const { tutorialAttemptEvent } = require('../game/PlayEvents');
 
 const pub = path.join(__dirname, '..', 'public');
 const html = fs.readFileSync(path.join(pub, 'index.html'), 'utf8');
@@ -105,11 +106,14 @@ function boot({ storage = {} } = {}) {
 
   // The server side: one socket, one engine, the same calls as server.js.
   let sock = null;
-  const server = { game: null, joinName: null, code: 'TUT022' };
+  const server = { game: null, joinName: null, code: 'TUT022', reports: [], attemptEnds: [] };
   const deliver = (message) => window.setTimeout(() => sock && sock._emit('message', { data: JSON.stringify(message) }), 0);
   server.deliver = deliver;
   const answer = (r) => {
-    if (r && r.error) deliver({ type: 'error', error: r.error });
+    if (r && r.error) {
+      deliver({ type: 'error', error: r.error });
+      if (server.game && server.game.tutorialMode) server.game.noteTutorialRefusal(ME);
+    }
     return r;
   };
   server.receive = (msg) => {
@@ -119,8 +123,9 @@ function boot({ storage = {} } = {}) {
       case 'startTutorial':
       case 'createSession': {
         server.joinName = msg.name;
+        const onAttemptEnd = (info) => server.attemptEnds.push({ ...info, at: clock });
         const game = new GameManager((pid, message) => { if (pid === ME) deliver(message); },
-          msg.type === 'startTutorial' ? { deckSeed: GameManager.TUTORIAL_SEED, tutorialMode: true } : { deckSeed: GameManager.TUTORIAL_SEED });
+          msg.type === 'startTutorial' ? { deckSeed: GameManager.TUTORIAL_SEED, tutorialMode: true, onAttemptEnd } : { deckSeed: GameManager.TUTORIAL_SEED, onAttemptEnd });
         // Bots on the virtual clock (the engine's own timer runs on real time).
         game.maybeRunBotTurn = () => {
           const cp = game.phase === 'playing' && game.currentPlayer();
@@ -154,6 +159,8 @@ function boot({ storage = {} } = {}) {
       case 'swapJoker': answer(g.swapJoker(ME, msg.meldId, msg.handCardId)); break;
       case 'discard': answer(g.discard(ME, msg.cardId)); break;
       case 'nextRound': answer(g.markNextRoundReady(ME)); break;
+      // Lesson reports (play_attempts) on the page's clock, so their order is the lessons' order.
+      case 'tutorialStep': server.reports.push(msg); if (g && g.tutorialMode) g.tutorialStep(ME, msg.step, msg.status, clock); break;
       default: break; // profiles, probes: nothing the table needs
     }
   };
@@ -295,10 +302,22 @@ test('tutorial: following the marks plays round 1 to "Tutorial geschafft", lesso
     for (const count of counts) assert.match(count, /^\d+ \/ 10$/);
     assert.equal(t.coach(), null);
 
+    // The lessons reached the engine as reports (step and status only, once each):
+    // the scoring of round 1 is one won attempt, with the lessons in their order.
+    assert.ok(t.server.reports.every((r) => Object.keys(r).every((k) => ['type', 'step', 'status'].includes(k))), 'no name, no clock');
+    assert.strictEqual(new Set(t.server.reports.map((r) => `${r.status}:${r.step}`)).size, t.server.reports.length);
+    assert.deepStrictEqual(t.server.attemptEnds.map((e) => e.outcome), ['finished']);
+    const ev = tutorialAttemptEvent(t.server.game, t.server.attemptEnds[0], t.server.attemptEnds[0].at);
+    assert.deepStrictEqual([ev.outcome, ev.facts.step, ev.facts.refusals, ev.facts.errors], ['won', 'roundend', 0, {}], 'the glow is never refused');
+    assert.deepStrictEqual(ev.facts.reached, [...order, 'roundend']);
+    for (const k of ['welcome', 'draw', 'firstSet', 'pikdame', 'queenSet', 'joker', 'discard', 'roundend']) assert.ok(ev.facts.done.includes(k), `${k} done`);
+    assert.ok(Object.keys(ev.facts.sec).length >= 7, 'times on the server clock');
+
     // "Weiterspielen": round 2 without any hint.
     await t.click(t.$('#tutorialDoneStayBtn'));
     await t.run(BOT_MS);
     assert.equal(t.server.game.roundNumber, 2);
+    assert.strictEqual(t.server.attemptEnds.length, 1, 'playing on is no second attempt');
     assert.equal(t.coach(), null, 'no hints after the tutorial');
     assert.equal(t.$$('.tutorialGlow, .tutorialGlowMeld, .tutorialGlowTarget').length, 0);
     assert.ok(!t.visible('tutorialHintsItem'), 'nothing to switch back on after the ending');
@@ -473,6 +492,7 @@ test('tutorial: refused moves get the rule behind them, in the engine\'s own wor
     const run = 'Eine Folge läuft lückenlos in einer Farbe, etwa 5♥ 6♥ 7♥. Gleiche Werte in verschiedenen Farben sind ein Satz.';
     assert.deepStrictEqual(await tryMeld('3D', '5H', '6H'), { text: run, error: true }, 'mixed suits');
     assert.deepStrictEqual(await tryMeld('3S', '5S', '10S'), { text: run, error: true }, 'a gap');
+    assert.deepStrictEqual(t.server.game.tutorialTrack.errors, { firstSet: 2 }, 'both refusals count for the open lesson (play_attempts)');
     assert.ok(!t.toasts.some((x) => /Folge/.test(x)), `one channel: no toast over the card (toasts: ${t.toasts.join(' | ')})`);
     assert.ok(!/Folge/.test(t.$('#hint').textContent), 'and no second line under it');
     for (let i = 0; i < 40 && t.myTurn(); i++) assert.ok(await tapTheGlow(t));
@@ -502,16 +522,23 @@ test('tutorial: "Überspringen" asks first, the menu brings the hints back; bots
     await t.click(skip);
     assert.ok(t.coach(), 'one tap only asks');
     assert.equal(skip.textContent.trim(), 'Tutorial beenden?');
+    assert.deepStrictEqual(t.server.reports.filter((r) => r.status === 'off'), [], 'one tap reports nothing');
     await t.click(skip);
     assert.equal(t.coach(), null, 'the second tap ends the hints');
     assert.ok(t.toasts.some((x) => /Tutorial beendet/.test(x)), `says so (toasts: ${t.toasts.join(' | ')})`);
     assert.ok(t.visible('tutorialHintsItem'), 'the way back is a switch in "Optionen"');
     assert.equal(t.$('#tutorialHintsCheckbox').checked, false, 'it shows the hints as off');
+    // Skipped: the attempt ends there, at the lesson it stood on.
+    assert.deepStrictEqual(t.server.reports.filter((r) => r.status === 'off'), [{ type: 'tutorialStep', status: 'off' }]);
+    assert.deepStrictEqual(t.server.attemptEnds.map((e) => [e.outcome, e.reason]), [['abandoned', 'skipped']]);
+    const ev = tutorialAttemptEvent(t.server.game, t.server.attemptEnds[0], t.server.attemptEnds[0].at);
+    assert.deepStrictEqual([ev.stage, ev.facts.step, ev.facts.cause], [1, 'welcome', 'skipped']);
 
     await t.click(t.$('#tutorialHintsCheckbox'));
     assert.equal(t.coach().step, 'welcome', 'back where it stopped');
     assert.ok(t.visible('tutorialHintsItem'), 'the switch stays, now on');
     assert.equal(t.$('#tutorialHintsCheckbox').checked, true);
+    assert.strictEqual(t.server.attemptEnds.length, 1, 'hints back on: still the one attempt');
     assert.deepStrictEqual(t.errors, []);
   } finally {
     t.close();

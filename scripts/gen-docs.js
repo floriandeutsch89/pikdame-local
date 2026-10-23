@@ -144,7 +144,7 @@ const MSG_GROUPS = [
   ['Your turn', 'The moves. The server rejects every one of them with a reason when it is not your turn or the rules say no.',
     ['performCut', 'drawFromPile', 'drawFromDiscard', 'layoutMeld', 'layOff', 'layOffMulti', 'swapJoker', 'undoMeld', 'undoPileTake', 'discard']],
   ['Table talk and votes', 'Allowed from any seat at any time during a match.',
-    ['emote', 'togglePause', 'forfeitRound', 'nextRound', 'rematch', 'exportLastGame']],
+    ['emote', 'togglePause', 'forfeitRound', 'nextRound', 'rematch', 'exportLastGame', 'tutorialStep']],
 ];
 
 const MSG_NOTES = {
@@ -195,6 +195,7 @@ const MSG_NOTES = {
   rematch: 'Start a new match with the same table.',
   emote: 'Send an emoji reaction to the table.',
   exportLastGame: 'Download the last finished game as JSON.',
+  tutorialStep: 'Tutorial tables only: a lesson was `shown` or `done` (`step`, a key from `game/TutorialSteps.js`), or the hints were switched `off` (ends the attempt as skipped). Only the seat\'s own progress, timed on the server clock, deduplicated and capped; never answered. Feeds `play_attempts` (admin "Festhänger").',
 };
 
 // Server -> client. The type literals come from the code; this map adds the

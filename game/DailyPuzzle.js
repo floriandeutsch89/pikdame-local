@@ -321,17 +321,18 @@ function publicPuzzle(puzzle) {
 /**
  * Grades an answer: a list of card ids (one meld) or a list of melds. Card ids
  * must come from the puzzle hand, every card in at most one meld.
- * @returns {{valid:boolean, reason?:string, badMeld?:number, points:number, targetPoints:number, solved:boolean, meldType?:string, left:number}}
+ * @returns {{valid:boolean, reason?:string, fault?:string, badMeld?:number, points:number, targetPoints:number, solved:boolean, meldType?:string, left:number}}
  */
 function checkAnswer(puzzle, answer) {
   const kind = puzzle.kind || 'meld';
   const target = kind === 'out' ? 0 : puzzle.best ? puzzle.best.points : 0;
   const groups = Array.isArray(answer) && Array.isArray(answer[0]) ? answer : [answer];
-  const fail = (reason, extra = {}) => ({ valid: false, reason, points: 0, targetPoints: target, solved: false, left: puzzle.hand.length, ...extra });
-  if (kind === 'meld' && groups.length !== 1) return fail('Hier ist genau eine Auslage gefragt.');
+  // fault: the kind of mistake for play_attempts; players read the reason.
+  const fail = (reason, fault, extra = {}) => ({ valid: false, reason, fault, points: 0, targetPoints: target, solved: false, left: puzzle.hand.length, ...extra });
+  if (kind === 'meld' && groups.length !== 1) return fail('Hier ist genau eine Auslage gefragt.', 'oneMeld');
   // Client input: never more groups or ids than the hand has cards.
   if (groups.length > puzzle.hand.length || groups.some((g) => Array.isArray(g) && g.length > puzzle.hand.length)) {
-    return fail('Karte(n) nicht in der Hand gefunden.');
+    return fail('Karte(n) nicht in der Hand gefunden.', 'cards');
   }
   const seen = new Set();
   let points = 0;
@@ -340,16 +341,16 @@ function checkAnswer(puzzle, answer) {
     const ids = Array.isArray(groups[g]) ? groups[g].map(String) : [];
     const unique = new Set(ids);
     const cards = [...unique].map((id) => puzzle.hand.find((c) => c.id === id)).filter(Boolean);
-    if (cards.length !== unique.size || cards.length === 0) return fail('Karte(n) nicht in der Hand gefunden.');
-    if (cards.some((c) => seen.has(c.id))) return fail('Jede Karte darf nur in einer Auslage liegen.');
+    if (cards.length !== unique.size || cards.length === 0) return fail('Karte(n) nicht in der Hand gefunden.', 'cards');
+    if (cards.some((c) => seen.has(c.id))) return fail('Jede Karte darf nur in einer Auslage liegen.', 'cards');
     cards.forEach((c) => seen.add(c.id));
     const v = validateMeld(cards);
-    if (!v.valid) return fail(v.reason, groups.length > 1 ? { badMeld: g + 1 } : {});
+    if (!v.valid) return fail(v.reason, 'meld', groups.length > 1 ? { badMeld: g + 1 } : {});
     points += meldPoints(cards);
     meldType = v.type;
   }
   const left = puzzle.hand.length - seen.size;
-  if (kind !== 'meld' && left < 1) return fail('Eine Karte muss zum Abwerfen übrig bleiben.');
+  if (kind !== 'meld' && left < 1) return fail('Eine Karte muss zum Abwerfen übrig bleiben.', 'discard');
   const solved = kind === 'out' ? left === 1 : points >= target;
   // meldType, not `type`: the server spreads this object into a WebSocket
   // message whose own `type` field must survive.
@@ -361,15 +362,15 @@ function checkAnswer(puzzle, answer) {
 /**
  * Checks ONE meld while the player lays it (multi-meld puzzles): same lookup
  * and validateMeld as checkAnswer, but no scoring, nothing stored.
- * @returns {{valid:boolean, reason?:string}}
+ * @returns {{valid:boolean, reason?:string, fault?:string}}
  */
 function checkMeld(puzzle, ids) {
   const list = Array.isArray(ids) ? ids.slice(0, puzzle.hand.length + 1).map(String) : [];
   const unique = new Set(list);
   const cards = [...unique].map((id) => puzzle.hand.find((c) => c.id === id)).filter(Boolean);
-  if (cards.length !== unique.size || cards.length === 0) return { valid: false, reason: 'Karte(n) nicht in der Hand gefunden.' };
+  if (cards.length !== unique.size || cards.length === 0) return { valid: false, reason: 'Karte(n) nicht in der Hand gefunden.', fault: 'cards' };
   const v = validateMeld(cards);
-  return v.valid ? { valid: true } : { valid: false, reason: v.reason };
+  return v.valid ? { valid: true } : { valid: false, reason: v.reason, fault: 'meld' };
 }
 
 /** 1-3 stars for a solve after `tries` checks (0 = no solve to grade). */
