@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.115.0] - 2026-10-24
+
+### Changed
+- Abhängigkeiten aktualisiert (automatischer Dependabot-Check): body-parser 2.3.0→2.4.0
+- Abhängigkeiten aktualisiert (automatischer Dependabot-Check): fast-uri 3.1.8→3.1.9
+
 ## [2.114.0] - 2026-10-23
 
 ### Changed
