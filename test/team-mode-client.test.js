@@ -456,6 +456,8 @@ test('css: no lone "Team" tab on a rival column, short score words on a narrow t
   // Landscape drops the names from the meld tabs: a rival's tab would then say "Team" like mine.
   const land = css.slice(css.lastIndexOf('@media (orientation: landscape) and (max-height: 540px) {'));
   assert.match(land, /\.meldTeamTag \.mptName, \.meldTeamTag\.rival \{ display: none; \}/);
+  // The landscape header clips: the tab's negative margins (no taller header line) must go there.
+  assert.match(land, /\.meldTeamTag \{[^}]*margin-block: 0;/);
   assert.match(css, /@container \(max-width: 35rem\) \{\s*\.handScore \.tsLong \{ display: none; \}/);
   assert.match(css, /@container \(max-width: 22rem\) \{\s*\.handScore\.teamScore \.tsThey \{ display: none; \}/, 'large type on a phone: "Wir 550:600"');
 });

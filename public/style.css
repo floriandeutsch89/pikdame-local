@@ -6288,7 +6288,8 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
   /* My team's meld columns say "Team" alone (the chips above have the names), on a slimmer
      tab: the header line sits in the column's 14 px top padding. A rival's "Team" would read as mine. */
   .meldTeamTag .mptName, .meldTeamTag.rival { display: none; }
-  .meldTeamTag { border-width: 1px; line-height: 1; padding: 0 5px; vertical-align: 0; }
+  /* margin-block 0: the header clips (overflow: hidden), a negative margin would cut the tab. */
+  .meldTeamTag { border-width: 1px; line-height: 1; padding: 0 5px; vertical-align: 0; margin-block: 0; }
   /* Result strip in the narrow right column: the gap gets its own line. */
   #resultOverlay .resultMe { margin: 0 0 2px; padding: 8px 10px; }
   .rmTop { flex-wrap: wrap; }
