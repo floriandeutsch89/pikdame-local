@@ -100,6 +100,8 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   - Kartenhaus-Blätter ab 2027-01 baut der Server selbst (`TowerMonths.js`, Worker):
     EINE Regel/Generator (`TowerRule.js`/`TowerGen.js`) für Server und Skript;
     nie ein unbewiesenes Blatt ausliefern (Zen-Beweis Pflicht).
+  - Spielversuche nur über `PlayEvents.js` (`play_events`, Admin „Festhänger“):
+    eine Zeile pro Versuch (`attempt_id`), 90 Tage, ohne await; Konto löschen löscht mit.
   - `StammtischStore.js`: Gruppen-Tische `ST…`, per Code abgeschottet (auch
     im Public-Mode aktiv). Codes nie in die Partien-Historie (per Name
     abrufbar), dort nur ein Flag. `Emotes.js`: EINZIGE Emote-Whitelist (Vertragstest).

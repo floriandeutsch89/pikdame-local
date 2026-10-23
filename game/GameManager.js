@@ -1,4 +1,5 @@
 // game/GameManager.js
+const crypto = require('crypto');
 const { seededRandom, createDeck, shuffle, dealCards, performLuckyCut } = require('./Deck');
 
 // Wie lange der Abheber Zeit hat, die Stelle zu wählen, bevor automatisch
@@ -65,6 +66,10 @@ class GameManager {
     this.onAbandon = typeof options.onAbandon === 'function' ? options.onAbandon : null;
     this.abandoned = false;
     this.soloPausedUntil = null;
+    // Solo modes report each attempt's end once: { outcome: 'finished' | 'abandoned', reason } (PlayEvents.js).
+    this.onAttemptEnd = typeof options.onAttemptEnd === 'function' ? options.onAttemptEnd : null;
+    this.attemptId = null; // a Kartenhaus try: a replayed snapshot never writes it twice
+    this.attemptOver = false;
     this.challengeDate = options.challengeDate || null;
     this.onBotEmote = options.onBotEmote || null; // (botId, emoji) => void - Bot-Reaktionen an den Tisch
     this.onBotQuip = options.onBotQuip || null; // (botId, moment) => void - a short bot line (BotQuips.js)
@@ -258,7 +263,7 @@ class GameManager {
     if (this.challengeDate || !['playing', 'roundEnd', 'cutting'].includes(this.phase)) return { outcome: 'none' };
     const others = this.players.filter((pl) => pl.id !== playerId && !pl.isBot && !pl.leftGame);
     if (others.length === 0) {
-      if (this.tutorialMode || this.towerStage) this._abandonSolo();
+      if (this.tutorialMode || this.towerStage) this._abandonSolo('left');
       else this._forfeitGame(`${p.name} hat aufgegeben - die Partie endet ohne Wertung.`);
       return { outcome: 'ended' };
     }
@@ -374,7 +379,7 @@ class GameManager {
         this._takeoverTimers.delete(id);
         const p = this.players.find((pl) => pl.id === id);
         if (!p || p.connected) return; // rechtzeitig zurueck
-        this._abandonSolo();
+        this._abandonSolo('timeout');
       }, graceMs);
       if (timer.unref) timer.unref();
       this._takeoverTimers.set(id, timer);
@@ -609,6 +614,7 @@ class GameManager {
     this.addLog(cfg.handicap
       ? `Kartenhaus, Etage ${cfg.stage}: Hol in dieser Runde mehr Punkte als jeder Bot - die Bots bekommen ${cfg.handicap} Punkte Vorgabe.`
       : `Kartenhaus, Etage ${cfg.stage}: Hol in dieser Runde mehr Punkte als jeder Bot.`);
+    this.attemptId = crypto.randomUUID();
     this.startNewRound();
     const human = this.players.find((p) => !p.isBot);
     if (BotTower.hasMod(cfg, 'queen') && human) this._towerDealQueen(human);
@@ -769,8 +775,10 @@ class GameManager {
    * nicht wiederaufnehmbar. Bewusst KEIN finishRound/gameOver - genau daran
    * haengen Wertung und Speicherung.
    */
-  _abandonSolo() {
+  _abandonSolo(reason = 'timeout') {
     if (this.abandoned) return;
+    // A finished game left behind is no abandoned attempt.
+    if (this.phase !== 'gameOver') this._endAttempt('abandoned', reason);
     this.abandoned = true;
     this.soloPausedUntil = null;
     this.phase = 'abandoned';
@@ -779,6 +787,21 @@ class GameManager {
     if (this.onAbandon) {
       try { this.onAbandon(); } catch (e) { /* Aufraeumen darf nie werfen */ }
     }
+  }
+
+  /** The end of a solo attempt, reported once and only after its first deal.
+   *  A failing hook (it writes to the database) never touches the game. */
+  _endAttempt(outcome, reason = null) {
+    if (this.attemptOver || !this.isSoloMode() || !this.roundNumber) return;
+    this.attemptOver = true;
+    if (!this.onAttemptEnd) return;
+    try { this.onAttemptEnd({ outcome, reason }); } catch (e) { /* logging only */ }
+  }
+
+  /** The table goes away (cleanup) while its solo attempt is still open. */
+  abandonAttempt(reason) {
+    if (this.phase === 'gameOver' || this.phase === 'abandoned') return;
+    this._endAttempt('abandoned', reason);
   }
 
   /** Erlaubter Abhebe-Bereich (symmetrisch von den Rändern geklemmt). */
@@ -1802,6 +1825,7 @@ class GameManager {
     // Abgebrochene Spiele werden markiert - der Trainings-Loader überspringt
     // sie (halbe Partien lehren halbe Strategien).
     MoveLogger.flush(this, 'forfeit');
+    this._endAttempt('abandoned', 'forfeit');
     this.broadcastState();
   }
 
@@ -2020,6 +2044,7 @@ class GameManager {
           this.addLog(`Statistik konnte nicht gespeichert werden: ${e.message}`);
         }
       }
+      this._endAttempt('finished');
     } else if (isHandAus) {
       // Die Verdopplung ist eine OPTIONALE Hausregel (handAusDoubles, standardmäßig
       // AUS). Das Protokoll behauptete sie bisher unabhängig davon - die Wertung
@@ -2549,6 +2574,7 @@ class GameManager {
         key === 'onGameOver' ||
         key === 'onBotEmote' ||
         key === 'onBotQuip' ||
+        key === 'onAttemptEnd' ||
         key === '_lastQuipAt' ||
         key === '_botTimer' ||
         key === '_turnTimer' ||
@@ -2562,6 +2588,7 @@ class GameManager {
         key === '_agentAwaitingDiscard' ||
         key === '_noMcts' ||
         key === '_moveLog' ||
+        key === '_pendingBroadcast' ||
         key === '_undoStack' ||
         key === '_undoBatch' ||
         key === '_lastBotEmote'
@@ -2590,6 +2617,8 @@ class GameManager {
     Object.assign(this, state);
     this._undoStack = []; // transient: an undo window never survives a restart
     this._undoBatch = false;
+    // A snapshot taken while a broadcast was queued held `true`: the table never sent its state again.
+    this._pendingBroadcast = false;
     // SECURITY: strip every external-control field that could otherwise be
     // smuggled in via a tampered/persisted snapshot. These fields let an
     // external policy PICK among legal actions (they never expose hidden

@@ -9,6 +9,7 @@
 // own, so the one state-changing form (test mail) carries a CSRF token.
 const crypto = require('crypto');
 const { STATUS_ICON } = require('./ConfigReport');
+const BotTower = require('./BotTower');
 
 /** Password from an `Authorization: Basic ...` header, or null. The user
  *  name is ignored - there is exactly one operator credential. Checking it
@@ -101,7 +102,7 @@ table.users button{min-height:36px;padding:0 12px;font-size:.88em;background:rgb
 table.users button:hover{background:rgba(47,214,176,.2)}
 table.users button.danger{background:rgba(255,125,125,.1);border-color:rgba(255,125,125,.75);color:var(--error)}
 table.users button.danger:hover{background:rgba(255,125,125,.2)}.actions{display:flex;gap:6px;flex-wrap:nowrap}
-.badge{display:inline-block;padding:1px 8px;border-radius:999px;font-size:.82em;border:1px solid var(--line)}.badge.ok{color:var(--ok);border-color:rgba(67,221,154,.4)}
+.badge{display:inline-block;padding:1px 8px;border-radius:999px;font-size:.82em;border:1px solid var(--line);white-space:nowrap}.badge.ok{color:var(--ok);border-color:rgba(67,221,154,.4)}
 .badge.warn{color:var(--warn);border-color:rgba(245,197,66,.4)}.badge.error{color:var(--error);border-color:rgba(255,125,125,.4)}
 /* Monitoring cards */
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
@@ -134,12 +135,47 @@ table.users td.act{display:block;padding-top:10px}table.users .actions{flex-wrap
 /* Phone: config rows as icon + label on one line, details below */
 @media (max-width:560px){table.cfg,table.cfg tbody{display:block}table.cfg tr{display:grid;grid-template-columns:auto 1fr;border-top:1px solid var(--line)}table.cfg tr:first-child{border-top:0}
 table.cfg td,table.cfg th{border-top:0;width:auto}table.cfg tr>td:last-child{grid-column:1/-1;padding-top:0}}
+/* Phone: four tabs do not fit one row - a 2x2 grid instead of a hidden scroller */
+@media (max-width:520px){nav.tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;border-bottom:0;margin:14px 0 8px}
+nav.tabs a{justify-content:center;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+nav.tabs a.active{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}}
+/* Festhänger: the Kartenhaus month by floor, players stuck on one */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 14px}
+.kpi span{display:block;color:var(--muted);font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.kpi b{display:block;font-size:1.45rem;font-variant-numeric:tabular-nums}.kpi.warn b{color:var(--warn)}
+a.kpi{color:inherit;text-decoration:none}a.kpi:hover,a.kpi:focus-visible{border-color:var(--warn)}
+table.list th{color:var(--muted);font-weight:600;font-size:.85em;white-space:nowrap}
+table.list td{overflow-wrap:normal;vertical-align:middle}table.list .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+td.floor b{white-space:nowrap}td.floor small{display:block;color:var(--muted);font-size:.82em;margin-top:2px}
+td.rate{min-width:180px;white-space:nowrap}.track{display:inline-block;vertical-align:middle;width:calc(100% - 60px);height:8px;border-radius:4px;background:#0b0e12;overflow:hidden}
+.fill{display:block;height:100%;background:var(--accent)}.pct{display:inline-block;width:56px;text-align:right;font-variant-numeric:tabular-nums}
+tr.wall td{background:rgba(245,197,66,.07)}tr.wall td:first-child{box-shadow:inset 3px 0 0 var(--warn)}tr.wall .fill{background:var(--warn)}
+td.hot{color:var(--warn);font-weight:700}
+td.name{padding-top:0;padding-bottom:0}td.name a,a.back{color:var(--accent);font-weight:600;text-decoration:none;display:inline-flex;align-items:center;min-height:44px}
+td.name a:hover,a.back:hover{text-decoration:underline}td.why .sub{white-space:nowrap}
+/* Phone: every row a card - floors with the bar beside the title, the counts as "39 Spieler" below */
+@media (max-width:600px),(max-height:540px),(pointer:coarse){nav.ranges a{min-height:44px}}
+@media (max-width:600px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.kpi{padding:8px 10px}.kpi span{letter-spacing:.02em}.kpi b{font-size:1.25rem}
+table.list thead{display:none}table.list,table.list tbody{display:block}
+table.list tr{padding:10px 14px;border-top:1px solid var(--line)}table.list tr:first-child{border-top:0}
+table.list td,table.list .num{border:0;padding:0;white-space:normal;text-align:left}
+table.stuck td:nth-child(2),table.tries td:nth-child(2),table.tries td:nth-child(5){text-align:right}
+table.list td[data-label]::before{content:attr(data-label) " ";color:var(--muted)}table.list td[data-unit]::after{content:" " attr(data-unit);color:var(--muted)}
+table.floors tr{display:flex;flex-wrap:wrap;align-items:center;gap:2px 14px}table.floors td{order:3;font-size:.92em}
+table.floors td.floor{order:1;flex:1 1 calc(100% - 164px);min-width:0;font-size:1em}table.floors td.rate{order:2;flex:0 0 150px;min-width:0}
+table.floors td.floor small{margin-bottom:4px}table.floors td.stuckn:not(.hot){display:none}
+table.stuck tr,table.tries tr{display:grid;grid-template-columns:auto 1fr auto;gap:2px 14px;align-items:center}
+table.stuck td.name{grid-column:1/3}table.stuck td.why,table.tries td.why{grid-column:1/-1;margin-top:2px}
+table.stuck td:nth-child(4){grid-column:2/4}table.tries td.date{grid-column:1/3;color:var(--muted)}
+td.rate{min-width:0}tr.wall{background:rgba(245,197,66,.07);box-shadow:inset 3px 0 0 var(--warn)}tr.wall td{background:none}tr.wall td:first-child{box-shadow:none}}
 `;
 
 const TABS = [
   ['config', '/admin', 'Konfiguration'],
   ['users', '/admin/users', 'Benutzer'],
   ['monitor', '/admin/monitor', 'Monitoring'],
+  ['stuck', '/admin/stuck', 'Festhänger'],
 ];
 
 function layout({ tab, summary, notice, body, extraHead = '' }) {
@@ -219,7 +255,7 @@ function usersBody({ users, csrf, now = Date.now() }) {
 ${list.length ? `<div class="panel scroll"><table class="users">
 <thead><tr><th>Name / E-Mail</th><th>Status</th><th>Registriert</th><th>EP</th><th>Spiele</th><th>Siege</th><th>Saison-EP</th><th></th></tr></thead>
 <tbody>${rows}</tbody></table></div>` : '<p class="muted">Noch keine registrierten Benutzer.</p>'}
-<p class="legend">„Anmelde-Link senden“ schickt einem bestätigten Konto einen 15 Minuten gültigen Einmal-Link - der Weg zurück nach verlorenem Passkey oder vergessenem Passwort. Unbestätigte Konten werden 48 Stunden nach Ablauf ihres Links bei der nächsten Registrierung automatisch entfernt. Löschen entfernt das Konto und seine Anmeldungen; das Gast-Profil unter dem Namen (Statistik, Abzeichen) bleibt erhalten.</p>`;
+<p class="legend">„Anmelde-Link senden“ schickt einem bestätigten Konto einen 15 Minuten gültigen Einmal-Link - der Weg zurück nach verlorenem Passkey oder vergessenem Passwort. Unbestätigte Konten werden 48 Stunden nach Ablauf ihres Links bei der nächsten Registrierung automatisch entfernt. Löschen entfernt das Konto, seine Anmeldungen und seine Spielversuche (Festhänger); das Gast-Profil unter dem Namen (Statistik, Abzeichen) bleibt erhalten.</p>`;
 }
 
 /** The second step of a delete: shown in the notice area. */
@@ -337,12 +373,156 @@ function monitorData(series, current) {
   };
 }
 
+// ---------------------------------------------------------------- stuck tab
+const MONTHS_DE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+const monthLabel = (m) => `${MONTHS_DE[Number(String(m).slice(5, 7)) - 1] || ''} ${String(m).slice(0, 4)}`;
+const pct = (v) => (v == null ? '–' : `${fmtNum(v * 100)} %`);
+const stuckHref = (query) => esc(`/admin/stuck?${new URLSearchParams(query)}`);
+const LEVEL_DE = { easy: 'Leicht', medium: 'Mittel', hard: 'Schwer', zen: 'Zen' };
+const MOD_DE = { queen: 'mit Pik Dame', noDiscard: 'ohne Ablage', goOut: 'selbst ausmachen' };
+const REASON_DE = { forfeit: 'aufgegeben', left: 'verlassen', timeout: 'nicht zurückgekehrt', expired: 'Tisch abgelaufen', restart: 'Server-Neustart' };
+const END_DE = { me: 'selbst ausgemacht', bot: 'ein Bot ging raus', emptyDraw: 'Ziehstapel leer', stalemate: '160 Züge ohne Auslage' };
+
+/** "2× Zen, Schwer · +40 Vorgabe · ohne Ablage": who a floor plays against. */
+function floorInfo(stage) {
+  const cfg = BotTower.TOWER_STAGES.find((s) => s.stage === stage);
+  if (!cfg) return '';
+  const counts = new Map();
+  for (const b of cfg.bots) counts.set(b, (counts.get(b) || 0) + 1);
+  const parts = [[...counts].map(([b, n]) => (n > 1 ? `${n}× ${LEVEL_DE[b]}` : LEVEL_DE[b])).join(', ')];
+  if (cfg.handicap) parts.push(`+${cfg.handicap} Vorgabe`);
+  for (const m of cfg.mods || []) parts.push(MOD_DE[m]);
+  return parts.join(' · ');
+}
+
+/** A failed attempt's cause in words, e.g. "Schwelle um 40 Pkt verfehlt". */
+function causeText(cause, { miss = null, turn = null } = {}) {
+  switch (cause) {
+    case 'abandoned': return turn != null ? `abgebrochen in Zug ${turn}` : 'abgebrochen';
+    case 'queen': return 'Pik Dame kassiert';
+    case 'jokers': return 'Joker auf der Hand geblieben';
+    case 'goOut': return 'nicht selbst ausgemacht';
+    case 'emptyDraw': return 'Ziehstapel leer';
+    case 'stalemate': return '160 Züge ohne Auslage';
+    case 'margin':
+      if (miss == null) return 'Schwelle verfehlt';
+      return miss > 0 ? `Schwelle um ${fmtNum(miss)} Pkt verfehlt` : 'punktgleich mit dem besten Bot';
+    default: return '–';
+  }
+}
+
+const signed = (v) => (v == null ? '–' : v > 0 ? `+${fmtNum(v)}` : v < 0 ? `−${fmtNum(-v)}` : '0');
+
+function floorRow(f) {
+  const width = f.winRate == null ? 0 : Math.round(f.winRate * 100);
+  return `<tr${f.wall ? ' class="wall"' : ''}>
+<td class="floor"><b>Etage ${f.stage}</b>${f.wall ? ' <span class="badge warn" title="Siegquote höchstens halb so hoch wie auf der Etage darunter">Knick</span>' : ''}<small>${esc(floorInfo(f.stage))}</small></td>
+<td class="num" data-unit="Spieler">${fmtNum(f.players)}</td><td class="num" data-unit="geschafft">${fmtNum(f.cleared)}</td>
+<td class="num" data-unit="Versuche">${fmtNum(f.attempts)}</td>
+<td class="rate" title="Siegquote"><span class="track" aria-hidden="true"><span class="fill" style="width:${width}%"></span></span><span class="pct">${pct(f.winRate)}</span></td>
+<td class="num" data-unit="Abbrüche">${pct(f.abandonRate)}</td><td class="num" data-label="Median" data-unit="Züge">${fmtNum(f.medianTurns)}</td>
+<td class="num stuckn${f.stuck ? ' hot' : ''}" data-unit="Festhänger">${fmtNum(f.stuck)}</td>
+</tr>`;
+}
+
+function stuckRow(s, month) {
+  const why = s.top ? causeText(s.top.cause, { miss: s.miss, turn: s.quitTurn }) : '–';
+  return `<tr>
+<td class="name"><a href="${stuckHref({ month, player: s.name })}">${esc(s.name)}</a></td>
+<td class="num" data-label="Etage">${s.stage}</td><td class="num" data-unit="Versuche">${fmtNum(s.attempts)}</td>
+<td class="date" data-label="zuletzt">${esc(fmtDate(s.lastAt))}</td>
+<td class="why">${esc(why)}${s.top ? ` <span class="sub">${s.top.n} von ${s.attempts}</span>` : ''}</td>
+</tr>`;
+}
+
+/** One attempt of the player view: result, distance to the star, why. */
+function attemptRow(a, shownMonth) {
+  const f = a.facts || {};
+  const [month, stage] = String(a.target).split('/');
+  const stars = Math.max(1, Math.min(3, f.stars || 1));
+  const result = a.outcome === 'won' ? `<span class="badge ok">${'★'.repeat(stars)} ${stars === 1 ? 'Stern' : 'Sterne'}</span>`
+    : a.outcome === 'lost' ? '<span class="badge error">kein Stern</span>' : '<span class="badge warn">abgebrochen</span>';
+  const details = [];
+  if (a.outcome === 'abandoned') details.push(causeText('abandoned', { turn: a.turns }), REASON_DE[f.reason]);
+  else if (a.outcome === 'lost') details.push(causeText(f.cause, { miss: f.margin == null ? null : -f.margin }));
+  if (f.end && !(a.outcome === 'lost' && f.cause === f.end)) details.push(END_DE[f.end]);
+  if (f.queenInHand && !(a.outcome === 'lost' && f.cause === 'queen')) details.push('Pik Dame auf der Hand');
+  if (f.jokersInHand && !(a.outcome === 'lost' && f.cause === 'jokers')) details.push(`${f.jokersInHand} Joker auf der Hand`);
+  return `<tr>
+<td class="date">${esc(fmtDate(a.at))}</td>
+<td class="num" data-label="Etage">${esc(stage)}${month !== shownMonth ? ` <span class="sub">${esc(monthLabel(month))}</span>` : ''}</td>
+<td class="res">${result}</td>
+<td class="num" data-label="Abstand">${signed(f.margin)}${a.outcome === 'abandoned' ? ' <span class="sub">vorläufig</span>' : ''}</td>
+<td class="num" data-unit="Züge">${fmtNum(a.turns)}</td>
+<td class="why">${esc(details.filter(Boolean).join(' · ') || '–')}</td>
+</tr>`;
+}
+
+function playerBody({ month, player, attempts }) {
+  const back = `<p><a class="back" href="${stuckHref({ month })}">← Zur Übersicht ${esc(monthLabel(month))}</a></p>`;
+  if (!attempts || attempts.error) {
+    return `${back}<div class="notice err">Spielversuche nicht lesbar: ${esc(attempts ? attempts.error : 'unbekannt')}</div>`;
+  }
+  const list = attempts.attempts;
+  return `${back}<h2>Versuche von ${esc(attempts.name || player)} <span class="sub">Kartenhaus, letzte 90 Tage</span></h2>
+${list.length ? `<div class="panel"><table class="list tries">
+<thead><tr><th>Wann</th><th class="num">Etage</th><th>Ergebnis</th><th class="num">Abstand</th><th class="num">Züge</th><th>Warum</th></tr></thead>
+<tbody>${list.map((a) => attemptRow(a, month)).join('')}</tbody></table></div>` : `<p class="muted">Keine Kartenhaus-Versuche von „${esc(player)}“ in den letzten 90 Tagen.</p>`}
+<p class="legend">Abstand = eigene Punkte − Vorgabe − bester Bot: über 0 gibt einen Stern, ab ${BotTower.CLEAR_MARGIN} zwei. Bei abgebrochenen Versuchen der Stand beim Abbruch (Auslage minus Hand). Züge zählen alle Sitze am Tisch.</p>`;
+}
+
+function stuckBody({ current, month, player, report, attempts }) {
+  if (player) return playerBody({ month, player, attempts });
+  if (!report || report.error) return `<div class="notice err">Spielversuche nicht lesbar: ${esc(report ? report.error : 'unbekannt')}</div>`;
+  const months = [...new Set([current, month, ...report.months])].filter(Boolean).sort().reverse();
+  const nav = `<nav class="ranges" aria-label="Monat">${months.map((m) =>
+    `<a href="${stuckHref({ month: m })}"${m === month ? ' class="active" aria-current="page"' : ''}>${esc(monthLabel(m))}</a>`).join('')}</nav>`;
+  const t = report.totals;
+  const find = `<form class="find" method="get" action="/admin/stuck"><input type="hidden" name="month" value="${esc(month)}">
+<input type="search" name="player" placeholder="Spielername" aria-label="Spielername" autocomplete="off" required>
+<button type="submit">Versuche anzeigen</button></form>`;
+  if (!t.attempts) {
+    return `<h2>Kartenhaus</h2>${nav}
+<p class="muted">Noch keine Kartenhaus-Versuche in diesem Monat.</p>
+<h2>Spieler nachschlagen</h2><div class="panel">${find}</div>
+<p class="legend">Gezählt wird jeder beendete oder abgebrochene Versuch einer Etage, mit Spielernamen, 90 Tage lang.</p>`;
+  }
+  // Floors from 1 up to the highest one tried, gaps included: the curve stays readable.
+  const byStage = new Map(report.floors.map((f) => [f.stage, f]));
+  const top = Math.max(...report.floors.map((f) => f.stage));
+  const rows = [];
+  for (let s = 1; s <= top; s++) {
+    rows.push(byStage.get(s) || { stage: s, attempts: 0, players: 0, cleared: 0, winRate: null, abandonRate: null, medianTurns: null, stuck: 0, wall: false });
+  }
+  const walls = report.floors.filter((f) => f.wall).map((f) => f.stage);
+  return `<h2>Kartenhaus</h2>${nav}
+<div class="kpis">
+<div class="kpi"><span>Versuche</span><b>${fmtNum(t.attempts)}</b></div>
+<div class="kpi"><span>Spieler</span><b>${fmtNum(t.players)}</b></div>
+<div class="kpi"><span>Siegquote</span><b>${pct(t.winRate)}</b></div>
+<div class="kpi"><span>Abbrüche</span><b>${pct(t.abandonRate)}</b></div>
+${t.stuck ? `<a class="kpi warn" href="#festhaenger"><span>Festhänger</span><b>${fmtNum(t.stuck)}</b></a>` : '<div class="kpi"><span>Festhänger</span><b>0</b></div>'}
+</div>
+<h2>Etagen${walls.length ? ` <span class="sub">Knick auf Etage ${walls.join(', ')}</span>` : ''}</h2>
+<div class="panel"><table class="list floors">
+<thead><tr><th>Etage</th><th class="num">Spieler</th><th class="num">Geschafft</th><th class="num">Versuche</th><th>Siegquote</th><th class="num">Abbrüche</th><th class="num">Median Züge</th><th class="num">Festhänger</th></tr></thead>
+<tbody>${rows.map(floorRow).join('')}</tbody></table></div>
+<h2 id="festhaenger">Festhänger <span class="sub">ab ${report.minAttempts} Versuchen ohne Stern</span></h2>
+${report.stuck.length ? `<div class="panel"><table class="list stuck">
+<thead><tr><th>Spieler</th><th class="num">Etage</th><th class="num">Versuche</th><th>Zuletzt</th><th>Häufigster Grund</th></tr></thead>
+<tbody>${report.stuck.map((s) => stuckRow(s, month)).join('')}</tbody></table></div>${t.stuck > report.stuck.length ? `<p class="legend">Die ${report.stuck.length} mit den meisten Versuchen von ${t.stuck}.</p>` : ''}`
+    : '<p class="muted">Niemand hängt fest.</p>'}
+<h2>Spieler nachschlagen</h2><div class="panel">${find}</div>
+<p class="legend">Gezählt wird jeder beendete oder abgebrochene Versuch einer Etage, mit Spielernamen, 90 Tage lang. Siegquote = Versuche mit mindestens einem Stern; Geschafft = Spieler mit Stern. Abbrüche: aufgegeben, verlassen, nicht zurückgekehrt oder bei einem Neustart verloren. Züge zählen alle Sitze am Tisch. Knick = Siegquote höchstens halb so hoch wie auf der Etage darunter (beide ab 5 Versuchen).</p>`;
+}
+
 /**
  * @param {object} p
- * @param {'config'|'users'|'monitor'} [p.tab]
+ * @param {'config'|'users'|'monitor'|'stuck'} [p.tab]
  * config:  report, smtpProbe, mailConfigured
  * users:   users ({total, users[]} | {error} | null when accounts are off)
  * monitor: monitor ({current, history}), version
+ * stuck:   stuck ({current, month, player, report, attempts} - PlayEvents.towerReport / playerAttempts)
  * all:     csrf, notice ({ok, text, html?})
  */
 function renderAdminPage(p) {
@@ -354,9 +534,10 @@ function renderAdminPage(p) {
     : '';
   let body;
   if (tab === 'users') body = usersBody({ users: p.users, csrf: p.csrf });
+  else if (tab === 'stuck') body = stuckBody(p.stuck || {});
   else if (tab === 'monitor') body = monitorBody({ current: p.monitor.current, range: p.monitor.range || '1h', version: p.version || (p.runtime && p.runtime.version) });
   else body = configBody({ report, smtpProbe: p.smtpProbe, csrf: p.csrf, mailConfigured: p.mailConfigured });
   return layout({ tab, summary, notice: p.notice, body, extraHead: tab === 'monitor' ? '<link rel="stylesheet" href="/vendor-uplot.css">' : '' });
 }
 
-module.exports = { basicPassword, csrfToken, csrfValid, validRecipient, renderAdminPage, confirmDeleteHtml, monitorData };
+module.exports = { basicPassword, csrfToken, csrfValid, validRecipient, renderAdminPage, confirmDeleteHtml, monitorData, causeText, floorInfo };

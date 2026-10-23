@@ -44,6 +44,7 @@ const { createYearStatsStore } = require('./game/YearStatsStore');
 const { buildReview, isReviewSeason, yearOf } = require('./game/YearReview');
 const { createYearReviewMailer, composeReviewMail, sampleReview, REVIEW_MAIL_CONSENT_VERSION } = require('./game/YearReviewMail');
 const { SessionRegistry, sanitizeName } = require('./game/SessionRegistry');
+const { createPlayEvents, towerAttemptEvent, attemptOpen, nameKey } = require('./game/PlayEvents');
 
 const PORT = process.env.PORT || 8080;
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -100,6 +101,8 @@ const gameHistoryStore = createGameHistoryStore();
 // Stammtisch: persistent group tables (code -> members, record, series).
 // Scoped by code, so it stays on in public mode - see StammtischStore.
 const stammtischStore = createStammtischStore();
+// Kartenhaus attempts with the player's name, 90 days (admin "Festhänger").
+const playEvents = createPlayEvents(db);
 
 // --- Absturz-Diagnose ------------------------------------------------------
 // Schreibt Fehler zusätzlich in eine Log-Datei, falls die Konsole in der
@@ -750,7 +753,7 @@ async function handleAdminRequest(req, res, filePath) {
         // the real delete button appear in the notice area.
         notice = {
           ok: false,
-          text: `Benutzer „${username}“ wirklich löschen? Konto und Anmeldungen werden entfernt, der Name ist danach wieder frei.`,
+          text: `Benutzer „${username}“ wirklich löschen? Konto, Anmeldungen und Spielversuche werden entfernt, der Name ist danach wieder frei.`,
           html: AdminPage.confirmDeleteHtml(csrf, username),
         };
       } else if (action === 'delete') {
@@ -758,7 +761,11 @@ async function handleAdminRequest(req, res, filePath) {
         if (r.ok) console.log(`[admin] Benutzer gelöscht: ${r.username}`);
         // The name is a guest name again: favourites are an account feature.
         if (r.ok) try { playerStore.setFavoriteBadges(r.username, []); } catch (e) { /* best effort */ }
-        notice = r.ok ? { ok: true, text: `Benutzer „${r.username}“ wurde gelöscht.` } : { ok: false, text: r.error };
+        // Its play attempts go too (privacy page); the account is gone, so a failure names the SQL.
+        const attempts = r.ok ? await playEvents.deleteByName(r.username) : 0;
+        if (!r.ok) notice = { ok: false, text: r.error };
+        else if (attempts === null) notice = { ok: false, text: `Benutzer „${r.username}“ wurde gelöscht, seine Spielversuche aber nicht (Datenbankfehler). Nachholen: DELETE FROM play_events WHERE name_key = '${nameKey(r.username)}';` };
+        else notice = { ok: true, text: `Benutzer „${r.username}“ wurde gelöscht${attempts ? ` (mit ${attempts} Spielversuch${attempts === 1 ? '' : 'en'})` : ''}.` };
       } else if (action === 'login-link') {
         if (bump(adminMailsByIp, ip, 10 * 60 * 1000) > 5) {
           notice = { ok: false, text: 'Höchstens 5 Mails in 10 Minuten.' };
@@ -810,6 +817,8 @@ async function handleAdminRequest(req, res, filePath) {
       res.end(JSON.stringify(AdminPage.monitorData(adminMonitor.series(monitorRange), adminMonitor.current())));
       return;
     }
+  } else if (filePath === '/admin/stuck') {
+    tab = 'stuck';
   } else if (filePath !== '/admin') {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Nicht gefunden');
@@ -819,6 +828,18 @@ async function handleAdminRequest(req, res, filePath) {
   let users = null;
   if (tab === 'users' && ACCOUNTS_ENABLED && typeof accountStore.listUsers === 'function') {
     users = await accountStore.listUsers(500);
+  }
+  let stuck = null;
+  if (tab === 'stuck') {
+    const params = new URL(req.url, 'http://localhost').searchParams;
+    const current = BotTower.monthOf(gameDay());
+    const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(params.get('month') || '') ? params.get('month') : current;
+    const player = sanitizeName(params.get('player') || '', 24);
+    const [report, attempts] = await Promise.all([
+      playEvents.towerReport(month),
+      player ? playEvents.playerAttempts(player) : null,
+    ]);
+    stuck = { current, month, player, report, attempts };
   }
 
   res.writeHead(200, {
@@ -838,6 +859,7 @@ async function handleAdminRequest(req, res, filePath) {
     csrf,
     mailConfigured: mailer.configured,
     users,
+    stuck,
     monitor: tab === 'monitor' ? { current: adminMonitor.current(), range: monitorRange } : null,
   }));
 }
@@ -1313,6 +1335,18 @@ function sendError(ws, error) {
   }
 }
 
+/** The end of a Kartenhaus attempt into play_events, in the background.
+ *  `game` is the GameManager or a snapshot's state. Never throws. */
+function logAttempt(game, info, at = Date.now()) {
+  if (PUBLIC_MODE) return; // no names are kept there (and no Kartenhaus)
+  try {
+    const event = towerAttemptEvent(game, info, at);
+    if (event) playEvents.record(event);
+  } catch (err) {
+    logCrash('play-events', err);
+  }
+}
+
 // Jede Session bekommt ihren eigenen GameManager, dessen sendTo NUR die
 // Sockets dieser Session erreicht - Spiele sind vollständig voneinander
 // isoliert. Profil-/Verlaufs-Stores bleiben pro Server-Instanz geteilt.
@@ -1334,6 +1368,7 @@ const registry = new SessionRegistry((session) => {
     onAbandon: typeof session.onAbandon === 'function'
       ? () => session.onAbandon(session.code)
       : undefined,
+    onAttemptEnd: (info) => logAttempt(session.game, info),
     // Bot-Emotes gehen denselben Weg wie Spieler-Emotes: an alle am Tisch.
     onBotEmote: (botId, emoji) => {
       for (const [, sock] of session.sockets) {
@@ -1486,6 +1521,8 @@ const registry = new SessionRegistry((session) => {
   });
 }, {
   maxSessions: Number(process.env.PIKDAME_MAX_SESSIONS) || 500,
+  // A table removed with its solo attempt still open (idle, 24 h limit): abandoned.
+  onRemove: (session) => session.game && session.game.abandonAttempt('expired'),
 });
 
 // Inaktive Sessions regelmäßig entsorgen (sonst wächst der Speicher eines
@@ -1550,9 +1587,13 @@ function restoreSessionsSnapshot() {
     const tooOld = typeof savedAt === 'number' && Date.now() - savedAt > SNAPSHOT_MAX_AGE_MS;
     if (tooOld) console.log('Session-Restore übersprungen: Snapshot ist zu alt.');
     let restored = 0;
-    for (const snap of tooOld ? [] : sessions || []) {
-      const session = registry.restore(snap);
-      if (!session) continue;
+    for (const snap of sessions || []) {
+      const session = tooOld ? null : registry.restore(snap);
+      if (!session) {
+        // The table is gone for good: its open solo attempt ends here.
+        if (attemptOpen(snap && snap.state)) logAttempt(snap.state, { outcome: 'abandoned', reason: 'restart' }, savedAt || Date.now());
+        continue;
+      }
       session.playerTokens = new Map(Object.entries(snap.playerTokens || {}));
       if (snap.stammtisch) session.stammtisch = String(snap.stammtisch);
       session.game.deserialize(snap.state);
@@ -2688,6 +2729,8 @@ server.listen(PORT, () => {
   } catch (e) { logCrash('config-report', e); }
   try { startAdminMonitor(); } catch (e) { logCrash('admin-monitor', e); }
   maybeFinalizeSeasons().catch((e) => logCrash('season-finale', e));
+  // Play attempts older than 90 days are deleted (privacy page), also in public mode.
+  try { playEvents.startRetention(); } catch (e) { logCrash('play-events', e); }
   // Load the ONNX runtime + models now, not in the first bot turn: the one-off
   // ~40 MB then sits in the baseline instead of looking like a leak (#306).
   try {

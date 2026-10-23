@@ -1149,6 +1149,26 @@ test('serialize/deserialize: Bot-Emotes funktionieren nach einem Server-Neustart
   g2.destroy(); g3.destroy();
 });
 
+test('serialize/deserialize: a snapshot taken while a broadcast is queued still sends states after the restart', async () => {
+  const g = __autoCutHook(new GameManager(() => {}));
+  g.addOrReconnectPlayer('p1', 'A');
+  g.fillWithBots();
+  g.startNewRound();
+  g.broadcastState(); // queued for the end of this tick - the snapshot timer can run in between
+  const snapshot = JSON.parse(JSON.stringify(g.serialize()));
+  g.destroy();
+  assert.equal(snapshot._pendingBroadcast, undefined, 'a queued broadcast is no game state');
+  const sent = [];
+  const back = new GameManager((id, m) => sent.push(m.type));
+  back.maybeRunBotTurn = () => {};
+  back.deserialize({ ...snapshot, _pendingBroadcast: true }); // a snapshot from before the fix
+  back.addOrReconnectPlayer('p1', 'A');
+  back.broadcastState();
+  await new Promise((r) => setImmediate(r));
+  assert.ok(sent.includes('state'), 'the restored table talks again');
+  back.destroy();
+});
+
 // --- v1.15.0: endgame guard - bots avoid piles hiding a Queen of Spades ----
 test('bot endgame guard: small hand + Queen of Spades below the top card -> draws from stock', () => {
   const { makeStandardCard, makeJoker } = require('../game/Card');
