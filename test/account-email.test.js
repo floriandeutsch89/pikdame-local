@@ -39,16 +39,17 @@ async function startServer(t, databaseUrl) {
   return { port, stop, log: () => log };
 }
 
-/** Every raw message the server sends until `done(parsed)` holds. */
-function wsUntil(t, port, messages, done) {
+/** Every raw frame the server sends until each of `types` arrived, in any order (replies race). */
+function wsFrames(t, port, messages, types) {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(`ws://127.0.0.1:${port}`);
     const raw = [];
+    const got = () => raw.map((m) => JSON.parse(m).type);
     t.after(() => ws.close());
-    const timer = setTimeout(() => reject(new Error(`timed out; got ${raw.map((m) => JSON.parse(m).type)}`)), 8000);
+    const timer = setTimeout(() => reject(new Error(`timed out; got ${got()}`)), 10000);
     ws.on('message', (m) => {
       raw.push(String(m));
-      if (done(JSON.parse(m), raw)) { clearTimeout(timer); resolve(raw); }
+      if (types.every((type) => got().includes(type))) { clearTimeout(timer); resolve(raw); }
     });
     ws.once('open', () => messages.forEach((m) => ws.send(JSON.stringify(m))));
     ws.once('error', reject);
@@ -101,10 +102,10 @@ test('/api/me gives the own address and its state to that account only; without 
   // Nowhere else: the season ladder (its "me" part too), the profiles, the own seat at a table.
   const ladder = await call(srv.port, 'POST', '/api/ladder', { json: { token: flo } });
   assert.strictEqual(ladder.status, 200);
-  const frames = await wsUntil(t, srv.port, [
+  const frames = await wsFrames(t, srv.port, [
     { type: 'listProfiles', name: 'Florian' },
     { type: 'createSession', name: 'Florian', accountToken: flo },
-  ], (m, raw) => m.type === 'state' && raw.some((x) => JSON.parse(x).type === 'profiles'));
+  ], ['joined', 'state', 'profiles']);
   for (const text of [ladder.body, ...frames]) assert.ok(!text.includes('@'), text.slice(0, 300));
 
   await srv.stop();

@@ -246,6 +246,8 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
   Mocks beantworten `getStammtisch` selbst; gesperrt = Server neu starten.
 - **Server-Log in Tests:** stdout kommt nach der HTTP-Antwort an. Trefferzahl
   vor der Anfrage merken, auf eine NEUE Zeile warten (`lastFromLog(re, after)`).
+- **WS-Antworten in Tests:** verschiedene Anfragen antworten in beliebiger
+  Reihenfolge (eigene DB-Abfragen) → auf jeden Typ warten, nie auf eine Folge (lokal grün, CI rot).
 - **Sim-/Seed-Skripte: Logging aus** (`PIKDAME_LOG_GAMES=0` im Skript selbst),
   sonst füllt `data/human-moves.jsonl` die Platte (ein Seed-Lauf: 22 GB).
   Einzelne Testdateien nur mit `node --test --require ./test/helpers/setup.js`
