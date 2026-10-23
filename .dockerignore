@@ -12,6 +12,8 @@ scripts
 # (see stage "assets" in docker/Dockerfile). The rest of scripts/ is
 # development tooling and stays out of the context.
 !scripts/minify-assets.js
+# ...and the admin-role break-glass CLI, run inside the container.
+!scripts/admin-role.js
 landing
 docs
 *.md

@@ -40,6 +40,14 @@ spec:
               value: {{ . | quote }}
             {{- end }}
             {{- end }}
+            {{- with .Values.admin.emails }}
+            - name: PIKDAME_ADMINS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if .Values.admin.passkeyOnly }}
+            - name: PIKDAME_ADMIN_PASSKEY_ONLY
+              value: "1"
+            {{- end }}
             {{- if .Values.database.existingSecret }}
             - name: PIKDAME_DATABASE_URL
               valueFrom:

@@ -14,7 +14,7 @@ const { FragmentError, LEGACY_LAST, annotation, compareVersions, parseFragment }
 
 const RELEASE_BRANCH = 'release/next';
 // What the image is built from (docker/Dockerfile); Markdown in there is docs.
-const SHIPPED = [/^public\//, /^game\//, /^models\//, /^docker\//, /^server\.js$/, /^scripts\/minify-assets\.js$/];
+const SHIPPED = [/^public\//, /^game\//, /^models\//, /^docker\//, /^server\.js$/, /^scripts\/minify-assets\.js$/, /^scripts\/admin-role\.js$/];
 const DEP_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies', 'overrides'];
 const FRAGMENT_NAME = /^changes\/[a-z0-9][a-z0-9._-]*\.md$/;
 const README = 'changes/README.md';

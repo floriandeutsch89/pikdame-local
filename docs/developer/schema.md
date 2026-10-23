@@ -130,6 +130,22 @@ one player, so the second account stays unlinked and the link pass logs it.
 `PgAccountStore` passes `new Date(…)` and returns `getTime()`, so its API and
 the game logic keep milliseconds; expiry is still decided by the app's clock.
 
+## Admin access
+
+The admin area belongs to accounts with the admin role ({doc}`../admin/admin-page`).
+`009_admin_role.sql` adds three tables; `game/AdminStore.js` is their only
+writer, `scripts/admin-role.js` its break-glass front end.
+
+| Table | What it holds | Why so |
+| --- | --- | --- |
+| `user_roles (user_id, role_name, grant_source, granted_at)` | one row per grant: `role_name` `admin`, `grant_source` `env` (`PIKDAME_ADMINS`, synced on every start) or `cli` | a table, not `users.is_admin`: the source decides who may take the role away (the start sync removes only `env` rows, the CLI only `cli` rows and refuses while an `env` row exists); rows exist only for the few admins, `ON DELETE CASCADE` ends the role with the account, and a second role is a `CHECK` change |
+| `admin_sessions (session_token_hash, user_id, login_session_hash, step_up_method, created_at, last_seen_at)` | an admin sign-in after a step-up: the SHA-256 of the cookie value, the SHA-256 of the game sign-in it came from | no raw token stored (unlike `login_sessions`); idle (15 min, `last_seen_at`) and absolute (8 h, `created_at`) expiry by the app clock; signing out of the game deletes by `login_session_hash`; `last_seen_at` is the only column that changes and doubles as `updated_at` |
+| `admin_audit_events (id, occurred_at, user_id, user_name, action, action_target, details JSONB, client_network CIDR)` | who did what in the admin area, 365 days | `user_id` is `ON DELETE SET NULL` and `user_name` a copy, so the trail outlives the account; `client_network` is the address cut to `/24` or `/48` by PostgreSQL (`network(set_masklen(…))`), never the full address; `action_target`, not a bare `target`; `details` is free-form context for the page only, never queried inside |
+
+The role is read on every admin request (one query joins the session, the
+account and `user_roles`), so taking it away works at once even where no
+session row was deleted.
+
 ## Indexes
 
 Every index serves a named query; an index without one is removed. Small
@@ -147,7 +163,8 @@ plus 297,000 puzzle rows, 90 days × 3,300 players, and 20,000 tutorial rows;
 players: 20,000, a quarter without a match, with 300,000 badges, 200,000 tower
 floors, 105,000 quest and 120,000 puzzle rows; Stammtische: 300 with 6 members,
 100 games of 4 seats and 60 weeks each; accounts: 18,000, a fifth unconfirmed,
-with 48,000 sign-ins, 8,000 passkeys and 48,000 season results), PostgreSQL 16:
+with 48,000 sign-ins, 8,000 passkeys and 48,000 season results; admin access: 3 admins, 15 admin sessions,
+50,000 audit rows), PostgreSQL 16:
 
 | Query | Index | Plan | ms |
 | --- | --- | --- | --- |
@@ -190,6 +207,12 @@ with 48,000 sign-ins, 8,000 passkeys and 48,000 season results), PostgreSQL 16:
 | Confirm: is the player another account's? Delete a player (FK check) | `users_player_id_key` | index scan | 0.07; 0.3 |
 | First start: confirmed accounts without a player | `users_player_id_key` (NULLs) | index scan | 0.5 |
 | Year-review recipients (once a year), the season finale's pending seasons (once per season) | none; `users_season_season_xp_idx` | seq scan; bitmap scan | 2.8; 1.8 |
+| Is this account admin (`/api/me`, every step-up) | none needed (a few rows; `user_roles_pkey` exists) | seq scan | 0.02 |
+| `PIKDAME_ADMINS` sync (once per start): the listed confirmed accounts | `users_lower_email_key` (`LOWER(email) IN (…)`) | index scan per listed address | 0.07 |
+| An admin request: session, account, role in one query | `users_pkey` | seq scans of the tiny admin tables, index scan of `users` | 0.04 |
+| Sign-out of the game, role removal, housekeeping of expired sessions | none (admins × 8 h of sessions) | seq scan | 0.01 |
+| "Protokoll" page (newest first, 50 per page) | `admin_audit_events_occurred_at_idx` | backward index scan, incremental sort | 0.09 (page 10: 0.17) |
+| 365-day audit retention | `admin_audit_events_occurred_at_idx` | index-only range scan | 0.01 |
 
 Deleting a player is a rare manual step (a guest's request; an account
 deletion removes attempts by `player_key`, indexed), so `play_attempts` gets no

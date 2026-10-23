@@ -41,7 +41,10 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   shows on the first start-screen shot, `stats` gets the season badges, and
   the scene `account` opens the account sheet (level, season ladder).
   The mock result is a podium place, so the first start-screen shot also
-  catches the fireworks band behind the header.
+  catches the fireworks band behind the header. `--admin` on top makes the
+  mock account an admin; the scene `account-admin` shows its link at the end
+  of the account sheet. (The step-up page and `/admin` itself are no mock
+  scenes: they need a real admin session.)
 - **English:** `--lang en` shoots the English client; check it whenever a
   new label could outgrow its box.
 - **Before/after from one script:** `SHOTS_ROOT=<checkout>` shoots another

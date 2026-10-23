@@ -184,6 +184,50 @@ function createPasskeyService({ baseUrl, rpName = 'Pik Dame', lib = loadLibrary(
       return { user: found.user, credentialId: found.credential.id, newCounter: result.authenticationInfo.newCounter };
     },
 
+    /**
+     * Step-up for /admin: an assertion by one of THIS account's passkeys, with user
+     * verification (Face ID, PIN) required - a tap alone does not pass.
+     * @param {{ credentials: {id: string, transports?: string[]}[], accountId: number }} p
+     */
+    async startStepUp({ credentials, accountId }) {
+      const options = await lib.generateAuthenticationOptions({
+        rpID: rp.rpID,
+        userVerification: 'required',
+        allowCredentials: credentials.map((c) => ({ id: c.id, transports: c.transports })),
+        timeout: 120000,
+      });
+      const flowId = newFlow('stepup', options.challenge, { accountId });
+      return { flowId, options };
+    },
+
+    /** @returns {Promise<{credentialId, newCounter}|{error}>} */
+    async finishStepUp(flowId, response, lookup, accountId) {
+      const flow = takeFlow(flowId, 'stepup');
+      if (!flow || flow.accountId !== accountId) return { error: 'Die Passkey-Anfrage ist abgelaufen - bitte noch einmal versuchen.' };
+      const found = response && response.id ? await lookup(response.id) : null;
+      if (!found || found.user.id !== accountId) return { error: 'Dieser Passkey gehört nicht zu deinem Konto.' };
+      let result;
+      try {
+        result = await lib.verifyAuthenticationResponse({
+          response,
+          expectedChallenge: flow.challenge,
+          expectedOrigin: rp.origin,
+          expectedRPID: rp.rpID,
+          credential: {
+            id: found.credential.id,
+            publicKey: new Uint8Array(found.credential.publicKey),
+            counter: found.credential.counter,
+            transports: found.credential.transports,
+          },
+          requireUserVerification: true,
+        });
+      } catch (e) {
+        return { error: 'Der Passkey konnte nicht geprüft werden.' };
+      }
+      if (!result.verified) return { error: 'Der Passkey konnte nicht geprüft werden.' };
+      return { credentialId: found.credential.id, newCounter: result.authenticationInfo.newCounter };
+    },
+
     /** Test seam: how many ceremonies are pending. */
     _pendingFlows() { return flows.size; },
   };

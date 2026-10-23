@@ -13,6 +13,7 @@ const { createMonitor, readCgroup, TIERS } = require('../game/Monitor');
 const AdminPage = require('../game/AdminPage');
 
 const { testDatabaseUrl } = require('./helpers/test-db');
+const { createAdminAccount, adminLogin, ADMIN } = require('./helpers/admin-session');
 
 function tmpDir(prefix) { return fs.mkdtempSync(path.join(os.tmpdir(), prefix)); }
 
@@ -172,7 +173,7 @@ let PORT = 0;
 function request(method, urlPath, { auth, body, json, headers = {} } = {}) {
   return new Promise((resolve, reject) => {
     const h = { ...headers };
-    if (auth) h.Authorization = 'Basic ' + Buffer.from(auth).toString('base64');
+    if (auth) h.Cookie = auth; // the admin session cookie
     let payload = body;
     if (json) { payload = JSON.stringify(json); h['Content-Type'] = 'application/json'; }
     else if (body) h['Content-Type'] = 'application/x-www-form-urlencoded';
@@ -195,9 +196,11 @@ test('server: guest progress follows the name into the account; admin users + mo
     players: [{ id: 'profile-1', name: 'Oma Inge', gamesPlayed: 7, gamesWon: 3, totalScore: 900, xp: 420 }],
   }));
   PORT = await freePort();
+  const databaseUrl = testDatabaseUrl('admusers');
+  await createAdminAccount(databaseUrl);
   const server = spawn('node', ['server.js'], {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_ADMIN_TOKEN: 'admin-test-token', PIKDAME_SMTP_HOST: '', PIKDAME_DATABASE_URL: testDatabaseUrl('admusers'), PIKDAME_PUBLIC_MODE: '' },
+    env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_ADMINS: ADMIN.email, PIKDAME_SMTP_HOST: '', PIKDAME_DATABASE_URL: databaseUrl, PIKDAME_PUBLIC_MODE: '' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let log = '';
@@ -235,7 +238,7 @@ test('server: guest progress follows the name into the account; admin users + mo
   const firstToken = await waitForToken(null);
 
   // Admin: list shows the unverified account; resend makes a new link.
-  const auth = 'admin:admin-test-token';
+  const { cookie: auth } = await adminLogin(PORT);
   let page = await request('GET', '/admin/users', { auth });
   assert.equal(page.status, 200);
   assert.match(page.body, /Oma Inge/);
@@ -272,7 +275,7 @@ test('server: guest progress follows the name into the account; admin users + mo
   assert.equal(mon.status, 200);
   assert.match(mon.body, /Arbeitsspeicher/);
   assert.match(mon.body, /data-range="7d"/);
-  assert.equal((await request('GET', '/admin/monitor/data?range=7d')).status, 401, 'the data needs the login too');
+  assert.equal((await request('GET', '/admin/monitor/data?range=7d')).status, 403, 'the data needs the admin session too');
   const data = await request('GET', '/admin/monitor/data?range=7d', { auth });
   assert.equal(data.status, 200);
   const parsed = JSON.parse(data.body);
@@ -287,7 +290,7 @@ test('server: guest progress follows the name into the account; admin users + mo
   // Trailing slash (browser autocomplete): redirect, never a 404 after login.
   for (const [from, to] of [['/admin/', '/admin'], ['/admin/users/', '/admin/users'], ['/admin/monitor/?range=7d', '/admin/monitor?range=7d']]) {
     const r = await new Promise((resolve, reject) => {
-      http.get({ host: '127.0.0.1', port: PORT, path: from, headers: { Authorization: 'Basic ' + Buffer.from(auth).toString('base64') } },
+      http.get({ host: '127.0.0.1', port: PORT, path: from, headers: { Cookie: auth } },
         (res) => { res.resume(); resolve({ status: res.statusCode, location: res.headers.location }); }).on('error', reject);
     });
     assert.equal(r.status, 302, from);

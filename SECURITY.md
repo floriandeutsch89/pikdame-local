@@ -61,6 +61,25 @@ protection for verified accounts, atomic file persistence, parameterized
 SQL queries against PostgreSQL, process-level
 safety nets with a crash log instead of a crash.
 
+## Admin access
+
+The admin area (`/admin`) is a **role of a player account**, never a shared
+password: granted only from the operator side (`PIKDAME_ADMINS`, applied on
+every start, or `node scripts/admin-role.js` in the container), never from a
+web page or a WebSocket message, and only to accounts with a confirmed e-mail
+address. Entering it takes a **step-up** like GitHub's sudo mode: the account's
+own passkey with user verification (else its password; `PIKDAME_ADMIN_PASSKEY_ONLY=1`
+removes that fallback). The result is a separate session: an opaque random
+cookie (`HttpOnly`, `SameSite=Strict`, `Path=/admin`, `Secure` over https)
+stored only as a SHA-256, 15 minutes idle and 8 hours at most, ended by
+signing out (admin area or game), by losing the role and by deleting the
+account; the role is checked again on every request. Every form carries a
+per-session CSRF token; failed step-ups lock after 5 per account or 10 per
+address in 15 minutes. Tokens travel in request bodies and the cookie only,
+never in URLs or logs. An audit log (365 days, client address cut to /24 or
+/48) records step-ups, sign-outs, role changes and every state-changing action.
+Details: `docs/admin/admin-page.md`.
+
 ## Secrets in the repository
 
 Real secrets never live in Git: they come from the environment or from

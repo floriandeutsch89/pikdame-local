@@ -57,6 +57,10 @@ spec:
             #   value: "impressum@example.org"
             # - name: PIKDAME_IMPRINT_COUNTRY # optional, default Deutschland
             #   value: "Deutschland"
+            # Admin area: the accounts with these confirmed e-mails hold the admin
+            # role (applied on every start; see k8s/README.md).
+            # - name: PIKDAME_ADMINS
+            #   value: "you@example.org"
             # Secrets (SMTP, base URL, optional PIKDAME_BIRTHDAY) via a Secret - see k8s/README.md:
             # envFrom:
             #   - secretRef:

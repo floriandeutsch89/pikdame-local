@@ -80,3 +80,20 @@ test('compose contract: every stack forwards the greeting days from .env, never 
     assert.ok(lines.includes('- PIKDAME_BIRTHDAY=${PIKDAME_BIRTHDAY:-}'), `${file} must forward PIKDAME_BIRTHDAY from .env`);
   }
 });
+
+test('compose contract: every stack forwards the admin role from .env; the Argon2 admin token is gone', () => {
+  for (const file of ['docker-compose.yml', 'docker-compose.ghcr.yml', 'docker-compose.prod.yml', 'docker-compose.beta.yml']) {
+    const text = read(file);
+    const lines = text.split(/\r?\n/).map((l) => l.trim());
+    assert.ok(lines.includes('- PIKDAME_ADMINS=${PIKDAME_ADMINS:-}'), `${file} must forward PIKDAME_ADMINS from .env`);
+    assert.ok(lines.includes('- PIKDAME_ADMIN_PASSKEY_ONLY=${PIKDAME_ADMIN_PASSKEY_ONLY:-}'), `${file} must forward PIKDAME_ADMIN_PASSKEY_ONLY`);
+    assert.doesNotMatch(text, /ADMIN_TOKEN|AdminToken/, `${file} still mentions the old admin token`);
+  }
+  for (const file of ['.env.example', '.env.beta.example']) assert.doesNotMatch(read(file), /ADMIN_TOKEN|AdminToken/, file);
+});
+
+test('image contract: the admin-role CLI ships in the image (break-glass inside the container)', () => {
+  assert.match(read('Dockerfile'), /^COPY scripts\/admin-role\.js \.\/scripts\/$/m);
+  const ignore = fs.readFileSync(path.join(__dirname, '..', '.dockerignore'), 'utf8');
+  assert.match(ignore, /^!scripts\/admin-role\.js$/m, 'scripts/ is left out of the build context, the CLI must be let through');
+});

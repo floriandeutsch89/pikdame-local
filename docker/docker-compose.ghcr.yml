@@ -49,12 +49,14 @@ services:
       - PIKDAME_SMTP_USER=${PIKDAME_SMTP_USER:-}
       - PIKDAME_SMTP_PASS=${PIKDAME_SMTP_PASS:-}
       - PIKDAME_MAIL_FROM=${PIKDAME_MAIL_FROM:-}
-      # --- Admin page (optional): /admin shows the config report and can send
-      #     a test mail. Off while unset. Value = Argon2id hash of the admin
-      #     password, made with `docker compose exec pikdame node game/AdminToken.js`;
-      #     in .env inside SINGLE quotes. Or PIKDAME_ADMIN_TOKEN_FILE for a secret.
+      # --- Admin area (/admin): accounts whose CONFIRMED e-mail is listed here
+      #     (comma-separated, from .env) hold the admin role, synced on every
+      #     start; entering /admin asks for their passkey (else password).
+      #     Break-glass: docker compose exec pikdame node scripts/admin-role.js grant <email>
       #     Docs: docs/admin/admin-page.md
-      - PIKDAME_ADMIN_TOKEN=${PIKDAME_ADMIN_TOKEN:-}
+      - PIKDAME_ADMINS=${PIKDAME_ADMINS:-}
+      # 1 = the step-up into /admin takes passkeys only (default: passkey, else password).
+      - PIKDAME_ADMIN_PASSKEY_ONLY=${PIKDAME_ADMIN_PASSKEY_ONLY:-}
       # Optional greeting days (MM-DD:account, comma-separated); see .env.example.
       - PIKDAME_BIRTHDAY=${PIKDAME_BIRTHDAY:-}
       # Legal page (§ 5 DDG): provider data from .env, kept out of the public repo.
