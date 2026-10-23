@@ -8,6 +8,8 @@ generated from the source, so it cannot go stale.
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `PIKDAME_ACCOUNTS` | unset (compare against `0`) | Set to `0` to disable user accounts entirely (pure guest play). |
+| `PIKDAME_ADMIN_PASSKEY_ONLY` | unset (compare against `1`) | Set to `1` to accept only a passkey in the step-up before `/admin`. Unset: a passkey when the account has one, else its password. Needs passkeys (`PIKDAME_BASE_URL` with https), or nobody gets in. |
+| `PIKDAME_ADMINS` | — | Admin area (`/admin`): comma-separated e-mail addresses. Accounts with one of them as their **confirmed** address hold the admin role; the list is applied on every start (an address taken out loses its role and its admin sessions). Break-glass without it: `node scripts/admin-role.js grant <email>` in the container. See {doc}`admin-page`. |
 | `PIKDAME_ALLOWED_ORIGIN` | unset | If set, only WebSocket connections from this origin are accepted (CSRF hardening). |
 | `PIKDAME_BASE_URL` | the request's own host | Public base URL used to build invite links, QR codes and the links in mails (e.g. `https://play.example.com`). With SMTP configured, the year-review mail is only sent when this is set: its unsubscribe link must work. |
 | `PIKDAME_BIRTHDAY` | — | Optional greeting days: comma-separated `MM-DD:account` entries (account = user name, case-insensitive). On that game day (German time) only that signed-in account sees a small greeting on the start screen; nobody else sees anything. Broken entries are skipped and logged by position. |

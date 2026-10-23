@@ -29,7 +29,7 @@ repository and the Mailgun account.
 | Database | `pikdame-postgres` | own `pikdame-beta-postgres`; data **persists** between deploys |
 | Accounts and passkeys | play domain | beta domain only (the passkey RP-ID is the host name) |
 | Mail | Mailgun, production SMTP login | Mailgun, **own** SMTP login |
-| Admin page | `PIKDAME_ADMIN_TOKEN` | `PIKDAME_BETA_ADMIN_TOKEN` (off while unset) |
+| Admin area | accounts in `PIKDAME_ADMINS` | the same variable in the beta host's `.env`, for **beta** accounts (none while unset) |
 | Updates | release → deploy, Watchtower nightly | beta workflow only; the beta containers carry no Watchtower label |
 | Limits | 1 CPU / 512 MB | same, 20 tables |
 | Search engines | indexed | `X-Robots-Tag: noindex, nofollow` |
@@ -131,11 +131,12 @@ The deploy script defaults to `/opt/pikdame/docker`; point it at this directory:
 echo 'PIKDAME_DIR=/opt/docker/beta.play.pikdame.online' > /etc/pikdame-deploy.conf
 ```
 
-Optional, for `/admin` on beta (generate a hash with a **different** password
-than prod's):
+Optional, for `/admin` on beta: sign up on the beta domain (its own database,
+so its own account and passkey), then name that address and recreate:
 
 ```bash
-echo "PIKDAME_BETA_ADMIN_TOKEN='<argon2id hash>'" >> .env
+echo 'PIKDAME_ADMINS=you@example.org' >> .env
+docker compose -f docker-compose.beta.yml up -d
 ```
 
 ### 3. Deploy user, script and sudo rule

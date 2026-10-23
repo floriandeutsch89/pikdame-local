@@ -1,38 +1,13 @@
 // game/AdminPage.js
-// Read-only operator page at /admin: the config report, a few runtime facts
-// and a mail check. No I/O here - server.js wires requests to these helpers.
-//
-// Off unless PIKDAME_ADMIN_TOKEN (or _FILE) is set; then /admin answers 404,
-// the same as any unknown path. Login is HTTP Basic auth, the password is
-// checked against an Argon2id hash (see AdminToken.js): no JavaScript and no cookie needed, so the page works under the
-// site's strict CSP unchanged. The browser re-sends Basic credentials on its
-// own, so the one state-changing form (test mail) carries a CSRF token.
-const crypto = require('crypto');
+// The operator pages at /admin: config report, users, monitoring, "Festhänger",
+// the audit log, and the step-up page in front of them. No I/O here - server.js
+// wires requests to these helpers. Access: an account with the admin role and a
+// fresh step-up (AdminAccess.js); every form carries the session's CSRF token.
+// Scripts load as files: the site's CSP allows no inline script here.
 const { STATUS_ICON } = require('./ConfigReport');
+const { IDLE_MS, MAX_AGE_MS } = require('./AdminAccess');
 const BotTower = require('./BotTower');
 const { weekdayIndex } = require('./GameDay');
-
-/** Password from an `Authorization: Basic ...` header, or null. The user
- *  name is ignored - there is exactly one operator credential. Checking it
- *  is AdminToken's job (Argon2 hash or plain token). */
-function basicPassword(header) {
-  if (typeof header !== 'string' || !header.startsWith('Basic ')) return null;
-  const decoded = Buffer.from(header.slice(6), 'base64').toString('utf8');
-  const colon = decoded.indexOf(':');
-  return colon < 0 ? null : decoded.slice(colon + 1);
-}
-
-/** CSRF token for the admin forms: derived from the admin token, so it is
- *  stable across restarts and unknown to anyone without the token. */
-function csrfToken(token) {
-  return crypto.createHmac('sha256', String(token)).update('pikdame-admin-csrf').digest('hex');
-}
-
-function csrfValid(given, token) {
-  const expected = csrfToken(token);
-  return typeof given === 'string' && given.length === expected.length &&
-    crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected));
-}
 
 /** A recipient we are willing to put into an SMTP dialogue. CR/LF would let
  *  the field inject headers or SMTP commands. */
@@ -136,9 +111,10 @@ table.users td.act{display:block;padding-top:10px}table.users .actions{flex-wrap
 /* Phone: config rows as icon + label on one line, details below */
 @media (max-width:560px){table.cfg,table.cfg tbody{display:block}table.cfg tr{display:grid;grid-template-columns:auto 1fr;border-top:1px solid var(--line)}table.cfg tr:first-child{border-top:0}
 table.cfg td,table.cfg th{border-top:0;width:auto}table.cfg tr>td:last-child{grid-column:1/-1;padding-top:0}}
-/* Phone: four tabs do not fit one row - a 2x2 grid instead of a hidden scroller */
+/* Phone: five tabs do not fit one row - a 2-column grid (the odd last one spans it) instead of a hidden scroller */
 @media (max-width:520px){nav.tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;border-bottom:0;margin:14px 0 8px}
 nav.tabs a{justify-content:center;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+nav.tabs a:last-child:nth-child(odd){grid-column:1/-1}
 nav.tabs a.active{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}}
 /* Festhänger: Kartenhaus floors, puzzle days, tutorial lessons; players stuck */
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
@@ -179,6 +155,24 @@ table.stuck td.name{grid-column:1/3}table.stuck td.why,table.tries td.why{grid-c
 table.stuck td:nth-child(4){grid-column:2/4}table.tries td.date{grid-column:1/3;color:var(--muted)}
 table.pstuck tr{grid-template-columns:1fr auto auto}table.pstuck td.name{grid-column:auto}table.pstuck td:nth-child(3){text-align:right}table.pstuck td.date{grid-column:1/-1}
 td.rate{min-width:0}tr.wall{background:rgba(245,197,66,.07);box-shadow:inset 3px 0 0 var(--warn)}tr.wall td{background:none}tr.wall td:first-child{box-shadow:none}}
+[hidden]{display:none!important}
+/* Who is signed in, until when, and the way out */
+.who{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 16px;color:var(--muted);font-size:.9em}
+.who b{color:var(--text)}.whoText{display:flex;flex-wrap:wrap;gap:0 12px;min-width:0}.whoActions{display:flex;align-items:center;gap:16px}.who form{padding:0}
+.badge.role{color:var(--accent);border-color:rgba(47,214,176,.45)}
+/* Protokoll: newest first, pages of 50 */
+table.audit td{vertical-align:top}table.audit td.date{white-space:nowrap;font-variant-numeric:tabular-nums}table.audit .sub{display:block}
+nav.pager{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}nav.pager span{color:var(--muted);flex:1;text-align:center}
+nav.pager a{min-height:44px;display:inline-flex;align-items:center;padding:0 14px;border-radius:10px;border:1px solid var(--line);color:var(--text);text-decoration:none;font-weight:600}
+@media (max-width:600px){table.audit tr{display:grid;grid-template-columns:1fr auto;gap:2px 12px}
+table.audit td.date,table.audit td.net{grid-row:1;color:var(--muted)}table.audit td.net{grid-column:2;text-align:right}
+table.audit td.actor{grid-column:1/-1;grid-row:2}table.audit td.what{grid-column:1/-1;grid-row:3}}
+/* Step-up: a fresh confirmation before the admin area */
+main.stepup{max-width:480px}
+.su{padding:18px 16px;display:flex;flex-direction:column;gap:12px;margin-top:16px}
+.su h2{margin:0;font-size:1.2rem;color:var(--text);text-transform:none;letter-spacing:0}
+.su p{margin:0}.su form{flex-direction:column;align-items:stretch;padding:0;gap:8px}.su label{font-weight:600}.su input{flex:none}
+.suStatus{color:var(--muted)}.suStatus.err{color:var(--error)}.su .back{align-self:flex-start}
 `;
 
 const TABS = [
@@ -186,13 +180,27 @@ const TABS = [
   ['users', '/admin/users', 'Benutzer'],
   ['monitor', '/admin/monitor', 'Monitoring'],
   ['stuck', '/admin/stuck', 'Festhänger'],
+  ['audit', '/admin/audit', 'Protokoll'],
 ];
 
-function layout({ tab, summary, notice, body, extraHead = '' }) {
+const METHOD_DE = { passkey: 'Passkey', password: 'Passwort' };
+const fmtClock = (ms) => new Date(ms).toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' });
+
+/** "Angemeldet als Chefin (Passkey) · Abmeldung nach 15 min ohne Aktivität, spätestens 18:42" + the way out. */
+function sessionBar(session, csrf) {
+  if (!session) return '';
+  return `<div class="who"><div class="whoText"><span>Angemeldet als <b>${esc(session.username)}</b> (${esc(METHOD_DE[session.method] || session.method)})</span>
+<span>Abmeldung nach ${IDLE_MS / 60000} min ohne Aktivität, spätestens ${esc(fmtClock(session.createdAt + MAX_AGE_MS))}</span></div>
+<div class="whoActions"><a class="back" href="/">Zum Spiel</a>
+<form method="post" action="/admin/logout"><input type="hidden" name="csrf" value="${esc(csrf)}"><button type="submit">Abmelden</button></form></div></div>`;
+}
+
+function layout({ tab, summary, notice, body, extraHead = '', session = null, csrf = '' }) {
   return `<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><title>Pik Dame · Admin</title>${extraHead}
 <style>${STYLE}</style></head><body><main>
 <h1>Pik Dame · Admin</h1>
+${sessionBar(session, csrf)}
 ${summary ? `<p class="sum">${summary}</p>` : ''}
 <nav class="tabs">${TABS.map(([id, href, label]) => `<a href="${href}"${id === tab ? ' class="active" aria-current="page"' : ''}>${label}</a>`).join('')}</nav>
 ${notice ? `<div class="notice ${notice.ok ? 'ok' : 'err'}">${esc(notice.text)}${notice.html || ''}</div>` : ''}
@@ -248,24 +256,26 @@ function userForm(csrf, username, action, label, cls) {
     `<input type="hidden" name="username" value="${esc(username)}"><button type="submit" name="action" value="${action}"${cls ? ` class="${cls}"` : ''}>${label}</button></form>`;
 }
 
-function usersBody({ users, csrf, now = Date.now() }) {
+/** `admins`: lower-cased names of the admin accounts (a badge, no delete button). */
+function usersBody({ users, csrf, admins = new Set(), now = Date.now() }) {
   if (!users) return '<p class="muted">Benutzerkonten sind auf diesem Server nicht aktiv.</p>';
   if (users.error) return `<div class="notice err">Benutzerliste nicht lesbar: ${esc(users.error)}</div>`;
   const list = users.users || [];
   const verified = list.filter((u) => u.verified).length;
+  const isAdmin = (u) => admins.has(String(u.username).toLowerCase());
   const rows = list.map((u) => `<tr>
-<td class="name"><b>${esc(u.username)}</b><div class="mail">${esc(u.email)}</div><div class="mail">${esc(loginMethods(u))}</div></td>
+<td class="name"><b>${esc(u.username)}</b>${isAdmin(u) ? ' <span class="badge role">Admin</span>' : ''}<div class="mail">${esc(u.email)}</div><div class="mail">${esc(loginMethods(u))}</div></td>
 <td class="status">${userStatus(u, now)}</td>
 <td class="date" data-label="Registriert">${esc(fmtDate(u.createdAt))}</td>
 <td class="num" data-label="EP">${fmtNum(u.xp)}</td><td class="num" data-label="Spiele">${fmtNum(u.games)}</td><td class="num" data-label="Siege">${fmtNum(u.wins)}</td>
 <td class="num" data-label="Saison-EP">${fmtNum(u.seasonXp)}${u.season ? ` <span class="sub">${esc(u.season)}</span>` : ''}</td>
-<td class="act"><div class="actions">${u.verified ? userForm(csrf, u.username, 'login-link', 'Anmelde-Link senden') : userForm(csrf, u.username, 'resend', 'Mail neu senden')}${userForm(csrf, u.username, 'ask-delete', 'Löschen', 'danger')}</div></td>
+<td class="act"><div class="actions">${u.verified ? userForm(csrf, u.username, 'login-link', 'Anmelde-Link senden') : userForm(csrf, u.username, 'resend', 'Mail neu senden')}${isAdmin(u) ? '' : userForm(csrf, u.username, 'ask-delete', 'Löschen', 'danger')}</div></td>
 </tr>`).join('');
   return `<h2>Benutzer <span class="sub">(${users.total} gesamt, ${verified} bestätigt${users.total > list.length ? `, die neuesten ${list.length} angezeigt` : ''})</span></h2>
 ${list.length ? `<div class="panel scroll"><table class="users">
 <thead><tr><th>Name / E-Mail</th><th>Status</th><th>Registriert</th><th>EP</th><th>Spiele</th><th>Siege</th><th>Saison-EP</th><th></th></tr></thead>
 <tbody>${rows}</tbody></table></div>` : '<p class="muted">Noch keine registrierten Benutzer.</p>'}
-<p class="legend">„Anmelde-Link senden“ schickt einem bestätigten Konto einen 15 Minuten gültigen Einmal-Link - der Weg zurück nach verlorenem Passkey oder vergessenem Passwort. Unbestätigte Konten werden 48 Stunden nach Ablauf ihres Links bei der nächsten Registrierung automatisch entfernt. Löschen entfernt das Konto, seine Anmeldungen und seine Spielversuche (Festhänger); das Gast-Profil unter dem Namen (Statistik, Abzeichen) bleibt erhalten.</p>`;
+<p class="legend">„Anmelde-Link senden“ schickt einem bestätigten Konto einen 15 Minuten gültigen Einmal-Link - der Weg zurück nach verlorenem Passkey oder vergessenem Passwort. Unbestätigte Konten werden 48 Stunden nach Ablauf ihres Links bei der nächsten Registrierung automatisch entfernt. Löschen entfernt das Konto, seine Anmeldungen und seine Spielversuche (Festhänger); das Gast-Profil unter dem Namen (Statistik, Abzeichen) bleibt erhalten. Admin-Konten lassen sich hier nicht löschen: Die Rolle vergibt und entzieht nur der Betreiber (PIKDAME_ADMINS oder <code>node scripts/admin-role.js</code>).</p>`;
 }
 
 /** The second step of a delete: shown in the notice area. */
@@ -726,15 +736,110 @@ function stuckBody(p) {
   return `${nav}${mode === 'puzzle' ? puzzleBody(p) : mode === 'tutorial' ? tutorialBody(p) : towerBody(p)}`;
 }
 
+// ---------------------------------------------------------------- audit tab
+const AUDIT_DE = {
+  'step_up.ok': 'Admin-Anmeldung',
+  'step_up.failed': 'Admin-Anmeldung fehlgeschlagen',
+  'step_up.denied': 'Zugriff verweigert (kein Admin)',
+  logout: 'Abgemeldet',
+  'role.grant': 'Admin-Rolle vergeben',
+  'role.revoke': 'Admin-Rolle entzogen',
+  view: 'Angesehen',
+  'mail.probe': 'SMTP-Anmeldung geprüft',
+  'mail.test': 'Testmail gesendet',
+  'mail.review_preview': 'Jahresrückblick-Vorschau gesendet',
+  'user.delete': 'Konto gelöscht',
+  'user.login_link': 'Anmelde-Link gesendet',
+  'user.resend': 'Bestätigungsmail neu gesendet',
+};
+const SOURCE_DE = { env: 'PIKDAME_ADMINS', cli: 'CLI' };
+const TAB_DE = Object.fromEntries(TABS.map(([id, , label]) => [id, label]));
+const FAIL_DE = { password: 'falsches Passwort', passkey: 'Passkey abgelehnt' };
+const fmtStamp = (ms) => new Date(ms).toLocaleString('de-DE', {
+  timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+});
+
+/** The detail line of an event: how, why, what followed (a role's source is its actor). */
+function auditDetail(e) {
+  const d = e.details || {};
+  const parts = [];
+  if (d.method) parts.push(METHOD_DE[d.method] || d.method);
+  if (d.reason) parts.push(FAIL_DE[d.reason] || d.reason);
+  if (d.sessions) parts.push(`${d.sessions} Sitzung${d.sessions === 1 ? '' : 'en'} beendet`);
+  if (d.attempts) parts.push(`mit ${d.attempts} Spielversuch${d.attempts === 1 ? '' : 'en'}`);
+  if (d.delivered === true) parts.push('vom SMTP-Server angenommen');
+  if (d.delivered === false) parts.push('nicht zugestellt');
+  if (d.ok === true) parts.push('erfolgreich');
+  if (d.ok === false) parts.push('fehlgeschlagen');
+  return parts.join(' · ');
+}
+
+function auditRow(e) {
+  const who = e.userName || (e.action.startsWith('role.') ? `Betreiber (${SOURCE_DE[(e.details || {}).source] || '?'})` : '–');
+  const target = e.action === 'view' ? TAB_DE[e.target] || e.target : e.target;
+  const detail = auditDetail(e);
+  return `<tr>
+<td class="date">${esc(fmtStamp(e.at))}</td>
+<td class="actor"><b>${esc(who)}</b></td>
+<td class="what">${esc(AUDIT_DE[e.action] || e.action)}${target ? `: ${esc(target)}` : ''}${detail ? `<span class="sub">${esc(detail)}</span>` : ''}</td>
+<td class="net num">${esc(e.network || '–')}</td>
+</tr>`;
+}
+
+function auditBody({ audit }) {
+  if (!audit || audit.error) return `<div class="notice err">Protokoll nicht lesbar: ${esc(audit ? audit.error : 'unbekannt')}</div>`;
+  const { events, page, hasMore } = audit;
+  const pager = page > 1 || hasMore ? `<nav class="pager" aria-label="Seiten">${page > 1
+    ? `<a href="${page === 2 ? '/admin/audit' : `/admin/audit?page=${page - 1}`}">← Neuere</a>` : ''}<span>Seite ${page}</span>${hasMore
+    ? `<a href="/admin/audit?page=${page + 1}">Ältere →</a>` : ''}</nav>` : '';
+  return `<h2>Protokoll <span class="sub">(neueste zuerst)</span></h2>
+${events.length ? `<div class="panel"><table class="list audit">
+<thead><tr><th>Wann</th><th>Wer</th><th>Was</th><th class="num">Netz</th></tr></thead>
+<tbody>${events.map(auditRow).join('')}</tbody></table></div>` : `<p class="muted">${page > 1 ? 'Keine älteren Einträge.' : 'Noch keine Einträge.'}</p>`}
+${pager}
+<p class="legend">Festgehalten werden Admin-Anmeldungen (auch fehlgeschlagene), Abmeldungen, jede Änderung (Mails, Konten löschen, Rollen) und einmal pro Sitzung jeder angesehene Bereich - 365 Tage lang. Netz = die Adresse gekürzt auf /24 (IPv4) bzw. /48 (IPv6).</p>`;
+}
+
+// ---------------------------------------------------------------- step-up page
+/** In front of every admin page without a live admin session: public/admin-stepup.js
+ *  reads the game sign-in and asks for a passkey (or the password). */
+function renderStepUpPage() {
+  return `<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex"><title>Pik Dame · Admin</title>
+<style>${STYLE}</style></head><body><main class="stepup">
+<h1>Pik Dame · Admin</h1>
+<section class="panel su" aria-labelledby="suTitle">
+<h2 id="suTitle">Bestätige, dass du es bist</h2>
+<p>Für den Admin-Bereich meldest du dich noch einmal an - auch wenn du im Spiel schon angemeldet bist.</p>
+<p id="suStatus" class="suStatus" role="status" aria-live="polite">Prüfe dein Konto …</p>
+<button id="suPasskeyBtn" type="button" class="primary" hidden>Mit Passkey bestätigen</button>
+<form id="suPasswordForm" hidden>
+<input id="suUser" type="text" name="username" autocomplete="username" class="sr" tabindex="-1" aria-hidden="true">
+<label for="suPassword">Passwort deines Kontos</label>
+<input id="suPassword" type="password" name="password" autocomplete="current-password" required>
+<button type="submit" class="primary">Bestätigen</button>
+</form>
+<button id="suRetryBtn" type="button" hidden>Noch einmal versuchen</button>
+<a class="back" href="/">← Zurück zum Spiel</a>
+</section>
+<p class="legend">Die Admin-Sitzung endet nach ${IDLE_MS / 60000} Minuten ohne Aktivität, spätestens nach ${MAX_AGE_MS / 3600000} Stunden. Anmeldungen und Änderungen stehen im Protokoll.</p>
+<noscript><p class="notice err">Die Bestätigung braucht JavaScript.</p></noscript>
+</main>
+<script src="/vendor-simplewebauthn.js" defer></script>
+<script src="/admin-stepup.js" defer></script>
+</body></html>`;
+}
+
 /**
  * @param {object} p
- * @param {'config'|'users'|'monitor'|'stuck'} [p.tab]
+ * @param {'config'|'users'|'monitor'|'stuck'|'audit'} [p.tab]
  * config:  report, smtpProbe, mailConfigured
- * users:   users ({total, users[]} | {error} | null when accounts are off)
+ * users:   users ({total, users[]} | {error} | null when accounts are off), admins (Set of lower-cased names)
  * monitor: monitor ({current, history}), version
  * stuck:   stuck: { mode: 'tower', current, month, player, report, attempts } (PlayEvents.towerReport / playerAttempts),
  *          { mode: 'puzzle', days, player, report, attempts } (puzzleReport), { mode: 'tutorial', version, current, report } (tutorialReport)
- * all:     csrf, notice ({ok, text, html?})
+ * audit:   audit ({ events, page, hasMore } | { error })
+ * all:     csrf, notice ({ok, text, html?}), session ({ username, method, createdAt })
  */
 function renderAdminPage(p) {
   const tab = p.tab || 'config';
@@ -744,14 +849,18 @@ function renderAdminPage(p) {
     ? `${problems ? `${problems} Punkt(e) brauchen Aufmerksamkeit.` : 'Alles vollständig konfiguriert.'} Werte von Secrets werden nie angezeigt.`
     : '';
   let body;
-  if (tab === 'users') body = usersBody({ users: p.users, csrf: p.csrf });
+  if (tab === 'users') body = usersBody({ users: p.users, csrf: p.csrf, admins: p.admins });
   else if (tab === 'stuck') body = stuckBody(p.stuck || {});
   else if (tab === 'monitor') body = monitorBody({ current: p.monitor.current, range: p.monitor.range || '1h', version: p.version || (p.runtime && p.runtime.version) });
+  else if (tab === 'audit') body = auditBody({ audit: p.audit });
   else body = configBody({ report, smtpProbe: p.smtpProbe, csrf: p.csrf, mailConfigured: p.mailConfigured });
-  return layout({ tab, summary, notice: p.notice, body, extraHead: tab === 'monitor' ? '<link rel="stylesheet" href="/vendor-uplot.css">' : '' });
+  return layout({
+    tab, summary, notice: p.notice, body, session: p.session, csrf: p.csrf,
+    extraHead: tab === 'monitor' ? '<link rel="stylesheet" href="/vendor-uplot.css">' : '',
+  });
 }
 
 module.exports = {
-  basicPassword, csrfToken, csrfValid, validRecipient, renderAdminPage, confirmDeleteHtml, monitorData, causeText, floorInfo,
-  dayLabel, fmtSec, KIND_DE, FAULT_DE, STEP_DE, TUTORIAL_CAUSE_DE, PUZZLE_RANGES, PUZZLE_DEFAULT_DAYS,
+  validRecipient, renderAdminPage, renderStepUpPage, confirmDeleteHtml, monitorData, causeText, floorInfo,
+  dayLabel, fmtSec, KIND_DE, FAULT_DE, STEP_DE, TUTORIAL_CAUSE_DE, PUZZLE_RANGES, PUZZLE_DEFAULT_DAYS, AUDIT_DE,
 };

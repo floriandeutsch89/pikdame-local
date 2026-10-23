@@ -54,6 +54,20 @@ Without them `/impressum.html` shows "Impressum nicht konfiguriert". With the
 plain manifests, fill in the commented `PIKDAME_IMPRINT_*` block in
 `k8s/deployment.yaml` (or put the variables into the `pikdame-env` Secret).
 
+The admin area (`/admin`) belongs to accounts with the admin role: list the
+confirmed e-mail address of your game account (applied on every start), then
+open `/admin` from the account dialog and confirm with your passkey:
+
+```sh
+helm upgrade pikdame oci://ghcr.io/floriandeutsch89/charts/pikdame --reuse-values \
+  --set admin.emails=you@example.org
+# break-glass, without redeploying:
+kubectl exec deploy/pikdame -- node scripts/admin-role.js grant you@example.org
+```
+
+With the plain manifests, uncomment `PIKDAME_ADMINS` in `k8s/deployment.yaml`.
+Details: https://pik-dame.readthedocs.io/en/latest/admin/admin-page.html
+
 ## Alternative: plain manifests
 
 ```sh

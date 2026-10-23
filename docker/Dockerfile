@@ -107,6 +107,8 @@ COPY server.js ./
 COPY game ./game
 # Schema migrations, read (never written) at start by game/Migrations.js.
 COPY migrations ./migrations
+# Break-glass for the admin role: docker compose exec pikdame node scripts/admin-role.js
+COPY scripts/admin-role.js ./scripts/
 # Minified in stage "assets" - index.html travels through untouched, because
 # its inline script is pinned by sha256 in the production CSP.
 COPY --from=assets /app/public ./public

@@ -48,7 +48,7 @@ test('docs, tests, CI and skills alone need no fragment', () => {
 });
 
 test('a shipped change without a fragment fails, with one it passes', () => {
-  for (const p of ['public/client.js', 'server.js', 'game/Rules.js', 'models/pikdame-zen.onnx', 'docker/Dockerfile', 'scripts/minify-assets.js']) {
+  for (const p of ['public/client.js', 'server.js', 'game/Rules.js', 'models/pikdame-zen.onnx', 'docker/Dockerfile', 'scripts/minify-assets.js', 'scripts/admin-role.js']) {
     const r = run({ head: { [p]: 'changed' } });
     assert.match(messages(r), new RegExp(`changes the shipped game \\(${p.replace(/\./g, '\\.')}\\) but adds no changelog fragment`), p);
   }

@@ -72,6 +72,12 @@ An old container still running during the deploy can no longer read accounts:
 sign-ins fail, and a client that opens the page there loses its sign-in. Deploy
 by stopping the old container first (Compose `up -d`, Kubernetes `Recreate`).
 
+`009_admin_role.sql` adds the admin access tables (`user_roles`,
+`admin_sessions`, `admin_audit_events`, see {doc}`schema`). It only creates new
+tables: nothing is rewritten and an old container keeps running unchanged; it
+just knows nothing of them (its `/admin` still asks for the old token). The
+roles come from `PIKDAME_ADMINS` on the first start of the new version.
+
 ## Rules
 
 - **Forward-only.** There are no down migrations; undo a change with a new file.
