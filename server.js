@@ -51,7 +51,6 @@ const playerStore = createPlayerStore();
 const { createChallengeStore, seedForDate } = require('./game/ChallengeStore');
 const { gameDay } = require('./game/GameDay');
 const { createSecurityHeaders } = require('./game/SecurityHeaders');
-const challengeStore = createChallengeStore();
 // One level for every challenge game, retries included (comparable board).
 // Medium, not zen: the daily is meant to be fun, not a grind.
 const CHALLENGE_BOT_DIFFICULTY = 'medium';
@@ -68,6 +67,7 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 const db = createPool(DATABASE_URL);
+const challengeStore = createChallengeStore(db);
 // PIKDAME_ACCOUNTS=0 switches the account feature off; the database stays required.
 const accountStore = process.env.PIKDAME_ACCOUNTS === '0' ? null : createPgAccountStore(db);
 const mailer = createMailer();
@@ -191,7 +191,6 @@ function flushStoresSafely() {
   try { globalStats.flushSync(); } catch (e) { /* best effort */ }
   try { gameHistoryStore.flushSync(); } catch (e) { /* best effort */ }
   try { yearStats.flushSync(); } catch (e) { /* best effort */ }
-  try { challengeStore.flushSync(); } catch (e) { /* best effort */ }
 }
 
 /**
@@ -1394,26 +1393,24 @@ const registry = new SessionRegistry((session) => {
 
       // Achievement badges: computed per REAL player from the record,
       // persisted on the profile (new ones only) and announced to the whole
-      // table - the big moment belongs in the result overlay.
-      const earned = [];
-      for (const p of gameRecord.players || []) {
-        if (p.isBot) continue;
-        const profile = playerStore.getPlayerByName(p.name) || {};
-        let challengeChamp = false;
-        let queenMagnet = false;
-        try {
-          challengeChamp = challengeStore.wasChampion(p.name);
-          queenMagnet = challengeStore.wasQueenMagnet(p.name);
-        } catch (err) { logCrash('challenge-champ', err, { player: p.name }); }
-        const deserved = computeEarnedBadges(gameRecord, p.id, profile, { challengeChamp, queenMagnet });
-        const fresh = playerStore.awardBadges(p.name, deserved);
-        if (fresh.length > 0) earned.push({ name: p.name, badges: fresh });
-      }
-      if (earned.length > 0) {
+      // table - the big moment belongs in the result overlay. The challenge
+      // titles come from the database, hence async (order-independent message).
+      challengeTitles(gameRecord).then((titles) => {
+        const earned = [];
         for (const p of gameRecord.players || []) {
-          sendTo(p.id, { type: 'badges', earned });
+          if (p.isBot) continue;
+          const profile = playerStore.getPlayerByName(p.name) || {};
+          const { challengeChamp = false, queenMagnet = false } = titles[p.id] || {};
+          const deserved = computeEarnedBadges(gameRecord, p.id, profile, { challengeChamp, queenMagnet });
+          const fresh = playerStore.awardBadges(p.name, deserved);
+          if (fresh.length > 0) earned.push({ name: p.name, badges: fresh });
         }
-      }
+        if (earned.length > 0) {
+          for (const p of gameRecord.players || []) {
+            sendTo(p.id, { type: 'badges', earned });
+          }
+        }
+      }).catch((err) => logCrash('badges', err));
 
       // --- Progression: XP, level, season ladder, daily quests -------------
       // Everything below is best-effort: a finished game must never fail
@@ -1483,27 +1480,7 @@ const registry = new SessionRegistry((session) => {
       // Daily challenge: record the human's score and hand out the board.
       if (gameRecord.challengeDate) {
         const human = (gameRecord.players || []).find((p) => !p.isBot);
-        if (human) {
-          const date = gameRecord.challengeDate;
-          const score = (gameRecord.finalTotals || {})[human.id] || 0;
-          const queens = (gameRecord.rounds || []).reduce((n, r) => n + ((((r.results || {})[human.id] || {}).breakdown || {}).pikDameCount || 0), 0);
-          const board = challengeStore.submit(date, human.name, score, Date.now(), { queens });
-          sendTo(human.id, {
-            type: 'challengeBoard',
-            date,
-            board,
-            yourScore: score,
-            yourRank: challengeStore.rankOf(date, human.name),
-            // For "Ergebnis teilen": caught queens and today's field size.
-            yourQueens: queens,
-            players: challengeStore.getBoard(date, Infinity).length,
-            magnet: challengeStore.queenMagnet(date),
-            // Die versprochenen '7 Tage sichtbar': kompakter Rückblick
-            history: challengeStore.getHistory(human.name),
-            // Wochenwertung (Mo-So, beste 5 Tage zählen)
-            weekly: challengeStore.getWeekly(human.name),
-          });
-        }
+        if (human) sendChallengeResult(gameRecord, human, sendTo);
       }
     },
   });
@@ -1598,10 +1575,52 @@ restoreSessionsSnapshot();
 // --- Daily challenge: one attempt per player and day ----------------------
 // A ranked game whose session is gone (not restored, or cleaned up since) was
 // lost by the server, not given up: its player may start again. Boot + on demand.
-function freeLostChallengeAttempts() {
-  try { challengeStore.markLostAttempts({ has: (code) => registry.sessions.has(code) }); } catch (err) { logCrash('challenge-lost', err); }
+// Also starts the schema check and the one-time challenges.json import at boot. Never throws.
+async function freeLostChallengeAttempts() {
+  try { await challengeStore.markLostAttempts({ has: (code) => registry.sessions.has(code) }); } catch (err) { logCrash('challenge-lost', err); }
 }
 freeLostChallengeAttempts();
+const CHALLENGE_DB_ERROR = 'Die Tages-Challenge ist gerade nicht erreichbar - bitte versuch es gleich noch einmal.';
+
+/** Badge facts per real player id: { challengeChamp, queenMagnet }. Never throws. */
+async function challengeTitles(gameRecord) {
+  const titles = {};
+  for (const p of gameRecord.players || []) {
+    if (p.isBot) continue;
+    try {
+      titles[p.id] = { challengeChamp: await challengeStore.wasChampion(p.name), queenMagnet: await challengeStore.wasQueenMagnet(p.name) };
+    } catch (err) { logCrash('challenge-champ', err, { player: p.name }); }
+  }
+  return titles;
+}
+
+/** Books the ranked result (the first per name and day stays) and sends the board. Never throws. */
+async function sendChallengeResult(gameRecord, human, sendTo) {
+  const date = gameRecord.challengeDate;
+  const score = (gameRecord.finalTotals || {})[human.id] || 0;
+  const queens = (gameRecord.rounds || []).reduce((n, r) => n + ((((r.results || {})[human.id] || {}).breakdown || {}).pikDameCount || 0), 0);
+  try {
+    const board = await challengeStore.submit(date, human.name, score, Date.now(), { queens });
+    sendTo(human.id, {
+      type: 'challengeBoard',
+      date,
+      board,
+      yourScore: score,
+      yourRank: await challengeStore.rankOf(date, human.name),
+      // For "Ergebnis teilen": caught queens and today's field size.
+      yourQueens: queens,
+      players: await challengeStore.playerCount(date),
+      magnet: await challengeStore.queenMagnet(date),
+      // The promised "7 Tage sichtbar": a compact look back.
+      history: await challengeStore.getHistory(human.name),
+      // Weekly ranking (Mon-Sun, best 5 days count).
+      weekly: await challengeStore.getWeekly(human.name),
+    });
+  } catch (err) {
+    logCrash('challenge-submit', err, { player: human.name });
+    sendTo(human.id, { type: 'error', error: CHALLENGE_DB_ERROR });
+  }
+}
 
 /** Kartenhaus: grades the floor round, keeps the best stars of its month, pays a floor's first
  *  star (profile; account and season too, without booking a game), awards badges. */
@@ -1648,7 +1667,7 @@ async function bookAccountXp(name, xp, { seated = false, accountToken = null } =
  *  (played or given up). An account name must come with its login token;
  *  a guest name is trusted like the attempt itself. */
 async function mayRevealChallenge(date, name, accountToken) {
-  if (!name || !challengeStore.hasFinished(date, name)) return false;
+  if (!name || !(await challengeStore.hasFinished(date, name))) return false;
   if (!ACCOUNTS_ENABLED || !(await accountStore.isRegisteredName(name))) return true;
   const user = await accountStore.sessionUser(accountToken);
   return !!user && user.username.toLowerCase() === name.toLowerCase();
@@ -1659,35 +1678,32 @@ async function mayRevealChallenge(date, name, accountToken) {
 async function challengeBoardResponse(req, res) {
   const date = gameDay();
   const name = sanitizeName(new URL(req.url, 'http://x').searchParams.get('name') || '');
-  if (name) freeLostChallengeAttempts();
+  if (name) await freeLostChallengeAttempts();
   const revealed = await mayRevealChallenge(date, name, req.headers['x-account-token']);
   const hide = revealed ? null : date;
+  const [players, you, board, attempted, running, magnet, weekly, trend] = await Promise.all([
+    challengeStore.playerCount(date),
+    revealed ? challengeStore.resultOf(date, name) : null,
+    revealed ? challengeStore.getBoard(date, 5) : [],
+    name ? challengeStore.hasAttempted(date, name) : false,
+    name ? challengeStore.runningAttempt(date, name) : null,
+    revealed ? challengeStore.queenMagnet(date) : null,
+    challengeStore.getWeekly(null, 5, Date.now(), { exclude: hide }),
+    challengeStore.getTrend(name, { exclude: hide }),
+  ]);
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify({
-    date,
-    revealed,
-    players: challengeStore.playerCount(date),
-    you: revealed ? challengeStore.resultOf(date, name) : null,
-    board: revealed ? challengeStore.getBoard(date, 5) : [],
-    attempted: name ? challengeStore.hasAttempted(date, name) : false,
-    running: name ? !!challengeStore.runningAttempt(date, name) : false, // the sheet offers to continue
-    magnet: revealed ? challengeStore.queenMagnet(date) : null,
-    weekly: challengeStore.getWeekly(null, 5, Date.now(), { exclude: hide }),
-    trend: challengeStore.getTrend(name, { exclude: hide }),
+    date, revealed, players, you, board, attempted,
+    running: !!running, // the sheet offers to continue
+    magnet, weekly, trend,
   }));
 }
 
-/** Books the day's attempt (no names are kept in public mode). */
-function registerChallengeAttempt(game, code) {
+/** Given up: the day stays used. Never throws. */
+async function closeChallengeAttempt(game) {
   const human = game.players.find((p) => !p.isBot);
   if (PUBLIC_MODE || !human) return;
-  try { challengeStore.beginAttempt(game.challengeDate, human.name, code); } catch (err) { logCrash('challenge-attempt', err, { player: human.name }); }
-}
-
-function closeChallengeAttempt(game) {
-  const human = game.players.find((p) => !p.isBot);
-  if (PUBLIC_MODE || !human) return;
-  try { challengeStore.closeAttempt(game.challengeDate, human.name); } catch (err) { logCrash('challenge-attempt', err, { player: human.name }); }
+  try { await challengeStore.closeAttempt(game.challengeDate, human.name); } catch (err) { logCrash('challenge-attempt', err, { player: human.name }); }
 }
 
 // The restore above deleted the file (crash-loop guard); from here on it is
@@ -2029,30 +2045,55 @@ wss.on('connection', (ws, req) => {
       const date = gameDay();
       // One attempt per name and day; a running game of today is resumed via the tile.
       const challenger = PUBLIC_MODE ? '' : sanitizeName(msg.name);
-      if (challenger) freeLostChallengeAttempts();
-      if (challenger && challengeStore.runningAttempt(date, challenger)) {
-        return sendError(ws, 'Deine Tages-Challenge von heute läuft noch - weiter geht es auf dem Gerät, auf dem du sie begonnen hast.');
+      const running = 'Deine Tages-Challenge von heute läuft noch - weiter geht es auf dem Gerät, auf dem du sie begonnen hast.';
+      const played = 'Die heutige Tages-Challenge hast du schon gespielt - morgen gibt es ein neues Deck.';
+      let refusal = null;
+      if (challenger) {
+        await freeLostChallengeAttempts();
+        try {
+          if (await challengeStore.runningAttempt(date, challenger)) refusal = running;
+          else if (await challengeStore.hasAttempted(date, challenger)) refusal = played;
+        } catch (err) {
+          logCrash('challenge-attempt', err, { player: challenger });
+          refusal = CHALLENGE_DB_ERROR;
+        }
       }
-      if (challenger && challengeStore.hasAttempted(date, challenger)) {
-        return sendError(ws, 'Die heutige Tages-Challenge hast du schon gespielt - morgen gibt es ein neues Deck.');
-      }
+      if (refusal) return sendError(ws, refusal);
       const created = registry.create({
         deckSeed: seedForDate(date),
         challengeDate: date,
         onAbandon: (code) => registry.delete(code),
       });
       if (created.error) return sendError(ws, created.error);
-      const ok = await joinSession(created.session, msg);
-      if (ok) {
-        const game = created.session.game;
-        game.setHouseRules({ turnTimerSeconds: 0 }, { system: true });
-        // Bot level is NOT a house rule (setHouseRules drops the key silently);
-        // set it before fillWithBots so the new bots get it too.
-        game.setAllBotsDifficulty(CHALLENGE_BOT_DIFFICULTY);
-        registerChallengeAttempt(game, created.session.code);
-        game.fillWithBots();
-        game.startNewRound();
+      const code = created.session.code;
+      // Book the attempt BEFORE the game exists for the player: the primary key
+      // lets exactly one of two racing starts (double tap, two devices) through.
+      if (challenger) {
+        let begun = null;
+        try {
+          begun = await challengeStore.beginAttempt(date, challenger, code);
+        } catch (err) {
+          logCrash('challenge-attempt', err, { player: challenger });
+        }
+        if (!begun || !begun.ranked) {
+          registry.delete(code);
+          return sendError(ws, !begun ? CHALLENGE_DB_ERROR : running);
+        }
       }
+      const ok = await joinSession(created.session, msg);
+      if (!ok) {
+        // The booked attempt's game is gone: free the day again.
+        registry.delete(code);
+        if (challenger) await freeLostChallengeAttempts();
+        return;
+      }
+      const game = created.session.game;
+      game.setHouseRules({ turnTimerSeconds: 0 }, { system: true });
+      // Bot level is NOT a house rule (setHouseRules drops the key silently);
+      // set it before fillWithBots so the new bots get it too.
+      game.setAllBotsDifficulty(CHALLENGE_BOT_DIFFICULTY);
+      game.fillWithBots();
+      game.startNewRound();
       return;
     }
     if (msg.type === 'getTower') {
@@ -2551,7 +2592,7 @@ wss.on('connection', (ws, req) => {
       case 'forfeitRound': {
         const r = game.forfeitRound(playerId);
         if (r && r.error) sendError(ws, r.error);
-        else if (game.challengeDate && game.gameOverInfo && game.gameOverInfo.forfeited) closeChallengeAttempt(game);
+        else if (game.challengeDate && game.gameOverInfo && game.gameOverInfo.forfeited) await closeChallengeAttempt(game);
         break;
       }
       case 'undoMeld': {
@@ -2609,8 +2650,6 @@ function shutdown(signal) {
   gameHistoryStore.flushSync();
   globalStats.flushSync();
   stammtischStore.flushSync();
-  // A deploy right after a challenge start/result must not drop the attempt (writes are debounced).
-  try { challengeStore.flushSync(); } catch (e) { logCrash('challenge-flush', e); }
   try { yearStats.flushSync(); } catch (e) { /* the year review is best effort */ }
   try { if (adminMonitor) adminMonitor.flushSync(); } catch (e) { /* monitoring history is best effort */ }
   db.end().catch(() => {}); // never block shutdown

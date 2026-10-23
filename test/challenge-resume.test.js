@@ -7,7 +7,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
-const { testDatabaseUrl } = require('./helpers/test-db');
+const { testDatabaseUrl, testPool } = require('./helpers/test-db');
 const WebSocket = require('ws');
 const { JSDOM, VirtualConsole } = require('jsdom');
 const GameManager = require('../game/GameManager');
@@ -62,27 +62,26 @@ test('a restored table re-arms the clock of every human, online at the snapshot 
 });
 
 // --- Cause 2: a session removed while the server runs left the day "used" ---
-test('a running attempt whose session is gone is freed at once, a live one stays', () => {
-  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikres-')), 'challenges.json');
-  const cs = createChallengeStore(file);
+test('a running attempt whose session is gone is freed at once, a live one stays', async (t) => {
+  const cs = createChallengeStore(testPool(t, 'challenge_gone'), { legacyFile: null });
   const today = gameDay();
-  cs.beginAttempt(today, 'Gone', 'GONE01');
-  cs.beginAttempt(today, 'Live', 'LIVE01');
-  assert.strictEqual(cs.runningAttempt(today, 'gone'), 'GONE01');
-  cs.markLostAttempts({ has: (code) => code === 'LIVE01' }); // the registry, asked on demand
-  assert.strictEqual(cs.hasAttempted(today, 'Gone'), false, 'the game is gone: the day is free again');
-  assert.strictEqual(cs.runningAttempt(today, 'Gone'), null);
-  assert.strictEqual(cs.hasAttempted(today, 'Live'), true);
-  assert.strictEqual(cs.runningAttempt(today, 'Live'), 'LIVE01', 'a live game stays the attempt');
-  cs.submit(today, 'Live', 300);
-  assert.strictEqual(cs.runningAttempt(today, 'Live'), null, 'finished: no longer running');
+  await cs.beginAttempt(today, 'Gone', 'GONE01');
+  await cs.beginAttempt(today, 'Live', 'LIVE01');
+  assert.strictEqual(await cs.runningAttempt(today, 'gone'), 'GONE01');
+  await cs.markLostAttempts({ has: (code) => code === 'LIVE01' }); // the registry, asked on demand
+  assert.strictEqual(await cs.hasAttempted(today, 'Gone'), false, 'the game is gone: the day is free again');
+  assert.strictEqual(await cs.runningAttempt(today, 'Gone'), null);
+  assert.strictEqual(await cs.hasAttempted(today, 'Live'), true);
+  assert.strictEqual(await cs.runningAttempt(today, 'Live'), 'LIVE01', 'a live game stays the attempt');
+  await cs.submit(today, 'Live', 300);
+  assert.strictEqual(await cs.runningAttempt(today, 'Live'), null, 'finished: no longer running');
 });
 
 // --- Real server: board says "running", a second start says so too ---------
-async function startServer(dataDir, port) {
+async function startServer(dataDir, port, dbUrl) {
   const server = spawn('node', ['server.js'], {
     cwd: ROOT,
-    env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('challenge_resume'), PORT: String(port), PIKDAME_PUBLIC_MODE: '0', PIKDAME_DATA_DIR: dataDir },
+    env: { ...process.env, PIKDAME_DATABASE_URL: dbUrl, PORT: String(port), PIKDAME_PUBLIC_MODE: '0', PIKDAME_DATA_DIR: dataDir },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   server.stdout.resume();
@@ -118,7 +117,8 @@ async function waitFor(ws, pred, ms = 5000) {
 test('server: a minimised challenge is reported as running, survives a restart with its hold, and is never "schon gespielt"', async (t) => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-chres-'));
   const port = await freePort();
-  let server = await startServer(dataDir, port);
+  const dbUrl = testDatabaseUrl('challenge_resume'); // one database across the restarts
+  let server = await startServer(dataDir, port, dbUrl);
   t.after(async () => {
     await stopServer(server);
     fs.rmSync(dataDir, { recursive: true, force: true });
@@ -133,22 +133,38 @@ test('server: a minimised challenge is reported as running, survives a restart w
   // Deploy while the player is online: SIGTERM snapshots, the app is killed before it reconnects.
   await stopServer(server);
   player.terminate();
-  server = await startServer(dataDir, port);
+  server = await startServer(dataDir, port, dbUrl);
   await stopServer(server); // the next snapshot shows what the restore kept
   const snap = JSON.parse(fs.readFileSync(path.join(dataDir, 'sessions-snapshot.json'), 'utf8'));
   const restored = snap.sessions.find((s) => s.code === code);
   assert.ok(restored, 'the challenge came back from the snapshot');
   assert.ok(restored.state.soloPausedUntil > Date.now(), 'and waits for its player (cleanup cannot reap it)');
 
-  server = await startServer(dataDir, port);
+  server = await startServer(dataDir, port, dbUrl);
   const b = await board();
-  assert.strictEqual(b.attempted, true, 'the attempt counts (flushed on SIGTERM, not lost in the write debounce)');
+  assert.strictEqual(b.attempted, true, 'the attempt counts (written to the database before the game started)');
   assert.strictEqual(b.running, true, 'the sheet learns the game is still open');
   const again = await open(port);
   again.send(JSON.stringify({ type: 'startChallenge', name: 'Flo' }));
   const err = await waitFor(again, (m) => m.type === 'error');
   assert.match(err.error, /läuft noch/, 'a second start points at the running game');
   again.close();
+});
+
+test('server: two racing starts for one name (double tap, two devices) give exactly one game', async (t) => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-chrace-'));
+  const port = await freePort();
+  const server = await startServer(dataDir, port, testDatabaseUrl('challenge_race'));
+  t.after(async () => {
+    await stopServer(server);
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  });
+  const socks = await Promise.all([open(port), open(port), open(port)]);
+  for (const s of socks) s.send(JSON.stringify({ type: 'startChallenge', name: 'Flo' }));
+  const outcomes = await Promise.all(socks.map((s) => waitFor(s, (m) => m.type === 'error' || m.type === 'joined')));
+  assert.strictEqual(outcomes.filter((m) => m.type === 'joined').length, 1, 'one ranked game');
+  for (const m of outcomes.filter((x) => x.type === 'error')) assert.match(m.error, /läuft noch|schon gespielt/);
+  for (const s of socks) s.close();
 });
 
 // --- Client: the tile finds the running challenge -----------------------------

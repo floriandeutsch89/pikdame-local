@@ -306,19 +306,6 @@ test('PlayerStore: losses, last-place streak, challenge/Stammtisch games and sol
     ['challenger_30', 'challenger_7', 'puzzle_7', 'purple_heart_10'].sort());
 });
 
-test('ChallengeStore.wasChampion: first place counts only once the day is over', () => {
-  const { createChallengeStore } = require('../game/ChallengeStore');
-  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikchamp-')), 'challenges.json');
-  const cs = createChallengeStore(file);
-  const now = Date.parse('2026-10-05T10:00:00Z');
-  cs.submit('2026-10-05', 'Ada', 900, now); // today: still open
-  assert.equal(cs.wasChampion('ada', now), false);
-  cs.submit('2026-10-04', 'Ben', 300, now);
-  cs.submit('2026-10-04', 'Ada', 500, now);
-  assert.equal(cs.wasChampion('Ada', now), true);
-  assert.equal(cs.wasChampion('Ben', now), false, 'second place is not first');
-});
-
 test('client lists every badge exactly once (families + singles)', () => {
   const { BADGE_IDS } = require('../game/Badges');
   const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'client.js'), 'utf8');

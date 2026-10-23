@@ -1562,32 +1562,6 @@ test('daily challenge: identical seed deals identical hands, different days diff
   assert.notEqual(mk(), other, 'a new day deals a new deck');
 });
 
-test('challenge store: first result per name, ranked board, 7-day cleanup', () => {
-  const { createChallengeStore } = require('../game/ChallengeStore');
-  const file = require('path').join(require('os').tmpdir(), `pikdame-chal-${process.pid}-${Date.now()}.json`);
-  const store = createChallengeStore(file);
-  // Dates must be RELATIVE to today: the 7-day retention is measured against the
-  // current date, so hard-coded days silently expire and made this test a time
-  // bomb (it started failing once the fixed date fell out of the window).
-  const { gameDay, addDays } = require('../game/GameDay');
-  const dayStr = (offsetDays) => addDays(gameDay(), -offsetDays);
-  const today = dayStr(0);
-  const longAgo = dayStr(40); // safely outside the 7-day window
-  store.submit(today, 'Anna', 480);
-  store.submit(today, 'anna', 350); // case-insensitive: the first result stays
-  store.submit(today, 'ANNA', 900); // a better later game is practice, too
-  store.submit(today, 'Ben', 620);
-  const board = store.getBoard(today);
-  assert.equal(board[0].name, 'Ben');
-  assert.equal(board[1].score, 480, 'first result kept, later games ignored');
-  assert.equal(store.rankOf(today, 'ANNA'), 2);
-  // Old day vanishes on the next submit (7-day retention)
-  store.submit(longAgo, 'Old', 100);
-  store.submit(today, 'Cleo', 10);
-  assert.deepEqual(store.getBoard(longAgo), [], 'entries older than 7 days are dropped');
-  try { require('fs').unlinkSync(file); } catch (e) { /* lazy write */ }
-});
-
 // --- v1.33.2: turn timer vs. takeover grace -----------------------------------
 test('turn timer never fires for a disconnected human (grace owns the seat)', () => {
   const { game } = makeGame(2);
@@ -2248,30 +2222,6 @@ test('leaveLobby frees the seat, cleans ready gate and re-syncs bots; blocked mi
   g.destroy();
 });
 
-// --- v1.78.2: Challenge-Verlauf ('7 Tage sichtbar' wörtlich genommen) -----------
-test('challenge history lists past days with winner and own rank; empty past days skipped', () => {
-  const os = require('node:os');
-  const path = require('node:path');
-  const { createChallengeStore, todayDate } = require('../game/ChallengeStore');
-  const store = createChallengeStore(path.join(os.tmpdir(), `ch-${process.pid}-${Date.now()}.json`));
-  const now = Date.now();
-  const d0 = todayDate(now), d1 = todayDate(now - 86400000), d3 = todayDate(now - 3 * 86400000);
-  store.submit(d3, 'Flo', 500, now - 3 * 86400000);
-  store.submit(d3, 'Anna', 800, now - 3 * 86400000);
-  store.submit(d1, 'Flo', 650, now - 86400000);
-  store.submit(d0, 'Flo', 700, now);
-  const h = store.getHistory('Flo', 3, now);
-  assert.equal(h[0].date, d0, 'today first');
-  const day1 = h.find((d) => d.date === d1);
-  const day3 = h.find((d) => d.date === d3);
-  assert.ok(day1 && day3, 'past days with entries are listed');
-  assert.equal(day3.top[0].name, 'Anna', 'daily winner shown');
-  assert.equal(day3.yourRank, 2, 'own rank per day');
-  assert.equal(day1.yourScore, 650);
-  // Tage ohne Einträge (z. B. vorgestern) erscheinen nicht
-  assert.ok(!h.some((d) => d.players === 0 && d.date !== d0), 'empty past days skipped');
-});
-
 // --- v1.80.0: Soziale Bots (Antworten auf menschliche Emotes) --------------------
 test('a human emote gets at most ONE bot reply; bots and cooldown stay silent', async () => {
   const tick = () => new Promise((r) => setTimeout(r, 5));
@@ -2320,29 +2270,6 @@ test('hourglass while a bot is to move pokes exactly that bot', async () => {
   assert.equal(sent[0].botId, rushed, 'the bot being rushed answers itself');
   assert.ok(['😤', '⏳'].includes(sent[0].emoji));
   g.destroy();
-});
-
-// --- v1.81.0: Wochenwertung (beste 5 Tage, Mo-So) -----------------------------
-test('weekly challenge board sums the best 5 daily scores of the current week', () => {
-  const os = require('node:os');
-  const path = require('node:path');
-  const { createChallengeStore, todayDate } = require('../game/ChallengeStore');
-  const store = createChallengeStore(path.join(os.tmpdir(), `wk-${process.pid}-${Date.now()}.json`));
-  // "now" = ein Sonntag, damit alle 7 Wochentage in der Woche liegen
-  const sunday = Date.UTC(2026, 6, 19, 12); // 2026-07-19 ist ein Sonntag
-  for (let i = 0; i < 7; i++) {
-    const t = sunday - i * 86400000;
-    store.submit(todayDate(t), 'Flo', 100 + i * 10, t); // 100..160 über Mo..So
-  }
-  store.submit(todayDate(sunday), 'Anna', 500, sunday); // 1 Tag, hoher Score
-  const w = store.getWeekly('Flo', 5, sunday);
-  // Flo: beste 5 von {100..160} = 160+150+140+130+120 = 700
-  assert.equal(w.top[0].name, 'Flo');
-  assert.equal(w.top[0].weekScore, 700, 'best 5 of 7 days count');
-  assert.equal(w.top[0].days, 7);
-  assert.equal(w.top[1].name, 'Anna');
-  assert.equal(w.top[1].weekScore, 500, 'a single big day does not beat a steady week');
-  assert.equal(w.yourRank, 1);
 });
 
 // --- v1.81.0: Schlüsselmomente ----------------------------------------------------

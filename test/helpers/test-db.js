@@ -40,4 +40,12 @@ function dropAll() {
   } catch (e) { /* a leftover schema in a test database is harmless */ }
 }
 
-module.exports = { testDatabaseUrl };
+/** A pg Pool on a fresh schema, ended when test `t` is done. */
+function testPool(t, tag = 't') {
+  const { Pool } = require('pg');
+  const pool = new Pool({ connectionString: testDatabaseUrl(tag), max: 4 });
+  t.after(() => pool.end());
+  return pool;
+}
+
+module.exports = { testDatabaseUrl, testPool };
