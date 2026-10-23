@@ -34,6 +34,12 @@ spec:
               value: {{ .Values.env.maxSessions | quote }}
             - name: PIKDAME_ONNX
               value: {{ ternary "1" "0" .Values.onnx.enabled | quote }}
+            {{- range $key, $var := dict "name" "PIKDAME_IMPRINT_NAME" "street" "PIKDAME_IMPRINT_STREET" "city" "PIKDAME_IMPRINT_CITY" "email" "PIKDAME_IMPRINT_EMAIL" "country" "PIKDAME_IMPRINT_COUNTRY" }}
+            {{- with index $.Values.imprint $key }}
+            - name: {{ $var }}
+              value: {{ . | quote }}
+            {{- end }}
+            {{- end }}
             {{- if .Values.database.existingSecret }}
             - name: PIKDAME_DATABASE_URL
               valueFrom:

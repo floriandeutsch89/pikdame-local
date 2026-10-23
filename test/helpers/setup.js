@@ -4,6 +4,9 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+// Test servers never build Kartenhaus months (a worker per server, real games).
+if (!process.env.PIKDAME_TOWER_GEN) process.env.PIKDAME_TOWER_GEN = '0';
+
 if (!process.env.PIKDAME_LOG_PATH) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-testlog-'));
   process.env.PIKDAME_LOG_PATH = path.join(dir, 'human-moves.jsonl');

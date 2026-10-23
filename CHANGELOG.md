@@ -3,6 +3,232 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.112.0] - 2026-10-23
+
+### Changed
+- Spielerprofile (Statistik, Abzeichen, Tagesaufgaben, Rätsel- und Kartenhaus-Sterne) liegen jetzt in der Datenbank statt in einer Datei; beim ersten Start wird die alte Datei einmalig übernommen
+- Kein Profil wird mehr gelöscht: Früher fielen ab 500 Profilen die mit den wenigsten Partien weg, jetzt bleibt jedes erhalten
+- Die Statistik-Rangliste zeigt die 500 besten Profile, das eigene Profil ist immer dabei
+- Stammtische (Mitglieder, Bilanz, Revanche-Serie, Gruppenziele) liegen jetzt in der Datenbank statt in einer Datei; beim ersten Start wird die alte Datei einmalig übernommen
+- Ein bestätigtes Konto ist in der Datenbank fest mit seinem Spielerprofil verbunden; ein Profil mit Konto lässt sich erst nach dem Konto löschen
+- Bestätigungs-, Anmelde- und Abmelde-Links aus Mails sowie Anmeldungen werden schneller gefunden
+
+## [2.111.0] - 2026-10-23
+
+### Added
+- Tagesrätsel und Tutorial: Jeder Versuch wird wie im Kartenhaus mit
+  Spielername, Ergebnis und Verlauf 90 Tage lang gespeichert (Rätsel:
+  Fehlversuche, Lösungszeit, Aufgeben; Tutorial: erreichter Schritt, Zeit je
+  Schritt, Überspringen). Die Admin-Seite zeigt im Bereich „Festhänger“ nun
+  auch, an welchem Rätsel und an welchem Tutorial-Schritt Spieler hängen
+  bleiben und warum.
+- Datenschutzerklärung: Der Abschnitt zu den Spielversuchen nennt jetzt auch
+  Tagesrätsel und Tutorial.
+
+## [2.110.0] - 2026-10-23
+
+### Changed
+- Datenbank aufgeräumt: Tages-Challenge und Kartenhaus-Versuche speichern Tage
+  als Datum und Zeitpunkte als Zeitstempel mit Zeitzone, die Spalten heißen
+  eindeutig (`game_day`, `player_key`, `started_at` …); `play_events` heißt
+  jetzt `play_attempts`, Monat und Etage stehen in eigenen Spalten. Für Betreiber:
+  die Umstellung läuft beim ersten Start einmal von selbst, alle Daten bleiben
+  erhalten; eigene SQL-Abfragen auf die alten Namen bitte anpassen
+  (docs/admin/play-attempts.md).
+
+## [2.109.0] - 2026-10-23
+
+### Added
+- Kartenhaus: Jeder Versuch einer Etage wird mit Spielername, Ergebnis und
+  Verlauf (Punkte, Züge, Grund für einen fehlenden Stern oder Abbruch) 90 Tage
+  lang gespeichert. Die Admin-Seite zeigt daraus im neuen Bereich
+  „Festhänger“, auf welcher Etage Spieler hängen bleiben und warum.
+- Datenschutzerklärung: Abschnitt zu den gespeicherten Spielversuchen.
+
+### Fixed
+- Nach einem Server-Neustart konnte ein Tisch selten einfrieren: Das Spiel lief
+  weiter, aber niemand bekam mehr den aktuellen Spielstand zu sehen.
+
+## [2.108.0] - 2026-10-23
+
+### Changed
+- Die Tages-Challenge speichert Bestenliste und Versuche jetzt in der
+  Datenbank. Ein Neustart des Servers direkt nach dem Start oder Ende einer
+  Challenge kann den Versuch nicht mehr verlieren, und ein doppelter Tipp auf
+  „Starten“ beginnt nie zwei gewertete Spiele.
+
+## [2.107.0] - 2026-10-23
+
+### Changed
+- Gegner-Chips: Der Geber-Stern sitzt als kleiner Knopf am Gesicht, und „getrennt“
+  hängt als Schild am unteren Rand. So passen Bot-Namen wie „Waltraud“ oder „Manfred“
+  auch mit drei Gegnern auf dem Handy ganz in den Chip.
+
+### Fixed
+- Gegner-Chips: Die Kartenzahl beginnt unter dem Namen statt unter dem Gesicht und
+  überlappt nicht mehr den Ring des Bots am Zug oder den Geber-Stern.
+
+## [2.106.0] - 2026-10-23
+
+### Changed
+- Der Server speichert Konten nur noch in PostgreSQL und startet ohne
+  Datenbank nicht mehr. Die SQLite-Notlösung ist entfernt.
+- Die Datenbank wird beim Start über nummerierte Migrationen aktualisiert;
+  bestehende Datenbanken werden dabei unverändert übernommen.
+
+### Fixed
+- Wer unter dem Namen eines noch unbestätigten Kontos spielte, bekam nach der
+  Partie einen Konto-Fortschritt angezeigt, obwohl nichts gebucht wurde.
+
+## [2.105.1] - 2026-10-23
+
+### Fixed
+- Tages-Challenge: Eine angefangene Challenge lässt sich über die Kachel wieder fortsetzen, auch wenn du zwischendurch einen anderen Tisch, das Tutorial oder das Kartenhaus gespielt hast oder die App gleich nach dem Öffnen antippst. Vorher hieß es „schon gespielt“, ohne Weg zurück ins Spiel.
+- Tages-Challenge: Nach einem Server-Update wartet die laufende Challenge wieder bis Mitternacht auf dich. Vorher wurde sie nach 30 Minuten still aufgeräumt, wenn du beim Update gerade online warst, und der Tagesversuch blieb verbraucht.
+- Tages-Challenge: Ist deine Partie wirklich verloren gegangen, bekommst du sofort einen neuen Versuch, nicht erst nach dem nächsten Server-Neustart. Ein Versuch oder ein Ergebnis kurz vor einem Update geht nicht mehr verloren.
+- Tages-Challenge: Läuft deine Challenge noch (etwa auf einem anderen Gerät), sagt das Blatt „läuft noch“ statt „schon gespielt“.
+
+## [2.105.0] - 2026-10-23
+
+### Added
+- Das Licht am Tisch folgt der Tageszeit (deutsche Zeit): morgens kühler,
+  tagsüber wie gewohnt, abends hängt eine warme Lampe über der Tischmitte,
+  nachts ist sie gedimmt. Das Licht wechselt unmerklich, Minute für Minute;
+  Karten, Farben und Schrift bleiben gleich und mindestens so gut lesbar wie
+  tagsüber. Wer im System „Mehr Kontrast“ eingestellt hat, spielt immer im
+  Tageslicht.
+
+## [2.104.0] - 2026-10-23
+
+### Changed
+- Ein Blatt „Optionen“ überall: Das Zahnrad am Tisch öffnet dasselbe Blatt wie auf dem Startbildschirm – mit Schaltern, Auswahlfeldern und Erklärzeilen statt Zeilen, die bei jedem Tipp zum nächsten Wert springen. Musik aus ist jetzt ein Tipp auf „Aus“, nicht drei Tipps über „Mittel“ und „Laut“
+- Am Tisch steht oben „Dieser Tisch“: die Hausregeln zum Nachlesen, die Spielregeln und der Spielverlauf – auf einer Kartenhaus-Etage mit ausgeblendeter Etagenkarte auch „Kartenhaus-Etage · Anzeigen“. Die Spielregeln lassen sich damit auch mitten im Spiel öffnen
+- Am Tisch neu in den Optionen: Musikstück, Kartenrücken, Siegesjubel und die Sprache – ein Sprachwechsel zeichnet den Tisch sofort neu. Nur der Vorspann bleibt dem Startbildschirm vorbehalten
+- Vollbild und die Tutorial-Hinweise sind Schalter; die Tutorial-Hinweise lassen sich damit im Tutorial jederzeit aus- und wieder einschalten
+- „Spiel aufgeben“ steht jetzt im Dialog hinter dem Haus-Symbol, direkt unter „Tisch verlassen“, und fragt mit zwei Tipps nach. Eine eigene Zustimmung lässt sich mit einem Tipp zurückziehen. Im Tutorial gibt es den Knopf nicht mehr – dort blockiert nichts ein neues Spiel
+- Desktop: „Schließen“ bleibt in den Optionen immer sichtbar, auch wenn das Blatt scrollt
+- Im Spiel-Wartebereich heißt es jetzt „Nur der Organisator kann Spieleranzahl, Sitzordnung und Hausregeln ändern.“
+
+### Fixed
+- Schlägt jemand vor, das Spiel aufzugeben, sagt die Meldung an die anderen, wo sie zustimmen können („Haus oben links › Spiel aufgeben“) – statt auf ein 🏳-Symbol zu verweisen, das es nicht gab
+- Querformat: Im Dialog „Zum Startbildschirm?“ stehen Text und Knöpfe nebeneinander; vorher rutschte „Abbrechen“ aus dem Bild
+- Die Hinweise zu Spiel-Tipps und Tutorial nennen jetzt „Optionen“ statt „Einstellungen“ bzw. „Menü“
+
+## [2.103.0] - 2026-10-23
+
+### Added
+- Kartenhaus am Tisch: Die Etagenkarte neben den Stapeln hat ein ✕ und lässt sich damit ganz ausblenden – der Tisch sieht dann aus wie ein normaler Tisch, Stapel und Auslagen bekommen ihren Platz zurück. Die Wahl gilt auf allen Etagen und auch nach dem Neuladen. Das Schloss auf der Ablage bei „Ohne Ablage“ bleibt sichtbar.
+- Zurück kommt die Etagenkarte über das Zahnrad: „Kartenhaus-Etage · Anzeigen“ zeigt die Regeln der Etage (Vorgabe, Risiko, Erschwernisse, Sterne) und legt sie mit „Am Tisch anzeigen“ wieder neben die Stapel.
+
+### Fixed
+- Konten: Startet ein weiterer Server, während gespielt wird, blockiert er die Konto-Datenbank nicht mehr kurz (konnte Anmeldungen mit „Konto-Datenbank nicht erreichbar“ abbrechen)
+
+## [2.102.1] - 2026-10-23
+
+### Fixed
+- Gedämpfte Texte sind in allen sechs Erscheinungsbildern gut lesbar (mindestens 4,5:1), vor allem in Filz, Herzdame und Omas Küchentisch: Auslagen-Überschriften, Stapel-Beschriftungen, erledigte Zug-Schritte, „Farbe“ und die Zeile über der Hand, ebenso auf dem Startbildschirm
+- „Nachziehen“ und „Ablage“ verblassen nicht mehr mit dem gerade gesperrten Stapel und stehen in voller Schriftfarbe, solange der Stapel zum Ziehen leuchtet
+- Getrennte Mitspieler: Name und Kartenzahl im Chip bleiben lesbar, nur Bild und Fortschrittsbalken werden blasser
+- Die Lichterkette (Weihnachten) und die Wunderkerze (Silvester) laufen nur noch an ihren Tagen. Den Rest des Jahres blieben sie unsichtbar im Hintergrund animiert und kosteten Akku
+
+## [2.102.0] - 2026-10-23
+
+### Changed
+- Der Dezember-Schnee rieselt nur noch auf dem Startbildschirm. Am Tisch fällt er nicht mehr über die Karten und die Fenster dort, und während die App im Hintergrund ist, ruht er ganz – das schont den Akku
+
+## [2.101.1] - 2026-10-22
+
+### Fixed
+- Konten: Starten mehrere Server gleichzeitig mit einer neuen Datenbank, schlug die Anmeldung nicht mehr mit „Konto-Datenbank nicht erreichbar“ fehl
+
+## [2.101.0] - 2026-10-22
+
+### Added
+- Atmende Bots: Der Bot, der gerade am Zug ist, atmet im Takt seiner Stufe – Leicht zuckt unruhig, Mittel atmet gleichmäßig, Schwer holt tief Luft und hält kurz inne, Zen atmet kaum sichtbar. Ein Ring im Stil der Stufe liegt auf seinem Gesicht, im Chip und oben bei „… ist dran“
+- Das Atmen folgt dem Bot-Tempo: bei „schnell“ doppelt so rasch, bei „langsam“ halb so rasch. Mit „Bewegung reduzieren“ bleibt der Ring stehen, ohne Bewegung
+
+### Changed
+- Der Chip des Spielers am Zug pulsiert nicht mehr ohne Ende: Ein ruhiger Rahmen zeigt, wer dran ist. Menschen atmen nicht – das schont den Akku, gerade wenn jemand lange überlegt
+- Querformat: Die Gesichter in den Gegner-Chips sind etwas kleiner, damit der Ring Platz hat; die Chips bleiben gleich hoch
+
+### Fixed
+- Lange Namen in den Gegner-Chips enden mit „…“, statt mitten im Wort abgeschnitten zu werden; der Geber-Stern bleibt sichtbar
+
+## [2.100.0] - 2026-10-22
+
+### Added
+- Die Pik Dame dreht den Kopf: Bei ihren echten Momenten wendet sie sich kurz zu dir und zurück – wenn du sie ziehst (das siehst nur du), wenn sie abgeworfen oder ausgelegt wird, und wenn jemand sie vom Stapel nimmt, dreht sie sich dort weg. Erwischt sie dich am Rundenende auf der Hand, zeigt sie sich neben deinem Namen, danach ihr Preis (−100)
+- Mit der Systemeinstellung „Bewegung reduzieren“ hält sie die Kopfdrehung an und zeigt ihr Profil in der Kartenecke
+
+### Fixed
+- Theme „Filz“: Eine frisch gezogene Karte hat wieder ihren türkisen Rand statt eines goldenen, der kaum von der goldenen Auswahl zu unterscheiden war
+
+## [2.99.0] - 2026-10-22
+
+### Changed
+- Kartenhaus: Jede geschaffte Etage steht jetzt als ihre Etagenkarte im Haus – dieselbe Karte wie am Tisch, mit Nummer, Sternen und gestrichelter Kante der Sonderregel. Je zwei Karten lehnen als Zelt aneinander, gekrönt sitzt die Pik Dame obenauf; die nächste Etage ist eine gestrichelte Karte.
+- Kartenhaus: Beim ersten Öffnen im neuen Monat wird das Haus des Vormonats eingesammelt – Tippen überspringt das. Ohne Animationen sagt ein Hinweis, dass der Monat jetzt unter „Frühere Monate“ steht.
+
+### Fixed
+- Kartenhaus: Etagen, die noch gebaut werden oder diesen Monat geschlossen bleiben, erscheinen jetzt im Haus – schraffiert, mit Sanduhr oder Schloss.
+- Kartenhaus im Querformat: Bei der nächsten Etage passt „Schließen“ ohne Scrollen unter den Spielen-Knopf.
+
+## [2.98.0] - 2026-10-22
+
+### Changed
+- Kartenhaus: Ab Januar 2027 stellt der Server die Etagen jedes Monats selbst zusammen – kein Monat wiederholt sich mehr. Jedes Blatt ist vorher geprüft gewinnbar, und nach oben wird es gleichmäßig schwerer
+- Kartenhaus: Ist eine Etage noch nicht fertig oder gibt es für sie kein geprüftes Blatt, bleibt sie geschlossen und sagt das, statt ein ungeprüftes Blatt auszuteilen
+
+## [2.97.0] - 2026-10-22
+
+### Changed
+- Kartenhaus: Die Etagen ab 11 sind neu ausgewählt und fairer – jedes Blatt ist nachweislich gewinnbar, geübte Spieler haben eine echte Chance auf den Stern (Etage 11 etwa jedes zweite Mal), nach oben wird es gleichmäßig schwerer
+- Kartenhaus: Ab November 2026 sind alle Etagen neu ausgewählt, auch 1 bis 10
+- Kartenhaus-Übersicht und Regeln: Auch dort ist die Pik Dame auf der Hand jetzt ein Risiko statt einer Erschwernis (ausgelegt +100, auf der Hand −100), wie schon am Tisch
+- Kartenhaus: Leichte Bots spielen auf einer Etage bei gleichen Zügen immer gleich – ein neuer Versuch ist wirklich dasselbe Spiel
+- Oktober 2026: Die Etagen 1 bis 10 bleiben, wie sie sind; die Etagen 11 bis 20 sind neu. Schon verdiente Sterne auf 11 bis 20 bleiben erhalten
+
+## [2.96.0] - 2026-10-22
+
+### Added
+- Kartenhaus am Tisch: Bei den Stapeln liegt die Etagenkarte – Nummer, dein
+  Bestwert in Sternen, die Vorgabe und was auf der Etage gilt. Ein Tipp auf die
+  Karte zeigt alle Regeln dieser Etage: was 1, 2 und 3 Sterne brauchen, die
+  Bots, die Vorgabe und jede Erschwernis genau.
+- Ab deinem zweiten Zug klappt die Etagenkarte auf Karte und Symbole zusammen.
+  Ein Tipp auf die Symbole klappt sie wieder auf (und wieder zu); deine Wahl
+  gilt dann auf jeder Etage.
+- Vor dem ersten Zug einer Etage zeigt eine Startkarte Ziel, Erschwernisse und
+  Risiko; „Los“ oder einfach ziehen. Wer dieselbe Etage neu lädt, sieht sie
+  nicht noch einmal.
+- „Ohne Ablage“: Die Ablage trägt ein Schloss; ein Tipp darauf erklärt die
+  Regel, statt nichts zu tun.
+- „Pik Dame auf der Hand“ erscheint am Tisch als Risiko (ausgelegt +100, auf
+  der Hand −100), und die Pik Dame ist nach dem Austeilen kurz markiert.
+
+## [2.95.0] - 2026-10-20
+
+### Changed
+- Das Blatt „Mehr“ heißt jetzt „Optionen“ (auch der Knopf am Startbildschirm) und ist in vier Gruppen geordnet: Ton, Darstellung, Spielhilfen, Allgemein
+- Musik-Lautstärke und Anzeigegröße wählst du jetzt per Tipp auf einen Schalter; jede Größe zeigt sich dabei schon in ihrer Schriftgröße
+- Die Sprache wechselst du oben rechts im Blatt („English“/„Deutsch“)
+- Erklärungen sind auf eine kurze Zeile gekürzt, der Hinweis „gilt nur für dieses Gerät“ steht einmal am Ende
+- Quer gehaltenes Handy und Desktop: zwei Spalten, am Desktop passt alles ohne Scrollen
+- „Studio-Logo“ heißt jetzt „Vorspann“, die Auswahl „Nur beim ersten Start“ jetzt „Nur einmal“
+
+## [2.94.2] - 2026-10-20
+
+### Fixed
+- Einstellungs-Blätter öffnen jetzt immer ganz oben statt dort, wo man sie verlassen hat
+- Im Spiel zeigt die Debug-Ansicht wie die anderen Schalter „An“ oder „Aus“
+- Die Trennlinien im Einstellungs-Blatt im Spiel haben keine gebogenen Enden mehr
+- Die Kartenrücken-Galerie hat einen Schließen-Knopf
+
+## [2.94.1] - 2026-10-20
+
+### Changed
+- Kartenhaus: Die Hilfe „So funktioniert das Kartenhaus“ zeigt die drei Sternstufen und die Erschwernisse ab Etage 11 jetzt als Liste; in der Kopfzeile steht „Sternen diesen Monat“
+
 ## [2.94.0] - 2026-10-20
 
 ### Removed

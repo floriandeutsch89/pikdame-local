@@ -105,6 +105,8 @@ COPY CHANGELOG.md ./
 COPY LICENSE ./
 COPY server.js ./
 COPY game ./game
+# Schema migrations, read (never written) at start by game/Migrations.js.
+COPY migrations ./migrations
 # Minified in stage "assets" - index.html travels through untouched, because
 # its inline script is pinned by sha256 in the production CSP.
 COPY --from=assets /app/public ./public

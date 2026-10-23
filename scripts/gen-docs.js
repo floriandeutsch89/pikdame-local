@@ -29,7 +29,7 @@ const ENV_NOTES = {
   PIKDAME_MAX_SESSIONS: 'Maximum number of concurrent games. Beyond it, new games are rejected with "server full".',
   PIKDAME_PUBLIC_MODE: 'Set to `1` on a public server: no player profiles are persisted and the lobby shows no player list. Anonymous global stats are still counted.',
   PIKDAME_ACCOUNTS: 'Set to `0` to disable user accounts entirely (pure guest play).',
-  PIKDAME_DATABASE_URL: 'PostgreSQL connection string for accounts. If unset, a local SQLite file (`users.db`) inside the data directory is used.',
+  PIKDAME_DATABASE_URL: 'PostgreSQL connection string. **Required**: without it the server does not start.',
   PIKDAME_DATABASE_PASSWORD: 'Password for the PostgreSQL connection (also readable from a `_FILE` secret; see Configuration).',
   PIKDAME_BASE_URL: 'Public base URL used to build invite links, QR codes and the links in mails (e.g. `https://play.example.com`). With SMTP configured, the year-review mail is only sent when this is set: its unsubscribe link must work.',
   PIKDAME_YEAR_REVIEW_PREVIEW: 'Set to `1` to offer the December year review in the app all year (local checks, screenshots). Not for production. The review mail keeps its own date (27 December, 10:00 German time).',
@@ -40,6 +40,8 @@ const ENV_NOTES = {
   PIKDAME_MODELS_DIR: 'Where the `.onnx` model files live. Override it to mount models on a volume and swap them without rebuilding the image. Default: the `models/` folder in the image.',
   PIKDAME_LOG_GAMES: 'Set to `1` to log human moves to JSONL for imitation learning.',
   PIKDAME_LOG_PATH: 'Where the move log is written.',
+  PIKDAME_TOWER_GEN: 'Kartenhaus months from 2027-01. `1` (default): this instance builds them in a background worker (needs the ONNX runtime; without it nothing is built). `0`: it only reads `tower-months.json` (again every hour) and replays the proofs on start, logging a broken floor - for a setup where a dedicated instance builds.',
+  PIKDAME_ONNX_THREADS: 'ONNX intra-op threads per session. Unset = the runtime default; the Kartenhaus deal worker sets `1` for itself (throttled).',
   PIKDAME_SMTP_EHLO: 'Host name announced in SMTP `EHLO`. Defaults to the host of `PIKDAME_BASE_URL`, else the machine name.',
   PIKDAME_IMPRINT_NAME: 'Legal page (§ 5 DDG): provider name. With STREET, CITY and EMAIL required for a public site; while one is missing the page shows "Impressum nicht konfiguriert" and `/admin` warns. Kept out of the public repo on purpose.',
   PIKDAME_IMPRINT_STREET: 'Legal page: street and number.',
@@ -109,7 +111,7 @@ function generateConfiguration() {
   }
   // Vars only referenced indirectly (docker-compose / secrets helper)
   for (const extra of ['PIKDAME_DATABASE_URL', 'PIKDAME_DATABASE_PASSWORD']) {
-    if (!found.has(extra)) found.set(extra, { default: 'unset', files: new Set(['game/AccountStore.js']) });
+    if (!found.has(extra)) found.set(extra, { default: 'unset', files: new Set(['game/Database.js']) });
   }
   // Read through a name table in game/Imprint.js, invisible to the patterns above.
   const { IMPRINT_VARS, COUNTRY_VAR } = require('../game/Imprint');
@@ -152,11 +154,11 @@ const MSG_GROUPS = [
   ['Your turn', 'The moves. The server rejects every one of them with a reason when it is not your turn or the rules say no.',
     ['performCut', 'drawFromPile', 'drawFromDiscard', 'layoutMeld', 'layOff', 'layOffMulti', 'swapJoker', 'undoMeld', 'undoPileTake', 'discard']],
   ['Table talk and votes', 'Allowed from any seat at any time during a match.',
-    ['emote', 'togglePause', 'forfeitRound', 'nextRound', 'rematch', 'exportLastGame']],
+    ['emote', 'togglePause', 'forfeitRound', 'nextRound', 'rematch', 'exportLastGame', 'tutorialStep']],
 ];
 
 const MSG_NOTES = {
-  listProfiles: 'Player profiles, server statistics and today\'s quests for the start screen - server-wide data, hence before the table guard.',
+  listProfiles: 'Player profiles, server statistics and today\'s quests for the start screen - server-wide data, hence before the table guard. `name`: the asking player, whose own profile (with its quests, puzzles and card backs) is listed next to the statistics board\'s best 500.',
   ping: 'Keep-alive from the client; answered immediately. Lets a phone notice a dead connection before the server-side heartbeat does.',
   getGameHistory: 'The finished matches of a player name ("Meine Partien").',
   setFavoriteBadges: 'Pin up to three badges to the identity chip.',
@@ -203,6 +205,7 @@ const MSG_NOTES = {
   rematch: 'Start a new match with the same table.',
   emote: 'Send an emoji reaction to the table.',
   exportLastGame: 'Download the last finished game as JSON.',
+  tutorialStep: 'Tutorial tables only: a lesson was `shown` or `done` (`step`, a key from `game/TutorialSteps.js`), or the hints were switched `off` (ends the attempt as skipped). Only the seat\'s own progress, timed on the server clock, deduplicated and capped; never answered. Feeds `play_attempts` (admin "Festhänger").',
 };
 
 // Server -> client. The type literals come from the code; this map adds the

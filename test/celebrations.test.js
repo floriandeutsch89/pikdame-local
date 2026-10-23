@@ -14,8 +14,10 @@ const WebSocket = require('ws');
 const { JSDOM } = require('jsdom');
 const { CELEBRATION_DEFS, CELEBRATION_IDS, isCelebration, celebrationLevel } = require('../game/Celebrations');
 const { createPlayerStore } = require('../game/PlayerStore');
+const { testPlayerStore } = require('./helpers/player-store');
 const { xpForLevel } = require('../game/Progression');
 const GameManager = require('../game/GameManager');
+const { testDatabaseUrl } = require('./helpers/test-db');
 
 const ROOT = path.join(__dirname, '..');
 const pub = path.join(ROOT, 'public');
@@ -62,28 +64,26 @@ test('whitelist: one list, ordered by level, mirrored by client, select and i18n
   }
 });
 
-test('PlayerStore.setCelebration: whitelist and level checked, standard clears', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-cel-store-'));
-  const store = createPlayerStore(path.join(dir, 'players.json'));
-  store.upsertPlayerProfile('Flo');
-  store.addProgress('Flo', { xp: xpAt(20) });
+test('PlayerStore.setCelebration: whitelist and level checked, standard clears', async (t) => {
+  const { store } = testPlayerStore(t);
+  await store.upsertPlayerProfile('Flo');
+  await store.addProgress('Flo', { xp: xpAt(20) });
 
-  assert.equal(store.setCelebration('Nobody', 'cats').error, 'Profil nicht gefunden.');
-  assert.equal(store.setCelebration('Flo', 'nope').error, 'Diesen Siegesjubel gibt es nicht.');
-  assert.equal(store.setCelebration('Flo', { id: 'cats' }).error, 'Diesen Siegesjubel gibt es nicht.');
-  assert.equal(store.setCelebration('Flo', 'cardfan').error, 'Diesen Siegesjubel gibt es ab Stufe 35.');
-  assert.equal(store.getPlayerByName('Flo').celebration, undefined, 'a refusal stores nothing');
+  assert.equal((await store.setCelebration('Nobody', 'cats')).error, 'Profil nicht gefunden.');
+  assert.equal((await store.setCelebration('Flo', 'nope')).error, 'Diesen Siegesjubel gibt es nicht.');
+  assert.equal((await store.setCelebration('Flo', { id: 'cats' })).error, 'Diesen Siegesjubel gibt es nicht.');
+  assert.equal((await store.setCelebration('Flo', 'cardfan')).error, 'Diesen Siegesjubel gibt es ab Stufe 35.');
+  assert.equal((await store.getPlayerByName('Flo')).celebration, undefined, 'a refusal stores nothing');
 
-  assert.deepEqual(store.setCelebration('flo', 'fireworks'), { celebration: 'fireworks' }, 'name is case-insensitive');
-  assert.equal(store.getPlayerByName('Flo').celebration, 'fireworks');
-  assert.deepEqual(store.setCelebration('Flo', 'standard'), { celebration: 'standard' });
-  assert.equal(store.getPlayerByName('Flo').celebration, undefined, 'standard = no field');
+  assert.deepEqual(await store.setCelebration('flo', 'fireworks'), { celebration: 'fireworks' }, 'name is case-insensitive');
+  assert.equal((await store.getPlayerByName('Flo')).celebration, 'fireworks');
+  assert.deepEqual(await store.setCelebration('Flo', 'standard'), { celebration: 'standard' });
+  assert.equal((await store.getPlayerByName('Flo')).celebration, undefined, 'standard = no field');
 
   // Exactly at the threshold: level 35 unlocks the card fan.
-  store.addProgress('Flo', { xp: xpAt(35) - xpAt(20) });
-  assert.deepEqual(store.setCelebration('Flo', 'cardfan'), { celebration: 'cardfan' });
-  assert.match(store.setCelebration('Flo', 'goldqueen').error, /ab Stufe 50/);
-  fs.rmSync(dir, { recursive: true, force: true });
+  await store.addProgress('Flo', { xp: xpAt(35) - xpAt(20) });
+  assert.deepEqual(await store.setCelebration('Flo', 'cardfan'), { celebration: 'cardfan' });
+  assert.match((await store.setCelebration('Flo', 'goldqueen')).error, /ab Stufe 50/);
 });
 
 test('GameManager: the seat carries it to everyone; bots, leavers, junk and a new owner do not', () => {
@@ -129,17 +129,20 @@ test('GameManager: the seat carries it to everyone; bots, leavers, junk and a ne
 
 test('server: only the signed-in owner picks, only unlocked ids; the whole table sees it', async (t) => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-cel-'));
+  const databaseUrl = testDatabaseUrl('celebrations');
   // Flo is level 20: fireworks yes, card fan (35) and golden queen (50) not yet.
-  const seed = createPlayerStore(path.join(dataDir, 'players.json'));
-  seed.upsertPlayerProfile('Flo');
-  seed.addProgress('Flo', { xp: xpAt(20) + 30 });
-  seed.flushSync();
+  const { Pool } = require('pg');
+  const seedPool = new Pool({ connectionString: databaseUrl, max: 2 });
+  const seed = createPlayerStore(seedPool, { legacyFile: null });
+  await seed.upsertPlayerProfile('Flo');
+  await seed.addProgress('Flo', { xp: xpAt(20) + 30 });
+  await seedPool.end();
 
   PORT = await freePort();
 
   const server = spawn('node', ['server.js'], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(PORT), PIKDAME_PUBLIC_MODE: '0', PIKDAME_DATA_DIR: dataDir },
+    env: { ...process.env, PIKDAME_DATABASE_URL: databaseUrl, PORT: String(PORT), PIKDAME_PUBLIC_MODE: '0', PIKDAME_DATA_DIR: dataDir },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let out = '';
@@ -468,7 +471,7 @@ test('settings: locked choices name their level; a pick sends only the id with t
   assert.equal(opt('cardfan').disabled, true);
   assert.equal(opt('cardfan').textContent, 'Kartenfächer · ab Stufe 35');
   assert.equal(opt('goldqueen').textContent, 'Goldene Pik Dame · ab Stufe 50');
-  assert.equal(doc.getElementById('celebrationHint').textContent, 'Gewinnst du, sehen alle am Tisch deinen Jubel.');
+  assert.equal(doc.getElementById('celebrationHint').textContent, 'Alle am Tisch sehen ihn');
 
   select.value = 'fireworks';
   select.dispatchEvent(new app.window.Event('change', { bubbles: true }));
@@ -487,7 +490,7 @@ test('settings: locked choices name their level; a pick sends only the id with t
   doc.getElementById('langBtn').dispatchEvent(new app.window.MouseEvent('click', { bubbles: true }));
   assert.equal(opt('cardfan').textContent, 'Card fan · level 35');
   assert.equal(opt('cats').textContent, 'Cat confetti');
-  assert.equal(doc.getElementById('celebrationHint').textContent, 'When you win, everyone at the table sees it.');
+  assert.equal(doc.getElementById('celebrationHint').textContent, 'Everyone at the table sees it');
   assert.deepEqual(app.errors, [], `Client-Fehler: ${app.errors.join(' | ')}`);
 });
 
@@ -498,7 +501,7 @@ test('settings: without an account the choice is shown but locked; public server
   guest.emit({ type: 'profiles', publicMode: false, globalStats: null, players: [{ name: 'Flo', xp: xpAt(50) }] });
   const select = guest.doc.getElementById('celebrationSelect');
   assert.equal(select.disabled, true, 'a name alone is spoofable');
-  assert.equal(guest.doc.getElementById('celebrationHint').textContent, 'Melde dich an, um deinen Siegesjubel zu wählen.');
+  assert.equal(guest.doc.getElementById('celebrationHint').textContent, 'Mit Konto wählbar');
   select.dispatchEvent(new guest.window.Event('change', { bubbles: true }));
   assert.equal(guest.sent.filter((m) => m.type === 'setCelebration').length, 0);
 

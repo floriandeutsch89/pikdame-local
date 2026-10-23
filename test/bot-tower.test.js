@@ -15,7 +15,10 @@ const BotTower = require('../game/BotTower');
 const GameManager = require('../game/GameManager');
 const { createDeck } = require('../game/Deck');
 const { createPlayerStore } = require('../game/PlayerStore');
+const { testPlayerStore } = require('./helpers/player-store');
+const { testPool } = require('./helpers/test-db');
 const { familyBadges, BADGE_IDS } = require('../game/Badges');
+const { testDatabaseUrl } = require('./helpers/test-db');
 
 const { TOWER_STAGES, starsFor, outcomeFromRecord, unlockedStage, summarize } = BotTower;
 
@@ -56,27 +59,36 @@ test('twenty floors: the old ladder, then three Zen bots with modifiers; 60 star
   ]);
 });
 
-test('months: the first keeps the old fixed tower, every month twenty unique deals, later months cycle', () => {
+test('months: the static list ends 2026-12, later months come from the generator, nothing cycles', () => {
   const months = Object.keys(TowerSeeds).sort();
   assert.strictEqual(BotTower.LEGACY_MONTH, '2026-10');
-  assert.ok(months.length >= 12, `${months.length} months`);
+  assert.deepStrictEqual(months, ['2026-10', '2026-11', '2026-12']);
   assert.deepStrictEqual(TowerSeeds['2026-10'].slice(0, 10), [84, 10, 78, 24, 63, 131, 34, 89, 28, 170], 'stars of the old tower stay valid');
   const all = [];
   for (const m of months) {
-    assert.match(m, /^\d{4}-(0[1-9]|1[0-2])$/);
     assert.strictEqual(TowerSeeds[m].length, 20, `${m}: one deal per floor`);
     all.push(...TowerSeeds[m]);
   }
   assert.strictEqual(new Set(all).size, all.length, 'every deal once');
-  const n = months.length;
-  const plus = (k) => { const i = 2026 * 12 + 9 + k; return `${Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}`; };
-  assert.deepStrictEqual(BotTower.monthSeeds(plus(n)), TowerSeeds['2026-10'], 'one cycle later: the first month again');
-  assert.deepStrictEqual(BotTower.monthSeeds(plus(-1)), TowerSeeds[months[n - 1]], 'before the list: from its end');
   assert.strictEqual(BotTower.monthOf('2026-11-03'), '2026-11');
   const cfg = BotTower.stageConfig(12, '2026-11');
   assert.deepStrictEqual([cfg.seed, cfg.month, cfg.handicap], [TowerSeeds['2026-11'][11], '2026-11', TOWER_STAGES[11].handicap]);
   assert.strictEqual(BotTower.stageConfig(3).month, '2026-10', 'no month: the first one (an old snapshot)');
   assert.strictEqual(BotTower.stageConfig(3, 'nonsense'), null);
+  // No generator: a later month has no deals at all (never a repeated month).
+  BotTower.setMonthSource(null);
+  assert.deepStrictEqual(BotTower.monthSeeds('2027-01'), Array(20).fill(null));
+  const later = BotTower.stageConfig(5, '2027-01');
+  assert.deepStrictEqual([later.seed, later.bots], [null, TOWER_STAGES[4].bots], 'bots and rules stay, the deal is missing');
+  try {
+    BotTower.setMonthSource((m) => (m === '2027-01' ? Array.from({ length: 20 }, (_, i) => (i === 4 ? null : 7000 + i)) : null));
+    assert.strictEqual(BotTower.stageConfig(1, '2027-01').seed, 7000);
+    assert.strictEqual(BotTower.stageConfig(5, '2027-01').seed, null, 'a floor still being built has no deal');
+    assert.strictEqual(BotTower.stageConfig(1, '2027-02').seed, null);
+    assert.strictEqual(BotTower.stageConfig(1, '2026-11').seed, TowerSeeds['2026-11'][0], 'the static list wins');
+  } finally {
+    BotTower.setMonthSource(null);
+  }
 });
 
 test('the client never learns the seeds', () => {
@@ -288,49 +300,48 @@ test('snapshot roundtrip: a running stage comes back as a tower stage and still 
 
 // --- Storage + badges -------------------------------------------------------------
 
-test('best stars per month and floor, never worse; XP once per floor and month, the crown once more', () => {
-  const store = createPlayerStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-tower-')), 'players.json'));
+test('best stars per month and floor, never worse; XP once per floor and month, the crown once more', async (t) => {
+  const { store, pool } = testPlayerStore(t);
   const OCT = '2026-10';
   const NOV = '2026-11';
-  let r = store.recordTowerResult('Ada', NOV, 1, 1);
+  let r = await store.recordTowerResult('Ada', NOV, 1, 1);
   assert.deepStrictEqual({ best: r.best, improved: r.improved, stars: r.stars, cleared: r.cleared, unlocked: r.unlocked, crowned: r.crowned },
     { best: { 1: 1 }, improved: true, stars: 1, cleared: 1, unlocked: 2, crowned: false });
-  assert.deepStrictEqual([r.xp, r.totalXp, store.getPlayerByName('Ada').xp], [10, 10, 10], 'the first star pays into the profile');
-  r = store.recordTowerResult('ada', NOV, 1, 3);
+  assert.deepStrictEqual([r.xp, r.totalXp, (await store.getPlayerByName('Ada')).xp], [10, 10, 10], 'the first star pays into the profile');
+  r = await store.recordTowerResult('ada', NOV, 1, 3);
   assert.strictEqual(r.improved, true);
   assert.strictEqual(r.xp, 0, 'more stars on the same floor pay nothing');
-  r = store.recordTowerResult('ADA', NOV, 1, 2);
+  r = await store.recordTowerResult('ADA', NOV, 1, 2);
   assert.strictEqual(r.improved, false, 'a worse try never overwrites');
-  assert.strictEqual(store.recordTowerResult('Ada', NOV, 2, 0).xp, 0, 'a missed floor pays nothing');
-  assert.strictEqual(store.recordTowerResult('Ada', '2026-12', 1, 1).xp, 10, 'a new month pays again');
-  assert.strictEqual(store.getPlayerByName('Ada').gamesPlayed, 0, 'no game counted');
-  assert.deepStrictEqual(store.towerBest('Ada', NOV), { 1: 3 });
-  assert.deepStrictEqual(store.towerBest('Ada', OCT), {});
-  const copy = store.towerBest('Ada', NOV);
+  assert.strictEqual((await store.recordTowerResult('Ada', NOV, 2, 0)).xp, 0, 'a missed floor pays nothing');
+  assert.strictEqual((await store.recordTowerResult('Ada', '2026-12', 1, 1)).xp, 10, 'a new month pays again');
+  assert.strictEqual((await store.getPlayerByName('Ada')).gamesPlayed, 0, 'no game counted');
+  assert.deepStrictEqual(await store.towerBest('Ada', NOV), { 1: 3 });
+  assert.deepStrictEqual(await store.towerBest('Ada', OCT), {});
+  const copy = await store.towerBest('Ada', NOV);
   copy[1] = 0;
-  assert.deepStrictEqual(store.towerBest('Ada', NOV), { 1: 3 }, 'a copy, not the profile');
+  assert.deepStrictEqual(await store.towerBest('Ada', NOV), { 1: 3 }, 'a copy, not the stored stars');
 
-  // A profile from the fixed tower: its stars are October's, already paid (25 each back then).
-  const raw = store.loadStore();
-  raw.players.find((x) => x.name === 'Ada').tower = { 1: 3, 2: 1 };
-  store.saveStore(raw);
-  assert.deepStrictEqual(store.towerBest('Ada', OCT), { 1: 3, 2: 1 });
-  assert.strictEqual(store.recordTowerResult('Ada', OCT, 2, 3).xp, 0, 'an old starred floor does not pay twice');
-  assert.strictEqual(store.recordTowerResult('Ada', OCT, 3, 1).xp, 10, 'a new floor in October pays');
-  assert.deepStrictEqual(store.towerBest('Ada', OCT), { 1: 3, 2: 3, 3: 1 }, 'old and new merged');
-  assert.deepStrictEqual(store.towerMonths('Ada').map((m) => [m.month, m.stars]), [['2026-12', 1], [NOV, 3], [OCT, 7]], 'newest first');
+  // Stars from the fixed tower are October's rows (the import merges them), already paid (25 each back then).
+  await pool.query(`INSERT INTO player_tower_stars (player_id, tower_month, stage, stars)
+    SELECT id, $1, s.stage, s.stars FROM players, (VALUES (1, 3), (2, 1)) AS s(stage, stars) WHERE player_key = 'ada'`, [OCT]);
+  assert.deepStrictEqual(await store.towerBest('Ada', OCT), { 1: 3, 2: 1 });
+  assert.strictEqual((await store.recordTowerResult('Ada', OCT, 2, 3)).xp, 0, 'an old starred floor does not pay twice');
+  assert.strictEqual((await store.recordTowerResult('Ada', OCT, 3, 1)).xp, 10, 'a new floor in October pays');
+  assert.deepStrictEqual(await store.towerBest('Ada', OCT), { 1: 3, 2: 3, 3: 1 }, 'old and new merged');
+  assert.deepStrictEqual((await store.towerMonths('Ada')).map((m) => [m.month, m.stars]), [['2026-12', 1], [NOV, 3], [OCT, 7]], 'newest first');
 
   // Crown: every floor of a month with a star pays 50 once, never twice.
-  for (const s of TOWER_STAGES.slice(1, 19)) store.recordTowerResult('Ada', NOV, s.stage, 1);
-  const before = store.getPlayerByName('Ada').xp;
-  r = store.recordTowerResult('Ada', NOV, 20, 1);
+  for (const s of TOWER_STAGES.slice(1, 19)) await store.recordTowerResult('Ada', NOV, s.stage, 1);
+  const before = (await store.getPlayerByName('Ada')).xp;
+  r = await store.recordTowerResult('Ada', NOV, 20, 1);
   assert.deepStrictEqual([r.crowned, r.crownedNow, r.xp], [true, true, 60], 'first star plus the crown');
-  assert.strictEqual(store.getPlayerByName('Ada').xp, before + 60);
-  r = store.recordTowerResult('Ada', NOV, 20, 3);
+  assert.strictEqual((await store.getPlayerByName('Ada')).xp, before + 60);
+  r = await store.recordTowerResult('Ada', NOV, 20, 3);
   assert.deepStrictEqual([r.crowned, r.crownedNow, r.xp], [true, false, 0], 'a crowned month pays no more');
 
   // Badge counters: the best month (like the old ten-stage tower), crowns over all months.
-  let p = store.getPlayerByName('Ada');
+  let p = await store.getPlayerByName('Ada');
   assert.strictEqual(p.towerCrownedMonths, 1);
   assert.strictEqual(p.towerCleared, 20, 'floors of the best month');
   assert.strictEqual(p.towerStars, 3 + 18 + 3, 'stars of the best month, not the sum of all months');
@@ -341,17 +352,18 @@ test('best stars per month and floor, never worse; XP once per floor and month, 
     assert.ok(fam.includes(id), `${id} earned`);
   }
   assert.ok(!fam.includes('tower_stars_30') && !fam.includes('tower_crowned_3'), '24 stars in one month are not 30');
-  for (const stage of [2, 3, 4]) store.recordTowerResult('Ada', NOV, stage, 3);
-  p = store.getPlayerByName('Ada');
+  for (const stage of [2, 3, 4]) await store.recordTowerResult('Ada', NOV, stage, 3);
+  p = await store.getPlayerByName('Ada');
   assert.strictEqual(p.towerStars, 30);
   fam = familyBadges(p);
-  assert.deepStrictEqual(store.awardBadges('Ada', fam).filter((id) => id.startsWith('tower')).sort(),
+  assert.deepStrictEqual((await store.awardBadges('Ada', fam)).filter((id) => id.startsWith('tower')).sort(),
     ['tower_10', 'tower_3', 'tower_6', 'tower_crowned_1', 'tower_stars_30']);
-  assert.deepStrictEqual(store.awardBadges('Ada', familyBadges(p)), [], 'each badge once');
+  assert.deepStrictEqual(await store.awardBadges('Ada', familyBadges(p)), [], 'each badge once');
 });
 
-test('migration: the old fixed tower is October 2026, floors 1-10 - no XP twice, nothing taken away', () => {
+test('migration: the old fixed tower is October 2026, floors 1-10 - no XP twice, nothing taken away', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-tower-mig-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const file = path.join(dir, 'players.json');
   // A profile as the fixed tower left it: ten stages starred, 250 XP paid, its badges earned.
   const old = { 1: 3, 2: 3, 3: 2, 4: 2, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1, 10: 1 };
@@ -359,39 +371,38 @@ test('migration: the old fixed tower is October 2026, floors 1-10 - no XP twice,
   fs.writeFileSync(file, JSON.stringify({ players: [
     { id: 'p1', name: 'Oma', gamesPlayed: 9, xp: 400, tower: old, towerStars: 16, towerCleared: 10, badges: { ...earned } },
   ] }));
-  const store = createPlayerStore(file);
+  const store = createPlayerStore(testPool(t, 'tower_mig'), { legacyFile: file }); // imports the file once
   const OCT = BotTower.LEGACY_MONTH;
   assert.strictEqual(OCT, '2026-10');
-  assert.deepStrictEqual(store.towerBest('Oma', OCT), old, 'the old stars are October\'s floors 1-10');
-  assert.deepStrictEqual(store.towerBest('Oma', OCT), old, 'idempotent: reading changes nothing');
-  assert.strictEqual(unlockedStage(store.towerBest('Oma', OCT)), 11, 'floor 10 starred: floor 11 is next');
-  assert.deepStrictEqual(summarize(store.towerBest('Oma', OCT)), { stars: 16, cleared: 10, unlocked: 11, crowned: false });
-  assert.deepStrictEqual(store.towerBest('Oma', '2026-11'), {}, 'November starts empty');
-  assert.deepStrictEqual(store.towerMonths('Oma').map((m) => [m.month, m.stars, m.cleared]), [[OCT, 16, 10]], 'October in the archive later');
+  assert.deepStrictEqual(await store.towerBest('Oma', OCT), old, 'the old stars are October\'s floors 1-10');
+  assert.deepStrictEqual(await store.towerBest('Oma', OCT), old, 'idempotent: reading changes nothing');
+  assert.strictEqual(unlockedStage(await store.towerBest('Oma', OCT)), 11, 'floor 10 starred: floor 11 is next');
+  assert.deepStrictEqual(summarize(await store.towerBest('Oma', OCT)), { stars: 16, cleared: 10, unlocked: 11, crowned: false });
+  assert.deepStrictEqual(await store.towerBest('Oma', '2026-11'), {}, 'November starts empty');
+  assert.deepStrictEqual((await store.towerMonths('Oma')).map((m) => [m.month, m.stars, m.cleared]), [[OCT, 16, 10]], 'October in the archive later');
 
   // Replaying an old floor pays nothing (its 25 XP were paid), even with more stars.
-  let r = store.recordTowerResult('Oma', OCT, 5, 3);
+  let r = await store.recordTowerResult('Oma', OCT, 5, 3);
   assert.deepStrictEqual([r.xp, r.improved, r.best[5]], [0, true, 3]);
   // Floor 11 is new: its first star pays 10.
-  r = store.recordTowerResult('Oma', OCT, 11, 1);
+  r = await store.recordTowerResult('Oma', OCT, 11, 1);
   assert.deepStrictEqual([r.xp, r.unlocked, r.stars], [10, 12, 19]);
-  let p = store.getPlayerByName('Oma');
+  const p = await store.getPlayerByName('Oma');
   assert.strictEqual(p.xp, 410, 'the old XP stay, only the new star added');
-  assert.deepStrictEqual(p.tower, old, 'the old field is kept as it was');
-  assert.deepStrictEqual(p.towers[OCT], { 5: 3, 11: 1 }, 'only new results are written');
+  assert.deepStrictEqual(await store.towerBest('Oma', OCT), { ...old, 5: 3, 11: 1 }, 'old floors kept, new results merged in');
   assert.deepStrictEqual(Object.keys(p.badges).sort(), Object.keys(earned).sort(), 'badges stay');
   assert.ok(familyBadges(p).includes('tower_10'), 'and stay earned by the counters');
   assert.strictEqual(p.towerCleared, 11);
   assert.strictEqual(p.towerStars, 19);
 
   // A worse October try never lowers a migrated floor; the counters never shrink.
-  r = store.recordTowerResult('Oma', OCT, 1, 1);
+  r = await store.recordTowerResult('Oma', OCT, 1, 1);
   assert.deepStrictEqual([r.xp, r.improved, r.best[1]], [0, false, 3]);
-  store.recordTowerResult('Oma', '2026-11', 1, 1);
-  p = store.getPlayerByName('Oma');
-  assert.deepStrictEqual([p.towerStars, p.towerCleared], [19, 11], 'a weak new month keeps the best one');
-  assert.deepStrictEqual(store.towerMonths('Oma').map((m) => [m.month, m.stars]), [['2026-11', 1], [OCT, 19]]);
-  fs.rmSync(dir, { recursive: true, force: true });
+  await store.recordTowerResult('Oma', '2026-11', 1, 1);
+  const later = await store.getPlayerByName('Oma');
+  assert.deepStrictEqual([later.towerStars, later.towerCleared], [19, 11], 'a weak new month keeps the best one');
+  assert.deepStrictEqual((await store.towerMonths('Oma')).map((m) => [m.month, m.stars]), [['2026-11', 1], [OCT, 19]]);
+  assert.ok(!fs.existsSync(file) && fs.existsSync(`${file}.migrated`), 'imported once, the file moved aside');
 });
 
 // --- Real server ------------------------------------------------------------------
@@ -446,7 +457,7 @@ async function startServer(t, env = {}, prepare = null) {
   if (prepare) prepare(dataDir); // seed the data dir (accounts, a session snapshot) before the boot
   const server = spawn('node', ['server.js'], {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PORT: String(port), PIKDAME_DATA_DIR: dataDir, PIKDAME_ONNX: '0', ...env },
+    env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('bot_tower'), PORT: String(port), PIKDAME_DATA_DIR: dataDir, PIKDAME_ONNX: '0', ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const sockets = [];
@@ -541,10 +552,7 @@ test('server: a profile from the fixed tower climbs on at floor 11 in October, l
 });
 
 // --- XP for a stage's first star, through the real server ---------------------------
-const { createAccountStore } = require('../game/AccountStore');
-const sqliteProbe = createAccountStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-tower-probe-')), 'probe.db'));
-const HAS_SQLITE = sqliteProbe !== null;
-if (sqliteProbe) sqliteProbe.close();
+const { createPgAccountStore } = require('../game/PgAccountStore');
 
 /** A stage-1 table one discard from its end: the human has melded all but one card. */
 function stageAtTheEnd(playerId, name) {
@@ -577,18 +585,18 @@ async function waitIn(box, type, timeoutMs = 4000) {
   throw new Error(`no ${type}`);
 }
 
-test('server: the first star pays 10 XP (account and season too), a repeat and a guest only what is theirs', { skip: !HAS_SQLITE }, async (t) => {
+test('server: the first star pays 10 XP (account and season too), a repeat and a guest only what is theirs', async (t) => {
   const tables = {
     first: { code: 'TWRAA2', id: 'p-ada1', token: 'tok-ada1', name: 'Ada', ...stageAtTheEnd('p-ada1', 'Ada') },
     again: { code: 'TWRAA3', id: 'p-ada2', token: 'tok-ada2', name: 'Ada', ...stageAtTheEnd('p-ada2', 'Ada') },
     guest: { code: 'TWRBB4', id: 'p-ben', token: 'tok-ben', name: 'Ben', ...stageAtTheEnd('p-ben', 'Ben') },
   };
-  let accountToken = null;
-  const srv = await startServer(t, {}, (dataDir) => {
-    const accounts = createAccountStore(path.join(dataDir, 'users.db'));
-    accounts.verifyEmail(accounts.register('Ada', 'ada@example.com', 'geheim123').verifyToken);
-    accountToken = accounts.login('Ada', 'geheim123').token;
-    accounts.close();
+  const databaseUrl = testDatabaseUrl('bot_tower');
+  const accounts = createPgAccountStore(databaseUrl);
+  await accounts.verifyEmail((await accounts.register('Ada', 'ada@example.com', 'geheim123')).verifyToken);
+  const accountToken = (await accounts.login('Ada', 'geheim123')).token;
+  await accounts.close();
+  const srv = await startServer(t, { PIKDAME_DATABASE_URL: databaseUrl }, (dataDir) => {
     const now = Date.now();
     const sessions = Object.values(tables).map((x) => ({
       code: x.code, createdAt: now, lastActivity: now, playerTokens: { [x.id]: x.token }, stammtisch: null, state: x.state,
@@ -626,8 +634,79 @@ test('server: the first star pays 10 XP (account and season too), a repeat and a
   assert.strictEqual(guest.account, null, 'but has no account to book');
 
   const ws = await srv.socket();
-  const profiles = await ask(ws, { type: 'listProfiles' }, 'profiles');
-  const p = (name) => profiles.players.find((x) => x.name === name);
-  assert.deepStrictEqual([p('Ada').xp, p('Ada').gamesPlayed], [10, 0], 'profile: XP once, no game');
-  assert.deepStrictEqual([p('Ben').xp, p('Ben').gamesPlayed], [10, 0]);
+  // No game played: not on the statistics board, but listed for the asking player.
+  const p = async (name) => (await ask(ws, { type: 'listProfiles', name }, 'profiles')).players.find((x) => x.name === name);
+  assert.deepStrictEqual([(await p('Ada')).xp, (await p('Ada')).gamesPlayed], [10, 0], 'profile: XP once, no game');
+  assert.deepStrictEqual([(await p('Ben')).xp, (await p('Ben')).gamesPlayed], [10, 0]);
+});
+
+/** Plays floor `stage` out (human seat forced to the heuristic) and returns who discarded what. */
+function towerTrace(stage, { random = Math.random, restoreAt = -1 } = {}) {
+  const orig = Math.random;
+  Math.random = random;
+  try {
+    let g = towerGame(stage);
+    g.startTowerRound();
+    const trace = [];
+    let turns = 0;
+    while (g.phase === 'playing' && turns++ < 3000) {
+      if (turns === restoreAt) { // a server restart mid-floor
+        const fresh = new GameManager(() => {});
+        fresh.deserialize(JSON.parse(JSON.stringify(g.serialize())));
+        g.destroy();
+        g = fresh;
+      }
+      const cp = g.currentPlayer();
+      g.runBotTurn(cp.id, { forced: !cp.isBot });
+      assert.ok(conserved(g), `card conservation after turn ${turns}`);
+      trace.push(`${cp.id}:${g.discardPile[0] ? g.discardPile[0].id : '-'}`);
+    }
+    g.destroy();
+    return trace.join(' ');
+  } finally {
+    Math.random = orig;
+  }
+}
+
+test('easy bots on a floor draw their luck from the deal: one line of play, one game', () => {
+  assert.ok(TOWER_STAGES[0].bots.includes('easy') && TOWER_STAGES[1].bots.includes('easy'));
+  for (const stage of [1, 2]) {
+    const a = towerTrace(stage, { random: () => 0.01 });
+    const b = towerTrace(stage, { random: () => 0.99 });
+    assert.strictEqual(a, b, `floor ${stage}: Math.random does not steer the game`);
+    assert.strictEqual(towerTrace(stage, { restoreAt: 9 }), a, `floor ${stage}: a restore mid-floor plays on the same`);
+  }
+});
+
+test('normal tables keep Math.random for the easy bots', () => {
+  const orig = Math.random;
+  Math.random = () => 0.4242;
+  try {
+    const plain = new GameManager(() => {}, { deckSeed: 7 }); // a seeded deal alone (challenge) is no floor
+    assert.strictEqual(plain._botRandom('discard'), 0.4242);
+    plain.destroy();
+    const g = towerGame(1);
+    const r = g._botRandom('discard');
+    assert.ok(r !== 0.4242 && r >= 0 && r < 1);
+    assert.strictEqual(g._botRandom('discard'), r, 'same turn, same tag, same draw');
+    assert.notStrictEqual(g._botRandom('pile'), r, 'tags draw independently');
+    g.destroy();
+  } finally {
+    Math.random = orig;
+  }
+  const Bot = require('../game/Bot');
+  const hand = createDeck().filter((c) => !c.isJoker).slice(0, 5);
+  assert.strictEqual(Bot.chooseDiscard(hand, [], { difficulty: 'easy', random: () => 0.99 }).id, hand[4].id);
+});
+
+test('the net plays the human seat only when tooling forces it', async () => {
+  const g = towerGame(3);
+  g.startTowerRound();
+  assert.strictEqual(g.currentPlayer().id, 'me');
+  await g._runBotTurnWithOnnx('me');
+  assert.strictEqual(g.currentPlayer().id, 'me', 'a solo human seat is never taken over');
+  await g._runBotTurnWithOnnx('me', { forced: true });
+  assert.notStrictEqual(g.currentPlayer().id, 'me', 'forced (seed tooling): the turn is played');
+  assert.ok(conserved(g));
+  g.destroy();
 });

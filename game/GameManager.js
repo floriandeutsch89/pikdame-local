@@ -1,4 +1,5 @@
 // game/GameManager.js
+const crypto = require('crypto');
 const { seededRandom, createDeck, shuffle, dealCards, performLuckyCut } = require('./Deck');
 
 // Wie lange der Abheber Zeit hat, die Stelle zu wählen, bevor automatisch
@@ -15,6 +16,7 @@ const { dayEnd } = require('./GameDay');
 const { isQuipMoment } = require('./BotQuips');
 const { isCelebration } = require('./Celebrations');
 const BotTower = require('./BotTower');
+const { TUTORIAL_VERSION, isTutorialStep } = require('./TutorialSteps');
 // Every try of a Kartenhaus floor plays the same deal under the same rules and bots.
 const TOWER_FIXED_ERROR = 'Im Kartenhaus sind Regeln und Bots fest - jeder Versuch einer Etage läuft gleich.';
 
@@ -39,6 +41,8 @@ const SEAT_CONTROL_FIELDS = [
 ];
 
 const MIN_SEATS = 2;
+// Lesson reports per tutorial attempt: 14 lessons shown + done fit many times over.
+const TUTORIAL_MSG_CAP = 200;
 const MAX_SEATS_LIMIT = 4; // Spielmaterial (Kartenanzahl, Joker) ist auf max. 4 Spieler ausgelegt
 const DEFAULT_MAX_SEATS = 4;
 let meldCounter = 0;
@@ -65,6 +69,12 @@ class GameManager {
     this.onAbandon = typeof options.onAbandon === 'function' ? options.onAbandon : null;
     this.abandoned = false;
     this.soloPausedUntil = null;
+    // Solo modes report each attempt's end once: { outcome: 'finished' | 'abandoned', reason } (PlayEvents.js).
+    this.onAttemptEnd = typeof options.onAttemptEnd === 'function' ? options.onAttemptEnd : null;
+    this.attemptId = null; // a Kartenhaus or tutorial try: a replayed snapshot never writes it twice
+    this.attemptOver = false;
+    // Tutorial: lessons the client reported, on the server's clock (tutorialStep).
+    this.tutorialTrack = null;
     this.challengeDate = options.challengeDate || null;
     this.onBotEmote = options.onBotEmote || null; // (botId, emoji) => void - Bot-Reaktionen an den Tisch
     this.onBotQuip = options.onBotQuip || null; // (botId, moment) => void - a short bot line (BotQuips.js)
@@ -231,7 +241,7 @@ class GameManager {
    * starts - mid-game there is the forfeit vote instead.
    */
   leaveLobby(playerId) {
-    if (this.phase !== 'lobby') return { error: 'Verlassen geht nur in der Lobby - im Spiel gibt es 🏳️ Aufgeben.' };
+    if (this.phase !== 'lobby') return { error: 'Verlassen geht nur in der Lobby - im Spiel: Haus oben links › „Spiel aufgeben“.' };
     const p = this.players.find((pl) => pl.id === playerId && !pl.isBot);
     if (!p) return { error: 'Du sitzt nicht an diesem Tisch.' };
     this._keepDealer(() => { this.players = this.players.filter((pl) => pl.id !== playerId); });
@@ -258,7 +268,7 @@ class GameManager {
     if (this.challengeDate || !['playing', 'roundEnd', 'cutting'].includes(this.phase)) return { outcome: 'none' };
     const others = this.players.filter((pl) => pl.id !== playerId && !pl.isBot && !pl.leftGame);
     if (others.length === 0) {
-      if (this.tutorialMode || this.towerStage) this._abandonSolo();
+      if (this.tutorialMode || this.towerStage) this._abandonSolo('left');
       else this._forfeitGame(`${p.name} hat aufgegeben - die Partie endet ohne Wertung.`);
       return { outcome: 'ended' };
     }
@@ -374,7 +384,7 @@ class GameManager {
         this._takeoverTimers.delete(id);
         const p = this.players.find((pl) => pl.id === id);
         if (!p || p.connected) return; // rechtzeitig zurueck
-        this._abandonSolo();
+        this._abandonSolo('timeout');
       }, graceMs);
       if (timer.unref) timer.unref();
       this._takeoverTimers.set(id, timer);
@@ -591,7 +601,40 @@ class GameManager {
     this.fillWithBots();
     const last = this.players[this.players.length - 1];
     if (last) this.setExplicitDealer(last.id); // seat 0 sits left of the dealer
+    this.attemptId = crypto.randomUUID();
+    // shown/done: first time per lesson (ms); last: the lesson shown last; errors: refusals per open lesson.
+    this.tutorialTrack = { version: TUTORIAL_VERSION, shown: {}, done: {}, last: null, errors: {}, refusals: 0, msgs: 0 };
     this.startNewRound();
+  }
+
+  /** The client's lesson progress (`tutorialStep`): its own progress only, checked
+   *  against the known lessons, deduplicated and capped; 'off' (hints switched off)
+   *  ends the attempt as skipped. Anything else is ignored without an answer. */
+  tutorialStep(playerId, step, status, now = Date.now()) {
+    const t = this.tutorialTrack;
+    const seat = this.players.find((p) => p.id === playerId && !p.isBot && !p.leftGame);
+    if (!t || !seat || !this.tutorialMode || this.attemptOver || this.roundNumber !== 1) return { ignored: true };
+    if (!['cutting', 'playing', 'roundEnd'].includes(this.phase) || (t.msgs += 1) > TUTORIAL_MSG_CAP) return { ignored: true };
+    if (status === 'off') {
+      this._endAttempt('abandoned', 'skipped');
+      return { ok: true };
+    }
+    if (!isTutorialStep(step) || (status !== 'shown' && status !== 'done')) return { ignored: true };
+    if (status === 'shown') {
+      if (!t.shown[step]) t.shown[step] = now;
+      t.last = step;
+    } else if (!t.done[step]) {
+      t.done[step] = now;
+    }
+    return { ok: true };
+  }
+
+  /** A refused move at the tutorial table counts for the lesson still open. */
+  noteTutorialRefusal(playerId) {
+    const t = this.tutorialTrack;
+    if (!t || this.attemptOver || this.roundNumber !== 1 || !this.players.some((p) => p.id === playerId && !p.isBot)) return;
+    t.refusals += 1;
+    if (t.last && !t.done[t.last]) t.errors[t.last] = (t.errors[t.last] || 0) + 1;
   }
 
   /** A Kartenhaus floor (server and tests share it): the floor's bots in seat
@@ -609,10 +652,11 @@ class GameManager {
     this.addLog(cfg.handicap
       ? `Kartenhaus, Etage ${cfg.stage}: Hol in dieser Runde mehr Punkte als jeder Bot - die Bots bekommen ${cfg.handicap} Punkte Vorgabe.`
       : `Kartenhaus, Etage ${cfg.stage}: Hol in dieser Runde mehr Punkte als jeder Bot.`);
+    this.attemptId = crypto.randomUUID();
     this.startNewRound();
     const human = this.players.find((p) => !p.isBot);
     if (BotTower.hasMod(cfg, 'queen') && human) this._towerDealQueen(human);
-    if (BotTower.hasMod(cfg, 'queen')) this.addLog('Erschwernis: Du startest mit der Pik Dame auf der Hand.');
+    if (BotTower.hasMod(cfg, 'queen')) this.addLog('Risiko: Du startest mit der Pik Dame auf der Hand – ausgelegt +100, auf der Hand −100.');
     if (BotTower.hasMod(cfg, 'noDiscard')) this.addLog('Erschwernis: Du darfst die Ablage nicht aufnehmen.');
     if (BotTower.hasMod(cfg, 'goOut')) this.addLog('Erschwernis: Sterne gibt es nur, wenn du selbst ausmachst.');
     this.broadcastState();
@@ -769,8 +813,10 @@ class GameManager {
    * nicht wiederaufnehmbar. Bewusst KEIN finishRound/gameOver - genau daran
    * haengen Wertung und Speicherung.
    */
-  _abandonSolo() {
+  _abandonSolo(reason = 'timeout') {
     if (this.abandoned) return;
+    // A finished game left behind is no abandoned attempt.
+    if (this.phase !== 'gameOver') this._endAttempt('abandoned', reason);
     this.abandoned = true;
     this.soloPausedUntil = null;
     this.phase = 'abandoned';
@@ -779,6 +825,21 @@ class GameManager {
     if (this.onAbandon) {
       try { this.onAbandon(); } catch (e) { /* Aufraeumen darf nie werfen */ }
     }
+  }
+
+  /** The end of a solo attempt, reported once and only after its first deal.
+   *  A failing hook (it writes to the database) never touches the game. */
+  _endAttempt(outcome, reason = null) {
+    if (this.attemptOver || !this.isSoloMode() || !this.roundNumber) return;
+    this.attemptOver = true;
+    if (!this.onAttemptEnd) return;
+    try { this.onAttemptEnd({ outcome, reason }); } catch (e) { /* logging only */ }
+  }
+
+  /** The table goes away (cleanup) while its solo attempt is still open. */
+  abandonAttempt(reason) {
+    if (this.phase === 'gameOver' || this.phase === 'abandoned') return;
+    this._endAttempt('abandoned', reason);
   }
 
   /** Erlaubter Abhebe-Bereich (symmetrisch von den Rändern geklemmt). */
@@ -1802,6 +1863,7 @@ class GameManager {
     // Abgebrochene Spiele werden markiert - der Trainings-Loader überspringt
     // sie (halbe Partien lehren halbe Strategien).
     MoveLogger.flush(this, 'forfeit');
+    this._endAttempt('abandoned', 'forfeit');
     this.broadcastState();
   }
 
@@ -2020,6 +2082,7 @@ class GameManager {
           this.addLog(`Statistik konnte nicht gespeichert werden: ${e.message}`);
         }
       }
+      this._endAttempt('finished');
     } else if (isHandAus) {
       // Die Verdopplung ist eine OPTIONALE Hausregel (handAusDoubles, standardmäßig
       // AUS). Das Protokoll behauptete sie bisher unabhängig davon - die Wertung
@@ -2032,6 +2095,8 @@ class GameManager {
           : `Hand aus! ${winnerPlayer ? winnerPlayer.name : '?'} hat die komplette Hand in einem Zug ausgelegt.`
       );
     }
+    // The tutorial ends with the scoring of round 1, its attempt with it.
+    if (this.tutorialMode && this.roundNumber === 1) this._endAttempt('finished');
     this.broadcastState();
   }
 
@@ -2313,9 +2378,11 @@ class GameManager {
    * on any miss it falls through to the heuristic discard. Only ever invoked
    * when PIKDAME_ONNX is set.
    */
-  async _runBotTurnWithOnnx(botId) {
+  async _runBotTurnWithOnnx(botId, opts = {}) {
     const cp = this.players.find((p) => p.id === botId);
     if (!cp) return;
+    // opts.forced (server tooling only, like runBotTurn): the net plays a human seat.
+    const controlled = () => !!opts.forced || this.isBotControlled(cp);
     const OnnxPolicy = require('./OnnxPolicy');
     const difficulty =
       botDifficultyOf(cp);
@@ -2324,7 +2391,7 @@ class GameManager {
       const SE = StateEncoder;
       if (SE.pileTakeLegal(this, botId)) {
         const src = await OnnxPolicy.chooseDrawSource(this, botId, difficulty);
-        if (!this.isBotControlled(cp)) return; // a human took the seat while the model thought
+        if (!controlled()) return; // a human took the seat while the model thought
         if (src === 'drawPile' || src === 'discardPile') cp.forcedDrawSource = src;
       }
     } catch (e) {
@@ -2334,7 +2401,7 @@ class GameManager {
     cp.externalDiscard = 'pause';
     this._agentAwaitingDiscard = null;
     try {
-      this.runBotTurn(botId);
+      this.runBotTurn(botId, { forced: !!opts.forced });
     } finally {
       cp.externalDiscard = prev;
     }
@@ -2348,7 +2415,7 @@ class GameManager {
       chosen = null;
     }
     // Taken over meanwhile: the human discards themselves.
-    if (!this.isBotControlled(cp) || this.phase !== 'playing' || this.currentPlayer()?.id !== botId) return;
+    if (!controlled() || this.phase !== 'playing' || this.currentPlayer()?.id !== botId) return;
     if (!chosen) {
       // Heuristic fallback for the discard among the legal ids.
       const legal = pending.legalIds
@@ -2547,6 +2614,7 @@ class GameManager {
         key === 'onGameOver' ||
         key === 'onBotEmote' ||
         key === 'onBotQuip' ||
+        key === 'onAttemptEnd' ||
         key === '_lastQuipAt' ||
         key === '_botTimer' ||
         key === '_turnTimer' ||
@@ -2560,6 +2628,7 @@ class GameManager {
         key === '_agentAwaitingDiscard' ||
         key === '_noMcts' ||
         key === '_moveLog' ||
+        key === '_pendingBroadcast' ||
         key === '_undoStack' ||
         key === '_undoBatch' ||
         key === '_lastBotEmote'
@@ -2588,6 +2657,8 @@ class GameManager {
     Object.assign(this, state);
     this._undoStack = []; // transient: an undo window never survives a restart
     this._undoBatch = false;
+    // A snapshot taken while a broadcast was queued held `true`: the table never sent its state again.
+    this._pendingBroadcast = false;
     // SECURITY: strip every external-control field that could otherwise be
     // smuggled in via a tampered/persisted snapshot. These fields let an
     // external policy PICK among legal actions (they never expose hidden
@@ -2595,11 +2666,14 @@ class GameManager {
     // set by the server's own training/inference code - never survive a
     // restore. We wipe them from all seats and clear the game-level flags.
     GameManager._sanitizeControlFields(this);
-    // Disconnected players from before the restart: re-arm their takeover
-    // timers, otherwise a table whose current player never returns would
-    // wait forever (the timer itself did not survive the restart).
+    // Every human is disconnected after a restart; re-arm the takeover clocks
+    // (lost with the process). Mark first: a seat that was live at SIGTERM got
+    // no clock, so a restored challenge lost its hold and was cleaned up.
     for (const p of this.players || []) {
-      if (!p.isBot && !p.connected && !p.leftGame) this._scheduleTakeover(p.id);
+      if (!p.isBot) p.connected = false;
+    }
+    for (const p of this.players || []) {
+      if (!p.isBot && !p.leftGame) this._scheduleTakeover(p.id);
     }
     this._armTurnTimer(); // fresh deadline for a restored running turn
     // Neustart mitten im Abheben: Nach dem Restore gelten alle Spieler als
@@ -2615,9 +2689,6 @@ class GameManager {
     this._lastBotEmote = {};
     this._lastQuipAt = 0;
     this._botTimer = null;
-    for (const p of this.players) {
-      if (!p.isBot) p.connected = false;
-    }
     this.maybeRunBotTurn();
   }
 
@@ -2627,6 +2698,16 @@ class GameManager {
    * (Reconnect-Robustheit: der Tisch blockiert nicht, bis er zurückkehrt).
    */
   /** Challenge, tutorial and Kartenhaus are single-player experiences. */
+  /** Randomness of bot decisions (easy bots). Kartenhaus floors derive it from
+   *  the deal, so a floor plays the same for the same moves (seed proofs). */
+  _botRandom(tag) {
+    if (!this.towerStage || typeof this.deckSeed !== 'number') return Math.random();
+    const key = `${this.deckSeed}|${this.roundNumber}|${this.turnIndexInRound}|${this.currentPlayerIndex}|${tag}`;
+    let h = 0x811c9dc5; // FNV-1a over the key, then one mulberry32 draw
+    for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 0x01000193);
+    return seededRandom(h >>> 0)();
+  }
+
   isSoloMode() {
     return !!(this.challengeDate || this.tutorialMode || this.towerStage);
   }
@@ -2672,7 +2753,7 @@ class GameManager {
 
     // Leichte Bots schieben das Auslegen oft auf (wie zögerliche Anfänger) -
     // außer eine Pflichtkarte MUSS gelegt werden.
-    if (passIndex === 0 && difficulty === 'easy' && !this.mustLayOffCardId && Math.random() < 0.4) {
+    if (passIndex === 0 && difficulty === 'easy' && !this.mustLayOffCardId && this._botRandom('hold') < 0.4) {
       meldPlan.newMelds = [];
       meldPlan.layOffs = [];
     }
@@ -2781,7 +2862,7 @@ class GameManager {
       preferDrawOnRedundantSet: cp.preferDrawOnRedundantSet || false,
     });
     // Leichte Bots übersehen die Ablage-Chance meistens (wie Anfänger).
-    if (difficulty === 'easy' && plan.source === 'discardPile' && Math.random() < 0.6) {
+    if (difficulty === 'easy' && plan.source === 'discardPile' && this._botRandom('pile') < 0.6) {
       plan.source = 'drawPile';
     }
     // Pile-usability check (medium and up), replacing the old blunt
@@ -2950,6 +3031,7 @@ class GameManager {
     }
     let discardCard = Bot.chooseDiscard(cp.hand, foreignMelds, {
       difficulty,
+      random: () => this._botRandom('discard'),
       scoreLead,
       visibleCards,
       opponentKnownCards,
@@ -3163,6 +3245,9 @@ class GameManager {
       towerMonth: this.towerMonth || null,
       // The floor's rules against the human (the table shows the blocked discard pile).
       towerMods: (this.towerStage && (BotTower.stageConfig(this.towerStage) || {}).mods) || null,
+      // Head start and the two-star margin of this floor, for the floor card and its rules (never the seed).
+      towerHandicap: this.towerStage ? (BotTower.stageConfig(this.towerStage, this.towerMonth) || {}).handicap || 0 : null,
+      towerClearMargin: this.towerStage ? BotTower.CLEAR_MARGIN : null,
       soloPausedUntil: this.soloPausedUntil || null,
       abandoned: this.abandoned || false,
       canUndoMeld: !!(

@@ -371,7 +371,8 @@ function chooseDiscard(hand, _tableMelds = [], opts = {}) {
   if (nonJokers.length === 0) return null;
 
   if (difficulty === 'easy') {
-    return nonJokers[Math.floor(Math.random() * nonJokers.length)];
+    const random = typeof opts.random === 'function' ? opts.random : Math.random;
+    return nonJokers[Math.floor(random() * nonJokers.length)];
   }
 
   const counting = countsCards(difficulty);

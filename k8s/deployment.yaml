@@ -1,8 +1,8 @@
 # Pik Dame - Kubernetes Deployment
 #
-# IMPORTANT: replicas MUST stay 1. Game sessions live in process memory and
-# the accounts DB is a local SQLite file on the PVC - the server is
-# deliberately a single-instance stateful app. "strategy: Recreate" prevents
+# IMPORTANT: replicas MUST stay 1. Game sessions live in process memory - the
+# server is deliberately a single-instance stateful app. PostgreSQL is
+# mandatory: the URL comes from the Secret pikdame-db (see k8s/README.md). "strategy: Recreate" prevents
 # two pods from ever writing to the same volume during an update; the
 # session snapshot + restore mechanism bridges the short restart gap.
 apiVersion: apps/v1
@@ -40,6 +40,23 @@ spec:
               value: "8080"
             - name: PIKDAME_MAX_SESSIONS
               value: "200"
+            - name: PIKDAME_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: pikdame-db
+                  key: url
+            # Legal page (§ 5 DDG): provider data, kept out of the repo. Unset =
+            # /impressum.html shows "Impressum nicht konfiguriert".
+            # - name: PIKDAME_IMPRINT_NAME
+            #   value: "Max Muster"
+            # - name: PIKDAME_IMPRINT_STREET
+            #   value: "Musterstraße 1"
+            # - name: PIKDAME_IMPRINT_CITY
+            #   value: "12345 Musterstadt"
+            # - name: PIKDAME_IMPRINT_EMAIL
+            #   value: "impressum@example.org"
+            # - name: PIKDAME_IMPRINT_COUNTRY # optional, default Deutschland
+            #   value: "Deutschland"
             # Secrets (SMTP, base URL, optional PIKDAME_BIRTHDAY) via a Secret - see k8s/README.md:
             # envFrom:
             #   - secretRef:

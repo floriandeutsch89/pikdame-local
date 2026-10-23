@@ -92,6 +92,8 @@ for (const theme of THEMES) {
     check('white thumb on the off track', ratio(WHITE, line), 3);
     check('white thumb on the on track', ratio(WHITE, parse(v['--paper-accent'])), 3);
     check('selection ring on a grey track', ratio(parse(v['--paper-accent']), grey), 3);
+    check('white label on an active settings segment', ratio(WHITE, parse(v['--paper-accent'])), 4.5);
+    check('ink on an inactive settings segment', ratio(parse(v['--card-ink']), grey), 4.5);
   });
 
   test(`theme contrast (${theme}): filled buttons and the toast`, () => {
@@ -112,6 +114,8 @@ test('theme contrast: dialog parts use the paper inks, not the table colours', (
     ['.linkBtn.armed', /color:\s*var\(--paper-danger\)/],
     ['.settingsCheckbox', /background:\s*var\(--paper-line\)/],
     ['.settingsCheckbox:checked', /background:\s*var\(--paper-accent\)/],
+    ['.prefSeg .segBtn', /color:\s*var\(--card-ink\)/],
+    ['.prefSeg .segBtn.active', /background:\s*var\(--paper-accent\);\s*color:\s*#fff/],
     ['.resultTabBtn.active', /inset 0 0 0 2px var\(--paper-accent\)/],
     ['.resultSortBtn.active', /inset 0 0 0 2px var\(--paper-accent\)/],
     ['.accountTabs .accountTab.active', /inset 0 0 0 2px var\(--paper-accent\)/],
@@ -131,6 +135,11 @@ test('theme contrast: locked items fade the picture, never the text', () => {
   assert.doesNotMatch(css, /\.cardbackTile\.locked \{[^}]*opacity/, 'locked card backs must not fade as a whole');
   // Near-black ink on the kitchen accent was 3.9:1; --accent-ink pairs with every accent.
   assert.doesNotMatch(stripComments(css), /background:\s*var\(--accent\);\s*color:\s*#0b0b0b/);
+  // A dimmed pile left its caption at 1.5:1, a disconnected chip its card count at 3.9:1.
+  assert.doesNotMatch(stripComments(css), /#(?:draw|discard)Pile\.disabled(?:,\s*#(?:draw|discard)Pile\.disabled)?\s*\{[^}]*opacity/, 'a dimmed pile must not fade as a whole');
+  assert.doesNotMatch(stripComments(css), /\.opponent\.disconnected\s*\{[^}]*opacity/, 'a disconnected chip must not fade as a whole');
+  // The draw glow lights the felt under the caption: no muted alpha reached 4.5:1 there.
+  assert.match(ruleBody('.pile.glow .pileLabel'), /color:\s*var\(--text\)/);
 });
 
 // --- Kartenhaus: the red edge of floors 11-20 (--paper-mod) ---------------------
@@ -207,10 +216,14 @@ for (const theme of THEMES) {
   });
 }
 
+// The house's floors are the floor cards of the table: the rim of a handicap is the red
+// edge, the next floor carries the paper accent, a closed one its icon in ink.
 test('theme contrast: the Kartenhaus draws with the paper tokens', () => {
-  assert.match(ruleBody('.khFloor.mod .khCard, .khFloor.mod .khPlate'), /stroke:\s*var\(--paper-mod\)/);
-  assert.match(ruleBody('.khFloor.built.mod .khCard, .khFloor.built.mod .khPlate'), /stroke:\s*var\(--paper-mod\)/);
-  assert.match(ruleBody('.khFloor.next .khHalo'), /stroke:\s*var\(--paper-accent\)/);
+  assert.match(ruleBody('.khRim.mod'), /stroke:\s*var\(--paper-mod\)/);
+  assert.match(ruleBody('.khRim.risk'), /stroke:\s*var\(--star-edge\)/);
+  assert.match(ruleBody('.khFloor.next .khGhost'), /stroke:\s*var\(--paper-accent\)/);
+  assert.match(ruleBody('.khFace'), /fill:\s*var\(--card-bg\);\s*stroke:\s*color-mix\(in srgb, var\(--card-ink\)/, 'a white card on the white sheet keeps an edge');
+  assert.match(ruleBody('.khGlyph'), /stroke:\s*color-mix\(in srgb, var\(--card-ink\)/, 'the closed icon is ink, never a colour');
   assert.match(ruleBody('.khMod'), /color:\s*var\(--paper-mod\)/);
   assert.match(ruleBody('.khStar.on'), /fill:\s*var\(--star-fill\)/);
 });

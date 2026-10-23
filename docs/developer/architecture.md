@@ -11,7 +11,7 @@ flowchart TB
     REG["SessionRegistry<br/>code → { GameManager, sockets }"]
     GM["GameManager · one per table<br/>Rules.js (validation) · Bot.js / OnnxPolicy.js (bot moves)<br/>Deck.js (shuffle, deal, cut) · ScoreBoard.js (scoring)"]
     STORES[("JSON stores → /app/data<br/>atomic writes, debounced")]
-    ACC[("AccountStore · PgAccountStore<br/>SQLite | PostgreSQL")]
+    ACC[("PostgreSQL<br/>accounts, profiles, Stammtische, challenge")]
     REG --> GM
     GM --> STORES
     REG --> ACC
@@ -115,11 +115,44 @@ Small JSON files, written **atomically** (temp file + rename) and **debounced**
 (~800 ms), so a busy server does not hammer the disk. On shutdown — and after an
 uncaught exception — everything is flushed synchronously, so nothing is lost.
 
-Accounts are the exception: SQLite (default) or PostgreSQL.
+Accounts, player profiles, the Stammtische and the daily challenge are the
+exception: they live in PostgreSQL, which the server requires. All stores share one pool
+(`game/Database.js`); the schema comes from numbered files in `migrations/`
+(see {doc}`migrations`, tables and choices in {doc}`schema`). PostgreSQL
+writes are awaited, never buffered: the challenge's "one ranked attempt per
+name and day" is the primary key of `challenge_attempts`, so two racing starts
+can never both be ranked, and a profile change runs in one transaction holding
+the player's row lock, so two tabs cannot lose an update. Instants are
+`TIMESTAMPTZ`; the stores convert at their boundary, so the game logic keeps
+milliseconds. A confirmed account points at its name's player
+(`users.player_id`). A JSON file moved into
+the database is imported once on the first start (marker row in
+`legacy_imports`) and then renamed to `<file>.migrated`; an unreadable file is
+not marked and the import is tried again ten minutes later.
+
+The profile store is asynchronous, unlike the JSON files it replaced: its
+callers await it, and a finished match is booked by one async chain
+(`bookFinishedGame` in `server.js`: match, streak, card backs, XP and quests,
+ladder, badges), each step catching its own failure. Reads go to the database
+too (no cache to load or to keep in sync), and the shutdown waits up to 3.5 s
+for such writes before it closes the pool: a buffered write lost on `SIGTERM`
+once broke the challenge (#458).
+
+Play attempts (`play_attempts`, {doc}`../admin/play-attempts`) are the one write
+nobody waits for: `game/PlayEvents.js` stores them in the background, a failed
+insert is logged and never holds up a game; a unique `attempt_id` keeps a
+replayed snapshot from writing an attempt twice. Rows older than 90 days are
+deleted every few hours. Three modes write them: a Kartenhaus floor and a
+tutorial table report their end through the engine's `onAttemptEnd` hook (the
+tutorial's lessons come from the client's `tutorialStep` reports, checked
+against `game/TutorialSteps.js`); daily-puzzle attempts have no table, so
+`game/PuzzleAttempts.js` keeps the open ones in memory and in the session
+snapshot until the solve, the shown solution or midnight.
 
 ## Testing
 
-`node --test`, no framework. Roughly 240 tests covering rules, scoring, the bot,
+`node --test`, no framework, against a real PostgreSQL (`PIKDAME_TEST_PG_URL`,
+one schema per test via `test/helpers/test-db.js`). Roughly 1,080 tests covering rules, scoring, the bot,
 session handling, persistence, and end-to-end game loops. Notably there are tests
 that play **thousands of complete bot games** and assert invariants — that is how
 the "bot must lay a taken discard card" rule violation was caught and fixed.

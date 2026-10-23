@@ -99,7 +99,7 @@ test('swiping a sheet down presses its close button', async () => {
 test('a short pull snaps back and leaves the sheet open', async () => {
   const { window, doc, errors } = boot();
   try {
-    const overlay = doc.getElementById('gameSettingsOverlay');
+    const overlay = doc.getElementById('settingsOverlay');
     overlay.classList.remove('hidden');
     const card = overlay.querySelector('.overlay-card');
     Object.defineProperty(card, 'offsetHeight', { value: 600 });

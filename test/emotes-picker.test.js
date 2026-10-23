@@ -8,6 +8,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const { testDatabaseUrl } = require('./helpers/test-db');
 const WebSocket = require('ws');
 const { JSDOM } = require('jsdom');
 const { EMOTE_DEFS, EMOTE_IDS, EMOTE_CATEGORIES, KEYBOARD_ORDER, normalizeEmote, isAllowedEmote, emoteLevel } = require('../game/Emotes');
@@ -69,7 +70,7 @@ test('server: a bare heart reaches the table as the listed ❤️', async (t) =>
   PORT = await freePort();
   const server = spawn('node', ['server.js'], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(PORT), PIKDAME_PUBLIC_MODE: '1', PIKDAME_DATA_DIR: dataDir },
+    env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('emotes'), PORT: String(PORT), PIKDAME_PUBLIC_MODE: '1', PIKDAME_DATA_DIR: dataDir },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let out = '';

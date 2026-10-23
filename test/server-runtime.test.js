@@ -15,6 +15,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const WebSocket = require('ws');
+const { testDatabaseUrl } = require('./helpers/test-db');
 
 const ROOT = path.join(__dirname, '..');
 let PORT = 0;
@@ -41,7 +42,7 @@ async function startServer(dataDir, extraEnv = {}) {
   PORT = await freePort();
   const server = spawn('node', ['server.js'], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(PORT), PIKDAME_PUBLIC_MODE: '1', PIKDAME_DATA_DIR: dataDir, ...extraEnv },
+    env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('server_runtime'), PORT: String(PORT), PIKDAME_PUBLIC_MODE: '1', PIKDAME_DATA_DIR: dataDir, ...extraEnv },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let out = '';
@@ -360,7 +361,8 @@ test('daily challenge: first start plays, second refused, lost game freed at boo
   assert.strictEqual(await attempted(), true);
   const second = await start();
   assert.strictEqual(second.type, 'error', 'a second start the same day is refused');
-  assert.match(second.error, /schon gespielt/);
+  // The first game still waits for its player (closed socket = minimised app): say so, not "played".
+  assert.match(second.error, /läuft noch/);
 });
 
 test('Stammtisch: a new evening starts with the last winner as dealer', async (t) => {
@@ -468,7 +470,7 @@ test('puzzle archive: past days are graded without XP, out-of-range dates fall b
   if (past !== today) {
     assert.strictEqual((await ask({ type: 'getPuzzle', name: 'Stella', date: past }, 'puzzle')).dayStars, 0, 'an archive day shows only stars earned on it');
   }
-  const stella = (await ask({ type: 'listProfiles' }, 'profiles')).players.find((p) => p.name === 'Stella');
+  const stella = (await ask({ type: 'listProfiles', name: 'Stella' }, 'profiles')).players.find((p) => p.name === 'Stella');
   assert.strictEqual(stella.totalPerfectPuzzles, 1);
   assert.strictEqual(stella.puzzleStars, undefined, 'the per-day history is not broadcast to everyone');
   ws.close();

@@ -3,7 +3,7 @@
 // daily quests. Deliberately a set of PURE functions over a finished
 // gameRecord - no store access, no I/O, no clock reads except where a date
 // is passed in. Persistence lives in PlayerStore (local profiles) and
-// AccountStore/PgAccountStore (account-bound, survives the device).
+// PgAccountStore (account-bound, survives the device).
 //
 // Display names live in the CLIENT (bilingual via L()); this module only
 // deals in stable ids and numbers - exactly like Badges.js.
@@ -64,7 +64,7 @@ function seasonForDate(dateStr) {
 }
 
 // --- Season finale -------------------------------------------------------------
-// An ended season's standings are written down once (AccountStore.finalizeSeasons).
+// An ended season's standings are written down once (PgAccountStore.finalizeSeasons).
 // A place counts like the ladder's rank: 1 + everyone with more season XP, so a
 // tie shares the place and the medal.
 const SEASON_ID_RE = /^\d{4}-\d{2}$/;

@@ -1,8 +1,7 @@
 #!/usr/bin/env sh
-# Consistent backup of the pikdame-data volume (profiles, history, SQLite DB).
-# Stops the container briefly so the SQLite WAL is checkpointed and every
-# JSON store is flushed - a few seconds of downtime for a guaranteed
-# consistent archive.
+# Consistent backup of the pikdame-data volume (profiles, history) plus a
+# pg_dump of the database. Stops the container briefly so every JSON store is
+# flushed - a few seconds of downtime for a guaranteed consistent archive.
 #
 # Usage: ./scripts/backup.sh [compose-file]     (default: docker-compose.yml)
 set -eu

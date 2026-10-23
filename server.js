@@ -1,6 +1,5 @@
 // server.js
-// Leichtgewichtiger Offline-Server für "Pik Dame" - läuft mit reinem Node.js
-// `http`-Modul + `ws`-Bibliothek, geeignet für iOS CodeApp / iPhone-Hotspot.
+// Pik Dame server: Node's `http` module + `ws`, PostgreSQL for storage.
 //
 // Start: node server.js  (Standardport 8080, override via PORT env var)
 
@@ -25,7 +24,8 @@ const {
   evaluateQuests,
   questDef,
 } = require('./game/Progression');
-const { createAccountStoreAuto } = require('./game/AccountStore');
+const { createPgAccountStore } = require('./game/PgAccountStore');
+const { connectionStringFromEnv, createPool } = require('./game/Database');
 const { createMailer } = require('./game/Mailer');
 const { readSecret } = require('./game/secretEnv');
 const { buildConfigReport, formatConfigReport } = require('./game/ConfigReport');
@@ -45,14 +45,15 @@ const { createYearStatsStore } = require('./game/YearStatsStore');
 const { buildReview, isReviewSeason, yearOf } = require('./game/YearReview');
 const { createYearReviewMailer, composeReviewMail, sampleReview, REVIEW_MAIL_CONSENT_VERSION } = require('./game/YearReviewMail');
 const { SessionRegistry, sanitizeName } = require('./game/SessionRegistry');
+const { createPlayEvents, attemptEvent, attemptOpen, nameKey } = require('./game/PlayEvents');
+const { createPuzzleAttempts } = require('./game/PuzzleAttempts');
+const { TUTORIAL_VERSION } = require('./game/TutorialSteps');
 
 const PORT = process.env.PORT || 8080;
 const PUBLIC_DIR = path.join(__dirname, 'public');
-const playerStore = createPlayerStore();
 const { createChallengeStore, seedForDate } = require('./game/ChallengeStore');
-const { gameDay } = require('./game/GameDay');
+const { gameDay, addDays } = require('./game/GameDay');
 const { createSecurityHeaders } = require('./game/SecurityHeaders');
-const challengeStore = createChallengeStore();
 // One level for every challenge game, retries included (comparable board).
 // Medium, not zen: the daily is meant to be fun, not a grind.
 const CHALLENGE_BOT_DIFFICULTY = 'medium';
@@ -62,18 +63,25 @@ const SEO_PAGES = ['romme-regeln', 'pik-dame-regeln', 'kartenspiele-zu-zweit', '
 const globalStats = createGlobalStatsStore();
 // "Dein Pik-Dame-Jahr": per-year counters behind the December review.
 const yearStats = createYearStatsStore();
-// Benutzerkonten: aktiv, wenn Nodes eingebautes SQLite verfügbar ist
-// (Node >= 22, im Docker-Image gegeben) und nicht per Env abgeschaltet.
-// In der iOS CodeApp (ältere Node-Version) liefert die Factory null und
-// der Client blendet die komplette Account-UI aus - genau wie gewünscht.
-const accountStore = process.env.PIKDAME_ACCOUNTS === '0' ? null : createAccountStoreAuto();
+// PostgreSQL is mandatory: without it nothing could be stored for good.
+const DATABASE_URL = connectionStringFromEnv(process.env);
+if (!DATABASE_URL) {
+  console.error('PIKDAME_DATABASE_URL is not set - Pik Dame needs PostgreSQL (see docs/admin/configuration.md). Exiting.');
+  process.exit(1);
+}
+const db = createPool(DATABASE_URL);
+const challengeStore = createChallengeStore(db);
+// Player profiles by name (players.json of older versions is imported once).
+const playerStore = createPlayerStore(db);
+// PIKDAME_ACCOUNTS=0 switches the account feature off; the database stays required.
+const accountStore = process.env.PIKDAME_ACCOUNTS === '0' ? null : createPgAccountStore(db);
 const mailer = createMailer();
 // Passkeys need accounts, the WebAuthn library and an https origin
 // (PIKDAME_BASE_URL); otherwise null and the client hides them.
 const passkeys = accountStore ? createPasskeyService({ baseUrl: process.env.PIKDAME_BASE_URL }) : null;
 const ACCOUNTS_ENABLED = !!accountStore;
 if (ACCOUNTS_ENABLED) {
-  console.log(`Benutzerkonten: aktiv (Backend: ${accountStore.backend || 'sqlite'}, Mail-Treiber: ${mailer.configured ? 'SMTP' : 'Log-Fallback'})`);
+  console.log(`Benutzerkonten: aktiv (Backend: postgres, Mail-Treiber: ${mailer.configured ? 'SMTP' : 'Log-Fallback'})`);
   // Behind a reverse proxy the confirmation link falls back to the Host
   // header when PIKDAME_BASE_URL is unset - which a registrant controls. A
   // forged Host would send the victim a link to the attacker's domain.
@@ -81,7 +89,7 @@ if (ACCOUNTS_ENABLED) {
     console.log('[mail] WARNUNG: PIKDAME_BASE_URL ist nicht gesetzt - Bestätigungslinks werden aus dem Host-Header gebildet. Hinter einem Proxy die öffentliche URL setzen.');
   }
 } else {
-  console.log('Benutzerkonten: deaktiviert (node:sqlite nicht verfügbar oder PIKDAME_ACCOUNTS=0)');
+  console.log('Benutzerkonten: deaktiviert (PIKDAME_ACCOUNTS=0)');
 }
 // Parsed once; a broken entry is skipped and logged by position only (the values are personal).
 const greetingDays = (() => {
@@ -96,7 +104,14 @@ const greetingDays = (() => {
 const gameHistoryStore = createGameHistoryStore();
 // Stammtisch: persistent group tables (code -> members, record, series).
 // Scoped by code, so it stays on in public mode - see StammtischStore.
-const stammtischStore = createStammtischStore();
+// stammtisch.json of older versions is imported once.
+const stammtischStore = createStammtischStore(db);
+// Kartenhaus, puzzle and tutorial attempts with the player's name, 90 days (admin "Festhänger").
+const playEvents = createPlayEvents(db);
+// Open daily-puzzle attempts (live day, named, not in public mode); kept in the session snapshot.
+const puzzleAttempts = createPuzzleAttempts({ record: (event) => playEvents.record(event) });
+// Names one connection may track puzzle attempts for: a device has one, a spammer many.
+const PUZZLE_NAMES_PER_SOCKET = 5;
 
 // --- Absturz-Diagnose ------------------------------------------------------
 // Schreibt Fehler zusätzlich in eine Log-Datei, falls die Konsole in der
@@ -119,7 +134,7 @@ let DATA_DIR_WRITABLE = true; // for the config report
     const probe = path.join(DATA_DIR, '.write-test');
     fs.writeFileSync(probe, String(Date.now()));
     fs.unlinkSync(probe);
-    const info = ['players.json', 'stats.json', 'games.json', 'sessions-snapshot.json']
+    const info = ['stats.json', 'games.json', 'sessions-snapshot.json']
       .map((f) => {
         try {
           return `${f} ${fs.statSync(path.join(DATA_DIR, f)).size}B`;
@@ -142,6 +157,13 @@ let DATA_DIR_WRITABLE = true; // for the config report
   }
 })();
 const CRASH_LOG_FILE = path.join(DATA_DIR, 'crash.log');
+// Kartenhaus months from 2027-01: the server picks their deals (a throttled worker).
+// PIKDAME_TOWER_GEN=0: this instance only reads data/tower-months.json and checks it (another one builds).
+const towerMonths = require('./game/TowerMonths').createTowerMonths({
+  file: path.join(DATA_DIR, 'tower-months.json'),
+  generate: process.env.PIKDAME_TOWER_GEN !== '0',
+});
+BotTower.setMonthSource(towerMonths.seedsFor);
 function logCrash(context, err, extra = {}) {
   const entry = `[${new Date().toISOString()}] (${context}) ${err && err.stack ? err.stack : err} ${
     Object.keys(extra).length ? JSON.stringify(extra) : ''
@@ -177,7 +199,6 @@ process.on('unhandledRejection', (reason) => {
 // Persist pending buffered writes when something goes wrong, so stats survive
 // even if the process is killed right after a crash (the debounce hasn't fired).
 function flushStoresSafely() {
-  try { playerStore.flushSync(); } catch (e) { /* best effort */ }
   try { globalStats.flushSync(); } catch (e) { /* best effort */ }
   try { gameHistoryStore.flushSync(); } catch (e) { /* best effort */ }
   try { yearStats.flushSync(); } catch (e) { /* best effort */ }
@@ -304,7 +325,7 @@ function serveStatic(req, res) {
   // ---------------- Benutzerkonten-API ----------------
   if (filePath.startsWith('/api/') || filePath === '/verify' || filePath === '/unsubscribe') {
     // handleAccountRequest ist async: eine unerwartete Exception (z.B. aus
-    // SQLite) darf weder als unhandledRejection enden noch die HTTP-Antwort
+    // Postgres) darf weder als unhandledRejection enden noch die HTTP-Antwort
     // ewig offen lassen - der Client bekommt ein sauberes 500.
     handleAccountRequest(req, res, filePath).catch((err) => {
       logCrash('account-api', err, { path: filePath });
@@ -541,7 +562,6 @@ function currentConfigReport() {
     dataDir: DATA_DIR,
     dataDirWritable: DATA_DIR_WRITABLE,
     accountsEnabled: ACCOUNTS_ENABLED,
-    accountsBackend: accountStore ? accountStore.backend : null,
     onnxActive,
     adminMode: adminAuth.mode,
   });
@@ -725,7 +745,7 @@ async function handleAdminRequest(req, res, filePath) {
         notice = { ok: false, text: 'Höchstens 5 Testmails in 10 Minuten.' };
       } else {
         const year = yearOf(gameDay());
-        const real = player ? yearReviewFor(player, year) : null;
+        const real = player ? await yearReviewFor(player, year) : null;
         const base = publicBase(req);
         const mail = composeReviewMail({
           review: real || sampleReview(year), name: player || 'Katzenfreund', lang: 'de',
@@ -757,15 +777,19 @@ async function handleAdminRequest(req, res, filePath) {
         // the real delete button appear in the notice area.
         notice = {
           ok: false,
-          text: `Benutzer „${username}“ wirklich löschen? Konto und Anmeldungen werden entfernt, der Name ist danach wieder frei.`,
+          text: `Benutzer „${username}“ wirklich löschen? Konto, Anmeldungen und Spielversuche werden entfernt, der Name ist danach wieder frei.`,
           html: AdminPage.confirmDeleteHtml(csrf, username),
         };
       } else if (action === 'delete') {
         const r = await accountStore.deleteUser(username);
         if (r.ok) console.log(`[admin] Benutzer gelöscht: ${r.username}`);
         // The name is a guest name again: favourites are an account feature.
-        if (r.ok) try { playerStore.setFavoriteBadges(r.username, []); } catch (e) { /* best effort */ }
-        notice = r.ok ? { ok: true, text: `Benutzer „${r.username}“ wurde gelöscht.` } : { ok: false, text: r.error };
+        if (r.ok) try { await playerStore.setFavoriteBadges(r.username, []); } catch (e) { logCrash('admin-favorites', e); }
+        // Its play attempts go too (privacy page); the account is gone, so a failure names the SQL.
+        const attempts = r.ok ? await playEvents.deleteByName(r.username) : 0;
+        if (!r.ok) notice = { ok: false, text: r.error };
+        else if (attempts === null) notice = { ok: false, text: `Benutzer „${r.username}“ wurde gelöscht, seine Spielversuche aber nicht (Datenbankfehler). Nachholen: DELETE FROM play_attempts WHERE player_key = '${nameKey(r.username)}';` };
+        else notice = { ok: true, text: `Benutzer „${r.username}“ wurde gelöscht${attempts ? ` (mit ${attempts} Spielversuch${attempts === 1 ? '' : 'en'})` : ''}.` };
       } else if (action === 'login-link') {
         if (bump(adminMailsByIp, ip, 10 * 60 * 1000) > 5) {
           notice = { ok: false, text: 'Höchstens 5 Mails in 10 Minuten.' };
@@ -817,6 +841,8 @@ async function handleAdminRequest(req, res, filePath) {
       res.end(JSON.stringify(AdminPage.monitorData(adminMonitor.series(monitorRange), adminMonitor.current())));
       return;
     }
+  } else if (filePath === '/admin/stuck') {
+    tab = 'stuck';
   } else if (filePath !== '/admin') {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Nicht gefunden');
@@ -826,6 +852,32 @@ async function handleAdminRequest(req, res, filePath) {
   let users = null;
   if (tab === 'users' && ACCOUNTS_ENABLED && typeof accountStore.listUsers === 'function') {
     users = await accountStore.listUsers(500);
+  }
+  let stuck = null;
+  if (tab === 'stuck') {
+    const params = new URL(req.url, 'http://localhost').searchParams;
+    const mode = ['puzzle', 'tutorial'].includes(params.get('mode')) ? params.get('mode') : 'tower';
+    const player = sanitizeName(params.get('player') || '', 24);
+    if (mode === 'puzzle') {
+      const days = AdminPage.PUZZLE_RANGES.includes(Number(params.get('days'))) ? Number(params.get('days')) : AdminPage.PUZZLE_DEFAULT_DAYS;
+      const to = gameDay();
+      const [report, attempts] = await Promise.all([
+        playEvents.puzzleReport({ from: addDays(to, 1 - days), to }),
+        player ? playEvents.playerAttempts(player, { mode }) : null,
+      ]);
+      stuck = { mode, days, player, report, attempts };
+    } else if (mode === 'tutorial') {
+      const version = /^v\d{1,4}$/.test(params.get('version') || '') ? params.get('version') : TUTORIAL_VERSION;
+      stuck = { mode, version, current: TUTORIAL_VERSION, report: await playEvents.tutorialReport(version) };
+    } else {
+      const current = BotTower.monthOf(gameDay());
+      const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(params.get('month') || '') ? params.get('month') : current;
+      const [report, attempts] = await Promise.all([
+        playEvents.towerReport(month),
+        player ? playEvents.playerAttempts(player) : null,
+      ]);
+      stuck = { mode, current, month, player, report, attempts };
+    }
   }
 
   res.writeHead(200, {
@@ -845,6 +897,7 @@ async function handleAdminRequest(req, res, filePath) {
     csrf,
     mailConfigured: mailer.configured,
     users,
+    stuck,
     monitor: tab === 'monitor' ? { current: adminMonitor.current(), range: monitorRange } : null,
   }));
 }
@@ -853,12 +906,12 @@ async function handleAdminRequest(req, res, filePath) {
 // later keep their progress. The name-based profile (PlayerStore) is theirs
 // already - joinSession only lets a verified account's owner use the name -
 // and this carries its level numbers into the account, once per account,
-// never into the season (see AccountStore.importProfile). Best effort: never
+// never into the season (see PgAccountStore.importProfile). Best effort: never
 // blocks verify or login.
 async function importGuestProfile(username) {
   if (!ACCOUNTS_ENABLED || typeof accountStore.importProfile !== 'function') return null;
   try {
-    const profile = playerStore.getPlayerByName(username);
+    const profile = await playerStore.getPlayerByName(username);
     if (!profile) return null;
     const r = await accountStore.importProfile(username, {
       xp: profile.xp || 0,
@@ -1320,6 +1373,28 @@ function sendError(ws, error) {
   }
 }
 
+// Database writes nobody awaits inline (a finished match, a Kartenhaus floor):
+// the shutdown waits for them before the pool closes. Tracked promises never reject.
+const pendingWrites = new Set();
+function trackWrite(promise) {
+  pendingWrites.add(promise);
+  const done = () => pendingWrites.delete(promise);
+  promise.then(done, done);
+  return promise;
+}
+
+/** The end of a Kartenhaus or tutorial attempt into play_attempts, in the background.
+ *  `game` is the GameManager or a snapshot's state. Never throws. */
+function logAttempt(game, info, at = Date.now()) {
+  if (PUBLIC_MODE) return; // no names are kept there (and no Kartenhaus)
+  try {
+    const event = attemptEvent(game, info, at);
+    if (event) playEvents.record(event);
+  } catch (err) {
+    logCrash('play-events', err);
+  }
+}
+
 // Jede Session bekommt ihren eigenen GameManager, dessen sendTo NUR die
 // Sockets dieser Session erreicht - Spiele sind vollständig voneinander
 // isoliert. Profil-/Verlaufs-Stores bleiben pro Server-Instanz geteilt.
@@ -1341,6 +1416,7 @@ const registry = new SessionRegistry((session) => {
     onAbandon: typeof session.onAbandon === 'function'
       ? () => session.onAbandon(session.code)
       : undefined,
+    onAttemptEnd: (info) => logAttempt(session.game, info),
     // Bot-Emotes gehen denselben Weg wie Spieler-Emotes: an alle am Tisch.
     onBotEmote: (botId, emoji) => {
       for (const [, sock] of session.sockets) {
@@ -1354,7 +1430,7 @@ const registry = new SessionRegistry((session) => {
     onGameOver: (results, gameRecord) => {
       // Kartenhaus: one round scored in stars (the first one pays XP) - no match stats or history.
       if (gameRecord.towerStage) {
-        recordTowerStage(gameRecord, sendTo);
+        trackWrite(recordTowerStage(gameRecord, sendTo));
         return;
       }
       // Globale Zähler sind ANONYM aggregiert (keine Namen) und daher auch
@@ -1363,12 +1439,10 @@ const registry = new SessionRegistry((session) => {
       // Stammtisch record + rematch series: scoped by the table's code, so it
       // runs in public mode too. Best-effort like everything below.
       if (session.stammtisch) {
-        try {
-          const booked = stammtischStore.recordGame(session.stammtisch, gameRecord);
+        const code = session.stammtisch;
+        trackWrite(stammtischStore.recordGame(code, gameRecord).then((booked) => {
           if (booked) broadcastToSession(session, { type: 'stammtisch', summary: booked.summary, seriesEvent: booked.seriesEvent, goalEvents: booked.goalEvents });
-        } catch (err) {
-          logCrash('stammtisch', err, { code: session.stammtisch });
-        }
+        }).catch((err) => logCrash('stammtisch', err, { code })));
       }
       // Im öffentlichen Modus werden KEINE Namen/Statistiken persistiert -
       // Fremde sollen nichts voneinander sehen, und zwei "Max" aus
@@ -1376,145 +1450,21 @@ const registry = new SessionRegistry((session) => {
       if (PUBLIC_MODE) return;
       // Counters the record alone does not know (challenger / Stammtisch badges).
       for (const r of results) r.facts = { ...(r.facts || {}), challenge: !!gameRecord.challengeDate, stammtisch: !!session.stammtisch };
-      playerStore.recordGameResult(results);
       // A flag, never the code: history is readable by name, codes stay secret.
       gameHistoryStore.saveGame(session.stammtisch ? { ...gameRecord, stammtisch: true } : gameRecord);
-
-      // Daily streak: "played today" - BEFORE the badges, so the 7/30-day
-      // tiers see the updated counter in the profile.
-      const questDate = gameDay();
-      const streaks = {};
-      for (const p of gameRecord.players || []) {
-        if (p.isBot) continue;
-        try { streaks[p.id] = playerStore.touchDailyStreak(p.name, questDate); } catch (err) { logCrash('streak', err, { player: p.name }); }
-      }
-      recordYearStats(session, results, gameRecord, questDate, streaks);
-
-      // Seasonal card backs: a finished game in the month unlocks it for good.
-      for (const seasonalBack of seasonalBacksFor(questDate)) {
-        for (const p of gameRecord.players || []) {
-          if (p.isBot) continue;
-          try { playerStore.unlockSeasonalBack(p.name, seasonalBack, questDate); } catch (err) { logCrash('seasonal-back', err, { player: p.name }); }
-        }
-      }
-
-      // Achievement badges: computed per REAL player from the record,
-      // persisted on the profile (new ones only) and announced to the whole
-      // table - the big moment belongs in the result overlay.
-      const earned = [];
-      for (const p of gameRecord.players || []) {
-        if (p.isBot) continue;
-        const profile = playerStore.getPlayerByName(p.name) || {};
-        let challengeChamp = false;
-        let queenMagnet = false;
-        try {
-          challengeChamp = challengeStore.wasChampion(p.name);
-          queenMagnet = challengeStore.wasQueenMagnet(p.name);
-        } catch (err) { logCrash('challenge-champ', err, { player: p.name }); }
-        const deserved = computeEarnedBadges(gameRecord, p.id, profile, { challengeChamp, queenMagnet });
-        const fresh = playerStore.awardBadges(p.name, deserved);
-        if (fresh.length > 0) earned.push({ name: p.name, badges: fresh });
-      }
-      if (earned.length > 0) {
-        for (const p of gameRecord.players || []) {
-          sendTo(p.id, { type: 'badges', earned });
-        }
-      }
-
-      // --- Progression: XP, level, season ladder, daily quests -------------
-      // Everything below is best-effort: a finished game must never fail
-      // because a counter could not be written.
-      const todaysQuests = questsForDate(questDate);
-      // Welcome back (#316): only this game's XP doubles, the ladder mirror included.
-      const xpFor = (p) => xpForGame(gameRecord, p.id) * (streaks[p.id] && streaks[p.id].welcomeBack ? 2 : 1);
-      // Lifetime win/loss for the personal line on the game-over sheet.
-      const recordOf = (name) => {
-        const prof = playerStore.getPlayerByName(name);
-        return prof ? { played: prof.gamesPlayed || 0, won: prof.gamesWon || 0 } : null;
-      };
-      for (const p of gameRecord.players || []) {
-        if (p.isBot) continue;
-        try {
-          const welcomeBack = !!(streaks[p.id] && streaks[p.id].welcomeBack);
-          const gainedXp = xpFor(p);
-          const questDeltas = evaluateQuests(gameRecord, p.id, todaysQuests);
-          const before = playerStore.questProgress(p.name, questDate);
-          const after = playerStore.addProgress(p.name, {
-            xp: gainedXp,
-            date: questDate,
-            quests: questDeltas,
-          });
-          // "Completed" means it crossed the target with THIS game - so the
-          // client can celebrate once instead of on every following render.
-          const completed = todaysQuests.filter((id) => {
-            const def = questDef(id);
-            if (!def) return false;
-            return (before[id] || 0) < def.need && (after.quests[id] || 0) >= def.need;
-          });
-          sendTo(p.id, {
-            type: 'progress',
-            gainedXp,
-            welcomeBack,
-            xp: after.xp,
-            level: levelFromXp(after.xp),
-            quests: { date: questDate, ids: todaysQuests, progress: after.quests, completed },
-            streak: streaks[p.id] || null,
-            record: recordOf(p.name),
-          });
-        } catch (err) {
-          logCrash('progression', err, { player: p.name });
-        }
-      }
-      // Account-bound mirror for the cross-device season ladder. Only a
-      // VERIFIED account name can be seated (joinSession enforces the login),
-      // so crediting by name cannot be spoofed.
-      if (ACCOUNTS_ENABLED && typeof accountStore.addGameResult === 'function') {
-        const season = seasonForDate(questDate);
-        for (const p of gameRecord.players || []) {
-          if (p.isBot) continue;
-          Promise.resolve(
-            accountStore.addGameResult(p.name, {
-              xp: xpFor(p),
-              won: gameRecord.winnerId === p.id,
-              season,
-            })
-          )
-            .then((prog) => {
-              if (prog) sendTo(p.id, { type: 'accountProgress', progress: prog });
-            })
-            .catch((err) => logCrash('ladder', err, { player: p.name }));
-        }
-      }
+      trackWrite(bookFinishedGame(session, results, gameRecord, sendTo));
 
       // Daily challenge: record the human's score and hand out the board.
       if (gameRecord.challengeDate) {
         const human = (gameRecord.players || []).find((p) => !p.isBot);
-        if (human) {
-          const date = gameRecord.challengeDate;
-          const score = (gameRecord.finalTotals || {})[human.id] || 0;
-          const queens = (gameRecord.rounds || []).reduce((n, r) => n + ((((r.results || {})[human.id] || {}).breakdown || {}).pikDameCount || 0), 0);
-          const board = challengeStore.submit(date, human.name, score, Date.now(), { queens });
-          sendTo(human.id, {
-            type: 'challengeBoard',
-            date,
-            board,
-            yourScore: score,
-            yourRank: challengeStore.rankOf(date, human.name),
-            // For "Ergebnis teilen": caught queens and today's field size.
-            yourQueens: queens,
-            players: challengeStore.getBoard(date, Infinity).length,
-            magnet: challengeStore.queenMagnet(date),
-            // Die versprochenen '7 Tage sichtbar': kompakter Rückblick
-            history: challengeStore.getHistory(human.name),
-            // Wochenwertung (Mo-So, beste 5 Tage zählen)
-            weekly: challengeStore.getWeekly(human.name),
-          });
-        }
+        if (human) trackWrite(sendChallengeResult(gameRecord, human, sendTo));
       }
     },
   });
 }, {
   maxSessions: Number(process.env.PIKDAME_MAX_SESSIONS) || 500,
+  // A table removed with its solo attempt still open (idle, 24 h limit): abandoned.
+  onRemove: (session) => session.game && session.game.abandonAttempt('expired'),
 });
 
 // Inaktive Sessions regelmäßig entsorgen (sonst wächst der Speicher eines
@@ -1556,9 +1506,10 @@ function writeSessionsSnapshot({ quiet = false } = {}) {
     }
     // Skip the disk write when nothing changed since the last snapshot
     // (idle server, paused tables) - savedAt is left out of the comparison.
-    const body = JSON.stringify(snapshot);
+    // Open puzzle attempts ride along: they are the same kind of in-memory state.
+    const body = `"sessions":${JSON.stringify(snapshot)},"puzzleAttempts":${JSON.stringify(puzzleAttempts.serialize())}`;
     if (body === lastSnapshotBody) return;
-    fs.writeFileSync(`${SNAPSHOT_FILE}.tmp`, `{"savedAt":${Date.now()},"sessions":${body}}`, 'utf8');
+    fs.writeFileSync(`${SNAPSHOT_FILE}.tmp`, `{"savedAt":${Date.now()},${body}}`, 'utf8');
     fs.renameSync(`${SNAPSHOT_FILE}.tmp`, SNAPSHOT_FILE);
     lastSnapshotBody = body;
     if (!quiet) console.log(`Session-Snapshot geschrieben: ${snapshot.length} Session(s).`);
@@ -1575,13 +1526,19 @@ function restoreSessionsSnapshot() {
     return; // no snapshot - regular cold start
   }
   try {
-    const { savedAt, sessions } = JSON.parse(raw);
+    const { savedAt, sessions, puzzleAttempts: openPuzzles } = JSON.parse(raw);
+    // Any age: a puzzle day still running goes on, one that is over ends as abandoned.
+    puzzleAttempts.restore(openPuzzles, gameDay());
     const tooOld = typeof savedAt === 'number' && Date.now() - savedAt > SNAPSHOT_MAX_AGE_MS;
     if (tooOld) console.log('Session-Restore übersprungen: Snapshot ist zu alt.');
     let restored = 0;
-    for (const snap of tooOld ? [] : sessions || []) {
-      const session = registry.restore(snap);
-      if (!session) continue;
+    for (const snap of sessions || []) {
+      const session = tooOld ? null : registry.restore(snap);
+      if (!session) {
+        // The table is gone for good: its open solo attempt ends here.
+        if (attemptOpen(snap && snap.state)) logAttempt(snap.state, { outcome: 'abandoned', reason: 'restart' }, savedAt || Date.now());
+        continue;
+      }
       session.playerTokens = new Map(Object.entries(snap.playerTokens || {}));
       if (snap.stammtisch) session.stammtisch = String(snap.stammtisch);
       session.game.deserialize(snap.state);
@@ -1602,13 +1559,154 @@ function restoreSessionsSnapshot() {
 restoreSessionsSnapshot();
 
 // --- Daily challenge: one attempt per player and day ----------------------
-// Games that did not come back with the snapshot were lost by the server,
-// not given up; their players may start again.
-try { challengeStore.markLostAttempts(new Set(registry.sessions.keys())); } catch (err) { logCrash('challenge-lost', err); }
+// A ranked game whose session is gone (not restored, or cleaned up since) was
+// lost by the server, not given up: its player may start again. Boot + on demand.
+// Also starts the schema check and the one-time challenges.json import at boot. Never throws.
+async function freeLostChallengeAttempts() {
+  try { await challengeStore.markLostAttempts({ has: (code) => registry.sessions.has(code) }); } catch (err) { logCrash('challenge-lost', err); }
+}
+freeLostChallengeAttempts();
+// Same for profiles and Stammtische: their one-time JSON imports run at boot, not at the first request.
+playerStore.ready().then(() => stammtischStore.ready()).catch((err) => logCrash('players', err));
+const CHALLENGE_DB_ERROR = 'Die Tages-Challenge ist gerade nicht erreichbar - bitte versuch es gleich noch einmal.';
+
+/** Badge facts per real player id: { challengeChamp, queenMagnet }. Never throws. */
+async function challengeTitles(gameRecord) {
+  const titles = {};
+  for (const p of gameRecord.players || []) {
+    if (p.isBot) continue;
+    try {
+      titles[p.id] = { challengeChamp: await challengeStore.wasChampion(p.name), queenMagnet: await challengeStore.wasQueenMagnet(p.name) };
+    } catch (err) { logCrash('challenge-champ', err, { player: p.name }); }
+  }
+  return titles;
+}
+
+/** Books the ranked result (the first per name and day stays) and sends the board. Never throws. */
+async function sendChallengeResult(gameRecord, human, sendTo) {
+  const date = gameRecord.challengeDate;
+  const score = (gameRecord.finalTotals || {})[human.id] || 0;
+  const queens = (gameRecord.rounds || []).reduce((n, r) => n + ((((r.results || {})[human.id] || {}).breakdown || {}).pikDameCount || 0), 0);
+  try {
+    const board = await challengeStore.submit(date, human.name, score, Date.now(), { queens });
+    sendTo(human.id, {
+      type: 'challengeBoard',
+      date,
+      board,
+      yourScore: score,
+      yourRank: await challengeStore.rankOf(date, human.name),
+      // For "Ergebnis teilen": caught queens and today's field size.
+      yourQueens: queens,
+      players: await challengeStore.playerCount(date),
+      magnet: await challengeStore.queenMagnet(date),
+      // The promised "7 Tage sichtbar": a compact look back.
+      history: await challengeStore.getHistory(human.name),
+      // Weekly ranking (Mon-Sun, best 5 days count).
+      weekly: await challengeStore.getWeekly(human.name),
+    });
+  } catch (err) {
+    logCrash('challenge-submit', err, { player: human.name });
+    sendTo(human.id, { type: 'error', error: CHALLENGE_DB_ERROR });
+  }
+}
+
+/**
+ * A finished match on the name-based profiles, in this order: the match itself,
+ * the daily streak, card backs, XP + quests (the 'progress' message), the
+ * season ladder, then badges (they read the booked counters). Each step logs
+ * its own failure and the next one still runs. Never throws.
+ */
+async function bookFinishedGame(session, results, gameRecord, sendTo) {
+  const humans = (gameRecord.players || []).filter((p) => !p.isBot);
+  let records = {};
+  try { records = await playerStore.recordGameResult(results); } catch (err) { logCrash('profiles', err); }
+
+  // Daily streak: "played today" - BEFORE the badges, so the 7/30-day
+  // tiers see the updated counter in the profile.
+  const questDate = gameDay();
+  const streaks = {};
+  for (const p of humans) {
+    try { streaks[p.id] = await playerStore.touchDailyStreak(p.name, questDate); } catch (err) { logCrash('streak', err, { player: p.name }); }
+  }
+  await recordYearStats(session, results, gameRecord, questDate, streaks);
+
+  // Seasonal card backs: a finished game in the month unlocks it for good.
+  for (const seasonalBack of seasonalBacksFor(questDate)) {
+    for (const p of humans) {
+      try { await playerStore.unlockSeasonalBack(p.name, seasonalBack, questDate); } catch (err) { logCrash('seasonal-back', err, { player: p.name }); }
+    }
+  }
+
+  // --- Progression: XP, level, season ladder, daily quests -------------
+  const todaysQuests = questsForDate(questDate);
+  // Welcome back (#316): only this game's XP doubles, the ladder mirror included.
+  const xpFor = (p) => xpForGame(gameRecord, p.id) * (streaks[p.id] && streaks[p.id].welcomeBack ? 2 : 1);
+  for (const p of humans) {
+    try {
+      const welcomeBack = !!(streaks[p.id] && streaks[p.id].welcomeBack);
+      const gainedXp = xpFor(p);
+      const after = await playerStore.addProgress(p.name, {
+        xp: gainedXp,
+        date: questDate,
+        quests: evaluateQuests(gameRecord, p.id, todaysQuests),
+      });
+      // "Completed" means it crossed the target with THIS game - so the
+      // client can celebrate once instead of on every following render.
+      const completed = todaysQuests.filter((id) => {
+        const def = questDef(id);
+        return !!def && (after.before[id] || 0) < def.need && (after.quests[id] || 0) >= def.need;
+      });
+      sendTo(p.id, {
+        type: 'progress',
+        gainedXp,
+        welcomeBack,
+        xp: after.xp,
+        level: levelFromXp(after.xp),
+        quests: { date: questDate, ids: todaysQuests, progress: after.quests, completed },
+        streak: streaks[p.id] || null,
+        // Lifetime win/loss for the personal line on the game-over sheet.
+        record: records[nameKey(p.name)] || null,
+      });
+    } catch (err) {
+      logCrash('progression', err, { player: p.name });
+    }
+  }
+  // Account-bound mirror for the cross-device season ladder. Only a
+  // VERIFIED account name can be seated (joinSession enforces the login),
+  // so crediting by name cannot be spoofed.
+  if (ACCOUNTS_ENABLED && typeof accountStore.addGameResult === 'function') {
+    const season = seasonForDate(questDate);
+    for (const p of humans) {
+      trackWrite(Promise.resolve()
+        .then(() => accountStore.addGameResult(p.name, { xp: xpFor(p), won: gameRecord.winnerId === p.id, season }))
+        .then((prog) => { if (prog) sendTo(p.id, { type: 'accountProgress', progress: prog }); })
+        .catch((err) => logCrash('ladder', err, { player: p.name })));
+    }
+  }
+
+  // Achievement badges: computed per REAL player from the record, persisted
+  // on the profile (new ones only) and announced to the whole table - the big
+  // moment belongs in the result overlay.
+  const titles = await challengeTitles(gameRecord);
+  const earned = [];
+  for (const p of humans) {
+    try {
+      const profile = (await playerStore.getPlayerByName(p.name)) || {};
+      const { challengeChamp = false, queenMagnet = false } = titles[p.id] || {};
+      const fresh = await playerStore.awardBadges(p.name, computeEarnedBadges(gameRecord, p.id, profile, { challengeChamp, queenMagnet }));
+      if (fresh.length > 0) earned.push({ name: p.name, badges: fresh });
+    } catch (err) {
+      logCrash('badges', err, { player: p.name });
+    }
+  }
+  if (earned.length > 0) {
+    for (const p of gameRecord.players || []) sendTo(p.id, { type: 'badges', earned });
+  }
+}
 
 /** Kartenhaus: grades the floor round, keeps the best stars of its month, pays a floor's first
- *  star (profile; account and season too, without booking a game), awards badges. */
-function recordTowerStage(gameRecord, sendTo) {
+ *  star (profile; account and season too, without booking a game), awards badges. Never throws. */
+async function recordTowerStage(gameRecord, sendTo) {
   const human = (gameRecord.players || []).find((p) => !p.isBot);
   const outcome = human && BotTower.outcomeFromRecord(gameRecord, human.id);
   if (!outcome) return;
@@ -1617,9 +1715,9 @@ function recordTowerStage(gameRecord, sendTo) {
   let xp = 0;
   if (!PUBLIC_MODE) {
     try {
-      progress = playerStore.recordTowerResult(human.name, outcome.month, outcome.stage, outcome.stars);
+      progress = await playerStore.recordTowerResult(human.name, outcome.month, outcome.stage, outcome.stars);
       xp = progress.xp;
-      badges = playerStore.awardBadges(human.name, familyBadges(playerStore.getPlayerByName(human.name) || {}));
+      badges = await playerStore.awardBadges(human.name, familyBadges((await playerStore.getPlayerByName(human.name)) || {}));
     } catch (err) {
       logCrash('tower', err, { player: human.name });
     }
@@ -1627,7 +1725,7 @@ function recordTowerStage(gameRecord, sendTo) {
   const level = xp && progress ? levelFromXp(progress.totalXp) : null;
   sendTo(human.id, { type: 'towerResult', ...outcome, clearMargin: BotTower.CLEAR_MARGIN, progress, xp, level });
   if (badges.length) sendTo(human.id, { type: 'badges', earned: [{ name: human.name, badges }] });
-  bookAccountXp(human.name, xp, { seated: true }, (prog) => sendTo(human.id, { type: 'accountProgress', progress: prog }));
+  await bookAccountXp(human.name, xp, { seated: true }, (prog) => sendTo(human.id, { type: 'accountProgress', progress: prog }));
 }
 
 /** XP earned outside a match (daily puzzle, Kartenhaus): the verified account behind
@@ -1651,7 +1749,7 @@ async function bookAccountXp(name, xp, { seated = false, accountToken = null } =
  *  (played or given up). An account name must come with its login token;
  *  a guest name is trusted like the attempt itself. */
 async function mayRevealChallenge(date, name, accountToken) {
-  if (!name || !challengeStore.hasFinished(date, name)) return false;
+  if (!name || !(await challengeStore.hasFinished(date, name))) return false;
   if (!ACCOUNTS_ENABLED || !(await accountStore.isRegisteredName(name))) return true;
   const user = await accountStore.sessionUser(accountToken);
   return !!user && user.username.toLowerCase() === name.toLowerCase();
@@ -1662,39 +1760,40 @@ async function mayRevealChallenge(date, name, accountToken) {
 async function challengeBoardResponse(req, res) {
   const date = gameDay();
   const name = sanitizeName(new URL(req.url, 'http://x').searchParams.get('name') || '');
+  if (name) await freeLostChallengeAttempts();
   const revealed = await mayRevealChallenge(date, name, req.headers['x-account-token']);
   const hide = revealed ? null : date;
+  const [players, you, board, attempted, running, magnet, weekly, trend] = await Promise.all([
+    challengeStore.playerCount(date),
+    revealed ? challengeStore.resultOf(date, name) : null,
+    revealed ? challengeStore.getBoard(date, 5) : [],
+    name ? challengeStore.hasAttempted(date, name) : false,
+    name ? challengeStore.runningAttempt(date, name) : null,
+    revealed ? challengeStore.queenMagnet(date) : null,
+    challengeStore.getWeekly(null, 5, Date.now(), { exclude: hide }),
+    challengeStore.getTrend(name, { exclude: hide }),
+  ]);
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify({
-    date,
-    revealed,
-    players: challengeStore.playerCount(date),
-    you: revealed ? challengeStore.resultOf(date, name) : null,
-    board: revealed ? challengeStore.getBoard(date, 5) : [],
-    attempted: name ? challengeStore.hasAttempted(date, name) : false,
-    magnet: revealed ? challengeStore.queenMagnet(date) : null,
-    weekly: challengeStore.getWeekly(null, 5, Date.now(), { exclude: hide }),
-    trend: challengeStore.getTrend(name, { exclude: hide }),
+    date, revealed, players, you, board, attempted,
+    running: !!running, // the sheet offers to continue
+    magnet, weekly, trend,
   }));
 }
 
-/** Books the day's attempt (no names are kept in public mode). */
-function registerChallengeAttempt(game, code) {
+/** Given up: the day stays used. Never throws. */
+async function closeChallengeAttempt(game) {
   const human = game.players.find((p) => !p.isBot);
   if (PUBLIC_MODE || !human) return;
-  try { challengeStore.beginAttempt(game.challengeDate, human.name, code); } catch (err) { logCrash('challenge-attempt', err, { player: human.name }); }
-}
-
-function closeChallengeAttempt(game) {
-  const human = game.players.find((p) => !p.isBot);
-  if (PUBLIC_MODE || !human) return;
-  try { challengeStore.closeAttempt(game.challengeDate, human.name); } catch (err) { logCrash('challenge-attempt', err, { player: human.name }); }
+  try { await challengeStore.closeAttempt(game.challengeDate, human.name); } catch (err) { logCrash('challenge-attempt', err, { player: human.name }); }
 }
 
 // The restore above deleted the file (crash-loop guard); from here on it is
 // rewritten periodically so a hard kill loses at most one interval of play.
 const snapshotTimer = setInterval(() => writeSessionsSnapshot({ quiet: true }), SNAPSHOT_INTERVAL_MS);
 snapshotTimer.unref();
+// A puzzle day that is over ends its open attempts (abandoned, 'dayEnd'); never throws.
+setInterval(() => puzzleAttempts.sweep(gameDay()), 10 * 60 * 1000).unref();
 
 // Year-review mail (27.12. from 10:00 German time): the account store marks
 // each account+year as sent, so restarts and a 10-minute tick never mail twice.
@@ -1737,15 +1836,27 @@ function broadcastToSession(session, message) {
 
 const FAVORITES_LOGIN_ERROR = 'Lieblingsabzeichen gibt es nur mit Konto - bitte zuerst anmelden.';
 const CELEBRATION_LOGIN_ERROR = 'Den Siegesjubel wählst du mit deinem Konto - bitte zuerst anmelden.';
-/** The profile's victory celebration while its level still holds it ('standard' otherwise). */
-function seatCelebration(name) {
+/** The profile's victory celebration while its level still holds it ('standard' otherwise). Never throws. */
+async function seatCelebration(name) {
   if (PUBLIC_MODE || !name) return 'standard';
-  const p = playerStore.getPlayerByName(name);
+  let p = null;
+  try { p = await playerStore.getPlayerByName(name); } catch (err) { logCrash('celebration', err, { player: name }); }
   const id = p && p.celebration;
   if (!isCelebration(id)) return 'standard';
   return levelFromXp(p.xp || 0).level >= celebrationLevel(id) ? id : 'standard';
 }
 const STAMMTISCH_LOGIN_ERROR = 'Für deine Stammtische brauchst du ein Konto - bitte zuerst anmelden.';
+const STAMMTISCH_DB_ERROR = 'Der Stammtisch ist gerade nicht erreichbar - bitte versuch es gleich noch einmal.';
+/** The Stammtisch behind a code ({ code, name }), null without one, undefined when the
+ *  database cannot tell - a probe must not count as a failed join then. */
+async function stammtischFor(code) {
+  try {
+    return await stammtischStore.get(code);
+  } catch (err) {
+    logCrash('stammtisch', err);
+    return undefined;
+  }
+}
 /** Account username behind msg.accountToken, or null (not signed in). */
 async function stammtischAccount(msg) {
   const user = await accountStore.sessionUser(msg.accountToken);
@@ -1769,10 +1880,10 @@ function applyTablePrefs(game, prefs) {
 }
 
 // Year review counters (YearReview.js) for every human seat of a finished game.
-// The Stammtisch counts by NAME - its code is a secret and never stored here.
-function recordYearStats(session, results, gameRecord, date, streaks) {
+// The Stammtisch counts by NAME - its code is a secret and never stored here. Never throws.
+async function recordYearStats(session, results, gameRecord, date, streaks) {
   try {
-    const t = session.stammtisch ? stammtischStore.get(session.stammtisch) : null;
+    const t = session.stammtisch ? await stammtischStore.get(session.stammtisch) : null;
     yearStats.recordFinishedGame(results, gameRecord.players, date, { table: t && t.name ? t.name : null, streaks });
   } catch (err) {
     logCrash('year-stats', err);
@@ -1780,35 +1891,37 @@ function recordYearStats(session, results, gameRecord, date, streaks) {
 }
 
 /** The December review for a name, or null (public mode, no game that year). */
-function yearReviewFor(name, year) {
+async function yearReviewFor(name, year) {
   if (PUBLIC_MODE || !name) return null;
   return buildReview({
     year,
-    profile: playerStore.getPlayerByName(name),
+    profile: await playerStore.getPlayerByName(name),
     bucket: yearStats.yearFor(name, year),
     trackingSince: yearStats.trackingSince(),
   });
 }
 
-function sendProfilesTo(ws) {
+/** The profiles message: the statistics board's best plus `me` (with its own
+ *  quests, puzzles and card backs) and `names` (the table). Never throws. */
+async function sendProfilesTo(ws, { me = '', names = [] } = {}) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   // Today's quests ride along with the profiles: the client needs the ids
   // (it owns the bilingual wording) and everyone must see the SAME three,
   // so the server is the one deciding them.
   const date = gameDay();
   const quests = { date, ids: questsForDate(date) };
-  ws.send(
-    JSON.stringify(
-      PUBLIC_MODE
-        ? { type: 'profiles', players: [], publicMode: true, globalStats: globalStats.getStats(), quests }
-        // puzzleStars is the archive's per-day history - served with the puzzle, not to everyone.
-        : { type: 'profiles', players: playerStore.listPlayers().map(({ puzzleStars, ...p }) => p), publicMode: false, globalStats: globalStats.getStats(), quests }
-    )
-  );
+  let players = [];
+  if (!PUBLIC_MODE) {
+    try { players = await playerStore.listProfiles({ me, names }); } catch (err) { logCrash('profiles', err); }
+  }
+  if (ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'profiles', players, publicMode: PUBLIC_MODE, globalStats: globalStats.getStats(), quests }));
 }
 
 function sendProfilesAndTeams(session, playerId) {
-  sendProfilesTo(session.sockets.get(playerId));
+  const seat = session.game.players.find((p) => p.id === playerId);
+  const names = session.game.players.filter((p) => !p.isBot).map((p) => p.name);
+  return sendProfilesTo(session.sockets.get(playerId), { me: seat ? seat.name : '', names });
 }
 
 wss.on('connection', (ws, req) => {
@@ -1886,8 +1999,7 @@ wss.on('connection', (ws, req) => {
   async function joinSession(targetSession, msg) {
     // PROGRESS PROTECTION: a name belonging to a verified account may only
     // be used with a valid login token - otherwise anyone could hijack an
-    // account's statistics/badges. Async because the Postgres backend
-    // queries over the network; the SQLite path resolves immediately.
+    // account's statistics/badges.
     if (ACCOUNTS_ENABLED) {
       const wantedName = sanitizeName(msg.name);
       if (await accountStore.isRegisteredName(wantedName)) {
@@ -1897,6 +2009,15 @@ wss.on('connection', (ws, req) => {
           return;
         }
       }
+    }
+    // Read before the seat is taken: from here to the reply nothing awaits,
+    // so no other message can see a half-joined seat. No name: the seat keeps its own.
+    const celebration = sanitizeName(msg.name) ? await seatCelebration(sanitizeName(msg.name)) : null;
+    // A Stammtisch the database cannot read right now: the table plays on without its record.
+    const table = targetSession.stammtisch ? await stammtischFor(targetSession.stammtisch) : null;
+    let lastWinner = null;
+    if (table) {
+      try { lastWinner = await stammtischStore.lastWinner(table.code); } catch (err) { logCrash('stammtisch', err); }
     }
     // --- Seat protection (anti-cheat) -------------------------------------
     // Player ids are PUBLIC (every state broadcast contains them for
@@ -1949,7 +2070,7 @@ wss.on('connection', (ws, req) => {
     // id. A fresh token then: a seat given up for good still had the leaver's.
     const tookOverSeat = player.id !== playerId;
     playerId = player.id;
-    targetSession.game.setPlayerCelebration(playerId, seatCelebration(player.name));
+    if (celebration) targetSession.game.setPlayerCelebration(playerId, celebration);
     // In der Lobby freie Plätze mit Bots vorbelegen, damit sie sichtbar und
     // sortierbar sind (ein späterer Beitritt ersetzt wieder einen Bot).
     targetSession.game.syncLobbyBots();
@@ -1961,13 +2082,12 @@ wss.on('connection', (ws, req) => {
     session = targetSession;
     session.sockets.set(playerId, ws);
     registry.touch(session);
-    const stammtisch = session.stammtisch ? stammtischStore.touch(session.stammtisch, player.name) : null;
+    const stammtisch = session.stammtisch && table ? table : null;
     // A new evening at the Stammtisch: the last match's winner deals again
     // (the host can still pick someone else; a rematch sets it itself).
     const g = session.game;
     if (stammtisch && g.phase === 'lobby' && g.roundNumber === 0 && !g.explicitDealerSet) {
-      const winner = stammtischStore.lastWinner(stammtisch.code);
-      if (winner && winner.toLowerCase() === String(player.name).trim().toLowerCase()) g.setExplicitDealer(player.id);
+      if (lastWinner && lastWinner.toLowerCase() === String(player.name).trim().toLowerCase()) g.setExplicitDealer(player.id);
     }
     ws.send(JSON.stringify({
       type: 'joined', playerId, playerToken, sessionCode: session.code,
@@ -1975,7 +2095,16 @@ wss.on('connection', (ws, req) => {
     }));
     session.game.broadcastState();
     sendProfilesAndTeams(session, playerId);
-    if (stammtisch) ws.send(JSON.stringify({ type: 'stammtisch', summary: stammtischStore.summary(stammtisch.code), seriesEvent: null }));
+    if (stammtisch) {
+      // The membership is written after the reply (the seat is complete), then the record follows.
+      try {
+        await stammtischStore.touch(stammtisch.code, player.name);
+        const summary = await stammtischStore.summary(stammtisch.code);
+        if (summary && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'stammtisch', summary, seriesEvent: null }));
+      } catch (err) {
+        logCrash('stammtisch', err, { code: stammtisch.code });
+      }
+    }
     return true;
   }
 
@@ -2030,26 +2159,56 @@ wss.on('connection', (ws, req) => {
       // against the same bots - level locked so the leaderboard stays comparable.
       const date = gameDay();
       // One attempt per name and day; a running game of today is resumed via the tile.
-      if (!PUBLIC_MODE && sanitizeName(msg.name) && challengeStore.hasAttempted(date, sanitizeName(msg.name))) {
-        return sendError(ws, 'Die heutige Tages-Challenge hast du schon gespielt - morgen gibt es ein neues Deck.');
+      const challenger = PUBLIC_MODE ? '' : sanitizeName(msg.name);
+      const running = 'Deine Tages-Challenge von heute läuft noch - weiter geht es auf dem Gerät, auf dem du sie begonnen hast.';
+      const played = 'Die heutige Tages-Challenge hast du schon gespielt - morgen gibt es ein neues Deck.';
+      let refusal = null;
+      if (challenger) {
+        await freeLostChallengeAttempts();
+        try {
+          if (await challengeStore.runningAttempt(date, challenger)) refusal = running;
+          else if (await challengeStore.hasAttempted(date, challenger)) refusal = played;
+        } catch (err) {
+          logCrash('challenge-attempt', err, { player: challenger });
+          refusal = CHALLENGE_DB_ERROR;
+        }
       }
+      if (refusal) return sendError(ws, refusal);
       const created = registry.create({
         deckSeed: seedForDate(date),
         challengeDate: date,
         onAbandon: (code) => registry.delete(code),
       });
       if (created.error) return sendError(ws, created.error);
-      const ok = await joinSession(created.session, msg);
-      if (ok) {
-        const game = created.session.game;
-        game.setHouseRules({ turnTimerSeconds: 0 }, { system: true });
-        // Bot level is NOT a house rule (setHouseRules drops the key silently);
-        // set it before fillWithBots so the new bots get it too.
-        game.setAllBotsDifficulty(CHALLENGE_BOT_DIFFICULTY);
-        registerChallengeAttempt(game, created.session.code);
-        game.fillWithBots();
-        game.startNewRound();
+      const code = created.session.code;
+      // Book the attempt BEFORE the game exists for the player: the primary key
+      // lets exactly one of two racing starts (double tap, two devices) through.
+      if (challenger) {
+        let begun = null;
+        try {
+          begun = await challengeStore.beginAttempt(date, challenger, code);
+        } catch (err) {
+          logCrash('challenge-attempt', err, { player: challenger });
+        }
+        if (!begun || !begun.ranked) {
+          registry.delete(code);
+          return sendError(ws, !begun ? CHALLENGE_DB_ERROR : running);
+        }
       }
+      const ok = await joinSession(created.session, msg);
+      if (!ok) {
+        // The booked attempt's game is gone: free the day again.
+        registry.delete(code);
+        if (challenger) await freeLostChallengeAttempts();
+        return;
+      }
+      const game = created.session.game;
+      game.setHouseRules({ turnTimerSeconds: 0 }, { system: true });
+      // Bot level is NOT a house rule (setHouseRules drops the key silently);
+      // set it before fillWithBots so the new bots get it too.
+      game.setAllBotsDifficulty(CHALLENGE_BOT_DIFFICULTY);
+      game.fillWithBots();
+      game.startNewRound();
       return;
     }
     if (msg.type === 'getTower') {
@@ -2057,10 +2216,11 @@ wss.on('connection', (ws, req) => {
       const name = sanitizeName(msg.name);
       const today = gameDay();
       const month = BotTower.monthOf(today);
-      const best = !PUBLIC_MODE && name ? playerStore.towerBest(name, month) : {};
-      const months = !PUBLIC_MODE && name ? playerStore.towerMonths(name) : [];
+      const best = !PUBLIC_MODE && name ? await playerStore.towerBest(name, month) : {};
+      const months = !PUBLIC_MODE && name ? await playerStore.towerMonths(name) : [];
       ws.send(JSON.stringify({
         type: 'towerInfo', month, today, stages: BotTower.publicStages(), clearMargin: BotTower.CLEAR_MARGIN, best, ...BotTower.summarize(best),
+        closed: towerMonths.closedFloors(month), // floors without a proven deal: 'building' | 'locked'
         totalStars: months.reduce((n, m) => n + m.stars, 0), archive: months.filter((m) => m.month !== month),
       }));
       return;
@@ -2073,9 +2233,11 @@ wss.on('connection', (ws, req) => {
       if (!cfg) return sendError(ws, 'Diese Etage gibt es nicht.');
       const name = sanitizeName(msg.name);
       if (!name) return sendError(ws, 'Für das Kartenhaus brauchst du einen Namen - dort werden deine Sterne gespeichert.');
-      if (cfg.stage > BotTower.unlockedStage(playerStore.towerBest(name, month))) {
+      if (cfg.stage > BotTower.unlockedStage(await playerStore.towerBest(name, month))) {
         return sendError(ws, 'Diese Etage ist noch gesperrt - hol dir erst einen Stern auf der Etage darunter.');
       }
+      // Never an unproven deal: a floor still being built (or without one this month) stays closed.
+      if (cfg.seed == null) return sendError(ws, 'Diese Etage wird gerade gebaut - schau bald wieder vorbei.');
       const created = registry.create({ deckSeed: cfg.seed, towerStage: cfg.stage, towerMonth: month, onAbandon: (code) => registry.delete(code) });
       if (created.error) return sendError(ws, created.error);
       const ok = await joinSession(created.session, msg);
@@ -2108,28 +2270,38 @@ wss.on('connection', (ws, req) => {
       const name = sanitizeName(msg.name);
       const withProfile = !PUBLIC_MODE && !!name && !archive;
       const fresh = { tries: 0, solved: false, revealed: false };
+      // play_attempts: the live day of a named player, a few names per connection.
+      if (!ws.puzzleNames) ws.puzzleNames = new Set();
+      const tracked = withProfile && (ws.puzzleNames.has(nameKey(name)) || ws.puzzleNames.size < PUZZLE_NAMES_PER_SOCKET);
+      if (tracked) ws.puzzleNames.add(nameKey(name));
+      const kind = puzzle.kind || 'meld';
       // Stars and the perfect run belong to the live day; an archive day shows the stars earned back then.
-      const starInfo = () => (PUBLIC_MODE || !name ? {} : {
-        dayStars: playerStore.puzzleStarsFor(name, date),
-        perfectStreak: perfectStreakOn(playerStore.getPlayerByName(name), today),
+      const starInfo = async () => (PUBLIC_MODE || !name ? {} : {
+        dayStars: await playerStore.puzzleStarsFor(name, date),
+        perfectStreak: perfectStreakOn(await playerStore.getPlayerByName(name), today),
       });
       if (msg.type === 'checkPuzzleMeld') {
-        // Pure rules check of one laid meld: no try, star or attempt is recorded.
-        ws.send(JSON.stringify({ ...checkMeld(puzzle, msg.cardIds), date, type: 'puzzleMeldCheck' }));
+        // Pure rules check of one laid meld: no try or star; a refused one is a mistake of the attempt.
+        const check = checkMeld(puzzle, msg.cardIds);
+        if (tracked) puzzleAttempts.meldChecked(name, date, kind, check, await playerStore.puzzleStatus(name, date));
+        ws.send(JSON.stringify({ ...check, date, type: 'puzzleMeldCheck' }));
         return;
       }
       if (msg.type === 'getPuzzle') {
+        const status = withProfile ? await playerStore.puzzleStatus(name, date) : fresh;
+        if (tracked) puzzleAttempts.opened(name, date, kind, status);
         ws.send(JSON.stringify({
           type: 'puzzle', ...publicPuzzle(puzzle), archive, today, epoch: PUZZLE_EPOCH,
-          status: withProfile ? playerStore.puzzleStatus(name, date) : fresh,
-          ...starInfo(),
+          status,
+          ...(await starInfo()),
         }));
         return;
       }
       if (msg.type === 'revealPuzzle') {
-        const status = withProfile ? playerStore.revealPuzzle(name, date) : { ...fresh, revealed: true };
+        const status = withProfile ? await playerStore.revealPuzzle(name, date) : { ...fresh, revealed: true };
+        if (tracked) puzzleAttempts.revealed(name, date, kind, status);
         const best = puzzle.best || { cardIds: [], melds: [], points: 0 };
-        ws.send(JSON.stringify({ type: 'puzzleSolution', date, cardIds: best.cardIds, melds: best.melds || [best.cardIds], points: best.points, status, ...(withProfile ? starInfo() : {}) }));
+        ws.send(JSON.stringify({ type: 'puzzleSolution', date, cardIds: best.cardIds, melds: best.melds || [best.cardIds], points: best.points, status, ...(withProfile ? await starInfo() : {}) }));
         return;
       }
       const result = checkAnswer(puzzle, Array.isArray(msg.melds) ? msg.melds : msg.cardIds);
@@ -2139,9 +2311,10 @@ wss.on('connection', (ws, req) => {
       let streak = null;
       let badges = [];
       if (withProfile) {
-        status = playerStore.recordPuzzleAttempt(name, date, result.solved, puzzle.kind || 'meld');
+        status = await playerStore.recordPuzzleAttempt(name, date, result.solved, kind);
+        if (tracked) puzzleAttempts.tried(name, date, kind, result, status);
         if (status.justSolved) {
-          const after = playerStore.addProgress(name, { xp: XP_FOR_SOLVED });
+          const after = await playerStore.addProgress(name, { xp: XP_FOR_SOLVED });
           xp = XP_FOR_SOLVED;
           level = levelFromXp(after.xp);
           // The signed-in owner's account counts it too, season included.
@@ -2149,13 +2322,13 @@ wss.on('connection', (ws, req) => {
             if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'accountProgress', progress: prog }));
           });
           // A solved puzzle is a played day - it keeps the daily streak alive.
-          try { streak = playerStore.touchDailyStreak(name, date); } catch (err) { logCrash('streak', err, { player: name }); }
+          try { streak = await playerStore.touchDailyStreak(name, date); } catch (err) { logCrash('streak', err, { player: name }); }
           // Puzzle tiers (and a daily streak tier) right away, not at the next match.
-          try { badges = playerStore.awardBadges(name, familyBadges(playerStore.getPlayerByName(name) || {})); } catch (err) { logCrash('badges', err, { player: name }); }
+          try { badges = await playerStore.awardBadges(name, familyBadges((await playerStore.getPlayerByName(name)) || {})); } catch (err) { logCrash('badges', err, { player: name }); }
         }
       }
       if (archive) status = { tries: 0, solved: result.solved, revealed: false };
-      ws.send(JSON.stringify({ ...result, date, xp, level, streak, status, badges, ...(withProfile ? starInfo() : {}), type: 'puzzleResult' }));
+      ws.send(JSON.stringify({ ...result, date, xp, level, streak, status, badges, ...(withProfile ? await starInfo() : {}), type: 'puzzleResult' }));
       return;
     }
     if (msg.type === 'listProfiles') {
@@ -2163,7 +2336,10 @@ wss.on('connection', (ws, req) => {
       // and the daily tasks are server-wide, not session data. The start
       // screen needs them before the player has joined anything - otherwise
       // a returning player's daily tasks always read 0/3 until they sit down.
-      sendProfilesTo(ws);
+      // msg.name: the asking player's own profile, also when it is not on the
+      // board; seated, the table's players too (their favourite badges).
+      const names = session ? session.game.players.filter((p) => !p.isBot).map((p) => p.name) : [];
+      await sendProfilesTo(ws, { me: sanitizeName(msg.name), names });
       return;
     }
     if (msg.type === 'createSession') {
@@ -2183,7 +2359,7 @@ wss.on('connection', (ws, req) => {
         if (!owner) return sendError(ws, STAMMTISCH_LOGIN_ERROR);
         msg = { ...msg, name: owner };
       }
-      const founded = stammtischStore.create(msg.stammtischName, sanitizeName(msg.name), Date.now(), owner);
+      const founded = await stammtischStore.create(msg.stammtischName, sanitizeName(msg.name), Date.now(), owner);
       if (founded.error) return sendError(ws, founded.error);
       const created = registry.create({ stammtisch: founded.table.code });
       if (created.error) return sendError(ws, created.error);
@@ -2197,9 +2373,9 @@ wss.on('connection', (ws, req) => {
       if (!owner || owner.toLowerCase() !== String(sanitizeName(msg.name)).toLowerCase()) {
         return sendError(ws, FAVORITES_LOGIN_ERROR);
       }
-      const r = playerStore.setFavoriteBadges(owner, msg.badges);
+      const r = await playerStore.setFavoriteBadges(owner, msg.badges);
       if (r.error) return sendError(ws, r.error);
-      sendProfilesTo(ws);
+      await sendProfilesTo(ws, { me: owner });
       return;
     }
     if (msg.type === 'setCelebration') {
@@ -2208,7 +2384,7 @@ wss.on('connection', (ws, req) => {
       if (!owner || owner.toLowerCase() !== String(sanitizeName(msg.name)).toLowerCase()) {
         return sendError(ws, CELEBRATION_LOGIN_ERROR);
       }
-      const r = playerStore.setCelebration(owner, msg.celebration);
+      const r = await playerStore.setCelebration(owner, msg.celebration);
       if (r.error) return sendError(ws, r.error);
       // Seated right now: the next win already shows the new one.
       const seat = session && playerId ? session.game.players.find((p) => p.id === playerId) : null;
@@ -2216,7 +2392,7 @@ wss.on('connection', (ws, req) => {
         session.game.setPlayerCelebration(playerId, r.celebration);
         session.game.broadcastState();
       }
-      sendProfilesTo(ws);
+      await sendProfilesTo(ws, { me: owner });
       return;
     }
     if (msg.type === 'listStammtische' || msg.type === 'deleteStammtisch' || msg.type === 'leaveStammtisch') {
@@ -2225,14 +2401,14 @@ wss.on('connection', (ws, req) => {
       if (!owner) return sendError(ws, STAMMTISCH_LOGIN_ERROR);
       if (msg.type !== 'listStammtische') {
         const r = msg.type === 'deleteStammtisch'
-          ? stammtischStore.remove(msg.code, owner)
-          : stammtischStore.leave(msg.code, owner);
+          ? await stammtischStore.remove(msg.code, owner)
+          : await stammtischStore.leave(msg.code, owner);
         if (r.error) return sendError(ws, r.error);
         // A live table of a deleted Stammtisch plays on as a normal table.
         const live = msg.type === 'deleteStammtisch' ? findStammtischSession(r.code) : null;
         if (live) live.stammtisch = null;
       }
-      ws.send(JSON.stringify({ type: 'stammtischList', tables: stammtischStore.listFor(owner) }));
+      ws.send(JSON.stringify({ type: 'stammtischList', tables: await stammtischStore.listFor(owner) }));
       return;
     }
     if (msg.type === 'getStammtisch') {
@@ -2242,7 +2418,13 @@ wss.on('connection', (ws, req) => {
         ws.close(1008, 'Zu viele Fehlversuche');
         return;
       }
-      const info = stammtischStore.chipInfo(msg.code);
+      let info;
+      try {
+        info = await stammtischStore.chipInfo(msg.code);
+      } catch (err) {
+        logCrash('stammtisch', err);
+        return sendError(ws, STAMMTISCH_DB_ERROR); // the database cannot tell: no failed-join strike
+      }
       if (!info) {
         registerFailedJoin(ip);
         ws.send(JSON.stringify({ type: 'stammtischInfo', code: normalizeStammtischCode(msg.code), exists: false }));
@@ -2257,7 +2439,7 @@ wss.on('connection', (ws, req) => {
       const today = gameDay();
       const open = isReviewSeason(today) || YEAR_REVIEW_PREVIEW;
       const name = sanitizeName(msg.name);
-      let review = open ? yearReviewFor(name, yearOf(today)) : null;
+      let review = open ? await yearReviewFor(name, yearOf(today)) : null;
       // Who someone plays with and their Stammtisch's name: only for the account owning the name.
       if (review && (review.favorite || review.table)) {
         const owner = ACCOUNTS_ENABLED && msg.accountToken ? await stammtischAccount(msg) : null;
@@ -2274,8 +2456,9 @@ wss.on('connection', (ws, req) => {
         ws.close(1008, 'Zu viele Fehlversuche');
         return;
       }
-      const exists = !!registry.get(msg.code) || !!stammtischStore.get(msg.code);
-      if (!exists) {
+      const table = registry.get(msg.code) ? null : await stammtischFor(msg.code);
+      const exists = !!registry.get(msg.code) || !!table;
+      if (!exists && table !== undefined) {
         const count = registerFailedJoin(ip);
         if (count >= FAILED_JOIN_LIMIT) {
           ws.close(1008, 'Zu viele Fehlversuche');
@@ -2330,7 +2513,8 @@ wss.on('connection', (ws, req) => {
       if (!target) {
         // Not a live session - maybe a Stammtisch code: the group's table is
         // the live session bound to it, or a fresh one when nobody is there.
-        const table = stammtischStore.get(msg.code);
+        const table = await stammtischFor(msg.code);
+        if (table === undefined) return sendError(ws, STAMMTISCH_DB_ERROR);
         if (table) {
           target = findStammtischSession(table.code);
           if (!target) {
@@ -2372,6 +2556,12 @@ wss.on('connection', (ws, req) => {
     if (session.sockets.get(playerId) !== ws) {
       return sendError(ws, 'Dieser Platz wird inzwischen von jemand anderem gespielt.');
     }
+
+    // A refused move: the reason to the player; at a tutorial table it counts for the open lesson.
+    const refuse = (error) => {
+      sendError(ws, error);
+      if (game.tutorialMode) game.noteTutorialRefusal(playerId);
+    };
 
     switch (msg.type) {
       case 'startGame': {
@@ -2464,28 +2654,28 @@ wss.on('connection', (ws, req) => {
       }
       case 'drawFromPile': {
         const r = game.drawFromPile(playerId);
-        if (r && r.error) sendError(ws, r.error);
+        if (r && r.error) refuse(r.error);
         break;
       }
       case 'drawFromDiscard': {
         const r = game.drawFromDiscard(playerId);
-        if (r && r.error) sendError(ws, r.error);
+        if (r && r.error) refuse(r.error);
         break;
       }
       case 'layoutMeld': {
         const r = game.layoutMeld(playerId, msg.cardIds, msg.jokerAssignments || {});
-        if (r && r.error) sendError(ws, r.error);
+        if (r && r.error) refuse(r.error);
         if (r && r.ambiguous) ws.send(JSON.stringify({ type: 'meldAmbiguous', cardIds: msg.cardIds, options: r.options }));
         break;
       }
       case 'layOffMulti': {
         const r = game.layOffCards(playerId, msg.meldId, msg.cardIds);
-        if (r && r.error) sendError(ws, r.error);
+        if (r && r.error) refuse(r.error);
         break;
       }
       case 'layOff': {
         const r = game.layOffCard(playerId, msg.meldId, msg.cardId, msg.asSuit, msg.side);
-        if (r && r.error) sendError(ws, r.error);
+        if (r && r.error) refuse(r.error);
         if (r && r.ambiguous) {
           ws.send(JSON.stringify({ type: 'layOffAmbiguous', meldId: msg.meldId, cardId: msg.cardId, options: r.options }));
         }
@@ -2493,12 +2683,18 @@ wss.on('connection', (ws, req) => {
       }
       case 'swapJoker': {
         const r = game.swapJoker(playerId, msg.meldId, msg.handCardId);
-        if (r && r.error) sendError(ws, r.error);
+        if (r && r.error) refuse(r.error);
         break;
       }
       case 'discard': {
         const r = game.discard(playerId, msg.cardId);
-        if (r && r.error) sendError(ws, r.error);
+        if (r && r.error) refuse(r.error);
+        break;
+      }
+      case 'tutorialStep': {
+        // Tutorial lesson reached/done or hints off (play_attempts): validated in the
+        // engine, its own progress only, never answered (nothing to learn from probing).
+        if (game.tutorialMode && typeof msg.status === 'string') game.tutorialStep(playerId, msg.step, msg.status);
         break;
       }
       case 'emote': {
@@ -2511,7 +2707,8 @@ wss.on('connection', (ws, req) => {
         // is locked there.
         if (!PUBLIC_MODE && emoteLevel(emoji) > 1) {
           const seat = game.players.find((p) => p.id === playerId);
-          const profile = seat ? playerStore.getPlayerByName(seat.name) : null;
+          let profile = null;
+          try { profile = seat ? await playerStore.getPlayerByName(seat.name) : null; } catch (err) { logCrash('emote-level', err); break; }
           const level = levelFromXp(profile ? profile.xp : 0).level;
           if (level < emoteLevel(emoji)) {
             sendError(ws, `Dieses Emote gibt es ab Stufe ${emoteLevel(emoji)}.`);
@@ -2545,18 +2742,18 @@ wss.on('connection', (ws, req) => {
       case 'forfeitRound': {
         const r = game.forfeitRound(playerId);
         if (r && r.error) sendError(ws, r.error);
-        else if (game.challengeDate && game.gameOverInfo && game.gameOverInfo.forfeited) closeChallengeAttempt(game);
+        else if (game.challengeDate && game.gameOverInfo && game.gameOverInfo.forfeited) await closeChallengeAttempt(game);
         break;
       }
       case 'undoMeld': {
         const r = game.undoMeldAction(playerId);
-        if (r && r.error) sendError(ws, r.error);
+        if (r && r.error) refuse(r.error);
         break;
       }
       case 'undoPileTake': {
         // Take-back of a discard-pile pickup while nothing has been played yet.
         const r = game.undoPileTake(playerId);
-        if (r && r.error) sendError(ws, r.error);
+        if (r && r.error) refuse(r.error);
         break;
       }
       case 'performCut': {
@@ -2591,23 +2788,23 @@ wss.on('connection', (ws, req) => {
 
 // Graceful Shutdown: Docker sendet SIGTERM beim Stoppen des Containers -
 // offene Verbindungen sauber schließen statt sie hart zu kappen.
-function shutdown(signal) {
+let shuttingDown = false;
+async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
   console.log(`${signal} empfangen - Server fährt herunter...`);
+  // Falls etwas hängt (offene Keep-Alives, eine langsame Datenbank): harter Ausstieg nach 5s.
+  setTimeout(() => process.exit(0), 5000).unref();
   // Laufende Spiele überleben den Neustart; gepufferte Store-Writes landen
   // sicher auf der Platte.
   writeSessionsSnapshot();
-  playerStore.flushSync();
+  // Flushes at once; the deal worker ends between two games (never inside an ONNX run).
+  let towerStopped = Promise.resolve();
+  try { towerStopped = towerMonths.stop({ graceMs: 4000 }); } catch (e) { /* never block shutdown */ }
   gameHistoryStore.flushSync();
   globalStats.flushSync();
-  stammtischStore.flushSync();
   try { yearStats.flushSync(); } catch (e) { /* the year review is best effort */ }
   try { if (adminMonitor) adminMonitor.flushSync(); } catch (e) { /* monitoring history is best effort */ }
-  if (accountStore) {
-    try {
-      const p = accountStore.close();
-      if (p && p.catch) p.catch(() => {});
-    } catch (e) { /* never block shutdown */ }
-  }
   for (const client of wss.clients) {
     try {
       client.close(1001, 'Server wird neu gestartet');
@@ -2615,9 +2812,15 @@ function shutdown(signal) {
       /* Socket war schon zu */
     }
   }
-  server.close(() => process.exit(0));
-  // Falls server.close hängt (offene Keep-Alives): harter Ausstieg nach 5s.
-  setTimeout(() => process.exit(0), 5000).unref();
+  // No new connections; database writes under way (a finished match, a floor, play
+  // attempts) commit before the pool closes - a lost write once broke the challenge (#458).
+  const closed = new Promise((resolve) => server.close(resolve));
+  const settled = (async () => { while (pendingWrites.size) await Promise.all([...pendingWrites]); await playEvents.flush(); })();
+  await Promise.race([settled, new Promise((resolve) => setTimeout(resolve, 3500).unref())]);
+  await db.end().catch(() => {});
+  await closed;
+  await towerStopped.catch(() => {});
+  process.exit(0);
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
@@ -2636,14 +2839,6 @@ server.listen(PORT, () => {
     }
   }
 
-  console.log('');
-  console.log('⚠️  WICHTIG (iOS-Einschränkung, nicht durch Code behebbar):');
-  console.log('    CodeApp muss im VORDERGRUND bleiben, solange gespielt wird!');
-  console.log('    iOS pausiert diesen Server komplett, sobald du die App wechselst');
-  console.log('    oder das Display sich sperrt. Auto-Sperre auf "Nie" stellen');
-  console.log('    (Einstellungen -> Anzeige & Helligkeit) oder Geführten Zugriff');
-  console.log('    nutzen (Einstellungen -> Bedienungshilfen).');
-  console.log('');
   console.log(`Fehler-Log (falls etwas schiefgeht): ${CRASH_LOG_FILE}`);
   console.log('');
   try {
@@ -2651,12 +2846,18 @@ server.listen(PORT, () => {
   } catch (e) { logCrash('config-report', e); }
   try { startAdminMonitor(); } catch (e) { logCrash('admin-monitor', e); }
   maybeFinalizeSeasons().catch((e) => logCrash('season-finale', e));
+  // Play attempts older than 90 days are deleted (privacy page), also in public mode.
+  try { playEvents.startRetention(); } catch (e) { logCrash('play-events', e); }
   // Load the ONNX runtime + models now, not in the first bot turn: the one-off
   // ~40 MB then sits in the baseline instead of looking like a leak (#306).
   try {
     const OnnxPolicy = require('./game/OnnxPolicy');
     if (OnnxPolicy.enabled()) OnnxPolicy.warmup().catch((e) => logCrash('onnx-warmup', e));
   } catch (e) { logCrash('onnx-warmup', e); }
+  // The Kartenhaus needs stored profiles: off in the public mode, so nothing to build there.
+  if (!PUBLIC_MODE) {
+    try { towerMonths.start(); } catch (e) { logCrash('tower-months', e); }
+  }
   // SMTP probe: log in and out once, so a wrong host/port/password shows up
   // now instead of at the first registration. Never blocks the start.
   if (mailer.configured) {

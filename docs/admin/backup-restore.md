@@ -9,13 +9,12 @@ bottom of this page once — it takes five minutes and is the only way to know.
 
 | What | Where | Lose it and… |
 | --- | --- | --- |
-| Profiles, stats, achievements, history | `players.json`, `stats.json`, `games.json`, `challenges.json` in the data volume | …everyone's statistics and badges are gone. The game still works. |
-| Accounts (SQLite) | `users.db` in the data volume | …people can't log in. Guests unaffected. |
-| Accounts (PostgreSQL) | the database | …same, but it lives outside the volume. |
+| Server statistics, game history | `stats.json`, `games.json` in the data volume | …the server-wide numbers and "Meine Partien" are gone. The game still works. |
+| Accounts, player profiles, Stammtische, daily challenge | the PostgreSQL database (`users`, `login_sessions`, `players` with its `player_*` tables, `stammtische` with its `stammtisch_*` tables, `challenge_results`, `challenge_attempts`, …) | …people can't log in, everyone's statistics, badges and progress are gone, so are the groups' tables, the challenge board and today's attempts. Guests can still play. It lives outside the volume. |
 | Running games | `sessions-snapshot.json` | …nothing, long-term. Rewritten every minute while tables change and on shutdown; deleted once restored. |
 
 Everything else — the image, the code, the config — is reproducible from Git and
-the registry. **The volume is the only thing that is irreplaceable.**
+the registry. **The database and the volume are the only things that are irreplaceable.**
 
 ## Backing up the data volume
 
@@ -44,7 +43,7 @@ copy them off the host (that is the point). A daily cron job plus
 `rsync`/`rclone` to somewhere else is plenty.
 :::
 
-## Backing up PostgreSQL (if you use accounts with Postgres)
+## Backing up PostgreSQL
 
 ```bash
 docker compose exec -T db pg_dump -U pikdame pikdame \
@@ -102,7 +101,8 @@ an actual outage.
 
    You want the line saying the data directory is **writable**, with non-zero
    file sizes listed — that proves both the permissions and the data are back.
-5. Open the app and check that the lobby statistics show the old profiles.
+5. Open the app and check that the lobby statistics show the old profiles
+   (they come from the PostgreSQL dump, restored above).
 
 If step 4 prints the loud "NICHT BESCHREIBBAR" warning, the `chown` was missed.
 

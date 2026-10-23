@@ -37,22 +37,26 @@ PIKDAME_IMPRINT_EMAIL=impressum@example.org
   "Impressum nicht konfiguriert", the startup log and `/admin` warn.
 - Docker: put them into `docker/.env`; every compose file passes them through.
   Recreate the container after a change (`docker compose up -d`). Kubernetes:
-  add them to the `pikdame-env` Secret.
+  Helm values `imprint.name`, `.street`, `.city`, `.email`, `.country`
+  (see `k8s/README.md`), or the `pikdame-env` Secret.
 - The page is rendered once at startup. Name and address reach the browser
   base64-encoded and are decoded by `impressum.js`; the e-mail appears only
   after a click. Without JavaScript a fallback shows them as HTML entities.
 
-## Accounts: SQLite or PostgreSQL?
+## Database: PostgreSQL is required
 
-Accounts are **optional** (`PIKDAME_ACCOUNTS=0` disables them entirely — guests
-can still play, they just get no profile).
+**`PIKDAME_DATABASE_URL` is mandatory.** Without it the server logs why and
+exits. The compose files in `docker/` start a PostgreSQL container and set the
+URL. Back it up with `pg_dump` (see {doc}`backup-restore`). The schema is
+updated on start by numbered migrations (see {doc}`../developer/migrations`).
 
-- **No `PIKDAME_DATABASE_URL`** → accounts go into a SQLite file, `users.db`,
-  inside the data directory. Perfect for a family server. Back up the file.
-- **`PIKDAME_DATABASE_URL` set** → PostgreSQL. Use this for a public server; back
-  it up with `pg_dump` (see {doc}`backup-restore`).
+The account feature can be switched off (`PIKDAME_ACCOUNTS=0` disables them entirely — guests
+can still play, they just get no profile). The database stays required either
+way.
 
-Switching from SQLite to PostgreSQL does **not** migrate existing accounts.
+Older versions kept accounts in a SQLite file (`users.db`) when no URL was set.
+That fallback is gone and such a file is **not** migrated: move to PostgreSQL
+with an earlier version first if you still run one.
 
 ## Sign-up, passkeys and sign-in links
 

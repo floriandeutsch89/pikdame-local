@@ -21,12 +21,19 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   high), `desk` 1440×900, `se` 375×667 (small phones), `max` 440×956
   (Pro Max: 15 cards fit ONE fanned row there, at 393 they split into two;
   a layout bug at the hand can show on one and not the other), `lap`
-  1366×657 (laptop browser: desktop width, little height).
+  1366×657 (laptop browser: desktop width, little height), `nar` 1100×680
+  (the narrowest desktop layout: least room beside the opponents). The
+  phone views are iPhones: no Fullscreen API, so no "Vollbild" row.
 - **Table scene:** `--scenes table --state <file>` injects a live game. Build
   the state from the real engine (`GameManager` + `fillWithBots` +
   `runBotTurn`, then `publicState('p1')`), not by hand.
 - **Themes:** `--theme table|night|felt|love|bordeaux|kitchen`. `kitchen` is
   the light one; check it whenever a colour or a translucent white changes.
+- **Table light:** the table's light follows the Berlin clock
+  (`public/table-light.js`). Shots pin it to noon, the look without the light,
+  so a "before" and an "after" shot hours apart still compare;
+  `--light morning|evening|night|HH:MM` shoots that time, `--light now` the real
+  clock. A change near the table's colours or shadows: shoot evening and night too.
 - **Mockups:** `--css <file>` / `--js <file>` patch the table scene before the
   shot, to show options before building them.
 - **Signed in:** `--signed-in` answers `/api/*` with a mock account (mock
@@ -52,16 +59,42 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   rules), `botdiff` (the strength picker), `stammtisch` (the record
   sheet behind the start-screen chip), `stammtisch-lobby` (a game lobby
   shown as a seat at the mock Stammtisch: its record panel), `settings` / `settings-aids` /
-  `settings-music` (the "Mehr" sheet: top / play aids / music), `game-settings`
-  (the in-game gear sheet), `music-hint` (the first click starts the music and
+  `settings-music` (the "Optionen" sheet: top / play aids / music), `game-settings`
+  (the gear at a live engine table: the same sheet with "Dieser Tisch", then
+  scrolled to its end; `--state` takes another table), `game-settings-debug`,
+  `home` (the home dialog at the table, then its forfeit button armed by a
+  first tap), `music-hint` (the first click starts the music and
   its one-time hint shows; every other run marks the hint as seen), `tower`
   (the Kartenhaus sheet, opened from its tile in "Aufgaben"), `tower-detail`
-  (the same with the locked floor 14 tapped), `tower-rules` (the "So funktioniert"
+  (the same with the locked floor 14 tapped, `--stage N` another floor), `tower-rules` (the "So funktioniert"
   fold opened), `tower-motion` (animation
-  frames: a month change collapsing, a landing star next to a wobble; with
-  `--tower crowned` the crown landing), `gameover-tower` (a floor verdict on
-  the result sheet). `--tower mid|new|high|crowned` picks the month in the
-  mock (default `mid`: floors 1-8 built, 9 next). `--stammtische 0-3` sets
+  frames: a month change being collected, frozen at 800 ms, and the new month;
+  a dealt card next to a wobble; with `--tower crowned` the crown landing),
+  `tower-film` (the month change frozen at `--film 0,400,...` ms plus its end:
+  last month's crowned house is collected; with `--reduced-motion` the note
+  instead), `tower-skip` (a real tap on floor 5 during the month change; prints
+  whether it skipped and picked nothing), `gameover-tower` (a floor verdict on
+  the result sheet). `--tower mid|new|half|high|crowned|full` picks the month in the
+  mock (default `mid`: floors 1-8 built, 9 next; `half`: 12 floors, 30 stars),
+  `--closed '{"13":"building","17":"locked"}'` closes floors (no proven deal),
+  `--tag half` names the shot `tower-half`, `--tower-wait <ms>` shoots the
+  first-visit deal earlier. A live Kartenhaus floor
+  from the engine (its deal, bots and head start): `tower-start` (the start
+  card before the first move), `tower-play` (the floor card mid-game,
+  `--turns N` of my turns, default 3), `tower-sheet` (its rules after a tap),
+  `tower-lock` (a tap on the locked discard pile). `--floor queen|goOut|
+  noDiscard|all` takes the floor with exactly that handicap from BotTower.js
+  (new deals or head starts never break the scene), or a floor number.
+  The floor card is in full for the first own turn (`--turns 0`) and folded
+  from the second; `--fold full|compact` stores the player's own choice
+  instead, `--fold hidden` the card taken off the table by its ✕. `--tap
+  <selector>` taps something before the shot (e.g. `'#towerBar .tbFold'` to
+  see a fold settle; `'a;b'` taps in order, e.g. `'#settingsBtn;#towerPanelBtn'`
+  for the gear's way back to a hidden card; `--tap-freeze 120` holds every
+  animation at 120 ms, a frame mid-glide); `--tag x` names the variant in the
+  file name. `--plain` plays the same deal and turns as a normal table (no
+  Kartenhaus fields): the "normal table" to `--measure` a floor against.
+  `--stammtische 0-3` sets
   the remembered Stammtische (default 1; 3 is the start screen's tallest
   form). Any order works:
   a start-screen scene after `table` or a result reloads the start screen
@@ -72,20 +105,35 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   `lobby` shows the "Aufgaben" chip, and `year`, `year-mid`, `year-bots`,
   `year-end` (story cards), `year-image` (the share PNG, saved through the
   download fallback), `account-mail` (opt-in switch, simulated sign-in) and
-  `mail` (the review mail's HTML, full page) are available.
+  `mail` (the review mail's HTML, full page) are available. The snow starts
+  falling at load, so the `lobby` shot (~1 s) shows hardly a flake;
+  `--settle 8000` waits that long before it. It never falls at the table.
 - Prints the written PNG paths. Look at them with the Read tool; don't
   just trust that they exist.
 - `--audit` also checks every shot and writes `<out>/audit.md`: truncated
-  text (measured on the text itself), tap targets under 44 px (a hit area
+  text (measured on the text itself), text the screen edge cuts off (outside
+  a horizontal scroller), tap targets under 44 px (a hit area
   stretched by an absolute `::after` or the `<label>` row around a switch
   counts), icon buttons without a name, and a portrait start screen that
   needs scrolling. Findings are evidence to judge, not automatic failures;
   the `ui-review` skill explains how.
+- `--measure` writes `<out>/measure.json`: the rectangles of the table's
+  regions (melds, piles, hand, action bar, the Kartenhaus floor and start
+  card) per shot; with the Kartenhaus sheet open also the house, the play
+  button, how far the sheet and its side column scroll, the smallest floor
+  hit area and a floor card's size. Any other open sheet adds `sheet`: how
+  many screens it scrolls, where "Schließen" and the sound switch end and
+  whether "Schließen" shows without scrolling. Run the same scenes with
+  `SHOTS_ROOT=<origin/main worktree>` for the "before" numbers: a new table
+  element must not shrink `#melds` or `#handWrapper`. `--eval <file>` prints
+  a page expression per tower or `game-settings` scene (computed styles, grid
+  tracks) when a layout puzzles you.
 
 The script starts its own server on a **temp `PIKDAME_DATA_DIR`** and kills it
-afterwards. That matters: a dev server on `data/` keeps `users.db` open, and
-the next `npm test` then fails in `reconnect-race.test.js` with a SQLite
-"disk I/O error". Never leave a server of your own running on `data/`.
+afterwards. PostgreSQL is required: with `PIKDAME_TEST_PG_URL` set it uses a
+fresh schema of that database (like the tests), otherwise `PIKDAME_DATABASE_URL`.
+No database running? Skill `steward`, section "Local PostgreSQL".
+Never leave a server of your own running on `data/`.
 
 ## How the mocks work
 
@@ -107,6 +155,12 @@ Traps that cost time before:
 - **Signed-in look:** there is no real account in the mock. Use
   `--signed-in` (routes the account API) and say in the PR that it was
   simulated.
+- **Frozen frames and repeated sheets:** pausing animations does not pause
+  the page's timers (the Kartenhaus month change also ends by a timer), so
+  shoot every frame from a fresh start, as `tower-film` does. And
+  `page.click` scrolls inner scrollers to its target: a sheet reopened in
+  the same scene keeps that scroll (the landscape Kartenhaus side column
+  showed its legend cut off).
 
 ## What to check in the images
 
@@ -129,6 +183,13 @@ git add <topic> && git -c user.email=… -c user.name=… commit -m "screenshots
 git push origin pr-screenshots && git rev-parse HEAD
 cd - && git worktree remove --force /tmp/prshots
 ```
+
+A session confined to its own worktree can build the same commit without
+a checkout: `git hash-object -w` per file, `git mktree` for `<topic>/` and
+for the new root (the old root's `git ls-tree` lines plus the topic), `git
+commit-tree <tree> -p origin/pr-screenshots`, then `git push origin
+<sha>:refs/heads/pr-screenshots`. The REST Git Data API (blobs, trees)
+refuses writes from these sessions.
 
 In the PR, link images by **commit SHA**, not by branch name
 (`raw.githubusercontent.com/<owner>/<repo>/<sha>/<topic>/x.png`). GitHub

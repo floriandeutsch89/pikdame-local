@@ -12,15 +12,14 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const WebSocket = require('ws');
-const { createAccountStore } = require('../game/AccountStore');
+const { Pool } = require('pg');
+const { createPgAccountStore } = require('../game/PgAccountStore');
 const { gameDay } = require('../game/GameDay');
 const { REVIEW_MAIL_CONSENT_VERSION } = require('../game/YearReviewMail');
+const { testDatabaseUrl } = require('./helpers/test-db');
 
 const ROOT = path.join(__dirname, '..');
 let PORT = 0;
-const HAS_SQLITE = (() => {
-  try { require('node:sqlite'); return true; } catch (e) { return false; }
-})();
 
 function request(method, urlPath, body) {
   return new Promise((resolve, reject) => {
@@ -68,7 +67,7 @@ function wsAsk(msg, answerType) {
   });
 }
 
-test('year review over the WebSocket, opt-in switch and unsubscribe link', { skip: !HAS_SQLITE }, async (t) => {
+test('year review over the WebSocket, opt-in switch and unsubscribe link', async (t) => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-yrsrv-'));
   const year = gameDay().slice(0, 4);
   // A counted year for "Flo" (years.json), the confirmed accounts Flo and
@@ -81,8 +80,8 @@ test('year review over the WebSocket, opt-in switch and unsubscribe link', { ski
       bots: { hard: { games: 5, wins: 2 } }, tables: { familie: { name: 'Familie', games: 4, wins: 2 } },
     } } } },
   }));
-  const dbFile = path.join(dataDir, 'users.db');
-  const seed = createAccountStore(dbFile);
+  const databaseUrl = testDatabaseUrl('yrsrv');
+  const seed = createPgAccountStore(databaseUrl);
   const signUp = async (name) => {
     const reg = await seed.register(name, `${name.toLowerCase()}@example.com`, 'geheim123');
     await seed.verifyEmail(reg.verifyToken);
@@ -99,7 +98,7 @@ test('year review over the WebSocket, opt-in switch and unsubscribe link', { ski
 
   const server = spawn('node', ['server.js'], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_YEAR_REVIEW_PREVIEW: '1', PIKDAME_PUBLIC_MODE: '', PIKDAME_SMTP_HOST: '' },
+    env: { ...process.env, PIKDAME_DATABASE_URL: databaseUrl, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_YEAR_REVIEW_PREVIEW: '1', PIKDAME_PUBLIC_MODE: '', PIKDAME_SMTP_HOST: '' },
     stdio: 'ignore',
   });
   t.after(async () => {
@@ -137,10 +136,9 @@ test('year review over the WebSocket, opt-in switch and unsubscribe link', { ski
   const on = await request('POST', '/api/account/review-mail', { token, enabled: true, lang: 'en' });
   assert.deepStrictEqual(on.json, { ok: true, enabled: true });
   assert.strictEqual((await methods()).reviewMail, true);
-  const { DatabaseSync } = require('node:sqlite');
-  const raw = new DatabaseSync(dbFile);
-  const consent = raw.prepare('SELECT review_mail_consent AS v FROM users WHERE username = ?').get('Flo').v;
-  raw.close();
+  const raw = new Pool({ connectionString: databaseUrl, max: 1 });
+  const consent = (await raw.query('SELECT review_mail_consent AS v FROM users WHERE username = $1', ['Flo'])).rows[0].v;
+  await raw.end();
   assert.strictEqual(consent, REVIEW_MAIL_CONSENT_VERSION, 'the opt-in records the consent text version');
 
   // GET only asks: a link scanner opening the link changes nothing.

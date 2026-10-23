@@ -9,11 +9,11 @@
 // finale included: the start-up hint shows on the first start-screen shot.
 // --stammtische N (0-3, default 1): remembered Stammtische on the start screen.
 //
-// --audit also checks every shot for truncated text, tap targets < 44 px,
+// --audit also checks every shot for truncated or off-screen text, tap targets < 44 px,
 // icon buttons without a name and (start screen) content below the fold;
 // the report goes to <out>/audit.md.
 //
-// Views: phone (393x852), land (874x402), desk (1440x900), se (375x667), max (440x956), lap (1366x657).
+// Views: phone (393x852), land (874x402), desk (1440x900), se (375x667), max (440x956), lap (1366x657), nar (1100x680).
 // Scenes: lobby, lobby-open, progress, stats, stats-badges (trophy cabinet + a favourite's
 // detail; favourites show with --signed-in), history, roundend, roundend-stats, gameover,
 // gameover-stats (its Statistik tab: game totals open, new achievements),
@@ -21,25 +21,46 @@
 // puzzle / puzzle-turn / puzzle-out (one meld laid), puzzle-refused (two melds laid at once: refused), puzzle-solved (3 stars + the tile),
 // challenge (intro, attempt used),
 // gamelobby (seats + house rules), botdiff (the strength picker), gameover-challenge,
-// settings / settings-aids / settings-music (the start screen's "Mehr" sheet: top / play aids / music),
-// game-settings (the in-game gear sheet), music-hint (first click: music starts, one-time hint),
+// settings / settings-aids / settings-music (the start screen's "Optionen" sheet: top / play aids / music),
+// game-settings (the gear at a live engine table: the sheet on top, then scrolled to its end),
+// game-settings-debug (that sheet with the debug view on), home (the home dialog at the table, then
+// its forfeit button armed by a first tap),
+// sheet-reopen (settings sheet scrolled, closed, reopened), cardback (the card-back gallery), music-hint (first click: music starts, one-time hint),
 // account (the account sheet: level, season ladder; needs --signed-in),
 // account-mail (its year-review mail switch; needs --signed-in),
 // tower (the Kartenhaus sheet via its tile in "Aufgaben"), tower-detail (a tapped
-// locked floor 14), tower-motion (frames: month change, a landing star and a
-// wobble), gameover-tower (a floor verdict). --tower mid|new|high|crowned
-// picks the month in the mock (default mid: floors 1-8 built, 9 next).
+// locked floor 14), tower-motion (frames: month change, a dealt card and a
+// wobble), tower-film (the month change frozen at --film ms, then its end),
+// tower-skip (a real tap during the month change), gameover-tower (a floor verdict).
+// --tower mid|new|half|high|crowned|full picks the month in the mock (default mid:
+// floors 1-8 built, 9 next); --closed '{"13":"building"}' closes floors; --tag names the shot.
+// tower-start / tower-play / tower-sheet / tower-lock: a live Kartenhaus floor from the
+// engine (its deal, bots, head start): the start card before the first move, the floor
+// card mid-game, its rules sheet, a tap on the locked discard pile. --floor queen|goOut|
+// noDiscard|all (the floor with exactly that handicap, looked up in BotTower.js) or a number;
+// --take stock|pile: tower-play in my meld phase (action bar; after a pile take the undo chip).
+// --fold full|compact: the floor card as the player chose it (stored); without it the automatic
+// fold (in full for the first own turn, folded from the second); hidden: taken off the table by its ✕.
+// --plain: the same deal and turns as a normal table (no Kartenhaus fields), to --measure against.
+// --tap <selector>: tapped before the shot ('a;b' taps in order); --tag names the variant in the file name;
+// --tap-freeze <ms> holds every animation at that moment (a frame of a fold mid-glide).
+// --measure writes <out>/measure.json: the table regions (melds, hand, piles ...) per shot.
 // gameover-win (I win the match, a new badge), stats-empty (a brand-new name: statistics
 // empty state, then "Meine Partien" empty).
 // --lang en: the English client (text length). SHOTS_ROOT=<checkout>: shoot another
 // checkout with this script (before/after pictures from one set of scenes).
+// --light morning|noon|evening|night|HH:MM|now: the table light at that Berlin time
+// (default noon = the table without the light; now = the real clock).
 // --december: the client clock stands on 28 December and the server's year review
 // is mocked - adds the "Aufgaben" chip and the scenes year / year-mid / year-bots /
 // year-end (story cards), year-image (the share PNG, via the download fallback)
-// and mail (the review mail's HTML).
+// and mail (the review mail's HTML). --settle <ms> waits before the lobby shot
+// (the December snow starts at load and needs a few seconds to fall into view).
 // Start-screen scenes may follow table or result scenes in any order: the page
 // is reloaded to the start screen first.
 'use strict';
+// The tower scenes play engine games with a human seat: those are no human moves for training.
+process.env.PIKDAME_LOG_GAMES = '0';
 const { spawn } = require('child_process');
 const fs = require('fs');
 const os = require('os');
@@ -66,6 +87,7 @@ const VIEWS = {
   se: { width: 375, height: 667, mobile: true },
   max: { width: 440, height: 956, mobile: true }, // iPhone Pro Max: 15 cards still fit one row
   lap: { width: 1366, height: 657, mobile: false }, // 1366x768 laptop minus browser chrome
+  nar: { width: 1100, height: 680, mobile: false }, // the narrowest desktop layout
 };
 const views = arg('views', 'phone,land,desk').split(',');
 const scenes = arg('scenes', 'lobby,stats,history,roundend,gameover').split(',');
@@ -73,8 +95,21 @@ const AUDIT = process.argv.includes('--audit');
 const SIGNED_IN = process.argv.includes('--signed-in');
 const STILL = process.argv.includes('--reduced-motion'); // prefers-reduced-motion: reduce
 const DECEMBER = process.argv.includes('--december');
+const MEASURE = process.argv.includes('--measure');
 const TOWER_MOCK = arg('tower', 'mid');
 const TAP_MIN = 44; // CLAUDE.md --tap-min
+// --light: the table light follows the Berlin clock (public/table-light.js). Pinned to
+// noon by default, so table shots compare across the day; morning|evening|night|HH:MM|now.
+function lightCss(which) {
+  if (which === 'now') return '';
+  const hhmm = { morning: '08:30', noon: '13:00', evening: '20:00', night: '00:30' }[which] || which;
+  const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm);
+  if (!m) throw new Error(`--light ${which}: morning|noon|evening|night|HH:MM|now`);
+  let w = { m: 0, d: 1, e: 0, n: 0 };
+  try { w = require(path.join(ROOT, 'public', 'table-light.js')).phaseWeights(Number(m[1]) * 60 + Number(m[2])); } catch (e) { /* checkout without the light */ }
+  return `#table { ${['m', 'd', 'e', 'n'].map((k) => `--tod-${k}: ${w[k].toFixed(4)} !important;`).join(' ')} }`;
+}
+const LIGHT_CSS = lightCss(arg('light', 'noon'));
 // A normal UA: the server treats headless defaults as a crawler (no WebSocket).
 const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
 
@@ -187,9 +222,13 @@ const GAME_OVER_WIN = { ...GAME_OVER, totals: { p1: 1045, b1: 880, b2: 610, b3: 
 const TOWER_BEST = {
   mid: { 1: 3, 2: 3, 3: 3, 4: 2, 5: 2, 6: 2, 7: 1, 8: 1 },
   new: {},
+  half: { 1: 3, 2: 3, 3: 3, 4: 2, 5: 3, 6: 2, 7: 3, 8: 2, 9: 3, 10: 2, 11: 2, 12: 2 }, // 30 of 60 stars, 13 next
   high: { 1: 3, 2: 3, 3: 3, 4: 3, 5: 2, 6: 2, 7: 2, 8: 1, 9: 1, 10: 1, 11: 2, 12: 1, 13: 1 },
   crowned: { 1: 3, 2: 3, 3: 3, 4: 3, 5: 3, 6: 2, 7: 3, 8: 2, 9: 2, 10: 2, 11: 1, 12: 2, 13: 1, 14: 1, 15: 2, 16: 1, 17: 1, 18: 1, 19: 1, 20: 1 },
+  full: Object.fromEntries(Array.from({ length: 20 }, (_, i) => [i + 1, 3])), // all 60 stars
 };
+// --closed '{"13":"building","17":"locked"}': floors the server has no proven deal for yet.
+const TOWER_CLOSED = JSON.parse(arg('closed', '{}'));
 const TOWER_ARCHIVE = [
   { month: monthsBack(1), best: Object.fromEntries(Array.from({ length: 20 }, (_, i) => [i + 1, i < 6 ? 3 : i < 14 ? 2 : 1])) },
   { month: monthsBack(2), best: { 1: 3, 2: 2, 3: 2, 4: 1, 5: 1, 6: 1, 7: 1 } },
@@ -222,15 +261,17 @@ function kindPuzzle(kind) {
 // stammtisch-lobby: the next join is shown as a seat at the mock Stammtisch.
 let bindStammtisch = false;
 let emptyMe = false; // scene stats-empty: a brand-new name (no games, no history)
+let towerSceneBest = null; // tower-* scenes: one star already on the floor being played
 function rewrite(msg) {
   if (msg.type === 'joined' && bindStammtisch) msg.stammtisch = { code: 'STMOCK1', name: STAMMTISCH.name };
   if (msg.type === 'profiles') { msg.players = emptyMe ? PROFILES.slice(1) : PROFILES; msg.globalStats = GLOBAL_STATS; }
   if (msg.type === 'gameHistory') msg.games = emptyMe ? [] : HISTORY;
   if (msg.type === 'towerInfo') {
     const BT = require(path.join(ROOT, 'game', 'BotTower'));
-    const best = TOWER_BEST[TOWER_MOCK] || TOWER_BEST.mid;
+    const best = { ...(TOWER_BEST[TOWER_MOCK] || TOWER_BEST.mid), ...(towerSceneBest || {}) };
     const archive = TOWER_ARCHIVE.map((m) => ({ month: m.month, best: m.best, ...BT.summarize(m.best) }));
     Object.assign(msg, { best }, BT.summarize(best), { archive, totalStars: BT.summarize(best).stars + archive.reduce((n, m) => n + m.stars, 0) });
+    if (Object.keys(TOWER_CLOSED).length) msg.closed = TOWER_CLOSED;
   }
   // Like the server: favourite opponent and Stammtisch only for the signed-in owner.
   if (msg.type === 'yearReview' && DECEMBER) {
@@ -246,6 +287,105 @@ function rewrite(msg) {
     Object.assign(msg, { status: { tries: 1, solved: true, revealed: false, stars: 3 }, dayStars: 3, perfectStreak: { current: 4, best: 6 } });
   }
   return msg;
+}
+
+// --- Kartenhaus floors from the engine (tower-* scenes) ------------------------
+// The floor is looked up by its handicaps, so new deals or head starts in
+// BotTower.js never break the scenes. turns = how many of my turns are played.
+function towerStageFor(want) {
+  const BT = require(path.join(ROOT, 'game', 'BotTower'));
+  if (/^\d+$/.test(want)) return Number(want);
+  const hit = BT.TOWER_STAGES.find((s) => {
+    const mods = s.mods || [];
+    return want === 'all' ? mods.length === BT.MODS.length : mods.length === 1 && mods[0] === want;
+  });
+  if (!hit) throw new Error(`no Kartenhaus floor with --floor ${want}`);
+  return hit.stage;
+}
+function towerState(stage, turns, take = '') {
+  const BT = require(path.join(ROOT, 'game', 'BotTower'));
+  const GM = require(path.join(ROOT, 'game', 'GameManager'));
+  const month = BT.monthOf(TODAY);
+  const cfg = BT.stageConfig(stage, month);
+  const g = new GM(() => {}, { deckSeed: cfg.seed, towerStage: stage, towerMonth: month });
+  g.addOrReconnectPlayer('p1', ME);
+  g.syncLobbyBots();
+  g.startTowerRound();
+  let st = g.publicState('p1');
+  for (let mine = 0, guard = 0; mine < turns && g.phase === 'playing' && guard < 600; guard++) {
+    const cp = g.currentPlayer();
+    g.runBotTurn(cp.id, { forced: !cp.isBot });
+    const next = g.currentPlayer();
+    if (g.phase === 'playing' && next && next.id === 'p1' && g.turnPhase === 'draw') { mine += 1; st = g.publicState('p1'); }
+  }
+  // --take stock|pile: my draw is done, the meld phase shows the action bar (and the undo chip).
+  if (take && g.phase === 'playing' && g.currentPlayer().id === 'p1') {
+    if (take === 'pile' && g.canTakeDiscardTop(g.currentPlayer(), g.discardPile[0])) g.drawFromDiscard('p1');
+    else g.drawFromPile('p1');
+    st = g.publicState('p1');
+  }
+  g.destroy();
+  return st;
+}
+// A live table from the engine (game-settings, home): my draw turn after a few turns, melds laid.
+function tableState() {
+  const GM = require(path.join(ROOT, 'game', 'GameManager'));
+  const g = new GM(() => {}, { deckSeed: 7 });
+  g.maybeRunBotTurn = () => {}; // the turns are driven here (CLAUDE.md: bot timer off)
+  g.addOrReconnectPlayer('p1', ME);
+  g.fillWithBots();
+  g.startNewRound();
+  let st = g.publicState('p1');
+  for (let mine = 0, guard = 0; mine < 4 && g.phase === 'playing' && guard < 800; guard++) {
+    const cp = g.currentPlayer();
+    g.runBotTurn(cp.id, { forced: !cp.isBot });
+    const next = g.currentPlayer();
+    if (g.phase === 'playing' && next && next.id === 'p1' && g.turnPhase === 'draw') { mine += 1; st = g.publicState('p1'); }
+  }
+  g.destroy();
+  return st;
+}
+// Where the table's regions sit (--measure): the floor card must not cost the melds or the hand.
+function measurePage() {
+  const box = (sel) => {
+    const n = document.querySelector(sel);
+    if (!n || n.classList.contains('hidden')) return null;
+    const r = n.getBoundingClientRect();
+    return r.width || r.height ? { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) } : null;
+  };
+  const out = {};
+  for (const sel of ['#topBar', '#opponents', '#melds', '#centerPiles', '#drawPile', '#discardPile', '#towerBar', '#towerBar .tbCard', '#towerBar .tbFold', '#towerBar .tbHide', '#towerStart', '#actionBar', '#handWrapper', '#hand']) out[sel] = box(sel);
+  // The Kartenhaus sheet: the house, its play button, what scrolls and the smallest floor hit area.
+  const sheet = document.querySelector('#towerOverlay:not(.hidden) .overlay-card');
+  if (sheet) {
+    for (const sel of ['#towerHouse', '#towerDetail', '#towerDetail .khPlay', '#towerCloseBtn']) out[sel] = box(sel);
+    const side = sheet.querySelector('.khSide');
+    const hits = [...document.querySelectorAll('#towerHouse .khNewLayer .khHit, #towerHouse > svg > .khFloor .khHit')]
+      .map((h) => h.getBoundingClientRect()).map((r) => Math.round(Math.min(r.width, r.height) * 10) / 10);
+    // A floor card's own size (unrotated): its SVG size times the house's scale.
+    const svg = document.querySelector('#towerHouse svg');
+    const face = document.querySelector('#towerHouse .khFace');
+    const k = svg ? svg.getBoundingClientRect().width / svg.viewBox.baseVal.width : 0;
+    out.tower = { sheetScroll: sheet.scrollHeight - sheet.clientHeight, sideScroll: side ? side.scrollHeight - side.clientHeight : null,
+      minHit: hits.length ? Math.min(...hits) : null,
+      card: face && k ? `${(face.width.baseVal.value * k).toFixed(1)}x${(face.height.baseVal.value * k).toFixed(1)}` : null };
+  }
+  // Any other open sheet: how many screens it scrolls, where "Schließen" and the sound switch end
+  // (px from the sheet's top) and whether "Schließen" shows without scrolling.
+  const ov = [...document.querySelectorAll('.overlay:not(.hidden)')].pop();
+  const card = ov && !sheet && ov.querySelector('.overlay-card');
+  if (card) {
+    const cr = card.getBoundingClientRect();
+    const close = (ov.dataset.sheetClose && document.getElementById(ov.dataset.sheetClose)) || card.querySelector(':scope > .btn-secondary');
+    const sound = card.querySelector('label[for="soundCheckbox"], #soundToggle');
+    const end = (n) => Math.round(n.getBoundingClientRect().bottom - cr.top + card.scrollTop);
+    out.sheet = { id: ov.id, w: Math.round(cr.width), h: Math.round(cr.height), scrollH: card.scrollHeight, clientH: card.clientHeight,
+      screens: Math.round((card.scrollHeight / card.clientHeight) * 100) / 100,
+      closeEnd: close ? end(close) : null,
+      closeVisible: close ? close.getBoundingClientRect().bottom <= Math.min(cr.bottom, innerHeight) + 1 : null,
+      soundEnd: sound ? end(sound) : null };
+  }
+  return out;
 }
 
 // --- layout audit (runs in the page) ------------------------------------------
@@ -271,7 +411,14 @@ function auditPage(tapMin) {
     const text = (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40);
     return `${el.tagName.toLowerCase()}${id}${cls}${text ? ` "${text}"` : ''}`;
   };
-  const out = { truncated: [], smallTargets: [], unnamed: [], fold: null };
+  const out = { truncated: [], offscreen: [], smallTargets: [], unnamed: [], fold: null };
+  const vw = document.documentElement.clientWidth;
+  const inScroller = (el) => {
+    for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) {
+      if (/auto|scroll/.test(getComputedStyle(n).overflowX)) return true;
+    }
+    return false;
+  };
   for (const el of root.querySelectorAll('*')) {
     if (!visible(el) || el.closest('.seoIntro, .visuallyHidden')) continue;
     const cs = getComputedStyle(el);
@@ -284,6 +431,16 @@ function auditPage(tapMin) {
       const textW = range.getBoundingClientRect().width;
       const box = el.getBoundingClientRect().width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
       if (textW > box + 1) out.truncated.push(label(el));
+    }
+    // Text the screen edge cuts off: no box of its own clips it, the viewport does
+    // (English "Head start 160" ran past a landscape edge). Scrollers and pieces in flight are fine.
+    const own = [...el.childNodes].filter((n) => n.nodeType === 3 && n.textContent.trim());
+    if (own.length && !el.getAnimations().some((a) => a.playState === 'running')) {
+      const range = document.createRange();
+      range.setStartBefore(own[0]);
+      range.setEndAfter(own[own.length - 1]);
+      const tr = range.getBoundingClientRect();
+      if (tr.width && (tr.right > vw + 1 || tr.left < -1) && !inScroller(el)) out.offscreen.push(label(el));
     }
     const interactive = el.matches('button, a[href], input:not([type=hidden]), select, summary, [role=button]');
     if (interactive) {
@@ -329,7 +486,12 @@ function waitForHttp(port, ms = 20000) {
 
 (async () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-shots-data-'));
-  const server = spawn('node', ['server.js'], { cwd: ROOT, env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir }, stdio: 'ignore' });
+  // Postgres is mandatory: a fresh schema of the test database, like the tests use.
+  const databaseUrl = process.env.PIKDAME_TEST_PG_URL
+    ? require(path.join(ROOT, 'test/helpers/test-db.js')).testDatabaseUrl('uishots')
+    : process.env.PIKDAME_DATABASE_URL;
+  if (!databaseUrl) throw new Error('set PIKDAME_TEST_PG_URL (or PIKDAME_DATABASE_URL): the server needs PostgreSQL');
+  const server = spawn('node', ['server.js'], { cwd: ROOT, env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_DATABASE_URL: databaseUrl }, stdio: 'ignore' });
   // The server flushes its snapshot on SIGTERM: wait for it before deleting.
   const exited = new Promise((r) => server.once('exit', r));
   const cleanup = async () => {
@@ -340,6 +502,7 @@ function waitForHttp(port, ms = 20000) {
   const { chromium } = loadPlaywright();
   const written = [];
   const audits = [];
+  const measures = {};
   try {
     await waitForHttp(PORT);
     const browser = await chromium.launch();
@@ -362,6 +525,17 @@ function waitForHttp(port, ms = 20000) {
           if (!musicHint) localStorage.setItem('pikdame_music_hint', '1');
         } catch (e) { /* storage blocked */ }
       }, [ME, arg('theme', ''), scenes.includes('music-hint'), Math.max(0, Math.min(3, Number(arg('stammtische', 1)))), arg('lang', '')]);
+      if (LIGHT_CSS) {
+        await ctx.addInitScript((cssText) => {
+          document.addEventListener('DOMContentLoaded', () => {
+            const s = document.createElement('style');
+            s.textContent = cssText;
+            document.head.appendChild(s);
+          });
+        }, LIGHT_CSS);
+      }
+      // Phone views are iPhones: Safari has no Fullscreen API for pages, so no "Vollbild" row.
+      if (vp.mobile) await ctx.addInitScript(() => { delete Element.prototype.requestFullscreen; });
       if (SIGNED_IN) {
         await ctx.addInitScript(() => { try { localStorage.setItem('pikdame_account_token', 'mock-token'); } catch (e) { /* blocked */ } });
         await ctx.route('**/api/**', (route) => route.fulfill({ contentType: 'application/json',
@@ -399,8 +573,14 @@ function waitForHttp(port, ms = 20000) {
         await page.screenshot({ path: file });
         written.push(file);
         if (AUDIT) audits.push({ view: vn, scene: name, ...(await page.evaluate(auditPage, TAP_MIN)) });
+        if (MEASURE) measures[`${vn}-${name}`] = await page.evaluate(measurePage);
       };
       const inject = (obj) => sock.send(JSON.stringify(obj));
+      const toTable = async (st) => {
+        inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
+        inject({ type: 'state', state: st });
+        await page.waitForTimeout(1500); // the deal-in
+      };
       // A table/result scene leaves the start screen, and its buttons are then
       // invisible (clicks time out). Reload without the mock session, so the
       // client neither rejoins nor probes an unknown code (that blocks the IP).
@@ -410,10 +590,10 @@ function waitForHttp(port, ms = 20000) {
         await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(1200);
       };
-      const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|tower-detail|tower-motion|stats|stats-badges|stats-empty|history|settings|settings-aids|settings-music|game-settings|music-hint|challenge|challenge-open|stammtisch|account|account-mail|puzzle.*|year.*)$/;
+      const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|tower-detail|tower-rules|tower-motion|tower-film|tower-skip|stats|stats-badges|stats-empty|history|settings|settings-aids|settings-music|sheet-reopen|cardback|music-hint|challenge|challenge-open|stammtisch|account|account-mail|puzzle.*|year.*)$/;
       for (const sc of scenes) {
         if (LOBBY_SCENES.test(sc)) await toStart();
-        if (sc === 'lobby') await shot('lobby');
+        if (sc === 'lobby') { await page.waitForTimeout(Number(arg('settle', 0))); await shot('lobby'); }
         if (/^year(-mid|-bots|-end)?$/.test(sc)) {
           await page.click('#yearReviewBtn'); await page.waitForTimeout(400);
           const steps = { year: 0, 'year-mid': 2, 'year-bots': 5, 'year-end': 99 }[sc];
@@ -534,26 +714,69 @@ function waitForHttp(port, ms = 20000) {
           await page.click('#progressCloseBtn');
         }
         if (sc === 'tower' || sc === 'tower-detail' || sc === 'tower-rules') {
-          await page.click('#towerTile'); await page.waitForTimeout(2800); // after the first-visit build-up
-          if (sc === 'tower-detail') { await page.click('#towerHouse [data-stage="14"]'); await page.waitForTimeout(400); }
+          // After the first-visit deal (--tower-wait: another moment of it).
+          await page.click('#towerTile'); await page.waitForTimeout(Number(arg('tower-wait', 2800)));
+          if (sc === 'tower-detail') { await page.click(`#towerHouse [data-stage="${arg('stage', '14')}"]`); await page.waitForTimeout(400); }
           if (sc === 'tower-rules') {
             await page.evaluate(() => { const d = document.getElementById('towerRulesBox'); d.open = true; d.scrollIntoView({ block: 'center' }); });
             await page.waitForTimeout(400);
           }
-          await shot(sc);
+          if (arg('eval', '')) console.log(`${vn}-${sc}:`, JSON.stringify(await page.evaluate(fs.readFileSync(arg('eval', ''), 'utf8'))));
+          await shot(arg('tag', '') ? `${sc}-${arg('tag', '')}` : sc); // --tag half: one name per mock month
           await page.click('#towerCloseBtn');
         }
-        // Motion frames: a new month collapses and rises, a new star lands next to
-        // a lost try's wobble, and (--tower crowned) the Queen of Spades lands.
+        // The month change frozen at --film times (ms; every house animation paused there),
+        // then its end: last month's crowned house (the archive) is collected, the new one appears.
+        if (sc === 'tower-film') {
+          const from = TOWER_ARCHIVE[0];
+          const lastMonth = JSON.stringify({ name: ME, month: from.month, best: from.best, crowned: Object.keys(from.best).length >= 20 });
+          // A fresh show per frame: the client ends a show by a timer, too, should it never finish.
+          for (const t of [...arg('film', '0,400,800,1200,1700,2300').split(',').map(Number), 'end']) {
+            await page.evaluate(([v]) => localStorage.setItem('pikdame_tower_seen', v), [lastMonth]);
+            await page.click('#towerTile'); await page.waitForTimeout(t === 'end' ? 3200 : 60);
+            if (t !== 'end') {
+              await page.evaluate((ms) => document.getElementById('towerHouse').getAnimations({ subtree: true })
+                .forEach((a) => { a.pause(); a.currentTime = ms; }), t);
+              await page.waitForTimeout(80);
+            }
+            await shot(`tower-film-${t === 'end' ? 'end' : String(t).padStart(4, '0')}`);
+            await page.click('#towerCloseBtn'); await page.waitForTimeout(300);
+          }
+        }
+        // A tap (touch on phones) on floor 5 during the month change: it skips to the end and
+        // picks nothing (printed: running show, picked floor, detail title).
+        if (sc === 'tower-skip') {
+          const from = TOWER_ARCHIVE[0];
+          await page.evaluate(([v]) => localStorage.setItem('pikdame_tower_seen', v),
+            [JSON.stringify({ name: ME, month: from.month, best: from.best, crowned: true })]);
+          await page.click('#towerTile'); await page.waitForTimeout(600);
+          const hit = await page.$('#towerHouse .khNewLayer [data-stage="5"] .khHit');
+          const b = await hit.boundingBox();
+          if (VIEWS[vn].mobile) await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2);
+          else await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+          await page.waitForTimeout(300);
+          console.log(`${vn}-tower-skip:`, JSON.stringify(await page.evaluate(() => ({
+            busy: document.getElementById('towerHouse').classList.contains('khBusy'),
+            picked: [...document.querySelectorAll('#towerHouse [aria-pressed="true"]')].map((g) => g.dataset.stage),
+            detail: document.querySelector('#towerDetail .khDTitle').textContent,
+          }))));
+          await shot('tower-skip');
+          await page.click('#towerCloseBtn'); await page.waitForTimeout(300);
+        }
+        // Motion frames: a new month is collected (frozen at 800 ms) and has appeared, a new
+        // card is dealt next to a lost try's wobble, and (--tower crowned) the Queen of Spades lands.
         if (sc === 'tower-motion') {
           const best = TOWER_BEST[TOWER_MOCK] || TOWER_BEST.mid;
           const seen = (month, b, crowned = false) => page.evaluate(([v]) => localStorage.setItem('pikdame_tower_seen', v),
             [JSON.stringify({ name: ME, month, best: b, crowned })]);
           await seen(monthsBack(1), TOWER_ARCHIVE[1].best);
-          await page.click('#towerTile'); await page.waitForTimeout(380);
-          await shot('tower-motion-1-collapse');
-          await page.waitForTimeout(1050);
-          await shot('tower-motion-2-rise');
+          await page.click('#towerTile'); await page.waitForTimeout(150);
+          await page.evaluate(() => document.getElementById('towerHouse').getAnimations({ subtree: true }).forEach((a) => { a.pause(); a.currentTime = 800; }));
+          await page.waitForTimeout(80);
+          await shot('tower-motion-1-collect');
+          await page.evaluate(() => document.getElementById('towerHouse').getAnimations({ subtree: true }).forEach((a) => a.play()));
+          await page.waitForTimeout(2600);
+          await shot('tower-motion-2-new');
           await page.click('#towerCloseBtn'); await page.waitForTimeout(300);
           const top = Math.max(...Object.keys(best).map(Number));
           const before = { ...best }; delete before[top];
@@ -577,12 +800,61 @@ function waitForHttp(port, ms = 20000) {
           await page.click('#lobby h1'); await page.waitForTimeout(1800);
           await shot('music-hint');
         }
-        if (sc === 'game-settings') {
-          // The in-game gear sheet, opened over the start screen: same markup and styles.
-          await page.evaluate(() => document.getElementById('gameSettingsOverlay').classList.remove('hidden'));
-          await page.waitForTimeout(300);
-          await shot('game-settings');
-          await page.evaluate(() => document.getElementById('gameSettingsOverlay').classList.add('hidden'));
+        if (sc === 'game-settings' || sc === 'game-settings-debug' || sc === 'home') {
+          // A live engine table (or --state), then the gear's sheet / the home dialog. Whatever
+          // overlay opens is shot and measured, so SHOTS_ROOT=<older checkout> shoots its sheet.
+          await toTable(arg('state', '') ? JSON.parse(fs.readFileSync(arg('state', ''), 'utf8')) : tableState());
+          const card = () => page.evaluate(() => {
+            const o = [...document.querySelectorAll('.overlay:not(.hidden)')].pop();
+            return o ? `#${o.id} .overlay-card` : null;
+          });
+          if (sc === 'home') {
+            await page.click('#homeBtn'); await page.waitForTimeout(500);
+            await shot('home');
+            if (await page.isVisible('#homeOverlay #forfeitBtn')) {
+              await page.click('#forfeitBtn'); await page.waitForTimeout(200);
+              await shot('home-armed');
+            }
+            await page.click('#homeCancelBtn'); await page.waitForTimeout(300);
+          } else {
+            await page.click('#settingsBtn'); await page.waitForTimeout(600);
+            const sel = await card();
+            if (arg('eval', '')) console.log(`${vn}-${sc}:`, JSON.stringify(await page.evaluate(fs.readFileSync(arg('eval', ''), 'utf8'))));
+            if (sc === 'game-settings-debug') {
+              await page.evaluate(() => {
+                const box = document.getElementById('debugCheckbox') || document.getElementById('debugBtn');
+                box.click(); box.scrollIntoView({ block: 'center' });
+              });
+              await page.waitForTimeout(300);
+              await shot(sc);
+              await page.evaluate(() => (document.getElementById('debugCheckbox') || document.getElementById('debugBtn')).click());
+            } else {
+              await shot('game-settings');
+              await page.evaluate((s) => { const c = document.querySelector(s); c.scrollTop = c.scrollHeight; }, sel);
+              await page.waitForTimeout(250);
+              await shot('game-settings-end');
+            }
+            await page.evaluate((s) => { const o = document.querySelector(s).closest('.overlay'); o.classList.add('hidden'); }, sel);
+            await page.waitForTimeout(200);
+          }
+        }
+        if (sc === 'sheet-reopen') {
+          // Scroll the settings sheet down, close, reopen: it must be at the top again.
+          await page.click('#settingsBtnLobby'); await page.waitForTimeout(400);
+          await page.evaluate(() => { const c = document.querySelector('#settingsOverlay .overlay-card'); c.scrollTop = c.scrollHeight; });
+          await page.waitForTimeout(200);
+          await page.click('#settingsOverlayCloseBtn'); await page.waitForTimeout(300);
+          await page.click('#settingsBtnLobby'); await page.waitForTimeout(500);
+          await shot('sheet-reopen');
+          await page.click('#settingsOverlayCloseBtn');
+        }
+        if (sc === 'cardback') {
+          await page.click('#settingsBtnLobby'); await page.waitForTimeout(400);
+          await page.evaluate(() => document.getElementById('cardbackBtn').click());
+          await page.waitForTimeout(400);
+          await shot('cardback');
+          await page.evaluate(() => document.querySelector('.cardbackGallery').remove());
+          await page.click('#settingsOverlayCloseBtn');
         }
         if (sc === 'account') {
           await page.click('#accountBtn'); await page.waitForTimeout(700);
@@ -633,6 +905,48 @@ function waitForHttp(port, ms = 20000) {
           await page.waitForTimeout(200);
           await shot('table');
         }
+        if (/^tower-(start|play|sheet|lock)$/.test(sc)) {
+          // A live Kartenhaus floor: a fresh page each time, so the start card is
+          // shown once per scene (the client remembers it per game code).
+          const want = arg('floor', 'goOut');
+          const stage = towerStageFor(want);
+          const live = towerState(stage, sc === 'tower-start' ? 0 : Number(arg('turns', 3)), sc === 'tower-play' ? arg('take', '') : '');
+          // --plain: the same deal and turns without the Kartenhaus fields - a normal table to --measure against.
+          const st = process.argv.includes('--plain') ? Object.fromEntries(Object.entries(live).filter(([k]) => !k.startsWith('tower'))) : live;
+          towerSceneBest = { [stage]: 1 };
+          // --fold full|compact: the player's fold; hidden: the card taken off the table by its ✕.
+          await page.evaluate(([fold]) => {
+            try {
+              localStorage.removeItem('pikdame_tower_intro'); localStorage.removeItem('pikdame_last_session');
+              if (['full', 'compact'].includes(fold)) localStorage.setItem('pikdame_tower_fold', fold); else localStorage.removeItem('pikdame_tower_fold');
+              if (fold === 'hidden') localStorage.setItem('pikdame_tower_hidden', '1'); else localStorage.removeItem('pikdame_tower_hidden');
+            } catch (e) { /* blocked */ }
+          }, [arg('fold', '')]);
+          await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
+          await page.waitForTimeout(1200);
+          inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
+          inject({ type: 'state', state: st });
+          await page.waitForTimeout(1800); // deal-in and the start card
+          // Not the start scene: "Los" was tapped long ago (as in a real game).
+          if (sc !== 'tower-start' && await page.isVisible('#towerStartBtn')) { await page.click('#towerStartBtn'); await page.waitForTimeout(800); }
+          if (sc === 'tower-sheet') { await page.click('#towerBar .tbCard'); await page.waitForTimeout(500); }
+          // --tap 'a;b': taps in order (e.g. '#settingsBtn;#towerPanelBtn': the gear's way back to a hidden card).
+          const taps = arg('tap', '').split(';').filter(Boolean);
+          for (const [i, sel] of taps.entries()) {
+            await page.click(sel);
+            if (i < taps.length - 1) await page.waitForTimeout(400);
+          }
+          if (taps.length) {
+            if (arg('tap-freeze', '')) await page.evaluate((ms) => document.getAnimations().forEach((a) => { a.pause(); a.currentTime = ms; }), Number(arg('tap-freeze', 0)));
+            else await page.waitForTimeout(700);
+          }
+          if (sc === 'tower-lock') { await page.click('#discardTopCard'); await page.waitForTimeout(500); }
+          if (arg('css', '')) await page.addStyleTag({ content: fs.readFileSync(arg('css', ''), 'utf8') });
+          // --eval <file>: an expression evaluated in the page, printed (layout debugging).
+          if (arg('eval', '')) console.log(`${vn}-${sc}:`, JSON.stringify(await page.evaluate(fs.readFileSync(arg('eval', ''), 'utf8'))));
+          await shot(`${sc}-${want}${arg('tag', '') ? `-${arg('tag', '')}` : ''}`); // --tag: one name per variant
+          towerSceneBest = null;
+        }
         if (sc === 'gameover-tower') {
           inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
           inject({ type: 'state', state: TOWER_STATE });
@@ -675,12 +989,17 @@ function waitForHttp(port, ms = 20000) {
     await cleanup();
   }
   console.log(written.join('\n'));
+  if (MEASURE) {
+    fs.writeFileSync(path.join(OUT, 'measure.json'), JSON.stringify(measures, null, 1));
+    console.log(`measure: ${path.join(OUT, 'measure.json')}`);
+  }
   if (AUDIT) {
     const lines = ['# UI audit', ''];
     let findings = 0;
     for (const a of audits) {
       const items = [
         ...a.truncated.map((t) => `- **truncated** ${t}`),
+        ...a.offscreen.map((t) => `- **off screen** ${t}`),
         ...a.smallTargets.map((t) => `- **tap target < ${TAP_MIN}px** ${t}`),
         ...a.unnamed.map((t) => `- **icon button without a name** ${t}`),
         ...(a.fold ? [`- **below the fold** ${a.fold}`] : []),

@@ -7,6 +7,7 @@ Everything needed to run Pik Dame for other people.
 
 configuration
 admin-page
+play-attempts
 mail
 backup-restore
 auto-deploy
@@ -22,6 +23,7 @@ operations
 | --- | --- |
 | Which environment variables exist, and what do they do? | {doc}`configuration` |
 | **What is missing in my setup?** Startup report, `/admin` page, test mail | {doc}`admin-page` |
+| Where players get stuck in the Kartenhaus, the daily puzzle and the tutorial, and why (90 days of attempts) | {doc}`play-attempts` |
 | Send account-confirmation mails (SMTP) | {doc}`mail` |
 | **Back up my data — and prove the restore works** | {doc}`backup-restore` |
 | Run a trained (ONNX) bot instead of the heuristic one | {doc}`onnx` |
@@ -38,18 +40,24 @@ All persistent data lives in **one directory**, mounted into the container at
 
 | File | Contents |
 | --- | --- |
-| `players.json` | Player profiles, statistics, achievements |
 | `stats.json` | Anonymous global server statistics |
 | `games.json` | Game history |
-| `challenges.json` | Daily-challenge leaderboard and the day's ranked attempts (14-day retention) |
-| `users.db` | Accounts — **only** when using SQLite (with PostgreSQL they live in the database) |
-| `sessions-snapshot.json` | Running tables, written every minute and on shutdown so games survive a restart or crash |
+| `sessions-snapshot.json` | Running tables and open daily-puzzle attempts, written every minute and on shutdown so games survive a restart or crash |
+
+Accounts, player profiles (statistics, badges, progress; `players` and its
+`player_*` tables), the Stammtische (`stammtische` and its `stammtisch_*`
+tables), the daily challenge (leaderboard and the day's ranked attempts, 14-day
+retention) and the Kartenhaus, puzzle and tutorial attempts ({doc}`play-attempts`,
+90 days) live in PostgreSQL. A `players.json` or `stammtisch.json` from an older
+version is imported on the first start and renamed to `….json.migrated`
+(`[db] players.json: imported … profiles …`, `[db] stammtisch.json: imported …
+Stammtische …` in the log).
 
 If that directory is not writable, **nothing is saved** and everything is lost on
 restart. Since v1.54.4 the server checks this at startup and says so loudly:
 
 ```
-Datenverzeichnis beschreibbar: /app/data [players.json 4821B, stats.json 812B, ...]
+Datenverzeichnis beschreibbar: /app/data [stats.json 812B, games.json 4821B, ...]
 ```
 
 or, if something is wrong:

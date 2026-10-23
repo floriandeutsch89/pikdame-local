@@ -58,7 +58,7 @@ after 48 h, login is refused until the address is confirmed, and expired
 unconfirmed accounts are purged so they cannot block a name or address
 forever), IP rate limits on the join and account APIs, session cap (`PIKDAME_MAX_SESSIONS`), name
 protection for verified accounts, atomic file persistence, parameterized
-SQL queries against PostgreSQL (SQLite fallback in WAL mode), process-level
+SQL queries against PostgreSQL, process-level
 safety nets with a crash log instead of a crash.
 
 ## Secrets in the repository

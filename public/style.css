@@ -43,8 +43,13 @@
   --accent-2: #14b394;
   --accent-ink: #03241b;
   --accent-soft: rgba(47,214,176,0.2);
+  /* Draw marker, never the selection colour. Default here, not in the later :root
+     block: that one has the same specificity and beat felt's override. */
+  --drawn: #ffc53d;
   --text: #f2f5f7;
-  --text-muted: rgba(226,234,238,0.6);
+  /* Muted text: 4.5:1 on the felt, its glass and the pills on it (test/theme-cascade).
+     Each theme tunes only the alpha of its own tint. */
+  --text-muted: rgba(226,234,238,0.71);
   --danger: #ff7d7d;
   --success: #43dd9a;
   /* Ink for text and controls on the light dialog paper (test/theme-contrast). */
@@ -77,7 +82,7 @@
   --accent-ink: #0c0c2a;
   --accent-soft: rgba(143,144,248,0.22);
   --text: #eef0fb;
-  --text-muted: rgba(210,215,240,0.55);
+  --text-muted: rgba(210,215,240,0.71);
   --danger: #ff7d8c;
   --success: #4fd9ab;
   --paper-accent: #5f5db8;
@@ -111,7 +116,7 @@
   --accent-ink: #2a2005;
   --accent-soft: rgba(233,200,106,0.22);
   --text: #f2f7f2;
-  --text-muted: rgba(220,235,222,0.55);
+  --text-muted: rgba(220,235,222,0.9);
   --danger: #ff8a80;
   --success: #6fe0a8;
   --paper-accent: #806400;
@@ -143,7 +148,7 @@
   --accent-ink: #37081e;
   --accent-soft: rgba(249,127,178,0.24);
   --text: #fdf0f5;
-  --text-muted: rgba(248,220,232,0.6);
+  --text-muted: rgba(248,220,232,0.88);
   --danger: #ff8f9e;
   --success: #5fdcae;
   --paper-accent: #b14475;
@@ -217,11 +222,6 @@
   --z-splash: 900;
   --z-debug: 9998;
 
-  /* Marker for a freshly drawn card. Deliberately NOT --accent: the
-     selection ring is --accent, and with both in the same colour a drawn
-     card vanished among selected ones (playthrough finding). Themes whose
-     accent is close to amber override it (see felt). */
-  --drawn: #ffc53d;
   /* Tutorial spotlight: neutral light, so it never matches an accent, the
      drawn marker or a joker in any theme (kitchen turns it dark). */
   --coach: #ffffff;
@@ -558,12 +558,23 @@ button:focus-visible, input:focus-visible, select:focus-visible {
    wrapped second line starts under the text, not under the icon. */
 .overlay-card h2.iconTitle { display: flex; align-items: flex-start; gap: 9px; }
 .overlay-card h2.iconTitle .icon { width: 1.1em; height: 1.1em; margin-top: 0.08em; vertical-align: 0; }
-#openGameOverlay .btn-danger {
+#openGameOverlay .btn-danger, #homeOverlay .btn-danger {
   width: 100%; min-height: var(--ctl-h); margin-top: 8px;
   display: inline-flex; align-items: center; justify-content: center;
   font-size: var(--fs-body);
 }
-#openGameOverlay .btn-danger.armed { box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 45%, transparent); }
+#openGameOverlay .btn-danger.armed, #homeOverlay .btn-danger.armed { box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 45%, transparent); }
+/* Home dialog: what giving up costs, right under its button (a hint belongs to its control). */
+.forfeitHint { margin: 6px 4px 0; }
+/* ~400 px high: text left, actions right, like the round result - stacked, the
+   forfeit button pushed "Abbrechen" off the sheet. */
+@media (orientation: landscape) and (max-height: 540px) {
+  #homeOverlay .homeCard {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 40%);
+    column-gap: 20px; align-items: start; max-width: 720px;
+  }
+  #homeOverlay .homeActions > :first-child { margin-top: 0; }
+}
 
 /* Impressum / Datenschutz */
 .legal-link {
@@ -726,8 +737,6 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .segStack .segBtn { flex-direction: column; gap: 3px; padding: 5px 2px; }
 .segStack .lvlSlot { --lvl-h: 12px; height: calc(var(--lvl-h) * 1.528); }
 
-.reconnectTag { color: var(--accent); font-weight: 500; font-size: 0.65rem; }
-
 /* ============================ SPIELTISCH ============================ */
 
 #table {
@@ -761,6 +770,93 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   mix-blend-mode: overlay;
   pointer-events: none;
   z-index: -1;
+}
+
+/* ============================ TABLE LIGHT ============================
+   The light follows the time of day: client.js writes only --tod-m/d/e/n, every
+   colour is the theme's own felt. Noon = the look above (docs/developer/table-light.md). */
+:root {
+  /* Card shadows the light turns; outside the table and by day exactly these. */
+  --cast: 0 3px 8px rgba(0, 0, 0, 0.28);
+  --cast-far: 0 0 transparent;
+}
+#table { --tod-m: 0; --tod-d: 1; --tod-e: 0; --tod-n: 0; }
+/* More contrast asked for: the light stays at day (!important beats the inline weights). */
+@media (prefers-contrast: more) {
+  #table { --tod-m: 0 !important; --tod-d: 1 !important; --tod-e: 0 !important; --tod-n: 0 !important; }
+}
+/* Relative colours with numeric channels and gradient colour spaces (iOS 18+);
+   otherwise the day look stays, shadows included. */
+@supports (color: oklab(from #000 calc(l * 1) calc(a + 0.01) calc(b - 0.01))) and (background-image: radial-gradient(in srgb, #000, #fff)) {
+  #table {
+    /* Light budget of the dark graphite; the other themes below. Dark themes
+       never get lighter under text: mornings are cooler, not brighter. */
+    --lamp-l: 0.03;  /* the lamp's lift over the day felt (text-contrast headroom) */
+    --lamp-night: 0; /* 1: the lamp keeps that lift at night */
+    --lift: 0;       /* morning lightness */
+    --warm-a: 0.012; --warm-b: 0.032; --warm-n: 0.5;
+    /* --cool-l: the cooler morning raised WCAG luminance at equal OKLab lightness. */
+    --cool-a: -0.006; --cool-b: -0.026; --cool-l: -0.005;
+    --dim-e: 0.12; --dim-n: 0.30; --desat-n: 0.30;
+    --far-k: 1;
+    /* The room: a little warmth, 12 % darker in the evening, 30 % at night. */
+    --felt: oklab(from var(--bg)
+      calc(l * (1 + var(--tod-m) * (var(--lift) + var(--cool-l)) - var(--tod-e) * var(--dim-e) - var(--tod-n) * var(--dim-n)))
+      calc(a * (1 - var(--tod-n) * var(--desat-n)) + (var(--tod-e) + var(--tod-n) * var(--warm-n)) * var(--warm-a) * 0.35 + var(--tod-m) * var(--cool-a))
+      calc(b * (1 - var(--tod-n) * var(--desat-n)) + (var(--tod-e) + var(--tod-n) * var(--warm-n)) * var(--warm-b) * 0.35 + var(--tod-m) * var(--cool-b)));
+    /* The hanging lamp: the felt at day lightness (+ --lamp-l), warm; at night dimmer and smaller. */
+    --pool-c: oklab(from var(--bg)
+      calc(l * (1 + (var(--tod-e) + var(--tod-n) * var(--lamp-night)) * var(--lamp-l) - var(--tod-n) * var(--dim-n) * 0.45))
+      calc(a * (1 - var(--tod-n) * var(--desat-n) * 0.5) + (var(--tod-e) + var(--tod-n)) * var(--warm-a) * 1.5)
+      calc(b * (1 - var(--tod-n) * var(--desat-n) * 0.5) + (var(--tod-e) + var(--tod-n)) * var(--warm-b) * 1.5)
+      / calc(var(--tod-e) + var(--tod-n)));
+    --pool-w: calc(96% - var(--tod-n) * 26%);
+    --pool-h: calc(68% - var(--tod-n) * 18%);
+    --window-c: transparent; /* the morning window band: kitchen only */
+    --daylight: color-mix(in srgb, var(--bg-glow) calc((var(--tod-m) + var(--tod-d)) * 100%), transparent);
+    --room-in: calc(var(--tod-m) * 56% + var(--tod-d) * 55% + var(--tod-e) * 30% + var(--tod-n) * 20%);
+    --room-ink: rgb(0 0 0 / calc(var(--tod-m) * 0.42 + var(--tod-d) * 0.42 + var(--tod-e) * 0.62 + var(--tod-n) * 0.74));
+    /* Card shadows: morning window light from the upper left, the lamp from above. */
+    --cast-x: calc(var(--tod-m) * 2px);
+    --cast-y: calc(var(--tod-m) * 3px + var(--tod-d) * 3px + var(--tod-e) * 8px + var(--tod-n) * 7px);
+    --cast-b: calc(var(--tod-m) * 6px + var(--tod-d) * 8px + var(--tod-e) * 15px + var(--tod-n) * 15px);
+    --cast-a: calc(var(--tod-m) * 0.24 + var(--tod-d) * 0.28 + var(--tod-e) * 0.40 + var(--tod-n) * 0.44);
+    --far-y: calc(var(--tod-e) * 13px + var(--tod-n) * 10px);
+    --far-b: calc(var(--tod-e) * 22px + var(--tod-n) * 20px);
+    --far-a: calc(var(--tod-e) * 0.26 + var(--tod-n) * 0.28);
+    --cast: var(--cast-x) var(--cast-y) var(--cast-b) rgb(0 0 0 / var(--cast-a));
+    --cast-far: calc(var(--cast-x) * 1.5) calc(var(--far-y) * var(--far-k)) calc(var(--far-b) * var(--far-k)) rgb(0 0 0 / calc(var(--far-a) * var(--far-k)));
+    /* The layers of #table above, plus the lamp and the window. color-mix() makes
+       the glow a modern colour: without "in srgb" it would blend in OKLab, not as today. */
+    background:
+      radial-gradient(in srgb 130% 60% at 50% -5%, var(--daylight) 0%, transparent 58%),
+      radial-gradient(78% 34% at 50% 78%, var(--spot) 0%, transparent 72%),
+      radial-gradient(var(--pool-w) var(--pool-h) at 50% 44%, var(--pool-c) 0%, var(--pool-c) 22%, transparent 74%),
+      radial-gradient(70% 15% at 8% 0%, var(--window-c) 0%, transparent 100%),
+      radial-gradient(140% 100% at 50% 45%, transparent var(--room-in), var(--room-ink) 100%),
+      var(--felt);
+  }
+  [data-theme="night"] #table { --lamp-l: 0; --warm-b: 0.010; --cool-l: -0.008; } /* lamp light turns the indigo violet, not brown */
+  [data-theme="felt"] #table { --lamp-l: 0; --warm-a: 0.004; --warm-b: 0.028; --cool-a: -0.004; --cool-b: -0.016; --cool-l: -0.012; }
+  /* Red felts cool towards blue only: pulling them towards green lifted the luminance. */
+  [data-theme="love"] #table { --lamp-l: 0; --cool-a: 0; --cool-l: -0.006; }
+  [data-theme="bordeaux"] #table { --lamp-l: 0.01; --cool-a: 0; --cool-l: -0.009; }
+  /* Kitchen: dark ink on light wood, so lighter means more contrast. It never
+     darkens; the glow and the vignette stay, the lamp lifts the middle. */
+  [data-theme="kitchen"] #table {
+    --lift: 0.025; --lamp-l: 0.03; --lamp-night: 1;
+    --warm-a: 0.006; --warm-b: 0.026; --warm-n: 1;
+    --cool-a: -0.004; --cool-b: -0.020; --cool-l: 0;
+    --dim-e: -0.024; --dim-n: -0.008; --desat-n: 0;
+    --far-k: 0.35; /* a long cast fell onto the pile labels */
+    --window-c: oklab(from var(--bg-glow) calc(l * 1.03) calc(a + var(--cool-a) * 1.6) calc(b + var(--cool-b) * 1.6) / var(--tod-m));
+    --daylight: var(--bg-glow);
+    --room-in: 55%;
+    --room-ink: var(--vignette);
+    --cast-a: calc(var(--tod-m) * 0.20 + var(--tod-d) * 0.28 + var(--tod-e) * 0.32 + var(--tod-n) * 0.32);
+    /* A wider blur reached up into the meld headers above the cards (dark ink). */
+    --cast-b: calc(var(--tod-m) * 6px + var(--tod-d) * 8px + var(--tod-e) * 12px + var(--tod-n) * 12px);
+  }
 }
 
 #topBar {
@@ -841,9 +937,22 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   flex-wrap: nowrap;
 }
 #opponents .opponent { flex: 1 1 0; min-width: 0; max-width: 180px; }
-#opponents .opName {
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+#opponents .opName { white-space: nowrap; }
+/* Only the name clips: a clipping row cut a breathing face's ring (and gave no ellipsis). */
+#opponents .opNameText { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Three chips at 375 px are 114 px wide: 8 px sides (a ring keeps 3 px to the border) and
+   the star on the face leave the name 63 px, the widest bot name needs 53. */
+#opponents .opponent { padding-left: 8px; padding-right: 8px; }
+.opponent { --op-face: 26px; }
+.opponent .opAvatar { width: var(--op-face); height: var(--op-face); }
+.opSeat { position: relative; display: inline-flex; flex: 0 0 auto; margin-right: 7px; }
+.opSeat > .opAvatar { margin-right: 0; }
+.opSeat > .opDealer {
+  position: absolute; right: -5px; bottom: -2px; z-index: 1;
+  width: 15px; height: 15px; border-radius: 50%; display: grid; place-items: center;
+  color: var(--accent); background: var(--bg); box-shadow: var(--shadow-1); /* the felt: the star keeps its contrast */
 }
+.opSeat > .opDealer .dealerIcon { width: 11px; height: 11px; vertical-align: 0; }
 .opponent {
   background: var(--glass);
   border: 1px solid var(--glass-border);
@@ -862,9 +971,13 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 /* Cards as icon + number, the total right above the end of its progress bar
    (was "1 Kt · 0 Pkt"). */
 .opponent .opCount {
-  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  display: flex; align-items: center; gap: 6px;
   color: var(--text-muted); font-weight: 500;
 }
+/* The count starts under the name (under the face, the ring and the star covered the
+   cards icon); only a narrow chip with wide numbers takes some of that indent back. */
+.opponent .opCount::before { content: ''; flex: 0 1 calc(var(--op-face) + 7px - 6px); }
+.opponent .opPts { margin-left: auto; }
 .opCards { display: inline-flex; align-items: center; gap: 3px; }
 .opCards .icon { width: 1.15em; height: 1.15em; opacity: 0.75; vertical-align: 0; }
 /* Play aid "low-card warning": a tag on the bottom edge, so the chip keeps
@@ -949,7 +1062,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   color: var(--card-ink);
   display: flex; align-items: center; justify-content: center;
   font-weight: 800; font-size: 0.9rem;
-  box-shadow: var(--shadow-2), inset 0 1px 0 rgba(255,255,255,0.7);
+  box-shadow: var(--shadow-2), var(--cast-far), inset 0 1px 0 rgba(255,255,255,0.7);
   transition: box-shadow 0.3s ease;
 }
 /* Stapel-Tiefe: versetzte "Karten-Ebenen" unter der obersten Karte -
@@ -957,13 +1070,13 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .pile-card.stacked-1 {
   box-shadow:
     3px 3px 0 -1px var(--card-bg), 3.5px 3.5px 0 0 var(--card-border),
-    var(--shadow-2), inset 0 1px 0 rgba(255,255,255,0.7);
+    var(--shadow-2), var(--cast-far), inset 0 1px 0 rgba(255,255,255,0.7);
 }
 .pile-card.stacked-2 {
   box-shadow:
     3px 3px 0 -1px var(--card-bg), 3.5px 3.5px 0 0 var(--card-border),
     6px 6px 0 -2px var(--card-bg), 6.5px 6.5px 0 -1px var(--card-border),
-    var(--shadow-2), inset 0 1px 0 rgba(255,255,255,0.7);
+    var(--shadow-2), var(--cast-far), inset 0 1px 0 rgba(255,255,255,0.7);
 }
 .pile-card.red { color: var(--suit-red); }
 .pile-card.black { color: var(--suit-black); }
@@ -982,13 +1095,13 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .pile-card.back.stacked-1 {
   box-shadow:
     3px 3px 0 0 var(--accent-2),
-    var(--shadow-2);
+    var(--shadow-2), var(--cast-far);
 }
 .pile-card.back.stacked-2 {
   box-shadow:
     3px 3px 0 0 var(--accent-2),
     6px 6px 0 -1px var(--accent-2),
-    var(--shadow-2);
+    var(--shadow-2), var(--cast-far);
 }
 /* Classic back, v2.41: a printed back instead of a flat accent slab - fine
    lattice on a deeper shade of the theme accent, a light inner border like
@@ -1074,9 +1187,6 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .pileUndoBtn .icon { width: 15px; height: 15px; }
 .pileUndoBtn:active { transform: translateX(-50%) scale(0.92); }
 #discardPile.undoable .pileLabel { visibility: hidden; }
-/* The pile itself stays dimmed (it can't be tapped), the chip must not. */
-#discardPile.disabled.undoable { opacity: 1; }
-#discardPile.disabled.undoable > :not(.pileUndoBtn) { opacity: 0.4; }
 /* Vorschau-Overlay: Karten mit Luft, oberste hervorgehoben */
 .discardPreviewCards {
   display: flex; flex-wrap: wrap;
@@ -1091,16 +1201,21 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 #discardPile, #drawPile { cursor: pointer; transition: transform 0.18s var(--ease); }
 #discardPile:active, #drawPile:active { transform: scale(0.93); }
-#discardPile.disabled, #drawPile.disabled { opacity: 0.4; cursor: not-allowed; }
+/* Can't be tapped: the picture dims, never the caption (2:1 when the whole pile
+   faded) nor the undo chip. */
+#discardPile.disabled > :not(.pileLabel, .pileUndoBtn), #drawPile.disabled > :not(.pileLabel) { opacity: 0.4; }
+#discardPile.disabled, #drawPile.disabled { cursor: not-allowed; }
 /* Draw phase, but the server says the top card cannot be taken: no glow,
    card muted (the peek button stays fully visible). */
 #discardPile.noTake .pile-card { opacity: 0.55; }
-/* Zieh-Phase: sanfter Puls zeigt, dass jetzt gezogen werden darf */
+/* Draw phase: a soft pulse says you may draw now. */
 @keyframes drawPulse {
   0%, 100% { filter: drop-shadow(0 0 3px var(--accent-soft)); }
   50% { filter: drop-shadow(0 0 14px var(--accent)); }
 }
 .pile.glow { animation: drawPulse 1.8s ease-in-out infinite; }
+/* The glow lights the felt under the caption (muted fell to 2.5:1): full text. */
+.pile.glow .pileLabel { color: var(--text); }
 @media (prefers-reduced-motion: reduce) {
   .pile.glow { animation: none; filter: drop-shadow(0 0 10px var(--accent)); }
 }
@@ -1185,7 +1300,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   font-weight: 800; font-size: 1.02rem;
   transition: transform 0.2s var(--ease), box-shadow 0.2s ease, top 0.15s ease;
   top: 0;
-  box-shadow: var(--shadow-1), 0 3px 8px rgba(0,0,0,0.28);
+  box-shadow: var(--shadow-1), var(--cast);
   position: relative;
   transform-origin: bottom center;
 }
@@ -1199,7 +1314,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
      Nachbarkarte im Fächer. top statt transform, weil die Fächer-Rotation
      als Inline-Transform gesetzt wird. */
   top: -14px;
-  box-shadow: 0 0 0 3px var(--accent), var(--shadow-2);
+  box-shadow: 0 0 0 3px var(--accent), var(--shadow-2), var(--cast-far);
 }
 
 /* Ecken-Index wie bei echten Spielkarten: bleibt bei überlappenden
@@ -1234,8 +1349,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
    der in einen dezenten bleibenden Rand-Schimmer ausklingt - bewusst OHNE
    zusaetzlichen Punkt/Balken (verdeckte Karteninfos bzw. stoerte im Faecher). */
 @keyframes drawnGlow {
-  0% { box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 6px var(--drawn), 0 0 26px var(--drawn), var(--shadow-2); }
-  100% { box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 5px var(--drawn), var(--shadow-2); }
+  0% { box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 6px var(--drawn), 0 0 26px var(--drawn), var(--shadow-2), var(--cast-far); }
+  100% { box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 5px var(--drawn), var(--shadow-2), var(--cast-far); }
 }
 .card.just-drawn {
   /* Ruhezustand = dieselbe Ringstaerke wie .selected (0 0 0 3px var(--accent)):
@@ -1249,11 +1364,11 @@ button:focus-visible, input:focus-visible, select:focus-visible {
      verdeckte sonst den Klickstreifen der rechten Nachbarkarte im Faecher.
      The resting ring is also set statically so the marker never depends on
      the animation's fill mode alone. */
-  box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 5px var(--drawn), var(--shadow-2);
+  box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 5px var(--drawn), var(--shadow-2), var(--cast-far);
   animation: drawnGlow 1.4s ease-out forwards;
 }
 @media (prefers-reduced-motion: reduce) {
-  .card.just-drawn { animation: none; box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 5px var(--drawn), var(--shadow-2); }
+  .card.just-drawn { animation: none; box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 5px var(--drawn), var(--shadow-2), var(--cast-far); }
 }
 /* The selection ring wins against the draw glow. The Queen of Spades used
    to be exempted too, for a 'Pik Dame look' that no longer exists - a drawn
@@ -1261,7 +1376,95 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .card.just-drawn.selected { animation: none; }
 /* Drawn AND selected: both rings - selection inside, draw marker outside -
    so picking the new card up never hides where it came from. */
-.card.just-drawn.selected { box-shadow: 0 0 0 3px var(--accent), 0 0 0 6px var(--drawn), var(--shadow-2); }
+.card.just-drawn.selected { box-shadow: 0 0 0 3px var(--accent), 0 0 0 6px var(--drawn), var(--shadow-2), var(--cast-far); }
+
+/* --- Pik Dame turns her head on her real moments (client.js queenMoments) ---
+   A shade on the paper, never a ring: rings mean selection and draw. */
+.qTurn, .qStill, .qGhost { --q-shade: color-mix(in srgb, var(--suit-black) 46%, transparent); }
+.card-compact.qTurn, .card-compact.qStill { --q-persp: 240px; --q-lift: -4px; }
+#discardTopCard.qTurn, #discardTopCard.qStill { position: relative; }
+/* Same function list in every frame (--fan = the fan transform), or it falls back to
+   matrix blending. z-index/lift only in here: at rest she covers no neighbour's strip. */
+@keyframes qTurn {
+  0%, 100% { transform: var(--fan, rotate(0deg)) translateY(0) perspective(var(--q-persp, 420px)) rotateY(0deg) translateZ(0); z-index: 3; }
+  36% { transform: var(--fan, rotate(0deg)) translateY(var(--q-lift, -8px)) perspective(var(--q-persp, 420px)) rotateY(-32deg) translateZ(8px); z-index: 3; }
+  70% { transform: var(--fan, rotate(0deg)) translateY(calc(var(--q-lift, -8px) / 2)) perspective(var(--q-persp, 420px)) rotateY(9deg) translateZ(3px); z-index: 3; }
+}
+/* Starts where discardPop starts, so the pile's pop lives inside her turn. */
+@keyframes qTurnPile {
+  0% { transform: scale(1.18) translateY(-6px) perspective(var(--q-persp, 380px)) rotateY(0deg); }
+  36% { transform: scale(1.04) translateY(-2px) perspective(var(--q-persp, 380px)) rotateY(-32deg); }
+  70% { transform: scale(1) translateY(0) perspective(var(--q-persp, 380px)) rotateY(9deg); }
+  100% { transform: scale(1) translateY(0) perspective(var(--q-persp, 380px)) rotateY(0deg); }
+}
+@keyframes qShade { 0%, 100% { opacity: 0; } 36% { opacity: 1; } 70% { opacity: 0.15; } }
+@keyframes qTurnAway {
+  from { transform: perspective(var(--q-persp, 380px)) rotateY(0deg); opacity: 1; }
+  to { transform: perspective(var(--q-persp, 380px)) rotateY(84deg); opacity: 0; }
+}
+@keyframes qShadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes qTurnIn {
+  0% { transform: perspective(110px) rotateY(88deg); opacity: 0; }
+  55% { transform: perspective(110px) rotateY(-14deg); opacity: 1; }
+  100% { transform: perspective(110px) rotateY(0deg); opacity: 1; }
+}
+@keyframes qPriceIn { from { opacity: 0; transform: translateX(-4px); } }
+.qGhost { position: absolute; top: 0; left: 0; right: 0; margin: 0 auto; pointer-events: none; z-index: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  .card.qTurn { animation: qTurn 580ms cubic-bezier(.33, 0, .2, 1) var(--q-delay, 0ms) backwards; }
+  /* drawnGlow runs on beside her turn (box-shadow vs transform); selected stops it as before. */
+  .card.qTurn.just-drawn { animation: qTurn 580ms cubic-bezier(.33, 0, .2, 1) var(--q-delay, 0ms) backwards, drawnGlow 1.4s ease-out forwards; }
+  .card.qTurn.just-drawn.selected { animation: qTurn 580ms cubic-bezier(.33, 0, .2, 1) var(--q-delay, 0ms) backwards; }
+  #discardTopCard.qTurn { animation: qTurnPile 580ms cubic-bezier(.33, 0, .2, 1) var(--q-delay, 0ms) backwards; }
+  .card.qTurn::after, #discardTopCard.qTurn::before, .qGhost::before {
+    content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background: linear-gradient(90deg, transparent 20%, var(--q-shade));
+    animation: qShade 580ms cubic-bezier(.33, 0, .2, 1) var(--q-delay, 0ms) both;
+  }
+  .qGhost { animation: qTurnAway 420ms cubic-bezier(.5, 0, .75, 0) var(--q-delay, 0ms) both; }
+  .qGhost::before { animation: qShadeIn 420ms cubic-bezier(.5, 0, .75, 0) var(--q-delay, 0ms) both; }
+  .qChip.qTurn .qMini { animation: qTurnIn 420ms cubic-bezier(.33, 0, .2, 1) calc(var(--q-lead) + var(--q-delay, 0ms)) backwards; }
+  .qChip.qTurn .qPrice { animation: qPriceIn 180ms ease-out calc(var(--q-lead) + 360ms + var(--q-delay, 0ms)) backwards; }
+}
+/* Reduced motion: she holds a turned pose, shaded, her profile in the index corner. */
+.qProfile { display: none; flex: 0 0 auto; width: 1.05em; height: 1.38em; margin-top: 2px; fill: var(--suit-black); }
+#discardTopCard .qProfile { position: absolute; top: 5px; left: 5px; width: 0.95em; height: 1.25em; margin: 0; }
+@media (prefers-reduced-motion: reduce) {
+  /* !important: the fan is an inline transform; --fan carries it into the pose. */
+  .card.qStill { transform: var(--fan, rotate(0deg)) perspective(var(--q-persp, 420px)) rotateY(-24deg) !important; }
+  #discardTopCard.qStill { transform: perspective(var(--q-persp, 380px)) rotateY(-24deg); }
+  .qChip.qStill .qMini { transform: perspective(110px) rotateY(-24deg); }
+  .card.qStill::after, #discardTopCard.qStill::before, .qChip.qStill .qMini::after {
+    content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background: linear-gradient(90deg, transparent 30%, var(--q-shade));
+  }
+  .qStill .qProfile { display: block; }
+  .qGhost { display: none; }
+}
+/* Round end, caught on my hand: her mini card, then her price, next to my name. */
+.resultRow.hasQueenChip .resultName { flex: 0 1 auto; }
+.qChip {
+  --q-lead: 560ms; /* overlayIn 300 ms + 260 ms: the sheet lands first */
+  flex: 0 0 auto; align-self: center; margin-right: auto;
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: var(--fs-label); font-weight: 800; line-height: 1;
+  color: var(--paper-danger); font-variant-numeric: tabular-nums;
+}
+.qChip .qMini {
+  position: relative; flex: 0 0 auto;
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+  width: 1.45em; height: 2em; border-radius: 4px;
+  background: var(--card-bg); border: 1px solid var(--card-border); box-shadow: var(--shadow-1);
+  color: var(--suit-black); font-size: var(--fs-micro); line-height: 0.95;
+}
+.qChip .qMini b { font-weight: 800; }
+.qChip .qMini i { font-style: normal; }
+@media (max-width: 600px) and (orientation: portrait) {
+  .qChip { --q-lead: 600ms; } /* sheetIn 340 ms + 260 ms */
+}
+@media (min-width: 1100px) and (min-height: 541px) {
+  #hand .card, #melds .card-compact, #centerPiles .pile-card { --q-persp: calc(var(--cw) * 7); }
+}
 
 /* eigene Karten in Auslagen */
 /* Auslagen nach Besitzer gruppiert: jeder Spieler hat seinen eigenen Stapel */
@@ -2195,7 +2398,7 @@ body.raidActive #toastContainer { margin-top: 132px; }
      kleinen Versatz nach OBEN, der die Stapelreihenfolge nicht anfasst. */
   #hand .card:hover {
     filter: brightness(1.07);
-    box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow-2);
+    box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow-2), var(--cast-far);
   }
   #hand .card:not(.selected):hover { top: -7px; }
   .meldOwnerGroup.own .card { cursor: pointer; }
@@ -2280,7 +2483,6 @@ body.raidActive #toastContainer { margin-top: 132px; }
     content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor;
   }
 }
-#uiScaleBtn { margin-left: auto; } /* schiebt die Button-Gruppe nach rechts */
 
 /* Pik-Dame-Emote: kleine gestylte Spielkarte (es gibt kein passendes Emoji) */
 .miniPikdame {
@@ -2415,11 +2617,8 @@ body.raidActive #toastContainer { margin-top: 132px; }
   .raidWarning { animation: none; opacity: 1; }
 }
 
-/* --- Aufgeben ueber der Hand + kollabierende Action-Leiste ---------------- */
+/* --- Hand toolbar + collapsing action bar ------------------------------------ */
 .handToolbar { justify-content: space-between; }
-/* (#forfeitBtn used to be muted here for the dark header strip. It now lives
-   in the light settings sheet as a danger row - see .sheetRowDanger. An ID
-   rule would have outranked that class and kept it grey.) */
 #actionBar.collapsed { display: none; }
 
 /* --- UI-Paket: Anlege-Hinweise, Konfetti, Empty-State, Chip-Puls ---------- */
@@ -2479,15 +2678,114 @@ body.dndActive #discardPile { outline: 2px dashed var(--accent-soft); outline-of
   max-width: 340px;
 }
 
-/* Spieler am Zug: sanfter Puls am Chip */
-@keyframes activeChipPulse {
-  0%, 100% { box-shadow: 0 0 0 2px var(--accent-soft); }
-  50% { box-shadow: 0 0 0 3px var(--accent), 0 0 14px var(--accent-soft); }
+/* --- Breathing bots -------------------------------------------------------------
+   Only the bot on turn breathes, in its level's rhythm; a human on turn keeps the
+   calm frame (.opponent.active: border + fill). client.js (botBreath) sets the
+   period (--br-dur, bot pace) and the phase (--br-delay, from the turn start).
+   Battery: transform/opacity of the small face only, will-change only while it runs. */
+.opAvatar.breathing {
+  position: relative; background: none; box-shadow: none;
+  /* The face is drawn at its 112 % peak and scaled back here (1 / 1.12): the breath
+     never enlarges a bitmap (iOS keeps an animated layer's first raster: soft emoji). */
+  transform-origin: 50% 85%; transform: scale(.8929);
 }
-.opponent.active { animation: activeChipPulse 2s ease-in-out infinite; }
+.opFace {
+  position: absolute; inset: -10.2% -6% -1.8%; /* 112 %, its 50 % 85 % point on the avatar's */
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; font-size: 1.12em;
+  box-shadow: inset 0 -2.24px 5.6px rgba(0,0,0,0.28), 0 1.12px 2.24px rgba(0,0,0,0.25);
+  transform-origin: 50% 85%; will-change: transform;
+  animation: var(--br-dur, 1200ms) linear var(--br-delay, 0ms) infinite;
+}
+.opAvatar[data-breath="easy"] > .opFace { animation-name: breathEasy; }
+.opAvatar[data-breath="medium"] > .opFace { animation-name: breathMedium; }
+.opAvatar[data-breath="hard"] > .opFace { animation-name: breathHard; }
+.opAvatar[data-breath="zen"] > .opFace { animation-name: breathZen; }
+/* The level's ring sits on the face (lengths at 112 %: 3 px off the face, 2 px wide). */
+.opFace::after {
+  content: ''; position: absolute; inset: calc(-3px * 1.12); border-radius: 50%;
+  border: calc(2px * 1.12) solid var(--accent); pointer-events: none;
+}
+.opAvatar[data-breath="easy"] > .opFace::after { border: calc(2.5px * 1.12) dotted var(--accent); }
+/* Schwer: a double ring that draws in while the breath is held. */
+.opAvatar[data-breath="hard"] > .opFace::after {
+  inset: calc(-5px * 1.12); border: calc(4px * 1.12) double var(--accent);
+  animation: breathHardRing var(--br-dur, 2600ms) linear var(--br-delay, 0ms) infinite;
+}
+/* Zen: an ensō, the brushed circle left open; it brightens on the inhale. */
+.opAvatar[data-breath="zen"] > .opFace::after {
+  inset: calc(-4px * 1.12); border-width: calc(2.5px * 1.12); transform: rotate(-30deg);
+  -webkit-mask: conic-gradient(transparent 0 26deg, #000 58deg 338deg, transparent 352deg);
+  mask: conic-gradient(transparent 0 26deg, #000 58deg 338deg, transparent 352deg);
+  animation: breathZenRing var(--br-dur, 5000ms) linear var(--br-delay, 0ms) infinite;
+}
+/* The header face ("X ist dran") breathes along; the turn info spans the bar's
+   height and the face keeps off its edges, so the overflow guard never cuts the ring. */
+#turnInfo { align-self: stretch; }
+.turnStatus .opAvatar.breathing { margin-inline: 6px 4px; }
+/* ~400 px high: a 4 px top padding let the ring cross the chip's edge. A smaller
+   face buys the room; the chip keeps its height, count and bar stay in place. */
+@media (orientation: landscape) and (max-height: 540px) {
+  .opponent { padding-top: 8px; --op-face: 22px; }
+  .opponent .opAvatar { font-size: 11px; }
+  .opSeat > .opDealer { width: 13px; height: 13px; right: -4px; }
+  .opSeat > .opDealer .dealerIcon { width: 9px; height: 9px; }
+}
+
+/* Leicht: a 2.3 s loop of seven uneven twitches (peaks 290/140/450/370/140/380 ms
+   apart), each a rise with overshoot and an eased decay. Lengths below are face px:
+   the design's -1/-2/-1.5 px times 1.12, written out as plain values. */
+@keyframes breathEasy {
+  0%, 2.5% { transform: none; animation-timing-function: cubic-bezier(.34,1.56,.64,1); }
+  5.7% { transform: translateY(-1.12px) scale(1.10) rotate(-7deg); animation-timing-function: ease-out; }
+  10.5%, 15.5% { transform: none; animation-timing-function: cubic-bezier(.34,1.56,.64,1); }
+  18.3% { transform: scale(1.05) rotate(4deg); animation-timing-function: ease-in-out; }
+  21% { transform: scale(1.01) rotate(-1deg); animation-timing-function: cubic-bezier(.34,1.56,.64,1); }
+  24.3% { transform: translateY(-2.24px) scale(1.12) rotate(6deg); animation-timing-function: ease-out; }
+  29.5%, 40.5% { transform: none; animation-timing-function: cubic-bezier(.34,1.56,.64,1); }
+  43.9% { transform: translateY(-1.12px) scale(1.07) rotate(-5deg); animation-timing-function: ease-out; }
+  48.5%, 57% { transform: none; animation-timing-function: cubic-bezier(.34,1.56,.64,1); }
+  60% { transform: translateY(-1.12px) scale(1.09) rotate(7deg); animation-timing-function: ease-in-out; }
+  63% { transform: scale(1.02) rotate(1deg); animation-timing-function: cubic-bezier(.34,1.56,.64,1); }
+  66.1% { transform: scale(1.04) rotate(-3deg); animation-timing-function: ease-out; }
+  70.5%, 79.5% { transform: none; animation-timing-function: cubic-bezier(.34,1.56,.64,1); }
+  82.6% { transform: translateY(-1.12px) scale(1.11) rotate(-6deg); animation-timing-function: ease-out; }
+  87.5%, 100% { transform: none; }
+}
+/* Mittel: an even sine, about one breath per bot turn. */
+@keyframes breathMedium {
+  0%, 100% { transform: none; animation-timing-function: cubic-bezier(.37,0,.63,1); }
+  50% { transform: translateY(-1.68px) scale(1.08); animation-timing-function: cubic-bezier(.37,0,.63,1); }
+}
+/* Schwer: 1.1 s deep in, 0.7 s held (focus), 0.8 s out. */
+@keyframes breathHard {
+  0% { transform: none; animation-timing-function: cubic-bezier(.45,.05,.35,1); }
+  42.3%, 69.2% { transform: translateY(-1.12px) scale(1.06); animation-timing-function: cubic-bezier(.45,0,.55,1); }
+  100% { transform: none; }
+}
+@keyframes breathHardRing {
+  0% { transform: none; animation-timing-function: cubic-bezier(.45,.05,.35,1); }
+  42.3%, 69.2% { transform: scale(.9); animation-timing-function: cubic-bezier(.45,0,.55,1); }
+  100% { transform: none; }
+}
+/* Zen: 5 s, the inhale in front (2 s), a long exhale (3 s); it barely moves. */
+@keyframes breathZen {
+  0% { transform: none; animation-timing-function: cubic-bezier(.33,1,.68,1); }
+  40% { transform: scale(1.035); animation-timing-function: cubic-bezier(.37,0,.63,1); }
+  100% { transform: none; }
+}
+@keyframes breathZenRing {
+  0%, 100% { opacity: .55; animation-timing-function: cubic-bezier(.33,1,.68,1); }
+  40% { opacity: 1; animation-timing-function: cubic-bezier(.37,0,.63,1); }
+}
+/* Still: reduced motion keeps the level's ring without motion; a hidden tab, a sheet
+   or the emote picker over the table (their backdrop blur would redo every frame) stop it. */
 @media (prefers-reduced-motion: reduce) {
-  .opponent.active { animation: none; box-shadow: 0 0 0 2px var(--accent); }
+  .opFace, .opFace::after { animation: none !important; will-change: auto; }
 }
+.appHidden .opFace, .appHidden .opFace::after { animation: none !important; will-change: auto; }
+#table:has(~ .overlay:not(.hidden), ~ #emoteBar:not(.hidden)) .opFace,
+#table:has(~ .overlay:not(.hidden), ~ #emoteBar:not(.hidden)) .opFace::after { animation: none !important; will-change: auto; }
 
 /* --- Hand ein-/ausklappbar (Pfeil in der Toolbar) ------------------------- */
 .handToggle {
@@ -2709,11 +3007,14 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   font-size: var(--fs-body);
 }
 /* --- Kartenhaus sheet ---------------------------------------------------------
-   The house on the light paper, theme tokens only: built floors are dark card
-   backs (--suit-black), the next one carries the accent, floors 11-20 the red
-   --paper-mod edge (CVD-checked against the accents in theme-contrast.test.js)
-   with a shorter dash as the second cue. The SVG scales with the sheet; its
-   hit areas tile the house, one row >= --tap-min even on an iPhone SE. */
+   The house on the light paper, theme tokens only. A starred floor is its floor
+   card from the table: a white face with an edge and a shadow (white on white),
+   the dashed rim of its special rule (--paper-mod red for a handicap, CVD-checked
+   against the accents in theme-contrast.test.js; gold for a risk). The next floor
+   is a dashed card in the accent; a closed one a hatched outline whose icon
+   (hourglass: being built, lock: no deal this month) carries the meaning. The SVG
+   scales with the sheet; its hit areas tile the house, each floor >= --tap-min
+   even on an iPhone SE. */
 .towerCard { max-width: 440px; }
 .khHead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .overlay-card .khHead h2 { margin-bottom: 2px; }
@@ -2721,51 +3022,70 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 .khSummary { margin: 0 0 6px; font-size: var(--fs-label); color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .khSummary b { color: var(--star-ink); font-weight: 800; }
 /* The box keeps the house's shape while the data loads: nothing jumps. */
-.khHouse { width: 100%; aspect-ratio: 344 / 290; }
+.khHouse { position: relative; width: 100%; aspect-ratio: 356 / 278; }
+/* Phones upright: the house bleeds into the sheet's side padding, so a floor stays
+   44 px wide on an iPhone SE (eight cards in the bottom row). */
+@media (max-width: 600px) and (orientation: portrait) {
+  .towerCard .khHouse { width: calc(100% + 28px); margin: 0 -14px; --kh-cap-x: 14px; }
+}
 .khSvg { display: block; width: 100%; height: 100%; overflow: visible; -webkit-user-select: none; user-select: none; }
 .khGround { stroke: color-mix(in srgb, var(--card-ink) 22%, transparent); stroke-width: 1; }
 .khHit { fill: transparent; }
 .khFloor { cursor: pointer; outline: none; }
-.khHalo, .khSel { fill: none; stroke: none; }
-.khFloor.next .khHalo { fill: var(--accent-soft); stroke: var(--paper-accent); stroke-width: 1.4; }
-.khFloor.sel:not(.next) .khSel { stroke: var(--card-ink); stroke-opacity: 0.55; stroke-width: 1.5; }
+.khSel { fill: none; stroke: none; }
+.khFloor.sel:not(.isNext) .khSel { stroke: var(--card-ink); stroke-opacity: 0.55; stroke-width: 1.5; }
 .khFloor:focus-visible .khSel { stroke: var(--paper-accent); stroke-opacity: 1; stroke-width: 2; }
-/* Blueprint: not built yet. */
-.khCard, .khPlate {
-  fill: transparent; stroke: color-mix(in srgb, var(--card-ink) 38%, transparent);
-  stroke-width: 1.2; stroke-dasharray: 3.5 2.6;
-}
-.khFloor.mod .khCard, .khFloor.mod .khPlate { stroke: var(--paper-mod); stroke-width: 1.3; stroke-dasharray: 2.4 2.4; stroke-opacity: 0.85; }
-/* Built: the card backs. */
-.khFloor.built .khCard { fill: url(#khBack); stroke: var(--suit-black); stroke-width: 1; stroke-dasharray: none; }
-.khFloor.built .khPlate { fill: var(--suit-black); stroke: var(--suit-black); stroke-width: 1; stroke-dasharray: none; }
-.khFloor.built.mod .khCard, .khFloor.built.mod .khPlate { stroke: var(--paper-mod); stroke-width: 2.2; stroke-opacity: 1; }
+/* Built: the floor card face up. */
+.khFace { fill: var(--card-bg); stroke: color-mix(in srgb, var(--card-ink) 38%, transparent); stroke-width: 1; }
+.khFloor.built > g { filter: drop-shadow(0 1px 1.1px rgba(0, 0, 0, 0.22)); }
+.khRim { fill: none; stroke-width: 1.3; stroke-dasharray: 3 2.2; }
+.khRim.mod { stroke: var(--paper-mod); }
+.khRim.risk { stroke: var(--star-edge); }
+.khRank { font-family: var(--font-display); font-size: 13.5px; font-weight: 800; letter-spacing: -0.04em; fill: var(--card-ink); }
+.khPip { fill: none; stroke: var(--suit-red); stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
+.khStar { fill: none; stroke: color-mix(in srgb, var(--card-ink) 32%, transparent); stroke-width: 0.8; }
+.khStar.on { fill: var(--star-fill); stroke: var(--star-edge); }
+/* Next: a dashed card in the accent. Closed: hatched, its icon says why. */
+.khGhost { fill: none; stroke-width: 1.2; }
+.khFloor.next .khGhost { fill: var(--accent-soft); stroke: var(--paper-accent); stroke-width: 1.8; stroke-dasharray: 3.5 2.6; }
+.khFloor.next .khRank { fill: var(--paper-accent); }
+.khFloor.closed .khGhost { fill: url(#khHatch); stroke: color-mix(in srgb, var(--card-ink) 55%, transparent); }
+.khFloor.closed .khRank { fill: color-mix(in srgb, var(--card-ink) 55%, transparent); }
+.khFloor.closed.isNext .khGhost { stroke: var(--paper-accent); stroke-width: 1.8; }
+.khFloor.closed.isNext .khRank { fill: var(--paper-accent); }
+.khHatchBase { fill: color-mix(in srgb, var(--card-ink) 4%, transparent); }
+.khHatchLine { fill: color-mix(in srgb, var(--card-ink) 16%, transparent); }
+.khGlyph { fill: none; stroke: color-mix(in srgb, var(--card-ink) 75%, transparent); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+/* Not reachable yet: only its number marks the place. */
+.khPlan { font-family: var(--font-display); font-size: 11px; font-weight: 700; text-anchor: middle; fill: color-mix(in srgb, var(--card-ink) 45%, transparent); }
+.khPlate { fill: var(--suit-black); }
+/* The back, shown while a card is collected at a month change. */
+.khBack { opacity: 0; fill: url(#khBack); }
 .khBackBase { fill: var(--suit-black); }
 .khBackLine { fill: rgba(255, 255, 255, 0.1); }
-.khRim { fill: none; stroke: rgba(255, 255, 255, 0.5); stroke-width: 0.8; }
-/* Next: the one to build now. */
-.khFloor.next .khCard, .khFloor.next .khPlate { fill: var(--card-bg); stroke: var(--paper-accent); stroke-width: 1.8; stroke-dasharray: none; }
-.khFloor.next.mod .khCard, .khFloor.next.mod .khPlate { stroke: var(--paper-mod); stroke-width: 2.2; stroke-opacity: 1; }
-.khNum {
-  font-family: var(--font-display); font-size: 13px; font-weight: 800; text-anchor: middle;
-  fill: color-mix(in srgb, var(--card-ink) 50%, transparent);
-}
-.khFloor.built .khNum { fill: var(--card-bg); }
-.khFloor.next .khNum { fill: var(--card-ink); }
-.khStar { fill: none; stroke: rgba(255, 255, 255, 0.55); stroke-width: 0.8; }
-.khFloor.next .khStar { stroke: color-mix(in srgb, var(--card-ink) 45%, transparent); }
-.khStar.on { fill: var(--star-fill); stroke: var(--star-edge); stroke-width: 0.6; }
 /* The top: a dashed place for the Queen of Spades, then the card itself. */
 .khSpitze { fill: color-mix(in srgb, var(--star-fill) 10%, transparent); stroke: var(--star-edge); stroke-width: 1.3; stroke-dasharray: 3.5 2.6; }
 .khSpitzeText { font-size: 7.5px; font-weight: 800; text-anchor: middle; fill: var(--star-ink); }
 .khQueen { filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.25)); }
 .khQueenCard { fill: var(--card-bg); stroke: var(--star-edge); stroke-width: 2; }
-.khQueenQ { font-family: var(--font-display); font-size: 12px; font-weight: 800; fill: var(--suit-black); }
-.khQueenS { font-size: 20px; text-anchor: middle; fill: var(--suit-black); }
-.khApex.locked .khPlate { stroke: color-mix(in srgb, var(--star-edge) 70%, transparent); }
+.khQueenQ { font-family: var(--font-display); font-size: 13px; font-weight: 800; fill: var(--suit-black); }
+.khQueenS { font-size: 22px; text-anchor: middle; fill: var(--suit-black); }
+/* "September ist vorbei" in the house's empty corner: it ends at 40 % of the house,
+   clear of the top and floor 19 even on an iPhone SE. */
+.khCaption {
+  position: absolute; top: 0; left: var(--kh-cap-x, 0px); z-index: 1; max-width: calc(40% - var(--kh-cap-x, 0px)); margin: 0; padding: 6px 10px;
+  display: flex; flex-direction: column; gap: 1px;
+  border: 1px solid var(--glass-border); border-radius: var(--r-sm); background: color-mix(in srgb, var(--card-bg) 88%, transparent);
+  font-size: var(--fs-hint); color: var(--text-muted); pointer-events: none;
+}
+.khCaption b { font-size: var(--fs-label); color: var(--card-ink); }
+.khHouse.khBusy { cursor: pointer; }
+.khOldLayer { pointer-events: none; }
 .khLegend { display: flex; align-items: center; gap: 8px; margin: 2px 0 8px; font-size: var(--fs-hint); color: var(--text-muted); }
-.khLegendMark { width: 11px; height: 14px; flex-shrink: 0; }
-.khLegendMark rect { fill: none; stroke: var(--paper-mod); stroke-width: 2; stroke-dasharray: 2.5 1.6; }
+.khLegendMark { width: 20px; height: 14px; flex-shrink: 0; }
+.khLegendMark rect { fill: none; stroke-width: 2; stroke-dasharray: 2.5 1.6; }
+.khLegendMark .mod { stroke: var(--paper-mod); }
+.khLegendMark .risk { stroke: var(--star-edge); }
 /* The detail of the tapped floor; its height is reserved, so the sheet does not jump. */
 .khDetail {
   min-height: 168px; margin: 0 0 6px; padding: 12px 14px;
@@ -2787,6 +3107,7 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   border: 1.5px dashed var(--paper-mod); border-radius: var(--r-pill);
   font-size: var(--fs-hint); font-weight: 700; color: var(--paper-mod);
 }
+.khMod.risk { border-color: var(--star-edge); color: var(--star-ink); } /* gold like the risk at the table */
 .khDNote { margin: 6px 0 0; font-size: var(--fs-label); color: var(--text-muted); }
 .overlay-card .khPlay { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: var(--ctl-h); margin-top: 10px; }
 .khPlay .icon { width: 1.1em; height: 1.1em; }
@@ -2821,22 +3142,19 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 .khArchCrown .icon { width: 1.1em; height: 1.1em; }
 .khArchRow:not(.crowned) { grid-template-columns: minmax(0, 1fr) auto auto; }
 /* Motion: transform and opacity only, inside the fixed box - nothing reflows.
-   A new star lands, a lost try wobbles, a new month collapses and rises again,
-   a crown lands on top. All of it stays still under prefers-reduced-motion. */
-.khFloor.khLanding, .khFloor.khWobble, .khFloor.khFall, .khFloor.khRise, .khFloor.khCrowning {
-  transform-box: fill-box; transform-origin: 50% 100%;
-}
-.khFloor.khLanding { animation: khLand 0.75s cubic-bezier(0.3, 0.7, 0.4, 1) var(--kh-delay, 0s) both; }
+   A new floor card is dealt, a better star pops, a lost try wobbles, a crown lands
+   on top. All of it stays still under prefers-reduced-motion. */
+.khFloor.khDealt, .khFloor.khWobble, .khFloor.khCrowning { transform-box: fill-box; transform-origin: 50% 100%; }
+.khFloor.khDealt { animation: khDeal 0.6s cubic-bezier(0.2, 0.8, 0.3, 1.1) var(--kh-delay, 0s) both; }
 .khFloor.khWobble { animation: khWobble 1.1s ease-in-out var(--kh-delay, 0s) both; }
-.khFloor.khFall { animation: khFall 0.75s cubic-bezier(0.5, 0, 0.9, 0.5) var(--kh-delay, 0s) both; }
-.khFloor.khRise { animation: khRise 0.45s ease-out var(--kh-delay, 0s) both; }
 .khApex.khCrowning { animation: khCrown 0.95s cubic-bezier(0.3, 0.7, 0.4, 1) var(--kh-delay, 0s) both; }
 .khStar.khPop { transform-box: fill-box; transform-origin: center; animation: khStarPop 0.45s ease-out var(--kh-delay, 0s) both; }
-.khFloor.next .khHalo { animation: khBreathe 2.8s ease-in-out infinite; }
-@keyframes khLand {
-  0% { transform: translateY(-80px) rotate(-16deg); opacity: 0; }
-  60% { transform: translateY(3px) rotate(2deg); opacity: 1; }
-  80% { transform: translateY(-2px) rotate(-1deg); }
+.khFloor.next > g { animation: khBreathe 2.8s ease-in-out infinite; }
+/* Dealt in from below, settling against its partner. */
+@keyframes khDeal {
+  0% { transform: translate(var(--kh-dx, 0px), 70px) scale(0.86); opacity: 0; }
+  15% { opacity: 1; }
+  70% { transform: translate(0, -4px) scale(1.03); }
   100% { transform: none; opacity: 1; }
 }
 @keyframes khWobble {
@@ -2846,8 +3164,6 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   60% { transform: rotate(-1.5deg); }
   80% { transform: rotate(0.8deg); }
 }
-@keyframes khFall { to { transform: translate(var(--kh-dx, 0px), 110px) rotate(var(--kh-rot, 20deg)); opacity: 0; } }
-@keyframes khRise { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes khCrown {
   0% { transform: translateY(-110px) rotate(-28deg); opacity: 0; }
   55% { transform: translateY(5px) rotate(3deg); opacity: 1; }
@@ -2855,6 +3171,35 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   100% { transform: none; opacity: 1; }
 }
 @keyframes khStarPop { 0% { transform: scale(0); } 70% { transform: scale(1.45); } 100% { transform: scale(1); } }
+@keyframes khBreathe { 0%, 100% { opacity: 0.7; } 50% { opacity: 1; } }
+/* A new month, once (2.55 s, KH_COLLECT_MS): the cards are collected, last laid first -
+   each lifts, turns face down at 39 % and floats onto one pile; the plates sink; the pile
+   glides away from 2.1 s and the new month fades in from 2.15 s. A tap skips it. */
+.khCollect { transform-box: fill-box; transform-origin: 50% 50%; }
+.kh-collect .khCollect { animation: khCollect 0.85s var(--kh-delay, 0s) both; }
+.kh-collect .khCollect .khBack { animation: khFlipBack 0.85s var(--kh-delay, 0s) both; }
+.kh-collect .khOldLayer > .khPlate { animation: khPlateOut 0.35s ease-in var(--kh-delay, 0s) both; }
+.kh-collect .khPile { animation: khPileOut 0.42s cubic-bezier(0.5, 0, 0.8, 0.4) 2.1s both; }
+.kh-collect .khNewLayer { animation: khAppear 0.4s ease-out 2.15s both; }
+.khCaption.moving { animation: khCaptionOut 0.3s ease-in 2.25s both; }
+@keyframes khCollect {
+  0% { transform: translate(0, 0) rotate(0deg) scale(1, 1); animation-timing-function: ease-out; }
+  12% { transform: translate(0, -6px) rotate(calc(var(--kh-rot) * 0.04)) scale(1.06, 1.06); animation-timing-function: ease-in-out; }
+  38% {
+    transform: translate(calc(var(--kh-fx) * 0.3 + var(--kh-sw)), calc(var(--kh-fy) * 0.24)) rotate(calc(var(--kh-rot) * 0.35)) scale(0.12, 1);
+    animation-timing-function: ease-in-out;
+  }
+  64% {
+    transform: translate(calc(var(--kh-fx) * 0.68 - var(--kh-sw) * 0.5), calc(var(--kh-fy) * 0.64)) rotate(calc(var(--kh-rot) * 0.78)) scale(1, 1);
+    animation-timing-function: ease-in;
+  }
+  100% { transform: translate(var(--kh-fx), var(--kh-fy)) rotate(var(--kh-rot)) scale(1, 1); }
+}
+@keyframes khFlipBack { 0%, 37% { opacity: 0; } 39%, 100% { opacity: 1; } }
+@keyframes khPlateOut { to { transform: translateY(8px); opacity: 0; } }
+@keyframes khPileOut { to { transform: translateX(-210px); opacity: 0; } }
+@keyframes khAppear { from { opacity: 0; } to { opacity: 1; } }
+@keyframes khCaptionOut { to { opacity: 0; } }
 /* Landscape phones and desktop: the house left, head and detail right. */
 @media (orientation: landscape) and (max-height: 540px), (min-width: 1100px) {
   .overlay-card.towerCard {
@@ -2869,9 +3214,216 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 @media (min-width: 1100px) {
   .overlay-card.towerCard { max-width: 940px; padding: 24px 26px; --kh-house-h: min(400px, calc(82vh - 48px)); }
 }
-@keyframes khBreathe { 0%, 100% { opacity: 0.7; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
-  .khSvg *, .khSvg *::before { animation: none !important; }
+  .khSvg *, .khSvg *::before, .khCaption { animation: none !important; }
+}
+
+/* --- Kartenhaus at the table: the floor card sits beside the piles (portrait), under
+   them (landscape) or heads their column (desktop) - never in a row of its own. */
+#table.towerGame #centerPiles { justify-content: flex-end; gap: 18px; padding-left: 12px; padding-right: 18px; }
+#table.towerGame #centerPiles::before { inset: -6px 0 -2px 42%; }
+/* Two targets, one spot: the card (its rules) lies on the slot of the fold button (the rest).
+   Both hug their content, so a near miss beside the draw pile hits neither. */
+.towerBar {
+  --tb-card-w: 46px; --tb-card-h: 64px;
+  order: -1; flex: 0 1 auto; min-width: 0; align-self: center; margin: -2px auto -2px 0;
+  display: grid; grid-template-columns: minmax(0, auto); align-items: center;
+}
+.tbCard, .tbFold {
+  grid-area: 1 / 1; min-width: 0; padding: 0; border: 0; border-radius: var(--r-sm); background: none;
+  color: var(--text); font: inherit; text-align: left; -webkit-tap-highlight-color: transparent;
+}
+.tbCard { z-index: 1; justify-self: start; display: flex; align-items: center; justify-content: center; width: var(--tb-card-w); height: var(--tb-card-h); }
+.tbCard:active .tfCard { transform: rotate(-4deg) scale(0.95); }
+.tbFold {
+  display: grid; grid-template-columns: var(--tb-card-w) minmax(0, auto); grid-template-areas: 'slot col';
+  align-items: center; column-gap: 8px; min-height: var(--tap-min); padding-right: 6px;
+}
+.tbSlot { grid-area: slot; width: var(--tb-card-w); height: var(--tb-card-h); }
+.tfCol { grid-area: col; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; }
+@media (hover: hover) and (pointer: fine) { button.tbFold:hover { background: var(--glass); } }
+/* The ✕ (off the table on every floor) takes the top right corner: a 44 px button reaching 8 px up
+   into the row's padding, a small disc like the peek eye. Folded it sits beside the tokens; in
+   full the caption and goal lines it spans keep clear of it. */
+.tbHide {
+  grid-area: 1 / 1; justify-self: end; align-self: start; z-index: 2;
+  display: flex; align-items: center; justify-content: center;
+  width: var(--tap-min); height: var(--tap-min); margin-top: -8px; padding: 0; border: 0; border-radius: 50%;
+  background: none; color: var(--text); -webkit-tap-highlight-color: transparent;
+}
+.tbHide .icon {
+  box-sizing: border-box; width: 26px; height: 26px; padding: 7px; border-radius: 50%;
+  background: var(--glass-strong); border: 1px solid var(--glass-border); box-shadow: var(--shadow-1);
+  stroke-width: 2.4; transition: transform 0.15s var(--ease);
+}
+.tbHide:active .icon { transform: scale(0.9); }
+@media (hover: hover) and (pointer: fine) { .tbHide:hover .icon { filter: brightness(1.15); } }
+.towerBar:not(.tbCompact) .tfCap, .towerBar:not(.tbCompact) .tfGoal { margin-right: calc(var(--tap-min) - 6px); }
+/* Where a hidden floor card went: the gear turns once (8 spokes: 90° looks as before). */
+#settingsBtn.towerNudge .icon { animation: gearNudge 0.5s cubic-bezier(0.3, 0.7, 0.4, 1); }
+@keyframes gearNudge { from { transform: rotate(0deg); } to { transform: rotate(90deg); } }
+/* Folded (from the second own turn, or by the player's tap): the card and its tokens. The
+   words leave the layout but stay for screen readers; the tokens' column keeps a 44 px target. */
+.towerBar.tbCompact .tfCap, .towerBar.tbCompact .tfGoal, .towerBar.tbCompact .tfLbl {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; opacity: 0;
+}
+.towerBar.tbCompact .tbFold { grid-template-columns: var(--tb-card-w) minmax(calc(var(--tap-min) - 14px), auto); margin-right: var(--tap-min); }
+.towerBar.tbCompact .tfMods { margin: 0; }
+.towerBar.tbUnfold .tfCap, .towerBar.tbUnfold .tfGoal, .towerBar.tbUnfold .tfLbl { animation: tbWordsIn 0.3s ease-out 0.1s both; }
+@keyframes tbWordsIn { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+.tfCap { font-size: var(--fs-micro); font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
+.tfGoal { font-size: var(--fs-micro); font-weight: 700; color: var(--text-muted); white-space: nowrap; }
+.tfGoal b { font-size: var(--fs-label); font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+.tfMods { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; margin-top: 1px; }
+.tfMod { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-micro); font-weight: 700; line-height: 1.2; color: var(--text); }
+.tfTok {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 17px; height: 17px; border-radius: 50%;
+  background: var(--card-bg); border: 1.5px dashed var(--paper-mod); color: var(--paper-mod); box-shadow: var(--shadow-1);
+}
+.tfTok .icon { width: 10px; height: 10px; stroke-width: 2.4; }
+/* A risk (the dealt queen: +100 melded, −100 in hand) is gold and solid, never the red handicap edge. */
+.tfTok.risk { border-style: solid; border-color: var(--star-edge); color: var(--suit-black); }
+.tfTok.risk .icon { fill: currentColor; stroke-width: 1.2; }
+.tfCard {
+  position: relative; display: block; flex: none; width: 42px; height: 59px; border-radius: 8px;
+  background: var(--card-bg); color: var(--card-ink); border: 1px solid var(--card-border);
+  box-shadow: var(--shadow-2), var(--cast-far), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  transform: rotate(-4deg); transition: transform 0.15s var(--ease);
+}
+.tfCard.mod::before, .tfCard.risk::before { content: ''; position: absolute; inset: 3px; border: 1.5px dashed var(--paper-mod); border-radius: 5px; pointer-events: none; }
+.tfCard.risk::before { border-color: var(--star-edge); }
+.tfRank { position: absolute; top: 5px; left: 6px; display: flex; flex-direction: column; align-items: center; line-height: 0.9; }
+.tfRank b { font-family: var(--font-display); font-size: var(--fs-lead); font-weight: 800; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.tfRank .icon { width: 10px; height: 10px; margin-top: 1px; color: var(--suit-red); stroke-width: 2.5; }
+.tfPip { position: absolute; right: 4px; top: 19px; width: 16px; height: 16px; color: var(--suit-red); stroke-width: 2.1; }
+.tfStars { position: absolute; left: 0; right: 0; bottom: 6px; display: flex; justify-content: center; }
+.tfStars .icon { width: 10px; height: 10px; color: rgba(0, 0, 0, 0.3); stroke-width: 2; }
+.tfStars .icon.on { color: var(--star-edge); fill: var(--star-fill); }
+/* Fresh after the start card: the card is dealt to its place. */
+.towerBar.tfEnter .tfCard { animation: tfDeal 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+@keyframes tfDeal { from { transform: translateY(-28px) rotate(18deg); opacity: 0; } to { transform: rotate(-4deg); opacity: 1; } }
+/* The start card: paper in the empty meld area before the first move; the queen keeps her
+   note (it explains the marked card), handicaps go by name (goOut sits in the goal). */
+.towerStart {
+  --text-muted: rgba(0, 0, 0, 0.62); /* the paper remap of .overlay-card */
+  position: relative; z-index: 3; flex: 0 0 auto; margin: 6px 12px 2px;
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 4px 14px;
+  padding: 12px 14px 12px 12px; border-radius: var(--r-lg);
+  background: var(--card-bg); color: var(--card-ink);
+  box-shadow: var(--shadow-3), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  animation: tsIn 0.45s var(--ease) both;
+}
+@keyframes tsIn { from { transform: translateY(14px) scale(0.97); opacity: 0; } to { transform: none; opacity: 1; } }
+.towerStart :focus-visible { outline-color: var(--paper-accent); }
+#table.towerStartOpen .meldsEmptyState { display: none; }
+/* Before the first move the meld area is empty: in portrait it gives the card all its room. */
+@media (orientation: portrait) { #table.towerStartOpen #melds { padding-top: 0; padding-bottom: 0; } }
+/* One place at a time: the floor card waits in the start card until "Los". */
+#table.towerStartOpen .towerBar { visibility: hidden; }
+.tsStage { display: flex; align-items: center; justify-content: center; padding: 2px 0; }
+.tsBody {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'eye go' 'title go' 'goal goal' 'mods mods';
+  column-gap: 10px; row-gap: 3px; min-width: 0;
+}
+.tsEye { grid-area: eye; margin: 0; display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-micro); font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+.tsEye .icon { width: 1.4em; height: 1.4em; color: var(--suit-red); stroke-width: 2.2; }
+.tsTitle { grid-area: title; margin: 0; font-family: var(--font-display); font-size: var(--fs-title); font-weight: 800; line-height: 1.05; letter-spacing: -0.01em; }
+.tsGoal { grid-area: goal; margin: 2px 0 0; font-size: var(--fs-label); line-height: 1.35; }
+.tsMods { grid-area: mods; display: flex; flex-direction: column; gap: 3px; margin-top: 2px; }
+.tsGroup { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 1px; }
+.tsModsHead { margin: 0; font-size: var(--fs-micro); font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--paper-mod); }
+.tsGroup.risk .tsModsHead, .tsMods .tfMod.risk, .tfsMods b.risk { color: var(--star-ink); }
+.tsMods ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 1px 10px; }
+.tsMods li { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 5px; }
+.tsMods .tfMod { align-self: center; font-size: var(--fs-hint); font-weight: 800; color: var(--paper-mod); }
+.tsWhy { font-size: var(--fs-hint); line-height: 1.3; color: var(--text-muted); }
+.tsGroup.handicap .tsWhy { display: none; }
+.tsGo { grid-area: go; align-self: center; width: auto; max-width: none; min-height: var(--tap-min); margin: 0; padding: 0 20px; font-size: var(--fs-body); }
+.tsGo .icon { width: 1.05em; height: 1.05em; }
+.tfCard.big { width: 64px; height: 89px; border-radius: 10px; transform: rotate(-6deg); }
+.tfCard.big.mod::before, .tfCard.big.risk::before { inset: 4px; border-width: 2px; border-radius: 7px; }
+.tfCard.big .tfRank { top: 6px; left: 7px; }
+.tfCard.big .tfRank b { font-size: var(--fs-title); }
+.tfCard.big .tfRank .icon { width: 12px; height: 12px; }
+.tfCard.big .tfPip { right: 7px; top: 31px; width: 22px; height: 22px; }
+.tfCard.big .tfStars { bottom: 7px; gap: 1px; }
+.tfCard.big .tfStars .icon { width: 12px; height: 12px; stroke-width: 1.8; }
+.towerStart .tfCard.big { animation: tfDealBig 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2) 0.1s both; }
+@keyframes tfDealBig { from { transform: translate(40px, -60px) rotate(25deg); opacity: 0; } to { transform: rotate(-6deg); opacity: 1; } }
+/* "Ohne Ablage": the red edge and a lock token on the corner the count badge leaves
+   free; the caption stays "Ablage" (the lock says the rest). */
+#discardPile.towerLocked .pile-card:not(.back)::after {
+  content: ''; position: absolute; inset: 3px; border: 1.5px dashed var(--paper-mod); border-radius: 7px; pointer-events: none;
+}
+#discardPile.towerLocked .pile-card:not(.back) { position: relative; }
+.pileLock { display: none; }
+#discardPile.towerLocked .pileLock {
+  position: absolute; top: -9px; left: -4px; z-index: 2;
+  display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--card-bg); border: 1.5px dashed var(--paper-mod); color: var(--paper-mod); box-shadow: var(--shadow-1);
+}
+.pileLock .icon { width: 13px; height: 13px; stroke-width: 2.4; }
+.pileLock.nudge { animation: lockNudge 0.45s ease-in-out; }
+@keyframes lockNudge { 0%, 100% { transform: none; } 20% { transform: translateX(-3px) rotate(-8deg); } 50% { transform: translateX(3px) rotate(6deg); } 80% { transform: translateX(-1px); } }
+/* "Pik Dame": the dealt queen is marked while the start card says why - the
+   coach spotlight (--coach), so it never reads as selected or freshly drawn. */
+#hand .card.towerSpot { top: -10px; box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 5px var(--coach), var(--shadow-2), var(--cast-far); animation: coachPulse 1.4s ease-in-out infinite; }
+#hand .card.towerSpot.selected { box-shadow: 0 0 0 3px var(--accent), 0 0 0 6px var(--coach), var(--shadow-2), var(--cast-far); }
+#hand.towerSpotOn .card:not(.towerSpot):not(.selected) { filter: brightness(0.72) saturate(0.85); }
+/* The rules of the floor at the table (tap on the floor card). */
+.tfsSec { break-inside: avoid; }
+/* Same text size as the Kartenhaus sheet's own rules (.pgRules). */
+.tfSheet { font-size: var(--fs-label); }
+.tfSheet h3 { margin: 14px 0 6px; font-size: var(--fs-label); font-weight: 800; }
+.tfSheet p { margin: 0 0 6px; }
+.tfsHead { display: flex; align-items: center; gap: 16px; margin: 2px 0 4px; }
+.tfsHead .tfCard { width: 58px; height: 82px; border-radius: 10px; }
+.tfsHead .tfCard .tfRank b { font-size: var(--fs-title); }
+.tfsHead .tfCard .tfPip { top: 28px; width: 22px; height: 22px; }
+.tfsHead .tfCard .tfStars .icon { width: 12px; height: 12px; }
+.tfsHead p { margin: 0; font-weight: 700; }
+.tfsNote { color: var(--text-muted); }
+.tfSheet .khRuleList li.off { color: var(--text-muted); }
+.tfSheet .khRuleList li.off .khRuleStars { opacity: 0.35; }
+.tfsMods { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.tfsMods li { display: flex; align-items: flex-start; gap: 8px; line-height: 1.35; }
+.tfsMods .tfTok { margin-top: 1px; }
+.tfsMods b { color: var(--paper-mod); }
+/* "Am Tisch anzeigen" (only while the card is hidden) over "Weiterspielen"; side by side at ~400 px. */
+.tfsActions { display: flex; flex-direction: column; }
+@media (prefers-reduced-motion: reduce) {
+  .towerStart, .towerStart .tfCard.big, .towerBar.tfEnter .tfCard, .pileLock.nudge, #hand .card.towerSpot,
+  .towerBar.tbUnfold .tfCap, .towerBar.tbUnfold .tfGoal, .towerBar.tbUnfold .tfLbl { animation: none; }
+  #settingsBtn.towerNudge .icon { animation: none; }
+}
+/* Desktop: the floor card heads the pile column and reaches over the opponents band's empty
+   end (--tb-reach, kept free by the chips: 224 px for the words, 44 for the ✕); short windows
+   keep the landscape layout. */
+@media (min-width: 1100px) and (min-height: 541px) {
+  #table.towerGame { --tb-reach: 268px; grid-template-areas: 'top top' 'opp piles' 'melds piles' 'action action' 'hand hand'; }
+  #table.towerGame #opponents { padding-right: calc(var(--tb-reach) + 4px); }
+  #table.towerGame #centerPiles { justify-content: flex-start; padding: 8px 22px 8px 8px; }
+  .towerBar { align-self: stretch; contain: inline-size; margin: 2px -16px 0 calc(-1 * var(--tb-reach)); justify-content: end; }
+  .tbFold { grid-template-columns: var(--tb-card-w) auto auto; grid-template-areas: 'slot cap mods' 'slot goal mods'; column-gap: 10px; row-gap: 2px; }
+  .towerBar.tbCompact .tbFold { grid-template-areas: 'slot mods'; }
+  /* The tokens or handicaps column is the right one here: the ✕ keeps its own corner in both states. */
+  .tbFold { margin-right: var(--tap-min); }
+  .towerBar:not(.tbCompact) .tfCap, .towerBar:not(.tbCompact) .tfGoal { margin-right: 0; }
+  .tfCol { display: contents; }
+  .tfCap { grid-area: cap; align-self: end; }
+  .tfGoal { grid-area: goal; align-self: start; }
+  .tfMods { grid-area: mods; margin: 0 0 0 4px; }
+  .tfMod { white-space: nowrap; }
+  .towerStart { grid-area: melds; align-self: center; justify-self: center; margin: 0; width: min(640px, calc(100% - 32px)); padding: 20px 24px 20px 20px; gap: 6px 24px; align-items: center; }
+  .tsTitle { font-size: var(--fs-display); }
+  .tfCard.big { width: 84px; height: 117px; border-radius: 12px; }
+  .tfCard.big .tfRank { top: 8px; left: 9px; }
+  .tfCard.big .tfRank b { font-size: var(--fs-display); }
+  .tfCard.big .tfRank .icon { width: 15px; height: 15px; }
+  .tfCard.big .tfPip { right: 9px; top: 40px; width: 30px; height: 30px; }
+  .tfCard.big .tfStars { bottom: 9px; }
+  .tfCard.big .tfStars .icon { width: 16px; height: 16px; }
 }
 .achAllBtn {
   display: block; width: 100%; min-height: var(--tap-min); margin-top: 6px;
@@ -3290,7 +3842,6 @@ input:disabled { opacity: 0.65; }
 .botDiffBadge.readonly, .seatDiff.readonly {
   cursor: default; opacity: 1; pointer-events: none;
 }
-.opponent .opName { padding-right: 4px; }
 .botDiffOptions { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 12px; }
 .botDiffOptions button {
   display: flex; align-items: center; gap: 12px; min-height: var(--tap-min);
@@ -3314,47 +3865,6 @@ input:disabled { opacity: 0.65; }
 }
 .icon.lvlIcon { width: calc(var(--lvl-h) * 2.544); height: var(--lvl-h); vertical-align: 0; overflow: visible; }
 .icon.lvlIcon.lvlZen { height: calc(var(--lvl-h) * 1.528); }
-
-/* --- Home + gear menu (v1.23.0) ---------------------------------------------- */
-/* --- In-game settings sheet -------------------------------------------------
-   Replaces the icon row that used to unfold inside the header. Rows are full
-   width, so every switch gets a readable label and a value instead of an
-   emoji the player has to decode. */
-/* Own namespace on purpose: the LOBBY settings overlay already owns
-   .settingsRow / .settingsList for its <label> rows. */
-.sheetList { display: flex; flex-direction: column; gap: 2px; margin: 4px 0 14px; }
-.sheetRow {
-  display: flex; align-items: center; gap: 12px;
-  width: 100%; min-height: var(--tap-min);
-  padding: 10px 12px;
-  border-radius: var(--r-sm);
-  background: transparent; color: var(--card-ink);
-  font-size: var(--fs-body); font-weight: 600; text-align: left;
-  transition: background 0.15s ease;
-}
-.sheetRow + .sheetRow { border-top: 1px solid var(--glass-border); }
-.sheetRow:active { background: rgba(0,0,0,0.06); }
-.sheetRowLabel { flex: 1; min-width: 0; }
-/* A row that only presents controls - not itself tappable. */
-.sheetRowStatic { cursor: default; }
-.sheetRowStatic:active { background: transparent; }
-/* Swatches sit on their own line: inline they squeezed "Erscheinungsbild"
-   into an ellipsis on a 393px phone. */
-.sheetRowTheme { flex-wrap: wrap; row-gap: 10px; }
-.sheetThemeSwatches {
-  display: flex; gap: 10px; margin: 0;
-  flex: 1 0 100%; justify-content: flex-start; padding-left: 32px;
-}
-.sheetThemeSwatches .themeBtn { width: 30px; height: 30px; border-width: 2px; }
-.sheetRowValue {
-  color: var(--text-muted); font-size: var(--fs-label); font-weight: 600;
-  font-variant-numeric: tabular-nums; white-space: nowrap;
-}
-/* Forfeit ends the whole match - it reads as destructive, not as another
-   toggle. --danger is tuned for the dark table; the paper takes its own red. */
-.sheetRowDanger { color: var(--paper-danger); }
-.sheetRowDanger .sheetRowValue { color: inherit; }
-.sheetRow.active { background: rgba(192, 40, 31, 0.12); }
 
 /* --- Round winner highlight + resume (v1.24.0) -------------------------------- */
 .opponent.roundWinner {
@@ -3552,11 +4062,6 @@ input:disabled { opacity: 0.65; }
 }
 .celebrationPreview.celebrating { height: 116px; margin-top: 8px; }
 .celebrationPreview .celebrationBand { z-index: 0; }
-.celebrationFoot { margin-top: 8px; }
-.celebrationFoot .settingsHint { flex: 1 1 auto; margin: 0; }
-/* Capped: a select is as wide as its longest option ("… · ab Stufe 50"),
-   which squeezed the label off its line. Locked options are never shown closed. */
-#celebrationSelect { width: min(200px, 58%); }
 
 .fxCat {
   position: absolute; top: -40px; left: var(--x); width: var(--sz); height: var(--sz);
@@ -3701,14 +4206,12 @@ input:disabled { opacity: 0.65; }
 }
 .seoIntroBody ul { margin: 0 0 6px; padding-left: 18px; }
 
-/* --- Akku: Dauer-Animationen im Hintergrund anhalten -----------------------
-   Die pulsierenden Hinweise (Ziehstapel, Anlege-Ziel, aktiver Gegner) laufen
-   endlos. Ist die App nicht sichtbar, bringen sie nichts, kosten aber weiter
-   Compositing-Arbeit. `.appHidden` wird vom Client bei visibilitychange gesetzt.
-   Zusätzlich respektieren wir die System-Einstellung "Bewegung reduzieren". */
+/* --- Battery: stop endless animations nobody sees ------------------------------
+   The pulsing hints (draw pile, lay-off target) loop forever; in a hidden app they
+   only cost compositing (client.js sets .appHidden). Reduced motion stops them too.
+   The breathing bot has its own still rules (see "Breathing bots"). */
 .appHidden .pile.glow,
 .appHidden .meldGroup.layOffTarget,
-.appHidden .opponent.active,
 .appHidden .yourTurnPulse {
   animation: none !important;
 }
@@ -3716,7 +4219,6 @@ input:disabled { opacity: 0.65; }
 @media (prefers-reduced-motion: reduce) {
   .pile.glow,
   .meldGroup.layOffTarget,
-  .opponent.active,
   .yourTurnPulse {
     animation: none !important;
   }
@@ -3855,14 +4357,14 @@ input:disabled { opacity: 0.65; }
    --accent, the selection colour. Marked fan cards lift a little and the rest
    of the hand dims, so a mark never hides behind its neighbour. */
 .card.tutorialGlow {
-  box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 5px var(--coach), var(--shadow-2);
+  box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 5px var(--coach), var(--shadow-2), var(--cast-far);
   animation: coachPulse 1.4s ease-in-out infinite;
 }
 #hand .card.tutorialGlow:not(.selected) { top: -8px; }
 /* Selected AND marked: both rings, the selection innermost. */
-.card.tutorialGlow.selected { box-shadow: 0 0 0 3px var(--accent), 0 0 0 6px var(--coach), var(--shadow-2); }
+.card.tutorialGlow.selected { box-shadow: 0 0 0 3px var(--accent), 0 0 0 6px var(--coach), var(--shadow-2), var(--cast-far); }
 #hand.coachSpot .card:not(.tutorialGlow):not(.selected) { filter: brightness(0.72) saturate(0.85); }
-#hand.coachSpot .card.just-drawn:not(.tutorialGlow) { animation: none; box-shadow: var(--shadow-1), 0 3px 8px rgba(0,0,0,0.28); }
+#hand.coachSpot .card.just-drawn:not(.tutorialGlow) { animation: none; box-shadow: var(--shadow-1), var(--cast); }
 .meldGroup.tutorialGlowMeld {
   box-shadow: 0 0 0 3px var(--coach);
   animation: coachPulse 1.4s ease-in-out infinite;
@@ -4114,7 +4616,7 @@ input:disabled { opacity: 0.65; }
 .puzzleStatus { min-height: 1.4em; font-weight: 600; margin: 0 0 8px; }
 .puzzleStatus.ok { color: var(--paper-success); }
 .puzzleStatus.bad { color: var(--paper-danger); }
-.puzzleHand .card.solution { box-shadow: 0 0 0 3px var(--drawn), var(--shadow-2); }
+.puzzleHand .card.solution { box-shadow: 0 0 0 3px var(--drawn), var(--shadow-2), var(--cast-far); }
 /* Puzzle stars: filled = earned, outline = still possible today, faint = gone. */
 .puzzleStars { display: inline-flex; gap: 2px; vertical-align: -0.12em; color: color-mix(in srgb, #b8860b 82%, var(--card-ink)); }
 .puzzleStars .icon { width: 1.1em; height: 1.1em; opacity: 0.3; vertical-align: 0; }
@@ -4487,7 +4989,7 @@ html[data-cardback="easter"] .card.back,
   --accent-ink: #2a1605;
   --accent-soft: rgba(232,184,107,0.22);
   --text: #f8eef0;
-  --text-muted: rgba(240,220,226,0.58);
+  --text-muted: rgba(240,220,226,0.75);
   --danger: #ff8a8a;
   --success: #6fe0a8;
   --paper-accent: #896114;
@@ -4553,7 +5055,7 @@ html[data-cardback="easter"] .card.back,
   --accent-soft: rgba(176, 85, 42, 0.28);
   --text: #33261a;
   --text-dim: rgba(51, 38, 26, 0.62);
-  --text-muted: rgba(51, 38, 26, 0.55);
+  --text-muted: rgba(51, 38, 26, 0.81);
   --danger: #b3372b;
   --success: #33702a;
   /* Kitchen's danger is already dark: white ink on it, the paper inks as is. */
@@ -4664,9 +5166,10 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
   to { transform: translate(calc(100cqw + 10px), 0); }
 }
 @keyframes occFlap { to { transform: scaleY(0.62); } }
-/* Christmas: fairy lights over the cards, stars over the snow. */
-.heroLights circle { animation: occBulb 1.6s ease-in-out infinite alternate; }
-.heroLights circle:nth-of-type(odd) { animation-delay: -0.8s; }
+/* Christmas: fairy lights over the cards, stars over the snow. Animated only while
+   shown (.on): Chromium keeps animations of display:none groups running. */
+.heroLights.on circle { animation: occBulb 1.6s ease-in-out infinite alternate; }
+.heroLights.on circle:nth-of-type(odd) { animation-delay: -0.8s; }
 @keyframes occBulb { from { opacity: 0.55; } to { opacity: 1; } }
 .occStar { width: 12px; height: 12px; color: #ffe39a; animation: occTwinkle 2.8s ease-in-out infinite; }
 [data-theme="kitchen"] .occStar { color: #c98a12; }
@@ -4675,7 +5178,7 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
   50% { opacity: 1; transform: scale(var(--s, 1)); }
 }
 /* New Year's Eve and New Year: a sparkler and fireworks instead of snow. */
-.heroSparkler path { transform-box: fill-box; transform-origin: center; animation: occSparkle 0.35s ease-in-out infinite alternate; }
+.heroCostume.on .heroSparkler path { transform-box: fill-box; transform-origin: center; animation: occSparkle 0.35s ease-in-out infinite alternate; }
 @keyframes occSparkle { from { transform: scale(0.7) rotate(0deg); opacity: 0.65; } to { transform: scale(1.1) rotate(22deg); opacity: 1; } }
 .occBurst { width: 0; height: 0; }
 .occBurst b {
@@ -4699,7 +5202,7 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
 }
 @media (prefers-reduced-motion: reduce) {
   .greetConfetti i { display: none; }
-  .heroLights circle, .heroSparkler path { animation: none; }
+  .heroLights.on circle, .heroCostume.on .heroSparkler path { animation: none; }
 }
 
 /* --- Wochenwertung im Challenge-Panel --------------------------------------- */
@@ -4809,8 +5312,10 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
    label only says which VALUE it is standing in for. */
 .card .jokerGhost { color: var(--joker); }
 
-/* --- Getrennt-Status dauerhaft am Spieler-Chip ------------------------------ */
-.opponent.disconnected { opacity: 0.55; }
+/* --- Disconnected: a lasting mark on the player chip ------------------------ */
+/* The picture dims, the text turns muted: the whole chip at 0.55 left the card count at 3.9:1. */
+.opponent.disconnected .opAvatar, .opponent.disconnected .scoreBar { opacity: 0.55; }
+.opponent.disconnected .opNameText, .opponent.disconnected .opCount, .opponent.disconnected .opCount b { color: var(--text-muted); }
 .opponent.disconnected .reconnectTag { animation: reconnectPulse 1.6s ease-in-out infinite; }
 @keyframes reconnectPulse { 50% { opacity: 0.45; } }
 @media (prefers-reduced-motion: reduce) { .opponent.disconnected .reconnectTag { animation: none; } }
@@ -4829,6 +5334,8 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
   box-shadow: var(--shadow-3);
   display: flex; flex-direction: column; max-height: 100%; min-height: 0;
 }
+.cardbackGalleryBox { position: relative; }
+.cardbackClose { position: absolute; top: 6px; right: 6px; }
 .cardbackGalleryBox h3 {
   margin: 0 0 12px; font-size: var(--fs-lead);
   display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -4972,29 +5479,20 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
 
 
 /* --- Einstellungs-Menü ------------------------------------------------------
-   ACHTUNG (Fehler beim ersten Wurf): Overlay-Karten sind in JEDEM Theme HELL
-   (siehe .overlay-card - dort werden --text-muted und --glass-border lokal
-   umgesetzt). Wer hier --text oder --glass-strong benutzt, nimmt die Toene
-   des DUNKLEN Tisches: weisse Schrift auf weisser Karte, praktisch unlesbar.
-   Deshalb durchgaengig --card-ink und schwarzbasierte Fuellungen. */
-.settingsList { display: flex; flex-direction: column; text-align: left; margin: 6px 0 18px; }
-.settingsItem { padding: 10px 2px 12px; border-bottom: 1px solid var(--glass-border); }
-.settingsItem:last-child { border-bottom: none; }
-.settingsGroupTitle {
-  margin: 2px 2px 6px; font-size: var(--fs-body); font-weight: 800;
-  color: var(--text-muted);
-}
+   Overlay cards are LIGHT in every theme (.overlay-card remaps --text-muted
+   and --glass-border). --text or --glass-strong here would paint the DARK
+   table's tones: white on white. Use --card-ink and black-based fills.
+   .settingsRow/.settingsLabel/.settingsHint also serve the account sheet. */
 .settingsRow {
   display: flex; align-items: center; justify-content: space-between;
   gap: 14px; min-height: 44px;
 }
 .settingsLabel {
-  flex: 1 1 auto; min-width: 0;          /* darf schrumpfen statt umzubrechen */
+  flex: 1 1 auto; min-width: 0;          /* shrinks instead of wrapping */
   font-size: 0.95rem; font-weight: 600; color: var(--card-ink);
 }
-/* Bedienelemente behalten ihre Breite - sonst quetscht ein langer Text sie
-   zusammen und die Beschriftung bricht neben dem Symbol um. */
-.settingsSelect, .settingsAction { flex: 0 0 auto; min-width: 138px; min-height: 44px; }
+/* Keeps its width, or a long label squeezes it and wraps next to the icon. */
+.settingsSelect { flex: 0 0 auto; min-width: 138px; min-height: 44px; }
 .settingsSelect {
   appearance: none; -webkit-appearance: none;
   background-color: rgba(0, 0, 0, 0.05); color: var(--card-ink);
@@ -5007,17 +5505,69 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
   background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
 }
-.settingsAction {
-  appearance: none; cursor: pointer;
-  background: rgba(0, 0, 0, 0.05); color: var(--card-ink);
+
+/* The "Mehr" sheet: four boxed groups, one row per setting (icon, label with
+   a one-line hint, control). Two columns where the screen is wide. */
+.prefHead { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; }
+.prefHead h2 { flex: 1 1 auto; min-width: 0; margin: 0; }
+.prefLang {
+  flex: none; display: inline-flex; align-items: center; gap: 6px;
+  min-height: var(--tap-min); padding: 0 14px; cursor: pointer;
   border: 1px solid var(--paper-line); border-radius: var(--r-pill);
-  font: inherit; font-size: 0.92rem; font-weight: 600; padding: 10px 18px;
+  background: rgba(0, 0, 0, 0.05); color: var(--card-ink);
+  font: inherit; font-size: var(--fs-label); font-weight: 700;
 }
-.settingsAction:hover { background: rgba(0, 0, 0, 0.09); }
-/* Two selects stacked in one item (music): one width, so they line up. */
-.settingsPair .settingsSelect { min-width: 11em; }
-/* Schalter statt nacktem Ankreuzkasten, Touchziel 52x32. .ruleSwitch is the
-   same switch on the dark lobby glass (track colour: .rule-toggle). */
+.prefLang .icon { width: 18px; height: 18px; }
+.prefList { text-align: left; margin: 0 0 14px; }
+.prefGroup { margin: 0 0 14px; break-inside: avoid; }
+.prefGroupTitle { margin: 0 4px 6px; font-size: var(--fs-label); font-weight: 700; color: var(--text-muted); }
+.prefBox { background: rgba(0, 0, 0, 0.04); border-radius: var(--r-sm); padding: 0 12px; }
+.prefRow {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; min-height: 50px; padding: 5px 0; margin: 0;
+  border: none; border-top: 1px solid var(--glass-border); border-radius: 0;
+  background: transparent; color: var(--card-ink);
+  font: inherit; text-align: left;
+}
+label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
+.prefBox > .prefRow:first-child, .prefBox > :first-child > .prefRow:first-child { border-top: none; }
+/* A conditional first row (Kartenhaus, tutorial hints) is mostly hidden: the next one leads. */
+.prefBox > .prefRow.hidden:first-child + .prefRow { border-top: none; }
+.prefIcon { flex: none; width: 20px; height: 20px; }
+.prefText { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.prefLabel { font-size: var(--fs-body); font-weight: 600; line-height: 1.25; }
+.prefSub { font-size: var(--fs-hint); color: var(--text-muted); line-height: 1.3; }
+.prefValue { flex: none; font-size: var(--fs-label); font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+.prefChevron { flex: none; width: 16px; height: 16px; transform: rotate(-90deg); color: var(--text-muted); }
+.prefStack { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 0 12px; }
+.prefStackHead { display: flex; align-items: center; gap: 10px; }
+.prefRow .settingsSelect { min-width: 0; max-width: 48%; padding: 8px 30px 8px 11px; font-size: var(--fs-label); }
+/* Capped: a select is as wide as its longest option ("… · ab Stufe 50"). */
+.prefCeleb .settingsSelect { max-width: 40%; }
+/* Segments as in the house rules, in paper inks (test/theme-contrast). */
+.prefSeg { background: rgba(0, 0, 0, 0.06); border: none; }
+.prefSeg .segBtn { color: var(--card-ink); }
+.prefSeg .segBtn.active { background: var(--paper-accent); color: #fff; box-shadow: none; }
+/* Each size label in the size it picks (html font-size 16 / 17.5 / 19 px). */
+.prefScaleSeg .segBtn[data-value="large"] { font-size: calc(var(--fs-label) * 1.094); }
+.prefScaleSeg .segBtn[data-value="xlarge"] { font-size: calc(var(--fs-label) * 1.1875); }
+.prefSwatches { margin: 0; padding-left: 30px; }
+.prefSwatches .themeBtn { width: 30px; height: 30px; border-width: 2px; }
+.prefIconBtn {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: var(--tap-min); height: var(--tap-min); padding: 0; border-radius: 50%; cursor: pointer;
+  border: 1px solid var(--paper-line); background: rgba(0, 0, 0, 0.05); color: var(--card-ink);
+}
+.prefIconBtn .icon { width: 18px; height: 18px; }
+.prefBox .celebrationPreview.celebrating { margin: 0 0 10px; }
+.prefNote { margin: 2px 4px 0; font-size: var(--fs-hint); color: var(--text-muted); line-height: 1.4; }
+/* "Dieser Tisch" (table only): the house rules read-only, under their label like the swatches. */
+.prefRules { display: grid; gap: 3px; margin: 0; padding-left: 30px; }
+.prefRules > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.prefRules dt { min-width: 0; font-size: var(--fs-label); color: var(--text-muted); line-height: 1.3; }
+.prefRules dd { flex: none; margin: 0; font-size: var(--fs-label); font-weight: 700; font-variant-numeric: tabular-nums; }
+/* A switch instead of a bare checkbox, 52x32. .ruleSwitch is the same switch
+   on the dark lobby glass (track colour: .rule-toggle). */
 .settingsCheckbox, .ruleSwitch {
   appearance: none; -webkit-appearance: none; flex: 0 0 auto; margin: 0;
   width: 52px; height: 32px; border-radius: 999px; position: relative; cursor: pointer;
@@ -5035,15 +5585,9 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
 .settingsCheckbox { background: var(--paper-line); }
 .settingsCheckbox:checked { background: var(--paper-accent); }
 .settingsCheckbox:focus-visible { outline-color: var(--paper-accent); }
-/* Erklaerzeile gehoert zu IHRER Zeile - deshalb im selben Kasten, ohne
-   Trennlinie dazwischen (vorher stand sie optisch beim naechsten Punkt). */
+/* A hint belongs to ITS row: same box, no divider in between. */
 .settingsHint { margin: 8px 2px 0; font-size: 0.78rem; color: var(--text-muted); line-height: 1.45; }
 
-
-/* --- Aufgeben-Knopf in der Kopfleiste ---------------------------------------
-   Bewusst NICHT mehr neben "Abwerfen": eine seltene, endgültige Aktion darf
-   nicht an einen Knopf grenzen, der jeden Zug gedrückt wird. Jetzt hinter dem
-   Zahnrad bei den übrigen seltenen Aktionen - ein bewusster Tipp entfernt. */
 
 
 /* --- Tutorial: target marks (set only by the tutorial code) ------------------
@@ -5215,7 +5759,6 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
 
 /* Dealer star (hand toolbar, opponent chips) and the difficulty chip */
 .dealerIcon { width: 1.05em; height: 1.05em; fill: currentColor; vertical-align: -0.15em; }
-.opDealer { display: inline-flex; margin-left: 4px; color: var(--accent); flex: 0 0 auto; }
 .botDiffBadge {
   color: #fff;
   font-size: var(--fs-micro); font-weight: 800;
@@ -5425,6 +5968,44 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
   #lobby:not(.inSession) > .seoIntro { grid-column: 1 / -1; margin: 8px auto; }
 }
 
+/* --- Settings sheet in two columns ----------------------------------------
+   Phone landscape (~400 px high, from 720 px wide) and desktop: the groups
+   flow into two columns, so landscape needs ~half the scrolling and the
+   desktop none. Ton + Darstellung (.prefCol) are the left column. */
+@media (orientation: landscape) and (max-height: 540px) and (min-width: 720px), (min-width: 1100px) {
+  #settingsOverlay .overlay-card { max-width: 780px; }
+  .prefList { columns: 2; column-gap: 18px; margin-bottom: 4px; }
+  .prefCol { break-inside: avoid; }
+  /* At the table "Dieser Tisch" leads the right column; the left one stays the start
+     screen's. A grid, not columns: these would put it over Ton (2.5 screens to scroll). */
+  #settingsOverlay.atTable .prefList {
+    columns: auto; display: grid; align-items: start; column-gap: 18px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); /* 1fr grew to the selects' longest option */
+  }
+  #settingsOverlay.atTable .prefList > * { grid-column: 2; }
+  #settingsOverlay.atTable .prefList > .prefCol { grid-column: 1; grid-row: 1 / span 4; }
+}
+@media (orientation: landscape) and (max-height: 540px) and (min-width: 720px) {
+  #settingsOverlay .overlay-card { padding: 12px 18px 10px; }
+  #settingsOverlay .prefHead { margin-bottom: 8px; }
+}
+/* Desktop: the sheet takes the height there is, and "Schließen" stays in reach when it
+   still scrolls (at the table, or on a laptop's short screen). */
+@media (min-width: 1100px) {
+  #settingsOverlay .overlay-card { max-height: calc(100dvh - 48px); }
+  /* Sticky insets count from inside the card's 22px padding: -22px sits flush with its edge. */
+  .prefFoot {
+    position: sticky; bottom: -22px; z-index: 1;
+    margin: 0 -22px -22px; padding: 0 22px 22px;
+    background: var(--card-bg);
+  }
+  /* A soft edge where the list scrolls under the button. */
+  .prefFoot::before {
+    content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: 14px;
+    background: linear-gradient(to bottom, transparent, var(--card-bg)); pointer-events: none;
+  }
+}
+
 /* --- Landscape phone, second pass --------------------------------------------
    Playthrough on iPhone 16 Pro / Pro Max turned sideways (874x402, 956x440):
    the first landscape grid above was undone by rules further down the file.
@@ -5546,12 +6127,16 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
   .stammtischSheet .stGoalLevel small { display: none; }
   .stammtischSheet .stGoalWeek { flex: 1 1 auto; }
 
-  /* Kartenhaus at ~400 px: the house left at full height, head right above the
-     detail; only the right column scrolls. */
-  .overlay-card.towerCard { height: calc(100dvh - 16px); max-width: 820px; padding: 10px 16px; --kh-house-h: calc(100dvh - 36px); }
+  /* Kartenhaus at ~400 px: the house left (at most 336 px high, so the detail keeps its
+     width and the play button stays in view), head right above the detail; only the
+     right column scrolls. */
+  .overlay-card.towerCard { height: calc(100dvh - 16px); max-width: 820px; padding: 10px 16px; --kh-house-h: min(calc(100dvh - 36px), 336px); }
   .towerCard .khSide { overflow-y: auto; }
   .towerCard .khSide > * { flex-shrink: 0; }  /* else an open fold squeezes the detail card into overlap */
-  .towerCard .khDetail { min-height: 0; padding: 8px 12px; }
+  .towerCard .khDetail { min-height: 0; margin-bottom: 2px; padding: 8px 12px; }
+  /* A few pixels less around the detail: "Schließen" fits under the next floor's play button. */
+  .towerCard .khLegend { margin: 0 0 4px; }
+  .towerCard .khPlay { margin-top: 8px; }
 
   /* Year review at ~400 px: the story card left, its controls bottom right. */
   #yearReviewOverlay .overlay-card {
@@ -5576,4 +6161,62 @@ html.noSplash #lobby { opacity: 1; visibility: visible; animation: none; }
   #accountLoginForm > :not(.fieldLabel):not(input), #accountRegisterForm > :not(.fieldLabel):not(input) { grid-column: 1 / -1; }
   #accountLoginForm .fieldLabel, #accountRegisterForm .fieldLabel { margin: 0; }
   #accountLoginForm .linkBtn { justify-self: center; }
+
+  /* Kartenhaus at ~400 px: the floor card spans both pile columns under the piles;
+     inline-size containment keeps its text from widening them. */
+  #table.towerGame #centerPiles {
+    display: grid; grid-template-columns: auto auto; justify-content: center; align-content: start;
+    gap: 8px 14px; padding: 6px calc(12px + var(--safe-right)) 4px 4px;
+  }
+  /* Side by side, the draw pile's count badge reaches over: the lock token stays clear of it. */
+  #discardPile.towerLocked .pileLock { top: -9px; left: -3px; width: 20px; height: 20px; }
+  #discardPile.towerLocked .pileLock .icon { width: 11px; height: 11px; }
+  #table.towerGame #centerPiles::before { inset: -6px 15% -2px; }
+  /* The floor card sits under the piles: the undo chip takes the caption's place. */
+  #table.towerGame .pileUndoBtn { top: auto; bottom: -8px; }
+  #table.towerGame #discardPile.undoable .pileLabel { visibility: hidden; }
+  /* Card 44 + 5 + "Vorgabe" 45 + the ✕ 44: three targets side by side need 138 px, the piles alone
+     give 123, so the column is 15 px wider while the card is shown (hidden: the normal table). */
+  .towerBar {
+    --tb-card-w: 44px; --tb-card-h: 56px;
+    grid-column: 1 / -1; grid-row: 2; justify-self: stretch; contain: inline-size; margin: 0 -10px 0 -4px; align-items: start;
+    min-width: 138px;
+  }
+  .tbFold { grid-template-columns: var(--tb-card-w) minmax(0, 1fr); grid-template-areas: 'slot goal' 'mods mods'; column-gap: 5px; row-gap: 1px; padding-right: 0; }
+  .towerBar:not(.tbCompact) .tfGoal { margin-right: var(--tap-min); }
+  .towerBar.tbCompact .tbFold { justify-self: start; grid-template-columns: var(--tb-card-w) minmax(calc(var(--tap-min) - 5px), auto); grid-template-areas: 'slot mods'; }
+  .tfTok { width: 15px; height: 15px; }
+  .tfTok .icon { width: 9px; height: 9px; }
+  .tfCol { display: contents; }
+  .towerBar .tfCard { width: 38px; height: 53px; border-radius: 7px; }
+  .towerBar .tfRank { top: 4px; left: 5px; }
+  .towerBar .tfRank b { font-size: var(--fs-body); }
+  .towerBar .tfRank .icon { width: 9px; height: 9px; }
+  .towerBar .tfPip { right: 3px; top: 17px; width: 14px; height: 14px; }
+  .towerBar .tfCard.mod::before, .towerBar .tfCard.risk::before { inset: 2px; border-radius: 5px; }
+  .towerBar .tfStars { bottom: 4px; }
+  .towerBar .tfStars .icon { width: 9px; height: 9px; }
+  /* 74 px beside the card: the house is on the card, the head start stands as a figure. */
+  .tfCap { display: none; }
+  .tfGoal { grid-area: goal; white-space: normal; line-height: 1.2; }
+  .tfGoal b { display: block; font-size: var(--fs-lead); }
+  .tfMods { grid-area: mods; margin: 5px 0 0 3px; gap: 1px; }
+  .towerBar.tbCompact .tfMods { gap: 3px; }
+  .tfMod { line-height: 1.15; gap: 4px; }
+  .towerStart { grid-area: melds; align-self: center; justify-self: center; margin: 0; width: min(640px, calc(100% - 16px)); padding: 10px 14px 10px 12px; align-items: center; }
+  /* The floor's rules at ~400 px: two columns instead of one long scroll. */
+  .overlay-card.towerFloorSheet { max-width: 780px; padding: 12px 20px 10px; }
+  .overlay-card.towerFloorSheet h2 { margin-bottom: 4px; }
+  .tfSheet { columns: 2; column-gap: 26px; }
+  .tfSheet h3 { margin: 8px 0 4px; }
+  .tfsHead { margin: 0; gap: 12px; }
+  .tfsHead .tfCard { width: 40px; height: 56px; border-radius: 7px; }
+  .tfsHead .tfCard .tfRank b { font-size: var(--fs-lead); }
+  .tfsHead .tfCard .tfPip { top: 18px; width: 15px; height: 15px; }
+  .tfsHead .tfCard .tfStars .icon { width: 9px; height: 9px; }
+  .tfsActions { flex-direction: row; gap: 10px; }
+  .overlay-card.towerFloorSheet .tfsActions > button { flex: 1 1 0; margin-top: 4px; min-height: var(--tap-min); padding-top: 10px; padding-bottom: 10px; }
+  .tsStage { padding: 0; }
+  .tfCard.big { width: 58px; height: 81px; }
+  .tfCard.big .tfPip { top: 28px; width: 20px; height: 20px; }
 }

@@ -1,14 +1,18 @@
 // Stammtisch: persistent group tables - codes, standings, pairwise record
-// and the best-of-3 rematch series.
+// and the best-of-3 rematch series - in PostgreSQL, with the one-time import
+// of stammtisch.json.
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { createStammtischStore, normalizeCode } = require('../game/StammtischStore');
+const { Pool } = require('pg');
+const { createStammtischStore, normalizeCode, legacyRows } = require('../game/StammtischStore');
+const { testPool } = require('./helpers/test-db');
 
-function tempStore() {
-  return createStammtischStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikst-')), 'stammtisch.json'));
+function tempStore(t, opts = {}) {
+  const pool = testPool(t, 'stammtisch');
+  return { st: createStammtischStore(pool, { legacyFile: null, ...opts }), pool };
 }
 function rec(winnerId, totals, players) {
   return {
@@ -18,124 +22,137 @@ function rec(winnerId, totals, players) {
     finishedAt: Date.now(),
   };
 }
+const memberNames = async (st, code) => (await st.summary(code)).members.map((m) => m.name.toLowerCase()).sort();
 
-test('create: a ST-prefixed code, the founder as first member, sanitized name', () => {
-  const st = tempStore();
-  const { table } = st.create('  Familie <Müller>  ', 'Flo');
+test('create: a ST-prefixed code, the founder as first member, sanitized name', async (t) => {
+  const { st } = tempStore(t);
+  const { table } = await st.create('  Familie <Müller>  ', 'Flo');
   assert.match(table.code, /^ST[A-Z2-9]{4}$/);
   assert.strictEqual(table.name, 'Familie Müller');
-  assert.deepStrictEqual(Object.keys(table.members), ['flo']);
-  assert.strictEqual(st.get(table.code.toLowerCase()).code, table.code, 'lookup normalizes the code');
-  assert.strictEqual(st.get('NOPE12'), null);
+  assert.deepStrictEqual(await memberNames(st, table.code), ['flo']);
+  assert.deepStrictEqual(await st.get(table.code.toLowerCase()), { code: table.code, name: 'Familie Müller' }, 'lookup normalizes the code');
+  assert.strictEqual(await st.get('NOPE12'), null);
+  assert.strictEqual(await st.get(''), null);
   assert.strictEqual(normalizeCode(' st-9e wh '), 'ST9EWH');
 });
 
-test('recordGame: standings, pairwise record and a best-of-3 series that only humans can win', () => {
-  const st = tempStore();
-  const { table } = st.create('Runde', 'Flo');
-  assert.strictEqual(st.recordGame(table.code, rec('a', { a: 1010, b: 400, x: 200 })).seriesEvent, null);
-  assert.strictEqual(st.recordGame(table.code, rec('b', { a: 300, b: 1005, x: 200 })).seriesEvent, null);
+test('recordGame: standings, pairwise record and a best-of-3 series that only humans can win', async (t) => {
+  const { st } = tempStore(t);
+  const { table } = await st.create('Runde', 'Flo');
+  assert.strictEqual((await st.recordGame(table.code, rec('a', { a: 1010, b: 400, x: 200 }))).seriesEvent, null);
+  assert.strictEqual((await st.recordGame(table.code, rec('b', { a: 300, b: 1005, x: 200 }))).seriesEvent, null);
   // A bot win is a played game but nobody's series point.
-  const botWin = st.recordGame(table.code, rec('x', { a: 300, b: 200, x: 1100 }));
+  const botWin = await st.recordGame(table.code, rec('x', { a: 300, b: 200, x: 1100 }));
   assert.strictEqual(botWin.seriesEvent, null);
   assert.deepStrictEqual(botWin.summary.series.wins, { flo: 1, anna: 1 });
   assert.strictEqual(botWin.summary.series.games, 3);
-  const decider = st.recordGame(table.code, rec('a', { a: 1200, b: 100, x: 0 }));
+  const decider = await st.recordGame(table.code, rec('a', { a: 1200, b: 100, x: 0 }));
   assert.deepStrictEqual(decider.seriesEvent, { type: 'won', winner: 'Flo', no: 1 });
-  const sum = st.summary(table.code);
+  const sum = await st.summary(table.code);
   assert.strictEqual(sum.series.winner, 'Flo');
   assert.deepStrictEqual(sum.members.map((m) => [m.name, m.wins, m.games]), [['Flo', 2, 4], ['Anna', 1, 4]]);
   assert.deepStrictEqual(sum.pairwise.flo.anna, { ahead: 3, behind: 1 });
   assert.strictEqual(sum.gamesPlayed, 4);
+  assert.deepStrictEqual(sum.recent[0].players.map((p) => [p.name, p.isBot, p.score, p.won]),
+    [['Flo', false, 1200, true], ['Anna', false, 100, false], ['Uwe', true, 0, false]], 'newest first, seats in order');
   // The next game opens series 2 with fresh counters.
-  const next = st.recordGame(table.code, rec('b', { a: 0, b: 1000, x: 0 }));
+  const next = await st.recordGame(table.code, rec('b', { a: 0, b: 1000, x: 0 }));
   assert.strictEqual(next.summary.series.no, 2);
   assert.deepStrictEqual(next.summary.series.wins, { anna: 1 });
   assert.strictEqual(next.summary.series.winner, null);
 });
 
-test('recordGame: a forfeited match (no winner) counts as played but scores nobody', () => {
-  const st = tempStore();
-  const { table } = st.create('Runde', 'Flo');
-  const r = st.recordGame(table.code, rec(null, { a: 10, b: 20, x: 0 }));
+test('recordGame: a forfeited match (no winner) counts as played but scores nobody', async (t) => {
+  const { st } = tempStore(t);
+  const { table } = await st.create('Runde', 'Flo');
+  const r = await st.recordGame(table.code, rec(null, { a: 10, b: 20, x: 0 }));
   assert.deepStrictEqual(r.summary.series.wins, {});
   assert.strictEqual(r.summary.series.games, 1);
 });
 
-test('touch: registers a member on join and survives a reload', () => {
-  const st = tempStore();
-  const { table } = st.create('Runde', 'Flo');
-  st.touch(table.code, 'Anna');
-  st.flushSync();
-  const fresh = createStammtischStore(st.filePath);
-  assert.deepStrictEqual(Object.keys(fresh.get(table.code).members).sort(), ['anna', 'flo']);
-  assert.strictEqual(fresh.touch('NOPE12', 'x'), null);
+test('touch: registers a member on join and survives a restart (a new store on a new pool)', async (t) => {
+  const { st, pool } = tempStore(t);
+  const { table } = await st.create('Runde', 'Flo');
+  assert.deepStrictEqual(await st.touch(table.code, 'Anna'), { code: table.code, name: 'Runde' });
+  const pool2 = new Pool({ connectionString: pool.options.connectionString, max: 2 });
+  t.after(() => pool2.end());
+  const fresh = createStammtischStore(pool2, { legacyFile: null });
+  assert.deepStrictEqual(await memberNames(fresh, table.code), ['anna', 'flo']);
+  assert.strictEqual(await fresh.touch('NOPE12', 'x'), null);
 });
 
-test('recordGame: unknown code is a no-op, game list is capped', () => {
-  const st = tempStore();
-  assert.strictEqual(st.recordGame('NOPE12', rec('a', {})), null);
-  const { table } = st.create('Runde', 'Flo');
-  for (let i = 0; i < 120; i++) st.recordGame(table.code, rec('a', { a: 1000, b: 0, x: 0 }));
-  assert.strictEqual(st.get(table.code).games.length, 100);
+test('recordGame: unknown code is a no-op, game list is capped', async (t) => {
+  const { st, pool } = tempStore(t);
+  assert.strictEqual(await st.recordGame('NOPE12', rec('a', {})), null);
+  const { table } = await st.create('Runde', 'Flo');
+  for (let i = 0; i < 105; i++) await st.recordGame(table.code, rec('a', { a: 1000, b: 0, x: 0 }));
+  assert.strictEqual((await st.summary(table.code)).gamesPlayed, 100);
+  const nos = (await pool.query('SELECT min(game_no) AS lo, max(game_no) AS hi FROM stammtisch_games')).rows[0];
+  assert.deepStrictEqual([nos.lo, nos.hi], [6, 105], 'the oldest go, numbering goes on');
+  assert.strictEqual((await pool.query('SELECT count(*)::int AS n FROM stammtisch_game_seats')).rows[0].n, 300, 'their seats go too');
 });
 
-test('my Stammtische: list by account, only the owner deletes, members leave (#307)', () => {
-  const st = tempStore();
-  const { table } = st.create('Familie', 'Flo', Date.now() - 1000, 'Flo');
-  const other = st.create('Skatrunde', 'Anna', Date.now(), 'Anna').table;
-  st.touch(table.code, 'Anna');
-  st.touch(table.code, 'Ben');
+test('my Stammtische: list by account, only the owner deletes, members leave (#307)', async (t) => {
+  const { st } = tempStore(t);
+  const { table } = await st.create('Familie', 'Flo', Date.now() - 1000, 'Flo');
+  const other = (await st.create('Skatrunde', 'Anna', Date.now(), 'Anna')).table;
+  await st.touch(table.code, 'Anna');
+  await st.touch(table.code, 'Ben');
 
-  const flo = st.listFor('flo');
-  assert.deepStrictEqual(flo.map((t) => [t.code, t.isOwner]), [[table.code, true]]);
+  const flo = await st.listFor('flo');
+  assert.deepStrictEqual(flo.map((x) => [x.code, x.isOwner]), [[table.code, true]]);
   assert.deepStrictEqual(flo[0].members.sort(), ['Anna', 'Ben', 'Flo']);
   // Anna: own table first (newer activity), then the one she plays at.
-  assert.deepStrictEqual(st.listFor('Anna').map((t) => [t.code, t.isOwner]), [[table.code, false], [other.code, true]]);
-  assert.deepStrictEqual(st.listFor(''), []);
+  assert.deepStrictEqual((await st.listFor('Anna')).map((x) => [x.code, x.isOwner]), [[table.code, false], [other.code, true]]);
+  assert.deepStrictEqual(await st.listFor(''), []);
+  assert.deepStrictEqual(await st.listFor('Nobody'), []);
 
-  assert.match(st.remove(table.code, 'Anna').error, /Nur wer den Stammtisch gegründet hat/, 'a member cannot delete');
-  assert.match(st.remove(table.code, 'Mallory').error, /Nur wer/, 'a stranger cannot delete');
-  assert.ok(st.get(table.code), 'still there');
+  assert.match((await st.remove(table.code, 'Anna')).error, /Nur wer den Stammtisch gegründet hat/, 'a member cannot delete');
+  assert.match((await st.remove(table.code, 'Mallory')).error, /Nur wer/, 'a stranger cannot delete');
+  assert.ok(await st.get(table.code), 'still there');
 
-  assert.match(st.leave(table.code, 'Flo').error, /nur löschen/, 'the owner deletes, never leaves');
-  assert.deepStrictEqual(st.leave(table.code, 'ben'), { ok: true, code: table.code });
-  assert.ok(!st.listFor('Ben').length, 'Ben no longer lists it');
-  assert.match(st.leave(table.code, 'Ben').error, /nicht eingetragen/);
+  assert.match((await st.leave(table.code, 'Flo')).error, /nur löschen/, 'the owner deletes, never leaves');
+  assert.deepStrictEqual(await st.leave(table.code, 'ben'), { ok: true, code: table.code });
+  assert.ok(!(await st.listFor('Ben')).length, 'Ben no longer lists it');
+  assert.match((await st.leave(table.code, 'Ben')).error, /nicht eingetragen/);
 
-  assert.deepStrictEqual(st.remove(table.code.toLowerCase(), 'FLO'), { ok: true, code: table.code });
-  assert.strictEqual(st.get(table.code), null);
-  assert.match(st.remove(table.code, 'Flo').error, /gibt es nicht/);
+  assert.deepStrictEqual(await st.remove(table.code.toLowerCase(), 'FLO'), { ok: true, code: table.code });
+  assert.strictEqual(await st.get(table.code), null);
+  assert.match((await st.remove(table.code, 'Flo')).error, /gibt es nicht/);
 });
 
-test('tables from before owners existed belong to their founder (first member)', () => {
-  const st = tempStore();
-  const { table } = st.create('Alt', 'Flo'); // no owner account: legacy shape
-  st.touch(table.code, 'Anna');
-  assert.strictEqual(table.owner, null);
-  assert.deepStrictEqual(st.listFor('Flo').map((t) => t.isOwner), [true]);
-  assert.match(st.remove(table.code, 'Anna').error, /Nur wer/);
-  assert.ok(st.remove(table.code, 'Flo').ok);
+test('without an account the founder owns the table; without a founder the first member', async (t) => {
+  const { st } = tempStore(t);
+  const { table } = await st.create('Alt', 'Flo'); // accounts off: no owner account
+  await st.touch(table.code, 'Anna');
+  assert.deepStrictEqual((await st.listFor('Flo')).map((x) => x.isOwner), [true]);
+  assert.match((await st.remove(table.code, 'Anna')).error, /Nur wer/);
+  assert.ok((await st.remove(table.code, 'Flo')).ok);
+  const nobody = (await st.create('Leer', '')).table;
+  await st.touch(nobody.code, 'Cleo');
+  await st.touch(nobody.code, 'Dan');
+  assert.match((await st.leave(nobody.code, 'Cleo')).error, /nur löschen/, 'the first member owns it');
+  assert.ok((await st.leave(nobody.code, 'Dan')).ok);
 });
 
-test('lastWinner: the human who won the latest match (bots never count)', () => {
-  const st = tempStore();
-  const { table } = st.create('Runde', 'Flo');
-  assert.strictEqual(st.lastWinner(table.code), null);
-  st.recordGame(table.code, rec('b', { a: 300, b: 1005, x: 200 }));
-  assert.strictEqual(st.lastWinner(table.code), 'Anna');
-  st.recordGame(table.code, rec('x', { a: 300, b: 200, x: 1100 }));
-  assert.strictEqual(st.lastWinner(table.code), null);
-  assert.strictEqual(st.lastWinner('NOPE12'), null);
+test('lastWinner: the human who won the latest match (bots never count)', async (t) => {
+  const { st } = tempStore(t);
+  const { table } = await st.create('Runde', 'Flo');
+  assert.strictEqual(await st.lastWinner(table.code), null);
+  await st.recordGame(table.code, rec('b', { a: 300, b: 1005, x: 200 }));
+  assert.strictEqual(await st.lastWinner(table.code), 'Anna');
+  await st.recordGame(table.code, rec('x', { a: 300, b: 200, x: 1100 }));
+  assert.strictEqual(await st.lastWinner(table.code), null);
+  assert.strictEqual(await st.lastWinner('NOPE12'), null);
 });
 
-test('chipInfo: the record for the start-screen chip and sheet, without activity data', () => {
-  const st = tempStore();
-  const { table } = st.create('Runde', 'Flo');
-  st.recordGame(table.code, rec('a', { a: 1010, b: 400, x: 200 }));
-  st.recordGame(table.code, rec('b', { a: 300, b: 1005, x: 200 }));
-  st.recordGame(table.code, rec('a', { a: 1020, b: 500, x: 100 }));
-  const info = st.chipInfo(table.code.toLowerCase());
+test('chipInfo: the record for the start-screen chip and sheet, without activity data', async (t) => {
+  const { st } = tempStore(t);
+  const { table } = await st.create('Runde', 'Flo');
+  await st.recordGame(table.code, rec('a', { a: 1010, b: 400, x: 200 }));
+  await st.recordGame(table.code, rec('b', { a: 300, b: 1005, x: 200 }));
+  await st.recordGame(table.code, rec('a', { a: 1020, b: 500, x: 100 }));
+  const info = await st.chipInfo(table.code.toLowerCase());
   assert.strictEqual(info.code, table.code);
   assert.strictEqual(info.name, 'Runde');
   assert.strictEqual(info.gamesPlayed, 3);
@@ -145,5 +162,130 @@ test('chipInfo: the record for the start-screen chip and sheet, without activity
   assert.strictEqual(info.series.winner, 'Flo');
   assert.deepStrictEqual(Object.keys(info).sort(), ['code', 'gamesPlayed', 'goals', 'members', 'name', 'pairwise', 'series'], 'no game list');
   assert.deepStrictEqual([info.goals.xp, info.goals.week.games, info.goals.week.goal], [45, 3, require('../game/StammtischGoals').WEEKLY_GOAL], 'the group goals ride along');
-  assert.strictEqual(st.chipInfo('NOPE12'), null);
+  assert.strictEqual(await st.chipInfo('NOPE12'), null);
+});
+
+test('at once: joins and matches on one table all land; deleting a player keeps the group\'s record', async (t) => {
+  const { st, pool } = tempStore(t);
+  const { table } = await st.create('Runde', 'Flo');
+  const names = ['Anna', 'Ben', 'Cleo', 'Dan', 'Eva', 'Fritz'];
+  await Promise.all([
+    ...names.map((n) => st.touch(table.code, n)),
+    ...Array.from({ length: 6 }, (_, i) => st.recordGame(table.code, rec(i % 2 ? 'a' : 'b', { a: 100 + i, b: 50, x: 0 }))),
+  ]);
+  const sum = await st.summary(table.code);
+  assert.strictEqual(sum.gamesPlayed, 6, 'every match booked once');
+  assert.deepStrictEqual(sum.members.map((m) => m.name).sort(), ['Anna', 'Ben', 'Cleo', 'Dan', 'Eva', 'Fritz', 'Flo'].sort());
+  assert.deepStrictEqual([sum.members.find((m) => m.name === 'Flo').games, sum.goals.xp], [6, 90]);
+
+  await pool.query("DELETE FROM players WHERE player_key = 'anna'");
+  const after = await st.summary(table.code);
+  assert.ok(!after.members.some((m) => m.name === 'Anna'), 'no longer a member');
+  assert.strictEqual(after.gamesPlayed, 6, 'the matches stay');
+  assert.ok(after.recent.every((g) => g.players.some((p) => p.name === 'Anna')), 'with her name as played');
+  assert.strictEqual((await pool.query("SELECT count(*)::int AS n FROM stammtisch_game_seats WHERE player_name = 'Anna' AND player_id IS NULL")).rows[0].n, 6);
+
+  await st.remove(table.code, 'Flo');
+  const left = (await pool.query(`SELECT (SELECT count(*) FROM stammtisch_members) + (SELECT count(*) FROM stammtisch_games)
+    + (SELECT count(*) FROM stammtisch_game_seats) + (SELECT count(*) FROM stammtisch_series_wins) + (SELECT count(*) FROM stammtisch_weeks) AS n`)).rows[0].n;
+  assert.strictEqual(Number(left), 0, 'deleting the table takes everything in it');
+});
+
+test('inactive tables go after 180 days, the newest 300 stay', async (t) => {
+  const { st, pool } = tempStore(t);
+  const now = Date.now();
+  const old = (await st.create('Alt', 'Flo', now - 200 * 86400000)).table;
+  const recent = (await st.create('Neu', 'Flo', now - 10 * 86400000)).table;
+  await pool.query(`INSERT INTO stammtische (stammtisch_code, stammtisch_name, last_used_at)
+    SELECT 'ZZ' || lpad(i::text, 4, '0'), 'Viele', now() - interval '1 day' FROM generate_series(1, 300) AS i`);
+  await st.create('Heute', 'Flo', now);
+  assert.strictEqual(await st.get(old.code), null, 'unused for 200 days');
+  assert.strictEqual(await st.get(recent.code), null, 'the least recently used beyond 300');
+  assert.strictEqual((await pool.query('SELECT count(*)::int AS n FROM stammtische')).rows[0].n, 301);
+});
+
+// --- One-time import of stammtisch.json -------------------------------------------
+
+function legacyFile(t, content) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-st-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'stammtisch.json');
+  fs.writeFileSync(file, typeof content === 'string' ? content : JSON.stringify(content));
+  return file;
+}
+const AT = Date.parse('2026-10-14T10:00:00Z');
+const OLD_FILE = { tables: {
+  ST2345: {
+    code: 'ST2345', name: 'Familie', createdAt: AT - 86400000, lastActivity: AT, owner: null,
+    members: { flo: { name: 'Flo', games: 2, wins: 1, points: 1400, lastSeen: AT }, anna: { name: 'Anna', games: 2, wins: 1, points: 1500, lastSeen: AT } },
+    series: { no: 1, bestOf: 3, wins: { anna: 1, ben: 1 }, games: 2, winner: null, finishedAt: null },
+    games: [
+      { at: AT - 3600000, seriesNo: 1, players: [{ name: 'Flo', isBot: false, score: 1000, won: true }, { name: 'Anna', isBot: false, score: 500, won: false }, { name: 'Uwe', isBot: true, score: 10, won: false }] },
+      { at: AT, seriesNo: 1, players: [{ name: 'Flo', isBot: false, score: 400, won: false }, { name: 'Anna', isBot: false, score: 1000, won: true }] },
+    ],
+  },
+  STOWN2: { code: 'STOWN2', name: 'Skat', createdAt: AT, lastActivity: AT, owner: 'cleo', members: { dan: { name: 'Dan', games: 0, wins: 0, points: 0 } },
+    series: { no: 3, bestOf: 3, wins: {}, games: 2, winner: 'Dan', finishedAt: AT }, games: [], goals: { xp: 120, weeks: { '2026-10-12': 5 }, weeksReached: 1 } },
+  'bad code!': { code: 'NO-WAY-TOO-LONG', name: 'x' },
+} };
+
+test('legacyRows: tables, members in order, series wins (also of non-members), games, seats and goals', () => {
+  const rows = legacyRows(OLD_FILE, AT);
+  assert.deepStrictEqual(rows.tables.map((x) => [x.code, x.owner_key, x.series_no, x.series_winner_name, x.goal_xp, x.goal_weeks_reached]),
+    [['ST2345', 'flo', 1, null, 30, 0], ['STOWN2', 'cleo', 3, 'Dan', 120, 1]], 'no owner: the first member; goals rebuilt from the matches');
+  assert.deepStrictEqual(rows.members.map((m) => [m.code, m.player_key, m.points]), [['ST2345', 'flo', 1400], ['ST2345', 'anna', 1500], ['STOWN2', 'dan', 0]]);
+  assert.ok(rows.members[0].joined_at < rows.members[1].joined_at, 'the order of the file stays');
+  assert.deepStrictEqual(rows.seriesWins.map((w) => [w.player_key, w.wins]), [['anna', 1], ['ben', 1]]);
+  assert.deepStrictEqual(rows.seats.map((x) => [x.game_no, x.seat_no, x.player_key, x.is_bot]),
+    [[1, 0, 'flo', false], [1, 1, 'anna', false], [1, 2, null, true], [2, 0, 'flo', false], [2, 1, 'anna', false]]);
+  assert.deepStrictEqual(rows.weeks.map((w) => [w.code, w.week_start_day, w.games_played]), [['ST2345', '2026-10-12', 2], ['STOWN2', '2026-10-12', 5]]);
+  assert.deepStrictEqual(rows.players.map((p) => p.player_key).sort(), ['anna', 'ben', 'cleo', 'dan', 'flo']);
+});
+
+test('import: stammtisch.json moves in once, the file is renamed, the tables play on', async (t) => {
+  const pool = testPool(t, 'st_import');
+  const file = legacyFile(t, OLD_FILE);
+  const st = createStammtischStore(pool, { legacyFile: file });
+  const sum = await st.summary('st2345', AT);
+  assert.deepStrictEqual([sum.name, sum.gamesPlayed, sum.series.wins, sum.goals.xp], ['Familie', 2, { anna: 1, ben: 1 }, 30]);
+  assert.deepStrictEqual(sum.members.map((m) => [m.name, m.games, m.wins, m.points]), [['Anna', 2, 1, 1500], ['Flo', 2, 1, 1400]]);
+  assert.deepStrictEqual(sum.pairwise.flo.anna, { ahead: 1, behind: 1 });
+  assert.strictEqual(await st.lastWinner('ST2345'), 'Anna');
+  assert.deepStrictEqual((await st.listFor('Flo')).map((x) => [x.code, x.isOwner]), [['ST2345', true]], 'the first member owns it');
+  assert.deepStrictEqual((await st.listFor('Cleo')).map((x) => [x.code, x.isOwner]), [['STOWN2', true]], 'the owner account, not a member');
+  assert.strictEqual((await st.summary('STOWN2', AT)).series.winner, 'Dan');
+  assert.strictEqual(await st.get('NOWAYT'), null, 'a code no lookup can reach is skipped');
+  // The next match: series 1 decided by Anna, numbering goes on after the imported games.
+  const r = await st.recordGame('ST2345', rec('b', { a: 10, b: 1000, x: 0 }), AT + 1000);
+  assert.deepStrictEqual(r.seriesEvent, { type: 'won', winner: 'Anna', no: 1 });
+  assert.strictEqual(r.summary.gamesPlayed, 3);
+  assert.ok(!fs.existsSync(file) && fs.existsSync(`${file}.migrated`));
+
+  fs.renameSync(`${file}.migrated`, file);
+  const again = createStammtischStore(pool, { legacyFile: file });
+  assert.strictEqual((await again.summary('ST2345')).gamesPlayed, 3, 'never imported twice');
+  assert.ok(!fs.existsSync(file));
+});
+
+test('import: an unreadable file is not marked and stays; fixed, it imports, a code taken meanwhile keeps the live table', async (t) => {
+  const pool = testPool(t, 'st_broken');
+  const file = legacyFile(t, '{"tables": {"ST2345": ');
+  const orig = console.error;
+  const errors = [];
+  console.error = (...a) => errors.push(a.join(' '));
+  let live;
+  try {
+    const st = createStammtischStore(pool, { legacyFile: file });
+    live = (await st.create('Live', 'Zoe')).table;
+  } finally {
+    console.error = orig;
+  }
+  assert.match(errors.join('\n'), /stammtisch\.json import failed, retrying in 10 min/);
+  assert.ok(fs.existsSync(file));
+  assert.strictEqual((await pool.query('SELECT count(*)::int AS n FROM legacy_imports')).rows[0].n, 0);
+
+  fs.writeFileSync(file, JSON.stringify({ tables: { ...OLD_FILE.tables, [live.code]: { code: live.code, name: 'Alt', members: {}, games: [] } } }));
+  const restarted = createStammtischStore(pool, { legacyFile: file });
+  assert.strictEqual((await restarted.get(live.code)).name, 'Live', 'the live table keeps its code');
+  assert.strictEqual((await restarted.summary('ST2345')).gamesPlayed, 2);
 });

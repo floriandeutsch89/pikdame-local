@@ -10,6 +10,7 @@ const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
 const WebSocket = require('ws');
+const { testDatabaseUrl } = require('./helpers/test-db');
 
 const ROOT = path.join(__dirname, '..');
 let PORT = 0;
@@ -77,7 +78,7 @@ test('tablePrefs: a new table starts with them, nothing else does', async (t) =>
   PORT = await freePort();
   const server = spawn('node', ['server.js'], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_PUBLIC_MODE: '1', PIKDAME_ACCOUNTS: '0', PIKDAME_ONNX: '0' },
+    env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('table_prefs'), PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_PUBLIC_MODE: '1', PIKDAME_ACCOUNTS: '0', PIKDAME_ONNX: '0' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const sockets = [];

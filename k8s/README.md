@@ -1,49 +1,74 @@
-# Pik Dame auf Kubernetes
+# Pik Dame on Kubernetes
 
-## Wichtigste Betriebs-Eigenschaft zuerst
+## The most important property first
 
-**Der Server ist bewusst eine Einzel-Instanz** (`replicas: 1`,
-`strategy: Recreate`): Spielsitzungen leben im Prozess-Speicher, die
-Konten-Datenbank ist eine lokale SQLite-Datei auf dem PVC. Horizontal
-skalieren würde Spieler auf Instanzen verteilen, die nichts voneinander
-wissen. Für den Zweck (Familien- und Freundesrunden, 200-Session-Limit)
-reicht eine Instanz mit großem Abstand — Updates überbrückt der
-Session-Snapshot: laufende Spiele überleben den Pod-Neustart.
+**The server is a single instance by design** (`replicas: 1`,
+`strategy: Recreate`): game sessions live in process memory. Scaling out
+would split players across instances that know nothing about each other.
+For its purpose (family and friends' tables, 200-session limit) one instance
+is plenty; the session snapshot bridges updates, running games survive a pod
+restart.
 
-## Empfohlen: Helm Chart
+**PostgreSQL is mandatory.** Without `PIKDAME_DATABASE_URL` the server does
+not start. Use a managed or operator-run database and put the URL into a
+Secret (see below).
 
-Das Chart liegt unter `helm/pikdame` und wird bei jedem Release als
-OCI-Artefakt auf GHCR veröffentlicht — Installation ohne Repo-Checkout:
+## Recommended: Helm chart
+
+The chart lives in `helm/pikdame` and is published as an OCI artifact on
+GHCR with every release, so no checkout is needed:
 
 ```sh
+kubectl create secret generic pikdame-db \
+  --from-literal=url='postgres://pikdame:<password>@<host>:5432/pikdame'
+
 helm install pikdame oci://ghcr.io/floriandeutsch89/charts/pikdame \
   --version <X.Y.Z> \
   --set ingress.host=spiel.pikdame.online \
   --set image.tag=v<X.Y.Z>
 
-# Update / Rollback:
-helm upgrade pikdame oci://ghcr.io/floriandeutsch89/charts/pikdame --version <neu> --reuse-values
+# Update / rollback:
+helm upgrade pikdame oci://ghcr.io/floriandeutsch89/charts/pikdame --version <new> --reuse-values
 helm rollback pikdame
 ```
 
-Alle Stellschrauben (TLS, Storage-Klasse, Secret-Name, Limits) stehen
-dokumentiert in `helm/pikdame/values.yaml`. Die CI lintet und rendert das
-Chart bei jedem PR.
+The chart reads the database URL from the Secret `pikdame-db` (key `url`)
+unless `database.existingSecret` or `database.url` say otherwise. Every other
+setting (TLS, storage class, secret name, limits) is documented in
+`helm/pikdame/values.yaml`. CI lints and renders the chart on every PR.
 
-## Alternativ: rohe Manifeste
+The legal page (Impressum) needs the provider's name, address and e-mail;
+the public repo carries none of it. Set them as chart values (keep the real
+ones in your own values file, outside the repository):
 
 ```sh
+helm upgrade pikdame oci://ghcr.io/floriandeutsch89/charts/pikdame --reuse-values \
+  --set imprint.name='Max Muster' \
+  --set imprint.street='Musterstraße 1' \
+  --set imprint.city='12345 Musterstadt' \
+  --set imprint.email=impressum@example.org
+# optional: --set imprint.country=Österreich (default Deutschland)
+```
+
+Without them `/impressum.html` shows "Impressum nicht konfiguriert". With the
+plain manifests, fill in the commented `PIKDAME_IMPRINT_*` block in
+`k8s/deployment.yaml` (or put the variables into the `pikdame-env` Secret).
+
+## Alternative: plain manifests
+
+```sh
+kubectl create secret generic pikdame-db --from-literal=url='postgres://…'
 kubectl apply -f k8s/pvc.yaml
 kubectl apply -f k8s/deployment.yaml
 kubectl apply -f k8s/service.yaml
-kubectl apply -f k8s/ingress.yaml   # Host vorher anpassen
+kubectl apply -f k8s/ingress.yaml   # adjust the host first
 ```
 
-In Produktion das Image auf eine feste Version pinnen
-(`ghcr.io/floriandeutsch89/pikdame-local:vX.Y.Z`) — Rollback ist dann ein
-`kubectl set image` auf den vorherigen Tag.
+Pin the image to a fixed version in production
+(`ghcr.io/floriandeutsch89/pikdame-local:vX.Y.Z`); a rollback is then a
+`kubectl set image` to the previous tag.
 
-## Secrets (SMTP, Basis-URL)
+## Secrets (SMTP, base URL)
 
 ```sh
 kubectl create secret generic pikdame-env \
@@ -52,23 +77,26 @@ kubectl create secret generic pikdame-env \
   --from-literal=PIKDAME_SMTP_PORT=587 \
   --from-literal=PIKDAME_SMTP_SECURE=starttls \
   --from-literal=PIKDAME_SMTP_USER=noreply@pikdame.online \
-  --from-literal=PIKDAME_SMTP_PASS=geheim \
+  --from-literal=PIKDAME_SMTP_PASS=secret \
   --from-literal=PIKDAME_MAIL_FROM='Pik Dame <noreply@pikdame.online>'
 ```
 
-Danach im Deployment den `envFrom`-Block einkommentieren.
+Then uncomment the `envFrom` block in the deployment.
 
-## Sicherheit
+## Security
 
-Der Pod spiegelt die OWASP-Härtung des Docker-Betriebs: non-root,
-`readOnlyRootFilesystem`, alle Capabilities entzogen, kein
-Privilege-Escalation, Seccomp `RuntimeDefault`, `/tmp` als begrenztes
-emptyDir, Ressourcen-Limits. Details: `SECURITY.md` im Repo-Root.
+The pod mirrors the OWASP hardening of the Docker setup: non-root,
+`readOnlyRootFilesystem`, all capabilities dropped, no privilege escalation,
+seccomp `RuntimeDefault`, `/tmp` as a bounded emptyDir, resource limits.
+Details: `SECURITY.md` in the repository root.
 
 ## Backup
 
-Dasselbe Prinzip wie unter Docker (siehe https://pik-dame.readthedocs.io/en/latest/admin/operations.html): Pod kurz
-auf 0 skalieren, PVC-Inhalt archivieren, wieder auf 1 skalieren:
+Back up the PostgreSQL database with the tools of its operator or provider
+(`pg_dump` at minimum). The PVC holds the remaining files of the data
+directory; archive it the same way as under Docker (see
+https://pik-dame.readthedocs.io/en/latest/admin/operations.html): scale the
+pod to 0, archive the PVC, scale back to 1:
 
 ```sh
 kubectl scale deploy/pikdame --replicas=0

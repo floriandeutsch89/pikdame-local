@@ -4,6 +4,8 @@
 :hidden:
 
 architecture
+migrations
+schema
 protocol
 game-constants
 progression
@@ -12,6 +14,7 @@ rl-training
 rl-setup
 mcp
 music
+table-light
 contributing
 ```
 
@@ -21,8 +24,11 @@ contributing
 git clone https://github.com/floriandeutsch89/pikdame-local.git
 cd pikdame-local
 npm install
+# PostgreSQL is required, for the server and for the tests:
+export PIKDAME_DATABASE_URL=postgres://pikdame@localhost:5432/pikdame
+export PIKDAME_TEST_PG_URL=postgres://pikdame@localhost:5432/pikdame_test
 npm start                 # → http://localhost:8080
-npm test                  # full suite (~240 tests)
+npm test                  # full suite (~1,080 tests)
 node scripts/client-boot-smoke.js   # renders the client headlessly
 ```
 
@@ -43,6 +49,7 @@ There is **no build step**. The client is plain HTML/CSS/JS served as-is: edit
 | `game/Progression.js`, `game/Badges.js` | XP, quests, badges — pure functions over a finished game (see {doc}`progression`) |
 | `public/` | The entire client |
 | `public/music/`, `scripts/render-music.js` | Background music, composed as code and rendered to MP3 (see {doc}`music`) |
+| `public/table-light.js` | The table's light by the time of day; colours in `style.css` (see {doc}`table-light`) |
 | `scripts/` | Tooling: A/B bot simulation, load test, docs generator |
 | `mcp/` | MCP server: an LLM agent plays a seat (see {doc}`mcp`) |
 | `test/` | The test suite (`node --test`) |

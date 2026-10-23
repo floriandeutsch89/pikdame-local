@@ -17,6 +17,7 @@ const MUSIC = path.join(ROOT, 'public', 'music');
 const manifest = JSON.parse(fs.readFileSync(path.join(MUSIC, 'manifest.json'), 'utf8'));
 const M = require('../public/music-player.js');
 const R = require('../scripts/render-music.js');
+const { testDatabaseUrl } = require('./helpers/test-db');
 
 const allSegments = () => manifest.tracks.flatMap((t) => t.segments.map((s) => ({ track: t, s })));
 
@@ -331,7 +332,7 @@ test('server: hashed music is cacheable forever, the manifest revalidates', asyn
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-music-'));
   const server = spawn('node', ['server.js'], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_ONNX: '0' },
+    env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('music'), PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_ONNX: '0' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   t.after(async () => {

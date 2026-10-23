@@ -136,15 +136,8 @@ test('CSS contract: the just-drawn marker rests on a full-strength ring distinct
   assert.ok(resting, '100% frame exists');
   assert.match(resting[0], /0 0 0 5px var\(--drawn\)/, 'resting ring uses the full --drawn colour');
   assert.doesNotMatch(resting[0], /var\(--accent/, 'draw marker must not reuse the selection colour');
-  const themeBlocks = css.match(/(?::root|\[data-theme="[a-z]+"\])[^{]*\{[^}]*--accent:\s*(#[0-9a-fA-F]{6})[^}]*\}/g) || [];
-  const rootDrawn = (css.match(/:root \{[^}]*--drawn:\s*(#[0-9a-fA-F]{6})/) || [])[1];
-  assert.ok(rootDrawn, '--drawn is defined');
-  for (const b of themeBlocks) {
-    const accent = b.match(/--accent:\s*(#[0-9a-fA-F]{6})/)[1].toLowerCase();
-    const drawn = ((b.match(/--drawn:\s*(#[0-9a-fA-F]{6})/) || [])[1] || rootDrawn).toLowerCase();
-    const dist = [0, 2, 4].reduce((d, i) => d + Math.abs(parseInt(accent.slice(1 + i, 3 + i), 16) - parseInt(drawn.slice(1 + i, 3 + i), 16)), 0);
-    assert.ok(dist > 150, `theme ${b.slice(0, 24)}: --drawn ${drawn} too close to --accent ${accent}`);
-  }
+  // --drawn vs --accent per theme: test/theme-cascade.test.js, on the APPLIED values
+  // (read from the theme blocks, this check once passed while felt's ring was gold).
 
   const block = css.match(/\.card\.just-drawn \{([\s\S]*?)\n\}/);
   assert.ok(block, '.card.just-drawn block exists');
@@ -198,8 +191,9 @@ test('CSS contract: overlay controls use card colours, not the dark-table palett
   // v2.0.0: .resultTabBtn / .settingsRow* live in the same light card. The
   // result tabs shipped as var(--text) on rgba(255,255,255,0.05) - near-white
   // on white, so the inactive tab was unreadable.
-  for (const selector of ['.settingsSelect', '.settingsAction', '.settingsCheckbox', '.settingsLabel', '.settingsList',
-    '.resultTabBtn', '.settingsRow', '.sheetRowValue']) {
+  for (const selector of ['.settingsSelect', '.settingsCheckbox', '.settingsLabel', '.prefRow', '.prefBox', '.prefLang',
+    '.prefSeg', '.prefSeg .segBtn', '.prefIconBtn', '.prefValue', '.prefSub', '.prefNote', '.prefGroupTitle', '.prefRules',
+    '.resultTabBtn', '.settingsRow']) {
     // ALLE Vorkommen prüfen, nicht nur das erste: Ein versehentlich doppelt
     // im Stylesheet stehender Block gewinnt als SPÄTERE Regel gleicher
     // Spezifität - genau so überlebte die unlesbare Fassung einen Release,
@@ -362,7 +356,7 @@ test('CSS contract: buttons in a flex row carry no per-ID box overrides', () => 
   // 8px shorter than the Challenge button beside it. Row spacing and colour
   // belong to the container/class, never to one member's ID.
   const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'style.css'), 'utf8');
-  const rowClasses = ['menuChips', 'dialog-actions', 'lobbyTools', 'headerRight', 'sheetList'];
+  const rowClasses = ['menuChips', 'dialog-actions', 'lobbyTools', 'headerRight', 'prefBox'];
   const ids = new Set();
   for (const cls of rowClasses) {
     // Locate each container by class, then take the buttons up to its close

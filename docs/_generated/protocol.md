@@ -4,7 +4,7 @@
 
 The client talks to the server over a single WebSocket. Every message is JSON
 with a `type` field. Both lists below are generated from the server's message
-handlers, so they always match the running code: **48** message
+handlers, so they always match the running code: **49** message
 types go up, **32** come down.
 
 ## Client → server
@@ -19,7 +19,7 @@ Sent on a fresh connection, before the socket is bound to a table. These carry `
 | `joinSession` | Join an existing game by code. |
 | `checkSession` | Ask whether a stored session still exists (used by the "resume" button). With the seat token it also tells whether this device still holds a seat there. |
 | `abandonSession` | One game at a time: give up the seat of this device's open game before starting another (seat token required; a stale code is answered quietly, no failed-join strike). |
-| `listProfiles` | Player profiles, server statistics and today's quests for the start screen - server-wide data, hence before the table guard. |
+| `listProfiles` | Player profiles, server statistics and today's quests for the start screen - server-wide data, hence before the table guard. `name`: the asking player, whose own profile (with its quests, puzzles and card backs) is listed next to the statistics board's best 500. |
 | `getGameHistory` | The finished matches of a player name ("Meine Partien"). |
 | `setFavoriteBadges` | Pin up to three badges to the identity chip. |
 | `setCelebration` | Pick the victory celebration the whole table sees when you win (an id from `game/Celebrations.js`; signed-in owner of the name, unlocked by level). |
@@ -70,7 +70,7 @@ The moves. The server rejects every one of them with a reason when it is not you
 | `undoPileTake` | Take back a discard-pile pickup - only while the mandatory top card has not been played yet (phase 1 of the two-phase pickup). Fair by construction: the card was public anyway and nothing on the table changed. |
 | `discard` | Discard exactly one card and end your turn. |
 
-### Table talk and votes {bdg-secondary}`6`
+### Table talk and votes {bdg-secondary}`7`
 
 Allowed from any seat at any time during a match.
 
@@ -82,6 +82,7 @@ Allowed from any seat at any time during a match.
 | `nextRound` | Signal readiness for the next round. |
 | `rematch` | Start a new match with the same table. |
 | `exportLastGame` | Download the last finished game as JSON. |
+| `tutorialStep` | Tutorial tables only: a lesson was `shown` or `done` (`step`, a key from `game/TutorialSteps.js`), or the hints were switched `off` (ends the attempt as skipped). Only the seat's own progress, timed on the server clock, deduplicated and capped; never answered. Feeds `play_attempts` (admin "Festhänger"). |
 
 ### Other {bdg-secondary}`2`
 

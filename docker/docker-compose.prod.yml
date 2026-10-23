@@ -75,6 +75,8 @@ services:
       - PIKDAME_IMPRINT_CITY=${PIKDAME_IMPRINT_CITY:-}
       - PIKDAME_IMPRINT_EMAIL=${PIKDAME_IMPRINT_EMAIL:-}
       - PIKDAME_IMPRINT_COUNTRY=${PIKDAME_IMPRINT_COUNTRY:-}
+      # Kartenhaus months from 2027-01: 1 = this instance builds them (ONNX), 0 = read only.
+      - PIKDAME_TOWER_GEN=${PIKDAME_TOWER_GEN:-1}
       #
       # DIRECT SMTP instead of the proxy: set in .env
       #     PIKDAME_SMTP_HOST=smtp.eu.mailgun.org
