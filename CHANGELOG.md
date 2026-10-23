@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.113.0] - 2026-10-23
+
+### Changed
+- Die Anbieterangaben im Impressum kommen jetzt aus der Server-Konfiguration statt aus dem Quellcode. Fehlen sie, zeigt die Seite deutlich „Impressum nicht konfiguriert“.
+
 ## [2.112.0] - 2026-10-23
 
 ### Changed
