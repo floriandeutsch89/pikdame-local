@@ -504,6 +504,8 @@ function waitForHttp(port, ms = 20000) {
           if (!musicHint) localStorage.setItem('pikdame_music_hint', '1');
         } catch (e) { /* storage blocked */ }
       }, [ME, arg('theme', ''), scenes.includes('music-hint'), Math.max(0, Math.min(3, Number(arg('stammtische', 1)))), arg('lang', '')]);
+      // Phone views are iPhones: Safari has no Fullscreen API for pages, so no "Vollbild" row.
+      if (vp.mobile) await ctx.addInitScript(() => { delete Element.prototype.requestFullscreen; });
       if (SIGNED_IN) {
         await ctx.addInitScript(() => { try { localStorage.setItem('pikdame_account_token', 'mock-token'); } catch (e) { /* blocked */ } });
         await ctx.route('**/api/**', (route) => route.fulfill({ contentType: 'application/json',

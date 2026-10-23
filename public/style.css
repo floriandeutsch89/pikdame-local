@@ -5839,7 +5839,10 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
   .prefCol { break-inside: avoid; }
   /* At the table "Dieser Tisch" leads the right column; the left one stays the start
      screen's. A grid, not columns: these would put it over Ton (2.5 screens to scroll). */
-  #settingsOverlay.atTable .prefList { columns: auto; display: grid; grid-template-columns: 1fr 1fr; column-gap: 18px; align-items: start; }
+  #settingsOverlay.atTable .prefList {
+    columns: auto; display: grid; align-items: start; column-gap: 18px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); /* 1fr grew to the selects' longest option */
+  }
   #settingsOverlay.atTable .prefList > * { grid-column: 2; }
   #settingsOverlay.atTable .prefList > .prefCol { grid-column: 1; grid-row: 1 / span 4; }
 }
@@ -5851,8 +5854,9 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
    still scrolls (at the table, or on a laptop's short screen). */
 @media (min-width: 1100px) {
   #settingsOverlay .overlay-card { max-height: calc(100dvh - 48px); }
+  /* Sticky insets count from inside the card's 22px padding: -22px sits flush with its edge. */
   .prefFoot {
-    position: sticky; bottom: 0; z-index: 1;
+    position: sticky; bottom: -22px; z-index: 1;
     margin: 0 -22px -22px; padding: 0 22px 22px;
     background: var(--card-bg);
   }
