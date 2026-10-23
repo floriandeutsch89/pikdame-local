@@ -95,8 +95,9 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
     file.write(store);
   }
 
-  /** Server start: a running ranked game whose session did not come back was
-   *  lost by the server, not given up - its player gets a new ranked attempt. */
+  /** A running ranked game whose session is gone (not back after a restart,
+   *  or removed later) was lost by the server, not given up - its player gets
+   *  a new ranked attempt. `liveCodes`: anything with has(code). */
   function markLostAttempts(liveCodes) {
     const store = load();
     let changed = false;
@@ -109,6 +110,12 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
       }
     }
     if (changed) file.write(store);
+  }
+
+  /** The session code of the player's ranked game of `date` while it runs, else null. */
+  function runningAttempt(date, name) {
+    const attempt = (load().attempts[date] || {})[cleanNameOf(name).toLowerCase()];
+    return attempt && attempt.state === 'running' ? attempt.code : null;
   }
 
   function hasAttempted(date, name) {
@@ -288,7 +295,8 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
 
   return {
     submit, getBoard, rankOf, resultOf, getHistory, getWeekly, getTrend, wasChampion,
-    beginAttempt, closeAttempt, markLostAttempts, hasAttempted, hasFinished, playerCount, queenMagnet, wasQueenMagnet,
+    flushSync: () => file.flushSync(),
+    beginAttempt, closeAttempt, markLostAttempts, runningAttempt, hasAttempted, hasFinished, playerCount, queenMagnet, wasQueenMagnet,
   };
 }
 
