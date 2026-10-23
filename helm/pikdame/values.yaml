@@ -52,6 +52,14 @@ imprint:
   email: "" # e.g. impressum@example.org
   country: "" # empty = Deutschland
 
+# Admin area (/admin): the accounts whose CONFIRMED e-mail is listed here hold
+# the admin role, applied on every start (removed = role gone). Comma-separated;
+# may also come from existingSecret (PIKDAME_ADMINS). Break-glass:
+#   kubectl exec deploy/pikdame -- node scripts/admin-role.js grant <email>
+admin:
+  emails: "" # e.g. you@example.org
+  passkeyOnly: false # true = the step-up into /admin takes passkeys only
+
 # PostgreSQL is mandatory (the server does not start without it). Recommended:
 # a managed/operator database. Reference an existing Secret that carries the
 # full URL (default: pikdame-db, key url) or set the URL directly (ends up in

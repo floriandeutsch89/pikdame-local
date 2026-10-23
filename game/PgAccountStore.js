@@ -234,7 +234,7 @@ function createPgAccountStore(db) {
     try {
       await ensureReady();
       const r = await pool.query(
-        'SELECT u.username, s.created_at FROM login_sessions s JOIN users u ON u.id = s.user_id WHERE s.session_token = $1',
+        'SELECT u.id, u.username, u.email, s.created_at FROM login_sessions s JOIN users u ON u.id = s.user_id WHERE s.session_token = $1',
         [String(token)]
       );
       const row = r.rows[0];
@@ -243,7 +243,7 @@ function createPgAccountStore(db) {
         await pool.query('DELETE FROM login_sessions WHERE session_token = $1', [String(token)]);
         return null;
       }
-      return { username: row.username };
+      return { username: row.username, id: Number(row.id), email: row.email };
     } catch (e) {
       console.error('Postgres sessionUser failed:', e.message);
       return null; // fail closed: treat as "not signed in"
@@ -744,6 +744,24 @@ function createPgAccountStore(db) {
     }
   }
 
+  /** The admin step-up: the signed-in account's own password, without a new sign-in.
+   *  true/false; null when the database is unreachable. */
+  async function checkPassword(userId, password) {
+    try {
+      await ensureReady();
+      const r = await pool.query('SELECT password_hash, password_salt FROM users WHERE id = $1', [userId]);
+      const row = r.rows[0];
+      // Hash anyway: a password-less account answers as slowly as a wrong password.
+      const candidate = hashPassword(String(password || ''), row && row.password_salt ? row.password_salt : 'no-user-salt');
+      if (!row || !row.password_salt) return false;
+      const stored = Buffer.from(row.password_hash);
+      return stored.length === candidate.length && crypto.timingSafeEqual(stored, candidate);
+    } catch (e) {
+      console.error('Postgres checkPassword failed:', e.message);
+      return null;
+    }
+  }
+
   async function removePassword(userId) {
     try {
       const n = await pool.query('SELECT COUNT(*)::int AS n FROM webauthn_credentials WHERE user_id = $1', [userId]);
@@ -984,7 +1002,7 @@ function createPgAccountStore(db) {
     addGameResult, addXp, progressFor, ladder, importProfile, listUsers, deleteUser, renewVerification,
     finalizeSeasons, seasonResultsFor, markSeasonResultSeen,
     validateNewAccount, registerWithoutPassword, verifyAndSignIn, renewSignupCode, verifyCodeAndSignIn, accountForSession, setWebauthnUserId, addCredential,
-    credentialById, touchCredential, deleteCredential, setPassword, removePassword, sessionForUser,
+    credentialById, touchCredential, deleteCredential, setPassword, removePassword, checkPassword, sessionForUser,
     createLoginLink, consumeLoginLink,
     setReviewMail, reviewMailRecipients, setReviewUnsubHash, markReviewMailSent, reviewUnsubInfo, unsubscribeReviewMail,
     close,

@@ -94,7 +94,7 @@ async function meJourney(t, databaseUrl, suffix) {
   const server = spawn('node', ['server.js'], {
     cwd: path.join(__dirname, '..'),
     env: { ...process.env, PORT: String(port), PIKDAME_DATA_DIR: dataDir, PIKDAME_SMTP_HOST: '', PIKDAME_DATABASE_URL: databaseUrl,
-      PIKDAME_ADMIN_TOKEN: '', PIKDAME_TRUST_PROXY: '1', PIKDAME_BIRTHDAY: `${md}:${name.toLowerCase()}, 02-30:${other}, ${md}` },
+      PIKDAME_TRUST_PROXY: '1', PIKDAME_BIRTHDAY: `${md}:${name.toLowerCase()}, 02-30:${other}, ${md}` },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let log = '';

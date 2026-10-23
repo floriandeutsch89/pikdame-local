@@ -27,11 +27,11 @@ const {
 const { createPgAccountStore } = require('./game/PgAccountStore');
 const { connectionStringFromEnv, createPool } = require('./game/Database');
 const { createMailer } = require('./game/Mailer');
-const { readSecret } = require('./game/secretEnv');
 const { buildConfigReport, formatConfigReport } = require('./game/ConfigReport');
 const { readImprint, renderImprintPage } = require('./game/Imprint');
 const AdminPage = require('./game/AdminPage');
-const { createAdminTokenVerifier } = require('./game/AdminToken');
+const AdminAccess = require('./game/AdminAccess');
+const { createAdminStore } = require('./game/AdminStore');
 const { createMonitor } = require('./game/Monitor');
 const { createPasskeyService, deviceName } = require('./game/Passkeys');
 const { normalizeEmote, emoteLevel } = require('./game/Emotes');
@@ -543,13 +543,19 @@ function sendJson(res, status, obj) {
 }
 
 // ---------------------------------------------------------------------------
-// Configuration report + read-only admin page (/admin)
+// Configuration report + admin area (/admin)
 // ---------------------------------------------------------------------------
-// The configured value: an Argon2id hash (recommended) or a plain token.
-// It also keys the CSRF HMAC, so it never leaves the process.
-const ADMIN_SECRET = readSecret(process.env, 'PIKDAME_ADMIN_TOKEN') || '';
-const adminAuth = createAdminTokenVerifier(ADMIN_SECRET);
-const ADMIN_ENABLED = adminAuth.mode === 'argon2' || adminAuth.mode === 'plain';
+// Admin = an account role from PIKDAME_ADMINS (synced on every start) or the CLI
+// (scripts/admin-role.js), never from the web. Entering /admin takes a fresh
+// step-up (passkey, else password) and gives a separate cookie session.
+const adminStore = accountStore ? createAdminStore(db) : null;
+const ADMIN_ENABLED = !!adminStore;
+const ADMIN_EMAILS = AdminAccess.parseAdminEmails(process.env.PIKDAME_ADMINS);
+// The one-line switch: '1' = passkey only; unset = passkey, else the account's password.
+const ADMIN_PASSKEY_ONLY = process.env.PIKDAME_ADMIN_PASSKEY_ONLY === '1';
+const ADMIN_COOKIE_SECURE = AdminAccess.httpsBase(process.env.PIKDAME_BASE_URL);
+const ADMIN_COOKIE = AdminAccess.cookieName(ADMIN_COOKIE_SECURE);
+let adminCount = null; // admin accounts at the last count (config report); null = unknown
 let lastSmtpProbe = null; // { ok, reason, at }
 
 function currentConfigReport() {
@@ -563,7 +569,10 @@ function currentConfigReport() {
     dataDirWritable: DATA_DIR_WRITABLE,
     accountsEnabled: ACCOUNTS_ENABLED,
     onnxActive,
-    adminMode: adminAuth.mode,
+    admin: {
+      listed: ADMIN_EMAILS.emails.size, invalid: ADMIN_EMAILS.invalid, active: adminCount,
+      passkeyOnly: ADMIN_PASSKEY_ONLY, passkeysEnabled: !!passkeys,
+    },
   });
 }
 
@@ -573,12 +582,13 @@ async function runSmtpProbe() {
   return lastSmtpProbe;
 }
 
-// Failed admin logins per IP. Generous for a human typo, useless for guessing.
+// Failed step-ups (wrong password, refused passkey): per IP, per account, and
+// across all IPs. Generous for a human typo, useless for guessing.
 const adminFailsByIp = new Map(); // ip -> { count, windowStart }
+const adminFailsByUser = new Map(); // account id -> { count, windowStart }
 const ADMIN_FAIL_WINDOW_MS = 15 * 60 * 1000;
 const ADMIN_FAIL_LIMIT = 10;
-// Across ALL IPs: each failed Argon2 check costs real memory and CPU, so a
-// spread-out guessing run is capped too.
+const ADMIN_USER_FAIL_LIMIT = 5;
 const ADMIN_GLOBAL_FAIL_LIMIT = 30; // per minute
 let adminGlobalFails = { count: 0, windowStart: 0 };
 // Test mails per IP: the form must not turn the server into a mail cannon.
@@ -610,8 +620,8 @@ function mailSiteName() {
   return base ? base : 'Pik Dame';
 }
 
-// Resource samples for the Monitoring tab - only collected when the admin
-// page is on (nobody could look at them otherwise).
+// Resource samples for the Monitoring tab - only collected once an admin exists
+// or the area is used (nobody could look at them otherwise).
 let adminMonitor = null;
 function connectedPlayerCount() {
   let players = 0;
@@ -644,17 +654,156 @@ function adminRuntime() {
   };
 }
 
+/** 'ip' | 'global' | 'user' when failed step-ups lock this attempt out, else null. */
+function stepUpLocked(ip, userId) {
+  const now = Date.now();
+  const hit = (map, key, limit) => {
+    const e = map.get(key);
+    return !!e && now - e.windowStart <= ADMIN_FAIL_WINDOW_MS && e.count >= limit;
+  };
+  if (hit(adminFailsByIp, ip, ADMIN_FAIL_LIMIT)) return 'ip';
+  if (now - adminGlobalFails.windowStart <= 60 * 1000 && adminGlobalFails.count >= ADMIN_GLOBAL_FAIL_LIMIT) return 'global';
+  if (userId != null && hit(adminFailsByUser, userId, ADMIN_USER_FAIL_LIMIT)) return 'user';
+  return null;
+}
+
+function noteStepUpFailure(ip, userId) {
+  bump(adminFailsByIp, ip, ADMIN_FAIL_WINDOW_MS);
+  bump(adminFailsByUser, userId, ADMIN_FAIL_WINDOW_MS);
+  const now = Date.now();
+  if (now - adminGlobalFails.windowStart > 60 * 1000) adminGlobalFails = { count: 0, windowStart: now };
+  adminGlobalFails.count += 1;
+}
+
+/** Does this signed-in account hold the admin role? An address in PIKDAME_ADMINS whose
+ *  account was confirmed after the last start gets its grant here, not only at the next one. */
+async function adminRoleOf(user) {
+  if (!adminStore || !user || !user.id) return false;
+  if (await adminStore.isAdmin(user.id)) return true;
+  if (!ADMIN_EMAILS.emails.has(AdminAccess.normEmail(user.email))) return false;
+  try {
+    const granted = await adminStore.ensureEnvGrant(user.id);
+    if (granted) console.log(`[admin] Rolle aus PIKDAME_ADMINS vergeben: ${granted}`);
+  } catch (e) {
+    logCrash('admin-role', e);
+    return false;
+  }
+  return adminStore.isAdmin(user.id);
+}
+
+/** PIKDAME_ADMINS -> roles, once per start (before the config report counts them). */
+async function syncAdminRoles() {
+  if (!adminStore) return;
+  if (ADMIN_EMAILS.invalid.length) console.log(`[admin] PIKDAME_ADMINS: Eintrag ${ADMIN_EMAILS.invalid.join(', ')} ist keine E-Mail-Adresse (ignoriert)`);
+  try {
+    const r = await adminStore.syncEnvAdmins(ADMIN_EMAILS.emails);
+    adminCount = r.admins;
+    if (r.granted.length) console.log(`[admin] Rolle aus PIKDAME_ADMINS vergeben: ${r.granted.join(', ')}`);
+    if (r.revoked.length) console.log(`[admin] Rolle aus PIKDAME_ADMINS entzogen: ${r.revoked.join(', ')}`);
+    if (r.waiting) console.log(`[admin] PIKDAME_ADMINS: ${r.waiting} Adresse(n) noch ohne bestätigtes Konto - die Rolle folgt mit der Bestätigung`);
+  } catch (e) {
+    adminCount = null;
+    console.error(`[admin] PIKDAME_ADMINS nicht abgeglichen: ${e.message}`);
+  }
+}
+
+// Read-only views go into the audit coarsely: once per tab and admin session.
+const adminViewsLogged = new Map(); // session token hash -> Set of tabs
+function auditView(session, tab, ip) {
+  let tabs = adminViewsLogged.get(session.tokenHash);
+  if (!tabs) {
+    if (adminViewsLogged.size >= 1000) adminViewsLogged.clear();
+    tabs = new Set();
+    adminViewsLogged.set(session.tokenHash, tabs);
+  }
+  if (tabs.has(tab)) return;
+  tabs.add(tab);
+  adminStore.audit({ userId: session.userId, userName: session.username, action: 'view', target: tab, ip });
+}
+
+const STEP_UP_REFUSED = {
+  'passkey-required': 'Für den Admin-Bereich ist ein Passkey nötig. Lege im Spiel unter Konto → Anmeldewege einen an.',
+  'no-method': 'Dein Konto hat weder Passkey noch Passwort. Lege im Spiel unter Konto → Anmeldewege einen Passkey an.',
+};
+
+/** POST /admin/step-up/start|verify: the game sign-in token (JSON body, never the URL) plus a
+ *  fresh passkey assertion or the password; answered with the admin cookie. */
+async function handleStepUp(req, res, filePath, ip) {
+  if (req.method !== 'POST') return sendJson(res, 405, { error: 'Nur POST.' });
+  const site = req.headers['sec-fetch-site'];
+  if (site && site !== 'same-origin') return sendJson(res, 403, { error: 'Ungültige Anfrage.' });
+  const lockedOut = (why) => {
+    res.writeHead(429, { 'Content-Type': 'application/json; charset=utf-8', 'Retry-After': why === 'global' ? '60' : '900' });
+    res.end(JSON.stringify({ error: 'Zu viele Fehlversuche - bitte in 15 Minuten erneut versuchen.', reason: 'locked' }));
+  };
+  const ipLocked = stepUpLocked(ip, null);
+  if (ipLocked) return lockedOut(ipLocked);
+  if (accountRateLimited(ip, filePath)) return sendJson(res, 429, { error: 'Zu viele Anfragen - bitte kurz warten.', reason: 'locked' });
+  const body = await readJsonBody(req);
+  if (!body) return sendJson(res, 400, { error: 'Ungültige Anfrage.' });
+  const acc = await accountStore.accountForSession(body.token);
+  if (!acc) return sendJson(res, 403, { error: 'Bitte zuerst im Spiel mit deinem Konto anmelden.', reason: 'signin' });
+  if (!(await adminRoleOf(acc))) {
+    await adminStore.audit({ userId: acc.id, userName: acc.username, action: 'step_up.denied', ip });
+    return sendJson(res, 403, { error: 'Dein Konto hat keinen Zugang zum Admin-Bereich.', reason: 'forbidden' });
+  }
+  const locked = stepUpLocked(ip, acc.id);
+  if (locked) return lockedOut(locked);
+  const choice = AdminAccess.stepUpMethod({
+    passkeys: acc.credentials.length, hasPassword: acc.hasPassword, passkeysEnabled: !!passkeys, passkeyOnly: ADMIN_PASSKEY_ONLY,
+  });
+  if (choice.refused) return sendJson(res, 403, { error: STEP_UP_REFUSED[choice.refused], reason: choice.refused });
+  const method = choice.method;
+
+  if (filePath === '/admin/step-up/start') {
+    if (method === 'password') return sendJson(res, 200, { ok: true, method, username: acc.username, email: acc.email });
+    const r = await passkeys.startStepUp({ credentials: acc.credentials, accountId: acc.id });
+    return sendJson(res, 200, { ok: true, method, username: acc.username, flowId: r.flowId, options: r.options });
+  }
+
+  let failure = null;
+  if (method === 'passkey') {
+    const r = await passkeys.finishStepUp(body.flowId, body.response, (id) => accountStore.credentialById(id), acc.id);
+    if (r.error) failure = r.error;
+    else await accountStore.touchCredential(r.credentialId, r.newCounter);
+  } else {
+    const ok = await accountStore.checkPassword(acc.id, body.password);
+    if (ok === null) return sendJson(res, 503, { error: 'Konto-Datenbank ist gerade nicht erreichbar - bitte später erneut versuchen.' });
+    if (!ok) failure = 'Das Passwort stimmt nicht.';
+  }
+  if (failure) {
+    noteStepUpFailure(ip, acc.id);
+    await adminStore.audit({ userId: acc.id, userName: acc.username, action: 'step_up.failed', details: { reason: method }, ip });
+    console.log(`[admin] Admin-Anmeldung fehlgeschlagen: ${acc.username} (${method})`);
+    return sendJson(res, 401, { error: failure, reason: 'failed' });
+  }
+  const token = await adminStore.createSession({ userId: acc.id, loginToken: body.token, method });
+  await adminStore.audit({ userId: acc.id, userName: acc.username, action: 'step_up.ok', details: { method }, ip });
+  console.log(`[admin] Admin-Anmeldung: ${acc.username} (${method})`);
+  res.writeHead(200, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store',
+    'Set-Cookie': AdminAccess.sessionCookie(token, { secure: ADMIN_COOKIE_SECURE }),
+  });
+  res.end(JSON.stringify({ ok: true }));
+}
+
+const ADMIN_HTML_HEADERS = {
+  'Content-Type': 'text/html; charset=utf-8',
+  'Cache-Control': 'no-store',
+  'X-Robots-Tag': 'noindex',
+  'Referrer-Policy': 'no-referrer',
+  'X-Frame-Options': 'DENY',
+};
+
 async function handleAdminRequest(req, res, filePath) {
-  // Off = indistinguishable from any unknown path.
+  // Without accounts there can be no admin: indistinguishable from any unknown path.
   if (!ADMIN_ENABLED) {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Nicht gefunden');
     return;
   }
-  // "/admin/" (browser autocomplete likes the trailing slash) used to pass the
-  // login and then hit the unknown-path 404. Redirect to the canonical path;
-  // only after the enabled check, so a disabled page still looks like any
-  // unknown path.
+  // "/admin/" (browser autocomplete likes the trailing slash): redirect to the canonical path.
   if (filePath.length > 1 && filePath.endsWith('/')) {
     const query = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
     res.writeHead(302, { Location: filePath.replace(/\/+$/, '') + query, 'Cache-Control': 'no-store' });
@@ -662,54 +811,62 @@ async function handleAdminRequest(req, res, filePath) {
     return;
   }
   const ip = clientIp(req);
-  const now = Date.now();
-  const failState = adminFailsByIp.get(ip);
-  const ipLocked = failState && now - failState.windowStart <= ADMIN_FAIL_WINDOW_MS && failState.count >= ADMIN_FAIL_LIMIT;
-  const globalLocked = now - adminGlobalFails.windowStart <= 60 * 1000 && adminGlobalFails.count >= ADMIN_GLOBAL_FAIL_LIMIT;
-  if (ipLocked || globalLocked) {
-    res.writeHead(429, { 'Content-Type': 'text/plain; charset=utf-8', 'Retry-After': ipLocked ? '900' : '60' });
-    res.end('Zu viele Fehlversuche - bitte später erneut versuchen.');
-    return;
-  }
-  const password = AdminPage.basicPassword(req.headers.authorization);
-  const verdict = password === null ? 'fail' : await adminAuth.verify(password);
-  if (verdict === 'busy') {
-    res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8', 'Retry-After': '5' });
-    res.end('Gerade ausgelastet - bitte gleich erneut versuchen.');
-    return;
-  }
-  if (verdict !== 'ok') {
-    if (password !== null) {
-      bump(adminFailsByIp, ip, ADMIN_FAIL_WINDOW_MS);
-      if (now - adminGlobalFails.windowStart > 60 * 1000) adminGlobalFails = { count: 0, windowStart: now };
-      adminGlobalFails.count += 1;
-    }
-    res.writeHead(401, {
-      'Content-Type': 'text/plain; charset=utf-8',
-      'WWW-Authenticate': 'Basic realm="Pik Dame Admin", charset="UTF-8"',
-    });
-    res.end('Anmeldung erforderlich');
-    return;
-  }
+  if (filePath === '/admin/step-up/start' || filePath === '/admin/step-up/verify') return handleStepUp(req, res, filePath, ip);
 
-  // Basic credentials ride along on any request the browser makes, so a
-  // cross-site form could trigger a POST: require same-origin + CSRF token.
+  const isPost = req.method === 'POST';
+  const cookieToken = AdminAccess.readCookie(req.headers.cookie, ADMIN_COOKIE);
+  // The charts' 15-second refresh is no activity: it neither keeps the session alive...
+  const isPoll = filePath === '/admin/monitor/data';
+  const session = cookieToken ? await adminStore.sessionFor(cookieToken, { touch: !isPoll }) : null;
+  if (!session) {
+    // ...nor gets the step-up page (admin-monitor.js reloads into it).
+    if (isPoll) {
+      res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ error: 'Admin-Sitzung abgelaufen.' }));
+      return;
+    }
+    // A POST without a session does nothing; after the step-up the page reloads by GET.
+    const headers = { ...ADMIN_HTML_HEADERS };
+    if (cookieToken) headers['Set-Cookie'] = AdminAccess.clearedCookie({ secure: ADMIN_COOKIE_SECURE });
+    res.writeHead(isPost ? 403 : 200, headers);
+    res.end(AdminPage.renderStepUpPage());
+    return;
+  }
+  startAdminMonitor();
+
+  // SameSite=Strict keeps the cookie off cross-site forms; same origin and the
+  // session's CSRF token on top.
   async function readAdminForm() {
     const site = req.headers['sec-fetch-site'];
     const form = await readFormBody(req);
-    if ((site && site !== 'same-origin') || !form || !AdminPage.csrfValid(form.get('csrf'), ADMIN_SECRET)) {
+    if ((site && site !== 'same-origin') || !form || !AdminAccess.csrfValid(form.get('csrf'), cookieToken)) {
       res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('Ungültige Anfrage');
       return null;
     }
     return form;
   }
-  const isPost = req.method === 'POST';
-  const csrf = AdminPage.csrfToken(ADMIN_SECRET);
+  const csrf = AdminAccess.csrfToken(cookieToken);
+  const audit = (action, target = null, details = {}) =>
+    adminStore.audit({ userId: session.userId, userName: session.username, action, target, details, ip });
+  // Admin accounts are marked in the list and cannot be deleted here (the role is the operator's).
+  const adminNames = async () => new Set((await adminStore.listAdmins()).map((a) => a.username.toLowerCase()));
   let tab = 'config';
   let monitorRange = '1h';
   let notice = null;
 
+  if (filePath === '/admin/logout') {
+    if (!isPost) { res.writeHead(303, { Location: '/admin' }); res.end(); return; }
+    const form = await readAdminForm();
+    if (!form) return;
+    await adminStore.endSession(cookieToken);
+    adminViewsLogged.delete(session.tokenHash);
+    await audit('logout');
+    console.log(`[admin] Abgemeldet: ${session.username}`);
+    res.writeHead(303, { Location: '/', 'Cache-Control': 'no-store', 'Set-Cookie': AdminAccess.clearedCookie({ secure: ADMIN_COOKIE_SECURE }) });
+    res.end();
+    return;
+  }
   if (filePath === '/admin/mail') {
     if (!isPost) { res.writeHead(303, { Location: '/admin' }); res.end(); return; }
     const form = await readAdminForm();
@@ -723,6 +880,7 @@ async function handleAdminRequest(req, res, filePath) {
       } else if (!mailer.configured) {
         notice = { ok: false, text: 'Kein SMTP-Server konfiguriert - die Mail steht nur im Log.' };
         await mailer.send({ to, subject: 'Pik Dame: Testmail', text: 'Testmail von der Admin-Seite.' });
+        await audit('mail.test', to, { delivered: false });
       } else {
         const site = mailSiteName();
         const r = await mailer.send({
@@ -730,6 +888,7 @@ async function handleAdminRequest(req, res, filePath) {
           subject: 'Pik Dame: Testmail',
           text: `Diese Testmail kommt von der Admin-Seite (${site}).\n\nWenn sie angekommen ist, funktioniert der Mailversand.\n`,
         });
+        await audit('mail.test', to, { delivered: !!r.delivered });
         notice = r.delivered
           ? { ok: true, text: `Testmail an ${to} wurde vom SMTP-Server angenommen.` }
           : { ok: false, text: `Versand fehlgeschlagen: ${r.reason}` };
@@ -752,6 +911,7 @@ async function handleAdminRequest(req, res, filePath) {
           appUrl: `${base}/?jahr=${year}`, unsubscribeUrl: `${base}/unsubscribe?t=vorschau`,
         });
         const r = await mailer.send({ to, subject: `[Vorschau] ${mail.subject}`, text: mail.text, html: mail.html });
+        await audit('mail.review_preview', to, { delivered: !!r.delivered });
         const what = real ? `Zahlen von ${player}` : player ? `Beispielzahlen - für ${player} gibt es ${year} keine Partie` : 'Beispielzahlen';
         notice = r.delivered
           ? { ok: true, text: `Jahresrückblick-Vorschau (${what}) an ${to} wurde vom SMTP-Server angenommen.` }
@@ -759,6 +919,7 @@ async function handleAdminRequest(req, res, filePath) {
       }
     } else {
       const r = await runSmtpProbe();
+      await audit('mail.probe', null, { ok: r.ok });
       notice = mailer.configured
         ? { ok: r.ok, text: r.ok ? 'Anmeldung am SMTP-Server erfolgreich.' : `SMTP-Prüfung fehlgeschlagen: ${r.reason}` }
         : { ok: false, text: 'Kein SMTP-Server konfiguriert.' };
@@ -772,6 +933,8 @@ async function handleAdminRequest(req, res, filePath) {
       const username = String(form.get('username') || '').trim();
       if (!ACCOUNTS_ENABLED) {
         notice = { ok: false, text: 'Benutzerkonten sind auf diesem Server nicht aktiv.' };
+      } else if ((action === 'ask-delete' || action === 'delete') && (await adminNames()).has(username.toLowerCase())) {
+        notice = { ok: false, text: `„${username}“ ist ein Admin-Konto und lässt sich hier nicht löschen. Erst die Rolle entziehen: aus PIKDAME_ADMINS nehmen oder node scripts/admin-role.js revoke <E-Mail>.` };
       } else if (action === 'ask-delete') {
         // Step 1 of 2: no script for a confirm() dialog, so the question and
         // the real delete button appear in the notice area.
@@ -790,6 +953,7 @@ async function handleAdminRequest(req, res, filePath) {
         if (!r.ok) notice = { ok: false, text: r.error };
         else if (attempts === null) notice = { ok: false, text: `Benutzer „${r.username}“ wurde gelöscht, seine Spielversuche aber nicht (Datenbankfehler). Nachholen: DELETE FROM play_attempts WHERE player_key = '${nameKey(r.username)}';` };
         else notice = { ok: true, text: `Benutzer „${r.username}“ wurde gelöscht${attempts ? ` (mit ${attempts} Spielversuch${attempts === 1 ? '' : 'en'})` : ''}.` };
+        if (r.ok) await audit('user.delete', r.username, attempts ? { attempts } : {});
       } else if (action === 'login-link') {
         if (bump(adminMailsByIp, ip, 10 * 60 * 1000) > 5) {
           notice = { ok: false, text: 'Höchstens 5 Mails in 10 Minuten.' };
@@ -800,6 +964,7 @@ async function handleAdminRequest(req, res, filePath) {
           } else {
             const mail = await sendLoginLinkMail(req, link.username, link.email, link.token);
             console.log(`[admin] Anmelde-Link gesendet: ${link.username} (${mail.delivered ? 'zugestellt' : 'nur im Log'})`);
+            await audit('user.login_link', link.username, { delivered: !!mail.delivered });
             notice = mail.delivered
               ? { ok: true, text: `Anmelde-Link an ${link.email} wurde vom SMTP-Server angenommen (15 Minuten gültig).` }
               : { ok: false, text: `Link erstellt, aber die Mail ging nicht raus (${mail.reason}) - der Link steht im Server-Log.` };
@@ -820,6 +985,7 @@ async function handleAdminRequest(req, res, filePath) {
               ? await sendSetupMail(req, r.username, r.email, r.verifyToken, r.code)
               : await sendVerificationMail(req, r.username, r.email, r.verifyToken);
             console.log(`[admin] Bestätigungsmail neu gesendet: ${r.username} (${mail.delivered ? 'zugestellt' : 'nur im Log'})`);
+            await audit('user.resend', r.username, { delivered: !!mail.delivered });
             notice = mail.delivered
               ? { ok: true, text: r.passwordless
                 ? `Neue Mail mit Code und Link an ${r.email} wurde vom SMTP-Server angenommen. Der Code gilt 15 Minuten, der Link 48 Stunden; die alten gelten nicht mehr.`
@@ -843,6 +1009,8 @@ async function handleAdminRequest(req, res, filePath) {
     }
   } else if (filePath === '/admin/stuck') {
     tab = 'stuck';
+  } else if (filePath === '/admin/audit') {
+    tab = 'audit';
   } else if (filePath !== '/admin') {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Nicht gefunden');
@@ -850,9 +1018,17 @@ async function handleAdminRequest(req, res, filePath) {
   }
 
   let users = null;
+  let admins = null;
   if (tab === 'users' && ACCOUNTS_ENABLED && typeof accountStore.listUsers === 'function') {
-    users = await accountStore.listUsers(500);
+    [users, admins] = await Promise.all([accountStore.listUsers(500), adminNames().catch(() => new Set())]);
   }
+  let audits = null;
+  if (tab === 'audit') {
+    const page = Number(new URL(req.url, 'http://localhost').searchParams.get('page')) || 1;
+    audits = await adminStore.auditPage({ page }).catch((e) => ({ error: e.message }));
+  }
+  if (tab === 'config') adminCount = await adminStore.adminCount().catch(() => adminCount);
+  if (!isPost) auditView(session, tab, ip);
   let stuck = null;
   if (tab === 'stuck') {
     const params = new URL(req.url, 'http://localhost').searchParams;
@@ -880,13 +1056,7 @@ async function handleAdminRequest(req, res, filePath) {
     }
   }
 
-  res.writeHead(200, {
-    'Content-Type': 'text/html; charset=utf-8',
-    'Cache-Control': 'no-store',
-    'X-Robots-Tag': 'noindex',
-    'Referrer-Policy': 'no-referrer',
-    'X-Frame-Options': 'DENY',
-  });
+  res.writeHead(200, ADMIN_HTML_HEADERS);
   res.end(AdminPage.renderAdminPage({
     tab,
     report: currentConfigReport(),
@@ -897,7 +1067,10 @@ async function handleAdminRequest(req, res, filePath) {
     csrf,
     mailConfigured: mailer.configured,
     users,
+    admins,
     stuck,
+    audit: audits,
+    session,
     monitor: tab === 'monitor' ? { current: adminMonitor.current(), range: monitorRange } : null,
   }));
 }
@@ -1083,6 +1256,8 @@ async function handleAccountRequest(req, res, filePath) {
   }
   if (filePath === '/api/logout') {
     await accountStore.logout(body.token);
+    // Signing out of the game also ends the admin sessions stepped up from this sign-in.
+    if (adminStore && body.token) await adminStore.endSessionsForLogin(String(body.token)).catch((e) => logCrash('admin-logout', e));
     return sendJson(res, 200, { ok: true });
   }
   // ---------------- Passkeys ----------------
@@ -1248,7 +1423,9 @@ async function handleAccountRequest(req, res, filePath) {
     if (!u) return sendJson(res, 401, { error: 'Nicht angemeldet.' });
     const greeting = greetingWindow(greetingDays, u.username);
     const season = await seasonInfoFor(u.username);
-    return sendJson(res, 200, { ok: true, username: u.username, ...(greeting ? { greeting } : {}), ...season });
+    // Only shows the admin link: /admin checks the role again on every request.
+    const isAdmin = await adminRoleOf(u);
+    return sendJson(res, 200, { ok: true, username: u.username, isAdmin, ...(greeting ? { greeting } : {}), ...season });
   }
   if (filePath === '/api/season-result/seen') {
     const u = await accountStore.sessionUser(body.token);
@@ -1310,6 +1487,9 @@ const ipCleanupTimer = setInterval(() => {
   }
   for (const [ip, entry] of accountApiByIp) {
     if (now - entry.windowStart > 10 * 60 * 1000) accountApiByIp.delete(ip);
+  }
+  for (const map of [adminFailsByIp, adminFailsByUser, adminMailsByIp]) {
+    for (const [key, entry] of map) if (now - entry.windowStart > ADMIN_FAIL_WINDOW_MS) map.delete(key);
   }
 }, 5 * 60 * 1000);
 ipCleanupTimer.unref();
@@ -2841,10 +3021,18 @@ server.listen(PORT, () => {
 
   console.log(`Fehler-Log (falls etwas schiefgeht): ${CRASH_LOG_FILE}`);
   console.log('');
-  try {
-    for (const line of formatConfigReport(currentConfigReport())) console.log(line);
-  } catch (e) { logCrash('config-report', e); }
-  try { startAdminMonitor(); } catch (e) { logCrash('admin-monitor', e); }
+  const legacyAdmin = AdminAccess.legacyAdminVars(process.env);
+  if (legacyAdmin.length) {
+    console.log(`[admin] WARNUNG: ${legacyAdmin.join(', ')} wird ignoriert - der Admin-Bereich ist jetzt eine Kontorolle. `
+      + 'PIKDAME_ADMINS=<deine E-Mail> setzen und die alte Variable entfernen (docs/admin/admin-page.md).');
+  }
+  // PIKDAME_ADMINS -> roles first: the report counts the admins. Never blocks the start.
+  syncAdminRoles().then(() => {
+    try {
+      for (const line of formatConfigReport(currentConfigReport())) console.log(line);
+    } catch (e) { logCrash('config-report', e); }
+    try { if (adminCount || ADMIN_EMAILS.emails.size) startAdminMonitor(); } catch (e) { logCrash('admin-monitor', e); }
+  });
   maybeFinalizeSeasons().catch((e) => logCrash('season-finale', e));
   // Play attempts older than 90 days are deleted (privacy page), also in public mode.
   try { playEvents.startRetention(); } catch (e) { logCrash('play-events', e); }

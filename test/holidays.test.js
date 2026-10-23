@@ -114,7 +114,7 @@ test('holidays: /statusz carries the windows for every client, no account needed
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-holidays-'));
   const server = spawn('node', ['server.js'], {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('holidays'), PORT: String(port), PIKDAME_DATA_DIR: dataDir, PIKDAME_ACCOUNTS: '0', PIKDAME_SMTP_HOST: '', PIKDAME_ADMIN_TOKEN: '' },
+    env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('holidays'), PORT: String(port), PIKDAME_DATA_DIR: dataDir, PIKDAME_ACCOUNTS: '0', PIKDAME_SMTP_HOST: '' },
     stdio: 'ignore',
   });
   t.after(async () => {

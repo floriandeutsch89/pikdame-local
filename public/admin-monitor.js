@@ -181,6 +181,8 @@
   async function load(first) {
     try {
       const res = await fetch(`/admin/monitor/data?range=${encodeURIComponent(range)}`, { credentials: 'same-origin', cache: 'no-store' });
+      // The admin session ended (the refresh never extends it): reload into the step-up page.
+      if (res.status === 401 || res.status === 403) { window.location.reload(); return; }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       lastData = data;
