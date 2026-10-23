@@ -291,6 +291,7 @@ window.I18N_SERVER_PATTERNS = [
   // --- Log ---
   [/^Runde (\d+) gestartet\. Geber: (.+)\.$/, 'Round $1 started. Dealer: $2.'],
   [/^Die heutige Tages-Challenge hast du schon gespielt - morgen gibt es ein neues Deck\.$/, 'You already played today\u2019s challenge - a new deck comes tomorrow.'],
+  [/^Deine Tages-Challenge von heute läuft noch - weiter geht es auf dem Gerät, auf dem du sie begonnen hast\.$/, 'Your daily challenge of today is still running - continue it on the device you started it on.'],
   [/^In der Tages-Challenge gibt es nur einen Versuch pro Tag\.$/, 'The daily challenge allows one attempt per day.'],
   [/^Pausiert - die Tages-Challenge wartet bis Mitternacht auf dich\.$/, 'Paused - the daily challenge waits for you until midnight (German time).'],
   [/^Pausiert - das Spiel wartet (\d+) Minuten auf dich\.$/, 'Paused - the game waits $1 minutes for you.'],

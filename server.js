@@ -191,6 +191,7 @@ function flushStoresSafely() {
   try { globalStats.flushSync(); } catch (e) { /* best effort */ }
   try { gameHistoryStore.flushSync(); } catch (e) { /* best effort */ }
   try { yearStats.flushSync(); } catch (e) { /* best effort */ }
+  try { challengeStore.flushSync(); } catch (e) { /* best effort */ }
 }
 
 /**
@@ -1595,9 +1596,12 @@ function restoreSessionsSnapshot() {
 restoreSessionsSnapshot();
 
 // --- Daily challenge: one attempt per player and day ----------------------
-// Games that did not come back with the snapshot were lost by the server,
-// not given up; their players may start again.
-try { challengeStore.markLostAttempts(new Set(registry.sessions.keys())); } catch (err) { logCrash('challenge-lost', err); }
+// A ranked game whose session is gone (not restored, or cleaned up since) was
+// lost by the server, not given up: its player may start again. Boot + on demand.
+function freeLostChallengeAttempts() {
+  try { challengeStore.markLostAttempts({ has: (code) => registry.sessions.has(code) }); } catch (err) { logCrash('challenge-lost', err); }
+}
+freeLostChallengeAttempts();
 
 /** Kartenhaus: grades the floor round, keeps the best stars of its month, pays a floor's first
  *  star (profile; account and season too, without booking a game), awards badges. */
@@ -1655,6 +1659,7 @@ async function mayRevealChallenge(date, name, accountToken) {
 async function challengeBoardResponse(req, res) {
   const date = gameDay();
   const name = sanitizeName(new URL(req.url, 'http://x').searchParams.get('name') || '');
+  if (name) freeLostChallengeAttempts();
   const revealed = await mayRevealChallenge(date, name, req.headers['x-account-token']);
   const hide = revealed ? null : date;
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -1665,6 +1670,7 @@ async function challengeBoardResponse(req, res) {
     you: revealed ? challengeStore.resultOf(date, name) : null,
     board: revealed ? challengeStore.getBoard(date, 5) : [],
     attempted: name ? challengeStore.hasAttempted(date, name) : false,
+    running: name ? !!challengeStore.runningAttempt(date, name) : false, // the sheet offers to continue
     magnet: revealed ? challengeStore.queenMagnet(date) : null,
     weekly: challengeStore.getWeekly(null, 5, Date.now(), { exclude: hide }),
     trend: challengeStore.getTrend(name, { exclude: hide }),
@@ -2022,7 +2028,12 @@ wss.on('connection', (ws, req) => {
       // against the same bots - level locked so the leaderboard stays comparable.
       const date = gameDay();
       // One attempt per name and day; a running game of today is resumed via the tile.
-      if (!PUBLIC_MODE && sanitizeName(msg.name) && challengeStore.hasAttempted(date, sanitizeName(msg.name))) {
+      const challenger = PUBLIC_MODE ? '' : sanitizeName(msg.name);
+      if (challenger) freeLostChallengeAttempts();
+      if (challenger && challengeStore.runningAttempt(date, challenger)) {
+        return sendError(ws, 'Deine Tages-Challenge von heute läuft noch - weiter geht es auf dem Gerät, auf dem du sie begonnen hast.');
+      }
+      if (challenger && challengeStore.hasAttempted(date, challenger)) {
         return sendError(ws, 'Die heutige Tages-Challenge hast du schon gespielt - morgen gibt es ein neues Deck.');
       }
       const created = registry.create({
@@ -2598,6 +2609,8 @@ function shutdown(signal) {
   gameHistoryStore.flushSync();
   globalStats.flushSync();
   stammtischStore.flushSync();
+  // A deploy right after a challenge start/result must not drop the attempt (writes are debounced).
+  try { challengeStore.flushSync(); } catch (e) { logCrash('challenge-flush', e); }
   try { yearStats.flushSync(); } catch (e) { /* the year review is best effort */ }
   try { if (adminMonitor) adminMonitor.flushSync(); } catch (e) { /* monitoring history is best effort */ }
   db.end().catch(() => {}); // never block shutdown

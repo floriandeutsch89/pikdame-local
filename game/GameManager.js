@@ -2597,11 +2597,14 @@ class GameManager {
     // set by the server's own training/inference code - never survive a
     // restore. We wipe them from all seats and clear the game-level flags.
     GameManager._sanitizeControlFields(this);
-    // Disconnected players from before the restart: re-arm their takeover
-    // timers, otherwise a table whose current player never returns would
-    // wait forever (the timer itself did not survive the restart).
+    // Every human is disconnected after a restart; re-arm the takeover clocks
+    // (lost with the process). Mark first: a seat that was live at SIGTERM got
+    // no clock, so a restored challenge lost its hold and was cleaned up.
     for (const p of this.players || []) {
-      if (!p.isBot && !p.connected && !p.leftGame) this._scheduleTakeover(p.id);
+      if (!p.isBot) p.connected = false;
+    }
+    for (const p of this.players || []) {
+      if (!p.isBot && !p.leftGame) this._scheduleTakeover(p.id);
     }
     this._armTurnTimer(); // fresh deadline for a restored running turn
     // Neustart mitten im Abheben: Nach dem Restore gelten alle Spieler als
@@ -2617,9 +2620,6 @@ class GameManager {
     this._lastBotEmote = {};
     this._lastQuipAt = 0;
     this._botTimer = null;
-    for (const p of this.players) {
-      if (!p.isBot) p.connected = false;
-    }
     this.maybeRunBotTurn();
   }
 

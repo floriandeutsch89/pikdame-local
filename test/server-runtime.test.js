@@ -361,7 +361,8 @@ test('daily challenge: first start plays, second refused, lost game freed at boo
   assert.strictEqual(await attempted(), true);
   const second = await start();
   assert.strictEqual(second.type, 'error', 'a second start the same day is refused');
-  assert.match(second.error, /schon gespielt/);
+  // The first game still waits for its player (closed socket = minimised app): say so, not "played".
+  assert.match(second.error, /läuft noch/);
 });
 
 test('Stammtisch: a new evening starts with the last winner as dealer', async (t) => {
