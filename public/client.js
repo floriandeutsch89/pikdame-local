@@ -237,6 +237,11 @@
   let resumeCode = null;
   // The resumable game is today's running daily challenge (server says so).
   let resumeIsChallenge = false;
+  // Today's running challenge on this device, kept apart from the last game:
+  // a later table overwrites that one, and the tile then could not resume.
+  const CHALLENGE_SESSION_KEY = 'pikdame_challenge_session';
+  let challengeResumeCode = null; // confirmed live by the server (sessionStatus)
+  let challengeSheetRunning = false; // the open intro sheet shows a running attempt
   let resumeIsTutorial = false; // known once the server reported this device's seat
   function updateResumeBtn() {
     try { renderToday(); } catch (e) { /* cosmetic, defined further down */ }
@@ -1581,6 +1586,18 @@
       // Existence probe reply: reveal the resume button only for a live game,
       // and drop a stale code so it is never offered again.
       const last = storageGet('pikdame_last_session');
+      const challengeCode = storageGet(CHALLENGE_SESSION_KEY);
+      if (msg.challenge && msg.exists && !sessionCode && (msg.code === last || msg.code === challengeCode)) {
+        challengeResumeCode = msg.code;
+      } else if (msg.code === challengeResumeCode || msg.code === challengeCode) {
+        challengeResumeCode = null;
+        if (msg.code === challengeCode) storageRemove(CHALLENGE_SESSION_KEY); // over, abandoned or another day's
+      }
+      if (msg.code !== last) {
+        updateResumeBtn();
+        noteProbeAnswer(msg.code);
+        return;
+      }
       // A finished match (winner decided) is not offered for resuming; the
       // code stays remembered, the results are still reachable by typing it.
       if (msg.exists && !msg.finished && msg.code === last && !sessionCode) {
@@ -1597,6 +1614,7 @@
       // und blieb danach in der alten Sprache stehen (Nutzer-Report).
       updateResumeBtn();
       if (msg.code === last) setOpenGame(msg);
+      noteProbeAnswer(msg.code);
       return;
     }
     if (msg.type === 'sessionAbandoned') {
@@ -1640,6 +1658,11 @@
     }
     if (msg.type === 'state') {
       lastState = msg.state;
+      if (lastState.challengeDate && sessionCode) {
+        const over = lastState.abandoned || ['gameOver', 'abandoned'].includes(lastState.phase);
+        if (!over) { if (storageGet(CHALLENGE_SESSION_KEY) !== sessionCode) storageSet(CHALLENGE_SESSION_KEY, sessionCode); }
+        else if (storageGet(CHALLENGE_SESSION_KEY) === sessionCode) storageRemove(CHALLENGE_SESSION_KEY);
+      }
       if (lastState.phase !== 'gameOver') lastGameProgress = null;
       else quoteShownForRound = null; // the next game's round 1 gets its quote again
       // Solo-Spiel abgebrochen (Challenge/Tutorial, nicht rechtzeitig
@@ -4736,17 +4759,25 @@
   let pendingStart = null; // what the sheet continues with after giving up
   let pendingAfterAbandon = null;
   function probeOpenGame() {
-    const last = storageGet(LAST_SESSION_KEY);
-    if (!last || !ws || ws.readyState !== WebSocket.OPEN) return;
+    // The open challenge is probed too: another game may have taken the last-game slot.
+    const codes = [...new Set([storageGet(CHALLENGE_SESSION_KEY), storageGet(LAST_SESSION_KEY)].filter(Boolean))];
+    if (!codes.length || !ws || ws.readyState !== WebSocket.OPEN) return;
     let done;
     const promise = new Promise((resolve) => { done = resolve; });
     const timer = setTimeout(() => settleOpenGameCheck(promise), 2500); // no answer: never lock the start screen
-    openGameCheck = { promise, done: () => { clearTimeout(timer); done(); } };
-    ws.send(JSON.stringify({
-      type: 'checkSession', code: last,
-      playerId: storageGet(playerKeyFor(last)) || undefined,
-      playerToken: storageGet(tokenKeyFor(last)) || undefined,
-    }));
+    openGameCheck = { promise, pending: new Set(codes), done: () => { clearTimeout(timer); done(); } };
+    for (const code of codes) {
+      ws.send(JSON.stringify({
+        type: 'checkSession', code,
+        playerId: storageGet(playerKeyFor(code)) || undefined,
+        playerToken: storageGet(tokenKeyFor(code)) || undefined,
+      }));
+    }
+  }
+  function noteProbeAnswer(code) {
+    if (!openGameCheck || !openGameCheck.pending) return;
+    openGameCheck.pending.delete(code);
+    if (!openGameCheck.pending.size) settleOpenGameCheck();
   }
   function settleOpenGameCheck(promise) {
     if (!openGameCheck || (promise && openGameCheck.promise !== promise)) return;
@@ -4758,6 +4789,8 @@
     storageRemove(playerKeyFor(code));
     storageRemove(tokenKeyFor(code));
     if (storageGet(LAST_SESSION_KEY) === code) storageRemove(LAST_SESSION_KEY);
+    if (storageGet(CHALLENGE_SESSION_KEY) === code) storageRemove(CHALLENGE_SESSION_KEY);
+    if (challengeResumeCode === code) challengeResumeCode = null;
     if (resumeCode === code) {
       resumeCode = null;
       resumeIsChallenge = false;
@@ -4774,7 +4807,6 @@
     updateResumeBtn();
     if (seat && seat.left) forgetSession(status.code); // given up elsewhere: never offered again
     renderOpenGame();
-    settleOpenGameCheck();
   }
   function renderOpenGame() {
     // A real open game makes "back to the game" the main action of the start screen.
@@ -5769,17 +5801,21 @@
   }
 
   // --- Daily challenge --------------------------------------------------------
-  el('challengeBtn').addEventListener('click', () => {
+  function resumeChallenge() {
+    window.location.href = `${window.location.pathname}?session=${encodeURIComponent(challengeResumeCode)}`;
+  }
+  el('challengeBtn').addEventListener('click', function onChallengeTile() {
+    // A tap right after the app came back: wait for the probe, else a running game shows as used.
+    if (openGameCheck) { openGameCheck.promise.then(onChallengeTile); return; }
     // Today's challenge is still running (app was minimised or closed):
     // the tile continues it instead of dealing a fresh game.
-    if (resumeCode && resumeIsChallenge) {
-      window.location.href = `${window.location.pathname}?session=${encodeURIComponent(resumeCode)}`;
-      return;
-    }
+    if (challengeResumeCode) { resumeChallenge(); return; }
     // Explain first, play second: the cold start straight into a running
     // game left people wondering what was going on.
     el('challengeTopLine').textContent = '…';
     el('challengePlayedNote').classList.add('hidden');
+    challengeSheetRunning = false;
+    renderChallengeRunning();
     el('challengeShareBtn').classList.add('hidden');
     el('challengeStartBtn').classList.remove('hidden');
     el('challengeCancelBtn').textContent = L('Abbrechen', 'Cancel');
@@ -5804,7 +5840,11 @@
             : L('Noch niemand - sichere dir Platz 1!', 'Nobody yet - claim first place!');
         // Attempt used: no start, the sheet is the day's board.
         const played = !!(d && d.attempted);
-        el('challengePlayedNote').classList.toggle('hidden', !played);
+        // Still running (begun on another device, or this one forgot it): say so, not "played".
+        const running = played && !!d.running;
+        el('challengePlayedNote').classList.toggle('hidden', !played || running);
+        challengeSheetRunning = running;
+        renderChallengeRunning();
         challengeIntroResult = d && d.you ? { ...d.you, date: d.date } : null;
         el('challengeShareBtn').classList.toggle('hidden', !challengeIntroResult);
         el('challengeStartBtn').classList.toggle('hidden', played);
@@ -5826,6 +5866,17 @@
         el('challengeWeekLine').textContent = '';
       });
   });
+  /** The sheet's "still running" note; the resume button once the probe confirmed the game. */
+  function renderChallengeRunning() {
+    const running = challengeSheetRunning;
+    el('challengeRunningNote').classList.toggle('hidden', !running);
+    el('challengeResumeBtn').classList.toggle('hidden', !(running && challengeResumeCode));
+    if (!running) return;
+    el('challengeRunningNote').textContent = challengeResumeCode
+      ? L('Deine Challenge von heute läuft noch – tippe auf „Fortsetzen“.', 'Your challenge of today is still running – tap “Resume”.')
+      : L('Deine Challenge von heute läuft noch – weiter geht es auf dem Gerät, auf dem du sie begonnen hast.',
+        'Your challenge of today is still running – continue it on the device you started it on.');
+  }
   /** Today's board for `name`; the account token proves the name, so the
    *  server reveals today's scores only to whoever really played. */
   function fetchChallengeBoard(name) {
@@ -5948,6 +5999,7 @@
     storageSet(TREND_KEY, storageGet(TREND_KEY) === 'on' ? 'off' : 'on');
     renderChallengeTrend();
   });
+  el('challengeResumeBtn').addEventListener('click', () => { if (challengeResumeCode) resumeChallenge(); });
   el('challengeStartBtn').addEventListener('click', () => {
     el('challengeIntroOverlay').classList.add('hidden');
     send({ type: 'startChallenge', name: currentName(), accountToken: accountToken() || undefined });
@@ -9548,11 +9600,13 @@
     else if (ps.tries) setTileStatus(el('puzzleBtn'), el('puzzleTileStatus'), L(`${ps.tries} ${ps.tries === 1 ? 'Versuch' : 'Versuche'}`, `${ps.tries} ${ps.tries === 1 ? 'try' : 'tries'}`), 'open');
     else setTileStatus(el('puzzleBtn'), el('puzzleTileStatus'), L('Neu', 'New'), 'new');
     const you = challengeToday && challengeToday.date === today ? challengeToday.you : null;
-    if (resumeCode && resumeIsChallenge) setTileStatus(el('challengeBtn'), el('challengeTileStatus'), L('Läuft · fortsetzen', 'Running · resume'), 'open');
+    if (challengeResumeCode) setTileStatus(el('challengeBtn'), el('challengeTileStatus'), L('Läuft · fortsetzen', 'Running · resume'), 'open');
     else if (you) setTileStatus(el('challengeBtn'), el('challengeTileStatus'), L(`Platz ${you.rank} · ${you.score} Pkt`, `Rank ${you.rank} · ${you.score} pts`), 'done');
+    else if (challengeToday && challengeToday.date === today && challengeToday.running) setTileStatus(el('challengeBtn'), el('challengeTileStatus'), L('Läuft', 'Running'), 'open');
     else if (challengeToday && challengeToday.date === today && challengeToday.attempted) setTileStatus(el('challengeBtn'), el('challengeTileStatus'), L('Heute gespielt', 'Played today'), 'done');
     else if (challengeToday) setTileStatus(el('challengeBtn'), el('challengeTileStatus'), L('Noch offen', 'Still open'), 'new');
     else setTileStatus(el('challengeBtn'), el('challengeTileStatus'), '', '');
+    try { renderChallengeRunning(); } catch (e) { /* cosmetic */ }
     // try: the first render runs before the year-review state further down exists.
     try { renderYearEntry(); } catch (e) { /* cosmetic */ }
   }
