@@ -1,5 +1,5 @@
-/** Settings fixes: sheets open at the top, the debug row shows its state,
- *  straight dividers, a close button in the card-back gallery. */
+/** Settings fixes: sheets open at the top, the debug switch shows its state,
+ *  a close button in the card-back gallery. */
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
@@ -35,7 +35,7 @@ const tick = () => new Promise((r) => setTimeout(r, 20)); // MutationObserver ca
 test('sheets reopen scrolled to the top', async () => {
   const { window, doc, errors } = boot();
   try {
-    for (const id of ['settingsOverlay', 'gameSettingsOverlay']) {
+    for (const id of ['settingsOverlay', 'rulesOverlay']) {
       const overlay = doc.getElementById(id);
       const card = overlay.querySelector('.overlay-card');
       overlay.classList.remove('hidden');
@@ -53,16 +53,20 @@ test('sheets reopen scrolled to the top', async () => {
   } finally { window.close(); }
 });
 
-test('gear sheet: the debug row shows On/Off like the other toggles', () => {
+test('debug view: one switch turns it on and off and shows its state', () => {
   const { window, doc, errors } = boot();
   try {
-    const btn = doc.getElementById('debugBtn');
-    const value = () => btn.querySelector('.sheetRowValue').textContent;
-    assert.strictEqual(value(), 'Aus');
-    btn.click();
-    assert.strictEqual(value(), 'An');
-    btn.click();
-    assert.strictEqual(value(), 'Aus');
+    const box = doc.getElementById('debugCheckbox');
+    const on = () => doc.documentElement.classList.contains('debugMode');
+    assert.strictEqual(box.checked, false);
+    assert.strictEqual(on(), false);
+    box.click();
+    assert.strictEqual(box.checked, true);
+    assert.strictEqual(on(), true, 'the switch turns the view on');
+    assert.ok(!doc.getElementById('debugGrid').classList.contains('hidden'));
+    box.click();
+    assert.strictEqual(on(), false);
+    assert.strictEqual(doc.querySelectorAll('[id^="debugBtn"]').length, 0, 'no second control mirrors it');
     assert.deepStrictEqual(errors, []);
   } finally { window.close(); }
 });
@@ -82,7 +86,3 @@ test('card-back gallery has a 44 px close button', () => {
   } finally { window.close(); }
 });
 
-test('sheet row dividers are drawn lines, not rounded borders', () => {
-  assert.doesNotMatch(css, /\.sheetRow \+ \.sheetRow\s*\{[^}]*border-top/, 'border-top would follow the row radius');
-  assert.match(css, /\.sheetRow \+ \.sheetRow::before\s*\{[^}]*height: 1px/);
-});

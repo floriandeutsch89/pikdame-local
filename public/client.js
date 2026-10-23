@@ -389,15 +389,7 @@
       // Woerter wie "Aus" versehentlich anderswo uebersetzt werden.
       for (const opt of sel.options) if (UI_SCALES.includes(opt.value)) opt.textContent = uiScaleLabel(opt.value);
     }
-    setRowValue(document.getElementById('uiScaleBtn'), uiScaleLabel(uiScale));
     try { syncSegments(); } catch (e) { /* segments are cosmetic */ }
-  }
-  function cycleUiScale() {
-    uiScale = UI_SCALES[(UI_SCALES.indexOf(uiScale) + 1) % UI_SCALES.length];
-    storageSet(UI_SCALE_KEY, uiScale);
-    applyUiScale();
-    showToast(L(`Anzeigegröße: ${uiScaleLabel(uiScale)}`, `Display size: ${uiScaleLabel(uiScale)}`));
-    if (typeof render === 'function' && lastState) render(); // Hand-Überlappung neu messen
   }
   applyUiScale();
 
@@ -1055,23 +1047,9 @@
     document.addEventListener('visibilitychange', () => { if (!document.hidden) checkDay(); });
   })();
 
-  // Settings rows carry an <svg class="icon"> plus a label and a value span.
-  // Never assign textContent to the row itself - that would wipe the icon.
-  function setRowIcon(btn, iconId) {
-    const use = btn && btn.querySelector('.icon use');
-    if (use) use.setAttribute('href', `#${iconId}`);
-  }
-  function setRowValue(btn, text) {
-    const span = btn && btn.querySelector('.sheetRowValue');
-    if (span) span.textContent = text;
-  }
-
   function setSoundEnabled(enabled) {
     soundEnabled = enabled;
     storageSet(SOUND_KEY, enabled ? 'on' : 'off');
-    const toggleBtn = el('soundToggle');
-    setRowIcon(toggleBtn, enabled ? 'i-sound-on' : 'i-sound-off');
-    setRowValue(toggleBtn, enabled ? L('An', 'On') : L('Aus', 'Off'));
     const box = el('soundCheckbox');
     if (box) box.checked = enabled;
   }
@@ -1091,16 +1069,12 @@
   }
   function updateMusicSetting() {
     el('musicItem').classList.toggle('hidden', !musicSupported);
-    el('musicToggle').classList.toggle('hidden', !musicSupported);
     const levelSel = el('musicLevelSelect');
     for (const opt of levelSel.options) opt.textContent = musicLevelName(opt.value) || opt.textContent;
     levelSel.value = musicPrefs.level;
     const choiceSel = el('musicTrackSelect');
     for (const opt of choiceSel.options) opt.textContent = musicChoiceName(opt.value) || opt.textContent;
     choiceSel.value = musicPrefs.choice;
-    setRowValue(el('musicToggle'), musicPrefs.level === 'off'
-      ? musicLevelName('off')
-      : `${musicLevelName(musicPrefs.level)} · ${musicChoiceName(musicPrefs.choice)}`);
     try { syncSegments(); } catch (e) { /* segments are cosmetic */ }
   }
   function setMusicLevel(level) {
@@ -1121,30 +1095,16 @@
     if (music) music.setChoice(choice);
     updateMusicSetting();
   }
-  function cycleMusicLevel() {
-    const next = MUSIC_LEVELS[(MUSIC_LEVELS.indexOf(musicPrefs.level) + 1) % MUSIC_LEVELS.length];
-    setMusicLevel(next);
-    showToast(L(`Musik: ${musicLevelName(next)}`, `Music: ${musicLevelName(next)}`));
-  }
   try { updateMusicSetting(); } catch (e) { /* settings are comfort */ }
 
-  // Spiel-Tipps (der 'Tipp: 3+ Karten...'-Toast pro Zug): erfahrene Spieler
-  // koennen sie hinterm Zahnrad dauerhaft abschalten. Persistiert lokal auf
-  // dem Geraet (localStorage) - PFLICHT-Hinweise (z.B. Anlege-Zwang nach
-  // Stapelaufnahme) bleiben bewusst immer sichtbar.
+  // Game tips (the per-turn "Tipp: 3+ Karten..." toast): experienced players
+  // switch them off in "Optionen", stored per device. MANDATORY hints (lay-off
+  // duty after a pile take) always stay visible.
   const TIPS_KEY = 'pikdame_tips';
   let gameTipsEnabled = storageGet(TIPS_KEY) !== 'off';
   function setTipsEnabled(enabled) {
     gameTipsEnabled = enabled;
     storageSet(TIPS_KEY, enabled ? 'on' : 'off');
-    const btn = el('tipsToggle');
-    if (btn) {
-      setRowIcon(btn, enabled ? 'i-bulb' : 'i-bulb-off');
-      setRowValue(btn, enabled ? L('An', 'On') : L('Aus', 'Off'));
-      btn.title = enabled
-        ? L('Spiel-Tipps ausblenden', 'Hide game tips')
-        : L('Spiel-Tipps wieder anzeigen', 'Show game tips again');
-    }
     const tipsBox = document.getElementById('aidTipsCheckbox');
     if (tipsBox) tipsBox.checked = enabled;
   }
@@ -1169,19 +1129,7 @@
   const discardAidOn = () => aidDiscard || inTutorial();
   const layOffAidOn = () => aidLayOff || inTutorial();
   function renderAidControls() {
-    for (const [btnId, boxId, on, onTxt, offTxt] of [
-      ['aidDiscardToggle', 'aidDiscardCheckbox', aidDiscard,
-        L('Ablage-Hinweis ausblenden', 'Hide discard hint'), L('Ablage-Hinweis anzeigen', 'Show discard hint')],
-      ['aidLayOffToggle', 'aidLayOffCheckbox', aidLayOff,
-        L('Anlege-Hinweis ausblenden', 'Hide lay-off hint'), L('Anlege-Hinweis anzeigen', 'Show lay-off hint')],
-      ['aidLowCardsToggle', 'aidLowCardsCheckbox', aidLowCards,
-        L('Hinweis bei wenigen Karten ausblenden', 'Hide low-card warning'), L('Hinweis bei wenigen Karten anzeigen', 'Show low-card warning')],
-    ]) {
-      const btn = document.getElementById(btnId);
-      if (btn) {
-        setRowValue(btn, on ? L('An', 'On') : L('Aus', 'Off'));
-        btn.title = on ? onTxt : offTxt;
-      }
+    for (const [boxId, on] of [['aidDiscardCheckbox', aidDiscard], ['aidLayOffCheckbox', aidLayOff], ['aidLowCardsCheckbox', aidLowCards]]) {
       const box = document.getElementById(boxId);
       if (box) box.checked = on;
     }
@@ -2166,6 +2114,7 @@
     el('lobby').classList.toggle('hidden', !inLobby);
     el('table').classList.toggle('hidden', inLobby);
     renderPause();
+    try { renderTableOptions(); } catch (e) { /* "Optionen" must never break the table */ }
 
     if (inLobby) {
       // Coming back to the lobby (e.g. after a rematch) must clear any result
@@ -3045,29 +2994,7 @@
       'hidden',
       !showMeldControls && !showDiscardBtn && selectedCardIds.size === 0 && !lastState.canUndoMeld
     );
-    const iSeatedForfeit = lastState.players.some((p) => p.id === playerId && !p.isBot);
-    el('forfeitBtn').classList.toggle('hidden', lastState.phase !== 'playing' || !iSeatedForfeit);
-    const forfeitVotes = lastState.forfeitVotes || [];
-    const humansForfeit = lastState.players.filter((p) => !p.isBot && p.connected !== false).length;
-    const iVotedForfeit = forfeitVotes.includes(playerId);
-    el('forfeitBtn').classList.toggle('active', iVotedForfeit);
-    // The row in the settings sheet is labelled, so the value column only
-    // carries the vote tally while a forfeit is being decided. Whoever is
-    // being asked also gets the toast further below.
-    setRowValue(el('forfeitBtn'), forfeitVotes.length ? `${forfeitVotes.length}/${humansForfeit}` : '');
-    el('forfeitBtn').title = forfeitVotes.length
-      ? L(`${forfeitVotes.length}/${humansForfeit} wollen das Spiel aufgeben - tippe zum Zustimmen`, `${forfeitVotes.length}/${humansForfeit} want to forfeit the game - tap to agree`)
-      : L('Das ganze Spiel aufgeben (alle aktiven Spieler müssen zustimmen)', 'Forfeit the whole game (all active players must agree)');
-    // Ask everyone visibly: when a proposal appears (or grows) and I haven't
-    // agreed yet, pop a toast so no one misses that they are being asked.
-    if (lastState.phase === 'playing' && forfeitVotes.length > prevForfeitVoteCount && !iVotedForfeit && iSeatedForfeit) {
-      showToast(
-        L(`🏳️ Spiel aufgeben vorgeschlagen (${forfeitVotes.length}/${humansForfeit}) - tippe auf 🏳️, um zuzustimmen.`,
-          `🏳️ Forfeit proposed (${forfeitVotes.length}/${humansForfeit}) - tap 🏳️ to agree.`),
-        { priority: true }
-      );
-    }
-    prevForfeitVoteCount = forfeitVotes.length;
+    try { renderForfeit(); } catch (e) { /* the home dialog must never break the table */ }
 
     if (lastState.mustLayOffCardId && isMyTurn && tutorialHintsOn()) {
       clearHintIfNotError(); // the coach card names the combination instead
@@ -3120,6 +3047,52 @@
         d.textContent = trs(entry.text);
         logEntries.appendChild(d);
       });
+  }
+
+  // The forfeit vote sits in the home dialog, next to "Tisch verlassen". Not in
+  // the tutorial: practice never blocks a new game, there is nothing to give up.
+  function forfeitShown() {
+    const st = lastState;
+    return !!(st && st.phase === 'playing' && !st.tutorialMode && st.players.some((p) => p.id === playerId && !p.isBot));
+  }
+  function renderForfeit() {
+    const st = lastState;
+    const btn = el('forfeitBtn');
+    const show = forfeitShown();
+    btn.classList.toggle('hidden', !show);
+    el('forfeitHint').classList.toggle('hidden', !show);
+    const votes = st.forfeitVotes || [];
+    const humans = st.players.filter((p) => !p.isBot && p.connected !== false).length;
+    const iVoted = votes.includes(playerId);
+    // An armed button shows "Wirklich?" until the second tap or its timeout.
+    if (show && !btn.dataset.armed) {
+      setLabelText(btn, iVoted
+        ? L(`Aufgeben zurückziehen (${votes.length}/${humans})`, `Withdraw forfeit (${votes.length}/${humans})`)
+        : votes.length
+          ? L(`Spiel aufgeben (${votes.length}/${humans})`, `Forfeit game (${votes.length}/${humans})`)
+          : L('Spiel aufgeben', 'Forfeit game'));
+    }
+    if (show) {
+      el('forfeitHint').textContent = humans > 1
+        ? L('Die Partie endet erst, wenn alle aktiven Spieler zustimmen – dann ohne Sieger und ohne Wertung.',
+          'The match only ends once every active player agrees – then with no winner and no score.')
+        : st.challengeDate
+          ? L('Die Challenge endet sofort ohne Wertung – dein Versuch für heute ist damit verbraucht.',
+            'The challenge ends at once, unscored – that uses up today’s attempt.')
+          : st.towerStage
+            ? L('Die Etage endet sofort – ohne Sterne.', 'The floor ends at once – no stars.')
+            : L('Die Partie endet sofort – ohne Sieger und ohne Wertung.', 'The match ends at once – no winner, no score.');
+    }
+    // Ask visibly: a new or growing proposal I have not agreed to yet. The
+    // toast names where the button really is (it used to point at a 🏳 button).
+    if (st.phase === 'playing' && votes.length > prevForfeitVoteCount && !iVoted && show) {
+      showToast(
+        L(`Spiel aufgeben vorgeschlagen (${votes.length}/${humans}). Zustimmen: Haus oben links › „Spiel aufgeben“.`,
+          `Forfeit proposed (${votes.length}/${humans}). To agree: house icon top left › "Forfeit game".`),
+        { priority: true }
+      );
+    }
+    prevForfeitVoteCount = votes.length;
   }
 
   const RANK_ORDER = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
@@ -4377,7 +4350,6 @@
   });
 
 
-  el('uiScaleBtn').addEventListener('click', cycleUiScale);
   try {
     const scaleSel = el('uiScaleSelect');
     if (scaleSel) {
@@ -4515,8 +4487,8 @@
     pendingConfirmDiscardId = null;
   });
 
-  // Starting a forfeit vote asks first (in-app dialog); agreeing to an
-  // existing proposal or withdrawing just toggles.
+  // Round end: starting a forfeit vote asks first (in-app dialog); agreeing
+  // to an existing proposal or withdrawing just toggles.
   function toggleForfeit(phase) {
     if (!lastState || lastState.phase !== phase) return;
     if (!lastState.players.some((p) => p.id === playerId && !p.isBot)) return;
@@ -4531,7 +4503,19 @@
     sound.discard();
     send({ type: 'forfeitRound' }); // toggles my forfeit vote
   }
-  el('forfeitBtn').addEventListener('click', () => toggleForfeit('playing'));
+  // Home dialog: a yes takes two taps (confirmByTap, like "Aufgeben & neues
+  // Spiel"), withdrawing my own vote one. Same server vote as ever.
+  const iVotedForfeit = () => !!(lastState && (lastState.forfeitVotes || []).includes(playerId));
+  try {
+    confirmByTap(el('forfeitBtn'), () => L('Wirklich aufgeben?', 'Really forfeit?'), () => {
+      if (!forfeitShown()) return;
+      const proposing = !(lastState.forfeitVotes || []).length;
+      const others = lastState.players.some((p) => p.id !== playerId && !p.isBot && p.connected !== false);
+      sendForfeitVote();
+      el('homeOverlay').classList.add('hidden');
+      if (others && proposing) showToast(L('Du willst aufgeben – die anderen werden gefragt.', 'You want to forfeit – the others are being asked.'));
+    }, () => !iVotedForfeit());
+  } catch (e) { /* stale cached markup */ }
   el('confirmForfeitYesBtn').addEventListener('click', () => {
     el('confirmForfeitOverlay').classList.add('hidden');
     if (lastState && (lastState.phase === 'playing' || lastState.phase === 'roundEnd')) sendForfeitVote();
@@ -4551,45 +4535,37 @@
     render();
   });
 
-  el('logToggle').addEventListener('click', () => {
-    // Opened from the settings sheet - close that first, otherwise the panel
-    // appears behind it and the tap looks like it did nothing.
-    el('gameSettingsOverlay').classList.add('hidden');
-    el('logPanel').classList.toggle('hidden');
-  });
+  // "Spielverlauf ›" in "Dieser Tisch": close the sheet first, or the panel
+  // opens behind it and the tap looks like it did nothing.
+  try {
+    el('tableLogBtn').addEventListener('click', () => {
+      el('settingsOverlay').classList.add('hidden');
+      el('logPanel').classList.remove('hidden');
+    });
+  } catch (e) { /* stale cached markup */ }
 
   el('logCloseBtn').addEventListener('click', () => {
     el('logPanel').classList.add('hidden');
   });
 
-  el('tipsToggle').addEventListener('click', () => {
-    setTipsEnabled(!gameTipsEnabled);
-    if (gameTipsEnabled) {
+  el('aidTipsCheckbox').addEventListener('change', () => {
+    const on = el('aidTipsCheckbox').checked;
+    if (on === gameTipsEnabled) return;
+    setTipsEnabled(on);
+    if (on) {
       // Deliberately switching them back on means "show me those again".
       tipSeenCount = 0;
       tipShownForTurn = null;
       storageSet(TIP_SEEN_KEY, '0');
     }
-    showToast(
-      gameTipsEnabled
-        ? L('Spiel-Tipps sind wieder an.', 'Game tips are back on.')
-        : L('Spiel-Tipps sind aus. Wieder einschalten: in den Einstellungen.', 'Game tips are off. Re-enable them in the settings.')
-    );
+    showToast(on
+      ? L('Spiel-Tipps sind wieder an.', 'Game tips are back on.')
+      : L('Spiel-Tipps sind aus. Wieder einschalten: in den Optionen.', 'Game tips are off. Turn them back on in the Options.'));
   });
-  el('aidDiscardToggle').addEventListener('click', () => setAid('discard', !aidDiscard));
-  el('aidLayOffToggle').addEventListener('click', () => setAid('layoff', !aidLayOff));
   el('aidDiscardCheckbox').addEventListener('change', () => setAid('discard', el('aidDiscardCheckbox').checked));
   el('aidLayOffCheckbox').addEventListener('change', () => setAid('layoff', el('aidLayOffCheckbox').checked));
-  el('aidLowCardsToggle').addEventListener('click', () => setAid('lowcards', !aidLowCards));
   el('aidLowCardsCheckbox').addEventListener('change', () => setAid('lowcards', el('aidLowCardsCheckbox').checked));
-  el('aidTipsCheckbox').addEventListener('change', () => {
-    if (el('aidTipsCheckbox').checked !== gameTipsEnabled) el('tipsToggle').click();
-  });
-  el('soundToggle').addEventListener('click', () => {
-    setSoundEnabled(!soundEnabled);
-  });
   el('soundCheckbox').addEventListener('change', () => setSoundEnabled(el('soundCheckbox').checked));
-  el('musicToggle').addEventListener('click', cycleMusicLevel);
   el('musicLevelSelect').addEventListener('change', () => setMusicLevel(el('musicLevelSelect').value));
   el('musicTrackSelect').addEventListener('change', () => setMusicChoice(el('musicTrackSelect').value));
 
@@ -4683,13 +4659,9 @@
   }
   document.addEventListener('visibilitychange', updateCountdownTimer);
 
-  // --- Home button + settings sheet (tidy three-button header) ---------------
-  el('settingsBtn').addEventListener('click', () => {
-    el('gameSettingsOverlay').classList.remove('hidden');
-  });
-  el('gameSettingsCloseBtn').addEventListener('click', () => {
-    el('gameSettingsOverlay').classList.add('hidden');
-  });
+  // --- Home button + "Optionen" (tidy three-button header) -------------------
+  // The gear opens the start screen's sheet; "Dieser Tisch" shows at the table only.
+  el('settingsBtn').addEventListener('click', openOptions);
   el('homeBtn').addEventListener('click', () => {
     // Solo tables (tutorial, challenge) have no bot takeover: say what really happens.
     const mode = lastState && lastState.tutorialMode ? 'homeTutorial' : lastState && lastState.challengeDate ? 'homeChallenge'
@@ -4697,6 +4669,11 @@
     for (const cls of ['homeTable', 'homeTutorial', 'homeChallenge', 'homeTower']) {
       el('homeOverlay').querySelectorAll(`.${cls}`).forEach((n) => n.classList.toggle('hidden', cls !== mode));
     }
+    // A tap left armed from the last opening must not act on the first tap now.
+    try {
+      disarmTap(el('forfeitBtn'));
+      if (lastState) renderForfeit();
+    } catch (e) { /* the dialog opens anyway */ }
     el('homeOverlay').classList.remove('hidden');
   });
   el('homeCancelBtn').addEventListener('click', () => el('homeOverlay').classList.add('hidden'));
@@ -5583,8 +5560,12 @@
 
   function updateTutorial() {
     tutorialActive = tutorialHintsOn();
-    const menuRow = el('tutorialHintsBtn');
-    if (menuRow) menuRow.classList.toggle('hidden', !(tutorialProgress && lastState && lastState.tutorialMode && tutorialProgress.code === sessionCode && tutorialProgress.off && !tutorialProgress.finished));
+    // "Optionen": the switch shows at an unfinished tutorial table, on or off.
+    const hintsRow = el('tutorialHintsItem');
+    const hintsSwitch = !!(tutorialProgress && lastState && lastState.tutorialMode && tutorialProgress.code === sessionCode && !tutorialProgress.finished);
+    if (hintsRow) hintsRow.classList.toggle('hidden', !hintsSwitch);
+    const hintsBox = el('tutorialHintsCheckbox');
+    if (hintsBox) hintsBox.checked = tutorialActive;
     if (!tutorialActive || !lastState) { hideCoach(); return; }
     const prog = tutorialProgress;
     // The tutorial ends with the scoring of round 1 - also when the next round
@@ -5653,7 +5634,7 @@
     saveTutorial();
     tutorialActive = false;
     hideCoach();
-    showToast(L('Tutorial beendet. Die Hinweise holst du im Menü zurück.', 'Tutorial ended. You can bring the hints back from the menu.'));
+    showToast(L('Tutorial beendet. Die Hinweise holst du in den Optionen zurück.', 'Tutorial ended. You can bring the hints back in the Options.'));
     try { updateTutorial(); } catch (e) { /* menu row only */ }
   }
 
@@ -6652,14 +6633,18 @@
     if (overlay) overlay.addEventListener('click', (ev) => { if (ev.target === overlay) overlay.classList.add('hidden'); });
   } catch (e) { /* Lernhilfe ist nie kritisch */ }
 
-  // "Überspringen": two taps, then the hints stop; the menu brings them back.
+  // "Überspringen": two taps, then the hints stop; the switch in "Optionen" brings them back.
   confirmByTap(el('tutorialOffBtn'), L('Tutorial beenden?', 'End the tutorial?'), stopTutorial);
-  el('tutorialHintsBtn').addEventListener('click', () => {
-    const prog = tutorialSessionProgress();
-    if (prog) { prog.off = false; saveTutorial(); }
-    el('gameSettingsOverlay').classList.add('hidden');
-    updateTutorial();
-  });
+  try {
+    el('tutorialHintsCheckbox').addEventListener('change', () => {
+      const prog = tutorialSessionProgress();
+      if (!prog) return;
+      if (!el('tutorialHintsCheckbox').checked) { stopTutorial(); return; }
+      prog.off = false;
+      saveTutorial();
+      updateTutorial();
+    });
+  } catch (e) { /* stale cached markup */ }
 
   // "Tutorial geschafft": where to go next. 'bots'/'invite' create a new game on
   // the start screen after the reload (afterTutorial, picked up in connect()).
@@ -7134,27 +7119,21 @@
     try { initSheetSwipe(o); } catch (e) { /* swiping is a convenience */ }
   });
 
-  // --- Vollbild ("Kiosk-Modus" wie bei Videos) -------------------------------
-  // Fullscreen-API gibt es auf Android/Desktop (Chrome/Edge/Firefox). iOS
-  // Safari unterstützt sie für Webseiten nicht - dort bleibt der Button
-  // verborgen (der PWA-Homescreen-Modus übernimmt das auf dem iPhone).
+  // --- Fullscreen ("kiosk mode" as with videos) -----------------------------
+  // The Fullscreen API exists on Android and desktop browsers. iPhone Safari has
+  // none for web pages: the switch stays hidden (the home-screen app covers it).
   const fsRoot = document.documentElement;
-  if (fsRoot.requestFullscreen) {
-    el('fullscreenBtn').classList.remove('hidden');
-    setRowValue(el('fullscreenBtn'), L('Aus', 'Off')); // no fullscreenchange has fired yet
-    el('fullscreenBtn').addEventListener('click', () => {
-      if (document.fullscreenElement) {
-        document.exitFullscreen();
-      } else {
-        fsRoot.requestFullscreen().catch(() => {});
-      }
+  const fsBox = el('fullscreenCheckbox');
+  if (fsRoot.requestFullscreen && fsBox) {
+    const syncFullscreen = () => { fsBox.checked = !!document.fullscreenElement; };
+    el('fullscreenItem').classList.remove('hidden');
+    syncFullscreen();
+    fsBox.addEventListener('change', () => {
+      // Refused (no user gesture, policy): the switch flips back.
+      const p = fsBox.checked ? fsRoot.requestFullscreen() : document.fullscreenElement && document.exitFullscreen();
+      if (p && p.catch) p.catch(syncFullscreen);
     });
-    document.addEventListener('fullscreenchange', () => {
-      const on = !!document.fullscreenElement;
-      setRowIcon(el('fullscreenBtn'), on ? 'i-fullscreen-exit' : 'i-fullscreen');
-      setRowValue(el('fullscreenBtn'), on ? L('An', 'On') : L('Aus', 'Off'));
-      el('fullscreenBtn').title = on ? L('Vollbild verlassen', 'Exit fullscreen') : L('Vollbild', 'Fullscreen');
-    });
+    document.addEventListener('fullscreenchange', syncFullscreen);
   }
 
   // --- Wake Lock: Display bleibt an, WÄHREND ICH DRAN BIN -------------------
@@ -7675,9 +7654,14 @@
   }
   /** Two-tap confirmation instead of window.confirm(): iOS can suppress the
    *  native dialog silently (the tap then did nothing at all). First tap arms
-   *  the button for 4 s, the second one acts. */
-  function confirmByTap(btn, armedLabel, action) {
+   *  the button for 4 s, the second one acts. armedLabel may be a function (read
+   *  when arming, so it follows the language); needsConfirm() false acts at once. */
+  function confirmByTap(btn, armedLabel, action, needsConfirm) {
     btn.addEventListener('click', () => {
+      if (btn.dataset.armed !== '1' && needsConfirm && !needsConfirm()) {
+        action();
+        return;
+      }
       if (btn.dataset.armed === '1') {
         clearTimeout(Number(btn.dataset.timer));
         delete btn.dataset.armed;
@@ -7689,7 +7673,7 @@
       btn.dataset.label = btn.textContent;
       btn.dataset.armed = '1';
       btn.classList.add('armed');
-      setLabelText(btn, armedLabel);
+      setLabelText(btn, typeof armedLabel === 'function' ? armedLabel() : armedLabel);
       btn.dataset.timer = String(setTimeout(() => {
         delete btn.dataset.armed;
         btn.classList.remove('armed');
@@ -7830,7 +7814,6 @@
     .then((s) => {
       if (s && s.version) {
         el('versionValue').textContent = `v${s.version}`;
-        setRowValue(el('ingameVersion'), `v${s.version}`);
         // PWA auto-update, part 2: my bundle carries the version of the
         // server that SERVED it (__PIKDAME_BUILD). If the live server is
         // newer, this client is stale (nightly update, PWA cache) - reload
@@ -7907,26 +7890,51 @@
       .catch(() => showToast(L('Changelog konnte nicht geladen werden.', 'Could not load the changelog.')));
   }
   el('versionBtn').addEventListener('click', openChangelog);
-  el('ingameVersion').addEventListener('click', openChangelog);
 
-  // --- Spielregeln (Lobby + ingame) ------------------------------------------
+  // --- Spielregeln (start screen + "Dieser Tisch") -----------------------------
   function openRules() {
     el('rulesOverlay').classList.remove('hidden');
   }
   el('rulesBtnLobby').addEventListener('click', openRules);
+
+  // --- "Optionen": one sheet for the start screen and the table (gear) --------
+  function openOptions() {
+    try { updateCelebrationSetting(); } catch (e) { /* cosmetic */ } // sign-in may have changed
+    try { renderTableOptions(); } catch (e) { /* the sheet opens anyway */ }
+    el('settingsOverlay').classList.remove('hidden');
+  }
+  // At the table "Dieser Tisch" leads (house rules read-only, rules, log) and the
+  // intro row goes (it only plays at the start). Re-run by render() for live values.
+  function renderTableOptions() {
+    const st = lastState;
+    const atTable = !!(st && st.phase !== 'lobby');
+    el('settingsOverlay').classList.toggle('atTable', atTable);
+    el('tableOptions').classList.toggle('hidden', !atTable);
+    el('studioLogoItem').classList.toggle('hidden', atTable);
+    if (!atTable) return;
+    const hr = st.houseRules || {};
+    const onOff = (on) => (on ? L('An', 'On') : L('Aus', 'Off'));
+    el('tableRuleHandAus').textContent = onOff(hr.handAusDoubles);
+    el('tableRuleStrict').textContent = onOff(hr.strictThreshold);
+    const secs = Number(hr.turnTimerSeconds) || 0;
+    el('tableRuleTimer').textContent = secs ? `${secs} s` : L('Aus', 'Off');
+    const bots = st.players.filter((p) => p.isBot);
+    el('tableRuleBotPaceRow').classList.toggle('hidden', !bots.length);
+    el('tableRuleBotPace').textContent = { fast: L('Schnell', 'Fast'), slow: L('Gemütlich', 'Relaxed') }[hr.botPace] || L('Normal', 'Normal');
+    // The daily challenge fixes its bots and deliberately keeps their level unsaid.
+    el('tableRuleBotLevelRow').classList.toggle('hidden', !bots.length || !!st.challengeDate);
+    const levels = new Set(bots.map((p) => p.botDifficulty || 'zen'));
+    const level = levels.size === 1 ? BOT_DIFF[[...levels][0]] : null;
+    el('tableRuleBotLevel').textContent = level ? level.short() : L('Gemischt', 'Mixed');
+  }
   try {
-    const openBtn = el('settingsBtnLobby');
     const overlay = el('settingsOverlay');
-    const closeBtn = el('settingsOverlayCloseBtn');
-    if (openBtn && overlay) {
-      openBtn.addEventListener('click', () => {
-        try { updateCelebrationSetting(); } catch (e) { /* cosmetic */ } // sign-in may have changed
-        overlay.classList.remove('hidden');
-      });
-    }
-    if (closeBtn && overlay) closeBtn.addEventListener('click', () => overlay.classList.add('hidden'));
-    if (overlay) overlay.addEventListener('click', (ev) => { if (ev.target === overlay) overlay.classList.add('hidden'); });
-  } catch (e) { /* Menue ist Komfort */ }
+    el('settingsBtnLobby').addEventListener('click', openOptions);
+    el('settingsOverlayCloseBtn').addEventListener('click', () => overlay.classList.add('hidden'));
+    overlay.addEventListener('click', (ev) => { if (ev.target === overlay) overlay.classList.add('hidden'); });
+    // Over the open sheet (later in the DOM): closing the rules returns to it.
+    el('tableRulesBtn').addEventListener('click', openRules);
+  } catch (e) { /* stale cached markup: the sheet comes with the next load */ }
 
   el('rulesCloseBtn').addEventListener('click', () => el('rulesOverlay').classList.add('hidden'));
   el('rulesOverlay').addEventListener('click', (ev) => {
@@ -8285,7 +8293,6 @@
     bubble.style.top = `${rect.bottom + 8}px`;
     setTimeout(() => bubble.remove(), 3600);
   }
-  // Two switches, one setting: lobby settings (checkbox) and the in-game sheet (row).
   function setBotQuips(on) {
     botQuipsOn = on;
     storageSet(BOT_QUIPS_KEY, on ? 'on' : 'off');
@@ -8293,11 +8300,9 @@
   }
   function renderBotQuipsControls() {
     el('botQuipsCheckbox').checked = botQuipsOn;
-    setRowValue(el('botQuipsToggle'), botQuipsOn ? L('An', 'On') : L('Aus', 'Off'));
   }
   renderBotQuipsControls();
   el('botQuipsCheckbox').addEventListener('change', () => setBotQuips(el('botQuipsCheckbox').checked));
-  el('botQuipsToggle').addEventListener('click', () => setBotQuips(!botQuipsOn));
 
   // --- Fortschritt: Tagesaufgaben, Erfolge-Galerie, Saison-Rangliste -------
 
@@ -10877,7 +10882,6 @@
       if (panel) panel.classList.toggle('hidden', !on);
       const box = document.getElementById('debugCheckbox');
       if (box) box.checked = on;
-      setRowValue(el('debugBtn'), on ? L('An', 'On') : L('Aus', 'Off'));
       clearInterval(debugTimer);
       if (on && panel) {
         updateDebugPanel();
@@ -10893,9 +10897,7 @@
   }
   try {
     const dbgBox = el('debugCheckbox');
-    const dbgGame = el('debugBtn');
     if (dbgBox) dbgBox.addEventListener('change', toggleDebugMode);
-    if (dbgGame) dbgGame.addEventListener('click', toggleDebugMode);
     window.addEventListener('resize', () => { if (debugEnabled()) updateDebugPanel(); });
     applyDebugMode();
   } catch (e) {

@@ -39,7 +39,7 @@ test('start screen: one icon per meaning (Stammtisch, account, puzzle, tips, cha
   // Daily puzzle = card with "?"; the bulb stays "Spiel-Tipps".
   assert.strictEqual(iconOf(doc.getElementById('puzzleBtn')), '#i-puzzle');
   assert.strictEqual(h2Icon('puzzleOverlay'), '#i-puzzle');
-  assert.strictEqual(iconOf(doc.getElementById('tipsToggle')), '#i-bulb');
+  assert.strictEqual(iconOf(doc.querySelector('label[for="aidTipsCheckbox"]')), '#i-bulb');
   // Daily challenge = podium (rank); the calendar is left for the weekly range.
   assert.strictEqual(iconOf(doc.getElementById('challengeBtn')), '#i-podium');
   assert.strictEqual(h2Icon('challengeIntroOverlay'), '#i-podium');
