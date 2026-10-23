@@ -250,7 +250,9 @@ DELETE FROM play_attempts WHERE player_key = 'oma inge';
 
 A guest's deletion request: the player row and everything that points at it
 (profile, badges, quests, puzzle days, Kartenhaus stars, challenge results and
-attempts, play attempts) go with one statement:
+attempts, play attempts, Stammtisch memberships and series wins) go with one
+statement. The Stammtisch matches keep the name as it was played, without the
+link; the groups' record stays theirs:
 
 ```sql
 DELETE FROM players WHERE player_key = 'oma inge';

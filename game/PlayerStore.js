@@ -120,6 +120,15 @@ const UPSERT_PLAYER = `INSERT INTO players AS p (player_key, player_name, create
   ON CONFLICT (player_key) DO UPDATE SET last_seen_at = GREATEST(p.last_seen_at, EXCLUDED.last_seen_at), updated_at = EXCLUDED.updated_at
   RETURNING *`;
 
+/** The id of `name`'s player (created, or marked seen at `at`); for stores that reference players. */
+async function upsertPlayerId(q, name, at) {
+  const { rows } = await q.query(`INSERT INTO players AS p (player_key, player_name, created_at, updated_at, last_seen_at)
+    VALUES ($1, $2, $3, $3, $3)
+    ON CONFLICT (player_key) DO UPDATE SET last_seen_at = GREATEST(p.last_seen_at, EXCLUDED.last_seen_at), updated_at = EXCLUDED.updated_at
+    RETURNING id`, [keyOf(name), nameOf(name), at]);
+  return rows[0].id;
+}
+
 const RECORD_GAME = `INSERT INTO players AS p (player_key, player_name, created_at, updated_at, last_seen_at,
     games_played, games_won, total_score, best_game_score, best_round_score, win_streak, last_place_streak,
     queens_laid, queens_caught, jokers_laid, hand_aus_wins, challenges_played, stammtisch_games)
@@ -719,4 +728,4 @@ function createPlayerStore(pool, { legacyFile = DEFAULT_DATA_FILE, now = () => D
   };
 }
 
-module.exports = { createPlayerStore, importLegacyFile, legacyRows, keyOf, DEFAULT_DATA_FILE, PROFILES_LISTED };
+module.exports = { createPlayerStore, importLegacyFile, legacyRows, upsertPlayerId, keyOf, DEFAULT_DATA_FILE, PROFILES_LISTED };

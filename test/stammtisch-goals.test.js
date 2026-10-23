@@ -7,15 +7,16 @@ const os = require('node:os');
 const path = require('node:path');
 const G = require('../game/StammtischGoals');
 const { createStammtischStore } = require('../game/StammtischStore');
+const { testPool } = require('./helpers/test-db');
 
 // Week of Monday 2026-10-12 (CEST, UTC+2). Noon keeps every instant inside its game day.
 const MON = Date.parse('2026-10-12T10:00:00Z');
 const DAY = 86400000;
 const at = (days) => MON + days * DAY;
 
-function tempStore() {
-  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikst-goals-')), 'stammtisch.json');
-  return { st: createStammtischStore(file), file };
+function tempStore(t) {
+  const pool = testPool(t, 'st_goals');
+  return { st: createStammtischStore(pool, { legacyFile: null }), pool };
 }
 function rec(humans = 2) {
   const players = [{ id: 'a', name: 'Flo' }, { id: 'b', name: 'Anna' }, { id: 'c', name: 'Ben' }, { id: 'd', name: 'Oma' }]
@@ -23,9 +24,9 @@ function rec(humans = 2) {
     .concat([{ id: 'x', name: 'Uwe', isBot: true }]);
   return { winnerId: 'a', finalTotals: { a: 1000 }, players, finishedAt: Date.now() };
 }
-function play(st, code, n, when, humans = 2) {
+async function play(st, code, n, when, humans = 2) {
   const events = [];
-  for (let i = 0; i < n; i++) events.push(...st.recordGame(code, rec(humans), when).goalEvents);
+  for (let i = 0; i < n; i++) events.push(...(await st.recordGame(code, rec(humans), when)).goalEvents);
   return events;
 }
 
@@ -41,59 +42,69 @@ test('points, curve and week keys', () => {
   assert.strictEqual(G.weekOf('2026-10-19'), '2026-10-19');
 });
 
-test('the weekly goal: reached once with the goal-th match, with an event', () => {
-  const { st } = tempStore();
-  const { table } = st.create('Runde', 'Flo');
+test('the weekly goal: reached once with the goal-th match, with an event', async (t) => {
+  const { st } = tempStore(t);
+  const { table } = await st.create('Runde', 'Flo');
   const GOAL = G.WEEKLY_GOAL;
   assert.strictEqual(GOAL, 5, 'a family plays about five matches a week');
-  assert.deepStrictEqual(play(st, table.code, GOAL - 1, at(1)).filter((e) => e.type === 'week'), []);
-  const last = play(st, table.code, 1, at(2));
+  assert.deepStrictEqual((await play(st, table.code, GOAL - 1, at(1))).filter((e) => e.type === 'week'), []);
+  const last = await play(st, table.code, 1, at(2));
   assert.deepStrictEqual(last.filter((e) => e.type === 'week'), [{ type: 'week', streak: 1, goal: GOAL }]);
-  assert.deepStrictEqual(play(st, table.code, 1, at(3)).filter((e) => e.type === 'week'), [], 'one more says nothing');
-  const g = st.chipInfo(table.code, at(4)).goals;
+  assert.deepStrictEqual((await play(st, table.code, 1, at(3))).filter((e) => e.type === 'week'), [], 'one more says nothing');
+  const g = (await st.chipInfo(table.code, at(4))).goals;
   assert.deepStrictEqual(g.week, { start: '2026-10-12', games: GOAL + 1, goal: GOAL, reached: true });
   assert.strictEqual(g.streak, 1);
   assert.strictEqual(g.weeksReached, 1);
 });
 
-test('the week turns at midnight German time, not UTC', () => {
-  const { st } = tempStore();
-  const { table } = st.create('Runde', 'Flo');
+test('the week turns at midnight German time, not UTC', async (t) => {
+  const { st } = tempStore(t);
+  const { table } = await st.create('Runde', 'Flo');
   // Sunday 23:30 in Berlin is still Sunday 21:30 UTC - and Monday 00:30 in Berlin
   // is Sunday 22:30 UTC: a UTC week would put both into the same week.
-  st.recordGame(table.code, rec(), Date.parse('2026-10-18T21:30:00Z'));
-  st.recordGame(table.code, rec(), Date.parse('2026-10-18T22:30:00Z'));
-  const g = st.chipInfo(table.code, Date.parse('2026-10-19T10:00:00Z')).goals;
+  await st.recordGame(table.code, rec(), Date.parse('2026-10-18T21:30:00Z'));
+  await st.recordGame(table.code, rec(), Date.parse('2026-10-18T22:30:00Z'));
+  const g = (await st.chipInfo(table.code, Date.parse('2026-10-19T10:00:00Z'))).goals;
   assert.deepStrictEqual([g.week.start, g.week.games], ['2026-10-19', 1]);
 });
 
-test('streak: weeks in a row, alive through the running week, gone after a missed one', () => {
-  const { st } = tempStore();
-  const { table } = st.create('Runde', 'Flo');
-  play(st, table.code, G.WEEKLY_GOAL, at(0));
-  const second = play(st, table.code, G.WEEKLY_GOAL, at(7)).filter((e) => e.type === 'week');
+test('streak: weeks in a row, alive through the running week, gone after a missed one', async (t) => {
+  const { st } = tempStore(t);
+  const { table } = await st.create('Runde', 'Flo');
+  await play(st, table.code, G.WEEKLY_GOAL, at(0));
+  const second = (await play(st, table.code, G.WEEKLY_GOAL, at(7))).filter((e) => e.type === 'week');
   assert.deepStrictEqual(second, [{ type: 'week', streak: 2, goal: G.WEEKLY_GOAL }]);
-  const running = st.chipInfo(table.code, at(14)).goals;
+  const running = (await st.chipInfo(table.code, at(14))).goals;
   assert.deepStrictEqual([running.week.games, running.streak], [0, 2], 'not lost before the week is over');
-  assert.strictEqual(st.chipInfo(table.code, at(21)).goals.streak, 0, 'a missed week ends it');
-  assert.strictEqual(st.chipInfo(table.code, at(21)).goals.weeksReached, 2, 'reached weeks stay counted');
+  assert.strictEqual((await st.chipInfo(table.code, at(21))).goals.streak, 0, 'a missed week ends it');
+  assert.strictEqual((await st.chipInfo(table.code, at(21))).goals.weeksReached, 2, 'reached weeks stay counted');
 });
 
-test('level: points from every match, an event when a level is crossed', () => {
-  const { st } = tempStore();
-  const { table } = st.create('Runde', 'Flo');
+test('level: points from every match, an event when a level is crossed', async (t) => {
+  const { st } = tempStore(t);
+  const { table } = await st.create('Runde', 'Flo');
   // Two humans: 15 points a match; level 2 needs 50 -> the 4th match.
   const levels = [];
   for (let i = 1; i <= 4; i++) {
-    for (const e of st.recordGame(table.code, rec(2), at(0)).goalEvents) if (e.type === 'level') levels.push([i, e.level]);
+    for (const e of (await st.recordGame(table.code, rec(2), at(0))).goalEvents) if (e.type === 'level') levels.push([i, e.level]);
   }
   assert.deepStrictEqual(levels, [[4, 2]]);
-  const g = st.summary(table.code, at(0)).goals;
+  const g = (await st.summary(table.code, at(0))).goals;
   assert.deepStrictEqual([g.level, g.into, g.need, g.xp], [2, 10, 75, 60]);
 });
 
-test('migration: an old table gets its goals from the kept matches, the next match counts once', () => {
-  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikst-goals-')), 'stammtisch.json');
+test('only 60 weeks are kept, the newest', async (t) => {
+  const { st, pool } = tempStore(t);
+  const { table } = await st.create('Runde', 'Flo');
+  for (let w = 0; w < 62; w++) await st.recordGame(table.code, rec(2), at(w * 7));
+  const weeks = (await pool.query('SELECT min(week_start_day) AS lo, count(*)::int AS n FROM stammtisch_weeks')).rows[0];
+  assert.deepStrictEqual([weeks.n, weeks.lo], [60, G.weekOf(require('../game/GameDay').gameDay(at(2 * 7)))]);
+});
+
+test('import: an old table gets its goals from the kept matches, the next match counts once', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikst-goals-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'stammtisch.json');
   const game = (when) => ({ at: when, seriesNo: 1, players: [
     { name: 'Flo', isBot: false, score: 900, won: true },
     { name: 'Anna', isBot: false, score: 300, won: false },
@@ -105,12 +116,13 @@ test('migration: an old table gets its goals from the kept matches, the next mat
     members: {}, series: { no: 1, bestOf: 3, wins: {}, games: 3, winner: null, finishedAt: null },
     games: [game(at(-7)), game(at(1)), game(at(2))],
   } } }));
-  const st = createStammtischStore(file);
-  const before = st.chipInfo('STALTX', at(3)).goals;
+  const pool = testPool(t, 'st_goals_import');
+  const st = createStammtischStore(pool, { legacyFile: file });
+  const before = (await st.chipInfo('STALTX', at(3))).goals;
   assert.deepStrictEqual([before.xp, before.week.games, before.weeksReached], [45, 2, 0]);
-  st.recordGame('STALTX', rec(2), at(3));
-  const after = st.chipInfo('STALTX', at(3)).goals;
+  await st.recordGame('STALTX', rec(2), at(3));
+  const after = (await st.chipInfo('STALTX', at(3))).goals;
   assert.deepStrictEqual([after.xp, after.week.games], [60, 3], 'history once plus the new match');
-  st.flushSync();
-  assert.ok(JSON.parse(fs.readFileSync(file, 'utf8')).tables.STALTX.goals, 'stored from now on');
+  const stored = (await pool.query("SELECT goal_xp FROM stammtische WHERE stammtisch_code = 'STALTX'")).rows[0];
+  assert.strictEqual(stored.goal_xp, 60, 'stored from now on');
 });

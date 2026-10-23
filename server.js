@@ -103,7 +103,8 @@ const greetingDays = (() => {
 const gameHistoryStore = createGameHistoryStore();
 // Stammtisch: persistent group tables (code -> members, record, series).
 // Scoped by code, so it stays on in public mode - see StammtischStore.
-const stammtischStore = createStammtischStore();
+// stammtisch.json of older versions is imported once.
+const stammtischStore = createStammtischStore(db);
 // Kartenhaus, puzzle and tutorial attempts with the player's name, 90 days (admin "Festhänger").
 const playEvents = createPlayEvents(db);
 // Open daily-puzzle attempts (live day, named, not in public mode); kept in the session snapshot.
@@ -1421,12 +1422,10 @@ const registry = new SessionRegistry((session) => {
       // Stammtisch record + rematch series: scoped by the table's code, so it
       // runs in public mode too. Best-effort like everything below.
       if (session.stammtisch) {
-        try {
-          const booked = stammtischStore.recordGame(session.stammtisch, gameRecord);
+        const code = session.stammtisch;
+        trackWrite(stammtischStore.recordGame(code, gameRecord).then((booked) => {
           if (booked) broadcastToSession(session, { type: 'stammtisch', summary: booked.summary, seriesEvent: booked.seriesEvent, goalEvents: booked.goalEvents });
-        } catch (err) {
-          logCrash('stammtisch', err, { code: session.stammtisch });
-        }
+        }).catch((err) => logCrash('stammtisch', err, { code })));
       }
       // Im öffentlichen Modus werden KEINE Namen/Statistiken persistiert -
       // Fremde sollen nichts voneinander sehen, und zwei "Max" aus
@@ -1550,8 +1549,8 @@ async function freeLostChallengeAttempts() {
   try { await challengeStore.markLostAttempts({ has: (code) => registry.sessions.has(code) }); } catch (err) { logCrash('challenge-lost', err); }
 }
 freeLostChallengeAttempts();
-// Same for the profiles: the one-time players.json import runs at boot, not at the first request.
-playerStore.ready().catch((err) => logCrash('players', err));
+// Same for profiles and Stammtische: their one-time JSON imports run at boot, not at the first request.
+playerStore.ready().then(() => stammtischStore.ready()).catch((err) => logCrash('players', err));
 const CHALLENGE_DB_ERROR = 'Die Tages-Challenge ist gerade nicht erreichbar - bitte versuch es gleich noch einmal.';
 
 /** Badge facts per real player id: { challengeChamp, queenMagnet }. Never throws. */
@@ -1612,7 +1611,7 @@ async function bookFinishedGame(session, results, gameRecord, sendTo) {
   for (const p of humans) {
     try { streaks[p.id] = await playerStore.touchDailyStreak(p.name, questDate); } catch (err) { logCrash('streak', err, { player: p.name }); }
   }
-  recordYearStats(session, results, gameRecord, questDate, streaks);
+  await recordYearStats(session, results, gameRecord, questDate, streaks);
 
   // Seasonal card backs: a finished game in the month unlocks it for good.
   for (const seasonalBack of seasonalBacksFor(questDate)) {
@@ -1830,6 +1829,17 @@ async function seatCelebration(name) {
   return levelFromXp(p.xp || 0).level >= celebrationLevel(id) ? id : 'standard';
 }
 const STAMMTISCH_LOGIN_ERROR = 'Für deine Stammtische brauchst du ein Konto - bitte zuerst anmelden.';
+const STAMMTISCH_DB_ERROR = 'Der Stammtisch ist gerade nicht erreichbar - bitte versuch es gleich noch einmal.';
+/** The Stammtisch behind a code ({ code, name }), null without one, undefined when the
+ *  database cannot tell - a probe must not count as a failed join then. */
+async function stammtischFor(code) {
+  try {
+    return await stammtischStore.get(code);
+  } catch (err) {
+    logCrash('stammtisch', err);
+    return undefined;
+  }
+}
 /** Account username behind msg.accountToken, or null (not signed in). */
 async function stammtischAccount(msg) {
   const user = await accountStore.sessionUser(msg.accountToken);
@@ -1853,10 +1863,10 @@ function applyTablePrefs(game, prefs) {
 }
 
 // Year review counters (YearReview.js) for every human seat of a finished game.
-// The Stammtisch counts by NAME - its code is a secret and never stored here.
-function recordYearStats(session, results, gameRecord, date, streaks) {
+// The Stammtisch counts by NAME - its code is a secret and never stored here. Never throws.
+async function recordYearStats(session, results, gameRecord, date, streaks) {
   try {
-    const t = session.stammtisch ? stammtischStore.get(session.stammtisch) : null;
+    const t = session.stammtisch ? await stammtischStore.get(session.stammtisch) : null;
     yearStats.recordFinishedGame(results, gameRecord.players, date, { table: t && t.name ? t.name : null, streaks });
   } catch (err) {
     logCrash('year-stats', err);
@@ -1986,6 +1996,12 @@ wss.on('connection', (ws, req) => {
     // Read before the seat is taken: from here to the reply nothing awaits,
     // so no other message can see a half-joined seat. No name: the seat keeps its own.
     const celebration = sanitizeName(msg.name) ? await seatCelebration(sanitizeName(msg.name)) : null;
+    // A Stammtisch the database cannot read right now: the table plays on without its record.
+    const table = targetSession.stammtisch ? await stammtischFor(targetSession.stammtisch) : null;
+    let lastWinner = null;
+    if (table) {
+      try { lastWinner = await stammtischStore.lastWinner(table.code); } catch (err) { logCrash('stammtisch', err); }
+    }
     // --- Seat protection (anti-cheat) -------------------------------------
     // Player ids are PUBLIC (every state broadcast contains them for
     // rendering), so they must never be sufficient to claim a seat: anyone
@@ -2049,13 +2065,12 @@ wss.on('connection', (ws, req) => {
     session = targetSession;
     session.sockets.set(playerId, ws);
     registry.touch(session);
-    const stammtisch = session.stammtisch ? stammtischStore.touch(session.stammtisch, player.name) : null;
+    const stammtisch = session.stammtisch && table ? table : null;
     // A new evening at the Stammtisch: the last match's winner deals again
     // (the host can still pick someone else; a rematch sets it itself).
     const g = session.game;
     if (stammtisch && g.phase === 'lobby' && g.roundNumber === 0 && !g.explicitDealerSet) {
-      const winner = stammtischStore.lastWinner(stammtisch.code);
-      if (winner && winner.toLowerCase() === String(player.name).trim().toLowerCase()) g.setExplicitDealer(player.id);
+      if (lastWinner && lastWinner.toLowerCase() === String(player.name).trim().toLowerCase()) g.setExplicitDealer(player.id);
     }
     ws.send(JSON.stringify({
       type: 'joined', playerId, playerToken, sessionCode: session.code,
@@ -2063,7 +2078,16 @@ wss.on('connection', (ws, req) => {
     }));
     session.game.broadcastState();
     sendProfilesAndTeams(session, playerId);
-    if (stammtisch) ws.send(JSON.stringify({ type: 'stammtisch', summary: stammtischStore.summary(stammtisch.code), seriesEvent: null }));
+    if (stammtisch) {
+      // The membership is written after the reply (the seat is complete), then the record follows.
+      try {
+        await stammtischStore.touch(stammtisch.code, player.name);
+        const summary = await stammtischStore.summary(stammtisch.code);
+        if (summary && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'stammtisch', summary, seriesEvent: null }));
+      } catch (err) {
+        logCrash('stammtisch', err, { code: stammtisch.code });
+      }
+    }
     return true;
   }
 
@@ -2318,7 +2342,7 @@ wss.on('connection', (ws, req) => {
         if (!owner) return sendError(ws, STAMMTISCH_LOGIN_ERROR);
         msg = { ...msg, name: owner };
       }
-      const founded = stammtischStore.create(msg.stammtischName, sanitizeName(msg.name), Date.now(), owner);
+      const founded = await stammtischStore.create(msg.stammtischName, sanitizeName(msg.name), Date.now(), owner);
       if (founded.error) return sendError(ws, founded.error);
       const created = registry.create({ stammtisch: founded.table.code });
       if (created.error) return sendError(ws, created.error);
@@ -2360,14 +2384,14 @@ wss.on('connection', (ws, req) => {
       if (!owner) return sendError(ws, STAMMTISCH_LOGIN_ERROR);
       if (msg.type !== 'listStammtische') {
         const r = msg.type === 'deleteStammtisch'
-          ? stammtischStore.remove(msg.code, owner)
-          : stammtischStore.leave(msg.code, owner);
+          ? await stammtischStore.remove(msg.code, owner)
+          : await stammtischStore.leave(msg.code, owner);
         if (r.error) return sendError(ws, r.error);
         // A live table of a deleted Stammtisch plays on as a normal table.
         const live = msg.type === 'deleteStammtisch' ? findStammtischSession(r.code) : null;
         if (live) live.stammtisch = null;
       }
-      ws.send(JSON.stringify({ type: 'stammtischList', tables: stammtischStore.listFor(owner) }));
+      ws.send(JSON.stringify({ type: 'stammtischList', tables: await stammtischStore.listFor(owner) }));
       return;
     }
     if (msg.type === 'getStammtisch') {
@@ -2377,7 +2401,13 @@ wss.on('connection', (ws, req) => {
         ws.close(1008, 'Zu viele Fehlversuche');
         return;
       }
-      const info = stammtischStore.chipInfo(msg.code);
+      let info;
+      try {
+        info = await stammtischStore.chipInfo(msg.code);
+      } catch (err) {
+        logCrash('stammtisch', err);
+        return sendError(ws, STAMMTISCH_DB_ERROR); // the database cannot tell: no failed-join strike
+      }
       if (!info) {
         registerFailedJoin(ip);
         ws.send(JSON.stringify({ type: 'stammtischInfo', code: normalizeStammtischCode(msg.code), exists: false }));
@@ -2409,8 +2439,9 @@ wss.on('connection', (ws, req) => {
         ws.close(1008, 'Zu viele Fehlversuche');
         return;
       }
-      const exists = !!registry.get(msg.code) || !!stammtischStore.get(msg.code);
-      if (!exists) {
+      const table = registry.get(msg.code) ? null : await stammtischFor(msg.code);
+      const exists = !!registry.get(msg.code) || !!table;
+      if (!exists && table !== undefined) {
         const count = registerFailedJoin(ip);
         if (count >= FAILED_JOIN_LIMIT) {
           ws.close(1008, 'Zu viele Fehlversuche');
@@ -2465,7 +2496,8 @@ wss.on('connection', (ws, req) => {
       if (!target) {
         // Not a live session - maybe a Stammtisch code: the group's table is
         // the live session bound to it, or a fresh one when nobody is there.
-        const table = stammtischStore.get(msg.code);
+        const table = await stammtischFor(msg.code);
+        if (table === undefined) return sendError(ws, STAMMTISCH_DB_ERROR);
         if (table) {
           target = findStammtischSession(table.code);
           if (!target) {
@@ -2754,7 +2786,6 @@ async function shutdown(signal) {
   try { towerStopped = towerMonths.stop({ graceMs: 4000 }); } catch (e) { /* never block shutdown */ }
   gameHistoryStore.flushSync();
   globalStats.flushSync();
-  stammtischStore.flushSync();
   try { yearStats.flushSync(); } catch (e) { /* the year review is best effort */ }
   try { if (adminMonitor) adminMonitor.flushSync(); } catch (e) { /* monitoring history is best effort */ }
   for (const client of wss.clients) {

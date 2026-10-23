@@ -45,11 +45,13 @@ All persistent data lives in **one directory**, mounted into the container at
 | `sessions-snapshot.json` | Running tables and open daily-puzzle attempts, written every minute and on shutdown so games survive a restart or crash |
 
 Accounts, player profiles (statistics, badges, progress; `players` and its
-`player_*` tables), the daily challenge (leaderboard and the day's ranked
-attempts, 14-day retention) and the Kartenhaus, puzzle and tutorial attempts
-({doc}`play-attempts`, 90 days) live in PostgreSQL. A `players.json` from an
-older version is imported on the first start and renamed to
-`players.json.migrated` (`[db] players.json: imported … profiles …` in the log).
+`player_*` tables), the Stammtische (`stammtische` and its `stammtisch_*`
+tables), the daily challenge (leaderboard and the day's ranked attempts, 14-day
+retention) and the Kartenhaus, puzzle and tutorial attempts ({doc}`play-attempts`,
+90 days) live in PostgreSQL. A `players.json` or `stammtisch.json` from an older
+version is imported on the first start and renamed to `….json.migrated`
+(`[db] players.json: imported … profiles …`, `[db] stammtisch.json: imported …
+Stammtische …` in the log).
 
 If that directory is not writable, **nothing is saved** and everything is lost on
 restart. Since v1.54.4 the server checks this at startup and says so loudly:
