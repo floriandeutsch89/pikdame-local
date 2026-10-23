@@ -312,10 +312,27 @@ test('a long name ellipsizes on its own: the face and the dealer star stay whole
   feed(table({ dealerId: 'b2' }, { b2: { name: 'Horst-Bärbelhausen von Langname' } }));
   const row = chip(doc, 'b2').querySelector('.opName');
   assert.equal(row.querySelector('.opNameText').textContent, 'Horst-Bärbelhausen von Langname');
-  assert.ok(row.querySelector(':scope > .opAvatar.breathing'), 'the face sits beside the name, not in its clip');
-  assert.ok(row.querySelector(':scope > .opDealer'), 'the star too');
+  assert.ok(row.querySelector(':scope > .opSeat > .opAvatar.breathing'), 'the face sits beside the name, not in its clip');
+  assert.ok(row.querySelector(':scope > .opSeat > .opDealer'), 'the star rides on the face, the name keeps the row');
   const clip = rules(/^#opponents \.opNameText$/).map((r) => r.body).join(' ');
   assert.match(clip, /overflow: hidden/);
   assert.match(clip, /text-overflow: ellipsis/);
   assert.ok(!rules(/^#opponents \.opName$/).some((r) => /overflow/.test(r.body)), 'the row itself never clips');
+});
+
+test('the count row starts under the name, clear of the face ring and the dealer star', () => {
+  // Under the face, the turn ring and the star covered the cards icon (user report).
+  const body = (re) => rules(re).map((r) => r.body).join(' ');
+  const px = (s, re) => Number((re.exec(s) || [])[1]);
+  const seatGap = px(body(/^\.opSeat$/), /margin-right:\s*(\d+)px/);
+  const rowGap = px(body(/^\.opponent \.opCount$/), /(?:^|[;\s])gap:\s*(\d+)px/);
+  const indent = /flex:\s*0 1 calc\(var\(--op-face\) \+ (\d+)px - (\d+)px\)/.exec(body(/^\.opponent \.opCount::before$/));
+  assert.ok(indent, 'an indent sized from the face that may only shrink (narrow chip, wide numbers)');
+  assert.equal(Number(indent[1]) - Number(indent[2]) + rowGap, seatGap, 'the cards icon starts at the name column');
+  assert.match(body(/^\.opponent \.opPts$/), /margin-left:\s*auto/, 'the total stays right-aligned');
+  assert.doesNotMatch(body(/^\.opponent \.opCount$/), /justify-content:\s*space-between/, 'space-between would float the cards to the middle');
+  for (const r of rules(/\.opponent \.opAvatar$/)) {
+    assert.doesNotMatch(r.body, /(?:^|[;\s])(?:width|height):\s*\d/, `${r.sel}: the face size comes from --op-face, so the indent follows it`);
+  }
+  assert.match(mediaBlock('@media (orientation: landscape) and (max-height: 540px)'), /--op-face:\s*22px/, 'landscape: the smaller face');
 });

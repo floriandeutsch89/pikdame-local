@@ -736,8 +736,6 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .segStack .segBtn { flex-direction: column; gap: 3px; padding: 5px 2px; }
 .segStack .lvlSlot { --lvl-h: 12px; height: calc(var(--lvl-h) * 1.528); }
 
-.reconnectTag { color: var(--accent); font-weight: 500; font-size: 0.65rem; }
-
 /* ============================ SPIELTISCH ============================ */
 
 #table {
@@ -941,6 +939,19 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 #opponents .opName { white-space: nowrap; }
 /* Only the name clips: a clipping row cut a breathing face's ring (and gave no ellipsis). */
 #opponents .opNameText { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Three chips at 375 px are 114 px wide: 8 px sides (a ring keeps 3 px to the border) and
+   the star on the face leave the name 63 px, the widest bot name needs 53. */
+#opponents .opponent { padding-left: 8px; padding-right: 8px; }
+.opponent { --op-face: 26px; }
+.opponent .opAvatar { width: var(--op-face); height: var(--op-face); }
+.opSeat { position: relative; display: inline-flex; flex: 0 0 auto; margin-right: 7px; }
+.opSeat > .opAvatar { margin-right: 0; }
+.opSeat > .opDealer {
+  position: absolute; right: -5px; bottom: -2px; z-index: 1;
+  width: 15px; height: 15px; border-radius: 50%; display: grid; place-items: center;
+  color: var(--accent); background: var(--bg); box-shadow: var(--shadow-1); /* the felt: the star keeps its contrast */
+}
+.opSeat > .opDealer .dealerIcon { width: 11px; height: 11px; vertical-align: 0; }
 .opponent {
   background: var(--glass);
   border: 1px solid var(--glass-border);
@@ -959,9 +970,13 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 /* Cards as icon + number, the total right above the end of its progress bar
    (was "1 Kt · 0 Pkt"). */
 .opponent .opCount {
-  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  display: flex; align-items: center; gap: 6px;
   color: var(--text-muted); font-weight: 500;
 }
+/* The count starts under the name (under the face, the ring and the star covered the
+   cards icon); only a narrow chip with wide numbers takes some of that indent back. */
+.opponent .opCount::before { content: ''; flex: 0 1 calc(var(--op-face) + 7px - 6px); }
+.opponent .opPts { margin-left: auto; }
 .opCards { display: inline-flex; align-items: center; gap: 3px; }
 .opCards .icon { width: 1.15em; height: 1.15em; opacity: 0.75; vertical-align: 0; }
 /* Play aid "low-card warning": a tag on the bottom edge, so the chip keeps
@@ -2710,8 +2725,10 @@ body.dndActive #discardPile { outline: 2px dashed var(--accent-soft); outline-of
 /* ~400 px high: a 4 px top padding let the ring cross the chip's edge. A smaller
    face buys the room; the chip keeps its height, count and bar stay in place. */
 @media (orientation: landscape) and (max-height: 540px) {
-  .opponent { padding-top: 8px; }
-  .opponent .opAvatar { width: 22px; height: 22px; font-size: 11px; }
+  .opponent { padding-top: 8px; --op-face: 22px; }
+  .opponent .opAvatar { font-size: 11px; }
+  .opSeat > .opDealer { width: 13px; height: 13px; right: -4px; }
+  .opSeat > .opDealer .dealerIcon { width: 9px; height: 9px; }
 }
 
 /* Leicht: a 2.3 s loop of seven uneven twitches (peaks 290/140/450/370/140/380 ms
@@ -3824,7 +3841,6 @@ input:disabled { opacity: 0.65; }
 .botDiffBadge.readonly, .seatDiff.readonly {
   cursor: default; opacity: 1; pointer-events: none;
 }
-.opponent .opName { padding-right: 4px; }
 .botDiffOptions { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 12px; }
 .botDiffOptions button {
   display: flex; align-items: center; gap: 12px; min-height: var(--tap-min);
@@ -5742,7 +5758,6 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
 
 /* Dealer star (hand toolbar, opponent chips) and the difficulty chip */
 .dealerIcon { width: 1.05em; height: 1.05em; fill: currentColor; vertical-align: -0.15em; }
-.opDealer { display: inline-flex; margin-left: 4px; color: var(--accent); flex: 0 0 auto; }
 .botDiffBadge {
   color: #fff;
   font-size: var(--fs-micro); font-weight: 800;
