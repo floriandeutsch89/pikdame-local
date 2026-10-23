@@ -42,7 +42,6 @@ All persistent data lives in **one directory**, mounted into the container at
 | `stats.json` | Anonymous global server statistics |
 | `games.json` | Game history |
 | `challenges.json` | Daily-challenge leaderboard and the day's ranked attempts (14-day retention) |
-| `users.db` | Accounts — **only** when using SQLite (with PostgreSQL they live in the database) |
 | `sessions-snapshot.json` | Running tables, written every minute and on shutdown so games survive a restart or crash |
 
 If that directory is not writable, **nothing is saved** and everything is lost on

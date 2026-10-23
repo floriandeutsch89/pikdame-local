@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const { testDatabaseUrl } = require('./helpers/test-db');
 const WebSocket = require('ws');
 const { JSDOM, VirtualConsole } = require('jsdom');
 const { puzzleForDate, checkMeld, checkAnswer, ROTATION_START } = require('../game/DailyPuzzle');
@@ -54,7 +55,7 @@ test('checkPuzzleMeld over the wire: reason without a counted try', async (t) =>
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-lay-'));
   const port = await freePort();
   const server = spawn('node', ['server.js'], {
-    cwd: ROOT, env: { ...process.env, PORT: String(port), PIKDAME_DATA_DIR: dataDir, PIKDAME_PUBLIC_MODE: '' }, stdio: 'ignore',
+    cwd: ROOT, env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('puzzle_lay'), PORT: String(port), PIKDAME_DATA_DIR: dataDir, PIKDAME_PUBLIC_MODE: '' }, stdio: 'ignore',
   });
   t.after(async () => {
     const gone = server.exitCode !== null ? null : new Promise((r) => server.once('exit', r));

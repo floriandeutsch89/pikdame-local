@@ -20,6 +20,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const WebSocket = require('ws');
+const { testDatabaseUrl } = require('./helpers/test-db');
 
 const ROOT = path.join(__dirname, '..');
 let PORT = 0;
@@ -73,7 +74,7 @@ test('a late close from the OLD socket must not mark a reconnected player as gon
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-race-'));
   const server = spawn('node', ['server.js'], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(PORT), PIKDAME_PUBLIC_MODE: '1', PIKDAME_DATA_DIR: dataDir },
+    env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('reconnect_race'), PORT: String(PORT), PIKDAME_PUBLIC_MODE: '1', PIKDAME_DATA_DIR: dataDir },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   t.after(async () => {

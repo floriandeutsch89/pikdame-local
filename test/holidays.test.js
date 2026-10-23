@@ -10,6 +10,7 @@ const http = require('node:http');
 const { spawn } = require('node:child_process');
 const { HOLIDAY_IDS, holidayFor, holidayWindows, holidayStatus } = require('../game/Holidays');
 const { HOLIDAY_EMOTES, isAllowedEmote, emoteLevel } = require('../game/Emotes');
+const { testDatabaseUrl } = require('./helpers/test-db');
 
 const HOUR = 60 * 60 * 1000;
 const at = (iso) => Date.parse(iso);
@@ -113,7 +114,7 @@ test('holidays: /statusz carries the windows for every client, no account needed
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-holidays-'));
   const server = spawn('node', ['server.js'], {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PORT: String(port), PIKDAME_DATA_DIR: dataDir, PIKDAME_ACCOUNTS: '0', PIKDAME_SMTP_HOST: '', PIKDAME_ADMIN_TOKEN: '' },
+    env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('holidays'), PORT: String(port), PIKDAME_DATA_DIR: dataDir, PIKDAME_ACCOUNTS: '0', PIKDAME_SMTP_HOST: '', PIKDAME_ADMIN_TOKEN: '' },
     stdio: 'ignore',
   });
   t.after(async () => {

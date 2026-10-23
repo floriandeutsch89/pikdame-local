@@ -29,7 +29,7 @@ const ENV_NOTES = {
   PIKDAME_MAX_SESSIONS: 'Maximum number of concurrent games. Beyond it, new games are rejected with "server full".',
   PIKDAME_PUBLIC_MODE: 'Set to `1` on a public server: no player profiles are persisted and the lobby shows no player list. Anonymous global stats are still counted.',
   PIKDAME_ACCOUNTS: 'Set to `0` to disable user accounts entirely (pure guest play).',
-  PIKDAME_DATABASE_URL: 'PostgreSQL connection string for accounts. If unset, a local SQLite file (`users.db`) inside the data directory is used.',
+  PIKDAME_DATABASE_URL: 'PostgreSQL connection string. **Required**: without it the server does not start.',
   PIKDAME_DATABASE_PASSWORD: 'Password for the PostgreSQL connection (also readable from a `_FILE` secret; see Configuration).',
   PIKDAME_BASE_URL: 'Public base URL used to build invite links, QR codes and the links in mails (e.g. `https://play.example.com`). With SMTP configured, the year-review mail is only sent when this is set: its unsubscribe link must work.',
   PIKDAME_YEAR_REVIEW_PREVIEW: 'Set to `1` to offer the December year review in the app all year (local checks, screenshots). Not for production. The review mail keeps its own date (27 December, 10:00 German time).',
@@ -106,7 +106,7 @@ function generateConfiguration() {
   }
   // Vars only referenced indirectly (docker-compose / secrets helper)
   for (const extra of ['PIKDAME_DATABASE_URL', 'PIKDAME_DATABASE_PASSWORD']) {
-    if (!found.has(extra)) found.set(extra, { default: 'unset', files: new Set(['game/AccountStore.js']) });
+    if (!found.has(extra)) found.set(extra, { default: 'unset', files: new Set(['game/Database.js']) });
   }
 
   const rows = [...found.entries()]

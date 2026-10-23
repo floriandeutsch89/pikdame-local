@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const { testDatabaseUrl } = require('./helpers/test-db');
 const WebSocket = require('ws');
 const { JSDOM, VirtualConsole } = require('jsdom');
 const GameManager = require('../game/GameManager');
@@ -81,7 +82,7 @@ test('a running attempt whose session is gone is freed at once, a live one stays
 async function startServer(dataDir, port) {
   const server = spawn('node', ['server.js'], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(port), PIKDAME_PUBLIC_MODE: '0', PIKDAME_DATA_DIR: dataDir },
+    env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('challenge_resume'), PORT: String(port), PIKDAME_PUBLIC_MODE: '0', PIKDAME_DATA_DIR: dataDir },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   server.stdout.resume();

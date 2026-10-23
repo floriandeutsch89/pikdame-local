@@ -16,6 +16,7 @@ const { CELEBRATION_DEFS, CELEBRATION_IDS, isCelebration, celebrationLevel } = r
 const { createPlayerStore } = require('../game/PlayerStore');
 const { xpForLevel } = require('../game/Progression');
 const GameManager = require('../game/GameManager');
+const { testDatabaseUrl } = require('./helpers/test-db');
 
 const ROOT = path.join(__dirname, '..');
 const pub = path.join(ROOT, 'public');
@@ -139,7 +140,7 @@ test('server: only the signed-in owner picks, only unlocked ids; the whole table
 
   const server = spawn('node', ['server.js'], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(PORT), PIKDAME_PUBLIC_MODE: '0', PIKDAME_DATA_DIR: dataDir },
+    env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('celebrations'), PORT: String(PORT), PIKDAME_PUBLIC_MODE: '0', PIKDAME_DATA_DIR: dataDir },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let out = '';

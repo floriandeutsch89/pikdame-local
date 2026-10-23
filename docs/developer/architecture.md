@@ -11,7 +11,7 @@ flowchart TB
     REG["SessionRegistry<br/>code → { GameManager, sockets }"]
     GM["GameManager · one per table<br/>Rules.js (validation) · Bot.js / OnnxPolicy.js (bot moves)<br/>Deck.js (shuffle, deal, cut) · ScoreBoard.js (scoring)"]
     STORES[("JSON stores → /app/data<br/>atomic writes, debounced")]
-    ACC[("AccountStore · PgAccountStore<br/>SQLite | PostgreSQL")]
+    ACC[("PgAccountStore<br/>PostgreSQL")]
     REG --> GM
     GM --> STORES
     REG --> ACC
@@ -115,11 +115,14 @@ Small JSON files, written **atomically** (temp file + rename) and **debounced**
 (~800 ms), so a busy server does not hammer the disk. On shutdown — and after an
 uncaught exception — everything is flushed synchronously, so nothing is lost.
 
-Accounts are the exception: SQLite (default) or PostgreSQL.
+Accounts are the exception: they live in PostgreSQL, which the server requires.
+All stores share one pool (`game/Database.js`); the schema comes from numbered
+files in `migrations/` (see {doc}`migrations`).
 
 ## Testing
 
-`node --test`, no framework. Roughly 240 tests covering rules, scoring, the bot,
+`node --test`, no framework, against a real PostgreSQL (`PIKDAME_TEST_PG_URL`,
+one schema per test via `test/helpers/test-db.js`). Roughly 1,080 tests covering rules, scoring, the bot,
 session handling, persistence, and end-to-end game loops. Notably there are tests
 that play **thousands of complete bot games** and assert invariants — that is how
 the "bot must lay a taken discard card" rule violation was caught and fixed.

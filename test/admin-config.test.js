@@ -10,9 +10,10 @@ const http = require('node:http');
 const { buildConfigReport, formatConfigReport } = require('../game/ConfigReport');
 const AdminPage = require('../game/AdminPage');
 const { createAdminTokenVerifier, hashAdminToken, parsePhc, hasArgon2 } = require('../game/AdminToken');
+const { testDatabaseUrl } = require('./helpers/test-db');
 
 const byId = (report, id) => report.find((i) => i.id === id);
-const FACTS = { dataDir: '/data', dataDirWritable: true, accountsEnabled: true, accountsBackend: 'sqlite', onnxActive: false, adminMode: 'off' };
+const FACTS = { dataDir: '/data', dataDirWritable: true, accountsEnabled: true, onnxActive: false, adminMode: 'off' };
 
 test('config report: accounts without SMTP warn that links only reach the log', () => {
   const r = buildConfigReport({}, FACTS);
@@ -47,6 +48,7 @@ test('config report: base URL, database and data dir problems are flagged', () =
   assert.equal(byId(buildConfigReport({ PIKDAME_DATABASE_URL: 'postgres://u@db:5432/x' }, FACTS), 'database').status, 'warn');
   assert.equal(byId(buildConfigReport({ PIKDAME_DATABASE_URL: 'postgres://u:pw@db:5432/x' }, FACTS), 'database').status, 'ok');
   assert.equal(byId(buildConfigReport({}, { ...FACTS, dataDirWritable: false }), 'data').status, 'error');
+  assert.equal(byId(buildConfigReport({}, FACTS), 'database').status, 'error', 'Postgres is mandatory');
   assert.equal(byId(buildConfigReport({ PIKDAME_ONNX: '1' }, FACTS), 'onnx').status, 'error');
 });
 
@@ -54,7 +56,7 @@ test('config report: secret values never appear, problems are logged first', () 
   const env = { PIKDAME_SMTP_HOST: 'h', PIKDAME_SMTP_USER: 'u', PIKDAME_SMTP_PASS: 'TOPSECRET', PIKDAME_DATABASE_URL: 'postgres://u:DBSECRET@db/x' };
   const text = JSON.stringify(buildConfigReport(env, FACTS)) + formatConfigReport(buildConfigReport(env, FACTS)).join('\n');
   assert.ok(!text.includes('TOPSECRET') && !text.includes('DBSECRET'));
-  const lines = formatConfigReport(buildConfigReport({}, { ...FACTS, dataDirWritable: false }));
+  const lines = formatConfigReport(buildConfigReport({ PIKDAME_DATABASE_URL: 'postgres://u:pw@db/x' }, { ...FACTS, dataDirWritable: false }));
   assert.match(lines[1], /✗ Datenverzeichnis/, 'errors sort to the top');
 });
 
@@ -160,7 +162,7 @@ async function startServer(t, extraEnv) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-admin-'));
   const server = spawn('node', ['server.js'], {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_ADMIN_TOKEN: '', PIKDAME_SMTP_HOST: '', ...extraEnv },
+    env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('admin_config'), PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_ADMIN_TOKEN: '', PIKDAME_SMTP_HOST: '', ...extraEnv },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const out = { log: '' };

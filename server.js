@@ -1,6 +1,5 @@
 // server.js
-// Leichtgewichtiger Offline-Server für "Pik Dame" - läuft mit reinem Node.js
-// `http`-Modul + `ws`-Bibliothek, geeignet für iOS CodeApp / iPhone-Hotspot.
+// Pik Dame server: Node's `http` module + `ws`, PostgreSQL for storage.
 //
 // Start: node server.js  (Standardport 8080, override via PORT env var)
 
@@ -25,7 +24,8 @@ const {
   evaluateQuests,
   questDef,
 } = require('./game/Progression');
-const { createAccountStoreAuto } = require('./game/AccountStore');
+const { createPgAccountStore } = require('./game/PgAccountStore');
+const { connectionStringFromEnv, createPool } = require('./game/Database');
 const { createMailer } = require('./game/Mailer');
 const { readSecret } = require('./game/secretEnv');
 const { buildConfigReport, formatConfigReport } = require('./game/ConfigReport');
@@ -61,18 +61,22 @@ const SEO_PAGES = ['romme-regeln', 'pik-dame-regeln', 'kartenspiele-zu-zweit', '
 const globalStats = createGlobalStatsStore();
 // "Dein Pik-Dame-Jahr": per-year counters behind the December review.
 const yearStats = createYearStatsStore();
-// Benutzerkonten: aktiv, wenn Nodes eingebautes SQLite verfügbar ist
-// (Node >= 22, im Docker-Image gegeben) und nicht per Env abgeschaltet.
-// In der iOS CodeApp (ältere Node-Version) liefert die Factory null und
-// der Client blendet die komplette Account-UI aus - genau wie gewünscht.
-const accountStore = process.env.PIKDAME_ACCOUNTS === '0' ? null : createAccountStoreAuto();
+// PostgreSQL is mandatory: without it nothing could be stored for good.
+const DATABASE_URL = connectionStringFromEnv(process.env);
+if (!DATABASE_URL) {
+  console.error('PIKDAME_DATABASE_URL is not set - Pik Dame needs PostgreSQL (see docs/admin/configuration.md). Exiting.');
+  process.exit(1);
+}
+const db = createPool(DATABASE_URL);
+// PIKDAME_ACCOUNTS=0 switches the account feature off; the database stays required.
+const accountStore = process.env.PIKDAME_ACCOUNTS === '0' ? null : createPgAccountStore(db);
 const mailer = createMailer();
 // Passkeys need accounts, the WebAuthn library and an https origin
 // (PIKDAME_BASE_URL); otherwise null and the client hides them.
 const passkeys = accountStore ? createPasskeyService({ baseUrl: process.env.PIKDAME_BASE_URL }) : null;
 const ACCOUNTS_ENABLED = !!accountStore;
 if (ACCOUNTS_ENABLED) {
-  console.log(`Benutzerkonten: aktiv (Backend: ${accountStore.backend || 'sqlite'}, Mail-Treiber: ${mailer.configured ? 'SMTP' : 'Log-Fallback'})`);
+  console.log(`Benutzerkonten: aktiv (Backend: postgres, Mail-Treiber: ${mailer.configured ? 'SMTP' : 'Log-Fallback'})`);
   // Behind a reverse proxy the confirmation link falls back to the Host
   // header when PIKDAME_BASE_URL is unset - which a registrant controls. A
   // forged Host would send the victim a link to the attacker's domain.
@@ -80,7 +84,7 @@ if (ACCOUNTS_ENABLED) {
     console.log('[mail] WARNUNG: PIKDAME_BASE_URL ist nicht gesetzt - Bestätigungslinks werden aus dem Host-Header gebildet. Hinter einem Proxy die öffentliche URL setzen.');
   }
 } else {
-  console.log('Benutzerkonten: deaktiviert (node:sqlite nicht verfügbar oder PIKDAME_ACCOUNTS=0)');
+  console.log('Benutzerkonten: deaktiviert (PIKDAME_ACCOUNTS=0)');
 }
 // Parsed once; a broken entry is skipped and logged by position only (the values are personal).
 const greetingDays = (() => {
@@ -305,7 +309,7 @@ function serveStatic(req, res) {
   // ---------------- Benutzerkonten-API ----------------
   if (filePath.startsWith('/api/') || filePath === '/verify' || filePath === '/unsubscribe') {
     // handleAccountRequest ist async: eine unerwartete Exception (z.B. aus
-    // SQLite) darf weder als unhandledRejection enden noch die HTTP-Antwort
+    // Postgres) darf weder als unhandledRejection enden noch die HTTP-Antwort
     // ewig offen lassen - der Client bekommt ein sauberes 500.
     handleAccountRequest(req, res, filePath).catch((err) => {
       logCrash('account-api', err, { path: filePath });
@@ -532,7 +536,6 @@ function currentConfigReport() {
     dataDir: DATA_DIR,
     dataDirWritable: DATA_DIR_WRITABLE,
     accountsEnabled: ACCOUNTS_ENABLED,
-    accountsBackend: accountStore ? accountStore.backend : null,
     onnxActive,
     adminMode: adminAuth.mode,
   });
@@ -844,7 +847,7 @@ async function handleAdminRequest(req, res, filePath) {
 // later keep their progress. The name-based profile (PlayerStore) is theirs
 // already - joinSession only lets a verified account's owner use the name -
 // and this carries its level numbers into the account, once per account,
-// never into the season (see AccountStore.importProfile). Best effort: never
+// never into the season (see PgAccountStore.importProfile). Best effort: never
 // blocks verify or login.
 async function importGuestProfile(username) {
   if (!ACCOUNTS_ENABLED || typeof accountStore.importProfile !== 'function') return null;
@@ -1882,8 +1885,7 @@ wss.on('connection', (ws, req) => {
   async function joinSession(targetSession, msg) {
     // PROGRESS PROTECTION: a name belonging to a verified account may only
     // be used with a valid login token - otherwise anyone could hijack an
-    // account's statistics/badges. Async because the Postgres backend
-    // queries over the network; the SQLite path resolves immediately.
+    // account's statistics/badges.
     if (ACCOUNTS_ENABLED) {
       const wantedName = sanitizeName(msg.name);
       if (await accountStore.isRegisteredName(wantedName)) {
@@ -2611,12 +2613,7 @@ function shutdown(signal) {
   try { challengeStore.flushSync(); } catch (e) { logCrash('challenge-flush', e); }
   try { yearStats.flushSync(); } catch (e) { /* the year review is best effort */ }
   try { if (adminMonitor) adminMonitor.flushSync(); } catch (e) { /* monitoring history is best effort */ }
-  if (accountStore) {
-    try {
-      const p = accountStore.close();
-      if (p && p.catch) p.catch(() => {});
-    } catch (e) { /* never block shutdown */ }
-  }
+  db.end().catch(() => {}); // never block shutdown
   for (const client of wss.clients) {
     try {
       client.close(1001, 'Server wird neu gestartet');
@@ -2645,14 +2642,6 @@ server.listen(PORT, () => {
     }
   }
 
-  console.log('');
-  console.log('⚠️  WICHTIG (iOS-Einschränkung, nicht durch Code behebbar):');
-  console.log('    CodeApp muss im VORDERGRUND bleiben, solange gespielt wird!');
-  console.log('    iOS pausiert diesen Server komplett, sobald du die App wechselst');
-  console.log('    oder das Display sich sperrt. Auto-Sperre auf "Nie" stellen');
-  console.log('    (Einstellungen -> Anzeige & Helligkeit) oder Geführten Zugriff');
-  console.log('    nutzen (Einstellungen -> Bedienungshilfen).');
-  console.log('');
   console.log(`Fehler-Log (falls etwas schiefgeht): ${CRASH_LOG_FILE}`);
   console.log('');
   try {

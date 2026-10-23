@@ -39,6 +39,26 @@ it without missing a step. Read CLAUDE.md first if you have not.
   they are. If main has passed their number, convert them: section body
   into `changes/<topic>.md`, version lines and CHANGELOG.md back to main.
 
+## Local PostgreSQL (npm test, ui-shots)
+
+PostgreSQL is mandatory: the server refuses to start without it and every
+test file takes its own schema of `PIKDAME_TEST_PG_URL`. In a sandbox with
+PostgreSQL installed at `/usr/lib/postgresql/16/bin` but no running server
+(initdb fails in the scratchpad: wrong owner), as root:
+
+```bash
+PG=/usr/lib/postgresql/16/bin; mkdir -p /tmp/pgfix && chown postgres /tmp/pgfix
+setpriv --reuid=postgres --regid=postgres --init-groups $PG/initdb -D /tmp/pgfix/data -A trust -U postgres
+setpriv --reuid=postgres --regid=postgres --init-groups $PG/pg_ctl -D /tmp/pgfix/data -l /tmp/pgfix/log \
+  -o "-p 55432 -k /tmp/pgfix -c max_connections=400" start
+$PG/psql -h 127.0.0.1 -p 55432 -U postgres -c 'CREATE DATABASE pikdame_test'
+export PIKDAME_TEST_PG_URL=postgres://postgres@127.0.0.1:55432/pikdame_test
+```
+
+(`su postgres -c …` works too where allowed.) Already set up: only the
+`pg_ctl … start` line and the `export`. `max_connections` is raised because
+parallel test files each open pools.
+
 ## Before every push
 
 Run these as **separate steps**, never `npm test ... && git push` chains.
@@ -48,16 +68,17 @@ count (`git log HEAD..origin/main | wc -l`) never stops `&&`, and a push
 went out 7 commits behind main that way (#382).
 
 ```bash
-rm -f data/*.json data/crash.log data/users.db data/users.db-shm data/users.db-wal
-npm test                     # == CI; must be all pass
+rm -f data/*.json data/crash.log
+npm test                     # == CI; must be all pass (needs PIKDAME_TEST_PG_URL)
 npm run -s docs:check && npm run -s secrets:check
 git fetch origin main && git log --oneline HEAD..origin/main   # main moved? merge it first
 git status --short           # stage ONLY your files, never `git add -A`
 ```
 
 - If tests fail with "server on port … did not come up", check for a server
-  of your own on `data/` first (`pgrep -af "node server.js"`). It holds
-  `users.db`, and that is not a flaky test. The `ui-shots` skill avoids it.
+  of your own first (`pgrep -af "node server.js"`): it holds the port, and
+  that is not a flaky test. Then check that PostgreSQL is reachable at
+  `PIKDAME_TEST_PG_URL`.
 - Commit with `-c user.email=… -c user.name=…` and the attribution lines.
 - After the push: `git ls-remote origin <branch>` must equal `git rev-parse HEAD`.
 - Moved or rewrote code with `\uXXXX` escapes or HTML entities? Check them in

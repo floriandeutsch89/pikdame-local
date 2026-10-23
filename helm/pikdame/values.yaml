@@ -6,9 +6,8 @@ image:
   tag: latest
   pullPolicy: IfNotPresent
 
-# IMPORTANT: keep this at 1. Game sessions live in process memory and the
-# accounts DB is a local SQLite file on the PVC - multiple replicas would be
-# independent servers that know nothing about each other. The deployment
+# IMPORTANT: keep this at 1. Game sessions live in process memory - multiple
+# replicas would be independent servers that know nothing about each other. The deployment
 # uses strategy Recreate so two pods never share the volume during updates.
 replicaCount: 1
 
@@ -42,13 +41,13 @@ env:
 onnx:
   enabled: true
 
-# Account database (PostgreSQL). Recommended for K8s: a managed/operator
-# database. Either set the URL directly (ends up in the pod spec!) or -
-# better - reference an existing Secret that carries the full URL.
-# Without both, the app falls back to SQLite on the PVC.
+# PostgreSQL is mandatory (the server does not start without it). Recommended:
+# a managed/operator database. Reference an existing Secret that carries the
+# full URL (default: pikdame-db, key url) or set the URL directly (ends up in
+# the pod spec!) and clear existingSecret.
 database:
   url: ""
-  existingSecret: ""       # Secret name
+  existingSecret: "pikdame-db" # Secret name
   existingSecretKey: "url" # key inside that Secret holding postgres://...
 # Name of an existing Secret with production env vars (PIKDAME_BASE_URL,
 # PIKDAME_SMTP_* - see k8s/README.md). Leave empty to run without it.

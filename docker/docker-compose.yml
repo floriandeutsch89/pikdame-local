@@ -29,15 +29,13 @@ services:
     #   - .env
     environment:
       - PORT=8080
-      # Account database: PostgreSQL (shared, networked - the prerequisite
-      # for ever scaling beyond one app instance). Without this URL the
-      # server falls back to zero-config SQLite in data/users.db.
+      # PostgreSQL is mandatory: without this URL the server does not start.
       - PIKDAME_DATABASE_URL=postgres://pikdame:${POSTGRES_PASSWORD:-change-me}@postgres:5432/pikdame
       # Upper bound for parallel game sessions (DoS/memory guard, default 200)
       - PIKDAME_MAX_SESSIONS=200
       # --- User accounts (registration + login) ---
-      # Accounts are active automatically (SQLite in data/users.db, Node 26).
-      # To disable: PIKDAME_ACCOUNTS=0
+      # Accounts are active automatically (in PostgreSQL).
+      # To disable: PIKDAME_ACCOUNTS=0 (the database stays required)
       # Base URL for the confirmation links in the e-mails:
       - PIKDAME_BASE_URL=${PIKDAME_BASE_URL:-}
       # --- Mail server (optional - without PIKDAME_SMTP_HOST the confirmation
@@ -69,7 +67,7 @@ services:
     volumes:
       # Player profiles / game history / accounts DB survive container restarts and updates.
       - pikdame-data:/app/data
-      # The data dir (session snapshots, optional SQLite, and any
+      # The data dir (session snapshots, crash log and any
       # human-moves.jsonl) is auto-created and persisted in the named
       # volume above. To reach the files directly from the host, swap it
       # for a bind mount, e.g.:

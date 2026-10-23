@@ -25,16 +25,18 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   empfohlene Option nennen.
 0. **Betrieb = gehosteter Docker-Stack** (play.pikdame.online); UX und
    Architektur richten sich nach Online-Mehrspieler.
+0b. **PostgreSQL ist Pflicht** (`PIKDAME_DATABASE_URL`, sonst startet der
+   Server nicht); kein SQLite. `game/Database.js` = der eine Pool.
 1. **Externe Pakete nur, wenn wirklich sinnvoll und nötig — nie ohne Okay.**
    Sinnvoll: Eigenbau sicherheitskritisch/fehleranfällig (Krypto, Parser,
    Diagramme) oder deutlich mehr Code; Paket etabliert, gepflegt, MIT/BSD/
    Apache, reines JS. Vorher prüfen: Lizenzen des Baums, Größe, Trivy,
-   `require`. Aktuell: `ws`, `pg` und `@simplewebauthn/server` (beide LAZY).
+   `require`. Aktuell: `ws`, `pg` und `@simplewebauthn/server` (letzteres LAZY).
    Browser-Libs werden VENDORT (`public/vendor-*.js`, unverändert, npm-Hash im
    Kopf): qrcode, uPlot, @simplewebauthn/browser. Keine nativen Module (außer
    `onnxruntime-node` NUR im Dockerfile), kein Build-Schritt. Features mit
-   neueren Node-Features (z. B. `node:sqlite`, Node ≥ 22) schalten sich auf
-   alten Versionen selbst ab (Factory → `null`, Client blendet aus).
+   neueren Node-APIs (z. B. `crypto.argon2`) schalten sich auf alten
+   Versionen selbst ab, statt den Start zu brechen.
 2. **Kein CDN, keine fremden Hosts im Ladepfad.** Icons = Inline-SVG-Sprite
    (`<svg class="icon"><use href="#i-name"/></svg>`), keine Icon-Fonts.
    Schrift: Systemschrift, nur Logo/Titel/Punktzahlen in der vendorten Rubik
@@ -78,8 +80,11 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   `/api/*`, `/verify`, `/admin`) + WebSocket, ein `GameManager` pro Session.
 - `game/` — Logik ohne I/O: `Rules.js` (Melds, Ring-Folgen K-A-2, max 13),
   `ScoreBoard.js`, `GameManager.js` (Zustand, Bots, Snapshot), `Bot.js`
-  (easy/medium/hard/zen), JSON-Stores (atomar), `AccountStore.js` (SQLite) /
-  `PgAccountStore.js` (Postgres, Prod) — **jede Konto-Änderung in beiden**.
+  (easy/medium/hard/zen), JSON-Stores (atomar), `PgAccountStore.js` (Konten).
+  - **Schema-Änderungen nur als neue Datei in `migrations/`** (`NNN_name.sql`,
+    nur vorwärts, gemergte Dateien nie ändern; `Migrations.js`, Doku
+    `docs/developer/migrations.md`). Start ohne Sperre, wenn aktuell: DDL bei
+    jedem Start blockierte laufende Transaktionen (v2.102.1).
   - `Mailer.js`: eigener SMTP-Client, Log-Fallback; Header RFC 2047, Body
     Quoted-Printable — nie rohes UTF-8 in Kopfzeilen.
   - `Badges.js` (Familien in `BADGE_FAMILIES`, Fakten aus `finishRound`),
@@ -202,7 +207,7 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
      Nutzers schreiben in `data/`, `models/`, `python/`.
    - Commits/cherry-picks/Merges immer mit `-c user.email=… -c user.name=…`
      (ein konfliktfreier `git merge` committet sofort).
-5. Vor Commits `rm -f data/*.json data/crash.log data/users.db`. Secrets nie
+5. Vor Commits `rm -f data/*.json data/crash.log`. Secrets nie
    ins Repo (nur `*.example`; `npm run secrets:check`, CI `secret-scan`).
    Gepushtes Secret zuerst ROTIEREN, dann entfernen.
 6. PR-Screenshots nur, wenn die Änderung sichtbar ist (Branch `pr-screenshots`).
@@ -225,14 +230,11 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
 
 - **`npm test` ist parallelisierbar** (mehrere Worktrees gleichzeitig, kein Lock nötig): Test-Server nur über `freePort()` aus `test/helpers/free-port.js` (nie feste Ports) und `mkdtempSync`-Verzeichnisse; `--test-timeout=120000` lässt Hänger schnell scheitern.
 - **Eigene Server nie auf `data/`:** immer `PIKDAME_DATA_DIR=<temp>` (Skill
-  `ui-shots` macht das). Ein Server auf `data/` hält `users.db` offen →
-  `npm test` scheitert mit SQLite „disk I/O error“. Nach Gebrauch stoppen und
+  `ui-shots` macht das). Nach Gebrauch stoppen und
   auf das Ende warten (SIGTERM schreibt noch den Snapshot); vor `npm test`
   `pgrep -af "node server.js"`. Unbekannte Stammtisch-/Spiel-Codes zählen als
   Fehlversuch und sperren nach einigen die IP (sieht aus wie Drosseln) →
   Mocks beantworten `getStammtisch` selbst; gesperrt = Server neu starten.
-- **`npm test` nie parallel** (z. B. mehrere Worktrees): Server-Tests nutzen
-  feste Ports, ein zweiter Lauf trifft den fremden Server und scheitert wie ein Flake.
 - **Server-Log in Tests:** stdout kommt nach der HTTP-Antwort an. Trefferzahl
   vor der Anfrage merken, auf eine NEUE Zeile warten (`lastFromLog(re, after)`).
 - **Sim-/Seed-Skripte: Logging aus** (`PIKDAME_LOG_GAMES=0` im Skript selbst),
@@ -252,7 +254,9 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
 - Snapshot-Änderungen: Roundtrip `JSON.stringify/parse` + Restore.
 - `.canScroll*`-Klassen: wer sie gestaltet, setzt sie auch (Vertragstest;
   am iPhone die einzige Scroll-Andeutung).
-- Konten: Tests laufen gegen SQLite UND Postgres (`PIKDAME_TEST_PG_URL`).
+- **Postgres in Tests:** `PIKDAME_TEST_PG_URL` ist Pflicht; jeder Server und
+  Store bekommt `testDatabaseUrl()` (`test/helpers/test-db.js`, eigenes Schema).
+  Lokale Datenbank aufsetzen: Skill `steward`.
 - RL: `OBS_SIZE`/`ACTION_SIZE` sind Verträge — `test/state-encoder.test.js`
   UND `scripts/rl-env-server.js` prüfen.
 - **UI im Browser prüfen**, nicht nur `npm test`: alle drei Layouts. Headless

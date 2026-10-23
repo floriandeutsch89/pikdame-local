@@ -11,14 +11,12 @@ const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
 const WebSocket = require('ws');
-const { createAccountStore } = require('../game/AccountStore');
+const { createPgAccountStore } = require('../game/PgAccountStore');
 const { puzzleForDate, XP_FOR_SOLVED, PUZZLE_EPOCH } = require('../game/DailyPuzzle');
 const { gameDay, addDays } = require('../game/GameDay');
+const { testDatabaseUrl } = require('./helpers/test-db');
 
 let PORT = 0;
-const probe = createAccountStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-pxp-probe-')), 'probe.db'));
-const HAS_SQLITE = probe !== null;
-if (probe) probe.close();
 
 async function waitForServer(timeoutMs = 15000) {
   const deadline = Date.now() + timeoutMs;
@@ -48,18 +46,19 @@ function postJson(urlPath, body) {
   });
 }
 
-test('puzzle XP: the owner\'s first solve counts for account and season, a guest, the archive and a repeat do not', { skip: !HAS_SQLITE }, async (t) => {
+test('puzzle XP: the owner\'s first solve counts for account and season, a guest, the archive and a repeat do not', async (t) => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-pxp-'));
-  const accounts = createAccountStore(path.join(dataDir, 'users.db'));
-  accounts.verifyEmail(accounts.register('Ada', 'ada@example.com', 'geheim123').verifyToken);
-  accounts.verifyEmail(accounts.register('Cleo', 'cleo@example.com', 'geheim123').verifyToken);
-  const token = accounts.login('Ada', 'geheim123').token;
-  const cleoToken = accounts.login('Cleo', 'geheim123').token;
-  accounts.close();
+  const databaseUrl = testDatabaseUrl('puzzle_xp');
+  const accounts = createPgAccountStore(databaseUrl);
+  await accounts.verifyEmail((await accounts.register('Ada', 'ada@example.com', 'geheim123')).verifyToken);
+  await accounts.verifyEmail((await accounts.register('Cleo', 'cleo@example.com', 'geheim123')).verifyToken);
+  const token = (await accounts.login('Ada', 'geheim123')).token;
+  const cleoToken = (await accounts.login('Cleo', 'geheim123')).token;
+  await accounts.close();
   PORT = await freePort();
   const server = spawn('node', ['server.js'], {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_PUBLIC_MODE: '0', PIKDAME_ONNX: '0' },
+    env: { ...process.env, PIKDAME_DATABASE_URL: databaseUrl, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_PUBLIC_MODE: '0', PIKDAME_ONNX: '0' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const sockets = [];

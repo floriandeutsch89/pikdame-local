@@ -9,13 +9,11 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
-const { createAccountStore } = require('../game/AccountStore');
+const { createPgAccountStore } = require('../game/PgAccountStore');
 const { gameDay, addDays } = require('../game/GameDay');
+const { testDatabaseUrl } = require('./helpers/test-db');
 
 let PORT = 0;
-const probe = createAccountStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-rev-probe-')), 'probe.db'));
-const HAS_SQLITE = probe !== null;
-if (probe) probe.close();
 
 async function waitForServer(timeoutMs = 15000) {
   const deadline = Date.now() + timeoutMs;
@@ -31,14 +29,15 @@ async function waitForServer(timeoutMs = 15000) {
   throw new Error(`server on port ${PORT} did not come up within ${timeoutMs}ms`);
 }
 
-test('today\'s challenge scores show only after the own game; past days stay visible', { skip: !HAS_SQLITE }, async (t) => {
+test('today\'s challenge scores show only after the own game; past days stay visible', async (t) => {
   const today = gameDay();
   const yesterday = addDays(today, -1);
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-rev-'));
-  const accounts = createAccountStore(path.join(dataDir, 'users.db'));
-  accounts.verifyEmail(accounts.register('Ada', 'ada@example.com', 'geheim123').verifyToken);
-  const adaToken = accounts.login('Ada', 'geheim123').token;
-  accounts.close();
+  const databaseUrl = testDatabaseUrl('challenge_reveal');
+  const accounts = createPgAccountStore(databaseUrl);
+  await accounts.verifyEmail((await accounts.register('Ada', 'ada@example.com', 'geheim123')).verifyToken);
+  const adaToken = (await accounts.login('Ada', 'geheim123')).token;
+  await accounts.close();
   const at = Date.now();
   fs.writeFileSync(path.join(dataDir, 'challenges.json'), JSON.stringify({
     days: {
@@ -56,7 +55,7 @@ test('today\'s challenge scores show only after the own game; past days stay vis
   PORT = await freePort();
   const server = spawn('node', ['server.js'], {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_PUBLIC_MODE: '0', PIKDAME_ONNX: '0' },
+    env: { ...process.env, PIKDAME_DATABASE_URL: databaseUrl, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_PUBLIC_MODE: '0', PIKDAME_ONNX: '0' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   t.after(async () => {
