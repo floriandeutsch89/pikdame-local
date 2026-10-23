@@ -235,8 +235,6 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
   `pgrep -af "node server.js"`. Unbekannte Stammtisch-/Spiel-Codes zählen als
   Fehlversuch und sperren nach einigen die IP (sieht aus wie Drosseln) →
   Mocks beantworten `getStammtisch` selbst; gesperrt = Server neu starten.
-- **`npm test` nie parallel** (z. B. mehrere Worktrees): Server-Tests nutzen
-  feste Ports, ein zweiter Lauf trifft den fremden Server und scheitert wie ein Flake.
 - **Server-Log in Tests:** stdout kommt nach der HTTP-Antwort an. Trefferzahl
   vor der Anfrage merken, auf eine NEUE Zeile warten (`lastFromLog(re, after)`).
 - **Sim-/Seed-Skripte: Logging aus** (`PIKDAME_LOG_GAMES=0` im Skript selbst),
