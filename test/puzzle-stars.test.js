@@ -7,22 +7,16 @@ const os = require('node:os');
 const path = require('node:path');
 const { JSDOM, VirtualConsole } = require('jsdom');
 const { starsFor, perfectStreakOn, STAR_TRIES } = require('../game/DailyPuzzle');
-const { createPlayerStore } = require('../game/PlayerStore');
+const { testPlayerStore } = require('./helpers/player-store');
 const { BADGE_FAMILIES, familyBadges } = require('../game/Badges');
 const { addDays } = require('../game/GameDay');
 const { makeStandardCard } = require('../game/Card');
 
 const pub = path.join(__dirname, '..', 'public');
 
-function tempStore(t) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikstars-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  return createPlayerStore(path.join(dir, 'players.json'));
-}
-
 /** Solves `date` after `misses` wrong checks. */
-function solve(store, name, date, kind, misses = 0) {
-  for (let i = 0; i < misses; i++) store.recordPuzzleAttempt(name, date, false, kind);
+async function solve(store, name, date, kind, misses = 0) {
+  for (let i = 0; i < misses; i++) await store.recordPuzzleAttempt(name, date, false, kind);
   return store.recordPuzzleAttempt(name, date, true, kind);
 }
 
@@ -39,49 +33,53 @@ test('starsFor: three on the first try; two for a second (meld) or up to a third
   assert.deepStrictEqual(JSON.parse(m[1].replace(/(\w+):/g, '"$1":')), STAR_TRIES);
 });
 
-test('PlayerStore: stars are stored with the solve, kept for the archive, never after a reveal', (t) => {
-  const store = tempStore(t);
-  assert.strictEqual(solve(store, 'Ann', '2026-10-20', 'meld').stars, 3);
-  assert.strictEqual(solve(store, 'Ann', '2026-10-21', 'meld', 1).stars, 2);
-  assert.strictEqual(solve(store, 'Ann', '2026-10-22', 'turn', 2).stars, 2);
-  assert.strictEqual(solve(store, 'Ann', '2026-10-23', 'out', 3).stars, 1);
-  assert.strictEqual(store.puzzleStatus('Ann', '2026-10-21').stars, 2, 'the day status carries the stars');
-  assert.strictEqual(store.puzzleStarsFor('Ann', '2026-10-20'), 3);
-  assert.strictEqual(store.puzzleStarsFor('Ann', '2026-10-24'), 0, 'unplayed day');
-  assert.strictEqual(store.puzzleStarsFor('Nobody', '2026-10-20'), 0);
+test('PlayerStore: stars are stored with the solve, kept for the archive, never after a reveal', async (t) => {
+  // "Today" for the profile's 7-day window: the last day Cy solves below.
+  const { store, pool } = testPlayerStore(t, { now: () => Date.parse('2026-10-04T12:00:00Z') });
+  assert.strictEqual((await solve(store, 'Ann', '2026-10-20', 'meld')).stars, 3);
+  assert.strictEqual((await solve(store, 'Ann', '2026-10-21', 'meld', 1)).stars, 2);
+  assert.strictEqual((await solve(store, 'Ann', '2026-10-22', 'turn', 2)).stars, 2);
+  assert.strictEqual((await solve(store, 'Ann', '2026-10-23', 'out', 3)).stars, 1);
+  assert.strictEqual((await store.puzzleStatus('Ann', '2026-10-21')).stars, 2, 'the day status carries the stars');
+  assert.strictEqual(await store.puzzleStarsFor('Ann', '2026-10-20'), 3);
+  assert.strictEqual(await store.puzzleStarsFor('Ann', '2026-10-24'), 0, 'unplayed day');
+  assert.strictEqual(await store.puzzleStarsFor('Nobody', '2026-10-20'), 0);
   // A second solve the same day changes nothing.
-  assert.strictEqual(store.recordPuzzleAttempt('Ann', '2026-10-20', true, 'meld').stars, 3);
+  assert.strictEqual((await store.recordPuzzleAttempt('Ann', '2026-10-20', true, 'meld')).stars, 3);
 
-  store.revealPuzzle('Bo', '2026-10-20');
-  const after = store.recordPuzzleAttempt('Bo', '2026-10-20', true, 'meld');
+  await store.revealPuzzle('Bo', '2026-10-20');
+  const after = await store.recordPuzzleAttempt('Bo', '2026-10-20', true, 'meld');
   assert.strictEqual(after.solved, true);
   assert.strictEqual(after.stars, undefined, 'a revealed solution earns no stars');
-  assert.strictEqual(store.puzzleStarsFor('Bo', '2026-10-20'), 0);
+  assert.strictEqual(await store.puzzleStarsFor('Bo', '2026-10-20'), 0);
 
   // The archive history is capped; the 7-day status window stays as it was.
   let day = '2026-08-01';
-  for (let i = 0; i < 65; i++, day = addDays(day, 1)) solve(store, 'Cy', day, 'meld');
-  const p = store.getPlayerByName('Cy');
-  assert.strictEqual(Object.keys(p.puzzleStars).length, 60);
-  assert.strictEqual(store.puzzleStarsFor('Cy', '2026-08-01'), 0, 'the oldest days drop out');
-  assert.strictEqual(store.puzzleStarsFor('Cy', addDays('2026-08-01', 64)), 3);
-  assert.strictEqual(Object.keys(p.puzzles).length, 7);
+  for (let i = 0; i < 65; i++, day = addDays(day, 1)) await solve(store, 'Cy', day, 'meld');
+  const starred = await pool.query(`SELECT count(*)::int AS n FROM player_puzzles z JOIN players p ON p.id = z.player_id
+    WHERE p.player_key = 'cy' AND z.stars IS NOT NULL`);
+  assert.strictEqual(starred.rows[0].n, 60);
+  assert.strictEqual(await store.puzzleStarsFor('Cy', '2026-08-01'), 0, 'the oldest days drop out');
+  assert.strictEqual(await store.puzzleStarsFor('Cy', addDays('2026-08-01', 64)), 3);
+  const p = await store.getPlayerByName('Cy');
+  assert.strictEqual(Object.keys(p.puzzles).length, 7, 'the profile shows the last week');
+  assert.ok(!('puzzleStars' in p), 'the archive stars are served with the puzzle, not the profile');
 });
 
-test('perfect run: consecutive game days, across the DST change and a month end; a gap or a weaker solve ends it', (t) => {
-  const store = tempStore(t);
-  const run = () => store.getPlayerByName('Dee').perfectPuzzleStreak;
-  for (const d of ['2026-10-24', '2026-10-25', '2026-10-26']) solve(store, 'Dee', d, 'meld'); // DST ends on the 25th
-  assert.strictEqual(run(), 3);
-  solve(store, 'Dee', '2026-10-27', 'meld', 1);
-  assert.strictEqual(run(), 0, 'two stars end the run at once');
-  solve(store, 'Dee', '2026-10-28', 'meld');
-  assert.strictEqual(run(), 1);
-  solve(store, 'Dee', '2026-10-30', 'out'); // the 29th was skipped
-  assert.strictEqual(run(), 1, 'a skipped day starts over');
-  solve(store, 'Dee', '2026-10-31', 'turn');
-  solve(store, 'Dee', '2026-11-01', 'meld');
-  const p = store.getPlayerByName('Dee');
+test('perfect run: consecutive game days, across the DST change and a month end; a gap or a weaker solve ends it', async (t) => {
+  const { store } = testPlayerStore(t);
+  const run = async () => (await store.getPlayerByName('Dee')).perfectPuzzleStreak;
+  for (const d of ['2026-10-24', '2026-10-25', '2026-10-26']) await solve(store, 'Dee', d, 'meld'); // DST ends on the 25th
+  assert.strictEqual(await run(), 3);
+  await solve(store, 'Dee', '2026-10-27', 'meld', 1);
+  assert.strictEqual(await run(), 0, 'two stars end the run at once');
+  await solve(store, 'Dee', '2026-10-28', 'meld');
+  assert.strictEqual(await run(), 1);
+  await solve(store, 'Dee', '2026-10-30', 'out'); // the 29th was skipped
+  assert.strictEqual(await run(), 1, 'a skipped day starts over');
+  await solve(store, 'Dee', '2026-10-31', 'turn');
+  await solve(store, 'Dee', '2026-11-01', 'meld');
+  const p = await store.getPlayerByName('Dee');
   assert.strictEqual(p.perfectPuzzleStreak, 3, 'the month end is just the next day');
   assert.strictEqual(p.bestPerfectPuzzleStreak, 3);
   assert.strictEqual(p.totalPerfectPuzzles, 7);
@@ -91,8 +89,8 @@ test('perfect run: consecutive game days, across the DST change and a month end;
   assert.deepStrictEqual(perfectStreakOn(p, '2026-11-03'), { current: 0, best: 3 }, 'a whole day missed');
   assert.deepStrictEqual(perfectStreakOn(null, '2026-11-03'), { current: 0, best: 0 });
 
-  store.revealPuzzle('Dee', '2026-11-02');
-  assert.strictEqual(perfectStreakOn(store.getPlayerByName('Dee'), '2026-11-02').current, 0, 'a reveal ends today\'s chance at once');
+  await store.revealPuzzle('Dee', '2026-11-02');
+  assert.strictEqual(perfectStreakOn(await store.getPlayerByName('Dee'), '2026-11-02').current, 0, 'a reveal ends today\'s chance at once');
 });
 
 test('badges: the three-star family has its tiers at 10, 30 and 100', () => {

@@ -331,9 +331,14 @@ const PERIODS_SQL = `WITH RECURSIVE m AS (
     FROM m WHERE m.period IS NOT NULL)
   SELECT period FROM m WHERE period IS NOT NULL LIMIT 12`;
 
-const INSERT_SQL = `INSERT INTO play_attempts
-  (attempt_id, player_key, player_name, mode, period, stage, outcome, game_day, started_at, ended_at, turns, facts)
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+// player_id: the player row of the name (created, or marked seen at the attempt's end).
+const INSERT_SQL = `WITH p AS (INSERT INTO players AS p (player_key, player_name, created_at, updated_at, last_seen_at)
+    VALUES ($2, $3, $10, $10, $10) ON CONFLICT (player_key) DO UPDATE
+    SET last_seen_at = GREATEST(p.last_seen_at, EXCLUDED.last_seen_at), updated_at = EXCLUDED.updated_at RETURNING id)
+  INSERT INTO play_attempts
+  (attempt_id, player_key, player_name, mode, period, stage, outcome, game_day, started_at, ended_at, turns, facts, player_id)
+  SELECT $1::text, $2::text, $3::text, $4::text, $5::text, $6::int, $7::text, $8::date, $9::timestamptz, $10::timestamptz,
+    $11::int, $12::jsonb, p.id FROM p
   ON CONFLICT (attempt_id) DO NOTHING`;
 
 /** `db`: a connection string (own pool, ended by close()) or the server's shared pool.

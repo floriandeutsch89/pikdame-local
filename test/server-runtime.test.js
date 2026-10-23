@@ -470,7 +470,7 @@ test('puzzle archive: past days are graded without XP, out-of-range dates fall b
   if (past !== today) {
     assert.strictEqual((await ask({ type: 'getPuzzle', name: 'Stella', date: past }, 'puzzle')).dayStars, 0, 'an archive day shows only stars earned on it');
   }
-  const stella = (await ask({ type: 'listProfiles' }, 'profiles')).players.find((p) => p.name === 'Stella');
+  const stella = (await ask({ type: 'listProfiles', name: 'Stella' }, 'profiles')).players.find((p) => p.name === 'Stella');
   assert.strictEqual(stella.totalPerfectPuzzles, 1);
   assert.strictEqual(stella.puzzleStars, undefined, 'the per-day history is not broadcast to everyone');
   ws.close();

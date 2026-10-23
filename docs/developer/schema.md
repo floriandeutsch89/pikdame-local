@@ -3,7 +3,7 @@
 Rules for every new PostgreSQL table or column (changes go through
 {doc}`migrations`). The tables from `001_baseline.sql` (`users`, `sessions`,
 `season_*`, `webauthn_credentials`) predate these rules and still use epoch
-milliseconds; they move over together with a future `players` table.
+milliseconds; they move over in a later migration.
 
 ## Naming
 
@@ -44,19 +44,82 @@ milliseconds; they move over together with a future `players` table.
 
 ## Players
 
-Guests have no account, so player rows are keyed by `player_key` (the name in
-lower case, `TEXT`) next to `player_name` (as typed). Once a `players` table
-exists, these columns become a foreign key to it.
+Guests have no account, so a player is a name: `players` holds one row per
+`player_key` (the name in lower case, unique, never empty) with its
+`player_name` (the first spelling) and a surrogate `id` that other tables
+reference. `created_at` is NULL where the age is unknown (rows imported from
+`players.json` without a time in the old id, or made for names that only
+appeared in the challenge or play attempts); the year review reads it.
+
+- `challenge_results`, `challenge_attempts` and `play_attempts` carry
+  `player_id` (`ON DELETE CASCADE`) next to `player_key`/`player_name`. The key
+  stays their lookup column (primary keys, indexes, the board's tie-break);
+  the name is the spelling of that day. Each insert creates or touches the
+  player in the same statement (a CTE).
+- Deleting a `players` row deletes the person: profile, badges, quests,
+  puzzles, tower stars, challenge rows and play attempts. Deleting an account
+  keeps the player (the guest profile stays, see the admin page).
+- There is no profile cap: the old store deleted the profiles with the fewest
+  games beyond 500 to bound its file. Instead the profiles message lists the
+  statistics board's best 500 plus the asking player and the table.
+
+How a profile is stored (`game/PlayerStore.js`):
+
+| Data | Where | Why there |
+| --- | --- | --- |
+| Counters, records, the daily and the perfect-puzzle streak, the celebration | columns of `players` | one value each; a match is booked with `games_played = games_played + 1` in one upsert |
+| Favourite badges (up to 3, ordered) | `players.favorite_badges TEXT[]` | a small list always read and written whole, never queried inside |
+| Badges | `player_badges (player_id, badge_id, earned_at)` | the primary key makes "only new badges" one `INSERT … ON CONFLICT DO NOTHING RETURNING` |
+| Seasonal card backs | `player_card_backs (player_id, card_back_id, unlocked_day)` | the same: the first unlock day stays |
+| Daily quests | `player_quests (player_id, game_day, quest_id, progress)` | increments without a read (two games at once); a week is kept |
+| Daily puzzle | `player_puzzles (player_id, game_day, tries, solved, revealed, stars)` | one row per day; days without stars a week, the newest 60 starred days for the archive |
+| Kartenhaus | `player_tower_stars (player_id, tower_month, stage, stars)` | best stars per month and floor, summed per month for totals and crowns |
+
+No JSONB: each nested part of the old document is either read per day or
+month, or updated by two writers at once. A read-modify-write (streak,
+puzzle, tower floor, favourites) runs in one transaction holding the
+player's row lock; a match locks its players in `player_key` order, so two
+tables booking the same names cannot deadlock.
+
+## Stammtische
+
+A Stammtisch is found by its secret `stammtisch_code` (unique, the lookup
+shape `^[A-Z0-9]{2,6}$`); the code lives in `stammtische` only, never in the
+game history. Players are referenced by `player_id`:
+
+| Data | Where | Why there |
+| --- | --- | --- |
+| Name, owner, last use, the running series, the group goals' points and reached weeks | columns of `stammtische` | one value each; `owner_player_id` is the founding account (`ON DELETE SET NULL`: then the earliest member owns it) |
+| Members and their head-to-head counters | `stammtisch_members (stammtisch_id, player_id, player_name, games_played, games_won, points, joined_at, last_seen_at)` | one row per person and table; the name as spelled there |
+| Matches (the newest 100) and their seats | `stammtisch_games (stammtisch_id, game_no, …)`, `stammtisch_game_seats (stammtisch_id, game_no, seat_no, player_id NULL, player_name, is_bot, score, won)` | the pairwise record is aggregated over seats; `game_no` counts per table, so seats need no surrogate key |
+| Series wins of the running series | `stammtisch_series_wins (stammtisch_id, player_id, wins)` | an atomic `wins = wins + 1` decides the series; cleared when the next one starts |
+| Matches per game week (60 weeks) | `stammtisch_weeks (stammtisch_id, week_start_day DATE, games_played)` | the weekly target and the streak; `StammtischGoals.js` stays a pure function on them |
+
+A match is booked in one transaction holding the table's row lock (members
+in `player_key` order, like the profiles). Deleting a player removes the
+memberships and series wins; the seats keep the name as played (the group's
+record) without the link. Deleting a table cascades to everything in it. The
+caps stay as before: tables unused for 180 days go, beyond the 300 most
+recently used too, and that is why `stammtisch_members` needs no `player_id`
+index for "my Stammtische" (300 tables are a sequential scan).
 
 ## Indexes
 
 Every index serves a named query; an index without one is removed. Small
 tables (a few thousand rows) are read by their primary key or a sequential
-scan, and sorting 100 rows costs microseconds: no extra index there. Measured
-with `EXPLAIN (ANALYZE, BUFFERS)` on seeded data (challenge: 14 days × 100
-players; play attempts: 200,000 Kartenhaus rows, 2,000 players, 3 months, plus
-297,000 puzzle rows, 90 days × 3,300 players, and 20,000 tutorial rows),
-PostgreSQL 16:
+scan, and sorting 100 rows costs microseconds: no extra index there.
+
+Write list queries so the planner expects the real number of rows: the
+profiles list as `id IN (top 500) OR player_key = ANY(…)` was estimated at
+10,000 rows and JIT-compiled (340 ms); collecting the ids first and reading
+them by primary key takes 4 ms.
+
+Measured with `EXPLAIN (ANALYZE, BUFFERS)` on seeded data (challenge: 14 days
+× 100 players; play attempts: 200,000 Kartenhaus rows, 2,000 players, 3 months,
+plus 297,000 puzzle rows, 90 days × 3,300 players, and 20,000 tutorial rows;
+players: 20,000, a quarter without a match, with 300,000 badges, 200,000 tower
+floors, 105,000 quest and 120,000 puzzle rows; Stammtische: 300 with 6 members,
+100 games of 4 seats and 60 weeks each), PostgreSQL 16:
 
 | Query | Index | Plan | ms |
 | --- | --- | --- | --- |
@@ -74,7 +137,23 @@ PostgreSQL 16:
 | A player's last 50 attempts (any mode) | `play_attempts_player_key_mode_ended_at_idx` (player_key, mode, ended_at, id) | backward index scan, no sort | 0.06–0.09 |
 | Delete a player's attempts | same (player_key prefix) | bitmap scan | 0.4 |
 | 90-day retention | `play_attempts_ended_at_idx` (BRIN) | bitmap scan of the oldest block ranges | 2 |
-| Insert, `ON CONFLICT (attempt_id)` | `play_attempts_attempt_id_key` | unique probe | 0.07 |
+| Insert, `ON CONFLICT (attempt_id)`, with the player upsert | `play_attempts_attempt_id_key`, `players_player_key_key` | unique probes | 0.2 |
+| Profiles message: the board's best 500 | `players_games_won_total_score_idx` (games_won DESC, total_score DESC, id, partial: games_played > 0) | index-only scan of 500 entries (4.9 ms without: seq scan + top-N sort) | 0.1 |
+| Profiles message: 504 rows, badges where favourites show, details of the asker | `players_pkey` (`id = ANY(…)`), `player_badges_pkey` and the other children's keys | index scans, correlated aggregates | 4 |
+| One profile by name (badges, quests, puzzles, card backs) | `players_player_key_key`, children's `_pkey` (player_id first) | index scans | 0.2 |
+| Lock a profile, book a match, award badges, a quest step | `players_player_key_key`, children's `_pkey` (`ON CONFLICT`) | unique probes | 0.03–0.1 |
+| Tower stars of a player (a month or all), a puzzle day, a day's quests | `players_player_key_key` + children's `_pkey` | nested loop, index scans | 0.02–0.04 |
+| Prune a player's quests (a week) and puzzle days (60 starred) | children's `_pkey` (player_id prefix) | index scan | 0.01–0.1 |
+| Delete a player (cascade) | children's `_pkey`; no `player_id` index on `play_attempts` | the FK trigger scans `play_attempts` | 20 |
+| A Stammtisch by code (join, probe, chip) | `stammtische_stammtisch_code_key` | unique probe | 0.01 |
+| A whole Stammtisch (summary, chip sheet, before booking a match): 6 members, 100 games, 400 seats, 60 weeks | `stammtische_stammtisch_code_key`, children's `_pkey` (stammtisch_id first) | index scans, JSON aggregates | 2 |
+| Its last winner | `stammtisch_games_pkey`, `stammtisch_game_seats_pkey` | index-only probe of the newest game | 0.04 |
+| My Stammtische (300 tables) | `players_player_key_key`, `stammtisch_members_pkey` per table | seq scan of `stammtische`, probes | 0.4 |
+| Prune unused / beyond 300, trim a table's games | seq scan of 300 rows; `stammtisch_games_pkey` | | 0.1 |
+
+Deleting a player is a rare manual step (a guest's request; an account
+deletion removes attempts by `player_key`, indexed), so `play_attempts` gets no
+fifth B-tree on `player_id` that every insert would pay for.
 
 `play_attempts` is insert-heavy, so it keeps four indexes. The retention index
 is BRIN (24 kB instead of ~4 MB): rows arrive in time order and freed space is

@@ -136,7 +136,8 @@ test('puzzle XP: the owner\'s first solve counts for account and season, a guest
   const cleo = await ask({ type: 'getPuzzle', name: 'Cleo' }, 'puzzle');
   assert.strictEqual(cleo.hit.status.solved, true, 'the profile still remembers the solve');
 
-  const players = (await ask({ type: 'listProfiles' }, 'profiles')).hit.players;
-  assert.strictEqual(players.find((p) => p.name === 'Ben').xp, XP_FOR_SOLVED);
-  assert.strictEqual(players.find((p) => p.name === 'Ada').xp, XP_FOR_SOLVED, 'the profile once, too');
+  // No game played: off the statistics board, listed for the player asking.
+  const profile = async (name) => (await ask({ type: 'listProfiles', name }, 'profiles')).hit.players.find((p) => p.name === name);
+  assert.strictEqual((await profile('Ben')).xp, XP_FOR_SOLVED);
+  assert.strictEqual((await profile('Ada')).xp, XP_FOR_SOLVED, 'the profile once, too');
 });

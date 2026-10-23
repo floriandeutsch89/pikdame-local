@@ -234,7 +234,10 @@ test('AccountStore: a database from before the migration runner upgrades in plac
   }
   await sql('DROP TABLE schema_migrations');
   // Tables of migrations 003+ did not exist before the runner (005 renames, it cannot run twice).
-  await sql('DROP TABLE challenge_results, challenge_attempts, legacy_imports, play_attempts');
+  const baseline = ['users', 'sessions', 'season_archive', 'season_finals', 'season_results', 'season_meta', 'webauthn_credentials'];
+  const later = (await sql('SELECT tablename FROM pg_tables WHERE schemaname = current_schema()'))
+    .map((r) => r.tablename).filter((name) => !baseline.includes(name));
+  await sql(`DROP TABLE ${later.join(', ')} CASCADE`);
   await sql('CREATE TABLE schema_version (id TEXT PRIMARY KEY, applied_at BIGINT NOT NULL)');
   await sql("INSERT INTO schema_version VALUES ('0123456789abcdef', 1)");
   const store = createPgAccountStore(url); // the first start of the new version

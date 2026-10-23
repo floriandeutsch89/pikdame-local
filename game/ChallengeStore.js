@@ -4,7 +4,7 @@
 // (begun = used, later games that day are practice), so the board keeps it.
 // Retention is deliberately short (14 days: the board shows 7, the own trend
 // graph 14) - a daily race, not an archive; only nickname + score are kept.
-// PostgreSQL (migrations/003, renamed in 005); every write is awaited. Game days are
+// PostgreSQL (migrations/003, renamed in 005, players in 006); every write is awaited. Game days are
 // 'YYYY-MM-DD' strings (DATE parser in Database.js), instants ms at this boundary.
 
 const fs = require('fs');
@@ -23,6 +23,10 @@ const IMPORT_RETRY_MS = 10 * 60 * 1000;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 // Board order; player_key only breaks exact ties deterministically.
 const BOARD_ORDER = 'score DESC, finished_at ASC, player_key ASC';
+// The player row behind $2 (key) / $3 (name), created or marked seen at `at`; a CTE of the inserts below.
+const upsertPlayer = (at) => `INSERT INTO players AS p (player_key, player_name, created_at, updated_at, last_seen_at)
+  VALUES ($2, $3, ${at}, ${at}, ${at}) ON CONFLICT (player_key) DO UPDATE
+  SET last_seen_at = GREATEST(p.last_seen_at, EXCLUDED.last_seen_at), updated_at = EXCLUDED.updated_at RETURNING id`;
 
 /** Stable numeric seed from a YYYY-MM-DD string (djb2). */
 function seedForDate(dateStr) {
@@ -91,11 +95,19 @@ async function importLegacyFile(pool, file) {
     await c.query('SELECT pg_advisory_xact_lock($1)', [IMPORT_LOCK_KEY]);
     const marked = await c.query('INSERT INTO legacy_imports (source, imported_at) VALUES ($1, now()) ON CONFLICT DO NOTHING RETURNING source', [IMPORT_NAME]);
     if (!marked.rows.length) return false; // imported before (e.g. the rename failed): only move the file
-    await c.query(`INSERT INTO challenge_results (game_day, player_key, player_name, score, queens_caught, finished_at)
-      SELECT * FROM unnest($1::date[], $2::text[], $3::text[], $4::int[], $5::int[], $6::timestamptz[]) ON CONFLICT DO NOTHING`, columns(results));
-    await c.query(`INSERT INTO challenge_attempts (game_day, player_key, player_name, session_code, started_at, status, updated_at)
-      SELECT *, u.started_at FROM unnest($1::date[], $2::text[], $3::text[], $4::text[], $5::timestamptz[], $6::text[])
-        AS u(game_day, player_key, player_name, session_code, started_at, status) ON CONFLICT DO NOTHING`, columns(attempts));
+    // Players of the file's names: no profile yet, age unknown (created_at NULL).
+    const names = [...results, ...attempts];
+    await c.query(`INSERT INTO players (player_key, player_name, created_at)
+      SELECT DISTINCT ON (player_key) player_key, player_name, NULL::timestamptz FROM unnest($1::text[], $2::text[]) AS u(player_key, player_name)
+      ORDER BY player_key ON CONFLICT (player_key) DO NOTHING`, [names.map((r) => r[1]), names.map((r) => r[2])]);
+    await c.query(`INSERT INTO challenge_results (game_day, player_key, player_name, score, queens_caught, finished_at, player_id)
+      SELECT u.*, p.id FROM unnest($1::date[], $2::text[], $3::text[], $4::int[], $5::int[], $6::timestamptz[])
+        AS u(game_day, player_key, player_name, score, queens_caught, finished_at) JOIN players p USING (player_key)
+      ON CONFLICT DO NOTHING`, columns(results));
+    await c.query(`INSERT INTO challenge_attempts (game_day, player_key, player_name, session_code, started_at, status, updated_at, player_id)
+      SELECT u.*, u.started_at, p.id FROM unnest($1::date[], $2::text[], $3::text[], $4::text[], $5::timestamptz[], $6::text[])
+        AS u(game_day, player_key, player_name, session_code, started_at, status) JOIN players p USING (player_key)
+      ON CONFLICT DO NOTHING`, columns(attempts));
     return true;
   });
   fs.renameSync(file, `${file}.migrated`);
@@ -158,8 +170,9 @@ function createChallengeStore(pool, { legacyFile = DEFAULT_DATA_FILE } = {}) {
     await ready();
     await inTransaction(pool, async (c) => {
       await cleanup(c, now);
-      await c.query(`INSERT INTO challenge_results (game_day, player_key, player_name, score, queens_caught, finished_at)
-        VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`,
+      await c.query(`WITH p AS (${upsertPlayer('$6::timestamptz')})
+        INSERT INTO challenge_results (game_day, player_key, player_name, score, queens_caught, finished_at, player_id)
+        SELECT $1::date, $2::text, $3::text, $4::int, $5::int, $6::timestamptz, p.id FROM p ON CONFLICT DO NOTHING`,
       [date, key, cleanName, Math.round(score), facts.queens > 0 ? facts.queens : 0, new Date(now)]);
       await c.query(`DELETE FROM challenge_results WHERE game_day = $1 AND player_key NOT IN (
         SELECT player_key FROM challenge_results WHERE game_day = $1 ORDER BY ${BOARD_ORDER} LIMIT ${MAX_ENTRIES_PER_DAY})`, [date]);
@@ -175,9 +188,10 @@ function createChallengeStore(pool, { legacyFile = DEFAULT_DATA_FILE } = {}) {
     const cleanName = cleanNameOf(name);
     await ready();
     await cleanup(pool, now);
-    const { rowCount } = await pool.query(`INSERT INTO challenge_attempts
-        (game_day, player_key, player_name, session_code, started_at, status, updated_at)
-      SELECT $1::date, $2::text, $3::text, $4::text, $5::timestamptz, 'running', $5::timestamptz
+    const { rowCount } = await pool.query(`WITH p AS (${upsertPlayer('$5::timestamptz')})
+      INSERT INTO challenge_attempts
+        (game_day, player_key, player_name, session_code, started_at, status, updated_at, player_id)
+      SELECT $1::date, $2::text, $3::text, $4::text, $5::timestamptz, 'running', $5::timestamptz, p.id FROM p
       WHERE NOT EXISTS (SELECT 1 FROM challenge_results WHERE game_day = $1 AND player_key = $2)
       ON CONFLICT (game_day, player_key) DO UPDATE SET player_name = EXCLUDED.player_name, session_code = EXCLUDED.session_code,
         started_at = EXCLUDED.started_at, status = 'running', updated_at = EXCLUDED.updated_at

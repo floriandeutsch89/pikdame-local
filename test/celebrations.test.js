@@ -14,6 +14,7 @@ const WebSocket = require('ws');
 const { JSDOM } = require('jsdom');
 const { CELEBRATION_DEFS, CELEBRATION_IDS, isCelebration, celebrationLevel } = require('../game/Celebrations');
 const { createPlayerStore } = require('../game/PlayerStore');
+const { testPlayerStore } = require('./helpers/player-store');
 const { xpForLevel } = require('../game/Progression');
 const GameManager = require('../game/GameManager');
 const { testDatabaseUrl } = require('./helpers/test-db');
@@ -63,28 +64,26 @@ test('whitelist: one list, ordered by level, mirrored by client, select and i18n
   }
 });
 
-test('PlayerStore.setCelebration: whitelist and level checked, standard clears', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-cel-store-'));
-  const store = createPlayerStore(path.join(dir, 'players.json'));
-  store.upsertPlayerProfile('Flo');
-  store.addProgress('Flo', { xp: xpAt(20) });
+test('PlayerStore.setCelebration: whitelist and level checked, standard clears', async (t) => {
+  const { store } = testPlayerStore(t);
+  await store.upsertPlayerProfile('Flo');
+  await store.addProgress('Flo', { xp: xpAt(20) });
 
-  assert.equal(store.setCelebration('Nobody', 'cats').error, 'Profil nicht gefunden.');
-  assert.equal(store.setCelebration('Flo', 'nope').error, 'Diesen Siegesjubel gibt es nicht.');
-  assert.equal(store.setCelebration('Flo', { id: 'cats' }).error, 'Diesen Siegesjubel gibt es nicht.');
-  assert.equal(store.setCelebration('Flo', 'cardfan').error, 'Diesen Siegesjubel gibt es ab Stufe 35.');
-  assert.equal(store.getPlayerByName('Flo').celebration, undefined, 'a refusal stores nothing');
+  assert.equal((await store.setCelebration('Nobody', 'cats')).error, 'Profil nicht gefunden.');
+  assert.equal((await store.setCelebration('Flo', 'nope')).error, 'Diesen Siegesjubel gibt es nicht.');
+  assert.equal((await store.setCelebration('Flo', { id: 'cats' })).error, 'Diesen Siegesjubel gibt es nicht.');
+  assert.equal((await store.setCelebration('Flo', 'cardfan')).error, 'Diesen Siegesjubel gibt es ab Stufe 35.');
+  assert.equal((await store.getPlayerByName('Flo')).celebration, undefined, 'a refusal stores nothing');
 
-  assert.deepEqual(store.setCelebration('flo', 'fireworks'), { celebration: 'fireworks' }, 'name is case-insensitive');
-  assert.equal(store.getPlayerByName('Flo').celebration, 'fireworks');
-  assert.deepEqual(store.setCelebration('Flo', 'standard'), { celebration: 'standard' });
-  assert.equal(store.getPlayerByName('Flo').celebration, undefined, 'standard = no field');
+  assert.deepEqual(await store.setCelebration('flo', 'fireworks'), { celebration: 'fireworks' }, 'name is case-insensitive');
+  assert.equal((await store.getPlayerByName('Flo')).celebration, 'fireworks');
+  assert.deepEqual(await store.setCelebration('Flo', 'standard'), { celebration: 'standard' });
+  assert.equal((await store.getPlayerByName('Flo')).celebration, undefined, 'standard = no field');
 
   // Exactly at the threshold: level 35 unlocks the card fan.
-  store.addProgress('Flo', { xp: xpAt(35) - xpAt(20) });
-  assert.deepEqual(store.setCelebration('Flo', 'cardfan'), { celebration: 'cardfan' });
-  assert.match(store.setCelebration('Flo', 'goldqueen').error, /ab Stufe 50/);
-  fs.rmSync(dir, { recursive: true, force: true });
+  await store.addProgress('Flo', { xp: xpAt(35) - xpAt(20) });
+  assert.deepEqual(await store.setCelebration('Flo', 'cardfan'), { celebration: 'cardfan' });
+  assert.match((await store.setCelebration('Flo', 'goldqueen')).error, /ab Stufe 50/);
 });
 
 test('GameManager: the seat carries it to everyone; bots, leavers, junk and a new owner do not', () => {
@@ -130,17 +129,20 @@ test('GameManager: the seat carries it to everyone; bots, leavers, junk and a ne
 
 test('server: only the signed-in owner picks, only unlocked ids; the whole table sees it', async (t) => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-cel-'));
+  const databaseUrl = testDatabaseUrl('celebrations');
   // Flo is level 20: fireworks yes, card fan (35) and golden queen (50) not yet.
-  const seed = createPlayerStore(path.join(dataDir, 'players.json'));
-  seed.upsertPlayerProfile('Flo');
-  seed.addProgress('Flo', { xp: xpAt(20) + 30 });
-  seed.flushSync();
+  const { Pool } = require('pg');
+  const seedPool = new Pool({ connectionString: databaseUrl, max: 2 });
+  const seed = createPlayerStore(seedPool, { legacyFile: null });
+  await seed.upsertPlayerProfile('Flo');
+  await seed.addProgress('Flo', { xp: xpAt(20) + 30 });
+  await seedPool.end();
 
   PORT = await freePort();
 
   const server = spawn('node', ['server.js'], {
     cwd: ROOT,
-    env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('celebrations'), PORT: String(PORT), PIKDAME_PUBLIC_MODE: '0', PIKDAME_DATA_DIR: dataDir },
+    env: { ...process.env, PIKDAME_DATABASE_URL: databaseUrl, PORT: String(PORT), PIKDAME_PUBLIC_MODE: '0', PIKDAME_DATA_DIR: dataDir },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let out = '';

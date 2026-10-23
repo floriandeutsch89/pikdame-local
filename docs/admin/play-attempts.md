@@ -151,10 +151,9 @@ A switch on top picks the mode.
   six hours (log: `[play-events] … older than 90 days deleted`), in every mode.
 - **Deleting an account** (tab Benutzer) deletes all attempts of that name,
   in every mode.
-- A guest asks for deletion: the profile lives in `players.json`, the attempts
-  go with one statement (see below).
-- The privacy page states the 90 days. The guest profiles' 500-profile limit
-  does not delete attempts: it is a storage limit, not a request.
+- A guest asks for deletion: one statement deletes the player with the
+  profile, badges, challenge rows and attempts (see below).
+- The privacy page states the 90 days.
 
 ## SQL
 
@@ -237,8 +236,8 @@ SELECT stage, facts->>'step' AS lesson, facts->>'cause' AS cause, count(*)
  GROUP BY 1, 2, 3 ORDER BY 4 DESC;
 ```
 
-**Support.** One player's attempts, newest first, and deleting them (a guest's
-request). `player_key` is the name in lower case:
+**Support.** One player's attempts, newest first, and deleting only those.
+`player_key` is the name in lower case:
 
 ```sql
 SELECT ended_at, mode, period, stage, outcome, turns, ended_at - started_at AS took,
@@ -247,4 +246,14 @@ SELECT ended_at, mode, period, stage, outcome, turns, ended_at - started_at AS t
  ORDER BY ended_at DESC LIMIT 20;
 
 DELETE FROM play_attempts WHERE player_key = 'oma inge';
+```
+
+A guest's deletion request: the player row and everything that points at it
+(profile, badges, quests, puzzle days, Kartenhaus stars, challenge results and
+attempts, play attempts, Stammtisch memberships and series wins) go with one
+statement. The Stammtisch matches keep the name as it was played, without the
+link; the groups' record stays theirs:
+
+```sql
+DELETE FROM players WHERE player_key = 'oma inge';
 ```

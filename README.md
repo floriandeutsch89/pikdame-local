@@ -81,9 +81,10 @@ docker compose -f docker/docker-compose.ghcr.yml up -d   # → http://<host>:808
 ```
 
 > [!IMPORTANT]
-> PostgreSQL is required (the compose files start it). Always mount a volume at
-> `/app/data` as well: profiles, statistics and the snapshot that lets running
-> games survive a restart all live there.
+> PostgreSQL is required (the compose files start it): accounts, player
+> profiles and the daily challenge live there. Always mount a volume at
+> `/app/data` as well: server statistics, game history and the snapshot that
+> lets running games survive a restart live there.
 
 Or on Kubernetes via Helm (the chart is published as an OCI artifact with
 every release):
