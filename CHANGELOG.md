@@ -3,6 +3,18 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.111.0] - 2026-10-23
+
+### Added
+- Tagesrätsel und Tutorial: Jeder Versuch wird wie im Kartenhaus mit
+  Spielername, Ergebnis und Verlauf 90 Tage lang gespeichert (Rätsel:
+  Fehlversuche, Lösungszeit, Aufgeben; Tutorial: erreichter Schritt, Zeit je
+  Schritt, Überspringen). Die Admin-Seite zeigt im Bereich „Festhänger“ nun
+  auch, an welchem Rätsel und an welchem Tutorial-Schritt Spieler hängen
+  bleiben und warum.
+- Datenschutzerklärung: Der Abschnitt zu den Spielversuchen nennt jetzt auch
+  Tagesrätsel und Tutorial.
+
 ## [2.110.0] - 2026-10-23
 
 ### Changed
