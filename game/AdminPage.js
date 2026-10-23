@@ -10,6 +10,7 @@
 const crypto = require('crypto');
 const { STATUS_ICON } = require('./ConfigReport');
 const BotTower = require('./BotTower');
+const { weekdayIndex } = require('./GameDay');
 
 /** Password from an `Authorization: Basic ...` header, or null. The user
  *  name is ignored - there is exactly one operator credential. Checking it
@@ -139,7 +140,7 @@ table.cfg td,table.cfg th{border-top:0;width:auto}table.cfg tr>td:last-child{gri
 @media (max-width:520px){nav.tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;border-bottom:0;margin:14px 0 8px}
 nav.tabs a{justify-content:center;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
 nav.tabs a.active{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}}
-/* Festhänger: the Kartenhaus month by floor, players stuck on one */
+/* Festhänger: Kartenhaus floors, puzzle days, tutorial lessons; players stuck */
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 14px}
 .kpi span{display:block;color:var(--muted);font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
@@ -154,20 +155,29 @@ tr.wall td{background:rgba(245,197,66,.07)}tr.wall td:first-child{box-shadow:ins
 td.hot{color:var(--warn);font-weight:700}
 td.name{padding-top:0;padding-bottom:0}td.name a,a.back{color:var(--accent);font-weight:600;text-decoration:none;display:inline-flex;align-items:center;min-height:44px}
 td.name a:hover,a.back:hover{text-decoration:underline}td.why .sub{white-space:nowrap}
-/* Phone: every row a card - floors with the bar beside the title, the counts as "39 Spieler" below */
+/* Festhänger modes: a segmented switch above the period; the section names stay for screen readers */
+nav.modes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;max-width:440px;margin:18px 0 14px;padding:4px;border-radius:12px;background:#0b0e12;border:1px solid var(--line)}
+nav.modes a{min-height:44px;display:flex;align-items:center;justify-content:center;border-radius:9px;color:var(--muted);text-decoration:none;font-weight:600}
+nav.modes a:hover{color:var(--text)}nav.modes a.active{background:var(--panel);color:var(--text);box-shadow:inset 0 0 0 1px var(--accent)}
+.sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+td.step b{white-space:normal}td.step .badge{margin-left:6px;font-weight:600}.badge.plain{color:var(--muted)}
+/* Phone: every row a card - a title with its bar, the counts as "39 Spieler" below */
 @media (max-width:600px),(max-height:540px),(pointer:coarse){nav.ranges a{min-height:44px}}
 @media (max-width:600px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.kpi{padding:8px 10px}.kpi span{letter-spacing:.02em}.kpi b{font-size:1.25rem}
+nav.modes{max-width:none;margin-top:14px}
 table.list thead{display:none}table.list,table.list tbody{display:block}
 table.list tr{padding:10px 14px;border-top:1px solid var(--line)}table.list tr:first-child{border-top:0}
 table.list td,table.list .num{border:0;padding:0;white-space:normal;text-align:left}
 table.stuck td:nth-child(2),table.tries td:nth-child(2),table.tries td:nth-child(5){text-align:right}
 table.list td[data-label]::before{content:attr(data-label) " ";color:var(--muted)}table.list td[data-unit]::after{content:" " attr(data-unit);color:var(--muted)}
-table.floors tr{display:flex;flex-wrap:wrap;align-items:center;gap:2px 14px}table.floors td{order:3;font-size:.92em}
-table.floors td.floor{order:1;flex:1 1 calc(100% - 164px);min-width:0;font-size:1em}table.floors td.rate{order:2;flex:0 0 150px;min-width:0}
-table.floors td.floor small{margin-bottom:4px}table.floors td.stuckn:not(.hot){display:none}
+table.bars tr{display:flex;flex-wrap:wrap;align-items:center;gap:2px 14px}table.bars td{order:3;font-size:.92em}
+table.bars td.floor{order:1;flex:1 1 calc(100% - 164px);min-width:0;font-size:1em}table.bars td.rate{order:2;flex:0 0 150px;min-width:0}
+table.bars td.floor small{margin-bottom:4px}table.bars td.stuckn:not(.hot),table.bars td.zero{display:none}
+table.bars td.fault{flex-basis:100%}
 table.stuck tr,table.tries tr{display:grid;grid-template-columns:auto 1fr auto;gap:2px 14px;align-items:center}
 table.stuck td.name{grid-column:1/3}table.stuck td.why,table.tries td.why{grid-column:1/-1;margin-top:2px}
 table.stuck td:nth-child(4){grid-column:2/4}table.tries td.date{grid-column:1/3;color:var(--muted)}
+table.pstuck tr{grid-template-columns:1fr auto auto}table.pstuck td.name{grid-column:auto}table.pstuck td:nth-child(3){text-align:right}table.pstuck td.date{grid-column:1/-1}
 td.rate{min-width:0}tr.wall{background:rgba(245,197,66,.07);box-shadow:inset 3px 0 0 var(--warn)}tr.wall td{background:none}tr.wall td:first-child{box-shadow:none}}
 `;
 
@@ -377,11 +387,60 @@ function monitorData(series, current) {
 const MONTHS_DE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 const monthLabel = (m) => `${MONTHS_DE[Number(String(m).slice(5, 7)) - 1] || ''} ${String(m).slice(0, 4)}`;
 const pct = (v) => (v == null ? '–' : `${fmtNum(v * 100)} %`);
-const stuckHref = (query) => esc(`/admin/stuck?${new URLSearchParams(query)}`);
+const stuckHref = (query) => {
+  const q = new URLSearchParams(query).toString();
+  return esc(q ? `/admin/stuck?${q}` : '/admin/stuck');
+};
 const LEVEL_DE = { easy: 'Leicht', medium: 'Mittel', hard: 'Schwer', zen: 'Zen' };
 const MOD_DE = { queen: 'mit Pik Dame', noDiscard: 'ohne Ablage', goOut: 'selbst ausmachen' };
-const REASON_DE = { forfeit: 'aufgegeben', left: 'verlassen', timeout: 'nicht zurückgekehrt', expired: 'Tisch abgelaufen', restart: 'Server-Neustart' };
+const REASON_DE = { forfeit: 'aufgegeben', left: 'verlassen', timeout: 'nicht zurückgekehrt', expired: 'Tisch abgelaufen', restart: 'Server-Neustart', skipped: 'übersprungen', dayEnd: 'Tag vorbei' };
 const END_DE = { me: 'selbst ausgemacht', bot: 'ein Bot ging raus', emptyDraw: 'Ziehstapel leer', stalemate: '160 Züge ohne Auslage' };
+const MODES_DE = [['tower', 'Kartenhaus'], ['puzzle', 'Rätsel'], ['tutorial', 'Tutorial']];
+// The puzzle kinds as the client names them; a mistake (PlayEvents.PUZZLE_CAUSES) in words.
+const KIND_DE = { meld: 'Beste Auslage', turn: 'Bester Zug', out: 'Ausmachen' };
+const FAULT_DE = {
+  meld: 'ungültige Auslage', discard: 'keine Karte zum Abwerfen übrig', points: 'zu wenig Punkte',
+  notOut: 'nicht ausgemacht, Karten übrig', other: 'ungültige Antwort', noTry: 'ohne Fehlversuch',
+};
+// Tutorial lessons (TutorialSteps.js) with the client's German labels; why one stopped early.
+const STEP_DE = {
+  welcome: 'Das Ziel des Spiels', draw: 'Karte aufnehmen', pileDuty: 'Ablage nehmen und auslegen', firstSet: 'Einen Satz auslegen',
+  pikdame: 'Pik Dame: +100 oder −100', queenSet: 'Pik Dame auslegen', joker: 'Joker einsetzen', moreMelds: 'Weitere Auslagen',
+  discard: 'Zug mit Abwerfen beenden', pile: 'Die Ablage lesen', layOff: 'An eigene Auslage anlegen', jokerSwap: 'Joker tauschen',
+  endgame: 'Ausmachen: letzte Karte abwerfen', roundend: 'Wertung verstehen',
+};
+const TUTORIAL_CAUSE_DE = { stuck: 'gescheitert', skipped: 'übersprungen', left: 'verlassen', away: 'weggeblieben' };
+// Long KPI labels break only at a soft hyphen on a narrow phone tile (375 px).
+const SKIPPED_LABEL = 'Über&shy;sprungen';
+const PUZZLE_RANGES = [7, 14, 30, 90];
+const PUZZLE_DEFAULT_DAYS = 14;
+const WEEKDAYS_DE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+/** "Mo 20.10." for a game day string. */
+const dayLabel = (d) => (/^\d{4}-\d{2}-\d{2}$/.test(String(d))
+  ? `${WEEKDAYS_DE[weekdayIndex(d)]} ${Number(d.slice(8, 10))}.${Number(d.slice(5, 7))}.` : '–');
+
+/** "45 s", "3 min", "1 h 5 min". */
+function fmtSec(sec) {
+  if (sec == null || !Number.isFinite(sec)) return '–';
+  if (sec < 60) return `${fmtNum(sec)} s`;
+  if (sec < 3600) return `${fmtNum(Math.round(sec / 60))} min`;
+  const h = Math.floor(sec / 3600);
+  const m = Math.round((sec % 3600) / 60);
+  return m ? `${h} h ${m} min` : `${h} h`;
+}
+
+const unit = (n, one, many) => (n === 1 ? one : many);
+
+/** A rate as a bar with its percentage (one table cell). */
+function rateCell(v, title) {
+  const width = v == null ? 0 : Math.round(v * 100);
+  return `<td class="rate" title="${esc(title)}"><span class="track" aria-hidden="true"><span class="fill" style="width:${width}%"></span></span><span class="pct">${pct(v)}</span></td>`;
+}
+
+const findForm = (hidden) => `<form class="find" method="get" action="/admin/stuck">${Object.entries(hidden)
+  .map(([k, v]) => `<input type="hidden" name="${esc(k)}" value="${esc(v)}">`).join('')}
+<input type="search" name="player" placeholder="Spielername" aria-label="Spielername" autocomplete="off" required>
+<button type="submit">Versuche anzeigen</button></form>`;
 
 /** "2× Zen, Schwer · +40 Vorgabe · ohne Ablage": who a floor plays against. */
 function floorInfo(stage) {
@@ -414,12 +473,11 @@ function causeText(cause, { miss = null, turn = null } = {}) {
 const signed = (v) => (v == null ? '–' : v > 0 ? `+${fmtNum(v)}` : v < 0 ? `−${fmtNum(-v)}` : '0');
 
 function floorRow(f) {
-  const width = f.winRate == null ? 0 : Math.round(f.winRate * 100);
   return `<tr${f.wall ? ' class="wall"' : ''}>
 <td class="floor"><b>Etage ${f.stage}</b>${f.wall ? ' <span class="badge warn" title="Siegquote höchstens halb so hoch wie auf der Etage darunter">Knick</span>' : ''}<small>${esc(floorInfo(f.stage))}</small></td>
 <td class="num" data-unit="Spieler">${fmtNum(f.players)}</td><td class="num" data-unit="geschafft">${fmtNum(f.cleared)}</td>
 <td class="num" data-unit="Versuche">${fmtNum(f.attempts)}</td>
-<td class="rate" title="Siegquote"><span class="track" aria-hidden="true"><span class="fill" style="width:${width}%"></span></span><span class="pct">${pct(f.winRate)}</span></td>
+${rateCell(f.winRate, 'Siegquote')}
 <td class="num" data-unit="Abbrüche">${pct(f.abandonRate)}</td><td class="num" data-label="Median" data-unit="Züge">${fmtNum(f.medianTurns)}</td>
 <td class="num stuckn${f.stuck ? ' hot' : ''}" data-unit="Festhänger">${fmtNum(f.stuck)}</td>
 </tr>`;
@@ -471,18 +529,18 @@ ${list.length ? `<div class="panel"><table class="list tries">
 <p class="legend">Abstand = eigene Punkte − Vorgabe − bester Bot: über 0 gibt einen Stern, ab ${BotTower.CLEAR_MARGIN} zwei. Bei abgebrochenen Versuchen der Stand beim Abbruch (Auslage minus Hand). Züge zählen alle Sitze am Tisch.</p>`;
 }
 
-function stuckBody({ current, month, player, report, attempts }) {
+const notReadable = (r) => `<div class="notice err">Spielversuche nicht lesbar: ${esc(r ? r.error : 'unbekannt')}</div>`;
+
+function towerBody({ current, month, player, report, attempts }) {
   if (player) return playerBody({ month, player, attempts });
-  if (!report || report.error) return `<div class="notice err">Spielversuche nicht lesbar: ${esc(report ? report.error : 'unbekannt')}</div>`;
+  if (!report || report.error) return notReadable(report);
   const months = [...new Set([current, month, ...report.months])].filter(Boolean).sort().reverse();
   const nav = `<nav class="ranges" aria-label="Monat">${months.map((m) =>
     `<a href="${stuckHref({ month: m })}"${m === month ? ' class="active" aria-current="page"' : ''}>${esc(monthLabel(m))}</a>`).join('')}</nav>`;
   const t = report.totals;
-  const find = `<form class="find" method="get" action="/admin/stuck"><input type="hidden" name="month" value="${esc(month)}">
-<input type="search" name="player" placeholder="Spielername" aria-label="Spielername" autocomplete="off" required>
-<button type="submit">Versuche anzeigen</button></form>`;
+  const find = findForm({ month });
   if (!t.attempts) {
-    return `<h2>Kartenhaus</h2>${nav}
+    return `<h2 class="sr">Kartenhaus</h2>${nav}
 <p class="muted">Noch keine Kartenhaus-Versuche in diesem Monat.</p>
 <h2>Spieler nachschlagen</h2><div class="panel">${find}</div>
 <p class="legend">Gezählt wird jeder beendete oder abgebrochene Versuch einer Etage, mit Spielernamen, 90 Tage lang.</p>`;
@@ -495,7 +553,7 @@ function stuckBody({ current, month, player, report, attempts }) {
     rows.push(byStage.get(s) || { stage: s, attempts: 0, players: 0, cleared: 0, winRate: null, abandonRate: null, medianTurns: null, stuck: 0, wall: false });
   }
   const walls = report.floors.filter((f) => f.wall).map((f) => f.stage);
-  return `<h2>Kartenhaus</h2>${nav}
+  return `<h2 class="sr">Kartenhaus</h2>${nav}
 <div class="kpis">
 <div class="kpi"><span>Versuche</span><b>${fmtNum(t.attempts)}</b></div>
 <div class="kpi"><span>Spieler</span><b>${fmtNum(t.players)}</b></div>
@@ -504,7 +562,7 @@ function stuckBody({ current, month, player, report, attempts }) {
 ${t.stuck ? `<a class="kpi warn" href="#festhaenger"><span>Festhänger</span><b>${fmtNum(t.stuck)}</b></a>` : '<div class="kpi"><span>Festhänger</span><b>0</b></div>'}
 </div>
 <h2>Etagen${walls.length ? ` <span class="sub">Knick auf Etage ${walls.join(', ')}</span>` : ''}</h2>
-<div class="panel"><table class="list floors">
+<div class="panel"><table class="list bars floors">
 <thead><tr><th>Etage</th><th class="num">Spieler</th><th class="num">Geschafft</th><th class="num">Versuche</th><th>Siegquote</th><th class="num">Abbrüche</th><th class="num">Median Züge</th><th class="num">Festhänger</th></tr></thead>
 <tbody>${rows.map(floorRow).join('')}</tbody></table></div>
 <h2 id="festhaenger">Festhänger <span class="sub">ab ${report.minAttempts} Versuchen ohne Stern</span></h2>
@@ -516,13 +574,166 @@ ${report.stuck.length ? `<div class="panel"><table class="list stuck">
 <p class="legend">Gezählt wird jeder beendete oder abgebrochene Versuch einer Etage, mit Spielernamen, 90 Tage lang. Siegquote = Versuche mit mindestens einem Stern; Geschafft = Spieler mit Stern. Abbrüche: aufgegeben, verlassen, nicht zurückgekehrt oder bei einem Neustart verloren. Züge zählen alle Sitze am Tisch. Knick = Siegquote höchstens halb so hoch wie auf der Etage darunter (beide ab 5 Versuchen).</p>`;
 }
 
+// --- puzzle: days and kinds, players stuck on a day
+function puzzleDayRow(d) {
+  return `<tr${d.hard ? ' class="wall"' : ''}>
+<td class="floor"><b>${esc(dayLabel(d.day))}</b>${d.hard ? ' <span class="badge warn" title="Eine der niedrigsten Lösungsquoten im Zeitraum">schwer</span>' : ''}<small>${esc(KIND_DE[d.kind] || d.kind)}</small></td>
+${rateCell(d.solveRate, 'Lösungsquote')}
+<td class="num" data-unit="${unit(d.attempts, 'Versuch', 'Versuche')}">${fmtNum(d.attempts)}</td>
+<td class="num" data-label="Ø" data-unit="bis gelöst">${fmtNum(d.avgTries, 1)}</td>
+<td class="num" data-unit="aufgegeben">${pct(d.giveUpRate)}</td>
+<td class="num stuckn${d.stuck ? ' hot' : ''}" data-unit="Festhänger">${fmtNum(d.stuck)}</td>
+<td class="fault" data-label="meist:">${d.topFault ? esc(FAULT_DE[d.topFault.cause]) : '–'}</td>
+</tr>`;
+}
+
+function puzzleKindRow(k) {
+  return `<tr>
+<td class="floor"><b>${esc(KIND_DE[k.kind] || k.kind)}</b><small>${fmtNum(k.days)} ${k.days === 1 ? 'Tag' : 'Tage'}</small></td>
+${rateCell(k.solveRate, 'Lösungsquote')}
+<td class="num" data-unit="${unit(k.attempts, 'Versuch', 'Versuche')}">${fmtNum(k.attempts)}</td>
+<td class="num" data-label="Ø" data-unit="bis gelöst">${fmtNum(k.avgTries, 1)}</td>
+<td class="num" data-unit="aufgegeben">${pct(k.giveUpRate)}</td>
+<td class="num" data-label="gelöst in">${fmtSec(k.solveSec)}</td>
+<td class="fault" data-label="meist:">${k.topFault ? esc(FAULT_DE[k.topFault.cause]) : '–'}</td>
+</tr>`;
+}
+
+function puzzleStuckRow(s, days) {
+  const how = s.lastOutcome === 'lost' ? 'aufgegeben' : 'offen gelassen';
+  return `<tr>
+<td class="name"><a href="${stuckHref({ mode: 'puzzle', days, player: s.name })}">${esc(s.name)}</a></td>
+<td class="num" data-unit="${s.days === 1 ? 'Tag' : 'Tage'}">${fmtNum(s.days)}</td><td class="num" data-unit="Fehler">${fmtNum(s.mistakes)}</td>
+<td class="date" data-label="zuletzt">${esc(`${dayLabel(s.lastDay)} ${KIND_DE[s.lastKind] || ''}, ${how}`)}</td>
+<td class="why">${s.top ? `${esc(FAULT_DE[s.top.cause])} <span class="sub">${s.top.n} von ${s.days}</span>` : '–'}</td>
+</tr>`;
+}
+
+/** One puzzle attempt of the player view: result, mistakes, time and why. */
+function puzzleAttemptRow(a) {
+  const f = a.facts || {};
+  const stars = Math.max(1, Math.min(3, f.stars || 1));
+  const result = a.outcome === 'won' ? `<span class="badge ok">${'★'.repeat(stars)} gelöst</span>`
+    : a.outcome === 'lost' ? '<span class="badge error">aufgegeben</span>' : '<span class="badge warn">offen gelassen</span>';
+  const took = fmtSec(Math.round((a.endedAt - a.startedAt) / 1000));
+  const details = [a.outcome === 'won' ? `gelöst in ${took}` : a.outcome === 'lost' ? `aufgegeben nach ${took}` : 'bis Mitternacht nicht gelöst'];
+  if (f.firstWrong) details.push(`zuerst ${FAULT_DE[f.firstWrong]}`);
+  if (f.cause && f.cause !== f.firstWrong) details.push(`meist ${FAULT_DE[f.cause]}`);
+  return `<tr>
+<td class="date">${esc(dayLabel(a.period))}</td>
+<td class="num">${esc(KIND_DE[f.kind] || '–')}</td>
+<td class="res">${result}</td>
+<td class="num" data-unit="Fehler">${fmtNum(f.mistakes)}</td>
+<td class="num" data-unit="${unit(a.turns, 'Versuch', 'Versuche')}">${fmtNum(a.turns)}</td>
+<td class="why">${esc(details.filter(Boolean).join(' · '))}</td>
+</tr>`;
+}
+
+function puzzlePlayerBody({ days, player, attempts }) {
+  const back = `<p><a class="back" href="${stuckHref({ mode: 'puzzle', days })}">← Zur Übersicht ${days} Tage</a></p>`;
+  if (!attempts || attempts.error) return `${back}${notReadable(attempts)}`;
+  const list = attempts.attempts;
+  return `${back}<h2>Rätsel von ${esc(attempts.name || player)} <span class="sub">letzte 90 Tage</span></h2>
+${list.length ? `<div class="panel"><table class="list tries">
+<thead><tr><th>Tag</th><th class="num">Art</th><th>Ergebnis</th><th class="num">Fehler</th><th class="num">Versuche</th><th>Warum</th></tr></thead>
+<tbody>${list.map(puzzleAttemptRow).join('')}</tbody></table></div>` : `<p class="muted">Keine Rätsel-Versuche von „${esc(player)}“ in den letzten 90 Tagen.</p>`}
+<p class="legend">Versuche = Prüfungen bis zur Lösung oder zum Aufgeben. Fehler = Prüfungen ohne Lösung plus abgelehnte Auslagen. Die Zeit läuft ab dem ersten Öffnen des Rätsels.</p>`;
+}
+
+function puzzleBody({ days = PUZZLE_DEFAULT_DAYS, player, report, attempts }) {
+  if (player) return puzzlePlayerBody({ days, player, attempts });
+  const nav = `<nav class="ranges" aria-label="Zeitraum">${PUZZLE_RANGES.map((d) =>
+    `<a href="${stuckHref({ mode: 'puzzle', days: d })}"${d === days ? ' class="active" aria-current="page"' : ''}>${d} Tage</a>`).join('')}</nav>`;
+  const head = `<h2 class="sr">Tagesrätsel</h2>${nav}`;
+  if (!report || report.error) return `${head}${notReadable(report)}`;
+  const find = `<h2>Spieler nachschlagen</h2><div class="panel">${findForm({ mode: 'puzzle', days })}</div>`;
+  const legend = `<p class="legend">Gezählt wird das Rätsel des Tages je Spielername, mit Namen, 90 Tage lang (Archivtage nicht): gelöst, aufgegeben (Lösung angezeigt) oder offen gelassen (bis Mitternacht probiert, nicht gelöst). Ø bis gelöst = Prüfungen bis zur Lösung. Fehler = Prüfungen ohne Lösung plus abgelehnte Auslagen. Festhänger = aufgegeben oder ab ${report.stuckMistakes || 3} Fehlern ohne Lösung. Schwer = die drei Tage mit der niedrigsten Lösungsquote (ab 5 Versuchen). Gelöst in = vom Öffnen bis zur Lösung (Median).</p>`;
+  const t = report.totals;
+  if (!t.attempts) return `${head}<p class="muted">Noch keine Rätsel-Versuche in diesen ${days} Tagen.</p>${find}${legend}`;
+  const hard = report.days.filter((d) => d.hard);
+  return `${head}
+<div class="kpis">
+<div class="kpi"><span>Versuche</span><b>${fmtNum(t.attempts)}</b></div>
+<div class="kpi"><span>Spieler</span><b>${fmtNum(t.players)}</b></div>
+<div class="kpi"><span>Gelöst</span><b>${pct(t.solveRate)}</b></div>
+<div class="kpi"><span>Aufgegeben</span><b>${pct(t.giveUpRate)}</b></div>
+${t.stuck ? `<a class="kpi warn" href="#festhaenger"><span>Festhänger</span><b>${fmtNum(t.stuck)}</b></a>` : '<div class="kpi"><span>Festhänger</span><b>0</b></div>'}
+</div>
+<h2>Arten</h2>
+<div class="panel"><table class="list bars kinds">
+<thead><tr><th>Art</th><th>Gelöst</th><th class="num">Versuche</th><th class="num">Ø bis gelöst</th><th class="num">Aufgegeben</th><th class="num">Gelöst in</th><th>Häufigster Fehler</th></tr></thead>
+<tbody>${report.kinds.map(puzzleKindRow).join('')}</tbody></table></div>
+<h2>Tage${hard.length ? ` <span class="sub">schwer: ${hard.map((d) => esc(dayLabel(d.day))).join(', ')}</span>` : ''}</h2>
+<div class="panel"><table class="list bars pdays">
+<thead><tr><th>Tag</th><th>Gelöst</th><th class="num">Versuche</th><th class="num">Ø bis gelöst</th><th class="num">Aufgegeben</th><th class="num">Festhänger</th><th>Häufigster Fehler</th></tr></thead>
+<tbody>${report.days.map(puzzleDayRow).join('')}</tbody></table></div>
+<h2 id="festhaenger">Festhänger <span class="sub">aufgegeben oder ab ${report.stuckMistakes} Fehlern ohne Lösung</span></h2>
+${report.stuck.length ? `<div class="panel"><table class="list stuck pstuck">
+<thead><tr><th>Spieler</th><th class="num">Tage</th><th class="num">Fehler</th><th>Zuletzt</th><th>Häufigster Grund</th></tr></thead>
+<tbody>${report.stuck.map((s) => puzzleStuckRow(s, days)).join('')}</tbody></table></div>${t.stuck > report.stuck.length ? `<p class="legend">Die ${report.stuck.length} mit den meisten Tagen von ${t.stuck}.</p>` : ''}`
+    : '<p class="muted">Niemand hängt fest.</p>'}
+${find}
+${legend}`;
+}
+
+// --- tutorial: the lessons as a funnel, how players stop
+function stepRow(s, starts) {
+  return `<tr${s.wall ? ' class="wall"' : ''}>
+<td class="floor step"><b>${s.index}. ${esc(STEP_DE[s.key] || s.key)}</b>${s.optional ? '<span class="badge plain">Bonus</span>' : ''}${s.wall ? '<span class="badge warn" title="Hier steigen mindestens doppelt so viele aus wie im Schnitt">Knick</span>' : ''}</td>
+${rateCell(starts ? s.reached / starts : null, 'Anteil der Starts, die diesen Schritt erreichen')}
+${s.reached ? `<td class="num" data-unit="erledigt">${fmtNum(s.done)} <span class="sub">von ${fmtNum(s.reached)}</span></td>` : '<td class="num" data-label="nie erreicht">–</td>'}
+<td class="num${s.dropped ? (s.wall ? ' hot' : '') : ' zero'}" data-unit="ausgestiegen">${s.reached ? fmtNum(s.dropped) : '–'}${s.dropped ? ` <span class="sub">(${pct(s.dropRate)})</span>` : ''}</td>
+<td class="num${s.medianSec == null ? ' zero' : ''}" data-label="Zeit">${fmtSec(s.medianSec)}</td>
+<td class="num${s.refusals ? '' : ' zero'}" data-unit="${unit(s.refusals, 'Ablehnung', 'Ablehnungen')}">${fmtNum(s.refusals)}</td>
+</tr>`;
+}
+
+function tutorialBody({ version, current, report }) {
+  const versionNo = (v) => Number(String(v).replace(/\D/g, '')) || 0;
+  const versions = [...new Set([current, version, ...((report && report.versions) || [])])].filter(Boolean)
+    .sort((a, b) => versionNo(b) - versionNo(a));
+  const nav = versions.length > 1 ? `<nav class="ranges" aria-label="Version">${versions.map((v) =>
+    `<a href="${stuckHref({ mode: 'tutorial', version: v })}"${v === version ? ' class="active" aria-current="page"' : ''}>Version ${esc(v)}</a>`).join('')}</nav>` : '';
+  const head = `<h2 class="sr">Tutorial</h2>${nav}`;
+  if (!report || report.error) return `${head}${notReadable(report)}`;
+  const legend = '<p class="legend">Gezählt wird jeder Tutorial-Tisch bis zur Wertung der ersten Runde (geschafft) oder bis er vorher endet, mit Spielernamen, 90 Tage lang. Erreicht = der Schritt wurde gezeigt (Balken: Anteil der Starts); erledigt = seine Aufgabe gelöst oder „Weiter“ getippt; ausgestiegen = hier endete der Versuch. Übersprungen = Hinweise ausgeschaltet. Zeit = vom Erscheinen bis erledigt (Median). Ablehnungen = vom Server abgelehnte Züge, solange der Schritt offen war; gescheitert = ab 3 davon beim letzten Schritt. Knick = hier steigen mindestens doppelt so viele aus wie im Schnitt aller Schritte (ab 5 Erreichten und 3 Ausstiegen). Bonus-Schritte kommen nur in manchen Spielsituationen.</p>';
+  const t = report.totals;
+  if (!t.attempts) return `${head}<p class="muted">Noch keine Tutorial-Versuche${versions.length > 1 ? ` in Version ${esc(version)}` : ''}.</p>${legend}`;
+  const walls = report.steps.filter((s) => s.wall);
+  return `${head}
+<div class="kpis">
+<div class="kpi"><span>Starts</span><b>${fmtNum(t.attempts)}</b></div>
+<div class="kpi"><span>Geschafft</span><b>${pct(t.completeRate)}</b></div>
+<div class="kpi"><span>${SKIPPED_LABEL}</span><b>${pct(t.skipRate)}</b></div>
+<div class="kpi"><span>Abge&shy;brochen</span><b>${pct(t.leaveRate)}</b></div>
+<div class="kpi"><span>Median-Dauer</span><b>${fmtSec(t.medianSec)}</b></div>
+</div>
+<h2>Schritte${walls.length ? ` <span class="sub">Knick bei ${walls.map((s) => esc(`„${STEP_DE[s.key] || s.key}“`)).join(', ')}</span>` : ''}</h2>
+<div class="panel"><table class="list bars funnel">
+<thead><tr><th>Schritt</th><th>Erreicht</th><th class="num">Erledigt</th><th class="num">Ausgestiegen</th><th class="num">Zeit</th><th class="num">Ablehnungen</th></tr></thead>
+<tbody>${report.steps.map((s) => stepRow(s, t.attempts)).join('')}</tbody></table></div>
+${report.beforeFirst ? `<p class="legend">${fmtNum(report.beforeFirst)} ${report.beforeFirst === 1 ? 'Start endete' : 'Starts endeten'} vor dem ersten Schritt.</p>` : ''}
+<h2>Wie sie aufhören</h2>
+<div class="kpis">${Object.entries(TUTORIAL_CAUSE_DE).map(([c, label]) =>
+    `<div class="kpi"><span>${c === 'skipped' ? SKIPPED_LABEL : label}</span><b>${fmtNum((report.causes || {})[c] || 0)}</b></div>`).join('')}</div>
+${legend}`;
+}
+
+function stuckBody(p) {
+  const mode = MODES_DE.some(([id]) => id === p.mode) ? p.mode : 'tower';
+  const nav = `<nav class="modes" aria-label="Bereich">${MODES_DE.map(([id, label]) =>
+    `<a href="${stuckHref(id === 'tower' ? {} : { mode: id })}"${id === mode ? ' class="active" aria-current="page"' : ''}>${label}</a>`).join('')}</nav>`;
+  return `${nav}${mode === 'puzzle' ? puzzleBody(p) : mode === 'tutorial' ? tutorialBody(p) : towerBody(p)}`;
+}
+
 /**
  * @param {object} p
  * @param {'config'|'users'|'monitor'|'stuck'} [p.tab]
  * config:  report, smtpProbe, mailConfigured
  * users:   users ({total, users[]} | {error} | null when accounts are off)
  * monitor: monitor ({current, history}), version
- * stuck:   stuck ({current, month, player, report, attempts} - PlayEvents.towerReport / playerAttempts)
+ * stuck:   stuck: { mode: 'tower', current, month, player, report, attempts } (PlayEvents.towerReport / playerAttempts),
+ *          { mode: 'puzzle', days, player, report, attempts } (puzzleReport), { mode: 'tutorial', version, current, report } (tutorialReport)
  * all:     csrf, notice ({ok, text, html?})
  */
 function renderAdminPage(p) {
@@ -540,4 +751,7 @@ function renderAdminPage(p) {
   return layout({ tab, summary, notice: p.notice, body, extraHead: tab === 'monitor' ? '<link rel="stylesheet" href="/vendor-uplot.css">' : '' });
 }
 
-module.exports = { basicPassword, csrfToken, csrfValid, validRecipient, renderAdminPage, confirmDeleteHtml, monitorData, causeText, floorInfo };
+module.exports = {
+  basicPassword, csrfToken, csrfValid, validRecipient, renderAdminPage, confirmDeleteHtml, monitorData, causeText, floorInfo,
+  dayLabel, fmtSec, KIND_DE, FAULT_DE, STEP_DE, TUTORIAL_CAUSE_DE, PUZZLE_RANGES, PUZZLE_DEFAULT_DAYS,
+};

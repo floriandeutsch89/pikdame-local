@@ -44,12 +44,14 @@ const { createYearStatsStore } = require('./game/YearStatsStore');
 const { buildReview, isReviewSeason, yearOf } = require('./game/YearReview');
 const { createYearReviewMailer, composeReviewMail, sampleReview, REVIEW_MAIL_CONSENT_VERSION } = require('./game/YearReviewMail');
 const { SessionRegistry, sanitizeName } = require('./game/SessionRegistry');
-const { createPlayEvents, towerAttemptEvent, attemptOpen, nameKey } = require('./game/PlayEvents');
+const { createPlayEvents, attemptEvent, attemptOpen, nameKey } = require('./game/PlayEvents');
+const { createPuzzleAttempts } = require('./game/PuzzleAttempts');
+const { TUTORIAL_VERSION } = require('./game/TutorialSteps');
 
 const PORT = process.env.PORT || 8080;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const { createChallengeStore, seedForDate } = require('./game/ChallengeStore');
-const { gameDay } = require('./game/GameDay');
+const { gameDay, addDays } = require('./game/GameDay');
 const { createSecurityHeaders } = require('./game/SecurityHeaders');
 // One level for every challenge game, retries included (comparable board).
 // Medium, not zen: the daily is meant to be fun, not a grind.
@@ -102,8 +104,12 @@ const gameHistoryStore = createGameHistoryStore();
 // Stammtisch: persistent group tables (code -> members, record, series).
 // Scoped by code, so it stays on in public mode - see StammtischStore.
 const stammtischStore = createStammtischStore();
-// Kartenhaus attempts with the player's name, 90 days (admin "Festhänger").
+// Kartenhaus, puzzle and tutorial attempts with the player's name, 90 days (admin "Festhänger").
 const playEvents = createPlayEvents(db);
+// Open daily-puzzle attempts (live day, named, not in public mode); kept in the session snapshot.
+const puzzleAttempts = createPuzzleAttempts({ record: (event) => playEvents.record(event) });
+// Names one connection may track puzzle attempts for: a device has one, a spammer many.
+const PUZZLE_NAMES_PER_SOCKET = 5;
 
 // --- Absturz-Diagnose ------------------------------------------------------
 // Schreibt Fehler zusätzlich in eine Log-Datei, falls die Konsole in der
@@ -832,14 +838,28 @@ async function handleAdminRequest(req, res, filePath) {
   let stuck = null;
   if (tab === 'stuck') {
     const params = new URL(req.url, 'http://localhost').searchParams;
-    const current = BotTower.monthOf(gameDay());
-    const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(params.get('month') || '') ? params.get('month') : current;
+    const mode = ['puzzle', 'tutorial'].includes(params.get('mode')) ? params.get('mode') : 'tower';
     const player = sanitizeName(params.get('player') || '', 24);
-    const [report, attempts] = await Promise.all([
-      playEvents.towerReport(month),
-      player ? playEvents.playerAttempts(player) : null,
-    ]);
-    stuck = { current, month, player, report, attempts };
+    if (mode === 'puzzle') {
+      const days = AdminPage.PUZZLE_RANGES.includes(Number(params.get('days'))) ? Number(params.get('days')) : AdminPage.PUZZLE_DEFAULT_DAYS;
+      const to = gameDay();
+      const [report, attempts] = await Promise.all([
+        playEvents.puzzleReport({ from: addDays(to, 1 - days), to }),
+        player ? playEvents.playerAttempts(player, { mode }) : null,
+      ]);
+      stuck = { mode, days, player, report, attempts };
+    } else if (mode === 'tutorial') {
+      const version = /^v\d{1,4}$/.test(params.get('version') || '') ? params.get('version') : TUTORIAL_VERSION;
+      stuck = { mode, version, current: TUTORIAL_VERSION, report: await playEvents.tutorialReport(version) };
+    } else {
+      const current = BotTower.monthOf(gameDay());
+      const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(params.get('month') || '') ? params.get('month') : current;
+      const [report, attempts] = await Promise.all([
+        playEvents.towerReport(month),
+        player ? playEvents.playerAttempts(player) : null,
+      ]);
+      stuck = { mode, current, month, player, report, attempts };
+    }
   }
 
   res.writeHead(200, {
@@ -1345,12 +1365,12 @@ function trackWrite(promise) {
   return promise;
 }
 
-/** The end of a Kartenhaus attempt into play_attempts, in the background.
+/** The end of a Kartenhaus or tutorial attempt into play_attempts, in the background.
  *  `game` is the GameManager or a snapshot's state. Never throws. */
 function logAttempt(game, info, at = Date.now()) {
   if (PUBLIC_MODE) return; // no names are kept there (and no Kartenhaus)
   try {
-    const event = towerAttemptEvent(game, info, at);
+    const event = attemptEvent(game, info, at);
     if (event) playEvents.record(event);
   } catch (err) {
     logCrash('play-events', err);
@@ -1470,9 +1490,10 @@ function writeSessionsSnapshot({ quiet = false } = {}) {
     }
     // Skip the disk write when nothing changed since the last snapshot
     // (idle server, paused tables) - savedAt is left out of the comparison.
-    const body = JSON.stringify(snapshot);
+    // Open puzzle attempts ride along: they are the same kind of in-memory state.
+    const body = `"sessions":${JSON.stringify(snapshot)},"puzzleAttempts":${JSON.stringify(puzzleAttempts.serialize())}`;
     if (body === lastSnapshotBody) return;
-    fs.writeFileSync(`${SNAPSHOT_FILE}.tmp`, `{"savedAt":${Date.now()},"sessions":${body}}`, 'utf8');
+    fs.writeFileSync(`${SNAPSHOT_FILE}.tmp`, `{"savedAt":${Date.now()},${body}}`, 'utf8');
     fs.renameSync(`${SNAPSHOT_FILE}.tmp`, SNAPSHOT_FILE);
     lastSnapshotBody = body;
     if (!quiet) console.log(`Session-Snapshot geschrieben: ${snapshot.length} Session(s).`);
@@ -1489,7 +1510,9 @@ function restoreSessionsSnapshot() {
     return; // no snapshot - regular cold start
   }
   try {
-    const { savedAt, sessions } = JSON.parse(raw);
+    const { savedAt, sessions, puzzleAttempts: openPuzzles } = JSON.parse(raw);
+    // Any age: a puzzle day still running goes on, one that is over ends as abandoned.
+    puzzleAttempts.restore(openPuzzles, gameDay());
     const tooOld = typeof savedAt === 'number' && Date.now() - savedAt > SNAPSHOT_MAX_AGE_MS;
     if (tooOld) console.log('Session-Restore übersprungen: Snapshot ist zu alt.');
     let restored = 0;
@@ -1753,6 +1776,8 @@ async function closeChallengeAttempt(game) {
 // rewritten periodically so a hard kill loses at most one interval of play.
 const snapshotTimer = setInterval(() => writeSessionsSnapshot({ quiet: true }), SNAPSHOT_INTERVAL_MS);
 snapshotTimer.unref();
+// A puzzle day that is over ends its open attempts (abandoned, 'dayEnd'); never throws.
+setInterval(() => puzzleAttempts.sweep(gameDay()), 10 * 60 * 1000).unref();
 
 // Year-review mail (27.12. from 10:00 German time): the account store marks
 // each account+year as sent, so restarts and a 10-minute tick never mail twice.
@@ -2204,26 +2229,36 @@ wss.on('connection', (ws, req) => {
       const name = sanitizeName(msg.name);
       const withProfile = !PUBLIC_MODE && !!name && !archive;
       const fresh = { tries: 0, solved: false, revealed: false };
+      // play_attempts: the live day of a named player, a few names per connection.
+      if (!ws.puzzleNames) ws.puzzleNames = new Set();
+      const tracked = withProfile && (ws.puzzleNames.has(nameKey(name)) || ws.puzzleNames.size < PUZZLE_NAMES_PER_SOCKET);
+      if (tracked) ws.puzzleNames.add(nameKey(name));
+      const kind = puzzle.kind || 'meld';
       // Stars and the perfect run belong to the live day; an archive day shows the stars earned back then.
       const starInfo = async () => (PUBLIC_MODE || !name ? {} : {
         dayStars: await playerStore.puzzleStarsFor(name, date),
         perfectStreak: perfectStreakOn(await playerStore.getPlayerByName(name), today),
       });
       if (msg.type === 'checkPuzzleMeld') {
-        // Pure rules check of one laid meld: no try, star or attempt is recorded.
-        ws.send(JSON.stringify({ ...checkMeld(puzzle, msg.cardIds), date, type: 'puzzleMeldCheck' }));
+        // Pure rules check of one laid meld: no try or star; a refused one is a mistake of the attempt.
+        const check = checkMeld(puzzle, msg.cardIds);
+        if (tracked) puzzleAttempts.meldChecked(name, date, kind, check, await playerStore.puzzleStatus(name, date));
+        ws.send(JSON.stringify({ ...check, date, type: 'puzzleMeldCheck' }));
         return;
       }
       if (msg.type === 'getPuzzle') {
+        const status = withProfile ? await playerStore.puzzleStatus(name, date) : fresh;
+        if (tracked) puzzleAttempts.opened(name, date, kind, status);
         ws.send(JSON.stringify({
           type: 'puzzle', ...publicPuzzle(puzzle), archive, today, epoch: PUZZLE_EPOCH,
-          status: withProfile ? await playerStore.puzzleStatus(name, date) : fresh,
+          status,
           ...(await starInfo()),
         }));
         return;
       }
       if (msg.type === 'revealPuzzle') {
         const status = withProfile ? await playerStore.revealPuzzle(name, date) : { ...fresh, revealed: true };
+        if (tracked) puzzleAttempts.revealed(name, date, kind, status);
         const best = puzzle.best || { cardIds: [], melds: [], points: 0 };
         ws.send(JSON.stringify({ type: 'puzzleSolution', date, cardIds: best.cardIds, melds: best.melds || [best.cardIds], points: best.points, status, ...(withProfile ? await starInfo() : {}) }));
         return;
@@ -2235,7 +2270,8 @@ wss.on('connection', (ws, req) => {
       let streak = null;
       let badges = [];
       if (withProfile) {
-        status = await playerStore.recordPuzzleAttempt(name, date, result.solved, puzzle.kind || 'meld');
+        status = await playerStore.recordPuzzleAttempt(name, date, result.solved, kind);
+        if (tracked) puzzleAttempts.tried(name, date, kind, result, status);
         if (status.justSolved) {
           const after = await playerStore.addProgress(name, { xp: XP_FOR_SOLVED });
           xp = XP_FOR_SOLVED;
@@ -2472,6 +2508,12 @@ wss.on('connection', (ws, req) => {
       return sendError(ws, 'Dieser Platz wird inzwischen von jemand anderem gespielt.');
     }
 
+    // A refused move: the reason to the player; at a tutorial table it counts for the open lesson.
+    const refuse = (error) => {
+      sendError(ws, error);
+      if (game.tutorialMode) game.noteTutorialRefusal(playerId);
+    };
+
     switch (msg.type) {
       case 'startGame': {
         if (!game.isHost(playerId)) { sendError(ws, 'Nur der Organisator kann das Spiel starten.'); break; }
@@ -2563,28 +2605,28 @@ wss.on('connection', (ws, req) => {
       }
       case 'drawFromPile': {
         const r = game.drawFromPile(playerId);
-        if (r && r.error) sendError(ws, r.error);
+        if (r && r.error) refuse(r.error);
         break;
       }
       case 'drawFromDiscard': {
         const r = game.drawFromDiscard(playerId);
-        if (r && r.error) sendError(ws, r.error);
+        if (r && r.error) refuse(r.error);
         break;
       }
       case 'layoutMeld': {
         const r = game.layoutMeld(playerId, msg.cardIds, msg.jokerAssignments || {});
-        if (r && r.error) sendError(ws, r.error);
+        if (r && r.error) refuse(r.error);
         if (r && r.ambiguous) ws.send(JSON.stringify({ type: 'meldAmbiguous', cardIds: msg.cardIds, options: r.options }));
         break;
       }
       case 'layOffMulti': {
         const r = game.layOffCards(playerId, msg.meldId, msg.cardIds);
-        if (r && r.error) sendError(ws, r.error);
+        if (r && r.error) refuse(r.error);
         break;
       }
       case 'layOff': {
         const r = game.layOffCard(playerId, msg.meldId, msg.cardId, msg.asSuit, msg.side);
-        if (r && r.error) sendError(ws, r.error);
+        if (r && r.error) refuse(r.error);
         if (r && r.ambiguous) {
           ws.send(JSON.stringify({ type: 'layOffAmbiguous', meldId: msg.meldId, cardId: msg.cardId, options: r.options }));
         }
@@ -2592,12 +2634,18 @@ wss.on('connection', (ws, req) => {
       }
       case 'swapJoker': {
         const r = game.swapJoker(playerId, msg.meldId, msg.handCardId);
-        if (r && r.error) sendError(ws, r.error);
+        if (r && r.error) refuse(r.error);
         break;
       }
       case 'discard': {
         const r = game.discard(playerId, msg.cardId);
-        if (r && r.error) sendError(ws, r.error);
+        if (r && r.error) refuse(r.error);
+        break;
+      }
+      case 'tutorialStep': {
+        // Tutorial lesson reached/done or hints off (play_attempts): validated in the
+        // engine, its own progress only, never answered (nothing to learn from probing).
+        if (game.tutorialMode && typeof msg.status === 'string') game.tutorialStep(playerId, msg.step, msg.status);
         break;
       }
       case 'emote': {
@@ -2650,13 +2698,13 @@ wss.on('connection', (ws, req) => {
       }
       case 'undoMeld': {
         const r = game.undoMeldAction(playerId);
-        if (r && r.error) sendError(ws, r.error);
+        if (r && r.error) refuse(r.error);
         break;
       }
       case 'undoPileTake': {
         // Take-back of a discard-pile pickup while nothing has been played yet.
         const r = game.undoPileTake(playerId);
-        if (r && r.error) sendError(ws, r.error);
+        if (r && r.error) refuse(r.error);
         break;
       }
       case 'performCut': {
