@@ -89,6 +89,8 @@ test('server: team tables', async (t) => {
     assert.strictEqual(s.teamMode, true);
     assert.strictEqual(s.maxSeats, 4);
     assert.strictEqual(s.players.length, 4);
+    assert.strictEqual(s.targetScore, 2000, 'a team plays to 2000');
+    assert.deepStrictEqual(s.teamNames, [null, null]);
     assert.strictEqual(teamOf(s, anna), 0, 'the host sits in team A');
     assert.deepStrictEqual([...new Set(s.players.filter((p) => p.isBot).map((p) => p.botDifficulty))], ['hard'], 'one level for every bot');
 
@@ -107,6 +109,14 @@ test('server: team tables', async (t) => {
     assert.strictEqual(teamOf(st, anna), 0);
     assert.strictEqual(st.players.findIndex((p) => p.id === anna), 0, 'the host keeps the seat');
 
+    // Any human of a team names it; every seat gets the cleaned name.
+    const named = stateWhere(host, (x) => Array.isArray(x.teamNames) && x.teamNames[0] !== null);
+    guest.send(JSON.stringify({ type: 'setTeamName', teamName: '  Die   Löwen<b>' }));
+    assert.deepStrictEqual((await named).teamNames, ['Die Löwenb', null], 'cleaned like a player name');
+    const renamed = stateWhere(host, (x) => x.teamNames && x.teamNames[0] === 'Die Löwen');
+    host.send(JSON.stringify({ type: 'setTeamName', teamName: 'Die Löwen' }));
+    await renamed;
+
     // Only the host changes the mode.
     const refused = next(guest, 'error');
     guest.send(JSON.stringify({ type: 'setTeamMode', on: false }));
@@ -119,7 +129,9 @@ test('server: team tables', async (t) => {
     const back = stateWhere(again, () => true);
     again.send(JSON.stringify({ type: 'joinSession', code: sessionCode, name: 'Ben', playerId: ben, playerToken }));
     assert.strictEqual((await rejoined).playerId, ben);
-    assert.strictEqual(teamOf(await back, ben), 0, 'same team after the reconnect');
+    const backState = await back;
+    assert.strictEqual(teamOf(backState, ben), 0, 'same team after the reconnect');
+    assert.deepStrictEqual(backState.teamNames, ['Die Löwen', null], 'and the team name');
 
     // The host can switch the mode off and on in the lobby.
     const off = stateWhere(host, (x) => x.teamMode === false);
@@ -127,7 +139,9 @@ test('server: team tables', async (t) => {
     assert.strictEqual((await off).teams, null);
     const on = stateWhere(host, (x) => x.teamMode === true);
     host.send(JSON.stringify({ type: 'setTeamMode', on: true }));
-    assert.strictEqual((await on).players.length, 4);
+    const onState = await on;
+    assert.strictEqual(onState.players.length, 4);
+    assert.deepStrictEqual(onState.teamNames, [null, null], 'a new team table starts without names');
   });
 
   await t.test('the one-tap start deals "Du + Bot gegen 2 Bots" right away', async () => {
@@ -204,9 +218,10 @@ function nearlyFinishedTeamMatch() {
   assert.deepStrictEqual(g.teams().map((ids) => ids.filter((id) => !id.startsWith('bot-'))), [['pa', 'pb'], ['pc']]);
   g.setAllBotsDifficulty('medium');
   g.setHouseRules({ botPace: 'fast' });
+  g.setTeamName('pb', 'Die Löwen');
   g.startNewRound();
   if (g.phase === 'cutting') g.performCut(g.cutterId, 0.5);
-  Object.assign(g.totals, { pa: 900, pb: 900, pc: 100 }); // no round can stop team A now
+  Object.assign(g.totals, { pa: 1800, pb: 1800, pc: 200 }); // no round can stop team A now
   const states = [];
   for (let i = 0; i < 4000 && g.phase === 'playing'; i++) {
     states.push(JSON.stringify(g.serialize()));
@@ -264,6 +279,8 @@ test('server: a finished team match books a win for both teammates through the a
   ws.send(JSON.stringify({ type: 'getGameHistory', name: 'Anna' }));
   const [game] = (await history).games;
   assert.strictEqual(game.teamMode, true);
+  assert.deepStrictEqual(game.teamNames, ['Die Löwen', null], 'the team name lives on in "Meine Partien"');
+  assert.strictEqual(game.targetScore, 2000);
   assert.deepStrictEqual(game.winnerIds.slice().sort(), ['pa', 'pb']);
   assert.strictEqual(game.won, true);
   for (const [name, id, won] of [['Anna', 'pa', true], ['Ben', 'pb', true], ['Cleo', 'pc', false]]) {

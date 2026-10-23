@@ -9,6 +9,7 @@
 
 const { gameHour } = require('./GameDay');
 const { isRecordWinner, recordOpponentIds, teamIndexOf } = require('./Teams');
+const { GAME_END_THRESHOLD, gameEndThreshold } = require('./ScoreBoard');
 
 const BADGE_IDS = [
   'first_win', // first game won
@@ -50,8 +51,8 @@ const BADGE_IDS = [
   'cold_shower', // caught with BOTH Queens of Spades in one round
   'joker_king', // 4+ jokers melded in one round
   'quick_start', // went out in one ("Hand aus") in round 1
-  'near_miss', // lost a match by less than 20 points
-  'landslide', // won a match by 500+ points
+  'near_miss', // lost a match by less than 20 points (a team: 40, the margins scale with the target)
+  'landslide', // won a match by 500+ points (a team: 1000)
   'night_owl', // finished a match between 0:00 and 3:59 German time
   'stammtisch_10', // 10 matches at a Stammtisch
   'challenger_7', // 7 daily challenges played (tier 30 below)
@@ -185,9 +186,11 @@ function computeEarnedBadges(gameRecord, playerId, profile = {}, context = {}) {
     if (mine < 0) earned.push('rock_bottom');
     const tt = gameRecord.teamTotals;
     if (team >= 0 && Array.isArray(tt)) {
+      // A team plays to twice the target, so its margins are twice as wide.
+      const scale = (gameRecord.targetScore || gameEndThreshold(true)) / GAME_END_THRESHOLD;
       const gap = tt[team] - tt[1 - team];
-      if (!won && -gap < 20) earned.push('near_miss');
-      if (won && gap >= 500) earned.push('landslide');
+      if (!won && -gap < 20 * scale) earned.push('near_miss');
+      if (won && gap >= 500 * scale) earned.push('landslide');
     } else {
       const others = Object.entries(totals).filter(([pid]) => pid !== playerId).map(([, v]) => v);
       const winnerTotal = totals[gameRecord.winnerId];

@@ -6,6 +6,7 @@
 // Simulated games are no human moves: never log them (they filled the disk once).
 process.env.PIKDAME_LOG_GAMES = '0';
 const GameManager = require('../game/GameManager');
+const { xpForGame } = require('../game/Progression');
 
 function playGame(difficulties, mcSeats = [], mctsSeats = []) {
   const g = new GameManager(() => {});
@@ -172,9 +173,16 @@ function playTeamGame(level, awareTeam) {
     else break;
   }
   const info = g.gameOverInfo;
+  const xp = seatXp(g);
   g.destroy();
   if (g.phase !== 'gameOver' || !info) return null;
-  return { won: info.winnerTeam === awareTeam, rounds: info.totalRounds, turns: info.totalTurns };
+  return { won: info.winnerTeam === awareTeam, rounds: info.totalRounds, turns: info.totalTurns, xp };
+}
+
+/** Mean XP a seat books for the finished match (Progression.xpForGame). */
+function seatXp(g) {
+  const rec = g.lastGameRecord;
+  return rec ? mean(g.players.map((p) => xpForGame(rec, p.id))) : 0;
 }
 
 // A/B for the team-aware bot context: the aware team's win share, sides
@@ -220,13 +228,15 @@ function lengths() {
   for (const [label, play] of modes) {
     const rounds = [];
     const turns = [];
+    const xp = [];
     for (let i = 0; i < games; i++) {
       const r = play();
       if (!r) continue;
       rounds.push(r.rounds);
       turns.push(r.turns);
+      xp.push(r.xp);
     }
-    console.log(`  ${label.padEnd(9)}: ${mean(rounds).toFixed(2)} +/- ${stderr(rounds).toFixed(2)} rounds, ${mean(turns).toFixed(1)} +/- ${stderr(turns).toFixed(1)} turns`);
+    console.log(`  ${label.padEnd(9)}: ${mean(rounds).toFixed(2)} +/- ${stderr(rounds).toFixed(2)} rounds, ${mean(turns).toFixed(1)} +/- ${stderr(turns).toFixed(1)} turns, ${mean(xp).toFixed(1)} +/- ${stderr(xp).toFixed(1)} XP per seat`);
   }
 }
 
@@ -248,8 +258,9 @@ function playLength(levels) {
     else break;
   }
   const info = g.gameOverInfo;
+  const xp = seatXp(g);
   g.destroy();
-  return g.phase === 'gameOver' && info ? { rounds: info.totalRounds, turns: info.totalTurns } : null;
+  return g.phase === 'gameOver' && info ? { rounds: info.totalRounds, turns: info.totalTurns, xp } : null;
 }
 
 if (process.argv.includes('--team')) {

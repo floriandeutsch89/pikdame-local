@@ -75,7 +75,7 @@ flowchart LR
 
 | | |
 | --- | --- |
-| Game ends at | **1000** points |
+| Game ends at | **1000** points ("2 gegen 2": **2000** shared points per team) |
 | `handAusDoubles` (default) | `false` - going out in one turn doubles the round score |
 | `strictThreshold` (default) | `false` - if true the game ends only *above* 1000, not *at* it |
 

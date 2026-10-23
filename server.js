@@ -2631,6 +2631,12 @@ wss.on('connection', (ws, req) => {
         if (r && r.error) sendError(ws, r.error);
         break;
       }
+      case 'setTeamName': {
+        // Any human of the team, lobby only; the engine cleans the name and limits the changes.
+        const r = game.setTeamName(playerId, msg.teamName);
+        if (r && r.error) sendError(ws, r.error);
+        break;
+      }
       case 'nextRound': {
         // Ready check: the round continues once every connected human
         // confirmed - nobody gets rushed past the round statistics.

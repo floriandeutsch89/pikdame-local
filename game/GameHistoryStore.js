@@ -89,8 +89,8 @@ function historyForPlayer(allGames, name, limit = 20) {
         winnerId: g.winnerId,
         won: !!(me && isRecordWinner(g, me.id)),
         myScore: me ? (g.finalTotals || {})[me.id] : undefined,
-        // "2 gegen 2": the seating, both winners and the shared totals.
-        ...(g.teamMode ? { teamMode: true, teams: g.teams, winnerIds: g.winnerIds, winnerTeam: g.winnerTeam, teamTotals: g.teamTotals } : {}),
+        // "2 gegen 2": the seating, both winners, the shared totals, the names and the target.
+        ...(g.teamMode ? { teamMode: true, teams: g.teams, winnerIds: g.winnerIds, winnerTeam: g.winnerTeam, teamTotals: g.teamTotals, teamNames: g.teamNames || null, targetScore: g.targetScore || null } : {}),
       };
     });
 }

@@ -9,7 +9,7 @@ const GameManager = require('../game/GameManager');
 const Teams = require('../game/Teams');
 const Bot = require('../game/Bot');
 const MoveLogger = require('../game/MoveLogger');
-const { checkTeamGameOver } = require('../game/ScoreBoard');
+const { checkGameOver, checkTeamGameOver, gameEndThreshold, GAME_END_THRESHOLD, TEAM_GAME_END_THRESHOLD } = require('../game/ScoreBoard');
 const { makeStandardCard: card, makeJoker } = require('../game/Card');
 const { xpForGame, evaluateQuests, XP_BASE, XP_WIN } = require('../game/Progression');
 const { computeEarnedBadges } = require('../game/Badges');
@@ -76,14 +76,23 @@ test('Teams: seats alternate teams, partners sit opposite, records name both win
   assert.equal(Teams.isRecordWinner(null, 'a'), false);
 });
 
-test('checkTeamGameOver: threshold, strict rule, both teams past 1000, ties play on', () => {
-  assert.deepEqual(checkTeamGameOver([990, 400]), { gameOver: false });
-  assert.deepEqual(checkTeamGameOver([1000, 400]), { gameOver: true, winnerTeam: 0 });
-  assert.deepEqual(checkTeamGameOver([1000, 400], { strictThreshold: true }), { gameOver: false });
-  assert.deepEqual(checkTeamGameOver([400, 1005], { strictThreshold: true }), { gameOver: true, winnerTeam: 1 });
-  assert.deepEqual(checkTeamGameOver([1020, 1100]), { gameOver: true, winnerTeam: 1 }, 'both over: the higher total wins');
-  assert.deepEqual(checkTeamGameOver([1050, 1050]), { gameOver: false, tieBreak: true, tiedScore: 1050 });
-  assert.deepEqual(checkTeamGameOver([500, 500]), { gameOver: false }, 'a tie below the line is no tie-break');
+test('checkTeamGameOver: a team plays to 2000, strict needs more, both teams past it, ties play on', () => {
+  assert.equal(TEAM_GAME_END_THRESHOLD, 2 * GAME_END_THRESHOLD, 'one derivation, no second literal');
+  assert.equal(gameEndThreshold(true), 2000);
+  assert.equal(gameEndThreshold(false), 1000);
+  assert.deepEqual(checkTeamGameOver([1990, 400]), { gameOver: false });
+  assert.deepEqual(checkTeamGameOver([1500, 1200]), { gameOver: false }, 'the solo target ends no team match');
+  assert.deepEqual(checkTeamGameOver([2000, 400]), { gameOver: true, winnerTeam: 0 });
+  assert.deepEqual(checkTeamGameOver([2000, 400], { strictThreshold: true }), { gameOver: false }, 'strict: exactly 2000 is not enough');
+  assert.deepEqual(checkTeamGameOver([400, 2005], { strictThreshold: true }), { gameOver: true, winnerTeam: 1 });
+  assert.deepEqual(checkTeamGameOver([2000, 2000], { strictThreshold: true }), { gameOver: false }, 'strict: both at the line is no end and no tie-break');
+  assert.deepEqual(checkTeamGameOver([2020, 2100]), { gameOver: true, winnerTeam: 1 }, 'both over: the higher total wins');
+  assert.deepEqual(checkTeamGameOver([2010, 2005], { strictThreshold: true }), { gameOver: true, winnerTeam: 0 });
+  assert.deepEqual(checkTeamGameOver([2050, 2050]), { gameOver: false, tieBreak: true, tiedScore: 2050 }, 'both over and equal: one more round');
+  assert.deepEqual(checkTeamGameOver([2010, 2010], { strictThreshold: true }), { gameOver: false, tieBreak: true, tiedScore: 2010 });
+  assert.deepEqual(checkTeamGameOver([1000, 1000]), { gameOver: false }, 'a tie below the line is no tie-break');
+  // A normal table still ends at 1000.
+  assert.deepEqual(checkGameOver({ a: 1000, b: 10 }), { gameOver: true, winnerId: 'a', finalTotals: { a: 1000, b: 10 } });
 });
 
 test('a team table has four seats crosswise, and the teams take turns alternately', () => {
@@ -150,7 +159,7 @@ test('"Hand aus" with its house rule doubles every seat as always - both team su
   g.destroy();
 });
 
-test('game end: the first team past 1000 wins with both players; strict needs more; a tie plays on', () => {
+test('game end: the first team past 2000 wins with both players; strict needs more; a tie plays on', () => {
   const finish = (totals, houseRules = {}) => {
     const g = teamTable(4);
     g.setHouseRules(houseRules);
@@ -163,31 +172,51 @@ test('game end: the first team past 1000 wins with both players; strict needs mo
     }, 'p1');
     return g;
   };
-  const won = finish({ p1: 600, p3: 390, p2: 300, p4: 300 }); // A 990 + 10 = 1000
+  const solo = finish({ p1: 600, p3: 390, p2: 300, p4: 300 }); // A 990 + 10 = 1000: the solo line
+  assert.equal(solo.phase, 'roundEnd', 'a team plays on past 1000');
+  assert.equal(solo.publicState('p1').targetScore, 2000);
+  solo.destroy();
+
+  const won = finish({ p1: 1200, p3: 790, p2: 600, p4: 600 }); // A 1990 + 10 = 2000
   assert.equal(won.phase, 'gameOver');
   const gi = won.gameOverInfo;
   assert.equal(gi.teamMode, true);
   assert.equal(gi.winnerTeam, 0);
   assert.deepEqual(gi.winnerIds, ['p1', 'p3']);
   assert.equal(gi.winnerId, null, 'no single winner');
-  assert.deepEqual(gi.teamTotals, [1000, 600]);
+  assert.deepEqual(gi.teamTotals, [2000, 1200]);
+  assert.equal(gi.targetScore, 2000);
   assert.deepEqual(gi.teams, [['p1', 'p3'], ['p2', 'p4']]);
   assert.ok(won.log.some((e) => e.text === 'Spiel beendet! Gewinner: Team P1 & P3'));
   won.destroy();
 
-  const strict = finish({ p1: 600, p3: 390, p2: 300, p4: 300 }, { strictThreshold: true });
-  assert.equal(strict.phase, 'roundEnd', 'exactly 1000 is not enough under the strict rule');
+  const strict = finish({ p1: 1200, p3: 790, p2: 600, p4: 600 }, { strictThreshold: true });
+  assert.equal(strict.phase, 'roundEnd', 'exactly 2000 is not enough under the strict rule');
   strict.destroy();
 
-  const tie = finish({ p1: 600, p3: 440, p2: 500, p4: 550 }); // A 1040 + 10 = 1050 = B 1050
-  assert.equal(tie.phase, 'roundEnd', 'equal team totals: one more round');
-  assert.ok(tie.log.some((e) => e.text === 'Gleichstand bei 1050 Punkten (Team P1 & P3 und Team P2 & P4) - es wird eine weitere Runde gespielt.'));
+  const tie = finish({ p1: 1200, p3: 840, p2: 1000, p4: 1050 }); // A 2040 + 10 = 2050 = B 2050
+  assert.equal(tie.phase, 'roundEnd', 'both past the line with equal totals: one more round');
+  assert.ok(tie.log.some((e) => e.text === 'Gleichstand bei 2050 Punkten (Team P1 & P3 und Team P2 & P4) - es wird eine weitere Runde gespielt.'));
   tie.destroy();
 
-  const both = finish({ p1: 600, p3: 400, p2: 600, p4: 500 }); // A 1010, B 1100: both over, B higher
+  const both = finish({ p1: 1200, p3: 800, p2: 1100, p4: 1000 }); // A 2010, B 2100: both over, B higher
   assert.equal(both.phase, 'gameOver');
   assert.equal(both.gameOverInfo.winnerTeam, 1, 'both teams past the line: the higher total wins');
   both.destroy();
+
+  // The final-stretch call comes at 80 % of the team target.
+  const call = (total) => {
+    const g = teamTable(4);
+    deal(g);
+    Object.assign(g.totals, { p1: total, p3: 0, p2: 0, p4: 0 });
+    endRound(g, { p1: { laid: [card('H', '2', 0), card('D', '2', 0)], hand: [] }, p2: { laid: [], hand: [] }, p3: { laid: [], hand: [] }, p4: { laid: [], hand: [] } }, 'p1');
+    deal(g);
+    const line = g.log.map((e) => e.text).find((t) => t.startsWith('⚠️ Endspurt'));
+    g.destroy();
+    return line;
+  };
+  assert.equal(call(1000), undefined, 'no call at the solo stretch');
+  assert.equal(call(1600), '⚠️ Endspurt! Team P1 & P3 steht bei 1610 Punkten - ab 2000 endet das Spiel.');
 });
 
 test('onGameOver: a team win counts for both teammates, the score stays each player\'s own', () => {
@@ -195,20 +224,22 @@ test('onGameOver: a team win counts for both teammates, the score stays each pla
   let record = null;
   const g = teamTable(4, { onGameOver: (r, rec) => { results = r; record = rec; } });
   deal(g);
-  Object.assign(g.totals, { p1: 700, p3: 290, p2: 100, p4: 100 });
+  Object.assign(g.totals, { p1: 1400, p3: 590, p2: 200, p4: 200 });
   endRound(g, { p1: { laid: [card('H', '2', 0), card('D', '2', 0)], hand: [] }, p2: { laid: [], hand: [] }, p3: { laid: [], hand: [] }, p4: { laid: [], hand: [] } }, 'p1');
   const byId = Object.fromEntries(results.map((r) => [r.id, r]));
   assert.equal(byId.p1.won, true);
   assert.equal(byId.p3.won, true, 'the partner wins too');
   assert.equal(byId.p2.won, false);
-  assert.equal(byId.p3.score, 290, 'own total, not the team sum');
+  assert.equal(byId.p3.score, 590, 'own total, not the team sum');
   assert.equal(byId.p2.facts.lastPlace, true, 'the losing team is last');
   assert.equal(byId.p3.facts.lastPlace, false);
   assert.equal(record.teamMode, true);
   assert.equal(record.winnerId, null);
   assert.deepEqual(record.winnerIds, ['p1', 'p3']);
-  assert.deepEqual(record.teamTotals, [1000, 200]);
+  assert.deepEqual(record.teamTotals, [2000, 400]);
   assert.deepEqual(record.teams, [['p1', 'p3'], ['p2', 'p4']]);
+  assert.equal(record.targetScore, 2000);
+  assert.deepEqual(record.teamNames, [null, null]);
   g.destroy();
 });
 
@@ -220,8 +251,10 @@ function teamRecord(overrides = {}) {
     winnerId: null,
     winnerIds: ['a', 'c'],
     winnerTeam: 0,
-    teamTotals: [1100, 560],
-    finalTotals: { a: 600, c: 500, b: 300, d: 260 },
+    teamTotals: [2200, 1120],
+    teamNames: ['Die Löwen', null],
+    targetScore: 2000,
+    finalTotals: { a: 1200, c: 1000, b: 600, d: 520 },
     players: [
       { id: 'a', name: 'Anna', isBot: false },
       { id: 'b', name: 'Ben', isBot: false },
@@ -230,7 +263,7 @@ function teamRecord(overrides = {}) {
     ],
     rounds: [
       { roundNumber: 1, winnerId: 'b', results: {}, totalsAfter: { a: 10, b: 120, c: 30, d: 60 }, teamTotalsAfter: [40, 180] },
-      { roundNumber: 2, winnerId: 'a', results: {}, totalsAfter: { a: 600, b: 300, c: 500, d: 260 }, teamTotalsAfter: [1100, 560] },
+      { roundNumber: 2, winnerId: 'a', results: {}, totalsAfter: { a: 1200, b: 600, c: 1000, d: 520 }, teamTotalsAfter: [2200, 1120] },
     ],
     finishedAt: Date.UTC(2026, 9, 23, 12),
     ...overrides,
@@ -239,12 +272,12 @@ function teamRecord(overrides = {}) {
 
 test('XP and quests: both winners get the win bonus on their own score; a Zen partner is no Zen win', () => {
   const rec = teamRecord();
-  assert.equal(xpForGame(rec, 'a'), XP_BASE + XP_WIN + 60);
-  assert.equal(xpForGame(rec, 'c'), XP_BASE + XP_WIN + 50, 'the partner gets the win bonus');
-  assert.equal(xpForGame(rec, 'b'), XP_BASE + 30, 'the losers keep base + own score');
+  assert.equal(xpForGame(rec, 'a'), XP_BASE + XP_WIN + 120);
+  assert.equal(xpForGame(rec, 'c'), XP_BASE + XP_WIN + 100, 'the partner gets the win bonus');
+  assert.equal(xpForGame(rec, 'b'), XP_BASE + 60, 'the losers keep base + own score');
   assert.deepEqual(evaluateQuests(rec, 'c', ['win_game', 'beat_zen']), { win_game: 1, beat_zen: 1 }, 'beat the Zen opponent');
   const zenPartner = teamRecord({
-    winnerIds: ['b', 'd'], winnerTeam: 1, teamTotals: [560, 1100],
+    winnerIds: ['b', 'd'], winnerTeam: 1, teamTotals: [1120, 2200],
     players: [
       { id: 'a', name: 'Anna', isBot: false }, { id: 'b', name: 'Ben', isBot: false },
       { id: 'c', name: 'Cleo', isBot: false }, { id: 'd', name: 'Uwe', isBot: true, botDifficulty: 'zen' },
@@ -263,19 +296,22 @@ test('badges: team win tiers for both, Zen badges only against Zen, comeback and
   for (const earned of [a, c]) {
     assert.ok(earned.includes('first_win'), 'a team win is a win');
     assert.ok(earned.includes('comeback'), 'the team was behind after round 1');
-    assert.ok(earned.includes('landslide'), 'won by 540 team points');
+    assert.ok(earned.includes('landslide'), 'won by 1080 team points');
     assert.ok(earned.includes('zen_slayer'), 'beat a Zen opponent');
     assert.ok(!earned.includes('zen_trio'));
   }
   const b = computeEarnedBadges(rec, 'b', {});
-  assert.ok(!b.includes('first_win') && !b.includes('near_miss'), 'lost by 540: no near miss');
+  assert.ok(!b.includes('first_win') && !b.includes('near_miss'), 'lost by 1080: no near miss');
 
-  const close = teamRecord({ teamTotals: [1005, 990] });
-  assert.ok(computeEarnedBadges(close, 'b', {}).includes('near_miss'), 'lost by 15 team points');
+  // The margins scale with the target: twice the solo 20 and 500 for a team.
+  const close = teamRecord({ teamTotals: [2005, 1970] });
+  assert.ok(computeEarnedBadges(close, 'b', {}).includes('near_miss'), 'lost by 35 team points (< 40)');
   assert.ok(!computeEarnedBadges(close, 'a', { gamesWon: 1 }).includes('landslide'));
+  assert.ok(!computeEarnedBadges(teamRecord({ teamTotals: [2005, 1960] }), 'b', {}).includes('near_miss'), 'lost by 45: no near miss');
+  assert.ok(!computeEarnedBadges(teamRecord({ teamTotals: [2100, 1560] }), 'a', { gamesWon: 1 }).includes('landslide'), 'won by 540: no landslide at a team table');
 
   // Team B wins with its Zen bot: Ben beat no Zen.
-  const zenPartner = teamRecord({ winnerIds: ['b', 'd'], winnerTeam: 1, teamTotals: [560, 1100] });
+  const zenPartner = teamRecord({ winnerIds: ['b', 'd'], winnerTeam: 1, teamTotals: [1120, 2200] });
   const ben = computeEarnedBadges(zenPartner, 'b', { gamesWon: 1 });
   assert.ok(ben.includes('first_win'));
   assert.ok(!ben.includes('zen_slayer'), 'a Zen partner is no Zen win');
@@ -375,6 +411,93 @@ test('leaving the lobby keeps everyone else\'s team: a bot takes the very seat',
   assert.ok(g.players[1].isBot, 'the seat went to a bot in place');
   assert.equal(seatOf(g, 'p1'), 0);
   assert.equal(g.players.length, 4);
+  g.destroy();
+});
+
+test('team names: any human of the team, cleaned like a player name, lobby only; a team left to bots keeps none', () => {
+  const cleaned = (raw) => {
+    const t = teamTable(1);
+    t.setTeamName('p1', raw);
+    const name = t.teamNames[0];
+    t.destroy();
+    return name;
+  };
+  assert.equal(cleaned('  Die   Löwen  '), 'Die Löwen', 'trimmed, whitespace collapsed');
+  assert.equal(cleaned('<b>Tiger</b>&"co"'), 'bTigerbco', 'markup characters never get through');
+  assert.equal(cleaned('x'.repeat(40)), 'x'.repeat(16), 'the player-name limit');
+  assert.equal(cleaned('abcdefghijklmno pq'), 'abcdefghijklmno', 'no blank left at the cut');
+  assert.equal(cleaned('  <> '), null, 'nothing left: no name');
+  assert.equal(cleaned(42), null, 'not a string: no name');
+
+  let record = null;
+  const g = teamTable(2, { onGameOver: (r, rec) => { record = rec; } }); // p1: A, p2: B
+  assert.deepEqual(g.publicState('p1').teamNames, [null, null]);
+  assert.deepEqual(g.setTeamName('p1', 'Die Löwen'), { ok: true });
+  assert.deepEqual(g.publicState('p2').teamNames, ['Die Löwen', null], 'every seat sees it');
+  assert.match(g.setTeamName(g.players[2].id, 'Bots').error, /nicht an diesem Tisch/, 'a bot names nothing');
+
+  // A team without a human keeps no name (switch, leave); any human of a team may rename it.
+  assert.deepEqual(g.setTeamName('p2', 'Tiger'), { ok: true });
+  assert.deepEqual(g.switchTeam('p2'), { ok: true });
+  assert.deepEqual(g.teamNames, ['Die Löwen', null], 'team B is all bots now');
+  assert.deepEqual(g.setTeamName('p2', 'Wir zwei'), { ok: true }, 'the partner renames the own team');
+  g.addOrReconnectPlayer('p3', 'P3');
+  assert.equal(g.teamOf('p3'), 1);
+  g.setTeamName('p3', 'Tiger');
+  assert.deepEqual(g.leaveLobby('p3'), { ok: true });
+  assert.deepEqual(g.teamNames, ['Wir zwei', null], 'left to the bots again');
+  g.setTeamMode(false);
+  assert.equal(g.publicState('p1').teamNames, null);
+  g.setTeamMode(true);
+  assert.deepEqual(g.teamNames, [null, null], 'switching the mode off clears the names');
+
+  // The names hold through a reconnect and the match, name the team in the log and land in the record.
+  g.setTeamName('p1', 'Die Löwen');
+  g.markDisconnected('p2');
+  g.addOrReconnectPlayer('p2', 'P2');
+  assert.deepEqual(g.teamNames, ['Die Löwen', null], 'a reconnect keeps the name');
+  deal(g);
+  assert.match(g.setTeamName('p1', 'Später').error, /vor Spielbeginn/);
+  for (const p of g.players) g.totals[p.id] = 0;
+  g.totals.p1 = 2100;
+  endRound(g, { p1: { laid: [card('H', '2', 0), card('D', '2', 0)], hand: [] } }, 'p1');
+  assert.equal(g.phase, 'gameOver');
+  assert.ok(g.log.some((e) => e.text === 'Spiel beendet! Gewinner: Team Die Löwen'));
+  assert.deepEqual(g.gameOverInfo.teamNames, ['Die Löwen', null]);
+  assert.deepEqual(record.teamNames, ['Die Löwen', null]);
+  g.prepareRematch();
+  assert.deepEqual(g.teamNames, ['Die Löwen', null], 'the rematch keeps the name');
+  g.destroy();
+});
+
+test('team names: a few changes per team and minute; the limit is never persisted', () => {
+  const g = teamTable(2);
+  const t0 = 1e12;
+  for (let i = 1; i <= GameManager.TEAM_NAME_CHANGES; i++) assert.deepEqual(g.setTeamName('p1', `Team ${i}`, t0 + i), { ok: true });
+  assert.match(g.setTeamName('p1', 'Noch einer', t0 + 10).error, /Zu viele Namensänderungen/);
+  assert.deepEqual(g.setTeamName('p1', `Team ${GameManager.TEAM_NAME_CHANGES}`, t0 + 11), { ok: true }, 'the same name again costs nothing');
+  assert.deepEqual(g.setTeamName('p2', 'Tiger', t0 + 12), { ok: true }, 'the other team has its own limit');
+  assert.deepEqual(g.setTeamName('p1', 'Später', t0 + GameManager.TEAM_NAME_WINDOW_MS + 2), { ok: true }, 'a minute later it works again');
+
+  const snap = JSON.parse(JSON.stringify(g.serialize()));
+  assert.ok(!('_teamNameChanges' in snap), 'the rate limit is transient');
+  const back = new GameManager(() => {});
+  back.deserialize(snap);
+  assert.deepEqual(back.teamNames, ['Später', 'Tiger'], 'the names survive a restart');
+  assert.deepEqual(back._teamNameChanges, [[], []]);
+  assert.deepEqual(back.publicState('p1').teamNames, ['Später', 'Tiger']);
+  back.destroy();
+  // A tampered or older snapshot: names pass the cleaner again, missing ones are none.
+  const tampered = new GameManager(() => {});
+  tampered.deserialize({ ...snap, teamNames: ['<img src=x onerror=alert(1)>', 42] });
+  assert.deepEqual(tampered.teamNames, ['img srcx onerror', null]);
+  tampered.destroy();
+  const older = new GameManager(() => {});
+  const { teamNames, ...withoutNames } = snap;
+  assert.ok(teamNames);
+  older.deserialize(withoutNames);
+  assert.deepEqual(older.teamNames, [null, null]);
+  older.destroy();
   g.destroy();
 });
 
@@ -554,7 +677,7 @@ for (const level of ['easy', 'medium', 'hard', 'zen']) {
     assert.equal(g.gameOverInfo.teamMode, true);
     assert.equal(g.gameOverInfo.winnerIds.length, 2);
     const tt = g.gameOverInfo.teamTotals;
-    assert.ok(Math.max(...tt) >= 1000 && tt[g.gameOverInfo.winnerTeam] > tt[1 - g.gameOverInfo.winnerTeam]);
+    assert.ok(Math.max(...tt) >= 2000 && tt[g.gameOverInfo.winnerTeam] > tt[1 - g.gameOverInfo.winnerTeam]);
     g.destroy();
   });
 }
@@ -594,7 +717,9 @@ test('"Meine Partien" and the year review: both teammates won, the partner is no
   assert.equal(cleo.won, true);
   assert.equal(cleo.teamMode, true);
   assert.deepEqual(cleo.winnerIds, ['a', 'c']);
-  assert.deepEqual(cleo.teamTotals, [1100, 560]);
+  assert.deepEqual(cleo.teamTotals, [2200, 1120]);
+  assert.deepEqual(cleo.teamNames, ['Die Löwen', null]);
+  assert.equal(cleo.targetScore, 2000);
   const [ben] = historyForPlayer([{ id: 'g1', ...rec }], 'Ben');
   assert.equal(ben.won, false);
 
@@ -602,9 +727,9 @@ test('"Meine Partien" and the year review: both teammates won, the partner is no
   try {
     const years = createYearStatsStore(path.join(dir, 'years.json'));
     const results = [
-      { id: 'a', name: 'Anna', won: true, score: 600 },
-      { id: 'b', name: 'Ben', won: false, score: 300 },
-      { id: 'c', name: 'Cleo', won: true, score: 500 },
+      { id: 'a', name: 'Anna', won: true, score: 1200 },
+      { id: 'b', name: 'Ben', won: false, score: 600 },
+      { id: 'c', name: 'Cleo', won: true, score: 1000 },
     ];
     years.recordFinishedGame(results, rec.players, '2026-10-23', { teams: rec.teams });
     years.flushSync();
@@ -617,6 +742,8 @@ test('"Meine Partien" and the year review: both teammates won, the partner is no
 
 test('MCP: a team table reads its teams, legal moves come from the same engine, the lobby offers a switch', () => {
   const g = teamTable(2);
+  g.setTeamName('p1', 'Die Löwen');
+  g.setTeamName('p2', 'Tiger');
   const lobby = g.publicState('p1');
   assert.ok(legalActions(lobby, 'p1').some((a) => a.key === 'switchTeam' && a.msg.type === 'switchTeam'));
   // The host picks the mode, a guest only switches team.
@@ -631,17 +758,18 @@ test('MCP: a team table reads its teams, legal moves come from the same engine, 
   while (g.phase === 'playing' && g.currentPlayer().id !== 'p1') step(g);
   const st = g.publicState('p1');
   const text = renderState(st, 'p1');
-  assert.match(text, /Team game \(2 vs 2\): team A YOU \+ /);
-  assert.match(text, /\[team B, opponent/);
+  assert.match(text, /Team game \(2 vs 2\): team A "Die Löwen" YOU \+ /);
+  assert.match(text, /\[team B "Tiger", opponent/);
+  assert.match(text, /A team wins at 2000 shared points/);
   const partner = g.partnerOf('p1');
-  assert.ok(text.includes(`${partner.name} [team A, your partner`), 'the partner is named as such');
+  assert.ok(text.includes(`${partner.name} [team A "Die Löwen", your partner`), 'the partner is named as such');
   const actions = legalActions(st, 'p1');
   assert.ok(actions.length > 0, 'moves are offered on a team table');
   assert.ok(actions.every((a) => a.msg && typeof a.msg.type === 'string'));
 
   // Round end names the team sums; game over names the winning team from the seat's view.
   for (const p of g.players) g.totals[p.id] = 0;
-  g.totals.p1 = 1000;
+  g.totals.p1 = 2000;
   const rival = g.players.find((p) => g.teamOf(p.id) === 1 && p.id !== 'p2');
   endRound(g, {
     p1: { laid: [card('H', '7', 0), card('D', '7', 0), card('S', '7', 0)], hand: [] }, // +15
@@ -650,8 +778,8 @@ test('MCP: a team table reads its teams, legal moves come from the same engine, 
     [rival.id]: { laid: [], hand: [card('C', '3', 0)] }, // -5
   }, 'p1');
   assert.equal(g.phase, 'gameOver');
-  assert.ok(renderState(g.publicState('p2'), 'p2').includes(`GAME OVER: team A (P1 + ${partner.name}) wins 1005 to -10 - your team lost.`));
-  assert.ok(renderState(g.publicState('p1'), 'p1').includes(`GAME OVER: team A (YOU + ${partner.name}) wins 1005 to -10 - your team won.`));
+  assert.ok(renderState(g.publicState('p2'), 'p2').includes(`GAME OVER: team A "Die Löwen" (P1 + ${partner.name}) wins 2005 to -10 - your team lost.`));
+  assert.ok(renderState(g.publicState('p1'), 'p1').includes(`GAME OVER: team A "Die Löwen" (YOU + ${partner.name}) wins 2005 to -10 - your team won.`));
   g.destroy();
 
   const r = teamTable(4);
@@ -663,6 +791,8 @@ test('MCP: a team table reads its teams, legal moves come from the same engine, 
     p4: { laid: [card('H', 'A', 0), card('D', 'A', 0), card('S', 'A', 0)], hand: [] }, // +60
   }, 'p1');
   assert.match(renderState(r.publicState('p3'), 'p3'), /Round result: P1 \+15, P2 -5, P3 -10, P4 \+60 \(team A \+5, team B \+55\)/);
+  r.houseRules.strictThreshold = true;
+  assert.match(renderState(r.publicState('p3'), 'p3'), /A team wins above 2000 shared points/);
   r.destroy();
 });
 
@@ -677,6 +807,9 @@ test('a normal table carries no team fields and keeps its single winner', () => 
   const st = g.publicState('p1');
   assert.equal(st.teamMode, false);
   assert.equal(st.teams, null);
+  assert.equal(st.teamNames, null);
+  assert.equal(st.targetScore, 1000);
+  assert.match(g.setTeamName('p1', 'Solo').error, /2 gegen 2/);
   deal(g);
   playToEnd(g);
   assert.equal(g.gameOverInfo.teamMode, undefined);
@@ -697,10 +830,11 @@ test('i18n: every team-mode refusal and log line has an English pattern', () => 
   g.addOrReconnectPlayer('p3', 'P3');
   assert.deepEqual(g.teams(), [['p1', 'p3'], ['p2', 'bot-3']]);
   texts.push(g.switchTeam('p2').error, g.setMaxSeats(3).error, g.setBotDifficulty('p1', g.players.find((p) => p.isBot).id, 'zen').error);
+  for (let i = 0; i <= GameManager.TEAM_NAME_CHANGES; i++) texts.push(g.setTeamName('p2', `Name ${i}`).error);
   deal(g);
-  texts.push(g.setTeamMode(false).error, g.switchTeam('p1').error);
+  texts.push(g.setTeamMode(false).error, g.switchTeam('p1').error, g.setTeamName('p1', 'Später').error);
   endRound(g, { p1: { laid: [card('H', '2', 0), card('D', '2', 0)], hand: [] } }, 'p1');
-  Object.assign(g.totals, { p1: 1040, p2: 990, p3: 0 });
+  Object.assign(g.totals, { p1: 2040, p2: 1900, p3: 0 });
   g.totals[g.players[3].id] = 50;
   texts.push(...g.log.slice(-2).map((e) => e.text));
   g.startNewRound();
@@ -719,7 +853,8 @@ test('i18n: every team-mode refusal and log line has an English pattern', () => 
   texts.push('Am Stammtisch gibt es „2 gegen 2“ noch nicht - die Bilanz zählt dort jeden für sich.'); // server.js
   assert.ok(texts.some((t) => /^Spiel beendet! Gewinner: Team /.test(t)), 'the game-over line was collected');
   assert.ok(texts.some((t) => /^⚠️ Endspurt! Team /.test(t)), 'the final-stretch line was collected');
-  for (const text of texts) assert.ok(text && translated(text), `no English pattern for: ${text}`);
+  assert.ok(texts.some((t) => /^Zu viele Namensänderungen/.test(t || '')), 'the rate-limit refusal was collected');
+  for (const text of texts.filter((t) => t !== undefined)) assert.ok(translated(text), `no English pattern for: ${text}`);
 });
 
 test('jokers still never leave a bot hand by discard (team table, joker-heavy hand)', () => {

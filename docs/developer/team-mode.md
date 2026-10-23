@@ -16,12 +16,18 @@ engine lives in `GameManager` (flag `teamMode`).
   hand minus, ♠Q 100, a swapped joker 20, no minus for whoever goes out). A
   team's round result is the sum of its two seats. The house rule "Hand aus
   zählt doppelt" doubles every seat's round score as always, so both team sums
-  double. The other round ends (empty draw pile, 160 turns without a meld, a
-  deadlock) score per seat as always, then sum.
-- **Game end:** a team reaches 1000 shared points (house rule "streng": more
-  than 1000). If both teams cross the line in the same round, the higher total
-  wins. Equal totals play one more round - the tie rule for two players,
-  applied to the two teams (`ScoreBoard.checkTeamGameOver`).
+  double (decided: stays so). The other round ends (empty draw pile, 160 turns
+  without a meld, a deadlock) score per seat as always, then sum.
+- **Game end at 2000:** a team reaches 2000 shared points, twice the solo
+  target (`ScoreBoard.TEAM_GAME_END_THRESHOLD = 2 * GAME_END_THRESHOLD`, the
+  only place; `gameEndThreshold(teamMode)`, `game.targetScore()` and
+  `publicState.targetScore` derive from it). Two seats feed one total, so each
+  seat's own total stays on the solo scale (about 1000 for a winner). House
+  rule "streng": more than 2000. If both teams cross the line in the same
+  round, the higher total wins. Equal totals play one more round - the tie
+  rule for two players, applied to the two teams
+  (`ScoreBoard.checkTeamGameOver`). The "Endspurt" call comes at 80 % of the
+  target (1600).
 - **Rematch:** the winning team's top scorer deals the first round.
 
 ## Who plays
@@ -38,6 +44,16 @@ engine lives in `GameManager` (flag `teamMode`).
   team included; a reconnect returns to the same seat.
 - **"Du + Bot gegen 2 Bots":** `createSession` with `teamMode` and
   `quickStart` deals right away with the remembered bot level.
+- **Team names (optional):** in the lobby any human of a team may name it
+  (`setTeamName` with `teamName`). The name is cleaned like a player name
+  (`sanitizeName`: letters, digits, blank and `._-!?`, 16 characters,
+  whitespace collapsed, trimmed); empty clears it. At most five changes per
+  team and minute (`TEAM_NAME_CHANGES`, `TEAM_NAME_WINDOW_MS`, transient). A
+  team without a human keeps no name, switching the mode off clears both. The
+  names hold through reconnects, the match and the rematch, survive a restart
+  (a restored name passes the cleaner again) and reach every seat
+  (`publicState.teamNames`, game over, the record, "Meine Partien", the MCP
+  view); the log calls a named team "Team <Name>".
 - **Never** in the daily challenge, the Kartenhaus, the tutorial or the daily
   puzzle (no table there). The constructor ignores the option for solo games
   and `setTeamMode` refuses them.
@@ -57,32 +73,31 @@ mid-game is booked for nobody, as in a normal match. Per badge and quest:
 | XP | 10 + 50 for a team win (both teammates) + the player's **own** final total / 10. The team sum would pay every point twice. |
 | Wins, streaks, losses (purple heart), quest `win_game`, the ladder's `won` | the team result, for both |
 | `comeback` | the own team was behind after round 1 and won |
-| `landslide`, `near_miss` | team totals: won by 500 or more / lost by less than 20 |
+| `landslide`, `near_miss` | team totals, the margins scaled to the target: won by 1000 or more / lost by less than 40 (solo: 500 / 20) |
 | `zen_slayer`, `zen_trio`, quest `beat_zen` | only Zen bots of the other team count; a Zen partner is no Zen win (`zen_trio` needs three Zen opponents, so never at a team table) |
 | `red_lantern` (last place) | the losing team is last, as at a two-player table |
-| `score_500`, quest `score_400`, `rock_bottom` | the player's own total |
+| `score_500`, quest `score_400`, `rock_bottom` | the player's own total (on the solo scale, see the target) |
 | Everything per round (hand aus, queens, jokers, runs, pile glutton, round 300, ...) | unchanged: the player's own facts |
 | Year review | the partner is no opponent |
 
 ### Is it farmable?
 
 Match length in self-play (600 games per mode, all bots medium,
-`node scripts/sim-bots.js --lengths`):
+`node scripts/sim-bots.js --lengths`; XP: the mean a seat books per match):
 
-| Mode | Rounds | Turns (all seats) |
-| --- | --- | --- |
-| 1 vs 1 | 6.66 ± 0.05 | 133 ± 1 |
-| 4 players | 7.04 ± 0.05 | 204 ± 2 |
-| 2 vs 2 | 4.24 ± 0.03 | 121 ± 1 |
+| Mode | Rounds | Turns (all seats) | XP per seat |
+| --- | --- | --- | --- |
+| 1 vs 1 | 6.66 ± 0.05 | 134.5 ± 1.1 | 129.7 ± 0.4 |
+| 4 players | 7.07 ± 0.05 | 202.2 ± 1.5 | 104.2 ± 0.5 |
+| 2 vs 2 (to 2000) | 8.22 ± 0.05 | 236.2 ± 1.4 | 131.1 ± 0.4 |
 
-A team match is short: two seats feed one total. A player alone with three
-bots wins half the matches at equal strength, like a 1-vs-1 table, but plays
-about 30 own turns per match instead of about 66. Estimated with 10 s per own
-turn and 1 s per bot turn, that is roughly twice the wins per hour of 1 vs 1
-and about a quarter more XP per hour (the score part is the own total, about
-half of a 1-vs-1 total). No damping in v1: win tiers and streaks are earned
-once, and the XP per hour stays in the range that the choice of table size
-already spans.
+A player alone with three bots wins half the team matches at equal strength,
+like a 1-vs-1 table, and plays about 59 own turns per match (1 vs 1: 67).
+Estimated with 10 s per own turn and 1 s per bot turn: 12.8 min per team
+match against 12.3 min at 1 vs 1, so 2.3 against 2.4 wins and about 615
+against 630 XP per hour. A team table pays like a 1-vs-1 table. (At the
+first target of 1000 a team match took 4.2 rounds and paid about twice the
+wins per hour; the 2000 target removed that.) Decided: no damping in v1.
 
 ## Bots
 
@@ -116,12 +131,14 @@ already spans.
   (the seat object), `game.teams()` (`[[A ids], [B ids]]`) and
   `game.teamTotals()` (`[A, B]`); all `null` outside team mode. Pure helpers in
   `game/Teams.js` (`teamOfSeat`, `partnerSeat`, `teamsOf`, `teamSums`,
-  `isRecordWinner`, ...).
-- `publicState`: `teamMode`, `teams`, `teamTotals`, and `teamTotals` per
-  entry of `scoreHistory`.
+  `isRecordWinner`, ...). `game.targetScore()`: 2000 at a team table, else 1000.
+- `publicState`: `teamMode`, `teams`, `teamTotals`, `teamNames`
+  (`[A, B]`, `null` for none), `targetScore`, and `teamTotals` per entry of
+  `scoreHistory`.
 - Round history: `teamScores` and `teamTotalsAfter` per round. Game over and
   the match record: `teamMode`, `teams`, `winnerTeam`, `winnerIds`,
-  `teamTotals`, and `winnerId: null` - nothing credits one teammate alone.
+  `teamTotals`, `teamNames`, `targetScore`, and `winnerId: null` - nothing
+  credits one teammate alone.
 - Move log rows: `teamMode: 1`, `team`, `teamTotals`, and `won`/`rank` by
   team; the row's `state` names `team` and `teamTotals`, every entry of
   `state.opponents` its `team` (the partner shares the decider's).

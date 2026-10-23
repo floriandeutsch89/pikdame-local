@@ -150,7 +150,7 @@ const MSG_GROUPS = [
       'getPuzzle', 'solvePuzzle', 'revealPuzzle', 'startChallenge', 'startTutorial', 'getTower', 'startTower',
       'createStammtisch', 'getStammtisch', 'listStammtische', 'leaveStammtisch', 'deleteStammtisch', 'getYearReview']],
   ['Lobby', 'Only valid while the table is in the `lobby` phase; most of them host-only.',
-    ['setName', 'ready', 'lobbyReady', 'startGame', 'setMaxSeats', 'setTeamMode', 'switchTeam', 'reorderSeats', 'setDealer', 'setBotDifficulty', 'setHouseRules', 'leaveLobby']],
+    ['setName', 'ready', 'lobbyReady', 'startGame', 'setMaxSeats', 'setTeamMode', 'switchTeam', 'setTeamName', 'reorderSeats', 'setDealer', 'setBotDifficulty', 'setHouseRules', 'leaveLobby']],
   ['Your turn', 'The moves. The server rejects every one of them with a reason when it is not your turn or the rules say no.',
     ['performCut', 'drawFromPile', 'drawFromDiscard', 'layoutMeld', 'layOff', 'layOffMulti', 'swapJoker', 'undoMeld', 'undoPileTake', 'discard']],
   ['Table talk and votes', 'Allowed from any seat at any time during a match.',
@@ -185,6 +185,7 @@ const MSG_NOTES = {
   setMaxSeats: 'Host only: change the number of seats (2-4; a team table keeps 4).',
   setTeamMode: 'Host only: switch "2 gegen 2" on (`on: true`) or off. Four seats, teams crosswise (seats 0+2 against 1+3), the humans spread over both teams, every bot on one level. Refused at a Stammtisch and in the solo modes.',
   switchTeam: 'Team table, lobby: move to a bot seat of the other team (refused when none is free).',
+  setTeamName: 'Team table, lobby: any human of a team names it (`teamName`, cleaned like a player name, empty clears it; a few changes per team and minute). A team without a human keeps no name.',
   reorderSeats: 'Host only: change the seating order.',
   setDealer: 'Host only: choose the dealer.',
   setBotDifficulty: 'Host only: set a bot seat\'s difficulty (easy, medium, hard, zen). Refused at a team table, where every bot plays the same level.',
@@ -400,7 +401,7 @@ ${edges}
 
 | | |
 | --- | --- |
-| Game ends at | **${ScoreBoard.GAME_END_THRESHOLD}** points |
+| Game ends at | **${ScoreBoard.GAME_END_THRESHOLD}** points ("2 gegen 2": **${ScoreBoard.TEAM_GAME_END_THRESHOLD}** shared points per team) |
 | \`handAusDoubles\` (default) | \`${hr.handAusDoubles}\` - going out in one turn doubles the round score |
 | \`strictThreshold\` (default) | \`${hr.strictThreshold}\` - if true the game ends only *above* ${ScoreBoard.GAME_END_THRESHOLD}, not *at* it |
 

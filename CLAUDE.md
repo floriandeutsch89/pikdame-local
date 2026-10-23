@@ -180,7 +180,8 @@ Kombination verschont eine Karte); Anlegbarkeit berechtigt nie zur Aufnahme
 Joker ab (außer als letzte Karte). Punkte: 2–9=5, 10/B/D/K=10, Ass/Joker=20,
 ♠Q=100. Ende ab 1000 (Hausregel „streng“: >1000). `gameOverInfo` trägt
 `totalTurns`/`totalRounds` (aus `gameTurnCount`). „2 gegen 2“: Regeln am Tisch
-unverändert, jeder Sitz gewertet wie sonst, die Teamsumme entscheidet.
+unverändert, jeder Sitz gewertet wie sonst, die Teamsumme entscheidet; Ziel
+2000 (`TEAM_GAME_END_THRESHOLD`, nie als Literal).
 
 **Bot-Messdisziplin:** Winrate nie aus einem kleinen Lauf; `node
 scripts/sim-bots.js` mit Mittel ± Standardfehler über viele Batches. Null-/

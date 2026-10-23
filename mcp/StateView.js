@@ -21,7 +21,9 @@ function renderState(state, myId) {
   const teams = state.teamMode && Array.isArray(state.teams) ? state.teams : null;
   const teamOf = (id) => (teams ? teams.findIndex((ids) => ids.includes(id)) : -1);
   const myTeam = teamOf(myId);
-  const teamName = (t) => `team ${t === 0 ? 'A' : 'B'}`;
+  // Optional names the players gave their teams in the lobby (quoted: player text).
+  const named = Array.isArray(state.teamNames) ? state.teamNames : [];
+  const teamName = (t) => `team ${t === 0 ? 'A' : 'B'}${named[t] ? ` "${named[t]}"` : ''}`;
   lines.push('Players (total score, cards in hand):');
   for (const p of state.players) {
     const team = teamOf(p.id);
@@ -31,7 +33,8 @@ function renderState(state, myId) {
   }
   if (teams) {
     const tt = state.teamTotals || [0, 0];
-    lines.push(`Team game (2 vs 2): ${teams.map((ids, t) => `${teamName(t)} ${ids.map((id) => (id === myId ? 'YOU' : playerName(state, id))).join(' + ')} = ${tt[t] || 0} pts`).join(' | ')}. A team wins at 1000 shared points; everyone still lays off and swaps jokers only on their OWN melds.`);
+    const strict = !!(state.houseRules && state.houseRules.strictThreshold);
+    lines.push(`Team game (2 vs 2): ${teams.map((ids, t) => `${teamName(t)} ${ids.map((id) => (id === myId ? 'YOU' : playerName(state, id))).join(' + ')} = ${tt[t] || 0} pts`).join(' | ')}. A team wins ${strict ? 'above' : 'at'} ${state.targetScore} shared points; everyone still lays off and swaps jokers only on their OWN melds.`);
   }
 
   if (me && me.hand) {
