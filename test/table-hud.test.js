@@ -240,7 +240,7 @@ test('settings sheet: four groups (plus "Dieser Tisch" at the table), language i
     [...g.querySelectorAll('[id]')].map((n) => n.id).filter((id) => /Checkbox$|Select$|Btn$/.test(id) && id !== 'celebrationPreviewBtn'),
   ]);
   assert.deepEqual(groups, [
-    ['Dieser Tisch', ['tableRulesBtn', 'tableLogBtn']],
+    ['Dieser Tisch', ['towerPanelBtn', 'tableRulesBtn', 'tableLogBtn']],
     ['Ton', ['soundCheckbox', 'musicLevelSelect', 'musicTrackSelect']],
     ['Darstellung', ['uiScaleSelect', 'cardbackBtn', 'fullscreenCheckbox', 'celebrationSelect']],
     ['Spielhilfen', ['tutorialHintsCheckbox', 'aidTipsCheckbox', 'aidDiscardCheckbox', 'aidLayOffCheckbox', 'aidLowCardsCheckbox', 'botQuipsCheckbox']],

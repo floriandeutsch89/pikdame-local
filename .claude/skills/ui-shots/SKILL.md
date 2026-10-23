@@ -82,9 +82,13 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   (new deals or head starts never break the scene), or a floor number.
   The floor card is in full for the first own turn (`--turns 0`) and folded
   from the second; `--fold full|compact` stores the player's own choice
-  instead, `--tap <selector>` taps something before the shot (e.g.
-  `'#towerBar .tbFold'` to see a fold settle; `--tap-freeze 120` holds every
-  animation at 120 ms, a frame mid-glide).
+  instead, `--fold hidden` the card taken off the table by its ✕. `--tap
+  <selector>` taps something before the shot (e.g. `'#towerBar .tbFold'` to
+  see a fold settle; `'a;b'` taps in order, e.g. `'#settingsBtn;#towerPanelBtn'`
+  for the gear's way back to a hidden card; `--tap-freeze 120` holds every
+  animation at 120 ms, a frame mid-glide); `--tag x` names the variant in the
+  file name. `--plain` plays the same deal and turns as a normal table (no
+  Kartenhaus fields): the "normal table" to `--measure` a floor against.
   `--stammtische 0-3` sets
   the remembered Stammtische (default 1; 3 is the start screen's tallest
   form). Any order works:

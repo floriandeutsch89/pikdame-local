@@ -445,7 +445,7 @@ test('fold: a tap unfolds or folds and is remembered on every floor; the card st
   assert.deepStrictEqual([...t.errors, ...u.errors, ...v.errors], []);
 });
 
-test('fold: card and tokens glide to their new places, never with reduced motion', () => {
+test('fold: card, tokens and ✕ glide to their new places, never with reduced motion', () => {
   const stage = floorWith(['queen', 'noDiscard', 'goOut']);
   const run = (still) => {
     const t = boot({ storage: INTRO_SEEN, still });
@@ -463,13 +463,231 @@ test('fold: card and tokens glide to their new places, never with reduced motion
     return { t, glides };
   };
   const moving = run(false);
-  assert.deepStrictEqual(moving.glides.map((g) => g[0].split(' ')[0]).sort(), ['tfCard', 'tfTok', 'tfTok', 'tfTok']);
+  // The ✕ sits beside the tokens when folded: it moves with them instead of jumping.
+  assert.deepStrictEqual(moving.glides.map((g) => g[0].split(' ')[0]).sort(), ['tbHide', 'tfCard', 'tfTok', 'tfTok', 'tfTok']);
   assert.ok(moving.glides.every((g) => g[1] === '40px 0px'), 'each starts where it was');
   const still = run(true);
   assert.deepStrictEqual(still.glides, [], 'prefers-reduced-motion: it simply folds');
   still.t.click(still.t.$('#towerBar .tbFold'));
   assert.ok(!still.t.folded());
   assert.ok(!still.t.$('#towerBar').classList.contains('tbUnfold'), 'and unfolds without the fade');
+});
+
+const HIDDEN = { pikdame_tower_hidden: '1' };
+const withoutTower = (st) => Object.fromEntries(Object.entries(st).filter(([k]) => !k.startsWith('tower')));
+
+test('hide: the ✕ takes the floor card off the table - the normal table\'s layout; the lock and its refusal stay', () => {
+  const stage = floorWith(['queen', 'noDiscard', 'goOut']);
+  const t = boot({ storage: INTRO_SEEN });
+  t.join();
+  const mine = towerTable(stage, 1);
+  t.feed(mine);
+  const hide = t.$('#towerBar .tbHide');
+  assert.strictEqual(hide.tagName, 'BUTTON');
+  assert.strictEqual(hide.getAttribute('aria-label'), 'Kartenhaus-Etage ausblenden');
+  assert.ok(!hide.closest('.tbCard') && !hide.closest('.tbFold'), 'a target of its own, never inside the card or the fold');
+  assert.ok(!t.shown('towerPanelBtn'), 'while the card is on the table the gear sheet needs no way back');
+  hide.focus(); // as from the keyboard
+  t.click(hide.querySelector('svg'));
+  const table = t.doc.getElementById('table');
+  assert.ok(!t.shown('towerBar'), 'off the table');
+  assert.strictEqual(t.doc.activeElement, t.$('#settingsBtn'), 'the focus moves on to the way back, not to nowhere');
+  // The same state without its Kartenhaus fields is a normal table: the layout classes match.
+  const plain = boot();
+  plain.join('NORMAL1');
+  plain.feed(withoutTower(mine));
+  assert.ok(!table.classList.contains('towerGame'));
+  assert.strictEqual(table.className, plain.doc.getElementById('table').className, 'the normal table\'s layout');
+  assert.strictEqual(t.window.localStorage.getItem('pikdame_tower_hidden'), '1', 'remembered');
+  assert.strictEqual(t.window.localStorage.getItem('pikdame_tower_fold'), null, 'the fold choice is left alone');
+  assert.strictEqual(t.$('#toastContainer').textContent, 'Etage ausgeblendet – zurück über das Zahnrad oben rechts.');
+  assert.ok(t.shown('towerPanelBtn'), 'the gear sheet now has the way back');
+  // Rule cues stay: the lock on the pile, and a tap on it explains instead of asking the server.
+  const pile = t.$('#discardPile');
+  assert.ok(pile.classList.contains('towerLocked'));
+  assert.ok(pile.querySelector('#discardLock'), 'the lock token sits on the pile');
+  t.click(t.$('#discardTopCard'));
+  assert.strictEqual(t.sent('drawFromDiscard').length, 0);
+  assert.match(t.$('#toastContainer').textContent, /^Erschwernis „Ohne Ablage“: Auf dieser Etage ziehst du immer vom Stapel/);
+  // The next turns: still off the table.
+  t.feed(towerTable(stage, 2));
+  assert.ok(!t.shown('towerBar') && !table.classList.contains('towerGame'));
+
+  // A reload or the next floor: hidden from the first paint; a noDiscard floor still shows its lock.
+  const r = boot({ storage: { ...INTRO_SEEN, ...HIDDEN } });
+  r.join();
+  r.feed(towerTable(floorWith(['noDiscard']), 1));
+  assert.ok(!r.shown('towerBar'));
+  assert.ok(!r.doc.getElementById('table').classList.contains('towerGame'));
+  assert.ok(r.$('#discardPile').classList.contains('towerLocked'), 'the lock never hides');
+  assert.ok(r.shown('towerPanelBtn'));
+  // The start card of a new try is untouched; after "Los" the card stays off the table.
+  const s = boot({ storage: HIDDEN });
+  s.join('TRYH');
+  s.feed(towerTable(floorWith(['goOut']), 0));
+  assert.ok(s.shown('towerStart'), 'the start card still explains the floor');
+  s.click(s.$('#towerStartBtn'));
+  assert.ok(!s.shown('towerStart') && !s.shown('towerBar'));
+  // A normal table never offers the row, whatever is stored.
+  const n = boot({ storage: HIDDEN });
+  n.join('NORMAL2');
+  n.feed(withoutTower(mine));
+  assert.ok(!n.shown('towerPanelBtn'));
+
+  t.doc.getElementById('langBtn').click();
+  assert.deepStrictEqual([t.$('#towerPanelBtn .prefLabel').textContent, t.$('#towerPanelBtn .prefValue').textContent],
+    ['House of Cards floor', 'Show']);
+  assert.deepStrictEqual([...t.errors, ...plain.errors, ...r.errors, ...s.errors, ...n.errors], []);
+});
+
+test('hide: a fold choice from before stays valid - hiding keeps it, showing brings it back as it was', () => {
+  const stage = floorWith(['queen', 'noDiscard', 'goOut']);
+  for (const fold of ['compact', 'full']) {
+    const t = boot({ storage: { ...INTRO_SEEN, pikdame_tower_fold: fold } });
+    t.join();
+    t.feed(towerTable(stage, 1));
+    assert.ok(t.shown('towerBar'), `${fold}: an old fold value never hides the card`);
+    assert.strictEqual(t.folded(), fold === 'compact');
+    t.click(t.$('#towerBar .tbHide'));
+    assert.ok(!t.shown('towerBar'));
+    assert.strictEqual(t.window.localStorage.getItem('pikdame_tower_fold'), fold, 'one key per concern');
+    t.click(t.$('#towerPanelBtn'));
+    t.click(t.$('#towerFloorShowBtn'));
+    assert.ok(t.shown('towerBar'));
+    assert.strictEqual(t.folded(), fold === 'compact', `${fold}: back as it was`);
+    assert.strictEqual(t.window.localStorage.getItem('pikdame_tower_hidden'), null);
+    assert.deepStrictEqual(t.errors, []);
+  }
+  // Only '1' hides: any other value leaves the card on the table.
+  const u = boot({ storage: { ...INTRO_SEEN, pikdame_tower_hidden: 'yes' } });
+  u.join();
+  u.feed(towerTable(stage, 1));
+  assert.ok(u.shown('towerBar'));
+  // Without storage (private mode) the choice holds for the session.
+  const p = boot({ storage: INTRO_SEEN });
+  p.join();
+  p.feed(towerTable(stage, 1));
+  for (const fn of ['getItem', 'setItem', 'removeItem']) p.window.Storage.prototype[fn] = () => { throw new Error('blocked'); };
+  p.click(p.$('#towerBar .tbHide'));
+  p.feed(towerTable(stage, 2));
+  assert.ok(!p.shown('towerBar'), 'still off the table');
+  p.click(p.$('#towerPanelBtn'));
+  p.click(p.$('#towerFloorShowBtn'));
+  assert.ok(p.shown('towerBar'));
+  assert.deepStrictEqual([...u.errors, ...p.errors], []);
+});
+
+test('restore via the menu: the gear row opens the floor\'s rules - Pik Dame and Selbst ausmachen included - and "Am Tisch anzeigen"', () => {
+  const stage = floorWith(['queen', 'noDiscard', 'goOut']);
+  const { handicap } = BotTower.stageConfig(stage, MONTH);
+  const t = boot({ storage: { ...INTRO_SEEN, ...HIDDEN } });
+  t.join();
+  t.feed(towerTable(stage, 2));
+  assert.ok(!t.shown('towerBar'));
+  t.click(t.$('#settingsBtn'));
+  assert.ok(t.shown('settingsOverlay'), 'the gear opens the one "Optionen" sheet');
+  const row = t.$('#towerPanelBtn');
+  assert.ok(t.shown('towerPanelBtn'));
+  assert.ok(row.classList.contains('prefRow') && !row.closest('.overlay').classList.contains('hidden'), 'a row of the sheet the gear opens');
+  assert.strictEqual(row.closest('.prefGroup').id, 'tableOptions', 'in "Dieser Tisch"');
+  assert.strictEqual(row.parentElement.firstElementChild, row, 'leading the group');
+  assert.ok(row.querySelector('.prefChevron'), 'a navigation row: its chevron');
+  assert.deepStrictEqual([row.querySelector('.prefLabel').textContent, row.querySelector('.prefValue').textContent],
+    ['Kartenhaus-Etage', 'Anzeigen']);
+  t.click(row);
+  assert.ok(row.closest('.overlay').classList.contains('hidden'), 'the gear sheet makes way');
+  assert.ok(t.shown('towerFloorOverlay'));
+  const body = t.$('#towerFloorBody').textContent;
+  assert.match(body, /Pik Dame auf der Hand: Du startest mit der Pik Dame auf der Hand\. Ausgelegt bringt sie \+100/);
+  assert.match(body, /Selbst ausmachen: Sterne gibt es nur, wenn du die Runde selbst beendest/);
+  assert.match(body, /Ohne Ablage: Du darfst die Ablage nie aufnehmen/);
+  assert.match(body, new RegExp(`Vorgabe ${handicap}: Für einen Stern`));
+  assert.match(body, /1 Stern: selbst ausmachen und mehr Punkte als jeder Bot/);
+  assert.ok(t.shown('towerFloorShowBtn'));
+  // "Weiterspielen" only closes: the card stays off the table.
+  t.click(t.$('#towerFloorCloseBtn'));
+  assert.ok(!t.shown('towerFloorOverlay') && !t.shown('towerBar'));
+  // "Am Tisch anzeigen": back beside the piles, on every floor from now on.
+  t.click(t.$('#settingsBtn'));
+  t.click(t.$('#towerPanelBtn'));
+  t.click(t.$('#towerFloorShowBtn span'));
+  assert.ok(!t.shown('towerFloorOverlay'));
+  assert.ok(t.shown('towerBar'));
+  assert.ok(t.doc.getElementById('table').classList.contains('towerGame'));
+  assert.strictEqual(t.window.localStorage.getItem('pikdame_tower_hidden'), null);
+  assert.ok(!t.shown('towerPanelBtn'), 'the row goes with the need');
+  // From the card the sheet has no "Am Tisch anzeigen": the card is on the table.
+  t.click(t.$('#towerBar .tbCard'));
+  assert.ok(t.shown('towerFloorOverlay'));
+  assert.ok(!t.shown('towerFloorShowBtn'));
+  t.click(t.$('#towerFloorCloseBtn'));
+
+  // English: the ✕, the row and the sheet's button.
+  const e = boot({ storage: { ...INTRO_SEEN, ...HIDDEN, pikdame_lang: 'en' } });
+  e.join();
+  e.feed(towerTable(stage, 2));
+  assert.deepStrictEqual([e.$('#towerPanelBtn .prefLabel').textContent, e.$('#towerPanelBtn .prefValue').textContent],
+    ['House of Cards floor', 'Show']);
+  e.click(e.$('#towerPanelBtn'));
+  assert.strictEqual(e.$('#towerFloorShowBtn span').textContent, 'Show at the table');
+  assert.match(e.$('#towerFloorBody').textContent, /Go out yourself: Stars only if you end the round yourself/);
+  e.click(e.$('#towerFloorShowBtn'));
+  assert.strictEqual(e.$('#towerBar .tbHide').getAttribute('aria-label'), 'Hide the House of Cards floor');
+  assert.deepStrictEqual([...t.errors, ...e.errors], []);
+});
+
+test('hide: a 120 ms fade, then the piles glide for 130 ms and the gear turns - all at once with reduced motion', () => {
+  const stage = floorWith(['noDiscard']);
+  const run = (still) => {
+    const t = boot({ storage: INTRO_SEEN, still });
+    const anims = [];
+    t.window.HTMLElement.prototype.animate = function (frames, opts) {
+      const a = { el: this, frames, opts, onfinish: null, cancelled: false, cancel() { this.cancelled = true; } };
+      anims.push(a);
+      return a;
+    };
+    // jsdom has no layout: with the floor card beside them, the piles sit 50 px further right.
+    t.window.HTMLElement.prototype.getBoundingClientRect = function () {
+      const x = this.closest('#centerPiles') && t.doc.getElementById('table').classList.contains('towerGame') ? 50 : 0;
+      return { left: x, top: 0, right: x + 10, bottom: 10, width: 10, height: 10, x, y: 0 };
+    };
+    t.join();
+    t.feed(towerTable(stage, 1));
+    anims.length = 0; // only what the ✕ starts
+    t.click(t.$('#towerBar .tbHide'));
+    return { t, anims };
+  };
+  const { t, anims } = run(false);
+  const table = t.doc.getElementById('table');
+  const fade = anims.find((a) => a.el.id === 'towerBar');
+  assert.ok(fade, 'the card fades');
+  assert.deepStrictEqual([...fade.frames].map((f) => f.opacity), [1, 0]); // spread: the page's arrays are another realm
+  assert.ok(t.$('#settingsBtn').classList.contains('towerNudge'), 'the gear turns: that is where it went');
+  assert.ok(t.shown('towerBar') && table.classList.contains('towerGame'), 'the layout waits for the fade');
+  t.feed(towerTable(stage, 1)); // a bot's state mid-fade does not cut it short
+  assert.ok(t.shown('towerBar'));
+  fade.onfinish();
+  assert.ok(!t.shown('towerBar') && !table.classList.contains('towerGame'));
+  assert.ok(fade.cancelled, 'no fill left behind for the way back');
+  const glides = anims.filter((a) => a.el.id === 'drawPile' || a.el.id === 'discardPile');
+  assert.deepStrictEqual(glides.map((a) => a.el.id).sort(), ['discardPile', 'drawPile']);
+  assert.ok(glides.every((a) => a.frames[0].translate === '50px 0px'), 'each starts where it was');
+  assert.ok(fade.opts.duration + Math.max(...glides.map((a) => a.opts.duration)) <= 250, 'the whole move within 250 ms');
+  // The way back deals the card in again.
+  t.click(t.$('#towerPanelBtn'));
+  t.click(t.$('#towerFloorShowBtn'));
+  assert.ok(t.$('#towerBar').classList.contains('tfEnter'));
+
+  const still = run(true);
+  const ours = (a) => ['towerBar', 'drawPile', 'discardPile'].includes(a.el.id) || !!a.el.closest('#opponents');
+  assert.deepStrictEqual(still.anims.filter(ours), [], 'prefers-reduced-motion: gone at once');
+  assert.ok(!still.t.shown('towerBar') && !still.t.doc.getElementById('table').classList.contains('towerGame'));
+  assert.ok(!still.t.$('#settingsBtn').classList.contains('towerNudge'));
+  still.t.click(still.t.$('#towerPanelBtn'));
+  still.t.click(still.t.$('#towerFloorShowBtn'));
+  assert.ok(still.t.shown('towerBar'));
+  assert.ok(!still.t.$('#towerBar').classList.contains('tfEnter'), 'and back without the deal');
+  assert.deepStrictEqual([...t.errors, ...still.t.errors], []);
 });
 
 // jsdom has no stylesheet: the CSS that carries these promises is checked at the source.
@@ -521,4 +739,40 @@ test('style contract: the floor card costs no meld or hand space, two targets of
   assert.match(rule('.towerStart'), /--text-muted: rgba\(0, 0, 0, 0\.62\)/, 'the start card is paper: the paper muted ink');
   // The marked queen uses the coach spotlight, never the selection or draw colour.
   assert.match(rule('#hand .card.towerSpot'), /var\(--coach\)/);
+});
+
+test('style contract: the ✕ is a 44 px target in a corner of its own; hidden, nothing of the floor card shapes the table', () => {
+  const css = fs.readFileSync(path.join(pub, 'style.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const rule = (sel, from = css) => {
+    const m = new RegExp(`(?:^|[\\n}])\\s*${sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\{`).exec(from);
+    assert.ok(m, `rule ${sel}`);
+    const i = m.index + m[0].length;
+    return from.slice(i, from.indexOf('}', i));
+  };
+  const px = (s, name) => Number((s.match(new RegExp(`${name}: (\\d+)px`)) || [])[1]);
+  const land = css.slice(css.lastIndexOf('@media (orientation: landscape) and (max-height: 540px)'));
+  const desk = [...css.matchAll(/@media \(min-width: 1100px\) and \(min-height: 541px\) \{[^@]*/g)]
+    .map((m) => m[0]).find((b) => b.includes('#table.towerGame {'));
+  assert.ok(desk, 'the desktop Kartenhaus block');
+  // Its own 44 px button in the bar's top right corner, above the card.
+  assert.match(rule('.tbHide'), /grid-area: 1 \/ 1; justify-self: end; align-self: start; z-index: 2;/);
+  assert.match(rule('.tbHide'), /width: var\(--tap-min\); height: var\(--tap-min\)/);
+  // The corner stays free: folded, 44 px beside the tokens; in full, the lines it spans keep clear.
+  assert.match(rule('.towerBar.tbCompact .tbFold'), /margin-right: var\(--tap-min\)/);
+  assert.match(rule('.towerBar:not(.tbCompact) .tfCap, .towerBar:not(.tbCompact) .tfGoal'),
+    /margin-right: calc\(var\(--tap-min\) - 6px\)/, 'the fold\'s 6 px padding + 38 = 44');
+  assert.match(rule('.towerBar:not(.tbCompact) .tfGoal', land), /margin-right: var\(--tap-min\)/, 'no fold padding at ~400 px');
+  // At ~400 px card, fold and ✕ sit side by side under the piles; on desktop the reach holds the ✕ too.
+  assert.ok(px(rule('.towerBar', land), 'min-width') >= 3 * 44, 'three 44 px targets');
+  assert.match(desk, /\n\s*\.tbFold \{ margin-right: var\(--tap-min\); \}/);
+  assert.ok(px(desk.match(/#table\.towerGame \{[^}]*\}/)[0], '--tb-reach') >= 224 + 44, 'the words and the ✕');
+  // Hidden drops .towerGame: every rule that reshapes the table's regions for the card hangs on it
+  // (or on the start card, which hiding leaves alone). The lock on the pile is absolute: no layout.
+  const regions = [...css.matchAll(/(?:^|[}\n])\s*([^{}@]+?)\s*\{/g)].map((m) => m[1].trim())
+    .filter((s) => /#(table|centerPiles|opponents|melds)\b/.test(s) && /\.tower/.test(s));
+  assert.ok(regions.length >= 6, `found ${regions.length} floor-card layout rules`);
+  for (const s of regions) assert.match(s, /\.towerGame\b|\.towerStartOpen\b/, s);
+  assert.match(rule('#discardPile.towerLocked .pileLock'), /position: absolute/);
+  // Reduced motion: the gear does not turn (client.js skips the fade and the glides).
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[^@]*#settingsBtn\.towerNudge \.icon \{ animation: none; \}/);
 });

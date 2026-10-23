@@ -878,7 +878,7 @@ setTimeout(() => {
       // forfeit button in the home dialog) are exactly what stale markup lacks.
       for (const id of ['debugGrid', 'debugPanel', 'debugCheckbox', 'tableOptions', 'tableRulesBtn', 'tableLogBtn',
         'studioLogoItem', 'fullscreenItem', 'fullscreenCheckbox', 'tutorialHintsItem', 'tutorialHintsCheckbox',
-        'forfeitBtn', 'forfeitHint']) {
+        'forfeitBtn', 'forfeitHint', 'towerPanelBtn', 'towerFloorShowBtn']) {
         const n = w2.document.getElementById(id);
         if (n) n.remove();
       }

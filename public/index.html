@@ -1081,7 +1081,11 @@
       <div class="overlay-card towerFloorSheet" role="dialog" aria-labelledby="towerFloorTitle">
         <h2 id="towerFloorTitle" class="iconTitle"><svg class="icon" aria-hidden="true"><use href="#i-cardhouse"/></svg><span id="towerFloorTitleText">Kartenhaus</span></h2>
         <div id="towerFloorBody" class="tfSheet"></div>
-        <button id="towerFloorCloseBtn" class="btn-secondary">Weiterspielen</button>
+        <!-- "Am Tisch anzeigen" only while the floor card is hidden (side by side at ~400 px height). -->
+        <div class="tfsActions">
+          <button id="towerFloorShowBtn" class="btn-primary hidden"><svg class="icon" aria-hidden="true"><use href="#i-cardhouse"/></svg><span>Am Tisch anzeigen</span></button>
+          <button id="towerFloorCloseBtn" class="btn-secondary">Weiterspielen</button>
+        </div>
       </div>
     </section>
 
@@ -1155,6 +1159,14 @@
           <div id="tableOptions" class="prefGroup prefTableGroup hidden">
             <h3 class="prefGroupTitle">Dieser Tisch</h3>
             <div class="prefBox">
+              <!-- Kartenhaus floor whose card was hidden (its ✕): its rules and the way back.
+                   client.js renderTowerTable shows it; its click closes whichever sheet holds it. -->
+              <button type="button" id="towerPanelBtn" class="prefRow prefLink hidden">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-cardhouse"/></svg>
+                <span class="prefText prefLabel">Kartenhaus-Etage</span>
+                <span class="prefValue">Anzeigen</span>
+                <svg class="icon prefChevron" aria-hidden="true"><use href="#i-chevron"/></svg>
+              </button>
               <div class="prefRow prefStack">
                 <span class="prefStackHead">
                   <svg class="icon prefIcon" aria-hidden="true"><use href="#i-sliders"/></svg>
