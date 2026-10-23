@@ -59,6 +59,7 @@ test('CSRF token: one per session, unknown without the cookie', () => {
   assert.ok(A.csrfValid(A.csrfToken(a), a));
   assert.ok(!A.csrfValid(A.csrfToken(b), a), 'another session\'s token');
   assert.ok(!A.csrfValid(undefined, a) && !A.csrfValid('', a) && !A.csrfValid(A.csrfToken(a), ''));
+  assert.strictEqual(A.csrfValid('ä'.repeat(64), a), false, 'same length in characters, not in bytes: refused, no throw');
 });
 
 test('audit addresses: only real IPs reach the database; mapped IPv4 is IPv4', () => {

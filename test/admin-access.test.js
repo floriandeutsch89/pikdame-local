@@ -257,6 +257,7 @@ test('admin session: CSRF, logout, game sign-out, role removal, account deletion
   const postUsers = (cookie, form, headers = {}) => req('POST', '/admin/users', { form, headers: { Cookie: cookie, ...headers } });
   assert.strictEqual((await postUsers(ada.cookie, 'username=Del&action=delete')).status, 403, 'no token');
   assert.strictEqual((await postUsers(ada.cookie, `csrf=${bert.csrf}&username=Del&action=delete`)).status, 403, 'another session\'s token');
+  assert.strictEqual((await postUsers(ada.cookie, `csrf=${encodeURIComponent('ä'.repeat(64))}&username=Del&action=delete`)).status, 403, 'multibyte junk: 403, not 500');
   assert.strictEqual((await postUsers(ada.cookie, `csrf=${ada.csrf}&username=Del&action=delete`, { 'Sec-Fetch-Site': 'cross-site' })).status, 403);
   assert.strictEqual((await req('POST', '/admin/users', { form: `csrf=${ada.csrf}&username=Del&action=delete` })).status, 403, 'no session');
   assert.strictEqual((await db.query("SELECT count(*)::int AS n FROM users WHERE username = 'Del'")).rows[0].n, 1, 'nothing happened');

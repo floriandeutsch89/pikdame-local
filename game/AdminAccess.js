@@ -70,8 +70,10 @@ function csrfToken(sessionToken) {
 
 function csrfValid(given, sessionToken) {
   if (typeof given !== 'string' || !sessionToken) return false;
-  const expected = csrfToken(sessionToken);
-  return given.length === expected.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+  // Byte lengths: 64 umlauts are 64 characters but 128 bytes, and timingSafeEqual would throw.
+  const a = Buffer.from(given);
+  const b = Buffer.from(csrfToken(sessionToken));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
 /** A client address PostgreSQL may cast to inet (it is cut to /24 or /48 there), or null. */
