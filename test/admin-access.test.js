@@ -194,9 +194,18 @@ test('step-up: passkey with user verification, else the password; guests, non-ad
     const paul = await passwordStepUp(srv, acc.Paul);
     assert.ok(paul.cookie && paul.csrf);
 
-    // Wanda confirms while the server runs: the role follows without a restart.
+    // Wanda is listed but unconfirmed: no sign-in - and even a forged one gets no role.
     srv.client.ip = '198.51.100.4';
     assert.strictEqual((await req('POST', '/api/login', { json: { username: 'wanda@example.org', password: 'long-password-1' } })).status, 401);
+    const db = new Pool({ connectionString: url, max: 2 });
+    t.after(() => db.end());
+    await db.query("INSERT INTO login_sessions (session_token, user_id) SELECT 'forged-wanda', id FROM users WHERE username = 'Wanda'");
+    assert.strictEqual((await me({ token: 'forged-wanda' })).isAdmin, false);
+    assert.strictEqual((await start('forged-wanda')).json.reason, 'forbidden');
+    assert.deepStrictEqual((await db.query("SELECT * FROM user_roles r JOIN users u ON u.id = r.user_id WHERE u.username = 'Wanda'")).rows, []);
+    await db.query("DELETE FROM login_sessions WHERE session_token = 'forged-wanda'");
+
+    // Wanda confirms while the server runs: the role follows without a restart.
     const accounts = createPgAccountStore(url);
     t.after(() => accounts.close());
     assert.ok((await accounts.verifyEmail(acc.Wanda.verifyToken)).ok);
@@ -207,13 +216,12 @@ test('step-up: passkey with user verification, else the password; guests, non-ad
     await passwordStepUp(srv, acc.Wanda);
 
     // The audit: who came in how, who failed, who was turned away.
-    const db = new Pool({ connectionString: url, max: 2 });
-    t.after(() => db.end());
     const audit = (await db.query(`SELECT user_name, action, details->>'method' AS method, details->>'reason' AS reason, client_network::text AS net
       FROM admin_audit_events WHERE action LIKE 'step_up.%' ORDER BY id`)).rows;
     assert.deepStrictEqual(audit.map((e) => `${e.user_name} ${e.action} ${e.method || e.reason || ''}`.trim()), [
       'Gast step_up.denied', 'Gast step_up.denied', 'Pia step_up.failed passkey', 'Pia step_up.failed passkey', 'Pia step_up.failed passkey',
-      'Pia step_up.ok passkey', 'Pia step_up.failed passkey', 'Paul step_up.failed password', 'Paul step_up.ok password', 'Wanda step_up.ok password',
+      'Pia step_up.ok passkey', 'Pia step_up.failed passkey', 'Paul step_up.failed password', 'Paul step_up.ok password',
+      'Wanda step_up.denied', 'Wanda step_up.ok password',
     ]);
     assert.ok(audit.every((e) => e.net === '198.51.100.0/24'), 'the address is kept cut to /24');
 

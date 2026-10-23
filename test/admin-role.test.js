@@ -220,6 +220,8 @@ test('audit: newest first in pages of 50, networks cut to /24 and /48, 365 days 
   const p3 = await store.auditPage({ page: 3 });
   assert.deepStrictEqual([p3.events.length, p3.hasMore, p3.events[19].target], [20, false, 't1']);
   assert.strictEqual((await store.auditPage({ page: 'x' })).page, 1);
+  const far = await store.auditPage({ page: '1e400' });
+  assert.deepStrictEqual([far.page, far.events.length, far.hasMore], [1e6, 0, false], 'Infinity is clamped, not an error');
 
   for (const [ip, net] of [['203.0.113.45', '203.0.113.0/24'], ['2001:db8:1234:5678::1', '2001:db8:1234::/48'],
     ['::ffff:198.51.100.7', '198.51.100.0/24'], ['unknown', null]]) {

@@ -56,7 +56,8 @@ function createAdminStore(pool, { now = Date.now } = {}) {
   /** Newest first, `perPage` rows of page `page` (1-based) and whether older ones exist. */
   async function auditPage({ page = 1, perPage = AUDIT_PAGE } = {}) {
     await ensureMigrated(pool);
-    const p = Math.max(1, Math.floor(Number(page)) || 1);
+    // ?page=1e400 is Infinity: clamped, never an OFFSET PostgreSQL refuses.
+    const p = Math.min(1e6, Math.max(1, Math.floor(Number(page)) || 1));
     const r = await pool.query(
       `SELECT id, occurred_at, user_name, action, action_target, details, client_network::text AS client_network
          FROM admin_audit_events ORDER BY occurred_at DESC, id DESC LIMIT $1 OFFSET $2`,
