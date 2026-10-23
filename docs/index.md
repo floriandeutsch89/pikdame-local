@@ -78,7 +78,7 @@ flowchart LR
     R --> T2
   end
   V[("/app/data<br/>JSON stores · snapshot")]
-  PG[("PostgreSQL<br/>accounts, optional")]
+  PG[("PostgreSQL<br/>accounts, required")]
   A & B & C <-- "WebSocket, JSON" --> R
   node --> V
   node -.-> PG

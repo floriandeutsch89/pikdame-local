@@ -237,7 +237,7 @@ flowchart LR
   end
   C <-- "WebSocket · JSON" --> R
   GM --> V[("/app/data<br/>JSON stores, snapshot")]
-  R -.-> PG[("PostgreSQL<br/>accounts, optional")]
+  R -.-> PG[("PostgreSQL<br/>accounts, required")]
 ```
 
 ```

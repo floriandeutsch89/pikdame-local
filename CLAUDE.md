@@ -31,10 +31,12 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
    Sinnvoll: Eigenbau sicherheitskritisch/fehleranfällig (Krypto, Parser,
    Diagramme) oder deutlich mehr Code; Paket etabliert, gepflegt, MIT/BSD/
    Apache, reines JS. Vorher prüfen: Lizenzen des Baums, Größe, Trivy,
-   `require`. Aktuell: `ws`, `pg` und `@simplewebauthn/server` (LAZY).
+   `require`. Aktuell: `ws`, `pg` und `@simplewebauthn/server` (letzteres LAZY).
    Browser-Libs werden VENDORT (`public/vendor-*.js`, unverändert, npm-Hash im
    Kopf): qrcode, uPlot, @simplewebauthn/browser. Keine nativen Module (außer
-   `onnxruntime-node` NUR im Dockerfile), kein Build-Schritt.
+   `onnxruntime-node` NUR im Dockerfile), kein Build-Schritt. Features mit
+   neueren Node-APIs (z. B. `crypto.argon2`) schalten sich auf alten
+   Versionen selbst ab, statt den Start zu brechen.
 2. **Kein CDN, keine fremden Hosts im Ladepfad.** Icons = Inline-SVG-Sprite
    (`<svg class="icon"><use href="#i-name"/></svg>`), keine Icon-Fonts.
    Schrift: Systemschrift, nur Logo/Titel/Punktzahlen in der vendorten Rubik
@@ -79,6 +81,10 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
 - `game/` — Logik ohne I/O: `Rules.js` (Melds, Ring-Folgen K-A-2, max 13),
   `ScoreBoard.js`, `GameManager.js` (Zustand, Bots, Snapshot), `Bot.js`
   (easy/medium/hard/zen), JSON-Stores (atomar), `PgAccountStore.js` (Konten).
+  - **Schema-Änderungen nur als neue Datei in `migrations/`** (`NNN_name.sql`,
+    nur vorwärts, gemergte Dateien nie ändern; `Migrations.js`, Doku
+    `docs/developer/migrations.md`). Start ohne Sperre, wenn aktuell: DDL bei
+    jedem Start blockierte laufende Transaktionen (v2.102.1).
   - `Mailer.js`: eigener SMTP-Client, Log-Fallback; Header RFC 2047, Body
     Quoted-Printable — nie rohes UTF-8 in Kopfzeilen.
   - `Badges.js` (Familien in `BADGE_FAMILIES`, Fakten aus `finishRound`),
@@ -252,6 +258,7 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
   am iPhone die einzige Scroll-Andeutung).
 - **Postgres in Tests:** `PIKDAME_TEST_PG_URL` ist Pflicht; jeder Server und
   Store bekommt `testDatabaseUrl()` (`test/helpers/test-db.js`, eigenes Schema).
+  Lokale Datenbank aufsetzen: Skill `steward`.
 - RL: `OBS_SIZE`/`ACTION_SIZE` sind Verträge — `test/state-encoder.test.js`
   UND `scripts/rl-env-server.js` prüfen.
 - **UI im Browser prüfen**, nicht nur `npm test`: alle drei Layouts. Headless

@@ -1,10 +1,9 @@
 // game/Passkeys.js
 // WebAuthn (passkeys) on top of @simplewebauthn/server - the ceremony, not
-// the storage (AccountStore / PgAccountStore keep the credentials).
+// the storage (PgAccountStore keeps the credentials).
 //
 // Off - the factory returns null - when
-//   - the library is not installed (plain `node server.js` from a checkout,
-//     e.g. the iPhone/CodeApp hotspot mode), or
+//   - the library is not installed (a checkout without `npm install`), or
 //   - there is no usable origin: passkeys are bound to a domain (the
 //     "relying party ID"), so they need PIKDAME_BASE_URL with https - or
 //     http://localhost for development.

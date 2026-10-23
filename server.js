@@ -846,7 +846,7 @@ async function handleAdminRequest(req, res, filePath) {
 // later keep their progress. The name-based profile (PlayerStore) is theirs
 // already - joinSession only lets a verified account's owner use the name -
 // and this carries its level numbers into the account, once per account,
-// never into the season (see AccountStore.importProfile). Best effort: never
+// never into the season (see PgAccountStore.importProfile). Best effort: never
 // blocks verify or login.
 async function importGuestProfile(username) {
   if (!ACCOUNTS_ENABLED || typeof accountStore.importProfile !== 'function') return null;

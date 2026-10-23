@@ -132,6 +132,7 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
 The script starts its own server on a **temp `PIKDAME_DATA_DIR`** and kills it
 afterwards. PostgreSQL is required: with `PIKDAME_TEST_PG_URL` set it uses a
 fresh schema of that database (like the tests), otherwise `PIKDAME_DATABASE_URL`.
+No database running? Skill `steward`, section "Local PostgreSQL".
 Never leave a server of your own running on `data/`.
 
 ## How the mocks work

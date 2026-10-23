@@ -43,7 +43,7 @@ copy them off the host (that is the point). A daily cron job plus
 `rsync`/`rclone` to somewhere else is plenty.
 :::
 
-## Backing up PostgreSQL (if you use accounts with Postgres)
+## Backing up PostgreSQL
 
 ```bash
 docker compose exec -T db pg_dump -U pikdame pikdame \

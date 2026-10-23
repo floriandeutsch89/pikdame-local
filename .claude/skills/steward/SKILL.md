@@ -39,6 +39,26 @@ it without missing a step. Read CLAUDE.md first if you have not.
   they are. If main has passed their number, convert them: section body
   into `changes/<topic>.md`, version lines and CHANGELOG.md back to main.
 
+## Local PostgreSQL (npm test, ui-shots)
+
+PostgreSQL is mandatory: the server refuses to start without it and every
+test file takes its own schema of `PIKDAME_TEST_PG_URL`. In a sandbox with
+PostgreSQL installed at `/usr/lib/postgresql/16/bin` but no running server
+(initdb fails in the scratchpad: wrong owner), as root:
+
+```bash
+PG=/usr/lib/postgresql/16/bin; mkdir -p /tmp/pgfix && chown postgres /tmp/pgfix
+setpriv --reuid=postgres --regid=postgres --init-groups $PG/initdb -D /tmp/pgfix/data -A trust -U postgres
+setpriv --reuid=postgres --regid=postgres --init-groups $PG/pg_ctl -D /tmp/pgfix/data -l /tmp/pgfix/log \
+  -o "-p 55432 -k /tmp/pgfix -c max_connections=400" start
+$PG/psql -h 127.0.0.1 -p 55432 -U postgres -c 'CREATE DATABASE pikdame_test'
+export PIKDAME_TEST_PG_URL=postgres://postgres@127.0.0.1:55432/pikdame_test
+```
+
+(`su postgres -c …` works too where allowed.) Already set up: only the
+`pg_ctl … start` line and the `export`. `max_connections` is raised because
+parallel test files each open pools.
+
 ## Before every push
 
 Run these as **separate steps**, never `npm test ... && git push` chains.

@@ -218,9 +218,9 @@ no profiles are stored, and the tasks and cabinet stay hidden accordingly.
 | --- | --- |
 | **Server** | Node.js, no framework. One WebSocket per player, the server is the single source of truth and validates every move. |
 | **Client** | Plain HTML/CSS/JS — no build step, no framework, no bundler. |
-| **Storage** | JSON files on a volume (profiles, statistics, history, daily-task progress) plus PostgreSQL (required) for optional accounts and the season ladder. |
+| **Storage** | JSON files on a volume (profiles, statistics, history, daily-task progress) plus PostgreSQL (required) for accounts and the season ladder. |
 | **Bots** | Four levels: three heuristic, Zen plays a trained ONNX policy where the runtime is installed. |
-| **Deployment** | One container. Optionally the full stack with Caddy (automatic TLS) and PostgreSQL. |
+| **Deployment** | The app container plus PostgreSQL (required); in production behind Caddy (automatic TLS). |
 
 ### Design decisions worth knowing
 
