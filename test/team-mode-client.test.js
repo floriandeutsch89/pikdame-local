@@ -266,7 +266,7 @@ test('"Meine Partien": a team game shows the team place, the partner and the tea
   assert.ok(card, 'the card renders');
   assert.equal(card.querySelector('.histPlace').textContent, '1.', 'the team won: first place, my own 400 notwithstanding');
   assert.match(card.querySelector('.histMeta').textContent, /2 gegen 2/);
-  assert.equal(card.querySelector('.histOpp').textContent, 'mit Oma Gerda gegen Klaus, Horst (Mittel)', 'one bot level, said once');
+  assert.equal(card.querySelector('.histOpp').textContent, 'mit Oma Gerda gegen Klaus, Horst', 'one level for all bots: in the standings');
   assert.equal(card.querySelectorAll('.histBars i').length, 2, 'one bar per team');
   assert.match(card.querySelector('.histBars').getAttribute('aria-label'), /Wir 1045, Gegner 880/);
   click(card);

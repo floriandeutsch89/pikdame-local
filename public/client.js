@@ -10862,12 +10862,10 @@
     const diffOf = (p) => (p.isBot && !g.challengeDate && BOT_DIFF[p.botDifficulty]) || null;
     const label = (p) => (diffOf(p) ? `${p.name} (${diffOf(p).short()})` : p.name);
     const partner = myTeam >= 0 ? players.find((p) => p !== me && teams[myTeam].includes(p.id)) : null;
-    // A team table has one bot level: said once, after the names.
-    const teamBot = myTeam >= 0 ? players.find((p) => diffOf(p)) : null;
-    const opps = players.filter((p) => p !== me && p !== partner).map(teamBot ? (p) => p.name : label);
-    if (teamBot && opps.length) opps[opps.length - 1] += ` (${diffOf(teamBot).short()})`;
+    // A team table has one bot level for all: the opened card's standings name it.
+    const opps = players.filter((p) => p !== me && p !== partner).map(myTeam >= 0 ? (p) => p.name : label);
     const mins = g.startedAt && g.finishedAt ? Math.round((g.finishedAt - g.startedAt) / 60000) : 0;
-    return { players, totals, me, myTotal, place, opps, mins, diffOf, teams, myTeam, partner: partner ? (teamBot ? partner.name : label(partner)) : null };
+    return { players, totals, me, myTotal, place, opps, mins, diffOf, teams, myTeam, partner: partner ? partner.name : null };
   }
   function renderGameHistory() {
     const box = el('historyContent');
