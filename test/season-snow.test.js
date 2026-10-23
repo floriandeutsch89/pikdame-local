@@ -106,7 +106,7 @@ test('December: twelve flakes on the start screen, none at the table or over its
   assert.ok(s.shown('table') && !s.shown('lobby'));
   assert.strictEqual(s.flakes(), 0, 'gone from the DOM at the table, not just hidden');
   s.click(s.doc.getElementById('settingsBtn'));
-  assert.ok(s.shown('gameSettingsOverlay'));
+  assert.ok(s.shown('settingsOverlay'), 'the gear opens the one "Optionen" sheet');
   assert.strictEqual(s.flakes(), 0, 'no snow over a sheet opened at the table');
   const result = (score, win) => ({ roundScore: score, breakdown: { isWinner: !!win, multiplier: 1 } });
   s.feed(table({ phase: 'roundEnd', lastRoundWinnerId: 'b1', lastRoundResult: { p1: result(-45), b1: result(270, true) } }));

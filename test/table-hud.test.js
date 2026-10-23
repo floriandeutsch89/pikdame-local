@@ -126,10 +126,9 @@ test('low-card warning: default OFF; the switch tags 1 and 2 cards and is stored
   feed(table());
   assert.equal(doc.querySelectorAll('#opponents .lowCards, #opponents .opLowTag').length, 0, 'a fresh device shows no warning');
   assert.equal(doc.getElementById('aidLowCardsCheckbox').checked, false);
-  assert.equal(doc.querySelector('#aidLowCardsToggle .sheetRowValue').textContent, 'Aus');
-  click(doc.getElementById('aidLowCardsToggle'));
+  click(doc.getElementById('aidLowCardsCheckbox'));
   assert.equal(window.localStorage.getItem('pikdame_aid_lowcards'), 'on');
-  assert.equal(doc.getElementById('aidLowCardsCheckbox').checked, true, 'the settings sheet mirrors the in-game row');
+  assert.equal(doc.getElementById('aidLowCardsCheckbox').checked, true, 'the switch shows the new state');
   const tag = (id) => doc.querySelector(`#opponents .opponent[data-player-id="${id}"] .opLowTag`);
   assert.equal(tag('b1').textContent, 'Letzte Karte!');
   assert.equal(tag('b2').textContent, 'Noch 2 Karten!');
@@ -228,10 +227,10 @@ test('sound is a device setting in the settings sheet, no longer a house rule', 
   box.checked = false;
   box.dispatchEvent(new window.Event('change', { bubbles: true }));
   assert.equal(window.localStorage.getItem('pikdame_sound_enabled'), 'off', 'same storage key as before');
-  assert.equal(doc.querySelector('#soundToggle .sheetRowValue').textContent, 'Aus', 'the in-game row follows');
+  assert.equal(doc.getElementById('soundToggle'), null, 'one switch, no in-game row to keep in step');
 });
 
-test('settings sheet: four groups, language in the header, segments drive the display size', async (t) => {
+test('settings sheet: four groups (plus "Dieser Tisch" at the table), language in the header, segments drive the display size', async (t) => {
   const { doc, window, click } = await setup(t);
   const sheet = doc.getElementById('settingsOverlay');
   assert.ok(doc.getElementById('langBtn').closest('.prefHead'), 'the language switch sits in the sheet header');
@@ -241,11 +240,13 @@ test('settings sheet: four groups, language in the header, segments drive the di
     [...g.querySelectorAll('[id]')].map((n) => n.id).filter((id) => /Checkbox$|Select$|Btn$/.test(id) && id !== 'celebrationPreviewBtn'),
   ]);
   assert.deepEqual(groups, [
+    ['Dieser Tisch', ['towerPanelBtn', 'tableRulesBtn', 'tableLogBtn']],
     ['Ton', ['soundCheckbox', 'musicLevelSelect', 'musicTrackSelect']],
-    ['Darstellung', ['uiScaleSelect', 'cardbackBtn', 'celebrationSelect']],
-    ['Spielhilfen', ['aidTipsCheckbox', 'aidDiscardCheckbox', 'aidLayOffCheckbox', 'aidLowCardsCheckbox', 'botQuipsCheckbox']],
+    ['Darstellung', ['uiScaleSelect', 'cardbackBtn', 'fullscreenCheckbox', 'celebrationSelect']],
+    ['Spielhilfen', ['tutorialHintsCheckbox', 'aidTipsCheckbox', 'aidDiscardCheckbox', 'aidLayOffCheckbox', 'aidLowCardsCheckbox', 'botQuipsCheckbox']],
     ['Allgemein', ['versionBtn', 'studioLogoSelect', 'debugCheckbox']],
   ]);
+  assert.ok(doc.getElementById('tableOptions').classList.contains('hidden'), '"Dieser Tisch" only at the table');
   assert.equal(sheet.querySelectorAll('.prefSwatches .themeBtn').length, 6, 'the theme swatches live under Darstellung');
   assert.equal(sheet.querySelectorAll('.prefNote').length, 1, 'the device note is said once');
   assert.equal(doc.getElementById('themeNameValue').textContent, 'Spieltisch', 'the active theme is named');
@@ -255,14 +256,15 @@ test('settings sheet: four groups, language in the header, segments drive the di
   assert.equal(doc.getElementById('uiScaleSelect').value, 'xlarge');
   assert.equal(window.localStorage.getItem('pikdame_ui_scale'), 'xlarge', 'same storage key as before');
   assert.equal(doc.documentElement.dataset.uiscale, 'xlarge');
-  click(doc.getElementById('uiScaleBtn')); // in-game row cycles on: Sehr groß -> Normal
-  assert.equal(seg('normal').classList.contains('active'), true, 'the segments follow the in-game row');
+  click(seg('normal')); // Sehr groß -> Normal in one tap (the old row cycled through every size)
+  assert.equal(doc.getElementById('uiScaleSelect').value, 'normal');
   assert.equal(seg('xlarge').classList.contains('active'), false);
+  assert.equal(doc.getElementById('uiScaleBtn'), null, 'no cycling row');
 
   click(doc.getElementById('langBtn'));
   assert.equal(doc.getElementById('langBtn').textContent, 'Deutsch');
   assert.ok(doc.querySelector('#langBtn svg use[href="#i-globe"]'), 'the globe icon survives the switch');
-  assert.deepEqual([...sheet.querySelectorAll('.prefGroupTitle')].map((n) => n.textContent), ['Sound', 'Display', 'Play aids', 'General']);
+  assert.deepEqual([...sheet.querySelectorAll('.prefGroupTitle')].map((n) => n.textContent), ['This table', 'Sound', 'Display', 'Play aids', 'General']);
   assert.deepEqual([...sheet.querySelectorAll('.prefScaleSeg .segBtn')].map((n) => n.textContent), ['Normal', 'Large', 'Extra large']);
   assert.equal(doc.getElementById('themeNameValue').textContent, 'Table');
   assert.equal(doc.querySelector('#studioLogoSelect option[value="auto"]').textContent, 'Once only');

@@ -22,7 +22,9 @@
 // challenge (intro, attempt used),
 // gamelobby (seats + house rules), botdiff (the strength picker), gameover-challenge,
 // settings / settings-aids / settings-music (the start screen's "Optionen" sheet: top / play aids / music),
-// game-settings (the in-game gear sheet), game-settings-debug (its dividers + debug row on),
+// game-settings (the gear at a live engine table: the sheet on top, then scrolled to its end),
+// game-settings-debug (that sheet with the debug view on), home (the home dialog at the table, then
+// its forfeit button armed by a first tap),
 // sheet-reopen (settings sheet scrolled, closed, reopened), cardback (the card-back gallery), music-hint (first click: music starts, one-time hint),
 // account (the account sheet: level, season ladder; needs --signed-in),
 // account-mail (its year-review mail switch; needs --signed-in),
@@ -311,6 +313,24 @@ function towerState(stage, turns, take = '') {
   g.destroy();
   return st;
 }
+// A live table from the engine (game-settings, home): my draw turn after a few turns, melds laid.
+function tableState() {
+  const GM = require(path.join(ROOT, 'game', 'GameManager'));
+  const g = new GM(() => {}, { deckSeed: 7 });
+  g.maybeRunBotTurn = () => {}; // the turns are driven here (CLAUDE.md: bot timer off)
+  g.addOrReconnectPlayer('p1', ME);
+  g.fillWithBots();
+  g.startNewRound();
+  let st = g.publicState('p1');
+  for (let mine = 0, guard = 0; mine < 4 && g.phase === 'playing' && guard < 800; guard++) {
+    const cp = g.currentPlayer();
+    g.runBotTurn(cp.id, { forced: !cp.isBot });
+    const next = g.currentPlayer();
+    if (g.phase === 'playing' && next && next.id === 'p1' && g.turnPhase === 'draw') { mine += 1; st = g.publicState('p1'); }
+  }
+  g.destroy();
+  return st;
+}
 // Where the table's regions sit (--measure): the floor card must not cost the melds or the hand.
 function measurePage() {
   const box = (sel) => {
@@ -335,6 +355,21 @@ function measurePage() {
     out.tower = { sheetScroll: sheet.scrollHeight - sheet.clientHeight, sideScroll: side ? side.scrollHeight - side.clientHeight : null,
       minHit: hits.length ? Math.min(...hits) : null,
       card: face && k ? `${(face.width.baseVal.value * k).toFixed(1)}x${(face.height.baseVal.value * k).toFixed(1)}` : null };
+  }
+  // Any other open sheet: how many screens it scrolls, where "Schließen" and the sound switch end
+  // (px from the sheet's top) and whether "Schließen" shows without scrolling.
+  const ov = [...document.querySelectorAll('.overlay:not(.hidden)')].pop();
+  const card = ov && !sheet && ov.querySelector('.overlay-card');
+  if (card) {
+    const cr = card.getBoundingClientRect();
+    const close = (ov.dataset.sheetClose && document.getElementById(ov.dataset.sheetClose)) || card.querySelector(':scope > .btn-secondary');
+    const sound = card.querySelector('label[for="soundCheckbox"], #soundToggle');
+    const end = (n) => Math.round(n.getBoundingClientRect().bottom - cr.top + card.scrollTop);
+    out.sheet = { id: ov.id, w: Math.round(cr.width), h: Math.round(cr.height), scrollH: card.scrollHeight, clientH: card.clientHeight,
+      screens: Math.round((card.scrollHeight / card.clientHeight) * 100) / 100,
+      closeEnd: close ? end(close) : null,
+      closeVisible: close ? close.getBoundingClientRect().bottom <= Math.min(cr.bottom, innerHeight) + 1 : null,
+      soundEnd: sound ? end(sound) : null };
   }
   return out;
 }
@@ -471,6 +506,8 @@ function waitForHttp(port, ms = 20000) {
           if (!musicHint) localStorage.setItem('pikdame_music_hint', '1');
         } catch (e) { /* storage blocked */ }
       }, [ME, arg('theme', ''), scenes.includes('music-hint'), Math.max(0, Math.min(3, Number(arg('stammtische', 1)))), arg('lang', '')]);
+      // Phone views are iPhones: Safari has no Fullscreen API for pages, so no "Vollbild" row.
+      if (vp.mobile) await ctx.addInitScript(() => { delete Element.prototype.requestFullscreen; });
       if (SIGNED_IN) {
         await ctx.addInitScript(() => { try { localStorage.setItem('pikdame_account_token', 'mock-token'); } catch (e) { /* blocked */ } });
         await ctx.route('**/api/**', (route) => route.fulfill({ contentType: 'application/json',
@@ -511,6 +548,11 @@ function waitForHttp(port, ms = 20000) {
         if (MEASURE) measures[`${vn}-${name}`] = await page.evaluate(measurePage);
       };
       const inject = (obj) => sock.send(JSON.stringify(obj));
+      const toTable = async (st) => {
+        inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
+        inject({ type: 'state', state: st });
+        await page.waitForTimeout(1500); // the deal-in
+      };
       // A table/result scene leaves the start screen, and its buttons are then
       // invisible (clicks time out). Reload without the mock session, so the
       // client neither rejoins nor probes an unknown code (that blocks the IP).
@@ -520,7 +562,7 @@ function waitForHttp(port, ms = 20000) {
         await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(1200);
       };
-      const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|tower-detail|tower-rules|tower-motion|tower-film|tower-skip|stats|stats-badges|stats-empty|history|settings|settings-aids|settings-music|game-settings|game-settings-debug|sheet-reopen|cardback|music-hint|challenge|challenge-open|stammtisch|account|account-mail|puzzle.*|year.*)$/;
+      const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|tower-detail|tower-rules|tower-motion|tower-film|tower-skip|stats|stats-badges|stats-empty|history|settings|settings-aids|settings-music|sheet-reopen|cardback|music-hint|challenge|challenge-open|stammtisch|account|account-mail|puzzle.*|year.*)$/;
       for (const sc of scenes) {
         if (LOBBY_SCENES.test(sc)) await toStart();
         if (sc === 'lobby') { await page.waitForTimeout(Number(arg('settle', 0))); await shot('lobby'); }
@@ -730,23 +772,43 @@ function waitForHttp(port, ms = 20000) {
           await page.click('#lobby h1'); await page.waitForTimeout(1800);
           await shot('music-hint');
         }
-        if (sc === 'game-settings') {
-          // The in-game gear sheet, opened over the start screen: same markup and styles.
-          await page.evaluate(() => document.getElementById('gameSettingsOverlay').classList.remove('hidden'));
-          await page.waitForTimeout(300);
-          await shot('game-settings');
-          await page.evaluate(() => document.getElementById('gameSettingsOverlay').classList.add('hidden'));
-        }
-        if (sc === 'game-settings-debug') {
-          // Gear sheet scrolled to the dividers and the debug row, debug view switched on.
-          await page.evaluate(() => {
-            document.getElementById('gameSettingsOverlay').classList.remove('hidden');
-            document.getElementById('debugBtn').click();
-            document.getElementById('debugBtn').scrollIntoView({ block: 'center' });
+        if (sc === 'game-settings' || sc === 'game-settings-debug' || sc === 'home') {
+          // A live engine table (or --state), then the gear's sheet / the home dialog. Whatever
+          // overlay opens is shot and measured, so SHOTS_ROOT=<older checkout> shoots its sheet.
+          await toTable(arg('state', '') ? JSON.parse(fs.readFileSync(arg('state', ''), 'utf8')) : tableState());
+          const card = () => page.evaluate(() => {
+            const o = [...document.querySelectorAll('.overlay:not(.hidden)')].pop();
+            return o ? `#${o.id} .overlay-card` : null;
           });
-          await page.waitForTimeout(300);
-          await shot('game-settings-debug');
-          await page.evaluate(() => { document.getElementById('debugBtn').click(); document.getElementById('gameSettingsOverlay').classList.add('hidden'); });
+          if (sc === 'home') {
+            await page.click('#homeBtn'); await page.waitForTimeout(500);
+            await shot('home');
+            if (await page.isVisible('#homeOverlay #forfeitBtn')) {
+              await page.click('#forfeitBtn'); await page.waitForTimeout(200);
+              await shot('home-armed');
+            }
+            await page.click('#homeCancelBtn'); await page.waitForTimeout(300);
+          } else {
+            await page.click('#settingsBtn'); await page.waitForTimeout(600);
+            const sel = await card();
+            if (arg('eval', '')) console.log(`${vn}-${sc}:`, JSON.stringify(await page.evaluate(fs.readFileSync(arg('eval', ''), 'utf8'))));
+            if (sc === 'game-settings-debug') {
+              await page.evaluate(() => {
+                const box = document.getElementById('debugCheckbox') || document.getElementById('debugBtn');
+                box.click(); box.scrollIntoView({ block: 'center' });
+              });
+              await page.waitForTimeout(300);
+              await shot(sc);
+              await page.evaluate(() => (document.getElementById('debugCheckbox') || document.getElementById('debugBtn')).click());
+            } else {
+              await shot('game-settings');
+              await page.evaluate((s) => { const c = document.querySelector(s); c.scrollTop = c.scrollHeight; }, sel);
+              await page.waitForTimeout(250);
+              await shot('game-settings-end');
+            }
+            await page.evaluate((s) => { const o = document.querySelector(s).closest('.overlay'); o.classList.add('hidden'); }, sel);
+            await page.waitForTimeout(200);
+          }
         }
         if (sc === 'sheet-reopen') {
           // Scroll the settings sheet down, close, reopen: it must be at the top again.
