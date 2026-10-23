@@ -49,6 +49,18 @@ online table against humans and bots. The server enforces every rule; the
   top discard, the round ends and is scored without a winner. 160 turns
   without any meld also end the round.
 
+## Team game ("2 gegen 2")
+
+- Four seats, two teams, seated crosswise: seats 1 and 3 against 2 and 4, so
+  the teams take turns alternately and your neighbours are always opponents.
+- The rules above do not change: everyone keeps their own melds and lays off
+  or swaps jokers only on them.
+- Every player is scored as usual; a team's result is the sum of its two
+  players. When anyone goes out, the round ends for everyone - your partner's
+  hand counts against your team too.
+- The first team to reach 1000 shared points wins (both teams over in the same
+  round: the higher total; equal totals: one more round).
+
 ## Strategy hints
 
 - Points on the table count, points in hand hurt. Lay out high cards early

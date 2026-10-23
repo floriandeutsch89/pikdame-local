@@ -101,8 +101,9 @@ a second set and `_sparingMeldExists`. A rule change in `game/` reaches the
 MCP seat without touching `mcp/`.
 
 A "2 gegen 2" table ({doc}`team-mode`) plays by the same rules, so the same
-list applies. The table text names both teams with their shared totals and
-marks the partner; the lobby lists "switch to the other team".
+list applies. The table text names both teams with their shared totals, marks
+the partner and sums each round per team; the lobby lists "switch to the other
+team", and for the host the mode itself.
 
 To keep the list readable, the generator leaves out some legal moves:
 

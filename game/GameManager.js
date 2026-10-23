@@ -722,7 +722,8 @@ class GameManager {
    */
   setAllBotsDifficulty(difficulty) {
     if (!Bot.BOT_LEVELS.includes(difficulty)) return { error: 'Unbekannte Schwierigkeit.' };
-    for (const p of this.players) if (p.isBot) p.botDifficulty = difficulty;
+    // Team mode: a seat given up mid-game is a bot too - one level for every bot (fairness).
+    for (const p of this.players) if (p.isBot || (this.teamMode && p.leftGame)) p.botDifficulty = difficulty;
     // Auch fuer spaeter aufgefuellte Bots merken: fillWithBots kann NACH
     // diesem Aufruf laufen (so macht es der Server beim Challenge-Start).
     this.defaultBotDifficulty = difficulty;

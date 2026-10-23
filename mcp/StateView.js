@@ -56,12 +56,22 @@ function renderState(state, myId) {
     }
   }
 
+  const signed = (n) => `${n > 0 ? '+' : ''}${n}`;
   if (state.phase === 'roundEnd' && state.lastRoundResult) {
-    const parts = Object.entries(state.lastRoundResult).map(([id, r]) => `${playerName(state, id)} ${r && r.roundScore > 0 ? '+' : ''}${r ? r.roundScore : '?'}`);
-    lines.push(`Round result: ${parts.join(', ')}`);
+    const parts = Object.entries(state.lastRoundResult).map(([id, r]) => `${playerName(state, id)} ${r ? signed(r.roundScore) : '?'}`);
+    // Team mode: the round's team sums are what moves the match.
+    const sums = teams ? teams.map((ids) => ids.reduce((s, id) => s + ((state.lastRoundResult[id] || {}).roundScore || 0), 0)) : null;
+    lines.push(`Round result: ${parts.join(', ')}${sums ? ` (${sums.map((s, t) => `${teamName(t)} ${signed(s)}`).join(', ')})` : ''}`);
   }
   if (state.phase === 'gameOver') {
-    lines.push(`GAME OVER: ${JSON.stringify(state.gameOverInfo || state.totals).slice(0, 600)}`);
+    const gi = state.gameOverInfo || {};
+    if (gi.teamMode && Array.isArray(gi.winnerIds)) {
+      const w = gi.winnerTeam;
+      const tt = gi.teamTotals || [0, 0];
+      lines.push(`GAME OVER: ${teamName(w)} (${gi.winnerIds.map((id) => (id === myId ? 'YOU' : playerName(state, id))).join(' + ')}) wins ${tt[w]} to ${tt[1 - w]} - ${gi.winnerIds.includes(myId) ? 'your team won' : 'your team lost'}.`);
+    } else {
+      lines.push(`GAME OVER: ${JSON.stringify(state.gameOverInfo || state.totals).slice(0, 600)}`);
+    }
   }
   if (state.phase === 'lobby') {
     lines.push(`Lobby: ${state.isHost ? 'you are the host and can start' : 'waiting for the host to start'}; seats ${state.maxSeats}.`);

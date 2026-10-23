@@ -28,7 +28,8 @@ engine lives in `GameManager` (flag `teamMode`).
 
 - **Free tables only.** Humans join, bots fill the empty seats, and every bot
   plays the same level (a single bot's level is refused). A human seat's
-  stand-in (disconnect, turn timer) plays at that level too, not as Zen.
+  stand-in (disconnect, turn timer, a seat given up mid-game) plays at that
+  level too, not as Zen, and follows when the host changes it.
 - **Joining:** in the lobby a newcomer takes a bot seat of the team with fewer
   humans (team A on a tie), so two humans start as opponents. `switchTeam`
   moves to a free bot seat of the other team; the host can still arrange the
@@ -46,8 +47,10 @@ engine lives in `GameManager` (flag `teamMode`).
 
 ## Progress
 
-XP and statistics work as in a normal match; a team win is a win for both
-teammates. Per badge and quest:
+XP and statistics work as in a normal match and take the same async booking
+chain (`bookFinishedGame` in `server.js`: profile, streak, XP and quests, the
+ladder, badges); a team win is a win for both teammates. A seat given up
+mid-game is booked for nobody, as in a normal match. Per badge and quest:
 
 | What | In team mode |
 | --- | --- |

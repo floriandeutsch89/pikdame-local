@@ -1,6 +1,7 @@
 /** "2 gegen 2" through the real server: creating a team table (and the one-tap
  *  start), joining and switching teams, reconnecting, the host gate, the
- *  Stammtisch refusal and the solo modes that never become team tables. */
+ *  Stammtisch refusal, the solo modes that never become team tables, and a
+ *  finished team match booked for both teammates. */
 const test = require('node:test');
 const { freePort } = require('./helpers/free-port');
 const assert = require('node:assert');
@@ -10,28 +11,30 @@ const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
 const WebSocket = require('ws');
+const GameManager = require('../game/GameManager');
+const { xpForGame } = require('../game/Progression');
 const { testDatabaseUrl } = require('./helpers/test-db');
 
 const ROOT = path.join(__dirname, '..');
-let PORT = 0;
 
-async function waitForServer(timeoutMs = 15000) {
+// Ports are passed, never shared: the two top-level tests may run at once.
+async function waitForServer(port, timeoutMs = 15000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const up = await new Promise((resolve) => {
-      const req = http.get({ host: '127.0.0.1', port: PORT, path: '/healthz', timeout: 500 }, (res) => { res.resume(); resolve(true); });
+      const req = http.get({ host: '127.0.0.1', port, path: '/healthz', timeout: 500 }, (res) => { res.resume(); resolve(true); });
       req.on('error', () => resolve(false));
       req.on('timeout', () => { req.destroy(); resolve(false); });
     });
     if (up) return;
     await new Promise((r) => setTimeout(r, 100));
   }
-  throw new Error(`server on port ${PORT} did not come up within ${timeoutMs}ms`);
+  throw new Error(`server on port ${port} did not come up within ${timeoutMs}ms`);
 }
 
-function openSocket() {
+function openSocket(port) {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`ws://localhost:${PORT}`);
+    const ws = new WebSocket(`ws://localhost:${port}`);
     const timer = setTimeout(() => reject(new Error('socket did not open')), 5000);
     ws.once('open', () => { clearTimeout(timer); resolve(ws); });
     ws.once('error', (e) => { clearTimeout(timer); reject(e); });
@@ -59,10 +62,10 @@ const teamOf = (state, id) => state.teams.findIndex((ids) => ids.includes(id));
 
 test('server: team tables', async (t) => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-teams-'));
-  PORT = await freePort();
+  const port = await freePort();
   const server = spawn('node', ['server.js'], {
     cwd: ROOT,
-    env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('team_mode'), PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_ACCOUNTS: '0', PIKDAME_ONNX: '0' },
+    env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('team_mode'), PORT: String(port), PIKDAME_DATA_DIR: dataDir, PIKDAME_ACCOUNTS: '0', PIKDAME_ONNX: '0' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const sockets = [];
@@ -73,8 +76,8 @@ test('server: team tables', async (t) => {
     await Promise.race([exited, new Promise((r) => setTimeout(r, 5000))]);
     fs.rmSync(dataDir, { recursive: true, force: true });
   });
-  await waitForServer();
-  const sock = async () => { const s = await openSocket(); sockets.push(s); return s; };
+  await waitForServer(port);
+  const sock = async () => { const s = await openSocket(port); sockets.push(s); return s; };
 
   await t.test('createSession with teamMode opens a four-seat team lobby; joiners land on the other team', async () => {
     const host = await sock();
@@ -91,9 +94,11 @@ test('server: team tables', async (t) => {
 
     const guest = await sock();
     const guestJoined = next(guest, 'joined');
+    // Listen before the join: the host's state can arrive before the guest's 'joined'.
+    const hostSeesBen = stateWhere(host, (st) => st.players.some((p) => !p.isBot && p.name === 'Ben'));
     guest.send(JSON.stringify({ type: 'joinSession', code: sessionCode, name: 'Ben' }));
     const { playerId: ben, playerToken } = await guestJoined;
-    const afterJoin = await stateWhere(host, (st) => st.players.some((p) => p.id === ben));
+    const afterJoin = await hostSeesBen;
     assert.strictEqual(teamOf(afterJoin, ben), 1, 'auto-balance: Ben plays against Anna');
 
     const switched = stateWhere(host, (st) => teamOf(st, ben) === 0);
@@ -154,6 +159,19 @@ test('server: team tables', async (t) => {
     assert.match((await refused).error, /Stammtisch/);
   });
 
+  await t.test('the Kartenhaus never becomes a team table', async () => {
+    const ws = await sock();
+    const playing = stateWhere(ws, (s) => s.phase === 'playing');
+    ws.send(JSON.stringify({ type: 'startTower', stage: 1, name: 'Hanna', teamMode: true }));
+    const s = await playing;
+    assert.strictEqual(s.towerStage, 1);
+    assert.strictEqual(s.teamMode, false);
+    assert.strictEqual(s.players.length, 3, 'the floor keeps its own seats');
+    const refused = next(ws, 'error');
+    ws.send(JSON.stringify({ type: 'setTeamMode', on: true }));
+    assert.match((await refused).error, /Organisator|Spielbeginn|freien Tischen/);
+  });
+
   await t.test('tutorial and daily challenge never become team tables', async () => {
     const tut = await sock();
     const tutState = stateWhere(tut, (s) => s.phase !== 'lobby');
@@ -172,4 +190,87 @@ test('server: team tables', async (t) => {
     assert.ok(b.challengeDate);
     assert.strictEqual(b.teamMode, false);
   });
+});
+
+/** A team match a few turns before its end: Anna and Ben (team A, far ahead)
+ *  against Cleo and a bot. Built by the real engine, then snapshotted. */
+function nearlyFinishedTeamMatch() {
+  const g = new GameManager(() => {}, { teamMode: true, deckSeed: 4242 });
+  g.maybeRunBotTurn = () => {};
+  g.addOrReconnectPlayer('pa', 'Anna');
+  g.syncLobbyBots();
+  g.addOrReconnectPlayer('pc', 'Cleo');
+  g.addOrReconnectPlayer('pb', 'Ben');
+  assert.deepStrictEqual(g.teams().map((ids) => ids.filter((id) => !id.startsWith('bot-'))), [['pa', 'pb'], ['pc']]);
+  g.setAllBotsDifficulty('medium');
+  g.setHouseRules({ botPace: 'fast' });
+  g.startNewRound();
+  if (g.phase === 'cutting') g.performCut(g.cutterId, 0.5);
+  Object.assign(g.totals, { pa: 900, pb: 900, pc: 100 }); // no round can stop team A now
+  const states = [];
+  for (let i = 0; i < 4000 && g.phase === 'playing'; i++) {
+    states.push(JSON.stringify(g.serialize()));
+    const cp = g.currentPlayer();
+    g.runBotTurn(cp.id, { forced: !g.isBotControlled(cp) });
+  }
+  assert.strictEqual(g.phase, 'gameOver', 'precondition: this round ends the match');
+  g.destroy();
+  return JSON.parse(states[Math.max(0, states.length - 3)]);
+}
+
+test('server: a finished team match books a win for both teammates through the async booking', async (t) => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-teams-book-'));
+  const now = Date.now();
+  // A restart restores the table; its humans are offline, so stand-ins finish the round.
+  fs.writeFileSync(path.join(dataDir, 'sessions-snapshot.json'), JSON.stringify({
+    savedAt: now,
+    sessions: [{ code: 'TEAMAB', createdAt: now, lastActivity: now, playerTokens: { pa: 'tok-a', pb: 'tok-b', pc: 'tok-c' }, stammtisch: null, state: nearlyFinishedTeamMatch() }],
+    puzzleAttempts: [],
+  }));
+  const port = await freePort();
+  const server = spawn('node', ['server.js'], {
+    cwd: ROOT,
+    env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('team_book'), PORT: String(port), PIKDAME_DATA_DIR: dataDir, PIKDAME_ACCOUNTS: '0', PIKDAME_PUBLIC_MODE: '0', PIKDAME_ONNX: '0' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  server.stdout.resume();
+  server.stderr.resume();
+  const sockets = [];
+  const exited = new Promise((r) => server.once('exit', r));
+  t.after(async () => {
+    for (const s of sockets) { try { s.close(); } catch (e) { /* closing */ } }
+    server.kill();
+    await Promise.race([exited, new Promise((r) => setTimeout(r, 5000))]);
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  });
+  await waitForServer(port);
+  const ws = await openSocket(port);
+  sockets.push(ws);
+  const profile = async (name) => {
+    const reply = next(ws, 'profiles');
+    ws.send(JSON.stringify({ type: 'listProfiles', name }));
+    return (await reply).players.find((p) => p.name === name) || null;
+  };
+  // Booked: the badges, the chain's last step, are on the profile.
+  let ben = null;
+  for (const deadline = Date.now() + 60000; Date.now() < deadline;) {
+    ben = await profile('Ben');
+    if (ben && ben.gamesPlayed === 1 && ben.badges && ben.badges.first_win) break;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  assert.ok(ben && ben.gamesPlayed === 1, 'the match was booked');
+
+  const history = next(ws, 'gameHistory');
+  ws.send(JSON.stringify({ type: 'getGameHistory', name: 'Anna' }));
+  const [game] = (await history).games;
+  assert.strictEqual(game.teamMode, true);
+  assert.deepStrictEqual(game.winnerIds.slice().sort(), ['pa', 'pb']);
+  assert.strictEqual(game.won, true);
+  for (const [name, id, won] of [['Anna', 'pa', true], ['Ben', 'pb', true], ['Cleo', 'pc', false]]) {
+    const p = await profile(name);
+    assert.strictEqual(p.gamesPlayed, 1, `${name}: one match`);
+    assert.strictEqual(p.gamesWon, won ? 1 : 0, `${name}: ${won ? 'a team win counts for both' : 'the losing team lost'}`);
+    assert.strictEqual(p.xp, xpForGame(game, id), `${name}: XP from the own total${won ? ' plus the win bonus' : ''}`);
+    assert.strictEqual(!!(p.badges && p.badges.first_win), won, `${name}: first win badge`);
+  }
 });

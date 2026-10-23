@@ -194,6 +194,11 @@ function legalActions(state, myId) {
     add('ready', ready ? 'Withdraw "ready"' : 'Mark yourself ready (needed when several humans sit at the table)', { type: 'lobbyReady' });
     // "2 gegen 2": move to a bot seat of the other team (the server refuses when none is free).
     if (state.teamMode) add('switchTeam', 'Switch to the other team (takes a free bot seat there)', { type: 'switchTeam' });
+    // The host picks the mode (the server refuses it at a Stammtisch).
+    if (state.isHost) {
+      add('teamMode', state.teamMode ? 'Back to a normal table (everyone plays for themselves)' : 'Make it "2 vs 2": two teams of two, seated crosswise, sharing their points',
+        { type: 'setTeamMode', on: !state.teamMode });
+    }
     return actions;
   }
   if (state.phase === 'cutting') {

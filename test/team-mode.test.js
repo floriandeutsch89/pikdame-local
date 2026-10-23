@@ -387,6 +387,8 @@ test('reconnect, leaving mid-game and the rematch keep every seat on its team', 
   assert.deepEqual(g.teams(), teamsBefore, 'a reconnect returns to the same seat');
   assert.equal(g.abandonSeat('p2').outcome, 'left');
   assert.deepEqual(g.teams(), teamsBefore, 'a seat given up stays where it is');
+  assert.deepEqual(g.setAllBotsDifficultyBy('p1', 'hard'), { ok: true });
+  assert.equal(g.players.find((p) => p.id === 'p2').botDifficulty, 'hard', 'the given-up seat follows the one bot level');
   playToEnd(g);
   const gi = g.gameOverInfo;
   const winnerTop = gi.winnerIds.slice().sort((a, b) => gi.finalTotals[b] - gi.finalTotals[a])[0];
@@ -617,6 +619,14 @@ test('MCP: a team table reads its teams, legal moves come from the same engine, 
   const g = teamTable(2);
   const lobby = g.publicState('p1');
   assert.ok(legalActions(lobby, 'p1').some((a) => a.key === 'switchTeam' && a.msg.type === 'switchTeam'));
+  // The host picks the mode, a guest only switches team.
+  assert.deepEqual(legalActions(lobby, 'p1').find((a) => a.key === 'teamMode').msg, { type: 'setTeamMode', on: false });
+  assert.ok(!legalActions(g.publicState('p2'), 'p2').some((a) => a.key === 'teamMode'));
+  const plain = new GameManager(() => {});
+  plain.addOrReconnectPlayer('h', 'Host');
+  assert.deepEqual(legalActions(plain.publicState('h'), 'h').find((a) => a.key === 'teamMode').msg, { type: 'setTeamMode', on: true });
+  assert.ok(!legalActions(plain.publicState('h'), 'h').some((a) => a.key === 'switchTeam'));
+  plain.destroy();
   deal(g);
   while (g.phase === 'playing' && g.currentPlayer().id !== 'p1') step(g);
   const st = g.publicState('p1');
@@ -628,7 +638,32 @@ test('MCP: a team table reads its teams, legal moves come from the same engine, 
   const actions = legalActions(st, 'p1');
   assert.ok(actions.length > 0, 'moves are offered on a team table');
   assert.ok(actions.every((a) => a.msg && typeof a.msg.type === 'string'));
+
+  // Round end names the team sums; game over names the winning team from the seat's view.
+  for (const p of g.players) g.totals[p.id] = 0;
+  g.totals.p1 = 1000;
+  const rival = g.players.find((p) => g.teamOf(p.id) === 1 && p.id !== 'p2');
+  endRound(g, {
+    p1: { laid: [card('H', '7', 0), card('D', '7', 0), card('S', '7', 0)], hand: [] }, // +15
+    [partner.id]: { laid: [], hand: [card('C', 'K', 0)] }, // -10
+    p2: { laid: [], hand: [card('C', '5', 0)] }, // -5
+    [rival.id]: { laid: [], hand: [card('C', '3', 0)] }, // -5
+  }, 'p1');
+  assert.equal(g.phase, 'gameOver');
+  assert.ok(renderState(g.publicState('p2'), 'p2').includes(`GAME OVER: team A (P1 + ${partner.name}) wins 1005 to -10 - your team lost.`));
+  assert.ok(renderState(g.publicState('p1'), 'p1').includes(`GAME OVER: team A (YOU + ${partner.name}) wins 1005 to -10 - your team won.`));
   g.destroy();
+
+  const r = teamTable(4);
+  deal(r);
+  endRound(r, {
+    p1: { laid: [card('H', '7', 0), card('D', '7', 0), card('S', '7', 0)], hand: [] }, // +15
+    p2: { laid: [], hand: [card('C', '5', 0)] }, // -5
+    p3: { laid: [], hand: [card('C', 'K', 0)] }, // -10
+    p4: { laid: [card('H', 'A', 0), card('D', 'A', 0), card('S', 'A', 0)], hand: [] }, // +60
+  }, 'p1');
+  assert.match(renderState(r.publicState('p3'), 'p3'), /Round result: P1 \+15, P2 -5, P3 -10, P4 \+60 \(team A \+5, team B \+55\)/);
+  r.destroy();
 });
 
 test('a normal table carries no team fields and keeps its single winner', () => {
