@@ -3,6 +3,14 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.108.0] - 2026-10-23
+
+### Changed
+- Die Tages-Challenge speichert Bestenliste und Versuche jetzt in der
+  Datenbank. Ein Neustart des Servers direkt nach dem Start oder Ende einer
+  Challenge kann den Versuch nicht mehr verlieren, und ein doppelter Tipp auf
+  „Starten“ beginnt nie zwei gewertete Spiele.
+
 ## [2.107.0] - 2026-10-23
 
 ### Changed
