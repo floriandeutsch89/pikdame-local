@@ -5161,9 +5161,10 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
   to { transform: translate(calc(100cqw + 10px), 0); }
 }
 @keyframes occFlap { to { transform: scaleY(0.62); } }
-/* Christmas: fairy lights over the cards, stars over the snow. */
-.heroLights circle { animation: occBulb 1.6s ease-in-out infinite alternate; }
-.heroLights circle:nth-of-type(odd) { animation-delay: -0.8s; }
+/* Christmas: fairy lights over the cards, stars over the snow. Animated only while
+   shown (.on): Chromium keeps animations of display:none groups running. */
+.heroLights.on circle { animation: occBulb 1.6s ease-in-out infinite alternate; }
+.heroLights.on circle:nth-of-type(odd) { animation-delay: -0.8s; }
 @keyframes occBulb { from { opacity: 0.55; } to { opacity: 1; } }
 .occStar { width: 12px; height: 12px; color: #ffe39a; animation: occTwinkle 2.8s ease-in-out infinite; }
 [data-theme="kitchen"] .occStar { color: #c98a12; }
@@ -5172,7 +5173,7 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
   50% { opacity: 1; transform: scale(var(--s, 1)); }
 }
 /* New Year's Eve and New Year: a sparkler and fireworks instead of snow. */
-.heroSparkler path { transform-box: fill-box; transform-origin: center; animation: occSparkle 0.35s ease-in-out infinite alternate; }
+.heroCostume.on .heroSparkler path { transform-box: fill-box; transform-origin: center; animation: occSparkle 0.35s ease-in-out infinite alternate; }
 @keyframes occSparkle { from { transform: scale(0.7) rotate(0deg); opacity: 0.65; } to { transform: scale(1.1) rotate(22deg); opacity: 1; } }
 .occBurst { width: 0; height: 0; }
 .occBurst b {
@@ -5196,7 +5197,7 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
 }
 @media (prefers-reduced-motion: reduce) {
   .greetConfetti i { display: none; }
-  .heroLights circle, .heroSparkler path { animation: none; }
+  .heroLights.on circle, .heroCostume.on .heroSparkler path { animation: none; }
 }
 
 /* --- Wochenwertung im Challenge-Panel --------------------------------------- */

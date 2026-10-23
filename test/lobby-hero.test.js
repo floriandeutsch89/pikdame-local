@@ -396,3 +396,33 @@ test('holiday: a new game day asks the server again when the app comes back', as
     s.window.close();
   }
 });
+
+// Battery: Chromium keeps CSS animations of display:none groups running, so the lights
+// and the sparkler may only carry an animation while their group is shown (.on).
+test('decor animations: lights and sparkler are animated only on their days (source contract)', () => {
+  const css = fs.readFileSync(path.join(pub, 'style.css'), 'utf8');
+  const decls = [...css.matchAll(/([^{}]+)\{[^{}]*\banimation:\s*occ(?:Bulb|Sparkle)\b[^{}]*\}/g)].map((m) => m[1].trim().split('\n').pop());
+  assert.deepStrictEqual(decls, ['.heroLights.on circle', '.heroCostume.on .heroSparkler path']);
+  assert.match(css, /\.heroLights\.on circle:nth-of-type\(odd\)\s*\{[^}]*animation-delay/);
+  assert.doesNotMatch(css, /(^|[\n,}])\s*\.(heroLights circle|heroSparkler path)\b/, 'no unscoped animation selector left');
+});
+
+test('decor animations: no animated light or sparkler on a normal day, both on their days', async () => {
+  const cases = [
+    { id: null, lights: 0, sparkler: 0 },
+    { id: 'christmas', lights: 8, sparkler: 0 },
+    { id: 'silvester', lights: 0, sparkler: 1 },
+    { id: 'newyear', lights: 0, sparkler: 1 },
+  ];
+  for (const c of cases) {
+    const s = boot({ holidays: c.id ? holiday(c.id) : undefined });
+    try {
+      await s.run(1500);
+      const d = s.window.document;
+      assert.strictEqual(d.querySelectorAll('.heroLights.on circle').length, c.lights, `${c.id}: lights`);
+      assert.strictEqual(d.querySelectorAll('.heroCostume.on .heroSparkler path').length, c.sparkler, `${c.id}: sparkler`);
+    } finally {
+      s.window.close();
+    }
+  }
+});
