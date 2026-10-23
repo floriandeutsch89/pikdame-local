@@ -1,4 +1,4 @@
-// Play attempts (game/PlayEvents.js, migrations/004): the engine hook, the
+// Play attempts (game/PlayEvents.js, migrations/004 + 005): the engine hook, the
 // Kartenhaus rows, the store against PostgreSQL, the admin tab "Festhänger"
 // and the server wiring (finish, give up, leave, restart, account delete).
 const test = require('node:test');
@@ -67,7 +67,8 @@ test('engine: a floor played out reports "finished" once - a star is a won row',
   assert.deepStrictEqual(calls, [{ outcome: 'finished', reason: null }]);
   const ev = towerAttemptEvent(g, calls[0], 1000);
   assert.strictEqual(ev.outcome, 'won');
-  assert.deepStrictEqual([ev.name, ev.area, ev.target, ev.attemptId], ['Ada', 'tower', `${MONTH}/1`, g.attemptId]);
+  assert.deepStrictEqual([ev.name, ev.mode, ev.period, ev.stage, ev.attemptId], ['Ada', 'tower', MONTH, 1, g.attemptId]);
+  assert.ok(ev.startedAt > 0 && ev.startedAt <= ev.endedAt, 'start and end of the played round');
   assert.ok(ev.facts.stars >= 1 && ev.facts.margin > 0);
   assert.strictEqual(ev.facts.end, 'me');
   assert.strictEqual(ev.facts.cause, undefined, 'a won try has no cause');
@@ -213,20 +214,22 @@ test('floors: the "Knick" is a win rate at most half the floor below, both with 
 
 // --- Store against PostgreSQL ------------------------------------------------------
 
-test('migration 004: play_events with its checks, one row per attempt id', async (t) => {
+test('migration 005: play_attempts with its checks, one row per attempt id', async (t) => {
   const pool = testPool(t, 'pe_mig');
-  assert.ok((await migrate(pool)).includes(4));
+  assert.ok((await migrate(pool)).includes(5));
   const cols = (await pool.query(`SELECT column_name FROM information_schema.columns
-    WHERE table_name = 'play_events' AND table_schema = current_schema() ORDER BY ordinal_position`)).rows.map((r) => r.column_name);
-  assert.deepStrictEqual(cols, ['id', 'at', 'day', 'name_key', 'name', 'area', 'target', 'outcome', 'turns', 'duration_ms', 'attempt_id', 'facts']);
-  const insert = (outcome, attemptId) => pool.query(`INSERT INTO play_events (at, day, name_key, name, area, target, outcome, attempt_id)
-    VALUES (1, '2026-10-23', 'ada', 'Ada', 'tower', '2026-10/1', $1, $2)`, [outcome, attemptId]);
+    WHERE table_name = 'play_attempts' AND table_schema = current_schema() ORDER BY ordinal_position`)).rows.map((r) => r.column_name);
+  assert.deepStrictEqual(cols, ['id', 'attempt_id', 'player_key', 'player_name', 'mode', 'period', 'stage', 'outcome',
+    'game_day', 'started_at', 'ended_at', 'turns', 'facts']);
+  const insert = (outcome, attemptId) => pool.query(`INSERT INTO play_attempts
+    (attempt_id, player_key, player_name, mode, period, stage, outcome, game_day, started_at, ended_at)
+    VALUES ($2, 'ada', 'Ada', 'tower', '2026-10', 1, $1, '2026-10-23', now(), now())`, [outcome, attemptId]);
   await insert('won', 'x');
-  await assert.rejects(insert('maybe', 'y'), /play_events_outcome/);
-  await assert.rejects(insert('lost', 'x'), /play_events_attempt/);
+  await assert.rejects(insert('maybe', 'y'), /play_attempts_outcome_check/);
+  await assert.rejects(insert('lost', 'x'), /play_attempts_attempt_id_key/);
   await insert('lost', null);
   await insert('abandoned', null);
-  assert.strictEqual((await pool.query('SELECT count(*)::int AS n FROM play_events')).rows[0].n, 3);
+  assert.strictEqual((await pool.query('SELECT count(*)::int AS n FROM play_attempts')).rows[0].n, 3);
 });
 
 test('store: one row per attempt, never throws - a duplicate, a bad event and a dead database resolve false', async (t) => {
@@ -239,11 +242,12 @@ test('store: one row per attempt, never throws - a duplicate, a bad event and a 
   g.destroy();
   assert.strictEqual(await store.record(ev), true);
   assert.strictEqual(await store.record(ev), false, 'the same attempt twice (replayed snapshot)');
-  const rows = (await pool.query('SELECT * FROM play_events')).rows;
+  const rows = (await pool.query('SELECT * FROM play_attempts')).rows;
   assert.strictEqual(rows.length, 1);
   const r = rows[0];
-  assert.deepStrictEqual([r.name, r.name_key, r.day, r.area, r.target, r.outcome, r.attempt_id], ['Oma Inge', 'oma inge', '2026-10-24', 'tower', `${MONTH}/1`, 'won', ev.attemptId]);
-  assert.strictEqual(Number(r.at), ev.at);
+  assert.deepStrictEqual([r.player_name, r.player_key, r.game_day, r.mode, r.period, r.stage, r.outcome, r.attempt_id],
+    ['Oma Inge', 'oma inge', '2026-10-24', 'tower', MONTH, 1, 'won', ev.attemptId], 'the game day comes back as a string');
+  assert.deepStrictEqual([r.started_at.getTime(), r.ended_at.getTime()], [ev.startedAt, ev.endedAt]);
   assert.deepStrictEqual(r.facts, JSON.parse(JSON.stringify(ev.facts)));
   assert.strictEqual(r.turns, ev.turns);
   assert.deepStrictEqual(errors, []);
@@ -263,10 +267,10 @@ test('store: 90 days retention and deleting a name', async (t) => {
   const pool = testPool(t, 'pe_keep');
   const now = Date.UTC(2026, 9, 23, 12);
   const store = createPlayEvents(pool, { now: () => now });
-  const ev = (name, ageDays) => store.record({ at: now - ageDays * DAY_MS, name, area: 'tower', target: '2026-10/1', outcome: 'lost', turns: 9, facts: {} });
+  const ev = (name, ageDays) => store.record({ endedAt: now - ageDays * DAY_MS, name, mode: 'tower', period: '2026-10', stage: 1, outcome: 'lost', turns: 9, facts: {} });
   await Promise.all([ev('Ada', 91), ev('Ada', 89), ev('ADA ', 1), ev('Ben', 120), ev('Ben', 2)]);
   assert.strictEqual(await store.prune(), 2);
-  const names = async () => (await pool.query('SELECT name_key FROM play_events ORDER BY at')).rows.map((r) => r.name_key);
+  const names = async () => (await pool.query('SELECT player_key FROM play_attempts ORDER BY ended_at')).rows.map((r) => r.player_key);
   assert.deepStrictEqual(await names(), ['ada', 'ben', 'ada']);
   assert.strictEqual(await store.deleteByName(' ada'), 2);
   assert.deepStrictEqual(await names(), ['ben']);
@@ -282,7 +286,8 @@ test('store: 90 days retention and deleting a name', async (t) => {
 async function seed(store, month, rows, now = Date.UTC(2026, 9, 20, 12)) {
   let i = 0;
   for (const [name, stage, outcome, turns, facts = {}] of rows) {
-    await store.record({ at: now + (i += 1) * 60000, name, area: 'tower', target: `${month}/${stage}`, outcome, turns, facts });
+    const endedAt = now + (i += 1) * 60000;
+    await store.record({ startedAt: endedAt - 30000, endedAt, name, mode: 'tower', period: month, stage, outcome, turns, facts });
   }
 }
 
@@ -320,7 +325,9 @@ test('report: the floors of a month, the players stuck on one and their most com
   assert.deepStrictEqual([empty.totals.attempts, empty.floors, empty.stuck], [0, [], []]);
   const tries = await store.playerAttempts('P1');
   assert.strictEqual(tries.name, 'P1');
-  assert.deepStrictEqual(tries.attempts.map((a) => [a.target, a.outcome]).slice(0, 2), [['2026-10/3', 'lost'], ['2026-10/3', 'abandoned']], 'newest first');
+  assert.deepStrictEqual(tries.attempts.map((a) => [a.period, a.stage, a.outcome]).slice(0, 2), [['2026-10', 3, 'lost'], ['2026-10', 3, 'abandoned']], 'newest first');
+  assert.strictEqual(tries.attempts[0].endedAt - tries.attempts[0].startedAt, 30000);
+  assert.strictEqual(r.stuck[0].lastAt, Date.UTC(2026, 9, 20, 12) + 14 * 60000, 'the latest try, in ms');
   assert.strictEqual(tries.attempts.length, 6);
   assert.strictEqual((await store.playerAttempts('P1', { limit: 2 })).attempts.length, 2);
 });
@@ -457,7 +464,8 @@ test('server: finished, left and given-up floors land once each; admin tab; acco
   const left = snapTable('PELFT2', 'p-cleo', 'Cleo', 2);
   const forfeit = snapTable('PEFOR3', 'p-ada2', 'Ada', 1);
   const srv = await startServer(t, databaseUrl, [won.session, left.session, forfeit.session]);
-  const rows = async () => (await db.query("SELECT name, target, outcome, turns, attempt_id, facts FROM play_events WHERE name <> 'Gina' ORDER BY id")).rows;
+  const rows = async () => (await db.query(`SELECT player_name AS name, period || '/' || stage AS target, outcome, turns, attempt_id, facts
+    FROM play_attempts WHERE player_name <> 'Gina' ORDER BY id`)).rows;
 
   // Back at the table, the last card: a won row with the floor's attempt id.
   const a = await srv.socket();
@@ -496,11 +504,11 @@ test('server: finished, left and given-up floors land once each; admin tab; acco
   const csrf = (users.body.match(/name="csrf" value="([a-f0-9]+)"/) || [])[1];
   const del = await request(srv.port, 'POST', '/admin/users', { auth, body: `csrf=${csrf}&username=Gina&action=delete` });
   assert.match(del.body, /Benutzer „Gina“ wurde gelöscht \(mit 2 Spielversuchen\)/);
-  assert.strictEqual((await db.query("SELECT count(*)::int AS n FROM play_events WHERE name_key = 'gina'")).rows[0].n, 0);
+  assert.strictEqual((await db.query("SELECT count(*)::int AS n FROM play_attempts WHERE player_key = 'gina'")).rows[0].n, 0);
   assert.strictEqual((await rows()).length, 2);
 
   // The table is gone: the floor still ends normally, the failed write is logged.
-  await db.query('DROP TABLE play_events');
+  await db.query('DROP TABLE play_attempts');
   const b = await srv.socket();
   b.send({ type: 'joinSession', code: forfeit.session.code, playerId: forfeit.playerId, playerToken: `tok-${forfeit.playerId}`, name: 'Ada' });
   await waitFor(() => b.box.find((m) => m.type === 'joined'), 'joined');
@@ -522,13 +530,15 @@ test('server: a floor lost in a restart (stale snapshot) is written once as aban
   const db = new Pool({ connectionString: databaseUrl, max: 1 });
   t.after(() => db.end());
   const got = await waitFor(async () => {
-    try { return (await db.query('SELECT * FROM play_events')).rows.find(Boolean); } catch (e) { return null; }
+    try { return (await db.query('SELECT * FROM play_attempts')).rows.find(Boolean); } catch (e) { return null; }
   }, 'restart row');
   assert.match(srv.out.log, /Session-Restore übersprungen/);
-  assert.deepStrictEqual([got.name, got.target, got.outcome, got.facts.reason, got.attempt_id], ['Dora', `${MONTH}/3`, 'abandoned', 'restart', lost.session.state.attemptId]);
-  assert.strictEqual(Number(got.at), savedAt, 'when the table was last seen');
-  assert.strictEqual(got.day, gameDay(savedAt));
+  assert.deepStrictEqual([got.player_name, got.period, got.stage, got.outcome, got.facts.reason, got.attempt_id],
+    ['Dora', MONTH, 3, 'abandoned', 'restart', lost.session.state.attemptId]);
+  assert.strictEqual(got.ended_at.getTime(), savedAt, 'when the table was last seen');
+  assert.ok(got.started_at <= got.ended_at, 'never a start after the end');
+  assert.strictEqual(got.game_day, gameDay(savedAt));
   assert.strictEqual(got.turns, lost.session.state.gameTurnCount);
   await new Promise((r) => setTimeout(r, 300));
-  assert.strictEqual((await db.query('SELECT count(*)::int AS n FROM play_events')).rows[0].n, 1);
+  assert.strictEqual((await db.query('SELECT count(*)::int AS n FROM play_attempts')).rows[0].n, 1);
 });

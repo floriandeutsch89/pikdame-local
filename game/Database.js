@@ -1,8 +1,13 @@
 // game/Database.js
 // The one PostgreSQL connection of the server. Postgres is mandatory: the
 // server refuses to start without PIKDAME_DATABASE_URL.
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
 const { readSecret } = require('./secretEnv');
+
+// DATE as its 'YYYY-MM-DD' string: pg's default makes a Date at local midnight,
+// which shifts the game day (game/GameDay.js) with the server's time zone.
+const DATE_OID = 1082;
+types.setTypeParser(DATE_OID, (value) => value);
 
 /** PIKDAME_DATABASE_URL with PIKDAME_DATABASE_PASSWORD(_FILE) injected, or
  *  null when unset. A separate pool password option is unreliable next to a

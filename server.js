@@ -764,7 +764,7 @@ async function handleAdminRequest(req, res, filePath) {
         // Its play attempts go too (privacy page); the account is gone, so a failure names the SQL.
         const attempts = r.ok ? await playEvents.deleteByName(r.username) : 0;
         if (!r.ok) notice = { ok: false, text: r.error };
-        else if (attempts === null) notice = { ok: false, text: `Benutzer „${r.username}“ wurde gelöscht, seine Spielversuche aber nicht (Datenbankfehler). Nachholen: DELETE FROM play_events WHERE name_key = '${nameKey(r.username)}';` };
+        else if (attempts === null) notice = { ok: false, text: `Benutzer „${r.username}“ wurde gelöscht, seine Spielversuche aber nicht (Datenbankfehler). Nachholen: DELETE FROM play_attempts WHERE player_key = '${nameKey(r.username)}';` };
         else notice = { ok: true, text: `Benutzer „${r.username}“ wurde gelöscht${attempts ? ` (mit ${attempts} Spielversuch${attempts === 1 ? '' : 'en'})` : ''}.` };
       } else if (action === 'login-link') {
         if (bump(adminMailsByIp, ip, 10 * 60 * 1000) > 5) {
@@ -1335,7 +1335,7 @@ function sendError(ws, error) {
   }
 }
 
-/** The end of a Kartenhaus attempt into play_events, in the background.
+/** The end of a Kartenhaus attempt into play_attempts, in the background.
  *  `game` is the GameManager or a snapshot's state. Never throws. */
 function logAttempt(game, info, at = Date.now()) {
   if (PUBLIC_MODE) return; // no names are kept there (and no Kartenhaus)

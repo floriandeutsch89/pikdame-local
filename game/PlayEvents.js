@@ -1,7 +1,8 @@
 // game/PlayEvents.js
 // Play attempts for balancing and support: one row per finished or abandoned
-// attempt in play_events (admin tab "Festhänger"), kept RETENTION_DAYS. The ONE
+// attempt in play_attempts (admin tab "Festhänger"), kept RETENTION_DAYS. The ONE
 // module that writes, prunes and reads them. A write never blocks or breaks a game.
+// Instants are ms here and TIMESTAMPTZ in the table (converted at this boundary).
 'use strict';
 const { createPool } = require('./Database');
 const { ensureMigrated } = require('./Migrations');
@@ -20,7 +21,6 @@ const TOWER_CAUSES = ['queen', 'jokers', 'goOut', 'emptyDraw', 'stalemate', 'mar
 const STUCK_MIN_ATTEMPTS = 3;
 // "Knick": a floor's win rate at most half the floor below's, both with this many attempts.
 const WALL_MIN_ATTEMPTS = 5;
-const TOWER_TARGET_RE = "'^\\d{4}-\\d{2}/\\d{1,2}$'";
 
 const nameKey = (name) => String(name || '').trim().toLowerCase();
 const toInt = (v) => (Number.isFinite(v) ? Math.max(-2147483648, Math.min(2147483647, Math.round(v))) : null);
@@ -48,17 +48,18 @@ function towerCause(f) {
 
 /** The row of a Kartenhaus attempt (null for other games); `game` is a GameManager or its snapshot
  *  state. 'finished' grades the record (won = a star), 'abandoned' scores the table as it stood. */
-function towerAttemptEvent(game, { outcome, reason = null } = {}, at = Date.now()) {
+function towerAttemptEvent(game, { outcome, reason = null } = {}, endedAt = Date.now()) {
   const human = game && game.towerStage && game.roundNumber > 0 ? (game.players || []).find((p) => !p.isBot) : null;
   const cfg = human ? BotTower.stageConfig(game.towerStage, game.towerMonth || null) : null;
   if (!cfg) return null;
   const event = {
-    at,
+    startedAt: game.gameStartedAt || null,
+    endedAt,
     name: human.name,
-    area: 'tower',
-    target: `${cfg.month}/${cfg.stage}`,
+    mode: 'tower',
+    period: cfg.month,
+    stage: cfg.stage,
     turns: game.gameTurnCount || 0,
-    durationMs: game.gameStartedAt ? at - game.gameStartedAt : null,
     attemptId: game.attemptId || null,
   };
   const mods = cfg.mods ? { mods: [...cfg.mods] } : {};
@@ -76,7 +77,7 @@ function towerAttemptEvent(game, { outcome, reason = null } = {}, at = Date.now(
       ...handFacts(human.hand), ...mods,
     };
     if (o.stars < 1) facts.cause = towerCause(facts);
-    if (record.startedAt && record.finishedAt) event.durationMs = record.finishedAt - record.startedAt;
+    if (record.startedAt && record.finishedAt) event.startedAt = endedAt - (record.finishedAt - record.startedAt);
     return { ...event, outcome: o.stars >= 1 ? 'won' : 'lost', facts };
   }
   const score = (p) => points(p.laidOutCards) - points(p.hand);
@@ -131,9 +132,9 @@ function shapeFloors(rows, stuckByStage) {
   return floors;
 }
 
-const INSERT_SQL = `INSERT INTO play_events
-  (at, day, name_key, name, area, target, outcome, turns, duration_ms, attempt_id, facts)
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+const INSERT_SQL = `INSERT INTO play_attempts
+  (attempt_id, player_key, player_name, mode, period, stage, outcome, game_day, started_at, ended_at, turns, facts)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
   ON CONFLICT (attempt_id) DO NOTHING`;
 
 /** `db`: a connection string (own pool, ended by close()) or the server's shared pool.
@@ -148,10 +149,13 @@ function createPlayEvents(db, { now = () => Date.now(), logError = (line) => con
   function rowOf(ev) {
     if (!ev || !OUTCOMES.includes(ev.outcome)) throw new Error(`unknown outcome ${ev && ev.outcome}`);
     const name = String(ev.name || '').trim();
-    if (!name || !ev.area || !ev.target) throw new Error('name, area and target are required');
-    const at = Number.isFinite(ev.at) ? Math.round(ev.at) : now();
-    return [at, gameDay(at), nameKey(name), name, String(ev.area), String(ev.target), ev.outcome, toInt(ev.turns),
-      ev.durationMs >= 0 ? toInt(ev.durationMs) : null, ev.attemptId ? String(ev.attemptId) : null, JSON.stringify(ev.facts || {})];
+    if (!name || !ev.mode || !ev.period) throw new Error('name, mode and period are required');
+    const endedAt = Number.isFinite(ev.endedAt) ? Math.round(ev.endedAt) : now();
+    // Unknown or impossible start: the attempt counts as instant (ended_at - started_at = 0).
+    const startedAt = Number.isFinite(ev.startedAt) && ev.startedAt <= endedAt ? Math.round(ev.startedAt) : endedAt;
+    return [ev.attemptId ? String(ev.attemptId) : null, nameKey(name), name, String(ev.mode), String(ev.period),
+      toInt(ev.stage), ev.outcome, gameDay(endedAt), new Date(startedAt), new Date(endedAt), toInt(ev.turns),
+      JSON.stringify(ev.facts || {})];
   }
 
   /** Writes one attempt in the background and never throws. Resolves true when
@@ -162,7 +166,7 @@ function createPlayEvents(db, { now = () => Date.now(), logError = (line) => con
       await ready();
       return (await pool.query(INSERT_SQL, row)).rowCount === 1;
     })().catch((e) => {
-      logError(`[play-events] ${ev && ev.area} ${ev && ev.target} ${ev && ev.outcome} not stored: ${e.message}`);
+      logError(`[play-events] ${ev && ev.mode} ${ev && ev.period}/${ev && ev.stage} ${ev && ev.outcome} not stored: ${e.message}`);
       return false;
     });
     pending.add(job);
@@ -179,7 +183,7 @@ function createPlayEvents(db, { now = () => Date.now(), logError = (line) => con
   async function prune() {
     try {
       await ready();
-      const r = await pool.query('DELETE FROM play_events WHERE at < $1', [now() - RETENTION_DAYS * DAY_MS]);
+      const r = await pool.query('DELETE FROM play_attempts WHERE ended_at < $1', [new Date(now() - RETENTION_DAYS * DAY_MS)]);
       if (r.rowCount) console.log(`[play-events] ${r.rowCount} attempt(s) older than ${RETENTION_DAYS} days deleted`);
       return r.rowCount;
     } catch (e) {
@@ -208,7 +212,7 @@ function createPlayEvents(db, { now = () => Date.now(), logError = (line) => con
     if (!key) return 0;
     try {
       await ready();
-      return (await pool.query('DELETE FROM play_events WHERE name_key = $1', [key])).rowCount;
+      return (await pool.query('DELETE FROM play_attempts WHERE player_key = $1', [key])).rowCount;
     } catch (e) {
       logError(`[play-events] delete failed: ${e.message}`);
       return null;
@@ -220,32 +224,36 @@ function createPlayEvents(db, { now = () => Date.now(), logError = (line) => con
   async function towerReport(month, { minAttempts = STUCK_MIN_ATTEMPTS, limit = 50 } = {}) {
     try {
       await ready();
-      const where = `area = 'tower' AND target ~ ${TOWER_TARGET_RE} AND split_part(target, '/', 1) = $1`;
-      const stuckGroups = `SELECT name_key, target FROM play_events WHERE ${where}
-        GROUP BY name_key, target HAVING count(*) >= $2 AND NOT bool_or(outcome = 'won')`;
+      const where = "mode = 'tower' AND period = $1 AND stage IS NOT NULL";
+      const stuckGroups = `SELECT player_key, stage FROM play_attempts WHERE ${where}
+        GROUP BY player_key, stage HAVING count(*) >= $2 AND NOT bool_or(outcome = 'won')`;
       const causeCounts = TOWER_CAUSES.map((c) => `'${c}', count(*) FILTER (WHERE facts->>'cause' = '${c}')`).join(', ');
       const [months, totals, floors, stuckPerFloor, stuck] = await Promise.all([
-        pool.query(`SELECT DISTINCT split_part(target, '/', 1) AS month FROM play_events
-          WHERE area = 'tower' AND target ~ ${TOWER_TARGET_RE} ORDER BY 1 DESC LIMIT 12`),
-        pool.query(`SELECT count(*)::int AS attempts, count(DISTINCT name_key)::int AS players,
+        // Loose index scan: one probe per month instead of reading every row.
+        pool.query(`WITH RECURSIVE m AS (
+            SELECT max(period) AS period FROM play_attempts WHERE mode = 'tower'
+            UNION ALL
+            SELECT (SELECT max(period) FROM play_attempts WHERE mode = 'tower' AND period < m.period)
+            FROM m WHERE m.period IS NOT NULL)
+          SELECT period AS month FROM m WHERE period IS NOT NULL LIMIT 12`),
+        pool.query(`SELECT count(*)::int AS attempts, count(DISTINCT player_key)::int AS players,
           (count(*) FILTER (WHERE outcome = 'won'))::int AS won,
           (count(*) FILTER (WHERE outcome = 'abandoned'))::int AS abandoned
-          FROM play_events WHERE ${where}`, [month]),
-        pool.query(`SELECT split_part(target, '/', 2)::int AS stage, count(*)::int AS attempts,
-          count(DISTINCT name_key)::int AS players,
-          (count(DISTINCT name_key) FILTER (WHERE outcome = 'won'))::int AS cleared,
+          FROM play_attempts WHERE ${where}`, [month]),
+        pool.query(`SELECT stage, count(*)::int AS attempts,
+          count(DISTINCT player_key)::int AS players,
+          (count(DISTINCT player_key) FILTER (WHERE outcome = 'won'))::int AS cleared,
           (count(*) FILTER (WHERE outcome = 'won'))::int AS won,
           (count(*) FILTER (WHERE outcome = 'abandoned'))::int AS abandoned,
           percentile_cont(0.5) WITHIN GROUP (ORDER BY turns) FILTER (WHERE outcome <> 'abandoned') AS median_turns
-          FROM play_events WHERE ${where} GROUP BY 1 ORDER BY 1`, [month]),
-        pool.query(`SELECT split_part(target, '/', 2)::int AS stage, count(*)::int AS n
-          FROM (${stuckGroups}) s GROUP BY 1`, [month, minAttempts]),
-        pool.query(`SELECT (array_agg(name ORDER BY at DESC))[1] AS name, split_part(target, '/', 2)::int AS stage,
-          count(*)::int AS attempts, max(at) AS last_at, jsonb_build_object(${causeCounts}) AS causes,
+          FROM play_attempts WHERE ${where} GROUP BY 1 ORDER BY 1`, [month]),
+        pool.query(`SELECT stage, count(*)::int AS n FROM (${stuckGroups}) s GROUP BY 1`, [month, minAttempts]),
+        pool.query(`SELECT (array_agg(player_name ORDER BY ended_at DESC))[1] AS name, stage,
+          count(*)::int AS attempts, max(ended_at) AS last_at, jsonb_build_object(${causeCounts}) AS causes,
           percentile_disc(0.5) WITHIN GROUP (ORDER BY turns) FILTER (WHERE outcome = 'abandoned') AS quit_turn,
           percentile_disc(0.5) WITHIN GROUP (ORDER BY -(facts->>'margin')::int) FILTER (WHERE facts->>'cause' = 'margin') AS miss
-          FROM play_events WHERE ${where}
-          GROUP BY name_key, target HAVING count(*) >= $2 AND NOT bool_or(outcome = 'won')
+          FROM play_attempts WHERE ${where}
+          GROUP BY player_key, stage HAVING count(*) >= $2 AND NOT bool_or(outcome = 'won')
           ORDER BY attempts DESC, last_at DESC LIMIT $3`, [month, minAttempts, limit]),
       ]);
       const stuckByStage = Object.fromEntries(stuckPerFloor.rows.map((r) => [r.stage, r.n]));
@@ -266,7 +274,7 @@ function createPlayEvents(db, { now = () => Date.now(), logError = (line) => con
           name: r.name,
           stage: r.stage,
           attempts: r.attempts,
-          lastAt: Number(r.last_at),
+          lastAt: r.last_at.getTime(),
           top: topCause(r.causes),
           quitTurn: r.quit_turn == null ? null : Number(r.quit_turn),
           miss: r.miss == null ? null : Number(r.miss),
@@ -278,16 +286,18 @@ function createPlayEvents(db, { now = () => Date.now(), logError = (line) => con
     }
   }
 
-  /** A player's latest attempts of one area (support), newest first. { error } on failure. */
-  async function playerAttempts(name, { area = 'tower', limit = 50 } = {}) {
+  /** A player's latest attempts of one mode (support), newest first. { error } on failure. */
+  async function playerAttempts(name, { mode = 'tower', limit = 50 } = {}) {
     try {
       await ready();
-      const r = await pool.query(`SELECT name, at, target, outcome, turns, duration_ms, facts FROM play_events
-        WHERE name_key = $1 AND area = $2 ORDER BY at DESC, id DESC LIMIT $3`, [nameKey(name), area, limit]);
+      const r = await pool.query(`SELECT player_name, period, stage, outcome, started_at, ended_at, turns, facts
+        FROM play_attempts WHERE player_key = $1 AND mode = $2 ORDER BY ended_at DESC, id DESC LIMIT $3`,
+      [nameKey(name), mode, limit]);
       return {
-        name: r.rows.length ? r.rows[0].name : String(name || '').trim(),
+        name: r.rows.length ? r.rows[0].player_name : String(name || '').trim(),
         attempts: r.rows.map((x) => ({
-          at: Number(x.at), target: x.target, outcome: x.outcome, turns: x.turns, durationMs: x.duration_ms, facts: x.facts || {},
+          period: x.period, stage: x.stage, outcome: x.outcome, startedAt: x.started_at.getTime(), endedAt: x.ended_at.getTime(),
+          turns: x.turns, facts: x.facts || {},
         })),
       };
     } catch (e) {

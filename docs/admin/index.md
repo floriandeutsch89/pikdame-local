@@ -7,7 +7,7 @@ Everything needed to run Pik Dame for other people.
 
 configuration
 admin-page
-play-events
+play-attempts
 mail
 backup-restore
 auto-deploy
@@ -23,7 +23,7 @@ operations
 | --- | --- |
 | Which environment variables exist, and what do they do? | {doc}`configuration` |
 | **What is missing in my setup?** Startup report, `/admin` page, test mail | {doc}`admin-page` |
-| Where players get stuck in the Kartenhaus, and why (90 days of attempts) | {doc}`play-events` |
+| Where players get stuck in the Kartenhaus, and why (90 days of attempts) | {doc}`play-attempts` |
 | Send account-confirmation mails (SMTP) | {doc}`mail` |
 | **Back up my data — and prove the restore works** | {doc}`backup-restore` |
 | Run a trained (ONNX) bot instead of the heuristic one | {doc}`onnx` |
@@ -46,7 +46,7 @@ All persistent data lives in **one directory**, mounted into the container at
 | `sessions-snapshot.json` | Running tables, written every minute and on shutdown so games survive a restart or crash |
 
 Accounts, the daily challenge (leaderboard and the day's ranked attempts,
-14-day retention) and the Kartenhaus attempts ({doc}`play-events`, 90 days)
+14-day retention) and the Kartenhaus attempts ({doc}`play-attempts`, 90 days)
 live in PostgreSQL.
 
 If that directory is not writable, **nothing is saved** and everything is lost on

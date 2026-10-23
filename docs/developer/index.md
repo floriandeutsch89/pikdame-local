@@ -5,6 +5,7 @@
 
 architecture
 migrations
+schema
 protocol
 game-constants
 progression

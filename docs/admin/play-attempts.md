@@ -2,7 +2,7 @@
 
 Which players get stuck where in the Kartenhaus, and why, without anybody
 having to tell you: every attempt at a floor leaves one row in the PostgreSQL
-table `play_events`, kept for **90 days**. The admin tab **Festhänger**
+table `play_attempts`, kept for **90 days**. The admin tab **Festhänger**
 (`/admin/stuck`) shows them; plain SQL works too.
 
 ## What is recorded
@@ -23,10 +23,13 @@ One row per attempt, written when it ends:
 | `expired` | The table was removed while still open (idle cleanup, 24 h limit) |
 | `restart` | The table could not be restored after a server restart (snapshot older than 30 min); the row carries the snapshot's time |
 
-The columns: `at` (ms), `day` (game day, German midnight), `name` and
-`name_key` (lower case), `area` (`tower`; puzzle, challenge and tutorial can
-follow), `target` (`2026-10/7` = floor 7 of October 2026's tower), `outcome`,
-`turns` (all seats together), `duration_ms`, `attempt_id` and `facts`.
+The columns: `attempt_id`, `player_name` and `player_key` (lower case),
+`mode` (`tower`; puzzle, challenge and tutorial can follow), `period` (the
+tower's month `2026-10`; a `YYYY-MM-DD` day for daily things), `stage` (the
+floor, empty where there is none), `outcome`, `game_day` (DATE, German
+midnight), `started_at` and `ended_at` (TIMESTAMPTZ; the duration is
+`ended_at - started_at`), `turns` (all seats together) and `facts`.
+Conventions: {doc}`../developer/schema`.
 
 `facts` of a Kartenhaus attempt, all derived from the game itself:
 
@@ -80,13 +83,13 @@ docker compose exec postgres psql -U pikdame pikdame
 Where the curve breaks this month, floor by floor:
 
 ```sql
-SELECT split_part(target, '/', 2)::int AS floor,
+SELECT stage AS floor,
        count(*) AS attempts,
-       count(DISTINCT name_key) AS players,
+       count(DISTINCT player_key) AS players,
        round(100.0 * count(*) FILTER (WHERE outcome = 'won') / count(*)) AS win_pct,
        round(100.0 * count(*) FILTER (WHERE outcome = 'abandoned') / count(*)) AS abandon_pct
-  FROM play_events
- WHERE area = 'tower' AND target LIKE '2026-10/%'
+  FROM play_attempts
+ WHERE mode = 'tower' AND period = '2026-10'
  GROUP BY 1 ORDER BY 1;
 ```
 
@@ -95,18 +98,19 @@ Why players fail on one floor:
 ```sql
 SELECT facts->>'cause' AS cause, count(*),
        percentile_disc(0.5) WITHIN GROUP (ORDER BY -(facts->>'margin')::int) AS median_miss
-  FROM play_events
- WHERE area = 'tower' AND target = '2026-10/7' AND outcome <> 'won'
+  FROM play_attempts
+ WHERE mode = 'tower' AND period = '2026-10' AND stage = 7 AND outcome <> 'won'
  GROUP BY 1 ORDER BY 2 DESC;
 ```
 
 One player's attempts, newest first, and deleting them (a guest's request).
-`name_key` is the name in lower case:
+`player_key` is the name in lower case:
 
 ```sql
-SELECT to_timestamp(at / 1000) AS at, target, outcome, turns,
+SELECT ended_at, period, stage, outcome, turns, ended_at - started_at AS took,
        facts->>'cause' AS cause, facts->>'margin' AS margin
-  FROM play_events WHERE name_key = 'oma inge' ORDER BY at DESC LIMIT 20;
+  FROM play_attempts WHERE player_key = 'oma inge' AND mode = 'tower'
+ ORDER BY ended_at DESC LIMIT 20;
 
-DELETE FROM play_events WHERE name_key = 'oma inge';
+DELETE FROM play_attempts WHERE player_key = 'oma inge';
 ```

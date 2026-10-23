@@ -205,7 +205,7 @@ renamed it to `challenges.json.migrated` in the data volume. Rename it back
 before starting the old version; challenge results played on the newer version
 exist only in PostgreSQL and are not in the file. Going forward again does not
 re-import the file (marker in `legacy_imports`, the file is just moved aside);
-to import it once more, `DELETE FROM legacy_imports WHERE name = 'challenges.json'`
+to import it once more, `DELETE FROM legacy_imports WHERE source = 'challenges.json'`
 first.
 
 ## Backup & restore
