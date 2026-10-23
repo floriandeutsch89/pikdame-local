@@ -3,6 +3,19 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.109.0] - 2026-10-23
+
+### Added
+- Kartenhaus: Jeder Versuch einer Etage wird mit Spielername, Ergebnis und
+  Verlauf (Punkte, Züge, Grund für einen fehlenden Stern oder Abbruch) 90 Tage
+  lang gespeichert. Die Admin-Seite zeigt daraus im neuen Bereich
+  „Festhänger“, auf welcher Etage Spieler hängen bleiben und warum.
+- Datenschutzerklärung: Abschnitt zu den gespeicherten Spielversuchen.
+
+### Fixed
+- Nach einem Server-Neustart konnte ein Tisch selten einfrieren: Das Spiel lief
+  weiter, aber niemand bekam mehr den aktuellen Spielstand zu sehen.
+
 ## [2.108.0] - 2026-10-23
 
 ### Changed
