@@ -135,6 +135,11 @@ test('theme contrast: locked items fade the picture, never the text', () => {
   assert.doesNotMatch(css, /\.cardbackTile\.locked \{[^}]*opacity/, 'locked card backs must not fade as a whole');
   // Near-black ink on the kitchen accent was 3.9:1; --accent-ink pairs with every accent.
   assert.doesNotMatch(stripComments(css), /background:\s*var\(--accent\);\s*color:\s*#0b0b0b/);
+  // A dimmed pile left its caption at 1.5:1, a disconnected chip its card count at 3.9:1.
+  assert.doesNotMatch(stripComments(css), /#(?:draw|discard)Pile\.disabled(?:,\s*#(?:draw|discard)Pile\.disabled)?\s*\{[^}]*opacity/, 'a dimmed pile must not fade as a whole');
+  assert.doesNotMatch(stripComments(css), /\.opponent\.disconnected\s*\{[^}]*opacity/, 'a disconnected chip must not fade as a whole');
+  // The draw glow lights the felt under the caption: no muted alpha reached 4.5:1 there.
+  assert.match(ruleBody('.pile.glow .pileLabel'), /color:\s*var\(--text\)/);
 });
 
 // --- Kartenhaus: the red edge of floors 11-20 (--paper-mod) ---------------------

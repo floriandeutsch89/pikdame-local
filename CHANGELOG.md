@@ -3,6 +3,14 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.102.1] - 2026-10-23
+
+### Fixed
+- Gedämpfte Texte sind in allen sechs Erscheinungsbildern gut lesbar (mindestens 4,5:1), vor allem in Filz, Herzdame und Omas Küchentisch: Auslagen-Überschriften, Stapel-Beschriftungen, erledigte Zug-Schritte, „Farbe“ und die Zeile über der Hand, ebenso auf dem Startbildschirm
+- „Nachziehen“ und „Ablage“ verblassen nicht mehr mit dem gerade gesperrten Stapel und stehen in voller Schriftfarbe, solange der Stapel zum Ziehen leuchtet
+- Getrennte Mitspieler: Name und Kartenzahl im Chip bleiben lesbar, nur Bild und Fortschrittsbalken werden blasser
+- Die Lichterkette (Weihnachten) und die Wunderkerze (Silvester) laufen nur noch an ihren Tagen. Den Rest des Jahres blieben sie unsichtbar im Hintergrund animiert und kosteten Akku
+
 ## [2.102.0] - 2026-10-23
 
 ### Changed
