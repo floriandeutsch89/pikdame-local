@@ -40,6 +40,11 @@ fine, while a status like "Noch nicht g…" is not. Say which is which.
   text next to an icon sits in its own `<span>`.
 - **`--accent` means selection.** Player colours come from `PLAYER_COLORS`
   only and never compete with it.
+- **Text reaches 4.5:1** (3:1 from 24 px, or 18.66 px bold) on the surface it
+  really sits on, in every state. Muted text sits on glass pills over the
+  top glow, not just the felt; a parent's `opacity` or a glow behind a caption
+  counts. Pile captions once measured 5.2:1 while the faded pile showed 2:1.
+  The tokens' contract: `test/theme-cascade.test.js`.
 - **Every visible text is bilingual** (`I18N_STATIC` / `L(de, en)`).
 - **No native dialogs**; confirm by two taps.
 

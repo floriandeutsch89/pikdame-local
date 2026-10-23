@@ -47,7 +47,9 @@
      block: that one has the same specificity and beat felt's override. */
   --drawn: #ffc53d;
   --text: #f2f5f7;
-  --text-muted: rgba(226,234,238,0.6);
+  /* Muted text: 4.5:1 on the felt, its glass and the pills on it (test/theme-cascade).
+     Each theme tunes only the alpha of its own tint. */
+  --text-muted: rgba(226,234,238,0.71);
   --danger: #ff7d7d;
   --success: #43dd9a;
   /* Ink for text and controls on the light dialog paper (test/theme-contrast). */
@@ -80,7 +82,7 @@
   --accent-ink: #0c0c2a;
   --accent-soft: rgba(143,144,248,0.22);
   --text: #eef0fb;
-  --text-muted: rgba(210,215,240,0.55);
+  --text-muted: rgba(210,215,240,0.71);
   --danger: #ff7d8c;
   --success: #4fd9ab;
   --paper-accent: #5f5db8;
@@ -114,7 +116,7 @@
   --accent-ink: #2a2005;
   --accent-soft: rgba(233,200,106,0.22);
   --text: #f2f7f2;
-  --text-muted: rgba(220,235,222,0.55);
+  --text-muted: rgba(220,235,222,0.9);
   --danger: #ff8a80;
   --success: #6fe0a8;
   --paper-accent: #806400;
@@ -146,7 +148,7 @@
   --accent-ink: #37081e;
   --accent-soft: rgba(249,127,178,0.24);
   --text: #fdf0f5;
-  --text-muted: rgba(248,220,232,0.6);
+  --text-muted: rgba(248,220,232,0.88);
   --danger: #ff8f9e;
   --success: #5fdcae;
   --paper-accent: #b14475;
@@ -1071,9 +1073,6 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .pileUndoBtn .icon { width: 15px; height: 15px; }
 .pileUndoBtn:active { transform: translateX(-50%) scale(0.92); }
 #discardPile.undoable .pileLabel { visibility: hidden; }
-/* The pile itself stays dimmed (it can't be tapped), the chip must not. */
-#discardPile.disabled.undoable { opacity: 1; }
-#discardPile.disabled.undoable > :not(.pileUndoBtn) { opacity: 0.4; }
 /* Vorschau-Overlay: Karten mit Luft, oberste hervorgehoben */
 .discardPreviewCards {
   display: flex; flex-wrap: wrap;
@@ -1088,16 +1087,21 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 #discardPile, #drawPile { cursor: pointer; transition: transform 0.18s var(--ease); }
 #discardPile:active, #drawPile:active { transform: scale(0.93); }
-#discardPile.disabled, #drawPile.disabled { opacity: 0.4; cursor: not-allowed; }
+/* Can't be tapped: the picture dims, never the caption (2:1 when the whole pile
+   faded) nor the undo chip. */
+#discardPile.disabled > :not(.pileLabel, .pileUndoBtn), #drawPile.disabled > :not(.pileLabel) { opacity: 0.4; }
+#discardPile.disabled, #drawPile.disabled { cursor: not-allowed; }
 /* Draw phase, but the server says the top card cannot be taken: no glow,
    card muted (the peek button stays fully visible). */
 #discardPile.noTake .pile-card { opacity: 0.55; }
-/* Zieh-Phase: sanfter Puls zeigt, dass jetzt gezogen werden darf */
+/* Draw phase: a soft pulse says you may draw now. */
 @keyframes drawPulse {
   0%, 100% { filter: drop-shadow(0 0 3px var(--accent-soft)); }
   50% { filter: drop-shadow(0 0 14px var(--accent)); }
 }
 .pile.glow { animation: drawPulse 1.8s ease-in-out infinite; }
+/* The glow lights the felt under the caption (muted fell to 2.5:1): full text. */
+.pile.glow .pileLabel { color: var(--text); }
 @media (prefers-reduced-motion: reduce) {
   .pile.glow { animation: none; filter: drop-shadow(0 0 10px var(--accent)); }
 }
@@ -4893,7 +4897,7 @@ html[data-cardback="easter"] .card.back,
   --accent-ink: #2a1605;
   --accent-soft: rgba(232,184,107,0.22);
   --text: #f8eef0;
-  --text-muted: rgba(240,220,226,0.58);
+  --text-muted: rgba(240,220,226,0.75);
   --danger: #ff8a8a;
   --success: #6fe0a8;
   --paper-accent: #896114;
@@ -4959,7 +4963,7 @@ html[data-cardback="easter"] .card.back,
   --accent-soft: rgba(176, 85, 42, 0.28);
   --text: #33261a;
   --text-dim: rgba(51, 38, 26, 0.62);
-  --text-muted: rgba(51, 38, 26, 0.55);
+  --text-muted: rgba(51, 38, 26, 0.81);
   --danger: #b3372b;
   --success: #33702a;
   /* Kitchen's danger is already dark: white ink on it, the paper inks as is. */
@@ -5215,8 +5219,10 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
    label only says which VALUE it is standing in for. */
 .card .jokerGhost { color: var(--joker); }
 
-/* --- Getrennt-Status dauerhaft am Spieler-Chip ------------------------------ */
-.opponent.disconnected { opacity: 0.55; }
+/* --- Disconnected: a lasting mark on the player chip ------------------------ */
+/* The picture dims, the text turns muted: the whole chip at 0.55 left the card count at 3.9:1. */
+.opponent.disconnected .opAvatar, .opponent.disconnected .scoreBar { opacity: 0.55; }
+.opponent.disconnected .opNameText, .opponent.disconnected .opCount, .opponent.disconnected .opCount b { color: var(--text-muted); }
 .opponent.disconnected .reconnectTag { animation: reconnectPulse 1.6s ease-in-out infinite; }
 @keyframes reconnectPulse { 50% { opacity: 0.45; } }
 @media (prefers-reduced-motion: reduce) { .opponent.disconnected .reconnectTag { animation: none; } }
