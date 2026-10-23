@@ -46,12 +46,19 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
 2b. **Mobile zuerst** (iPhone 393×852). Jede UI-Änderung prüfen in: hoch,
    **quer** (874×402, nur ~400 px Höhe!) und Desktop. Der letzte
    `@media (orientation: landscape) and (max-height: 540px)`-Block steht am
-   ENDE von `style.css` (Vertragstest). Tisch-Layouts: Hochformat (Flex,
-   Stapel über Hand), Querformat ≤540 px und Desktop ≥1100 px (Grid, Stapel
-   in Seitenspalte). `--accent` (Auswahl) und `--drawn` in jedem Theme
-   unterscheidbar; Spielerfarben nur aus `PLAYER_COLORS` (CVD-geprüft, ≠
-   `--accent`). Startbildschirm: eine Spalte `--lobby-w`, passt am iPhone
-   OHNE Scrollen — Messlatte für neue Elemente. Tap-Ziele ≥ `--tap-min`
+   ENDE von `style.css` (Vertragstest); höhere Spezifität (`#table.x
+   #centerPiles`) schlägt ihn trotzdem — dort jeden Wert neu setzen.
+   Tisch-Layouts: Hochformat (Flex, Stapel über Hand), Querformat ≤540 px
+   und Desktop ≥1100 px (Grid, Stapel in Seitenspalte; Text dort mit
+   `contain: inline-size`, sonst verbreitert er die Spalte und kostet
+   Auslagen-Breite). Gleiche Grid-Spalten: `minmax(0, 1fr)` (`1fr` wächst
+   bis zur längsten `<select>`-Option); `sticky` in einem gepolsterten
+   Scroller zählt ab dem Innenabstand. `--accent` (Auswahl) und `--drawn`
+   in jedem Theme unterscheidbar; Spielerfarben nur aus `PLAYER_COLORS`
+   (CVD-geprüft, ≠ `--accent`). Startbildschirm hochkant: eine Spalte
+   `--lobby-w`, passt am iPhone OHNE Scrollen — Messlatte für neue
+   Elemente; quer ≤540 px (ab 720 px Breite) und Desktop ≥1100 px zwei
+   Spalten (Spielen links, `.lobbyDaily` rechts). Tap-Ziele ≥ `--tap-min`
    (44 px). Größen nur aus der Skala (`--fs-*`, `--ctl-h`), nie rohe `rem`.
    **Keine nativen Dialoge** (`alert`/`confirm`/`prompt`): iOS unterdrückt sie
    still, der Tipp tut dann nichts. Bestätigen per zwei Taps (`confirmByTap`).
@@ -77,13 +84,16 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   - `Badges.js` (Familien in `BADGE_FAMILIES`, Fakten aus `finishRound`),
     `Progression.js` (XP, Tagesaufgaben, Serie mit Joker-Tag; XP-Regeln
     spiegelt `XP_RULES` im Client, Vertragstest). UI: Stufe + Serie am
-    Identitäts-Chip/Fortschritts-Blatt; Tägliches (Rätsel, Challenge,
-    Aufgaben) mit Status im Bereich „Heute“.
+    Identitäts-Chip/Fortschritts-Blatt; Rätsel, Challenge, Kartenhaus und
+    Tagesziele mit Status im Bereich „Aufgaben“.
   - `GameDay.js`: EINZIGE Definition von „heute“ (Mitternacht Europe/Berlin,
     Rechnen nur auf Datums-Strings, nie 24-h-Schritte).
   - `DailyPuzzle.js`: Ergebnisobjekt ohne `type`-Feld (wird in WS gespreadet).
     Arten im Wochentakt (meld/turn/out); Tage vor `ROTATION_START` bleiben,
     wie sie ausgespielt wurden (Archiv per `date`, ohne EP).
+  - Kartenhaus-Blätter ab 2027-01 baut der Server selbst (`TowerMonths.js`, Worker):
+    EINE Regel/Generator (`TowerRule.js`/`TowerGen.js`) für Server und Skript;
+    nie ein unbewiesenes Blatt ausliefern (Zen-Beweis Pflicht).
   - `StammtischStore.js`: Gruppen-Tische `ST…`, per Code abgeschottet (auch
     im Public-Mode aktiv). Codes nie in die Partien-Historie (per Name
     abrufbar), dort nur ein Flag. `Emotes.js`: EINZIGE Emote-Whitelist (Vertragstest).
@@ -101,6 +111,9 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
     letzte Anmeldeweg ist nie löschbar.
 - `public/` — Vanilla-JS-Client, `i18n.js`, PWA. Studio-Vorspann ab dem
   ersten Bild per CSS sichtbar, Kopf-Skript entscheidet, CSS-Notbremse nach 9 s.
+  Tischlicht nach Tageszeit: `table-light.js` schreibt nur `--tod-*`, Farben im
+  CSS-Abschnitt TABLE LIGHT aus dem Filz des Themes; Mittag = Bestand, kein Text
+  unter seinen Mittags-Tiefstwert (`test/table-light-css.test.js`).
 - `landing/` (pikdame.online), `terraform/` (Hetzner), `docker/`, `k8s/`.
 - `mcp/` — MCP-Server: LLM sitzt als normaler WS-Spieler am Tisch (eigenes
   Paket mit MCP-SDK, nicht im Image). Legale Züge prüft ein Schatten-
@@ -163,6 +176,10 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
    Ablauf Schritt für Schritt: Skill `steward`; Browser-Check, Layout-Audit
    und PR-Screenshots: Skill `ui-shots` (eigener Temp-Datenordner);
    Design-Review nach unseren Regeln: Skill `ui-review`.
+   **Sub-Agenten:** Konzept, Design-Review, Auftrags-Prompt und jede
+   Design-Arbeit (sichtbare UI, auch die Umsetzung) mit Opus auf maximalem
+   Aufwand; reine Umsetzung ohne Design auf mittlerem (kleine, abgegrenzte
+   Aufträge: Sonnet mittel; Kosten).
 2. **Changelog-Fragment, wenn sich das Spiel ändert** (`public/`, `server.js`,
    `game/`, `models/`, `docker/`, Abhängigkeiten im Image): neue Datei
    `changes/<thema>.md`, Format in `changes/README.md`. Version und
@@ -205,6 +222,7 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
 
 ## Tests
 
+- **`npm test` ist parallelisierbar** (mehrere Worktrees gleichzeitig, kein Lock nötig): Test-Server nur über `freePort()` aus `test/helpers/free-port.js` (nie feste Ports) und `mkdtempSync`-Verzeichnisse; `--test-timeout=120000` lässt Hänger schnell scheitern.
 - **Eigene Server nie auf `data/`:** immer `PIKDAME_DATA_DIR=<temp>` (Skill
   `ui-shots` macht das). Nach Gebrauch stoppen und
   auf das Ende warten (SIGTERM schreibt noch den Snapshot); vor `npm test`
@@ -215,12 +233,20 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
   feste Ports, ein zweiter Lauf trifft den fremden Server und scheitert wie ein Flake.
 - **Server-Log in Tests:** stdout kommt nach der HTTP-Antwort an. Trefferzahl
   vor der Anfrage merken, auf eine NEUE Zeile warten (`lastFromLog(re, after)`).
+- **Sim-/Seed-Skripte: Logging aus** (`PIKDAME_LOG_GAMES=0` im Skript selbst),
+  sonst füllt `data/human-moves.jsonl` die Platte (ein Seed-Lauf: 22 GB).
+  Einzelne Testdateien nur mit `node --test --require ./test/helpers/setup.js`
+  (wie `npm test`), sonst schreiben sie ebenfalls nach `data/`.
+  Wer Züge selbst treibt, schaltet den Bot-Timer ab (`g.maybeRunBotTurn = () => {}`):
+  er spielt sonst bei langsamer Netz-Antwort (> ~1 s) einen Zug mit (Beweise divergierten).
 - Engine: E2E-Botspiele über alle 4 Stufen (Deadlocks, kein Joker-Abwurf,
   kein Doppel-Satz).
 - **Kartenerhaltung** (`test/card-conservation.test.js`): nach JEDEM Zug exakt
   das 110-Karten-Deck. Planungs-/Suchfunktionen arbeiten auf Kopien (eine
   Bot-Planung schrieb einmal in echte Auslagen → doppelte Pik Damen).
 - Client-Heuristiken gegen die Server-Wahrheit fuzzen: keine falschen Positiven.
+  Ein Bot-Zug kommt als EIN State (Broadcast pro Tick gebündelt): Diffs zweier
+  States aus Orten ableiten, nie aus Zählern (Pik-Dame-Momente, Engine-Fuzz).
 - Snapshot-Änderungen: Roundtrip `JSON.stringify/parse` + Restore.
 - `.canScroll*`-Klassen: wer sie gestaltet, setzt sie auch (Vertragstest;
   am iPhone die einzige Scroll-Andeutung).
@@ -230,4 +256,6 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
   UND `scripts/rl-env-server.js` prüfen.
 - **UI im Browser prüfen**, nicht nur `npm test`: alle drei Layouts. Headless
   Chromium mit normalem User-Agent (sonst Crawler-Erkennung, kein WebSocket).
-  Passkeys mit dem virtuellen CDP-Authenticator.
+  Passkeys mit dem virtuellen CDP-Authenticator. jsdom lädt kein
+  `style.css`: CSS nie per `getComputedStyle` testen, sondern per
+  Quelltext-Vertrag und `ui-shots --measure` (Flächen vorher/nachher).

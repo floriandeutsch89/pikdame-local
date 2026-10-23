@@ -14,7 +14,8 @@ bilingual tables. Ids are stable, names may change.
 | Winning it | **+50** |
 | Final score | **+1 per 10 points** (never negative) |
 | Solving the daily puzzle (once a day, no game counted) | **+30** |
-| First star of a bot tower stage (once per stage, no game counted) | **+25** |
+| First star of a Kartenhaus floor (once per floor and month, no game counted) | **+10** |
+| Crowning the Kartenhaus (all 20 floors of a month starred, once per month) | **+50** |
 
 Each level costs a little more than the last, so the first levels arrive
 after an evening of play and the later ones stay meaningful:
@@ -85,7 +86,7 @@ back instead of showing a broken streak.
 
 ## Badges
 
-**55** badges. 12 of them are *families*: one tile, rising
+**58** badges. 13 of them are *families*: one tile, rising
 thresholds on the same counter.
 
 | Family | Counter | Tiers |
@@ -100,8 +101,9 @@ thresholds on the same counter.
 | `challenger` | `totalChallenges` | 🏁 Challenger {bdg-secondary}`7` → 🏁 Challenge pro {bdg-secondary}`30` |
 | `puzzles` | `totalPuzzlesSolved` | 🧩 Puzzle fox {bdg-secondary}`7` → 🧩 Puzzle master {bdg-secondary}`30` |
 | `puzzlePerfect` | `totalPerfectPuzzles` | 🌟 Star moment {bdg-secondary}`10` → 🌟 Star collector {bdg-secondary}`30` → 🌟 Puzzle ace {bdg-secondary}`100` |
-| `tower` | `towerCleared` | 🗼 Tower climber {bdg-secondary}`3` → 🗼 Tower stormer {bdg-secondary}`6` → 🗼 Tower top {bdg-secondary}`10` |
+| `tower` | `towerCleared` | 🏠 Card stacker {bdg-secondary}`3` → 🏠 Card artist {bdg-secondary}`6` → 🏠 High stacker {bdg-secondary}`10` |
 | `towerStars` | `towerStars` | 🌠 Starry sky {bdg-secondary}`30` |
+| `towerCrowned` | `towerCrownedMonths` | 👷 Apprentice {bdg-secondary}`1` → 👷 Foreman {bdg-secondary}`3` → 👷 Master Builder {bdg-secondary}`12` |
 
 The other **25** are earned by a fact about one match (computed in
 `computeEarnedBadges` from the finished game record):
@@ -180,6 +182,19 @@ on the client:
 | 🤩 | level 14 |
 | 🥳 | level 16 |
 | 💪 | level 18 |
+| 🃏 | level 20 |
+| 😅 | level 21 |
+| 🤞 | level 22 |
+| 👀 | level 23 |
+| 🙄 | level 24 |
+| 😬 | level 26 |
+| 🙃 | level 28 |
+| 🤝 | level 30 |
+| 😇 | level 32 |
+| ☕ | level 34 |
+| 🐢 | level 36 |
+| 🍻 | level 38 |
+| ❤️ | level 40 |
 
 Seasonal extras the client offers in autumn and around New Year: 🎃 🎆
 (always accepted server-side). On their holiday everyone also gets 🎅 🎄 🐣

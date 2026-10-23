@@ -8,6 +8,7 @@
  *    grace used to hang every test file that disconnected a player).
  */
 const test = require('node:test');
+const { freePort } = require('./helpers/free-port');
 const assert = require('node:assert');
 const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
@@ -17,7 +18,7 @@ const WebSocket = require('ws');
 const { testDatabaseUrl } = require('./helpers/test-db');
 
 const ROOT = path.join(__dirname, '..');
-const PORT = 8093;
+let PORT = 0;
 
 // Poll until the server accepts connections instead of sleeping a fixed
 // time: a fixed 2.2s wait went red once under load (the server just had not
@@ -37,7 +38,8 @@ async function waitForServer(port, timeoutMs = 15000) {
   throw new Error(`server on port ${port} did not come up within ${timeoutMs}ms`);
 }
 
-function startServer(dataDir, extraEnv = {}) {
+async function startServer(dataDir, extraEnv = {}) {
+  PORT = await freePort();
   const server = spawn('node', ['server.js'], {
     cwd: ROOT,
     env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('server_runtime'), PORT: String(PORT), PIKDAME_PUBLIC_MODE: '1', PIKDAME_DATA_DIR: dataDir, ...extraEnv },
@@ -55,7 +57,7 @@ test('server negotiates permessage-deflate and drops a stale snapshot', async (t
   // Two hours old - far beyond the restore age limit.
   fs.writeFileSync(snapshotFile, JSON.stringify({ savedAt: Date.now() - 2 * 60 * 60 * 1000, sessions: [] }));
 
-  const { server, output } = startServer(dataDir);
+  const { server, output } = await startServer(dataDir);
   t.after(async () => {
     // SIGTERM makes the server write its session snapshot into dataDir;
     // removing the directory before it exits raced that write (ENOTEMPTY).
@@ -112,7 +114,7 @@ test('a disconnected human does not keep a bare GameManager process alive', () =
 // a member who dropped out gets their seat back by NAME (no seat token there).
 test('Stammtisch: found, join by group code, reclaim seat by name', async (t) => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-st-'));
-  const { server, output } = startServer(dataDir);
+  const { server, output } = await startServer(dataDir);
   t.after(async () => {
     const gone = server.exitCode !== null ? null : new Promise((r) => server.once('exit', r));
     server.kill();
@@ -238,7 +240,7 @@ test('Stammtisch: found, join by group code, reclaim seat by name', async (t) =>
 // challenge tile resumes it instead of dealing a fresh game.
 test('checkSession flags a running challenge of today, not a normal table', async (t) => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-ch-'));
-  const { server } = startServer(dataDir);
+  const { server } = await startServer(dataDir);
   t.after(() => {
     server.kill();
     fs.rmSync(dataDir, { recursive: true, force: true });
@@ -291,7 +293,7 @@ test('checkSession flags a running challenge of today, not a normal table', asyn
 // The real startChallenge path: the GameManager unit tests pass the level in themselves.
 test('the daily challenge seats three medium bots', async (t) => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-chl-'));
-  const { server } = startServer(dataDir);
+  const { server } = await startServer(dataDir);
   t.after(async () => {
     const gone = server.exitCode !== null ? null : new Promise((r) => server.once('exit', r));
     server.kill();
@@ -326,7 +328,7 @@ test('daily challenge: first start plays, second refused, lost game freed at boo
   fs.writeFileSync(path.join(dataDir, 'challenges.json'), JSON.stringify({
     days: {}, attempts: { [today]: { flo: { name: 'Flo', code: 'GONE01', at: Date.now(), state: 'running' } } },
   }));
-  const { server } = startServer(dataDir, { PIKDAME_PUBLIC_MODE: '0' });
+  const { server } = await startServer(dataDir, { PIKDAME_PUBLIC_MODE: '0' });
   t.after(async () => {
     const gone = server.exitCode !== null ? null : new Promise((r) => server.once('exit', r));
     server.kill();
@@ -373,7 +375,7 @@ test('Stammtisch: a new evening starts with the last winner as dealer', async (t
       { name: 'Anna', isBot: false, score: 1010, won: true },
     ] }],
   } } }));
-  const { server } = startServer(dataDir);
+  const { server } = await startServer(dataDir);
   t.after(async () => {
     const gone = server.exitCode !== null ? null : new Promise((r) => server.once('exit', r));
     server.kill();
@@ -416,7 +418,7 @@ test('puzzle archive: past days are graded without XP, out-of-range dates fall b
   const { gameDay, addDays } = require('../game/GameDay');
   const { puzzleForDate, PUZZLE_EPOCH } = require('../game/DailyPuzzle');
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-pz-'));
-  const { server } = startServer(dataDir, { PIKDAME_PUBLIC_MODE: '' });
+  const { server } = await startServer(dataDir, { PIKDAME_PUBLIC_MODE: '' });
   t.after(async () => {
     const gone = server.exitCode !== null ? null : new Promise((r) => server.once('exit', r));
     server.kill();

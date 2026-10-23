@@ -128,6 +128,7 @@
        overlay is opened, and client.js fetches it then (see loadQrLib). -->
   <script src="/i18n.js" defer></script>
   <script src="/music-player.js" defer></script>
+  <script src="/table-light.js" defer></script>
   <script src="/client.js" defer></script>
   <script>
     /* Runs before the first paint: html.noSplash drops the studio intro that
@@ -205,6 +206,11 @@
        hotspot mode still needs no downloads. Emoji stay where they are CONTENT
        (bot avatars, emote bar, badges), not chrome. -->
   <svg class="iconSprite" aria-hidden="true" focusable="false">
+    <!-- One glyph per meaning: group = Stammtisch (a person alone is the account),
+         card with "?" = daily puzzle (the bulb is play tips), podium = daily challenge. -->
+    <symbol id="i-group" viewBox="0 0 24 24"><circle cx="9.5" cy="8.6" r="3.5"/><path d="M3 20.5a6.5 6.5 0 0 1 13 0"/><path d="M14.66 5.88A3.2 3.2 0 1 1 15.15 11.4"/><path d="M17.3 14.3c2.4.7 4.2 3.1 4.2 6.2"/></symbol>
+    <symbol id="i-puzzle" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2.2"/><path d="M9.7 9.8a2.35 2.35 0 1 1 3.3 2.15c-.65.3-1 .8-1 1.5v.7"/><path d="M12 17.1v.1"/></symbol>
+    <symbol id="i-podium" viewBox="0 0 24 24"><path d="M3.5 20.5V14H9v6.5M9 20.5V9.5h6v11M15 20.5V16h5.5v4.5M2.5 20.5h19"/><path d="M11.1 12.9l1.1-.9v4.6"/></symbol>
     <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/><path d="M9.5 20v-6h5v6"/></symbol>
     <!-- The teeth must start AT the ring: without the outer circle the eight
          spokes read as a sun/brightness icon, not a cog. -->
@@ -215,13 +221,12 @@
     <symbol id="i-textsize" viewBox="0 0 24 24"><path d="M3 19 8 5l5 14M4.8 14.5h6.4"/><path d="M14 19l3.5-9 3.5 9M15.2 16.2h4.6"/></symbol>
     <symbol id="i-bug" viewBox="0 0 24 24"><path d="M8 9.5a4 4 0 0 1 8 0v5a4 4 0 0 1-8 0z"/><path d="M9.6 6.6 8.4 4.4M14.4 6.6l1.2-2.2M8 11H4.6M19.4 11H16M8 15.2H4.6M19.4 15.2H16M12 9.5v8"/></symbol>
     <symbol id="i-sound-on" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z"/><path d="M15.5 9.2a4 4 0 0 1 0 5.6M18.2 6.5a8 8 0 0 1 0 11"/></symbol>
-    <symbol id="i-sound-off" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z"/><path d="m16 10 4.5 4.5M20.5 10 16 14.5"/></symbol>
     <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 17.5V6l11-2v11.5"/><circle cx="6.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="15.5" r="2.5"/></symbol>
     <symbol id="i-disc" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><path d="M12 5.5a6.5 6.5 0 0 1 6.5 6.5"/></symbol>
     <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 17.5h6M10 20.5h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.1 1 1.8v.3h5v-.3c0-.7.4-1.3 1-1.8A6 6 0 0 0 12 3z"/></symbol>
-    <symbol id="i-bulb-off" viewBox="0 0 24 24"><path d="M9 17.5h6M10 20.5h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.1 1 1.8v.3h5v-.3c0-.7.4-1.3 1-1.8A6 6 0 0 0 12 3z"/><path d="M4 3.5 20 20"/></symbol>
     <symbol id="i-fullscreen" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
-    <symbol id="i-fullscreen-exit" viewBox="0 0 24 24"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></symbol>
+    <!-- House rules: how this table is set up (the gear stays "Optionen"). -->
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
     <symbol id="i-log" viewBox="0 0 24 24"><path d="M5 4.5h11l3 3V19a.5.5 0 0 1-.5.5h-13A.5.5 0 0 1 5 19z"/><path d="M8.5 10h7M8.5 13.5h7M8.5 17h4"/></symbol>
     <symbol id="i-flag" viewBox="0 0 24 24"><path d="M6 21V3.5"/><path d="M6 4.5h11l-2 3.5 2 3.5H6z"/></symbol>
     <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.8 12 5.8 21.5 12 21.5 12 18 18.2 12 18.2 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></symbol>
@@ -231,6 +236,8 @@
     <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z"/></symbol>
     <symbol id="i-cap" viewBox="0 0 24 24"><path d="M2.5 9 12 4.5 21.5 9 12 13.5z"/><path d="M6.5 11v5c0 1.4 2.5 2.5 5.5 2.5s5.5-1.1 5.5-2.5v-5"/></symbol>
     <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8.5 3v4M15.5 3v4"/></symbol>
+    <symbol id="i-medal" viewBox="0 0 24 24"><circle cx="12" cy="14.5" r="5.5"/><path d="M8.6 10 6 3h4.2L12 7M15.4 10 18 3h-4.2L12 7"/><path d="M12 12.2v4.6"/></symbol>
+    <symbol id="i-magnet" viewBox="0 0 24 24"><path d="M5 3.5h4V12a3 3 0 0 0 6 0V3.5h4V12a7 7 0 0 1-14 0z"/><path d="M5 8h4M15 8h4"/></symbol>
     <symbol id="i-film" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9.5h18M3 14.5h18M8 5v14M16 5v14"/></symbol>
     <symbol id="i-export" viewBox="0 0 24 24"><path d="M12 15V3.5"/><path d="m8 7 4-3.5L16 7"/><path d="M4.5 14v5.5a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1V14"/></symbol>
     <symbol id="i-share" viewBox="0 0 24 24"><circle cx="17.5" cy="6" r="2.6"/><circle cx="6.5" cy="12" r="2.6"/><circle cx="17.5" cy="18" r="2.6"/><path d="m8.9 10.8 6.3-3.4M8.9 13.2l6.3 3.4"/></symbol>
@@ -247,10 +254,15 @@
     <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></symbol>
     <symbol id="i-grip" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.6" fill="currentColor" stroke="none"/><circle cx="15" cy="6" r="1.6" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="1.6" fill="currentColor" stroke="none"/><circle cx="15" cy="18" r="1.6" fill="currentColor" stroke="none"/></symbol>
     <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/></symbol>
+    <!-- Kartenhaus: a floor still being built (its deal is not proven yet). -->
+    <symbol id="i-hourglass" viewBox="0 0 24 24"><path d="M6.5 3.5h11M6.5 20.5h11"/><path d="M8 3.5c0 4.4 4 5.4 4 8.5s-4 4.1-4 8.5M16 3.5c0 4.4-4 5.4-4 8.5s4 4.1 4 8.5"/><path d="M10.3 18.3h3.4"/></symbol>
     <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4 20l1-4.2L15.8 5a2 2 0 0 1 2.8 0l.4.4a2 2 0 0 1 0 2.8L8.2 19z"/><path d="M14 6.8l3.2 3.2"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
     <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3.5 11.2V4.5a1 1 0 0 1 1-1h6.7a1 1 0 0 1 .7.3l8.3 8.3a1 1 0 0 1 0 1.4l-6.7 6.7a1 1 0 0 1-1.4 0L3.8 11.9a1 1 0 0 1-.3-.7z"/><circle cx="8" cy="8" r="1.4"/></symbol>
     <symbol id="i-flame" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 3c.8 3.6 5 5.6 5 10.2a5 5 0 0 1-10 0c0-2.3 1-3.8 2.4-4.9.2 1.6.9 2.6 1.9 3.1C11.1 9.2 11.4 5.8 12 3zM12 20.2a2.3 2.3 0 0 0 2.3-2.3c0-1.4-1.1-2.2-2.3-3.9-1.2 1.7-2.3 2.5-2.3 3.9a2.3 2.3 0 0 0 2.3 2.3z"/></symbol>
+    <!-- Kartenhaus: two card tents, a floor card, one tent on top. The gaps between
+         the floors keep it from reading as letters ("A over M"). -->
+    <symbol id="i-cardhouse" viewBox="0 0 24 24"><path d="M3.8 21 7.3 14.4 10.8 21M13.2 21l3.5-6.6 3.5 6.6"/><path d="M5.2 12.2h13.6"/><path d="M8.7 12.2 12 5.4l3.3 6.8"/></symbol>
     <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M7 4h10v4.5a5 5 0 0 1-10 0z"/><path d="M7 6H4.5a2.6 2.6 0 0 0 3 3.6M17 6h2.5a2.6 2.6 0 0 1-3 3.6"/><path d="M12 13.5V17M8.5 20.5h7M9.5 17h5v3.5h-5z"/></symbol>
     <symbol id="i-cake" viewBox="0 0 24 24"><path d="M3.5 20.5h17"/><path d="M5.5 20.5v-6.2A1.8 1.8 0 0 1 7.3 12.5h9.4a1.8 1.8 0 0 1 1.8 1.8v6.2"/><path d="M5.5 16.2c1.1.9 2.2.9 3.25 0s2.15-.9 3.25 0 2.15.9 3.25 0 2.15-.9 3.25 0"/><path d="M12 12.5V9.5"/><path d="M12 7.2c-1-.8-1-2 0-3.4 1 1.4 1 2.6 0 3.4z"/></symbol>
     <symbol id="i-pumpkin" viewBox="0 0 24 24"><path d="M12 7.6c-1.3-1.5-4.6-1.6-6.3.3-2.4 2.7-2.1 8.4.6 10.5 1.6 1.2 3.8 1.3 5.7.5 1.9.8 4.1.7 5.7-.5 2.7-2.1 3-7.8.6-10.5-1.7-1.9-5-1.8-6.3-.3z"/><path d="M12 7.6v11.2M9 8.4c-1.1 2.8-1.1 7.2 0 9.8M15 8.4c1.1 2.8 1.1 7.2 0 9.8"/><path d="M12 7.6c0-1.7.7-2.9 2.1-3.6"/></symbol>
@@ -446,41 +458,48 @@
           <input id="codeInput" type="text" placeholder="Spiel-Code" maxlength="6" autocapitalize="characters" autocomplete="off" spellcheck="false" />
           <button id="joinGameBtn" class="btn-secondary">Beitreten</button>
         </div>
-        <!-- "Heute": everything that is new every day, each with its status, so
-             an open puzzle or challenge is visible without opening it. -->
-        <section id="todaySection" class="lobby-section todaySection">
-          <h2>Heute</h2>
-          <!-- December only (the server decides): "Dein Pik-Dame-Jahr". In the
-               heading's corner, so the start screen gets no taller. -->
-          <button id="yearReviewBtn" type="button" class="yearChip hidden"><svg class="icon" aria-hidden="true"><use href="#i-cat"/></svg><span>Dein Jahr</span></button>
-          <div id="todayTiles" class="todayTiles">
-            <button id="puzzleBtn" type="button" class="todayTile"><svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg><span class="ttTitle">Tagesrätsel</span><span id="puzzleTileStatus" class="ttStatus"></span></button>
-            <button id="challengeBtn" type="button" class="todayTile"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg><span class="ttTitle">Challenge</span><span id="challengeTileStatus" class="ttStatus"></span></button>
+        <!-- Daily things and groups: the right column in landscape and on desktop
+             (style.css "two columns"); display: contents in portrait. -->
+        <div class="lobbyDaily">
+          <!-- "Aufgaben": the daily puzzle and challenge, this month's Kartenhaus
+               and the daily goals, each with its status, so an open one is
+               visible without opening it. -->
+          <section id="todaySection" class="lobby-section todaySection">
+            <h2>Aufgaben</h2>
+            <!-- December only (the server decides): "Dein Pik-Dame-Jahr". In the
+                 heading's corner, so the start screen gets no taller. -->
+            <button id="yearReviewBtn" type="button" class="yearChip hidden"><svg class="icon" aria-hidden="true"><use href="#i-cat"/></svg><span>Dein Jahr</span></button>
+            <div id="todayTiles" class="todayTiles">
+              <button id="puzzleBtn" type="button" class="todayTile"><svg class="icon" aria-hidden="true"><use href="#i-puzzle"/></svg><span class="ttTitle">Tagesrätsel</span><span id="puzzleTileStatus" class="ttStatus"></span></button>
+              <button id="challengeBtn" type="button" class="todayTile"><svg class="icon" aria-hidden="true"><use href="#i-podium"/></svg><span class="ttTitle">Challenge</span><span id="challengeTileStatus" class="ttStatus"></span></button>
+              <!-- Monthly, so one wide row below the daily tiles: this month's floor and stars. -->
+              <button id="towerTile" type="button" class="todayTile towerTile hidden" aria-haspopup="dialog"><svg class="icon" aria-hidden="true"><use href="#i-cardhouse"/></svg><span class="ttTitle">Kartenhaus</span><span id="towerTileStatus" class="ttStatus"></span></button>
+            </div>
+            <details id="questsSection" class="questsSection hidden">
+              <summary>
+                <span class="questsTitle">Tagesziele</span>
+                <span id="questsSummary" class="questsSummary"></span>
+                <svg class="icon questsChevron" aria-hidden="true"><use href="#i-chevron"/></svg>
+              </summary>
+              <div id="questList" class="questList"></div>
+            </details>
+          </section>
+          <!-- Two modes, two wide tiles: four in a row cut "Stammtisch" off.
+               The daily modes and the Kartenhaus live in "Aufgaben" above. -->
+          <div class="menuChips menuChipsTwo" role="group" aria-label="Spielmodi">
+            <button id="tutorialBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-cap"/></svg><span>Tutorial</span></button>
+            <button id="stammtischBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-group"/></svg><span>Stammtisch</span></button>
           </div>
-          <details id="questsSection" class="questsSection hidden">
-            <summary>
-              <span class="questsTitle">Tagesaufgaben</span>
-              <span id="questsSummary" class="questsSummary"></span>
-              <svg class="icon questsChevron" aria-hidden="true"><use href="#i-chevron"/></svg>
-            </summary>
-            <div id="questList" class="questList"></div>
-          </details>
-        </section>
-        <!-- Two modes, two wide tiles: four in a row cut "Stammtisch" off.
-             The daily modes live in "Heute" above, with their status. -->
-        <div class="menuChips menuChipsTwo" role="group" aria-label="Spielmodi">
-          <button id="tutorialBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-cap"/></svg><span>Tutorial</span></button>
-          <button id="stammtischBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span>Stammtisch</span></button>
+          <!-- Recently visited Stammtische: one tap back to the group's table -->
+          <div id="stammtischRecent" class="stammtischRecent hidden"></div>
         </div>
-        <!-- Recently visited Stammtische: one tap back to the group's table -->
-        <div id="stammtischRecent" class="stammtischRecent hidden"></div>
       </div>
 
       <!-- Session lobby panels. Phone: one column in reading order - code,
            players, house rules (display: contents, the wrapper is invisible).
            Desktop: two columns, settings left, seating right. -->
       <div id="sessionPanels" class="sessionPanels">
-      <p id="nonHostHint" class="lobby-hint nonHostHint hidden"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg><span>Nur der Organisator kann die Einstellungen ändern.</span></p>
+      <p id="nonHostHint" class="lobby-hint nonHostHint hidden"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg><span>Nur der Organisator kann Spieleranzahl, Sitzordnung und Hausregeln ändern.</span></p>
 
       <div id="sessionBanner" class="session-banner hidden">
         <div class="session-code-label">Spiel-Code – zum Mitspielen weitergeben</div>
@@ -488,7 +507,6 @@
         <div class="session-banner-actions">
           <button id="shareCodeBtn" class="btn-secondary">Teilen</button>
           <button id="showQrBtn" class="btn-secondary">QR-Code</button>
-          <button id="updateNameBtn" class="btn-secondary">Name</button>
         </div>
       </div>
 
@@ -588,12 +606,12 @@
            wrong (connecting, retrying, offline). -->
       <p id="connStatus" class="conn-status" data-state="pending" role="status">Verbinde...</p>
       <!-- Utility zone: one icon row with labels underneath. Language and
-           version live in "Mehr" - both are set once, not every visit. -->
+           version live in "Optionen" - both are set once, not every visit. -->
       <div class="lobbyTools" role="group" aria-label="Weitere Bereiche">
         <button id="statsBtn" class="lobbyTool" title="Statistik"><svg class="icon" aria-hidden="true"><use href="#i-chart"/></svg><span>Statistik</span></button>
         <button id="rulesBtnLobby" class="lobbyTool" title="Spielregeln"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span>Regeln</span></button>
         <button id="accountBtn" class="lobbyTool hidden" title="Konto"><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><svg class="icon accountCheck" aria-hidden="true"><use href="#i-check"/></svg><span>Konto</span></button>
-        <button id="settingsBtnLobby" class="lobbyTool" title="Einstellungen"><svg class="icon" aria-hidden="true"><use href="#i-gear"/></svg><span>Mehr</span></button>
+        <button id="settingsBtnLobby" class="lobbyTool" title="Optionen"><svg class="icon" aria-hidden="true"><use href="#i-gear"/></svg><span>Optionen</span></button>
       </div>
       <!-- Topic pages are linked from the seoIntro text below, not here: five
            links in the footer cluttered the lobby for regular players. -->
@@ -702,27 +720,41 @@
 
     <!-- SPIELTISCH -->
     <section id="table" class="screen hidden">
-      <!-- Header, Profi-Layout: links Navigation (Home), Mitte Status
-           (wer ist dran), rechts Aktionen (Emote, Einstellungen). Punkte-
-           und Rundeninfo wohnen unten bei der Hand - dort schaut man hin. -->
+      <!-- Header: navigation left (home), status in the middle (whose turn),
+           actions right (emote, pause, "Optionen"). Score and round info live
+           down by the hand, where the player looks. -->
       <header id="topBar">
         <button id="homeBtn" class="btn-icon" title="Zum Startbildschirm" aria-label="Zum Startbildschirm"><svg class="icon" aria-hidden="true"><use href="#i-home"/></svg></button>
         <div id="turnInfo" class="headerCenter"><span id="turnStatus" class="turnStatus">–</span><span id="turnTimer" class="turnTimer"></span></div>
         <div class="headerRight">
           <button id="emoteBtn" class="btn-icon" title="Reaktion senden" aria-label="Reaktion senden"><svg class="icon" aria-hidden="true"><use href="#i-smile"/></svg></button>
           <button id="pauseBtn" class="btn-icon hidden" title="Pause (alle müssen zustimmen)" aria-label="Pause"><svg class="icon" aria-hidden="true"><use href="#i-pause"/></svg></button>
-          <button id="settingsBtn" class="btn-icon" title="Einstellungen" aria-label="Einstellungen"><svg class="icon" aria-hidden="true"><use href="#i-gear"/></svg></button>
+          <button id="settingsBtn" class="btn-icon" title="Optionen" aria-label="Optionen"><svg class="icon" aria-hidden="true"><use href="#i-gear"/></svg></button>
         </div>
       </header>
 
-      <div id="emoteBar" class="emoteBar hidden">
-        <button class="emoteChoice" data-emote="👍">👍</button><button class="emoteChoice" data-emote="😂">😂</button><button class="emoteChoice" data-emote="😱">😱</button><button class="emoteChoice" data-emote="😤">😤</button><button class="emoteChoice" data-emote="🎉">🎉</button><button class="emoteChoice" data-emote="⏳" title="Tick tack...">⏳</button><button class="emoteChoice" data-emote="pikdame"><span class="miniPikdame">♠<b>Q</b></span></button><button class="emoteChoice" data-emote="👏">👏</button><button class="emoteChoice" data-emote="🙈">🙈</button><button class="emoteChoice" data-emote="🤔">🤔</button><button class="emoteChoice" data-emote="🍀">🍀</button><button class="emoteChoice" data-emote="😎">😎</button><button class="emoteChoice" data-emote="🔥">🔥</button><button class="emoteChoice" data-emote="😴">😴</button><button class="emoteChoice" data-emote="🙏">🙏</button><button class="emoteChoice" data-emote="🤩">🤩</button><button class="emoteChoice" data-emote="🥳">🥳</button><button class="emoteChoice" data-emote="💪">💪</button>
-      </div>
       <div id="opponents"></div>
+
+      <!-- Kartenhaus start card: before the first move of a floor, in the empty
+           middle of the table (landscape/desktop: over the meld area). Never modal. -->
+      <section id="towerStart" class="towerStart hidden" aria-labelledby="towerStartTitle">
+        <div id="towerStartCard" class="tsStage" aria-hidden="true"></div>
+        <div class="tsBody">
+          <p class="tsEye"><svg class="icon" aria-hidden="true"><use href="#i-cardhouse"/></svg><span>Kartenhaus</span></p>
+          <h3 id="towerStartTitle" class="tsTitle"></h3>
+          <p id="towerStartGoal" class="tsGoal"></p>
+          <div id="towerStartMods" class="tsMods"></div>
+          <button id="towerStartBtn" class="btn-primary tsGo" type="button"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>Los</span></button>
+        </div>
+      </section>
 
       <div id="melds"></div>
 
       <div id="centerPiles">
+        <!-- Kartenhaus: the floor as a playing card beside the piles (side column in
+             landscape and on desktop). The card opens the floor's rules, the rest folds
+             to the card and its tokens. Filled by client.js. -->
+        <div id="towerBar" class="towerBar hidden"></div>
         <div class="pile" id="drawPile">
           <div class="pile-card back"></div>
           <span id="drawCount">0</span>
@@ -736,6 +768,8 @@
                action bar: there it slid into the empty 'Abwerfen' slot. -->
           <button id="undoPileBtn" class="pileUndoBtn tapExpand hidden" title="Aufnahme zurücklegen" aria-label="Aufnahme zurücklegen"><svg class="icon" aria-hidden="true"><use href="#i-undo"/></svg><span>Zurücklegen</span></button>
           <div class="pileLabel">Ablage</div>
+          <!-- Kartenhaus "Ohne Ablage" (#discardPile.towerLocked): a lock on the card; the caption stays. -->
+          <div id="discardLock" class="pileLock" aria-hidden="true"><svg class="icon"><use href="#i-lock"/></svg></div>
         </div>
       </div>
 
@@ -782,6 +816,11 @@
         <div id="hand"></div>
       </div>
     </section>
+
+    <!-- Outside #table: its isolated stacking context would put the bar under body-level banners (round stamp, bot lines). -->
+    <div id="emoteBar" class="emoteBar hidden">
+      <button class="emoteChoice" data-emote="👍">👍</button><button class="emoteChoice" data-emote="😂">😂</button><button class="emoteChoice" data-emote="😱">😱</button><button class="emoteChoice" data-emote="😤">😤</button><button class="emoteChoice" data-emote="🎉">🎉</button><button class="emoteChoice" data-emote="⏳" title="Tick tack...">⏳</button><button class="emoteChoice" data-emote="pikdame"><span class="miniPikdame">♠<b>Q</b></span></button><button class="emoteChoice" data-emote="👏">👏</button><button class="emoteChoice" data-emote="🙈">🙈</button><button class="emoteChoice" data-emote="🤔">🤔</button><button class="emoteChoice" data-emote="🍀">🍀</button><button class="emoteChoice" data-emote="😎">😎</button><button class="emoteChoice" data-emote="🔥">🔥</button><button class="emoteChoice" data-emote="😴">😴</button><button class="emoteChoice" data-emote="🙏">🙏</button><button class="emoteChoice" data-emote="🤩">🤩</button><button class="emoteChoice" data-emote="🥳">🥳</button><button class="emoteChoice" data-emote="💪">💪</button><button class="emoteChoice" data-emote="🃏">🃏</button><button class="emoteChoice" data-emote="😅">😅</button><button class="emoteChoice" data-emote="🤞">🤞</button><button class="emoteChoice" data-emote="👀">👀</button><button class="emoteChoice" data-emote="🙄">🙄</button><button class="emoteChoice" data-emote="😬">😬</button><button class="emoteChoice" data-emote="🙃">🙃</button><button class="emoteChoice" data-emote="🤝">🤝</button><button class="emoteChoice" data-emote="😇">😇</button><button class="emoteChoice" data-emote="☕">☕</button><button class="emoteChoice" data-emote="🐢">🐢</button><button class="emoteChoice" data-emote="🍻">🍻</button><button class="emoteChoice" data-emote="❤️">❤️</button>
+    </div>
 
     <!-- KONTO (nur auf Servern mit aktivierten Accounts sichtbar) -->
     <section id="accountOverlay" class="overlay hidden" data-sheet-close="accountCloseBtn">
@@ -886,7 +925,7 @@
     <!-- TAGES-CHALLENGE: Erklaerung VOR dem Start (statt Kaltstart ins Spiel) -->
     <section id="challengeIntroOverlay" class="overlay hidden" data-sheet-close="challengeCancelBtn">
       <div class="overlay-card">
-        <h2><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg><span>Tages-Challenge</span></h2>
+        <h2><svg class="icon" aria-hidden="true"><use href="#i-podium"/></svg><span>Tages-Challenge</span></h2>
         <p>Heute spielen alle Spieler weltweit exakt dasselbe Kartendeck – gegen dieselben drei Bots. Wer holt die meisten Punkte aus den gleichen Karten?</p>
         <p>Ein Versuch pro Tag: Dein Ergebnis kommt mit deinem Spielernamen in die Bestenliste (7 Tage sichtbar).</p>
         <p id="challengePlayedNote" class="challengePlayedNote hidden">Heute hast du die Challenge schon gespielt – morgen gibt es ein neues Deck.</p>
@@ -908,7 +947,7 @@
     <!-- STAMMTISCH: my tables (account) + found a persistent group table -->
     <section id="stammtischOverlay" class="overlay hidden" data-sheet-close="stammtischCancelBtn">
       <div class="overlay-card">
-        <h2><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span>Stammtisch</span></h2>
+        <h2><svg class="icon" aria-hidden="true"><use href="#i-group"/></svg><span>Stammtisch</span></h2>
         <p class="lobby-hint">Ein fester Tisch für deine Runde: ein Code für immer, eine Bilanz über alle Partien und eine Revanche-Serie (Best of 3). Wer den Code kennt, landet immer am aktuellen Tisch.</p>
         <div id="stammtischMine" class="stammtischMine hidden">
           <h3>Meine Stammtische</h3>
@@ -931,7 +970,7 @@
     <!-- A start-screen Stammtisch chip opens the group's record; the table is one tap further. -->
     <section id="stammtischSheetOverlay" class="overlay hidden" data-sheet-close="stammtischSheetCloseBtn">
       <div class="overlay-card stammtischSheet" role="dialog" aria-labelledby="stammtischSheetName">
-        <h2><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span id="stammtischSheetName"></span></h2>
+        <h2><svg class="icon" aria-hidden="true"><use href="#i-group"/></svg><span id="stammtischSheetName"></span></h2>
         <p id="stammtischSheetMeta" class="stammtischSheetMeta"></p>
         <div id="stammtischSheetBody" class="stammtischSheetBody"></div>
         <button id="stammtischSheetJoinBtn" class="btn-primary"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>Platz nehmen</span></button>
@@ -943,7 +982,7 @@
          rotates by weekday; the arrows browse the archive (no XP there). -->
     <section id="puzzleOverlay" class="overlay hidden" data-sheet-close="puzzleCloseBtn">
       <div class="overlay-card">
-        <h2><svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg><span>Tagesrätsel</span></h2>
+        <h2><svg class="icon" aria-hidden="true"><use href="#i-puzzle"/></svg><span>Tagesrätsel</span></h2>
         <div class="puzzleNav">
           <button id="puzzlePrevBtn" type="button" class="btn-icon puzzleNavBtn" title="Vorheriger Tag" aria-label="Vorheriger Tag"><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></button>
           <span id="puzzleDay" class="puzzleDay"></span>
@@ -985,28 +1024,69 @@
 
     <!-- HOME (Tisch verlassen, zurueck zum Startbildschirm) -->
     <section id="homeOverlay" class="overlay hidden" data-sheet-close="homeCancelBtn">
-      <div class="overlay-card">
-        <h2><svg class="icon" aria-hidden="true"><use href="#i-home"/></svg><span>Zum Startbildschirm?</span></h2>
-        <!-- Mode-aware (client.js): solo tables have no bot takeover and close by themselves. -->
-        <p class="homeTable">Du verlässt den Tisch. Kommst du nicht bald zurück, übernimmt ein Bot deinen Platz - mit dem Spiel-Code kannst du jederzeit wieder einsteigen.</p>
-        <p class="lobby-hint homeTable">Das Spiel bleibt offen. Ein neues kannst du erst starten, wenn du dieses aufgibst.</p>
-        <p class="homeTutorial hidden">Das Tutorial wartet kurz auf dich – danach beginnt es von vorn.</p>
-        <p class="homeChallenge hidden">Die Challenge wartet bis Mitternacht auf dich – unter „Heute“ geht es weiter.</p>
-        <p class="homeTower hidden">Die Turmstufe wartet kurz auf dich – danach endet sie ohne Sterne.</p>
-        <button id="homeConfirmBtn" class="btn-primary">Tisch verlassen</button>
-        <button id="homeCancelBtn" class="btn-secondary">Abbrechen</button>
+      <div class="overlay-card homeCard">
+        <!-- Text and actions: side by side in landscape (style.css), stacked elsewhere. -->
+        <div class="homeText">
+          <h2><svg class="icon" aria-hidden="true"><use href="#i-home"/></svg><span>Zum Startbildschirm?</span></h2>
+          <!-- Mode-aware (client.js): solo tables have no bot takeover and close by themselves. -->
+          <p class="homeTable">Du verlässt den Tisch. Kommst du nicht bald zurück, übernimmt ein Bot deinen Platz - mit dem Spiel-Code kannst du jederzeit wieder einsteigen.</p>
+          <p class="lobby-hint homeTable">Das Spiel bleibt offen. Ein neues kannst du erst starten, wenn du dieses aufgibst.</p>
+          <p class="homeTutorial hidden">Das Tutorial wartet kurz auf dich – danach beginnt es von vorn.</p>
+          <p class="homeChallenge hidden">Die Challenge wartet bis Mitternacht auf dich – unter „Aufgaben“ geht es weiter.</p>
+          <p class="homeTower hidden">Die Etage wartet kurz auf dich – danach endet sie ohne Sterne.</p>
+        </div>
+        <div class="homeActions">
+          <button id="homeConfirmBtn" class="btn-primary">Tisch verlassen</button>
+          <!-- The forfeit vote (server forfeitRound), two taps (confirmByTap). Label and hint: client.js. -->
+          <button id="forfeitBtn" class="btn-danger hidden"><svg class="icon" aria-hidden="true"><use href="#i-flag"/></svg><span>Spiel aufgeben</span></button>
+          <p id="forfeitHint" class="lobby-hint forfeitHint hidden"></p>
+          <button id="homeCancelBtn" class="btn-secondary">Abbrechen</button>
+        </div>
       </div>
     </section>
 
-    <!-- Bot tower (game/BotTower.js): ten fixed stages, best stars each. Before
-         the open-game sheet in the DOM, so that one stacks above it. -->
+    <!-- Kartenhaus (game/BotTower.js): this month's 20 floors, best stars each.
+         Before the open-game sheet in the DOM, so that one stacks above it. -->
     <section id="towerOverlay" class="overlay hidden" data-sheet-close="towerCloseBtn">
       <div class="overlay-card towerCard" role="dialog" aria-labelledby="towerTitle">
-        <h2 id="towerTitle" class="iconTitle"><svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg><span>Bot-Turm</span></h2>
-        <p id="towerSummary" class="towerSummary"></p>
-        <ol id="towerList" class="towerList" reversed></ol>
-        <p id="towerRules" class="pgRules towerRules"></p>
-        <button id="towerCloseBtn" class="btn-secondary">Schließen</button>
+        <!-- Three groups: stacked on a phone; landscape and desktop put the
+             house left and the rest right. -->
+        <div class="khTop">
+          <div class="khHead">
+            <h2 id="towerTitle" class="iconTitle"><svg class="icon" aria-hidden="true"><use href="#i-cardhouse"/></svg><span>Kartenhaus</span></h2>
+            <span id="towerMonth" class="khMonth"></span>
+          </div>
+          <p id="towerSummary" class="khSummary"></p>
+        </div>
+        <!-- The house: the month's floor cards as tents, an inline SVG (client.js renderTower). -->
+        <div id="towerHouse" class="khHouse"></div>
+        <div class="khSide">
+          <!-- The rims of the floor cards: red for a handicap, gold for a risk; both dashed. -->
+          <p class="khLegend"><svg class="khLegendMark" viewBox="0 0 26 18" aria-hidden="true"><rect class="mod" x="2" y="2" width="9" height="14" rx="1.5"/><rect class="risk" x="15" y="2" width="9" height="14" rx="1.5"/></svg><span>Gestrichelte Kante: ab Etage 11 mit Sonderregel</span></p>
+          <div id="towerDetail" class="khDetail" aria-live="polite"></div>
+          <details id="towerRulesBox" class="khMore">
+            <summary><span>So funktioniert das Kartenhaus</span><svg class="icon khMoreChevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+            <div id="towerRules" class="pgRules khRules"></div>
+          </details>
+          <details id="towerArchiveBox" class="khMore hidden">
+            <summary><span>Frühere Monate</span><svg class="icon khMoreChevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+            <ul id="towerArchive" class="khArchive"></ul>
+          </details>
+          <button id="towerCloseBtn" class="btn-secondary">Schließen</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Kartenhaus at the table: the rules of the floor being played (tap on the floor card). -->
+    <section id="towerFloorOverlay" class="overlay hidden" data-sheet-close="towerFloorCloseBtn">
+      <div class="overlay-card towerFloorSheet" role="dialog" aria-labelledby="towerFloorTitle">
+        <h2 id="towerFloorTitle" class="iconTitle"><svg class="icon" aria-hidden="true"><use href="#i-cardhouse"/></svg><span id="towerFloorTitleText">Kartenhaus</span></h2>
+        <div id="towerFloorBody" class="tfSheet"></div>
+        <!-- "Am Tisch anzeigen" only while the floor card is hidden (side by side at ~400 px height). -->
+        <div class="tfsActions">
+          <button id="towerFloorShowBtn" class="btn-primary hidden"><svg class="icon" aria-hidden="true"><use href="#i-cardhouse"/></svg><span>Am Tisch anzeigen</span></button>
+          <button id="towerFloorCloseBtn" class="btn-secondary">Weiterspielen</button>
+        </div>
       </div>
     </section>
 
@@ -1029,105 +1109,6 @@
         <h2><svg class="icon" aria-hidden="true"><use href="#i-pause"/></svg><span>Spiel pausiert</span></h2>
         <p id="pauseInfo">Das Spiel ist pausiert. Es geht weiter, sobald alle zustimmen.</p>
         <button id="pauseResumeBtn" class="btn-primary"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>Fortsetzen</span></button>
-      </div>
-    </section>
-
-    <!-- IN-GAME SETTINGS. Used to be eight 36px icon buttons unfolding INSIDE
-         the header: on a 393px phone that row overflowed, pushed the gear and
-         pause buttons off-screen and made the table scroll. A sheet fits any
-         width, labels every switch and keeps the header at three buttons. -->
-    <section id="gameSettingsOverlay" class="overlay hidden" data-sheet-close="gameSettingsCloseBtn">
-      <div class="overlay-card">
-        <h2>Einstellungen</h2>
-        <div class="sheetList">
-          <!-- Same .themeBtn markup as the lobby: applyTheme() syncs the
-               .active state across every swatch in the document, so both rows
-               stay in step without extra wiring. -->
-          <div class="sheetRow sheetRowStatic sheetRowTheme">
-            <svg class="icon" aria-hidden="true"><use href="#i-palette"/></svg>
-            <span class="sheetRowLabel">Erscheinungsbild</span>
-            <span class="themeSwitch sheetThemeSwatches" role="group" aria-label="Erscheinungsbild wählen">
-              <button class="themeBtn tapExpand" data-theme-choice="table" title="Spieltisch" aria-label="Spieltisch"></button>
-              <button class="themeBtn tapExpand" data-theme-choice="night" title="Nacht" aria-label="Nacht"></button>
-              <button class="themeBtn tapExpand" data-theme-choice="love" title="Herzdame" aria-label="Herzdame"></button>
-              <button class="themeBtn tapExpand" data-theme-choice="felt" title="Filz" aria-label="Filz"></button>
-              <button class="themeBtn tapExpand" data-theme-choice="kitchen" title="Omas Küchentisch" aria-label="Omas Küchentisch"></button>
-              <button class="themeBtn tapExpand" data-theme-choice="bordeaux" title="Bordeaux" aria-label="Bordeaux"></button>
-            </span>
-          </div>
-          <button id="uiScaleBtn" class="sheetRow" title="Anzeigegröße ändern">
-            <svg class="icon" aria-hidden="true"><use href="#i-textsize"/></svg>
-            <span class="sheetRowLabel">Anzeigegröße</span>
-            <span class="sheetRowValue">–</span>
-          </button>
-          <button id="soundToggle" class="sheetRow" title="Soundeffekte ein/aus">
-            <svg class="icon" aria-hidden="true"><use href="#i-sound-on"/></svg>
-            <span class="sheetRowLabel">Soundeffekte &amp; Vibration</span>
-            <span class="sheetRowValue">–</span>
-          </button>
-          <button id="musicToggle" class="sheetRow" title="Musik ändern">
-            <svg class="icon" aria-hidden="true"><use href="#i-music"/></svg>
-            <span class="sheetRowLabel">Musik</span>
-            <span class="sheetRowValue">–</span>
-          </button>
-          <button id="tipsToggle" class="sheetRow" title="Spiel-Tipps ein/aus">
-            <svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg>
-            <span class="sheetRowLabel">Spiel-Tipps</span>
-            <span class="sheetRowValue">–</span>
-          </button>
-          <button id="aidDiscardToggle" class="sheetRow" title="Ablage-Hinweis ein/aus">
-            <svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg>
-            <span class="sheetRowLabel">Ablage-Hinweis</span>
-            <span class="sheetRowValue">–</span>
-          </button>
-          <button id="aidLayOffToggle" class="sheetRow" title="Anlege-Hinweis ein/aus">
-            <svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>
-            <span class="sheetRowLabel">Anlege-Hinweis</span>
-            <span class="sheetRowValue">–</span>
-          </button>
-          <button id="aidLowCardsToggle" class="sheetRow" title="Hinweis bei wenigen Karten ein/aus">
-            <svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg>
-            <span class="sheetRowLabel">Hinweis bei wenigen Karten</span>
-            <span class="sheetRowValue">–</span>
-          </button>
-          <button id="botQuipsToggle" class="sheetRow" title="Bot-Sprüche ein/aus">
-            <svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg>
-            <span class="sheetRowLabel">Bot-Sprüche</span>
-            <span class="sheetRowValue">–</span>
-          </button>
-          <!-- Only in a tutorial whose hints were skipped: the way back. -->
-          <button id="tutorialHintsBtn" class="sheetRow hidden" title="Tutorial-Hinweise wieder einschalten">
-            <svg class="icon" aria-hidden="true"><use href="#i-cap"/></svg>
-            <span class="sheetRowLabel">Tutorial-Hinweise</span>
-            <span class="sheetRowValue">Wieder an</span>
-          </button>
-          <button id="fullscreenBtn" class="sheetRow hidden" title="Vollbild">
-            <svg class="icon" aria-hidden="true"><use href="#i-fullscreen"/></svg>
-            <span class="sheetRowLabel">Vollbild</span>
-            <span class="sheetRowValue">–</span>
-          </button>
-          <button id="logToggle" class="sheetRow" title="Spielverlauf ein-/ausblenden">
-            <svg class="icon" aria-hidden="true"><use href="#i-log"/></svg>
-            <span class="sheetRowLabel">Spielverlauf</span>
-            <span class="sheetRowValue"></span>
-          </button>
-          <button id="debugBtn" class="sheetRow" title="Debug-Overlay umschalten">
-            <svg class="icon" aria-hidden="true"><use href="#i-bug"/></svg>
-            <span class="sheetRowLabel">Debug-Ansicht</span>
-            <span class="sheetRowValue"></span>
-          </button>
-          <button id="ingameVersion" class="sheetRow" title="Was ist neu?">
-            <svg class="icon" aria-hidden="true"><use href="#i-tag"/></svg>
-            <span class="sheetRowLabel">Was ist neu?</span>
-            <span class="sheetRowValue">v–</span>
-          </button>
-          <button id="forfeitBtn" class="sheetRow sheetRowDanger" title="Spiel aufgeben">
-            <svg class="icon" aria-hidden="true"><use href="#i-flag"/></svg>
-            <span class="sheetRowLabel">Spiel aufgeben</span>
-            <span class="sheetRowValue"></span>
-          </button>
-        </div>
-        <button id="gameSettingsCloseBtn" class="btn-secondary">Schließen</button>
       </div>
     </section>
 
@@ -1165,164 +1146,234 @@
     </section>
 
     <section id="settingsOverlay" class="overlay hidden" data-sheet-close="settingsOverlayCloseBtn">
-      <div class="overlay-card">
-        <h2 id="settingsOverlayTitle"><svg class="icon" aria-hidden="true"><use href="#i-gear"/></svg><span>Einstellungen</span></h2>
-        <div class="settingsList">
-          <!-- Moved off the lobby's first screen: picking a look before you
-               have even typed your name is not the first decision anyone
-               needs. Same .themeBtn markup, so applyTheme() keeps all three
-               swatch rows (lobby settings, in-game sheet) in sync. -->
-          <div class="settingsItem">
-            <div class="settingsRow">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-palette"/></svg><span>Erscheinungsbild</span></span>
-            </div>
-            <div class="themeSwitch settingsThemeRow" role="group" aria-label="Erscheinungsbild wählen">
-              <button class="themeBtn tapExpand" data-theme-choice="table" title="Spieltisch" aria-label="Spieltisch"></button>
-              <button class="themeBtn tapExpand" data-theme-choice="night" title="Nacht" aria-label="Nacht"></button>
-              <button class="themeBtn tapExpand" data-theme-choice="love" title="Herzdame" aria-label="Herzdame"></button>
-              <button class="themeBtn tapExpand" data-theme-choice="felt" title="Filz" aria-label="Filz"></button>
-              <button class="themeBtn tapExpand" data-theme-choice="kitchen" title="Omas Küchentisch" aria-label="Omas Küchentisch"></button>
-              <button class="themeBtn tapExpand" data-theme-choice="bordeaux" title="Bordeaux" aria-label="Bordeaux"></button>
-            </div>
-          </div>
-
-          <div class="settingsItem">
-            <div class="settingsRow">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg><span>Sprache</span></span>
-              <!-- Names the OTHER language, like a language link on any website. -->
-              <button id="langBtn" class="settingsAction"></button>
-            </div>
-          </div>
-
-          <div class="settingsItem">
-            <label class="settingsRow" for="uiScaleSelect">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-textsize"/></svg><span>Anzeigegröße</span></span>
-              <select id="uiScaleSelect" class="settingsSelect">
-                <option value="normal">Normal</option>
-                <option value="large">Groß</option>
-                <option value="xlarge">Sehr groß</option>
-              </select>
-            </label>
-          </div>
-
-          <div class="settingsItem">
-            <label class="settingsRow" for="studioLogoSelect">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-film"/></svg><span>Studio-Logo</span></span>
-              <select id="studioLogoSelect" class="settingsSelect">
-                <option value="auto">Nur beim ersten Start</option>
-                <option value="always">Bei jedem Start</option>
-                <option value="off">Aus</option>
-              </select>
-            </label>
-            <p class="settingsHint" id="studioLogoHint">Antippen überspringt es. Ist „Bewegung reduzieren“ an, läuft es nur bei „Bei jedem Start“ - und dann ruhiger.</p>
-          </div>
-
-          <div class="settingsItem">
-            <div class="settingsRow">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><span>Kartenrücken</span></span>
-              <button id="cardbackBtn" class="settingsAction">Klassisch</button>
-            </div>
-          </div>
-
-          <!-- On the profile, not the device: the whole table sees it (client.js updateCelebrationSetting). -->
-          <div class="settingsItem" id="celebrationItem">
-            <label class="settingsRow" for="celebrationSelect">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-sparkle"/></svg><span>Siegesjubel</span></span>
-              <select id="celebrationSelect" class="settingsSelect">
-                <option value="standard">Standard</option>
-                <option value="cats">Katzen-Konfetti</option>
-                <option value="fireworks">Feuerwerk</option>
-                <option value="cardfan">Kartenfächer</option>
-                <option value="goldqueen">Goldene Pik Dame</option>
-              </select>
-            </label>
-            <div class="settingsRow celebrationFoot">
-              <p class="settingsHint" id="celebrationHint">Gewinnst du, sehen alle am Tisch deinen Jubel.</p>
-              <button type="button" id="celebrationPreviewBtn" class="settingsAction"><span>Vorschau</span></button>
-            </div>
-            <!-- Below the button, so a second tap finds it where it was. -->
-            <div id="celebrationPreview" class="celebrationPreview" aria-hidden="true"></div>
-          </div>
-
-          <!-- Per device, so it lives here and not in the host's house rules. -->
-          <div class="settingsItem">
-            <label class="settingsRow" for="soundCheckbox">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-sound-on"/></svg><span>Soundeffekte &amp; Vibration</span></span>
-              <input type="checkbox" id="soundCheckbox" class="settingsCheckbox" />
-            </label>
-            <p class="settingsHint">Gilt nur für dieses Gerät.</p>
-          </div>
-
-          <!-- Per device like the sound; composed in scripts/render-music.js. -->
-          <div class="settingsItem settingsPair" id="musicItem">
-            <label class="settingsRow" for="musicLevelSelect">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-music"/></svg><span>Musik</span></span>
-              <select id="musicLevelSelect" class="settingsSelect">
-                <option value="off">Aus</option>
-                <option value="low">Leise</option>
-                <option value="mid">Mittel</option>
-                <option value="high">Laut</option>
-              </select>
-            </label>
-            <label class="settingsRow" for="musicTrackSelect">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-disc"/></svg><span>Stück</span></span>
-              <select id="musicTrackSelect" class="settingsSelect">
-                <option value="mix">Wechselnd</option>
-                <option value="kaffeehaus">Kaffeehaus</option>
-                <option value="lounge">Lounge-Bossa</option>
-                <option value="kaetzchen">Kätzchen</option>
-              </select>
-            </label>
-            <p class="settingsHint">Eigens für Pik Dame komponiert. Gilt für dieses Gerät; jedes Stück wird nur einmal geladen.</p>
-          </div>
-
-          <div class="settingsItem">
-            <h3 class="settingsGroupTitle">Spielhilfen</h3>
-            <label class="settingsRow" for="aidTipsCheckbox">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg><span>Spiel-Tipps</span></span>
-              <input type="checkbox" id="aidTipsCheckbox" class="settingsCheckbox" />
-            </label>
-            <label class="settingsRow" for="aidDiscardCheckbox">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><span>Ablage-Hinweis</span></span>
-              <input type="checkbox" id="aidDiscardCheckbox" class="settingsCheckbox" />
-            </label>
-            <p class="settingsHint">Zeigt in der Zieh-Phase, ob die oberste Ablagekarte zu deiner Hand passt. Aus: Du prüfst das selbst.</p>
-            <label class="settingsRow" for="aidLayOffCheckbox">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span>Anlege-Hinweis</span></span>
-              <input type="checkbox" id="aidLayOffCheckbox" class="settingsCheckbox" />
-            </label>
-            <p class="settingsHint">Grüne Rahmen an deinen Auslagen, wenn die gewählte Karte dort anlegen kann. Aus: Du prüfst das selbst. Im Tutorial sind beide Hinweise immer an.</p>
-            <label class="settingsRow" for="aidLowCardsCheckbox">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg><span>Hinweis bei wenigen Karten</span></span>
-              <input type="checkbox" id="aidLowCardsCheckbox" class="settingsCheckbox" />
-            </label>
-            <p class="settingsHint">Markiert Mitspieler, die nur noch eine oder zwei Karten haben. Aus: Du zählst selbst mit.</p>
-          </div>
-
-          <div class="settingsItem">
-            <label class="settingsRow" for="botQuipsCheckbox">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg><span>Bot-Sprüche</span></span>
-              <input type="checkbox" id="botQuipsCheckbox" class="settingsCheckbox" />
-            </label>
-            <p class="settingsHint">Kurze Sätze der Bots in besonderen Momenten – selten, nur zum Spaß. Gilt für dieses Gerät.</p>
-          </div>
-
-          <div class="settingsItem">
-            <label class="settingsRow" for="debugCheckbox">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-bug"/></svg><span>Debug-Ansicht</span></span>
-              <input type="checkbox" id="debugCheckbox" class="settingsCheckbox" />
-            </label>
-            <p class="settingsHint">Blendet Gitter und Messwerte ein - nur für die Fehlersuche.</p>
-          </div>
-
-          <div class="settingsItem">
-            <div class="settingsRow">
-              <span class="settingsLabel"><svg class="icon" aria-hidden="true"><use href="#i-tag"/></svg><span>Was ist neu?</span></span>
-              <button id="versionBtn" class="settingsAction" title="Was ist neu?">v–</button>
-            </div>
-          </div>
+      <div class="overlay-card prefCard">
+        <div class="prefHead">
+          <h2 id="settingsOverlayTitle"><svg class="icon" aria-hidden="true"><use href="#i-gear"/></svg><span>Optionen</span></h2>
+          <!-- Names the OTHER language in that language, top right like on any website. -->
+          <button type="button" id="langBtn" class="prefLang" title="Sprache"><svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg><span></span></button>
         </div>
-        <button id="settingsOverlayCloseBtn" class="btn-secondary">Schließen</button>
+        <!-- One sheet for the start screen and the table (gear). Four groups, most
+             used first; segment buttons only write their hidden <select>: it stays
+             the source of truth (ids, storage, change events). -->
+        <div class="prefList">
+          <!-- At the table only (client.js renderTableOptions): what applies to this game. -->
+          <div id="tableOptions" class="prefGroup prefTableGroup hidden">
+            <h3 class="prefGroupTitle">Dieser Tisch</h3>
+            <div class="prefBox">
+              <!-- Kartenhaus floor whose card was hidden (its ✕): its rules and the way back.
+                   client.js renderTowerTable shows it; its click closes whichever sheet holds it. -->
+              <button type="button" id="towerPanelBtn" class="prefRow prefLink hidden">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-cardhouse"/></svg>
+                <span class="prefText prefLabel">Kartenhaus-Etage</span>
+                <span class="prefValue">Anzeigen</span>
+                <svg class="icon prefChevron" aria-hidden="true"><use href="#i-chevron"/></svg>
+              </button>
+              <div class="prefRow prefStack">
+                <span class="prefStackHead">
+                  <svg class="icon prefIcon" aria-hidden="true"><use href="#i-sliders"/></svg>
+                  <span class="prefText"><span class="prefLabel">Hausregeln</span></span>
+                </span>
+                <!-- Read-only: the host sets them in the game lobby. Values via L() in client.js. -->
+                <dl id="tableRules" class="prefRules">
+                  <div><dt>Hand aus zählt doppelt</dt><dd id="tableRuleHandAus"></dd></div>
+                  <div><dt>Über 1000 Punkte zum Gewinnen</dt><dd id="tableRuleStrict"></dd></div>
+                  <div><dt>Zug-Timer</dt><dd id="tableRuleTimer"></dd></div>
+                  <div id="tableRuleBotPaceRow"><dt>Bot-Tempo</dt><dd id="tableRuleBotPace"></dd></div>
+                  <div id="tableRuleBotLevelRow"><dt>Bot-Stärke</dt><dd id="tableRuleBotLevel"></dd></div>
+                </dl>
+              </div>
+              <button type="button" id="tableRulesBtn" class="prefRow prefLink">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-book"/></svg>
+                <span class="prefText prefLabel">Spielregeln</span>
+                <svg class="icon prefChevron" aria-hidden="true"><use href="#i-chevron"/></svg>
+              </button>
+              <button type="button" id="tableLogBtn" class="prefRow prefLink">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-log"/></svg>
+                <span class="prefText prefLabel">Spielverlauf</span>
+                <svg class="icon prefChevron" aria-hidden="true"><use href="#i-chevron"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Ton + Darstellung: the left column in landscape and on desktop (style.css), also at the table. -->
+          <div class="prefCol">
+          <div class="prefGroup">
+            <h3 class="prefGroupTitle">Ton</h3>
+            <div class="prefBox">
+              <label class="prefRow" for="soundCheckbox">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-sound-on"/></svg>
+                <span class="prefText"><span class="prefLabel">Soundeffekte &amp; Vibration</span></span>
+                <input type="checkbox" id="soundCheckbox" class="settingsCheckbox" />
+              </label>
+              <div id="musicItem" class="prefPart">
+                <div class="prefRow prefStack">
+                  <span class="prefStackHead">
+                    <svg class="icon prefIcon" aria-hidden="true"><use href="#i-music"/></svg>
+                    <span class="prefText"><span class="prefLabel" id="musicLevelLabel">Musik</span></span>
+                  </span>
+                  <div class="segmented prefSeg" role="group" aria-labelledby="musicLevelLabel" data-select="musicLevelSelect">
+                    <button type="button" class="segBtn" data-value="off">Aus</button>
+                    <button type="button" class="segBtn" data-value="low">Leise</button>
+                    <button type="button" class="segBtn" data-value="mid">Mittel</button>
+                    <button type="button" class="segBtn" data-value="high">Laut</button>
+                  </div>
+                  <select id="musicLevelSelect" hidden>
+                    <option value="off">Aus</option>
+                    <option value="low">Leise</option>
+                    <option value="mid">Mittel</option>
+                    <option value="high">Laut</option>
+                  </select>
+                </div>
+                <label class="prefRow" for="musicTrackSelect">
+                  <svg class="icon prefIcon" aria-hidden="true"><use href="#i-disc"/></svg>
+                  <span class="prefText"><span class="prefLabel">Musikstück</span></span>
+                  <select id="musicTrackSelect" class="settingsSelect">
+                    <option value="mix">Wechselnd</option>
+                    <option value="kaffeehaus">Kaffeehaus</option>
+                    <option value="lounge">Lounge-Bossa</option>
+                    <option value="kaetzchen">Kätzchen</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="prefGroup">
+            <h3 class="prefGroupTitle">Darstellung</h3>
+            <div class="prefBox">
+              <div class="prefRow prefStack">
+                <span class="prefStackHead">
+                  <svg class="icon prefIcon" aria-hidden="true"><use href="#i-textsize"/></svg>
+                  <span class="prefText"><span class="prefLabel" id="uiScaleLabel">Anzeigegröße</span></span>
+                </span>
+                <!-- Each label in its own size: the choice previews itself. -->
+                <div class="segmented prefSeg prefScaleSeg" role="group" aria-labelledby="uiScaleLabel" data-select="uiScaleSelect">
+                  <button type="button" class="segBtn" data-value="normal">Normal</button>
+                  <button type="button" class="segBtn" data-value="large">Groß</button>
+                  <button type="button" class="segBtn" data-value="xlarge">Sehr groß</button>
+                </div>
+                <select id="uiScaleSelect" hidden>
+                  <option value="normal">Normal</option>
+                  <option value="large">Groß</option>
+                  <option value="xlarge">Sehr groß</option>
+                </select>
+              </div>
+              <div class="prefRow prefStack">
+                <span class="prefStackHead">
+                  <svg class="icon prefIcon" aria-hidden="true"><use href="#i-palette"/></svg>
+                  <span class="prefText"><span class="prefLabel">Erscheinungsbild</span></span>
+                  <span class="prefValue" id="themeNameValue"></span>
+                </span>
+                <div class="themeSwitch prefSwatches" role="group" aria-label="Erscheinungsbild wählen">
+                  <button class="themeBtn tapExpand" data-theme-choice="table" title="Spieltisch" aria-label="Spieltisch"></button>
+                  <button class="themeBtn tapExpand" data-theme-choice="night" title="Nacht" aria-label="Nacht"></button>
+                  <button class="themeBtn tapExpand" data-theme-choice="love" title="Herzdame" aria-label="Herzdame"></button>
+                  <button class="themeBtn tapExpand" data-theme-choice="felt" title="Filz" aria-label="Filz"></button>
+                  <button class="themeBtn tapExpand" data-theme-choice="kitchen" title="Omas Küchentisch" aria-label="Omas Küchentisch"></button>
+                  <button class="themeBtn tapExpand" data-theme-choice="bordeaux" title="Bordeaux" aria-label="Bordeaux"></button>
+                </div>
+              </div>
+              <button type="button" id="cardbackBtn" class="prefRow prefLink">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-cards"/></svg>
+                <span class="prefText"><span class="prefLabel">Kartenrücken</span></span>
+                <span class="prefValue" id="cardbackValue">Klassisch</span>
+                <svg class="icon prefChevron" aria-hidden="true"><use href="#i-chevron"/></svg>
+              </button>
+              <!-- Only where the browser has the Fullscreen API (not iPhone Safari): client.js. -->
+              <label id="fullscreenItem" class="prefRow hidden" for="fullscreenCheckbox">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-fullscreen"/></svg>
+                <span class="prefText"><span class="prefLabel">Vollbild</span></span>
+                <input type="checkbox" id="fullscreenCheckbox" class="settingsCheckbox" />
+              </label>
+              <!-- On the profile, not the device: the whole table sees it (client.js updateCelebrationSetting). -->
+              <div id="celebrationItem" class="prefPart">
+                <div class="prefRow prefCeleb">
+                  <svg class="icon prefIcon" aria-hidden="true"><use href="#i-sparkle"/></svg>
+                  <label class="prefText" for="celebrationSelect"><span class="prefLabel">Siegesjubel</span><span class="prefSub" id="celebrationHint">Alle am Tisch sehen ihn</span></label>
+                  <select id="celebrationSelect" class="settingsSelect">
+                    <option value="standard">Standard</option>
+                    <option value="cats">Katzen-Konfetti</option>
+                    <option value="fireworks">Feuerwerk</option>
+                    <option value="cardfan">Kartenfächer</option>
+                    <option value="goldqueen">Goldene Pik Dame</option>
+                  </select>
+                  <button type="button" id="celebrationPreviewBtn" class="prefIconBtn" title="Vorschau" aria-label="Vorschau"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg></button>
+                </div>
+                <!-- Below the button, so a second tap finds it where it was. -->
+                <div id="celebrationPreview" class="celebrationPreview" aria-hidden="true"></div>
+              </div>
+            </div>
+          </div>
+
+          </div><!-- /prefCol -->
+
+          <div class="prefGroup">
+            <h3 class="prefGroupTitle">Spielhilfen</h3>
+            <div class="prefBox">
+              <!-- Only at an unfinished tutorial table (client.js updateTutorial). -->
+              <label id="tutorialHintsItem" class="prefRow hidden" for="tutorialHintsCheckbox">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-cap"/></svg>
+                <span class="prefText"><span class="prefLabel">Tutorial-Hinweise</span><span class="prefSub">Zeigt dir Schritt für Schritt den nächsten Zug</span></span>
+                <input type="checkbox" id="tutorialHintsCheckbox" class="settingsCheckbox" />
+              </label>
+              <label class="prefRow" for="aidTipsCheckbox">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-bulb"/></svg>
+                <span class="prefText"><span class="prefLabel">Spiel-Tipps</span><span class="prefSub">Kurze Bedien-Tipps am Tisch</span></span>
+                <input type="checkbox" id="aidTipsCheckbox" class="settingsCheckbox" />
+              </label>
+              <label class="prefRow" for="aidDiscardCheckbox">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-cards"/></svg>
+                <span class="prefText"><span class="prefLabel">Ablage-Hinweis</span><span class="prefSub">Zeigt, ob die oberste Ablagekarte passt</span></span>
+                <input type="checkbox" id="aidDiscardCheckbox" class="settingsCheckbox" />
+              </label>
+              <label class="prefRow" for="aidLayOffCheckbox">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-check"/></svg>
+                <span class="prefText"><span class="prefLabel">Anlege-Hinweis</span><span class="prefSub">Grüne Rahmen an passenden Auslagen</span></span>
+                <input type="checkbox" id="aidLayOffCheckbox" class="settingsCheckbox" />
+              </label>
+              <label class="prefRow" for="aidLowCardsCheckbox">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-alert"/></svg>
+                <span class="prefText"><span class="prefLabel">Hinweis bei wenigen Karten</span><span class="prefSub">Markiert Mitspieler mit 1–2 Karten</span></span>
+                <input type="checkbox" id="aidLowCardsCheckbox" class="settingsCheckbox" />
+              </label>
+              <label class="prefRow" for="botQuipsCheckbox">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-chat"/></svg>
+                <span class="prefText"><span class="prefLabel">Bot-Sprüche</span><span class="prefSub">Kurze Sätze der Bots, selten</span></span>
+                <input type="checkbox" id="botQuipsCheckbox" class="settingsCheckbox" />
+              </label>
+            </div>
+          </div>
+
+          <div class="prefGroup">
+            <h3 class="prefGroupTitle">Allgemein</h3>
+            <div class="prefBox">
+              <button type="button" id="versionBtn" class="prefRow prefLink">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-tag"/></svg>
+                <span class="prefText"><span class="prefLabel">Was ist neu?</span></span>
+                <span class="prefValue" id="versionValue">v–</span>
+                <svg class="icon prefChevron" aria-hidden="true"><use href="#i-chevron"/></svg>
+              </button>
+              <!-- The intro plays at the start only: hidden at the table. -->
+              <label id="studioLogoItem" class="prefRow" for="studioLogoSelect">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-film"/></svg>
+                <span class="prefText"><span class="prefLabel">Vorspann</span><span class="prefSub">Antippen überspringt ihn</span></span>
+                <select id="studioLogoSelect" class="settingsSelect">
+                  <option value="auto">Nur einmal</option>
+                  <option value="always">Bei jedem Start</option>
+                  <option value="off">Aus</option>
+                </select>
+              </label>
+              <label class="prefRow" for="debugCheckbox">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-bug"/></svg>
+                <span class="prefText"><span class="prefLabel">Debug-Ansicht</span><span class="prefSub">Nur für die Fehlersuche</span></span>
+                <input type="checkbox" id="debugCheckbox" class="settingsCheckbox" />
+              </label>
+            </div>
+          </div>
+          <p class="prefNote">Alles hier gilt nur für dieses Gerät – außer dem Siegesjubel: Der gehört zu deinem Konto.</p>
+        </div>
+        <!-- Sticky on desktop (style.css): "Schließen" stays in reach while the sheet scrolls. -->
+        <div class="prefFoot"><button id="settingsOverlayCloseBtn" class="btn-secondary">Schließen</button></div>
       </div>
     </section>
 
@@ -1503,8 +1554,10 @@
              the fold on a phone AND on a 1440x900 desktop - the one button
              every player needs was the one you had to scroll for. -->
         <div class="resultFooter">
+          <!-- Game over: my own result (place, XP, level, new badges), filled by renderResultMe. -->
+          <div id="resultMe" class="resultMe hidden"></div>
           <div id="resultEmoteBar" class="resultEmoteBar hidden">
-            <button class="emoteChoice" data-emote="👍">👍</button><button class="emoteChoice" data-emote="😂">😂</button><button class="emoteChoice" data-emote="😱">😱</button><button class="emoteChoice" data-emote="😤">😤</button><button class="emoteChoice" data-emote="🎉">🎉</button><button class="emoteChoice" data-emote="⏳" title="Tick tack...">⏳</button><button class="emoteChoice" data-emote="pikdame"><span class="miniPikdame">♠<b>Q</b></span></button><button class="emoteChoice" data-emote="👏">👏</button><button class="emoteChoice" data-emote="🙈">🙈</button><button class="emoteChoice" data-emote="🤔">🤔</button><button class="emoteChoice" data-emote="🍀">🍀</button><button class="emoteChoice" data-emote="😎">😎</button><button class="emoteChoice" data-emote="🔥">🔥</button><button class="emoteChoice" data-emote="😴">😴</button><button class="emoteChoice" data-emote="🙏">🙏</button><button class="emoteChoice" data-emote="🤩">🤩</button><button class="emoteChoice" data-emote="🥳">🥳</button><button class="emoteChoice" data-emote="💪">💪</button>
+            <button class="emoteChoice" data-emote="👍">👍</button><button class="emoteChoice" data-emote="😂">😂</button><button class="emoteChoice" data-emote="😱">😱</button><button class="emoteChoice" data-emote="😤">😤</button><button class="emoteChoice" data-emote="🎉">🎉</button><button class="emoteChoice" data-emote="⏳" title="Tick tack...">⏳</button><button class="emoteChoice" data-emote="pikdame"><span class="miniPikdame">♠<b>Q</b></span></button><button class="emoteChoice" data-emote="👏">👏</button><button class="emoteChoice" data-emote="🙈">🙈</button><button class="emoteChoice" data-emote="🤔">🤔</button><button class="emoteChoice" data-emote="🍀">🍀</button><button class="emoteChoice" data-emote="😎">😎</button><button class="emoteChoice" data-emote="🔥">🔥</button><button class="emoteChoice" data-emote="😴">😴</button><button class="emoteChoice" data-emote="🙏">🙏</button><button class="emoteChoice" data-emote="🤩">🤩</button><button class="emoteChoice" data-emote="🥳">🥳</button><button class="emoteChoice" data-emote="💪">💪</button><button class="emoteChoice" data-emote="🃏">🃏</button><button class="emoteChoice" data-emote="😅">😅</button><button class="emoteChoice" data-emote="🤞">🤞</button><button class="emoteChoice" data-emote="👀">👀</button><button class="emoteChoice" data-emote="🙄">🙄</button><button class="emoteChoice" data-emote="😬">😬</button><button class="emoteChoice" data-emote="🙃">🙃</button><button class="emoteChoice" data-emote="🤝">🤝</button><button class="emoteChoice" data-emote="😇">😇</button><button class="emoteChoice" data-emote="☕">☕</button><button class="emoteChoice" data-emote="🐢">🐢</button><button class="emoteChoice" data-emote="🍻">🍻</button><button class="emoteChoice" data-emote="❤️">❤️</button>
           </div>
           <!-- Primary action alone; everything else folds away. Five equal
                pills below the scores meant "Weiter" had to be hunted for. -->
@@ -1598,7 +1651,7 @@
 
   </div>
 
-<!-- DEBUG-OVERLAY (optional, Einstellungen): Gitter + Live-Metriken -->
+<!-- Debug overlay (optional, "Optionen"): grid + live metrics -->
 <div id="debugGrid" class="hidden" aria-hidden="true"></div>
 <pre id="debugPanel" class="hidden" aria-hidden="true"></pre>
 </body>

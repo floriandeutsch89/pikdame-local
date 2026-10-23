@@ -33,11 +33,11 @@ const AdminPage = require('./game/AdminPage');
 const { createAdminTokenVerifier } = require('./game/AdminToken');
 const { createMonitor } = require('./game/Monitor');
 const { createPasskeyService, deviceName } = require('./game/Passkeys');
-const { isAllowedEmote, emoteLevel } = require('./game/Emotes');
+const { normalizeEmote, emoteLevel } = require('./game/Emotes');
 const { isCelebration, celebrationLevel } = require('./game/Celebrations');
 const { parseGreetingDays, greetingWindow } = require('./game/GreetingDays');
 const { holidayStatus } = require('./game/Holidays');
-const { puzzleForDate, publicPuzzle, checkAnswer, perfectStreakOn, XP_FOR_SOLVED, PUZZLE_EPOCH } = require('./game/DailyPuzzle');
+const { puzzleForDate, publicPuzzle, checkAnswer, checkMeld, perfectStreakOn, XP_FOR_SOLVED, PUZZLE_EPOCH } = require('./game/DailyPuzzle');
 const { createStammtischStore, normalizeCode: normalizeStammtischCode } = require('./game/StammtischStore');
 const { createGameHistoryStore, historyForPlayer } = require('./game/GameHistoryStore');
 const { createYearStatsStore } = require('./game/YearStatsStore');
@@ -145,6 +145,13 @@ let DATA_DIR_WRITABLE = true; // for the config report
   }
 })();
 const CRASH_LOG_FILE = path.join(DATA_DIR, 'crash.log');
+// Kartenhaus months from 2027-01: the server picks their deals (a throttled worker).
+// PIKDAME_TOWER_GEN=0: this instance only reads data/tower-months.json and checks it (another one builds).
+const towerMonths = require('./game/TowerMonths').createTowerMonths({
+  file: path.join(DATA_DIR, 'tower-months.json'),
+  generate: process.env.PIKDAME_TOWER_GEN !== '0',
+});
+BotTower.setMonthSource(towerMonths.seedsFor);
 function logCrash(context, err, extra = {}) {
   const entry = `[${new Date().toISOString()}] (${context}) ${err && err.stack ? err.stack : err} ${
     Object.keys(extra).length ? JSON.stringify(extra) : ''
@@ -311,24 +318,11 @@ function serveStatic(req, res) {
     return;
   }
   if (filePath === '/challengeboardz') {
-    // Today's top 5 for the intro overlay - names are already public by
-    // the leaderboard's very purpose; no other data leaves the store.
-    const date = gameDay();
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
-    // Zusaetzlich die Wochenwertung (beste 5 von 7 Tagen) - sie existierte
-    // laengst, war aber nur nach einer beendeten Partie zu sehen.
-    // Trend graph: the top 5 of the last 14 days, plus ?name= as "me".
-    const trendName = sanitizeName(new URL(req.url, 'http://x').searchParams.get('name') || '');
-    // ?name= also gets its own result today, for the start screen tile and sharing.
-    res.end(JSON.stringify({
-      date,
-      you: trendName ? challengeStore.resultOf(date, trendName) : null,
-      board: challengeStore.getBoard(date, 5),
-      attempted: trendName ? challengeStore.hasAttempted(date, trendName) : false,
-      magnet: challengeStore.queenMagnet(date),
-      weekly: challengeStore.getWeekly(null, 5),
-      trend: challengeStore.getTrend(trendName),
-    }));
+    challengeBoardResponse(req, res).catch((err) => {
+      logCrash('challenge-board', err);
+      if (!res.headersSent) sendJson(res, 500, { error: 'Interner Fehler - bitte erneut versuchen.' });
+      else res.end();
+    });
     return;
   }
   if (filePath === '/changelogz') {
@@ -1334,6 +1328,7 @@ const registry = new SessionRegistry((session) => {
     challengeDate: session.challengeDate || undefined,
     tutorialMode: !!session.tutorialMode,
     towerStage: Number.isInteger(session.towerStage) ? session.towerStage : undefined,
+    towerMonth: typeof session.towerMonth === 'string' ? session.towerMonth : undefined,
     // Abbruch eines Solo-Spiels: Der Rueckruf kennt hier den Code, den der
     // Aufrufer beim Erzeugen noch nicht hatte.
     onAbandon: typeof session.onAbandon === 'function'
@@ -1350,7 +1345,7 @@ const registry = new SessionRegistry((session) => {
     // Only the moment id: the client holds the bilingual lines (BotQuips.js).
     onBotQuip: (botId, moment) => broadcastToSession(session, { type: 'quip', playerId: botId, moment }),
     onGameOver: (results, gameRecord) => {
-      // Bot tower: one round scored in stars (the first one pays XP) - no match stats or history.
+      // Kartenhaus: one round scored in stars (the first one pays XP) - no match stats or history.
       if (gameRecord.towerStage) {
         recordTowerStage(gameRecord, sendTo);
         return;
@@ -1604,7 +1599,7 @@ restoreSessionsSnapshot();
 // not given up; their players may start again.
 try { challengeStore.markLostAttempts(new Set(registry.sessions.keys())); } catch (err) { logCrash('challenge-lost', err); }
 
-/** Bot tower: grades the stage round, keeps the best stars, pays a stage's first
+/** Kartenhaus: grades the floor round, keeps the best stars of its month, pays a floor's first
  *  star (profile; account and season too, without booking a game), awards badges. */
 function recordTowerStage(gameRecord, sendTo) {
   const human = (gameRecord.players || []).find((p) => !p.isBot);
@@ -1615,7 +1610,7 @@ function recordTowerStage(gameRecord, sendTo) {
   let xp = 0;
   if (!PUBLIC_MODE) {
     try {
-      progress = playerStore.recordTowerResult(human.name, outcome.stage, outcome.stars);
+      progress = playerStore.recordTowerResult(human.name, outcome.month, outcome.stage, outcome.stars);
       xp = progress.xp;
       badges = playerStore.awardBadges(human.name, familyBadges(playerStore.getPlayerByName(human.name) || {}));
     } catch (err) {
@@ -1628,7 +1623,7 @@ function recordTowerStage(gameRecord, sendTo) {
   bookAccountXp(human.name, xp, { seated: true }, (prog) => sendTo(human.id, { type: 'accountProgress', progress: prog }));
 }
 
-/** XP earned outside a match (daily puzzle, bot tower): the verified account behind
+/** XP earned outside a match (daily puzzle, Kartenhaus): the verified account behind
  *  `name` books it as lifetime and season XP, no game. A pre-table message needs its
  *  owner's login token (a seat was checked at join). Guests keep the profile XP. Never throws. */
 async function bookAccountXp(name, xp, { seated = false, accountToken = null } = {}, onBooked = null) {
@@ -1643,6 +1638,37 @@ async function bookAccountXp(name, xp, { seated = false, accountToken = null } =
   } catch (err) {
     logCrash('account-xp', err, { player: name });
   }
+}
+
+/** May `name` see today's challenge scores? Only after its own game ended
+ *  (played or given up). An account name must come with its login token;
+ *  a guest name is trusted like the attempt itself. */
+async function mayRevealChallenge(date, name, accountToken) {
+  if (!name || !challengeStore.hasFinished(date, name)) return false;
+  if (!ACCOUNTS_ENABLED || !(await accountStore.isRegisteredName(name))) return true;
+  const user = await accountStore.sessionUser(accountToken);
+  return !!user && user.username.toLowerCase() === name.toLowerCase();
+}
+
+/** Intro sheet and "Heute" tile. Today's scores (board, magnet, weekly and
+ *  trend share) stay hidden until the asking player has played today. */
+async function challengeBoardResponse(req, res) {
+  const date = gameDay();
+  const name = sanitizeName(new URL(req.url, 'http://x').searchParams.get('name') || '');
+  const revealed = await mayRevealChallenge(date, name, req.headers['x-account-token']);
+  const hide = revealed ? null : date;
+  res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+  res.end(JSON.stringify({
+    date,
+    revealed,
+    players: challengeStore.playerCount(date),
+    you: revealed ? challengeStore.resultOf(date, name) : null,
+    board: revealed ? challengeStore.getBoard(date, 5) : [],
+    attempted: name ? challengeStore.hasAttempted(date, name) : false,
+    magnet: revealed ? challengeStore.queenMagnet(date) : null,
+    weekly: challengeStore.getWeekly(null, 5, Date.now(), { exclude: hide }),
+    trend: challengeStore.getTrend(name, { exclude: hide }),
+  }));
 }
 
 /** Books the day's attempt (no names are kept in public mode). */
@@ -2019,23 +2045,33 @@ wss.on('connection', (ws, req) => {
       return;
     }
     if (msg.type === 'getTower') {
-      // Bot tower: the stages and this name's best stars (pre-session, like the puzzle).
+      // Kartenhaus: this month's floors, this name's best stars, earlier months read-only (pre-session, like the puzzle).
       const name = sanitizeName(msg.name);
-      const best = !PUBLIC_MODE && name ? playerStore.towerBest(name) : {};
-      ws.send(JSON.stringify({ type: 'towerInfo', stages: BotTower.publicStages(), clearMargin: BotTower.CLEAR_MARGIN, best, ...BotTower.summarize(best) }));
+      const today = gameDay();
+      const month = BotTower.monthOf(today);
+      const best = !PUBLIC_MODE && name ? playerStore.towerBest(name, month) : {};
+      const months = !PUBLIC_MODE && name ? playerStore.towerMonths(name) : [];
+      ws.send(JSON.stringify({
+        type: 'towerInfo', month, today, stages: BotTower.publicStages(), clearMargin: BotTower.CLEAR_MARGIN, best, ...BotTower.summarize(best),
+        closed: towerMonths.closedFloors(month), // floors without a proven deal: 'building' | 'locked'
+        totalStars: months.reduce((n, m) => n + m.stars, 0), archive: months.filter((m) => m.month !== month),
+      }));
       return;
     }
     if (msg.type === 'startTower') {
-      // Bot tower stage: a fixed deal against fixed bots, one round, solo like the challenge.
-      if (PUBLIC_MODE) return sendError(ws, 'Der Bot-Turm braucht gespeicherte Profile - auf diesem Server ist er aus.');
-      const cfg = BotTower.stageConfig(msg.stage);
-      if (!cfg) return sendError(ws, 'Diese Turmstufe gibt es nicht.');
+      // A floor of this month's Kartenhaus (the server picks the month): its deal and bots, one round, solo like the challenge.
+      if (PUBLIC_MODE) return sendError(ws, 'Das Kartenhaus braucht gespeicherte Profile - auf diesem Server ist es aus.');
+      const month = BotTower.monthOf(gameDay());
+      const cfg = BotTower.stageConfig(msg.stage, month);
+      if (!cfg) return sendError(ws, 'Diese Etage gibt es nicht.');
       const name = sanitizeName(msg.name);
-      if (!name) return sendError(ws, 'Für den Bot-Turm brauchst du einen Namen - dort werden deine Sterne gespeichert.');
-      if (cfg.stage > BotTower.unlockedStage(playerStore.towerBest(name))) {
-        return sendError(ws, 'Diese Turmstufe ist noch gesperrt - hol dir erst einen Stern auf der Stufe davor.');
+      if (!name) return sendError(ws, 'Für das Kartenhaus brauchst du einen Namen - dort werden deine Sterne gespeichert.');
+      if (cfg.stage > BotTower.unlockedStage(playerStore.towerBest(name, month))) {
+        return sendError(ws, 'Diese Etage ist noch gesperrt - hol dir erst einen Stern auf der Etage darunter.');
       }
-      const created = registry.create({ deckSeed: cfg.seed, towerStage: cfg.stage, onAbandon: (code) => registry.delete(code) });
+      // Never an unproven deal: a floor still being built (or without one this month) stays closed.
+      if (cfg.seed == null) return sendError(ws, 'Diese Etage wird gerade gebaut - schau bald wieder vorbei.');
+      const created = registry.create({ deckSeed: cfg.seed, towerStage: cfg.stage, towerMonth: month, onAbandon: (code) => registry.delete(code) });
       if (created.error) return sendError(ws, created.error);
       const ok = await joinSession(created.session, msg);
       if (!ok) { registry.delete(created.session.code); return; }
@@ -2054,7 +2090,7 @@ wss.on('connection', (ws, req) => {
       ws.send(JSON.stringify({ type: 'gameHistory', games: mine }));
       return;
     }
-    if (msg.type === 'getPuzzle' || msg.type === 'solvePuzzle' || msg.type === 'revealPuzzle') {
+    if (msg.type === 'getPuzzle' || msg.type === 'solvePuzzle' || msg.type === 'revealPuzzle' || msg.type === 'checkPuzzleMeld') {
       // Daily puzzle: no session needed, it is a one-minute ritual on the
       // start screen. The hand is seeded from the date (identical worldwide),
       // the engine grades, the local profile remembers tries and the solve.
@@ -2072,6 +2108,11 @@ wss.on('connection', (ws, req) => {
         dayStars: playerStore.puzzleStarsFor(name, date),
         perfectStreak: perfectStreakOn(playerStore.getPlayerByName(name), today),
       });
+      if (msg.type === 'checkPuzzleMeld') {
+        // Pure rules check of one laid meld: no try, star or attempt is recorded.
+        ws.send(JSON.stringify({ ...checkMeld(puzzle, msg.cardIds), date, type: 'puzzleMeldCheck' }));
+        return;
+      }
       if (msg.type === 'getPuzzle') {
         ws.send(JSON.stringify({
           type: 'puzzle', ...publicPuzzle(puzzle), archive, today, epoch: PUZZLE_EPOCH,
@@ -2387,8 +2428,8 @@ wss.on('connection', (ws, req) => {
         // The daily challenge is one attempt per day: no rematch, the client
         // offers none, and a hand-crafted message gets a plain error.
         if (game.challengeDate) { sendError(ws, 'In der Tages-Challenge gibt es nur einen Versuch pro Tag.'); break; }
-        // A new try of a tower stage is a fresh session (startTower), with the same deal.
-        if (game.towerStage) { sendError(ws, 'Eine Turmstufe startest du über den Bot-Turm neu.'); break; }
+        // A new try of a Kartenhaus floor is a fresh session (startTower), with the same deal.
+        if (game.towerStage) { sendError(ws, 'Eine Etage startest du über das Kartenhaus neu.'); break; }
         game.prepareRematch();
         break;
       }
@@ -2458,16 +2499,17 @@ wss.on('connection', (ws, req) => {
       case 'emote': {
         // Emotes: short reactions to the whole table. Whitelist (game/Emotes.js)
         // + own rate limit (1 emote / 1.5 s) so nobody floods the table.
-        if (!isAllowedEmote(msg.emoji)) break;
+        const emoji = normalizeEmote(msg.emoji);
+        if (!emoji) break;
         // Level-gated emotes (see game/Emotes.js): checked against the local
         // profile where one exists. Public mode has no profiles, so nothing
         // is locked there.
-        if (!PUBLIC_MODE && emoteLevel(msg.emoji) > 1) {
+        if (!PUBLIC_MODE && emoteLevel(emoji) > 1) {
           const seat = game.players.find((p) => p.id === playerId);
           const profile = seat ? playerStore.getPlayerByName(seat.name) : null;
           const level = levelFromXp(profile ? profile.xp : 0).level;
-          if (level < emoteLevel(msg.emoji)) {
-            sendError(ws, `Dieses Emote gibt es ab Stufe ${emoteLevel(msg.emoji)}.`);
+          if (level < emoteLevel(emoji)) {
+            sendError(ws, `Dieses Emote gibt es ab Stufe ${emoteLevel(emoji)}.`);
             break;
           }
         }
@@ -2476,11 +2518,11 @@ wss.on('connection', (ws, req) => {
         ws._lastEmoteAt = now;
         for (const [, sock] of session.sockets) {
           if (sock && sock.readyState === WebSocket.OPEN) {
-            sock.send(JSON.stringify({ type: 'emote', playerId, emoji: msg.emoji }));
+            sock.send(JSON.stringify({ type: 'emote', playerId, emoji }));
           }
         }
         // Social layer: maybe one bot answers a human emote (see GameManager).
-        game.respondToHumanEmote(playerId, msg.emoji);
+        game.respondToHumanEmote(playerId, emoji);
         break;
       }
       case 'setBotDifficulty': {
@@ -2549,6 +2591,9 @@ function shutdown(signal) {
   // Laufende Spiele überleben den Neustart; gepufferte Store-Writes landen
   // sicher auf der Platte.
   writeSessionsSnapshot();
+  // Flushes at once; the deal worker ends between two games (never inside an ONNX run).
+  let towerStopped = Promise.resolve();
+  try { towerStopped = towerMonths.stop({ graceMs: 4000 }); } catch (e) { /* never block shutdown */ }
   playerStore.flushSync();
   gameHistoryStore.flushSync();
   globalStats.flushSync();
@@ -2563,7 +2608,7 @@ function shutdown(signal) {
       /* Socket war schon zu */
     }
   }
-  server.close(() => process.exit(0));
+  server.close(() => { towerStopped.finally(() => process.exit(0)); });
   // Falls server.close hängt (offene Keep-Alives): harter Ausstieg nach 5s.
   setTimeout(() => process.exit(0), 5000).unref();
 }
@@ -2597,6 +2642,10 @@ server.listen(PORT, () => {
     const OnnxPolicy = require('./game/OnnxPolicy');
     if (OnnxPolicy.enabled()) OnnxPolicy.warmup().catch((e) => logCrash('onnx-warmup', e));
   } catch (e) { logCrash('onnx-warmup', e); }
+  // The Kartenhaus needs stored profiles: off in the public mode, so nothing to build there.
+  if (!PUBLIC_MODE) {
+    try { towerMonths.start(); } catch (e) { logCrash('tower-months', e); }
+  }
   // SMTP probe: log in and out once, so a wrong host/port/password shows up
   // now instead of at the first registration. Never blocks the start.
   if (mailer.configured) {

@@ -1,6 +1,7 @@
 // Greeting days (PIKDAME_BIRTHDAY): parsing, the window on the German game
 // day, and /api/me telling only the matching signed-in account.
 const test = require('node:test');
+const { freePort } = require('./helpers/free-port');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -84,7 +85,8 @@ const healthz = (port) => new Promise((resolve, reject) => {
   http.get({ host: '127.0.0.1', port, path: '/healthz' }, (res) => { res.resume(); resolve(res.statusCode); }).on('error', reject);
 });
 
-async function meJourney(t, port, databaseUrl, suffix) {
+async function meJourney(t, databaseUrl, suffix) {
+  const port = await freePort();
   const name = `Testkonto${suffix}`;
   const other = `Andere${suffix}`;
   const md = gameDay().slice(5);
@@ -135,4 +137,4 @@ async function meJourney(t, port, databaseUrl, suffix) {
   assert.ok(!warning.includes(other) && !warning.includes('02-30'), 'logged by position, never by value');
 }
 
-test('greeting days: /api/me tells the configured account only', (t) => meJourney(t, 8101, testDatabaseUrl('greeting'), ''));
+test('greeting days: /api/me tells the configured account only', (t) => meJourney(t, testDatabaseUrl('greeting'), ''));

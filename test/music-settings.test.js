@@ -1,6 +1,6 @@
-/** Music settings in the real client (jsdom): defaults, both settings surfaces,
- *  both languages, the one-time hint after the first gesture, and a quiet
- *  fallback where the player module or Web Audio is missing. */
+/** Music settings in the real client (jsdom): defaults, the one "Optionen"
+ *  sheet (start screen and table), both languages, the one-time hint after the
+ *  first gesture, and a quiet fallback where the player module or Web Audio is missing. */
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
@@ -73,20 +73,20 @@ function boot({ storage = {}, withPlayer = true, withAudio = true, saveData = fa
   for (const src of scripts) window.eval(fs.readFileSync(path.join(pub, src), 'utf8'));
   const doc = window.document;
   const $ = (id) => doc.getElementById(id);
-  const rowValue = () => $('musicToggle').querySelector('.sheetRowValue').textContent;
+  // The level as the sheet shows it: the pressed segment (the select stays the source of truth).
+  const level = () => [...doc.querySelectorAll('.segmented[data-select="musicLevelSelect"] .segBtn.active')].map((b) => b.dataset.value);
   const toast = () => $('toastContainer').textContent;
   const socket = () => { const ws = sockets[sockets.length - 1]; if (ws.readyState !== 1) ws.fire('open'); return ws; };
-  return { window, doc, $, rowValue, toast, socket, fetched, contexts, errors };
+  return { window, doc, $, level, toast, socket, fetched, contexts, errors };
 }
 const flush = async () => { for (let i = 0; i < 30; i++) await new Promise((r) => setImmediate(r)); };
 
-test('defaults: quiet and rotating, shown in the settings sheet and the in-game row', () => {
+test('defaults: quiet and rotating, shown in the settings sheet', () => {
   const t = boot();
   assert.strictEqual(t.$('musicItem').classList.contains('hidden'), false);
-  assert.strictEqual(t.$('musicToggle').classList.contains('hidden'), false);
   assert.strictEqual(t.$('musicLevelSelect').value, 'low');
   assert.strictEqual(t.$('musicTrackSelect').value, 'mix');
-  assert.strictEqual(t.rowValue(), 'Leise · Wechselnd');
+  assert.deepStrictEqual(t.level(), ['low']);
   assert.deepStrictEqual(t.contexts, [], 'no AudioContext before the first gesture');
   assert.ok(!t.fetched.some((u) => u.startsWith('/music/')), 'no music download before the first gesture');
   assert.deepStrictEqual(t.errors, []);
@@ -96,7 +96,7 @@ test('defaults: quiet and rotating, shown in the settings sheet and the in-game 
 test('defaults: off for players who switched the sound off or save data', () => {
   const quiet = boot({ storage: { pikdame_sound_enabled: 'off' } });
   assert.strictEqual(quiet.$('musicLevelSelect').value, 'off');
-  assert.strictEqual(quiet.rowValue(), 'Aus');
+  assert.deepStrictEqual(quiet.level(), ['off']);
   quiet.window.close();
   const saver = boot({ saveData: true });
   assert.strictEqual(saver.$('musicLevelSelect').value, 'off');
@@ -104,27 +104,47 @@ test('defaults: off for players who switched the sound off or save data', () => 
   const chosen = boot({ saveData: true, storage: { pikdame_music_level: 'mid', pikdame_music_track: 'lounge' } });
   assert.strictEqual(chosen.$('musicLevelSelect').value, 'mid', 'an explicit choice wins over data saving');
   assert.strictEqual(chosen.$('musicTrackSelect').value, 'lounge');
-  assert.strictEqual(chosen.rowValue(), 'Mittel · Lounge-Bossa');
+  assert.deepStrictEqual(chosen.level(), ['mid']);
   chosen.window.close();
 });
 
-test('settings: the selects store the choice, the in-game row cycles the level', () => {
+test('settings: the selects store the choice; one control per setting, no cycling row', () => {
   const t = boot();
   const sel = t.$('musicTrackSelect');
   sel.value = 'kaetzchen';
   sel.dispatchEvent(new t.window.Event('change'));
   assert.strictEqual(t.window.localStorage.getItem('pikdame_music_track'), 'kaetzchen');
-  assert.strictEqual(t.rowValue(), 'Leise · Kätzchen');
   const level = t.$('musicLevelSelect');
   level.value = 'high';
   level.dispatchEvent(new t.window.Event('change'));
   assert.strictEqual(t.window.localStorage.getItem('pikdame_music_level'), 'high');
-  t.$('musicToggle').click();
-  assert.strictEqual(t.$('musicLevelSelect').value, 'off', 'Laut -> Aus');
-  assert.strictEqual(t.rowValue(), 'Aus');
-  assert.match(t.toast(), /Musik: Aus/);
-  t.$('musicToggle').click();
-  assert.strictEqual(t.rowValue(), 'Leise · Kätzchen');
+  assert.deepStrictEqual(t.level(), ['high'], 'the segments follow the select');
+  // Music off from the default: one tap on "Aus", not three through Mittel and Laut.
+  t.doc.querySelector('.segmented[data-select="musicLevelSelect"] .segBtn[data-value="off"]').click();
+  assert.strictEqual(t.$('musicLevelSelect').value, 'off');
+  assert.strictEqual(t.window.localStorage.getItem('pikdame_music_level'), 'off');
+  assert.strictEqual(t.$('musicToggle'), null, 'the cycling in-game row is gone');
+  assert.strictEqual(t.doc.querySelectorAll('#musicLevelSelect, [data-select="musicLevelSelect"]').length, 2, 'one select, one segment group');
+  assert.deepStrictEqual(t.errors, []);
+  t.window.close();
+});
+
+test('settings: the level segments write the select and follow a change made elsewhere', () => {
+  const t = boot();
+  const seg = (v) => t.doc.querySelector(`.segmented[data-select="musicLevelSelect"] .segBtn[data-value="${v}"]`);
+  const active = () => [...t.doc.querySelectorAll('.segmented[data-select="musicLevelSelect"] .segBtn.active')].map((b) => b.dataset.value);
+  assert.deepStrictEqual(active(), ['low'], 'the default level is marked');
+  seg('mid').click();
+  assert.strictEqual(t.$('musicLevelSelect').value, 'mid');
+  assert.strictEqual(t.window.localStorage.getItem('pikdame_music_level'), 'mid', 'same storage key as the select');
+  const sel = t.$('musicLevelSelect');
+  sel.value = 'high';
+  sel.dispatchEvent(new t.window.Event('change'));
+  assert.deepStrictEqual(active(), ['high'], 'the segments follow a change made elsewhere');
+  assert.strictEqual(seg('high').getAttribute('aria-pressed'), 'true');
+  t.$('langBtn').click();
+  assert.deepStrictEqual([...t.doc.querySelectorAll('.segmented[data-select="musicLevelSelect"] .segBtn')].map((b) => b.textContent),
+    ['Off', 'Quiet', 'Medium', 'Loud']);
   assert.deepStrictEqual(t.errors, []);
   t.window.close();
 });
@@ -135,10 +155,11 @@ test('settings: labels follow the language switch', () => {
   const labels = (id) => [...t.$(id).options].map((o) => o.textContent);
   assert.deepStrictEqual(labels('musicLevelSelect'), ['Off', 'Quiet', 'Medium', 'Loud']);
   assert.deepStrictEqual(labels('musicTrackSelect'), ['Shuffle', 'Coffee house', 'Lounge bossa', 'Kitten']);
-  assert.strictEqual(t.rowValue(), 'Quiet · Coffee house');
-  assert.strictEqual(t.$('musicToggle').querySelector('.sheetRowLabel').textContent, 'Music');
+  assert.strictEqual(t.$('musicLevelLabel').textContent, 'Music');
+  assert.strictEqual(t.$('musicTrackSelect').value, 'kaffeehaus');
   t.$('langBtn').click();
-  assert.strictEqual(t.rowValue(), 'Leise · Kaffeehaus');
+  assert.strictEqual(t.$('musicLevelLabel').textContent, 'Musik');
+  assert.deepStrictEqual(labels('musicTrackSelect'), ['Wechselnd', 'Kaffeehaus', 'Lounge-Bossa', 'Kätzchen']);
   t.window.close();
 });
 
@@ -150,7 +171,7 @@ test('first gesture: the music starts and says once where to change it', async (
   assert.strictEqual(t.contexts[0].state, 'running');
   assert.ok(t.contexts[0].started.length >= 1, 'a segment was scheduled');
   assert.ok(t.fetched.includes('/music/manifest.json'));
-  assert.match(t.toast(), /Musik läuft leise – ändern unter Einstellungen › Musik/);
+  assert.match(t.toast(), /Musik läuft leise – ändern unter Optionen › Musik/);
   assert.strictEqual(t.window.localStorage.getItem('pikdame_music_hint'), '1');
   assert.deepStrictEqual(t.errors, []);
   t.window.close();
@@ -183,15 +204,11 @@ test('first gesture: a priority toast on screen keeps the hint for the next star
 
 test('sound effects and music are separate: the label says so, effects off leaves the music playing', async () => {
   const t = boot();
-  const effectsLabels = () => [
-    t.$('soundToggle').querySelector('.sheetRowLabel').textContent,
-    t.doc.querySelector('label[for="soundCheckbox"] .settingsLabel span').textContent,
-  ];
-  assert.deepStrictEqual(effectsLabels(), ['Soundeffekte & Vibration', 'Soundeffekte & Vibration']);
-  assert.strictEqual(t.$('soundToggle').title, 'Soundeffekte ein/aus');
-  // The music rows sit right below the effects in both sheets.
-  assert.strictEqual(t.$('soundToggle').nextElementSibling.id, 'musicToggle');
-  assert.strictEqual(t.doc.querySelector('label[for="soundCheckbox"]').closest('.settingsItem').nextElementSibling.id, 'musicItem');
+  const effectsLabel = () => t.doc.querySelector('label[for="soundCheckbox"] .prefLabel').textContent;
+  assert.strictEqual(effectsLabel(), 'Soundeffekte & Vibration');
+  assert.strictEqual(t.doc.querySelectorAll('label[for="soundCheckbox"]').length, 1, 'one switch for the effects');
+  // The music rows sit right below the effects.
+  assert.strictEqual(t.doc.querySelector('label[for="soundCheckbox"]').nextElementSibling.id, 'musicItem');
 
   t.doc.dispatchEvent(new t.window.Event('pointerup'));
   await flush();
@@ -201,17 +218,16 @@ test('sound effects and music are separate: the label says so, effects off leave
   box.checked = false;
   box.dispatchEvent(new t.window.Event('change'));
   assert.strictEqual(t.window.localStorage.getItem('pikdame_sound_enabled'), 'off');
-  t.$('soundToggle').click(); // in-game: on again
-  t.$('soundToggle').click(); // and off
+  box.click(); // on again
+  box.click(); // and off
   await flush();
   assert.deepStrictEqual(ctx.stopped, [], 'no music source was stopped');
   assert.strictEqual(ctx.state, 'running');
   assert.strictEqual(t.$('musicLevelSelect').value, 'low');
-  assert.strictEqual(t.rowValue(), 'Leise · Wechselnd');
+  assert.deepStrictEqual(t.level(), ['low']);
 
   t.$('langBtn').click();
-  assert.deepStrictEqual(effectsLabels(), ['Sound effects & vibration', 'Sound effects & vibration']);
-  assert.strictEqual(t.$('soundToggle').title, 'Sound effects on/off');
+  assert.strictEqual(effectsLabel(), 'Sound effects & vibration');
   assert.deepStrictEqual(t.errors, []);
   t.window.close();
 });
@@ -219,7 +235,6 @@ test('sound effects and music are separate: the label says so, effects off leave
 test('fallback: without the player module or Web Audio the music settings hide', () => {
   const noModule = boot({ withPlayer: false });
   assert.ok(noModule.$('musicItem').classList.contains('hidden'));
-  assert.ok(noModule.$('musicToggle').classList.contains('hidden'));
   assert.deepStrictEqual(noModule.errors, []);
   noModule.window.close();
   const noAudio = boot({ withAudio: false });

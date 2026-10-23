@@ -108,7 +108,7 @@ function moveFor(game, phase, action, card) {
  * Bots and invalid actions are skipped.
  */
 function record(game, playerId, phase, action, card) {
-  if (!enabled()) return;
+  if (!enabled() || (game && game._noMoveLog)) return; // _noMoveLog: simulated seats (TowerPlay)
   try {
     const player = (game.players || []).find((p) => p.id === playerId);
     if (!player || player.isBot || game.isBotControlled(player)) return; // humans only
@@ -147,7 +147,7 @@ function round4(x) {
  * but the training loader skips everything that is not 'completed'.
  */
 function flush(game, outcome = 'completed') {
-  if (!enabled()) return;
+  if (!enabled() || (game && game._noMoveLog)) return;
   try {
     const buf = game && game._moveLog;
     if (!buf || buf.length === 0) return;

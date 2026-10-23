@@ -4,8 +4,8 @@
 
 The client talks to the server over a single WebSocket. Every message is JSON
 with a `type` field. Both lists below are generated from the server's message
-handlers, so they always match the running code: **47** message
-types go up, **31** come down.
+handlers, so they always match the running code: **48** message
+types go up, **32** come down.
 
 ## Client → server
 
@@ -29,8 +29,8 @@ Sent on a fresh connection, before the socket is bound to a table. These carry `
 | `revealPuzzle` | Give up on the puzzle and see the solution (no points). |
 | `startChallenge` | Begin today's daily challenge. Beginning counts as the one attempt of the day. |
 | `startTutorial` | Open a tutorial table against easy bots; the hints themselves are client-side. |
-| `getTower` | The bot tower stages (bots and handicap, never the seeds) and a player name's best stars per stage. |
-| `startTower` | Start one bot tower stage: a solo table with its fixed deal and bots, one round. Refused while the stage is locked and in public mode. |
+| `getTower` | This month's Kartenhaus: the floors (bots, handicap and modifiers, never the seeds) and a player name's best stars per floor, plus the earlier months. |
+| `startTower` | Start one floor of this month's Kartenhaus: a solo table with that month's deal and the floor's bots, one round. Refused while the floor is locked and in public mode. |
 | `createStammtisch` | Create a Stammtisch (a standing group table with its own code). |
 | `getStammtisch` | Resolve a Stammtisch code. Unknown codes count as a failed attempt (brute-force guard). |
 | `listStammtische` | The Stammtische a player name belongs to. |
@@ -83,17 +83,18 @@ Allowed from any seat at any time during a match.
 | `rematch` | Start a new match with the same table. |
 | `exportLastGame` | Download the last finished game as JSON. |
 
-### Other {bdg-secondary}`1`
+### Other {bdg-secondary}`2`
 
 | `type` | Purpose |
 | --- | --- |
+| `checkPuzzleMeld` | _(see source)_ |
 | `setAllBotDifficulty` | Host only: set every bot (and bots added later) to one difficulty. Refused in the daily challenge. |
 
 ## Server → client
 
 | `type` | Purpose |
 | --- | --- |
-| `accountProgress` | The account-bound progression on login (so a new device shows the right level), and after XP from outside a match (a solved puzzle, a tower stage's first star). |
+| `accountProgress` | The account-bound progression on login (so a new device shows the right level), and after XP from outside a match (a solved puzzle, a Kartenhaus floor's first star or crown). |
 | `badges` | Badges earned by this match, for the celebration overlay. |
 | `bestRound` | A new personal best round score for this player. |
 | `challengeBoard` | Today's daily-challenge leaderboard and weekly ranking. |
@@ -109,6 +110,7 @@ Allowed from any seat at any time during a match.
 | `profiles` | Answer to `listProfiles`. |
 | `progress` | XP, level and daily-quest progress after a finished match. |
 | `puzzle` | Today's puzzle (answer to `getPuzzle`). |
+| `puzzleMeldCheck` | _(see source)_ |
 | `puzzleResult` | Grading of a `solvePuzzle` attempt. |
 | `puzzleSolution` | The solution, after `revealPuzzle` or a correct answer. |
 | `queenCaught` | A Queen of Spades was caught in a hand at round end (-100). |
@@ -121,8 +123,8 @@ Allowed from any seat at any time during a match.
 | `stammtischInfo` | Details of one Stammtisch (members, last evening, open table). |
 | `stammtischList` | Answer to `listStammtische`. |
 | `state` | The full game state as that player may see it (their own hand, everyone else's card counts). Sent after every change, coalesced to one send per tick. |
-| `towerInfo` | Answer to `getTower`: the stages, best stars per stage, total stars, cleared stages and the highest unlocked stage. |
-| `towerResult` | The verdict of a finished bot tower stage: stars, own score, best bot, handicap, margin, and the updated best. |
+| `towerInfo` | Answer to `getTower`: `month` and `today` (Europe/Berlin), the floors, best stars per floor this month, stars, cleared floors, the highest unlocked floor, `crowned`, `totalStars` over all months and `archive` (earlier months with their best stars and crown, read-only). |
+| `towerResult` | The verdict of a finished Kartenhaus floor: month, stars, own score, best bot, handicap, margin, modifiers, the XP and the updated best of the month (`crownedNow` when it completed the crown). |
 | `yearReview` | Answer to `getYearReview`: the review, or `available: false` (not December, or no game this year). |
 
 :::{note}

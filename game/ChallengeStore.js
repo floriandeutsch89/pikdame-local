@@ -115,6 +115,20 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
     return usedAttempt(load(), date, cleanNameOf(name).toLowerCase());
   }
 
+  /** Played to the end or given up: only then may the day's scores be seen
+   *  (a running game must not peek at the field). */
+  function hasFinished(date, name) {
+    const store = load();
+    const key = cleanNameOf(name).toLowerCase();
+    if ((store.days[date] || []).some((e) => e.name.toLowerCase() === key)) return true;
+    const attempt = store.attempts[date] && store.attempts[date][key];
+    return !!attempt && attempt.state === 'done';
+  }
+
+  function playerCount(date) {
+    return (load().days[date] || []).length;
+  }
+
   /** "Damen-Magnet des Tages": most Queens of Spades caught in a ranked game
    *  (tie: lower score, then the earlier finish); null while nobody was caught. */
   function queenMagnet(date, preloaded = null) {
@@ -184,8 +198,9 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
    * Weekly ranking (Mon-Sun, game days): per player the SUM of their best 5 daily
    * scores of the current week. 'Best 5 of 7' keeps one or two missed days
    * from ruining the week and rewards regulars over one lucky spike.
+   * `exclude`: a date left out (today, before the caller played it).
    */
-  function getWeekly(name = null, top = 5, now = Date.now()) {
+  function getWeekly(name = null, top = 5, now = Date.now(), { exclude = null } = {}) {
     const store = load();
     const today = gameDay(now);
     const dow = weekdayIndex(today); // Mo=0 .. So=6
@@ -193,6 +208,7 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
     const perPlayer = new Map();
     for (let i = 0; i <= dow; i++) {
       const date = addDays(monday, i);
+      if (date === exclude) continue;
       for (const e of store.days[date] || []) {
         const key = e.name.toLowerCase();
         if (!perPlayer.has(key)) perPlayer.set(key, { name: e.name, scores: [] });
@@ -219,8 +235,9 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
    * Trend graph: the player's daily scores plus the `top` OTHER players of
    * the window (sum of their daily bests), oldest day first; a day without a
    * result is null (a gap, not a zero). The top set is fixed for the window.
+   * `exclude`: a date left empty (today, before the caller played it).
    */
-  function getTrend(name, { days = KEEP_DAYS, top = 5 } = {}, now = Date.now()) {
+  function getTrend(name, { days = KEEP_DAYS, top = 5, exclude = null } = {}, now = Date.now()) {
     const store = load();
     const key = String(name || '').trim().toLowerCase();
     const today = gameDay(now);
@@ -228,6 +245,7 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
     for (let i = Math.min(days, KEEP_DAYS) - 1; i >= 0; i--) dates.push(addDays(today, -i));
     const players = new Map(); // lower-case name -> { name, scores[] }
     dates.forEach((date, d) => {
+      if (date === exclude) return;
       for (const e of store.days[date] || []) {
         const k = e.name.toLowerCase();
         if (!players.has(k)) players.set(k, { name: e.name, scores: dates.map(() => null) });
@@ -270,7 +288,7 @@ function createChallengeStore(filePath = DEFAULT_DATA_FILE) {
 
   return {
     submit, getBoard, rankOf, resultOf, getHistory, getWeekly, getTrend, wasChampion,
-    beginAttempt, closeAttempt, markLostAttempts, hasAttempted, queenMagnet, wasQueenMagnet,
+    beginAttempt, closeAttempt, markLostAttempts, hasAttempted, hasFinished, playerCount, queenMagnet, wasQueenMagnet,
   };
 }
 

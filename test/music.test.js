@@ -3,6 +3,7 @@
  *  holds at most two decoded and loads each file once (Cache Storage), and the
  *  server lets browsers keep the hashed files for good. */
 const test = require('node:test');
+const { freePort } = require('./helpers/free-port');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -327,7 +328,7 @@ test('player: the master gain follows the manifest levels and ramps between them
 });
 
 test('server: hashed music is cacheable forever, the manifest revalidates', async (t) => {
-  const PORT = 8111;
+  const PORT = await freePort();
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-music-'));
   const server = spawn('node', ['server.js'], {
     cwd: ROOT,

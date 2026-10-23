@@ -95,7 +95,7 @@ test('serialize does not persist the transient move buffer', () => {
 // --- v1.75: Trainingsdaten-Qualität ---------------------------------------------
 test('flush tags every row with outcome and rules version; forfeit is marked', () => {
   const os = require('node:os');
-  const tmp = path.join(os.tmpdir(), `ml-test-${Date.now()}.jsonl`);
+  const tmp = path.join(os.tmpdir(), `ml-test-${process.pid}-${Date.now()}.jsonl`);
   process.env.PIKDAME_LOG_PATH_IGNORED = ''; // LOG_PATH ist beim Laden fixiert - wir testen über den Buffer+flush-Weg mit eigenem Pfad nicht; stattdessen: Buffer inspizieren via flush in Datei? LOG_PATH konstant -> wir prüfen die geschriebenen Zeilen über die echte Datei mit Backup.
   const ML = require('../game/MoveLogger');
   const GM = require('../game/GameManager');

@@ -3,6 +3,7 @@
 // same bytes a phone or a password manager would send. Plus the e-mail
 // login link and the split account rate limit.
 const test = require('node:test');
+const { freePort } = require('./helpers/free-port');
 const assert = require('node:assert');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
@@ -92,7 +93,7 @@ function softAuthenticator(origin, rpID) {
   };
 }
 
-let PORT = 8098;
+let PORT = 0;
 let ORIGIN = `http://localhost:${PORT}`;
 // The server trusts X-Forwarded-For here, so each phase of the journey can
 // act as its own client and the strict per-IP limit (20 per 10 min) only
@@ -136,11 +137,11 @@ test('AccountStore: sign-up code renews, admin resend knows password-less accoun
 });
 
 test('server: e-mail-first sign-up (code + link), passkey, sign-in, manage, login link', { skip: !HAS_LIB && 'needs @simplewebauthn/server' },
-  (t) => journey(t, 8098, testDatabaseUrl('passkeys'), 'Oma Inge', 'inge@example.org'));
+  (t) => journey(t, testDatabaseUrl('passkeys'), 'Oma Inge', 'inge@example.org'));
 
-async function journey(t, port, databaseUrl, NAME, MAIL) {
-  PORT = port;
-  ORIGIN = `http://localhost:${port}`;
+async function journey(t, databaseUrl, NAME, MAIL) {
+  PORT = await freePort();
+  ORIGIN = `http://localhost:${PORT}`;
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-passkeys-'));
   const server = spawn('node', ['server.js'], {
     cwd: path.join(__dirname, '..'),

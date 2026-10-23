@@ -176,6 +176,9 @@
   // NEUE auf, gibt es die große Ankündigung (Raid-Warning-Stil).
   let prevTablePikdameIds = null;
   let prevPikdameRound = null;
+  // Her head turn: live moments by card id | 'pile' | 'pileOut' | 'result'.
+  const queenMoments = new Map();
+  let queenPrev = null; // facts of the previous state; null = the next one is only a baseline
   // --- Sprache (Deutsch/Englisch, Default Deutsch) ----------------------------
   const LANG_KEY = 'pikdame_lang';
   let lang = storageGet(LANG_KEY) === 'en' ? 'en' : 'de';
@@ -184,6 +187,49 @@
   function L(de, en) {
     return lang === 'en' ? en : de;
   }
+
+  // --- Formatting for the active UI language (one place, exposed for tests) ---
+  const MINUS = '\u2212';
+  const NBSP = '\u00a0';
+  const localeOf = (l = lang) => (l === 'en' ? 'en-GB' : 'de-DE');
+  /** 1385 -> "1.385" (de) / "1,385" (en); negatives use the true minus sign U+2212. */
+  function fmtNum(n, l = lang) {
+    return new Intl.NumberFormat(localeOf(l)).format(Number(n) || 0).replace('-', MINUS);
+  }
+  /** Explicit sign for deltas: +270, \u221235, 0. */
+  function fmtSigned(n, l = lang) {
+    const v = Number(n) || 0;
+    return v > 0 ? `+${fmtNum(v, l)}` : fmtNum(v, l);
+  }
+  /** Date or timestamp in the UI language; opts as for toLocaleDateString. */
+  function fmtDate(d, opts, l = lang) {
+    const date = d instanceof Date ? d : new Date(d);
+    return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(localeOf(l), opts);
+  }
+  /** A game-day string "2026-10-19" as a human date ("19. Okt. 2026" / "19 Oct 2026"). */
+  function fmtDay(iso, opts, l = lang) {
+    const d = new Date(`${iso}T12:00:00Z`);
+    return Number.isNaN(d.getTime()) ? String(iso) : fmtDate(d, opts || { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }, l);
+  }
+  const COUNT_WORDS = {
+    game: [['Partie', 'Partien'], ['game', 'games']],
+    win: [['Sieg', 'Siege'], ['win', 'wins']],
+    round: [['Runde', 'Runden'], ['round', 'rounds']],
+    turn: [['Zug', 'Züge'], ['turn', 'turns']],
+    day: [['Tag', 'Tage'], ['day', 'days']],
+  };
+  /** The noun alone, singular for exactly 1: unitWord(1, 'win') -> "Sieg". */
+  function unitWord(n, key, l = lang) {
+    const [one, many] = COUNT_WORDS[key][l === 'en' ? 1 : 0];
+    return Number(n) === 1 ? one : many;
+  }
+  /** Number and noun: "1 Sieg", "1.385 Partien". */
+  function fmtCount(n, key, l = lang) {
+    return `${fmtNum(n, l)} ${unitWord(n, key, l)}`;
+  }
+  /** Sprite icon; put the text next to it in its own <span>. */
+  const iconHtml = (name) => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+  window.PikFormat = { fmtNum, fmtSigned, fmtDate, fmtDay, unitWord, fmtCount, MINUS };
 
   // Dynamische Beschriftungen (enthalten Werte wie den Spiel-Code) koennen
   // nicht ueber I18N_STATIC laufen. Sie werden hier zentral neu gesetzt -
@@ -203,7 +249,7 @@
         btn.querySelector('span').textContent = resumeIsChallenge
           ? L('Challenge fortsetzen', 'Resume challenge')
           : resumeIsTutorial ? L('Tutorial fortsetzen', 'Resume tutorial')
-            : tower ? L(`Bot-Turm fortsetzen (Stufe ${tower})`, `Resume bot tower (stage ${tower})`)
+            : tower ? L(`Kartenhaus fortsetzen (Etage ${tower})`, `Resume House of Cards (floor ${tower})`)
               : L(`Weiterspielen (${resumeCode})`, `Resume game (${resumeCode})`);
         btn.classList.remove('hidden');
       } else {
@@ -245,6 +291,9 @@
         }
         if (n.title && map[n.title]) n.dataset.i18nTitleDe = n.title;
         if (n.placeholder && map[n.placeholder]) n.dataset.i18nPhDe = n.placeholder;
+        // The tutorial button's label carries a step counter set by the client.
+        const aria = n.getAttribute('aria-label');
+        if (aria && map[aria] && n.id !== 'tutorialProgressBtn') n.dataset.i18nAriaDe = aria;
       });
       rulesHtmlDe = el('rulesContent').innerHTML;
       i18nSnapshotDone = true;
@@ -257,6 +306,10 @@
       const de = n.dataset.i18nTitleDe;
       n.title = lang === 'en' ? map[de] || de : de;
     });
+    document.querySelectorAll('[data-i18n-aria-de]').forEach((n) => {
+      const de = n.dataset.i18nAriaDe;
+      n.setAttribute('aria-label', lang === 'en' ? map[de] || de : de);
+    });
     document.querySelectorAll('[data-i18n-ph-de]').forEach((n) => {
       const de = n.dataset.i18nPhDe;
       n.placeholder = lang === 'en' ? map[de] || de : de;
@@ -268,7 +321,7 @@
     // Names the language you switch TO, in that language - readable for
     // exactly the person who needs it.
     const langBtn = el('langBtn');
-    langBtn.textContent = lang === 'en' ? 'Deutsch' : 'English';
+    setLabelText(langBtn, lang === 'en' ? 'Deutsch' : 'English');
     langBtn.lang = lang === 'en' ? 'de' : 'en';
     langBtn.title = lang === 'en' ? 'Auf Deutsch umstellen' : 'Switch to English';
     document.documentElement.lang = lang;
@@ -277,6 +330,7 @@
     lang = lang === 'de' ? 'en' : 'de';
     storageSet(LANG_KEY, lang);
     applyStaticLang();
+    updateThemeName();    // the swatch titles were just translated
     updateSortToggleLabel();
     updateHandToggle();
     applyUiScale();       // Auswahlfeld Anzeigegröße
@@ -298,7 +352,8 @@
     try { renderToday(); } catch (e) { /* dito */ }
     try { renderYearSlide(); } catch (e) { /* dito */ }
     try { renderProgressSheet(); } catch (e) { /* dito */ }
-    try { renderTower(); } catch (e) { /* dito */ }
+    try { renderTower(); renderTowerTile(); } catch (e) { /* dito */ }
+    try { arrangeEmoteBar(el('emoteBar')); arrangeEmoteBar(el('resultEmoteBar')); } catch (e) { /* toggle label */ }
     try { renderAccountProgress(); } catch (e) { /* dito */ }
     // "Angemeldet als ..." steht dauerhaft in der Lobby - vom Vertragstest
     // unten gefunden, bevor es jemand melden konnte.
@@ -334,14 +389,7 @@
       // Woerter wie "Aus" versehentlich anderswo uebersetzt werden.
       for (const opt of sel.options) if (UI_SCALES.includes(opt.value)) opt.textContent = uiScaleLabel(opt.value);
     }
-    setRowValue(document.getElementById('uiScaleBtn'), uiScaleLabel(uiScale));
-  }
-  function cycleUiScale() {
-    uiScale = UI_SCALES[(UI_SCALES.indexOf(uiScale) + 1) % UI_SCALES.length];
-    storageSet(UI_SCALE_KEY, uiScale);
-    applyUiScale();
-    showToast(L(`Anzeigegröße: ${uiScaleLabel(uiScale)}`, `Display size: ${uiScaleLabel(uiScale)}`));
-    if (typeof render === 'function' && lastState) render(); // Hand-Überlappung neu messen
+    try { syncSegments(); } catch (e) { /* segments are cosmetic */ }
   }
   applyUiScale();
 
@@ -368,13 +416,41 @@
     return ' ' + BOT_FACES[h % BOT_FACES.length];
   }
 
-  function avatarFor(name, isBot) {
+  // Breathing bots: only the bot on turn breathes, in its level's rhythm (style.css).
+  // Periods scale with the bot pace, so a medium breath spans about one bot turn.
+  const BREATH_MS = new Map([['easy', 2300], ['medium', 1200], ['hard', 2600], ['zen', 5000]]);
+  const BREATH_PACE = new Map([['fast', 0.5], ['normal', 1], ['slow', 2]]); // = BOT_PACE_FACTOR (GameManager)
+  let breathTurn = '';
+  let breathSince = 0;
+  /** The current bot's breath, or null. The phase is anchored to the turn start: a
+   *  chip renderTable rebuilds breathes on (negative delay) instead of restarting. */
+  function botBreath(st) {
+    if (!st || st.phase !== 'playing' || st.paused || !Array.isArray(st.players)) return null;
+    if (st.challengeDate) return null; // the daily challenge never shows the bots' level
+
+    const p = st.players.find((x) => x.id === st.currentPlayerId);
+    if (!p || !p.isBot) return null; // a seat a bot covers on disconnect stays human
+    const level = BREATH_MS.has(p.botDifficulty) ? p.botDifficulty : 'zen';
+    const pace = BREATH_PACE.get(st.houseRules && st.houseRules.botPace) || 1;
+    const period = BREATH_MS.get(level) * pace;
+    const turn = `${st.roundNumber}:${st.turnIndexInRound}:${p.id}`;
+    const now = performance.now();
+    if (turn !== breathTurn) { breathTurn = turn; breathSince = now; }
+    // Leicht enters its uneven loop elsewhere every turn (the same for every viewer).
+    const skip = level === 'easy' ? (((Number(st.turnIndexInRound) || 0) * 7919) % 2300) / 2300 * period : 0;
+    return { id: p.id, level, period: Math.round(period), delay: -Math.round(now - breathSince + skip) };
+  }
+
+  function avatarFor(name, isBot, breath) {
     let h = 5381;
     for (const ch of String(name)) h = ((h * 33) ^ ch.codePointAt(0)) >>> 0;
     const hue = h % 360;
-    // Bots bekommen GESICHTER statt fünfmal 🤖 (Brotato-Prinzip: sofortige
-    // Wiedererkennung am Tisch) - deterministisch aus demselben Namens-Hash.
+    // Bots get faces instead of five robots (recognised at a glance), from the same name hash.
     const glyph = isBot ? BOT_FACES[h % BOT_FACES.length] : escapeHtml((Array.from(String(name).trim())[0] || '?').toUpperCase());
+    // Breathing: the face is its own element, drawn at peak size inside the avatar's box.
+    if (isBot && breath) {
+      return `<span class="opAvatar breathing" data-breath="${breath.level}" style="--br-dur:${breath.period}ms;--br-delay:${breath.delay}ms"><span class="opFace" style="background:hsl(${hue},46%,40%)">${glyph}</span></span>`;
+    }
     return `<span class="opAvatar" style="background:hsl(${hue},46%,40%)">${glyph}</span>`;
   }
 
@@ -489,15 +565,21 @@
         how: L('Lege eine Folge mit 10, Bube, Dame, König und Ass derselben Farbe aus - alles echte Karten, kein Joker.', 'Meld a run with 10, jack, queen, king and ace of one suit - all real cards, no joker.') },
       pik_royal: { emoji: '👑', name: L('Pik Royal', 'Spade royal'), desc: L('Royal Flush in Pik - mit der Pik Dame', 'Royal flush in spades - with the Queen of Spades'),
         how: L('Lege 10, Bube, Dame, König und Ass in Pik als Folge aus - alles echte Karten, kein Joker.', 'Meld 10, jack, queen, king and ace of spades as a run - all real cards, no joker.') },
-      // Bot tower (game/BotTower.js): stages cleared, then every star
-      tower_3: { emoji: '🗼', name: L('Turm\u00adkletterer', 'Tower climber'), desc: L('3 Stufen im Bot-Turm geschafft', 'Cleared 3 bot tower stages'),
-        how: L('Hol dir im Bot-Turm (Fortschritt → Bot-Turm) auf 3 Stufen mindestens einen Stern.', 'Earn at least one star on 3 bot tower stages (Progress → Bot tower).') },
-      tower_6: { emoji: '🗼', name: L('Turm\u00adstürmer', 'Tower stormer'), desc: L('6 Stufen im Bot-Turm geschafft', 'Cleared 6 bot tower stages'),
-        how: L('Hol dir im Bot-Turm auf 6 Stufen mindestens einen Stern.', 'Earn at least one star on 6 bot tower stages.') },
-      tower_10: { emoji: '🗼', name: L('Turm\u00adspitze', 'Tower top'), desc: L('Alle 10 Stufen im Bot-Turm geschafft', 'Cleared all 10 bot tower stages'),
-        how: L('Schaff alle 10 Stufen des Bot-Turms - die letzte gegen drei Zen-Bots.', 'Clear all 10 bot tower stages - the last one against three Zen bots.') },
-      tower_stars_30: { emoji: '🌠', name: L('Sternen\u00adhimmel', 'Starry sky'), desc: L('Alle 30 Sterne im Bot-Turm', 'All 30 stars in the bot tower'),
-        how: L('Hol dir auf allen 10 Stufen des Bot-Turms drei Sterne: klar vorn und selbst ausgemacht.', 'Earn three stars on all 10 bot tower stages: clearly ahead and out yourself.') },
+      // Kartenhaus (game/BotTower.js): floors and stars in the best month, crowned months
+      tower_3: { emoji: '🏠', name: L('Karten\u00adstapler/in', 'Card stacker'), desc: L('3 Etagen in einem Monat geschafft', 'Cleared 3 floors in one month'),
+        how: L('Hol dir in einem Monat im Kartenhaus (Aufgaben → Kartenhaus) auf den Etagen 1 bis 3 je mindestens einen Stern.', 'Earn at least one star on floors 1 to 3 of the House of Cards in one month (Tasks → House of Cards).') },
+      tower_6: { emoji: '🏠', name: L('Karten\u00adkünstler/in', 'Card artist'), desc: L('6 Etagen in einem Monat geschafft', 'Cleared 6 floors in one month'),
+        how: L('Hol dir in einem Monat im Kartenhaus auf den Etagen 1 bis 6 je mindestens einen Stern.', 'Earn at least one star on floors 1 to 6 of the House of Cards in one month.') },
+      tower_10: { emoji: '🏠', name: L('Hoch\u00adstapler/in', 'High stacker'), desc: L('10 Etagen in einem Monat geschafft', 'Cleared 10 floors in one month'),
+        how: L('Schaff in einem Monat die Etagen 1 bis 10 des Kartenhauses - die zehnte gegen drei Zen-Bots.', 'Clear floors 1 to 10 of the House of Cards in one month - the tenth against three Zen bots.') },
+      tower_stars_30: { emoji: '🌠', name: L('Sternen\u00adhimmel', 'Starry sky'), desc: L('30 Sterne in einem Monat', '30 stars in one month'),
+        how: L('Sammle in einem Monat im Kartenhaus 30 Sterne: drei pro Etage gibt es für klar vorn und selbst ausgemacht.', 'Collect 30 stars in the House of Cards in one month: three per floor for clearly ahead and out yourself.') },
+      tower_crowned_1: { emoji: '👷', name: L('Lehrling', 'Apprentice'), desc: L('Ein Kartenhaus gekrönt: alle 20 Etagen eines Monats', 'Crowned a House of Cards: all 20 floors of a month'),
+        how: L('Hol dir in einem Monat auf allen 20 Etagen des Kartenhauses mindestens einen Stern - dann kommt die Pik Dame obenauf.', 'Earn at least one star on all 20 floors of the House of Cards in one month - then the Queen of Spades goes on top.') },
+      tower_crowned_3: { emoji: '👷', name: L('Polier/in', 'Foreman'), desc: L('3 Monate das Kartenhaus gekrönt', 'Crowned the House of Cards in 3 months'),
+        how: L('Kröne das Kartenhaus in 3 Monaten: jedes Mal alle 20 Etagen mit mindestens einem Stern.', 'Crown the House of Cards in 3 months: every time all 20 floors with at least one star.') },
+      tower_crowned_12: { emoji: '👷', name: L('Bau\u00admeister/in', 'Master Builder'), desc: L('12 Monate das Kartenhaus gekrönt', 'Crowned the House of Cards in 12 months'),
+        how: L('Kröne das Kartenhaus in 12 Monaten.', 'Crown the House of Cards in 12 months.') },
     };
     return M[id] || { emoji: '🎖️', name: id, desc: '', how: '' };
   }
@@ -516,6 +598,7 @@
     { id: 'puzzlePerfect', tiers: ['puzzle_perfect_10', 'puzzle_perfect_30', 'puzzle_perfect_100'] },
     { id: 'tower', tiers: ['tower_3', 'tower_6', 'tower_10'] },
     { id: 'towerStars', tiers: ['tower_stars_30'] },
+    { id: 'towerCrowned', tiers: ['tower_crowned_1', 'tower_crowned_3', 'tower_crowned_12'] },
   ];
   const BADGE_SINGLES = [
     'pd_caught', 'round_300', 'score_500', 'pd_triple', 'double_queen_round',
@@ -592,6 +675,14 @@
     document.querySelectorAll('.themeBtn').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.themeChoice === theme);
     });
+    updateThemeName();
+  }
+  // The swatch title is the translated name (applyStaticLang), so reuse it.
+  function updateThemeName() {
+    const out = document.getElementById('themeNameValue');
+    const theme = document.documentElement.getAttribute('data-theme');
+    const btn = document.querySelector(`.prefSwatches .themeBtn[data-theme-choice="${theme}"]`);
+    if (out) out.textContent = btn ? btn.title : '';
   }
 
   document.querySelectorAll('.themeBtn').forEach((btn) => {
@@ -670,7 +761,7 @@
           if (musicPrefs.explicit || storageGet(MUSIC_HINT_KEY) === '1') return;
           if (Date.now() < toastLockUntil) return; // a priority toast would swallow it: next start
           storageSet(MUSIC_HINT_KEY, '1');
-          showToast(L('Musik läuft leise – ändern unter Einstellungen › Musik', 'Music plays quietly – change it under Settings › Music'), { duration: 6000 });
+          showToast(L('Musik läuft leise – ändern unter Optionen › Musik', 'Music plays quietly – change it under Options › Music'), { duration: 6000 });
         },
       });
       music.setChoice(musicPrefs.choice);
@@ -682,6 +773,35 @@
   } catch (e) {
     music = null;
   }
+
+  // --- Table light: public/table-light.js turns the Berlin clock into four
+  // weights on #table, style.css the colours. Ticks only while the table shows.
+  const tableLight = window.PikdameTableLight || null;
+  let tableLightTimer = null;
+  let tableLightShown = '';
+  function applyTableLight() {
+    try {
+      const w = tableLight.cssWeights(Date.now());
+      const key = Object.values(w).join(' ');
+      if (key === tableLightShown) return; // a plateau: no style work
+      tableLightShown = key;
+      const table = el('table');
+      for (const [prop, value] of Object.entries(w)) table.style.setProperty(prop, value);
+    } catch (e) { /* the light is decoration, never critical */ }
+  }
+  function syncTableLight() {
+    try {
+      const on = !!tableLight && !document.hidden && !el('table').classList.contains('hidden');
+      if (on && !tableLightTimer) {
+        applyTableLight(); // before the next paint: no flash of the wrong hour
+        tableLightTimer = setInterval(applyTableLight, tableLight.UPDATE_MS);
+      } else if (!on && tableLightTimer) {
+        clearInterval(tableLightTimer);
+        tableLightTimer = null;
+      }
+    } catch (e) { /* the light is decoration, never critical */ }
+  }
+  document.addEventListener('visibilitychange', syncTableLight);
 
   function playTone(freqs, durationMs, type = 'sine', gainValue = 0.06) {
     if (!soundEnabled) return;
@@ -900,7 +1020,7 @@
     const sample = bar.querySelector('button[data-emote]');
     if (!sample) return;
     const b = sample.cloneNode(false);
-    b.classList.add('greetEmote');
+    b.className = 'emoteChoice emoteSpecial greetEmote';
     b.dataset.emote = emoji;
     b.textContent = emoji;
     b.addEventListener('click', () => {
@@ -956,23 +1076,9 @@
     document.addEventListener('visibilitychange', () => { if (!document.hidden) checkDay(); });
   })();
 
-  // Settings rows carry an <svg class="icon"> plus a label and a value span.
-  // Never assign textContent to the row itself - that would wipe the icon.
-  function setRowIcon(btn, iconId) {
-    const use = btn && btn.querySelector('.icon use');
-    if (use) use.setAttribute('href', `#${iconId}`);
-  }
-  function setRowValue(btn, text) {
-    const span = btn && btn.querySelector('.sheetRowValue');
-    if (span) span.textContent = text;
-  }
-
   function setSoundEnabled(enabled) {
     soundEnabled = enabled;
     storageSet(SOUND_KEY, enabled ? 'on' : 'off');
-    const toggleBtn = el('soundToggle');
-    setRowIcon(toggleBtn, enabled ? 'i-sound-on' : 'i-sound-off');
-    setRowValue(toggleBtn, enabled ? L('An', 'On') : L('Aus', 'Off'));
     const box = el('soundCheckbox');
     if (box) box.checked = enabled;
   }
@@ -992,16 +1098,13 @@
   }
   function updateMusicSetting() {
     el('musicItem').classList.toggle('hidden', !musicSupported);
-    el('musicToggle').classList.toggle('hidden', !musicSupported);
     const levelSel = el('musicLevelSelect');
     for (const opt of levelSel.options) opt.textContent = musicLevelName(opt.value) || opt.textContent;
     levelSel.value = musicPrefs.level;
     const choiceSel = el('musicTrackSelect');
     for (const opt of choiceSel.options) opt.textContent = musicChoiceName(opt.value) || opt.textContent;
     choiceSel.value = musicPrefs.choice;
-    setRowValue(el('musicToggle'), musicPrefs.level === 'off'
-      ? musicLevelName('off')
-      : `${musicLevelName(musicPrefs.level)} · ${musicChoiceName(musicPrefs.choice)}`);
+    try { syncSegments(); } catch (e) { /* segments are cosmetic */ }
   }
   function setMusicLevel(level) {
     if (!MUSIC_LEVELS.includes(level)) return;
@@ -1021,30 +1124,16 @@
     if (music) music.setChoice(choice);
     updateMusicSetting();
   }
-  function cycleMusicLevel() {
-    const next = MUSIC_LEVELS[(MUSIC_LEVELS.indexOf(musicPrefs.level) + 1) % MUSIC_LEVELS.length];
-    setMusicLevel(next);
-    showToast(L(`Musik: ${musicLevelName(next)}`, `Music: ${musicLevelName(next)}`));
-  }
   try { updateMusicSetting(); } catch (e) { /* settings are comfort */ }
 
-  // Spiel-Tipps (der 'Tipp: 3+ Karten...'-Toast pro Zug): erfahrene Spieler
-  // koennen sie hinterm Zahnrad dauerhaft abschalten. Persistiert lokal auf
-  // dem Geraet (localStorage) - PFLICHT-Hinweise (z.B. Anlege-Zwang nach
-  // Stapelaufnahme) bleiben bewusst immer sichtbar.
+  // Game tips (the per-turn "Tipp: 3+ Karten..." toast): experienced players
+  // switch them off in "Optionen", stored per device. MANDATORY hints (lay-off
+  // duty after a pile take) always stay visible.
   const TIPS_KEY = 'pikdame_tips';
   let gameTipsEnabled = storageGet(TIPS_KEY) !== 'off';
   function setTipsEnabled(enabled) {
     gameTipsEnabled = enabled;
     storageSet(TIPS_KEY, enabled ? 'on' : 'off');
-    const btn = el('tipsToggle');
-    if (btn) {
-      setRowIcon(btn, enabled ? 'i-bulb' : 'i-bulb-off');
-      setRowValue(btn, enabled ? L('An', 'On') : L('Aus', 'Off'));
-      btn.title = enabled
-        ? L('Spiel-Tipps ausblenden', 'Hide game tips')
-        : L('Spiel-Tipps wieder anzeigen', 'Show game tips again');
-    }
     const tipsBox = document.getElementById('aidTipsCheckbox');
     if (tipsBox) tipsBox.checked = enabled;
   }
@@ -1069,19 +1158,7 @@
   const discardAidOn = () => aidDiscard || inTutorial();
   const layOffAidOn = () => aidLayOff || inTutorial();
   function renderAidControls() {
-    for (const [btnId, boxId, on, onTxt, offTxt] of [
-      ['aidDiscardToggle', 'aidDiscardCheckbox', aidDiscard,
-        L('Ablage-Hinweis ausblenden', 'Hide discard hint'), L('Ablage-Hinweis anzeigen', 'Show discard hint')],
-      ['aidLayOffToggle', 'aidLayOffCheckbox', aidLayOff,
-        L('Anlege-Hinweis ausblenden', 'Hide lay-off hint'), L('Anlege-Hinweis anzeigen', 'Show lay-off hint')],
-      ['aidLowCardsToggle', 'aidLowCardsCheckbox', aidLowCards,
-        L('Hinweis bei wenigen Karten ausblenden', 'Hide low-card warning'), L('Hinweis bei wenigen Karten anzeigen', 'Show low-card warning')],
-    ]) {
-      const btn = document.getElementById(btnId);
-      if (btn) {
-        setRowValue(btn, on ? L('An', 'On') : L('Aus', 'Off'));
-        btn.title = on ? onTxt : offTxt;
-      }
+    for (const [boxId, on] of [['aidDiscardCheckbox', aidDiscard], ['aidLayOffCheckbox', aidLayOff], ['aidLowCardsCheckbox', aidLowCards]]) {
       const box = document.getElementById(boxId);
       if (box) box.checked = on;
     }
@@ -1302,7 +1379,7 @@
           afterTutorial = next;
           el('createGameBtn').click();
         }
-        // Back from a finished tower stage (leaveTowerFor): the tower or the next try.
+        // Back from a finished Kartenhaus floor (leaveTowerFor): the house or the next try.
         const towerNext = storageGet('pikdame_after_tower');
         if (towerNext) {
           storageRemove('pikdame_after_tower');
@@ -1491,6 +1568,7 @@
       if (msg.playerToken) storageSet(tokenKeyFor(msg.sessionCode), msg.playerToken);
       playerId = msg.playerId;
       sessionCode = msg.sessionCode;
+      queenPrev = null; // a (re)join is no queen moment: the state may have jumped
       storageSet(playerKeyFor(sessionCode), playerId);
       // URL aktualisieren, damit der Link direkt teilbar ist (?session=CODE)
       const url = new URL(window.location.href);
@@ -1612,6 +1690,7 @@
       updateWakeLock();
       maybeShowActionToast();
       maybeShowRoundQuote();
+      try { detectQueenMoments(); } catch (e) { /* cosmetic */ }
       checkPikdameAnnouncement();
       render();
       // After "Tutorial geschafft": the new game exists - start it with bots
@@ -1648,7 +1727,7 @@
       try { updateStammtischChip(msg); } catch (e) { /* cosmetic */ }
       return;
     }
-    if (msg.type === 'puzzle' || msg.type === 'puzzleResult' || msg.type === 'puzzleSolution') {
+    if (msg.type === 'puzzle' || msg.type === 'puzzleResult' || msg.type === 'puzzleSolution' || msg.type === 'puzzleMeldCheck') {
       try { handlePuzzleMessage(msg); } catch (e) { /* a broken puzzle never breaks the client */ }
       try { renderToday(); } catch (e) { /* cosmetic */ }
       return;
@@ -1660,21 +1739,27 @@
     if (msg.type === 'challengeBoard') {
       lastChallengeBoard = msg;
       renderChallengeBoard();
+      if (lastState && lastState.phase === 'gameOver' && !el('resultOverlay').classList.contains('hidden')) renderResultMe(true);
       return;
     }
     if (msg.type === 'towerInfo') {
       towerInfo = { ...msg, forName: towerAskedFor };
       renderTower();
-      renderTowerChip();
+      renderTowerTile();
+      if (lastState && lastState.towerStage) { try { renderTowerTable(); } catch (e) { /* cosmetic */ } }
       if (!el('progressOverlay').classList.contains('hidden')) renderProgressSheet();
       return;
     }
     if (msg.type === 'towerResult') {
       lastTowerResult = msg;
+      // For the house's next opening: a missed floor wobbles there (after the reload).
+      storageSet(TOWER_LAST_KEY, JSON.stringify({ name: myName || '', month: msg.month, stage: msg.stage, stars: msg.stars }));
       const pr = msg.progress;
-      if (pr && towerInfo) Object.assign(towerInfo, { best: pr.best, stars: pr.stars, cleared: pr.cleared, unlocked: pr.unlocked });
-      try { renderTowerChip(); } catch (e) { /* cosmetic */ }
-      // A stage's first star pays XP: same level bookkeeping as the solved puzzle.
+      if (pr && towerInfo && towerInfo.month === msg.month) {
+        Object.assign(towerInfo, { best: pr.best, stars: pr.stars, cleared: pr.cleared, unlocked: pr.unlocked, crowned: pr.crowned, totalStars: pr.totalStars });
+      }
+      try { renderTowerTile(); } catch (e) { /* cosmetic */ }
+      // A floor's first star pays XP: same level bookkeeping as the solved puzzle.
       if (msg.xp && msg.level) {
         const total = msg.level.total || 0;
         myProgress = { xp: Math.max((myProgress && myProgress.xp) || 0, total), level: msg.level };
@@ -1713,7 +1798,7 @@
       el('statsBtn').classList.toggle('hidden', publicMode);
       try { updateCelebrationSetting(); } catch (e) { /* cosmetic */ }
       if (!publicMode && !towerInfo) requestTower();
-      try { renderTowerChip(); } catch (e) { /* cosmetic */ }
+      try { renderTowerTile(); } catch (e) { /* cosmetic */ }
       if (msg.quests) dailyQuests = msg.quests;
       try { fetchChallengeToday(); } catch (e) { /* cosmetic */ }
       // My own counters live on my profile (name-based, like every other
@@ -1731,7 +1816,7 @@
     if (msg.type === 'progress') {
       // End of a match: experience, level and the daily quests that ticked.
       myProgress = { xp: msg.xp, level: msg.level };
-      lastGameProgress = { gainedXp: msg.gainedXp || 0, welcomeBack: !!msg.welcomeBack, record: msg.record || null };
+      lastGameProgress = { gainedXp: msg.gainedXp || 0, welcomeBack: !!msg.welcomeBack, record: msg.record || null, streak: msg.streak || null };
       if (msg.streak) myStreak = msg.streak;
       if (msg.quests) {
         dailyQuests = { date: msg.quests.date, ids: msg.quests.ids };
@@ -1746,6 +1831,11 @@
     if (msg.type === 'accountProgress') {
       accountProgress = msg.progress || null;
       renderAccountProgress();
+      // Sent right after a finished match: its season place joins the result strip.
+      if (lastGameProgress && accountProgress && lastState && lastState.phase === 'gameOver') {
+        lastGameProgress.seasonRank = accountProgress.rank || null;
+        if (!el('resultOverlay').classList.contains('hidden')) renderResultMe(true);
+      }
       return;
     }
     if (msg.type === 'emote') {
@@ -1859,6 +1949,140 @@
     return suit === 'H' || suit === 'D' ? 'red' : 'black';
   }
 
+  // --- The Queen of Spades turns her head on her real moments -----------------
+  // A bot turn arrives as ONE coalesced state, so moments come from where she
+  // is (hand, pile, table), never from pile counts. Timings: style.css qTurn*.
+  const QUEEN_TURN_MS = 580;
+  const QUEEN_EXIT_MS = 420;
+  const QUEEN_CHIP_MS = 1400; // the chip first waits for the result sheet (--q-lead)
+  // Her profile: the still cue in the index corner when motion is reduced.
+  const QUEEN_PROFILE_SVG =
+    '<svg class="qProfile" viewBox="6.6 7.6 27 35.4" aria-hidden="true"><path d="M15.4 13.2 15.9 9.6 17.9 11.6 19.8 8 21.6 11.4 23.8 9.5 24.3 12.8C26.3 13.6 27.5 15 27.9 16.8C30.9 16.4 33.3 18.6 33 21.6C32.8 24.2 30.6 25.9 28.1 25.6C27.6 27.2 26.8 28.6 25.9 29.7C26.8 32.6 29.1 34.5 32.2 35.6C33 37.6 32.7 39.8 31.6 41.6C27.8 42.6 12.2 42.6 8.4 41.6C7.3 39.8 7 37.6 7.8 35.6C11.4 34.8 14.3 33.2 15.4 30.6C15.6 29.9 15.6 29.3 15.3 28.8C14.2 28.8 13.2 28.4 12.8 27.7C12.5 27.1 12.7 26.6 12.6 26.1C12 25.8 11.8 25.3 12.1 24.8C11.6 24.4 11.5 23.9 11.9 23.5C10.9 23 9.8 22.4 9.9 21.6C10.1 20.8 11.6 20 12.3 18.9C12.5 16.9 13.4 14.9 15.4 13.2Z"/></svg>';
+  const isPikdameUp = (c) => !!c && !c.isJoker && !c.faceDown && c.rank === 'Q' && c.suit === 'S';
+  const motionReduced = () => {
+    try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
+  };
+
+  function queenFacts(st) {
+    const me = (st.players || []).find((p) => p.id === playerId);
+    const ids = (cards) => new Set((cards || []).filter(isPikdameUp).map((c) => c.id));
+    const table = new Set();
+    for (const m of st.tableMelds || []) for (const s of m.slots || []) if (isPikdameUp(s.real)) table.add(s.real.id);
+    const top = isPikdameUp(st.discardTop) ? st.discardTop.id : null; // the face-down last card never counts
+    const pile = ids(st.discardCards);
+    if (top) pile.add(top);
+    return { round: st.roundNumber, phase: st.phase, turn: st.turnIndexInRound, top, pile, table, hand: ids(me && me.hand) };
+  }
+
+  /** Every state, before render: starts her moments and drops the finished ones. */
+  function detectQueenMoments() {
+    const now = queenFacts(lastState);
+    const prev = queenPrev;
+    queenPrev = now;
+    // A moment lives for the turn it happened in, and only while she stays there.
+    const stays = (key, m) => {
+      if (m.kind === 'caught') return now.phase === 'roundEnd' || now.phase === 'gameOver';
+      if (m.kind === 'leave') return performance.now() - m.at < QUEEN_EXIT_MS;
+      if (now.turn !== m.turn) return false;
+      if (m.kind === 'discard') return now.top === m.id;
+      return m.kind === 'meld' ? now.table.has(key) : now.hand.has(key);
+    };
+    for (const [key, m] of queenMoments) if (!stays(key, m)) queenMoments.delete(key);
+    if (!prev || prev.round !== now.round) { queenMoments.clear(); return; } // (re)join, reload, new deal
+    const at = performance.now();
+    const start = (key, kind, id) => queenMoments.set(key, { kind, at, turn: now.turn, id });
+    if (prev.phase === 'playing' && now.phase === 'playing') {
+      for (const id of now.hand) {
+        if (prev.hand.has(id) || prev.table.has(id)) continue; // already mine, or an undone meld
+        start(id, prev.pile.has(id) ? 'pickup' : 'draw');
+      }
+      // Every turn ends with its discard; "Zurücklegen" puts her back within the turn.
+      if (now.top && now.top !== prev.top && now.turn !== prev.turn) start('pile', 'discard', now.top);
+      if (prev.top && !now.pile.has(prev.top)) start('pileOut', 'leave', prev.top);
+      for (const id of now.table) if (!prev.table.has(id)) start(id, 'meld');
+    } else if (prev.phase === 'playing' && (now.phase === 'roundEnd' || now.phase === 'gameOver')) {
+      const mine = (lastState.lastRoundStats || []).find((s) => s.id === playerId);
+      if (mine && mine.pikDameCount > 0) start('result', 'caught');
+    }
+  }
+
+  const QUEEN_PLACES = { hand: ['draw', 'pickup'], meld: ['meld'], pile: ['discard'], chip: ['caught'] };
+  /** Puts her live moment on a node: the turn (a re-render resumes it) and the still cue. */
+  function queenDecorate(node, key, place) {
+    const m = queenMoments.get(key);
+    if (!m || !QUEEN_PLACES[place].includes(m.kind)) {
+      node.classList.remove('qTurn', 'qStill');
+      delete node.dataset.qAt;
+      return false;
+    }
+    const age = performance.now() - m.at;
+    node.dataset.q = m.kind;
+    // A node kept across renders (the pile card) keeps its running animation.
+    if (node.dataset.qAt !== String(m.at)) {
+      node.dataset.qAt = String(m.at);
+      node.style.setProperty('--q-delay', `${-Math.round(age)}ms`);
+    }
+    if (age < (place === 'chip' ? QUEEN_CHIP_MS : QUEEN_TURN_MS)) node.classList.add('qTurn');
+    node.classList.add('qStill');
+    if (place !== 'chip' && !node.querySelector('.qProfile')) {
+      (node.querySelector('.corner') || node).insertAdjacentHTML('beforeend', QUEEN_PROFILE_SVG);
+    }
+    // The class goes with the turn, so another animation rule on the card (a coach glow) applies again.
+    node.onanimationend = (e) => {
+      if (e.target === node && !e.pseudoElement && e.animationName.startsWith('qTurn')) node.classList.remove('qTurn');
+    };
+    return true;
+  }
+
+  /** She was taken from the pile: a ghost of her card turns away on top of it. */
+  function queenGhost() {
+    const m = queenMoments.get('pileOut');
+    if (!m || m.ghost) return;
+    m.ghost = true;
+    const pile = el('discardPile');
+    pile.querySelectorAll('.qGhost').forEach((g) => g.remove());
+    const age = performance.now() - m.at;
+    if (age >= QUEEN_EXIT_MS || motionReduced()) return;
+    const ghost = document.createElement('div');
+    ghost.className = 'pile-card black qGhost';
+    ghost.setAttribute('aria-hidden', 'true');
+    ghost.textContent = `Q${suitSymbol('S')}`;
+    ghost.dataset.cardId = m.id;
+    ghost.dataset.qAt = String(m.at);
+    ghost.style.setProperty('--q-delay', `${-Math.round(age)}ms`);
+    const drop = () => ghost.remove();
+    ghost.addEventListener('animationend', (e) => { if (!e.pseudoElement) drop(); });
+    setTimeout(drop, QUEEN_EXIT_MS + 400);
+    pile.appendChild(ghost);
+  }
+
+  /** Round end with her on my hand: she shows herself next to my name, then her price. */
+  function queenChip() {
+    const mine = (lastState.lastRoundStats || []).find((s) => s.id === playerId);
+    const count = (mine && mine.pikDameCount) || 0;
+    if (!count) return null;
+    const r = lastState.lastRoundResult && lastState.lastRoundResult[playerId];
+    const mult = (r && r.breakdown && r.breakdown.multiplier) || 1;
+    const line = (mine.handLines || []).find((ln) => ln.kind === 'pikdame');
+    const price = `${MINUS}${fmtNum((line ? line.points : 100 * count) * mult)}`;
+    const chip = document.createElement('span');
+    chip.className = 'qChip';
+    chip.setAttribute('role', 'img');
+    chip.title = count > 1
+      ? L(`Beide Pik Damen auf der Hand: ${price}`, `Both Queens of Spades left in hand: ${price}`)
+      : L(`Pik Dame auf der Hand: ${price}`, `Queen of Spades left in hand: ${price}`);
+    chip.setAttribute('aria-label', chip.title);
+    chip.innerHTML = `<span class="qMini"><b>Q</b><i>${suitSymbol('S')}</i></span><span class="qPrice">${price}</span>`;
+    queenDecorate(chip, 'result', 'chip');
+    return chip;
+  }
+
+  /** The fan transform; her card mirrors it into --fan for the turn's keyframes. */
+  function setFan(c, t) {
+    c.style.transform = t;
+    if (c.style.getPropertyValue('--fan')) c.style.setProperty('--fan', t === 'none' ? 'rotate(0deg)' : t);
+  }
+
   function cardEl(card, { selectable, selected, onClick, compact } = {}) {
     const div = document.createElement('div');
     div.className = compact ? 'card card-compact' : 'card';
@@ -1918,7 +2142,10 @@
     const inLobby = lastState.phase === 'lobby';
     el('lobby').classList.toggle('hidden', !inLobby);
     el('table').classList.toggle('hidden', inLobby);
+    syncSeasonSnow();
+    syncTableLight();
     renderPause();
+    try { renderTableOptions(); } catch (e) { /* "Optionen" must never break the table */ }
 
     if (inLobby) {
       // Coming back to the lobby (e.g. after a rematch) must clear any result
@@ -2247,7 +2474,9 @@
     el('roundInfo').title = iAmDealer ? L('Du gibst diese Runde', 'You deal this round') : '';
     const isMyTurn = lastState.currentPlayerId === playerId;
     updateTurnTitleNotice(isMyTurn && lastState.phase === 'playing');
-    el('turnStatus').innerHTML = turnStatusHtml(lastState, playerId);
+    // One breath per render: the chip's face and the header's face stay in step.
+    const breath = botBreath(lastState);
+    el('turnStatus').innerHTML = turnStatusHtml(lastState, playerId, breath);
 
     // Gegner
     const opponentsDiv = el('opponents');
@@ -2305,7 +2534,8 @@
           : lowCards
             ? `<span class="opLowTag"><svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg><span>${p.handCount === 1 ? L('Letzte Karte!', 'Last card!') : L('Noch 2 Karten!', '2 cards left!')}</span></span>`
             : '';
-        d.innerHTML = `<div class="opName">${avatarFor(p.name, p.isBot)}${nameWithHeart(p.name)}${dealerStar}${reconnecting ? ` <span class="reconnectTag">${L('getrennt', 'offline')}</span>` : ''}</div><div class="opCount"><span class="opCards" title="${cardsText}"><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><b>${p.handCount}</b></span><b class="opPts" title="${L(`${opTotal} Punkte`, `${opTotal} points`)}">${opTotal}</b></div><div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>${lowTag}`;
+        const faceBreath = breath && breath.id === p.id ? breath : null;
+        d.innerHTML = `<div class="opName">${avatarFor(p.name, p.isBot, faceBreath)}<span class="opNameText">${nameWithHeart(p.name)}</span>${dealerStar}${reconnecting ? ` <span class="reconnectTag">${L('getrennt', 'offline')}</span>` : ''}</div><div class="opCount"><span class="opCards" title="${cardsText}"><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><b>${p.handCount}</b></span><b class="opPts" title="${L(`${opTotal} Punkte`, `${opTotal} points`)}">${opTotal}</b></div><div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>${lowTag}`;
         // Daily challenge: the level is fixed and deliberately not shown.
         // Badge lives OUTSIDE the name div: inside it, the name ellipsis on
         // narrow chips (3 bots, portrait) swallowed the button.
@@ -2315,7 +2545,7 @@
           badgeBtn.className = 'botDiffBadge tapExpand';
           // In the game the spade rating alone; the level's name is in title + aria-label.
           badgeBtn.innerHTML = levelIconHtml(meta);
-          // Bot tower: the stage fixes the bots, so the badge only tells.
+          // Kartenhaus: the floor fixes the bots, so the badge only tells.
           if (lastState.isHost && !lastState.towerStage) {
             badgeBtn.title = L(`Schwierigkeit ändern (${meta.short()})`, `Change difficulty (${meta.short()})`);
             badgeBtn.addEventListener('click', (ev) => {
@@ -2493,6 +2723,7 @@
             onClick: () => onMeldCardClick(meld),
             compact: true,
           });
+          if (isPikdameUp(slot.real)) queenDecorate(cEl, slot.real.id, 'meld');
           group.appendChild(cEl);
         });
         row.appendChild(group);
@@ -2533,6 +2764,9 @@
       lastState.discardPileCount > 1 && lastState.discardPileCount <= 6
     );
     el('discardCount').textContent = lastState.discardPileCount > 0 ? lastState.discardPileCount : '';
+    // Her turn on the pile folds the pop into it (style.css qTurnPile).
+    queenDecorate(discardTopDiv, 'pile', 'pile');
+    queenGhost();
     // Pop-Animation, wenn eine neue Karte oben liegt (z.B. Gegner-Abwurf)
     const topId = lastState.discardTop ? lastState.discardTop.id || 'facedown' : null;
     if (topId && topId !== prevDiscardTopId && prevDiscardTopId !== undefined) {
@@ -2553,9 +2787,12 @@
     el('drawPile').classList.toggle('glow', canDraw && lastState.drawPileCount > 0);
     // Server truth: glow the discard only when taking it is actually legal.
     // `null`/missing (older server, no answer) keeps the old optimistic glow.
-    const discardBlocked = discardAidOn() && canDraw && !!lastState.discardTop && lastState.discardTakeable === false;
+    // A Kartenhaus floor without the discard pile shows it blocked even with the aid off.
+    const noDiscardFloor = !!(lastState.towerMods && lastState.towerMods.includes('noDiscard'));
+    const discardBlocked = (discardAidOn() || noDiscardFloor) && canDraw && !!lastState.discardTop && lastState.discardTakeable === false;
     el('discardPile').classList.toggle('glow', canDraw && !!lastState.discardTop && !discardBlocked);
     el('discardPile').classList.toggle('noTake', discardBlocked);
+    try { renderTowerTable(); } catch (e) { /* the floor card never breaks the table */ }
 
     // Hand
     const myPlayer = lastState.players.find((p) => p.id === playerId);
@@ -2627,6 +2864,7 @@
         if (DND_ENABLED && isMyTurn && lastState.turnPhase === 'meld') attachDragSource(cEl, card);
         // Gerade gezogene/aufgenommene Karte sichtbar machen
         if (freshCardIds.has(card.id)) cEl.classList.add('just-drawn');
+        if (towerSpotOn && card.rank === 'Q' && card.suit === 'S') cEl.classList.add('towerSpot');
         // Fächer-Optik: Karten leicht um die Mitte der Hand rotiert + angehoben.
         // Rotation flacht bei vielen Karten ab, sonst wird der Fächer unleserlich.
         const mid = (sorted.length - 1) / 2;
@@ -2643,6 +2881,10 @@
         const rotate = Math.max(-rotCap, Math.min(rotCap, offset * rotFactor));
         const lift = Math.min(dense ? 3 : 6, Math.abs(offset) * (dense ? 0.6 : 1.2));
         cEl.style.transform = `rotate(${rotate}deg) translateY(${lift}px)`;
+        if (isPikdameUp(card)) {
+          cEl.style.setProperty('--fan', cEl.style.transform); // her turn keeps the fan (setFan)
+          queenDecorate(cEl, card.id, 'hand');
+        }
         // Die Auswahl-Anhebung kommt AUSSCHLIESSLICH aus CSS (.card.selected
         // { top: -14px }) - die frühere zusätzliche translateY(-18px) hier
         // war redundant und hob Karten 32px an, weit über die Reserve des
@@ -2667,7 +2909,7 @@
         const cards = [...handDiv.querySelectorAll('.card')];
         if (handDiv.querySelector('.handRow')) {
           cards.forEach((c) => {
-            if (c.dataset.fan !== undefined) c.style.transform = c.dataset.fan;
+            if (c.dataset.fan !== undefined) setFan(c, c.dataset.fan);
             handDiv.appendChild(c);
           });
           handDiv.querySelectorAll('.handRow').forEach((r) => r.remove());
@@ -2704,7 +2946,7 @@
             row.className = 'handRow';
             rowCards.forEach((c, i) => {
               if (c.dataset.fan === undefined) c.dataset.fan = c.style.transform;
-              c.style.transform = 'none';
+              setFan(c, 'none');
               c.style.marginLeft = i === 0 ? '0' : `${rowVisible - cardWidth}px`;
               row.appendChild(c);
             });
@@ -2773,7 +3015,7 @@
     el('clearSelectionBtn').classList.toggle('hidden', selectedCardIds.size === 0);
     // Mis-tap escape: undo the pile take while the mandatory card is not yet
     // laid (server validates; the flag is only true for me). The button sits
-    // on the discard pile, which stays un-dimmed around it via .undoable.
+    // on the discard pile; a dimmed pile never dims it (style.css).
     el('undoPileBtn').classList.toggle('hidden', !lastState.canUndoPileTake);
     el('discardPile').classList.toggle('undoable', !!lastState.canUndoPileTake);
     el('undoMeldBtn').classList.toggle('hidden', !lastState.canUndoMeld);
@@ -2783,29 +3025,7 @@
       'hidden',
       !showMeldControls && !showDiscardBtn && selectedCardIds.size === 0 && !lastState.canUndoMeld
     );
-    const iSeatedForfeit = lastState.players.some((p) => p.id === playerId && !p.isBot);
-    el('forfeitBtn').classList.toggle('hidden', lastState.phase !== 'playing' || !iSeatedForfeit);
-    const forfeitVotes = lastState.forfeitVotes || [];
-    const humansForfeit = lastState.players.filter((p) => !p.isBot && p.connected !== false).length;
-    const iVotedForfeit = forfeitVotes.includes(playerId);
-    el('forfeitBtn').classList.toggle('active', iVotedForfeit);
-    // The row in the settings sheet is labelled, so the value column only
-    // carries the vote tally while a forfeit is being decided. Whoever is
-    // being asked also gets the toast further below.
-    setRowValue(el('forfeitBtn'), forfeitVotes.length ? `${forfeitVotes.length}/${humansForfeit}` : '');
-    el('forfeitBtn').title = forfeitVotes.length
-      ? L(`${forfeitVotes.length}/${humansForfeit} wollen das Spiel aufgeben - tippe zum Zustimmen`, `${forfeitVotes.length}/${humansForfeit} want to forfeit the game - tap to agree`)
-      : L('Das ganze Spiel aufgeben (alle aktiven Spieler müssen zustimmen)', 'Forfeit the whole game (all active players must agree)');
-    // Ask everyone visibly: when a proposal appears (or grows) and I haven't
-    // agreed yet, pop a toast so no one misses that they are being asked.
-    if (lastState.phase === 'playing' && forfeitVotes.length > prevForfeitVoteCount && !iVotedForfeit && iSeatedForfeit) {
-      showToast(
-        L(`🏳️ Spiel aufgeben vorgeschlagen (${forfeitVotes.length}/${humansForfeit}) - tippe auf 🏳️, um zuzustimmen.`,
-          `🏳️ Forfeit proposed (${forfeitVotes.length}/${humansForfeit}) - tap 🏳️ to agree.`),
-        { priority: true }
-      );
-    }
-    prevForfeitVoteCount = forfeitVotes.length;
+    try { renderForfeit(); } catch (e) { /* the home dialog must never break the table */ }
 
     if (lastState.mustLayOffCardId && isMyTurn && tutorialHintsOn()) {
       clearHintIfNotError(); // the coach card names the combination instead
@@ -2858,6 +3078,52 @@
         d.textContent = trs(entry.text);
         logEntries.appendChild(d);
       });
+  }
+
+  // The forfeit vote sits in the home dialog, next to "Tisch verlassen". Not in
+  // the tutorial: practice never blocks a new game, there is nothing to give up.
+  function forfeitShown() {
+    const st = lastState;
+    return !!(st && st.phase === 'playing' && !st.tutorialMode && st.players.some((p) => p.id === playerId && !p.isBot));
+  }
+  function renderForfeit() {
+    const st = lastState;
+    const btn = el('forfeitBtn');
+    const show = forfeitShown();
+    btn.classList.toggle('hidden', !show);
+    el('forfeitHint').classList.toggle('hidden', !show);
+    const votes = st.forfeitVotes || [];
+    const humans = st.players.filter((p) => !p.isBot && p.connected !== false).length;
+    const iVoted = votes.includes(playerId);
+    // An armed button shows "Wirklich?" until the second tap or its timeout.
+    if (show && !btn.dataset.armed) {
+      setLabelText(btn, iVoted
+        ? L(`Aufgeben zurückziehen (${votes.length}/${humans})`, `Withdraw forfeit (${votes.length}/${humans})`)
+        : votes.length
+          ? L(`Spiel aufgeben (${votes.length}/${humans})`, `Forfeit game (${votes.length}/${humans})`)
+          : L('Spiel aufgeben', 'Forfeit game'));
+    }
+    if (show) {
+      el('forfeitHint').textContent = humans > 1
+        ? L('Die Partie endet erst, wenn alle aktiven Spieler zustimmen – dann ohne Sieger und ohne Wertung.',
+          'The match only ends once every active player agrees – then with no winner and no score.')
+        : st.challengeDate
+          ? L('Die Challenge endet sofort ohne Wertung – dein Versuch für heute ist damit verbraucht.',
+            'The challenge ends at once, unscored – that uses up today’s attempt.')
+          : st.towerStage
+            ? L('Die Etage endet sofort – ohne Sterne.', 'The floor ends at once – no stars.')
+            : L('Die Partie endet sofort – ohne Sieger und ohne Wertung.', 'The match ends at once – no winner, no score.');
+    }
+    // Ask visibly: a new or growing proposal I have not agreed to yet. The
+    // toast names where the button really is (it used to point at a 🏳 button).
+    if (st.phase === 'playing' && votes.length > prevForfeitVoteCount && !iVoted && show) {
+      showToast(
+        L(`Spiel aufgeben vorgeschlagen (${votes.length}/${humans}). Zustimmen: Haus oben links › „Spiel aufgeben“.`,
+          `Forfeit proposed (${votes.length}/${humans}). To agree: house icon top left › "Forfeit game".`),
+        { priority: true }
+      );
+    }
+    prevForfeitVoteCount = votes.length;
   }
 
   const RANK_ORDER = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
@@ -3041,7 +3307,7 @@
   // Topbar status. On my turn the three steps of a turn, current one marked
   // (the old "(Karte ziehen)" bracket wrapped to two lines on a phone);
   // otherwise who is on turn. Returns markup; names are escaped.
-  function turnStatusHtml(st, me) {
+  function turnStatusHtml(st, me, breath) {
     if (st.phase === 'roundEnd') return escapeHtml(L('Runde vorbei', 'Round over'));
     if (st.phase === 'gameOver') return escapeHtml(L('Partie vorbei', 'Game over'));
     const who = (id) => st.players.find((p) => p.id === id) || null;
@@ -3055,7 +3321,8 @@
       const cp = who(st.currentPlayerId);
       if (!cp) return '–';
       const name = nameWithHeart(cp.name);
-      return `${avatarFor(cp.name, cp.isBot)}<span class="turnWho">${L(`${name} ist dran`, `${name}'s turn`)}</span>`;
+      const faceBreath = breath && breath.id === cp.id ? breath : null;
+      return `${avatarFor(cp.name, cp.isBot, faceBreath)}<span class="turnWho">${L(`${name} ist dran`, `${name}'s turn`)}</span>`;
     }
     const draw = st.turnPhase === 'draw';
     // Took the discard top: it must be laid before anything else, discarding included.
@@ -3286,9 +3553,10 @@
       }
     }
     const isGameOver = lastState.phase === 'gameOver';
+    el('resultOverlay').classList.toggle('isFinal', isGameOver); // desktop: two columns
     el('resultTitle').textContent = forfeited
       ? L('Spiel aufgegeben', 'Game forfeited')
-      : isGameOver && lastState.towerStage ? L(`Bot-Turm · Stufe ${lastState.towerStage}`, `Bot tower · stage ${lastState.towerStage}`)
+      : isGameOver && lastState.towerStage ? `${towerName()} · ${L(`Etage ${lastState.towerStage}`, `floor ${lastState.towerStage}`)}`
         : isGameOver ? L('Spielende!', 'Game over!') : L('Rundenende', 'End of round');
 
     const body = el('resultBody');
@@ -3361,7 +3629,6 @@
     }
     if (!forfeited && lastState.lastRoundResult) {
       const SCORE_TARGET = 1000;
-      const signed = (n) => (n > 0 ? `+${n}` : `${n}`);
 
       // The winner is whoever went OUT, which is often not the biggest number
       // on screen - as a green table row among four that read like a bug
@@ -3430,14 +3697,19 @@
               ? `<div class="resultRowTop">` +
                 `<span class="resultRank">${rank}.</span>` +
                 `<span class="resultName">${nameWithHeart(p.name)}${botMark(p)}</span>` +
-                `<span class="resultDelta resultDeltaSmall${deltaCls}">${signed(delta)}</span>` +
-                `<span class="resultTotal resultTotalBig">${total}</span>` +
+                `<span class="resultDelta resultDeltaSmall${deltaCls}">${fmtSigned(delta)}</span>` +
+                `<span class="resultTotal resultTotalBig">${fmtNum(total)}</span>` +
                 `</div>` + bar
               : `<div class="resultRowTop">` +
                 `<span class="resultName">${nameWithHeart(p.name)}${botMark(p)}</span>` +
-                `<span class="resultTotal">${L('gesamt', 'total')} ${total}</span>` +
-                `<span class="resultDelta${deltaCls}">${signed(delta)}</span>` +
+                `<span class="resultTotal">${L('gesamt', 'total')} ${fmtNum(total)}</span>` +
+                `<span class="resultDelta${deltaCls}">${fmtSigned(delta)}</span>` +
                 `</div>` + bar;
+            const queen = p.id === playerId ? queenChip() : null;
+            if (queen) {
+              row.classList.add('hasQueenChip');
+              row.querySelector('.resultName').after(queen);
+            }
             // Per-card breakdown: MY row only (an opponent's leftover hand is
             // not even sent), and not at game over - the match is decided then.
             const stats = p.id === playerId && !isGameOver ? (lastState.lastRoundStats || []).find((s) => s.id === p.id) : null;
@@ -3452,7 +3724,7 @@
                   pikdame: '♠Q', joker: L('Joker', 'Joker'), ace: L('Ass', 'Ace'),
                   face: L('10/B/D/K', '10/J/Q/K'), low: '2–9',
                 }[ln.kind] || ln.kind;
-                return `${ln.count > 1 ? `${ln.count}× ` : ''}${label} ${ln.points}`;
+                return `${ln.count > 1 ? `${ln.count}×${NBSP}` : ''}${label} ${ln.points}`;
               };
               const plus = (stats.laidLines || []).map(lineText).join(', ');
               const minus = (stats.handLines || []).map(lineText).join(', ');
@@ -3461,11 +3733,11 @@
               const isWinner = !!(r && r.breakdown && r.breakdown.isWinner);
               const mult = r && r.breakdown && r.breakdown.multiplier > 1 ? r.breakdown.multiplier : 1;
               det.innerHTML =
-                `<summary><span>${L('Aufschlüsselung', 'Breakdown')}</span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg> <span class="bdSums"><span class="bdSumPlus">+${plusSum}</span>${isWinner ? '' : ` <span class="bdSumMinus">−${minusSum}</span>`}</span></summary>` +
-                `<div class="bdLine bdPlus"><span>${L('Ausgelegt', 'Melded')}</span><span>${plus ? escapeHtml(plus) : '–'}</span><b>+${plusSum}</b></div>` +
+                `<summary><span>${L('Aufschlüsselung', 'Breakdown')}</span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg> <span class="bdSums"><span class="bdSumPlus">+${fmtNum(plusSum)}</span>${isWinner ? '' : ` <span class="bdSumMinus">${MINUS}${fmtNum(minusSum)}</span>`}</span></summary>` +
+                `<div class="bdLine bdPlus"><span>${L('Ausgelegt', 'Melded')}</span><span>${plus ? escapeHtml(plus) : '–'}</span><b>+${fmtNum(plusSum)}</b></div>` +
                 (isWinner
                   ? `<div class="bdLine bdNote"><span>${L('Rundensieg: keine Minuspunkte', 'Round winner: no minus points')}</span><span></span><b></b></div>`
-                  : `<div class="bdLine bdMinus"><span>${L('Auf der Hand', 'In hand')}</span><span>${minus ? escapeHtml(minus) : '–'}</span><b>−${minusSum}</b></div>`) +
+                  : `<div class="bdLine bdMinus"><span>${L('Auf der Hand', 'In hand')}</span><span>${minus ? escapeHtml(minus) : '–'}</span><b>${MINUS}${fmtNum(minusSum)}</b></div>`) +
                 (mult > 1 ? `<div class="bdLine bdNote"><span>${L(`Hand aus: ×${mult}`, `Out in one: ×${mult}`)}</span><span></span><b></b></div>` : '');
               row.appendChild(det);
             }
@@ -3484,6 +3756,9 @@
       const marks = (s) =>
         (s.pikDameLaidOut ? `<span class="statMark" title="${L('Pik Dame ausgelegt', 'Queen of Spades melded')}">♠Q${s.pikDameLaidOut > 1 ? `×${s.pikDameLaidOut}` : ''}</span>` : '') +
         (s.jokersLaidOut ? `<span class="statMark" title="${L('Joker ausgelegt', 'Jokers melded')}">${JOKER_MARK_SVG}${s.jokersLaidOut > 1 ? `×${s.jokersLaidOut}` : ''}</span>` : '');
+      // Own row = edge line + bold (.isMe), round winner = check chip: the two
+      // used to share one green row and read as the same thing.
+      const winMark = `<span class="winChip" title="${L('Rundensieg', 'Round win')}">${iconHtml('check')}<span>${L('Sieg', 'Win')}</span></span>`;
       statsTable.innerHTML = `
         <thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('Runde', 'Round')}</th><th>${L('Ausgelegt', 'Melded')}</th><th>${L('Hand', 'Hand')}</th></tr></thead>
         <tbody>${lastState.lastRoundStats
@@ -3492,8 +3767,9 @@
             const delta = r ? r.roundScore : null;
             const deltaCell = delta === null
               ? '–'
-              : `<span class="${delta > 0 ? 'deltaUp' : delta < 0 ? 'deltaDown' : ''}">${delta > 0 ? `+${delta}` : delta === 0 ? '±0' : delta}</span>`;
-            return `<tr${s.id === lastState.lastRoundWinnerId ? ' class="winnerRow"' : ''}><td><span class="statName">${escapeHtml(s.name)}</span>${marks(s)}</td><td>${deltaCell}</td><td>${s.laidOutCount}</td><td>${s.handCount}</td></tr>`;
+              : `<span class="${delta > 0 ? 'deltaUp' : delta < 0 ? 'deltaDown' : ''}">${delta === 0 ? '±0' : fmtSigned(delta)}</span>`;
+            const win = s.id === lastState.lastRoundWinnerId;
+            return `<tr${s.id === playerId ? ' class="isMe"' : ''}><td><span class="statName">${escapeHtml(s.name)}</span>${marks(s)}${win ? winMark : ''}</td><td>${deltaCell}</td><td>${s.laidOutCount}</td><td>${s.handCount}</td></tr>`;
           })
           .join('')}</tbody>`;
       paneStats.appendChild(statsTable);
@@ -3510,28 +3786,22 @@
       // The match winner belongs at the TOP. It used to be a line of body text
       // below four score rows - the single most important sentence on the
       // screen, and you had to read past everything else to reach it.
+      const iWon = !!winner && winner.id === playerId;
+      // One line, no score: the total is in the list right below. The trophy
+      // (not the round's crown) marks the match; my own win gets the gold banner.
       const head = document.createElement('div');
-      head.className = 'resultWinner resultWinnerGame';
-      // Pokal statt Krone: die Krone markiert schon JEDEN Rundengewinn (siehe
-      // .resultWinner ohne "Game"-Zusatz weiter oben in dieser Funktion) -
-      // ohne eigenes Symbol für den PARTIE-Gewinn sahen beide Momente
-      // identisch aus.
+      head.className = 'resultWinner resultWinnerGame' + (iWon ? ' isMe' : '');
       head.innerHTML =
-        `<div class="resultWinnerCrown resultWinnerTrophy">${TROPHY_MARK_SVG}</div>` +
-        `<div class="resultWinnerName">${nameWithHeart(winner ? winner.name : '?')}${winner ? botMark(winner) : ''}</div>` +
-        `<div class="resultWinnerSub">${
+        `<span class="resultWinnerTrophy">${TROPHY_MARK_SVG}</span>` +
+        (iWon ? '' : `<span class="resultWinnerName">${nameWithHeart(winner ? winner.name : '?')}${winner ? botMark(winner) : ''}</span>`) +
+        `<span class="resultWinnerSub">${
           lastState.towerStage
-            ? winner && winner.id === playerId ? L('Du schaffst die Stufe', 'You clear the stage') : L('hält dich auf dieser Stufe', 'holds you on this stage')
-            : winner && winner.id === playerId
-              ? L('Du gewinnst die Partie', 'You win the match')
+            ? iWon ? L('Du schaffst die Etage!', 'You clear the floor!') : L('hält dich auf dieser Etage', 'holds you on this floor')
+            : iWon
+              ? L('Du gewinnst die Partie!', 'You win the match!')
               : L('gewinnt die Partie', 'wins the match')
-        }</div>` +
-        `<div class="resultWinnerScore"></div>`;
+        }</span>`;
       paneResult.insertBefore(head, paneResult.firstChild);
-      countUpScore(
-        head.querySelector('.resultWinnerScore'),
-        (lastState.totals && lastState.totals[winner ? winner.id : '']) || 0
-      );
       // Schlüsselmomente der Partie: 3 erzählte Zeilen statt nur Zahlen.
       const hl = isGameOver && lastState.gameOverInfo && lastState.gameOverInfo.highlights;
       if (hl && hl.length) {
@@ -3543,7 +3813,7 @@
         const moment = (h) => {
           if (h.type === 'queenCaught') {
             return {
-              kind: 'bad', swing: '-100',
+              kind: 'bad', swing: `${MINUS}100`,
               title: L(`${h.name} erwischt`, `${h.name} caught out`),
               text: L('Die Pik Dame blieb auf der Hand liegen.', 'Left holding the Queen of Spades.'),
             };
@@ -3564,7 +3834,7 @@
           }
           if (h.type === 'bestRound') {
             return {
-              kind: 'good', swing: h.score > 0 ? `+${h.score}` : `${h.score}`,
+              kind: 'good', swing: fmtSigned(h.score),
               title: L(`Beste Runde der Partie: ${h.name}`, `Best round of the match: ${h.name}`),
               text: L('Keine Runde brachte jemandem mehr ein.', 'No round earned anyone more.'),
             };
@@ -3588,30 +3858,14 @@
         box.innerHTML = `<h4>${L('Schlüsselmomente', 'Key moments')}</h4><ul class="momentList">${rows}</ul>`;
         paneResult.appendChild(box);
       }
-      // The trip from this match into the lifetime numbers.
-      const me = lastState.players.find((p) => p.id === playerId && !p.isBot);
-      if (me) {
-        const myTotal = lastState.totals[me.id] || 0;
-        const place = 1 + lastState.players.filter((o) => (lastState.totals[o.id] || 0) > myTotal).length;
-        const bits = [`<b>${L(`Platz ${place} von ${lastState.players.length}`, `Place ${place} of ${lastState.players.length}`)}</b>`];
-        const gp = lastGameProgress;
-        if (gp && gp.gainedXp > 0) bits.push(`+${gp.gainedXp} ${L('EP', 'XP')}${gp.welcomeBack ? ' (×2)' : ''}`);
-        if (gp && gp.record && gp.record.played > 0) {
-          bits.push(L(`Bilanz ${gp.record.won}/${gp.record.played} Siege`, `Record ${gp.record.won}/${gp.record.played} wins`));
-        }
-        const mine = document.createElement('p');
-        mine.className = 'resultMine';
-        mine.innerHTML = bits.join('<span class="dot"> · </span>');
-        paneResult.insertBefore(mine, paneResult.querySelector('.resultSort'));
-      }
       if (chart) paneResult.insertBefore(chart, paneResult.querySelector('.matchMoments'));
       // Small facts of the match: chips, not three loose lines of prose.
       const gi = lastState.gameOverInfo;
       const facts = [];
       if (typeof gi.totalTurns === 'number') {
         const rounds = gi.totalRounds || 0;
-        facts.push(L(`<b>${gi.totalTurns}</b> Züge`, `<b>${gi.totalTurns}</b> turns`));
-        facts.push(L(`<b>${rounds}</b> ${rounds === 1 ? 'Runde' : 'Runden'}`, `<b>${rounds}</b> ${rounds === 1 ? 'round' : 'rounds'}`));
+        facts.push(`<b>${fmtNum(gi.totalTurns)}</b>${NBSP}${unitWord(gi.totalTurns, 'turn')}`);
+        facts.push(`<b>${fmtNum(rounds)}</b>${NBSP}${unitWord(rounds, 'round')}`);
       }
       const ft = gi.funTitle;
       if (ft && ft.type === 'queenMagnet') {
@@ -3648,31 +3902,39 @@
       box.className = 'gameTotalsBox';
       const tBtn = document.createElement('button');
       tBtn.className = 'btn-secondary';
-      tBtn.textContent = L('♠Q & 🃏 der Partie anzeigen', 'Show game totals ♠Q & 🃏');
+      const totalsLabel = (hidden) => (lang === 'en'
+        ? `<span>${hidden ? 'Show' : 'Hide'} game totals ♠Q &amp;</span> ${JOKER_MARK_SVG}`
+        : `<span>♠Q &amp;</span> ${JOKER_MARK_SVG} <span>${hidden ? 'der Partie anzeigen' : 'ausblenden'}</span>`);
+      tBtn.innerHTML = totalsLabel(true);
       const tbl = document.createElement('table');
       tbl.className = 'statsTable hidden';
       const rows = (lastState.players || [])
         .map((p) => ({ name: p.name, t: lastState.gameStatsTotals[p.id] || { pikDames: 0, jokers: 0 } }))
         .sort((a, b) => b.t.pikDames - a.t.pikDames || b.t.jokers - a.t.jokers)
-        .map((r) => `<tr><td>${escapeHtml(r.name)}</td><td>${r.t.pikDames > 0 ? '♠'.repeat(r.t.pikDames) : '–'}</td><td>${r.t.jokers > 0 ? '🃏'.repeat(Math.min(r.t.jokers, 8)) + (r.t.jokers > 8 ? '×' + r.t.jokers : '') : '–'}</td></tr>`)
+        .map((r) => `<tr><td>${escapeHtml(r.name)}</td><td>${r.t.pikDames > 0 ? '♠'.repeat(r.t.pikDames) : '–'}</td><td>${r.t.jokers > 0 ? `<span class="statMark">${JOKER_MARK_SVG}×${r.t.jokers}</span>` : '–'}</td></tr>`)
         .join('');
-      tbl.innerHTML = `<thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('♠Q ausgelegt', '♠Q melded')}</th><th>${L('🃏 ausgelegt', '🃏 melded')}</th></tr></thead><tbody>${rows}</tbody>`;
+      tbl.innerHTML = `<thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('♠Q ausgelegt', '♠Q melded')}</th><th><span class="statMark">${JOKER_MARK_SVG}</span> <span>${L('ausgelegt', 'melded')}</span></th></tr></thead><tbody>${rows}</tbody>`;
       tBtn.addEventListener('click', () => {
         const nowHidden = tbl.classList.toggle('hidden');
-        tBtn.textContent = nowHidden ? L('♠Q & 🃏 der Partie anzeigen', 'Show game totals ♠Q & 🃏') : L('♠Q & 🃏 ausblenden', 'Hide game totals');
+        tBtn.innerHTML = totalsLabel(nowHidden);
       });
       box.appendChild(tBtn);
       box.appendChild(tbl);
       paneStats.appendChild(box);
     }
-    // 🎖️ Frisch verdiente Erfolge feiern (kommen per Server-Nachricht)
+    // Frisch verdiente Erfolge feiern (kommen per Server-Nachricht)
     const oldBadgeBox = el('resultBody').querySelector('.badgeBox');
     if (oldBadgeBox) oldBadgeBox.remove();
-    if (isGameOver && lastEarnedBadges && lastEarnedBadges.length > 0) {
+    const stripShown = renderResultMe(isGameOver && !forfeited);
+    const mySeat = (lastState.players || []).find((p) => p.id === playerId);
+    const myName = String((mySeat && mySeat.name) || '').toLowerCase();
+    // Mine are chips in the result strip; the box keeps the table's other badges.
+    const tableBadges = (lastEarnedBadges || []).filter((e) => !stripShown || String(e.name || '').toLowerCase() !== myName);
+    if (isGameOver && tableBadges.length > 0) {
       const box = document.createElement('div');
       box.className = 'badgeBox';
-      box.innerHTML = `<h3>🎖️ ${L('Neue Erfolge', 'New achievements')}</h3>`;
-      for (const entry of lastEarnedBadges) {
+      box.innerHTML = `<h3>${iconHtml('medal')}<span>${L('Neue Erfolge', 'New achievements')}</span></h3>`;
+      for (const entry of tableBadges) {
         for (const id of entry.badges) {
           const m = badgeMeta(id);
           const row = document.createElement('div');
@@ -3728,7 +3990,7 @@
       contBtn.textContent = lastState.challengeDate
         ? L('Zum Hauptmenü', 'Main menu')
         : lastState.towerStage
-          ? L('Zum Bot-Turm', 'To the bot tower')
+          ? L('Zum Kartenhaus', 'To the House of Cards')
           : ser
           ? ser.winner
             ? L('Neue Serie starten', 'Start a new series')
@@ -3756,6 +4018,81 @@
     requestAnimationFrame(() => updateResultScrollEdges());
   }
 
+  // Own result first (game over): place and gap, XP with the level bar, then
+  // chips for what is new. Pinned above "Neue Partie"; landscape/desktop: right column.
+  function renderResultMe(isFinal) {
+    const box = el('resultMe');
+    if (!box) return false;
+    const me = isFinal && lastState && !lastState.towerStage
+      ? (lastState.players || []).find((p) => p.id === playerId && !p.isBot)
+      : null;
+    if (!me) {
+      box.classList.add('hidden');
+      box.innerHTML = '';
+      return false;
+    }
+    const totalOf = (p) => (lastState.totals && lastState.totals[p.id]) || 0;
+    const myTotal = totalOf(me);
+    const ranked = lastState.players.slice().sort((a, b) => totalOf(b) - totalOf(a));
+    const place = 1 + lastState.players.filter((o) => totalOf(o) > myTotal).length;
+    const rival = place === 1 ? ranked.find((p) => p.id !== me.id) : ranked[0];
+    const gap = rival ? Math.abs(myTotal - totalOf(rival)) : 0;
+    const rn = rival ? escapeHtml(rival.name) : '';
+    const gapText = !rival ? ''
+      : gap === 0 ? L(`gleichauf mit ${rn}`, `level with ${rn}`)
+        : place === 1 ? L(`${fmtNum(gap)} vor ${rn}`, `${fmtNum(gap)} ahead of ${rn}`)
+          : L(`${fmtNum(gap)} hinter ${rn}`, `${fmtNum(gap)} behind ${rn}`);
+    const gp = lastGameProgress;
+    const xp = gp && gp.gainedXp > 0
+      ? `<span class="rmXp">+${fmtNum(gp.gainedXp)} ${L('EP', 'XP')}${gp.welcomeBack ? ' (×2)' : ''}</span>`
+      : '';
+    // Level bar: solid = before this match, green = what it brought (from 0 after a level-up).
+    let level = '';
+    if (gp && myProgress && typeof myProgress.xp === 'number') {
+      const now = levelFromXpClient(myProgress.xp);
+      const before = levelFromXpClient(myProgress.xp - (gp.gainedXp || 0));
+      const pct = (lv) => Math.round((lv.into / lv.need) * 100);
+      const from = before.level === now.level ? pct(before) : 0;
+      const to = pct(now);
+      level = `<div class="rmLevel"><span class="rmLv">${L('Stufe', 'Level')} ${now.level}</span>` +
+        `<span class="rmBar" role="img" aria-label="${escapeHtml(L(`${now.into} von ${now.need} EP zur nächsten Stufe`, `${now.into} of ${now.need} XP to the next level`))}">` +
+        `<i class="rmOld" style="width:${from}%"></i><i class="rmGain" style="left:${from}%;width:${Math.max(0, to - from)}%"></i></span>` +
+        `<span class="rmNext">${L(`noch ${fmtNum(now.need - now.into)} EP`, `${fmtNum(now.need - now.into)} XP to go`)}</span></div>`;
+    }
+    const chips = [];
+    const myName = String(me.name || '').toLowerCase();
+    for (const entry of lastEarnedBadges || []) {
+      if (String(entry.name || '').toLowerCase() !== myName) continue;
+      for (const id of entry.badges || []) {
+        const m = badgeMeta(id);
+        // The emoji IS the badge (content, as in the trophy cabinet), not an icon.
+        chips.push(`<span class="rmChip isNew" title="${escapeHtml(m.desc)}"><span class="rmChipEmoji" aria-hidden="true">${m.emoji}</span><span>${L('Neu', 'New')}: ${escapeHtml(m.name)}</span></span>`);
+      }
+    }
+    const cb = lastChallengeBoard;
+    if (lastState.challengeDate && cb && cb.date === lastState.challengeDate && cb.yourRank) {
+      chips.push(`<span class="rmChip"><svg class="icon" aria-hidden="true"><use href="#i-podium"/></svg><span>${L(`Tages-Challenge: Platz ${cb.yourRank}`, `Daily challenge: rank ${cb.yourRank}`)}</span></span>`);
+    }
+    const st = gp && gp.streak;
+    if (st && (st.event === 'extended' || st.event === 'bridged') && st.streak >= 2) {
+      chips.push(`<span class="rmChip"><svg class="icon" aria-hidden="true"><use href="#i-flame"/></svg><span>${L(`${st.streak} Tage in Folge`, `${st.streak} days in a row`)}</span></span>`);
+    }
+    if (gp && gp.seasonRank) {
+      chips.push(`<span class="rmChip"><svg class="icon" aria-hidden="true"><use href="#i-trend"/></svg><span>${L(`Saison: Platz ${gp.seasonRank}`, `Season: rank ${gp.seasonRank}`)}</span></span>`);
+    }
+    if (gp && gp.record && gp.record.played > 0) {
+      const r = gp.record;
+      chips.push(`<span class="rmChip" title="${escapeHtml(L(`${r.won} Siege in ${r.played} Partien`, `${r.won} wins in ${r.played} games`))}"><span>${L(`Bilanz ${r.won}/${r.played}`, `Record ${r.won}/${r.played}`)}</span></span>`);
+    }
+    box.innerHTML =
+      `<div class="rmTop"><span class="rmPlace">${L(`Platz ${place} von ${lastState.players.length}`, `Place ${place} of ${lastState.players.length}`)}</span>` +
+      (gapText ? `<span class="rmGap">· ${gapText}</span>` : '') + xp + `</div>` +
+      level +
+      (chips.length ? `<div class="rmChips">${chips.join('')}</div>` : '');
+    box.classList.remove('hidden');
+    return true;
+  }
+
   function updateResultScrollEdges() {
     const b = el('resultBody');
     if (!b) return;
@@ -3771,6 +4108,7 @@
   el('resultEmoteToggle').addEventListener('click', () => {
     const bar = el('resultEmoteBar');
     const show = bar.classList.contains('hidden');
+    if (show) arrangeEmoteBar(bar);
     bar.classList.toggle('hidden', !show);
     el('resultEmoteToggle').setAttribute('aria-expanded', String(show));
     updateResultScrollEdges();
@@ -3892,7 +4230,7 @@
 
   // Identity chip: a returning player sees avatar + name; a tap swaps in the
   // input. First-time players (no stored name) get the input straight away.
-  // In a session both stay hidden until "Name" in the code banner asks.
+  // In a session both stay hidden; the name is set on the start screen.
   let editingName = false;
   // accountUsername is declared further down; the first render runs before
   // that line, where touching it would throw (temporal dead zone).
@@ -3941,13 +4279,8 @@
     }
     renderIdentity();
     if (changed) { try { requestYearReview(); } catch (e) { /* cosmetic */ } }
-    // Tower progress is per name: hide the old name's chip until the new data arrives.
-    if (changed && !publicMode) { try { requestTower(); renderTowerChip(); } catch (e) { /* cosmetic */ } }
-    // Renaming inside a session re-joins under the new name (what the
-    // "Name" button used to do after typing into the field above).
-    if (changed && sessionCode && playerId) {
-      send({ type: 'joinSession', code: sessionCode, playerId, playerToken: storageGet(tokenKeyFor(sessionCode)) || undefined, name: myName, accountToken: accountToken() || undefined });
-    }
+    // Kartenhaus progress is per name: clear the old name's tile until the new data arrives.
+    if (changed && !publicMode) { try { requestTower(); renderTowerTile(); } catch (e) { /* cosmetic */ } }
   }
   el('identityNameBtn').addEventListener('click', startNameEdit);
   el('identityAvatarBtn').addEventListener('click', () => openProgressSheet());
@@ -3999,12 +4332,6 @@
     }, code);
   });
 
-  // Opens the name editor; the rename is sent when the field is left.
-  el('updateNameBtn').addEventListener('click', () => {
-    if (!sessionCode || !playerId) return;
-    startNameEdit();
-  });
-
   el('shareCodeBtn').addEventListener('click', async () => {
     if (!sessionCode) return;
     const url = new URL(window.location.href);
@@ -4054,7 +4381,6 @@
   });
 
 
-  el('uiScaleBtn').addEventListener('click', cycleUiScale);
   try {
     const scaleSel = el('uiScaleSelect');
     if (scaleSel) {
@@ -4130,6 +4456,8 @@
   });
 
   el('discardPile').addEventListener('click', () => {
+    // Kartenhaus "Ohne Ablage": explain instead of a silent tap or a server refusal.
+    if (el('discardPile').classList.contains('towerLocked')) { explainTowerLock(); return; }
     if (el('discardPile').classList.contains('disabled')) return;
     // Known-illegal take: still ask the server (it explains WHY in its
     // error toast) but skip the sound and the card flying to the hand - they
@@ -4190,8 +4518,8 @@
     pendingConfirmDiscardId = null;
   });
 
-  // Starting a forfeit vote asks first (in-app dialog); agreeing to an
-  // existing proposal or withdrawing just toggles.
+  // Round end: starting a forfeit vote asks first (in-app dialog); agreeing
+  // to an existing proposal or withdrawing just toggles.
   function toggleForfeit(phase) {
     if (!lastState || lastState.phase !== phase) return;
     if (!lastState.players.some((p) => p.id === playerId && !p.isBot)) return;
@@ -4206,7 +4534,19 @@
     sound.discard();
     send({ type: 'forfeitRound' }); // toggles my forfeit vote
   }
-  el('forfeitBtn').addEventListener('click', () => toggleForfeit('playing'));
+  // Home dialog: a yes takes two taps (confirmByTap, like "Aufgeben & neues
+  // Spiel"), withdrawing my own vote one. Same server vote as ever.
+  const iVotedForfeit = () => !!(lastState && (lastState.forfeitVotes || []).includes(playerId));
+  try {
+    confirmByTap(el('forfeitBtn'), () => L('Wirklich aufgeben?', 'Really forfeit?'), () => {
+      if (!forfeitShown()) return;
+      const proposing = !(lastState.forfeitVotes || []).length;
+      const others = lastState.players.some((p) => p.id !== playerId && !p.isBot && p.connected !== false);
+      sendForfeitVote();
+      el('homeOverlay').classList.add('hidden');
+      if (others && proposing) showToast(L('Du willst aufgeben – die anderen werden gefragt.', 'You want to forfeit – the others are being asked.'));
+    }, () => !iVotedForfeit());
+  } catch (e) { /* stale cached markup */ }
   el('confirmForfeitYesBtn').addEventListener('click', () => {
     el('confirmForfeitOverlay').classList.add('hidden');
     if (lastState && (lastState.phase === 'playing' || lastState.phase === 'roundEnd')) sendForfeitVote();
@@ -4226,45 +4566,37 @@
     render();
   });
 
-  el('logToggle').addEventListener('click', () => {
-    // Opened from the settings sheet - close that first, otherwise the panel
-    // appears behind it and the tap looks like it did nothing.
-    el('gameSettingsOverlay').classList.add('hidden');
-    el('logPanel').classList.toggle('hidden');
-  });
+  // "Spielverlauf ›" in "Dieser Tisch": close the sheet first, or the panel
+  // opens behind it and the tap looks like it did nothing.
+  try {
+    el('tableLogBtn').addEventListener('click', () => {
+      el('settingsOverlay').classList.add('hidden');
+      el('logPanel').classList.remove('hidden');
+    });
+  } catch (e) { /* stale cached markup */ }
 
   el('logCloseBtn').addEventListener('click', () => {
     el('logPanel').classList.add('hidden');
   });
 
-  el('tipsToggle').addEventListener('click', () => {
-    setTipsEnabled(!gameTipsEnabled);
-    if (gameTipsEnabled) {
+  el('aidTipsCheckbox').addEventListener('change', () => {
+    const on = el('aidTipsCheckbox').checked;
+    if (on === gameTipsEnabled) return;
+    setTipsEnabled(on);
+    if (on) {
       // Deliberately switching them back on means "show me those again".
       tipSeenCount = 0;
       tipShownForTurn = null;
       storageSet(TIP_SEEN_KEY, '0');
     }
-    showToast(
-      gameTipsEnabled
-        ? L('Spiel-Tipps sind wieder an.', 'Game tips are back on.')
-        : L('Spiel-Tipps sind aus. Wieder einschalten: in den Einstellungen.', 'Game tips are off. Re-enable them in the settings.')
-    );
+    showToast(on
+      ? L('Spiel-Tipps sind wieder an.', 'Game tips are back on.')
+      : L('Spiel-Tipps sind aus. Wieder einschalten: in den Optionen.', 'Game tips are off. Turn them back on in the Options.'));
   });
-  el('aidDiscardToggle').addEventListener('click', () => setAid('discard', !aidDiscard));
-  el('aidLayOffToggle').addEventListener('click', () => setAid('layoff', !aidLayOff));
   el('aidDiscardCheckbox').addEventListener('change', () => setAid('discard', el('aidDiscardCheckbox').checked));
   el('aidLayOffCheckbox').addEventListener('change', () => setAid('layoff', el('aidLayOffCheckbox').checked));
-  el('aidLowCardsToggle').addEventListener('click', () => setAid('lowcards', !aidLowCards));
   el('aidLowCardsCheckbox').addEventListener('change', () => setAid('lowcards', el('aidLowCardsCheckbox').checked));
-  el('aidTipsCheckbox').addEventListener('change', () => {
-    if (el('aidTipsCheckbox').checked !== gameTipsEnabled) el('tipsToggle').click();
-  });
-  el('soundToggle').addEventListener('click', () => {
-    setSoundEnabled(!soundEnabled);
-  });
   el('soundCheckbox').addEventListener('change', () => setSoundEnabled(el('soundCheckbox').checked));
-  el('musicToggle').addEventListener('click', cycleMusicLevel);
   el('musicLevelSelect').addEventListener('change', () => setMusicLevel(el('musicLevelSelect').value));
   el('musicTrackSelect').addEventListener('change', () => setMusicChoice(el('musicTrackSelect').value));
 
@@ -4358,13 +4690,9 @@
   }
   document.addEventListener('visibilitychange', updateCountdownTimer);
 
-  // --- Home button + settings sheet (tidy three-button header) ---------------
-  el('settingsBtn').addEventListener('click', () => {
-    el('gameSettingsOverlay').classList.remove('hidden');
-  });
-  el('gameSettingsCloseBtn').addEventListener('click', () => {
-    el('gameSettingsOverlay').classList.add('hidden');
-  });
+  // --- Home button + "Optionen" (tidy three-button header) -------------------
+  // The gear opens the start screen's sheet; "Dieser Tisch" shows at the table only.
+  el('settingsBtn').addEventListener('click', openOptions);
   el('homeBtn').addEventListener('click', () => {
     // Solo tables (tutorial, challenge) have no bot takeover: say what really happens.
     const mode = lastState && lastState.tutorialMode ? 'homeTutorial' : lastState && lastState.challengeDate ? 'homeChallenge'
@@ -4372,6 +4700,11 @@
     for (const cls of ['homeTable', 'homeTutorial', 'homeChallenge', 'homeTower']) {
       el('homeOverlay').querySelectorAll(`.${cls}`).forEach((n) => n.classList.toggle('hidden', cls !== mode));
     }
+    // A tap left armed from the last opening must not act on the first tap now.
+    try {
+      disarmTap(el('forfeitBtn'));
+      if (lastState) renderForfeit();
+    } catch (e) { /* the dialog opens anyway */ }
     el('homeOverlay').classList.remove('hidden');
   });
   el('homeCancelBtn').addEventListener('click', () => el('homeOverlay').classList.add('hidden'));
@@ -4499,7 +4832,7 @@
     const og = openGame;
     pendingStart = start;
     el('openGameSummary').textContent = og.tower
-      ? L(`Bot-Turm · Stufe ${og.tower}`, `Bot tower · stage ${og.tower}`)
+      ? `${towerName()} · ${L(`Etage ${og.tower}`, `floor ${og.tower}`)}`
       : og.phase === 'lobby'
         ? L(`Spiel ${og.code} · noch in der Lobby`, `Game ${og.code} · still in the lobby`)
         : L(`Spiel ${og.code} · Runde ${og.round} · ${og.score} Punkte`, `Game ${og.code} · round ${og.round} · ${og.score} points`);
@@ -4512,7 +4845,7 @@
           : L('Ein Bot übernimmt deinen Platz bis zum Ende, die anderen spielen weiter. Du kannst nicht zurück. Für dich wird die Partie nicht gewertet.',
             'A bot takes your seat until the end, the others play on. You cannot come back. The match is not scored for you.');
     const target = intent === 'tutorial' ? L('Tutorial', 'tutorial')
-      : intent === 'tower' ? L('Bot-Turm', 'bot tower')
+      : intent === 'tower' ? L('Kartenhaus', 'House of Cards')
         : intent === 'join' ? L('beitreten', 'join') : L('neues Spiel', 'new game');
     const btn = el('openGameGiveUpBtn');
     disarmTap(btn);
@@ -5258,8 +5591,12 @@
 
   function updateTutorial() {
     tutorialActive = tutorialHintsOn();
-    const menuRow = el('tutorialHintsBtn');
-    if (menuRow) menuRow.classList.toggle('hidden', !(tutorialProgress && lastState && lastState.tutorialMode && tutorialProgress.code === sessionCode && tutorialProgress.off && !tutorialProgress.finished));
+    // "Optionen": the switch shows at an unfinished tutorial table, on or off.
+    const hintsRow = el('tutorialHintsItem');
+    const hintsSwitch = !!(tutorialProgress && lastState && lastState.tutorialMode && tutorialProgress.code === sessionCode && !tutorialProgress.finished);
+    if (hintsRow) hintsRow.classList.toggle('hidden', !hintsSwitch);
+    const hintsBox = el('tutorialHintsCheckbox');
+    if (hintsBox) hintsBox.checked = tutorialActive;
     if (!tutorialActive || !lastState) { hideCoach(); return; }
     const prog = tutorialProgress;
     // The tutorial ends with the scoring of round 1 - also when the next round
@@ -5328,14 +5665,13 @@
     saveTutorial();
     tutorialActive = false;
     hideCoach();
-    showToast(L('Tutorial beendet. Die Hinweise holst du im Menü zurück.', 'Tutorial ended. You can bring the hints back from the menu.'));
+    showToast(L('Tutorial beendet. Die Hinweise holst du in den Optionen zurück.', 'Tutorial ended. You can bring the hints back in the Options.'));
     try { updateTutorial(); } catch (e) { /* menu row only */ }
   }
 
   // --- Sharing results (Wordle style): emoji are content here, not icons ---
   function shareDay(iso) {
-    const d = new Date(`${iso}T12:00:00`);
-    return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-DE', { day: 'numeric', month: 'short' });
+    return fmtDay(iso, { day: 'numeric', month: 'short', timeZone: 'UTC' });
   }
   // The system share sheet where it exists, else the clipboard.
   async function shareResult(text) {
@@ -5367,7 +5703,8 @@
 
   let lastChallengeBoard = null;
   let challengeIntroResult = null; // today's ranked result in the intro sheet, for sharing
-  const magnetText = (m) => L(`🧲 Damen-Magnet des Tages: ${m.name} (${m.queens}×)`, `🧲 Queen magnet of the day: ${m.name} (${m.queens}×)`);
+  const magnetText = (m) => L(`Damen-Magnet des Tages: ${m.name} (${m.queens}×)`, `Queen magnet of the day: ${m.name} (${m.queens}×)`);
+  const withIcon = (name, text) => `${iconHtml(name)} <span>${escapeHtml(text)}</span>`;
   function renderChallengeBoard() {
     if (!lastChallengeBoard) return;
     const body = el('resultBody');
@@ -5377,8 +5714,13 @@
     const b = lastChallengeBoard;
     const box = document.createElement('div');
     box.className = 'challengeBoardBox';
+    // Own row: by name; by rank only when the name is not on the board.
+    const myName = (currentName() || '').toLowerCase();
+    const byName = (b.board || []).some((e) => (e.name || '').toLowerCase() === myName);
+    const isMine = (e) => (byName ? (e.name || '').toLowerCase() === myName : !!b.yourRank && e.rank === b.yourRank);
+    const ownRowShown = (b.board || []).some(isMine);
     const rows = (b.board || [])
-      .map((e) => `<tr${e.rank === b.yourRank ? ' class="winnerRow"' : ''}><td>${e.rank}.</td><td>${escapeHtml(e.name)}</td><td>${e.score}</td></tr>`)
+      .map((e) => `<tr${isMine(e) ? ' class="isMe"' : ''}><td>${e.rank}.</td><td class="nameCell">${escapeHtml(e.name)}</td><td>${fmtNum(e.score)}</td></tr>`)
       .join('');
     // '7 Tage sichtbar' jetzt wörtlich: kompakter Rückblick auf die letzten
     // Tage (Tagessieger + eigener Platz), aufklappbar unter der Tagesliste.
@@ -5386,13 +5728,13 @@
     const histRows = past
       .map((d) => {
         const win = d.top && d.top[0]
-          ? `🥇 ${escapeHtml(d.top[0].name)} · ${d.top[0].score}`
-          : L('keine Teilnahmen', 'no entries');
+          ? `${iconHtml('medal')} <span>${escapeHtml(d.top[0].name)} · ${fmtNum(d.top[0].score)}</span>`
+          : escapeHtml(L('keine Teilnahmen', 'no entries'));
         const mine = d.yourScore != null
-          ? ` — ${L(`du: ${d.yourScore} (Platz ${d.yourRank})`, `you: ${d.yourScore} (rank ${d.yourRank})`)}`
+          ? ` — ${L(`du: ${fmtNum(d.yourScore)} (Platz ${d.yourRank})`, `you: ${fmtNum(d.yourScore)} (rank ${d.yourRank})`)}`
           : '';
-        const magnet = d.magnet ? ` · 🧲 ${escapeHtml(d.magnet.name)}` : '';
-        return `<div class="challengeHistDay"><span>${escapeHtml(d.date)}</span><span>${win}${magnet}${mine}</span></div>`;
+        const magnet = d.magnet ? ` · ${iconHtml('magnet')} <span>${escapeHtml(d.magnet.name)}</span>` : '';
+        return `<div class="challengeHistDay"><span>${escapeHtml(fmtDay(d.date, { day: 'numeric', month: 'short', timeZone: 'UTC' }))}</span><span>${win}${magnet}${escapeHtml(mine)}</span></div>`;
       })
       .join('');
     const histBlock = histRows
@@ -5401,19 +5743,22 @@
     // Wochenwertung: beste 5 Tages-Scores der laufenden Woche (Mo-So).
     const wk = b.weekly;
     const weeklyBlock = wk && wk.players > 0
-      ? `<div class="challengeWeekly"><h4>🗓️ ${L('Wochenwertung', 'Weekly ranking')} <span class="weekRange">${escapeHtml(wk.week)}</span></h4>` +
-        wk.top.map((e) => `<div class="challengeHistDay"><span>#${e.rank} ${escapeHtml(e.name)}</span><span>${e.weekScore} ${L('Pkt', 'pts')} · ${e.days} ${L('Tage', 'days')}</span></div>`).join('') +
+      ? `<div class="challengeWeekly"><h4>${iconHtml('calendar')}<span>${L('Wochenwertung', 'Weekly ranking')}</span> <span class="weekRange">${escapeHtml(wk.week)}</span></h4>` +
+        wk.top.map((e) => `<div class="challengeHistDay"><span>#${e.rank} ${escapeHtml(e.name)}</span><span>${fmtNum(e.weekScore)} ${L('Pkt', 'pts')} · ${fmtCount(e.days, 'day')}</span></div>`).join('') +
         (wk.yourRank && wk.yourRank > wk.top.length
-          ? `<div class="challengeHistDay"><span>#${wk.yourRank} ${L('du', 'you')}</span><span>${wk.yourScore} ${L('Pkt', 'pts')}</span></div>`
+          ? `<div class="challengeHistDay"><span>#${wk.yourRank} ${L('du', 'you')}</span><span>${fmtNum(wk.yourScore)} ${L('Pkt', 'pts')}</span></div>`
           : '') +
         `<p class="weeklyHint">${L('Deine besten 5 Tage der Woche zählen.', 'Your best 5 days of the week count.')}</p></div>`
       : '';
-    const yourLine = L(`Dein Ergebnis: ${b.yourScore} Punkte${b.yourRank ? ` · Platz ${b.yourRank}` : ''}`, `Your result: ${b.yourScore} points${b.yourRank ? ` · rank ${b.yourRank}` : ''}`);
-    const magnetBlock = b.magnet ? `<p class="challengeMagnet">${escapeHtml(magnetText(b.magnet))}</p>` : '';
+    // The table row already says rank and score; the line only helps when
+    // the own row is not on the board.
+    const yourLine = L(`Dein Ergebnis: ${fmtNum(b.yourScore)} Punkte${b.yourRank ? ` · Platz ${b.yourRank}` : ''}`, `Your result: ${fmtNum(b.yourScore)} points${b.yourRank ? ` · rank ${b.yourRank}` : ''}`);
+    const yourBlock = ownRowShown || b.yourScore == null ? '' : `<p class="challengeYour">${escapeHtml(yourLine)}</p>`;
+    const magnetBlock = b.magnet ? `<p class="challengeMagnet">${withIcon('magnet', magnetText(b.magnet))}</p>` : '';
     const shareBlock = b.yourRank ? shareBtnHtml('challengeShareBtn', 'Ergebnis teilen', 'Share result') : '';
-    box.innerHTML = `<h3>🗓️ ${L('Tages-Challenge', 'Daily challenge')} ${escapeHtml(b.date)}</h3>
-      <p class="challengeYour">${escapeHtml(yourLine)}</p>${shareBlock}
-      <table class="statsTable"><tbody>${rows}</tbody></table>${magnetBlock}${weeklyBlock}${histBlock}`;
+    box.innerHTML = `<h3>${iconHtml('podium')}<span>${L('Tages-Challenge', 'Daily challenge')} ${escapeHtml(fmtDay(b.date))}</span></h3>
+      ${yourBlock}${shareBlock}
+      <table class="statsTable challengeTable"><tbody>${rows}</tbody></table>${magnetBlock}${weeklyBlock}${histBlock}`;
     const shareBtn = box.querySelector('.challengeShareBtn');
     if (shareBtn) {
       shareBtn.addEventListener('click', () => shareResult(challengeShareText({
@@ -5444,15 +5789,19 @@
     challengeTrendData = null;
     renderChallengeTrend();
     const trendName = el('nameInput').value.trim();
-    fetch(`/challengeboardz${trendName ? `?name=${encodeURIComponent(trendName)}` : ''}`)
-      .then((r) => r.json())
+    fetchChallengeBoard(trendName)
       .then((d) => {
         challengeTrendData = (d && d.trend) || { dates: [], me: null, top: [] };
         renderChallengeTrend();
         const top = d && d.board && d.board[0];
-        el('challengeTopLine').textContent = top
-          ? `🥇 ${top.name} – ${top.score} ${L('Punkte', 'points')}${d.board[1] ? `  ·  🥈 ${d.board[1].name} – ${d.board[1].score}` : ''}`
-          : L('Noch niemand - sichere dir Platz 1!', 'Nobody yet - claim first place!');
+        // Before your own game the server sends only how many played today.
+        const hidden = !!d && d.revealed === false && d.players > 0;
+        el('challengeTopLine').textContent = hidden
+          ? L(`Die Punkte siehst du nach deinem Spiel – heute ${d.players === 1 ? 'hat schon 1 Person' : `haben schon ${d.players} Leute`} gespielt.`,
+            `You see the scores after your game – ${d.players} played today so far.`)
+          : top
+            ? `🥇 ${top.name} – ${top.score} ${L('Punkte', 'points')}${d.board[1] ? `  ·  🥈 ${d.board[1].name} – ${d.board[1].score}` : ''}`
+            : L('Noch niemand - sichere dir Platz 1!', 'Nobody yet - claim first place!');
         // Attempt used: no start, the sheet is the day's board.
         const played = !!(d && d.attempted);
         el('challengePlayedNote').classList.toggle('hidden', !played);
@@ -5461,7 +5810,7 @@
         el('challengeStartBtn').classList.toggle('hidden', played);
         if (played) el('challengeCancelBtn').textContent = L('Schließen', 'Close');
         el('challengeMagnetLine').classList.toggle('hidden', !(d && d.magnet));
-        if (d && d.magnet) el('challengeMagnetLine').textContent = magnetText(d.magnet);
+        if (d && d.magnet) el('challengeMagnetLine').innerHTML = withIcon('magnet', magnetText(d.magnet));
         // Wochenwertung: beste 5 von 7 Tagen - belohnt Regelmaessigkeit statt
         // eines einzelnen Gluckstreffers.
         // ACHTUNG: getWeekly liefert das Feld "top" (nicht "board" wie die
@@ -5469,6 +5818,7 @@
         const week = (d && d.weekly && d.weekly.top) || [];
         el('challengeWeekLine').textContent = week.length
           ? week.slice(0, 3).map((e, i) => `${['🥇', '🥈', '🥉'][i]} ${e.name} – ${e.weekScore}`).join('  ·  ')
+            + (hidden ? L(' (ohne heute)', ' (without today)') : '')
           : L('Diese Woche noch offen.', 'Nothing this week yet.');
       })
       .catch(() => {
@@ -5476,6 +5826,13 @@
         el('challengeWeekLine').textContent = '';
       });
   });
+  /** Today's board for `name`; the account token proves the name, so the
+   *  server reveals today's scores only to whoever really played. */
+  function fetchChallengeBoard(name) {
+    const token = accountToken();
+    return fetch(`/challengeboardz${name ? `?name=${encodeURIComponent(name)}` : ''}`, token ? { headers: { 'X-Account-Token': token } } : undefined)
+      .then((r) => (r.ok ? r.json() : null));
+  }
   el('challengeShareBtn').addEventListener('click', () => {
     if (challengeIntroResult) shareResult(challengeShareText(challengeIntroResult));
   });
@@ -5539,7 +5896,7 @@
     // Game days as UTC midnights (labels in UTC too): ticks sit on the points
     // and no local DST shift can move a label to the neighbouring day.
     const xs = trend.dates.map((d) => Date.parse(`${d}T00:00:00Z`) / 1000);
-    const dayLabel = (ts) => new Date(ts * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'numeric', timeZone: 'UTC' });
+    const dayLabel = (ts) => fmtDate(ts * 1000, { day: 'numeric', month: 'numeric', timeZone: 'UTC' });
     const people = trend.top.map((p, i) => ({ ...p, color: TREND_COLORS[i], me: false }));
     if (trend.me) people.push({ ...trend.me, name: L('Du', 'You'), color: ink, me: true });
     const axis = { stroke: muted, grid: { stroke: 'rgba(0,0,0,0.08)', width: 1 }, ticks: { show: false }, font: '11px sans-serif' };
@@ -5552,7 +5909,7 @@
       const head = idx == null ? L('Tag', 'Day') : dayLabel(xs[idx]);
       table.innerHTML = `<thead><tr><th></th><th>${escapeHtml(head)}</th><th>${escapeHtml(L('14 Tage', '14 days'))}</th></tr></thead><tbody>` +
         people.map((p) => `<tr class="${p.me ? 'me' : ''}"><td><i style="background:${p.color}"></i>${escapeHtml(p.name)}</td>` +
-          `<td>${idx == null || p.scores[idx] == null ? '–' : p.scores[idx]}</td><td>${p.total}</td></tr>`).join('') +
+          `<td>${idx == null || p.scores[idx] == null ? '–' : fmtNum(p.scores[idx])}</td><td>${fmtNum(p.total)}</td></tr>`).join('') +
         '</tbody>';
     };
     renderTable(null);
@@ -5599,8 +5956,8 @@
   const STAMMTISCH_KEY = 'pikdame_stammtische';
   const stammtischChipInfo = {}; // code -> latest stammtischInfo (chip + sheet)
   let stammtischSheetCode = null;
-  const winsText = (n) => L(`${n} ${n === 1 ? 'Sieg' : 'Siege'}`, `${n} ${n === 1 ? 'win' : 'wins'}`);
-  const gamesText = (n) => L(`${n} ${n === 1 ? 'Partie' : 'Partien'}`, `${n} ${n === 1 ? 'game' : 'games'}`);
+  const winsText = (n) => fmtCount(n, 'win');
+  const gamesText = (n) => fmtCount(n, 'game');
   function recentStammtische() {
     try { const v = JSON.parse(storageGet(STAMMTISCH_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; }
   }
@@ -5617,7 +5974,7 @@
     box.classList.toggle('hidden', list.length === 0);
     box.innerHTML = list
       .map((t) => `<button type="button" class="stRecentRow" data-code="${escapeHtml(t.code)}" aria-haspopup="dialog" title="${escapeHtml(L('Bilanz ansehen', 'View the record'))}">` +
-        `<svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span class="stName">${escapeHtml(t.name)}</span>` +
+        `<svg class="icon" aria-hidden="true"><use href="#i-group"/></svg><span class="stName">${escapeHtml(t.name)}</span>` +
         `<small class="stChipInfo"></small><svg class="icon stGo" aria-hidden="true"><use href="#i-chevron"/></svg></button>`)
       .join('');
     box.querySelectorAll('button[data-code]').forEach((btn) => {
@@ -5625,7 +5982,6 @@
       const known = stammtischChipInfo[btn.dataset.code]; // e.g. after a language switch
       if (known) btn.querySelector('.stChipInfo').textContent = stammtischLeadText(known);
     });
-    try { renderTowerChip(); } catch (e) { /* cosmetic; towerInfo not declared yet at boot */ }
     // Ask for the record so the chip names the leader without a tap.
     for (const t of list) send({ type: 'getStammtisch', code: t.code });
   }
@@ -5648,7 +6004,7 @@
       // Gone (pruned after months of silence): forget it quietly.
       storageSet(STAMMTISCH_KEY, JSON.stringify(recentStammtische().filter((t) => t.code !== info.code)));
       btn.remove();
-      renderTowerChip(); // a hidden third chip may return
+      if (!el('stammtischRecent').children.length) el('stammtischRecent').classList.add('hidden');
       return;
     }
     stammtischChipInfo[info.code] = info;
@@ -5667,7 +6023,7 @@
       return `<svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg> <span>${escapeHtml(L(`${ser.winner} hat Serie ${ser.no} gewonnen`, `${ser.winner} won series ${ser.no}`))}</span><small>${score}</small>`;
     }
     return `${escapeHtml(L(`Serie ${ser.no} · Best of ${ser.bestOf}`, `Series ${ser.no} · best of ${ser.bestOf}`))}: ${score}<small>${escapeHtml(
-      L(`${ser.needed} Siege entscheiden · Spiel ${ser.games + 1} von ${ser.bestOf}`, `${ser.needed} wins decide · game ${ser.games + 1} of ${ser.bestOf}`)
+      L(`${fmtCount(ser.needed, 'win')} ${ser.needed === 1 ? 'entscheidet' : 'entscheiden'} · Spiel ${ser.games + 1} von ${ser.bestOf}`, `${fmtCount(ser.needed, 'win')} ${ser.needed === 1 ? 'decides' : 'decide'} · game ${ser.games + 1} of ${ser.bestOf}`)
     )}</small>`;
   }
   function renderStammtisch() {
@@ -5682,7 +6038,7 @@
     // Pairwise record for the humans at THIS table: "who finished ahead".
     const humans = ((lastState && lastState.players) || []).filter((p) => !p.isBot).map((p) => p.name);
     box.querySelector('#stammtischBody').innerHTML =
-      `<div class="stName">🍻 ${escapeHtml(sum.name)} <span class="stCode">${escapeHtml(sum.code)}</span> <small>· ${L(`${sum.gamesPlayed} Partien`, `${sum.gamesPlayed} games`)}</small></div>` +
+      `<div class="stName">🍻 ${escapeHtml(sum.name)} <span class="stCode">${escapeHtml(sum.code)}</span> <small>· ${gamesText(sum.gamesPlayed)}</small></div>` +
       stammtischStatsHtml(sum, { pairNames: humans });
   }
   /** Head-to-head pairs. Given names: those, in seat order (lobby); else all
@@ -5707,7 +6063,7 @@
     if (g.type === 'week') {
       return g.streak > 1
         ? L(`Wochenziel geschafft – ${g.streak} Wochen in Folge!`, `Weekly goal reached – ${g.streak} weeks in a row!`)
-        : L(`Wochenziel geschafft: ${g.goal} Partien diese Woche!`, `Weekly goal reached: ${g.goal} games this week!`);
+        : L(`Wochenziel geschafft: ${fmtCount(g.goal, 'game')} diese Woche!`, `Weekly goal reached: ${fmtCount(g.goal, 'game')} this week!`);
     }
     if (g.type === 'level') return L(`Stammtisch-Stufe ${g.level} erreicht!`, `Stammtisch level ${g.level} reached!`);
     return '';
@@ -5863,6 +6219,7 @@
   // browse past days: graded too, but no XP and nothing stored.
   let puzzleData = null; // {date, kind, hand, targetPoints, status, archive, today, epoch}
   const puzzleSelected = new Set();
+  let puzzleLayPending = null; // ids awaiting the server's check before they become a group
   let puzzleGroups = []; // laid melds of a 'turn'/'out' puzzle (card id arrays)
   let puzzleBadGroup = 0; // 1-based meld the server rejected
   let puzzleSolutionIds = null;
@@ -5874,11 +6231,11 @@
     },
     turn: {
       name: () => L('Bester Zug', 'Best turn'),
-      question: () => L('Lege in einem Zug so viele Punkte wie möglich aus, gern in mehreren Auslagen. Eine Karte bleibt zum Abwerfen.', 'Lay out as many points as you can in one turn, in several melds if you like. One card stays for the discard.'),
+      question: () => L('Lege jede Auslage einzeln aus (erst Karten wählen, dann „Auslegen“), so viele Punkte wie möglich. Eine Karte bleibt zum Abwerfen.', 'Lay each meld separately (pick its cards, then "Meld"), as many points as you can. One card stays for the discard.'),
     },
     out: {
       name: () => L('Ausmachen', 'Go out'),
-      question: () => L('Mach in einem Zug aus: Lege alle Karten bis auf eine aus - die letzte wirfst du ab.', 'Go out in one turn: lay out every card but one - the last one is your discard.'),
+      question: () => L('Lege jede Auslage einzeln aus - die letzte Karte wirfst du ab.', 'Lay each meld out separately - the last card is your discard.'),
     },
   };
   const puzzleKind = () => (puzzleData && PUZZLE_KINDS[puzzleData.kind] ? puzzleData.kind : 'meld');
@@ -5940,6 +6297,7 @@
   function loadPuzzle(date) {
     puzzleSelected.clear();
     puzzleGroups = [];
+    puzzleLayPending = null;
     puzzleBadGroup = 0;
     puzzleSolutionIds = null;
     puzzleSolutionMelds = null;
@@ -6073,12 +6431,11 @@
     loadPuzzle(next >= puzzleData.today ? null : next);
   });
   el('puzzleLayBtn').addEventListener('click', () => {
-    if (puzzleSelected.size < 3) return;
-    puzzleGroups.push([...puzzleSelected]);
-    puzzleSelected.clear();
-    puzzleBadGroup = 0;
-    setPuzzleStatus('', '');
-    renderPuzzle();
+    if (puzzleSelected.size < 3 || !puzzleData || puzzleLayPending) return;
+    // The server validates (no second rules implementation here); the group is
+    // only laid when it answers valid, see 'puzzleMeldCheck'.
+    puzzleLayPending = [...puzzleSelected];
+    send({ type: 'checkPuzzleMeld', name: currentName(), date: puzzleData.date, cardIds: puzzleLayPending });
   });
   el('puzzleCheckBtn').addEventListener('click', () => {
     if (!puzzleData) return;
@@ -6112,6 +6469,21 @@
     // Answers for another day (navigated away meanwhile) are stale.
     if (!puzzleData || (msg.date && msg.date !== puzzleData.date)) return true;
     if (msg.perfectStreak) puzzleData.perfectStreak = msg.perfectStreak;
+    if (msg.type === 'puzzleMeldCheck') {
+      const ids = puzzleLayPending;
+      puzzleLayPending = null;
+      if (!ids) return true;
+      if (!msg.valid) {
+        setPuzzleStatus(`❌ ${trs(msg.reason || '')}`, 'bad');
+        return true;
+      }
+      puzzleGroups.push(ids);
+      for (const id of ids) puzzleSelected.delete(id);
+      puzzleBadGroup = 0;
+      setPuzzleStatus('', '');
+      renderPuzzle();
+      return true;
+    }
     if (msg.type === 'puzzleResult') {
       puzzleData.status = msg.status || puzzleData.status;
       puzzleBadGroup = 0;
@@ -6292,14 +6664,18 @@
     if (overlay) overlay.addEventListener('click', (ev) => { if (ev.target === overlay) overlay.classList.add('hidden'); });
   } catch (e) { /* Lernhilfe ist nie kritisch */ }
 
-  // "Überspringen": two taps, then the hints stop; the menu brings them back.
+  // "Überspringen": two taps, then the hints stop; the switch in "Optionen" brings them back.
   confirmByTap(el('tutorialOffBtn'), L('Tutorial beenden?', 'End the tutorial?'), stopTutorial);
-  el('tutorialHintsBtn').addEventListener('click', () => {
-    const prog = tutorialSessionProgress();
-    if (prog) { prog.off = false; saveTutorial(); }
-    el('gameSettingsOverlay').classList.add('hidden');
-    updateTutorial();
-  });
+  try {
+    el('tutorialHintsCheckbox').addEventListener('change', () => {
+      const prog = tutorialSessionProgress();
+      if (!prog) return;
+      if (!el('tutorialHintsCheckbox').checked) { stopTutorial(); return; }
+      prog.off = false;
+      saveTutorial();
+      updateTutorial();
+    });
+  } catch (e) { /* stale cached markup */ }
 
   // "Tutorial geschafft": where to go next. 'bots'/'invite' create a new game on
   // the start screen after the reload (afterTutorial, picked up in connect()).
@@ -6432,10 +6808,14 @@
       document.title = BASE_TITLE;
     }
   }
-  // BATTERY: mark the app as hidden so CSS can stop the endless pulse
-  // animations (draw pile glow, lay-off target, active opponent). They are
-  // pointless when nobody is looking but keep the compositor busy.
+  // BATTERY: mark the app as hidden so CSS can stop the endless animations
+  // (draw pile glow, lay-off target, a bot's breath) nobody is looking at.
   document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      // The breath restarts now: anchor it to its turn start again.
+      const b = botBreath(lastState);
+      if (b) document.querySelectorAll('.opAvatar.breathing').forEach((a) => a.style.setProperty('--br-delay', `${b.delay}ms`));
+    }
     document.documentElement.classList.toggle('appHidden', document.hidden);
   });
 
@@ -6517,7 +6897,7 @@
     const W = 320;
     const H = 150;
     // Right padding holds the end labels (they replace the legend).
-    const PAD = { l: 30, r: 84, t: 8, b: 18 };
+    const PAD = { l: 34, r: 92, t: 8, b: 20 };
     const players = opts.players || lastState.players;
     const meId = opts.meId !== undefined ? opts.meId : playerId;
     const colorOf = (id) => PLAYER_COLORS[Math.max(0, players.findIndex((p) => p.id === id)) % PLAYER_COLORS.length];
@@ -6533,15 +6913,15 @@
     for (let v = 0; v <= maxV; v += 250) {
       const goal = v === TARGET;
       svgParts.push(`<line x1="${PAD.l}" y1="${y(v)}" x2="${W - PAD.r}" y2="${y(v)}" class="${goal ? 'goalLine' : 'gridLine'}"/>`);
-      svgParts.push(`<text x="${PAD.l - 4}" y="${y(v) + 3}" class="axisLabel${goal ? ' goal' : ''}" text-anchor="end">${v}</text>`);
+      svgParts.push(`<text x="${PAD.l - 4}" y="${y(v) + 3}" class="axisLabel${goal ? ' goal' : ''}" text-anchor="end">${fmtNum(v)}</text>`);
     }
-    // Others first and muted, mine last and on top.
+    // Others first (thinner, full colour: a translucent line failed contrast), mine last and on top.
     const order = players.slice().sort((a, b) => (a.id === meId) - (b.id === meId));
     order.forEach((p) => {
       const color = colorOf(p.id);
       const mine = p.id === meId;
       const points = history.map((h, i) => `${x(i).toFixed(1)},${y(valueAt(h, p)).toFixed(1)}`).join(' ');
-      svgParts.push(`<polyline points="${points}" fill="none" stroke="${color}" stroke-width="${mine ? 3 : 2}" stroke-linejoin="round" stroke-linecap="round" class="${mine ? 'mine' : 'other'}"/>`);
+      svgParts.push(`<polyline points="${points}" fill="none" stroke="${color}" stroke-width="${mine ? 3 : 1.6}" stroke-linejoin="round" stroke-linecap="round" class="${mine ? 'mine' : 'other'}"/>`);
       const last = history[history.length - 1];
       svgParts.push(`<circle cx="${x(history.length - 1).toFixed(1)}" cy="${y(valueAt(last, p)).toFixed(1)}" r="${mine ? 4 : 3.2}" fill="${color}" class="endDot"/>`);
     });
@@ -6560,7 +6940,7 @@
       const name = l.p.name.length > 8 ? `${l.p.name.slice(0, 7)}…` : l.p.name;
       svgParts.push(
         `<text x="${lx}" y="${(l.y + 3.5).toFixed(1)}" class="endLabel${l.p.id === meId ? ' mine' : ''}">` +
-        `<tspan fill="${colorOf(l.p.id)}">●</tspan> ${escapeHtml(name)} <tspan class="endValue">${l.v}</tspan></text>`
+        `<tspan fill="${colorOf(l.p.id)}">●</tspan> ${escapeHtml(name)} <tspan class="endValue">${fmtNum(l.v)}</tspan></text>`
       );
     }
     // Every round labelled while it fits, otherwise first/last and a few between.
@@ -6574,9 +6954,15 @@
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     svg.setAttribute('role', 'img');
     svg.setAttribute('aria-label', L('Punkteverlauf', 'Score history') + ': ' +
-      labels.map((l) => `${l.p.name} ${l.v}`).join(', '));
+      labels.map((l) => `${l.p.name} ${fmtNum(l.v)}`).join(', '));
     svg.classList.add('scoreChartSvg');
     svg.innerHTML = svgParts.join('');
+    // Chart text stays at --fs-micro on screen: --k = viewBox units per CSS px.
+    const fit = () => {
+      const w = svg.getBoundingClientRect().width;
+      if (w > 0) svg.style.setProperty('--k', (W / w).toFixed(3));
+    };
+    try { if (typeof ResizeObserver === 'function') new ResizeObserver(fit).observe(svg); } catch (e) { /* cosmetic */ }
     wrap.appendChild(svg);
     return wrap;
   }
@@ -6677,8 +7063,11 @@
     for (const r of records) {
       const wasHidden = (r.oldValue || '').split(/\s+/).includes('hidden');
       if (wasHidden && !r.target.classList.contains('hidden')) {
+        // Sheets always open at the top, not where they were left.
+        r.target.scrollTop = 0;
+        const card = r.target.querySelector('.overlay-card');
+        if (card) card.scrollTop = 0;
         hideToast();
-        return;
       }
     }
   });
@@ -6761,27 +7150,21 @@
     try { initSheetSwipe(o); } catch (e) { /* swiping is a convenience */ }
   });
 
-  // --- Vollbild ("Kiosk-Modus" wie bei Videos) -------------------------------
-  // Fullscreen-API gibt es auf Android/Desktop (Chrome/Edge/Firefox). iOS
-  // Safari unterstützt sie für Webseiten nicht - dort bleibt der Button
-  // verborgen (der PWA-Homescreen-Modus übernimmt das auf dem iPhone).
+  // --- Fullscreen ("kiosk mode" as with videos) -----------------------------
+  // The Fullscreen API exists on Android and desktop browsers. iPhone Safari has
+  // none for web pages: the switch stays hidden (the home-screen app covers it).
   const fsRoot = document.documentElement;
-  if (fsRoot.requestFullscreen) {
-    el('fullscreenBtn').classList.remove('hidden');
-    setRowValue(el('fullscreenBtn'), L('Aus', 'Off')); // no fullscreenchange has fired yet
-    el('fullscreenBtn').addEventListener('click', () => {
-      if (document.fullscreenElement) {
-        document.exitFullscreen();
-      } else {
-        fsRoot.requestFullscreen().catch(() => {});
-      }
+  const fsBox = el('fullscreenCheckbox');
+  if (fsRoot.requestFullscreen && fsBox) {
+    const syncFullscreen = () => { fsBox.checked = !!document.fullscreenElement; };
+    el('fullscreenItem').classList.remove('hidden');
+    syncFullscreen();
+    fsBox.addEventListener('change', () => {
+      // Refused (no user gesture, policy): the switch flips back.
+      const p = fsBox.checked ? fsRoot.requestFullscreen() : document.fullscreenElement && document.exitFullscreen();
+      if (p && p.catch) p.catch(syncFullscreen);
     });
-    document.addEventListener('fullscreenchange', () => {
-      const on = !!document.fullscreenElement;
-      setRowIcon(el('fullscreenBtn'), on ? 'i-fullscreen-exit' : 'i-fullscreen');
-      setRowValue(el('fullscreenBtn'), on ? L('An', 'On') : L('Aus', 'Off'));
-      el('fullscreenBtn').title = on ? L('Vollbild verlassen', 'Exit fullscreen') : L('Vollbild', 'Fullscreen');
-    });
+    document.addEventListener('fullscreenchange', syncFullscreen);
   }
 
   // --- Wake Lock: Display bleibt an, WÄHREND ICH DRAN BIN -------------------
@@ -7291,20 +7674,25 @@
 
   // --- Sign-in methods of the signed-in account ---------------------------------
   function fmtShortDate(ms) {
-    return ms ? new Date(ms).toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-DE') : '–';
+    return ms ? fmtDate(ms) : '–';
   }
   // With time: two passkeys made on the same day on the same phone are told
   // apart by it.
   function fmtDateTime(ms) {
     return ms
-      ? new Date(ms).toLocaleString(lang === 'en' ? 'en-GB' : 'de-DE', { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      ? new Date(ms).toLocaleString(localeOf(), { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
       : '–';
   }
   /** Two-tap confirmation instead of window.confirm(): iOS can suppress the
    *  native dialog silently (the tap then did nothing at all). First tap arms
-   *  the button for 4 s, the second one acts. */
-  function confirmByTap(btn, armedLabel, action) {
+   *  the button for 4 s, the second one acts. armedLabel may be a function (read
+   *  when arming, so it follows the language); needsConfirm() false acts at once. */
+  function confirmByTap(btn, armedLabel, action, needsConfirm) {
     btn.addEventListener('click', () => {
+      if (btn.dataset.armed !== '1' && needsConfirm && !needsConfirm()) {
+        action();
+        return;
+      }
       if (btn.dataset.armed === '1') {
         clearTimeout(Number(btn.dataset.timer));
         delete btn.dataset.armed;
@@ -7316,7 +7704,7 @@
       btn.dataset.label = btn.textContent;
       btn.dataset.armed = '1';
       btn.classList.add('armed');
-      setLabelText(btn, armedLabel);
+      setLabelText(btn, typeof armedLabel === 'function' ? armedLabel() : armedLabel);
       btn.dataset.timer = String(setTimeout(() => {
         delete btn.dataset.armed;
         btn.classList.remove('armed');
@@ -7456,8 +7844,7 @@
     .then((r) => r.json())
     .then((s) => {
       if (s && s.version) {
-        el('versionBtn').textContent = `v${s.version}`;
-        setRowValue(el('ingameVersion'), `v${s.version}`);
+        el('versionValue').textContent = `v${s.version}`;
         // PWA auto-update, part 2: my bundle carries the version of the
         // server that SERVED it (__PIKDAME_BUILD). If the live server is
         // newer, this client is stale (nightly update, PWA cache) - reload
@@ -7534,26 +7921,51 @@
       .catch(() => showToast(L('Changelog konnte nicht geladen werden.', 'Could not load the changelog.')));
   }
   el('versionBtn').addEventListener('click', openChangelog);
-  el('ingameVersion').addEventListener('click', openChangelog);
 
-  // --- Spielregeln (Lobby + ingame) ------------------------------------------
+  // --- Spielregeln (start screen + "Dieser Tisch") -----------------------------
   function openRules() {
     el('rulesOverlay').classList.remove('hidden');
   }
   el('rulesBtnLobby').addEventListener('click', openRules);
+
+  // --- "Optionen": one sheet for the start screen and the table (gear) --------
+  function openOptions() {
+    try { updateCelebrationSetting(); } catch (e) { /* cosmetic */ } // sign-in may have changed
+    try { renderTableOptions(); } catch (e) { /* the sheet opens anyway */ }
+    el('settingsOverlay').classList.remove('hidden');
+  }
+  // At the table "Dieser Tisch" leads (house rules read-only, rules, log) and the
+  // intro row goes (it only plays at the start). Re-run by render() for live values.
+  function renderTableOptions() {
+    const st = lastState;
+    const atTable = !!(st && st.phase !== 'lobby');
+    el('settingsOverlay').classList.toggle('atTable', atTable);
+    el('tableOptions').classList.toggle('hidden', !atTable);
+    el('studioLogoItem').classList.toggle('hidden', atTable);
+    if (!atTable) return;
+    const hr = st.houseRules || {};
+    const onOff = (on) => (on ? L('An', 'On') : L('Aus', 'Off'));
+    el('tableRuleHandAus').textContent = onOff(hr.handAusDoubles);
+    el('tableRuleStrict').textContent = onOff(hr.strictThreshold);
+    const secs = Number(hr.turnTimerSeconds) || 0;
+    el('tableRuleTimer').textContent = secs ? `${secs} s` : L('Aus', 'Off');
+    const bots = st.players.filter((p) => p.isBot);
+    el('tableRuleBotPaceRow').classList.toggle('hidden', !bots.length);
+    el('tableRuleBotPace').textContent = { fast: L('Schnell', 'Fast'), slow: L('Gemütlich', 'Relaxed') }[hr.botPace] || L('Normal', 'Normal');
+    // The daily challenge fixes its bots and deliberately keeps their level unsaid.
+    el('tableRuleBotLevelRow').classList.toggle('hidden', !bots.length || !!st.challengeDate);
+    const levels = new Set(bots.map((p) => p.botDifficulty || 'zen'));
+    const level = levels.size === 1 ? BOT_DIFF[[...levels][0]] : null;
+    el('tableRuleBotLevel').textContent = level ? level.short() : L('Gemischt', 'Mixed');
+  }
   try {
-    const openBtn = el('settingsBtnLobby');
     const overlay = el('settingsOverlay');
-    const closeBtn = el('settingsOverlayCloseBtn');
-    if (openBtn && overlay) {
-      openBtn.addEventListener('click', () => {
-        try { updateCelebrationSetting(); } catch (e) { /* cosmetic */ } // sign-in may have changed
-        overlay.classList.remove('hidden');
-      });
-    }
-    if (closeBtn && overlay) closeBtn.addEventListener('click', () => overlay.classList.add('hidden'));
-    if (overlay) overlay.addEventListener('click', (ev) => { if (ev.target === overlay) overlay.classList.add('hidden'); });
-  } catch (e) { /* Menue ist Komfort */ }
+    el('settingsBtnLobby').addEventListener('click', openOptions);
+    el('settingsOverlayCloseBtn').addEventListener('click', () => overlay.classList.add('hidden'));
+    overlay.addEventListener('click', (ev) => { if (ev.target === overlay) overlay.classList.add('hidden'); });
+    // Over the open sheet (later in the DOM): closing the rules returns to it.
+    el('tableRulesBtn').addEventListener('click', openRules);
+  } catch (e) { /* stale cached markup: the sheet comes with the next load */ }
 
   el('rulesCloseBtn').addEventListener('click', () => el('rulesOverlay').classList.add('hidden'));
   el('rulesOverlay').addEventListener('click', (ev) => {
@@ -7686,7 +8098,9 @@
   }
 
   el('emoteBtn').addEventListener('click', () => {
-    el('emoteBar').classList.toggle('hidden');
+    const bar = el('emoteBar');
+    if (bar.classList.contains('hidden')) arrangeEmoteBar(bar);
+    bar.classList.toggle('hidden');
   });
   document.querySelectorAll('.emoteChoice').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -7696,6 +8110,7 @@
         return;
       }
       send({ type: 'emote', emoji: btn.dataset.emote });
+      countEmote(btn.dataset.emote);
       el('emoteBar').classList.add('hidden');
     });
   });
@@ -7715,6 +8130,105 @@
       if (locked) btn.dataset.lock = String(need);
       else delete btn.dataset.lock;
     });
+  }
+  // Picker order like the iPhone keyboard: the most used first (own taps, per
+  // device), the rest behind a toggle in keyboard sections. Mirrors
+  // KEYBOARD_ORDER/EMOTE_CATEGORIES in game/Emotes.js (contract test).
+  const EMOTE_KEYBOARD = [
+    ['smileys', ['😅', '😂', '🙃', '😇', '🤩', '🤔', '😬', '🙄', '😴', '🥳', '😎', '😱', '😤', '🙈', '🤞', '👍', '👏', '🤝', '🙏', '💪', '👀']],
+    ['nature', ['🐢', '🍀', '🔥']],
+    ['food', ['☕', '🍻']],
+    ['activity', ['🎉', '🃏', 'pikdame']],
+    ['objects', ['⏳']],
+    ['symbols', ['❤️']],
+  ];
+  const EMOTE_TOP = 8;
+  const EMOTE_COUNTS_KEY = 'pikdame_emote_counts';
+  const EMOTE_MORE_KEY = 'pikdame_emote_more';
+  // The static markup order (= EMOTE_IDS) is the default before any use.
+  const EMOTE_DEFAULT_ORDER = [...el('emoteBar').querySelectorAll('.emoteChoice[data-emote]')].map((b) => b.dataset.emote);
+  function emoteCounts() {
+    try {
+      const c = JSON.parse(storageGet(EMOTE_COUNTS_KEY) || '{}');
+      return c && typeof c === 'object' ? c : {};
+    } catch (e) {
+      return {};
+    }
+  }
+  function countEmote(id) {
+    if (!EMOTE_DEFAULT_ORDER.includes(id)) return;
+    const c = emoteCounts();
+    c[id] = (Number(c[id]) || 0) + 1;
+    storageSet(EMOTE_COUNTS_KEY, JSON.stringify(c));
+  }
+  /** Top row (most used, ties in default order; never a locked one) and the
+   *  rest as keyboard sections. */
+  function emoteLayout(ids, counts, isLocked, slots) {
+    const top = ids
+      .filter((id) => !isLocked(id))
+      .map((id, i) => [id, Number(counts[id]) || 0, i])
+      .sort((a, b) => b[1] - a[1] || a[2] - b[2])
+      .slice(0, slots)
+      .map((r) => r[0]);
+    const rest = EMOTE_KEYBOARD
+      .map(([cat, list]) => [cat, list.filter((id) => ids.includes(id) && !top.includes(id))])
+      .filter(([, list]) => list.length);
+    return { top, rest };
+  }
+  function setEmoteMore(bar, open) {
+    bar.classList.toggle('emoteExpanded', open);
+    const t = bar.querySelector('.emoteMoreBtn');
+    if (!t) return;
+    const label = open ? L('Weniger Reaktionen', 'Fewer reactions') : L('Mehr Reaktionen', 'More reactions');
+    t.setAttribute('aria-expanded', String(open));
+    t.setAttribute('aria-label', label);
+    t.title = label;
+  }
+  function arrangeEmoteBar(bar) {
+    if (!bar) return;
+    renderEmoteLocks();
+    const buttons = new Map([...bar.querySelectorAll('.emoteChoice[data-emote]:not(.emoteSpecial)')].map((b) => [b.dataset.emote, b]));
+    const specials = [...bar.querySelectorAll('.emoteSpecial')];
+    const ids = EMOTE_DEFAULT_ORDER.filter((id) => buttons.has(id));
+    // One row: 40px per reaction, 44px toggle, 10px padding + border (style.css .emoteBar).
+    const room = bar.id === 'emoteBar' ? Math.min(window.innerWidth - 12, 374) : (bar.parentElement.clientWidth || window.innerWidth);
+    const fit = Math.min(EMOTE_TOP, Math.floor((room - 54) / 40));
+    const { top, rest } = emoteLayout(ids, emoteCounts(), (id) => emoteUnlockLevel(id) > myLevel(), Math.max(4, fit - specials.length));
+    bar.querySelectorAll('.emoteSep').forEach((n) => n.remove());
+    let toggle = bar.querySelector('.emoteMoreBtn');
+    if (!toggle) {
+      toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'emoteMoreBtn';
+      toggle.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg>';
+      toggle.addEventListener('click', () => {
+        const open = !bar.classList.contains('emoteExpanded');
+        storageSet(EMOTE_MORE_KEY, open ? '1' : '0');
+        setEmoteMore(bar, open);
+        if (bar.id === 'resultEmoteBar') updateResultScrollEdges();
+      });
+    }
+    for (const id of top) {
+      const b = buttons.get(id);
+      b.classList.remove('emoteRest');
+      bar.appendChild(b);
+    }
+    specials.forEach((b) => bar.appendChild(b));
+    bar.appendChild(toggle);
+    rest.forEach(([, list], i) => {
+      if (i > 0) {
+        const sep = document.createElement('span');
+        sep.className = 'emoteSep emoteRest';
+        sep.setAttribute('aria-hidden', 'true');
+        bar.appendChild(sep);
+      }
+      for (const id of list) {
+        const b = buttons.get(id);
+        b.classList.add('emoteRest');
+        bar.appendChild(b);
+      }
+    });
+    setEmoteMore(bar, storageGet(EMOTE_MORE_KEY) === '1');
   }
   // Tapping anywhere else dismisses the emote bar - it is a transient picker,
   // not a mode. Capture phase so it also closes when the tap lands on a card
@@ -7767,9 +8281,9 @@
   }
 
   // --- Bot lines: the server names the moment, the client picks a line ------
-  // Mirrors game/BotQuips.js QUIP_MOMENTS (contract test). Per device, default on.
+  // Mirrors game/BotQuips.js QUIP_MOMENTS (contract test). Per device, default off.
   const BOT_QUIPS_KEY = 'pikdame_bot_quips';
-  let botQuipsOn = storageGet(BOT_QUIPS_KEY) !== 'off';
+  let botQuipsOn = storageGet(BOT_QUIPS_KEY) === 'on';
   const BOT_QUIPS = {
     round_win: () => [L('Das war\'s – Karten her!', 'That\'s it – cards in!'), L('Manchmal hat man\'s einfach.', 'Sometimes you\'ve just got it.'), L('Gelernt ist gelernt.', 'Practice pays off.')],
     hand_aus: () => [L('Hand aus! Tschüss zusammen.', 'Out in one! Bye, everyone.'), L('Einmal ziehen, alles weg.', 'One draw, all gone.'), L('Hab ich gar nicht geübt, ehrlich.', 'I never even practised that, honest.')],
@@ -7810,7 +8324,6 @@
     bubble.style.top = `${rect.bottom + 8}px`;
     setTimeout(() => bubble.remove(), 3600);
   }
-  // Two switches, one setting: lobby settings (checkbox) and the in-game sheet (row).
   function setBotQuips(on) {
     botQuipsOn = on;
     storageSet(BOT_QUIPS_KEY, on ? 'on' : 'off');
@@ -7818,11 +8331,9 @@
   }
   function renderBotQuipsControls() {
     el('botQuipsCheckbox').checked = botQuipsOn;
-    setRowValue(el('botQuipsToggle'), botQuipsOn ? L('An', 'On') : L('Aus', 'Off'));
   }
   renderBotQuipsControls();
   el('botQuipsCheckbox').addEventListener('change', () => setBotQuips(el('botQuipsCheckbox').checked));
-  el('botQuipsToggle').addEventListener('click', () => setBotQuips(!botQuipsOn));
 
   // --- Fortschritt: Tagesaufgaben, Erfolge-Galerie, Saison-Rangliste -------
 
@@ -7901,7 +8412,7 @@
   }
 
   // Mirrors game/Progression.js (XP_BASE, XP_WIN, XP_PER_POINT) - display only.
-  const XP_RULES = { base: 10, win: 50, perPoints: 10, towerFirstStar: 25 };
+  const XP_RULES = { base: 10, win: 50, perPoints: 10, towerFirstStar: 10, towerCrown: 50 };
   function renderProgressSheet() {
     const box = el('progressContent');
     if (!box) return;
@@ -7919,7 +8430,7 @@
       `<div class="levelUpBar pgBar"><i style="width:${pct}%"></i></div>` +
       `<p class="pgXp">${L(`${lv.into}/${lv.need} EP · noch ${lv.need - lv.into} bis Stufe ${lv.level + 1}`, `${lv.into}/${lv.need} XP · ${lv.need - lv.into} to level ${lv.level + 1}`)}</p>` +
       (next.length
-        ? `<h3>${escapeHtml(L(`Nächste Belohnung (Stufe ${next[0].level})`, `Next reward (level ${next[0].level})`))}</h3><ul class="pgNext">${next.map((r) => `<li>${escapeHtml(r.label)}</li>`).join('')}</ul>`
+        ? `<h3>${escapeHtml(L(`Nächste Belohnung (Stufe ${next[0].level})`, `Next reward (level ${next[0].level})`))}</h3><ul class="pgNext">${next.map((r) => `<li>${rewardHtml(r)}</li>`).join('')}</ul>`
         : '') +
       streakSectionHtml() +
       towerSectionHtml() +
@@ -7961,14 +8472,55 @@
     if (ev.target.closest('[data-open-tower]')) openTowerSheet();
   });
 
-  // --- Bot tower (game/BotTower.js): ten fixed one-round stages -------------
-  // The server owns stages and stars; the client draws them and starts a stage
-  // like the challenge (solo, one game at a time).
-  let towerInfo = null; // 'towerInfo' + forName: stages, best, stars, cleared, unlocked
+  // --- Kartenhaus (game/BotTower.js): a monthly house of twenty floors -------
+  // The server owns floors, months and stars; the client draws the house as an
+  // SVG pyramid of card tents and starts a floor like the challenge (solo).
+  let towerInfo = null; // 'towerInfo' + forName: month, today, stages, best, stars, cleared, unlocked, crowned, totalStars, archive
   let towerAskedFor = '';
-  let towerScrollPending = false;
-  let lastTowerResult = null; // 'towerResult' of the stage just played
+  let towerSelected = 0; // the floor the detail shows (APEX = the top), 0 = the default
+  let towerAnimate = false; // set on opening: the next render with data may animate
+  let towerFxToken = 0; // a newer render cancels a pending rebuild
+  let lastTowerResult = null; // 'towerResult' of the floor just played
   const AFTER_TOWER_KEY = 'pikdame_after_tower';
+  const TOWER_SEEN_KEY = 'pikdame_tower_seen'; // what this device last showed: { name, month, best, crowned }
+  const TOWER_LAST_KEY = 'pikdame_tower_last'; // the last verdict, for the wobble: { name, month, stage, stars }
+  const APEX = 21;
+  const towerName = () => L('Kartenhaus', 'House of Cards');
+  // The ONLY wording of the floor modifiers (house, table, sheet, help): 'queen'
+  // is a risk (+100 melded, -100 in hand), the others are handicaps.
+  const TOWER_MODS = {
+    queen: () => L('Pik Dame auf der Hand', 'Queen of Spades in hand'),
+    noDiscard: () => L('Ohne Ablage', 'No discard pile'),
+    goOut: () => L('Selbst ausmachen', 'Go out yourself'),
+  };
+  const TOWER_MOD_ICON = { queen: 'spade', noDiscard: 'lock', goOut: 'flag' };
+  // The queen helps when melded (+100): a risk (gold), not a handicap (red edge).
+  const TOWER_MOD_KIND = { queen: 'risk' };
+  const towerModKind = (m) => TOWER_MOD_KIND[m] || 'handicap';
+  // The floor card is narrow: a shorter name where the sheet's one is long.
+  const TOWER_MOD_SHORT = { queen: () => L('Pik Dame', 'Queen of Spades') };
+  // One line on the start card; the exact rule on the sheet (BotTower.js, GameManager).
+  const TOWER_MOD_WHY = {
+    queen: () => L('ausgelegt +100, auf der Hand −100', '+100 melded, −100 in hand'),
+    noDiscard: () => L('du ziehst immer vom Stapel', 'you always draw from the stock'),
+    goOut: () => L('ohne Ausmachen kein Stern, auch nicht mit Vorsprung', 'no star without going out, even when ahead'),
+  };
+  const TOWER_MOD_RULE = {
+    queen: () => L('Du startest mit der Pik Dame auf der Hand. Ausgelegt bringt sie +100, bleibt sie auf der Hand, kostet sie −100.',
+      'You start with the Queen of Spades in hand. Melded she brings +100; left in hand she costs −100.'),
+    noDiscard: () => L('Du darfst die Ablage nie aufnehmen und ziehst immer vom Stapel. Die Bots dürfen sie weiter nehmen.',
+      'You may never take the discard pile and always draw from the stock. The bots may still take it.'),
+    goOut: () => L('Sterne gibt es nur, wenn du die Runde selbst beendest – mit dem Abwurf deiner letzten Karte. Vorsprung allein reicht nicht.',
+      'Stars only if you end the round yourself – by discarding your last card. Being ahead is not enough.'),
+  };
+  const towerModKindName = (m) => (towerModKind(m) === 'risk' ? L('Risiko', 'Risk') : L('Erschwernis', 'Handicap'));
+  const towerModName = (m) => (TOWER_MODS[m] ? TOWER_MODS[m]() : m);
+  /** "Risiko: Pik Dame auf der Hand" - house chips and floor labels. */
+  const towerModLabel = (m) => (TOWER_MODS[m] ? `${towerModKindName(m)}: ${towerModName(m)}` : m);
+  const towerModsText = (mods) => (mods || []).map(towerModLabel).join(' · ');
+  /** With the one-line why: "Risiko: Pik Dame auf der Hand – ausgelegt +100, auf der Hand −100". */
+  const towerModRuleLine = (m) => (TOWER_MOD_WHY[m] ? `${towerModLabel(m)} – ${TOWER_MOD_WHY[m]()}` : towerModLabel(m));
+  const towerModRulesText = (mods) => (mods || []).map(towerModRuleLine).join('; ');
   function requestTower() {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     towerAskedFor = myName || '';
@@ -7978,115 +8530,584 @@
   function towerFresh() {
     return towerInfo && towerInfo.forName === (myName || '') ? towerInfo : null;
   }
-  /** Start-screen chip under the Stammtische. At most three rows (iPhone fit):
-   *  with three remembered tables the oldest one yields, it stays stored. */
-  function renderTowerChip() {
-    const box = el('stammtischRecent');
-    if (!box) return;
-    const old = box.querySelector('.stTowerRow');
-    if (old) old.remove();
-    const info = publicMode ? null : towerFresh();
-    const rows = [...box.querySelectorAll('.stRecentRow')];
-    rows.forEach((r, i) => r.classList.toggle('hidden', i >= (info ? 2 : 3)));
-    if (info) {
-      const size = info.stages.length;
-      const stage = Math.min(info.unlocked || 1, size);
-      const text = info.stars
-        ? L(`Stufe ${stage} · ${info.stars}/${size * 3}`, `Stage ${stage} · ${info.stars}/${size * 3}`)
-        : L(`${size} Stufen`, `${size} stages`);
-      const label = info.stars
-        ? L(`Bot-Turm: Stufe ${stage}, ${info.stars} von ${size * 3} Sternen`, `Bot tower: stage ${stage}, ${info.stars} of ${size * 3} stars`)
-        : L(`Bot-Turm: ${size} Stufen gegen die Bots`, `Bot tower: ${size} stages against the bots`);
-      box.insertAdjacentHTML('beforeend', `<button type="button" class="stRecentRow stTowerRow" aria-haspopup="dialog" aria-label="${escapeHtml(label)}">` +
-        `<svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg><span class="stName">${escapeHtml(L('Bot-Turm', 'Bot tower'))}</span>` +
-        `<small class="stChipInfo">${escapeHtml(text)}</small>` +
-        (info.stars ? '<svg class="icon stTowerStar" aria-hidden="true"><use href="#i-star"/></svg>' : '') +
-        `<svg class="icon stGo" aria-hidden="true"><use href="#i-chevron"/></svg></button>`);
-      box.querySelector('.stTowerRow').addEventListener('click', openTowerSheet);
-    }
-    box.classList.toggle('hidden', !box.querySelector('.stRecentRow:not(.hidden)'));
+  /** "Oktober" for '2026-10' (UTC mid-month, so no time zone shifts the month). */
+  function towerMonthName(month, withYear = false) {
+    const [y, m] = String(month || '').split('-').map(Number);
+    if (!y || !m) return '';
+    return new Date(Date.UTC(y, m - 1, 15)).toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-DE',
+      { month: 'long', ...(withYear ? { year: 'numeric' } : {}), timeZone: 'UTC' });
   }
+  /** Start screen, "Aufgaben": this month's floor and stars on the wide tile.
+   *  Hidden in public mode and while the data for this name is missing. */
+  function renderTowerTile() {
+    const tile = el('towerTile');
+    if (!tile) return;
+    const info = publicMode ? null : towerFresh();
+    tile.classList.toggle('hidden', !info);
+    if (!info) return;
+    const max = info.stages.length * 3;
+    const floor = Math.min(info.unlocked || 1, info.stages.length);
+    const month = towerMonthName(info.month);
+    const status = el('towerTileStatus');
+    status.textContent = info.crowned
+      ? L(`Gekrönt · ${info.stars}/${max}`, `Crowned · ${info.stars}/${max}`)
+      : L(`Etage ${floor} · ${info.stars}/${max}`, `Floor ${floor} · ${info.stars}/${max}`);
+    status.insertAdjacentHTML('beforeend', '<svg class="icon ttStar" aria-hidden="true"><use href="#i-star"/></svg>');
+    // A fresh month calls (like a new puzzle), a crowned one rests; in between it stays calm.
+    tile.dataset.state = info.crowned ? 'done' : info.stars ? '' : 'new';
+    tile.setAttribute('aria-label', info.crowned
+      ? L(`Kartenhaus im ${month}: gekrönt, ${info.stars} von ${max} Sternen`, `House of Cards in ${month}: crowned, ${info.stars} of ${max} stars`)
+      : L(`Kartenhaus im ${month}: Etage ${floor}, ${info.stars} von ${max} Sternen`, `House of Cards in ${month}: floor ${floor}, ${info.stars} of ${max} stars`));
+  }
+  el('towerTile').addEventListener('click', () => openTowerSheet());
   const towerStarsHtml = (n) => [1, 2, 3]
     .map((i) => `<svg class="icon${i <= n ? ' on' : ''}" aria-hidden="true"><use href="#i-star"/></svg>`).join('');
   function towerSectionHtml() {
     const info = towerFresh();
-    const me = myProfile() || {};
-    const stars = info ? info.stars : me.towerStars || 0;
-    const cleared = info ? info.cleared : me.towerCleared || 0;
     const size = info ? info.stages.length : 0;
-    return `<h3>${escapeHtml(L('Bot-Turm', 'Bot tower'))}</h3>` +
+    return `<h3>${escapeHtml(towerName())}</h3>` +
       `<button type="button" class="pgTower" data-open-tower="1">` +
-      `<svg class="icon pgTowerIcon" aria-hidden="true"><use href="#i-trophy"/></svg>` +
-      `<span class="pgTowerText"><b>${escapeHtml(size ? L(`${stars}/${size * 3} Sterne`, `${stars}/${size * 3} stars`) : L(`${stars} Sterne`, `${stars} stars`))}</b>` +
-      `<span>${escapeHtml(size
-        ? L(`${cleared} von ${size} Stufen geschafft`, `${cleared} of ${size} stages cleared`)
-        : L(`${cleared} Stufen geschafft`, `${cleared} stages cleared`))}</span></span>` +
+      `<svg class="icon pgTowerIcon" aria-hidden="true"><use href="#i-cardhouse"/></svg>` +
+      `<span class="pgTowerText"><b>${escapeHtml(info
+        ? L(`${towerMonthName(info.month)}: ${info.stars}/${size * 3} Sterne`, `${towerMonthName(info.month)}: ${info.stars}/${size * 3} stars`)
+        : towerName())}</b>` +
+      `<span>${escapeHtml(info
+        ? L(`${info.cleared} von ${size} Etagen · insgesamt ${info.totalStars} Sterne`, `${info.cleared} of ${size} floors · ${info.totalStars} stars in total`)
+        : L('Jeden Monat neue Blätter', 'New deals every month'))}</span></span>` +
       `<svg class="icon pgTowerGo" aria-hidden="true"><use href="#i-chevron"/></svg></button>`;
   }
-  function towerRowHtml(s, info) {
-    const stars = Math.max(0, Math.min(3, Number(info.best[s.stage]) || 0));
-    const locked = s.stage > info.unlocked;
-    const next = !locked && !stars;
-    const metas = s.bots.map((b) => BOT_DIFF[b] || BOT_DIFF.zen);
-    const names = metas.map((m) => m.short()).join(', ');
-    const label = L(
-      `Stufe ${s.stage}: gegen ${names}${s.handicap ? `, die Bots bekommen ${s.handicap} Punkte Vorgabe` : ''} - ${locked ? 'gesperrt' : `${stars} von 3 Sternen`}`,
-      `Stage ${s.stage}: against ${names}${s.handicap ? `, the bots get a ${s.handicap}-point head start` : ''} - ${locked ? 'locked' : `${stars} of 3 stars`}`
+  // The house: each starred floor of the month stands as its floor card from the table;
+  // two lean together as a tent, 4-3-2-1 tents, the Queen of Spades on top once crowned.
+  // SVG units: 356 across give a card of about 33x49 px on a phone, and a floor's hit
+  // area stays >= --tap-min on an iPhone SE (the house bleeds into the side padding).
+  const KH = { w: 32, h: 48, tilt: 13, gap: 88, plate: 3.2 };
+  const KH_TENTS = [4, 3, 2, 1];
+  const KH_RAD = (KH.tilt * Math.PI) / 180;
+  const KH_FOOT = (KH.w / 2) * Math.cos(KH_RAD) + KH.h * Math.sin(KH_RAD); // tent centre to a foot: the inner corners meet
+  const KH_ROW = KH.h * Math.cos(KH_RAD) + (KH.w / 2) * Math.sin(KH_RAD) + KH.plate; // a tent and the plate on it
+  const KH_VIEW = '-178 -272 356 278';
+  const KH_COLLECT_MS = 2550; // a month change until the new house has faded in (CSS .kh-collect)
+  const khNum = (v) => Math.round(v * 10) / 10;
+  const khSec = (v) => Math.round(v * 100) / 100;
+  /** Fixed per card, no dice: every device collects the same way. */
+  const khJitter = (i, k) => { const v = Math.sin(i * 127.1 + k * 311.7) * 43758.5453; return v - Math.floor(v); };
+  /** One slot per floor card, bottom-up and left to right, then the top: its tent, side,
+   *  foot and lean, and the card's middle (cx, cy). */
+  function khSlots() {
+    const out = [];
+    let stage = 1;
+    KH_TENTS.forEach((n, row) => {
+      for (let i = 0; i < n; i++) {
+        const tent = (i - (n - 1) / 2) * KH.gap;
+        const base = -row * KH_ROW;
+        for (const side of [-1, 1]) {
+          const foot = tent + side * KH_FOOT;
+          out.push({ stage: stage++, row, tent, side, foot, base, rot: -side * KH.tilt,
+            cx: foot - side * (KH.h / 2) * Math.sin(KH_RAD), cy: base - (KH.h / 2) * Math.cos(KH_RAD) });
+        }
+      }
+    });
+    const base = -KH_TENTS.length * KH_ROW;
+    out.push({ stage: APEX, row: KH_TENTS.length, tent: 0, side: 0, foot: 0, base, rot: 0, cx: 0, cy: base - KH.h / 2 });
+    return out;
+  }
+  function khStarPoints(cx, cy, r) {
+    const pts = [];
+    for (let i = 0; i < 10; i++) {
+      const rr = i % 2 ? r * 0.45 : r;
+      const a = -Math.PI / 2 + (i * Math.PI) / 5;
+      pts.push(`${khNum(cx + rr * Math.cos(a))},${khNum(cy + rr * Math.sin(a))}`);
+    }
+    return pts.join(' ');
+  }
+  /** A month's best stars on one floor, 0-3. */
+  const towerStarsOf = (best, stage) => Math.max(0, Math.min(3, Math.floor(Number((best || {})[stage]) || 0)));
+  /** Stars and floors of a month's best (as BotTower.summarize; for display only). */
+  function towerBestSummary(best, floors = 20) {
+    let stars = 0;
+    let cleared = 0;
+    for (let s = 1; s <= floors; s++) {
+      const b = towerStarsOf(best, s);
+      stars += b;
+      if (b) cleared += 1;
+    }
+    return { stars, cleared };
+  }
+  /** The rim of a floor card, in the house and at the table: red dashed for a handicap, gold for a risk alone. */
+  const towerRim = (mods) => ((mods || []).some((m) => towerModKind(m) === 'handicap') ? 'mod' : (mods || []).length ? 'risk' : '');
+  function towerFloorState(info, stage) {
+    const stars = towerStarsOf(info.best, stage);
+    // The server builds the month's deals itself: a floor without a proven one is closed.
+    const c = info.closed && info.closed[stage];
+    const closed = c === 'locked' ? 'locked' : c ? 'building' : '';
+    if (stars) return { state: 'built', stars, closed };
+    return { state: stage === info.unlocked && !info.crowned ? 'next' : 'locked', stars: 0, closed };
+  }
+  const towerClosedText = (closed) => (closed === 'locked' ? L('diesen Monat geschlossen', 'closed this month') : L('wird noch gebaut', 'still being built'));
+  function towerFloorLabel(s, st) {
+    const names = s.bots.map((b) => (BOT_DIFF[b] || BOT_DIFF.zen).short()).join(', ');
+    const mods = towerModsText(s.mods);
+    const status = st.state === 'built' ? L(`${st.stars} von 3 Sternen`, `${st.stars} of 3 stars`)
+      : st.closed ? towerClosedText(st.closed)
+        : st.state === 'next' ? L('noch kein Stern', 'no star yet') : L('gesperrt', 'locked');
+    return L(
+      `Etage ${s.stage}: gegen ${names}${s.handicap ? `, die Bots bekommen ${s.handicap} Punkte Vorgabe` : ''}${mods ? `, ${mods}` : ''} - ${status}`,
+      `Floor ${s.stage}: against ${names}${s.handicap ? `, the bots get a ${s.handicap}-point head start` : ''}${mods ? `, ${mods}` : ''} - ${status}`
     );
-    return `<li><button type="button" class="twStage${locked ? ' locked' : ''}${next ? ' next' : ''}" data-stage="${s.stage}" aria-label="${escapeHtml(label)}"${locked ? ' aria-disabled="true"' : ''}>` +
-      `<span class="twNum">${s.stage}</span>` +
-      `<span class="twBots">${metas.map(levelIconHtml).join('')}</span>` +
-      `<span class="twHandicap">${s.handicap ? escapeHtml(L(`Bots +${s.handicap}`, `bots +${s.handicap}`)) : ''}</span>` +
-      `<span class="twStars">${locked ? '<svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg>' : towerStarsHtml(stars)}</span>` +
-      `</button></li>`;
+  }
+  /** The house in one sentence for a screen reader: floors, stars and the floor up next. */
+  function towerHouseLabel(info) {
+    const n = info.stages.length;
+    const month = towerMonthName(info.month);
+    const sum = towerBestSummary(info.best, n);
+    const head = L(`Kartenhaus im ${month}: ${sum.cleared} von ${n} Etagen geschafft, ${sum.stars} von ${n * 3} Sternen`,
+      `House of Cards in ${month}: ${sum.cleared} of ${n} floors cleared, ${sum.stars} of ${n * 3} stars`);
+    if (info.crowned) return head + L(', gekrönt', ', crowned');
+    const next = Math.min(info.unlocked || 1, n);
+    const st = towerFloorState(info, next);
+    return head + L(`, als Nächstes Etage ${next}`, `, next up: floor ${next}`) + (st.closed ? ` (${towerClosedText(st.closed)})` : '');
+  }
+  /** A floor card on its foot. built: the face of the floor card at the table (number, house
+   *  pip, best stars, the rim of its special rule); next and closed: an outline with the number. */
+  function khCardSvg(slot, s, look, { stars = 0, pop = 3, closed = '', back = false } = {}) {
+    const { w, h } = KH;
+    const box = `x="${-w / 2}" y="${-h}" width="${w}" height="${h}" rx="3.6"`;
+    const rank = `<text class="khRank" x="${-w / 2 + 4}" y="${-h + 14.5}">${slot.stage}</text>`;
+    let face;
+    if (look === 'built') {
+      const rim = towerRim(s.mods);
+      const star = (i) => {
+        const popping = i < stars && i >= pop;
+        return `<polygon class="khStar${i < stars ? ' on' : ''}${popping ? ' khPop' : ''}"` +
+          `${popping ? ` style="--kh-delay:${khSec(0.35 + (i - pop) * 0.15)}s"` : ''} points="${khStarPoints(-8.6 + i * 8.6, -8.4, 4.1)}"/>`;
+      };
+      face = `<rect class="khFace" ${box}/>` +
+        (rim ? `<rect class="khRim ${rim}" x="${-w / 2 + 2.6}" y="${-h + 2.6}" width="${w - 5.2}" height="${h - 5.2}" rx="2"/>` : '') +
+        rank + `<use class="khPip" href="#i-cardhouse" x="${w / 2 - 15}" y="${-h + 16}" width="11" height="11"/>` +
+        [0, 1, 2].map(star).join('');
+    } else {
+      face = `<rect class="khGhost" ${box}/>` + rank +
+        (closed ? `<use class="khGlyph" href="#i-${closed === 'locked' ? 'lock' : 'hourglass'}" x="-6.5" y="-27.5" width="13" height="13"/>` : '');
+    }
+    return `<g transform="translate(${khNum(slot.foot)} ${khNum(slot.base)}) rotate(${slot.rot})">${face}` +
+      (back ? `<rect class="khBack" ${box}/>` : '') + '</g>';
+  }
+  /** The flat card across two tents: an upper floor stands on it (the first row on the ground). */
+  const khPlateSvg = (x, base, len, extra = '') =>
+    `<rect class="khPlate"${extra} x="${khNum(x - len / 2)}" y="${khNum(base + 0.4)}" width="${len}" height="${KH.plate}" rx="1.4"/>`;
+  function khQueenSvg() {
+    return `<g class="khQueen"><rect class="khQueenCard" x="${-KH.w / 2}" y="${-KH.h}" width="${KH.w}" height="${KH.h}" rx="3.6"/>` +
+      `<text class="khQueenQ" x="-11.5" y="-35">Q</text><text class="khQueenS" x="0" y="-14">♠</text></g>`;
+  }
+  /** The top: a dashed place for the Queen of Spades, then the card itself on its plate. */
+  function khApexSvg(info, slot, fx) {
+    const crowned = !!info.crowned;
+    const shown = towerSelected || towerDefaultSelection(info);
+    const cls = ['khFloor', 'khApex', crowned ? 'built' : 'plan', towerSelected === APEX ? 'sel' : '', crowned && fx.crown ? 'khCrowning' : ''].filter(Boolean).join(' ');
+    const label = crowned
+      ? L('Spitze: Das Kartenhaus ist gekrönt', 'Top: the House of Cards is crowned')
+      : L('Spitze: Alle 20 Etagen mit einem Stern krönen das Kartenhaus', 'Top: a star on all 20 floors crowns the House of Cards');
+    const card = crowned
+      ? khPlateSvg(0, slot.base, 60) + `<g transform="translate(0 ${khNum(slot.base)})">${khQueenSvg()}</g>`
+      : `<rect class="khSpitze" x="${-KH.w / 2}" y="${khNum(slot.base - KH.h)}" width="${KH.w}" height="${KH.h}" rx="3.6"/>` +
+        `<text class="khSpitzeText" x="0" y="${khNum(slot.base - KH.h / 2 + 3)}">${escapeHtml(L('Spitze', 'Top'))}</text>`;
+    return `<g class="${cls}" data-stage="${APEX}" role="button" tabindex="0" aria-pressed="${shown === APEX}" aria-label="${escapeHtml(label)}"` +
+      ` style="--kh-delay:${khSec(fx.crownDelay || 0)}s">` +
+      `<rect class="khSel" x="-24" y="${khNum(slot.base - KH.h - 5)}" width="48" height="${KH.h + 9}" rx="8"/>` + card +
+      `<rect class="khHit" x="${-KH.gap / 2 + 1}" y="${khNum(slot.base - KH_ROW - 4)}" width="${KH.gap - 2}" height="${khNum(KH_ROW + 4)}"/></g>`;
+  }
+  /** The floors and the top of a month. fx: { land: [stages], pop: { stage: starsBefore }, wobble, crown, crownDelay } */
+  function khHouseParts(info, fx = {}) {
+    const byStage = Object.fromEntries(info.stages.map((s) => [s.stage, s]));
+    const shown = towerSelected || towerDefaultSelection(info);
+    const land = fx.land || [];
+    const stagger = Math.min(0.09, 1.2 / Math.max(1, land.length));
+    const slots = khSlots().filter((sl) => sl.stage === APEX || byStage[sl.stage]);
+    const states = {};
+    const plated = new Set(); // the upper tents with a card standing: a plate lies under them
+    for (const sl of slots) {
+      if (sl.stage === APEX) continue;
+      states[sl.stage] = towerFloorState(info, sl.stage);
+      if (sl.row > 0 && states[sl.stage].state === 'built') plated.add(`${sl.row}:${sl.tent}`);
+    }
+    const plates = [...plated].map((k) => { const [row, tent] = k.split(':').map(Number); return khPlateSvg(tent, -row * KH_ROW, KH.gap - 6); });
+    const parts = slots.map((slot) => {
+      if (slot.stage === APEX) return khApexSvg(info, slot, fx);
+      const s = byStage[slot.stage];
+      const st = states[slot.stage];
+      const look = st.state === 'built' ? 'built' : st.closed ? 'closed' : st.state === 'next' ? 'next' : 'plan';
+      const li = land.indexOf(slot.stage);
+      const cls = ['khFloor', look, st.state === 'next' ? 'isNext' : '', towerSelected === slot.stage ? 'sel' : '',
+        li > -1 ? 'khDealt' : '', fx.wobble === slot.stage ? 'khWobble' : ''].filter(Boolean).join(' ');
+      const pop = fx.pop && fx.pop[slot.stage] !== undefined ? fx.pop[slot.stage] : 3;
+      const body = look === 'plan'
+        ? `<text class="khPlan" x="${khNum(slot.cx)}" y="${khNum(slot.cy + 4)}">${slot.stage}</text>`
+        : khCardSvg(slot, s, look, { stars: st.stars, pop, closed: st.closed });
+      // Hit areas tile the row: half a tent per card, a whole row high.
+      const hitX = slot.side < 0 ? slot.tent - KH.gap / 2 : slot.tent;
+      return `<g class="${cls}" data-stage="${slot.stage}" role="button" tabindex="0" aria-pressed="${shown === slot.stage}"` +
+        ` aria-label="${escapeHtml(towerFloorLabel(s, st))}" style="--kh-delay:${khSec(li > -1 ? 0.1 + li * stagger : 0)}s;--kh-dx:${slot.side * 14}px">` +
+        `<rect class="khSel" x="${khNum(slot.cx - 23)}" y="${khNum(slot.cy - 30)}" width="46" height="60" rx="9"/>` + body +
+        `<rect class="khHit" x="${khNum(hitX)}" y="${khNum(slot.base - KH_ROW)}" width="${KH.gap / 2}" height="${khNum(KH_ROW)}"/></g>`;
+    });
+    return plates.join('') + parts.join('');
+  }
+  /** The old month is collected like a trick: the card laid last goes first, turns face
+   *  down and floats onto one pile, the plates sink, then the pile glides away. */
+  function khCollectSvg(old, stages) {
+    const byStage = Object.fromEntries(stages.map((s) => [s.stage, s]));
+    const slots = khSlots();
+    const apex = slots[slots.length - 1];
+    const cards = slots.filter((sl) => sl.stage !== APEX && byStage[sl.stage] && towerStarsOf(old.best, sl.stage) >= 1).reverse();
+    if (old.crowned) cards.unshift(apex);
+    const stagger = Math.min(0.065, 1.2 / Math.max(1, cards.length));
+    const pile = { x: 0, y: -KH.w / 2 - 1 }; // a card lying on its long side
+    const started = {}; // row -> when its last card left
+    const flights = cards.map((sl, i) => {
+      const d = 0.15 + i * stagger;
+      started[sl.row] = Math.max(started[sl.row] || 0, d);
+      const j1 = khJitter(i, 1);
+      const j2 = khJitter(i, 2);
+      // Lands flat on the pile (a quarter turn from upright), a little askew; later ones on top.
+      const rot = (sl.side < 0 ? 1 : -1) * (90 + (j1 - 0.5) * 8) - sl.rot;
+      const fly = `--kh-delay:${khSec(d)}s;--kh-fx:${khNum(pile.x + (j2 - 0.5) * 6 - sl.cx)}px;--kh-fy:${khNum(pile.y - i * 0.7 - sl.cy)}px;` +
+        `--kh-rot:${khNum(rot)}deg;--kh-sw:${khNum((j1 - 0.5) * 30)}px`;
+      const body = sl.stage === APEX
+        ? `<g transform="translate(0 ${khNum(sl.base)})">${khQueenSvg()}<rect class="khBack" x="${-KH.w / 2}" y="${-KH.h}" width="${KH.w}" height="${KH.h}" rx="3.6"/></g>`
+        : khCardSvg(sl, byStage[sl.stage], 'built', { stars: towerStarsOf(old.best, sl.stage), back: true });
+      return `<g class="khCollect" style="${fly}">${body}</g>`;
+    });
+    // The plates sink and fade once the cards on them have left.
+    const plates = new Set(cards.filter((sl) => sl.row > 0).map((sl) => `${sl.row}:${sl.tent}`));
+    const plateSvg = [...plates].map((k) => {
+      const [row, tent] = k.split(':').map(Number);
+      return khPlateSvg(tent, -row * KH_ROW, row === KH_TENTS.length ? 60 : KH.gap - 6, ` style="--kh-delay:${khSec(started[row] + 0.12)}s"`);
+    });
+    return plateSvg.join('') + `<g class="khPile">${flights.join('')}</g>`;
+  }
+  /** The house as inline SVG. fx.old: a month to collect first (the new house fades in after it). */
+  function towerHouseSvg(info, fx = {}) {
+    const body = fx.old
+      ? `<g class="khNewLayer">${khHouseParts(info)}</g><g class="khOldLayer" aria-hidden="true">${khCollectSvg(fx.old, info.stages)}</g>`
+      : khHouseParts(info, fx);
+    return `<svg class="khSvg${fx.old ? ' kh-collect' : ''}" viewBox="${KH_VIEW}" role="group" aria-label="${escapeHtml(towerHouseLabel(info))}">` +
+      `<defs><pattern id="khBack" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">` +
+      `<rect class="khBackBase" width="6" height="6"/><rect class="khBackLine" width="1.2" height="6"/></pattern>` +
+      `<pattern id="khHatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">` +
+      `<rect class="khHatchBase" width="5" height="5"/><rect class="khHatchLine" width="2" height="5"/></pattern></defs>` +
+      `<line class="khGround" x1="-172" x2="172" y1="0.5" y2="0.5"/>` + body + '</svg>';
+  }
+  /** The default floor of the detail: the next one, or the top once crowned. */
+  function towerDefaultSelection(info) {
+    return info.crowned ? APEX : Math.min(info.unlocked || 1, info.stages.length);
+  }
+  function towerDaysLeftText(today) {
+    const [y, m, d] = String(today || '').split('-').map(Number);
+    if (!y || !m || !d) return '';
+    const left = new Date(Date.UTC(y, m, 0)).getUTCDate() - d;
+    if (left <= 0) return L('heute letzter Tag', 'last day today');
+    return left === 1 ? L('noch 1 Tag', '1 day left') : L(`noch ${left} Tage`, `${left} days left`);
+  }
+  /** "3 Bots: Zen, Zen, Zen · 160 Punkte Vorgabe" - the floor detail and the floor at the table. */
+  function towerBotsLine(bots, handicap) {
+    const names = (bots || []).map((b) => (BOT_DIFF[b] || BOT_DIFF.zen).short()).join(', ');
+    const n = (bots || []).length;
+    return L(`${n} Bots: ${names}`, `${n} bots: ${names}`) +
+      (handicap ? L(` · ${handicap} Punkte Vorgabe`, ` · ${handicap}-point head start`) : '');
+  }
+  /** The detail under the house: who plays, what the floor asks, and the way in. */
+  function towerDetailHtml(info, stage) {
+    const max = info.stages.length;
+    if (stage === APEX) {
+      if (!info.crowned) {
+        return `<div class="khDHead"><b class="khDTitle">${escapeHtml(L('Spitze', 'Top'))}</b></div>` +
+          `<p class="khDNote">${escapeHtml(L(`Hol dir auf allen ${max} Etagen mindestens einen Stern - dann krönt die Pik Dame dein Kartenhaus (+${XP_RULES.towerCrown} EP).`,
+            `Earn at least one star on all ${max} floors - then the Queen of Spades crowns your House of Cards (+${XP_RULES.towerCrown} XP).`))}</p>`;
+      }
+      // Still stars to collect: the highest floor that misses some.
+      const missing = [...info.stages].reverse().find((s) => (Number(info.best[s.stage]) || 0) < 3);
+      const gap = missing ? 3 - (Number(info.best[missing.stage]) || 0) : 0;
+      const more = !missing ? L(`Alle ${max * 3} Sterne - mehr geht nicht.`, `All ${max * 3} stars - it does not get better.`)
+        : gap === 1 ? L(`Auf Etage ${missing.stage} fehlt noch 1 Stern.`, `Floor ${missing.stage} still misses 1 star.`)
+          : L(`Auf Etage ${missing.stage} fehlen noch ${gap} Sterne.`, `Floor ${missing.stage} still misses ${gap} stars.`);
+      return `<div class="khDHead"><b class="khDTitle">${escapeHtml(L('Gekrönt!', 'Crowned!'))}</b></div>` +
+        `<p class="khDNote">${escapeHtml(L(`Alle ${max} Etagen im ${towerMonthName(info.month)} geschafft. ${more}`,
+          `All ${max} floors cleared in ${towerMonthName(info.month)}. ${more}`))}</p>` +
+        (missing
+          ? `<button type="button" class="btn-primary khPlay" data-play="${missing.stage}"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>` +
+            `<span>${escapeHtml(L(`Etage ${missing.stage} nochmal`, `Floor ${missing.stage} again`))}</span></button>`
+          : '');
+    }
+    const s = info.stages.find((x) => x.stage === stage);
+    if (!s) return '';
+    const st = towerFloorState(info, stage);
+    const closed = st.closed; // the house shows its icon, the tag repeats it, the note explains it
+    const iconTag = (icon, text) => `<span class="khDTag"><svg class="icon" aria-hidden="true"><use href="#i-${icon}"/></svg><span>${escapeHtml(text)}</span></span>`;
+    const tag = st.state === 'built'
+      ? `<span class="khDStars" role="img" aria-label="${escapeHtml(L(`${st.stars} von 3 Sternen`, `${st.stars} of 3 stars`))}">${towerStarsHtml(st.stars)}</span>`
+      : st.state === 'next'
+        ? `<span class="khDTag next">${escapeHtml(L('als Nächstes', 'up next'))}</span>`
+        : closed === 'locked' ? iconTag('lock', L('geschlossen', 'closed'))
+          : closed ? iconTag('hourglass', L('im Bau', 'being built'))
+            : iconTag('lock', L('gesperrt', 'locked'));
+    const bots = towerBotsLine(s.bots, s.handicap);
+    const mods = (s.mods || []).map((m) => `<span class="khMod ${towerModKind(m)}">${escapeHtml(towerModLabel(m))}</span>`).join('');
+    const note = closed === 'locked'
+      ? L('Für diese Etage gibt es diesen Monat kein geprüftes Blatt - sie bleibt zu.', 'There is no proven deal for this floor this month - it stays closed.')
+      : closed ? L('Diese Etage wird gerade gebaut - schau bald wieder vorbei.', 'This floor is still being built - check back soon.')
+      : st.state === 'locked'
+      ? L(`Schaff erst Etage ${Math.min(info.unlocked || 1, max)}.`, `Clear floor ${Math.min(info.unlocked || 1, max)} first.`)
+      : st.state === 'next' ? L('Ein Stern: mehr Punkte als jeder Bot samt Vorgabe.', 'One star: more points than every bot plus its head start.')
+        : st.stars < 3 ? L(`Bestwert ${st.stars} von 3 - ein neuer Versuch spielt dasselbe Blatt.`, `Best ${st.stars} of 3 - a new try plays the same deal.`)
+          : L('Alle drei Sterne.', 'All three stars.');
+    const play = st.state === 'locked' || closed ? ''
+      : `<button type="button" class="${st.state === 'next' ? 'btn-primary' : 'btn-secondary'} khPlay" data-play="${stage}"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>` +
+        `<span>${escapeHtml(st.state === 'next' ? L(`Etage ${stage} spielen`, `Play floor ${stage}`) : L(`Etage ${stage} nochmal`, `Floor ${stage} again`))}</span></button>`;
+    return `<div class="khDHead"><b class="khDTitle">${escapeHtml(L(`Etage ${stage}`, `Floor ${stage}`))}</b>${tag}</div>` +
+      `<p class="khDBots">${escapeHtml(bots)}</p>` +
+      (mods ? `<p class="khDMods" aria-label="${escapeHtml(towerModRulesText(s.mods))}">${mods}</p>` : '') +
+      `<p class="khDNote">${escapeHtml(note)}</p>` + play;
+  }
+  function towerArchiveHtml(archive) {
+    return archive.map((m) => {
+      const label = L(`${towerMonthName(m.month, true)}: ${m.cleared} von 20 Etagen, ${m.stars} von 60 Sternen${m.crowned ? ', gekrönt' : ''}`,
+        `${towerMonthName(m.month, true)}: ${m.cleared} of 20 floors, ${m.stars} of 60 stars${m.crowned ? ', crowned' : ''}`);
+      return `<li class="khArchRow${m.crowned ? ' crowned' : ''}" aria-label="${escapeHtml(label)}">` +
+        `<span class="khArchMonth">${escapeHtml(towerMonthName(m.month, true))}</span>` +
+        `<span class="khArchFloors">${escapeHtml(L(`${m.cleared}/20 Etagen`, `${m.cleared}/20 floors`))}</span>` +
+        `<span class="khArchStars">${m.stars}/60<svg class="icon" aria-hidden="true"><use href="#i-star"/></svg></span>` +
+        (m.crowned ? `<span class="khArchCrown"><svg class="icon" aria-hidden="true"><use href="#i-crown"/></svg><span>${escapeHtml(L('gekrönt', 'crowned'))}</span></span>` : '') +
+        '</li>';
+    }).join('');
+  }
+  function towerMotionOk() {
+    try { return !window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
+  }
+  function towerStored(key) {
+    try { const v = JSON.parse(storageGet(key) || 'null'); return v && typeof v === 'object' ? v : null; } catch (e) { return null; }
+  }
+  function towerMarkSeen(info) {
+    storageSet(TOWER_SEEN_KEY, JSON.stringify({ name: myName || '', month: info.month, best: info.best || {}, crowned: !!info.crowned }));
+  }
+  /** What changed since this device last showed the house: new floors land,
+   *  new stars pop, a lost try wobbles, a fresh crown lands on top. */
+  function towerEffects(info, seen) {
+    const fx = { land: [], pop: {}, wobble: 0, crown: false };
+    const name = myName || '';
+    const before = seen && seen.name === name && seen.month === info.month ? seen.best || {} : seen && seen.name === name ? null : {};
+    if (before) {
+      for (const s of info.stages) {
+        const now = Math.min(3, Number(info.best[s.stage]) || 0);
+        const was = Math.min(3, Number(before[s.stage]) || 0);
+        if (now >= 1 && was < 1) fx.land.push(s.stage);
+        else if (now > was) fx.pop[s.stage] = was;
+      }
+      fx.crown = !!info.crowned && !(seen && seen.name === name && seen.month === info.month && seen.crowned);
+    }
+    const last = towerStored(TOWER_LAST_KEY);
+    storageRemove(TOWER_LAST_KEY);
+    if (last && last.name === name && last.month === info.month && !last.stars && !(Number(info.best[last.stage]) >= 1)) fx.wobble = last.stage;
+    // The queen lands once the last dealt card has settled (khHouseParts deals them).
+    fx.crownDelay = fx.land.length ? 0.6 + (fx.land.length - 1) * Math.min(0.09, 1.2 / fx.land.length) : 0.3;
+    return fx;
+  }
+  /** The month this device showed last, if it is over and had stars: it gets collected once. */
+  function towerOldMonth(seen, info) {
+    if (!seen || seen.name !== (myName || '') || !seen.month || !(seen.month < info.month)) return null;
+    if (!towerBestSummary(seen.best, info.stages.length).cleared) return null;
+    return { month: seen.month, best: seen.best, crowned: !!seen.crowned };
+  }
+  /** "September ist vorbei": with the skip hint while the old house is collected; without
+   *  motion it stays as the only sign that a new month began. */
+  function towerCaptionHtml(old, moving) {
+    const stars = towerBestSummary(old.best).stars;
+    const line = moving ? L('Tippen: überspringen', 'Tap to skip')
+      : L(`${stars} ${stars === 1 ? 'Stern' : 'Sterne'} – jetzt unter „Frühere Monate“`, `${stars} ${stars === 1 ? 'star' : 'stars'} – now under “Earlier months”`);
+    const month = towerMonthName(old.month);
+    return `<p class="khCaption${moving ? ' moving' : ''}" role="status"><b>${escapeHtml(L(`${month} ist vorbei`, `${month} is over`))}</b> ` +
+      `<span>${escapeHtml(line)}</span></p>`;
+  }
+  let towerShowTimer = null;
+  let towerNote = null; // the month that ended, noted without motion until the sheet closes
+  /** The month change: the old house is collected over the new one, which fades in last;
+   *  its fade ends the show (a timer, should no animation run). A tap skips to the end. */
+  function towerPlayCollect(house, old, info, token) {
+    house.innerHTML = towerHouseSvg(info, { old }) + towerCaptionHtml(old, true);
+    house.classList.add('khBusy');
+    const layer = house.querySelector('.khNewLayer');
+    const done = (ev) => { if (ev.target === layer) towerEndShow(token); };
+    layer.addEventListener('animationend', done);
+    layer.addEventListener('animationcancel', done); // the sheet closed mid-show
+    clearTimeout(towerShowTimer);
+    towerShowTimer = setTimeout(() => towerEndShow(token), KH_COLLECT_MS + 700);
+  }
+  /** Ends a running month change at once: the new house as it stands, keyboard focus kept. */
+  function towerEndShow(token = towerFxToken) {
+    const house = el('towerHouse');
+    if (token !== towerFxToken || !house.classList.contains('khBusy')) return;
+    clearTimeout(towerShowTimer);
+    house.classList.remove('khBusy');
+    const info = towerFresh();
+    if (!info) return;
+    const active = document.activeElement;
+    const focused = active && house.contains(active) && active.dataset ? active.dataset.stage : '';
+    house.innerHTML = towerHouseSvg(info);
+    const again = focused && house.querySelector(`[data-stage="${focused}"]`);
+    if (again) again.focus();
+  }
+  function renderTowerDetail(info) {
+    el('towerDetail').innerHTML = info ? towerDetailHtml(info, towerSelected || towerDefaultSelection(info)) : '';
+  }
+  // The star levels (BotTower.starsFor): generic in the help fold, exact for a floor
+  // at the table - its head start, and goOut leaves no 2-star outcome.
+  function towerStarRulesHtml({ clearMargin, handicap = null, goOut = false }) {
+    const stars = (k) => `<span class="khRuleStars" aria-hidden="true">${'<svg class="icon"><use href="#i-star"/></svg>'.repeat(k)}</span>`;
+    const li = (k, de, en, cls = '') => `<li${cls ? ` class="${cls}"` : ''}>${stars(k)}<span>${escapeHtml(L(de, en))}</span></li>`;
+    const m = clearMargin;
+    const h = handicap;
+    if (h === null) {
+      return '<ul class="khRuleList">' +
+        li(1, '1 Stern: mehr Punkte als jeder Bot samt Vorgabe', '1 star: more points than every bot plus its head start') +
+        li(2, `2 Sterne: mindestens ${m} Punkte vorn`, `2 stars: at least ${m} points ahead`) +
+        li(3, '3 Sterne: dazu selbst ausmachen', '3 stars: and go out yourself') + '</ul>';
+    }
+    const beat = h ? L(`mehr Punkte als jeder Bot samt ${h} Vorgabe`, `more points than every bot plus its ${h} head start`)
+      : L('mehr Punkte als jeder Bot', 'more points than every bot');
+    if (goOut) {
+      return '<ul class="khRuleList">' +
+        li(1, `1 Stern: selbst ausmachen und ${beat}`, `1 star: go out yourself with ${beat}`) +
+        li(2, '2 Sterne: gibt es hier nicht – ohne Ausmachen kein Stern', '2 stars: not on this floor – no star without going out', 'off') +
+        li(3, `3 Sterne: selbst ausmachen und mindestens ${m} Punkte vorn`, `3 stars: go out yourself at least ${m} points ahead`) + '</ul>';
+    }
+    return '<ul class="khRuleList">' +
+      li(1, `1 Stern: ${beat}`, `1 star: ${beat}`) +
+      li(2, `2 Sterne: mindestens ${m} Punkte vorn`, `2 stars: at least ${m} points ahead`) +
+      li(3, '3 Sterne: dazu selbst ausmachen', '3 stars: and go out yourself') + '</ul>';
+  }
+  // The help fold: intro, star levels and floor-11 handicaps as lists, then the rest.
+  function towerRulesHtml(info) {
+    const n = info.stages.length;
+    const p = (de, en) => `<p>${escapeHtml(L(de, en))}</p>`;
+    return p(`Jeden Monat neue Blätter gegen dieselben Bots: ${n} Etagen, jede eine Runde.`, `New deals every month against the same bots: ${n} floors, one round each.`) +
+      towerStarRulesHtml({ clearMargin: info.clearMargin }) +
+      p('Ein Stern macht die nächste Etage frei. Versuche sind unbegrenzt, der beste zählt.', 'One star unlocks the next floor. Tries are unlimited, the best counts.') +
+      p('Ab Etage 11 gilt eine Sonderregel – ein Risiko oder eine Erschwernis:', 'From floor 11 a special rule applies – a risk or a handicap:') +
+      '<ul class="khRuleList">' +
+      Object.keys(TOWER_MODS).map((m) => '<li class="dot"><span>' + escapeHtml(towerModRuleLine(m)) + '</span></li>').join('') +
+      '</ul>' +
+      p(`Der erste Stern jeder Etage bringt pro Monat einmal ${XP_RULES.towerFirstStar} EP; alle ${n} Etagen krönen dein Kartenhaus (+${XP_RULES.towerCrown} EP).`,
+        `The first star of each floor pays ${XP_RULES.towerFirstStar} XP once a month; all ${n} floors crown your House of Cards (+${XP_RULES.towerCrown} XP).`);
   }
   function renderTower() {
     const info = towerFresh();
-    const size = info ? info.stages.length : 0;
-    el('towerSummary').textContent = info
-      ? L(`${info.stars}/${size * 3} Sterne · ${info.cleared} von ${size} Stufen geschafft`, `${info.stars}/${size * 3} stars · ${info.cleared} of ${size} stages cleared`)
-      : L('Lädt …', 'Loading …');
-    // The top of the tower first: you climb it.
-    el('towerList').innerHTML = info ? [...info.stages].reverse().map((s) => towerRowHtml(s, info)).join('') : '';
-    el('towerRules').textContent = info
-      ? L(`Ein Stern: mehr Punkte als jeder Bot samt Vorgabe. Zwei: mindestens ${info.clearMargin} Punkte vorn. Drei: dazu selbst ausmachen. Jede Stufe ist eine Runde mit immer demselben Blatt; ab einem Stern ist die nächste frei. Versuche unbegrenzt, der beste zählt. Der erste Stern jeder Stufe bringt einmal ${XP_RULES.towerFirstStar} EP.`,
-        `One star: more points than every bot plus its head start. Two: at least ${info.clearMargin} points ahead. Three: and go out yourself. Each stage is one round with the same deal every time; one star unlocks the next. Unlimited tries, the best counts. The first star of each stage pays ${XP_RULES.towerFirstStar} XP once.`)
-      : '';
-    if (info && towerScrollPending && !el('towerOverlay').classList.contains('hidden')) {
-      towerScrollPending = false;
-      const target = el('towerList').querySelector('.twStage.next') || el('towerList').querySelector('.twStage:not(.locked)');
-      if (target && target.scrollIntoView) target.scrollIntoView({ block: 'nearest' });
+    const max = info ? info.stages.length * 3 : 0;
+    el('towerMonth').textContent = info ? towerMonthName(info.month, true) : '';
+    const days = info ? towerDaysLeftText(info.today) : '';
+    el('towerSummary').innerHTML = info
+      ? `<b>${info.stars} / ${max}</b> ${escapeHtml(L('Sternen diesen Monat', 'stars this month'))}${days ? ` · ${escapeHtml(days)}` : ''}`
+      : escapeHtml(L('Lädt …', 'Loading …'));
+    el('towerRules').innerHTML = info ? towerRulesHtml(info) : '';
+    const archive = (info && info.archive) || [];
+    el('towerArchive').innerHTML = towerArchiveHtml(archive);
+    el('towerArchiveBox').classList.toggle('hidden', !archive.length);
+    const house = el('towerHouse');
+    if (!info) { towerFxToken++; house.classList.remove('khBusy'); house.innerHTML = ''; renderTowerDetail(null); return; }
+    const open = !el('towerOverlay').classList.contains('hidden');
+    // The first drawing after opening may move; so may a newer month arriving while the
+    // sheet shows an older one (left open over midnight).
+    const fresh = open && (towerAnimate || (!!house.dataset.month && house.dataset.month !== info.month));
+    const animate = fresh && towerMotionOk();
+    if (fresh && !animate) storageRemove(TOWER_LAST_KEY); // seen, without motion
+    if (open) towerAnimate = false;
+    // The same house again (a second reply, a re-render): keep the drawing, so a
+    // running animation is not cut off.
+    const sig = towerHouseSig(info);
+    if (!fresh && house.dataset.sig === sig && house.firstChild) {
+      if (open) towerMarkSeen(info);
+      renderTowerDetail(info);
+      return;
     }
+    house.dataset.sig = sig;
+    house.dataset.month = info.month;
+    const token = ++towerFxToken;
+    house.classList.remove('khBusy');
+    const seen = fresh ? towerStored(TOWER_SEEN_KEY) : null;
+    // A new month: the last house this device showed is collected once (seen is marked below);
+    // without motion a note says so, and stays while the sheet is open.
+    const old = towerOldMonth(seen, info);
+    if (old && !animate) towerNote = old;
+    if (towerNote && towerNote.month >= info.month) towerNote = null;
+    if (old && animate) towerPlayCollect(house, old, info, token);
+    else house.innerHTML = towerHouseSvg(info, animate ? towerEffects(info, seen) : {}) + (towerNote ? towerCaptionHtml(towerNote, false) : '');
+    if (open) towerMarkSeen(info);
+    renderTowerDetail(info);
+  }
+  function towerHouseSig(info) {
+    return JSON.stringify([lang, info.month, info.best, info.crowned, info.unlocked, towerSelected, info.closed || {}]);
   }
   function openTowerSheet() {
     if (publicMode) return;
-    if (!towerFresh()) requestTower();
+    requestTower(); // fresh stars and the day count; the cached data draws meanwhile
     el('progressOverlay').classList.add('hidden');
     el('towerOverlay').classList.remove('hidden');
-    towerScrollPending = true;
+    towerSelected = 0;
+    towerAnimate = true;
+    towerNote = null;
     renderTower();
   }
-  function startTowerStage(stage) {
+  function closeTowerSheet() {
+    towerEndShow(); // a month change still running ends with the sheet, so does its note
+    towerNote = null;
     el('towerOverlay').classList.add('hidden');
+  }
+  function startTowerStage(stage) {
+    closeTowerSheet();
     send({ type: 'startTower', stage, name: currentName(), accountToken: accountToken() || undefined });
   }
-  el('towerList').addEventListener('click', (ev) => {
-    const btn = ev.target.closest('.twStage');
-    if (!btn) return;
-    if (btn.classList.contains('locked')) {
-      const open = (towerFresh() || {}).unlocked || 1;
-      showToast(L(`Noch gesperrt - schaff erst Stufe ${open}.`, `Still locked - clear stage ${open} first.`));
-      return;
+  /** A tap or Enter on a floor shows its detail (it never starts it). */
+  function selectTowerFloor(stage) {
+    const info = towerFresh();
+    if (!info || !stage) return;
+    towerSelected = stage;
+    for (const g of el('towerHouse').querySelectorAll('[data-stage]')) {
+      const on = Number(g.dataset.stage) === stage;
+      g.classList.toggle('sel', on);
+      g.setAttribute('aria-pressed', String(on));
     }
-    const stage = Number(btn.dataset.stage);
+    el('towerHouse').dataset.sig = towerHouseSig(info);
+    renderTowerDetail(info);
+  }
+  // A tap during the month change skips to its end; that tap never picks a floor.
+  let towerSkipTap = false;
+  el('towerHouse').addEventListener('pointerdown', () => {
+    towerSkipTap = el('towerHouse').classList.contains('khBusy');
+    if (towerSkipTap) towerEndShow();
+  }, true);
+  el('towerHouse').addEventListener('click', (ev) => {
+    if (towerSkipTap || el('towerHouse').classList.contains('khBusy')) { towerSkipTap = false; towerEndShow(); return; }
+    const g = ev.target.closest && ev.target.closest('[data-stage]');
+    if (g) selectTowerFloor(Number(g.dataset.stage));
+  });
+  el('towerHouse').addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    const g = ev.target.closest && ev.target.closest('[data-stage]');
+    if (!g) return;
+    ev.preventDefault();
+    if (el('towerHouse').classList.contains('khBusy')) towerEndShow();
+    else selectTowerFloor(Number(g.dataset.stage));
+  });
+  el('towerDetail').addEventListener('click', (ev) => {
+    const btn = ev.target.closest('[data-play]');
+    if (!btn) return;
+    const stage = Number(btn.dataset.play);
     guardOpenGame('tower', () => startTowerStage(stage));
   });
-  el('towerCloseBtn').addEventListener('click', () => el('towerOverlay').classList.add('hidden'));
+  el('towerCloseBtn').addEventListener('click', closeTowerSheet);
   el('towerOverlay').addEventListener('click', (ev) => {
-    if (ev.target === el('towerOverlay')) el('towerOverlay').classList.add('hidden');
+    if (ev.target === el('towerOverlay')) closeTowerSheet();
   });
-  /** Leaves a finished stage through a reload (the socket belongs to that table):
-   *  'open' shows the tower, a stage number starts that stage. */
+  /** Leaves a finished floor through a reload (the socket belongs to that table):
+   *  'open' shows the house, a floor number starts that floor. */
   function leaveTowerFor(next) {
     storageSet(AFTER_TOWER_KEY, String(next));
     if (sessionCode && storageGet('pikdame_last_session') === sessionCode) storageRemove('pikdame_last_session');
@@ -8097,7 +9118,7 @@
     if (Number.isInteger(stage) && stage > 0) guardOpenGame('tower', () => startTowerStage(stage));
     else openTowerSheet();
   }
-  /** The stage verdict on the result sheet: stars, the sum behind them, the way on. */
+  /** The floor verdict on the result sheet: stars, the sum behind them, the way on. */
   function renderTowerResult() {
     const body = el('resultBody');
     const old = body.querySelector('.towerResultBox');
@@ -8114,28 +9135,34 @@
       : r.margin < 0
         ? L(`${-r.margin} Punkte hinten`, `${-r.margin} points behind`)
         : L('Gleichstand reicht nicht', 'a tie is not enough');
-    const hint = [
-      L('Für einen Stern brauchst du mehr Punkte als jeder Bot samt Vorgabe.', 'For a star you need more points than every bot plus its head start.'),
-      L(`Für zwei Sterne: mindestens ${r.clearMargin} Punkte vorn.`, `For two stars: at least ${r.clearMargin} points ahead.`),
-      L('Für drei Sterne: zusätzlich selbst ausmachen.', 'For three stars: also go out yourself.'),
-      L('Alle drei Sterne - besser geht es nicht.', 'All three stars - it does not get better.'),
-    ][r.stars] || '';
+    const mustGoOut = (r.mods || []).includes('goOut');
+    const hint = mustGoOut && r.margin > 0 && !r.wentOut
+      ? L('Vorn, aber auf dieser Etage gibt es Sterne nur, wenn du selbst ausmachst.', 'Ahead, but on this floor stars need you to go out yourself.')
+      : [
+        L('Für einen Stern brauchst du mehr Punkte als jeder Bot samt Vorgabe.', 'For a star you need more points than every bot plus its head start.'),
+        L(`Für zwei Sterne: mindestens ${r.clearMargin} Punkte vorn.`, `For two stars: at least ${r.clearMargin} points ahead.`),
+        L('Für drei Sterne: zusätzlich selbst ausmachen.', 'For three stars: also go out yourself.'),
+        L('Alle drei Sterne - besser geht es nicht.', 'All three stars - it does not get better.'),
+      ][r.stars] || '';
     const pr = r.progress;
     const unlocked = pr ? pr.unlocked : (towerFresh() || {}).unlocked || r.stage;
     const best = pr && pr.best ? Number(pr.best[r.stage]) || 0 : r.stars;
     const bestLine = pr && pr.improved && r.stars
-      ? L('Neuer Bestwert für diese Stufe!', 'New best for this stage!')
+      ? L('Neuer Bestwert für diese Etage!', 'New best for this floor!')
       : best > r.stars ? L(`Dein Bestwert hier bleibt bei ${best} Sternen.`, `Your best here stays at ${best} stars.`) : '';
     box.innerHTML =
       `<div class="twResultStars" role="img" aria-label="${escapeHtml(L(`${r.stars} von 3 Sternen`, `${r.stars} of 3 stars`))}">${towerStarsHtml(r.stars)}</div>` +
       `<p class="twResultSum">${escapeHtml(L(`Du ${r.myScore} · ${botLine}`, `You ${r.myScore} · ${botLine}`))} <b>${escapeHtml(verdict)}</b></p>` +
       (bestLine ? `<p class="twResultBest">${escapeHtml(bestLine)}</p>` : '') +
-      (r.xp ? `<p class="twResultXp">${escapeHtml(L(`+${r.xp} EP · erster Stern`, `+${r.xp} XP · first star`))}</p>` : '') +
+      (pr && pr.crownedNow ? `<p class="twResultBest">${escapeHtml(L('Alle 20 Etagen - dein Kartenhaus ist gekrönt!', 'All 20 floors - your House of Cards is crowned!'))}</p>` : '') +
+      (r.xp ? `<p class="twResultXp">${escapeHtml(pr && pr.crownedNow
+        ? L(`+${r.xp} EP · erster Stern und Krone`, `+${r.xp} XP · first star and crown`)
+        : L(`+${r.xp} EP · erster Stern`, `+${r.xp} XP · first star`))}</p>` : '') +
       `<p class="twResultHint">${escapeHtml(hint)}</p>` +
       `<div class="twResultActions">` +
       `<button type="button" class="btn-secondary twRetry"><svg class="icon" aria-hidden="true"><use href="#i-undo"/></svg><span>${escapeHtml(L('Nochmal', 'Try again'))}</span></button>` +
       (r.stage < unlocked
-        ? `<button type="button" class="btn-secondary twNext"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>${escapeHtml(L(`Stufe ${r.stage + 1}`, `Stage ${r.stage + 1}`))}</span></button>`
+        ? `<button type="button" class="btn-secondary twNext"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>${escapeHtml(L(`Etage ${r.stage + 1}`, `Floor ${r.stage + 1}`))}</span></button>`
         : '') +
       `</div>`;
     box.querySelector('.twRetry').addEventListener('click', () => leaveTowerFor(r.stage));
@@ -8147,6 +9174,351 @@
     requestAnimationFrame(() => updateResultScrollEdges());
   }
 
+  // --- Kartenhaus at the table: floor card, start card, rules sheet, hints ----
+  const TOWER_INTRO_KEY = 'pikdame_tower_intro'; // the session whose start card was handled
+  const TOWER_FOLD_KEY = 'pikdame_tower_fold'; // 'full' | 'compact': the player's own tap beats the automatic fold
+  // '1': the floor card is off the table on every floor (its ✕) until its sheet shows it again; the fold key stays as it was.
+  const TOWER_HIDE_KEY = 'pikdame_tower_hidden';
+  let towerStartOpen = false;
+  let towerIntroHandled = ''; // also without storage (private mode)
+  let towerInfoAskedFor = '';
+  let towerSpotOn = false;
+  let towerSpotTimer = null;
+  let towerFoldChoice = ''; // also without storage (private mode)
+  let towerFoldTimer = null;
+  let towerHideChoice = null; // null: storage decides (true/false also without storage)
+  let towerBarLeaving = false; // the ✕'s fade runs: the table keeps the floor card's layout until it ends
+  const towerModShort = (m) => (TOWER_MOD_SHORT[m] || TOWER_MODS[m])();
+  const towerModToken = (m) => `<span class="tfTok ${towerModKind(m)}" aria-hidden="true"><svg class="icon"><use href="#i-${TOWER_MOD_ICON[m]}"/></svg></span>`;
+  // Risks first, then handicaps; each group with its heading (start card, sheet, label).
+  const towerModGroups = (mods) => ['risk', 'handicap']
+    .map((kind) => ({ kind, mods: mods.filter((m) => towerModKind(m) === kind) })).filter((g) => g.mods.length);
+  const towerModGroupHead = (g) => (g.kind === 'risk' ? L('Risiko', 'Risk')
+    : g.mods.length > 1 ? L('Erschwernisse', 'Handicaps') : L('Erschwernis', 'Handicap'));
+
+  /** The floor being played: the state is the truth, this month's best stars come from the house. */
+  function towerFloor() {
+    const st = lastState;
+    if (!st || !st.towerStage || st.phase === 'lobby') return null;
+    const info = towerFresh();
+    const best = info && (!st.towerMonth || info.month === st.towerMonth) && info.best ? Number(info.best[st.towerStage]) || 0 : 0;
+    return {
+      stage: st.towerStage,
+      handicap: Number(st.towerHandicap) || 0,
+      clearMargin: Number(st.towerClearMargin) || (info && info.clearMargin) || 0,
+      mods: (Array.isArray(st.towerMods) ? st.towerMods : []).filter((m) => TOWER_MODS[m]),
+      bots: (st.players || []).filter((p) => p.isBot).map((p) => p.botDifficulty || 'zen'),
+      best: Math.max(0, Math.min(3, Math.floor(best))),
+    };
+  }
+  /** The floor as a playing card: its number the rank, the house the suit, the best stars at the foot. */
+  function towerFloorCardHtml(f, size = '') {
+    const rim = towerRim(f.mods); // the same rim as the card in the house
+    return `<span class="tfCard${rim ? ` ${rim}` : ''}${size ? ` ${size}` : ''}" aria-hidden="true">` +
+      `<span class="tfRank"><b>${f.stage}</b><svg class="icon"><use href="#i-cardhouse"/></svg></span>` +
+      '<svg class="icon tfPip"><use href="#i-cardhouse"/></svg>' +
+      `<span class="tfStars">${towerStarsHtml(f.best)}</span></span>`;
+  }
+  function towerFloorAria(f) {
+    const stars = f.best ? L(`Bestwert ${f.best} von 3 Sternen`, `best ${f.best} of 3 stars`) : L('noch kein Stern', 'no star yet');
+    const head = f.handicap ? L(`Vorgabe ${f.handicap}`, `head start ${f.handicap}`) : L('ohne Vorgabe', 'no head start');
+    const mods = towerModGroups(f.mods).map((g) => `, ${towerModGroupHead(g)}: ${g.mods.map(towerModName).join(', ')}`).join('');
+    return L(`Kartenhaus, Etage ${f.stage}: ${stars}, ${head}${mods}. Regeln anzeigen`,
+      `House of Cards, floor ${f.stage}: ${stars}, ${head}${mods}. Show the rules`);
+  }
+  function renderTowerBar(f) {
+    const bar = el('towerBar');
+    bar.classList.toggle('hidden', !f);
+    if (!f) { bar.dataset.sig = ''; bar.dataset.fold = ''; return; }
+    const sig = JSON.stringify([lang, f.stage, f.handicap, f.mods, f.best]);
+    if (bar.dataset.sig !== sig) {
+      bar.dataset.sig = sig;
+      bar.dataset.fold = '';
+      const goal = f.handicap ? L(`Vorgabe <b>${f.handicap}</b>`, `Head start <b>${f.handicap}</b>`) : escapeHtml(L('Ohne Vorgabe', 'No head start'));
+      const mods = f.mods.map((m) => `<span class="tfMod">${towerModToken(m)}<span class="tfLbl">${escapeHtml(towerModShort(m))}</span></span>`).join('');
+      const body = '<span class="tbSlot" aria-hidden="true"></span>' +
+        `<span class="tfCol"><span class="tfCap">${escapeHtml(towerName())}</span><span class="tfGoal">${goal}</span>` +
+        `${mods ? `<span class="tfMods">${mods}</span>` : ''}</span>`;
+      // Two targets: the card (its rules) lies on the slot of the fold button. Without tokens nothing folds.
+      // The ✕ sits in the corner both leave free (style.css).
+      bar.innerHTML = `<button type="button" class="tbCard" aria-haspopup="dialog">${towerFloorCardHtml(f)}</button>` +
+        (mods ? `<button type="button" class="tbFold">${body}</button>` : `<span class="tbFold">${body}</span>`) +
+        `<button type="button" class="tbHide" aria-label="${escapeHtml(L('Kartenhaus-Etage ausblenden', 'Hide the House of Cards floor'))}"` +
+        ` title="${escapeHtml(L('Ausblenden – zurück über das Zahnrad', 'Hide – bring it back via the gear'))}">` +
+        '<svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>';
+    }
+    bar.querySelector('.tbCard').setAttribute('aria-label', towerFloorAria(f));
+    applyTowerFold(bar);
+  }
+  /** Which of my own turns this round runs or ran last: 1 = the first, 0 = not yet. */
+  function towerOwnTurn(st) {
+    const ps = (st && st.players) || [];
+    const n = ps.length;
+    const me = ps.findIndex((p) => p.id === playerId);
+    if (!n || me < 0) return 0;
+    const opener = (ps.findIndex((p) => p.id === st.dealerId) + 1) % n; // the seat after the dealer opens the round
+    const t = (Number(st.turnIndexInRound) || 0) - ((me - opener + n) % n);
+    return t < 0 ? 0 : Math.floor(t / n) + 1;
+  }
+  /** In full for the round's first own turn, folded from the second; the player's own tap wins from then on. */
+  function applyTowerFold(bar) {
+    const fold = bar.querySelector('button.tbFold');
+    const own = towerFoldChoice || storageGet(TOWER_FOLD_KEY);
+    const compact = !!fold && (own === 'compact' || (own !== 'full' && towerOwnTurn(lastState) >= 2));
+    const now = compact ? 'compact' : 'full';
+    if (bar.dataset.fold === now) return;
+    // Never on the first paint: a resume mid-floor opens folded at once.
+    foldTowerBar(bar, compact, !!bar.dataset.fold && towerMotionOk());
+    bar.dataset.fold = now;
+  }
+  /** Card, tokens and ✕ glide to their new places (FLIP), the words fade back in; reduced motion: at once. */
+  function foldTowerBar(bar, compact, glide) {
+    const fold = bar.querySelector('button.tbFold');
+    const parts = glide ? [...bar.querySelectorAll('.tfCard, .tfTok, .tbHide')] : [];
+    const from = parts.map((n) => n.getBoundingClientRect());
+    bar.classList.toggle('tbCompact', compact);
+    if (fold) {
+      fold.setAttribute('aria-expanded', String(!compact));
+      fold.title = compact ? L('Ausklappen', 'Expand') : L('Einklappen', 'Collapse');
+    }
+    parts.forEach((n, i) => {
+      const to = n.getBoundingClientRect();
+      const dx = from[i].left - to.left;
+      const dy = from[i].top - to.top;
+      if ((dx || dy) && typeof n.animate === 'function') {
+        n.animate([{ translate: `${dx}px ${dy}px` }, { translate: '0 0' }], { duration: 320, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+      }
+    });
+    clearTimeout(towerFoldTimer);
+    bar.classList.remove('tbUnfold');
+    if (glide && !compact) {
+      void bar.offsetWidth; // restart the fade-in
+      bar.classList.add('tbUnfold');
+      towerFoldTimer = setTimeout(() => bar.classList.remove('tbUnfold'), 600);
+    }
+  }
+  /** A tap folds or unfolds; from then on that is the player's choice on every floor (one key). */
+  function toggleTowerFold() {
+    const bar = el('towerBar');
+    if (!bar.querySelector('button.tbFold')) return;
+    towerFoldChoice = bar.classList.contains('tbCompact') ? 'full' : 'compact';
+    storageSet(TOWER_FOLD_KEY, towerFoldChoice);
+    applyTowerFold(bar);
+  }
+  function towerBarHidden() {
+    return towerHideChoice === null ? storageGet(TOWER_HIDE_KEY) === '1' : towerHideChoice;
+  }
+  function setTowerBarHidden(hidden) {
+    towerHideChoice = hidden;
+    if (hidden) storageSet(TOWER_HIDE_KEY, '1'); else storageRemove(TOWER_HIDE_KEY);
+  }
+  /** FLIP: the piles and the opponents' chips glide from where they were to where `change` puts them. */
+  function glideTowerTable(change) {
+    const parts = towerMotionOk() ? [el('drawPile'), el('discardPile'), ...el('opponents').children] : [];
+    const from = parts.map((n) => n.getBoundingClientRect());
+    change();
+    parts.forEach((n, i) => {
+      const to = n.getBoundingClientRect();
+      const dx = from[i].left - to.left;
+      const dy = from[i].top - to.top;
+      if ((dx || dy) && typeof n.animate === 'function') {
+        n.animate([{ translate: `${dx}px ${dy}px` }, { translate: '0 0' }], { duration: 130, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+      }
+    });
+  }
+  /** ✕: off the table on every floor, the normal table's layout back. The lock and its refusals stay;
+   *  the way back is the floor's sheet from the gear (a toast and the turning gear say so). */
+  function hideTowerBar() {
+    const bar = el('towerBar');
+    if (towerBarHidden() || bar.classList.contains('hidden')) return;
+    setTowerBarHidden(true);
+    if (bar.contains(document.activeElement)) el('settingsBtn').focus({ preventScroll: true }); // keyboard: on to the way back
+    showToast(L('Etage ausgeblendet – zurück über das Zahnrad oben rechts.',
+      'Floor hidden – bring it back via the gear at the top right.'), { duration: 4500, priority: true });
+    if (!towerMotionOk() || typeof bar.animate !== 'function') { renderTowerTable(); return; }
+    const gear = el('settingsBtn');
+    gear.classList.remove('towerNudge');
+    void gear.offsetWidth; // restart the turn
+    gear.classList.add('towerNudge');
+    setTimeout(() => gear.classList.remove('towerNudge'), 800);
+    // 120 ms fade, then 130 ms for the piles: the whole move stays within 250 ms.
+    towerBarLeaving = true;
+    const fade = bar.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(0.92)' }],
+      { duration: 120, easing: 'ease-in', fill: 'forwards' });
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      towerBarLeaving = false;
+      glideTowerTable(renderTowerTable);
+      fade.cancel(); // after the render hid it: no flash at full opacity
+    };
+    fade.onfinish = finish;
+    setTimeout(finish, 400); // a background tab may never finish the fade
+  }
+  /** The floor sheet's "Am Tisch anzeigen": back beside the piles, dealt in as after the start card. */
+  function showTowerBarAgain() {
+    el('towerFloorOverlay').classList.add('hidden');
+    if (!towerBarHidden()) return;
+    setTowerBarHidden(false);
+    glideTowerTable(renderTowerTable);
+    const bar = el('towerBar');
+    if (towerMotionOk()) {
+      bar.classList.add('tfEnter');
+      setTimeout(() => bar.classList.remove('tfEnter'), 700);
+    }
+  }
+  /** The very start of a try: the round runs, nobody moved yet, my draw. */
+  function towerAtStart(st) {
+    return st.phase === 'playing' && !st.turnIndexInRound && st.currentPlayerId === playerId && st.turnPhase === 'draw';
+  }
+  /** Once per try (a new try is a new session): shown at its start, never after a resume mid-floor. */
+  function updateTowerStart(f) {
+    const st = lastState;
+    const code = sessionCode || '';
+    if (f && code && towerIntroHandled !== code && storageGet(TOWER_INTRO_KEY) !== code) {
+      const fresh = towerAtStart(st);
+      if (fresh || st.phase !== 'cutting') {
+        towerIntroHandled = code;
+        storageSet(TOWER_INTRO_KEY, code);
+        if (fresh) openTowerStart(f);
+      }
+    }
+    if (towerStartOpen && (!f || !towerAtStart(st))) closeTowerStart(true);
+  }
+  function openTowerStart(f) {
+    towerStartOpen = true;
+    if (f.mods.includes('queen')) setTowerSpot(true);
+  }
+  /** "Los" lets the mark linger a moment; the first move ends it at once (cards get picked). */
+  function closeTowerStart(moved = false) {
+    if (!towerStartOpen) return;
+    towerStartOpen = false;
+    el('towerStart').classList.add('hidden');
+    el('table').classList.remove('towerStartOpen');
+    const bar = el('towerBar');
+    if (towerMotionOk()) {
+      bar.classList.add('tfEnter');
+      setTimeout(() => bar.classList.remove('tfEnter'), 700);
+    }
+    if (towerSpotOn) setTowerSpot(!moved, 1500);
+  }
+  /** "Pik Dame": the dealt queen stays marked while the start card explains it. */
+  function setTowerSpot(on, ms = 0) {
+    clearTimeout(towerSpotTimer);
+    towerSpotOn = on;
+    document.querySelectorAll('#hand .card.pikdame-card').forEach((q) => q.classList.toggle('towerSpot', on));
+    el('hand').classList.toggle('towerSpotOn', on); // the rest of the fan dims, as under the tutorial spotlight
+    if (on && ms) towerSpotTimer = setTimeout(() => setTowerSpot(false), ms);
+  }
+  function renderTowerStart(f) {
+    const box = el('towerStart');
+    const open = towerStartOpen && !!f;
+    box.classList.toggle('hidden', !open);
+    el('table').classList.toggle('towerStartOpen', open);
+    if (!open) { box.dataset.sig = ''; return; }
+    const sig = JSON.stringify([lang, f.stage, f.handicap, f.mods, f.best]);
+    if (box.dataset.sig === sig) return;
+    box.dataset.sig = sig;
+    el('towerStartCard').innerHTML = towerFloorCardHtml(f, 'big');
+    el('towerStartTitle').textContent = L(`Etage ${f.stage}`, `Floor ${f.stage}`);
+    // goOut belongs to the goal itself: no star without going out.
+    const out = f.mods.includes('goOut');
+    const h = `<b>${f.handicap}</b>`;
+    el('towerStartGoal').innerHTML = f.handicap
+      ? (out ? L(`Ziel: selbst ausmachen und mehr Punkte als jeder Bot samt ${h} Vorgabe.`, `Goal: go out yourself with more points than every bot plus its ${h} head start.`)
+        : L(`Ziel: mehr Punkte als jeder Bot samt ${h} Vorgabe.`, `Goal: more points than every bot plus its ${h} head start.`))
+      : escapeHtml(out ? L('Ziel: selbst ausmachen und mehr Punkte als jeder Bot.', 'Goal: go out yourself with more points than every bot.')
+        : L('Ziel: mehr Punkte als jeder Bot.', 'Goal: more points than every bot.'));
+    el('towerStartMods').innerHTML = towerModGroups(f.mods).map((g) =>
+      `<div class="tsGroup ${g.kind}"><p class="tsModsHead">${escapeHtml(towerModGroupHead(g))}</p><ul>` +
+      g.mods.map((m) => `<li><span class="tfMod ${g.kind}">${towerModToken(m)}<span>${escapeHtml(towerModName(m))}</span></span>` +
+        `<span class="tsWhy">${escapeHtml(TOWER_MOD_WHY[m]())}</span></li>`).join('') + '</ul></div>').join('');
+  }
+  /** The floor's rules (tap on the floor card): stars, bots, head start, each handicap exactly. */
+  function renderTowerFloorSheet(f) {
+    const overlay = el('towerFloorOverlay');
+    if (!f) { overlay.classList.add('hidden'); return; }
+    if (overlay.classList.contains('hidden')) return;
+    // Hidden by its ✕, the card comes back from here (the gear's row opens this sheet).
+    const showBtn = el('towerFloorShowBtn');
+    if (showBtn) showBtn.classList.toggle('hidden', !towerBarHidden());
+    el('towerFloorTitleText').textContent = L(`Kartenhaus · Etage ${f.stage}`, `House of Cards · floor ${f.stage}`);
+    const h3 = (de, en) => `<h3>${escapeHtml(L(de, en))}</h3>`;
+    const p = (text, cls = '') => `<p${cls ? ` class="${cls}"` : ''}>${escapeHtml(text)}</p>`;
+    const best = f.best
+      ? L(`Dein Bestwert diesen Monat: ${f.best} von 3 Sternen`, `Your best this month: ${f.best} of 3 stars`)
+      : L('Auf dieser Etage hast du diesen Monat noch keinen Stern.', 'No star on this floor yet this month.');
+    // Sections never split (two columns in landscape).
+    const sec = (html) => `<div class="tfsSec">${html}</div>`;
+    el('towerFloorBody').innerHTML =
+      sec(`<div class="tfsHead">${towerFloorCardHtml(f)}<p>${escapeHtml(best)}</p></div>`) +
+      sec(h3('So holst du Sterne', 'How to earn stars') +
+        towerStarRulesHtml({ clearMargin: f.clearMargin, handicap: f.handicap, goOut: f.mods.includes('goOut') })) +
+      sec(h3('Gegner', 'Opponents') + p(towerBotsLine(f.bots, 0)) +
+        (f.handicap ? p(L(`Vorgabe ${f.handicap}: Für einen Stern brauchst du mehr Punkte als der beste Bot plus ${f.handicap}.`,
+          `Head start ${f.handicap}: for a star you need more points than the best bot plus ${f.handicap}.`), 'tfsNote') : '')) +
+      towerModGroups(f.mods).map((g) => sec(`<h3>${escapeHtml(towerModGroupHead(g))}</h3><ul class="tfsMods">` +
+        g.mods.map((m) => `<li>${towerModToken(m)}<span><b class="${g.kind}">${escapeHtml(towerModName(m))}:</b> ${escapeHtml(TOWER_MOD_RULE[m]())}</span></li>`).join('') + '</ul>')).join('') +
+      sec(p(L('Jeder Versuch spielt dasselbe Blatt, der beste zählt.', 'Every try plays the same deal, the best one counts.'), 'tfsNote'));
+  }
+  function openTowerFloorSheet() {
+    const f = towerFloor();
+    if (!f) return;
+    el('towerFloorOverlay').classList.remove('hidden');
+    renderTowerFloorSheet(f);
+  }
+  /** "Ohne Ablage": a tap on the locked pile says why instead of doing nothing. */
+  function explainTowerLock() {
+    showToast(L('Erschwernis „Ohne Ablage“: Auf dieser Etage ziehst du immer vom Stapel – die Ablage bleibt für dich gesperrt.',
+      'Handicap “No discard pile”: on this floor you always draw from the stock – the discard pile stays locked for you.'), { duration: 4500, priority: true });
+    const lock = el('discardLock');
+    lock.classList.remove('nudge');
+    void lock.offsetWidth; // restart the nudge
+    lock.classList.add('nudge');
+  }
+  /** Everything Kartenhaus on the table; part of every table render (and the language switch). */
+  function renderTowerTable() {
+    const f = towerFloor();
+    // Hidden by its ✕: the normal table's layout (towerGame is layout only); the lock below stays.
+    const shown = !!f && (towerBarLeaving || !towerBarHidden());
+    el('table').classList.toggle('towerGame', shown);
+    // The best stars come with the house data: ask once per game when it is missing.
+    if (f && !towerFresh() && !publicMode && towerInfoAskedFor !== `${sessionCode}|${myName}`) {
+      towerInfoAskedFor = `${sessionCode}|${myName}`;
+      requestTower();
+    }
+    updateTowerStart(f);
+    renderTowerBar(shown ? f : null);
+    renderTowerStart(f);
+    renderTowerFloorSheet(f);
+    const panelBtn = el('towerPanelBtn'); // in "Optionen" › "Dieser Tisch"
+    if (panelBtn) panelBtn.classList.toggle('hidden', !f || shown);
+    const locked = !!(f && f.mods.includes('noDiscard') && lastState.phase === 'playing');
+    el('discardPile').classList.toggle('towerLocked', locked);
+  }
+  el('towerBar').addEventListener('click', (ev) => {
+    if (ev.target.closest('.tbHide')) hideTowerBar();
+    else if (ev.target.closest('.tbCard')) openTowerFloorSheet();
+    else if (ev.target.closest('button.tbFold')) toggleTowerFold();
+  });
+  // The gear's way back: the floor's rules (Vorgabe, risk, handicaps, stars) with "Am Tisch anzeigen".
+  // Closes whichever sheet holds the row, so it can move between sheets as it is.
+  // Null-safe: cached older markup lacks both (a throw here would stop the boot).
+  if (el('towerPanelBtn')) {
+    el('towerPanelBtn').addEventListener('click', () => {
+      const sheet = el('towerPanelBtn').closest('.overlay');
+      if (sheet) sheet.classList.add('hidden');
+      openTowerFloorSheet();
+    });
+  }
+  if (el('towerFloorShowBtn')) el('towerFloorShowBtn').addEventListener('click', showTowerBarAgain);
+  el('towerStartBtn').addEventListener('click', () => closeTowerStart());
+  el('towerFloorCloseBtn').addEventListener('click', () => el('towerFloorOverlay').classList.add('hidden'));
+  el('towerFloorOverlay').addEventListener('click', (ev) => {
+    if (ev.target === el('towerFloorOverlay')) el('towerFloorOverlay').classList.add('hidden');
+  });
+
   // --- "Heute": status of the daily puzzle and challenge on their tiles ----
   let challengeToday = null; // {date, you:{rank,score}|null} from /challengeboardz
   let challengeTodayFetched = '';
@@ -8155,8 +9527,7 @@
     const key = `${(dailyQuests && dailyQuests.date) || ''}|${name}`;
     if (challengeTodayFetched === key) return;
     challengeTodayFetched = key;
-    fetch(`/challengeboardz${name ? `?name=${encodeURIComponent(name)}` : ''}`)
-      .then((r) => (r.ok ? r.json() : null))
+    fetchChallengeBoard(name)
       .then((d) => { challengeToday = d; renderToday(); })
       .catch(() => { challengeTodayFetched = ''; });
   }
@@ -8285,12 +9656,8 @@
     btn.dataset.state = storageGet(YEAR_SEEN_KEY) === yearReview.year ? 'seen' : 'new';
   }
 
-  function fmtNum(n) {
-    return Number(n || 0).toLocaleString(lang === 'en' ? 'en-GB' : 'de-DE');
-  }
   function fmtYearDay(date) {
-    const d = new Date(`${date}T12:00:00Z`);
-    return Number.isNaN(d.getTime()) ? String(date) : d.toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-DE', { day: 'numeric', month: 'long', timeZone: 'UTC' });
+    return fmtDay(date, { day: 'numeric', month: 'long', timeZone: 'UTC' });
   }
 
   /** The numbers worth a tile: always games and wins, the rest only when earned. */
@@ -8298,8 +9665,8 @@
     const t = r.totals;
     const pct = t.games ? Math.round((t.wins / t.games) * 100) : 0;
     return [
-      { value: fmtNum(t.games), label: L('Partien', 'Games') },
-      { value: fmtNum(t.wins), label: L(`Siege · ${pct} %`, `Wins · ${pct} %`) },
+      { value: fmtNum(t.games), label: unitWord(t.games, 'game').replace(/^./, (c) => c.toUpperCase()) },
+      { value: fmtNum(t.wins), label: `${unitWord(t.wins, 'win').replace(/^./, (c) => c.toUpperCase())} · ${pct} %` },
       t.queensLaid > 0 && { value: `${fmtNum(t.queensLaid)}×`, label: L('Pik Dame gerettet', 'Queen of spades rescued') },
       t.bestRound > 0 && { value: `+${fmtNum(t.bestRound)}`, label: L('Beste Runde', 'Best round') },
       t.bestStreak > 1 && { value: fmtNum(t.bestStreak), label: L('Tage Serie', 'Day streak') },
@@ -8333,7 +9700,7 @@
       slides.push({
         tone: 'bordeaux', kicker: L('Lieblingsgegner', 'Favourite opponent'), big: f.name, bigText: true, note: since,
         lines: [
-          L(`${f.games} ${f.games === 1 ? 'Partie' : 'Partien'} zusammen – ${f.wins} davon gingen an dich.`, `${f.games} ${f.games === 1 ? 'game' : 'games'} together – ${f.wins} of them went to you.`),
+          L(`${fmtCount(f.games, 'game')} zusammen – ${f.wins} davon gingen an dich.`, `${fmtCount(f.games, 'game')} together – ${f.wins} of them went to you.`),
           f.wins * 2 > f.games ? L(`Ob ${f.name} das auch so entspannt sieht?`, `Does ${f.name} take it that calmly?`) : L('Revanche? Die Katze hält die Karten bereit.', 'Rematch? The cat is holding the cards.'),
         ],
       });
@@ -8635,7 +10002,7 @@
     el('levelUpRank').classList.toggle('isNew', newTitle);
     el('levelUpXp').textContent = `${L(`Stufe ${from} → ${to}`, `Level ${from} → ${to}`)}${gainedXp ? ` · +${gainedXp} ${L('EP', 'XP')}` : ''}${welcomeBack ? ` (${L('×2 Willkommen zurück', '×2 welcome back')})` : ''}`;
     const start = levelFromXpClient(Math.max(0, beforeXp || 0));
-    const list = (items) => items.map((r) => `<li>${escapeHtml(r.label)}</li>`).join('');
+    const list = (items) => items.map((r) => `<li>${rewardHtml(r)}</li>`).join('');
     el('levelUpRewards').innerHTML =
       (got.length ? `<h3>${escapeHtml(L('Neu freigeschaltet', 'Newly unlocked'))}</h3><ul>${list(got)}</ul>` : '') +
       (next.length ? `<h3>${escapeHtml(L(`Nächste Belohnung (Stufe ${next[0].level})`, `Next reward (level ${next[0].level})`))}</h3><ul class="next">${list(next)}</ul>` : '');
@@ -8672,7 +10039,7 @@
   function celebrateProgress(msg) {
     const completed = (msg.quests && msg.quests.completed) || [];
     for (const id of completed) {
-      showToast(`✅ ${L('Tagesaufgabe geschafft', 'Daily task done')}: ${questMeta(id).text}`);
+      showToast(`✅ ${L('Tagesziel erreicht', 'Daily goal reached')}: ${questMeta(id).text}`);
     }
     const st = msg.streak;
     if (st && (st.event === 'extended' || st.event === 'bridged') && st.streak >= 2) {
@@ -8711,7 +10078,7 @@
       const at = owned[id];
       const p = progress[id];
       const sub = at
-        ? new Date(at).toLocaleDateString()
+        ? fmtDate(at, { day: 'numeric', month: 'numeric', year: 'numeric' })
         : p && p.need > 1
           ? `${p.have}/${p.need}`
           : L('gesperrt', 'locked');
@@ -8880,7 +10247,7 @@
       const m = badgeMeta(id);
       const p = progress[id];
       const state = owned[id]
-        ? `✓ ${new Date(owned[id]).toLocaleDateString()}`
+        ? `✓ ${fmtDate(owned[id], { day: 'numeric', month: 'numeric', year: 'numeric' })}`
         : p && p.need > 1 ? `${p.have}/${p.need}` : '';
       // "here" = the dot: the tier being worked on, or the last one when all are reached.
       const here = fam && (id === next || (!next && i === fam.tiers.length - 1));
@@ -8949,6 +10316,7 @@
       ...Object.fromEntries([10, 30, 100].map((n) => [`puzzle_perfect_${n}`, cap(p.totalPerfectPuzzles, n)])),
       tower_3: cap(p.towerCleared, 3), tower_6: cap(p.towerCleared, 6), tower_10: cap(p.towerCleared, 10),
       tower_stars_30: cap(p.towerStars, 30),
+      ...Object.fromEntries([1, 3, 12].map((n) => [`tower_crowned_${n}`, cap(p.towerCrownedMonths, n)])),
       red_lantern: cap(p.lastPlaceStreak, 3),
       stammtisch_10: cap(p.totalStammtischGames, 10),
     };
@@ -8971,7 +10339,7 @@
       `<div class="levelMeta">${L('Saison', 'Season')} ${escapeHtml(accountProgress.season ? seasonLabel(accountProgress.season) : '–')}: ` +
       `<b>${accountProgress.seasonXp}</b> ${L('EP', 'XP')}` +
       (accountProgress.rank ? ` · ${L('Platz', 'Rank')} <b>${accountProgress.rank}</b>` : '') +
-      ` · ${accountProgress.wins}/${accountProgress.games} ${L('Siege', 'wins')}</div>`;
+      ` · ${accountProgress.wins}/${accountProgress.games}${NBSP}${unitWord(accountProgress.games, 'win')}</div>`;
   }
 
   // Same curve as game/Progression.js - kept tiny and duplicated on purpose:
@@ -9154,10 +10522,10 @@
     const today = new Date();
     const yest = new Date();
     yest.setDate(today.getDate() - 1);
-    const time = d.toLocaleTimeString(lang === 'en' ? 'en-GB' : 'de-DE', { hour: '2-digit', minute: '2-digit' });
+    const time = d.toLocaleTimeString(localeOf(), { hour: '2-digit', minute: '2-digit' });
     if (d.toDateString() === today.toDateString()) return L(`Heute, ${time}`, `Today, ${time}`);
     if (d.toDateString() === yest.toDateString()) return L(`Gestern, ${time}`, `Yesterday, ${time}`);
-    return d.toLocaleDateString(lang === 'en' ? 'en-GB' : 'de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+    return fmtDate(d, { weekday: 'short', day: '2-digit', month: '2-digit' });
   }
   function historyGameView(g) {
     const players = g.players || [];
@@ -9215,7 +10583,7 @@
         `<span class="histOpp">${escapeHtml(v.opps.length ? L(`gegen ${v.opps.join(', ')}`, `vs ${v.opps.join(', ')}`) : L('Solo', 'Solo'))}</span>` +
         `<span class="histBars" role="img" aria-label="${escapeHtml(standingText)}">${bars}</span>` +
         `</span>` +
-        `<span class="histScore">${v.myTotal}<small>${escapeHtml(L(`${g.rounds} Runden`, `${g.rounds} rounds`))}</small></span>` +
+        `<span class="histScore">${fmtNum(v.myTotal)}<small>${escapeHtml(fmtCount(g.rounds, 'round'))}</small></span>` +
         `</button>` +
         (open ? `<div class="histDetail" data-detail="${escapeHtml(g.id)}"></div>` : '');
     };
@@ -9226,9 +10594,9 @@
       : '');
     box.innerHTML =
       `<div class="histSummary">` +
-      `<div><b>${games.length}</b><span>${L('Partien', 'Games')}</span></div>` +
-      `<div><b>${wins}</b><span>${L('Siege', 'Wins')}</span></div>` +
-      `<div><b>${avg}</b><span>${L('Ø Punkte', 'Avg. points')}</span></div>` +
+      `<div><b>${fmtNum(games.length)}</b><span>${unitWord(games.length, 'game').replace(/^./, (c) => c.toUpperCase())}</span></div>` +
+      `<div><b>${fmtNum(wins)}</b><span>${unitWord(wins, 'win').replace(/^./, (c) => c.toUpperCase())}</span></div>` +
+      `<div><b>${fmtNum(avg)}</b><span>${L('Ø Punkte', 'Avg. points')}</span></div>` +
       `</div>` +
       group(L('Letzte 7 Tage', 'Last 7 days'), recent) + group(L('Früher', 'Earlier'), older);
     // The opened game: its score chart (stored totals after each round).
@@ -9243,7 +10611,7 @@
       list.innerHTML = v.players
         .slice()
         .sort((x, y) => (v.totals[y.id] || 0) - (v.totals[x.id] || 0))
-        .map((p) => `<li class="${p === v.me ? 'me' : ''}"><span>${escapeHtml(p.name)}${v.diffOf(p) ? ` <small>${escapeHtml(v.diffOf(p).short())}</small>` : ''}</span><b>${v.totals[p.id] || 0}</b></li>`)
+        .map((p) => `<li class="${p === v.me ? 'me' : ''}"><span>${escapeHtml(p.name)}${v.diffOf(p) ? ` <small>${escapeHtml(v.diffOf(p).short())}</small>` : ''}</span><b>${fmtNum(v.totals[p.id] || 0)}</b></li>`)
         .join('');
       detail.appendChild(list);
     }
@@ -9272,12 +10640,12 @@
         : queens > 0
           ? L(`${Math.round(share * 100)} % aller Pik Damen bleiben auf der Hand hängen.`, `${Math.round(share * 100)}% of all Queens of Spades get caught in hand.`)
           : '';
-      const fmt = (v) => Number(v || 0).toLocaleString(lang === 'en' ? 'en-GB' : 'de-DE');
+      const fmt = fmtNum;
       gsBox.innerHTML =
         (punch ? `<p class="gsPunch">${punch}</p>` : '') +
         `<p class="gsLine">${L(
-          `Auf diesem Server: ${fmt(g.games)} Partien · ${fmt(g.rounds)} Runden · ${fmt(g.handAusRounds)}× Hand aus`,
-          `On this server: ${fmt(g.games)} games · ${fmt(g.rounds)} rounds · ${fmt(g.handAusRounds)}× out in one`
+          `Auf diesem Server: ${fmtCount(g.games, 'game')} · ${fmtCount(g.rounds, 'round')} · ${fmt(g.handAusRounds)}×${NBSP}Hand aus`,
+          `On this server: ${fmtCount(g.games, 'game')} · ${fmtCount(g.rounds, 'round')} · ${fmt(g.handAusRounds)}×${NBSP}out in one`
         )}</p>`;
       gsBox.classList.remove('hidden');
     } else {
@@ -9305,7 +10673,7 @@
         return `<button type="button" class="boardRow${mine ? ' isMe' : ''}" data-name="${escapeHtml(p.name)}">` +
           `<span class="boardRank">${i + 1}</span>` +
           `<span class="boardName">${nameWithHeart(p.name)}${favoriteBadgesHtml(p)}</span>` +
-          `<span class="boardNum"><b>${won}</b>/${played}</span>` +
+          `<span class="boardNum"><b>${fmtNum(won)}</b>/${fmtNum(played)}</span>` +
           `<span class="boardNum">${rate} %</span>` +
           `<span class="boardNum boardLevel">${levelFromXpClient(p.xp || 0).level}</span>` +
           `</button>`;
@@ -9316,51 +10684,62 @@
       `<div class="boardList">${rows}</div>`;
   }
 
-  // "You" first: four numbers and the trend of the last games.
+  // "You" first: three numbers once, the level as a link, the last games as W/L boxes.
   el('statsMeBox').addEventListener('click', (ev) => {
     if (ev.target.closest('[data-open="progress"]')) openProgressSheet();
+    if (ev.target.closest('[data-start="bots"]')) {
+      // Same path as "Gegen Bots spielen" after the tutorial: new game, started with bots.
+      el('statsOverlay').classList.add('hidden');
+      afterTutorial = 'bots';
+      el('createGameBtn').click();
+    }
   });
   function renderStatsMe() {
     const box = el('statsMeBox');
     if (!box) return;
     const me = myProfile();
-    if (publicMode || !me || !(me.gamesPlayed > 0)) {
+    if (publicMode) {
       box.classList.add('hidden');
+      return;
+    }
+    if (!me || !(me.gamesPlayed > 0)) {
+      // A new name: say what will show up here, and offer the way there.
+      box.innerHTML =
+        `<div class="meEmpty"><svg class="icon" aria-hidden="true"><use href="#i-chart"/></svg>` +
+        `<div><b>${L('Deine Zahlen starten mit der ersten Partie', 'Your numbers start with your first game')}</b>` +
+        `<span>${L('Spiel eine Partie bis 1000 Punkte, dann stehen hier deine Siege, dein Bestwert und deine letzten Partien.',
+          'Play a game to 1000 points, then your wins, best score and recent games show up here.')}</span></div></div>` +
+        `<button type="button" class="btn-secondary meEmptyCta" data-start="bots"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>${L('Gegen Bots spielen', 'Play against bots')}</span></button>`;
+      box.classList.remove('hidden');
       return;
     }
     const played = me.gamesPlayed || 0;
     const won = me.gamesWon || 0;
+    const rate = played > 0 ? Math.round((won / played) * 100) : 0;
     const lv = levelFromXpClient(Math.max(me.xp || 0, myProgress ? myProgress.xp || 0 : 0));
     const kpi = (value, label) => `<div class="kpiTile"><b>${value}</b><span>${label}</span></div>`;
-    const games = (myGameHistory || []).slice(0, 10).reverse();
-    let spark = '';
-    if (games.length >= 2) {
-      const W = 300;
-      const H = 44;
-      const vals = games.map((g) => g.myScore || 0);
-      const max = Math.max(1000, ...vals) + 40;
-      const min = Math.min(1000, ...vals) - 120;
-      const sx = (i) => 6 + (i / (games.length - 1)) * (W - 12);
-      const sy = (v) => 4 + (1 - (v - min) / (max - min || 1)) * (H - 8);
-      const pts = games.map((g, i) => `${sx(i).toFixed(1)},${sy(g.myScore || 0).toFixed(1)}`).join(' ');
-      // Filled dot = won, ring = lost: identity never by colour alone.
-      const dots = games.map((g, i) =>
-        `<circle cx="${sx(i).toFixed(1)}" cy="${sy(g.myScore || 0).toFixed(1)}" r="3.6" class="${g.won ? 'won' : 'lost'}"/>`
-      ).join('');
-      spark = `<div class="meSpark"><span class="meSparkLabel">${L(`Letzte ${games.length} Partien`, `Last ${games.length} games`)}</span>` +
-        `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeHtml(L(`Endstände der letzten ${games.length} Partien`, `Final scores of the last ${games.length} games`))}: ${vals.join(', ')}">` +
-        `<line x1="6" x2="${W - 6}" y1="${sy(1000).toFixed(1)}" y2="${sy(1000).toFixed(1)}" class="goalLine"/>` +
-        `<polyline points="${pts}" class="sparkLine"/>${dots}</svg>` +
-        `<span class="meSparkKey"><i class="won"></i>${L('Sieg', 'win')} <i class="lost"></i>${L('Niederlage', 'loss')}</span></div>`;
-    }
+    // Newest first; the letter carries win/loss, the fill only repeats it.
+    const games = (myGameHistory || []).slice(0, 10);
+    const form = games.length
+      ? `<div class="meForm"><div class="meFormHead"><span>${L('Letzte Partien', 'Recent games')}</span><span>${L('neueste links', 'newest first')}</span></div>` +
+        `<ol class="meFormRow" aria-label="${escapeHtml(L('Letzte Partien, neueste zuerst', 'Recent games, newest first'))}">` +
+        games.map((g) => {
+          const score = String(g.myScore || 0); // no separator: ten boxes share 350 px
+          const word = g.won ? L('Sieg', 'Win') : L('Niederlage', 'Loss');
+          return `<li class="formBox ${g.won ? 'won' : 'lost'}" title="${escapeHtml(`${word} · ${score}`)}">` +
+            `<b aria-hidden="true">${g.won ? L('S', 'W') : L('N', 'L')}</b><span class="visuallyHidden">${escapeHtml(word)}</span><small>${score}</small></li>`;
+        }).join('') +
+        `</ol></div>`
+      : '';
     box.innerHTML =
-      `<div class="meHead"><span class="meName">${nameWithHeart(me.name)}</span><span class="meTitle">${escapeHtml(titleForLevel(lv.level))}</span></div>` +
+      `<div class="meHead"><span class="meName">${nameWithHeart(me.name)}</span>` +
+      `<button type="button" class="meLevelLink" data-open="progress"><span>${escapeHtml(titleForLevel(lv.level))} · ${L('Stufe', 'Level')} ${lv.level}</span>` +
+      `<svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></button></div>` +
       `<div class="kpiGrid">` +
-      kpi(`${played > 0 ? Math.round((won / played) * 100) : 0} %`, L(`Siegquote (${won}/${played})`, `Win rate (${won}/${played})`)) +
-      kpi(played, L('Partien', 'Games')) +
-      kpi(me.bestGameScore !== undefined ? me.bestGameScore : '–', L('Beste Partie', 'Best game')) +
-      `<button type="button" class="kpiTile kpiLink" data-open="progress"><b>${lv.level}</b><span>${L('Stufe', 'Level')}</span></button>` +
-      `</div>` + spark;
+      kpi(fmtNum(played), unitWord(played, 'game').replace(/^./, (c) => c.toUpperCase())) +
+      kpi(fmtNum(won), `${unitWord(won, 'win').replace(/^./, (c) => c.toUpperCase())} · ${rate}${L(' %', '%')}`) +
+      kpi(me.bestGameScore !== undefined ? fmtNum(me.bestGameScore) : '–', L('Bestwert', 'Best score')) +
+      `</div>` + form;
     box.classList.remove('hidden');
   }
 
@@ -9420,12 +10799,17 @@
     const out = [];
     for (const [id, level] of Object.entries(EMOTE_UNLOCK)) out.push({ level, kind: 'emote', id, label: `${id} ${L('Emote', 'emote')}` });
     for (const cb of CARDBACKS) {
-      if (cb.gate && cb.gate.field === 'level') out.push({ level: cb.gate.min, kind: 'cardback', id: cb.id, label: `🎴 ${L(`Kartenrücken „${cb.label}“`, `card back "${cb.labelEn}"`)}` });
+      if (cb.gate && cb.gate.field === 'level') out.push({ level: cb.gate.min, kind: 'cardback', id: cb.id, label: L(`Kartenrücken „${cb.label}“`, `card back "${cb.labelEn}"`) });
     }
-    for (const [id, level] of Object.entries(THEME_LEVELS)) out.push({ level, kind: 'theme', id, label: `🎨 ${L(`Tischfarbe „${themeName(id)}“`, `table colour "${themeName(id)}"`)}` });
-    for (const [level, de, en] of LEVEL_TITLES) if (level > 1) out.push({ level, kind: 'title', id: de, label: `🏷️ ${L(`Titel „${de}“`, `title "${en}"`)}` });
-    for (const c of CELEBRATIONS) if (c.level > 1) out.push({ level: c.level, kind: 'celebration', id: c.id, label: `🎉 ${L(`Siegesjubel „${c.de}“`, `victory celebration "${c.en}"`)}` });
+    for (const [id, level] of Object.entries(THEME_LEVELS)) out.push({ level, kind: 'theme', id, label: L(`Tischfarbe „${themeName(id)}“`, `table colour "${themeName(id)}"`) });
+    for (const [level, de, en] of LEVEL_TITLES) if (level > 1) out.push({ level, kind: 'title', id: de, label: L(`Titel „${de}“`, `title "${en}"`) });
+    for (const c of CELEBRATIONS) if (c.level > 1) out.push({ level: c.level, kind: 'celebration', id: c.id, label: L(`Siegesjubel „${c.de}“`, `victory celebration "${c.en}"`) });
     return out.sort((a, b) => a.level - b.level);
+  }
+  // Icons from the sprite per kind; an emote IS its emoji (content), so its label keeps it.
+  const REWARD_ICONS = { cardback: 'cards', theme: 'palette', title: 'tag', celebration: 'sparkle' };
+  function rewardHtml(r) {
+    return REWARD_ICONS[r.kind] ? `${iconHtml(REWARD_ICONS[r.kind])}<span>${escapeHtml(r.label)}</span>` : `<span>${escapeHtml(r.label)}</span>`;
   }
   function themeName(id) {
     return ({ bordeaux: 'Bordeaux' })[id] || id;
@@ -9447,7 +10831,10 @@
   }
   // Mirrors game/Emotes.js - the server is the authority, this only draws
   // the locks. Public servers keep no profiles, so nothing is locked there.
-  const EMOTE_UNLOCK = { '👏': 2, '🙈': 3, '🤔': 4, '🍀': 5, '😎': 6, '🔥': 8, '😴': 10, '🙏': 12, '🤩': 14, '🥳': 16, '💪': 18 };
+  const EMOTE_UNLOCK = {
+    '👏': 2, '🙈': 3, '🤔': 4, '🍀': 5, '😎': 6, '🔥': 8, '😴': 10, '🙏': 12, '🤩': 14, '🥳': 16, '💪': 18,
+    '🃏': 20, '😅': 21, '🤞': 22, '👀': 23, '🙄': 24, '😬': 26, '🙃': 28, '🤝': 30, '😇': 32, '☕': 34, '🐢': 36, '🍻': 38, '❤️': 40,
+  };
   // Mirrors game/Celebrations.js (contract test); the names live here.
   const CELEBRATIONS = [
     { id: 'standard', level: 1, de: 'Standard', en: 'Standard' },
@@ -9472,10 +10859,10 @@
       const def = CARDBACKS.find((x) => x.id === chosen);
       if (!def || !cardbackUnlocked(def)) chosen = 'classic';
       document.documentElement.dataset.cardback = chosen;
-      const btn = el('cardbackBtn');
-      if (btn) {
+      const value = el('cardbackValue');
+      if (value) {
         const d = CARDBACKS.find((x) => x.id === chosen);
-        btn.textContent = L(d.label, d.labelEn);
+        value.textContent = L(d.label, d.labelEn);
       }
     } catch (e) { /* Kosmetik bricht nie den Start */ }
   }
@@ -9510,6 +10897,14 @@
       });
       grid.appendChild(tile);
     }
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'btn-icon cardbackClose';
+    closeBtn.setAttribute('aria-label', L('Schließen', 'Close'));
+    closeBtn.title = L('Schließen', 'Close');
+    closeBtn.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-close"/></svg>';
+    closeBtn.addEventListener('click', () => wrap.remove());
+    box.appendChild(closeBtn);
     box.appendChild(grid);
     wrap.appendChild(box);
     wrap.addEventListener('click', (e) => { if (e.target === wrap) wrap.remove(); });
@@ -9520,28 +10915,46 @@
     if (typeof ResizeObserver === 'function') new ResizeObserver(edges).observe(grid);
     requestAnimationFrame(edges);
   }
-  // --- Saisonale Akzente (klein & abschaltfrei): Dezember-Schnee,
-  // Oktober-Kürbis-Emote, Silvester-Feuerwerk-Emoji im Emote-Set. -------------
+  // --- Season accents: December snow, October and New Year emotes -------------
+  // Snow on the start screen only (battery: at the table it fell over the cards
+  // all game); elsewhere the flakes are removed, so no animation keeps running.
+  function syncSeasonSnow() {
+    try {
+      const lobby = el('lobby');
+      const want = new Date().getMonth() === 11 && !!lobby && !lobby.classList.contains('hidden')
+        && !document.hidden && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const flakes = document.querySelectorAll('.seasonFlake');
+      if (!want) flakes.forEach((f) => f.remove());
+      else if (!flakes.length) {
+        for (let i = 0; i < 12; i++) {
+          const f = document.createElement('div');
+          f.className = 'seasonFlake';
+          f.textContent = '❄';
+          f.style.left = `${Math.random() * 100}vw`;
+          f.style.animationDuration = `${9 + Math.random() * 9}s`;
+          f.style.animationDelay = `${Math.random() * 9}s`;
+          f.style.fontSize = `${9 + Math.random() * 8}px`;
+          document.body.appendChild(f);
+        }
+      }
+    } catch (e) { /* seasonal decor never breaks the app */ }
+  }
+  syncSeasonSnow();
+  document.addEventListener('visibilitychange', syncSeasonSnow);
+  try {
+    const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (motion.addEventListener) motion.addEventListener('change', syncSeasonSnow);
+    else if (motion.addListener) motion.addListener(syncSeasonSnow); // Safari < 14
+  } catch (e) { /* old browser: the CSS still hides the flakes */ }
   try {
     const month = new Date().getMonth() + 1;
-    if (month === 12) {
-      for (let i = 0; i < 12; i++) {
-        const f = document.createElement('div');
-        f.className = 'seasonFlake';
-        f.textContent = '❄';
-        f.style.left = `${Math.random() * 100}vw`;
-        f.style.animationDuration = `${9 + Math.random() * 9}s`;
-        f.style.animationDelay = `${Math.random() * 9}s`;
-        f.style.fontSize = `${9 + Math.random() * 8}px`;
-        document.body.appendChild(f);
-      }
-    }
     const seasonalEmote = month === 10 ? '🎃' : (month === 12 || month === 1) ? '🎆' : null;
     if (seasonalEmote) {
       const bar = document.querySelector('.emoteBar');
       const sample = bar && bar.querySelector('button[data-emote]');
       if (bar && sample) {
         const b = sample.cloneNode(false);
+        b.className = 'emoteChoice emoteSpecial';
         b.dataset.emote = seasonalEmote;
         b.textContent = seasonalEmote;
         b.addEventListener('click', () => {
@@ -9551,7 +10964,7 @@
         bar.appendChild(b);
       }
     }
-  } catch (e) { /* Saison-Deko bricht nie den Start */ }
+  } catch (e) { /* seasonal decor never breaks the start */ }
 
   try {
     const cbBtn = el('cardbackBtn');
@@ -9577,7 +10990,7 @@
     const app = document.getElementById('app');
     const vv = window.visualViewport;
     const lines = [
-      `Pik Dame ${el('versionBtn') ? el('versionBtn').textContent : ''}  ${new Date().toISOString().slice(11, 19)}Z`,
+      `Pik Dame ${el('versionValue') ? el('versionValue').textContent : ''}  ${new Date().toISOString().slice(11, 19)}Z`,
       `standalone: ${window.matchMedia('(display-mode: standalone)').matches}  dpr: ${window.devicePixelRatio}`,
       `innerH: ${window.innerHeight}  vv.h: ${vv ? Math.round(vv.height) : '-'}  100dvh: ${dvh}`,
       `--appvh: ${cs.getPropertyValue('--appvh').trim() || '-'}  #app.h: ${app ? app.clientHeight : '-'}`,
@@ -9622,9 +11035,7 @@
   }
   try {
     const dbgBox = el('debugCheckbox');
-    const dbgGame = el('debugBtn');
     if (dbgBox) dbgBox.addEventListener('change', toggleDebugMode);
-    if (dbgGame) dbgGame.addEventListener('click', toggleDebugMode);
     window.addEventListener('resize', () => { if (debugEnabled()) updateDebugPanel(); });
     applyDebugMode();
   } catch (e) {
@@ -9666,7 +11077,7 @@
   function logoModeLabel(mode) {
     if (mode === 'always') return L('Bei jedem Start', 'Every start');
     if (mode === 'off') return L('Aus', 'Off');
-    return L('Nur beim ersten Start', 'First start only');
+    return L('Nur einmal', 'Once only');
   }
   function updateStudioLogoBtn() {
     const sel = document.getElementById('studioLogoSelect');
@@ -9682,7 +11093,7 @@
         const next = LOGO_MODES.includes(sel.value) ? sel.value : 'auto';
         storageSet(LOGO_MODE_KEY, next);
         updateStudioLogoBtn();
-        showToast(`🌀 ${L('Studio-Logo', 'Studio logo')}: ${logoModeLabel(next)}`);
+        showToast(`🌀 ${L('Vorspann', 'Intro')}: ${logoModeLabel(next)}`);
       });
       updateStudioLogoBtn();
     }
@@ -9709,8 +11120,8 @@
     const allowed = canPickFavorites();
     sel.disabled = !allowed;
     el('celebrationHint').textContent = allowed
-      ? L('Gewinnst du, sehen alle am Tisch deinen Jubel.', 'When you win, everyone at the table sees it.')
-      : L('Melde dich an, um deinen Siegesjubel zu wählen.', 'Sign in to pick your victory celebration.');
+      ? L('Alle am Tisch sehen ihn', 'Everyone at the table sees it')
+      : L('Mit Konto wählbar', 'Sign in to choose');
   }
   try {
     el('celebrationSelect').addEventListener('change', () => {

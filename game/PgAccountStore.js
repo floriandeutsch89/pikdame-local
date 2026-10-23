@@ -130,6 +130,8 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS webauthn_credentials_user ON webauthn_credentials (user_id);
 `;
+// Changes with every SCHEMA edit, so a new column is applied exactly once.
+const SCHEMA_ID = crypto.createHash('sha256').update(SCHEMA).digest('hex').slice(0, 16);
 
 /**
  * @param {string|import('pg').Pool} db connection string (own pool, ended by
@@ -140,10 +142,31 @@ function createPgAccountStore(db) {
   const ownsPool = typeof db === 'string';
   const pool = ownsPool ? createPool(db) : db;
 
+  // to_regclass first: a failing SELECT would abort the surrounding transaction.
+  async function schemaCurrent(q) {
+    const t = await q.query("SELECT to_regclass('schema_version') IS NOT NULL AS ok");
+    if (!t.rows[0].ok) return false;
+    return (await q.query('SELECT 1 FROM schema_version WHERE id = $1', [SCHEMA_ID])).rowCount > 0;
+  }
+
   let readyPromise = null;
   function ensureReady() {
     if (!readyPromise) {
-      readyPromise = pool.query(SCHEMA).catch((err) => {
+      // Concurrent first starts (replicas, parallel test files) deadlock on
+      // CREATE/ALTER; one transaction-scoped advisory lock serialises them.
+      // ALTER takes an exclusive table lock even when the column exists, so a
+      // replica starting under load deadlocked live transactions: run SCHEMA
+      // only once per version, recorded in schema_version.
+      readyPromise = (async () => {
+        if (await schemaCurrent(pool)) return;
+        await withTransaction(async (client) => {
+          await client.query('SELECT pg_advisory_xact_lock(726813)');
+          if (await schemaCurrent(client)) return;
+          await client.query(SCHEMA);
+          await client.query('CREATE TABLE IF NOT EXISTS schema_version (id TEXT PRIMARY KEY, applied_at BIGINT NOT NULL)');
+          await client.query('INSERT INTO schema_version (id, applied_at) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING', [SCHEMA_ID, Date.now()]);
+        });
+      })().catch((err) => {
         readyPromise = null; // retry on the next call
         throw err;
       });

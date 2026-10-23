@@ -1564,7 +1564,7 @@ test('daily challenge: identical seed deals identical hands, different days diff
 
 test('challenge store: first result per name, ranked board, 7-day cleanup', () => {
   const { createChallengeStore } = require('../game/ChallengeStore');
-  const file = require('path').join(require('os').tmpdir(), `pikdame-chal-${Date.now()}.json`);
+  const file = require('path').join(require('os').tmpdir(), `pikdame-chal-${process.pid}-${Date.now()}.json`);
   const store = createChallengeStore(file);
   // Dates must be RELATIVE to today: the 7-day retention is measured against the
   // current date, so hard-coded days silently expire and made this test a time
@@ -2253,7 +2253,7 @@ test('challenge history lists past days with winner and own rank; empty past day
   const os = require('node:os');
   const path = require('node:path');
   const { createChallengeStore, todayDate } = require('../game/ChallengeStore');
-  const store = createChallengeStore(path.join(os.tmpdir(), `ch-${Date.now()}.json`));
+  const store = createChallengeStore(path.join(os.tmpdir(), `ch-${process.pid}-${Date.now()}.json`));
   const now = Date.now();
   const d0 = todayDate(now), d1 = todayDate(now - 86400000), d3 = todayDate(now - 3 * 86400000);
   store.submit(d3, 'Flo', 500, now - 3 * 86400000);
@@ -2327,7 +2327,7 @@ test('weekly challenge board sums the best 5 daily scores of the current week', 
   const os = require('node:os');
   const path = require('node:path');
   const { createChallengeStore, todayDate } = require('../game/ChallengeStore');
-  const store = createChallengeStore(path.join(os.tmpdir(), `wk-${Date.now()}.json`));
+  const store = createChallengeStore(path.join(os.tmpdir(), `wk-${process.pid}-${Date.now()}.json`));
   // "now" = ein Sonntag, damit alle 7 Wochentage in der Woche liegen
   const sunday = Date.UTC(2026, 6, 19, 12); // 2026-07-19 ist ein Sonntag
   for (let i = 0; i < 7; i++) {

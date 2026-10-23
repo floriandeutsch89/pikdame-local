@@ -2,6 +2,7 @@
 // Before, the joiner got a fresh empty seat in place of the bot: a bot with
 // 9 cards became a newcomer with 0, and those cards left the 110-card deck.
 const test = require('node:test');
+const { freePort } = require('./helpers/free-port');
 const assert = require('node:assert');
 const os = require('node:os');
 const fs = require('node:fs');
@@ -295,7 +296,7 @@ test('lobby joins still replace a bot with a fresh seat; a full started table an
 });
 
 // --- Real server: join a running session by its code ------------------------
-const PORT = 8094;
+let PORT = 0;
 
 async function waitForServer(port, timeoutMs = 15000) {
   const http = require('node:http');
@@ -346,6 +347,7 @@ function publicCardCount(state) {
 
 test('server: joining a running session by code takes over a bot seat with its cards', async (t) => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-join-'));
+  PORT = await freePort();
   const server = spawn('node', ['server.js'], {
     cwd: path.join(__dirname, '..'),
     env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('join_takeover'), PORT: String(PORT), PIKDAME_DATA_DIR: dataDir },
@@ -404,6 +406,7 @@ test('server: joining a running session by code takes over a bot seat with its c
 
 test('server: a newcomer takes over a seat given up for good; the leaver\'s tab and token are locked out', async (t) => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-join-left-'));
+  PORT = await freePort();
   const server = spawn('node', ['server.js'], {
     cwd: path.join(__dirname, '..'),
     env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('join_takeover'), PORT: String(PORT), PIKDAME_DATA_DIR: dataDir },

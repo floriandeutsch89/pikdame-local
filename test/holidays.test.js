@@ -1,6 +1,7 @@
 // Holiday decor days: which game days they are, the windows the server sends
 // (today and tomorrow only, German game day) and /statusz carrying them.
 const test = require('node:test');
+const { freePort } = require('./helpers/free-port');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -109,7 +110,7 @@ test('holidays: every occasion icon and particle shape exists in the sprite, eve
 });
 
 test('holidays: /statusz carries the windows for every client, no account needed', async (t) => {
-  const port = 8103;
+  const port = await freePort();
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-holidays-'));
   const server = spawn('node', ['server.js'], {
     cwd: path.join(__dirname, '..'),

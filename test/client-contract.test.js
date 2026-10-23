@@ -136,15 +136,8 @@ test('CSS contract: the just-drawn marker rests on a full-strength ring distinct
   assert.ok(resting, '100% frame exists');
   assert.match(resting[0], /0 0 0 5px var\(--drawn\)/, 'resting ring uses the full --drawn colour');
   assert.doesNotMatch(resting[0], /var\(--accent/, 'draw marker must not reuse the selection colour');
-  const themeBlocks = css.match(/(?::root|\[data-theme="[a-z]+"\])[^{]*\{[^}]*--accent:\s*(#[0-9a-fA-F]{6})[^}]*\}/g) || [];
-  const rootDrawn = (css.match(/:root \{[^}]*--drawn:\s*(#[0-9a-fA-F]{6})/) || [])[1];
-  assert.ok(rootDrawn, '--drawn is defined');
-  for (const b of themeBlocks) {
-    const accent = b.match(/--accent:\s*(#[0-9a-fA-F]{6})/)[1].toLowerCase();
-    const drawn = ((b.match(/--drawn:\s*(#[0-9a-fA-F]{6})/) || [])[1] || rootDrawn).toLowerCase();
-    const dist = [0, 2, 4].reduce((d, i) => d + Math.abs(parseInt(accent.slice(1 + i, 3 + i), 16) - parseInt(drawn.slice(1 + i, 3 + i), 16)), 0);
-    assert.ok(dist > 150, `theme ${b.slice(0, 24)}: --drawn ${drawn} too close to --accent ${accent}`);
-  }
+  // --drawn vs --accent per theme: test/theme-cascade.test.js, on the APPLIED values
+  // (read from the theme blocks, this check once passed while felt's ring was gold).
 
   const block = css.match(/\.card\.just-drawn \{([\s\S]*?)\n\}/);
   assert.ok(block, '.card.just-drawn block exists');
@@ -198,8 +191,9 @@ test('CSS contract: overlay controls use card colours, not the dark-table palett
   // v2.0.0: .resultTabBtn / .settingsRow* live in the same light card. The
   // result tabs shipped as var(--text) on rgba(255,255,255,0.05) - near-white
   // on white, so the inactive tab was unreadable.
-  for (const selector of ['.settingsSelect', '.settingsAction', '.settingsCheckbox', '.settingsLabel', '.settingsList',
-    '.resultTabBtn', '.settingsRow', '.sheetRowValue']) {
+  for (const selector of ['.settingsSelect', '.settingsCheckbox', '.settingsLabel', '.prefRow', '.prefBox', '.prefLang',
+    '.prefSeg', '.prefSeg .segBtn', '.prefIconBtn', '.prefValue', '.prefSub', '.prefNote', '.prefGroupTitle', '.prefRules',
+    '.resultTabBtn', '.settingsRow']) {
     // ALLE Vorkommen prüfen, nicht nur das erste: Ein versehentlich doppelt
     // im Stylesheet stehender Block gewinnt als SPÄTERE Regel gleicher
     // Spezifität - genau so überlebte die unlesbare Fassung einen Release,
@@ -362,7 +356,7 @@ test('CSS contract: buttons in a flex row carry no per-ID box overrides', () => 
   // 8px shorter than the Challenge button beside it. Row spacing and colour
   // belong to the container/class, never to one member's ID.
   const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'style.css'), 'utf8');
-  const rowClasses = ['menuChips', 'dialog-actions', 'lobbyTools', 'headerRight', 'sheetList'];
+  const rowClasses = ['menuChips', 'dialog-actions', 'lobbyTools', 'headerRight', 'prefBox'];
   const ids = new Set();
   for (const cls of rowClasses) {
     // Locate each container by class, then take the buttons up to its close
@@ -511,7 +505,7 @@ test('client contract: functions that build translated markup are refreshed by c
     // "Open game" sheet (#352): its text is written on every opening, and it
     // is closed before any language switch.
     'openOpenGameSheet',
-    // Bot tower verdict: part of the result sheet, rebuilt with it (like the challenge board).
+    // Kartenhaus verdict: part of the result sheet, rebuilt with it (like the challenge board).
     'renderTowerResult',
   ]);
 
@@ -631,6 +625,17 @@ test('no native browser dialogs in the client (iOS can suppress them silently)',
   assert.doesNotMatch(code, /\b(?:window\.)?(?:alert|confirm|prompt)\s*\(/, 'use an in-app dialog or confirmByTap');
 });
 
+test('emote bar sits outside #table so reactions stay in front of round stamp and bot lines', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'style.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const tableEnd = html.indexOf('\n    </section>\n', html.indexOf('<section id="table"'));
+  // #table is an isolated stacking context: anything inside it cannot out-stack body-level layers.
+  assert.ok(html.indexOf('id="emoteBar"') > tableEnd, '#emoteBar must not live inside #table');
+  const m = css.match(/\.emoteBar \{[^}]*\}/)[0];
+  assert.match(m, /position:\s*fixed/);
+  const z = (n) => Number(css.match(new RegExp(`--z-${n}:\\s*(\\d+)`))[1]);
+  for (const below of ['table-fx', 'overlay-ui', 'hint']) assert.ok(z('emote-bar') > z(below), `emote bar above --z-${below}`);
+});
+
 test('CSS contract: fixed layers use the z-index scale; pause and forfeit stay on top (#302)', () => {
   const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'style.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
   // Raw numbers are fine for stacking inside a component (< 10); every layer
@@ -660,4 +665,65 @@ test('client contract: own score sits in the hand toolbar, not in a row below th
   const meta = html.match(/<span class="handMeta">([\s\S]*?)<\/span><\/span>/);
   assert.ok(meta && meta[1].includes('id="myScore"'), '#myScore must live inside .handMeta');
   assert.ok(!html.includes('myStatusLine'), 'the old bottom status line is back');
+});
+
+test('i18n-Vertrag: jeder sichtbare deutsche Text im HTML hat einen I18N_STATIC-Eintrag', () => {
+  // Reverse of the test above: a leaf label missing from I18N_STATIC stays
+  // German in the English UI (the footer "Regeln"/"Mehr" did).
+  const { JSDOM } = require('jsdom');
+  const ctx = { window: {} };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'public', 'i18n.js'), 'utf8'), ctx);
+  const map = ctx.window.I18N_STATIC;
+  const doc = new JSDOM(html).window.document;
+  // Intentionally German or set by client.js via L(de, en) at runtime.
+  const SKIP = [
+    'script', 'style', 'svg',
+    '#rulesContent',                              // I18N_RULES_EN replaces the whole block
+    '.seoIntro',                                  // German search-engine text, indexed as such
+    '.ssName', '.ssSub',                          // studio brand
+    '#uiScaleSelect option', '#studioLogoSelect option', // labels via L() in client.js
+    '#sortToggleBtn', '#accountWhoami', '#botDiffTitle', '#discardPreviewTitle', '#cardbackBtn',
+  ].join(',');
+  const missing = [];
+  doc.querySelectorAll('body *').forEach((n) => {
+    if (n.closest(SKIP) || n.children.length) return;
+    const txt = n.textContent.trim();
+    if (txt && /[A-Za-zÄÖÜäöüß]{2}/.test(txt) && !map[txt]) missing.push(txt);
+  });
+  assert.deepEqual(missing, [], `Texte ohne I18N_STATIC-Eintrag: ${missing.join(' | ')}`);
+});
+
+test('Warteraum-Banner hat keinen Name-Knopf (Namen legt der Startbildschirm fest)', () => {
+  assert.ok(!html.includes('updateNameBtn'), 'updateNameBtn ist wieder im HTML');
+  assert.ok(!clientJs.includes('updateNameBtn'), 'updateNameBtn ist wieder im Client');
+  const banner = html.match(/<div id="sessionBanner"[\s\S]*?<div class="session-banner-actions">([\s\S]*?)<\/div>/);
+  assert.ok(banner, 'Banner-Aktionen nicht gefunden');
+  assert.deepEqual([...banner[1].matchAll(/<button id="(\w+)"/g)].map((m) => m[1]), ['shareCodeBtn', 'showQrBtn']);
+});
+
+test('i18n-Vertrag: title, aria-label und placeholder im HTML haben einen I18N_STATIC-Eintrag', () => {
+  // Attribute twin of the text test: applyStaticLang() translates these via
+  // the same map, so an unmapped value stays German in the English UI.
+  const { JSDOM } = require('jsdom');
+  const ctx = { window: {} };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'public', 'i18n.js'), 'utf8'), ctx);
+  const map = ctx.window.I18N_STATIC;
+  const doc = new JSDOM(html).window.document;
+  // Same skips as the text test, plus elements whose attribute client.js sets via L().
+  const SKIP = [
+    'script', 'style', 'svg',
+    '#rulesContent', '.seoIntro',
+    '#uiScaleSelect option', '#studioLogoSelect option',
+    '#sortToggleBtn', '#accountWhoami', '#botDiffTitle', '#discardPreviewTitle', '#cardbackBtn',
+    '#tutorialProgressBtn',                       // aria-label carries the step counter
+  ].join(',');
+  const missing = [];
+  doc.querySelectorAll('[title],[aria-label],[placeholder]').forEach((n) => {
+    if (n.closest(SKIP)) return;
+    for (const a of ['title', 'aria-label', 'placeholder']) {
+      const v = (n.getAttribute(a) || '').trim();
+      if (v && /[A-Za-zÄÖÜäöüß]{2}/.test(v) && !map[v]) missing.push(`${a}="${v}"`);
+    }
+  });
+  assert.deepEqual([...new Set(missing)], [], `Attribute ohne I18N_STATIC-Eintrag: ${[...new Set(missing)].join(' | ')}`);
 });

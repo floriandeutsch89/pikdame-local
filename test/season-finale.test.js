@@ -2,6 +2,7 @@
  *  (places, ties, awards), survive a restart and are announced once. Pure
  *  standings, the store and the server. */
 const test = require('node:test');
+const { freePort } = require('./helpers/free-port');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const http = require('node:http');
@@ -229,7 +230,7 @@ test('server: the unseen result rides on /api/me until it is reported seen', asy
   const { token } = await seed.login('Anna', 'geheim123');
   await seed.close();
 
-  const port = 8137;
+  const port = await freePort();
   const server = spawn('node', ['server.js'], {
     cwd: path.join(__dirname, '..'),
     env: { ...process.env, PORT: String(port), PIKDAME_DATA_DIR: dataDir, PIKDAME_SMTP_HOST: '', PIKDAME_DATABASE_URL: databaseUrl, PIKDAME_ADMIN_TOKEN: '', PIKDAME_ONNX: '0' },

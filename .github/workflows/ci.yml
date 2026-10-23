@@ -6,6 +6,11 @@ on:
   # Every PR, whatever its base: stacked PRs (feature on feature) target a
   # sibling branch and were silently skipping CI with a [main] filter.
   pull_request:
+  # Weekly full run (Tuesday early, after Monday's Dependabot merges): catches
+  # drift no diff shows, e.g. Node or onnxruntime updates (tower-generate).
+  schedule:
+    - cron: '17 4 * * 2'
+  workflow_dispatch:
 
 # Least privilege: no job here writes to the repo, so the GITHUB_TOKEN gets
 # read-only access (without this block it inherits the repository default,
@@ -104,6 +109,74 @@ jobs:
       # `npm run docs:gen`, the documentation would silently lie - fail instead.
       - name: Generated docs are up to date
         run: npm run docs:check
+
+  # Kartenhaus deals stay winnable: Zen (and Hard where it has a proof) replays
+  # every committed floor (test/tower-proofs.test.js). Zen needs the net, so this job installs the
+  # runtime the image pins - outside the repo, never in package.json. Per PR
+  # (about a minute) rather than nightly: the PR that breaks a deal goes red.
+  tower-proofs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26.x
+          cache: 'npm'
+      - run: npm ci
+      - name: onnxruntime-node as pinned in the Dockerfile
+        run: |
+          ORT_VERSION=$(grep -oE 'onnxruntime-node@[0-9.]+' docker/Dockerfile | head -1 | cut -d@ -f2)
+          test -n "$ORT_VERSION"
+          npm install --prefix "$RUNNER_TEMP/ort" --no-save --ignore-scripts "onnxruntime-node@${ORT_VERSION}"
+      - name: Replay every floor with Hard and Zen
+        env:
+          PIKDAME_ONNX: '1'
+          PIKDAME_TOWER_PROOFS_NET: '1'
+        run: NODE_PATH="$RUNNER_TEMP/ort/node_modules" node --test --require ./test/helpers/setup.js test/tower-proofs.test.js
+
+  # The server's own path builds one real Kartenhaus month (worker, net, full
+  # rule) and Zen replays every floor. A month is ~25 CPU minutes, so on a PR
+  # it only builds when the PR touches what decides deals or proofs; otherwise
+  # it passes at once (a job skipped by a path filter would hang a required check).
+  tower-generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2 # the PR merge commit and its first parent, the base
+      - name: Does this change touch the deal generator?
+        id: scope
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then echo "build=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          CHANGED=$(git diff --name-only HEAD^1 HEAD)
+          echo "$CHANGED"
+          if echo "$CHANGED" | grep -qE '^(game/(Tower|Bot|OnnxPolicy|StateEncoder|GameManager|Rules|ScoreBoard)[^/]*\.js|models/|docker/Dockerfile|test/tower-[^/]*\.js|test/helpers/|\.github/workflows/ci\.yml)'; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No generator-relevant change; tower-proofs still replays every floor."
+          fi
+      - uses: actions/setup-node@v7
+        if: steps.scope.outputs.build == 'true'
+        with:
+          node-version: 26.x
+          cache: 'npm'
+      - run: npm ci
+        if: steps.scope.outputs.build == 'true'
+      - name: onnxruntime-node as pinned in the Dockerfile
+        if: steps.scope.outputs.build == 'true'
+        run: |
+          ORT_VERSION=$(grep -oE 'onnxruntime-node@[0-9.]+' docker/Dockerfile | head -1 | cut -d@ -f2)
+          test -n "$ORT_VERSION"
+          npm install --prefix "$RUNNER_TEMP/ort" --no-save --ignore-scripts "onnxruntime-node@${ORT_VERSION}"
+      - name: Build 2027-01 like the server and replay it
+        if: steps.scope.outputs.build == 'true'
+        env:
+          PIKDAME_ONNX: '1'
+          PIKDAME_TOWER_PROOFS_NET: '1'
+          PIKDAME_TOWER_GEN_E2E: '1'
+        run: NODE_PATH="$RUNNER_TEMP/ort/node_modules" node --test --require ./test/helpers/setup.js --test-name-pattern "a real month" test/tower-proofs.test.js
 
   dependency-check:
     runs-on: ubuntu-latest

@@ -15,8 +15,8 @@ const { dayEnd } = require('./GameDay');
 const { isQuipMoment } = require('./BotQuips');
 const { isCelebration } = require('./Celebrations');
 const BotTower = require('./BotTower');
-// Every try of a tower stage plays the same deal under the same rules and bots.
-const TOWER_FIXED_ERROR = 'Im Bot-Turm sind Regeln und Bots fest - jeder Versuch einer Stufe läuft gleich.';
+// Every try of a Kartenhaus floor plays the same deal under the same rules and bots.
+const TOWER_FIXED_ERROR = 'Im Kartenhaus sind Regeln und Bots fest - jeder Versuch einer Etage läuft gleich.';
 
 // Bot think time multiplier per table (house rule `botPace`, default normal).
 const BOT_PACE_FACTOR = { fast: 0.5, normal: 1, slow: 2 };
@@ -56,8 +56,10 @@ class GameManager {
     // seine Lernhilfen nur hier einblendet. Ein zufaelliges Deck laesst sich
     // nicht erklaeren - im Tutorial ist jede Karte vorhersehbar.
     this.tutorialMode = !!options.tutorialMode;
-    // Bot tower (BotTower.js): a solo stage of exactly one round.
+    // Kartenhaus (BotTower.js): a solo floor of exactly one round.
     this.towerStage = Number.isInteger(options.towerStage) ? options.towerStage : null;
+    // The month whose deals this floor uses (null: a pre-monthly snapshot = the first month).
+    this.towerMonth = this.towerStage && typeof options.towerMonth === 'string' ? options.towerMonth : null;
     // Wird vom Server gesetzt: raeumt die Sitzung weg, wenn ein Solo-Spiel
     // abgebrochen wird (nicht wiederaufnehmbar, keine Wertung).
     this.onAbandon = typeof options.onAbandon === 'function' ? options.onAbandon : null;
@@ -229,7 +231,7 @@ class GameManager {
    * starts - mid-game there is the forfeit vote instead.
    */
   leaveLobby(playerId) {
-    if (this.phase !== 'lobby') return { error: 'Verlassen geht nur in der Lobby - im Spiel gibt es 🏳️ Aufgeben.' };
+    if (this.phase !== 'lobby') return { error: 'Verlassen geht nur in der Lobby - im Spiel: Haus oben links › „Spiel aufgeben“.' };
     const p = this.players.find((pl) => pl.id === playerId && !pl.isBot);
     if (!p) return { error: 'Du sitzt nicht an diesem Tisch.' };
     this._keepDealer(() => { this.players = this.players.filter((pl) => pl.id !== playerId); });
@@ -303,6 +305,7 @@ class GameManager {
       alone: !this.players.some((pl) => pl.id !== playerId && !pl.isBot && !pl.leftGame),
       tutorial: !!this.tutorialMode,
       tower: this.towerStage || null,
+      towerMonth: this.towerMonth || null,
     };
   }
 
@@ -353,7 +356,7 @@ class GameManager {
       // Daily challenge: any disconnect (app minimised, tab closed) keeps the
       // game open until the challenge day ends (German midnight, when the deck
       // changes anyway) - players want to come back later that day. The
-      // tutorial and the bot tower keep the short windows: 90s, or 20 min after
+      // tutorial and the Kartenhaus keep the short windows: 90s, or 20 min after
       // an explicit pause (otherwise the short clock would abandon a paused game).
       const graceMs = this.challengeDate
         ? Math.max(GameManager.SOLO_GRACE_MS, dayEnd(this.challengeDate) - Date.now())
@@ -591,11 +594,12 @@ class GameManager {
     this.startNewRound();
   }
 
-  /** A bot tower stage (server and tests share it): the stage's bots in seat
-   *  order after the human, as calibrated in BotTower.js, the human moves first. */
+  /** A Kartenhaus floor (server and tests share it): the floor's bots in seat
+   *  order after the human, as calibrated in BotTower.js, the human moves first;
+   *  floors 11-20 add their modifiers against the human seat. */
   startTowerRound() {
-    const cfg = BotTower.stageConfig(this.towerStage);
-    if (!cfg || this.phase !== 'lobby') return { error: 'Diese Turmstufe lässt sich nicht starten.' };
+    const cfg = BotTower.stageConfig(this.towerStage, this.towerMonth);
+    if (!cfg || this.phase !== 'lobby') return { error: 'Diese Etage lässt sich nicht starten.' };
     this.setHouseRules({ turnTimerSeconds: 0 }, { system: true });
     this.maxSeats = cfg.bots.length + 1;
     this.syncLobbyBots();
@@ -603,10 +607,37 @@ class GameManager {
     this.players.filter((p) => p.isBot).forEach((b, i) => { b.botDifficulty = cfg.bots[i]; });
     this.setExplicitDealer(this.players[this.players.length - 1].id);
     this.addLog(cfg.handicap
-      ? `Bot-Turm, Stufe ${cfg.stage}: Hol in dieser Runde mehr Punkte als jeder Bot - die Bots bekommen ${cfg.handicap} Punkte Vorgabe.`
-      : `Bot-Turm, Stufe ${cfg.stage}: Hol in dieser Runde mehr Punkte als jeder Bot.`);
+      ? `Kartenhaus, Etage ${cfg.stage}: Hol in dieser Runde mehr Punkte als jeder Bot - die Bots bekommen ${cfg.handicap} Punkte Vorgabe.`
+      : `Kartenhaus, Etage ${cfg.stage}: Hol in dieser Runde mehr Punkte als jeder Bot.`);
     this.startNewRound();
+    const human = this.players.find((p) => !p.isBot);
+    if (BotTower.hasMod(cfg, 'queen') && human) this._towerDealQueen(human);
+    if (BotTower.hasMod(cfg, 'queen')) this.addLog('Risiko: Du startest mit der Pik Dame auf der Hand – ausgelegt +100, auf der Hand −100.');
+    if (BotTower.hasMod(cfg, 'noDiscard')) this.addLog('Erschwernis: Du darfst die Ablage nicht aufnehmen.');
+    if (BotTower.hasMod(cfg, 'goOut')) this.addLog('Erschwernis: Sterne gibt es nur, wenn du selbst ausmachst.');
+    this.broadcastState();
     return { ok: true };
+  }
+
+  /** Tower modifier "queen": a Queen of Spades into the human's hand, swapped
+   *  1:1 with the human's last plain card (the deck stays complete, the deal fixed). */
+  _towerDealQueen(human) {
+    if (human.hand.some((c) => isPikDame(c))) return;
+    const h = human.hand.map((c) => !c.isJoker).lastIndexOf(true);
+    if (h < 0) return;
+    const piles = [this.drawPile, ...this.players.filter((p) => p !== human).map((p) => p.hand), this.discardPile];
+    for (const pile of piles) {
+      const i = pile.findIndex((c) => isPikDame(c));
+      if (i < 0) continue;
+      [pile[i], human.hand[h]] = [human.hand[h], pile[i]];
+      return;
+    }
+  }
+
+  /** Tower modifier "noDiscard": the human seat never takes the discard pile. */
+  _discardBlockedFor(player) {
+    return !!(this.towerStage && player && !player.isBot
+      && BotTower.hasMod(BotTower.stageConfig(this.towerStage), 'noDiscard'));
   }
 
   /** Lobby control "Bot-Stärke": one level for every bot (the server checks the host). */
@@ -1032,6 +1063,7 @@ class GameManager {
    */
   canTakeDiscardTop(player, topCard) {
     if (!player || !topCard) return false;
+    if (this._discardBlockedFor(player)) return false;
     if (!this.canUseDiscardTop(player, topCard)) return false;
     // (a) Reststapel folgt auf die Hand - danach ist immer etwas zum Abwerfen da.
     if (this.discardPile.length > 1) return true;
@@ -1065,6 +1097,9 @@ class GameManager {
     if (err) return err;
     if (this.discardPile.length === 0) {
       return { error: 'Ablagestapel ist leer.' };
+    }
+    if (this._discardBlockedFor(this.currentPlayer())) {
+      return { error: 'Auf dieser Etage darfst du die Ablage nicht aufnehmen - zieh vom Stapel.' };
     }
     MoveLogger.record(this, playerId, 'draw', StateEncoder.ACTION_TAKE_PILE);
     const topCard = this.discardPile[0]; // index 0 = oberste/zuletzt abgelegte Karte
@@ -1877,12 +1912,12 @@ class GameManager {
         .map(([pid, score]) => `${this.players.find((p) => p.id === pid)?.name || pid}=${score}`)
         .join(', ')}`
     );
-    // Bot tower: the match is its one round, won by the human only with a star.
-    const towerCfg = this.towerStage ? BotTower.stageConfig(this.towerStage) : null;
+    // Kartenhaus: the match is its one round, won by the human only with a star.
+    const towerCfg = this.towerStage ? BotTower.stageConfig(this.towerStage, this.towerMonth) : null;
     const over = towerCfg
       ? {
         gameOver: true,
-        winnerId: BotTower.stageWinner(totalsForGameOverCheck, winnerId, this.players.find((p) => !p.isBot)?.id, towerCfg.handicap),
+        winnerId: BotTower.stageWinner(totalsForGameOverCheck, winnerId, this.players.find((p) => !p.isBot)?.id, towerCfg.handicap, BotTower.hasMod(towerCfg, 'goOut')),
         finalTotals: totalsForGameOverCheck,
       }
       : checkGameOver(totalsForGameOverCheck, this.houseRules);
@@ -1942,6 +1977,7 @@ class GameManager {
       this.lastGameRecord = {
         challengeDate: this.challengeDate || undefined,
         towerStage: this.towerStage || undefined,
+        towerMonth: this.towerMonth || undefined,
         // A seat given up mid-game counts as a bot from then on: no stats, XP or history for the leaver.
         players: this.players.map((p) => {
           const bot = p.isBot || !!p.leftGame;
@@ -2277,9 +2313,11 @@ class GameManager {
    * on any miss it falls through to the heuristic discard. Only ever invoked
    * when PIKDAME_ONNX is set.
    */
-  async _runBotTurnWithOnnx(botId) {
+  async _runBotTurnWithOnnx(botId, opts = {}) {
     const cp = this.players.find((p) => p.id === botId);
     if (!cp) return;
+    // opts.forced (server tooling only, like runBotTurn): the net plays a human seat.
+    const controlled = () => !!opts.forced || this.isBotControlled(cp);
     const OnnxPolicy = require('./OnnxPolicy');
     const difficulty =
       botDifficultyOf(cp);
@@ -2288,7 +2326,7 @@ class GameManager {
       const SE = StateEncoder;
       if (SE.pileTakeLegal(this, botId)) {
         const src = await OnnxPolicy.chooseDrawSource(this, botId, difficulty);
-        if (!this.isBotControlled(cp)) return; // a human took the seat while the model thought
+        if (!controlled()) return; // a human took the seat while the model thought
         if (src === 'drawPile' || src === 'discardPile') cp.forcedDrawSource = src;
       }
     } catch (e) {
@@ -2298,7 +2336,7 @@ class GameManager {
     cp.externalDiscard = 'pause';
     this._agentAwaitingDiscard = null;
     try {
-      this.runBotTurn(botId);
+      this.runBotTurn(botId, { forced: !!opts.forced });
     } finally {
       cp.externalDiscard = prev;
     }
@@ -2312,7 +2350,7 @@ class GameManager {
       chosen = null;
     }
     // Taken over meanwhile: the human discards themselves.
-    if (!this.isBotControlled(cp) || this.phase !== 'playing' || this.currentPlayer()?.id !== botId) return;
+    if (!controlled() || this.phase !== 'playing' || this.currentPlayer()?.id !== botId) return;
     if (!chosen) {
       // Heuristic fallback for the discard among the legal ids.
       const legal = pending.legalIds
@@ -2590,7 +2628,17 @@ class GameManager {
    * Bot ist, ODER ein menschlicher Spieler gerade die Verbindung verloren hat
    * (Reconnect-Robustheit: der Tisch blockiert nicht, bis er zurückkehrt).
    */
-  /** Challenge, tutorial and bot tower are single-player experiences. */
+  /** Challenge, tutorial and Kartenhaus are single-player experiences. */
+  /** Randomness of bot decisions (easy bots). Kartenhaus floors derive it from
+   *  the deal, so a floor plays the same for the same moves (seed proofs). */
+  _botRandom(tag) {
+    if (!this.towerStage || typeof this.deckSeed !== 'number') return Math.random();
+    const key = `${this.deckSeed}|${this.roundNumber}|${this.turnIndexInRound}|${this.currentPlayerIndex}|${tag}`;
+    let h = 0x811c9dc5; // FNV-1a over the key, then one mulberry32 draw
+    for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 0x01000193);
+    return seededRandom(h >>> 0)();
+  }
+
   isSoloMode() {
     return !!(this.challengeDate || this.tutorialMode || this.towerStage);
   }
@@ -2636,7 +2684,7 @@ class GameManager {
 
     // Leichte Bots schieben das Auslegen oft auf (wie zögerliche Anfänger) -
     // außer eine Pflichtkarte MUSS gelegt werden.
-    if (passIndex === 0 && difficulty === 'easy' && !this.mustLayOffCardId && Math.random() < 0.4) {
+    if (passIndex === 0 && difficulty === 'easy' && !this.mustLayOffCardId && this._botRandom('hold') < 0.4) {
       meldPlan.newMelds = [];
       meldPlan.layOffs = [];
     }
@@ -2745,7 +2793,7 @@ class GameManager {
       preferDrawOnRedundantSet: cp.preferDrawOnRedundantSet || false,
     });
     // Leichte Bots übersehen die Ablage-Chance meistens (wie Anfänger).
-    if (difficulty === 'easy' && plan.source === 'discardPile' && Math.random() < 0.6) {
+    if (difficulty === 'easy' && plan.source === 'discardPile' && this._botRandom('pile') < 0.6) {
       plan.source = 'drawPile';
     }
     // Pile-usability check (medium and up), replacing the old blunt
@@ -2914,6 +2962,7 @@ class GameManager {
     }
     let discardCard = Bot.chooseDiscard(cp.hand, foreignMelds, {
       difficulty,
+      random: () => this._botRandom('discard'),
       scoreLead,
       visibleCards,
       opponentKnownCards,
@@ -3124,6 +3173,12 @@ class GameManager {
       challengeDate: this.challengeDate || null,
       tutorialMode: this.tutorialMode || false,
       towerStage: this.towerStage || null,
+      towerMonth: this.towerMonth || null,
+      // The floor's rules against the human (the table shows the blocked discard pile).
+      towerMods: (this.towerStage && (BotTower.stageConfig(this.towerStage) || {}).mods) || null,
+      // Head start and the two-star margin of this floor, for the floor card and its rules (never the seed).
+      towerHandicap: this.towerStage ? (BotTower.stageConfig(this.towerStage, this.towerMonth) || {}).handicap || 0 : null,
+      towerClearMargin: this.towerStage ? BotTower.CLEAR_MARGIN : null,
       soloPausedUntil: this.soloPausedUntil || null,
       abandoned: this.abandoned || false,
       canUndoMeld: !!(

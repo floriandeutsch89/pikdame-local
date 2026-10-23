@@ -117,7 +117,7 @@ test('AccountStore: season ladder books XP, ranks players and resets per season'
   await close();
 });
 
-test('AccountStore: addXp books lifetime and season XP without counting a game (bot tower)', async () => {
+test('AccountStore: addXp books lifetime and season XP without counting a game (Kartenhaus)', async () => {
   const { store, sql, close } = fresh();
   const r = await store.register('Turm', 'turm@example.com', 'geheim123');
   await store.verifyEmail(r.verifyToken);
@@ -222,20 +222,71 @@ test('AccountStore: year-review mail opt-in, once per year, unsubscribe token', 
   }
 });
 
-test('AccountStore: a database from before the year review gains its columns, all off', async () => {
+// Production databases predate the migration runner: full schema minus the
+// newest columns, plus the old schema_version hash table, no schema_migrations.
+test('AccountStore: a database from before the migration runner upgrades in place, data kept', async () => {
   const { url, store: first, sql, close } = fresh();
   const r = await first.register('Vorher', 'vorher@example.com', 'geheim123');
   await first.verifyEmail(r.verifyToken);
-  // Back to the schema before the year review: the columns did not exist yet.
+  await first.close();
   for (const col of ['review_mail', 'review_mail_at', 'review_mail_lang', 'review_mail_year', 'review_unsub_hash', 'review_mail_consent']) {
     await sql(`ALTER TABLE users DROP COLUMN ${col}`);
   }
-  const store = createPgAccountStore(url); // a restart runs the schema again
+  await sql('DROP TABLE schema_migrations');
+  await sql('CREATE TABLE schema_version (id TEXT PRIMARY KEY, applied_at BIGINT NOT NULL)');
+  await sql("INSERT INTO schema_version VALUES ('0123456789abcdef', 1)");
+  const store = createPgAccountStore(url); // the first start of the new version
   const acc = await store.accountForSession((await store.login('Vorher', 'geheim123')).token);
   assert.strictEqual(acc.reviewMail, false, 'the migration never opts an old account in');
   assert.deepStrictEqual(await store.reviewMailRecipients('2026'), []);
+  const versions = (await sql('SELECT version FROM schema_migrations ORDER BY version')).map((x) => x.version);
+  assert.deepStrictEqual(versions.slice(0, 2), [1, 2], 'baseline and the hash-table drop recorded');
+  assert.strictEqual((await sql("SELECT to_regclass('schema_version') AS t"))[0].t, null, 'the old hash table is gone');
   await store.close();
   await close();
+});
+
+// CI runs test files in parallel against one database: several stores create
+// the schema at once (as replicas would). Without the advisory lock in
+// the migration runner this deadlocked or hit "relation already exists".
+test('PgAccountStore: concurrent first starts on an empty database all succeed', async () => {
+  const url = testDatabaseUrl('race');
+  const stores = Array.from({ length: 6 }, () => createPgAccountStore(url));
+  try {
+    const res = await Promise.all(stores.map((s, i) => s.register(`Race${i}`, `race${i}@example.com`, 'geheim123')));
+    for (const r of res) assert.ok(r.ok, JSON.stringify(r));
+  } finally {
+    await Promise.all(stores.map((s) => s.close()));
+  }
+});
+
+// A replica starting while others serve players must not take table locks:
+// ALTER ... ADD COLUMN IF NOT EXISTS wants an exclusive lock even when the
+// column exists and deadlocked live transactions (release CI, v2.102.1).
+test('PgAccountStore: a second start on a ready schema takes no table lock', async () => {
+  const { Client } = require('pg');
+  const url = testDatabaseUrl('lock');
+  const first = createPgAccountStore(url);
+  const reader = new Client({ connectionString: url });
+  let second;
+  try {
+    assert.ok((await first.register('Erst', 'erst@example.com', 'geheim123')).ok);
+    await reader.connect();
+    await reader.query('BEGIN');
+    await reader.query('SELECT count(*) FROM users'); // holds a share lock until COMMIT
+    await reader.query('SELECT pg_advisory_xact_lock(726813)'); // and the migration lock
+    second = createPgAccountStore(url);
+    const res = await Promise.race([
+      second.register('Zweit', 'zweit@example.com', 'geheim123'),
+      new Promise((resolve) => setTimeout(() => resolve({ error: 'blocked on a lock' }), 3000)),
+    ]);
+    assert.ok(res.ok, JSON.stringify(res));
+  } finally {
+    await reader.query('COMMIT').catch(() => {});
+    await reader.end().catch(() => {});
+    if (second) await second.close();
+    await first.close();
+  }
 });
 
 test('PgAccountStore: unreachable database degrades gracefully (no throw, fails closed)', async () => {

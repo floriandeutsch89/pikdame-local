@@ -93,7 +93,7 @@ test('discard hint: default OFF = old behaviour (always glows); switch ON mutes 
   const pile = doc.getElementById('discardPile');
   feed(state({ takeable: false }));
   assert.ok(pile.classList.contains('glow') && !pile.classList.contains('noTake'), 'off: glows regardless of legality');
-  doc.getElementById('aidDiscardToggle').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  doc.getElementById('aidDiscardCheckbox').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
   assert.ok(pile.classList.contains('noTake') && !pile.classList.contains('glow'), 'on: not takeable -> muted, no glow');
   assert.equal(window.localStorage.getItem('pikdame_aid_discard'), 'on');
   feed(state({ takeable: true }));
@@ -107,6 +107,15 @@ test('discard hint: the tutorial forces it on even with the switch off', async (
   assert.ok(doc.getElementById('discardPile').classList.contains('noTake'));
 });
 
+test('discard hint: a Kartenhaus floor without the discard pile shows it blocked, aid or not', async (t) => {
+  const { doc, feed } = await setup(t);
+  const pile = doc.getElementById('discardPile');
+  feed({ ...state({ takeable: false }), towerStage: 13, towerMods: ['noDiscard'] });
+  assert.ok(pile.classList.contains('noTake') && !pile.classList.contains('glow'), 'blocked with the aid off');
+  feed({ ...state({ takeable: false }), towerStage: 12, towerMods: ['goOut'] });
+  assert.ok(!pile.classList.contains('noTake'), 'other floors keep the player\'s choice (off)');
+});
+
 test('lay-off hint: default ON frames the meld; OFF removes the frame; tutorial forces ON', async (t) => {
   const { doc, feed, window } = await setup(t);
   const frame = () => doc.querySelectorAll('#melds .meldGroup.layOffTarget').length;
@@ -114,24 +123,25 @@ test('lay-off hint: default ON frames the meld; OFF removes the frame; tutorial 
   feed(playing());
   doc.querySelector('#hand .card[data-card-id="h1"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true })); // the 7
   assert.equal(frame(), 1, 'default: the set of sevens is framed');
-  doc.getElementById('aidLayOffToggle').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  doc.getElementById('aidLayOffCheckbox').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
   assert.equal(window.localStorage.getItem('pikdame_aid_layoff'), 'off');
   assert.equal(frame(), 0, 'off: no frame');
   feed(playing({ tutorial: true }));
   assert.equal(frame(), 1, 'tutorial: frame is back');
 });
 
-test('stored choices are read on start and mirrored by the lobby checkboxes and rows', async (t) => {
+test('stored choices are read on start and shown by the one switch per aid', async (t) => {
   const { doc, feed } = await setup(t, { pikdame_aid_layoff: 'off', pikdame_aid_discard: 'on', pikdame_tips: 'off' });
   assert.equal(doc.getElementById('aidLayOffCheckbox').checked, false);
   assert.equal(doc.getElementById('aidDiscardCheckbox').checked, true);
   assert.equal(doc.getElementById('aidTipsCheckbox').checked, false);
   feed(state({ takeable: false }));
   assert.ok(doc.getElementById('discardPile').classList.contains('noTake'), 'stored ON is honoured');
-  // the lobby checkbox drives the same state as the in-game row
+  // the switch in "Optionen" drives the table directly
   const box = doc.getElementById('aidDiscardCheckbox');
   box.checked = false;
   box.dispatchEvent(new doc.defaultView.Event('change', { bubbles: true }));
   assert.ok(!doc.getElementById('discardPile').classList.contains('noTake'));
-  assert.equal(doc.querySelector('#aidDiscardToggle .sheetRowValue').textContent, 'Aus');
+  assert.equal(doc.defaultView.localStorage.getItem('pikdame_aid_discard'), 'off');
+  assert.equal(doc.getElementById('aidDiscardToggle'), null, 'no second control mirrors it');
 });

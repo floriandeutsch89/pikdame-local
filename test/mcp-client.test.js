@@ -4,6 +4,7 @@
  * Every move must be accepted - a refusal means the move list lied.
  */
 const test = require('node:test');
+const { freePort } = require('./helpers/free-port');
 const assert = require('node:assert');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
@@ -14,7 +15,7 @@ const { PikdameClient } = require('../mcp/PikdameClient');
 const { testDatabaseUrl } = require('./helpers/test-db');
 
 const ROOT = path.join(__dirname, '..');
-const PORT = 8097;
+let PORT = 0;
 
 async function waitForServer(port, timeoutMs = 15000) {
   const deadline = Date.now() + timeoutMs;
@@ -32,6 +33,7 @@ async function waitForServer(port, timeoutMs = 15000) {
 
 test('an MCP seat plays a full round against bots on a real server', { timeout: 120000 }, async (t) => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-mcp-'));
+  PORT = await freePort();
   const server = spawn('node', ['server.js'], {
     cwd: ROOT,
     env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('mcp_client'), PORT: String(PORT), PIKDAME_PUBLIC_MODE: '1', PIKDAME_DATA_DIR: dataDir, PIKDAME_ONNX: '0' },
