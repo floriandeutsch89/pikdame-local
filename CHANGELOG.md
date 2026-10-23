@@ -3,6 +3,18 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.106.0] - 2026-10-23
+
+### Changed
+- Der Server speichert Konten nur noch in PostgreSQL und startet ohne
+  Datenbank nicht mehr. Die SQLite-Notlösung ist entfernt.
+- Die Datenbank wird beim Start über nummerierte Migrationen aktualisiert;
+  bestehende Datenbanken werden dabei unverändert übernommen.
+
+### Fixed
+- Wer unter dem Namen eines noch unbestätigten Kontos spielte, bekam nach der
+  Partie einen Konto-Fortschritt angezeigt, obwohl nichts gebucht wurde.
+
 ## [2.105.1] - 2026-10-23
 
 ### Fixed
