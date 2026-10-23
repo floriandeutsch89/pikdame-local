@@ -705,6 +705,9 @@
   document.querySelectorAll('.seatCountBtn').forEach((btn) => {
     btn.addEventListener('click', () => {
       if (btn.disabled) return;
+      // "2 gegen 2" is the fourth choice: four seats in two teams.
+      if (btn.id === 'teamModeBtn') { send({ type: 'setTeamMode', on: true }); return; }
+      if (lastState && lastState.teamMode) send({ type: 'setTeamMode', on: false });
       send({ type: 'setMaxSeats', count: Number(btn.dataset.seatCount) });
     });
   });
@@ -2294,12 +2297,33 @@
     });
     syncSegments();
 
+    const team = isTeamGame();
     document.querySelectorAll('.seatCountBtn').forEach((btn) => {
+      if (btn.id === 'teamModeBtn') {
+        btn.classList.toggle('active', team);
+        btn.setAttribute('aria-pressed', team ? 'true' : 'false');
+        // A Stammtisch's record counts every player alone: no teams there (the server refuses too).
+        btn.classList.toggle('hidden', !!stammtischInfo);
+        btn.disabled = !isHost;
+        return;
+      }
       const count = Number(btn.dataset.seatCount);
-      btn.classList.toggle('active', count === lastState.maxSeats);
+      btn.classList.toggle('active', !team && count === lastState.maxSeats);
       // non-hosts cannot change the seat count; hosts cannot go below joined humans
       btn.disabled = !isHost || count < humanCount;
     });
+    el('seatCountHint').textContent = team
+      ? L('Zwei Teams über Kreuz: Platz 1 und 3 gegen 2 und 4. Die Punkte der Partner zählen zusammen.', 'Two teams, crosswise: seats 1 and 3 against 2 and 4. Partners add up their points.')
+      : L('Fehlende Plätze werden mit Bots aufgefüllt.', 'Empty seats are filled with bots.');
+    el('seatingHint').textContent = team
+      ? L('A und B sind abwechselnd dran. Am Griff ziehen tauscht Plätze – und damit das Team. Der Stern legt den Geber der ersten Runde fest.', 'A and B take turns. Dragging the handle swaps seats – and so the team. The star sets the dealer of the first round.')
+      : L('Zum Umsortieren am Griff ziehen. Der Stern legt den Geber der ersten Runde fest.', 'Drag the handle to reorder. The star sets the dealer of the first round.');
+    // Switch to a bot seat of the other team (the server refuses when there is none).
+    const myTeam = teamOfPlayer(playerId);
+    el('switchTeamBtn').classList.toggle('hidden', !(team && myTeam >= 0
+      && lastState.players.some((p) => p.isBot && teamOfPlayer(p.id) === 1 - myTeam)));
+    // One level for every bot at a team table; Zen plays its heuristic there (= Schwer).
+    el('ruleBotLevelTeam').classList.toggle('hidden', !team);
 
     renderSeatingList(isHost);
     try { renderStammtisch(); } catch (e) { /* never critical */ }
@@ -2326,11 +2350,14 @@
       // (🌱🙂🧘) said nothing to anyone who had not opened the picker yet.
       // Non-hosts see it read-only.
       const diff = BOT_DIFF[p.botDifficulty] || BOT_DIFF.zen;
+      // Team mode: one level for every bot, so the chip changes them all - and its name,
+      // the same on every bot row, gives the room to the team letter (title keeps it).
+      const teamTable = isTeamGame();
       const diffTitle = canEdit
-        ? L('Schwierigkeit ändern', 'Change difficulty')
+        ? teamTable ? L(`Bot-Stärke für alle ändern (${diff.short()})`, `Change the strength of all bots (${diff.short()})`) : L('Schwierigkeit ändern', 'Change difficulty')
         : L(`Schwierigkeit: ${diff.short()}`, `Difficulty: ${diff.short()}`);
       const diffChip = p.isBot
-        ? `<button class="seatDiff tapExpand${canEdit ? '' : ' readonly'}" title="${diffTitle}">${levelIconHtml(diff)}<span>${diff.short()}</span></button>`
+        ? `<button class="seatDiff tapExpand${canEdit ? '' : ' readonly'}${teamTable ? ' iconOnly' : ''}" title="${diffTitle}"${teamTable ? ` aria-label="${diffTitle}"` : ''}>${levelIconHtml(diff)}${teamTable ? '' : `<span>${diff.short()}</span>`}</button>`
         : '';
       const readyMark = multiHuman && !p.isBot && ready.has(p.id)
         ? `<span class="seatReady" title="${L('bereit', 'ready')}"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></span>`
@@ -2343,8 +2370,11 @@
       const grip = canEdit && count > 1
         ? `<button class="seatGrip" title="${L('Ziehen zum Umsortieren', 'Drag to reorder')}" aria-label="${L(`Platz ${idx + 1} verschieben (Pfeiltasten)`, `Move seat ${idx + 1} (arrow keys)`)}"><svg class="icon" aria-hidden="true"><use href="#i-grip"/></svg></button>`
         : '';
+      // Team mode: the team's letter and colour lead the row (seats alternate A, B, A, B).
+      const team = teamOfPlayer(p.id);
+      const teamTag = team >= 0 ? teamTagHtml(team) : '';
       // Lobby: only the badges a player chose themselves, no level title (#317).
-      row.innerHTML = `${grip}<span class="seatName">${nameWithHeart(p.name)}${p.isBot ? '' : favoriteBadgesHtml(profileByName(p.name))}${botMark(p)}${readyMark}</span><span class="seatControls">${diffChip}${dealerBtn}</span>`;
+      row.innerHTML = `${grip}${teamTag}<span class="seatName">${nameWithHeart(p.name)}${p.isBot ? '' : favoriteBadgesHtml(profileByName(p.name))}${botMark(p)}${readyMark}</span><span class="seatControls">${diffChip}${dealerBtn}</span>`;
       if (canEdit) {
         const dealer = row.querySelector('.seatDealer');
         if (dealer && !isDealer) dealer.addEventListener('click', () => send({ type: 'setDealer', playerId: p.id }));
@@ -2484,11 +2514,40 @@
     // Same "<b>n</b> Pkt" format as the opponent chips; a negative total
     // keeps its minus sign, red only reinforces it.
     const scoreEl = el('myScore');
-    scoreEl.innerHTML = `<b>${myTotal}</b> ${L('Pkt', 'pts')}`;
-    scoreEl.classList.toggle('scoreNegative', myTotal < 0);
-    // Progress towards the 1000-point finish line (negatives clamp to 0)
-    el('myScoreBar').querySelector('i').style.width =
-      `${Math.max(0, Math.min(100, (myTotal / SCORE_TARGET) * 100))}%`;
+    // "2 gegen 2": the match is the two shared totals, ours first ("Wir 550:600");
+    // the own share shows on the bar below and in the result sheet.
+    const myTeam = teamOfPlayer(playerId);
+    const tt = myTeam >= 0 ? teamTotalsOf() : null;
+    if (tt) {
+      const ours = tt[myTeam] || 0;
+      const theirs = tt[1 - myTeam] || 0;
+      // The leader by weight, not colour (red stays the minus sign): the trailing number is muted.
+      const cls = (v, other) => [v < 0 ? 'neg' : '', v < other ? 'trail' : ''].join(' ').trim();
+      scoreEl.innerHTML = `<span class="tsWe">${L('Wir', 'Us')}</span> <b class="${cls(ours, theirs)}">${ours}</b><span class="tsVs">:</span><b class="${cls(theirs, ours)}">${theirs}</b>`;
+      scoreEl.title = L(`Dein Team ${ours} Punkte, die Gegner ${theirs} - ${SCORE_TARGET} gewinnen`, `Your team ${ours} points, the opponents ${theirs} - ${SCORE_TARGET} wins`);
+      scoreEl.classList.remove('scoreNegative');
+    } else {
+      scoreEl.innerHTML = `<b>${myTotal}</b> ${L('Pkt', 'pts')}`;
+      scoreEl.title = L('Deine Gesamtpunkte', 'Your total points');
+      scoreEl.classList.toggle('scoreNegative', myTotal < 0);
+    }
+    // Progress towards the 1000-point finish line (negatives clamp to 0); team mode: the team's.
+    const myBar = el('myScoreBar');
+    myBar.classList.toggle('teamBar', !!tt);
+    if (tt) {
+      const tb = teamBarParts(myTeam, playerId);
+      myBar.style.setProperty('--team-c', teamColor(myTeam));
+      myBar.title = tb.title;
+      if (!myBar.querySelector('.tbMate')) myBar.innerHTML = '<i class="tbOwn"></i><i class="tbMate"></i>';
+      myBar.querySelector('.tbOwn').style.width = `${tb.ownPct}%`;
+      const mate = myBar.querySelector('.tbMate');
+      mate.style.left = `${tb.ownPct}%`;
+      mate.style.width = `${tb.matePct}%`;
+    } else {
+      if (myBar.querySelector('.tbMate')) myBar.innerHTML = '<i></i>';
+      myBar.title = L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points');
+      myBar.querySelector('i').style.width = `${Math.max(0, Math.min(100, (myTotal / SCORE_TARGET) * 100))}%`;
+    }
     const dealer = lastState.players.find((p) => p.id === lastState.dealerId);
     const iAmDealer = dealer && dealer.id === playerId;
     // Star alone, as on the opponent chips; the title names it.
@@ -2562,8 +2621,21 @@
               ? `<span class="opLowTag opLeftTag reconnectTag"><span>${L('getrennt', 'offline')}</span></span>`
               : '';
         const faceBreath = breath && breath.id === p.id ? breath : null;
+        // "2 gegen 2": a stripe in the team colour, "Partner" on the partner's chip, and the
+        // bar is the team's (this seat's share solid). The number stays the seat's own.
+        const team = teamOfPlayer(p.id);
+        const isPartner = team >= 0 && team === teamOfPlayer(playerId);
+        if (team >= 0) {
+          d.classList.add('teamChip');
+          d.classList.toggle('isPartner', isPartner);
+          d.style.setProperty('--team-c', teamColor(team));
+        }
+        const partnerTag = isPartner ? `<span class="opPartnerTag">${L('Partner', 'Partner')}</span>` : '';
+        const bar = team >= 0
+          ? teamBarHtml(team, p.id)
+          : `<div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>`;
         // The dealer star sits on the face (a dealer button), so the name keeps the whole row.
-        d.innerHTML = `<div class="opName"><span class="opSeat">${avatarFor(p.name, p.isBot, faceBreath)}${dealerStar}</span><span class="opNameText">${nameWithHeart(p.name)}</span></div><div class="opCount"><span class="opCards" title="${cardsText}"><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><b>${p.handCount}</b></span><b class="opPts" title="${L(`${opTotal} Punkte`, `${opTotal} points`)}">${opTotal}</b></div><div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>${lowTag}`;
+        d.innerHTML = `<div class="opName"><span class="opSeat">${avatarFor(p.name, p.isBot, faceBreath)}${dealerStar}</span><span class="opNameText">${nameWithHeart(p.name)}</span></div><div class="opCount"><span class="opCards" title="${cardsText}"><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><b>${p.handCount}</b></span><b class="opPts" title="${L(`${opTotal} Punkte`, `${opTotal} points`)}">${opTotal}</b></div>${bar}${partnerTag}${lowTag}`;
         // Daily challenge: the level is fixed and deliberately not shown.
         // Badge lives OUTSIDE the name div: inside it, the name ellipsis on
         // narrow chips (3 bots, portrait) swallowed the button.
@@ -2671,9 +2743,14 @@
       section.className = 'meldOwnerGroup' + (isMine ? ' own' : '');
       const header = document.createElement('div');
       header.className = 'meldOwnerHeader';
+      // "2 gegen 2": the partner's melds say so (laying off there is still not allowed).
+      const ownerTeam = teamOfPlayer(owner.id);
+      const partnerMark = !isMine && ownerTeam >= 0 && ownerTeam === teamOfPlayer(playerId)
+        ? `<span class="meldPartnerTag" style="--team-c:${teamColor(ownerTeam)}">${L('Partner', 'Partner')}</span>`
+        : '';
       header.innerHTML = isMine
         ? L('Deine Auslagen', 'Your melds')
-        : L(`<span class="ownerWord">Auslagen von </span>${escapeHtml(owner.name)}${botMark(owner)}`, `${escapeHtml(owner.name)}<span class="ownerWord">'s melds</span>${botMark(owner)}`);
+        : L(`<span class="ownerWord">Auslagen von </span>${escapeHtml(owner.name)}${botMark(owner)}${partnerMark}`, `${escapeHtml(owner.name)}<span class="ownerWord">'s melds</span>${botMark(owner)}${partnerMark}`);
       header.addEventListener('click', () => {
         meldFilterPlayerId = meldFilterPlayerId === owner.id ? null : owner.id;
         render();
@@ -3438,10 +3515,17 @@
   function winnerCelebration(st) {
     const over = st.phase === 'gameOver' ? st.gameOverInfo : null;
     if (over && over.forfeited) return null;
-    const winnerId = (over && over.winnerId) || st.lastRoundWinnerId;
-    const seat = winnerId ? (st.players || []).find((p) => p.id === winnerId) : null;
-    const id = seat && !seat.isBot ? seat.celebration : null;
-    return id && id !== 'standard' && CELEBRATIONS.some((c) => c.id === id) ? id : null;
+    const own = (seatId) => {
+      const seat = seatId ? (st.players || []).find((p) => p.id === seatId) : null;
+      const id = seat && !seat.isBot ? seat.celebration : null;
+      return id && id !== 'standard' && CELEBRATIONS.some((c) => c.id === id) ? id : null;
+    };
+    // "2 gegen 2": the match is the team's - whoever went out last if on it, else the partner.
+    if (over && over.teamMode && Array.isArray(over.winnerIds)) {
+      const ids = over.winnerIds.slice().sort((a, b) => (b === st.lastRoundWinnerId) - (a === st.lastRoundWinnerId));
+      return ids.map(own).find(Boolean) || null;
+    }
+    return own((over && over.winnerId) || st.lastRoundWinnerId);
   }
   function fxCatSvg(fur) {
     const eye = fur === '#3a3a3a' ? '#f6d36b' : '#2b2b2b';
@@ -3562,6 +3646,73 @@
     return wrap;
   }
 
+  // "2 gegen 2" result list: one block per team. The shared total and its bar lead,
+  // each seat's own numbers (what it brought in) sit underneath. Round end: by the
+  // round's team delta; game over: by the team total (like the seat list).
+  function fillTeamResultList(list, isGameOver, breakdownFor) {
+    const st = lastState;
+    const res = st.lastRoundResult || {};
+    const tt = teamTotalsOf(st);
+    const deltaOf = (id) => (res[id] ? res[id].roundScore : 0);
+    const teamDelta = (t) => st.teams[t].reduce((s, id) => s + deltaOf(id), 0);
+    const myTeam = teamOfPlayer(playerId);
+    const winnerTeam = isGameOver && st.gameOverInfo ? st.gameOverInfo.winnerTeam : null;
+    const order = [0, 1].sort((a, b) => (isGameOver ? tt[b] - tt[a] : teamDelta(b) - teamDelta(a) || tt[b] - tt[a]));
+    const scaleMax = Math.max(isGameOver ? 1 : 1000, ...[0, 1].map((t) => Math.max(tt[t], tt[t] - teamDelta(t))));
+    const pctOf = (v) => Math.max(0, Math.min(100, (v / scaleMax) * 100));
+    const signCls = (n) => (n > 0 ? ' pos' : n < 0 ? ' neg' : '');
+    list.classList.add('teamResultList');
+    list.innerHTML = '';
+    for (const t of order) {
+      const total = tt[t];
+      const delta = teamDelta(t);
+      const prev = total - delta;
+      const lo = pctOf(Math.min(prev, total));
+      const hi = pctOf(Math.max(prev, total));
+      // From the seat's view: "Dein Team" / "Gegner"; the names follow in the rows below.
+      const label = myTeam < 0 ? `Team ${t === 1 ? 'B' : 'A'}` : t === myTeam ? L('Dein Team', 'Your team') : L('Gegner', 'Opponents');
+      const name = `<span class="resultName teamResultName"><i class="teamDot" aria-hidden="true"></i><span>${label}</span></span>`;
+      const bar =
+        `<div class="resultRowBar" style="--pc:${teamColor(t)}">` +
+        `<i class="barSolid" style="width:${delta >= 0 ? pctOf(prev) : lo}%"></i>` +
+        (hi > lo ? `<i class="barGhost ${delta >= 0 ? 'gain' : 'loss'}" style="left:${lo}%;width:${hi - lo}%"></i>` : '') +
+        (isGameOver ? '' : `<span class="barGoal" style="left:${pctOf(1000)}%"></span>`) +
+        `</div>`;
+      const group = document.createElement('section');
+      group.className = 'teamResult' + (t === myTeam ? ' isMine' : '') + (winnerTeam === t ? ' won' : '');
+      group.style.setProperty('--team-c', teamColor(t));
+      const rank = 1 + [0, 1].filter((o) => tt[o] > total).length;
+      group.innerHTML = `<div class="resultRow teamResultHead">` + (isGameOver
+        ? `<div class="resultRowTop"><span class="resultRank">${rank}.</span>${name}` +
+          `<span class="resultDelta resultDeltaSmall${signCls(delta)}">${fmtSigned(delta)}</span>` +
+          `<span class="resultTotal resultTotalBig">${fmtNum(total)}</span></div>`
+        : `<div class="resultRowTop">${name}` +
+          `<span class="resultTotal">${L('gesamt', 'total')} ${fmtNum(total)}</span>` +
+          `<span class="resultDelta${signCls(delta)}">${fmtSigned(delta)}</span></div>`) + bar + `</div>`;
+      for (const id of st.teams[t]) {
+        const p = (st.players || []).find((x) => x.id === id);
+        if (!p) continue;
+        const r = res[id];
+        const own = (st.totals || {})[id] || 0;
+        const row = document.createElement('div');
+        row.className = 'teamMember' + (r && r.breakdown && r.breakdown.isWinner ? ' winner' : '') + (id === playerId ? ' isMe' : '');
+        // The seat's own total and round: its share of the team's numbers above.
+        row.innerHTML = `<div class="tmTop"><span class="tmName">${nameWithHeart(p.name)}${botMark(p)}</span>` +
+          `<span class="tmTotal">${isGameOver ? fmtNum(own) : `${L('gesamt', 'total')} ${fmtNum(own)}`}</span>` +
+          (isGameOver ? '' : `<span class="tmDelta${signCls(deltaOf(id))}">${fmtSigned(deltaOf(id))}</span>`) + `</div>`;
+        const queen = id === playerId ? queenChip() : null;
+        if (queen) {
+          row.classList.add('hasQueenChip');
+          row.querySelector('.tmName').after(queen);
+        }
+        const det = breakdownFor(p, r);
+        if (det) row.appendChild(det);
+        group.appendChild(row);
+      }
+      list.appendChild(group);
+    }
+  }
+
   function renderResultOverlay() {
     const forfeited = lastState.phase === 'gameOver' && lastState.gameOverInfo && lastState.gameOverInfo.forfeited;
     if (!lastState.lastRoundResult && !forfeited) return;
@@ -3575,7 +3726,7 @@
       if (fx) {
         confettiShownForRound = winKey;
         playCelebration(fx, el('resultOverlay').querySelector('.overlay-card'));
-      } else if (myResult && myResult.breakdown && myResult.breakdown.isWinner) {
+      } else if ((myResult && myResult.breakdown && myResult.breakdown.isWinner) || myTeamWonMatch(lastState)) {
         confettiShownForRound = winKey;
         launchConfetti();
       }
@@ -3695,6 +3846,38 @@
       // per-player marker).
       const scaleMax = Math.max(isGameOver ? 1 : SCORE_TARGET, ...lastState.players.map((pl) => Math.max(totalOf(pl), totalOf(pl) - deltaOf(pl))));
       const pctOf = (v) => Math.max(0, Math.min(100, (v / scaleMax) * 100));
+      // Per-card breakdown: MY row only (an opponent's leftover hand is
+      // not even sent), and not at game over - the match is decided then.
+      const breakdownFor = (p, r) => {
+        const stats = p.id === playerId && !isGameOver ? (lastState.lastRoundStats || []).find((s) => s.id === p.id) : null;
+        if (!stats || !(stats.laidLines || stats.handLines)) return null;
+        const det = document.createElement('details');
+        det.className = 'resultBreakdown';
+        // Folded: four rows must fit on a phone. The summary carries the
+        // two sums, the per-card lines open on tap.
+        det.open = false;
+        const lineText = (ln) => {
+          const label = {
+            pikdame: '♠Q', joker: L('Joker', 'Joker'), ace: L('Ass', 'Ace'),
+            face: L('10/B/D/K', '10/J/Q/K'), low: '2–9',
+          }[ln.kind] || ln.kind;
+          return `${ln.count > 1 ? `${ln.count}×${NBSP}` : ''}${label} ${ln.points}`;
+        };
+        const plus = (stats.laidLines || []).map(lineText).join(', ');
+        const minus = (stats.handLines || []).map(lineText).join(', ');
+        const plusSum = (stats.laidLines || []).reduce((a, ln) => a + ln.points, 0);
+        const minusSum = (stats.handLines || []).reduce((a, ln) => a + ln.points, 0);
+        const isWinner = !!(r && r.breakdown && r.breakdown.isWinner);
+        const mult = r && r.breakdown && r.breakdown.multiplier > 1 ? r.breakdown.multiplier : 1;
+        det.innerHTML =
+          `<summary><span>${L('Aufschlüsselung', 'Breakdown')}</span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg> <span class="bdSums"><span class="bdSumPlus">+${fmtNum(plusSum)}</span>${isWinner ? '' : ` <span class="bdSumMinus">${MINUS}${fmtNum(minusSum)}</span>`}</span></summary>` +
+          `<div class="bdLine bdPlus"><span>${L('Ausgelegt', 'Melded')}</span><span>${plus ? escapeHtml(plus) : '–'}</span><b>+${fmtNum(plusSum)}</b></div>` +
+          (isWinner
+            ? `<div class="bdLine bdNote"><span>${L('Rundensieg: keine Minuspunkte', 'Round winner: no minus points')}</span><span></span><b></b></div>`
+            : `<div class="bdLine bdMinus"><span>${L('Auf der Hand', 'In hand')}</span><span>${minus ? escapeHtml(minus) : '–'}</span><b>${MINUS}${fmtNum(minusSum)}</b></div>`) +
+          (mult > 1 ? `<div class="bdLine bdNote"><span>${L(`Hand aus: ×${mult}`, `Out in one: ×${mult}`)}</span><span></span><b></b></div>` : '');
+        return det;
+      };
       // Points order by default; the viewer may switch to seat order (#322).
       const fillList = () => {
         list.innerHTML = '';
@@ -3738,42 +3921,19 @@
               row.classList.add('hasQueenChip');
               row.querySelector('.resultName').after(queen);
             }
-            // Per-card breakdown: MY row only (an opponent's leftover hand is
-            // not even sent), and not at game over - the match is decided then.
-            const stats = p.id === playerId && !isGameOver ? (lastState.lastRoundStats || []).find((s) => s.id === p.id) : null;
-            if (stats && (stats.laidLines || stats.handLines)) {
-              const det = document.createElement('details');
-              det.className = 'resultBreakdown';
-              // Folded: four rows must fit on a phone. The summary carries the
-              // two sums, the per-card lines open on tap.
-              det.open = false;
-              const lineText = (ln) => {
-                const label = {
-                  pikdame: '♠Q', joker: L('Joker', 'Joker'), ace: L('Ass', 'Ace'),
-                  face: L('10/B/D/K', '10/J/Q/K'), low: '2–9',
-                }[ln.kind] || ln.kind;
-                return `${ln.count > 1 ? `${ln.count}×${NBSP}` : ''}${label} ${ln.points}`;
-              };
-              const plus = (stats.laidLines || []).map(lineText).join(', ');
-              const minus = (stats.handLines || []).map(lineText).join(', ');
-              const plusSum = (stats.laidLines || []).reduce((a, ln) => a + ln.points, 0);
-              const minusSum = (stats.handLines || []).reduce((a, ln) => a + ln.points, 0);
-              const isWinner = !!(r && r.breakdown && r.breakdown.isWinner);
-              const mult = r && r.breakdown && r.breakdown.multiplier > 1 ? r.breakdown.multiplier : 1;
-              det.innerHTML =
-                `<summary><span>${L('Aufschlüsselung', 'Breakdown')}</span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg> <span class="bdSums"><span class="bdSumPlus">+${fmtNum(plusSum)}</span>${isWinner ? '' : ` <span class="bdSumMinus">${MINUS}${fmtNum(minusSum)}</span>`}</span></summary>` +
-                `<div class="bdLine bdPlus"><span>${L('Ausgelegt', 'Melded')}</span><span>${plus ? escapeHtml(plus) : '–'}</span><b>+${fmtNum(plusSum)}</b></div>` +
-                (isWinner
-                  ? `<div class="bdLine bdNote"><span>${L('Rundensieg: keine Minuspunkte', 'Round winner: no minus points')}</span><span></span><b></b></div>`
-                  : `<div class="bdLine bdMinus"><span>${L('Auf der Hand', 'In hand')}</span><span>${minus ? escapeHtml(minus) : '–'}</span><b>${MINUS}${fmtNum(minusSum)}</b></div>`) +
-                (mult > 1 ? `<div class="bdLine bdNote"><span>${L(`Hand aus: ×${mult}`, `Out in one: ×${mult}`)}</span><span></span><b></b></div>` : '');
-              row.appendChild(det);
-            }
+            const det = breakdownFor(p, r);
+            if (det) row.appendChild(det);
             list.appendChild(row);
           });
       };
-      fillList();
-      paneResult.append(buildResultSortControl(() => { fillList(); updateResultScrollEdges(); }), list);
+      if (isTeamGame()) {
+        // "2 gegen 2": the two teams are the order, so no sort switch.
+        fillTeamResultList(list, isGameOver, breakdownFor);
+        paneResult.append(list);
+      } else {
+        fillList();
+        paneResult.append(buildResultSortControl(() => { fillList(); updateResultScrollEdges(); }), list);
+      }
     }
 
     // Round details: four numeric columns, right-aligned. Melded ♠Q/jokers
@@ -3806,28 +3966,35 @@
     // Punkteverlauf über alle Runden als kleines SVG-Chart (ab 2 Runden)
     // At game over the chart IS the story of the match: on the result pane.
     const history = lastState.scoreHistory || [];
-    const chart = history.length >= 2 ? renderScoreChart(history) : null;
+    const chart = history.length >= 2 ? (isTeamGame() ? renderTeamScoreChart(history) : renderScoreChart(history)) : null;
     if (chart && !isGameOver) paneStats.appendChild(chart);
 
     if (isGameOver && !forfeited && lastState.gameOverInfo) {
       const winner = lastState.players.find((p) => p.id === lastState.gameOverInfo.winnerId);
+      // "2 gegen 2": the winning team, both names; my team's win gets the gold banner.
+      const winTeam = isTeamGame() && lastState.gameOverInfo.teamMode ? lastState.gameOverInfo.winnerTeam : null;
       // The match winner belongs at the TOP. It used to be a line of body text
       // below four score rows - the single most important sentence on the
       // screen, and you had to read past everything else to reach it.
-      const iWon = !!winner && winner.id === playerId;
+      const iWon = winTeam !== null ? teamOfPlayer(playerId) === winTeam : !!winner && winner.id === playerId;
       // One line, no score: the total is in the list right below. The trophy
       // (not the round's crown) marks the match; my own win gets the gold banner.
       const head = document.createElement('div');
       head.className = 'resultWinner resultWinnerGame' + (iWon ? ' isMe' : '');
+      const winnerName = winTeam !== null
+        ? teamNamesHtml(winTeam)
+        : `${nameWithHeart(winner ? winner.name : '?')}${winner ? botMark(winner) : ''}`;
       head.innerHTML =
         `<span class="resultWinnerTrophy">${TROPHY_MARK_SVG}</span>` +
-        (iWon ? '' : `<span class="resultWinnerName">${nameWithHeart(winner ? winner.name : '?')}${winner ? botMark(winner) : ''}</span>`) +
+        (iWon ? '' : `<span class="resultWinnerName">${winnerName}</span>`) +
         `<span class="resultWinnerSub">${
           lastState.towerStage
             ? iWon ? L('Du schaffst die Etage!', 'You clear the floor!') : L('hält dich auf dieser Etage', 'holds you on this floor')
-            : iWon
-              ? L('Du gewinnst die Partie!', 'You win the match!')
-              : L('gewinnt die Partie', 'wins the match')
+            : winTeam !== null
+              ? iWon ? L('Dein Team gewinnt die Partie!', 'Your team wins the match!') : L('gewinnen die Partie', 'win the match')
+              : iWon
+                ? L('Du gewinnst die Partie!', 'You win the match!')
+                : L('gewinnt die Partie', 'wins the match')
         }</span>`;
       paneResult.insertBefore(head, paneResult.firstChild);
       // Schlüsselmomente der Partie: 3 erzählte Zeilen statt nur Zahlen.
@@ -4062,11 +4229,14 @@
     const totalOf = (p) => (lastState.totals && lastState.totals[p.id]) || 0;
     const myTotal = totalOf(me);
     const ranked = lastState.players.slice().sort((a, b) => totalOf(b) - totalOf(a));
-    const place = 1 + lastState.players.filter((o) => totalOf(o) > myTotal).length;
-    const rival = place === 1 ? ranked.find((p) => p.id !== me.id) : ranked[0];
-    const gap = rival ? Math.abs(myTotal - totalOf(rival)) : 0;
-    const rn = rival ? escapeHtml(rival.name) : '';
-    const gapText = !rival ? ''
+    // "2 gegen 2": the place is the team's, the gap to the other team's total.
+    const myTeam = teamOfPlayer(me.id);
+    const tt = myTeam >= 0 ? teamTotalsOf() : null;
+    const place = tt ? 1 + (tt[1 - myTeam] > tt[myTeam] ? 1 : 0) : 1 + lastState.players.filter((o) => totalOf(o) > myTotal).length;
+    const rival = tt ? null : place === 1 ? ranked.find((p) => p.id !== me.id) : ranked[0];
+    const gap = tt ? Math.abs(tt[myTeam] - tt[1 - myTeam]) : rival ? Math.abs(myTotal - totalOf(rival)) : 0;
+    const rn = tt ? teamNamesHtml(1 - myTeam) : rival ? escapeHtml(rival.name) : '';
+    const gapText = !rival && !tt ? ''
       : gap === 0 ? L(`gleichauf mit ${rn}`, `level with ${rn}`)
         : place === 1 ? L(`${fmtNum(gap)} vor ${rn}`, `${fmtNum(gap)} ahead of ${rn}`)
           : L(`${fmtNum(gap)} hinter ${rn}`, `${fmtNum(gap)} behind ${rn}`);
@@ -4113,7 +4283,9 @@
       chips.push(`<span class="rmChip" title="${escapeHtml(L(`${r.won} Siege in ${r.played} Partien`, `${r.won} wins in ${r.played} games`))}"><span>${L(`Bilanz ${r.won}/${r.played}`, `Record ${r.won}/${r.played}`)}</span></span>`);
     }
     box.innerHTML =
-      `<div class="rmTop"><span class="rmPlace">${L(`Platz ${place} von ${lastState.players.length}`, `Place ${place} of ${lastState.players.length}`)}</span>` +
+      `<div class="rmTop"><span class="rmPlace">${tt
+        ? L(`Platz ${place}`, `Place ${place}`) // of two teams: the gap names the other one
+        : L(`Platz ${place} von ${lastState.players.length}`, `Place ${place} of ${lastState.players.length}`)}</span>` +
       (gapText ? `<span class="rmGap">· ${gapText}</span>` : '') + xp + `</div>` +
       level +
       (chips.length ? `<div class="rmChips">${chips.join('')}</div>` : '');
@@ -4326,6 +4498,13 @@
   el('createGameBtn').addEventListener('click', () => {
     guardOpenGame('create', () => send({ type: 'createSession', name: currentName(), accountToken: accountToken() || undefined, tablePrefs: tablePrefs() }));
   });
+  // "2 gegen 2" in one tap: you and a bot against two bots, dealt right away.
+  el('teamQuickBtn').addEventListener('click', () => {
+    guardOpenGame('create', () => send({
+      type: 'createSession', name: currentName(), accountToken: accountToken() || undefined, tablePrefs: tablePrefs(), teamMode: true, quickStart: true,
+    }));
+  });
+  el('switchTeamBtn').addEventListener('click', () => send({ type: 'switchTeam' }));
 
   // Desktop-Tastatur: Enter im Code-Feld tritt bei, Enter im Namensfeld
   // erstellt ein Spiel (bzw. tritt bei, wenn schon ein Code eingegeben ist).
@@ -4874,7 +5053,9 @@
       ? `${towerName()} · ${L(`Etage ${og.tower}`, `floor ${og.tower}`)}`
       : og.phase === 'lobby'
         ? L(`Spiel ${og.code} · noch in der Lobby`, `Game ${og.code} · still in the lobby`)
-        : L(`Spiel ${og.code} · Runde ${og.round} · ${og.score} Punkte`, `Game ${og.code} · round ${og.round} · ${og.score} points`);
+        : typeof og.teamScore === 'number' // "2 gegen 2": the shared total is the one that counts
+          ? L(`Spiel ${og.code} · Runde ${og.round} · Team ${og.teamScore} Punkte`, `Game ${og.code} · round ${og.round} · team ${og.teamScore} points`)
+          : L(`Spiel ${og.code} · Runde ${og.round} · ${og.score} Punkte`, `Game ${og.code} · round ${og.round} · ${og.score} points`);
     el('openGameConsequence').textContent = og.tower
       ? L('Die Stufe endet ohne Sterne - du kannst sie jederzeit neu starten.', 'The stage ends without stars - you can restart it any time.')
       : og.phase === 'lobby'
@@ -4964,15 +5145,21 @@
   function openBotDiffOverlay(bot) {
     // Tages-Challenge: Bot-Stärke ist fest (mittel für alle) - Menü gar nicht anbieten.
     if (lastState && lastState.challengeDate) return;
-    el('botDiffTitle').textContent = L(`Schwierigkeit: ${bot.name}`, `Difficulty: ${bot.name}`);
+    // "2 gegen 2": every bot plays the same level (fairness), so the choice sets them all.
+    const all = isTeamGame();
+    el('botDiffTitle').textContent = all
+      ? L('Bot-Stärke (alle Bots)', 'Bot strength (all bots)')
+      : L(`Schwierigkeit: ${bot.name}`, `Difficulty: ${bot.name}`);
     const box = el('botDiffOptions');
     box.innerHTML = '';
     for (const [key, meta] of Object.entries(BOT_DIFF)) {
       const btn = document.createElement('button');
       if (key === bot.botDifficulty) btn.classList.add('current');
-      btn.innerHTML = `${levelIconHtml(meta)}<span>${meta.short()}<small>${meta.hint()}</small></span>`;
+      // The net was trained for single play: at a team table Zen plays its heuristic.
+      const hint = all && key === 'zen' ? L('bei „2 gegen 2“ so stark wie Schwer', 'in "2 vs 2" as strong as Hard') : meta.hint();
+      btn.innerHTML = `${levelIconHtml(meta)}<span>${meta.short()}<small>${hint}</small></span>`;
       btn.addEventListener('click', () => {
-        send({ type: 'setBotDifficulty', botId: bot.id, difficulty: key });
+        send(all ? { type: 'setAllBotDifficulty', difficulty: key } : { type: 'setBotDifficulty', botId: bot.id, difficulty: key });
         el('botDiffOverlay').classList.add('hidden');
       });
       box.appendChild(btn);
@@ -6958,6 +7145,58 @@
     const i = lastState && lastState.players ? lastState.players.findIndex((p) => p.id === id) : -1;
     return PLAYER_COLORS[Math.max(0, i) % PLAYER_COLORS.length];
   }
+  // --- "2 gegen 2" (game/Teams.js): teams by seat, crosswise -----------------
+  // Team colour = its first seat's PLAYER_COLORS entry (blue/orange: CVD-safe, never
+  // --accent). A word ("Partner", the names, the letter) always carries the meaning.
+  function teamColor(team) { return PLAYER_COLORS[team === 1 ? 1 : 0]; }
+  function isTeamGame(st = lastState) { return !!(st && st.teamMode && Array.isArray(st.teams)); }
+  function teamOfPlayer(id, st = lastState) { return isTeamGame(st) ? st.teams.findIndex((ids) => ids.includes(id)) : -1; }
+  /** Game over at a team table, and my team won (both partners celebrate). */
+  function myTeamWonMatch(st = lastState) {
+    const gi = st && st.phase === 'gameOver' ? st.gameOverInfo : null;
+    return !!(gi && gi.teamMode && !gi.forfeited && Array.isArray(gi.winnerIds) && gi.winnerIds.includes(playerId));
+  }
+  /** The shared totals [A, B]; summed from the seats when a state lacks them. */
+  function teamTotalsOf(st = lastState) {
+    if (!isTeamGame(st)) return null;
+    if (Array.isArray(st.teamTotals)) return st.teamTotals;
+    return st.teams.map((ids) => ids.reduce((s, id) => s + ((st.totals || {})[id] || 0), 0));
+  }
+  /** "Oma Gerda & Klaus": a team's names in seat order (escaped). */
+  function teamNamesHtml(team, st = lastState) {
+    const nameOf = (id) => ((st.players || []).find((p) => p.id === id) || {}).name || '?';
+    return ((st.teams && st.teams[team]) || []).map((id) => escapeHtml(nameOf(id))).join(' &amp; ');
+  }
+  function teamTagHtml(team) {
+    return `<span class="teamTag" style="--team-c:${teamColor(team)}"><i aria-hidden="true"></i><span>${team === 1 ? 'B' : 'A'}</span></span>`;
+  }
+  /** A team's progress to 1000 on one bar: this seat's share solid, the partner's lighter. */
+  function teamBarParts(team, seatId, st = lastState) {
+    const total = (teamTotalsOf(st) || [0, 0])[team] || 0;
+    const pct = (v) => Math.round(Math.max(0, Math.min(100, v / 10)) * 10) / 10; // of 1000, one decimal
+    const teamPct = pct(total);
+    const ownPct = Math.min(teamPct, pct((st.totals || {})[seatId] || 0));
+    const matePct = Math.round((teamPct - ownPct) * 10) / 10;
+    return { teamPct, ownPct, matePct, title: L(`Team: ${total} von 1000 Punkten`, `Team: ${total} of 1000 points`) };
+  }
+  function teamBarHtml(team, seatId, st = lastState) {
+    const tb = teamBarParts(team, seatId, st);
+    return `<div class="scoreBar teamBar" style="--team-c:${teamColor(team)}" title="${escapeHtml(tb.title)}">` +
+      `<i class="tbOwn" style="width:${tb.ownPct}%"></i><i class="tbMate" style="left:${tb.ownPct}%;width:${tb.matePct}%"></i></div>`;
+  }
+  /** The match as two lines, one per team (A blue, B orange); mine is the bold one.
+   *  st: the live table, or { teams, meId } of a stored game ("Meine Partien"). */
+  function renderTeamScoreChart(history, st = lastState) {
+    const sum = (h, t) => (Array.isArray(h.teamTotals) ? h.teamTotals[t] : st.teams[t].reduce((s, id) => s + ((h.totals || {})[id] || 0), 0));
+    const meId = st.meId !== undefined ? st.meId : playerId;
+    const myTeam = (st.teams || []).findIndex((ids) => ids.includes(meId));
+    const name = (t) => (myTeam < 0 ? `Team ${t === 1 ? 'B' : 'A'}` : t === myTeam ? L('Wir', 'Us') : L('Gegner', 'Them'));
+    // Index 0/1 = PLAYER_COLORS[0]/[1], the same colours as the team dots.
+    const teams = [{ id: 'teamA', name: name(0) }, { id: 'teamB', name: name(1) }];
+    const series = history.map((h) => ({ round: h.round, totals: { teamA: sum(h, 0), teamB: sum(h, 1) } }));
+    // "Gegner 1.045" is a few letters longer than a seat's name: a wider label column.
+    return renderScoreChart(series, { players: teams, meId: myTeam === 1 ? 'teamB' : myTeam === 0 ? 'teamA' : null, padRight: 112 });
+  }
   /** opts.players / opts.meId: a stored game (history); default the live table. */
   function renderScoreChart(history, opts = {}) {
     const wrap = document.createElement('div');
@@ -6971,7 +7210,7 @@
     const W = 320;
     const H = 150;
     // Right padding holds the end labels (they replace the legend).
-    const PAD = { l: 34, r: 92, t: 8, b: 20 };
+    const PAD = { l: 34, r: opts.padRight || 92, t: 8, b: 20 };
     const players = opts.players || lastState.players;
     const meId = opts.meId !== undefined ? opts.meId : playerId;
     const colorOf = (id) => PLAYER_COLORS[Math.max(0, players.findIndex((p) => p.id === id)) % PLAYER_COLORS.length];
@@ -8019,6 +8258,11 @@
     if (!atTable) return;
     const hr = st.houseRules || {};
     const onOff = (on) => (on ? L('An', 'On') : L('Aus', 'Off'));
+    // "2 gegen 2": the mode and, for a seated player, the partner.
+    const myTeam = teamOfPlayer(playerId, st);
+    const partner = myTeam >= 0 ? st.players.find((p) => p.id !== playerId && st.teams[myTeam].includes(p.id)) : null;
+    el('tableRuleModeRow').classList.toggle('hidden', !isTeamGame(st));
+    el('tableRuleMode').textContent = partner ? L(`2 gegen 2, mit ${partner.name}`, `2 vs 2, with ${partner.name}`) : L('2 gegen 2', '2 vs 2');
     el('tableRuleHandAus').textContent = onOff(hr.handAusDoubles);
     el('tableRuleStrict').textContent = onOff(hr.strictThreshold);
     const secs = Number(hr.turnTimerSeconds) || 0;
@@ -10610,13 +10854,20 @@
     const myName = (currentName() || '').toLowerCase();
     const me = (g.myId ? players.find((p) => p.id === g.myId) : players.find((p) => !p.isBot && (p.name || '').toLowerCase() === myName)) || null;
     const myTotal = me && me.id ? totals[me.id] || 0 : g.myScore || 0;
-    const place = 1 + players.filter((p) => (totals[p.id] || 0) > myTotal).length;
+    // "2 gegen 2": the place is the team's, the partner is no opponent.
+    const teams = g.teamMode && Array.isArray(g.teams) ? g.teams : null;
+    const myTeam = teams && me ? teams.findIndex((ids) => ids.includes(me.id)) : -1;
+    const place = myTeam >= 0 ? (g.won ? 1 : 2) : 1 + players.filter((p) => (totals[p.id] || 0) > myTotal).length;
     // Challenge games never show the bot level, here neither.
     const diffOf = (p) => (p.isBot && !g.challengeDate && BOT_DIFF[p.botDifficulty]) || null;
-    const opps = players.filter((p) => p !== me).map((p) =>
-      diffOf(p) ? `${p.name} (${diffOf(p).short()})` : p.name);
+    const label = (p) => (diffOf(p) ? `${p.name} (${diffOf(p).short()})` : p.name);
+    const partner = myTeam >= 0 ? players.find((p) => p !== me && teams[myTeam].includes(p.id)) : null;
+    // A team table has one bot level: said once, after the names.
+    const teamBot = myTeam >= 0 ? players.find((p) => diffOf(p)) : null;
+    const opps = players.filter((p) => p !== me && p !== partner).map(teamBot ? (p) => p.name : label);
+    if (teamBot && opps.length) opps[opps.length - 1] += ` (${diffOf(teamBot).short()})`;
     const mins = g.startedAt && g.finishedAt ? Math.round((g.finishedAt - g.startedAt) / 60000) : 0;
-    return { players, totals, me, myTotal, place, opps, mins, diffOf };
+    return { players, totals, me, myTotal, place, opps, mins, diffOf, teams, myTeam, partner: partner ? (teamBot ? partner.name : label(partner)) : null };
   }
   function renderGameHistory() {
     const box = el('historyContent');
@@ -10638,25 +10889,30 @@
     weekAgo.setDate(weekAgo.getDate() - 7);
     const card = (g) => {
       const v = historyGameView(g);
-      const max = Math.max(1, ...v.players.map((p) => v.totals[p.id] || 0));
-      const bars = v.players
+      // "2 gegen 2": one bar per team (its shared total, the team colours).
+      const teamSum = (t) => v.teams[t].reduce((s, id) => s + (v.totals[id] || 0), 0);
+      const entries = v.myTeam >= 0
+        ? [0, 1].map((t) => ({ v: teamSum(t), color: PLAYER_COLORS[t], me: t === v.myTeam, text: `${t === v.myTeam ? L('Wir', 'Us') : L('Gegner', 'Them')} ${teamSum(t)}` }))
+        : v.players.map((p, i) => ({ v: v.totals[p.id] || 0, color: PLAYER_COLORS[i % PLAYER_COLORS.length], me: p === v.me, text: `${p.name} ${v.totals[p.id] || 0}` }));
+      const max = Math.max(1, ...entries.map((e) => e.v));
+      const bars = entries
         .slice()
-        .sort((x, y) => (v.totals[y.id] || 0) - (v.totals[x.id] || 0))
-        .map((p) => {
-          const i = v.players.indexOf(p);
-          const w = Math.max(2, Math.round(((v.totals[p.id] || 0) / max) * 100));
-          return `<i class="${p === v.me ? 'me' : ''}" style="width:${w}%;background:${PLAYER_COLORS[i % PLAYER_COLORS.length]}"></i>`;
-        }).join('');
+        .sort((x, y) => y.v - x.v)
+        .map((e) => `<i class="${e.me ? 'me' : ''}" style="width:${Math.max(2, Math.round((e.v / max) * 100))}%;background:${e.color}"></i>`)
+        .join('');
       const tags = (g.challengeDate ? `<span class="historyTag historyTagChallenge">${L('Challenge', 'Challenge')}</span>` : '') +
-        (g.stammtisch ? `<span class="historyTag">${L('Stammtisch', 'Stammtisch')}</span>` : '');
+        (g.stammtisch ? `<span class="historyTag">${L('Stammtisch', 'Stammtisch')}</span>` : '') +
+        (v.myTeam >= 0 ? `<span class="historyTag">${L('2 gegen 2', '2 vs 2')}</span>` : '');
       const meta = [historyDayLabel(g.finishedAt), v.mins > 0 && v.mins < 24 * 60 ? `${v.mins} min` : null].filter(Boolean).join(' · ');
-      const standingText = v.players.map((p) => `${p.name} ${v.totals[p.id] || 0}`).join(', ');
+      const standingText = entries.map((e) => e.text).join(', ');
       const open = openHistoryId === g.id;
+      const placeTitle = v.myTeam >= 0 ? L(`Platz ${v.place} von 2 Teams`, `Place ${v.place} of 2 teams`) : L(`Platz ${v.place} von ${v.players.length}`, `Place ${v.place} of ${v.players.length}`);
+      const against = v.opps.length ? L(`gegen ${v.opps.join(', ')}`, `vs ${v.opps.join(', ')}`) : L('Solo', 'Solo');
       return `<button type="button" class="histCard${g.won ? ' won' : ''}" data-id="${escapeHtml(g.id)}" aria-expanded="${open}">` +
-        `<span class="histPlace" title="${escapeHtml(L(`Platz ${v.place} von ${v.players.length}`, `Place ${v.place} of ${v.players.length}`))}">${v.place}.</span>` +
+        `<span class="histPlace" title="${escapeHtml(placeTitle)}">${v.place}.</span>` +
         `<span class="histMain">` +
         `<span class="histMeta">${escapeHtml(meta)}${tags}</span>` +
-        `<span class="histOpp">${escapeHtml(v.opps.length ? L(`gegen ${v.opps.join(', ')}`, `vs ${v.opps.join(', ')}`) : L('Solo', 'Solo'))}</span>` +
+        `<span class="histOpp">${escapeHtml(v.partner ? L(`mit ${v.partner} ${against}`, `with ${v.partner} ${against}`) : against)}</span>` +
         `<span class="histBars" role="img" aria-label="${escapeHtml(standingText)}">${bars}</span>` +
         `</span>` +
         `<span class="histScore">${fmtNum(v.myTotal)}<small>${escapeHtml(fmtCount(g.rounds, 'round'))}</small></span>` +
@@ -10681,7 +10937,11 @@
     if (g) {
       const v = historyGameView(g);
       const hist = (g.roundTotals || []).map((t, i) => ({ round: i + 1, totals: t }));
-      if (hist.length >= 2) detail.appendChild(renderScoreChart(hist, { players: v.players, meId: g.myId }));
+      if (hist.length >= 2) {
+        detail.appendChild(v.myTeam >= 0
+          ? renderTeamScoreChart(hist, { teams: v.teams, players: v.players, meId: v.me && v.me.id })
+          : renderScoreChart(hist, { players: v.players, meId: g.myId }));
+      }
       const list = document.createElement('ol');
       list.className = 'histStandings';
       list.innerHTML = v.players

@@ -76,6 +76,11 @@ window.I18N_STATIC = {
   'Gemischt': 'Mixed',
   'Challenge': 'Challenge',
   'Tutorial': 'Tutorial',
+  // "2 gegen 2": the start-screen tile, the lobby mode and the team switch
+  '2 gegen 2': '2 vs 2',
+  'Du und ein Bot gegen zwei Bots – sofort los': 'You and a bot against two bots – play right away',
+  'Team wechseln': 'Switch team',
+  'Bei „2 gegen 2“ spielen alle Bots auf derselben Stufe, Zen so stark wie Schwer.': 'In "2 vs 2" every bot plays the same level, Zen as strong as Hard.',
   'Konto': 'Account',
   'Tages-Challenge': 'Daily challenge',
   'Heute spielen alle Spieler weltweit exakt dasselbe Kartendeck – gegen dieselben drei Bots. Wer holt die meisten Punkte aus den gleichen Karten?': 'Today every player worldwide gets the exact same deck – against the same three bots. Who squeezes the most points out of identical cards?',
@@ -151,6 +156,7 @@ window.I18N_STATIC = {
   'Regeln': 'Rules',
   'Mehr': 'More',
   'Spielmodi': 'Game modes',
+  'Spielmodus': 'Game mode',
   'Spieleranzahl wählen': 'Choose number of players',
   'Weitere Bereiche': 'More sections',
   'GitHub': 'GitHub',
@@ -515,6 +521,15 @@ window.I18N_RULES_EN = `
     <li>Queen of Spades = <b>100</b> points</li>
     <li>End of round: the winner scores their melds. Everyone else: melds count <b>plus</b>, remaining hand cards count <b>minus</b> – a Queen of Spades left in hand costs 100!</li>
     <li><b>Out in one ("Hand aus"):</b> if the winner had nothing melded before their final turn and sheds the entire hand in one go, the round score doubles for everyone – when the house rule is active.</li>
+  </ul>
+
+  <h3>2 vs 2</h3>
+  <ul>
+    <li>Two teams of two, seated <b>crosswise</b>: the teams take turns alternately, and the players to your left and right are always opponents.</li>
+    <li>The usual rules apply at the table: everyone lays off and swaps jokers only on <b>their own melds</b>.</li>
+    <li>Everyone is scored as usual, and <b>partners add up their points</b>. When one player goes out, the round ends for everyone.</li>
+    <li>The first team to reach 1000 points wins (strict house rule: above 1000). If both teams get there in the same round, the higher total wins; on a tie one more round is played.</li>
+    <li>"2 vs 2" on the start screen starts at once: you and a bot against two bots. With friends: create a game and pick "2 vs 2" in the lobby. All bots play the same level.</li>
   </ul>
 
   <h3>House rules (chosen when creating a game)</h3>

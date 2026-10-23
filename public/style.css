@@ -3935,8 +3935,8 @@ input:disabled { opacity: 0.65; }
   display: flex; flex-wrap: nowrap; gap: 6px;
   width: 100%; max-width: var(--lobby-w);
 }
-/* One row of four icon tiles (icon above label), the same shape as the
-   utility row at the bottom - the modes are secondary to "Neues Spiel". */
+/* One row of icon tiles (icon above label), the same shape as the utility
+   row at the bottom - the modes are secondary to "Neues Spiel". */
 .menuChips .btn-secondary {
   flex: 1 1 0; min-width: 0; margin: 0;
   flex-direction: column; gap: 4px;
@@ -3947,8 +3947,6 @@ input:disabled { opacity: 0.65; }
 }
 .menuChips .btn-secondary .icon { width: 1.45em; height: 1.45em; }
 .menuChips .btn-secondary span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.menuChipsTwo .btn-secondary { flex-direction: row; gap: 8px; min-height: var(--tap-min); font-size: var(--fs-label); }
-.menuChipsTwo .btn-secondary .icon { width: 1.3em; height: 1.3em; }
 #challengeIntroOverlay .challengeLead { font-weight: 700; margin: 8px 0 2px; }
 #challengeIntroOverlay .challengeTop { font-size: var(--fs-label); color: var(--text-muted); min-height: 1.2em; }
 #challengeIntroOverlay .challengeTrendToggle {
@@ -5941,6 +5939,101 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
   #resultOverlay.isFinal .rmGap { order: 3; flex-basis: 100%; }
 }
 
+/* --- "2 gegen 2" (team mode) ------------------------------------------------
+   --team-c is the team's PLAYER_COLORS entry (A blue, B orange: CVD-safe, never
+   --accent). It only repeats what a word says ("Partner", "A"/"B", "Dein Team"). */
+/* Start screen: three modes as stacked icon tiles (a row of three cut the labels). */
+.menuChipsThree .btn-secondary { min-height: var(--ctl-h); padding: 6px 4px; gap: 2px; font-size: var(--fs-label); }
+.menuChipsThree .btn-secondary .icon { width: 1.3em; height: 1.3em; }
+/* "Von vorn beginnen?" (the tutorial's second tap) takes the icon's place on two lines. */
+.menuChipsThree .btn-secondary.armed .icon { display: none; }
+.menuChipsThree .btn-secondary.armed span { white-space: normal; line-height: 1.15; }
+
+/* Lobby: "2 gegen 2" is the fourth seat choice; every seat row leads with its team. */
+.seatCountBtn.seatModeBtn {
+  width: auto; flex: 1 1 auto; min-width: 0; padding: 0 12px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  font-size: var(--fs-label); white-space: nowrap;
+}
+.seatModeBtn .icon { flex: 0 0 auto; width: 1.35em; height: 1.35em; }
+.teamTag {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px;
+  margin-right: 8px;
+  font-size: var(--fs-label); font-weight: 800; color: var(--text);
+}
+.teamTag i, .teamDot {
+  flex: 0 0 auto; display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--team-c);
+}
+.seatDiff.iconOnly { padding: 0 10px; min-width: var(--ctl-h-sm); justify-content: center; }
+.switchTeamBtn { display: flex; width: 100%; min-height: var(--tap-min); margin-top: 10px; gap: 8px; }
+.switchTeamBtn .icon { width: 1.25em; height: 1.25em; }
+
+/* Table: a stripe in the team colour on every chip, "Partner" on the partner's corner
+   (the bot level keeps the right one). Nothing changes the chip's size. */
+.opponent.teamChip::before {
+  content: ''; position: absolute; left: -1px; top: 9px; bottom: 9px; width: 3px;
+  border-radius: 0 3px 3px 0; background: var(--team-c); pointer-events: none;
+}
+.opPartnerTag {
+  position: absolute; top: -7px; left: -4px; z-index: 2;
+  padding: 1px 7px; border-radius: 9px;
+  background: rgba(0,0,0,0.45); color: #fff; /* = .botDiffBadge: a dark pill in every theme */
+  box-shadow: inset 0 -2px 0 var(--team-c), 0 1px 4px rgba(0,0,0,0.3);
+  font-size: var(--fs-micro); font-weight: 800; line-height: 1.35; white-space: nowrap;
+  pointer-events: none;
+}
+/* The team's bar: this seat's share solid, the partner's lighter. */
+.scoreBar.teamBar { position: relative; }
+.scoreBar.teamBar i {
+  position: absolute; top: 0; bottom: 0; left: 0;
+  background: var(--team-c); border-radius: 999px;
+}
+.scoreBar.teamBar .tbMate { opacity: 0.45; }
+#myScoreBar.teamBar { position: absolute; }
+.meldPartnerTag {
+  display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; vertical-align: 1px;
+  padding: 0 7px; border-radius: var(--r-pill); border: 1px solid var(--glass-border);
+  font-size: var(--fs-micro); font-weight: 800; color: var(--text);
+}
+.meldPartnerTag::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--team-c); }
+/* Hand toolbar: "Wir 550:600", ours first, like a scoreboard. */
+.handScore .tsVs { margin: 0 1px; }
+.handScore b.trail { color: var(--text-muted); font-weight: 700; }
+.handScore b.neg { color: var(--danger); }
+
+/* Result sheet: one block per team - its total and bar lead, the two seats below. */
+.teamResult { padding: 2px 0 6px; border-bottom: 1px solid rgba(0,0,0,0.07); }
+.teamResult:last-child { border-bottom: none; }
+.resultRow.teamResultHead { border-bottom: none; padding-bottom: 0; }
+.teamResultName { display: inline-flex; align-items: center; gap: 7px; }
+.teamResultName > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.teamResult.isMine .teamResultName { font-weight: 800; }
+.teamMember { padding: 3px 2px 3px 18px; }
+.tmTop { display: flex; align-items: baseline; gap: 10px; }
+.tmName {
+  flex: 1 1 auto; min-width: 0;
+  font-size: var(--fs-label); font-weight: 600; color: var(--card-ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.teamMember.hasQueenChip .tmName { flex: 0 1 auto; }
+.tmTotal {
+  flex: 0 0 auto; margin-left: auto;
+  font-size: var(--fs-hint); font-weight: 600; color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.isFinal .tmTotal { font-size: var(--fs-label); font-weight: 700; color: var(--card-ink); }
+.tmDelta {
+  flex: 0 0 auto; min-width: 3.1em; text-align: right;
+  font-size: var(--fs-label); font-weight: 700; color: var(--card-ink);
+  font-variant-numeric: tabular-nums;
+}
+.tmDelta.pos { color: var(--paper-success); }
+.tmDelta.neg { color: var(--paper-danger); }
+/* Me: the same left rule as in every list; whoever went out: weight only. */
+.teamMember.isMe { padding-left: 10px; margin-left: 8px; box-shadow: inset 3px 0 0 var(--paper-accent); border-radius: 3px; }
+.teamMember.isMe .tmName, .teamMember.winner .tmName { font-weight: 800; }
+
 /* --- Start screen in two columns -------------------------------------------
    Phone landscape (~400 px high) and desktop: play left, "Aufgaben", modes and
    Stammtische right, instead of one 340/400 px strip that scrolls. Portrait and
@@ -6088,6 +6181,11 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
   .resultWinner.resultWinnerGame, .resultWinner.resultWinnerGame.isMe { padding: 5px 12px; margin-bottom: 4px; }
   .resultWinnerGame .resultWinnerTrophy, .resultWinnerGame.isMe .resultWinnerTrophy { width: 22px; height: 22px; }
   .resultWinnerGame.isMe .resultWinnerSub { font-size: var(--fs-lead); }
+  /* "2 gegen 2": two team blocks of three lines each sit a little closer. */
+  .teamResult { padding-bottom: 2px; }
+  .resultRow.teamResultHead { padding-top: 3px; }
+  .teamResultHead .resultRowBar { margin: 4px 0 2px; }
+  .teamMember { padding-top: 1px; padding-bottom: 1px; }
   /* Result strip in the narrow right column: the gap gets its own line. */
   #resultOverlay .resultMe { margin: 0 0 2px; padding: 8px 10px; }
   .rmTop { flex-wrap: wrap; }
