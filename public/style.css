@@ -5978,7 +5978,7 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
 .opPartnerTag {
   position: absolute; top: -7px; left: -4px; z-index: 2;
   padding: 1px 7px; border-radius: 9px;
-  background: rgba(0,0,0,0.45); color: #fff; /* = .botDiffBadge: a dark pill in every theme */
+  background: rgba(0,0,0,0.62); color: #fff; /* a dark pill in every theme: 4.5:1 on the light chips too */
   box-shadow: inset 0 -2px 0 var(--team-c), 0 1px 4px rgba(0,0,0,0.3);
   font-size: var(--fs-micro); font-weight: 800; line-height: 1.35; white-space: nowrap;
   pointer-events: none;
