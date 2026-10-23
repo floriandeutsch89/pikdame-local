@@ -2551,14 +2551,18 @@
         // so the chip keeps its height and the melds below do not jump.
         const lowCards = aidLowCards && !leftGame && lastState.phase === 'playing' && p.handCount > 0 && p.handCount <= 2;
         if (lowCards) d.classList.add('lowCards');
-        // The same edge slot says who gave the game up (the name row would truncate it).
+        // The same edge slot says who gave the game up or dropped out (the name row would
+        // truncate it); the warning wins, the dimmed face still says "offline".
         const lowTag = leftGame
           ? `<span class="opLowTag opLeftTag"><span>${L('hat verlassen', 'left')}</span></span>`
           : lowCards
             ? `<span class="opLowTag"><svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg><span>${p.handCount === 1 ? L('Letzte Karte!', 'Last card!') : L('Noch 2 Karten!', '2 cards left!')}</span></span>`
-            : '';
+            : reconnecting
+              ? `<span class="opLowTag opLeftTag reconnectTag"><span>${L('getrennt', 'offline')}</span></span>`
+              : '';
         const faceBreath = breath && breath.id === p.id ? breath : null;
-        d.innerHTML = `<div class="opName">${avatarFor(p.name, p.isBot, faceBreath)}<span class="opNameText">${nameWithHeart(p.name)}</span>${dealerStar}${reconnecting ? ` <span class="reconnectTag">${L('getrennt', 'offline')}</span>` : ''}</div><div class="opCount"><span class="opCards" title="${cardsText}"><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><b>${p.handCount}</b></span><b class="opPts" title="${L(`${opTotal} Punkte`, `${opTotal} points`)}">${opTotal}</b></div><div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>${lowTag}`;
+        // The dealer star sits on the face (a dealer button), so the name keeps the whole row.
+        d.innerHTML = `<div class="opName"><span class="opSeat">${avatarFor(p.name, p.isBot, faceBreath)}${dealerStar}</span><span class="opNameText">${nameWithHeart(p.name)}</span></div><div class="opCount"><span class="opCards" title="${cardsText}"><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><b>${p.handCount}</b></span><b class="opPts" title="${L(`${opTotal} Punkte`, `${opTotal} points`)}">${opTotal}</b></div><div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>${lowTag}`;
         // Daily challenge: the level is fixed and deliberately not shown.
         // Badge lives OUTSIDE the name div: inside it, the name ellipsis on
         // narrow chips (3 bots, portrait) swallowed the button.

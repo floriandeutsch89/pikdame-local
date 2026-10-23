@@ -149,6 +149,28 @@ test('low-card warning: a stored ON is honoured on start, the settings switch tu
   assert.equal(window.localStorage.getItem('pikdame_aid_lowcards'), 'off');
 });
 
+test('a dropped human: "getrennt" hangs on the bottom edge, the name keeps its row; the low-card warning goes first', async (t) => {
+  const { doc, feed, click } = await setup(t);
+  const dropped = (handCount = 9) => {
+    const s = table();
+    s.players[3] = { id: 'p2', name: 'Oma Gerda', isBot: false, connected: false, controlledByBot: true, handCount };
+    return s;
+  };
+  const chip = () => doc.querySelector('#opponents .opponent[data-player-id="p2"]');
+  feed(dropped());
+  assert.ok(chip().classList.contains('disconnected'));
+  assert.deepEqual([...chip().querySelector('.opName').children].map((c) => c.className), ['opSeat', 'opNameText'], 'nothing beside the name');
+  assert.equal(chip().querySelector('.opLowTag.reconnectTag').textContent, 'getrennt');
+  click(doc.getElementById('aidLowCardsCheckbox'));
+  feed(dropped(2));
+  assert.equal(chip().querySelectorAll('.opLowTag').length, 1, 'one edge slot');
+  assert.equal(chip().querySelector('.opLowTag').textContent, 'Noch 2 Karten!');
+  assert.ok(chip().classList.contains('disconnected'), 'the dimmed face still says offline');
+  click(doc.getElementById('langBtn'));
+  feed(dropped());
+  assert.equal(chip().querySelector('.reconnectTag').textContent, 'offline');
+});
+
 test('bot level badge: the host always, guests only for mixed levels; in the game never the word, the name in title/aria-label', async (t) => {
   const { doc, feed, click } = await setup(t);
   const badges = () => [...doc.querySelectorAll('#opponents .botDiffBadge')];
