@@ -51,13 +51,15 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
    Tisch-Layouts: Hochformat (Flex, Stapel über Hand), Querformat ≤540 px
    und Desktop ≥1100 px (Grid, Stapel in Seitenspalte; Text dort mit
    `contain: inline-size`, sonst verbreitert er die Spalte und kostet
-   Auslagen-Breite). `--accent` (Auswahl) und `--drawn` in jedem Theme
-   unterscheidbar; Spielerfarben nur aus `PLAYER_COLORS` (CVD-geprüft, ≠
-   `--accent`). Startbildschirm hochkant: eine Spalte `--lobby-w`, passt am
-   iPhone OHNE Scrollen — Messlatte für neue Elemente; quer ≤540 px (ab
-   720 px Breite) und Desktop ≥1100 px zwei Spalten (Spielen links,
-   `.lobbyDaily` rechts). Tap-Ziele ≥ `--tap-min` (44 px). Größen nur aus der
-   Skala (`--fs-*`, `--ctl-h`), nie rohe `rem`.
+   Auslagen-Breite). Gleiche Grid-Spalten: `minmax(0, 1fr)` (`1fr` wächst
+   bis zur längsten `<select>`-Option); `sticky` in einem gepolsterten
+   Scroller zählt ab dem Innenabstand. `--accent` (Auswahl) und `--drawn`
+   in jedem Theme unterscheidbar; Spielerfarben nur aus `PLAYER_COLORS`
+   (CVD-geprüft, ≠ `--accent`). Startbildschirm hochkant: eine Spalte
+   `--lobby-w`, passt am iPhone OHNE Scrollen — Messlatte für neue
+   Elemente; quer ≤540 px (ab 720 px Breite) und Desktop ≥1100 px zwei
+   Spalten (Spielen links, `.lobbyDaily` rechts). Tap-Ziele ≥ `--tap-min`
+   (44 px). Größen nur aus der Skala (`--fs-*`, `--ctl-h`), nie rohe `rem`.
    **Keine nativen Dialoge** (`alert`/`confirm`/`prompt`): iOS unterdrückt sie
    still, der Tipp tut dann nichts. Bestätigen per zwei Taps (`confirmByTap`).
 3. **Zweisprachig:** jeder sichtbare Text braucht einen Eintrag — HTML →

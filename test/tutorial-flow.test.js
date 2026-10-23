@@ -301,7 +301,7 @@ test('tutorial: following the marks plays round 1 to "Tutorial geschafft", lesso
     assert.equal(t.server.game.roundNumber, 2);
     assert.equal(t.coach(), null, 'no hints after the tutorial');
     assert.equal(t.$$('.tutorialGlow, .tutorialGlowMeld, .tutorialGlowTarget').length, 0);
-    assert.ok(!t.visible('tutorialHintsBtn'), 'nothing to switch back on after the ending');
+    assert.ok(!t.visible('tutorialHintsItem'), 'nothing to switch back on after the ending');
     assert.deepStrictEqual(t.errors, []);
   } finally {
     t.close();
@@ -505,11 +505,13 @@ test('tutorial: "Überspringen" asks first, the menu brings the hints back; bots
     await t.click(skip);
     assert.equal(t.coach(), null, 'the second tap ends the hints');
     assert.ok(t.toasts.some((x) => /Tutorial beendet/.test(x)), `says so (toasts: ${t.toasts.join(' | ')})`);
-    assert.ok(t.visible('tutorialHintsBtn'), 'the way back sits in the game menu');
+    assert.ok(t.visible('tutorialHintsItem'), 'the way back is a switch in "Optionen"');
+    assert.equal(t.$('#tutorialHintsCheckbox').checked, false, 'it shows the hints as off');
 
-    await t.click(t.$('#tutorialHintsBtn'));
+    await t.click(t.$('#tutorialHintsCheckbox'));
     assert.equal(t.coach().step, 'welcome', 'back where it stopped');
-    assert.ok(!t.visible('tutorialHintsBtn'));
+    assert.ok(t.visible('tutorialHintsItem'), 'the switch stays, now on');
+    assert.equal(t.$('#tutorialHintsCheckbox').checked, true);
     assert.deepStrictEqual(t.errors, []);
   } finally {
     t.close();

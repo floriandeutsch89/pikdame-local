@@ -535,7 +535,7 @@ test('hide: the ✕ takes the floor card off the table - the normal table\'s lay
   assert.ok(!n.shown('towerPanelBtn'));
 
   t.doc.getElementById('langBtn').click();
-  assert.deepStrictEqual([t.$('#towerPanelBtn .sheetRowLabel').textContent, t.$('#towerPanelBtn .sheetRowValue').textContent],
+  assert.deepStrictEqual([t.$('#towerPanelBtn .prefLabel').textContent, t.$('#towerPanelBtn .prefValue').textContent],
     ['House of Cards floor', 'Show']);
   assert.deepStrictEqual([...t.errors, ...plain.errors, ...r.errors, ...s.errors, ...n.errors], []);
 });
@@ -585,11 +585,14 @@ test('restore via the menu: the gear row opens the floor\'s rules - Pik Dame and
   t.feed(towerTable(stage, 2));
   assert.ok(!t.shown('towerBar'));
   t.click(t.$('#settingsBtn'));
-  assert.ok(t.shown('gameSettingsOverlay'));
+  assert.ok(t.shown('settingsOverlay'), 'the gear opens the one "Optionen" sheet');
   const row = t.$('#towerPanelBtn');
   assert.ok(t.shown('towerPanelBtn'));
-  assert.ok(row.classList.contains('sheetRow') && !row.closest('.overlay').classList.contains('hidden'), 'a row of the sheet the gear opens');
-  assert.deepStrictEqual([row.querySelector('.sheetRowLabel').textContent, row.querySelector('.sheetRowValue').textContent],
+  assert.ok(row.classList.contains('prefRow') && !row.closest('.overlay').classList.contains('hidden'), 'a row of the sheet the gear opens');
+  assert.strictEqual(row.closest('.prefGroup').id, 'tableOptions', 'in "Dieser Tisch"');
+  assert.strictEqual(row.parentElement.firstElementChild, row, 'leading the group');
+  assert.ok(row.querySelector('.prefChevron'), 'a navigation row: its chevron');
+  assert.deepStrictEqual([row.querySelector('.prefLabel').textContent, row.querySelector('.prefValue').textContent],
     ['Kartenhaus-Etage', 'Anzeigen']);
   t.click(row);
   assert.ok(row.closest('.overlay').classList.contains('hidden'), 'the gear sheet makes way');
@@ -623,7 +626,7 @@ test('restore via the menu: the gear row opens the floor\'s rules - Pik Dame and
   const e = boot({ storage: { ...INTRO_SEEN, ...HIDDEN, pikdame_lang: 'en' } });
   e.join();
   e.feed(towerTable(stage, 2));
-  assert.deepStrictEqual([e.$('#towerPanelBtn .sheetRowLabel').textContent, e.$('#towerPanelBtn .sheetRowValue').textContent],
+  assert.deepStrictEqual([e.$('#towerPanelBtn .prefLabel').textContent, e.$('#towerPanelBtn .prefValue').textContent],
     ['House of Cards floor', 'Show']);
   e.click(e.$('#towerPanelBtn'));
   assert.strictEqual(e.$('#towerFloorShowBtn span').textContent, 'Show at the table');

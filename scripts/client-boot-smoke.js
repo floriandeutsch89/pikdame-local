@@ -359,16 +359,16 @@ setTimeout(() => {
       }
     }
 
-    // Aufgeben-Knopf darf NICHT neben den Zug-Knoepfen liegen: eine
-    // endgueltige Aktion gehoert nicht an die Handleiste, wo jeden Zug
-    // "Abwerfen" gedrueckt wird (Nutzer-Report).
+    // The forfeit button must NOT sit next to the move buttons: a final action
+    // does not belong on the hand bar, where "Abwerfen" is pressed every turn
+    // (player report). It lives in the home dialog, beside "Tisch verlassen".
     {
       const doc = window.document;
       const forfeit = doc.getElementById('forfeitBtn');
       if (!forfeit) errors.push('forfeit button missing');
       else {
         if (forfeit.closest('.handToolbar')) errors.push('forfeit button must not sit in the hand toolbar');
-        if (!forfeit.closest('#gameSettingsOverlay')) errors.push('forfeit button should live in the settings sheet');
+        if (!forfeit.closest('#homeOverlay')) errors.push('forfeit button should live in the home dialog');
       }
     }
 
@@ -880,7 +880,11 @@ setTimeout(() => {
       // und die WebSocket-Verbindung erreichen.
       const dom2 = new JSDOM(html, { url: 'https://play.example/', runScripts: 'outside-only', pretendToBeVisual: true });
       const w2 = dom2.window;
-      for (const id of ['debugGrid', 'debugPanel', 'debugBtnLobby', 'debugBtn']) {
+      // Elements added later (debug view, the table part of "Optionen", the
+      // forfeit button in the home dialog) are exactly what stale markup lacks.
+      for (const id of ['debugGrid', 'debugPanel', 'debugCheckbox', 'tableOptions', 'tableRulesBtn', 'tableLogBtn',
+        'studioLogoItem', 'fullscreenItem', 'fullscreenCheckbox', 'tutorialHintsItem', 'tutorialHintsCheckbox',
+        'forfeitBtn', 'forfeitHint', 'towerPanelBtn', 'towerFloorShowBtn']) {
         const n = w2.document.getElementById(id);
         if (n) n.remove();
       }

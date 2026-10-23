@@ -22,7 +22,8 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   (Pro Max: 15 cards fit ONE fanned row there, at 393 they split into two;
   a layout bug at the hand can show on one and not the other), `lap`
   1366×657 (laptop browser: desktop width, little height), `nar` 1100×680
-  (the narrowest desktop layout: least room beside the opponents).
+  (the narrowest desktop layout: least room beside the opponents). The
+  phone views are iPhones: no Fullscreen API, so no "Vollbild" row.
 - **Table scene:** `--scenes table --state <file>` injects a live game. Build
   the state from the real engine (`GameManager` + `fillWithBots` +
   `runBotTurn`, then `publicState('p1')`), not by hand.
@@ -59,7 +60,10 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   sheet behind the start-screen chip), `stammtisch-lobby` (a game lobby
   shown as a seat at the mock Stammtisch: its record panel), `settings` / `settings-aids` /
   `settings-music` (the "Optionen" sheet: top / play aids / music), `game-settings`
-  (the in-game gear sheet), `music-hint` (the first click starts the music and
+  (the gear at a live engine table: the same sheet with "Dieser Tisch", then
+  scrolled to its end; `--state` takes another table), `game-settings-debug`,
+  `home` (the home dialog at the table, then its forfeit button armed by a
+  first tap), `music-hint` (the first click starts the music and
   its one-time hint shows; every other run marks the hint as seen), `tower`
   (the Kartenhaus sheet, opened from its tile in "Aufgaben"), `tower-detail`
   (the same with the locked floor 14 tapped, `--stage N` another floor), `tower-rules` (the "So funktioniert"
@@ -117,10 +121,13 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   regions (melds, piles, hand, action bar, the Kartenhaus floor and start
   card) per shot; with the Kartenhaus sheet open also the house, the play
   button, how far the sheet and its side column scroll, the smallest floor
-  hit area and a floor card's size. Run the same scenes with `SHOTS_ROOT=<origin/main
-  worktree>` for the "before" numbers: a new table element must not shrink
-  `#melds` or `#handWrapper`. `--eval <file>` prints a page expression per
-  tower scene (computed styles, grid tracks) when a layout puzzles you.
+  hit area and a floor card's size. Any other open sheet adds `sheet`: how
+  many screens it scrolls, where "Schließen" and the sound switch end and
+  whether "Schließen" shows without scrolling. Run the same scenes with
+  `SHOTS_ROOT=<origin/main worktree>` for the "before" numbers: a new table
+  element must not shrink `#melds` or `#handWrapper`. `--eval <file>` prints
+  a page expression per tower or `game-settings` scene (computed styles, grid
+  tracks) when a layout puzzles you.
 
 The script starts its own server on a **temp `PIKDAME_DATA_DIR`** and kills it
 afterwards. That matters: a dev server on `data/` keeps `users.db` open, and

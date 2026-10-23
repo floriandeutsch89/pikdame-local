@@ -231,7 +231,7 @@ class GameManager {
    * starts - mid-game there is the forfeit vote instead.
    */
   leaveLobby(playerId) {
-    if (this.phase !== 'lobby') return { error: 'Verlassen geht nur in der Lobby - im Spiel gibt es 🏳️ Aufgeben.' };
+    if (this.phase !== 'lobby') return { error: 'Verlassen geht nur in der Lobby - im Spiel: Haus oben links › „Spiel aufgeben“.' };
     const p = this.players.find((pl) => pl.id === playerId && !pl.isBot);
     if (!p) return { error: 'Du sitzt nicht an diesem Tisch.' };
     this._keepDealer(() => { this.players = this.players.filter((pl) => pl.id !== playerId); });
