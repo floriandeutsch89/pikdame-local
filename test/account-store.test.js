@@ -339,6 +339,41 @@ test('PgAccountStore: concurrent first starts on an empty database all succeed',
   }
 });
 
+// A replica starting while others serve players must not take table locks:
+// ALTER ... ADD COLUMN IF NOT EXISTS wants an exclusive lock even when the
+// column exists and deadlocked live transactions (release CI, v2.102.1).
+test('PgAccountStore: a second start on a ready schema takes no table lock', { skip: !PG_URL }, async () => {
+  const { Client } = require('pg');
+  const schema = `lock_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const admin = new Client({ connectionString: PG_URL });
+  await admin.connect();
+  await admin.query(`CREATE SCHEMA ${schema}`);
+  const url = new URL(PG_URL);
+  url.searchParams.set('options', `-c search_path=${schema}`);
+  const first = createPgAccountStore(url.toString());
+  const reader = new Client({ connectionString: url.toString() });
+  let second;
+  try {
+    assert.ok((await first.register('Erst', 'erst@example.com', 'geheim123')).ok);
+    await reader.connect();
+    await reader.query('BEGIN');
+    await reader.query('SELECT count(*) FROM users'); // holds a share lock until COMMIT
+    second = createPgAccountStore(url.toString());
+    const res = await Promise.race([
+      second.register('Zweit', 'zweit@example.com', 'geheim123'),
+      new Promise((resolve) => setTimeout(() => resolve({ error: 'blocked on a table lock' }), 3000)),
+    ]);
+    assert.ok(res.ok, JSON.stringify(res));
+  } finally {
+    await reader.query('COMMIT').catch(() => {});
+    await reader.end().catch(() => {});
+    if (second) await second.close();
+    await first.close();
+    await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+    await admin.end();
+  }
+});
+
 test('PgAccountStore: unreachable database degrades gracefully (no throw, fails closed)', async () => {
   const store = createPgAccountStore('postgres://nouser:nopass@127.0.0.1:59999/nodb');
   assert.ok(store);
