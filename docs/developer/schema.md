@@ -15,7 +15,9 @@ were moved over by `008_account_conventions.sql`; only the runner's own
   `period = '2026-11'` and `stage = 7`.
 - **Constraints and indexes:** `<table>_<columns>_idx`, `<table>_<columns>_key`
   (unique), `<table>_<column>_check`, `<table>_pkey`. Name a `CHECK` yourself
-  when PostgreSQL's default would not follow this pattern.
+  when PostgreSQL's default would not follow this pattern. PostgreSQL 18 also
+  names `NOT NULL` (`<table>_<column>_not_null`) and keeps that name through a
+  rename (`users_salt_not_null` on `password_salt`); harmless, not renamed.
 
 ## Time
 

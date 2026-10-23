@@ -293,8 +293,10 @@ test('migration account conventions: epoch milliseconds become exact TIMESTAMPTZ
     'users:users_verify_expires_at_idx', 'users:users_verify_token_idx',
     'webauthn_credentials:webauthn_credentials_pkey', 'webauthn_credentials:webauthn_credentials_user_id_idx',
   ]);
+  // contype 'n': PostgreSQL 18 lists NOT NULL as constraints (auto-named, kept through renames).
   const constraints = await rows(`SELECT conname FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace
-    WHERE n.nspname = current_schema() AND conrelid::regclass::text IN ('users', 'login_sessions', 'webauthn_credentials') ORDER BY 1`);
+    WHERE n.nspname = current_schema() AND contype <> 'n'
+      AND conrelid::regclass::text IN ('users', 'login_sessions', 'webauthn_credentials') ORDER BY 1`);
   assert.deepStrictEqual(constraints.map((r) => r.conname), [
     'login_sessions_pkey', 'login_sessions_user_id_fkey', 'users_pkey', 'users_player_id_fkey', 'users_player_id_key',
     'webauthn_credentials_pkey', 'webauthn_credentials_user_id_fkey',
