@@ -773,6 +773,93 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   z-index: -1;
 }
 
+/* ============================ TABLE LIGHT ============================
+   The light follows the time of day: client.js writes only --tod-m/d/e/n, every
+   colour is the theme's own felt. Noon = the look above (docs/developer/table-light.md). */
+:root {
+  /* Card shadows the light turns; outside the table and by day exactly these. */
+  --cast: 0 3px 8px rgba(0, 0, 0, 0.28);
+  --cast-far: 0 0 transparent;
+}
+#table { --tod-m: 0; --tod-d: 1; --tod-e: 0; --tod-n: 0; }
+/* More contrast asked for: the light stays at day (!important beats the inline weights). */
+@media (prefers-contrast: more) {
+  #table { --tod-m: 0 !important; --tod-d: 1 !important; --tod-e: 0 !important; --tod-n: 0 !important; }
+}
+/* Relative colours with numeric channels and gradient colour spaces (iOS 18+);
+   otherwise the day look stays, shadows included. */
+@supports (color: oklab(from #000 calc(l * 1) calc(a + 0.01) calc(b - 0.01))) and (background-image: radial-gradient(in srgb, #000, #fff)) {
+  #table {
+    /* Light budget of the dark graphite; the other themes below. Dark themes
+       never get lighter under text: mornings are cooler, not brighter. */
+    --lamp-l: 0.03;  /* the lamp's lift over the day felt (text-contrast headroom) */
+    --lamp-night: 0; /* 1: the lamp keeps that lift at night */
+    --lift: 0;       /* morning lightness */
+    --warm-a: 0.012; --warm-b: 0.032; --warm-n: 0.5;
+    /* --cool-l: the cooler morning raised WCAG luminance at equal OKLab lightness. */
+    --cool-a: -0.006; --cool-b: -0.026; --cool-l: -0.005;
+    --dim-e: 0.12; --dim-n: 0.30; --desat-n: 0.30;
+    --far-k: 1;
+    /* The room: a little warmth, 12 % darker in the evening, 30 % at night. */
+    --felt: oklab(from var(--bg)
+      calc(l * (1 + var(--tod-m) * (var(--lift) + var(--cool-l)) - var(--tod-e) * var(--dim-e) - var(--tod-n) * var(--dim-n)))
+      calc(a * (1 - var(--tod-n) * var(--desat-n)) + (var(--tod-e) + var(--tod-n) * var(--warm-n)) * var(--warm-a) * 0.35 + var(--tod-m) * var(--cool-a))
+      calc(b * (1 - var(--tod-n) * var(--desat-n)) + (var(--tod-e) + var(--tod-n) * var(--warm-n)) * var(--warm-b) * 0.35 + var(--tod-m) * var(--cool-b)));
+    /* The hanging lamp: the felt at day lightness (+ --lamp-l), warm; at night dimmer and smaller. */
+    --pool-c: oklab(from var(--bg)
+      calc(l * (1 + (var(--tod-e) + var(--tod-n) * var(--lamp-night)) * var(--lamp-l) - var(--tod-n) * var(--dim-n) * 0.45))
+      calc(a * (1 - var(--tod-n) * var(--desat-n) * 0.5) + (var(--tod-e) + var(--tod-n)) * var(--warm-a) * 1.5)
+      calc(b * (1 - var(--tod-n) * var(--desat-n) * 0.5) + (var(--tod-e) + var(--tod-n)) * var(--warm-b) * 1.5)
+      / calc(var(--tod-e) + var(--tod-n)));
+    --pool-w: calc(96% - var(--tod-n) * 26%);
+    --pool-h: calc(68% - var(--tod-n) * 18%);
+    --window-c: transparent; /* the morning window band: kitchen only */
+    --daylight: color-mix(in srgb, var(--bg-glow) calc((var(--tod-m) + var(--tod-d)) * 100%), transparent);
+    --room-in: calc(var(--tod-m) * 56% + var(--tod-d) * 55% + var(--tod-e) * 30% + var(--tod-n) * 20%);
+    --room-ink: rgb(0 0 0 / calc(var(--tod-m) * 0.42 + var(--tod-d) * 0.42 + var(--tod-e) * 0.62 + var(--tod-n) * 0.74));
+    /* Card shadows: morning window light from the upper left, the lamp from above. */
+    --cast-x: calc(var(--tod-m) * 2px);
+    --cast-y: calc(var(--tod-m) * 3px + var(--tod-d) * 3px + var(--tod-e) * 8px + var(--tod-n) * 7px);
+    --cast-b: calc(var(--tod-m) * 6px + var(--tod-d) * 8px + var(--tod-e) * 15px + var(--tod-n) * 15px);
+    --cast-a: calc(var(--tod-m) * 0.24 + var(--tod-d) * 0.28 + var(--tod-e) * 0.40 + var(--tod-n) * 0.44);
+    --far-y: calc(var(--tod-e) * 13px + var(--tod-n) * 10px);
+    --far-b: calc(var(--tod-e) * 22px + var(--tod-n) * 20px);
+    --far-a: calc(var(--tod-e) * 0.26 + var(--tod-n) * 0.28);
+    --cast: var(--cast-x) var(--cast-y) var(--cast-b) rgb(0 0 0 / var(--cast-a));
+    --cast-far: calc(var(--cast-x) * 1.5) calc(var(--far-y) * var(--far-k)) calc(var(--far-b) * var(--far-k)) rgb(0 0 0 / calc(var(--far-a) * var(--far-k)));
+    /* The layers of #table above, plus the lamp and the window. color-mix() makes
+       the glow a modern colour: without "in srgb" it would blend in OKLab, not as today. */
+    background:
+      radial-gradient(in srgb 130% 60% at 50% -5%, var(--daylight) 0%, transparent 58%),
+      radial-gradient(78% 34% at 50% 78%, var(--spot) 0%, transparent 72%),
+      radial-gradient(var(--pool-w) var(--pool-h) at 50% 44%, var(--pool-c) 0%, var(--pool-c) 22%, transparent 74%),
+      radial-gradient(70% 15% at 8% 0%, var(--window-c) 0%, transparent 100%),
+      radial-gradient(140% 100% at 50% 45%, transparent var(--room-in), var(--room-ink) 100%),
+      var(--felt);
+  }
+  [data-theme="night"] #table { --lamp-l: 0; --warm-b: 0.010; --cool-l: -0.008; } /* lamp light turns the indigo violet, not brown */
+  [data-theme="felt"] #table { --lamp-l: 0; --warm-a: 0.004; --warm-b: 0.028; --cool-a: -0.004; --cool-b: -0.016; --cool-l: -0.012; }
+  /* Red felts cool towards blue only: pulling them towards green lifted the luminance. */
+  [data-theme="love"] #table { --lamp-l: 0; --cool-a: 0; --cool-l: -0.006; }
+  [data-theme="bordeaux"] #table { --lamp-l: 0.01; --cool-a: 0; --cool-l: -0.009; }
+  /* Kitchen: dark ink on light wood, so lighter means more contrast. It never
+     darkens; the glow and the vignette stay, the lamp lifts the middle. */
+  [data-theme="kitchen"] #table {
+    --lift: 0.025; --lamp-l: 0.03; --lamp-night: 1;
+    --warm-a: 0.006; --warm-b: 0.026; --warm-n: 1;
+    --cool-a: -0.004; --cool-b: -0.020; --cool-l: 0;
+    --dim-e: -0.024; --dim-n: -0.008; --desat-n: 0;
+    --far-k: 0.35; /* a long cast fell onto the pile labels */
+    --window-c: oklab(from var(--bg-glow) calc(l * 1.03) calc(a + var(--cool-a) * 1.6) calc(b + var(--cool-b) * 1.6) / var(--tod-m));
+    --daylight: var(--bg-glow);
+    --room-in: 55%;
+    --room-ink: var(--vignette);
+    --cast-a: calc(var(--tod-m) * 0.20 + var(--tod-d) * 0.28 + var(--tod-e) * 0.32 + var(--tod-n) * 0.32);
+    /* A wider blur reached up into the meld headers above the cards (dark ink). */
+    --cast-b: calc(var(--tod-m) * 6px + var(--tod-d) * 8px + var(--tod-e) * 12px + var(--tod-n) * 12px);
+  }
+}
+
 #topBar {
   position: relative;
   display: flex; align-items: center; gap: 10px;
@@ -959,7 +1046,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   color: var(--card-ink);
   display: flex; align-items: center; justify-content: center;
   font-weight: 800; font-size: 0.9rem;
-  box-shadow: var(--shadow-2), inset 0 1px 0 rgba(255,255,255,0.7);
+  box-shadow: var(--shadow-2), var(--cast-far), inset 0 1px 0 rgba(255,255,255,0.7);
   transition: box-shadow 0.3s ease;
 }
 /* Stapel-Tiefe: versetzte "Karten-Ebenen" unter der obersten Karte -
@@ -967,13 +1054,13 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .pile-card.stacked-1 {
   box-shadow:
     3px 3px 0 -1px var(--card-bg), 3.5px 3.5px 0 0 var(--card-border),
-    var(--shadow-2), inset 0 1px 0 rgba(255,255,255,0.7);
+    var(--shadow-2), var(--cast-far), inset 0 1px 0 rgba(255,255,255,0.7);
 }
 .pile-card.stacked-2 {
   box-shadow:
     3px 3px 0 -1px var(--card-bg), 3.5px 3.5px 0 0 var(--card-border),
     6px 6px 0 -2px var(--card-bg), 6.5px 6.5px 0 -1px var(--card-border),
-    var(--shadow-2), inset 0 1px 0 rgba(255,255,255,0.7);
+    var(--shadow-2), var(--cast-far), inset 0 1px 0 rgba(255,255,255,0.7);
 }
 .pile-card.red { color: var(--suit-red); }
 .pile-card.black { color: var(--suit-black); }
@@ -992,13 +1079,13 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .pile-card.back.stacked-1 {
   box-shadow:
     3px 3px 0 0 var(--accent-2),
-    var(--shadow-2);
+    var(--shadow-2), var(--cast-far);
 }
 .pile-card.back.stacked-2 {
   box-shadow:
     3px 3px 0 0 var(--accent-2),
     6px 6px 0 -1px var(--accent-2),
-    var(--shadow-2);
+    var(--shadow-2), var(--cast-far);
 }
 /* Classic back, v2.41: a printed back instead of a flat accent slab - fine
    lattice on a deeper shade of the theme accent, a light inner border like
@@ -1197,7 +1284,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   font-weight: 800; font-size: 1.02rem;
   transition: transform 0.2s var(--ease), box-shadow 0.2s ease, top 0.15s ease;
   top: 0;
-  box-shadow: var(--shadow-1), 0 3px 8px rgba(0,0,0,0.28);
+  box-shadow: var(--shadow-1), var(--cast);
   position: relative;
   transform-origin: bottom center;
 }
@@ -1211,7 +1298,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
      Nachbarkarte im Fächer. top statt transform, weil die Fächer-Rotation
      als Inline-Transform gesetzt wird. */
   top: -14px;
-  box-shadow: 0 0 0 3px var(--accent), var(--shadow-2);
+  box-shadow: 0 0 0 3px var(--accent), var(--shadow-2), var(--cast-far);
 }
 
 /* Ecken-Index wie bei echten Spielkarten: bleibt bei überlappenden
@@ -1246,8 +1333,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
    der in einen dezenten bleibenden Rand-Schimmer ausklingt - bewusst OHNE
    zusaetzlichen Punkt/Balken (verdeckte Karteninfos bzw. stoerte im Faecher). */
 @keyframes drawnGlow {
-  0% { box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 6px var(--drawn), 0 0 26px var(--drawn), var(--shadow-2); }
-  100% { box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 5px var(--drawn), var(--shadow-2); }
+  0% { box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 6px var(--drawn), 0 0 26px var(--drawn), var(--shadow-2), var(--cast-far); }
+  100% { box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 5px var(--drawn), var(--shadow-2), var(--cast-far); }
 }
 .card.just-drawn {
   /* Ruhezustand = dieselbe Ringstaerke wie .selected (0 0 0 3px var(--accent)):
@@ -1261,11 +1348,11 @@ button:focus-visible, input:focus-visible, select:focus-visible {
      verdeckte sonst den Klickstreifen der rechten Nachbarkarte im Faecher.
      The resting ring is also set statically so the marker never depends on
      the animation's fill mode alone. */
-  box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 5px var(--drawn), var(--shadow-2);
+  box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 5px var(--drawn), var(--shadow-2), var(--cast-far);
   animation: drawnGlow 1.4s ease-out forwards;
 }
 @media (prefers-reduced-motion: reduce) {
-  .card.just-drawn { animation: none; box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 5px var(--drawn), var(--shadow-2); }
+  .card.just-drawn { animation: none; box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 5px var(--drawn), var(--shadow-2), var(--cast-far); }
 }
 /* The selection ring wins against the draw glow. The Queen of Spades used
    to be exempted too, for a 'Pik Dame look' that no longer exists - a drawn
@@ -1273,7 +1360,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .card.just-drawn.selected { animation: none; }
 /* Drawn AND selected: both rings - selection inside, draw marker outside -
    so picking the new card up never hides where it came from. */
-.card.just-drawn.selected { box-shadow: 0 0 0 3px var(--accent), 0 0 0 6px var(--drawn), var(--shadow-2); }
+.card.just-drawn.selected { box-shadow: 0 0 0 3px var(--accent), 0 0 0 6px var(--drawn), var(--shadow-2), var(--cast-far); }
 
 /* --- Pik Dame turns her head on her real moments (client.js queenMoments) ---
    A shade on the paper, never a ring: rings mean selection and draw. */
@@ -2295,7 +2382,7 @@ body.raidActive #toastContainer { margin-top: 132px; }
      kleinen Versatz nach OBEN, der die Stapelreihenfolge nicht anfasst. */
   #hand .card:hover {
     filter: brightness(1.07);
-    box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow-2);
+    box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow-2), var(--cast-far);
   }
   #hand .card:not(.selected):hover { top: -7px; }
   .meldOwnerGroup.own .card { cursor: pointer; }
@@ -3183,7 +3270,7 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 .tfCard {
   position: relative; display: block; flex: none; width: 42px; height: 59px; border-radius: 8px;
   background: var(--card-bg); color: var(--card-ink); border: 1px solid var(--card-border);
-  box-shadow: var(--shadow-2), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  box-shadow: var(--shadow-2), var(--cast-far), inset 0 1px 0 rgba(255, 255, 255, 0.7);
   transform: rotate(-4deg); transition: transform 0.15s var(--ease);
 }
 .tfCard.mod::before, .tfCard.risk::before { content: ''; position: absolute; inset: 3px; border: 1.5px dashed var(--paper-mod); border-radius: 5px; pointer-events: none; }
@@ -3263,8 +3350,8 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 @keyframes lockNudge { 0%, 100% { transform: none; } 20% { transform: translateX(-3px) rotate(-8deg); } 50% { transform: translateX(3px) rotate(6deg); } 80% { transform: translateX(-1px); } }
 /* "Pik Dame": the dealt queen is marked while the start card says why - the
    coach spotlight (--coach), so it never reads as selected or freshly drawn. */
-#hand .card.towerSpot { top: -10px; box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 5px var(--coach), var(--shadow-2); animation: coachPulse 1.4s ease-in-out infinite; }
-#hand .card.towerSpot.selected { box-shadow: 0 0 0 3px var(--accent), 0 0 0 6px var(--coach), var(--shadow-2); }
+#hand .card.towerSpot { top: -10px; box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 5px var(--coach), var(--shadow-2), var(--cast-far); animation: coachPulse 1.4s ease-in-out infinite; }
+#hand .card.towerSpot.selected { box-shadow: 0 0 0 3px var(--accent), 0 0 0 6px var(--coach), var(--shadow-2), var(--cast-far); }
 #hand.towerSpotOn .card:not(.towerSpot):not(.selected) { filter: brightness(0.72) saturate(0.85); }
 /* The rules of the floor at the table (tap on the floor card). */
 .tfsSec { break-inside: avoid; }
@@ -4253,14 +4340,14 @@ input:disabled { opacity: 0.65; }
    --accent, the selection colour. Marked fan cards lift a little and the rest
    of the hand dims, so a mark never hides behind its neighbour. */
 .card.tutorialGlow {
-  box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 5px var(--coach), var(--shadow-2);
+  box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 5px var(--coach), var(--shadow-2), var(--cast-far);
   animation: coachPulse 1.4s ease-in-out infinite;
 }
 #hand .card.tutorialGlow:not(.selected) { top: -8px; }
 /* Selected AND marked: both rings, the selection innermost. */
-.card.tutorialGlow.selected { box-shadow: 0 0 0 3px var(--accent), 0 0 0 6px var(--coach), var(--shadow-2); }
+.card.tutorialGlow.selected { box-shadow: 0 0 0 3px var(--accent), 0 0 0 6px var(--coach), var(--shadow-2), var(--cast-far); }
 #hand.coachSpot .card:not(.tutorialGlow):not(.selected) { filter: brightness(0.72) saturate(0.85); }
-#hand.coachSpot .card.just-drawn:not(.tutorialGlow) { animation: none; box-shadow: var(--shadow-1), 0 3px 8px rgba(0,0,0,0.28); }
+#hand.coachSpot .card.just-drawn:not(.tutorialGlow) { animation: none; box-shadow: var(--shadow-1), var(--cast); }
 .meldGroup.tutorialGlowMeld {
   box-shadow: 0 0 0 3px var(--coach);
   animation: coachPulse 1.4s ease-in-out infinite;
@@ -4512,7 +4599,7 @@ input:disabled { opacity: 0.65; }
 .puzzleStatus { min-height: 1.4em; font-weight: 600; margin: 0 0 8px; }
 .puzzleStatus.ok { color: var(--paper-success); }
 .puzzleStatus.bad { color: var(--paper-danger); }
-.puzzleHand .card.solution { box-shadow: 0 0 0 3px var(--drawn), var(--shadow-2); }
+.puzzleHand .card.solution { box-shadow: 0 0 0 3px var(--drawn), var(--shadow-2), var(--cast-far); }
 /* Puzzle stars: filled = earned, outline = still possible today, faint = gone. */
 .puzzleStars { display: inline-flex; gap: 2px; vertical-align: -0.12em; color: color-mix(in srgb, #b8860b 82%, var(--card-ink)); }
 .puzzleStars .icon { width: 1.1em; height: 1.1em; opacity: 0.3; vertical-align: 0; }

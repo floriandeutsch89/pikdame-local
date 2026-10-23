@@ -774,6 +774,35 @@
     music = null;
   }
 
+  // --- Table light: public/table-light.js turns the Berlin clock into four
+  // weights on #table, style.css the colours. Ticks only while the table shows.
+  const tableLight = window.PikdameTableLight || null;
+  let tableLightTimer = null;
+  let tableLightShown = '';
+  function applyTableLight() {
+    try {
+      const w = tableLight.cssWeights(Date.now());
+      const key = Object.values(w).join(' ');
+      if (key === tableLightShown) return; // a plateau: no style work
+      tableLightShown = key;
+      const table = el('table');
+      for (const [prop, value] of Object.entries(w)) table.style.setProperty(prop, value);
+    } catch (e) { /* the light is decoration, never critical */ }
+  }
+  function syncTableLight() {
+    try {
+      const on = !!tableLight && !document.hidden && !el('table').classList.contains('hidden');
+      if (on && !tableLightTimer) {
+        applyTableLight(); // before the next paint: no flash of the wrong hour
+        tableLightTimer = setInterval(applyTableLight, tableLight.UPDATE_MS);
+      } else if (!on && tableLightTimer) {
+        clearInterval(tableLightTimer);
+        tableLightTimer = null;
+      }
+    } catch (e) { /* the light is decoration, never critical */ }
+  }
+  document.addEventListener('visibilitychange', syncTableLight);
+
   function playTone(freqs, durationMs, type = 'sine', gainValue = 0.06) {
     if (!soundEnabled) return;
     const ctx = getAudioCtx();
@@ -2114,6 +2143,7 @@
     el('lobby').classList.toggle('hidden', !inLobby);
     el('table').classList.toggle('hidden', inLobby);
     syncSeasonSnow();
+    syncTableLight();
     renderPause();
     try { renderTableOptions(); } catch (e) { /* "Optionen" must never break the table */ }
 

@@ -112,6 +112,9 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
     letzte Anmeldeweg ist nie löschbar.
 - `public/` — Vanilla-JS-Client, `i18n.js`, PWA. Studio-Vorspann ab dem
   ersten Bild per CSS sichtbar, Kopf-Skript entscheidet, CSS-Notbremse nach 9 s.
+  Tischlicht nach Tageszeit: `table-light.js` schreibt nur `--tod-*`, Farben im
+  CSS-Abschnitt TABLE LIGHT aus dem Filz des Themes; Mittag = Bestand, kein Text
+  unter seinen Mittags-Tiefstwert (`test/table-light-css.test.js`).
 - `landing/` (pikdame.online), `terraform/` (Hetzner), `docker/`, `k8s/`.
 - `mcp/` — MCP-Server: LLM sitzt als normaler WS-Spieler am Tisch (eigenes
   Paket mit MCP-SDK, nicht im Image). Legale Züge prüft ein Schatten-

@@ -60,7 +60,7 @@ window.WebSocket.CONNECTING = 0;
 window.onerror = (msg) => { errors.push(String(msg)); };
 window.addEventListener('error', (e) => errors.push(String(e.message || e.error)));
 
-for (const src of ['i18n.js', 'music-player.js', 'client.js']) {
+for (const src of ['i18n.js', 'music-player.js', 'table-light.js', 'client.js']) {
   const code = fs.readFileSync(path.join(pub, src), 'utf8');
   try {
     window.eval(code);
@@ -296,6 +296,12 @@ setTimeout(() => {
       ],
       players: base.players.map((p) => ({ ...p, handCount: 15 })),
     });
+    // Table light: the shown table carries the time weights (public/table-light.js).
+    {
+      const st = window.document.getElementById('table').style;
+      const sum = ['m', 'd', 'e', 'n'].reduce((s, k) => s + Number(st.getPropertyValue(`--tod-${k}`) || NaN), 0);
+      if (!(Math.abs(sum - 1) < 0.001)) errors.push(`the table light weights are missing on #table: ${st.cssText}`);
+    }
     // Rundenende mit 4 Spielern: das Ergebnis-Overlay muss in Reitern
     // rendern - Reiter 1 (Ergebnis) aktiv, Reiter 2 (Statistik) versteckt.
     const four = [
