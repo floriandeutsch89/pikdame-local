@@ -128,7 +128,12 @@ Play attempts (`play_attempts`, {doc}`../admin/play-attempts`) are the one write
 nobody waits for: `game/PlayEvents.js` stores them in the background, a failed
 insert is logged and never holds up a game; a unique `attempt_id` keeps a
 replayed snapshot from writing an attempt twice. Rows older than 90 days are
-deleted every few hours.
+deleted every few hours. Three modes write them: a Kartenhaus floor and a
+tutorial table report their end through the engine's `onAttemptEnd` hook (the
+tutorial's lessons come from the client's `tutorialStep` reports, checked
+against `game/TutorialSteps.js`); daily-puzzle attempts have no table, so
+`game/PuzzleAttempts.js` keeps the open ones in memory and in the session
+snapshot until the solve, the shown solution or midnight.
 
 ## Testing
 

@@ -23,7 +23,7 @@ operations
 | --- | --- |
 | Which environment variables exist, and what do they do? | {doc}`configuration` |
 | **What is missing in my setup?** Startup report, `/admin` page, test mail | {doc}`admin-page` |
-| Where players get stuck in the Kartenhaus, and why (90 days of attempts) | {doc}`play-attempts` |
+| Where players get stuck in the Kartenhaus, the daily puzzle and the tutorial, and why (90 days of attempts) | {doc}`play-attempts` |
 | Send account-confirmation mails (SMTP) | {doc}`mail` |
 | **Back up my data — and prove the restore works** | {doc}`backup-restore` |
 | Run a trained (ONNX) bot instead of the heuristic one | {doc}`onnx` |
@@ -43,11 +43,11 @@ All persistent data lives in **one directory**, mounted into the container at
 | `players.json` | Player profiles, statistics, achievements |
 | `stats.json` | Anonymous global server statistics |
 | `games.json` | Game history |
-| `sessions-snapshot.json` | Running tables, written every minute and on shutdown so games survive a restart or crash |
+| `sessions-snapshot.json` | Running tables and open daily-puzzle attempts, written every minute and on shutdown so games survive a restart or crash |
 
 Accounts, the daily challenge (leaderboard and the day's ranked attempts,
-14-day retention) and the Kartenhaus attempts ({doc}`play-attempts`, 90 days)
-live in PostgreSQL.
+14-day retention) and the Kartenhaus, puzzle and tutorial attempts
+({doc}`play-attempts`, 90 days) live in PostgreSQL.
 
 If that directory is not writable, **nothing is saved** and everything is lost on
 restart. Since v1.54.4 the server checks this at startup and says so loudly:
