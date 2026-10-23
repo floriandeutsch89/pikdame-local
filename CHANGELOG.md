@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.116.0] - 2026-10-24
+
+### Added
+- Im Konto-Dialog steht unter deinem Namen jetzt deine E-Mail-Adresse samt
+  Status „bestätigt“ – sichtbar nur für dich
+
 ## [2.115.0] - 2026-10-24
 
 ### Changed

@@ -882,6 +882,8 @@
         </div>
         <div id="accountLoggedIn" class="hidden">
           <p id="accountWhoami">Angemeldet als –</p>
+          <!-- The account's own address from /api/me (never stored, never sent to others), like an account menu. -->
+          <p id="accountEmail" class="accountEmail hidden"><span id="accEmailAddr" class="accEmailAddr"></span><span id="accEmailState" class="accEmailState"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span></span></span></p>
           <!-- Right after confirming (or with no method at all): pick how to
                sign in from now on - first thing below the name, it is THE
                next step. -->

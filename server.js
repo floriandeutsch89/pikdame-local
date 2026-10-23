@@ -1426,7 +1426,10 @@ async function handleAccountRequest(req, res, filePath) {
     const season = await seasonInfoFor(u.username);
     // Only shows the admin link: /admin checks the role again on every request.
     const isAdmin = await adminRoleOf(u);
-    return sendJson(res, 200, { ok: true, username: u.username, isAdmin, ...(greeting ? { greeting } : {}), ...season });
+    // The address goes to its own account only (this bearer token): never into WS, profiles, boards or logs.
+    return sendJson(res, 200, {
+      ok: true, username: u.username, email: u.email, emailVerified: u.emailVerified, isAdmin, ...(greeting ? { greeting } : {}), ...season,
+    });
   }
   if (filePath === '/api/season-result/seen') {
     const u = await accountStore.sessionUser(body.token);
