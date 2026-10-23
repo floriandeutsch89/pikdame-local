@@ -429,6 +429,23 @@ function teamTableOnB() {
   st.currentPlayerId = st.teams[0][0]; // an opponent's turn
   return st;
 }
+// table-team-many: late in a match - my partner holds a 13-card run and many melds, the
+// opponents a long run too (the partner's meld block must stay legible with a frame).
+function teamTableMany() {
+  const st = teamTableState('Die Löwen');
+  const cards = (suit, ranks, tag) => ranks.map((rank) => ({ real: { id: `${suit}${rank}-${tag}`, suit, rank, isJoker: false } }));
+  const RUN = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+  const opp = st.players.find((p) => p.isBot).id;
+  let n = 900;
+  const add = (ownerId, type, slots, extra = {}) => st.tableMelds.push({ id: `meld-${n++}`, ownerId, type, suit: null, rank: null, slots, ...extra });
+  add('p2', 'run', cards('H', RUN, 'x'), { suit: 'H' });
+  add('p2', 'set', ['C', 'D', 'S', 'H'].map((s) => ({ real: { id: `${s}K-x`, suit: s, rank: 'K', isJoker: false } })), { rank: 'K' });
+  add('p2', 'run', cards('C', ['3', '4', '5', '6', '7', '8'], 'x'), { suit: 'C' });
+  add('p2', 'set', ['C', 'D', 'S'].map((s) => ({ real: { id: `${s}9-x`, suit: s, rank: '9', isJoker: false } })), { rank: '9' });
+  add(opp, 'run', cards('S', ['5', '6', '7', '8', '9', '10', 'J'], 'y'), { suit: 'S' });
+  add(opp, 'set', ['C', 'D', 'H'].map((s) => ({ real: { id: `${s}6-y`, suit: s, rank: '6', isJoker: false } })), { rank: '6' });
+  return st;
+}
 // Where the table's regions sit (--measure): the floor card must not cost the melds or the hand.
 function measurePage() {
   const box = (sel) => {
@@ -1022,11 +1039,12 @@ function waitForHttp(port, ms = 20000) {
           await shot('stats-badges-open');
           await page.click('#statsCloseBtn');
         }
-        if (sc === 'table' || sc === 'table-team' || sc === 'table-team-named' || sc === 'table-team-b') {
+        if (sc === 'table' || sc === 'table-team' || sc === 'table-team-named' || sc === 'table-team-b' || sc === 'table-team-many') {
           // Live table: needs --state <file> with a publicState('p1') JSON (playing phase);
           // table-team builds a "2 gegen 2" table from the engine instead.
           const st = sc === 'table-team' ? teamTableState() : sc === 'table-team-named' ? teamTableState('Die Löwen')
-            : sc === 'table-team-b' ? teamTableOnB() : JSON.parse(fs.readFileSync(arg('state', ''), 'utf8'));
+            : sc === 'table-team-b' ? teamTableOnB() : sc === 'table-team-many' ? teamTableMany()
+              : JSON.parse(fs.readFileSync(arg('state', ''), 'utf8'));
           inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
           inject({ type: 'state', state: st });
           await page.waitForTimeout(1200);

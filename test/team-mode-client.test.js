@@ -178,14 +178,23 @@ test('table: a team stripe on the opponents, the partner ringed with a "Team" ta
   assert.equal(myBar.querySelector('.tbMate').style.width, '15.5%');
   const header = [...doc.querySelectorAll('.meldOwnerHeader')].find((h) => h.textContent.includes('Oma Gerda'));
   assert.equal(header.querySelector('.meldPartnerTag').textContent, 'Team', 'the partner\'s melds say so');
+  // The partner's meld block wears the chip's ring: only the partner's, in the team colour.
+  const block = header.closest('.meldOwnerGroup');
+  assert.ok(block.classList.contains('isPartner'));
+  assert.equal(block.style.getPropertyValue('--team-c'), '#2a78d6');
+  assert.equal(doc.querySelectorAll('.meldOwnerGroup.isPartner').length, 1);
   // "Optionen" › "Dieser Tisch" names the mode and the partner.
   assert.ok(!doc.getElementById('tableRuleModeRow').classList.contains('hidden'));
   assert.equal(doc.getElementById('tableRuleMode').textContent, '2 gegen 2, mit Oma Gerda');
   assert.equal(doc.getElementById('tableRuleStrictLabel').textContent, 'Über 2000 Punkte zum Gewinnen');
 
   // A normal table keeps everything as it was.
-  feed({ ...BASE, phase: 'playing', teamMode: false, teams: null, teamTotals: null, teamNames: null, targetScore: 1000 });
-  assert.equal(doc.querySelectorAll('#opponents .teamChip, #opponents .isPartner, .opPartnerTag').length, 0);
+  feed({
+    ...BASE, phase: 'playing', teamMode: false, teams: null, teamTotals: null, teamNames: null, targetScore: 1000,
+    tableMelds: [{ id: 1, ownerId: 'p2', type: 'set', rank: '7', slots: ['H', 'D', 'S'].map((s) => ({ real: { id: `7${s}`, suit: s, rank: '7' } })) }],
+  });
+  assert.equal(doc.querySelectorAll('.meldOwnerGroup').length, 1, 'precondition: Oma Gerda\'s melds are shown');
+  assert.equal(doc.querySelectorAll('#opponents .teamChip, #opponents .isPartner, .opPartnerTag, .meldOwnerGroup.isPartner, .meldPartnerTag').length, 0);
   assert.equal(doc.getElementById('myScore').textContent.trim(), '240 Pkt');
   assert.ok(!doc.getElementById('myScore').classList.contains('teamScore'));
   assert.ok(!doc.getElementById('myScoreBar').classList.contains('teamBar'));

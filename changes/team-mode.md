@@ -6,10 +6,10 @@
   zwei Bots. Mit Freunden wählt der Gastgeber „2 gegen 2“ in der Lobby; dort zeigt
   jeder Platz sein Team (A/B), „Team wechseln“ setzt dich ins andere Team, und
   jedes Team kann sich vor dem Start einen Namen geben
-- Am Tisch ist der Partner in der Teamfarbe umrandet und trägt „Team“ (oder
-  „Team“ und den Teamnamen), die Gegner einen Streifen in ihrer Teamfarbe. Unter
-  der Hand steht der Teamstand („Wir 550:600“), die Balken zeigen den Weg des
-  Teams bis 2000
+- Am Tisch sind der Partner und seine Auslagen in der Teamfarbe umrandet und
+  mit „Team“ (oder „Team“ und dem Teamnamen) beschriftet, die Gegner tragen einen
+  Streifen in ihrer Teamfarbe. Unter der Hand steht der Teamstand („Wir 550:600“),
+  die Balken zeigen den Weg des Teams bis 2000
 - Rundenende und Spielende zeigen beide Teams mit ihrer Summe und darunter, was
   jeder beigetragen hat; der Punkteverlauf hat eine Linie pro Team
 - Ein Teamsieg zählt für beide Partner: Siege, Erfahrungspunkte, Tagesziele und

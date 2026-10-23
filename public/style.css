@@ -5999,20 +5999,23 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
   border-radius: 0 3px 3px 0; background: var(--team-c); pointer-events: none;
 }
 .opponent.teamChip.isPartner::before { display: none; }
-/* Ring: the 1 px border plus a 2 px outline inside it. It is the only INSIDE ring:
-   turn (accent fill + glow), meld filter and round winner draw outside. */
-.opponent.isPartner {
+/* Ring on the partner's chip and meld block: the 1 px border plus 2 px inside it. It is
+   the only INSIDE ring: turn (accent fill + glow), meld filter and round winner draw outside. */
+.opponent.isPartner, .meldOwnerGroup.isPartner {
   --team-ring: var(--team-c);
   border-color: var(--team-edge, var(--team-ring));
-  outline: 2px solid var(--team-ring); outline-offset: -3px;
 }
 @supports (color: color-mix(in srgb, red 50%, blue)) {
   /* Dark felts: a lighter ring keeps 3:1 (blue on the green felt was 3.1:1). */
-  .opponent.isPartner { --team-ring: color-mix(in srgb, var(--team-c) 78%, #fff); }
+  .opponent.isPartner, .meldOwnerGroup.isPartner { --team-ring: color-mix(in srgb, var(--team-c) 78%, #fff); }
 }
 /* Light wood: the true colours (a darkened orange would be the rust accent) with a
    dark edge for the 3:1 against the felt. */
-[data-theme="kitchen"] .opponent.isPartner { --team-ring: var(--team-c); --team-edge: #3d2c1c; }
+[data-theme="kitchen"] .opponent.isPartner, [data-theme="kitchen"] .meldOwnerGroup.isPartner { --team-ring: var(--team-c); --team-edge: #3d2c1c; }
+/* The chip's other states own box-shadow, so its ring is an outline; the meld block's
+   is an inset shadow, painted under the cards it may touch. */
+.opponent.isPartner { outline: 2px solid var(--team-ring); outline-offset: -3px; }
+.meldOwnerGroup.isPartner { box-shadow: inset 0 0 0 2px var(--team-ring); }
 .opponent.isPartner.active { border-color: var(--accent); }
 .opponent.isPartner.lowCards { border-color: var(--danger); }
 .opPartnerTag {
@@ -6038,10 +6041,10 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
 #myScoreBar.teamBar { position: absolute; }
 .meldPartnerTag {
   display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; vertical-align: 1px;
-  max-width: 11em; padding: 0 7px; border-radius: var(--r-pill); border: 1px solid var(--glass-border);
-  font-size: var(--fs-micro); font-weight: 800; color: var(--text);
+  max-width: 11em; padding: 0 6px; border-radius: 9px;
+  border: 2px solid var(--team-ring); background: rgba(0,0,0,0.62); color: #fff; /* the chip's tab */
+  font-size: var(--fs-micro); font-weight: 800; line-height: 1.3;
 }
-.meldPartnerTag::before { content: ''; flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; background: var(--team-c); }
 .meldPartnerTag .mptName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Hand toolbar: "Wir 550:600", ours first, like a scoreboard. A team's name gives way
    first (ellipsis): the numbers, the round and the sort button keep their width. */
@@ -6240,8 +6243,10 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
   .resultRow.teamResultHead { padding-top: 3px; }
   .teamResultHead .resultRowBar { margin: 4px 0 2px; }
   .teamMember { padding-top: 1px; padding-bottom: 1px; }
-  /* A named partner's meld column says "Team" alone (the chip above has the name). */
+  /* A named partner's meld column says "Team" alone (the chip above has the name), on a
+     slimmer tab: the header line sits in the column's 14 px top padding. */
   .meldPartnerTag .mptName { display: none; }
+  .meldPartnerTag { border-width: 1px; line-height: 1; padding: 0 5px; vertical-align: 0; }
   /* Result strip in the narrow right column: the gap gets its own line. */
   #resultOverlay .resultMe { margin: 0 0 2px; padding: 8px 10px; }
   .rmTop { flex-wrap: wrap; }

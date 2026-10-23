@@ -2807,14 +2807,17 @@
       }
       const isMine = owner.id === playerId;
 
+      // "2 gegen 2": the partner's block wears the chip's ring and its "Team" tab
+      // (laying off there is still not allowed).
+      const ownerTeam = teamOfPlayer(owner.id);
+      const isPartnerBlock = !isMine && ownerTeam >= 0 && ownerTeam === teamOfPlayer(playerId);
       const section = document.createElement('div');
-      section.className = 'meldOwnerGroup' + (isMine ? ' own' : '');
+      section.className = 'meldOwnerGroup' + (isMine ? ' own' : '') + (isPartnerBlock ? ' isPartner' : '');
+      if (isPartnerBlock) section.style.setProperty('--team-c', teamColor(ownerTeam));
       const header = document.createElement('div');
       header.className = 'meldOwnerHeader';
-      // "2 gegen 2": the partner's melds say "Team" (laying off there is still not allowed).
-      const ownerTeam = teamOfPlayer(owner.id);
-      const partnerMark = !isMine && ownerTeam >= 0 && ownerTeam === teamOfPlayer(playerId)
-        ? `<span class="meldPartnerTag" style="--team-c:${teamColor(ownerTeam)}"><span>Team</span>${teamNameOf(ownerTeam) ? `<span class="mptName">${escapeHtml(teamNameOf(ownerTeam))}</span>` : ''}</span>`
+      const partnerMark = isPartnerBlock
+        ? `<span class="meldPartnerTag"><span>Team</span>${teamNameOf(ownerTeam) ? `<span class="mptName">${escapeHtml(teamNameOf(ownerTeam))}</span>` : ''}</span>`
         : '';
       header.innerHTML = isMine
         ? L('Deine Auslagen', 'Your melds')

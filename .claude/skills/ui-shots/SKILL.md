@@ -52,7 +52,9 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   as Oma Gerda and lands on the other team, both teams named; `-edit` while I
   type mine, `-partners` after her switch, and `botdiff-team`, the one-level
   picker), `table-team` (an engine team table, Oma Gerda my partner, mid-match
-  totals; `table-team-named` with my team's name), `roundend-team`,
+  totals; `table-team-named` with my team's name, `table-team-b` seen from
+  team B with an opponent on turn, `table-team-many` with a 13-card run and
+  many melds - `--js` can scroll `.meldOwnerGroup.isPartner` into view), `roundend-team`,
   `gameover-team`, `gameover-team-win` (my team named), `history-team` (a won
   team game opened in "Meine Partien").
 - **Before/after from one script:** `SHOTS_ROOT=<checkout>` shoots another
