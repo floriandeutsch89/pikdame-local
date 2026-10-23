@@ -115,9 +115,14 @@ Small JSON files, written **atomically** (temp file + rename) and **debounced**
 (~800 ms), so a busy server does not hammer the disk. On shutdown — and after an
 uncaught exception — everything is flushed synchronously, so nothing is lost.
 
-Accounts are the exception: they live in PostgreSQL, which the server requires.
-All stores share one pool (`game/Database.js`); the schema comes from numbered
-files in `migrations/` (see {doc}`migrations`).
+Accounts and the daily challenge are the exception: they live in PostgreSQL,
+which the server requires. All stores share one pool (`game/Database.js`); the
+schema comes from numbered files in `migrations/` (see {doc}`migrations`).
+PostgreSQL writes are awaited, never buffered: the challenge's "one ranked
+attempt per name and day" is the primary key of `challenge_attempts`, so two
+racing starts can never both be ranked. A JSON file moved into the database is
+imported once on the first start (marker row in `legacy_imports`) and then
+renamed to `<file>.migrated`.
 
 ## Testing
 

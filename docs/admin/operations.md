@@ -199,6 +199,15 @@ start. **Rollback:** pin the image tag in the compose file from `:latest` to
 the last good version (e.g. `:v1.12.0`) and run `up -d` again — every release
 version is available as its own tag on GHCR.
 
+**Rolling back past the daily-challenge move** (to a version that still kept
+`challenges.json`): the first start of the newer version imported the file and
+renamed it to `challenges.json.migrated` in the data volume. Rename it back
+before starting the old version; challenge results played on the newer version
+exist only in PostgreSQL and are not in the file. Going forward again does not
+re-import the file (marker in `legacy_imports`, the file is just moved aside);
+to import it once more, `DELETE FROM legacy_imports WHERE name = 'challenges.json'`
+first.
+
 ## Backup & restore
 
 ```sh
