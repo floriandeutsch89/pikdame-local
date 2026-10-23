@@ -120,12 +120,13 @@ const UPSERT_PLAYER = `INSERT INTO players AS p (player_key, player_name, create
   ON CONFLICT (player_key) DO UPDATE SET last_seen_at = GREATEST(p.last_seen_at, EXCLUDED.last_seen_at), updated_at = EXCLUDED.updated_at
   RETURNING *`;
 
-/** The id of `name`'s player (created, or marked seen at `at`); for stores that reference players. */
-async function upsertPlayerId(q, name, at) {
+/** The id of `name`'s player (created, or marked seen at `at`); for stores that reference players.
+ *  `createdAt` null: a new row claims no age (the year review takes created_at as the first game). */
+async function upsertPlayerId(q, name, at, createdAt = at) {
   const { rows } = await q.query(`INSERT INTO players AS p (player_key, player_name, created_at, updated_at, last_seen_at)
-    VALUES ($1, $2, $3, $3, $3)
+    VALUES ($1, $2, $4, $3, $3)
     ON CONFLICT (player_key) DO UPDATE SET last_seen_at = GREATEST(p.last_seen_at, EXCLUDED.last_seen_at), updated_at = EXCLUDED.updated_at
-    RETURNING id`, [keyOf(name), nameOf(name), at]);
+    RETURNING id`, [keyOf(name), nameOf(name), at, createdAt]);
   return rows[0].id;
 }
 

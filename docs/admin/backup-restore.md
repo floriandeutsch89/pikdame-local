@@ -10,7 +10,7 @@ bottom of this page once — it takes five minutes and is the only way to know.
 | What | Where | Lose it and… |
 | --- | --- | --- |
 | Server statistics, game history | `stats.json`, `games.json` in the data volume | …the server-wide numbers and "Meine Partien" are gone. The game still works. |
-| Accounts, player profiles, Stammtische, daily challenge | the PostgreSQL database (`users`, `sessions`, `players` with its `player_*` tables, `stammtische` with its `stammtisch_*` tables, `challenge_results`, `challenge_attempts`, …) | …people can't log in, everyone's statistics, badges and progress are gone, so are the groups' tables, the challenge board and today's attempts. Guests can still play. It lives outside the volume. |
+| Accounts, player profiles, Stammtische, daily challenge | the PostgreSQL database (`users`, `login_sessions`, `players` with its `player_*` tables, `stammtische` with its `stammtisch_*` tables, `challenge_results`, `challenge_attempts`, …) | …people can't log in, everyone's statistics, badges and progress are gone, so are the groups' tables, the challenge board and today's attempts. Guests can still play. It lives outside the volume. |
 | Running games | `sessions-snapshot.json` | …nothing, long-term. Rewritten every minute while tables change and on shutdown; deleted once restored. |
 
 Everything else — the image, the code, the config — is reproducible from Git and

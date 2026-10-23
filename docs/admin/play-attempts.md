@@ -123,3 +123,7 @@ link; the groups' record stays theirs:
 ```sql
 DELETE FROM players WHERE player_key = 'oma inge';
 ```
+
+A name with an account is refused (`users_player_id_fkey`): delete the account
+on the admin page first. That keeps the player, so the statement above then
+removes the rest.
