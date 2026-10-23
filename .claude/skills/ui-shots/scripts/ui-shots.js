@@ -7,6 +7,8 @@
 //
 // --signed-in mocks a signed-in account (the /api/* answers below), season
 // finale included: the start-up hint shows on the first start-screen shot.
+// --email <address> gives it another address (a long one tests the ellipsis),
+// --unconfirmed marks that address as not confirmed.
 // --stammtische N (0-3, default 1): remembered Stammtische on the start screen.
 //
 // --audit also checks every shot for truncated or off-screen text, tap targets < 44 px,
@@ -27,6 +29,8 @@
 // its forfeit button armed by a first tap),
 // sheet-reopen (settings sheet scrolled, closed, reopened), cardback (the card-back gallery), music-hint (first click: music starts, one-time hint),
 // account (the account sheet: level, season ladder; needs --signed-in),
+// account-top (the same sheet as it opens: name, address, its status; needs --signed-in),
+// account-setup (just confirmed, no sign-in method yet: the "Passkey or password" choice; needs --signed-in),
 // account-admin (the sheet scrolled to its end: the admin link; needs --signed-in --admin),
 // account-mail (its year-review mail switch; needs --signed-in),
 // tower (the Kartenhaus sheet via its tile in "Aufgaben"), tower-detail (a tapped
@@ -156,7 +160,8 @@ const SEASON_AWARDS = [SEASON_RESULT,
   { season: monthsBack(2), place: 7, award: 'top10', seasonXp: 310, ranked: 12 },
   { season: monthsBack(3), place: 11, award: 'participant', seasonXp: 95, ranked: 12 }];
 const ACCOUNT_API = {
-  '/api/me': { ok: true, username: ME, isAdmin: ADMIN, seasonResult: SEASON_RESULT, lastSeason: SEASON_RESULT, seasonAwards: SEASON_AWARDS },
+  '/api/me': { ok: true, username: ME, email: arg('email', 'flo@example.org'), emailVerified: !process.argv.includes('--unconfirmed'),
+    isAdmin: ADMIN, seasonResult: SEASON_RESULT, lastSeason: SEASON_RESULT, seasonAwards: SEASON_AWARDS },
   '/api/ladder': { ok: true, season: TODAY.slice(0, 7), lastSeason: SEASON_RESULT, seasonAwards: SEASON_AWARDS,
     me: { username: ME, xp: 5320, seasonXp: 410, season: TODAY.slice(0, 7), games: 43, wins: 17, rank: 2 },
     board: [{ username: 'Oma Gerda', seasonXp: 520 }, { username: ME, seasonXp: 410 }, { username: 'Klaus', seasonXp: 150 }] },
@@ -858,6 +863,15 @@ function waitForHttp(port, ms = 20000) {
           await shot('cardback');
           await page.evaluate(() => document.querySelector('.cardbackGallery').remove());
           await page.click('#settingsOverlayCloseBtn');
+        }
+        if (sc === 'account-top' || sc === 'account-setup') {
+          await toStart();
+          const methods = ACCOUNT_API['/api/account/methods'];
+          if (sc === 'account-setup') ACCOUNT_API['/api/account/methods'] = { ok: true, hasPassword: false, passkeys: [], reviewMail: false };
+          await page.click('#accountBtn'); await page.waitForTimeout(700);
+          await shot(sc);
+          await page.click('#accountCloseBtn');
+          ACCOUNT_API['/api/account/methods'] = methods;
         }
         if (sc === 'account') {
           await page.click('#accountBtn'); await page.waitForTimeout(700);

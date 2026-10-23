@@ -3575,6 +3575,21 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 #accountCodeForm .fieldLabel { text-align: center; }
 #accountLoggedOut, #accountLoggedIn { width: 100%; }
 #accountWhoami { font-weight: 700; margin-bottom: 10px; text-align: center; }
+/* The own address under the name, like an account menu: one line; a long one ends in "…" (full text in title). */
+#accountWhoami:has(+ .accountEmail:not(.hidden)) { margin-bottom: 2px; }
+.accountEmail {
+  display: flex; justify-content: center; align-items: center; gap: 8px;
+  margin: 0 0 10px; font-size: var(--fs-label); color: var(--text-muted);
+}
+.accEmailAddr {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  user-select: all; -webkit-user-select: all; /* selected as a whole, e.g. to copy it for PIKDAME_ADMINS */
+}
+.accEmailState { flex: none; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.accEmailState .icon { width: 1.15em; height: 1.15em; vertical-align: 0; color: var(--paper-success); }
+.accountEmail.unconfirmed .accEmailState .icon { color: var(--paper-danger); }
+/* The address line already says "bestätigt": once per screen. */
+.accountEmail:not(.hidden) ~ .accountSetup .setupDone { display: none; }
 #accountStatus { min-height: 1.2em; }
 input:disabled { opacity: 0.65; }
 

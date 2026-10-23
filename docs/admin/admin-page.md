@@ -157,7 +157,8 @@ it "sudo mode"). There is no separate admin password.
 (Konto → Registrieren) and confirm it with the code from the mail. Add a
 passkey (Konto → Anmeldewege → Passkey hinzufügen): the admin area asks for it.
 
-**2. Name the address** in `docker/.env` (several: comma-separated):
+**2. Name the address** in `docker/.env` (several: comma-separated). The game
+shows your account's address under your name in **Konto**:
 
 ```bash
 PIKDAME_ADMINS=you@example.org
