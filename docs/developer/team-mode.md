@@ -112,15 +112,16 @@ wins per hour; the 2000 target removed that.) Decided: no damping in v1.
   (the team's lead instead of the own one, the partner's publicly known cards
   no reason to keep a discard). Self-play, team-aware against naive at one
   level, sides alternating, 20 batches × 500 games
-  (`node scripts/sim-bots.js --team hard zen`):
+  (`node scripts/sim-bots.js --team hard zen --batches 20 --games 500`):
 
-  | Level | Team-aware win share |
-  | --- | --- |
-  | Hard | 49.8 % ± 0.4 |
-  | Zen (heuristic) | 49.9 % ± 0.5 |
+  | Level | Team target 1000 | Team target 2000 |
+  | --- | --- | --- |
+  | Hard | 49.8 % ± 0.4 | 49.4 % ± 0.4 |
+  | Zen (heuristic) | 49.9 % ± 0.5 | 49.6 % ± 0.3 |
 
-  No effect; the seat flag `teamAware` stays off (an A/B seam in
-  `SEAT_CONTROL_FIELDS`). Easy and medium do not read these inputs at all.
+  No effect at either target; the seat flag `teamAware` stays off (an A/B
+  seam in `SEAT_CONTROL_FIELDS`). Easy and medium do not read these inputs at
+  all.
 
 ## For drivers and a future encoder
 

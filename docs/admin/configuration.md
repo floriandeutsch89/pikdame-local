@@ -43,6 +43,15 @@ PIKDAME_IMPRINT_EMAIL=impressum@example.org
   base64-encoded and are decoded by `impressum.js`; the e-mail appears only
   after a click. Without JavaScript a fallback shows them as HTML entities.
 
+## Admin area
+
+`/admin` belongs to the accounts whose **confirmed** e-mail address is listed
+in `PIKDAME_ADMINS` (comma-separated, applied on every start) or that
+`node scripts/admin-role.js grant <email>` named inside the container. Put the
+variable into `docker/.env` **and** into the `environment:` list of your own
+compose file. Setup, break-glass, the step-up and the audit log:
+{doc}`admin-page`.
+
 ## Database: PostgreSQL is required
 
 **`PIKDAME_DATABASE_URL` is mandatory.** Without it the server logs why and

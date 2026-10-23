@@ -35,8 +35,8 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
    Browser-Libs werden VENDORT (`public/vendor-*.js`, unverändert, npm-Hash im
    Kopf): qrcode, uPlot, @simplewebauthn/browser. Keine nativen Module (außer
    `onnxruntime-node` NUR im Dockerfile), kein Build-Schritt. Features mit
-   neueren Node-APIs (z. B. `crypto.argon2`) schalten sich auf alten
-   Versionen selbst ab, statt den Start zu brechen.
+   neueren Node-APIs schalten sich auf alten Versionen selbst ab, statt den
+   Start zu brechen.
 2. **Kein CDN, keine fremden Hosts im Ladepfad.** Icons = Inline-SVG-Sprite
    (`<svg class="icon"><use href="#i-name"/></svg>`), keine Icon-Fonts.
    Schrift: Systemschrift, nur Logo/Titel/Punktzahlen in der vendorten Rubik
@@ -124,6 +124,9 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
     5 Versuche, SHA-256) + Link, beides bestätigt UND meldet an, danach
     Passkey ODER Passwort. Konten dürfen passwortlos sein (`salt = ''`), der
     letzte Anmeldeweg ist nie löschbar.
+  - Admin = Kontorolle aus `PIKDAME_ADMINS`/CLI (`scripts/admin-role.js`) +
+    Passkey-Step-up (sonst Passwort), eigene Cookie-Sitzung; nie per UI/WS
+    vergebbar, Rolle bei jeder Anfrage neu geprüft (`AdminAccess.js`, `AdminStore.js`).
 - `public/` — Vanilla-JS-Client, `i18n.js`, PWA. Studio-Vorspann ab dem
   ersten Bild per CSS sichtbar, Kopf-Skript entscheidet, CSS-Notbremse nach 9 s.
   Tischlicht nach Tageszeit: `table-light.js` schreibt nur `--tod-*`, Farben im

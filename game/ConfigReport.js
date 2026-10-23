@@ -6,6 +6,7 @@
 // Secret VALUES never appear in the report - only whether they are set.
 
 const { readImprint, IMPRINT_VARS, COUNTRY_VAR } = require('./Imprint');
+const { LEGACY_VARS } = require('./AdminAccess');
 
 const STATUS_ICON = { ok: '✓', warn: '⚠', off: '–', error: '✗' };
 
@@ -45,8 +46,8 @@ function parseUrl(value) {
 /**
  * @param {object} env  process.env (or a test double)
  * @param {object} facts runtime facts the env alone cannot tell:
- *   dataDir, dataDirWritable, accountsEnabled,
- *   onnxActive (bool|null), adminMode ('off'|'argon2'|'plain'|'invalid'|'unsupported')
+ *   dataDir, dataDirWritable, accountsEnabled, onnxActive (bool|null),
+ *   admin: { listed, invalid: [positions], active (admin accounts, null = unknown), passkeyOnly, passkeysEnabled }
  * @returns {{ id, label, status: 'ok'|'warn'|'off'|'error', detail: string, missing: string[],
  *            vars: { name: string, set: boolean, value?: string, secret?: boolean }[] }[]}
  */
@@ -67,7 +68,8 @@ function buildConfigReport(env, facts = {}) {
     proxy: [v(env, 'PIKDAME_TRUST_PROXY')],
     origin: [v(env, 'PIKDAME_ALLOWED_ORIGIN')],
     onnx: [v(env, 'PIKDAME_ONNX'), v(env, 'PIKDAME_MODELS_DIR')],
-    admin: [v(env, 'PIKDAME_ADMIN_TOKEN', { secret: true })],
+    admin: [v(env, 'PIKDAME_ADMINS'), v(env, 'PIKDAME_ADMIN_PASSKEY_ONLY')],
+    adminToken: LEGACY_VARS.filter((name) => env[name]).map((name) => ({ name, set: true, secret: true })),
     publicMode: [v(env, 'PIKDAME_PUBLIC_MODE')],
     imprint: [...Object.values(IMPRINT_VARS), COUNTRY_VAR].map((name) => v(env, name)),
   };
@@ -152,16 +154,36 @@ function buildConfigReport(env, facts = {}) {
   else add('onnx', 'ONNX-Bots', env.PIKDAME_ONNX === '1' ? 'error' : 'off',
     env.PIKDAME_ONNX === '1' ? 'erzwungen, aber Laufzeit oder Modelle fehlen - Heuristik läuft' : 'Heuristik (Laufzeit/Modelle nicht vorhanden)');
 
-  // The admin page itself
-  const ADMIN = {
-    argon2: ['ok', '/admin aktiv (Argon2id-Hash)'],
-    plain: ['warn', '/admin aktiv, aber mit Klartext-Token - besser einen Argon2-Hash eintragen (node game/AdminToken.js)'],
-    invalid: ['error', 'PIKDAME_ADMIN_TOKEN beginnt wie ein Argon2-Hash, ist aber ungültig (abgeschnitten? $ in .env ohne einfache Anführungszeichen?) - /admin bleibt aus'],
-    unsupported: ['error', `Argon2-Hash gesetzt, aber dieses Node (${process.version}) kann Argon2 nicht prüfen (ab 24.7) - /admin bleibt aus`],
-    off: ['off', 'aus - zum Einschalten PIKDAME_ADMIN_TOKEN setzen'],
-  };
-  const [adminStatus, adminDetail] = ADMIN[facts.adminMode] || ADMIN.off;
-  add('admin', 'Admin-Seite', adminStatus, adminDetail);
+  // The admin area: an account role (PIKDAME_ADMINS or the CLI) behind a step-up.
+  const admin = facts.admin || {};
+  const grantHint = 'PIKDAME_ADMINS=<deine E-Mail> setzen (Konto mit bestätigter Adresse) oder im Container: node scripts/admin-role.js grant <E-Mail>';
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  if (!accountsOn) {
+    add('admin', 'Admin-Bereich', 'off', 'aus - braucht Benutzerkonten (PIKDAME_ACCOUNTS)');
+  } else if (admin.passkeyOnly && !admin.passkeysEnabled) {
+    add('admin', 'Admin-Bereich', 'error',
+      'PIKDAME_ADMIN_PASSKEY_ONLY=1, aber Passkeys sind hier aus (PIKDAME_BASE_URL mit https?) - niemand kommt in den Admin-Bereich',
+      ['PIKDAME_BASE_URL']);
+  } else if (admin.active == null) {
+    add('admin', 'Admin-Bereich', 'warn', 'Admin-Rollen nicht lesbar (Datenbank) - /admin bleibt zu, bis sie erreichbar ist');
+  } else if (!admin.active) {
+    add('admin', 'Admin-Bereich', 'warn', admin.listed
+      ? `kein Admin: PIKDAME_ADMINS nennt ${plural(admin.listed, 'Adresse', 'Adressen')}, aber noch kein bestätigtes Konto damit - Konto registrieren und bestätigen, oder im Container: node scripts/admin-role.js grant <E-Mail>`
+      : `kein Admin - ${grantHint}`,
+    admin.listed ? [] : ['PIKDAME_ADMINS']);
+  } else {
+    const how = admin.passkeyOnly ? 'nur per Passkey' : 'per Passkey, sonst Passwort';
+    const bad = (admin.invalid || []).length;
+    add('admin', 'Admin-Bereich', bad ? 'warn' : 'ok',
+      `/admin für ${plural(admin.active, 'Admin-Konto', 'Admin-Konten')}, Bestätigung ${how}${bad
+        ? ` - Eintrag ${admin.invalid.join(', ')} in PIKDAME_ADMINS ist keine E-Mail-Adresse` : ''}`);
+  }
+  // The Argon2 token of older versions: ignored now, and the operator should know.
+  const legacy = LEGACY_VARS.filter((name) => env[name]);
+  if (legacy.length) {
+    add('adminToken', 'Alter Admin-Token', 'warn',
+      `${legacy.join(', ')} wird nicht mehr gelesen - der Admin-Bereich ist jetzt eine Kontorolle. Variable aus .env und Compose-Datei entfernen; ${grantHint}`);
+  }
 
   // Legal page (§ 5 DDG): without these it shows "Impressum nicht konfiguriert".
   const imprint = readImprint(env);

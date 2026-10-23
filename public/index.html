@@ -924,6 +924,8 @@
             </label>
             <p class="settingsHint">Einmal im Jahr, Ende Dezember: deine Partien, Siege und geretteten Pik Damen. Abbestellen jederzeit hier oder über den Link in jeder Mail.</p>
           </div>
+          <!-- Only for accounts with the admin role (/api/me isAdmin); /admin checks it again. -->
+          <a id="accAdminLink" class="btn-secondary hidden" href="/admin"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg><span>Admin-Bereich</span></a>
           <button id="accLogoutBtn" class="btn-secondary">Abmelden</button>
         </div>
         <p id="accountStatus" class="lobby-hint"></p>

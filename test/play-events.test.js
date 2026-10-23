@@ -19,6 +19,7 @@ const { createPgAccountStore } = require('../game/PgAccountStore');
 const PlayEvents = require('../game/PlayEvents');
 const { freePort } = require('./helpers/free-port');
 const { testDatabaseUrl, testPool } = require('./helpers/test-db');
+const { createAdminAccount, adminLogin, ADMIN } = require('./helpers/admin-session');
 
 const { createPlayEvents, towerAttemptEvent, towerCause, attemptOpen, topCause, shapeFloors } = PlayEvents;
 const MONTH = BotTower.LEGACY_MONTH; // a fixed month: the tests never depend on today's deals
@@ -374,7 +375,7 @@ test('admin page: the "Festhänger" tab, mobile cards, escaped names, no script'
 function request(port, method, urlPath, { auth, body } = {}) {
   return new Promise((resolve, reject) => {
     const headers = {};
-    if (auth) headers.Authorization = 'Basic ' + Buffer.from(auth).toString('base64');
+    if (auth) headers.Cookie = auth; // the admin session cookie
     if (body) { headers['Content-Type'] = 'application/x-www-form-urlencoded'; headers['Content-Length'] = Buffer.byteLength(body); }
     const req = http.request({ host: '127.0.0.1', port, path: urlPath, method, headers }, (res) => {
       let data = '';
@@ -393,7 +394,7 @@ async function startServer(t, databaseUrl, sessions, savedAt = Date.now()) {
   fs.writeFileSync(path.join(dataDir, 'sessions-snapshot.json'), JSON.stringify({ savedAt, sessions }));
   const server = spawn('node', ['server.js'], {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PORT: String(port), PIKDAME_DATA_DIR: dataDir, PIKDAME_DATABASE_URL: databaseUrl, PIKDAME_ADMIN_TOKEN: 'pe-token', PIKDAME_SMTP_HOST: '', PIKDAME_ONNX: '0', PIKDAME_PUBLIC_MODE: '' },
+    env: { ...process.env, PORT: String(port), PIKDAME_DATA_DIR: dataDir, PIKDAME_DATABASE_URL: databaseUrl, PIKDAME_ADMINS: ADMIN.email, PIKDAME_SMTP_HOST: '', PIKDAME_ONNX: '0', PIKDAME_PUBLIC_MODE: '' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const out = { log: '' };
@@ -488,12 +489,13 @@ test('server: finished, left and given-up floors land once each; admin tab; acco
   assert.deepStrictEqual([got[1].name, got[1].target, got[1].outcome, got[1].facts.reason, got[1].facts.cause], ['Cleo', `${MONTH}/2`, 'abandoned', 'left', 'abandoned']);
 
   // Admin: the month's floors and the player view.
-  const auth = 'admin:pe-token';
+  await createAdminAccount(databaseUrl);
+  const { cookie: auth } = await adminLogin(srv.port);
   const page = await request(srv.port, 'GET', `/admin/stuck?month=${MONTH}`, { auth });
   assert.strictEqual(page.status, 200);
   assert.match(page.body, /<b>Etage 1<\/b>/);
   assert.match(page.body, /<b>Etage 2<\/b>/);
-  assert.strictEqual((await request(srv.port, 'GET', '/admin/stuck')).status, 401);
+  assert.doesNotMatch((await request(srv.port, 'GET', '/admin/stuck')).body, /Etage 1/, 'nothing without the admin session');
   const ada = await request(srv.port, 'GET', `/admin/stuck?month=${MONTH}&player=ada`, { auth });
   assert.match(ada.body, /Versuche von Ada/);
   assert.match(ada.body, /<span class="badge ok">★/);

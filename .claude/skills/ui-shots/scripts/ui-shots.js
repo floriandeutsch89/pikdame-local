@@ -27,6 +27,7 @@
 // its forfeit button armed by a first tap),
 // sheet-reopen (settings sheet scrolled, closed, reopened), cardback (the card-back gallery), music-hint (first click: music starts, one-time hint),
 // account (the account sheet: level, season ladder; needs --signed-in),
+// account-admin (the sheet scrolled to its end: the admin link; needs --signed-in --admin),
 // account-mail (its year-review mail switch; needs --signed-in),
 // tower (the Kartenhaus sheet via its tile in "Aufgaben"), tower-detail (a tapped
 // locked floor 14), tower-motion (frames: month change, a dealt card and a
@@ -96,6 +97,8 @@ const views = arg('views', 'phone,land,desk').split(',');
 const scenes = arg('scenes', 'lobby,stats,history,roundend,gameover').split(',');
 const AUDIT = process.argv.includes('--audit');
 const SIGNED_IN = process.argv.includes('--signed-in');
+// With --signed-in: the mock account holds the admin role (the link in the account sheet).
+const ADMIN = process.argv.includes('--admin');
 const STILL = process.argv.includes('--reduced-motion'); // prefers-reduced-motion: reduce
 const DECEMBER = process.argv.includes('--december');
 const MEASURE = process.argv.includes('--measure');
@@ -156,7 +159,7 @@ const SEASON_AWARDS = [SEASON_RESULT,
   { season: monthsBack(2), place: 7, award: 'top10', seasonXp: 310, ranked: 12 },
   { season: monthsBack(3), place: 11, award: 'participant', seasonXp: 95, ranked: 12 }];
 const ACCOUNT_API = {
-  '/api/me': { ok: true, username: ME, seasonResult: SEASON_RESULT, lastSeason: SEASON_RESULT, seasonAwards: SEASON_AWARDS },
+  '/api/me': { ok: true, username: ME, isAdmin: ADMIN, seasonResult: SEASON_RESULT, lastSeason: SEASON_RESULT, seasonAwards: SEASON_AWARDS },
   '/api/ladder': { ok: true, season: TODAY.slice(0, 7), lastSeason: SEASON_RESULT, seasonAwards: SEASON_AWARDS,
     me: { username: ME, xp: 5320, seasonXp: 410, season: TODAY.slice(0, 7), games: 43, wins: 17, rank: 2 },
     board: [{ username: 'Oma Gerda', seasonXp: 520 }, { username: ME, seasonXp: 410 }, { username: 'Klaus', seasonXp: 150 }] },
@@ -975,6 +978,14 @@ function waitForHttp(port, ms = 20000) {
           await page.evaluate(() => document.getElementById('ladderBox').scrollIntoView({ block: 'center' }));
           await page.waitForTimeout(200);
           await shot('account');
+          await page.click('#accountCloseBtn');
+        }
+        if (sc === 'account-admin') {
+          // The account sheet scrolled to its end: the admin link (needs --signed-in --admin) above "Abmelden".
+          await page.click('#accountBtn'); await page.waitForTimeout(700);
+          await page.evaluate(() => document.getElementById('accLogoutBtn').scrollIntoView({ block: 'end' }));
+          await page.waitForTimeout(200);
+          await shot('account-admin');
           await page.click('#accountCloseBtn');
         }
         if (sc === 'stats' || sc === 'history' || sc === 'history-team') {

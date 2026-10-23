@@ -183,6 +183,7 @@ window.I18N_STATIC = {
   'Anmelden': 'Sign in',
   'Registrieren': 'Register',
   'Abmelden': 'Sign out',
+  'Admin-Bereich': 'Admin area',
   'Benutzername oder E-Mail': 'Username or e-mail',
   'Passwort': 'Password',
   'Benutzername (2-24 Zeichen)': 'Username (2-24 characters)',

@@ -19,6 +19,7 @@ const { gameDay, addDays, dayEnd } = require('../game/GameDay');
 const { makeStandardCard } = require('../game/Card');
 const { freePort } = require('./helpers/free-port');
 const { testDatabaseUrl, testPool } = require('./helpers/test-db');
+const { createAdminAccount, adminLogin, ADMIN } = require('./helpers/admin-session');
 
 const { createPlayEvents, tutorialAttemptEvent, attemptEvent, tutorialCause, puzzleCause, attemptOpen, shapeFunnel } = PlayEvents;
 const ROOT = path.join(__dirname, '..');
@@ -527,7 +528,7 @@ test('admin page: the mode switch, the puzzle and the tutorial views; escaped, n
 
 function request(port, method, urlPath, { auth } = {}) {
   return new Promise((resolve, reject) => {
-    const headers = auth ? { Authorization: `Basic ${Buffer.from(auth).toString('base64')}` } : {};
+    const headers = auth ? { Cookie: auth } : {}; // the admin session cookie
     const req = http.request({ host: '127.0.0.1', port, path: urlPath, method, headers }, (res) => {
       let data = '';
       res.on('data', (c) => { data += c; });
@@ -553,7 +554,7 @@ async function startServer(t, databaseUrl, snapshot) {
   if (snapshot) fs.writeFileSync(path.join(dataDir, 'sessions-snapshot.json'), JSON.stringify({ savedAt: Date.now(), sessions: [], ...snapshot }));
   const server = spawn('node', ['server.js'], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(port), PIKDAME_DATA_DIR: dataDir, PIKDAME_DATABASE_URL: databaseUrl, PIKDAME_ADMIN_TOKEN: 'am-token', PIKDAME_SMTP_HOST: '', PIKDAME_ONNX: '0', PIKDAME_PUBLIC_MODE: '' },
+    env: { ...process.env, PORT: String(port), PIKDAME_DATA_DIR: dataDir, PIKDAME_DATABASE_URL: databaseUrl, PIKDAME_ADMINS: ADMIN.email, PIKDAME_SMTP_HOST: '', PIKDAME_ONNX: '0', PIKDAME_PUBLIC_MODE: '' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const out = { log: '' };
@@ -662,7 +663,8 @@ test('server: puzzle attempts - won, given up, left open (restart), archive days
   assert.strictEqual(names.filter((n) => n.startsWith('spam')).length, 5);
 
   // Admin: the puzzle view and a player's tries.
-  const auth = 'admin:am-token';
+  await createAdminAccount(databaseUrl);
+  const { cookie: auth } = await adminLogin(srv.port);
   const view = await request(srv.port, 'GET', '/admin/stuck?mode=puzzle&days=7', { auth });
   assert.strictEqual(view.status, 200);
   assert.match(view.body, /class="active" aria-current="page">7 Tage</);
@@ -751,10 +753,12 @@ test('server: tutorial lessons over the wire; junk ignored; left, skipped and fi
   await new Promise((r) => setTimeout(r, 300));
   assert.strictEqual((await dbRows(db, "player_key = 'fina'")).length, 1);
 
-  const view = await request(srv.port, 'GET', '/admin/stuck?mode=tutorial', { auth: 'admin:am-token' });
+  await createAdminAccount(databaseUrl);
+  const { cookie: auth } = await adminLogin(srv.port);
+  const view = await request(srv.port, 'GET', '/admin/stuck?mode=tutorial', { auth });
   assert.match(view.body, /<span>Starts<\/span><b>3<\/b>/);
   assert.match(view.body, /<b>2\. Karte aufnehmen<\/b>/);
   assert.match(view.body, /<span>Über&shy;sprungen<\/span><b>1<\/b>/, 'a soft hyphen breaks the long label on a phone tile');
-  assert.strictEqual((await request(srv.port, 'GET', '/admin/stuck?mode=tutorial&version=v<script>', { auth: 'admin:am-token' })).body.includes('<script>'), false);
+  assert.strictEqual((await request(srv.port, 'GET', '/admin/stuck?mode=tutorial&version=v<script>', { auth })).body.includes('<script>'), false);
   assert.doesNotMatch(srv.out.log, /not stored/);
 });

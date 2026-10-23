@@ -5,7 +5,6 @@
 const test = require('node:test');
 const { freePort } = require('./helpers/free-port');
 const assert = require('node:assert');
-const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -13,6 +12,7 @@ const http = require('node:http');
 const { spawn } = require('node:child_process');
 const { relyingParty, deviceName, createPasskeyService } = require('../game/Passkeys');
 const { testDatabaseUrl } = require('./helpers/test-db');
+const { softAuthenticator } = require('./helpers/soft-authenticator');
 
 let HAS_LIB = true;
 try { require('@simplewebauthn/server'); } catch (e) { HAS_LIB = false; }
@@ -37,61 +37,6 @@ test('device name for a new passkey', () => {
   assert.equal(deviceName('Mozilla/5.0 (Windows NT 10.0; Win64; x64)', d), 'Windows · 05.10.2026');
   assert.equal(deviceName('', d), 'Gerät · 05.10.2026');
 });
-
-// --- A minimal CBOR encoder (maps, ints, byte and text strings) -------------
-function cborHead(major, n) {
-  if (n < 24) return Buffer.from([(major << 5) | n]);
-  if (n < 256) return Buffer.from([(major << 5) | 24, n]);
-  const b = Buffer.alloc(3); b[0] = (major << 5) | 25; b.writeUInt16BE(n, 1); return b;
-}
-function cbor(v) {
-  if (typeof v === 'number') return v >= 0 ? cborHead(0, v) : cborHead(1, -1 - v);
-  if (Buffer.isBuffer(v)) return Buffer.concat([cborHead(2, v.length), v]);
-  if (typeof v === 'string') { const b = Buffer.from(v, 'utf8'); return Buffer.concat([cborHead(3, b.length), b]); }
-  if (v instanceof Map) {
-    const parts = [cborHead(5, v.size)];
-    for (const [k, x] of v) parts.push(cbor(k), cbor(x));
-    return Buffer.concat(parts);
-  }
-  throw new Error('unsupported');
-}
-
-/** One authenticator holding one P-256 passkey. */
-function softAuthenticator(origin, rpID) {
-  const { privateKey, publicKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
-  const jwk = publicKey.export({ format: 'jwk' });
-  const credId = crypto.randomBytes(16);
-  let signCount = 0;
-  let userHandle = null;
-  const rpIdHash = crypto.createHash('sha256').update(rpID).digest();
-  const b64u = (b) => Buffer.from(b).toString('base64url');
-  const clientData = (type, challenge, o = origin) => Buffer.from(JSON.stringify({ type, challenge, origin: o, crossOrigin: false }));
-  return {
-    id: b64u(credId),
-    create(options, { origin: o } = {}) {
-      userHandle = options.user.id;
-      const cose = cbor(new Map([[1, 2], [3, -7], [-1, 1], [-2, Buffer.from(jwk.x, 'base64url')], [-3, Buffer.from(jwk.y, 'base64url')]]));
-      const len = Buffer.alloc(2); len.writeUInt16BE(credId.length);
-      const authData = Buffer.concat([rpIdHash, Buffer.from([0x45]), Buffer.alloc(4), Buffer.alloc(16), len, credId, cose]);
-      const attestationObject = cbor(new Map([['fmt', 'none'], ['attStmt', new Map()], ['authData', authData]]));
-      return {
-        id: b64u(credId), rawId: b64u(credId), type: 'public-key', clientExtensionResults: {},
-        response: { clientDataJSON: b64u(clientData('webauthn.create', options.challenge, o)), attestationObject: b64u(attestationObject), transports: ['internal'] },
-      };
-    },
-    get(options, { origin: o } = {}) {
-      signCount += 1;
-      const cnt = Buffer.alloc(4); cnt.writeUInt32BE(signCount);
-      const authData = Buffer.concat([rpIdHash, Buffer.from([0x05]), cnt]);
-      const cd = clientData('webauthn.get', options.challenge, o);
-      const signature = crypto.sign('sha256', Buffer.concat([authData, crypto.createHash('sha256').update(cd).digest()]), privateKey);
-      return {
-        id: b64u(credId), rawId: b64u(credId), type: 'public-key', clientExtensionResults: {},
-        response: { clientDataJSON: b64u(cd), authenticatorData: b64u(authData), signature: b64u(signature), userHandle },
-      };
-    },
-  };
-}
 
 let PORT = 0;
 let ORIGIN = `http://localhost:${PORT}`;
@@ -145,7 +90,7 @@ async function journey(t, databaseUrl, NAME, MAIL) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-passkeys-'));
   const server = spawn('node', ['server.js'], {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_BASE_URL: ORIGIN, PIKDAME_SMTP_HOST: '', PIKDAME_DATABASE_URL: databaseUrl, PIKDAME_ADMIN_TOKEN: '', PIKDAME_TRUST_PROXY: '1' },
+    env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_BASE_URL: ORIGIN, PIKDAME_SMTP_HOST: '', PIKDAME_DATABASE_URL: databaseUrl, PIKDAME_ADMINS: '', PIKDAME_TRUST_PROXY: '1' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let log = '';

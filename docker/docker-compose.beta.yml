@@ -30,7 +30,9 @@ services:
       - PIKDAME_SMTP_USER=${PIKDAME_SMTP_USER:-}
       - PIKDAME_SMTP_PASS_FILE=/run/secrets/smtp_password
       - PIKDAME_MAIL_FROM=${PIKDAME_MAIL_FROM:-}
-      - PIKDAME_ADMIN_TOKEN=${PIKDAME_BETA_ADMIN_TOKEN:-}
+      # Admin role for the beta accounts listed here (docs/admin/admin-page.md).
+      - PIKDAME_ADMINS=${PIKDAME_ADMINS:-}
+      - PIKDAME_ADMIN_PASSKEY_ONLY=${PIKDAME_ADMIN_PASSKEY_ONLY:-}
       - PIKDAME_BIRTHDAY=${PIKDAME_BIRTHDAY:-}
       # Legal page (§ 5 DDG): provider data from .env, kept out of the public repo.
       # Unset = the page shows "Impressum nicht konfiguriert".

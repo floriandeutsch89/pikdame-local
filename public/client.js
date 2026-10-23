@@ -7722,6 +7722,8 @@
   // und die komplette Konto-UI bleibt unsichtbar - dort ändert sich nichts.
   const ACC_TOKEN_KEY = 'pikdame_account_token';
   let accountUsername = null;
+  // Shows the admin link only; /admin checks the role itself on every request.
+  let accountIsAdmin = false;
   let accountsServer = false; // the server offers accounts at all
   function accountToken() {
     return storageGet(ACC_TOKEN_KEY) || '';
@@ -7766,8 +7768,10 @@
       accountProgress = null;
       seasonAwards = [];
       lastSeasonResult = null;
+      accountIsAdmin = false;
       el('ladderBox').classList.add('hidden');
     }
+    el('accAdminLink').classList.toggle('hidden', !(loggedIn && accountIsAdmin));
     try { renderIdentity(); } catch (e) { /* cosmetic */ }
     renderAccountProgress();
     // The greeting belongs to the account: gone on sign-out, re-rendered on a language switch.
@@ -7784,6 +7788,8 @@
     if (me.ok) {
       setGreeting(me.greeting, me.username);
       applySeasonInfo(me);
+      accountIsAdmin = !!me.isAdmin;
+      el('accAdminLink').classList.toggle('hidden', !(accountUsername && accountIsAdmin));
     }
   }
   // A PWA can sleep for days; past a few hours the server is asked again (cheap endpoint).
@@ -7832,6 +7838,7 @@
       greetingFetchedAt = Date.now();
       if (me.ok) {
         accountUsername = me.username;
+        accountIsAdmin = !!me.isAdmin;
         setGreeting(me.greeting, me.username);
         applySeasonInfo(me);
       } else storageRemove(ACC_TOKEN_KEY);
