@@ -429,6 +429,8 @@ function fmtSec(sec) {
   return m ? `${h} h ${m} min` : `${h} h`;
 }
 
+const unit = (n, one, many) => (n === 1 ? one : many);
+
 /** A rate as a bar with its percentage (one table cell). */
 function rateCell(v, title) {
   const width = v == null ? 0 : Math.round(v * 100);
@@ -577,7 +579,7 @@ function puzzleDayRow(d) {
   return `<tr${d.hard ? ' class="wall"' : ''}>
 <td class="floor"><b>${esc(dayLabel(d.day))}</b>${d.hard ? ' <span class="badge warn" title="Eine der niedrigsten Lösungsquoten im Zeitraum">schwer</span>' : ''}<small>${esc(KIND_DE[d.kind] || d.kind)}</small></td>
 ${rateCell(d.solveRate, 'Lösungsquote')}
-<td class="num" data-unit="Versuche">${fmtNum(d.attempts)}</td>
+<td class="num" data-unit="${unit(d.attempts, 'Versuch', 'Versuche')}">${fmtNum(d.attempts)}</td>
 <td class="num" data-label="Ø" data-unit="bis gelöst">${fmtNum(d.avgTries, 1)}</td>
 <td class="num" data-unit="aufgegeben">${pct(d.giveUpRate)}</td>
 <td class="num stuckn${d.stuck ? ' hot' : ''}" data-unit="Festhänger">${fmtNum(d.stuck)}</td>
@@ -589,7 +591,7 @@ function puzzleKindRow(k) {
   return `<tr>
 <td class="floor"><b>${esc(KIND_DE[k.kind] || k.kind)}</b><small>${fmtNum(k.days)} ${k.days === 1 ? 'Tag' : 'Tage'}</small></td>
 ${rateCell(k.solveRate, 'Lösungsquote')}
-<td class="num" data-unit="Versuche">${fmtNum(k.attempts)}</td>
+<td class="num" data-unit="${unit(k.attempts, 'Versuch', 'Versuche')}">${fmtNum(k.attempts)}</td>
 <td class="num" data-label="Ø" data-unit="bis gelöst">${fmtNum(k.avgTries, 1)}</td>
 <td class="num" data-unit="aufgegeben">${pct(k.giveUpRate)}</td>
 <td class="num" data-label="gelöst in">${fmtSec(k.solveSec)}</td>
@@ -622,7 +624,7 @@ function puzzleAttemptRow(a) {
 <td class="num">${esc(KIND_DE[f.kind] || '–')}</td>
 <td class="res">${result}</td>
 <td class="num" data-unit="Fehler">${fmtNum(f.mistakes)}</td>
-<td class="num" data-unit="Versuche">${fmtNum(a.turns)}</td>
+<td class="num" data-unit="${unit(a.turns, 'Versuch', 'Versuche')}">${fmtNum(a.turns)}</td>
 <td class="why">${esc(details.filter(Boolean).join(' · '))}</td>
 </tr>`;
 }
@@ -682,7 +684,7 @@ ${rateCell(starts ? s.reached / starts : null, 'Anteil der Starts, die diesen Sc
 ${s.reached ? `<td class="num" data-unit="erledigt">${fmtNum(s.done)} <span class="sub">von ${fmtNum(s.reached)}</span></td>` : '<td class="num" data-label="nie erreicht">–</td>'}
 <td class="num${s.dropped ? (s.wall ? ' hot' : '') : ' zero'}" data-unit="ausgestiegen">${s.reached ? fmtNum(s.dropped) : '–'}${s.dropped ? ` <span class="sub">(${pct(s.dropRate)})</span>` : ''}</td>
 <td class="num${s.medianSec == null ? ' zero' : ''}" data-label="Zeit">${fmtSec(s.medianSec)}</td>
-<td class="num${s.refusals ? '' : ' zero'}" data-unit="Ablehnungen">${fmtNum(s.refusals)}</td>
+<td class="num${s.refusals ? '' : ' zero'}" data-unit="${unit(s.refusals, 'Ablehnung', 'Ablehnungen')}">${fmtNum(s.refusals)}</td>
 </tr>`;
 }
 

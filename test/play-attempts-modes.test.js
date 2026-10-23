@@ -502,6 +502,7 @@ test('admin page: the mode switch, the puzzle and the tutorial views; escaped, n
   assert.match(player, /Rätsel von Oma &lt;i&gt;/);
   assert.match(player, /aufgegeben nach 4 min · zuerst ungültige Auslage · meist nicht ausgemacht, Karten übrig/);
   assert.match(player, /<span class="badge ok">★★★ gelöst<\/span>/);
+  assert.match(player, /data-unit="Versuch">1</, 'one check, singular');
   assert.match(player, /href="\/admin\/stuck\?mode=puzzle&amp;days=30">← Zur Übersicht 30 Tage</);
 
   const steps = TUTORIAL_STEPS.map((s, i) => ({ key: s.key, index: i + 1, optional: s.optional, reached: 10 - Math.min(i, 9), done: 9 - Math.min(i, 9), doneRate: 0.9,
