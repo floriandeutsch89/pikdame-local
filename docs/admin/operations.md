@@ -246,6 +246,55 @@ ALTER TABLE challenge_attempts ALTER COLUMN player_id SET NOT NULL;
 ALTER TABLE play_attempts ALTER COLUMN player_id SET NOT NULL;
 ```
 
+**Rolling back past the account conventions** (migration `008`, also needed
+before going back past the profile or Stammtisch move): the old version reads
+the account tables in their old shape. Stop the app, then run in one go
+(sign-ins, passkeys and season results stay; times back to milliseconds):
+
+```sql
+BEGIN;
+DROP INDEX users_verify_token_idx, users_login_token_hash_idx, users_review_unsub_hash_idx,
+  users_verify_expires_at_idx, login_sessions_created_at_idx, login_sessions_user_id_idx;
+ALTER INDEX users_lower_username_key RENAME TO users_username_lower;
+ALTER INDEX users_lower_email_key RENAME TO users_email_lower;
+ALTER INDEX users_season_season_xp_idx RENAME TO users_season_xp;
+ALTER INDEX webauthn_credentials_user_id_idx RENAME TO webauthn_credentials_user;
+ALTER TABLE users DROP COLUMN player_id, DROP COLUMN updated_at, ALTER COLUMN created_at DROP DEFAULT,
+  ALTER COLUMN created_at TYPE BIGINT USING (extract(epoch FROM created_at) * 1000)::bigint,
+  ALTER COLUMN verify_expires_at TYPE BIGINT USING (extract(epoch FROM verify_expires_at) * 1000)::bigint,
+  ALTER COLUMN login_expires_at TYPE BIGINT USING (extract(epoch FROM login_expires_at) * 1000)::bigint,
+  ALTER COLUMN verify_code_expires_at TYPE BIGINT USING (extract(epoch FROM verify_code_expires_at) * 1000)::bigint,
+  ALTER COLUMN review_mail_changed_at TYPE BIGINT USING (extract(epoch FROM review_mail_changed_at) * 1000)::bigint;
+ALTER TABLE users RENAME COLUMN password_salt TO salt;
+ALTER TABLE users RENAME COLUMN email_verified TO verified;
+ALTER TABLE users RENAME COLUMN games_played TO games;
+ALTER TABLE users RENAME COLUMN games_won TO wins;
+ALTER TABLE users RENAME COLUMN verify_expires_at TO verify_expires;
+ALTER TABLE users RENAME COLUMN login_expires_at TO login_expires;
+ALTER TABLE users RENAME COLUMN verify_code_expires_at TO verify_code_expires;
+ALTER TABLE users RENAME COLUMN review_mail_changed_at TO review_mail_at;
+ALTER TABLE login_sessions ALTER COLUMN created_at DROP DEFAULT,
+  ALTER COLUMN created_at TYPE BIGINT USING (extract(epoch FROM created_at) * 1000)::bigint;
+ALTER TABLE login_sessions RENAME CONSTRAINT login_sessions_pkey TO sessions_pkey;
+ALTER TABLE login_sessions RENAME CONSTRAINT login_sessions_user_id_fkey TO sessions_user_id_fkey;
+ALTER TABLE login_sessions RENAME COLUMN session_token TO token;
+ALTER TABLE login_sessions RENAME TO sessions;
+ALTER TABLE webauthn_credentials DROP COLUMN updated_at, ALTER COLUMN created_at DROP DEFAULT,
+  ALTER COLUMN created_at TYPE BIGINT USING (extract(epoch FROM created_at) * 1000)::bigint,
+  ALTER COLUMN last_used_at TYPE BIGINT USING (extract(epoch FROM last_used_at) * 1000)::bigint;
+ALTER TABLE webauthn_credentials RENAME COLUMN credential_id TO id;
+ALTER TABLE webauthn_credentials RENAME COLUMN credential_name TO name;
+ALTER TABLE webauthn_credentials RENAME COLUMN sign_count TO counter;
+ALTER TABLE season_finals ALTER COLUMN finalized_at TYPE BIGINT USING (extract(epoch FROM finalized_at) * 1000)::bigint;
+ALTER TABLE season_results DROP COLUMN updated_at;
+ALTER TABLE season_meta RENAME COLUMN meta_key TO key;
+ALTER TABLE season_meta RENAME COLUMN meta_value TO value;
+DELETE FROM schema_migrations WHERE version = 8;
+COMMIT;
+```
+
+Going forward again applies `008` once more and links the accounts anew.
+
 **Rolling back past the Stammtisch move** (to a version that still kept
 `stammtisch.json`): rename `stammtisch.json.migrated` back to
 `stammtisch.json` in the data volume before starting the old version. Matches,

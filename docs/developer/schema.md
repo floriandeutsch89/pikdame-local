@@ -1,9 +1,9 @@
 # Database schema conventions
 
 Rules for every new PostgreSQL table or column (changes go through
-{doc}`migrations`). The tables from `001_baseline.sql` (`users`, `sessions`,
-`season_*`, `webauthn_credentials`) predate these rules and still use epoch
-milliseconds; they move over in a later migration.
+{doc}`migrations`). The account tables of `001_baseline.sql` predate them and
+were moved over by `008_account_conventions.sql`; only the runner's own
+`schema_migrations.applied_at` still counts milliseconds.
 
 ## Naming
 
@@ -15,7 +15,9 @@ milliseconds; they move over in a later migration.
   `period = '2026-11'` and `stage = 7`.
 - **Constraints and indexes:** `<table>_<columns>_idx`, `<table>_<columns>_key`
   (unique), `<table>_<column>_check`, `<table>_pkey`. Name a `CHECK` yourself
-  when PostgreSQL's default would not follow this pattern.
+  when PostgreSQL's default would not follow this pattern. PostgreSQL 18 also
+  names `NOT NULL` (`<table>_<column>_not_null`) and keeps that name through a
+  rename (`users_salt_not_null` on `password_salt`); harmless, not renamed.
 
 ## Time
 
@@ -48,8 +50,9 @@ Guests have no account, so a player is a name: `players` holds one row per
 `player_key` (the name in lower case, unique, never empty) with its
 `player_name` (the first spelling) and a surrogate `id` that other tables
 reference. `created_at` is NULL where the age is unknown (rows imported from
-`players.json` without a time in the old id, or made for names that only
-appeared in the challenge or play attempts); the year review reads it.
+`players.json` without a time in the old id, made for names that only
+appeared in the challenge or play attempts, or for an account's name before
+its first game); the year review reads it.
 
 - `challenge_results`, `challenge_attempts` and `play_attempts` carry
   `player_id` (`ON DELETE CASCADE`) next to `player_key`/`player_name`. The key
@@ -103,6 +106,30 @@ caps stay as before: tables unused for 180 days go, beyond the 300 most
 recently used too, and that is why `stammtisch_members` needs no `player_id`
 index for "my Stammtische" (300 tables are a sequential scan).
 
+## Accounts
+
+An account (`users`) is a confirmed e-mail address that owns a name. Its
+`player_id` points at that name's player (`players.player_key` = the name in
+lower case, like every store): set when the address is confirmed, NULL before.
+Accounts confirmed before `008` are linked by `PgAccountStore` on its first
+start, in JavaScript, because SQL `lower()` follows the database's locale (with
+`C`, `Öma` stays `Öma`) while the stores use `toLowerCase()`. The link is
+`UNIQUE` and `ON DELETE RESTRICT`: a player with an account is deleted only
+after the account, and deleting the account keeps the player (the guest
+profile). There is no `CHECK` "confirmed means linked": two names that only
+`lower()` tells apart (possible in a `C` database: `Öma` and `öma`) would share
+one player, so the second account stays unlinked and the link pass logs it.
+
+| Table | What changed in `008` |
+| --- | --- |
+| `users` | `password_salt`, `email_verified`, `games_played`, `games_won`; `created_at`, `verify_expires_at`, `verify_code_expires_at`, `login_expires_at`, `review_mail_changed_at` as `TIMESTAMPTZ`; `updated_at`, `player_id` |
+| `login_sessions` (was `sessions`) | `session_token`, `created_at TIMESTAMPTZ`; a "session" in the code is a game table |
+| `webauthn_credentials` | `credential_id`, `credential_name`, `sign_count` (the WebAuthn signature counter), instants as `TIMESTAMPTZ`, `updated_at` |
+| `season_finals`, `season_results`, `season_meta` | `finalized_at TIMESTAMPTZ`; `updated_at` (`seen` changes); `meta_key`, `meta_value` |
+
+`PgAccountStore` passes `new Date(…)` and returns `getTime()`, so its API and
+the game logic keep milliseconds; expiry is still decided by the app's clock.
+
 ## Indexes
 
 Every index serves a named query; an index without one is removed. Small
@@ -119,7 +146,8 @@ Measured with `EXPLAIN (ANALYZE, BUFFERS)` on seeded data (challenge: 14 days
 plus 297,000 puzzle rows, 90 days × 3,300 players, and 20,000 tutorial rows;
 players: 20,000, a quarter without a match, with 300,000 badges, 200,000 tower
 floors, 105,000 quest and 120,000 puzzle rows; Stammtische: 300 with 6 members,
-100 games of 4 seats and 60 weeks each), PostgreSQL 16:
+100 games of 4 seats and 60 weeks each; accounts: 18,000, a fifth unconfirmed,
+with 48,000 sign-ins, 8,000 passkeys and 48,000 season results), PostgreSQL 16:
 
 | Query | Index | Plan | ms |
 | --- | --- | --- | --- |
@@ -150,6 +178,18 @@ floors, 105,000 quest and 120,000 puzzle rows; Stammtische: 300 with 6 members,
 | Its last winner | `stammtisch_games_pkey`, `stammtisch_game_seats_pkey` | index-only probe of the newest game | 0.04 |
 | My Stammtische (300 tables) | `players_player_key_key`, `stammtisch_members_pkey` per table | seq scan of `stammtische`, probes | 0.4 |
 | Prune unused / beyond 300, trim a table's games | seq scan of 300 rows; `stammtisch_games_pkey` | | 0.1 |
+| Sign in by name or e-mail, name or e-mail taken, an account by name (booking, rank, results) | `users_lower_username_key`, `users_lower_email_key` (`LOWER(…)`) | bitmap or index scan | 0.01–0.07 |
+| A sign-in (`/api/me`, every account request) | `login_sessions_pkey`, `users_pkey` | nested loop | 0.02 |
+| Prune sign-ins older than 90 days (every sign-in) | `login_sessions_created_at_idx` | index range scan (10 ms as a sequential scan) | 0.01 |
+| Mail links: confirm, sign in (`FOR UPDATE`), unsubscribe | `users_verify_token_idx`, `users_login_token_hash_idx`, `users_review_unsub_hash_idx` (partial: token set) | index scan (1.5–2.9 ms as sequential scans) | 0.01–0.1 |
+| Purge expired unconfirmed sign-ups (every sign-up) | `users_verify_expires_at_idx` (partial: not confirmed) | index scan (9–13 ms as a sequential scan) | 0.06–0.09 |
+| Season ladder top 50, rank in the season | `users_season_season_xp_idx` (season, season_xp DESC) | index scan, incremental sort; bitmap count | 0.07; 0.45 |
+| An account's passkeys, a passkey by id | `webauthn_credentials_user_id_idx`, `webauthn_credentials_pkey` | index scans | 0.02–0.03 |
+| Admin list: the newest 500 with passkey counts | `users_pkey` (backward: id = sign-up order) | index scan, 500 probes | 0.7 (8 ms ordered by `created_at`) |
+| Delete an account (cascade) | `login_sessions_user_id_idx`, the season tables' `_pkey`, `webauthn_credentials_user_id_idx` | index scans (2.8 ms with a sequential scan of the sign-ins) | 0.14 |
+| Confirm: is the player another account's? Delete a player (FK check) | `users_player_id_key` | index scan | 0.07; 0.3 |
+| First start: confirmed accounts without a player | `users_player_id_key` (NULLs) | index scan | 0.5 |
+| Year-review recipients (once a year), the season finale's pending seasons (once per season) | none; `users_season_season_xp_idx` | seq scan; bitmap scan | 2.8; 1.8 |
 
 Deleting a player is a rare manual step (a guest's request; an account
 deletion removes attempts by `player_key`, indexed), so `play_attempts` gets no

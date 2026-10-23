@@ -122,7 +122,10 @@ exception: they live in PostgreSQL, which the server requires. All stores share 
 writes are awaited, never buffered: the challenge's "one ranked attempt per
 name and day" is the primary key of `challenge_attempts`, so two racing starts
 can never both be ranked, and a profile change runs in one transaction holding
-the player's row lock, so two tabs cannot lose an update. A JSON file moved into
+the player's row lock, so two tabs cannot lose an update. Instants are
+`TIMESTAMPTZ`; the stores convert at their boundary, so the game logic keeps
+milliseconds. A confirmed account points at its name's player
+(`users.player_id`). A JSON file moved into
 the database is imported once on the first start (marker row in
 `legacy_imports`) and then renamed to `<file>.migrated`; an unreadable file is
 not marked and the import is tried again ten minutes later.
