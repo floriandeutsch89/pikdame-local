@@ -17,22 +17,11 @@
 
       <section>
         <h2>Anbieter</h2>
-        <!-- impressum.js builds the contact data: readable for people at once,
-             invisible to simple address harvesters. -->
-        <p id="providerBlock">
-          <noscript>
-            Florian Deutsch<br />
-            Grindelallee&nbsp;40<br />
-            20146&#32;&#72;&#97;&#109;&#98;&#117;&#114;&#103;<br />
-            Deutschland
-          </noscript>
-        </p>
+        <!-- The server fills the provider data from PIKDAME_IMPRINT_*; impressum.js
+             decodes it, so simple address harvesters find no plain text. -->
+        <p id="providerBlock" data-imprint="{{IMPRINT_PROVIDER_DATA}}">{{IMPRINT_PROVIDER}}</p>
         <h2>Kontakt</h2>
-        <p id="contactBlock">
-          <noscript>
-            E-Mail: fde&#43;pikdame&#32;&#91;at&#93;&#32;mailbox&#46;org
-          </noscript>
-        </p>
+        <p id="contactBlock" data-imprint="{{IMPRINT_CONTACT_DATA}}">{{IMPRINT_CONTACT}}</p>
         <script src="/impressum.js" defer></script>
       </section>
 

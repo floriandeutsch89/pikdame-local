@@ -43,6 +43,11 @@ const ENV_NOTES = {
   PIKDAME_TOWER_GEN: 'Kartenhaus months from 2027-01. `1` (default): this instance builds them in a background worker (needs the ONNX runtime; without it nothing is built). `0`: it only reads `tower-months.json` (again every hour) and replays the proofs on start, logging a broken floor - for a setup where a dedicated instance builds.',
   PIKDAME_ONNX_THREADS: 'ONNX intra-op threads per session. Unset = the runtime default; the Kartenhaus deal worker sets `1` for itself (throttled).',
   PIKDAME_SMTP_EHLO: 'Host name announced in SMTP `EHLO`. Defaults to the host of `PIKDAME_BASE_URL`, else the machine name.',
+  PIKDAME_IMPRINT_NAME: 'Legal page (§ 5 DDG): provider name. With STREET, CITY and EMAIL required for a public site; while one is missing the page shows "Impressum nicht konfiguriert" and `/admin` warns. Kept out of the public repo on purpose.',
+  PIKDAME_IMPRINT_STREET: 'Legal page: street and number.',
+  PIKDAME_IMPRINT_CITY: 'Legal page: postcode and city.',
+  PIKDAME_IMPRINT_EMAIL: 'Legal page: contact address; shown only after a click, never as plain text in the HTML.',
+  PIKDAME_IMPRINT_COUNTRY: 'Legal page: country line.',
   PIKDAME_BIRTHDAY: 'Optional greeting days: comma-separated `MM-DD:account` entries (account = user name, case-insensitive). On that game day (German time) only that signed-in account sees a small greeting on the start screen; nobody else sees anything. Broken entries are skipped and logged by position.',
 };
 
@@ -107,6 +112,11 @@ function generateConfiguration() {
   // Vars only referenced indirectly (docker-compose / secrets helper)
   for (const extra of ['PIKDAME_DATABASE_URL', 'PIKDAME_DATABASE_PASSWORD']) {
     if (!found.has(extra)) found.set(extra, { default: 'unset', files: new Set(['game/Database.js']) });
+  }
+  // Read through a name table in game/Imprint.js, invisible to the patterns above.
+  const { IMPRINT_VARS, COUNTRY_VAR } = require('../game/Imprint');
+  for (const name of [...Object.values(IMPRINT_VARS), COUNTRY_VAR]) {
+    found.set(name, { default: name === COUNTRY_VAR ? '`Deutschland`' : 'unset', files: new Set(['game/Imprint.js']) });
   }
 
   const rows = [...found.entries()]
