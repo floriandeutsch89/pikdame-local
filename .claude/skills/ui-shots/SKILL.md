@@ -55,10 +55,13 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   as Oma Gerda and lands on the other team, both teams named; `-edit` while I
   type mine, `-partners` after her switch, and `botdiff-team`, the one-level
   picker), `table-team` (an engine team table, Oma Gerda my partner, mid-match
-  totals; `table-team-named` with my team's name, `table-team-b` seen from
-  team B with an opponent on turn, `table-team-many` with a 13-card run and
-  many melds - `--js` can scroll `.meldOwnerGroup.isPartner` into view), `roundend-team`,
-  `gameover-team`, `gameover-team-win` (my team named), `history-team` (a won
+  totals; `table-team-named` with my team's name, `table-team-rivals` with both
+  teams named (the rivals' tabs, "Team A 550:600 Team B"), `table-team-b` seen from
+  team B with an opponent on turn, `table-team-many` both teams named, 13-card runs
+  and many melds - `--js` can scroll `.meldOwnerGroup.teamOwn:not(.own)` (the
+  partner's block) or `.teamRival` into view), `roundend-team`,
+  `gameover-team`, `gameover-team-win` (my team named), `gameover-team-rivals`
+  (both teams named, the rivals won), `history-team` (a won
   team game opened in "Meine Partien").
 - **Before/after from one script:** `SHOTS_ROOT=<checkout>` shoots another
   checkout (e.g. a detached `origin/main` worktree) with this script, so
@@ -143,7 +146,9 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   `SHOTS_ROOT=<origin/main worktree>` for the "before" numbers: a new table
   element must not shrink `#melds` or `#handWrapper`. `--eval <file>` prints
   a page expression per tower or `game-settings` scene (computed styles, grid
-  tracks) when a layout puzzles you.
+  tracks) when a layout puzzles you; the table scenes have none - there a `--js`
+  file can write the numbers into the shot (a fixed `<pre>`). `--port <n>` runs a
+  second shot run beside one on the default port 3477.
 
 The script starts its own server on a **temp `PIKDAME_DATA_DIR`** and kills it
 afterwards. PostgreSQL is required: with `PIKDAME_TEST_PG_URL` set it uses a

@@ -6006,31 +6006,35 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
 }
 .teamNameSave.btn-icon { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 
-/* Table: a stripe in the team colour on an opponent's chip. The partner's chip is
-   ringed in it instead, with "Team" (or the team's name) as a tab on the ring; the
-   bot level keeps the right corner. Nothing changes the chip's size (#462). */
-.opponent.teamChip::before {
-  content: ''; position: absolute; left: -1px; top: 9px; bottom: 9px; width: 3px;
-  border-radius: 0 3px 3px 0; background: var(--team-c); pointer-events: none;
-}
-.opponent.teamChip.isPartner::before { display: none; }
-/* Ring on the partner's chip and meld block: the 1 px border plus 2 px inside it. It is
-   the only INSIDE ring: turn (accent fill + glow), meld filter and round winner draw outside. */
-.opponent.isPartner, .meldOwnerGroup.isPartner {
-  --team-ring: var(--team-c);
-  border-color: var(--team-edge, var(--team-ring));
-}
+/* Table. My team (partner's chip, my melds, the partner's): a ring in the team colour and a filled
+   "Team" tab; the rivals, quieter: a stripe and, once named, an outlined tab. No size changes. */
+.opponent.teamChip, .meldOwnerGroup.teamOwn, .meldOwnerGroup.teamRival { --team-ring: var(--team-c); }
 @supports (color: color-mix(in srgb, red 50%, blue)) {
-  /* Dark felts: a lighter ring keeps 3:1 (blue on the green felt was 3.1:1). */
-  .opponent.isPartner, .meldOwnerGroup.isPartner { --team-ring: color-mix(in srgb, var(--team-c) 78%, #fff); }
+  /* Dark felts: a lighter colour keeps 3:1 (blue on the green felt was 3.1:1). */
+  .opponent.teamChip, .meldOwnerGroup.teamOwn, .meldOwnerGroup.teamRival { --team-ring: color-mix(in srgb, var(--team-c) 78%, #fff); }
 }
-/* Light wood: the true colours (a darkened orange would be the rust accent) with a
-   dark edge for the 3:1 against the felt. */
-[data-theme="kitchen"] .opponent.isPartner, [data-theme="kitchen"] .meldOwnerGroup.isPartner { --team-ring: var(--team-c); --team-edge: #3d2c1c; }
-/* The chip's other states own box-shadow, so its ring is an outline; the meld block's
-   is an inset shadow, painted under the cards it may touch. */
+/* Night: the true blue keeps 3.9:1, a lighter one would near the periwinkle accent. */
+[data-theme="night"] :is(.opponent.teamChip, .meldOwnerGroup.teamOwn, .meldOwnerGroup.teamRival) { --team-ring: var(--team-c); }
+/* Light wood: the true colours with a dark edge for the 3:1 - an orange dark enough
+   on its own would be the rust accent. */
+[data-theme="kitchen"] :is(.opponent.teamChip, .meldOwnerGroup.teamOwn, .meldOwnerGroup.teamRival) {
+  --team-ring: var(--team-c); --team-edge: #3d2c1c;
+}
+.opponent.teamChip::before, .meldOwnerGroup.teamRival::before {
+  content: ''; position: absolute; left: -1px; top: 9px; bottom: 9px; width: 3px;
+  border-radius: 0 3px 3px 0; background: var(--team-ring); pointer-events: none;
+}
+[data-theme="kitchen"] :is(.opponent.teamChip, .meldOwnerGroup.teamRival)::before { box-shadow: 0 0 0 1px var(--team-edge); }
+.opponent.teamChip.isPartner::before { display: none; }
+.meldOwnerGroup.teamRival { position: relative; }
+.meldOwnerGroup.teamRival::before { top: 12px; bottom: 12px; }
+/* The ring: the 1 px border plus 2 px inside it - the only INSIDE ring (turn: accent fill
+   + glow, meld filter and round winner draw outside, card selection is on the cards). */
+.opponent.isPartner, .meldOwnerGroup.teamOwn { border-color: var(--team-edge, var(--team-ring)); }
+/* The chip's other states own box-shadow, so its ring is an outline; a meld block's is an
+   inset shadow, painted under the cards it may touch. */
 .opponent.isPartner { outline: 2px solid var(--team-ring); outline-offset: -3px; }
-.meldOwnerGroup.isPartner { box-shadow: inset 0 0 0 2px var(--team-ring); }
+.meldOwnerGroup.teamOwn { box-shadow: inset 0 0 0 2px var(--team-ring); }
 .opponent.isPartner.active { border-color: var(--accent); }
 .opponent.isPartner.lowCards { border-color: var(--danger); }
 .opPartnerTag {
@@ -6044,8 +6048,17 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   pointer-events: none;
 }
-/* A bot partner's level badge holds the right corner: the tab stops short of it. */
+/* A bot's level badge holds the right corner: the tab stops short of it. */
 .opponent.hasLevelBadge .opPartnerTag { max-width: calc(100% - 62px); }
+/* The rival team's name: the same tab, quieter - outlined, a thinner edge, muted text. A
+   phone's bot chip keeps only "Team…" beside the level badge: the stripe says it there. */
+.opPartnerTag.opRivalTag, .meldTeamTag.rival {
+  border-width: 1.5px; border-color: var(--team-ring);
+  background: var(--bg); color: var(--text-muted); font-weight: 700; box-shadow: none;
+}
+@media (max-width: 540px) {
+  .opponent.hasLevelBadge .opRivalTag { display: none; }
+}
 /* The team's bar: this seat's share solid, the partner's lighter. */
 .scoreBar.teamBar { position: relative; }
 .scoreBar.teamBar i {
@@ -6054,22 +6067,36 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
 }
 .scoreBar.teamBar .tbMate { opacity: 0.45; }
 #myScoreBar.teamBar { position: absolute; }
-.meldPartnerTag {
-  display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; vertical-align: 1px;
-  max-width: 11em; padding: 0 6px; border-radius: 9px;
+/* Negative block margins: the tab overlaps the header's line instead of growing it. */
+.meldTeamTag {
+  display: inline-flex; align-items: center; gap: 4px; margin: -3px 0 -3px 6px; vertical-align: 1px;
+  max-width: 14em; padding: 0 6px; border-radius: 9px;
   border: 2px solid var(--team-ring); background: rgba(0,0,0,0.62); color: #fff; /* the chip's tab */
   font-size: var(--fs-micro); font-weight: 800; line-height: 1.3;
 }
-.meldPartnerTag .mptName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Hand toolbar: "Wir 550:600", ours first, like a scoreboard. A team's name gives way
-   first (ellipsis): the numbers, the round and the sort button keep their width. */
+.meldTeamTag .mptName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Hand toolbar: "Wir 550:600 Gegner", ours first, like a scoreboard. The team names give
+   way first (ellipsis): the numbers, the round and the sort button keep their width. */
 .handToolbar { grid-template-columns: 1fr minmax(0, auto) 1fr; column-gap: 6px; }
 .handToolbar > .handMeta { justify-self: stretch; justify-content: center; overflow: hidden; }
 .sortToggle { white-space: nowrap; }
 .handMeta > .handCount, .handMeta > .handRoundInfo { flex-shrink: 0; }
 .handScore.teamScore { display: inline-flex; align-items: baseline; min-width: 0; }
 .handScore.teamScore > *, .handScore.teamScore::before { flex: 0 0 auto; }
-.handScore.teamScore .tsWe { flex: 0 1 auto; min-width: 0; margin-right: 0.25em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.handScore.teamScore :is(.tsWe, .tsThey) { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.handScore.teamScore .tsWe { margin-right: 0.25em; }
+.handScore.teamScore .tsThey { margin-left: 0.25em; }
+/* Team names need a wide toolbar; a phone's keeps "Wir 550:600 Gegner", with large type
+   "Wir 550:600" (the title names both). In rem, so a larger type switches earlier. */
+.handToolbar { container-type: inline-size; }
+.handScore .tsShort { display: none; }
+@container (max-width: 35rem) {
+  .handScore .tsLong { display: none; }
+  .handScore .tsShort { display: inline; }
+}
+@container (max-width: 22rem) {
+  .handScore.teamScore .tsThey { display: none; }
+}
 .handScore .tsVs { margin: 0 1px; }
 .handScore b.trail { color: var(--text-muted); font-weight: 700; }
 .handScore b.neg { color: var(--danger); }
@@ -6258,10 +6285,10 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
   .resultRow.teamResultHead { padding-top: 3px; }
   .teamResultHead .resultRowBar { margin: 4px 0 2px; }
   .teamMember { padding-top: 1px; padding-bottom: 1px; }
-  /* A named partner's meld column says "Team" alone (the chip above has the name), on a
-     slimmer tab: the header line sits in the column's 14 px top padding. */
-  .meldPartnerTag .mptName { display: none; }
-  .meldPartnerTag { border-width: 1px; line-height: 1; padding: 0 5px; vertical-align: 0; }
+  /* My team's meld columns say "Team" alone (the chips above have the names), on a slimmer
+     tab: the header line sits in the column's 14 px top padding. A rival's "Team" would read as mine. */
+  .meldTeamTag .mptName, .meldTeamTag.rival { display: none; }
+  .meldTeamTag { border-width: 1px; line-height: 1; padding: 0 5px; vertical-align: 0; }
   /* Result strip in the narrow right column: the gap gets its own line. */
   #resultOverlay .resultMe { margin: 0 0 2px; padding: 8px 10px; }
   .rmTop { flex-wrap: wrap; }

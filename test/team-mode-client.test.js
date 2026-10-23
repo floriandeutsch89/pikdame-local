@@ -147,19 +147,24 @@ test('lobby: a Stammtisch table offers no "2 gegen 2" (its record counts every p
   assert.deepEqual(errors, []);
 });
 
-test('table: a team stripe on the opponents, the partner ringed with a "Team" tab, team bars to 2000, "Wir 550:600"', async (t) => {
+test('table: my team ringed with a "Team" tab (partner chip, both own meld blocks), the rivals striped, bars to 2000, "Wir 550:600 Gegner"', async (t) => {
   const { doc, feed, errors } = await setup(t);
   feed({
     ...BASE, phase: 'playing',
-    tableMelds: [{ id: 1, ownerId: 'p2', type: 'set', rank: '7', slots: ['H', 'D', 'S'].map((s) => ({ real: { id: `7${s}`, suit: s, rank: '7' } })) }],
+    tableMelds: [
+      { id: 1, ownerId: 'p2', type: 'set', rank: '7', slots: ['H', 'D', 'S'].map((s) => ({ real: { id: `7${s}`, suit: s, rank: '7' } })) },
+      { id: 2, ownerId: 'p1', type: 'set', rank: '9', slots: ['H', 'D', 'S'].map((s) => ({ real: { id: `9${s}`, suit: s, rank: '9' } })) },
+      { id: 3, ownerId: 'b1', type: 'set', rank: '5', slots: ['H', 'D', 'S'].map((s) => ({ real: { id: `5${s}`, suit: s, rank: '5' } })) },
+    ],
   });
   const chips = [...doc.querySelectorAll('#opponents .opponent')];
   assert.deepEqual(chips.map((c) => c.dataset.playerId), ['b1', 'p2', 'b2'], 'turn order: an opponent, the partner, an opponent');
   assert.ok(chips.every((c) => c.classList.contains('teamChip')));
   assert.deepEqual(chips.map((c) => c.classList.contains('isPartner')), [false, true, false]);
   assert.equal(chips[1].querySelector('.opPartnerTag').textContent, 'Team', 'the partner wears "Team"');
-  assert.equal(doc.querySelectorAll('.opPartnerTag').length, 1);
+  assert.equal(doc.querySelectorAll('.opPartnerTag').length, 1, 'an unnamed rival team gets no tab (a "Team" there would read as mine)');
   assert.match(chips[1].title, /Dein Team$/, 'the chip title names the team');
+  assert.match(chips[0].title, /Gegner$/, 'a rival chip says so in its title');
   assert.equal(chips[1].style.getPropertyValue('--team-c'), '#2a78d6', 'team A: the first seat colour');
   assert.equal(chips[0].style.getPropertyValue('--team-c'), '#eb6834', 'team B: the second seat colour');
   // The number stays the seat's own, the bar is the team's: own share solid, partner lighter.
@@ -169,20 +174,29 @@ test('table: a team stripe on the opponents, the partner ringed with a "Team" ta
   assert.equal(bar.querySelector('.tbMate').style.width, '9%');
   assert.match(bar.title, /Team: 600 von 2000/);
   const score = doc.getElementById('myScore');
-  assert.equal(score.textContent.replace(/\s+/g, ' ').trim(), 'Wir 550:600');
+  assert.equal(score.textContent.replace(/\s+/g, ' ').trim(), 'Wir 550:600 Gegner', 'both teams named, like a scoreboard');
   assert.match(score.title, /Dein Team 550.*Gegner 600 - 2000 gewinnen/);
   assert.deepEqual([...score.querySelectorAll('b')].map((b) => b.className), ['trail', ''], 'the leader by weight: the trailing number is muted');
   const myBar = doc.getElementById('myScoreBar');
   assert.ok(myBar.classList.contains('teamBar'));
   assert.equal(myBar.querySelector('.tbOwn').style.width, '12%');
   assert.equal(myBar.querySelector('.tbMate').style.width, '15.5%');
-  const header = [...doc.querySelectorAll('.meldOwnerHeader')].find((h) => h.textContent.includes('Oma Gerda'));
-  assert.equal(header.querySelector('.meldPartnerTag').textContent, 'Team', 'the partner\'s melds say so');
-  // The partner's meld block wears the chip's ring: only the partner's, in the team colour.
+  const headerOf = (text) => [...doc.querySelectorAll('.meldOwnerHeader')].find((h) => h.textContent.includes(text));
+  const header = headerOf('Oma Gerda');
+  assert.equal(header.querySelector('.meldTeamTag').textContent, 'Team', 'the partner\'s melds say so');
+  // My team's blocks (mine and the partner's) wear the chip's ring in the team colour.
   const block = header.closest('.meldOwnerGroup');
-  assert.ok(block.classList.contains('isPartner'));
+  assert.ok(block.classList.contains('teamOwn'));
   assert.equal(block.style.getPropertyValue('--team-c'), '#2a78d6');
-  assert.equal(doc.querySelectorAll('.meldOwnerGroup.isPartner').length, 1);
+  const mine = headerOf('Deine Auslagen');
+  assert.ok(mine.closest('.meldOwnerGroup').classList.contains('own') && mine.closest('.meldOwnerGroup').classList.contains('teamOwn'));
+  assert.equal(mine.querySelector('.meldTeamTag').textContent, 'Team', '"Deine Auslagen" carries the team tab too');
+  assert.equal(doc.querySelectorAll('.meldOwnerGroup.teamOwn').length, 2);
+  // The rival's block: the quiet stripe in its colour, no tab while the team has no name.
+  const rival = headerOf('Klaus').closest('.meldOwnerGroup');
+  assert.ok(rival.classList.contains('teamRival') && !rival.classList.contains('teamOwn'));
+  assert.equal(rival.style.getPropertyValue('--team-c'), '#eb6834');
+  assert.equal(rival.querySelectorAll('.meldTeamTag').length, 0);
   // "Optionen" › "Dieser Tisch" names the mode and the partner.
   assert.ok(!doc.getElementById('tableRuleModeRow').classList.contains('hidden'));
   assert.equal(doc.getElementById('tableRuleMode').textContent, '2 gegen 2, mit Oma Gerda');
@@ -191,10 +205,15 @@ test('table: a team stripe on the opponents, the partner ringed with a "Team" ta
   // A normal table keeps everything as it was.
   feed({
     ...BASE, phase: 'playing', teamMode: false, teams: null, teamTotals: null, teamNames: null, targetScore: 1000,
-    tableMelds: [{ id: 1, ownerId: 'p2', type: 'set', rank: '7', slots: ['H', 'D', 'S'].map((s) => ({ real: { id: `7${s}`, suit: s, rank: '7' } })) }],
+    tableMelds: [
+      { id: 1, ownerId: 'p2', type: 'set', rank: '7', slots: ['H', 'D', 'S'].map((s) => ({ real: { id: `7${s}`, suit: s, rank: '7' } })) },
+      { id: 2, ownerId: 'p1', type: 'set', rank: '9', slots: ['H', 'D', 'S'].map((s) => ({ real: { id: `9${s}`, suit: s, rank: '9' } })) },
+      { id: 3, ownerId: 'b1', type: 'set', rank: '5', slots: ['H', 'D', 'S'].map((s) => ({ real: { id: `5${s}`, suit: s, rank: '5' } })) },
+    ],
   });
-  assert.equal(doc.querySelectorAll('.meldOwnerGroup').length, 1, 'precondition: Oma Gerda\'s melds are shown');
-  assert.equal(doc.querySelectorAll('#opponents .teamChip, #opponents .isPartner, .opPartnerTag, .meldOwnerGroup.isPartner, .meldPartnerTag').length, 0);
+  assert.equal(doc.querySelectorAll('.meldOwnerGroup').length, 3, 'precondition: all three blocks are shown');
+  assert.equal(doc.querySelectorAll('#opponents .teamChip, #opponents .isPartner, .opPartnerTag, .meldOwnerGroup.teamOwn, .meldOwnerGroup.teamRival, .meldTeamTag').length, 0);
+  assert.ok(doc.querySelector('.meldOwnerGroup.own'), 'my block keeps its accent look');
   assert.equal(doc.getElementById('myScore').textContent.trim(), '240 Pkt');
   assert.ok(!doc.getElementById('myScore').classList.contains('teamScore'));
   assert.ok(!doc.getElementById('myScoreBar').classList.contains('teamBar'));
@@ -296,7 +315,7 @@ test('"Meine Partien": a team game shows the team place, the partner and the tea
 test('English: the same team marks in the other language', async (t) => {
   const { doc, feed, errors } = await setup(t, { storage: { pikdame_player_name: 'Flo', pikdame_lang: 'en' } });
   feed({ ...BASE, phase: 'playing' });
-  assert.equal(doc.getElementById('myScore').textContent.replace(/\s+/g, ' ').trim(), 'Us 550:600');
+  assert.equal(doc.getElementById('myScore').textContent.replace(/\s+/g, ' ').trim(), 'Us 550:600 Them');
   assert.equal(doc.querySelector('.opPartnerTag').textContent, 'Team');
   feed({ ...BASE, phase: 'lobby' });
   assert.equal(doc.getElementById('teamModeBtn').querySelector('span').textContent, '2 vs 2');
@@ -361,11 +380,17 @@ test('table: a named team reads "Team <Name>" on the tab, the melds, the score a
   const partner = doc.querySelector('#opponents .opponent.isPartner');
   assert.equal(partner.querySelector('.opPartnerTag').textContent, 'Team Die Löwen', 'the whole name stays in the text (the ellipsis is CSS only)');
   assert.match(partner.title, /Team Die Löwen$/);
-  const tag = [...doc.querySelectorAll('.meldOwnerHeader')].find((h) => h.textContent.includes('Oma Gerda')).querySelector('.meldPartnerTag');
+  const tag = [...doc.querySelectorAll('.meldOwnerHeader')].find((h) => h.textContent.includes('Oma Gerda')).querySelector('.meldTeamTag');
   assert.deepEqual([...tag.children].map((n) => n.textContent), ['Team', 'Die Löwen']);
   const score = doc.getElementById('myScore');
   assert.ok(score.classList.contains('teamScore'));
-  assert.equal(score.querySelector('.tsWe').textContent, 'Team Die Löwen');
+  assert.equal(score.querySelector('.tsWe .tsLong').textContent, 'Team Die Löwen');
+  assert.equal(score.querySelector('.tsThey .tsLong').textContent, 'Team Tiger', 'the score names both teams');
+  assert.deepEqual([...score.querySelectorAll('.tsShort')].map((n) => n.textContent), ['Wir', 'Gegner'], 'a narrow toolbar keeps the short words');
+  // The rival team's name at the table: an outlined tab on its chips (and its meld header below).
+  const rivalTabs = [...doc.querySelectorAll('#opponents .opponent:not(.isPartner) .opRivalTag')];
+  assert.deepEqual(rivalTabs.map((n) => n.textContent), ['Team Tiger', 'Team Tiger']);
+  assert.ok(rivalTabs.every((n) => !n.closest('.opponent').classList.contains('isPartner')));
   assert.match(score.title, /^Team Die Löwen 550 Punkte, Team Tiger 600 - 2000 gewinnen$/);
   assert.match(doc.querySelector('#opponents .opponent:not(.isPartner) .teamBar').title, /^Team Tiger: 600 von 2000/);
   assert.equal(doc.getElementById('tableRuleMode').textContent, '2 gegen 2: Team Die Löwen mit Oma Gerda');
@@ -375,7 +400,7 @@ test('table: a named team reads "Team <Name>" on the tab, the melds, the score a
   const evil = doc.querySelector('#opponents .opPartnerTag');
   assert.equal(evil.textContent, 'Team <b>x</b>');
   assert.equal(evil.querySelectorAll('b').length, 0);
-  assert.equal(doc.getElementById('myScore').querySelector('.tsWe').textContent, 'Team <b>x</b>');
+  assert.equal(doc.getElementById('myScore').querySelector('.tsWe .tsLong').textContent, 'Team <b>x</b>');
   assert.equal(doc.getElementById('myScore').querySelectorAll('.tsWe b').length, 0);
   assert.deepEqual(errors, []);
 });
@@ -404,6 +429,8 @@ test('results: named teams head their blocks, the headline and the gap; the char
   assert.deepEqual(labels.sort(), ['● Die Löw… 2.045', '● Gegner 1.880'], 'the chart keeps its short labels');
 
   feed(over(1, ['Die Löwen', 'Kaffeeklatsch']));
+  assert.deepEqual([...doc.querySelectorAll('#resultBody .teamResultName > span')].map((n) => n.textContent),
+    ['Team Kaffeeklatsch', 'Team Die Löwen'], 'both teams by name');
   const lost = doc.querySelector('#resultBody .resultWinnerGame');
   assert.equal(lost.querySelector('.resultWinnerName').textContent, 'Team Kaffeeklatsch');
   assert.equal(lost.querySelector('.resultWinnerSub').textContent, 'gewinnt die Partie', 'one team: singular');
@@ -422,4 +449,13 @@ test('results: named teams head their blocks, the headline and the gap; the char
   assert.equal(blocks[0].querySelector('.barGoal').style.left, '100%');
   assert.equal(blocks[0].querySelector('.barSolid').style.width, '30%', 'the round started at 600 of 2000');
   assert.deepEqual(errors, []);
+});
+
+test('css: no lone "Team" tab on a rival column, short score words on a narrow toolbar', () => {
+  const css = fs.readFileSync(path.join(pub, 'style.css'), 'utf8');
+  // Landscape drops the names from the meld tabs: a rival's tab would then say "Team" like mine.
+  const land = css.slice(css.lastIndexOf('@media (orientation: landscape) and (max-height: 540px) {'));
+  assert.match(land, /\.meldTeamTag \.mptName, \.meldTeamTag\.rival \{ display: none; \}/);
+  assert.match(css, /@container \(max-width: 35rem\) \{\s*\.handScore \.tsLong \{ display: none; \}/);
+  assert.match(css, /@container \(max-width: 22rem\) \{\s*\.handScore\.teamScore \.tsThey \{ display: none; \}/, 'large type on a phone: "Wir 550:600"');
 });

@@ -54,7 +54,8 @@
 // empty state, then "Meine Partien" empty).
 // "2 gegen 2": gamelobby-team (a real team lobby, a second socket joins, both teams named;
 // -edit while I type, then -partners and botdiff-team), table-team (an engine team table;
-// -named with my team's name), roundend-team, gameover-team(-win), history-team.
+// -named with my team's name, -rivals/-many both named, -b from team B), roundend-team,
+// gameover-team(-win, -rivals: both named), history-team.
 // --lang en: the English client (text length). --ui-scale large|xlarge: the larger type. SHOTS_ROOT=<checkout>: shoot another
 // checkout with this script (before/after pictures from one set of scenes).
 // --light morning|noon|evening|night|HH:MM|now: the table light at that Berlin time
@@ -262,6 +263,11 @@ const TEAM_GAME_OVER = teamOver(TEAM_FINAL, 1, 'b1');
 // gameover-team-win: the same match the other way round, Flo went out last.
 const swapTeams = (t) => ({ p1: t.b1, b1: t.p1, p2: t.b2, b2: t.p2 });
 const TEAM_GAME_OVER_WIN = teamOver(TEAM_FINAL.map(swapTeams), 0, 'p1');
+// gameover-team-rivals: both teams named - Klaus plays himself here and named his team.
+const RIVAL_NAMES = ['Die Löwen', 'Kaffeeklatsch'];
+const TEAM_GAME_OVER_RIVALS = { ...TEAM_GAME_OVER, teamNames: RIVAL_NAMES,
+  players: TEAM_PLAYERS.map((p) => (p.id === 'b1' ? { id: 'b1', name: 'Klaus', isBot: false, connected: true, handCount: 0 } : p)),
+  gameOverInfo: { ...TEAM_GAME_OVER.gameOverInfo, teamNames: RIVAL_NAMES } };
 
 // history-team: today's "2 gegen 2" with Oma Gerda, won (the place is the team's).
 const TEAM_HISTORY_GAME = { id: 'gteam', finishedAt: NOW - 1800e3, startedAt: NOW - 1800e3 - 52 * 60e3, rounds: 8, won: true, myScore: 1150, myId: 'p1',
@@ -401,7 +407,7 @@ function tableState() {
 }
 // table-team: a live "2 gegen 2" table - Oma Gerda is my partner, two bots the other
 // team, mid-match totals (round 3), my draw turn after a few turns. named: my team's name.
-function teamTableState(named = null) {
+function teamTableState(named = null, rivals = null) {
   const GM = require(path.join(ROOT, 'game', 'GameManager'));
   const g = new GM(() => {}, { deckSeed: 7, teamMode: true });
   g.maybeRunBotTurn = () => {};
@@ -410,6 +416,7 @@ function teamTableState(named = null) {
   g.addOrReconnectPlayer('p2', 'Oma Gerda');
   g.switchTeam('p2'); // the lobby seats her against me; she switches to my team
   if (named) g.setTeamName('p1', named);
+  if (rivals) { g.addOrReconnectPlayer('pk', 'Klaus'); g.setTeamName('pk', rivals); } // a human rival names team B
   g.setAllBotsDifficulty('medium');
   g.fillWithBots();
   g.startNewRound();
@@ -434,10 +441,10 @@ function teamTableOnB() {
   st.currentPlayerId = st.teams[0][0]; // an opponent's turn
   return st;
 }
-// table-team-many: late in a match - my partner holds a 13-card run and many melds, the
-// opponents a long run too (the partner's meld block must stay legible with a frame).
+// table-team-many: late in a match, both teams named - my partner and I hold 13-card runs and
+// many melds, the opponents a long run too (the ringed blocks must stay legible).
 function teamTableMany() {
-  const st = teamTableState('Die Löwen');
+  const st = teamTableState('Die Löwen', 'Kaffeeklatsch');
   const cards = (suit, ranks, tag) => ranks.map((rank) => ({ real: { id: `${suit}${rank}-${tag}`, suit, rank, isJoker: false } }));
   const RUN = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
   const opp = st.players.find((p) => p.isBot).id;
@@ -449,6 +456,8 @@ function teamTableMany() {
   add('p2', 'set', ['C', 'D', 'S'].map((s) => ({ real: { id: `${s}9-x`, suit: s, rank: '9', isJoker: false } })), { rank: '9' });
   add(opp, 'run', cards('S', ['5', '6', '7', '8', '9', '10', 'J'], 'y'), { suit: 'S' });
   add(opp, 'set', ['C', 'D', 'H'].map((s) => ({ real: { id: `${s}6-y`, suit: s, rank: '6', isJoker: false } })), { rank: '6' });
+  add('p1', 'run', cards('D', RUN, 'z'), { suit: 'D' }); // not spades: a new ♠Q pops its banner
+  add('p1', 'set', ['C', 'D', 'H'].map((s) => ({ real: { id: `${s}5-z`, suit: s, rank: '5', isJoker: false } })), { rank: '5' });
   return st;
 }
 // Where the table's regions sit (--measure): the floor card must not cost the melds or the hand.
@@ -1053,11 +1062,12 @@ function waitForHttp(port, ms = 20000) {
           await shot('stats-badges-open');
           await page.click('#statsCloseBtn');
         }
-        if (sc === 'table' || sc === 'table-team' || sc === 'table-team-named' || sc === 'table-team-b' || sc === 'table-team-many') {
+        if (sc === 'table' || sc === 'table-team' || sc === 'table-team-named' || sc === 'table-team-b' || sc === 'table-team-many' || sc === 'table-team-rivals') {
           // Live table: needs --state <file> with a publicState('p1') JSON (playing phase);
           // table-team builds a "2 gegen 2" table from the engine instead.
           const st = sc === 'table-team' ? teamTableState() : sc === 'table-team-named' ? teamTableState('Die Löwen')
             : sc === 'table-team-b' ? teamTableOnB() : sc === 'table-team-many' ? teamTableMany()
+            : sc === 'table-team-rivals' ? teamTableState('Die Löwen', 'Kaffeeklatsch')
               : JSON.parse(fs.readFileSync(arg('state', ''), 'utf8'));
           inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
           inject({ type: 'state', state: st });
@@ -1119,7 +1129,8 @@ function waitForHttp(port, ms = 20000) {
         } else if (sc.startsWith('roundend') || sc.startsWith('gameover')) {
           inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
           const challenge = sc === 'gameover-challenge';
-          const over = { 'gameover-win': GAME_OVER_WIN, 'gameover-team': TEAM_GAME_OVER, 'gameover-team-win': TEAM_GAME_OVER_WIN }[sc] || GAME_OVER;
+          const over = { 'gameover-win': GAME_OVER_WIN, 'gameover-team': TEAM_GAME_OVER, 'gameover-team-win': TEAM_GAME_OVER_WIN,
+            'gameover-team-rivals': TEAM_GAME_OVER_RIVALS }[sc] || GAME_OVER;
           const roundEnd = sc === 'roundend-team' ? TEAM_ROUND_END : ROUND_END;
           inject({ type: 'state', state: sc.startsWith('gameover') ? { ...over, challengeDate: challenge ? TODAY : null } : roundEnd });
           if (challenge) {

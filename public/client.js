@@ -2582,8 +2582,14 @@
       const theirs = tt[1 - myTeam] || 0;
       // The leader by weight, not colour (red stays the minus sign): the trailing number is muted.
       const cls = (v, other) => [v < 0 ? 'neg' : '', v < other ? 'trail' : ''].join(' ').trim();
-      // A named team says "Team Löwen" instead of "Wir" (cut with an ellipsis, the title has it all).
-      scoreEl.innerHTML = `<span class="tsWe">${escapeHtml(teamLabel(myTeam, L('Wir', 'Us')))}</span> <b class="${cls(ours, theirs)}">${ours}</b><span class="tsVs">:</span><b class="${cls(theirs, ours)}">${theirs}</b>`;
+      // A scoreboard: "Team Löwen 550:600 Team Tiger" where the toolbar has room (container
+      // query), else "Wir 550:600 Gegner"; the title has it all.
+      const label = (team, short) => {
+        const long = teamLabel(team, short);
+        return long === short ? escapeHtml(short) : `<span class="tsLong">${escapeHtml(long)}</span><span class="tsShort">${escapeHtml(short)}</span>`;
+      };
+      scoreEl.innerHTML = `<span class="tsWe">${label(myTeam, L('Wir', 'Us'))}</span> <b class="${cls(ours, theirs)}">${ours}</b><span class="tsVs">:</span><b class="${cls(theirs, ours)}">${theirs}</b>` +
+        ` <span class="tsThey">${label(1 - myTeam, L('Gegner', 'Them'))}</span>`;
       scoreEl.title = L(`${teamLabel(myTeam, 'Dein Team')} ${ours} Punkte, ${teamLabel(1 - myTeam, 'die Gegner')} ${theirs} - ${SCORE_TARGET} gewinnen`,
         `${teamLabel(myTeam, 'Your team')} ${ours} points, ${teamLabel(1 - myTeam, 'the opponents')} ${theirs} - ${SCORE_TARGET} wins`);
       scoreEl.classList.remove('scoreNegative');
@@ -2684,25 +2690,26 @@
               ? `<span class="opLowTag opLeftTag reconnectTag"><span>${L('getrennt', 'offline')}</span></span>`
               : '';
         const faceBreath = breath && breath.id === p.id ? breath : null;
-        // "2 gegen 2": a stripe in the team colour; the partner's chip is ringed in it and
-        // says "Team" (or its name). The bar is the team's (this seat's share solid), the
-        // number stays the seat's own.
+        // "2 gegen 2": the partner's chip ringed in the team colour with a filled "Team" tab, a rival's
+        // a quiet stripe (named: an outlined tab). The bar is the team's, the number the seat's own.
         const team = teamOfPlayer(p.id);
-        const isPartner = team >= 0 && team === teamOfPlayer(playerId);
+        const myTeamHere = teamOfPlayer(playerId);
+        const isPartner = team >= 0 && team === myTeamHere;
+        const rivalName = team >= 0 && myTeamHere >= 0 && team !== myTeamHere ? teamNameOf(team) : null;
         if (team >= 0) {
           d.classList.add('teamChip');
           d.classList.toggle('isPartner', isPartner);
           d.style.setProperty('--team-c', teamColor(team));
+          d.title += ` · ${isPartner ? teamLabel(team, L('Dein Team', 'Your team')) : teamLabel(team, L('Gegner', 'Opponent'))}`;
         }
-        const ourTeam = isPartner ? teamLabel(team, 'Team') : '';
-        if (isPartner) d.title += ` · ${teamLabel(team, L('Dein Team', 'Your team'))}`;
         // Narrow chips cut a long name with an ellipsis; the text stays whole for screen readers.
-        const partnerTag = isPartner ? `<span class="opPartnerTag"><span>${escapeHtml(ourTeam)}</span></span>` : '';
+        const teamTag = isPartner || rivalName
+          ? `<span class="opPartnerTag${isPartner ? '' : ' opRivalTag'}"><span>${escapeHtml(teamLabel(team, 'Team'))}</span></span>` : '';
         const bar = team >= 0
           ? teamBarHtml(team, p.id)
           : `<div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>`;
         // The dealer star sits on the face (a dealer button), so the name keeps the whole row.
-        d.innerHTML = `<div class="opName"><span class="opSeat">${avatarFor(p.name, p.isBot, faceBreath)}${dealerStar}</span><span class="opNameText">${nameWithHeart(p.name)}</span></div><div class="opCount"><span class="opCards" title="${cardsText}"><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><b>${p.handCount}</b></span><b class="opPts" title="${L(`${opTotal} Punkte`, `${opTotal} points`)}">${opTotal}</b></div>${bar}${partnerTag}${lowTag}`;
+        d.innerHTML = `<div class="opName"><span class="opSeat">${avatarFor(p.name, p.isBot, faceBreath)}${dealerStar}</span><span class="opNameText">${nameWithHeart(p.name)}</span></div><div class="opCount"><span class="opCards" title="${cardsText}"><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><b>${p.handCount}</b></span><b class="opPts" title="${L(`${opTotal} Punkte`, `${opTotal} points`)}">${opTotal}</b></div>${bar}${teamTag}${lowTag}`;
         // Daily challenge: the level is fixed and deliberately not shown.
         // Badge lives OUTSIDE the name div: inside it, the name ellipsis on
         // narrow chips (3 bots, portrait) swallowed the button.
@@ -2807,21 +2814,24 @@
       }
       const isMine = owner.id === playerId;
 
-      // "2 gegen 2": the partner's block wears the chip's ring and its "Team" tab
-      // (laying off there is still not allowed).
+      // "2 gegen 2": my team's blocks (mine, the partner's: no laying off there) wear the chip's ring
+      // and filled "Team" tab; the rivals' a quiet stripe, an outlined tab once their team is named.
       const ownerTeam = teamOfPlayer(owner.id);
-      const isPartnerBlock = !isMine && ownerTeam >= 0 && ownerTeam === teamOfPlayer(playerId);
+      const myTeamHere = teamOfPlayer(playerId);
+      const ownTeamBlock = ownerTeam >= 0 && ownerTeam === myTeamHere;
+      const rivalBlock = ownerTeam >= 0 && myTeamHere >= 0 && ownerTeam !== myTeamHere;
       const section = document.createElement('div');
-      section.className = 'meldOwnerGroup' + (isMine ? ' own' : '') + (isPartnerBlock ? ' isPartner' : '');
-      if (isPartnerBlock) section.style.setProperty('--team-c', teamColor(ownerTeam));
+      section.className = 'meldOwnerGroup' + (isMine ? ' own' : '') + (ownTeamBlock ? ' teamOwn' : '') + (rivalBlock ? ' teamRival' : '');
+      if (ownerTeam >= 0) section.style.setProperty('--team-c', teamColor(ownerTeam));
       const header = document.createElement('div');
       header.className = 'meldOwnerHeader';
-      const partnerMark = isPartnerBlock
-        ? `<span class="meldPartnerTag"><span>Team</span>${teamNameOf(ownerTeam) ? `<span class="mptName">${escapeHtml(teamNameOf(ownerTeam))}</span>` : ''}</span>`
-        : '';
+      const teamNameHere = ownerTeam >= 0 ? teamNameOf(ownerTeam) : null;
+      const nameSpan = teamNameHere ? `<span class="mptName">${escapeHtml(teamNameHere)}</span>` : '';
+      const teamMark = ownTeamBlock || (rivalBlock && teamNameHere)
+        ? `<span class="meldTeamTag${ownTeamBlock ? '' : ' rival'}"><span>Team</span>${nameSpan}</span>` : '';
       header.innerHTML = isMine
-        ? L('Deine Auslagen', 'Your melds')
-        : L(`<span class="ownerWord">Auslagen von </span>${escapeHtml(owner.name)}${botMark(owner)}${partnerMark}`, `${escapeHtml(owner.name)}<span class="ownerWord">'s melds</span>${botMark(owner)}${partnerMark}`);
+        ? `${L('Deine Auslagen', 'Your melds')}${teamMark}`
+        : L(`<span class="ownerWord">Auslagen von </span>${escapeHtml(owner.name)}${botMark(owner)}${teamMark}`, `${escapeHtml(owner.name)}<span class="ownerWord">'s melds</span>${botMark(owner)}${teamMark}`);
       header.addEventListener('click', () => {
         meldFilterPlayerId = meldFilterPlayerId === owner.id ? null : owner.id;
         render();

@@ -533,7 +533,7 @@ window.I18N_RULES_EN = `
     <li>Everyone is scored as usual, and <b>partners add up their points</b>. When one player goes out, the round ends for everyone.</li>
     <li>A team plays to <b>2000 points</b> – twice as far as alone, because two scores add up (strict house rule: above 2000). If both teams get there in the same round, the higher total wins; on a tie one more round is played.</li>
     <li>"2 vs 2" on the start screen starts at once: you and a bot against two bots. With friends: create a game and pick "2 vs 2" in the lobby. All bots play the same level.</li>
-    <li>Before the start each team can enter a name in the lobby. At the table your partner and their melds are outlined in your team colour and labelled "Team", with a team name "Team" and the name.</li>
+    <li>Before the start each team can enter a name in the lobby. At the table your partner, your melds and theirs are outlined in your team colour and labelled "Team", with a team name "Team" and the name. The other team wears a stripe in its colour and, if it has one, its name.</li>
   </ul>
 
   <h3>House rules (chosen when creating a game)</h3>
