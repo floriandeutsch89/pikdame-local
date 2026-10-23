@@ -69,11 +69,13 @@ function createYearStatsStore(filePath = DEFAULT_DATA_FILE) {
    * humans are the opponents, the strongest bot sets the level. `table` is the
    * Stammtisch NAME - its code is a secret and never stored here.
    */
-  function recordFinishedGame(results, players, date, { table = null, streaks = {} } = {}) {
+  function recordFinishedGame(results, players, date, { table = null, streaks = {}, teams = null } = {}) {
     const humans = (players || []).filter((p) => !p.isBot);
     const botLevel = strongestBot(players);
     for (const r of results || []) {
-      const opponents = humans.filter((p) => p.id !== r.id).map((p) => p.name);
+      // "2 gegen 2": the partner is no opponent.
+      const mine = Array.isArray(teams) ? teams.find((ids) => ids.includes(r.id)) : null;
+      const opponents = humans.filter((p) => p.id !== r.id && !(mine && mine.includes(p.id))).map((p) => p.name);
       recordGame(r.name, date, { won: r.won, score: r.score, facts: r.facts, opponents, botLevel, table });
       const st = streaks[r.id];
       if (st && st.streak) recordStreak(r.name, date, st.streak);

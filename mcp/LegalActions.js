@@ -192,6 +192,8 @@ function legalActions(state, myId) {
     if (state.isHost) add('start', 'Start the game (empty seats are filled with bots)', { type: 'startGame' });
     const ready = (state.lobbyReady || []).includes(myId);
     add('ready', ready ? 'Withdraw "ready"' : 'Mark yourself ready (needed when several humans sit at the table)', { type: 'lobbyReady' });
+    // "2 gegen 2": move to a bot seat of the other team (the server refuses when none is free).
+    if (state.teamMode) add('switchTeam', 'Switch to the other team (takes a free bot seat there)', { type: 'switchTeam' });
     return actions;
   }
   if (state.phase === 'cutting') {

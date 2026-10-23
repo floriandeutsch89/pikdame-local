@@ -11,8 +11,8 @@ bilingual tables. Ids are stable, names may change.
 | Event | XP |
 | --- | --- |
 | Finishing a match (won or lost) | **10** |
-| Winning it | **+50** |
-| Final score | **+1 per 10 points** (never negative) |
+| Winning it (in "2 gegen 2" a team win, for both teammates) | **+50** |
+| Final score (always the player's own total, also in a team) | **+1 per 10 points** (never negative) |
 | Solving the daily puzzle (once a day, no game counted) | **+30** |
 | First star of a Kartenhaus floor (once per floor and month, no game counted) | **+10** |
 | Crowning the Kartenhaus (all 20 floors of a month starred, once per month) | **+50** |

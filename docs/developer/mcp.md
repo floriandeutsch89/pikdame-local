@@ -100,6 +100,10 @@ second copy of the rules: the pickup duty, "keep one card to discard", merging
 a second set and `_sparingMeldExists`. A rule change in `game/` reaches the
 MCP seat without touching `mcp/`.
 
+A "2 gegen 2" table ({doc}`team-mode`) plays by the same rules, so the same
+list applies. The table text names both teams with their shared totals and
+marks the partner; the lobby lists "switch to the other team".
+
 To keep the list readable, the generator leaves out some legal moves:
 
 - melds with more jokers than real cards. The exception is the pickup duty,

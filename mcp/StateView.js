@@ -17,10 +17,21 @@ function renderState(state, myId) {
   const turnOf = state.currentPlayerId === myId ? 'YOU' : playerName(state, state.currentPlayerId);
   lines.push(`Phase: ${state.phase}${state.paused ? ' (paused)' : ''} | round ${state.roundNumber}${state.phase === 'playing' ? ` | turn: ${turnOf} (${state.turnPhase} phase)` : ''}`);
 
+  // "2 gegen 2": teams by seat; the shared total decides, the rules at the table do not change.
+  const teams = state.teamMode && Array.isArray(state.teams) ? state.teams : null;
+  const teamOf = (id) => (teams ? teams.findIndex((ids) => ids.includes(id)) : -1);
+  const myTeam = teamOf(myId);
+  const teamName = (t) => `team ${t === 0 ? 'A' : 'B'}`;
   lines.push('Players (total score, cards in hand):');
   for (const p of state.players) {
-    const tags = [p.id === myId ? 'you' : null, p.isBot ? `bot ${p.botDifficulty || ''}`.trim() : null, p.id === state.dealerId ? 'dealer' : null, p.connected ? null : 'offline'].filter(Boolean);
+    const team = teamOf(p.id);
+    const teamTag = team < 0 ? null : `${teamName(team)}${p.id !== myId && myTeam >= 0 ? (team === myTeam ? ', your partner' : ', opponent') : ''}`;
+    const tags = [p.id === myId ? 'you' : null, teamTag, p.isBot ? `bot ${p.botDifficulty || ''}`.trim() : null, p.id === state.dealerId ? 'dealer' : null, p.connected ? null : 'offline'].filter(Boolean);
     lines.push(`- ${p.name}${tags.length ? ` [${tags.join(', ')}]` : ''}: ${(state.totals && state.totals[p.id]) || 0} pts, ${p.handCount} cards`);
+  }
+  if (teams) {
+    const tt = state.teamTotals || [0, 0];
+    lines.push(`Team game (2 vs 2): ${teams.map((ids, t) => `${teamName(t)} ${ids.map((id) => (id === myId ? 'YOU' : playerName(state, id))).join(' + ')} = ${tt[t] || 0} pts`).join(' | ')}. A team wins at 1000 shared points; everyone still lays off and swaps jokers only on their OWN melds.`);
   }
 
   if (me && me.hand) {

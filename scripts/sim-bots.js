@@ -1,7 +1,10 @@
 // Bot-vs-bot self-play harness: measures win rates per difficulty so bot
 // tuning is DATA-driven instead of vibes-driven. Usage: node scripts/sim-bots.js
-// (adjust the series at the bottom; ~3 games/second headless), or --ladder.
+// (adjust the series at the bottom; ~3 games/second headless), or --ladder,
+// --team ("2 gegen 2" A/B) and --lengths (match length per mode).
 // Headless bot-vs-bot simulation: does zen actually beat the field?
+// Simulated games are no human moves: never log them (they filled the disk once).
+process.env.PIKDAME_LOG_GAMES = '0';
 const GameManager = require('../game/GameManager');
 
 function playGame(difficulties, mcSeats = [], mctsSeats = []) {
@@ -141,7 +144,119 @@ async function ladder() {
   }
 }
 
-if (process.argv.includes('--ladder')) {
+const argAfter = (flag, def) => {
+  const i = process.argv.indexOf(flag);
+  return i > -1 ? Number(process.argv[i + 1]) : def;
+};
+
+// "2 gegen 2": four bots at one level, teams by seat parity. Seats of team
+// `awareTeam` run the team-aware context (GameManager seat flag `teamAware`),
+// the others the naive one. Returns { won, rounds, turns } or null.
+function playTeamGame(level, awareTeam) {
+  const g = new GameManager(() => {}, { teamMode: true });
+  g.maybeRunBotTurn = () => {};
+  g.players = [0, 1, 2, 3].map((i) => ({
+    id: `bot-${i}`, name: `B${i}`, isBot: true, hand: [], connected: true, laidOutCards: [],
+    botDifficulty: level, teamAware: i % 2 === awareTeam,
+  }));
+  for (const p of g.players) g.totals[p.id] = 0;
+  g.startNewRound();
+  let guard = 0;
+  while (g.phase !== 'gameOver' && guard++ < 100000) {
+    if (g.phase === 'playing') {
+      const cp = g.currentPlayer();
+      const before = g.turnIndexInRound;
+      g.runBotTurn(cp.id);
+      if (g.phase === 'playing' && g.turnIndexInRound === before && g.currentPlayer().id === cp.id) g.finishRound(null);
+    } else if (g.phase === 'roundEnd') g.startNewRound();
+    else break;
+  }
+  const info = g.gameOverInfo;
+  g.destroy();
+  if (g.phase !== 'gameOver' || !info) return null;
+  return { won: info.winnerTeam === awareTeam, rounds: info.totalRounds, turns: info.totalTurns };
+}
+
+// A/B for the team-aware bot context: the aware team's win share, sides
+// alternating, as mean +/- standard error over batches (50 % = no effect).
+//   node scripts/sim-bots.js --team [hard] [--batches 10] [--games 200]
+function teamAb() {
+  const batches = argAfter('--batches', 10);
+  const games = argAfter('--games', 200);
+  const levels = process.argv.slice(2).filter((a) => ['easy', 'medium', 'hard', 'zen'].includes(a));
+  console.log(`Team A/B (team-aware vs naive), ${batches} batches x ${games} games`);
+  for (const level of levels.length ? levels : ['hard']) {
+    const shares = [];
+    for (let b = 0; b < batches; b++) {
+      let wins = 0;
+      let played = 0;
+      for (let i = 0; i < games; i++) {
+        const r = playTeamGame(level, i % 2);
+        if (!r) continue;
+        played += 1;
+        if (r.won) wins += 1;
+      }
+      shares.push(wins / played);
+      process.stdout.write(`  ${level} batch ${b + 1}/${batches}: ${((wins / played) * 100).toFixed(1)}%\n`);
+    }
+    const m = mean(shares) * 100;
+    const se = stderr(shares) * 100;
+    console.log(`  ${level.padEnd(6)} aware team: ${m.toFixed(1)}% +/- ${se.toFixed(1)}  (~${(Math.abs(m - 50) / (se || 1)).toFixed(1)} sigma from 50 %)`);
+  }
+}
+
+// Match length per mode (rounds and turns per finished game), e.g. to compare
+// wins per hour of "2 gegen 2" with 1-vs-1 and four-player tables.
+//   node scripts/sim-bots.js --lengths [medium] [--games 300]
+function lengths() {
+  const games = argAfter('--games', 300);
+  const level = process.argv.slice(2).find((a) => ['easy', 'medium', 'hard', 'zen'].includes(a)) || 'medium';
+  const modes = [
+    ['1 vs 1', () => playLength([level, level])],
+    ['4 players', () => playLength([level, level, level, level])],
+    ['2 vs 2', () => playTeamGame(level, 0)],
+  ];
+  console.log(`Match length at ${level}, ${games} games per mode`);
+  for (const [label, play] of modes) {
+    const rounds = [];
+    const turns = [];
+    for (let i = 0; i < games; i++) {
+      const r = play();
+      if (!r) continue;
+      rounds.push(r.rounds);
+      turns.push(r.turns);
+    }
+    console.log(`  ${label.padEnd(9)}: ${mean(rounds).toFixed(2)} +/- ${stderr(rounds).toFixed(2)} rounds, ${mean(turns).toFixed(1)} +/- ${stderr(turns).toFixed(1)} turns`);
+  }
+}
+
+function playLength(levels) {
+  const g = new GameManager(() => {});
+  g.maybeRunBotTurn = () => {};
+  g.players = levels.map((d, i) => ({ id: `bot-${i}`, name: `B${i}`, isBot: true, hand: [], connected: true, laidOutCards: [], botDifficulty: d }));
+  for (const p of g.players) g.totals[p.id] = 0;
+  g.maxSeats = levels.length;
+  g.startNewRound();
+  let guard = 0;
+  while (g.phase !== 'gameOver' && guard++ < 100000) {
+    if (g.phase === 'playing') {
+      const cp = g.currentPlayer();
+      const before = g.turnIndexInRound;
+      g.runBotTurn(cp.id);
+      if (g.phase === 'playing' && g.turnIndexInRound === before && g.currentPlayer().id === cp.id) g.finishRound(null);
+    } else if (g.phase === 'roundEnd') g.startNewRound();
+    else break;
+  }
+  const info = g.gameOverInfo;
+  g.destroy();
+  return g.phase === 'gameOver' && info ? { rounds: info.totalRounds, turns: info.totalTurns } : null;
+}
+
+if (process.argv.includes('--team')) {
+  teamAb();
+} else if (process.argv.includes('--lengths')) {
+  lengths();
+} else if (process.argv.includes('--ladder')) {
   ladder();
 } else if (process.argv.includes('--mc')) {
   // A/B: does the Monte-Carlo endgame discard actually beat plain zen?

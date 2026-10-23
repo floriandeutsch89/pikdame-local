@@ -134,6 +134,20 @@ function checkGameOver(totals, houseRules = {}) {
   return { gameOver: true, winnerId: leaders[0], finalTotals: totals };
 }
 
+/**
+ * Team mode: the same threshold and tie rule over the two team totals. Both
+ * teams past the line in one round: the higher total wins; equal totals play
+ * one more round, exactly like a tie between two players.
+ * @param {number[]} teamTotals [teamA, teamB]
+ * @returns {{gameOver:boolean, winnerTeam?:number, tieBreak?:boolean, tiedScore?:number}}
+ */
+function checkTeamGameOver(teamTotals, houseRules = {}) {
+  const r = checkGameOver({ 0: teamTotals[0] || 0, 1: teamTotals[1] || 0 }, houseRules);
+  if (r.tieBreak) return { gameOver: false, tieBreak: true, tiedScore: r.tiedScore };
+  if (!r.gameOver) return { gameOver: false };
+  return { gameOver: true, winnerTeam: Number(r.winnerId) };
+}
+
 module.exports = {
   GAME_END_THRESHOLD,
   DEFAULT_HOUSE_RULES,
@@ -141,5 +155,6 @@ module.exports = {
   scoreLines,
   applyRoundScores,
   checkGameOver,
+  checkTeamGameOver,
   sumValues,
 };

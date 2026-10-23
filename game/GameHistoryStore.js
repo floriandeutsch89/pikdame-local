@@ -5,6 +5,7 @@
 
 const path = require('path');
 const { createAtomicJsonFile } = require('./AtomicJsonFile');
+const { isRecordWinner } = require('./Teams');
 
 const DEFAULT_DATA_DIR = process.env.PIKDAME_DATA_DIR || path.join(__dirname, '..', 'data');
 const DEFAULT_DATA_FILE = path.join(DEFAULT_DATA_DIR, 'games.json');
@@ -86,8 +87,10 @@ function historyForPlayer(allGames, name, limit = 20) {
         players: (g.players || []).map((p) => ({ id: p.id, name: p.name, isBot: p.isBot, botDifficulty: p.botDifficulty })),
         finalTotals: g.finalTotals,
         winnerId: g.winnerId,
-        won: !!(me && me.id === g.winnerId),
+        won: !!(me && isRecordWinner(g, me.id)),
         myScore: me ? (g.finalTotals || {})[me.id] : undefined,
+        // "2 gegen 2": the seating, both winners and the shared totals.
+        ...(g.teamMode ? { teamMode: true, teams: g.teams, winnerIds: g.winnerIds, winnerTeam: g.winnerTeam, teamTotals: g.teamTotals } : {}),
       };
     });
 }

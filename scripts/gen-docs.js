@@ -140,7 +140,7 @@ const MSG_GROUPS = [
       'getPuzzle', 'solvePuzzle', 'revealPuzzle', 'startChallenge', 'startTutorial', 'getTower', 'startTower',
       'createStammtisch', 'getStammtisch', 'listStammtische', 'leaveStammtisch', 'deleteStammtisch', 'getYearReview']],
   ['Lobby', 'Only valid while the table is in the `lobby` phase; most of them host-only.',
-    ['setName', 'ready', 'lobbyReady', 'startGame', 'setMaxSeats', 'reorderSeats', 'setDealer', 'setBotDifficulty', 'setHouseRules', 'leaveLobby']],
+    ['setName', 'ready', 'lobbyReady', 'startGame', 'setMaxSeats', 'setTeamMode', 'switchTeam', 'reorderSeats', 'setDealer', 'setBotDifficulty', 'setHouseRules', 'leaveLobby']],
   ['Your turn', 'The moves. The server rejects every one of them with a reason when it is not your turn or the rules say no.',
     ['performCut', 'drawFromPile', 'drawFromDiscard', 'layoutMeld', 'layOff', 'layOffMulti', 'swapJoker', 'undoMeld', 'undoPileTake', 'discard']],
   ['Table talk and votes', 'Allowed from any seat at any time during a match.',
@@ -166,16 +166,18 @@ const MSG_NOTES = {
   leaveStammtisch: 'Leave a Stammtisch.',
   deleteStammtisch: 'Founder only: dissolve a Stammtisch.',
   getYearReview: 'The December year review of a player name ("Dein Pik-Dame-Jahr"); outside December it answers that none is available. Favourite opponent and Stammtisch name only with `accountToken` of the account owning the name.',
-  createSession: 'Create a new game and receive its code.',
+  createSession: 'Create a new game and receive its code. `teamMode: true` opens a "2 gegen 2" table; with `quickStart: true` as well it is dealt at once ("Du + Bot gegen 2 Bots").',
   joinSession: 'Join an existing game by code.',
   checkSession: 'Ask whether a stored session still exists (used by the "resume" button). With the seat token it also tells whether this device still holds a seat there.',
   abandonSession: 'One game at a time: give up the seat of this device\'s open game before starting another (seat token required; a stale code is answered quietly, no failed-join strike).',
   lobbyReady: 'Mark yourself ready in the lobby; the host sees who is still missing.',
   startGame: 'Host only: start the game (empty seats are filled with bots).',
-  setMaxSeats: 'Host only: change the number of seats (2-4).',
+  setMaxSeats: 'Host only: change the number of seats (2-4; a team table keeps 4).',
+  setTeamMode: 'Host only: switch "2 gegen 2" on (`on: true`) or off. Four seats, teams crosswise (seats 0+2 against 1+3), the humans spread over both teams, every bot on one level. Refused at a Stammtisch and in the solo modes.',
+  switchTeam: 'Team table, lobby: move to a bot seat of the other team (refused when none is free).',
   reorderSeats: 'Host only: change the seating order.',
   setDealer: 'Host only: choose the dealer.',
-  setBotDifficulty: 'Host only: set a bot seat\'s difficulty (easy, medium, hard, zen).',
+  setBotDifficulty: 'Host only: set a bot seat\'s difficulty (easy, medium, hard, zen). Refused at a team table, where every bot plays the same level.',
   setAllBotDifficulty: 'Host only: set every bot (and bots added later) to one difficulty. Refused in the daily challenge.',
   setHouseRules: 'Host only: change house rules (turn timer, bot speed, "hand aus" doubling, strict threshold).',
   drawFromPile: 'Draw the top card of the face-down draw pile.',
@@ -489,8 +491,8 @@ bilingual tables. Ids are stable, names may change.
 | Event | XP |
 | --- | --- |
 | Finishing a match (won or lost) | **${P.XP_BASE}** |
-| Winning it | **+${P.XP_WIN}** |
-| Final score | **+1 per ${perPoints} points** (never negative) |
+| Winning it (in "2 gegen 2" a team win, for both teammates) | **+${P.XP_WIN}** |
+| Final score (always the player's own total, also in a team) | **+1 per ${perPoints} points** (never negative) |
 | Solving the daily puzzle (once a day, no game counted) | **+${XP_FOR_SOLVED}** |
 | First star of a Kartenhaus floor (once per floor and month, no game counted) | **+${P.XP_TOWER_FIRST_STAR}** |
 | Crowning the Kartenhaus (all 20 floors of a month starred, once per month) | **+${P.XP_TOWER_CROWN}** |

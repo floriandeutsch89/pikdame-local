@@ -18,9 +18,13 @@ const XP_BASE = 10;
 const XP_WIN = 50;
 const XP_PER_POINT = 1 / 10;
 
+const { isRecordWinner, recordOpponentIds } = require('./Teams');
+
+// "2 gegen 2": a team win is a win for both teammates; the score part stays the
+// player's OWN total (the team sum would pay every point twice).
 function xpForGame(gameRecord, playerId) {
   if (!gameRecord) return 0;
-  const won = gameRecord.winnerId === playerId;
+  const won = isRecordWinner(gameRecord, playerId);
   const score = ((gameRecord.finalTotals || {})[playerId]) || 0;
   return XP_BASE + (won ? XP_WIN : 0) + Math.max(0, Math.round(score * XP_PER_POINT));
 }
@@ -115,7 +119,7 @@ const QUEST_DEFS = [
   {
     id: 'win_game',
     need: 1,
-    count: (rec, pid) => (rec.winnerId === pid ? 1 : 0),
+    count: (rec, pid) => (isRecordWinner(rec, pid) ? 1 : 0),
   },
   {
     id: 'win_rounds_3',
@@ -157,12 +161,19 @@ const QUEST_DEFS = [
   {
     id: 'beat_zen',
     need: 1,
+    // Only a Zen OPPONENT counts - a Zen partner in "2 gegen 2" does not.
     count: (rec, pid) =>
-      rec.winnerId === pid && (rec.players || []).some((p) => p.isBot && p.botDifficulty === 'zen')
+      isRecordWinner(rec, pid) && zenOpponents(rec, pid) > 0
         ? 1
         : 0,
   },
 ];
+
+/** Zen bots among a player's opponents in a finished match record. */
+function zenOpponents(rec, pid) {
+  const opp = new Set(recordOpponentIds(rec, pid));
+  return (rec.players || []).filter((p) => opp.has(p.id) && p.isBot && p.botDifficulty === 'zen').length;
+}
 
 const QUEST_IDS = QUEST_DEFS.map((q) => q.id);
 const QUESTS_PER_DAY = 3;
@@ -327,6 +338,7 @@ module.exports = {
   seasonStandings,
   questsForDate,
   questDef,
+  zenOpponents,
   evaluateQuests,
   badgeProgress,
   advanceDailyStreak,
