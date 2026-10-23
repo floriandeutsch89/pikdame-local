@@ -41,6 +41,17 @@ env:
 onnx:
   enabled: true
 
+# Legal page (Impressum, § 5 DDG): provider data from the environment, kept out
+# of the public repo. Empty values are not set, so they may also come from
+# existingSecret. While name, street, city or e-mail is missing,
+# /impressum.html shows "Impressum nicht konfiguriert" and /admin warns.
+imprint:
+  name: "" # e.g. Max Muster
+  street: "" # e.g. Musterstraße 1
+  city: "" # e.g. 12345 Musterstadt
+  email: "" # e.g. impressum@example.org
+  country: "" # empty = Deutschland
+
 # PostgreSQL is mandatory (the server does not start without it). Recommended:
 # a managed/operator database. Reference an existing Secret that carries the
 # full URL (default: pikdame-db, key url) or set the URL directly (ends up in

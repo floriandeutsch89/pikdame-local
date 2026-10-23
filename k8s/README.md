@@ -37,6 +37,23 @@ unless `database.existingSecret` or `database.url` say otherwise. Every other
 setting (TLS, storage class, secret name, limits) is documented in
 `helm/pikdame/values.yaml`. CI lints and renders the chart on every PR.
 
+The legal page (Impressum) needs the provider's name, address and e-mail;
+the public repo carries none of it. Set them as chart values (keep the real
+ones in your own values file, outside the repository):
+
+```sh
+helm upgrade pikdame oci://ghcr.io/floriandeutsch89/charts/pikdame --reuse-values \
+  --set imprint.name='Max Muster' \
+  --set imprint.street='Musterstraße 1' \
+  --set imprint.city='12345 Musterstadt' \
+  --set imprint.email=impressum@example.org
+# optional: --set imprint.country=Österreich (default Deutschland)
+```
+
+Without them `/impressum.html` shows "Impressum nicht konfiguriert". With the
+plain manifests, fill in the commented `PIKDAME_IMPRINT_*` block in
+`k8s/deployment.yaml` (or put the variables into the `pikdame-env` Secret).
+
 ## Alternative: plain manifests
 
 ```sh

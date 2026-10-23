@@ -57,6 +57,13 @@ services:
       - PIKDAME_ADMIN_TOKEN=${PIKDAME_ADMIN_TOKEN:-}
       # Optional greeting days (MM-DD:account, comma-separated); see .env.example.
       - PIKDAME_BIRTHDAY=${PIKDAME_BIRTHDAY:-}
+      # Legal page (§ 5 DDG): provider data from .env, kept out of the public repo.
+      # Unset = the page shows "Impressum nicht konfiguriert".
+      - PIKDAME_IMPRINT_NAME=${PIKDAME_IMPRINT_NAME:-}
+      - PIKDAME_IMPRINT_STREET=${PIKDAME_IMPRINT_STREET:-}
+      - PIKDAME_IMPRINT_CITY=${PIKDAME_IMPRINT_CITY:-}
+      - PIKDAME_IMPRINT_EMAIL=${PIKDAME_IMPRINT_EMAIL:-}
+      - PIKDAME_IMPRINT_COUNTRY=${PIKDAME_IMPRINT_COUNTRY:-}
       # Kartenhaus months from 2027-01: 1 = this instance builds them (ONNX), 0 = read only.
       - PIKDAME_TOWER_GEN=${PIKDAME_TOWER_GEN:-1}
       # Human-move logging for imitation-learning training writes

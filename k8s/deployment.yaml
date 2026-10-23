@@ -45,6 +45,18 @@ spec:
                 secretKeyRef:
                   name: pikdame-db
                   key: url
+            # Legal page (§ 5 DDG): provider data, kept out of the repo. Unset =
+            # /impressum.html shows "Impressum nicht konfiguriert".
+            # - name: PIKDAME_IMPRINT_NAME
+            #   value: "Max Muster"
+            # - name: PIKDAME_IMPRINT_STREET
+            #   value: "Musterstraße 1"
+            # - name: PIKDAME_IMPRINT_CITY
+            #   value: "12345 Musterstadt"
+            # - name: PIKDAME_IMPRINT_EMAIL
+            #   value: "impressum@example.org"
+            # - name: PIKDAME_IMPRINT_COUNTRY # optional, default Deutschland
+            #   value: "Deutschland"
             # Secrets (SMTP, base URL, optional PIKDAME_BIRTHDAY) via a Secret - see k8s/README.md:
             # envFrom:
             #   - secretRef:

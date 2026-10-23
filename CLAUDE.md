@@ -266,7 +266,9 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
   am iPhone die einzige Scroll-Andeutung).
 - **Postgres in Tests:** `PIKDAME_TEST_PG_URL` ist Pflicht; jeder Server und
   Store bekommt `testDatabaseUrl()` (`test/helpers/test-db.js`, eigenes Schema).
-  Lokale Datenbank aufsetzen: Skill `steward`.
+  Lokale Datenbank aufsetzen: Skill `steward`. CI/Prod: PostgreSQL 18, lokal
+  oft älter — Katalog-Asserts auf `pg_constraint` nach `contype` filtern
+  (18 führt NOT NULL als benannte Constraints; einmal rot gepusht).
 - RL: `OBS_SIZE`/`ACTION_SIZE` sind Verträge — `test/state-encoder.test.js`
   UND `scripts/rl-env-server.js` prüfen.
 - **UI im Browser prüfen**, nicht nur `npm test`: alle drei Layouts. Headless

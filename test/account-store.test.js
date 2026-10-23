@@ -66,7 +66,7 @@ test('AccountStore: expired unverified accounts are purged on the next register 
   const { store, sql, close } = fresh();
   assert.ok((await store.register('Flo', 'flo@example.org', 'geheim123')).ok, 'first register works');
   assert.ok((await store.register('Flo', 'flo@example.org', 'geheim123')).error, 'unverified but unexpired still blocks');
-  await sql('UPDATE users SET verify_expires = $1 WHERE username = $2', [Date.now() - 1000, 'Flo']);
+  await sql('UPDATE users SET verify_expires_at = $1 WHERE username = $2', [new Date(Date.now() - 1000), 'Flo']);
   const r3 = await store.register('Flo', 'flo@example.org', 'geheim123');
   assert.ok(r3.ok, 'expired unverified account was purged - re-register works');
   assert.match((await store.login('Flo', 'geheim123')).error, /bestätigen/, 'login stays blocked until verified');
@@ -222,30 +222,92 @@ test('AccountStore: year-review mail opt-in, once per year, unsubscribe token', 
   }
 });
 
-// Production databases predate the migration runner: full schema minus the
-// newest columns, plus the old schema_version hash table, no schema_migrations.
+// Production databases predate the migration runner: the 001 schema in epoch
+// milliseconds minus the newest columns, the old schema_version hash table, no schema_migrations.
 test('AccountStore: a database from before the migration runner upgrades in place, data kept', async () => {
-  const { url, store: first, sql, close } = fresh();
-  const r = await first.register('Vorher', 'vorher@example.com', 'geheim123');
-  await first.verifyEmail(r.verifyToken);
-  await first.close();
-  for (const col of ['review_mail', 'review_mail_at', 'review_mail_lang', 'review_mail_year', 'review_unsub_hash', 'review_mail_consent']) {
-    await sql(`ALTER TABLE users DROP COLUMN ${col}`);
-  }
-  await sql('DROP TABLE schema_migrations');
-  // Tables of migrations 003+ did not exist before the runner (005 renames, it cannot run twice).
-  await sql('DROP TABLE challenge_results, challenge_attempts, legacy_imports, play_attempts');
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const crypto = require('node:crypto');
+  const { loadMigrations } = require('../game/Migrations');
+  const { url, sql, close } = fresh();
+  const baseline = fs.readFileSync(path.join(__dirname, '..', 'migrations', '001_baseline.sql'), 'utf8');
+  await sql(baseline.split('\n').filter((line) => !line.includes('review_')).join('\n'));
   await sql('CREATE TABLE schema_version (id TEXT PRIMARY KEY, applied_at BIGINT NOT NULL)');
   await sql("INSERT INTO schema_version VALUES ('0123456789abcdef', 1)");
+  const salt = crypto.randomBytes(32).toString('hex');
+  const created = Date.UTC(2025, 2, 14, 9, 30, 15, 123);
+  await sql(`INSERT INTO users (username, email, password_hash, salt, verified, created_at, xp, games, wins, season, season_xp, season_games)
+    VALUES ('Vorher', 'vorher@example.com', $1, $2, TRUE, $3, 900, 12, 5, '2026-10', 300, 4)`,
+  [crypto.scryptSync('geheim123', salt, 64), salt, created]);
+  await sql("INSERT INTO sessions (token, user_id, created_at) SELECT 'old-session', id, $1 FROM users", [Date.now() - 60000]);
+
   const store = createPgAccountStore(url); // the first start of the new version
+  assert.deepStrictEqual(await store.sessionUser('old-session'), { username: 'Vorher' }, 'a sign-in from before stays valid');
   const acc = await store.accountForSession((await store.login('Vorher', 'geheim123')).token);
   assert.strictEqual(acc.reviewMail, false, 'the migration never opts an old account in');
+  assert.strictEqual(acc.hasPassword, true);
   assert.deepStrictEqual(await store.reviewMailRecipients('2026'), []);
+  const p = await store.progressFor('vorher');
+  assert.deepStrictEqual([p.xp, p.games, p.wins, p.season, p.seasonXp], [900, 12, 5, '2026-10', 300]);
+  assert.strictEqual((await store.listUsers()).users[0].createdAt, created, 'milliseconds come back exactly');
   const versions = (await sql('SELECT version FROM schema_migrations ORDER BY version')).map((x) => x.version);
-  assert.deepStrictEqual(versions.slice(0, 2), [1, 2], 'baseline and the hash-table drop recorded');
+  assert.deepStrictEqual(versions, loadMigrations().map((m) => m.version), 'baseline, hash-table drop and every later file recorded');
   assert.strictEqual((await sql("SELECT to_regclass('schema_version') AS t"))[0].t, null, 'the old hash table is gone');
+  const linked = await sql('SELECT p.player_key, p.player_name FROM users u JOIN players p ON p.id = u.player_id');
+  assert.deepStrictEqual(linked, [{ player_key: 'vorher', player_name: 'Vorher' }], 'the confirmed account got its player');
   await store.close();
   await close();
+});
+
+// The account owns its name's player: set at the confirmation, kept by the FK.
+test('AccountStore: a confirmed account is linked to its player, deleting the account keeps the player', async () => {
+  const { store, sql, close } = fresh();
+  try {
+    const r = await store.register('Öma', 'oema@example.com', 'geheim123');
+    const other = await store.registerWithoutPassword('Opa', 'opa@example.com');
+    await sql("INSERT INTO players (player_key, player_name, games_played) VALUES ('öma', 'Öma', 7)"); // her guest profile
+    assert.deepStrictEqual(await sql('SELECT player_id FROM users ORDER BY id'), [{ player_id: null }, { player_id: null }], 'unconfirmed: no player yet');
+    await store.verifyEmail(r.verifyToken);
+    assert.ok((await store.verifyCodeAndSignIn('opa@example.com', other.code)).token, 'the code path confirms too');
+    const rows = await sql(`SELECT u.username, p.player_key, p.games_played FROM users u
+      JOIN players p ON p.id = u.player_id ORDER BY u.id`);
+    assert.deepStrictEqual(rows, [
+      { username: 'Öma', player_key: 'öma', games_played: 7 },
+      { username: 'Opa', player_key: 'opa', games_played: 0 },
+    ], 'the guest profile of the name (keyed like the stores, not by SQL lower()) or a new player');
+    await assert.rejects(sql("DELETE FROM players WHERE player_key = 'öma'"), /users_player_id_fkey/, 'the account goes first');
+    assert.deepStrictEqual(await store.deleteUser('Öma'), { ok: true, username: 'Öma' });
+    assert.deepStrictEqual(await sql("SELECT games_played FROM players WHERE player_key = 'öma'"), [{ games_played: 7 }], 'the guest profile stays');
+  } finally {
+    await close();
+  }
+});
+
+// Accounts confirmed before 008 have no player yet: the first start links them (two replicas: once).
+test('AccountStore: replicas starting together link the old confirmed accounts once', async () => {
+  const { url, store, sql, close } = fresh();
+  const names = ['Ältere', 'Bert', 'Cleo'];
+  for (const name of names) {
+    const r = await store.register(name, `${name.toLowerCase()}@example.com`, 'geheim123');
+    await store.verifyEmail(r.verifyToken);
+  }
+  await sql("INSERT INTO players (player_key, player_name, games_played) VALUES ('bert', 'Bert', 3) ON CONFLICT (player_key) DO UPDATE SET games_played = 3");
+  await sql('UPDATE users SET player_id = NULL');
+  await sql("DELETE FROM players WHERE player_key <> 'bert'");
+  const replicas = [createPgAccountStore(url), createPgAccountStore(url)];
+  try {
+    assert.deepStrictEqual(await Promise.all(replicas.map((r) => r.isRegisteredName('Bert'))), [true, true]);
+    const rows = await sql('SELECT u.username, p.player_key, p.games_played FROM users u JOIN players p ON p.id = u.player_id ORDER BY u.id');
+    assert.deepStrictEqual(rows, [
+      { username: 'Ältere', player_key: 'ältere', games_played: 0 },
+      { username: 'Bert', player_key: 'bert', games_played: 3 },
+      { username: 'Cleo', player_key: 'cleo', games_played: 0 },
+    ]);
+    assert.strictEqual((await sql('SELECT count(*)::int AS n FROM players'))[0].n, 3, 'one player per name');
+  } finally {
+    await Promise.all(replicas.map((r) => r.close()));
+    await close();
+  }
 });
 
 // CI runs test files in parallel against one database: several stores create

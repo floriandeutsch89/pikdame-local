@@ -333,3 +333,14 @@ jobs:
           helm template test helm/pikdame | grep -A1 'name: PIKDAME_ONNX' | grep -q 'value: "1"' \
             || { echo "::error::default chart does not set PIKDAME_ONNX=1"; exit 1; }
           echo "onnx.enabled maps to PIKDAME_ONNX 1/0."
+      # Empty imprint values must not be set (they may come from existingSecret).
+      - name: Chart passes imprint values only when set
+        run: |
+          OUT=$(helm template test helm/pikdame --set imprint.name='Max Muster' --set imprint.email=impressum@example.org)
+          echo "$OUT" | grep -A1 'name: PIKDAME_IMPRINT_NAME' | grep -q 'value: "Max Muster"' \
+            || { echo "::error::imprint.name does not set PIKDAME_IMPRINT_NAME"; exit 1; }
+          echo "$OUT" | grep -A1 'name: PIKDAME_IMPRINT_EMAIL' | grep -q 'value: "impressum@example.org"' \
+            || { echo "::error::imprint.email does not set PIKDAME_IMPRINT_EMAIL"; exit 1; }
+          if echo "$OUT" | grep -q 'PIKDAME_IMPRINT_CITY'; then echo "::error::empty imprint.city is rendered"; exit 1; fi
+          if helm template test helm/pikdame | grep -q 'PIKDAME_IMPRINT_'; then echo "::error::default chart sets imprint variables"; exit 1; fi
+          echo "imprint values map to PIKDAME_IMPRINT_*."

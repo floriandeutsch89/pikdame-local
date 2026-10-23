@@ -3,6 +3,21 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.113.0] - 2026-10-23
+
+### Changed
+- Die Anbieterangaben im Impressum kommen jetzt aus der Server-Konfiguration statt aus dem Quellcode. Fehlen sie, zeigt die Seite deutlich „Impressum nicht konfiguriert“.
+
+## [2.112.0] - 2026-10-23
+
+### Changed
+- Spielerprofile (Statistik, Abzeichen, Tagesaufgaben, Rätsel- und Kartenhaus-Sterne) liegen jetzt in der Datenbank statt in einer Datei; beim ersten Start wird die alte Datei einmalig übernommen
+- Kein Profil wird mehr gelöscht: Früher fielen ab 500 Profilen die mit den wenigsten Partien weg, jetzt bleibt jedes erhalten
+- Die Statistik-Rangliste zeigt die 500 besten Profile, das eigene Profil ist immer dabei
+- Stammtische (Mitglieder, Bilanz, Revanche-Serie, Gruppenziele) liegen jetzt in der Datenbank statt in einer Datei; beim ersten Start wird die alte Datei einmalig übernommen
+- Ein bestätigtes Konto ist in der Datenbank fest mit seinem Spielerprofil verbunden; ein Profil mit Konto lässt sich erst nach dem Konto löschen
+- Bestätigungs-, Anmelde- und Abmelde-Links aus Mails sowie Anmeldungen werden schneller gefunden
+
 ## [2.111.0] - 2026-10-23
 
 ### Added

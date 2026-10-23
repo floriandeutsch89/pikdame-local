@@ -95,11 +95,11 @@ function noteStreak(year, streak) {
   return y;
 }
 
-/** Creation date of a name profile ("profile-<ms>-…"), null if unknown. */
+/** Creation date of a name profile (createdAt ms, or an old id "profile-<ms>-…"), null if unknown. */
 function profileCreated(profile) {
   const m = /^profile-(\d{12,})-/.exec(String((profile && profile.id) || ''));
-  if (!m) return null;
-  const d = new Date(Number(m[1]));
+  const at = profile && Number.isFinite(profile.createdAt) ? profile.createdAt : m ? Number(m[1]) : NaN;
+  const d = new Date(at);
   return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
 }
 

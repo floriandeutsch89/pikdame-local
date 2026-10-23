@@ -15,6 +15,11 @@ generated from the source, so it cannot go stale.
 | `PIKDAME_DATABASE_PASSWORD` | unset | Password for the PostgreSQL connection (also readable from a `_FILE` secret; see Configuration). |
 | `PIKDAME_DATABASE_URL` | unset | PostgreSQL connection string. **Required**: without it the server does not start. |
 | `PIKDAME_HEARTBEAT_MS` | `30000` | WebSocket ping interval used to detect dead connections. |
+| `PIKDAME_IMPRINT_CITY` | unset | Legal page: postcode and city. |
+| `PIKDAME_IMPRINT_COUNTRY` | `Deutschland` | Legal page: country line. |
+| `PIKDAME_IMPRINT_EMAIL` | unset | Legal page: contact address; shown only after a click, never as plain text in the HTML. |
+| `PIKDAME_IMPRINT_NAME` | unset | Legal page (§ 5 DDG): provider name. With STREET, CITY and EMAIL required for a public site; while one is missing the page shows "Impressum nicht konfiguriert" and `/admin` warns. Kept out of the public repo on purpose. |
+| `PIKDAME_IMPRINT_STREET` | unset | Legal page: street and number. |
 | `PIKDAME_LOG_GAMES` | — | Set to `1` to log human moves to JSONL for imitation learning. |
 | `PIKDAME_LOG_PATH` | `<app>/data` | Where the move log is written. |
 | `PIKDAME_MAX_SESSIONS` | `500` | Maximum number of concurrent games. Beyond it, new games are rejected with "server full". |

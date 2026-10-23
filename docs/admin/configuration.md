@@ -19,6 +19,30 @@ PIKDAME_DATABASE_PASSWORD_FILE=/run/secrets/db_password
 
 The file's contents are read once at startup and trimmed.
 
+## Legal page (Impressum)
+
+A public site needs a legal page with the provider's name, postal address and
+e-mail (§ 5 DDG). They come from the environment, so the public repository
+carries none of it:
+
+```bash
+PIKDAME_IMPRINT_NAME=Max Muster
+PIKDAME_IMPRINT_STREET=Musterstraße 1
+PIKDAME_IMPRINT_CITY=12345 Musterstadt
+PIKDAME_IMPRINT_EMAIL=impressum@example.org
+# PIKDAME_IMPRINT_COUNTRY=Deutschland   (default)
+```
+
+- **Set them before deploying:** while one is missing, `/impressum.html` shows
+  "Impressum nicht konfiguriert", the startup log and `/admin` warn.
+- Docker: put them into `docker/.env`; every compose file passes them through.
+  Recreate the container after a change (`docker compose up -d`). Kubernetes:
+  Helm values `imprint.name`, `.street`, `.city`, `.email`, `.country`
+  (see `k8s/README.md`), or the `pikdame-env` Secret.
+- The page is rendered once at startup. Name and address reach the browser
+  base64-encoded and are decoded by `impressum.js`; the e-mail appears only
+  after a click. Without JavaScript a fallback shows them as HTML entities.
+
 ## Database: PostgreSQL is required
 
 **`PIKDAME_DATABASE_URL` is mandatory.** Without it the server logs why and

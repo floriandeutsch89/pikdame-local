@@ -48,6 +48,30 @@ the other replicas wait (about 2 s per 200,000 rows). An old container still
 running during the deploy fails on the renamed columns: challenge calls answer
 with an error and play attempts are logged as not stored until it is replaced.
 
+`006_players.sql` creates `players` and its child tables (see {doc}`schema`),
+gives every name already in the challenge and play-attempt tables a player row
+and adds `player_id NOT NULL` with a foreign key to those three tables (one
+rewrite of `play_attempts`, like 005). The profiles themselves come from
+`players.json` on the first start of the new version: a one-time import in
+`game/PlayerStore.js` (marker `players.json` in `legacy_imports`), not a
+migration, because the file lives on the app's volume. An old container still
+running during the deploy can no longer insert challenge rows or play
+attempts (no `player_id`) until it is replaced.
+
+`007_stammtische.sql` creates the Stammtisch tables (see {doc}`schema`);
+`stammtisch.json` is imported on the first start like `players.json` (marker
+`stammtisch.json`).
+
+`008_account_conventions.sql` moves the account tables of `001` onto the
+conventions: epoch milliseconds become `TIMESTAMPTZ` (`to_timestamp(ms / 1000.0)`,
+exact to the millisecond), bare and unclear names get their entity
+(`sessions` → `login_sessions`), mutable rows get `updated_at`, and the mail-link
+lookups get indexes. `users.player_id` is added empty: `PgAccountStore` links
+the confirmed accounts on its first start (in JavaScript, see {doc}`schema`).
+An old container still running during the deploy can no longer read accounts:
+sign-ins fail, and a client that opens the page there loses its sign-in. Deploy
+by stopping the old container first (Compose `up -d`, Kubernetes `Recreate`).
+
 ## Rules
 
 - **Forward-only.** There are no down migrations; undo a change with a new file.
