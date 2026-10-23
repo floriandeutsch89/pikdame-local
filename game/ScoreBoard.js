@@ -2,19 +2,25 @@
 const { cardValue, isPikDame } = require('./Card');
 
 const GAME_END_THRESHOLD = 1000;
+// "2 gegen 2": two seats feed one total, so a team plays to twice the target and
+// every seat's own total stays on the solo scale (about 1000 for a winner).
+const TEAM_GAME_END_THRESHOLD = 2 * GAME_END_THRESHOLD;
+
+/** The match target: 1000, or a team's shared 2000. */
+function gameEndThreshold(teamMode) {
+  return teamMode ? TEAM_GAME_END_THRESHOLD : GAME_END_THRESHOLD;
+}
 
 function sumValues(cards) {
   return cards.reduce((sum, c) => sum + cardValue(c), 0);
 }
 
 /**
- * Hausregeln (alle optional, werden bei Spielbeginn festgelegt):
- * - handAusDoubles: Geht ein Spieler im ALLERERSTEN Zug der Runde komplett
- *   aus ("Hand aus"), wird die komplette Rundenwertung aller Spieler
- *   (inkl. Minuspunkte) verdoppelt.
- * - strictThreshold: Das Gesamtspiel endet erst, wenn ein Spieler MEHR als
- *   1000 Punkte hat (genau 1000 reicht nicht). Ist diese Regel AUS, reicht
- *   bereits das Erreichen von 1000 Punkten (>=) zum Spielende.
+ * House rules (all optional, fixed when the game starts):
+ * - handAusDoubles: whoever goes out in the very first turn of a round ("Hand
+ *   aus") doubles the whole round score of every seat, minus points included.
+ * - strictThreshold: the match ends only ABOVE the target (exactly 1000, a
+ *   team's 2000, is not enough); off, reaching it ends the match.
  */
 const DEFAULT_HOUSE_RULES = {
   handAusDoubles: false,
@@ -105,28 +111,24 @@ function applyRoundScores(totals, roundResult) {
 /**
  * @param {Object} totals { [playerId]: number }
  * @param {Object} houseRules { strictThreshold?: boolean }
+ * @param {number} [threshold] the match target (gameEndThreshold)
  */
-function checkGameOver(totals, houseRules = {}) {
+function checkGameOver(totals, houseRules = {}, threshold = GAME_END_THRESHOLD) {
   const strict = !!houseRules.strictThreshold;
-  const meetsThreshold = (score) => (strict ? score > GAME_END_THRESHOLD : score >= GAME_END_THRESHOLD);
+  const meetsThreshold = (score) => (strict ? score > threshold : score >= threshold);
 
   const over = Object.entries(totals).filter(([, score]) => meetsThreshold(score));
   if (over.length === 0) return { gameOver: false };
 
-  // Spiel endet, sobald irgendein Spieler die Schwelle erreicht/überschreitet.
-  // Gewinner = höchste Gesamtpunktzahl.
+  // The match ends once anyone reaches the line; the highest total wins.
   let bestScore = -Infinity;
   for (const score of Object.values(totals)) if (score > bestScore) bestScore = score;
   const leaders = Object.entries(totals)
     .filter(([, score]) => score === bestScore)
     .map(([pid]) => pid);
 
-  // GLEICHSTAND AN DER SPITZE: Es wird weitergespielt, bis einer allein vorn
-  // liegt (Familienregel). Vorher gewann schlicht der erste Eintrag in der
-  // Objektreihenfolge - fuer die Beteiligten war der Sieger damit zufaellig
-  // (Spieler-Report: beide 1060 Punkte, das Spiel war trotzdem vorbei).
-  // WICHTIG: gameOver false, aber die Information mitgeben, damit der Tisch
-  // erfaehrt, WARUM noch eine Runde kommt.
+  // A tie at the top plays on until one leads alone (family rule; the first
+  // object key used to win). The table is told why another round comes.
   if (leaders.length > 1) {
     return { gameOver: false, tieBreak: true, tiedIds: leaders, tiedScore: bestScore };
   }
@@ -135,14 +137,14 @@ function checkGameOver(totals, houseRules = {}) {
 }
 
 /**
- * Team mode: the same threshold and tie rule over the two team totals. Both
+ * Team mode: the tie rule over the two team totals at the team target. Both
  * teams past the line in one round: the higher total wins; equal totals play
  * one more round, exactly like a tie between two players.
  * @param {number[]} teamTotals [teamA, teamB]
  * @returns {{gameOver:boolean, winnerTeam?:number, tieBreak?:boolean, tiedScore?:number}}
  */
 function checkTeamGameOver(teamTotals, houseRules = {}) {
-  const r = checkGameOver({ 0: teamTotals[0] || 0, 1: teamTotals[1] || 0 }, houseRules);
+  const r = checkGameOver({ 0: teamTotals[0] || 0, 1: teamTotals[1] || 0 }, houseRules, TEAM_GAME_END_THRESHOLD);
   if (r.tieBreak) return { gameOver: false, tieBreak: true, tiedScore: r.tiedScore };
   if (!r.gameOver) return { gameOver: false };
   return { gameOver: true, winnerTeam: Number(r.winnerId) };
@@ -150,6 +152,8 @@ function checkTeamGameOver(teamTotals, houseRules = {}) {
 
 module.exports = {
   GAME_END_THRESHOLD,
+  TEAM_GAME_END_THRESHOLD,
+  gameEndThreshold,
   DEFAULT_HOUSE_RULES,
   scoreRound,
   scoreLines,

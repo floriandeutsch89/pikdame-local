@@ -58,8 +58,10 @@ online table against humans and bots. The server enforces every rule; the
 - Every player is scored as usual; a team's result is the sum of its two
   players. When anyone goes out, the round ends for everyone - your partner's
   hand counts against your team too.
-- The first team to reach 1000 shared points wins (both teams over in the same
-  round: the higher total; equal totals: one more round).
+- A team plays to 2000 shared points, twice the normal target (house rule
+  "strict": more than 2000). Both teams over in the same round: the higher
+  total wins; equal totals: one more round.
+- Teams may carry a name the players chose in the lobby; it is just a label.
 
 ## Strategy hints
 
