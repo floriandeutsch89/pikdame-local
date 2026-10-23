@@ -47,7 +47,7 @@ Only for accounts with the **admin role** (see
 
 | Tab | What it shows / does |
 | --- | --- |
-| **Konfiguration** | The report above with **every variable behind each entry** (green = set, grey = not set, default in use; values are never shown), the last SMTP check, buttons **Verbindung prüfen** (SMTP login without sending) and **Testmail senden**. Configuration itself still lives in your compose file. |
+| **Konfiguration** | The report above with **every variable behind each entry** (green = set, grey = not set, default in use; hover or tap shows the value, never that of a password or token), the last SMTP check, buttons **Verbindung prüfen** (SMTP login without sending) and **Testmail senden**. Configuration itself still lives in your compose file. |
 | **Benutzer** | All registered accounts: name, **e-mail**, how they sign in (passkeys / password), confirmed / link open / link expired, registration date, XP, games, wins, season XP. **Mail neu senden** (unconfirmed accounts: a fresh code and confirmation link), **Anmelde-Link senden** (confirmed accounts: a 15-minute sign-in link, e.g. after a lost passkey) and **Löschen** (two steps: question, then the real button). Admin accounts carry an **Admin** badge and cannot be deleted here. |
 | **Monitoring** | Current values (app container RAM and CPU against its limits, event-loop delay, players, host RAM, free space on the data volume) and **history charts** like a hosting console: ranges 1 h / 24 h / 7 days / 30 days, cursor synced across all charts, drag to zoom, double-click to reset. Updates every 15 s. |
 | **Festhänger** | Where players get stuck, with a switch per mode. **Kartenhaus**: the month floor by floor (players, win rate, abandons, median turns, the floor where the curve breaks), the players stuck on a floor with their most common reason, and any player's last attempts. **Rätsel**: the last 7–90 days by puzzle kind and by day (solve and give-up rate, checks until solved, the most common mistake, the hardest days) and the players stuck on a day. **Tutorial**: the lessons as a funnel (reached, completed, where players stop, time, refusals, the lesson where it breaks) and how tutorials end early. See {doc}`play-attempts`. |
@@ -60,11 +60,12 @@ When everything is set up, every entry is green and each one lists the
 variables it is built from:
 
 ```{figure} img/admin-overview.png
-:alt: Admin page, configuration section: every entry with a green check mark and its variables
+:alt: Admin area, Konfiguration tab: header with the signed-in admin and Abmelden, every entry with a green check mark and its variables
 :width: 100%
 
-The configuration section of a complete setup. Green variables are set, grey
-ones are not set and use their default. Values are never shown.
+The Konfiguration tab of a complete setup, below the header with the signed-in
+admin. Green variables are set, grey ones are not set and use their default.
+Hovering or tapping one shows its value, never that of a password or token.
 ```
 
 ### Check the mail setup

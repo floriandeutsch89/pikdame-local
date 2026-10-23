@@ -157,7 +157,7 @@ table.pstuck tr{grid-template-columns:1fr auto auto}table.pstuck td.name{grid-co
 td.rate{min-width:0}tr.wall{background:rgba(245,197,66,.07);box-shadow:inset 3px 0 0 var(--warn)}tr.wall td{background:none}tr.wall td:first-child{box-shadow:none}}
 [hidden]{display:none!important}
 /* Who is signed in, until when, and the way out */
-.who{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 16px;color:var(--muted);font-size:.9em}
+.who{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 16px;margin-bottom:10px;color:var(--muted);font-size:.9em}
 .who b{color:var(--text)}.whoText{display:flex;flex-wrap:wrap;gap:0 12px;min-width:0}.whoActions{display:flex;align-items:center;gap:16px}.who form{padding:0}
 .badge.role{color:var(--accent);border-color:rgba(47,214,176,.45)}
 /* Protokoll: newest first, pages of 50 */
