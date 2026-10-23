@@ -45,6 +45,8 @@
 // empty state, then "Meine Partien" empty).
 // --lang en: the English client (text length). SHOTS_ROOT=<checkout>: shoot another
 // checkout with this script (before/after pictures from one set of scenes).
+// --light morning|noon|evening|night|HH:MM|now: the table light at that Berlin time
+// (default noon = the table without the light; now = the real clock).
 // --december: the client clock stands on 28 December and the server's year review
 // is mocked - adds the "Aufgaben" chip and the scenes year / year-mid / year-bots /
 // year-end (story cards), year-image (the share PNG, via the download fallback)
@@ -92,6 +94,18 @@ const DECEMBER = process.argv.includes('--december');
 const MEASURE = process.argv.includes('--measure');
 const TOWER_MOCK = arg('tower', 'mid');
 const TAP_MIN = 44; // CLAUDE.md --tap-min
+// --light: the table light follows the Berlin clock (public/table-light.js). Pinned to
+// noon by default, so table shots compare across the day; morning|evening|night|HH:MM|now.
+function lightCss(which) {
+  if (which === 'now') return '';
+  const hhmm = { morning: '08:30', noon: '13:00', evening: '20:00', night: '00:30' }[which] || which;
+  const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm);
+  if (!m) throw new Error(`--light ${which}: morning|noon|evening|night|HH:MM|now`);
+  let w = { m: 0, d: 1, e: 0, n: 0 };
+  try { w = require(path.join(ROOT, 'public', 'table-light.js')).phaseWeights(Number(m[1]) * 60 + Number(m[2])); } catch (e) { /* checkout without the light */ }
+  return `#table { ${['m', 'd', 'e', 'n'].map((k) => `--tod-${k}: ${w[k].toFixed(4)} !important;`).join(' ')} }`;
+}
+const LIGHT_CSS = lightCss(arg('light', 'noon'));
 // A normal UA: the server treats headless defaults as a crawler (no WebSocket).
 const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
 
@@ -469,6 +483,15 @@ function waitForHttp(port, ms = 20000) {
           if (!musicHint) localStorage.setItem('pikdame_music_hint', '1');
         } catch (e) { /* storage blocked */ }
       }, [ME, arg('theme', ''), scenes.includes('music-hint'), Math.max(0, Math.min(3, Number(arg('stammtische', 1)))), arg('lang', '')]);
+      if (LIGHT_CSS) {
+        await ctx.addInitScript((cssText) => {
+          document.addEventListener('DOMContentLoaded', () => {
+            const s = document.createElement('style');
+            s.textContent = cssText;
+            document.head.appendChild(s);
+          });
+        }, LIGHT_CSS);
+      }
       if (SIGNED_IN) {
         await ctx.addInitScript(() => { try { localStorage.setItem('pikdame_account_token', 'mock-token'); } catch (e) { /* blocked */ } });
         await ctx.route('**/api/**', (route) => route.fulfill({ contentType: 'application/json',

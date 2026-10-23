@@ -28,6 +28,11 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   `runBotTurn`, then `publicState('p1')`), not by hand.
 - **Themes:** `--theme table|night|felt|love|bordeaux|kitchen`. `kitchen` is
   the light one; check it whenever a colour or a translucent white changes.
+- **Table light:** the table's light follows the Berlin clock
+  (`public/table-light.js`). Shots pin it to noon, the look without the light,
+  so a "before" and an "after" shot hours apart still compare;
+  `--light morning|evening|night|HH:MM` shoots that time, `--light now` the real
+  clock. A change near the table's colours or shadows: shoot evening and night too.
 - **Mockups:** `--css <file>` / `--js <file>` patch the table scene before the
   shot, to show options before building them.
 - **Signed in:** `--signed-in` answers `/api/*` with a mock account (mock
