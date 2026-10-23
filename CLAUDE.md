@@ -85,6 +85,7 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
     nur vorwärts, gemergte Dateien nie ändern; `Migrations.js`, Doku
     `docs/developer/migrations.md`). Start ohne Sperre, wenn aktuell: DDL bei
     jedem Start blockierte laufende Transaktionen (v2.102.1).
+    Neue Tabellen/Spalten nach `docs/developer/schema.md` (TIMESTAMPTZ `*_at`, DATE `*_day`, keine Epoch-Zahlen).
   - `Mailer.js`: eigener SMTP-Client, Log-Fallback; Header RFC 2047, Body
     Quoted-Printable — nie rohes UTF-8 in Kopfzeilen.
   - `Badges.js` (Familien in `BADGE_FAMILIES`, Fakten aus `finishRound`),
@@ -100,7 +101,7 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   - Kartenhaus-Blätter ab 2027-01 baut der Server selbst (`TowerMonths.js`, Worker):
     EINE Regel/Generator (`TowerRule.js`/`TowerGen.js`) für Server und Skript;
     nie ein unbewiesenes Blatt ausliefern (Zen-Beweis Pflicht).
-  - Spielversuche nur über `PlayEvents.js` (`play_events`, Admin „Festhänger“):
+  - Spielversuche nur über `PlayEvents.js` (`play_attempts`, Admin „Festhänger“):
     eine Zeile pro Versuch (`attempt_id`), 90 Tage, ohne await; Konto löschen löscht mit.
   - `StammtischStore.js`: Gruppen-Tische `ST…`, per Code abgeschottet (auch
     im Public-Mode aktiv). Codes nie in die Partien-Historie (per Name

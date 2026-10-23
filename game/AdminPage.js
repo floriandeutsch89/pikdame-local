@@ -438,7 +438,7 @@ function stuckRow(s, month) {
 /** One attempt of the player view: result, distance to the star, why. */
 function attemptRow(a, shownMonth) {
   const f = a.facts || {};
-  const [month, stage] = String(a.target).split('/');
+  const { period: month, stage } = a;
   const stars = Math.max(1, Math.min(3, f.stars || 1));
   const result = a.outcome === 'won' ? `<span class="badge ok">${'★'.repeat(stars)} ${stars === 1 ? 'Stern' : 'Sterne'}</span>`
     : a.outcome === 'lost' ? '<span class="badge error">kein Stern</span>' : '<span class="badge warn">abgebrochen</span>';
@@ -449,7 +449,7 @@ function attemptRow(a, shownMonth) {
   if (f.queenInHand && !(a.outcome === 'lost' && f.cause === 'queen')) details.push('Pik Dame auf der Hand');
   if (f.jokersInHand && !(a.outcome === 'lost' && f.cause === 'jokers')) details.push(`${f.jokersInHand} Joker auf der Hand`);
   return `<tr>
-<td class="date">${esc(fmtDate(a.at))}</td>
+<td class="date">${esc(fmtDate(a.endedAt))}</td>
 <td class="num" data-label="Etage">${esc(stage)}${month !== shownMonth ? ` <span class="sub">${esc(monthLabel(month))}</span>` : ''}</td>
 <td class="res">${result}</td>
 <td class="num" data-label="Abstand">${signed(f.margin)}${a.outcome === 'abandoned' ? ' <span class="sub">vorläufig</span>' : ''}</td>

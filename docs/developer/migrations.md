@@ -34,6 +34,19 @@ whole schema (release CI, v2.102.1).
    separate, deliberate step.
 3. Add a test that the change works on a database that already has data
    (`test/migrations.test.js` shows the pattern with a temp directory).
+4. Follow the naming, type and index rules in {doc}`schema`.
+
+Files from `005` on run exactly once and need not be idempotent (`005`
+renames columns). Only `001`–`004` use `IF NOT EXISTS`, for databases from
+before the runner.
+
+`005_schema_conventions.sql` moved the tables of `003`/`004` onto those rules:
+DATE `game_day`, TIMESTAMPTZ `*_at`, `player_key`/`player_name`, and
+`play_events` became `play_attempts` (`target` split into `period` + `stage`,
+`duration_ms` replaced by `started_at`). It rewrites `play_events` once while
+the other replicas wait (about 2 s per 200,000 rows). An old container still
+running during the deploy fails on the renamed columns: challenge calls answer
+with an error and play attempts are logged as not stored until it is replaced.
 
 ## Rules
 

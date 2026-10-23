@@ -4,10 +4,12 @@
 // (begun = used, later games that day are practice), so the board keeps it.
 // Retention is deliberately short (14 days: the board shows 7, the own trend
 // graph 14) - a daily race, not an archive; only nickname + score are kept.
-// PostgreSQL (migrations/003_daily_challenge.sql); every write is awaited.
+// PostgreSQL (migrations/003, renamed in 005); every write is awaited. Game days are
+// 'YYYY-MM-DD' strings (DATE parser in Database.js), instants ms at this boundary.
 
 const fs = require('fs');
 const path = require('path');
+require('./Database'); // registers the DATE parser
 const { ensureMigrated } = require('./Migrations');
 const { gameDay, addDays, weekdayIndex } = require('./GameDay');
 
@@ -19,8 +21,8 @@ const IMPORT_NAME = 'challenges.json';
 const IMPORT_LOCK_KEY = 726814;
 const IMPORT_RETRY_MS = 10 * 60 * 1000;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-// Board order; name_key only breaks exact ties deterministically.
-const BOARD_ORDER = 'score DESC, at ASC, name_key ASC';
+// Board order; player_key only breaks exact ties deterministically.
+const BOARD_ORDER = 'score DESC, finished_at ASC, player_key ASC';
 
 /** Stable numeric seed from a YYYY-MM-DD string (djb2). */
 function seedForDate(dateStr) {
@@ -60,14 +62,14 @@ function legacyRows(parsed) {
     if (!DATE_RE.test(day) || !Array.isArray(list)) continue;
     for (const e of list) {
       if (!e || !Number.isFinite(e.score) || !Number.isFinite(e.at)) continue;
-      results.push([day, keyOf(e.name), cleanNameOf(e.name), Math.round(e.score), Number.isFinite(e.queens) ? e.queens : 0, Math.round(e.at)]);
+      results.push([day, keyOf(e.name), cleanNameOf(e.name), Math.round(e.score), Number.isFinite(e.queens) ? e.queens : 0, new Date(Math.round(e.at))]);
     }
   }
   for (const [day, map] of Object.entries(parsed.attempts || {})) {
     if (!DATE_RE.test(day) || !map || typeof map !== 'object') continue;
     for (const a of Object.values(map)) {
       if (!a || !['running', 'done', 'lost'].includes(a.state) || !Number.isFinite(a.at)) continue;
-      attempts.push([day, keyOf(a.name), cleanNameOf(a.name), String(a.code || ''), Math.round(a.at), a.state]);
+      attempts.push([day, keyOf(a.name), cleanNameOf(a.name), String(a.code || ''), new Date(Math.round(a.at)), a.state]);
     }
   }
   return { results, attempts };
@@ -87,12 +89,13 @@ async function importLegacyFile(pool, file) {
   const { results, attempts } = legacyRows(parsed);
   const imported = await inTransaction(pool, async (c) => {
     await c.query('SELECT pg_advisory_xact_lock($1)', [IMPORT_LOCK_KEY]);
-    const marked = await c.query('INSERT INTO legacy_imports (name, imported_at) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING name', [IMPORT_NAME, Date.now()]);
+    const marked = await c.query('INSERT INTO legacy_imports (source, imported_at) VALUES ($1, now()) ON CONFLICT DO NOTHING RETURNING source', [IMPORT_NAME]);
     if (!marked.rows.length) return false; // imported before (e.g. the rename failed): only move the file
-    await c.query(`INSERT INTO challenge_results (day, name_key, name, score, queens, at)
-      SELECT * FROM unnest($1::text[], $2::text[], $3::text[], $4::int[], $5::int[], $6::bigint[]) ON CONFLICT DO NOTHING`, columns(results));
-    await c.query(`INSERT INTO challenge_attempts (day, name_key, name, code, at, state)
-      SELECT * FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::bigint[], $6::text[]) ON CONFLICT DO NOTHING`, columns(attempts));
+    await c.query(`INSERT INTO challenge_results (game_day, player_key, player_name, score, queens_caught, finished_at)
+      SELECT * FROM unnest($1::date[], $2::text[], $3::text[], $4::int[], $5::int[], $6::timestamptz[]) ON CONFLICT DO NOTHING`, columns(results));
+    await c.query(`INSERT INTO challenge_attempts (game_day, player_key, player_name, session_code, started_at, status, updated_at)
+      SELECT *, u.started_at FROM unnest($1::date[], $2::text[], $3::text[], $4::text[], $5::timestamptz[], $6::text[])
+        AS u(game_day, player_key, player_name, session_code, started_at, status) ON CONFLICT DO NOTHING`, columns(attempts));
     return true;
   });
   fs.renameSync(file, `${file}.migrated`);
@@ -130,19 +133,23 @@ function createChallengeStore(pool, { legacyFile = DEFAULT_DATA_FILE } = {}) {
 
   async function cleanup(q, now) {
     const cutoff = addDays(gameDay(now), -KEEP_DAYS);
-    await q.query('DELETE FROM challenge_results WHERE day < $1', [cutoff]);
-    await q.query('DELETE FROM challenge_attempts WHERE day < $1', [cutoff]);
+    await q.query('DELETE FROM challenge_results WHERE game_day < $1', [cutoff]);
+    await q.query('DELETE FROM challenge_attempts WHERE game_day < $1', [cutoff]);
   }
 
   /** date -> board-ordered results, for the days in [from, to] (or a list). */
   async function loadDays(where, params) {
-    const { rows } = await query(`SELECT day, name_key, name, score, queens, at FROM challenge_results
-      WHERE ${where} ORDER BY day, ${BOARD_ORDER}`, params);
+    const { rows } = await query(`SELECT game_day, player_key, player_name, score, queens_caught, finished_at
+      FROM challenge_results WHERE ${where} ORDER BY game_day, ${BOARD_ORDER}`, params);
     const days = {};
-    for (const r of rows) (days[r.day] = days[r.day] || []).push({ key: r.name_key, name: r.name, score: r.score, queens: r.queens, at: Number(r.at) });
+    for (const r of rows) {
+      (days[r.game_day] = days[r.game_day] || []).push({
+        key: r.player_key, name: r.player_name, score: r.score, queens: r.queens_caught, finishedAt: r.finished_at.getTime(),
+      });
+    }
     return days;
   }
-  const loadRange = (from, to) => loadDays('day >= $1 AND day <= $2', [from, to]);
+  const loadRange = (from, to) => loadDays('game_day >= $1 AND game_day <= $2', [from, to]);
 
   /** Records the ranked result; the FIRST one per (day, name) stays. */
   async function submit(date, name, score, now = Date.now(), facts = {}) {
@@ -151,12 +158,13 @@ function createChallengeStore(pool, { legacyFile = DEFAULT_DATA_FILE } = {}) {
     await ready();
     await inTransaction(pool, async (c) => {
       await cleanup(c, now);
-      await c.query(`INSERT INTO challenge_results (day, name_key, name, score, queens, at)
+      await c.query(`INSERT INTO challenge_results (game_day, player_key, player_name, score, queens_caught, finished_at)
         VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`,
-      [date, key, cleanName, Math.round(score), facts.queens > 0 ? facts.queens : 0, now]);
-      await c.query(`DELETE FROM challenge_results WHERE day = $1 AND name_key NOT IN (
-        SELECT name_key FROM challenge_results WHERE day = $1 ORDER BY ${BOARD_ORDER} LIMIT ${MAX_ENTRIES_PER_DAY})`, [date]);
-      await c.query("UPDATE challenge_attempts SET state = 'done' WHERE day = $1 AND name_key = $2", [date, key]);
+      [date, key, cleanName, Math.round(score), facts.queens > 0 ? facts.queens : 0, new Date(now)]);
+      await c.query(`DELETE FROM challenge_results WHERE game_day = $1 AND player_key NOT IN (
+        SELECT player_key FROM challenge_results WHERE game_day = $1 ORDER BY ${BOARD_ORDER} LIMIT ${MAX_ENTRIES_PER_DAY})`, [date]);
+      await c.query("UPDATE challenge_attempts SET status = 'done', updated_at = $3 WHERE game_day = $1 AND player_key = $2",
+        [date, key, new Date(now)]);
     });
     return getBoard(date, 10);
   }
@@ -167,52 +175,56 @@ function createChallengeStore(pool, { legacyFile = DEFAULT_DATA_FILE } = {}) {
     const cleanName = cleanNameOf(name);
     await ready();
     await cleanup(pool, now);
-    const { rowCount } = await pool.query(`INSERT INTO challenge_attempts (day, name_key, name, code, at, state)
-      SELECT $1::text, $2::text, $3::text, $4::text, $5::bigint, 'running'
-      WHERE NOT EXISTS (SELECT 1 FROM challenge_results WHERE day = $1 AND name_key = $2)
-      ON CONFLICT (day, name_key) DO UPDATE SET name = EXCLUDED.name, code = EXCLUDED.code, at = EXCLUDED.at, state = 'running'
-      WHERE challenge_attempts.state = 'lost'`, [date, cleanName.toLowerCase(), cleanName, String(code || ''), now]);
+    const { rowCount } = await pool.query(`INSERT INTO challenge_attempts
+        (game_day, player_key, player_name, session_code, started_at, status, updated_at)
+      SELECT $1::date, $2::text, $3::text, $4::text, $5::timestamptz, 'running', $5::timestamptz
+      WHERE NOT EXISTS (SELECT 1 FROM challenge_results WHERE game_day = $1 AND player_key = $2)
+      ON CONFLICT (game_day, player_key) DO UPDATE SET player_name = EXCLUDED.player_name, session_code = EXCLUDED.session_code,
+        started_at = EXCLUDED.started_at, status = 'running', updated_at = EXCLUDED.updated_at
+      WHERE challenge_attempts.status = 'lost'`, [date, cleanName.toLowerCase(), cleanName, String(code || ''), new Date(now)]);
     return { ranked: rowCount === 1 };
   }
 
   /** The ranked game ended without a result (given up): the day stays used. */
   async function closeAttempt(date, name) {
-    await query("UPDATE challenge_attempts SET state = 'done' WHERE day = $1 AND name_key = $2 AND state = 'running'", [date, keyOf(name)]);
+    await query(`UPDATE challenge_attempts SET status = 'done', updated_at = now()
+      WHERE game_day = $1 AND player_key = $2 AND status = 'running'`, [date, keyOf(name)]);
   }
 
   /** A running ranked game whose session is gone (not back after a restart,
    *  or removed later) was lost by the server, not given up - its player gets
    *  a new ranked attempt. `liveCodes`: anything with has(code). */
   async function markLostAttempts(liveCodes) {
-    const { rows } = await query("SELECT day, name_key, code FROM challenge_attempts WHERE state = 'running'");
-    const gone = rows.filter((r) => !liveCodes.has(r.code));
+    const { rows } = await query("SELECT game_day, player_key, session_code FROM challenge_attempts WHERE status = 'running'");
+    const gone = rows.filter((r) => !liveCodes.has(r.session_code));
     if (!gone.length) return;
     // The code in the WHERE: an attempt begun again meanwhile keeps running.
-    await pool.query(`UPDATE challenge_attempts a SET state = 'lost'
-      FROM unnest($1::text[], $2::text[], $3::text[]) AS g(day, name_key, code)
-      WHERE a.day = g.day AND a.name_key = g.name_key AND a.code = g.code AND a.state = 'running'`,
-    [gone.map((r) => r.day), gone.map((r) => r.name_key), gone.map((r) => r.code)]);
+    await pool.query(`UPDATE challenge_attempts a SET status = 'lost', updated_at = now()
+      FROM unnest($1::date[], $2::text[], $3::text[]) AS g(game_day, player_key, session_code)
+      WHERE a.game_day = g.game_day AND a.player_key = g.player_key AND a.session_code = g.session_code AND a.status = 'running'`,
+    [gone.map((r) => r.game_day), gone.map((r) => r.player_key), gone.map((r) => r.session_code)]);
   }
 
   async function attemptOf(date, name) {
-    const { rows } = await query('SELECT code, state FROM challenge_attempts WHERE day = $1 AND name_key = $2', [date, keyOf(name)]);
+    const { rows } = await query(`SELECT session_code AS code, status FROM challenge_attempts
+      WHERE game_day = $1 AND player_key = $2`, [date, keyOf(name)]);
     return rows[0] || null;
   }
   async function hasResult(date, name) {
-    const { rows } = await query('SELECT 1 FROM challenge_results WHERE day = $1 AND name_key = $2', [date, keyOf(name)]);
+    const { rows } = await query('SELECT 1 FROM challenge_results WHERE game_day = $1 AND player_key = $2', [date, keyOf(name)]);
     return rows.length > 0;
   }
 
   /** The session code of the player's ranked game of `date` while it runs, else null. */
   async function runningAttempt(date, name) {
     const attempt = await attemptOf(date, name);
-    return attempt && attempt.state === 'running' ? attempt.code : null;
+    return attempt && attempt.status === 'running' ? attempt.code : null;
   }
 
   async function hasAttempted(date, name) {
     if (await hasResult(date, name)) return true;
     const attempt = await attemptOf(date, name);
-    return !!attempt && attempt.state !== 'lost';
+    return !!attempt && attempt.status !== 'lost';
   }
 
   /** Played to the end or given up: only then may the day's scores be seen
@@ -220,11 +232,11 @@ function createChallengeStore(pool, { legacyFile = DEFAULT_DATA_FILE } = {}) {
   async function hasFinished(date, name) {
     if (await hasResult(date, name)) return true;
     const attempt = await attemptOf(date, name);
-    return !!attempt && attempt.state === 'done';
+    return !!attempt && attempt.status === 'done';
   }
 
   async function playerCount(date) {
-    const { rows } = await query('SELECT COUNT(*)::int AS n FROM challenge_results WHERE day = $1', [date]);
+    const { rows } = await query('SELECT COUNT(*)::int AS n FROM challenge_results WHERE game_day = $1', [date]);
     return rows[0].n;
   }
 
@@ -235,7 +247,7 @@ function createChallengeStore(pool, { legacyFile = DEFAULT_DATA_FILE } = {}) {
     for (const e of list || []) {
       if (!(e.queens > 0)) continue;
       const better = !best || e.queens > best.queens ||
-        (e.queens === best.queens && (e.score < best.score || (e.score === best.score && e.at < best.at)));
+        (e.queens === best.queens && (e.score < best.score || (e.score === best.score && e.finishedAt < best.finishedAt)));
       if (better) best = e;
     }
     return best ? { name: best.name, queens: best.queens } : null;
@@ -246,8 +258,9 @@ function createChallengeStore(pool, { legacyFile = DEFAULT_DATA_FILE } = {}) {
 
   async function getBoard(date, top = 10) {
     const limit = Number.isFinite(top) ? Math.max(0, Math.floor(top)) : null;
-    const { rows } = await query(`SELECT name, score FROM challenge_results WHERE day = $1 ORDER BY ${BOARD_ORDER} LIMIT $2`, [date, limit]);
-    return rows.map((e, i) => ({ rank: i + 1, name: e.name, score: e.score }));
+    const { rows } = await query(`SELECT player_name, score FROM challenge_results WHERE game_day = $1
+      ORDER BY ${BOARD_ORDER} LIMIT $2`, [date, limit]);
+    return rows.map((e, i) => ({ rank: i + 1, name: e.player_name, score: e.score }));
   }
 
   /** One player's ranked result of the day, for sharing: rank, score, caught
@@ -361,7 +374,7 @@ function createChallengeStore(pool, { legacyFile = DEFAULT_DATA_FILE } = {}) {
   /** The finished days (still kept) on which `name` has a result, board-ordered. */
   async function pastDaysOf(key, now) {
     if (!key) return {};
-    return loadDays('day IN (SELECT day FROM challenge_results WHERE name_key = $1 AND day < $2)', [key, gameDay(now)]);
+    return loadDays('game_day IN (SELECT game_day FROM challenge_results WHERE player_key = $1 AND game_day < $2)', [key, gameDay(now)]);
   }
 
   /** Was `name` first on a challenge day that is already over (still kept)? */
