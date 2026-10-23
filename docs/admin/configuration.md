@@ -23,9 +23,10 @@ The file's contents are read once at startup and trimmed.
 
 **`PIKDAME_DATABASE_URL` is mandatory.** Without it the server logs why and
 exits. The compose files in `docker/` start a PostgreSQL container and set the
-URL. Back it up with `pg_dump` (see {doc}`backup-restore`).
+URL. Back it up with `pg_dump` (see {doc}`backup-restore`). The schema is
+updated on start by numbered migrations (see {doc}`../developer/migrations`).
 
-Accounts are **optional** (`PIKDAME_ACCOUNTS=0` disables them entirely — guests
+The account feature can be switched off (`PIKDAME_ACCOUNTS=0` disables them entirely — guests
 can still play, they just get no profile). The database stays required either
 way.
 
