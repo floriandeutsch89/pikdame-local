@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.105.0] - 2026-10-23
+
+### Added
+- Das Licht am Tisch folgt der Tageszeit (deutsche Zeit): morgens kühler,
+  tagsüber wie gewohnt, abends hängt eine warme Lampe über der Tischmitte,
+  nachts ist sie gedimmt. Das Licht wechselt unmerklich, Minute für Minute;
+  Karten, Farben und Schrift bleiben gleich und mindestens so gut lesbar wie
+  tagsüber. Wer im System „Mehr Kontrast“ eingestellt hat, spielt immer im
+  Tageslicht.
+
 ## [2.104.0] - 2026-10-23
 
 ### Changed
