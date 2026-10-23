@@ -32,8 +32,8 @@ test('AccountStore: Registrierung -> Verifikation -> Login (kompletter Flow)', a
   const l = await store.login('flo@example.com', 'geheim123'); // Login auch per E-Mail
   assert.equal(l.ok, true);
   assert.equal(l.username, 'Florian');
-  // id and e-mail: /api/me checks the admin role with them (never sent to the client).
-  assert.deepEqual(await store.sessionUser(l.token), { username: 'Florian', id: 1, email: 'flo@example.com' });
+  // id and e-mail: /api/me checks the admin role with them and shows the address (and its state) to its own account.
+  assert.deepEqual(await store.sessionUser(l.token), { username: 'Florian', id: 1, email: 'flo@example.com', emailVerified: true });
 
   await store.logout(l.token);
   assert.equal(await store.sessionUser(l.token), null);
@@ -243,7 +243,7 @@ test('AccountStore: a database from before the migration runner upgrades in plac
   await sql("INSERT INTO sessions (token, user_id, created_at) SELECT 'old-session', id, $1 FROM users", [Date.now() - 60000]);
 
   const store = createPgAccountStore(url); // the first start of the new version
-  assert.deepStrictEqual(await store.sessionUser('old-session'), { username: 'Vorher', id: 1, email: 'vorher@example.com' },
+  assert.deepStrictEqual(await store.sessionUser('old-session'), { username: 'Vorher', id: 1, email: 'vorher@example.com', emailVerified: true },
     'a sign-in from before stays valid');
   const acc = await store.accountForSession((await store.login('Vorher', 'geheim123')).token);
   assert.strictEqual(acc.reviewMail, false, 'the migration never opts an old account in');

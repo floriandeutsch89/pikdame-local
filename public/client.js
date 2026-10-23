@@ -7398,6 +7398,8 @@
   let accountUsername = null;
   // Shows the admin link only; /admin checks the role itself on every request.
   let accountIsAdmin = false;
+  // { address, verified } from /api/me: in memory only, never in storage.
+  let accountEmail = null;
   let accountsServer = false; // the server offers accounts at all
   function accountToken() {
     return storageGet(ACC_TOKEN_KEY) || '';
@@ -7443,9 +7445,11 @@
       seasonAwards = [];
       lastSeasonResult = null;
       accountIsAdmin = false;
+      accountEmail = null;
       el('ladderBox').classList.add('hidden');
     }
     el('accAdminLink').classList.toggle('hidden', !(loggedIn && accountIsAdmin));
+    renderAccountEmail();
     try { renderIdentity(); } catch (e) { /* cosmetic */ }
     renderAccountProgress();
     // The greeting belongs to the account: gone on sign-out, re-rendered on a language switch.
@@ -7453,6 +7457,27 @@
     applyOccasion();
     // Signing in can change the name the year review belongs to.
     try { requestYearReview(); } catch (e) { /* cosmetic */ }
+  }
+  /** The own address under the name; textContent only, so any value stays text. */
+  function renderAccountEmail() {
+    const line = el('accountEmail');
+    const addr = el('accEmailAddr');
+    const mail = accountUsername ? accountEmail : null;
+    line.classList.toggle('hidden', !mail);
+    if (!mail) {
+      // Signed out: gone from the page, not only hidden (shared devices).
+      addr.textContent = '';
+      addr.removeAttribute('title');
+      return;
+    }
+    addr.textContent = mail.address;
+    addr.title = mail.address; // the whole address where "…" cuts it off
+    line.classList.toggle('unconfirmed', !mail.verified);
+    line.querySelector('use').setAttribute('href', mail.verified ? '#i-check' : '#i-alert');
+    setLabelText(el('accEmailState'), mail.verified ? L('bestätigt', 'confirmed') : L('nicht bestätigt', 'not confirmed'));
+  }
+  function takeAccountEmail(me) {
+    accountEmail = typeof me.email === 'string' && me.email ? { address: me.email, verified: me.emailVerified === true } : null;
   }
   let greetingFetchedAt = 0;
   async function refreshGreeting() {
@@ -7464,6 +7489,8 @@
       applySeasonInfo(me);
       accountIsAdmin = !!me.isAdmin;
       el('accAdminLink').classList.toggle('hidden', !(accountUsername && accountIsAdmin));
+      takeAccountEmail(me);
+      renderAccountEmail();
     }
   }
   // A PWA can sleep for days; past a few hours the server is asked again (cheap endpoint).
@@ -7513,6 +7540,7 @@
       if (me.ok) {
         accountUsername = me.username;
         accountIsAdmin = !!me.isAdmin;
+        takeAccountEmail(me);
         setGreeting(me.greeting, me.username);
         applySeasonInfo(me);
       } else storageRemove(ACC_TOKEN_KEY);
@@ -7630,6 +7658,7 @@
     // request can swallow later prompts.
     try { if (window.SimpleWebAuthnBrowser) window.SimpleWebAuthnBrowser.WebAuthnAbortService.cancelCeremony(); } catch (e) { /* nothing pending */ }
     accountUsername = r.username;
+    accountEmail = null; // sign-in answers carry no address; /api/me (refreshGreeting) does
     setAccountStatus('');
     // Back to the plain login form for the next sign-out.
     showCodeStep('');
