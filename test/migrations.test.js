@@ -14,6 +14,12 @@ function migrationsDir(files) {
   return dir;
 }
 
+/** The shipped migrations up to `version`: a database as an older release left it. */
+function filesUpTo(version) {
+  return migrationsDir(Object.fromEntries(loadMigrations().filter((m) => m.version <= version)
+    .map((m) => [path.basename(m.file), fs.readFileSync(m.file, 'utf8')])));
+}
+
 async function withPool(t, url = testDatabaseUrl('mig')) {
   const pool = new Pool({ connectionString: url, max: 3 });
   t.after(() => pool.end());
@@ -96,9 +102,7 @@ test('migrations: the directory ships next to game/', () => {
 test('migration 005: rows of 003/004 keep their data in DATE/TIMESTAMPTZ columns, target split', async (t) => {
   require('../game/Database'); // the DATE parser: game days come back as strings
   const { pool, rows } = await withPool(t);
-  const upTo4 = migrationsDir(Object.fromEntries(loadMigrations().filter((m) => m.version <= 4)
-    .map((m) => [path.basename(m.file), fs.readFileSync(m.file, 'utf8')])));
-  await migrate(pool, { dir: upTo4 });
+  await migrate(pool, { dir: filesUpTo(4) });
   const at = Date.UTC(2026, 9, 22, 18, 30, 0, 123);
   await pool.query(`INSERT INTO challenge_results (day, name_key, name, score, queens, at) VALUES
     ('2026-10-22', 'ada', 'Ada', 480, 2, ${at}), ('2026-13-45', 'bad', 'Bad', 1, 0, ${at})`);
@@ -110,7 +114,7 @@ test('migration 005: rows of 003/004 keep their data in DATE/TIMESTAMPTZ columns
     (${at}, '2026-10-22', 'ben', 'Ben', 'tower', '2026-10/12', 'won', 30, NULL, 'a2', '{}'),
     (${at}, '2026-10-22', 'cy', 'Cy', 'daily', '2026-10-22', 'abandoned', NULL, NULL, NULL, '{}')`);
 
-  assert.deepStrictEqual(await migrate(pool), [5]);
+  assert.deepStrictEqual(await migrate(pool, { dir: filesUpTo(5) }), [5]);
   const types = await rows(`SELECT table_name || '.' || column_name AS col, data_type FROM information_schema.columns
     WHERE table_schema = current_schema() AND table_name IN ('challenge_results', 'challenge_attempts', 'legacy_imports', 'play_attempts')
       AND data_type IN ('date', 'timestamp with time zone', 'bigint') ORDER BY 1`);
@@ -152,5 +156,61 @@ test('migration 005: rows of 003/004 keep their data in DATE/TIMESTAMPTZ columns
     'play_attempts:play_attempts_attempt_id_key', 'play_attempts:play_attempts_ended_at_idx',
     'play_attempts:play_attempts_mode_period_stage_idx', 'play_attempts:play_attempts_pkey',
     'play_attempts:play_attempts_player_key_mode_ended_at_idx',
+  ]);
+});
+
+test('migration players: every known name gets a player, the challenge and attempt rows point at it', async (t) => {
+  require('../game/Database'); // the DATE parser
+  const { pool, rows } = await withPool(t);
+  const version = loadMigrations().find((m) => m.name === 'players').version;
+  await migrate(pool, { dir: filesUpTo(version - 1) });
+  const at = (h) => new Date(Date.UTC(2026, 9, 22, h));
+  await pool.query(`INSERT INTO challenge_results (game_day, player_key, player_name, score, queens_caught, finished_at) VALUES
+    ('2026-10-22', 'ada', 'ada', 480, 2, $1), ('2026-10-22', 'ben', 'Ben', 300, 0, $1), ('2026-10-22', '', '', 1, 0, $1)`, [at(10)]);
+  await pool.query(`INSERT INTO challenge_attempts (game_day, player_key, player_name, session_code, started_at, status) VALUES
+    ('2026-10-22', 'ben', 'Ben', 'ABC123', $1, 'done'), ('2026-10-23', 'cy', 'Cy', 'XYZ789', $2, 'running')`, [at(9), at(12)]);
+  await pool.query(`INSERT INTO play_attempts (attempt_id, player_key, player_name, mode, period, stage, outcome, game_day, started_at, ended_at)
+    VALUES ('a1', 'ada', 'Ada', 'tower', '2026-10', 1, 'won', '2026-10-22', $1, $2), ('a2', 'dee', 'Dee', 'tower', '2026-10', 2, 'lost', '2026-10-22', $1, $1)`,
+  [at(8), at(11)]);
+
+  assert.deepStrictEqual(await migrate(pool, { dir: filesUpTo(version) }), [version]);
+  const players = await rows('SELECT id, player_key, player_name, created_at, last_seen_at, games_played FROM players ORDER BY player_key');
+  assert.deepStrictEqual(players.map((p) => [p.player_key, p.player_name, p.created_at, p.last_seen_at.getTime(), p.games_played]), [
+    ['ada', 'Ada', null, at(11).getTime(), 0], ['ben', 'Ben', null, at(10).getTime(), 0],
+    ['cy', 'Cy', null, at(12).getTime(), 0], ['dee', 'Dee', null, at(8).getTime(), 0],
+  ], 'one player per key, its newest name, age unknown, no profile yet');
+  const id = Object.fromEntries(players.map((p) => [p.player_key, p.id]));
+  const linked = await rows(`SELECT 'r:' || player_key AS k, player_id FROM challenge_results
+    UNION ALL SELECT 'a:' || player_key, player_id FROM challenge_attempts
+    UNION ALL SELECT 'p:' || player_key, player_id FROM play_attempts ORDER BY 1`);
+  assert.deepStrictEqual(linked.map((r) => [r.k, r.player_id]), [
+    ['a:ben', id.ben], ['a:cy', id.cy], ['p:ada', id.ada], ['p:dee', id.dee], ['r:ada', id.ada], ['r:ben', id.ben],
+  ], 'every row points at its player; the empty name is gone');
+  await assert.rejects(pool.query(`INSERT INTO challenge_results (game_day, player_key, player_name, score, finished_at)
+    VALUES ('2026-10-23', 'eve', 'Eve', 1, now())`), /player_id/, 'NOT NULL from now on');
+  await assert.rejects(pool.query("INSERT INTO players (player_key, player_name) VALUES ('', '')"), /players_player_key_check/);
+  await assert.rejects(pool.query("INSERT INTO players (player_key, player_name, favorite_badges) VALUES ('x', 'X', '{a,b,c,d}')"),
+    /players_favorite_badges_check/);
+
+  // Deleting a player takes everything of theirs along (a guest's deletion request).
+  await pool.query("DELETE FROM players WHERE player_key = 'ada'");
+  assert.deepStrictEqual((await rows('SELECT player_key FROM challenge_results UNION ALL SELECT player_key FROM play_attempts ORDER BY 1'))
+    .map((r) => r.player_key), ['ben', 'dee']);
+
+  const named = await rows(`SELECT tablename || ':' || indexname AS i FROM pg_indexes WHERE schemaname = current_schema()
+    AND tablename LIKE 'player%' ORDER BY 1`);
+  assert.deepStrictEqual(named.map((r) => r.i), [
+    'player_badges:player_badges_pkey', 'player_card_backs:player_card_backs_pkey', 'player_puzzles:player_puzzles_pkey',
+    'player_quests:player_quests_pkey', 'player_tower_stars:player_tower_stars_pkey',
+    'players:players_games_won_total_score_idx', 'players:players_pkey', 'players:players_player_key_key',
+  ]);
+  const constraints = await rows(`SELECT conname FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace
+    WHERE n.nspname = current_schema() AND contype IN ('c', 'f') AND conname ~ '^(player|challenge|play_attempts_player)' ORDER BY 1`);
+  assert.deepStrictEqual(constraints.map((r) => r.conname), [
+    'challenge_attempts_player_id_fkey', 'challenge_attempts_status_check', 'challenge_results_player_id_fkey',
+    'play_attempts_player_id_fkey', 'player_badges_player_id_fkey', 'player_card_backs_player_id_fkey',
+    'player_puzzles_player_id_fkey', 'player_puzzles_stars_check', 'player_quests_player_id_fkey',
+    'player_tower_stars_player_id_fkey', 'player_tower_stars_stars_check', 'player_tower_stars_tower_month_check',
+    'players_favorite_badges_check', 'players_player_key_check',
   ]);
 });

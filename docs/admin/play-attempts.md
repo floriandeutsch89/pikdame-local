@@ -68,10 +68,9 @@ a game, it is logged as `[play-events] … not stored: …`.
 - Rows older than 90 days are deleted a minute after each start and then every
   six hours (log: `[play-events] … older than 90 days deleted`).
 - **Deleting an account** (tab Benutzer) deletes all attempts of that name.
-- A guest asks for deletion: the profile lives in `players.json`, the attempts
-  go with one statement (see below).
-- The privacy page states the 90 days. The guest profiles' 500-profile limit
-  does not delete attempts: it is a storage limit, not a request.
+- A guest asks for deletion: one statement deletes the player with the
+  profile, badges, challenge rows and attempts (see below).
+- The privacy page states the 90 days.
 
 ## SQL
 
@@ -103,8 +102,8 @@ SELECT facts->>'cause' AS cause, count(*),
  GROUP BY 1 ORDER BY 2 DESC;
 ```
 
-One player's attempts, newest first, and deleting them (a guest's request).
-`player_key` is the name in lower case:
+One player's attempts, newest first, and deleting them. `player_key` is the
+name in lower case:
 
 ```sql
 SELECT ended_at, period, stage, outcome, turns, ended_at - started_at AS took,
@@ -113,4 +112,12 @@ SELECT ended_at, period, stage, outcome, turns, ended_at - started_at AS took,
  ORDER BY ended_at DESC LIMIT 20;
 
 DELETE FROM play_attempts WHERE player_key = 'oma inge';
+```
+
+A guest's deletion request: the player row and everything that points at it
+(profile, badges, quests, puzzle days, Kartenhaus stars, challenge results and
+attempts, play attempts) go with one statement:
+
+```sql
+DELETE FROM players WHERE player_key = 'oma inge';
 ```

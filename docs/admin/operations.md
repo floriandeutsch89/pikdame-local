@@ -208,6 +208,44 @@ re-import the file (marker in `legacy_imports`, the file is just moved aside);
 to import it once more, `DELETE FROM legacy_imports WHERE source = 'challenges.json'`
 first.
 
+**Rolling back past the profile move** (to v2.110 or older, which kept
+`players.json`): the first start of the newer version imported the file and
+renamed it to `players.json.migrated`, and gave the challenge and play-attempt
+tables a required `player_id`. Before starting the old version:
+
+```bash
+# in the data volume
+mv players.json.migrated players.json
+```
+
+```sql
+-- the old version inserts challenge rows and play attempts without player_id
+ALTER TABLE challenge_results ALTER COLUMN player_id DROP NOT NULL;
+ALTER TABLE challenge_attempts ALTER COLUMN player_id DROP NOT NULL;
+ALTER TABLE play_attempts ALTER COLUMN player_id DROP NOT NULL;
+```
+
+Profile progress made on the newer version is not in the file. Going forward
+again keeps the database's profiles: the file is moved aside without importing
+it a second time (marker `players.json` in `legacy_imports`; never delete it,
+the import adds the file's counters to the existing ones). Link the rows the
+old version wrote and make the column required again:
+
+```sql
+INSERT INTO players (player_key, player_name, created_at)
+SELECT DISTINCT ON (player_key) player_key, player_name, NULL
+  FROM (SELECT player_key, player_name FROM challenge_results WHERE player_id IS NULL
+        UNION ALL SELECT player_key, player_name FROM challenge_attempts WHERE player_id IS NULL
+        UNION ALL SELECT player_key, player_name FROM play_attempts WHERE player_id IS NULL) n
+ ORDER BY player_key ON CONFLICT (player_key) DO NOTHING;
+UPDATE challenge_results c SET player_id = p.id FROM players p WHERE c.player_id IS NULL AND p.player_key = c.player_key;
+UPDATE challenge_attempts c SET player_id = p.id FROM players p WHERE c.player_id IS NULL AND p.player_key = c.player_key;
+UPDATE play_attempts a SET player_id = p.id FROM players p WHERE a.player_id IS NULL AND p.player_key = a.player_key;
+ALTER TABLE challenge_results ALTER COLUMN player_id SET NOT NULL;
+ALTER TABLE challenge_attempts ALTER COLUMN player_id SET NOT NULL;
+ALTER TABLE play_attempts ALTER COLUMN player_id SET NOT NULL;
+```
+
 ## Backup & restore
 
 ```sh
@@ -218,7 +256,8 @@ first.
 The backup stops the app container for a few seconds — this guarantees a
 consistent archive of the data volume (flushed JSON stores). The script
 additionally writes a `pg_dump` of the PostgreSQL database
-(`pikdame-pgdump-<stamp>.sql.gz`).
+(`pikdame-pgdump-<stamp>.sql.gz`) — accounts, profiles and the challenge live
+there, so keep both files.
 Recommendation: run nightly via cron and copy the archive off-site.
 
 ## Observability

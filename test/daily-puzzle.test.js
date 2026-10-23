@@ -8,7 +8,7 @@ const path = require('node:path');
 const { puzzleForDate, publicPuzzle, checkAnswer, searchMelds, HAND_SIZE, MIN_BEST_POINTS } = require('../game/DailyPuzzle');
 const { validateMeld } = require('../game/Rules');
 const { cardValue, makeStandardCard } = require('../game/Card');
-const { createPlayerStore } = require('../game/PlayerStore');
+const { testPlayerStore } = require('./helpers/player-store');
 
 test('puzzleForDate: deterministic, joker-free, and the optimum is a valid meld with the claimed points', () => {
   const a = puzzleForDate('2026-09-26');
@@ -51,25 +51,24 @@ test('checkAnswer: grades the optimum as solved, a weaker meld as valid, junk as
   assert.strictEqual(checkAnswer(fixed, [hand[3].id, hand[3].id, hand[4].id]).valid, false, 'duplicate ids never pass');
 });
 
-test('PlayerStore puzzle bookkeeping: tries, one solve, no XP after reveal', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikpuzzle-'));
-  const store = createPlayerStore(path.join(dir, 'players.json'));
-  assert.deepStrictEqual(store.puzzleStatus('Anna', '2026-09-26'), { tries: 0, solved: false, revealed: false });
-  let r = store.recordPuzzleAttempt('Anna', '2026-09-26', false);
+test('PlayerStore puzzle bookkeeping: tries, one solve, no XP after reveal', async (t) => {
+  const { store } = testPlayerStore(t);
+  assert.deepStrictEqual(await store.puzzleStatus('Anna', '2026-09-26'), { tries: 0, solved: false, revealed: false });
+  let r = await store.recordPuzzleAttempt('Anna', '2026-09-26', false);
   assert.deepStrictEqual(r, { tries: 1, solved: false, revealed: false, justSolved: false });
-  r = store.recordPuzzleAttempt('Anna', '2026-09-26', true);
+  r = await store.recordPuzzleAttempt('Anna', '2026-09-26', true);
   assert.strictEqual(r.justSolved, true);
-  r = store.recordPuzzleAttempt('Anna', '2026-09-26', true);
+  r = await store.recordPuzzleAttempt('Anna', '2026-09-26', true);
   assert.strictEqual(r.justSolved, false, 'a second solve on the same day earns nothing');
   assert.strictEqual(r.tries, 2, 'tries stop counting once solved');
-  const rev = store.revealPuzzle('Ben', '2026-09-26');
+  const rev = await store.revealPuzzle('Ben', '2026-09-26');
   assert.strictEqual(rev.revealed, true);
-  const after = store.recordPuzzleAttempt('Ben', '2026-09-26', true);
+  const after = await store.recordPuzzleAttempt('Ben', '2026-09-26', true);
   assert.strictEqual(after.justSolved, false, 'revealed first = no XP');
   assert.strictEqual(after.solved, true);
 });
 
-test('check button locks once solved or revealed, unlocks on the next game day (#304)', () => {
+test('check button locks once solved or revealed, unlocks on the next game day (#304)', async (t) => {
   const vm = require('node:vm');
   const { addDays } = require('../game/GameDay');
   const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'client.js'), 'utf8');
@@ -80,18 +79,16 @@ test('check button locks once solved or revealed, unlocks on the next game day (
   vm.runInNewContext(`${m[0]}\nthis.locked = puzzleLocked;`, ctx);
 
   // The lock is derived from the server status, so a reload keeps it.
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikpuzzle-'));
-  const store = createPlayerStore(path.join(dir, 'players.json'));
+  const { store } = testPlayerStore(t);
   const day = '2026-10-05';
-  assert.equal(ctx.locked(store.puzzleStatus('Ben', day), null), false);
-  store.recordPuzzleAttempt('Ben', day, true);
-  assert.equal(ctx.locked(store.puzzleStatus('Ben', day), null), true, 'solved -> locked');
-  assert.equal(ctx.locked(store.puzzleStatus('Ben', addDays(day, 1)), null), false, 'new day -> unlocked');
+  assert.equal(ctx.locked(await store.puzzleStatus('Ben', day), null), false);
+  await store.recordPuzzleAttempt('Ben', day, true);
+  assert.equal(ctx.locked(await store.puzzleStatus('Ben', day), null), true, 'solved -> locked');
+  assert.equal(ctx.locked(await store.puzzleStatus('Ben', addDays(day, 1)), null), false, 'new day -> unlocked');
 
-  store.revealPuzzle('Cleo', day);
-  assert.equal(ctx.locked(store.puzzleStatus('Cleo', day), null), true, 'revealed -> locked after reload');
+  await store.revealPuzzle('Cleo', day);
+  assert.equal(ctx.locked(await store.puzzleStatus('Cleo', day), null), true, 'revealed -> locked after reload');
   assert.equal(ctx.locked({ tries: 0, solved: false, revealed: false }, ['a']), true, 'solution on screen -> locked');
-  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 // --- Puzzle kinds rotate by weekday; the archive replays any past day ---------

@@ -19,7 +19,7 @@ Sent on a fresh connection, before the socket is bound to a table. These carry `
 | `joinSession` | Join an existing game by code. |
 | `checkSession` | Ask whether a stored session still exists (used by the "resume" button). With the seat token it also tells whether this device still holds a seat there. |
 | `abandonSession` | One game at a time: give up the seat of this device's open game before starting another (seat token required; a stale code is answered quietly, no failed-join strike). |
-| `listProfiles` | Player profiles, server statistics and today's quests for the start screen - server-wide data, hence before the table guard. |
+| `listProfiles` | Player profiles, server statistics and today's quests for the start screen - server-wide data, hence before the table guard. `name`: the asking player, whose own profile (with its quests, puzzles and card backs) is listed next to the statistics board's best 500. |
 | `getGameHistory` | The finished matches of a player name ("Meine Partien"). |
 | `setFavoriteBadges` | Pin up to three badges to the identity chip. |
 | `setCelebration` | Pick the victory celebration the whole table sees when you win (an id from `game/Celebrations.js`; signed-in owner of the name, unlocked by level). |

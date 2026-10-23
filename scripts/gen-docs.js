@@ -148,7 +148,7 @@ const MSG_GROUPS = [
 ];
 
 const MSG_NOTES = {
-  listProfiles: 'Player profiles, server statistics and today\'s quests for the start screen - server-wide data, hence before the table guard.',
+  listProfiles: 'Player profiles, server statistics and today\'s quests for the start screen - server-wide data, hence before the table guard. `name`: the asking player, whose own profile (with its quests, puzzles and card backs) is listed next to the statistics board\'s best 500.',
   ping: 'Keep-alive from the client; answered immediately. Lets a phone notice a dead connection before the server-side heartbeat does.',
   getGameHistory: 'The finished matches of a player name ("Meine Partien").',
   setFavoriteBadges: 'Pin up to three badges to the identity chip.',

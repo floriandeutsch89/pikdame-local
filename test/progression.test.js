@@ -20,6 +20,7 @@ const {
 } = require('../game/Progression');
 const { BADGE_IDS } = require('../game/Badges');
 const { createPlayerStore } = require('../game/PlayerStore');
+const { testPlayerStore } = require('./helpers/player-store');
 
 function record(overrides = {}) {
   return {
@@ -153,56 +154,56 @@ test('badgeProgress: only countable badges, always clamped to the target', () =>
 
 // --- Persistence -----------------------------------------------------------
 
-function tempStore() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-prog-'));
-  return createPlayerStore(path.join(dir, 'players.json'));
-}
-
-test('PlayerStore.addProgress: accumulates XP and daily quest counters', () => {
-  const store = tempStore();
-  store.upsertPlayerProfile('Flo');
-  const first = store.addProgress('Flo', { xp: 160, date: '2026-08-08', quests: { win_game: 1, meld_jokers_3: 2 } });
+test('PlayerStore.addProgress: accumulates XP and daily quest counters', async (t) => {
+  const { store } = testPlayerStore(t);
+  await store.upsertPlayerProfile('Flo');
+  const first = await store.addProgress('Flo', { xp: 160, date: '2026-08-08', quests: { win_game: 1, meld_jokers_3: 2 } });
   assert.equal(first.xp, 160);
   assert.equal(first.gainedXp, 160);
   assert.deepEqual(first.quests, { win_game: 1, meld_jokers_3: 2 });
+  assert.deepEqual(first.before, { win_game: 0, meld_jokers_3: 0 }, 'the counters before this game');
 
-  const second = store.addProgress('Flo', { xp: 50, date: '2026-08-08', quests: { meld_jokers_3: 1 } });
+  const second = await store.addProgress('Flo', { xp: 50, date: '2026-08-08', quests: { meld_jokers_3: 1 } });
   assert.equal(second.xp, 210, 'XP adds up across games');
   assert.equal(second.quests.meld_jokers_3, 3, 'quest counters add up within the day');
-  assert.equal(store.questProgress('Flo', '2026-08-08').meld_jokers_3, 3);
-  assert.deepEqual(store.questProgress('Flo', '2026-08-09'), {}, 'a new day starts empty');
+  assert.deepEqual(second.before, { win_game: 1, meld_jokers_3: 2 });
+  assert.equal((await store.questProgress('Flo', '2026-08-08')).meld_jokers_3, 3);
+  assert.deepEqual(await store.questProgress('Flo', '2026-08-09'), {}, 'a new day starts empty');
 });
 
-test('PlayerStore.addProgress: unknown player and junk input are harmless', () => {
-  const store = tempStore();
-  assert.deepEqual(store.addProgress('Niemand', { xp: 10 }).completed, []);
-  store.upsertPlayerProfile('Flo');
-  const r = store.addProgress('Flo', { xp: -50, date: '2026-08-08', quests: { win_game: 'viel' } });
+test('PlayerStore.addProgress: unknown player and junk input are harmless', async (t) => {
+  const { store } = testPlayerStore(t);
+  assert.deepEqual((await store.addProgress('Niemand', { xp: 10 })).completed, []);
+  await store.upsertPlayerProfile('Flo');
+  const r = await store.addProgress('Flo', { xp: -50, date: '2026-08-08', quests: { win_game: 'viel' } });
   assert.equal(r.xp, 0, 'negative XP cannot drain a profile');
   assert.equal(r.quests.win_game, 0, 'non-numeric progress counts as nothing');
+  assert.deepEqual((await store.addProgress('Flo', { xp: 5, date: '2026-13-45', quests: { win_game: 1 } })).quests, {}, 'no real day, no quest');
 });
 
-test('PlayerStore.addProgress: quest history is pruned to a week', () => {
-  const store = tempStore();
-  store.upsertPlayerProfile('Flo');
+test('PlayerStore.addProgress: quest history is pruned to a week', async (t) => {
+  const { store } = testPlayerStore(t);
+  await store.upsertPlayerProfile('Flo');
   for (let d = 1; d <= 12; d++) {
-    store.addProgress('Flo', { xp: 1, date: `2026-08-${String(d).padStart(2, '0')}`, quests: { win_game: 1 } });
+    await store.addProgress('Flo', { xp: 1, date: `2026-08-${String(d).padStart(2, '0')}`, quests: { win_game: 1 } });
   }
-  const days = Object.keys(store.getPlayerByName('Flo').quests);
+  const days = Object.keys((await store.getPlayerByName('Flo')).quests);
   assert.ok(days.length <= 7, `quest history grew unbounded: ${days.length} days`);
   assert.ok(days.includes('2026-08-12'), 'the newest day survives');
   assert.ok(!days.includes('2026-08-01'), 'the oldest day was pruned');
 });
 
-test('PlayerStore progression survives a save/load roundtrip', () => {
-  const store = tempStore();
-  store.upsertPlayerProfile('Flo');
-  store.addProgress('Flo', { xp: 300, date: '2026-08-08', quests: { win_game: 1 } });
-  store.flushSync(); // writes are debounced - force them out like a shutdown does
-  const reopened = createPlayerStore(store.filePath);
-  const p = reopened.getPlayerByName('Flo');
+test('PlayerStore progression survives a restart (a new store on a new pool)', async (t) => {
+  const { store, pool } = testPlayerStore(t);
+  await store.upsertPlayerProfile('Flo');
+  await store.addProgress('Flo', { xp: 300, date: '2026-08-08', quests: { win_game: 1 } });
+  const { Pool } = require('pg');
+  const pool2 = new Pool({ connectionString: pool.options.connectionString, max: 2 });
+  t.after(() => pool2.end());
+  const reopened = createPlayerStore(pool2, { legacyFile: null });
+  const p = await reopened.getPlayerByName('Flo');
   assert.equal(p.xp, 300);
-  assert.equal(reopened.questProgress('Flo', '2026-08-08').win_game, 1);
+  assert.equal((await reopened.questProgress('Flo', '2026-08-08')).win_game, 1);
 });
 
 // --- Daily streak --------------------------------------------------------------
@@ -226,18 +227,17 @@ test('advanceDailyStreak: consecutive days extend, one gap per week is bridged, 
   assert.equal(advanceDailyStreak(s, 'garbage').event, 'same');
 });
 
-test('PlayerStore.touchDailyStreak: persists the streak and mirrors it for the badge tiers', () => {
-  const store = tempStore();
-  store.recordGameResult([{ name: 'Anna', score: 10, won: true }]);
-  assert.equal(store.touchDailyStreak('Anna', '2026-09-01').streak, 1);
-  assert.equal(store.touchDailyStreak('Anna', '2026-09-02').streak, 2);
-  const r = store.touchDailyStreak('Anna', '2026-09-02');
+test('PlayerStore.touchDailyStreak: persists the streak and mirrors it for the badge tiers', async (t) => {
+  const { store, pool } = testPlayerStore(t);
+  await store.recordGameResult([{ name: 'Anna', score: 10, won: true }]);
+  assert.equal((await store.touchDailyStreak('Anna', '2026-09-01')).streak, 1);
+  assert.equal((await store.touchDailyStreak('Anna', '2026-09-02')).streak, 2);
+  const r = await store.touchDailyStreak('Anna', '2026-09-02');
   assert.equal(r.event, 'same');
-  assert.equal(store.getPlayerByName('Anna').dailyStreak, 2);
-  assert.equal(store.touchDailyStreak('Nobody', '2026-09-02'), null);
-  store.flushSync();
-  const fresh = createPlayerStore(store.filePath);
-  assert.equal(fresh.getPlayerByName('Anna').daily.streak, 2);
+  assert.equal((await store.getPlayerByName('Anna')).dailyStreak, 2);
+  assert.equal(await store.touchDailyStreak('Nobody', '2026-09-02'), null);
+  const fresh = createPlayerStore(pool, { legacyFile: null });
+  assert.deepEqual((await fresh.getPlayerByName('Anna')).daily, { streak: 2, last: '2026-09-02', graceAt: null, best: 2 });
 });
 
 // --- v2.50: level titles, level rewards, seasonal card backs ------------------
@@ -253,7 +253,7 @@ test('level titles: strictly ascending, start at level 1, de/en for every rank (
   for (let i = 1; i < rows.length; i++) assert.ok(rows[i][0] > rows[i - 1][0], `ascending at ${rows[i][1]}`);
 });
 
-test('seasonal card backs: the game day decides, the client mirrors the ids (#314)', () => {
+test('seasonal card backs: the game day decides, the client mirrors the ids (#314)', async (t) => {
   const fs = require('node:fs');
   const os = require('node:os');
   const path = require('node:path');
@@ -278,12 +278,12 @@ test('seasonal card backs: the game day decides, the client mirrors the ids (#31
   for (const b of SEASONAL_BACKS) {
     assert.match(src, new RegExp(`id: '${b.id}'[^\\n]*field: 'seasonal'`), `client mirrors ${b.id}`);
   }
-  const { createPlayerStore } = require('../game/PlayerStore');
-  const store = createPlayerStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikseason-')), 'players.json'));
-  store.recordGameResult([{ name: 'Ida', score: 10, won: false }]);
-  assert.equal(store.unlockSeasonalBack('Ida', 'pumpkin', '2026-10-05'), true);
-  assert.equal(store.unlockSeasonalBack('ida', 'pumpkin', '2026-10-20'), false, 'kept, first date wins');
-  assert.equal(store.getPlayerByName('Ida').seasonalBacks.pumpkin, '2026-10-05');
+  const { store } = testPlayerStore(t);
+  await store.recordGameResult([{ name: 'Ida', score: 10, won: false }]);
+  assert.equal(await store.unlockSeasonalBack('Ida', 'pumpkin', '2026-10-05'), true);
+  assert.equal(await store.unlockSeasonalBack('ida', 'pumpkin', '2026-10-20'), false, 'kept, first date wins');
+  assert.equal(await store.unlockSeasonalBack('Nobody', 'pumpkin', '2026-10-20'), false, 'no profile, nothing unlocked');
+  assert.equal((await store.getPlayerByName('Ida')).seasonalBacks.pumpkin, '2026-10-05');
 });
 
 test('level rewards: new emotes are level-gated on the server too (#313)', () => {
@@ -319,17 +319,17 @@ test('level-up dialog: the client markup exists and sits above the result overla
   assert.doesNotMatch(html.match(/<section id="levelUpOverlay"[^>]*>/)[0], /overlayTop/, 'pause and forfeit stay above it');
 });
 
-test('welcome back (#316): first game after 7+ days away flags double XP, nothing else does', () => {
-  const store = tempStore();
-  store.recordGameResult([{ name: 'Anna', score: 10, won: true }]);
+test('welcome back (#316): first game after 7+ days away flags double XP, nothing else does', async (t) => {
+  const { store } = testPlayerStore(t);
+  await store.recordGameResult([{ name: 'Anna', score: 10, won: true }]);
   // New profile: no last day yet, not "back".
-  assert.equal(store.touchDailyStreak('Anna', '2026-09-01').welcomeBack, false);
+  assert.equal((await store.touchDailyStreak('Anna', '2026-09-01')).welcomeBack, false);
   // 6 days away: normal.
-  assert.equal(store.touchDailyStreak('Anna', '2026-09-07').welcomeBack, false);
+  assert.equal((await store.touchDailyStreak('Anna', '2026-09-07')).welcomeBack, false);
   // 7 days away: double, but only the first game that day.
-  assert.equal(store.touchDailyStreak('Anna', '2026-09-14').welcomeBack, true);
-  assert.equal(store.touchDailyStreak('Anna', '2026-09-14').welcomeBack, false);
-  assert.equal(store.touchDailyStreak('Anna', '2026-10-26').welcomeBack, true);
+  assert.equal((await store.touchDailyStreak('Anna', '2026-09-14')).welcomeBack, true);
+  assert.equal((await store.touchDailyStreak('Anna', '2026-09-14')).welcomeBack, false);
+  assert.equal((await store.touchDailyStreak('Anna', '2026-10-26')).welcomeBack, true);
 });
 
 test('welcome back: server doubles the game XP (progress and ladder) from the streak flag', () => {
@@ -340,32 +340,33 @@ test('welcome back: server doubles the game XP (progress and ladder) from the st
   assert.match(src, /type: 'progress',\s+gainedXp,\s+welcomeBack,/);
 });
 
-test('favourite badges (#317): only earned keys, max 3, order kept, families allowed', () => {
-  const store = tempStore();
-  store.recordGameResult([{ name: 'Anna', score: 10, won: true }]);
-  store.awardBadges('Anna', ['first_win', 'night_owl', 'pd_laid', 'pd_hunter_10', 'score_500']);
-  assert.ok(store.setFavoriteBadges('Anna', ['first_win', 'night_owl', 'nope']).error, 'unknown id');
-  assert.ok(store.setFavoriteBadges('Anna', ['wins_50']).error, 'not earned');
-  assert.ok(store.setFavoriteBadges('Anna', ['hearts']).error, 'family without an earned tier');
-  assert.ok(store.setFavoriteBadges('Anna', ['first_win', 'night_owl', 'queens', 'score_500']).error, '4th');
-  assert.ok(store.setFavoriteBadges('Anna', 'first_win').error, 'not an array');
-  assert.ok(store.setFavoriteBadges('Nobody', []).error);
-  assert.deepEqual(store.setFavoriteBadges('Anna', ['queens', 'night_owl', 'queens']).favorites, ['queens', 'night_owl']);
-  assert.deepEqual(store.getPlayerByName('Anna').favoriteBadges, ['queens', 'night_owl']);
-  assert.deepEqual(store.setFavoriteBadges('Anna', []).favorites, []);
+test('favourite badges (#317): only earned keys, max 3, order kept, families allowed', async (t) => {
+  const { store } = testPlayerStore(t);
+  await store.recordGameResult([{ name: 'Anna', score: 10, won: true }]);
+  await store.awardBadges('Anna', ['first_win', 'night_owl', 'pd_laid', 'pd_hunter_10', 'score_500']);
+  assert.ok((await store.setFavoriteBadges('Anna', ['first_win', 'night_owl', 'nope'])).error, 'unknown id');
+  assert.ok((await store.setFavoriteBadges('Anna', ['wins_50'])).error, 'not earned');
+  assert.ok((await store.setFavoriteBadges('Anna', ['hearts'])).error, 'family without an earned tier');
+  assert.ok((await store.setFavoriteBadges('Anna', ['first_win', 'night_owl', 'queens', 'score_500'])).error, '4th');
+  assert.ok((await store.setFavoriteBadges('Anna', 'first_win')).error, 'not an array');
+  assert.ok((await store.setFavoriteBadges('Nobody', [])).error);
+  assert.deepEqual((await store.setFavoriteBadges('Anna', ['queens', 'night_owl', 'queens'])).favorites, ['queens', 'night_owl']);
+  assert.deepEqual((await store.getPlayerByName('Anna')).favoriteBadges, ['queens', 'night_owl']);
+  assert.deepEqual((await store.setFavoriteBadges('Anna', [])).favorites, []);
 });
 
-test('favourite badges: a stored key that no longer counts never blocks a change', () => {
-  const store = tempStore();
-  store.recordGameResult([{ name: 'Anna', score: 10, won: true }]);
-  store.awardBadges('Anna', ['first_win', 'night_owl']);
+test('favourite badges: a stored key that no longer counts never blocks a change', async (t) => {
+  const { store, pool } = testPlayerStore(t);
+  await store.recordGameResult([{ name: 'Anna', score: 10, won: true }]);
+  await store.awardBadges('Anna', ['first_win', 'night_owl']);
   // Written by an older release, unknown today (e.g. a renamed badge).
-  store.getPlayerByName('Anna').favoriteBadges = ['old_badge', 'night_owl'];
+  const storeFavorites = (keys) => pool.query("UPDATE players SET favorite_badges = $1 WHERE player_key = 'anna'", [keys]);
+  await storeFavorites(['old_badge', 'night_owl']);
   // The client sends the rest after removing night_owl: allowed, the stale key goes too.
-  assert.deepEqual(store.setFavoriteBadges('Anna', ['old_badge']).favorites, []);
-  assert.ok(store.setFavoriteBadges('Anna', ['old_badge']).error, 'gone keys do not come back');
-  store.getPlayerByName('Anna').favoriteBadges = ['old_badge'];
-  assert.deepEqual(store.setFavoriteBadges('Anna', ['old_badge', 'first_win']).favorites, ['first_win'], 'adding works next to it');
+  assert.deepEqual((await store.setFavoriteBadges('Anna', ['old_badge'])).favorites, []);
+  assert.ok((await store.setFavoriteBadges('Anna', ['old_badge'])).error, 'gone keys do not come back');
+  await storeFavorites(['old_badge']);
+  assert.deepEqual((await store.setFavoriteBadges('Anna', ['old_badge', 'first_win'])).favorites, ['first_win'], 'adding works next to it');
 });
 
 test('favourite badges: the server accepts them only from the signed-in owner of the name', () => {

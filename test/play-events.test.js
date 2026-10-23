@@ -220,10 +220,11 @@ test('migration 005: play_attempts with its checks, one row per attempt id', asy
   const cols = (await pool.query(`SELECT column_name FROM information_schema.columns
     WHERE table_name = 'play_attempts' AND table_schema = current_schema() ORDER BY ordinal_position`)).rows.map((r) => r.column_name);
   assert.deepStrictEqual(cols, ['id', 'attempt_id', 'player_key', 'player_name', 'mode', 'period', 'stage', 'outcome',
-    'game_day', 'started_at', 'ended_at', 'turns', 'facts']);
+    'game_day', 'started_at', 'ended_at', 'turns', 'facts', 'player_id']);
+  const ada = (await pool.query("INSERT INTO players (player_key, player_name) VALUES ('ada', 'Ada') RETURNING id")).rows[0].id;
   const insert = (outcome, attemptId) => pool.query(`INSERT INTO play_attempts
-    (attempt_id, player_key, player_name, mode, period, stage, outcome, game_day, started_at, ended_at)
-    VALUES ($2, 'ada', 'Ada', 'tower', '2026-10', 1, $1, '2026-10-23', now(), now())`, [outcome, attemptId]);
+    (attempt_id, player_key, player_name, mode, period, stage, outcome, game_day, started_at, ended_at, player_id)
+    VALUES ($2, 'ada', 'Ada', 'tower', '2026-10', 1, $1, '2026-10-23', now(), now(), $3)`, [outcome, attemptId, ada]);
   await insert('won', 'x');
   await assert.rejects(insert('maybe', 'y'), /play_attempts_outcome_check/);
   await assert.rejects(insert('lost', 'x'), /play_attempts_attempt_id_key/);

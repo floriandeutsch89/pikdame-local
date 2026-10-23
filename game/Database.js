@@ -34,4 +34,20 @@ function createPool(connectionString) {
   return pool;
 }
 
-module.exports = { connectionStringFromEnv, createPool };
+/** fn(client) inside BEGIN/COMMIT on one pooled client; any error rolls back and rethrows. */
+async function inTransaction(pool, fn) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = { connectionStringFromEnv, createPool, inTransaction };

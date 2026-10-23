@@ -53,7 +53,7 @@ Four tabs:
 
 - **Löschen** removes the account, its login sessions and its play attempts
   ({doc}`play-attempts`); the name is free again. The guest profile under that
-  name (statistics, badges in `players.json`) stays - the player keeps it when
+  name (statistics and badges in `players`, favourite badges cleared) stays - the player keeps it when
   playing as a guest or registering the name again.
 - **Mail neu senden** replaces the confirmation code and link (the old ones
   stop working). Without a working SMTP setup the new mail is written to the

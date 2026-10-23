@@ -1362,7 +1362,8 @@
       // Profile + Tagesaufgaben sofort holen: der Startbildschirm zeigt den
       // heutigen Aufgaben-Fortschritt, und der steht im eigenen Profil - ohne
       // diese Anfrage stünde dort bis zum Beitritt immer 0/3.
-      ws.send(JSON.stringify({ type: 'listProfiles' }));
+      // The name: the server lists the board's best, plus this profile.
+      ws.send(JSON.stringify({ type: 'listProfiles', name: myName || undefined }));
       // A new connection asks for the year review again (the profiles reply triggers it).
       yearReviewName = '';
       // Stammtisch chips on the start screen: series state per remembered code.
@@ -4306,6 +4307,8 @@
     }
     renderIdentity();
     if (changed) { try { requestYearReview(); } catch (e) { /* cosmetic */ } }
+    // The new name's profile may not be on the board the server sent (a reconnect asks anyway).
+    if (changed && !publicMode && ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'listProfiles', name: myName }));
     // Kartenhaus progress is per name: clear the old name's tile until the new data arrives.
     if (changed && !publicMode) { try { requestTower(); renderTowerTile(); } catch (e) { /* cosmetic */ } }
   }
@@ -10521,7 +10524,7 @@
 
   // --- Statistik ---------------------------------------------------------------
   el('statsBtn').addEventListener('click', () => {
-    send({ type: 'listProfiles' }); // frische Daten anfordern
+    send({ type: 'listProfiles', name: myName || undefined }); // frische Daten anfordern
     // The "you" sparkline needs the history too; refresh it on every open.
     send({ type: 'getGameHistory', name: currentName() });
     renderStats();
