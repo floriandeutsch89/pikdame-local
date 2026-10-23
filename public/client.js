@@ -9172,6 +9172,8 @@
   // --- Kartenhaus at the table: floor card, start card, rules sheet, hints ----
   const TOWER_INTRO_KEY = 'pikdame_tower_intro'; // the session whose start card was handled
   const TOWER_FOLD_KEY = 'pikdame_tower_fold'; // 'full' | 'compact': the player's own tap beats the automatic fold
+  // '1': the floor card is off the table on every floor (its ✕) until its sheet shows it again; the fold key stays as it was.
+  const TOWER_HIDE_KEY = 'pikdame_tower_hidden';
   let towerStartOpen = false;
   let towerIntroHandled = ''; // also without storage (private mode)
   let towerInfoAskedFor = '';
@@ -9179,6 +9181,8 @@
   let towerSpotTimer = null;
   let towerFoldChoice = ''; // also without storage (private mode)
   let towerFoldTimer = null;
+  let towerHideChoice = null; // null: storage decides (true/false also without storage)
+  let towerBarLeaving = false; // the ✕'s fade runs: the table keeps the floor card's layout until it ends
   const towerModShort = (m) => (TOWER_MOD_SHORT[m] || TOWER_MODS[m])();
   const towerModToken = (m) => `<span class="tfTok ${towerModKind(m)}" aria-hidden="true"><svg class="icon"><use href="#i-${TOWER_MOD_ICON[m]}"/></svg></span>`;
   // Risks first, then handicaps; each group with its heading (start card, sheet, label).
@@ -9231,8 +9235,12 @@
         `<span class="tfCol"><span class="tfCap">${escapeHtml(towerName())}</span><span class="tfGoal">${goal}</span>` +
         `${mods ? `<span class="tfMods">${mods}</span>` : ''}</span>`;
       // Two targets: the card (its rules) lies on the slot of the fold button. Without tokens nothing folds.
+      // The ✕ sits in the corner both leave free (style.css).
       bar.innerHTML = `<button type="button" class="tbCard" aria-haspopup="dialog">${towerFloorCardHtml(f)}</button>` +
-        (mods ? `<button type="button" class="tbFold">${body}</button>` : `<span class="tbFold">${body}</span>`);
+        (mods ? `<button type="button" class="tbFold">${body}</button>` : `<span class="tbFold">${body}</span>`) +
+        `<button type="button" class="tbHide" aria-label="${escapeHtml(L('Kartenhaus-Etage ausblenden', 'Hide the House of Cards floor'))}"` +
+        ` title="${escapeHtml(L('Ausblenden – zurück über das Zahnrad', 'Hide – bring it back via the gear'))}">` +
+        '<svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>';
     }
     bar.querySelector('.tbCard').setAttribute('aria-label', towerFloorAria(f));
     applyTowerFold(bar);
@@ -9258,10 +9266,10 @@
     foldTowerBar(bar, compact, !!bar.dataset.fold && towerMotionOk());
     bar.dataset.fold = now;
   }
-  /** Card and tokens glide to their new places (FLIP), the words fade back in; reduced motion: at once. */
+  /** Card, tokens and ✕ glide to their new places (FLIP), the words fade back in; reduced motion: at once. */
   function foldTowerBar(bar, compact, glide) {
     const fold = bar.querySelector('button.tbFold');
-    const parts = glide ? [...bar.querySelectorAll('.tfCard, .tfTok')] : [];
+    const parts = glide ? [...bar.querySelectorAll('.tfCard, .tfTok, .tbHide')] : [];
     const from = parts.map((n) => n.getBoundingClientRect());
     bar.classList.toggle('tbCompact', compact);
     if (fold) {
@@ -9291,6 +9299,69 @@
     towerFoldChoice = bar.classList.contains('tbCompact') ? 'full' : 'compact';
     storageSet(TOWER_FOLD_KEY, towerFoldChoice);
     applyTowerFold(bar);
+  }
+  function towerBarHidden() {
+    return towerHideChoice === null ? storageGet(TOWER_HIDE_KEY) === '1' : towerHideChoice;
+  }
+  function setTowerBarHidden(hidden) {
+    towerHideChoice = hidden;
+    if (hidden) storageSet(TOWER_HIDE_KEY, '1'); else storageRemove(TOWER_HIDE_KEY);
+  }
+  /** FLIP: the piles and the opponents' chips glide from where they were to where `change` puts them. */
+  function glideTowerTable(change) {
+    const parts = towerMotionOk() ? [el('drawPile'), el('discardPile'), ...el('opponents').children] : [];
+    const from = parts.map((n) => n.getBoundingClientRect());
+    change();
+    parts.forEach((n, i) => {
+      const to = n.getBoundingClientRect();
+      const dx = from[i].left - to.left;
+      const dy = from[i].top - to.top;
+      if ((dx || dy) && typeof n.animate === 'function') {
+        n.animate([{ translate: `${dx}px ${dy}px` }, { translate: '0 0' }], { duration: 130, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+      }
+    });
+  }
+  /** ✕: off the table on every floor, the normal table's layout back. The lock and its refusals stay;
+   *  the way back is the floor's sheet from the gear (a toast and the turning gear say so). */
+  function hideTowerBar() {
+    const bar = el('towerBar');
+    if (towerBarHidden() || bar.classList.contains('hidden')) return;
+    setTowerBarHidden(true);
+    if (bar.contains(document.activeElement)) el('settingsBtn').focus({ preventScroll: true }); // keyboard: on to the way back
+    showToast(L('Etage ausgeblendet – zurück über das Zahnrad oben rechts.',
+      'Floor hidden – bring it back via the gear at the top right.'), { duration: 4500, priority: true });
+    if (!towerMotionOk() || typeof bar.animate !== 'function') { renderTowerTable(); return; }
+    const gear = el('settingsBtn');
+    gear.classList.remove('towerNudge');
+    void gear.offsetWidth; // restart the turn
+    gear.classList.add('towerNudge');
+    setTimeout(() => gear.classList.remove('towerNudge'), 800);
+    // 120 ms fade, then 130 ms for the piles: the whole move stays within 250 ms.
+    towerBarLeaving = true;
+    const fade = bar.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(0.92)' }],
+      { duration: 120, easing: 'ease-in', fill: 'forwards' });
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      towerBarLeaving = false;
+      glideTowerTable(renderTowerTable);
+      fade.cancel(); // after the render hid it: no flash at full opacity
+    };
+    fade.onfinish = finish;
+    setTimeout(finish, 400); // a background tab may never finish the fade
+  }
+  /** The floor sheet's "Am Tisch anzeigen": back beside the piles, dealt in as after the start card. */
+  function showTowerBarAgain() {
+    el('towerFloorOverlay').classList.add('hidden');
+    if (!towerBarHidden()) return;
+    setTowerBarHidden(false);
+    glideTowerTable(renderTowerTable);
+    const bar = el('towerBar');
+    if (towerMotionOk()) {
+      bar.classList.add('tfEnter');
+      setTimeout(() => bar.classList.remove('tfEnter'), 700);
+    }
   }
   /** The very start of a try: the round runs, nobody moved yet, my draw. */
   function towerAtStart(st) {
@@ -9364,6 +9435,8 @@
     const overlay = el('towerFloorOverlay');
     if (!f) { overlay.classList.add('hidden'); return; }
     if (overlay.classList.contains('hidden')) return;
+    // Hidden by its ✕, the card comes back from here (the gear's row opens this sheet).
+    el('towerFloorShowBtn').classList.toggle('hidden', !towerBarHidden());
     el('towerFloorTitleText').textContent = L(`Kartenhaus · Etage ${f.stage}`, `House of Cards · floor ${f.stage}`);
     const h3 = (de, en) => `<h3>${escapeHtml(L(de, en))}</h3>`;
     const p = (text, cls = '') => `<p${cls ? ` class="${cls}"` : ''}>${escapeHtml(text)}</p>`;
@@ -9401,23 +9474,35 @@
   /** Everything Kartenhaus on the table; part of every table render (and the language switch). */
   function renderTowerTable() {
     const f = towerFloor();
-    el('table').classList.toggle('towerGame', !!f);
+    // Hidden by its ✕: the normal table's layout (towerGame is layout only); the lock below stays.
+    const shown = !!f && (towerBarLeaving || !towerBarHidden());
+    el('table').classList.toggle('towerGame', shown);
     // The best stars come with the house data: ask once per game when it is missing.
     if (f && !towerFresh() && !publicMode && towerInfoAskedFor !== `${sessionCode}|${myName}`) {
       towerInfoAskedFor = `${sessionCode}|${myName}`;
       requestTower();
     }
     updateTowerStart(f);
-    renderTowerBar(f);
+    renderTowerBar(shown ? f : null);
     renderTowerStart(f);
     renderTowerFloorSheet(f);
+    el('towerPanelBtn').classList.toggle('hidden', !f || shown);
     const locked = !!(f && f.mods.includes('noDiscard') && lastState.phase === 'playing');
     el('discardPile').classList.toggle('towerLocked', locked);
   }
   el('towerBar').addEventListener('click', (ev) => {
-    if (ev.target.closest('.tbCard')) openTowerFloorSheet();
+    if (ev.target.closest('.tbHide')) hideTowerBar();
+    else if (ev.target.closest('.tbCard')) openTowerFloorSheet();
     else if (ev.target.closest('button.tbFold')) toggleTowerFold();
   });
+  // The gear's way back: the floor's rules (Vorgabe, risk, handicaps, stars) with "Am Tisch anzeigen".
+  // Closes whichever sheet holds the row, so it can move between sheets as it is.
+  el('towerPanelBtn').addEventListener('click', () => {
+    const sheet = el('towerPanelBtn').closest('.overlay');
+    if (sheet) sheet.classList.add('hidden');
+    openTowerFloorSheet();
+  });
+  el('towerFloorShowBtn').addEventListener('click', showTowerBarAgain);
   el('towerStartBtn').addEventListener('click', () => closeTowerStart());
   el('towerFloorCloseBtn').addEventListener('click', () => el('towerFloorOverlay').classList.add('hidden'));
   el('towerFloorOverlay').addEventListener('click', (ev) => {
