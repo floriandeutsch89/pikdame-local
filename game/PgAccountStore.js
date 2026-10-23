@@ -234,7 +234,7 @@ function createPgAccountStore(db) {
     try {
       await ensureReady();
       const r = await pool.query(
-        'SELECT u.id, u.username, u.email, s.created_at FROM login_sessions s JOIN users u ON u.id = s.user_id WHERE s.session_token = $1',
+        'SELECT u.id, u.username, u.email, u.email_verified, s.created_at FROM login_sessions s JOIN users u ON u.id = s.user_id WHERE s.session_token = $1',
         [String(token)]
       );
       const row = r.rows[0];
@@ -243,7 +243,7 @@ function createPgAccountStore(db) {
         await pool.query('DELETE FROM login_sessions WHERE session_token = $1', [String(token)]);
         return null;
       }
-      return { username: row.username, id: Number(row.id), email: row.email };
+      return { username: row.username, id: Number(row.id), email: row.email, emailVerified: !!row.email_verified };
     } catch (e) {
       console.error('Postgres sessionUser failed:', e.message);
       return null; // fail closed: treat as "not signed in"

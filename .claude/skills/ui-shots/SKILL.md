@@ -44,7 +44,10 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   catches the fireworks band behind the header. `--admin` on top makes the
   mock account an admin; the scene `account-admin` shows its link at the end
   of the account sheet. (The step-up page and `/admin` itself are no mock
-  scenes: they need a real admin session.)
+  scenes: they need a real admin session.) `account-top` shoots the sheet as
+  it opens (name, address, its status), `account-setup` the same right after
+  confirming (no sign-in method yet); `--email <address>` sets the mock
+  address (a long one tests the "…"), `--unconfirmed` marks it not confirmed.
 - **English:** `--lang en` shoots the English client; check it whenever a
   new label could outgrow its box.
 - **Before/after from one script:** `SHOTS_ROOT=<checkout>` shoots another
