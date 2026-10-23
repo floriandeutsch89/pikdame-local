@@ -2113,6 +2113,7 @@
     const inLobby = lastState.phase === 'lobby';
     el('lobby').classList.toggle('hidden', !inLobby);
     el('table').classList.toggle('hidden', inLobby);
+    syncSeasonSnow();
     renderPause();
     try { renderTableOptions(); } catch (e) { /* "Optionen" must never break the table */ }
 
@@ -10794,22 +10795,39 @@
     if (typeof ResizeObserver === 'function') new ResizeObserver(edges).observe(grid);
     requestAnimationFrame(edges);
   }
-  // --- Saisonale Akzente (klein & abschaltfrei): Dezember-Schnee,
-  // Oktober-Kürbis-Emote, Silvester-Feuerwerk-Emoji im Emote-Set. -------------
+  // --- Season accents: December snow, October and New Year emotes -------------
+  // Snow on the start screen only (battery: at the table it fell over the cards
+  // all game); elsewhere the flakes are removed, so no animation keeps running.
+  function syncSeasonSnow() {
+    try {
+      const lobby = el('lobby');
+      const want = new Date().getMonth() === 11 && !!lobby && !lobby.classList.contains('hidden')
+        && !document.hidden && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const flakes = document.querySelectorAll('.seasonFlake');
+      if (!want) flakes.forEach((f) => f.remove());
+      else if (!flakes.length) {
+        for (let i = 0; i < 12; i++) {
+          const f = document.createElement('div');
+          f.className = 'seasonFlake';
+          f.textContent = '❄';
+          f.style.left = `${Math.random() * 100}vw`;
+          f.style.animationDuration = `${9 + Math.random() * 9}s`;
+          f.style.animationDelay = `${Math.random() * 9}s`;
+          f.style.fontSize = `${9 + Math.random() * 8}px`;
+          document.body.appendChild(f);
+        }
+      }
+    } catch (e) { /* seasonal decor never breaks the app */ }
+  }
+  syncSeasonSnow();
+  document.addEventListener('visibilitychange', syncSeasonSnow);
+  try {
+    const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (motion.addEventListener) motion.addEventListener('change', syncSeasonSnow);
+    else if (motion.addListener) motion.addListener(syncSeasonSnow); // Safari < 14
+  } catch (e) { /* old browser: the CSS still hides the flakes */ }
   try {
     const month = new Date().getMonth() + 1;
-    if (month === 12) {
-      for (let i = 0; i < 12; i++) {
-        const f = document.createElement('div');
-        f.className = 'seasonFlake';
-        f.textContent = '❄';
-        f.style.left = `${Math.random() * 100}vw`;
-        f.style.animationDuration = `${9 + Math.random() * 9}s`;
-        f.style.animationDelay = `${Math.random() * 9}s`;
-        f.style.fontSize = `${9 + Math.random() * 8}px`;
-        document.body.appendChild(f);
-      }
-    }
     const seasonalEmote = month === 10 ? '🎃' : (month === 12 || month === 1) ? '🎆' : null;
     if (seasonalEmote) {
       const bar = document.querySelector('.emoteBar');
@@ -10826,7 +10844,7 @@
         bar.appendChild(b);
       }
     }
-  } catch (e) { /* Saison-Deko bricht nie den Start */ }
+  } catch (e) { /* seasonal decor never breaks the start */ }
 
   try {
     const cbBtn = el('cardbackBtn');
