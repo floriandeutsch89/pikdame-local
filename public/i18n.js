@@ -280,6 +280,11 @@ window.I18N_STATIC = {
   'Die Etage wartet kurz auf dich – danach endet sie ohne Sterne.': 'The floor waits for you briefly - after that it ends without stars.',
   // Kartenhaus at the table: the start card's button
   'Los': 'Go',
+  // ... the gear sheet's way back to a hidden floor card, and its sheet's button
+  'Kartenhaus-Etage': 'House of Cards floor',
+  'Anzeigen': 'Show',
+  'Kartenhaus-Etage anzeigen': 'Show the House of Cards floor',
+  'Am Tisch anzeigen': 'Show at the table',
   // Year review (December) + its mail
   'Dein Jahr': 'Your year',
   'Dein Pik-Dame-Jahr': 'Your Pik Dame year',

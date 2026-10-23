@@ -38,7 +38,9 @@
 // noDiscard|all (the floor with exactly that handicap, looked up in BotTower.js) or a number;
 // --take stock|pile: tower-play in my meld phase (action bar; after a pile take the undo chip).
 // --fold full|compact: the floor card as the player chose it (stored); without it the automatic
-// fold (in full for the first own turn, folded from the second). --tap <selector>: tapped before the shot;
+// fold (in full for the first own turn, folded from the second); hidden: taken off the table by its ✕.
+// --plain: the same deal and turns as a normal table (no Kartenhaus fields), to --measure against.
+// --tap <selector>: tapped before the shot ('a;b' taps in order); --tag names the variant in the file name;
 // --tap-freeze <ms> holds every animation at that moment (a frame of a fold mid-glide).
 // --measure writes <out>/measure.json: the table regions (melds, hand, piles ...) per shot.
 // gameover-win (I win the match, a new badge), stats-empty (a brand-new name: statistics
@@ -318,7 +320,7 @@ function measurePage() {
     return r.width || r.height ? { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) } : null;
   };
   const out = {};
-  for (const sel of ['#topBar', '#opponents', '#melds', '#centerPiles', '#drawPile', '#discardPile', '#towerBar', '#towerBar .tbCard', '#towerBar .tbFold', '#towerStart', '#actionBar', '#handWrapper', '#hand']) out[sel] = box(sel);
+  for (const sel of ['#topBar', '#opponents', '#melds', '#centerPiles', '#drawPile', '#discardPile', '#towerBar', '#towerBar .tbCard', '#towerBar .tbFold', '#towerBar .tbHide', '#towerStart', '#actionBar', '#handWrapper', '#hand']) out[sel] = box(sel);
   // The Kartenhaus sheet: the house, its play button, what scrolls and the smallest floor hit area.
   const sheet = document.querySelector('#towerOverlay:not(.hidden) .overlay-card');
   if (sheet) {
@@ -818,14 +820,18 @@ function waitForHttp(port, ms = 20000) {
           // shown once per scene (the client remembers it per game code).
           const want = arg('floor', 'goOut');
           const stage = towerStageFor(want);
-          const st = towerState(stage, sc === 'tower-start' ? 0 : Number(arg('turns', 3)), sc === 'tower-play' ? arg('take', '') : '');
+          const live = towerState(stage, sc === 'tower-start' ? 0 : Number(arg('turns', 3)), sc === 'tower-play' ? arg('take', '') : '');
+          // --plain: the same deal and turns without the Kartenhaus fields - a normal table to --measure against.
+          const st = process.argv.includes('--plain') ? Object.fromEntries(Object.entries(live).filter(([k]) => !k.startsWith('tower'))) : live;
           towerSceneBest = { [stage]: 1 };
-          await page.evaluate((fold) => {
+          // --fold full|compact: the player's fold; hidden: the card taken off the table by its ✕.
+          await page.evaluate(([fold]) => {
             try {
               localStorage.removeItem('pikdame_tower_intro'); localStorage.removeItem('pikdame_last_session');
-              if (fold) localStorage.setItem('pikdame_tower_fold', fold); else localStorage.removeItem('pikdame_tower_fold');
+              if (['full', 'compact'].includes(fold)) localStorage.setItem('pikdame_tower_fold', fold); else localStorage.removeItem('pikdame_tower_fold');
+              if (fold === 'hidden') localStorage.setItem('pikdame_tower_hidden', '1'); else localStorage.removeItem('pikdame_tower_hidden');
             } catch (e) { /* blocked */ }
-          }, ['full', 'compact'].includes(arg('fold', '')) ? arg('fold', '') : '');
+          }, [arg('fold', '')]);
           await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
           await page.waitForTimeout(1200);
           inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
@@ -834,8 +840,13 @@ function waitForHttp(port, ms = 20000) {
           // Not the start scene: "Los" was tapped long ago (as in a real game).
           if (sc !== 'tower-start' && await page.isVisible('#towerStartBtn')) { await page.click('#towerStartBtn'); await page.waitForTimeout(800); }
           if (sc === 'tower-sheet') { await page.click('#towerBar .tbCard'); await page.waitForTimeout(500); }
-          if (arg('tap', '')) {
-            await page.click(arg('tap', ''));
+          // --tap 'a;b': taps in order (e.g. '#settingsBtn;#towerPanelBtn': the gear's way back to a hidden card).
+          const taps = arg('tap', '').split(';').filter(Boolean);
+          for (const [i, sel] of taps.entries()) {
+            await page.click(sel);
+            if (i < taps.length - 1) await page.waitForTimeout(400);
+          }
+          if (taps.length) {
             if (arg('tap-freeze', '')) await page.evaluate((ms) => document.getAnimations().forEach((a) => { a.pause(); a.currentTime = ms; }), Number(arg('tap-freeze', 0)));
             else await page.waitForTimeout(700);
           }
@@ -843,7 +854,7 @@ function waitForHttp(port, ms = 20000) {
           if (arg('css', '')) await page.addStyleTag({ content: fs.readFileSync(arg('css', ''), 'utf8') });
           // --eval <file>: an expression evaluated in the page, printed (layout debugging).
           if (arg('eval', '')) console.log(`${vn}-${sc}:`, JSON.stringify(await page.evaluate(fs.readFileSync(arg('eval', ''), 'utf8'))));
-          await shot(`${sc}-${want}`);
+          await shot(`${sc}-${want}${arg('tag', '') ? `-${arg('tag', '')}` : ''}`); // --tag: one name per variant
           towerSceneBest = null;
         }
         if (sc === 'gameover-tower') {
