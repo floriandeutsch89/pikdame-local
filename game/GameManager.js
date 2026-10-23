@@ -16,6 +16,7 @@ const { dayEnd } = require('./GameDay');
 const { isQuipMoment } = require('./BotQuips');
 const { isCelebration } = require('./Celebrations');
 const BotTower = require('./BotTower');
+const { TUTORIAL_VERSION, isTutorialStep } = require('./TutorialSteps');
 // Every try of a Kartenhaus floor plays the same deal under the same rules and bots.
 const TOWER_FIXED_ERROR = 'Im Kartenhaus sind Regeln und Bots fest - jeder Versuch einer Etage läuft gleich.';
 
@@ -40,6 +41,8 @@ const SEAT_CONTROL_FIELDS = [
 ];
 
 const MIN_SEATS = 2;
+// Lesson reports per tutorial attempt: 14 lessons shown + done fit many times over.
+const TUTORIAL_MSG_CAP = 200;
 const MAX_SEATS_LIMIT = 4; // Spielmaterial (Kartenanzahl, Joker) ist auf max. 4 Spieler ausgelegt
 const DEFAULT_MAX_SEATS = 4;
 let meldCounter = 0;
@@ -68,8 +71,10 @@ class GameManager {
     this.soloPausedUntil = null;
     // Solo modes report each attempt's end once: { outcome: 'finished' | 'abandoned', reason } (PlayEvents.js).
     this.onAttemptEnd = typeof options.onAttemptEnd === 'function' ? options.onAttemptEnd : null;
-    this.attemptId = null; // a Kartenhaus try: a replayed snapshot never writes it twice
+    this.attemptId = null; // a Kartenhaus or tutorial try: a replayed snapshot never writes it twice
     this.attemptOver = false;
+    // Tutorial: lessons the client reported, on the server's clock (tutorialStep).
+    this.tutorialTrack = null;
     this.challengeDate = options.challengeDate || null;
     this.onBotEmote = options.onBotEmote || null; // (botId, emoji) => void - Bot-Reaktionen an den Tisch
     this.onBotQuip = options.onBotQuip || null; // (botId, moment) => void - a short bot line (BotQuips.js)
@@ -596,7 +601,40 @@ class GameManager {
     this.fillWithBots();
     const last = this.players[this.players.length - 1];
     if (last) this.setExplicitDealer(last.id); // seat 0 sits left of the dealer
+    this.attemptId = crypto.randomUUID();
+    // shown/done: first time per lesson (ms); last: the lesson shown last; errors: refusals per open lesson.
+    this.tutorialTrack = { version: TUTORIAL_VERSION, shown: {}, done: {}, last: null, errors: {}, refusals: 0, msgs: 0 };
     this.startNewRound();
+  }
+
+  /** The client's lesson progress (`tutorialStep`): its own progress only, checked
+   *  against the known lessons, deduplicated and capped; 'off' (hints switched off)
+   *  ends the attempt as skipped. Anything else is ignored without an answer. */
+  tutorialStep(playerId, step, status, now = Date.now()) {
+    const t = this.tutorialTrack;
+    const seat = this.players.find((p) => p.id === playerId && !p.isBot && !p.leftGame);
+    if (!t || !seat || !this.tutorialMode || this.attemptOver || this.roundNumber !== 1) return { ignored: true };
+    if (!['cutting', 'playing', 'roundEnd'].includes(this.phase) || (t.msgs += 1) > TUTORIAL_MSG_CAP) return { ignored: true };
+    if (status === 'off') {
+      this._endAttempt('abandoned', 'skipped');
+      return { ok: true };
+    }
+    if (!isTutorialStep(step) || (status !== 'shown' && status !== 'done')) return { ignored: true };
+    if (status === 'shown') {
+      if (!t.shown[step]) t.shown[step] = now;
+      t.last = step;
+    } else if (!t.done[step]) {
+      t.done[step] = now;
+    }
+    return { ok: true };
+  }
+
+  /** A refused move at the tutorial table counts for the lesson still open. */
+  noteTutorialRefusal(playerId) {
+    const t = this.tutorialTrack;
+    if (!t || this.attemptOver || this.roundNumber !== 1 || !this.players.some((p) => p.id === playerId && !p.isBot)) return;
+    t.refusals += 1;
+    if (t.last && !t.done[t.last]) t.errors[t.last] = (t.errors[t.last] || 0) + 1;
   }
 
   /** A Kartenhaus floor (server and tests share it): the floor's bots in seat
@@ -2057,6 +2095,8 @@ class GameManager {
           : `Hand aus! ${winnerPlayer ? winnerPlayer.name : '?'} hat die komplette Hand in einem Zug ausgelegt.`
       );
     }
+    // The tutorial ends with the scoring of round 1, its attempt with it.
+    if (this.tutorialMode && this.roundNumber === 1) this._endAttempt('finished');
     this.broadcastState();
   }
 

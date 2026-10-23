@@ -5001,6 +5001,17 @@
   let afterTutorial = null; // 'bots' | 'invite': the next game after "Tutorial geschafft"
 
   function saveTutorial() { storageSet(TUTORIAL_KEY, JSON.stringify(tutorialProgress)); }
+  // Lesson progress for the admin funnel (game/TutorialSteps.js): shown, done or hints
+  // off, once per page; no name, no clock - the server knows the seat and keeps time.
+  let tutorialReported = { code: null, sent: new Set() };
+  function reportTutorial(step, status) {
+    if (!sessionCode || !lastState || !lastState.tutorialMode || !ws || ws.readyState !== WebSocket.OPEN) return;
+    if (tutorialReported.code !== sessionCode) tutorialReported = { code: sessionCode, sent: new Set() };
+    const id = `${status}:${step || ''}`;
+    if (tutorialReported.sent.has(id)) return;
+    tutorialReported.sent.add(id);
+    try { ws.send(JSON.stringify(step ? { type: 'tutorialStep', step, status } : { type: 'tutorialStep', status })); } catch (e) { /* a report only */ }
+  }
   // Progress of the CURRENT tutorial session; a new session starts fresh.
   function tutorialSessionProgress() {
     if (!lastState || !lastState.tutorialMode || !sessionCode) return null;
@@ -5475,6 +5486,7 @@
       if (s.done && s.done(c, wasCurrent ? tutorialBaseline : undefined)) {
         prog.done.push(s.key);
         saveTutorial();
+        reportTutorial(s.key, 'done');
         if (wasCurrent && s.success) {
           coachNote(s.success(c), 'success');
           vibrate([12, 40, 12]);
@@ -5646,6 +5658,7 @@
     }
     const c = tutorialContext();
     const step = tutorialPick(c, prog);
+    if (step) reportTutorial(step.key, 'shown');
     const doneCount = TUTORIAL_MANDATORY.filter((s) => tutorialPassed(prog, s.key)).length;
     const counter = `${Math.min(doneCount + 1, TUTORIAL_MANDATORY.length)} / ${TUTORIAL_MANDATORY.length}`;
     el('coachCountText').textContent = counter;
@@ -5702,6 +5715,7 @@
     if (!prog) return;
     prog.off = true;
     saveTutorial();
+    reportTutorial(null, 'off');
     tutorialActive = false;
     hideCoach();
     showToast(L('Tutorial beendet. Die Hinweise holst du in den Optionen zurück.', 'Tutorial ended. You can bring the hints back in the Options.'));
@@ -6652,6 +6666,7 @@
     if (prog && tutorialCurrentStep && !prog.done.includes(tutorialCurrentStep)) {
       prog.done.push(tutorialCurrentStep);
       saveTutorial();
+      reportTutorial(tutorialCurrentStep, 'done');
     }
     tutorialCurrentStep = null;
     updateTutorial();

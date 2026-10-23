@@ -208,7 +208,7 @@ re-import the file (marker in `legacy_imports`, the file is just moved aside);
 to import it once more, `DELETE FROM legacy_imports WHERE source = 'challenges.json'`
 first.
 
-**Rolling back past the profile move** (to v2.110 or older, which kept
+**Rolling back past the profile move** (to v2.111 or older, which kept
 `players.json`): the first start of the newer version imported the file and
 renamed it to `players.json.migrated`, and gave the challenge and play-attempt
 tables a required `player_id`. Before starting the old version:
