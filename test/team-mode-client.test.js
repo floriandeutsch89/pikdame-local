@@ -1,6 +1,6 @@
 // "2 gegen 2" in the client (jsdom, real index.html + client.js): the one-tap
-// start, the lobby's mode choice and team rows, the team marks at the table,
-// the team result sheets and "Meine Partien".
+// start, the lobby's mode choice, team rows and team names, the team marks at the
+// table (ring + "Team" tab), the team result sheets and "Meine Partien".
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
@@ -63,7 +63,7 @@ const BASE = {
   roundNumber: 3, currentPlayerId: 'b1', turnPhase: 'draw', dealerId: 'b2', isHost: true, maxSeats: 4,
   discardTop: { id: 'dt', suit: 'C', rank: '10' }, drawPileCount: 38, discardPileCount: 5, log: [], tableMelds: [],
   lobbyReady: [], nextRoundReady: [], houseRules: {}, players: PLAYERS, teamMode: true, teams: TEAMS,
-  totals: { p1: 240, b1: 420, p2: 310, b2: 180 }, teamTotals: [550, 600],
+  totals: { p1: 240, b1: 420, p2: 310, b2: 180 }, teamTotals: [550, 600], teamNames: [null, null], targetScore: 2000,
 };
 const mk = (s, win) => ({ roundScore: s, breakdown: { isWinner: !!win, multiplier: 1 } });
 
@@ -90,7 +90,9 @@ test('start screen: "2 gegen 2" deals you and a bot against two bots in one tap'
 test('lobby: "2 gegen 2" is the fourth seat choice, every seat shows its team, the switch and one bot level', async (t) => {
   const { doc, feed, click, sentOf, errors } = await setup(t);
   const lobby = { ...BASE, phase: 'lobby', players: PLAYERS.map((p) => ({ ...p, handCount: 0 })) };
-  feed({ ...lobby, teamMode: false, teams: null, teamTotals: null });
+  feed({ ...lobby, teamMode: false, teams: null, teamTotals: null, teamNames: null, targetScore: 1000 });
+  assert.equal(doc.getElementById('ruleStrictLabel').textContent, 'Über 1000 Punkte zum Gewinnen (genau 1000 reicht nicht)');
+  assert.ok(doc.getElementById('teamNamesBox').classList.contains('hidden'), 'no team names at a normal table');
   const modeBtn = doc.getElementById('teamModeBtn');
   assert.ok(!modeBtn.classList.contains('active') && !modeBtn.classList.contains('hidden'));
   assert.ok(doc.querySelector('.seatCountBtn[data-seat-count="4"]').classList.contains('active'));
@@ -103,7 +105,8 @@ test('lobby: "2 gegen 2" is the fourth seat choice, every seat shows its team, t
   assert.ok(modeBtn.classList.contains('active'));
   assert.equal(modeBtn.getAttribute('aria-pressed'), 'true');
   assert.ok(!doc.querySelector('.seatCountBtn[data-seat-count="4"]').classList.contains('active'), 'the mode, not the count, is chosen');
-  assert.match(doc.getElementById('seatCountHint').textContent, /über Kreuz/);
+  assert.match(doc.getElementById('seatCountHint').textContent, /über Kreuz.*bis 2000/);
+  assert.equal(doc.getElementById('ruleStrictLabel').textContent, 'Über 2000 Punkte zum Gewinnen (genau 2000 reicht nicht)');
   const rows = [...doc.querySelectorAll('#seatingList .seatRow')];
   assert.deepEqual(rows.map((r) => r.querySelector('.teamTag').textContent.trim()), ['A', 'B', 'A', 'B'], 'crosswise: A, B, A, B');
   // All bots share one level: the chip shows the symbol, its name moves into title and aria-label.
@@ -144,7 +147,7 @@ test('lobby: a Stammtisch table offers no "2 gegen 2" (its record counts every p
   assert.deepEqual(errors, []);
 });
 
-test('table: a team stripe on every chip, "Partner" on the partner, team bars and "Wir 550:600"', async (t) => {
+test('table: a team stripe on the opponents, the partner ringed with a "Team" tab, team bars to 2000, "Wir 550:600"', async (t) => {
   const { doc, feed, errors } = await setup(t);
   feed({
     ...BASE, phase: 'playing',
@@ -154,36 +157,40 @@ test('table: a team stripe on every chip, "Partner" on the partner, team bars an
   assert.deepEqual(chips.map((c) => c.dataset.playerId), ['b1', 'p2', 'b2'], 'turn order: an opponent, the partner, an opponent');
   assert.ok(chips.every((c) => c.classList.contains('teamChip')));
   assert.deepEqual(chips.map((c) => c.classList.contains('isPartner')), [false, true, false]);
-  assert.equal(chips[1].querySelector('.opPartnerTag').textContent, 'Partner');
+  assert.equal(chips[1].querySelector('.opPartnerTag').textContent, 'Team', 'the partner wears "Team"');
   assert.equal(doc.querySelectorAll('.opPartnerTag').length, 1);
+  assert.match(chips[1].title, /Dein Team$/, 'the chip title names the team');
   assert.equal(chips[1].style.getPropertyValue('--team-c'), '#2a78d6', 'team A: the first seat colour');
   assert.equal(chips[0].style.getPropertyValue('--team-c'), '#eb6834', 'team B: the second seat colour');
   // The number stays the seat's own, the bar is the team's: own share solid, partner lighter.
   assert.equal(chips[0].querySelector('.opPts').textContent, '420');
   const bar = chips[0].querySelector('.teamBar');
-  assert.equal(bar.querySelector('.tbOwn').style.width, '42%');
-  assert.equal(bar.querySelector('.tbMate').style.width, '18%');
-  assert.match(bar.title, /Team: 600 von 1000/);
+  assert.equal(bar.querySelector('.tbOwn').style.width, '21%', '420 of the team target 2000');
+  assert.equal(bar.querySelector('.tbMate').style.width, '9%');
+  assert.match(bar.title, /Team: 600 von 2000/);
   const score = doc.getElementById('myScore');
   assert.equal(score.textContent.replace(/\s+/g, ' ').trim(), 'Wir 550:600');
-  assert.match(score.title, /Dein Team 550.*Gegner 600/);
+  assert.match(score.title, /Dein Team 550.*Gegner 600 - 2000 gewinnen/);
   assert.deepEqual([...score.querySelectorAll('b')].map((b) => b.className), ['trail', ''], 'the leader by weight: the trailing number is muted');
   const myBar = doc.getElementById('myScoreBar');
   assert.ok(myBar.classList.contains('teamBar'));
-  assert.equal(myBar.querySelector('.tbOwn').style.width, '24%');
-  assert.equal(myBar.querySelector('.tbMate').style.width, '31%');
+  assert.equal(myBar.querySelector('.tbOwn').style.width, '12%');
+  assert.equal(myBar.querySelector('.tbMate').style.width, '15.5%');
   const header = [...doc.querySelectorAll('.meldOwnerHeader')].find((h) => h.textContent.includes('Oma Gerda'));
-  assert.ok(header.querySelector('.meldPartnerTag'), 'the partner\'s melds say so');
+  assert.equal(header.querySelector('.meldPartnerTag').textContent, 'Team', 'the partner\'s melds say so');
   // "Optionen" › "Dieser Tisch" names the mode and the partner.
   assert.ok(!doc.getElementById('tableRuleModeRow').classList.contains('hidden'));
   assert.equal(doc.getElementById('tableRuleMode').textContent, '2 gegen 2, mit Oma Gerda');
+  assert.equal(doc.getElementById('tableRuleStrictLabel').textContent, 'Über 2000 Punkte zum Gewinnen');
 
   // A normal table keeps everything as it was.
-  feed({ ...BASE, phase: 'playing', teamMode: false, teams: null, teamTotals: null });
-  assert.equal(doc.querySelectorAll('#opponents .teamChip, .opPartnerTag').length, 0);
+  feed({ ...BASE, phase: 'playing', teamMode: false, teams: null, teamTotals: null, teamNames: null, targetScore: 1000 });
+  assert.equal(doc.querySelectorAll('#opponents .teamChip, #opponents .isPartner, .opPartnerTag').length, 0);
   assert.equal(doc.getElementById('myScore').textContent.trim(), '240 Pkt');
+  assert.ok(!doc.getElementById('myScore').classList.contains('teamScore'));
   assert.ok(!doc.getElementById('myScoreBar').classList.contains('teamBar'));
   assert.equal(doc.getElementById('myScoreBar').querySelector('i').style.width, '24%');
+  assert.equal(doc.getElementById('tableRuleStrictLabel').textContent, 'Über 1000 Punkte zum Gewinnen');
   assert.ok(doc.getElementById('tableRuleModeRow').classList.contains('hidden'));
   assert.deepEqual(errors, []);
 });
@@ -218,14 +225,14 @@ test('game over: the winning team in the headline, team place and gap, two chart
   const { doc, feed, msg, errors } = await setup(t);
   const over = (winnerTeam) => ({
     ...BASE, phase: 'gameOver', roundNumber: 2, lastRoundWinnerId: winnerTeam === 0 ? 'p1' : 'b1',
-    totals: winnerTeam === 0 ? { p1: 645, b1: 480, p2: 400, b2: 400 } : { p1: 480, b1: 645, p2: 400, b2: 400 },
-    teamTotals: winnerTeam === 0 ? [1045, 880] : [880, 1045],
+    totals: winnerTeam === 0 ? { p1: 1145, b1: 980, p2: 900, b2: 900 } : { p1: 980, b1: 1145, p2: 900, b2: 900 },
+    teamTotals: winnerTeam === 0 ? [2045, 1880] : [1880, 2045],
     scoreHistory: [
-      { round: 1, totals: { p1: 300, b1: 300, p2: 300, b2: 300 }, teamTotals: [600, 600] },
-      { round: 2, totals: {}, teamTotals: winnerTeam === 0 ? [1045, 880] : [880, 1045] },
+      { round: 1, totals: { p1: 600, b1: 600, p2: 600, b2: 600 }, teamTotals: [1200, 1200] },
+      { round: 2, totals: {}, teamTotals: winnerTeam === 0 ? [2045, 1880] : [1880, 2045] },
     ],
     lastRoundResult: { p1: mk(180, winnerTeam === 0), b1: mk(225, winnerTeam === 1), p2: mk(60), b2: mk(110) },
-    gameOverInfo: { winnerId: null, teamMode: true, teams: TEAMS, winnerTeam, winnerIds: TEAMS[winnerTeam], teamTotals: winnerTeam === 0 ? [1045, 880] : [880, 1045], totalTurns: 121, totalRounds: 2, highlights: [] },
+    gameOverInfo: { winnerId: null, teamMode: true, teams: TEAMS, winnerTeam, winnerIds: TEAMS[winnerTeam], teamTotals: winnerTeam === 0 ? [2045, 1880] : [1880, 2045], targetScore: 2000, totalTurns: 236, totalRounds: 2, highlights: [] },
   });
   feed(over(1));
   msg({ type: 'progress', gainedXp: 98, xp: 5440, level: { level: 14 }, record: { played: 43, won: 17 } });
@@ -239,7 +246,8 @@ test('game over: the winning team in the headline, team place and gap, two chart
   assert.equal(doc.querySelector('#resultMe .rmPlace').textContent, 'Platz 2');
   assert.match(doc.querySelector('#resultMe .rmGap').textContent, /165 hinter Klaus & Horst/);
   const labels = [...doc.querySelectorAll('.scoreChart .endLabel')].map((l) => l.textContent.replace(/\s+/g, ' ').trim());
-  assert.deepEqual(labels.sort(), ['● Gegner 1.045', '● Wir 880']);
+  assert.deepEqual(labels.sort(), ['● Gegner 2.045', '● Wir 1.880']);
+  assert.ok([...doc.querySelectorAll('.scoreChart .goalLine')].length === 1 && [...doc.querySelectorAll('.scoreChart .axisLabel.goal')].pop().textContent === '2.000', 'the goal line sits at 2000');
 
   feed(over(0));
   const won = doc.querySelector('#resultBody .resultWinnerGame');
@@ -254,10 +262,10 @@ test('"Meine Partien": a team game shows the team place, the partner and the tea
   const { doc, msg, click, errors } = await setup(t, { join: false });
   const g = {
     id: 'g1', finishedAt: Date.now() - 3600e3, startedAt: Date.now() - 3600e3 - 30 * 60e3, rounds: 4, won: true, myScore: 400, myId: 'p2',
-    teamMode: true, teams: TEAMS, winnerIds: TEAMS[0], winnerTeam: 0, teamTotals: [1045, 880],
+    teamMode: true, teams: TEAMS, winnerIds: TEAMS[0], winnerTeam: 0, teamTotals: [2045, 1880], targetScore: 2000, teamNames: [null, null],
     players: [{ id: 'p1', name: 'Oma Gerda' }, { id: 'b1', name: 'Klaus', isBot: true, botDifficulty: 'medium' }, { id: 'p2', name: 'Flo' }, { id: 'b2', name: 'Horst', isBot: true, botDifficulty: 'medium' }],
-    finalTotals: { p1: 645, b1: 480, p2: 400, b2: 400 },
-    roundTotals: [{ p1: 300, b1: 200, p2: 100, b2: 150 }, { p1: 645, b1: 480, p2: 400, b2: 400 }],
+    finalTotals: { p1: 1145, b1: 980, p2: 900, b2: 900 },
+    roundTotals: [{ p1: 300, b1: 200, p2: 100, b2: 150 }, { p1: 1145, b1: 980, p2: 900, b2: 900 }],
   };
   click(doc.getElementById('statsBtn'));
   click(doc.getElementById('statsTabHistoryBtn'));
@@ -268,10 +276,11 @@ test('"Meine Partien": a team game shows the team place, the partner and the tea
   assert.match(card.querySelector('.histMeta').textContent, /2 gegen 2/);
   assert.equal(card.querySelector('.histOpp').textContent, 'mit Oma Gerda gegen Klaus, Horst', 'one level for all bots: in the standings');
   assert.equal(card.querySelectorAll('.histBars i').length, 2, 'one bar per team');
-  assert.match(card.querySelector('.histBars').getAttribute('aria-label'), /Wir 1045, Gegner 880/);
+  assert.match(card.querySelector('.histBars').getAttribute('aria-label'), /Wir 2045, Gegner 1880/);
   click(card);
   const labels = [...doc.querySelectorAll('.histDetail .scoreChart .endLabel')].map((l) => l.textContent.replace(/\s+/g, ' ').trim());
-  assert.deepEqual(labels.sort(), ['● Gegner 880', '● Wir 1.045']);
+  assert.deepEqual(labels.sort(), ['● Gegner 1.880', '● Wir 2.045']);
+  assert.equal([...doc.querySelectorAll('.histDetail .scoreChart .axisLabel.goal')].pop().textContent, '2.000', 'a team game\'s chart has its own goal');
   assert.deepEqual(errors, []);
 });
 
@@ -279,10 +288,129 @@ test('English: the same team marks in the other language', async (t) => {
   const { doc, feed, errors } = await setup(t, { storage: { pikdame_player_name: 'Flo', pikdame_lang: 'en' } });
   feed({ ...BASE, phase: 'playing' });
   assert.equal(doc.getElementById('myScore').textContent.replace(/\s+/g, ' ').trim(), 'Us 550:600');
-  assert.equal(doc.querySelector('.opPartnerTag').textContent, 'Partner');
+  assert.equal(doc.querySelector('.opPartnerTag').textContent, 'Team');
   feed({ ...BASE, phase: 'lobby' });
   assert.equal(doc.getElementById('teamModeBtn').querySelector('span').textContent, '2 vs 2');
   assert.equal(doc.getElementById('switchTeamBtn').querySelector('span').textContent, 'Switch team');
   assert.match(doc.getElementById('seatCountHint').textContent, /crosswise/);
+  assert.deepEqual(errors, []);
+});
+
+test('lobby: each team may name itself - my team a field (sent on Enter or leaving it), the other team as text', async (t) => {
+  const { doc, feed, click, sentOf, window, errors } = await setup(t);
+  const lobby = { ...BASE, phase: 'lobby', players: PLAYERS.map((p) => ({ ...p, handCount: 0 })) };
+  feed(lobby);
+  const box = doc.getElementById('teamNamesBox');
+  assert.ok(!box.classList.contains('hidden'));
+  const rows = [...box.querySelectorAll('.teamNameRow')];
+  assert.deepEqual(rows.map((r) => r.querySelector('.teamTag').textContent.trim()), ['A', 'B']);
+  assert.ok(rows.every((r) => r.querySelector('.teamNameWord').textContent === 'Team'), '"Team [name]": the wording of the table');
+  const input = rows[0].querySelector('.teamNameInput');
+  assert.ok(input, 'my team: a field');
+  assert.equal(input.getAttribute('maxlength'), '16', 'the player-name limit');
+  assert.equal(rows[1].querySelector('.teamNameInput'), null, 'the other team: text only');
+  assert.equal(rows[1].querySelector('.teamNameText').textContent, 'B');
+  const save = rows[0].querySelector('.teamNameSave');
+  assert.ok(save.classList.contains('hidden'), 'nothing to save yet');
+  input.focus();
+  input.value = '  Die Löwen ';
+  input.dispatchEvent(new window.Event('input', { bubbles: true }));
+  assert.ok(!save.classList.contains('hidden'), 'an unsent name shows the check');
+  click(save);
+  assert.deepEqual(sentOf('setTeamName').pop(), { type: 'setTeamName', teamName: 'Die Löwen' });
+  // Leaving the field unchanged sends nothing more.
+  input.dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.equal(sentOf('setTeamName').length, 1);
+
+  // The server's names arrive for everyone; a name is text, never markup.
+  feed({ ...lobby, teamNames: ['Die Löwen', '<img src=x onerror=alert(1)>'] });
+  assert.equal(box.querySelector('.teamNameRow[data-team="1"] .teamNameText').textContent, '<img src=x onerror=alert(1)>');
+  assert.equal(box.querySelectorAll('img').length, 0);
+  assert.equal(box.querySelector('.teamNameInput').value, 'Die Löwen');
+  // While I type, a broadcast never overwrites the field.
+  const field = box.querySelector('.teamNameInput');
+  field.focus();
+  field.value = 'Die Tig';
+  feed({ ...lobby, teamNames: ['Die Löwen', null] });
+  assert.equal(field.value, 'Die Tig');
+  field.blur();
+  field.dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.deepEqual(sentOf('setTeamName').pop(), { type: 'setTeamName', teamName: 'Die Tig' });
+  // Enter commits by leaving the field (no native dialog anywhere).
+  field.focus();
+  field.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  assert.notEqual(doc.activeElement, field);
+  assert.deepEqual(errors, []);
+});
+
+test('table: a named team reads "Team <Name>" on the tab, the melds, the score and the options; names are text', async (t) => {
+  const { doc, feed, errors } = await setup(t);
+  feed({
+    ...BASE, phase: 'playing', teamNames: ['Die Löwen', 'Tiger'],
+    tableMelds: [{ id: 1, ownerId: 'p2', type: 'set', rank: '7', slots: ['H', 'D', 'S'].map((s) => ({ real: { id: `7${s}`, suit: s, rank: '7' } })) }],
+  });
+  const partner = doc.querySelector('#opponents .opponent.isPartner');
+  assert.equal(partner.querySelector('.opPartnerTag').textContent, 'Team Die Löwen', 'the whole name stays in the text (the ellipsis is CSS only)');
+  assert.match(partner.title, /Team Die Löwen$/);
+  const tag = [...doc.querySelectorAll('.meldOwnerHeader')].find((h) => h.textContent.includes('Oma Gerda')).querySelector('.meldPartnerTag');
+  assert.deepEqual([...tag.children].map((n) => n.textContent), ['Team', 'Die Löwen']);
+  const score = doc.getElementById('myScore');
+  assert.ok(score.classList.contains('teamScore'));
+  assert.equal(score.querySelector('.tsWe').textContent, 'Team Die Löwen');
+  assert.match(score.title, /^Team Die Löwen 550 Punkte, Team Tiger 600 - 2000 gewinnen$/);
+  assert.match(doc.querySelector('#opponents .opponent:not(.isPartner) .teamBar').title, /^Team Tiger: 600 von 2000/);
+  assert.equal(doc.getElementById('tableRuleMode').textContent, '2 gegen 2: Team Die Löwen mit Oma Gerda');
+
+  // Whatever a name holds, it renders as text.
+  feed({ ...BASE, phase: 'playing', teamNames: ['<b>x</b>', null] });
+  const evil = doc.querySelector('#opponents .opPartnerTag');
+  assert.equal(evil.textContent, 'Team <b>x</b>');
+  assert.equal(evil.querySelectorAll('b').length, 0);
+  assert.equal(doc.getElementById('myScore').querySelector('.tsWe').textContent, 'Team <b>x</b>');
+  assert.equal(doc.getElementById('myScore').querySelectorAll('.tsWe b').length, 0);
+  assert.deepEqual(errors, []);
+});
+
+test('results: named teams head their blocks, the headline and the gap; the chart uses the names', async (t) => {
+  const { doc, feed, msg, errors } = await setup(t);
+  const over = (winnerTeam, names) => ({
+    ...BASE, phase: 'gameOver', roundNumber: 2, lastRoundWinnerId: winnerTeam === 0 ? 'p1' : 'b1', teamNames: names,
+    totals: winnerTeam === 0 ? { p1: 1145, b1: 980, p2: 900, b2: 900 } : { p1: 980, b1: 1145, p2: 900, b2: 900 },
+    teamTotals: winnerTeam === 0 ? [2045, 1880] : [1880, 2045],
+    scoreHistory: [
+      { round: 1, totals: {}, teamTotals: [1200, 1200] },
+      { round: 2, totals: {}, teamTotals: winnerTeam === 0 ? [2045, 1880] : [1880, 2045] },
+    ],
+    lastRoundResult: { p1: mk(180, winnerTeam === 0), b1: mk(225, winnerTeam === 1), p2: mk(60), b2: mk(110) },
+    gameOverInfo: { winnerId: null, teamMode: true, teams: TEAMS, winnerTeam, winnerIds: TEAMS[winnerTeam], teamTotals: winnerTeam === 0 ? [2045, 1880] : [1880, 2045], teamNames: names, targetScore: 2000, totalTurns: 236, totalRounds: 2, highlights: [] },
+  });
+  feed(over(0, ['Die Löwen', null]));
+  msg({ type: 'progress', gainedXp: 120, xp: 5440, level: { level: 14 }, record: { played: 43, won: 17 } });
+  const won = doc.querySelector('#resultBody .resultWinnerGame');
+  assert.ok(won.classList.contains('isMe'));
+  assert.equal(won.textContent.trim(), 'Team Die Löwen gewinnt die Partie!');
+  const heads = [...doc.querySelectorAll('#resultBody .teamResultName > span')].map((n) => n.textContent);
+  assert.deepEqual(heads, ['Team Die Löwen', 'Gegner'], 'a named team by its name, the other as before');
+  const labels = [...doc.querySelectorAll('.scoreChart .endLabel')].map((l) => l.textContent.replace(/\s+/g, ' ').trim());
+  assert.deepEqual(labels.sort(), ['● Die Löw… 2.045', '● Gegner 1.880'], 'the chart keeps its short labels');
+
+  feed(over(1, ['Die Löwen', 'Kaffeeklatsch']));
+  const lost = doc.querySelector('#resultBody .resultWinnerGame');
+  assert.equal(lost.querySelector('.resultWinnerName').textContent, 'Team Kaffeeklatsch');
+  assert.equal(lost.querySelector('.resultWinnerSub').textContent, 'gewinnt die Partie', 'one team: singular');
+  assert.match(doc.querySelector('#resultMe .rmGap').textContent, /165 hinter Team Kaffeeklatsch/);
+
+  // Round end: the blocks by name, and the goal tick at 2000 (845 = 42.25 % of the way).
+  feed({
+    ...BASE, phase: 'roundEnd', lastRoundWinnerId: 'b1', teamNames: [null, '<i>Tiger</i>'],
+    totals: { p1: 240, b1: 600, p2: 375, b2: 245 }, teamTotals: [615, 845],
+    lastRoundResult: { p1: mk(110), b1: mk(270, true), p2: mk(-45), b2: mk(-25) },
+  });
+  const blocks = [...doc.querySelectorAll('#resultBody .teamResult')];
+  assert.equal(blocks[0].querySelector('.teamResultName > span').textContent, 'Team <i>Tiger</i>');
+  assert.equal(blocks[0].querySelectorAll('.teamResultName i:not(.teamDot)').length, 0, 'a name is text');
+  assert.equal(blocks[1].querySelector('.teamResultName > span').textContent, 'Dein Team');
+  assert.equal(blocks[0].querySelector('.barGoal').style.left, '100%');
+  assert.equal(blocks[0].querySelector('.barSolid').style.width, '30%', 'the round started at 600 of 2000');
   assert.deepEqual(errors, []);
 });

@@ -46,10 +46,12 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   new label could outgrow its box. `--ui-scale large|xlarge`: the larger type
   from "Optionen" (older players use it).
 - **"2 gegen 2":** `gamelobby-team` (a real team lobby: a second socket joins
-  as Oma Gerda and lands on the other team; then `-partners` after her switch,
-  and `botdiff-team`, the one-level picker), `table-team` (an engine team table,
-  Oma Gerda my partner, mid-match totals), `roundend-team`, `gameover-team`,
-  `gameover-team-win`, `history-team` (a won team game opened in "Meine Partien").
+  as Oma Gerda and lands on the other team, both teams named; `-edit` while I
+  type mine, `-partners` after her switch, and `botdiff-team`, the one-level
+  picker), `table-team` (an engine team table, Oma Gerda my partner, mid-match
+  totals; `table-team-named` with my team's name), `roundend-team`,
+  `gameover-team`, `gameover-team-win` (my team named), `history-team` (a won
+  team game opened in "Meine Partien").
 - **Before/after from one script:** `SHOTS_ROOT=<checkout>` shoots another
   checkout (e.g. a detached `origin/main` worktree) with this script, so
   new scenes exist for the "before" pictures too.

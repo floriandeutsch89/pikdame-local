@@ -535,6 +535,8 @@
         <h2>Sitzordnung &amp; Geber</h2>
         <p id="seatingHint" class="lobby-hint">Zum Umsortieren am Griff ziehen. Der Stern legt den Geber der ersten Runde fest.</p>
         <div id="seatingList" class="seating-list"></div>
+        <!-- "2 gegen 2": an optional name per team, any human of the team sets it (client.js renderTeamNames). -->
+        <div id="teamNamesBox" class="teamNamesBox hidden"></div>
         <button id="switchTeamBtn" class="btn-secondary switchTeamBtn hidden" type="button"><svg class="icon" aria-hidden="true"><use href="#i-teams"/></svg><span>Team wechseln</span></button>
       </div>
 
@@ -542,7 +544,7 @@
       <div id="houseRulesSection" class="lobby-section hidden">
         <h2>Hausregeln</h2>
         <label class="rule-toggle"><span>Hand aus zählt doppelt</span><input type="checkbox" id="ruleHandAus" class="ruleSwitch" /></label>
-        <label class="rule-toggle"><span>Über 1000 Punkte zum Gewinnen (genau 1000 reicht nicht)</span><input type="checkbox" id="ruleStrict1000" class="ruleSwitch" /></label>
+        <label class="rule-toggle"><span id="ruleStrictLabel">Über 1000 Punkte zum Gewinnen (genau 1000 reicht nicht)</span><input type="checkbox" id="ruleStrict1000" class="ruleSwitch" /></label>
         <!-- Segment buttons only write the hidden <select>: it stays the single
              source of truth for render, collectHouseRules and the change events. -->
         <div class="rule-choice">
@@ -1186,7 +1188,7 @@
                 <dl id="tableRules" class="prefRules">
                   <div id="tableRuleModeRow" class="hidden"><dt>Spielmodus</dt><dd id="tableRuleMode"></dd></div>
                   <div><dt>Hand aus zählt doppelt</dt><dd id="tableRuleHandAus"></dd></div>
-                  <div><dt>Über 1000 Punkte zum Gewinnen</dt><dd id="tableRuleStrict"></dd></div>
+                  <div><dt id="tableRuleStrictLabel">Über 1000 Punkte zum Gewinnen</dt><dd id="tableRuleStrict"></dd></div>
                   <div><dt>Zug-Timer</dt><dd id="tableRuleTimer"></dd></div>
                   <div id="tableRuleBotPaceRow"><dt>Bot-Tempo</dt><dd id="tableRuleBotPace"></dd></div>
                   <div id="tableRuleBotLevelRow"><dt>Bot-Stärke</dt><dd id="tableRuleBotLevel"></dd></div>
@@ -1435,8 +1437,9 @@
             <li>Zwei Teams zu zweit, <b>über Kreuz</b> gesetzt: Die Teams sind abwechselnd dran, links und rechts von dir sitzt immer ein Gegner.</li>
             <li>Am Tisch gelten die gewohnten Regeln: Jeder legt an und tauscht Joker nur an <b>seinen eigenen Auslagen</b>.</li>
             <li>Jeder wird gewertet wie sonst, die <b>Punkte der Partner zählen zusammen</b>. Macht einer aus, endet die Runde für alle.</li>
-            <li>Es gewinnt das Team, das zuerst 1000 Punkte erreicht (Hausregel „streng“: über 1000). Kommen beide Teams in derselben Runde ans Ziel, gewinnt das höhere; bei Gleichstand folgt eine weitere Runde.</li>
+            <li>Ein Team spielt bis <b>2000 Punkte</b> – doppelt so weit wie allein, weil zwei Punktestände zusammenzählen (Hausregel „streng“: über 2000). Kommen beide Teams in derselben Runde ans Ziel, gewinnt das höhere; bei Gleichstand folgt eine weitere Runde.</li>
             <li>„2 gegen 2“ auf dem Startbildschirm startet sofort: du und ein Bot gegen zwei Bots. Mit Freunden: Spiel erstellen und in der Lobby „2 gegen 2“ wählen. Alle Bots spielen auf derselben Stufe.</li>
+            <li>Vor dem Start kann jedes Team in der Lobby einen Namen eintragen. Am Tisch ist dein Partner in deiner Teamfarbe umrandet und mit „Team“ beschriftet, mit einem Teamnamen „Team“ und dem Namen.</li>
           </ul>
 
           <h3>Hausregeln (beim Erstellen wählbar)</h3>
@@ -1444,7 +1447,7 @@
             <li><b>Bot-Stärke:</b> Leicht, Mittel, Schwer oder Zen – für alle Bots in der Lobby oder pro Bot einzeln (Tipp auf die Stufe am Bot).</li>
             <li><b>⏱ Zug-Timer:</b> 30/60/90 Sekunden pro Zug. Läuft die Zeit ab, spielt die Bot-Logik den Zug fair zu Ende – der Tisch wartet nie ewig.</li>
             <li><b>Hand aus zählt doppelt</b> (siehe Punkte).</li>
-            <li><b>1000 streng:</b> Sieg erst, wenn jemand über 1000 Punkten liegt.</li>
+            <li><b>1000 streng:</b> Sieg erst, wenn jemand über 1000 Punkten liegt (bei „2 gegen 2“: ein Team über 2000).</li>
           </ul>
 
           <h3>Spielende &amp; Sonstiges</h3>
@@ -1490,7 +1493,7 @@
           <div id="globalStatsBox" class="globalStatsBox hidden"></div>
         </div>
         <div id="statsPaneHistory" class="statsPane hidden">
-          <p class="lobby-hint">Deine letzten abgeschlossenen Partien (bis 1000 Punkte) - nur auf diesem Gerät/mit diesem Spielernamen.</p>
+          <p class="lobby-hint">Deine letzten abgeschlossenen Partien (bis 1000 Punkte, im Team bis 2000) - nur auf diesem Gerät/mit diesem Spielernamen.</p>
           <div id="historyContent" class="statsContent"></div>
         </div>
         <button id="statsCloseBtn" class="btn-secondary">Schließen</button>

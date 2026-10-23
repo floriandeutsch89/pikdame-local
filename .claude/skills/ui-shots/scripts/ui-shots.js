@@ -47,8 +47,9 @@
 // --measure writes <out>/measure.json: the table regions (melds, hand, piles ...) per shot.
 // gameover-win (I win the match, a new badge), stats-empty (a brand-new name: statistics
 // empty state, then "Meine Partien" empty).
-// "2 gegen 2": gamelobby-team (a real team lobby, a second socket joins; then -partners and
-// botdiff-team), table-team (an engine team table), roundend-team, gameover-team(-win), history-team.
+// "2 gegen 2": gamelobby-team (a real team lobby, a second socket joins, both teams named;
+// -edit while I type, then -partners and botdiff-team), table-team (an engine team table;
+// -named with my team's name), roundend-team, gameover-team(-win), history-team.
 // --lang en: the English client (text length). --ui-scale large|xlarge: the larger type. SHOTS_ROOT=<checkout>: shoot another
 // checkout with this script (before/after pictures from one set of scenes).
 // --light morning|noon|evening|night|HH:MM|now: the table light at that Berlin time
@@ -234,26 +235,29 @@ const teamHist = (rows) => rows.map((totals, i) => ({ round: i + 1, totals, team
 const TEAM_ROUNDS = [
   { p1: 120, b1: 60, p2: 150, b2: 40 }, { p1: 130, b1: 330, p2: 420, b2: 270 }, { p1: 240, b1: 600, p2: 375, b2: 245 },
 ];
-const TEAM_BASE = { ...BASE_STATE, teamMode: true, teams: TEAMS, players: TEAM_PLAYERS,
+const TEAM_BASE = { ...BASE_STATE, teamMode: true, teams: TEAMS, players: TEAM_PLAYERS, targetScore: 2000, teamNames: [null, null],
   lastRoundStats: BASE_STATE.lastRoundStats.map((s) => (s.id === 'b2' ? { ...s, id: 'p2', name: 'Oma Gerda' } : s.id === 'b3' ? { ...s, id: 'b2', name: 'Horst' } : s)) };
 const TEAM_ROUND_END = { ...TEAM_BASE, phase: 'roundEnd', totals: TEAM_ROUNDS[2], teamTotals: teamSums(TEAM_ROUNDS[2]),
   scoreHistory: teamHist(TEAM_ROUNDS),
   lastRoundResult: { p1: mk(110), b1: mk(270, true), p2: mk(-45), b2: mk(-25) } };
-const TEAM_FINAL = [...TEAM_ROUNDS, { p1: 260, b1: 520, p2: 330, b2: 270 }, { p1: 300, b1: 420, p2: 340, b2: 290 }, { p1: 480, b1: 645, p2: 400, b2: 400 }];
-const teamOver = (rows, winnerTeam, out) => ({ ...TEAM_BASE, phase: 'gameOver', roundNumber: rows.length, totals: rows[rows.length - 1],
+// A team plays to 2000: eight rounds, team B ends at 2080 against 1910.
+const TEAM_FINAL = [...TEAM_ROUNDS, { p1: 420, b1: 720, p2: 510, b2: 380 }, { p1: 560, b1: 850, p2: 640, b2: 520 },
+  { p1: 700, b1: 980, p2: 780, b2: 640 }, { p1: 850, b1: 1040, p2: 930, b2: 760 }, { p1: 960, b1: 1150, p2: 950, b2: 930 }];
+// My team named itself in the lobby; the bots' team has no name.
+const teamOver = (rows, winnerTeam, out) => ({ ...TEAM_BASE, teamNames: ['Die Löwen', null], phase: 'gameOver', roundNumber: rows.length, totals: rows[rows.length - 1],
   teamTotals: teamSums(rows[rows.length - 1]), scoreHistory: teamHist(rows), lastRoundWinnerId: out,
   lastRoundResult: Object.fromEntries(Object.keys(rows[0]).map((id) => [id, mk(rows[rows.length - 1][id] - rows[rows.length - 2][id], id === out)])),
   gameStatsTotals: GAME_OVER.gameStatsTotals, hasExportableGame: true,
   gameOverInfo: { ...GAME_OVER.gameOverInfo, winnerId: null, teamMode: true, teams: TEAMS, winnerTeam,
-    winnerIds: TEAMS[winnerTeam], teamTotals: teamSums(rows[rows.length - 1]), totalTurns: 121 } });
+    winnerIds: TEAMS[winnerTeam], teamTotals: teamSums(rows[rows.length - 1]), teamNames: ['Die Löwen', null], targetScore: 2000, totalTurns: 236 } });
 const TEAM_GAME_OVER = teamOver(TEAM_FINAL, 1, 'b1');
 // gameover-team-win: the same match the other way round, Flo went out last.
 const swapTeams = (t) => ({ p1: t.b1, b1: t.p1, p2: t.b2, b2: t.p2 });
 const TEAM_GAME_OVER_WIN = teamOver(TEAM_FINAL.map(swapTeams), 0, 'p1');
 
 // history-team: today's "2 gegen 2" with Oma Gerda, won (the place is the team's).
-const TEAM_HISTORY_GAME = { id: 'gteam', finishedAt: NOW - 1800e3, startedAt: NOW - 1800e3 - 34 * 60e3, rounds: 6, won: true, myScore: 645, myId: 'p1',
-  teamMode: true, teams: TEAMS, winnerIds: TEAMS[0], winnerTeam: 0, teamTotals: [1045, 880],
+const TEAM_HISTORY_GAME = { id: 'gteam', finishedAt: NOW - 1800e3, startedAt: NOW - 1800e3 - 52 * 60e3, rounds: 8, won: true, myScore: 1150, myId: 'p1',
+  teamMode: true, teams: TEAMS, winnerIds: TEAMS[0], winnerTeam: 0, teamTotals: [2080, 1910], teamNames: ['Die Löwen', null], targetScore: 2000,
   players: TEAM_PLAYERS.map(({ id, name, isBot, botDifficulty }) => ({ id, name, isBot, botDifficulty })),
   finalTotals: TEAM_FINAL.map(swapTeams)[TEAM_FINAL.length - 1], roundTotals: TEAM_FINAL.map(swapTeams) };
 
@@ -388,8 +392,8 @@ function tableState() {
   return st;
 }
 // table-team: a live "2 gegen 2" table - Oma Gerda is my partner, two bots the other
-// team, mid-match totals (round 3), my draw turn after a few turns.
-function teamTableState() {
+// team, mid-match totals (round 3), my draw turn after a few turns. named: my team's name.
+function teamTableState(named = null) {
   const GM = require(path.join(ROOT, 'game', 'GameManager'));
   const g = new GM(() => {}, { deckSeed: 7, teamMode: true });
   g.maybeRunBotTurn = () => {};
@@ -397,6 +401,7 @@ function teamTableState() {
   g.syncLobbyBots();
   g.addOrReconnectPlayer('p2', 'Oma Gerda');
   g.switchTeam('p2'); // the lobby seats her against me; she switches to my team
+  if (named) g.setTeamName('p1', named);
   g.setAllBotsDifficulty('medium');
   g.fillWithBots();
   g.startNewRound();
@@ -411,6 +416,14 @@ function teamTableState() {
     if (g.phase === 'playing' && next && next.id === 'p1' && g.turnPhase === 'draw') { mine += 1; st = g.publicState('p1'); }
   }
   g.destroy();
+  return st;
+}
+// table-team-b: the same table seen from team B (my partner's ring orange), an opponent on turn
+// beside it: the ring must not read as the turn highlight in any theme.
+function teamTableOnB() {
+  const st = teamTableState('Die Löwen');
+  for (const k of ['teams', 'teamTotals', 'teamNames']) st[k] = st[k].slice().reverse();
+  st.currentPlayerId = st.teams[0][0]; // an opponent's turn
   return st;
 }
 // Where the table's regions sit (--measure): the floor card must not cost the melds or the hand.
@@ -783,6 +796,13 @@ function waitForHttp(port, ms = 20000) {
           guest.send(JSON.stringify({ type: 'joinSession', code: lastSessionCode, name: 'Oma Gerda' }));
           await page.waitForTimeout(700);
           await page.click('#teamModeBtn'); await page.waitForTimeout(700);
+          // Each team names itself: I type mine (the check shows while it is unsent), she sends hers.
+          await page.evaluate(() => document.getElementById('seatingSection').scrollIntoView({ block: 'start' }));
+          await page.fill('.teamNameInput', 'Die Löwen'); await page.waitForTimeout(200);
+          await shot('gamelobby-team-edit');
+          await page.press('.teamNameInput', 'Enter');
+          guest.send(JSON.stringify({ type: 'setTeamName', teamName: 'Kaffeeklatsch' }));
+          await page.waitForTimeout(700);
           await page.evaluate(() => document.getElementById('seatCountSection').scrollIntoView({ block: 'start' }));
           await page.waitForTimeout(200);
           await shot('gamelobby-team');
@@ -991,10 +1011,11 @@ function waitForHttp(port, ms = 20000) {
           await shot('stats-badges-open');
           await page.click('#statsCloseBtn');
         }
-        if (sc === 'table' || sc === 'table-team') {
+        if (sc === 'table' || sc === 'table-team' || sc === 'table-team-named' || sc === 'table-team-b') {
           // Live table: needs --state <file> with a publicState('p1') JSON (playing phase);
           // table-team builds a "2 gegen 2" table from the engine instead.
-          const st = sc === 'table-team' ? teamTableState() : JSON.parse(fs.readFileSync(arg('state', ''), 'utf8'));
+          const st = sc === 'table-team' ? teamTableState() : sc === 'table-team-named' ? teamTableState('Die Löwen')
+            : sc === 'table-team-b' ? teamTableOnB() : JSON.parse(fs.readFileSync(arg('state', ''), 'utf8'));
           inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
           inject({ type: 'state', state: st });
           await page.waitForTimeout(1200);
