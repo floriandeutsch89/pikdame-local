@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.103.0] - 2026-10-23
+
+### Added
+- Kartenhaus am Tisch: Die Etagenkarte neben den Stapeln hat ein ✕ und lässt sich damit ganz ausblenden – der Tisch sieht dann aus wie ein normaler Tisch, Stapel und Auslagen bekommen ihren Platz zurück. Die Wahl gilt auf allen Etagen und auch nach dem Neuladen. Das Schloss auf der Ablage bei „Ohne Ablage“ bleibt sichtbar.
+- Zurück kommt die Etagenkarte über das Zahnrad: „Kartenhaus-Etage · Anzeigen“ zeigt die Regeln der Etage (Vorgabe, Risiko, Erschwernisse, Sterne) und legt sie mit „Am Tisch anzeigen“ wieder neben die Stapel.
+
+### Fixed
+- Konten: Startet ein weiterer Server, während gespielt wird, blockiert er die Konto-Datenbank nicht mehr kurz (konnte Anmeldungen mit „Konto-Datenbank nicht erreichbar“ abbrechen)
+
 ## [2.102.1] - 2026-10-23
 
 ### Fixed
