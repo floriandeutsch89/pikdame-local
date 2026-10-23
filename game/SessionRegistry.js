@@ -65,7 +65,14 @@ class SessionRegistry {
     this.createGame = createGame;
     this.options = { ...DEFAULTS, ...options };
     this.now = options.now || (() => Date.now());
+    // Called with each session before it goes (delete or cleanup); a throw never stops the removal.
+    this.onRemove = typeof options.onRemove === 'function' ? options.onRemove : null;
     this.sessions = new Map(); // code -> { code, game, sockets: Map<playerId, ws>, createdAt, lastActivity }
+  }
+
+  _removing(session) {
+    if (!this.onRemove || !session) return;
+    try { this.onRemove(session); } catch (e) { /* never blocks the cleanup */ }
   }
 
   create(extra = {}) {
@@ -122,6 +129,7 @@ class SessionRegistry {
 
   delete(code) {
     const session = this.sessions.get(code);
+    this._removing(session);
     if (session && session.game && typeof session.game.destroy === 'function') {
       session.game.destroy();
     }
@@ -153,6 +161,7 @@ class SessionRegistry {
             /* Socket war schon zu */
           }
         }
+        this._removing(session);
         if (session.game && typeof session.game.destroy === 'function') {
           session.game.destroy();
         }

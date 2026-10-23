@@ -124,6 +124,12 @@ racing starts can never both be ranked. A JSON file moved into the database is
 imported once on the first start (marker row in `legacy_imports`) and then
 renamed to `<file>.migrated`.
 
+Play attempts (`play_events`, {doc}`../admin/play-events`) are the one write
+nobody waits for: `game/PlayEvents.js` stores them in the background, a failed
+insert is logged and never holds up a game; a unique `attempt_id` keeps a
+replayed snapshot from writing an attempt twice. Rows older than 90 days are
+deleted every few hours.
+
 ## Testing
 
 `node --test`, no framework, against a real PostgreSQL (`PIKDAME_TEST_PG_URL`,
