@@ -58,6 +58,10 @@ migration, because the file lives on the app's volume. An old container still
 running during the deploy can no longer insert challenge rows or play
 attempts (no `player_id`) until it is replaced.
 
+`007_stammtische.sql` creates the Stammtisch tables (see {doc}`schema`);
+`stammtisch.json` is imported on the first start like `players.json` (marker
+`stammtisch.json`).
+
 ## Rules
 
 - **Forward-only.** There are no down migrations; undo a change with a new file.

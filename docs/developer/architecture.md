@@ -11,7 +11,7 @@ flowchart TB
     REG["SessionRegistry<br/>code → { GameManager, sockets }"]
     GM["GameManager · one per table<br/>Rules.js (validation) · Bot.js / OnnxPolicy.js (bot moves)<br/>Deck.js (shuffle, deal, cut) · ScoreBoard.js (scoring)"]
     STORES[("JSON stores → /app/data<br/>atomic writes, debounced")]
-    ACC[("PostgreSQL<br/>accounts, profiles, challenge")]
+    ACC[("PostgreSQL<br/>accounts, profiles, Stammtische, challenge")]
     REG --> GM
     GM --> STORES
     REG --> ACC
@@ -115,8 +115,8 @@ Small JSON files, written **atomically** (temp file + rename) and **debounced**
 (~800 ms), so a busy server does not hammer the disk. On shutdown — and after an
 uncaught exception — everything is flushed synchronously, so nothing is lost.
 
-Accounts, player profiles and the daily challenge are the exception: they live
-in PostgreSQL, which the server requires. All stores share one pool
+Accounts, player profiles, the Stammtische and the daily challenge are the
+exception: they live in PostgreSQL, which the server requires. All stores share one pool
 (`game/Database.js`); the schema comes from numbered files in `migrations/`
 (see {doc}`migrations`, tables and choices in {doc}`schema`). PostgreSQL
 writes are awaited, never buffered: the challenge's "one ranked attempt per

@@ -81,6 +81,28 @@ puzzle, tower floor, favourites) runs in one transaction holding the
 player's row lock; a match locks its players in `player_key` order, so two
 tables booking the same names cannot deadlock.
 
+## Stammtische
+
+A Stammtisch is found by its secret `stammtisch_code` (unique, the lookup
+shape `^[A-Z0-9]{2,6}$`); the code lives in `stammtische` only, never in the
+game history. Players are referenced by `player_id`:
+
+| Data | Where | Why there |
+| --- | --- | --- |
+| Name, owner, last use, the running series, the group goals' points and reached weeks | columns of `stammtische` | one value each; `owner_player_id` is the founding account (`ON DELETE SET NULL`: then the earliest member owns it) |
+| Members and their head-to-head counters | `stammtisch_members (stammtisch_id, player_id, player_name, games_played, games_won, points, joined_at, last_seen_at)` | one row per person and table; the name as spelled there |
+| Matches (the newest 100) and their seats | `stammtisch_games (stammtisch_id, game_no, …)`, `stammtisch_game_seats (stammtisch_id, game_no, seat_no, player_id NULL, player_name, is_bot, score, won)` | the pairwise record is aggregated over seats; `game_no` counts per table, so seats need no surrogate key |
+| Series wins of the running series | `stammtisch_series_wins (stammtisch_id, player_id, wins)` | an atomic `wins = wins + 1` decides the series; cleared when the next one starts |
+| Matches per game week (60 weeks) | `stammtisch_weeks (stammtisch_id, week_start_day DATE, games_played)` | the weekly target and the streak; `StammtischGoals.js` stays a pure function on them |
+
+A match is booked in one transaction holding the table's row lock (members
+in `player_key` order, like the profiles). Deleting a player removes the
+memberships and series wins; the seats keep the name as played (the group's
+record) without the link. Deleting a table cascades to everything in it. The
+caps stay as before: tables unused for 180 days go, beyond the 300 most
+recently used too, and that is why `stammtisch_members` needs no `player_id`
+index for "my Stammtische" (300 tables are a sequential scan).
+
 ## Indexes
 
 Every index serves a named query; an index without one is removed. Small
@@ -95,7 +117,8 @@ them by primary key takes 4 ms.
 Measured with `EXPLAIN (ANALYZE, BUFFERS)` on seeded data (challenge: 14 days
 × 100 players; play attempts: 200,000 rows, 2,000 players, 3 months; players:
 20,000, a quarter without a match, with 300,000 badges, 200,000 tower floors,
-105,000 quest and 120,000 puzzle rows), PostgreSQL 16:
+105,000 quest and 120,000 puzzle rows; Stammtische: 300 with 6 members, 100
+games of 4 seats and 60 weeks each), PostgreSQL 16:
 
 | Query | Index | Plan | ms |
 | --- | --- | --- | --- |
@@ -118,6 +141,11 @@ Measured with `EXPLAIN (ANALYZE, BUFFERS)` on seeded data (challenge: 14 days
 | Tower stars of a player (a month or all), a puzzle day, a day's quests | `players_player_key_key` + children's `_pkey` | nested loop, index scans | 0.02–0.04 |
 | Prune a player's quests (a week) and puzzle days (60 starred) | children's `_pkey` (player_id prefix) | index scan | 0.01–0.1 |
 | Delete a player (cascade) | children's `_pkey`; no `player_id` index on `play_attempts` | the FK trigger scans `play_attempts` | 20 |
+| A Stammtisch by code (join, probe, chip) | `stammtische_stammtisch_code_key` | unique probe | 0.01 |
+| A whole Stammtisch (summary, chip sheet, before booking a match): 6 members, 100 games, 400 seats, 60 weeks | `stammtische_stammtisch_code_key`, children's `_pkey` (stammtisch_id first) | index scans, JSON aggregates | 2 |
+| Its last winner | `stammtisch_games_pkey`, `stammtisch_game_seats_pkey` | index-only probe of the newest game | 0.04 |
+| My Stammtische (300 tables) | `players_player_key_key`, `stammtisch_members_pkey` per table | seq scan of `stammtische`, probes | 0.4 |
+| Prune unused / beyond 300, trim a table's games | seq scan of 300 rows; `stammtisch_games_pkey` | | 0.1 |
 
 Deleting a player is a rare manual step (a guest's request; an account
 deletion removes attempts by `player_key`, indexed), so `play_attempts` gets no

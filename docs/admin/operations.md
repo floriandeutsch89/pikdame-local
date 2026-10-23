@@ -246,6 +246,13 @@ ALTER TABLE challenge_attempts ALTER COLUMN player_id SET NOT NULL;
 ALTER TABLE play_attempts ALTER COLUMN player_id SET NOT NULL;
 ```
 
+**Rolling back past the Stammtisch move** (to a version that still kept
+`stammtisch.json`): rename `stammtisch.json.migrated` back to
+`stammtisch.json` in the data volume before starting the old version. Matches,
+members and new tables of the newer version are not in the file. Going forward
+again keeps the database's Stammtische (marker `stammtisch.json` in
+`legacy_imports`, the file is moved aside).
+
 ## Backup & restore
 
 ```sh

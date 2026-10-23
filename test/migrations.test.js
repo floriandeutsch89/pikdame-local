@@ -214,3 +214,29 @@ test('migration players: every known name gets a player, the challenge and attem
     'players_favorite_badges_check', 'players_player_key_check',
   ]);
 });
+
+test('migration stammtische: tables, keys and checks named by the conventions; codes only of the lookup shape', async (t) => {
+  const { pool, rows } = await withPool(t);
+  const version = loadMigrations().find((m) => m.name === 'stammtische').version;
+  await migrate(pool, { dir: filesUpTo(version) });
+  const named = await rows(`SELECT tablename || ':' || indexname AS i FROM pg_indexes WHERE schemaname = current_schema()
+    AND tablename LIKE 'stammtisch%' ORDER BY 1`);
+  assert.deepStrictEqual(named.map((r) => r.i), [
+    'stammtisch_game_seats:stammtisch_game_seats_pkey', 'stammtisch_games:stammtisch_games_pkey',
+    'stammtisch_members:stammtisch_members_pkey', 'stammtisch_series_wins:stammtisch_series_wins_pkey',
+    'stammtisch_weeks:stammtisch_weeks_pkey', 'stammtische:stammtische_pkey', 'stammtische:stammtische_stammtisch_code_key',
+  ]);
+  const constraints = await rows(`SELECT conname FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace
+    WHERE n.nspname = current_schema() AND contype IN ('c', 'f') AND conname LIKE 'stammtisch%' ORDER BY 1`);
+  assert.deepStrictEqual(constraints.map((r) => r.conname), [
+    'stammtisch_game_seats_player_id_fkey', 'stammtisch_game_seats_stammtisch_id_game_no_fkey',
+    'stammtisch_games_stammtisch_id_fkey', 'stammtisch_members_player_id_fkey', 'stammtisch_members_stammtisch_id_fkey',
+    'stammtisch_series_wins_player_id_fkey', 'stammtisch_series_wins_stammtisch_id_fkey', 'stammtisch_weeks_stammtisch_id_fkey',
+    'stammtische_owner_player_id_fkey', 'stammtische_stammtisch_code_check',
+  ]);
+  await assert.rejects(pool.query("INSERT INTO stammtische (stammtisch_code, stammtisch_name) VALUES ('st-1', 'x')"), /stammtische_stammtisch_code_check/);
+  const types = await rows(`SELECT table_name || '.' || column_name AS col FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name LIKE 'stammtisch%' AND data_type IN ('bigint', 'integer')
+      AND column_name ~ '(_at|_day)$'`);
+  assert.deepStrictEqual(types, [], 'no epoch integers');
+});

@@ -396,6 +396,7 @@ window.I18N_SERVER_PATTERNS = [
   [/^Profil nicht gefunden\.$/, 'Profile not found.'],
   [/^Ungültige Auswahl\.$/, 'Invalid selection.'],
   [/^Diesen Stammtisch gibt es nicht \(mehr\)\.$/, 'This regulars table does not exist (any more).'],
+  [/^Der Stammtisch ist gerade nicht erreichbar - bitte versuch es gleich noch einmal\.$/, 'The regulars table is unavailable right now - please try again in a moment.'],
   [/^Nur wer den Stammtisch gegründet hat, kann ihn löschen\.$/, 'Only the founder can delete this regulars table.'],
   [/^Du bist an diesem Stammtisch nicht eingetragen\.$/, 'You are not a member of this regulars table.'],
   [/^Als Gründer kannst du den Stammtisch nur löschen, nicht verlassen\.$/, 'As the founder you can only delete the table, not leave it.'],
