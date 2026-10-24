@@ -2582,9 +2582,11 @@ wss.on('connection', (ws, req) => {
       if (archive) status = { tries: 0, solved: result.solved, revealed: false };
       ws.send(JSON.stringify({ ...result, date, xp, level, streak, status, badges, ...(withProfile ? await starInfo() : {}), type: 'puzzleResult' }));
       // Their unlock cards: only for the name's owner (a stranger's solve leaves them for the owner's next visit).
-      let mine = false;
-      if (badges.length) try { mine = await ownsName(name, msg.accountToken); } catch (err) { logCrash('badge-notices', err, { player: name }); }
-      if (mine) await announceBadges(name, ws);
+      if (badges.length) {
+        let mine = false;
+        try { mine = await ownsName(name, msg.accountToken); } catch (err) { logCrash('badge-notices', err, { player: name }); }
+        if (mine) await announceBadges(name, ws);
+      }
       return;
     }
     if (msg.type === 'claimBadges') {
