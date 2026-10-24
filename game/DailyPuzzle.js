@@ -350,7 +350,7 @@ function checkAnswer(puzzle, answer) {
     meldType = v.type;
   }
   const left = puzzle.hand.length - seen.size;
-  if (kind !== 'meld' && left < 1) return fail('Eine Karte muss zum Abwerfen übrig bleiben.', 'discard');
+  if (kind !== 'meld' && left < 1) return fail('Mindestens eine Karte muss zum Abwerfen übrig bleiben.', 'discard');
   const solved = kind === 'out' ? left === 1 : points >= target;
   // meldType, not `type`: the server spreads this object into a WebSocket
   // message whose own `type` field must survive.

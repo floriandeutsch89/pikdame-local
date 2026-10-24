@@ -431,7 +431,7 @@ window.I18N_SERVER_PATTERNS = [
   [/^Karte\(n\) nicht in der Hand gefunden\.$/, 'Card(s) not found in your hand.'],
   [/^Hier ist genau eine Auslage gefragt\.$/, 'This puzzle asks for exactly one meld.'],
   [/^Jede Karte darf nur in einer Auslage liegen\.$/, 'Each card can only be in one meld.'],
-  [/^Eine Karte muss zum Abwerfen übrig bleiben\.$/, 'One card has to stay for the discard.'],
+  [/^Mindestens eine Karte muss zum Abwerfen übrig bleiben\.$/, 'At least one card has to stay for the discard.'],
   [/^Karte passt nicht an diese Auslage\.$/, "This card doesn't fit this meld."],
   [/^Diese Karte passt nicht auf einen Joker in dieser Auslage\.$/, "This card doesn't match a joker in this meld."],
   [/^Diese Kombination ergibt keinen gültigen Satz oder keine gültige Folge\.$/, 'This combination is neither a valid set nor a valid run.'],
