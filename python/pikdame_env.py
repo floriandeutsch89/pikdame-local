@@ -91,8 +91,6 @@ class PikDameEnv(gym.Env):
 
         self._start_proc()
         meta = self._rpc({"cmd": "meta", "obsVersion": self.obs_version})
-        if "error" in meta:
-            raise RuntimeError(f"env server: {meta['error']}")
         self.obs_size = int(meta["obs_size"])
         self.action_size = int(meta["action_size"])
         self.observation_space = spaces.Box(
@@ -159,6 +157,9 @@ class PikDameEnv(gym.Env):
         """Map "self" entries to snapshot policies; fall back to heuristic zen."""
         self._seat_policy = {}
         paths = self._snapshot_paths() if SELF in diffs else []
+        if paths:  # the trainer prunes old snapshots: drop their sessions (~1 MB each, per worker)
+            for gone in set(self._snapshots) - set(paths):
+                del self._snapshots[gone]
         out = []
         for i, d in enumerate(diffs):
             if d == SELF and paths:

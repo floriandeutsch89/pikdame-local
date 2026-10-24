@@ -230,7 +230,8 @@ does not follow a critic that cannot yet predict team rewards.
 `models/candidates/selfplay-zen/`; a `self` seat plays one of these
 snapshots (greedy, like the bot at runtime): the run's first snapshot stays as
 an anchor, plus the newest 4 (`--selfplay-keep`). Without a snapshot a `self`
-seat plays heuristic Zen.
+seat plays heuristic Zen. Memory per env worker: about 10 MB for onnxruntime
+plus 1 MB per snapshot (measured), so roughly 3 GB for 200 workers.
 
 ### 1. Environment (once)
 

@@ -394,8 +394,10 @@ def train_tier(tier, args, human_data=None):
     callbacks = [TableStats()]
     if os.path.exists(checkpoint) and not args.init_from:
         print(f"  resuming from {checkpoint}")
+        # An explicit --lr replaces the saved schedule; without it the run keeps its own.
+        lr = {} if args.lr is None else {"learning_rate": args.lr, "lr_schedule": lambda _: args.lr}
         try:
-            model = MaskablePPO.load(checkpoint, env=env, device=args.device)
+            model = MaskablePPO.load(checkpoint, env=env, device=args.device, custom_objects=lr)
         except ValueError as e:
             raise SystemExit(f"{checkpoint} does not fit this env ({e}). For v1 -> v2 use --init-from.")
         # Restore parallel-env batch size in case it differs from the saved run.
@@ -412,7 +414,7 @@ def train_tier(tier, args, human_data=None):
             batch_size=batch_size,  # scales with workers so each GPU batch stays full
             gamma=0.997,
             ent_coef=0.01,
-            learning_rate=args.lr,
+            learning_rate=3e-4 if args.lr is None else args.lr,
             policy_kwargs=dict(net_arch=[256, 256]),
         )
         if args.init_from:
@@ -486,7 +488,8 @@ def main():
                     help='snapshot interval for "self" seats (default: every rollout)')
     ap.add_argument("--selfplay-keep", type=int, default=4, help="newest snapshots kept besides the first")
     ap.add_argument("--n-steps", type=int, default=2048, help="PPO rollout length per env")
-    ap.add_argument("--lr", type=float, default=3e-4, help="learning rate")
+    ap.add_argument("--lr", type=float, default=None,
+                    help="learning rate (new run: default 3e-4; resume: the saved one unless given)")
     ap.add_argument("--out-dir", default=None, help="default: models/ (v1), models/candidates/ (v2)")
     ap.add_argument("--no-progress", action="store_true", help="no progress bar (logs, CI)")
     args = ap.parse_args()
