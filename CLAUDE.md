@@ -264,6 +264,8 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
 - **Kartenerhaltung** (`test/card-conservation.test.js`): nach JEDEM Zug exakt
   das 110-Karten-Deck. Planungs-/Suchfunktionen arbeiten auf Kopien (eine
   Bot-Planung schrieb einmal in echte Auslagen → doppelte Pik Damen).
+- Tests auf zufällig gegebenen Partien nie an „die erste Runde“ binden: Sie kann
+  nach wenigen Zügen enden (~1,5 %) — über Rundengrenzen weiterspielen.
 - Client-Heuristiken gegen die Server-Wahrheit fuzzen: keine falschen Positiven.
   Ein Bot-Zug kommt als EIN State (Broadcast pro Tick gebündelt): Diffs zweier
   States aus Orten ableiten, nie aus Zählern (Pik-Dame-Momente, Engine-Fuzz).
