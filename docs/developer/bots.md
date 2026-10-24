@@ -5,7 +5,9 @@ Four difficulty levels, each measurably stronger than the one below. Three are
 a trained **ONNX policy** make the draw and discard decisions where the runtime
 is installed ({doc}`../admin/onnx`) and falls back to the Hard heuristic
 otherwise; melding stays with the engine either way, because a meld is either
-legal or not. New tables start on Medium.
+legal or not. At a "2 gegen 2" table only a model with the team features
+(encoder v2, {ref}`training-v2`) plays; with the shipped v1 model Zen plays
+its heuristic there. New tables start on Medium.
 
 | Level | Engine | Step up (2 vs 2, win share of the stronger level) |
 | --- | --- | --- |
@@ -20,6 +22,7 @@ paired games per step, ± = standard error of the batch means:
 ```bash
 node scripts/sim-bots.js --ladder            # needs onnxruntime-node for Zen
 node scripts/sim-bots.js --ladder medium,hard --batches 10 --games 300
+node scripts/sim-bots.js --team-ladder hard,zen   # "2 gegen 2": a Zen team against a Schwer team
 ```
 
 Before 2.61 Medium also played the net. Medium and Zen nets were equally strong

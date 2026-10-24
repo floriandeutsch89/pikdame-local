@@ -28,6 +28,8 @@ terraform/*.tfvars.json
 .venv/
 python/__pycache__/
 models/*.zip
+# v2 training candidates and self-play snapshots: shipped only after the acceptance runs
+models/candidates/
 
 # Human move logs for imitation learning (data collection) - including
 # renamed copies (.bak, .1, ...) set aside for training runs

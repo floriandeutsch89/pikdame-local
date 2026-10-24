@@ -101,9 +101,16 @@ wins per hour; the 2000 target removed that.) Decided: no damping in v1.
 
 ## Bots
 
-- **Zen plays its heuristic** at a team table: the ONNX net was trained on
-  single scoring, and `StateEncoder` (377 observations, 54 actions) stays as
-  it is.
+- **Zen plays the net only with a v2 model.** `OnnxPolicy` reads the model's
+  input size: the shipped v1 model (377 observations) never sees a team
+  table, so Zen plays its heuristic there; a v2 model (385: v1 plus 8 team
+  features, {ref}`training-v2`) plays team tables too. A human's stand-in
+  plays the table's level on the net path as well (`GameManager._seatLevel`).
+- **The v1 net would already be strong here:** zero-padded to v2 (it ignores
+  the team features, plays exactly like v1), a Zen team won 82.1 % ± 1.5 of
+  its matches against a Schwer team (2026-10-24, 10 × 100 games,
+  `node scripts/sim-bots.js --team-ladder hard,zen`). Not shipped: the team
+  features come with a trained v2 model.
 - **The heuristic already fits:** with crosswise seats the next player is
   always an opponent (discard safety holds), the endgame damage control
   already counts the partner's small hand (the round ends whoever goes out),
@@ -123,7 +130,7 @@ wins per hour; the 2000 target removed that.) Decided: no damping in v1.
   seam in `SEAT_CONTROL_FIELDS`). Easy and medium do not read these inputs at
   all.
 
-## For drivers and a future encoder
+## For drivers and the encoder
 
 - `new GameManager(send, { teamMode: true })` opens a four-seat team table
   (ignored together with `challengeDate`, `tutorialMode` or `towerStage`), so
@@ -142,4 +149,10 @@ wins per hour; the 2000 target removed that.) Decided: no damping in v1.
   credits one teammate alone.
 - Move log rows: `teamMode: 1`, `team`, `teamTotals`, and `won`/`rank` by
   team; the row's `state` names `team` and `teamTotals`, every entry of
-  `state.opponents` its `team` (the partner shares the decider's).
+  `state.opponents` its `team` (the partner shares the decider's). `obs`
+  stays v1; `obsTeam` holds the 8 v2 team features (`obs + obsTeam` = v2).
+- Encoder v2 (`StateEncoder.encode(game, id, { version: 2 })`): v1 unchanged,
+  then team mode, partner flag per opponent slot, both team totals / 2000,
+  the partner's hand and the other team's smallest hand / 15. The training
+  bridge (`scripts/rl-env-server.js`, `teamMode` on `reset`) rewards the
+  team: (own team − other team) / 200 per round, ±1 for the match.

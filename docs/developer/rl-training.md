@@ -11,33 +11,50 @@ The reward (see `scripts/rl-env-server.js`) is:
 ```text
 per round:      (my score − the AVERAGE opponent's score) / 100
 at game over:   +1 if I win, −1 otherwise
+
+"2 gegen 2" (v2 training):
+per round:      (my team's score − the other team's score) / 200
+at game over:   +1 if my team wins, −1 otherwise
 ```
+
+Every finished round counts, the match's last one included (until encoder v2
+the terminal step carried only the ±1, and a match that ended on a turn
+without a free discard lost the ±1 as well).
 
 Two consequences worth internalising:
 
 1. **The round term is centred on zero.** An average player scores about the
    same as the average opponent, so their round reward is ≈ 0. A *positive*
    round reward therefore means genuinely "better than this table".
-2. **The terminal term is not.** For four equal players its expected value is
-   `0.25·(+1) + 0.75·(−1) = **−0.50**`. So even a perfectly average agent lands
-   at roughly **−0.5**, not 0.
+2. **The terminal term is not** at a normal table. For four equal players its
+   expected value is `0.25·(+1) + 0.75·(−1) = **−0.50**`. So even a perfectly
+   average agent lands at roughly **−0.5**, not 0. At a team table it is 0
+   (two equal teams).
 
 ### The baseline to judge against
 
-Measured over 400 games with the **heuristic bot** sitting on the agent's seat:
+Measured over 400 games with the **heuristic bot** sitting on the agent's seat
+(2026-10-24, the reward above):
 
-| Policy on the agent's seat | Mean episode reward | of which: rounds |
-| --- | --- | --- |
-| Heuristic bot (`medium`) | **−0.62** | −0.07 |
-| Heuristic bot (`zen`) | **−0.59** | −0.12 |
+| Policy on the agent's seat | Table (other seats) | Mean episode reward | Win rate |
+| --- | --- | --- | --- |
+| Heuristic `medium` | zen, zen, medium | **−1.09** ± 0.17 | 20.5 % |
+| Heuristic `zen` | zen, zen, medium | **−0.37** ± 0.16 | 24.8 % |
+| Heuristic `zen`, partner zen | team: zen and medium against | **+0.34** ± 0.18 | 53.8 % |
+| Heuristic `zen`, partner zen | team: hard and hard against | **−0.08** ± 0.16 | 50.3 % |
 
-So **≈ −0.6 is "as good as the bot you are playing against"**, and the number to
-beat. Anything meaningfully above that is a real improvement; `0` would mean
-winning noticeably more than a fair share of games.
+So **≈ −0.4 is "as good as the bot you are playing against"** at the
+`eval_onnx.py` default table, and the number to beat. Anything meaningfully
+above that is a real improvement; `0` would mean winning noticeably more than
+a fair share of games. (The table said −0.62 / −0.59 before: other bots since
+2.61, and the final round did not count yet.)
 
-**Use the win rate as the headline number.** With four players, **25 % is par**.
-`eval_onnx.py` prints it with a standard error — over only 40 games the noise is
-large, so do not over-read small differences.
+**Use the win rate as the headline number.** With four players, **25 % is par**,
+at a team table 50 %. `eval_onnx.py` prints it with a standard error — over
+only 40 games the noise is large, so do not over-read small differences.
+v2 training logs it per table kind every rollout: `tables/normal2_win_rate`
+… `normal4_win_rate` (par 1/2, 1/3, 1/4) and `tables/team_win_rate`, with the
+mean episode reward (`_ep_rew`) and the number of episodes behind it.
 
 :::{warning}
 **This changed in v1.63.0.** The reward used to compare against the **maximum**
