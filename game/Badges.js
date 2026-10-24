@@ -8,6 +8,8 @@
 // module only deals in stable ids.
 
 const { gameHour } = require('./GameDay');
+const { isRecordWinner, recordOpponentIds, teamIndexOf } = require('./Teams');
+const { GAME_END_THRESHOLD, gameEndThreshold } = require('./ScoreBoard');
 
 const BADGE_IDS = [
   'first_win', // first game won
@@ -49,8 +51,8 @@ const BADGE_IDS = [
   'cold_shower', // caught with BOTH Queens of Spades in one round
   'joker_king', // 4+ jokers melded in one round
   'quick_start', // went out in one ("Hand aus") in round 1
-  'near_miss', // lost a match by less than 20 points
-  'landslide', // won a match by 500+ points
+  'near_miss', // lost a match by less than 20 points (a team: 40, the margins scale with the target)
+  'landslide', // won a match by 500+ points (a team: 1000)
   'night_owl', // finished a match between 0:00 and 3:59 German time
   'stammtisch_10', // 10 matches at a Stammtisch
   'challenger_7', // 7 daily challenges played (tier 30 below)
@@ -106,7 +108,10 @@ const BADGE_FAMILIES = [
 function computeEarnedBadges(gameRecord, playerId, profile = {}, context = {}) {
   const earned = [];
   const rounds = (gameRecord && gameRecord.rounds) || [];
-  const won = gameRecord && gameRecord.winnerId === playerId;
+  // "2 gegen 2": a team win counts for both; margins and the comeback compare
+  // the team totals (docs/developer/team-mode.md).
+  const won = isRecordWinner(gameRecord, playerId);
+  const team = gameRecord && gameRecord.teamMode ? teamIndexOf(gameRecord.teams, playerId) : -1;
 
   let pdLaid = 0;
   let pdCaught = 0;
@@ -145,8 +150,11 @@ function computeEarnedBadges(gameRecord, playerId, profile = {}, context = {}) {
   if (pdCaught >= 1) earned.push('pd_caught');
   if (((gameRecord && gameRecord.finalTotals) || {})[playerId] >= 500) earned.push('score_500');
 
-  // Comeback: sole last after the FIRST round, winner at the end.
-  if (won && rounds.length >= 2 && rounds[0].totalsAfter) {
+  // Comeback: sole last after the FIRST round, winner at the end (team mode: the own team behind).
+  if (won && rounds.length >= 2 && team >= 0 && Array.isArray(rounds[0].teamTotalsAfter)) {
+    const tt = rounds[0].teamTotalsAfter;
+    if (tt[1 - team] > tt[team]) earned.push('comeback');
+  } else if (won && rounds.length >= 2 && team < 0 && rounds[0].totalsAfter) {
     const totals = rounds[0].totalsAfter;
     const my = totals[playerId];
     const others = Object.entries(totals).filter(([pid]) => pid !== playerId).map(([, v]) => v);
@@ -155,7 +163,9 @@ function computeEarnedBadges(gameRecord, playerId, profile = {}, context = {}) {
 
   if (doubleQueenRound) earned.push('double_queen_round');
   if (bigRound) earned.push('round_300');
-  const zenBots = ((gameRecord && gameRecord.players) || []).filter((p) => p.isBot && p.botDifficulty === 'zen').length;
+  // Only Zen OPPONENTS count: a Zen partner does not make a win a Zen win.
+  const opponents = new Set(recordOpponentIds(gameRecord, playerId));
+  const zenBots = ((gameRecord && gameRecord.players) || []).filter((p) => opponents.has(p.id) && p.isBot && p.botDifficulty === 'zen').length;
   if (won && zenBots >= 1) earned.push('zen_slayer');
   if (won && zenBots >= 3) earned.push('zen_trio');
   if (won && rounds.length > 0 && jokersLaid === 0) earned.push('no_joker_win');
@@ -174,10 +184,19 @@ function computeEarnedBadges(gameRecord, playerId, profile = {}, context = {}) {
   const mine = totals[playerId];
   if (typeof mine === 'number' && rounds.length > 0) {
     if (mine < 0) earned.push('rock_bottom');
-    const others = Object.entries(totals).filter(([pid]) => pid !== playerId).map(([, v]) => v);
-    const winnerTotal = totals[gameRecord.winnerId];
-    if (!won && typeof winnerTotal === 'number' && winnerTotal - mine < 20) earned.push('near_miss');
-    if (won && others.length > 0 && mine - Math.max(...others) >= 500) earned.push('landslide');
+    const tt = gameRecord.teamTotals;
+    if (team >= 0 && Array.isArray(tt)) {
+      // A team plays to twice the target, so its margins are twice as wide.
+      const scale = (gameRecord.targetScore || gameEndThreshold(true)) / GAME_END_THRESHOLD;
+      const gap = tt[team] - tt[1 - team];
+      if (!won && -gap < 20 * scale) earned.push('near_miss');
+      if (won && gap >= 500 * scale) earned.push('landslide');
+    } else {
+      const others = Object.entries(totals).filter(([pid]) => pid !== playerId).map(([, v]) => v);
+      const winnerTotal = totals[gameRecord.winnerId];
+      if (!won && typeof winnerTotal === 'number' && winnerTotal - mine < 20) earned.push('near_miss');
+      if (won && others.length > 0 && mine - Math.max(...others) >= 500) earned.push('landslide');
+    }
   }
   if (rounds.length > 0 && gameRecord.finishedAt && gameHour(gameRecord.finishedAt) < 4) earned.push('night_owl');
   if ((profile.lastPlaceStreak || 0) >= 3) earned.push('red_lantern');

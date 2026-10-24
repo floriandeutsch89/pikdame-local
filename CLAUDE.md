@@ -110,6 +110,9 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
     abrufbar), dort nur ein Flag. `Emotes.js`: EINZIGE Emote-Whitelist (Vertragstest).
   - `BotQuips.js`: EINZIGE Liste der Bot-Spruch-Anlässe; nur die ID geht über
     die Leitung, Texte DE/EN im Client (Vertragstest).
+  - `Teams.js`: „2 gegen 2“, Teams über Kreuz per Sitz-Parität; Partie-Akte mit
+    `winnerId: null` + `winnerIds` → Sieg nur über `isRecordWinner` prüfen. Nie
+    Solo-Modi, nie Stammtisch (v1). Doku `docs/developer/team-mode.md`.
   - Tages-Challenge: EIN Versuch pro Name und Tag, begonnen = verbraucht
     (`ChallengeStore.beginAttempt`, atomar per Primärschlüssel in Postgres —
     vor dem Spielstart awaiten), keine Revanche; Bots immer Heuristik-Mittel.
@@ -179,7 +182,9 @@ Kombination verschont eine Karte); Anlegbarkeit berechtigt nie zur Aufnahme
 (`canUseDiscardTop`). Bots werfen nie
 Joker ab (außer als letzte Karte). Punkte: 2–9=5, 10/B/D/K=10, Ass/Joker=20,
 ♠Q=100. Ende ab 1000 (Hausregel „streng“: >1000). `gameOverInfo` trägt
-`totalTurns`/`totalRounds` (aus `gameTurnCount`).
+`totalTurns`/`totalRounds` (aus `gameTurnCount`). „2 gegen 2“: Regeln am Tisch
+unverändert, jeder Sitz gewertet wie sonst, die Teamsumme entscheidet; Ziel
+2000 (`TEAM_GAME_END_THRESHOLD`, nie als Literal).
 
 **Bot-Messdisziplin:** Winrate nie aus einem kleinen Lauf; `node
 scripts/sim-bots.js` mit Mittel ± Standardfehler über viele Batches. Null-/

@@ -7,7 +7,9 @@ const { seededRandom, createDeck, shuffle, dealCards, performLuckyCut } = requir
 // darf den ganzen Tisch nicht blockieren.
 const CUT_TIMEOUT_MS = 45000;
 const { validateMeld, validateSet, runAssignmentByOrder, tryLayOff, tryJokerSwap, enumerateMeldOptions, enumerateLayOffOptions, canFormMeldWithCard } = require('./Rules');
-const { scoreRound, scoreLines, applyRoundScores, checkGameOver, DEFAULT_HOUSE_RULES } = require('./ScoreBoard');
+const { scoreRound, scoreLines, applyRoundScores, checkGameOver, checkTeamGameOver, gameEndThreshold, DEFAULT_HOUSE_RULES } = require('./ScoreBoard');
+const Teams = require('./Teams');
+const { sanitizeName } = require('./SessionRegistry');
 const { rankIndex, cardLabel, isPikDame, cardValue, RANKS } = require('./Card');
 const Bot = require('./Bot');
 const StateEncoder = require('./StateEncoder');
@@ -38,9 +40,14 @@ function botDifficultyOf(player) {
 const SEAT_CONTROL_FIELDS = [
   'forcedDrawSource', 'externalDiscard', 'mctsEnabled', 'mctsForceOff',
   'mctsDeterminizations', 'mctsEndgameAt', 'mctsMaxHand', 'mcEnabled', 'earlyDrawBiasTurns', 'queenDumpMaxHand', 'relaxQueenBaitOnJoker', 'preferDrawOnRedundantSet', 'capMeldSize', 'mod3Trim',
+  'teamAware',
 ];
 
 const MIN_SEATS = 2;
+const BOT_NAMES = [
+  'Uwe', 'Inge', 'Maria', 'Heinz', 'Gisela', 'Klaus', 'Renate', 'Dieter',
+  'Helga', 'Manfred', 'Erika', 'Horst', 'Waltraud', 'Bernd', 'Ursel', 'Kurt',
+];
 // Lesson reports per tutorial attempt: 14 lessons shown + done fit many times over.
 const TUTORIAL_MSG_CAP = 200;
 const MAX_SEATS_LIMIT = 4; // Spielmaterial (Kartenanzahl, Joker) ist auf max. 4 Spieler ausgelegt
@@ -86,6 +93,15 @@ class GameManager {
     this.totals = {};
     this.houseRules = { ...DEFAULT_HOUSE_RULES };
     this.maxSeats = DEFAULT_MAX_SEATS; // wählbar (2-4), siehe setMaxSeats()
+    // "2 gegen 2" (game/Teams.js): four seats, teams by seat parity. Never in a solo mode.
+    this.teamMode = false;
+    if (options.teamMode && !this.isSoloMode()) {
+      this.teamMode = true;
+      this.maxSeats = Teams.TEAM_SEATS;
+    }
+    // Optional names [A, B], set in the lobby by a human of that team (setTeamName).
+    this.teamNames = [null, null];
+    this._teamNameChanges = [[], []]; // rate limit per team, transient
     this.reset();
   }
 
@@ -203,6 +219,7 @@ class GameManager {
    *  plays - a bot's own or one given up for good (leftGame). */
   _seatForNewHuman() {
     if (this.phase !== 'lobby') return this.players.findIndex((pl) => pl.isBot || pl.leftGame);
+    if (this.teamMode) return this._teamSeatForNewHuman();
     const n = this.players.length;
     const bots = this.players.map((pl, i) => (pl.isBot ? i : -1)).filter((i) => i !== -1);
     const humans = this.players.map((pl, i) => (pl.isBot ? -1 : i)).filter((i) => i !== -1);
@@ -216,6 +233,156 @@ class GameManager {
       if (gap > bestGap || (gap === bestGap && since(b) > since(best))) best = b;
     }
     return best;
+  }
+
+  // --- "2 gegen 2" (game/Teams.js) -------------------------------------------
+
+  /** Team index (0 = A, 1 = B) of a seat index or player id; null outside team mode. */
+  teamOf(seatOrId) {
+    if (!this.teamMode) return null;
+    const seat = typeof seatOrId === 'number' ? seatOrId : this.players.findIndex((p) => p.id === seatOrId);
+    return seat >= 0 && seat < this.players.length ? Teams.teamOfSeat(seat) : null;
+  }
+
+  /** The partner's seat object; null outside team mode. */
+  partnerOf(playerId) {
+    if (!this.teamMode) return null;
+    const seat = this.players.findIndex((p) => p.id === playerId);
+    return seat >= 0 ? this.players[Teams.partnerSeat(seat)] || null : null;
+  }
+
+  /** [[ids of A], [ids of B]] in seat order; null outside team mode. */
+  teams() {
+    return this.teamMode ? Teams.teamsOf(this.players) : null;
+  }
+
+  /** The shared match totals [A, B]; null outside team mode. */
+  teamTotals() {
+    return this.teamMode ? Teams.teamSums(Teams.teamsOf(this.players), this.totals) : null;
+  }
+
+  /** "Team Löwen" or "Team Anna & Uwe" for the (German) log; the client translates the frame. */
+  _teamLabel(team) {
+    if (this.teamNames && this.teamNames[team]) return `Team ${this.teamNames[team]}`;
+    const names = this.players.filter((_, i) => Teams.teamOfSeat(i) === team).map((p) => p.name);
+    return `Team ${names.join(' & ')}`;
+  }
+
+  /** The match target: 1000, a team's shared total 2000 (ScoreBoard.gameEndThreshold). */
+  targetScore() {
+    return gameEndThreshold(this.teamMode);
+  }
+
+  /** Lobby, team mode: a human names their own team, cleaned like a player
+   *  name (empty clears it). At most TEAM_NAME_CHANGES per team and window. */
+  setTeamName(playerId, raw, now = Date.now()) {
+    if (!this.teamMode) return { error: 'Teams gibt es nur bei „2 gegen 2“.' };
+    if (this.phase !== 'lobby') return { error: 'Den Teamnamen könnt ihr nur vor Spielbeginn ändern.' };
+    const seat = this.players.findIndex((pl) => pl.id === playerId && !pl.isBot);
+    if (seat === -1) return { error: 'Du sitzt nicht an diesem Tisch.' };
+    const team = Teams.teamOfSeat(seat);
+    const name = sanitizeName(raw).trim() || null;
+    if (name === this.teamNames[team]) return { ok: true };
+    const recent = (this._teamNameChanges[team] || []).filter((t) => now - t < GameManager.TEAM_NAME_WINDOW_MS);
+    if (recent.length >= GameManager.TEAM_NAME_CHANGES) return { error: 'Zu viele Namensänderungen - bitte kurz warten.' };
+    this._teamNameChanges[team] = [...recent, now];
+    this.teamNames[team] = name;
+    this.broadcastState();
+    return { ok: true };
+  }
+
+  /** Outside team mode there are no names; in the lobby a team without a human keeps none. */
+  _pruneTeamNames() {
+    if (!this.teamMode || !Array.isArray(this.teamNames)) {
+      this.teamNames = [null, null];
+      return;
+    }
+    if (this.phase !== 'lobby') return;
+    for (const team of [0, 1]) {
+      const human = this.players.some((pl, i) => !pl.isBot && !pl.leftGame && Teams.teamOfSeat(i) === team);
+      if (!human) this.teamNames[team] = null;
+    }
+  }
+
+  /** Lobby: the bot seat of the team with fewer humans (A on a tie), so two
+   *  humans play against each other until one of them switches. */
+  _teamSeatForNewHuman() {
+    const humans = [0, 0];
+    this.players.forEach((pl, i) => { if (!pl.isBot) humans[Teams.teamOfSeat(i)] += 1; });
+    for (const team of humans[1] < humans[0] ? [1, 0] : [0, 1]) {
+      const seat = this.players.findIndex((pl, i) => pl.isBot && Teams.teamOfSeat(i) === team);
+      if (seat !== -1) return seat;
+    }
+    return -1;
+  }
+
+  /** Lobby (host; the server checks): "2 gegen 2" on or off. On: four seats,
+   *  the humans spread over both teams, every bot on one level (fairness). */
+  setTeamMode(on) {
+    if (this.phase !== 'lobby') return { error: 'Den Spielmodus kannst du nur vor Spielbeginn ändern.' };
+    if (this.isSoloMode()) return { error: '„2 gegen 2“ gibt es nur an freien Tischen.' };
+    const want = !!on;
+    if (want !== this.teamMode) {
+      this.teamMode = want;
+      if (want) {
+        this.maxSeats = Teams.TEAM_SEATS;
+        this.syncLobbyBots();
+        this._balanceTeams();
+        this.setAllBotsDifficulty(this._tableBotLevel());
+      }
+    }
+    this.broadcastState();
+    return { ok: true };
+  }
+
+  /** Moves humans (never the host) to bot seats of the other team until the
+   *  teams differ by at most one human. */
+  _balanceTeams() {
+    for (let guard = 0; guard < Teams.TEAM_SEATS; guard++) {
+      const humans = [0, 0];
+      this.players.forEach((pl, i) => { if (!pl.isBot) humans[Teams.teamOfSeat(i)] += 1; });
+      const big = humans[0] - humans[1] >= 2 ? 0 : humans[1] - humans[0] >= 2 ? 1 : -1;
+      if (big === -1) return;
+      const host = this.effectiveHostId();
+      let from = -1;
+      this.players.forEach((pl, i) => { if (!pl.isBot && pl.id !== host && Teams.teamOfSeat(i) === big) from = i; });
+      const to = this.players.findIndex((pl, i) => pl.isBot && Teams.teamOfSeat(i) !== big);
+      if (from === -1 || to === -1) return;
+      this._swapSeats(from, to);
+    }
+  }
+
+  _swapSeats(a, b) {
+    this._keepDealer(() => { [this.players[a], this.players[b]] = [this.players[b], this.players[a]]; });
+  }
+
+  /** Lobby, team mode: a human moves to a bot seat of the other team. */
+  switchTeam(playerId) {
+    if (this.phase !== 'lobby') return { error: 'Das Team wechseln geht nur vor Spielbeginn.' };
+    if (!this.teamMode) return { error: 'Teams gibt es nur bei „2 gegen 2“.' };
+    const from = this.players.findIndex((pl) => pl.id === playerId && !pl.isBot);
+    if (from === -1) return { error: 'Du sitzt nicht an diesem Tisch.' };
+    const to = this.players.findIndex((pl, i) => pl.isBot && Teams.teamOfSeat(i) !== Teams.teamOfSeat(from));
+    if (to === -1) return { error: 'Im anderen Team ist kein Platz frei.' };
+    this._swapSeats(from, to);
+    this.broadcastState();
+    return { ok: true };
+  }
+
+  /** A human's lobby seat is freed (left, or never came back). Team mode puts
+   *  a bot on that very seat, so nobody else changes team. */
+  _vacateLobbySeat(playerId) {
+    const idx = this.players.findIndex((pl) => pl.id === playerId);
+    if (idx === -1) return;
+    if (this.teamMode) {
+      const bot = this._createBot();
+      this._keepDealer(() => { this.players[idx] = bot; });
+    } else {
+      this._keepDealer(() => { this.players.splice(idx, 1); });
+    }
+    delete this.totals[playerId];
+    if (this._lobbyReady) this._lobbyReady.delete(playerId);
+    this.syncLobbyBots();
   }
 
   /** The effective organizer: the stored host if still present & connected,
@@ -244,11 +411,8 @@ class GameManager {
     if (this.phase !== 'lobby') return { error: 'Verlassen geht nur in der Lobby - im Spiel: Haus oben links › „Spiel aufgeben“.' };
     const p = this.players.find((pl) => pl.id === playerId && !pl.isBot);
     if (!p) return { error: 'Du sitzt nicht an diesem Tisch.' };
-    this._keepDealer(() => { this.players = this.players.filter((pl) => pl.id !== playerId); });
-    delete this.totals[playerId];
-    if (this._lobbyReady) this._lobbyReady.delete(playerId);
+    this._vacateLobbySeat(playerId);
     this.addLog(`${p.name} hat die Lobby verlassen.`);
-    this.syncLobbyBots();
     this.broadcastState();
     return { ok: true };
   }
@@ -311,6 +475,8 @@ class GameManager {
       phase: this.phase,
       round: this.roundNumber || 0,
       score: (this.totals && this.totals[playerId]) || 0,
+      // Team mode: the shared total is the one that decides.
+      teamScore: this.teamMode ? this.teamTotals()[this.teamOf(playerId)] : undefined,
       left: !!p.leftGame,
       alone: !this.players.some((pl) => pl.id !== playerId && !pl.isBot && !pl.leftGame),
       tutorial: !!this.tutorialMode,
@@ -402,10 +568,7 @@ class GameManager {
         // Lobby: a human who never came back gives up their seat (a bot
         // takes it), so the ready gate isn't blocked indefinitely.
         if (!p.isBot) {
-          this.players = this.players.filter((pl) => pl.id !== id);
-          delete this.totals[id];
-          if (this._lobbyReady) this._lobbyReady.delete(id);
-          this.syncLobbyBots();
+          this._vacateLobbySeat(id);
           this.broadcastState();
         }
         return;
@@ -422,10 +585,6 @@ class GameManager {
   fillWithBots() {
     // Menschliche Namen statt 'Bot 1/2/3' - fuehlt sich am Tisch lebendiger
     // an. Das 🤖-Symbol am Gegner-Chip kennzeichnet Bots weiterhin klar.
-    const BOT_NAMES = [
-      'Uwe', 'Inge', 'Maria', 'Heinz', 'Gisela', 'Klaus', 'Renate', 'Dieter',
-      'Helga', 'Manfred', 'Erika', 'Horst', 'Waltraud', 'Bernd', 'Ursel', 'Kurt',
-    ];
     const taken = new Set(this.players.map((p) => p.name.toLowerCase()));
     const free = BOT_NAMES.filter((n) => !taken.has(n.toLowerCase()));
     // Zufaellige Auswahl ohne Duplikate; Fallback auf 'Bot N', falls jemand
@@ -446,6 +605,21 @@ class GameManager {
       this.totals[id] = this.totals[id] || 0;
       botIndex += 1;
     }
+  }
+
+  /** Team mode: one new bot for a seat that must stay where it is (lobby leave,
+   *  a leaver at the rematch). Not seated yet. */
+  _createBot() {
+    const taken = new Set(this.players.map((p) => p.name.toLowerCase()));
+    const free = BOT_NAMES.filter((n) => !taken.has(n.toLowerCase()));
+    let botIndex = 1;
+    while (this.players.some((p) => p.id === `bot-${botIndex}`)) botIndex += 1;
+    const id = `bot-${botIndex}`;
+    this.totals[id] = this.totals[id] || 0;
+    return {
+      id, name: free.length ? free[Math.floor(Math.random() * free.length)] : `Bot ${botIndex}`,
+      isBot: true, hand: [], connected: true, laidOutCards: [], botDifficulty: this.defaultBotDifficulty || 'medium',
+    };
   }
 
   /** Lobby only: keep the table topped up to maxSeats with bots so empty seats
@@ -479,6 +653,9 @@ class GameManager {
     const n = Math.round(Number(count));
     if (!Number.isFinite(n) || n < MIN_SEATS || n > MAX_SEATS_LIMIT) {
       return { error: `Die Spieleranzahl muss zwischen ${MIN_SEATS} und ${MAX_SEATS_LIMIT} liegen.` };
+    }
+    if (this.teamMode && n !== Teams.TEAM_SEATS) {
+      return { error: '„2 gegen 2“ braucht genau vier Plätze.' };
     }
     const humanCount = this.players.filter((pl) => !pl.isBot).length;
     if (n < humanCount) {
@@ -586,7 +763,8 @@ class GameManager {
    */
   setAllBotsDifficulty(difficulty) {
     if (!Bot.BOT_LEVELS.includes(difficulty)) return { error: 'Unbekannte Schwierigkeit.' };
-    for (const p of this.players) if (p.isBot) p.botDifficulty = difficulty;
+    // Team mode: a seat given up mid-game is a bot too - one level for every bot (fairness).
+    for (const p of this.players) if (p.isBot || (this.teamMode && p.leftGame)) p.botDifficulty = difficulty;
     // Auch fuer spaeter aufgefuellte Bots merken: fillWithBots kann NACH
     // diesem Aufruf laufen (so macht es der Server beim Challenge-Start).
     this.defaultBotDifficulty = difficulty;
@@ -703,6 +881,8 @@ class GameManager {
       return { error: 'In der Tages-Challenge ist die Bot-Stärke fest - sonst wäre die Bestenliste nicht vergleichbar.' };
     }
     if (this.towerStage) return { error: TOWER_FIXED_ERROR };
+    // Fairness: one team must not get the stronger bot.
+    if (this.teamMode) return { error: 'Bei „2 gegen 2“ spielen alle Bots auf derselben Stufe - stell die Bot-Stärke für alle ein.' };
     // Same names as every client control (one vocabulary for the levels).
     const LABELS = { easy: 'Leicht', medium: 'Mittel', hard: 'Schwer', zen: 'Zen' };
     if (!LABELS[difficulty]) return { error: 'Unbekannte Schwierigkeit.' };
@@ -950,17 +1130,20 @@ class GameManager {
     const dealer = this.players[this.dealerIndex];
     this.addLog(`Runde ${this.roundNumber} gestartet. Geber: ${dealer ? dealer.name : '?'}.`);
 
-    // "Letzte Runde?"-Ansage: Steht jemand kurz vor der 1000er-Schwelle,
-    // wissen alle am Tisch, dass es jetzt um alles geht.
-    const leader = this.players
-      .map((p) => ({ name: p.name, total: this.totals[p.id] || 0 }))
-      .sort((a, b) => b.total - a.total)[0];
-    if (leader && leader.total >= 800) {
+    // "Last round?" call: whoever is close to the target (80 %) - the table knows it is all on the line.
+    const target = this.targetScore();
+    const teamTotals = this.teamTotals();
+    const leader = teamTotals
+      ? [0, 1].map((t) => ({ name: this._teamLabel(t), total: teamTotals[t] })).sort((a, b) => b.total - a.total)[0]
+      : this.players
+        .map((p) => ({ name: p.name, total: this.totals[p.id] || 0 }))
+        .sort((a, b) => b.total - a.total)[0];
+    if (leader && leader.total >= target * 0.8) {
       const strict = !!(this.houseRules && this.houseRules.strictThreshold);
       this.addLog(
         strict
-          ? `⚠️ Endspurt! ${leader.name} steht bei ${leader.total} Punkten - über 1000 endet das Spiel.`
-          : `⚠️ Endspurt! ${leader.name} steht bei ${leader.total} Punkten - ab 1000 endet das Spiel.`
+          ? `⚠️ Endspurt! ${leader.name} steht bei ${leader.total} Punkten - über ${target} endet das Spiel.`
+          : `⚠️ Endspurt! ${leader.name} steht bei ${leader.total} Punkten - ab ${target} endet das Spiel.`
       );
     }
     if (cutter && luckyCards.length > 0) {
@@ -1969,26 +2152,40 @@ class GameManager {
     for (const [pid, score] of Object.entries(this.totals)) {
       if (currentPlayerIds.has(pid)) totalsForGameOverCheck[pid] = score;
     }
+    // "2 gegen 2": every seat is scored as above, the team sums decide the match.
+    const teams = this.teams();
+    const teamTotals = teams ? Teams.teamSums(teams, totalsForGameOverCheck) : null;
     this.addLog(
       `Rundenwertung: ${Object.entries(totalsForGameOverCheck)
         .map(([pid, score]) => `${this.players.find((p) => p.id === pid)?.name || pid}=${score}`)
-        .join(', ')}`
+        .join(', ')}${teams ? ` (${[0, 1].map((t) => `${this._teamLabel(t)}=${teamTotals[t]}`).join(', ')})` : ''}`
     );
     // Kartenhaus: the match is its one round, won by the human only with a star.
     const towerCfg = this.towerStage ? BotTower.stageConfig(this.towerStage, this.towerMonth) : null;
-    const over = towerCfg
-      ? {
+    let over;
+    if (towerCfg) {
+      over = {
         gameOver: true,
         winnerId: BotTower.stageWinner(totalsForGameOverCheck, winnerId, this.players.find((p) => !p.isBot)?.id, towerCfg.handicap, BotTower.hasMod(towerCfg, 'goOut')),
         finalTotals: totalsForGameOverCheck,
-      }
-      : checkGameOver(totalsForGameOverCheck, this.houseRules);
+      };
+    } else if (teams) {
+      // No single winner: winnerId stays null, so nothing credits one teammate alone.
+      const t = checkTeamGameOver(teamTotals, this.houseRules);
+      over = t.gameOver
+        ? { gameOver: true, winnerId: null, teamMode: true, winnerTeam: t.winnerTeam, winnerIds: teams[t.winnerTeam].slice(), teams, teamTotals, teamNames: this.teamNames.slice(), targetScore: this.targetScore(), finalTotals: totalsForGameOverCheck }
+        : { gameOver: false, tieBreak: !!t.tieBreak, tiedTeams: t.tieBreak ? [0, 1] : undefined, tiedScore: t.tiedScore };
+    } else {
+      over = checkGameOver(totalsForGameOverCheck, this.houseRules);
+    }
     // Gleichstand an der Spitze: Es geht weiter. Ohne Ansage wirkt das wie
     // ein Fehler ("warum ist das Spiel nicht vorbei?").
     if (over.tieBreak) {
-      const names = over.tiedIds
-        .map((pid) => this.players.find((p) => p.id === pid)?.name || pid)
-        .join(' und ');
+      const names = over.tiedTeams
+        ? over.tiedTeams.map((t) => this._teamLabel(t)).join(' und ')
+        : over.tiedIds
+          .map((pid) => this.players.find((p) => p.id === pid)?.name || pid)
+          .join(' und ');
       this.addLog(`Gleichstand bei ${over.tiedScore} Punkten (${names}) - es wird eine weitere Runde gespielt.`);
     }
 
@@ -2020,6 +2217,7 @@ class GameManager {
         Object.entries(roundResult).map(([pid, r]) => [pid, { roundScore: r.roundScore, breakdown: r.breakdown }])
       ),
       totalsAfter: { ...this.totals },
+      ...(teams ? { teamScores: Teams.teamSums(teams, Object.fromEntries(Object.entries(roundResult).map(([pid, r]) => [pid, r.roundScore]))), teamTotalsAfter: teamTotals } : {}),
     });
 
     if (over.gameOver) {
@@ -2034,7 +2232,7 @@ class GameManager {
         funTitle: this._collectFunTitle(),
       };
       MoveLogger.flush(this); // persist human moves for imitation learning
-      this.addLog(`Spiel beendet! Gewinner: ${this.players.find((p) => p.id === over.winnerId)?.name}`);
+      this.addLog(`Spiel beendet! Gewinner: ${over.teamMode ? this._teamLabel(over.winnerTeam) : this.players.find((p) => p.id === over.winnerId)?.name}`);
 
       this.lastGameRecord = {
         challengeDate: this.challengeDate || undefined,
@@ -2048,6 +2246,8 @@ class GameManager {
         rounds: this.roundHistory,
         finalTotals: this.totals,
         winnerId: over.winnerId,
+        // Team mode: both winners, the seating and the shared totals (Teams.isRecordWinner).
+        ...(over.teamMode ? { teamMode: true, teams: over.teams, winnerIds: over.winnerIds, winnerTeam: over.winnerTeam, teamTotals: over.teamTotals, teamNames: over.teamNames, targetScore: over.targetScore } : {}),
         houseRules: this.houseRules,
         startedAt: this.gameStartedAt,
         finishedAt: Date.now(),
@@ -2071,10 +2271,13 @@ class GameManager {
               }
               if (round.isHandAus && round.winnerId === p.id) facts.handAusWins += 1;
             }
-            // Last place (ties at the bottom included) feeds the "red lantern" streak.
+            // A team win counts for both teammates; the score stays the player's own.
+            const won = Teams.isRecordWinner(over, p.id);
+            // Last place (ties at the bottom included) feeds the "red lantern" streak;
+            // with two teams the losing team is last.
             const lowest = Math.min(...this.players.map((pl) => this.totals[pl.id] || 0));
-            facts.lastPlace = p.id !== over.winnerId && (this.totals[p.id] || 0) <= lowest;
-            return { id: p.id, name: p.name, score: this.totals[p.id] || 0, won: p.id === over.winnerId, facts };
+            facts.lastPlace = over.teamMode ? !won : p.id !== over.winnerId && (this.totals[p.id] || 0) <= lowest;
+            return { id: p.id, name: p.name, score: this.totals[p.id] || 0, won, facts };
           });
         try {
           this.onGameOver(results, this.lastGameRecord);
@@ -2206,7 +2409,11 @@ class GameManager {
   }
 
   prepareRematch() {
-    const lastWinnerId = this.gameOverInfo ? this.gameOverInfo.winnerId : null;
+    const gi = this.gameOverInfo;
+    // Team mode: the winning team's top scorer deals.
+    const lastWinnerId = gi && gi.teamMode && Array.isArray(gi.winnerIds)
+      ? gi.winnerIds.slice().sort((a, b) => ((gi.finalTotals || {})[b] || 0) - ((gi.finalTotals || {})[a] || 0))[0] || null
+      : gi ? gi.winnerId : null;
     this._lobbyReady = new Set(); // Revanche: alle melden sich frisch bereit
     this.gameStatsTotals = {};
     this.totals = {};
@@ -2227,7 +2434,12 @@ class GameManager {
     // Whoever gave the last match up is not at the rematch: a lobby bot takes the seat.
     if (this.players.some((p) => p.leftGame)) {
       for (const p of this.players) if (p.leftGame) delete this.totals[p.id];
-      this.players = this.players.filter((p) => !p.leftGame);
+      if (this.teamMode) {
+        // A fresh bot on the very seat: the teams stay as they were.
+        this.players.forEach((p, i) => { if (p.leftGame) this.players[i] = this._createBot(); });
+      } else {
+        this.players = this.players.filter((p) => !p.leftGame);
+      }
       this.syncLobbyBots();
     }
     // The winner deals the rematch, so the lucky cut goes to someone else.
@@ -2369,7 +2581,8 @@ class GameManager {
    *  so the lower levels stay heuristic and form a ladder. The daily challenge
    *  is always heuristic, so its board stays comparable. */
   _botTurnUsesOnnx(cp) {
-    return !this.challengeDate && botDifficultyOf(cp) === 'zen' && require('./OnnxPolicy').enabled();
+    // Team mode: the net was trained on individual scoring - Zen plays its heuristic there.
+    return !this.challengeDate && !this.teamMode && botDifficultyOf(cp) === 'zen' && require('./OnnxPolicy').enabled();
   }
 
   /**
@@ -2561,7 +2774,9 @@ class GameManager {
    *  ("Hand aus" first), else a bot caught with the Queen of Spades. */
   _roundEndQuip(winnerId, roundResult, over) {
     if (over && over.gameOver) {
-      this.maybeBotQuip(over.winnerId, 'game_win', 0.7);
+      // Team mode: a bot of the winning team speaks for it.
+      const speaker = over.teamMode ? (over.winnerIds || []).find((id) => this.players.some((p) => p.id === id && p.isBot)) : over.winnerId;
+      this.maybeBotQuip(speaker, 'game_win', 0.7);
       return;
     }
     const winner = this.players.find((p) => p.id === winnerId);
@@ -2631,6 +2846,7 @@ class GameManager {
         key === '_pendingBroadcast' ||
         key === '_undoStack' ||
         key === '_undoBatch' ||
+        key === '_teamNameChanges' ||
         key === '_lastBotEmote'
       ) continue;
       if (typeof value === 'function') continue;
@@ -2689,6 +2905,9 @@ class GameManager {
     this._lastBotEmote = {};
     this._lastQuipAt = 0;
     this._botTimer = null;
+    // Older snapshots have no team names; a restored name passes the cleaner again.
+    this.teamNames = [0, 1].map((t) => (Array.isArray(this.teamNames) && sanitizeName(this.teamNames[t]).trim()) || null);
+    this._teamNameChanges = [[], []];
     this.maybeRunBotTurn();
   }
 
@@ -2848,7 +3067,8 @@ class GameManager {
     // Per-bot difficulty (adjustable in-game) with the house rule as default
     // Default (and thus also the stand-in for a temporarily replaced
     // human or a timed-out turn): the zen master - the strongest fair bot.
-    const difficulty = botDifficultyOf(cp);
+    // Team mode (fairness): a human seat's stand-in plays at the table's level, not as Zen.
+    const difficulty = this.teamMode && !cp.isBot && !cp.botDifficulty ? this._tableBotLevel() : botDifficultyOf(cp);
     // Kopie statt der echten Meld-Objekte: die Zieh-Planung unten rechnet mit
     // HYPOTHETISCHEN Haenden (u. a. 'Hand + kompletter Ablagestapel'). Bot.js
     // schuetzt sich seit dem Duplikat-Fund selbst, aber der Aufrufer soll gar
@@ -3006,7 +3226,18 @@ class GameManager {
     // Gegner in der laufenden Partie (this.totals), nicht der Runde.
     const myTotal = this.totals[botId] || 0;
     const opponentTotalsArr = this.players.filter((p) => p.id !== botId).map((p) => this.totals[p.id] || 0);
-    const scoreLead = myTotal - (opponentTotalsArr.length ? Math.max(...opponentTotalsArr) : 0);
+    let scoreLead = myTotal - (opponentTotalsArr.length ? Math.max(...opponentTotalsArr) : 0);
+    // Team mode A/B seam, investigated, not shipped (null effect, docs/developer/bots.md):
+    // the lead is the team's (per seat), the partner's known cards make no discard dangerous.
+    let dangerKnownCards = opponentKnownCards;
+    if (this.teamMode && cp.teamAware) {
+      const team = this.teamOf(botId);
+      const tt = this.teamTotals();
+      if (team !== null) scoreLead = (tt[team] - tt[1 - team]) / 2;
+      const partner = this.partnerOf(botId);
+      const partnerKnown = new Set(((partner && this.publicKnownHands && this.publicKnownHands[partner.id]) || []).map((c) => c.id));
+      dangerKnownCards = opponentKnownCards.filter((c) => !partnerKnown.has(c.id));
+    }
     // Experimental Monte-Carlo discard risk (only when the seat opts in via
     // cp.mcEnabled - set by the self-play harness, never in production). In
     // the endgame it samples the next player's hidden hand and estimates the
@@ -3034,7 +3265,7 @@ class GameManager {
       random: () => this._botRandom('discard'),
       scoreLead,
       visibleCards,
-      opponentKnownCards,
+      opponentKnownCards: dangerKnownCards,
       mcRisk,
       mcWeight,
       // What the NEXT player recently spurned from the pile top: those
@@ -3233,6 +3464,13 @@ class GameManager {
       // Level for bots created later (lobby control "Bot-Stärke").
       botLevel: this.defaultBotDifficulty || 'medium',
       maxSeats: this.maxSeats,
+      // "2 gegen 2": teams by seat ([[A ids], [B ids]]), their shared totals and optional names.
+      teamMode: !!this.teamMode,
+      teams: this.teams(),
+      teamTotals: this.teamTotals(),
+      teamNames: this.teamMode ? this.teamNames.slice() : null,
+      // The match target (a team's shared total: 2000).
+      targetScore: this.targetScore(),
       hostId: this.effectiveHostId(),
       isHost: this.isHost(forPlayerId),
       paused: !!this.paused,
@@ -3288,7 +3526,9 @@ class GameManager {
       })),
       totals: this.totals,
       // Punkteverlauf pro Runde (fuer das Chart im Ergebnis-Overlay)
-      scoreHistory: this.roundHistory.map((r) => ({ round: r.roundNumber, totals: r.totalsAfter })),
+      scoreHistory: this.roundHistory.map((r) => (r.teamTotalsAfter
+        ? { round: r.roundNumber, totals: r.totalsAfter, teamTotals: r.teamTotalsAfter }
+        : { round: r.roundNumber, totals: r.totalsAfter })),
       // Alle offen abgelegten Karten (fuer die Ablage-Vorschau im Client);
       // eine verdeckt abgelegte Schlusskarte bleibt verdeckt.
       discardCards: this.discardPile.map((card) =>
@@ -3359,6 +3599,7 @@ class GameManager {
     // The canonical meld order stays SYNCHRONOUS: it is game state, not a
     // network detail, and callers (tests included) rely on it.
     this._sortTableMelds();
+    this._pruneTeamNames(); // after any lobby seat change, also synchronous
     if (opts.immediate) {
       this._pendingBroadcast = false;
       this._doBroadcastState();
@@ -3400,6 +3641,9 @@ GameManager.TUTORIAL_SEED = 22;
 GameManager.SOLO_PAUSED_GRACE_MS = 20 * 60 * 1000;
 // Bot lines are seasoning: one per table every 20 s at most.
 GameManager.QUIP_GAP_MS = 20 * 1000;
+// Team names: a few changes per team and minute (each one reaches every seat).
+GameManager.TEAM_NAME_CHANGES = 5;
+GameManager.TEAM_NAME_WINDOW_MS = 60 * 1000;
 GameManager.MIN_SEATS = MIN_SEATS;
 GameManager.MAX_SEATS_LIMIT = MAX_SEATS_LIMIT;
 GameManager.DEFAULT_MAX_SEATS = DEFAULT_MAX_SEATS;

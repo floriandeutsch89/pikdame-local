@@ -93,6 +93,7 @@ the data said no. They remain in the code as off-by-default knobs.
 | Discard spades J/K more freely once an opponent has laid a joker | 50.34 % (z = 0.48) | {bdg-secondary}`no effect` |
 | If taking the discard would only form *another* set while you already have one, draw instead | 46.08 % (z = −5.56), **−33 pts** | {bdg-danger}`clearly worse` |
 | Monte-Carlo rollouts for the discard (`MonteCarlo.js`, `Rollout.js`) | ~+2 pts, 0.8 σ | {bdg-secondary}`not significant` infrastructure kept behind a flag |
+| "2 gegen 2": team lead instead of own lead, partner's known cards no danger (seat flag `teamAware`, {doc}`team-mode`) | hard 49.4 % ± 0.4, zen heuristic 49.6 % ± 0.3 (20 × 500 team games to 2000; to 1000: 49.8 / 49.9 %) | {bdg-secondary}`no effect` |
 
 ### The recurring lesson
 

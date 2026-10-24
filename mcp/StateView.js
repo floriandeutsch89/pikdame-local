@@ -17,10 +17,24 @@ function renderState(state, myId) {
   const turnOf = state.currentPlayerId === myId ? 'YOU' : playerName(state, state.currentPlayerId);
   lines.push(`Phase: ${state.phase}${state.paused ? ' (paused)' : ''} | round ${state.roundNumber}${state.phase === 'playing' ? ` | turn: ${turnOf} (${state.turnPhase} phase)` : ''}`);
 
+  // "2 gegen 2": teams by seat; the shared total decides, the rules at the table do not change.
+  const teams = state.teamMode && Array.isArray(state.teams) ? state.teams : null;
+  const teamOf = (id) => (teams ? teams.findIndex((ids) => ids.includes(id)) : -1);
+  const myTeam = teamOf(myId);
+  // Optional names the players gave their teams in the lobby (quoted: player text).
+  const named = Array.isArray(state.teamNames) ? state.teamNames : [];
+  const teamName = (t) => `team ${t === 0 ? 'A' : 'B'}${named[t] ? ` "${named[t]}"` : ''}`;
   lines.push('Players (total score, cards in hand):');
   for (const p of state.players) {
-    const tags = [p.id === myId ? 'you' : null, p.isBot ? `bot ${p.botDifficulty || ''}`.trim() : null, p.id === state.dealerId ? 'dealer' : null, p.connected ? null : 'offline'].filter(Boolean);
+    const team = teamOf(p.id);
+    const teamTag = team < 0 ? null : `${teamName(team)}${p.id !== myId && myTeam >= 0 ? (team === myTeam ? ', your partner' : ', opponent') : ''}`;
+    const tags = [p.id === myId ? 'you' : null, teamTag, p.isBot ? `bot ${p.botDifficulty || ''}`.trim() : null, p.id === state.dealerId ? 'dealer' : null, p.connected ? null : 'offline'].filter(Boolean);
     lines.push(`- ${p.name}${tags.length ? ` [${tags.join(', ')}]` : ''}: ${(state.totals && state.totals[p.id]) || 0} pts, ${p.handCount} cards`);
+  }
+  if (teams) {
+    const tt = state.teamTotals || [0, 0];
+    const strict = !!(state.houseRules && state.houseRules.strictThreshold);
+    lines.push(`Team game (2 vs 2): ${teams.map((ids, t) => `${teamName(t)} ${ids.map((id) => (id === myId ? 'YOU' : playerName(state, id))).join(' + ')} = ${tt[t] || 0} pts`).join(' | ')}. A team wins ${strict ? 'above' : 'at'} ${state.targetScore} shared points; everyone still lays off and swaps jokers only on their OWN melds.`);
   }
 
   if (me && me.hand) {
@@ -45,12 +59,22 @@ function renderState(state, myId) {
     }
   }
 
+  const signed = (n) => `${n > 0 ? '+' : ''}${n}`;
   if (state.phase === 'roundEnd' && state.lastRoundResult) {
-    const parts = Object.entries(state.lastRoundResult).map(([id, r]) => `${playerName(state, id)} ${r && r.roundScore > 0 ? '+' : ''}${r ? r.roundScore : '?'}`);
-    lines.push(`Round result: ${parts.join(', ')}`);
+    const parts = Object.entries(state.lastRoundResult).map(([id, r]) => `${playerName(state, id)} ${r ? signed(r.roundScore) : '?'}`);
+    // Team mode: the round's team sums are what moves the match.
+    const sums = teams ? teams.map((ids) => ids.reduce((s, id) => s + ((state.lastRoundResult[id] || {}).roundScore || 0), 0)) : null;
+    lines.push(`Round result: ${parts.join(', ')}${sums ? ` (${sums.map((s, t) => `${teamName(t)} ${signed(s)}`).join(', ')})` : ''}`);
   }
   if (state.phase === 'gameOver') {
-    lines.push(`GAME OVER: ${JSON.stringify(state.gameOverInfo || state.totals).slice(0, 600)}`);
+    const gi = state.gameOverInfo || {};
+    if (gi.teamMode && Array.isArray(gi.winnerIds)) {
+      const w = gi.winnerTeam;
+      const tt = gi.teamTotals || [0, 0];
+      lines.push(`GAME OVER: ${teamName(w)} (${gi.winnerIds.map((id) => (id === myId ? 'YOU' : playerName(state, id))).join(' + ')}) wins ${tt[w]} to ${tt[1 - w]} - ${gi.winnerIds.includes(myId) ? 'your team won' : 'your team lost'}.`);
+    } else {
+      lines.push(`GAME OVER: ${JSON.stringify(state.gameOverInfo || state.totals).slice(0, 600)}`);
+    }
   }
   if (state.phase === 'lobby') {
     lines.push(`Lobby: ${state.isHost ? 'you are the host and can start' : 'waiting for the host to start'}; seats ${state.maxSeats}.`);

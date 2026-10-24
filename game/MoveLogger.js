@@ -88,7 +88,10 @@ function povState(game, playerId) {
         handCount: (p.hand || []).length,
         isBot: !!p.isBot,
         known: (known[p.id] || []).map(cardCode), // cards everyone has SEEN them take
+        // "2 gegen 2": the seat's team (0/1); the partner shares the decider's team.
+        ...(game.teamMode ? { team: seatIndex(game, p.id) % 2 } : {}),
       })),
+    ...(game.teamMode ? { teamMode: true, team: seatIndex(game, playerId) % 2, teamTotals: game.teamTotals() } : {}),
   };
 }
 
@@ -159,6 +162,11 @@ function flush(game, outcome = 'completed') {
     });
     const winnerId = ranked.length ? ranked[0][0] : null;
     const winnerTotal = ranked.length ? ranked[0][1] : 0;
+    // Team mode: the outcome is the team's - both teammates win or lose together.
+    const teams = game.teamMode && typeof game.teams === 'function' ? game.teams() : null;
+    const teamTotals = teams ? game.teamTotals() : null;
+    const teamOf = (pid) => (teams ? teams.findIndex((ids) => ids.includes(pid)) : -1);
+    const winnerTeam = teams && teamTotals[0] !== teamTotals[1] ? (teamTotals[0] > teamTotals[1] ? 0 : 1) : -1;
     const gameId = Math.random().toString(36).slice(2, 10);
     const players = (game.players || []).length;
     const rounds = game.roundNumber || 0;
@@ -182,10 +190,11 @@ function flush(game, outcome = 'completed') {
         // outcome
         outcome,
         rv: RULES_VERSION,
-        won: m.playerId === winnerId,
-        rank: rankOf[m.playerId] || null,
+        won: teams ? teamOf(m.playerId) === winnerTeam : m.playerId === winnerId,
+        rank: teams ? (winnerTeam === -1 ? 1 : teamOf(m.playerId) === winnerTeam ? 1 : 2) : rankOf[m.playerId] || null,
         finalTotal: totals[m.playerId] != null ? totals[m.playerId] : null,
-        winnerTotal,
+        winnerTotal: teams ? Math.max(...teamTotals) : winnerTotal,
+        ...(teams ? { teamMode: 1, team: teamOf(m.playerId), teamTotals } : {}),
         players,
         rounds,
         turns,

@@ -45,6 +45,7 @@ const { createYearStatsStore } = require('./game/YearStatsStore');
 const { buildReview, isReviewSeason, yearOf } = require('./game/YearReview');
 const { createYearReviewMailer, composeReviewMail, sampleReview, REVIEW_MAIL_CONSENT_VERSION } = require('./game/YearReviewMail');
 const { SessionRegistry, sanitizeName } = require('./game/SessionRegistry');
+const { isRecordWinner } = require('./game/Teams');
 const { createPlayEvents, attemptEvent, attemptOpen, nameKey } = require('./game/PlayEvents');
 const { createPuzzleAttempts } = require('./game/PuzzleAttempts');
 const { TUTORIAL_VERSION } = require('./game/TutorialSteps');
@@ -1861,7 +1862,7 @@ async function bookFinishedGame(session, results, gameRecord, sendTo) {
     const season = seasonForDate(questDate);
     for (const p of humans) {
       trackWrite(Promise.resolve()
-        .then(() => accountStore.addGameResult(p.name, { xp: xpFor(p), won: gameRecord.winnerId === p.id, season }))
+        .then(() => accountStore.addGameResult(p.name, { xp: xpFor(p), won: isRecordWinner(gameRecord, p.id), season }))
         .then((prog) => { if (prog) sendTo(p.id, { type: 'accountProgress', progress: prog }); })
         .catch((err) => logCrash('ladder', err, { player: p.name })));
     }
@@ -2067,7 +2068,7 @@ function applyTablePrefs(game, prefs) {
 async function recordYearStats(session, results, gameRecord, date, streaks) {
   try {
     const t = session.stammtisch ? await stammtischStore.get(session.stammtisch) : null;
-    yearStats.recordFinishedGame(results, gameRecord.players, date, { table: t && t.name ? t.name : null, streaks });
+    yearStats.recordFinishedGame(results, gameRecord.players, date, { table: t && t.name ? t.name : null, streaks, teams: gameRecord.teamMode ? gameRecord.teams : null });
   } catch (err) {
     logCrash('year-stats', err);
   }
@@ -2529,7 +2530,13 @@ wss.on('connection', (ws, req) => {
       const created = registry.create();
       if (created.error) return sendError(ws, created.error);
       applyTablePrefs(created.session.game, msg.tablePrefs);
-      await joinSession(created.session, msg);
+      // "2 gegen 2" from the start; quickStart skips the lobby ("Du + Bot gegen 2 Bots").
+      if (msg.teamMode === true) created.session.game.setTeamMode(true);
+      const ok = await joinSession(created.session, msg);
+      if (ok && msg.teamMode === true && msg.quickStart === true) {
+        created.session.game.fillWithBots();
+        created.session.game.startNewRound();
+      }
       return;
     }
     if (msg.type === 'createStammtisch') {
@@ -2791,6 +2798,25 @@ wss.on('connection', (ws, req) => {
       case 'setMaxSeats': {
         if (!game.isHost(playerId)) { sendError(ws, 'Nur der Organisator kann die Einstellungen ändern.'); break; }
         const r = game.setMaxSeats(msg.count);
+        if (r && r.error) sendError(ws, r.error);
+        break;
+      }
+      case 'setTeamMode': {
+        if (!game.isHost(playerId)) { sendError(ws, 'Nur der Organisator kann die Einstellungen ändern.'); break; }
+        // The Stammtisch record and its series count every player alone - teams come later.
+        if (session.stammtisch && msg.on) { sendError(ws, 'Am Stammtisch gibt es „2 gegen 2“ noch nicht - die Bilanz zählt dort jeden für sich.'); break; }
+        const r = game.setTeamMode(!!msg.on);
+        if (r && r.error) sendError(ws, r.error);
+        break;
+      }
+      case 'switchTeam': {
+        const r = game.switchTeam(playerId);
+        if (r && r.error) sendError(ws, r.error);
+        break;
+      }
+      case 'setTeamName': {
+        // Any human of the team, lobby only; the engine cleans the name and limits the changes.
+        const r = game.setTeamName(playerId, msg.teamName);
         if (r && r.error) sendError(ws, r.error);
         break;
       }
