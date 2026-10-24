@@ -3,6 +3,13 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.119.0] - 2026-10-24
+
+### Changed
+- Vorbereitung für ein Zen-Netz, das auch „2 gegen 2“ spielt: Training und
+  Bots kennen jetzt die Teams. Bis ein solches Netz ausgeliefert wird, spielt
+  Zen bei „2 gegen 2“ wie bisher ohne Netz
+
 ## [2.118.1] - 2026-10-24
 
 ### Fixed
