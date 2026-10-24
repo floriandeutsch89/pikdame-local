@@ -15,7 +15,7 @@ Sent on a fresh connection, before the socket is bound to a table. These carry `
 
 | `type` | Purpose |
 | --- | --- |
-| `createSession` | Create a new game and receive its code. `teamMode: true` opens a "2 gegen 2" table; with `quickStart: true` as well it is dealt at once ("Du + Bot gegen 2 Bots"). |
+| `createSession` | Create a new game and receive its code. `teamMode: true` opens its lobby as a "2 gegen 2" table (the start-screen tile). |
 | `joinSession` | Join an existing game by code. |
 | `checkSession` | Ask whether a stored session still exists (used by the "resume" button). With the seat token it also tells whether this device still holds a seat there. |
 | `abandonSession` | One game at a time: give up the seat of this device's open game before starting another (seat token required; a stale code is answered quietly, no failed-join strike). |

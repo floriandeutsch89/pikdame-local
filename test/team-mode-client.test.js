@@ -1,5 +1,5 @@
-// "2 gegen 2" in the client (jsdom, real index.html + client.js): the one-tap
-// start, the lobby's mode choice, team rows and team names, the team marks at the
+// "2 gegen 2" in the client (jsdom, real index.html + client.js): the start-screen
+// tile, the lobby's mode choice, team rows and team names, the team marks at the
 // table (ring + "Team" tab), the team result sheets and "Meine Partien".
 const test = require('node:test');
 const assert = require('node:assert');
@@ -67,19 +67,27 @@ const BASE = {
 };
 const mk = (s, win) => ({ roundScore: s, breakdown: { isWinner: !!win, multiplier: 1 } });
 
-test('start screen: "2 gegen 2" deals you and a bot against two bots in one tap', async (t) => {
-  const { doc, click, sentOf, errors } = await setup(t, { join: false });
+test('start screen: the "2 gegen 2" tile opens a team lobby first (no deal), "Neues Spiel" a normal one', async (t) => {
+  const { doc, click, sentOf, msg, feed, errors } = await setup(t, { join: false });
   const tiles = [...doc.querySelectorAll('.menuChips button')];
-  assert.deepEqual(tiles.map((b) => b.id), ['tutorialBtn', 'teamQuickBtn', 'stammtischBtn']);
-  const tile = doc.getElementById('teamQuickBtn');
+  assert.deepEqual(tiles.map((b) => b.id), ['tutorialBtn', 'teamTableBtn', 'stammtischBtn']);
+  const tile = doc.getElementById('teamTableBtn');
   assert.equal(tile.querySelector('span').textContent, '2 gegen 2');
   assert.equal(tile.querySelector('use').getAttribute('href'), '#i-teams');
+  assert.equal(tile.getAttribute('title'), 'Tisch für zwei Teams öffnen – Freunde einladen, Bots füllen auf');
   click(tile);
   const [create] = sentOf('createSession');
   assert.ok(create, 'createSession sent');
   assert.equal(create.teamMode, true);
-  assert.equal(create.quickStart, true);
+  assert.ok(!('quickStart' in create), 'no immediate deal');
   assert.equal(create.name, 'Flo');
+  // The server answers with the lobby, the mode already on: the host starts it from there.
+  msg({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'ABCD' });
+  feed({ ...BASE, phase: 'lobby', players: PLAYERS.map((p, i) => ({ ...p, handCount: 0, isBot: i > 0, botDifficulty: i > 0 ? 'medium' : undefined })) });
+  assert.ok(doc.getElementById('teamModeBtn').classList.contains('active'), '"2 gegen 2" preselected');
+  assert.ok(!doc.getElementById('startBtn').classList.contains('hidden') && !doc.getElementById('startBtn').disabled);
+  click(doc.getElementById('startBtn'));
+  assert.equal(sentOf('startGame').length, 1);
   // The plain "Neues Spiel" stays a normal table.
   click(doc.getElementById('createGameBtn'));
   const plain = sentOf('createSession')[1];

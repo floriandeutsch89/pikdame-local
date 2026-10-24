@@ -16,6 +16,7 @@
 // the report goes to <out>/audit.md.
 //
 // Views: phone (393x852), land (874x402), desk (1440x900), se (375x667), max (440x956), lap (1366x657), nar (1100x680).
+// team-tile: a real tap on the start screen's "2 gegen 2" tile, then what opens.
 // Scenes: lobby, lobby-open, progress, stats, stats-badges (trophy cabinet + a favourite's
 // detail; favourites show with --signed-in), history, roundend, roundend-stats, gameover,
 // gameover-stats (its Statistik tab: game totals open, new achievements),
@@ -851,6 +852,13 @@ function waitForHttp(port, ms = 20000) {
           await page.click('#botDiffCloseBtn');
           guest.close();
           await toStart(); // the live lobby keeps broadcasting: later mock scenes start clean
+        }
+        if (sc === 'team-tile') {
+          // What a tap on the start screen's "2 gegen 2" tile opens (older checkouts: #teamQuickBtn).
+          await toStart();
+          await page.click('#teamTableBtn, #teamQuickBtn'); await page.waitForTimeout(1800);
+          await shot('team-tile');
+          await toStart();
         }
         if (sc === 'lobby-open') {
           await page.evaluate(() => { const d = document.getElementById('questsSection'); if (d) d.open = true; });

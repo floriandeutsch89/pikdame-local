@@ -178,7 +178,7 @@ const MSG_NOTES = {
   leaveStammtisch: 'Leave a Stammtisch.',
   deleteStammtisch: 'Founder only: dissolve a Stammtisch.',
   getYearReview: 'The December year review of a player name ("Dein Pik-Dame-Jahr"); outside December it answers that none is available. Favourite opponent and Stammtisch name only with `accountToken` of the account owning the name.',
-  createSession: 'Create a new game and receive its code. `teamMode: true` opens a "2 gegen 2" table; with `quickStart: true` as well it is dealt at once ("Du + Bot gegen 2 Bots").',
+  createSession: 'Create a new game and receive its code. `teamMode: true` opens its lobby as a "2 gegen 2" table (the start-screen tile).',
   joinSession: 'Join an existing game by code.',
   checkSession: 'Ask whether a stored session still exists (used by the "resume" button). With the seat token it also tells whether this device still holds a seat there.',
   abandonSession: 'One game at a time: give up the seat of this device\'s open game before starting another (seat token required; a stale code is answered quietly, no failed-join strike).',

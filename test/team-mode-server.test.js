@@ -1,5 +1,5 @@
-/** "2 gegen 2" through the real server: creating a team table (and the one-tap
- *  start), joining and switching teams, reconnecting, the host gate, the
+/** "2 gegen 2" through the real server: creating a team table (and the start-screen
+ *  tile's lobby), joining and switching teams, reconnecting, the host gate, the
  *  Stammtisch refusal, the solo modes that never become team tables, and a
  *  finished team match booked for both teammates. */
 const test = require('node:test');
@@ -144,23 +144,27 @@ test('server: team tables', async (t) => {
     assert.deepStrictEqual(onState.teamNames, [null, null], 'a new team table starts without names');
   });
 
-  await t.test('the one-tap start deals "Du + Bot gegen 2 Bots" right away', async () => {
+  await t.test('the start-screen tile opens a team lobby first; starting there deals "2 gegen 2" with bots', async () => {
     const ws = await sock();
-    const dealt = stateWhere(ws, (s) => s.phase === 'playing' || s.phase === 'cutting');
+    let latest = null;
+    ws.on('message', (raw) => { try { const m = JSON.parse(raw); if (m.type === 'state') latest = m.state; } catch (e) { /* not JSON */ } });
+    const lobby = stateWhere(ws, (s) => s.phase === 'lobby');
+    // An old client's quickStart is ignored: no table deals before the lobby any more.
     ws.send(JSON.stringify({ type: 'createSession', name: 'Cleo', teamMode: true, quickStart: true, tablePrefs: { botLevel: 'easy' } }));
-    const s = await dealt;
-    assert.strictEqual(s.teamMode, true);
+    const s = await lobby;
+    assert.strictEqual(s.teamMode, true, '"2 gegen 2" preselected');
     assert.strictEqual(s.players.filter((p) => !p.isBot).length, 1);
-    assert.strictEqual(s.players.length, 4);
-    assert.deepStrictEqual(s.teamTotals, [0, 0]);
-    assert.deepStrictEqual([...new Set(s.players.filter((p) => p.isBot).map((p) => p.botDifficulty))], ['easy']);
-    // quickStart alone (without teamMode) opens a plain lobby as before.
-    const other = await sock();
-    const lobby = stateWhere(other, () => true);
-    other.send(JSON.stringify({ type: 'createSession', name: 'Dora', quickStart: true }));
-    const plain = await lobby;
-    assert.strictEqual(plain.phase, 'lobby');
-    assert.strictEqual(plain.teamMode, false);
+    assert.strictEqual(s.players.length, 4, 'bots on the free seats');
+    assert.deepStrictEqual([...new Set(s.players.filter((p) => p.isBot).map((p) => p.botDifficulty))], ['easy'], 'the remembered level');
+    await new Promise((r) => setTimeout(r, 300));
+    assert.strictEqual(latest.phase, 'lobby', 'it waits for the host');
+
+    const dealt = stateWhere(ws, (st) => st.phase === 'playing' || st.phase === 'cutting');
+    ws.send(JSON.stringify({ type: 'startGame' }));
+    const d = await dealt;
+    assert.strictEqual(d.teamMode, true);
+    assert.deepStrictEqual([d.players.length, d.targetScore], [4, 2000]);
+    assert.deepStrictEqual(d.teamTotals, [0, 0]);
   });
 
   await t.test('a Stammtisch table refuses the team mode (its record counts every player alone)', async () => {

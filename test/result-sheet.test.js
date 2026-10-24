@@ -248,8 +248,8 @@ test('"Aufgaben": puzzle and challenge tiles show today\'s status; daily goals s
   assert.ok(doc.getElementById('todaySection').contains(doc.getElementById('questsSection')), 'daily goals inside "Aufgaben"');
   assert.equal(doc.querySelector('#todaySection > h2').textContent, 'Aufgaben');
   assert.equal(doc.querySelector('#questsSection .questsTitle').textContent, 'Tagesziele');
-  // "2 gegen 2" (one tap: you and a bot against two bots) sits between the two.
-  assert.deepEqual([...doc.querySelectorAll('.menuChips button')].map((b) => b.id), ['tutorialBtn', 'teamQuickBtn', 'stammtischBtn'], 'mode row');
+  // "2 gegen 2" (a team lobby, the mode on) sits between the two.
+  assert.deepEqual([...doc.querySelectorAll('.menuChips button')].map((b) => b.id), ['tutorialBtn', 'teamTableBtn', 'stammtischBtn'], 'mode row');
   assert.deepEqual(errors, [], `Client-Fehler: ${errors.join(' | ')}`);
 });
 

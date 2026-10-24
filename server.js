@@ -2530,13 +2530,9 @@ wss.on('connection', (ws, req) => {
       const created = registry.create();
       if (created.error) return sendError(ws, created.error);
       applyTablePrefs(created.session.game, msg.tablePrefs);
-      // "2 gegen 2" from the start; quickStart skips the lobby ("Du + Bot gegen 2 Bots").
+      // "2 gegen 2" from the start (the start-screen tile): the lobby opens with the mode on.
       if (msg.teamMode === true) created.session.game.setTeamMode(true);
-      const ok = await joinSession(created.session, msg);
-      if (ok && msg.teamMode === true && msg.quickStart === true) {
-        created.session.game.fillWithBots();
-        created.session.game.startNewRound();
-      }
+      await joinSession(created.session, msg);
       return;
     }
     if (msg.type === 'createStammtisch') {
