@@ -158,7 +158,7 @@ test('checkAnswer with several melds: overlaps, bad melds and laying every card'
   // Laying every card leaves nothing to discard - going out needs the discard.
   const d7 = makeStandardCard('D', '7', 0);
   const full = { kind: 'out', hand: hand.slice(0, 5).concat(d7), best: { points: 0 } };
-  assert.strictEqual(DP.checkAnswer(full, [ids.slice(0, 3), [ids[3], ids[4], d7.id]]).reason, 'Eine Karte muss zum Abwerfen übrig bleiben.');
+  assert.strictEqual(DP.checkAnswer(full, [ids.slice(0, 3), [ids[3], ids[4], d7.id]]).reason, 'Mindestens eine Karte muss zum Abwerfen übrig bleiben.');
   const meld = { kind: 'meld', hand, best: { points: 15 } };
   assert.strictEqual(DP.checkAnswer(meld, [ids.slice(0, 3), ids.slice(3, 5)]).reason, 'Hier ist genau eine Auslage gefragt.');
   assert.strictEqual(DP.checkAnswer(meld, [ids.slice(0, 3)]).solved, true, 'one meld as a list still works');
