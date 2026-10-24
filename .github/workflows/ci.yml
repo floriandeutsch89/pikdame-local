@@ -141,6 +141,9 @@ jobs:
   tower-generate:
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    env:
+      # Everything the month build depends on (scope check and fingerprint).
+      TOWER_INPUTS: '^(game/(Tower|Bot|OnnxPolicy|StateEncoder|GameManager|Rules|ScoreBoard)[^/]*\.js|models/|docker/Dockerfile|test/tower-[^/]*\.js|test/helpers/|\.github/workflows/ci\.yml)'
     steps:
       - uses: actions/checkout@v7
         with:
@@ -151,32 +154,56 @@ jobs:
           if [ "${{ github.event_name }}" != "pull_request" ]; then echo "build=true" >> "$GITHUB_OUTPUT"; exit 0; fi
           CHANGED=$(git diff --name-only HEAD^1 HEAD)
           echo "$CHANGED"
-          if echo "$CHANGED" | grep -qE '^(game/(Tower|Bot|OnnxPolicy|StateEncoder|GameManager|Rules|ScoreBoard)[^/]*\.js|models/|docker/Dockerfile|test/tower-[^/]*\.js|test/helpers/|\.github/workflows/ci\.yml)'; then
+          if echo "$CHANGED" | grep -qE "$TOWER_INPUTS"; then
             echo "build=true" >> "$GITHUB_OUTPUT"
           else
             echo "build=false" >> "$GITHUB_OUTPUT"
             echo "::notice::No generator-relevant change; tower-proofs still replays every floor."
           fi
+      # A PR re-run with the same generator inputs (e.g. "Update branch" with an
+      # unrelated main) was already proven: skip it. Schedule and main always build.
+      - name: Fingerprint of the generator inputs
+        id: fp
+        if: steps.scope.outputs.build == 'true' && github.event_name == 'pull_request'
+        run: echo "key=tower-gen-ok-$(git ls-files | grep -E "$TOWER_INPUTS" | xargs sha256sum | sha256sum | cut -c1-40)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/restore@v6
+        id: proven
+        if: steps.fp.outputs.key != ''
+        with:
+          path: .tower-gen-ok
+          key: ${{ steps.fp.outputs.key }}
+          lookup-only: true
+      - name: Already proven
+        if: steps.proven.outputs.cache-hit == 'true'
+        run: echo "::notice::Same generator inputs already built green on this PR; skipping the month build."
       - uses: actions/setup-node@v7
-        if: steps.scope.outputs.build == 'true'
+        if: steps.scope.outputs.build == 'true' && steps.proven.outputs.cache-hit != 'true'
         with:
           node-version: 26.x
           cache: 'npm'
       - run: npm ci
-        if: steps.scope.outputs.build == 'true'
+        if: steps.scope.outputs.build == 'true' && steps.proven.outputs.cache-hit != 'true'
       - name: onnxruntime-node as pinned in the Dockerfile
-        if: steps.scope.outputs.build == 'true'
+        if: steps.scope.outputs.build == 'true' && steps.proven.outputs.cache-hit != 'true'
         run: |
           ORT_VERSION=$(grep -oE 'onnxruntime-node@[0-9.]+' docker/Dockerfile | head -1 | cut -d@ -f2)
           test -n "$ORT_VERSION"
           npm install --prefix "$RUNNER_TEMP/ort" --no-save --ignore-scripts "onnxruntime-node@${ORT_VERSION}"
       - name: Build 2027-01 like the server and replay it
-        if: steps.scope.outputs.build == 'true'
+        if: steps.scope.outputs.build == 'true' && steps.proven.outputs.cache-hit != 'true'
         env:
           PIKDAME_ONNX: '1'
           PIKDAME_TOWER_PROOFS_NET: '1'
           PIKDAME_TOWER_GEN_E2E: '1'
         run: NODE_PATH="$RUNNER_TEMP/ort/node_modules" node --test --require ./test/helpers/setup.js --test-name-pattern "a real month" test/tower-proofs.test.js
+      - name: Remember the proven inputs
+        if: steps.fp.outputs.key != '' && steps.proven.outputs.cache-hit != 'true'
+        run: echo "${{ steps.fp.outputs.key }}" > .tower-gen-ok
+      - uses: actions/cache/save@v6
+        if: steps.fp.outputs.key != '' && steps.proven.outputs.cache-hit != 'true'
+        with:
+          path: .tower-gen-ok
+          key: ${{ steps.fp.outputs.key }}
 
   dependency-check:
     runs-on: ubuntu-latest
