@@ -295,9 +295,14 @@ python train.py --tier zen --obs-version 2 --init-from ../models/pikdame-zen.onn
 ```
 
 Measured on 2026-10-24 with the shipped model: a Zen team of this model won
-**82.1 % ± 1.5** of its matches against a Schwer team (10 batches × 100,
-`--team-ladder`, step 6). The v1 net is already far stronger than the
-heuristic at a team table; v2 training is about the team-specific part.
+**82.1 % ± 1.5** of its matches against a Schwer team (10 batches × 100). The
+v1 net is already far stronger than the heuristic at a team table; v2
+training is about the team-specific part. To reproduce it (from the
+repository root, `NODE_PATH` from step 1):
+
+```bash
+PIKDAME_MODELS_DIR=models/candidates/v1-as-v2 node scripts/sim-bots.js --team-ladder hard,zen --batches 10 --games 100
+```
 
 ### 4. Train
 
