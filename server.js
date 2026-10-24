@@ -2799,8 +2799,7 @@ wss.on('connection', (ws, req) => {
       }
       case 'setTeamMode': {
         if (!game.isHost(playerId)) { sendError(ws, 'Nur der Organisator kann die Einstellungen ändern.'); break; }
-        // The Stammtisch record and its series count every player alone - teams come later.
-        if (session.stammtisch && msg.on) { sendError(ws, 'Am Stammtisch gibt es „2 gegen 2“ noch nicht - die Bilanz zählt dort jeden für sich.'); break; }
+        // A Stammtisch books a team match without wins, head-to-head or series (StammtischStore).
         const r = game.setTeamMode(!!msg.on);
         if (r && r.error) sendError(ws, r.error);
         break;

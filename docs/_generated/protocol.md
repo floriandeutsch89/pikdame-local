@@ -47,7 +47,7 @@ Only valid while the table is in the `lobby` phase; most of them host-only.
 | `lobbyReady` | Mark yourself ready in the lobby; the host sees who is still missing. |
 | `startGame` | Host only: start the game (empty seats are filled with bots). |
 | `setMaxSeats` | Host only: change the number of seats (2-4; a team table keeps 4). |
-| `setTeamMode` | Host only: switch "2 gegen 2" on (`on: true`) or off. Four seats, teams crosswise (seats 0+2 against 1+3), the humans spread over both teams, every bot on one level. Refused at a Stammtisch and in the solo modes. |
+| `setTeamMode` | Host only: switch "2 gegen 2" on (`on: true`) or off. Four seats, teams crosswise (seats 0+2 against 1+3), the humans spread over both teams, every bot on one level. Refused in the solo modes; a Stammtisch books a team match without wins, head-to-head or series. |
 | `switchTeam` | Team table, lobby: move to a bot seat of the other team (refused when none is free). |
 | `setTeamName` | Team table, lobby: any human of a team names it (`teamName`, cleaned like a player name, empty clears it; a few changes per team and minute). A team without a human keeps no name. |
 | `reorderSeats` | Host only: change the seating order. |
@@ -124,7 +124,7 @@ Allowed from any seat at any time during a match.
 | `sessionAbandoned` | Answer to `abandonSession` (`lobby`, `ended`, `left` or `none`); also sent to another tab still sitting on that seat. |
 | `sessionStatus` | Answer to `checkSession`. |
 | `stammtisch` | A Stammtisch was created or resolved; carries its code and members. |
-| `stammtischInfo` | Details of one Stammtisch (members, last evening, open table). |
+| `stammtischInfo` | Details of one Stammtisch: standings, head-to-head, series, group goals and the newest three matches by game day. |
 | `stammtischList` | Answer to `listStammtische`. |
 | `state` | The full game state as that player may see it (their own hand, everyone else's card counts). Sent after every change, coalesced to one send per tick. |
 | `towerInfo` | Answer to `getTower`: `month` and `today` (Europe/Berlin), the floors, best stars per floor this month, stars, cleared floors, the highest unlocked floor, `crowned`, `totalStars` over all months and `archive` (earlier months with their best stars and crown, read-only). |

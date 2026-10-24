@@ -59,9 +59,34 @@ engine lives in `GameManager` (flag `teamMode`).
 - **Never** in the daily challenge, the Kartenhaus, the tutorial or the daily
   puzzle (no table there). The constructor ignores the option for solo games
   and `setTeamMode` refuses them.
-- **Stammtisch: not in v1.** Its record, the pairwise tally and the best-of-3
-  series count every player alone; team records there need their own design.
-  The server refuses `setTeamMode` at a Stammtisch table.
+- **At a Stammtisch** the host switches it on in the lobby like anywhere else;
+  a new Stammtisch table opens as a normal table. The match counts as played,
+  never as a win (below).
+
+## At a Stammtisch
+
+A Stammtisch's record says who beat whom, and a team match says that about
+nobody: two partners beat two others together. So a team match counts as a
+played match and stays out of everything that compares players
+(`StammtischStore.recordGame`, decided with the user):
+
+| What | A team match |
+| --- | --- |
+| The match list (`stammtisch_games`, the sheet's "Letzte Partien") | counts: `team_mode`, both team names, each seat's `team_no`, `won` for both winners |
+| The table's "N Partien", the weekly goal, the streak, the group points and level | counts (`bookGame` with the number of humans, as for any match) |
+| A member's games, own points (the standings' "Ø") and last visit | counts: neutral, the own total is on the solo scale (see the target) |
+| A member's wins (the standings' order, the chip's "Flo führt") | no: a team win would rank both partners above the other two |
+| The pairwise head-to-head | no: `summarize` skips team matches |
+| The best-of-3 series | no: neither a game of it nor a restart. A finished series stays visible until the next solo match starts a new one; the team match keeps the running series' number |
+| The next evening's first dealer (`lastWinner`) | the winning team's top-scoring human, like a rematch |
+| Profile, XP, badges ("10 Partien am Stammtisch") and "Meine Partien" | as at any team table; the history keeps a `stammtisch` flag, never the code |
+
+The client says it where the numbers are: the record (lobby panel and the
+start-screen sheet) carries one line on what a team match counts for once the
+table has one or plays "2 gegen 2"; the sheet lists the newest three matches
+(a team match with the "2 gegen 2" tag, both pairs and both totals); a team
+result shows that line instead of the series, and its rematch button promises
+no game of the series.
 
 ## Progress
 
