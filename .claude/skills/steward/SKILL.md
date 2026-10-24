@@ -147,7 +147,10 @@ keeping both features, not by picking a side. Typical in this repo:
 `renderResultOverlay` in `client.js`. A conflict in `CHANGELOG.md` or a
 `version` line means the branch edits them: move the entry into its
 fragment and take main's side. Re-run the browser check afterwards;
-conflicts in the result sheet often break layout in landscape.
+conflicts in the result sheet often break layout in landscape. Stage the
+resolution in its own step and check `git diff --cached --check` (it names
+leftover conflict markers) before the merge commit - an `add && commit`
+chained behind a failed edit once committed the markers.
 
 When the predecessor of a **stacked** PR is squash-merged and its branch
 deleted, GitHub retargets the stacked PR to main; merge `origin/main` into

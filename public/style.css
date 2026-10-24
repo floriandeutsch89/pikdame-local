@@ -3953,8 +3953,8 @@ input:disabled { opacity: 0.65; }
   display: flex; flex-wrap: nowrap; gap: 6px;
   width: 100%; max-width: var(--lobby-w);
 }
-/* One row of four icon tiles (icon above label), the same shape as the
-   utility row at the bottom - the modes are secondary to "Neues Spiel". */
+/* One row of icon tiles (icon above label), the same shape as the utility
+   row at the bottom - the modes are secondary to "Neues Spiel". */
 .menuChips .btn-secondary {
   flex: 1 1 0; min-width: 0; margin: 0;
   flex-direction: column; gap: 4px;
@@ -3965,8 +3965,6 @@ input:disabled { opacity: 0.65; }
 }
 .menuChips .btn-secondary .icon { width: 1.45em; height: 1.45em; }
 .menuChips .btn-secondary span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.menuChipsTwo .btn-secondary { flex-direction: row; gap: 8px; min-height: var(--tap-min); font-size: var(--fs-label); }
-.menuChipsTwo .btn-secondary .icon { width: 1.3em; height: 1.3em; }
 #challengeIntroOverlay .challengeLead { font-weight: 700; margin: 8px 0 2px; }
 #challengeIntroOverlay .challengeTop { font-size: var(--fs-label); color: var(--text-muted); min-height: 1.2em; }
 #challengeIntroOverlay .challengeTrendToggle {
@@ -5959,6 +5957,182 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
   #resultOverlay.isFinal .rmGap { order: 3; flex-basis: 100%; }
 }
 
+/* --- "2 gegen 2" (team mode) ------------------------------------------------
+   --team-c is the team's PLAYER_COLORS entry (A blue, B orange: CVD-safe, never
+   --accent). It only repeats what a word says ("Team", "A"/"B", "Dein Team"). */
+/* Start screen: three modes as stacked icon tiles (a row of three cut the labels). */
+.menuChipsThree .btn-secondary { min-height: var(--ctl-h); padding: 6px 4px; gap: 2px; font-size: var(--fs-label); }
+.menuChipsThree .btn-secondary .icon { width: 1.3em; height: 1.3em; }
+/* "Von vorn beginnen?" (the tutorial's second tap) takes the icon's place on two lines. */
+.menuChipsThree .btn-secondary.armed .icon { display: none; }
+.menuChipsThree .btn-secondary.armed span { white-space: normal; line-height: 1.15; }
+
+/* Lobby: "2 gegen 2" is the fourth seat choice; every seat row leads with its team. */
+.seatCountBtn.seatModeBtn {
+  width: auto; flex: 1 1 auto; min-width: 0; padding: 0 12px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  font-size: var(--fs-label); white-space: nowrap;
+}
+.seatModeBtn .icon { flex: 0 0 auto; width: 1.35em; height: 1.35em; }
+.teamTag {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px;
+  margin-right: 8px;
+  font-size: var(--fs-label); font-weight: 800; color: var(--text);
+}
+.teamTag i, .teamDot {
+  flex: 0 0 auto; display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--team-c);
+}
+.seatDiff.iconOnly { padding: 0 10px; min-width: var(--ctl-h-sm); justify-content: center; }
+.switchTeamBtn { display: flex; width: 100%; min-height: var(--tap-min); margin-top: 10px; gap: 8px; }
+.switchTeamBtn .icon { width: 1.25em; height: 1.25em; }
+/* Team names under the seats: my team's a field (16 px+, iOS does not zoom), the other as text. */
+.teamNamesBox { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.teamNameRow { display: flex; align-items: center; gap: 6px; min-height: var(--tap-min); padding-left: 12px; }
+.teamNameRow .teamTag { margin-right: 2px; }
+.teamNameWord { flex: 0 0 auto; font-size: var(--fs-body); font-weight: 700; color: var(--text-muted); }
+.teamNameInput {
+  flex: 1 1 auto; min-width: 0; min-height: var(--tap-min); padding: 0 12px;
+  border-radius: var(--r-sm); border: 1px solid var(--glass-border);
+  background: var(--glass-strong); color: var(--text);
+  font-size: var(--fs-lead); font-weight: 600;
+}
+.teamNameInput::placeholder { color: var(--text-muted); font-weight: 500; }
+.teamNameInput:focus { border-color: var(--accent); outline: none; background: var(--glass); }
+.teamNameText {
+  flex: 1 1 auto; min-width: 0;
+  font-size: var(--fs-body); font-weight: 700; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.teamNameSave.btn-icon { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+/* Table. My team (partner's chip, my melds, the partner's): a ring in the team colour and a filled
+   "Team" tab; the rivals, quieter: a stripe and, once named, an outlined tab. No size changes. */
+.opponent.teamChip, .meldOwnerGroup.teamOwn, .meldOwnerGroup.teamRival { --team-ring: var(--team-c); }
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  /* Dark felts: a lighter colour keeps 3:1 (blue on the green felt was 3.1:1). */
+  .opponent.teamChip, .meldOwnerGroup.teamOwn, .meldOwnerGroup.teamRival { --team-ring: color-mix(in srgb, var(--team-c) 78%, #fff); }
+}
+/* Night: the true blue keeps 3.9:1, a lighter one would near the periwinkle accent. */
+[data-theme="night"] :is(.opponent.teamChip, .meldOwnerGroup.teamOwn, .meldOwnerGroup.teamRival) { --team-ring: var(--team-c); }
+/* Light wood: the true colours with a dark edge for the 3:1 - an orange dark enough
+   on its own would be the rust accent. */
+[data-theme="kitchen"] :is(.opponent.teamChip, .meldOwnerGroup.teamOwn, .meldOwnerGroup.teamRival) {
+  --team-ring: var(--team-c); --team-edge: #3d2c1c;
+}
+.opponent.teamChip::before, .meldOwnerGroup.teamRival::before {
+  content: ''; position: absolute; left: -1px; top: 9px; bottom: 9px; width: 3px;
+  border-radius: 0 3px 3px 0; background: var(--team-ring); pointer-events: none;
+}
+[data-theme="kitchen"] :is(.opponent.teamChip, .meldOwnerGroup.teamRival)::before { box-shadow: 0 0 0 1px var(--team-edge); }
+.opponent.teamChip.isPartner::before { display: none; }
+.meldOwnerGroup.teamRival { position: relative; }
+.meldOwnerGroup.teamRival::before { top: 12px; bottom: 12px; }
+/* The ring: the 1 px border plus 2 px inside it - the only INSIDE ring (turn: accent fill
+   + glow, meld filter and round winner draw outside, card selection is on the cards). */
+.opponent.isPartner, .meldOwnerGroup.teamOwn { border-color: var(--team-edge, var(--team-ring)); }
+/* The chip's other states own box-shadow, so its ring is an outline; a meld block's is an
+   inset shadow, painted under the cards it may touch. */
+.opponent.isPartner { outline: 2px solid var(--team-ring); outline-offset: -3px; }
+.meldOwnerGroup.teamOwn { box-shadow: inset 0 0 0 2px var(--team-ring); }
+.opponent.isPartner.active { border-color: var(--accent); }
+.opponent.isPartner.lowCards { border-color: var(--danger); }
+.opPartnerTag {
+  position: absolute; top: -8px; left: 8px; z-index: 2;
+  max-width: calc(100% - 16px);
+  padding: 0 6px; border-radius: 9px;
+  border: 2px solid var(--team-ring);
+  background: rgba(0,0,0,0.62); color: #fff; /* a dark tab in every theme: 4.5:1 on the light chips too */
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  font-size: var(--fs-micro); font-weight: 800; line-height: 1.3;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  pointer-events: none;
+}
+/* A bot's level badge holds the right corner: the tab stops short of it. */
+.opponent.hasLevelBadge .opPartnerTag { max-width: calc(100% - 62px); }
+/* The rival team's name: the same tab, quieter - outlined, a thinner edge, muted text. A
+   phone's bot chip keeps only "Team…" beside the level badge: the stripe says it there. */
+.opPartnerTag.opRivalTag, .meldTeamTag.rival {
+  border-width: 1.5px; border-color: var(--team-ring);
+  background: var(--bg); color: var(--text-muted); font-weight: 700; box-shadow: none;
+}
+@media (max-width: 540px) {
+  .opponent.hasLevelBadge .opRivalTag { display: none; }
+}
+/* The team's bar: this seat's share solid, the partner's lighter. */
+.scoreBar.teamBar { position: relative; }
+.scoreBar.teamBar i {
+  position: absolute; top: 0; bottom: 0; left: 0;
+  background: var(--team-c); border-radius: 999px;
+}
+.scoreBar.teamBar .tbMate { opacity: 0.45; }
+#myScoreBar.teamBar { position: absolute; }
+/* Negative block margins: the tab overlaps the header's line instead of growing it. */
+.meldTeamTag {
+  display: inline-flex; align-items: center; gap: 4px; margin: -3px 0 -3px 6px; vertical-align: 1px;
+  max-width: 14em; padding: 0 6px; border-radius: 9px;
+  border: 2px solid var(--team-ring); background: rgba(0,0,0,0.62); color: #fff; /* the chip's tab */
+  font-size: var(--fs-micro); font-weight: 800; line-height: 1.3;
+}
+.meldTeamTag .mptName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Hand toolbar: "Wir 550:600 Gegner", ours first, like a scoreboard. The team names give
+   way first (ellipsis): the numbers, the round and the sort button keep their width. */
+.handToolbar { grid-template-columns: 1fr minmax(0, auto) 1fr; column-gap: 6px; }
+.handToolbar > .handMeta { justify-self: stretch; justify-content: center; overflow: hidden; }
+.sortToggle { white-space: nowrap; }
+.handMeta > .handCount, .handMeta > .handRoundInfo { flex-shrink: 0; }
+.handScore.teamScore { display: inline-flex; align-items: baseline; min-width: 0; }
+.handScore.teamScore > *, .handScore.teamScore::before { flex: 0 0 auto; }
+.handScore.teamScore :is(.tsWe, .tsThey) { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.handScore.teamScore .tsWe { margin-right: 0.25em; }
+.handScore.teamScore .tsThey { margin-left: 0.25em; }
+/* Team names need a wide toolbar; a phone's keeps "Wir 550:600 Gegner", with large type
+   "Wir 550:600" (the title names both). In rem, so a larger type switches earlier. */
+.handToolbar { container-type: inline-size; }
+.handScore .tsShort { display: none; }
+@container (max-width: 35rem) {
+  .handScore .tsLong { display: none; }
+  .handScore .tsShort { display: inline; }
+}
+@container (max-width: 22rem) {
+  .handScore.teamScore .tsThey { display: none; }
+}
+.handScore .tsVs { margin: 0 1px; }
+.handScore b.trail { color: var(--text-muted); font-weight: 700; }
+.handScore b.neg { color: var(--danger); }
+
+/* Result sheet: one block per team - its total and bar lead, the two seats below. */
+.teamResult { padding: 2px 0 6px; border-bottom: 1px solid rgba(0,0,0,0.07); }
+.teamResult:last-child { border-bottom: none; }
+.resultRow.teamResultHead { border-bottom: none; padding-bottom: 0; }
+.teamResultName { display: inline-flex; align-items: center; gap: 7px; }
+.teamResultName > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.teamResult.isMine .teamResultName { font-weight: 800; }
+.teamMember { padding: 3px 2px 3px 18px; }
+.tmTop { display: flex; align-items: baseline; gap: 10px; }
+.tmName {
+  flex: 1 1 auto; min-width: 0;
+  font-size: var(--fs-label); font-weight: 600; color: var(--card-ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.teamMember.hasQueenChip .tmName { flex: 0 1 auto; }
+.tmTotal {
+  flex: 0 0 auto; margin-left: auto;
+  font-size: var(--fs-hint); font-weight: 600; color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.isFinal .tmTotal { font-size: var(--fs-label); font-weight: 700; color: var(--card-ink); }
+.tmDelta {
+  flex: 0 0 auto; min-width: 3.1em; text-align: right;
+  font-size: var(--fs-label); font-weight: 700; color: var(--card-ink);
+  font-variant-numeric: tabular-nums;
+}
+.tmDelta.pos { color: var(--paper-success); }
+.tmDelta.neg { color: var(--paper-danger); }
+/* Me: the same left rule as in every list; whoever went out: weight only. */
+.teamMember.isMe { padding-left: 10px; margin-left: 8px; box-shadow: inset 3px 0 0 var(--paper-accent); border-radius: 3px; }
+.teamMember.isMe .tmName, .teamMember.winner .tmName { font-weight: 800; }
+
 /* --- Start screen in two columns -------------------------------------------
    Phone landscape (~400 px high) and desktop: play left, "Aufgaben", modes and
    Stammtische right, instead of one 340/400 px strip that scrolls. Portrait and
@@ -6106,6 +6280,16 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
   .resultWinner.resultWinnerGame, .resultWinner.resultWinnerGame.isMe { padding: 5px 12px; margin-bottom: 4px; }
   .resultWinnerGame .resultWinnerTrophy, .resultWinnerGame.isMe .resultWinnerTrophy { width: 22px; height: 22px; }
   .resultWinnerGame.isMe .resultWinnerSub { font-size: var(--fs-lead); }
+  /* "2 gegen 2": two team blocks of three lines each sit a little closer. */
+  .teamResult { padding-bottom: 2px; }
+  .resultRow.teamResultHead { padding-top: 3px; }
+  .teamResultHead .resultRowBar { margin: 4px 0 2px; }
+  .teamMember { padding-top: 1px; padding-bottom: 1px; }
+  /* My team's meld columns say "Team" alone (the chips above have the names), on a slimmer
+     tab: the header line sits in the column's 14 px top padding. A rival's "Team" would read as mine. */
+  .meldTeamTag .mptName, .meldTeamTag.rival { display: none; }
+  /* margin-block 0: the header clips (overflow: hidden), a negative margin would cut the tab. */
+  .meldTeamTag { border-width: 1px; line-height: 1; padding: 0 5px; vertical-align: 0; margin-block: 0; }
   /* Result strip in the narrow right column: the gap gets its own line. */
   #resultOverlay .resultMe { margin: 0 0 2px; padding: 8px 10px; }
   .rmTop { flex-wrap: wrap; }

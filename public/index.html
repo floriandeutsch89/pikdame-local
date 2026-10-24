@@ -209,6 +209,8 @@
     <!-- One glyph per meaning: group = Stammtisch (a person alone is the account),
          card with "?" = daily puzzle (the bulb is play tips), podium = daily challenge. -->
     <symbol id="i-group" viewBox="0 0 24 24"><circle cx="9.5" cy="8.6" r="3.5"/><path d="M3 20.5a6.5 6.5 0 0 1 13 0"/><path d="M14.66 5.88A3.2 3.2 0 1 1 15.15 11.4"/><path d="M17.3 14.3c2.4.7 4.2 3.1 4.2 6.2"/></symbol>
+    <!-- "2 gegen 2": a card table from above, partners opposite (filled), the other team left/right. -->
+    <symbol id="i-teams" viewBox="0 0 24 24"><rect x="7.4" y="7.4" width="9.2" height="9.2" rx="2"/><circle cx="12" cy="3.3" r="2.5" fill="currentColor" stroke="none"/><circle cx="12" cy="20.7" r="2.5" fill="currentColor" stroke="none"/><circle cx="3.3" cy="12" r="1.7"/><circle cx="20.7" cy="12" r="1.7"/></symbol>
     <symbol id="i-puzzle" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2.2"/><path d="M9.7 9.8a2.35 2.35 0 1 1 3.3 2.15c-.65.3-1 .8-1 1.5v.7"/><path d="M12 17.1v.1"/></symbol>
     <symbol id="i-podium" viewBox="0 0 24 24"><path d="M3.5 20.5V14H9v6.5M9 20.5V9.5h6v11M15 20.5V16h5.5v4.5M2.5 20.5h19"/><path d="M11.1 12.9l1.1-.9v4.6"/></symbol>
     <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/><path d="M9.5 20v-6h5v6"/></symbol>
@@ -484,10 +486,11 @@
               <div id="questList" class="questList"></div>
             </details>
           </section>
-          <!-- Two modes, two wide tiles: four in a row cut "Stammtisch" off.
-               The daily modes and the Kartenhaus live in "Aufgaben" above. -->
-          <div class="menuChips menuChipsTwo" role="group" aria-label="Spielmodi">
+          <!-- Three modes as stacked icon tiles (side by side they cut "Stammtisch" off);
+               "2 gegen 2" deals you and a bot against two bots at once. -->
+          <div class="menuChips menuChipsThree" role="group" aria-label="Spielmodi">
             <button id="tutorialBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-cap"/></svg><span>Tutorial</span></button>
+            <button id="teamQuickBtn" class="btn-secondary" title="Du und ein Bot gegen zwei Bots – sofort los"><svg class="icon" aria-hidden="true"><use href="#i-teams"/></svg><span>2 gegen 2</span></button>
             <button id="stammtischBtn" class="btn-secondary"><svg class="icon" aria-hidden="true"><use href="#i-group"/></svg><span>Stammtisch</span></button>
           </div>
           <!-- Recently visited Stammtische: one tap back to the group's table -->
@@ -518,25 +521,30 @@
 
       <div id="seatCountSection" class="lobby-section hidden">
         <h2>Spieleranzahl</h2>
-        <p class="lobby-hint">Fehlende Plätze werden mit Bots aufgefüllt.</p>
+        <p id="seatCountHint" class="lobby-hint">Fehlende Plätze werden mit Bots aufgefüllt.</p>
         <div class="themeSwitch" role="group" aria-label="Spieleranzahl wählen">
           <button class="seatCountBtn" data-seat-count="2">2</button>
           <button class="seatCountBtn" data-seat-count="3">3</button>
           <button class="seatCountBtn" data-seat-count="4">4</button>
+          <!-- Four seats in two teams, crosswise (game/Teams.js); never at a Stammtisch. -->
+          <button id="teamModeBtn" class="seatCountBtn seatModeBtn" type="button"><svg class="icon" aria-hidden="true"><use href="#i-teams"/></svg><span>2 gegen 2</span></button>
         </div>
       </div>
 
       <div id="seatingSection" class="lobby-section hidden">
         <h2>Sitzordnung &amp; Geber</h2>
-        <p class="lobby-hint">Zum Umsortieren am Griff ziehen. Der Stern legt den Geber der ersten Runde fest.</p>
+        <p id="seatingHint" class="lobby-hint">Zum Umsortieren am Griff ziehen. Der Stern legt den Geber der ersten Runde fest.</p>
         <div id="seatingList" class="seating-list"></div>
+        <!-- "2 gegen 2": an optional name per team, any human of the team sets it (client.js renderTeamNames). -->
+        <div id="teamNamesBox" class="teamNamesBox hidden"></div>
+        <button id="switchTeamBtn" class="btn-secondary switchTeamBtn hidden" type="button"><svg class="icon" aria-hidden="true"><use href="#i-teams"/></svg><span>Team wechseln</span></button>
       </div>
 
 
       <div id="houseRulesSection" class="lobby-section hidden">
         <h2>Hausregeln</h2>
         <label class="rule-toggle"><span>Hand aus zählt doppelt</span><input type="checkbox" id="ruleHandAus" class="ruleSwitch" /></label>
-        <label class="rule-toggle"><span>Über 1000 Punkte zum Gewinnen (genau 1000 reicht nicht)</span><input type="checkbox" id="ruleStrict1000" class="ruleSwitch" /></label>
+        <label class="rule-toggle"><span id="ruleStrictLabel">Über 1000 Punkte zum Gewinnen (genau 1000 reicht nicht)</span><input type="checkbox" id="ruleStrict1000" class="ruleSwitch" /></label>
         <!-- Segment buttons only write the hidden <select>: it stays the single
              source of truth for render, collectHouseRules and the change events. -->
         <div class="rule-choice">
@@ -577,6 +585,7 @@
             <button type="button" class="segBtn" data-value="zen"><span class="lvlSlot"><svg class="icon lvlIcon lvlZen" aria-hidden="true"><use href="#i-lvl-zen"/></svg></span><span>Zen</span></button>
           </div>
           <p id="ruleBotLevelMixed" class="rule-choice-hint hidden">Gemischt – pro Bot am Sitz eingestellt</p>
+          <p id="ruleBotLevelTeam" class="rule-choice-hint hidden">Bei „2 gegen 2“ spielen alle Bots auf derselben Stufe, Zen so stark wie Schwer.</p>
           <select id="ruleBotLevel" hidden>
             <option value="easy">Leicht</option>
             <option value="medium" selected>Mittel</option>
@@ -1181,8 +1190,9 @@
                 </span>
                 <!-- Read-only: the host sets them in the game lobby. Values via L() in client.js. -->
                 <dl id="tableRules" class="prefRules">
+                  <div id="tableRuleModeRow" class="hidden"><dt>Spielmodus</dt><dd id="tableRuleMode"></dd></div>
                   <div><dt>Hand aus zählt doppelt</dt><dd id="tableRuleHandAus"></dd></div>
-                  <div><dt>Über 1000 Punkte zum Gewinnen</dt><dd id="tableRuleStrict"></dd></div>
+                  <div><dt id="tableRuleStrictLabel">Über 1000 Punkte zum Gewinnen</dt><dd id="tableRuleStrict"></dd></div>
                   <div><dt>Zug-Timer</dt><dd id="tableRuleTimer"></dd></div>
                   <div id="tableRuleBotPaceRow"><dt>Bot-Tempo</dt><dd id="tableRuleBotPace"></dd></div>
                   <div id="tableRuleBotLevelRow"><dt>Bot-Stärke</dt><dd id="tableRuleBotLevel"></dd></div>
@@ -1426,12 +1436,22 @@
             <li><b>Hand aus:</b> Wer vor seinem letzten Zug noch nichts ausgelegt hatte und dann die komplette Hand in einem einzigen Zug loswird, verdoppelt die Rundenwertung für alle – wenn die Hausregel aktiv ist.</li>
           </ul>
 
+          <h3>2 gegen 2</h3>
+          <ul>
+            <li>Zwei Teams zu zweit, <b>über Kreuz</b> gesetzt: Die Teams sind abwechselnd dran, links und rechts von dir sitzt immer ein Gegner.</li>
+            <li>Am Tisch gelten die gewohnten Regeln: Jeder legt an und tauscht Joker nur an <b>seinen eigenen Auslagen</b>.</li>
+            <li>Jeder wird gewertet wie sonst, die <b>Punkte der Partner zählen zusammen</b>. Macht einer aus, endet die Runde für alle.</li>
+            <li>Ein Team spielt bis <b>2000 Punkte</b> – doppelt so weit wie allein, weil zwei Punktestände zusammenzählen (Hausregel „streng“: über 2000). Kommen beide Teams in derselben Runde ans Ziel, gewinnt das höhere; bei Gleichstand folgt eine weitere Runde.</li>
+            <li>„2 gegen 2“ auf dem Startbildschirm startet sofort: du und ein Bot gegen zwei Bots. Mit Freunden: Spiel erstellen und in der Lobby „2 gegen 2“ wählen. Alle Bots spielen auf derselben Stufe.</li>
+            <li>Vor dem Start kann jedes Team in der Lobby einen Namen eintragen. Am Tisch sind dein Partner, deine und seine Auslagen in deiner Teamfarbe umrandet und mit „Team“ beschriftet, mit einem Teamnamen „Team“ und dem Namen. Das andere Team trägt einen Streifen in seiner Farbe und, wenn es einen Namen hat, auch diesen.</li>
+          </ul>
+
           <h3>Hausregeln (beim Erstellen wählbar)</h3>
           <ul>
             <li><b>Bot-Stärke:</b> Leicht, Mittel, Schwer oder Zen – für alle Bots in der Lobby oder pro Bot einzeln (Tipp auf die Stufe am Bot).</li>
             <li><b>⏱ Zug-Timer:</b> 30/60/90 Sekunden pro Zug. Läuft die Zeit ab, spielt die Bot-Logik den Zug fair zu Ende – der Tisch wartet nie ewig.</li>
             <li><b>Hand aus zählt doppelt</b> (siehe Punkte).</li>
-            <li><b>1000 streng:</b> Sieg erst, wenn jemand über 1000 Punkten liegt.</li>
+            <li><b>1000 streng:</b> Sieg erst, wenn jemand über 1000 Punkten liegt (bei „2 gegen 2“: ein Team über 2000).</li>
           </ul>
 
           <h3>Spielende &amp; Sonstiges</h3>
@@ -1477,7 +1497,7 @@
           <div id="globalStatsBox" class="globalStatsBox hidden"></div>
         </div>
         <div id="statsPaneHistory" class="statsPane hidden">
-          <p class="lobby-hint">Deine letzten abgeschlossenen Partien (bis 1000 Punkte) - nur auf diesem Gerät/mit diesem Spielernamen.</p>
+          <p class="lobby-hint">Deine letzten abgeschlossenen Partien (bis 1000 Punkte, im Team bis 2000) - nur auf diesem Gerät/mit diesem Spielernamen.</p>
           <div id="historyContent" class="statsContent"></div>
         </div>
         <button id="statsCloseBtn" class="btn-secondary">Schließen</button>

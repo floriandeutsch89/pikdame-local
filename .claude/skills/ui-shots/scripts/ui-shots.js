@@ -52,7 +52,11 @@
 // --measure writes <out>/measure.json: the table regions (melds, hand, piles ...) per shot.
 // gameover-win (I win the match, a new badge), stats-empty (a brand-new name: statistics
 // empty state, then "Meine Partien" empty).
-// --lang en: the English client (text length). SHOTS_ROOT=<checkout>: shoot another
+// "2 gegen 2": gamelobby-team (a real team lobby, a second socket joins, both teams named;
+// -edit while I type, then -partners and botdiff-team), table-team (an engine team table;
+// -named with my team's name, -rivals/-many both named, -b from team B), roundend-team,
+// gameover-team(-win, -rivals: both named), history-team.
+// --lang en: the English client (text length). --ui-scale large|xlarge: the larger type. SHOTS_ROOT=<checkout>: shoot another
 // checkout with this script (before/after pictures from one set of scenes).
 // --light morning|noon|evening|night|HH:MM|now: the table light at that Berlin time
 // (default noon = the table without the light; now = the real clock).
@@ -226,6 +230,51 @@ const GAME_OVER_WIN = { ...GAME_OVER, totals: { p1: 1045, b1: 880, b2: 610, b3: 
   lastRoundResult: { p1: mk(225, true), b1: mk(180), b2: mk(110), b3: mk(60) },
   gameOverInfo: { ...GAME_OVER.gameOverInfo, winnerId: 'p1' } };
 
+// "2 gegen 2" (roundend-team, gameover-team, gameover-team-win): Flo and Oma Gerda
+// (team A, seats 0+2) against the bots Klaus and Horst (team B, seats 1+3).
+const TEAMS = [['p1', 'p2'], ['b1', 'b2']];
+const TEAM_PLAYERS = [
+  { id: 'p1', name: ME, isBot: false, connected: true, handCount: 9, hand: [] },
+  { id: 'b1', name: 'Klaus', isBot: true, connected: true, handCount: 0, botDifficulty: 'medium' },
+  { id: 'p2', name: 'Oma Gerda', isBot: false, connected: true, handCount: 4 },
+  { id: 'b2', name: 'Horst', isBot: true, connected: true, handCount: 6, botDifficulty: 'medium' },
+];
+const teamSums = (t) => TEAMS.map((ids) => ids.reduce((s, id) => s + (t[id] || 0), 0));
+const teamHist = (rows) => rows.map((totals, i) => ({ round: i + 1, totals, teamTotals: teamSums(totals) }));
+const TEAM_ROUNDS = [
+  { p1: 120, b1: 60, p2: 150, b2: 40 }, { p1: 130, b1: 330, p2: 420, b2: 270 }, { p1: 240, b1: 600, p2: 375, b2: 245 },
+];
+const TEAM_BASE = { ...BASE_STATE, teamMode: true, teams: TEAMS, players: TEAM_PLAYERS, targetScore: 2000, teamNames: [null, null],
+  lastRoundStats: BASE_STATE.lastRoundStats.map((s) => (s.id === 'b2' ? { ...s, id: 'p2', name: 'Oma Gerda' } : s.id === 'b3' ? { ...s, id: 'b2', name: 'Horst' } : s)) };
+const TEAM_ROUND_END = { ...TEAM_BASE, phase: 'roundEnd', totals: TEAM_ROUNDS[2], teamTotals: teamSums(TEAM_ROUNDS[2]),
+  scoreHistory: teamHist(TEAM_ROUNDS),
+  lastRoundResult: { p1: mk(110), b1: mk(270, true), p2: mk(-45), b2: mk(-25) } };
+// A team plays to 2000: eight rounds, team B ends at 2080 against 1910.
+const TEAM_FINAL = [...TEAM_ROUNDS, { p1: 420, b1: 720, p2: 510, b2: 380 }, { p1: 560, b1: 850, p2: 640, b2: 520 },
+  { p1: 700, b1: 980, p2: 780, b2: 640 }, { p1: 850, b1: 1040, p2: 930, b2: 760 }, { p1: 960, b1: 1150, p2: 950, b2: 930 }];
+// My team named itself in the lobby; the bots' team has no name.
+const teamOver = (rows, winnerTeam, out) => ({ ...TEAM_BASE, teamNames: ['Die Löwen', null], phase: 'gameOver', roundNumber: rows.length, totals: rows[rows.length - 1],
+  teamTotals: teamSums(rows[rows.length - 1]), scoreHistory: teamHist(rows), lastRoundWinnerId: out,
+  lastRoundResult: Object.fromEntries(Object.keys(rows[0]).map((id) => [id, mk(rows[rows.length - 1][id] - rows[rows.length - 2][id], id === out)])),
+  gameStatsTotals: GAME_OVER.gameStatsTotals, hasExportableGame: true,
+  gameOverInfo: { ...GAME_OVER.gameOverInfo, winnerId: null, teamMode: true, teams: TEAMS, winnerTeam,
+    winnerIds: TEAMS[winnerTeam], teamTotals: teamSums(rows[rows.length - 1]), teamNames: ['Die Löwen', null], targetScore: 2000, totalTurns: 236 } });
+const TEAM_GAME_OVER = teamOver(TEAM_FINAL, 1, 'b1');
+// gameover-team-win: the same match the other way round, Flo went out last.
+const swapTeams = (t) => ({ p1: t.b1, b1: t.p1, p2: t.b2, b2: t.p2 });
+const TEAM_GAME_OVER_WIN = teamOver(TEAM_FINAL.map(swapTeams), 0, 'p1');
+// gameover-team-rivals: both teams named - Klaus plays himself here and named his team.
+const RIVAL_NAMES = ['Die Löwen', 'Kaffeeklatsch'];
+const TEAM_GAME_OVER_RIVALS = { ...TEAM_GAME_OVER, teamNames: RIVAL_NAMES,
+  players: TEAM_PLAYERS.map((p) => (p.id === 'b1' ? { id: 'b1', name: 'Klaus', isBot: false, connected: true, handCount: 0 } : p)),
+  gameOverInfo: { ...TEAM_GAME_OVER.gameOverInfo, teamNames: RIVAL_NAMES } };
+
+// history-team: today's "2 gegen 2" with Oma Gerda, won (the place is the team's).
+const TEAM_HISTORY_GAME = { id: 'gteam', finishedAt: NOW - 1800e3, startedAt: NOW - 1800e3 - 52 * 60e3, rounds: 8, won: true, myScore: 1150, myId: 'p1',
+  teamMode: true, teams: TEAMS, winnerIds: TEAMS[0], winnerTeam: 0, teamTotals: [2080, 1910], teamNames: ['Die Löwen', null], targetScore: 2000,
+  players: TEAM_PLAYERS.map(({ id, name, isBot, botDifficulty }) => ({ id, name, isBot, botDifficulty })),
+  finalTotals: TEAM_FINAL.map(swapTeams)[TEAM_FINAL.length - 1], roundTotals: TEAM_FINAL.map(swapTeams) };
+
 // Kartenhaus months for --tower (best stars per floor), and the archive behind them.
 const TOWER_BEST = {
   mid: { 1: 3, 2: 3, 3: 3, 4: 2, 5: 2, 6: 2, 7: 1, 8: 1 },
@@ -269,11 +318,14 @@ function kindPuzzle(kind) {
 // stammtisch-lobby: the next join is shown as a seat at the mock Stammtisch.
 let bindStammtisch = false;
 let emptyMe = false; // scene stats-empty: a brand-new name (no games, no history)
+let teamHistory = false; // scene history-team: a won "2 gegen 2" on top of "Meine Partien"
 let towerSceneBest = null; // tower-* scenes: one star already on the floor being played
+let lastSessionCode = null; // gamelobby-team: a second socket joins the table I just opened
 function rewrite(msg) {
+  if (msg.type === 'joined' && msg.sessionCode) lastSessionCode = msg.sessionCode;
   if (msg.type === 'joined' && bindStammtisch) msg.stammtisch = { code: 'STMOCK1', name: STAMMTISCH.name };
   if (msg.type === 'profiles') { msg.players = emptyMe ? PROFILES.slice(1) : PROFILES; msg.globalStats = GLOBAL_STATS; }
-  if (msg.type === 'gameHistory') msg.games = emptyMe ? [] : HISTORY;
+  if (msg.type === 'gameHistory') msg.games = emptyMe ? [] : teamHistory ? [TEAM_HISTORY_GAME, ...HISTORY] : HISTORY;
   if (msg.type === 'towerInfo') {
     const BT = require(path.join(ROOT, 'game', 'BotTower'));
     const best = { ...(TOWER_BEST[TOWER_MOCK] || TOWER_BEST.mid), ...(towerSceneBest || {}) };
@@ -351,6 +403,61 @@ function tableState() {
     if (g.phase === 'playing' && next && next.id === 'p1' && g.turnPhase === 'draw') { mine += 1; st = g.publicState('p1'); }
   }
   g.destroy();
+  return st;
+}
+// table-team: a live "2 gegen 2" table - Oma Gerda is my partner, two bots the other
+// team, mid-match totals (round 3), my draw turn after a few turns. named: my team's name.
+function teamTableState(named = null, rivals = null) {
+  const GM = require(path.join(ROOT, 'game', 'GameManager'));
+  const g = new GM(() => {}, { deckSeed: 7, teamMode: true });
+  g.maybeRunBotTurn = () => {};
+  g.addOrReconnectPlayer('p1', ME);
+  g.syncLobbyBots();
+  g.addOrReconnectPlayer('p2', 'Oma Gerda');
+  g.switchTeam('p2'); // the lobby seats her against me; she switches to my team
+  if (named) g.setTeamName('p1', named);
+  if (rivals) { g.addOrReconnectPlayer('pk', 'Klaus'); g.setTeamName('pk', rivals); } // a human rival names team B
+  g.setAllBotsDifficulty('medium');
+  g.fillWithBots();
+  g.startNewRound();
+  if (g.phase === 'cutting') g.performCut(g.cutterId, 0.5);
+  g.players.forEach((p, i) => { g.totals[p.id] = [240, 420, 310, 180][i]; });
+  g.roundNumber = 3;
+  let st = g.publicState('p1');
+  for (let mine = 0, guard = 0; mine < 4 && g.phase === 'playing' && guard < 800; guard++) {
+    const cp = g.currentPlayer();
+    g.runBotTurn(cp.id, { forced: !cp.isBot });
+    const next = g.currentPlayer();
+    if (g.phase === 'playing' && next && next.id === 'p1' && g.turnPhase === 'draw') { mine += 1; st = g.publicState('p1'); }
+  }
+  g.destroy();
+  return st;
+}
+// table-team-b: the same table seen from team B (my partner's ring orange), an opponent on turn
+// beside it: the ring must not read as the turn highlight in any theme.
+function teamTableOnB() {
+  const st = teamTableState('Die Löwen');
+  for (const k of ['teams', 'teamTotals', 'teamNames']) st[k] = st[k].slice().reverse();
+  st.currentPlayerId = st.teams[0][0]; // an opponent's turn
+  return st;
+}
+// table-team-many: late in a match, both teams named - my partner and I hold 13-card runs and
+// many melds, the opponents a long run too (the ringed blocks must stay legible).
+function teamTableMany() {
+  const st = teamTableState('Die Löwen', 'Kaffeeklatsch');
+  const cards = (suit, ranks, tag) => ranks.map((rank) => ({ real: { id: `${suit}${rank}-${tag}`, suit, rank, isJoker: false } }));
+  const RUN = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+  const opp = st.players.find((p) => p.isBot).id;
+  let n = 900;
+  const add = (ownerId, type, slots, extra = {}) => st.tableMelds.push({ id: `meld-${n++}`, ownerId, type, suit: null, rank: null, slots, ...extra });
+  add('p2', 'run', cards('H', RUN, 'x'), { suit: 'H' });
+  add('p2', 'set', ['C', 'D', 'S', 'H'].map((s) => ({ real: { id: `${s}K-x`, suit: s, rank: 'K', isJoker: false } })), { rank: 'K' });
+  add('p2', 'run', cards('C', ['3', '4', '5', '6', '7', '8'], 'x'), { suit: 'C' });
+  add('p2', 'set', ['C', 'D', 'S'].map((s) => ({ real: { id: `${s}9-x`, suit: s, rank: '9', isJoker: false } })), { rank: '9' });
+  add(opp, 'run', cards('S', ['5', '6', '7', '8', '9', '10', 'J'], 'y'), { suit: 'S' });
+  add(opp, 'set', ['C', 'D', 'H'].map((s) => ({ real: { id: `${s}6-y`, suit: s, rank: '6', isJoker: false } })), { rank: '6' });
+  add('p1', 'run', cards('D', RUN, 'z'), { suit: 'D' }); // not spades: a new ♠Q pops its banner
+  add('p1', 'set', ['C', 'D', 'H'].map((s) => ({ real: { id: `${s}5-z`, suit: s, rank: '5', isJoker: false } })), { rank: '5' });
   return st;
 }
 // Where the table's regions sit (--measure): the floor card must not cost the melds or the hand.
@@ -519,10 +626,11 @@ function waitForHttp(port, ms = 20000) {
       if (!vp) throw new Error(`unknown view ${vn}`);
       const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, userAgent: UA, deviceScaleFactor: 2, isMobile: vp.mobile, hasTouch: vp.mobile,
         ...(STILL ? { reducedMotion: 'reduce' } : {}) });
-      await ctx.addInitScript(([me, theme, musicHint, stammtische, uiLang]) => {
+      await ctx.addInitScript(([me, theme, musicHint, stammtische, uiLang, uiScale]) => {
         try {
           localStorage.setItem('pikdame_player_name', me);
           if (uiLang) localStorage.setItem('pikdame_lang', uiLang); // --lang en
+          if (uiScale) localStorage.setItem('pikdame_ui_scale', uiScale); // --ui-scale large|xlarge
           if (theme) localStorage.setItem('pikdame_theme', theme); // --theme table|night|felt|love|bordeaux|kitchen
           localStorage.setItem('pikdame_splash_device', '1'); // skip the studio intro
           sessionStorage.setItem('pikdame_splash_seen', '1');
@@ -532,7 +640,7 @@ function waitForHttp(port, ms = 20000) {
           // The first click starts the music; its one-time hint would sit on every later shot.
           if (!musicHint) localStorage.setItem('pikdame_music_hint', '1');
         } catch (e) { /* storage blocked */ }
-      }, [ME, arg('theme', ''), scenes.includes('music-hint'), Math.max(0, Math.min(3, Number(arg('stammtische', 1)))), arg('lang', '')]);
+      }, [ME, arg('theme', ''), scenes.includes('music-hint'), Math.max(0, Math.min(3, Number(arg('stammtische', 1)))), arg('lang', ''), arg('ui-scale', '')]);
       if (LIGHT_CSS) {
         await ctx.addInitScript((cssText) => {
           document.addEventListener('DOMContentLoaded', () => {
@@ -598,7 +706,7 @@ function waitForHttp(port, ms = 20000) {
         await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(1200);
       };
-      const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|tower-detail|tower-rules|tower-motion|tower-film|tower-skip|stats|stats-badges|stats-empty|history|settings|settings-aids|settings-music|sheet-reopen|cardback|music-hint|challenge|challenge-open|stammtisch|account|account-mail|puzzle.*|year.*)$/;
+      const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|tower-detail|tower-rules|tower-motion|tower-film|tower-skip|stats|stats-badges|stats-empty|history|history-team|settings|settings-aids|settings-music|sheet-reopen|cardback|music-hint|challenge|challenge-open|stammtisch|account|account-mail|puzzle.*|year.*)$/;
       for (const sc of scenes) {
         if (LOBBY_SCENES.test(sc)) await toStart();
         if (sc === 'lobby') { await page.waitForTimeout(Number(arg('settle', 0))); await shot('lobby'); }
@@ -711,6 +819,38 @@ function waitForHttp(port, ms = 20000) {
             await shot('botdiff');
             await page.click('#botDiffCloseBtn');
           }
+        }
+        if (sc === 'gamelobby-team') {
+          // A real "2 gegen 2" lobby: I host, Oma Gerda joins from a second socket and lands on
+          // the other team; then she switches to mine (my "Team wechseln" shows: a bot seat is free).
+          if (!(await page.isVisible('#houseRulesSection'))) { await toStart(); await page.click('#createGameBtn'); await page.waitForTimeout(900); }
+          const WS = require(path.join(ROOT, 'node_modules', 'ws'));
+          const guest = new WS(`ws://localhost:${PORT}`);
+          await new Promise((resolve, reject) => { guest.once('open', resolve); guest.once('error', reject); });
+          guest.send(JSON.stringify({ type: 'joinSession', code: lastSessionCode, name: 'Oma Gerda' }));
+          await page.waitForTimeout(700);
+          await page.click('#teamModeBtn'); await page.waitForTimeout(700);
+          // Each team names itself: I type mine (the check shows while it is unsent), she sends hers.
+          await page.evaluate(() => document.getElementById('seatingSection').scrollIntoView({ block: 'start' }));
+          await page.fill('.teamNameInput', 'Die Löwen'); await page.waitForTimeout(200);
+          await shot('gamelobby-team-edit');
+          await page.press('.teamNameInput', 'Enter');
+          guest.send(JSON.stringify({ type: 'setTeamName', teamName: 'Kaffeeklatsch' }));
+          await page.waitForTimeout(700);
+          await page.evaluate(() => document.getElementById('seatCountSection').scrollIntoView({ block: 'start' }));
+          await page.waitForTimeout(200);
+          await shot('gamelobby-team');
+          guest.send(JSON.stringify({ type: 'switchTeam' }));
+          await page.waitForTimeout(700);
+          await page.evaluate(() => document.getElementById('seatingSection').scrollIntoView({ block: 'start' }));
+          await page.waitForTimeout(200);
+          await shot('gamelobby-team-partners');
+          // A bot's level chip at a team table sets every bot (one level for all).
+          await page.click('.seatDiff'); await page.waitForTimeout(300);
+          await shot('botdiff-team');
+          await page.click('#botDiffCloseBtn');
+          guest.close();
+          await toStart(); // the live lobby keeps broadcasting: later mock scenes start clean
         }
         if (sc === 'lobby-open') {
           await page.evaluate(() => { const d = document.getElementById('questsSection'); if (d) d.open = true; });
@@ -888,11 +1028,15 @@ function waitForHttp(port, ms = 20000) {
           await shot('account-admin');
           await page.click('#accountCloseBtn');
         }
-        if (sc === 'stats' || sc === 'history') {
+        if (sc === 'stats' || sc === 'history' || sc === 'history-team') {
+          teamHistory = sc === 'history-team';
           await page.click('#statsBtn'); await page.waitForTimeout(500);
-          if (sc === 'history') { await page.click('#statsTabHistoryBtn'); await page.waitForTimeout(600); }
+          if (sc !== 'stats') { await page.click('#statsTabHistoryBtn'); await page.waitForTimeout(600); }
+          // history-team: the team game's card opened (its chart has a line per team).
+          if (teamHistory) { await page.click('.histCard[data-id="gteam"]'); await page.waitForTimeout(400); }
           await shot(sc);
           await page.click('#statsCloseBtn');
+          teamHistory = false;
         }
         if (sc === 'stats-empty') {
           // A new name: the statistics empty state, then "Meine Partien" empty.
@@ -918,9 +1062,13 @@ function waitForHttp(port, ms = 20000) {
           await shot('stats-badges-open');
           await page.click('#statsCloseBtn');
         }
-        if (sc === 'table') {
-          // Live table: needs --state <file> with a publicState('p1') JSON (playing phase).
-          const st = JSON.parse(fs.readFileSync(arg('state', ''), 'utf8'));
+        if (sc === 'table' || sc === 'table-team' || sc === 'table-team-named' || sc === 'table-team-b' || sc === 'table-team-many' || sc === 'table-team-rivals') {
+          // Live table: needs --state <file> with a publicState('p1') JSON (playing phase);
+          // table-team builds a "2 gegen 2" table from the engine instead.
+          const st = sc === 'table-team' ? teamTableState() : sc === 'table-team-named' ? teamTableState('Die Löwen')
+            : sc === 'table-team-b' ? teamTableOnB() : sc === 'table-team-many' ? teamTableMany()
+            : sc === 'table-team-rivals' ? teamTableState('Die Löwen', 'Kaffeeklatsch')
+              : JSON.parse(fs.readFileSync(arg('state', ''), 'utf8'));
           inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
           inject({ type: 'state', state: st });
           await page.waitForTimeout(1200);
@@ -928,7 +1076,7 @@ function waitForHttp(port, ms = 20000) {
           if (arg('css', '')) await page.addStyleTag({ content: fs.readFileSync(arg('css', ''), 'utf8') });
           if (arg('js', '')) await page.evaluate(fs.readFileSync(arg('js', ''), 'utf8')); // --js <file>: DOM mockups
           await page.waitForTimeout(200);
-          await shot('table');
+          await shot(sc);
         }
         if (/^tower-(start|play|sheet|lock)$/.test(sc)) {
           // A live Kartenhaus floor: a fresh page each time, so the start card is
@@ -981,8 +1129,10 @@ function waitForHttp(port, ms = 20000) {
         } else if (sc.startsWith('roundend') || sc.startsWith('gameover')) {
           inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
           const challenge = sc === 'gameover-challenge';
-          const over = sc === 'gameover-win' ? GAME_OVER_WIN : GAME_OVER;
-          inject({ type: 'state', state: sc.startsWith('gameover') ? { ...over, challengeDate: challenge ? TODAY : null } : ROUND_END });
+          const over = { 'gameover-win': GAME_OVER_WIN, 'gameover-team': TEAM_GAME_OVER, 'gameover-team-win': TEAM_GAME_OVER_WIN,
+            'gameover-team-rivals': TEAM_GAME_OVER_RIVALS }[sc] || GAME_OVER;
+          const roundEnd = sc === 'roundend-team' ? TEAM_ROUND_END : ROUND_END;
+          inject({ type: 'state', state: sc.startsWith('gameover') ? { ...over, challengeDate: challenge ? TODAY : null } : roundEnd });
           if (challenge) {
             inject({ type: 'challengeBoard', date: TODAY, yourScore: 880, yourRank: 2, yourQueens: 1, players: 9,
               board: [{ rank: 1, name: 'Oma Gerda', score: 1210 }, { rank: 2, name: ME, score: 880 }], history: [], weekly: null });
