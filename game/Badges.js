@@ -1,6 +1,6 @@
 // game/Badges.js
 // Achievement badges: computed after every finished MATCH from the
-// gameRecord. Deliberately a pure function (testable, no store access) -
+// gameRecord, the ROUND_BADGES already after each round. Pure functions (testable, no store access) -
 // awarding and persistence live in PlayerStore (awardBadges), which ignores
 // badges already earned.
 //
@@ -208,6 +208,19 @@ function computeEarnedBadges(gameRecord, playerId, profile = {}, context = {}) {
   return earned;
 }
 
+// Decided by the rounds alone (round facts in the record), so server.js awards
+// them at each round end; the rest needs the finished match or the profile.
+const ROUND_BADGES = [
+  'hand_aus_win', 'pd_laid', 'pd_triple', 'pd_caught', 'double_queen_round', 'round_300', 'ring_run',
+  'run_13', 'pile_glutton', 'cold_shower', 'joker_king', 'royal_flush', 'pik_royal', 'quick_start',
+];
+
+/** The ROUND_BADGES a player holds after the rounds played so far (a running match). */
+function computeRoundBadges(gameRecord, playerId) {
+  const rounds = (gameRecord && gameRecord.rounds) || [];
+  return computeEarnedBadges({ rounds }, playerId).filter((id) => ROUND_BADGES.includes(id));
+}
+
 /**
  * Counter families: every tier whose threshold the profile has reached.
  * Win-based counters only count on a WIN (a loss resets the streak anyway).
@@ -223,4 +236,4 @@ function familyBadges(profile = {}, won = false) {
   return out;
 }
 
-module.exports = { BADGE_IDS, BADGE_FAMILIES, computeEarnedBadges, familyBadges };
+module.exports = { BADGE_IDS, BADGE_FAMILIES, ROUND_BADGES, computeEarnedBadges, computeRoundBadges, familyBadges };

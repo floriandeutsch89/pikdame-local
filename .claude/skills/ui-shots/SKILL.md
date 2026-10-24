@@ -72,6 +72,12 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   new scenes exist for the "before" pictures too.
 - **Reduced motion:** `--reduced-motion` emulates `prefers-reduced-motion:
   reduce` - the still pictures instead of the animations.
+- **Badge unlock cards:** `unlock` (one card on a running table; `--badge <id>`
+  another badge, default `wins_10`), `unlock-lobby` (the start screen),
+  `unlock-roundend` / `unlock-gameover` (over the result sheets, where the card
+  moves up to keep the sheet's head free), `unlock-queue` (three closed by their
+  ×, the rest folded into "+N"). Each reloads the page first: a page shows a
+  badge only once. On a main checkout (`SHOTS_ROOT`) they are the "before".
 - **Scenes:** `lobby`, `lobby-open` (daily goals unfolded), `progress`
   ("Dein Fortschritt"), `stats`, `stats-empty` (a brand-new name: the
   statistics empty state, then "Meine Partien" empty), `stats-badges` (trophy cabinet folded, then a favourite's detail; favourites need `--signed-in`), `history` ("Meine Partien"), `roundend`,

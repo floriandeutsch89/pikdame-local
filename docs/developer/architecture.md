@@ -136,7 +136,11 @@ callers await it, and a finished match is booked by one async chain
 ladder, badges), each step catching its own failure. Reads go to the database
 too (no cache to load or to keep in sync), and the shutdown waits up to 3.5 s
 for such writes before it closes the pool: a buffered write lost on `SIGTERM`
-once broke the challenge (#458).
+once broke the challenge (#458). The badges a single round decides
+(`Badges.ROUND_BADGES`) are awarded at that round's end already
+(`GameManager` `onRoundEnd`); every new badge then goes to its owner's open
+socket as a `badgeUnlocks` card, claimed in the database so no second device
+repeats it ({doc}`schema`, "Players").
 
 Play attempts (`play_attempts`, {doc}`../admin/play-attempts`) are the one write
 nobody waits for: `game/PlayEvents.js` stores them in the background, a failed

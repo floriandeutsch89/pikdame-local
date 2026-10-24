@@ -294,10 +294,12 @@ const IMPORT_SQL = [
      tower_crowned_months = GREATEST(p.tower_crowned_months, EXCLUDED.tower_crowned_months),
      celebration = COALESCE(p.celebration, EXCLUDED.celebration),
      favorite_badges = CASE WHEN cardinality(p.favorite_badges) > 0 THEN p.favorite_badges ELSE EXCLUDED.favorite_badges END`,
-  `INSERT INTO player_badges (player_id, badge_id, earned_at)
-   SELECT p.id, x.badge_id, COALESCE(x.earned_at, now())
+  // Imported badges were celebrated by the old version: no unlock card for them.
+  `INSERT INTO player_badges (player_id, badge_id, earned_at, notified_at)
+   SELECT p.id, x.badge_id, COALESCE(x.earned_at, now()), COALESCE(x.earned_at, now())
    FROM jsonb_to_recordset($1::jsonb) AS x(player_key text, badge_id text, earned_at timestamptz) JOIN players p USING (player_key)
-   ON CONFLICT (player_id, badge_id) DO UPDATE SET earned_at = LEAST(player_badges.earned_at, EXCLUDED.earned_at)`,
+   ON CONFLICT (player_id, badge_id) DO UPDATE SET earned_at = LEAST(player_badges.earned_at, EXCLUDED.earned_at),
+     notified_at = COALESCE(player_badges.notified_at, EXCLUDED.notified_at)`,
   `INSERT INTO player_card_backs (player_id, card_back_id, unlocked_day)
    SELECT p.id, x.card_back_id, x.unlocked_day
    FROM jsonb_to_recordset($1::jsonb) AS x(player_key text, card_back_id text, unlocked_day date) JOIN players p USING (player_key)
@@ -438,15 +440,53 @@ function createPlayerStore(pool, { legacyFile = DEFAULT_DATA_FILE, now = () => D
     });
   }
 
-  /** Badges for a profile; ones already earned are ignored. @returns {Promise<string[]>} only the NEW ids */
-  async function awardBadges(name, badgeIds = []) {
+  /**
+   * Badges for a profile; ones already earned are ignored. New ones wait for their
+   * unlock card (claimBadgeNotices). `create`: a round's badges may come before the
+   * name's first booked match, so the row is made (and marked seen) on the way.
+   * @returns {Promise<string[]>} only the NEW ids
+   */
+  async function awardBadges(name, badgeIds = [], { create = false } = {}) {
     const ids = [...new Set((badgeIds || []).map(String))];
     if (!ids.length || !keyOf(name)) return [];
-    const { rows } = await query(`INSERT INTO player_badges (player_id, badge_id, earned_at)
-      SELECT p.id, b.badge_id, $3 FROM players p, unnest($2::text[]) AS b(badge_id) WHERE p.player_key = $1
-      ON CONFLICT DO NOTHING RETURNING badge_id`, [keyOf(name), ids, new Date(now())]);
+    const player = create
+      ? `INSERT INTO players AS p (player_key, player_name, created_at, updated_at, last_seen_at) VALUES ($1, $4, $3, $3, $3)
+         ON CONFLICT (player_key) DO UPDATE SET last_seen_at = GREATEST(p.last_seen_at, EXCLUDED.last_seen_at), updated_at = EXCLUDED.updated_at
+         RETURNING id`
+      : 'SELECT id FROM players WHERE player_key = $1';
+    const { rows } = await query(`WITH pl AS (${player})
+      INSERT INTO player_badges (player_id, badge_id, earned_at)
+      SELECT pl.id, b.badge_id, $3 FROM pl, unnest($2::text[]) AS b(badge_id)
+      ON CONFLICT DO NOTHING RETURNING badge_id`, [keyOf(name), ids, new Date(now()), ...(create ? [nameOf(name)] : [])]);
     const fresh = new Set(rows.map((r) => r.badge_id));
     return ids.filter((id) => fresh.has(id));
+  }
+
+  /**
+   * The badges of `name` its owner has not been shown yet, claimed for one device:
+   * a single UPDATE, so two devices asking at once never both get the same badge.
+   * Ids the catalogue no longer knows are claimed but not returned.
+   * @returns {Promise<Array<{id:string, earnedAt:number}>>} oldest first, then catalogue order
+   */
+  async function claimBadgeNotices(name) {
+    if (!keyOf(name)) return [];
+    const { rows } = await query(`UPDATE player_badges b SET notified_at = $2 FROM players p
+      WHERE p.player_key = $1 AND b.player_id = p.id AND b.notified_at IS NULL
+      RETURNING b.badge_id, b.earned_at`, [keyOf(name), new Date(now())]);
+    const rank = (id) => BADGE_IDS.indexOf(id);
+    return rows.filter((r) => rank(r.badge_id) >= 0)
+      .map((r) => ({ id: r.badge_id, earnedAt: r.earned_at.getTime() }))
+      .sort((a, b) => a.earnedAt - b.earnedAt || rank(a.id) - rank(b.id));
+  }
+
+  /** Which of `badgeIds` `name` earned at or after `sinceMs` (a match's earlier rounds), in their order. */
+  async function badgesEarnedSince(name, badgeIds, sinceMs) {
+    const ids = [...new Set((badgeIds || []).map(String))];
+    if (!ids.length || !keyOf(name) || !Number.isFinite(sinceMs)) return [];
+    const { rows } = await query(`SELECT b.badge_id FROM player_badges b JOIN players p ON p.id = b.player_id
+      WHERE p.player_key = $1 AND b.badge_id = ANY($2::text[]) AND b.earned_at >= $3`, [keyOf(name), ids, new Date(sinceMs)]);
+    const got = new Set(rows.map((r) => r.badge_id));
+    return ids.filter((id) => got.has(id));
   }
 
   /**
@@ -713,6 +753,8 @@ function createPlayerStore(pool, { legacyFile = DEFAULT_DATA_FILE, now = () => D
     upsertPlayerProfile,
     recordGameResult,
     awardBadges,
+    claimBadgeNotices,
+    badgesEarnedSince,
     unlockSeasonalBack,
     addProgress,
     questProgress,

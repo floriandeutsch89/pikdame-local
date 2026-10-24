@@ -72,7 +72,7 @@ How a profile is stored (`game/PlayerStore.js`):
 | --- | --- | --- |
 | Counters, records, the daily and the perfect-puzzle streak, the celebration | columns of `players` | one value each; a match is booked with `games_played = games_played + 1` in one upsert |
 | Favourite badges (up to 3, ordered) | `players.favorite_badges TEXT[]` | a small list always read and written whole, never queried inside |
-| Badges | `player_badges (player_id, badge_id, earned_at)` | the primary key makes "only new badges" one `INSERT … ON CONFLICT DO NOTHING RETURNING` |
+| Badges | `player_badges (player_id, badge_id, earned_at, notified_at)` | the primary key makes "only new badges" one `INSERT … ON CONFLICT DO NOTHING RETURNING`; `notified_at` (NULL: not shown yet) makes "each unlock card once" one `UPDATE … WHERE notified_at IS NULL RETURNING` |
 | Seasonal card backs | `player_card_backs (player_id, card_back_id, unlocked_day)` | the same: the first unlock day stays |
 | Daily quests | `player_quests (player_id, game_day, quest_id, progress)` | increments without a read (two games at once); a week is kept |
 | Daily puzzle | `player_puzzles (player_id, game_day, tries, solved, revealed, stars)` | one row per day; days without stars a week, the newest 60 starred days for the archive |
@@ -83,6 +83,15 @@ month, or updated by two writers at once. A read-modify-write (streak,
 puzzle, tower floor, favourites) runs in one transaction holding the
 player's row lock; a match locks its players in `player_key` order, so two
 tables booking the same names cannot deadlock.
+
+A badge's unlock card is shown once per player, whichever device gets it
+first: the server claims every `notified_at IS NULL` badge of the name in one
+`UPDATE … RETURNING` right before it sends them (a round end, a match end, a
+Kartenhaus floor, a solved puzzle, or the `claimBadges` of a connecting
+device), so two devices asking at once each get a disjoint part. A badge earned
+while no socket of its owner was open stays NULL until the next claim.
+`notified_at` is the only column that changes after the insert and stands in
+for `updated_at`. Badges from before `011` (and imported ones) count as shown.
 
 ## Stammtische
 
@@ -187,6 +196,7 @@ with 48,000 sign-ins, 8,000 passkeys and 48,000 season results; admin access: 3 
 | Profiles message: 504 rows, badges where favourites show, details of the asker | `players_pkey` (`id = ANY(…)`), `player_badges_pkey` and the other children's keys | index scans, correlated aggregates | 4 |
 | One profile by name (badges, quests, puzzles, card backs) | `players_player_key_key`, children's `_pkey` (player_id first) | index scans | 0.2 |
 | Lock a profile, book a match, award badges, a quest step | `players_player_key_key`, children's `_pkey` (`ON CONFLICT`) | unique probes | 0.03–0.1 |
+| Claim a player's unshown badges (unlock cards, every connect); a match's earlier-round badges; a round's badges with the player row (`create`) | `players_player_key_key`, `player_badges_pkey` (player_id prefix) | nested loop, index scans; `notified_at` / `earned_at` filter the player's few dozen rows | 0.16; 0.05; 0.4 |
 | Tower stars of a player (a month or all), a puzzle day, a day's quests | `players_player_key_key` + children's `_pkey` | nested loop, index scans | 0.02–0.04 |
 | Prune a player's quests (a week) and puzzle days (60 starred) | children's `_pkey` (player_id prefix) | index scan | 0.01–0.1 |
 | Delete a player (cascade) | children's `_pkey`; no `player_id` index on `play_attempts` | the FK trigger scans `play_attempts` | 20 |

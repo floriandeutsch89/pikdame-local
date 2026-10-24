@@ -8,6 +8,7 @@ const { Pool } = require('pg');
 const { migrate, ensureMigrated, loadMigrations, MIGRATIONS_DIR } = require('../game/Migrations');
 const { testDatabaseUrl } = require('./helpers/test-db');
 const { createPgAccountStore } = require('../game/PgAccountStore');
+const { createPlayerStore } = require('../game/PlayerStore');
 
 function migrationsDir(files) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-mig-'));
@@ -339,4 +340,27 @@ test('migration account conventions: epoch milliseconds become exact TIMESTAMPTZ
   assert.deepStrictEqual(links.map((l) => [l.username, l.player_key, l.games_played]), [
     ['Ada', 'ada', 3], ['Ben', null, null], ['ADA', null, null],
   ], 'the guest profile goes to the first account; unconfirmed and the second one stay unlinked');
+});
+
+test('migration badge notices: badges from before count as shown without a rewrite, new ones wait for their card', async (t) => {
+  const { pool, rows } = await withPool(t);
+  const version = loadMigrations().find((m) => m.name === 'badge_notices').version;
+  await migrate(pool, { dir: filesUpTo(version - 1) });
+  await pool.query("INSERT INTO players (player_key, player_name) VALUES ('ada', 'Ada')");
+  await pool.query("INSERT INTO player_badges (player_id, badge_id, earned_at) SELECT id, 'first_win', '2026-01-02T03:04:05Z' FROM players");
+  const file = async () => (await rows("SELECT relfilenode FROM pg_class WHERE oid = 'player_badges'::regclass"))[0].relfilenode;
+  const before = await file();
+
+  assert.deepStrictEqual(await migrate(pool, { dir: filesUpTo(version) }), [version]);
+  assert.strictEqual(await file(), before, 'no table rewrite while the other replicas wait');
+  const [col] = await rows(`SELECT data_type, column_default, is_nullable FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = 'player_badges' AND column_name = 'notified_at'`);
+  assert.deepStrictEqual({ ...col }, { data_type: 'timestamp with time zone', column_default: null, is_nullable: 'YES' });
+  const [old] = await rows('SELECT notified_at FROM player_badges');
+  assert.ok(old.notified_at instanceof Date, 'the old badge reads as shown');
+
+  const store = createPlayerStore(pool, { legacyFile: null });
+  assert.deepStrictEqual(await store.claimBadgeNotices('Ada'), [], 'celebrated back then: no card');
+  assert.deepStrictEqual(await store.awardBadges('Ada', ['pd_laid']), ['pd_laid']);
+  assert.deepStrictEqual((await store.claimBadgeNotices('Ada')).map((b) => b.id), ['pd_laid'], 'a new one starts unannounced');
 });

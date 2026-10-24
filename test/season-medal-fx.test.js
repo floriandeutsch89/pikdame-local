@@ -1,5 +1,6 @@
-/** Season podium fireworks: the one-time season toast for places 1-3 plays the
- *  victory-celebration fireworks band once, behind the start screen's header.
+/** Season podium fireworks: the one-time season announcement (its badge's unlock
+ *  card) for places 1-3 plays the victory-celebration fireworks band once, behind
+ *  the start screen's header.
  *  Boots the REAL markup and client in jsdom; the layering is a CSS contract. */
 const test = require('node:test');
 const assert = require('node:assert');
@@ -46,8 +47,10 @@ function boot({ seasonResult, still = false, beforeAnswer } = {}) {
   if (beforeAnswer) beforeAnswer(doc); // runs before /api/me answers
   const settle = async () => { for (let i = 0; i < 6; i++) await new Promise((r) => setImmediate(r)); };
   const bands = () => [...doc.querySelectorAll('.celebrationBand')];
-  const toast = () => doc.getElementById('toastContainer').textContent;
-  return { window, doc, settle, bands, toast, errors };
+  // Told by the badge's unlock card, or by a toast when the place earned no badge.
+  const told = () => [doc.getElementById('toastContainer'), ...doc.querySelectorAll('#unlockLayer .unlockCard')]
+    .map((n) => n.textContent).join(' | ');
+  return { window, doc, settle, bands, told, errors };
 }
 
 test('places 1-3: one fireworks band, first in the start screen header', async () => {
@@ -63,17 +66,17 @@ test('places 1-3: one fireworks band, first in the start screen header', async (
     assert.ok(header.classList.contains('celebrating'));
     assert.ok(band.classList.contains('fx-fireworks') && !band.classList.contains('still'));
     assert.strictEqual(band.getAttribute('aria-hidden'), 'true');
-    assert.match(t.toast(), /Saison Oktober 2026 beendet/);
+    assert.match(t.told(), new RegExp(`Oktober 2026 · Platz ${place} von 14`));
     assert.deepStrictEqual(t.errors, []);
     t.window.close();
   }
 });
 
-test('place 4 and below: the toast only', async () => {
+test('place 4 and below: told without fireworks', async () => {
   for (const r of [result(4, 'top10'), result(12, 'participant'), result(30, null)]) {
     const t = boot({ seasonResult: r });
     await t.settle();
-    assert.match(t.toast(), new RegExp(`Platz ${r.place} von 14`));
+    assert.match(t.told(), new RegExp(`Platz ${r.place} von 14`));
     assert.strictEqual(t.bands().length, 0, `place ${r.place}: no fireworks`);
     t.window.close();
   }
@@ -91,7 +94,7 @@ test('no fireworks when the start screen is not on show', async () => {
   for (const cls of ['hidden', 'inSession']) {
     const t = boot({ seasonResult: result(2, 'silver'), beforeAnswer: (doc) => doc.getElementById('lobby').classList.add(cls) });
     await t.settle();
-    assert.match(t.toast(), /Platz 2 von 14/, 'the result is still told');
+    assert.match(t.told(), /Platz 2 von 14/, 'the result is still told');
     assert.strictEqual(t.bands().length, 0, `#lobby.${cls}: no band`);
     t.window.close();
   }

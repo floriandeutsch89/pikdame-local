@@ -85,6 +85,14 @@ match). Constant defaults, so no table is rewritten; every kept match stays a
 solo match. An old container still running during the deploy books solo
 matches as before and refuses "2 gegen 2" at a Stammtisch.
 
+`011_badge_notices.sql` adds `player_badges.notified_at` for the unlock cards
+(see {doc}`schema`). It is added with `DEFAULT now()` and the default dropped
+in the same file: `now()` is stable, so PostgreSQL stores the value once in the
+catalogue instead of rewriting the table, every badge from before reads as
+shown at the migration, and new badges start NULL. An old container still
+running during the deploy inserts badges without it; they get their card from
+the new one on the owner's next visit.
+
 ## Rules
 
 - **Forward-only.** There are no down migrations; undo a change with a new file.

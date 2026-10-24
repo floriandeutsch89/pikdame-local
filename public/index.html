@@ -305,6 +305,8 @@
       <button id="updateDismissBtn" class="updateBannerClose" title="Schließen" aria-label="Schließen"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <div id="toastContainer" aria-live="polite"></div>
+    <!-- Badge unlock cards at the top edge (client.js "Unlock cards"), read out politely. -->
+    <div id="unlockLayer" class="unlockLayer" role="status" aria-live="polite"></div>
     <!-- Connection lost during a session (train tunnel, handover): text is
          set by updateNetBanner() in client.js, so no static copy here. -->
     <div id="netBanner" class="netBanner hidden" role="status" aria-live="polite">

@@ -191,6 +191,7 @@ test('import: players.json moves into the tables once, the file is renamed, a se
   assert.deepEqual(await store.towerBest('Oma Inge', '2026-11'), { 1: 3 });
   assert.equal(await store.puzzleStarsFor('Oma Inge', '2026-10-20'), 3);
   assert.equal((await store.getPlayerByName('Ben')).createdAt, null, 'an old id without a time: age unknown');
+  assert.deepEqual(await store.claimBadgeNotices('Oma Inge'), [], 'imported badges were celebrated back then: no unlock card');
   assert.ok(!fs.existsSync(file) && fs.existsSync(`${file}.migrated`), 'renamed after the commit');
   assert.deepEqual((await pool.query('SELECT source FROM legacy_imports')).rows.map((r) => r.source), ['players.json']);
 
