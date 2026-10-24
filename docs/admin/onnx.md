@@ -124,10 +124,15 @@ You want to see:
 
 ```text
 [config]  ✓ ONNX-Bots            aktiv
-ONNX-Modell geladen: /app/models/pikdame-zen.onnx (Schwierigkeit "zen")
+ONNX-Modell geladen: /app/models/pikdame-zen.onnx (Schwierigkeit "zen", Kodierung v1)
 ```
 
-The model line appears with the first bot move of a difficulty, not at start.
+The model line appears shortly after start (the server preloads Zen). Its
+**Kodierung** is the observation version the server derived from the model's
+input size: `v1` (377 inputs, the shipped model) plays normal tables, while
+"2 gegen 2" tables stay heuristic; `v2` (385 inputs, with team features) adds
+`spielt auch „2 gegen 2“` and plays those too. A model whose input size fits
+neither is refused (`passt zu keiner Kodierung`) and Zen plays the heuristic.
 If instead you see a warning that `onnxruntime-node` is missing, or that a model
 file was not found, then **the bots are heuristic** — the most likely causes are
 an image older than v2.43.0 (pull again) or a `PIKDAME_MODELS_DIR` that points

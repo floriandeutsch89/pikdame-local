@@ -147,8 +147,10 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
 - **ONNX-Netz ist im Image Standard** (`PIKDAME_ONNX=1`, `=0` = Heuristik);
   `onnxruntime-node` nur im Dockerfile, ohne Runtime → Heuristik; jeder Fehler
   fällt auf die Heuristik zurück.
-  - `StateEncoder.js`: EINZIGE Kodierung (377 Obs, 54 Aktionen) für Training
-    UND Laufzeit — einseitige Änderung macht `.onnx` inkompatibel.
+  - `StateEncoder.js`: EINZIGE Kodierung für Training UND Laufzeit, 54 Aktionen;
+    v1 = 377 Obs (ausgeliefertes Modell), v2 = v1 unverändert + 8 Team-Merkmale
+    (385, im Normalspiel 0). `OnnxPolicy` wählt die Version an der Eingabegröße;
+    nur v2 spielt „2 gegen 2“. Neues Merkmal = neue Version, nie eine alte ändern.
   - **Leiter:** Leicht < Mittel < Schwer (Heuristik) < Zen (Netz; ohne Netz =
     Schwer). Jede Stufe muss die darunter signifikant schlagen:
     `node scripts/sim-bots.js --ladder` mit aktivem ONNX (Prod-Standard);
@@ -157,7 +159,9 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
     Neue Tische starten auf Mittel, die Challenge spielt Mittel.
   - `OnnxPolicy.js` lädt nur `models/pikdame-zen.onnx`. Training in `python/`
     (MaskablePPO), Bridge `scripts/rl-env-server.js`, Doku
-    `docs/developer/rl-setup.md`. Modelle werden committet, `.zip` nicht.
+    `docs/developer/rl-setup.md`. Modelle werden committet, `.zip` nicht;
+    v2-Läufe landen in `models/candidates/` (ignoriert), ausgeliefert erst nach
+    der Abnahme (Leiter + `--team-ladder`, rl-setup 4a).
   - Steuer-Seams `cp.forcedDrawSource`, `cp.externalDiscard`, `_noMcts`:
     wählen nur LEGALE Aktionen, wirken nur in `runBotTurn`, nie per
     Client-Nachricht oder Snapshot setzbar (`_sanitizeControlFields`,
@@ -275,8 +279,9 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
   Lokale Datenbank aufsetzen: Skill `steward`. CI/Prod: PostgreSQL 18, lokal
   oft älter — Katalog-Asserts auf `pg_constraint` nach `contype` filtern
   (18 führt NOT NULL als benannte Constraints; einmal rot gepusht).
-- RL: `OBS_SIZE`/`ACTION_SIZE` sind Verträge — `test/state-encoder.test.js`
-  UND `scripts/rl-env-server.js` prüfen.
+- RL: `OBS_SIZE_V1`/`OBS_SIZE_V2`/`ACTION_SIZE` sind Verträge —
+  `test/state-encoder.test.js` (samt eingefrorener v1-Kodierung) UND
+  `scripts/rl-env-server.js` (`CONTRACT`) prüfen.
 - **UI im Browser prüfen**, nicht nur `npm test`: alle drei Layouts. Headless
   Chromium mit normalem User-Agent (sonst Crawler-Erkennung, kein WebSocket).
   Passkeys mit dem virtuellen CDP-Authenticator. jsdom lädt kein

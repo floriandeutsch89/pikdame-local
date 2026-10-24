@@ -11,6 +11,10 @@
  * chosen discard card. Any problem (flag off, runtime not installed, model
  * file missing, inference error) makes it return null so the caller
  * transparently keeps the heuristic discard.
+ *
+ * The model's input size picks the StateEncoder version (377 = v1, 385 = v2).
+ * Only a v2 model reads the team features, so only it plays "2 gegen 2"
+ * (supportsTeams); a v1 model leaves team tables to the heuristic.
  */
 
 const fs = require('fs');
@@ -23,7 +27,8 @@ const SE = require('./StateEncoder');
 const MODELS_DIR = process.env.PIKDAME_MODELS_DIR || path.join(__dirname, '..', 'models');
 
 let ortModule; // cached onnxruntime-node module (or false if unavailable)
-const sessions = new Map(); // difficulty -> InferenceSession | null
+const sessions = new Map(); // difficulty -> Promise<{ session, version } | null>
+const loaded = new Map(); // difficulty -> the settled entry, for synchronous checks
 
 // Explicit operator choice, or null when the variable is not set at all.
 function explicitChoice() {
@@ -89,13 +94,31 @@ function loadRuntime() {
   return ortModule;
 }
 
-async function getSession(difficulty) {
-  if (sessions.has(difficulty)) return sessions.get(difficulty);
-  const ort = loadRuntime();
-  if (!ort) {
-    sessions.set(difficulty, null);
-    return null;
+/**
+ * Encoder version of a loaded model from its input size: the declared shape
+ * where the runtime exposes it (onnxruntime >= 1.22), else a zero-input probe
+ * per version (a wrong size is rejected by the runtime). null = no match.
+ */
+async function obsVersionOf(ort, session) {
+  const meta = session.inputMetadata && session.inputMetadata[0];
+  const declared = meta && Array.isArray(meta.shape) ? meta.shape[meta.shape.length - 1] : undefined;
+  if (typeof declared === 'number') return { version: SE.versionForSize(declared), size: declared };
+  const inputName = session.inputNames ? session.inputNames[0] : 'obs';
+  for (const version of [2, 1]) {
+    const size = SE.obsSize(version);
+    try {
+      await session.run({ [inputName]: new ort.Tensor('float32', new Float32Array(size), [1, size]) });
+      return { version, size };
+    } catch (e) {
+      // not this size
+    }
   }
+  return { version: null, size: '?' };
+}
+
+async function loadSession(difficulty) {
+  const ort = loadRuntime();
+  if (!ort) return null;
   const file = path.join(MODELS_DIR, `pikdame-${difficulty}.onnx`);
   if (!fs.existsSync(file)) {
     console.error(
@@ -103,22 +126,52 @@ async function getSession(difficulty) {
       `Schwierigkeit "${difficulty}" spielt weiter mit der Heuristik. ` +
       '(Modelle ins Image kopieren oder PIKDAME_MODELS_DIR auf ein Volume zeigen lassen.)'
     );
-    sessions.set(difficulty, null);
     return null;
   }
-  console.log(`ONNX-Modell geladen: ${file} (Schwierigkeit "${difficulty}")`);
   try {
     // PIKDAME_ONNX_THREADS: the Kartenhaus deal worker runs on one thread (throttled).
     const threads = Number(process.env.PIKDAME_ONNX_THREADS) || 0;
     const session = threads > 0
       ? await ort.InferenceSession.create(file, { intraOpNumThreads: threads, interOpNumThreads: 1 })
       : await ort.InferenceSession.create(file);
-    sessions.set(difficulty, session);
-    return session;
+    const { version, size } = await obsVersionOf(ort, session);
+    if (!version) {
+      console.error(
+        `⚠️  ONNX-Modell ${file} passt zu keiner Kodierung (Eingabe ${size}, erwartet ` +
+        `${SE.OBS_SIZE_V1} oder ${SE.OBS_SIZE_V2}) - Schwierigkeit "${difficulty}" spielt mit der Heuristik.`
+      );
+      return null;
+    }
+    console.log(
+      `ONNX-Modell geladen: ${file} (Schwierigkeit "${difficulty}", Kodierung v${version}` +
+      `${version >= 2 ? ', spielt auch „2 gegen 2“' : ''})`
+    );
+    return { session, version };
   } catch (e) {
-    sessions.set(difficulty, null);
     return null;
   }
+}
+
+/** The difficulty's model (once per process; concurrent callers share the load). */
+function getSession(difficulty) {
+  if (!sessions.has(difficulty)) {
+    sessions.set(difficulty, loadSession(difficulty).then((entry) => {
+      loaded.set(difficulty, entry);
+      return entry;
+    }));
+  }
+  return sessions.get(difficulty);
+}
+
+/**
+ * Synchronous: does the loaded model read the team features (v2)? False until
+ * it has loaded - the first call starts the load (the server warms up at start).
+ */
+function supportsTeams(difficulty = 'zen') {
+  if (!enabled()) return false;
+  if (!sessions.has(difficulty)) getSession(difficulty);
+  const entry = loaded.get(difficulty);
+  return !!(entry && entry.version >= 2);
 }
 
 /**
@@ -150,12 +203,15 @@ async function chooseDrawSource(game, playerId, difficulty) {
 /** Shared inference: returns the argmax legal action index, or null. */
 async function runPolicyAction(game, playerId, difficulty, ctx) {
   if (!enabled()) return null;
-  const session = await getSession(difficulty);
-  if (!session) return null;
+  const entry = await getSession(difficulty);
+  if (!entry) return null;
+  // A v1 model never saw a team table: the caller keeps the heuristic.
+  if (game.teamMode && entry.version < 2) return null;
+  const { session, version } = entry;
   try {
     const ort = loadRuntime();
-    const obs = SE.encode(game, playerId, ctx);
-    const tensor = new ort.Tensor('float32', obs, [1, SE.OBS_SIZE]);
+    const obs = SE.encode(game, playerId, { ...ctx, version });
+    const tensor = new ort.Tensor('float32', obs, [1, obs.length]);
     const inputName = session.inputNames ? session.inputNames[0] : 'obs';
     const out = await session.run({ [inputName]: tensor });
     const outName = session.outputNames ? session.outputNames[0] : 'logits';
@@ -199,6 +255,12 @@ module.exports = {
   enabled,
   available,
   warmup,
+  supportsTeams,
   chooseDiscardCard,
   chooseDrawSource,
+  // Test seam: a fake onnxruntime (no native module in the repo) and fresh caches.
+  _test: {
+    setRuntime(ort) { ortModule = ort; },
+    reset() { ortModule = undefined; autoAvailable = undefined; sessions.clear(); loaded.clear(); },
+  },
 };

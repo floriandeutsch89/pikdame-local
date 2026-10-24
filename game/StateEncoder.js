@@ -20,10 +20,19 @@
  * Each turn has up to two decision points - a draw decision (only offered
  * when taking the pile is legal) and a discard decision. The action mask and
  * an observation flag (isDrawDecision) tell the policy which one it faces.
+ *
+ * Observation versions (ctx.version, default 1):
+ *   1  377 floats - the layout below, what models/pikdame-zen.onnx was trained on.
+ *   2  385 floats - v1 unchanged + TEAM_FEATURES appended ("2 gegen 2"), all 0
+ *      outside team mode. v2[0..376] equals v1, so a v1 net warm-starts a v2
+ *      net by zero input columns. OnnxPolicy picks the version from the
+ *      model's input size.
  */
 
 const { SUITS, RANKS, cardValue } = require('./Card');
 const { canFormMeldWithCard } = require('./Rules');
+const Teams = require('./Teams');
+const { TEAM_GAME_END_THRESHOLD } = require('./ScoreBoard');
 
 const N_TYPES = 52; // 4 suits * 13 ranks
 const MAX_OPP = 3; // observation is padded/truncated to this many opponents
@@ -31,6 +40,7 @@ const JOKERS_TOTAL = 6;
 const DECK_COPIES = 2;
 const ACTION_DRAW_PILE = 52; // draw face-down from the draw pile
 const ACTION_TAKE_PILE = 53; // take the whole discard pile
+const TEAM_FEATURES = 8; // the v2 block, see teamFeatures()
 
 function typeIndex(card) {
   if (card.isJoker) return -1;
@@ -73,11 +83,57 @@ function visibleCards(game) {
 }
 
 /**
+ * The v2 block from playerId's seat, all 0 outside team mode:
+ *   [0]    team mode
+ *   [1..3] is_partner per opponent slot (same order as the v1 opponent blocks)
+ *   [4]    own team total / team target      (clipped to -1..1)
+ *   [5]    other team total / team target    (clipped to -1..1)
+ *   [6]    partner's hand size / 15
+ *   [7]    smallest hand of the other team / 15
+ * Teams come from the seat order (Teams.js), so plain game objects work too.
+ */
+function teamFeatures(game, playerId) {
+  const out = new Array(TEAM_FEATURES).fill(0);
+  const players = game.players || [];
+  const seat = players.findIndex((p) => p.id === playerId);
+  if (!game.teamMode || seat < 0) return out;
+  const mine = Teams.teamOfSeat(seat);
+  const handOf = (p) => (p && p.hand ? p.hand.length : 0);
+  const others = players.map((p, i) => ({ p, i })).filter(({ i }) => i !== seat);
+  others.slice(0, MAX_OPP).forEach(({ i }, k) => { out[1 + k] = Teams.teamOfSeat(i) === mine ? 1 : 0; });
+  const sums = Teams.teamSums(Teams.teamsOf(players), game.totals || {});
+  const clip = (x) => Math.max(-1, Math.min(1, x));
+  const rivals = others.filter(({ i }) => Teams.teamOfSeat(i) !== mine).map(({ p }) => handOf(p));
+  out[0] = 1;
+  out[4] = clip(sums[mine] / TEAM_GAME_END_THRESHOLD);
+  out[5] = clip(sums[1 - mine] / TEAM_GAME_END_THRESHOLD);
+  out[6] = handOf(players[Teams.partnerSeat(seat)]) / 15;
+  out[7] = (rivals.length ? Math.min(...rivals) : 15) / 15;
+  return out;
+}
+
+/** Observation length of an encoder version; throws on an unknown one. */
+function obsSize(version = 1) {
+  if (version === 1) return OBS_SIZE_V1;
+  if (version === 2) return OBS_SIZE_V2;
+  throw new Error(`unknown observation version ${version}`);
+}
+
+/** The encoder version a model input size belongs to, or null. */
+function versionForSize(size) {
+  if (size === OBS_SIZE_V1) return 1;
+  if (size === OBS_SIZE_V2) return 2;
+  return null;
+}
+
+/**
  * Encode the game from playerId's point of view into a fixed-length
- * Float32Array. The layout is documented inline; OBS_SIZE is exported and
- * must match the model's input dimension.
+ * Float32Array of obsSize(ctx.version). The layout is documented inline; the
+ * size must match the model's input dimension.
  */
 function encode(game, playerId, ctx = {}) {
+  const version = ctx.version === undefined ? 1 : ctx.version;
+  obsSize(version); // rejects an unknown version before any work
   const me = (game.players || []).find((p) => p.id === playerId);
   const feats = [];
   const push = (x) => feats.push(Number.isFinite(x) ? x : 0);
@@ -155,6 +211,8 @@ function encode(game, playerId, ctx = {}) {
   // decision-phase flag: 1 at a draw decision, 0 at a discard decision
   push(ctx.phase === 'draw' ? 1 : 0);
 
+  if (version === 2) for (const x of teamFeatures(game, playerId)) push(x);
+
   return Float32Array.from(feats);
 }
 
@@ -194,18 +252,25 @@ function cardForAction(game, playerId, action) {
   return me.hand.find((c) => !c.isJoker && c.suit === suit && c.rank === rank) || null;
 }
 
-// OBS_SIZE = 52 +1 +52 +52 +1 +52 + MAX_OPP*(1+52) + 7
-const OBS_SIZE = N_TYPES + 1 + N_TYPES + N_TYPES + 1 + N_TYPES + MAX_OPP * (1 + N_TYPES) + 7 + 1;
+// v1: 52 +1 +52 +52 +1 +52 + MAX_OPP*(1+52) + 7 scalars + 1 phase flag
+const OBS_SIZE_V1 = N_TYPES + 1 + N_TYPES + N_TYPES + 1 + N_TYPES + MAX_OPP * (1 + N_TYPES) + 7 + 1;
+const OBS_SIZE_V2 = OBS_SIZE_V1 + TEAM_FEATURES;
 const ACTION_SIZE = N_TYPES + 2; // + draw-pile + take-pile
 
 module.exports = {
   encode,
+  teamFeatures,
+  obsSize,
+  versionForSize,
   actionMask,
   cardForAction,
   cardTypeForAction,
   typeIndex,
   pileTakeLegal,
-  OBS_SIZE,
+  OBS_SIZE: OBS_SIZE_V1, // the default version's size (MoveLogger rows, v1 tools)
+  OBS_SIZE_V1,
+  OBS_SIZE_V2,
+  TEAM_FEATURES,
   ACTION_SIZE,
   N_TYPES,
   MAX_OPP,
