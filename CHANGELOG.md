@@ -3,6 +3,13 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.118.1] - 2026-10-24
+
+### Fixed
+- Tagesrätsel: Das Ziel heißt jetzt „X Punkte auslegen, bevor du abwirfst“
+  statt „in einem Zug“, und der Hinweis sagt „Mindestens eine Karte bleibt zum
+  Abwerfen“
+
 ## [2.118.0] - 2026-10-24
 
 ### Added
