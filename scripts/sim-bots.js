@@ -1,7 +1,8 @@
 // Bot-vs-bot self-play harness: measures win rates per difficulty so bot
 // tuning is DATA-driven instead of vibes-driven. Usage: node scripts/sim-bots.js
 // (adjust the series at the bottom; ~3 games/second headless), or --ladder,
-// --team ("2 gegen 2" A/B) and --lengths (match length per mode).
+// --team-ladder ("2 gegen 2" acceptance of a v2 net), --team ("2 gegen 2"
+// A/B) and --lengths (match length per mode).
 // Headless bot-vs-bot simulation: does zen actually beat the field?
 // Simulated games are no human moves: never log them (they filled the disk once).
 process.env.PIKDAME_LOG_GAMES = '0';
@@ -84,15 +85,8 @@ function stderr(a) {
 
 // Prod-routed game: Zen plays the net when onnxruntime-node and the model are
 // there (PIKDAME_ONNX, auto mode), every other level the heuristic - exactly
-// like maybeRunBotTurn. Returns the winning seat index, or null.
-async function playGameProd(levels) {
-  const g = new GameManager(() => {});
-  g.addOrReconnectPlayer('h1', 'Host');
-  g.fillWithBots();
-  g.players = levels.map((d, i) => ({
-    id: `bot-${i}`, name: `B${i}-${d}`, isBot: true, hand: [], connected: true, laidOutCards: [], botDifficulty: d,
-  }));
-  g.maxSeats = levels.length;
+// like maybeRunBotTurn (at a team table the net needs a v2 model).
+async function runProd(g) {
   g.startNewRound();
   let guard = 0;
   while (g.phase !== 'gameOver' && guard++ < 100000) {
@@ -105,10 +99,35 @@ async function playGameProd(levels) {
     } else if (g.phase === 'roundEnd') g.startNewRound();
     else break;
   }
+}
+
+function prodSeats(g, levels) {
+  g.maybeRunBotTurn = () => {};
+  g.players = levels.map((d, i) => ({
+    id: `bot-${i}`, name: `B${i}-${d}`, isBot: true, hand: [], connected: true, laidOutCards: [], botDifficulty: d,
+  }));
+  for (const p of g.players) g.totals[p.id] = 0;
+  g.maxSeats = levels.length;
+  return g;
+}
+
+/** The winning seat index, or null. */
+async function playGameProd(levels) {
+  const g = prodSeats(new GameManager(() => {}), levels);
+  await runProd(g);
   const totals = { ...g.totals };
   g.destroy();
   if (g.phase !== 'gameOver') return null;
   return Number(Object.entries(totals).sort((a, b) => b[1] - a[1])[0][0].split('-')[1]);
+}
+
+/** "2 gegen 2": the winning team (0 = seats 0+2, 1 = seats 1+3), or null. */
+async function playTeamGameProd(levels) {
+  const g = prodSeats(new GameManager(() => {}, { teamMode: true }), levels);
+  await runProd(g);
+  const info = g.gameOverInfo;
+  g.destroy();
+  return g.phase === 'gameOver' && info ? info.winnerTeam : null;
 }
 
 // The bot ladder: for each pair "weak,strong", paired 2-vs-2 games with the
@@ -142,6 +161,41 @@ async function ladder() {
       shares.push(wins / played);
     }
     console.log(`  ${weak.padEnd(6)} -> ${strong.padEnd(6)}: ${(mean(shares) * 100).toFixed(1)}% +/- ${(stderr(shares) * 100).toFixed(1)} (strong side)`);
+  }
+}
+
+// The "2 gegen 2" acceptance of a v2 model: one team plays `strong` on both
+// seats, the other `weak`, sides alternating; the strong TEAM's win share as
+// mean +/- standard error over batches. Zen plays the net at a team table
+// only with a v2 model, else its heuristic (= hard, so about 50 %).
+//   node scripts/sim-bots.js --team-ladder [hard,zen] [--batches 10] [--games 200]
+async function teamLadder() {
+  const batches = argAfter('--batches', 10);
+  const games = argAfter('--games', 200);
+  const pairs = process.argv.slice(2).filter((a) => /^[a-z]+,[a-z]+$/.test(a));
+  const OnnxPolicy = require('../game/OnnxPolicy');
+  await OnnxPolicy.warmup(['zen']); // the model's version decides before the first deal
+  const net = !OnnxPolicy.enabled() ? 'OFF' : OnnxPolicy.supportsTeams('zen') ? 'ON (v2 model)' : 'OFF at team tables (v1 model or none)';
+  console.log(`Team ladder, ${batches} batches x ${games} games, net ${net}`);
+  for (const pair of pairs.length ? pairs : ['hard,zen']) {
+    const [weak, strong] = pair.split(',');
+    const shares = [];
+    for (let b = 0; b < batches; b++) {
+      let wins = 0;
+      let played = 0;
+      for (let i = 0; i < games; i++) {
+        const strongTeam = i % 2;
+        const winner = await playTeamGameProd([0, 1, 2, 3].map((s) => (s % 2 === strongTeam ? strong : weak)));
+        if (winner === null) continue;
+        played += 1;
+        if (winner === strongTeam) wins += 1;
+      }
+      shares.push(wins / played);
+      process.stdout.write(`  ${pair} batch ${b + 1}/${batches}: ${((wins / played) * 100).toFixed(1)}%\n`);
+    }
+    const m = mean(shares) * 100;
+    const se = stderr(shares) * 100;
+    console.log(`  ${weak.padEnd(6)} -> ${strong.padEnd(6)}: ${m.toFixed(1)}% +/- ${se.toFixed(1)} (strong team, ~${(Math.abs(m - 50) / (se || 1)).toFixed(1)} sigma from 50 %)`);
   }
 }
 
@@ -263,7 +317,9 @@ function playLength(levels) {
   return g.phase === 'gameOver' && info ? { rounds: info.totalRounds, turns: info.totalTurns, xp } : null;
 }
 
-if (process.argv.includes('--team')) {
+if (process.argv.includes('--team-ladder')) {
+  teamLadder();
+} else if (process.argv.includes('--team')) {
   teamAb();
 } else if (process.argv.includes('--lengths')) {
   lengths();

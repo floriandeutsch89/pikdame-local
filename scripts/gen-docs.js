@@ -179,14 +179,14 @@ const MSG_NOTES = {
   leaveStammtisch: 'Leave a Stammtisch.',
   deleteStammtisch: 'Founder only: dissolve a Stammtisch.',
   getYearReview: 'The December year review of a player name ("Dein Pik-Dame-Jahr"); outside December it answers that none is available. Favourite opponent and Stammtisch name only with `accountToken` of the account owning the name.',
-  createSession: 'Create a new game and receive its code. `teamMode: true` opens a "2 gegen 2" table; with `quickStart: true` as well it is dealt at once ("Du + Bot gegen 2 Bots").',
+  createSession: 'Create a new game and receive its code. `teamMode: true` opens its lobby as a "2 gegen 2" table (the start-screen tile).',
   joinSession: 'Join an existing game by code.',
   checkSession: 'Ask whether a stored session still exists (used by the "resume" button). With the seat token it also tells whether this device still holds a seat there.',
   abandonSession: 'One game at a time: give up the seat of this device\'s open game before starting another (seat token required; a stale code is answered quietly, no failed-join strike).',
   lobbyReady: 'Mark yourself ready in the lobby; the host sees who is still missing.',
   startGame: 'Host only: start the game (empty seats are filled with bots).',
   setMaxSeats: 'Host only: change the number of seats (2-4; a team table keeps 4).',
-  setTeamMode: 'Host only: switch "2 gegen 2" on (`on: true`) or off. Four seats, teams crosswise (seats 0+2 against 1+3), the humans spread over both teams, every bot on one level. Refused at a Stammtisch and in the solo modes.',
+  setTeamMode: 'Host only: switch "2 gegen 2" on (`on: true`) or off. Four seats, teams crosswise (seats 0+2 against 1+3), the humans spread over both teams, every bot on one level. Refused in the solo modes; a Stammtisch books a team match without wins, head-to-head or series.',
   switchTeam: 'Team table, lobby: move to a bot seat of the other team (refused when none is free).',
   setTeamName: 'Team table, lobby: any human of a team names it (`teamName`, cleaned like a player name, empty clears it; a few changes per team and minute). A team without a human keeps no name.',
   reorderSeats: 'Host only: change the seating order.',
@@ -246,7 +246,7 @@ const S2C_NOTES = {
   towerResult: 'The verdict of a finished Kartenhaus floor: month, stars, own score, best bot, handicap, margin, modifiers, the XP and the updated best of the month (`crownedNow` when it completed the crown).',
   queenMagnet: 'Who is currently the "Damen-Magnet des Tages" in the challenge.',
   stammtisch: 'A Stammtisch was created or resolved; carries its code and members.',
-  stammtischInfo: 'Details of one Stammtisch (members, last evening, open table).',
+  stammtischInfo: 'Details of one Stammtisch: standings, head-to-head, series, group goals and the newest three matches by game day.',
   stammtischList: 'Answer to `listStammtische`.',
   yearReview: 'Answer to `getYearReview`: the review, or `available: false` (not December, or no game this year).',
 };
@@ -583,7 +583,7 @@ ${badgeRows.join('\n')}
 ## Stammtisch goals
 
 A Stammtisch earns points together (\`game/StammtischGoals.js\`): every
-finished match there gives **${SG.XP_PER_GAME}**, plus **${SG.XP_PER_EXTRA_HUMAN}** for every further
+finished match there, "2 gegen 2" too, gives **${SG.XP_PER_GAME}**, plus **${SG.XP_PER_EXTRA_HUMAN}** for every further
 human at the table (two humans: ${SG.gameXp(2)}, four: ${SG.gameXp(4)}). Its level follows the
 same shape as the player curve with smaller steps (${SG.LEVEL_BASE} + ${SG.LEVEL_STEP} per level):
 

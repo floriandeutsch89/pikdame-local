@@ -91,7 +91,7 @@ Kartenhaus floor, a solved puzzle, or the `claimBadges` of a connecting
 device), so two devices asking at once each get a disjoint part. A badge earned
 while no socket of its owner was open stays NULL until the next claim.
 `notified_at` is the only column that changes after the insert and stands in
-for `updated_at`. Badges from before `010` (and imported ones) count as shown.
+for `updated_at`. Badges from before `011` (and imported ones) count as shown.
 
 ## Stammtische
 
@@ -103,7 +103,7 @@ game history. Players are referenced by `player_id`:
 | --- | --- | --- |
 | Name, owner, last use, the running series, the group goals' points and reached weeks | columns of `stammtische` | one value each; `owner_player_id` is the founding account (`ON DELETE SET NULL`: then the earliest member owns it) |
 | Members and their head-to-head counters | `stammtisch_members (stammtisch_id, player_id, player_name, games_played, games_won, points, joined_at, last_seen_at)` | one row per person and table; the name as spelled there |
-| Matches (the newest 100) and their seats | `stammtisch_games (stammtisch_id, game_no, …)`, `stammtisch_game_seats (stammtisch_id, game_no, seat_no, player_id NULL, player_name, is_bot, score, won)` | the pairwise record is aggregated over seats; `game_no` counts per table, so seats need no surrogate key |
+| Matches (the newest 100) and their seats | `stammtisch_games (stammtisch_id, game_no, …, team_mode, team_a_name, team_b_name)`, `stammtisch_game_seats (stammtisch_id, game_no, seat_no, player_id NULL, player_name, is_bot, score, won, team_no NULL)` | the pairwise record is aggregated over seats (solo matches only); `game_no` counts per table, so seats need no surrogate key. A "2 gegen 2" match (`010`): `team_mode`, a name column per team (one fact each, NULL when unnamed), `team_no` 0 or 1 per seat (`CHECK`) and `won` on both winners; its team totals are the sums of the seats ({doc}`team-mode`) |
 | Series wins of the running series | `stammtisch_series_wins (stammtisch_id, player_id, wins)` | an atomic `wins = wins + 1` decides the series; cleared when the next one starts |
 | Matches per game week (60 weeks) | `stammtisch_weeks (stammtisch_id, week_start_day DATE, games_played)` | the weekly target and the streak; `StammtischGoals.js` stays a pure function on them |
 

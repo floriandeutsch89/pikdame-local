@@ -9,6 +9,7 @@ const GameManager = require('../game/GameManager');
 const Teams = require('../game/Teams');
 const Bot = require('../game/Bot');
 const MoveLogger = require('../game/MoveLogger');
+const SE = require('../game/StateEncoder');
 const { checkGameOver, checkTeamGameOver, gameEndThreshold, GAME_END_THRESHOLD, TEAM_GAME_END_THRESHOLD } = require('../game/ScoreBoard');
 const { makeStandardCard: card, makeJoker } = require('../game/Card');
 const { xpForGame, evaluateQuests, XP_BASE, XP_WIN } = require('../game/Progression');
@@ -553,9 +554,10 @@ test('snapshot roundtrip keeps team mode, seats and shared totals; the restored 
   back.destroy();
 });
 
-test('Zen plays its heuristic in team mode, and a human seat\'s stand-in plays at the table level', () => {
+test('Zen plays its heuristic in team mode without a v2 net, and a human seat\'s stand-in plays at the table level', () => {
   const g = teamTable(1);
-  assert.equal(g._botTurnUsesOnnx({ id: 'x', isBot: true, botDifficulty: 'zen' }), false, 'no net in team mode');
+  // The v1/v2 model choice itself: test/onnx-policy-version.test.js.
+  assert.equal(g._botTurnUsesOnnx({ id: 'x', isBot: true, botDifficulty: 'zen' }), false, 'no v2 net here: heuristic');
   g.setAllBotsDifficulty('easy');
   deal(g);
   const seen = [];
@@ -717,6 +719,39 @@ test('move log: a team game\'s rows carry the team outcome for both teammates', 
   g.destroy();
 });
 
+test('move log: team rows add the encoder-v2 team block; obs stays v1, so today\'s loader reads every row', () => {
+  const g = teamTable(2);
+  deal(g);
+  g.totals.p1 = 300;
+  g.totals[g.partnerOf('p1').id] = 200;
+  g.totals.p2 = 50;
+  g._moveLog = [];
+  MoveLogger.record(g, 'p1', 'draw', SE.ACTION_DRAW_PILE);
+  const [entry] = g._moveLog;
+  assert.equal(entry.obs.length, SE.OBS_SIZE_V1);
+  assert.deepEqual(entry.obsTeam, SE.teamFeatures(g, 'p1'));
+  assert.deepEqual([...entry.obs, ...entry.obsTeam.map(Math.fround)], Array.from(SE.encode(g, 'p1', { phase: 'draw', version: 2 })),
+    'obs + obsTeam is the v2 observation of the same decision');
+  const before = fs.existsSync(MoveLogger.LOG_PATH) ? fs.readFileSync(MoveLogger.LOG_PATH, 'utf8').split('\n').filter(Boolean).length : 0;
+  MoveLogger.flush(g);
+  const [row] = fs.readFileSync(MoveLogger.LOG_PATH, 'utf8').split('\n').filter(Boolean).slice(before).map((l) => JSON.parse(l));
+  assert.equal(row.obs.length, SE.OBS_SIZE_V1);
+  assert.equal(row.obsTeam.length, SE.TEAM_FEATURES);
+  assert.equal(row.obsTeam[0], 1);
+  assert.ok(Math.abs(row.obsTeam[4] - 0.25) < 1e-4, 'own team 500 of 2000');
+
+  const normal = new GameManager(() => {});
+  normal.maybeRunBotTurn = () => {};
+  normal.addOrReconnectPlayer('h', 'H');
+  normal.fillWithBots();
+  deal(normal);
+  MoveLogger.record(normal, 'h', 'draw', SE.ACTION_DRAW_PILE);
+  assert.equal('obsTeam' in normal._moveLog[0], false, 'normal rows: v2 = obs + 8 zeros');
+  normal._moveLog = [];
+  g.destroy();
+  normal.destroy();
+});
+
 test('"Meine Partien" and the year review: both teammates won, the partner is no opponent', () => {
   const rec = teamRecord();
   const [cleo] = historyForPlayer([{ id: 'g1', ...rec }], 'Cleo');
@@ -856,7 +891,6 @@ test('i18n: every team-mode refusal and log line has an English pattern', () => 
   const solo = new GameManager(() => {}, { tutorialMode: true });
   texts.push(solo.setTeamMode(true).error);
   solo.destroy();
-  texts.push('Am Stammtisch gibt es „2 gegen 2“ noch nicht - die Bilanz zählt dort jeden für sich.'); // server.js
   assert.ok(texts.some((t) => /^Spiel beendet! Gewinner: Team /.test(t)), 'the game-over line was collected');
   assert.ok(texts.some((t) => /^⚠️ Endspurt! Team /.test(t)), 'the final-stretch line was collected');
   assert.ok(texts.some((t) => /^Zu viele Namensänderungen/.test(t || '')), 'the rate-limit refusal was collected');

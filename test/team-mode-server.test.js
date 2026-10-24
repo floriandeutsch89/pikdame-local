@@ -1,7 +1,7 @@
-/** "2 gegen 2" through the real server: creating a team table (and the one-tap
- *  start), joining and switching teams, reconnecting, the host gate, the
- *  Stammtisch refusal, the solo modes that never become team tables, and a
- *  finished team match booked for both teammates. */
+/** "2 gegen 2" through the real server: creating a team table (and the start-screen
+ *  tile's lobby), joining and switching teams, reconnecting, the host gate, a
+ *  Stammtisch table, the solo modes that never become team tables, and a
+ *  finished team match booked for both teammates and at a Stammtisch. */
 const test = require('node:test');
 const { freePort } = require('./helpers/free-port');
 const assert = require('node:assert');
@@ -13,6 +13,7 @@ const http = require('node:http');
 const WebSocket = require('ws');
 const GameManager = require('../game/GameManager');
 const { xpForGame } = require('../game/Progression');
+const { createStammtischStore } = require('../game/StammtischStore');
 const { testDatabaseUrl } = require('./helpers/test-db');
 
 const ROOT = path.join(__dirname, '..');
@@ -144,33 +145,40 @@ test('server: team tables', async (t) => {
     assert.deepStrictEqual(onState.teamNames, [null, null], 'a new team table starts without names');
   });
 
-  await t.test('the one-tap start deals "Du + Bot gegen 2 Bots" right away', async () => {
+  await t.test('the start-screen tile opens a team lobby first; starting there deals "2 gegen 2" with bots', async () => {
     const ws = await sock();
-    const dealt = stateWhere(ws, (s) => s.phase === 'playing' || s.phase === 'cutting');
+    let latest = null;
+    ws.on('message', (raw) => { try { const m = JSON.parse(raw); if (m.type === 'state') latest = m.state; } catch (e) { /* not JSON */ } });
+    const lobby = stateWhere(ws, (s) => s.phase === 'lobby');
+    // An old client's quickStart is ignored: no table deals before the lobby any more.
     ws.send(JSON.stringify({ type: 'createSession', name: 'Cleo', teamMode: true, quickStart: true, tablePrefs: { botLevel: 'easy' } }));
-    const s = await dealt;
-    assert.strictEqual(s.teamMode, true);
+    const s = await lobby;
+    assert.strictEqual(s.teamMode, true, '"2 gegen 2" preselected');
     assert.strictEqual(s.players.filter((p) => !p.isBot).length, 1);
-    assert.strictEqual(s.players.length, 4);
-    assert.deepStrictEqual(s.teamTotals, [0, 0]);
-    assert.deepStrictEqual([...new Set(s.players.filter((p) => p.isBot).map((p) => p.botDifficulty))], ['easy']);
-    // quickStart alone (without teamMode) opens a plain lobby as before.
-    const other = await sock();
-    const lobby = stateWhere(other, () => true);
-    other.send(JSON.stringify({ type: 'createSession', name: 'Dora', quickStart: true }));
-    const plain = await lobby;
-    assert.strictEqual(plain.phase, 'lobby');
-    assert.strictEqual(plain.teamMode, false);
+    assert.strictEqual(s.players.length, 4, 'bots on the free seats');
+    assert.deepStrictEqual([...new Set(s.players.filter((p) => p.isBot).map((p) => p.botDifficulty))], ['easy'], 'the remembered level');
+    await new Promise((r) => setTimeout(r, 300));
+    assert.strictEqual(latest.phase, 'lobby', 'it waits for the host');
+
+    const dealt = stateWhere(ws, (st) => st.phase === 'playing' || st.phase === 'cutting');
+    ws.send(JSON.stringify({ type: 'startGame' }));
+    const d = await dealt;
+    assert.strictEqual(d.teamMode, true);
+    assert.deepStrictEqual([d.players.length, d.targetScore], [4, 2000]);
+    assert.deepStrictEqual(d.teamTotals, [0, 0]);
   });
 
-  await t.test('a Stammtisch table refuses the team mode (its record counts every player alone)', async () => {
+  await t.test('a Stammtisch table opens as a normal table, its host switches "2 gegen 2" on', async () => {
     const ws = await sock();
+    const joined = next(ws, 'joined');
     const lobby = stateWhere(ws, (s) => s.phase === 'lobby');
     ws.send(JSON.stringify({ type: 'createStammtisch', stammtischName: 'Familie', name: 'Emil', teamMode: true }));
-    assert.strictEqual((await lobby).teamMode, false, 'a new Stammtisch table is never a team table');
-    const refused = next(ws, 'error');
+    assert.match((await joined).stammtisch.code, /^ST/);
+    assert.strictEqual((await lobby).teamMode, false, 'a new Stammtisch table starts as a normal table');
+    const on = stateWhere(ws, (s) => s.teamMode === true);
     ws.send(JSON.stringify({ type: 'setTeamMode', on: true }));
-    assert.match((await refused).error, /Stammtisch/);
+    const s = await on;
+    assert.deepStrictEqual([s.players.length, s.targetScore], [4, 2000]);
   });
 
   await t.test('the Kartenhaus never becomes a team table', async () => {
@@ -290,4 +298,73 @@ test('server: a finished team match books a win for both teammates through the a
     assert.strictEqual(p.xp, xpForGame(game, id), `${name}: XP from the own total${won ? ' plus the win bonus' : ''}`);
     assert.strictEqual(!!(p.badges && p.badges.first_win), won, `${name}: first win badge`);
   }
+});
+
+test('server: a team match at a Stammtisch books into its list and goals, never into wins, head-to-head or the series', async (t) => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-teams-st-'));
+  const dbUrl = testDatabaseUrl('team_st');
+  const { Pool } = require('pg');
+  const pool = new Pool({ connectionString: dbUrl, max: 2 });
+  const store = createStammtischStore(pool, { legacyFile: null });
+  // The group's record before the evening: Anna beat Cleo once (series 1:0 for Anna).
+  const { table } = await store.create('Familie', 'Anna');
+  await store.recordGame(table.code, { winnerId: 'pa', finalTotals: { pa: 1010, pc: 600, x: 300 }, finishedAt: Date.now(),
+    players: [{ id: 'pa', name: 'Anna' }, { id: 'pc', name: 'Cleo' }, { id: 'x', name: 'Uwe', isBot: true }] });
+  const before = await store.summary(table.code);
+  const now = Date.now();
+  fs.writeFileSync(path.join(dataDir, 'sessions-snapshot.json'), JSON.stringify({
+    savedAt: now,
+    sessions: [{ code: 'TEAMST', createdAt: now, lastActivity: now, playerTokens: { pa: 'tok-a', pb: 'tok-b', pc: 'tok-c' }, stammtisch: table.code, state: nearlyFinishedTeamMatch() }],
+    puzzleAttempts: [],
+  }));
+  const port = await freePort();
+  const server = spawn('node', ['server.js'], {
+    cwd: ROOT,
+    env: { ...process.env, PIKDAME_DATABASE_URL: dbUrl, PORT: String(port), PIKDAME_DATA_DIR: dataDir, PIKDAME_ACCOUNTS: '0', PIKDAME_PUBLIC_MODE: '0', PIKDAME_ONNX: '0' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  server.stdout.resume();
+  server.stderr.resume();
+  const sockets = [];
+  const exited = new Promise((r) => server.once('exit', r));
+  t.after(async () => {
+    for (const s of sockets) { try { s.close(); } catch (e) { /* closing */ } }
+    server.kill();
+    await Promise.race([exited, new Promise((r) => setTimeout(r, 5000))]);
+    await pool.end();
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  });
+  await waitForServer(port);
+  // The restored table plays its last round with stand-ins, then books the match.
+  let sum = before;
+  for (const deadline = Date.now() + 60000; Date.now() < deadline && sum.gamesPlayed === before.gamesPlayed;) {
+    await new Promise((r) => setTimeout(r, 200));
+    sum = await store.summary(table.code);
+  }
+  assert.strictEqual(sum.gamesPlayed, before.gamesPlayed + 1, 'the team match is in the list');
+  assert.strictEqual(sum.teamGames, 1);
+  const [match] = sum.recent;
+  assert.strictEqual(match.teamMode, true);
+  assert.deepStrictEqual(match.teamNames, ['Die Löwen', null], 'the team name lives on in the record');
+  const humans = match.players.filter((p) => !p.isBot).map((p) => [p.name, p.team, p.won]);
+  assert.deepStrictEqual(humans.sort(), [['Anna', 0, true], ['Ben', 0, true], ['Cleo', 1, false]]);
+  assert.deepStrictEqual(sum.series, before.series, 'the series neither advances nor restarts');
+  assert.deepStrictEqual(sum.pairwise, before.pairwise, 'Anna and Cleo\'s head-to-head stays as it was');
+  const member = (name) => sum.members.find((m) => m.name === name);
+  assert.deepStrictEqual([member('Anna').wins, member('Anna').games], [1, 2], 'a team win is no win of her own');
+  assert.deepStrictEqual([member('Ben').wins, member('Ben').games], [0, 1]);
+  assert.deepStrictEqual([member('Cleo').wins, member('Cleo').games], [0, 2]);
+  assert.strictEqual(sum.goals.week.games, before.goals.week.games + 1, 'the weekly goal counts it');
+  assert.strictEqual(sum.goals.xp, before.goals.xp + 20, 'three humans: 10 + 2 x 5 group points');
+  const topWinner = match.players.filter((p) => p.won && !p.isBot).sort((a, b) => b.score - a.score)[0].name;
+  assert.strictEqual(await store.lastWinner(table.code), topWinner, 'next evening the winning team\'s top scorer deals');
+
+  // "Meine Partien": a flag for the Stammtisch, never its code.
+  const ws = await openSocket(port);
+  sockets.push(ws);
+  const history = next(ws, 'gameHistory');
+  ws.send(JSON.stringify({ type: 'getGameHistory', name: 'Ben' }));
+  const [game] = (await history).games;
+  assert.deepStrictEqual([game.teamMode, game.stammtisch, game.won], [true, true, true]);
+  assert.ok(!JSON.stringify(game).includes(table.code), 'no Stammtisch code in the game history');
 });

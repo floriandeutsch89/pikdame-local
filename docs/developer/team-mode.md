@@ -42,8 +42,10 @@ engine lives in `GameManager` (flag `teamMode`).
   seats freely. Leaving the lobby puts a bot on that very seat, so nobody
   else changes team. During a match a newcomer takes over a bot seat as it is,
   team included; a reconnect returns to the same seat.
-- **"Du + Bot gegen 2 Bots":** `createSession` with `teamMode` and
-  `quickStart` deals right away with the remembered bot level.
+- **The start-screen tile** sends `createSession` with `teamMode`: the lobby
+  opens with the mode on and bots on the free seats at the remembered level;
+  the host invites, the teams name themselves, then the host starts. (It used
+  to deal at once, "Du + Bot gegen 2 Bots"; players wanted the lobby first.)
 - **Team names (optional):** in the lobby any human of a team may name it
   (`setTeamName` with `teamName`). The name is cleaned like a player name
   (`sanitizeName`: letters, digits, blank and `._-!?`, 16 characters,
@@ -57,9 +59,34 @@ engine lives in `GameManager` (flag `teamMode`).
 - **Never** in the daily challenge, the Kartenhaus, the tutorial or the daily
   puzzle (no table there). The constructor ignores the option for solo games
   and `setTeamMode` refuses them.
-- **Stammtisch: not in v1.** Its record, the pairwise tally and the best-of-3
-  series count every player alone; team records there need their own design.
-  The server refuses `setTeamMode` at a Stammtisch table.
+- **At a Stammtisch** the host switches it on in the lobby like anywhere else;
+  a new Stammtisch table opens as a normal table. The match counts as played,
+  never as a win (below).
+
+## At a Stammtisch
+
+A Stammtisch's record says who beat whom, and a team match says that about
+nobody: two partners beat two others together. So a team match counts as a
+played match and stays out of everything that compares players
+(`StammtischStore.recordGame`, decided with the user):
+
+| What | A team match |
+| --- | --- |
+| The match list (`stammtisch_games`, the sheet's "Letzte Partien") | counts: `team_mode`, both team names, each seat's `team_no`, `won` for both winners |
+| The table's "N Partien", the weekly goal, the streak, the group points and level | counts (`bookGame` with the number of humans, as for any match) |
+| A member's games, own points (the standings' "Ø") and last visit | counts: neutral, the own total is on the solo scale (see the target) |
+| A member's wins (the standings' order, the chip's "Flo führt") | no: a team win would rank both partners above the other two |
+| The pairwise head-to-head | no: `summarize` skips team matches |
+| The best-of-3 series | no: neither a game of it nor a restart. A finished series stays visible until the next solo match starts a new one; the team match keeps the running series' number |
+| The next evening's first dealer (`lastWinner`) | the winning team's top-scoring human, like a rematch |
+| Profile, XP, badges ("10 Partien am Stammtisch") and "Meine Partien" | as at any team table; the history keeps a `stammtisch` flag, never the code |
+
+The client says it where the numbers are: the record (lobby panel and the
+start-screen sheet) carries one line on what a team match counts for once the
+table has one or plays "2 gegen 2"; the sheet lists the newest three matches
+(a team match with the "2 gegen 2" tag, both pairs and both totals); a team
+result shows that line instead of the series, and its rematch button promises
+no game of the series.
 
 ## Progress
 
@@ -101,9 +128,16 @@ wins per hour; the 2000 target removed that.) Decided: no damping in v1.
 
 ## Bots
 
-- **Zen plays its heuristic** at a team table: the ONNX net was trained on
-  single scoring, and `StateEncoder` (377 observations, 54 actions) stays as
-  it is.
+- **Zen plays the net only with a v2 model.** `OnnxPolicy` reads the model's
+  input size: the shipped v1 model (377 observations) never sees a team
+  table, so Zen plays its heuristic there; a v2 model (385: v1 plus 8 team
+  features, {ref}`training-v2`) plays team tables too. A human's stand-in
+  plays the table's level on the net path as well (`GameManager._seatLevel`).
+- **The v1 net would already be strong here:** zero-padded to v2 (it ignores
+  the team features, plays exactly like v1), a Zen team won 82.1 % ± 1.5 of
+  its matches against a Schwer team (2026-10-24, 10 × 100 games,
+  `node scripts/sim-bots.js --team-ladder hard,zen`). Not shipped: the team
+  features come with a trained v2 model.
 - **The heuristic already fits:** with crosswise seats the next player is
   always an opponent (discard safety holds), the endgame damage control
   already counts the partner's small hand (the round ends whoever goes out),
@@ -123,7 +157,7 @@ wins per hour; the 2000 target removed that.) Decided: no damping in v1.
   seam in `SEAT_CONTROL_FIELDS`). Easy and medium do not read these inputs at
   all.
 
-## For drivers and a future encoder
+## For drivers and the encoder
 
 - `new GameManager(send, { teamMode: true })` opens a four-seat team table
   (ignored together with `challengeDate`, `tutorialMode` or `towerStage`), so
@@ -142,4 +176,10 @@ wins per hour; the 2000 target removed that.) Decided: no damping in v1.
   credits one teammate alone.
 - Move log rows: `teamMode: 1`, `team`, `teamTotals`, and `won`/`rank` by
   team; the row's `state` names `team` and `teamTotals`, every entry of
-  `state.opponents` its `team` (the partner shares the decider's).
+  `state.opponents` its `team` (the partner shares the decider's). `obs`
+  stays v1; `obsTeam` holds the 8 v2 team features (`obs + obsTeam` = v2).
+- Encoder v2 (`StateEncoder.encode(game, id, { version: 2 })`): v1 unchanged,
+  then team mode, partner flag per opponent slot, both team totals / 2000,
+  the partner's hand and the other team's smallest hand / 15. The training
+  bridge (`scripts/rl-env-server.js`, `teamMode` on `reset`) rewards the
+  team: (own team − other team) / 200 per round, ±1 for the match.

@@ -303,7 +303,7 @@ sequenceDiagram
   participant GM as GameManager (real engine)
   Py->>Env: reset()
   Env->>GM: new table, opponents: zen heuristic and/or self-play
-  GM-->>Env: state → StateEncoder (377 obs, 54-action mask)
+  GM-->>Env: state → StateEncoder (v1 377 / v2 385 obs, 54-action mask)
   Env-->>Py: observation + mask
   loop every draw / discard decision
     Py->>Env: step(action)
@@ -316,7 +316,8 @@ sequenceDiagram
 
 `game/StateEncoder.js` is the single encoding for training **and** runtime — a
 one-sided change makes every `.onnx` file incompatible, which is why a contract
-test pins `OBS_SIZE`/`ACTION_SIZE`.
+test pins the sizes (v1 377, v2 385 with the "2 gegen 2" features, 54 actions);
+the runtime picks the version from the model's input size.
 </details>
 
 Full training guide (Ubuntu 24.04 / WSL2, uv, RTX-class GPU) and — importantly —

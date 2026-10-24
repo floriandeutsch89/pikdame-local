@@ -2616,13 +2616,9 @@ wss.on('connection', (ws, req) => {
       const created = registry.create();
       if (created.error) return sendError(ws, created.error);
       applyTablePrefs(created.session.game, msg.tablePrefs);
-      // "2 gegen 2" from the start; quickStart skips the lobby ("Du + Bot gegen 2 Bots").
+      // "2 gegen 2" from the start (the start-screen tile): the lobby opens with the mode on.
       if (msg.teamMode === true) created.session.game.setTeamMode(true);
-      const ok = await joinSession(created.session, msg);
-      if (ok && msg.teamMode === true && msg.quickStart === true) {
-        created.session.game.fillWithBots();
-        created.session.game.startNewRound();
-      }
+      await joinSession(created.session, msg);
       return;
     }
     if (msg.type === 'createStammtisch') {
@@ -2889,8 +2885,7 @@ wss.on('connection', (ws, req) => {
       }
       case 'setTeamMode': {
         if (!game.isHost(playerId)) { sendError(ws, 'Nur der Organisator kann die Einstellungen ändern.'); break; }
-        // The Stammtisch record and its series count every player alone - teams come later.
-        if (session.stammtisch && msg.on) { sendError(ws, 'Am Stammtisch gibt es „2 gegen 2“ noch nicht - die Bilanz zählt dort jeden für sich.'); break; }
+        // A Stammtisch books a team match without wins, head-to-head or series (StammtischStore).
         const r = game.setTeamMode(!!msg.on);
         if (r && r.error) sendError(ws, r.error);
         break;

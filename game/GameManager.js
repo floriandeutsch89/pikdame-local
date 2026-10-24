@@ -2595,8 +2595,15 @@ class GameManager {
    *  so the lower levels stay heuristic and form a ladder. The daily challenge
    *  is always heuristic, so its board stays comparable. */
   _botTurnUsesOnnx(cp) {
-    // Team mode: the net was trained on individual scoring - Zen plays its heuristic there.
-    return !this.challengeDate && !this.teamMode && botDifficultyOf(cp) === 'zen' && require('./OnnxPolicy').enabled();
+    if (this.challengeDate || this._seatLevel(cp) !== 'zen') return false;
+    const OnnxPolicy = require('./OnnxPolicy');
+    // Team tables only with a model that reads the team features (encoder v2); v1 keeps the heuristic.
+    return OnnxPolicy.enabled() && (!this.teamMode || OnnxPolicy.supportsTeams('zen'));
+  }
+
+  /** The level a seat plays: a bot its own; a human's stand-in Zen, at a team table the table's level. */
+  _seatLevel(cp) {
+    return this.teamMode && !cp.isBot && !cp.botDifficulty ? this._tableBotLevel() : botDifficultyOf(cp);
   }
 
   /**
@@ -2611,8 +2618,7 @@ class GameManager {
     // opts.forced (server tooling only, like runBotTurn): the net plays a human seat.
     const controlled = () => !!opts.forced || this.isBotControlled(cp);
     const OnnxPolicy = require('./OnnxPolicy');
-    const difficulty =
-      botDifficultyOf(cp);
+    const difficulty = this._seatLevel(cp);
     // Draw-source decision via the model (only when taking the pile is legal).
     try {
       const SE = StateEncoder;
@@ -3083,7 +3089,7 @@ class GameManager {
     // Default (and thus also the stand-in for a temporarily replaced
     // human or a timed-out turn): the zen master - the strongest fair bot.
     // Team mode (fairness): a human seat's stand-in plays at the table's level, not as Zen.
-    const difficulty = this.teamMode && !cp.isBot && !cp.botDifficulty ? this._tableBotLevel() : botDifficultyOf(cp);
+    const difficulty = this._seatLevel(cp);
     // Kopie statt der echten Meld-Objekte: die Zieh-Planung unten rechnet mit
     // HYPOTHETISCHEN Haenden (u. a. 'Hand + kompletter Ablagestapel'). Bot.js
     // schuetzt sich seit dem Duplikat-Fund selbst, aber der Aufrufer soll gar

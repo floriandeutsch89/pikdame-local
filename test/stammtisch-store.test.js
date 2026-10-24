@@ -70,6 +70,60 @@ test('recordGame: a forfeited match (no winner) counts as played but scores nobo
   assert.strictEqual(r.summary.series.games, 1);
 });
 
+// "2 gegen 2": Flo + Anna (team A, seats 0 and 2) against Ben + a bot (team B, seats 1 and 3).
+function teamRec(winnerTeam, totals, teamNames = [null, null]) {
+  const teams = [['a', 'b'], ['c', 'x']];
+  return {
+    winnerId: null, teamMode: true, teams, winnerTeam, winnerIds: teams[winnerTeam], teamNames, finalTotals: totals,
+    players: [{ id: 'a', name: 'Flo' }, { id: 'c', name: 'Ben' }, { id: 'b', name: 'Anna' }, { id: 'x', name: 'Uwe', isBot: true }],
+    finishedAt: Date.now(),
+  };
+}
+
+test('recordGame: a team match counts as played (list, goals, games, points), never as a win, head-to-head or series step', async (t) => {
+  const { st } = tempStore(t);
+  const { table } = await st.create('Runde', 'Flo');
+  await st.recordGame(table.code, rec('a', { a: 1010, b: 400, x: 200 }));
+  const before = await st.recordGame(table.code, rec('b', { a: 300, b: 1005, x: 200 }));
+  const booked = await st.recordGame(table.code, teamRec(0, { a: 1100, b: 950, c: 990, x: 880 }, ['Die Löwen', null]));
+  assert.strictEqual(booked.seriesEvent, null);
+  const sum = booked.summary;
+  assert.deepStrictEqual([sum.gamesPlayed, sum.teamGames], [3, 1]);
+  assert.deepStrictEqual(sum.series, before.summary.series, 'the series neither advances nor restarts');
+  assert.deepStrictEqual(sum.pairwise, before.summary.pairwise, 'no head-to-head from a team match');
+  assert.ok(!sum.pairwise.ben, 'Ben met the others only in the team match');
+  assert.deepStrictEqual(sum.members.map((m) => [m.name, m.wins, m.games, m.points]),
+    [['Flo', 1, 3, 2410], ['Anna', 1, 3, 2355], ['Ben', 0, 1, 990]], 'games and own points count, a team win does not');
+  // Group goals: 15 + 15 for two humans, 20 for three.
+  assert.deepStrictEqual([sum.goals.xp, sum.goals.week.games], [50, 3]);
+  const [team] = sum.recent;
+  assert.deepStrictEqual([team.teamMode, team.teamNames, team.day], [true, ['Die Löwen', null], sum.today]);
+  assert.deepStrictEqual(team.players.map((p) => [p.name, p.isBot, p.score, p.won, p.team]),
+    [['Flo', false, 1100, true, 0], ['Ben', false, 990, false, 1], ['Anna', false, 950, true, 0], ['Uwe', true, 880, false, 1]]);
+  assert.ok(!('teamMode' in sum.recent[1]) && !('team' in sum.recent[1].players[0]), 'a solo match keeps its shape');
+  assert.strictEqual(await st.lastWinner(table.code), 'Flo', 'the winning team\'s top scorer deals next time');
+});
+
+test('recordGame: the series runs on across a team match; a finished one stays until the next solo match', async (t) => {
+  const { st } = tempStore(t);
+  const { table } = await st.create('Runde', 'Flo');
+  await st.recordGame(table.code, rec('a', { a: 1010, b: 400, x: 200 }));
+  const mid = await st.recordGame(table.code, teamRec(1, { a: 500, b: 400, c: 1200, x: 900 }));
+  assert.deepStrictEqual([mid.summary.series.no, mid.summary.series.games, mid.summary.series.wins], [1, 1, { flo: 1 }]);
+  const decided = await st.recordGame(table.code, rec('a', { a: 1020, b: 500, x: 100 }));
+  assert.deepStrictEqual(decided.seriesEvent, { type: 'won', winner: 'Flo', no: 1 }, 'the team match was no game of the series');
+  assert.strictEqual(decided.summary.series.games, 2);
+  const after = await st.recordGame(table.code, teamRec(0, { a: 1100, b: 950, c: 990, x: 880 }));
+  assert.deepStrictEqual([after.summary.series.no, after.summary.series.winner, after.summary.series.wins], [1, 'Flo', { flo: 2 }],
+    'the finished series stays visible through a team match');
+  const next = await st.recordGame(table.code, rec('b', { a: 300, b: 1005, x: 200 }));
+  assert.deepStrictEqual([next.summary.series.no, next.summary.series.games, next.summary.series.wins, next.summary.series.winner],
+    [2, 1, { anna: 1 }, null], 'the next solo match starts series 2');
+  assert.deepStrictEqual(next.summary.pairwise.flo.anna, { ahead: 2, behind: 1 }, 'only the three solo matches');
+  // Kept games: the series number the team matches were played under, never a step in it.
+  assert.deepStrictEqual(next.summary.recent.map((g) => [g.seriesNo, !!g.teamMode]), [[2, false], [1, true], [1, false], [1, true], [1, false]]);
+});
+
 test('touch: registers a member on join and survives a restart (a new store on a new pool)', async (t) => {
   const { st, pool } = tempStore(t);
   const { table } = await st.create('Runde', 'Flo');
@@ -160,8 +214,16 @@ test('chipInfo: the record for the start-screen chip and sheet, without activity
   for (const m of info.members) assert.deepStrictEqual(Object.keys(m).sort(), ['avg', 'games', 'name', 'wins'], 'no lastSeen/points');
   assert.deepStrictEqual(info.pairwise.flo.anna, { ahead: 2, behind: 1 });
   assert.strictEqual(info.series.winner, 'Flo');
-  assert.deepStrictEqual(Object.keys(info).sort(), ['code', 'gamesPlayed', 'goals', 'members', 'name', 'pairwise', 'series'], 'no game list');
+  assert.deepStrictEqual(Object.keys(info).sort(),
+    ['code', 'gamesPlayed', 'goals', 'members', 'name', 'pairwise', 'recent', 'series', 'teamGames', 'today'], 'the record and the newest matches');
   assert.deepStrictEqual([info.goals.xp, info.goals.week.games, info.goals.week.goal], [45, 3, require('../game/StammtischGoals').WEEKLY_GOAL], 'the group goals ride along');
+  // The sheet's matches: the newest three by game day, no time of day.
+  await st.recordGame(table.code, teamRec(1, { a: 500, b: 400, c: 1200, x: 900 }));
+  const sheet = await st.chipInfo(table.code);
+  assert.deepStrictEqual([sheet.gamesPlayed, sheet.teamGames, sheet.recent.length], [4, 1, 3]);
+  for (const g of sheet.recent) assert.deepStrictEqual(Object.keys(g).filter((k) => k === 'at' || k === 'seriesNo'), [], 'no time, no series number');
+  assert.deepStrictEqual(sheet.recent.map((g) => [g.day, !!g.teamMode]), [[sheet.today, true], [sheet.today, false], [sheet.today, false]]);
+  assert.match(sheet.today, /^\d{4}-\d{2}-\d{2}$/);
   assert.strictEqual(await st.chipInfo('NOPE12'), null);
 });
 

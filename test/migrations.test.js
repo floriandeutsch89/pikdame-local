@@ -243,6 +243,26 @@ test('migration stammtische: tables, keys and checks named by the conventions; c
   assert.deepStrictEqual(types, [], 'no epoch integers');
 });
 
+test('migration stammtisch teams: kept matches stay solo matches, a seat\'s team is 0 or 1', async (t) => {
+  const { pool, rows } = await withPool(t);
+  const version = loadMigrations().find((m) => m.name === 'stammtisch_teams').version;
+  await migrate(pool, { dir: filesUpTo(version - 1) });
+  const [{ id }] = await rows("INSERT INTO stammtische (stammtisch_code, stammtisch_name) VALUES ('ST2345', 'Familie') RETURNING id");
+  await pool.query('INSERT INTO stammtisch_games (stammtisch_id, game_no, series_no, finished_at) VALUES ($1, 1, 1, now())', [id]);
+  await pool.query(`INSERT INTO stammtisch_game_seats (stammtisch_id, game_no, seat_no, player_name, is_bot, score, won)
+    VALUES ($1, 1, 0, 'Flo', FALSE, 1010, TRUE), ($1, 1, 1, 'Uwe', TRUE, 200, FALSE)`, [id]);
+
+  assert.deepStrictEqual(await migrate(pool, { dir: filesUpTo(version) }), [version]);
+  assert.deepStrictEqual(await rows('SELECT team_mode, team_a_name, team_b_name FROM stammtisch_games'),
+    [{ team_mode: false, team_a_name: null, team_b_name: null }], 'an old match is a solo match');
+  assert.deepStrictEqual((await rows('SELECT team_no FROM stammtisch_game_seats ORDER BY seat_no')).map((r) => r.team_no), [null, null]);
+  // An old container books as before: the new columns take their defaults.
+  await pool.query('INSERT INTO stammtisch_games (stammtisch_id, game_no, series_no, finished_at) VALUES ($1, 2, 1, now())', [id]);
+  assert.strictEqual((await rows('SELECT team_mode FROM stammtisch_games WHERE game_no = 2'))[0].team_mode, false);
+  await assert.rejects(pool.query(`INSERT INTO stammtisch_game_seats (stammtisch_id, game_no, seat_no, player_name, score, team_no)
+    VALUES ($1, 2, 0, 'Flo', 0, 2)`, [id]), /stammtisch_game_seats_team_no_check/);
+});
+
 test('migration account conventions: epoch milliseconds become exact TIMESTAMPTZ, names and keys renamed', async (t) => {
   require('../game/Database'); // the DATE parser
   const { url, pool, rows } = await withPool(t);

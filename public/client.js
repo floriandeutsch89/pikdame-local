@@ -2321,8 +2321,6 @@
       if (btn.id === 'teamModeBtn') {
         btn.classList.toggle('active', team);
         btn.setAttribute('aria-pressed', team ? 'true' : 'false');
-        // A Stammtisch's record counts every player alone: no teams there (the server refuses too).
-        btn.classList.toggle('hidden', !!stammtischInfo);
         btn.disabled = !isHost;
         return;
       }
@@ -4181,8 +4179,9 @@
 
     if (isGameOver && stammtischInfo && stammtischSummary && stammtischSummary.series) {
       const box = document.createElement('div');
-      box.className = 'resultSeries';
-      box.innerHTML = seriesLineHtml(stammtischSummary);
+      // A team match left the series as it was: say what it counted for instead.
+      box.className = isTeamGame() ? 'resultSeries stTeamNote' : 'resultSeries';
+      box.innerHTML = isTeamGame() ? stTeamNoteHtml() : seriesLineHtml(stammtischSummary);
       paneResult.appendChild(box);
     }
     el('exportGameBtn').classList.toggle('hidden', !(isGameOver && lastState.hasExportableGame));
@@ -4281,8 +4280,9 @@
     }
     if (isGameOver) {
       contBtn.disabled = false;
-      // Challenge: one attempt per day, so the primary action leads home.
-      const ser = stammtischInfo && stammtischSummary && stammtischSummary.series;
+      // Challenge: one attempt per day, so the primary action leads home. A team
+      // rematch stays a team match, which never plays for the series.
+      const ser = stammtischInfo && stammtischSummary && !isTeamGame() && stammtischSummary.series;
       contBtn.textContent = lastState.challengeDate
         ? L('Zum Hauptmenü', 'Main menu')
         : lastState.towerStage
@@ -4600,10 +4600,10 @@
   el('createGameBtn').addEventListener('click', () => {
     guardOpenGame('create', () => send({ type: 'createSession', name: currentName(), accountToken: accountToken() || undefined, tablePrefs: tablePrefs() }));
   });
-  // "2 gegen 2" in one tap: you and a bot against two bots, dealt right away.
-  el('teamQuickBtn').addEventListener('click', () => {
+  // "2 gegen 2": a lobby with the mode on - invite, name the teams, pick the bots, then start.
+  el('teamTableBtn').addEventListener('click', () => {
     guardOpenGame('create', () => send({
-      type: 'createSession', name: currentName(), accountToken: accountToken() || undefined, tablePrefs: tablePrefs(), teamMode: true, quickStart: true,
+      type: 'createSession', name: currentName(), accountToken: accountToken() || undefined, tablePrefs: tablePrefs(), teamMode: true,
     }));
   });
   el('switchTeamBtn').addEventListener('click', () => send({ type: 'switchTeam' }));
@@ -6401,7 +6401,64 @@
     const humans = ((lastState && lastState.players) || []).filter((p) => !p.isBot).map((p) => p.name);
     box.querySelector('#stammtischBody').innerHTML =
       `<div class="stName">🍻 ${escapeHtml(sum.name)} <span class="stCode">${escapeHtml(sum.code)}</span> <small>· ${gamesText(sum.gamesPlayed)}</small></div>` +
-      stammtischStatsHtml(sum, { pairNames: humans });
+      stammtischStatsHtml(sum, { pairNames: humans, teamNote: sum.teamGames > 0 || isTeamGame() });
+  }
+  /** What a "2 gegen 2" match counts for at a Stammtisch (StammtischStore.recordGame). */
+  function stTeamNoteHtml() {
+    return `<svg class="icon" aria-hidden="true"><use href="#i-teams"/></svg><span>${escapeHtml(L(
+      '„2 gegen 2“ zählt für Partien und Wochenziel, nicht für Siege, Serie und Direktvergleich.',
+      '"2 vs 2" counts toward games and the weekly goal, not wins, the series or head to head.'
+    ))}</span>`;
+  }
+  /** A game day as "Heute", "Gestern" or "Sa., 17.10." - today is the server's game day. */
+  function stDayLabel(day, today) {
+    if (!day) return '';
+    if (today && day === today) return L('Heute', 'Today');
+    if (today && day === shiftDay(today, -1)) return L('Gestern', 'Yesterday');
+    return fmtDay(day, { weekday: 'short', day: 'numeric', month: 'numeric', timeZone: 'UTC' });
+  }
+  /** The newest matches, two lines each: day | winner (trophy) | score, then kind | the
+   *  rest | their score. A team match: the "2 gegen 2" tag, both pairs, both team totals. */
+  function stammtischGamesHtml(games, today) {
+    if (!Array.isArray(games) || !games.length) return '';
+    const trophy = '<svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg>';
+    const who = (p) => `${escapeHtml(p.name)}${p.isBot ? ' (Bot)' : ''}`;
+    const score = (n) => fmtNum(Number(n) || 0);
+    const row = (g) => {
+      const players = Array.isArray(g.players) ? g.players : [];
+      let win;
+      let rest;
+      let restScore = '';
+      let kind = '';
+      let winScore;
+      if (g.teamMode) {
+        const side = (t) => {
+          const seats = players.filter((p) => p.team === t);
+          const name = Array.isArray(g.teamNames) && g.teamNames[t];
+          const pair = seats.map(who).join(' &amp; ');
+          return { won: seats.some((p) => p.won), total: seats.reduce((s, p) => s + (Number(p.score) || 0), 0),
+            label: name ? escapeHtml(`Team ${name}`) : pair, members: name ? pair : '' };
+        };
+        const [a, b] = [side(0), side(1)];
+        const [w, l] = b.won && !a.won ? [b, a] : [a, b];
+        kind = `<span class="historyTag">${escapeHtml(L('2 gegen 2', '2 vs 2'))}</span>`;
+        win = `${w.won ? trophy : ''}<b>${w.label}</b>${w.members ? ` <small>${w.members}</small>` : ''}`;
+        rest = `${L('gegen', 'vs')} ${l.label}${l.members ? ` (${l.members})` : ''}`;
+        winScore = score(w.total);
+        restScore = score(l.total);
+      } else {
+        const sorted = players.slice().sort((x, y) => (Number(y.score) || 0) - (Number(x.score) || 0));
+        const top = sorted.find((p) => p.won) || sorted[0];
+        if (!top) return '';
+        win = `${top.won ? trophy : ''}<b>${who(top)}</b>`;
+        rest = sorted.filter((p) => p !== top).map((p) => `<span class="stGameWho">${who(p)} ${score(p.score)}</span>`).join(' · ');
+        winScore = score(top.score);
+      }
+      return `<li class="stGame"><span class="stGameDay">${escapeHtml(stDayLabel(g.day, today))}</span>` +
+        `<span class="stGameWin">${win}</span><span class="stGameScore">${winScore}</span>` +
+        `<span class="stGameKind">${kind}</span><span class="stGameRest">${rest}</span><span class="stGameScore stGameLost">${restScore}</span></li>`;
+    };
+    return `<div class="stGames"><h3>${escapeHtml(L('Letzte Partien', 'Recent matches'))}</h3><ol>${games.map(row).join('')}</ol></div>`;
   }
   /** Head-to-head pairs. Given names: those, in seat order (lobby); else all
    *  members, closest records first (chip sheet). */
@@ -6455,20 +6512,24 @@
       ` aria-label="${escapeHtml(L('Wochenziel', 'Weekly goal'))}"><i style="width:${pct}%"></i></span>` +
       `</div></div>`;
   }
-  /** Series, standings and head-to-head: one renderer for the lobby and the chip sheet. */
-  function stammtischStatsHtml(sum, { pairNames = null, maxPairs = Infinity } = {}) {
+  /** Series, standings and head-to-head: one renderer for the lobby and the chip sheet;
+   *  teamNote says what a team match counts for, games lists the newest (sheet only). */
+  function stammtischStatsHtml(sum, { pairNames = null, maxPairs = Infinity, teamNote = false, games = null } = {}) {
     const members = sum.members || [];
     const rows = members
       .map((m) => `<tr><td class="stName">${nameWithHeart(m.name)}</td><td>${m.wins}</td><td>${m.games}</td><td>${m.avg}</td></tr>`)
       .join('');
     const pairs = stammtischPairs(sum, pairNames).slice(0, maxPairs)
       .map(({ a, b, rec }) => `<b>${escapeHtml(a)}</b> ${rec.ahead}:${rec.behind} <b>${escapeHtml(b)}</b>`);
+    // .stRecord: one block, so wide sheets put the newest matches beside it.
     return stammtischGoalsHtml(sum.goals) +
       (sum.series ? `<div class="stSeries">${seriesLineHtml(sum)}</div>` : '') +
-      (members.some((m) => m.games > 0)
+      `<div class="stRecord">${members.some((m) => m.games > 0)
         ? `<table class="stTable"><thead><tr><th>${L('Spieler', 'Player')}</th><th>${L('Siege', 'Wins')}</th><th>${L('Partien', 'Games')}</th><th>Ø</th></tr></thead><tbody>${rows}</tbody></table>`
-        : `<p class="lobby-hint">${L('Noch keine Partie gespielt - die Bilanz beginnt mit der ersten.', 'No match yet - the record starts with the first one.')}</p>`) +
-      (pairs.length ? `<div class="stPairs">${L('Direktvergleich', 'Head to head')}: ${pairs.join(' · ')}</div>` : '');
+        : `<p class="lobby-hint">${L('Noch keine Partie gespielt - die Bilanz beginnt mit der ersten.', 'No match yet - the record starts with the first one.')}</p>`}` +
+      (pairs.length ? `<div class="stPairs">${L('Direktvergleich', 'Head to head')}: ${pairs.join(' · ')}</div>` : '') +
+      (teamNote ? `<p class="stTeamNote">${stTeamNoteHtml()}</p>` : '') +
+      `</div>${stammtischGamesHtml(games, sum.today)}`;
   }
   // Start-screen chip -> its record, with the way to the table one tap further.
   function renderStammtischSheet() {
@@ -6479,7 +6540,7 @@
     el('stammtischSheetName').textContent = (info && info.name) || (known && known.name) || code;
     el('stammtischSheetMeta').textContent = info ? `Code ${code} · ${gamesText(info.gamesPlayed || 0)}` : `Code ${code}`;
     el('stammtischSheetBody').innerHTML = info
-      ? stammtischStatsHtml(info, { maxPairs: 3 })
+      ? stammtischStatsHtml(info, { maxPairs: 3, teamNote: info.teamGames > 0, games: info.recent })
       : `<p class="lobby-hint">${escapeHtml(L('Bilanz wird geladen …', 'Loading the record …'))}</p>`;
   }
   function openStammtischSheet(code) {
