@@ -51,7 +51,8 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
 - **English:** `--lang en` shoots the English client; check it whenever a
   new label could outgrow its box. `--ui-scale large|xlarge`: the larger type
   from "Optionen" (older players use it).
-- **"2 gegen 2":** `gamelobby-team` (a real team lobby: a second socket joins
+- **"2 gegen 2":** `team-tile` (a real tap on the start screen's tile: the team
+  lobby it opens), `gamelobby-team` (a real team lobby: a second socket joins
   as Oma Gerda and lands on the other team, both teams named; `-edit` while I
   type mine, `-partners` after her switch, and `botdiff-team`, the one-level
   picker), `table-team` (an engine team table, Oma Gerda my partner, mid-match

@@ -42,8 +42,10 @@ engine lives in `GameManager` (flag `teamMode`).
   seats freely. Leaving the lobby puts a bot on that very seat, so nobody
   else changes team. During a match a newcomer takes over a bot seat as it is,
   team included; a reconnect returns to the same seat.
-- **"Du + Bot gegen 2 Bots":** `createSession` with `teamMode` and
-  `quickStart` deals right away with the remembered bot level.
+- **The start-screen tile** sends `createSession` with `teamMode`: the lobby
+  opens with the mode on and bots on the free seats at the remembered level;
+  the host invites, the teams name themselves, then the host starts. (It used
+  to deal at once, "Du + Bot gegen 2 Bots"; players wanted the lobby first.)
 - **Team names (optional):** in the lobby any human of a team may name it
   (`setTeamName` with `teamName`). The name is cleaned like a player name
   (`sanitizeName`: letters, digits, blank and `._-!?`, 16 characters,

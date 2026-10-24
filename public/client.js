@@ -4583,10 +4583,10 @@
   el('createGameBtn').addEventListener('click', () => {
     guardOpenGame('create', () => send({ type: 'createSession', name: currentName(), accountToken: accountToken() || undefined, tablePrefs: tablePrefs() }));
   });
-  // "2 gegen 2" in one tap: you and a bot against two bots, dealt right away.
-  el('teamQuickBtn').addEventListener('click', () => {
+  // "2 gegen 2": a lobby with the mode on - invite, name the teams, pick the bots, then start.
+  el('teamTableBtn').addEventListener('click', () => {
     guardOpenGame('create', () => send({
-      type: 'createSession', name: currentName(), accountToken: accountToken() || undefined, tablePrefs: tablePrefs(), teamMode: true, quickStart: true,
+      type: 'createSession', name: currentName(), accountToken: accountToken() || undefined, tablePrefs: tablePrefs(), teamMode: true,
     }));
   });
   el('switchTeamBtn').addEventListener('click', () => send({ type: 'switchTeam' }));
