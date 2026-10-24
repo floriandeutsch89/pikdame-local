@@ -3,6 +3,13 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.117.0] - 2026-10-24
+
+### Changed
+- Vorbereitung für den Spielmodus „2 gegen 2“: Wertung (ein Team spielt bis
+  2000 Punkte), Spielende, Teamnamen, Bots und Fortschritt kennen jetzt
+  Zweierteams (im Spiel noch nicht wählbar)
+
 ## [2.116.0] - 2026-10-24
 
 ### Added
