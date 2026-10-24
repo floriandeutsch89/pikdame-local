@@ -3,6 +3,13 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.121.0] - 2026-10-24
+
+### Changed
+- Die Kachel „2 gegen 2“ auf dem Startbildschirm teilt nicht mehr sofort aus, sondern öffnet zuerst die Lobby mit
+  „2 gegen 2“: Freunde einladen, Teamnamen und Bot-Stärke wählen, dann starten – freie Plätze übernehmen wie gewohnt
+  Bots.
+
 ## [2.120.0] - 2026-10-24
 
 ### Added
