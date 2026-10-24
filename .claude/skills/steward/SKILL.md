@@ -57,7 +57,9 @@ export PIKDAME_TEST_PG_URL=postgres://postgres@127.0.0.1:55432/pikdame_test
 
 (`su postgres -c …` works too where allowed.) Already set up: only the
 `pg_ctl … start` line and the `export`. `max_connections` is raised because
-parallel test files each open pools.
+parallel test files each open pools. Sessions in parallel worktrees share
+this server: `ECONNREFUSED 127.0.0.1:55432` in the middle of your work means
+another session stopped it at its end - run the start line again.
 
 ## Before every push
 
@@ -74,6 +76,12 @@ npm run -s docs:check && npm run -s secrets:check
 git fetch origin main && git log --oneline HEAD..origin/main   # main moved? merge it first
 git status --short           # stage ONLY your files, never `git add -A`
 ```
+
+- A new `migrations/NNN_*.sql`: after that fetch, compare its number with
+  `git ls-tree --name-only origin/main migrations/`. A parallel PR may have
+  merged the same number meanwhile (#498 had to become `011`): merge main,
+  `git mv` yours to the next free number, fix the docs that name it. Never
+  rename a file that is already on main.
 
 - If tests fail with "server on port … did not come up", check for a server
   of your own first (`pgrep -af "node server.js"`): it holds the port, and
