@@ -50,6 +50,8 @@
 // --tap <selector>: tapped before the shot ('a;b' taps in order); --tag names the variant in the file name;
 // --tap-freeze <ms> holds every animation at that moment (a frame of a fold mid-glide).
 // --measure writes <out>/measure.json: the table regions (melds, hand, piles ...) per shot.
+// unlock / unlock-lobby / unlock-roundend / unlock-gameover / unlock-queue: the badge unlock card
+// on a running table (--badge <id>), the start screen, the result sheets, and its "+N" fold.
 // gameover-win (I win the match, a new badge), stats-empty (a brand-new name: statistics
 // empty state, then "Meine Partien" empty).
 // "2 gegen 2": gamelobby-team (a real team lobby, a second socket joins, both teams named;
@@ -1119,6 +1121,35 @@ function waitForHttp(port, ms = 20000) {
           if (arg('eval', '')) console.log(`${vn}-${sc}:`, JSON.stringify(await page.evaluate(fs.readFileSync(arg('eval', ''), 'utf8'))));
           await shot(`${sc}-${want}${arg('tag', '') ? `-${arg('tag', '')}` : ''}`); // --tag: one name per variant
           towerSceneBest = null;
+        }
+        if (/^unlock(-lobby|-queue|-roundend|-gameover)?$/.test(sc)) {
+          // Badge unlock cards: a fresh page each (it pops a badge only once). unlock: on a running
+          // table (--badge <id>, default wins_10), -lobby: the start screen, -roundend/-gameover:
+          // over the result sheet, -queue: three closed by their x, the rest folded into "+N".
+          await page.evaluate(() => { try { localStorage.removeItem('pikdame_last_session'); } catch (e) { /* blocked */ } });
+          await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
+          await page.waitForTimeout(1200);
+          const unlock = (ids) => inject({ type: 'badgeUnlocks', name: ME, badges: ids.map((id, i) => ({ id, earnedAt: Date.now() - 1000 + i })) });
+          if (sc === 'unlock' || sc === 'unlock-queue') {
+            await toTable(arg('state', '') ? JSON.parse(fs.readFileSync(arg('state', ''), 'utf8')) : tableState());
+          }
+          if (sc === 'unlock-roundend' || sc === 'unlock-gameover') {
+            inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
+            inject({ type: 'state', state: sc === 'unlock-gameover' ? GAME_OVER_WIN : ROUND_END });
+            if (sc === 'unlock-gameover') {
+              inject({ type: 'badges', earned: [{ name: ME, badges: ['pd_caught', 'score_500'] }] });
+              inject({ type: 'progress', gainedXp: 120, xp: 5440, level: { level: 14 }, record: { played: 43, won: 17 } });
+            }
+            await page.waitForTimeout(1600);
+            await page.evaluate(() => { const b = document.getElementById('resultBody'); if (b) b.scrollTop = 0; });
+          }
+          unlock({ unlock: [arg('badge', 'wins_10')], 'unlock-lobby': ['challenge_champ'], 'unlock-roundend': ['pd_caught'],
+            'unlock-gameover': ['score_500'], 'unlock-queue': ['first_win', 'pd_laid', 'ring_run', 'run_13', 'pile_glutton'] }[sc]);
+          if (sc === 'unlock-queue') {
+            for (let i = 0; i < 3; i++) { await page.waitForTimeout(500); await page.click('#unlockLayer .unlockCard:not(.leaving) .unlockClose'); }
+          }
+          await page.waitForTimeout(1400); // slide-in, the medal's pop and the sweep of light
+          await shot(sc);
         }
         if (sc === 'gameover-tower') {
           inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });

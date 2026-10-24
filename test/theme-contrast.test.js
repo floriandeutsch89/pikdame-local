@@ -104,6 +104,17 @@ for (const theme of THEMES) {
     check('toast text over a dialog', ratio(parse(v['--text']), toastBg(paper)), 4.5);
     check('toast text over the table', ratio(parse(v['--text']), toastBg(parse(v['--bg']))), 4.5);
   });
+
+  test(`theme contrast (${theme}): the badge unlock card over a sheet and over the table`, () => {
+    // 94% --bg-deep over whatever is below; name in --text, eyebrow, sub line and × in --text-muted.
+    const muted = parse(v['--text-muted']);
+    for (const [where, under] of [['a sheet', paper], ['the table', parse(v['--bg'])]]) {
+      const card = over({ ...parse(v['--bg-deep']), a: 0.94 }, under);
+      check(`unlock name over ${where}`, ratio(parse(v['--text']), card), 4.5);
+      check(`unlock eyebrow and sub line over ${where}`, ratio(muted.a < 1 ? over(muted, card) : muted, card), 4.5);
+      check(`"+N" on the gold medal over ${where}`, ratio(parse(v['--text']), over(parse(ROOT['--gold-soft']), card)), 4.5);
+    }
+  });
 }
 
 test('theme contrast: dialog parts use the paper inks, not the table colours', () => {

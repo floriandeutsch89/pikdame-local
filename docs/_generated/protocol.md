@@ -4,12 +4,12 @@
 
 The client talks to the server over a single WebSocket. Every message is JSON
 with a `type` field. Both lists below are generated from the server's message
-handlers, so they always match the running code: **52** message
-types go up, **32** come down.
+handlers, so they always match the running code: **53** message
+types go up, **33** come down.
 
 ## Client → server
 
-### Before a table {bdg-secondary}`22`
+### Before a table {bdg-secondary}`23`
 
 Sent on a fresh connection, before the socket is bound to a table. These carry `msg.name` because the server has no seat to look up yet.
 
@@ -20,6 +20,7 @@ Sent on a fresh connection, before the socket is bound to a table. These carry `
 | `checkSession` | Ask whether a stored session still exists (used by the "resume" button). With the seat token it also tells whether this device still holds a seat there. |
 | `abandonSession` | One game at a time: give up the seat of this device's open game before starting another (seat token required; a stale code is answered quietly, no failed-join strike). |
 | `listProfiles` | Player profiles, server statistics and today's quests for the start screen - server-wide data, hence before the table guard. `name`: the asking player, whose own profile (with its quests, puzzles and card backs) is listed next to the statistics board's best 500. |
+| `claimBadges` | This device takes the unlock cards of a player name: the badges its owner has not been shown yet (earned while away, or decided after a day ended: challenge champion, Damen-Magnet, awarded on this call). Each badge is handed out once, to whichever device claims it first; an account's name needs its `accountToken`. Always answered with `badgeUnlocks`. |
 | `getGameHistory` | The finished matches of a player name ("Meine Partien"). |
 | `setFavoriteBadges` | Pin up to three badges to the identity chip. |
 | `setCelebration` | Pick the victory celebration the whole table sees when you win (an id from `game/Celebrations.js`; signed-in owner of the name, unlocked by level). |
@@ -99,7 +100,8 @@ Allowed from any seat at any time during a match.
 | `type` | Purpose |
 | --- | --- |
 | `accountProgress` | The account-bound progression on login (so a new device shows the right level), and after XP from outside a match (a solved puzzle, a Kartenhaus floor's first star or crown). |
-| `badges` | Badges earned by this match, for the celebration overlay. |
+| `badgeUnlocks` | Unlock cards for this device (`badges`: `id`, `earnedAt`, oldest first), each badge once per player: pushed to the owner's seat at a round end, at the match end, after a Kartenhaus floor or a solved puzzle, and the answer to `claimBadges`. |
+| `badges` | Badges earned by this match (its earlier rounds included), per player, for the whole table's result overlay. |
 | `bestRound` | A new personal best round score for this player. |
 | `challengeBoard` | Today's daily-challenge leaderboard and weekly ranking. |
 | `emote` | Someone (or a bot) sent a reaction. |

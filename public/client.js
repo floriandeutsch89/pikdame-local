@@ -368,6 +368,7 @@
     // Zustand zu pruefen.
     try { renderGameHistory(); } catch (e) { /* dito */ }
     try { updateNetBanner(); } catch (e) { /* defined further down */ }
+    try { refreshUnlockCard(); } catch (e) { /* cosmetic */ }
     if (lastState) render();
   }
 
@@ -553,9 +554,9 @@
       challenger_30: { emoji: '🏁', name: L('Challenge-Profi', 'Challenge pro'), desc: L('30 Tages-Challenges gespielt', 'Played 30 daily challenges'),
         how: L('Spiele 30 Tages-Challenges.', 'Play 30 daily challenges.') },
       challenge_champ: { emoji: '🥇', name: L('Tagesbester', 'Champion of the day'), desc: L('Platz 1 einer Tages-Challenge', 'First place in a daily challenge'),
-        how: L('Steh am Ende eines Tages auf Platz 1 der Tages-Challenge. Vergeben wird es bei deiner nächsten Partie.', 'Be first in a daily challenge when the day ends. Awarded with your next game.') },
+        how: L('Steh am Ende eines Tages auf Platz 1 der Tages-Challenge. Vergeben wird es, sobald du danach wieder vorbeischaust.', 'Be first in a daily challenge when the day ends. Awarded the next time you drop by.') },
       queen_magnet_day: { emoji: '🧲', name: L('Damen-Magnet des Tages', 'Queen magnet of the day'), desc: L('Tages-Challenge: am häufigsten mit der Pik Dame erwischt', 'Daily challenge: caught with the Queen of Spades the most'),
-        how: L('Werde in deinem gewerteten Versuch der Tages-Challenge am häufigsten mit der Pik Dame auf der Hand erwischt. Gibt es nur dort, einmal pro Tag; vergeben bei deiner nächsten Partie nach Tagesende.', 'Get caught with the Queen of Spades in hand the most in your ranked daily challenge game. Only there, once per day; awarded with your next game after the day ends.') },
+        how: L('Werde in deinem gewerteten Versuch der Tages-Challenge am häufigsten mit der Pik Dame auf der Hand erwischt. Gibt es nur dort, einmal pro Tag; vergeben, sobald du nach Tagesende wieder vorbeischaust.', 'Get caught with the Queen of Spades in hand the most in your ranked daily challenge game. Only there, once per day; awarded the next time you drop by after the day ends.') },
       puzzle_7: { emoji: '🧩', name: L('Rätselfuchs', 'Puzzle fox'), desc: L('7 Tagesrätsel gelöst', 'Solved 7 daily puzzles'),
         how: L('Löse 7 Tagesrätsel, ohne „Lösung zeigen“ zu tippen.', 'Solve 7 daily puzzles without tapping "show solution".') },
       puzzle_30: { emoji: '🧩', name: L('Rätsel\u00admeister', 'Puzzle master'), desc: L('30 Tagesrätsel gelöst', 'Solved 30 daily puzzles'),
@@ -811,11 +812,13 @@
   }
   document.addEventListener('visibilitychange', syncTableLight);
 
+  let lastToneAt = 0; // a later cue can wait for this one (sound.unlock)
   function playTone(freqs, durationMs, type = 'sine', gainValue = 0.06) {
     if (!soundEnabled) return;
     const ctx = getAudioCtx();
     if (!ctx) return;
     if (ctx.state === 'suspended') ctx.resume();
+    lastToneAt = Date.now();
     const now = ctx.currentTime;
     freqs.forEach((freq, i) => {
       const osc = ctx.createOscillator();
@@ -875,6 +878,11 @@
     error: () => { playTone([140], 160, 'square', 0.05); vibrate(40); },
     roundEnd: () => { playTone([392, 494, 587, 784], 420, 'sine', 0.07); vibrate([15, 40, 15, 40]); },
     meow: () => { playMeow(); vibrate([12, 60, 12]); },
+    // A soft chime, no buzz; right after another cue (the round-end fanfare) it waits its turn.
+    unlock: () => {
+      if (!soundEnabled) return;
+      setTimeout(() => playTone([784, 1175], 300, 'sine', 0.045), Math.max(0, lastToneAt + 650 - Date.now()));
+    },
   };
 
   // Occasion days on the start screen: the signed-in account's greeting day
@@ -1286,6 +1294,7 @@
         ? L('Offline - warte auf Netz …', 'Offline - waiting for network …')
         : L('Verbindung weg - verbinde neu …', 'Connection lost - reconnecting …');
     }
+    try { if (unlockCard) placeUnlockLayer(); } catch (e) { /* the cards start further down */ }
   }
 
   // The lobby status line only speaks up when something is wrong: a
@@ -1367,6 +1376,8 @@
       // diese Anfrage stünde dort bis zum Beitritt immer 0/3.
       // The name: the server lists the board's best, plus this profile.
       ws.send(JSON.stringify({ type: 'listProfiles', name: myName || undefined }));
+      // Badges earned while away wait for this: cards on the start screen (a rejoined table: after its state).
+      maybeClaimBadges();
       // A new connection asks for the year review again (the profiles reply triggers it).
       yearReviewName = '';
       // Stammtisch chips on the start screen: series state per remembered code.
@@ -1662,6 +1673,7 @@
     }
     if (msg.type === 'state') {
       lastState = msg.state;
+      try { maybeClaimBadges(); } catch (e) { /* cards are a bonus */ }
       if (lastState.challengeDate && sessionCode) {
         const over = lastState.abandoned || ['gameOver', 'abandoned'].includes(lastState.phase);
         if (!over) { if (storageGet(CHALLENGE_SESSION_KEY) !== sessionCode) storageSet(CHALLENGE_SESSION_KEY, sessionCode); }
@@ -1800,6 +1812,10 @@
     if (msg.type === 'badges') {
       lastEarnedBadges = msg.earned || null;
       if (!el('resultOverlay').classList.contains('hidden')) renderResultOverlay();
+      return;
+    }
+    if (msg.type === 'badgeUnlocks') {
+      onBadgeUnlocks(msg);
       return;
     }
     if (msg.type === 'gameHistory') {
@@ -4566,6 +4582,7 @@
     if (changed) { try { requestYearReview(); } catch (e) { /* cosmetic */ } }
     // The new name's profile may not be on the board the server sent (a reconnect asks anyway).
     if (changed && !publicMode && ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'listProfiles', name: myName }));
+    if (changed) maybeClaimBadges(); // the new name's waiting cards
     // Kartenhaus progress is per name: clear the old name's tile until the new data arrives.
     if (changed && !publicMode) { try { requestTower(); renderTowerTile(); } catch (e) { /* cosmetic */ } }
   }
@@ -6849,9 +6866,7 @@
         }
         if (msg.streak) myStreak = msg.streak;
         try { renderQuests(); renderEmoteLocks(); } catch (e) { /* cosmetic */ }
-        if (msg.badges && msg.badges.length) {
-          showToast(`🏅 ${L('Neuer Erfolg', 'New badge')}: ${msg.badges.map((id) => `${badgeMeta(id).emoji} ${badgeMeta(id).name}`).join(', ')}`);
-        }
+        // Its badges follow as unlock cards ('badgeUnlocks'), for the name's owner.
       } else if (puzzleKind() === 'out') {
         setPuzzleStatus(
           L(`Gültig, aber noch ${msg.left} Karten übrig - nur eine darf bleiben.`, `Valid, but ${msg.left} cards are left - only one may stay.`),
@@ -7459,6 +7474,8 @@
     container.classList.add('visible');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => container.classList.remove('visible'), duration);
+    // One message that matters at a time (try: a start-up toast comes before the cards exist).
+    if (opts.priority) { try { yieldUnlock(); } catch (e) { /* no card yet */ } }
   }
 
   function hideToast() {
@@ -7466,6 +7483,283 @@
     toastLockUntil = 0;
     el('toastContainer').classList.remove('visible');
   }
+
+  // --- Unlock cards: a new badge slides in at the top edge, Steam-like -------
+  // Below the table header (never over the hand, the piles or the turn steps),
+  // one at a time; a burst shows UNLOCK_SINGLES cards, the rest folds into one
+  // "+N" card. Priority toasts go first: a card waits out their lock and steps
+  // back when one starts. The server hands each badge out once (claimBadges).
+  const UNLOCK_SHOW_MS = 4600;
+  const UNLOCK_GAP_MS = 320;
+  const UNLOCK_LEAVE_MS = 260;
+  const UNLOCK_SINGLES = 3;
+  const unlockQueue = []; // { kind: 'badge', id } | { kind: 'season', award, season, place, ranked } | { kind: 'more', items }
+  const unlockSeen = new Set(); // this page never pops one twice
+  let unlockCard = null; // { item, node, endsAt, remaining, timer, holds: Set }
+  let unlockBurst = 0; // single cards since the queue was last empty
+  let unlockTimer = null;
+  let unlockClaimKey = '';
+  let unlockClaimSocket = null;
+  let unlockSwiped = false;
+  let unlockDrag = null;
+
+  /** Asks the server for this name's waiting cards: once per socket, name and sign-in.
+   *  Not at a tutorial table, nor before a rejoined table said what it is. */
+  function maybeClaimBadges() {
+    if (!ws || ws.readyState !== WebSocket.OPEN || publicMode) return;
+    const name = String(signedInName() || myName || '').trim();
+    if (!name) return;
+    if (sessionCode && playerId && (!lastState || lastState.tutorialMode)) return;
+    const token = accountToken() || '';
+    const key = `${name.toLowerCase()}\n${token}`;
+    if (unlockClaimSocket === ws && unlockClaimKey === key) return;
+    unlockClaimSocket = ws;
+    unlockClaimKey = key;
+    ws.send(JSON.stringify({ type: 'claimBadges', name, accountToken: token || undefined }));
+  }
+
+  function onBadgeUnlocks(msg) {
+    const badges = (Array.isArray(msg.badges) ? msg.badges : []).filter((b) => b && typeof b.id === 'string');
+    if (!badges.length) return;
+    // The cabinet shows them as earned right away (the profile list comes later).
+    const me = myProfile();
+    if (me && String(msg.name || '').toLowerCase() === String(me.name).toLowerCase()) {
+      me.badges = { ...(me.badges || {}) };
+      for (const b of badges) if (!me.badges[b.id]) me.badges[b.id] = Number(b.earnedAt) || Date.now();
+      if (!el('statsOverlay').classList.contains('hidden')) { try { renderAchievements(); } catch (e) { /* cosmetic */ } }
+    }
+    enqueueUnlocks(badges.map((b) => ({ kind: 'badge', id: b.id })));
+  }
+
+  function unlockKey(item) {
+    return item.kind === 'season' ? `season:${item.season}` : `badge:${item.id}`;
+  }
+  function enqueueUnlocks(items) {
+    for (const item of items) {
+      const key = unlockKey(item);
+      if (unlockSeen.has(key)) continue;
+      unlockSeen.add(key);
+      unlockQueue.push(item);
+    }
+    pumpUnlocks();
+  }
+
+  /** ms to wait before a card may start (0: now). */
+  function unlockWait() {
+    if (document.getElementById('studioSplash')) return 500; // a card under the intro would expire unseen
+    if (document.visibilityState === 'hidden') return 1000;
+    if (lastState && lastState.tutorialMode && sessionCode) return 2000; // the coach card talks there
+    const lock = toastLockUntil - Date.now();
+    return lock > 0 ? lock + 150 : 0;
+  }
+  function pumpUnlocks(delay = 0) {
+    clearTimeout(unlockTimer);
+    unlockTimer = null;
+    if (unlockCard || !unlockQueue.length) return;
+    const wait = Math.max(delay, unlockWait());
+    if (wait > 0) { unlockTimer = setTimeout(() => pumpUnlocks(), wait); return; }
+    // The burst's fourth card on: everything left in one, unless one alone is left.
+    const fold = unlockBurst >= UNLOCK_SINGLES && unlockQueue.length > 1;
+    const item = fold ? { kind: 'more', items: unlockQueue.splice(0) } : unlockQueue.shift();
+    if (!fold) unlockBurst += 1;
+    showUnlock(item);
+  }
+
+  /** What a card says: art (emoji or "+N"), eyebrow, name, one sub line. */
+  function unlockView(item) {
+    const eyebrow = L('Abzeichen freigeschaltet', 'Badge unlocked');
+    if (item.kind === 'more') {
+      const n = item.items.length;
+      const names = item.items.map((it) => unlockView(it).name.replace(/\u00ad/g, ''));
+      return {
+        art: `+${n}`, count: true, eyebrow: L('Abzeichen freigeschaltet', 'Badges unlocked'),
+        name: n === 1 ? L('1 weiteres Abzeichen', '1 more badge') : L(`${n} weitere Abzeichen`, `${n} more badges`),
+        sub: names.join(' · '),
+      };
+    }
+    if (item.kind === 'season') {
+      const a = SEASON_AWARDS[item.award] || SEASON_AWARDS.participant;
+      return {
+        art: a.emoji, eyebrow, name: a.name(),
+        sub: `${seasonLabel(item.season)} · ${L(`Platz ${item.place} von ${item.ranked}`, `Place ${item.place} of ${item.ranked}`)}`,
+      };
+    }
+    const m = badgeMeta(item.id);
+    const fam = BADGE_FAMILIES.find((f) => f.tiers.includes(item.id));
+    const tier = fam && fam.tiers.length > 1
+      ? L(`Stufe ${fam.tiers.indexOf(item.id) + 1} von ${fam.tiers.length}`, `Tier ${fam.tiers.indexOf(item.id) + 1} of ${fam.tiers.length}`)
+      : '';
+    return { art: m.emoji, eyebrow, name: m.name, sub: [tier, m.desc].filter(Boolean).join(' · ') };
+  }
+  function unlockCardHtml(item) {
+    const v = unlockView(item);
+    // The emoji IS the badge (content, as in the trophy cabinet), not an icon.
+    return `<button type="button" class="unlockMain">` +
+      `<span class="unlockArt${v.count ? ' isCount' : ''}" aria-hidden="true">${escapeHtml(v.art)}</span>` +
+      `<span class="unlockText"><span class="unlockEyebrow">${escapeHtml(v.eyebrow)}</span>` +
+      `<span class="unlockName">${escapeHtml(v.name)}</span>` +
+      (v.sub ? `<span class="unlockSub">${escapeHtml(v.sub)}</span>` : '') + '</span></button>' +
+      `<button type="button" class="unlockClose" aria-label="${escapeHtml(L('Schließen', 'Close'))}">${iconHtml('close')}</button>`;
+  }
+  /** Below whatever holds the top edge: the table header (unless a sheet covers the table,
+   *  then the sheet's head stays free), the update or the connection banner. `jump`: no glide. */
+  function placeUnlockLayer(jump = false) {
+    const layer = el('unlockLayer');
+    if (jump) layer.style.transition = 'none';
+    let top = 0;
+    const below = (node) => {
+      if (!node || node.classList.contains('hidden')) return;
+      const r = node.getBoundingClientRect();
+      if (r.height > 0 && r.bottom > top) top = r.bottom;
+    };
+    if (!el('table').classList.contains('hidden') && !document.querySelector('.overlay:not(.hidden)')) below(el('topBar'));
+    below(el('updateBanner'));
+    below(el('netBanner'));
+    layer.style.top = top > 0 ? `${Math.round(top + 8)}px` : '';
+    if (jump) {
+      void layer.offsetHeight; // applied before the glide comes back
+      layer.style.transition = '';
+    }
+  }
+  function showUnlock(item) {
+    const node = document.createElement('div');
+    node.className = 'unlockCard';
+    node.innerHTML = unlockCardHtml(item);
+    placeUnlockLayer(true);
+    el('unlockLayer').appendChild(node);
+    unlockCard = { item, node, endsAt: 0, remaining: UNLOCK_SHOW_MS, timer: null, holds: new Set() };
+    runUnlockClock();
+    if (document.visibilityState === 'hidden') holdUnlock('hidden');
+    sound.unlock();
+  }
+  function runUnlockClock() {
+    const card = unlockCard;
+    if (!card || card.holds.size) return;
+    clearTimeout(card.timer);
+    card.endsAt = Date.now() + card.remaining;
+    card.timer = setTimeout(() => { if (unlockCard === card) closeUnlock(); }, card.remaining);
+  }
+  // Hover, focus, a finger on it or a hidden page stop its clock; it never runs out unseen.
+  function holdUnlock(reason) {
+    const card = unlockCard;
+    if (!card || card.holds.has(reason)) return;
+    if (!card.holds.size) {
+      clearTimeout(card.timer);
+      card.remaining = Math.max(0, card.endsAt - Date.now());
+    }
+    card.holds.add(reason);
+  }
+  function releaseUnlock(reason) {
+    const card = unlockCard;
+    if (!card || !card.holds.delete(reason) || card.holds.size) return;
+    card.remaining = Math.max(1500, card.remaining);
+    runUnlockClock();
+  }
+  /** Ends the visible card; `dir` is the swipe ('left' | 'right' | 'up', default up). */
+  function closeUnlock(dir = 'up') {
+    const card = unlockCard;
+    if (!card) return;
+    clearTimeout(card.timer);
+    unlockCard = null;
+    const node = card.node;
+    node.style.setProperty('--leave-x', dir === 'left' ? '-120%' : dir === 'right' ? '120%' : '0px');
+    if (dir !== 'up') node.style.setProperty('--leave-y', '0px');
+    node.classList.add('leaving');
+    setTimeout(() => node.remove(), UNLOCK_LEAVE_MS);
+    if (!unlockQueue.length) unlockBurst = 0;
+    pumpUnlocks(UNLOCK_LEAVE_MS + UNLOCK_GAP_MS);
+  }
+  /** A priority toast starts: the visible card goes back to the front of the queue. */
+  function yieldUnlock() {
+    const card = unlockCard;
+    if (!card) return;
+    clearTimeout(card.timer);
+    unlockCard = null;
+    card.node.remove();
+    unlockQueue.unshift(card.item);
+    if (card.item.kind === 'more') unlockQueue.splice(0, 1, ...card.item.items);
+    else unlockBurst = Math.max(0, unlockBurst - 1);
+    pumpUnlocks();
+  }
+  /** Language switch: the visible card in the new language. */
+  function refreshUnlockCard() {
+    if (unlockCard) unlockCard.node.innerHTML = unlockCardHtml(unlockCard.item);
+  }
+  // A tap opens the badge in the trophy cabinet - only off the table and when no
+  // sheet above the statistics would hide it; otherwise it just goes.
+  function unlockCanOpen() {
+    if (publicMode || !el('table').classList.contains('hidden')) return false;
+    const overlays = [...document.querySelectorAll('.overlay')];
+    const stats = overlays.indexOf(el('statsOverlay'));
+    return stats >= 0 && !overlays.slice(stats + 1).some((o) => !o.classList.contains('hidden'));
+  }
+  function openUnlockTarget(item) {
+    const key = item.kind === 'badge' ? favoriteTileKey(item.id) : null;
+    achShowAll = item.kind !== 'season'; // the folded cabinet may not list it
+    openAchId = key; // kept open when the fresh profile list re-renders
+    el('statsBtn').click();
+    selectStatsTab('board');
+    // After the sheet's own scroll reset (overlayToastWatcher, a microtask later).
+    setTimeout(() => {
+      try {
+        const box = el('achievementsBox');
+        const tile = key ? box.querySelector(`.achTile[data-ach="${CSS.escape(key)}"]`) : null;
+        (tile || box).scrollIntoView({ block: tile ? 'center' : 'start' });
+      } catch (e) { /* the sheet is open anyway */ }
+    }, 80);
+  }
+  (function wireUnlockLayer() {
+    const layer = el('unlockLayer');
+    layer.addEventListener('click', (ev) => {
+      const card = unlockCard;
+      if (!card || !card.node.contains(ev.target)) return;
+      if (ev.target.closest('.unlockClose')) { closeUnlock(); return; }
+      if (!ev.target.closest('.unlockMain')) return;
+      if (unlockSwiped) { unlockSwiped = false; return; }
+      const open = unlockCanOpen();
+      closeUnlock();
+      if (open) openUnlockTarget(card.item);
+    });
+    layer.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && unlockCard) closeUnlock(); });
+    layer.addEventListener('mouseover', () => holdUnlock('pointer'));
+    layer.addEventListener('mouseout', (ev) => { if (!ev.relatedTarget || !layer.contains(ev.relatedTarget)) releaseUnlock('pointer'); });
+    layer.addEventListener('focusin', () => holdUnlock('focus'));
+    layer.addEventListener('focusout', (ev) => { if (!ev.relatedTarget || !layer.contains(ev.relatedTarget)) releaseUnlock('focus'); });
+    // Swipe it away: up, left or right; a short drag snaps back.
+    layer.addEventListener('touchstart', (ev) => {
+      unlockSwiped = false;
+      if (!unlockCard || ev.touches.length !== 1 || ev.target.closest('.unlockClose')) return;
+      unlockDrag = { x: ev.touches[0].clientX, y: ev.touches[0].clientY, dx: 0, dy: 0 };
+      holdUnlock('touch');
+    }, { passive: true });
+    layer.addEventListener('touchmove', (ev) => {
+      if (!unlockDrag || !unlockCard) return;
+      const t = ev.touches[0];
+      unlockDrag.dx = t.clientX - unlockDrag.x;
+      unlockDrag.dy = Math.min(0, t.clientY - unlockDrag.y);
+      const side = Math.abs(unlockDrag.dx) > Math.abs(unlockDrag.dy);
+      const node = unlockCard.node;
+      node.style.transform = side ? `translateX(${unlockDrag.dx}px)` : `translateY(${unlockDrag.dy}px)`;
+      node.style.opacity = String(Math.max(0.35, 1 - (side ? Math.abs(unlockDrag.dx) / 260 : -unlockDrag.dy / 100)));
+    }, { passive: true });
+    const endDrag = () => {
+      const drag = unlockDrag;
+      unlockDrag = null;
+      if (!drag || !unlockCard) return;
+      if (Math.abs(drag.dx) > 10 || drag.dy < -10) unlockSwiped = true; // the click after it is no tap
+      if (Math.abs(drag.dx) > 72) { closeUnlock(drag.dx > 0 ? 'right' : 'left'); return; }
+      if (drag.dy < -28) { closeUnlock('up'); return; }
+      unlockCard.node.style.transform = '';
+      unlockCard.node.style.opacity = '';
+      releaseUnlock('touch');
+    };
+    layer.addEventListener('touchend', endDrag);
+    layer.addEventListener('touchcancel', endDrag);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') holdUnlock('hidden');
+      else { releaseUnlock('hidden'); pumpUnlocks(); }
+    });
+  })();
 
   // Overlays are modal and centred - exactly where the toast sits, and the
   // toast wins on z-index (350 vs 50). A tip that is still on screen when the
@@ -7483,6 +7777,7 @@
         hideToast();
       }
     }
+    if (unlockCard) placeUnlockLayer(); // a sheet came or went: the card keeps the sheet's head free
   });
   document.querySelectorAll('.overlay').forEach((o) =>
     overlayToastWatcher.observe(o, { attributes: true, attributeFilter: ['class'], attributeOldValue: true }));
@@ -7790,6 +8085,7 @@
     el('accAdminLink').classList.toggle('hidden', !(loggedIn && accountIsAdmin));
     renderAccountEmail();
     try { renderIdentity(); } catch (e) { /* cosmetic */ }
+    try { maybeClaimBadges(); } catch (e) { /* signed in: the account name's waiting cards */ }
     renderAccountProgress();
     // The greeting belongs to the account: gone on sign-out, re-rendered on a language switch.
     if (!loggedIn) greetingWindow = null;
@@ -10818,11 +11114,11 @@
   // --- Season finale: month names, awards and the one-time start-up hint ----
   // The emoji here ARE the badges (as in the trophy cabinet), not icons.
   const SEASON_AWARDS = {
-    gold: { emoji: '🥇', name: () => L('Saisonsieg', 'Season winner'), cheer: () => L('Saisonsieg!', 'season winner!') },
-    silver: { emoji: '🥈', name: () => L('Saison-Silber', 'Season silver'), cheer: () => L('Silber!', 'silver!') },
-    bronze: { emoji: '🥉', name: () => L('Saison-Bronze', 'Season bronze'), cheer: () => L('Bronze!', 'bronze!') },
-    top10: { emoji: '🏅', name: () => L('Saison-Top-10', 'Season top 10'), cheer: () => L('Top 10!', 'top 10!') },
-    participant: { emoji: '🎟️', name: () => L('Saison-Teilnahme', 'Season participant'), cheer: () => L('danke fürs Mitspielen!', 'thanks for playing!') },
+    gold: { emoji: '🥇', name: () => L('Saisonsieg', 'Season winner') },
+    silver: { emoji: '🥈', name: () => L('Saison-Silber', 'Season silver') },
+    bronze: { emoji: '🥉', name: () => L('Saison-Bronze', 'Season bronze') },
+    top10: { emoji: '🏅', name: () => L('Saison-Top-10', 'Season top 10') },
+    participant: { emoji: '🎟️', name: () => L('Saison-Teilnahme', 'Season participant') },
   };
   /** "2026-10" -> "Oktober 2026" / "October 2026" (a season is a month). */
   function seasonLabel(id) {
@@ -10854,10 +11150,13 @@
       setTimeout(() => announceSeasonResult(r), 500);
       return;
     }
-    const a = SEASON_AWARDS[r.award];
-    const text = L(`Saison ${seasonLabel(r.season)} beendet: `, `Season ${seasonLabel(r.season)} is over: `) +
-      seasonPlaceText(r) + (a ? ` – ${a.emoji} ${a.cheer()}` : '.');
-    showToast(text, { duration: 7000, priority: true });
+    // A season badge is an unlock card like any badge; a place without one keeps its line.
+    if (SEASON_AWARDS[r.award]) {
+      enqueueUnlocks([{ kind: 'season', award: r.award, season: r.season, place: r.place, ranked: r.ranked }]);
+    } else {
+      showToast(L(`Saison ${seasonLabel(r.season)} beendet: `, `Season ${seasonLabel(r.season)} is over: `) + seasonPlaceText(r) + '.',
+        { duration: 7000, priority: true });
+    }
     // Podium: the fireworks band once, behind the start screen's header (not
     // when the start finds an open game).
     const lobby = el('lobby');
