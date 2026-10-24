@@ -4617,6 +4617,51 @@ input:disabled { opacity: 0.65; }
 .stammtischSheetMeta { margin: -6px 0 10px; color: var(--text-muted); font-size: var(--fs-hint); font-variant-numeric: tabular-nums; }
 .stammtischSheetBody { text-align: left; margin-bottom: 4px; }
 .stammtischSheet .stPairs b { color: var(--card-ink); }
+/* What a "2 gegen 2" match counts for at a Stammtisch: the team icon and one muted line. */
+.stTeamNote { display: flex; align-items: flex-start; gap: 6px; margin: 6px 0 0; font-size: var(--fs-hint); color: var(--text-muted); line-height: 1.35; }
+.stTeamNote .icon { width: 1.15em; height: 1.15em; flex: 0 0 auto; }
+/* Sheet: the newest matches, two rows each - day | winner | score over kind | rest | score. */
+.stGames { margin-top: 10px; }
+.stGames h3 { margin: 0 0 2px; font-size: var(--fs-label); font-weight: 700; }
+.stGames ol { list-style: none; margin: 0; padding: 0; }
+.stGame {
+  display: grid; grid-template-columns: 5.6em minmax(0, 1fr) auto; column-gap: 8px; align-items: baseline;
+  padding: 4px 0; border-top: 1px solid var(--glass-border); font-size: var(--fs-label); font-variant-numeric: tabular-nums;
+}
+.stGameDay, .stGameRest, .stGameWin small, .stGameLost { font-size: var(--fs-hint); color: var(--text-muted); }
+.stGameKind .historyTag { white-space: nowrap; }
+.stGameWin .icon { width: 1em; height: 1em; margin-right: 4px; vertical-align: -0.12em; }
+/* A named team's pair, a name with its score: to the next line as a whole, not split. */
+.stGameWin small, .stGameWho { display: inline-block; }
+.stGameScore { text-align: right; font-weight: 700; }
+.stGameLost { font-weight: 500; }
+/* "Platz nehmen" and "Schließen" stay in reach when the record scrolls (SE, landscape, large
+   type). Sticky insets count from inside the card's padding: the negative one sits flush. */
+.overlay-card.stammtischSheet { --st-pad-b: calc(22px + var(--safe-bottom) / 2); padding-bottom: var(--st-pad-b); }
+.stammtischSheetFoot {
+  position: sticky; bottom: calc(-1 * var(--st-pad-b)); z-index: 1;
+  margin: 0 -22px calc(-1 * var(--st-pad-b)); padding: 0 22px var(--st-pad-b);
+  background: var(--card-bg);
+}
+/* A soft edge where the record scrolls under the buttons. */
+.stammtischSheetFoot::before {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: 14px;
+  background: linear-gradient(to bottom, transparent, var(--card-bg)); pointer-events: none;
+}
+@media (max-width: 600px) and (orientation: portrait) {
+  .overlay-card.stammtischSheet { --st-pad-b: calc(22px + var(--safe-bottom)); } /* the sheet's own footer padding */
+}
+/* Landscape phone and desktop: the newest matches beside the record, not below it. */
+@media (orientation: landscape) and (max-height: 540px), (min-width: 1100px) {
+  .stammtischSheetBody { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 18px; align-items: start; }
+  .stammtischSheetBody > * { grid-column: 1 / -1; }
+  .stammtischSheetBody > .stRecord:not(:last-child) { grid-column: 1; }
+  .stammtischSheetBody > .stGames { grid-column: 2; margin-top: 0; }
+  .stammtischSheetFoot { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; }
+}
+@media (min-width: 1100px) {
+  .overlay-card.stammtischSheet { max-width: 720px; }
+}
 /* Result overlay: the series stands right above the continue button */
 .resultSeries {
   margin: 8px 0 2px; padding: 8px 12px; border-radius: var(--r-sm);
@@ -4624,6 +4669,7 @@ input:disabled { opacity: 0.65; }
   font-weight: 700; text-align: center;
 }
 .resultSeries small { display: block; font-weight: 500; opacity: 0.75; }
+.resultSeries.stTeamNote { justify-content: center; text-align: left; font-size: var(--fs-label); font-weight: 500; }
 /* Daily puzzle overlay */
 .puzzleTarget { font-weight: 700; margin: 2px 0 8px; }
 .puzzleHand { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 4px 0 10px; }

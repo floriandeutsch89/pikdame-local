@@ -62,7 +62,10 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   partner's block) or `.teamRival` into view), `roundend-team`,
   `gameover-team`, `gameover-team-win` (my team named), `gameover-team-rivals`
   (both teams named, the rivals won), `history-team` (a won
-  team game opened in "Meine Partien").
+  team game opened in "Meine Partien"). At the mock Stammtisch:
+  `stammtisch-lobby-team` (its lobby with "2 gegen 2" switched on: the record's
+  note), `gameover-team-stammtisch` (the note instead of the series) and
+  `gameover-stammtisch` (a solo result there: the series line).
 - **Before/after from one script:** `SHOTS_ROOT=<checkout>` shoots another
   checkout (e.g. a detached `origin/main` worktree) with this script, so
   new scenes exist for the "before" pictures too.
@@ -76,7 +79,8 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   `puzzle`, `puzzle-turn` / `puzzle-out` (that kind injected, one meld
   laid), `puzzle-refused` (two melds selected at once: "Auslegen" refused with the rule's reason), `puzzle-solved` (three stars, then the "Aufgaben" tile), `challenge` (intro after the day's attempt), `challenge-open` (intro before it: only the count), `gamelobby` (house
   rules), `botdiff` (the strength picker), `stammtisch` (the record
-  sheet behind the start-screen chip), `stammtisch-lobby` (a game lobby
+  sheet behind the start-screen chip, with its newest matches: today's "2 gegen 2"
+  and two solo matches), `stammtisch-lobby` (a game lobby
   shown as a seat at the mock Stammtisch: its record panel), `settings` / `settings-aids` /
   `settings-music` (the "Optionen" sheet: top / play aids / music), `game-settings`
   (the gear at a live engine table: the same sheet with "Dieser Tisch", then

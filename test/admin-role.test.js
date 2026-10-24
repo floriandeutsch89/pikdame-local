@@ -300,7 +300,10 @@ test('migration 009: the tables, keys and checks named by the conventions, on a 
   await migrate(pool, { dir });
   await pool.query(`INSERT INTO users (username, email, password_hash, password_salt, email_verified)
     VALUES ('Ada', 'ada@example.org', '\\x00', 's', TRUE)`);
-  assert.deepStrictEqual(await migrate(pool), [version]);
+  // Exactly 009, whatever later files ship.
+  const own = loadMigrations().find((x) => x.version === version);
+  fs.copyFileSync(own.file, path.join(dir, path.basename(own.file)));
+  assert.deepStrictEqual(await migrate(pool, { dir }), [version]);
   const named = await rows(`SELECT tablename || ':' || indexname AS i FROM pg_indexes WHERE schemaname = current_schema()
     AND tablename IN ('user_roles', 'admin_sessions', 'admin_audit_events') ORDER BY 1`);
   assert.deepStrictEqual(named.map((r) => r.i), [

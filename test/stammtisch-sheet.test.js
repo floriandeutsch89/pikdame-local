@@ -172,6 +172,65 @@ test('the sheet shows the group goals: level, this week and the streak of reache
   t.window.close();
 });
 
+test('the sheet lists the newest matches: a team match with its tag, both pairs and the totals, the note on what it counts for', () => {
+  const t = boot();
+  t.doc.querySelector('#stammtischRecent button[data-code="STHOME"]').click();
+  t.info();
+  const body = t.doc.getElementById('stammtischSheetBody');
+  assert.strictEqual(body.querySelector('.stGames'), null, 'an older server without matches: no list');
+  assert.strictEqual(body.querySelector('.stTeamNote'), null);
+  t.info({
+    teamGames: 1, today: '2026-10-24',
+    recent: [
+      { day: '2026-10-24', teamMode: true, teamNames: ['Die Löwen', null], players: [
+        { name: 'Flo', isBot: false, score: 1150, won: true, team: 0 }, { name: 'Anna', isBot: false, score: 960, won: false, team: 1 },
+        { name: 'Ben', isBot: false, score: 930, won: true, team: 0 }, { name: 'Inge', isBot: true, score: 950, won: false, team: 1 }] },
+      { day: '2026-10-23', players: [{ name: 'Anna', isBot: false, score: 760, won: false }, { name: 'Flo', isBot: false, score: 1040, won: true },
+        { name: 'Uwe', isBot: true, score: 905, won: false }] },
+      { day: '2026-10-17', teamMode: true, teamNames: [null, null], players: [
+        { name: 'Flo', isBot: false, score: 800, won: false, team: 0 }, { name: 'Anna', isBot: false, score: 1100, won: true, team: 1 },
+        { name: 'Ben', isBot: false, score: 900, won: false, team: 0 }, { name: 'Inge', isBot: true, score: 1000, won: true, team: 1 }] },
+    ],
+  });
+  assert.strictEqual(body.querySelector('.stTeamNote').textContent,
+    '„2 gegen 2“ zählt für Partien und Wochenziel, nicht für Siege, Serie und Direktvergleich.');
+  assert.strictEqual(body.querySelector('.stGames h3').textContent, 'Letzte Partien');
+  const rows = [...body.querySelectorAll('.stGames li')];
+  const cell = (li, cls) => li.querySelector(`.${cls}`).textContent.replace(/\s+/g, ' ').trim();
+  assert.deepStrictEqual(rows.map((li) => cell(li, 'stGameDay')), ['Heute', 'Gestern', 'Sa., 17.10.'], 'by the server\'s game day');
+  // Today's team match: the tag, the winning team (named: its pair too) over the other pair, both totals.
+  assert.strictEqual(cell(rows[0], 'stGameKind'), '2 gegen 2');
+  assert.strictEqual(cell(rows[0], 'stGameWin'), 'Team Die Löwen Flo & Ben');
+  assert.ok(rows[0].querySelector('.stGameWin use[href="#i-trophy"]'), 'the winners carry the trophy (a sprite, no emoji)');
+  assert.strictEqual(cell(rows[0], 'stGameRest'), 'gegen Anna & Inge (Bot)');
+  assert.deepStrictEqual([...rows[0].querySelectorAll('.stGameScore')].map((s) => s.textContent), ['2.080', '1.910']);
+  // A solo match: the winner first, the rest by score.
+  assert.strictEqual(cell(rows[1], 'stGameKind'), '');
+  assert.strictEqual(cell(rows[1], 'stGameWin'), 'Flo');
+  assert.strictEqual(cell(rows[1], 'stGameRest'), 'Uwe (Bot) 905 · Anna 760');
+  assert.deepStrictEqual([...rows[1].querySelectorAll('.stGameScore')].map((s) => s.textContent), ['1.040', '']);
+  // Team B won, neither team named: the winning pair first.
+  assert.strictEqual(cell(rows[2], 'stGameWin'), 'Anna & Inge (Bot)');
+  assert.strictEqual(cell(rows[2], 'stGameRest'), 'gegen Flo & Ben');
+  assert.deepStrictEqual([...rows[2].querySelectorAll('.stGameScore')].map((s) => s.textContent), ['2.100', '1.700']);
+  // Head to head and series stay as they are.
+  assert.match(body.querySelector('.stSeries').textContent, /Serie 4 · Best of 3/);
+  assert.ok(t.doc.querySelector('#stammtischSheetOverlay .stammtischSheetFoot #stammtischSheetJoinBtn'), 'the buttons sit in the pinned foot');
+  assert.deepStrictEqual(t.errors, []);
+  t.window.close();
+
+  const en = boot({ pikdame_lang: 'en' });
+  en.doc.querySelector('#stammtischRecent button[data-code="STHOME"]').click();
+  en.info({ teamGames: 1, today: '2026-10-24', recent: [{ day: '2026-10-23', teamMode: true, teamNames: [null, 'Kaffeeklatsch'], players: [
+    { name: 'Flo', isBot: false, score: 800, won: false, team: 0 }, { name: 'Anna', isBot: false, score: 1100, won: true, team: 1 },
+    { name: 'Ben', isBot: false, score: 900, won: false, team: 0 }, { name: 'Inge', isBot: true, score: 1000, won: true, team: 1 }] }] });
+  const li = en.doc.querySelector('#stammtischSheetBody .stGames li');
+  assert.deepStrictEqual(['stGameDay', 'stGameKind', 'stGameWin', 'stGameRest'].map((c) => li.querySelector(`.${c}`).textContent.replace(/\s+/g, ' ').trim()),
+    ['Yesterday', '2 vs 2', 'Team Kaffeeklatsch Anna & Inge (Bot)', 'vs Flo & Ben']);
+  assert.match(en.doc.querySelector('#stammtischSheetBody .stTeamNote').textContent, /^"2 vs 2" counts toward games and the weekly goal/);
+  en.window.close();
+});
+
 test('a match that reaches the weekly goal or a new level says so in one toast, with the series', () => {
   const t = boot();
   t.ws.fire('message', {

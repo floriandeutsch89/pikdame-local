@@ -452,7 +452,6 @@ window.I18N_SERVER_PATTERNS = [
   [/^Im anderen Team ist kein Platz frei\.$/, 'There is no free seat in the other team.'],
   [/^„2 gegen 2“ braucht genau vier Plätze\.$/, '"2 vs 2" needs exactly four seats.'],
   [/^Bei „2 gegen 2“ spielen alle Bots auf derselben Stufe - stell die Bot-Stärke für alle ein\.$/, 'In "2 vs 2" every bot plays the same level - set the bot strength for all of them.'],
-  [/^Am Stammtisch gibt es „2 gegen 2“ noch nicht - die Bilanz zählt dort jeden für sich\.$/, '"2 vs 2" is not available at a regulars’ table yet - its record counts every player alone.'],
   [/^Den Teamnamen könnt ihr nur vor Spielbeginn ändern\.$/, 'The team name can only be changed before the game starts.'],
   [/^Zu viele Namensänderungen - bitte kurz warten\.$/, 'Too many name changes – please wait a moment.'],
   [/^Kein Spiel mit diesem Code gefunden\. Bitte Code prüfen\.$/, 'No game found with this code. Please check it.'],
@@ -534,6 +533,7 @@ window.I18N_RULES_EN = `
     <li>A team plays to <b>2000 points</b> – twice as far as alone, because two scores add up (strict house rule: above 2000). If both teams get there in the same round, the higher total wins; on a tie one more round is played.</li>
     <li>"2 vs 2" on the start screen starts at once: you and a bot against two bots. With friends: create a game and pick "2 vs 2" in the lobby. All bots play the same level.</li>
     <li>Before the start each team can enter a name in the lobby. At the table your partner, your melds and theirs are outlined in your team colour and labelled "Team", with a team name "Team" and the name. The other team wears a stripe in its colour and, if it has one, its name.</li>
+    <li><b>At a Stammtisch</b> a "2 vs 2" match counts toward the games and the weekly goal, but not for wins, head to head or the rematch series – those count everyone alone.</li>
   </ul>
 
   <h3>House rules (chosen when creating a game)</h3>

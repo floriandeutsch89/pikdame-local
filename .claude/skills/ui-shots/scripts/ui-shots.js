@@ -55,7 +55,8 @@
 // "2 gegen 2": gamelobby-team (a real team lobby, a second socket joins, both teams named;
 // -edit while I type, then -partners and botdiff-team), table-team (an engine team table;
 // -named with my team's name, -rivals/-many both named, -b from team B), roundend-team,
-// gameover-team(-win, -rivals: both named), history-team.
+// gameover-team(-win, -rivals: both named), history-team; at the mock Stammtisch:
+// stammtisch-lobby-team, gameover-team-stammtisch, gameover-stammtisch.
 // --lang en: the English client (text length). --ui-scale large|xlarge: the larger type. SHOTS_ROOT=<checkout>: shoot another
 // checkout with this script (before/after pictures from one set of scenes).
 // --light morning|noon|evening|night|HH:MM|now: the table light at that Berlin time
@@ -139,8 +140,19 @@ const PROFILES = [
   { name: 'Klaus', gamesPlayed: 15, gamesWon: 3, totalScore: 8000, bestGameScore: 1040, xp: 1200, badges: {} },
 ];
 // The start-screen Stammtisch chip and its sheet (answered by the script, see below).
+const dayBack = (n) => new Date(Date.parse(`${TODAY}T12:00:00Z`) - n * 864e5).toISOString().slice(0, 10);
 const STAMMTISCH = {
-  name: 'Familie Muster', gamesPlayed: 7,
+  name: 'Familie Muster', gamesPlayed: 7, teamGames: 1, today: TODAY,
+  // The newest first: today's "2 gegen 2" (Flo + Oma Gerda as "Die Löwen" against Klaus + a bot), two solo matches.
+  recent: [
+    { day: TODAY, teamMode: true, teamNames: ['Die Löwen', null], players: [
+      { name: ME, isBot: false, score: 1150, won: true, team: 0 }, { name: 'Klaus', isBot: false, score: 960, won: false, team: 1 },
+      { name: 'Oma Gerda', isBot: false, score: 930, won: true, team: 0 }, { name: 'Inge', isBot: true, score: 950, won: false, team: 1 }] },
+    { day: dayBack(1), players: [{ name: 'Oma Gerda', isBot: false, score: 1040, won: true }, { name: ME, isBot: false, score: 905, won: false },
+      { name: 'Klaus', isBot: false, score: 760, won: false }] },
+    { day: dayBack(3), players: [{ name: ME, isBot: false, score: 1015, won: true }, { name: 'Oma Gerda', isBot: false, score: 880, won: false },
+      { name: 'Uwe', isBot: true, score: 610, won: false }] },
+  ],
   series: { no: 3, games: 2, wins: { 'oma gerda': 1, flo: 1 }, bestOf: 3, needed: 2 },
   goals: { level: 3, into: 40, need: 100, xp: 165, week: { start: '2026-10-12', games: 3, goal: 5, reached: false }, streak: 2, weeksReached: 4 },
   members: [
@@ -796,17 +808,20 @@ function waitForHttp(port, ms = 20000) {
           await shot('challenge-open');
           await page.click('#challengeCancelBtn');
         }
-        if (sc === 'stammtisch-lobby') {
+        if (sc === 'stammtisch-lobby' || sc === 'stammtisch-lobby-team') {
           // A real game lobby whose join is rewritten to the mock Stammtisch:
           // the record panel (goals, series, standings) with mock numbers.
+          // -team: "2 gegen 2" switched on there (a client without it at a Stammtisch: unchanged).
           await toStart();
           bindStammtisch = true;
           await page.click('#createGameBtn'); await page.waitForTimeout(900);
           inject({ type: 'stammtisch', summary: { code: 'STMOCK1', ...STAMMTISCH }, seriesEvent: null });
           await page.waitForTimeout(300);
+          if (sc === 'stammtisch-lobby-team' && await page.isVisible('#teamModeBtn')) { await page.click('#teamModeBtn'); await page.waitForTimeout(700); }
           await page.evaluate(() => document.getElementById('stammtischSection').scrollIntoView({ block: 'start' }));
-          await shot('stammtisch-lobby');
+          await shot(sc);
           bindStammtisch = false;
+          if (sc === 'stammtisch-lobby-team') await toStart(); // the live lobby keeps broadcasting
         }
         if (sc === 'gamelobby' || sc === 'botdiff') {
           if (!(await page.isVisible('#houseRulesSection'))) { await toStart(); await page.click('#createGameBtn'); await page.waitForTimeout(900); }
@@ -1127,12 +1142,16 @@ function waitForHttp(port, ms = 20000) {
           await page.waitForTimeout(1600);
           await shot(sc);
         } else if (sc.startsWith('roundend') || sc.startsWith('gameover')) {
-          inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
+          // -stammtisch: the table is the mock Stammtisch (its record follows the result).
+          const atStammtisch = sc.endsWith('-stammtisch');
+          inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01',
+            ...(atStammtisch ? { stammtisch: { code: 'STMOCK1', name: STAMMTISCH.name } } : {}) });
           const challenge = sc === 'gameover-challenge';
           const over = { 'gameover-win': GAME_OVER_WIN, 'gameover-team': TEAM_GAME_OVER, 'gameover-team-win': TEAM_GAME_OVER_WIN,
-            'gameover-team-rivals': TEAM_GAME_OVER_RIVALS }[sc] || GAME_OVER;
+            'gameover-team-rivals': TEAM_GAME_OVER_RIVALS, 'gameover-team-stammtisch': TEAM_GAME_OVER_WIN }[sc] || GAME_OVER;
           const roundEnd = sc === 'roundend-team' ? TEAM_ROUND_END : ROUND_END;
           inject({ type: 'state', state: sc.startsWith('gameover') ? { ...over, challengeDate: challenge ? TODAY : null } : roundEnd });
+          if (atStammtisch) inject({ type: 'stammtisch', summary: { code: 'STMOCK1', ...STAMMTISCH }, seriesEvent: null, goalEvents: [] });
           if (challenge) {
             inject({ type: 'challengeBoard', date: TODAY, yourScore: 880, yourRank: 2, yourQueens: 1, players: 9,
               board: [{ rank: 1, name: 'Oma Gerda', score: 1210 }, { rank: 2, name: ME, score: 880 }], history: [], weekly: null });
@@ -1152,6 +1171,10 @@ function waitForHttp(port, ms = 20000) {
           if (sc === 'roundend-stats') { await page.click('#resultBody .resultTabBtn:nth-child(2)'); await page.waitForTimeout(300); }
           if (sc === 'gameover-challenge') {
             await page.evaluate(() => { const b = document.querySelector('.challengeBoardBox'); if (b) b.scrollIntoView({ block: 'center' }); });
+            await page.waitForTimeout(200);
+          }
+          if (atStammtisch) {
+            await page.evaluate(() => { const b = document.querySelector('.resultSeries'); if (b) b.scrollIntoView({ block: 'center' }); });
             await page.waitForTimeout(200);
           }
           await shot(sc);

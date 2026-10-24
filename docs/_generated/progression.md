@@ -139,7 +139,7 @@ The other **25** are earned by a fact about one match (computed in
 ## Stammtisch goals
 
 A Stammtisch earns points together (`game/StammtischGoals.js`): every
-finished match there gives **10**, plus **5** for every further
+finished match there, "2 gegen 2" too, gives **10**, plus **5** for every further
 human at the table (two humans: 15, four: 25). Its level follows the
 same shape as the player curve with smaller steps (50 + 25 per level):
 
