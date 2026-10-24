@@ -107,7 +107,13 @@ test('a team table has four seats crosswise, and the teams take turns alternatel
   deal(g);
   let last = g.teamOf(g.currentPlayer().id);
   let turns = 0;
-  for (let i = 0; i < 400 && g.phase === 'playing' && turns < 24; i++) {
+  // A random deal can end the first round within a few turns (~1.5 %): play on into the next round.
+  for (let i = 0; i < 4000 && g.phase !== 'gameOver' && turns < 24; i++) {
+    if (g.phase !== 'playing') {
+      step(g);
+      if (g.phase === 'playing') last = g.teamOf(g.currentPlayer().id);
+      continue;
+    }
     const before = g.currentPlayer().id;
     step(g);
     if (g.phase === 'playing' && g.currentPlayer().id !== before) {

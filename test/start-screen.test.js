@@ -89,7 +89,7 @@ test('start screen: two columns in landscape and on desktop, portrait unchanged'
   const daily = doc.querySelector('#sessionSetup > .lobbyDaily');
   assert.ok(daily, '.lobbyDaily sits in #sessionSetup');
   assert.deepStrictEqual([...daily.children].map((c) => c.id || c.className),
-    ['todaySection', 'menuChips menuChipsTwo', 'stammtischRecent']);
+    ['todaySection', 'menuChips menuChipsThree', 'stammtischRecent']);
   assert.match(bodyOf('.lobbyDaily'), /display:\s*contents/, 'invisible wrapper in portrait');
 
   const marker = '@media (orientation: landscape) and (max-height: 540px) and (min-width: 720px), (min-width: 1100px)';

@@ -76,6 +76,11 @@ window.I18N_STATIC = {
   'Gemischt': 'Mixed',
   'Challenge': 'Challenge',
   'Tutorial': 'Tutorial',
+  // "2 gegen 2": the start-screen tile, the lobby mode and the team switch
+  '2 gegen 2': '2 vs 2',
+  'Du und ein Bot gegen zwei Bots – sofort los': 'You and a bot against two bots – play right away',
+  'Team wechseln': 'Switch team',
+  'Bei „2 gegen 2“ spielen alle Bots auf derselben Stufe, Zen so stark wie Schwer.': 'In "2 vs 2" every bot plays the same level, Zen as strong as Hard.',
   'Konto': 'Account',
   'Tages-Challenge': 'Daily challenge',
   'Heute spielen alle Spieler weltweit exakt dasselbe Kartendeck – gegen dieselben drei Bots. Wer holt die meisten Punkte aus den gleichen Karten?': 'Today every player worldwide gets the exact same deck – against the same three bots. Who squeezes the most points out of identical cards?',
@@ -151,6 +156,7 @@ window.I18N_STATIC = {
   'Regeln': 'Rules',
   'Mehr': 'More',
   'Spielmodi': 'Game modes',
+  'Spielmodus': 'Game mode',
   'Spieleranzahl wählen': 'Choose number of players',
   'Weitere Bereiche': 'More sections',
   'GitHub': 'GitHub',
@@ -165,7 +171,7 @@ window.I18N_STATIC = {
   'Bordeaux': 'Bordeaux',
   'Abhebe-Position': 'Cut position',
   'Pik Dame': 'Pik Dame',
-  'Deine letzten abgeschlossenen Partien (bis 1000 Punkte) - nur auf diesem Gerät/mit diesem Spielernamen.': 'Your last completed games (up to 1000 points) - only on this device/with this player name.',
+  'Deine letzten abgeschlossenen Partien (bis 1000 Punkte, im Team bis 2000) - nur auf diesem Gerät/mit diesem Spielernamen.': 'Your last completed games (up to 1000 points, 2000 as a team) - only on this device/with this player name.',
   'Übersicht': 'Overview',
   'Bestenliste': 'Leaderboard',
   'Meine Partien': 'My games',
@@ -520,12 +526,22 @@ window.I18N_RULES_EN = `
     <li><b>Out in one ("Hand aus"):</b> if the winner had nothing melded before their final turn and sheds the entire hand in one go, the round score doubles for everyone – when the house rule is active.</li>
   </ul>
 
+  <h3>2 vs 2</h3>
+  <ul>
+    <li>Two teams of two, seated <b>crosswise</b>: the teams take turns alternately, and the players to your left and right are always opponents.</li>
+    <li>The usual rules apply at the table: everyone lays off and swaps jokers only on <b>their own melds</b>.</li>
+    <li>Everyone is scored as usual, and <b>partners add up their points</b>. When one player goes out, the round ends for everyone.</li>
+    <li>A team plays to <b>2000 points</b> – twice as far as alone, because two scores add up (strict house rule: above 2000). If both teams get there in the same round, the higher total wins; on a tie one more round is played.</li>
+    <li>"2 vs 2" on the start screen starts at once: you and a bot against two bots. With friends: create a game and pick "2 vs 2" in the lobby. All bots play the same level.</li>
+    <li>Before the start each team can enter a name in the lobby. At the table your partner, your melds and theirs are outlined in your team colour and labelled "Team", with a team name "Team" and the name. The other team wears a stripe in its colour and, if it has one, its name.</li>
+  </ul>
+
   <h3>House rules (chosen when creating a game)</h3>
   <ul>
     <li><b>Bot strength:</b> Easy, Medium, Hard or Zen – for all bots in the lobby or per bot (tap the level on a bot).</li>
     <li><b>⏱ Turn timer:</b> 30/60/90 seconds per turn. When time runs out, the bot logic finishes that turn fairly – the table never waits forever.</li>
     <li><b>Out in one counts double</b> (see scoring).</li>
-    <li><b>Strict 1000:</b> victory only once someone is above 1000 points.</li>
+    <li><b>Strict 1000:</b> victory only once someone is above 1000 points (in "2 vs 2": a team above 2000).</li>
   </ul>
 
   <h3>Game end &amp; misc</h3>
