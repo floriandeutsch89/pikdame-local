@@ -856,7 +856,6 @@ test('i18n: every team-mode refusal and log line has an English pattern', () => 
   const solo = new GameManager(() => {}, { tutorialMode: true });
   texts.push(solo.setTeamMode(true).error);
   solo.destroy();
-  texts.push('Am Stammtisch gibt es „2 gegen 2“ noch nicht - die Bilanz zählt dort jeden für sich.'); // server.js
   assert.ok(texts.some((t) => /^Spiel beendet! Gewinner: Team /.test(t)), 'the game-over line was collected');
   assert.ok(texts.some((t) => /^⚠️ Endspurt! Team /.test(t)), 'the final-stretch line was collected');
   assert.ok(texts.some((t) => /^Zu viele Namensänderungen/.test(t || '')), 'the rate-limit refusal was collected');

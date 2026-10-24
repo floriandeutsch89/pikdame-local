@@ -78,6 +78,13 @@ tables: nothing is rewritten and an old container keeps running unchanged; it
 just knows nothing of them (its `/admin` still asks for the old token). The
 roles come from `PIKDAME_ADMINS` on the first start of the new version.
 
+`010_stammtisch_teams.sql` lets a Stammtisch keep "2 gegen 2" matches
+({doc}`team-mode`): `stammtisch_games` gets `team_mode` (default `FALSE`) and
+the two team names, `stammtisch_game_seats` a `team_no` (0 or 1, NULL in a solo
+match). Constant defaults, so no table is rewritten; every kept match stays a
+solo match. An old container still running during the deploy books solo
+matches as before and refuses "2 gegen 2" at a Stammtisch.
+
 ## Rules
 
 - **Forward-only.** There are no down migrations; undo a change with a new file.

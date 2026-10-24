@@ -2,10 +2,12 @@
 // The "Stammtisch": a table that outlives a single evening. One code for the
 // group, forever; a head-to-head record over every match played under it;
 // and a rematch series (best of 3) that gives "Revanche!" a scoreboard.
+// A "2 gegen 2" match counts as played (list, goals, games) but never as
+// "A beat B": no wins, no head-to-head, no series (docs/developer/team-mode.md).
 //
 // Scoped by its code - only people who hold it see the names in it - so it
 // stays available on a public server, unlike the server-wide profiles.
-// PostgreSQL (migrations/007): stammtische with members, games and seats, the
+// PostgreSQL (migrations/007, 010): stammtische with members, games and seats, the
 // series wins and the weeks of the group goals. Async, every write awaited; a
 // match is booked in one transaction holding the table's row lock. A table is
 // read in one statement into the shape summarize() and StammtischGoals know.
@@ -17,6 +19,8 @@ const { inTransaction } = require('./Database'); // also registers the DATE pars
 const { ensureMigrated } = require('./Migrations');
 const { upsertPlayerId } = require('./PlayerStore');
 const { bookGame, goalsOf, goalsView } = require('./StammtischGoals');
+const { gameDay } = require('./GameDay');
+const Teams = require('./Teams');
 
 const DEFAULT_DATA_FILE = path.join(process.env.PIKDAME_DATA_DIR || path.join(__dirname, '..', 'data'), 'stammtisch.json');
 
@@ -27,6 +31,8 @@ const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTWXYZ23456789';
 const CODE_LENGTH = 6;
 const MAX_TABLES = 300;
 const MAX_GAMES_PER_TABLE = 100;
+const RECENT_GAMES = 5; // at the table (summary)
+const SHEET_GAMES = 3; // on the start-screen sheet (chipInfo)
 const INACTIVE_DAYS = 180;
 const SERIES_BEST_OF = 3;
 const SERIES_NEEDED = Math.ceil(SERIES_BEST_OF / 2 + 0.5);
@@ -70,8 +76,9 @@ const TABLE_SQL = `SELECT s.id, s.stammtisch_code, s.stammtisch_name,
       ORDER BY m.joined_at, m.player_id), '[]')
     FROM stammtisch_members m JOIN players p ON p.id = m.player_id WHERE m.stammtisch_id = s.id) AS members,
   (SELECT COALESCE(json_agg(json_build_object('no', g.game_no, 'at', floor(extract(epoch FROM g.finished_at) * 1000)::bigint,
-      'seriesNo', g.series_no, 'players', (SELECT json_agg(json_build_object('name', x.player_name, 'isBot', x.is_bot,
-        'score', x.score, 'won', x.won) ORDER BY x.seat_no)
+      'seriesNo', g.series_no, 'teamMode', g.team_mode, 'teamNames', json_build_array(g.team_a_name, g.team_b_name),
+      'players', (SELECT json_agg(json_build_object('name', x.player_name, 'isBot', x.is_bot,
+        'score', x.score, 'won', x.won, 'team', x.team_no) ORDER BY x.seat_no)
       FROM stammtisch_game_seats x WHERE x.stammtisch_id = g.stammtisch_id AND x.game_no = g.game_no)) ORDER BY g.game_no), '[]')
     FROM stammtisch_games g WHERE g.stammtisch_id = s.id) AS games,
   (SELECT COALESCE(json_object_agg(p.player_key, w.wins), '{}')
@@ -93,7 +100,10 @@ function tableOf(r) {
     lastActivity: ms(r.last_used_ms),
     owner: r.owner_key || null,
     members,
-    games: r.games.map((g) => ({ no: g.no, at: ms(g.at), seriesNo: g.seriesNo, players: g.players || [] })),
+    // A seat's team only in a team match; a solo match keeps the old shape.
+    games: r.games.map((g) => (g.teamMode
+      ? { no: g.no, at: ms(g.at), seriesNo: g.seriesNo, teamMode: true, teamNames: g.teamNames, players: g.players || [] }
+      : { no: g.no, at: ms(g.at), seriesNo: g.seriesNo, players: (g.players || []).map(({ team, ...p }) => p) })),
     series: {
       no: r.series_no, bestOf: SERIES_BEST_OF, wins: r.series_wins, games: r.series_games,
       winner: r.series_winner_name || null, finishedAt: ms(r.series_finished_ms),
@@ -104,14 +114,17 @@ function tableOf(r) {
 
 /**
  * Everything the client shows: standings, the pairwise record and the
- * series. Pairwise = "in matches where both sat, who finished ahead".
+ * series. Pairwise = "in matches where both sat, who finished ahead" -
+ * solo matches only: a team match never says who beat whom.
  */
 function summarize(t, now = Date.now()) {
   const members = Object.values(t.members || {})
     .map((m) => ({ ...m, avg: m.games ? Math.round(m.points / m.games) : 0 }))
     .sort((a, b) => b.wins - a.wins || b.avg - a.avg || a.name.localeCompare(b.name));
+  const games = t.games || [];
   const pairwise = {};
-  for (const g of t.games || []) {
+  for (const g of games) {
+    if (g.teamMode) continue;
     const hs = g.players.filter((p) => !p.isBot);
     for (const a of hs) {
       for (const b of hs) {
@@ -129,12 +142,15 @@ function summarize(t, now = Date.now()) {
     code: t.code,
     name: t.name,
     createdAt: t.createdAt,
-    gamesPlayed: (t.games || []).length,
+    gamesPlayed: games.length,
+    teamGames: games.filter((g) => g.teamMode).length,
     members,
     pairwise,
     series: { ...t.series, needed: SERIES_NEEDED },
     goals: goalsView(t, now),
-    recent: (t.games || []).slice(-5).reverse().map(({ no, ...g }) => g),
+    // Game days (Europe/Berlin), so the client says "Heute" by the server's clock.
+    today: gameDay(now),
+    recent: games.slice(-RECENT_GAMES).reverse().map(({ no, ...g }) => ({ ...g, day: gameDay(g.at) })),
   };
 }
 
@@ -354,6 +370,8 @@ function createStammtischStore(pool, { legacyFile = DEFAULT_DATA_FILE } = {}) {
   /**
    * Books a finished match: head-to-head counters, the game list, the
    * rematch series and the group goals. Only HUMAN seats count - a bot never wins a series.
+   * A team match ("2 gegen 2") counts as played but wins nothing: no member win,
+   * no head-to-head, and the series neither advances nor restarts.
    * @param {Object} gameRecord GameManager.lastGameRecord
    * @returns {Promise<{summary:Object, seriesEvent:null|{type:'won',winner:string,no:number}, goalEvents:Array}|null>}
    */
@@ -367,8 +385,12 @@ function createStammtischStore(pool, { legacyFile = DEFAULT_DATA_FILE } = {}) {
       const at = new Date(now);
       const humans = (gameRecord.players || []).filter((p) => !p.isBot);
       const totals = gameRecord.finalTotals || {};
-      const winner = humans.find((p) => p.id === gameRecord.winnerId) || null;
+      const teams = gameRecord.teamMode && Array.isArray(gameRecord.teams) ? gameRecord.teams : null;
+      const winnerIds = Teams.recordWinnerIds(gameRecord);
+      // The one winner of a solo match; a team match has none (both partners won it together).
+      const winner = teams ? null : humans.find((p) => p.id === gameRecord.winnerId) || null;
       // Players in key order: a match books the same names in its profiles transaction at once.
+      // Games and own points count for every match (neutral), a win only in a solo match.
       const ids = {};
       const seated = humans.map((p) => ({ p, name: cleanName(p.name, 16) })).filter((x) => x.name)
         .sort((a, b) => (keyOf(a.name) < keyOf(b.name) ? -1 : keyOf(a.name) > keyOf(b.name) ? 1 : 0));
@@ -383,23 +405,25 @@ function createStammtischStore(pool, { legacyFile = DEFAULT_DATA_FILE } = {}) {
         [t.id, id, name, winner && winner.id === p.id ? 1 : 0, Math.round(totals[p.id] || 0), at]);
       }
 
-      // A finished series stays visible until the NEXT game starts a new one.
+      // A finished series stays visible until the NEXT solo game starts a new one.
       const series = { ...t.series };
-      if (series.winner) {
-        Object.assign(series, { no: series.no + 1, games: 0, winner: null, finishedAt: null });
-        await c.query('DELETE FROM stammtisch_series_wins WHERE stammtisch_id = $1', [t.id]);
-      }
-      series.games += 1;
       let seriesEvent = null;
-      const winnerName = winner ? cleanName(winner.name, 16) : '';
-      if (winnerName && humans.length >= 2) {
-        const { rows } = await c.query(`INSERT INTO stammtisch_series_wins AS w (stammtisch_id, player_id, wins, updated_at)
-          VALUES ($1, $2, 1, $3) ON CONFLICT (stammtisch_id, player_id) DO UPDATE SET wins = w.wins + 1, updated_at = EXCLUDED.updated_at
-          RETURNING wins`, [t.id, ids[keyOf(winnerName)], at]);
-        if (rows[0].wins >= SERIES_NEEDED) {
-          series.winner = winnerName;
-          series.finishedAt = now;
-          seriesEvent = { type: 'won', winner: winnerName, no: series.no };
+      if (!teams) {
+        if (series.winner) {
+          Object.assign(series, { no: series.no + 1, games: 0, winner: null, finishedAt: null });
+          await c.query('DELETE FROM stammtisch_series_wins WHERE stammtisch_id = $1', [t.id]);
+        }
+        series.games += 1;
+        const winnerName = winner ? cleanName(winner.name, 16) : '';
+        if (winnerName && humans.length >= 2) {
+          const { rows } = await c.query(`INSERT INTO stammtisch_series_wins AS w (stammtisch_id, player_id, wins, updated_at)
+            VALUES ($1, $2, 1, $3) ON CONFLICT (stammtisch_id, player_id) DO UPDATE SET wins = w.wins + 1, updated_at = EXCLUDED.updated_at
+            RETURNING wins`, [t.id, ids[keyOf(winnerName)], at]);
+          if (rows[0].wins >= SERIES_NEEDED) {
+            series.winner = winnerName;
+            series.finishedAt = now;
+            seriesEvent = { type: 'won', winner: winnerName, no: series.no };
+          }
         }
       }
 
@@ -414,17 +438,21 @@ function createStammtischStore(pool, { legacyFile = DEFAULT_DATA_FILE } = {}) {
       await c.query('DELETE FROM stammtisch_weeks WHERE stammtisch_id = $1 AND NOT (week_start_day = ANY($2::date[]))', [t.id, weeks.map((w) => w[0])]);
 
       const gameNo = (t.games.length ? t.games[t.games.length - 1].no : 0) + 1;
-      await c.query('INSERT INTO stammtisch_games (stammtisch_id, game_no, series_no, finished_at) VALUES ($1, $2, $3, $4)',
-        [t.id, gameNo, series.no, new Date(gameRecord.finishedAt || now)]);
+      // A team match keeps the running series' number but never counts in it.
+      const teamName = (i) => (teams && cleanName((gameRecord.teamNames || [])[i], 16)) || null;
+      await c.query(`INSERT INTO stammtisch_games (stammtisch_id, game_no, series_no, finished_at, team_mode, team_a_name, team_b_name)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)`, [t.id, gameNo, series.no, new Date(gameRecord.finishedAt || now), !!teams, teamName(0), teamName(1)]);
       const seats = (gameRecord.players || []).map((p) => {
         const name = p.isBot ? String(p.name || 'Bot') : cleanName(p.name, 16);
-        return [p.isBot ? null : ids[keyOf(name)] || null, name, !!p.isBot, Math.round(totals[p.id] || 0), p.id === gameRecord.winnerId];
+        const team = teams ? Teams.teamIndexOf(teams, p.id) : -1;
+        return [p.isBot ? null : ids[keyOf(name)] || null, name, !!p.isBot, Math.round(totals[p.id] || 0), winnerIds.includes(p.id),
+          team >= 0 ? team : null];
       });
-      await c.query(`INSERT INTO stammtisch_game_seats (stammtisch_id, game_no, seat_no, player_id, player_name, is_bot, score, won)
-        SELECT $1, $2, u.ord - 1, u.player_id, u.player_name, u.is_bot, u.score, u.won
-        FROM unnest($3::bigint[], $4::text[], $5::boolean[], $6::int[], $7::boolean[])
-          WITH ORDINALITY AS u(player_id, player_name, is_bot, score, won, ord)`,
-      [t.id, gameNo, ...[0, 1, 2, 3, 4].map((i) => seats.map((s) => s[i]))]);
+      await c.query(`INSERT INTO stammtisch_game_seats (stammtisch_id, game_no, seat_no, player_id, player_name, is_bot, score, won, team_no)
+        SELECT $1, $2, u.ord - 1, u.player_id, u.player_name, u.is_bot, u.score, u.won, u.team_no
+        FROM unnest($3::bigint[], $4::text[], $5::boolean[], $6::int[], $7::boolean[], $8::smallint[])
+          WITH ORDINALITY AS u(player_id, player_name, is_bot, score, won, team_no, ord)`,
+      [t.id, gameNo, ...[0, 1, 2, 3, 4, 5].map((i) => seats.map((s) => s[i]))]);
       await c.query('DELETE FROM stammtisch_games WHERE stammtisch_id = $1 AND game_no <= $2', [t.id, gameNo - MAX_GAMES_PER_TABLE]);
       await c.query(`UPDATE stammtische SET last_used_at = $2, updated_at = $2, series_no = $3, series_games = $4,
           series_winner_name = $5, series_finished_at = $6, goal_xp = $7, goal_weeks_reached = $8 WHERE id = $1`,
@@ -491,14 +519,15 @@ function createStammtischStore(pool, { legacyFile = DEFAULT_DATA_FILE } = {}) {
     });
   }
 
-  /** Name of the human who won the table's latest match, or null. */
+  /** Name of the human who won the table's latest match (a team match: the winning
+   *  team's top scorer, like a rematch's dealer), or null. */
   async function lastWinner(rawCode) {
     const code = normalizeCode(rawCode);
     if (!code) return null;
     const { rows } = await query(`SELECT x.player_name FROM stammtische s
       JOIN LATERAL (SELECT g.game_no FROM stammtisch_games g WHERE g.stammtisch_id = s.id ORDER BY g.game_no DESC LIMIT 1) last ON TRUE
       JOIN stammtisch_game_seats x ON x.stammtisch_id = s.id AND x.game_no = last.game_no AND x.won AND NOT x.is_bot
-      WHERE s.stammtisch_code = $1 LIMIT 1`, [code]);
+      WHERE s.stammtisch_code = $1 ORDER BY x.score DESC, x.seat_no LIMIT 1`, [code]);
     return rows[0] ? rows[0].player_name : null;
   }
 
@@ -510,7 +539,8 @@ function createStammtischStore(pool, { legacyFile = DEFAULT_DATA_FILE } = {}) {
     return t ? summarize(t, now) : null;
   }
 
-  /** Start-screen chip and its sheet: the record without activity data. */
+  /** Start-screen chip and its sheet: the record and the newest matches by day,
+   *  without the activity data (members' last visit, points, times of day). */
   async function chipInfo(rawCode, now = Date.now()) {
     const s = await summary(rawCode, now);
     if (!s) return null;
@@ -518,10 +548,13 @@ function createStammtischStore(pool, { legacyFile = DEFAULT_DATA_FILE } = {}) {
       code: s.code,
       name: s.name,
       gamesPlayed: s.gamesPlayed,
+      teamGames: s.teamGames,
       series: s.series,
       goals: s.goals,
       pairwise: s.pairwise,
       members: s.members.map((m) => ({ name: m.name, wins: m.wins, games: m.games, avg: m.avg })),
+      today: s.today,
+      recent: s.recent.slice(0, SHEET_GAMES).map(({ at, seriesNo, ...g }) => g),
     };
   }
 

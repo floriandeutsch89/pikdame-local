@@ -112,7 +112,8 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
     die Leitung, Texte DE/EN im Client (Vertragstest).
   - `Teams.js`: „2 gegen 2“, Teams über Kreuz per Sitz-Parität; Partie-Akte mit
     `winnerId: null` + `winnerIds` → Sieg nur über `isRecordWinner` prüfen. Nie
-    Solo-Modi, nie Stammtisch (v1). Doku `docs/developer/team-mode.md`.
+    Solo-Modi. Am Stammtisch zählt eine Teampartie als gespielt, nie als Sieg,
+    Direktvergleich oder Serienspiel. Doku `docs/developer/team-mode.md`.
   - Tages-Challenge: EIN Versuch pro Name und Tag, begonnen = verbraucht
     (`ChallengeStore.beginAttempt`, atomar per Primärschlüssel in Postgres —
     vor dem Spielstart awaiten), keine Revanche; Bots immer Heuristik-Mittel.

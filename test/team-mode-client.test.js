@@ -139,11 +139,55 @@ test('lobby: "2 gegen 2" is the fourth seat choice, every seat shows its team, t
   assert.deepEqual(errors, []);
 });
 
-test('lobby: a Stammtisch table offers no "2 gegen 2" (its record counts every player alone)', async (t) => {
-  const { doc, feed, msg, errors } = await setup(t, { join: false });
+test('Stammtisch: "2 gegen 2" in its lobby with a note on what it counts for; the team result promises no series game', async (t) => {
+  const { doc, feed, msg, click, sentOf, errors } = await setup(t, { join: false });
   msg({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'ABCD', stammtisch: { code: 'ST1', name: 'Familie' } });
-  feed({ ...BASE, phase: 'lobby', teamMode: false, teams: null, teamTotals: null });
-  assert.ok(doc.getElementById('teamModeBtn').classList.contains('hidden'));
+  const summary = { code: 'ST1', name: 'Familie', gamesPlayed: 4, teamGames: 0, pairwise: {},
+    members: [{ name: 'Flo', wins: 2, games: 4, avg: 610 }, { name: 'Oma Gerda', wins: 1, games: 4, avg: 580 }],
+    series: { no: 2, games: 1, wins: { flo: 1 }, bestOf: 3, needed: 2 } };
+  msg({ type: 'stammtisch', summary, seriesEvent: null, goalEvents: [] });
+  const lobby = { ...BASE, phase: 'lobby', players: PLAYERS.map((p) => ({ ...p, handCount: 0 })) };
+  feed({ ...lobby, teamMode: false, teams: null, teamTotals: null, teamNames: null, targetScore: 1000 });
+  const modeBtn = doc.getElementById('teamModeBtn');
+  assert.ok(!modeBtn.classList.contains('hidden') && !modeBtn.disabled, 'the host may pick it at a Stammtisch too');
+  const panel = doc.getElementById('stammtischSection');
+  assert.ok(!panel.classList.contains('hidden'));
+  assert.equal(panel.querySelector('.stTeamNote'), null, 'no team match yet, no team table: no note');
+  click(modeBtn);
+  assert.deepEqual(sentOf('setTeamMode').pop(), { type: 'setTeamMode', on: true });
+  feed(lobby);
+  const note = panel.querySelector('.stTeamNote');
+  assert.equal(note.textContent, '„2 gegen 2“ zählt für Partien und Wochenziel, nicht für Siege, Serie und Direktvergleich.');
+  assert.ok(note.querySelector('svg use[href="#i-teams"]') && note.querySelector('span'), 'a sprite icon, the text in its own span');
+  assert.match(panel.querySelector('.stSeries').textContent, /Serie 2/, 'the series view stays as it is');
+
+  // Game over: the note replaces the series line, the rematch is no series game.
+  feed({
+    ...BASE, phase: 'gameOver', roundNumber: 2, lastRoundWinnerId: 'p1',
+    totals: { p1: 1145, b1: 980, p2: 900, b2: 900 }, teamTotals: [2045, 1880],
+    scoreHistory: [{ round: 1, totals: { p1: 600, b1: 600, p2: 600, b2: 600 }, teamTotals: [1200, 1200] }, { round: 2, totals: {}, teamTotals: [2045, 1880] }],
+    lastRoundResult: { p1: mk(180, true), b1: mk(225), p2: mk(60), b2: mk(110) },
+    gameOverInfo: { winnerId: null, teamMode: true, teams: TEAMS, winnerTeam: 0, winnerIds: TEAMS[0], teamTotals: [2045, 1880], targetScore: 2000, totalTurns: 236, totalRounds: 2, highlights: [] },
+  });
+  msg({ type: 'stammtisch', summary: { ...summary, gamesPlayed: 5, teamGames: 1 }, seriesEvent: null, goalEvents: [] });
+  const box = doc.querySelector('#resultBody .resultSeries');
+  assert.ok(box.classList.contains('stTeamNote'));
+  assert.match(box.textContent, /zählt für Partien und Wochenziel, nicht für Siege, Serie/);
+  assert.doesNotMatch(box.textContent, /Best of/);
+  assert.equal(doc.getElementById('resultContinueBtn').textContent, 'Neue Partie (Rematch)');
+
+  // A solo match at the same table: the series line and "Revanche (Spiel 2 von 3)" as before.
+  const solo = (st) => ({ ...st, teamMode: false, teams: null, teamTotals: null, teamNames: null, targetScore: 1000 });
+  feed(solo({
+    ...BASE, phase: 'gameOver', roundNumber: 2, lastRoundWinnerId: 'p1', totals: { p1: 1045, b1: 980, p2: 900, b2: 400 },
+    scoreHistory: [{ round: 1, totals: { p1: 600, b1: 600, p2: 600, b2: 300 } }, { round: 2, totals: { p1: 1045, b1: 980, p2: 900, b2: 400 } }],
+    lastRoundResult: { p1: mk(445, true), b1: mk(380), p2: mk(300), b2: mk(100) },
+    gameOverInfo: { winnerId: 'p1', finalTotals: {}, totalTurns: 120, totalRounds: 2, highlights: [] },
+  }));
+  const series = doc.querySelector('#resultBody .resultSeries');
+  assert.ok(!series.classList.contains('stTeamNote'));
+  assert.match(series.textContent, /Serie 2 · Best of 3/);
+  assert.equal(doc.getElementById('resultContinueBtn').textContent, 'Revanche (Spiel 2 von 3)');
   assert.deepEqual(errors, []);
 });
 
