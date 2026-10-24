@@ -86,11 +86,13 @@ source .venv/bin/activate
 
 ### 2.1 PyTorch with CUDA (RTX 5080 / Blackwell)
 
-The RTX 5080 needs a recent CUDA build. Install the matching wheel first, then
-the rest. Check the current recommended CUDA tag on pytorch.org:
+The RTX 5080 (Blackwell) needs a PyTorch build for **CUDA 12.8 or newer**;
+builds for 12.4/12.5 do not see the card. Install the matching wheel first,
+then the rest; the selector on pytorch.org has the current tag:
 
 ```bash
-uv pip install torch --index-url https://download.pytorch.org/whl/cu124
+uv pip uninstall torch torchvision   # an older cu12x build would shadow the new one
+uv pip install torch --index-url https://download.pytorch.org/whl/cu128
 uv pip install -r python/requirements.txt
 ```
 
@@ -373,11 +375,17 @@ Each run must load the candidate (`ONNX-Modell geladen: .../candidates/pikdame-z
 `net ON (v2 model)`. Both print the stronger side's share as mean ± standard
 error over the batches.
 
-**Ship the model only if both are significantly above 50 %** (mean − 2 SE >
-50 %); otherwise keep v1, and team tables stay heuristic. For comparison,
-the shipped v1 model: (a) 77.5 % ± 0.8 ({doc}`bots`), (b) as a v2 model
-(step 3) 82.1 % ± 1.5. A candidate below these is no improvement, even if
-it passes.
+**Ship the model only if it reaches the shipped v1 model in both runs**,
+mean − 2 SE at or above v1's mean:
+
+| Run | v1 reference | Ship if mean − 2 SE ≥ |
+| --- | --- | --- |
+| (a) normal tables, Zen vs Schwer | 77.5 % ± 0.8 ({doc}`bots`) | 77.5 % |
+| (b) "2 gegen 2", Zen team vs Schwer team | 82.1 % ± 1.5 (v1 padded to v2, step 3) | 82.1 % |
+
+"Significantly above 50 %" is not enough: the v1 net already clears it by
+far, so a candidate passing only that bar can be weaker than what ships.
+Otherwise keep v1, and team tables stay heuristic.
 
 ### 7. Ship it
 
