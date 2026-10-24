@@ -6637,7 +6637,7 @@
     },
     turn: {
       name: () => L('Bester Zug', 'Best turn'),
-      question: () => L('Lege jede Auslage einzeln aus (erst Karten wählen, dann „Auslegen“), so viele Punkte wie möglich. Eine Karte bleibt zum Abwerfen.', 'Lay each meld separately (pick its cards, then "Meld"), as many points as you can. One card stays for the discard.'),
+      question: () => L('Lege jede Auslage einzeln aus (erst Karten wählen, dann „Auslegen“), so viele Punkte wie möglich. Mindestens eine Karte bleibt zum Abwerfen.', 'Lay each meld separately (pick its cards, then "Meld"), as many points as you can. At least one card stays for the discard.'),
     },
     out: {
       name: () => L('Ausmachen', 'Go out'),
@@ -6739,7 +6739,7 @@
   function puzzleTargetText() {
     const kind = puzzleKind();
     if (kind === 'out') return L('Ziel: alle Karten bis auf eine auslegen', 'Target: lay out every card but one');
-    if (kind === 'turn') return L(`Ziel: ${puzzleData.targetPoints} Punkte in einem Zug`, `Target: ${puzzleData.targetPoints} points in one turn`);
+    if (kind === 'turn') return L(`Ziel: ${puzzleData.targetPoints} Punkte auslegen, bevor du abwirfst`, `Target: lay out ${puzzleData.targetPoints} points before you discard`);
     return L(`Ziel: ${puzzleData.targetPoints} Punkte in einer Auslage`, `Target: ${puzzleData.targetPoints} points in one meld`);
   }
   function renderPuzzle() {

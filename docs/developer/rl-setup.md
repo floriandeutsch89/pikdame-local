@@ -25,9 +25,12 @@ The agent learns **two decisions per turn**:
    discard pile (offered only when taking it is rule-legal).
 2. **Discard** — which card to throw (52 card types, jokers never discarded).
 
-The observation vector (377 values) and action space (54 actions) come from
+The observation vector and action space (54 actions) come from
 `game/StateEncoder.js` — the **same** file feeds training and runtime, so both
-encode identically. Laying off / melding still uses the existing heuristic.
+encode identically. Two observation versions exist: **v1** (377 values, the
+shipped Zen model, normal tables) and **v2** (385 values: v1 unchanged plus 8
+"2 gegen 2" team features), see {ref}`training-v2`. Laying off / melding still
+uses the existing heuristic.
 
 ---
 
@@ -123,7 +126,8 @@ printf '%s\n' \
 ```
 
 Expected: a `meta` line with `obs_size` (377) and `action_size` (54), then
-JSON objects with `obs` / `mask` / `reward` / `done` / `phase`.
+JSON objects with `obs` / `mask` / `seat` / `reward` / `done` / `phase`.
+`{"cmd":"meta","obsVersion":2}` switches the bridge to v2 (385).
 
 Python-side smoke test:
 
@@ -187,6 +191,228 @@ rather than training a deliberately weak net.
 Tip: several env processes in parallel speed up experience collection
 (SB3 `SubprocVecEnv`); each env spawns its own `node` process.
 
+(training-v2)=
+## 4a. Training v2 (normal + "2 gegen 2")
+
+Goal: **one** Zen network for normal tables and "2 gegen 2" ({doc}`team-mode`).
+The shipped v1 model never plays a team table: there Zen falls back to its
+heuristic. A v2 model reads the team features and plays both.
+
+### What v2 changes
+
+| | v1 (shipped) | v2 |
+| --- | --- | --- |
+| Observation | 377 values | 385: the 377 of v1 **unchanged**, then 8 team features |
+| Tables per episode | 4 players | 50 % team tables (4 seats, partner on seat 2), 50 % normal tables of 2, 3 or 4 players |
+| Seats | pool `zen,medium,easy` | pool `self,self,zen,zen,medium,easy`; `self` = a frozen snapshot of this run |
+| Reward at a team table | — | per round (own team − other team) / 200, at the end +1 / −1 for the team |
+| Output | `models/pikdame-zen.onnx` | `models/candidates/` (gitignored), never over the shipped model |
+
+The 8 team features (`StateEncoder.teamFeatures`, all 0 at a normal table):
+team mode flag; partner flag per opponent slot (3, the same order as the v1
+opponent blocks); own team total / 2000 and other team total / 2000 (clipped
+to −1..1); partner's hand size / 15; smallest hand of the other team / 15.
+
+**Runtime:** `game/OnnxPolicy.js` reads the model's input size (377 = v1,
+385 = v2) and encodes accordingly. Only a v2 model plays team tables; with a
+v1 model they stay heuristic, and anything else falls back to the heuristic
+everywhere. Normal tables behave the same for both.
+
+**Warm start:** the new input columns start at **zero**, so before the first
+update the v2 net plays exactly like the v1 net (`train.py` checks it and
+prints the largest logit difference). From the SB3 `.zip` both actor and
+critic carry over; from an `.onnx` only the actor does (the export holds no
+value net), the critic starts fresh. Either way the first rollout trains the
+critic alone (`--critic-warmup`, default one rollout), so the copied actor
+does not follow a critic that cannot yet predict team rewards.
+
+**Self-play:** every rollout the policy is exported to
+`models/candidates/selfplay-zen/`; a `self` seat plays one of these
+snapshots (greedy, like the bot at runtime): the run's first snapshot stays as
+an anchor, plus the newest 4 (`--selfplay-keep`). Without a snapshot a `self`
+seat plays heuristic Zen. Memory per env worker: about 10 MB for onnxruntime
+plus 1 MB per snapshot (measured), so roughly 3 GB for 200 workers.
+
+### 1. Environment (once)
+
+The venv from section 2 works. `onnxruntime` (Python) is now needed for
+training too (self-play seats, export check):
+
+```bash
+cd /path/to/pikdame-local
+git pull
+source .venv/bin/activate
+uv pip install -r python/requirements.txt
+python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+```
+
+An RTX 50xx (Blackwell) needs a PyTorch build for CUDA 12.8 or newer; if
+`torch.cuda.is_available()` says `False` or kernels are missing, reinstall
+torch from the matching `--index-url` on pytorch.org.
+
+For the acceptance runs (step 6) Node needs the runtime the image pins,
+installed **outside** the repository:
+
+```bash
+ORT=$(grep -oE 'onnxruntime-node@[0-9.]+' docker/Dockerfile | head -1)
+npm install --prefix ~/pikdame-ort --no-save --ignore-scripts "$ORT"
+export NODE_PATH=~/pikdame-ort/node_modules
+```
+
+### 2. Check the bridge (seconds)
+
+```bash
+printf '%s\n' '{"cmd":"meta","obsVersion":2}' \
+  '{"cmd":"reset","opponentDifficulties":["hard","zen","hard"],"teamMode":true,"seed":7}' \
+  '{"cmd":"close"}' | node scripts/rl-env-server.js \
+  | sed -E 's/"obs":\[[^]]*\]/"obs":[...]/; s/"mask":\[[^]]*\]/"mask":[...]/'
+```
+
+Expected: `{"obs_size":385,"action_size":54,"obs_version":2}`, then
+`{"obs":[...],"mask":[...],"seat":0,...}`. From Python:
+
+```bash
+cd python
+python - <<'PY'
+from pikdame_env import PikDameEnv
+env = PikDameEnv(obs_version=2, team_ratio=1.0, opponent_pool=["zen", "hard"], seed=1)
+obs, info = env.reset()
+print(obs.shape, obs[377:], info)   # (385,) [1. 0. 1. 0. ...] {'team': True, 'players': 4}
+env.close()
+PY
+```
+
+### 3. Optional: the v1 net as a v2 model (one minute)
+
+`--steps 0` only warm-starts and exports. The result plays exactly like the
+shipped v1 net, but the runtime lets it play team tables too - the baseline a
+trained v2 model has to beat:
+
+```bash
+cd python
+python train.py --tier zen --obs-version 2 --init-from ../models/pikdame-zen.onnx \
+  --steps 0 --n-envs 8 --out-dir ../models/candidates/v1-as-v2
+```
+
+Measured on 2026-10-24 with the shipped model: a Zen team of this model won
+**82.1 % ± 1.5** of its matches against a Schwer team (10 batches × 100). The
+v1 net is already far stronger than the heuristic at a team table; v2
+training is about the team-specific part. To reproduce it (from the
+repository root, `NODE_PATH` from step 1):
+
+```bash
+PIKDAME_MODELS_DIR=models/candidates/v1-as-v2 node scripts/sim-bots.js --team-ladder hard,zen --batches 10 --games 100
+```
+
+### 4. Train
+
+From your v1 checkpoint (`models/pikdame-zen.zip`, kept locally since the
+v1 run):
+
+```bash
+cd python
+python train.py --tier zen --obs-version 2 --init-from ../models/pikdame-zen.zip \
+  --steps 10000000 --lr 1e-4 --n-envs 200
+```
+
+Without the `.zip`: `--init-from ../models/pikdame-zen.onnx` (actor only, see
+above). More steps later: the same command without `--init-from` resumes from
+`models/candidates/pikdame-zen.zip`. Defaults you can change: `--team-ratio
+0.5`, `--normal-seats 2,3,4` (repeat a size to weight it), `--pool
+self,self,zen,zen,medium,easy`, `--partner-pool` (the team partner's seat,
+default: the pool), `--selfplay-every` (default one rollout),
+`--critic-warmup` (default one rollout). `--lr 1e-4`: fine-tuning a strong
+policy; watch `train/approx_kl` ({doc}`rl-training`).
+
+What to watch besides the usual metrics: `tables/team_win_rate` (par 50 %)
+and `tables/normal2_win_rate` ... `normal4_win_rate` (par 1/2, 1/3, 1/4), per
+rollout. The first rollout shows the warm-start level. `self` seats grow with
+the policy, so flat win rates against them are not a stall; step 6 judges
+against a fixed opponent.
+
+**Runtime: unknown on the RTX box** - experience collection is CPU-bound
+(every env is a Node process plus a Python worker; the GPU only runs the
+updates). Measured here: one env process ~550–780 decisions/s on one core
+(random actions); a 4-env CPU smoke run ~270 steps/s on 4 cores including
+the PPO updates. Read the `fps` column after the first rollouts: hours =
+steps / fps / 3600. As a rough expectation 10 M steps take one to a few hours
+on a 16–24-core desktop.
+
+Output: `models/candidates/pikdame-zen.zip` (resume) and
+`models/candidates/pikdame-zen.onnx`. The export is checked right away:
+
+```text
+  verified pikdame-zen.onnx: input ['batch', 385], output [batch, 54], max |logit diff| vs torch 6.7e-06 over 512 observations
+```
+
+### 5. Quick look in Python (minutes)
+
+```bash
+python eval_onnx.py --model ../models/candidates/pikdame-zen.onnx --episodes 40          # 4 players vs zen,zen,medium
+python eval_onnx.py --model ../models/candidates/pikdame-zen.onnx --team --episodes 40   # model + its copy vs 2 x hard
+```
+
+A sanity check only (few games, the training env); the decision is step 6.
+
+### 6. Acceptance: does it ship?
+
+The production path (`scripts/sim-bots.js`, `OnnxPolicy` in Node), from the
+repository root with `NODE_PATH` from step 1:
+
+```bash
+cd /path/to/pikdame-local
+export NODE_PATH=~/pikdame-ort/node_modules
+# a) normal tables: Zen (new net) against Schwer, two seats each, paired
+PIKDAME_MODELS_DIR=models/candidates node scripts/sim-bots.js --ladder hard,zen --batches 10 --games 300
+# b) "2 gegen 2": a Zen team (both seats the new net) against a Schwer team
+PIKDAME_MODELS_DIR=models/candidates node scripts/sim-bots.js --team-ladder hard,zen --batches 10 --games 300
+```
+
+Each run must load the candidate (`ONNX-Modell geladen: .../candidates/pikdame-zen.onnx
+(Schwierigkeit "zen", Kodierung v2, ...)`), the team ladder must say
+`net ON (v2 model)`. Both print the stronger side's share as mean ± standard
+error over the batches.
+
+**Ship the model only if both are significantly above 50 %** (mean − 2 SE >
+50 %); otherwise keep v1, and team tables stay heuristic. For comparison,
+the shipped v1 model: (a) 77.5 % ± 0.8 ({doc}`bots`), (b) as a v2 model
+(step 3) 82.1 % ± 1.5. A candidate below these is no improvement, even if
+it passes.
+
+### 7. Ship it
+
+```bash
+cp models/candidates/pikdame-zen.onnx models/pikdame-zen.onnx
+```
+
+Then a PR with the model, a changelog fragment (a model change is a game
+change, `changes/README.md`) and the measured numbers in {doc}`bots` and
+{doc}`team-mode`. To try it on a server first without a new image, mount the
+file and point `PIKDAME_MODELS_DIR` at it ({doc}`../admin/onnx`).
+
+### 8. Verify in the container
+
+```bash
+docker compose logs pikdame | grep -E "ONNX-Bots|ONNX-Modell"
+```
+
+```text
+ONNX-Modell geladen: /app/models/pikdame-zen.onnx (Schwierigkeit "zen", Kodierung v2, spielt auch „2 gegen 2“)
+```
+
+`Kodierung v1` means the old model: team tables stay heuristic. `passt zu
+keiner Kodierung` means the input size fits no encoder version: Zen plays
+the heuristic everywhere.
+
+### Human team games later (not built)
+
+The move log keeps `obs` at v1; rows from team tables add `obsTeam`, the 8
+team features of the same decision. `obs + obsTeam` is the v2 observation; a
+normal row's v2 observation is `obs` plus 8 zeros (the contract). Team rows
+logged before this version have no `obsTeam`: skip them. A v2 behavioral
+clone would build its arrays that way in `human_dataset.py`; until then
+`train.py` refuses `--human-data` with `--obs-version 2`.
+
 ---
 
 ## 5. Evaluate a model
@@ -242,6 +468,10 @@ Runtime inference:
 **Encoder parity — important:** `game/StateEncoder.js` is the single place that
 encodes game state for the network. Never change it one-sidedly; any change
 alters the model input and makes existing `.onnx` files incompatible (retrain).
+The sizes are a contract: v1 = 377, v2 = 385, 54 actions, pinned by
+`test/state-encoder.test.js` (including a frozen v1 encoding) and checked by
+`scripts/rl-env-server.js` on start. A new feature means a new version,
+never a change to an old one.
 
 ---
 
@@ -302,11 +532,12 @@ Evaluate specifically against the zen baseline:
 python eval_onnx.py --tier zen --opponents zen,zen,medium --episodes 40
 ```
 
-**Next step - a self-play league.** Once a tier beats the zen baseline, add its
-own past checkpoints as opponents (a league), keeping the zen heuristic in the
-pool as a fixed anchor so the league cannot drift into degenerate strategies.
-This needs the env to run a learned policy for opponent seats (load an ONNX per
-opponent) - a natural extension of the current heuristic-opponent env.
+**Self-play.** A `self` entry in the pool seats a frozen ONNX snapshot of the
+running policy: the bridge pauses on that seat like on the agent's, Python
+answers it (`PikDameEnv(selfplay_dir=...)`). `train.py` writes a snapshot
+every rollout and keeps the run's first one as an anchor next to the zen
+heuristic in the pool, so the league cannot drift into degenerate strategies
+(section 4a; the v2 default pool is `self,self,zen,zen,medium,easy`).
 
 ## 9. Learning from human games (imitation learning)
 
@@ -397,7 +628,8 @@ Top-level fields:
 | `move`          | object | **deserialized action** (human-readable), see below |
 | `state`         | object | **raw decision context** from the player's POV, see below |
 | `action`        | int    | the action index in the 54-slot space (training label) |
-| `obs`           | number[] | the encoded network input (`StateEncoder`, `OBS_SIZE` floats) |
+| `obs`           | number[] | the encoded network input (`StateEncoder` v1, `OBS_SIZE` = 377 floats) |
+| `obsTeam`       | number[] | team tables only: the 8 v2 team features; `obs + obsTeam` is the v2 input |
 | `mask`          | int[]  | legal-action mask (1 = legal) over the 54-slot space |
 | `won`           | bool   | did this player win the game (top final total) |
 | `rank`          | int    | final placement (1 = winner) |
@@ -449,8 +681,9 @@ margin `finalTotal - winnerTotal`, `phase`, etc.) or re-encode from `state`.
   larger, structured action space (which cards, which combination, which
   lay-offs) - a big complexity increase for likely small gains. Worth revisiting
   only if human data (below) shows humans melding very differently.
-- **Self-play:** train against previous model versions (a league) instead of
-  the heuristic for stronger endgame models.
+- **A wider league:** `self` seats play this run's snapshots; older runs'
+  models (`PikDameEnv(selfplay_models=[...])`, v1 files are read through the
+  v1 prefix of a v2 observation) are not in the default pool yet.
 - **Reward shaping:** the reward is a sparse round margin; intermediate signals
   (e.g. melded card value) can speed up learning.
 

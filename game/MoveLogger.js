@@ -18,8 +18,9 @@
  *   2. `move` - the deserialized action (e.g. {type:'discard', card:'QS'} or
  *      {type:'takeDiscard'} / {type:'drawPile'}), human-readable.
  *   3. `obs` + `action` + `mask` - the encoded network input (StateEncoder,
- *      OBS_SIZE floats), the action index (ACTION_SIZE space) and the legal
+ *      OBS_SIZE floats, v1), the action index (ACTION_SIZE space) and the legal
  *      mask, so training runs directly without re-implementing the encoder.
+ *      Team rows add `obsTeam`, the v2 team block (obs + obsTeam = v2 input).
  * Plus the game outcome (won/rank/totals) for winner-filtering and weighting.
  *
  * Privacy: only anonymous gameplay data is written - the cards and game state of
@@ -131,6 +132,8 @@ function record(game, playerId, phase, action, card) {
       state: povState(game, playerId),
       action,
       obs: Array.from(obs),
+      // "2 gegen 2": the encoder-v2 team block, so obs + obsTeam is the v2 input (normal rows: 8 zeros).
+      ...(game.teamMode ? { obsTeam: SE.teamFeatures(game, playerId) } : {}),
       mask,
     });
   } catch (e) {
@@ -186,6 +189,7 @@ function flush(game, outcome = 'completed') {
         // encoded network view (for direct training), minified
         action: m.action,
         obs: m.obs.map(round4),
+        ...(m.obsTeam ? { obsTeam: m.obsTeam.map(round4) } : {}),
         mask: m.mask.map((b) => (b ? 1 : 0)),
         // outcome
         outcome,
