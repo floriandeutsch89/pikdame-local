@@ -25,6 +25,7 @@
 // challenge (intro, attempt used),
 // gamelobby (seats + house rules), botdiff (the strength picker), gameover-challenge,
 // settings / settings-aids / settings-music (the start screen's "Optionen" sheet: top / play aids / music),
+// settings-celebration (its "Siegesjubel" preview playing; --celebration <id> picks it),
 // game-settings (the gear at a live engine table: the sheet on top, then scrolled to its end),
 // game-settings-debug (that sheet with the debug view on), home (the home dialog at the table, then
 // its forfeit button armed by a first tap),
@@ -72,6 +73,9 @@
 // Start-screen scenes may follow table or result scenes in any order: the page
 // is reloaded to the start screen first.
 // --name <name>: the mock player's name (default Flo). --scale <n>: device pixel ratio (default 2).
+// --celebration <id>: my seat and profile carry that victory celebration (gameover-win plays it,
+// settings-celebration previews it), its rain seeded: before and after shots show the same pieces.
+// --freeze <ms> (with --celebration): the band's animations held at that moment.
 // --safe-area: the installed web app's iPhone insets (status bar and home indicator zones).
 'use strict';
 // The tower scenes play engine games with a human seat: those are no human moves for training.
@@ -114,6 +118,8 @@ const STILL = process.argv.includes('--reduced-motion'); // prefers-reduced-moti
 const DECEMBER = process.argv.includes('--december');
 const MEASURE = process.argv.includes('--measure');
 const TOWER_MOCK = arg('tower', 'mid');
+const CELEBRATION = arg('celebration', '');
+const celebrating = CELEBRATION ? { celebration: CELEBRATION } : {};
 const TAP_MIN = 44; // CLAUDE.md --tap-min
 // --light: the table light follows the Berlin clock (public/table-light.js). Pinned to
 // noon by default, so table shots compare across the day; morning|evening|night|HH:MM|now.
@@ -146,7 +152,7 @@ const PROFILES = [
     daily: { streak: 6, best: 11, last: '2000-01-01', graceAt: null },
     badges: { first_win: NOW - 9e8, pd_laid: NOW - 5e8, marathon_10: NOW - 2e8 }, favoriteBadges: ['games', 'wins'],
     puzzles: { [TODAY]: { tries: 1, solved: false } },
-    towerStars: 17, towerCleared: 8 },
+    towerStars: 17, towerCleared: 8, ...celebrating },
   { name: 'Oma Gerda', gamesPlayed: 120, gamesWon: 61, totalScore: 99000, bestGameScore: 1610, xp: 18000, badges: { first_win: 1 } },
   { name: 'Klaus', gamesPlayed: 15, gamesWon: 3, totalScore: 8000, bestGameScore: 1040, xp: 1200, badges: {} },
 ];
@@ -212,7 +218,7 @@ const HISTORY = [
 ];
 const mk = (s, win) => ({ roundScore: s, breakdown: { isWinner: !!win, multiplier: 1 } });
 const PLAYERS = [
-  { id: 'p1', name: ME, isBot: false, connected: true, handCount: 9, hand: [] },
+  { id: 'p1', name: ME, isBot: false, connected: true, handCount: 9, hand: [], ...celebrating },
   { id: 'b1', name: 'Klaus', isBot: true, connected: true, handCount: 0, botDifficulty: 'zen' },
   { id: 'b2', name: 'Horst', isBot: true, connected: true, handCount: 4, botDifficulty: 'zen' },
   { id: 'b3', name: 'Maria', isBot: true, connected: true, handCount: 6, botDifficulty: 'zen' },
@@ -257,7 +263,7 @@ const GAME_OVER_WIN = { ...GAME_OVER, totals: { p1: 1045, b1: 880, b2: 610, b3: 
 // (team A, seats 0+2) against the bots Klaus and Horst (team B, seats 1+3).
 const TEAMS = [['p1', 'p2'], ['b1', 'b2']];
 const TEAM_PLAYERS = [
-  { id: 'p1', name: ME, isBot: false, connected: true, handCount: 9, hand: [] },
+  { id: 'p1', name: ME, isBot: false, connected: true, handCount: 9, hand: [], ...celebrating },
   { id: 'b1', name: 'Klaus', isBot: true, connected: true, handCount: 0, botDifficulty: 'medium' },
   { id: 'p2', name: 'Oma Gerda', isBot: false, connected: true, handCount: 4 },
   { id: 'b2', name: 'Horst', isBot: true, connected: true, handCount: 6, botDifficulty: 'medium' },
@@ -718,6 +724,31 @@ function waitForHttp(port, ms = 20000) {
         if (MEASURE) measures[`${vn}-${name}`] = await page.evaluate(measurePage);
       };
       const inject = (obj) => sock.send(JSON.stringify(obj));
+      // --celebration: a seeded Math.random (mulberry32) right before the band is drawn: the same rain every run.
+      const seedRandom = () => CELEBRATION && page.evaluate(() => {
+        let s = 20261025;
+        Math.random = () => {
+          s = (s + 0x6D2B79F5) >>> 0;
+          let t = Math.imul(s ^ (s >>> 15), s | 1);
+          t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      });
+      // --celebration: the shot with the band kept - its timer removes the still one after 2.4 s, and a 2x
+      // desktop shot took 1.6 s to capture (it came out empty). --freeze <ms> stops its animations there.
+      const bandShot = async (name) => {
+        if (!CELEBRATION) { await shot(name); return; }
+        await page.evaluate((ms) => document.querySelectorAll('.celebrationBand').forEach((b) => {
+          b.remove = () => {};
+          if (ms !== null) b.getAnimations({ subtree: true }).forEach((a) => { a.pause(); a.currentTime = ms; });
+        }), arg('freeze', '') ? Number(arg('freeze', 0)) : null);
+        await page.waitForTimeout(80);
+        await shot(name);
+        // Then gone, as its timer would have it: no band left over for the next scene.
+        await page.evaluate(() => document.querySelectorAll('.celebrationBand').forEach((b) => {
+          b.parentElement.classList.remove('celebrating'); delete b.remove; b.remove();
+        }));
+      };
       const toTable = async (st) => {
         inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
         inject({ type: 'state', state: st });
@@ -732,7 +763,7 @@ function waitForHttp(port, ms = 20000) {
         await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(1200);
       };
-      const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|tower-detail|tower-rules|tower-motion|tower-film|tower-skip|stats|stats-badges|stats-empty|history|history-team|settings|settings-aids|settings-music|sheet-reopen|cardback|music-hint|challenge|challenge-open|stammtisch|account|account-mail|puzzle.*|year.*)$/;
+      const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|tower-detail|tower-rules|tower-motion|tower-film|tower-skip|stats|stats-badges|stats-empty|history|history-team|settings|settings-aids|settings-music|settings-celebration|sheet-reopen|cardback|music-hint|challenge|challenge-open|stammtisch|account|account-mail|puzzle.*|year.*)$/;
       for (const sc of scenes) {
         if (LOBBY_SCENES.test(sc)) await toStart();
         if (sc === 'lobby') { await page.waitForTimeout(Number(arg('settle', 0))); await shot('lobby'); }
@@ -979,6 +1010,15 @@ function waitForHttp(port, ms = 20000) {
           await shot(sc);
           await page.click('#settingsOverlayCloseBtn');
         }
+        if (sc === 'settings-celebration') {
+          // "Siegesjubel": the preview of my celebration (--celebration <id>) as it plays; --freeze holds a frame.
+          await page.click('#settingsBtnLobby'); await page.waitForTimeout(400);
+          await seedRandom();
+          await page.click('#celebrationPreviewBtn'); await page.waitForTimeout(arg('freeze', '') ? 300 : 1200);
+          await page.evaluate(() => document.getElementById('celebrationItem').scrollIntoView({ block: 'center' }));
+          await bandShot(sc);
+          await page.click('#settingsOverlayCloseBtn');
+        }
         if (sc === 'music-hint') {
           // The first gesture on a fresh start screen: music starts, the hint shows once.
           await page.click('#lobby h1'); await page.waitForTimeout(1800);
@@ -1200,6 +1240,7 @@ function waitForHttp(port, ms = 20000) {
           const over = { 'gameover-win': GAME_OVER_WIN, 'gameover-team': TEAM_GAME_OVER, 'gameover-team-win': TEAM_GAME_OVER_WIN,
             'gameover-team-rivals': TEAM_GAME_OVER_RIVALS, 'gameover-team-stammtisch': TEAM_GAME_OVER_WIN }[sc] || GAME_OVER;
           const roundEnd = sc === 'roundend-team' ? TEAM_ROUND_END : ROUND_END;
+          await seedRandom();
           inject({ type: 'state', state: sc.startsWith('gameover') ? { ...over, challengeDate: challenge ? TODAY : null } : roundEnd });
           if (atStammtisch) inject({ type: 'stammtisch', summary: { code: 'STMOCK1', ...STAMMTISCH }, seriesEvent: null, goalEvents: [] });
           if (challenge) {
@@ -1227,7 +1268,7 @@ function waitForHttp(port, ms = 20000) {
             await page.evaluate(() => { const b = document.querySelector('.resultSeries'); if (b) b.scrollIntoView({ block: 'center' }); });
             await page.waitForTimeout(200);
           }
-          await shot(sc);
+          await bandShot(sc);
         }
       }
       await ctx.close();
