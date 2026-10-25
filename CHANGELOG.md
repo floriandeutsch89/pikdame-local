@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.122.1] - 2026-10-25
+
+### Fixed
+- Legt ein Bot die Pik Dame aus, dreht sie jetzt jedes Mal den Kopf – bei Zen-Bots und schnellem Bot-Tempo brach die Animation bisher sofort wieder ab
+
 ## [2.122.0] - 2026-10-24
 
 ### Added
