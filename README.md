@@ -4,16 +4,14 @@
 [![Release](https://github.com/floriandeutsch89/pikdame-local/actions/workflows/release.yml/badge.svg)](https://github.com/floriandeutsch89/pikdame-local/actions/workflows/release.yml)
 [![Docs](https://app.readthedocs.org/projects/pik-dame/badge/?version=latest)](https://pik-dame.readthedocs.io/en/latest/)
 [![Latest release](https://img.shields.io/github/v/release/floriandeutsch89/pikdame-local?label=release&color=2fd6b0)](https://github.com/floriandeutsch89/pikdame-local/releases)
-[![License: MIT](https://img.shields.io/github/license/floriandeutsch89/pikdame-local)](LICENSE)
-![Node ≥ 22](https://img.shields.io/badge/node-%E2%89%A5%2022-339933?logo=node.js&logoColor=white)
-![No build step](https://img.shields.io/badge/build%20step-none-blue)
+[![License: MIT + brand exception](https://img.shields.io/badge/license-MIT%20%2B%20brand%20exception-blue)](LICENSE)
+![Node ≥ 24](https://img.shields.io/badge/node-%E2%89%A5%2024-339933?logo=node.js&logoColor=white)
 ![Image](https://img.shields.io/badge/image-amd64%20%7C%20arm64-555?logo=docker&logoColor=white)
 
 [![Pik Dame on three iPhones (German UI): the start screen, the monthly Kartenhaus challenge as a house of cards, and a game in progress against three bots](docs/img/readme-hero.png)](docs/img/readme-hero.png)
 
 Multiplayer card game (family rummy variant) for 2–4 players — empty seats
-are filled by bots with four difficulty levels. Runs in **two operating
-modes** from the same codebase:
+are filled by bots with four difficulty levels.
 
 **▶ Live demo: [play.pikdame.online](https://play.pikdame.online)** — try it in
 your browser (no install needed).
