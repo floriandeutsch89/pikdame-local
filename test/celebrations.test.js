@@ -446,31 +446,91 @@ test('cleanup: the band is gone after a few seconds; reduced motion gets a still
   assert.match(css, /\.celebrationBand\.still \*, \.still \.fxQueen::after \{ animation: none; \}/);
 });
 
+/** The dialog paper of every theme: the result sheet and the settings preview are light in all of them. */
+function themePapers() {
+  const css = fs.readFileSync(path.join(pub, 'style.css'), 'utf8');
+  const papers = [...css.matchAll(/\[data-theme="([a-z]+)"\] \{[^}]*?--card-bg: (#[0-9a-f]{6});/g)].map((m) => [m[1], m[2]]);
+  assert.equal(papers.length, 6, 'the dialog paper of every theme');
+  return papers;
+}
+
+/** WCAG contrast of an rgba() ink, blended like a browser does, against the hex colour under it. */
+function inkContrast(ink, under) {
+  const lum = (c) => c.map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+    .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
+  const [r, g, b, a] = /^rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)$/.exec(ink).slice(1).map(Number);
+  const bg = [1, 3, 5].map((i) => parseInt(under.slice(i, i + 2), 16) / 255);
+  const [hi, lo] = [lum(bg), lum([r, g, b].map((v, i) => (v / 255) * a + bg[i] * (1 - a)))].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
 // The sheet is light paper in every theme and the cream fur is ~1.1:1 on it: its bare ears vanished.
 test('cats: one outline draws each fur, ears included, at 3:1 on every theme\'s paper', async (t) => {
   const app = await atTable('p1', roundEnd({ winner: 'p2', celebrations: { p2: 'cats' } }));
   t.after(() => app.window.close());
-  const css = fs.readFileSync(path.join(pub, 'style.css'), 'utf8');
-  const papers = [...css.matchAll(/\[data-theme="([a-z]+)"\] \{[^}]*?--card-bg: (#[0-9a-f]{6});/g)].map((m) => [m[1], m[2]]);
-  assert.equal(papers.length, 6, 'the dialog paper of every theme');
-  const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
-  const lum = (c) => c.map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
-    .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
+  const papers = themePapers();
   const furs = new Set();
   for (const svg of app.bands()[0].querySelectorAll('.fxCat svg')) {
-    const outlined = [...svg.querySelectorAll('[stroke]')];
-    assert.equal(outlined.length, 1, 'one outline per cat');
+    const outlined = [...svg.querySelectorAll('[stroke]:not([fill="none"])')];
+    assert.equal(outlined.length, 1, 'one outlined shape per cat');
     const [shape] = outlined;
     const fur = shape.getAttribute('fill');
     furs.add(fur);
     assert.deepEqual([...svg.querySelectorAll(`[fill="${fur}"]`)], [shape], 'no fur outside the outlined shape');
     assert.equal(shape.getAttribute('paint-order'), 'stroke', 'under the fill: no seam where ears meet the head');
-    const alpha = Number(/^rgba\(0,\s*0,\s*0,\s*([\d.]+)\)$/.exec(shape.getAttribute('stroke'))[1]);
     for (const [theme, paper] of papers) {
-      const bg = rgb(paper);
-      const ratio = (lum(bg) + 0.05) / (lum(bg.map((v) => v * (1 - alpha))) + 0.05);
+      const ratio = inkContrast(shape.getAttribute('stroke'), paper);
       assert.ok(ratio >= 3, `${theme}: the cat outline reaches only ${ratio.toFixed(2)}:1 on the paper`);
     }
+  }
+  assert.equal(furs.size, 4, 'all four furs');
+  assert.deepEqual(app.errors, [], `Client-Fehler: ${app.errors.join(' | ')}`);
+});
+
+// Whiskers cross from the fur onto the paper: dark ink vanishes on the dark fur, so there they turn light.
+test('cats: every fur has whiskers past the outline, at 3:1 on the fur and on every theme\'s paper', async (t) => {
+  const app = await atTable('p1', roundEnd({ winner: 'p2', celebrations: { p2: 'cats' } }));
+  t.after(() => app.window.close());
+  const papers = themePapers();
+  // One quadratic curve per whisker: [x0, y0, cx, cy, x1, y1].
+  const strands = (el) => el.getAttribute('d').split('M').filter(Boolean).map((s) => s.match(/-?\d*\.?\d+/g).map(Number));
+  const furs = new Set();
+  for (const svg of app.bands()[0].querySelectorAll('.fxCat svg')) {
+    const parts = [...svg.children];
+    const head = svg.querySelector('[paint-order]');
+    const fur = head.getAttribute('fill');
+    furs.add(fur);
+    const [rx, ry] = /a([\d.]+) ([\d.]+)/.exec(head.getAttribute('d')).slice(1).map(Number);
+    const outside = (x, y, grow) => (x / (rx + grow)) ** 2 + (y / (ry + grow)) ** 2 > 1;
+    const whiskers = [...svg.querySelectorAll('path[fill="none"]')];
+    assert.equal(whiskers.length, 2, `${fur}: the whiskers, and their part on the fur`);
+    const [onPaper, onFur] = whiskers;
+    assert.ok(parts.indexOf(onPaper) < parts.indexOf(head), 'under the head: only the part on the paper shows');
+    assert.equal(parts.indexOf(onFur), parts.length - 1, 'the part on the fur is drawn over the face');
+    for (const w of whiskers) {
+      assert.equal(w.getAttribute('stroke-linecap'), 'round');
+      assert.ok(Number(w.getAttribute('stroke-width')) < Number(head.getAttribute('stroke-width')) / 2, 'finer than the outline');
+    }
+    const cap = Number(onPaper.getAttribute('stroke-width')) / 2;
+    const [minX, , width] = svg.getAttribute('viewBox').split(' ').map(Number);
+    const full = strands(onPaper);
+    assert.ok(full.filter((s) => s[4] < 0).length >= 2 && full.filter((s) => s[4] > 0).length >= 2, 'two or three a side');
+    for (const s of full) {
+      assert.equal(s.length, 6, 'one curve per whisker');
+      const [x0, y0, , , x1, y1] = s;
+      assert.ok(!outside(x0, y0, 0), 'starts on the face');
+      assert.ok(outside(x1, y1, 1 + cap), 'reaches past the outline onto the paper');
+      assert.ok(x1 - cap >= minX && x1 + cap <= minX + width, 'inside the viewBox: never clipped');
+    }
+    const onFace = strands(onFur);
+    assert.deepEqual(onFace.map((s) => s.slice(0, 2)), full.map((s) => s.slice(0, 2)), 'the same whiskers');
+    for (const [, , , , x1, y1] of onFace) assert.ok(!outside(x1, y1, -cap), 'its round end stays on the fur');
+    for (const [theme, paper] of papers) {
+      const ratio = inkContrast(onPaper.getAttribute('stroke'), paper);
+      assert.ok(ratio >= 3, `${theme}: the whiskers reach only ${ratio.toFixed(2)}:1 on the paper`);
+    }
+    const ratio = inkContrast(onFur.getAttribute('stroke'), fur);
+    assert.ok(ratio >= 3, `${fur}: the whiskers reach only ${ratio.toFixed(2)}:1 on the fur`);
   }
   assert.equal(furs.size, 4, 'all four furs');
   assert.deepEqual(app.errors, [], `Client-Fehler: ${app.errors.join(' | ')}`);

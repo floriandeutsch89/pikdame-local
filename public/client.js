@@ -3609,6 +3609,12 @@
   const CELEBRATION_MS = 3400;
   const FX_COLORS = ['#2fd6b0', '#8f90f8', '#ff9f5a', '#ff7d8c', '#f5d76e'];
   const CAT_FURS = ['#e8913a', '#9aa0a6', '#3a3a3a', '#f3ece2'];
+  // Whiskers drawn under the head show only on the paper; their part on the fur (same curves, the round
+  // cap ending at the head's edge) goes on top: dark ink, or light on the dark fur, where dark ink vanishes.
+  const CAT_WHISKERS = 'M-4.2 4Q-11.9 1.7-20 1.4M-4.6 5.5Q-12.5 4.7-20.4 5.8M-4.2 7Q-11.9 7.7-19.4 9.9' +
+    'M4.2 4Q11.9 1.7 20 1.4M4.6 5.5Q12.5 4.7 20.4 5.8M4.2 7Q11.9 7.7 19.4 9.9';
+  const CAT_WHISKERS_ON_FUR = 'M-4.2 4Q-9.2 2.5-14.4 1.9M-4.6 5.5Q-8.9 5.1-13.1 5.2M-4.2 7Q-7.6 7.3-11 7.9' +
+    'M4.2 4Q9.2 2.5 14.4 1.9M4.6 5.5Q8.9 5.1 13.1 5.2M4.2 7Q7.6 7.3 11 7.9';
   /** The special celebration the whole table sees, or null (none, bot, forfeit). */
   function winnerCelebration(st) {
     const over = st.phase === 'gameOver' ? st.gameOverInfo : null;
@@ -3626,15 +3632,19 @@
     return own((over && over.winnerId) || st.lastRoundWinnerId);
   }
   function fxCatSvg(fur) {
-    const eye = fur === '#3a3a3a' ? '#f6d36b' : '#2b2b2b';
-    // Ears + head as ONE clockwise path, stroked under its fill: a seamless outline that keeps the
-    // cream fur off the light paper (3:1). A subpath winding the other way punches a hole.
-    return '<svg viewBox="-17 -23 34 37" aria-hidden="true">' +
+    const dark = fur === '#3a3a3a';
+    const eye = dark ? '#f6d36b' : '#2b2b2b';
+    const whisker = 'fill="none" stroke-width="0.8" stroke-linecap="round"';
+    return '<svg viewBox="-21 -23 42 37" aria-hidden="true">' +
+      `<path d="${CAT_WHISKERS}" stroke="rgba(0,0,0,0.55)" ${whisker}/>` +
+      // Ears + head as ONE clockwise path, stroked under its fill: a seamless outline that keeps the
+      // cream fur off the light paper (3:1). A subpath winding the other way punches a hole.
       `<path d="M-13-6-11-21-2-10Z M2-10 11-21 13-6Z M-15 0a15 12.5 0 0 1 30 0a15 12.5 0 0 1-30 0Z" fill="${fur}" ` +
       'stroke="rgba(0,0,0,0.45)" stroke-width="2" stroke-linejoin="round" paint-order="stroke"/>' +
       '<path d="M-11.5-8.5-10.3-17.5-5-11Z M5-11 10.3-17.5 11.5-8.5Z" fill="#f4b9a0"/>' +
       `<ellipse cx="-5.5" cy="-1.5" rx="2.2" ry="2.9" fill="${eye}"/><ellipse cx="5.5" cy="-1.5" rx="2.2" ry="2.9" fill="${eye}"/>` +
-      '<path d="M-1.6 3.4h3.2l-1.6 1.8z" fill="#e57b8c"/></svg>';
+      '<path d="M-1.6 3.4h3.2l-1.6 1.8z" fill="#e57b8c"/>' +
+      `<path d="${CAT_WHISKERS_ON_FUR}" stroke="${dark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.55)'}" ${whisker}/></svg>`;
   }
   function celebrationMarkup(id, still) {
     const r = (a, b) => (a + Math.random() * (b - a)).toFixed(2);
@@ -3644,7 +3654,7 @@
       const n = still ? 5 : 16;
       for (let i = 0; i < n; i++) {
         const x = still ? 46 + i * 10 : r(2, 92); // still: a row right of the title
-        html += `<span class="fxCat" style="--x:${x}%;--sz:${r(26, 37)}px;--delay:${r(0, 1.8)}s;--dur:${r(1.4, 2.2)}s;` +
+        html += `<span class="fxCat" style="--x:${x}%;--sz:${r(29.5, 42)}px;--delay:${r(0, 1.8)}s;--dur:${r(1.4, 2.2)}s;` +
           `--spin:${r(-200, 200)}deg;--drift:${r(-30, 30)}px;--tilt:${r(-14, 14)}deg">${fxCatSvg(pick(CAT_FURS, i))}</span>`;
       }
     } else if (id === 'fireworks') {
