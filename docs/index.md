@@ -5,7 +5,7 @@ family variant of **Rommé** where the Queen of Spades is worth 100 points, for
 better or worse. It runs in the browser, needs no app store, and plays 2–4
 people across devices, filling empty seats with bots.
 
-{{ version_badge }} {bdg-success-line}`MIT` {bdg-secondary-line}`Node ≥ 22` {bdg-secondary-line}`no build step` {bdg-secondary-line}`amd64 + arm64` {bdg-secondary-line}`DE / EN`
+{{ version_badge }} {bdg-success-line}`MIT` {bdg-secondary-line}`Node ≥ 24` {bdg-secondary-line}`no build step` {bdg-secondary-line}`amd64 + arm64` {bdg-secondary-line}`DE / EN`
 
 **▶ Live demo: [play.pikdame.online](https://play.pikdame.online)**
 

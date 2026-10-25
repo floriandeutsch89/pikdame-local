@@ -39,7 +39,7 @@ uses the existing heuristic.
 - Ubuntu 24.04 (native or under WSL2 on Windows 11)
 - NVIDIA driver (the WSL2 CUDA stack picks up the Windows driver automatically)
 - Your **RTX 5080** for CUDA-accelerated PyTorch
-- **Node.js 22+**
+- **Node.js 24+**
 - **[uv](https://docs.astral.sh/uv/)** for Python & dependency management
 
 ### 1.1 WSL2 with Ubuntu 24.04 (skip if native Linux)
@@ -49,12 +49,12 @@ uses the existing heuristic.
 wsl --install -d Ubuntu-24.04
 ```
 
-### 1.2 Node.js 22
+### 1.2 Node.js 24
 
 ```bash
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
 sudo apt-get install -y nodejs
-node --version   # v22.x
+node --version   # v24.x
 ```
 
 ### 1.3 uv
