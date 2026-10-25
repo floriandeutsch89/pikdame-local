@@ -78,6 +78,13 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   new scenes exist for the "before" pictures too.
 - **Reduced motion:** `--reduced-motion` emulates `prefers-reduced-motion:
   reduce` - the still pictures instead of the animations.
+- **Victory celebrations:** `--celebration <id>` (e.g. `cats`) gives me that
+  celebration: `gameover-win` plays it on the result sheet (I win there), the
+  scene `settings-celebration` its preview in "Optionen". The rain is seeded, so
+  before and after shots show the same pieces; `--freeze <ms>` holds the band at
+  that moment (`1500`: the rain mid-band), `--reduced-motion` gives the still row.
+  The script keeps the band until the shot is taken: its timer ends the still one
+  after 2.4 s, and a 2x desktop shot took 1.6 s to capture (it came out empty).
 - **Badge unlock cards:** `unlock` (one card on a running table; `--badge <id>`
   another badge, default `wins_10`), `unlock-lobby` (the start screen),
   `unlock-roundend` / `unlock-gameover` (over the result sheets, where the card
@@ -95,7 +102,8 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   sheet behind the start-screen chip, with its newest matches: today's "2 gegen 2"
   and two solo matches), `stammtisch-lobby` (a game lobby
   shown as a seat at the mock Stammtisch: its record panel), `settings` / `settings-aids` /
-  `settings-music` (the "Optionen" sheet: top / play aids / music), `game-settings`
+  `settings-music` (the "Optionen" sheet: top / play aids / music), `settings-celebration`
+  (its "Siegesjubel" preview playing, with `--celebration`), `game-settings`
   (the gear at a live engine table: the same sheet with "Dieser Tisch", then
   scrolled to its end; `--state` takes another table), `game-settings-debug`,
   `home` (the home dialog at the table, then its forfeit button armed by a

@@ -3627,8 +3627,12 @@
   }
   function fxCatSvg(fur) {
     const eye = fur === '#3a3a3a' ? '#f6d36b' : '#2b2b2b';
-    return `<svg viewBox="-17 -23 34 32" aria-hidden="true"><path d="M-14-6-11-21-2-10Z M14-6 11-21 2-10Z" fill="${fur}"/>` +
-      `<ellipse rx="15" ry="12.5" fill="${fur}" stroke="rgba(0,0,0,0.35)"/>` +
+    // Ears + head as ONE clockwise path, stroked under its fill: a seamless outline that keeps the
+    // cream fur off the light paper (3:1). A subpath winding the other way punches a hole.
+    return '<svg viewBox="-17 -23 34 37" aria-hidden="true">' +
+      `<path d="M-13-6-11-21-2-10Z M2-10 11-21 13-6Z M-15 0a15 12.5 0 0 1 30 0a15 12.5 0 0 1-30 0Z" fill="${fur}" ` +
+      'stroke="rgba(0,0,0,0.45)" stroke-width="2" stroke-linejoin="round" paint-order="stroke"/>' +
+      '<path d="M-11.5-8.5-10.3-17.5-5-11Z M5-11 10.3-17.5 11.5-8.5Z" fill="#f4b9a0"/>' +
       `<ellipse cx="-5.5" cy="-1.5" rx="2.2" ry="2.9" fill="${eye}"/><ellipse cx="5.5" cy="-1.5" rx="2.2" ry="2.9" fill="${eye}"/>` +
       '<path d="M-1.6 3.4h3.2l-1.6 1.8z" fill="#e57b8c"/></svg>';
   }
@@ -3640,7 +3644,7 @@
       const n = still ? 5 : 16;
       for (let i = 0; i < n; i++) {
         const x = still ? 46 + i * 10 : r(2, 92); // still: a row right of the title
-        html += `<span class="fxCat" style="--x:${x}%;--sz:${r(24, 34)}px;--delay:${r(0, 1.8)}s;--dur:${r(1.4, 2.2)}s;` +
+        html += `<span class="fxCat" style="--x:${x}%;--sz:${r(26, 37)}px;--delay:${r(0, 1.8)}s;--dur:${r(1.4, 2.2)}s;` +
           `--spin:${r(-200, 200)}deg;--drift:${r(-30, 30)}px;--tilt:${r(-14, 14)}deg">${fxCatSvg(pick(CAT_FURS, i))}</span>`;
       }
     } else if (id === 'fireworks') {

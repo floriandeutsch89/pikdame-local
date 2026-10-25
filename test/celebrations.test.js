@@ -446,6 +446,36 @@ test('cleanup: the band is gone after a few seconds; reduced motion gets a still
   assert.match(css, /\.celebrationBand\.still \*, \.still \.fxQueen::after \{ animation: none; \}/);
 });
 
+// The sheet is light paper in every theme and the cream fur is ~1.1:1 on it: its bare ears vanished.
+test('cats: one outline draws each fur, ears included, at 3:1 on every theme\'s paper', async (t) => {
+  const app = await atTable('p1', roundEnd({ winner: 'p2', celebrations: { p2: 'cats' } }));
+  t.after(() => app.window.close());
+  const css = fs.readFileSync(path.join(pub, 'style.css'), 'utf8');
+  const papers = [...css.matchAll(/\[data-theme="([a-z]+)"\] \{[^}]*?--card-bg: (#[0-9a-f]{6});/g)].map((m) => [m[1], m[2]]);
+  assert.equal(papers.length, 6, 'the dialog paper of every theme');
+  const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const lum = (c) => c.map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+    .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
+  const furs = new Set();
+  for (const svg of app.bands()[0].querySelectorAll('.fxCat svg')) {
+    const outlined = [...svg.querySelectorAll('[stroke]')];
+    assert.equal(outlined.length, 1, 'one outline per cat');
+    const [shape] = outlined;
+    const fur = shape.getAttribute('fill');
+    furs.add(fur);
+    assert.deepEqual([...svg.querySelectorAll(`[fill="${fur}"]`)], [shape], 'no fur outside the outlined shape');
+    assert.equal(shape.getAttribute('paint-order'), 'stroke', 'under the fill: no seam where ears meet the head');
+    const alpha = Number(/^rgba\(0,\s*0,\s*0,\s*([\d.]+)\)$/.exec(shape.getAttribute('stroke'))[1]);
+    for (const [theme, paper] of papers) {
+      const bg = rgb(paper);
+      const ratio = (lum(bg) + 0.05) / (lum(bg.map((v) => v * (1 - alpha))) + 0.05);
+      assert.ok(ratio >= 3, `${theme}: the cat outline reaches only ${ratio.toFixed(2)}:1 on the paper`);
+    }
+  }
+  assert.equal(furs.size, 4, 'all four furs');
+  assert.deepEqual(app.errors, [], `Client-Fehler: ${app.errors.join(' | ')}`);
+});
+
 const signedInFetch = (url) => Promise.resolve({
   ok: true,
   json: () => Promise.resolve(
