@@ -200,7 +200,7 @@ Three layers, all optional and all degrading quietly where they cannot work:
 | | Where it lives | Works without an account |
 | --- | --- | --- |
 | **Daily tasks** | Three tasks seeded from the game date (the day flips at midnight German time) — identical for every player worldwide, like the daily challenge deck. Progress counts on the name-based profile. | yes |
-| **Achievements** | 48 badges, shown as a cabinet in the statistics panel with locked entries and their progress ("Damenjägerin 4/10"). | yes |
+| **Achievements** | 48 badges, shown as a cabinet in the statistics panel with locked entries and their progress ("Damenjägerin 4/10"). A new one announces itself the moment it is earned (a round's badges at the round end) with a card at the top edge, once per player, on whichever device sees it first. | yes |
 | **Level & season ladder** | Experience per finished match, a level, and a monthly ladder — bound to the **account**, so it follows the player across devices. | no (needs a login) |
 
 Experience is awarded for *finishing* a match, not only for winning: a base

@@ -507,6 +507,8 @@ test('client contract: functions that build translated markup are refreshed by c
     'openOpenGameSheet',
     // Kartenhaus verdict: part of the result sheet, rebuilt with it (like the challenge board).
     'renderTowerResult',
+    // Badge unlock card: built per event; cycleLang re-renders the visible one (refreshUnlockCard).
+    'showUnlock',
   ]);
 
   const stale = functions

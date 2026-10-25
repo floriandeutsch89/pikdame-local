@@ -51,6 +51,12 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
 - **English:** `--lang en` shoots the English client; check it whenever a
   new label could outgrow its box. `--ui-scale large|xlarge`: the larger type
   from "Optionen" (older players use it).
+- **Like the installed app:** `--safe-area` gives the phone views an iPhone's
+  insets (status bar 59 px, home indicator 34 px; landscape 59 px at the sides)
+  through the client's `--safe-*` variables: content near the notch and the home
+  indicator. `--scale 3` shoots at 3x (default 2), `--name <name>` renames the
+  mock player (default Flo; a public picture uses a bot name). `npm run
+  readme:hero` builds the README's screenshot strip on these three.
 - **"2 gegen 2":** `team-tile` (a real tap on the start screen's tile: the team
   lobby it opens), `gamelobby-team` (a real team lobby: a second socket joins
   as Oma Gerda and lands on the other team, both teams named; `-edit` while I
@@ -72,6 +78,12 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   new scenes exist for the "before" pictures too.
 - **Reduced motion:** `--reduced-motion` emulates `prefers-reduced-motion:
   reduce` - the still pictures instead of the animations.
+- **Badge unlock cards:** `unlock` (one card on a running table; `--badge <id>`
+  another badge, default `wins_10`), `unlock-lobby` (the start screen),
+  `unlock-roundend` / `unlock-gameover` (over the result sheets, where the card
+  moves up to keep the sheet's head free), `unlock-queue` (three closed by their
+  ×, the rest folded into "+N"). Each reloads the page first: a page shows a
+  badge only once. On a main checkout (`SHOTS_ROOT`) they are the "before".
 - **Scenes:** `lobby`, `lobby-open` (daily goals unfolded), `progress`
   ("Dein Fortschritt"), `stats`, `stats-empty` (a brand-new name: the
   statistics empty state, then "Meine Partien" empty), `stats-badges` (trophy cabinet folded, then a favourite's detail; favourites need `--signed-in`), `history` ("Meine Partien"), `roundend`,

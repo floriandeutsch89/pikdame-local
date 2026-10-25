@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Pik Dame README screenshots</title>
+<style>
+  /* Rendered by scripts/readme-hero.js at 2400 x 1600 on a transparent background: it sits on
+     GitHub's light and dark page alike (the shadow shows on light, the rim on dark). */
+  :root {
+    --screen-w: 650px;
+    --pt: calc(var(--screen-w) / 393); /* one iPhone 15 point: the shots are 393 x 852 pt */
+    --bezel: calc(11 * var(--pt));
+    --r-screen: calc(55 * var(--pt)); /* the display's corner radius */
+  }
+  html, body { margin: 0; background: transparent; }
+  main {
+    box-sizing: border-box;
+    width: 2400px;
+    height: 1600px;
+    padding-bottom: 32px; /* the shadow falls downwards: lift the row a little */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 110px;
+  }
+  .phone {
+    position: relative;
+    padding: var(--bezel);
+    border-radius: calc(var(--r-screen) + var(--bezel));
+    background: #060708;
+    box-shadow:
+      0 0 0 calc(2 * var(--pt)) #353940,
+      /* darker than GitHub's dark page, so it never lights up there */
+      0 calc(20 * var(--pt)) calc(40 * var(--pt)) calc(-12 * var(--pt)) rgba(6, 9, 14, 0.34),
+      0 calc(4 * var(--pt)) calc(10 * var(--pt)) rgba(6, 9, 14, 0.12);
+  }
+  .phone img {
+    display: block;
+    width: var(--screen-w);
+    height: calc(852 * var(--pt));
+    border-radius: var(--r-screen);
+  }
+  /* The Dynamic Island, in the status bar the shots keep free (ui-shots --safe-area). */
+  .phone::after {
+    content: '';
+    position: absolute;
+    top: calc(var(--bezel) + 11 * var(--pt));
+    left: 50%;
+    width: calc(126 * var(--pt));
+    height: calc(37 * var(--pt));
+    transform: translateX(-50%);
+    border-radius: 999px;
+    background: #000;
+  }
+</style>
+</head>
+<body>
+  <!-- The light Kartenhaus sheet in the middle keeps the row balanced: dark, light, dark. -->
+  <main>
+    <div class="phone"><img src="{{lobby}}" alt=""></div>
+    <div class="phone"><img src="{{tower}}" alt=""></div>
+    <div class="phone"><img src="{{table}}" alt=""></div>
+  </main>
+</body>
+</html>

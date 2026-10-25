@@ -12,7 +12,7 @@ const WebSocket = require('ws');
 const GameManager = require('./game/GameManager');
 const { createPlayerStore } = require('./game/PlayerStore');
 const { createGlobalStatsStore } = require('./game/GlobalStatsStore');
-const { computeEarnedBadges, familyBadges } = require('./game/Badges');
+const { computeEarnedBadges, computeRoundBadges, familyBadges, ROUND_BADGES } = require('./game/Badges');
 const BotTower = require('./game/BotTower');
 const { seasonalBacksFor } = require('./game/SeasonalBacks');
 const {
@@ -1611,10 +1611,17 @@ const registry = new SessionRegistry((session) => {
     },
     // Only the moment id: the client holds the bilingual lines (BotQuips.js).
     onBotQuip: (botId, moment) => broadcastToSession(session, { type: 'quip', playerId: botId, moment }),
+    // A round the match goes on after: its round badges now, not at the match's end.
+    onRoundEnd: (record) => {
+      if (PUBLIC_MODE) return;
+      // Computed before any await: the record grows with the next round.
+      const due = record.players.map((p) => ({ ...p, ids: computeRoundBadges(record, p.id) })).filter((p) => p.ids.length);
+      if (due.length) trackWrite(awardRoundBadges(session, due));
+    },
     onGameOver: (results, gameRecord) => {
       // Kartenhaus: one round scored in stars (the first one pays XP) - no match stats or history.
       if (gameRecord.towerStage) {
-        trackWrite(recordTowerStage(gameRecord, sendTo));
+        trackWrite(recordTowerStage(gameRecord, sendTo, session));
         return;
       }
       // Globale Zähler sind ANONYM aggregiert (keine Namen) und daher auch
@@ -1869,16 +1876,19 @@ async function bookFinishedGame(session, results, gameRecord, sendTo) {
   }
 
   // Achievement badges: computed per REAL player from the record, persisted
-  // on the profile (new ones only) and announced to the whole table - the big
-  // moment belongs in the result overlay.
+  // on the profile (new ones only) and listed for the whole table in the
+  // result overlay - with the ones earlier rounds of this match brought.
   const titles = await challengeTitles(gameRecord);
   const earned = [];
   for (const p of humans) {
     try {
       const profile = (await playerStore.getPlayerByName(p.name)) || {};
       const { challengeChamp = false, queenMagnet = false } = titles[p.id] || {};
-      const fresh = await playerStore.awardBadges(p.name, computeEarnedBadges(gameRecord, p.id, profile, { challengeChamp, queenMagnet }));
-      if (fresh.length > 0) earned.push({ name: p.name, badges: fresh });
+      const ids = computeEarnedBadges(gameRecord, p.id, profile, { challengeChamp, queenMagnet });
+      const fresh = await playerStore.awardBadges(p.name, ids);
+      const fromRounds = await playerStore.badgesEarnedSince(p.name, ids.filter((id) => ROUND_BADGES.includes(id) && !fresh.includes(id)), gameRecord.startedAt);
+      const listed = ids.filter((id) => fresh.includes(id) || fromRounds.includes(id));
+      if (listed.length > 0) earned.push({ name: p.name, badges: listed });
     } catch (err) {
       logCrash('badges', err, { player: p.name });
     }
@@ -1886,11 +1896,68 @@ async function bookFinishedGame(session, results, gameRecord, sendTo) {
   if (earned.length > 0) {
     for (const p of gameRecord.players || []) sendTo(p.id, { type: 'badges', earned });
   }
+  // Unlock cards: each owner sees what is new to them (the round badges were shown at their round).
+  for (const p of humans) await announceBadges(p.name, seatSocket(session, p.id));
+}
+
+/** The open socket of a seat, or null. */
+function seatSocket(session, playerId) {
+  const ws = session && session.sockets.get(playerId);
+  return ws && ws.readyState === WebSocket.OPEN ? ws : null;
+}
+
+/**
+ * Unlock cards: sends `name`'s badges its owner was not shown yet to `ws` and marks
+ * them shown (claimBadgeNotices), so no other device repeats them. Without an open
+ * socket they wait for the owner's next `claimBadges`. `always`: answer an empty
+ * list too (a request). Never throws.
+ */
+async function announceBadges(name, ws, { always = false } = {}) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  try {
+    const badges = PUBLIC_MODE ? [] : await playerStore.claimBadgeNotices(name);
+    if ((badges.length || always) && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'badgeUnlocks', name, badges }));
+  } catch (err) {
+    logCrash('badge-notices', err, { player: name });
+  }
+}
+
+/** Round badges of a running match ({id, name, ids} per human); new ones go to their owner's seat at once. Never throws. */
+async function awardRoundBadges(session, due) {
+  for (const p of due) {
+    try {
+      const fresh = await playerStore.awardBadges(p.name, p.ids, { create: true });
+      if (fresh.length) await announceBadges(p.name, seatSocket(session, p.id));
+    } catch (err) {
+      logCrash('badges', err, { player: p.name });
+    }
+  }
+}
+
+/** Badges decided after a day ended (challenge champion, Damen-Magnet): due when the
+ *  owner comes back, not only with the next match. Never throws. */
+async function awardLateBadges(name) {
+  try {
+    const ids = [];
+    if (await challengeStore.wasChampion(name)) ids.push('challenge_champ');
+    if (await challengeStore.wasQueenMagnet(name)) ids.push('queen_magnet_day');
+    await playerStore.awardBadges(name, ids);
+  } catch (err) {
+    logCrash('badges', err, { player: name });
+  }
+}
+
+/** May a socket that sent `name` act for it? An account's name only with its login token; a guest name is its own. */
+async function ownsName(name, accountToken) {
+  if (!name) return false;
+  if (!ACCOUNTS_ENABLED || !(await accountStore.isRegisteredName(name))) return true;
+  const user = await accountStore.sessionUser(accountToken);
+  return !!user && user.username.toLowerCase() === name.toLowerCase();
 }
 
 /** Kartenhaus: grades the floor round, keeps the best stars of its month, pays a floor's first
  *  star (profile; account and season too, without booking a game), awards badges. Never throws. */
-async function recordTowerStage(gameRecord, sendTo) {
+async function recordTowerStage(gameRecord, sendTo, session) {
   const human = (gameRecord.players || []).find((p) => !p.isBot);
   const outcome = human && BotTower.outcomeFromRecord(gameRecord, human.id);
   if (!outcome) return;
@@ -1908,7 +1975,10 @@ async function recordTowerStage(gameRecord, sendTo) {
   }
   const level = xp && progress ? levelFromXp(progress.totalXp) : null;
   sendTo(human.id, { type: 'towerResult', ...outcome, clearMargin: BotTower.CLEAR_MARGIN, progress, xp, level });
-  if (badges.length) sendTo(human.id, { type: 'badges', earned: [{ name: human.name, badges }] });
+  if (badges.length) {
+    sendTo(human.id, { type: 'badges', earned: [{ name: human.name, badges }] });
+    await announceBadges(human.name, seatSocket(session, human.id));
+  }
   await bookAccountXp(human.name, xp, { seated: true }, (prog) => sendTo(human.id, { type: 'accountProgress', progress: prog }));
 }
 
@@ -1934,9 +2004,7 @@ async function bookAccountXp(name, xp, { seated = false, accountToken = null } =
  *  a guest name is trusted like the attempt itself. */
 async function mayRevealChallenge(date, name, accountToken) {
   if (!name || !(await challengeStore.hasFinished(date, name))) return false;
-  if (!ACCOUNTS_ENABLED || !(await accountStore.isRegisteredName(name))) return true;
-  const user = await accountStore.sessionUser(accountToken);
-  return !!user && user.username.toLowerCase() === name.toLowerCase();
+  return ownsName(name, accountToken);
 }
 
 /** Intro sheet and "Heute" tile. Today's scores (board, magnet, weekly and
@@ -2513,6 +2581,26 @@ wss.on('connection', (ws, req) => {
       }
       if (archive) status = { tries: 0, solved: result.solved, revealed: false };
       ws.send(JSON.stringify({ ...result, date, xp, level, streak, status, badges, ...(withProfile ? await starInfo() : {}), type: 'puzzleResult' }));
+      // Their unlock cards: only for the name's owner (a stranger's solve leaves them for the owner's next visit).
+      if (badges.length) {
+        let mine = false;
+        try { mine = await ownsName(name, msg.accountToken); } catch (err) { logCrash('badge-notices', err, { player: name }); }
+        if (mine) await announceBadges(name, ws);
+      }
+      return;
+    }
+    if (msg.type === 'claimBadges') {
+      // Unlock cards for this device: badges earned while away and the ones decided after
+      // a day ended. Always answered; empty for a name this socket may not claim.
+      const name = sanitizeName(msg.name);
+      let mine = false;
+      try { mine = !PUBLIC_MODE && await ownsName(name, msg.accountToken); } catch (err) { logCrash('badge-notices', err, { player: name }); }
+      if (!mine) {
+        ws.send(JSON.stringify({ type: 'badgeUnlocks', name, badges: [] }));
+        return;
+      }
+      await awardLateBadges(name);
+      await announceBadges(name, ws, { always: true });
       return;
     }
     if (msg.type === 'listProfiles') {

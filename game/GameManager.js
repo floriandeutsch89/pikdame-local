@@ -62,6 +62,8 @@ class GameManager {
   constructor(broadcastFn, options = {}) {
     this.broadcast = broadcastFn; // (playerId, message) -> sendet an genau diesen Spieler
     this.onGameOver = options.onGameOver || null; // (results: {name, score, won}[]) => void
+    // ({ players: [{id, name}], rounds }) at the end of a round the match goes on after (server.js: round badges)
+    this.onRoundEnd = typeof options.onRoundEnd === 'function' ? options.onRoundEnd : null;
     this.deckSeed = typeof options.deckSeed === 'number' ? options.deckSeed : null; // daily challenge
     // Tutorial: festes Deck (ueber deckSeed) UND ein Merker, damit der Client
     // seine Lernhilfen nur hier einblendet. Ein zufaelliges Deck laesst sich
@@ -2298,6 +2300,18 @@ class GameManager {
           : `Hand aus! ${winnerPlayer ? winnerPlayer.name : '?'} hat die komplette Hand in einem Zug ausgelegt.`
       );
     }
+    // The match goes on: what this round decided is due now, not at the match's end.
+    // Humans who stay only; the tutorial and the Kartenhaus award no match badges.
+    if (!over.gameOver && this.onRoundEnd && !this.tutorialMode && !this.towerStage) {
+      try {
+        this.onRoundEnd({
+          players: this.players.filter((p) => !p.isBot && !p.leftGame).map((p) => ({ id: p.id, name: p.name })),
+          rounds: this.roundHistory,
+        });
+      } catch (e) {
+        this.addLog(`Abzeichen der Runde konnten nicht vergeben werden: ${e.message}`);
+      }
+    }
     // The tutorial ends with the scoring of round 1, its attempt with it.
     if (this.tutorialMode && this.roundNumber === 1) this._endAttempt('finished');
     this.broadcastState();
@@ -2833,6 +2847,7 @@ class GameManager {
       if (
         key === 'broadcast' ||
         key === 'onGameOver' ||
+        key === 'onRoundEnd' ||
         key === 'onBotEmote' ||
         key === 'onBotQuip' ||
         key === 'onAttemptEnd' ||

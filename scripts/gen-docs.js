@@ -148,7 +148,7 @@ secrets), e.g. \`PIKDAME_DATABASE_PASSWORD_FILE=/run/secrets/db_password\`.
 // Which phase a client message belongs to. Everything not listed lands in "other".
 const MSG_GROUPS = [
   ['Before a table', 'Sent on a fresh connection, before the socket is bound to a table. These carry `msg.name` because the server has no seat to look up yet.',
-    ['createSession', 'joinSession', 'checkSession', 'abandonSession', 'listProfiles', 'getGameHistory', 'setFavoriteBadges', 'setCelebration', 'ping',
+    ['createSession', 'joinSession', 'checkSession', 'abandonSession', 'listProfiles', 'claimBadges', 'getGameHistory', 'setFavoriteBadges', 'setCelebration', 'ping',
       'getPuzzle', 'solvePuzzle', 'revealPuzzle', 'startChallenge', 'startTutorial', 'getTower', 'startTower',
       'createStammtisch', 'getStammtisch', 'listStammtische', 'leaveStammtisch', 'deleteStammtisch', 'getYearReview']],
   ['Lobby', 'Only valid while the table is in the `lobby` phase; most of them host-only.',
@@ -162,6 +162,7 @@ const MSG_GROUPS = [
 const MSG_NOTES = {
   listProfiles: 'Player profiles, server statistics and today\'s quests for the start screen - server-wide data, hence before the table guard. `name`: the asking player, whose own profile (with its quests, puzzles and card backs) is listed next to the statistics board\'s best 500.',
   ping: 'Keep-alive from the client; answered immediately. Lets a phone notice a dead connection before the server-side heartbeat does.',
+  claimBadges: 'This device takes the unlock cards of a player name: the badges its owner has not been shown yet (earned while away, or decided after a day ended: challenge champion, Damen-Magnet, awarded on this call). Each badge is handed out once, to whichever device claims it first; an account\'s name needs its `accountToken`. Always answered with `badgeUnlocks`.',
   getGameHistory: 'The finished matches of a player name ("Meine Partien").',
   setFavoriteBadges: 'Pin up to three badges to the identity chip.',
   setCelebration: 'Pick the victory celebration the whole table sees when you win (an id from `game/Celebrations.js`; signed-in owner of the name, unlocked by level).',
@@ -230,7 +231,8 @@ const S2C_NOTES = {
   queenLaid: 'A Queen of Spades was melded (+100). Drives the table reaction and the badge counters.',
   queenCaught: 'A Queen of Spades was caught in a hand at round end (-100).',
   bestRound: 'A new personal best round score for this player.',
-  badges: 'Badges earned by this match, for the celebration overlay.',
+  badges: 'Badges earned by this match (its earlier rounds included), per player, for the whole table\'s result overlay.',
+  badgeUnlocks: 'Unlock cards for this device (`badges`: `id`, `earnedAt`, oldest first), each badge once per player: pushed to the owner\'s seat at a round end, at the match end, after a Kartenhaus floor or a solved puzzle, and the answer to `claimBadges`.',
   progress: 'XP, level and daily-quest progress after a finished match.',
   accountProgress: 'The account-bound progression on login (so a new device shows the right level), and after XP from outside a match (a solved puzzle, a Kartenhaus floor\'s first star or crown).',
   gameHistory: 'Answer to `getGameHistory`.',

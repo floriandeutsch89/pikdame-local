@@ -1,5 +1,6 @@
-/** Season finale, client side: the result is announced once (toast, then
- *  "seen" to the server), the ladder names last season's place and the trophy
+/** Season finale, client side: the result is announced once (its badge as an
+ *  unlock card, a place without one as a toast; then "seen" to the server), the
+ *  ladder names last season's place and the trophy
  *  cabinet shows the season badges. Boots the REAL markup and client in jsdom. */
 const test = require('node:test');
 const assert = require('node:assert');
@@ -58,14 +59,18 @@ function boot({ me = {}, ladder = {}, storage = {} } = {}) {
   const doc = window.document;
   const settle = async () => { for (let i = 0; i < 6; i++) await new Promise((r) => setImmediate(r)); };
   const toast = () => doc.getElementById('toastContainer').textContent;
+  // The season badge arrives as an unlock card at the top edge (eyebrow, name, sub line).
+  const card = () => [...doc.querySelectorAll('#unlockLayer .unlockCard')]
+    .map((c) => ['.unlockArt', '.unlockEyebrow', '.unlockName', '.unlockSub'].map((s) => c.querySelector(s).textContent));
   const seen = () => calls.filter((c) => c.url === '/api/season-result/seen');
-  return { window, doc, ws: sockets[sockets.length - 1], calls, settle, toast, seen, errors };
+  return { window, doc, ws: sockets[sockets.length - 1], calls, settle, toast, card, seen, errors };
 }
 
-test('an unseen result is announced once and reported as seen', async () => {
+test('an unseen result is announced once (an unlock card) and reported as seen', async () => {
   const t = boot({ me: { seasonResult: SILVER, lastSeason: SILVER, seasonAwards: [SILVER] } });
   await t.settle();
-  assert.strictEqual(t.toast(), 'Saison Oktober 2026 beendet: Platz 2 von 14 – 🥈 Silber!');
+  assert.deepStrictEqual(t.card(), [['🥈', 'Abzeichen freigeschaltet', 'Saison-Silber', 'Oktober 2026 · Platz 2 von 14']]);
+  assert.doesNotMatch(t.toast(), /Saison/, 'no second message for the same badge');
   assert.deepStrictEqual(t.seen().map((c) => c.body), [{ token: 'tok', season: '2026-10' }]);
   assert.deepStrictEqual(t.errors, []);
   t.window.close();
@@ -73,6 +78,7 @@ test('an unseen result is announced once and reported as seen', async () => {
   // The server answers without seasonResult once it is seen: nothing again.
   const later = boot({ me: { lastSeason: SILVER, seasonAwards: [SILVER] } });
   await later.settle();
+  assert.deepStrictEqual(later.card(), []);
   assert.doesNotMatch(later.toast(), /Saison/);
   assert.strictEqual(later.seen().length, 0);
   later.window.close();
@@ -82,11 +88,12 @@ test('a place without a badge still gets its line; English reads naturally', asy
   const plain = boot({ me: { seasonResult: { season: '2026-10', place: 31, award: null, seasonXp: 20, ranked: 40 } } });
   await plain.settle();
   assert.strictEqual(plain.toast(), 'Saison Oktober 2026 beendet: Platz 31 von 40.');
+  assert.deepStrictEqual(plain.card(), [], 'no badge, no card');
   plain.window.close();
 
   const en = boot({ me: { seasonResult: SILVER }, storage: { pikdame_lang: 'en' } });
   await en.settle();
-  assert.strictEqual(en.toast(), 'Season October 2026 is over: place 2 of 14 – 🥈 silver!');
+  assert.deepStrictEqual(en.card(), [['🥈', 'Badge unlocked', 'Season silver', 'October 2026 · Place 2 of 14']]);
   en.window.close();
 });
 
