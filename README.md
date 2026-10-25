@@ -9,6 +9,8 @@
 ![No build step](https://img.shields.io/badge/build%20step-none-blue)
 ![Image](https://img.shields.io/badge/image-amd64%20%7C%20arm64-555?logo=docker&logoColor=white)
 
+[![Pik Dame on three iPhones (German UI): the start screen, the monthly Kartenhaus challenge as a house of cards, and a game in progress against three bots](docs/img/readme-hero.png)](docs/img/readme-hero.png)
+
 Multiplayer card game (family rummy variant) for 2–4 players — empty seats
 are filled by bots with four difficulty levels. Runs in **two operating
 modes** from the same codebase:
