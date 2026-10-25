@@ -71,6 +71,8 @@
 // (the December snow starts at load and needs a few seconds to fall into view).
 // Start-screen scenes may follow table or result scenes in any order: the page
 // is reloaded to the start screen first.
+// --name <name>: the mock player's name (default Flo). --scale <n>: device pixel ratio (default 2).
+// --safe-area: the installed web app's iPhone insets (status bar and home indicator zones).
 'use strict';
 // The tower scenes play engine games with a human seat: those are no human moves for training.
 process.env.PIKDAME_LOG_GAMES = '0';
@@ -125,6 +127,11 @@ function lightCss(which) {
   return `#table { ${['m', 'd', 'e', 'n'].map((k) => `--tod-${k}: ${w[k].toFixed(4)} !important;`).join(' ')} }`;
 }
 const LIGHT_CSS = lightCss(arg('light', 'noon'));
+// --safe-area: an iPhone 15's insets for the installed web app (viewport-fit=cover), set through
+// the client's own --safe-* variables (Chromium has no insets of its own). Phone views only.
+const SAFE_AREA_CSS = process.argv.includes('--safe-area')
+  ? ':root { --safe-top: 59px !important; --safe-bottom: 34px !important; } @media (orientation: landscape) { :root { --safe-top: 0px !important; --safe-left: 59px !important; --safe-right: 59px !important; --safe-bottom: 21px !important; } }'
+  : '';
 // A normal UA: the server treats headless defaults as a crawler (no WebSocket).
 const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
 
@@ -132,7 +139,8 @@ const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/6
 // "Today" is the server's game day (Europe/Berlin), not UTC.
 const TODAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin' }).format(new Date());
 const NOW = Date.now();
-const ME = 'Flo';
+const ME = arg('name', 'Flo');
+const me = ME.toLowerCase(); // the Stammtisch summary keys players by lowercased name
 const PROFILES = [
   { name: ME, gamesPlayed: 43, gamesWon: 17, totalScore: 31000, bestGameScore: 1385, xp: 5320, dailyStreak: 6,
     daily: { streak: 6, best: 11, last: '2000-01-01', graceAt: null },
@@ -156,16 +164,16 @@ const STAMMTISCH = {
     { day: dayBack(3), players: [{ name: ME, isBot: false, score: 1015, won: true }, { name: 'Oma Gerda', isBot: false, score: 880, won: false },
       { name: 'Uwe', isBot: true, score: 610, won: false }] },
   ],
-  series: { no: 3, games: 2, wins: { 'oma gerda': 1, flo: 1 }, bestOf: 3, needed: 2 },
+  series: { no: 3, games: 2, wins: { 'oma gerda': 1, [me]: 1 }, bestOf: 3, needed: 2 },
   goals: { level: 3, into: 40, need: 100, xp: 165, week: { start: '2026-10-12', games: 3, goal: 5, reached: false }, streak: 2, weeksReached: 4 },
   members: [
     { name: 'Oma Gerda', wins: 4, games: 7, avg: 612 }, { name: ME, wins: 2, games: 7, avg: 540 },
     { name: 'Klaus', wins: 1, games: 6, avg: 455 },
   ],
   pairwise: {
-    'oma gerda': { flo: { ahead: 5, behind: 2 }, klaus: { ahead: 4, behind: 2 } },
-    flo: { 'oma gerda': { ahead: 2, behind: 5 }, klaus: { ahead: 3, behind: 3 } },
-    klaus: { 'oma gerda': { ahead: 2, behind: 4 }, flo: { ahead: 3, behind: 3 } },
+    'oma gerda': { [me]: { ahead: 5, behind: 2 }, klaus: { ahead: 4, behind: 2 } },
+    [me]: { 'oma gerda': { ahead: 2, behind: 5 }, klaus: { ahead: 3, behind: 3 } },
+    klaus: { 'oma gerda': { ahead: 2, behind: 4 }, [me]: { ahead: 3, behind: 3 } },
   },
 };
 // --signed-in: account answers by path. Seasons are months counted back from today.
@@ -179,7 +187,7 @@ const SEASON_AWARDS = [SEASON_RESULT,
   { season: monthsBack(2), place: 7, award: 'top10', seasonXp: 310, ranked: 12 },
   { season: monthsBack(3), place: 11, award: 'participant', seasonXp: 95, ranked: 12 }];
 const ACCOUNT_API = {
-  '/api/me': { ok: true, username: ME, email: arg('email', 'flo@example.org'), emailVerified: !process.argv.includes('--unconfirmed'),
+  '/api/me': { ok: true, username: ME, email: arg('email', `${me.replace(/[^a-z0-9]/g, '') || 'player'}@example.org`), emailVerified: !process.argv.includes('--unconfirmed'),
     isAdmin: ADMIN, seasonResult: SEASON_RESULT, lastSeason: SEASON_RESULT, seasonAwards: SEASON_AWARDS },
   '/api/ladder': { ok: true, season: TODAY.slice(0, 7), lastSeason: SEASON_RESULT, seasonAwards: SEASON_AWARDS,
     me: { username: ME, xp: 5320, seasonXp: 410, season: TODAY.slice(0, 7), games: 43, wins: 17, rank: 2 },
@@ -346,7 +354,8 @@ function rewrite(msg) {
     const best = { ...(TOWER_BEST[TOWER_MOCK] || TOWER_BEST.mid), ...(towerSceneBest || {}) };
     const archive = TOWER_ARCHIVE.map((m) => ({ month: m.month, best: m.best, ...BT.summarize(m.best) }));
     Object.assign(msg, { best }, BT.summarize(best), { archive, totalStars: BT.summarize(best).stars + archive.reduce((n, m) => n + m.stars, 0) });
-    if (Object.keys(TOWER_CLOSED).length) msg.closed = TOWER_CLOSED;
+    // The mock month is complete unless --closed says otherwise: from 2027 a fresh data dir has no built months.
+    msg.closed = TOWER_CLOSED;
   }
   // Like the server: favourite opponent and Stammtisch only for the signed-in owner.
   if (msg.type === 'yearReview' && DECEMBER) {
@@ -621,7 +630,8 @@ function waitForHttp(port, ms = 20000) {
     ? require(path.join(ROOT, 'test/helpers/test-db.js')).testDatabaseUrl('uishots')
     : process.env.PIKDAME_DATABASE_URL;
   if (!databaseUrl) throw new Error('set PIKDAME_TEST_PG_URL (or PIKDAME_DATABASE_URL): the server needs PostgreSQL');
-  const server = spawn('node', ['server.js'], { cwd: ROOT, env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_DATABASE_URL: databaseUrl }, stdio: 'ignore' });
+  // PIKDAME_TOWER_GEN=0: a shot server never builds Kartenhaus months (a worker of Zen games), like test servers.
+  const server = spawn('node', ['server.js'], { cwd: ROOT, env: { ...process.env, PORT: String(PORT), PIKDAME_DATA_DIR: dataDir, PIKDAME_DATABASE_URL: databaseUrl, PIKDAME_TOWER_GEN: '0' }, stdio: 'ignore' });
   // The server flushes its snapshot on SIGTERM: wait for it before deleting.
   const exited = new Promise((r) => server.once('exit', r));
   const cleanup = async () => {
@@ -639,7 +649,7 @@ function waitForHttp(port, ms = 20000) {
     for (const vn of views) {
       const vp = VIEWS[vn];
       if (!vp) throw new Error(`unknown view ${vn}`);
-      const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, userAgent: UA, deviceScaleFactor: 2, isMobile: vp.mobile, hasTouch: vp.mobile,
+      const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, userAgent: UA, deviceScaleFactor: Number(arg('scale', 2)), isMobile: vp.mobile, hasTouch: vp.mobile,
         ...(STILL ? { reducedMotion: 'reduce' } : {}) });
       await ctx.addInitScript(([me, theme, musicHint, stammtische, uiLang, uiScale]) => {
         try {
@@ -656,14 +666,15 @@ function waitForHttp(port, ms = 20000) {
           if (!musicHint) localStorage.setItem('pikdame_music_hint', '1');
         } catch (e) { /* storage blocked */ }
       }, [ME, arg('theme', ''), scenes.includes('music-hint'), Math.max(0, Math.min(3, Number(arg('stammtische', 1)))), arg('lang', ''), arg('ui-scale', '')]);
-      if (LIGHT_CSS) {
+      const pageCss = [LIGHT_CSS, vp.mobile ? SAFE_AREA_CSS : ''].filter(Boolean).join('\n');
+      if (pageCss) {
         await ctx.addInitScript((cssText) => {
           document.addEventListener('DOMContentLoaded', () => {
             const s = document.createElement('style');
             s.textContent = cssText;
             document.head.appendChild(s);
           });
-        }, LIGHT_CSS);
+        }, pageCss);
       }
       // Phone views are iPhones: Safari has no Fullscreen API for pages, so no "Vollbild" row.
       if (vp.mobile) await ctx.addInitScript(() => { delete Element.prototype.requestFullscreen; });

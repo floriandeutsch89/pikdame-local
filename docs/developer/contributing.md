@@ -221,6 +221,13 @@ If you change an env var, a protocol message, a game constant or a badge, run
 check is byte-exact on purpose: documentation that *silently* lies is worse
 than none.
 
+The screenshot strip at the top of the README (`docs/img/readme-hero.png`) is
+generated too: `npm run readme:hero` shoots the real client with the mock data
+of `.claude/skills/ui-shots/scripts/ui-shots.js` (Playwright with Chromium and
+`PIKDAME_TEST_PG_URL`, like that script) and lays the shots out with
+`scripts/readme-hero.html`. Run it again when the start screen, the Kartenhaus
+or the table changes visibly, and commit the PNG.
+
 ### Building the docs locally
 
 ::::{tab-set}
