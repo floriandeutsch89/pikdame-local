@@ -2026,6 +2026,9 @@
     const stays = (key, m) => {
       if (m.kind === 'caught') return now.phase === 'roundEnd' || now.phase === 'gameOver';
       if (m.kind === 'leave') return performance.now() - m.at < QUEEN_EXIT_MS;
+      // A meld outlives the game turn until her 580 ms have played: a Zen bot's discard
+      // follows its meld within milliseconds, a fast bot's whole next turn within 350 ms.
+      if (m.kind === 'meld' && performance.now() - m.at < QUEEN_TURN_MS) return now.table.has(key);
       if (now.turn !== m.turn) return false;
       if (m.kind === 'discard') return now.top === m.id;
       return m.kind === 'meld' ? now.table.has(key) : now.hand.has(key);

@@ -217,6 +217,38 @@ test('laid out: her meld card turns and the announcement still comes', async (t)
   assert.deepEqual(c.errors, []);
 });
 
+test('laid out by a bot: her turn plays out though the next states follow within milliseconds', async (t) => {
+  const c = boot();
+  t.after(() => c.window.close());
+  await ready();
+  c.join();
+  c.state(st({ cur: 'b1', turn: 8, phase: 'draw' }));
+  // A Zen bot: the net picks the discard asynchronously, so meld and discard arrive as two states.
+  c.clock.t += 50;
+  c.state(st({ cur: 'b1', turn: 8, phase: 'meld', melds: [['b1', QUEENS]] }));
+  assert.ok(meldQueen(c.doc).classList.contains('qTurn'), 'she starts turning');
+  const at = meldQueen(c.doc).dataset.qAt;
+  c.clock.t += 5;
+  c.state(st({ cur: 'b2', turn: 9, phase: 'draw', pile: ['H9-1', 'D4-0', 'C7-1'], melds: [['b1', QUEENS]] }));
+  let q = meldQueen(c.doc);
+  assert.ok(q.classList.contains('qTurn'), 'the discard 5 ms later does not cut her turn');
+  assert.strictEqual(q.dataset.qAt, at, 'the same moment, resumed');
+  assert.strictEqual(q.style.getPropertyValue('--q-delay'), '-5ms');
+  // A fast bot plays its whole turn 400 ms later: still her turn.
+  c.clock.t += 400;
+  c.state(st({ cur: 'p1', turn: 10, phase: 'draw', pile: ['S3-1', 'H9-1', 'D4-0', 'C7-1'], melds: [['b1', QUEENS]] }));
+  q = meldQueen(c.doc);
+  assert.ok(q.classList.contains('qTurn'));
+  assert.strictEqual(q.style.getPropertyValue('--q-delay'), '-405ms');
+  // Past 580 ms and in another turn the moment is over, with no restart.
+  c.clock.t += 200;
+  c.state(st({ cur: 'p1', turn: 10, phase: 'meld', draw: 39, pile: ['S3-1', 'H9-1', 'D4-0', 'C7-1'], melds: [['b1', QUEENS]] }));
+  q = meldQueen(c.doc);
+  assert.ok(!q.classList.contains('qTurn') && !q.classList.contains('qStill'), 'over');
+  assert.deepEqual(turning(c.doc), []);
+  assert.deepEqual(c.errors, []);
+});
+
 test('never on: reload, rejoin, a new deal, "Zurücklegen", an undone meld, the face-down last card', async (t) => {
   const c = boot();
   t.after(() => c.window.close());
@@ -495,6 +527,88 @@ test('fuzz: real games - she turns exactly when the engine says she moved, never
   assert.deepEqual(mismatches, [], `client and engine disagree:\n  ${mismatches.slice(0, 12).join('\n  ')}`);
   // Not vacuous: every moment came up in these games.
   for (const kind of ['draw', 'pickup', 'discard', 'leave', 'meld', 'caught']) assert.ok(counts[kind] > 0, `no ${kind} in the fuzz games: ${JSON.stringify(counts)}`);
+  assert.deepEqual(c.errors, []);
+});
+
+test('fuzz: every queen meld by any seat turns exactly once, for its full 580 ms, at bot speed', async (t) => {
+  const realRandom = Math.random;
+  Math.random = mulberry32(20261025);
+  t.after(() => { Math.random = realRandom; });
+  // The Zen path as in production: the net answers on a later tick, so meld and discard are two states.
+  const OnnxPolicy = require('../game/OnnxPolicy');
+  const real = { draw: OnnxPolicy.chooseDrawSource, discard: OnnxPolicy.chooseDiscardCard };
+  const later = () => new Promise((r) => setImmediate(() => r(null))); // null = the heuristic decides
+  OnnxPolicy.chooseDrawSource = later;
+  OnnxPolicy.chooseDiscardCard = later;
+  t.after(() => { OnnxPolicy.chooseDrawSource = real.draw; OnnxPolicy.chooseDiscardCard = real.discard; });
+  const c = boot();
+  t.after(() => c.window.close());
+  await ready();
+  const rnd = mulberry32(5);
+  const problems = [];
+  let melds = 0;
+  for (const seed of [11, 23, 47, 58, 61]) {
+    const inbox = [];
+    const g = new GameManager((pid, msg) => { if (pid === 'p1' && msg.type === 'state') inbox.push(msg.state); }, { deckSeed: seed });
+    t.after(() => g.destroy());
+    g.maybeRunBotTurn = () => {};
+    g.addOrReconnectPlayer('p1', 'Flo');
+    g.syncLobbyBots();
+    for (const p of g.players) if (p.isBot) p.botDifficulty = 'easy';
+    let laid = [];
+    for (const name of ['layoutMeld', 'layOffCards', 'layOffCard', 'swapJoker']) {
+      const orig = g[name].bind(g);
+      g[name] = (...args) => {
+        const r = orig(...args);
+        const ids = { layoutMeld: args[1], layOffCards: args[2], layOffCard: [args[2]], swapJoker: [args[2]] }[name] || [];
+        if (r && r.ok) laid.push(...ids.filter((id) => QS.includes(id) && onTable(g, id)));
+        return r;
+      };
+    }
+    const live = new Map(); // cardId -> { at, t0 } of the client's running meld moment
+    const flush = () => {
+      for (const s of inbox.splice(0)) {
+        const roundOver = s.phase !== 'playing';
+        c.state(s);
+        const want = new Set(laid.splice(0));
+        for (const n of c.doc.querySelectorAll('#melds .card')) {
+          const id = n.dataset.cardId;
+          if (!QS.includes(id)) continue;
+          const on = n.classList.contains('qTurn');
+          const m = live.get(id);
+          if (on && (!m || m.at !== n.dataset.qAt)) {
+            if (!want.delete(id)) problems.push(`seed ${seed}: ${id} turned on the table without a meld`);
+            else melds += 1;
+            live.set(id, { at: n.dataset.qAt, t0: c.clock.t });
+          } else if (!on && m && c.clock.t - m.t0 < 580) {
+            problems.push(`seed ${seed}: ${id} stopped after ${c.clock.t - m.t0} ms`);
+          }
+          if (!on) live.delete(id);
+        }
+        if (!roundOver) for (const id of want) problems.push(`seed ${seed}: ${id} melded without her turn`);
+      }
+    };
+    // Bot pace: the next state 0-450 ms later (fast pace starts at 350 ms, the net in a few ms).
+    const tick = async (fn) => {
+      await fn();
+      await new Promise((r) => setImmediate(r));
+      await new Promise((r) => setImmediate(r));
+      c.clock.t += Math.floor(rnd() * 450);
+      flush();
+    };
+    c.join();
+    await tick(() => g.startNewRound());
+    for (let guard = 0; guard < 3000 && g.roundNumber <= 3 && g.phase !== 'gameOver'; guard++) {
+      if (g.phase === 'roundEnd') { live.clear(); await tick(() => g.startNewRound()); continue; }
+      if (g.phase !== 'playing') break;
+      const id = g.currentPlayer().id;
+      // Any seat: the Zen path (meld state, its discard a tick later) or one coalesced heuristic turn.
+      const forced = id === 'p1';
+      await tick(() => (rnd() < 0.6 ? g._runBotTurnWithOnnx(id, { forced }) : g.runBotTurn(id, { forced })));
+    }
+  }
+  assert.deepEqual(problems, [], problems.slice(0, 12).join('\n'));
+  assert.ok(melds >= 3, `the games melded her too rarely to prove anything: ${melds}`);
   assert.deepEqual(c.errors, []);
 });
 
