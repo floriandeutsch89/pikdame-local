@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.122.2] - 2026-10-25
+
+### Fixed
+- Siegesjubel „Katzen-Konfetti“: Die Ohren der hellen Katze verschwinden nicht mehr auf dem hellen Ergebnisblatt – jede Katze hat jetzt einen durchgehenden Umriss, rosa Innenohren und Schnurrhaare, und das Kinn wird nicht mehr abgeschnitten
+
 ## [2.122.1] - 2026-10-25
 
 ### Fixed
