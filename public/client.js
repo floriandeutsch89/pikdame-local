@@ -6032,19 +6032,20 @@
   function shareDay(iso) {
     return fmtDay(iso, { day: 'numeric', month: 'short', timeZone: 'UTC' });
   }
-  // The system share sheet where it exists, else the clipboard.
+  // The system share sheet where it exists, else the clipboard. The link goes into `text`:
+  // with a separate `url`, many targets (iOS Copy, WhatsApp) keep only the link.
   async function shareResult(text) {
-    const url = `${window.location.origin}/`;
+    const full = `${text}\n${window.location.origin}/`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'Pik Dame', text, url });
+        await navigator.share({ text: full });
         return;
       } catch (e) {
         if (e && e.name === 'AbortError') return; // the player closed the sheet
       }
     }
     try {
-      await navigator.clipboard.writeText(`${text}\n${url}`);
+      await navigator.clipboard.writeText(full);
       showHint(L('Ergebnis kopiert - jetzt einfügen und teilen.', 'Result copied - paste it to share.'), false);
     } catch (e) {
       showHint(L('Teilen ist hier nicht möglich.', 'Sharing is not available here.'), true);
