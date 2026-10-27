@@ -3,6 +3,14 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.122.3] - 2026-10-27
+
+### Fixed
+- „Ergebnis teilen“ (Tages-Challenge und Rätsel) teilt wieder das Ergebnis
+  samt Link statt nur den Link
+- Kartenhaus: Ein beim Herunterfahren gerade fertig gewordenes Stockwerk wird
+  sofort gespeichert und kann den Stand nach einem Neustart nicht mehr überschreiben
+
 ## [2.122.2] - 2026-10-25
 
 ### Fixed
