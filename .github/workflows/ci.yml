@@ -58,6 +58,9 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    # A normal run takes ~3 min; a file whose process never exits is not caught by
+    # --test-timeout and once ran 4.6 h until cancelled.
+    timeout-minutes: 20
     # PostgreSQL is required: every test that touches the database works in
     # its own schema of this one (test/helpers/test-db.js).
     services:
