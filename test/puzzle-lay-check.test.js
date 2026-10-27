@@ -11,6 +11,7 @@ const WebSocket = require('ws');
 const { JSDOM, VirtualConsole } = require('jsdom');
 const { puzzleForDate, checkMeld, checkAnswer, ROTATION_START } = require('../game/DailyPuzzle');
 const { gameDay, addDays } = require('../game/GameDay');
+const { validateMeld } = require('../game/Rules');
 const { freePort } = require('./helpers/free-port');
 
 const ROOT = path.join(__dirname, '..');
@@ -28,10 +29,19 @@ function multiMeldDay(kind) {
   throw new Error(`no ${kind} day with 2+ melds`);
 }
 
-/** A selection that is no legal meld: one card of each of the first two melds plus a third. */
+/** A selection across two melds that the rules reject (a fixed pick can be legal, e.g. H9 D9 + D9). */
 function mixedGroup(puzzle) {
+  const card = (id) => puzzle.hand.find((c) => c.id === id);
   const [a, b] = puzzle.best.melds;
-  return [...a.slice(0, 2), b[0]];
+  for (let i = 0; i < a.length; i++) {
+    for (let j = i + 1; j < a.length; j++) {
+      for (const x of b) {
+        const ids = [a[i], a[j], x];
+        if (!validateMeld(ids.map(card)).valid) return ids;
+      }
+    }
+  }
+  throw new Error('no illegal mixed group');
 }
 
 test('checkMeld: valid group, rules reason, foreign and duplicate ids', () => {
