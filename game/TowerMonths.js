@@ -98,7 +98,8 @@ function createTowerMonths({
       const rec = record(msg.month);
       rec.floors[msg.stage - 1] = msg.entry;
       rec.version = R.GEN_VERSION;
-      persist(); // per floor: a restart resumes where this stopped
+      // After stop() a late floor is written at once: a delayed write would land after the next instance's.
+      if (stopping) store.flushSync(); else persist(); // per floor: a restart resumes where this stopped
       return;
     }
     if (msg.type === 'log') { log(`Kartenhaus: ${msg.line}`); return; }

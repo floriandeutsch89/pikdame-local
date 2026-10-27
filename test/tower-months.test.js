@@ -108,7 +108,10 @@ test('service: a stop mid-month ends the worker between games; the next start re
   await withEnv({ TOWER_STUB_DELAY_MS: '3' }, async () => {
     const s = service(file, '2027-04-16');
     const run = s.tick();
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    // Stop once next month has a floor: a fixed wait stopped before it under CI load (flaky).
+    const started = () => (s.data().months['2027-05'] || { floors: [] }).floors.some(Boolean);
+    for (const deadline = Date.now() + 60000; !started() && Date.now() < deadline;) await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.ok(started(), 'next month got its first floor');
     const t = Date.now();
     await s.stop();
     await run;
@@ -116,7 +119,7 @@ test('service: a stop mid-month ends the worker between games; the next start re
   });
   const partial = JSON.parse(fs.readFileSync(file, 'utf8')).months['2027-05'];
   const doneBefore = partial ? partial.floors.filter(Boolean).length : 0;
-  assert.ok(doneBefore < 20, `stopped mid-month (${doneBefore} floors)`);
+  assert.ok(doneBefore >= 1 && doneBefore < 20, `stopped mid-month (${doneBefore} floors)`);
   const s2 = service(file, '2027-04-16');
   await s2.tick();
   await s2.stop();
