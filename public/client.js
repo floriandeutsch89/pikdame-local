@@ -713,10 +713,11 @@
     });
   });
 
-  // --- Sound & Haptik (komplett offline: synthetisierte Töne, kein Audio-Download) ---
+  // --- Sound & haptics: public/sfx.js synthesises every effect (offline, no audio files) ---
 
   let audioCtx = null;
   let audioIdleTimer = null;
+  let audioBusyUntil = 0; // Date.now() when the last scheduled effect has played
   function getAudioCtx() {
     if (!audioCtx) {
       const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -728,13 +729,14 @@
   // BATTERY: a running AudioContext keeps the audio hardware powered even in
   // total silence. Our sounds are short one-shots, so suspend it a moment after
   // the last one (and immediately when the app goes to the background); it
-  // resumes automatically on the next sound.
-  function scheduleAudioSuspend() {
+  // resumes automatically on the next sound. `busyMs`: an effect scheduled ahead.
+  function scheduleAudioSuspend(busyMs = 0) {
+    audioBusyUntil = Math.max(audioBusyUntil, Date.now() + busyMs);
     clearTimeout(audioIdleTimer);
     audioIdleTimer = setTimeout(() => {
       if (music && music.isActive()) return; // background music needs the context running
       if (audioCtx && audioCtx.state === 'running') audioCtx.suspend().catch(() => {});
-    }, 3000);
+    }, Math.max(3000, audioBusyUntil - Date.now() + 1500));
   }
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && audioCtx && audioCtx.state === 'running') {
@@ -812,28 +814,42 @@
   }
   document.addEventListener('visibilitychange', syncTableLight);
 
-  let lastToneAt = 0; // a later cue can wait for this one (sound.unlock)
-  function playTone(freqs, durationMs, type = 'sine', gainValue = 0.06) {
-    if (!soundEnabled) return;
-    const ctx = getAudioCtx();
-    if (!ctx) return;
-    if (ctx.state === 'suspended') ctx.resume();
-    lastToneAt = Date.now();
-    const now = ctx.currentTime;
-    freqs.forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = type;
-      osc.frequency.value = freq;
-      const start = now + i * (durationMs / 1000 / freqs.length);
-      gain.gain.setValueAtTime(0, start);
-      gain.gain.linearRampToValueAtTime(gainValue, start + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + durationMs / 1000 / freqs.length);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(start);
-      osc.stop(start + durationMs / 1000 / freqs.length + 0.02);
-    });
-    scheduleAudioSuspend(); // power the audio hardware down again once idle
+  const sfxLib = window.PikdameSfx || null;
+  const SFX_QUIET = 0.4; // another seat's move: audible, well below my own
+  const CUE_OVERLAP = 0.15; // seconds a queued cue may start before the one ahead has rung out
+  let cueFreeAt = 0; // audio clock: when the last cue (shuffle, bell, the Queen's) is over
+  /** The volume a sound call asks for: a number 0..1, { volume }, { quiet: true } or true. */
+  function sfxLevel(opt) {
+    if (opt === true) return SFX_QUIET;
+    if (typeof opt === 'number') return Math.max(0, Math.min(1, opt));
+    if (opt && typeof opt === 'object') return opt.quiet ? SFX_QUIET : sfxLevel(opt.volume === undefined ? 1 : Number(opt.volume));
+    return 1;
+  }
+  /** One effect. wait: after the cue ahead (dropped when that is far off); hold: later cues
+   *  wait for this one; lead: seconds from now. Never throws. */
+  function playSfx(name, level = 1, { wait = false, hold = wait, lead = 0 } = {}) {
+    if (!soundEnabled || !sfxLib || !(level > 0)) return;
+    try {
+      const ctx = getAudioCtx();
+      if (!ctx) return;
+      const go = () => {
+        try {
+          const now = ctx.currentTime;
+          const at = wait ? Math.max(now + lead, cueFreeAt - CUE_OVERLAP) : now + lead;
+          if (at - now > 2.5) return; // a pile-up: rather none than one long after its moment
+          const seconds = sfxLib.play(ctx, name, { volume: level, when: at });
+          if (hold) cueFreeAt = Math.max(cueFreeAt, at + seconds);
+          scheduleAudioSuspend((at - now + seconds) * 1000); // power the audio hardware down again once idle
+        } catch (e) { /* sound is never critical */ }
+      };
+      if (ctx.state === 'running') { go(); return; }
+      // iOS before the first tap, or idle-suspended: play once it runs - unless that takes
+      // so long that the moment is gone (it would sound at the next tap instead).
+      const asked = Date.now();
+      const resumed = ctx.resume();
+      if (resumed && typeof resumed.then === 'function') resumed.then(() => { if (Date.now() - asked < 1000) go(); }, () => {});
+      else go();
+    } catch (e) { /* sound is never critical */ }
   }
 
   function vibrate(pattern) {
@@ -869,21 +885,40 @@
     scheduleAudioSuspend();
   }
 
-  const sound = {
-    pikdame: () => { playTone([98, 147, 98], 520, 'sawtooth', 0.06); vibrate([60, 40, 60, 40, 120]); },
-    turn: () => { playTone([523, 659], 180, 'sine', 0.06); vibrate([30, 60, 30]); },
-    draw: () => { playTone([320], 90, 'triangle', 0.05); vibrate(8); },
-    discard: () => { playTone([260, 180], 110, 'triangle', 0.05); vibrate(12); },
-    meld: () => { playTone([440, 554, 660], 220, 'sine', 0.06); vibrate([10, 30, 10]); },
-    error: () => { playTone([140], 160, 'square', 0.05); vibrate(40); },
-    roundEnd: () => { playTone([392, 494, 587, 784], 420, 'sine', 0.07); vibrate([15, 40, 15, 40]); },
-    meow: () => { playMeow(); vibrate([12, 60, 12]); },
-    // A soft chime, no buzz; right after another cue (the round-end fanfare) it waits its turn.
-    unlock: () => {
-      if (!soundEnabled) return;
-      setTimeout(() => playTone([784, 1175], 300, 'sine', 0.045), Math.max(0, lastToneAt + 650 - Date.now()));
-    },
+  // Card noises take a volume for other seats' moves: sound.draw({ quiet: true }) or
+  // sound.draw(0.3). Only my own moves (full volume) vibrate.
+  const cardSound = (name, pattern) => (opt) => {
+    const level = sfxLevel(opt);
+    playSfx(name, level);
+    if (level >= 1) vibrate(pattern);
   };
+  const sound = {
+    draw: cardSound('draw', 8),
+    discard: cardSound('discard', 12),
+    meld: cardSound('meld', [10, 30, 10]),
+    error: () => { playSfx('error'); vibrate(40); },
+    deal: () => playSfx('deal', 1, { wait: true }),
+    turn: () => { playSfx('turn', 1, { hold: true }); vibrate([30, 60, 30]); },
+    roundEnd: () => { playSfx('roundEnd', 1, { wait: true }); vibrate([15, 40, 15, 40]); },
+    // The Queen of Spades: secured by me or my partner, by another seat, caught in my hand.
+    pikdame: () => { playSfx('pikdame', 1, { wait: true }); vibrate([60, 40, 60, 40, 120]); },
+    pikdameLost: () => { playSfx('pikdameLost', 1, { wait: true }); vibrate([50, 80, 120]); },
+    // Lead: her chip turns in the result sheet first (style.css --q-lead).
+    pikdameCaught: () => { playSfx('pikdameCaught', 1, { wait: true, lead: 0.6 }); vibrate([0, 600, 40, 60, 40, 60, 40, 60, 200]); },
+    lucky: () => { playSfx('lucky', 1, { wait: true }); vibrate([15, 30, 15, 30, 15, 30, 80]); },
+    meow: () => { playMeow(); vibrate([12, 60, 12]); },
+    // A soft chime, no buzz; right after another cue (the round-end arpeggio) it waits its turn.
+    unlock: () => playSfx('unlock', 1, { wait: true }),
+  };
+
+  // A new deal shuffles once: the first live state of a round, never on a reload or rejoin.
+  let dealSeen = null;
+  function maybeShuffleSound(st) {
+    const live = st.phase === 'cutting' || st.phase === 'playing';
+    const prev = dealSeen;
+    dealSeen = { round: st.roundNumber, live };
+    if (live && prev && (!prev.live || prev.round !== st.roundNumber)) sound.deal();
+  }
 
   // Occasion days on the start screen: the signed-in account's greeting day
   // (server: PIKDAME_BIRTHDAY, via /api/me) and holidays for everyone (/statusz).
@@ -1508,7 +1543,8 @@
         iAmCutter
           ? L(`Du ziehst beim Abheben: ${what}!`, `Your cut reveals: ${what}!`)
           : L(`${name} zieht beim Abheben: ${what}!`, `${name}'s cut reveals: ${what}!`),
-        'lucky'
+        'lucky',
+        sound.lucky
       );
     } else if (!iAmCutter) {
       // Gewöhnliche Karte: sieht NUR der Abheber (der Server schickt sie auch
@@ -1707,6 +1743,7 @@
       } else if (lastState.phase !== 'playing') {
         selectedCardIds.clear();
       }
+      try { maybeShuffleSound(lastState); } catch (e) { /* cosmetic */ }
       // "Du bist dran"-Signal: Ton + Vibration + kurzer Puls der Statuszeile,
       // sobald der Zug auf mich wechselt (nicht beim allerersten Render).
       if (
@@ -2119,6 +2156,11 @@
       : L(`Pik Dame auf der Hand: ${price}`, `Queen of Spades left in hand: ${price}`);
     chip.setAttribute('aria-label', chip.title);
     chip.innerHTML = `<span class="qMini"><b>Q</b><i>${suitSymbol('S')}</i></span><span class="qPrice">${price}</span>`;
+    const caught = queenMoments.get('result');
+    if (caught && caught.kind === 'caught' && !caught.sounded) {
+      caught.sounded = true; // the sheet re-renders; her trombone plays once, behind the round-end cue
+      sound.pikdameCaught();
+    }
     queenDecorate(chip, 'result', 'chip');
     return chip;
   }
@@ -8052,6 +8094,11 @@
       if (fresh.length > 0) {
         const owners = new Set(fresh.map(([, ownerId]) => ownerId));
         const points = fresh.length * 100;
+        // Mine or my partner's: the fanfare; another seat's: the "dun-dun" (a watcher gets the fanfare).
+        const myTeam = teamOfPlayer(playerId);
+        const ours = !lastState.players.some((p) => p.id === playerId)
+          || [...owners].some((id) => id === playerId || (myTeam >= 0 && teamOfPlayer(id) === myTeam));
+        const cue = ours ? sound.pikdame : sound.pikdameLost;
         if (owners.size === 1) {
           const ownerId = fresh[0][1];
           const owner = lastState.players.find((p) => p.id === ownerId);
@@ -8063,13 +8110,17 @@
               : L('♠ PIK DAME! ♠', '♠ QUEEN OF SPADES! ♠'),
             isMe
               ? L(`Du sicherst dir ${points} Punkte!`, `You secure ${points} points!`)
-              : L(`${who} sichert sich ${points} Punkte!`, `${who} secures ${points} points!`)
+              : L(`${who} sichert sich ${points} Punkte!`, `${who} secures ${points} points!`),
+            '',
+            cue
           );
         } else {
           // Selten, aber moeglich: zwei verschiedene Spieler im selben Zustand.
           showRaidWarning(
             L('♠♠ BEIDE PIK DAMEN! ♠♠', '♠♠ BOTH QUEENS OF SPADES! ♠♠'),
-            L('Je 100 Punkte für zwei Spieler!', '100 points each for two players!')
+            L('Je 100 Punkte für zwei Spieler!', '100 points each for two players!'),
+            '',
+            cue
           );
         }
       }
@@ -8078,7 +8129,7 @@
     prevPikdameRound = lastState.roundNumber;
   }
 
-  function showRaidWarning(title, sub, variant) {
+  function showRaidWarning(title, sub, variant, cue = sound.pikdame) {
     document.querySelectorAll('.raidWarning').forEach((n) => n.remove());
     const w = document.createElement('div');
     w.className = 'raidWarning' + (variant ? ' ' + variant : '');
@@ -8097,7 +8148,7 @@
     // is up the toast steps below it (margin, not transform - the toast
     // animates its own transform).
     document.body.classList.add('raidActive');
-    sound.pikdame();
+    cue();
     setTimeout(() => {
       w.remove();
       if (!document.querySelector('.raidWarning')) document.body.classList.remove('raidActive');

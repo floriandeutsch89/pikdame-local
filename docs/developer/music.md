@@ -44,13 +44,14 @@ faded and then moves to the piece that waited longest.
 - One normalisation gain per piece (its loudest segment), the soft clip of the
   original sketches, peak 0.8 so that a tail plus the next downbeat stays below
   full scale. The pieces are trimmed to the quietest one (`trimDb`).
-- **"Leise" sits 8 dB above the game's sound effects (RMS).** The effects are
-  short beeps that cut through; 6 dB under them (v2.84.0) was inaudible on
-  phones, even "Laut" was quiet. The renderer
-  reads the `playTone()` calls in `client.js`, computes each one's RMS with its
-  envelope (10 ms attack, exponential decay) and takes the median. "Mittel" and
-  "Laut" add 6 dB each. The gains are in `manifest.json` (`levels`).
-- Changed a sound effect? Run `node scripts/render-music.js --levels`.
+- **"Leise" sits 8 dB above the turn bell (RMS).** Short cues cut through; 6 dB
+  under them (v2.84.0) was inaudible on phones, even "Laut" was quiet. The
+  renderer takes the bell from `public/sfx.js` (see {doc}`sound`), rendered as
+  the browser plays it. It used to take the median of the old beeps, which was
+  the bell; the card sounds that replaced the beeps are quieter by design and
+  left the levels where they were. "Mittel" and "Laut" add 6 dB each. The gains
+  are in `manifest.json` (`levels`).
+- Changed the turn bell? Run `node scripts/render-music.js --levels`.
   `test/music.test.js` fails until the levels match again.
 
 ## Caching
@@ -87,7 +88,7 @@ faded and then moves to the piece that waited longest.
 ```bash
 node scripts/render-music.js                 # needs ffmpeg with libmp3lame
 node scripts/render-music.js --preview DIR   # 2-3 min per piece, sequenced like the player
-node scripts/render-music.js --levels        # sound effects changed: new levels, same files
+node scripts/render-music.js --levels        # turn bell changed: new levels, same files
 ```
 
 Rendering is deterministic (seeded oscillator phases): an unchanged score

@@ -55,18 +55,17 @@ test('manifest: each track has the form material, nothing stray, and stays small
   assert.ok(total <= 5 * 1024 * 1024, `all music together ${(total / 1048576).toFixed(2)} MB <= 5 MB`);
 });
 
-test('levels: "Leise" sits 8 dB above the sound effects, computed from client.js', () => {
-  const sfx = R.sfxReference(fs.readFileSync(path.join(ROOT, 'public', 'client.js'), 'utf8'));
-  assert.ok(sfx.list.length >= 5, 'the sound effects were found');
-  assert.ok(Math.abs(sfx.median - manifest.sfxRms) < 1e-6,
-    'the sound effects changed: run `node scripts/render-music.js --levels`');
+test('levels: "Leise" sits 8 dB above the turn bell, computed from public/sfx.js', () => {
+  const sfx = R.sfxReference();
+  assert.deepStrictEqual(sfx.list.map((x) => x.name), require('../public/sfx.js').NAMES, 'every effect renders');
+  assert.strictEqual(R.SFX_REFERENCE, 'turn');
+  assert.ok(Math.abs(sfx.rms - manifest.sfxRms) < 1e-6,
+    'the turn bell changed: run `node scripts/render-music.js --levels`');
   assert.deepStrictEqual(manifest.levels, R.levelGains(manifest.sfxRms, manifest.musicRms));
   const { low, mid, high } = manifest.levels;
   assert.ok(low > 0 && low < mid && mid < high && high <= 1);
   const lowDb = 20 * Math.log10(low * manifest.musicRms / manifest.sfxRms);
   assert.ok(Math.abs(lowDb - R.LOW_VS_SFX_DB) < 0.05, `quiet music is ${lowDb.toFixed(2)} dB against the effects`);
-  // A plain sine at 0.06 for its whole length: the envelope must pull it well below.
-  assert.ok(R.toneRms([440], 200, 'sine', 0.06) < 0.06 / Math.SQRT2);
 });
 
 test('prefs: quiet and rotating by default, off for players who silenced sound or save data', () => {

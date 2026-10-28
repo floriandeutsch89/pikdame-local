@@ -15,6 +15,7 @@ rl-training
 rl-setup
 mcp
 music
+sound
 table-light
 contributing
 ```
@@ -51,6 +52,7 @@ There is **no build step**. The client is plain HTML/CSS/JS served as-is: edit
 | `game/Progression.js`, `game/Badges.js` | XP, quests, badges — pure functions over a finished game (see {doc}`progression`) |
 | `public/` | The entire client |
 | `public/music/`, `scripts/render-music.js` | Background music, composed as code and rendered to MP3 (see {doc}`music`) |
+| `public/sfx.js`, `scripts/render-sfx.js` | Sound effects, synthesised in the browser (see {doc}`sound`) |
 | `public/table-light.js` | The table's light by the time of day; colours in `style.css` (see {doc}`table-light`) |
 | `scripts/` | Tooling: A/B bot simulation, load test, docs generator |
 | `mcp/` | MCP server: an LLM agent plays a seat (see {doc}`mcp`) |

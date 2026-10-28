@@ -5,7 +5,7 @@
 // and writes public/music/manifest.json. Dev-only: needs ffmpeg with libmp3lame.
 //
 //   node scripts/render-music.js                 render everything
-//   node scripts/render-music.js --levels        only recompute the levels (sound effects changed)
+//   node scripts/render-music.js --levels        only recompute the levels (the turn bell changed)
 //   node scripts/render-music.js --preview DIR   2-3 min per track, as the player sequences it
 //
 // See docs/developer/music.md.
@@ -23,8 +23,8 @@ const MANIFEST = path.join(OUT_DIR, 'manifest.json');
 const TAIL = 4; // seconds after the last bar: releases and reverb overlap the next segment
 const TAIL_FADE = 1; // only the end of the tail fades, under the next segment's start
 const PEAK = 0.8; // headroom: a tail still rings into the next segment's downbeat
-// "Leise" sits this far ABOVE the effects' RMS: short beeps cut through, and 6 dB
-// under them was inaudible on phones (v2.84.0). Mittel/Laut add 6 dB each.
+// "Leise" sits this far ABOVE the turn bell's RMS (SFX_REFERENCE): short cues cut
+// through, and 6 dB under them was inaudible on phones (v2.84.0). Mittel/Laut add 6 dB each.
 const LOW_VS_SFX_DB = 8;
 const LEVEL_STEP_DB = 6;
 
@@ -611,38 +611,17 @@ function trackPower(parts) {
 }
 
 // ---------------------------------------------------------------- the reference: our sound effects
-const SFX_RE = /(\w+): \(\) => \{ playTone\(\[([\d.,\s]+)\], (\d+), '(\w+)', ([\d.]+)\)/g;
+// The "your turn" bell, the one cue music must never cover. It was also the
+// median of the old beeps, so the levels stayed put when the card sounds came.
+const SFX_REFERENCE = 'turn';
 
-/** RMS of one playTone() call, envelope as in client.js (10 ms attack, exponential decay). */
-function toneRms(freqs, ms, type, gain) {
-  const noteLen = ms / 1000 / freqs.length;
-  const n = Math.round(ms / 1000 * SR);
-  let sum = 0;
-  for (let s = 0; s < n; s++) {
-    const t = s / SR;
-    const i = Math.min(freqs.length - 1, Math.floor(t / noteLen));
-    const tn = t - i * noteLen;
-    const env = tn < 0.01 ? gain * tn / 0.01 : gain * Math.pow(0.0001 / gain, (tn - 0.01) / (noteLen - 0.01));
-    const ph = (freqs[i] * tn) % 1;
-    const w = type === 'sine' ? Math.sin(TAU * ph)
-      : type === 'square' ? (ph < 0.5 ? 1 : -1)
-        : type === 'sawtooth' ? 2 * ph - 1
-          : 1 - 4 * Math.abs(ph - 0.5);
-    sum += (w * env) ** 2;
-  }
-  return Math.sqrt(sum / n);
-}
-
-/** Median RMS of the game's sound effects, read from client.js itself. */
-function sfxReference(clientSrc) {
-  const list = [...clientSrc.matchAll(SFX_RE)].map((m) => ({
-    name: m[1], rms: toneRms(m[2].split(',').map(Number), Number(m[3]), m[4], Number(m[5])),
-  }));
-  if (list.length < 3) throw new Error('sound effects not found in client.js (SFX_RE)');
-  const sorted = list.map((x) => x.rms).sort((a, b) => a - b);
-  const mid = sorted.length >> 1;
-  const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-  return { median, list };
+/** RMS of the reference effect (public/sfx.js, as the browser renders it) and of every effect. */
+function sfxReference() {
+  const Sfx = require('../public/sfx.js');
+  const list = Sfx.NAMES.map((name) => ({ name, rms: Sfx.activeRms(Sfx.render(name, SR, { seed: 1 })) }));
+  const ref = list.find((x) => x.name === SFX_REFERENCE);
+  if (!ref) throw new Error(`sound effect ${SFX_REFERENCE} not found in public/sfx.js`);
+  return { rms: ref.rms, list };
 }
 
 /** Level gains from the reference and the (trimmed) music RMS. */
@@ -686,7 +665,7 @@ const round6 = (x) => Math.round(x * 1e6) / 1e6;
 
 function render({ quality = 6 } = {}) {
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  const sfx = sfxReference(fs.readFileSync(path.join(ROOT, 'public', 'client.js'), 'utf8'));
+  const sfx = sfxReference();
   const rendered = TRACKS.map((def) => {
     const t0 = Date.now();
     const parts = renderTrack(def);
@@ -698,10 +677,10 @@ function render({ quality = 6 } = {}) {
   const common = Math.min(...rendered.map((r) => r.rms));
   const manifest = {
     version: 1,
-    sfxRms: round6(sfx.median),
+    sfxRms: round6(sfx.rms),
     lowVsSfxDb: LOW_VS_SFX_DB,
     musicRms: round6(common),
-    levels: levelGains(sfx.median, common),
+    levels: levelGains(sfx.rms, common),
     tracks: [],
   };
   const keep = new Set();
@@ -725,7 +704,7 @@ function render({ quality = 6 } = {}) {
   }
   fs.writeFileSync(MANIFEST, JSON.stringify(manifest, null, 2) + '\n');
   const total = manifest.tracks.reduce((s, t) => s + t.segments.reduce((a, x) => a + x.bytes, 0), 0);
-  console.log(`levels ${JSON.stringify(manifest.levels)}, sfx ${gainToDb(sfx.median).toFixed(1)} dBFS, total ${(total / 1024 / 1024).toFixed(2)} MB`);
+  console.log(`levels ${JSON.stringify(manifest.levels)}, sfx ${gainToDb(sfx.rms).toFixed(1)} dBFS, total ${(total / 1024 / 1024).toFixed(2)} MB`);
   return manifest;
 }
 
@@ -778,12 +757,12 @@ function preview(dir, { seed = 7 } = {}) {
   return out;
 }
 
-/** After a change to the sound effects: new levels, same files (no ffmpeg needed). */
+/** After a change to the turn bell: new levels, same files (no ffmpeg needed). */
 function relevel() {
   const manifest = JSON.parse(fs.readFileSync(MANIFEST, 'utf8'));
-  const sfx = sfxReference(fs.readFileSync(path.join(ROOT, 'public', 'client.js'), 'utf8'));
-  manifest.sfxRms = round6(sfx.median);
-  manifest.levels = levelGains(sfx.median, manifest.musicRms);
+  const sfx = sfxReference();
+  manifest.sfxRms = round6(sfx.rms);
+  manifest.levels = levelGains(sfx.rms, manifest.musicRms);
   delete manifest.lowBelowSfxDb;
   manifest.lowVsSfxDb = LOW_VS_SFX_DB;
   fs.writeFileSync(MANIFEST, JSON.stringify(manifest, null, 2) + '\n');
@@ -797,4 +776,4 @@ if (require.main === module) {
   else render();
 }
 
-module.exports = { TRACKS, sfxReference, toneRms, levelGains, hashOf, LOW_VS_SFX_DB, LEVEL_STEP_DB };
+module.exports = { TRACKS, sfxReference, levelGains, hashOf, SFX_REFERENCE, LOW_VS_SFX_DB, LEVEL_STEP_DB };
