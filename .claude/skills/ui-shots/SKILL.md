@@ -85,6 +85,13 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   that moment (`1500`: the rain mid-band), `--reduced-motion` gives the still row.
   The script keeps the band until the shot is taken: its timer ends the still one
   after 2.4 s, and a 2x desktop shot took 1.6 s to capture (it came out empty).
+- **Going out:** `out-beat` (an engine round played to its last move, a bot
+  goes out: the final table with its "AUS!" stamp, then a tap on it and the
+  sheet), `out-beat-me` (I go out). `--hand-aus` marks the round out in one,
+  `--rule-doubles` switches the house rule on (both mocked on the engine's round
+  end), `--beat-at <ms>` shoots another moment (default 650). The beat's own
+  timer is held while shooting, so a slow capture never catches the sheet; a
+  checkout without the beat (`SHOTS_ROOT`) shows the sheet at once: the "before".
 - **Badge unlock cards:** `unlock` (one card on a running table; `--badge <id>`
   another badge, default `wins_10`), `unlock-lobby` (the start screen),
   `unlock-roundend` / `unlock-gameover` (over the result sheets, where the card

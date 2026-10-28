@@ -179,6 +179,9 @@
   // Her head turn: live moments by card id | 'pile' | 'pileOut' | 'result'.
   const queenMoments = new Map();
   let queenPrev = null; // facts of the previous state; null = the next one is only a baseline
+  // Going out: the final table holds a beat before the round sheet (detectOutBeat).
+  let outBeat = null; // { winnerId, handAus, timer } while it holds
+  let outBeatPrev = null; // phase + round of the previous state; null = the next one is only a baseline
   // --- Sprache (Deutsch/Englisch, Default Deutsch) ----------------------------
   const LANG_KEY = 'pikdame_lang';
   let lang = storageGet(LANG_KEY) === 'en' ? 'en' : 'de';
@@ -1580,6 +1583,8 @@
 
   function handleMessage(msg) {
     if (msg.type === 'pong') return; // liveness only, see watchdogTick
+    // Going out: what shows outside the sheet (toasts, level-up, unlock cards) waits for it.
+    if (outBeat && OUT_BEAT_HOLDS.includes(msg.type)) { outBeat.held.push(msg); return; }
     if (msg.type === 'joined') {
       stammtischInfo = msg.stammtisch || null;
       if (stammtischInfo) rememberStammtisch(stammtischInfo);
@@ -1589,6 +1594,7 @@
       playerId = msg.playerId;
       sessionCode = msg.sessionCode;
       queenPrev = null; // a (re)join is no queen moment: the state may have jumped
+      outBeatPrev = null; // nor a going out: a round that ended meanwhile opens its sheet at once
       storageSet(playerKeyFor(sessionCode), playerId);
       // URL aktualisieren, damit der Link direkt teilbar ist (?session=CODE)
       const url = new URL(window.location.href);
@@ -1730,6 +1736,7 @@
       maybeShowActionToast();
       maybeShowRoundQuote();
       try { detectQueenMoments(); } catch (e) { /* cosmetic */ }
+      try { detectOutBeat(); } catch (e) { /* cosmetic: the sheet then opens at once */ }
       checkPikdameAnnouncement();
       render();
       // After "Tutorial geschafft": the new game exists - start it with bots
@@ -2230,7 +2237,9 @@
         soundedForRound = lastState.roundNumber;
         sound.roundEnd();
       }
-      renderResultOverlay();
+      // Going out: the final table and its stamp first, the sheet after the beat.
+      if (outBeat && showOutStamp()) el('resultOverlay').classList.add('hidden');
+      else renderResultOverlay();
     } else {
       el('resultOverlay').classList.add('hidden');
     }
@@ -2575,6 +2584,75 @@
     s.textContent = `${L('Runde', 'Round')} ${n}`;
     document.body.appendChild(s);
     setTimeout(() => s.remove(), 1100);
+  }
+
+  // --- Going out: the final table holds a beat before the round sheet --------
+  // A bot's last move arrives as ONE state; the sheet used to cover it at once.
+  // Client only: the server's ready check and bot timers never wait for it.
+  const OUT_BEAT_MS = 1200;
+  // Sent right after a round or match ends; they used to land on the open sheet.
+  const OUT_BEAT_HOLDS = ['progress', 'badgeUnlocks', 'stammtisch', 'towerResult'];
+  /** Every state, before render: a going out seen live starts the beat. */
+  function detectOutBeat() {
+    const st = lastState;
+    const prev = outBeatPrev;
+    outBeatPrev = { phase: st.phase, round: st.roundNumber };
+    if (st.phase !== 'roundEnd' && st.phase !== 'gameOver') { endOutBeat(false); return; }
+    if (outBeat || !prev || prev.phase !== 'playing' || prev.round !== st.roundNumber) return;
+    // Out = the last card lies face down: a stalemate or a forfeit has no such moment.
+    const winner = (st.players || []).find((p) => p.id === st.lastRoundWinnerId);
+    const forfeited = !!(st.gameOverInfo && st.gameOverInfo.forfeited);
+    if (!winner || forfeited || !(st.discardTop && st.discardTop.faceDown)) return;
+    if (document.hidden || motionReduced()) return;
+    outBeat = { winnerId: winner.id, handAus: !!st.lastRoundWasHandAus, held: [], timer: setTimeout(() => endOutBeat(true), OUT_BEAT_MS) };
+    hideToast(); // as the opening sheet always did: no log toast over the final table
+  }
+  /** Ends the beat (timer, tap, hidden tab, next round); open: the sheet now. */
+  function endOutBeat(open) {
+    if (!outBeat) return;
+    const { timer, held } = outBeat;
+    clearTimeout(timer);
+    outBeat = null;
+    document.querySelectorAll('.outBeat').forEach((n) => n.remove());
+    // The caught chip's turn waits for the sheet (--q-lead), so it starts with it.
+    const caught = queenMoments.get('result');
+    if (caught) caught.at = performance.now();
+    if (open && lastState && (lastState.phase === 'roundEnd' || lastState.phase === 'gameOver')) {
+      try { render(); } catch (e) { console.error('Round sheet after going out:', e); }
+    }
+    for (const msg of held) {
+      try { handleMessage(msg); } catch (e) { /* one message never stops the rest */ }
+    }
+  }
+  document.addEventListener('visibilitychange', () => { if (document.hidden) endOutBeat(true); });
+  /** The stamp at the winner's seat on a clear layer: on the lower edge of their chip (the
+   *  name stays readable) or over my empty hand. A tap anywhere skips to the sheet. False = no beat. */
+  function showOutStamp() {
+    try {
+      if (document.querySelector('.outBeat')) return true;
+      const layer = document.createElement('div');
+      layer.className = 'outBeat';
+      layer.setAttribute('aria-hidden', 'true'); // the sheet right after says it in full
+      layer.addEventListener('click', () => endOutBeat(true));
+      const stamp = document.createElement('div');
+      stamp.className = 'outStamp';
+      stamp.textContent = outBeat.handAus ? L('Hand aus!', 'Out in one!') : L('Aus!', 'Out!');
+      layer.appendChild(stamp);
+      document.body.appendChild(layer);
+      const chip = outBeat.winnerId === playerId ? null
+        : [...document.querySelectorAll('#opponents .opponent')].find((n) => n.dataset.playerId === outBeat.winnerId);
+      const r = (chip || (outBeat.winnerId === playerId && el('handWrapper')) || el('melds')).getBoundingClientRect();
+      const edge = 12; // the tilted corners stay on screen
+      const w = stamp.offsetWidth;
+      const h = stamp.offsetHeight;
+      const cy = chip ? r.bottom : r.top + r.height / 2;
+      stamp.style.left = `${Math.round(Math.max(edge, Math.min(r.left + r.width / 2 - w / 2, window.innerWidth - edge - w)))}px`;
+      stamp.style.top = `${Math.round(Math.max(edge, Math.min(cy - h / 2, window.innerHeight - edge - h)))}px`;
+      return true;
+    } catch (e) {
+      endOutBeat(false); // never a stuck table: the sheet opens as before
+      return false;
+    }
   }
 
   function updateMeldScrollHint() {
@@ -3908,12 +3986,16 @@
       paneResult.append(buildResultSortControl(fillForfeit), fList);
     }
 
-    // Die Doppelwertung ist eine OPTIONALE Hausregel. Ohne sie ist "Hand aus"
-    // keine Punktbesonderheit - dann darf hier auch keine versprochen werden
-    // (Spieler-Report: Notiz erschien immer, die Wertung verdoppelte aber
-    // korrekterweise nur bei aktiver Regel).
+    // Doubling is an OPTIONAL house rule: without it no text may promise it (player report).
     const handAusDoubles = !!(lastState.houseRules && lastState.houseRules.handAusDoubles);
-    if (!forfeited && lastState.lastRoundWasHandAus && handAusDoubles) {
+    // The winner is whoever went OUT, often not the biggest number on screen
+    // (a green row among four read like a bug): a headline says it in words.
+    const roundWinner = !forfeited && lastState.lastRoundResult ? lastState.players.find(
+      (p) => lastState.lastRoundResult[p.id] && lastState.lastRoundResult[p.id].breakdown.isWinner
+    ) : null;
+    // "Hand aus" is a fact of the play: the round headline names it, with or without the rule.
+    const handAusInHead = !!lastState.lastRoundWasHandAus && !!roundWinner && !isGameOver;
+    if (!forfeited && lastState.lastRoundWasHandAus && handAusDoubles && !handAusInHead) {
       const handAusNote = document.createElement('p');
       handAusNote.className = 'handAusNote';
       handAusNote.textContent = L('🎉 Hand aus! Die komplette Rundenwertung zählt doppelt.', '🎉 Out in one! The entire round score counts double.');
@@ -3922,27 +4004,32 @@
     if (!forfeited && lastState.lastRoundResult) {
       const SCORE_TARGET = 1000;
 
-      // The winner is whoever went OUT, which is often not the biggest number
-      // on screen - as a green table row among four that read like a bug
-      // ("why is 245 the winner when 250 is right below it?"). Lift them out
-      // of the table into a headline that says it in words.
-      const winner = lastState.players.find(
-        (p) => lastState.lastRoundResult[p.id] && lastState.lastRoundResult[p.id].breakdown.isWinner
-      );
-      if (winner && !isGameOver) {
-        const wr = lastState.lastRoundResult[winner.id];
+      if (roundWinner && !isGameOver) {
+        const wr = lastState.lastRoundResult[roundWinner.id];
         const head = document.createElement('div');
         head.className = 'resultWinner';
+        const mine = roundWinner.id === playerId;
         head.innerHTML =
-          `<div class="resultWinnerName">${nameWithHeart(winner.name)}${botMark(winner)}</div>` +
+          `<div class="resultWinnerName">${nameWithHeart(roundWinner.name)}${botMark(roundWinner)}</div>` +
           `<div class="resultWinnerSub">${
-            winner.id === playerId
-              ? L('Du gewinnst die Runde', 'You win the round')
-              : L('gewinnt die Runde', 'wins the round')
+            handAusInHead
+              ? mine
+                ? L('Du machst Hand aus – alles in einem Zug', 'You go out in one – all in a single turn')
+                : L('macht Hand aus – alles in einem Zug', 'goes out in one – all in a single turn')
+              : mine
+                ? L('Du gewinnst die Runde', 'You win the round')
+                : L('gewinnt die Runde', 'wins the round')
           }</div>` +
           `<div class="resultWinnerScore"></div>`;
         paneResult.appendChild(head);
         countUpScore(head.querySelector('.resultWinnerScore'), wr ? wr.roundScore : 0, { signed: true });
+        // The doubling only with the house rule; the headline already said "Hand aus".
+        if (handAusInHead && handAusDoubles) {
+          const note = document.createElement('p');
+          note.className = 'handAusNote';
+          note.textContent = L('Hausregel: Die komplette Rundenwertung zählt doppelt.', 'House rule: the entire round score counts double.');
+          paneResult.appendChild(note);
+        }
       }
 
       // Round end: the delta leads, the total is context. Game over: the
@@ -8078,6 +8165,20 @@
     prevPikdameRound = lastState.roundNumber;
   }
 
+  /** A headline word never splits ("GLÜCKSGR|IFF!" on an iPhone): one line if it
+   *  fits shrunk by at most a fifth, else it wraps between words and a word too long shrinks. */
+  function fitRaidTitle(t) {
+    t.classList.add('oneLine');
+    let fit = t.clientWidth / t.scrollWidth;
+    if (!(fit < 1)) return; // fits (or no layout at all)
+    if (fit < 0.8) {
+      t.classList.remove('oneLine');
+      fit = t.clientWidth / t.scrollWidth;
+      if (!(fit < 1)) return;
+    }
+    t.style.setProperty('--fit', (fit * 0.97).toFixed(3));
+  }
+
   function showRaidWarning(title, sub, variant) {
     document.querySelectorAll('.raidWarning').forEach((n) => n.remove());
     const w = document.createElement('div');
@@ -8091,6 +8192,7 @@
     w.appendChild(t);
     w.appendChild(s);
     document.body.appendChild(w);
+    try { fitRaidTitle(t); } catch (e) { /* cosmetic */ }
     // Both this panel (top:42%) and the toast (top:50%) sit in the middle of
     // the screen: the log toast printed straight through "Du sicherst dir 100
     // Punkte" - the payoff line of the whole Pik-Dame moment. While the panel

@@ -496,7 +496,13 @@ test('fuzz: real games - she turns exactly when the engine says she moved, never
       const want = truth(g, before, log);
       c.clock.t += 5000;
       let got = [];
-      for (const s of inbox.splice(0)) { c.state(s); got = got.concat(seen(c.doc, s)); }
+      for (const s of inbox.splice(0)) {
+        c.state(s);
+        // Going out holds the final table for a beat: a tap opens the sheet, as for a player.
+        const beat = c.doc.querySelector('.outBeat');
+        if (beat) beat.dispatchEvent(new c.window.MouseEvent('click', { bubbles: true }));
+        got = got.concat(seen(c.doc, s));
+      }
       got.sort();
       for (const m of want) counts[m.split(':')[0]] = (counts[m.split(':')[0]] || 0) + 1;
       if (JSON.stringify(got) !== JSON.stringify(want)) mismatches.push(`seed ${seed} R${g.roundNumber} T${g.turnIndexInRound}: engine ${want.join(',') || '-'} / client ${got.join(',') || '-'} after ${log.map((a) => a.name).join(',') || 'deal'}`);

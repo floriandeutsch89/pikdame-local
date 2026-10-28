@@ -2686,6 +2686,8 @@ body.raidActive #toastContainer { margin-top: 132px; }
   z-index: var(--z-warning);
   pointer-events: none;
   text-align: center;
+  /* Shrink-to-fit from left:50% only had half the screen: "GLÜCKSGRIFF!" split at 197 px. */
+  width: max-content;
   max-width: min(86vw, 400px);
   padding: 16px 20px;
   border-radius: var(--r-md);
@@ -2696,23 +2698,24 @@ body.raidActive #toastContainer { margin-top: 132px; }
   animation: raidWarnIn 2.4s ease-out forwards;
 }
 .raidWarning .rwTitle {
-  /* Farben aus den Theme-Variablen statt hart kodiertem Weiss/Hellgruen:
-     die alten Werte waren fuer dunkle Tische gedacht und auf dem hellen
-     Kuechentisch-Theme kaum lesbar. */
-  font-size: clamp(1.35rem, 6.5vw, 2.1rem);
+  /* Theme colours, not fixed white: the kitchen table is light. A word never
+     splits: client.js fitRaidTitle shrinks the title (--fit) until it fits. */
+  font-size: calc(clamp(var(--fs-title), 6.5vw, calc(var(--fs-title) * 1.55)) * var(--fit, 1));
   font-weight: 900;
   letter-spacing: 0.04em;
   line-height: 1.15;
-  overflow-wrap: anywhere;
+  text-wrap: balance;
   color: var(--danger);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
 }
+.raidWarning .rwTitle.oneLine { white-space: nowrap; }
 .raidWarning .rwSub {
   margin-top: 6px;
-  font-size: clamp(0.85rem, 3.6vw, 1.05rem);
+  font-size: clamp(var(--fs-label), 3.6vw, var(--fs-lead));
   font-weight: 700;
   line-height: 1.35;
   overflow-wrap: anywhere;
+  text-wrap: balance;
   color: var(--text);
 }
 @media (prefers-reduced-motion: reduce) {
@@ -5460,6 +5463,33 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
 }
 @media (prefers-reduced-motion: reduce) {
   .pointsPop, .roundStamp { animation-duration: 0.01s; opacity: 0; }
+}
+
+/* --- Going out: the final table holds a beat (client.js showOutStamp) ------ */
+/* A clear layer over the table: a tap anywhere skips to the round sheet. */
+.outBeat { position: fixed; inset: 0; z-index: var(--z-overlay-ui); cursor: pointer; }
+/* Card paper with the round win's gold as a double frame: reads on every felt
+   and over a busy seat. left/top come from JS (at the seat, kept on screen). */
+.outStamp {
+  position: absolute;
+  padding: 5px 14px 4px;
+  border: 3px solid var(--gold);
+  border-radius: var(--r-sm);
+  background: var(--card-bg);
+  color: var(--card-ink);
+  box-shadow: inset 0 0 0 2px var(--card-bg), inset 0 0 0 4px var(--gold-line), var(--shadow-3);
+  font-family: var(--font-display); font-size: var(--fs-display); font-weight: 800;
+  line-height: 1.1; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap;
+  transform: rotate(-6deg);
+  /* A beat after the last card lands on the pile (its pop takes 0.28 s). */
+  animation: outStampIn 0.42s var(--ease) 0.16s both;
+}
+@keyframes outStampIn {
+  from { opacity: 0; transform: scale(1.9) rotate(-14deg); }
+  to { opacity: 1; transform: scale(1) rotate(-6deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .outStamp { animation: none; }
 }
 
 /* --- Joker in Auslagen: Geister-Beschriftung der vertretenen Karte ---------- */

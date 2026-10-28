@@ -54,6 +54,8 @@
 // --measure writes <out>/measure.json: the table regions (melds, hand, piles ...) per shot.
 // unlock / unlock-lobby / unlock-roundend / unlock-gameover / unlock-queue: the badge unlock card
 // on a running table (--badge <id>), the start screen, the result sheets, and its "+N" fold.
+// out-beat / out-beat-me: an engine round to its last move (a bot goes out / I do): the final
+// table with its stamp, then the sheet; --hand-aus, --rule-doubles (mocked), --beat-at <ms>.
 // gameover-win (I win the match, a new badge), stats-empty (a brand-new name: statistics
 // empty state, then "Meine Partien" empty).
 // "2 gegen 2": gamelobby-team (a real team lobby, a second socket joins, both teams named;
@@ -416,6 +418,47 @@ function towerState(stage, turns, take = '') {
   }
   g.destroy();
   return st;
+}
+// out-beat / out-beat-me: an engine round played to its last move, a bot goes out
+// (-me: I do). Returns the state before that move and the round end, as p1 sees them.
+function goingOutStates(mine) {
+  const GM = require(path.join(ROOT, 'game', 'GameManager'));
+  // Seeded bot names and moves: before (SHOTS_ROOT) and after shots show the same round.
+  const realRandom = Math.random;
+  let s = 20261028;
+  Math.random = () => {
+    s = (s + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(s ^ (s >>> 15), s | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  try { return playToGoingOut(GM, mine); } finally { Math.random = realRandom; }
+}
+function playToGoingOut(GM, mine) {
+  for (let seed = 1; seed < 300; seed++) {
+    const g = new GM(() => {}, { deckSeed: seed });
+    g.maybeRunBotTurn = () => {}; // the turns are driven here
+    g.addOrReconnectPlayer('p1', ME);
+    g.fillWithBots();
+    g.startNewRound();
+    if (g.phase === 'cutting') g.performCut(g.cutterId, 0.5);
+    let before = null;
+    for (let guard = 0; guard < 800 && g.phase === 'playing'; guard++) {
+      before = g.publicState('p1');
+      const cp = g.currentPlayer();
+      g.runBotTurn(cp.id, { forced: !cp.isBot });
+    }
+    const end = g.publicState('p1');
+    g.destroy();
+    const w = end.lastRoundWinnerId;
+    if (before && end.phase === 'roundEnd' && w && end.discardTop && end.discardTop.faceDown && (w === 'p1') === mine) return { before, end };
+  }
+  throw new Error('no engine round ended by going out');
+}
+// The client's beat (public/client.js OUT_BEAT_MS); a checkout without it opens the sheet at once.
+function outBeatMs() {
+  const m = fs.readFileSync(path.join(ROOT, 'public', 'client.js'), 'utf8').match(/const OUT_BEAT_MS = (\d+);/);
+  return m ? Number(m[1]) : null;
 }
 // A live table from the engine (game-settings, home): my draw turn after a few turns, melds laid.
 function tableState() {
@@ -1224,6 +1267,36 @@ function waitForHttp(port, ms = 20000) {
           }
           await page.waitForTimeout(1400); // slide-in, the medal's pop and the sweep of light
           await shot(sc);
+        }
+        if (sc === 'out-beat' || sc === 'out-beat-me') {
+          // Going out: the final table with its stamp (--beat-at ms after the last state), then a
+          // tap on it and the sheet. --hand-aus marks the round out in one, --rule-doubles turns the
+          // house rule on (both mocked on the engine's round end); --tag names the variant.
+          // A seasoned player: no first-turn tip over the table.
+          await page.evaluate(() => { try { localStorage.removeItem('pikdame_last_session'); localStorage.setItem('pikdame_tip_seen', '9'); } catch (e) { /* blocked */ } });
+          await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
+          await page.waitForTimeout(1200);
+          const { before, end } = goingOutStates(sc === 'out-beat-me');
+          if (process.argv.includes('--hand-aus')) end.lastRoundWasHandAus = true;
+          if (process.argv.includes('--rule-doubles')) end.houseRules = { ...end.houseRules, handAusDoubles: true };
+          await toTable(before);
+          // The beat's own timer is held, so a slow capture never shoots the sheet instead.
+          const hold = outBeatMs();
+          if (hold) {
+            await page.evaluate((ms) => {
+              const real = window.setTimeout;
+              window.setTimeout = (fn, wait, ...rest) => (wait === ms ? 0 : real(fn, wait, ...rest));
+              real(() => { window.setTimeout = real; }, 300);
+            }, hold);
+          }
+          inject({ type: 'state', state: end });
+          await page.waitForTimeout(Number(arg('beat-at', 650)));
+          const tag = arg('tag', '') ? `-${arg('tag', '')}` : '';
+          await shot(`${sc}${tag}`);
+          if (await page.isVisible('.outBeat')) await page.click('.outBeat'); // a tap skips to the sheet
+          await page.waitForTimeout(900); // the sheet slides in, the score counts up
+          await page.evaluate(() => { const b = document.getElementById('resultBody'); if (b) b.scrollTop = 0; });
+          await shot(`${sc}-sheet${tag}`);
         }
         if (sc === 'gameover-tower') {
           inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
