@@ -229,6 +229,12 @@
   }
   /** Sprite icon; put the text next to it in its own <span>. */
   const iconHtml = (name) => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+  /** Status line or toast: optional sprite icon (a state mark, never an emoji), the text in its own <span>. */
+  function setIconText(node, text, icon) {
+    if (!icon || !text) { node.textContent = text || ''; return; }
+    node.innerHTML = `${iconHtml(icon)}<span></span>`;
+    node.lastChild.textContent = text;
+  }
   window.PikFormat = { fmtNum, fmtSigned, fmtDate, fmtDay, unitWord, fmtCount, MINUS };
 
   // Dynamische Beschriftungen (enthalten Werte wie den Spiel-Code) koennen
@@ -695,7 +701,7 @@
     btn.addEventListener('click', () => {
       const theme = btn.dataset.themeChoice;
       if (!themeUnlocked(theme)) {
-        showToast(`🔒 ${themeName(theme)}: ${L(`ab Stufe ${THEME_LEVELS[theme]}`, `from level ${THEME_LEVELS[theme]}`)}`);
+        showToast(`${themeName(theme)}: ${L(`ab Stufe ${THEME_LEVELS[theme]}`, `from level ${THEME_LEVELS[theme]}`)}`, { icon: 'lock' });
         return;
       }
       applyTheme(theme);
@@ -6754,9 +6760,9 @@
     const [y, m, d] = String(iso).split('-').map(Number);
     return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
   }
-  function setPuzzleStatus(text, cls) {
+  function setPuzzleStatus(text, cls, icon) {
     const n = el('puzzleStatus');
-    n.textContent = text;
+    setIconText(n, text, icon);
     n.className = `puzzleStatus${cls ? ` ${cls}` : ''}`;
   }
   // Solved or revealed (server status, so it survives a reload) ends today's
@@ -6842,7 +6848,7 @@
     // Reopened after a solve: say so - but never overwrite the fresh
     // "Gelöst! +30 EP" line right after the winning check.
     if (st.solved && !puzzleSolutionIds && !el('puzzleStatus').textContent) {
-      setPuzzleStatus(`✅ ${L('Heute schon gelöst - morgen gibt es ein neues.', 'Solved today - a new one comes tomorrow.')}`, 'ok');
+      setPuzzleStatus(L('Heute schon gelöst - morgen gibt es ein neues.', 'Solved today - a new one comes tomorrow.'), 'ok', 'check');
     } else if (st.revealed && !puzzleSolutionIds && !el('puzzleStatus').textContent) {
       setPuzzleStatus(L('Lösung heute schon angezeigt - morgen gibt es ein neues.', 'Solution already shown today - a new one comes tomorrow.'), '');
     }
@@ -6915,7 +6921,7 @@
       puzzleLayPending = null;
       if (!ids) return true;
       if (!msg.valid) {
-        setPuzzleStatus(`❌ ${trs(msg.reason || '')}`, 'bad');
+        setPuzzleStatus(trs(msg.reason || ''), 'bad', 'close');
         return true;
       }
       puzzleGroups.push(ids);
@@ -6931,13 +6937,13 @@
       if (!msg.valid) {
         puzzleBadGroup = msg.badMeld || 0;
         const where = msg.badMeld ? L(`Auslage ${msg.badMeld}: `, `Meld ${msg.badMeld}: `) : '';
-        setPuzzleStatus(`❌ ${where}${trs(msg.reason || '')}`, 'bad');
+        setPuzzleStatus(`${where}${trs(msg.reason || '')}`, 'bad', 'close');
       } else if (msg.solved) {
         sound.meld();
         const what = puzzleKind() === 'out'
           ? L('Ausgemacht! Die letzte Karte wirfst du ab.', 'Out! The last card is your discard.')
           : L(`Gelöst! ${msg.points} Punkte`, `Solved! ${msg.points} points`);
-        setPuzzleStatus(`✅ ${what}${msg.xp ? ` · +${msg.xp} ${L('EP', 'XP')}` : ''}`, 'ok');
+        setPuzzleStatus(`${what}${msg.xp ? ` · +${msg.xp} ${L('EP', 'XP')}` : ''}`, 'ok', 'check');
         if (msg.level) myProgress = { xp: myProgress ? Math.max(myProgress.xp || 0, (msg.level.total || 0)) : (msg.level.total || 0), level: msg.level };
         if (msg.level && msg.xp) {
           const from = levelFromXpClient((msg.level.total || 0) - msg.xp).level;
@@ -7538,18 +7544,16 @@
     }
   }
   let toastTimer = null;
-  let toastLockUntil = 0; // prioritäre Toasts sperren den Container
-  // Toasts erscheinen zentriert in der Bildmitte (Standard 4s). Prioritäre
-  // Toasts (Rundenspruch, ⚠️-Warnung, Fehlermeldungen) bekommen ihre VOLLE
-  // Anzeigedauer: normale Aktions-Toasts, die währenddessen eintreffen
-  // (z.B. 'Bot zieht eine Karte'), werden verworfen statt sie zu verdrängen.
+  let toastLockUntil = 0; // priority toasts lock the container
+  // A priority toast (round quote, ⚠️ warning, error) keeps its full time: normal ones arriving
+  // meanwhile are dropped, not shown over it. opts.icon: sprite id of a state mark (lock, check).
   function showToast(text, opts = {}) {
     const now = Date.now();
     if (!opts.priority && now < toastLockUntil) return;
     const duration = opts.duration || 4000;
     if (opts.priority) toastLockUntil = now + duration;
     const container = el('toastContainer');
-    container.textContent = text;
+    setIconText(container, text, opts.icon);
     container.classList.add('visible');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => container.classList.remove('visible'), duration);
@@ -8125,9 +8129,9 @@
       return { error: L('Server nicht erreichbar.', 'Server unreachable.') };
     }
   }
-  function setAccountStatus(text, isError) {
+  function setAccountStatus(text, isError, icon) {
     const s = el('accountStatus');
-    s.textContent = text || '';
+    setIconText(s, text, icon);
     s.style.color = isError ? 'var(--danger, #ff7d8c)' : '';
     // The dialog is long on a phone; an error below the fold looked like
     // "nothing happened".
@@ -8617,7 +8621,7 @@
       const response = await lib.startRegistration({ optionsJSON: opt.options });
       const r = await accountApi('/api/passkey/add/verify', { token: accountToken(), flowId: opt.flowId, response });
       if (r.error) return setAccountStatus(trs(r.error), true);
-      setAccountStatus(L('✅ Passkey hinzugefügt.', '✅ Passkey added.'));
+      setAccountStatus(L('Passkey hinzugefügt.', 'Passkey added.'), false, 'check');
       renderLoginMethods().catch(() => {});
     } catch (e) {
       setAccountStatus(passkeyCancelled(e) ? L('Abgebrochen.', 'Cancelled.') : L('Der Passkey konnte nicht angelegt werden.', 'The passkey could not be created.'), !passkeyCancelled(e));
@@ -8639,7 +8643,7 @@
     if (r.error) return setAccountStatus(trs(r.error), true);
     el('accNewPass').value = '';
     el('accSetPasswordForm').classList.add('hidden');
-    setAccountStatus(L('✅ Passwort gespeichert.', '✅ Password saved.'));
+    setAccountStatus(L('Passwort gespeichert.', 'Password saved.'), false, 'check');
     renderLoginMethods().catch(() => {});
   });
   confirmByTap(el('accRemovePasswordBtn'), L('Wirklich?', 'Sure?'), async () => {
@@ -8939,7 +8943,7 @@
     btn.addEventListener('click', () => {
       const need = emoteUnlockLevel(btn.dataset.emote);
       if (need > myLevel()) {
-        showToast(`🔒 ${L(`Dieses Emote gibt es ab Stufe ${need}.`, `This reaction unlocks at level ${need}.`)}`);
+        showToast(L(`Dieses Emote gibt es ab Stufe ${need}.`, `This reaction unlocks at level ${need}.`), { icon: 'lock' });
         return;
       }
       send({ type: 'emote', emoji: btn.dataset.emote });
@@ -10874,7 +10878,7 @@
   function celebrateProgress(msg) {
     const completed = (msg.quests && msg.quests.completed) || [];
     for (const id of completed) {
-      showToast(`✅ ${L('Tagesziel erreicht', 'Daily goal reached')}: ${questMeta(id).text}`);
+      showToast(`${L('Tagesziel erreicht', 'Daily goal reached')}: ${questMeta(id).text}`, { icon: 'check' });
     }
     const st = msg.streak;
     if (st && (st.event === 'extended' || st.event === 'bridged') && st.streak >= 2) {
@@ -10918,7 +10922,7 @@
           ? `${p.have}/${p.need}`
           : L('gesperrt', 'locked');
       return `<button type="button" class="achTile${at ? ' earned' : ''}${favKeys.includes(id) ? ' fav' : ''}" data-ach="${id}" aria-expanded="false" title="${escapeHtml(m.how)}">
-        <span class="achEmoji">${at ? m.emoji : '🔒'}</span>
+        <span class="achEmoji">${at ? m.emoji : iconHtml('lock')}</span>
         <span class="achName">${escapeHtml(m.name)}</span>
         <span class="achSub">${escapeHtml(sub)}</span>${favMark(id)}
       </button>`;
@@ -10937,7 +10941,7 @@
         : L('alle Stufen', 'all tiers');
       const title = next ? badgeMeta(next).how : m.desc;
       return `<button type="button" class="achTile achFamily${top ? ' earned' : ''}${!next ? ' maxed' : ''}${favKeys.includes(fam.id) ? ' fav' : ''}" data-ach="${fam.id}" aria-expanded="false" title="${escapeHtml(title)}">
-        <span class="achEmoji">${top ? m.emoji : '🔒'}</span>
+        <span class="achEmoji">${top ? m.emoji : iconHtml('lock')}</span>
         <span class="achName">${escapeHtml(m.name)}</span>
         <span class="achTiers">${dots}</span>
         <span class="achSub">${escapeHtml(sub)}</span>${favMark(fam.id)}
@@ -11082,8 +11086,8 @@
       const m = badgeMeta(id);
       const p = progress[id];
       const state = owned[id]
-        ? `✓ ${fmtDate(owned[id], { day: 'numeric', month: 'numeric', year: 'numeric' })}`
-        : p && p.need > 1 ? `${p.have}/${p.need}` : '';
+        ? `${iconHtml('check')}<span>${escapeHtml(fmtDate(owned[id], { day: 'numeric', month: 'numeric', year: 'numeric' }))}</span>`
+        : p && p.need > 1 ? escapeHtml(`${p.have}/${p.need}`) : '';
       // "here" = the dot: the tier being worked on, or the last one when all are reached.
       const here = fam && (id === next || (!next && i === fam.tiers.length - 1));
       const cls = [owned[id] ? 'done' : '', id === next ? 'next' : '', here ? 'here' : ''].filter(Boolean).join(' ');
@@ -11091,7 +11095,7 @@
         ? `<span class="achTierNo">${escapeHtml(L(`Stufe ${i + 1}`, `Tier ${i + 1}`))}${id === next ? ` · ${escapeHtml(L('als Nächstes', 'next'))}` : ''}</span>`
         : '';
       return `<li class="${cls}">${tier}<b>${escapeHtml(m.name)}</b>` +
-        `${state ? ` <span class="achDetailState">${escapeHtml(state)}</span>` : ''}<span class="achHow">${escapeHtml(m.how)}</span></li>`;
+        `${state ? ` <span class="achDetailState">${state}</span>` : ''}<span class="achHow">${escapeHtml(m.how)}</span></li>`;
     };
     const head = badgeMeta(fam ? (fam.tiers.filter((id) => owned[id]).pop() || fam.tiers[0]) : key);
     const title = fam
@@ -11718,9 +11722,8 @@
       }
     } catch (e) { /* Kosmetik bricht nie den Start */ }
   }
-  // Galerie statt Blindzyklus (Brotato-Prinzip: gesperrte Freischaltungen
-  // sichtbar machen - 'was mir noch fehlt' motiviert): Kacheln mit Vorschau,
-  // aktive Wahl markiert, gesperrte zeigen 🔒 + ihr Ziel.
+  // A gallery, not a blind cycle: locked backs stay visible with their goal ("what I still
+  // miss" motivates); the active one carries a check, locked ones a lock.
   function openCardbackGallery() {
     const existing = document.querySelector('.cardbackGallery');
     if (existing) { existing.remove(); return; }
@@ -11737,12 +11740,14 @@
       const tile = document.createElement('button');
       tile.type = 'button';
       tile.className = `cardbackTile${cb.id === cur ? ' active' : ''}${unlocked ? '' : ' locked'}`;
-      const lock = unlocked ? '' : '<svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg>';
+      // The check is aria-hidden: the pressed state names the active back.
+      tile.setAttribute('aria-pressed', String(cb.id === cur));
+      const lock = unlocked ? '' : iconHtml('lock');
       tile.innerHTML = `<span class="cbPrev cbPrev-${cb.id}">${lock}</span>` +
         `<span class="cbName">${L(cb.label, cb.labelEn)}</span>` +
-        `<span class="cbGate">${unlocked ? (cb.id === cur ? '✓' : '') : L(cb.gate.de, cb.gate.en)}</span>`;
+        `<span class="cbGate">${unlocked ? (cb.id === cur ? iconHtml('check') : '') : L(cb.gate.de, cb.gate.en)}</span>`;
       tile.addEventListener('click', () => {
-        if (!unlocked) { showToast(`🔒 ${L(cb.label, cb.labelEn)}: ${L(cb.gate.de, cb.gate.en)}`); return; }
+        if (!unlocked) { showToast(`${L(cb.label, cb.labelEn)}: ${L(cb.gate.de, cb.gate.en)}`, { icon: 'lock' }); return; }
         storageSet(CARDBACK_KEY, cb.id);
         applyCardback();
         wrap.remove();
