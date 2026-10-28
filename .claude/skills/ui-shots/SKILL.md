@@ -27,6 +27,13 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
 - **Table scene:** `--scenes table --state <file>` injects a live game. Build
   the state from the real engine (`GameManager` + `fillWithBots` +
   `runBotTurn`, then `publicState('p1')`), not by hand.
+- **Other players' moves in flight:** `opp-moves` (a bot's turn in one state:
+  stock draw, a new meld, the discard) and `opp-moves-take` (a pile take
+  instead of the draw) shoot the table before the turn, frames frozen at
+  `--film 60,150,...` ms after its state arrived, and the end. Each frame
+  starts from a fresh "before"; the page's timers wait during a frame, so a
+  slow 2x shot cannot end the flight. On a `SHOTS_ROOT` main checkout they are
+  the "before" pictures (the table just jumps).
 - **Themes:** `--theme table|night|felt|love|bordeaux|kitchen`. `kitchen` is
   the light one; check it whenever a colour or a translucent white changes.
 - **Table light:** the table's light follows the Berlin clock

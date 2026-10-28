@@ -179,6 +179,10 @@
   // Her head turn: live moments by card id | 'pile' | 'pileOut' | 'result'.
   const queenMoments = new Map();
   let queenPrev = null; // facts of the previous state; null = the next one is only a baseline
+  // Other players' moves fly (public/table-moves.js reads them, flyTableMove below shows them).
+  const tableMoves = window.PikdameTableMoves || null;
+  let movesPrev = null; // facts of the previous state; null = the next one is only a baseline
+  let oppTurn = null; // the opponent turn in flight (one at a time, never queued)
   // --- Sprache (Deutsch/Englisch, Default Deutsch) ----------------------------
   const LANG_KEY = 'pikdame_lang';
   let lang = storageGet(LANG_KEY) === 'en' ? 'en' : 'de';
@@ -813,13 +817,15 @@
   document.addEventListener('visibilitychange', syncTableLight);
 
   let lastToneAt = 0; // a later cue can wait for this one (sound.unlock)
-  function playTone(freqs, durationMs, type = 'sine', gainValue = 0.06) {
+  const QUIET_GAIN = 0.4; // another player's move sounds at this share of my own
+  function playTone(freqs, durationMs, type = 'sine', gainValue = 0.06, quiet = false) {
     if (!soundEnabled) return;
     const ctx = getAudioCtx();
     if (!ctx) return;
     if (ctx.state === 'suspended') ctx.resume();
     lastToneAt = Date.now();
     const now = ctx.currentTime;
+    const peak = quiet ? gainValue * QUIET_GAIN : gainValue;
     freqs.forEach((freq, i) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -827,7 +833,7 @@
       osc.frequency.value = freq;
       const start = now + i * (durationMs / 1000 / freqs.length);
       gain.gain.setValueAtTime(0, start);
-      gain.gain.linearRampToValueAtTime(gainValue, start + 0.01);
+      gain.gain.linearRampToValueAtTime(peak, start + 0.01);
       gain.gain.exponentialRampToValueAtTime(0.0001, start + durationMs / 1000 / freqs.length);
       osc.connect(gain).connect(ctx.destination);
       osc.start(start);
@@ -836,8 +842,8 @@
     scheduleAudioSuspend(); // power the audio hardware down again once idle
   }
 
-  function vibrate(pattern) {
-    if (!soundEnabled) return;
+  function vibrate(pattern, quiet = false) {
+    if (!soundEnabled || quiet) return;
     if (navigator.vibrate) navigator.vibrate(pattern);
   }
 
@@ -872,9 +878,10 @@
   const sound = {
     pikdame: () => { playTone([98, 147, 98], 520, 'sawtooth', 0.06); vibrate([60, 40, 60, 40, 120]); },
     turn: () => { playTone([523, 659], 180, 'sine', 0.06); vibrate([30, 60, 30]); },
-    draw: () => { playTone([320], 90, 'triangle', 0.05); vibrate(8); },
-    discard: () => { playTone([260, 180], 110, 'triangle', 0.05); vibrate(12); },
-    meld: () => { playTone([440, 554, 660], 220, 'sine', 0.06); vibrate([10, 30, 10]); },
+    // quiet: another player's move - softer, and no buzz in the hand (playTone, vibrate).
+    draw: (quiet) => { playTone([320], 90, 'triangle', 0.05, quiet); vibrate(8, quiet); },
+    discard: (quiet) => { playTone([260, 180], 110, 'triangle', 0.05, quiet); vibrate(12, quiet); },
+    meld: (quiet) => { playTone([440, 554, 660], 220, 'sine', 0.06, quiet); vibrate([10, 30, 10], quiet); },
     error: () => { playTone([140], 160, 'square', 0.05); vibrate(40); },
     roundEnd: () => { playTone([392, 494, 587, 784], 420, 'sine', 0.07); vibrate([15, 40, 15, 40]); },
     meow: () => { playMeow(); vibrate([12, 60, 12]); },
@@ -1589,6 +1596,8 @@
       playerId = msg.playerId;
       sessionCode = msg.sessionCode;
       queenPrev = null; // a (re)join is no queen moment: the state may have jumped
+      movesPrev = null; // nor a move: whatever happened meanwhile is not replayed
+      try { endTableMoves(); } catch (e) { /* cosmetic */ }
       storageSet(playerKeyFor(sessionCode), playerId);
       // URL aktualisieren, damit der Link direkt teilbar ist (?session=CODE)
       const url = new URL(window.location.href);
@@ -1730,6 +1739,7 @@
       maybeShowActionToast();
       maybeShowRoundQuote();
       try { detectQueenMoments(); } catch (e) { /* cosmetic */ }
+      try { detectTableMoves(); } catch (e) { /* cosmetic */ }
       checkPikdameAnnouncement();
       render();
       // After "Tutorial geschafft": the new game exists - start it with bots
@@ -2947,19 +2957,8 @@
     drawCardDiv.classList.toggle('stacked-1', lastState.drawPileCount > 1 && lastState.drawPileCount <= 15);
 
     const discardTopDiv = el('discardTopCard');
-    discardTopDiv.innerHTML = '';
     discardTopDiv.className = 'pile-card';
-    if (lastState.discardTop && !lastState.discardTop.faceDown) {
-      const t = lastState.discardTop;
-      discardTopDiv.classList.add(t.isJoker ? 'joker' : suitColor(t.suit));
-      if (t.isJoker) discardTopDiv.innerHTML = JOKER_MARK_SVG;
-      else discardTopDiv.textContent = `${t.rank}${suitSymbol(t.suit)}`;
-    } else if (lastState.discardTop) {
-      discardTopDiv.classList.add('back');
-    } else {
-      discardTopDiv.classList.add('empty');
-      discardTopDiv.textContent = L('leer', 'empty');
-    }
+    paintPileCard(discardTopDiv, lastState.discardTop);
     // Stapel-Tiefe visuell: mehr Karten = mehr sichtbare Ebenen unter der obersten
     discardTopDiv.classList.toggle('stacked-2', lastState.discardPileCount > 6);
     discardTopDiv.classList.toggle(
@@ -3281,6 +3280,8 @@
         d.textContent = trs(entry.text);
         logEntries.appendChild(d);
       });
+    // Rebuilt meld cards still in flight stay hidden until their ghost lands.
+    try { holdTableMoves(); } catch (e) { /* cosmetic */ }
   }
 
   // The forfeit vote sits in the home dialog, next to "Tisch verlassen". Not in
@@ -4787,6 +4788,8 @@
     // Kartenhaus "Ohne Ablage": explain instead of a silent tap or a server refusal.
     if (el('discardPile').classList.contains('towerLocked')) { explainTowerLock(); return; }
     if (el('discardPile').classList.contains('disabled')) return;
+    // The last discard may still be in the air: show the card that is really taken.
+    try { endTableMoves(); } catch (e) { /* cosmetic */ }
     // Known-illegal take: still ask the server (it explains WHY in its
     // error toast) but skip the sound and the card flying to the hand - they
     // would announce a take that is about to be refused.
@@ -7474,9 +7477,9 @@
     return wrap;
   }
 
-  // --- Karten-Flug-Animation -------------------------------------------------
-  // Kleine "Geister-Karte", die vom Start- zum Zielrechteck fliegt. Nur
-  // Deko - der echte Zustand kommt weiterhin vom Server-Broadcast.
+  // --- Card flight (my own moves) ----------------------------------------------
+  // A small ghost card flies from one rect to another. Decoration only - the
+  // real state still comes from the server broadcast.
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   function flyCard(fromEl, toEl, faceDown) {
     if (reducedMotion || !fromEl || !toEl) return;
@@ -7496,6 +7499,306 @@
     });
     setTimeout(() => ghost.remove(), 480);
   }
+
+  // --- Other players' moves fly -------------------------------------------------
+  // table-moves.js names what the player on turn did; a ghost shows it: stock or
+  // pile -> their chip, chip -> meld card, chip -> pile. The real card stays hidden
+  // until its ghost lands. One turn at a time: the next player's state ends it.
+  const OPP_EASE = 'cubic-bezier(.4, 0, .2, 1)';
+  const OPP_HOLD_SLACK_MS = 120; // a hidden card shows on its own this late if its ghost never lands
+
+  /** Flights need motion, a visible page, Web Animations and the table on screen. */
+  function tableMovesLive() {
+    return typeof Element.prototype.animate === 'function' && !motionReduced() &&
+      !document.hidden && !el('table').classList.contains('hidden');
+  }
+
+  /** Every state, before render: the moves since the last state join the running turn or start one. */
+  function detectTableMoves() {
+    if (!tableMoves || !lastState) return;
+    const now = tableMoves.facts(lastState, playerId);
+    const prev = movesPrev;
+    movesPrev = now;
+    const moves = tableMoves.diff(prev, now, playerId);
+    const at = performance.now();
+    const who = moves.length ? moves[0].who : null;
+    // A Zen bot's discard a moment after its melds: the same turn, one timeline.
+    const goesOn = !!oppTurn && who === oppTurn.who && now.round === oppTurn.round && prev.turn === oppTurn.turn;
+    if (oppTurn && !goesOn && (moves.length || tableMoves.changed(prev, now))) endTableMoves();
+    if (!moves.length || document.hidden) return;
+    if (!oppTurn) {
+      // "Schnell": the next bot moves after 350 ms - the flights never outlast that.
+      const pace = BREATH_PACE.get(lastState.houseRules && lastState.houseRules.botPace) || 1;
+      // t0: the turn's clock starts with its first frame (launchTableMoves), so no flight skips its start.
+      oppTurn = { who, round: now.round, turn: prev.turn, t0: null, budget: tableMoves.BUDGET_MS * Math.min(1, pace), cursor: 0, flights: [], timers: [], live: tableMovesLive() };
+    }
+    const turn = oppTurn;
+    const elapsed = turn.t0 === null ? 0 : at - turn.t0;
+    const { flights, cursor } = tableMoves.plan(moves, { budget: turn.budget, from: Math.max(elapsed, turn.cursor) });
+    turn.cursor = cursor;
+    let melded = false;
+    for (const f of flights) {
+      const kind = f.move.kind;
+      const first = flights.find((x) => x.move === f.move) === f;
+      // One quiet sound per move: the draw as it leaves, the melds as they start, the discard as it lands.
+      const cue = kind === 'discard' ? 'discard' : kind === 'meld' ? (melded ? null : 'meld') : first ? 'draw' : null;
+      if (kind === 'meld') melded = true;
+      turn.flights.push({ kind, who, card: f.card, id: f.card && f.card.id, meld: f.move.meld, start: f.start, dur: f.dur, cue });
+    }
+  }
+
+  /** Where a flight lands, if it lands on a card: the meld slot, or the pile's new top. */
+  function landingNode(f) {
+    if (f.kind === 'meld') return meldCardNode(f.meld, f.id);
+    if (f.kind !== 'discard') return null;
+    const top = lastState.discardTop;
+    const same = top && (f.card.faceDown ? !!top.faceDown : top.id === f.id);
+    return same ? el('discardTopCard') : null;
+  }
+
+  /** Hides the real card at a flight's landing spot until the ghost lands (or a moment later on its own). */
+  function holdLanding(f, node, left) {
+    f.holdEl = node;
+    f.hold = node.animate([{ opacity: 0 }, { opacity: 0 }], { duration: left + OPP_HOLD_SLACK_MS });
+  }
+
+  /** A flight that cannot land any more: its ghost goes, its card shows. */
+  function dropFlight(f) {
+    f.lost = true;
+    for (const a of [f.anim, f.hold]) {
+      if (a) { try { a.cancel(); } catch (e) { /* already gone */ } }
+    }
+    if (f.ghost) f.ghost.remove();
+    if (f.standIn) f.standIn.remove();
+  }
+
+  /** End of renderTable: meld cards rebuilt while their ghost flies stay hidden; then the launch. */
+  function holdTableMoves() {
+    const turn = oppTurn;
+    if (!turn) return;
+    if (turn.live && turn.t0 !== null) {
+      const elapsed = performance.now() - turn.t0;
+      for (const f of turn.flights) {
+        const left = f.start + f.dur - elapsed;
+        if (!f.launched || f.lost || left <= 0 || (f.kind !== 'meld' && f.kind !== 'discard')) continue;
+        const node = landingNode(f);
+        if (!node) dropFlight(f); // taken back, filtered away: it lands nowhere
+        else if (f.holdEl !== node) holdLanding(f, node, left);
+      }
+    }
+    if (!turn.launchQueued && turn.flights.some((f) => !f.launched)) {
+      turn.launchQueued = true;
+      // After the hand's own layout frame: the piles sit where they will stay.
+      requestAnimationFrame(() => {
+        turn.launchQueued = false;
+        try { launchTableMoves(turn); } catch (e) { /* cosmetic */ }
+      });
+    }
+  }
+
+  /** The rendered card of a meld slot (jokers carry no card id, so by slot). */
+  function meldCardNode(meldId, cardId) {
+    const meld = (lastState.tableMelds || []).find((m) => m.id === meldId);
+    const slot = meld ? meld.slots.findIndex((s) => ((s.real || s.joker) || {}).id === cardId) : -1;
+    if (slot < 0) return null;
+    const group = [...el('melds').querySelectorAll('.meldGroup')].find((g) => g.dataset.meldId === String(meldId));
+    return (group && group.children[slot]) || null;
+  }
+
+  /** A pile card's face: rank and suit, the joker's crown, a back, or empty. */
+  function paintPileCard(div, card) {
+    div.innerHTML = '';
+    if (card && !card.faceDown) {
+      div.classList.add(card.isJoker ? 'joker' : suitColor(card.suit));
+      if (card.isJoker) div.innerHTML = JOKER_MARK_SVG;
+      else div.textContent = `${card.rank}${suitSymbol(card.suit)}`;
+    } else if (card) {
+      div.classList.add('back');
+    } else {
+      div.classList.add('empty');
+      div.textContent = L('leer', 'empty');
+    }
+  }
+
+  /** The pile as it lay before the discard, over the hidden new top card until the ghost lands. */
+  function pileStandIn(ms) {
+    const under = (lastState.discardCards || [])[1] || null;
+    const count = Math.max(0, (lastState.discardPileCount || 0) - 1);
+    const d = document.createElement('div');
+    d.className = 'pile-card oppUnder';
+    d.setAttribute('aria-hidden', 'true');
+    paintPileCard(d, under);
+    d.classList.toggle('stacked-2', count > 6);
+    d.classList.toggle('stacked-1', count > 1 && count <= 6);
+    el('discardPile').appendChild(d);
+    // Visibility, not opacity: the pile's own dimming (not my turn) applies to it too.
+    const a = d.animate([{ visibility: 'visible' }, { visibility: 'visible' }], { duration: ms });
+    a.onfinish = () => d.remove();
+    return d;
+  }
+
+  /** A pile card in the air: the stock's size and type (every pile card shares them). */
+  function pileCardGhost(card) {
+    const ref = el('drawPile').querySelector('.pile-card');
+    const g = document.createElement('div');
+    g.className = 'pile-card oppFly';
+    paintPileCard(g, card);
+    const w = ref.offsetWidth || ref.getBoundingClientRect().width;
+    const h = ref.offsetHeight || ref.getBoundingClientRect().height;
+    Object.assign(g.style, { width: `${w}px`, height: `${h}px`, fontSize: getComputedStyle(ref).fontSize });
+    if (g.classList.contains('back')) {
+      const medal = getComputedStyle(ref, '::after'); // the back's medallion, as on the stock
+      g.style.setProperty('--of-mw', medal.width);
+      g.style.setProperty('--of-mf', medal.fontSize);
+    }
+    return { g, w, h };
+  }
+
+  /** A meld card in the air: a copy of the real one, its size and index taken along. */
+  function meldCardGhost(node) {
+    const g = node.cloneNode(true);
+    g.classList.remove('qTurn', 'qStill', 'selected', 'tutorialGlow');
+    g.classList.add('oppFly');
+    g.removeAttribute('data-card-id');
+    g.querySelectorAll('.qProfile').forEach((n) => n.remove());
+    const cs = getComputedStyle(node);
+    const w = node.offsetWidth || node.getBoundingClientRect().width;
+    const h = node.offsetHeight || node.getBoundingClientRect().height;
+    Object.assign(g.style, { width: `${w}px`, height: `${h}px`, minWidth: '0', fontSize: cs.fontSize, borderRadius: cs.borderRadius });
+    const corner = node.querySelector('.corner');
+    const copy = g.querySelector('.corner');
+    if (corner && copy) {
+      const cc = getComputedStyle(corner);
+      Object.assign(copy.style, { fontSize: cc.fontSize, top: cc.top, left: cc.left });
+    }
+    return { g, w, h };
+  }
+
+  /** A card's centre on screen and its layout size (a running pop or turn does not count). */
+  function cardBox(node) {
+    const r = node.getBoundingClientRect();
+    return { cx: r.left + r.width / 2, cy: r.top + r.height / 2, w: node.offsetWidth || r.width };
+  }
+
+  /** One ghost between the player's chip and the stock, the pile or a meld card. */
+  function flyTableMove(turn, f, elapsed) {
+    const chip = [...el('opponents').children].find((d) => d.dataset.playerId === f.who);
+    const anchor = chip && (chip.querySelector('.opAvatar') || chip);
+    if (!anchor) return false;
+    let box;
+    let ghost;
+    const landing = landingNode(f);
+    if (f.kind === 'meld') {
+      if (!landing) return false;
+      box = cardBox(landing);
+      // Scrolled out of the meld area: no flight, the card simply is there.
+      const view = el('melds').getBoundingClientRect();
+      if (box.cx < view.left || box.cx > view.right || box.cy < view.top || box.cy > view.bottom) return false;
+      ghost = meldCardGhost(landing);
+    } else {
+      // Her own exit plays on the pile when she is taken (queenGhost).
+      const m = queenMoments.get('pileOut');
+      if (f.kind === 'take' && m && m.id === f.id) return false;
+      if (f.kind === 'discard' && !landing) return false;
+      box = cardBox(f.kind === 'draw' ? el('drawPile').querySelector('.pile-card') : el('discardTopCard'));
+      ghost = pileCardGhost(f.kind === 'draw' ? { faceDown: true } : f.card);
+    }
+    const { g, w, h } = ghost;
+    if (!w || !h || !box.w) return false;
+    const a = anchor.getBoundingClientRect();
+    const s = Math.max(0.3, Math.min(0.9, (chip.getBoundingClientRect().height * 0.62) / h));
+    const pose = (cx, cy, scale, deg) => `translate(${cx - w / 2}px, ${cy - h / 2}px) rotate(${deg}deg) scale(${scale})`;
+    const atCard = pose(box.cx, box.cy, box.w / w, 0);
+    const atChip = (deg) => pose(a.left + a.width / 2, a.top + a.height / 2, s, deg);
+    const toChip = f.kind === 'draw' || f.kind === 'take';
+    const frames = toChip
+      ? [{ transform: atCard, opacity: 1 }, { opacity: 1, offset: 0.65 }, { transform: atChip(8), opacity: 0 }]
+      : [{ transform: atChip(-8), opacity: 0 }, { opacity: 1, offset: 0.3 }, { transform: atCard, opacity: 1 }];
+    g.setAttribute('aria-hidden', 'true');
+    g.style.transform = frames[0].transform;
+    g.style.opacity = '0'; // invisible until its turn in the stagger
+    document.body.appendChild(g);
+    const left = f.start + f.dur - elapsed;
+    if (landing) holdLanding(f, landing, left);
+    if (f.kind === 'discard') f.standIn = pileStandIn(left + OPP_HOLD_SLACK_MS);
+    f.ghost = g;
+    f.anim = g.animate(frames, { duration: f.dur, delay: f.start - elapsed, easing: OPP_EASE, fill: 'forwards' });
+    // It lands: in the same frame the real card takes its place.
+    f.anim.onfinish = () => {
+      if (f.hold) f.hold.cancel();
+      if (f.standIn) f.standIn.remove();
+      g.remove();
+      if (f.kind === 'discard') popPileTop();
+    };
+    turn.timers.push(setTimeout(() => g.remove(), f.start + f.dur - elapsed + 400)); // a hidden tab may never finish it
+    return true;
+  }
+
+  /** In the frame after the render (nothing was painted in between): the turn's clock starts, the
+   *  real cards hide where they will land, the ghosts take off, the sounds are timed. */
+  function launchTableMoves(turn) {
+    if (turn !== oppTurn) return;
+    const now = performance.now();
+    if (turn.t0 === null) turn.t0 = now;
+    const elapsed = now - turn.t0;
+    // A sheet over the table (the round result too): nothing to fly over, the cards just show.
+    if (turn.live && document.querySelector('.overlay:not(.hidden)')) {
+      turn.live = false;
+      turn.flights.forEach(dropFlight);
+    }
+    const sheet = !el('resultOverlay').classList.contains('hidden'); // its fanfare speaks for the round's end
+    let end = 0;
+    for (const f of turn.flights) {
+      end = Math.max(end, f.start + f.dur);
+      if (f.launched) continue;
+      f.launched = true;
+      const flew = turn.live && !f.lost && flyTableMove(turn, f, elapsed);
+      if (!flew) dropFlight(f); // no ghost: the card shows at once, and later renders leave it alone
+      // Her head turn on the table starts when her card lands there.
+      const key = f.kind === 'meld' ? f.id : 'pile';
+      const m = flew && (f.kind === 'meld' || f.kind === 'discard') ? queenMoments.get(key) : null;
+      if (m && !m.shifted && (f.kind === 'meld' ? m.kind === 'meld' : m.kind === 'discard' && m.id === f.id)) {
+        m.at = turn.t0 + f.start + f.dur;
+        m.shifted = true;
+        f.queen = key;
+        queenDecorate(f.holdEl, key, f.kind === 'meld' ? 'meld' : 'pile');
+      }
+      if (f.cue && !sheet) {
+        const cue = f.cue;
+        const at = cue === 'discard' ? f.start + f.dur : f.start;
+        turn.timers.push(setTimeout(() => sound[cue](true), Math.max(0, at - elapsed))); // quiet
+      }
+    }
+    clearTimeout(turn.endTimer);
+    turn.endTimer = setTimeout(() => { if (oppTurn === turn) endTableMoves(); }, Math.max(0, end - elapsed) + 80);
+  }
+
+  /** The discard lands: the pile's pop, now that its card shows (her own turn has one built in). */
+  function popPileTop() {
+    const top = el('discardTopCard');
+    if (top.classList.contains('qTurn')) return;
+    top.classList.remove('pop');
+    void top.offsetWidth; // restart the animation
+    top.classList.add('pop');
+  }
+
+  /** Ends the turn in flight at once: ghosts gone, every card where the state has it. */
+  function endTableMoves() {
+    const turn = oppTurn;
+    oppTurn = null;
+    if (!turn) return;
+    clearTimeout(turn.endTimer);
+    for (const t of turn.timers) clearTimeout(t);
+    const now = performance.now();
+    for (const f of turn.flights) {
+      dropFlight(f);
+      const m = f.queen && queenMoments.get(f.queen);
+      if (m && m.at > now) m.at = now; // her turn waits for no ghost any more
+    }
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { try { endTableMoves(); } catch (e) { /* cosmetic */ } }
+  });
 
   // --- Toast: letzte Aktion kurz einblenden ---------------------------------
   let seenLogLength = null;

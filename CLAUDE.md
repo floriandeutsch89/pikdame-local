@@ -273,7 +273,9 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
   nach wenigen Zügen enden (~1,5 %) — über Rundengrenzen weiterspielen.
 - Client-Heuristiken gegen die Server-Wahrheit fuzzen: keine falschen Positiven.
   Ein Bot-Zug kommt als EIN State (Broadcast pro Tick gebündelt): Diffs zweier
-  States aus Orten ableiten, nie aus Zählern (Pik-Dame-Momente, Engine-Fuzz).
+  States aus Orten ableiten, nie aus Zählern (Pik-Dame-Momente, Gegnerzüge in
+  `table-moves.js`, Engine-Fuzz). Gesammelte States sofort serialisieren wie die
+  Leitung: `publicState()` teilt Live-Arrays (`tableMelds`), sonst ändern sie sich nachträglich.
 - Snapshot-Änderungen: Roundtrip `JSON.stringify/parse` + Restore.
 - `.canScroll*`-Klassen: wer sie gestaltet, setzt sie auch (Vertragstest;
   am iPhone die einzige Scroll-Andeutung).
