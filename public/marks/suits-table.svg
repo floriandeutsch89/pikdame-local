@@ -12,11 +12,8 @@
       </g>
       <circle cx="100" cy="90" r="83" fill="none" stroke="#000" stroke-width="2.4"/>
     </mask>
-    <filter id="soft" x="-5%" y="-5%" width="110%" height="110%">
-      <feGaussianBlur stdDeviation="0.45"/>
-    </filter>
   </defs>
-  <g filter="url(#soft)">
+  <g>
     <g mask="url(#cut)">
       <circle cx="100" cy="90" r="83" fill="none" stroke="#000" stroke-width="8"/>
       <path transform="translate(100 48) scale(.9)" d="M0-31C6-21 27-9 27 5C27 15 19 21 11 20C7.6 19.6 4.8 17.8 3 15Q4.5 24 10 29H-10Q-4.5 24-3 15C-4.8 17.8-7.6 19.6-11 20C-19 21-27 15-27 5C-27-9-6-21 0-31Z"/>

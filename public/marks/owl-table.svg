@@ -19,11 +19,8 @@
       <rect width="200" height="180" fill="#fff"/>
       <circle cx="172.5" cy="21.5" r="13"/>
     </mask>
-    <filter id="soft" x="-5%" y="-5%" width="110%" height="110%">
-      <feGaussianBlur stdDeviation="0.45"/>
-    </filter>
   </defs>
-  <g filter="url(#soft)" transform="translate(0 1.5)">
+  <g transform="translate(0 1.5)">
     <path mask="url(#cut)" d="M58 32L82 47Q100 42 118 47L142 32C144 44 146 54 146 66C150 84 150 104 146 118C140 140 122 154 100 154C78 154 60 140 54 118C50 104 50 84 54 66C54 54 56 44 58 32Z"/>
     <path d="M30 160Q100 154 164 158" fill="none" stroke="#000" stroke-width="6" stroke-linecap="round"/>
     <path d="M164 158Q173 150 179 154Q173 162 164 158Z"/>

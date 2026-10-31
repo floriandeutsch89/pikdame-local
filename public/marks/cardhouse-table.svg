@@ -36,11 +36,8 @@
         <rect transform="translate(111 65) rotate(-31.4)" x="-7.5" y="-22.1" width="15" height="44.2" rx="2.6"/>
       </g>
     </mask>
-    <filter id="soft" x="-5%" y="-5%" width="110%" height="110%">
-      <feGaussianBlur stdDeviation="0.45"/>
-    </filter>
   </defs>
-  <g filter="url(#soft)">
+  <g>
     <g mask="url(#cut)">
       <g mask="url(#lean)">
         <rect transform="translate(39 151) rotate(31.4)" x="-7.5" y="-22.1" width="15" height="44.2" rx="2.6"/>
