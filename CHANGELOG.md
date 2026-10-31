@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.125.3] - 2026-10-31
+
+### Fixed
+- Eigene Züge: Die fliegende Karte beim eigenen Ziehen, Aufnehmen und Abwerfen zieht nicht mehr über die Stapel – im Querformat flog die abgeworfene Karte bisher quer über den Nachziehstapel, am Desktop blieb die gezogene Karte kurz über beiden Stapeln hängen. Weg, Tempo und Ausblenden bleiben wie gewohnt; über einem Stapel ist die Karte nur nicht mehr zu sehen
+
 ## [2.125.2] - 2026-10-31
 
 ### Fixed
