@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.122.4] - 2026-10-31
+
+### Fixed
+- Häkchen, Kreuz und Schloss sind jetzt Symbole statt Emoji: im Tagesrätsel
+  (gelöst, abgelehnte Auslage), bei „Tagesziel erreicht“, im Konto („Passkey
+  hinzugefügt“, „Passwort gespeichert“), am gewählten Kartenrücken, an
+  erreichten Abzeichen-Stufen und an gesperrten Abzeichen im Trophäenschrank
+- Der Hinweis beim Antippen einer gesperrten Tischfarbe, Reaktion oder eines
+  gesperrten Kartenrückens zeigt das Schloss-Symbol statt des Emoji
+
 ## [2.122.3] - 2026-10-27
 
 ### Fixed
