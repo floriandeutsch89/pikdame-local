@@ -6,7 +6,6 @@
 const { ensureMigrated } = require('./Migrations');
 const { BADGE_IDS } = require('./Badges');
 
-const RARITY_MIN_PLAYERS = 20; // fewer: a share says nothing (and a dev server shows none)
 const RARE_BELOW_PERCENT = 10;
 const RARITY_REFRESH_MS = 15 * 60 * 1000;
 
@@ -27,10 +26,10 @@ function percentOf(holders, players) {
   return holders >= players ? 100 : Math.min(99, Math.round(share));
 }
 
-/** Query rows -> the profiles message's `badgeRarity`, or null below the guard. */
-function rarityFromRows(rows, minPlayers = RARITY_MIN_PLAYERS) {
+/** Query rows -> the profiles message's `badgeRarity`; null while no account counts. */
+function rarityFromRows(rows) {
   const total = (rows.find((r) => r.badge_id === null) || {}).holders || 0;
-  if (total < Math.max(1, minPlayers)) return null;
+  if (total < 1) return null;
   const held = new Map(rows.filter((r) => r.badge_id !== null).map((r) => [r.badge_id, r.holders]));
   const percent = Object.fromEntries(BADGE_IDS.map((id) => [id, percentOf(held.get(id) || 0, total)]));
   return { rareBelow: RARE_BELOW_PERCENT, percent };
@@ -40,7 +39,7 @@ function rarityFromRows(rows, minPlayers = RARITY_MIN_PLAYERS) {
  * The cached rarity for the profiles message: refreshed by a timer, never on a request.
  * A failed refresh keeps the last good one (shares move slowly); none yet: null.
  */
-function createBadgeRarity(pool, { minPlayers = RARITY_MIN_PLAYERS, logError = (m) => console.error(m) } = {}) {
+function createBadgeRarity(pool, { logError = (m) => console.error(m) } = {}) {
   let rarity = null;
   let running = null;
   let timer = null;
@@ -48,7 +47,7 @@ function createBadgeRarity(pool, { minPlayers = RARITY_MIN_PLAYERS, logError = (
   async function load() {
     try {
       await ensureMigrated(pool);
-      rarity = rarityFromRows((await pool.query(RARITY_SQL)).rows, minPlayers);
+      rarity = rarityFromRows((await pool.query(RARITY_SQL)).rows);
     } catch (e) {
       logError(`[badges] rarity not refreshed: ${e.message}`);
     }
@@ -79,5 +78,5 @@ function createBadgeRarity(pool, { minPlayers = RARITY_MIN_PLAYERS, logError = (
 }
 
 module.exports = {
-  createBadgeRarity, rarityFromRows, percentOf, RARITY_SQL, RARITY_MIN_PLAYERS, RARE_BELOW_PERCENT, RARITY_REFRESH_MS,
+  createBadgeRarity, rarityFromRows, percentOf, RARITY_SQL, RARE_BELOW_PERCENT, RARITY_REFRESH_MS,
 };

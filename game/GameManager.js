@@ -565,6 +565,9 @@ class GameManager {
       this._takeoverTimers.delete(id);
       const p = this.players.find((pl) => pl.id === id);
       if (!p || p.connected) return; // came back in time
+      // A timer can fire a millisecond before Date.now() agrees; isBotControlled reads the
+      // clock, so pin the grace as over or the gates below would still wait for this seat.
+      if (p.disconnectedAt) p.disconnectedAt = Math.min(p.disconnectedAt, Date.now() - GameManager.TAKEOVER_GRACE_MS);
       if (this.phase === 'lobby') {
         // Lobby: a human who never came back gives up their seat (a bot
         // takes it), so the ready gate isn't blocked indefinitely.

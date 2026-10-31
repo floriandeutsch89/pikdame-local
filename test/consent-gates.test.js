@@ -77,6 +77,22 @@ test('ready gate: grace expiry releases the table', async () => {
   });
 });
 
+test('ready gate: a takeover timer firing before Date.now() catches up still releases the table', async () => {
+  await withShortGrace(async () => {
+    const g = atRoundEnd();
+    g.markNextRoundReady('p1');
+    g.markDisconnected('p2');
+    const frozen = g.players.find((p) => p.id === 'p2').disconnectedAt + 29; // 1 ms short of the grace
+    const realNow = Date.now;
+    Date.now = () => frozen;
+    try {
+      await wait(80);
+      assert.notEqual(g.phase, 'roundEnd', 'the expired timer itself ends the grace');
+    } finally { Date.now = realNow; }
+    g.destroy();
+  });
+});
+
 test('ready gate: nobody left at the table -> no round starts on its own', async () => {
   await withShortGrace(async () => {
     const g = atRoundEnd();

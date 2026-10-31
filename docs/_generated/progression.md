@@ -147,8 +147,8 @@ starred Kartenhaus floor. Guests are names anyone can type, and sign-ups
 that never played would only dilute it. Only those accounts count as
 holders too. Under
 **10 %** a badge is marked rare (a gold glint); below 1 % it reads
-"< 1 %", never 0. With fewer than **20** such accounts nothing
-is shown. One aggregate query (`game/BadgeRarity.js`), cached and
+"< 1 %", never 0. There is no minimum: as soon as one such account exists, the
+shares show. One aggregate query (`game/BadgeRarity.js`), cached and
 refreshed every **15 minutes**, rides on the `profiles`
 message; no names leave the server.
 

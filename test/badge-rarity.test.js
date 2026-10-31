@@ -1,7 +1,7 @@
 /** Badge rarity (game/BadgeRarity.js): the share of players holding each badge, counted
  *  over confirmed accounts that played in any mode (a match, a daily puzzle, a Kartenhaus
- *  floor). Guests, accounts that never played and unconfirmed sign-ups are left out; under
- *  20 such accounts nothing is shown; a timer refreshes the cached shares, and a failed
+ *  floor). Guests, accounts that never played and unconfirmed sign-ups are left out; with
+ *  no such account nothing is shown; a timer refreshes the cached shares, and a failed
  *  refresh never throws. */
 const test = require('node:test');
 const assert = require('node:assert');
@@ -16,7 +16,7 @@ const { BADGE_IDS } = require('../game/Badges');
 const { createPlayerStore } = require('../game/PlayerStore');
 const { createPgAccountStore } = require('../game/PgAccountStore');
 const {
-  createBadgeRarity, rarityFromRows, percentOf, RARITY_SQL, RARITY_MIN_PLAYERS, RARE_BELOW_PERCENT,
+  createBadgeRarity, rarityFromRows, percentOf, RARITY_SQL, RARE_BELOW_PERCENT,
 } = require('../game/BadgeRarity');
 const { testPool, testDatabaseUrl } = require('./helpers/test-db');
 const { freePort } = require('./helpers/free-port');
@@ -36,12 +36,11 @@ test('percentOf: whole percent; under 1 % is 0 (never a plain zero on screen), 1
   assert.strictEqual(percentOf(200, 200), 100);
 });
 
-test('rarityFromRows: a share for every catalogue badge and the rare line; nothing below the guard', () => {
-  assert.strictEqual(RARITY_MIN_PLAYERS, 20);
+test('rarityFromRows: a share for every catalogue badge and the rare line; nothing without accounts', () => {
   assert.strictEqual(RARE_BELOW_PERCENT, 10);
   const rows = (total, held) => [{ badge_id: null, holders: total },
     ...Object.entries(held).map(([badge_id, holders]) => ({ badge_id, holders }))];
-  assert.strictEqual(rarityFromRows(rows(19, { first_win: 19 })), null, '19 players: no shares');
+  assert.strictEqual(rarityFromRows(rows(0, {})), null, 'no counted account: no shares');
   assert.strictEqual(rarityFromRows([]), null, 'no rows at all');
   const r = rarityFromRows(rows(20, { first_win: 5, pik_royal: 1, retired_badge: 3 }));
   assert.strictEqual(r.rareBelow, RARE_BELOW_PERCENT);
@@ -49,7 +48,7 @@ test('rarityFromRows: a share for every catalogue badge and the rare line; nothi
   assert.strictEqual(r.percent.first_win, 25);
   assert.strictEqual(r.percent.pik_royal, 5);
   assert.strictEqual(r.percent.run_13, 0, 'held by nobody: "< 1 %"');
-  assert.strictEqual(rarityFromRows(rows(5, { first_win: 1 }), 5).percent.first_win, 20, 'the guard is a parameter');
+  assert.strictEqual(rarityFromRows(rows(2, { first_win: 1 })).percent.first_win, 50, 'no minimum: two accounts already show shares');
 });
 
 // --- The query on PostgreSQL --------------------------------------------------------
@@ -109,9 +108,9 @@ test('the query: confirmed accounts that played in any mode; guests, accounts th
   assert.strictEqual(r.percent.pik_royal, 5, '1 of 20 (rare); ten guests hold it as well');
   assert.strictEqual(r.percent.run_13, 0, 'guests, an account that never played and an unconfirmed sign-up only');
 
-  // One counted account goes: 19 left, below the guard.
+  // One counted account goes: 19 left, the shares follow (no minimum).
   await pool.query("DELETE FROM users WHERE username = 'Konto17'");
-  assert.strictEqual(await rarity.refresh(), null, '19 players: no shares');
+  assert.notStrictEqual(await rarity.refresh(), null, '19 players: still shares');
 });
 
 /** The test pool with the rarity query counted and switchable to fail. */
