@@ -3,6 +3,17 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.123.0] - 2026-10-31
+
+### Added
+- Die Züge der Mitspieler und Bots sind jetzt zu sehen: Die gezogene Karte fliegt vom
+  Stapel zu ihrem Namen, eine aufgenommene Ablage dorthin, neue Auslagen gleiten in ihre
+  Gruppe und der Abwurf landet auf der Ablage – alles in gut einer halben Sekunde, mit
+  leisem Klang. Bei „Schnell“ geht es doppelt so flott, damit nichts hinterherhinkt.
+  Mit der Systemeinstellung „Bewegung reduzieren“ bleibt es bei den Klängen.
+- Abschaltbar in den Optionen unter „Spielhilfen“ › „Züge der Mitspieler“: Dann zeigt der
+  Tisch die Züge wie bisher sofort und ohne Klänge.
+
 ## [2.122.4] - 2026-10-31
 
 ### Fixed
