@@ -1,2 +1,0 @@
-### Fixed
-- **Minimieren ist keine Zustimmung:** Wer zwischen zwei Runden kurz die App minimiert, wird nicht mehr übergangen. „Nächste Runde“ wartet auch auf getrennte Mitspieler, bis sie zurück sind und bestätigt haben; der Knopf zeigt dann „Warte auf Ben (getrennt)…“. Dasselbe gilt für die Abstimmungen zu Pause und Aufgeben. Erst wenn jemand länger als 75 Sekunden weg bleibt (dann spielt auch ein Bot für ihn), entscheiden die übrigen ohne ihn, damit der Tisch nicht hängen bleibt. Wer das Spiel verlassen hat, blockiert nie

@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.125.1] - 2026-10-31
+
+### Fixed
+- **Minimieren ist keine Zustimmung:** Wer zwischen zwei Runden kurz die App minimiert, wird nicht mehr übergangen. „Nächste Runde“ wartet auch auf getrennte Mitspieler, bis sie zurück sind und bestätigt haben; der Knopf zeigt dann „Warte auf Ben (getrennt)…“. Dasselbe gilt für die Abstimmungen zu Pause und Aufgeben. Erst wenn jemand länger als 75 Sekunden weg bleibt (dann spielt auch ein Bot für ihn), entscheiden die übrigen ohne ihn, damit der Tisch nicht hängen bleibt. Wer das Spiel verlassen hat, blockiert nie
+- Züge der Mitspieler: Nachziehstapel und Ablage flackern nicht mehr, wenn eine Karte fliegt. Die Ablage zeigt sofort und durchgehend die Karte, die wirklich oben liegt; die fliegende Karte blendet neben den Stapeln weich ein und aus und zieht nie mehr über einen Stapel – auch im Querformat, wo sie bisher quer über den Nachziehstapel flog
+
 ## [2.125.0] - 2026-10-31
 
 ### Added
