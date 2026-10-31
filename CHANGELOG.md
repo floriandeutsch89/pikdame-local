@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.124.0] - 2026-10-31
+
+### Added
+- Halloween auch am Spieltisch: Am 31. Oktober ist ein Kürbis dezent in den Tisch geprägt – auf den dunklen Tischen in warmem Kürbis-Orange, in der Küche hell im Holz; hinter allen Karten, ohne Platz zu kosten, und alle Texte bleiben so gut lesbar wie überall am Tisch
+- An Halloween trägt die Pik-Dame-Ansage einen Hexenhut
+
+### Changed
+- Abhängigkeiten aktualisiert: ws 8.22.0→8.22.1
+
 ## [2.123.0] - 2026-10-31
 
 ### Added
