@@ -19,7 +19,7 @@
       <feGaussianBlur stdDeviation="0.45"/>
     </filter>
   </defs>
-  <g filter="url(#soft)">
+  <g filter="url(#soft)" transform="translate(0 -4)">
     <g mask="url(#cut)">
       <path d="M46 110H154Q162 110 162 118V162H38V118Q38 110 46 110Z"/>
       <path d="M67 72H133Q140 72 140 79V110H60V79Q60 72 67 72Z"/>

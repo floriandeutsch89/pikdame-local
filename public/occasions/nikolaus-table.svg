@@ -17,7 +17,7 @@
     </filter>
   </defs>
   <g filter="url(#soft)">
-    <g transform="rotate(-7 112 96)">
+    <g transform="translate(-16 2) rotate(-7 112 96)">
       <g mask="url(#cut)">
         <g fill="none" stroke="#000" stroke-width="3.2" stroke-linecap="round">
           <path d="M132 62Q145 40 162 18" stroke-width="3.6"/>
