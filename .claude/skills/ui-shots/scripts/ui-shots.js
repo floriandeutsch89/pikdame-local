@@ -26,6 +26,8 @@
 // gamelobby (seats + house rules), botdiff (the strength picker), gameover-challenge,
 // settings / settings-aids / settings-music (the start screen's "Optionen" sheet: top / play aids / music),
 // settings-celebration (its "Siegesjubel" preview playing; --celebration <id> picks it),
+// opp-moves / opp-moves-take: another player's turn in flight (engine states: a stock draw, a meld
+// and the discard / a pile take instead of the draw), frames frozen at --film ms, then the end,
 // game-settings (the gear at a live engine table: the sheet on top, then scrolled to its end),
 // game-settings-debug (that sheet with the debug view on), home (the home dialog at the table, then
 // its forfeit button armed by a first tap),
@@ -444,6 +446,40 @@ function tableState() {
   }
   g.destroy();
   return st;
+}
+// opp-moves: two engine states around ONE opponent turn (one state, as a bot sends it):
+// before = its draw phase, after = drawn, a new meld laid, discarded. kind 'take': taken
+// from a pile of 3+ cards instead of the stock.
+function oppTurnStates(kind) {
+  const GM = require(path.join(ROOT, 'game', 'GameManager'));
+  const copy = (st) => JSON.parse(JSON.stringify(st));
+  // Seeded bot names and decisions: before (SHOTS_ROOT=main) and after show the same table.
+  const realRandom = Math.random;
+  let s = 20261028;
+  Math.random = () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
+  try { return oppTurnSearch(GM, copy, kind); } finally { Math.random = realRandom; }
+}
+function oppTurnSearch(GM, copy, kind) {
+  for (let seed = 1; seed < 400; seed++) {
+    const g = new GM(() => {}, { deckSeed: seed });
+    g.maybeRunBotTurn = () => {}; // the turns are driven here (CLAUDE.md: bot timer off)
+    g.addOrReconnectPlayer('p1', ME);
+    g.fillWithBots();
+    g.startNewRound();
+    for (let guard = 0; guard < 120 && g.phase === 'playing'; guard++) {
+      const cp = g.currentPlayer();
+      const before = copy(g.publicState('p1'));
+      const stock = g.drawPile.length;
+      g.runBotTurn(cp.id, { forced: !cp.isBot });
+      if (cp.id === 'p1' || g.phase !== 'playing' || guard < 6) continue;
+      const after = copy(g.publicState('p1'));
+      const took = g.drawPile.length === stock;
+      const laid = after.tableMelds.length > before.tableMelds.length;
+      if (laid && (kind === 'take' ? took && before.discardCards.length >= 3 : !took)) { g.destroy(); return { before, after }; }
+    }
+    g.destroy();
+  }
+  throw new Error(`no opponent turn of kind ${kind}`);
 }
 // table-team: a live "2 gegen 2" table - Oma Gerda is my partner, two bots the other
 // team, mid-match totals (round 3), my draw turn after a few turns. named: my team's name.
@@ -1194,6 +1230,31 @@ function waitForHttp(port, ms = 20000) {
           if (arg('js', '')) await page.evaluate(fs.readFileSync(arg('js', ''), 'utf8')); // --js <file>: DOM mockups
           await page.waitForTimeout(200);
           await shot(sc);
+        }
+        // Another player's turn in flight (public/table-moves.js): the table before it, frames frozen
+        // at --film ms after its state arrives (every animation paused there), then the end. Each frame
+        // from a fresh "before"; the page's timers wait meanwhile, so a slow shot never ends the flight.
+        if (sc === 'opp-moves' || sc === 'opp-moves-take') {
+          const { before, after } = oppTurnStates(sc === 'opp-moves-take' ? 'take' : 'draw');
+          await toTable(before);
+          await shot(`${sc}-before`);
+          for (const t of arg('film', '60,150,240,330,420,510').split(',').map(Number)) {
+            inject({ type: 'state', state: before });
+            await page.waitForTimeout(300);
+            await page.evaluate(() => { window.__shotTimeout = window.__shotTimeout || window.setTimeout; window.setTimeout = () => 0; });
+            inject({ type: 'state', state: after });
+            await page.waitForTimeout(40);
+            // The flights take off in the frame after the render: two frames later all of them exist.
+            await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+            await page.evaluate((ms) => document.getAnimations().forEach((a) => { a.pause(); a.currentTime = ms; }), t);
+            await shot(`${sc}-${String(t).padStart(4, '0')}`);
+            await page.evaluate(() => { window.setTimeout = window.__shotTimeout; });
+          }
+          inject({ type: 'state', state: before });
+          await page.waitForTimeout(300);
+          inject({ type: 'state', state: after });
+          await page.waitForTimeout(1200);
+          await shot(`${sc}-end`);
         }
         if (/^tower-(start|play|sheet|lock)$/.test(sc)) {
           // A live Kartenhaus floor: a fresh page each time, so the start card is

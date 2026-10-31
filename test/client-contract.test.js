@@ -533,6 +533,8 @@ test('client contract: functions that build translated markup are refreshed by c
     'renderTowerResult',
     // Badge unlock card: built per event; cycleLang re-renders the visible one (refreshUnlockCard).
     'showUnlock',
+    // Another player's card in flight and the pile under it meanwhile: gone within a second.
+    'flyTableMove', 'pileStandIn',
   ]);
 
   const stale = functions
