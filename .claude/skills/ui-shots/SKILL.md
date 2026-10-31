@@ -107,7 +107,10 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   (the gear at a live engine table: the same sheet with "Dieser Tisch", then
   scrolled to its end; `--state` takes another table), `game-settings-debug`,
   `home` (the home dialog at the table, then its forfeit button armed by a
-  first tap), `music-hint` (the first click starts the music and
+  first tap), `cardback` (the card-back gallery, then a locked back tapped: its
+  toast), `toast-goal` (a daily goal completed by the finished match: its toast
+  over the result sheet), `account-saved` (the account sheet's status line after
+  saving a password; needs `--signed-in`), `music-hint` (the first click starts the music and
   its one-time hint shows; every other run marks the hint as seen), `tower`
   (the Kartenhaus sheet, opened from its tile in "Aufgaben"), `tower-detail`
   (the same with the locked floor 14 tapped, `--stage N` another floor), `tower-rules` (the "So funktioniert"
