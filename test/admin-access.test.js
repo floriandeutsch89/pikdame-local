@@ -320,6 +320,8 @@ test('admin session: CSRF, logout, game sign-out, role removal, account deletion
   const before = await views();
   await get('/admin/stuck', ada.cookie);
   await get('/admin/stuck?month=2026-01', ada.cookie);
+  // The view audit is written after the response (fire-and-forget): wait for the row.
+  await waitFor(async () => (await views()) > before, 'view audited');
   assert.strictEqual(await views(), before + 1);
 
   const actions = (await db.query('SELECT user_name, action, action_target FROM admin_audit_events ORDER BY id')).rows.map((e) => `${e.user_name || '-'} ${e.action} ${e.action_target || ''}`.trim());

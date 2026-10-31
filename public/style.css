@@ -2007,8 +2007,7 @@ a.btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset
   box-shadow: var(--shadow-2);
   z-index: var(--z-fly);
   pointer-events: none;
-  transition: transform 0.42s cubic-bezier(0.3, 0.7, 0.3, 1), opacity 0.42s ease;
-  opacity: 0.95;
+  opacity: 0.95; /* its way and fade: client.js flyCard */
 }
 .flyCard.back {
   background: linear-gradient(160deg, var(--accent) 0%, var(--accent-2) 100%);

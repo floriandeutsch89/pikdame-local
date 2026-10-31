@@ -11,11 +11,13 @@ const pub = path.join(__dirname, '..', 'public');
 const SRC = ['i18n.js', 'table-moves.js', 'client.js'].map((f) => fs.readFileSync(path.join(pub, f), 'utf8'));
 const HTML = fs.readFileSync(path.join(pub, 'index.html'), 'utf8');
 
-// Boxes on screen [left, top, width, height]: the chips, their avatars and the two piles.
-// Portrait: chips at the top, the piles side by side far below. Landscape: the piles right
-// of the chips at the same height, the stock between them and the discard pile.
-const PORTRAIT = { chip: [10, 60, 110, 52], avatar: [16, 66, 40, 40], stock: [140, 520, 48, 66], discard: [196, 520, 48, 66] };
-const LANDSCAPE = { chip: [480, 60, 170, 52], avatar: [486, 66, 40, 40], stock: [755, 65, 48, 66], discard: [816, 65, 48, 66] };
+// Boxes on screen [left, top, width, height]: the chips, their avatars, the two piles, my hand
+// and a card in it. Portrait: chips at the top, the piles side by side far below, the hand
+// under them. Landscape: the piles right of the chips at the same height, the stock between
+// them and the discard pile; the hand below. Desktop: the piles in a column on the right.
+const PORTRAIT = { chip: [10, 60, 110, 52], avatar: [16, 66, 40, 40], stock: [140, 520, 48, 66], discard: [196, 520, 48, 66], hand: [0, 700, 393, 120], handCard: [20, 720, 40, 56] };
+const LANDSCAPE = { chip: [480, 60, 170, 52], avatar: [486, 66, 40, 40], stock: [755, 65, 48, 66], discard: [816, 65, 48, 66], hand: [220, 330, 434, 70], handCard: [230, 335, 40, 56] };
+const DESKTOP = { chip: [480, 72, 230, 68], avatar: [488, 80, 40, 40], stock: [1310, 165, 90, 125], discard: [1310, 330, 90, 125], hand: [240, 740, 960, 150], handCard: [1100, 750, 80, 112] };
 
 /** The real client in jsdom with layout, Web Animations and frames stubbed; the clock is the test's. */
 function boot({ reduced = false, animate = true, stored = {}, layout = PORTRAIT } = {}) {
@@ -37,6 +39,8 @@ function boot({ reduced = false, animate = true, stored = {}, layout = PORTRAIT 
     const pile = this.closest('.pile');
     let box = [300, 400, 40, 56]; // a meld card
     if (this.id === 'melds') box = [0, 0, 2000, 2000];
+    else if (this.id === 'hand') box = layout.hand;
+    else if (this.closest('#hand')) box = layout.handCard;
     else if (this.classList.contains('opponent')) box = layout.chip;
     else if (this.classList.contains('opAvatar')) box = layout.avatar;
     else if (this.classList.contains('hidden')) box = [0, 0, 0, 0];
@@ -562,22 +566,26 @@ function ghostAt(g, frames, p) {
   const nums = (tf) => tf.match(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi).map(Number); // translate x, y, rotate, scale
   const [x0, y0, , s0] = nums(frames[0].transform);
   const [x1, y1, , s1] = nums(frames.at(-1).transform);
-  const [w, h] = [parseFloat(g.style.width), parseFloat(g.style.height)];
+  // A .flyCard (my own move) takes its size from style.css and starts where it is laid out.
+  const [w, h] = [parseFloat(g.style.width) || 52, parseFloat(g.style.height) || 73];
+  const [ox, oy] = [parseFloat(g.style.left) || 0, parseFloat(g.style.top) || 0];
   const lerp = (a, b) => a + (b - a) * p;
-  const [cx, cy, s] = [lerp(x0, x1) + w / 2, lerp(y0, y1) + h / 2, lerp(s0, s1)];
+  const [cx, cy, s] = [ox + lerp(x0, x1) + w / 2, oy + lerp(y0, y1) + h / 2, lerp(s0, s1)];
   return { opacity, left: cx - (w * s) / 2, right: cx + (w * s) / 2, top: cy - (h * s) / 2, bottom: cy + (h * s) / 2 };
 }
+
+/** A pile as the eye sees it: card, count and buttons, not the caption. */
+const pileBox = (doc, id) => [...doc.getElementById(id).children]
+  .filter((n) => !n.classList.contains('pileLabel'))
+  .map((n) => n.getBoundingClientRect())
+  .filter((r) => r.width && r.height)
+  .reduce((b, r) => ({ left: Math.min(b.left, r.left), top: Math.min(b.top, r.top), right: Math.max(b.right, r.right), bottom: Math.max(b.bottom, r.bottom) }));
+const meets = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 
 // --- Regression: in landscape every card thrown to or taken from the pile crossed the stock ---
 // (and a card melted into the pile it landed on): over a dimmed pile any card in the air reads
 // as a flicker. Now no ghost is ever visible over a pile, whatever the layout.
 test('no card in the air is ever visible over a pile: portrait and landscape, every kind of turn', async (t) => {
-  const pileBox = (doc, id) => [...doc.getElementById(id).children]
-    .filter((n) => !n.classList.contains('pileLabel'))
-    .map((n) => n.getBoundingClientRect())
-    .filter((r) => r.width && r.height)
-    .reduce((b, r) => ({ left: Math.min(b.left, r.left), top: Math.min(b.top, r.top), right: Math.max(b.right, r.right), bottom: Math.max(b.bottom, r.bottom) }));
-  const meets = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
   const flown = { PORTRAIT: [], LANDSCAPE: [] };
   for (const [name, layout] of Object.entries({ PORTRAIT, LANDSCAPE })) {
     const play = async (states, what) => {
@@ -616,6 +624,44 @@ test('no card in the air is ever visible over a pile: portrait and landscape, ev
   // Not vacuous: in both layouts the stock card, the taken and the thrown card still fly.
   for (const name of Object.keys(flown)) {
     for (const card of ['back', '7♥', '9♦', '3♠']) assert.ok(flown[name].includes(card), `${name}: ${card} flew (${flown[name]})`);
+  }
+});
+
+// --- Regression: my own discard crossed the stock in landscape, my draw left from on top of it --
+// My own moves keep their way, speed and fade, but their card in the air (.flyCard) shows only
+// where it covers no pile, in any layout.
+test('my own draw, pile take and discard never show over a pile either: portrait, landscape, desktop', async (t) => {
+  const css = fs.readFileSync(path.join(pub, 'style.css'), 'utf8');
+  assert.match(css, /\n\.flyCard \{[^}]*width: 52px; height: 73px;/, 'the size the client falls back to');
+  for (const [name, layout] of Object.entries({ PORTRAIT, LANDSCAPE, DESKTOP })) {
+    const fly = async (what, phase, act) => {
+      const c = boot({ layout });
+      t.after(() => c.window.close());
+      await ready();
+      c.join();
+      c.state(st({ cur: 'p1', phase }));
+      act(c);
+      const g = c.doc.querySelector('body > .flyCard');
+      assert.ok(g, `${name}, ${what}: a card flies`);
+      const a = c.anims.find((x) => x.el === g);
+      assert.ok(a, `${name}, ${what}: its way and its fade are planned (Web Animations)`);
+      assert.deepEqual([a.opts.duration, a.opts.easing], [420, 'cubic-bezier(0.3, 0.7, 0.3, 1)'], 'as fast as ever, on its old curve');
+      const piles = ['drawPile', 'discardPile'].map((id) => pileBox(c.doc, id));
+      let seen = 0;
+      for (let i = 0; i <= 100; i++) {
+        const q = ghostAt(g, a.frames, i / 100);
+        if (q.opacity > 1e-6) seen += 1;
+        assert.ok(q.opacity < 1e-6 || !piles.some((b) => meets(q, b)), `${name}, ${what}: shows over a pile at ${i}% of its way (opacity ${q.opacity.toFixed(2)})`);
+      }
+      assert.ok(seen >= 30, `${name}, ${what}: seen on a good part of its way (${seen}%)`);
+      assert.deepEqual(c.errors, []);
+    };
+    await fly('draw from the stock', 'draw', (c) => c.doc.getElementById('drawPile').click());
+    await fly('take the pile', 'draw', (c) => c.doc.getElementById('discardPile').click());
+    await fly('discard', 'meld', (c) => {
+      c.doc.querySelector('#hand .card[data-card-id="H5-0"]').click();
+      c.doc.getElementById('discardBtn').click();
+    });
   }
 });
 
