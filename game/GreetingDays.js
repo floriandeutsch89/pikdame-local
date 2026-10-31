@@ -1,7 +1,7 @@
 // game/GreetingDays.js
 // Greeting days for configured accounts (PIKDAME_BIRTHDAY, "MM-DD:account"
 // entries, comma separated). The server alone knows them; a signed-in account
-// learns its own window, nobody else learns anything.
+// learns its own window. A table learns one flag: someone seated has theirs today.
 
 const { gameDay, addDays, dayEnd } = require('./GameDay');
 
@@ -39,4 +39,15 @@ function greetingWindow(entries, username, now = Date.now()) {
   return null;
 }
 
-module.exports = { parseGreetingDays, greetingWindow };
+/** True when one of `accounts` (names the seats verified at the table) has its
+ *  greeting day today. Only where the players know each other: a private table
+ *  or the Stammtisch; never a solo game, on a public server only the Stammtisch. */
+function greetingAtTable(entries, { accounts = [], solo = false, stammtisch = false, publicMode = false } = {}, now = Date.now()) {
+  if (!entries || !entries.length || solo || (publicMode && !stammtisch)) return false;
+  const seated = new Set(accounts.map((n) => String(n || '').trim().toLowerCase()).filter(Boolean));
+  if (!seated.size) return false;
+  const md = gameDay(now).slice(5);
+  return entries.some((e) => e.md === md && seated.has(e.name));
+}
+
+module.exports = { parseGreetingDays, greetingWindow, greetingAtTable };

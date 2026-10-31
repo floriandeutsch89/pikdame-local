@@ -934,6 +934,20 @@
     const h = holidayWindows.find((w) => inWindow(w, now));
     return h ? h.id : null;
   }
+  // The felt's mark (style.css #table[data-mark]) belongs to the table, not the device: a birthday
+  // there (the server's flag, private tables and the Stammtisch only) wins over the day's holiday.
+  function tableMarkFor(state, now = Date.now()) {
+    if (state && state.birthdayToday === true) return 'birthday';
+    const h = holidayWindows.find((w) => inWindow(w, now));
+    return h ? h.id : null; // a mark of the player's own choosing would be the last fallback
+  }
+  function syncTableMark(now = Date.now()) {
+    const table = el('table');
+    if (!table) return;
+    const id = tableMarkFor(lastState, now);
+    if (id) table.dataset.mark = id;
+    else delete table.dataset.mark;
+  }
   function setGreeting(win, name) {
     greetingWindow = validWindow(win) ? { from: win.from, until: win.until } : null;
     greetingName = String(name || '');
@@ -972,6 +986,7 @@
     });
     renderOccasionParticles(occ ? occ.particles : '');
     renderOccasionEmote(id === 'birthday' ? GREETING_EMOTE : (id && HOLIDAY_EMOTES[id]) || null);
+    syncTableMark(now);
     if (occasionCatCheck) occasionCatCheck();
     const edges = [greetingWindow, ...holidayWindows].filter(Boolean)
       .flatMap((w) => [w.from, w.until]).filter((t) => t > now);
@@ -2213,6 +2228,7 @@
     el('table').classList.toggle('hidden', inLobby);
     syncSeasonSnow();
     syncTableLight();
+    try { syncTableMark(); } catch (e) { /* the felt's mark is decoration, never critical */ }
     renderPause();
     try { renderTableOptions(); } catch (e) { /* "Optionen" must never break the table */ }
 

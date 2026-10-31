@@ -96,6 +96,35 @@ lights the top in the morning.
 - **Screenshots depend on the hour.** The `ui-shots` skill pins the light to
   noon; `--light morning|evening|night|HH:MM|now` shoots another time.
 
+## Marks in the felt
+
+On an occasion the felt carries a large, faint picture behind every card:
+`client.js` sets `#table[data-mark="<id>"]`, `style.css` (section "Occasion days
+at the table") gives each id its art (`public/occasions/<id>-table.svg`, used as
+a CSS mask: only alpha counts) and its `--mark-tint`. Each theme mixes the tint
+into its own ink (`--mark-ink`); the kitchen gets a pale inlay instead. Static,
+no animation, no tap target, gone with `prefers-contrast: more`. Every mark sits
+in the same box, centred in the felt between the opponents and the folded hand
+bar; only the shared `#table[data-mark]::before` rules place it.
+
+- **Which mark** (`tableMarkFor`): a birthday at this table, else the day's holiday
+  from `game/Holidays.js` (Halloween, Nikolaus, Christmas, New Year's Eve, New
+  Year, Easter). A mark the player picks would be the last fallback.
+- **The birthday** is the table's, not the device's: `state.birthdayToday` is true
+  when a seat whose account was verified at join has its `PIKDAME_BIRTHDAY` day
+  today (`game/GameDay.js`). Only at a private table (opened with "Tisch
+  erstellen") and at the Stammtisch: never in the daily challenge, the
+  Kartenhaus or the tutorial, and on a public server (`PIKDAME_PUBLIC_MODE=1`)
+  only at the Stammtisch. Guest names never count. The flag carries no date and
+  no seat (`game/GreetingDays.js` `greetingAtTable`).
+- **Strength**: a tint at the pumpkin's strength would push a lighter colour over
+  the contrast budget, so a lighter tint brings its own alpha
+  (`rgb(… / 0.84)`): its heaviest theme stays at ~88 % of the budget.
+- **Contract** (`test/occasion-table.test.js`): over every mark, in every theme at
+  every quarter hour, no main, muted or accent text drops below the table's noon
+  floor of the section above; every holiday of `game/Holidays.js` and the
+  birthday have their art.
+
 ## Measuring on pixels
 
 The contract is computed; the pixels are measured too. For every view (phone,

@@ -45,8 +45,11 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   shot, to show options before building them.
 - **Holidays:** `--occasion halloween|christmas|...|none` makes `/statusz`
   answer with that holiday as today (or with none), whatever the real date:
-  the start screen's decor and the table's watermark (`#table::before`).
+  the start screen's decor and the table's watermark (`#table[data-mark]`).
   Before/after shots of decor need it, or they only match on the day itself.
+  `--birthday` sets the server's table flag (`state.birthdayToday`) on every
+  table state: the cake in the felt; with `--occasion <holiday>` it shows which
+  mark wins (the birthday).
   `table-queen` (with `--state`): the table, then an opponent lays out the
   Queen of Spades - her announcement, shot mid-panel (on Halloween with the hat).
 - **Signed in:** `--signed-in` answers `/api/*` with a mock account (mock

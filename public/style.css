@@ -5402,15 +5402,23 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
 }
 
 /* --- Occasion days at the table: art pressed into the felt ----------------------
-   An occasion's --table-mark (public/occasions/) and tint; no text over it drops below the table's noon minimum (test/occasion-table.test.js). */
-body[data-occasion="halloween"] { --table-mark: url('occasions/halloween-table.svg'); --mark-tint: #ec8423; } /* the start screen pumpkin */
-/* Darker reads nowhere on the near-black felts: a warm tint, each theme at ~85 % of its contrast budget. */
+   client.js syncTableMark() names the table's mark; each brings its art (public/occasions/) and tint.
+   No text over it drops below the table's noon minimum (test/occasion-table.test.js). */
+#table[data-mark="halloween"] { --table-mark: url('occasions/halloween-table.svg'); --mark-tint: #ec8423; } /* the start screen pumpkin */
+#table[data-mark="nikolaus"] { --table-mark: url('occasions/nikolaus-table.svg'); --mark-tint: #d8352a; }
+#table[data-mark="silvester"] { --table-mark: url('occasions/silvester-table.svg'); --mark-tint: #8f7cff; }
+#table[data-mark="birthday"] { --table-mark: url('occasions/birthday-table.svg'); --mark-tint: #ff6f91; }
+/* A lighter tint brings its own alpha: its heaviest theme at ~88 % of the budget, never above the pumpkin's strength. */
+#table[data-mark="christmas"] { --table-mark: url('occasions/christmas-table.svg'); --mark-tint: rgb(212 160 23 / 0.84); }
+#table[data-mark="newyear"] { --table-mark: url('occasions/newyear-table.svg'); --mark-tint: rgb(88 184 92 / 0.88); }
+#table[data-mark="easter"] { --table-mark: url('occasions/easter-table.svg'); --mark-tint: rgb(60 184 165 / 0.9); }
+/* Darker reads nowhere on the near-black felts: a tint, each theme at ~85 % of its budget with the pumpkin. */
 #table { --mark-ink: color-mix(in srgb, var(--mark-tint) 10%, transparent); }
 [data-theme="night"] #table, [data-theme="bordeaux"] #table { --mark-ink: color-mix(in srgb, var(--mark-tint) 9%, transparent); }
 [data-theme="felt"] #table { --mark-ink: color-mix(in srgb, var(--mark-tint) 11%, transparent); }
 [data-theme="love"] #table { --mark-ink: color-mix(in srgb, var(--mark-tint) 12.5%, transparent); }
 [data-theme="kitchen"] #table { --mark-ink: rgb(255 252 244 / 0.45); }
-body[data-occasion] #table::before {
+#table[data-mark]::before {
   content: '';
   position: absolute; z-index: -1; /* under every card, under the grain (#table::after) */
   pointer-events: none;
@@ -5424,14 +5432,14 @@ body[data-occasion] #table::before {
 }
 /* Landscape and desktop: the same felt, from the opponents' row (grid line 3) across both columns. */
 @media (orientation: landscape) and (max-height: 540px) {
-  body[data-occasion] #table::before { grid-row: 3 / -1; grid-column: 1 / -1; top: 0; width: min(40%, 300px); height: min(34vh, 140px); }
+  #table[data-mark]::before { grid-row: 3 / -1; grid-column: 1 / -1; top: 0; width: min(40%, 300px); height: min(34vh, 140px); }
 }
 @media (min-width: 1100px) and (min-height: 541px) {
-  body[data-occasion] #table::before { grid-row: 3 / -1; grid-column: 1 / -1; top: 0; bottom: calc(var(--safe-bottom) + 59px); width: min(40%, 420px); height: min(40vh, 320px); } /* + the hand's 10px margin */
+  #table[data-mark]::before { grid-row: 3 / -1; grid-column: 1 / -1; top: 0; bottom: calc(var(--safe-bottom) + 59px); width: min(40%, 420px); height: min(40vh, 320px); } /* + the hand's 10px margin */
 }
 /* More contrast asked for: no picture behind the cards and their captions. */
 @media (prefers-contrast: more), (forced-colors: active) {
-  body[data-occasion] #table::before { content: none; }
+  #table[data-mark]::before { content: none; }
 }
 /* The occasion's hat, tossed onto the corner of the queen's announcement (client.js
    showRaidWarning); its brim stays above the title. */

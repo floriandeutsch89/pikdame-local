@@ -85,6 +85,8 @@
 // --occasion <id>|none: /statusz answers with that holiday as today (halloween, christmas, ...),
 // or with none, whatever the real date; without it the server's real day decides.
 // table-queen: the table of --state, then an opponent lays out the Queen of Spades: her announcement.
+// --birthday: every table state carries the server's flag (someone seated has a birthday today):
+// the cake in the felt; with --occasion <holiday> too, it shows which mark wins.
 'use strict';
 // The tower scenes play engine games with a human seat: those are no human moves for training.
 process.env.PIKDAME_LOG_GAMES = '0';
@@ -121,6 +123,7 @@ const scenes = arg('scenes', 'lobby,stats,history,roundend,gameover').split(',')
 const AUDIT = process.argv.includes('--audit');
 const SIGNED_IN = process.argv.includes('--signed-in');
 const OCCASION = arg('occasion', ''); // a holiday id of game/Holidays.js, or none
+const BIRTHDAY = process.argv.includes('--birthday'); // state.birthdayToday at the table
 // With --signed-in: the mock account holds the admin role (the link in the account sheet).
 const ADMIN = process.argv.includes('--admin');
 const STILL = process.argv.includes('--reduced-motion'); // prefers-reduced-motion: reduce
@@ -370,6 +373,7 @@ let towerSceneBest = null; // tower-* scenes: one star already on the floor bein
 let lastSessionCode = null; // gamelobby-team: a second socket joins the table I just opened
 function rewrite(msg) {
   if (msg.type === 'joined' && msg.sessionCode) lastSessionCode = msg.sessionCode;
+  if (msg.type === 'state' && BIRTHDAY && msg.state) msg.state.birthdayToday = true;
   if (msg.type === 'joined' && bindStammtisch) msg.stammtisch = { code: 'STMOCK1', name: STAMMTISCH.name };
   if (msg.type === 'profiles') { msg.players = emptyMe ? PROFILES.slice(1) : PROFILES; msg.globalStats = GLOBAL_STATS; msg.badgeRarity = BADGE_RARITY; }
   if (msg.type === 'gameHistory') msg.games = emptyMe ? [] : teamHistory ? [TEAM_HISTORY_GAME, ...HISTORY] : HISTORY;
@@ -818,7 +822,7 @@ function waitForHttp(port, ms = 20000) {
         if (AUDIT) audits.push({ view: vn, scene: name, ...(await page.evaluate(auditPage, TAP_MIN)) });
         if (MEASURE) measures[`${vn}-${name}`] = await page.evaluate(measurePage);
       };
-      const inject = (obj) => sock.send(JSON.stringify(obj));
+      const inject = (obj) => sock.send(JSON.stringify(BIRTHDAY && obj.type === 'state' ? { ...obj, state: { ...obj.state, birthdayToday: true } } : obj));
       // --celebration: a seeded Math.random (mulberry32) right before the band is drawn: the same rain every run.
       const seedRandom = () => CELEBRATION && page.evaluate(() => {
         let s = 20261025;

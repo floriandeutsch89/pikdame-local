@@ -87,6 +87,8 @@ class GameManager {
     this.challengeDate = options.challengeDate || null;
     this.onBotEmote = options.onBotEmote || null; // (botId, emoji) => void - Bot-Reaktionen an den Tisch
     this.onBotQuip = options.onBotQuip || null; // (botId, moment) => void - a short bot line (BotQuips.js)
+    // () => boolean (server.js): someone seated has a birthday today - the table gets the flag, never who or when.
+    this.tableBirthday = typeof options.tableBirthday === 'function' ? options.tableBirthday : null;
     this._lastQuipAt = 0; // table-wide throttle, transient
     this._emoteTimers = new Set(); // pendende Emote-Timeouts (destroy räumt auf)
     this._undoStack = []; // meld-phase actions of the running turn a human may take back
@@ -2862,6 +2864,7 @@ class GameManager {
         key === 'onRoundEnd' ||
         key === 'onBotEmote' ||
         key === 'onBotQuip' ||
+        key === 'tableBirthday' ||
         key === 'onAttemptEnd' ||
         key === '_lastQuipAt' ||
         key === '_botTimer' ||
@@ -3521,6 +3524,8 @@ class GameManager {
       towerClearMargin: this.towerStage ? BotTower.CLEAR_MARGIN : null,
       soloPausedUntil: this.soloPausedUntil || null,
       abandoned: this.abandoned || false,
+      // The felt's birthday mark (client.js tableMarkFor): a flag only, no date, no seat.
+      birthdayToday: this._birthdayToday(),
       canUndoMeld: !!(
         this.phase === 'playing' &&
         this.turnPhase === 'meld' &&
@@ -3581,6 +3586,16 @@ class GameManager {
       gameOverInfo: this.gameOverInfo || null,
       log: this.log.slice(-20),
     };
+  }
+
+  /** The table hook's answer (server.js decides where a birthday may show); decor never breaks a broadcast. */
+  _birthdayToday() {
+    if (!this.tableBirthday) return false;
+    try {
+      return this.tableBirthday() === true;
+    } catch (e) {
+      return false;
+    }
   }
 
   /** True/false whether `playerId` could take the discard top now (draw
