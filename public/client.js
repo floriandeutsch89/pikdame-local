@@ -626,6 +626,8 @@
     'near_miss', 'cold_shower', 'rock_bottom', 'red_lantern', 'royal_flush', 'pik_royal',
   ];
   let globalStatsData = null;
+  // Share of players per badge with the server's rare line (game/BadgeRarity.js); null: none shown.
+  let badgeRarity = null;
   let lastGameProgress = null; // XP + lifetime record of the match just finished
   let myGameHistory = null; // null = noch nicht angefragt, [] = angefragt und leer // anonyme Server-Zähler (Partien, Pik Damen, ...)
   // --- Fortschritt über Partien hinweg ------------------------------------
@@ -1871,6 +1873,7 @@
       // showed it (player report).
       try { applyCardback(); } catch (e) { /* Kosmetik bricht nie den Start */ }
       globalStatsData = msg.globalStats || null;
+      badgeRarity = msg.badgeRarity && typeof msg.badgeRarity === 'object' ? msg.badgeRarity : null;
       // Öffentlicher Server: Profile/Statistik sind deaktiviert.
       publicMode = !!msg.publicMode;
       el('statsBtn').classList.toggle('hidden', publicMode);
@@ -3310,6 +3313,12 @@
 
   // The forfeit vote sits in the home dialog, next to "Tisch verlassen". Not in
   // the tutorial: practice never blocks a new game, there is nothing to give up.
+  // The server's _consentHumans() (consentIds): a seat gone for less than the
+  // takeover grace still has to agree (minimising the app is no consent).
+  function consentHumans(st) {
+    const ids = st && st.consentIds;
+    return ((st && st.players) || []).filter((p) => (ids ? ids.includes(p.id) : !p.isBot && !p.leftGame && !p.controlledByBot));
+  }
   function forfeitShown() {
     const st = lastState;
     return !!(st && st.phase === 'playing' && !st.tutorialMode && st.players.some((p) => p.id === playerId && !p.isBot));
@@ -3321,7 +3330,7 @@
     btn.classList.toggle('hidden', !show);
     el('forfeitHint').classList.toggle('hidden', !show);
     const votes = st.forfeitVotes || [];
-    const humans = st.players.filter((p) => !p.isBot && p.connected !== false).length;
+    const humans = consentHumans(st).length;
     const iVoted = votes.includes(playerId);
     // An armed button shows "Wirklich?" until the second tap or its timeout.
     if (show && !btn.dataset.armed) {
@@ -4287,7 +4296,7 @@
     // nach einem aufgegebenen Spiel).
     if (!paneStats.childNodes.length) tabBar.classList.add('hidden');
 
-    // Ready check: at round end EVERY connected human confirms before the
+    // Ready check: at round end every human in consentHumans() confirms before the
     // next round starts - the button shows who the table is waiting for.
     const contBtn = el('resultContinueBtn');
     // Leaving for the main menu used to be offered ONLY after the whole match
@@ -4309,7 +4318,7 @@
     rfBtn.classList.toggle('hidden', !showRoundEndForfeit);
     if (showRoundEndForfeit) {
       const fv = lastState.forfeitVotes || [];
-      const hc = lastState.players.filter((p) => !p.isBot && p.connected !== false).length;
+      const hc = consentHumans(lastState).length;
       rfBtn.classList.toggle('active', fv.includes(playerId));
       // Label span only - the button carries an <svg class="icon">, and
       // textContent would delete it (and put an emoji back in its place).
@@ -4322,6 +4331,7 @@
     }
     if (isGameOver) {
       contBtn.disabled = false;
+      contBtn.classList.remove('waitingFor');
       // Challenge: one attempt per day, so the primary action leads home. A team
       // rematch stays a team match, which never plays for the series.
       const ser = stammtischInfo && stammtischSummary && !isTeamGame() && stammtischSummary.series;
@@ -4335,15 +4345,17 @@
             : L(`Revanche (Spiel ${ser.games + 1} von ${ser.bestOf})`, `Rematch (game ${ser.games + 1} of ${ser.bestOf})`)
           : L('Neue Partie (Rematch)', 'New game (rematch)');
     } else {
-      const humans = (lastState.players || []).filter((p) => !p.isBot && p.connected);
+      const humans = consentHumans(lastState);
       const ready = new Set(lastState.nextRoundReady || []);
       const iAmReady = ready.has(playerId);
       contBtn.disabled = iAmReady;
+      contBtn.classList.toggle('waitingFor', iAmReady && humans.length > 1);
       if (humans.length <= 1) {
         // Tutorial: this button leads to "Tutorial geschafft", not to round 2.
         contBtn.textContent = tutorialHintsOn() ? L('Weiter', 'Continue') : L('Nächste Runde', 'Next round');
       } else if (iAmReady) {
-        const waiting = humans.filter((h) => !ready.has(h.id)).map((h) => h.name).join(', ');
+        const waiting = humans.filter((h) => !ready.has(h.id))
+          .map((h) => (h.connected === false ? L(`${h.name} (getrennt)`, `${h.name} (offline)`) : h.name)).join(', ');
         contBtn.textContent = L(`Warte auf ${waiting}…`, `Waiting for ${waiting}…`);
       } else {
         const n = humans.filter((h) => ready.has(h.id)).length;
@@ -4812,7 +4824,7 @@
     // Kartenhaus "Ohne Ablage": explain instead of a silent tap or a server refusal.
     if (el('discardPile').classList.contains('towerLocked')) { explainTowerLock(); return; }
     if (el('discardPile').classList.contains('disabled')) return;
-    // The last discard may still be in the air: show the card that is really taken.
+    // My own move begins: whatever of the last turn still flies lands now.
     try { endTableMoves(); } catch (e) { /* cosmetic */ }
     // Known-illegal take: still ask the server (it explains WHY in its
     // error toast) but skip the sound and the card flying to the hand - they
@@ -7527,8 +7539,9 @@
 
   // --- Other players' moves fly -------------------------------------------------
   // table-moves.js names what the player on turn did; a ghost shows it: stock or
-  // pile -> their chip, chip -> meld card, chip -> pile. The real card stays hidden
-  // until its ghost lands. One turn at a time: the next player's state ends it.
+  // pile -> their chip, chip -> meld card, chip -> pile. The piles always show the
+  // state (a ghost fades in and out beside them, never over them); a new meld card stays
+  // hidden until its ghost lands. One turn at a time: the next player's state ends it.
   const OPP_EASE = 'cubic-bezier(.4, 0, .2, 1)';
   const OPP_HOLD_SLACK_MS = 120; // a hidden card shows on its own this late if its ghost never lands
 
@@ -7573,13 +7586,15 @@
     }
   }
 
-  /** Where a flight lands, if it lands on a card: the meld slot, or the pile's new top. */
+  /** The real card a meld flight lands on, in its slot (the piles never hide a card). */
   function landingNode(f) {
-    if (f.kind === 'meld') return meldCardNode(f.meld, f.id);
-    if (f.kind !== 'discard') return null;
+    return f.kind === 'meld' ? meldCardNode(f.meld, f.id) : null;
+  }
+
+  /** The thrown card still lies on top (a later state may have taken it): only then it flies. */
+  function pileShows(f) {
     const top = lastState.discardTop;
-    const same = top && (f.card.faceDown ? !!top.faceDown : top.id === f.id);
-    return same ? el('discardTopCard') : null;
+    return !!top && (f.card.faceDown ? !!top.faceDown : top.id === f.id);
   }
 
   /** Hides the real card at a flight's landing spot until the ghost lands (or a moment later on its own). */
@@ -7595,7 +7610,6 @@
       if (a) { try { a.cancel(); } catch (e) { /* already gone */ } }
     }
     if (f.ghost) f.ghost.remove();
-    if (f.standIn) f.standIn.remove();
   }
 
   /** End of renderTable: meld cards rebuilt while their ghost flies stay hidden; then the launch. */
@@ -7606,7 +7620,7 @@
       const elapsed = performance.now() - turn.t0;
       for (const f of turn.flights) {
         const left = f.start + f.dur - elapsed;
-        if (!f.launched || f.lost || left <= 0 || (f.kind !== 'meld' && f.kind !== 'discard')) continue;
+        if (!f.launched || f.lost || left <= 0 || f.kind !== 'meld') continue;
         const node = landingNode(f);
         if (!node) dropFlight(f); // taken back, filtered away: it lands nowhere
         else if (f.holdEl !== node) holdLanding(f, node, left);
@@ -7644,23 +7658,6 @@
       div.classList.add('empty');
       div.textContent = L('leer', 'empty');
     }
-  }
-
-  /** The pile as it lay before the discard, over the hidden new top card until the ghost lands. */
-  function pileStandIn(ms) {
-    const under = (lastState.discardCards || [])[1] || null;
-    const count = Math.max(0, (lastState.discardPileCount || 0) - 1);
-    const d = document.createElement('div');
-    d.className = 'pile-card oppUnder';
-    d.setAttribute('aria-hidden', 'true');
-    paintPileCard(d, under);
-    d.classList.toggle('stacked-2', count > 6);
-    d.classList.toggle('stacked-1', count > 1 && count <= 6);
-    el('discardPile').appendChild(d);
-    // Visibility, not opacity: the pile's own dimming (not my turn) applies to it too.
-    const a = d.animate([{ visibility: 'visible' }, { visibility: 'visible' }], { duration: ms });
-    a.onfinish = () => d.remove();
-    return d;
   }
 
   /** A pile card in the air: the stock's size and type (every pile card shares them). */
@@ -7706,6 +7703,20 @@
     return { cx: r.left + r.width / 2, cy: r.top + r.height / 2, w: node.offsetWidth || r.width };
   }
 
+  /** The two piles as the eye sees them: card, count and buttons, not the caption below. */
+  function pileBoxes() {
+    return ['drawPile', 'discardPile'].map((id) => {
+      let b = null;
+      for (const n of el(id).children) {
+        const r = n.classList.contains('pileLabel') ? null : n.getBoundingClientRect();
+        if (!r || !r.width || !r.height) continue; // hidden
+        b = b ? { left: Math.min(b.left, r.left), top: Math.min(b.top, r.top), right: Math.max(b.right, r.right), bottom: Math.max(b.bottom, r.bottom) }
+          : { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+      }
+      return b;
+    });
+  }
+
   /** One ghost between the player's chip and the stock, the pile or a meld card. */
   function flyTableMove(turn, f, elapsed) {
     const chip = [...el('opponents').children].find((d) => d.dataset.playerId === f.who);
@@ -7722,10 +7733,10 @@
       if (box.cx < view.left || box.cx > view.right || box.cy < view.top || box.cy > view.bottom) return false;
       ghost = meldCardGhost(landing);
     } else {
-      // Her own exit plays on the pile when she is taken (queenGhost).
+      // Her own moments play on the pile: the turn away when she is taken (queenGhost), her head turn when thrown.
       const m = queenMoments.get('pileOut');
       if (f.kind === 'take' && m && m.id === f.id) return false;
-      if (f.kind === 'discard' && !landing) return false;
+      if (f.kind === 'discard' && (!pileShows(f) || isPikdameUp(f.card))) return false;
       box = cardBox(f.kind === 'draw' ? el('drawPile').querySelector('.pile-card') : el('discardTopCard'));
       ghost = pileCardGhost(f.kind === 'draw' ? { faceDown: true } : f.card);
     }
@@ -7733,35 +7744,39 @@
     if (!w || !h || !box.w) return false;
     const a = anchor.getBoundingClientRect();
     const s = Math.max(0.3, Math.min(0.9, (chip.getBoundingClientRect().height * 0.62) / h));
-    const pose = (cx, cy, scale, deg) => `translate(${cx - w / 2}px, ${cy - h / 2}px) rotate(${deg}deg) scale(${scale})`;
-    const atCard = pose(box.cx, box.cy, box.w / w, 0);
-    const atChip = (deg) => pose(a.left + a.width / 2, a.top + a.height / 2, s, deg);
-    const toChip = f.kind === 'draw' || f.kind === 'take';
-    const frames = toChip
-      ? [{ transform: atCard, opacity: 1 }, { opacity: 1, offset: 0.65 }, { transform: atChip(8), opacity: 0 }]
-      : [{ transform: atChip(-8), opacity: 0 }, { opacity: 1, offset: 0.3 }, { transform: atCard, opacity: 1 }];
+    const atChip = (deg) => ({ x: a.left + a.width / 2, y: a.top + a.height / 2, s, deg });
+    const atCard = { x: box.cx, y: box.cy, s: box.w / w, deg: 0 };
+    const leaving = f.kind === 'draw' || f.kind === 'take';
+    // A pile card in the air never covers a pile: it appears beside its pile and is gone before
+    // the next, so the piles (dimmed off-turn) never flicker and show only the state's own card.
+    const way = f.kind === 'meld' ? { from: atChip(-8), to: atCard }
+      : tableMoves.clearFlight(leaving ? atCard : atChip(-8), leaving ? atChip(8) : atCard, w, h, pileBoxes(), leaving);
+    if (!way) return false; // no room to fly clear of the piles: the card simply is there
+    const pose = (q) => `translate(${q.x - w / 2}px, ${q.y - h / 2}px) rotate(${q.deg}deg) scale(${q.s})`;
+    const [from, to] = [pose(way.from), pose(way.to)];
+    const frames = f.kind === 'meld'
+      ? [{ transform: from, opacity: 0 }, { opacity: 1, offset: 0.3 }, { transform: to, opacity: 1 }]
+      : leaving
+        ? [{ transform: from, opacity: 0 }, { opacity: 1, offset: 0.4 }, { opacity: 1, offset: 0.65 }, { transform: to, opacity: 0 }]
+        : [{ transform: from, opacity: 0 }, { opacity: 1, offset: 0.3 }, { opacity: 1, offset: 0.6 }, { transform: to, opacity: 0 }];
     g.setAttribute('aria-hidden', 'true');
     g.style.transform = frames[0].transform;
     g.style.opacity = '0'; // invisible until its turn in the stagger
     document.body.appendChild(g);
-    const left = f.start + f.dur - elapsed;
-    if (landing) holdLanding(f, landing, left);
-    if (f.kind === 'discard') f.standIn = pileStandIn(left + OPP_HOLD_SLACK_MS);
+    if (landing) holdLanding(f, landing, f.start + f.dur - elapsed);
     f.ghost = g;
     f.anim = g.animate(frames, { duration: f.dur, delay: f.start - elapsed, easing: OPP_EASE, fill: 'forwards' });
-    // It lands: in the same frame the real card takes its place.
+    // It lands: in the same frame a meld card takes its place.
     f.anim.onfinish = () => {
       if (f.hold) f.hold.cancel();
-      if (f.standIn) f.standIn.remove();
       g.remove();
-      if (f.kind === 'discard') popPileTop();
     };
     turn.timers.push(setTimeout(() => g.remove(), f.start + f.dur - elapsed + 400)); // a hidden tab may never finish it
     return true;
   }
 
-  /** In the frame after the render (nothing was painted in between): the turn's clock starts, the
-   *  real cards hide where they will land, the ghosts take off, the sounds are timed. */
+  /** In the frame after the render (nothing was painted in between): the turn's clock starts, new
+   *  meld cards hide where they will land, the ghosts take off, the sounds are timed. */
   function launchTableMoves(turn) {
     if (turn !== oppTurn) return;
     const now = performance.now();
@@ -7780,14 +7795,13 @@
       f.launched = true;
       const flew = turn.live && !f.lost && flyTableMove(turn, f, elapsed);
       if (!flew) dropFlight(f); // no ghost: the card shows at once, and later renders leave it alone
-      // Her head turn on the table starts when her card lands there.
-      const key = f.kind === 'meld' ? f.id : 'pile';
-      const m = flew && (f.kind === 'meld' || f.kind === 'discard') ? queenMoments.get(key) : null;
-      if (m && !m.shifted && (f.kind === 'meld' ? m.kind === 'meld' : m.kind === 'discard' && m.id === f.id)) {
+      // Her head turn in a meld starts when her card lands there (on the pile she turns at once).
+      const m = flew && f.kind === 'meld' ? queenMoments.get(f.id) : null;
+      if (m && !m.shifted && m.kind === 'meld') {
         m.at = turn.t0 + f.start + f.dur;
         m.shifted = true;
-        f.queen = key;
-        queenDecorate(f.holdEl, key, f.kind === 'meld' ? 'meld' : 'pile');
+        f.queen = f.id;
+        queenDecorate(f.holdEl, f.id, 'meld');
       }
       if (f.cue && !sheet) {
         const cue = f.cue;
@@ -7797,15 +7811,6 @@
     }
     clearTimeout(turn.endTimer);
     turn.endTimer = setTimeout(() => { if (oppTurn === turn) endTableMoves(); }, Math.max(0, end - elapsed) + 80);
-  }
-
-  /** The discard lands: the pile's pop, now that its card shows (her own turn has one built in). */
-  function popPileTop() {
-    const top = el('discardTopCard');
-    if (top.classList.contains('qTurn')) return;
-    top.classList.remove('pop');
-    void top.offsetWidth; // restart the animation
-    top.classList.add('pop');
   }
 
   /** Ends the turn in flight at once: ghosts gone, every card where the state has it. */
@@ -9228,7 +9233,7 @@
     const playing = s && s.phase === 'playing';
     const seated = s && s.players.some((p) => p.id === playerId && !p.isBot);
     const votes = (s && s.pauseVotes) || [];
-    const humans = (s && s.players.filter((p) => !p.isBot && p.connected !== false)) || [];
+    const humans = consentHumans(s);
     // Pause button: only while seated in a running game.
     el('pauseBtn').classList.toggle('hidden', !(playing && seated));
     const iVoted = votes.includes(playerId);
@@ -11248,6 +11253,40 @@
     if (lvl) lastLevelSeen = lvl;
   }
 
+  /** { pct, rare } of a badge, or null when the server sends no shares (too few players). */
+  function badgeRarityOf(id) {
+    const pct = badgeRarity && badgeRarity.percent ? badgeRarity.percent[id] : undefined;
+    if (!Number.isInteger(pct) || pct < 0 || pct > 100) return null;
+    return { pct, rare: Number.isInteger(badgeRarity.rareBelow) && pct < badgeRarity.rareBelow };
+  }
+  // German "12 %" with a narrow no-break space, on the tile and in the sentence alike.
+  const PCT_SPACE = '\u{202F}';
+  // 0 means "under 1 %": the viewer may hold it as a guest, so never a plain 0.
+  function rarityPctText(pct) {
+    return pct === 0 ? L(`<${PCT_SPACE}1${PCT_SPACE}%`, '<1%') : `${pct}${L(`${PCT_SPACE}%`, '%')}`;
+  }
+  // No pronoun: it reads for a badge and for a tier alike.
+  function raritySentence({ pct, rare }) {
+    const share = pct === 0 ? L(`unter 1${PCT_SPACE}%`, 'under 1%') : rarityPctText(pct);
+    if (!rare) return L(`Von ${share} der Spieler erreicht`, `Earned by ${share} of players`);
+    const only = pct === 0 ? '' : L('nur ', 'only ');
+    return L(`Selten${NBSP}– von ${only}${share} der Spieler erreicht`, `Rare${NBSP}– earned by ${only}${share} of players`);
+  }
+  // On a tile: the share in a band above the picture (the favourite star sits top right),
+  // a rare one with the gold glint. The narrow space keeps the band short.
+  function rarityTileHtml(id) {
+    const r = badgeRarityOf(id);
+    if (!r) return '';
+    const sentence = escapeHtml(raritySentence(r));
+    return `<span class="achRarity${r.rare ? ' rare' : ''}" title="${sentence}">${r.rare ? iconHtml('rare') : ''}` +
+      `<span aria-hidden="true">${escapeHtml(rarityPctText(r.pct))}</span><span class="visuallyHidden">${sentence}</span></span>`;
+  }
+  function rarityLineHtml(id) {
+    const r = badgeRarityOf(id);
+    if (!r) return '';
+    return `<span class="achRarityLine${r.rare ? ' rare' : ''}">${r.rare ? iconHtml('rare') : ''}<span>${escapeHtml(raritySentence(r))}</span></span>`;
+  }
+
   function renderAchievements() {
     const box = el('achievementsBox');
     if (!box) return;
@@ -11266,15 +11305,16 @@
       const m = badgeMeta(id);
       const at = owned[id];
       const p = progress[id];
+      const rarity = rarityTileHtml(id);
       const sub = at
         ? fmtDate(at, { day: 'numeric', month: 'numeric', year: 'numeric' })
         : p && p.need > 1
           ? `${p.have}/${p.need}`
           : L('gesperrt', 'locked');
-      return `<button type="button" class="achTile${at ? ' earned' : ''}${favKeys.includes(id) ? ' fav' : ''}" data-ach="${id}" aria-expanded="false" title="${escapeHtml(m.how)}">
+      return `<button type="button" class="achTile${at ? ' earned' : ''}${favKeys.includes(id) ? ' fav' : ''}${rarity ? ' hasRarity' : ''}" data-ach="${id}" aria-expanded="false" title="${escapeHtml(m.how)}">
         <span class="achEmoji">${at ? m.emoji : iconHtml('lock')}</span>
         <span class="achName">${escapeHtml(m.name)}</span>
-        <span class="achSub">${escapeHtml(sub)}</span>${favMark(id)}
+        <span class="achSub">${escapeHtml(sub)}</span>${favMark(id)}${rarity}
       </button>`;
     };
     // A family is ONE tile: the highest earned tier gives it name and
@@ -11290,11 +11330,13 @@
         ? p && p.need > 1 ? `${p.have}/${p.need}` : L('gesperrt', 'locked')
         : L('alle Stufen', 'all tiers');
       const title = next ? badgeMeta(next).how : m.desc;
-      return `<button type="button" class="achTile achFamily${top ? ' earned' : ''}${!next ? ' maxed' : ''}${favKeys.includes(fam.id) ? ' fav' : ''}" data-ach="${fam.id}" aria-expanded="false" title="${escapeHtml(title)}">
+      // The share of the badge the tile names: the top tier reached, else the first.
+      const rarity = rarityTileHtml(top || fam.tiers[0]);
+      return `<button type="button" class="achTile achFamily${top ? ' earned' : ''}${!next ? ' maxed' : ''}${favKeys.includes(fam.id) ? ' fav' : ''}${rarity ? ' hasRarity' : ''}" data-ach="${fam.id}" aria-expanded="false" title="${escapeHtml(title)}">
         <span class="achEmoji">${top ? m.emoji : iconHtml('lock')}</span>
         <span class="achName">${escapeHtml(m.name)}</span>
         <span class="achTiers">${dots}</span>
-        <span class="achSub">${escapeHtml(sub)}</span>${favMark(fam.id)}
+        <span class="achSub">${escapeHtml(sub)}</span>${favMark(fam.id)}${rarity}
       </button>`;
     };
     const total = BADGE_FAMILIES.reduce((n, f) => n + f.tiers.length, 0) + BADGE_SINGLES.length;
@@ -11445,7 +11487,7 @@
         ? `<span class="achTierNo">${escapeHtml(L(`Stufe ${i + 1}`, `Tier ${i + 1}`))}${id === next ? ` · ${escapeHtml(L('als Nächstes', 'next'))}` : ''}</span>`
         : '';
       return `<li class="${cls}">${tier}<b>${escapeHtml(m.name)}</b>` +
-        `${state ? ` <span class="achDetailState">${state}</span>` : ''}<span class="achHow">${escapeHtml(m.how)}</span></li>`;
+        `${state ? ` <span class="achDetailState">${state}</span>` : ''}<span class="achHow">${escapeHtml(m.how)}</span>${rarityLineHtml(id)}</li>`;
     };
     const head = badgeMeta(fam ? (fam.tiers.filter((id) => owned[id]).pop() || fam.tiers[0]) : key);
     const title = fam

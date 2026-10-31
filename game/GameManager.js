@@ -494,6 +494,8 @@ class GameManager {
     if (p && p.leftGame) return; // a bot owns that seat for good
     if (p) {
       p.connected = false;
+      // Grace starts BEFORE the vote re-checks below: within it the seat still blocks.
+      p.disconnectedAt = Date.now();
       // Der Abheber ist weg -> automatisch abheben, damit die Runde für den
       // Rest des Tisches sofort weitergeht (nicht erst nach dem Timeout).
       if (this.phase === 'cutting' && id === this.cutterId) {
@@ -516,15 +518,12 @@ class GameManager {
       // old instant takeover meant a bot happily played (and sometimes
       // finished) their round in the meantime. The table now waits a bit;
       // reconnecting cancels the takeover.
-      p.disconnectedAt = Date.now();
       this._scheduleTakeover(id);
       if (this.phase === 'playing' && this.currentPlayer()?.id === id) {
         this.addLog(`${p.name} ist getrennt - kehrt ${p.name} nicht zurück, übernimmt gleich ein Bot.`);
         this.broadcastState();
       }
     }
-    // Waiting on the round-end ready check? A leaver must not block it.
-    if (this.phase === 'roundEnd') this._maybeStartNextRound();
   }
 
   _scheduleTakeover(id) {
@@ -577,6 +576,10 @@ class GameManager {
         }
         return;
       }
+      // Grace over: this seat no longer blocks the ready, pause and forfeit gates.
+      this._evaluatePauseVotes();
+      this._evaluateForfeitVotes();
+      if (this.phase === 'roundEnd') this._maybeStartNextRound();
       this.broadcastState(); // chip now shows 'bot takes over'
       if (this.phase === 'playing' && this.currentPlayer()?.id === id) {
         this.maybeRunBotTurn();
@@ -901,10 +904,8 @@ class GameManager {
     return { ok: true };
   }
 
-  /** Round-end ready check: the next round only starts once EVERY connected
-   *  human has confirmed - nobody gets rushed past the round statistics.
-   *  Bots and disconnected players never block; a disconnect while waiting
-   *  re-evaluates readiness. */
+  /** Round-end ready check: the next round only starts once every human in
+   *  `_consentHumans()` confirmed - minimising the app is no consent. */
   markNextRoundReady(playerId) {
     if (this.phase !== 'roundEnd') return { error: 'Gerade läuft keine Rundenauswertung.' };
     if (!this._nextRoundReady) this._nextRoundReady = new Set();
@@ -918,9 +919,9 @@ class GameManager {
 
   _maybeStartNextRound() {
     if (this.phase !== 'roundEnd' || !this._nextRoundReady) return;
-    const waitingFor = this.players.filter(
-      (p) => !p.isBot && p.connected && !this._nextRoundReady.has(p.id)
-    );
+    // Nobody at the table any more: wait for whoever comes back first.
+    if (this._connectedHumans().length === 0) return;
+    const waitingFor = this._consentHumans().filter((p) => !this._nextRoundReady.has(p.id));
     if (waitingFor.length === 0) this.startNewRound();
   }
 
@@ -1994,7 +1995,7 @@ class GameManager {
 
   /**
    * Aufgeben per Konsens: Ein Spieler stimmt fürs Aufgeben der laufenden Runde
-   * (Toggle). Erst wenn ALLE verbundenen Menschen zustimmen, endet die Runde -
+   * (Toggle). Erst wenn ALLE Menschen in `_consentHumans()` zustimmen, endet die Runde -
    * SOFORT für alle. Es gibt keinen Gewinner-Bonus für irgendwen; alle Spieler
    * werden wie normale Mitspieler gewertet (Ausgelegtes minus Resthand). So kann
    * niemand die Runde im Alleingang beenden - alle aktiven Spieler werden gefragt.
@@ -2006,7 +2007,7 @@ class GameManager {
     if (!this._forfeitVotes) this._forfeitVotes = new Set();
     if (this._forfeitVotes.has(playerId)) this._forfeitVotes.delete(playerId);
     else this._forfeitVotes.add(playerId);
-    const humans = this._connectedHumans();
+    const humans = this._consentHumans();
     if (this._forfeitVotes.has(playerId)) {
       this.addLog(`${p.name} möchte das Spiel aufgeben (${this._forfeitVotes.size}/${humans.length}).`);
     }
@@ -2017,7 +2018,7 @@ class GameManager {
 
   _evaluateForfeitVotes() {
     if (!this._forfeitVotes) this._forfeitVotes = new Set();
-    const humans = this._connectedHumans();
+    const humans = this._consentHumans();
     if (humans.length === 0 || !humans.every((h) => this._forfeitVotes.has(h.id))) return;
     this._forfeitGame();
   }
@@ -2471,9 +2472,17 @@ class GameManager {
   // --- Validierung -----------------------------------------------------------
 
   /** Bots on the table that belong to a connected human? No - just the humans
-   *  who are currently connected. Shared by the host, pause and ready gates. */
+   *  who are currently connected (host succession). */
   _connectedHumans() {
     return this.players.filter((p) => !p.isBot && p.connected);
+  }
+
+  /** Humans the ready, pause and forfeit gates wait for: connected, or gone for
+   *  less than the takeover grace (a minimised app is no consent). The pending
+   *  takeover clock counts too: a restart re-arms it for seats live at SIGTERM. */
+  _consentHumans() {
+    return this.players.filter((p) => !p.isBot && !p.leftGame
+      && (!this.isBotControlled(p) || !!(this._takeoverTimers && this._takeoverTimers.has(p.id))));
   }
 
   /** A laid/attached Pik Dame electrifies the table (same reaction wherever it
@@ -2484,8 +2493,8 @@ class GameManager {
     this.botsReact(playerId, '😱', 0.4, { force: true, fast: true, minHand: 3 });
   }
 
-  /** In-game pause by unanimous consent. Toggling a vote; once every CONNECTED
-   *  human agrees the game pauses (or, while paused, resumes). Bots, the turn
+  /** In-game pause by unanimous consent. Toggling a vote; once every human in
+   *  `_consentHumans()` agrees the game pauses (or, while paused, resumes). Bots, the turn
    *  timer and all turn actions are frozen while paused. */
   togglePauseVote(playerId) {
     if (this.phase !== 'playing') return { error: 'Pause gibt es nur im laufenden Spiel.' };
@@ -2501,7 +2510,7 @@ class GameManager {
 
   _evaluatePauseVotes() {
     if (!this._pauseVotes) this._pauseVotes = new Set();
-    const humans = this._connectedHumans();
+    const humans = this._consentHumans();
     if (humans.length === 0 || !humans.every((h) => this._pauseVotes.has(h.id))) return;
     this.paused = !this.paused;
     this._pauseVotes = new Set();
@@ -3537,6 +3546,8 @@ class GameManager {
       discardTakeable: this._discardTakeableFor(forPlayerId),
       pauseVotes: this._pauseVotes ? [...this._pauseVotes] : [],
       forfeitVotes: this._forfeitVotes ? [...this._forfeitVotes] : [],
+      // Seats the ready, pause and forfeit gates wait for (incl. ones within their grace).
+      consentIds: this._consentHumans().map((p) => p.id),
       players: this.players.map((p) => ({
         id: p.id,
         name: p.name,

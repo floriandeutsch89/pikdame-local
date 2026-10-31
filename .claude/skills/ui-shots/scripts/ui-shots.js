@@ -18,7 +18,7 @@
 // Views: phone (393x852), land (874x402), desk (1440x900), se (375x667), max (440x956), lap (1366x657), nar (1100x680).
 // team-tile: a real tap on the start screen's "2 gegen 2" tile, then what opens.
 // Scenes: lobby, lobby-open, progress, stats, stats-badges (trophy cabinet + a favourite's
-// detail; favourites show with --signed-in), history, roundend, roundend-stats, gameover,
+// detail, then a rare badge's; favourites show with --signed-in), history, roundend, roundend-stats, gameover,
 // gameover-stats (its Statistik tab: game totals open, new achievements),
 // table (needs --state <file>: a GameManager.publicState('p1') JSON in the playing phase),
 // table-stammtisch (an engine table at the mock Stammtisch, seen by a guest: Oma Gerda organizes, bots on Mittel),
@@ -162,7 +162,7 @@ const me = ME.toLowerCase(); // the Stammtisch summary keys players by lowercase
 const PROFILES = [
   { name: ME, gamesPlayed: 43, gamesWon: 17, totalScore: 31000, bestGameScore: 1385, xp: 5320, dailyStreak: 6,
     daily: { streak: 6, best: 11, last: '2000-01-01', graceAt: null },
-    badges: { first_win: NOW - 9e8, pd_laid: NOW - 5e8, marathon_10: NOW - 2e8 }, favoriteBadges: ['games', 'wins'],
+    badges: { first_win: NOW - 9e8, pd_laid: NOW - 5e8, royal_flush: NOW - 3e8, marathon_10: NOW - 2e8 }, favoriteBadges: ['games', 'wins'],
     puzzles: { [TODAY]: { tries: 1, solved: false } },
     towerStars: 17, towerCleared: 8, ...celebrating },
   { name: 'Oma Gerda', gamesPlayed: 120, gamesWon: 61, totalScore: 99000, bestGameScore: 1610, xp: 18000, badges: { first_win: 1 } },
@@ -214,6 +214,14 @@ const ACCOUNT_API = {
   '/api/account/methods': { ok: true, hasPassword: false, passkeys: [{ id: 'pk1', name: 'iPhone', createdAt: NOW - 9e8, lastUsedAt: NOW - 3e6 }], reviewMail: false },
 };
 const GLOBAL_STATS = { games: 8123, rounds: 61234, pikDamesLaidOut: 9001, pikDamesCaught: 4521, handAusRounds: 777 };
+// Badge rarity as game/BadgeRarity.js sends it: common, rare (< rareBelow) and "< 1 %" (0), earned and locked.
+const RARITY_MOCK = {
+  first_win: 71, pd_laid: 64, pd_hunter_10: 23, pd_hunter_50: 4, marathon_10: 41, marathon_50: 12, marathon_100: 6,
+  wins_10: 19, wins_50: 3, pd_caught: 88, royal_flush: 4, pik_royal: 0, run_13: 1, zen_trio: 0, streak_10: 2,
+  score_500: 35, tower_3: 27, tower_crowned_12: 0, daily_7: 18, daily_30: 5, purple_heart_10: 33, puzzle_perfect_100: 0,
+};
+const BADGE_RARITY = { rareBelow: 10, percent: Object.fromEntries(require(path.join(ROOT, 'game', 'Badges')).BADGE_IDS
+  .map((id, i) => [id, RARITY_MOCK[id] !== undefined ? RARITY_MOCK[id] : 11 + ((i * 23) % 58)])) };
 const HISTORY = [
   { id: 'g1', finishedAt: NOW - 3600e3, startedAt: NOW - 3600e3 - 41 * 60e3, rounds: 3, won: true, myScore: 1040, myId: 'p1', stammtisch: true,
     players: [{ id: 'p1', name: ME }, { id: 'p2', name: 'Oma Gerda' }, { id: 'b1', name: 'Klaus', isBot: true, botDifficulty: 'zen' }],
@@ -367,7 +375,7 @@ function rewrite(msg) {
   if (msg.type === 'joined' && msg.sessionCode) lastSessionCode = msg.sessionCode;
   if (msg.type === 'state' && BIRTHDAY && msg.state) msg.state.birthdayToday = true;
   if (msg.type === 'joined' && bindStammtisch) msg.stammtisch = { code: 'STMOCK1', name: STAMMTISCH.name };
-  if (msg.type === 'profiles') { msg.players = emptyMe ? PROFILES.slice(1) : PROFILES; msg.globalStats = GLOBAL_STATS; }
+  if (msg.type === 'profiles') { msg.players = emptyMe ? PROFILES.slice(1) : PROFILES; msg.globalStats = GLOBAL_STATS; msg.badgeRarity = BADGE_RARITY; }
   if (msg.type === 'gameHistory') msg.games = emptyMe ? [] : teamHistory ? [TEAM_HISTORY_GAME, ...HISTORY] : HISTORY;
   if (msg.type === 'towerInfo') {
     const BT = require(path.join(ROOT, 'game', 'BotTower'));
@@ -1253,6 +1261,11 @@ function waitForHttp(port, ms = 20000) {
           await page.evaluate(() => document.querySelector('#achievementsBox .achTile[data-ach="games"]').scrollIntoView({ block: 'start' }));
           await page.waitForTimeout(200);
           await shot('stats-badges-open');
+          // A rare single badge (royal_flush, 4 %): its detail with the share line.
+          await page.click('#achievementsBox .achTile[data-ach="royal_flush"]'); await page.waitForTimeout(300);
+          await page.evaluate(() => document.querySelector('#achievementsBox .achTile[data-ach="royal_flush"]').scrollIntoView({ block: 'start' }));
+          await page.waitForTimeout(200);
+          await shot('stats-badges-rare');
           await page.click('#statsCloseBtn');
         }
         if (sc === 'table' || sc === 'table-stammtisch' || sc === 'table-team' || sc === 'table-team-named' || sc === 'table-team-b' || sc === 'table-team-many' || sc === 'table-team-rivals') {

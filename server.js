@@ -11,6 +11,7 @@ const crypto = require('crypto');
 const WebSocket = require('ws');
 const GameManager = require('./game/GameManager');
 const { createPlayerStore } = require('./game/PlayerStore');
+const { createBadgeRarity } = require('./game/BadgeRarity');
 const { createGlobalStatsStore } = require('./game/GlobalStatsStore');
 const { computeEarnedBadges, computeRoundBadges, familyBadges, ROUND_BADGES } = require('./game/Badges');
 const BotTower = require('./game/BotTower');
@@ -74,6 +75,8 @@ const db = createPool(DATABASE_URL);
 const challengeStore = createChallengeStore(db);
 // Player profiles by name (players.json of older versions is imported once).
 const playerStore = createPlayerStore(db);
+// Share of players per badge for the trophy cabinet: one cached query, started with the server.
+const badgeRarity = createBadgeRarity(db);
 // PIKDAME_ACCOUNTS=0 switches the account feature off; the database stays required.
 const accountStore = process.env.PIKDAME_ACCOUNTS === '0' ? null : createPgAccountStore(db);
 const mailer = createMailer();
@@ -2180,7 +2183,10 @@ async function sendProfilesTo(ws, { me = '', names = [] } = {}) {
     try { players = await playerStore.listProfiles({ me, names }); } catch (err) { logCrash('profiles', err); }
   }
   if (ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({ type: 'profiles', players, publicMode: PUBLIC_MODE, globalStats: globalStats.getStats(), quests }));
+  ws.send(JSON.stringify({
+    type: 'profiles', players, publicMode: PUBLIC_MODE, globalStats: globalStats.getStats(), quests,
+    badgeRarity: PUBLIC_MODE ? null : badgeRarity.get(),
+  }));
 }
 
 function sendProfilesAndTeams(session, playerId) {
@@ -2923,7 +2929,7 @@ wss.on('connection', (ws, req) => {
         break;
       }
       case 'nextRound': {
-        // Ready check: the round continues once every connected human
+        // Ready check: the round continues once every human still at the table
         // confirmed - nobody gets rushed past the round statistics.
         const r = game.markNextRoundReady(playerId);
         if (r && r.error) sendError(ws, r.error);
@@ -3128,6 +3134,7 @@ async function shutdown(signal) {
   const closed = new Promise((resolve) => server.close(resolve));
   const settled = (async () => { while (pendingWrites.size) await Promise.all([...pendingWrites]); await playEvents.flush(); })();
   await Promise.race([settled, new Promise((resolve) => setTimeout(resolve, 3500).unref())]);
+  badgeRarity.stop();
   await db.end().catch(() => {});
   await closed;
   await towerStopped.catch(() => {});
@@ -3173,9 +3180,10 @@ server.listen(PORT, () => {
     const OnnxPolicy = require('./game/OnnxPolicy');
     if (OnnxPolicy.enabled()) OnnxPolicy.warmup().catch((e) => logCrash('onnx-warmup', e));
   } catch (e) { logCrash('onnx-warmup', e); }
-  // The Kartenhaus needs stored profiles: off in the public mode, so nothing to build there.
+  // The Kartenhaus and the badge rarity need stored profiles: off in the public mode.
   if (!PUBLIC_MODE) {
     try { towerMonths.start(); } catch (e) { logCrash('tower-months', e); }
+    try { badgeRarity.start(); } catch (e) { logCrash('badge-rarity', e); }
   }
   // SMTP probe: log in and out once, so a wrong host/port/password shows up
   // now instead of at the first registration. Never blocks the start.

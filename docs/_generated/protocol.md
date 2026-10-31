@@ -81,9 +81,9 @@ Allowed from any seat at any time during a match.
 | `type` | Purpose |
 | --- | --- |
 | `emote` | Send an emoji reaction to the table. |
-| `togglePause` | Vote to pause. The game only pauses once every connected player agrees. |
-| `forfeitRound` | Vote to forfeit the whole game. The match only ends once every connected player agrees. |
-| `nextRound` | Signal readiness for the next round. |
+| `togglePause` | Vote to pause. The game only pauses once every player agrees. A player who dropped the connection still counts (as not yet agreed) until the 75 s takeover grace runs out. |
+| `forfeitRound` | Vote to forfeit the whole game. The match only ends once every player agrees. A player who dropped the connection still counts (as not yet agreed) until the 75 s takeover grace runs out. |
+| `nextRound` | Signal readiness for the next round. The round starts once every player confirmed; a disconnected player blocks until the 75 s takeover grace runs out. |
 | `rematch` | Start a new match with the same table. |
 | `exportLastGame` | Download the last finished game as JSON. |
 | `tutorialStep` | Tutorial tables only: a lesson was `shown` or `done` (`step`, a key from `game/TutorialSteps.js`), or the hints were switched `off` (ends the attempt as skipped). Only the seat's own progress, timed on the server clock, deduplicated and capped; never answered. Feeds `play_attempts` (admin "Festhänger"). |
@@ -113,7 +113,7 @@ Allowed from any seat at any time during a match.
 | `layOffAmbiguous` | Same for a lay-off: the card fits more than one place. |
 | `leftLobby` | Confirms `leaveLobby`; the client may forget its per-table credentials. |
 | `meldAmbiguous` | A new meld could be read several ways (joker roles); the client must pick one of the offered options. |
-| `profiles` | Answer to `listProfiles`. |
+| `profiles` | Answer to `listProfiles`. `badgeRarity`: `{ rareBelow, percent: { badgeId: 0-100 } }`, the share of players holding each badge (`game/BadgeRarity.js`; 0 = under 1 %), cached; `null` below the minimum of players and in the public mode. |
 | `progress` | XP, level and daily-quest progress after a finished match. |
 | `puzzle` | Today's puzzle (answer to `getPuzzle`). |
 | `puzzleMeldCheck` | _(see source)_ |

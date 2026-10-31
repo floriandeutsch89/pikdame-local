@@ -93,6 +93,16 @@ while no socket of its owner was open stays NULL until the next claim.
 `notified_at` is the only column that changes after the insert and stands in
 for `updated_at`. Badges from before `011` (and imported ones) count as shown.
 
+A badge's rarity (the trophy cabinet's "12 %", `game/BadgeRarity.js`) is the
+share of *counted players* holding it: confirmed accounts whose player
+(`users.player_id`) played in any mode: a match (`games_played > 0`; a daily
+challenge is booked as one), a solved daily puzzle (`puzzles_solved > 0`) or
+a starred Kartenhaus floor (`tower_floors_cleared > 0`). Guests are names
+anyone can type and are left out, so are sign-ups that never played; their
+badges do not count as held either, so no share passes 100 %. One aggregate
+query every 15 minutes, cached in the process: no table, no index (it reads
+most of `player_badges`, where a sequential scan is the right plan).
+
 ## Stammtische
 
 A Stammtisch is found by its secret `stammtisch_code` (unique, the lookup
@@ -200,6 +210,7 @@ with 48,000 sign-ins, 8,000 passkeys and 48,000 season results; admin access: 3 
 | Tower stars of a player (a month or all), a puzzle day, a day's quests | `players_player_key_key` + children's `_pkey` | nested loop, index scans | 0.02–0.04 |
 | Prune a player's quests (a week) and puzzle days (60 starred) | children's `_pkey` (player_id prefix) | index scan | 0.01–0.1 |
 | Delete a player (cascade) | children's `_pkey`; no `player_id` index on `play_attempts` | the FK trigger scans `play_attempts` | 20 |
+| Badge rarity (every 15 min): counted players, holders per badge (10,800 counted, 162,000 of their badges) | none (most of `player_badges`) | hash semi-join on the counted ids, parallel seq scan, hash aggregate; joining a CTE hashed all 300,000 badges and spilled (106 ms) | 60 |
 | A Stammtisch by code (join, probe, chip) | `stammtische_stammtisch_code_key` | unique probe | 0.01 |
 | A whole Stammtisch (summary, chip sheet, before booking a match): 6 members, 100 games, 400 seats, 60 weeks | `stammtische_stammtisch_code_key`, children's `_pkey` (stammtisch_id first) | index scans, JSON aggregates | 2 |
 | Its last winner | `stammtisch_games_pkey`, `stammtisch_game_seats_pkey` | index-only probe of the newest game | 0.04 |

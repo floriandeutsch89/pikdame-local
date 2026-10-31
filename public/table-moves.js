@@ -14,7 +14,7 @@
   const OVER = new Set(['roundEnd', 'gameOver']);
   // One opponent turn on the table at normal bot pace; "Schnell" halves it (bot pace).
   const BUDGET_MS = 600;
-  const TAKE_SHOWN = 3; // a swallowed pile: its top cards fly, the rest is implied
+  const TAKE_SHOWN = 1; // a swallowed pile: its top card flies (more would pop up one by one over the pile)
 
   /** The positions of one state as seen by `meId` (card ids by location), or null. */
   function facts(st, meId) {
@@ -192,5 +192,36 @@
     return { flights, cursor: t };
   }
 
-  return { FACE_DOWN, BUDGET_MS, TAKE_SHOWN, facts, diff, changed, plan, pileMoves };
+  /** A w×h card's straight flight between poses { x, y, s, deg } (centre, scale, tilt), cut
+   *  to where it covers none of `boxes`: over a dimmed pile a card reads as a flicker. Leaving
+   *  a pile it starts once clear for good, else it ends before its first touch; null: too short.
+   *  `pad` keeps it off a pile's stacked layers too (box shadows, 6.5 px: style.css stacked-2). */
+  function clearFlight(from, to, w, h, boxes, leaving, { pad = 8, steps = 40, min = 0.3 } = {}) {
+    const at = (p) => ({
+      x: from.x + (to.x - from.x) * p,
+      y: from.y + (to.y - from.y) * p,
+      s: from.s + (to.s - from.s) * p,
+      deg: from.deg + (to.deg - from.deg) * p,
+    });
+    const covers = (p) => {
+      const q = at(p);
+      const rad = (q.deg * Math.PI) / 180;
+      const [cos, sin] = [Math.abs(Math.cos(rad)), Math.abs(Math.sin(rad))];
+      const hw = ((w * cos + h * sin) * q.s) / 2 + pad;
+      const hh = ((w * sin + h * cos) * q.s) / 2 + pad;
+      return boxes.some((b) => b && q.x - hw < b.right && b.left < q.x + hw && q.y - hh < b.bottom && b.top < q.y + hh);
+    };
+    let cut = leaving ? 0 : 1;
+    for (let i = 0; i <= steps; i++) {
+      const k = leaving ? steps - i : i;
+      if (covers(k / steps)) {
+        cut = (leaving ? k + 1 : k - 1) / steps;
+        break;
+      }
+    }
+    if ((leaving ? 1 - cut : cut) < min) return null;
+    return leaving ? { from: at(cut), to } : { from, to: at(cut) };
+  }
+
+  return { FACE_DOWN, BUDGET_MS, TAKE_SHOWN, facts, diff, changed, plan, pileMoves, clearFlight };
 }));

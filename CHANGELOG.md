@@ -3,6 +3,31 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.125.1] - 2026-10-31
+
+### Fixed
+- **Minimieren ist keine Zustimmung:** Wer zwischen zwei Runden kurz die App minimiert, wird nicht mehr übergangen. „Nächste Runde“ wartet auch auf getrennte Mitspieler, bis sie zurück sind und bestätigt haben; der Knopf zeigt dann „Warte auf Ben (getrennt)…“. Dasselbe gilt für die Abstimmungen zu Pause und Aufgeben. Erst wenn jemand länger als 75 Sekunden weg bleibt (dann spielt auch ein Bot für ihn), entscheiden die übrigen ohne ihn, damit der Tisch nicht hängen bleibt. Wer das Spiel verlassen hat, blockiert nie
+- Züge der Mitspieler: Nachziehstapel und Ablage flackern nicht mehr, wenn eine Karte fliegt. Die Ablage zeigt sofort und durchgehend die Karte, die wirklich oben liegt; die fliegende Karte blendet neben den Stapeln weich ein und aus und zieht nie mehr über einen Stapel – auch im Querformat, wo sie bisher quer über den Nachziehstapel flog
+
+## [2.125.0] - 2026-10-31
+
+### Added
+- Seltenheit im Trophäenschrank: Jedes Abzeichen zeigt, wie viel Prozent der
+  Spieler es erreicht haben („12 %“), auch die noch gesperrten. Unter 10 % ist
+  es selten und trägt einen goldenen Funken; die Details nennen den Anteil für
+  jede Stufe („Von 12 % der Spieler erreicht“). Gezählt werden Konten, die schon
+  gespielt haben (Partie, Tagesrätsel oder Kartenhaus); auf Servern mit weniger
+  als 20 solchen Konten bleibt die Anzeige aus
+
+## [2.124.1] - 2026-10-31
+
+### Fixed
+- Am Stammtisch sehen jetzt alle die Bot-Stärke an den Bot-Kärtchen im Spiel, nicht nur der
+  Organisator: Wer dazukam, sah sie bisher nur, wenn die Bots verschieden stark spielten. Das gilt
+  für jeden Tisch mit mehreren Spielern; umstellen kann sie weiter nur der Organisator.
+- Die letzten Partien im Stammtisch-Blatt nennen die Stärke der Bots wie „Meine Partien“, etwa
+  „Uwe (Mittel)“. Partien von vorher zeigen weiter „(Bot)“.
+
 ## [2.124.0] - 2026-10-31
 
 ### Added

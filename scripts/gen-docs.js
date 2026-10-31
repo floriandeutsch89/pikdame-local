@@ -201,13 +201,13 @@ const MSG_NOTES = {
   layOffMulti: 'Add several cards to one of your own melds in one go.',
   swapJoker: 'Swap a joker on the table for the card it represents (the joker leaves play permanently).',
   discard: 'Discard exactly one card and end your turn.',
-  forfeitRound: 'Vote to forfeit the whole game. The match only ends once every connected player agrees.',
+  forfeitRound: 'Vote to forfeit the whole game. The match only ends once every player agrees. A player who dropped the connection still counts (as not yet agreed) until the 75 s takeover grace runs out.',
   undoMeld: 'Take back the last meld-phase action of the running turn (new meld, lay-off, joker swap) - everything it changed is restored. Not possible anymore once the mandatory pickup card has been laid (the rest of the pile was handed over), and never after the discard.',
   undoPileTake: 'Take back a discard-pile pickup - only while the mandatory top card has not been played yet (phase 1 of the two-phase pickup). Fair by construction: the card was public anyway and nothing on the table changed.',
   performCut: 'Interactive round start: the cutter picks where to cut the freshly shuffled deck (position 0..1). Only valid in the cutting phase, only for the cutter; bots, the daily challenge and timeouts cut automatically. The next state carries `lastCutReveal` (the lucky cards kept plus the ordinary card that ended the run) for the reveal animation.',
-  togglePause: 'Vote to pause. The game only pauses once every connected player agrees.',
+  togglePause: 'Vote to pause. The game only pauses once every player agrees. A player who dropped the connection still counts (as not yet agreed) until the 75 s takeover grace runs out.',
   leaveLobby: 'Leave an unstarted lobby and free the seat (bots re-sync, host succession is automatic). Refused mid-game - use the forfeit vote instead. The server confirms with `leftLobby` so the client may clear its stored per-session credentials.',
-  nextRound: 'Signal readiness for the next round.',
+  nextRound: 'Signal readiness for the next round. The round starts once every player confirmed; a disconnected player blocks until the 75 s takeover grace runs out.',
   rematch: 'Start a new match with the same table.',
   emote: 'Send an emoji reaction to the table.',
   exportLastGame: 'Download the last finished game as JSON.',
@@ -237,7 +237,7 @@ const S2C_NOTES = {
   accountProgress: 'The account-bound progression on login (so a new device shows the right level), and after XP from outside a match (a solved puzzle, a Kartenhaus floor\'s first star or crown).',
   gameHistory: 'Answer to `getGameHistory`.',
   gameExport: 'The requested game export (JSON).',
-  profiles: 'Answer to `listProfiles`.',
+  profiles: 'Answer to `listProfiles`. `badgeRarity`: `{ rareBelow, percent: { badgeId: 0-100 } }`, the share of players holding each badge (`game/BadgeRarity.js`; 0 = under 1 %), cached; `null` below the minimum of players and in the public mode.',
   puzzle: 'Today\'s puzzle (answer to `getPuzzle`).',
   puzzleResult: 'Grading of a `solvePuzzle` attempt.',
   puzzleSolution: 'The solution, after `revealPuzzle` or a correct answer.',
@@ -447,6 +447,7 @@ function clientSeasonAwards() {
 function generateProgression() {
   const P = require(path.join(ROOT, 'game', 'Progression'));
   const { BADGE_IDS, BADGE_FAMILIES } = require(path.join(ROOT, 'game', 'Badges'));
+  const BR = require(path.join(ROOT, 'game', 'BadgeRarity'));
   const { EMOTE_DEFS, SEASONAL_EMOTES, GREETING_EMOTE, HOLIDAY_EMOTES } = require(path.join(ROOT, 'game', 'Emotes'));
   const holidayEmotes = [...new Set(Object.values(HOLIDAY_EMOTES))].filter((e) => !SEASONAL_EMOTES.includes(e));
   const { QUIP_MOMENTS } = require(path.join(ROOT, 'game', 'BotQuips'));
@@ -497,8 +498,8 @@ function generateProgression() {
 
   return `${BANNER}# Progression
 
-Generated from \`game/Progression.js\`, \`game/Badges.js\`, \`game/Emotes.js\`
-and \`game/BotQuips.js\`; the display names come from the client's own
+Generated from \`game/Progression.js\`, \`game/Badges.js\`, \`game/BadgeRarity.js\`,
+\`game/Emotes.js\` and \`game/BotQuips.js\`; the display names come from the client's own
 bilingual tables. Ids are stable, names may change.
 
 ## Experience
@@ -579,6 +580,22 @@ The other **${oneOffs.length}** are earned by a fact about one match (computed i
 | | Badge | Earned by | Id |
 | --- | --- | --- | --- |
 ${badgeRows.join('\n')}
+
+### Rarity
+
+Like achievement percentages on Steam, the trophy cabinet shows on every
+tile (locked ones too) the share of players holding that badge; a family
+tile shows the tier it names, its detail every tier ("Von 12 % der
+Spieler erreicht"). *Players* are the confirmed accounts that played in any
+mode: a match (the daily challenge is one), a solved daily puzzle or a
+starred Kartenhaus floor. Guests are names anyone can type, and sign-ups
+that never played would only dilute it. Only those accounts count as
+holders too. Under
+**${BR.RARE_BELOW_PERCENT} %** a badge is marked rare (a gold glint); below 1 % it reads
+"< 1 %", never 0. With fewer than **${BR.RARITY_MIN_PLAYERS}** such accounts nothing
+is shown. One aggregate query (\`game/BadgeRarity.js\`), cached and
+refreshed every **${BR.RARITY_REFRESH_MS / 60000} minutes**, rides on the \`profiles\`
+message; no names leave the server.
 
 ## Stammtisch goals
 
