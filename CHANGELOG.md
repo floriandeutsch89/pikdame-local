@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.125.2] - 2026-10-31
+
+### Fixed
+- Seltenheit im Trophäenschrank: Die Prozente erscheinen jetzt sofort, nicht erst ab 20 aktiven Konten.
+- Getrennte Mitspieler: Läuft ihre Wartezeit ab, geht es am Rundenende, bei Pause und Aufgeben zuverlässig weiter (der Tisch blieb vereinzelt hängen).
+
 ## [2.125.1] - 2026-10-31
 
 ### Fixed
