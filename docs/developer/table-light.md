@@ -103,7 +103,9 @@ On an occasion the felt carries a large, faint picture behind every card:
 at the table") gives each id its art (`public/occasions/<id>-table.svg`, used as
 a CSS mask: only alpha counts) and its `--mark-tint`. Each theme mixes the tint
 into its own ink (`--mark-ink`); the kitchen gets a pale inlay instead. Static,
-no animation, no tap target, gone with `prefers-contrast: more`.
+no animation, no tap target, gone with `prefers-contrast: more`. Every mark sits
+in the same box, centred in the felt between the opponents and the folded hand
+bar; only the shared `#table[data-mark]::before` rules place it.
 
 - **Which mark** (`tableMarkFor`): a birthday at this table, else the day's holiday
   from `game/Holidays.js` (Halloween, Nikolaus, Christmas, New Year's Eve, New

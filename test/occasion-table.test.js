@@ -48,17 +48,43 @@ test('occasion watermark: a mask behind everything, keyed on the table\'s mark, 
   for (const prop of ['-webkit-mask', 'mask']) {
     assert.match(body, new RegExp(`\\n\\s*${prop}:\\s*var\\(--table-mark, linear-gradient\\(transparent, transparent\\)\\)`), `${prop}: transparent without art`);
   }
-  // Landscape and desktop: in the melds column, measured from its top (the fixed rows above).
-  for (const media of ['@media (orientation: landscape) and (max-height: 540px) {', '@media (min-width: 1100px) and (min-height: 541px) {']) {
-    const at = css.indexOf(`${media}\n  #table[data-mark]::before {`);
-    assert.ok(at > 0, `${media} places it`);
-    const placed = css.slice(at, css.indexOf('}', at));
-    assert.match(placed, /grid-area:\s*melds/, `${media}: the melds area`);
-    assert.match(placed, /bottom:\s*auto/, `${media}: not tied to the area's bottom (the action bar moves it)`);
-  }
   assert.match(css, /@media \(prefers-contrast: more\), \(forced-colors: active\) \{\s*#table\[data-mark\]::before \{ content: none; \}/,
     'more contrast asked for: no picture under the cards');
   assert.doesNotMatch(css, /body\[data-occasion[^\]]*\][^{,]*#table::before/, 'the device\'s occasion never draws on the table');
+});
+
+/** Declarations of a rule body as a Map. */
+const declsOf = (body) => new Map([...body.matchAll(/([a-z-]+)\s*:\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
+
+test('occasion watermark: every occasion\'s mark is centred in the felt, and stays put', () => {
+  // The felt: from below the opponents to the hand bar folded away (its lowest, steady place), the
+  // table's full width. Insets on all four sides, a fixed box and margin: auto centre it both ways.
+  const base = declsOf(css.match(/\n#table\[data-mark\]::before \{([^}]*)\}/)[1]);
+  assert.strictEqual(base.get('top'), 'calc(var(--safe-top) + 144px)', 'portrait: below the top bar and the opponents');
+  assert.strictEqual(base.get('bottom'), 'calc(var(--safe-bottom) + 49px)', 'above the folded hand bar, open or not');
+  assert.strictEqual(base.get('left'), '0');
+  assert.strictEqual(base.get('right'), '0');
+  assert.strictEqual(base.get('margin'), 'auto', 'centred in that felt, both ways');
+  for (const prop of ['width', 'height']) assert.doesNotMatch(base.get(prop) || 'auto', /auto|%\s*$/, `a fixed ${prop}, not the felt's`);
+  for (const prop of ['-webkit-mask', 'mask']) assert.match(base.get(prop), /\) center \/ contain no-repeat$/, `${prop}: the art centred and whole`);
+  // Landscape and desktop: the same felt in the grid, from line 3 (below the opponents) across both columns.
+  for (const media of ['@media (orientation: landscape) and (max-height: 540px) {', '@media (min-width: 1100px) and (min-height: 541px) {']) {
+    const at = css.indexOf(`${media}\n  #table[data-mark]::before {`);
+    assert.ok(at > 0, `${media} places it`);
+    const placed = declsOf(css.slice(css.indexOf('{', at + media.length) + 1, css.indexOf('}', at)));
+    assert.strictEqual(placed.get('grid-row'), '3 / -1', `${media}: from the opponents' row down`);
+    assert.strictEqual(placed.get('grid-column'), '1 / -1', `${media}: the full width, piles included`);
+    assert.strictEqual(placed.get('top'), '0', `${media}: right below the opponents`);
+    assert.ok(!placed.has('margin') && !placed.has('left') && !placed.has('right'), `${media}: still centred by the base rule`);
+    assert.match(placed.get('bottom') || base.get('bottom'), /^calc\(var\(--safe-bottom\) \+ \d+px\)$/, `${media}: the folded hand bar`);
+  }
+  // Nothing else may move or size one mark: art comes only through --table-mark.
+  const others = [...css.matchAll(/([^{}]*#table(?:\[[^\]]*\])?::before[^{}]*)\{([^}]*)\}/g)]
+    .filter(([, sel]) => /data-mark="/.test(sel) || !/^\s*#table\[data-mark\]::before\s*$/.test(sel));
+  for (const [, sel, body] of others) {
+    assert.doesNotMatch(body, /(^|[;\s])(top|bottom|left|right|inset|margin|width|height|grid-[a-z-]+|(-webkit-)?mask(-position|-size)?)\s*:/,
+      `${sel.trim()}: no rule but the shared ones places the mark`);
+  }
 });
 
 test('occasion watermark: every holiday and the birthday has its own local, self-contained art', () => {
@@ -88,9 +114,9 @@ test('occasion watermark: the art behind the hat is in the markup', () => {
   assert.match(html, /<g class="heroWitchHat"/, 'the start screen cat\'s witch hat (the queen borrows it)');
 });
 
-// Where text meets the watermark: the felt, the spot, the lamp pool, the vignette and the
-// fall-off of the top glow (the mark starts below it: at most a fifth of it, on an iPhone SE);
-// bare, under the meld groups' glass and under the own group's stronger glass.
+// Where text meets the watermark: the felt, the spot, the lamp pool, the vignette and (with room
+// to spare: the mark starts below it) a fifth of the top glow; bare, under the meld groups' glass,
+// the own group's stronger glass and the piles' pool.
 const GLOW_FALLOFF = 0.2;
 const BASES = (L) => ({
   felt: L.felt,
@@ -132,7 +158,8 @@ for (const theme of THEMES) {
       for (const m of MINUTES) {
         const { L, mark, vars } = markLight(theme, id, phaseWeights(m));
         assert.ok(mark.a > 0 && mark.a < 1, `${theme} ${id}: a translucent ink (${vars['--mark-ink']}, ${vars['--mark-tint']})`);
-        const layers = { '': null, 'glass panel on the ': L.glass, 'own meld group on the ': L.get('--glass-strong') };
+        // + the piles' own pool over it: their captions on short phones with a two-row hand.
+        const layers = { '': null, 'glass panel on the ': L.glass, 'own meld group on the ': L.get('--glass-strong'), 'pile pool on the ': L.spot };
         for (const [where, base] of Object.entries(BASES(L))) {
           for (const [layerName, layer] of Object.entries(layers)) {
             const marked = layer ? over(layer, over(mark, base)) : over(mark, base);

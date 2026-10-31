@@ -5422,19 +5422,20 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
   content: '';
   position: absolute; z-index: -1; /* under every card, under the grain (#table::after) */
   pointer-events: none;
-  /* Portrait: the felt between opponents and piles, by the viewport (#melds resizes with the hand). */
-  top: calc(var(--safe-top) + 156px); bottom: calc(var(--safe-bottom) + 312px);
-  left: 0; right: 0; width: min(66%, 300px); margin: 0 auto;
+  /* Centred (margin: auto) in the felt from the opponents to the hand bar folded away, its lowest
+     place: an open hand covers its foot instead of moving it. 144px = top bar + opponents, 49px = the folded bar. */
+  top: calc(var(--safe-top) + 144px); bottom: calc(var(--safe-bottom) + 49px); left: 0; right: 0;
+  width: min(66%, 300px); height: min(30vh, 270px); margin: auto;
   background: var(--mark-ink);
   -webkit-mask: var(--table-mark, linear-gradient(transparent, transparent)) center / contain no-repeat;
   mask: var(--table-mark, linear-gradient(transparent, transparent)) center / contain no-repeat;
 }
-/* Landscape and desktop: the melds column from its top (the action bar moves its bottom). */
+/* Landscape and desktop: the same felt, from the opponents' row (grid line 3) across both columns. */
 @media (orientation: landscape) and (max-height: 540px) {
-  #table[data-mark]::before { grid-area: melds; top: 6px; bottom: auto; width: auto; height: min(34vh, 140px); }
+  #table[data-mark]::before { grid-row: 3 / -1; grid-column: 1 / -1; top: 0; width: min(40%, 300px); height: min(34vh, 140px); }
 }
 @media (min-width: 1100px) and (min-height: 541px) {
-  #table[data-mark]::before { grid-area: melds; top: max(8px, calc(33.3vh - 182px)); bottom: auto; width: auto; height: min(40vh, 320px); }
+  #table[data-mark]::before { grid-row: 3 / -1; grid-column: 1 / -1; top: 0; bottom: calc(var(--safe-bottom) + 59px); width: min(40%, 420px); height: min(40vh, 320px); } /* + the hand's 10px margin */
 }
 /* More contrast asked for: no picture behind the cards and their captions. */
 @media (prefers-contrast: more), (forced-colors: active) {
