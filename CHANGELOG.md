@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.125.4] - 2026-10-31
+
+### Fixed
+- Das Feiertagsbild im Tisch (an Halloween der Kürbis) sitzt jetzt mittig im Tisch zwischen den Mitspielern oben und der Kartenleiste unten – in jedem Format – und bleibt an seinem Platz, wenn die Karten auf- oder zugeklappt werden
+
 ## [2.125.3] - 2026-10-31
 
 ### Fixed
