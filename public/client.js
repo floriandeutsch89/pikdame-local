@@ -909,7 +909,8 @@
   const HOLIDAY_EMOTES = { halloween: '🎃', nikolaus: '🎅', christmas: '🎄', silvester: '🎆', newyear: '🎆', easter: '🐣' };
   const OCCASIONS = {
     birthday: { icon: 'i-cake', particles: 'confetti', line: () => L(`Alles Gute zum Geburtstag, ${greetingName}!`, `Happy birthday, ${greetingName}!`) },
-    halloween: { icon: 'i-pumpkin', particles: 'bats', line: () => L('Süßes oder Saures!', 'Trick or treat!') },
+    // queenHat: the cat's hat the Queen of Spades' announcement borrows (showRaidWarning).
+    halloween: { icon: 'i-pumpkin', particles: 'bats', queenHat: '.heroWitchHat', line: () => L('Süßes oder Saures!', 'Trick or treat!') },
     nikolaus: { icon: 'i-mitre', particles: '', line: () => L('Frohen Nikolaus!', "Happy St. Nicholas' Day!") }, // the December snow is enough
     christmas: { icon: 'i-tree', particles: 'stars', line: () => L('Frohe Weihnachten!', 'Merry Christmas!') },
     silvester: { icon: 'i-sparkle', particles: 'fireworks', line: () => L('Guten Rutsch!', "Happy New Year's Eve!") },
@@ -8417,6 +8418,17 @@
     s.textContent = sub;
     w.appendChild(t);
     w.appendChild(s);
+    // An occasion's hat on the queen's panel: a copy of the start screen cat's, so it is drawn once.
+    const occ = OCCASIONS[currentOccasion()];
+    const hat = !variant && occ && occ.queenHat ? document.querySelector(occ.queenHat) : null;
+    if (hat) {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('class', 'rwHat');
+      svg.setAttribute('viewBox', '-19 -35 38 31'); // the cat's head: every hat of the hero fits
+      svg.setAttribute('aria-hidden', 'true');
+      svg.appendChild(hat.cloneNode(true));
+      w.appendChild(svg);
+    }
     document.body.appendChild(w);
     // Both this panel (top:42%) and the toast (top:50%) sit in the middle of
     // the screen: the log toast printed straight through "Du sicherst dir 100

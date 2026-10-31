@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 180">
+  <!-- A CSS mask (style.css "Occasion days at the table"): only alpha counts, each theme brings its ink.
+       Face and grooves are cut out, so the felt itself draws them. -->
+  <defs>
+    <mask id="carve" maskUnits="userSpaceOnUse" x="0" y="0" width="200" height="180">
+      <rect width="200" height="180" fill="#fff"/>
+      <g fill="none" stroke="#000" stroke-width="3.2" stroke-linecap="round">
+        <path d="M81.3 50A38 62 0 0 0 81.3 158M118.7 50A38 62 0 0 1 118.7 158"/>
+        <path d="M49.9 62A34 58 0 0 0 49.9 150M150.1 62A34 58 0 0 1 150.1 150"/>
+        <path d="M94 48.5q7.5 3 14.5 0M111.5 41.5q16-7 35-6"/>
+      </g>
+      <g fill="#000" stroke="#000" stroke-width="3.5" stroke-linejoin="round">
+        <path d="M71 99 81 81 91 99ZM109 99 119 81 129 99Z"/>
+        <path d="M70 115Q100 130 130 115Q126 149 100 151Q74 149 70 115Z"/>
+      </g>
+      <path d="M83 110h10v19.5h-10zM106 139h10v21h-10z" fill="#fff"/>
+    </mask>
+    <filter id="soft" x="-5%" y="-5%" width="110%" height="110%">
+      <feGaussianBlur stdDeviation="0.45"/>
+    </filter>
+  </defs>
+  <g filter="url(#soft)">
+    <g mask="url(#carve)">
+      <ellipse cx="50" cy="109" rx="33" ry="52"/>
+      <ellipse cx="150" cy="109" rx="33" ry="52"/>
+      <ellipse cx="72" cy="106" rx="34" ry="58"/>
+      <ellipse cx="128" cy="106" rx="34" ry="58"/>
+      <ellipse cx="100" cy="104" rx="38" ry="62"/>
+      <path d="M93 51C93 38 96 27 103 17C105.5 13.5 111 14.5 113.5 18C108 26 107 38 109.5 51Z"/>
+      <path d="M108.5 44.5C117.5 31.5 134.5 26.5 152.5 33.5C143.5 44.5 125.5 50.5 108.5 44.5Z"/>
+    </g>
+    <path d="M94 45C86 37 76 42 74 34C72 25.5 82.5 20.5 88 26.5C91.5 30.5 88 35.5 84.5 33" fill="none" stroke="#000" stroke-width="2.6" stroke-linecap="round"/>
+  </g>
+</svg>

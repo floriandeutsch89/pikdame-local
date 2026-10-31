@@ -5383,6 +5383,45 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
   .heroLights.on circle, .heroCostume.on .heroSparkler path { animation: none; }
 }
 
+/* --- Occasion days at the table: art pressed into the felt ----------------------
+   An occasion's --table-mark (public/occasions/) and tint; no text over it drops below the table's noon minimum (test/occasion-table.test.js). */
+body[data-occasion="halloween"] { --table-mark: url('occasions/halloween-table.svg'); --mark-tint: #ec8423; } /* the start screen pumpkin */
+/* Darker reads nowhere on the near-black felts: a warm tint, each theme at ~85 % of its contrast budget. */
+#table { --mark-ink: color-mix(in srgb, var(--mark-tint) 10%, transparent); }
+[data-theme="night"] #table, [data-theme="bordeaux"] #table { --mark-ink: color-mix(in srgb, var(--mark-tint) 9%, transparent); }
+[data-theme="felt"] #table { --mark-ink: color-mix(in srgb, var(--mark-tint) 11%, transparent); }
+[data-theme="love"] #table { --mark-ink: color-mix(in srgb, var(--mark-tint) 12.5%, transparent); }
+[data-theme="kitchen"] #table { --mark-ink: rgb(255 252 244 / 0.45); }
+body[data-occasion] #table::before {
+  content: '';
+  position: absolute; z-index: -1; /* under every card, under the grain (#table::after) */
+  pointer-events: none;
+  /* Portrait: the felt between opponents and piles, by the viewport (#melds resizes with the hand). */
+  top: calc(var(--safe-top) + 156px); bottom: calc(var(--safe-bottom) + 312px);
+  left: 0; right: 0; width: min(66%, 300px); margin: 0 auto;
+  background: var(--mark-ink);
+  -webkit-mask: var(--table-mark, linear-gradient(transparent, transparent)) center / contain no-repeat;
+  mask: var(--table-mark, linear-gradient(transparent, transparent)) center / contain no-repeat;
+}
+/* Landscape and desktop: the melds column from its top (the action bar moves its bottom). */
+@media (orientation: landscape) and (max-height: 540px) {
+  body[data-occasion] #table::before { grid-area: melds; top: 6px; bottom: auto; width: auto; height: min(34vh, 140px); }
+}
+@media (min-width: 1100px) and (min-height: 541px) {
+  body[data-occasion] #table::before { grid-area: melds; top: max(8px, calc(33.3vh - 182px)); bottom: auto; width: auto; height: min(40vh, 320px); }
+}
+/* More contrast asked for: no picture behind the cards and their captions. */
+@media (prefers-contrast: more), (forced-colors: active) {
+  body[data-occasion] #table::before { content: none; }
+}
+/* The occasion's hat, tossed onto the corner of the queen's announcement (client.js
+   showRaidWarning); its brim stays above the title. */
+.raidWarning .rwHat {
+  position: absolute; left: -12px; top: -31px; width: 54px; height: auto;
+  transform: rotate(-16deg); pointer-events: none; overflow: visible;
+  filter: drop-shadow(0 2px 2px rgb(0 0 0 / 0.35));
+}
+
 /* --- Wochenwertung im Challenge-Panel --------------------------------------- */
 .challengeWeekly { margin-top: 10px; }
 .challengeWeekly h4 { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; font-size: var(--fs-body); }
