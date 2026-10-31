@@ -7,7 +7,7 @@
 //
 // Scoped by its code - only people who hold it see the names in it - so it
 // stays available on a public server, unlike the server-wide profiles.
-// PostgreSQL (migrations/007, 010): stammtische with members, games and seats, the
+// PostgreSQL (migrations/007, 010, 012): stammtische with members, games and seats, the
 // series wins and the weeks of the group goals. Async, every write awaited; a
 // match is booked in one transaction holding the table's row lock. A table is
 // read in one statement into the shape summarize() and StammtischGoals know.
@@ -21,6 +21,7 @@ const { upsertPlayerId } = require('./PlayerStore');
 const { bookGame, goalsOf, goalsView } = require('./StammtischGoals');
 const { gameDay } = require('./GameDay');
 const Teams = require('./Teams');
+const { BOT_LEVELS } = require('./Bot'); // the CHECK of migrations/012 lists the same
 
 const DEFAULT_DATA_FILE = path.join(process.env.PIKDAME_DATA_DIR || path.join(__dirname, '..', 'data'), 'stammtisch.json');
 
@@ -78,7 +79,7 @@ const TABLE_SQL = `SELECT s.id, s.stammtisch_code, s.stammtisch_name,
   (SELECT COALESCE(json_agg(json_build_object('no', g.game_no, 'at', floor(extract(epoch FROM g.finished_at) * 1000)::bigint,
       'seriesNo', g.series_no, 'teamMode', g.team_mode, 'teamNames', json_build_array(g.team_a_name, g.team_b_name),
       'players', (SELECT json_agg(json_build_object('name', x.player_name, 'isBot', x.is_bot,
-        'score', x.score, 'won', x.won, 'team', x.team_no) ORDER BY x.seat_no)
+        'score', x.score, 'won', x.won, 'team', x.team_no, 'botDifficulty', x.bot_difficulty) ORDER BY x.seat_no)
       FROM stammtisch_game_seats x WHERE x.stammtisch_id = g.stammtisch_id AND x.game_no = g.game_no)) ORDER BY g.game_no), '[]')
     FROM stammtisch_games g WHERE g.stammtisch_id = s.id) AS games,
   (SELECT COALESCE(json_object_agg(p.player_key, w.wins), '{}')
@@ -87,6 +88,11 @@ const TABLE_SQL = `SELECT s.id, s.stammtisch_code, s.stammtisch_name,
     FROM stammtisch_weeks k WHERE k.stammtisch_id = s.id) AS weeks
   FROM stammtische s LEFT JOIN players o ON o.id = s.owner_player_id
   WHERE s.stammtisch_code = $1`;
+
+/** A seat as the client knows it: its team only in a team match, a level only on a bot that has one (012). */
+function seatOf({ team, botDifficulty, ...p }, teamMode) {
+  return { ...p, ...(teamMode ? { team } : {}), ...(botDifficulty ? { botDifficulty } : {}) };
+}
 
 /** A TABLE_SQL row as the table object of the JSON store (plus its id). */
 function tableOf(r) {
@@ -100,10 +106,9 @@ function tableOf(r) {
     lastActivity: ms(r.last_used_ms),
     owner: r.owner_key || null,
     members,
-    // A seat's team only in a team match; a solo match keeps the old shape.
     games: r.games.map((g) => (g.teamMode
-      ? { no: g.no, at: ms(g.at), seriesNo: g.seriesNo, teamMode: true, teamNames: g.teamNames, players: g.players || [] }
-      : { no: g.no, at: ms(g.at), seriesNo: g.seriesNo, players: (g.players || []).map(({ team, ...p }) => p) })),
+      ? { no: g.no, at: ms(g.at), seriesNo: g.seriesNo, teamMode: true, teamNames: g.teamNames, players: (g.players || []).map((p) => seatOf(p, true)) }
+      : { no: g.no, at: ms(g.at), seriesNo: g.seriesNo, players: (g.players || []).map((p) => seatOf(p, false)) })),
     series: {
       no: r.series_no, bestOf: SERIES_BEST_OF, wins: r.series_wins, games: r.series_games,
       winner: r.series_winner_name || null, finishedAt: ms(r.series_finished_ms),
@@ -446,13 +451,14 @@ function createStammtischStore(pool, { legacyFile = DEFAULT_DATA_FILE } = {}) {
         const name = p.isBot ? String(p.name || 'Bot') : cleanName(p.name, 16);
         const team = teams ? Teams.teamIndexOf(teams, p.id) : -1;
         return [p.isBot ? null : ids[keyOf(name)] || null, name, !!p.isBot, Math.round(totals[p.id] || 0), winnerIds.includes(p.id),
-          team >= 0 ? team : null];
+          team >= 0 ? team : null, p.isBot && BOT_LEVELS.includes(p.botDifficulty) ? p.botDifficulty : null];
       });
-      await c.query(`INSERT INTO stammtisch_game_seats (stammtisch_id, game_no, seat_no, player_id, player_name, is_bot, score, won, team_no)
-        SELECT $1, $2, u.ord - 1, u.player_id, u.player_name, u.is_bot, u.score, u.won, u.team_no
-        FROM unnest($3::bigint[], $4::text[], $5::boolean[], $6::int[], $7::boolean[], $8::smallint[])
-          WITH ORDINALITY AS u(player_id, player_name, is_bot, score, won, team_no, ord)`,
-      [t.id, gameNo, ...[0, 1, 2, 3, 4, 5].map((i) => seats.map((s) => s[i]))]);
+      await c.query(`INSERT INTO stammtisch_game_seats (stammtisch_id, game_no, seat_no, player_id, player_name, is_bot, score, won, team_no,
+          bot_difficulty)
+        SELECT $1, $2, u.ord - 1, u.player_id, u.player_name, u.is_bot, u.score, u.won, u.team_no, u.bot_difficulty
+        FROM unnest($3::bigint[], $4::text[], $5::boolean[], $6::int[], $7::boolean[], $8::smallint[], $9::text[])
+          WITH ORDINALITY AS u(player_id, player_name, is_bot, score, won, team_no, bot_difficulty, ord)`,
+      [t.id, gameNo, ...[0, 1, 2, 3, 4, 5, 6].map((i) => seats.map((s) => s[i]))]);
       await c.query('DELETE FROM stammtisch_games WHERE stammtisch_id = $1 AND game_no <= $2', [t.id, gameNo - MAX_GAMES_PER_TABLE]);
       await c.query(`UPDATE stammtische SET last_used_at = $2, updated_at = $2, series_no = $3, series_games = $4,
           series_winner_name = $5, series_finished_at = $6, goal_xp = $7, goal_weeks_reached = $8 WHERE id = $1`,

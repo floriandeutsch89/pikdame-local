@@ -87,11 +87,17 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   (both teams named, the rivals won), `history-team` (a won
   team game opened in "Meine Partien"). At the mock Stammtisch:
   `stammtisch-lobby-team` (its lobby with "2 gegen 2" switched on: the record's
-  note), `gameover-team-stammtisch` (the note instead of the series) and
-  `gameover-stammtisch` (a solo result there: the series line).
+  note), `gameover-team-stammtisch` (the note instead of the series),
+  `gameover-stammtisch` (a solo result there: the series line) and
+  `table-stammtisch` (an engine table there seen by a guest: Oma Gerda sat
+  down first and organizes, two bots on Mittel - their chips' level badges).
 - **Before/after from one script:** `SHOTS_ROOT=<checkout>` shoots another
   checkout (e.g. a detached `origin/main` worktree) with this script, so
-  new scenes exist for the "before" pictures too.
+  new scenes exist for the "before" pictures too. Confined to a worktree:
+  `git archive -o <scratch>/base.tar <base>`, untar it in the scratchpad and
+  symlink the main checkout's `node_modules` into it (a worktree has none of
+  its own). `<base>` = `git merge-base HEAD origin/main`: a main that moved
+  meanwhile put an unrelated Halloween pumpkin into the "before" shots.
 - **Reduced motion:** `--reduced-motion` emulates `prefers-reduced-motion:
   reduce` - the still pictures instead of the animations.
 - **Victory celebrations:** `--celebration <id>` (e.g. `cats`) gives me that

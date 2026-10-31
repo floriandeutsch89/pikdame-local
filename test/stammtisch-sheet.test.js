@@ -231,6 +231,30 @@ test('the sheet lists the newest matches: a team match with its tag, both pairs 
   en.window.close();
 });
 
+test('the newest matches name a bot\'s level like "Meine Partien"; a match booked without one keeps "Bot"', () => {
+  const recent = [
+    { day: '2026-10-24', teamMode: true, teamNames: [null, null], players: [
+      { name: 'Flo', isBot: false, score: 1150, won: true, team: 0 }, { name: 'Anna', isBot: false, score: 960, won: false, team: 1 },
+      { name: 'Kurt', isBot: true, score: 930, won: true, team: 0, botDifficulty: 'zen' }, { name: 'Inge', isBot: true, score: 950, won: false, team: 1, botDifficulty: 'zen' }] },
+    { day: '2026-10-23', players: [{ name: 'Flo', isBot: false, score: 1040, won: true }, { name: 'Uwe', isBot: true, score: 905, won: false, botDifficulty: 'medium' },
+      { name: 'Erika', isBot: true, score: 700, won: false }] },
+  ];
+  const rowsOf = (t) => [...t.doc.querySelectorAll('#stammtischSheetBody .stGames li')]
+    .map((li) => ['stGameWin', 'stGameRest'].map((c) => li.querySelector(`.${c}`).textContent.replace(/\s+/g, ' ').trim()));
+  const t = boot();
+  t.doc.querySelector('#stammtischRecent button[data-code="STHOME"]').click();
+  t.info({ teamGames: 1, today: '2026-10-24', recent });
+  assert.deepStrictEqual(rowsOf(t), [['Flo & Kurt (Zen)', 'gegen Anna & Inge (Zen)'], ['Flo', 'Uwe (Mittel) 905 · Erika (Bot) 700']]);
+  assert.deepStrictEqual(t.errors, []);
+  t.window.close();
+
+  const en = boot({ pikdame_lang: 'en' });
+  en.doc.querySelector('#stammtischRecent button[data-code="STHOME"]').click();
+  en.info({ teamGames: 1, today: '2026-10-24', recent });
+  assert.deepStrictEqual(rowsOf(en)[1], ['Flo', 'Uwe (Medium) 905 · Erika (Bot) 700']);
+  en.window.close();
+});
+
 test('a match that reaches the weekly goal or a new level says so in one toast, with the series', () => {
   const t = boot();
   t.ws.fire('message', {
