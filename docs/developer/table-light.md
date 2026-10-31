@@ -129,7 +129,9 @@ bar; only the shared `#table[data-mark]::before` rules place it.
   no seat (`game/GreetingDays.js` `greetingAtTable`).
 - **Strength**: a tint at the pumpkin's strength would push a lighter colour over
   the contrast budget, so a lighter tint brings its own alpha
-  (`rgb(… / 0.84)`): its heaviest theme stays at ~88 % of the budget.
+  (`rgb(… / 0.84)`): its heaviest theme stays at ~88 % of the budget. Pick a
+  saturated tint: a light neutral (ivory) mostly lifts lightness, the one thing
+  the budget limits, and hit it at a visible step of only ~2.5 on Nacht.
 - **Contract** (`test/occasion-table.test.js`): over every mark, in every theme at
   every quarter hour, no main, muted or accent text drops below the table's noon
   floor of the section above, and every mark keeps a visible step (CIEDE2000 ≥ 3.8)
