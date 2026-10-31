@@ -98,6 +98,8 @@ test('occasion watermark: every holiday and the birthday has its own local, self
     // A mask image may not load anything (CSP: img-src 'self' data:), nor run anything.
     assert.doesNotMatch(svg, /<(image|script|foreignObject|use)\b|href=|url\((?!#)/i, `${m[1]}: no external or nested resources`);
     assert.doesNotMatch(svg, /<animate|@keyframes|<set\b/i, `${m[1]}: static (CLAUDE.md 2c)`);
+    // Safari renders a filtered SVG image at its own size and scales it up: pixels on the felt.
+    assert.doesNotMatch(svg, /<filter\b|filter=/i, `${m[1]}: no SVG filter (pixelates as a mask)`);
   }
   const files = new Set();
   for (const id of MARK_IDS) {

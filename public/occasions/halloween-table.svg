@@ -15,11 +15,8 @@
       </g>
       <path d="M83 110h10v19.5h-10zM106 139h10v21h-10z" fill="#fff"/>
     </mask>
-    <filter id="soft" x="-5%" y="-5%" width="110%" height="110%">
-      <feGaussianBlur stdDeviation="0.45"/>
-    </filter>
   </defs>
-  <g filter="url(#soft)">
+  <g>
     <g mask="url(#carve)">
       <ellipse cx="50" cy="109" rx="33" ry="52"/>
       <ellipse cx="150" cy="109" rx="33" ry="52"/>

@@ -12,11 +12,8 @@
       <path d="M65 52 75 46M65 40 75 34M77 20 67 14M84 16V4M91 20 101 14" stroke="#000" stroke-width="2.8" stroke-linecap="round"/>
       <path d="M91 107L93.8 114.1L101.5 114.6L95.6 119.5L97.5 126.9L91 122.8L84.5 126.9L86.4 119.5L80.5 114.6L88.2 114.1Z" fill="#000"/>
     </mask>
-    <filter id="soft" x="-5%" y="-5%" width="110%" height="110%">
-      <feGaussianBlur stdDeviation="0.45"/>
-    </filter>
   </defs>
-  <g filter="url(#soft)">
+  <g>
     <g transform="translate(-16 2) rotate(-7 112 96)">
       <g mask="url(#cut)">
         <g fill="none" stroke="#000" stroke-width="3.2" stroke-linecap="round">
