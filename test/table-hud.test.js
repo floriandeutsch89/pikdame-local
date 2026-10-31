@@ -1,6 +1,6 @@
 // v2.62.0: house rules as segment buttons and switches, the turn steps in the
-// topbar, opponent chips with icons, the level badge only when levels differ
-// and the low-card warning (play aid, default OFF). Real markup + client in jsdom.
+// topbar, opponent chips with icons, the level badge (for every seat since the
+// Stammtisch report) and the low-card warning (play aid, default OFF). Real markup + client in jsdom.
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
@@ -171,7 +171,7 @@ test('a dropped human: "getrennt" hangs on the bottom edge, the name keeps its r
   assert.equal(chip().querySelector('.reconnectTag').textContent, 'offline');
 });
 
-test('bot level badge: the host always, guests only for mixed levels; in the game never the word, the name in title/aria-label', async (t) => {
+test('bot level badge: every seat sees it, only the host changes it; in the game never the word, the name in title/aria-label', async (t) => {
   const { doc, feed, click } = await setup(t);
   const badges = () => [...doc.querySelectorAll('#opponents .botDiffBadge')];
   feed(table({ isHost: true }));
@@ -182,14 +182,55 @@ test('bot level badge: the host always, guests only for mixed levels; in the gam
   assert.ok(badges().every((b) => b.classList.contains('tapExpand')), 'the host keeps the 44 px hit area');
   click(badges()[0]);
   assert.ok(!doc.getElementById('botDiffOverlay').classList.contains('hidden'), 'the badge still opens the picker');
+  click(doc.getElementById('botDiffCloseBtn'));
   feed(table({ isHost: false }));
-  assert.equal(badges().length, 0, 'guests: nothing to tell when all bots are equal');
+  assert.equal(badges().length, 3, 'guests see the level too, also when all bots are equal');
+  assert.ok(badges().every((b) => b.classList.contains('readonly') && b.getAttribute('aria-label') === 'Schwierigkeit: Mittel'));
+  click(badges()[0]);
+  assert.ok(doc.getElementById('botDiffOverlay').classList.contains('hidden'), 'a guest\'s badge opens no picker');
   const mixed = table({ isHost: false });
   mixed.players[2] = { ...mixed.players[2], botDifficulty: 'hard' };
   feed(mixed);
   assert.ok(badges().every((b) => b.textContent === ''), 'mixed levels: still the symbol alone');
   assert.deepEqual(badges().map((b) => b.getAttribute('aria-label')).sort(), ['Schwierigkeit: Mittel', 'Schwierigkeit: Mittel', 'Schwierigkeit: Schwer']);
   assert.ok(badges().every((b) => b.title === b.getAttribute('aria-label') && b.classList.contains('readonly')));
+});
+
+// Owner report "Am Stammtisch wird die Bot-Stärke nicht angezeigt": a Stammtisch has two humans or
+// more, so all but the organizer are guests - who saw no level while every bot played the same one.
+test('Stammtisch: a guest sees the bots\' level at their chips, solo and "2 gegen 2" (engine states)', async (t) => {
+  const GameManager = require('../game/GameManager');
+  const { doc, ws } = await setup(t);
+  const sock = ws();
+  const emit = (msg) => sock._emit('message', { data: JSON.stringify(msg) });
+  emit({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'LIVE01', stammtisch: { code: 'STFAM1', name: 'Familie' } });
+  const guestState = (teamMode) => {
+    const g = new GameManager(() => {}, { deckSeed: 5, teamMode });
+    g.maybeRunBotTurn = () => {};
+    g.addOrReconnectPlayer('p2', 'Oma Gerda'); // sat down first: the organizer
+    g.addOrReconnectPlayer('p1', 'Flo');
+    g.syncLobbyBots();
+    g.setAllBotsDifficulty('medium');
+    g.fillWithBots();
+    g.startNewRound();
+    if (g.phase === 'cutting') g.performCut(g.cutterId, 0.5);
+    const st = g.publicState('p1');
+    g.destroy();
+    return st;
+  };
+  for (const teamMode of [false, true]) {
+    const st = guestState(teamMode);
+    assert.equal(st.isHost, false, 'Flo is a guest at this table');
+    emit({ type: 'state', state: st });
+    const bots = st.players.filter((p) => p.isBot);
+    const badges = [...doc.querySelectorAll('#opponents .botDiffBadge')];
+    assert.ok(bots.length >= 1);
+    assert.deepEqual(badges.map((b) => b.closest('.opponent').dataset.playerId).sort(), bots.map((p) => p.id).sort(), 'one badge per bot');
+    assert.ok(badges.every((b) => b.classList.contains('readonly') && b.getAttribute('aria-label') === 'Schwierigkeit: Mittel'));
+    assert.ok(badges.every((b) => b.querySelector('use').getAttribute('href') === '#i-lvl-2'), 'the spade rating of Mittel');
+    const human = doc.querySelector('#opponents .opponent[data-player-id="p2"]');
+    assert.equal(human.querySelector('.botDiffBadge'), null, 'a human seat has no level');
+  }
 });
 
 function lobby(extra = {}) {

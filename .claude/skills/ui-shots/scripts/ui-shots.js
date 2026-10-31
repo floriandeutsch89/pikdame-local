@@ -21,6 +21,7 @@
 // detail, then a rare badge's; favourites show with --signed-in), history, roundend, roundend-stats, gameover,
 // gameover-stats (its Statistik tab: game totals open, new achievements),
 // table (needs --state <file>: a GameManager.publicState('p1') JSON in the playing phase),
+// table-stammtisch (an engine table at the mock Stammtisch, seen by a guest: Oma Gerda organizes, bots on Mittel),
 // puzzle / puzzle-turn / puzzle-out (one meld laid), puzzle-refused (two melds laid at once: refused), puzzle-solved (3 stars + the tile),
 // challenge (intro, attempt used),
 // gamelobby (seats + house rules), botdiff (the strength picker), gameover-challenge,
@@ -169,14 +170,15 @@ const dayBack = (n) => new Date(Date.parse(`${TODAY}T12:00:00Z`) - n * 864e5).to
 const STAMMTISCH = {
   name: 'Familie Muster', gamesPlayed: 7, teamGames: 1, today: TODAY,
   // The newest first: today's "2 gegen 2" (Flo + Oma Gerda as "Die Löwen" against Klaus + a bot), two solo matches.
+  // A bot's level names it in "Letzte Partien" (migrations/012; an older client says "Bot").
   recent: [
     { day: TODAY, teamMode: true, teamNames: ['Die Löwen', null], players: [
       { name: ME, isBot: false, score: 1150, won: true, team: 0 }, { name: 'Klaus', isBot: false, score: 960, won: false, team: 1 },
-      { name: 'Oma Gerda', isBot: false, score: 930, won: true, team: 0 }, { name: 'Inge', isBot: true, score: 950, won: false, team: 1 }] },
+      { name: 'Oma Gerda', isBot: false, score: 930, won: true, team: 0 }, { name: 'Inge', isBot: true, score: 950, won: false, team: 1, botDifficulty: 'medium' }] },
     { day: dayBack(1), players: [{ name: 'Oma Gerda', isBot: false, score: 1040, won: true }, { name: ME, isBot: false, score: 905, won: false },
       { name: 'Klaus', isBot: false, score: 760, won: false }] },
     { day: dayBack(3), players: [{ name: ME, isBot: false, score: 1015, won: true }, { name: 'Oma Gerda', isBot: false, score: 880, won: false },
-      { name: 'Uwe', isBot: true, score: 610, won: false }] },
+      { name: 'Uwe', isBot: true, score: 610, won: false, botDifficulty: 'hard' }] },
   ],
   series: { no: 3, games: 2, wins: { 'oma gerda': 1, [me]: 1 }, bestOf: 3, needed: 2 },
   goals: { level: 3, into: 40, need: 100, xp: 165, week: { start: '2026-10-12', games: 3, goal: 5, reached: false }, streak: 2, weeksReached: 4 },
@@ -512,6 +514,42 @@ function teamTableState(named = null, rivals = null) {
   }
   g.destroy();
   return st;
+}
+// table-stammtisch: a live table at the mock Stammtisch seen by a guest - Oma Gerda sat down
+// first (she organizes), two bots on Mittel. A guest's chips must show the bots' level too.
+// Math.random seeded (mulberry32): the same bot names and moves in a before and an after shot.
+function stammtischGuestState() {
+  const GM = require(path.join(ROOT, 'game', 'GameManager'));
+  const random = Math.random;
+  let seed = 20261031;
+  Math.random = () => {
+    seed = (seed + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(seed ^ (seed >>> 15), seed | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  try {
+    const g = new GM(() => {}, { deckSeed: 11 });
+    g.maybeRunBotTurn = () => {};
+    g.addOrReconnectPlayer('p2', 'Oma Gerda');
+    g.addOrReconnectPlayer('p1', ME);
+    g.syncLobbyBots();
+    g.setAllBotsDifficulty('medium');
+    g.fillWithBots();
+    g.startNewRound();
+    if (g.phase === 'cutting') g.performCut(g.cutterId, 0.5);
+    let st = g.publicState('p1');
+    for (let mine = 0, guard = 0; mine < 3 && g.phase === 'playing' && guard < 800; guard++) {
+      const cp = g.currentPlayer();
+      g.runBotTurn(cp.id, { forced: !cp.isBot });
+      const next = g.currentPlayer();
+      if (g.phase === 'playing' && next && next.id === 'p1' && g.turnPhase === 'draw') { mine += 1; st = g.publicState('p1'); }
+    }
+    g.destroy();
+    return st;
+  } finally {
+    Math.random = random;
+  }
 }
 // table-team-b: the same table seen from team B (my partner's ring orange), an opponent on turn
 // beside it: the ring must not read as the turn highlight in any theme.
@@ -1226,14 +1264,16 @@ function waitForHttp(port, ms = 20000) {
           await shot('stats-badges-rare');
           await page.click('#statsCloseBtn');
         }
-        if (sc === 'table' || sc === 'table-team' || sc === 'table-team-named' || sc === 'table-team-b' || sc === 'table-team-many' || sc === 'table-team-rivals') {
+        if (sc === 'table' || sc === 'table-stammtisch' || sc === 'table-team' || sc === 'table-team-named' || sc === 'table-team-b' || sc === 'table-team-many' || sc === 'table-team-rivals') {
           // Live table: needs --state <file> with a publicState('p1') JSON (playing phase);
           // table-team builds a "2 gegen 2" table from the engine instead.
           const st = sc === 'table-team' ? teamTableState() : sc === 'table-team-named' ? teamTableState('Die Löwen')
             : sc === 'table-team-b' ? teamTableOnB() : sc === 'table-team-many' ? teamTableMany()
             : sc === 'table-team-rivals' ? teamTableState('Die Löwen', 'Kaffeeklatsch')
-              : JSON.parse(fs.readFileSync(arg('state', ''), 'utf8'));
-          inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
+              : sc === 'table-stammtisch' ? stammtischGuestState()
+                : JSON.parse(fs.readFileSync(arg('state', ''), 'utf8'));
+          inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01',
+            ...(sc === 'table-stammtisch' ? { stammtisch: { code: 'STMOCK1', name: STAMMTISCH.name } } : {}) });
           inject({ type: 'state', state: st });
           await page.waitForTimeout(1200);
           // --css <file>: extra CSS for quick layout mockups (never shipped).
