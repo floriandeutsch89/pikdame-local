@@ -30,11 +30,8 @@
       </g>
       <path d="M-26-10H26M-26 2H26" transform="translate(52 98) rotate(-22)" fill="none" stroke="#000" stroke-width="3"/>
     </mask>
-    <filter id="soft" x="-5%" y="-5%" width="110%" height="110%">
-      <feGaussianBlur stdDeviation="0.45"/>
-    </filter>
   </defs>
-  <g filter="url(#soft)" transform="translate(0 -13)">
+  <g transform="translate(0 -13)">
     <g mask="url(#back)">
       <path d="M0-36C17.9-36 28-7.6 28 7.6C28 25.6 15.4 36 0 36C-15.4 36-28 25.6-28 7.6C-28-7.6-17.9-36 0-36Z" transform="translate(144 96) rotate(18)"/>
       <path d="M0-31C15.4-31 24-6.5 24 6.5C24 22 13.2 31 0 31C-13.2 31-24 22-24 6.5C-24-6.5-15.4-31 0-31Z" transform="translate(52 98) rotate(-22)"/>

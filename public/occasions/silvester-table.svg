@@ -2,11 +2,8 @@
   <!-- A CSS mask (style.css "Occasion days at the table"): only alpha counts, each theme brings its ink.
        New Year's Eve: three bursts and the rocket's trail, spark by spark. -->
   <defs>
-    <filter id="soft" x="-5%" y="-5%" width="110%" height="110%">
-      <feGaussianBlur stdDeviation="0.45"/>
-    </filter>
   </defs>
-  <g filter="url(#soft)">
+  <g>
     <path d="M100 68L96.5 38.2L100 20L103.5 38.2ZM104.6 68.9L109.6 49.5L116.8 39.3L114.8 51.7ZM108.5 71.5L127.1 48L142.4 37.6L132 52.9ZM111.1 75.4L128.3 65.2L140.7 63.2L130.5 70.4ZM112 80L141.8 76.5L160 80L141.8 83.5ZM111.1 84.6L130.5 89.6L140.7 96.8L128.3 94.8ZM108.5 88.5L132 107.1L142.4 122.4L127.1 112ZM104.6 91.1L114.8 108.3L116.8 120.7L109.6 110.5ZM100 92L103.5 121.8L100 140L96.5 121.8ZM95.4 91.1L90.4 110.5L83.2 120.7L85.2 108.3ZM91.5 88.5L72.9 112L57.6 122.4L68 107.1ZM88.9 84.6L71.7 94.8L59.3 96.8L69.5 89.6ZM88 80L58.2 83.5L40 80L58.2 76.5ZM88.9 75.4L69.5 70.4L59.3 63.2L71.7 65.2ZM91.5 71.5L68 52.9L57.6 37.6L72.9 48ZM95.4 68.9L85.2 51.7L83.2 39.3L90.4 49.5Z"/>
     <circle cx="120" cy="31.7" r="3.2"/><circle cx="148.3" cy="60" r="3.2"/><circle cx="148.3" cy="100" r="3.2"/><circle cx="120" cy="128.3" r="3.2"/><circle cx="80" cy="128.3" r="3.2"/><circle cx="51.7" cy="100" r="3.2"/><circle cx="51.7" cy="60" r="3.2"/><circle cx="80" cy="31.7" r="3.2"/>
     <circle cx="100" cy="80" r="6"/>
