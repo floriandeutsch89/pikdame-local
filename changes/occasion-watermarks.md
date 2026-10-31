@@ -1,3 +1,0 @@
-### Added
-- Auch an Nikolaus, Weihnachten, Silvester, Neujahr und Ostern ist ein Motiv dezent in den Tisch geprägt: ein gefüllter Nikolausstiefel, ein Tannenbaum mit Stern, ein Feuerwerk, ein vierblättriges Kleeblatt und ein Osternest – jedes in eigener Farbe, hinter allen Karten, und alle Texte bleiben so gut lesbar wie überall am Tisch
-- Geburtstag am Tisch: Sitzt jemand an seinem Geburtstag (mit Geburtstagsgruß) an einem privaten Tisch oder am Stammtisch, sehen alle dort eine Geburtstagstorte im Tisch – ohne Datum und ohne zu verraten, wer Geburtstag hat; nie in Tages-Challenge, Kartenhaus oder Tutorial. Fällt der Geburtstag auf einen Feiertag, hat am Tisch die Torte Vorrang
