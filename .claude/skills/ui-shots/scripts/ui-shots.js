@@ -29,7 +29,9 @@
 // game-settings (the gear at a live engine table: the sheet on top, then scrolled to its end),
 // game-settings-debug (that sheet with the debug view on), home (the home dialog at the table, then
 // its forfeit button armed by a first tap),
-// sheet-reopen (settings sheet scrolled, closed, reopened), cardback (the card-back gallery), music-hint (first click: music starts, one-time hint),
+// sheet-reopen (settings sheet scrolled, closed, reopened), cardback (the card-back gallery, then a locked back tapped: its toast),
+// toast-goal (a daily goal completed by the finished match: its toast), account-saved (the account status after saving a password),
+// music-hint (first click: music starts, one-time hint),
 // account (the account sheet: level, season ladder; needs --signed-in),
 // account-top (the same sheet as it opens: name, address, its status; needs --signed-in),
 // account-setup (just confirmed, no sign-in method yet: the "Passkey or password" choice; needs --signed-in),
@@ -1077,8 +1079,34 @@ function waitForHttp(port, ms = 20000) {
           await page.evaluate(() => document.getElementById('cardbackBtn').click());
           await page.waitForTimeout(400);
           await shot('cardback');
+          // A tap on a locked back: its toast names the condition.
+          await page.evaluate(() => document.querySelector('.cbPrev-legend').closest('.cardbackTile').click());
+          await page.waitForTimeout(400);
+          await shot('cardback-locked');
           await page.evaluate(() => document.querySelector('.cardbackGallery').remove());
           await page.click('#settingsOverlayCloseBtn');
+        }
+        if (sc === 'toast-goal') {
+          // The finished match completes a daily goal: its toast over the result sheet.
+          inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
+          inject({ type: 'state', state: GAME_OVER });
+          await page.waitForTimeout(1600);
+          inject({ type: 'progress', gainedXp: 120, xp: 5440, level: { level: 14 }, record: { played: 43, won: 17 },
+            quests: { date: TODAY, ids: ['finish_game', 'win_game', 'meld_queen'], progress: { finish_game: 1 }, completed: ['finish_game'] } });
+          await page.waitForTimeout(500);
+          await shot(sc);
+        }
+        if (sc === 'account-saved') {
+          // The account sheet's status line after saving a password (needs --signed-in).
+          await toStart();
+          await page.click('#accountBtn'); await page.waitForTimeout(700);
+          await page.click('#accSetPasswordBtn');
+          await page.fill('#accNewPass', 'mock-password-123');
+          await page.click('#accSavePasswordBtn'); await page.waitForTimeout(600);
+          await page.evaluate(() => document.getElementById('accountStatus').scrollIntoView({ block: 'center' }));
+          await page.waitForTimeout(200);
+          await shot(sc);
+          await page.click('#accountCloseBtn');
         }
         if (sc === 'account-top' || sc === 'account-setup') {
           await toStart();
