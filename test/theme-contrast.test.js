@@ -115,6 +115,16 @@ for (const theme of THEMES) {
       check(`"+N" on the gold medal over ${where}`, ratio(parse(v['--text']), over(parse(ROOT['--gold-soft']), card)), 4.5);
     }
   });
+
+  test(`theme contrast (${theme}): a rare badge's glint and share in the trophy cabinet`, () => {
+    // The glint is a graphic: its edge carries 3:1. The share is full ink (gold text was 3.8:1 on kitchen's tile).
+    const locked = over(parse('rgba(0, 0, 0, 0.03)'), paper);
+    for (const [where, under] of [['an earned tile', soft], ['a locked tile', locked], ['the detail', grey]]) {
+      check(`glint edge on ${where}`, ratio(parse(ROOT['--star-ink']), under), 3);
+      check(`rare share on ${where}`, ratio(parse(v['--card-ink']), under), 4.5);
+      check(`share on ${where}`, ratio(parse(PAPER['--text-muted']), under), 4.5);
+    }
+  });
 }
 
 test('theme contrast: dialog parts use the paper inks, not the table colours', () => {
@@ -135,6 +145,10 @@ test('theme contrast: dialog parts use the paper inks, not the table colours', (
     ['.bdPlus b', /color:\s*var\(--paper-success\)/],
     ['.bdMinus b', /color:\s*var\(--paper-danger\)/],
     ['.achTile.earned', /background:\s*var\(--accent-soft\)/],
+    ['.achTile:not(.earned)', /background:\s*rgba\(0, 0, 0, 0\.03\)/],
+    ['.achRarity', /color:\s*var\(--text-muted\)/],
+    ['.achRarity.rare', /color:\s*var\(--card-ink\)/],
+    ['.achRarity .icon, .achRarityLine .icon', /fill:\s*var\(--star-fill\); stroke:\s*var\(--star-ink\)/],
     ['#toastContainer', /background:\s*color-mix\(in srgb, var\(--bg-deep\)/],
   ];
   for (const [selector, re] of uses) assert.match(ruleBody(selector), re, selector);

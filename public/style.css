@@ -4909,6 +4909,7 @@ input:disabled { opacity: 0.65; }
   grid-auto-flow: dense; /* the full-width .achDetail lands below its tile's row */
 }
 .achTile {
+  position: relative;
   display: flex; flex-direction: column; align-items: center; gap: 2px;
   padding: 9px 4px; border-radius: var(--r-sm);
   min-height: var(--tap-min); border: 0; font: inherit; color: inherit; cursor: pointer;
@@ -4926,6 +4927,25 @@ input:disabled { opacity: 0.65; }
 .achTile .achName { font-size: var(--fs-hint); font-weight: 700; text-align: center; line-height: 1.15; hyphens: auto; overflow-wrap: anywhere; max-width: 100%; }
 .achTile .achSub { font-size: var(--fs-hint); color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .achTile[aria-expanded="true"] { box-shadow: inset 0 0 0 2px var(--paper-accent); }
+/* Badge rarity: the share of players holding it in a band above the picture, paid for by
+   the bottom padding (the tile keeps its height; beside the emoji it hit it at 90 px). */
+.achTile.hasRarity { padding-top: 15px; padding-bottom: 3px; }
+.achRarity {
+  position: absolute; top: 3px; left: 6px;
+  display: flex; align-items: center; gap: 2px;
+  font-size: var(--fs-micro); line-height: 1; white-space: nowrap;
+  color: var(--text-muted); font-variant-numeric: tabular-nums;
+}
+/* Rare: the gold glint and full ink (gold text fails 4.5:1 on the kitchen tile). */
+.achRarity.rare { color: var(--card-ink); font-weight: 700; }
+.achRarity .icon, .achRarityLine .icon {
+  width: 1.15em; height: 1.15em; fill: var(--star-fill); stroke: var(--star-ink); stroke-width: 1.8;
+}
+.achRarityLine {
+  display: flex; align-items: center; gap: 4px; margin-top: 2px;
+  font-size: var(--fs-hint); color: var(--text-muted);
+}
+.achRarityLine.rare { color: var(--card-ink); font-weight: 700; }
 .achDetail {
   grid-column: 1 / -1;
   padding: 8px 10px; border-radius: var(--r-sm);
@@ -4962,7 +4982,6 @@ input:disabled { opacity: 0.65; }
 }
 /* Favourite badges: a star on the tile and a list on top of the cabinet with a
    remove button each, in the paper accent (the table accent is too pale here). */
-.achTile.fav { position: relative; }
 .achTile .achFavMark {
   position: absolute; top: 4px; right: 4px; width: 16px; height: 16px;
   color: var(--paper-accent); fill: currentColor;

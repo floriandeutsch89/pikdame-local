@@ -93,7 +93,7 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   badge only once. On a main checkout (`SHOTS_ROOT`) they are the "before".
 - **Scenes:** `lobby`, `lobby-open` (daily goals unfolded), `progress`
   ("Dein Fortschritt"), `stats`, `stats-empty` (a brand-new name: the
-  statistics empty state, then "Meine Partien" empty), `stats-badges` (trophy cabinet folded, then a favourite's detail; favourites need `--signed-in`), `history` ("Meine Partien"), `roundend`,
+  statistics empty state, then "Meine Partien" empty), `stats-badges` (trophy cabinet folded, then a favourite's detail, then a rare badge's; favourites need `--signed-in`, whose season unlock card still covers the sheet's top in all three shots, so PR pictures of the tiles go without it; the mock sends badge rarity: common, rare and "< 1 %" shares), `history` ("Meine Partien"), `roundend`,
   `roundend-stats`, `gameover`, `gameover-win` (I win the match and earn a
   badge: the gold banner and the badge chip), `gameover-challenge` (board + share),
   `puzzle`, `puzzle-turn` / `puzzle-out` (that kind injected, one meld

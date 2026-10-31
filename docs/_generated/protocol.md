@@ -113,7 +113,7 @@ Allowed from any seat at any time during a match.
 | `layOffAmbiguous` | Same for a lay-off: the card fits more than one place. |
 | `leftLobby` | Confirms `leaveLobby`; the client may forget its per-table credentials. |
 | `meldAmbiguous` | A new meld could be read several ways (joker roles); the client must pick one of the offered options. |
-| `profiles` | Answer to `listProfiles`. |
+| `profiles` | Answer to `listProfiles`. `badgeRarity`: `{ rareBelow, percent: { badgeId: 0-100 } }`, the share of players holding each badge (`game/BadgeRarity.js`; 0 = under 1 %), cached; `null` below the minimum of players and in the public mode. |
 | `progress` | XP, level and daily-quest progress after a finished match. |
 | `puzzle` | Today's puzzle (answer to `getPuzzle`). |
 | `puzzleMeldCheck` | _(see source)_ |
