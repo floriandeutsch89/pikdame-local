@@ -3161,7 +3161,7 @@ server.listen(PORT, () => {
     const OnnxPolicy = require('./game/OnnxPolicy');
     if (OnnxPolicy.enabled()) OnnxPolicy.warmup().catch((e) => logCrash('onnx-warmup', e));
   } catch (e) { logCrash('onnx-warmup', e); }
-  // The Kartenhaus needs stored profiles: off in the public mode, so nothing to build there.
+  // The Kartenhaus and the badge rarity need stored profiles: off in the public mode.
   if (!PUBLIC_MODE) {
     try { towerMonths.start(); } catch (e) { logCrash('tower-months', e); }
     try { badgeRarity.start(); } catch (e) { logCrash('badge-rarity', e); }
