@@ -5384,12 +5384,13 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
 }
 
 /* --- Occasion days at the table: art pressed into the felt ----------------------
-   An occasion's --table-mark (public/occasions/); its ink only adds contrast to text (test/occasion-table.test.js). */
-body[data-occasion="halloween"] { --table-mark: url('occasions/halloween-table.svg'); }
-#table { --mark-ink: rgb(0 0 0 / 0.5); } /* near-black felts need more to show */
-[data-theme="night"] #table { --mark-ink: rgb(0 0 0 / 0.6); }
-[data-theme="felt"] #table { --mark-ink: rgb(0 0 0 / 0.3); }
-[data-theme="love"] #table, [data-theme="bordeaux"] #table { --mark-ink: rgb(0 0 0 / 0.34); }
+   An occasion's --table-mark (public/occasions/) and tint; no text over it drops below the table's noon minimum (test/occasion-table.test.js). */
+body[data-occasion="halloween"] { --table-mark: url('occasions/halloween-table.svg'); --mark-tint: #ec8423; } /* the start screen pumpkin */
+/* Darker reads nowhere on the near-black felts: a warm tint, each theme at ~85 % of its contrast budget. */
+#table { --mark-ink: color-mix(in srgb, var(--mark-tint) 10%, transparent); }
+[data-theme="night"] #table, [data-theme="bordeaux"] #table { --mark-ink: color-mix(in srgb, var(--mark-tint) 9%, transparent); }
+[data-theme="felt"] #table { --mark-ink: color-mix(in srgb, var(--mark-tint) 11%, transparent); }
+[data-theme="love"] #table { --mark-ink: color-mix(in srgb, var(--mark-tint) 12.5%, transparent); }
 [data-theme="kitchen"] #table { --mark-ink: rgb(255 252 244 / 0.45); }
 body[data-occasion] #table::before {
   content: '';

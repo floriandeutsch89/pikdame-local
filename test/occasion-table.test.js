@@ -1,13 +1,13 @@
-/** Occasion days at the table: the felt watermark (style.css) only adds contrast to text, in
- *  every theme at every hour of the table light, and takes no tap or space; the Queen of
- *  Spades' announcement wears the occasion's hat (client.js showRaidWarning). */
+/** Occasion days at the table: no text over the felt watermark (style.css) drops below the
+ *  table's noon minimum, in any theme at any hour of the table light; it takes no tap or space;
+ *  the Queen of Spades' announcement wears the occasion's hat (client.js showRaidWarning). */
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 const { JSDOM } = require('jsdom');
 const { phaseWeights } = require('../public/table-light.js');
-const { CSS, stripComments, THEMES, over, contrast, light } = require('./helpers/table-light-model');
+const { CSS, stripComments, THEMES, over, contrast, light, inks, floorOf } = require('./helpers/table-light-model');
 
 const pub = path.join(__dirname, '..', 'public');
 const css = stripComments(CSS);
@@ -72,35 +72,55 @@ test('occasion watermark: the art behind the hat is in the markup', () => {
   assert.match(html, /<g class="heroWitchHat"/, 'the start screen cat\'s witch hat (the queen borrows it)');
 });
 
-// Where text sits over the watermark: on the felt and its lit parts, and on the glass
-// panels of the meld groups (own group: the stronger glass) laid over them.
+// Where text meets the watermark: the felt, the spot, the lamp pool, the vignette and the
+// fall-off of the top glow (the mark starts below it: at most a fifth of it, on an iPhone SE);
+// bare, under the meld groups' glass and under the own group's stronger glass.
+const GLOW_FALLOFF = 0.2;
 const BASES = (L) => ({
   felt: L.felt,
-  'top glow': over(L.daylight, L.felt),
+  'fall-off of the top glow': over({ ...L.daylight, a: L.daylight.a * GLOW_FALLOFF }, L.felt),
   'lit felt': over(L.spot, L.felt),
   'felt under the lamp': over(L.pool, L.felt),
   'lit felt under the lamp': over(L.spot, over(L.pool, L.felt)),
   'edge (vignette)': over(L.roomInk, L.felt),
 });
-const MINUTES = Array.from({ length: 48 }, (_, i) => i * 30); // every half hour of the table light
+const MINUTES = Array.from({ length: 96 }, (_, i) => i * 15); // every quarter hour of the table light
+const DAY = { m: 0, d: 1, e: 0, n: 0 };
+const clock = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+
+/** A custom property for occasion `id` in `theme`, the most specific rule winning (theme + id, id, theme, any). */
+function occasionVar(prop, id, theme) {
+  const order = [`[data-theme="${theme}"] body[data-occasion="${id}"]`, `body[data-occasion="${id}"]`,
+    `[data-theme="${theme}"] body[data-occasion]`, 'body[data-occasion]'];
+  const decls = declarationsOf(prop);
+  for (const sel of order) {
+    const hit = decls.filter((d) => d.selectors.includes(sel)).pop();
+    if (hit) return hit.value;
+  }
+  return undefined;
+}
+const ARTS = declarationsOf('--table-mark').flatMap((d) => d.selectors.map((s) => /^body\[data-occasion="([a-z]+)"\]$/.exec(s)[1]));
 
 for (const theme of THEMES) {
-  test(`occasion watermark (${theme}): text over it only gains contrast, at every hour`, () => {
-    const ink = inkOf(theme);
-    for (const m of MINUTES) {
-      const L = light(theme, phaseWeights(m), { '--mark-ink': ink });
-      const mark = L.get('--mark-ink');
-      assert.ok(mark.a > 0 && mark.a < 1, `${theme}: a translucent ink (${ink})`);
-      const inks = { main: L.text, muted: L.muted, accent: L.get('--accent') };
-      const layers = { '': null, 'glass panel on the ': L.glass, 'own meld group on the ': L.get('--glass-strong') };
-      for (const [where, base] of Object.entries(BASES(L))) {
-        for (const [layerName, layer] of Object.entries(layers)) {
-          const plain = layer ? over(layer, base) : base;
-          const marked = layer ? over(layer, over(mark, base)) : over(mark, base);
-          for (const [name, c] of Object.entries(inks)) {
-            assert.ok(contrast(c, marked) >= contrast(c, plain) - 1e-9,
-              `${theme} ${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}: ${name} text on the ${layerName}${where} ` +
-              `${contrast(c, marked).toFixed(3)} < ${contrast(c, plain).toFixed(3)} without the watermark`);
+  test(`occasion watermark (${theme}): no text over it drops below the table's noon minimum, at any hour`, () => {
+    const floor = floorOf(light(theme, DAY)); // the bar of test/table-light-css.test.js
+    for (const id of ARTS) {
+      const tint = occasionVar('--mark-tint', id, theme);
+      assert.ok(tint, `${id}: art brings its --mark-tint`);
+      const vars = { '--mark-ink': inkOf(theme), '--mark-tint': tint };
+      for (const m of MINUTES) {
+        const L = light(theme, phaseWeights(m), vars);
+        const mark = L.get('--mark-ink');
+        assert.ok(mark.a > 0 && mark.a < 1, `${theme} ${id}: a translucent ink (${vars['--mark-ink']})`);
+        const layers = { '': null, 'glass panel on the ': L.glass, 'own meld group on the ': L.get('--glass-strong') };
+        for (const [where, base] of Object.entries(BASES(L))) {
+          for (const [layerName, layer] of Object.entries(layers)) {
+            const marked = layer ? over(layer, over(mark, base)) : over(mark, base);
+            for (const [name, c] of Object.entries(inks(L))) {
+              assert.ok(contrast(c, marked) >= floor[name].c - 1e-9,
+                `${theme} ${id} ${clock(m)}: ${name} text on the ${layerName}${where} with the mark ${contrast(c, marked).toFixed(3)} ` +
+                `< the noon minimum ${floor[name].c.toFixed(3)} (${floor[name].where})`);
+            }
           }
         }
       }
