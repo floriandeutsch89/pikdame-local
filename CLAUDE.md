@@ -64,6 +64,10 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
    (44 px). Größen nur aus der Skala (`--fs-*`, `--ctl-h`), nie rohe `rem`.
    **Keine nativen Dialoge** (`alert`/`confirm`/`prompt`): iOS unterdrückt sie
    still, der Tipp tut dann nichts. Bestätigen per zwei Taps (`confirmByTap`).
+2c. **Charakter ohne Bremse:** Nie den Spielfluss für Inszenierung anhalten
+   (Pausen/Stempel vor dem Rundenblatt abgelehnt, #513). Ton sparsam, die
+   meisten spielen stumm (mehr Kartengeräusche abgelehnt, #512) → Charakter
+   muss sichtbar wirken. Neue Animationen per Option abschaltbar.
 3. **Zweisprachig:** jeder sichtbare Text braucht einen Eintrag — HTML →
    `I18N_STATIC`, JS → `L(de, en)`, Server-Texte → `I18N_SERVER_PATTERNS`
    (Regex). Vertragstests prüfen das.
