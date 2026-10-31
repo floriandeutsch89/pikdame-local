@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 180">
+  <!-- A CSS mask (style.css "Occasion days at the table"): only alpha counts, each theme brings its ink.
+       A birthday cake with three candles: icing, sprinkles and stripes are cut out. -->
+  <defs>
+    <mask id="cut" maskUnits="userSpaceOnUse" x="0" y="0" width="200" height="180">
+      <rect width="200" height="180" fill="#fff"/>
+      <g fill="none" stroke="#000" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M67 72H133Q140 72 140 79V110H60V79Q60 72 67 72Z" stroke-width="3.4"/>
+        <path d="M38 122H50V128A5 5 0 0 0 60 128V122H74V132A5 5 0 0 0 84 132V122H98V127A5 5 0 0 0 108 127V122H122V133A5 5 0 0 0 132 133V122H146V128A5 5 0 0 0 156 128V122H164" stroke-width="3"/>
+        <path d="M58 84H70V89A5 5 0 0 0 80 89V84H92V92A5 5 0 0 0 102 92V84H114V88A5 5 0 0 0 124 88V84H142" stroke-width="3"/>
+        <path d="M24 162H176" stroke-width="3.2"/>
+        <path d="M76 66 84 60M76 56 84 50M96 62 104 56M96 52 104 46M116 66 124 60M116 56 124 50" stroke-width="2.4"/>
+      </g>
+      <g fill="#000">
+        <circle cx="54" cy="146" r="3.2"/><circle cx="74" cy="148" r="3.2"/><circle cx="94" cy="146" r="3.2"/><circle cx="114" cy="148" r="3.2"/><circle cx="134" cy="146" r="3.2"/><circle cx="152" cy="148" r="3.2"/>
+      </g>
+    </mask>
+    <filter id="soft" x="-5%" y="-5%" width="110%" height="110%">
+      <feGaussianBlur stdDeviation="0.45"/>
+    </filter>
+  </defs>
+  <g filter="url(#soft)">
+    <g mask="url(#cut)">
+      <path d="M46 110H154Q162 110 162 118V162H38V118Q38 110 46 110Z"/>
+      <path d="M67 72H133Q140 72 140 79V110H60V79Q60 72 67 72Z"/>
+      <path d="M24 162H176Q176 170 168 170H32Q24 170 24 162Z"/>
+      <path d="M76 46H84V72H76ZM96 42H104V72H96ZM116 46H124V72H116Z"/>
+    </g>
+    <path d="M80 22C85 28 87 33 87 36A7 7 0 0 1 73 36C73 33 75 28 80 22Z"/>
+    <path d="M100 18C105 24 107 29 107 32A7 7 0 0 1 93 32C93 29 95 24 100 18Z"/>
+    <path d="M120 22C125 28 127 33 127 36A7 7 0 0 1 113 36C113 33 115 28 120 22Z"/>
+  </g>
+</svg>

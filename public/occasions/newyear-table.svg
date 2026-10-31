@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 180">
+  <!-- A CSS mask (style.css "Occasion days at the table"): only alpha counts, each theme brings its ink.
+       A four-leaf clover for luck in the new year: seams, veins and the stem's gap are cut out. -->
+  <defs>
+    <mask id="cut" maskUnits="userSpaceOnUse" x="0" y="0" width="200" height="180">
+      <rect width="200" height="180" fill="#fff"/>
+      <g fill="none" stroke="#000" stroke-linecap="round">
+        <path d="M100 32V104M64 68H136" stroke-width="3.4"/>
+        <path d="M100 72C100 102 106 134 128 168" stroke-width="13"/>
+        <g stroke-width="2.6">
+          <path d="M0-15V-44" transform="translate(100 68) rotate(45)"/>
+          <path d="M0-15V-44" transform="translate(100 68) rotate(135)"/>
+          <path d="M0-15V-44" transform="translate(100 68) rotate(-135)"/>
+          <path d="M0-15V-44" transform="translate(100 68) rotate(-45)"/>
+        </g>
+      </g>
+    </mask>
+    <filter id="soft" x="-5%" y="-5%" width="110%" height="110%">
+      <feGaussianBlur stdDeviation="0.45"/>
+    </filter>
+  </defs>
+  <g filter="url(#soft)">
+    <g mask="url(#cut)">
+      <path d="M0 0L-27-27A19 19 0 1 1 0-53.7A19 19 0 1 1 27-27Z" transform="translate(100 68) rotate(45)"/>
+      <path d="M0 0L-27-27A19 19 0 1 1 0-53.7A19 19 0 1 1 27-27Z" transform="translate(100 68) rotate(135)"/>
+      <path d="M0 0L-27-27A19 19 0 1 1 0-53.7A19 19 0 1 1 27-27Z" transform="translate(100 68) rotate(-135)"/>
+      <path d="M0 0L-27-27A19 19 0 1 1 0-53.7A19 19 0 1 1 27-27Z" transform="translate(100 68) rotate(-45)"/>
+    </g>
+    <path d="M100 72C100 102 106 134 128 168" fill="none" stroke="#000" stroke-width="7" stroke-linecap="round"/>
+  </g>
+</svg>

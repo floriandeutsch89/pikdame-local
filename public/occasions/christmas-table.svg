@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 180">
+  <!-- A CSS mask (style.css "Occasion days at the table"): only alpha counts, each theme brings its ink.
+       A fir with its star: tier edges, garlands and baubles are cut out, so the felt itself draws them. -->
+  <defs>
+    <mask id="cut" maskUnits="userSpaceOnUse" x="0" y="0" width="200" height="180">
+      <rect width="200" height="180" fill="#fff"/>
+      <g fill="none" stroke="#000" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M62 75Q72 82 82 76Q91 82 100 76Q109 82 118 76Q128 82 138 75M44 111Q56 120 68 113Q79 121 90 114Q100 121 110 114Q121 121 132 113Q144 120 156 111" stroke-width="3.4"/>
+        <path d="M74 98Q100 108 126 96M52 134Q100 150 150 130" stroke-width="2.8"/>
+      </g>
+      <g fill="#000">
+        <circle cx="90" cy="66" r="3.8"/><circle cx="109" cy="58" r="3.4"/>
+        <circle cx="62" cy="104" r="4.2"/><circle cx="100" cy="88" r="3.8"/><circle cx="138" cy="104" r="4.2"/>
+        <circle cx="44" cy="146" r="4.4"/><circle cx="82" cy="126" r="4.2"/><circle cx="120" cy="152" r="4.4"/><circle cx="158" cy="144" r="4.2"/>
+      </g>
+    </mask>
+    <filter id="soft" x="-5%" y="-5%" width="110%" height="110%">
+      <feGaussianBlur stdDeviation="0.45"/>
+    </filter>
+  </defs>
+  <g filter="url(#soft)">
+    <path d="M100 5L104 15.5L115.2 16.1L106.5 23.1L109.4 33.9L100 27.8L90.6 33.9L93.5 23.1L84.8 16.1L96 15.5Z"/>
+    <g mask="url(#cut)">
+      <path d="M100 90C86 112 62 134 28 148Q38 158 52 151Q64 159 76 152Q88 159 100 152Q112 159 124 152Q136 159 148 151Q162 158 172 148C138 134 114 112 100 90Z"/>
+      <path d="M100 56C88 76 70 96 46 110Q56 120 68 113Q79 121 90 114Q100 121 110 114Q121 121 132 113Q144 120 154 110C130 96 112 76 100 56Z"/>
+      <path d="M100 36C92 50 80 64 64 74Q72 82 82 76Q91 82 100 76Q109 82 118 76Q128 82 136 74C120 64 108 50 100 36Z"/>
+    </g>
+    <path d="M92 155H108V166H92Z"/>
+    <path d="M80 165H120L116.5 176H83.5Z"/>
+  </g>
+</svg>

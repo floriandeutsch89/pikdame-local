@@ -1,22 +1,29 @@
-/** Occasion days at the table: no text over the felt watermark (style.css) drops below the
- *  table's noon minimum, in any theme at any hour of the table light; it takes no tap or space;
- *  the Queen of Spades' announcement wears the occasion's hat (client.js showRaidWarning). */
+/** Occasion days at the table: every holiday and the birthday has its mark in the felt; no text
+ *  over a mark (style.css) drops below the table's noon minimum, in any theme at any hour of the
+ *  table light, and every mark stays visible; it takes no tap or space; the table shows the right
+ *  mark (client.js tableMarkFor: a birthday at the table wins over the holiday); the Queen of
+ *  Spades' announcement wears the occasion's hat (client.js showRaidWarning). */
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 const { JSDOM } = require('jsdom');
 const { phaseWeights } = require('../public/table-light.js');
-const { CSS, stripComments, THEMES, over, contrast, light, inks, floorOf } = require('./helpers/table-light-model');
+const { HOLIDAY_IDS } = require('../game/Holidays');
+const { CSS, stripComments, THEMES, over, contrast, deltaE2000, light, inks, floorOf } = require('./helpers/table-light-model');
 
 const pub = path.join(__dirname, '..', 'public');
 const css = stripComments(CSS);
+const MARK_IDS = [...HOLIDAY_IDS, 'birthday'];
 
-/** Every top-level and nested rule with a declaration of `prop`: { selectors, value }. */
+/** Every top-level and nested rule with a declaration of `prop`: { selectors, value }. Scanned once per prop. */
+const declared = new Map();
 function declarationsOf(prop) {
+  if (declared.has(prop)) return declared.get(prop);
   const out = [];
   const re = new RegExp(`([^{};]+)\\{([^{}]*?${prop}\\s*:\\s*([^;}]+))`, 'g');
   for (const m of css.matchAll(re)) out.push({ selectors: m[1].split(',').map((s) => s.trim()), value: m[3].trim() });
+  declared.set(prop, out);
   return out;
 }
 
@@ -30,40 +37,49 @@ function inkOf(theme) {
   return ink;
 }
 
-test('occasion watermark: a mask behind everything, keyed on the occasion, never in the way', () => {
-  const rule = css.match(/\nbody\[data-occasion\] #table::before \{([^}]*)\}/);
-  assert.ok(rule, 'the watermark is #table::before, only on an occasion day');
+test('occasion watermark: a mask behind everything, keyed on the table\'s mark, never in the way', () => {
+  const rule = css.match(/\n#table\[data-mark\]::before \{([^}]*)\}/);
+  assert.ok(rule, 'the watermark is #table::before, only while the table names a mark');
   const body = rule[1];
   assert.match(body, /pointer-events:\s*none/, 'no tap lands on it');
   assert.match(body, /z-index:\s*-1/, 'under every card, chip and caption');
   assert.match(body, /position:\s*absolute/, 'takes no space of its own');
-  // Without art (birthday, Nikolaus, ...) the fallback mask is fully transparent: nothing is drawn.
+  // A mark without art (a new id before its drawing) gets a fully transparent mask: nothing is drawn.
   for (const prop of ['-webkit-mask', 'mask']) {
     assert.match(body, new RegExp(`\\n\\s*${prop}:\\s*var\\(--table-mark, linear-gradient\\(transparent, transparent\\)\\)`), `${prop}: transparent without art`);
   }
   // Landscape and desktop: in the melds column, measured from its top (the fixed rows above).
   for (const media of ['@media (orientation: landscape) and (max-height: 540px) {', '@media (min-width: 1100px) and (min-height: 541px) {']) {
-    const at = css.indexOf(`${media}\n  body[data-occasion] #table::before {`);
+    const at = css.indexOf(`${media}\n  #table[data-mark]::before {`);
     assert.ok(at > 0, `${media} places it`);
     const placed = css.slice(at, css.indexOf('}', at));
     assert.match(placed, /grid-area:\s*melds/, `${media}: the melds area`);
     assert.match(placed, /bottom:\s*auto/, `${media}: not tied to the area's bottom (the action bar moves it)`);
   }
-  assert.match(css, /@media \(prefers-contrast: more\), \(forced-colors: active\) \{\s*body\[data-occasion\] #table::before \{ content: none; \}/,
+  assert.match(css, /@media \(prefers-contrast: more\), \(forced-colors: active\) \{\s*#table\[data-mark\]::before \{ content: none; \}/,
     'more contrast asked for: no picture under the cards');
+  assert.doesNotMatch(css, /body\[data-occasion[^\]]*\][^{,]*#table::before/, 'the device\'s occasion never draws on the table');
 });
 
-test('occasion watermark: every --table-mark is a local, self-contained SVG', () => {
+test('occasion watermark: every holiday and the birthday has its own local, self-contained art', () => {
   const marks = declarationsOf('--table-mark');
-  assert.ok(marks.some((m) => m.selectors.includes('body[data-occasion="halloween"]')), 'Halloween has its art');
   for (const { selectors, value } of marks) {
+    assert.ok(selectors.every((s) => /^#table\[data-mark="[a-z]+"\]$/.test(s)), `${selectors}: set per mark id`);
     const m = /^url\('([a-z0-9/-]+\.svg)'\)$/.exec(value);
     assert.ok(m, `${selectors}: a relative url('….svg'), got ${value}`);
-    assert.ok(selectors.every((s) => /^body\[data-occasion="[a-z]+"\]$/.test(s)), `${selectors}: set per occasion id`);
     const svg = fs.readFileSync(path.join(pub, m[1]), 'utf8');
     assert.match(svg, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="[\d. ]+">/, `${m[1]}: an SVG with a viewBox`);
     // A mask image may not load anything (CSP: img-src 'self' data:), nor run anything.
     assert.doesNotMatch(svg, /<(image|script|foreignObject|use)\b|href=|url\((?!#)/i, `${m[1]}: no external or nested resources`);
+    assert.doesNotMatch(svg, /<animate|@keyframes|<set\b/i, `${m[1]}: static (CLAUDE.md 2c)`);
+  }
+  const files = new Set();
+  for (const id of MARK_IDS) {
+    const art = marks.filter((d) => d.selectors.includes(`#table[data-mark="${id}"]`)).pop();
+    assert.ok(art, `${id}: has its art`);
+    assert.ok(!files.has(art.value), `${id}: a drawing of its own`);
+    files.add(art.value);
+    assert.ok(declarationsOf('--mark-tint').some((d) => d.selectors.includes(`#table[data-mark="${id}"]`)), `${id}: brings its tint`);
   }
 });
 
@@ -88,10 +104,10 @@ const MINUTES = Array.from({ length: 96 }, (_, i) => i * 15); // every quarter h
 const DAY = { m: 0, d: 1, e: 0, n: 0 };
 const clock = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
-/** A custom property for occasion `id` in `theme`, the most specific rule winning (theme + id, id, theme, any). */
-function occasionVar(prop, id, theme) {
-  const order = [`[data-theme="${theme}"] body[data-occasion="${id}"]`, `body[data-occasion="${id}"]`,
-    `[data-theme="${theme}"] body[data-occasion]`, 'body[data-occasion]'];
+/** A custom property for mark `id` in `theme`, the most specific rule winning (theme + id, id, theme, any). */
+function markVar(prop, id, theme) {
+  const order = [`[data-theme="${theme}"] #table[data-mark="${id}"]`, `#table[data-mark="${id}"]`,
+    `[data-theme="${theme}"] #table[data-mark]`, '#table[data-mark]'];
   const decls = declarationsOf(prop);
   for (const sel of order) {
     const hit = decls.filter((d) => d.selectors.includes(sel)).pop();
@@ -99,19 +115,23 @@ function occasionVar(prop, id, theme) {
   }
   return undefined;
 }
-const ARTS = declarationsOf('--table-mark').flatMap((d) => d.selectors.map((s) => /^body\[data-occasion="([a-z]+)"\]$/.exec(s)[1]));
+const ARTS = declarationsOf('--table-mark').flatMap((d) => d.selectors.map((s) => /^#table\[data-mark="([a-z]+)"\]$/.exec(s)[1]));
+/** What a mark paints on the felt of `theme` at phase weights `w`. */
+const markLight = (theme, id, w) => {
+  const tint = markVar('--mark-tint', id, theme);
+  assert.ok(tint, `${id}: art brings its --mark-tint`);
+  const vars = { '--mark-ink': inkOf(theme), '--mark-tint': tint };
+  const L = light(theme, w, vars);
+  return { L, mark: L.get('--mark-ink'), vars };
+};
 
 for (const theme of THEMES) {
-  test(`occasion watermark (${theme}): no text over it drops below the table's noon minimum, at any hour`, () => {
+  test(`occasion watermark (${theme}): no text over any mark drops below the table's noon minimum, at any hour`, () => {
     const floor = floorOf(light(theme, DAY)); // the bar of test/table-light-css.test.js
     for (const id of ARTS) {
-      const tint = occasionVar('--mark-tint', id, theme);
-      assert.ok(tint, `${id}: art brings its --mark-tint`);
-      const vars = { '--mark-ink': inkOf(theme), '--mark-tint': tint };
       for (const m of MINUTES) {
-        const L = light(theme, phaseWeights(m), vars);
-        const mark = L.get('--mark-ink');
-        assert.ok(mark.a > 0 && mark.a < 1, `${theme} ${id}: a translucent ink (${vars['--mark-ink']})`);
+        const { L, mark, vars } = markLight(theme, id, phaseWeights(m));
+        assert.ok(mark.a > 0 && mark.a < 1, `${theme} ${id}: a translucent ink (${vars['--mark-ink']}, ${vars['--mark-tint']})`);
         const layers = { '': null, 'glass panel on the ': L.glass, 'own meld group on the ': L.get('--glass-strong') };
         for (const [where, base] of Object.entries(BASES(L))) {
           for (const [layerName, layer] of Object.entries(layers)) {
@@ -126,13 +146,23 @@ for (const theme of THEMES) {
       }
     }
   });
+
+  // #518: a mark darker than the near-black felt was a step of ~3 and read as barely there.
+  test(`occasion watermark (${theme}): every mark stays visible on the felt`, () => {
+    for (const id of ARTS) {
+      const { L, mark } = markLight(theme, id, DAY);
+      const step = deltaE2000(L.felt, over(mark, L.felt));
+      assert.ok(step >= 3.8, `${theme} ${id}: a step of ${step.toFixed(2)} (CIEDE2000) on the felt, at least 3.8`);
+    }
+  });
 }
 
-// --- The queen's hat: the real client in jsdom (harness as in queen-turn-client.test.js) ---
+// --- The real client in jsdom (harness as in queen-turn-client.test.js) ---------------------
 const SRC = ['i18n.js', 'client.js'].map((f) => fs.readFileSync(path.join(pub, f), 'utf8'));
 const HTML = fs.readFileSync(path.join(pub, 'index.html'), 'utf8');
 
-function boot(occasion) {
+/** `occasion`: today's holiday from /statusz; `greeting`: the signed-in account's own greeting day (/api/me). */
+function boot(occasion, { greeting = false } = {}) {
   const { window } = new JSDOM(HTML, { url: 'https://play.example/', runScripts: 'outside-only', pretendToBeVisual: true });
   const errors = [];
   window.matchMedia = (q) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
@@ -141,8 +171,13 @@ function boot(occasion) {
   window.Element.prototype.scrollIntoView = function scrollIntoView() {};
   window.requestAnimationFrame = () => 0;
   const now = Date.now();
-  const statusz = occasion ? { occasions: { windows: [{ id: occasion, from: now - 36e5, until: now + 36e5 }], refreshAt: now + 36e5 } } : {};
-  window.fetch = (url) => Promise.resolve({ ok: true, json: () => Promise.resolve(url === '/statusz' ? statusz : {}), text: () => Promise.resolve('') });
+  const day = { from: now - 36e5, until: now + 36e5 };
+  const statusz = {
+    ...(occasion ? { occasions: { windows: [{ id: occasion, ...day }], refreshAt: now + 36e5 } } : {}),
+    ...(greeting ? { accountsEnabled: true } : {}),
+  };
+  const me = { ok: true, username: 'Flo', greeting: day };
+  window.fetch = (url) => Promise.resolve({ ok: true, json: () => Promise.resolve(url === '/statusz' ? statusz : url === '/api/me' ? me : {}), text: () => Promise.resolve('') });
   let ws = null;
   window.WebSocket = class {
     constructor() { this._ls = {}; ws = this; this.readyState = 1; setTimeout(() => this._emit('open', {}), 0); }
@@ -159,6 +194,7 @@ function boot(occasion) {
   window.onerror = (msg) => errors.push(String(msg));
   window.console.error = (...a) => errors.push(a.map(String).join(' '));
   window.localStorage.setItem('pikdame_tip_seen', '9');
+  if (greeting) window.localStorage.setItem('pikdame_account_token', 'tok');
   window.sessionStorage.setItem('pikdame_splash_seen', '1');
   for (const src of SRC) window.eval(src);
   window.document.dispatchEvent(new window.Event('DOMContentLoaded', { bubbles: true }));
@@ -167,7 +203,7 @@ function boot(occasion) {
 }
 const ready = () => new Promise((r) => setTimeout(r, 10));
 const card = (id) => ({ id, suit: id[0], rank: id.slice(1, id.indexOf('-')), isJoker: false });
-function state(melds) {
+function state(melds, extra = {}) {
   return {
     phase: 'playing', roundNumber: 2, turnIndexInRound: 8, currentPlayerId: 'b1', turnPhase: 'meld', dealerId: 'b1',
     drawPileCount: 40, discardTop: card('D4-0'), discardPileCount: 1, discardCards: [card('D4-0')],
@@ -177,8 +213,58 @@ function state(melds) {
       { id: 'p1', name: 'Flo', isBot: false, connected: true, handCount: 2, hand: [card('H2-0'), card('C9-0')] },
       { id: 'b1', name: 'Klaus', isBot: true, connected: true, handCount: 9, botDifficulty: 'medium' },
     ],
+    ...extra,
   };
 }
+const mark = (c) => c.doc.getElementById('table').dataset.mark;
+async function atTable(occasion, extra, opts) {
+  const c = boot(occasion, opts);
+  await ready();
+  c.send({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MRK001' });
+  c.send({ type: 'state', state: state([['b1', ['D8-0', 'D9-0', 'D10-0']]], extra) });
+  return c;
+}
+
+test('table mark: the day\'s holiday, each with its own; none on a plain day', async (t) => {
+  for (const id of HOLIDAY_IDS) {
+    const c = await atTable(id);
+    t.after(() => c.window.close());
+    assert.strictEqual(mark(c), id, `${id}: the felt shows its mark`);
+    assert.deepStrictEqual(c.errors, []);
+  }
+  const plain = await atTable(null);
+  t.after(() => plain.window.close());
+  assert.strictEqual(mark(plain), undefined, 'a plain day: no mark');
+});
+
+test('table mark: a birthday at the table wins over the holiday, and goes with the flag', async (t) => {
+  const c = await atTable('christmas', { birthdayToday: true });
+  t.after(() => c.window.close());
+  assert.strictEqual(mark(c), 'birthday', 'the cake, not the tree: the day is personal');
+  assert.strictEqual(c.doc.body.dataset.occasion, 'christmas', 'the start screen keeps the holiday');
+  c.send({ type: 'state', state: state([['b1', ['D8-0', 'D9-0', 'D10-0']]], { birthdayToday: false }) });
+  assert.strictEqual(mark(c), 'christmas', 'the flag gone (midnight, the birthday child left): the holiday again');
+  const plain = await atTable(null, { birthdayToday: true });
+  t.after(() => plain.window.close());
+  assert.strictEqual(mark(plain), 'birthday', 'a birthday on a plain day');
+  for (const odd of ['yes', 1, {}]) {
+    plain.send({ type: 'state', state: state([], { birthdayToday: odd }) });
+    assert.strictEqual(mark(plain), undefined, `only true counts, not ${JSON.stringify(odd)}`);
+  }
+  assert.deepStrictEqual([...c.errors, ...plain.errors], []);
+});
+
+test('table mark: my own greeting day stays on my start screen, the table decides its felt', async (t) => {
+  const c = await atTable('halloween', {}, { greeting: true });
+  t.after(() => c.window.close());
+  for (let i = 0; i < 20 && c.doc.body.dataset.occasion !== 'birthday'; i++) await ready();
+  assert.strictEqual(c.doc.body.dataset.occasion, 'birthday', 'the account\'s greeting on the start screen');
+  c.send({ type: 'state', state: state([['b1', ['D8-0', 'D9-0', 'D10-0']]]) });
+  assert.strictEqual(mark(c), 'halloween', 'no flag from the server (a solo game, a public table): the holiday');
+  assert.deepStrictEqual(c.errors, []);
+});
+
+// --- The queen's hat ----------------------------------------------------------------------
 async function queenLaidOut(occasion) {
   const c = boot(occasion);
   await ready();

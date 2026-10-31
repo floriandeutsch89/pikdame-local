@@ -50,7 +50,7 @@ const ENV_NOTES = {
   PIKDAME_IMPRINT_COUNTRY: 'Legal page: country line.',
   PIKDAME_ADMINS: 'Admin area (`/admin`): comma-separated e-mail addresses. Accounts with one of them as their **confirmed** address hold the admin role; the list is applied on every start (an address taken out loses its role and its admin sessions). Break-glass without it: `node scripts/admin-role.js grant <email>` in the container. See {doc}`admin-page`.',
   PIKDAME_ADMIN_PASSKEY_ONLY: 'Set to `1` to accept only a passkey in the step-up before `/admin`. Unset: a passkey when the account has one, else its password. Needs passkeys (`PIKDAME_BASE_URL` with https), or nobody gets in.',
-  PIKDAME_BIRTHDAY: 'Optional greeting days: comma-separated `MM-DD:account` entries (account = user name, case-insensitive). On that game day (German time) only that signed-in account sees a small greeting on the start screen; nobody else sees anything. Broken entries are skipped and logged by position.',
+  PIKDAME_BIRTHDAY: 'Optional greeting days: comma-separated `MM-DD:account` entries (account = user name, case-insensitive). On that game day (German time) that signed-in account sees a small greeting on the start screen. While it sits at a private table or at its Stammtisch, everyone there sees a birthday cake in the felt: the table learns only that flag, never the date or whose day it is; never at solo games (daily challenge, Kartenhaus, tutorial), and with `PIKDAME_PUBLIC_MODE=1` only at the Stammtisch. Broken entries are skipped and logged by position.',
 };
 
 function generateConfiguration() {

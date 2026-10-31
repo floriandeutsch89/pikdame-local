@@ -36,7 +36,7 @@ const { createMonitor } = require('./game/Monitor');
 const { createPasskeyService, deviceName } = require('./game/Passkeys');
 const { normalizeEmote, emoteLevel } = require('./game/Emotes');
 const { isCelebration, celebrationLevel } = require('./game/Celebrations');
-const { parseGreetingDays, greetingWindow } = require('./game/GreetingDays');
+const { parseGreetingDays, greetingWindow, greetingAtTable } = require('./game/GreetingDays');
 const { holidayStatus } = require('./game/Holidays');
 const { puzzleForDate, publicPuzzle, checkAnswer, checkMeld, perfectStreakOn, XP_FOR_SOLVED, PUZZLE_EPOCH } = require('./game/DailyPuzzle');
 const { createStammtischStore, normalizeCode: normalizeStammtischCode } = require('./game/StammtischStore');
@@ -1579,6 +1579,18 @@ function logAttempt(game, info, at = Date.now()) {
   }
 }
 
+/** The table's birthday flag (state.birthdayToday): a greeting day of a seat its account
+ *  verified at join (session.accountSeats), where greetingAtTable allows it. */
+function birthdayAtTable(session) {
+  const seats = session.accountSeats;
+  if (!greetingDays.length || !seats || !seats.size) return false;
+  const g = session.game;
+  const accounts = g.players
+    .filter((p) => !p.isBot && !p.leftGame && seats.get(p.id) === String(p.name).toLowerCase())
+    .map((p) => p.name);
+  return greetingAtTable(greetingDays, { accounts, solo: g.isSoloMode(), stammtisch: !!session.stammtisch, publicMode: PUBLIC_MODE });
+}
+
 // Jede Session bekommt ihren eigenen GameManager, dessen sendTo NUR die
 // Sockets dieser Session erreicht - Spiele sind vollständig voneinander
 // isoliert. Profil-/Verlaufs-Stores bleiben pro Server-Instanz geteilt.
@@ -1611,6 +1623,7 @@ const registry = new SessionRegistry((session) => {
     },
     // Only the moment id: the client holds the bilingual lines (BotQuips.js).
     onBotQuip: (botId, moment) => broadcastToSession(session, { type: 'quip', playerId: botId, moment }),
+    tableBirthday: () => birthdayAtTable(session),
     // A round the match goes on after: its round badges now, not at the match's end.
     onRoundEnd: (record) => {
       if (PUBLIC_MODE) return;
@@ -2252,6 +2265,7 @@ wss.on('connection', (ws, req) => {
     // PROGRESS PROTECTION: a name belonging to a verified account may only
     // be used with a valid login token - otherwise anyone could hijack an
     // account's statistics/badges.
+    let accountName = null; // the account behind msg.name, verified; a guest's name stays null
     if (ACCOUNTS_ENABLED) {
       const wantedName = sanitizeName(msg.name);
       if (await accountStore.isRegisteredName(wantedName)) {
@@ -2260,6 +2274,7 @@ wss.on('connection', (ws, req) => {
           sendError(ws, 'Dieser Name gehört zu einem registrierten Konto - bitte zuerst anmelden, um ihn zu verwenden.');
           return;
         }
+        accountName = session.username;
       }
     }
     // Read before the seat is taken: from here to the reply nothing awaits,
@@ -2323,6 +2338,10 @@ wss.on('connection', (ws, req) => {
     const tookOverSeat = player.id !== playerId;
     playerId = player.id;
     if (celebration) targetSession.game.setPlayerCelebration(playerId, celebration);
+    // Only a seat its account verified brings a greeting day to the table (birthdayAtTable).
+    if (!targetSession.accountSeats) targetSession.accountSeats = new Map();
+    if (accountName) targetSession.accountSeats.set(playerId, accountName.toLowerCase());
+    else if (sanitizeName(msg.name) || tookOverSeat) targetSession.accountSeats.delete(playerId);
     // In der Lobby freie Plätze mit Bots vorbelegen, damit sie sichtbar und
     // sortierbar sind (ein späterer Beitritt ersetzt wieder einen Bot).
     targetSession.game.syncLobbyBots();
