@@ -171,12 +171,45 @@ test('plan: turn order, overlapping, and never longer than the next bot move', (
       assert.ok(flights.every((f) => f.dur >= budget * 0.2), 'every flight stays visible');
     }
   }
-  assert.strictEqual(TM.plan([take]).flights.length, TM.TAKE_SHOWN, 'a big pile: its top three fly');
+  assert.strictEqual(TM.plan([take]).flights.length, 1, 'a swallowed pile: only its top card flies');
+  assert.strictEqual(TM.TAKE_SHOWN, 1);
   assert.ok(TM.plan([draw, meld(3), discard], { budget: 300 }).flights.every((f) => f.start + f.dur <= 300), '"Schnell": all within 300 ms');
   // The Zen discard joins its turn behind the melds, in what is left of the budget.
   const head = TM.plan([draw, meld(3)], { budget: 600 });
   const tail = TM.plan([discard], { budget: 600, from: head.cursor });
   assert.ok(tail.flights[0].start >= head.cursor && tail.flights[0].start + tail.flights[0].dur <= 600 + 1e-9);
+});
+
+test('clearFlight: a pile card in the air never covers a pile, on the way out or in', () => {
+  const W = 48;
+  const H = 66;
+  const box = (x, y, w = W, h = H) => ({ left: x, top: y, right: x + w, bottom: y + h });
+  // Landscape: chip, stock, discard pile in a row - every straight way to the pile crosses the stock.
+  const stock = box(755, 65);
+  const pile = box(816, 65);
+  const chip = { x: 506, y: 86, s: 0.5, deg: -8 };
+  const onPile = { x: 840, y: 98, s: 1, deg: 0 };
+  const onStock = { x: 779, y: 98, s: 1, deg: 0 };
+  const covers = (q) => [stock, pile].some((b) => q.x - (W * q.s) / 2 < b.right && b.left < q.x + (W * q.s) / 2 && q.y - (H * q.s) / 2 < b.bottom && b.top < q.y + (H * q.s) / 2);
+  const along = (way) => Array.from({ length: 101 }, (_, i) => {
+    const p = i / 100;
+    const k = (a, b) => a + (b - a) * p;
+    return { x: k(way.from.x, way.to.x), y: k(way.from.y, way.to.y), s: k(way.from.s, way.to.s) };
+  });
+  const thrown = TM.clearFlight(chip, onPile, W, H, [stock, pile], false);
+  assert.deepEqual(thrown.from, chip, 'it leaves the chip as before');
+  assert.ok(thrown.to.x + (W * thrown.to.s) / 2 < stock.left, 'and is gone before the stock');
+  const taken = TM.clearFlight(onPile, { ...chip, deg: 8 }, W, H, [stock, pile], true);
+  assert.ok(taken.from.x + (W * taken.from.s) / 2 < stock.left, 'it appears only past the stock');
+  assert.deepEqual(taken.to, { ...chip, deg: 8 }, 'and still ends at the chip');
+  const drawn = TM.clearFlight(onStock, { ...chip, deg: 8 }, W, H, [stock, pile], true);
+  for (const way of [thrown, taken, drawn]) assert.ok(!along(way).some(covers), 'never over a pile');
+  // Portrait: the piles far below the chip - the way is only cut where it meets them.
+  const far = TM.clearFlight({ x: 36, y: 86, s: 0.5, deg: -8 }, { x: 220, y: 553, s: 1, deg: 0 }, W, H, [box(140, 512, 56, 74), box(190, 512, 62, 82)], false);
+  assert.ok(far.to.y > 400 && far.to.y + (H * far.to.s) / 2 < 512, 'it comes close, never onto it');
+  // Nothing in the way: the whole way; no room left: no flight at all.
+  assert.deepEqual(TM.clearFlight(chip, onPile, W, H, [], false), { from: chip, to: onPile });
+  assert.strictEqual(TM.clearFlight({ x: 700, y: 98, s: 0.5, deg: 0 }, onPile, W, H, [stock, pile], false), null);
 });
 
 // --- Engine fuzz: every state p1 receives against what the engine did since the last ----

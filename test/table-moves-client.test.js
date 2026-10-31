@@ -1,6 +1,6 @@
 // Other players' moves fly at the table (client.js + public/table-moves.js): ghosts
-// between the stock, the pile, the player's chip and their melds, the real card hidden
-// until its ghost lands, quiet sounds, never queued behind the next state.
+// between the stock, the pile, the player's chip and their melds, a new meld card hidden
+// until its ghost lands, the piles never covered, quiet sounds, never queued behind the next state.
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
@@ -11,8 +11,14 @@ const pub = path.join(__dirname, '..', 'public');
 const SRC = ['i18n.js', 'table-moves.js', 'client.js'].map((f) => fs.readFileSync(path.join(pub, f), 'utf8'));
 const HTML = fs.readFileSync(path.join(pub, 'index.html'), 'utf8');
 
+// Boxes on screen [left, top, width, height]: the chips, their avatars and the two piles.
+// Portrait: chips at the top, the piles side by side far below. Landscape: the piles right
+// of the chips at the same height, the stock between them and the discard pile.
+const PORTRAIT = { chip: [10, 60, 110, 52], avatar: [16, 66, 40, 40], stock: [140, 520, 48, 66], discard: [196, 520, 48, 66] };
+const LANDSCAPE = { chip: [480, 60, 170, 52], avatar: [486, 66, 40, 40], stock: [755, 65, 48, 66], discard: [816, 65, 48, 66] };
+
 /** The real client in jsdom with layout, Web Animations and frames stubbed; the clock is the test's. */
-function boot({ reduced = false, animate = true, stored = {} } = {}) {
+function boot({ reduced = false, animate = true, stored = {}, layout = PORTRAIT } = {}) {
   const errors = [];
   // jsdom has no styles of pseudo-elements (the card back's medallion): that alone is no error.
   const virtualConsole = new VirtualConsole();
@@ -28,8 +34,20 @@ function boot({ reduced = false, animate = true, stored = {} } = {}) {
   window.Element.prototype.scrollIntoView = function scrollIntoView() {};
   // Every box on screen; the meld area takes the whole screen so no card counts as scrolled away.
   window.Element.prototype.getBoundingClientRect = function rect() {
-    const big = this.id === 'melds';
-    const [left, top, width, height] = big ? [0, 0, 2000, 2000] : this.classList.contains('opponent') ? [10, 60, 110, 52] : [300, 400, 40, 56];
+    const pile = this.closest('.pile');
+    let box = [300, 400, 40, 56]; // a meld card
+    if (this.id === 'melds') box = [0, 0, 2000, 2000];
+    else if (this.classList.contains('opponent')) box = layout.chip;
+    else if (this.classList.contains('opAvatar')) box = layout.avatar;
+    else if (this.classList.contains('hidden')) box = [0, 0, 0, 0];
+    else if (pile) {
+      const [x, y, w, h] = layout[pile.id === 'drawPile' ? 'stock' : 'discard'];
+      if (this === pile) box = [x, y, w, h + 18];
+      else if (this.classList.contains('pileLabel')) box = [x, y + h + 4, w, 14];
+      else if (/Count$/.test(this.id)) box = [x + w - 12, y - 8, 20, 20]; // the badge on the corner
+      else box = this.classList.contains('pile-card') ? [x, y, w, h] : [x + 4, y + h - 28, 24, 24];
+    }
+    const [left, top, width, height] = box;
     return { left, top, width, height, right: left + width, bottom: top + height, x: left, y: top };
   };
   const anims = [];
@@ -146,31 +164,34 @@ test('a bot turn in one state: the stock card, three meld cards and the discard 
   assert.ok(am.every((a, i) => a.opts.delay > a0.opts.delay && (i === 0 || a.opts.delay > am[i - 1].opts.delay)), 'meld cards staggered after the draw');
   assert.ok(ad.opts.delay > am[0].opts.delay, 'the discard last');
   assert.ok(gs.every((g) => endOf(flightOf(c, g)) <= 600 + 1e-6), 'one turn is over in 600 ms');
-  // Into the chip it fades, out of it it appears; the far end is the real card.
+  // Into the chip it fades, out of it it appears; a meld card lands as the real one.
   assert.strictEqual(a0.frames.at(-1).opacity, 0);
+  assert.strictEqual(am[0].frames[0].opacity, 0);
+  assert.strictEqual(am[0].frames.at(-1).opacity, 1);
+  // At the piles a ghost is see-through: it rises from the stock and melts into the discard pile.
+  assert.strictEqual(a0.frames[0].opacity, 0, 'never a second card on the stock');
   assert.strictEqual(ad.frames[0].opacity, 0);
-  assert.strictEqual(ad.frames.at(-1).opacity, 1);
-  // The real cards wait invisible until their ghost lands (on their own a moment later, should it never land).
+  assert.strictEqual(ad.frames.at(-1).opacity, 0, 'never a second card on the pile');
+  // The new meld cards wait invisible until their ghost lands (on their own a moment later, should it never land).
   for (const [i, id] of SEVENS.entries()) {
     const hold = holdsOn(c, meldCard(c.doc, id));
     assert.strictEqual(hold.length, 1, `${id} is hidden while it flies`);
     assert.ok(Math.abs(hold[0].opts.duration - endOf(am[i]) - SLACK) < 1e-6, `${id}: the hold outlasts the flight`);
   }
+  // The pile shows the state's card at once: the D9, nothing held back, nothing in front of it.
   const top = c.doc.getElementById('discardTopCard');
-  const topHold = holdsOn(c, top)[0];
-  assert.ok(Math.abs(topHold.opts.duration - endOf(ad) - SLACK) < 1e-6, 'the new top card waits for the discard');
-  // Meanwhile the pile shows what lay there before.
-  const under = c.doc.querySelector('#discardPile .oppUnder');
-  assert.ok(under && under.textContent === '4♦' && under.getAttribute('aria-hidden') === 'true');
-  assert.ok(c.anims.some((a) => a.el === under && a.frames.every((f) => f.visibility === 'visible')), 'shown for the flight');
+  assert.strictEqual(top.textContent, '9♦');
+  assert.deepEqual(c.anims.filter((a) => a.el === top), []);
+  assert.strictEqual(c.doc.querySelectorAll('#discardPile .pile-card').length, 1, 'one card on the pile');
   // A meld card lands: in the same frame its ghost goes and the card shows.
   const meldHold = holdsOn(c, meldCard(c.doc, 'H7-0'))[0];
   am[0].onfinish();
   assert.ok(meldHold.cancelled && !rest[0].isConnected);
-  // The discard lands: ghost gone, its card on the pile with the pop, the stand-in gone.
+  // The discard has melted into its card: the ghost goes, the pile is not touched again.
+  const popped = top.className;
   ad.onfinish();
-  assert.ok(topHold.cancelled && !discard.isConnected && !under.isConnected);
-  assert.ok(top.classList.contains('pop'));
+  assert.ok(!discard.isConnected);
+  assert.strictEqual(top.className, popped, 'no second pop after the flight');
   assert.deepEqual(c.errors, []);
 });
 
@@ -227,14 +248,13 @@ test('the next player\'s state ends the flight at once: nothing queues behind th
   c.state(after({ phase: 'meld', draw: 38 }));
   assert.ok(first.every((a) => a.cancelled), 'the old flights are cancelled');
   assert.ok(holds.every((a) => a.cancelled), 'every held card shows');
-  assert.ok(!c.doc.querySelector('#discardPile .oppUnder'), 'the stand-in is gone');
   const now = ghosts(c.doc);
   assert.strictEqual(now.length, 1, "only Horst's draw flies");
   assert.strictEqual(flightOf(c, now[0]).opts.delay, 0, 'and it starts right away');
   assert.deepEqual(c.errors, []);
 });
 
-test('my tap on the pile while the discard is still in the air shows the card I really take', async (t) => {
+test('my tap on the pile while the discard is still in the air: the pile already shows it, the flight lands', async (t) => {
   const c = boot();
   t.after(() => c.window.close());
   await ready();
@@ -243,12 +263,11 @@ test('my tap on the pile while the discard is still in the air shows the card I 
   c.clock.t += 50;
   c.state(after({ cur: 'p1' })); // Klaus threw the D9 - and it is my turn
   const flights = ghosts(c.doc).map((g) => flightOf(c, g));
-  assert.ok(c.doc.querySelector('#discardPile .oppUnder'), 'the pile still shows the card below');
+  assert.strictEqual(c.doc.getElementById('discardTopCard').textContent, '9♦', 'the card I would take is the one I see');
   c.clock.t += 120;
   c.doc.getElementById('discardPile').click();
   assert.ok(flights.every((a) => a.cancelled), 'the flight ends at once');
-  assert.ok(!c.doc.querySelector('#discardPile .oppUnder') && ghosts(c.doc).length === 0);
-  assert.ok(holdsOn(c, c.doc.getElementById('discardTopCard')).length === 0, 'the D9 shows');
+  assert.strictEqual(ghosts(c.doc).length, 0);
   assert.deepEqual(c.errors, []);
 });
 
@@ -296,13 +315,12 @@ test('a re-render mid-flight hides the rebuilt meld cards again, without a secon
   const ghost = ghosts(c.doc)[1];
   assert.ok(Math.abs(hold[0].opts.duration - (endOf(flightOf(c, ghost)) - 100) - SLACK) < 1e-6, 'until the same landing');
   assert.strictEqual(ghosts(c.doc).length, 5, 'no new ghosts');
-  assert.strictEqual(c.doc.querySelectorAll('#discardPile .oppUnder').length, 1, 'one stand-in');
   flightOf(c, ghost).onfinish();
   assert.ok(hold[0].cancelled, 'and the landing shows the rebuilt card');
   assert.deepEqual(c.errors, []);
 });
 
-test('a pile take: the face-up cards fly from the pile to the chip, a big pile its top three', async (t) => {
+test('a pile take: its top card flies face up from the pile to the chip, the pile shows the state', async (t) => {
   const c = boot();
   t.after(() => c.window.close());
   await ready();
@@ -313,10 +331,12 @@ test('a pile take: the face-up cards fly from the pile to the chip, a big pile i
   c.state(after({ draw: 40, pile: ['D9-1'], melds: [['b1', SEVENS]] }));
   const gs = ghosts(c.doc);
   const taken = gs.filter((g) => g.classList.contains('pile-card') && g !== gs.at(-1));
-  assert.deepEqual(taken.map((g) => g.textContent), ['7♥', '2♠', '3♠'], 'the top three, face up');
-  assert.ok(taken.every((g) => flightOf(c, g).frames.at(-1).opacity === 0), 'into the chip');
+  assert.deepEqual(taken.map((g) => g.textContent), ['7♥'], 'one card, face up: no stack popping up over the pile');
+  const fl = flightOf(c, taken[0]);
+  assert.strictEqual(fl.frames[0].opacity, 0, 'it rises from the pile, never covers it');
+  assert.strictEqual(fl.frames.at(-1).opacity, 0, 'and melts into the chip');
   assert.ok(!gs.some((g) => g.classList.contains('back')), 'no card back: nothing came from the stock');
-  assert.strictEqual(c.doc.querySelector('#discardPile .oppUnder').textContent, 'leer', 'the pile was swallowed: empty until the discard lands');
+  assert.strictEqual(c.doc.getElementById('discardTopCard').textContent, '9♦', 'the pile shows the state at once');
   assert.deepEqual(c.errors, []);
 });
 
@@ -375,7 +395,6 @@ test('never: my own moves, reduced motion, a hidden page, an open sheet, no Web 
     c.state(after());
     assert.deepEqual(ghosts(c.doc), []);
     assert.ok(c.anims.filter((a) => a.frames.every((f) => f.opacity === 0)).every((a) => a.cancelled), 'no card stays hidden');
-    assert.ok(!c.doc.querySelector('#discardPile .oppUnder'));
   }
   // An old browser without element.animate: the table works as before.
   {
@@ -412,15 +431,15 @@ test('going out: the last card flies face down while the table shows; under an o
     assert.deepEqual(gs, []);
     assert.ok(c.anims.filter((a) => a.frames.every((f) => f.opacity === 0)).every((a) => a.cancelled));
   } else {
-    // A beat on the final table before the sheet: the winner's last card lands face down.
+    // A beat on the final table before the sheet: the winner's last card settles face down.
     const last = gs.at(-1);
     assert.ok(last.classList.contains('back'), 'face down');
-    assert.strictEqual(flightOf(c, last).frames.at(-1).opacity, 1, 'onto the pile, not into the chip');
+    assert.ok(c.doc.getElementById('discardTopCard').classList.contains('back'), 'the pile shows it at once');
   }
   assert.deepEqual(c.errors, []);
 });
 
-test('going out with a beat before the sheet: the winner\'s face-down card lands on the pile', async (t) => {
+test('going out with a beat before the sheet: the winner\'s face-down card settles onto the pile', async (t) => {
   const c = boot();
   t.after(() => c.window.close());
   await ready();
@@ -447,8 +466,24 @@ test('going out with a beat before the sheet: the winner\'s face-down card lands
   assert.strictEqual(gs.length, 5, 'draw, three meld cards and the last card');
   const last = gs.at(-1);
   assert.ok(last.classList.contains('back'), 'face down');
-  assert.strictEqual(flightOf(c, last).frames.at(-1).opacity, 1, 'onto the pile');
-  assert.strictEqual(c.doc.querySelector('#discardPile .oppUnder').textContent, '4♦', 'the pile shows its old top until then');
+  assert.strictEqual(flightOf(c, last).frames.at(-1).opacity, 0, 'it melts into the pile');
+  assert.ok(c.doc.getElementById('discardTopCard').classList.contains('back'), 'which shows the face-down card at once');
+  assert.deepEqual(c.errors, []);
+});
+
+test('her own moment on the pile: a thrown Pik Dame turns there at once, no ghost over her', async (t) => {
+  const c = boot();
+  t.after(() => c.window.close());
+  await ready();
+  c.join();
+  c.state(before());
+  c.clock.t += 50;
+  c.state(after({ pile: ['SQ-0', 'D4-0', 'C3-1'] }));
+  const top = c.doc.getElementById('discardTopCard');
+  assert.ok(top.classList.contains('qTurn') && top.textContent.startsWith('Q♠'), 'her head turn on the pile');
+  assert.strictEqual(top.style.getPropertyValue('--q-delay'), '0ms', 'right away, as before');
+  assert.ok(!ghosts(c.doc).some((g) => g.classList.contains('pile-card') && /^Q♠/.test(g.textContent)), 'no flat copy over her face');
+  assert.strictEqual(ghosts(c.doc).length, 4, 'the draw and the meld still fly');
   assert.deepEqual(c.errors, []);
 });
 
@@ -471,6 +506,117 @@ test('her head turn on the table waits for her glide to land', async (t) => {
   c.state(after({ melds: [['b1', ['SQ-0', 'HQ-0', 'CQ-0']]], phase: 'meld', draw: 38 }));
   assert.strictEqual(meldCard(c.doc, 'SQ-0').style.getPropertyValue('--q-delay'), '0ms');
   assert.deepEqual(c.errors, []);
+});
+
+// --- Regression: the piles flickered after a flight and showed two candidate top cards ----
+// (the draw ghost lit up the dimmed stock, the old top stood in while the new one flew, then
+// a bright ghost gave way to the dimmed real card with a second pop). Now the piles show the
+// state at all times and no pile card in the air is ever opaque at either end.
+test('the piles never flash: they show the state at once, every pile card in the air is see-through at both ends', async (t) => {
+  const label = (stCard) => (stCard ? (stCard.faceDown ? 'back' : `${stCard.rank}${{ S: '♠', H: '♥', D: '♦', C: '♣' }[stCard.suit]}`) : 'leer');
+  const check = (c, s, what) => {
+    const piles = c.doc.getElementById('centerPiles');
+    assert.deepEqual(c.anims.filter((a) => piles.contains(a.el)).map((a) => a.el.id || a.el.className), [], `${what}: nothing animated on a pile`);
+    assert.strictEqual(c.doc.querySelectorAll('#discardPile .pile-card').length, 1, `${what}: one card on the discard pile`);
+    assert.strictEqual(c.doc.querySelectorAll('#drawPile .pile-card').length, 1, `${what}: one card on the stock`);
+    const top = c.doc.getElementById('discardTopCard');
+    const shown = top.classList.contains('back') ? 'back' : top.classList.contains('empty') ? 'leer' : top.textContent;
+    assert.strictEqual(shown, label(s.discardTop), `${what}: the pile shows the state's top`);
+    for (const g of ghosts(c.doc).filter((n) => n.classList.contains('pile-card'))) {
+      const { frames } = flightOf(c, g);
+      assert.ok(frames[0].opacity === 0 && frames.at(-1).opacity === 0, `${what}: ${g.textContent || 'a back'} is see-through where it meets a pile`);
+    }
+  };
+  const play = async (states, what) => {
+    const c = boot();
+    t.after(() => c.window.close());
+    await ready();
+    c.join();
+    c.state(states[0]);
+    for (const [i, s] of states.slice(1).entries()) {
+      c.clock.t += 5;
+      c.state(s);
+      check(c, s, `${what} #${i + 1}`);
+    }
+    assert.ok(c.anims.length > 0, `${what}: something flew at all`);
+    assert.deepEqual(c.errors, []);
+  };
+  await play([before(), after()], 'stock draw, meld, discard (piles dimmed)');
+  await play([before(), after({ cur: 'p1' })], 'the same, then my turn (piles lit)');
+  await play([before({ pile: ['H7-0', 'S2-0', 'S3-0'] }), after({ draw: 40, pile: ['D9-1'], melds: [['b1', SEVENS]] })], 'pile take in one state');
+  await play([
+    before({ pile: ['H7-0', 'S2-0', 'S3-0'] }),
+    st({ cur: 'b1', phase: 'meld', pile: ['S2-0', 'S3-0'], mustLayOffCardId: 'H7-0' }),
+    st({ cur: 'b1', phase: 'meld', pile: [], melds: [['b1', SEVENS]] }),
+    after({ draw: 40, pile: ['S3-0'], melds: [['b1', SEVENS]] }),
+  ], 'a remote human: top card, rest with the meld, a card of it thrown again');
+  await play([before(), st({ cur: 'b1', phase: 'meld', draw: 39, melds: [['b1', SEVENS]] }), after()], 'Zen: melds, then the discard');
+});
+
+/** A ghost at share p of its way as the browser draws it (offsets and transforms as the client writes them). */
+function ghostAt(g, frames, p) {
+  const offs = frames.map((f, i) => (f.offset !== undefined ? f.offset : i === 0 ? 0 : 1));
+  const i = Math.max(1, offs.findIndex((o) => o >= p));
+  const k = (p - offs[i - 1]) / (offs[i] - offs[i - 1] || 1);
+  const opacity = frames[i - 1].opacity + (frames[i].opacity - frames[i - 1].opacity) * k;
+  const nums = (tf) => tf.match(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi).map(Number); // translate x, y, rotate, scale
+  const [x0, y0, , s0] = nums(frames[0].transform);
+  const [x1, y1, , s1] = nums(frames.at(-1).transform);
+  const [w, h] = [parseFloat(g.style.width), parseFloat(g.style.height)];
+  const lerp = (a, b) => a + (b - a) * p;
+  const [cx, cy, s] = [lerp(x0, x1) + w / 2, lerp(y0, y1) + h / 2, lerp(s0, s1)];
+  return { opacity, left: cx - (w * s) / 2, right: cx + (w * s) / 2, top: cy - (h * s) / 2, bottom: cy + (h * s) / 2 };
+}
+
+// --- Regression: in landscape every card thrown to or taken from the pile crossed the stock ---
+// (and a card melted into the pile it landed on): over a dimmed pile any card in the air reads
+// as a flicker. Now no ghost is ever visible over a pile, whatever the layout.
+test('no card in the air is ever visible over a pile: portrait and landscape, every kind of turn', async (t) => {
+  const pileBox = (doc, id) => [...doc.getElementById(id).children]
+    .filter((n) => !n.classList.contains('pileLabel'))
+    .map((n) => n.getBoundingClientRect())
+    .filter((r) => r.width && r.height)
+    .reduce((b, r) => ({ left: Math.min(b.left, r.left), top: Math.min(b.top, r.top), right: Math.max(b.right, r.right), bottom: Math.max(b.bottom, r.bottom) }));
+  const meets = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  const flown = { PORTRAIT: [], LANDSCAPE: [] };
+  for (const [name, layout] of Object.entries({ PORTRAIT, LANDSCAPE })) {
+    const play = async (states, what) => {
+      const c = boot({ layout });
+      t.after(() => c.window.close());
+      await ready();
+      c.join();
+      c.state(states[0]);
+      for (const s of states.slice(1)) {
+        c.clock.t += 5;
+        c.state(s);
+      }
+      const piles = ['drawPile', 'discardPile'].map((id) => pileBox(c.doc, id));
+      for (const g of ghosts(c.doc).filter((n) => n.classList.contains('pile-card'))) {
+        flown[name].push(g.textContent || 'back');
+        const { frames } = flightOf(c, g);
+        for (let i = 0; i <= 100; i++) {
+          const q = ghostAt(g, frames, i / 100);
+          const over = piles.find((b) => meets(q, b));
+          assert.ok(!over || q.opacity < 1e-6, `${name}, ${what}: ${g.textContent || 'a back'} shows over a pile at ${i}% (opacity ${q.opacity.toFixed(2)})`);
+        }
+      }
+      assert.deepEqual(c.errors, []);
+    };
+    await play([before(), after()], 'stock draw, meld, discard');
+    await play([before(), after({ cur: 'p1' })], 'then my turn');
+    await play([before({ pile: ['H7-0', 'S2-0', 'S3-0'] }), after({ draw: 40, pile: ['D9-1'], melds: [['b1', SEVENS]] })], 'pile take in one state');
+    await play([
+      before({ pile: ['H7-0', 'S2-0', 'S3-0'] }),
+      st({ cur: 'b1', phase: 'meld', pile: ['S2-0', 'S3-0'], mustLayOffCardId: 'H7-0' }),
+      st({ cur: 'b1', phase: 'meld', pile: [], melds: [['b1', SEVENS]] }),
+      after({ draw: 40, pile: ['S3-0'], melds: [['b1', SEVENS]] }),
+    ], 'a remote human takes the pile and throws a card of it again');
+    await play([before(), st({ cur: 'b1', phase: 'meld', draw: 39, melds: [['b1', SEVENS]] }), after()], 'Zen: melds, then the discard');
+  }
+  // Not vacuous: in both layouts the stock card, the taken and the thrown card still fly.
+  for (const name of Object.keys(flown)) {
+    for (const card of ['back', '7♥', '9♦', '3♠']) assert.ok(flown[name].includes(card), `${name}: ${card} flew (${flown[name]})`);
+  }
 });
 
 // --- "Züge der Mitspieler" in "Optionen" ------------------------------------------------
@@ -506,8 +652,7 @@ test('switched off: the table shows the move at once and silently - exactly as b
   c.tones.length = 0;
   c.state(after());
   assert.deepEqual(ghosts(c.doc), [], 'no flights');
-  assert.deepEqual(c.anims, [], 'no card held back, no stand-in');
-  assert.ok(!c.doc.querySelector('#discardPile .oppUnder'));
+  assert.deepEqual(c.anims, [], 'no card held back');
   assert.strictEqual(c.doc.getElementById('discardTopCard').textContent, '9♦', 'the discard lies there at once');
   assert.ok(SEVENS.every((id) => meldCard(c.doc, id)), 'the meld is there at once');
   await wait(700);
@@ -570,8 +715,8 @@ test('CSS contract: the ghosts are fixed, click-through, on the fly layer, and g
   const fly = rule('.pile-card.oppFly, .card.oppFly');
   for (const decl of ['position: fixed', 'pointer-events: none', 'z-index: var(--z-fly)', 'transition: none']) assert.ok(fly.includes(decl), `.oppFly: ${decl}`);
   assert.ok(css.indexOf('.pile-card.oppFly, .card.oppFly {') > css.indexOf('.pile-card.back {'), 'after the card back, which it overrides');
-  assert.match(rule('.pile-card.oppUnder'), /position: absolute;.*visibility: hidden/, 'the stand-in shows only while its animation runs');
-  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{ \.oppFly, \.oppUnder \{ display: none; \} \}/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{ \.oppFly \{ display: none; \} \}/);
+  assert.doesNotMatch(css, /oppUnder/, 'no stand-in card on the pile: it always shows the state');
   assert.doesNotMatch(fly, /var\(--accent/, 'no selection colour on a card in the air');
   assert.match(SRC[2], new RegExp(`const OPP_HOLD_SLACK_MS = ${SLACK};`), 'the test and the client agree on the hold');
 });
