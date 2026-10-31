@@ -2682,9 +2682,6 @@
     } else {
       orderedOpponents.push(...lastState.players.filter((p) => p.id !== playerId));
     }
-    // Guests see the level badge only when the bots differ (three equal tags were
-    // noise); the host always keeps it, it is the control to change one bot.
-    const levelsDiffer = new Set(lastState.players.filter((p) => p.isBot).map((p) => p.botDifficulty || 'zen')).size > 1;
     orderedOpponents
       .forEach((p) => {
         const d = document.createElement('div');
@@ -2747,10 +2744,11 @@
           : `<div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>`;
         // The dealer star sits on the face (a dealer button), so the name keeps the whole row.
         d.innerHTML = `<div class="opName"><span class="opSeat">${avatarFor(p.name, p.isBot, faceBreath)}${dealerStar}</span><span class="opNameText">${nameWithHeart(p.name)}</span></div><div class="opCount"><span class="opCards" title="${cardsText}"><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><b>${p.handCount}</b></span><b class="opPts" title="${L(`${opTotal} Punkte`, `${opTotal} points`)}">${opTotal}</b></div>${bar}${teamTag}${lowTag}`;
-        // Daily challenge: the level is fixed and deliberately not shown.
+        // Every seat sees the level (only the host can change it): guests at a Stammtisch
+        // saw none while all bots were equal. Daily challenge: fixed and deliberately unsaid.
         // Badge lives OUTSIDE the name div: inside it, the name ellipsis on
         // narrow chips (3 bots, portrait) swallowed the button.
-        if (p.isBot && !lastState.challengeDate && (levelsDiffer || lastState.isHost)) {
+        if (p.isBot && !lastState.challengeDate) {
           const meta = BOT_DIFF[p.botDifficulty] || BOT_DIFF.zen;
           const badgeBtn = document.createElement('button');
           badgeBtn.className = 'botDiffBadge tapExpand';
@@ -6453,7 +6451,8 @@
   function stammtischGamesHtml(games, today) {
     if (!Array.isArray(games) || !games.length) return '';
     const trophy = '<svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg>';
-    const who = (p) => `${escapeHtml(p.name)}${p.isBot ? ' (Bot)' : ''}`;
+    // A bot with its level, as in "Meine Partien"; matches booked before the level was kept say "Bot".
+    const who = (p) => `${escapeHtml(p.name)}${p.isBot ? ` (${BOT_DIFF[p.botDifficulty] ? BOT_DIFF[p.botDifficulty].short() : 'Bot'})` : ''}`;
     const score = (n) => fmtNum(Number(n) || 0);
     const row = (g) => {
       const players = Array.isArray(g.players) ? g.players : [];

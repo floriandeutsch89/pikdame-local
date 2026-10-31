@@ -263,6 +263,31 @@ test('migration stammtisch teams: kept matches stay solo matches, a seat\'s team
     VALUES ($1, 2, 0, 'Flo', 0, 2)`, [id]), /stammtisch_game_seats_team_no_check/);
 });
 
+test('migration stammtisch bot levels: kept seats stay without a level, only a bot seat takes one of the four', async (t) => {
+  const { pool, rows } = await withPool(t);
+  const version = loadMigrations().find((m) => m.name === 'stammtisch_bot_levels').version;
+  await migrate(pool, { dir: filesUpTo(version - 1) });
+  const [{ id }] = await rows("INSERT INTO stammtische (stammtisch_code, stammtisch_name) VALUES ('ST2345', 'Familie') RETURNING id");
+  await pool.query('INSERT INTO stammtisch_games (stammtisch_id, game_no, series_no, finished_at) VALUES ($1, 1, 1, now()), ($1, 2, 1, now())', [id]);
+  await pool.query(`INSERT INTO stammtisch_game_seats (stammtisch_id, game_no, seat_no, player_name, is_bot, score, won)
+    VALUES ($1, 1, 0, 'Flo', FALSE, 1010, TRUE), ($1, 1, 1, 'Uwe', TRUE, 200, FALSE)`, [id]);
+  const file = async () => (await rows("SELECT relfilenode FROM pg_class WHERE oid = 'stammtisch_game_seats'::regclass"))[0].relfilenode;
+  const before = await file();
+
+  assert.deepStrictEqual(await migrate(pool, { dir: filesUpTo(version) }), [version]);
+  assert.strictEqual(await file(), before, 'no table rewrite while the other replicas wait');
+  assert.deepStrictEqual((await rows('SELECT bot_difficulty FROM stammtisch_game_seats ORDER BY seat_no')).map((r) => r.bot_difficulty), [null, null]);
+  // An old container books as before; the new one gives a bot its level.
+  await pool.query(`INSERT INTO stammtisch_game_seats (stammtisch_id, game_no, seat_no, player_name, is_bot, score, won)
+    VALUES ($1, 2, 0, 'Flo', FALSE, 1000, TRUE)`, [id]);
+  await pool.query(`INSERT INTO stammtisch_game_seats (stammtisch_id, game_no, seat_no, player_name, is_bot, score, won, bot_difficulty)
+    VALUES ($1, 2, 1, 'Uwe', TRUE, 300, FALSE, 'zen')`, [id]);
+  for (const [isBot, level] of [[true, 'expert'], [false, 'easy']]) {
+    await assert.rejects(pool.query(`INSERT INTO stammtisch_game_seats (stammtisch_id, game_no, seat_no, player_name, is_bot, score, bot_difficulty)
+      VALUES ($1, 2, 2, 'X', $2, 0, $3)`, [id, isBot, level]), /stammtisch_game_seats_bot_difficulty_check/);
+  }
+});
+
 test('migration account conventions: epoch milliseconds become exact TIMESTAMPTZ, names and keys renamed', async (t) => {
   require('../game/Database'); // the DATE parser
   const { url, pool, rows } = await withPool(t);
