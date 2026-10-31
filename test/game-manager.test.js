@@ -1261,7 +1261,10 @@ test('ready check: next round starts only after EVERY connected human confirmed'
   g.destroy();
 });
 
-test('ready check: a disconnecting player never blocks the table', () => {
+test('ready check: a disconnecting player blocks until the grace runs out', async (t) => {
+  const grace = GameManager.TAKEOVER_GRACE_MS;
+  GameManager.TAKEOVER_GRACE_MS = 30;
+  t.after(() => { GameManager.TAKEOVER_GRACE_MS = grace; });
   const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('p1', 'Anna');
   g.addOrReconnectPlayer('p2', 'Ben');
@@ -1270,8 +1273,10 @@ test('ready check: a disconnecting player never blocks the table', () => {
   g.finishRound(g.players[0].id);
   g.markNextRoundReady('p1');
   assert.equal(g.phase, 'roundEnd');
-  g.markDisconnected('p2'); // the missing confirmer leaves
-  assert.equal(g.phase, 'playing', 'disconnect re-evaluates readiness');
+  g.markDisconnected('p2'); // minimised the app: no consent
+  assert.equal(g.phase, 'roundEnd', 'a disconnect within the grace still blocks');
+  await new Promise((r) => setTimeout(r, 80)); // the takeover clock re-checks the gate
+  assert.equal(g.phase, 'playing', 'past the grace the seat no longer blocks');
   g.destroy();
 });
 
@@ -1973,7 +1978,10 @@ test('in-game pause needs unanimous consent and freezes turn actions', () => {
   assert.equal(g.publicState('a').paused, false);
 });
 
-test('a disconnect must not keep the table paused-blocked', () => {
+test('a disconnect blocks the pause vote only until the grace runs out', async (t) => {
+  const grace = GameManager.TAKEOVER_GRACE_MS;
+  GameManager.TAKEOVER_GRACE_MS = 30;
+  t.after(() => { GameManager.TAKEOVER_GRACE_MS = grace; });
   const g = __autoCutHook(new GameManager(() => {}));
   g.addOrReconnectPlayer('a', 'A');
   g.addOrReconnectPlayer('b', 'B');
@@ -1981,8 +1989,11 @@ test('a disconnect must not keep the table paused-blocked', () => {
   g.fillWithBots();
   g.phase = 'playing';
   g.togglePauseVote('a'); // A wants to pause
-  g.markDisconnected('b'); // B leaves -> only A remains, A already voted -> pauses
-  assert.equal(g.paused, true, 'remaining humans all agree -> pause resolves');
+  g.markDisconnected('b'); // B minimised the app: no consent yet
+  assert.equal(!!g.paused, false, 'within the grace B still has to agree');
+  await new Promise((r) => setTimeout(r, 80)); // the takeover clock re-checks the vote
+  assert.equal(g.paused, true, 'past the grace the remaining humans decide');
+  g.destroy();
 });
 
 // --- v1.53: a bot must lay a taken discard card (no rule break) -------------

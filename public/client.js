@@ -3297,6 +3297,12 @@
 
   // The forfeit vote sits in the home dialog, next to "Tisch verlassen". Not in
   // the tutorial: practice never blocks a new game, there is nothing to give up.
+  // The server's _consentHumans() (consentIds): a seat gone for less than the
+  // takeover grace still has to agree (minimising the app is no consent).
+  function consentHumans(st) {
+    const ids = st && st.consentIds;
+    return ((st && st.players) || []).filter((p) => (ids ? ids.includes(p.id) : !p.isBot && !p.leftGame && !p.controlledByBot));
+  }
   function forfeitShown() {
     const st = lastState;
     return !!(st && st.phase === 'playing' && !st.tutorialMode && st.players.some((p) => p.id === playerId && !p.isBot));
@@ -3308,7 +3314,7 @@
     btn.classList.toggle('hidden', !show);
     el('forfeitHint').classList.toggle('hidden', !show);
     const votes = st.forfeitVotes || [];
-    const humans = st.players.filter((p) => !p.isBot && p.connected !== false).length;
+    const humans = consentHumans(st).length;
     const iVoted = votes.includes(playerId);
     // An armed button shows "Wirklich?" until the second tap or its timeout.
     if (show && !btn.dataset.armed) {
@@ -4274,7 +4280,7 @@
     // nach einem aufgegebenen Spiel).
     if (!paneStats.childNodes.length) tabBar.classList.add('hidden');
 
-    // Ready check: at round end EVERY connected human confirms before the
+    // Ready check: at round end every human in consentHumans() confirms before the
     // next round starts - the button shows who the table is waiting for.
     const contBtn = el('resultContinueBtn');
     // Leaving for the main menu used to be offered ONLY after the whole match
@@ -4296,7 +4302,7 @@
     rfBtn.classList.toggle('hidden', !showRoundEndForfeit);
     if (showRoundEndForfeit) {
       const fv = lastState.forfeitVotes || [];
-      const hc = lastState.players.filter((p) => !p.isBot && p.connected !== false).length;
+      const hc = consentHumans(lastState).length;
       rfBtn.classList.toggle('active', fv.includes(playerId));
       // Label span only - the button carries an <svg class="icon">, and
       // textContent would delete it (and put an emoji back in its place).
@@ -4309,6 +4315,7 @@
     }
     if (isGameOver) {
       contBtn.disabled = false;
+      contBtn.classList.remove('waitingFor');
       // Challenge: one attempt per day, so the primary action leads home. A team
       // rematch stays a team match, which never plays for the series.
       const ser = stammtischInfo && stammtischSummary && !isTeamGame() && stammtischSummary.series;
@@ -4322,15 +4329,17 @@
             : L(`Revanche (Spiel ${ser.games + 1} von ${ser.bestOf})`, `Rematch (game ${ser.games + 1} of ${ser.bestOf})`)
           : L('Neue Partie (Rematch)', 'New game (rematch)');
     } else {
-      const humans = (lastState.players || []).filter((p) => !p.isBot && p.connected);
+      const humans = consentHumans(lastState);
       const ready = new Set(lastState.nextRoundReady || []);
       const iAmReady = ready.has(playerId);
       contBtn.disabled = iAmReady;
+      contBtn.classList.toggle('waitingFor', iAmReady && humans.length > 1);
       if (humans.length <= 1) {
         // Tutorial: this button leads to "Tutorial geschafft", not to round 2.
         contBtn.textContent = tutorialHintsOn() ? L('Weiter', 'Continue') : L('Nächste Runde', 'Next round');
       } else if (iAmReady) {
-        const waiting = humans.filter((h) => !ready.has(h.id)).map((h) => h.name).join(', ');
+        const waiting = humans.filter((h) => !ready.has(h.id))
+          .map((h) => (h.connected === false ? L(`${h.name} (getrennt)`, `${h.name} (offline)`) : h.name)).join(', ');
         contBtn.textContent = L(`Warte auf ${waiting}…`, `Waiting for ${waiting}…`);
       } else {
         const n = humans.filter((h) => ready.has(h.id)).length;
@@ -9215,7 +9224,7 @@
     const playing = s && s.phase === 'playing';
     const seated = s && s.players.some((p) => p.id === playerId && !p.isBot);
     const votes = (s && s.pauseVotes) || [];
-    const humans = (s && s.players.filter((p) => !p.isBot && p.connected !== false)) || [];
+    const humans = consentHumans(s);
     // Pause button: only while seated in a running game.
     el('pauseBtn').classList.toggle('hidden', !(playing && seated));
     const iVoted = votes.includes(playerId);
