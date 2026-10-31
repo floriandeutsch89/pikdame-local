@@ -611,7 +611,8 @@ function trackPower(parts) {
 }
 
 // ---------------------------------------------------------------- the reference: our sound effects
-const SFX_RE = /(\w+): \(\) => \{ playTone\(\[([\d.,\s]+)\], (\d+), '(\w+)', ([\d.]+)\)/g;
+// A cue may pass `quiet` on (another player's move): the reference is its normal level.
+const SFX_RE = /(\w+): \((?:quiet)?\) => \{ playTone\(\[([\d.,\s]+)\], (\d+), '(\w+)', ([\d.]+)(?:, quiet)?\)/g;
 
 /** RMS of one playTone() call, envelope as in client.js (10 ms attack, exponential decay). */
 function toneRms(freqs, ms, type, gain) {

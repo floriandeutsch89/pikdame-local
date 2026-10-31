@@ -26,6 +26,8 @@ window.I18N_STATIC = {
   'Zeigt, ob die oberste Ablagekarte passt': 'Shows whether the top discard fits',
   'Grüne Rahmen an passenden Auslagen': 'Green frames on melds your card fits',
   'Markiert Mitspieler mit 1–2 Karten': 'Marks players with 1–2 cards left',
+  'Züge der Mitspieler': "Other players' moves",
+  'Ihre Karten fliegen über den Tisch': 'Their cards fly across the table',
   'Kurze Sätze der Bots, selten': 'Rare short lines from the bots',
   'Vorspann': 'Intro',
   'Antippen überspringt ihn': 'Tap to skip it',

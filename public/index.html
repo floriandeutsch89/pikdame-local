@@ -129,6 +129,7 @@
   <script src="/i18n.js" defer></script>
   <script src="/music-player.js" defer></script>
   <script src="/table-light.js" defer></script>
+  <script src="/table-moves.js" defer></script>
   <script src="/client.js" defer></script>
   <script>
     /* Runs before the first paint: html.noSplash drops the studio intro that
@@ -1356,6 +1357,12 @@
                 <svg class="icon prefIcon" aria-hidden="true"><use href="#i-alert"/></svg>
                 <span class="prefText"><span class="prefLabel">Hinweis bei wenigen Karten</span><span class="prefSub">Markiert Mitspieler mit 1–2 Karten</span></span>
                 <input type="checkbox" id="aidLowCardsCheckbox" class="settingsCheckbox" />
+              </label>
+              <!-- Off: the table shows the other players' moves at once and silently (client.js setOppMoves). -->
+              <label class="prefRow" for="oppMovesCheckbox">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-group"/></svg>
+                <span class="prefText"><span class="prefLabel">Züge der Mitspieler</span><span class="prefSub">Ihre Karten fliegen über den Tisch</span></span>
+                <input type="checkbox" id="oppMovesCheckbox" class="settingsCheckbox" />
               </label>
               <label class="prefRow" for="botQuipsCheckbox">
                 <svg class="icon prefIcon" aria-hidden="true"><use href="#i-chat"/></svg>
