@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.126.1] - 2026-10-31
+
+### Fixed
+- Die Festmotive im Tisch (Kürbis, Stiefel, Tanne, Feuerwerk, Kleeblatt, Nest, Torte) sind gestochen scharf statt verpixelt; vor allem auf dem iPhone wirkten sie grob.
+
 ## [2.126.0] - 2026-10-31
 
 ### Added
