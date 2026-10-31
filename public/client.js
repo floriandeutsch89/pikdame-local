@@ -7502,22 +7502,43 @@
   // A small ghost card flies from one rect to another. Decoration only - the
   // real state still comes from the server broadcast.
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Its fade along the way (share of the way -> opacity), as its CSS fade used to look.
+  const FLY_FADE = [[0, 0.95], [0.37, 0.77], [0.6, 0.56], [0.82, 0.3], [0.95, 0.1], [1, 0]];
+  const flyFadeAt = (p) => {
+    const i = Math.max(1, FLY_FADE.findIndex(([q]) => q >= p));
+    const [[p0, o0], [p1, o1]] = [FLY_FADE[i - 1], FLY_FADE[i]];
+    return o0 + ((o1 - o0) * (p - p0)) / (p1 - p0);
+  };
   function flyCard(fromEl, toEl, faceDown) {
-    if (reducedMotion || !fromEl || !toEl) return;
+    if (reducedMotion || !fromEl || !toEl || typeof Element.prototype.animate !== 'function') return;
     const from = fromEl.getBoundingClientRect();
     const to = toEl.getBoundingClientRect();
     if (!from.width || !to.width) return;
     const ghost = document.createElement('div');
     ghost.className = 'flyCard' + (faceDown ? ' back' : '');
-    ghost.style.left = `${from.left + from.width / 2 - 26}px`;
-    ghost.style.top = `${from.top + from.height / 2 - 36}px`;
+    ghost.style.opacity = '0'; // until its way is known
     document.body.appendChild(ghost);
-    const dx = to.left + to.width / 2 - (from.left + from.width / 2);
-    const dy = to.top + to.height / 2 - (from.top + from.height / 2);
-    requestAnimationFrame(() => {
-      ghost.style.transform = `translate(${dx}px, ${dy}px) rotate(8deg) scale(0.85)`;
-      ghost.style.opacity = '0';
-    });
+    const w = ghost.offsetWidth || 52; // .flyCard in style.css (larger on wide screens)
+    const h = ghost.offsetHeight || 73;
+    const start = { x: from.left + from.width / 2, y: from.top + from.height / 2, s: 1, deg: 0 };
+    const end = { x: to.left + to.width / 2, y: to.top + to.height / 2, s: 0.85, deg: 8 };
+    // Its way as ever, seen only where it covers neither pile (in landscape the stock lies in it):
+    // out of a pile it shows once clear of both, into one it is gone before the first.
+    const leaving = fromEl === el('drawPile') || fromEl === el('discardPile');
+    const way = tableMoves && tableMoves.clearFlight(start, end, w, h, pileBoxes(), leaving, { min: 0 });
+    const cut = way ? way.cut : leaving ? 0 : 1;
+    if ((tableMoves && !way) || (leaving ? cut > 0.8 : cut < 0.2)) { ghost.remove(); return; } // hardly a glimpse
+    const on = Math.min(1, cut + 0.05); // out of a pile: in a blink to where its fade then is
+    const frames = leaving
+      ? [{ opacity: 0, offset: 0 }, { opacity: 0, offset: cut }, { opacity: flyFadeAt(on), offset: on },
+        ...FLY_FADE.filter(([q]) => q > on).map(([q, o]) => ({ opacity: o, offset: q }))]
+      : [...FLY_FADE.map(([q, o]) => ({ opacity: o, offset: q * cut })), ...(cut < 1 ? [{ opacity: 0, offset: 1 }] : [])];
+    const pose = (q) => `translate(${q.x - start.x}px, ${q.y - start.y}px) rotate(${q.deg}deg) scale(${q.s})`;
+    frames[0].transform = pose(start);
+    frames[frames.length - 1].transform = pose(end);
+    ghost.style.left = `${start.x - w / 2}px`;
+    ghost.style.top = `${start.y - h / 2}px`;
+    ghost.animate(frames, { duration: 420, easing: 'cubic-bezier(0.3, 0.7, 0.3, 1)', fill: 'forwards' });
     setTimeout(() => ghost.remove(), 480);
   }
 

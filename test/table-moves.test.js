@@ -208,7 +208,10 @@ test('clearFlight: a pile card in the air never covers a pile, on the way out or
   const far = TM.clearFlight({ x: 36, y: 86, s: 0.5, deg: -8 }, { x: 220, y: 553, s: 1, deg: 0 }, W, H, [box(140, 512, 56, 74), box(190, 512, 62, 82)], false);
   assert.ok(far.to.y > 400 && far.to.y + (H * far.to.s) / 2 < 512, 'it comes close, never onto it');
   // Nothing in the way: the whole way; no room left: no flight at all.
-  assert.deepEqual(TM.clearFlight(chip, onPile, W, H, [], false), { from: chip, to: onPile });
+  assert.deepEqual(TM.clearFlight(chip, onPile, W, H, [], false), { from: chip, to: onPile, cut: 1 });
+  // `cut` names the share of the way: where the cut way starts (leaving) or ends.
+  assert.ok(thrown.cut > 0.3 && thrown.cut < 1 && taken.cut > 0 && taken.cut < 0.7);
+  assert.ok(Math.abs(thrown.to.x - (chip.x + (onPile.x - chip.x) * thrown.cut)) < 1e-9);
   assert.strictEqual(TM.clearFlight({ x: 700, y: 98, s: 0.5, deg: 0 }, onPile, W, H, [stock, pile], false), null);
 });
 
