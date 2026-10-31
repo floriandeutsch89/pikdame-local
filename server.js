@@ -2904,7 +2904,7 @@ wss.on('connection', (ws, req) => {
         break;
       }
       case 'nextRound': {
-        // Ready check: the round continues once every connected human
+        // Ready check: the round continues once every human still at the table
         // confirmed - nobody gets rushed past the round statistics.
         const r = game.markNextRoundReady(playerId);
         if (r && r.error) sendError(ws, r.error);
