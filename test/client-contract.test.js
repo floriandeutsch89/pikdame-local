@@ -244,6 +244,10 @@ test('icon contract: every <use href="#i-..."> resolves to a defined <symbol>', 
   for (const m of clientJs2.matchAll(/setRowIcon\([^,]+,\s*(?:on|enabled)\s*\?\s*'(i-[a-z0-9-]+)'\s*:\s*'(i-[a-z0-9-]+)'/g)) {
     used.push(m[1], m[2]);
   }
+  // iconHtml('lock') and icon fields ({ icon: 'check' } for toasts, quest metas) name a symbol too.
+  for (const m of clientJs2.matchAll(/(?:iconHtml\(|\bicon: )'([a-z0-9-]+)'/g)) {
+    used.push(m[1].startsWith('i-') ? m[1] : `i-${m[1]}`);
+  }
   assert.ok(symbols.size >= 15, `sprite looks empty (${symbols.size} symbols)`);
   const dangling = [...new Set(used)].filter((id) => !symbols.has(id));
   assert.deepEqual(dangling, [], `<use> without a matching <symbol>: ${dangling.join(', ')}`);
@@ -277,6 +281,26 @@ test('icon contract: labels next to an icon live in their own <span>', () => {
     if (bare) offenders.push(`${tag}#${(attrs.match(/id="([^"]+)"/) || [, '?'])[1]}: "${bare}"`);
   }
   assert.deepEqual(offenders, [], `label text beside an icon must be wrapped in <span>: ${offenders.join(' | ')}`);
+});
+
+test('icon contract: a state (done, refused, locked) is marked by a sprite icon, never an emoji or glyph', () => {
+  // CLAUDE.md: emoji are content, never icons. ✅ ❌ ✓ 🔒 once opened status lines and toasts and
+  // marked tiles; pass the sprite name instead (iconHtml, setPuzzleStatus/setAccountStatus, showToast's icon).
+  const MARKS = /[\u{2611}\u{2705}\u{2713}\u{2714}\u{2716}-\u{2718}\u{274C}\u{274E}\u{1F512}\u{1F513}]/u;
+  const blank = (c) => c.replace(/[^\n]/g, ''); // keeps line numbers
+  const files = fs.readdirSync(path.join(__dirname, '..', 'public'))
+    .filter((f) => /\.(js|css)$/.test(f) && !f.startsWith('vendor-')).concat('index.html');
+  const offenders = [];
+  for (const file of files) {
+    let src = fs.readFileSync(path.join(__dirname, '..', 'public', file), 'utf8').replace(/<!--[\s\S]*?-->/g, blank);
+    if (file.endsWith('.css')) src = src.replace(/\/\*[\s\S]*?\*\//g, blank);
+    src.split('\n').forEach((line, i) => {
+      const code = line.replace(/^\s*(\/\/|\/?\*).*$/, '').replace(/\s\/\/\s.*$/, ''); // JS comments may name them
+      if (MARKS.test(code)) offenders.push(`${file}:${i + 1}: ${line.trim().slice(0, 90)}`);
+    });
+  }
+  assert.ok(files.includes('client.js') && files.includes('style.css'), 'scans the client sources');
+  assert.deepEqual(offenders, [], `state marks must be sprite icons:\n  ${offenders.join('\n  ')}`);
 });
 
 test('CSS contract: the type scale is defined and control heights meet the touch minimum', () => {
