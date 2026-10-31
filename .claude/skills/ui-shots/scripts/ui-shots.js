@@ -81,6 +81,9 @@
 // settings-celebration previews it), its rain seeded: before and after shots show the same pieces.
 // --freeze <ms> (with --celebration): the band's animations held at that moment.
 // --safe-area: the installed web app's iPhone insets (status bar and home indicator zones).
+// --occasion <id>|none: /statusz answers with that holiday as today (halloween, christmas, ...),
+// or with none, whatever the real date; without it the server's real day decides.
+// table-queen: the table of --state, then an opponent lays out the Queen of Spades: her announcement.
 'use strict';
 // The tower scenes play engine games with a human seat: those are no human moves for training.
 process.env.PIKDAME_LOG_GAMES = '0';
@@ -116,6 +119,7 @@ const views = arg('views', 'phone,land,desk').split(',');
 const scenes = arg('scenes', 'lobby,stats,history,roundend,gameover').split(',');
 const AUDIT = process.argv.includes('--audit');
 const SIGNED_IN = process.argv.includes('--signed-in');
+const OCCASION = arg('occasion', ''); // a holiday id of game/Holidays.js, or none
 // With --signed-in: the mock account holds the admin role (the link in the account sheet).
 const ADMIN = process.argv.includes('--admin');
 const STILL = process.argv.includes('--reduced-motion'); // prefers-reduced-motion: reduce
@@ -726,9 +730,16 @@ function waitForHttp(port, ms = 20000) {
         await ctx.addInitScript(() => { try { localStorage.setItem('pikdame_account_token', 'mock-token'); } catch (e) { /* blocked */ } });
         await ctx.route('**/api/**', (route) => route.fulfill({ contentType: 'application/json',
           body: JSON.stringify(ACCOUNT_API[new URL(route.request().url()).pathname] || { ok: true }) }));
+      }
+      if (SIGNED_IN || OCCASION) {
+        // --occasion: today's holiday window around the real clock (the client only compares instants).
+        const day = Date.now();
+        const occasions = OCCASION === 'none' ? { windows: [], refreshAt: day + 864e5 }
+          : { windows: [{ id: OCCASION, from: day - 36e5, until: day + 864e5 }], refreshAt: day + 864e5 };
         await ctx.route('**/statusz', async (route) => {
           const res = await route.fetch();
-          route.fulfill({ response: res, body: JSON.stringify({ ...(await res.json()), accountsEnabled: true }) });
+          route.fulfill({ response: res, body: JSON.stringify({ ...(await res.json()),
+            ...(SIGNED_IN ? { accountsEnabled: true } : {}), ...(OCCASION ? { occasions } : {}) }) });
         });
       }
       const page = await ctx.newPage();
@@ -1242,6 +1253,21 @@ function waitForHttp(port, ms = 20000) {
           inject({ type: 'state', state: after });
           await page.waitForTimeout(1200);
           await shot(`${sc}-end`);
+        }
+        if (sc === 'table-queen') {
+          // The --state table, then the first opponent lays out a set of queens with the Queen of
+          // Spades (deck 9: ids no real deal holds): her announcement, shot once it has scaled in.
+          const st = JSON.parse(fs.readFileSync(arg('state', ''), 'utf8'));
+          const opp = st.players.find((p) => p.id !== 'p1');
+          const queens = ['SQ-9', 'HQ-9', 'CQ-9'].map((id) => ({ real: { id, suit: id[0], rank: 'Q', isJoker: false }, playerId: opp.id }));
+          inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
+          inject({ type: 'state', state: st });
+          await page.waitForTimeout(1200);
+          inject({ type: 'state', state: { ...st, tableMelds: [...st.tableMelds, { id: 'meld-q9', ownerId: opp.id, type: 'set', suit: null, rank: 'Q', slots: queens }],
+            players: st.players.map((p) => (p.id === opp.id ? { ...p, handCount: Math.max(1, p.handCount - 3) } : p)) } });
+          await page.waitForTimeout(700);
+          await shot(sc);
+          await page.waitForTimeout(2000); // the panel goes before the next scene
         }
         if (/^tower-(start|play|sheet|lock)$/.test(sc)) {
           // A live Kartenhaus floor: a fresh page each time, so the start card is
