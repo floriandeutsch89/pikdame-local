@@ -9,6 +9,7 @@ const assert = require('node:assert');
 const { phaseWeights } = require('../public/table-light.js');
 const {
   CSS, START, END, RULES, SUPPORTS, ruleOf, stripComments, THEMES, over, lum, contrast, deltaE2000, toOklab, light,
+  cascadeSurfaces, textBackgrounds, floorOf,
 } = require('./helpers/table-light-model');
 
 const DAY = { m: 0, d: 1, e: 0, n: 0 };
@@ -17,56 +18,7 @@ const MINUTES = Array.from({ length: 24 * 60 }, (_, m) => m);
 const clock = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 const near = (x, y, eps = 1e-6) => Math.abs(x - y) <= eps;
 const sameColour = (c1, c2) => near(c1.a, c2.a) && ['r', 'g', 'b'].every((k) => near(c1[k] * c1.a, c2[k] * c2.a));
-const scaled = (c, k) => ({ ...c, a: c.a * k });
 const AA = 4.5; // WCAG AA for normal text, the bar of test/theme-cascade.test.js
-// The surfaces muted text sits on, as mutedSurfaces() in test/theme-cascade.test.js
-// builds them at noon, here from the phase's felt and glow; the middle of the table
-// (meld headers, piles, the empty-table text) also under the lamp. The top bar and
-// the hand tray sit outside its pool.
-function cascadeSurfaces(L) {
-  const glow = over(L.daylight, L.felt);
-  const lit = over(L.spot, L.felt);
-  const out = {
-    felt: L.felt,
-    'top glow': glow,
-    'lit felt': lit,
-    'pile pool (two spots)': over(L.spot, lit),
-    'glass panel on the felt': over(L.glass, L.felt),
-    'glass panel on the top glow': over(L.glass, glow),
-    'glass panel on the lit felt': over(L.glass, lit),
-    'pill on a glass bar on the felt (turn steps)': over(L.glass, over(L.glass, L.felt)),
-    'pill on a glass bar on the top glow (turn steps)': over(L.glass, over(L.glass, glow)),
-    'sort toggle on the hand tray': over(L.get('--glass-strong'), over(L.glass, lit)),
-  };
-  const lamp = over(L.pool, L.felt);
-  const lampLit = over(L.spot, lamp);
-  return Object.assign(out, {
-    'felt under the lamp': lamp,
-    'lit felt under the lamp': lampLit,
-    'pile pool under the lamp': over(L.spot, lampLit),
-    'glass panel under the lamp': over(L.glass, lamp),
-    'glass panel on the lit felt under the lamp': over(L.glass, lampLit),
-  });
-}
-// Where text sits on the table: theme-cascade's surfaces plus the top bar over a
-// part of the glow (it peaks at ~0.86 there), the vignette and the kitchen window.
-const TOP_GLOW = 0.5;
-function textBackgrounds(L) {
-  return {
-    ...cascadeSurfaces(L),
-    'top bar, chips (glass on half the glow)': over(L.glass, over(scaled(L.daylight, TOP_GLOW), L.felt)),
-    'meld headers at the edge (vignette)': over(L.glass, over(L.roomInk, L.felt)),
-    'window band (kitchen mornings)': over(L.window, L.felt),
-  };
-}
-const inks = (L) => ({ main: L.text, muted: L.muted, accent: L.get('--accent') });
-const floorOf = (L) => {
-  const bgs = Object.entries(textBackgrounds(L));
-  return Object.fromEntries(Object.entries(inks(L)).map(([name, ink]) => {
-    const [where, c] = bgs.map(([w, bg]) => [w, contrast(ink, bg)]).sort((a, b) => a[1] - b[1])[0];
-    return [name, { c, where }];
-  }));
-};
 
 test('table light css: the section is parsed with its theme rules', () => {
   assert.ok(START > 0 && END > START, 'TABLE LIGHT section exists');
