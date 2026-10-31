@@ -90,7 +90,8 @@ git status --short           # stage ONLY your files, never `git add -A`
 - Commit with `-c user.email=… -c user.name=…` and the attribution lines.
 - After the push: `git ls-remote origin <branch>` must equal `git rev-parse HEAD`.
 - Moved or rewrote code with `\uXXXX` escapes or HTML entities? Check them in
-  `git diff`: the write tools once turned them into literal characters.
+  `git diff`: the write tools once turned them into literal characters. New
+  escapes too: in #511 the 4-digit ones came out literal, braced `\u{…}` survived.
 
 ## UI changes
 
@@ -171,3 +172,7 @@ When the user asks to follow a PR, subscribe to its activity and keep one
 safety-net check-in while it only waits on CI. On merge: cancel the
 check-in and say so in one line. Follow-up work after a merge goes on a
 new branch from main.
+
+CI state: `gh pr checks` needs GraphQL, which these sessions refuse (HTTP
+403). Read it over REST: the MCP `pull_request_read` (`get_check_runs`) or
+`gh api repos/<owner>/<repo>/commits/<sha>/check-runs`.
