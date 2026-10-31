@@ -265,7 +265,7 @@ test('settings sheet: four groups (plus "Dieser Tisch" at the table), language i
     ['Dieser Tisch', ['towerPanelBtn', 'tableRulesBtn', 'tableLogBtn']],
     ['Ton', ['soundCheckbox', 'musicLevelSelect', 'musicTrackSelect']],
     ['Darstellung', ['uiScaleSelect', 'cardbackBtn', 'fullscreenCheckbox', 'celebrationSelect']],
-    ['Spielhilfen', ['tutorialHintsCheckbox', 'aidTipsCheckbox', 'aidDiscardCheckbox', 'aidLayOffCheckbox', 'aidLowCardsCheckbox', 'botQuipsCheckbox']],
+    ['Spielhilfen', ['tutorialHintsCheckbox', 'aidTipsCheckbox', 'aidDiscardCheckbox', 'aidLayOffCheckbox', 'aidLowCardsCheckbox', 'oppMovesCheckbox', 'botQuipsCheckbox']],
     ['Allgemein', ['versionBtn', 'studioLogoSelect', 'debugCheckbox']],
   ]);
   assert.ok(doc.getElementById('tableOptions').classList.contains('hidden'), '"Dieser Tisch" only at the table');
