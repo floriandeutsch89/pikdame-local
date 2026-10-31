@@ -5402,8 +5402,9 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
 }
 
 /* --- Occasion days at the table: art pressed into the felt ----------------------
-   client.js syncTableMark() names the table's mark; each brings its art (public/occasions/) and tint.
-   No text over it drops below the table's noon minimum (test/occasion-table.test.js). */
+   client.js syncTableMark() names the table's mark: an occasion's (public/occasions/), else the
+   player's own (public/marks/). Each brings its art and tint. No text over it drops below the
+   table's noon minimum (test/occasion-table.test.js). */
 #table[data-mark="halloween"] { --table-mark: url('occasions/halloween-table.svg'); --mark-tint: #ec8423; } /* the start screen pumpkin */
 #table[data-mark="nikolaus"] { --table-mark: url('occasions/nikolaus-table.svg'); --mark-tint: #d8352a; }
 #table[data-mark="silvester"] { --table-mark: url('occasions/silvester-table.svg'); --mark-tint: #8f7cff; }
@@ -5412,6 +5413,15 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
 #table[data-mark="christmas"] { --table-mark: url('occasions/christmas-table.svg'); --mark-tint: rgb(212 160 23 / 0.84); }
 #table[data-mark="newyear"] { --table-mark: url('occasions/newyear-table.svg'); --mark-tint: rgb(88 184 92 / 0.88); }
 #table[data-mark="easter"] { --table-mark: url('occasions/easter-table.svg'); --mark-tint: rgb(60 184 165 / 0.9); }
+/* The player's own marks (client.js TABLE_MARKS), the gallery's swatch with the same art and tint;
+   a lighter tint brings its own alpha by the same rule. */
+#table[data-mark="suits"], .markSwatch[data-mark="suits"] { --table-mark: url('marks/suits-table.svg'); --mark-tint: #e66e6e; }
+#table[data-mark="laurel"], .markSwatch[data-mark="laurel"] { --table-mark: url('marks/laurel-table.svg'); --mark-tint: rgb(126 186 92 / 0.81); }
+#table[data-mark="crown"], .markSwatch[data-mark="crown"] { --table-mark: url('marks/crown-table.svg'); --mark-tint: rgb(236 184 52 / 0.69); }
+#table[data-mark="owl"], .markSwatch[data-mark="owl"] { --table-mark: url('marks/owl-table.svg'); --mark-tint: rgb(226 152 84 / 0.86); }
+#table[data-mark="gem"], .markSwatch[data-mark="gem"] { --table-mark: url('marks/gem-table.svg'); --mark-tint: rgb(120 210 245 / 0.67); }
+#table[data-mark="queen"], .markSwatch[data-mark="queen"] { --table-mark: url('marks/queen-table.svg'); --mark-tint: rgb(183 166 255 / 0.8); }
+#table[data-mark="cardhouse"], .markSwatch[data-mark="cardhouse"] { --table-mark: url('marks/cardhouse-table.svg'); --mark-tint: #6890ff; }
 /* Darker reads nowhere on the near-black felts: a tint, each theme at ~85 % of its budget with the pumpkin. */
 #table { --mark-ink: color-mix(in srgb, var(--mark-tint) 10%, transparent); }
 [data-theme="night"] #table, [data-theme="bordeaux"] #table { --mark-ink: color-mix(in srgb, var(--mark-tint) 9%, transparent); }
@@ -5638,6 +5648,26 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
 .cbPrev .icon { color: #fff; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.7)); }
 .cbName { font-size: var(--fs-label); font-weight: 700; }
 .cbGate { font-size: var(--fs-micro); min-height: 1em; text-align: center; }
+.cbNote { margin: -6px 0 10px; font-size: var(--fs-hint); color: var(--text-muted); text-align: center; }
+/* Table motifs: a swatch of the theme's felt with the mark (art and tint: "Marks in the felt").
+   A fifth of the table's size, so the ink is stronger, in the same proportion for every tint. */
+.markSwatch {
+  --mark-ink: color-mix(in srgb, var(--mark-tint) 28%, transparent);
+  position: relative; width: 76px; height: 56px; border-radius: 8px; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(120% 90% at 50% 35%, var(--spot) 0%, transparent 75%), var(--bg);
+  border: 1px solid rgba(0, 0, 0, 0.25);
+}
+[data-theme="kitchen"] .markSwatch { --mark-ink: rgb(255 252 244 / 0.85); }
+.markSwatch::before {
+  content: ''; position: absolute; inset: 4px;
+  background: var(--mark-ink);
+  -webkit-mask: var(--table-mark, linear-gradient(transparent, transparent)) center / contain no-repeat;
+  mask: var(--table-mark, linear-gradient(transparent, transparent)) center / contain no-repeat;
+}
+.markSwatch .icon { position: relative; color: #fff; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.7)); }
+/* Locked: the motif stays recognisable (what is still missing motivates), only its colour goes. */
+.cardbackTile.locked .markSwatch::before { filter: grayscale(1); opacity: 0.7; }
 
 
 /* --- Studio-Vorspann (Flodex Interactive) ---------------------------------
@@ -6548,6 +6578,10 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
   .cardbackGalleryBox h3 { margin-bottom: 8px; }
   .cardbackGrid { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
   .cardbackTile { padding: 8px 4px; }
+  /* Table motifs: four wide, so a row holds the level ones and one the badge ones. */
+  .markGallery .cardbackGalleryBox { max-width: 600px; }
+  .markGallery .cardbackGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .markGallery .cbNote { margin: -4px 0 8px; }
 
   /* Stammtisch record at ~400 px: wider, goals on one row, the two buttons
      side by side - stacked, the goals pushed "Platz nehmen" below the fold. */

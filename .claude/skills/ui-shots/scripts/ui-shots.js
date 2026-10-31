@@ -33,6 +33,8 @@
 // game-settings-debug (that sheet with the debug view on), home (the home dialog at the table, then
 // its forfeit button armed by a first tap),
 // sheet-reopen (settings sheet scrolled, closed, reopened), cardback (the card-back gallery, then a locked back tapped: its toast),
+// tablemark (the table motif gallery, then a locked motif tapped: its toast; --mark <id> stores and unlocks that motif,
+// so the table scenes show it),
 // toast-goal (a daily goal completed by the finished match: its toast), account-saved (the account status after saving a password),
 // music-hint (first click: music starts, one-time hint),
 // account (the account sheet: level, season ladder; needs --signed-in),
@@ -159,10 +161,13 @@ const TODAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin' }).fo
 const NOW = Date.now();
 const ME = arg('name', 'Flo');
 const me = ME.toLowerCase(); // the Stammtisch summary keys players by lowercased name
+// --mark <id>: my own table motif (client.js TABLE_MARKS), stored and unlocked (level 30, its badges).
+const MARK = arg('mark', '');
+const markUnlocks = MARK ? { xp: 23200, badges: { night_owl: NOW - 8e8, pd_hunter_50: NOW - 7e8, tower_crowned_1: NOW - 6e8 } } : { badges: {} };
 const PROFILES = [
-  { name: ME, gamesPlayed: 43, gamesWon: 17, totalScore: 31000, bestGameScore: 1385, xp: 5320, dailyStreak: 6,
+  { name: ME, gamesPlayed: 43, gamesWon: 17, totalScore: 31000, bestGameScore: 1385, xp: markUnlocks.xp || 5320, dailyStreak: 6,
     daily: { streak: 6, best: 11, last: '2000-01-01', graceAt: null },
-    badges: { first_win: NOW - 9e8, pd_laid: NOW - 5e8, royal_flush: NOW - 3e8, marathon_10: NOW - 2e8 }, favoriteBadges: ['games', 'wins'],
+    badges: { first_win: NOW - 9e8, pd_laid: NOW - 5e8, royal_flush: NOW - 3e8, marathon_10: NOW - 2e8, ...markUnlocks.badges }, favoriteBadges: ['games', 'wins'],
     puzzles: { [TODAY]: { tries: 1, solved: false } },
     towerStars: 17, towerCleared: 8, ...celebrating },
   { name: 'Oma Gerda', gamesPlayed: 120, gamesWon: 61, totalScore: 99000, bestGameScore: 1610, xp: 18000, badges: { first_win: 1 } },
@@ -749,7 +754,7 @@ function waitForHttp(port, ms = 20000) {
       if (!vp) throw new Error(`unknown view ${vn}`);
       const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, userAgent: UA, deviceScaleFactor: Number(arg('scale', 2)), isMobile: vp.mobile, hasTouch: vp.mobile,
         ...(STILL ? { reducedMotion: 'reduce' } : {}) });
-      await ctx.addInitScript(([me, theme, musicHint, stammtische, uiLang, uiScale]) => {
+      await ctx.addInitScript(([me, theme, musicHint, stammtische, uiLang, uiScale, mark]) => {
         try {
           localStorage.setItem('pikdame_player_name', me);
           if (uiLang) localStorage.setItem('pikdame_lang', uiLang); // --lang en
@@ -762,8 +767,9 @@ function waitForHttp(port, ms = 20000) {
           localStorage.setItem('pikdame_stammtische', JSON.stringify(tables.slice(0, stammtische)));
           // The first click starts the music; its one-time hint would sit on every later shot.
           if (!musicHint) localStorage.setItem('pikdame_music_hint', '1');
+          if (mark) localStorage.setItem('pikdame_table_mark', mark); // --mark <id>
         } catch (e) { /* storage blocked */ }
-      }, [ME, arg('theme', ''), scenes.includes('music-hint'), Math.max(0, Math.min(3, Number(arg('stammtische', 1)))), arg('lang', ''), arg('ui-scale', '')]);
+      }, [ME, arg('theme', ''), scenes.includes('music-hint'), Math.max(0, Math.min(3, Number(arg('stammtische', 1)))), arg('lang', ''), arg('ui-scale', ''), MARK]);
       const pageCss = [LIGHT_CSS, vp.mobile ? SAFE_AREA_CSS : ''].filter(Boolean).join('\n');
       if (pageCss) {
         await ctx.addInitScript((cssText) => {
@@ -862,7 +868,7 @@ function waitForHttp(port, ms = 20000) {
         await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(1200);
       };
-      const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|tower-detail|tower-rules|tower-motion|tower-film|tower-skip|stats|stats-badges|stats-empty|history|history-team|settings|settings-aids|settings-music|settings-celebration|sheet-reopen|cardback|music-hint|challenge|challenge-open|stammtisch|account|account-mail|puzzle.*|year.*)$/;
+      const LOBBY_SCENES = /^(lobby|lobby-open|progress|tower|tower-detail|tower-rules|tower-motion|tower-film|tower-skip|stats|stats-badges|stats-empty|history|history-team|settings|settings-aids|settings-music|settings-celebration|sheet-reopen|cardback|tablemark|music-hint|challenge|challenge-open|stammtisch|account|account-mail|puzzle.*|year.*)$/;
       for (const sc of scenes) {
         if (LOBBY_SCENES.test(sc)) await toStart();
         if (sc === 'lobby') { await page.waitForTimeout(Number(arg('settle', 0))); await shot('lobby'); }
@@ -1180,6 +1186,21 @@ function waitForHttp(port, ms = 20000) {
           await page.evaluate(() => document.querySelector('.cbPrev-legend').closest('.cardbackTile').click());
           await page.waitForTimeout(400);
           await shot('cardback-locked');
+          await page.evaluate(() => document.querySelector('.cardbackGallery').remove());
+          await page.click('#settingsOverlayCloseBtn');
+        }
+        if (sc === 'tablemark') {
+          // The table motif gallery under "Darstellung", then a locked motif tapped: its toast.
+          await page.click('#settingsBtnLobby'); await page.waitForTimeout(400);
+          await page.evaluate(() => document.getElementById('tableMarkBtn').click());
+          await page.waitForTimeout(400);
+          await shot('tablemark');
+          const locked = await page.evaluate(() => {
+            const tile = document.querySelector('.markGallery .cardbackTile.locked');
+            if (tile) tile.click();
+            return !!tile;
+          });
+          if (locked) { await page.waitForTimeout(400); await shot('tablemark-locked'); }
           await page.evaluate(() => document.querySelector('.cardbackGallery').remove());
           await page.click('#settingsOverlayCloseBtn');
         }

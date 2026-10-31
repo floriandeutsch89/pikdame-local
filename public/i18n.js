@@ -140,6 +140,7 @@ window.I18N_STATIC = {
   'Spielverlauf': 'Game log',
   'Anzeigegröße': 'Display size',
   'Kartenrücken': 'Card back',
+  'Tischmotiv': 'Table motif',
   'Siegesjubel': 'Victory celebration',
   'Standard': 'Standard',
   'Katzen-Konfetti': 'Cat confetti',

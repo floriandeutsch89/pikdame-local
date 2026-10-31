@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 180">
+  <!-- A CSS mask (style.css "Marks in the felt"): only alpha counts, each theme brings its ink.
+       A crowned house of cards, the Queen of Spades on top: pips and the gaps between the cards are cut out. -->
+  <defs>
+    <mask id="cut" maskUnits="userSpaceOnUse" x="0" y="0" width="200" height="180">
+      <rect width="200" height="180" fill="#fff"/>
+      <g fill="#000">
+        <path transform="translate(39 151)" d="M0-5C1.5-3 4.5-1.3 4.5 1A2.3 2.3 0 0 1 .6 2.6L1.4 5H-1.4L-.6 2.6A2.3 2.3 0 0 1-4.5 1C-4.5-1.3-1.5-3 0-5Z"/>
+        <path transform="translate(61 151)" d="M0 4.6C-1.6 3.2-4.6 1-4.6-1.5A2.4 2.4 0 0 1 0-2.6 2.4 2.4 0 0 1 4.6-1.5C4.6 1 1.6 3.2 0 4.6Z"/>
+        <path transform="translate(89 151)" d="M0-5 3.6 0 0 5-3.6 0Z"/>
+        <path transform="translate(111 151)" d="M0-5A2.2 2.2 0 0 1 2-1.6 2.2 2.2 0 1 1 1 2.6L1.6 5H-1.6L-1 2.6A2.2 2.2 0 1 1-2-1.6 2.2 2.2 0 0 1 0-5Z"/>
+        <path transform="translate(139 151)" d="M0-5C1.5-3 4.5-1.3 4.5 1A2.3 2.3 0 0 1 .6 2.6L1.4 5H-1.4L-.6 2.6A2.3 2.3 0 0 1-4.5 1C-4.5-1.3-1.5-3 0-5Z"/>
+        <path transform="translate(161 151)" d="M0 4.6C-1.6 3.2-4.6 1-4.6-1.5A2.4 2.4 0 0 1 0-2.6 2.4 2.4 0 0 1 4.6-1.5C4.6 1 1.6 3.2 0 4.6Z"/>
+        <path transform="translate(64 108)" d="M0-5 3.6 0 0 5-3.6 0Z"/>
+        <path transform="translate(86 108)" d="M0-5A2.2 2.2 0 0 1 2-1.6 2.2 2.2 0 1 1 1 2.6L1.6 5H-1.6L-1 2.6A2.2 2.2 0 1 1-2-1.6 2.2 2.2 0 0 1 0-5Z"/>
+        <path transform="translate(114 108)" d="M0-5C1.5-3 4.5-1.3 4.5 1A2.3 2.3 0 0 1 .6 2.6L1.4 5H-1.4L-.6 2.6A2.3 2.3 0 0 1-4.5 1C-4.5-1.3-1.5-3 0-5Z"/>
+        <path transform="translate(136 108)" d="M0 4.6C-1.6 3.2-4.6 1-4.6-1.5A2.4 2.4 0 0 1 0-2.6 2.4 2.4 0 0 1 4.6-1.5C4.6 1 1.6 3.2 0 4.6Z"/>
+        <path transform="translate(89 65)" d="M0-5 3.6 0 0 5-3.6 0Z"/>
+        <path transform="translate(111 65)" d="M0-5A2.2 2.2 0 0 1 2-1.6 2.2 2.2 0 1 1 1 2.6L1.6 5H-1.6L-1 2.6A2.2 2.2 0 1 1-2-1.6 2.2 2.2 0 0 1 0-5Z"/>
+        <path transform="translate(100 22.5) scale(1.35)" d="M0-5C1.5-3 4.5-1.3 4.5 1A2.3 2.3 0 0 1 .6 2.6L1.4 5H-1.4L-.6 2.6A2.3 2.3 0 0 1-4.5 1C-4.5-1.3-1.5-3 0-5Z"/>
+      </g>
+      <g stroke="#000" stroke-width="5">
+        <rect x="38" y="126" width="124" height="7" rx="2.4"/>
+        <rect x="63" y="83" width="74" height="7" rx="2.4"/>
+        <rect x="82" y="40" width="36" height="7" rx="2.4"/>
+      </g>
+    </mask>
+    <mask id="lean" maskUnits="userSpaceOnUse" x="0" y="0" width="200" height="180">
+      <rect width="200" height="180" fill="#fff"/>
+      <g stroke="#000" stroke-width="5">
+        <rect transform="translate(61 151) rotate(-31.4)" x="-7.5" y="-22.1" width="15" height="44.2" rx="2.6"/>
+        <rect transform="translate(111 151) rotate(-31.4)" x="-7.5" y="-22.1" width="15" height="44.2" rx="2.6"/>
+        <rect transform="translate(161 151) rotate(-31.4)" x="-7.5" y="-22.1" width="15" height="44.2" rx="2.6"/>
+        <rect transform="translate(86 108) rotate(-31.4)" x="-7.5" y="-22.1" width="15" height="44.2" rx="2.6"/>
+        <rect transform="translate(136 108) rotate(-31.4)" x="-7.5" y="-22.1" width="15" height="44.2" rx="2.6"/>
+        <rect transform="translate(111 65) rotate(-31.4)" x="-7.5" y="-22.1" width="15" height="44.2" rx="2.6"/>
+      </g>
+    </mask>
+    <filter id="soft" x="-5%" y="-5%" width="110%" height="110%">
+      <feGaussianBlur stdDeviation="0.45"/>
+    </filter>
+  </defs>
+  <g filter="url(#soft)">
+    <g mask="url(#cut)">
+      <g mask="url(#lean)">
+        <rect transform="translate(39 151) rotate(31.4)" x="-7.5" y="-22.1" width="15" height="44.2" rx="2.6"/>
+        <rect transform="translate(89 151) rotate(31.4)" x="-7.5" y="-22.1" width="15" height="44.2" rx="2.6"/>
+        <rect transform="translate(139 151) rotate(31.4)" x="-7.5" y="-22.1" width="15" height="44.2" rx="2.6"/>
+        <rect transform="translate(64 108) rotate(31.4)" x="-7.5" y="-22.1" width="15" height="44.2" rx="2.6"/>
+        <rect transform="translate(114 108) rotate(31.4)" x="-7.5" y="-22.1" width="15" height="44.2" rx="2.6"/>
+        <rect transform="translate(89 65) rotate(31.4)" x="-7.5" y="-22.1" width="15" height="44.2" rx="2.6"/>
+      </g>
+      <rect transform="translate(61 151) rotate(-31.4)" x="-7.5" y="-22.1" width="15" height="44.2" rx="2.6"/>
+      <rect transform="translate(111 151) rotate(-31.4)" x="-7.5" y="-22.1" width="15" height="44.2" rx="2.6"/>
+      <rect transform="translate(161 151) rotate(-31.4)" x="-7.5" y="-22.1" width="15" height="44.2" rx="2.6"/>
+      <rect transform="translate(86 108) rotate(-31.4)" x="-7.5" y="-22.1" width="15" height="44.2" rx="2.6"/>
+      <rect transform="translate(136 108) rotate(-31.4)" x="-7.5" y="-22.1" width="15" height="44.2" rx="2.6"/>
+      <rect transform="translate(111 65) rotate(-31.4)" x="-7.5" y="-22.1" width="15" height="44.2" rx="2.6"/>
+      <rect x="89" y="7.5" width="22" height="30" rx="3"/>
+    </g>
+    <rect x="38" y="126" width="124" height="7" rx="2.4"/>
+    <rect x="63" y="83" width="74" height="7" rx="2.4"/>
+    <rect x="82" y="40" width="36" height="7" rx="2.4"/>
+  </g>
+</svg>

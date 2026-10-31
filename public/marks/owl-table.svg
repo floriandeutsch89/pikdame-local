@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 180">
+  <!-- A CSS mask (style.css "Marks in the felt"): only alpha counts, each theme brings its ink.
+       A night owl on a branch under the moon: eyes, beak, wings and feathers are cut out. -->
+  <defs>
+    <mask id="cut" maskUnits="userSpaceOnUse" x="0" y="0" width="200" height="180">
+      <rect width="200" height="180" fill="#fff"/>
+      <g fill="none" stroke="#000" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="82" cy="78" r="13"/><circle cx="118" cy="78" r="13"/>
+        <path d="M63 100C64 118 71 132 84 141M137 100C136 118 129 132 116 141"/>
+        <path d="M93 117 100 122 107 117M85 128 92 133 99 128M101 128 108 133 115 128M93 139 100 144 107 139"/>
+      </g>
+      <g fill="#000">
+        <circle cx="83" cy="79" r="5.5"/><circle cx="117" cy="79" r="5.5"/>
+        <path d="M100 90 105.5 97 100 106 94.5 97Z"/>
+      </g>
+      <path d="M30 160Q100 154 164 158" fill="none" stroke="#000" stroke-width="12" stroke-linecap="round"/>
+    </mask>
+    <mask id="moon" maskUnits="userSpaceOnUse" x="0" y="0" width="200" height="180">
+      <rect width="200" height="180" fill="#fff"/>
+      <circle cx="172.5" cy="21.5" r="13"/>
+    </mask>
+    <filter id="soft" x="-5%" y="-5%" width="110%" height="110%">
+      <feGaussianBlur stdDeviation="0.45"/>
+    </filter>
+  </defs>
+  <g filter="url(#soft)" transform="translate(0 1.5)">
+    <path mask="url(#cut)" d="M58 32L82 47Q100 42 118 47L142 32C144 44 146 54 146 66C150 84 150 104 146 118C140 140 122 154 100 154C78 154 60 140 54 118C50 104 50 84 54 66C54 54 56 44 58 32Z"/>
+    <path d="M30 160Q100 154 164 158" fill="none" stroke="#000" stroke-width="6" stroke-linecap="round"/>
+    <path d="M164 158Q173 150 179 154Q173 162 164 158Z"/>
+    <path d="M83 151 82 159M89 152V160M95 151 96 159M105 151 104 159M111 152V160M117 151 118 159" fill="none" stroke="#000" stroke-width="3.4" stroke-linecap="round"/>
+    <circle cx="163" cy="27" r="14" mask="url(#moon)"/>
+    <path d="M27 42Q28 49 34 50Q28 51 27 58Q26 51 20 50Q26 49 27 42Z"/>
+  </g>
+</svg>

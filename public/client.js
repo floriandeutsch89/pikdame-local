@@ -357,6 +357,7 @@
     try { updateCelebrationSetting(); } catch (e) { /* erst spaeter definiert */ }
     try { updateMusicSetting(); } catch (e) { /* erst spaeter definiert */ }
     try { applyCardback(); } catch (e) { /* erst spaeter definiert */ }
+    applyTableMark();
     try { setTipsEnabled(gameTipsEnabled); renderAidControls(); renderBotQuipsControls(); } catch (e) { /* Einstellungsblatt ist nie kritisch */ }
     // Aus dem Code erzeugte Listen: Ihre Texte kommen aus L(), werden aber nur
     // beim Rendern gesetzt - ohne erneuten Aufruf bleiben sie in der alten
@@ -934,12 +935,40 @@
     const h = holidayWindows.find((w) => inWindow(w, now));
     return h ? h.id : null;
   }
+  // The player's own mark in the felt: unlocked like the card backs (own profile: level, badges),
+  // kept on this device and never sent, so nobody else sees it. Ids never name an occasion.
+  const TABLE_MARK_KEY = 'pikdame_table_mark';
+  const TABLE_MARKS = [
+    { id: 'none', label: 'Ohne', labelEn: 'None', gate: null },
+    { id: 'suits', label: 'Vier Farben', labelEn: 'Four suits', gate: { level: 5 } },
+    { id: 'laurel', label: 'Lorbeerkranz', labelEn: 'Laurel wreath', gate: { level: 15 } },
+    { id: 'crown', label: 'Krone', labelEn: 'Crown', gate: { level: 25 } },
+    // Rare badges (game/BadgeRarity.js): a feat, not more of the grind.
+    { id: 'owl', label: 'Eule', labelEn: 'Owl', gate: { badge: 'night_owl' } },
+    { id: 'gem', label: 'Brillant', labelEn: 'Brilliant', gate: { badge: 'royal_flush' } },
+    { id: 'queen', label: 'Pik Dame', labelEn: 'Queen of Spades', gate: { badge: 'pd_hunter_50' } },
+    { id: 'cardhouse', label: 'Kartenhaus', labelEn: 'House of Cards', gate: { badge: 'tower_crowned_1' } },
+  ];
+  function tableMarkUnlocked(m) {
+    if (!m.gate) return true;
+    if (m.gate.level) return myLevel() >= m.gate.level;
+    const p = myProfile();
+    return !!(p && p.badges && p.badges[m.gate.badge]);
+  }
+  /** This device's choice while it is unlocked, else null; the stored choice outlives a missing profile. */
+  function chosenTableMark() {
+    try {
+      const m = TABLE_MARKS.find((x) => x.id === storageGet(TABLE_MARK_KEY));
+      return m && m.gate && tableMarkUnlocked(m) ? m.id : null;
+    } catch (e) { return null; } // decoration, never in the table's way
+  }
   // The felt's mark (style.css #table[data-mark]) belongs to the table, not the device: a birthday
-  // there (the server's flag, private tables and the Stammtisch only) wins over the day's holiday.
+  // there (the server's flag, private tables and the Stammtisch only) wins over the day's holiday,
+  // and any occasion over the player's own mark.
   function tableMarkFor(state, now = Date.now()) {
     if (state && state.birthdayToday === true) return 'birthday';
     const h = holidayWindows.find((w) => inWindow(w, now));
-    return h ? h.id : null; // a mark of the player's own choosing would be the last fallback
+    return h ? h.id : chosenTableMark();
   }
   function syncTableMark(now = Date.now()) {
     const table = el('table');
@@ -1872,6 +1901,7 @@
       // choice itself survived in localStorage, only the draw pile never
       // showed it (player report).
       try { applyCardback(); } catch (e) { /* Kosmetik bricht nie den Start */ }
+      applyTableMark(); // the same gate story: the felt's own mark waits for the profile too
       globalStatsData = msg.globalStats || null;
       badgeRarity = msg.badgeRarity && typeof msg.badgeRarity === 'object' ? msg.badgeRarity : null;
       // Öffentlicher Server: Profile/Statistik sind deaktiviert.
@@ -8037,7 +8067,10 @@
     const tier = fam && fam.tiers.length > 1
       ? L(`Stufe ${fam.tiers.indexOf(item.id) + 1} von ${fam.tiers.length}`, `Tier ${fam.tiers.indexOf(item.id) + 1} of ${fam.tiers.length}`)
       : '';
-    return { art: m.emoji, eyebrow, name: m.name, sub: [tier, m.desc].filter(Boolean).join(' · ') };
+    // A table motif comes with it: said first, the card shows one line in landscape.
+    const mark = TABLE_MARKS.find((x) => x.gate && x.gate.badge === item.id);
+    const gift = mark ? L(`Neues Tischmotiv: ${mark.label}`, `New table motif: ${mark.labelEn}`) : '';
+    return { art: m.emoji, eyebrow, name: m.name, sub: [gift, tier, m.desc].filter(Boolean).join(' · ') };
   }
   function unlockCardHtml(item) {
     const v = unlockView(item);
@@ -12070,13 +12103,16 @@
     for (const cb of CARDBACKS) {
       if (cb.gate && cb.gate.field === 'level') out.push({ level: cb.gate.min, kind: 'cardback', id: cb.id, label: L(`Kartenrücken „${cb.label}“`, `card back "${cb.labelEn}"`) });
     }
+    for (const m of TABLE_MARKS) {
+      if (m.gate && m.gate.level) out.push({ level: m.gate.level, kind: 'mark', id: m.id, label: L(`Tischmotiv „${m.label}“`, `table motif "${m.labelEn}"`) });
+    }
     for (const [id, level] of Object.entries(THEME_LEVELS)) out.push({ level, kind: 'theme', id, label: L(`Tischfarbe „${themeName(id)}“`, `table colour "${themeName(id)}"`) });
     for (const [level, de, en] of LEVEL_TITLES) if (level > 1) out.push({ level, kind: 'title', id: de, label: L(`Titel „${de}“`, `title "${en}"`) });
     for (const c of CELEBRATIONS) if (c.level > 1) out.push({ level: c.level, kind: 'celebration', id: c.id, label: L(`Siegesjubel „${c.de}“`, `victory celebration "${c.en}"`) });
     return out.sort((a, b) => a.level - b.level);
   }
   // Icons from the sprite per kind; an emote IS its emoji (content), so its label keeps it.
-  const REWARD_ICONS = { cardback: 'cards', theme: 'palette', title: 'tag', celebration: 'sparkle' };
+  const REWARD_ICONS = { cardback: 'cards', mark: 'feltmark', theme: 'palette', title: 'tag', celebration: 'sparkle' };
   function rewardHtml(r) {
     return REWARD_ICONS[r.kind] ? `${iconHtml(REWARD_ICONS[r.kind])}<span>${escapeHtml(r.label)}</span>` : `<span>${escapeHtml(r.label)}</span>`;
   }
@@ -12135,34 +12171,72 @@
       }
     } catch (e) { /* Kosmetik bricht nie den Start */ }
   }
-  // A gallery, not a blind cycle: locked backs stay visible with their goal ("what I still
-  // miss" motivates); the active one carries a check, locked ones a lock.
+  /** The settings row names the mark the felt shows on a day without an occasion; the felt follows. */
+  function applyTableMark() {
+    try {
+      const m = TABLE_MARKS.find((x) => x.id === chosenTableMark()) || TABLE_MARKS[0];
+      const value = el('tableMarkValue');
+      if (value) value.textContent = L(m.label, m.labelEn);
+      syncTableMark();
+    } catch (e) { /* cosmetic, never breaks the start */ }
+  }
+  /** What unlocks a mark: short on its tile, with the badge's own how-to in the toast. */
+  function tableMarkGate(m, long = false) {
+    if (m.gate.level) return L(`ab Stufe ${m.gate.level}`, `from level ${m.gate.level}`);
+    const b = badgeMeta(m.gate.badge);
+    const short = L(`Abzeichen „${b.name}“`, `badge "${b.name}"`);
+    return long ? `${short} – ${b.how}` : short;
+  }
   function openCardbackGallery() {
+    openCosmeticGallery({
+      icon: 'cards', title: L('Kartenrücken', 'Card backs'), items: CARDBACKS,
+      current: document.documentElement.dataset.cardback || 'classic',
+      unlocked: cardbackUnlocked,
+      gate: (cb) => L(cb.gate.de, cb.gate.en),
+      preview: (cb, lock) => `<span class="cbPrev cbPrev-${cb.id}">${lock}</span>`,
+      pick: (cb) => { storageSet(CARDBACK_KEY, cb.id); applyCardback(); },
+    });
+  }
+  function openTableMarkGallery() {
+    openCosmeticGallery({
+      icon: 'feltmark', title: L('Tischmotive', 'Table motifs'), items: TABLE_MARKS, variant: 'markGallery',
+      // Said once, here: on Halloween a fresh choice would otherwise look ignored.
+      note: L('An Feiertagen und Geburtstagen zeigt der Tisch das Festmotiv.', "On holidays and birthdays the table shows the occasion's motif."),
+      current: chosenTableMark() || 'none',
+      unlocked: tableMarkUnlocked,
+      gate: tableMarkGate,
+      preview: (m, lock) => `<span class="markSwatch" data-mark="${m.id}">${lock}</span>`,
+      pick: (m) => { storageSet(TABLE_MARK_KEY, m.id); applyTableMark(); },
+    });
+  }
+  // A gallery, not a blind cycle: locked items stay visible with their goal ("what I still
+  // miss" motivates); the active one carries a check, locked ones a lock.
+  function openCosmeticGallery({ icon, title, items, current, unlocked: isUnlocked, gate, preview, pick, variant = '', note = '' }) {
     const existing = document.querySelector('.cardbackGallery');
     if (existing) { existing.remove(); return; }
-    const cur = document.documentElement.dataset.cardback || 'classic';
     const wrap = document.createElement('div');
-    wrap.className = 'cardbackGallery';
+    wrap.className = `cardbackGallery${variant ? ` ${variant}` : ''}`;
     const box = document.createElement('div');
     box.className = 'cardbackGalleryBox';
-    box.innerHTML = `<h3><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><span>${L('Kartenrücken', 'Card backs')}</span></h3>`;
+    box.innerHTML = `<h3>${iconHtml(icon)}<span>${escapeHtml(title)}</span></h3>` +
+      (note ? `<p class="cbNote">${escapeHtml(note)}</p>` : '');
     const grid = document.createElement('div');
     grid.className = 'cardbackGrid';
-    for (const cb of CARDBACKS) {
-      const unlocked = cardbackUnlocked(cb);
+    for (const item of items) {
+      const unlocked = isUnlocked(item);
+      const name = L(item.label, item.labelEn);
       const tile = document.createElement('button');
       tile.type = 'button';
-      tile.className = `cardbackTile${cb.id === cur ? ' active' : ''}${unlocked ? '' : ' locked'}`;
-      // The check is aria-hidden: the pressed state names the active back.
-      tile.setAttribute('aria-pressed', String(cb.id === cur));
+      tile.className = `cardbackTile${item.id === current ? ' active' : ''}${unlocked ? '' : ' locked'}`;
+      // The check is aria-hidden: the pressed state names the active one.
+      tile.setAttribute('aria-pressed', String(item.id === current));
       const lock = unlocked ? '' : iconHtml('lock');
-      tile.innerHTML = `<span class="cbPrev cbPrev-${cb.id}">${lock}</span>` +
-        `<span class="cbName">${L(cb.label, cb.labelEn)}</span>` +
-        `<span class="cbGate">${unlocked ? (cb.id === cur ? iconHtml('check') : '') : L(cb.gate.de, cb.gate.en)}</span>`;
+      tile.innerHTML = preview(item, lock) +
+        `<span class="cbName">${escapeHtml(name)}</span>` +
+        `<span class="cbGate">${unlocked ? (item.id === current ? iconHtml('check') : '') : escapeHtml(gate(item))}</span>`;
       tile.addEventListener('click', () => {
-        if (!unlocked) { showToast(`${L(cb.label, cb.labelEn)}: ${L(cb.gate.de, cb.gate.en)}`, { icon: 'lock' }); return; }
-        storageSet(CARDBACK_KEY, cb.id);
-        applyCardback();
+        if (!unlocked) { showToast(`${name}: ${gate(item, true)}`, { icon: 'lock' }); return; }
+        pick(item);
         wrap.remove();
       });
       grid.appendChild(tile);
@@ -12240,7 +12314,10 @@
     const cbBtn = el('cardbackBtn');
     if (cbBtn) cbBtn.addEventListener('click', openCardbackGallery);
     applyCardback();
+    const markBtn = el('tableMarkBtn');
+    if (markBtn) markBtn.addEventListener('click', openTableMarkGallery);
   } catch (e) { /* optional */ }
+  applyTableMark();
 
   // --- Debug-Overlay (Einstellungen): Gitter + Live-Metriken -----------------
   // Für Ferndiagnosen von Layout-Fehlern: Ein Screenshot mit aktivem Overlay
