@@ -183,6 +183,9 @@
   const tableMoves = window.PikdameTableMoves || null;
   let movesPrev = null; // facts of the previous state; null = the next one is only a baseline
   let oppTurn = null; // the opponent turn in flight (one at a time, never queued)
+  // "Züge der Mitspieler" in "Optionen", per device, default on; off = no flights and no sounds.
+  const OPP_MOVES_KEY = 'pikdame_opp_moves';
+  let oppMovesOn = storageGet(OPP_MOVES_KEY) !== 'off';
   // --- Sprache (Deutsch/Englisch, Default Deutsch) ----------------------------
   const LANG_KEY = 'pikdame_lang';
   let lang = storageGet(LANG_KEY) === 'en' ? 'en' : 'de';
@@ -7524,7 +7527,8 @@
     if (!tableMoves || !lastState) return;
     const now = tableMoves.facts(lastState, playerId);
     const prev = movesPrev;
-    movesPrev = now;
+    movesPrev = now; // also while switched off: switched on again, nothing old is replayed
+    if (!oppMovesOn) return;
     const moves = tableMoves.diff(prev, now, playerId);
     const at = performance.now();
     const who = moves.length ? moves[0].who : null;
@@ -7805,6 +7809,22 @@
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) { try { endTableMoves(); } catch (e) { /* cosmetic */ } }
   });
+
+  /** "Züge der Mitspieler": off, the table shows their moves at once and silently, as before. */
+  function setOppMoves(on) {
+    oppMovesOn = on;
+    storageSet(OPP_MOVES_KEY, on ? 'on' : 'off');
+    const box = el('oppMovesCheckbox');
+    if (box) box.checked = on;
+    if (!on) endTableMoves(); // a flight in the air lands at once
+  }
+  {
+    const box = el('oppMovesCheckbox'); // missing in a stale cached page: the setting just waits
+    if (box) {
+      box.checked = oppMovesOn;
+      box.addEventListener('change', () => setOppMoves(box.checked));
+    }
+  }
 
   // --- Toast: letzte Aktion kurz einblenden ---------------------------------
   let seenLogLength = null;

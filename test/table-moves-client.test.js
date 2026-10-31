@@ -12,7 +12,7 @@ const SRC = ['i18n.js', 'table-moves.js', 'client.js'].map((f) => fs.readFileSyn
 const HTML = fs.readFileSync(path.join(pub, 'index.html'), 'utf8');
 
 /** The real client in jsdom with layout, Web Animations and frames stubbed; the clock is the test's. */
-function boot({ reduced = false, animate = true } = {}) {
+function boot({ reduced = false, animate = true, stored = {} } = {}) {
   const errors = [];
   // jsdom has no styles of pseudo-elements (the card back's medallion): that alone is no error.
   const virtualConsole = new VirtualConsole();
@@ -77,6 +77,7 @@ function boot({ reduced = false, animate = true } = {}) {
   window.onerror = (msg) => errors.push(String(msg));
   window.console.error = (...a) => errors.push(a.map(String).join(' '));
   window.localStorage.setItem('pikdame_tip_seen', '9');
+  for (const [k, v] of Object.entries(stored)) window.localStorage.setItem(k, v); // a reload: what this device kept
   for (const src of SRC) window.eval(src);
   window.document.dispatchEvent(new window.Event('DOMContentLoaded', { bubbles: true }));
   const send = (msg) => ws._emit('message', { data: JSON.stringify(msg) });
@@ -470,6 +471,95 @@ test('her head turn on the table waits for her glide to land', async (t) => {
   c.state(after({ melds: [['b1', ['SQ-0', 'HQ-0', 'CQ-0']]], phase: 'meld', draw: 38 }));
   assert.strictEqual(meldCard(c.doc, 'SQ-0').style.getPropertyValue('--q-delay'), '0ms');
   assert.deepEqual(c.errors, []);
+});
+
+// --- "Züge der Mitspieler" in "Optionen" ------------------------------------------------
+const box = (c) => c.doc.getElementById('oppMovesCheckbox');
+const toggle = (c, on) => {
+  box(c).checked = on;
+  box(c).dispatchEvent(new c.window.Event('change', { bubbles: true }));
+};
+
+test('"Züge der Mitspieler" is on by default, in the play aids, in both languages', async (t) => {
+  const c = boot();
+  t.after(() => c.window.close());
+  await ready();
+  assert.strictEqual(box(c).checked, true, 'new players see the moves');
+  assert.strictEqual(c.window.localStorage.getItem('pikdame_opp_moves'), null, 'nothing stored until a choice');
+  const row = box(c).closest('label.prefRow');
+  assert.ok(row && row.closest('.prefGroup').querySelector('.prefGroupTitle').textContent === 'Spielhilfen');
+  assert.strictEqual(row.querySelector('.prefLabel').textContent, 'Züge der Mitspieler');
+  assert.strictEqual(c.window.I18N_STATIC['Züge der Mitspieler'], "Other players' moves");
+  assert.ok(c.window.I18N_STATIC[row.querySelector('.prefSub').textContent], 'the sub line is translated too');
+  assert.deepEqual(c.errors, []);
+});
+
+test('switched off: the table shows the move at once and silently - exactly as before', async (t) => {
+  const c = boot();
+  t.after(() => c.window.close());
+  await ready();
+  c.join();
+  toggle(c, false);
+  assert.strictEqual(c.window.localStorage.getItem('pikdame_opp_moves'), 'off', 'kept on this device');
+  c.state(before());
+  c.clock.t += 50;
+  c.tones.length = 0;
+  c.state(after());
+  assert.deepEqual(ghosts(c.doc), [], 'no flights');
+  assert.deepEqual(c.anims, [], 'no card held back, no stand-in');
+  assert.ok(!c.doc.querySelector('#discardPile .oppUnder'));
+  assert.strictEqual(c.doc.getElementById('discardTopCard').textContent, '9♦', 'the discard lies there at once');
+  assert.ok(SEVENS.every((id) => meldCard(c.doc, id)), 'the meld is there at once');
+  await wait(700);
+  assert.deepEqual(c.tones, [], 'and no sounds for it');
+  assert.deepEqual(c.errors, []);
+});
+
+test('switched off mid-flight: every card lands at once; on again, the next move flies', async (t) => {
+  const c = boot();
+  t.after(() => c.window.close());
+  await ready();
+  c.join();
+  c.state(before());
+  c.clock.t += 50;
+  c.state(after());
+  const flights = ghosts(c.doc).map((g) => flightOf(c, g));
+  assert.strictEqual(flights.length, 5);
+  toggle(c, false);
+  assert.ok(flights.every((a) => a.cancelled) && ghosts(c.doc).length === 0, 'the flight ends');
+  assert.ok(c.anims.filter((a) => a.frames.every((f) => f.opacity === 0)).every((a) => a.cancelled), 'no card stays hidden');
+  // Horst's turn while off: nothing. On again: what happened meanwhile is not replayed.
+  c.clock.t += 400;
+  c.state(after({ cur: 'p1', turn: 10, draw: 38, pile: ['S8-0', 'D9-1', 'D4-0', 'C3-1'] }));
+  assert.deepEqual(ghosts(c.doc), []);
+  toggle(c, true);
+  assert.strictEqual(c.window.localStorage.getItem('pikdame_opp_moves'), 'on');
+  c.clock.t += 100;
+  c.state(after({ cur: 'p1', turn: 10, draw: 38, pile: ['S8-0', 'D9-1', 'D4-0', 'C3-1'], log: [{ text: 'x' }] }));
+  assert.deepEqual(ghosts(c.doc), [], 'a state that moved nothing after switching on: no stale replay');
+  assert.deepEqual(c.errors, []);
+});
+
+test('the choice survives a reload: off stays off, on flies again', async (t) => {
+  const off = boot({ stored: { pikdame_opp_moves: 'off' } });
+  t.after(() => off.window.close());
+  await ready();
+  assert.strictEqual(box(off).checked, false, 'the switch shows the kept choice');
+  off.join();
+  off.state(before());
+  off.clock.t += 50;
+  off.state(after());
+  assert.deepEqual(ghosts(off.doc), []);
+  const on = boot({ stored: { pikdame_opp_moves: 'on' } });
+  t.after(() => on.window.close());
+  await ready();
+  assert.strictEqual(box(on).checked, true);
+  on.join();
+  on.state(before());
+  on.clock.t += 50;
+  on.state(after());
+  assert.strictEqual(ghosts(on.doc).length, 5);
+  assert.deepEqual([...off.errors, ...on.errors], []);
 });
 
 // --- CSS contract -------------------------------------------------------------------------
