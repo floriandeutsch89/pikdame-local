@@ -81,9 +81,9 @@ Allowed from any seat at any time during a match.
 | `type` | Purpose |
 | --- | --- |
 | `emote` | Send an emoji reaction to the table. |
-| `togglePause` | Vote to pause. The game only pauses once every connected player agrees. |
-| `forfeitRound` | Vote to forfeit the whole game. The match only ends once every connected player agrees. |
-| `nextRound` | Signal readiness for the next round. |
+| `togglePause` | Vote to pause. The game only pauses once every player agrees. A player who dropped the connection still counts (as not yet agreed) until the 75 s takeover grace runs out. |
+| `forfeitRound` | Vote to forfeit the whole game. The match only ends once every player agrees. A player who dropped the connection still counts (as not yet agreed) until the 75 s takeover grace runs out. |
+| `nextRound` | Signal readiness for the next round. The round starts once every player confirmed; a disconnected player blocks until the 75 s takeover grace runs out. |
 | `rematch` | Start a new match with the same table. |
 | `exportLastGame` | Download the last finished game as JSON. |
 | `tutorialStep` | Tutorial tables only: a lesson was `shown` or `done` (`step`, a key from `game/TutorialSteps.js`), or the hints were switched `off` (ends the attempt as skipped). Only the seat's own progress, timed on the server clock, deduplicated and capped; never answered. Feeds `play_attempts` (admin "Festhänger"). |
