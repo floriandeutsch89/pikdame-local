@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 180">
+  <!-- A CSS mask (style.css "Marks in the felt"): only alpha counts, each theme brings its ink.
+       The four suits in a double ring: the ring's middle and the suits' inner lines are cut out. -->
+  <defs>
+    <mask id="cut" maskUnits="userSpaceOnUse" x="0" y="0" width="200" height="180">
+      <rect width="200" height="180" fill="#fff"/>
+      <g fill="none" stroke="#000" stroke-width="5" stroke-linejoin="round">
+        <path transform="translate(100 46.6) scale(.56)" d="M0-31C6-21 27-9 27 5C27 15 19 21 11 20C7.6 19.6 4.8 17.8 3 15H-3C-4.8 17.8-7.6 19.6-11 20C-19 21-27 15-27 5C-27-9-6-21 0-31Z"/>
+        <path transform="translate(142 90) scale(.56)" d="M0-31Q9-15 23 0Q9 15 0 31Q-9 15-23 0Q-9-15 0-31Z"/>
+        <path transform="translate(100 131.7) scale(.56)" d="M0 29C-9 20-29 6-29-9C-29-20-21-27-13.5-27C-7-27-2.5-22.5 0-17C2.5-22.5 7-27 13.5-27C21-27 29-20 29-9C29 6 9 20 0 29Z"/>
+        <path transform="translate(58 88.6) scale(.56)" d="M-2.5 7.9A12.5 12.5 0 1 1-11.05-9.15A12.5 12.5 0 1 1 11.05-9.15A12.5 12.5 0 1 1 2.5 7.9Z"/>
+      </g>
+      <circle cx="100" cy="90" r="83" fill="none" stroke="#000" stroke-width="2.4"/>
+    </mask>
+  </defs>
+  <g>
+    <g mask="url(#cut)">
+      <circle cx="100" cy="90" r="83" fill="none" stroke="#000" stroke-width="8"/>
+      <path transform="translate(100 48) scale(.9)" d="M0-31C6-21 27-9 27 5C27 15 19 21 11 20C7.6 19.6 4.8 17.8 3 15Q4.5 24 10 29H-10Q-4.5 24-3 15C-4.8 17.8-7.6 19.6-11 20C-19 21-27 15-27 5C-27-9-6-21 0-31Z"/>
+      <path transform="translate(142 90) scale(.9)" d="M0-31Q9-15 23 0Q9 15 0 31Q-9 15-23 0Q-9-15 0-31Z"/>
+      <path transform="translate(100 132) scale(.9)" d="M0 29C-9 20-29 6-29-9C-29-20-21-27-13.5-27C-7-27-2.5-22.5 0-17C2.5-22.5 7-27 13.5-27C21-27 29-20 29-9C29 6 9 20 0 29Z"/>
+      <path transform="translate(58 90) scale(.9)" d="M-2.5 7.9A12.5 12.5 0 1 1-11.05-9.15A12.5 12.5 0 1 1 11.05-9.15A12.5 12.5 0 1 1 2.5 7.9Q4 22 10 29H-10Q-4 22-2.5 7.9Z"/>
+    </g>
+    <path d="M100 80Q101.6 88.4 110 90Q101.6 91.6 100 100Q98.4 91.6 90 90Q98.4 88.4 100 80Z"/>
+  </g>
+</svg>

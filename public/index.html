@@ -249,6 +249,8 @@
     <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14.5 4 9.5l5-5"/><path d="M4 9.5h10a6 6 0 0 1 0 12h-3"/></symbol>
     <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.2 18.5 12 8 18.8z"/></symbol>
     <symbol id="i-cards" viewBox="0 0 24 24"><rect x="8.5" y="5" width="11" height="15" rx="2"/><path d="M5.6 7.4 4.2 8a2 2 0 0 0-1.1 2.6l3.3 8.1"/></symbol>
+    <!-- The table's motif: a spade pressed into a panel of felt. -->
+    <symbol id="i-feltmark" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path fill="currentColor" stroke="none" d="M12 8.3c1.3 1.5 3.2 2.7 3.2 4.3a1.7 1.7 0 0 1-2.9 1.1l.4 2.1h-1.4l.4-2.1a1.7 1.7 0 0 1-2.9-1.1c0-1.6 1.9-2.8 3.2-4.3z"/></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
     <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3.2c-4.9 0-8.8 3.7-8.8 8.4 0 4.6 3.6 7.7 8 7.7 1.5 0 2.4-.9 2.4-2 0-.6-.2-1-.6-1.4-.3-.4-.5-.7-.5-1.2 0-.9.7-1.6 1.7-1.6h1.6c2.7 0 4.8-2 4.8-4.8 0-3-3.4-5.1-8.6-5.1z"/><circle cx="7.6" cy="11.4" r="1.25"/><circle cx="11" cy="7.9" r="1.25"/><circle cx="15.6" cy="8.8" r="1.25"/></symbol>
     <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></symbol>
@@ -1301,6 +1303,13 @@
                 <svg class="icon prefIcon" aria-hidden="true"><use href="#i-cards"/></svg>
                 <span class="prefText"><span class="prefLabel">Kartenrücken</span></span>
                 <span class="prefValue" id="cardbackValue">Klassisch</span>
+                <svg class="icon prefChevron" aria-hidden="true"><use href="#i-chevron"/></svg>
+              </button>
+              <!-- The picture in the felt, earned by level and badges; client.js names the chosen one. -->
+              <button type="button" id="tableMarkBtn" class="prefRow prefLink">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-feltmark"/></svg>
+                <span class="prefText"><span class="prefLabel">Tischmotiv</span></span>
+                <span class="prefValue" id="tableMarkValue"></span>
                 <svg class="icon prefChevron" aria-hidden="true"><use href="#i-chevron"/></svg>
               </button>
               <!-- Only where the browser has the Fullscreen API (not iPhone Safari): client.js. -->

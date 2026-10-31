@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 180">
+  <!-- A CSS mask (style.css "Marks in the felt"): only alpha counts, each theme brings its ink.
+       A brilliant with its sparkles: the girdle and the facets are cut out, so the felt itself draws them. -->
+  <defs>
+    <mask id="cut" maskUnits="userSpaceOnUse" x="0" y="0" width="200" height="180">
+      <rect width="200" height="180" fill="#fff"/>
+      <g fill="none" stroke="#000" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">
+        <path d="M30 80H170"/>
+        <path d="M74 50 66 80 100 50 134 80 126 50"/>
+        <path d="M66 80 100 156 134 80"/>
+      </g>
+    </mask>
+  </defs>
+  <g>
+    <path d="M72 48H128L168 80L100 160L32 80Z" mask="url(#cut)" stroke="#000" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M38 18Q40 32 52 34Q40 36 38 50Q36 36 24 34Q36 32 38 18Z"/>
+    <path d="M166 28Q167.5 37 176 38.5Q167.5 40 166 49Q164.5 40 156 38.5Q164.5 37 166 28Z"/>
+    <path d="M160 116Q161 123 167 124Q161 125 160 132Q159 125 153 124Q159 123 160 116Z"/>
+  </g>
+</svg>

@@ -510,6 +510,8 @@ test('client contract: functions that build translated markup are refreshed by c
     // Overlays, die ihren Inhalt beim OEFFNEN aufbauen: Wer die Sprache
     // wechselt, hat sie zu; beim naechsten Oeffnen stehen sie richtig.
     'openChangelog', 'openCardbackGallery', 'renderChallengeTrend', 'buildTrendPlot', 'showLevelUp',
+    // The card back and table motif galleries: built on every opening, closed by any other tap.
+    'openCosmeticGallery',
     // Aktualisierungs-Hinweis: erscheint einmalig und fuehrt zum Neuladen.
     'showUpdateBanner',
     // Discard confirmation: the dialog text is written fresh on every

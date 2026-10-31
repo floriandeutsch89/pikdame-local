@@ -57,6 +57,9 @@ external frontend dependencies.
   (offline-capable, no audio files), haptics.
 - **Unlockable card backs** tied to your own record (10 wins, 25 games,
   3× out-in-one), shown in a gallery with the goal on every locked tile.
+- **Table motifs**: seven pictures pressed into your felt, unlocked at levels
+  5, 15 and 25 and by four rare badges, picked in the same kind of gallery.
+  Only you see yours; a holiday or a birthday at the table takes precedence.
 - **Studio splash** on the first start of a device (tap to skip) — with a
   setting for every start or off; reduced motion gets the calm variant.
 - **Tutorial mode** for first-time players: contextual hints explain each

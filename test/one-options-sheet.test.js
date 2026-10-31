@@ -142,7 +142,7 @@ test('"Dieser Tisch" shows at the table only, on top, with the house rules read-
   ]);
   assert.equal(doc.querySelectorAll('#tableRules input, #tableRules select, #tableRules button').length, 0, 'read-only');
   // Navigation rows carry a chevron.
-  for (const id of ['tableRulesBtn', 'tableLogBtn', 'cardbackBtn', 'versionBtn']) {
+  for (const id of ['tableRulesBtn', 'tableLogBtn', 'cardbackBtn', 'tableMarkBtn', 'versionBtn']) {
     assert.ok($(id).querySelector('.prefChevron'), `${id} has a chevron`);
   }
 

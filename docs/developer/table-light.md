@@ -109,7 +109,17 @@ bar; only the shared `#table[data-mark]::before` rules place it.
 
 - **Which mark** (`tableMarkFor`): a birthday at this table, else the day's holiday
   from `game/Holidays.js` (Halloween, Nikolaus, Christmas, New Year's Eve, New
-  Year, Easter). A mark the player picks would be the last fallback.
+  Year, Easter), else the player's own mark, else none.
+- **The player's own mark** (`TABLE_MARKS` in `client.js`, art in
+  `public/marks/`): picked under "Optionen" → "Darstellung" → "Tischmotiv",
+  stored like the card back (`pikdame_table_mark`, this device only) and never
+  sent, so nobody else at the table sees it. Unlocked like the card backs, from
+  the own name-based profile: by level (`myLevel`) or by a badge
+  (`profile.badges`), rare ones by preference (`game/BadgeRarity.js`). A stored
+  choice that is not (yet) unlocked draws nothing and stays stored, so it comes
+  back with the profile. The gallery's swatch (`.markSwatch`) shares each mark's
+  art and tint rule with the table; level marks appear among the level rewards,
+  badge marks on that badge's unlock card. Ids never name an occasion.
 - **The birthday** is the table's, not the device's: `state.birthdayToday` is true
   when a seat whose account was verified at join has its `PIKDAME_BIRTHDAY` day
   today (`game/GameDay.js`). Only at a private table (opened with "Tisch
@@ -119,11 +129,15 @@ bar; only the shared `#table[data-mark]::before` rules place it.
   no seat (`game/GreetingDays.js` `greetingAtTable`).
 - **Strength**: a tint at the pumpkin's strength would push a lighter colour over
   the contrast budget, so a lighter tint brings its own alpha
-  (`rgb(… / 0.84)`): its heaviest theme stays at ~88 % of the budget.
+  (`rgb(… / 0.84)`): its heaviest theme stays at ~88 % of the budget. Pick a
+  saturated tint: a light neutral (ivory) mostly lifts lightness, the one thing
+  the budget limits, and hit it at a visible step of only ~2.5 on Nacht.
 - **Contract** (`test/occasion-table.test.js`): over every mark, in every theme at
   every quarter hour, no main, muted or accent text drops below the table's noon
-  floor of the section above; every holiday of `game/Holidays.js` and the
-  birthday have their art.
+  floor of the section above, and every mark keeps a visible step (CIEDE2000 ≥ 3.8)
+  on the bare felt; every holiday of `game/Holidays.js`, the birthday and every
+  own mark have their art. The own marks' gallery and precedence:
+  `test/table-marks-client.test.js`.
 
 ## Measuring on pixels
 
