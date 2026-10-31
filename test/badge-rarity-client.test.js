@@ -11,7 +11,8 @@ const { BADGE_IDS } = require('../game/Badges');
 
 const pub = path.join(__dirname, '..', 'public');
 const html = fs.readFileSync(path.join(pub, 'index.html'), 'utf8');
-const NNBSP = '\u{202F}';
+const NNBSP = '\u{202F}'; // "12 %": the tile and the sentence alike
+const NBSP = '\u{00A0}'; // keeps "Selten –" together
 const T1 = Date.UTC(2026, 8, 1);
 
 function boot({ lang = 'de' } = {}) {
@@ -91,19 +92,19 @@ test('every badge tile shows its share, locked ones too; under the line it is ma
   assert.strictEqual(shown(earnedRare), `4${NNBSP}%`);
   assert.ok(earnedRare.querySelector('.achRarity').classList.contains('rare'));
   assert.ok(earnedRare.querySelector('.achRarity use[href="#i-rare"]'), 'the glint is a sprite icon, not an emoji');
-  assert.strictEqual(spoken(earnedRare), 'Selten: nur 4\u{00A0}% der Spieler haben das');
+  assert.strictEqual(spoken(earnedRare), `Selten${NBSP}– von nur 4${NNBSP}% der Spieler erreicht`);
 
   const lockedCommon = tile('pd_caught');
   assert.ok(!lockedCommon.classList.contains('earned'));
   assert.strictEqual(shown(lockedCommon), `88${NNBSP}%`);
   assert.ok(!lockedCommon.querySelector('.achRarity').classList.contains('rare'));
   assert.strictEqual(lockedCommon.querySelector('.achRarity use'), null, 'no glint on a common badge');
-  assert.strictEqual(lockedCommon.querySelector('.achRarity').title, '88\u{00A0}% der Spieler haben das');
+  assert.strictEqual(lockedCommon.querySelector('.achRarity').title, `Von 88${NNBSP}% der Spieler erreicht`, 'the tooltip says it too');
 
   const lockedFew = tile('pik_royal');
   assert.strictEqual(shown(lockedFew), `<${NNBSP}1${NNBSP}%`, 'held by few or none: "< 1 %", never 0');
   assert.ok(lockedFew.querySelector('.achRarity').classList.contains('rare'));
-  assert.strictEqual(spoken(lockedFew), 'Selten: weniger als 1\u{00A0}% der Spieler haben das');
+  assert.strictEqual(spoken(lockedFew), `Selten${NBSP}– von unter 1${NNBSP}% der Spieler erreicht`);
   assert.deepStrictEqual(t.errors, []);
   t.window.close();
 });
@@ -116,9 +117,9 @@ test('a family tile shows the share of the tier it names; the detail gives every
   tile('games').click();
   const lines = [...box.querySelectorAll('.achDetail .achRarityLine')];
   assert.deepStrictEqual(lines.map((l) => l.textContent), [
-    '41\u{00A0}% der Spieler haben das',
-    '12\u{00A0}% der Spieler haben das',
-    'Selten: nur 6\u{00A0}% der Spieler haben das',
+    `Von 41${NNBSP}% der Spieler erreicht`,
+    `Von 12${NNBSP}% der Spieler erreicht`,
+    `Selten${NBSP}– von nur 6${NNBSP}% der Spieler erreicht`,
   ]);
   assert.deepStrictEqual(lines.map((l) => l.classList.contains('rare')), [false, false, true]);
   assert.ok(lines[2].querySelector('use[href="#i-rare"]'));
@@ -126,18 +127,19 @@ test('a family tile shows the share of the tier it names; the detail gives every
 
   tile('royal_flush').click();
   assert.deepStrictEqual([...box.querySelectorAll('.achDetail .achRarityLine')].map((l) => l.textContent),
-    ['Selten: nur 4\u{00A0}% der Spieler haben das'], 'a single badge: one line');
+    [`Selten${NBSP}– von nur 4${NNBSP}% der Spieler erreicht`], 'a single badge: one line, the same words as a tier');
   t.window.close();
 });
 
-test('English: "4%" on the tile, "Rare: only 4% of players have this" in the detail', async () => {
+test('English: "4%" on the tile, "Rare – earned by only 4% of players" in the detail', async () => {
   const { t, box, tile } = await cabinet({ lang: 'en' });
   assert.strictEqual(shown(tile('royal_flush')), '4%');
   assert.strictEqual(shown(tile('pik_royal')), '<1%');
   tile('royal_flush').click();
-  assert.strictEqual(box.querySelector('.achDetail .achRarityLine').textContent, 'Rare: only 4% of players have this');
+  assert.strictEqual(box.querySelector('.achDetail .achRarityLine').textContent, `Rare${NBSP}– earned by only 4% of players`);
   tile('pd_caught').click();
-  assert.strictEqual(box.querySelector('.achDetail .achRarityLine').textContent, '88% of players have this');
+  assert.strictEqual(box.querySelector('.achDetail .achRarityLine').textContent, 'Earned by 88% of players');
+  assert.strictEqual(spoken(tile('pik_royal')), `Rare${NBSP}– earned by under 1% of players`);
   t.window.close();
 });
 
@@ -159,8 +161,9 @@ test('a broken value is skipped, not shown; without the line nothing is rare', a
   assert.strictEqual(shown(tile('wins')), `71${NNBSP}%`);
   t.window.close();
 
-  const noLine = await cabinet({ badgeRarity: { percent: { royal_flush: 4 } } });
+  const noLine = await cabinet({ badgeRarity: { percent: { royal_flush: 4, pik_royal: 0 } } });
   assert.strictEqual(shown(noLine.tile('royal_flush')), `4${NNBSP}%`);
   assert.ok(!noLine.tile('royal_flush').querySelector('.achRarity').classList.contains('rare'));
+  assert.strictEqual(spoken(noLine.tile('pik_royal')), `Von unter 1${NNBSP}% der Spieler erreicht`, 'not rare: no "Selten"');
   noLine.t.window.close();
 });

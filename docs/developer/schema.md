@@ -95,7 +95,9 @@ for `updated_at`. Badges from before `011` (and imported ones) count as shown.
 
 A badge's rarity (the trophy cabinet's "12 %", `game/BadgeRarity.js`) is the
 share of *counted players* holding it: confirmed accounts whose player
-(`users.player_id`) finished a match (`games_played > 0`). Guests are names
+(`users.player_id`) played in any mode: a match (`games_played > 0`; a daily
+challenge is booked as one), a solved daily puzzle (`puzzles_solved > 0`) or
+a starred Kartenhaus floor (`tower_floors_cleared > 0`). Guests are names
 anyone can type and are left out, so are sign-ups that never played; their
 badges do not count as held either, so no share passes 100 %. One aggregate
 query every 15 minutes, cached in the process: no table, no index (it reads

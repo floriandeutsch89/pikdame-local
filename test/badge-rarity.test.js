@@ -1,7 +1,8 @@
 /** Badge rarity (game/BadgeRarity.js): the share of players holding each badge, counted
- *  over confirmed accounts whose player finished a match. Guests, accounts without a
- *  match and unconfirmed sign-ups are left out; under 20 such accounts nothing is shown;
- *  a timer refreshes the cached shares, and a failed refresh never throws. */
+ *  over confirmed accounts that played in any mode (a match, a daily puzzle, a Kartenhaus
+ *  floor). Guests, accounts that never played and unconfirmed sign-ups are left out; under
+ *  20 such accounts nothing is shown; a timer refreshes the cached shares, and a failed
+ *  refresh never throws. */
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
@@ -53,12 +54,15 @@ test('rarityFromRows: a share for every catalogue badge and the rare line; nothi
 
 // --- The query on PostgreSQL --------------------------------------------------------
 
-/** Players with `games` finished matches and `badges`; `account`: 'confirmed' (linked to
- *  the player like a confirmed sign-up) or 'unconfirmed' (no link yet). */
+/** Players with `games` finished matches, `puzzles` solved daily puzzles, `floors` starred
+ *  Kartenhaus floors and `badges`; `account`: 'confirmed' (linked to the player like a
+ *  confirmed sign-up) or 'unconfirmed' (no link yet). */
 async function seed(pool, players, list) {
   for (const p of list) {
-    if (p.games) for (let i = 0; i < p.games; i++) await players.recordGameResult([{ name: p.name, score: 120, won: false }]);
-    else await players.upsertPlayerProfile(p.name);
+    await players.upsertPlayerProfile(p.name);
+    for (let i = 0; i < (p.games || 0); i++) await players.recordGameResult([{ name: p.name, score: 120, won: false }]);
+    for (let i = 0; i < (p.puzzles || 0); i++) await players.recordPuzzleAttempt(p.name, `2026-10-${10 + i}`, true);
+    for (let i = 0; i < (p.floors || 0); i++) await players.recordTowerResult(p.name, '2026-10', i + 1, 1);
     if (p.badges && p.badges.length) await players.awardBadges(p.name, p.badges);
     if (p.account) {
       await pool.query(`INSERT INTO users (username, email, password_hash, password_salt, email_verified, player_id)
@@ -71,21 +75,24 @@ const accounts = (n, badgesOf = () => [], prefix = 'Konto') => Array.from({ leng
   name: `${prefix}${String(i + 1).padStart(2, '0')}`, games: 1, account: 'confirmed', badges: badgesOf(i),
 }));
 
-test('the query: confirmed accounts with a finished match; guests, match-less and unconfirmed accounts are left out', async (t) => {
+test('the query: confirmed accounts that played in any mode; guests, accounts that never played and unconfirmed sign-ups are left out', async (t) => {
   const pool = testPool(t, 'rarity');
   const players = createPlayerStore(pool, { legacyFile: null });
   await players.ready();
-  // 19 accounts plus one through the real sign-up: confirming links the account to its player.
+  // 17 accounts with a match plus one through the real sign-up: confirming links the account to its player.
   const signups = createPgAccountStore(pool);
   const signup = await signups.registerWithoutPassword('Echt', 'echt@example.org');
   assert.ok((await signups.verifyEmail(signup.verifyToken)).ok);
   await seed(pool, players, [{ name: 'Echt', games: 1, badges: ['pd_laid', 'first_win', 'pik_royal'] }]);
-  await seed(pool, players, accounts(19, (i) => ['pd_laid', ...(i < 4 ? ['first_win'] : [])]));
+  await seed(pool, players, accounts(17, (i) => ['pd_laid', ...(i < 4 ? ['first_win'] : [])]));
   await seed(pool, players, [
+    // No match, but playing: a daily-puzzle solver and a Kartenhaus builder count.
+    { name: 'Raetsler', puzzles: 1, account: 'confirmed', badges: ['pd_laid', 'puzzle_7'] },
+    { name: 'Baumeisterin', floors: 1, account: 'confirmed', badges: ['pd_laid', 'tower_3'] },
     // Guests (typed names): their badges never count.
-    ...Array.from({ length: 10 }, (_, i) => ({ name: `Gast${i}`, games: 3, badges: ['pik_royal', 'run_13', 'first_win'] })),
-    // An account whose player never finished a match: neither counted nor holding.
-    { name: 'Raetsler', games: 0, account: 'confirmed', badges: ['puzzle_7'] },
+    ...Array.from({ length: 10 }, (_, i) => ({ name: `Gast${i}`, games: 3, puzzles: 1, badges: ['pik_royal', 'run_13', 'first_win'] })),
+    // Signed up, never played anything: neither counted nor holding.
+    { name: 'Schlaefer', account: 'confirmed', badges: ['run_13'] },
     // A sign-up never confirmed: no player link.
     { name: 'Neuling', games: 2, account: 'unconfirmed', badges: ['run_13'] },
   ]);
@@ -95,14 +102,15 @@ test('the query: confirmed accounts with a finished match; guests, match-less an
   const r = await rarity.refresh();
   assert.strictEqual(r, rarity.get());
   assert.strictEqual(r.rareBelow, 10);
-  assert.strictEqual(r.percent.first_win, 25, '5 of 20: the guests and the match-less account are not counted');
-  assert.strictEqual(r.percent.pd_laid, 100, 'every counted account');
+  assert.strictEqual(r.percent.first_win, 25, '5 of 20: the guests and the account that never played are not counted');
+  assert.strictEqual(r.percent.pd_laid, 100, 'every counted account, the solver and the builder included');
+  assert.strictEqual(r.percent.puzzle_7, 5, 'the puzzle-only account counts');
+  assert.strictEqual(r.percent.tower_3, 5, 'the Kartenhaus-only account counts');
   assert.strictEqual(r.percent.pik_royal, 5, '1 of 20 (rare); ten guests hold it as well');
-  assert.strictEqual(r.percent.run_13, 0, 'guests and an unconfirmed sign-up only');
-  assert.strictEqual(r.percent.puzzle_7, 0, 'only the account without a match holds it');
+  assert.strictEqual(r.percent.run_13, 0, 'guests, an account that never played and an unconfirmed sign-up only');
 
   // One counted account goes: 19 left, below the guard.
-  await pool.query("DELETE FROM users WHERE username = 'Konto19'");
+  await pool.query("DELETE FROM users WHERE username = 'Konto17'");
   assert.strictEqual(await rarity.refresh(), null, '19 players: no shares');
 });
 

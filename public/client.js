@@ -11230,24 +11230,27 @@
     if (!Number.isInteger(pct) || pct < 0 || pct > 100) return null;
     return { pct, rare: Number.isInteger(badgeRarity.rareBelow) && pct < badgeRarity.rareBelow };
   }
+  // German "12 %" with a narrow no-break space, on the tile and in the sentence alike.
+  const PCT_SPACE = '\u{202F}';
   // 0 means "under 1 %": the viewer may hold it as a guest, so never a plain 0.
-  function rarityPctText(pct, space = NBSP) {
-    return pct === 0 ? L(`<${space}1${space}%`, '<1%') : `${pct}${L(`${space}%`, '%')}`;
+  function rarityPctText(pct) {
+    return pct === 0 ? L(`<${PCT_SPACE}1${PCT_SPACE}%`, '<1%') : `${pct}${L(`${PCT_SPACE}%`, '%')}`;
   }
+  // No pronoun: it reads for a badge and for a tier alike.
   function raritySentence({ pct, rare }) {
-    if (pct === 0) return L(`Selten: weniger als 1${NBSP}% der Spieler haben das`, 'Rare: fewer than 1% of players have this');
-    const share = rarityPctText(pct);
-    return rare ? L(`Selten: nur ${share} der Spieler haben das`, `Rare: only ${share} of players have this`)
-      : L(`${share} der Spieler haben das`, `${share} of players have this`);
+    const share = pct === 0 ? L(`unter 1${PCT_SPACE}%`, 'under 1%') : rarityPctText(pct);
+    if (!rare) return L(`Von ${share} der Spieler erreicht`, `Earned by ${share} of players`);
+    const only = pct === 0 ? '' : L('nur ', 'only ');
+    return L(`Selten${NBSP}– von ${only}${share} der Spieler erreicht`, `Rare${NBSP}– earned by ${only}${share} of players`);
   }
   // On a tile: the share in a band above the picture (the favourite star sits top right),
-  // a rare one with the gold glint. A narrow space keeps the band short.
+  // a rare one with the gold glint. The narrow space keeps the band short.
   function rarityTileHtml(id) {
     const r = badgeRarityOf(id);
     if (!r) return '';
     const sentence = escapeHtml(raritySentence(r));
     return `<span class="achRarity${r.rare ? ' rare' : ''}" title="${sentence}">${r.rare ? iconHtml('rare') : ''}` +
-      `<span aria-hidden="true">${escapeHtml(rarityPctText(r.pct, '\u{202F}'))}</span><span class="visuallyHidden">${sentence}</span></span>`;
+      `<span aria-hidden="true">${escapeHtml(rarityPctText(r.pct))}</span><span class="visuallyHidden">${sentence}</span></span>`;
   }
   function rarityLineHtml(id) {
     const r = badgeRarityOf(id);

@@ -140,10 +140,12 @@ The other **25** are earned by a fact about one match (computed in
 
 Like achievement percentages on Steam, the trophy cabinet shows on every
 tile (locked ones too) the share of players holding that badge; a family
-tile shows the tier it names, its detail every tier. *Players* are the
-confirmed accounts whose player finished at least one match: guests are
-names anyone can type, and sign-ups that never played would only dilute
-it. Only those accounts count as holders too. Under
+tile shows the tier it names, its detail every tier ("Von 12 % der
+Spieler erreicht"). *Players* are the confirmed accounts that played in any
+mode: a match (the daily challenge is one), a solved daily puzzle or a
+starred Kartenhaus floor. Guests are names anyone can type, and sign-ups
+that never played would only dilute it. Only those accounts count as
+holders too. Under
 **10 %** a badge is marked rare (a gold glint); below 1 % it reads
 "< 1 %", never 0. With fewer than **20** such accounts nothing
 is shown. One aggregate query (`game/BadgeRarity.js`), cached and

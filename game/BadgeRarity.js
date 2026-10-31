@@ -1,7 +1,7 @@
 // game/BadgeRarity.js
 // Badge rarity like Steam's achievement percentages: the share of players holding each
-// badge. Players = confirmed accounts whose player finished a match (guests are typed
-// names; sign-ups that never played would dilute it). See docs/developer/schema.md.
+// badge. Players = confirmed accounts that played in any mode (guests are typed names;
+// sign-ups that never played would dilute it). See docs/developer/schema.md.
 'use strict';
 const { ensureMigrated } = require('./Migrations');
 const { BADGE_IDS } = require('./Badges');
@@ -12,8 +12,9 @@ const RARITY_REFRESH_MS = 15 * 60 * 1000;
 
 // One statement: the badge_id NULL row is the denominator, the rest count its holders. A
 // semi-join hashes the counted ids; a CTE joined to the badges hashed all badges (spilled).
+// Any mode: a match (a daily challenge is booked as one), a solved puzzle, a starred floor.
 const COUNTED = `SELECT p.id FROM users u JOIN players p ON p.id = u.player_id
-  WHERE u.email_verified AND p.games_played > 0`;
+  WHERE u.email_verified AND (p.games_played > 0 OR p.puzzles_solved > 0 OR p.tower_floors_cleared > 0)`;
 const RARITY_SQL = `SELECT NULL::text AS badge_id, count(*)::int AS holders FROM (${COUNTED}) counted
   UNION ALL
   SELECT b.badge_id, count(*)::int FROM player_badges b WHERE b.player_id IN (${COUNTED}) GROUP BY b.badge_id`;
