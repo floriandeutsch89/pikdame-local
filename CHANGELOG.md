@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.124.1] - 2026-10-31
+
+### Fixed
+- Am Stammtisch sehen jetzt alle die Bot-Stärke an den Bot-Kärtchen im Spiel, nicht nur der
+  Organisator: Wer dazukam, sah sie bisher nur, wenn die Bots verschieden stark spielten. Das gilt
+  für jeden Tisch mit mehreren Spielern; umstellen kann sie weiter nur der Organisator.
+- Die letzten Partien im Stammtisch-Blatt nennen die Stärke der Bots wie „Meine Partien“, etwa
+  „Uwe (Mittel)“. Partien von vorher zeigen weiter „(Bot)“.
+
 ## [2.124.0] - 2026-10-31
 
 ### Added
