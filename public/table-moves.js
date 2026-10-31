@@ -194,8 +194,9 @@
 
   /** A w×h card's straight flight between poses { x, y, s, deg } (centre, scale, tilt), cut
    *  to where it covers none of `boxes`: over a dimmed pile a card reads as a flicker. Leaving
-   *  a pile it starts once clear for good, else it ends before its first touch; null: too short.
-   *  `pad` keeps it off a pile's stacked layers too (box shadows, 6.5 px: style.css stacked-2). */
+   *  a pile it starts once clear for good, else it ends before its first touch (`cut`: that
+   *  share of the way); null: too short. `pad` keeps it off a pile's stacked layers too (box
+   *  shadows, 6.5 px: style.css stacked-2). */
   function clearFlight(from, to, w, h, boxes, leaving, { pad = 8, steps = 40, min = 0.3 } = {}) {
     const at = (p) => ({
       x: from.x + (to.x - from.x) * p,
@@ -220,7 +221,7 @@
       }
     }
     if ((leaving ? 1 - cut : cut) < min) return null;
-    return leaving ? { from: at(cut), to } : { from, to: at(cut) };
+    return leaving ? { from: at(cut), to, cut } : { from, to: at(cut), cut };
   }
 
   return { FACE_DOWN, BUDGET_MS, TAKE_SHOWN, facts, diff, changed, plan, pileMoves, clearFlight };

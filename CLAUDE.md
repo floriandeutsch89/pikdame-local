@@ -260,6 +260,9 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
   Mocks beantworten `getStammtisch` selbst; gesperrt = Server neu starten.
 - **Server-Log in Tests:** stdout kommt nach der HTTP-Antwort an. Trefferzahl
   vor der Anfrage merken, auf eine NEUE Zeile warten (`lastFromLog(re, after)`).
+- **Fire-and-forget-Writes** (Admin-Audit, PlayEvents) landen nach der Antwort:
+  im Test auf die Zeile warten (`waitFor`), nie sofort zählen. Timer-Callbacks
+  nie per `Date.now()` nachprüfen, sie feuern bis ~1 ms früher (#529).
 - **WS-Antworten in Tests:** verschiedene Anfragen antworten in beliebiger
   Reihenfolge (eigene DB-Abfragen) → auf jeden Typ warten, nie auf eine Folge (lokal grün, CI rot).
 - **Sim-/Seed-Skripte: Logging aus** (`PIKDAME_LOG_GAMES=0` im Skript selbst),
