@@ -4808,7 +4808,7 @@
     // Kartenhaus "Ohne Ablage": explain instead of a silent tap or a server refusal.
     if (el('discardPile').classList.contains('towerLocked')) { explainTowerLock(); return; }
     if (el('discardPile').classList.contains('disabled')) return;
-    // The last discard may still be in the air: show the card that is really taken.
+    // My own move begins: whatever of the last turn still flies lands now.
     try { endTableMoves(); } catch (e) { /* cosmetic */ }
     // Known-illegal take: still ask the server (it explains WHY in its
     // error toast) but skip the sound and the card flying to the hand - they
@@ -7523,8 +7523,9 @@
 
   // --- Other players' moves fly -------------------------------------------------
   // table-moves.js names what the player on turn did; a ghost shows it: stock or
-  // pile -> their chip, chip -> meld card, chip -> pile. The real card stays hidden
-  // until its ghost lands. One turn at a time: the next player's state ends it.
+  // pile -> their chip, chip -> meld card, chip -> pile. The piles always show the
+  // state (a ghost fades in and out beside them, never over them); a new meld card stays
+  // hidden until its ghost lands. One turn at a time: the next player's state ends it.
   const OPP_EASE = 'cubic-bezier(.4, 0, .2, 1)';
   const OPP_HOLD_SLACK_MS = 120; // a hidden card shows on its own this late if its ghost never lands
 
@@ -7569,13 +7570,15 @@
     }
   }
 
-  /** Where a flight lands, if it lands on a card: the meld slot, or the pile's new top. */
+  /** The real card a meld flight lands on, in its slot (the piles never hide a card). */
   function landingNode(f) {
-    if (f.kind === 'meld') return meldCardNode(f.meld, f.id);
-    if (f.kind !== 'discard') return null;
+    return f.kind === 'meld' ? meldCardNode(f.meld, f.id) : null;
+  }
+
+  /** The thrown card still lies on top (a later state may have taken it): only then it flies. */
+  function pileShows(f) {
     const top = lastState.discardTop;
-    const same = top && (f.card.faceDown ? !!top.faceDown : top.id === f.id);
-    return same ? el('discardTopCard') : null;
+    return !!top && (f.card.faceDown ? !!top.faceDown : top.id === f.id);
   }
 
   /** Hides the real card at a flight's landing spot until the ghost lands (or a moment later on its own). */
@@ -7591,7 +7594,6 @@
       if (a) { try { a.cancel(); } catch (e) { /* already gone */ } }
     }
     if (f.ghost) f.ghost.remove();
-    if (f.standIn) f.standIn.remove();
   }
 
   /** End of renderTable: meld cards rebuilt while their ghost flies stay hidden; then the launch. */
@@ -7602,7 +7604,7 @@
       const elapsed = performance.now() - turn.t0;
       for (const f of turn.flights) {
         const left = f.start + f.dur - elapsed;
-        if (!f.launched || f.lost || left <= 0 || (f.kind !== 'meld' && f.kind !== 'discard')) continue;
+        if (!f.launched || f.lost || left <= 0 || f.kind !== 'meld') continue;
         const node = landingNode(f);
         if (!node) dropFlight(f); // taken back, filtered away: it lands nowhere
         else if (f.holdEl !== node) holdLanding(f, node, left);
@@ -7640,23 +7642,6 @@
       div.classList.add('empty');
       div.textContent = L('leer', 'empty');
     }
-  }
-
-  /** The pile as it lay before the discard, over the hidden new top card until the ghost lands. */
-  function pileStandIn(ms) {
-    const under = (lastState.discardCards || [])[1] || null;
-    const count = Math.max(0, (lastState.discardPileCount || 0) - 1);
-    const d = document.createElement('div');
-    d.className = 'pile-card oppUnder';
-    d.setAttribute('aria-hidden', 'true');
-    paintPileCard(d, under);
-    d.classList.toggle('stacked-2', count > 6);
-    d.classList.toggle('stacked-1', count > 1 && count <= 6);
-    el('discardPile').appendChild(d);
-    // Visibility, not opacity: the pile's own dimming (not my turn) applies to it too.
-    const a = d.animate([{ visibility: 'visible' }, { visibility: 'visible' }], { duration: ms });
-    a.onfinish = () => d.remove();
-    return d;
   }
 
   /** A pile card in the air: the stock's size and type (every pile card shares them). */
@@ -7702,6 +7687,20 @@
     return { cx: r.left + r.width / 2, cy: r.top + r.height / 2, w: node.offsetWidth || r.width };
   }
 
+  /** The two piles as the eye sees them: card, count and buttons, not the caption below. */
+  function pileBoxes() {
+    return ['drawPile', 'discardPile'].map((id) => {
+      let b = null;
+      for (const n of el(id).children) {
+        const r = n.classList.contains('pileLabel') ? null : n.getBoundingClientRect();
+        if (!r || !r.width || !r.height) continue; // hidden
+        b = b ? { left: Math.min(b.left, r.left), top: Math.min(b.top, r.top), right: Math.max(b.right, r.right), bottom: Math.max(b.bottom, r.bottom) }
+          : { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+      }
+      return b;
+    });
+  }
+
   /** One ghost between the player's chip and the stock, the pile or a meld card. */
   function flyTableMove(turn, f, elapsed) {
     const chip = [...el('opponents').children].find((d) => d.dataset.playerId === f.who);
@@ -7718,10 +7717,10 @@
       if (box.cx < view.left || box.cx > view.right || box.cy < view.top || box.cy > view.bottom) return false;
       ghost = meldCardGhost(landing);
     } else {
-      // Her own exit plays on the pile when she is taken (queenGhost).
+      // Her own moments play on the pile: the turn away when she is taken (queenGhost), her head turn when thrown.
       const m = queenMoments.get('pileOut');
       if (f.kind === 'take' && m && m.id === f.id) return false;
-      if (f.kind === 'discard' && !landing) return false;
+      if (f.kind === 'discard' && (!pileShows(f) || isPikdameUp(f.card))) return false;
       box = cardBox(f.kind === 'draw' ? el('drawPile').querySelector('.pile-card') : el('discardTopCard'));
       ghost = pileCardGhost(f.kind === 'draw' ? { faceDown: true } : f.card);
     }
@@ -7729,35 +7728,39 @@
     if (!w || !h || !box.w) return false;
     const a = anchor.getBoundingClientRect();
     const s = Math.max(0.3, Math.min(0.9, (chip.getBoundingClientRect().height * 0.62) / h));
-    const pose = (cx, cy, scale, deg) => `translate(${cx - w / 2}px, ${cy - h / 2}px) rotate(${deg}deg) scale(${scale})`;
-    const atCard = pose(box.cx, box.cy, box.w / w, 0);
-    const atChip = (deg) => pose(a.left + a.width / 2, a.top + a.height / 2, s, deg);
-    const toChip = f.kind === 'draw' || f.kind === 'take';
-    const frames = toChip
-      ? [{ transform: atCard, opacity: 1 }, { opacity: 1, offset: 0.65 }, { transform: atChip(8), opacity: 0 }]
-      : [{ transform: atChip(-8), opacity: 0 }, { opacity: 1, offset: 0.3 }, { transform: atCard, opacity: 1 }];
+    const atChip = (deg) => ({ x: a.left + a.width / 2, y: a.top + a.height / 2, s, deg });
+    const atCard = { x: box.cx, y: box.cy, s: box.w / w, deg: 0 };
+    const leaving = f.kind === 'draw' || f.kind === 'take';
+    // A pile card in the air never covers a pile: it appears beside its pile and is gone before
+    // the next, so the piles (dimmed off-turn) never flicker and show only the state's own card.
+    const way = f.kind === 'meld' ? { from: atChip(-8), to: atCard }
+      : tableMoves.clearFlight(leaving ? atCard : atChip(-8), leaving ? atChip(8) : atCard, w, h, pileBoxes(), leaving);
+    if (!way) return false; // no room to fly clear of the piles: the card simply is there
+    const pose = (q) => `translate(${q.x - w / 2}px, ${q.y - h / 2}px) rotate(${q.deg}deg) scale(${q.s})`;
+    const [from, to] = [pose(way.from), pose(way.to)];
+    const frames = f.kind === 'meld'
+      ? [{ transform: from, opacity: 0 }, { opacity: 1, offset: 0.3 }, { transform: to, opacity: 1 }]
+      : leaving
+        ? [{ transform: from, opacity: 0 }, { opacity: 1, offset: 0.4 }, { opacity: 1, offset: 0.65 }, { transform: to, opacity: 0 }]
+        : [{ transform: from, opacity: 0 }, { opacity: 1, offset: 0.3 }, { opacity: 1, offset: 0.6 }, { transform: to, opacity: 0 }];
     g.setAttribute('aria-hidden', 'true');
     g.style.transform = frames[0].transform;
     g.style.opacity = '0'; // invisible until its turn in the stagger
     document.body.appendChild(g);
-    const left = f.start + f.dur - elapsed;
-    if (landing) holdLanding(f, landing, left);
-    if (f.kind === 'discard') f.standIn = pileStandIn(left + OPP_HOLD_SLACK_MS);
+    if (landing) holdLanding(f, landing, f.start + f.dur - elapsed);
     f.ghost = g;
     f.anim = g.animate(frames, { duration: f.dur, delay: f.start - elapsed, easing: OPP_EASE, fill: 'forwards' });
-    // It lands: in the same frame the real card takes its place.
+    // It lands: in the same frame a meld card takes its place.
     f.anim.onfinish = () => {
       if (f.hold) f.hold.cancel();
-      if (f.standIn) f.standIn.remove();
       g.remove();
-      if (f.kind === 'discard') popPileTop();
     };
     turn.timers.push(setTimeout(() => g.remove(), f.start + f.dur - elapsed + 400)); // a hidden tab may never finish it
     return true;
   }
 
-  /** In the frame after the render (nothing was painted in between): the turn's clock starts, the
-   *  real cards hide where they will land, the ghosts take off, the sounds are timed. */
+  /** In the frame after the render (nothing was painted in between): the turn's clock starts, new
+   *  meld cards hide where they will land, the ghosts take off, the sounds are timed. */
   function launchTableMoves(turn) {
     if (turn !== oppTurn) return;
     const now = performance.now();
@@ -7776,14 +7779,13 @@
       f.launched = true;
       const flew = turn.live && !f.lost && flyTableMove(turn, f, elapsed);
       if (!flew) dropFlight(f); // no ghost: the card shows at once, and later renders leave it alone
-      // Her head turn on the table starts when her card lands there.
-      const key = f.kind === 'meld' ? f.id : 'pile';
-      const m = flew && (f.kind === 'meld' || f.kind === 'discard') ? queenMoments.get(key) : null;
-      if (m && !m.shifted && (f.kind === 'meld' ? m.kind === 'meld' : m.kind === 'discard' && m.id === f.id)) {
+      // Her head turn in a meld starts when her card lands there (on the pile she turns at once).
+      const m = flew && f.kind === 'meld' ? queenMoments.get(f.id) : null;
+      if (m && !m.shifted && m.kind === 'meld') {
         m.at = turn.t0 + f.start + f.dur;
         m.shifted = true;
-        f.queen = key;
-        queenDecorate(f.holdEl, key, f.kind === 'meld' ? 'meld' : 'pile');
+        f.queen = f.id;
+        queenDecorate(f.holdEl, f.id, 'meld');
       }
       if (f.cue && !sheet) {
         const cue = f.cue;
@@ -7793,15 +7795,6 @@
     }
     clearTimeout(turn.endTimer);
     turn.endTimer = setTimeout(() => { if (oppTurn === turn) endTableMoves(); }, Math.max(0, end - elapsed) + 80);
-  }
-
-  /** The discard lands: the pile's pop, now that its card shows (her own turn has one built in). */
-  function popPileTop() {
-    const top = el('discardTopCard');
-    if (top.classList.contains('qTurn')) return;
-    top.classList.remove('pop');
-    void top.offsetWidth; // restart the animation
-    top.classList.add('pop');
   }
 
   /** Ends the turn in flight at once: ghosts gone, every card where the state has it. */

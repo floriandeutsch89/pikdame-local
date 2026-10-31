@@ -2026,9 +2026,7 @@ a.btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset
   pointer-events: none;
 }
 .oppFly.back::after { width: var(--of-mw, 26px); height: var(--of-mw, 26px); font-size: var(--of-mf, 1em); }
-/* The pile as it lay before, over its new (hidden) top card until the discard lands. */
-.pile-card.oppUnder { position: absolute; top: 0; left: 0; right: 0; margin: 0 auto; visibility: hidden; pointer-events: none; }
-@media (prefers-reduced-motion: reduce) { .oppFly, .oppUnder { display: none; } }
+@media (prefers-reduced-motion: reduce) { .oppFly { display: none; } }
 
 /* Toast: letzte Aktion */
 /* --- Stale-bundle banner ----------------------------------------------------
