@@ -626,6 +626,8 @@
     'near_miss', 'cold_shower', 'rock_bottom', 'red_lantern', 'royal_flush', 'pik_royal',
   ];
   let globalStatsData = null;
+  // Share of players per badge with the server's rare line (game/BadgeRarity.js); null: none shown.
+  let badgeRarity = null;
   let lastGameProgress = null; // XP + lifetime record of the match just finished
   let myGameHistory = null; // null = noch nicht angefragt, [] = angefragt und leer // anonyme Server-Zähler (Partien, Pik Damen, ...)
   // --- Fortschritt über Partien hinweg ------------------------------------
@@ -1856,6 +1858,7 @@
       // showed it (player report).
       try { applyCardback(); } catch (e) { /* Kosmetik bricht nie den Start */ }
       globalStatsData = msg.globalStats || null;
+      badgeRarity = msg.badgeRarity && typeof msg.badgeRarity === 'object' ? msg.badgeRarity : null;
       // Öffentlicher Server: Profile/Statistik sind deaktiviert.
       publicMode = !!msg.publicMode;
       el('statsBtn').classList.toggle('hidden', publicMode);
@@ -11225,6 +11228,40 @@
     if (lvl) lastLevelSeen = lvl;
   }
 
+  /** { pct, rare } of a badge, or null when the server sends no shares (too few players). */
+  function badgeRarityOf(id) {
+    const pct = badgeRarity && badgeRarity.percent ? badgeRarity.percent[id] : undefined;
+    if (!Number.isInteger(pct) || pct < 0 || pct > 100) return null;
+    return { pct, rare: Number.isInteger(badgeRarity.rareBelow) && pct < badgeRarity.rareBelow };
+  }
+  // German "12 %" with a narrow no-break space, on the tile and in the sentence alike.
+  const PCT_SPACE = '\u{202F}';
+  // 0 means "under 1 %": the viewer may hold it as a guest, so never a plain 0.
+  function rarityPctText(pct) {
+    return pct === 0 ? L(`<${PCT_SPACE}1${PCT_SPACE}%`, '<1%') : `${pct}${L(`${PCT_SPACE}%`, '%')}`;
+  }
+  // No pronoun: it reads for a badge and for a tier alike.
+  function raritySentence({ pct, rare }) {
+    const share = pct === 0 ? L(`unter 1${PCT_SPACE}%`, 'under 1%') : rarityPctText(pct);
+    if (!rare) return L(`Von ${share} der Spieler erreicht`, `Earned by ${share} of players`);
+    const only = pct === 0 ? '' : L('nur ', 'only ');
+    return L(`Selten${NBSP}– von ${only}${share} der Spieler erreicht`, `Rare${NBSP}– earned by ${only}${share} of players`);
+  }
+  // On a tile: the share in a band above the picture (the favourite star sits top right),
+  // a rare one with the gold glint. The narrow space keeps the band short.
+  function rarityTileHtml(id) {
+    const r = badgeRarityOf(id);
+    if (!r) return '';
+    const sentence = escapeHtml(raritySentence(r));
+    return `<span class="achRarity${r.rare ? ' rare' : ''}" title="${sentence}">${r.rare ? iconHtml('rare') : ''}` +
+      `<span aria-hidden="true">${escapeHtml(rarityPctText(r.pct))}</span><span class="visuallyHidden">${sentence}</span></span>`;
+  }
+  function rarityLineHtml(id) {
+    const r = badgeRarityOf(id);
+    if (!r) return '';
+    return `<span class="achRarityLine${r.rare ? ' rare' : ''}">${r.rare ? iconHtml('rare') : ''}<span>${escapeHtml(raritySentence(r))}</span></span>`;
+  }
+
   function renderAchievements() {
     const box = el('achievementsBox');
     if (!box) return;
@@ -11243,15 +11280,16 @@
       const m = badgeMeta(id);
       const at = owned[id];
       const p = progress[id];
+      const rarity = rarityTileHtml(id);
       const sub = at
         ? fmtDate(at, { day: 'numeric', month: 'numeric', year: 'numeric' })
         : p && p.need > 1
           ? `${p.have}/${p.need}`
           : L('gesperrt', 'locked');
-      return `<button type="button" class="achTile${at ? ' earned' : ''}${favKeys.includes(id) ? ' fav' : ''}" data-ach="${id}" aria-expanded="false" title="${escapeHtml(m.how)}">
+      return `<button type="button" class="achTile${at ? ' earned' : ''}${favKeys.includes(id) ? ' fav' : ''}${rarity ? ' hasRarity' : ''}" data-ach="${id}" aria-expanded="false" title="${escapeHtml(m.how)}">
         <span class="achEmoji">${at ? m.emoji : iconHtml('lock')}</span>
         <span class="achName">${escapeHtml(m.name)}</span>
-        <span class="achSub">${escapeHtml(sub)}</span>${favMark(id)}
+        <span class="achSub">${escapeHtml(sub)}</span>${favMark(id)}${rarity}
       </button>`;
     };
     // A family is ONE tile: the highest earned tier gives it name and
@@ -11267,11 +11305,13 @@
         ? p && p.need > 1 ? `${p.have}/${p.need}` : L('gesperrt', 'locked')
         : L('alle Stufen', 'all tiers');
       const title = next ? badgeMeta(next).how : m.desc;
-      return `<button type="button" class="achTile achFamily${top ? ' earned' : ''}${!next ? ' maxed' : ''}${favKeys.includes(fam.id) ? ' fav' : ''}" data-ach="${fam.id}" aria-expanded="false" title="${escapeHtml(title)}">
+      // The share of the badge the tile names: the top tier reached, else the first.
+      const rarity = rarityTileHtml(top || fam.tiers[0]);
+      return `<button type="button" class="achTile achFamily${top ? ' earned' : ''}${!next ? ' maxed' : ''}${favKeys.includes(fam.id) ? ' fav' : ''}${rarity ? ' hasRarity' : ''}" data-ach="${fam.id}" aria-expanded="false" title="${escapeHtml(title)}">
         <span class="achEmoji">${top ? m.emoji : iconHtml('lock')}</span>
         <span class="achName">${escapeHtml(m.name)}</span>
         <span class="achTiers">${dots}</span>
-        <span class="achSub">${escapeHtml(sub)}</span>${favMark(fam.id)}
+        <span class="achSub">${escapeHtml(sub)}</span>${favMark(fam.id)}${rarity}
       </button>`;
     };
     const total = BADGE_FAMILIES.reduce((n, f) => n + f.tiers.length, 0) + BADGE_SINGLES.length;
@@ -11422,7 +11462,7 @@
         ? `<span class="achTierNo">${escapeHtml(L(`Stufe ${i + 1}`, `Tier ${i + 1}`))}${id === next ? ` · ${escapeHtml(L('als Nächstes', 'next'))}` : ''}</span>`
         : '';
       return `<li class="${cls}">${tier}<b>${escapeHtml(m.name)}</b>` +
-        `${state ? ` <span class="achDetailState">${state}</span>` : ''}<span class="achHow">${escapeHtml(m.how)}</span></li>`;
+        `${state ? ` <span class="achDetailState">${state}</span>` : ''}<span class="achHow">${escapeHtml(m.how)}</span>${rarityLineHtml(id)}</li>`;
     };
     const head = badgeMeta(fam ? (fam.tiers.filter((id) => owned[id]).pop() || fam.tiers[0]) : key);
     const title = fam
