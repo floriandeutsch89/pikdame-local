@@ -104,6 +104,28 @@ test('recordGame: a team match counts as played (list, goals, games, points), ne
   assert.strictEqual(await st.lastWinner(table.code), 'Flo', 'the winning team\'s top scorer deals next time');
 });
 
+test('recordGame: a bot seat keeps its level for the match list (owner report), humans and unknown levels carry none', async (t) => {
+  const { st, pool } = tempStore(t);
+  const { table } = await st.create('Runde', 'Flo');
+  const players = (level) => [{ id: 'a', name: 'Flo' }, { id: 'b', name: 'Anna', botDifficulty: 'hard' },
+    { id: 'x', name: 'Uwe', isBot: true, botDifficulty: level }];
+  await st.recordGame(table.code, rec('a', { a: 1010, b: 400, x: 200 }, players('medium')));
+  await st.recordGame(table.code, rec('a', { a: 1010, b: 400, x: 200 }, players('expert'))); // never stored, never refused
+  const team = teamRec(0, { a: 1100, b: 950, c: 990, x: 880 });
+  team.players[3].botDifficulty = 'zen';
+  const booked = await st.recordGame(table.code, team);
+  const seats = (g) => g.players.map((p) => [p.name, p.botDifficulty]);
+  assert.deepStrictEqual(booked.summary.recent.map(seats), [
+    [['Flo', undefined], ['Ben', undefined], ['Anna', undefined], ['Uwe', 'zen']],
+    [['Flo', undefined], ['Anna', undefined], ['Uwe', undefined]],
+    [['Flo', undefined], ['Anna', undefined], ['Uwe', 'medium']],
+  ], 'newest first: the team match, the unknown level, the first match');
+  assert.ok(!('botDifficulty' in booked.summary.recent[1].players[2]), 'no level: the old shape');
+  assert.deepStrictEqual((await st.chipInfo(table.code)).recent.map(seats), booked.summary.recent.map(seats), 'the sheet gets them too');
+  assert.deepStrictEqual((await pool.query('SELECT bot_difficulty FROM stammtisch_game_seats WHERE is_bot ORDER BY game_no')).rows
+    .map((r) => r.bot_difficulty), ['medium', null, 'zen']);
+});
+
 test('recordGame: the series runs on across a team match; a finished one stays until the next solo match', async (t) => {
   const { st } = tempStore(t);
   const { table } = await st.create('Runde', 'Flo');

@@ -93,6 +93,12 @@ shown at the migration, and new badges start NULL. An old container still
 running during the deploy inserts badges without it; they get their card from
 the new one on the owner's next visit.
 
+`012_stammtisch_bot_levels.sql` adds `stammtisch_game_seats.bot_difficulty`:
+a bot seat's level, so the Stammtisch sheet's "Letzte Partien" names it like
+"Meine Partien" does (see {doc}`schema`). No default, so no table rewrite; every
+kept seat stays NULL and reads "Bot". An old container still running during the
+deploy books its seats without a level, just like before.
+
 ## Rules
 
 - **Forward-only.** There are no down migrations; undo a change with a new file.
