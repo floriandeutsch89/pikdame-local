@@ -1,8 +1,9 @@
-/** Occasion days at the table: every holiday and the birthday has its mark in the felt; no text
- *  over a mark (style.css) drops below the table's noon minimum, in any theme at any hour of the
- *  table light, and every mark stays visible; it takes no tap or space; the table shows the right
- *  mark (client.js tableMarkFor: a birthday at the table wins over the holiday); the Queen of
- *  Spades' announcement wears the occasion's hat (client.js showRaidWarning). */
+/** Occasion days at the table: every holiday and the birthday has its mark in the felt, and so has
+ *  every mark the player can unlock (client.js TABLE_MARKS); no text over a mark (style.css) drops
+ *  below the table's noon minimum, in any theme at any hour of the table light, and every mark
+ *  stays visible; it takes no tap or space; the table shows the right mark (client.js
+ *  tableMarkFor: a birthday at the table wins over the holiday, test/table-marks-client.test.js
+ *  the player's own); the Queen of Spades' announcement wears the occasion's hat (showRaidWarning). */
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
@@ -10,11 +11,23 @@ const path = require('path');
 const { JSDOM } = require('jsdom');
 const { phaseWeights } = require('../public/table-light.js');
 const { HOLIDAY_IDS } = require('../game/Holidays');
+const { BADGE_IDS } = require('../game/Badges');
 const { CSS, stripComments, THEMES, over, contrast, deltaE2000, light, inks, floorOf } = require('./helpers/table-light-model');
 
 const pub = path.join(__dirname, '..', 'public');
 const css = stripComments(CSS);
-const MARK_IDS = [...HOLIDAY_IDS, 'birthday'];
+
+/** client.js TABLE_MARKS: the marks a player unlocks and picks, each with one gate (level or badge). */
+const PLAYER_MARKS = (() => {
+  const block = fs.readFileSync(path.join(pub, 'client.js'), 'utf8').match(/const TABLE_MARKS = \[([\s\S]*?)\n {2}\];/);
+  assert.ok(block, 'TABLE_MARKS literal in client.js');
+  const re = /\{ id: '([a-z]+)', label: '([^']+)', labelEn: '([^']+)', gate: (?:null|\{ (?:level: (\d+)|badge: '([a-z0-9_]+)') \}) \}/g;
+  const marks = [...block[1].matchAll(re)].map((m) => ({ id: m[1], level: m[4] ? Number(m[4]) : null, badge: m[5] || null }));
+  assert.strictEqual(marks.length, (block[1].match(/\{ id: /g) || []).length, 'every TABLE_MARKS entry is read');
+  return marks;
+})();
+const OWN_IDS = PLAYER_MARKS.filter((m) => m.level || m.badge).map((m) => m.id);
+const MARK_IDS = [...HOLIDAY_IDS, 'birthday', ...OWN_IDS];
 
 /** Every top-level and nested rule with a declaration of `prop`: { selectors, value }. Scanned once per prop. */
 const declared = new Map();
@@ -87,10 +100,16 @@ test('occasion watermark: every occasion\'s mark is centred in the felt, and sta
   }
 });
 
-test('occasion watermark: every holiday and the birthday has its own local, self-contained art', () => {
+test('occasion watermark: every holiday, the birthday and every own mark has its own local, self-contained art', () => {
   const marks = declarationsOf('--table-mark');
   for (const { selectors, value } of marks) {
-    assert.ok(selectors.every((s) => /^#table\[data-mark="[a-z]+"\]$/.test(s)), `${selectors}: set per mark id`);
+    const ids = selectors.map((s) => /^(?:#table|\.markSwatch)\[data-mark="([a-z]+)"\]$/.exec(s));
+    assert.ok(ids.every(Boolean), `${selectors}: set per mark id`);
+    const id = ids[0][1];
+    assert.ok(ids.every((x) => x[1] === id), `${selectors}: one mark per rule`);
+    assert.ok(selectors.includes(`#table[data-mark="${id}"]`), `${id}: drawn on the table`);
+    // An own mark's gallery swatch takes the very same art and tint; an occasion is never picked.
+    assert.strictEqual(selectors.includes(`.markSwatch[data-mark="${id}"]`), OWN_IDS.includes(id), `${id}: a swatch exactly for the own marks`);
     const m = /^url\('([a-z0-9/-]+\.svg)'\)$/.exec(value);
     assert.ok(m, `${selectors}: a relative url('….svg'), got ${value}`);
     const svg = fs.readFileSync(path.join(pub, m[1]), 'utf8');
@@ -107,6 +126,31 @@ test('occasion watermark: every holiday and the birthday has its own local, self
     files.add(art.value);
     assert.ok(declarationsOf('--mark-tint').some((d) => d.selectors.includes(`#table[data-mark="${id}"]`)), `${id}: brings its tint`);
   }
+});
+
+test('own marks: none first, ids no occasion uses, one real gate each, the levels a ladder', () => {
+  assert.deepStrictEqual(PLAYER_MARKS[0], { id: 'none', level: null, badge: null }, 'the plain felt first, never locked');
+  assert.strictEqual(new Set(PLAYER_MARKS.map((m) => m.id)).size, PLAYER_MARKS.length, 'ids unique');
+  assert.ok(OWN_IDS.length >= 5 && OWN_IDS.length <= 7, `a small collection (${OWN_IDS.length})`);
+  assert.strictEqual(OWN_IDS.length, PLAYER_MARKS.length - 1, 'every mark but "none" has a gate');
+  for (const m of PLAYER_MARKS.slice(1)) {
+    // The occasion always wins (client.js tableMarkFor); a shared id would blur which one shows.
+    assert.ok(![...HOLIDAY_IDS, 'birthday'].includes(m.id), `${m.id}: not an occasion's id`);
+    assert.ok(!!m.level !== !!m.badge, `${m.id}: one gate, a level or a badge`);
+    if (m.badge) assert.ok(BADGE_IDS.includes(m.badge), `${m.id}: ${m.badge} is a badge of game/Badges.js`);
+  }
+  const levels = PLAYER_MARKS.filter((m) => m.level).map((m) => m.level);
+  assert.ok(levels.length >= 2 && PLAYER_MARKS.filter((m) => m.badge).length >= 2, 'some by level, some by badge');
+  assert.deepStrictEqual(levels, [...levels].sort((a, b) => a - b), 'level marks in the order they unlock');
+  assert.ok(levels.every((l) => l > 1 && l <= 50), 'within the level ladder of the other cosmetics');
+  // The swatch: the theme's felt, the same tint in a stronger ink (a fifth of the size), the same fallback.
+  const swatch = css.match(/\n\.markSwatch \{([^}]*)\}/);
+  assert.ok(swatch, 'the gallery has a swatch');
+  assert.match(swatch[1], /--mark-ink:\s*color-mix\(in srgb, var\(--mark-tint\) \d+%, transparent\)/, 'its ink mixes the mark\'s tint');
+  assert.match(swatch[1], /var\(--bg\)/, 'on the theme\'s own felt');
+  assert.match(css, /\[data-theme="kitchen"\] \.markSwatch \{ --mark-ink: rgb\(255 252 244 \/ [\d.]+\); \}/, 'the kitchen\'s pale inlay');
+  const before = css.match(/\n\.markSwatch::before \{([^}]*)\}/);
+  assert.ok(before && /var\(--table-mark, linear-gradient\(transparent, transparent\)\) center \/ contain no-repeat/.test(before[1]), 'the art centred and whole, nothing without art');
 });
 
 test('occasion watermark: the art behind the hat is in the markup', () => {
@@ -141,7 +185,7 @@ function markVar(prop, id, theme) {
   }
   return undefined;
 }
-const ARTS = declarationsOf('--table-mark').flatMap((d) => d.selectors.map((s) => /^#table\[data-mark="([a-z]+)"\]$/.exec(s)[1]));
+const ARTS = declarationsOf('--table-mark').flatMap((d) => d.selectors.map((s) => (/^#table\[data-mark="([a-z]+)"\]$/.exec(s) || [])[1]).filter(Boolean));
 /** What a mark paints on the felt of `theme` at phase weights `w`. */
 const markLight = (theme, id, w) => {
   const tint = markVar('--mark-tint', id, theme);

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 180">
+  <!-- A CSS mask (style.css "Marks in the felt"): only alpha counts, each theme brings its ink.
+       A crown with five pearls: its jewels, the band's edge and the rim are cut out, so the felt itself draws them. -->
+  <defs>
+    <mask id="cut" maskUnits="userSpaceOnUse" x="0" y="0" width="200" height="180">
+      <rect width="200" height="180" fill="#fff"/>
+      <g fill="none" stroke="#000">
+        <path d="M30 118H170" stroke-width="3.6"/>
+        <path d="M30 136Q100 147 170 136" stroke-width="2.8"/>
+      </g>
+      <g fill="#000">
+        <ellipse cx="100" cy="127.5" rx="8.5" ry="6"/>
+        <path d="M73 121.5 79 127.5 73 133.5 67 127.5ZM127 121.5 133 127.5 127 133.5 121 127.5Z"/>
+        <circle cx="49" cy="127" r="4"/><circle cx="151" cy="127" r="4"/>
+        <path d="M100 62 106.5 77 100 92 93.5 77Z"/>
+        <circle cx="64" cy="90" r="3.6"/><circle cx="136" cy="90" r="3.6"/>
+      </g>
+    </mask>
+    <filter id="soft" x="-5%" y="-5%" width="110%" height="110%">
+      <feGaussianBlur stdDeviation="0.45"/>
+    </filter>
+  </defs>
+  <g filter="url(#soft)" transform="translate(0 4)">
+    <g mask="url(#cut)">
+      <path d="M38 119C33 98 29 78 26 58C34 76 46 90 57 97C60 87 62 78 64 68C70 82 77 92 84 98C90 80 96 60 100 38C104 60 110 80 116 98C123 92 130 82 136 68C138 78 140 87 143 97C154 90 166 76 174 58C171 78 167 98 162 119Z"/>
+      <path d="M36 117H164Q168 117 168 121V140Q168 143 165 143.5Q100 155 35 143.5Q32 143 32 140V121Q32 117 36 117Z"/>
+    </g>
+    <circle cx="26" cy="52" r="7"/><circle cx="64" cy="62" r="6"/><circle cx="100" cy="31" r="8.5"/><circle cx="136" cy="62" r="6"/><circle cx="174" cy="52" r="7"/>
+  </g>
+</svg>
