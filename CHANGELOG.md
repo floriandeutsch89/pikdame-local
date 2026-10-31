@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.127.0] - 2026-10-31
+
+### Added
+- Eigene Tischmotive: Unter „Optionen“ → „Darstellung“ → „Tischmotiv“ wählst du ein Motiv, das dezent in deinen Tisch geprägt ist – nur auf deinem Gerät, die anderen am Tisch sehen es nicht. Sieben Motive zum Freischalten:
+  - über Stufen: „Vier Farben“ (ab Stufe 5), „Lorbeerkranz“ (ab Stufe 15) und „Krone“ (ab Stufe 25)
+  - über seltene Abzeichen: „Eule“ (Nachteule), „Brillant“ (Royal Flush), „Pik Dame“ (Damenlegende) und „Kartenhaus“ (Lehrling: ein gekröntes Kartenhaus)
+- An Feiertagen und Geburtstagen hat das Festmotiv am Tisch Vorrang, danach ist wieder dein Motiv zu sehen. Standard bleibt der Tisch ohne Motiv
+- Neue Tischmotive stehen bei den Belohnungen im Stufenaufstieg und auf der Karte des Abzeichens, das sie freischaltet
+
 ## [2.126.1] - 2026-10-31
 
 ### Fixed
