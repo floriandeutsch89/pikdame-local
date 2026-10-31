@@ -90,7 +90,11 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   down first and organizes, two bots on Mittel - their chips' level badges).
 - **Before/after from one script:** `SHOTS_ROOT=<checkout>` shoots another
   checkout (e.g. a detached `origin/main` worktree) with this script, so
-  new scenes exist for the "before" pictures too.
+  new scenes exist for the "before" pictures too. Confined to a worktree:
+  `git archive -o <scratch>/base.tar <base>`, untar it in the scratchpad and
+  symlink the main checkout's `node_modules` into it (a worktree has none of
+  its own). `<base>` = `git merge-base HEAD origin/main`: a main that moved
+  meanwhile put an unrelated Halloween pumpkin into the "before" shots.
 - **Reduced motion:** `--reduced-motion` emulates `prefers-reduced-motion:
   reduce` - the still pictures instead of the animations.
 - **Victory celebrations:** `--celebration <id>` (e.g. `cats`) gives me that
