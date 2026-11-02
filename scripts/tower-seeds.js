@@ -5,10 +5,12 @@
 // game/TowerRule.js). Run with onnxruntime-node installed OUTSIDE the repo (CLAUDE.md):
 //   NODE_PATH=/path/ort/node_modules node scripts/tower-seeds.js --prove
 //   NODE_PATH=/path/ort/node_modules node scripts/tower-seeds.js 2026-10 2026-12 [--jobs 3]
+//   NODE_PATH=/path/ort/node_modules node scripts/tower-seeds.js 2026-11 2026-11 --floors 12,15
 //   NODE_PATH=/path/ort/node_modules node scripts/tower-seeds.js --rate 300
 // --prove replays the committed deals and rewrites the proofs (after an intended
 // bot change), failing when Zen lost a star; the month form re-picks the floors
-// that break the rule (others stay); --rate N prints Hard's star rate per floor.
+// that break the rule (others stay; --floors: only these, a month already played);
+// --rate N prints Hard's star rate per floor.
 'use strict';
 process.env.PIKDAME_LOG_GAMES = '0'; // simulated games are no human moves (they filled the disk once)
 const fs = require('fs');
@@ -19,6 +21,7 @@ const OnnxPolicy = require('../game/OnnxPolicy');
 const TowerGen = require('../game/TowerGen');
 const { STATIC_END } = require('../game/TowerMonths');
 const { playFloor, slipRate } = require('../game/TowerPlay');
+const R = require('../game/TowerRule');
 
 const FILE = path.join(__dirname, '..', 'game', 'TowerSeeds.js');
 const PROOFS = path.join(__dirname, '..', 'test', 'fixtures', 'tower-proofs.json');
@@ -48,10 +51,11 @@ function writeSeeds(out) {
   fs.writeFileSync(FILE, `${SEEDS_HEADER}module.exports = {\n${lines}\n};\n`);
 }
 
-/** One floor per line: { month: [{ seed, hard?: [stars, margin, hash], zen: [...], medium10? }] }. */
+/** One floor per line: { month: [{ seed, hard?: [stars, margin, hash], zen: [...], medium10?, hard10? }] }. */
 function writeProofs(proofs) {
   const months = Object.keys(proofs).sort();
-  const body = months.map((m) => `  ${JSON.stringify(m)}: [\n${proofs[m].map((f) => `    ${JSON.stringify(f)}`).join(',\n')}\n  ]`).join(',\n');
+  const line = (f) => JSON.stringify(f).replace(/[,:]/g, '$& '); // the committed style; no string holds , or :
+  const body = months.map((m) => `  ${JSON.stringify(m)}: [\n${proofs[m].map((f) => `    ${line(f)}`).join(',\n')}\n  ]`).join(',\n');
   fs.mkdirSync(path.dirname(PROOFS), { recursive: true });
   fs.writeFileSync(PROOFS, `{\n${body}\n}\n`);
 }
@@ -65,12 +69,13 @@ const proofEntry = (f) => ({
   ...(f.hard ? { hard: f.hard } : {}),
   zen: f.zen,
   ...(f.medium10 != null ? { medium10: f.medium10 } : {}),
+  ...(f.hard10 != null ? { hard10: f.hard10 } : {}),
 });
 
 /** Runs one month in a child process (the parent fans out over --jobs). */
-function runWorker(month) {
+function runWorker(month, floors) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [__filename, '--worker', month], { stdio: ['ignore', 'pipe', 'inherit'] });
+    const child = spawn(process.execPath, [__filename, '--worker', month, ...(floors ? ['--floors', floors.join(',')] : [])], { stdio: ['ignore', 'pipe', 'inherit'] });
     let stdout = '';
     child.stdout.on('data', (d) => { stdout += d; });
     // The runtime logs to stdout too: the result follows the last marker.
@@ -78,7 +83,7 @@ function runWorker(month) {
   });
 }
 
-async function generate(from, to, jobs) {
+async function generate(from, to, jobs, floors) {
   const t0 = Date.now();
   const months = monthsBetween(from, to);
   if (months.some((m) => m > STATIC_END)) throw new Error(`months after ${STATIC_END} are built by the server (game/TowerMonths.js)`);
@@ -89,7 +94,7 @@ async function generate(from, to, jobs) {
   await Promise.all(Array.from({ length: Math.max(1, jobs) }, async () => {
     while (queue.length) {
       const m = queue.shift();
-      results[m] = await runWorker(m);
+      results[m] = await runWorker(m, floors);
     }
   }));
   const failed = [];
@@ -120,19 +125,24 @@ async function proveAll() {
       const hard = await playFloor({ seed, stage, month, proxy: 'hard' });
       const zen = await playFloor({ seed, stage, month, proxy: 'zen' });
       const prev = (old[month] || [])[stage - 1];
+      const same = prev && prev.seed === seed;
       const legacy = isLegacy(month, stage);
       const proofOf = (o) => [o.stars, o.margin, o.hash];
+      // Hard's slip rate: measured once where missing (not for October, it predates the gate).
+      let hard10 = same ? prev.hard10 : undefined;
+      if (hard10 == null && stage > 10 && month !== LEGACY.month) hard10 = await slipRate({ seed, stage, month, n: R.HARD_GAMES, proxy: 'hard' });
       proofs[month].push(proofEntry({
         seed, hard: legacy || hard.stars >= 1 ? proofOf(hard) : undefined, zen: proofOf(zen),
-        medium10: prev && prev.seed === seed ? prev.medium10 : undefined,
+        medium10: same ? prev.medium10 : undefined, hard10,
       }));
+      if (hard10 != null && hard10 < R.HARD_MIN) lost.push(`${month} floor ${stage} (Hard ${hard10} % < ${R.HARD_MIN} %)`);
       if (!legacy && zen.stars < 1) lost.push(`${month} floor ${stage}`);
       if (!legacy && stage <= 2 && hard.stars < 1) lost.push(`${month} floor ${stage} (Hard, easy-bot replay)`);
     }
   }
   writeProofs(proofs);
   if (lost.length) {
-    console.error(`no star on: ${lost.join(', ')} - regenerate those months`);
+    console.error(`no star or off the rule: ${lost.join(', ')} - regenerate those floors`);
     process.exit(1);
   }
 }
@@ -146,12 +156,18 @@ async function rateAll(n) {
   }
 }
 
+function floorsArg(args) {
+  const i = args.indexOf('--floors');
+  return i > -1 ? args[i + 1].split(',').map(Number) : null;
+}
+
 async function main() {
   const args = process.argv.slice(2);
   if (args[0] === '--worker') {
     const month = args[1];
     const fixed = month === LEGACY.month ? Object.fromEntries(LEGACY.seeds.map((s, i) => [i + 1, s])) : {};
-    const res = await TowerGen.generateMonth({ month, floors: readProofs()[month] || [], mode: 'rule', play, rate, fixed, log });
+    const only = floorsArg(args);
+    const res = await TowerGen.generateMonth({ month, floors: readProofs()[month] || [], mode: 'rule', play, rate, fixed, only, log });
     process.stdout.write(RESULT + JSON.stringify(res));
     return;
   }
@@ -165,8 +181,8 @@ async function main() {
   const jobsIdx = args.indexOf('--jobs');
   const jobs = jobsIdx > -1 ? Number(args[jobsIdx + 1]) || 1 : 3;
   const [from, to] = args.filter((a) => /^\d{4}-\d{2}$/.test(a));
-  if (!from || !to) throw new Error('usage: tower-seeds.js <from YYYY-MM> <to YYYY-MM> [--jobs N] | --prove | --rate N');
-  await generate(from, to, jobs);
+  if (!from || !to) throw new Error('usage: tower-seeds.js <from YYYY-MM> <to YYYY-MM> [--jobs N] [--floors 12,15] | --prove | --rate N');
+  await generate(from, to, jobs, floorsArg(args));
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

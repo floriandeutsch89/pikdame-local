@@ -3,12 +3,16 @@
 'use strict';
 
 /** Bump when the rule or the candidate order changes: stored months record it. */
-const GEN_VERSION = 1;
+const GEN_VERSION = 2; // 2: floors 11-20 also need Hard's slip rate (HARD_MIN)
 const MEDIUM_GAMES = 100; // games of the medium player per candidate (floors 11-20)
 const MAX_TRIES = 20000; // candidates per floor before it is reported
 const BAND_PP = 10; // floors 11-20: medium rate within +-10 pp of the target
 const STEP_PP = 5; // ... and at most 5 pp above the floor below
 const MIN_RATE = 8; // ... and never below 8 %
+// ... and Hard with 10 % slips earns a star in >= 20 % of its games: medium's rate alone
+// can hang on one fixed winning line, so a solid human could not win some floors.
+const HARD_GAMES = 100;
+const HARD_MIN = 20;
 
 /** Target star rate (%) of a medium player (Mittel, 10 % random moves): 45 on floor 11 down to 13 on floor 20. */
 const target = (stage) => 45 - ((stage - 11) * 32) / 9;
@@ -35,6 +39,6 @@ function fnv(text) {
 const candidateSeed = (month, stage, i, lane = 'a') => fnv(`${month}|${stage}|${lane}|${i}`) || 1;
 
 module.exports = {
-  GEN_VERSION, MEDIUM_GAMES, MAX_TRIES, BAND_PP, STEP_PP, MIN_RATE,
+  GEN_VERSION, MEDIUM_GAMES, MAX_TRIES, BAND_PP, STEP_PP, MIN_RATE, HARD_GAMES, HARD_MIN,
   target, marginCap, mediumWindow, fnv, candidateSeed,
 };

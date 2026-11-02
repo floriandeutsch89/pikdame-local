@@ -3,9 +3,10 @@
 // scripts/tower-seeds.js. Playing is injected (`play`, `rate`: TowerPlay.js in
 // production, a stub in tests), so this file has no game I/O of its own.
 //
-// A floor entry: { seed, zen: [stars, margin, hash], hard?, medium10?, relaxed?, locked? }
+// A floor entry: { seed, zen: [stars, margin, hash], hard?, medium10?, hard10?, relaxed?, locked? }
 // - zen: the proof game (Zen in the human seat, undisturbed) - always required.
 // - hard: Hard's game where it wins (floors 1-10 need it, see marginCap).
+// - medium10, hard10: star rates (%) of Medium / Hard with 10 % slips (floors 11-20).
 // - relaxed: an emergency pick, the medium band was not met (never the proof).
 // - locked: no proven deal found; the floor stays closed (never an unproven deal).
 'use strict';
@@ -27,12 +28,14 @@ const proven = (f) => !!(f && !f.locked && Number.isInteger(f.seed) && Array.isA
  * @param {boolean} [o.emergency] smaller search; when it finds nothing, relax the
  *   medium band (never Zen's proof), and lock the floor as the last resort
  * @param {function} o.play ({seed, stage, month, proxy}) => {stars, margin, hash}
- * @param {function} o.rate ({seed, stage, month, n, within}) => rate | null
+ * @param {function} o.rate ({seed, stage, month, n, within, proxy?}) => rate | null (proxy: medium by default)
  * @param {object} [o.fixed] stage -> seed kept as is (October 2026's old floors)
+ * @param {number[]} [o.only] 'rule' mode: re-pick only these stages, keep the rest
+ *   (a static month players already climb); a kept floor off the rule is reported
  */
 async function generateMonth({
   month, floors = [], mode = 'rule', emergency = false, play, rate,
-  maxTries = R.MAX_TRIES, fixed = {}, pause = tick, onFloor = () => {}, log = () => {},
+  maxTries = R.MAX_TRIES, fixed = {}, only = null, pause = tick, onFloor = () => {}, log = () => {},
 }) {
   const out = Array.from({ length: 20 }, (_, i) => floors[i] || null);
   const failed = [];
@@ -60,13 +63,15 @@ async function generateMonth({
     const hard = await play({ seed, stage, month, proxy: 'hard' });
     return hard.stars >= 1 ? proofOf(hard) : undefined;
   };
-  /** Floors 11-20: Zen's star and the medium rate in [lo, hi]. */
+  /** Floors 11-20: Zen's star, the medium rate in [lo, hi] and Hard's rate >= HARD_MIN. */
   const high = (stage, [lo, hi]) => async (seed) => {
     const zen = await zenProof(seed, stage);
     if (!zen) return null;
     const medium10 = await rate({ seed, stage, month, n: R.MEDIUM_GAMES, within: [lo, hi] });
     if (medium10 == null) return null;
-    return { seed, zen, hard: await hardIfWon(seed, stage), medium10 };
+    const hard10 = await rate({ seed, stage, month, n: R.HARD_GAMES, proxy: 'hard', within: [R.HARD_MIN, 100] });
+    if (hard10 == null) return null;
+    return { seed, zen, hard: await hardIfWon(seed, stage), medium10, hard10 };
   };
   const tries = emergency ? Math.min(maxTries, 2000) : maxTries;
   /** Emergency fallback: Zen's proof only, the medium band relaxed. */
@@ -109,14 +114,20 @@ async function generateMonth({
       continue;
     }
     const win = R.mediumWindow(stage, prev);
-    const fits = (f) => proven(f) && !f.relaxed && f.medium10 >= win[0] && f.medium10 <= win[1];
+    const inBand = (f) => proven(f) && !f.relaxed && f.medium10 >= win[0] && f.medium10 <= win[1];
+    const fits = (f) => inBand(f) && f.hard10 >= R.HARD_MIN;
+    if (only && !only.includes(stage)) {
+      if (!fits(kept)) { failed.push({ month, stage, window: win, kept: true }); log(`${month} floor ${stage}: kept, but off the rule`); }
+      if (proven(kept)) keep(kept);
+      continue;
+    }
     // 'missing' keeps what players may already have stars on - unless the floor
     // below was just re-picked and the staircase now breaks (+5 pp).
-    const keepIt = mode === 'missing' ? proven(kept) && (!changed.has(stage - 1) || fits(kept)) : fits(kept);
+    const keepIt = mode === 'missing' ? proven(kept) && (!changed.has(stage - 1) || inBand(kept)) : fits(kept);
     if (keepIt) { keep(kept); continue; }
     let pick = null;
     const open = R.mediumWindow(stage, null);
-    if (mode === 'rule' && stage > 11 && win[1] < open[1] && !fixed[stage - 1]) {
+    if (mode === 'rule' && stage > 11 && win[1] < open[1] && !fixed[stage - 1] && (!only || only.includes(stage - 1))) {
       // The floor below caps this one: search without the cap, then re-pick the
       // floor below to fit (one step back, never further).
       const wide = await search(stage, 'a', tries, high(stage, open));

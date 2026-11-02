@@ -43,6 +43,7 @@ function assertRule(month, floors) {
     }
     const [lo, hi] = R.mediumWindow(stage, prev);
     assert.ok(f.medium10 >= lo && f.medium10 <= hi, `${month} floor ${stage}: medium ${f.medium10} outside ${lo}-${hi}`);
+    assert.ok(f.hard10 >= R.HARD_MIN, `${month} floor ${stage}: Hard ${f.hard10} % below ${R.HARD_MIN} %`);
     prev = f.medium10;
   });
   const seeds = floors.map((f) => f.seed);
@@ -70,6 +71,40 @@ test('generator: resumes after the last finished floor and lands on the same mon
   const b2 = stub.calls();
   await TowerGen.generateMonth({ month: '2027-05', play, rate, maxTries: 300, pause: async () => {} });
   assert.ok(resumeCalls < stub.calls() - b2, `the finished floors are not searched again (${resumeCalls} plays)`);
+});
+
+test('generator: a deal medium likes but Hard rarely wins is never picked', async () => {
+  const rates = [];
+  const spy = async (o) => { const r = await rate(o); if (o.proxy === 'hard') rates.push([o.stage, r]); return r; };
+  const ok = await TowerGen.generateMonth({ month: '2027-03', play, rate: spy, maxTries: 300, pause: async () => {} });
+  assert.ok(rates.some(([, r]) => r == null), 'the stub offers deals the gate turns down');
+  assertRule('2027-03', ok.floors);
+  await withEnv({ TOWER_STUB_HARD_NEVER: '14' }, async () => {
+    const res = await TowerGen.generateMonth({ month: '2027-03', play, rate, maxTries: 60, pause: async () => {} });
+    assert.deepStrictEqual(res.failed.map((f) => f.stage), [14], 'no deal for floor 14 by the rule');
+  });
+});
+
+test('generator, only: re-picks just the named floors of a played month, the rest stays as it is', async () => {
+  const { floors } = await TowerGen.generateMonth({ month: '2027-03', play, rate, maxTries: 300, pause: async () => {} });
+  const old = floors.map((f, i) => (i === 14 ? { ...f, hard10: 3 } : i === 16 ? { ...f, hard10: 4 } : f));
+  const res = await TowerGen.generateMonth({ month: '2027-03', floors: old, only: [15], play, rate, maxTries: 300, pause: async () => {} });
+  assert.notStrictEqual(res.floors[14].seed, old[14].seed, 'floor 15 re-picked');
+  assert.ok(res.floors[14].hard10 >= R.HARD_MIN);
+  res.floors.forEach((f, i) => { if (i !== 14) assert.deepStrictEqual(f, old[i], `floor ${i + 1} kept`); });
+  const off = res.failed.filter((f) => f.kept).map((f) => f.stage);
+  assert.ok(off.includes(17), 'a kept floor off the rule is reported');
+  // ... and so is one the new floor below pushes off the staircase (+5 pp)
+  for (const s of off.filter((x) => x !== 17)) assert.ok(res.floors[s - 1].medium10 > R.mediumWindow(s, res.floors[s - 2].medium10)[1], `floor ${s}`);
+});
+
+test('generator, missing: a running month keeps its floors from before the Hard gate', async () => {
+  const { floors } = await TowerGen.generateMonth({ month: '2027-03', play, rate, maxTries: 300, pause: async () => {} });
+  const v1 = floors.map(({ hard10: _h, ...f }) => f); // stored by GEN_VERSION 1
+  const res = await TowerGen.generateMonth({ month: '2027-03', floors: v1, mode: 'missing', play, rate, maxTries: 300, pause: async () => {} });
+  assert.deepStrictEqual(res.floors, v1, 'players keep the deals they have stars on');
+  const ruled = await TowerGen.generateMonth({ month: '2027-03', floors: v1, mode: 'rule', play, rate, maxTries: 300, pause: async () => {} });
+  assertRule('2027-03', ruled.floors); // next month (nobody plays it yet) gets the gate
 });
 
 test('service: builds next month from the 15th in its worker, persists per floor, a new instance reads it', async () => {

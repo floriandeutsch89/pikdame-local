@@ -93,7 +93,7 @@ async function playFloor({ seed, stage, month, proxy = 'hard', slip = 0, run = 0
   }
 }
 
-/** Star rate (0-100) of the medium heuristic with `slip` human-like mistakes over n games.
+/** Star rate (0-100) of `proxy` (medium by default) with `slip` human-like mistakes over n games.
  *  With `within: [lo, hi]` it stops early and returns null once the rate cannot land inside. */
 async function slipRate({ seed, stage, month, n = 100, slip = 0.1, proxy = 'medium', within = null, beforeGame = null }) {
   let stars = 0;
