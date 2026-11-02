@@ -13,6 +13,7 @@ const MIN_RATE = 8; // ... and never below 8 %
 // can hang on one fixed winning line, so a solid human could not win some floors.
 const HARD_GAMES = 100;
 const HARD_MIN = 20;
+const NEAREST_TRIES = 2000; // candidates for the nearest-band fallback (TowerGen.js)
 
 /** Target star rate (%) of a medium player (Mittel, 10 % random moves): 45 on floor 11 down to 13 on floor 20. */
 const target = (stage) => 45 - ((stage - 11) * 32) / 9;
@@ -39,6 +40,6 @@ function fnv(text) {
 const candidateSeed = (month, stage, i, lane = 'a') => fnv(`${month}|${stage}|${lane}|${i}`) || 1;
 
 module.exports = {
-  GEN_VERSION, MEDIUM_GAMES, MAX_TRIES, BAND_PP, STEP_PP, MIN_RATE, HARD_GAMES, HARD_MIN,
+  GEN_VERSION, MEDIUM_GAMES, MAX_TRIES, BAND_PP, STEP_PP, MIN_RATE, HARD_GAMES, HARD_MIN, NEAREST_TRIES,
   target, marginCap, mediumWindow, fnv, candidateSeed,
 };

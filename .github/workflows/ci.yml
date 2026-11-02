@@ -138,7 +138,7 @@ jobs:
         run: NODE_PATH="$RUNNER_TEMP/ort/node_modules" node --test --require ./test/helpers/setup.js test/tower-proofs.test.js
 
   # The server's own path builds one real Kartenhaus month (worker, net, full
-  # rule) and Zen replays every floor. A month is ~25 CPU minutes, so on a PR
+  # rule) and Zen replays every floor. A month is ~30 CPU minutes, so on a PR
   # it only builds when the PR touches what decides deals or proofs; otherwise
   # it passes at once (a job skipped by a path filter would hang a required check).
   tower-generate:

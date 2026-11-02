@@ -42,9 +42,9 @@ function assertRule(month, floors) {
       return;
     }
     const [lo, hi] = R.mediumWindow(stage, prev);
-    assert.ok(f.medium10 >= lo && f.medium10 <= hi, `${month} floor ${stage}: medium ${f.medium10} outside ${lo}-${hi}`);
+    if (!f.relaxed) assert.ok(f.medium10 >= lo && f.medium10 <= hi, `${month} floor ${stage}: medium ${f.medium10} outside ${lo}-${hi}`);
     assert.ok(f.hard10 >= R.HARD_MIN, `${month} floor ${stage}: Hard ${f.hard10} % below ${R.HARD_MIN} %`);
-    prev = f.medium10;
+    prev = f.relaxed ? null : f.medium10; // a relaxed floor caps nothing above it
   });
   const seeds = floors.map((f) => f.seed);
   assert.strictEqual(new Set(seeds).size, 20, 'every deal once');
@@ -82,6 +82,19 @@ test('generator: a deal medium likes but Hard rarely wins is never picked', asyn
   await withEnv({ TOWER_STUB_HARD_NEVER: '14' }, async () => {
     const res = await TowerGen.generateMonth({ month: '2027-03', play, rate, maxTries: 60, pause: async () => {} });
     assert.deepStrictEqual(res.failed.map((f) => f.stage), [14], 'no deal for floor 14 by the rule');
+  });
+});
+
+test('generator: no deal in the band - the nearest one that keeps Hard\'s gate (never without it)', async () => {
+  await withEnv({ TOWER_STUB_MEDIUM_NEVER: '15' }, async () => {
+    const res = await TowerGen.generateMonth({ month: '2027-03', play, rate, maxTries: 300, pause: async () => {} });
+    assert.deepStrictEqual(res.failed, []);
+    const f = res.floors[14];
+    assert.ok(f.relaxed && f.zen[0] >= 1 && f.hard10 >= R.HARD_MIN, JSON.stringify(f));
+  });
+  await withEnv({ TOWER_STUB_MEDIUM_NEVER: '15', TOWER_STUB_HARD_NEVER: '15' }, async () => {
+    const res = await TowerGen.generateMonth({ month: '2027-03', play, rate, maxTries: 300, pause: async () => {} });
+    assert.deepStrictEqual(res.failed.map((x) => x.stage), [15], 'outside an emergency: no unfair deal');
   });
 });
 

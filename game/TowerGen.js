@@ -7,7 +7,8 @@
 // - zen: the proof game (Zen in the human seat, undisturbed) - always required.
 // - hard: Hard's game where it wins (floors 1-10 need it, see marginCap).
 // - medium10, hard10: star rates (%) of Medium / Hard with 10 % slips (floors 11-20).
-// - relaxed: an emergency pick, the medium band was not met (never the proof).
+// - relaxed: no deal met the medium band: the nearest one with Hard's gate, or in an
+//   emergency without it (never without the Zen proof).
 // - locked: no proven deal found; the floor stays closed (never an unproven deal).
 'use strict';
 const R = require('./TowerRule');
@@ -74,8 +75,30 @@ async function generateMonth({
     return { seed, zen, hard: await hardIfWon(seed, stage), medium10, hard10 };
   };
   const tries = emergency ? Math.min(maxTries, 2000) : maxTries;
-  /** Emergency fallback: Zen's proof only, the medium band relaxed. */
-  async function relaxedOrLocked(stage) {
+  /** Floors 11-20, no deal fits band and gate: Zen's proof and Hard's gate stay, the
+   *  medium rate nearest the band wins (goOut floors: rates cluster outside the band). */
+  async function nearest(stage, [lo, hi]) {
+    const off = (m) => Math.max(lo - m, m - hi, 0);
+    let best = null;
+    const fit = await search(stage, 'r', Math.min(tries, R.NEAREST_TRIES), async (seed) => {
+      const zen = await zenProof(seed, stage);
+      if (!zen) return null;
+      const hard10 = await rate({ seed, stage, month, n: R.HARD_GAMES, proxy: 'hard', within: [R.HARD_MIN, 100] });
+      if (hard10 == null) return null;
+      const medium10 = await rate({ seed, stage, month, n: R.MEDIUM_GAMES });
+      const entry = { seed, zen, hard: await hardIfWon(seed, stage), medium10, hard10 };
+      if (off(medium10) === 0) return entry;
+      if (!best || off(medium10) < off(best.medium10)) best = { ...entry, relaxed: true };
+      return null;
+    });
+    const pick = fit || best;
+    if (pick) log(`${month} floor ${stage}: nearest pick ${pick.seed}, medium ${pick.medium10} %, Hard ${pick.hard10} %`);
+    return pick;
+  }
+  /** Emergency fallback: the nearest deal with Hard's gate, else Zen's proof alone (band relaxed). */
+  async function relaxedOrLocked(stage, win = null) {
+    const near = win ? await nearest(stage, win) : null;
+    if (near) return near;
     const pick = await search(stage, 'r', tries, async (seed) => {
       const zen = await zenProof(seed, stage);
       if (!zen) return null;
@@ -89,6 +112,7 @@ async function generateMonth({
   const strip = ({ tries: _t, ...entry }) => Object.fromEntries(Object.entries(entry).filter(([, v]) => v !== undefined));
 
   let prev = null; // the medium rate of the floor below (floors 11-20)
+  const anchor = (f) => (f.relaxed ? null : f.medium10); // a relaxed floor caps nothing above it
   for (let stage = 1; stage <= 20; stage++) {
     const kept = out[stage - 1];
     if (fixed[stage] != null) {
@@ -98,7 +122,7 @@ async function generateMonth({
       }
       continue;
     }
-    const keep = (entry) => { if (stage > 10) prev = entry.medium10 != null ? entry.medium10 : prev; };
+    const keep = (entry) => { if (stage > 10) prev = entry.medium10 != null ? anchor(entry) : prev; };
     if (stage <= 10) {
       if (proven(kept)) { keep(kept); continue; }
       let pick = await search(stage, 'a', tries, async (seed) => {
@@ -127,7 +151,9 @@ async function generateMonth({
     if (keepIt) { keep(kept); continue; }
     let pick = null;
     const open = R.mediumWindow(stage, null);
-    if (mode === 'rule' && stage > 11 && win[1] < open[1] && !fixed[stage - 1] && (!only || only.includes(stage - 1))) {
+    const below = out[stage - 2];
+    if (mode === 'rule' && stage > 11 && win[1] < open[1] && !fixed[stage - 1] && !(below && below.relaxed)
+      && (!only || only.includes(stage - 1))) {
       // The floor below caps this one: search without the cap, then re-pick the
       // floor below to fit (one step back, never further).
       const wide = await search(stage, 'a', tries, high(stage, open));
@@ -149,13 +175,13 @@ async function generateMonth({
     if (pick) {
       log(`${month} floor ${stage}: seed ${pick.seed} after ${pick.tries} candidates, medium ${pick.medium10} %`);
       set(stage, strip(pick));
-      prev = pick.medium10;
+      prev = anchor(pick);
       continue;
     }
-    if (emergency) {
-      const e = await relaxedOrLocked(stage);
+    const e = emergency ? await relaxedOrLocked(stage, win) : await nearest(stage, win);
+    if (e) {
       set(stage, strip(e));
-      if (e.medium10 != null) prev = e.medium10;
+      if (e.medium10 != null) prev = anchor(e);
       continue;
     }
     failed.push({ month, stage, window: win });
