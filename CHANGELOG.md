@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.128.0] - 2026-11-02
+
+### Changed
+- Statistik: Die letzten Partien laufen jetzt von links nach rechts, die neueste steht rechts.
+
 ## [2.127.0] - 2026-10-31
 
 ### Added
