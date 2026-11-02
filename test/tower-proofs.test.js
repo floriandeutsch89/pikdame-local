@@ -14,7 +14,7 @@ const OnnxPolicy = require('../game/OnnxPolicy');
 const TowerSeeds = require('../game/TowerSeeds');
 const proofs = require('./fixtures/tower-proofs.json');
 const { playFloor, needsNet } = require('../game/TowerPlay');
-const { mediumWindow } = require('../game/TowerRule');
+const { mediumWindow, HARD_MIN } = require('../game/TowerRule');
 
 const net = OnnxPolicy.enabled() && OnnxPolicy.available();
 const legacy = (month, stage) => month === BotTower.LEGACY_MONTH && stage <= 10;
@@ -33,6 +33,8 @@ test('every committed month has its proof games', () => {
       if (stage > 10) {
         const [lo, hi] = mediumWindow(stage, prev);
         assert.ok(f.medium10 >= lo && f.medium10 <= hi, `${month} floor ${stage}: medium ${f.medium10} % outside ${lo.toFixed(1)}-${hi.toFixed(1)}`);
+        // The Hard gate came with GEN_VERSION 2 (November 2026); October was played before it.
+        if (month !== BotTower.LEGACY_MONTH) assert.ok(f.hard10 >= HARD_MIN, `${month} floor ${stage}: Hard wins ${f.hard10} % (< ${HARD_MIN} %)`);
         prev = f.medium10;
       }
     });
@@ -111,13 +113,16 @@ test('a real month: the server builds it end to end, Zen replays every floor', {
   let prev = null;
   for (let stage = 1; stage <= 20; stage++) {
     const f = floors[stage - 1];
-    assert.ok(TowerGen.proven(f) && !f.relaxed, `${month} floor ${stage}: a proven deal by the full rule`);
+    assert.ok(TowerGen.proven(f), `${month} floor ${stage}: a proven deal`);
+    // Floors 11-20 may miss the medium band (nearest pick, goOut floors), never Hard's gate.
+    assert.ok(!f.relaxed || stage > 10, `${month} floor ${stage}: by the full rule`);
     const o = await playFloor({ seed: f.seed, stage, month, proxy: 'zen' });
     assert.deepStrictEqual([o.stars, o.margin, o.hash], f.zen, `${month} floor ${stage}: Zen replays the stored proof`);
     if (stage > 10) {
       const [lo, hi] = mediumWindow(stage, prev);
-      assert.ok(f.medium10 >= lo && f.medium10 <= hi, `${month} floor ${stage}: medium ${f.medium10} %`);
-      prev = f.medium10;
+      if (!f.relaxed) assert.ok(f.medium10 >= lo && f.medium10 <= hi, `${month} floor ${stage}: medium ${f.medium10} %`);
+      assert.ok(f.hard10 >= HARD_MIN, `${month} floor ${stage}: Hard ${f.hard10} %`);
+      prev = f.relaxed ? null : f.medium10;
     }
   }
 });

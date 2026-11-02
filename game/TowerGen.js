@@ -3,10 +3,12 @@
 // scripts/tower-seeds.js. Playing is injected (`play`, `rate`: TowerPlay.js in
 // production, a stub in tests), so this file has no game I/O of its own.
 //
-// A floor entry: { seed, zen: [stars, margin, hash], hard?, medium10?, relaxed?, locked? }
+// A floor entry: { seed, zen: [stars, margin, hash], hard?, medium10?, hard10?, relaxed?, locked? }
 // - zen: the proof game (Zen in the human seat, undisturbed) - always required.
 // - hard: Hard's game where it wins (floors 1-10 need it, see marginCap).
-// - relaxed: an emergency pick, the medium band was not met (never the proof).
+// - medium10, hard10: star rates (%) of Medium / Hard with 10 % slips (floors 11-20).
+// - relaxed: no deal met the medium band: the nearest one with Hard's gate, or in an
+//   emergency without it (never without the Zen proof).
 // - locked: no proven deal found; the floor stays closed (never an unproven deal).
 'use strict';
 const R = require('./TowerRule');
@@ -27,12 +29,14 @@ const proven = (f) => !!(f && !f.locked && Number.isInteger(f.seed) && Array.isA
  * @param {boolean} [o.emergency] smaller search; when it finds nothing, relax the
  *   medium band (never Zen's proof), and lock the floor as the last resort
  * @param {function} o.play ({seed, stage, month, proxy}) => {stars, margin, hash}
- * @param {function} o.rate ({seed, stage, month, n, within}) => rate | null
+ * @param {function} o.rate ({seed, stage, month, n, within, proxy?}) => rate | null (proxy: medium by default)
  * @param {object} [o.fixed] stage -> seed kept as is (October 2026's old floors)
+ * @param {number[]} [o.only] 'rule' mode: re-pick only these stages, keep the rest
+ *   (a static month players already climb); a kept floor off the rule is reported
  */
 async function generateMonth({
   month, floors = [], mode = 'rule', emergency = false, play, rate,
-  maxTries = R.MAX_TRIES, fixed = {}, pause = tick, onFloor = () => {}, log = () => {},
+  maxTries = R.MAX_TRIES, fixed = {}, only = null, pause = tick, onFloor = () => {}, log = () => {},
 }) {
   const out = Array.from({ length: 20 }, (_, i) => floors[i] || null);
   const failed = [];
@@ -60,17 +64,41 @@ async function generateMonth({
     const hard = await play({ seed, stage, month, proxy: 'hard' });
     return hard.stars >= 1 ? proofOf(hard) : undefined;
   };
-  /** Floors 11-20: Zen's star and the medium rate in [lo, hi]. */
+  /** Floors 11-20: Zen's star, the medium rate in [lo, hi] and Hard's rate >= HARD_MIN. */
   const high = (stage, [lo, hi]) => async (seed) => {
     const zen = await zenProof(seed, stage);
     if (!zen) return null;
     const medium10 = await rate({ seed, stage, month, n: R.MEDIUM_GAMES, within: [lo, hi] });
     if (medium10 == null) return null;
-    return { seed, zen, hard: await hardIfWon(seed, stage), medium10 };
+    const hard10 = await rate({ seed, stage, month, n: R.HARD_GAMES, proxy: 'hard', within: [R.HARD_MIN, 100] });
+    if (hard10 == null) return null;
+    return { seed, zen, hard: await hardIfWon(seed, stage), medium10, hard10 };
   };
   const tries = emergency ? Math.min(maxTries, 2000) : maxTries;
-  /** Emergency fallback: Zen's proof only, the medium band relaxed. */
-  async function relaxedOrLocked(stage) {
+  /** Floors 11-20, no deal fits band and gate: Zen's proof and Hard's gate stay, the
+   *  medium rate nearest the band wins (goOut floors: rates cluster outside the band). */
+  async function nearest(stage, [lo, hi]) {
+    const off = (m) => Math.max(lo - m, m - hi, 0);
+    let best = null;
+    const fit = await search(stage, 'r', Math.min(tries, R.NEAREST_TRIES), async (seed) => {
+      const zen = await zenProof(seed, stage);
+      if (!zen) return null;
+      const hard10 = await rate({ seed, stage, month, n: R.HARD_GAMES, proxy: 'hard', within: [R.HARD_MIN, 100] });
+      if (hard10 == null) return null;
+      const medium10 = await rate({ seed, stage, month, n: R.MEDIUM_GAMES });
+      const entry = { seed, zen, hard: await hardIfWon(seed, stage), medium10, hard10 };
+      if (off(medium10) === 0) return entry;
+      if (!best || off(medium10) < off(best.medium10)) best = { ...entry, relaxed: true };
+      return null;
+    });
+    const pick = fit || best;
+    if (pick) log(`${month} floor ${stage}: nearest pick ${pick.seed}, medium ${pick.medium10} %, Hard ${pick.hard10} %`);
+    return pick;
+  }
+  /** Emergency fallback: the nearest deal with Hard's gate, else Zen's proof alone (band relaxed). */
+  async function relaxedOrLocked(stage, win = null) {
+    const near = win ? await nearest(stage, win) : null;
+    if (near) return near;
     const pick = await search(stage, 'r', tries, async (seed) => {
       const zen = await zenProof(seed, stage);
       if (!zen) return null;
@@ -84,6 +112,7 @@ async function generateMonth({
   const strip = ({ tries: _t, ...entry }) => Object.fromEntries(Object.entries(entry).filter(([, v]) => v !== undefined));
 
   let prev = null; // the medium rate of the floor below (floors 11-20)
+  const anchor = (f) => (f.relaxed ? null : f.medium10); // a relaxed floor caps nothing above it
   for (let stage = 1; stage <= 20; stage++) {
     const kept = out[stage - 1];
     if (fixed[stage] != null) {
@@ -93,7 +122,7 @@ async function generateMonth({
       }
       continue;
     }
-    const keep = (entry) => { if (stage > 10) prev = entry.medium10 != null ? entry.medium10 : prev; };
+    const keep = (entry) => { if (stage > 10) prev = entry.medium10 != null ? anchor(entry) : prev; };
     if (stage <= 10) {
       if (proven(kept)) { keep(kept); continue; }
       let pick = await search(stage, 'a', tries, async (seed) => {
@@ -109,14 +138,22 @@ async function generateMonth({
       continue;
     }
     const win = R.mediumWindow(stage, prev);
-    const fits = (f) => proven(f) && !f.relaxed && f.medium10 >= win[0] && f.medium10 <= win[1];
+    const inBand = (f) => proven(f) && !f.relaxed && f.medium10 >= win[0] && f.medium10 <= win[1];
+    const fits = (f) => inBand(f) && f.hard10 >= R.HARD_MIN;
+    if (only && !only.includes(stage)) {
+      if (!fits(kept)) { failed.push({ month, stage, window: win, kept: true }); log(`${month} floor ${stage}: kept, but off the rule`); }
+      if (proven(kept)) keep(kept);
+      continue;
+    }
     // 'missing' keeps what players may already have stars on - unless the floor
     // below was just re-picked and the staircase now breaks (+5 pp).
-    const keepIt = mode === 'missing' ? proven(kept) && (!changed.has(stage - 1) || fits(kept)) : fits(kept);
+    const keepIt = mode === 'missing' ? proven(kept) && (!changed.has(stage - 1) || inBand(kept)) : fits(kept);
     if (keepIt) { keep(kept); continue; }
     let pick = null;
     const open = R.mediumWindow(stage, null);
-    if (mode === 'rule' && stage > 11 && win[1] < open[1] && !fixed[stage - 1]) {
+    const below = out[stage - 2];
+    if (mode === 'rule' && stage > 11 && win[1] < open[1] && !fixed[stage - 1] && !(below && below.relaxed)
+      && (!only || only.includes(stage - 1))) {
       // The floor below caps this one: search without the cap, then re-pick the
       // floor below to fit (one step back, never further).
       const wide = await search(stage, 'a', tries, high(stage, open));
@@ -138,13 +175,13 @@ async function generateMonth({
     if (pick) {
       log(`${month} floor ${stage}: seed ${pick.seed} after ${pick.tries} candidates, medium ${pick.medium10} %`);
       set(stage, strip(pick));
-      prev = pick.medium10;
+      prev = anchor(pick);
       continue;
     }
-    if (emergency) {
-      const e = await relaxedOrLocked(stage);
+    const e = emergency ? await relaxedOrLocked(stage, win) : await nearest(stage, win);
+    if (e) {
       set(stage, strip(e));
-      if (e.medium10 != null) prev = e.medium10;
+      if (e.medium10 != null) prev = anchor(e);
       continue;
     }
     failed.push({ month, stage, window: win });
