@@ -219,10 +219,10 @@ test('statistics: level as a link, three tiles once, recent games as S/N boxes, 
   assert.equal(box.querySelector('.kpiLink'), null, 'no ringed level tile');
   assert.deepEqual([...box.querySelectorAll('.kpiTile')].map(parts), ['43 Partien', '17 Siege · 40 %', '1.385 Bestwert']);
   const boxes = [...box.querySelectorAll('.meFormRow .formBox')];
-  assert.deepEqual(boxes.map((b) => b.querySelector('b').textContent), ['S', 'N', 'S', 'N'], 'newest first, letter carries win/loss');
-  assert.deepEqual(boxes.map((b) => b.querySelector('small').textContent), ['1040', '880', '1120', '-45']);
-  assert.ok(boxes[0].classList.contains('won') && boxes[1].classList.contains('lost'));
-  assert.match(boxes[1].textContent, /Niederlage/, 'screen readers hear the word');
+  assert.deepEqual(boxes.map((b) => b.querySelector('b').textContent), ['N', 'S', 'N', 'S'], 'oldest left, newest right; letter carries win/loss');
+  assert.deepEqual(boxes.map((b) => b.querySelector('small').textContent), ['-45', '1120', '880', '1040']);
+  assert.ok(boxes[3].classList.contains('won') && boxes[0].classList.contains('lost'));
+  assert.match(boxes[0].textContent, /Niederlage/, 'screen readers hear the word');
   assert.equal(box.querySelector('svg.meSpark, .meSpark'), null, 'the two-point line chart is gone');
   link.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
   assert.ok(!doc.getElementById('progressOverlay').classList.contains('hidden'), 'link opens the progress sheet');
