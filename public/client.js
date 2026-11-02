@@ -12020,11 +12020,11 @@
     const rate = played > 0 ? Math.round((won / played) * 100) : 0;
     const lv = levelFromXpClient(Math.max(me.xp || 0, myProgress ? myProgress.xp || 0 : 0));
     const kpi = (value, label) => `<div class="kpiTile"><b>${value}</b><span>${label}</span></div>`;
-    // Newest first; the letter carries win/loss, the fill only repeats it.
-    const games = (myGameHistory || []).slice(0, 10);
+    // Oldest left, newest right (reads like a timeline); the letter carries win/loss, the fill only repeats it.
+    const games = (myGameHistory || []).slice(0, 10).reverse();
     const form = games.length
-      ? `<div class="meForm"><div class="meFormHead"><span>${L('Letzte Partien', 'Recent games')}</span><span>${L('neueste links', 'newest first')}</span></div>` +
-        `<ol class="meFormRow" aria-label="${escapeHtml(L('Letzte Partien, neueste zuerst', 'Recent games, newest first'))}">` +
+      ? `<div class="meForm"><div class="meFormHead"><span>${L('Letzte Partien', 'Recent games')}</span><span>${L('neueste rechts', 'newest last')}</span></div>` +
+        `<ol class="meFormRow" aria-label="${escapeHtml(L('Letzte Partien, neueste zuletzt', 'Recent games, newest last'))}">` +
         games.map((g) => {
           const score = String(g.myScore || 0); // no separator: ten boxes share 350 px
           const word = g.won ? L('Sieg', 'Win') : L('Niederlage', 'Loss');
