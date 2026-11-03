@@ -6077,17 +6077,24 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
     display: grid;
     width: 100%;
     grid-template-columns: repeat(2, minmax(0, var(--lobby-w)));
-    grid-template-rows: auto auto auto auto 1fr;
+    /* Two balanced columns, both ending on one line; the rules run full width
+       below (seating alone on the right left half the screen empty). */
     grid-template-areas:
       'hint  hint'
       'code  seating'
       'count seating'
-      'rules seating'
-      'stamm seating';
+      'rules rules'
+      'stamm stamm';
     justify-content: center;
-    align-items: start;
+    align-items: stretch;
     column-gap: 16px;
   }
+  #lobby.inSession #houseRulesSection {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; align-items: start;
+  }
+  #lobby.inSession #houseRulesSection > h2 { grid-column: 1 / -1; }
+  #lobby.inSession #houseRulesSection > .rule-toggle { grid-column: 1; }
+  #lobby.inSession #houseRulesSection > .rule-choice:has(#ruleTurnTimer) { grid-column: 2; grid-row: 2 / span 2; }
   #lobby.inSession .sessionPanels > * { max-width: none; margin-bottom: 12px; }
   #lobby.inSession #nonHostHint { grid-area: hint; }
   #lobby.inSession #sessionBanner { grid-area: code; }
