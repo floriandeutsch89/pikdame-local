@@ -2855,6 +2855,8 @@ wss.on('connection', (ws, req) => {
     // Code gibt es KEINEN Zugriff auf irgendein Spiel.
     if (!session && pendingJoin) await pendingJoin.catch(() => {});
     if (!session) {
+      // Which message arrives without a seat (resume reports); the type is client input: word chars only.
+      console.log(`[ws] no session for message: ${String(msg.type).replace(/\W/g, '').slice(0, 40)}`);
       return sendError(ws, 'Bitte zuerst ein Spiel erstellen oder mit einem Code beitreten.');
     }
     registry.touch(session);
