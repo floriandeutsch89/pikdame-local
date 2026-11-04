@@ -2195,9 +2195,15 @@ function sendProfilesAndTeams(session, playerId) {
   return sendProfilesTo(session.sockets.get(playerId), { me: seat ? seat.name : '', names });
 }
 
+// Messages that end in joinSession (a seat in a session).
+const JOIN_MESSAGE_TYPES = new Set(['joinSession', 'createSession', 'createStammtisch', 'startTutorial', 'startChallenge', 'startTower']);
+
 wss.on('connection', (ws, req) => {
   let playerId = null;
   let session = null;
+  // A join still awaiting Postgres: messages that need the session wait for it
+  // (handlers run concurrently; a move right after a resume was refused).
+  let pendingJoin = null;
   const ip = clientIp(req);
 
   // Heartbeat-Buchhaltung: Browser antworten auf Protokoll-Pings automatisch.
@@ -2254,7 +2260,12 @@ wss.on('connection', (ws, req) => {
     }
 
     try {
-      await handleMessage(msg);
+      const run = handleMessage(msg);
+      if (msg && JOIN_MESSAGE_TYPES.has(msg.type)) {
+        pendingJoin = run;
+        run.then(() => {}, () => {}).then(() => { if (pendingJoin === run) pendingJoin = null; });
+      }
+      await run;
     } catch (err) {
       // KRITISCH: Ohne dieses try/catch würde JEDE unerwartete Exception in
       // der Spiellogik (z. B. durch eine kaputte/unerwartete Nachricht) den
@@ -2842,6 +2853,7 @@ wss.on('connection', (ws, req) => {
 
     // Alles Weitere setzt eine beigetretene Session voraus - ohne gültigen
     // Code gibt es KEINEN Zugriff auf irgendein Spiel.
+    if (!session && pendingJoin) await pendingJoin.catch(() => {});
     if (!session) {
       return sendError(ws, 'Bitte zuerst ein Spiel erstellen oder mit einem Code beitreten.');
     }
