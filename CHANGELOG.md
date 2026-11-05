@@ -3,6 +3,14 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.128.2] - 2026-11-04
+
+### Fixed
+- Startbildschirm am PC: steht im Vollbild jetzt mittig statt oben am Rand,
+  ohne sichtbaren Streifen links und rechts, und ist auf großen Monitoren größer
+- Spiel-Lobby am PC: Spiel-Code und Spieleranzahl links, Sitzordnung rechts,
+  beide Spalten gleich hoch; die Hausregeln stehen zweispaltig darunter
+
 ## [2.128.1] - 2026-11-02
 
 ### Fixed

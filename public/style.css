@@ -6077,17 +6077,24 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
     display: grid;
     width: 100%;
     grid-template-columns: repeat(2, minmax(0, var(--lobby-w)));
-    grid-template-rows: auto auto auto auto 1fr;
+    /* Two balanced columns, both ending on one line; the rules run full width
+       below (seating alone on the right left half the screen empty). */
     grid-template-areas:
       'hint  hint'
       'code  seating'
       'count seating'
-      'rules seating'
-      'stamm seating';
+      'rules rules'
+      'stamm stamm';
     justify-content: center;
-    align-items: start;
+    align-items: stretch;
     column-gap: 16px;
   }
+  #lobby.inSession #houseRulesSection {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; align-items: start;
+  }
+  #lobby.inSession #houseRulesSection > h2 { grid-column: 1 / -1; }
+  #lobby.inSession #houseRulesSection > .rule-toggle { grid-column: 1; }
+  #lobby.inSession #houseRulesSection > .rule-choice:has(#ruleTurnTimer) { grid-column: 2; grid-row: 2 / span 2; }
   #lobby.inSession .sessionPanels > * { max-width: none; margin-bottom: 12px; }
   #lobby.inSession #nonHostHint { grid-area: hint; }
   #lobby.inSession #sessionBanner { grid-area: code; }
@@ -6416,6 +6423,22 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
   }
   #lobby:not(.inSession) .lobbyDaily > .todaySection { margin-top: 0; }
   #lobby:not(.inSession) > .seoIntro { grid-column: 1 / -1; margin: 8px auto; }
+}
+
+/* Desktop start screen: full window width (the capped .screen showed its own
+   background as a band) and centred in the height ("safe": no lost top when it scrolls). */
+@media (min-width: 1100px) and (min-height: 541px) {
+  #lobby { max-width: none; }
+  #lobby:not(.inSession) { align-content: safe center; }
+}
+/* Big monitors: the phone-sized start screen looked lost; scale its columns and controls up
+   (not the game lobby: it would scroll). */
+@media (min-width: 1500px) and (min-height: 800px) {
+  #lobby:not(.inSession) { --lobby-w: 480px; --ctl-h: 56px; --tap-min: 52px; font-size: 1.08rem; gap: 0 48px; }
+  #lobby:not(.inSession) .lobbyHero { width: 180px; }
+  /* The faint backdrop cards move out with the wider columns (they covered the controls). */
+  #lobby:not(.inSession)::before { left: calc(50% - var(--lobby-w) - 330px); }
+  #lobby:not(.inSession)::after { right: calc(50% - var(--lobby-w) - 330px); }
 }
 
 /* --- Settings sheet in two columns ----------------------------------------

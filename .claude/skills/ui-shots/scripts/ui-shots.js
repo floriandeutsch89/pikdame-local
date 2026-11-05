@@ -119,6 +119,8 @@ const VIEWS = {
   max: { width: 440, height: 956, mobile: true }, // iPhone Pro Max: 15 cards still fit one row
   lap: { width: 1366, height: 657, mobile: false }, // 1366x768 laptop minus browser chrome
   nar: { width: 1100, height: 680, mobile: false }, // the narrowest desktop layout
+  fhd: { width: 1920, height: 1080, mobile: false }, // full-HD monitor, browser fullscreen (F11)
+  fhd125: { width: 1536, height: 864, mobile: false }, // the same at 125 % OS scaling
 };
 const views = arg('views', 'phone,land,desk').split(',');
 const scenes = arg('scenes', 'lobby,stats,history,roundend,gameover').split(',');
