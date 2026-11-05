@@ -120,3 +120,45 @@ test('a late close from the OLD socket must not mark a reconnected player as gon
 
   second.close();
 });
+
+// Player report: back from the background, a move sent right after the rejoin got
+// "Bitte zuerst ein Spiel erstellen ..." - the join was still awaiting Postgres.
+test('a message sent right behind joinSession waits for the join instead of being refused', async (t) => {
+  PORT = await freePort();
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-race-'));
+  const server = spawn('node', ['server.js'], {
+    cwd: ROOT,
+    env: { ...process.env, PIKDAME_DATABASE_URL: testDatabaseUrl('reconnect_race_join'), PORT: String(PORT), PIKDAME_DATA_DIR: dataDir },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  t.after(async () => {
+    const exited = new Promise((resolve) => server.once('exit', resolve));
+    server.kill();
+    await exited;
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  });
+  await waitForServer(PORT);
+
+  const first = await openSocket();
+  const joinedPromise = waitFor(first, 'joined');
+  first.send(JSON.stringify({ type: 'createSession', name: 'Flodex' }));
+  const joined = await joinedPromise;
+  first.close();
+
+  const second = await openSocket();
+  const errors = [];
+  second.on('message', (raw) => {
+    try { const m = JSON.parse(raw); if (m.type === 'error') errors.push(m.error); } catch (e) { /* ignore */ }
+  });
+  const rejoined = waitFor(second, 'joined');
+  // Both frames in one go, as a resumed client sends them.
+  second.send(JSON.stringify({
+    type: 'joinSession', code: joined.sessionCode, playerId: joined.playerId, playerToken: joined.playerToken, name: 'Flodex',
+  }));
+  second.send(JSON.stringify({ type: 'setHouseRules', houseRules: {} }));
+  await rejoined;
+  await waitFor(second, 'state');
+  await wait(300);
+  assert.deepEqual(errors, [], 'the message behind the join must not be refused');
+  second.close();
+});
