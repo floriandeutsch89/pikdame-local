@@ -1,58 +1,139 @@
+// Finished matches and the anonymous counters on PostgreSQL (migrations/013),
+// the one-time import of games.json/stats.json and anonymising a deleted account.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { createGameHistoryStore } = require('../game/GameHistoryStore');
+const { createGameHistoryStore, statsOfGame } = require('../game/GameHistoryStore');
+const { testPool } = require('./helpers/test-db');
 
-function tmpStore() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-history-test-'));
-  return createGameHistoryStore(path.join(dir, 'games.json'));
-}
+const NO_FILES = { legacyGamesFile: null, legacyStatsFile: null };
+const tmpDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-history-test-'));
 
-test('listGames liefert leeres Array, wenn noch keine Datei existiert', () => {
-  const store = tmpStore();
-  assert.deepEqual(store.listGames(), []);
-});
-
-test('saveGame speichert einen vollständigen Spielverlauf inkl. generierter ID', () => {
-  const store = tmpStore();
-  const record = {
-    players: [{ id: 'p1', name: 'Florian' }, { id: 'p2', name: 'Anna' }],
-    rounds: [{ roundNumber: 1, winnerId: 'p1' }],
-    finalTotals: { p1: 1010, p2: 200 },
+function match(finishedAt, overrides = {}) {
+  return {
+    players: [{ id: 'p1', name: 'Florian', isBot: false }, { id: 'p2', name: 'Anna', isBot: false }, { id: 'b1', name: 'Bot Bert', isBot: true, botDifficulty: 'hard' }],
+    rounds: [
+      { roundNumber: 1, winnerId: 'p1', isHandAus: true, results: { p1: { roundScore: 120, breakdown: { pikDameLaidOut: 1 } }, p2: { roundScore: -40, breakdown: { pikDameCount: 1 } } }, totalsAfter: { p1: 120, p2: -40, b1: 10 } },
+      { roundNumber: 2, winnerId: 'p1', results: {}, totalsAfter: { p1: 1010, p2: 200, b1: 300 } },
+    ],
+    finalTotals: { p1: 1010, p2: 200, b1: 300 },
     winnerId: 'p1',
     houseRules: { handAusDoubles: false },
-    finishedAt: Date.now(),
+    startedAt: finishedAt - 600000,
+    finishedAt,
+    ...overrides,
   };
-  const saved = store.saveGame(record);
-  assert.ok(saved.id);
-  assert.equal(store.listGames().length, 1);
-  assert.equal(store.getGame(saved.id).winnerId, 'p1');
+}
+
+test('a saved match comes back as the record GameManager wrote, newest first, by name', async (t) => {
+  const store = createGameHistoryStore(testPool(t, 'history'), NO_FILES);
+  await store.saveGame(match(1000));
+  await store.saveGame(match(2000, { challengeDate: '2026-11-09' }), { stammtisch: true });
+  const games = await store.gamesOf('florian');
+  assert.equal(games.length, 2);
+  const [g] = games;
+  assert.equal(g.finishedAt, 2000);
+  assert.equal(g.startedAt, 2000 - 600000);
+  assert.equal(g.challengeDate, '2026-11-09');
+  assert.equal(g.stammtisch, true);
+  assert.deepEqual(g.players, [{ id: 'p1', name: 'Florian', isBot: false }, { id: 'p2', name: 'Anna', isBot: false }, { id: 'b1', name: 'Bot Bert', isBot: true, botDifficulty: 'hard' }]);
+  assert.deepEqual(g.finalTotals, { p1: 1010, p2: 200, b1: 300 });
+  assert.equal(g.rounds.length, 2);
+  assert.deepEqual(g.houseRules, { handAusDoubles: false });
+  assert.equal(games[1].stammtisch, undefined);
+  assert.deepEqual(await store.gamesOf('Bot Bert'), [], 'a bot seat is nobody\'s history');
+  assert.deepEqual(await store.gamesOf(''), []);
 });
 
-test('Spielverlauf übersteht einen Neustart (neue Store-Instanz, gleiche Datei)', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-history-test-'));
-  const filePath = path.join(dir, 'games.json');
-  const store1 = createGameHistoryStore(filePath);
-  store1.saveGame({ players: [], rounds: [], finalTotals: {}, winnerId: null, finishedAt: Date.now() });
-  // Writes sind jetzt gecacht/debounced (blockieren die Event-Loop nicht) -
-  // flushSync entspricht dem Graceful Shutdown vor einem Neustart.
-  store1.flushSync();
-
-  const store2 = createGameHistoryStore(filePath);
-  assert.equal(store2.listGames().length, 1);
+test('no cap of 200: every match is kept, the limit only cuts the answer', async (t) => {
+  const store = createGameHistoryStore(testPool(t, 'history'), NO_FILES);
+  for (let i = 0; i < 205; i++) await store.saveGame(match(i + 1));
+  assert.equal((await store.gamesOf('Anna', 200)).length, 200);
+  const newest = await store.gamesOf('Anna', 3);
+  assert.deepEqual(newest.map((g) => g.finishedAt), [205, 204, 203]);
 });
 
-test('Älteste Partien werden ab MAX_STORED_GAMES verworfen (kein unbegrenztes Wachstum)', () => {
-  const store = tmpStore();
-  for (let i = 0; i < 205; i++) {
-    store.saveGame({ players: [], rounds: [], finalTotals: {}, winnerId: null, finishedAt: i });
-  }
-  const games = store.listGames();
-  assert.ok(games.length <= 200);
-  // Die zuletzt gespeicherte Partie muss erhalten bleiben
-  assert.equal(games[games.length - 1].finishedAt, 204);
+test('team matches keep both winners, the seat flag says who won', async (t) => {
+  const pool = testPool(t, 'history');
+  const store = createGameHistoryStore(pool, NO_FILES);
+  const players = ['p1', 'p2', 'p3', 'p4'].map((id) => ({ id, name: `N${id}`, isBot: false }));
+  await store.saveGame(match(5, { players, finalTotals: { p1: 900, p2: 50, p3: 1100, p4: 10 }, winnerId: null, teamMode: true, teams: [['p1', 'p3'], ['p2', 'p4']], winnerIds: ['p1', 'p3'], winnerTeam: 0 }));
+  const { rows } = await pool.query('SELECT seat_ref, is_winner FROM game_seats ORDER BY seat_no');
+  assert.deepEqual(rows.map((r) => [r.seat_ref, r.is_winner]), [['p1', true], ['p2', false], ['p3', true], ['p4', false]]);
+  const [g] = await store.gamesOf('Np1');
+  assert.equal(g.teamMode, true);
+  assert.deepEqual(g.winnerIds, ['p1', 'p3']);
+});
+
+test('the counters grow with every match, also without history (public mode)', async (t) => {
+  const pool = testPool(t, 'history');
+  const store = createGameHistoryStore(pool, NO_FILES);
+  assert.deepEqual(await store.load(), { games: 0, rounds: 0, pikDamesLaidOut: 0, pikDamesCaught: 0, handAusRounds: 0 });
+  await store.saveGame(match(1));
+  await store.saveGame(match(2), { keepHistory: false });
+  const expected = { games: 2, rounds: 4, pikDamesLaidOut: 2, pikDamesCaught: 2, handAusRounds: 2 };
+  assert.deepEqual(store.getStats(), expected);
+  assert.equal((await store.gamesOf('Florian')).length, 1, 'public mode stores no names');
+  assert.deepEqual(await createGameHistoryStore(pool, NO_FILES).load(), expected, 'a restart reads them back');
+});
+
+test('statsOfGame: a broken record adds nothing', () => {
+  assert.deepEqual(statsOfGame(null), { games: 0, rounds: 0, pikDamesLaidOut: 0, pikDamesCaught: 0, handAusRounds: 0 });
+  assert.equal(statsOfGame({ rounds: [null, { results: { p1: null } }] }).rounds, 2);
+});
+
+test('a deleted account: its seats lose name and link, the others still see the match', async (t) => {
+  const pool = testPool(t, 'history');
+  const store = createGameHistoryStore(pool, NO_FILES);
+  await store.saveGame(match(1));
+  assert.equal(await store.anonymizeName('FLORIAN'), 1);
+  assert.deepEqual(await store.gamesOf('Florian'), []);
+  const [g] = await store.gamesOf('Anna');
+  assert.equal(g.players[0].name, null);
+  assert.equal(g.players[0].id, 'p1', 'totals stay readable');
+  assert.equal(g.finalTotals.p1, 1010);
+  assert.equal(await store.anonymizeName('nobody'), 0);
+});
+
+test('games.json and stats.json are imported once, then renamed', async (t) => {
+  const pool = testPool(t, 'history');
+  const dir = tmpDir();
+  const gamesFile = path.join(dir, 'games.json');
+  const statsFile = path.join(dir, 'stats.json');
+  const old = { id: 'game-1-abc', stammtisch: true, ...match(1700000000000, { challengeDate: '2026-10-01' }) };
+  fs.writeFileSync(gamesFile, JSON.stringify({ games: [old, { broken: true }, match(1700000001000)] }));
+  fs.writeFileSync(statsFile, JSON.stringify({ games: 40, rounds: 300, pikDamesLaidOut: 7, pikDamesCaught: 9, handAusRounds: 1 }));
+  const store = createGameHistoryStore(pool, { legacyGamesFile: gamesFile, legacyStatsFile: statsFile });
+  assert.deepEqual(await store.load(), { games: 40, rounds: 300, pikDamesLaidOut: 7, pikDamesCaught: 9, handAusRounds: 1 }, 'imported games are already in the counters');
+  const games = await store.gamesOf('Florian');
+  assert.equal(games.length, 2, 'the broken entry is skipped');
+  assert.equal(games[1].stammtisch, true);
+  assert.equal(games[1].challengeDate, '2026-10-01');
+  assert.ok(fs.existsSync(`${gamesFile}.migrated`) && fs.existsSync(`${statsFile}.migrated`));
+  const { rows } = await pool.query("SELECT created_at FROM players WHERE player_key = 'anna'");
+  assert.equal(rows[0].created_at, null, 'a name first seen in the import claims no age');
+
+  // A restored old file is not imported twice.
+  fs.writeFileSync(gamesFile, JSON.stringify({ games: [match(5)] }));
+  fs.writeFileSync(statsFile, JSON.stringify({ games: 1 }));
+  const again = createGameHistoryStore(pool, { legacyGamesFile: gamesFile, legacyStatsFile: statsFile });
+  assert.equal((await again.load()).games, 40);
+  assert.equal((await again.gamesOf('Florian')).length, 2);
+  assert.equal(fs.existsSync(gamesFile), false);
+});
+
+test('a broken games.json is not marked imported: the history works, the import retries', async (t) => {
+  const pool = testPool(t, 'history');
+  const gamesFile = path.join(tmpDir(), 'games.json');
+  fs.writeFileSync(gamesFile, '{not json');
+  const store = createGameHistoryStore(pool, { legacyGamesFile: gamesFile, legacyStatsFile: null });
+  await store.saveGame(match(1));
+  assert.equal((await store.gamesOf('Anna')).length, 1);
+  const { rows } = await pool.query("SELECT * FROM legacy_imports WHERE source = 'games.json'");
+  assert.equal(rows.length, 0);
+  assert.ok(fs.existsSync(gamesFile));
 });
 
 // --- historyForPlayer: persönliche Spielhistorie fürs Statistik-Overlay -------

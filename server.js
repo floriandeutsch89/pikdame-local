@@ -12,7 +12,6 @@ const WebSocket = require('ws');
 const GameManager = require('./game/GameManager');
 const { createPlayerStore } = require('./game/PlayerStore');
 const { createBadgeRarity } = require('./game/BadgeRarity');
-const { createGlobalStatsStore } = require('./game/GlobalStatsStore');
 const { computeEarnedBadges, computeRoundBadges, familyBadges, ROUND_BADGES } = require('./game/Badges');
 const BotTower = require('./game/BotTower');
 const { seasonalBacksFor } = require('./game/SeasonalBacks');
@@ -62,7 +61,6 @@ const CHALLENGE_BOT_DIFFICULTY = 'medium';
 // Eigenstaendige Themenseiten (public/<slug>.html). Eine Seite kann nur fuer
 // EIN Hauptthema ranken - deshalb je eine Seite statt eines Sammelblocks.
 const SEO_PAGES = ['romme-regeln', 'pik-dame-regeln', 'kartenspiele-zu-zweit', 'pik-dame-strategie', 'pik-dame-oder-hearts'];
-const globalStats = createGlobalStatsStore();
 // "Dein Pik-Dame-Jahr": per-year counters behind the December review.
 const yearStats = createYearStatsStore();
 // PostgreSQL is mandatory: without it nothing could be stored for good.
@@ -105,7 +103,9 @@ const greetingDays = (() => {
     return [];
   }
 })();
-const gameHistoryStore = createGameHistoryStore();
+// Finished matches and the anonymous counters (games.json/stats.json of older versions are imported once).
+const gameHistoryStore = createGameHistoryStore(db);
+gameHistoryStore.load().catch((e) => console.error('[db] game counters not loaded yet:', e.message));
 // Stammtisch: persistent group tables (code -> members, record, series).
 // Scoped by code, so it stays on in public mode - see StammtischStore.
 // stammtisch.json of older versions is imported once.
@@ -138,7 +138,7 @@ let DATA_DIR_WRITABLE = true; // for the config report
     const probe = path.join(DATA_DIR, '.write-test');
     fs.writeFileSync(probe, String(Date.now()));
     fs.unlinkSync(probe);
-    const info = ['stats.json', 'games.json', 'sessions-snapshot.json']
+    const info = ['years.json', 'sessions-snapshot.json']
       .map((f) => {
         try {
           return `${f} ${fs.statSync(path.join(DATA_DIR, f)).size}B`;
@@ -203,8 +203,6 @@ process.on('unhandledRejection', (reason) => {
 // Persist pending buffered writes when something goes wrong, so stats survive
 // even if the process is killed right after a crash (the debounce hasn't fired).
 function flushStoresSafely() {
-  try { globalStats.flushSync(); } catch (e) { /* best effort */ }
-  try { gameHistoryStore.flushSync(); } catch (e) { /* best effort */ }
   try { yearStats.flushSync(); } catch (e) { /* best effort */ }
 }
 
@@ -944,7 +942,7 @@ async function handleAdminRequest(req, res, filePath) {
         // the real delete button appear in the notice area.
         notice = {
           ok: false,
-          text: `Benutzer „${username}“ wirklich löschen? Konto, Anmeldungen und Spielversuche werden entfernt, der Name ist danach wieder frei.`,
+          text: `Benutzer „${username}“ wirklich löschen? Konto, Anmeldungen und Spielversuche werden entfernt, in beendeten Partien wird der Name unkenntlich, der Name ist danach wieder frei.`,
           html: AdminPage.confirmDeleteHtml(csrf, username),
         };
       } else if (action === 'delete') {
@@ -954,6 +952,9 @@ async function handleAdminRequest(req, res, filePath) {
         if (r.ok) try { await playerStore.setFavoriteBadges(r.username, []); } catch (e) { logCrash('admin-favorites', e); }
         // Its play attempts go too (privacy page); the account is gone, so a failure names the SQL.
         const attempts = r.ok ? await playEvents.deleteByName(r.username) : 0;
+        // Its seats in finished matches stay for the others, without name and link.
+        const seats = r.ok ? await gameHistoryStore.anonymizeName(r.username) : 0;
+        if (seats === null) logCrash('admin-anonymize', new Error(`seats of ${nameKey(r.username)} not anonymised`));
         if (!r.ok) notice = { ok: false, text: r.error };
         else if (attempts === null) notice = { ok: false, text: `Benutzer „${r.username}“ wurde gelöscht, seine Spielversuche aber nicht (Datenbankfehler). Nachholen: DELETE FROM play_attempts WHERE player_key = '${nameKey(r.username)}';` };
         else notice = { ok: true, text: `Benutzer „${r.username}“ wurde gelöscht${attempts ? ` (mit ${attempts} Spielversuch${attempts === 1 ? '' : 'en'})` : ''}.` };
@@ -1640,9 +1641,10 @@ const registry = new SessionRegistry((session) => {
         trackWrite(recordTowerStage(gameRecord, sendTo, session));
         return;
       }
-      // Globale Zähler sind ANONYM aggregiert (keine Namen) und daher auch
-      // im öffentlichen Modus unbedenklich.
-      globalStats.recordGame(gameRecord);
+      // Anonymous counters always; the match itself (names) not in public mode.
+      // A flag, never the Stammtisch code: history is readable by name, codes stay secret.
+      trackWrite(gameHistoryStore.saveGame(gameRecord, { keepHistory: !PUBLIC_MODE, stammtisch: !!session.stammtisch })
+        .catch((err) => logCrash('game-history', err)));
       // Stammtisch record + rematch series: scoped by the table's code, so it
       // runs in public mode too. Best-effort like everything below.
       if (session.stammtisch) {
@@ -1657,8 +1659,6 @@ const registry = new SessionRegistry((session) => {
       if (PUBLIC_MODE) return;
       // Counters the record alone does not know (challenger / Stammtisch badges).
       for (const r of results) r.facts = { ...(r.facts || {}), challenge: !!gameRecord.challengeDate, stammtisch: !!session.stammtisch };
-      // A flag, never the code: history is readable by name, codes stay secret.
-      gameHistoryStore.saveGame(session.stammtisch ? { ...gameRecord, stammtisch: true } : gameRecord);
       trackWrite(bookFinishedGame(session, results, gameRecord, sendTo));
 
       // Daily challenge: record the human's score and hand out the board.
@@ -2184,7 +2184,7 @@ async function sendProfilesTo(ws, { me = '', names = [] } = {}) {
   }
   if (ws.readyState !== WebSocket.OPEN) return;
   ws.send(JSON.stringify({
-    type: 'profiles', players, publicMode: PUBLIC_MODE, globalStats: globalStats.getStats(), quests,
+    type: 'profiles', players, publicMode: PUBLIC_MODE, globalStats: gameHistoryStore.getStats(), quests,
     badgeRarity: PUBLIC_MODE ? null : badgeRarity.get(),
   }));
 }
@@ -2535,14 +2535,18 @@ wss.on('connection', (ws, req) => {
       return;
     }
     if (msg.type === 'getGameHistory') {
-      // Persönliche Spielhistorie (Feature-Wunsch): die letzten beendeten
-      // Partien, in denen dieser Name als echter Spieler dabei war. Dieselbe
-      // Sperre wie bei Profilen/Statistik - im öffentlichen Modus sieht
-      // niemand die Partien Fremder. Die Filter-/Kürzungslogik selbst lebt
-      // als reine Funktion in GameHistoryStore.js (dort ohne laufenden
-      // Server prüfbar).
-      const mine = PUBLIC_MODE ? [] : historyForPlayer(gameHistoryStore.listGames(), msg.name, 20);
-      ws.send(JSON.stringify({ type: 'gameHistory', games: mine }));
+      // The name's last finished matches; nobody sees anyone's in public mode.
+      if (PUBLIC_MODE) {
+        ws.send(JSON.stringify({ type: 'gameHistory', games: [] }));
+        return;
+      }
+      const name = msg.name;
+      gameHistoryStore.gamesOf(name, 20).then((games) => {
+        if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type: 'gameHistory', games: historyForPlayer(games, name, 20) }));
+      }).catch((err) => {
+        logCrash('game-history', err);
+        if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type: 'gameHistory', games: [] }));
+      });
       return;
     }
     if (msg.type === 'getPuzzle' || msg.type === 'solvePuzzle' || msg.type === 'revealPuzzle' || msg.type === 'checkPuzzleMeld') {
@@ -3132,8 +3136,6 @@ async function shutdown(signal) {
   // Flushes at once; the deal worker ends between two games (never inside an ONNX run).
   let towerStopped = Promise.resolve();
   try { towerStopped = towerMonths.stop({ graceMs: 4000 }); } catch (e) { /* never block shutdown */ }
-  gameHistoryStore.flushSync();
-  globalStats.flushSync();
   try { yearStats.flushSync(); } catch (e) { /* the year review is best effort */ }
   try { if (adminMonitor) adminMonitor.flushSync(); } catch (e) { /* monitoring history is best effort */ }
   for (const client of wss.clients) {

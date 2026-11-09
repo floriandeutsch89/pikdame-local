@@ -1885,7 +1885,9 @@
       return;
     }
     if (msg.type === 'gameHistory') {
-      myGameHistory = msg.games || [];
+      // name null: a deleted account's seat (anonymised on the server).
+      const unnamed = L('Gelöschtes Konto', 'Deleted account');
+      myGameHistory = (msg.games || []).map((g) => ({ ...g, players: (g.players || []).map((p) => (p.name == null ? { ...p, name: unnamed } : p)) }));
       if (!el('statsOverlay').classList.contains('hidden')) renderStatsMe();
       if (!el('statsOverlay').classList.contains('hidden') && !el('statsPaneHistory').classList.contains('hidden')) {
         renderGameHistory();
