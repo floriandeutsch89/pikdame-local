@@ -3,6 +3,13 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.129.0] - 2026-11-09
+
+### Changed
+- Abhängigkeiten aktualisiert: ws 8.22.1→8.22.2, @simplewebauthn/server 14.0.3→14.1.0
+- Kartenhaus, Etagen 11 bis 20: deutlich fairer. Die Bots bekommen nur noch 0 bis 60 statt 100 bis 160 Punkte Vorgabe, auf den Etagen 11 bis 14 sitzt statt eines dritten Zen-Bots ein Schwer-Bot. Die Sonderregeln jeder Etage bleiben, wie sie sind
+- Die Etagen 11 bis 20 im November und Dezember haben neue Blätter: Jedes ist von Zen gewonnen und von einem guten Spieler mit kleinen Fehlern oft genug zu schaffen. Deine bisherigen Sterne bleiben
+
 ## [2.128.2] - 2026-11-04
 
 ### Fixed
