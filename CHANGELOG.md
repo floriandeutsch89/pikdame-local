@@ -3,6 +3,13 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.129.1] - 2026-11-09
+
+### Fixed
+- Zurück aus dem Hintergrund: Ein Zug direkt nach dem Wiederverbinden brachte kurz
+  „Bitte zuerst ein Spiel erstellen oder mit einem Code beitreten.“ – er wartet
+  jetzt, bis der Platz am Tisch wieder steht
+
 ## [2.129.0] - 2026-11-09
 
 ### Changed
