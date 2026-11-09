@@ -16,17 +16,18 @@ const TOWER_STAGES = [
   { stage: 8, bots: ['zen', 'hard', 'hard'], handicap: 40 },
   { stage: 9, bots: ['zen', 'zen', 'hard'], handicap: 60 },
   { stage: 10, bots: ['zen', 'zen', 'zen'], handicap: 100 },
-  // "queen" helps the heuristic (+100 when melded), so it pairs with a bigger head start.
-  { stage: 11, bots: ['zen', 'zen', 'zen'], handicap: 100, mods: ['queen'] },
-  { stage: 12, bots: ['zen', 'zen', 'zen'], handicap: 100, mods: ['goOut'] },
-  { stage: 13, bots: ['zen', 'zen', 'zen'], handicap: 100, mods: ['noDiscard'] },
-  { stage: 14, bots: ['zen', 'zen', 'zen'], handicap: 140, mods: ['queen'] },
-  { stage: 15, bots: ['zen', 'zen', 'zen'], handicap: 120, mods: ['goOut'] },
-  { stage: 16, bots: ['zen', 'zen', 'zen'], handicap: 120, mods: ['noDiscard'] },
-  { stage: 17, bots: ['zen', 'zen', 'zen'], handicap: 140, mods: ['queen', 'goOut'] },
-  { stage: 18, bots: ['zen', 'zen', 'zen'], handicap: 160, mods: ['queen', 'noDiscard'] },
-  { stage: 19, bots: ['zen', 'zen', 'zen'], handicap: 160, mods: ['noDiscard', 'goOut'] },
-  { stage: 20, bots: ['zen', 'zen', 'zen'], handicap: 160, mods: ['queen', 'noDiscard', 'goOut'] },
+  // Floors 11-20: head starts measured with Hard (10 % slips) over 300 random deals;
+  // the modifiers do most of the work, "queen" (+100 when melded) gets a head start.
+  { stage: 11, bots: ['zen', 'zen', 'hard'], handicap: 20, mods: ['queen'] },
+  { stage: 12, bots: ['zen', 'zen', 'hard'], handicap: 0, mods: ['goOut'] },
+  { stage: 13, bots: ['zen', 'zen', 'hard'], handicap: 0, mods: ['noDiscard'] },
+  { stage: 14, bots: ['zen', 'zen', 'hard'], handicap: 60, mods: ['queen'] },
+  { stage: 15, bots: ['zen', 'zen', 'zen'], handicap: 0, mods: ['goOut'] },
+  { stage: 16, bots: ['zen', 'zen', 'zen'], handicap: 20, mods: ['noDiscard'] },
+  { stage: 17, bots: ['zen', 'zen', 'zen'], handicap: 40, mods: ['queen', 'goOut'] },
+  { stage: 18, bots: ['zen', 'zen', 'zen'], handicap: 60, mods: ['queen', 'noDiscard'] },
+  { stage: 19, bots: ['zen', 'zen', 'zen'], handicap: 0, mods: ['noDiscard', 'goOut'] },
+  { stage: 20, bots: ['zen', 'zen', 'zen'], handicap: 40, mods: ['queen', 'noDiscard', 'goOut'] },
 ];
 // queen: you start with a Queen of Spades; noDiscard: you never take the discard
 // pile; goOut: stars only when you go out yourself.

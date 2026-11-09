@@ -112,7 +112,7 @@ test('floor card: the floor as a card beside the piles, head start, handicaps by
   assert.strictEqual(bar.querySelectorAll('.tfStars .icon').length, 3);
   assert.strictEqual(bar.querySelectorAll('.tfStars .icon.on').length, 2, 'best stars of this month, filled');
   assert.strictEqual(bar.querySelector('.tfCap').textContent, 'Kartenhaus');
-  assert.strictEqual(bar.querySelector('.tfGoal').textContent, `Vorgabe ${handicap}`);
+  assert.strictEqual(bar.querySelector('.tfGoal').textContent, handicap ? `Vorgabe ${handicap}` : 'Ohne Vorgabe');
   assert.deepStrictEqual([...bar.querySelectorAll('.tfMod')].map((m) => m.textContent), ['Ohne Ablage', 'Selbst ausmachen']);
   assert.deepStrictEqual([...bar.querySelectorAll('.tfTok')].map((n) => n.classList.contains('handicap')), [true, true]);
   // Two targets: the card opens the rules, the rest folds.
@@ -121,7 +121,7 @@ test('floor card: the floor as a card beside the piles, head start, handicaps by
   assert.ok(card.querySelector('.tfCard'), 'the card is the rules button');
   assert.strictEqual(card.getAttribute('aria-haspopup'), 'dialog');
   assert.strictEqual(card.getAttribute('aria-label'),
-    `Kartenhaus, Etage ${stage}: Bestwert 2 von 3 Sternen, Vorgabe ${handicap}, Erschwernisse: Ohne Ablage, Selbst ausmachen. Regeln anzeigen`);
+    `Kartenhaus, Etage ${stage}: Bestwert 2 von 3 Sternen, ${handicap ? `Vorgabe ${handicap}` : 'ohne Vorgabe'}, Erschwernisse: Ohne Ablage, Selbst ausmachen. Regeln anzeigen`);
   const fold = bar.querySelector('.tbFold');
   assert.strictEqual(fold.tagName, 'BUTTON');
   assert.ok(!fold.contains(card) && !card.contains(fold), 'never nested');
@@ -130,7 +130,7 @@ test('floor card: the floor as a card beside the piles, head start, handicaps by
   assert.ok(!t.folded());
 
   t.doc.getElementById('langBtn').click();
-  assert.strictEqual(bar.querySelector('.tfGoal').textContent, `Head start ${handicap}`);
+  assert.strictEqual(bar.querySelector('.tfGoal').textContent, handicap ? `Head start ${handicap}` : 'No head start');
   assert.deepStrictEqual([...bar.querySelectorAll('.tfMod')].map((m) => m.textContent), ['No discard pile', 'Go out yourself']);
   assert.match(bar.querySelector('.tbCard').getAttribute('aria-label'), new RegExp(`^House of Cards, floor ${stage}: best 2 of 3 stars`));
   assert.strictEqual(bar.querySelector('.tbFold').getAttribute('title'), 'Collapse');
@@ -191,13 +191,14 @@ test('a tap on the floor card opens the floor\'s rules: stars, bots, head start,
   assert.match(body.textContent, /Dein Bestwert diesen Monat: 1 von 3 Sternen/);
   const stars = [...body.querySelectorAll('.khRuleList li')].map((li) => li.textContent);
   assert.deepStrictEqual(stars, [
-    `1 Stern: selbst ausmachen und mehr Punkte als jeder Bot samt ${handicap} Vorgabe`,
+    `1 Stern: selbst ausmachen und mehr Punkte als jeder Bot${handicap ? ` samt ${handicap} Vorgabe` : ''}`,
     '2 Sterne: gibt es hier nicht – ohne Ausmachen kein Stern',
     `3 Sterne: selbst ausmachen und mindestens ${BotTower.CLEAR_MARGIN} Punkte vorn`,
   ], 'goOut leaves no 2-star outcome (BotTower.starsFor)');
   assert.ok(body.querySelectorAll('.khRuleList li')[1].classList.contains('off'));
   assert.match(body.textContent, new RegExp(`${bots.length} Bots: ${bots.map(() => '\\w+').join(', ')}`));
-  assert.match(body.textContent, new RegExp(`Vorgabe ${handicap}: Für einen Stern brauchst du mehr Punkte als der beste Bot plus ${handicap}\\.`));
+  if (handicap) assert.match(body.textContent, new RegExp(`Vorgabe ${handicap}: Für einen Stern brauchst du mehr Punkte als der beste Bot plus ${handicap}\\.`));
+  else assert.doesNotMatch(body.textContent, /Vorgabe \d/, 'no head start: no "Vorgabe 0"');
   assert.deepStrictEqual([...body.querySelectorAll('h3')].map((h) => h.textContent), ['So holst du Sterne', 'Gegner', 'Erschwernisse']);
   const rules = [...body.querySelectorAll('.tfsMods li')].map((li) => li.textContent);
   assert.match(rules[0], /^Ohne Ablage: Du darfst die Ablage nie aufnehmen und ziehst immer vom Stapel\./);
@@ -240,7 +241,7 @@ test('start card: once at the start of a try, "Los" or the first move closes it,
   assert.ok(t.shown('towerStart'), 'shown before the first move');
   assert.ok(t.doc.getElementById('table').classList.contains('towerStartOpen'), 'the floor card waits meanwhile');
   assert.strictEqual(t.$('#towerStartTitle').textContent, `Etage ${stage}`);
-  assert.strictEqual(t.$('#towerStartGoal').textContent, `Ziel: selbst ausmachen und mehr Punkte als jeder Bot samt ${handicap} Vorgabe.`);
+  assert.strictEqual(t.$('#towerStartGoal').textContent, `Ziel: selbst ausmachen und mehr Punkte als jeder Bot${handicap ? ` samt ${handicap} Vorgabe` : ''}.`);
   assert.deepStrictEqual([...t.$('#towerStartMods').querySelectorAll('.tsModsHead')].map((h) => h.textContent), ['Erschwernis']);
   assert.strictEqual(t.$('#towerStartMods .tfMod').textContent, 'Selbst ausmachen');
   assert.strictEqual(t.$('#towerStartCard .tfRank b').textContent, String(stage));
