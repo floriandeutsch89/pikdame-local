@@ -23,6 +23,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write # Tailscale workload identity (no stored Tailscale secret)
 
 concurrency:
   group: deploy-production
@@ -48,6 +49,16 @@ jobs:
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Deploying commit ${{ github.sha }}, expecting v$VERSION"
+
+      # Prod host's SSH is open on Tailscale only (same path as beta.yml).
+      - name: Join the tailnet
+        if: vars.TS_OAUTH_CLIENT_ID != ''
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ vars.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ vars.TS_AUDIENCE }}
+          tags: tag:ci
+          ping: ${{ vars.DEPLOY_HOST }}
 
       - name: SSH to the server
         env:

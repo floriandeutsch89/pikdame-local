@@ -225,6 +225,20 @@ Repository → **Settings → Secrets and variables → Actions → Variables**:
 | `DEPLOY_USER` | `deploy` | optional, default `deploy` |
 | `DEPLOY_PORT` | `22` | optional, default `22` |
 
+#### SSH only over Tailscale
+
+Same path as the beta deploy ({doc}`beta`, "SSH only over Tailscale"): with
+`TS_OAUTH_CLIENT_ID` set, the job first joins the tailnet as an ephemeral node
+tagged `tag:ci` via GitHub's OIDC token, so no Tailscale secret is stored.
+
+- Policy: grant `tag:ci` port 22 of the prod host (e.g. `tag:prod`), nothing else.
+- Trust credential subject:
+  `repo:floriandeutsch89/pikdame-local:environment:production`.
+- Variables `TS_OAUTH_CLIENT_ID` and `TS_AUDIENCE` must be visible to the
+  `production` environment.
+- `DEPLOY_HOST` = the host's Tailscale name or `100.x` address, and
+  `DEPLOY_KNOWN_HOSTS` with exactly that name in front. `DEPLOY_URL` stays public.
+
 ### 8. Try it
 
 **Actions → Deploy → Run workflow** (branch `main`). It deploys the current
@@ -248,6 +262,8 @@ not red), Watchtower carries on nightly. To revoke the key for good, empty
 | Symptom in the Deploy job | Cause |
 | --- | --- |
 | Job skipped (grey) | `DEPLOY_HOST` not set, or the workflow ran on a branch other than `main` |
+| No "Join the tailnet" step in the log | `TS_OAUTH_CLIENT_ID` not visible to the `production` environment |
+| `ssh: connect … timed out` | Runner not in the tailnet, or `DEPLOY_HOST` is not the Tailscale name/address |
 | `DEPLOY_SSH_KEY and DEPLOY_KNOWN_HOSTS must be set` | Secrets missing, or stored as repository secrets instead of in the `production` environment while the environment restricts them |
 | `Host key verification failed` | `DEPLOY_KNOWN_HOSTS` does not match: host name differs from `DEPLOY_HOST`, or the server was rebuilt (new host key) |
 | `Permission denied (publickey)` | `authorized_keys` wrong owner/mode, the public key does not belong to `DEPLOY_SSH_KEY`, or your sshd config has `AllowUsers`/`AllowGroups` without `deploy` |
