@@ -3,7 +3,7 @@
 // Steering via env (a worker thread gets a copy of process.env at its start):
 //   TOWER_STUB_ZEN_NEVER=13,14   Zen wins no deal on these floors (emergency lock)
 //   TOWER_STUB_ZEN_LOSES=123,456 Zen no longer wins these seeds ("the bots changed")
-//   TOWER_STUB_MEDIUM_NEVER=15   no medium rate fits the band (emergency relax)
+//   TOWER_STUB_MEDIUM_NEVER=15   no medium rate fits the window (relaxed pick)
 //   TOWER_STUB_HARD_NEVER=14     Hard's slip rate stays below the gate on these floors
 //   TOWER_STUB_DELAY_MS=2        each game takes this long (a stop mid-run)
 'use strict';

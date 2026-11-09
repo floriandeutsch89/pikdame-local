@@ -692,6 +692,10 @@ for (const level of ['easy', 'medium', 'hard', 'zen']) {
 
 // --- Logs, history, year review, MCP -----------------------------------------
 
+// Test servers inherit the log path and append to it concurrently: pick this test's rows by tag.
+const ownLogRows = (tag) => fs.readFileSync(MoveLogger.LOG_PATH, 'utf8').split('\n').filter(Boolean)
+  .map((l) => JSON.parse(l)).filter((r) => r.move && r.move.tag === tag);
+
 test('move log: a team game\'s rows carry the team outcome for both teammates', () => {
   const g = teamTable(2);
   deal(g);
@@ -701,12 +705,11 @@ test('move log: a team game\'s rows carry the team outcome for both teammates', 
   g.totals[g.partnerOf('p1').id] = 500;
   g.totals.p2 = 100;
   g._moveLog = [
-    { playerId: 'p1', seat: 0, phase: 'discard', round: 1, turn: 1, pileTakeLegal: false, move: {}, state: {}, action: 0, obs: [0], mask: [true] },
-    { playerId: 'p2', seat: 1, phase: 'discard', round: 1, turn: 2, pileTakeLegal: false, move: {}, state: {}, action: 0, obs: [0], mask: [true] },
+    { playerId: 'p1', seat: 0, phase: 'discard', round: 1, turn: 1, pileTakeLegal: false, move: { tag: 'team-rows' }, state: {}, action: 0, obs: [0], mask: [true] },
+    { playerId: 'p2', seat: 1, phase: 'discard', round: 1, turn: 2, pileTakeLegal: false, move: { tag: 'team-rows' }, state: {}, action: 0, obs: [0], mask: [true] },
   ];
-  const before = fs.existsSync(MoveLogger.LOG_PATH) ? fs.readFileSync(MoveLogger.LOG_PATH, 'utf8').split('\n').filter(Boolean).length : 0;
   MoveLogger.flush(g);
-  const rows = fs.readFileSync(MoveLogger.LOG_PATH, 'utf8').split('\n').filter(Boolean).slice(before).map((l) => JSON.parse(l));
+  const rows = ownLogRows('team-rows');
   const p1 = rows.find((r) => r.seat === 0);
   const p2 = rows.find((r) => r.seat === 1);
   assert.equal(p1.teamMode, 1);
@@ -732,9 +735,9 @@ test('move log: team rows add the encoder-v2 team block; obs stays v1, so today\
   assert.deepEqual(entry.obsTeam, SE.teamFeatures(g, 'p1'));
   assert.deepEqual([...entry.obs, ...entry.obsTeam.map(Math.fround)], Array.from(SE.encode(g, 'p1', { phase: 'draw', version: 2 })),
     'obs + obsTeam is the v2 observation of the same decision');
-  const before = fs.existsSync(MoveLogger.LOG_PATH) ? fs.readFileSync(MoveLogger.LOG_PATH, 'utf8').split('\n').filter(Boolean).length : 0;
+  entry.move = { ...entry.move, tag: 'team-obs' };
   MoveLogger.flush(g);
-  const [row] = fs.readFileSync(MoveLogger.LOG_PATH, 'utf8').split('\n').filter(Boolean).slice(before).map((l) => JSON.parse(l));
+  const [row] = ownLogRows('team-obs');
   assert.equal(row.obs.length, SE.OBS_SIZE_V1);
   assert.equal(row.obsTeam.length, SE.TEAM_FEATURES);
   assert.equal(row.obsTeam[0], 1);

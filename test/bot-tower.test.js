@@ -26,7 +26,7 @@ const { TOWER_STAGES, starsFor, outcomeFromRecord, unlockedStage, summarize } = 
 
 const TowerSeeds = require('../game/TowerSeeds');
 
-test('twenty floors: the old ladder, then three Zen bots with modifiers; 60 stars', () => {
+test('twenty floors: the old ladder, then Zen bots with modifiers; 60 stars', () => {
   assert.strictEqual(BotTower.TOWER_SIZE, 20);
   assert.strictEqual(BotTower.MAX_STARS, 60);
   assert.deepStrictEqual(TOWER_STAGES.map((s) => s.stage), Array.from({ length: 20 }, (_, i) => i + 1));
@@ -43,19 +43,19 @@ test('twenty floors: the old ladder, then three Zen bots with modifiers; 60 star
   for (const s of TOWER_STAGES.slice(0, 3)) assert.ok(!has(s, 'hard') && !has(s, 'zen'), `floor ${s.stage}: easy/medium only`);
   for (const s of TOWER_STAGES.slice(3, 6)) assert.ok(has(s, 'hard') && !has(s, 'zen'), `floor ${s.stage}: hard, no Zen yet`);
   for (const s of TOWER_STAGES.slice(6, 9)) assert.ok(has(s, 'zen'), `floor ${s.stage}: Zen in the mix`);
-  for (const s of TOWER_STAGES.slice(9)) {
-    assert.deepStrictEqual(s.bots, ['zen', 'zen', 'zen'], `floor ${s.stage}: three Zen`);
-    assert.ok(s.handicap >= 100, `floor ${s.stage}: a big head start`);
+  assert.deepStrictEqual([TOWER_STAGES[9].bots, TOWER_STAGES[9].handicap], [['zen', 'zen', 'zen'], 100], 'floor 10: three Zen, 100 head start');
+  for (const s of TOWER_STAGES.slice(10)) {
+    assert.deepStrictEqual(s.bots, s.stage <= 14 ? ['zen', 'zen', 'hard'] : ['zen', 'zen', 'zen'], `floor ${s.stage}: three bots, two or three Zen`);
   }
   for (const s of TOWER_STAGES.slice(0, 10)) assert.ok(!s.mods, `floor ${s.stage}: plain rules`);
   for (const s of TOWER_STAGES.slice(10)) {
     assert.ok(s.mods.length >= 1 && s.mods.every((m) => BotTower.MODS.includes(m)), `floor ${s.stage}: known modifiers`);
   }
   assert.deepStrictEqual(TOWER_STAGES[19].mods.slice().sort(), BotTower.MODS.slice().sort(), 'the top floor: all three');
-  // Floors 11-20 as decided (head start and modifiers, measured against the Zen net).
+  // Floors 11-20 as decided (head start and modifiers, measured with Hard's slips against the Zen net).
   assert.deepStrictEqual(TOWER_STAGES.slice(10).map((s) => [s.handicap, s.mods.join('+')]), [
-    [100, 'queen'], [100, 'goOut'], [100, 'noDiscard'], [140, 'queen'], [120, 'goOut'], [120, 'noDiscard'],
-    [140, 'queen+goOut'], [160, 'queen+noDiscard'], [160, 'noDiscard+goOut'], [160, 'queen+noDiscard+goOut'],
+    [20, 'queen'], [0, 'goOut'], [0, 'noDiscard'], [60, 'queen'], [0, 'goOut'], [20, 'noDiscard'],
+    [40, 'queen+goOut'], [60, 'queen+noDiscard'], [0, 'noDiscard+goOut'], [40, 'queen+noDiscard+goOut'],
   ]);
 });
 

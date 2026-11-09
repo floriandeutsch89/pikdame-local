@@ -4,7 +4,8 @@
  *  where it has a proof (always on floors 1-2: the easy bots' dice). Without
  *  onnxruntime only Hard on floors without a Zen bot runs here, the CI job
  *  `tower-proofs` runs all of it. The old October tower (floors 1-10) predates
- *  the rule: only its hashes are checked.
+ *  the rule, and the month is closed: floors 11-20 were played with the old head
+ *  starts (100-160), so there too only the hashes are checked.
  *  Intended bot change: `node scripts/tower-seeds.js --prove` refreshes the hashes. */
 'use strict';
 const test = require('node:test');
@@ -14,28 +15,28 @@ const OnnxPolicy = require('../game/OnnxPolicy');
 const TowerSeeds = require('../game/TowerSeeds');
 const proofs = require('./fixtures/tower-proofs.json');
 const { playFloor, needsNet } = require('../game/TowerPlay');
-const { mediumWindow, HARD_MIN } = require('../game/TowerRule');
+const { mediumWindow, hardMin } = require('../game/TowerRule');
 
 const net = OnnxPolicy.enabled() && OnnxPolicy.available();
 const legacy = (month, stage) => month === BotTower.LEGACY_MONTH && stage <= 10;
+const closed = (month) => month === BotTower.LEGACY_MONTH; // past, played on the old floors 11-20
 
 test('every committed month has its proof games', () => {
   assert.deepStrictEqual(Object.keys(proofs).sort(), Object.keys(TowerSeeds).sort());
   for (const [month, seeds] of Object.entries(TowerSeeds)) {
     assert.deepStrictEqual(proofs[month].map((f) => f.seed), seeds, `${month}: proofs belong to the committed deals`);
-    let prev = null;
     proofs[month].forEach((f, i) => {
       const stage = i + 1;
       if (legacy(month, stage)) return;
-      assert.ok(f.zen[0] >= 1, `${month} floor ${stage}: picked with a star for Zen`);
+      if (!closed(month)) assert.ok(f.zen[0] >= 1, `${month} floor ${stage}: picked with a star for Zen`);
       if (f.hard) assert.ok(f.hard[0] >= 1, `${month} floor ${stage}: a Hard proof is a won game`);
       if (stage <= 2) assert.ok(f.hard, `${month} floor ${stage}: Hard proves the easy bots' dice`);
       if (stage > 10) {
-        const [lo, hi] = mediumWindow(stage, prev);
+        // October was played before the Hard gate and this medium window (GEN_VERSION 2/3).
+        if (month === BotTower.LEGACY_MONTH) return;
+        const [lo, hi] = mediumWindow(stage);
         assert.ok(f.medium10 >= lo && f.medium10 <= hi, `${month} floor ${stage}: medium ${f.medium10} % outside ${lo.toFixed(1)}-${hi.toFixed(1)}`);
-        // The Hard gate came with GEN_VERSION 2 (November 2026); October was played before it.
-        if (month !== BotTower.LEGACY_MONTH) assert.ok(f.hard10 >= HARD_MIN, `${month} floor ${stage}: Hard wins ${f.hard10} % (< ${HARD_MIN} %)`);
-        prev = f.medium10;
+        assert.ok(f.hard10 >= hardMin(stage), `${month} floor ${stage}: Hard wins ${f.hard10} % (< ${hardMin(stage).toFixed(1)} %)`);
       }
     });
   }
@@ -61,7 +62,7 @@ for (const proxy of ['hard', 'zen']) {
       if (o.hash !== hash || o.stars !== stars || o.margin !== margin) {
         bad.push(`${c.month} floor ${c.stage}: ${o.stars}*/${o.margin}/${o.hash}, recorded ${stars}*/${margin}/${hash}`);
       }
-      if (!legacy(c.month, c.stage) && o.stars < 1) bad.push(`${c.month} floor ${c.stage}: no star`);
+      if (!closed(c.month) && o.stars < 1) bad.push(`${c.month} floor ${c.stage}: no star`);
     }
     assert.deepStrictEqual(bad, [], 'the bots or the engine play these deals differently now');
   });
@@ -110,19 +111,17 @@ test('a real month: the server builds it end to end, Zen replays every floor', {
   await tm.stop();
   const floors = JSON.parse(fs.readFileSync(file, 'utf8')).months[month].floors;
   console.log(lines.filter((l) => /proven|WARN/.test(l)).join('\n'));
-  let prev = null;
   for (let stage = 1; stage <= 20; stage++) {
     const f = floors[stage - 1];
     assert.ok(TowerGen.proven(f), `${month} floor ${stage}: a proven deal`);
-    // Floors 11-20 may miss the medium band (nearest pick, goOut floors), never Hard's gate.
+    // Floors 11-20 may miss the medium window (nearest pick), never Hard's gate.
     assert.ok(!f.relaxed || stage > 10, `${month} floor ${stage}: by the full rule`);
     const o = await playFloor({ seed: f.seed, stage, month, proxy: 'zen' });
     assert.deepStrictEqual([o.stars, o.margin, o.hash], f.zen, `${month} floor ${stage}: Zen replays the stored proof`);
     if (stage > 10) {
-      const [lo, hi] = mediumWindow(stage, prev);
+      const [lo, hi] = mediumWindow(stage);
       if (!f.relaxed) assert.ok(f.medium10 >= lo && f.medium10 <= hi, `${month} floor ${stage}: medium ${f.medium10} %`);
-      assert.ok(f.hard10 >= HARD_MIN, `${month} floor ${stage}: Hard ${f.hard10} %`);
-      prev = f.relaxed ? null : f.medium10;
+      assert.ok(f.hard10 >= hardMin(stage), `${month} floor ${stage}: Hard ${f.hard10} %`);
     }
   }
 });
