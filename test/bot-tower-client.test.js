@@ -132,7 +132,7 @@ test('progress sheet: the Kartenhaus entry opens the house - 20 floors and the t
   assert.strictEqual(floorEl(t, 2).getAttribute('aria-label'), 'Etage 2: gegen Leicht, Mittel - 1 von 3 Sternen');
   assert.strictEqual(floorEl(t, 3).getAttribute('aria-label'), 'Etage 3: gegen Mittel, Mittel - noch kein Stern');
   assert.strictEqual(floorEl(t, 20).getAttribute('aria-label'),
-    'Etage 20: gegen Zen, Zen, Zen, die Bots bekommen 160 Punkte Vorgabe, Risiko: Pik Dame auf der Hand · Erschwernis: Ohne Ablage · Erschwernis: Selbst ausmachen - gesperrt');
+    `Etage 20: gegen Zen, Zen, Zen, die Bots bekommen ${BotTower.TOWER_STAGES[19].handicap} Punkte Vorgabe, Risiko: Pik Dame auf der Hand · Erschwernis: Ohne Ablage · Erschwernis: Selbst ausmachen - gesperrt`);
   assert.strictEqual(floorEl(t, 3).getAttribute('aria-pressed'), 'true', 'the detail shows the next floor');
 
   // The detail of the next floor, with the way in.
@@ -159,7 +159,7 @@ test('a tap shows the floor, the button starts it; a locked floor only explains'
   assert.strictEqual(t.sent('startTower').length, 0, 'a tap never starts');
   assert.strictEqual(detail.querySelector('.khDTitle').textContent, 'Etage 14');
   assert.match(detail.textContent, /gesperrt/);
-  assert.match(detail.textContent, /3 Bots: Zen, Zen, Zen · 140 Punkte Vorgabe/);
+  assert.match(detail.textContent, new RegExp(`3 Bots: Zen, Zen, Schwer · ${BotTower.TOWER_STAGES[13].handicap} Punkte Vorgabe`));
   assert.deepStrictEqual([...detail.querySelectorAll('.khMod')].map((m) => m.textContent), ['Risiko: Pik Dame auf der Hand']);
   assert.ok(detail.querySelector('.khMod').classList.contains('risk'), 'the risk chip is gold, not a red handicap');
   assert.strictEqual(detail.querySelector('.khDMods').getAttribute('aria-label'), 'Risiko: Pik Dame auf der Hand – ausgelegt +100, auf der Hand −100', 'the queen is a risk, not a handicap');
@@ -330,7 +330,7 @@ test('floor cards: cleared floors face up with their stars and rim, the next one
   assert.ok(card(13).querySelector('.khGhost'));
   assert.ok(card(13).querySelector('use.khGlyph[href="#i-hourglass"]'), 'the hourglass says why');
   assert.strictEqual(card(13).querySelectorAll('.khStar').length, 0);
-  assert.match(card(13).getAttribute('aria-label'), /^Etage 13: gegen Zen, Zen, Zen, .* - wird noch gebaut$/);
+  assert.match(card(13).getAttribute('aria-label'), /^Etage 13: gegen Zen, Zen, Schwer, .* - wird noch gebaut$/);
   // Locked for the month: hatched with the lock, also beyond the player's floor.
   assert.ok(card(17).classList.contains('closed') && !card(17).classList.contains('isNext'));
   assert.ok(card(17).querySelector('use.khGlyph[href="#i-lock"]'));

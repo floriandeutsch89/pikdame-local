@@ -135,8 +135,9 @@ async function proveAll() {
         seed, hard: legacy || hard.stars >= 1 ? proofOf(hard) : undefined, zen: proofOf(zen),
         medium10: same ? prev.medium10 : undefined, hard10,
       }));
-      if (hard10 != null && hard10 < R.HARD_MIN) lost.push(`${month} floor ${stage} (Hard ${hard10} % < ${R.HARD_MIN} %)`);
-      if (!legacy && zen.stars < 1) lost.push(`${month} floor ${stage}`);
+      if (hard10 != null && month !== LEGACY.month && hard10 < R.hardMin(stage)) lost.push(`${month} floor ${stage} (Hard ${hard10} % < ${R.hardMin(stage).toFixed(1)} %)`);
+      // October is closed and was played on the old floors 11-20 (100-160 head start): hashes only.
+      if (month !== LEGACY.month && zen.stars < 1) lost.push(`${month} floor ${stage}`);
       if (!legacy && stage <= 2 && hard.stars < 1) lost.push(`${month} floor ${stage} (Hard, easy-bot replay)`);
     }
   }

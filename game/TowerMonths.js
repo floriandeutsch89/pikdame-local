@@ -6,10 +6,9 @@
 //
 // - From the 15th: the NEXT month in the background (full rule).
 // - On start: Zen's proofs of this and next month are replayed; a floor Zen no
-//   longer wins (bots or net changed) is picked again (plus the floor above if
-//   the staircase needs it).
+//   longer wins (bots or net changed) is picked again.
 // - This month incomplete (e.g. the 1st, nothing ready): emergency pick right
-//   away, smaller search, the medium band may relax - Zen's proof never. A floor
+//   away, smaller search, the medium window may relax - Zen's proof never. A floor
 //   without any proven deal stays locked. An unproven deal is never served.
 // - Without onnxruntime nothing is generated (Zen would play the heuristic: no
 //   proof); whatever data/ holds is used.

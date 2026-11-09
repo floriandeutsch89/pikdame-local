@@ -89,8 +89,11 @@ month, `game/GameDay.js`); `game/BotTower.js` is the only definition of
 floors, modifiers, stars and months. Each floor is one round on its own seeded
 deal (deck and cut) against fixed bots. Floors 1-10 are the old bot tower's
 ladder, from two Leicht bots up to three Zen bots with a 100-point head start.
-Floors 11-20 play three Zen bots with 100-160 points head start plus
-modifiers against the human seat, enforced by `GameManager`:
+Floors 11-20 play two Zen bots and a Schwer bot (11-14) or three Zen bots
+(15-20) with 0-60 points head start plus modifiers against the human seat,
+enforced by `GameManager`. The modifiers carry most of the difficulty; the
+head starts were measured with Schwer (10 % random moves) over 300 random
+deals per floor (`TOWER_STAGES` in `game/BotTower.js`):
 
 - `queen`: a Queen of Spades is swapped into the hand (1:1 with the hand's
   last plain card, so the 110-card deck stays complete and every try deals the
@@ -129,13 +132,17 @@ the deal (`GameManager._botRandom`, Kartenhaus only). So one game is a proof.
 The ONE rule (`game/TowerRule.js`) and generator (`game/TowerGen.js`, playing
 through `game/TowerPlay.js`) take a deal only when Zen in the human seat earns a
 star on it undisturbed; Schwer's game is recorded too where it wins. Floors
-1-10 also need Schwer's star under a margin cap (tight floors). Floors 11-20 aim
-at a medium player: Mittel with 10 % random moves earns a star in 100 games at a
-rate within ±10 pp of a target falling from 45 % (floor 11) to 13 % (floor 20),
-at least 8 %, and at most 5 pp above the floor below, so the staircase never
-gets easier. When the floor below caps a floor, the search runs without the cap
-and re-picks the floor below to fit (one step back). Up to 20000 candidates per
-floor, no closest-deal fallback. Candidates come from the month
+1-10 also need Schwer's star under a margin cap (tight floors). Floors 11-20
+need a solid player to win: Schwer with 10 % random moves earns a star in at
+least `hardMin` of 100 games, 50 % on floor 11 falling to 30 % on floor 20, so
+the floors still get harder. Mittel with 10 % random moves earns one at a rate
+between `mediumMin` and `mediumMax`: 40-80 % on floor 11 falling to 10-50 % on
+floor 20, so an average player climbs a few floors and the top asks for skill.
+The gated deals' medium rates split into about 0-20 % and 60-100 %, so the
+earlier narrow band (±10 pp around a target, plus a staircase against the floor
+below) mostly fell into the gap. Up to 20000 candidates per floor; when none
+fits, the deal with Hard's gate whose medium rate is nearest the window is taken
+(`relaxed`, 2000 candidates). Candidates come from the month
 (`candidateSeed`: FNV-1a over month, floor, lane and index), so the same month
 always gets the same deals.
 

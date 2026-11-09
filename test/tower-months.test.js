@@ -33,7 +33,6 @@ const service = (file, day, extra = {}) => createTowerMonths({
 
 /** The rule on a month's entries (what the generator promises). */
 function assertRule(month, floors) {
-  let prev = null;
   floors.forEach((f, i) => {
     const stage = i + 1;
     assert.ok(TowerGen.proven(f), `${month} floor ${stage}: a proven deal`);
@@ -41,10 +40,9 @@ function assertRule(month, floors) {
       assert.ok(f.hard && f.hard[0] >= 1 && f.hard[1] <= R.marginCap(stage), `${month} floor ${stage}: Hard's tight star`);
       return;
     }
-    const [lo, hi] = R.mediumWindow(stage, prev);
+    const [lo, hi] = R.mediumWindow(stage);
     if (!f.relaxed) assert.ok(f.medium10 >= lo && f.medium10 <= hi, `${month} floor ${stage}: medium ${f.medium10} outside ${lo}-${hi}`);
-    assert.ok(f.hard10 >= R.HARD_MIN, `${month} floor ${stage}: Hard ${f.hard10} % below ${R.HARD_MIN} %`);
-    prev = f.relaxed ? null : f.medium10; // a relaxed floor caps nothing above it
+    assert.ok(f.hard10 >= R.hardMin(stage), `${month} floor ${stage}: Hard ${f.hard10} % below ${R.hardMin(stage)} %`);
   });
   const seeds = floors.map((f) => f.seed);
   assert.strictEqual(new Set(seeds).size, 20, 'every deal once');
@@ -85,12 +83,12 @@ test('generator: a deal medium likes but Hard rarely wins is never picked', asyn
   });
 });
 
-test('generator: no deal in the band - the nearest one that keeps Hard\'s gate (never without it)', async () => {
+test('generator: no deal in the medium window - the nearest one that keeps Hard\'s gate (never without it)', async () => {
   await withEnv({ TOWER_STUB_MEDIUM_NEVER: '15' }, async () => {
     const res = await TowerGen.generateMonth({ month: '2027-03', play, rate, maxTries: 300, pause: async () => {} });
     assert.deepStrictEqual(res.failed, []);
     const f = res.floors[14];
-    assert.ok(f.relaxed && f.zen[0] >= 1 && f.hard10 >= R.HARD_MIN, JSON.stringify(f));
+    assert.ok(f.relaxed && f.zen[0] >= 1 && f.hard10 >= R.hardMin(15), JSON.stringify(f));
   });
   await withEnv({ TOWER_STUB_MEDIUM_NEVER: '15', TOWER_STUB_HARD_NEVER: '15' }, async () => {
     const res = await TowerGen.generateMonth({ month: '2027-03', play, rate, maxTries: 300, pause: async () => {} });
@@ -103,12 +101,9 @@ test('generator, only: re-picks just the named floors of a played month, the res
   const old = floors.map((f, i) => (i === 14 ? { ...f, hard10: 3 } : i === 16 ? { ...f, hard10: 4 } : f));
   const res = await TowerGen.generateMonth({ month: '2027-03', floors: old, only: [15], play, rate, maxTries: 300, pause: async () => {} });
   assert.notStrictEqual(res.floors[14].seed, old[14].seed, 'floor 15 re-picked');
-  assert.ok(res.floors[14].hard10 >= R.HARD_MIN);
+  assert.ok(res.floors[14].hard10 >= R.hardMin(15));
   res.floors.forEach((f, i) => { if (i !== 14) assert.deepStrictEqual(f, old[i], `floor ${i + 1} kept`); });
-  const off = res.failed.filter((f) => f.kept).map((f) => f.stage);
-  assert.ok(off.includes(17), 'a kept floor off the rule is reported');
-  // ... and so is one the new floor below pushes off the staircase (+5 pp)
-  for (const s of off.filter((x) => x !== 17)) assert.ok(res.floors[s - 1].medium10 > R.mediumWindow(s, res.floors[s - 2].medium10)[1], `floor ${s}`);
+  assert.deepStrictEqual(res.failed.filter((f) => f.kept).map((f) => f.stage), [17], 'a kept floor off the rule is reported');
 });
 
 test('generator, missing: a running month keeps its floors from before the Hard gate', async () => {
@@ -175,7 +170,7 @@ test('service: a stop mid-month ends the worker between games; the next start re
   assert.deepStrictEqual(JSON.parse(fs.readFileSync(file, 'utf8')).months['2027-05'].floors, direct.floors, 'resumed to the same deals');
 });
 
-test('service: a stale proof (the bots changed) is picked again - that floor, and the next only if the staircase needs it', async () => {
+test('service: a stale proof (the bots changed) is picked again - that floor only', async () => {
   const file = tmpFile();
   const s = service(file, '2027-02-20');
   await s.tick();
@@ -191,15 +186,11 @@ test('service: a stale proof (the bots changed) is picked again - that floor, an
   assert.notStrictEqual(after[stale - 1].seed, before[stale - 1].seed, 'the stale floor got a new deal');
   assert.ok(TowerGen.proven(after[stale - 1]));
   after.forEach((f, i) => {
-    if (i === stale - 1 || i === stale) return;
-    assert.deepStrictEqual(f, before[i], `floor ${i + 1} unchanged`);
+    if (i !== stale - 1) assert.deepStrictEqual(f, before[i], `floor ${i + 1} unchanged`);
   });
-  const [, hi] = R.mediumWindow(stale + 1, after[stale - 1].medium10);
-  if (before[stale].medium10 <= hi) assert.deepStrictEqual(after[stale], before[stale], 'the staircase holds: the floor above stays');
-  else assert.ok(after[stale].medium10 <= hi, 'the floor above was picked again to keep the staircase');
 });
 
-test('service: emergency on an empty month - the band may relax, Zen\'s proof never; no proven deal locks the floor', async () => {
+test('service: emergency on an empty month - the medium window may relax, Zen\'s proof never; no proven deal locks the floor', async () => {
   const file = tmpFile();
   await withEnv({ TOWER_STUB_ZEN_NEVER: '13', TOWER_STUB_MEDIUM_NEVER: '15' }, async () => {
     const s = service(file, '2027-06-01');
@@ -207,7 +198,7 @@ test('service: emergency on an empty month - the band may relax, Zen\'s proof ne
     try {
       const floors = s.data().months['2027-06'].floors;
       assert.deepStrictEqual(floors[12], { locked: true }, 'floor 13: no deal Zen wins - locked');
-      assert.strictEqual(floors[14].relaxed, true, 'floor 15: the band relaxed');
+      assert.strictEqual(floors[14].relaxed, true, 'floor 15: the medium window relaxed');
       assert.ok(floors[14].zen[0] >= 1, '... but Zen still proves it');
       assert.deepStrictEqual(s.closedFloors('2027-06'), { 13: 'locked' });
       BotTower.setMonthSource(s.seedsFor);

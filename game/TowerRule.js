@@ -3,30 +3,26 @@
 'use strict';
 
 /** Bump when the rule or the candidate order changes: stored months record it. */
-const GEN_VERSION = 2; // 2: floors 11-20 also need Hard's slip rate (HARD_MIN)
+const GEN_VERSION = 3; // 3: Hard's gate per floor (hardMin), a wide medium window, no staircase
 const MEDIUM_GAMES = 100; // games of the medium player per candidate (floors 11-20)
+const HARD_GAMES = 100; // ... and of Hard
 const MAX_TRIES = 20000; // candidates per floor before it is reported
-const BAND_PP = 10; // floors 11-20: medium rate within +-10 pp of the target
-const STEP_PP = 5; // ... and at most 5 pp above the floor below
-const MIN_RATE = 8; // ... and never below 8 %
-// ... and Hard with 10 % slips earns a star in >= 20 % of its games: medium's rate alone
-// can hang on one fixed winning line, so a solid human could not win some floors.
-const HARD_GAMES = 100;
-const HARD_MIN = 20;
-const NEAREST_TRIES = 2000; // candidates for the nearest-band fallback (TowerGen.js)
+const NEAREST_TRIES = 2000; // candidates for the nearest-window fallback (TowerGen.js)
 
-/** Target star rate (%) of a medium player (Mittel, 10 % random moves): 45 on floor 11 down to 13 on floor 20. */
-const target = (stage) => 45 - ((stage - 11) * 32) / 9;
+/** Floors 11-20: Hard with 10 % slips earns a star in at least this share (%) of its
+ *  games, 50 on floor 11 down to 30 on floor 20 - a solid player can win every floor. */
+const hardMin = (stage) => 50 - ((stage - 11) * 20) / 9;
+
+/** ... and Mittel with 10 % slips in 40-80 % (floor 11) down to 10-50 % (floor 20): wide,
+ *  since gated deals' medium rates split into ~0-20 % and ~60-100 % (docs/overview.md). */
+const mediumMin = (stage) => 40 - ((stage - 11) * 30) / 9;
+const mediumMax = (stage) => mediumMin(stage) + 40;
 
 /** Floors 1-10: Hard's star must not be a landslide (floor 10: 60 points). */
 const marginCap = (stage) => 260 - 20 * stage;
 
-/** Accepted medium rate on floors 11-20; `prev` is the floor below (null on floor 11). */
-function mediumWindow(stage, prev) {
-  const t = target(stage);
-  const hi = prev == null ? t + BAND_PP : Math.min(t + BAND_PP, prev + STEP_PP);
-  return [Math.max(MIN_RATE, t - BAND_PP), hi];
-}
+/** Accepted medium rate [lo, hi] on floors 11-20. */
+const mediumWindow = (stage) => [mediumMin(stage), mediumMax(stage)];
 
 /** FNV-1a (32 bit). */
 function fnv(text) {
@@ -36,10 +32,10 @@ function fnv(text) {
 }
 
 /** The i-th candidate deal of a floor: the same on every replica and after every
- *  restart. `lane` keeps separate searches (backtrack, emergency) apart. */
+ *  restart. `lane` keeps separate searches (fallback, emergency) apart. */
 const candidateSeed = (month, stage, i, lane = 'a') => fnv(`${month}|${stage}|${lane}|${i}`) || 1;
 
 module.exports = {
-  GEN_VERSION, MEDIUM_GAMES, MAX_TRIES, BAND_PP, STEP_PP, MIN_RATE, HARD_GAMES, HARD_MIN, NEAREST_TRIES,
-  target, marginCap, mediumWindow, fnv, candidateSeed,
+  GEN_VERSION, MEDIUM_GAMES, HARD_GAMES, MAX_TRIES, NEAREST_TRIES,
+  hardMin, mediumMin, mediumMax, mediumWindow, marginCap, fnv, candidateSeed,
 };
