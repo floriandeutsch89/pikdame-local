@@ -121,6 +121,10 @@ jobs:
   deploy:
     needs: [meta, docker]
     if: needs.meta.outputs.is_new == 'true'
+    # A called workflow never gets more permissions than its caller grants.
+    permissions:
+      contents: read
+      id-token: write # deploy.yml joins the tailnet
     uses: ./.github/workflows/deploy.yml
     with:
       version: ${{ needs.meta.outputs.version }}
