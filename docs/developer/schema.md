@@ -125,6 +125,25 @@ caps stay as before: tables unused for 180 days go, beyond the 300 most
 recently used too, and that is why `stammtisch_members` needs no `player_id`
 index for "my Stammtische" (300 tables are a sequential scan).
 
+## Games
+
+Every finished match except Kartenhaus floors ("Meine Partien", `013`). Before
+it, `games.json` kept the newest 200 matches of the whole server; there is no
+cap now.
+
+| Data | Where | Why there |
+| --- | --- | --- |
+| Start, end, challenge day, Stammtisch and team flags | columns of `games` | one fact each; the Stammtisch is a flag, never its code (history is readable by name) |
+| Rounds, totals, winners, house rules, team seating | `games.game_record JSONB` | always read and written whole (the overview list and its score chart), never queried inside; names are not in it |
+| Seats | `game_seats (game_id, seat_no, seat_ref, player_id NULL, player_name NULL, is_bot, left_game, bot_difficulty, final_total, is_winner)` | `seat_ref` is the in-game id the record's totals are keyed by; `is_winner` comes from `Teams.isRecordWinner` (both winners of a team) |
+| Server counters (games, rounds, queens, "Hand aus") | `global_stats`, exactly one row (`CHECK (singleton)`) | added in the transaction that stores the match, also in public mode (no names); cached in the process for the profiles message |
+
+A human seat references its player (created like the other stores do). An
+account deleted on the admin page sets `player_id` and `player_name` of its
+seats to NULL: the match stays for the others, the client shows "Gelöschtes
+Konto". Deleting a `players` row unlinks the seats the same way
+(`ON DELETE SET NULL`) but keeps the name.
+
 ## Accounts
 
 An account (`users`) is a confirmed e-mail address that owns a name. Its
@@ -183,7 +202,7 @@ players: 20,000, a quarter without a match, with 300,000 badges, 200,000 tower
 floors, 105,000 quest and 120,000 puzzle rows; Stammtische: 300 with 6 members,
 100 games of 4 seats and 60 weeks each; accounts: 18,000, a fifth unconfirmed,
 with 48,000 sign-ins, 8,000 passkeys and 48,000 season results; admin access: 3 admins, 15 admin sessions,
-50,000 audit rows), PostgreSQL 16:
+50,000 audit rows; games: 100,000 matches of 3 seats, 8 rounds each, 5,000 players), PostgreSQL 16:
 
 | Query | Index | Plan | ms |
 | --- | --- | --- | --- |
@@ -234,6 +253,7 @@ with 48,000 sign-ins, 8,000 passkeys and 48,000 season results; admin access: 3 
 | Sign-out of the game, role removal, housekeeping of expired sessions | none (admins × 8 h of sessions) | seq scan | 0.01 |
 | "Protokoll" page (newest first, 50 per page) | `admin_audit_events_occurred_at_idx` | backward index scan, incremental sort | 0.09 (page 10: 0.17) |
 | 365-day audit retention | `admin_audit_events_occurred_at_idx` | index-only range scan | 0.01 |
+| "Meine Partien" (newest 20 of one name, 40 matches) | `players_player_key_key`, `game_seats_player_id_idx` (player_id, game_id), `games_pkey`, `game_seats_pkey` for the seats | nested loop, top-N sort of the name's matches | 0.4 |
 
 Deleting a player is a rare manual step (a guest's request; an account
 deletion removes attempts by `player_key`, indexed), so `play_attempts` gets no

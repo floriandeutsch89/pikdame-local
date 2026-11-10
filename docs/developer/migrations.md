@@ -99,6 +99,13 @@ a bot seat's level, so the Stammtisch sheet's "Letzte Partien" names it like
 kept seat stays NULL and reads "Bot". An old container still running during the
 deploy books its seats without a level, just like before.
 
+`013_games.sql` creates `games`, `game_seats` and `global_stats` (one row,
+inserted by the migration). The matches and counters come from `games.json`
+and `stats.json` on the first start of the new version, like `players.json`
+(markers in `legacy_imports`; the file's counters are added, its matches were
+already counted in them). An old container still running during the deploy
+keeps writing the files; those matches are not imported afterwards.
+
 ## Rules
 
 - **Forward-only.** There are no down migrations; undo a change with a new file.
