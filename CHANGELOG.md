@@ -3,6 +3,13 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.130.0] - 2026-11-10
+
+### Changed
+- „Meine Partien“ behält jetzt alle beendeten Partien, nicht mehr nur die letzten 200 des ganzen Servers
+- Partien-Historie und Server-Statistik liegen in der Datenbank; vorhandene Daten werden beim ersten Start übernommen
+- Wird ein Konto gelöscht, erscheint es in den Partien der Mitspieler als „Gelöschtes Konto“ statt mit Namen
+
 ## [2.129.2] - 2026-11-10
 
 ### Fixed
