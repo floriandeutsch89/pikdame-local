@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.129.2] - 2026-11-10
+
+### Fixed
+- Liegen in einem Satz Joker (z. B. Ass + 2 Joker), lassen sich jetzt wieder alle passenden Karten anlegen, auch zwei auf einmal: Ein Joker weicht dafür auf eine freie Farbe aus
+
 ## [2.129.1] - 2026-11-09
 
 ### Fixed
