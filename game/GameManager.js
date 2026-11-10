@@ -1697,9 +1697,10 @@ class GameManager {
   _solveLayOffCombination(meld, cards, forcedFirstId) {
     const solutions = [];
     const seenResults = new Set();
+    // A set joker's suit is a label (Rules.makeRoomInSet moves it), never a different result.
     const signature = (m) =>
       m.slots
-        .map((s) => (s.real ? `${s.real.rank}${s.real.suit}` : `J:${s.representsRank}${s.representsSuit}`))
+        .map((s) => (s.real ? `${s.real.rank}${s.real.suit}` : `J:${s.representsRank}${m.type === 'set' ? '' : s.representsSuit}`))
         // SORTIERT vergleichen: Bei einem SATZ ist die Slot-Reihenfolge
         // bedeutungslos - zwei Zehnen in anderer Reihenfolge sind dasselbe
         // Ergebnis, keine Mehrdeutigkeit. Bei einer FOLGE unterscheiden sich

@@ -3450,7 +3450,7 @@
         meld.slots.some((s) => s.joker && s.representsRank === card.rank && s.representsSuit === card.suit) &&
         !cardFitsMeldPureAdd(meld, card);
       if (swapOnly || !cardFitsMeldPureAdd(meld, card)) return [];
-      if (meld.type === 'set') return [{ ...meld, slots: [...meld.slots, { real: card }] }];
+      if (meld.type === 'set') return [{ ...meld, slots: [...setRoomFor(meld.slots, card.suit), { real: card }] }];
       const first = slotRank(meld.slots[0]);
       const prev = RANK_ORDER[(rIdx(first) - 1 + 13) % 13];
       return card.rank === prev
@@ -3488,7 +3488,7 @@
   function layOffPlacementCount(meld, card) {
     const signature = (m) =>
       m.slots
-        .map((s) => (s.real ? `${s.real.rank}${s.real.suit}` : `J:${s.representsRank}${s.representsSuit}`))
+        .map((s) => (s.real ? `${s.real.rank}${s.real.suit}` : `J:${s.representsRank}${m.type === 'set' ? '' : s.representsSuit}`))
         .sort()
         .join('|');
     const results = new Set();
@@ -3503,7 +3503,7 @@
     if (!cards.length) return false;
     const signature = (m) =>
       m.slots
-        .map((s) => (s.real ? `${s.real.rank}${s.real.suit}` : `J:${s.representsRank}${s.representsSuit}`))
+        .map((s) => (s.real ? `${s.real.rank}${s.real.suit}` : `J:${s.representsRank}${m.type === 'set' ? '' : s.representsSuit}`))
         .sort()
         .join('|');
     const results = new Set();
@@ -3521,12 +3521,25 @@
     return results.size === 1;
   }
   // Pure-add check: cardFitsMeld minus the joker-swap shortcut
+  // Mirror of Rules.makeRoomInSet: a set joker holding the suit moves to the first free one.
+  function setRoomFor(slots, suit) {
+    const count = (st) => slots.filter((x) => slotSuit(x) === st).length;
+    if (count(suit) < 2) return slots;
+    const free = SUIT_ORDER.find((st) => count(st) < 2);
+    let idx = -1;
+    slots.forEach((x, i) => { if (x.joker && x.representsSuit === suit) idx = i; });
+    if (!free || idx < 0) return slots;
+    const out = slots.slice();
+    out[idx] = { ...out[idx], representsSuit: free };
+    return out;
+  }
+
   function cardFitsMeldPureAdd(meld, card) {
     if (!card || card.isJoker) return false;
     if (meld.type === 'set') {
       if (card.rank !== meld.rank || meld.slots.length >= 8) return false;
-      const sameSuit = meld.slots.filter((s) => slotSuit(s) === card.suit).length;
-      return sameSuit < 2;
+      // Only real cards fill a suit: a joker there moves aside (Rules.makeRoomInSet).
+      return meld.slots.filter((s) => s.real && s.real.suit === card.suit).length < 2;
     }
     if (meld.type === 'run') {
       if (meld.slots.length >= 13) return false;
