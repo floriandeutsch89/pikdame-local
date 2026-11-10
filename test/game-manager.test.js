@@ -1473,6 +1473,39 @@ test('multi lay-off: going-out rule blocks emptying the hand via lay-off', () =>
   g.destroy();
 });
 
+// A set joker's suit is a label: an ace + two jokers (both "Herz") once refused every real Herz-Ass.
+test('multi lay-off: two aces join an ace set holding two jokers, a joker moves to a free suit', () => {
+  const { makeJoker } = require('../game/Card');
+  for (const [first, second] of [['H', 'S'], ['H', 'H'], ['D', 'C']]) {
+    const { g, me, mk } = setupLayOffScene();
+    const set = [mk('C', 'A', 1), makeJoker(0), makeJoker(1)];
+    const a1 = mk(first, 'A', 0);
+    const a2 = mk(second, 'A', first === second ? 1 : 0);
+    me.hand = [...set, a1, a2, mk('C', '2', 0)];
+    // Chosen as a set; both jokers labelled Herz, the state players ended up in.
+    assert.equal(g.layoutMeld('p1', set.map((c) => c.id), { 'JOKER-0': 'H', 'JOKER-1': 'H' }).error, undefined);
+    const meld = g.tableMelds.find((m) => m.ownerId === 'p1');
+    assert.equal(meld.type, 'set');
+    const r = g.layOffCards('p1', meld.id, [a1.id, a2.id]);
+    assert.equal(r.error, undefined, `${first}+${second}: ${r.error}`);
+    const slots = g.tableMelds.find((m) => m.id === meld.id).slots;
+    assert.equal(slots.length, 5);
+    for (const suit of ['H', 'D', 'C', 'S']) {
+      assert.ok(slots.filter((x) => (x.real ? x.real.suit : x.representsSuit) === suit).length <= 2, `${suit} at most twice`);
+    }
+    g.destroy();
+  }
+});
+
+test('set lay-off: a suit already twice in REAL cards still refuses a third', () => {
+  const { tryLayOff, validateMeld } = require('../game/Rules');
+  const { makeStandardCard: mk, makeJoker } = require('../game/Card');
+  const meld = validateMeld([mk('H', 'A', 0), mk('H', 'A', 1), makeJoker(0)]);
+  assert.equal(tryLayOff(meld, mk('H', 'A', 0)), null);
+  const ok = tryLayOff(validateMeld([mk('C', 'A', 0), makeJoker(0), makeJoker(1)]), mk('H', 'A', 0));
+  assert.deepEqual(ok.slots.map((x) => (x.real ? x.real.suit : `J${x.representsSuit}`)).sort(), ['C', 'H', 'JD', 'JH']);
+});
+
 // --- v1.28.0: public memory (fair-play card tracking) --------------------------
 test('public memory: pile pickups are remembered, face-down draws NEVER (fairness guard)', () => {
   const { makeStandardCard } = require('../game/Card');

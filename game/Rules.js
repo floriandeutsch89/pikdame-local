@@ -400,6 +400,23 @@ function enumerateLayOffOptions(meld, card) {
   return options;
 }
 
+const setSlotSuit = (s) => (s.real ? s.real.suit : s.representsSuit);
+
+/** A set joker's suit is only a label (it picks the real card that may swap it): when a real card
+ *  needs that suit, the last such joker moves to the first free suit. null: the suit is full of real cards. */
+function makeRoomInSet(slots, suit) {
+  const count = (st) => slots.filter((x) => setSlotSuit(x) === st).length;
+  if (count(suit) < MAX_PER_SUIT_IN_SET) return slots;
+  if (slots.filter((x) => x.real && x.real.suit === suit).length >= MAX_PER_SUIT_IN_SET) return null;
+  const free = SUITS.find((st) => count(st) < MAX_PER_SUIT_IN_SET);
+  if (!free) return null;
+  let idx = -1;
+  slots.forEach((x, i) => { if (x.joker && x.representsSuit === suit) idx = i; });
+  const out = slots.slice();
+  out[idx] = { ...out[idx], representsSuit: free };
+  return out;
+}
+
 /**
  * Prüft, ob eine einzelne Karte an eine bestehende Auslage angelegt werden kann,
  * und gibt das neue Meld-Objekt zurück (oder null wenn nicht möglich).
@@ -424,8 +441,9 @@ function tryLayOff(meld, card, opts = {}) {
     }
     if (card.rank !== meld.rank) return null;
     if (meld.slots.length >= MAX_SET_SIZE) return null;
-    if ((countBySuit[card.suit] || 0) >= MAX_PER_SUIT_IN_SET) return null;
-    return { ...meld, slots: [...meld.slots, { real: card }] };
+    const slots = makeRoomInSet(meld.slots, card.suit);
+    if (!slots) return null;
+    return { ...meld, slots: [...slots, { real: card }] };
   }
 
   if (meld.type === 'run') {
