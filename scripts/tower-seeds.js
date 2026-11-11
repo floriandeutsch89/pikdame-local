@@ -7,6 +7,7 @@
 //   NODE_PATH=/path/ort/node_modules node scripts/tower-seeds.js 2026-10 2026-12 [--jobs 3]
 //   NODE_PATH=/path/ort/node_modules node scripts/tower-seeds.js 2026-11 2026-11 --floors 12,15
 //   NODE_PATH=/path/ort/node_modules node scripts/tower-seeds.js --rate 300
+//   NODE_PATH=/path/ort/node_modules node scripts/tower-seeds.js 2026-12 2026-12 --floors 10,15,20 --boss-from 2026-12
 // --prove replays the committed deals and rewrites the proofs (after an intended
 // bot change), failing when Zen lost a star; the month form re-picks the floors
 // that break the rule (others stay; --floors: only these, a month already played);
@@ -70,12 +71,13 @@ const proofEntry = (f) => ({
   zen: f.zen,
   ...(f.medium10 != null ? { medium10: f.medium10 } : {}),
   ...(f.hard10 != null ? { hard10: f.hard10 } : {}),
+  ...(f.boss ? { boss: 1 } : {}),
 });
 
 /** Runs one month in a child process (the parent fans out over --jobs). */
 function runWorker(month, floors) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [__filename, '--worker', month, ...(floors ? ['--floors', floors.join(',')] : [])], { stdio: ['ignore', 'pipe', 'inherit'] });
+    const child = spawn(process.execPath, [__filename, '--worker', month, ...(floors ? ['--floors', floors.join(',')] : []), ...bossFromArgs()], { stdio: ['ignore', 'pipe', 'inherit'] });
     let stdout = '';
     child.stdout.on('data', (d) => { stdout += d; });
     // The runtime logs to stdout too: the result follows the last marker.
@@ -128,17 +130,21 @@ async function proveAll() {
       const same = prev && prev.seed === seed;
       const legacy = isLegacy(month, stage);
       const proofOf = (o) => [o.stars, o.margin, o.hash];
+      // A boss floor (BossFight.js) has its own gate, also on floor 10.
+      const boss = !!BotTower.bossFor(stage, month);
+      const gate = boss ? R.bossHardMin(stage) : R.hardMin(stage);
       // Hard's slip rate: measured once where missing (not for October, it predates the gate).
-      let hard10 = same ? prev.hard10 : undefined;
-      if (hard10 == null && stage > 10 && month !== LEGACY.month) hard10 = await slipRate({ seed, stage, month, n: R.HARD_GAMES, proxy: 'hard' });
+      let hard10 = same && !!prev.boss === boss ? prev.hard10 : undefined;
+      if (hard10 == null && (stage > 10 || boss) && month !== LEGACY.month) hard10 = await slipRate({ seed, stage, month, n: R.HARD_GAMES, proxy: 'hard' });
       proofs[month].push(proofEntry({
         seed, hard: legacy || hard.stars >= 1 ? proofOf(hard) : undefined, zen: proofOf(zen),
-        medium10: same ? prev.medium10 : undefined, hard10,
+        medium10: same && !!prev.boss === boss ? prev.medium10 : undefined, hard10, boss,
       }));
-      if (hard10 != null && month !== LEGACY.month && hard10 < R.hardMin(stage)) lost.push(`${month} floor ${stage} (Hard ${hard10} % < ${R.hardMin(stage).toFixed(1)} %)`);
+      if (hard10 != null && month !== LEGACY.month && hard10 < gate) lost.push(`${month} floor ${stage} (Hard ${hard10} % < ${gate.toFixed(1)} %)`);
+      if (boss && hard10 > R.bossHardMax(stage)) lost.push(`${month} floor ${stage} (Hard ${hard10} % > ${R.bossHardMax(stage)} %: too easy for a boss)`);
       // October is closed and was played on the old floors 11-20 (100-160 head start): hashes only.
       if (month !== LEGACY.month && zen.stars < 1) lost.push(`${month} floor ${stage}`);
-      if (!legacy && stage <= 2 && hard.stars < 1) lost.push(`${month} floor ${stage} (Hard, easy-bot replay)`);
+      if (!legacy && !boss && stage <= 2 && hard.stars < 1) lost.push(`${month} floor ${stage} (Hard, easy-bot replay)`);
     }
   }
   writeProofs(proofs);
@@ -157,6 +163,12 @@ async function rateAll(n) {
   }
 }
 
+/** --boss-from YYYY-MM: pick and prove with the boss floors on from that month (until BotTower switches it on itself). */
+function bossFromArgs() {
+  const i = process.argv.indexOf('--boss-from');
+  return i > -1 ? ['--boss-from', process.argv[i + 1]] : [];
+}
+
 function floorsArg(args) {
   const i = args.indexOf('--floors');
   return i > -1 ? args[i + 1].split(',').map(Number) : null;
@@ -164,6 +176,7 @@ function floorsArg(args) {
 
 async function main() {
   const args = process.argv.slice(2);
+  if (bossFromArgs().length) BotTower.setBossFrom(bossFromArgs()[1]);
   if (args[0] === '--worker') {
     const month = args[1];
     const fixed = month === LEGACY.month ? Object.fromEntries(LEGACY.seeds.map((s, i) => [i + 1, s])) : {};
@@ -182,7 +195,7 @@ async function main() {
   const jobsIdx = args.indexOf('--jobs');
   const jobs = jobsIdx > -1 ? Number(args[jobsIdx + 1]) || 1 : 3;
   const [from, to] = args.filter((a) => /^\d{4}-\d{2}$/.test(a));
-  if (!from || !to) throw new Error('usage: tower-seeds.js <from YYYY-MM> <to YYYY-MM> [--jobs N] [--floors 12,15] | --prove | --rate N');
+  if (!from || !to) throw new Error('usage: tower-seeds.js <from YYYY-MM> <to YYYY-MM> [--jobs N] [--floors 12,15] [--boss-from YYYY-MM] | --prove | --rate N');
   await generate(from, to, jobs, floorsArg(args));
 }
 

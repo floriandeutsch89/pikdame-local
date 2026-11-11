@@ -3,7 +3,7 @@
 'use strict';
 
 /** Bump when the rule or the candidate order changes: stored months record it. */
-const GEN_VERSION = 3; // 3: Hard's gate per floor (hardMin), a wide medium window, no staircase
+const GEN_VERSION = 4; // 4: boss floors (BossFight.js) are picked by Hard's and Mittel's rate, on floor 10 too
 const MEDIUM_GAMES = 100; // games of the medium player per candidate (floors 11-20)
 const HARD_GAMES = 100; // ... and of Hard
 const MAX_TRIES = 20000; // candidates per floor before it is reported
@@ -17,6 +17,14 @@ const hardMin = (stage) => 50 - ((stage - 11) * 20) / 9;
  *  since gated deals' medium rates split into ~0-20 % and ~60-100 % (docs/overview.md). */
 const mediumMin = (stage) => 40 - ((stage - 11) * 30) / 9;
 const mediumMax = (stage) => mediumMin(stage) + 40;
+
+/** Boss floors (10, 15, 20): Hard with 10 % slips wins 50-80 / 40-70 / 30-60 % of its fights. A deal
+ *  decides most of a fight, so there is a ceiling too: without it the first picks were deals
+ *  Hard wins in 9 of 10 fights. */
+const bossHardMin = (stage) => 50 - (stage - 10) * 2;
+const bossHardMax = (stage) => bossHardMin(stage) + 30;
+/** ... and Mittel 30-80 / 20-70 / 10-60 %: around Hard's gate, since both score alike in a duel. */
+const bossMediumWindow = (stage) => [bossHardMin(stage) - 20, bossHardMin(stage) + 30];
 
 /** Floors 1-10: Hard's star must not be a landslide (floor 10: 60 points). */
 const marginCap = (stage) => 260 - 20 * stage;
@@ -37,5 +45,5 @@ const candidateSeed = (month, stage, i, lane = 'a') => fnv(`${month}|${stage}|${
 
 module.exports = {
   GEN_VERSION, MEDIUM_GAMES, HARD_GAMES, MAX_TRIES, NEAREST_TRIES,
-  hardMin, mediumMin, mediumMax, mediumWindow, marginCap, fnv, candidateSeed,
+  hardMin, mediumMin, mediumMax, mediumWindow, bossHardMin, bossHardMax, bossMediumWindow, marginCap, fnv, candidateSeed,
 };
