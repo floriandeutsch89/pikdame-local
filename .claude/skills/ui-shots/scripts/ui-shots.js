@@ -110,7 +110,13 @@ const arg = (name, def) => {
 };
 const ROOT = path.resolve(process.env.SHOTS_ROOT || path.resolve(__dirname, '../../../..'));
 const OUT = path.resolve(arg('out', path.join(os.tmpdir(), 'pikdame-shots')));
-const PORT = Number(arg('port', 3477));
+// 0: a free port, so several runs (and the views of one run) work side by side.
+let PORT = Number(arg('port', 0));
+const freePort = () => new Promise((resolve, reject) => {
+  const srv = require('net').createServer();
+  srv.on('error', reject);
+  srv.listen(0, '127.0.0.1', () => { const { port } = srv.address(); srv.close(() => resolve(port)); });
+});
 const VIEWS = {
   phone: { width: 393, height: 852, mobile: true },
   land: { width: 874, height: 402, mobile: true },
@@ -763,7 +769,23 @@ function waitForHttp(port, ms = 20000) {
   });
 }
 
+/** Several views: one child per view, side by side (each its own server and port). A view's
+ *  scenes stay in order. --audit and --measure write one file per run, so they stay serial. */
+async function fanOut() {
+  const rest = process.argv.slice(2).filter((a, i, all) => a !== '--views' && all[i - 1] !== '--views');
+  const codes = await Promise.all(views.map((v) => new Promise((resolve) => {
+    const child = spawn(process.execPath, [__filename, ...rest, '--views', v, '--serial'], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    child.stdout.on('data', (d) => { out += d; });
+    child.stderr.on('data', (d) => { out += d; });
+    child.on('exit', (code) => { process.stdout.write(out); resolve(code || 0); }); // a view's lines stay together
+  })));
+  process.exit(Math.max(...codes));
+}
+
 (async () => {
+  if (views.length > 1 && !AUDIT && !MEASURE && !process.argv.includes('--serial')) return fanOut();
+  if (!PORT) PORT = await freePort();
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-shots-data-'));
   // Postgres is mandatory: a fresh schema of the test database, like the tests use.
   const databaseUrl = process.env.PIKDAME_TEST_PG_URL
@@ -951,6 +973,7 @@ function waitForHttp(port, ms = 20000) {
         if (sc === 'puzzle-solved') {
           // Solved with three stars; then the "Aufgaben" tile shows them on the start screen.
           puzzleSolved = true;
+          await page.evaluate(() => { try { localStorage.removeItem('pikdame_puzzle_laid'); } catch (e) { /* blocked */ } }); // from an empty table
           await page.click('#puzzleBtn'); await page.waitForTimeout(600);
           await shot(sc);
           await page.click('#puzzleCloseBtn'); await page.waitForTimeout(200);
@@ -959,6 +982,7 @@ function waitForHttp(port, ms = 20000) {
         } else if (sc.startsWith('puzzle')) {
           const refused = sc === 'puzzle-refused'; // two melds selected at once, "Auslegen" is refused
           puzzleKind = sc === 'puzzle' ? null : refused ? 'out' : sc.slice('puzzle-'.length);
+          await page.evaluate(() => { try { localStorage.removeItem('pikdame_puzzle_laid'); } catch (e) { /* blocked */ } }); // from an empty table
           await page.click('#puzzleBtn'); await page.waitForTimeout(600);
           if (puzzleKind) {
             // Lay the first meld of the solution so the meld row shows.
