@@ -15,7 +15,7 @@ const OnnxPolicy = require('../game/OnnxPolicy');
 const TowerSeeds = require('../game/TowerSeeds');
 const proofs = require('./fixtures/tower-proofs.json');
 const { playFloor, needsNet } = require('../game/TowerPlay');
-const { mediumWindow, hardMin, bossMediumWindow, bossHardMin, bossHardMax, BOSS_CLEAR_MIN } = require('../game/TowerRule');
+const { mediumWindow, hardMin, bossMediumWindow, bossHardMin, bossHardMax, BOSS_CLEAR_MIN, BOSS_PERFECT_MIN } = require('../game/TowerRule');
 
 const net = OnnxPolicy.enabled() && OnnxPolicy.available();
 const legacy = (month, stage) => month === BotTower.LEGACY_MONTH && stage <= 10;
@@ -43,6 +43,7 @@ test('every committed month has its proof games', () => {
         assert.ok(f.hard10 >= gate, `${month} floor ${stage}: Hard wins ${f.hard10} % (< ${gate.toFixed(1)} %)`);
         if (boss) assert.ok(f.hard10 <= bossHardMax(stage), `${month} floor ${stage}: Hard wins ${f.hard10} %, too easy for a boss`);
         if (boss) assert.ok(f.hard2 >= BOSS_CLEAR_MIN, `${month} floor ${stage}: Hard wins clearly in ${f.hard2} % (< ${BOSS_CLEAR_MIN} %): no second star in the deal`);
+        if (boss) assert.ok(f.hard3 >= BOSS_PERFECT_MIN, `${month} floor ${stage}: Hard wins with three stars in ${f.hard3} % (< ${BOSS_PERFECT_MIN} %): no third star in the deal`);
       }
     });
   }

@@ -72,6 +72,7 @@ const proofEntry = (f) => ({
   ...(f.medium10 != null ? { medium10: f.medium10 } : {}),
   ...(f.hard10 != null ? { hard10: f.hard10 } : {}),
   ...(f.hard2 != null ? { hard2: f.hard2 } : {}),
+  ...(f.hard3 != null ? { hard3: f.hard3 } : {}),
   ...(f.boss ? { boss: 1 } : {}),
 });
 
@@ -140,10 +141,13 @@ async function proveAll() {
       // A boss floor: Hard's clear wins (two stars), measured once where missing.
       let hard2 = boss && same && prev.boss ? prev.hard2 : undefined;
       if (boss && hard2 == null) hard2 = await slipRate({ seed, stage, month, n: R.HARD_GAMES, proxy: 'hard', stars: 2 });
+      let hard3 = boss && same && prev.boss ? prev.hard3 : undefined;
+      if (boss && hard3 == null) hard3 = await slipRate({ seed, stage, month, n: R.HARD_GAMES, proxy: 'hard', stars: 3 });
       proofs[month].push(proofEntry({
         seed, hard: legacy || hard.stars >= 1 ? proofOf(hard) : undefined, zen: proofOf(zen),
-        medium10: same && !!prev.boss === boss ? prev.medium10 : undefined, hard10, hard2, boss,
+        medium10: same && !!prev.boss === boss ? prev.medium10 : undefined, hard10, hard2, hard3, boss,
       }));
+      if (boss && hard3 < R.BOSS_PERFECT_MIN) lost.push(`${month} floor ${stage} (Hard wins with three stars in ${hard3} % < ${R.BOSS_PERFECT_MIN} %)`);
       if (boss && hard2 < R.BOSS_CLEAR_MIN) lost.push(`${month} floor ${stage} (Hard wins clearly in ${hard2} % < ${R.BOSS_CLEAR_MIN} %)`);
       if (hard10 != null && month !== LEGACY.month && hard10 < gate) lost.push(`${month} floor ${stage} (Hard ${hard10} % < ${gate.toFixed(1)} %)`);
       if (boss && hard10 > R.bossHardMax(stage)) lost.push(`${month} floor ${stage} (Hard ${hard10} % > ${R.bossHardMax(stage)} %: too easy for a boss)`);
