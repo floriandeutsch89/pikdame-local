@@ -115,6 +115,13 @@ test('checkPuzzleMeld over the wire: reason without a counted try', async (t) =>
   const after = (await ask({ type: 'getPuzzle', name: 'Lena', date: live }, 'puzzle')).status;
   assert.deepStrictEqual(after, before, 'no try, no solve recorded');
   assert.strictEqual(after.tries, 0);
+  // The solution rides along only once the day is over for this player.
+  const open = await ask({ type: 'getPuzzle', name: 'Lena' }, 'puzzle');
+  assert.strictEqual(open.doneMelds, undefined, 'an open puzzle never carries its answer');
+  await ask({ type: 'revealPuzzle', name: 'Lena' }, 'puzzleSolution');
+  const over = await ask({ type: 'getPuzzle', name: 'Lena' }, 'puzzle');
+  const todays = puzzleForDate(today).best;
+  assert.deepStrictEqual(over.doneMelds, todays.melds || [todays.cardIds]);
 });
 
 // --- client (jsdom) -------------------------------------------------------
@@ -188,5 +195,79 @@ test('client: an invalid lay is refused with the rule reason and keeps the selec
   assert.strictEqual(c.doc.getElementById('puzzleCheckBtn').disabled, false, 'a laid group can be submitted');
   assert.strictEqual(c.doc.getElementById('puzzleStatus').textContent, '');
   assert.deepStrictEqual(c.errors, []);
+  c.window.close();
+});
+
+test('client: rebuilding is free - lay off onto a meld, take one back, and what lies survives a reopen', () => {
+  const { date, puzzle } = multiMeldDay('out');
+  const c = bootClient(date, puzzle);
+  const $ = (id) => c.doc.getElementById(id);
+  const hand = $('puzzleHand');
+  const pick = (list) => list.forEach((id) => hand.querySelector(`[data-card-id="${id}"]`).click());
+  const checks = () => c.sent.filter((m) => m.type === 'checkPuzzleMeld');
+  const [first, second] = puzzle.best.melds;
+
+  // One main button at a time: "Auslegen" while cards are picked, "Prüfen" otherwise.
+  assert.ok($('puzzleLayBtn').classList.contains('hidden') && !$('puzzleCheckBtn').classList.contains('hidden'));
+  pick(first.slice(0, first.length - 1));
+  assert.ok(!$('puzzleLayBtn').classList.contains('hidden') && $('puzzleCheckBtn').classList.contains('hidden'));
+  if (first.length - 1 < 3) { pick([first[first.length - 1]]); }
+  $('puzzleLayBtn').click();
+  c.emit({ type: 'puzzleMeldCheck', date, valid: true });
+  assert.strictEqual(c.doc.querySelectorAll('#puzzleMelds .puzzleMeld').length, 1);
+  assert.ok(!$('puzzleProgress').classList.contains('hidden'), 'the sheet says how far I am');
+
+  // A tap on the meld without a pick only explains; with a pick it asks the rules about the grown meld.
+  c.doc.querySelector('#puzzleMelds .pmCards').click();
+  assert.match($('puzzleStatus').textContent, /Karte wählen/);
+  const laid = checks()[checks().length - 1].cardIds;
+  const extra = first.length - 1 >= 3 ? first[first.length - 1] : second[0];
+  pick([extra]);
+  c.doc.querySelector('#puzzleMelds .pmCards').click();
+  const off = checks()[checks().length - 1];
+  assert.deepStrictEqual([...off.cardIds].sort(), [...laid, extra].sort(), 'the whole grown meld goes to the server');
+  c.emit({ type: 'puzzleMeldCheck', date, valid: true });
+  assert.strictEqual(c.doc.querySelectorAll('#puzzleMelds .puzzleMeld').length, 1, 'it grew, no second meld');
+  assert.strictEqual(c.doc.querySelectorAll('#puzzleMelds .pmCards .card').length, laid.length + 1);
+  assert.strictEqual(c.sent.filter((m) => m.type === 'solvePuzzle').length, 0, 'none of this is a try');
+
+  // Closing and reopening is no way to start over: the meld is still there.
+  $('puzzleCloseBtn').click();
+  $('puzzleBtn').click();
+  c.emit({ type: 'puzzle', date, kind: puzzle.kind, hand: puzzle.hand, targetPoints: 0, archive: false, today: date, epoch: date, status: { tries: 0, solved: false, revealed: false } });
+  assert.strictEqual(c.doc.querySelectorAll('#puzzleMelds .pmCards .card').length, laid.length + 1, 'kept');
+
+  // The arrow takes it back; that is kept too.
+  c.doc.querySelector('#puzzleMelds .pmBack').click();
+  assert.strictEqual(c.doc.querySelectorAll('#puzzleMelds .puzzleMeld').length, 0);
+  assert.strictEqual(hand.children.length, puzzle.hand.length);
+  assert.deepStrictEqual(JSON.parse(c.window.localStorage.getItem('pikdame_puzzle_laid')).groups, []);
+  assert.deepStrictEqual(c.errors, []);
+  c.window.close();
+});
+
+test('client: a day that is over shows its melds again, without the main button or the how-to line', () => {
+  const { date, puzzle } = multiMeldDay('turn');
+  const c = bootClient(date, puzzle);
+  c.emit({ type: 'puzzle', date, kind: puzzle.kind, hand: puzzle.hand, targetPoints: puzzle.best.points, archive: false, today: date, epoch: date,
+    status: { tries: 1, solved: true, revealed: false, stars: 3 }, doneMelds: puzzle.best.melds });
+  const $ = (id) => c.doc.getElementById(id);
+  assert.strictEqual(c.doc.querySelectorAll('#puzzleMelds .puzzleMeld').length, puzzle.best.melds.length);
+  assert.strictEqual(c.doc.querySelectorAll('#puzzleMelds button').length, 0, 'nothing to rebuild once it is over');
+  for (const id of ['puzzleCheckBtn', 'puzzleLayBtn', 'puzzleRevealBtn', 'puzzleQuestion']) assert.ok($(id).classList.contains('hidden'), id);
+  assert.match($('puzzleProgressText').textContent, new RegExp(`${puzzle.best.points}\\D+${puzzle.best.points}`), 'the points laid are the goal');
+  assert.deepStrictEqual(c.errors, []);
+  c.window.close();
+});
+
+test('client: "Lösung zeigen" takes two taps on the live day', () => {
+  const { date, puzzle } = multiMeldDay('out');
+  const c = bootClient(date, puzzle);
+  const btn = c.doc.getElementById('puzzleRevealBtn');
+  btn.click();
+  assert.strictEqual(c.sent.filter((m) => m.type === 'revealPuzzle').length, 0, 'the first tap only arms it');
+  assert.match(btn.textContent, /ohne EP/);
+  btn.click();
+  assert.strictEqual(c.sent.filter((m) => m.type === 'revealPuzzle').length, 1);
   c.window.close();
 });

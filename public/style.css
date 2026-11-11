@@ -4811,7 +4811,17 @@ input:disabled { opacity: 0.65; }
 .resultSeries small { display: block; font-weight: 500; opacity: 0.75; }
 .resultSeries.stTeamNote { justify-content: center; text-align: left; font-size: var(--fs-label); font-weight: 500; }
 /* Daily puzzle overlay */
-.puzzleTarget { font-weight: 700; margin: 2px 0 8px; }
+.puzzleTarget { font-weight: 700; font-size: var(--fs-lead); margin: 2px 0 6px; }
+/* How far I am: a number and a thin bar under the goal. */
+.puzzleProgress { display: grid; gap: 4px; margin: 0 0 8px; font-size: var(--fs-label); font-variant-numeric: tabular-nums; }
+.puzzleProgress.hidden { display: none; }
+.puzzleProgress .ppText b { font-size: var(--fs-body); }
+.puzzleProgress .ppBar { display: block; height: 6px; border-radius: 999px; background: rgba(0, 0, 0, 0.1); overflow: hidden; }
+.puzzleProgress .ppBar i { display: block; height: 100%; border-radius: 999px; background: var(--paper-accent); transition: width 0.2s ease-out; }
+.puzzleProgress.full .ppBar i { background: var(--paper-success); }
+.puzzleHow { margin: 0 0 10px; font-size: var(--fs-hint); line-height: 1.4; opacity: 0.75; }
+.puzzleHow.hidden, .puzzleMeldsHead.hidden { display: none; }
+.puzzleMeldsHead { margin: 0 0 4px; font-size: var(--fs-micro); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.6; }
 .puzzleHand { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 4px 0 10px; }
 .puzzleHand .card { position: relative; margin-left: 0; cursor: pointer; }
 .puzzleHand .card.selected { top: -6px; }
@@ -4892,19 +4902,25 @@ input:disabled { opacity: 0.65; }
 /* Laid melds of a multi-meld puzzle: a tap puts one back on the hand. */
 .puzzleMelds { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 0 0 10px; }
 .puzzleMeld {
-  display: flex; padding: 6px 8px 6px 30px; min-height: var(--tap-min);
+  display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 8px; min-height: var(--tap-min);
   border-radius: var(--r-sm); background: rgba(0,0,0,0.05); border: 2px solid transparent;
 }
+/* The cards are the lay-off target, the arrow the way back: two taps apart, both 44 px. */
+.puzzleMeld .pmCards { display: flex; margin: 0; padding: 2px 0 2px 22px; background: none; border: 0; border-radius: var(--r-sm); cursor: pointer; }
+.puzzleMeld span.pmCards { cursor: default; }
+.puzzleMeld .pmPts { min-width: 2ch; text-align: right; font-size: var(--fs-label); font-weight: 800; font-variant-numeric: tabular-nums; color: var(--card-ink); }
+.puzzleMeld .pmBack {
+  display: grid; place-items: center; width: var(--tap-min); height: var(--tap-min); margin: 0; padding: 0;
+  background: rgba(0,0,0,0.06); border: 0; border-radius: 50%; color: var(--card-ink); cursor: pointer;
+}
+.puzzleMeld.done { padding-right: 10px; }
 .puzzleMeld .card { margin-left: -22px; }
 /* Compact cards: up to 13 of them plus the melds must fit an iPhone. */
 .puzzleHand .card, .puzzleMeld .card { width: 48px; height: 68px; min-width: 48px; }
 .puzzleHand .card .corner, .puzzleMeld .card .corner { top: 3px; left: 4px; font-size: var(--fs-hint); }
 .puzzleHand .card .suitMark, .puzzleMeld .card .suitMark { font-size: var(--fs-lead); margin-top: 4px; }
 /* Several melds: "Auslegen" and "Prüfen" share a row, the reveal gets its own. */
-#puzzleOverlay[data-kind="turn"] .dialog-actions,
-#puzzleOverlay[data-kind="out"] .dialog-actions { flex-wrap: wrap; }
-#puzzleOverlay[data-kind="turn"] #puzzleRevealBtn,
-#puzzleOverlay[data-kind="out"] #puzzleRevealBtn { flex-basis: 100%; }
+#puzzleOverlay .puzzleActions { display: flex; flex-direction: column; }
 .puzzleMeld.bad { border-color: var(--paper-danger); }
 .puzzleMeld:disabled { cursor: default; }
 .shareBtn { margin-top: 8px; }
@@ -6851,7 +6867,7 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
   }
   #puzzleOverlay .overlay-card > * { grid-column: 1; }
   #puzzleOverlay .puzzleNav { margin-top: 0; }
-  #puzzleOverlay .puzzleActions { grid-column: 2; grid-row: 1 / span 6; align-self: end; }
+  #puzzleOverlay .puzzleActions { grid-column: 2; grid-row: 1 / span 9; align-self: end; }
   #puzzleOverlay .dialog-actions { flex-direction: column; }
   #puzzleOverlay .dialog-actions > button { flex: 0 0 auto; }
 

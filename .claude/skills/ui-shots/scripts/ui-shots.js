@@ -973,6 +973,7 @@ async function fanOut() {
         if (sc === 'puzzle-solved') {
           // Solved with three stars; then the "Aufgaben" tile shows them on the start screen.
           puzzleSolved = true;
+          await page.evaluate(() => { try { localStorage.removeItem('pikdame_puzzle_laid'); } catch (e) { /* blocked */ } }); // from an empty table
           await page.click('#puzzleBtn'); await page.waitForTimeout(600);
           await shot(sc);
           await page.click('#puzzleCloseBtn'); await page.waitForTimeout(200);
@@ -981,6 +982,7 @@ async function fanOut() {
         } else if (sc.startsWith('puzzle')) {
           const refused = sc === 'puzzle-refused'; // two melds selected at once, "Auslegen" is refused
           puzzleKind = sc === 'puzzle' ? null : refused ? 'out' : sc.slice('puzzle-'.length);
+          await page.evaluate(() => { try { localStorage.removeItem('pikdame_puzzle_laid'); } catch (e) { /* blocked */ } }); // from an empty table
           await page.click('#puzzleBtn'); await page.waitForTimeout(600);
           if (puzzleKind) {
             // Lay the first meld of the solution so the meld row shows.

@@ -6795,7 +6795,7 @@
   // browse past days: graded too, but no XP and nothing stored.
   let puzzleData = null; // {date, kind, hand, targetPoints, status, archive, today, epoch}
   const puzzleSelected = new Set();
-  let puzzleLayPending = null; // ids awaiting the server's check before they become a group
+  let puzzleLayPending = null; // { ids, into }: awaiting the server's check; into = the meld a lay-off grows, -1 = a new one
   let puzzleGroups = []; // laid melds of a 'turn'/'out' puzzle (card id arrays)
   let puzzleBadGroup = 0; // 1-based meld the server rejected
   let puzzleSolutionIds = null;
@@ -6803,15 +6803,15 @@
   const PUZZLE_KINDS = {
     meld: {
       name: () => L('Beste Auslage', 'Best meld'),
-      question: () => L('Welche Karten ergeben zusammen die wertvollste Auslage? Tippe sie an und prüfe - die Regeln entscheiden.', 'Which cards together make the most valuable meld? Tap them and check - the rules decide.'),
+      question: () => L('Tippe die Karten an, die zusammen die wertvollste Auslage ergeben.', 'Tap the cards that together make the most valuable meld.'),
     },
     turn: {
       name: () => L('Bester Zug', 'Best turn'),
-      question: () => L('Lege jede Auslage einzeln aus (erst Karten wählen, dann „Auslegen“), so viele Punkte wie möglich. Mindestens eine Karte bleibt zum Abwerfen.', 'Lay each meld separately (pick its cards, then "Meld"), as many points as you can. At least one card stays for the discard.'),
+      question: () => L('Karten wählen und auslegen. Anlegen: Karte wählen, dann die Auslage antippen. Eine Karte bleibt zum Abwerfen.', 'Pick cards and meld them. To lay off: pick a card, then tap the meld. One card stays for the discard.'),
     },
     out: {
       name: () => L('Ausmachen', 'Go out'),
-      question: () => L('Lege jede Auslage einzeln aus - die letzte Karte wirfst du ab.', 'Lay each meld out separately - the last card is your discard.'),
+      question: () => L('Karten wählen und auslegen. Anlegen: Karte wählen, dann die Auslage antippen. Die letzte Karte wirfst du ab.', 'Pick cards and meld them. To lay off: pick a card, then tap the meld. The last card is your discard.'),
     },
   };
   const puzzleKind = () => (puzzleData && PUZZLE_KINDS[puzzleData.kind] ? puzzleData.kind : 'meld');
@@ -6868,6 +6868,55 @@
   function openPuzzle() {
     el('puzzleOverlay').classList.remove('hidden');
     loadPuzzle(null);
+  }
+  // What lies is kept per day and name: closing the sheet (or a reload) is no way to start over,
+  // and rebuilding is free anyway - only "Prüfen" counts as a try.
+  const PUZZLE_LAID_KEY = 'pikdame_puzzle_laid';
+  function savePuzzleLaid() {
+    if (!puzzleData) return;
+    storageSet(PUZZLE_LAID_KEY, JSON.stringify({ date: puzzleData.date, name: currentName(), groups: puzzleGroups }));
+  }
+  function restorePuzzleLaid() {
+    try {
+      const s = JSON.parse(storageGet(PUZZLE_LAID_KEY) || 'null');
+      if (!s || s.date !== puzzleData.date || s.name !== currentName() || !Array.isArray(s.groups)) return [];
+      const ids = new Set(puzzleData.hand.map((c) => c.id));
+      const seen = new Set();
+      const ok = s.groups.every((g) => Array.isArray(g) && g.length >= 3 && g.every((id) => ids.has(id) && !seen.has(id) && seen.add(id)));
+      return ok ? s.groups : [];
+    } catch (e) { return []; }
+  }
+  // The card values of the table (2-9 = 5, 10/J/Q/K = 10, ace and joker = 20, Queen of Spades = 100).
+  function puzzleCardValue(card) {
+    if (!card) return 0;
+    if (card.isJoker || card.rank === 'A') return 20;
+    if (card.rank === 'Q' && card.suit === 'S') return 100;
+    return ['10', 'J', 'Q', 'K'].includes(card.rank) ? 10 : 5;
+  }
+  const puzzleValueOf = (ids) => ids.reduce((sum, id) => sum + puzzleCardValue(puzzleData.hand.find((c) => c.id === id)), 0);
+  /** How far I am: points laid of the goal, cards left, or the worth of my pick. */
+  function renderPuzzleProgress(kind, groups, done) {
+    const box = el('puzzleProgress');
+    const laid = groups.flat();
+    let text = '';
+    let share = 0;
+    if (kind === 'turn') {
+      const pts = puzzleValueOf(laid);
+      text = L(`Ausgelegt <b>${pts}</b> von ${puzzleData.targetPoints}`, `Melded <b>${pts}</b> of ${puzzleData.targetPoints}`);
+      share = puzzleData.targetPoints ? pts / puzzleData.targetPoints : 0;
+    } else if (kind === 'out') {
+      const left = puzzleData.hand.length - laid.length;
+      text = left === 1 ? L('Noch <b>1</b> Karte auf der Hand', '<b>1</b> card left in hand') : L(`Noch <b>${left}</b> Karten auf der Hand`, `<b>${left}</b> cards left in hand`);
+      share = puzzleData.hand.length > 1 ? laid.length / (puzzleData.hand.length - 1) : 0;
+    } else if (puzzleSelected.size) {
+      const pts = puzzleValueOf([...puzzleSelected]);
+      text = L(`Auswahl <b>${pts}</b> von ${puzzleData.targetPoints}`, `Picked <b>${pts}</b> of ${puzzleData.targetPoints}`);
+      share = puzzleData.targetPoints ? pts / puzzleData.targetPoints : 0;
+    }
+    box.classList.toggle('hidden', !text || (done && (kind === 'meld' || !laid.length)));
+    el('puzzleProgressText').innerHTML = text;
+    el('puzzleProgressBar').style.width = `${Math.max(0, Math.min(100, share * 100))}%`;
+    box.classList.toggle('full', share >= 1);
   }
   // null = today, else an archive day (YYYY-MM-DD).
   function loadPuzzle(date) {
@@ -6933,22 +6982,43 @@
     const meldsBox = el('puzzleMelds');
     meldsBox.innerHTML = '';
     meldsBox.classList.toggle('hidden', !multi || groups.length === 0);
+    const head = el('puzzleMeldsHead');
+    head.classList.toggle('hidden', !multi || groups.length === 0);
+    head.textContent = puzzleSolutionMelds && multi ? L('Die Lösung', 'The solution') : L('Ausgelegt', 'Melded');
     groups.forEach((ids, gi) => {
-      const g = document.createElement('button');
-      g.type = 'button';
-      g.className = `puzzleMeld${puzzleBadGroup === gi + 1 ? ' bad' : ''}`;
-      g.disabled = done;
-      g.setAttribute('aria-label', L(`Auslage ${gi + 1}: zurück auf die Hand`, `Meld ${gi + 1}: back to the hand`));
+      // The meld: its cards (a tap lays picked cards off), its worth, and the way back to the hand.
+      const g = document.createElement('div');
+      g.className = `puzzleMeld${puzzleBadGroup === gi + 1 ? ' bad' : ''}${done ? ' done' : ''}`;
+      const pts = puzzleValueOf(ids);
+      const cards = document.createElement(done ? 'span' : 'button');
+      cards.className = 'pmCards';
+      if (!done) {
+        cards.type = 'button';
+        cards.setAttribute('aria-label', L(`Auslage ${gi + 1}, ${pts} Punkte: gewählte Karten anlegen`, `Meld ${gi + 1}, ${pts} points: lay the picked cards off`));
+        cards.addEventListener('click', () => layOffPuzzle(gi));
+      }
       for (const id of ids) {
         const card = puzzleData.hand.find((c) => c.id === id);
-        if (card) g.appendChild(cardEl(card, {}));
+        if (card) cards.appendChild(cardEl(card, {}));
       }
-      g.addEventListener('click', () => {
-        puzzleGroups = puzzleGroups.filter((_, i) => i !== gi);
-        puzzleBadGroup = 0;
-        setPuzzleStatus('', '');
-        renderPuzzle();
-      });
+      g.appendChild(cards);
+      g.insertAdjacentHTML('beforeend', `<span class="pmPts" aria-hidden="true">${pts}</span>`);
+      if (!done) {
+        const back = document.createElement('button');
+        back.type = 'button';
+        back.className = 'pmBack';
+        back.title = L('Zurück auf die Hand', 'Back to the hand');
+        back.setAttribute('aria-label', L(`Auslage ${gi + 1}: zurück auf die Hand`, `Meld ${gi + 1}: back to the hand`));
+        back.innerHTML = iconHtml('undo');
+        back.addEventListener('click', () => {
+          puzzleGroups = puzzleGroups.filter((_, i) => i !== gi);
+          puzzleBadGroup = 0;
+          setPuzzleStatus('', '');
+          savePuzzleLaid();
+          renderPuzzle();
+        });
+        g.appendChild(back);
+      }
       meldsBox.appendChild(g);
     });
     const laid = new Set(groups.flat());
@@ -6969,10 +7039,15 @@
       if (puzzleSolutionIds && puzzleSolutionIds.includes(card.id)) cEl.classList.add('solution');
       box.appendChild(cEl);
     }
-    el('puzzleLayBtn').classList.toggle('hidden', !multi || done);
+    // One main button: "Auslegen" while cards are picked, "Prüfen" otherwise; none once it is over.
+    const picking = multi && !done && puzzleSelected.size > 0;
+    el('puzzleLayBtn').classList.toggle('hidden', !picking);
     el('puzzleLayBtn').disabled = puzzleSelected.size < 3;
+    el('puzzleCheckBtn').classList.toggle('hidden', picking || done);
     el('puzzleCheckBtn').disabled = done || (multi ? puzzleGroups.length === 0 : puzzleSelected.size < 3);
     el('puzzleRevealBtn').classList.toggle('hidden', done);
+    el('puzzleQuestion').classList.toggle('hidden', done);
+    renderPuzzleProgress(kind, groups, done);
     el('puzzleShareBtn').classList.toggle('hidden', puzzleData.archive || !(st.solved || st.revealed));
     // Reopened after a solve: say so - but never overwrite the fresh
     // "Gelöst! +30 EP" line right after the winning check.
@@ -7010,9 +7085,19 @@
     if (puzzleSelected.size < 3 || !puzzleData || puzzleLayPending) return;
     // The server validates (no second rules implementation here); the group is
     // only laid when it answers valid, see 'puzzleMeldCheck'.
-    puzzleLayPending = [...puzzleSelected];
-    send({ type: 'checkPuzzleMeld', name: currentName(), date: puzzleData.date, cardIds: puzzleLayPending });
+    puzzleLayPending = { ids: [...puzzleSelected], into: -1 };
+    send({ type: 'checkPuzzleMeld', name: currentName(), date: puzzleData.date, cardIds: puzzleLayPending.ids });
   });
+  /** A tap on a laid meld: the picked cards join it if the rules allow the grown meld. */
+  function layOffPuzzle(gi) {
+    if (!puzzleData || puzzleLayPending || !puzzleGroups[gi]) return;
+    if (!puzzleSelected.size) {
+      setPuzzleStatus(L('Zum Anlegen erst eine Karte wählen. Der Pfeil holt die Auslage zurück auf die Hand.', 'Pick a card first to lay it off. The arrow takes the meld back to your hand.'), '');
+      return;
+    }
+    puzzleLayPending = { ids: [...puzzleGroups[gi], ...puzzleSelected], into: gi };
+    send({ type: 'checkPuzzleMeld', name: currentName(), date: puzzleData.date, cardIds: puzzleLayPending.ids });
+  }
   el('puzzleCheckBtn').addEventListener('click', () => {
     if (!puzzleData) return;
     // The login token lets a solve also count for the account and its season.
@@ -7024,9 +7109,10 @@
     if (puzzleSelected.size < 3) return;
     send({ ...base, cardIds: [...puzzleSelected] });
   });
-  el('puzzleRevealBtn').addEventListener('click', () => {
+  // Two taps: on the live day it ends the puzzle without XP (an archive day has nothing to lose).
+  confirmByTap(el('puzzleRevealBtn'), () => L('Wirklich? Beendet das Rätsel ohne EP', 'Sure? Ends the puzzle without XP'), () => {
     send({ type: 'revealPuzzle', name: currentName(), ...(puzzleData ? { date: puzzleData.date } : {}) });
-  });
+  }, () => !!puzzleData && !puzzleData.archive);
   el('puzzleShareBtn').addEventListener('click', () => {
     if (puzzleData) shareResult(puzzleShareText());
   });
@@ -7038,6 +7124,12 @@
         // Stars need a stored profile: the server sends dayStars only then.
         starsOn: msg.dayStars !== undefined, dayStars: msg.dayStars || 0, perfectStreak: msg.perfectStreak || null,
       };
+      if (puzzleKind() !== 'meld') puzzleGroups = restorePuzzleLaid();
+      // Over for today and nothing kept on this device: the server's melds stand in.
+      if (!puzzleGroups.length && Array.isArray(msg.doneMelds) && (puzzleData.status.solved || puzzleData.status.revealed)) {
+        if (puzzleKind() === 'meld') for (const id of msg.doneMelds.flat()) puzzleSelected.add(id);
+        else puzzleGroups = msg.doneMelds;
+      }
       renderPuzzle();
       try { renderToday(); } catch (e) { /* cosmetic */ }
       return true;
@@ -7046,14 +7138,17 @@
     if (!puzzleData || (msg.date && msg.date !== puzzleData.date)) return true;
     if (msg.perfectStreak) puzzleData.perfectStreak = msg.perfectStreak;
     if (msg.type === 'puzzleMeldCheck') {
-      const ids = puzzleLayPending;
+      const pending = puzzleLayPending;
       puzzleLayPending = null;
-      if (!ids) return true;
+      if (!pending) return true;
       if (!msg.valid) {
         setPuzzleStatus(trs(msg.reason || ''), 'bad', 'close');
         return true;
       }
-      puzzleGroups.push(ids);
+      const { ids, into } = pending;
+      if (into >= 0 && puzzleGroups[into]) puzzleGroups[into] = ids;
+      else puzzleGroups.push(ids);
+      savePuzzleLaid();
       for (const id of ids) puzzleSelected.delete(id);
       puzzleBadGroup = 0;
       setPuzzleStatus('', '');
