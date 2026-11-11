@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.132.2] - 2026-11-11
+
+### Changed
+- Vorbereitung für Boss-Kämpfe im Kartenhaus (noch nicht aktiv)
+
 ## [2.132.1] - 2026-11-11
 
 ### Changed
