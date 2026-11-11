@@ -84,7 +84,8 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   `/api/*`, `/verify`, `/admin`) + WebSocket, ein `GameManager` pro Session.
 - `game/` — Logik ohne I/O: `Rules.js` (Melds, Ring-Folgen K-A-2, max 13),
   `ScoreBoard.js`, `GameManager.js` (Zustand, Bots, Snapshot), `Bot.js`
-  (easy/medium/hard/zen), JSON-Stores (atomar), `PgAccountStore.js` (Konten).
+  (easy/medium/hard/zen), Postgres-Stores, `PgAccountStore.js` (Konten).
+  In `data/` liegen nur noch Laufzeitdaten (Snapshot, Monitor, Zug-Log, crash.log).
   - **Schema-Änderungen nur als neue Datei in `migrations/`** (`NNN_name.sql`,
     nur vorwärts, gemergte Dateien nie ändern; `Migrations.js`, Doku
     `docs/developer/migrations.md`). Start ohne Sperre, wenn aktuell: DDL bei
@@ -102,7 +103,7 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   - `DailyPuzzle.js`: Ergebnisobjekt ohne `type`-Feld (wird in WS gespreadet).
     Arten im Wochentakt (meld/turn/out); Tage vor `ROTATION_START` bleiben,
     wie sie ausgespielt wurden (Archiv per `date`, ohne EP).
-  - Kartenhaus-Blätter ab 2027-01 baut der Server selbst (`TowerMonths.js`, Worker):
+  - Kartenhaus-Blätter ab 2027-01 baut der Server selbst (`TowerMonths.js`, Worker; Tabelle `tower_floors`):
     EINE Regel/Generator (`TowerRule.js`/`TowerGen.js`) für Server und Skript;
     nie ein unbewiesenes Blatt ausliefern (Zen-Beweis Pflicht).
   - Spielversuche nur über `PlayEvents.js` (`play_attempts`, Admin „Festhänger“;

@@ -4,21 +4,20 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const TowerGen = require('../game/TowerGen');
 const R = require('../game/TowerRule');
 const BotTower = require('../game/BotTower');
 const GameManager = require('../game/GameManager');
 const { createTowerMonths, nextMonth } = require('../game/TowerMonths');
+const { memoryTowerStore } = require('../game/TowerMonthStore');
 const stub = require('./fixtures/tower-stub-play');
 const { createDeck } = require('../game/Deck');
 
 const STUB = path.join(__dirname, 'fixtures', 'tower-stub-play.js');
 const play = (o) => stub.playFloor(o);
 const rate = (o) => stub.slipRate(o);
-const tmpFile = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-tower-')), 'tower-months.json');
+const tmpFile = () => memoryTowerStore(); // `file` below: the store an instance shares with the next one
 const withEnv = async (vars, fn) => {
   const old = Object.fromEntries(Object.keys(vars).map((k) => [k, process.env[k]]));
   Object.assign(process.env, vars);
@@ -27,7 +26,7 @@ const withEnv = async (vars, fn) => {
   }
 };
 const service = (file, day, extra = {}) => createTowerMonths({
-  file, today: () => day, netReady: () => true, policy: STUB, maxTries: 300, emergencyTries: 120,
+  store: file, today: () => day, netReady: () => true, policy: STUB, maxTries: 300, emergencyTries: 120,
   log: () => {}, warn: () => {}, ...extra,
 });
 
@@ -120,7 +119,7 @@ test('service: builds next month from the 15th in its worker, persists per floor
   const s = service(file, '2027-02-15');
   await s.tick();
   await s.stop();
-  const stored = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const stored = file.snapshot();
   const m = stored.months['2027-03'];
   assert.strictEqual(m.version, R.GEN_VERSION);
   assertRule('2027-03', m.floors);
@@ -133,8 +132,9 @@ test('service: builds next month from the 15th in its worker, persists per floor
   await early.stop();
   assert.strictEqual(early.data().months['2027-03'], undefined, 'next month waits for the 15th');
   assert.ok(early.data().months['2027-02'], 'this month (empty) was built at once');
-  // Restart: the file is the truth, BotTower serves it.
+  // Restart: the store is the truth, BotTower serves it once it is read.
   const again = service(file, '2027-03-02');
+  await again.ready();
   try {
     BotTower.setMonthSource(again.seedsFor);
     assert.strictEqual(BotTower.stageConfig(11, '2027-03').seed, m.floors[10].seed);
@@ -160,14 +160,14 @@ test('service: a stop mid-month ends the worker between games; the next start re
     await run;
     assert.ok(Date.now() - t < 2000, 'ended between two games, not by the last-resort terminate');
   });
-  const partial = JSON.parse(fs.readFileSync(file, 'utf8')).months['2027-05'];
+  const partial = file.snapshot().months['2027-05'];
   const doneBefore = partial ? partial.floors.filter(Boolean).length : 0;
   assert.ok(doneBefore >= 1 && doneBefore < 20, `stopped mid-month (${doneBefore} floors)`);
   const s2 = service(file, '2027-04-16');
   await s2.tick();
   await s2.stop();
   const direct = await TowerGen.generateMonth({ month: '2027-05', play, rate, maxTries: 300, pause: async () => {} });
-  assert.deepStrictEqual(JSON.parse(fs.readFileSync(file, 'utf8')).months['2027-05'].floors, direct.floors, 'resumed to the same deals');
+  assert.deepStrictEqual(file.snapshot().months['2027-05'].floors, direct.floors, 'resumed to the same deals');
 });
 
 test('service: a stale proof (the bots changed) is picked again - that floor only', async () => {
@@ -175,14 +175,14 @@ test('service: a stale proof (the bots changed) is picked again - that floor onl
   const s = service(file, '2027-02-20');
   await s.tick();
   await s.stop();
-  const before = JSON.parse(fs.readFileSync(file, 'utf8')).months['2027-03'].floors;
+  const before = file.snapshot().months['2027-03'].floors;
   const stale = 13;
   await withEnv({ TOWER_STUB_ZEN_LOSES: String(before[stale - 1].seed) }, async () => {
     const t = service(file, '2027-03-01'); // March is now this month: only what is missing is filled
     await t.tick();
     await t.stop();
   });
-  const after = JSON.parse(fs.readFileSync(file, 'utf8')).months['2027-03'].floors;
+  const after = file.snapshot().months['2027-03'].floors;
   assert.notStrictEqual(after[stale - 1].seed, before[stale - 1].seed, 'the stale floor got a new deal');
   assert.ok(TowerGen.proven(after[stale - 1]));
   after.forEach((f, i) => {
@@ -215,9 +215,9 @@ test('service: emergency on an empty month - the medium window may relax, Zen\'s
   await empty.stop();
 });
 
-test('service: without the net nothing is generated, data/ is used as it is', async () => {
+test('service: without the net nothing is generated, the stored months are used as they are', async () => {
   const file = tmpFile();
-  fs.writeFileSync(file, JSON.stringify({ months: { '2027-01': { version: 1, floors: Array.from({ length: 20 }, (_, i) => ({ seed: 900 + i, zen: [1, 10, 'x'] })) } } }));
+  file.set({ months: { '2027-01': { version: 1, floors: Array.from({ length: 20 }, (_, i) => ({ seed: 900 + i, zen: [1, 10, 'x'] })) } } });
   const warnings = [];
   const s = service(file, '2027-01-20', { netReady: () => false, warn: (w) => warnings.push(w) });
   await s.tick();
@@ -234,7 +234,7 @@ test('service, PIKDAME_TOWER_GEN=0: reads only, the start check just logs, a gen
   const builder = service(file, '2027-08-20'); // the generator instance
   await builder.tick();
   await builder.stop();
-  const built = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const built = file.snapshot();
   const sep = built.months['2027-09'].floors;
   const warnings = [];
   await withEnv({ TOWER_STUB_ZEN_LOSES: String(sep[4].seed) }, async () => {
@@ -243,11 +243,11 @@ test('service, PIKDAME_TOWER_GEN=0: reads only, the start check just logs, a gen
     try {
       assert.ok(warnings.some((w) => /no longer wins floor\(s\) 5 - not picked again here/.test(w)), warnings.join(' | '));
       assert.deepStrictEqual(reader.data().months['2027-09'].floors, sep, 'nothing changed by the reader');
-      assert.deepStrictEqual(JSON.parse(fs.readFileSync(file, 'utf8')), built, 'the file untouched');
+      assert.deepStrictEqual(file.snapshot(), built, 'the store untouched');
       assert.strictEqual(reader.data().months['2027-10'], undefined, 'no next month from a reader');
       // The generator instance writes a new month: the reader's next pass sees it.
       const next = { ...built, months: { ...built.months, '2027-10': { version: R.GEN_VERSION, floors: sep } } };
-      fs.writeFileSync(file, JSON.stringify(next));
+      file.set(next);
       await reader.tick();
       assert.deepStrictEqual(reader.seedsFor('2027-10'), sep.map((f) => f.seed));
     } finally {
@@ -292,4 +292,75 @@ test('a running floor of a generated month survives snapshot and restore', async
 test('months: next month of December is January', () => {
   assert.strictEqual(nextMonth('2027-12'), '2028-01');
   assert.strictEqual(nextMonth('2027-01'), '2027-02');
+});
+
+// --- PostgreSQL store (TowerMonthStore.js) -----------------------------------------------
+const fs = require('fs');
+const os = require('os');
+const { createPgTowerStore } = require('../game/TowerMonthStore');
+const { testPool } = require('./helpers/test-db');
+
+test('PostgreSQL store: floors are kept per row, a reopened floor is gone, a second instance reads the same', async (t) => {
+  const pool = testPool(t, 'tower');
+  const store = createPgTowerStore(pool);
+  assert.deepStrictEqual(await store.load(), { months: {} });
+  store.saveFloor('2027-03', 1, { seed: 11, zen: [1, 10, 'a'] }, 2);
+  store.saveFloor('2027-03', 20, { locked: true }, 3);
+  store.saveFloor('2027-04', 5, { seed: 55, zen: [2, 40, 'b'] }, 3);
+  await store.flush();
+  const data = await createPgTowerStore(pool).load();
+  assert.deepStrictEqual(Object.keys(data.months).sort(), ['2027-03', '2027-04']);
+  assert.strictEqual(data.months['2027-03'].version, 3, 'the newest rule of its floors');
+  assert.strictEqual(data.months['2027-03'].floors.length, 20);
+  assert.deepStrictEqual(data.months['2027-03'].floors[0], { seed: 11, zen: [1, 10, 'a'] });
+  assert.deepStrictEqual(data.months['2027-03'].floors[19], { locked: true });
+  assert.strictEqual(data.months['2027-03'].floors[1], null);
+  store.saveFloor('2027-03', 1, { seed: 12, zen: [1, 5, 'c'] }, 3);
+  store.saveFloor('2027-03', 20, null, 3);
+  await store.flush();
+  const after = (await store.load()).months['2027-03'].floors;
+  assert.strictEqual(after[0].seed, 12);
+  assert.strictEqual(after[19], null, 'open again');
+});
+
+test('PostgreSQL store: the service builds a month into it and a restart serves it', async (t) => {
+  const pool = testPool(t, 'tower');
+  const s = service(createPgTowerStore(pool), '2027-02-15');
+  await s.tick();
+  await s.stop();
+  const { rows } = await pool.query("SELECT count(*)::int AS n, min(gen_version) AS v FROM tower_floors WHERE tower_month = '2027-03'");
+  assert.deepStrictEqual(rows[0], { n: 20, v: R.GEN_VERSION });
+  const again = service(createPgTowerStore(pool), '2027-03-02');
+  await again.ready();
+  assert.deepStrictEqual(again.seedsFor('2027-03'), s.seedsFor('2027-03'));
+  assert.deepStrictEqual(again.closedFloors('2027-03'), {});
+  await again.stop();
+});
+
+test('PostgreSQL store: tower-months.json is imported once; a database that is away never throws into the service', async (t) => {
+  const pool = testPool(t, 'tower');
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-tower-')), 'tower-months.json');
+  const floors = Array.from({ length: 20 }, (_, i) => (i === 3 ? null : { seed: 900 + i, zen: [1, 10, 'x'] }));
+  fs.writeFileSync(file, JSON.stringify({ months: { '2027-01': { version: 2, floors }, kaputt: { floors: 'x' } } }));
+  const store = createPgTowerStore(pool, { legacyFile: file });
+  const data = await store.load();
+  assert.deepStrictEqual(data.months, { '2027-01': { version: 2, floors } });
+  assert.ok(fs.existsSync(`${file}.migrated`) && !fs.existsSync(file));
+  fs.writeFileSync(file, JSON.stringify({ months: { '2027-02': { version: 2, floors } } }));
+  assert.deepStrictEqual(Object.keys((await createPgTowerStore(pool, { legacyFile: file }).load()).months), ['2027-01'], 'not imported twice');
+
+  const { Pool } = require('pg');
+  const dead = new Pool({ connectionString: 'postgres://nobody@127.0.0.1:1/none', connectionTimeoutMillis: 500 });
+  const errors = [];
+  const away = createPgTowerStore(dead, { logError: (l) => errors.push(l) });
+  const warnings = [];
+  const svc = service(away, '2027-02-15', { warn: (w) => warnings.push(w) });
+  await svc.tick();
+  assert.match(warnings.join('|'), /generation failed/);
+  assert.strictEqual(svc.data().months['2027-03'], undefined, 'nothing is generated on top of an unread store');
+  away.saveFloor('2027-03', 1, { seed: 1 }, 3);
+  await away.flush();
+  assert.match(errors.join('|'), /2027-03 floor 1 not stored/);
+  await svc.stop();
+  await dead.end();
 });

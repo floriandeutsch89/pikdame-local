@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const YR = require('../game/YearReview');
 const { createYearStatsStore } = require('../game/YearStatsStore');
+const { testPool } = require('./helpers/test-db');
 
 const facts = (over = {}) => ({ bestRound: 0, pdLaid: 0, pdCaught: 0, jokersLaid: 0, handAusWins: 0, ...over });
 
@@ -98,31 +99,38 @@ test('buildReview: no game that year means no review; missing parts stay missing
   assert.deepStrictEqual(lone.bots, []);
 });
 
-test('YearStatsStore: counts per name and year, and survives a restart', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-years-'));
-  const file = path.join(dir, 'years.json');
-  const store = createYearStatsStore(file);
-  assert.strictEqual(store.trackingSince(), null);
-  store.recordGame('Flo', '2026-12-03', { won: true, score: 1000, facts: facts({ pdLaid: 1 }), opponents: ['Gerda'], botLevel: 'hard', table: null });
-  store.recordGame('flo', '2026-12-04', { won: false, score: 600, opponents: ['Gerda'] });
-  store.recordStreak('FLO', '2026-12-04', 5);
-  store.flushSync();
+test('YearStatsStore: counts per name and year, and survives a restart', async (t) => {
+  const pool = testPool(t, 'years');
+  const store = createYearStatsStore(pool, { legacyFile: null });
+  assert.strictEqual(await store.trackingSince(), null);
+  await store.recordGame('Flo', '2026-12-03', { won: true, score: 1000, facts: facts({ pdLaid: 1 }), opponents: ['Gerda'], botLevel: 'hard', table: null });
+  await store.recordGame('flo', '2026-12-04', { won: false, score: 600, opponents: ['Gerda'] });
+  await store.recordStreak('FLO', '2026-12-04', 5);
 
-  const again = createYearStatsStore(file);
-  const y = again.yearFor('Flo', '2026');
+  const again = createYearStatsStore(pool, { legacyFile: null });
+  const y = await again.yearFor('Flo', '2026');
   assert.strictEqual(y.games, 2, 'one name in any spelling');
   assert.strictEqual(y.queensLaid, 1);
   assert.strictEqual(y.bestStreak, 5);
+  assert.strictEqual(y.days, 2);
   assert.strictEqual(y.opponents.gerda.games, 2);
-  assert.strictEqual(again.trackingSince(), '2026-12-03', 'the first counted day');
-  assert.strictEqual(again.yearFor('Flo', '2025'), null);
-  assert.strictEqual(again.yearFor('Niemand', '2026'), null);
-  fs.rmSync(dir, { recursive: true, force: true });
+  assert.strictEqual(await again.trackingSince(), '2026-12-03', 'the first counted day');
+  assert.strictEqual(await again.yearFor('Flo', '2025'), null);
+  assert.strictEqual(await again.yearFor('Niemand', '2026'), null);
+  await again.recordGame('', '2026-12-05', { won: true, score: 1 });
+  await again.recordGame('Flo', 'gestern', { won: true, score: 1 });
+  assert.strictEqual((await again.yearFor('Flo', '2026')).games, 2, 'no name or no day: nothing counted');
 });
 
-test('recordFinishedGame books every human result: the other humans are opponents, the strongest bot the level', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-years-'));
-  const store = createYearStatsStore(path.join(dir, 'years.json'));
+test('YearStatsStore: two games of one name at the same moment are both counted', async (t) => {
+  const store = createYearStatsStore(testPool(t, 'years'), { legacyFile: null });
+  await Promise.all(Array.from({ length: 8 }, (_, i) => store.recordGame('Flo', '2026-12-03', { won: i % 2 === 0, score: 100 + i })));
+  const y = await store.yearFor('Flo', '2026');
+  assert.deepStrictEqual([y.games, y.wins, y.bestGame], [8, 4, 107]);
+});
+
+test('recordFinishedGame books every human result: the other humans are opponents, the strongest bot the level', async (t) => {
+  const store = createYearStatsStore(testPool(t, 'years'), { legacyFile: null });
   // Shapes as GameManager hands them to onGameOver; a seat given up mid-game
   // is a bot in the record (no result of its own).
   const players = [
@@ -133,29 +141,69 @@ test('recordFinishedGame books every human result: the other humans are opponent
     { id: 'p1', name: 'Flo', score: 1040, won: true, facts: facts({ pdLaid: 1, bestRound: 200 }) },
     { id: 'p2', name: 'Gerda', score: 760, won: false, facts: facts({ pdCaught: 1 }) },
   ];
-  store.recordFinishedGame(results, players, '2026-12-05', { table: 'Familie', streaks: { p1: { streak: 3 } } });
-  const flo = store.yearFor('Flo', '2026');
+  await store.recordFinishedGame(results, players, '2026-12-05', { table: 'Familie', streaks: { p1: { streak: 3 } } });
+  const flo = await store.yearFor('Flo', '2026');
   assert.deepStrictEqual(Object.values(flo.opponents), [{ name: 'Gerda', games: 1, wins: 1 }], 'the leaver is no opponent');
   assert.deepStrictEqual(flo.bots, { hard: { games: 1, wins: 1 } }, 'the strongest bot seat, the leaver included');
   assert.deepStrictEqual(flo.tables, { familie: { name: 'Familie', games: 1, wins: 1 } });
   assert.strictEqual(flo.bestStreak, 3);
   assert.strictEqual(flo.queensLaid, 1);
-  const gerda = store.yearFor('Gerda', '2026');
+  const gerda = await store.yearFor('Gerda', '2026');
   assert.deepStrictEqual(Object.values(gerda.opponents), [{ name: 'Flo', games: 1, wins: 0 }]);
   assert.strictEqual(gerda.queensCaught, 1);
   assert.strictEqual(gerda.bestStreak, 0, 'no streak handed over, none booked');
-  assert.strictEqual(store.yearFor('Uli', '2026'), null, 'nothing for the seat that left');
-  fs.rmSync(dir, { recursive: true, force: true });
+  assert.strictEqual(await store.yearFor('Uli', '2026'), null, 'nothing for the seat that left');
 });
 
-test('YearStatsStore keeps the current and the previous year only', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-years-'));
-  const store = createYearStatsStore(path.join(dir, 'years.json'));
-  store.recordGame('Flo', '2024-12-30', { won: true, score: 1 });
-  store.recordGame('Flo', '2025-12-30', { won: true, score: 1 });
-  store.recordGame('Flo', '2026-01-02', { won: false, score: 1 });
-  assert.strictEqual(store.yearFor('Flo', '2024'), null, 'two years back is dropped');
-  assert.strictEqual(store.yearFor('Flo', '2025').games, 1, 'last December stays for the review in January');
-  assert.strictEqual(store.yearFor('Flo', '2026').games, 1);
-  fs.rmSync(dir, { recursive: true, force: true });
+test('YearStatsStore keeps the current and the previous year only', async (t) => {
+  const store = createYearStatsStore(testPool(t, 'years'), { legacyFile: null });
+  await store.recordGame('Flo', '2024-12-30', { won: true, score: 1 });
+  await store.recordGame('Flo', '2025-12-30', { won: true, score: 1 });
+  await store.recordGame('Flo', '2026-01-02', { won: false, score: 1 });
+  assert.strictEqual(await store.yearFor('Flo', '2024'), null, 'two years back is dropped');
+  assert.strictEqual((await store.yearFor('Flo', '2025')).games, 1, 'last December stays for the review in January');
+  assert.strictEqual((await store.yearFor('Flo', '2026')).games, 1);
+  assert.strictEqual(await store.trackingSince(), '2024-12-30');
+});
+
+test('years.json is imported once: the review built from it equals the one from the file', async (t) => {
+  const pool = testPool(t, 'years');
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-years-')), 'years.json');
+  // The file as the old store wrote it.
+  let flo = YR.bumpYear(undefined, { date: '2026-03-01', won: true, score: 1040, facts: facts({ pdLaid: 2, bestRound: 310 }), opponents: ['Gerda'], botLevel: 'zen', table: 'Familie' });
+  flo = YR.bumpYear(flo, { date: '2026-03-02', won: false, score: 420, opponents: ['Gerda', 'Uwe'] });
+  flo = YR.noteStreak(flo, 4);
+  const old = { since: '2026-02-11', players: { flo: { name: 'Flo', years: { 2026: flo, 2025: YR.bumpYear(undefined, { date: '2025-12-30', won: true, score: 900 }) } }, kaputt: null, leer: { name: ' ', years: {} } } };
+  fs.writeFileSync(file, JSON.stringify(old));
+
+  const store = createYearStatsStore(pool, { legacyFile: file });
+  assert.deepStrictEqual(await store.yearFor('FLO', 2026), flo, 'the bucket as it was');
+  assert.strictEqual((await store.yearFor('Flo', 2025)).games, 1);
+  assert.strictEqual(await store.trackingSince(), '2026-02-11');
+  assert.deepStrictEqual(
+    YR.buildReview({ year: '2026', profile: null, bucket: await store.yearFor('Flo', 2026), trackingSince: await store.trackingSince() }),
+    YR.buildReview({ year: '2026', profile: null, bucket: flo, trackingSince: old.since }),
+  );
+  assert.ok(fs.existsSync(`${file}.migrated`) && !fs.existsSync(file));
+  const { rows } = await pool.query("SELECT created_at FROM players WHERE player_key = 'flo'");
+  assert.strictEqual(rows[0].created_at, null, 'a name first seen in the import claims no age');
+
+  // Counting goes on from the imported bucket; a restored old file is not imported twice.
+  await store.recordGame('Flo', '2026-11-11', { won: true, score: 1100 });
+  fs.writeFileSync(file, JSON.stringify(old));
+  const again = createYearStatsStore(pool, { legacyFile: file });
+  const y = await again.yearFor('Flo', 2026);
+  assert.deepStrictEqual([y.games, y.wins, y.days, y.bestGame, y.bestStreak], [3, 2, 3, 1100, 4]);
+  assert.strictEqual(await again.trackingSince(), '2026-02-11', 'a later day never moves the start');
+});
+
+test('a broken years.json is not marked imported: counting works, the import retries', async (t) => {
+  const pool = testPool(t, 'years');
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-years-')), 'years.json');
+  fs.writeFileSync(file, '{not json');
+  const store = createYearStatsStore(pool, { legacyFile: file });
+  await store.recordGame('Flo', '2026-12-03', { won: true, score: 1 });
+  assert.strictEqual((await store.yearFor('Flo', 2026)).games, 1);
+  assert.strictEqual((await pool.query("SELECT 1 FROM legacy_imports WHERE source = 'years.json'")).rows.length, 0);
+  assert.ok(fs.existsSync(file));
 });

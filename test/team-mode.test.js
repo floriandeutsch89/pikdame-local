@@ -16,6 +16,7 @@ const { xpForGame, evaluateQuests, XP_BASE, XP_WIN } = require('../game/Progress
 const { computeEarnedBadges } = require('../game/Badges');
 const { historyForPlayer } = require('../game/GameHistoryStore');
 const { createYearStatsStore } = require('../game/YearStatsStore');
+const { testPool } = require('./helpers/test-db');
 const { createDeck } = require('../game/Deck');
 const { legalActions } = require('../mcp/LegalActions');
 const { renderState } = require('../mcp/StateView');
@@ -755,7 +756,7 @@ test('move log: team rows add the encoder-v2 team block; obs stays v1, so today\
   normal.destroy();
 });
 
-test('"Meine Partien" and the year review: both teammates won, the partner is no opponent', () => {
+test('"Meine Partien" and the year review: both teammates won, the partner is no opponent', async (t) => {
   const rec = teamRecord();
   const [cleo] = historyForPlayer([{ id: 'g1', ...rec }], 'Cleo');
   assert.equal(cleo.won, true);
@@ -767,21 +768,15 @@ test('"Meine Partien" and the year review: both teammates won, the partner is no
   const [ben] = historyForPlayer([{ id: 'g1', ...rec }], 'Ben');
   assert.equal(ben.won, false);
 
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-team-years-'));
-  try {
-    const years = createYearStatsStore(path.join(dir, 'years.json'));
-    const results = [
-      { id: 'a', name: 'Anna', won: true, score: 1200 },
-      { id: 'b', name: 'Ben', won: false, score: 600 },
-      { id: 'c', name: 'Cleo', won: true, score: 1000 },
-    ];
-    years.recordFinishedGame(results, rec.players, '2026-10-23', { teams: rec.teams });
-    years.flushSync();
-    assert.deepEqual(Object.keys(years.yearFor('Anna', 2026).opponents), ['ben'], 'Cleo is Anna\'s partner, not her opponent');
-    assert.deepEqual(Object.keys(years.yearFor('Ben', 2026).opponents).sort(), ['anna', 'cleo']);
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
+  const years = createYearStatsStore(testPool(t, 'teamyears'), { legacyFile: null });
+  const results = [
+    { id: 'a', name: 'Anna', won: true, score: 1200 },
+    { id: 'b', name: 'Ben', won: false, score: 600 },
+    { id: 'c', name: 'Cleo', won: true, score: 1000 },
+  ];
+  await years.recordFinishedGame(results, rec.players, '2026-10-23', { teams: rec.teams });
+  assert.deepEqual(Object.keys((await years.yearFor('Anna', 2026)).opponents), ['ben'], 'Cleo is Anna\'s partner, not her opponent');
+  assert.deepEqual(Object.keys((await years.yearFor('Ben', 2026)).opponents).sort(), ['anna', 'cleo']);
 });
 
 test('MCP: a team table reads its teams, legal moves come from the same engine, the lobby offers a switch', () => {

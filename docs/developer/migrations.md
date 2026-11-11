@@ -106,6 +106,12 @@ and `stats.json` on the first start of the new version, like `players.json`
 already counted in them). An old container still running during the deploy
 keeps writing the files; those matches are not imported afterwards.
 
+`014_tower_floors_player_years.sql` creates `tower_floors`, `player_years` and
+`year_tracking` (one row). `tower-months.json` and `years.json` are imported on
+the first start, each under its own marker; a floor or a year the new version
+already wrote keeps its row (the file is older). Games an old container counts
+into `years.json` during the deploy are not imported afterwards.
+
 ## Rules
 
 - **Forward-only.** There are no down migrations; undo a change with a new file.
