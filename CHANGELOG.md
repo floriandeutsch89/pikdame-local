@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.134.1] - 2026-11-11
+
+### Changed
+- Kartenhaus im Dezember: neues Blatt für die Boss-Etage 15. Auf dem bisherigen waren drei Sterne praktisch nicht zu holen.
+  Boss-Blätter werden künftig nur gewählt, wenn auch drei Sterne erreichbar sind
+
+### Fixed
+- „… ist dran“ und der Ring am Mitspieler wechseln erst, wenn dessen Karten gelandet sind. Vorher sprang die Markierung schon zum Nächsten, während die Karten des Vorgängers noch flogen (auf „Schnell“ deutlich sichtbar). Dein eigener Zug wartet darauf nicht
+
 ## [2.134.0] - 2026-11-11
 
 ### Added
