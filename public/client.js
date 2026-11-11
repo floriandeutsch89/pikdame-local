@@ -6310,6 +6310,12 @@
         challengeSheetRunning = running;
         renderChallengeRunning();
         challengeIntroResult = d && d.you ? { ...d.you, date: d.date } : null;
+        // Played: my own result leads, before anybody else's.
+        const you = d && d.you;
+        el('challengePlayedNote').textContent = you && typeof you.score === 'number'
+          ? L(`Dein Ergebnis heute: ${you.score} Punkte · Platz ${you.rank} von ${you.players}. Morgen gibt es ein neues Deck.`,
+            `Your result today: ${you.score} points · place ${you.rank} of ${you.players}. A new deck comes tomorrow.`)
+          : L('Heute hast du die Challenge schon gespielt – morgen gibt es ein neues Deck.', 'You already played today’s challenge – a new deck comes tomorrow.');
         el('challengeShareBtn').classList.toggle('hidden', !challengeIntroResult);
         el('challengeStartBtn').classList.toggle('hidden', played);
         if (played) el('challengeCancelBtn').textContent = L('Schließen', 'Close');
