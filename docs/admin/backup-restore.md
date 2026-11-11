@@ -12,98 +12,83 @@ bottom of this page once — it takes five minutes and is the only way to know.
 | Accounts, player profiles, Stammtische, daily challenge, game history | the PostgreSQL database (`users`, `login_sessions`, `players` with its `player_*` tables, `stammtische` with its `stammtisch_*` tables, `challenge_results`, `challenge_attempts`, `games`, `game_seats`, `global_stats`, `player_years`, `tower_floors`, …) | …people can't log in, everyone's statistics, badges and progress are gone, so are the groups' tables, the challenge board, today's attempts, "Meine Partien", the server-wide numbers and the year review; the Kartenhaus months from 2027 are picked again (the same deals). Guests can still play. It lives outside the volume. |
 | Running games | `sessions-snapshot.json` | …nothing, long-term. Rewritten every minute while tables change and on shutdown; deleted once restored. |
 
+| Bot move log | `human-moves.jsonl` in the data volume | …training data for the bots is gone (only if you train them). |
+
 Everything else — the image, the code, the config — is reproducible from Git and
-the registry. **The database and the volume are the only things that are irreplaceable.**
+the registry. **The database is the one thing that is irreplaceable.** Since
+v2.131 no game data lives in the data volume any more.
 
-## Backing up the data volume
-
-Stop the app first so the JSON files are not mid-write. (The server flushes and
-writes a clean snapshot on `SIGTERM`, which is exactly what `docker compose stop`
-sends — so a graceful stop is enough; do not `kill -9`.)
+## Backing up
 
 ```bash
-cd docker
-docker compose stop app
-
-# Tar the named volume into a dated archive
-docker run --rm \
-  -v <project>_pikdame-data:/data:ro \
-  -v "$PWD":/backup \
-  alpine tar czf /backup/pikdame-data-$(date +%F).tar.gz -C /data .
-
-docker compose start app
+cd /opt/pikdame
+./scripts/backup.sh docker/docker-compose.prod.yml /var/backups/pikdame
 ```
 
-Find the exact volume name with `docker volume ls`.
+`backup.sh` writes `pikdame-db-<stamp>.dump` (`pg_dump`, custom format) into the
+directory, checks that the file can be read back, and deletes its own dumps older
+than `PIKDAME_BACKUP_KEEP_DAYS` (14). **The app keeps running**: `pg_dump` reads
+one consistent snapshot. A dump holds e-mail addresses and password hashes; the
+file is created readable by its owner only — keep it that way off-site too.
 
-:::{tip}
-The whole volume is small — kilobytes to a few megabytes. Keep dated archives and
-copy them off the host (that is the point). A daily cron job plus
-`rsync`/`rclone` to somewhere else is plenty.
-:::
+`--volume` also archives the data volume (`pikdame-data-<stamp>.tar.gz`: session
+snapshot, monitor history, the bots' move log). You only need it for the move log.
 
-## Backing up PostgreSQL
+Copy the directory off the host (`rsync`/`rclone` to another machine or object
+storage): a dump on the disk that died is no backup.
+
+## The restore drill
 
 ```bash
-docker compose exec -T db pg_dump -U pikdame pikdame \
-  | gzip > pikdame-db-$(date +%F).sql.gz
+./scripts/restore-drill.sh /var/backups/pikdame docker/docker-compose.prod.yml
 ```
 
-This can run while the app is up.
+It restores the newest dump into a **throwaway** PostgreSQL container (no
+network, data in memory, removed afterwards) and never touches the running
+stack. It fails, with exit code 1 and a line `RESTORE DRILL FAILED: …`, when
+
+- the newest dump is older than `PIKDAME_DRILL_MAX_AGE_HOURS` (36) — the backup
+  job stopped running,
+- `pg_restore` ends with an error (a truncated or damaged file),
+- the schema version is missing, or ahead of the live database (a wrong dump),
+- a core table (`users`, `players`, `games`, `stammtische`) is empty in the dump
+  while the live one has rows.
+
+On success it prints what came back next to the live numbers:
+
+```
+RESTORE DRILL OK: pikdame-db-20261111-030001.dump - schema 14, users 212 (live 213), players 840 (live 843), games 5120 (live 5131), stammtische 9 (live 9)
+```
+
+Run both from cron, the drill after the backup:
+
+```
+0 3 * * *  cd /opt/pikdame && ./scripts/backup.sh docker/docker-compose.prod.yml /var/backups/pikdame
+30 3 * * 1 cd /opt/pikdame && ./scripts/restore-drill.sh /var/backups/pikdame docker/docker-compose.prod.yml
+```
+
+A failing job must reach you. Either let cron mail its output (`MAILTO=`), or set
+`PIKDAME_NOTIFY_CMD`: both scripts pipe the failure message into that command,
+e.g. `PIKDAME_NOTIFY_CMD='curl -fsS -d @- https://ntfy.example/pikdame'`.
+
+The drill needs room for one more PostgreSQL in memory for a minute; on a small
+host run it at night.
 
 ## Restoring
 
-### Data volume
-
 ```bash
-cd docker
-docker compose down
-
-# Recreate the volume and unpack the archive into it
-docker volume rm <project>_pikdame-data
-docker volume create <project>_pikdame-data
-docker run --rm \
-  -v <project>_pikdame-data:/data \
-  -v "$PWD":/backup \
-  alpine sh -c "tar xzf /backup/pikdame-data-2026-07-12.tar.gz -C /data && chown -R 10001:10001 /data"
-
-docker compose up -d
+./scripts/restore.sh /var/backups/pikdame/pikdame-db-<stamp>.dump docker/docker-compose.prod.yml --yes
 ```
 
-:::{warning}
-Note the `chown -R 10001:10001`. The container runs as a **non-root user**; a
-freshly created volume belongs to root, and the app would silently fail to write
-(see {doc}`index`). Restoring without the `chown` is the single most common way
-to break this.
-:::
+`restore.sh` checks the file first (a damaged dump changes nothing), saves the
+current database next to it (`pikdame-db-before-restore-<stamp>.dump`), stops the
+app, replaces the database and starts the app again. Without `--yes` it only says
+what it would do. It also takes a plain `*.sql.gz` dump of an older `backup.sh`
+and a `pikdame-data-*.tar.gz` volume archive (restored with the ownership the
+non-root container needs, `10001:10001`).
 
-### PostgreSQL
-
-```bash
-gunzip -c pikdame-db-2026-07-12.sql.gz \
-  | docker compose exec -T db psql -U pikdame pikdame
-```
-
-## Verify the restore (the drill)
-
-Do this **once**, on a throwaway host or locally — not for the first time during
-an actual outage.
-
-1. Take a backup as above.
-2. `docker compose down` and **delete** the volume (`docker volume rm …`).
-3. Restore from the archive, including the `chown`.
-4. `docker compose up -d`, then check the startup log:
-
-   ```bash
-   docker compose logs app | grep -i Datenverzeichnis
-   ```
-
-   You want the line saying the data directory is **writable**, with non-zero
-   file sizes listed — that proves both the permissions and the data are back.
-5. Open the app and check that the lobby statistics show the old profiles
-   (they come from the PostgreSQL dump, restored above).
-
-If step 4 prints the loud "NICHT BESCHREIBBAR" warning, the `chown` was missed.
+On a fresh host: bring the stack up once (`docker compose up -d`), then restore
+the dump. Schema migrations newer than the dump run on the app's next start.
 
 ## What is *not* backed up
 

@@ -305,16 +305,15 @@ again keeps the database's Stammtische (marker `stammtisch.json` in
 ## Backup & restore
 
 ```sh
-./scripts/backup.sh docker/docker-compose.prod.yml     # creates pikdame-backup-<stamp>.tar.gz
-./scripts/restore.sh pikdame-backup-<stamp>.tar.gz docker/docker-compose.prod.yml
+./scripts/backup.sh docker/docker-compose.prod.yml /var/backups/pikdame          # pikdame-db-<stamp>.dump
+./scripts/restore-drill.sh /var/backups/pikdame docker/docker-compose.prod.yml   # proves the newest dump restores
+./scripts/restore.sh /var/backups/pikdame/pikdame-db-<stamp>.dump docker/docker-compose.prod.yml --yes
 ```
 
-The backup stops the app container for a few seconds — this guarantees a
-consistent archive of the data volume (flushed JSON stores). The script
-additionally writes a `pg_dump` of the PostgreSQL database
-(`pikdame-pgdump-<stamp>.sql.gz`) — accounts, profiles and the challenge live
-there, so keep both files.
-Recommendation: run nightly via cron and copy the archive off-site.
+The backup is a `pg_dump` of the database, taken while the app runs: all game
+data lives there. The drill restores the newest dump into a throwaway container
+and compares it with the live database; details and the cron lines in
+{doc}`backup-restore`.
 
 ## Observability
 
@@ -336,9 +335,9 @@ strategy Recreate** — sessions live in RAM; PostgreSQL comes from a Secret; de
 
 ## Best-practice checklist (beyond the stack itself)
 
-- **Off-site backups**: `scripts/backup.sh` via nightly cron, copy the
-  archives off the host (object storage, another machine).
-  `0 3 * * * cd /opt/pikdame && ./scripts/backup.sh docker/docker-compose.prod.yml`
+- **Off-site backups**: `scripts/backup.sh` via nightly cron, the dumps copied
+  off the host, and `scripts/restore-drill.sh` weekly so a broken or stale
+  backup is noticed ({doc}`backup-restore`).
 - **Uptime monitoring**: point an external monitor at `https://<domain>/healthz`.
 - **SSH keys** instead of passwords; rotate any password that was ever
   shared in plain text.
