@@ -12,6 +12,7 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   Repo-Doku (README, docs/; k8s/ und landing/ READMEs bei nächster Berührung).
   Deutsche Bestandskommentare beim Berühren migrieren.
 - **Deutsch:** alle nutzersichtbaren Texte (Quellsprache, über i18n).
+  Nicht gendern (kein „/in“, „:in“, „*in“): Titel und Namen in der kurzen Form.
   Changelog-Fragmente: Überschriften englisch (Added/Changed/Fixed/Removed),
   Inhalt deutsch.
 - **Kommentare 1–2 Zeilen**, nur Warum/Falle/Vertrag; Erklärungen in docs/,
@@ -68,6 +69,13 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
    (Pausen/Stempel vor dem Rundenblatt abgelehnt, #513). Ton sparsam, die
    meisten spielen stumm (mehr Kartengeräusche abgelehnt, #512) → Charakter
    muss sichtbar wirken. Neue Animationen per Option abschaltbar.
+   Einzige Ausnahme: der Boss-Auftritt (< 2 s, vor der ersten Karte, Tipp
+   überspringt). Was sonst zum Rundenstart erscheint (Abhebe-Einblendung,
+   Rundenspruch), wartet auf ihn. Effekte am Tisch liegen unter jedem Dialog
+   (`--z-table-fx`), nie wackelt der ganze Tisch.
+   **Inhalt in Blättern (Overlays) nutzt die Blatt-Farben**, nie eine eigene
+   dunkle Fläche (einmal so gebaut: passte zu keinem Theme). Zahlen, die über
+   den Tisch fliegen, stehen auf eigener Plakette, nie Text auf Text.
 3. **Zweisprachig:** jeder sichtbare Text braucht einen Eintrag — HTML →
    `I18N_STATIC`, JS → `L(de, en)`, Server-Texte → `I18N_SERVER_PATTERNS`
    (Regex). Vertragstests prüfen das.
@@ -93,6 +101,9 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
     Neue Tabellen/Spalten nach `docs/developer/schema.md` (TIMESTAMPTZ `*_at`, DATE `*_day`, keine Epoch-Zahlen).
   - `Mailer.js`: eigener SMTP-Client, Log-Fallback; Header RFC 2047, Body
     Quoted-Printable — nie rohes UTF-8 in Kopfzeilen.
+  - Neues Abzeichen = ID in `Badges.js`, Text in `badgeMeta` (DE/EN samt „how“), Eintrag in
+    `BADGE_FAMILIES`/`BADGE_SINGLES` des Clients, danach `npm run docs:gen` (sonst `docs:check` rot).
+    Boss-Abzeichen: `bossBadges` (Sieg, 3 Sterne, alle Bosse eines Monats).
   - `Badges.js` (Familien in `BADGE_FAMILIES`, Fakten aus `finishRound`),
     `Progression.js` (XP, Tagesaufgaben, Serie mit Joker-Tag; XP-Regeln
     spiegelt `XP_RULES` im Client, Vertragstest). UI: Stufe + Serie am
@@ -109,6 +120,10 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   - `BossFight.js`: Boss-Etagen 10/15/20 als Duell in Lebenspunkten, reine Schadensregeln (Kartenregeln
     unverändert); aus, bis `BotTower.setBossFrom(Monat)` gesetzt ist. Etagen eines laufenden Monats nie
     umstellen (Sterne). Zahlen nur aus Simulation ändern. Doku `docs/developer/boss-fight.md`.
+    Am Tisch: `public/boss-fight.js` zeichnet nur `state.bossFight` (Feld statt Gegner-Chips, Leben statt
+    Punkte, Auftritt, Treffer) und entscheidet keine Regel; Gründe eines Treffers kommen im Event mit, nie
+    raten. Jeder Chip erklärt sich per Tipp. Boss-Namen ohne Artikel; der Sitz trägt den Boss-Namen.
+    „Boss-Effekte“ in den Optionen schaltet Auftritt und Treffer ab.
   - Spielversuche nur über `PlayEvents.js` (`play_attempts`, Admin „Festhänger“;
     Kartenhaus, Rätsel über `PuzzleAttempts.js`, Tutorial): eine Zeile pro Versuch
     (`attempt_id`), 90 Tage, ohne await; Konto löschen löscht mit. Tutorial-Lektion
@@ -298,7 +313,10 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
 - RL: `OBS_SIZE_V1`/`OBS_SIZE_V2`/`ACTION_SIZE` sind Verträge —
   `test/state-encoder.test.js` (samt eingefrorener v1-Kodierung) UND
   `scripts/rl-env-server.js` (`CONTRACT`) prüfen.
-- **UI im Browser prüfen**, nicht nur `npm test`: alle drei Layouts. Headless
+- **UI im Browser prüfen**, nicht nur `npm test`: alle drei Layouts.
+  Ein 2x-Desktop-Shot braucht ~1,6 s: Timer der Seite laufen dabei ab (ein
+  Auftritt war weg) → für solche Momente Hoch-/Querformat oder einfrieren.
+  Animationen sind im Standbild nicht geprüft; das dem Nutzer so sagen. Headless
   Chromium mit normalem User-Agent (sonst Crawler-Erkennung, kein WebSocket).
   Passkeys mit dem virtuellen CDP-Authenticator. jsdom lädt kein
   `style.css`: CSS nie per `getComputedStyle` testen, sondern per

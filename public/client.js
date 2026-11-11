@@ -588,20 +588,35 @@
       pik_royal: { emoji: '👑', name: L('Pik Royal', 'Spade royal'), desc: L('Royal Flush in Pik - mit der Pik Dame', 'Royal flush in spades - with the Queen of Spades'),
         how: L('Lege 10, Bube, Dame, König und Ass in Pik als Folge aus - alles echte Karten, kein Joker.', 'Meld 10, jack, queen, king and ace of spades as a run - all real cards, no joker.') },
       // Kartenhaus (game/BotTower.js): floors and stars in the best month, crowned months
-      tower_3: { emoji: '🏠', name: L('Karten\u00adstapler/in', 'Card stacker'), desc: L('3 Etagen in einem Monat geschafft', 'Cleared 3 floors in one month'),
+      tower_3: { emoji: '🏠', name: L('Karten\u00adstapler', 'Card stacker'), desc: L('3 Etagen in einem Monat geschafft', 'Cleared 3 floors in one month'),
         how: L('Hol dir in einem Monat im Kartenhaus (Aufgaben → Kartenhaus) auf den Etagen 1 bis 3 je mindestens einen Stern.', 'Earn at least one star on floors 1 to 3 of the House of Cards in one month (Tasks → House of Cards).') },
-      tower_6: { emoji: '🏠', name: L('Karten\u00adkünstler/in', 'Card artist'), desc: L('6 Etagen in einem Monat geschafft', 'Cleared 6 floors in one month'),
+      tower_6: { emoji: '🏠', name: L('Karten\u00adkünstler', 'Card artist'), desc: L('6 Etagen in einem Monat geschafft', 'Cleared 6 floors in one month'),
         how: L('Hol dir in einem Monat im Kartenhaus auf den Etagen 1 bis 6 je mindestens einen Stern.', 'Earn at least one star on floors 1 to 6 of the House of Cards in one month.') },
-      tower_10: { emoji: '🏠', name: L('Hoch\u00adstapler/in', 'High stacker'), desc: L('10 Etagen in einem Monat geschafft', 'Cleared 10 floors in one month'),
+      tower_10: { emoji: '🏠', name: L('Hoch\u00adstapler', 'High stacker'), desc: L('10 Etagen in einem Monat geschafft', 'Cleared 10 floors in one month'),
         how: L('Schaff in einem Monat die Etagen 1 bis 10 des Kartenhauses - die zehnte gegen drei Zen-Bots.', 'Clear floors 1 to 10 of the House of Cards in one month - the tenth against three Zen bots.') },
       tower_stars_30: { emoji: '🌠', name: L('Sternen\u00adhimmel', 'Starry sky'), desc: L('30 Sterne in einem Monat', '30 stars in one month'),
         how: L('Sammle in einem Monat im Kartenhaus 30 Sterne: drei pro Etage gibt es für klar vorn und selbst ausgemacht.', 'Collect 30 stars in the House of Cards in one month: three per floor for clearly ahead and out yourself.') },
       tower_crowned_1: { emoji: '👷', name: L('Lehrling', 'Apprentice'), desc: L('Ein Kartenhaus gekrönt: alle 20 Etagen eines Monats', 'Crowned a House of Cards: all 20 floors of a month'),
         how: L('Hol dir in einem Monat auf allen 20 Etagen des Kartenhauses mindestens einen Stern - dann kommt die Pik Dame obenauf.', 'Earn at least one star on all 20 floors of the House of Cards in one month - then the Queen of Spades goes on top.') },
-      tower_crowned_3: { emoji: '👷', name: L('Polier/in', 'Foreman'), desc: L('3 Monate das Kartenhaus gekrönt', 'Crowned the House of Cards in 3 months'),
+      tower_crowned_3: { emoji: '👷', name: L('Polier', 'Foreman'), desc: L('3 Monate das Kartenhaus gekrönt', 'Crowned the House of Cards in 3 months'),
         how: L('Kröne das Kartenhaus in 3 Monaten: jedes Mal alle 20 Etagen mit mindestens einem Stern.', 'Crown the House of Cards in 3 months: every time all 20 floors with at least one star.') },
-      tower_crowned_12: { emoji: '👷', name: L('Bau\u00admeister/in', 'Master Builder'), desc: L('12 Monate das Kartenhaus gekrönt', 'Crowned the House of Cards in 12 months'),
+      tower_crowned_12: { emoji: '👷', name: L('Bau\u00admeister', 'Master Builder'), desc: L('12 Monate das Kartenhaus gekrönt', 'Crowned the House of Cards in 12 months'),
         how: L('Kröne das Kartenhaus in 12 Monaten.', 'Crown the House of Cards in 12 months.') },
+      // Kartenhaus boss floors (game/BossFight.js): a win, and a win with three stars
+      boss_jack: { emoji: '🗡️', name: L('Buben\u00adschreck', "Jack's bane"), desc: L('Den Karo-Buben besiegt', 'Defeated the Jack of Diamonds'),
+        how: L('Besiege den Karo-Buben, den Boss auf Etage 10 des Kartenhauses.', 'Defeat the Jack of Diamonds, the boss on floor 10 of the House of Cards.') },
+      boss_jack_3: { emoji: '😎', name: L('Hinterhalt? Welcher Hinterhalt?', 'Ambush? What ambush?'), desc: L('Den Karo-Buben mit 3 Sternen besiegt', 'Defeated the Jack of Diamonds with 3 stars'),
+        how: L('Besiege den Karo-Buben und behalte dabei mindestens zwei Drittel deines Lebens - das gibt 3 Sterne.', 'Defeat the Jack of Diamonds with at least two thirds of your life left - that is 3 stars.') },
+      boss_king: { emoji: '⚔️', name: L('Königs\u00admörder', 'Kingslayer'), desc: L('Den Kreuz-König besiegt', 'Defeated the King of Clubs'),
+        how: L('Besiege den Kreuz-König, den Boss auf Etage 15 des Kartenhauses.', 'Defeat the King of Clubs, the boss on floor 15 of the House of Cards.') },
+      boss_king_3: { emoji: '🛡️', name: L('Rüstungs\u00adknacker', 'Armour breaker'), desc: L('Den Kreuz-König mit 3 Sternen besiegt', 'Defeated the King of Clubs with 3 stars'),
+        how: L('Besiege den Kreuz-König und behalte dabei mindestens zwei Drittel deines Lebens - das gibt 3 Sterne.', 'Defeat the King of Clubs with at least two thirds of your life left - that is 3 stars.') },
+      boss_queen: { emoji: '🖤', name: L('Damen\u00adopfer', 'Queen sacrifice'), desc: L('Die Pik Dame besiegt', 'Defeated the Queen of Spades'),
+        how: L('Besiege die Pik Dame, den Boss auf Etage 20 des Kartenhauses - erst ihre Katzen, dann sie.', 'Defeat the Queen of Spades, the boss on floor 20 of the House of Cards - her cats first, then her.') },
+      boss_queen_3: { emoji: '🔮', name: L('Fluch\u00adbrecher', 'Curse breaker'), desc: L('Die Pik Dame mit 3 Sternen besiegt', 'Defeated the Queen of Spades with 3 stars'),
+        how: L('Besiege die Pik Dame und behalte dabei mindestens zwei Drittel deines Lebens - das gibt 3 Sterne.', 'Defeat the Queen of Spades with at least two thirds of your life left - that is 3 stars.') },
+      boss_court: { emoji: '🏰', name: L('Hofstaat gestürzt', 'Court overthrown'), desc: L('Alle drei Bosse eines Monats mit 3 Sternen besiegt', 'Defeated all three bosses of a month with 3 stars'),
+        how: L('Besiege in einem Monat Karo-Bube, Kreuz-König und Pik Dame jeweils mit 3 Sternen.', 'Defeat the Jack of Diamonds, the King of Clubs and the Queen of Spades with 3 stars each in one month.') },
     };
     return M[id] || { emoji: '🎖️', name: id, desc: '', how: '' };
   }
@@ -627,6 +642,7 @@
     'comeback', 'zen_slayer', 'zen_trio', 'ring_run', 'run_13', 'pile_glutton', 'no_joker_win',
     'quick_start', 'joker_king', 'landslide', 'challenge_champ', 'queen_magnet_day', 'stammtisch_10', 'night_owl',
     'near_miss', 'cold_shower', 'rock_bottom', 'red_lantern', 'royal_flush', 'pik_royal',
+    'boss_jack', 'boss_jack_3', 'boss_king', 'boss_king_3', 'boss_queen', 'boss_queen_3', 'boss_court',
   ];
   let globalStatsData = null;
   // Share of players per badge with the server's rare line (game/BadgeRarity.js); null: none shown.
@@ -1552,6 +1568,7 @@
     const r = lastState && lastState.lastCutReveal;
     if (!r || !Array.isArray(r.cards) || r.cards.length === 0) return;
     if (lastState.phase !== 'playing') return; // erst wenn die Runde wirklich läuft
+    if (bossIntroAhead()) return; // a boss floor's entrance first; its end calls back
     const key = r.round + ':' + r.cards.map((c) => c.id).join(',');
     if (key === shownCutRevealKey) return;
     shownCutRevealKey = key;
@@ -2623,10 +2640,11 @@
   let stampKnownRound = null;
 
   function spawnPointsPopup(ev) {
+    if (bossView()) return; // a boss floor shows the hit instead (boss-fight.js)
     const mine = ev.playerId === playerId;
     let anchor = null;
     if (mine) anchor = el('melds');
-    else anchor = document.querySelector(`.opponent[data-player-id="${ev.playerId}"]`) || el('melds');
+    else anchor = document.querySelector(`#opponents [data-player-id="${ev.playerId}"]`) || el('melds');
     if (!anchor) return;
     const r = anchor.getBoundingClientRect();
     const pop = document.createElement('div');
@@ -2669,7 +2687,13 @@
     // the own share shows on the bar below and in the result sheet.
     const myTeam = teamOfPlayer(playerId);
     const tt = myTeam >= 0 ? teamTotalsOf() : null;
-    if (tt) {
+    // Boss floor: life instead of points (boss-fight.js draws the bar into the score's slot).
+    const boss = bossView();
+    scoreEl.classList.toggle('bossLifeSlot', !!boss);
+    if (boss) {
+      scoreEl.classList.remove('teamScore', 'scoreNegative');
+      bossTable.renderMyLife(scoreEl, boss);
+    } else if (tt) {
       const ours = tt[myTeam] || 0;
       const theirs = tt[1 - myTeam] || 0;
       // The leader by weight, not colour (red stays the minus sign): the trailing number is muted.
@@ -2724,7 +2748,10 @@
 
     // Gegner
     const opponentsDiv = el('opponents');
-    opponentsDiv.innerHTML = '';
+    el('table').classList.toggle('bossFight', !!boss);
+    // The boss panel stays in the DOM between renders (its bars move, a popover stays open).
+    if (boss) renderBossPanel(opponentsDiv, boss);
+    else { if (bossShown) leaveBossTable(); opponentsDiv.innerHTML = ''; }
     // Gegner in ZUGRICHTUNG ab dem eigenen Platz: der Chip ganz links ist
     // immer der Spieler, der direkt nach mir dran ist - so sieht man auf
     // einen Blick, zu wem der Zug als Nächstes wandert.
@@ -2737,7 +2764,7 @@
     } else {
       orderedOpponents.push(...lastState.players.filter((p) => p.id !== playerId));
     }
-    orderedOpponents
+    (boss ? [] : orderedOpponents)
       .forEach((p) => {
         const d = document.createElement('div');
         const roundOver = lastState.phase === 'roundEnd' || lastState.phase === 'gameOver';
@@ -4144,6 +4171,13 @@
       }
     }
 
+    // Boss floor: the two lives are the result; the points list is hidden (style.css .bossPane).
+    const bossNow = forfeited ? null : bossView();
+    if (bossNow) {
+      paneResult.classList.add('bossPane');
+      paneResult.insertBefore(bossResultBox(bossNow, isGameOver), paneResult.firstChild);
+    }
+
     // Round details: four numeric columns, right-aligned. Melded ♠Q/jokers
     // are rare, so they ride as marks on the name instead of zero columns.
     if (!forfeited && lastState.lastRoundStats) {
@@ -4198,7 +4232,7 @@
         (iWon ? '' : `<span class="resultWinnerName">${winnerName}</span>`) +
         `<span class="resultWinnerSub">${
           lastState.towerStage
-            ? iWon ? L('Du schaffst die Etage!', 'You clear the floor!') : L('hält dich auf dieser Etage', 'holds you on this floor')
+            ? iWon ? (bossNow ? L('Boss besiegt!', 'Boss defeated!') : L('Du schaffst die Etage!', 'You clear the floor!')) : L('hält dich auf dieser Etage', 'holds you on this floor')
             : winTeam !== null
               ? iWon
                 ? winName ? L(`Team ${escapeHtml(winName)} gewinnt die Partie!`, `Team ${escapeHtml(winName)} wins the match!`) : L('Dein Team gewinnt die Partie!', 'Your team wins the match!')
@@ -7897,7 +7931,7 @@
   /** One ghost between the player's chip and the stock, the pile or a meld card. */
   function flyTableMove(turn, f, elapsed) {
     const chip = [...el('opponents').children].find((d) => d.dataset.playerId === f.who);
-    const anchor = chip && (chip.querySelector('.opAvatar') || chip);
+    const anchor = chip && (chip.querySelector('.opAvatar, .bossPortrait') || chip);
     if (!anchor) return false;
     let box;
     let ghost;
@@ -8065,10 +8099,15 @@
     }
   }
   let toastTimer = null;
+  let toastAfterIntro = null; // held back while a boss entrance plays
   let toastLockUntil = 0; // priority toasts lock the container
   // A priority toast (round quote, ⚠️ warning, error) keeps its full time: normal ones arriving
   // meanwhile are dropped, not shown over it. opts.icon: sprite id of a state mark (lock, check).
   function showToast(text, opts = {}) {
+    // A boss floor's entrance first: the round's line waits and follows it (the last one wins).
+    let waits = false;
+    try { waits = bossIntroAhead(); } catch (e) { /* boot: the boss part is not set up yet */ }
+    if (waits) { toastAfterIntro = [text, opts]; return; }
     const now = Date.now();
     if (!opts.priority && now < toastLockUntil) return;
     const duration = opts.duration || 4000;
@@ -9633,7 +9672,7 @@
       return;
     }
     // Ziel: der Chip des Absenders; eigene Emotes schweben über der Hand.
-    let anchor = document.querySelector(`#opponents .opponent[data-player-id="${CSS.escape(fromPlayerId)}"]`);
+    let anchor = document.querySelector(`#opponents [data-player-id="${CSS.escape(fromPlayerId)}"]`);
     if (fromPlayerId === playerId) anchor = el('handWrapper');
     const rect = anchor ? anchor.getBoundingClientRect() : { left: window.innerWidth / 2, top: window.innerHeight / 2, width: 0 };
     const bubble = document.createElement('div');
@@ -9681,7 +9720,7 @@
       setTimeout(() => chip.remove(), 6000);
       return;
     }
-    const anchor = document.querySelector(`#opponents .opponent[data-player-id="${CSS.escape(fromPlayerId)}"]`);
+    const anchor = document.querySelector(`#opponents [data-player-id="${CSS.escape(fromPlayerId)}"]`);
     if (!anchor) return;
     document.querySelectorAll('.quipBubble').forEach((n) => { if (n.dataset.playerId === fromPlayerId) n.remove(); });
     const rect = anchor.getBoundingClientRect();
@@ -10016,12 +10055,14 @@
     return { state: stage === info.unlocked && !info.crowned ? 'next' : 'locked', stars: 0, closed };
   }
   const towerClosedText = (closed) => (closed === 'locked' ? L('diesen Monat geschlossen', 'closed this month') : L('wird noch gebaut', 'still being built'));
+  const towerBossName = (s) => (s && s.boss && bossApi ? bossApi.nameOf(s.boss, L) : '');
   function towerFloorLabel(s, st) {
     const names = s.bots.map((b) => (BOT_DIFF[b] || BOT_DIFF.zen).short()).join(', ');
     const mods = towerModsText(s.mods);
     const status = st.state === 'built' ? L(`${st.stars} von 3 Sternen`, `${st.stars} of 3 stars`)
       : st.closed ? towerClosedText(st.closed)
         : st.state === 'next' ? L('noch kein Stern', 'no star yet') : L('gesperrt', 'locked');
+    if (towerBossName(s)) return L(`Etage ${s.stage}: Boss-Kampf gegen ${towerBossName(s)} - ${status}`, `Floor ${s.stage}: boss fight against ${towerBossName(s)} - ${status}`);
     return L(
       `Etage ${s.stage}: gegen ${names}${s.handicap ? `, die Bots bekommen ${s.handicap} Punkte Vorgabe` : ''}${mods ? `, ${mods}` : ''} - ${status}`,
       `Floor ${s.stage}: against ${names}${s.handicap ? `, the bots get a ${s.handicap}-point head start` : ''}${mods ? `, ${mods}` : ''} - ${status}`
@@ -10047,7 +10088,7 @@
     const rank = `<text class="khRank" x="${-w / 2 + 4}" y="${-h + 14.5}">${slot.stage}</text>`;
     let face;
     if (look === 'built') {
-      const rim = towerRim(s.mods);
+      const rim = towerBossName(s) ? 'boss' : towerRim(s.mods);
       const star = (i) => {
         const popping = i < stars && i >= pop;
         return `<polygon class="khStar${i < stars ? ' on' : ''}${popping ? ' khPop' : ''}"` +
@@ -10059,7 +10100,8 @@
         [0, 1, 2].map(star).join('');
     } else {
       face = `<rect class="khGhost" ${box}/>` + rank +
-        (closed ? `<use class="khGlyph" href="#i-${closed === 'locked' ? 'lock' : 'hourglass'}" x="-6.5" y="-27.5" width="13" height="13"/>` : '');
+        (closed ? `<use class="khGlyph" href="#i-${closed === 'locked' ? 'lock' : 'hourglass'}" x="-6.5" y="-27.5" width="13" height="13"/>`
+          : towerBossName(s) ? '<use class="khGlyph khBossGlyph" href="#i-swords" x="-6.5" y="-27.5" width="13" height="13"/>' : '');
     }
     return `<g transform="translate(${khNum(slot.foot)} ${khNum(slot.base)}) rotate(${slot.rot})">${face}` +
       (back ? `<rect class="khBack" ${box}/>` : '') + '</g>';
@@ -10110,7 +10152,7 @@
       const look = st.state === 'built' ? 'built' : st.closed ? 'closed' : st.state === 'next' ? 'next' : 'plan';
       const li = land.indexOf(slot.stage);
       const cls = ['khFloor', look, st.state === 'next' ? 'isNext' : '', towerSelected === slot.stage ? 'sel' : '',
-        li > -1 ? 'khDealt' : '', fx.wobble === slot.stage ? 'khWobble' : ''].filter(Boolean).join(' ');
+        li > -1 ? 'khDealt' : '', fx.wobble === slot.stage ? 'khWobble' : '', towerBossName(s) ? 'boss' : ''].filter(Boolean).join(' ');
       const pop = fx.pop && fx.pop[slot.stage] !== undefined ? fx.pop[slot.stage] : 3;
       const body = look === 'plan'
         ? `<text class="khPlan" x="${khNum(slot.cx)}" y="${khNum(slot.cy + 4)}">${slot.stage}</text>`
@@ -10222,13 +10264,17 @@
         : closed === 'locked' ? iconTag('lock', L('geschlossen', 'closed'))
           : closed ? iconTag('hourglass', L('im Bau', 'being built'))
             : iconTag('lock', L('gesperrt', 'locked'));
-    const bots = towerBotsLine(s.bots, s.handicap);
-    const mods = (s.mods || []).map((m) => `<span class="khMod ${towerModKind(m)}">${escapeHtml(towerModLabel(m))}</span>`).join('');
+    const bossName = towerBossName(s);
+    const bots = bossName ? L(`Boss-Kampf: ${bossName}`, `Boss fight: ${bossName}`) : towerBotsLine(s.bots, s.handicap);
+    const mods = bossName
+      ? `<span class="khMod boss">${iconHtml('swords')}<span>${escapeHtml(L('Leben statt Punkte', 'Life instead of points'))}</span></span>`
+      : (s.mods || []).map((m) => `<span class="khMod ${towerModKind(m)}">${escapeHtml(towerModLabel(m))}</span>`).join('');
     const note = closed === 'locked'
       ? L('Für diese Etage gibt es diesen Monat kein geprüftes Blatt - sie bleibt zu.', 'There is no proven deal for this floor this month - it stays closed.')
       : closed ? L('Diese Etage wird gerade gebaut - schau bald wieder vorbei.', 'This floor is still being built - check back soon.')
       : st.state === 'locked'
       ? L(`Schaff erst Etage ${Math.min(info.unlocked || 1, max)}.`, `Clear floor ${Math.min(info.unlocked || 1, max)} first.`)
+      : st.state === 'next' && bossName ? L('Ein Stern: den Boss besiegen. Mehr Sterne für mehr Leben am Ende.', 'One star: defeat the boss. More stars for more life left.')
       : st.state === 'next' ? L('Ein Stern: mehr Punkte als jeder Bot samt Vorgabe.', 'One star: more points than every bot plus its head start.')
         : st.stars < 3 ? L(`Bestwert ${st.stars} von 3 - ein neuer Versuch spielt dasselbe Blatt.`, `Best ${st.stars} of 3 - a new try plays the same deal.`)
           : L('Alle drei Sterne.', 'All three stars.');
@@ -10237,7 +10283,7 @@
         `<span>${escapeHtml(st.state === 'next' ? L(`Etage ${stage} spielen`, `Play floor ${stage}`) : L(`Etage ${stage} nochmal`, `Floor ${stage} again`))}</span></button>`;
     return `<div class="khDHead"><b class="khDTitle">${escapeHtml(L(`Etage ${stage}`, `Floor ${stage}`))}</b>${tag}</div>` +
       `<p class="khDBots">${escapeHtml(bots)}</p>` +
-      (mods ? `<p class="khDMods" aria-label="${escapeHtml(towerModRulesText(s.mods))}">${mods}</p>` : '') +
+      (mods ? `<p class="khDMods" aria-label="${escapeHtml(bossName ? L('Leben statt Punkte', 'Life instead of points') : towerModRulesText(s.mods))}">${mods}</p>` : '') +
       `<p class="khDNote">${escapeHtml(note)}</p>` + play;
   }
   function towerArchiveHtml(archive) {
@@ -10508,7 +10554,14 @@
         ? L(`${-r.margin} Punkte hinten`, `${-r.margin} points behind`)
         : L('Gleichstand reicht nicht', 'a tie is not enough');
     const mustGoOut = (r.mods || []).includes('goOut');
-    const hint = mustGoOut && r.margin > 0 && !r.wentOut
+    // A boss floor: the stars follow the life left (BossFight.starsFor).
+    const starLife = (lastState.bossFight && lastState.bossFight.starLife) || [Math.ceil(r.myMaxLife / 3), Math.ceil((2 * r.myMaxLife) / 3)];
+    const hint = r.boss ? [
+      L('Für einen Stern musst du den Boss besiegen.', 'For a star you have to defeat the boss.'),
+      L(`Für zwei Sterne: mit mindestens ${starLife[0]} Leben gewinnen.`, `For two stars: win with at least ${starLife[0]} life.`),
+      L(`Für drei Sterne: mit mindestens ${starLife[1]} Leben gewinnen.`, `For three stars: win with at least ${starLife[1]} life.`),
+      L('Alle drei Sterne - besser geht es nicht.', 'All three stars - it does not get better.'),
+    ][r.stars] || '' : mustGoOut && r.margin > 0 && !r.wentOut
       ? L('Vorn, aber auf dieser Etage gibt es Sterne nur, wenn du selbst ausmachst.', 'Ahead, but on this floor stars need you to go out yourself.')
       : [
         L('Für einen Stern brauchst du mehr Punkte als jeder Bot samt Vorgabe.', 'For a star you need more points than every bot plus its head start.'),
@@ -10524,7 +10577,12 @@
       : best > r.stars ? L(`Dein Bestwert hier bleibt bei ${best} Sternen.`, `Your best here stays at ${best} stars.`) : '';
     box.innerHTML =
       `<div class="twResultStars" role="img" aria-label="${escapeHtml(L(`${r.stars} von 3 Sternen`, `${r.stars} of 3 stars`))}">${towerStarsHtml(r.stars)}</div>` +
-      `<p class="twResultSum">${escapeHtml(L(`Du ${r.myScore} · ${botLine}`, `You ${r.myScore} · ${botLine}`))} <b>${escapeHtml(verdict)}</b></p>` +
+      `<p class="twResultSum">${escapeHtml(r.boss
+        ? (r.won ? L(`Dir bleiben ${r.myLife} von ${r.myMaxLife} Leben.`, `You have ${r.myLife} of ${r.myMaxLife} life left.`)
+          : L(`Dem Boss bleiben ${r.bossLife} von ${r.bossMaxLife} Leben.`, `The boss has ${r.bossLife} of ${r.bossMaxLife} life left.`))
+        : L(`Du ${r.myScore} · ${botLine}`, `You ${r.myScore} · ${botLine}`))} <b>${escapeHtml(r.boss
+        ? (r.won ? L(`Sieg in Runde ${r.rounds}`, `Won in round ${r.rounds}`) : L(`Niederlage in Runde ${r.rounds}`, `Lost in round ${r.rounds}`))
+        : verdict)}</b></p>` +
       (bestLine ? `<p class="twResultBest">${escapeHtml(bestLine)}</p>` : '') +
       (pr && pr.crownedNow ? `<p class="twResultBest">${escapeHtml(L('Alle 20 Etagen - dein Kartenhaus ist gekrönt!', 'All 20 floors - your House of Cards is crowned!'))}</p>` : '') +
       (r.xp ? `<p class="twResultXp">${escapeHtml(pr && pr.crownedNow
@@ -10544,6 +10602,99 @@
     const head = pane.querySelector('.resultWinnerGame');
     pane.insertBefore(box, head ? head.nextSibling : pane.firstChild);
     requestAnimationFrame(() => updateResultScrollEdges());
+  }
+
+  // --- Kartenhaus boss floors (public/boss-fight.js): panel, life bars, entrance, hits ---
+  const bossApi = window.PikdameBoss || null;
+  const BOSS_FX_KEY = 'pikdame_boss_fx'; // "Boss-Effekte" in "Optionen", per device, default on
+  let bossFxOn = storageGet(BOSS_FX_KEY) !== 'off';
+  let bossShown = false;
+  const bossTable = bossApi
+    ? bossApi.createTable({
+      L, esc: escapeHtml, motion: () => towerMotionOk(), fx: () => bossFxOn, vibrate: (ms) => vibrate(ms),
+      onIntroEnd: () => {
+        try { maybeShowCutReveal(); } catch (e) { /* cosmetic */ }
+        const held = toastAfterIntro;
+        toastAfterIntro = null;
+        if (held) { try { showToast(held[0], held[1]); } catch (e) { /* cosmetic */ } }
+      },
+    })
+    : null;
+  /** The fight as the server shows it, or null (also without the module: a stale cached page). */
+  function bossView() {
+    const v = lastState && lastState.bossFight;
+    return bossTable && v && bossApi.known(v) ? v : null;
+  }
+  /** The entrance is open or about to open with this state (updateTowerStart's own condition). */
+  function bossIntroAhead() {
+    if (!bossView() || !bossFxOn) return false;
+    if (bossTable.introOpen()) return true;
+    const code = sessionCode || '';
+    return !!code && towerIntroHandled !== code && storageGet(TOWER_INTRO_KEY) !== code && towerAtStart(lastState);
+  }
+  function renderBossPanel(host, view) {
+    bossShown = true;
+    const seat = lastState.players.find((p) => p.id !== playerId) || {};
+    const panel = bossTable.renderPanel(host, view, {
+      stage: lastState.towerStage, playerId: seat.id, handCount: seat.handCount, lang,
+      active: lastState.phase === 'playing' && lastState.currentPlayerId === seat.id,
+    });
+    // The boss's cards are still in flight (table-moves): its hit lands with them.
+    bossTable.playEffects(view, panel, el('myScore'), { key: sessionCode || '', delay: oppMovesOn && towerMotionOk() ? 420 : 0 });
+  }
+  function leaveBossTable() {
+    bossShown = false;
+    bossTable.reset();
+    bossTable.closeIntro(true);
+  }
+  /** "Boss-Effekte": off, a boss floor starts without the entrance and hits only move the bars. */
+  function setBossFx(on) {
+    bossFxOn = on;
+    storageSet(BOSS_FX_KEY, on ? 'on' : 'off');
+    const box = el('bossFxCheckbox');
+    if (box) box.checked = on;
+    if (!on && bossTable) bossTable.closeIntro(true);
+  }
+  {
+    const box = el('bossFxCheckbox'); // missing in a stale cached page: the setting just waits
+    if (box) {
+      box.checked = bossFxOn;
+      box.addEventListener('change', () => setBossFx(box.checked));
+    }
+  }
+  /** Both lives on the result sheet (round end and verdict): the points list means nothing here. */
+  function bossResultBox(view, isGameOver) {
+    const box = document.createElement('div');
+    box.className = 'bossResult';
+    const seat = lastState.players.find((p) => p.id !== playerId);
+    const side = (cls, who, hp, max) => `<div class="brSide ${cls}"><span class="brWho">${escapeHtml(who)}</span>${bossApi.barHtml(cls === 'me' ? 'hpMe' : 'hpBoss', cls !== 'me')}</div>`;
+    const hand = bossApi.handDamage(view);
+    const notes = [];
+    if (hand.me || hand.boss) {
+      notes.push(`<p class="brNote">${escapeHtml(L('Karten auf der Hand am Rundenende:', 'Cards in hand at the end of the round:'))} ` +
+        [hand.me ? L(`du <b>${MINUS}${hand.me}</b>`, `you <b>${MINUS}${hand.me}</b>`) : '', hand.boss ? L(`der Boss <b>${MINUS}${hand.boss}</b>`, `the boss <b>${MINUS}${hand.boss}</b>`) : '']
+          .filter(Boolean).join(' · ') + '</p>');
+    }
+    const guards = (view.adds || []).filter((a) => a.hp > 0).length;
+    if (guards) {
+      notes.push(`<p class="brNote">${iconHtml('cat')}<span>${escapeHtml(guards === 1
+        ? L('Eine Katze steht noch vor der Dame.', 'One cat still stands in front of the queen.')
+        : L(`${guards} Katzen stehen noch vor der Dame.`, `${guards} cats still stand in front of the queen.`))}</span></p>`);
+    }
+    if (!isGameOver) {
+      notes.push(`<p class="brNote">${escapeHtml(L(`Weiter mit Runde ${view.round} von höchstens ${view.maxRounds}. Das Leben bleibt stehen.`,
+        `On to round ${view.round} of at most ${view.maxRounds}. Life carries over.`))}</p>`);
+      if (view.enraged) {
+        const more = Math.round((view.traits.enrage - 1) * 100);
+        notes.push(`<p class="brNote brRage">${iconHtml('flame')}<span>${escapeHtml(L(`Der Boss ist wütend: Seine Treffer zählen jetzt ${more}${NBSP}% mehr.`,
+          `The boss is enraged: its hits now count ${more}% more.`))}</span></p>`);
+      }
+    }
+    box.innerHTML = side('me', L('Du', 'You'), view.me, view.myMaxHp) +
+      side('boss', bossApi.nameOf(view.id, L) || (seat && seat.name) || 'Boss', view.hp, view.maxHp) + notes.join('');
+    bossApi.setBar(box.querySelector('.brSide.me .hpBar'), view.me, view.myMaxHp);
+    bossApi.setBar(box.querySelector('.brSide.boss .hpBar'), view.hp, view.maxHp);
+    return box;
   }
 
   // --- Kartenhaus at the table: floor card, start card, rules sheet, hints ----
@@ -10581,6 +10732,7 @@
       mods: (Array.isArray(st.towerMods) ? st.towerMods : []).filter((m) => TOWER_MODS[m]),
       bots: (st.players || []).filter((p) => p.isBot).map((p) => p.botDifficulty || 'zen'),
       best: Math.max(0, Math.min(3, Math.floor(best))),
+      boss: bossView(), // a boss floor: its panel replaces the floor card, its entrance the start card
     };
   }
   /** The floor as a playing card: its number the rank, the house the suit, the best stars at the foot. */
@@ -10753,7 +10905,8 @@
       if (fresh || st.phase !== 'cutting') {
         towerIntroHandled = code;
         storageSet(TOWER_INTRO_KEY, code);
-        if (fresh) openTowerStart(f);
+        if (fresh && f.boss) bossTable.playIntro(f.boss, { stage: f.stage });
+        else if (fresh) openTowerStart(f);
       }
     }
     if (towerStartOpen && (!f || !towerAtStart(st))) closeTowerStart(true);
@@ -10853,7 +11006,7 @@
   function renderTowerTable() {
     const f = towerFloor();
     // Hidden by its ✕: the normal table's layout (towerGame is layout only); the lock below stays.
-    const shown = !!f && (towerBarLeaving || !towerBarHidden());
+    const shown = !!f && !f.boss && (towerBarLeaving || !towerBarHidden());
     el('table').classList.toggle('towerGame', shown);
     // The best stars come with the house data: ask once per game when it is missing.
     if (f && !towerFresh() && !publicMode && towerInfoAskedFor !== `${sessionCode}|${myName}`) {
@@ -10865,7 +11018,7 @@
     renderTowerStart(f);
     renderTowerFloorSheet(f);
     const panelBtn = el('towerPanelBtn'); // in "Optionen" › "Dieser Tisch"
-    if (panelBtn) panelBtn.classList.toggle('hidden', !f || shown);
+    if (panelBtn) panelBtn.classList.toggle('hidden', !f || shown || !!f.boss);
     const locked = !!(f && f.mods.includes('noDiscard') && lastState.phase === 'playing');
     el('discardPile').classList.toggle('towerLocked', locked);
   }

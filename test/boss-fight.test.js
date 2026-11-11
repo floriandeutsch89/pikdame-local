@@ -38,6 +38,8 @@ test('the jack ambushes once a round, the king\'s armour takes 10 off every hit'
   BossFight.bossTurn(s, jack, { points: 0 });
   BossFight.bossTurn(s, jack, { points: 60, newMelds: 1 });
   assert.strictEqual(s.me, PLAYER_HP - 90, 'the first HIT of the round, not the first turn');
+  assert.deepStrictEqual(s.events, [{ seq: 1, to: 'me', amount: 90, kind: 'hit', ambush: 1.5 }], 'the reason rides along');
+  assert.strictEqual(BossFight.publicView(s, jack).ambushReady, false);
   BossFight.bossTurn(s, jack, { points: 60, newMelds: 1 });
   assert.strictEqual(s.me, PLAYER_HP - 150);
   BossFight.roundEnd(s, jack, {});
@@ -249,4 +251,29 @@ test('the proof play runs a boss floor to its verdict, the same way every time; 
   assert.ok(a.rounds >= 1 && a.rounds <= BossFight.MAX_ROUNDS && typeof a.won === 'boolean');
   const again = await playFloor({ seed: first.seed, stage: 1, month: MONTH, proxy: 'hard' });
   assert.strictEqual(again.hash, first.hard[2], 'a boss month leaves the other floors alone');
+});
+
+test('the boss\'s seat carries the boss\'s name, and the deal stays the one the plain bot name would get', () => {
+  BotTower.setBossFrom(MONTH);
+  try {
+    const g = floor(15);
+    assert.strictEqual(g.players.find((p) => p.isBot).name, 'Kreuz-König');
+    assert.strictEqual(g.publicState('me').bossFight.ambushReady, false, 'the king has no ambush');
+    assert.deepStrictEqual(g.publicState('me').bossFight.starLife, [200, 400]);
+    g.destroy();
+  } finally { BotTower.setBossFrom(null); }
+});
+
+test('badges: a win names the boss, three stars a second one, the court needs all boss floors at three stars', () => {
+  const { bossBadges, BADGE_IDS, BOSS_BADGES } = require('../game/Badges');
+  assert.deepStrictEqual(Object.keys(BOSS_BADGES).sort(), Object.values(BOSSES).map((b) => b.id).sort(), 'every boss has its pair');
+  for (const id of [...Object.values(BOSS_BADGES).flat(), 'boss_court']) assert.ok(BADGE_IDS.includes(id), id);
+  const stages = [10, 15, 20];
+  assert.deepStrictEqual(bossBadges({ boss: 'jack', won: false, stars: 0 }, {}, stages), [], 'a loss earns nothing');
+  assert.deepStrictEqual(bossBadges({ boss: 'jack', won: true, stars: 1 }, { 10: 1 }, stages), ['boss_jack']);
+  assert.deepStrictEqual(bossBadges({ boss: 'king', won: true, stars: 3 }, { 10: 3, 15: 3, 20: 2 }, stages), ['boss_king', 'boss_king_3']);
+  assert.deepStrictEqual(bossBadges({ boss: 'queen', won: true, stars: 1 }, { 10: 3, 15: 3, 20: 3 }, stages), ['boss_queen', 'boss_court'],
+    'the month\'s best counts, not this try');
+  assert.deepStrictEqual(bossBadges({ boss: 'queen', won: true, stars: 3 }, { 10: 3, 15: 3, 20: 3 }, []), ['boss_queen', 'boss_queen_3'], 'no boss month, no court');
+  assert.deepStrictEqual(bossBadges({ stars: 3, won: true }, {}, stages), [], 'an ordinary floor');
 });
