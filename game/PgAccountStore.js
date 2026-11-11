@@ -37,8 +37,11 @@ function codeMatches(userId, code, stored) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+// In libuv's thread pool: the sync variant held every table for the length of one hash.
 function hashPassword(password, salt) {
-  return crypto.scryptSync(password, salt, SCRYPT_KEYLEN);
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(password, salt, SCRYPT_KEYLEN, (err, key) => (err ? reject(err) : resolve(key)));
+  });
 }
 
 function randomToken() {
@@ -177,7 +180,7 @@ function createPgAccountStore(db) {
       await pool.query(
         `INSERT INTO users (username, email, password_hash, password_salt, email_verified, verify_token, verify_expires_at, created_at, updated_at)
          VALUES ($1, $2, $3, $4, FALSE, $5, $6, $7, $7)`,
-        [username, email, hashPassword(password, salt), salt, verifyToken, fromNow(VERIFY_TTL_MS), new Date()]
+        [username, email, await hashPassword(password, salt), salt, verifyToken, fromNow(VERIFY_TTL_MS), new Date()]
       );
       return { ok: true, verifyToken };
     } catch (e) {
@@ -212,7 +215,7 @@ function createPgAccountStore(db) {
       );
       const row = r.rows[0];
       // Hash even for unknown users (no observable timing difference)
-      const candidate = hashPassword(String(password || ''), row ? row.password_salt : 'no-user-salt');
+      const candidate = await hashPassword(String(password || ''), row ? row.password_salt : 'no-user-salt');
       const stored = row ? Buffer.from(row.password_hash) : Buffer.alloc(SCRYPT_KEYLEN);
       const match = stored.length === candidate.length && crypto.timingSafeEqual(stored, candidate);
       if (!row || !match) return { error: 'Benutzername/E-Mail oder Passwort ist falsch.' };
@@ -736,7 +739,7 @@ function createPgAccountStore(db) {
     if (password.length < 8 || password.length > 200) return { error: 'Das Passwort muss mindestens 8 Zeichen lang sein.' };
     try {
       const salt = randomToken();
-      await pool.query('UPDATE users SET password_hash = $2, password_salt = $3, updated_at = now() WHERE id = $1', [userId, hashPassword(password, salt), salt]);
+      await pool.query('UPDATE users SET password_hash = $2, password_salt = $3, updated_at = now() WHERE id = $1', [userId, await hashPassword(password, salt), salt]);
       return { ok: true };
     } catch (e) {
       console.error('Postgres setPassword failed:', e.message);
@@ -752,7 +755,7 @@ function createPgAccountStore(db) {
       const r = await pool.query('SELECT password_hash, password_salt FROM users WHERE id = $1', [userId]);
       const row = r.rows[0];
       // Hash anyway: a password-less account answers as slowly as a wrong password.
-      const candidate = hashPassword(String(password || ''), row && row.password_salt ? row.password_salt : 'no-user-salt');
+      const candidate = await hashPassword(String(password || ''), row && row.password_salt ? row.password_salt : 'no-user-salt');
       if (!row || !row.password_salt) return false;
       const stored = Buffer.from(row.password_hash);
       return stored.length === candidate.length && crypto.timingSafeEqual(stored, candidate);
