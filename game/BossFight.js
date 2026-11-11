@@ -19,11 +19,12 @@ const STAR_SHARES = [0, 1 / 3, 2 / 3];
  * hits loses N. curse: every own turn that ends with a Queen of Spades in hand costs N.
  * crit: a melded Queen of Spades counts xN. adds: lives of the guards that stand in front
  * (hits go to the first one alive, the rest carries on); scratch: N per own turn per guard alive.
+ * name: the seat's name at the table (log, turn line, result); the panel's wording is the client's.
  */
 const BOSSES = {
-  10: { id: 'jack', hp: 500, bot: 'hard', ambush: 1.5 },
-  15: { id: 'king', hp: 500, bot: 'zen', armor: 10 },
-  20: { id: 'queen', hp: 550, bot: 'zen', curse: 10, crit: 2, adds: [100, 100], scratch: 3 },
+  10: { id: 'jack', name: 'Karo-Bube', hp: 500, bot: 'hard', ambush: 1.5 },
+  15: { id: 'king', name: 'Kreuz-König', hp: 500, bot: 'zen', armor: 10 },
+  20: { id: 'queen', name: 'Pik Dame', hp: 550, bot: 'zen', curse: 10, crit: 2, adds: [100, 100], scratch: 3 },
 };
 
 const bossOf = (stage) => BOSSES[Number(stage)] || null;
@@ -41,7 +42,8 @@ function start(boss) {
     over: false,
     won: null,
     seq: 0,
-    events: [], // what the last turn did, for the table: { seq, to, amount, kind, combo?, add? }
+    // What the last turn did, for the table: { seq, to, amount, kind, combo?, add?, ambush?, rage?, armor?, crit? }
+    events: [],
   };
 }
 
@@ -51,7 +53,7 @@ function note(state, event) {
 }
 
 /** Damage to the boss's side: the guards first, the rest carries on to the boss. */
-function hitBoss(state, amount, kind, combo) {
+function hitBoss(state, amount, kind, combo, why) {
   let left = Math.round(amount);
   if (left <= 0) return;
   for (let i = 0; i < state.adds.length && left > 0; i++) {
@@ -59,19 +61,19 @@ function hitBoss(state, amount, kind, combo) {
     const taken = Math.min(state.adds[i], left);
     state.adds[i] -= taken;
     left -= taken;
-    note(state, { to: 'add', add: i, amount: taken, kind, ...(combo > 1 ? { combo } : {}) });
+    note(state, { to: 'add', add: i, amount: taken, kind, ...(combo > 1 ? { combo } : {}), ...why });
   }
   if (left > 0) {
     state.boss -= left;
-    note(state, { to: 'boss', amount: left, kind, ...(combo > 1 ? { combo } : {}) });
+    note(state, { to: 'boss', amount: left, kind, ...(combo > 1 ? { combo } : {}), ...why });
   }
 }
 
-function hitMe(state, amount, kind, combo) {
+function hitMe(state, amount, kind, combo, why) {
   const dmg = Math.round(amount);
   if (dmg <= 0) return;
   state.me -= dmg;
-  note(state, { to: 'me', amount: dmg, kind, ...(combo > 1 ? { combo } : {}) });
+  note(state, { to: 'me', amount: dmg, kind, ...(combo > 1 ? { combo } : {}), ...why });
 }
 
 /** Ends the fight as soon as one side is down (both: the higher share of life). */
@@ -95,9 +97,11 @@ function playerTurn(state, boss, { points = 0, newMelds = 0, queensLaid = 0, hol
   if (points > 0) {
     const combo = comboOf(newMelds);
     let dmg = points * combo;
-    if (boss.crit && queensLaid > 0) dmg += QUEEN_POINTS * queensLaid * (boss.crit - 1);
+    const crit = !!(boss.crit && queensLaid > 0);
+    if (crit) dmg += QUEEN_POINTS * queensLaid * (boss.crit - 1);
     if (boss.armor) dmg = Math.max(0, dmg - boss.armor);
-    hitBoss(state, dmg, 'hit', combo);
+    // The reasons ride along, so the table names them instead of guessing.
+    hitBoss(state, dmg, 'hit', combo, { ...(crit ? { crit: boss.crit } : {}), ...(boss.armor ? { armor: boss.armor } : {}) });
     if (settle(state, boss).over) return state;
   }
   // Only what is still standing strikes back.
@@ -114,10 +118,11 @@ function bossTurn(state, boss, { points = 0, newMelds = 0 } = {}) {
   if (points <= 0) return state;
   const combo = comboOf(newMelds);
   let dmg = points * combo;
-  if (boss.ambush && state.ambush) dmg *= boss.ambush;
+  const ambush = !!(boss.ambush && state.ambush);
+  if (ambush) dmg *= boss.ambush;
   state.ambush = false;
   if (state.enraged) dmg *= ENRAGE;
-  hitMe(state, dmg, 'hit', combo);
+  hitMe(state, dmg, 'hit', combo, { ...(ambush ? { ambush: boss.ambush } : {}), ...(state.enraged ? { rage: true } : {}) });
   return settle(state, boss);
 }
 
@@ -157,9 +162,11 @@ function publicView(state, boss) {
     adds: state.adds.map((hp, i) => ({ hp: Math.max(0, hp), maxHp: boss.adds[i] })),
     me: Math.max(0, state.me),
     myMaxHp: PLAYER_HP,
+    starLife: STAR_SHARES.slice(1).map((share) => Math.ceil(PLAYER_HP * share)), // life left for 2 and 3 stars
     round: state.round,
     maxRounds: MAX_ROUNDS,
     enraged: state.enraged,
+    ambushReady: !!(boss.ambush && state.ambush && !state.over),
     over: state.over,
     won: state.won,
     events: state.events,
