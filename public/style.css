@@ -3573,6 +3573,20 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
   text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
 }
 .statsSectionTitle { margin: 10px 0 0; font-size: var(--fs-label); text-align: left; }
+/* My standing at each Stammtisch: a row on the sheet's own colours, the record one tap away. */
+.statsStammtisch { display: grid; gap: 6px; margin: 0 0 14px; }
+.statsStammtisch.hidden { display: none; }
+.statsStammtisch .statsSectionTitle { margin: 0 0 2px; }
+.stStatRow {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: var(--tap-min); margin: 0; padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.04); border: 1px solid rgba(0, 0, 0, 0.12); border-radius: var(--r-md);
+  color: var(--card-ink); font: inherit; text-align: left; cursor: pointer;
+}
+.stStatRow > .icon:first-child { width: 1.3em; height: 1.3em; flex: 0 0 auto; }
+.stStatRow .stStatText { flex: 1 1 auto; min-width: 0; display: grid; gap: 1px; }
+.stStatRow .stStatName { font-size: var(--fs-label); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stStatRow .stStatMine { font-size: var(--fs-hint); opacity: 0.75; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stStatRow .stStatGo { width: 1em; height: 1em; flex: 0 0 auto; opacity: 0.6; transform: rotate(-90deg); }
 #statsPaneBoard > .lobby-hint { margin: 2px 0 8px; text-align: left; }
 .boardHead, .boardRow {
   display: grid; align-items: center; gap: 8px;
