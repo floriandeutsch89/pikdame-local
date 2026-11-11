@@ -167,6 +167,20 @@ test('theme contrast: locked items fade the picture, never the text', () => {
   assert.match(ruleBody('.pile.glow .pileLabel'), /color:\s*var\(--text\)/);
 });
 
+test('the draw glow only fades: no keyframe animates a filter or a shadow', () => {
+  // An animated drop-shadow restyled and repainted the pile on every frame of a waiting turn (60 recalcs/s).
+  const plain = stripComments(css);
+  const frames = plain.match(/@keyframes pileGlow \{([\s\S]*?)\n\}/);
+  assert.ok(frames, 'pileGlow exists');
+  const props = [...frames[1].matchAll(/([a-z-]+)\s*:/g)].map((m) => m[1]);
+  assert.deepStrictEqual([...new Set(props)], ['opacity'], 'opacity runs on the compositor');
+  assert.match(ruleBody('.pile.glow::before'), /animation:\s*pileGlow /);
+  assert.doesNotMatch(ruleBody('.pile.glow'), /animation|filter/, 'nothing animated or filtered on the pile itself');
+  assert.doesNotMatch(plain, /@keyframes drawPulse/);
+  // Still for those who asked for less motion.
+  assert.match(plain, /prefers-reduced-motion: reduce\) \{\s*\.pile\.glow::before \{ animation: none;/);
+});
+
 // --- Kartenhaus: the red edge of floors 11-20 (--paper-mod) ---------------------
 // It must read on the paper and against the dark built cards, and stay apart from
 // the accent (the next floor, the play button) also for colour-blind players:
