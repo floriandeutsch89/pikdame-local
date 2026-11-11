@@ -1,8 +1,8 @@
 // game/TowerMonths.js - the Kartenhaus months from 2027-01: the server picks their
 // deals itself (TowerGen.js in a throttled worker, TowerWorker.js) and keeps them in
-// data/tower-months.json. The pick is deterministic (candidates from the month,
-// TowerRule.candidateSeed), so every replica and every restart computes the same
-// deals: plain atomic writes are enough, no lock between replicas.
+// PostgreSQL, one row per floor (TowerMonthStore.js). The pick is deterministic
+// (candidates from the month, TowerRule.candidateSeed), so every replica and every
+// restart computes the same deals: plain upserts are enough, no lock between replicas.
 //
 // - From the 15th: the NEXT month in the background (full rule).
 // - On start: Zen's proofs of this and next month are replayed; a floor Zen no
@@ -11,15 +11,14 @@
 //   away, smaller search, the medium window may relax - Zen's proof never. A floor
 //   without any proven deal stays locked. An unproven deal is never served.
 // - Without onnxruntime nothing is generated (Zen would play the heuristic: no
-//   proof); whatever data/ holds is used.
-// - generate: false (PIKDAME_TOWER_GEN=0): this instance only reads the file
+//   proof); whatever the store holds is used.
+// - generate: false (PIKDAME_TOWER_GEN=0): this instance only reads the store
 //   (again on every pass, a generator instance may write it) and replays the
 //   proofs on start; a broken floor is only logged.
 'use strict';
-const fs = require('fs');
 const path = require('path');
 const { Worker } = require('worker_threads');
-const { createAtomicJsonFile } = require('./AtomicJsonFile');
+const { memoryTowerStore } = require('./TowerMonthStore');
 const { gameDay } = require('./GameDay');
 const R = require('./TowerRule');
 const { proven } = require('./TowerGen');
@@ -32,7 +31,7 @@ const monthAt = (i) => `${Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2,
 const nextMonth = (m) => monthAt(monthIndex(m) + 1);
 
 function createTowerMonths({
-  file,
+  store = memoryTowerStore(), // TowerMonthStore: load(), saveFloor(), flush()
   today = () => gameDay(),
   netReady = () => { const O = require('./OnnxPolicy'); return O.enabled() && O.available(); },
   policy = null, // module path for the worker's play/rate (tests: a stub)
@@ -43,17 +42,18 @@ function createTowerMonths({
   log = (line) => console.log(line),
   warn = (line) => console.warn(line),
 } = {}) {
-  const store = createAtomicJsonFile(file);
   const valid = (d) => !!(d && typeof d.months === 'object' && d.months);
-  let data = store.read();
-  if (!valid(data)) data = { months: {} };
-  /** Read-only instance: the generator instance's latest file. */
-  function reload() {
-    try {
-      const d = JSON.parse(fs.readFileSync(file, 'utf8'));
-      if (valid(d)) data = d;
-    } catch (e) { /* missing or mid-write: keep what we have */ }
+  // Until the first load every floor reads as being built; a failed load is tried again on the next pass.
+  let data = { months: {} };
+  let loaded = false;
+  async function load() {
+    const d = await store.load();
+    if (valid(d)) data = d;
+    loaded = true;
   }
+  // Read at once (a restart serves its floors right away); resolves either way.
+  const firstLoad = load().catch(() => {});
+  const ready = () => firstLoad;
 
   let worker = null;
   let jobSeq = 0;
@@ -70,7 +70,6 @@ function createTowerMonths({
     if (!data.months[month]) data.months[month] = { version: R.GEN_VERSION, floors: Array(FLOORS).fill(null) };
     return data.months[month];
   };
-  const persist = () => store.write(data);
 
   /** The month's seeds for BotTower (null = no proven deal on that floor). */
   function seedsFor(month) {
@@ -97,8 +96,7 @@ function createTowerMonths({
       const rec = record(msg.month);
       rec.floors[msg.stage - 1] = msg.entry;
       rec.version = R.GEN_VERSION;
-      // After stop() a late floor is written at once: a delayed write would land after the next instance's.
-      if (stopping) store.flushSync(); else persist(); // per floor: a restart resumes where this stopped
+      store.saveFloor(msg.month, msg.stage, msg.entry, R.GEN_VERSION); // per floor: a restart resumes where this stopped
       return;
     }
     if (msg.type === 'log') { log(`Kartenhaus: ${msg.line}`); return; }
@@ -146,13 +144,11 @@ function createTowerMonths({
         if (bad.length) warn(`Kartenhaus ${month}: Zen no longer wins floor(s) ${bad.join(', ')} - not picked again here (PIKDAME_TOWER_GEN=0)`);
         continue;
       }
-      let dirty = false;
       m.floors.forEach((f, i) => {
         // Stale proofs go; a locked floor gets one new try per start.
-        if (bad.includes(i + 1) || (f && f.locked)) { m.floors[i] = null; dirty = true; }
+        if (bad.includes(i + 1) || (f && f.locked)) { m.floors[i] = null; store.saveFloor(month, i + 1, null, R.GEN_VERSION); }
       });
       if (bad.length) warn(`Kartenhaus ${month}: Zen no longer wins floor(s) ${bad.join(', ')} - picking them again`);
-      if (dirty) persist();
     }
   }
 
@@ -171,9 +167,10 @@ function createTowerMonths({
     if (running) return running;
     running = (async () => {
       if (stopping) return;
-      if (!builds) reload();
+      await firstLoad;
+      if (!loaded || !builds) await load(); // a reader: the generator instance's latest rows
       if (!netReady()) {
-        if (!warned) warn('Kartenhaus: no onnxruntime - new months are not generated, data/tower-months.json is used as it is');
+        if (!warned) warn('Kartenhaus: no onnxruntime - new months are not generated, the stored ones are used as they are');
         warned = true;
         return;
       }
@@ -200,26 +197,25 @@ function createTowerMonths({
     if (timer.unref) timer.unref();
   }
 
-  /** Flushes at once, then asks the worker to end between two games (ending it
-   *  inside an ONNX run aborts the process); terminate() only as a last resort. */
+  /** Asks the worker to end between two games (ending it inside an ONNX run aborts
+   *  the process; terminate() only as a last resort), then waits for the floor writes. */
   function stop({ graceMs = 5000 } = {}) {
     clearInterval(timer);
     timer = null;
     stopping = true;
-    store.flushSync();
     const w = worker;
     worker = null;
-    if (!w) return Promise.resolve();
+    if (!w) return store.flush();
     return new Promise((resolve) => {
       // Both stay referenced: the process waits for the worker (or the grace) to end.
       const last = setTimeout(() => { w.terminate().catch(() => {}).finally(resolve); }, graceMs);
       w.ref();
       w.once('exit', () => { clearTimeout(last); resolve(); });
       w.postMessage({ type: 'stop' });
-    });
+    }).then(() => store.flush());
   }
 
-  return { seedsFor, closedFloors, tick, start, stop, data: () => data, STATIC_END };
+  return { ready, seedsFor, closedFloors, tick, start, stop, data: () => data, STATIC_END };
 }
 
 module.exports = { createTowerMonths, nextMonth, STATIC_END };

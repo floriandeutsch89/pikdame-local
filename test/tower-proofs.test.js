@@ -96,20 +96,18 @@ test('a slow net answer never lets the game play a turn behind the replay', asyn
 // net, full rule) and every floor replays with the stored Zen proof.
 test('a real month: the server builds it end to end, Zen replays every floor', { skip: process.env.PIKDAME_TOWER_GEN_E2E !== '1' && 'CI job tower-proofs (PIKDAME_TOWER_GEN_E2E=1)', timeout: 3 * 60 * 60 * 1000 }, async () => {
   assert.ok(net, 'needs onnxruntime-node');
-  const fs = require('fs');
-  const os = require('os');
-  const path = require('path');
   const { createTowerMonths } = require('../game/TowerMonths');
+  const { memoryTowerStore } = require('../game/TowerMonthStore');
   const TowerGen = require('../game/TowerGen');
   const month = process.env.PIKDAME_TOWER_GEN_MONTH || '2027-01';
   const [y, m] = month.split('-').map(Number);
   const dayBefore = `${m === 1 ? y - 1 : y}-${String(m === 1 ? 12 : m - 1).padStart(2, '0')}-20`;
-  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pikdame-towergen-')), 'tower-months.json');
+  const store = memoryTowerStore();
   const lines = [];
-  const tm = createTowerMonths({ file, today: () => dayBefore, log: (l) => lines.push(l), warn: (l) => lines.push(`WARN ${l}`) });
+  const tm = createTowerMonths({ store, today: () => dayBefore, log: (l) => lines.push(l), warn: (l) => lines.push(`WARN ${l}`) });
   await tm.tick();
   await tm.stop();
-  const floors = JSON.parse(fs.readFileSync(file, 'utf8')).months[month].floors;
+  const floors = store.snapshot().months[month].floors;
   console.log(lines.filter((l) => /proven|WARN/.test(l)).join('\n'));
   for (let stage = 1; stage <= 20; stage++) {
     const f = floors[stage - 1];

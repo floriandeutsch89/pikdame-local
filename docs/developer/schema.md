@@ -144,6 +144,17 @@ seats to NULL: the match stays for the others, the client shows "Gelöschtes
 Konto". Deleting a `players` row unlinks the seats the same way
 (`ON DELETE SET NULL`) but keeps the name.
 
+## Year review and Kartenhaus months
+
+| Data | Where | Why there |
+| --- | --- | --- |
+| Year review counters per player and year | `player_years (player_id, stats_year, year_stats JSONB)` | the bucket of `YearReview.bumpYear` (counters plus small capped maps of opponents, bots and tables): one pure function reads and writes it whole under a row lock (`FOR UPDATE`), nothing queries inside. The current and the previous year are kept; deleting a player deletes them |
+| First counted day | `year_tracking.since_day`, exactly one row | the review flags a year that began before it |
+| Deals the server picked (months from 2027-01) | `tower_floors (tower_month, stage, gen_version, floor_entry JSONB)` | one row per floor, upserted when its pick is done (a restart resumes there); `floor_entry` is the generator's entry (seed, proofs, rates) or `{"locked": true}`, read whole. The pick is deterministic, so replicas write equal rows |
+
+Both are read by primary key (a player's year: `players_player_key_key`, then
+`player_years_pkey`); `tower_floors` holds 20 rows per month and is read whole.
+
 ## Accounts
 
 An account (`users`) is a confirmed e-mail address that owns a name. Its
