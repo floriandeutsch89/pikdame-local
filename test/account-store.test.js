@@ -364,3 +364,13 @@ test('PgAccountStore: unreachable database degrades gracefully (no throw, fails 
   assert.equal(await store.isRegisteredName('Ghost'), false, 'fails closed');
   await store.close();
 });
+
+// Password hashing off the event loop: scryptSync held every table for ~50 ms per sign-in.
+test('AccountStore: no synchronous password hashing in the server code', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const root = path.join(__dirname, '..');
+  const files = ['server.js', ...fs.readdirSync(path.join(root, 'game')).filter((f) => f.endsWith('.js')).map((f) => path.join('game', f))];
+  const hits = files.filter((f) => /scryptSync|pbkdf2Sync/.test(fs.readFileSync(path.join(root, f), 'utf8')));
+  assert.deepStrictEqual(hits, []);
+});
