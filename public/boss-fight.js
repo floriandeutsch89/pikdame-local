@@ -450,8 +450,9 @@
         if (ctx.vibrate && fx.fx === 'slash') ctx.vibrate(fx.heavy ? 60 : 30);
       }
       // Two in a row (scratch, then curse) stand side by side, never on top of each other.
+      // The plate ends above my life bar.
       const at = nth < 0 ? { left: hr.left, width: hr.width } : { left: hr.left + hr.width * (nth % 2 ? 0.55 : -0.15), width: hr.width * 0.6 };
-      floatNum({ ...at, top: hr.top - 52 }, fx.amount, fx.label, curse ? 'curse' : 'toMe');
+      floatNum({ ...at, top: hr.top - 84 }, fx.amount, fx.label, curse ? 'curse' : 'toMe');
     }
 
     /**
