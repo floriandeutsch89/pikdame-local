@@ -389,6 +389,8 @@ function rewrite(msg) {
     const best = { ...(TOWER_BEST[TOWER_MOCK] || TOWER_BEST.mid), ...(towerSceneBest || {}) };
     const archive = TOWER_ARCHIVE.map((m) => ({ month: m.month, best: m.best, ...BT.summarize(m.best) }));
     Object.assign(msg, { best }, BT.summarize(best), { archive, totalStars: BT.summarize(best).stars + archive.reduce((n, m) => n + m.stars, 0) });
+    // --boss: the month has its boss floors (the scratch server's switch is off).
+    if (process.argv.includes('--boss')) { BT.setBossFrom(msg.month); msg.stages = BT.publicStages(msg.month); }
     // The mock month is complete unless --closed says otherwise: from 2027 a fresh data dir has no built months.
     msg.closed = TOWER_CLOSED;
   }
@@ -445,6 +447,34 @@ function towerState(stage, turns, take = '') {
   }
   g.destroy();
   return st;
+}
+// A boss floor from the engine (--floor 10|15|20), played to its end by the bots: every state
+// on the way, serialised as the wire would (publicState shares live arrays).
+function bossFight(stage) {
+  const BT = require(path.join(ROOT, 'game', 'BotTower'));
+  const GM = require(path.join(ROOT, 'game', 'GameManager'));
+  const month = BT.monthOf(TODAY);
+  BT.setBossFrom(month);
+  const cfg = BT.stageConfig(stage, month);
+  if (!cfg || !cfg.boss) throw new Error(`floor ${stage} is no boss floor`);
+  const g = new GM(() => {}, { deckSeed: Number(arg('seed', cfg.seed)), towerStage: stage, towerMonth: month });
+  g.maybeRunBotTurn = () => {};
+  g.addOrReconnectPlayer('p1', ME);
+  g.syncLobbyBots();
+  g.startTowerRound();
+  const states = [];
+  // Without the cut reveal: its panel would cover every later moment (the page shows it on its first state).
+  const keep = () => states.push(JSON.parse(JSON.stringify({ ...g.publicState('p1'), ...(states.length ? { lastCutReveal: null } : {}) })));
+  keep();
+  for (let guard = 0; g.phase !== 'gameOver' && guard < 3000; guard++) {
+    if (g.phase === 'roundEnd') g.startNewRound();
+    else { const cp = g.currentPlayer(); g.runBotTurn(cp.id, { forced: !cp.isBot }); }
+    keep();
+  }
+  const record = g.lastGameRecord;
+  const outcome = record ? BT.outcomeFromRecord(record, 'p1') : null;
+  g.destroy();
+  return { states, outcome };
 }
 // A live table from the engine (game-settings, home): my draw turn after a few turns, melds laid.
 function tableState() {
@@ -1390,6 +1420,60 @@ function waitForHttp(port, ms = 20000) {
           if (arg('eval', '')) console.log(`${vn}-${sc}:`, JSON.stringify(await page.evaluate(fs.readFileSync(arg('eval', ''), 'utf8'))));
           await shot(`${sc}-${want}${arg('tag', '') ? `-${arg('tag', '')}` : ''}`); // --tag: one name per variant
           towerSceneBest = null;
+        }
+        if (/^boss-/.test(sc)) {
+          // A boss floor (--floor 10|15|20, default 10): boss-intro (the entrance, frozen at --film ms,
+          // default 900), boss-play (--turns N of my turns), boss-pop (a chip tapped, --tap for another),
+          // boss-hit / -strike / -claws / -curse (that effect, frozen at --film ms after its state),
+          // boss-rage (the first enraged state), boss-cats (a cat down), boss-roundend, boss-gameover.
+          const stage = Number(arg('floor', 10));
+          const { states, outcome } = bossFight(stage);
+          const what = sc.slice(5);
+          const ev = (st) => (st.bossFight && st.bossFight.events) || [];
+          const playing = (st) => st.phase === 'playing';
+          const myDraws = states.filter((st) => playing(st) && st.currentPlayerId === 'p1' && st.turnPhase === 'draw');
+          const fresh = (i, test) => i > 0 && ev(states[i]).some(test) && !ev(states[i - 1]).some((e) => ev(states[i]).some((x) => x.seq === e.seq));
+          const pick = {
+            intro: () => 0,
+            play: () => states.indexOf(myDraws[Math.min(myDraws.length - 1, Number(arg('turns', 3)))]),
+            pop: () => states.indexOf(myDraws[Math.min(myDraws.length - 1, Number(arg('turns', 3)))]),
+            hit: () => states.findIndex((st, i) => playing(st) && fresh(i, (e) => e.to === 'me' && e.kind === 'hit')),
+            strike: () => states.findIndex((st, i) => playing(st) && fresh(i, (e) => e.to !== 'me' && e.kind === 'hit' && (!arg('combo', '') || e.combo > 1))),
+            claws: () => states.findIndex((st, i) => playing(st) && fresh(i, (e) => e.kind === 'scratch')),
+            curse: () => states.findIndex((st, i) => playing(st) && fresh(i, (e) => e.kind === 'curse')),
+            rage: () => states.findIndex((st) => playing(st) && st.bossFight.enraged),
+            cats: () => states.findIndex((st) => playing(st) && st.currentPlayerId === 'p1' && st.bossFight.adds.some((a) => a.hp <= 0)),
+            roundend: () => states.findIndex((st) => st.phase === 'roundEnd'),
+            gameover: () => states.length - 1,
+          }[what];
+          const at = pick ? pick() : -1;
+          if (at < 0) { console.log(`${vn}-${sc}: this fight has no such moment (floor ${stage}; try --seed)`); continue; }
+          const fx = ['hit', 'strike', 'claws', 'curse'].includes(what);
+          await page.evaluate(([off]) => {
+            try {
+              localStorage.removeItem('pikdame_tower_intro'); localStorage.removeItem('pikdame_last_session');
+              if (off) localStorage.setItem('pikdame_boss_fx', 'off'); else localStorage.removeItem('pikdame_boss_fx');
+            } catch (e) { /* blocked */ }
+          }, [process.argv.includes('--no-fx')]);
+          await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
+          await page.waitForTimeout(1200);
+          inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
+          if (what !== 'intro') {
+            // Not the start: the entrance was seen long ago, as in a real game.
+            await page.evaluate(() => { try { localStorage.setItem('pikdame_tower_intro', 'MOCK01'); } catch (e) { /* blocked */ } });
+          }
+          inject({ type: 'state', state: states[fx ? at - 1 : at] });
+          if (what === 'gameover' && outcome) inject({ type: 'towerResult', ...outcome, clearMargin: 100, progress: null, xp: 0 });
+          await page.waitForTimeout(what === 'intro' ? Number(arg('film', 900)) : 1800);
+          if (fx) {
+            inject({ type: 'state', state: states[at] });
+            await page.waitForTimeout(Number(arg('film', 150)));
+          }
+          if (fx || what === 'intro') await page.evaluate(() => document.getAnimations().forEach((a) => a.pause()));
+          if (what === 'pop') { await page.click(arg('tap', '.bossTrait')); await page.waitForTimeout(300); }
+          if (arg('css', '')) await page.addStyleTag({ content: fs.readFileSync(arg('css', ''), 'utf8') });
+          if (arg('eval', '')) console.log(`${vn}-${sc}:`, JSON.stringify(await page.evaluate(fs.readFileSync(arg('eval', ''), 'utf8'))));
+          await shot(`${sc}-${stage}${arg('tag', '') ? `-${arg('tag', '')}` : ''}`);
         }
         if (/^unlock(-lobby|-queue|-roundend|-gameover)?$/.test(sc)) {
           // Badge unlock cards: a fresh page each (it pops a badge only once). unlock: on a running

@@ -841,6 +841,8 @@ class GameManager {
     this.setExplicitDealer(this.players[this.players.length - 1].id);
     if (cfg.boss) {
       this.bossFight = BossFight.start(cfg.boss);
+      const seat = this.players.find((p) => p.isBot);
+      if (seat && cfg.boss.name) seat.name = cfg.boss.name; // after the name draw: the deal's random stream stays
       this.addLog(`Kartenhaus, Etage ${cfg.stage}: Boss-Kampf. Was du auslegst, kostet den Boss Leben - was er auslegt, kostet dich Leben.`);
     } else {
       this.addLog(cfg.handicap

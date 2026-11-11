@@ -1552,6 +1552,7 @@
     const r = lastState && lastState.lastCutReveal;
     if (!r || !Array.isArray(r.cards) || r.cards.length === 0) return;
     if (lastState.phase !== 'playing') return; // erst wenn die Runde wirklich läuft
+    if (bossIntroAhead()) return; // a boss floor's entrance first; its end calls back
     const key = r.round + ':' + r.cards.map((c) => c.id).join(',');
     if (key === shownCutRevealKey) return;
     shownCutRevealKey = key;
@@ -2623,10 +2624,11 @@
   let stampKnownRound = null;
 
   function spawnPointsPopup(ev) {
+    if (bossView()) return; // a boss floor shows the hit instead (boss-fight.js)
     const mine = ev.playerId === playerId;
     let anchor = null;
     if (mine) anchor = el('melds');
-    else anchor = document.querySelector(`.opponent[data-player-id="${ev.playerId}"]`) || el('melds');
+    else anchor = document.querySelector(`#opponents [data-player-id="${ev.playerId}"]`) || el('melds');
     if (!anchor) return;
     const r = anchor.getBoundingClientRect();
     const pop = document.createElement('div');
@@ -2669,7 +2671,13 @@
     // the own share shows on the bar below and in the result sheet.
     const myTeam = teamOfPlayer(playerId);
     const tt = myTeam >= 0 ? teamTotalsOf() : null;
-    if (tt) {
+    // Boss floor: life instead of points (boss-fight.js draws the bar into the score's slot).
+    const boss = bossView();
+    scoreEl.classList.toggle('bossLifeSlot', !!boss);
+    if (boss) {
+      scoreEl.classList.remove('teamScore', 'scoreNegative');
+      bossTable.renderMyLife(scoreEl, boss);
+    } else if (tt) {
       const ours = tt[myTeam] || 0;
       const theirs = tt[1 - myTeam] || 0;
       // The leader by weight, not colour (red stays the minus sign): the trailing number is muted.
@@ -2724,7 +2732,10 @@
 
     // Gegner
     const opponentsDiv = el('opponents');
-    opponentsDiv.innerHTML = '';
+    el('table').classList.toggle('bossFight', !!boss);
+    // The boss panel stays in the DOM between renders (its bars move, a popover stays open).
+    if (boss) renderBossPanel(opponentsDiv, boss);
+    else { if (bossShown) leaveBossTable(); opponentsDiv.innerHTML = ''; }
     // Gegner in ZUGRICHTUNG ab dem eigenen Platz: der Chip ganz links ist
     // immer der Spieler, der direkt nach mir dran ist - so sieht man auf
     // einen Blick, zu wem der Zug als Nächstes wandert.
@@ -2737,7 +2748,7 @@
     } else {
       orderedOpponents.push(...lastState.players.filter((p) => p.id !== playerId));
     }
-    orderedOpponents
+    (boss ? [] : orderedOpponents)
       .forEach((p) => {
         const d = document.createElement('div');
         const roundOver = lastState.phase === 'roundEnd' || lastState.phase === 'gameOver';
@@ -4144,6 +4155,13 @@
       }
     }
 
+    // Boss floor: the two lives are the result; the points list is hidden (style.css .bossPane).
+    const bossNow = forfeited ? null : bossView();
+    if (bossNow) {
+      paneResult.classList.add('bossPane');
+      paneResult.insertBefore(bossResultBox(bossNow, isGameOver), paneResult.firstChild);
+    }
+
     // Round details: four numeric columns, right-aligned. Melded ♠Q/jokers
     // are rare, so they ride as marks on the name instead of zero columns.
     if (!forfeited && lastState.lastRoundStats) {
@@ -4198,7 +4216,7 @@
         (iWon ? '' : `<span class="resultWinnerName">${winnerName}</span>`) +
         `<span class="resultWinnerSub">${
           lastState.towerStage
-            ? iWon ? L('Du schaffst die Etage!', 'You clear the floor!') : L('hält dich auf dieser Etage', 'holds you on this floor')
+            ? iWon ? (bossNow ? L('Boss besiegt!', 'Boss defeated!') : L('Du schaffst die Etage!', 'You clear the floor!')) : L('hält dich auf dieser Etage', 'holds you on this floor')
             : winTeam !== null
               ? iWon
                 ? winName ? L(`Team ${escapeHtml(winName)} gewinnt die Partie!`, `Team ${escapeHtml(winName)} wins the match!`) : L('Dein Team gewinnt die Partie!', 'Your team wins the match!')
@@ -7802,7 +7820,7 @@
   /** One ghost between the player's chip and the stock, the pile or a meld card. */
   function flyTableMove(turn, f, elapsed) {
     const chip = [...el('opponents').children].find((d) => d.dataset.playerId === f.who);
-    const anchor = chip && (chip.querySelector('.opAvatar') || chip);
+    const anchor = chip && (chip.querySelector('.opAvatar, .bossPortrait') || chip);
     if (!anchor) return false;
     let box;
     let ghost;
@@ -9538,7 +9556,7 @@
       return;
     }
     // Ziel: der Chip des Absenders; eigene Emotes schweben über der Hand.
-    let anchor = document.querySelector(`#opponents .opponent[data-player-id="${CSS.escape(fromPlayerId)}"]`);
+    let anchor = document.querySelector(`#opponents [data-player-id="${CSS.escape(fromPlayerId)}"]`);
     if (fromPlayerId === playerId) anchor = el('handWrapper');
     const rect = anchor ? anchor.getBoundingClientRect() : { left: window.innerWidth / 2, top: window.innerHeight / 2, width: 0 };
     const bubble = document.createElement('div');
@@ -9586,7 +9604,7 @@
       setTimeout(() => chip.remove(), 6000);
       return;
     }
-    const anchor = document.querySelector(`#opponents .opponent[data-player-id="${CSS.escape(fromPlayerId)}"]`);
+    const anchor = document.querySelector(`#opponents [data-player-id="${CSS.escape(fromPlayerId)}"]`);
     if (!anchor) return;
     document.querySelectorAll('.quipBubble').forEach((n) => { if (n.dataset.playerId === fromPlayerId) n.remove(); });
     const rect = anchor.getBoundingClientRect();
@@ -9921,12 +9939,14 @@
     return { state: stage === info.unlocked && !info.crowned ? 'next' : 'locked', stars: 0, closed };
   }
   const towerClosedText = (closed) => (closed === 'locked' ? L('diesen Monat geschlossen', 'closed this month') : L('wird noch gebaut', 'still being built'));
+  const towerBossName = (s) => (s && s.boss && bossApi ? bossApi.nameOf(s.boss, L) : '');
   function towerFloorLabel(s, st) {
     const names = s.bots.map((b) => (BOT_DIFF[b] || BOT_DIFF.zen).short()).join(', ');
     const mods = towerModsText(s.mods);
     const status = st.state === 'built' ? L(`${st.stars} von 3 Sternen`, `${st.stars} of 3 stars`)
       : st.closed ? towerClosedText(st.closed)
         : st.state === 'next' ? L('noch kein Stern', 'no star yet') : L('gesperrt', 'locked');
+    if (towerBossName(s)) return L(`Etage ${s.stage}: Boss-Kampf gegen ${towerBossName(s)} - ${status}`, `Floor ${s.stage}: boss fight against ${towerBossName(s)} - ${status}`);
     return L(
       `Etage ${s.stage}: gegen ${names}${s.handicap ? `, die Bots bekommen ${s.handicap} Punkte Vorgabe` : ''}${mods ? `, ${mods}` : ''} - ${status}`,
       `Floor ${s.stage}: against ${names}${s.handicap ? `, the bots get a ${s.handicap}-point head start` : ''}${mods ? `, ${mods}` : ''} - ${status}`
@@ -9952,7 +9972,7 @@
     const rank = `<text class="khRank" x="${-w / 2 + 4}" y="${-h + 14.5}">${slot.stage}</text>`;
     let face;
     if (look === 'built') {
-      const rim = towerRim(s.mods);
+      const rim = towerBossName(s) ? 'boss' : towerRim(s.mods);
       const star = (i) => {
         const popping = i < stars && i >= pop;
         return `<polygon class="khStar${i < stars ? ' on' : ''}${popping ? ' khPop' : ''}"` +
@@ -9964,7 +9984,8 @@
         [0, 1, 2].map(star).join('');
     } else {
       face = `<rect class="khGhost" ${box}/>` + rank +
-        (closed ? `<use class="khGlyph" href="#i-${closed === 'locked' ? 'lock' : 'hourglass'}" x="-6.5" y="-27.5" width="13" height="13"/>` : '');
+        (closed ? `<use class="khGlyph" href="#i-${closed === 'locked' ? 'lock' : 'hourglass'}" x="-6.5" y="-27.5" width="13" height="13"/>`
+          : towerBossName(s) ? '<use class="khGlyph khBossGlyph" href="#i-swords" x="-6.5" y="-27.5" width="13" height="13"/>' : '');
     }
     return `<g transform="translate(${khNum(slot.foot)} ${khNum(slot.base)}) rotate(${slot.rot})">${face}` +
       (back ? `<rect class="khBack" ${box}/>` : '') + '</g>';
@@ -10127,13 +10148,17 @@
         : closed === 'locked' ? iconTag('lock', L('geschlossen', 'closed'))
           : closed ? iconTag('hourglass', L('im Bau', 'being built'))
             : iconTag('lock', L('gesperrt', 'locked'));
-    const bots = towerBotsLine(s.bots, s.handicap);
-    const mods = (s.mods || []).map((m) => `<span class="khMod ${towerModKind(m)}">${escapeHtml(towerModLabel(m))}</span>`).join('');
+    const bossName = towerBossName(s);
+    const bots = bossName ? L(`Boss-Kampf: ${bossName}`, `Boss fight: ${bossName}`) : towerBotsLine(s.bots, s.handicap);
+    const mods = bossName
+      ? `<span class="khMod boss">${iconHtml('swords')}<span>${escapeHtml(L('Leben statt Punkte', 'Life instead of points'))}</span></span>`
+      : (s.mods || []).map((m) => `<span class="khMod ${towerModKind(m)}">${escapeHtml(towerModLabel(m))}</span>`).join('');
     const note = closed === 'locked'
       ? L('Für diese Etage gibt es diesen Monat kein geprüftes Blatt - sie bleibt zu.', 'There is no proven deal for this floor this month - it stays closed.')
       : closed ? L('Diese Etage wird gerade gebaut - schau bald wieder vorbei.', 'This floor is still being built - check back soon.')
       : st.state === 'locked'
       ? L(`Schaff erst Etage ${Math.min(info.unlocked || 1, max)}.`, `Clear floor ${Math.min(info.unlocked || 1, max)} first.`)
+      : st.state === 'next' && bossName ? L('Ein Stern: den Boss besiegen. Mehr Sterne für mehr Leben am Ende.', 'One star: defeat the boss. More stars for more life left.')
       : st.state === 'next' ? L('Ein Stern: mehr Punkte als jeder Bot samt Vorgabe.', 'One star: more points than every bot plus its head start.')
         : st.stars < 3 ? L(`Bestwert ${st.stars} von 3 - ein neuer Versuch spielt dasselbe Blatt.`, `Best ${st.stars} of 3 - a new try plays the same deal.`)
           : L('Alle drei Sterne.', 'All three stars.');
@@ -10142,7 +10167,7 @@
         `<span>${escapeHtml(st.state === 'next' ? L(`Etage ${stage} spielen`, `Play floor ${stage}`) : L(`Etage ${stage} nochmal`, `Floor ${stage} again`))}</span></button>`;
     return `<div class="khDHead"><b class="khDTitle">${escapeHtml(L(`Etage ${stage}`, `Floor ${stage}`))}</b>${tag}</div>` +
       `<p class="khDBots">${escapeHtml(bots)}</p>` +
-      (mods ? `<p class="khDMods" aria-label="${escapeHtml(towerModRulesText(s.mods))}">${mods}</p>` : '') +
+      (mods ? `<p class="khDMods" aria-label="${escapeHtml(bossName ? L('Leben statt Punkte', 'Life instead of points') : towerModRulesText(s.mods))}">${mods}</p>` : '') +
       `<p class="khDNote">${escapeHtml(note)}</p>` + play;
   }
   function towerArchiveHtml(archive) {
@@ -10413,7 +10438,14 @@
         ? L(`${-r.margin} Punkte hinten`, `${-r.margin} points behind`)
         : L('Gleichstand reicht nicht', 'a tie is not enough');
     const mustGoOut = (r.mods || []).includes('goOut');
-    const hint = mustGoOut && r.margin > 0 && !r.wentOut
+    // A boss floor: the stars follow the life left (BossFight.starsFor).
+    const starLife = (lastState.bossFight && lastState.bossFight.starLife) || [Math.ceil(r.myMaxLife / 3), Math.ceil((2 * r.myMaxLife) / 3)];
+    const hint = r.boss ? [
+      L('Für einen Stern musst du den Boss besiegen.', 'For a star you have to defeat the boss.'),
+      L(`Für zwei Sterne: mit mindestens ${starLife[0]} Leben gewinnen.`, `For two stars: win with at least ${starLife[0]} life.`),
+      L(`Für drei Sterne: mit mindestens ${starLife[1]} Leben gewinnen.`, `For three stars: win with at least ${starLife[1]} life.`),
+      L('Alle drei Sterne - besser geht es nicht.', 'All three stars - it does not get better.'),
+    ][r.stars] || '' : mustGoOut && r.margin > 0 && !r.wentOut
       ? L('Vorn, aber auf dieser Etage gibt es Sterne nur, wenn du selbst ausmachst.', 'Ahead, but on this floor stars need you to go out yourself.')
       : [
         L('Für einen Stern brauchst du mehr Punkte als jeder Bot samt Vorgabe.', 'For a star you need more points than every bot plus its head start.'),
@@ -10429,7 +10461,12 @@
       : best > r.stars ? L(`Dein Bestwert hier bleibt bei ${best} Sternen.`, `Your best here stays at ${best} stars.`) : '';
     box.innerHTML =
       `<div class="twResultStars" role="img" aria-label="${escapeHtml(L(`${r.stars} von 3 Sternen`, `${r.stars} of 3 stars`))}">${towerStarsHtml(r.stars)}</div>` +
-      `<p class="twResultSum">${escapeHtml(L(`Du ${r.myScore} · ${botLine}`, `You ${r.myScore} · ${botLine}`))} <b>${escapeHtml(verdict)}</b></p>` +
+      `<p class="twResultSum">${escapeHtml(r.boss
+        ? (r.won ? L(`Dir bleiben ${r.myLife} von ${r.myMaxLife} Leben.`, `You have ${r.myLife} of ${r.myMaxLife} life left.`)
+          : L(`Dem Boss bleiben ${r.bossLife} von ${r.bossMaxLife} Leben.`, `The boss has ${r.bossLife} of ${r.bossMaxLife} life left.`))
+        : L(`Du ${r.myScore} · ${botLine}`, `You ${r.myScore} · ${botLine}`))} <b>${escapeHtml(r.boss
+        ? (r.won ? L(`Sieg in Runde ${r.rounds}`, `Won in round ${r.rounds}`) : L(`Niederlage in Runde ${r.rounds}`, `Lost in round ${r.rounds}`))
+        : verdict)}</b></p>` +
       (bestLine ? `<p class="twResultBest">${escapeHtml(bestLine)}</p>` : '') +
       (pr && pr.crownedNow ? `<p class="twResultBest">${escapeHtml(L('Alle 20 Etagen - dein Kartenhaus ist gekrönt!', 'All 20 floors - your House of Cards is crowned!'))}</p>` : '') +
       (r.xp ? `<p class="twResultXp">${escapeHtml(pr && pr.crownedNow
@@ -10449,6 +10486,94 @@
     const head = pane.querySelector('.resultWinnerGame');
     pane.insertBefore(box, head ? head.nextSibling : pane.firstChild);
     requestAnimationFrame(() => updateResultScrollEdges());
+  }
+
+  // --- Kartenhaus boss floors (public/boss-fight.js): panel, life bars, entrance, hits ---
+  const bossApi = window.PikdameBoss || null;
+  const BOSS_FX_KEY = 'pikdame_boss_fx'; // "Boss-Effekte" in "Optionen", per device, default on
+  let bossFxOn = storageGet(BOSS_FX_KEY) !== 'off';
+  let bossShown = false;
+  const bossTable = bossApi
+    ? bossApi.createTable({
+      L, esc: escapeHtml, motion: () => towerMotionOk(), fx: () => bossFxOn, vibrate: (ms) => vibrate(ms),
+      onIntroEnd: () => { try { maybeShowCutReveal(); } catch (e) { /* cosmetic */ } },
+    })
+    : null;
+  /** The fight as the server shows it, or null (also without the module: a stale cached page). */
+  function bossView() {
+    const v = lastState && lastState.bossFight;
+    return bossTable && v && bossApi.known(v) ? v : null;
+  }
+  /** The entrance is open or about to open with this state (updateTowerStart's own condition). */
+  function bossIntroAhead() {
+    if (!bossView() || !bossFxOn) return false;
+    if (bossTable.introOpen()) return true;
+    const code = sessionCode || '';
+    return !!code && towerIntroHandled !== code && storageGet(TOWER_INTRO_KEY) !== code && towerAtStart(lastState);
+  }
+  function renderBossPanel(host, view) {
+    bossShown = true;
+    const seat = lastState.players.find((p) => p.id !== playerId) || {};
+    const panel = bossTable.renderPanel(host, view, {
+      stage: lastState.towerStage, playerId: seat.id, handCount: seat.handCount, lang,
+      active: lastState.phase === 'playing' && lastState.currentPlayerId === seat.id,
+    });
+    // The boss's cards are still in flight (table-moves): its hit lands with them.
+    bossTable.playEffects(view, panel, el('myScore'), { key: sessionCode || '', delay: oppMovesOn && towerMotionOk() ? 420 : 0 });
+  }
+  function leaveBossTable() {
+    bossShown = false;
+    bossTable.reset();
+    bossTable.closeIntro(true);
+  }
+  /** "Boss-Effekte": off, a boss floor starts without the entrance and hits only move the bars. */
+  function setBossFx(on) {
+    bossFxOn = on;
+    storageSet(BOSS_FX_KEY, on ? 'on' : 'off');
+    const box = el('bossFxCheckbox');
+    if (box) box.checked = on;
+    if (!on && bossTable) bossTable.closeIntro(true);
+  }
+  {
+    const box = el('bossFxCheckbox'); // missing in a stale cached page: the setting just waits
+    if (box) {
+      box.checked = bossFxOn;
+      box.addEventListener('change', () => setBossFx(box.checked));
+    }
+  }
+  /** Both lives on the result sheet (round end and verdict): the points list means nothing here. */
+  function bossResultBox(view, isGameOver) {
+    const box = document.createElement('div');
+    box.className = 'bossResult';
+    const seat = lastState.players.find((p) => p.id !== playerId);
+    const side = (cls, who, hp, max) => `<div class="brSide ${cls}"><span class="brWho">${escapeHtml(who)}</span>${bossApi.barHtml(cls === 'me' ? 'hpMe' : 'hpBoss', cls !== 'me')}</div>`;
+    const hand = bossApi.handDamage(view);
+    const notes = [];
+    if (hand.me || hand.boss) {
+      notes.push(`<p class="brNote">${escapeHtml(L('Karten auf der Hand am Rundenende:', 'Cards in hand at the end of the round:'))} ` +
+        [hand.me ? L(`du <b>${MINUS}${hand.me}</b>`, `you <b>${MINUS}${hand.me}</b>`) : '', hand.boss ? L(`der Boss <b>${MINUS}${hand.boss}</b>`, `the boss <b>${MINUS}${hand.boss}</b>`) : '']
+          .filter(Boolean).join(' · ') + '</p>');
+    }
+    const guards = (view.adds || []).filter((a) => a.hp > 0).length;
+    if (guards) {
+      notes.push(`<p class="brNote">${iconHtml('cat')}<span>${escapeHtml(guards === 1
+        ? L('Eine Katze steht noch vor der Dame.', 'One cat still stands in front of the queen.')
+        : L(`${guards} Katzen stehen noch vor der Dame.`, `${guards} cats still stand in front of the queen.`))}</span></p>`);
+    }
+    if (!isGameOver) {
+      notes.push(`<p class="brNote">${escapeHtml(L(`Weiter mit Runde ${view.round} von höchstens ${view.maxRounds}. Das Leben bleibt stehen.`,
+        `On to round ${view.round} of at most ${view.maxRounds}. Life carries over.`))}</p>`);
+      if (view.enraged) {
+        const more = Math.round((view.traits.enrage - 1) * 100);
+        notes.push(`<p class="brNote brRage">${iconHtml('flame')}<span>${escapeHtml(L(`Der Boss ist wütend: Seine Treffer zählen jetzt ${more}${NBSP}% mehr.`,
+          `The boss is enraged: its hits now count ${more}% more.`))}</span></p>`);
+      }
+    }
+    box.innerHTML = side('me', L('Du', 'You'), view.me, view.myMaxHp) +
+      side('boss', bossApi.nameOf(view.id, L) || (seat && seat.name) || 'Boss', view.hp, view.maxHp) + notes.join('');
+    bossApi.setBar(box.querySelector('.brSide.me .hpBar'), view.me, view.myMaxHp);
+    bossApi.setBar(box.querySelector('.brSide.boss .hpBar'), view.hp, view.maxHp);
+    return box;
   }
 
   // --- Kartenhaus at the table: floor card, start card, rules sheet, hints ----
@@ -10486,6 +10611,7 @@
       mods: (Array.isArray(st.towerMods) ? st.towerMods : []).filter((m) => TOWER_MODS[m]),
       bots: (st.players || []).filter((p) => p.isBot).map((p) => p.botDifficulty || 'zen'),
       best: Math.max(0, Math.min(3, Math.floor(best))),
+      boss: bossView(), // a boss floor: its panel replaces the floor card, its entrance the start card
     };
   }
   /** The floor as a playing card: its number the rank, the house the suit, the best stars at the foot. */
@@ -10658,7 +10784,8 @@
       if (fresh || st.phase !== 'cutting') {
         towerIntroHandled = code;
         storageSet(TOWER_INTRO_KEY, code);
-        if (fresh) openTowerStart(f);
+        if (fresh && f.boss) bossTable.playIntro(f.boss, { stage: f.stage });
+        else if (fresh) openTowerStart(f);
       }
     }
     if (towerStartOpen && (!f || !towerAtStart(st))) closeTowerStart(true);
@@ -10758,7 +10885,7 @@
   function renderTowerTable() {
     const f = towerFloor();
     // Hidden by its ✕: the normal table's layout (towerGame is layout only); the lock below stays.
-    const shown = !!f && (towerBarLeaving || !towerBarHidden());
+    const shown = !!f && !f.boss && (towerBarLeaving || !towerBarHidden());
     el('table').classList.toggle('towerGame', shown);
     // The best stars come with the house data: ask once per game when it is missing.
     if (f && !towerFresh() && !publicMode && towerInfoAskedFor !== `${sessionCode}|${myName}`) {
@@ -10770,7 +10897,7 @@
     renderTowerStart(f);
     renderTowerFloorSheet(f);
     const panelBtn = el('towerPanelBtn'); // in "Optionen" › "Dieser Tisch"
-    if (panelBtn) panelBtn.classList.toggle('hidden', !f || shown);
+    if (panelBtn) panelBtn.classList.toggle('hidden', !f || shown || !!f.boss);
     const locked = !!(f && f.mods.includes('noDiscard') && lastState.phase === 'playing');
     el('discardPile').classList.toggle('towerLocked', locked);
   }
