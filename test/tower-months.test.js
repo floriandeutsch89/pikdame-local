@@ -126,8 +126,8 @@ test('generator, boss floors: picked by Hard\'s and Mittel\'s rate on floors 10,
     assert.ok(f.hard10 >= R.bossHardMin(stage) && f.hard10 <= R.bossHardMax(stage) && f.medium10 >= lo && f.medium10 <= hi, `floor ${stage}: inside the boss gates (${f.hard10}, ${f.medium10})`);
   }
   res.floors.forEach((f, i) => { if (!boss(i + 1)) { assert.strictEqual(f.boss, undefined); assert.deepStrictEqual(f, plain.floors[i], `floor ${i + 1}: an ordinary floor as ever`); } });
-  assert.deepStrictEqual([R.bossHardMin(10), R.bossHardMin(15), R.bossHardMin(20), R.bossHardMax(20)], [50, 40, 30, 60]);
-  assert.deepStrictEqual(R.bossMediumWindow(20), [10, 60]);
+  assert.deepStrictEqual([R.bossHardMin(10), R.bossHardMin(15), R.bossHardMin(20), R.bossHardMax(20)], [60, 50, 40, 60]);
+  assert.deepStrictEqual(R.bossMediumWindow(20), [20, 60]);
 
   // A month stored before its floors became boss floors: exactly those three are picked again.
   for (const mode of ['rule', 'missing']) {

@@ -44,9 +44,11 @@ const CLEAR_MARGIN = 100;
 const TOWER_SEEDS = require('./TowerSeeds');
 const BossFight = require('./BossFight');
 const LEGACY_MONTH = '2026-10';
-// Boss floors (BossFight.js): from this month on, floors 10, 15 and 20 are duels in life
-// points. null: no month yet - a month's deals must be picked under the boss rule first.
-let bossFrom = null;
+// Boss floors (BossFight.js): from this month on, floors 10, 15 and 20 are duels in life points.
+// A constant, not configuration: worker threads and scripts must see the same months, and a
+// month that has started never changes its floors (players hold stars on them).
+const BOSS_FROM = '2026-12';
+let bossFrom = BOSS_FROM; // setBossFrom: tests and tooling only
 let monthSource = null; // month -> [20 seeds or null] (TowerMonths.js)
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
@@ -62,7 +64,7 @@ function setMonthSource(fn) {
   monthSource = typeof fn === 'function' ? fn : null;
 }
 
-/** From which month ('YYYY-MM') the boss floors apply; anything else switches them off. */
+/** Tests and tooling: from which month ('YYYY-MM') the boss floors apply; anything else switches them off. */
 function setBossFrom(month) {
   bossFrom = MONTH_RE.test(String(month)) ? String(month) : null;
 }
@@ -209,7 +211,7 @@ function publicStages(month = null) {
 }
 
 module.exports = {
-  TOWER_STAGES, TOWER_SIZE, MAX_STARS, CLEAR_MARGIN, MODS, LEGACY_MONTH,
+  TOWER_STAGES, TOWER_SIZE, MAX_STARS, CLEAR_MARGIN, MODS, LEGACY_MONTH, BOSS_FROM,
   hasMod, monthOf, monthSeeds, setMonthSource, setBossFrom, bossFor, stageConfig, starsFor, stageWinner, outcomeFromRecord,
   unlockedStage, summarize, monthBest, monthsOf, totalsOf, publicStages,
 };

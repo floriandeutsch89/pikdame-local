@@ -1,6 +1,6 @@
 // Kartenhaus boss floors: the pure fight rules (BossFight.js) and their place in the engine -
 // hits at the end of a turn, a knockout in the middle of a round, rounds that follow,
-// the snapshot, the proof play. Off until a month is switched on (BotTower.setBossFrom).
+// the snapshot, the proof play. On from BotTower.BOSS_FROM; setBossFrom moves it for a test.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
@@ -13,7 +13,7 @@ const { isPikDame } = require('../game/Card');
 
 const { BOSSES, PLAYER_HP } = BossFight;
 const MONTH = '2026-12';
-const withBosses = (t) => { BotTower.setBossFrom(MONTH); t.after(() => BotTower.setBossFrom(null)); };
+const withBosses = (t) => { BotTower.setBossFrom(MONTH); t.after(() => BotTower.setBossFrom(BotTower.BOSS_FROM)); };
 
 // --- the rules --------------------------------------------------------------------------
 test('a hit is the value laid; two new melds in a turn count x1.5, three x2', () => {
@@ -123,10 +123,14 @@ function floor(stage, seed = 4711) {
 const turn = (g) => { const cp = g.currentPlayer(); g.runBotTurn(cp.id, { forced: cp.id === 'me' }); };
 const cardsOf = (g) => [...g.players.flatMap((p) => p.hand), ...g.drawPile, ...g.discardPile, ...g.tableMelds.flatMap((m) => m.slots.map((s) => s.real || s.joker)), ...g.retiredJokers];
 
-test('off by default: floors 10, 15 and 20 stay what they were until a month is switched on', () => {
-  assert.strictEqual(BotTower.stageConfig(10, MONTH).boss, undefined);
-  assert.deepStrictEqual(BotTower.stageConfig(20, MONTH).mods, ['queen', 'noDiscard', 'goOut']);
-  assert.ok(BotTower.publicStages(MONTH).every((s) => !s.boss));
+test('boss floors start with December 2026: the months before stay what they were', () => {
+  assert.strictEqual(BotTower.BOSS_FROM, '2026-12');
+  assert.strictEqual(BotTower.stageConfig(10, '2026-11').boss, undefined);
+  assert.deepStrictEqual(BotTower.stageConfig(20, '2026-11').mods, ['queen', 'noDiscard', 'goOut']);
+  assert.ok(BotTower.publicStages('2026-11').every((s) => !s.boss));
+  assert.deepStrictEqual(BotTower.publicStages('2026-12').filter((s) => s.boss).map((s) => s.stage), [10, 15, 20]);
+  BotTower.setBossFrom(null);
+  assert.strictEqual(BotTower.stageConfig(10, MONTH).boss, undefined, 'switched off for a test: no boss anywhere');
   BotTower.setBossFrom('2027-02');
   try {
     assert.strictEqual(BotTower.stageConfig(10, '2027-01').boss, undefined, 'the month before stays');
@@ -134,7 +138,7 @@ test('off by default: floors 10, 15 and 20 stay what they were until a month is 
     assert.deepStrictEqual([cfg.boss.id, cfg.bots, cfg.handicap, cfg.mods], ['queen', ['zen'], 0, undefined], 'a duel, the boss\'s rules replace the modifiers');
     assert.deepStrictEqual(BotTower.publicStages('2027-03').filter((s) => s.boss).map((s) => [s.stage, s.boss]), [[10, 'jack'], [15, 'king'], [20, 'queen']]);
     assert.strictEqual(BotTower.stageConfig(11, '2027-02').boss, undefined);
-  } finally { BotTower.setBossFrom(null); }
+  } finally { BotTower.setBossFrom(BotTower.BOSS_FROM); }
 });
 
 test('a boss floor is a duel: hits land when a turn ends, the deck stays whole, rounds follow until one is down', (t) => {
@@ -261,7 +265,7 @@ test('the boss\'s seat carries the boss\'s name, and the deal stays the one the 
     assert.strictEqual(g.publicState('me').bossFight.ambushReady, false, 'the king has no ambush');
     assert.deepStrictEqual(g.publicState('me').bossFight.starLife, [200, 400]);
     g.destroy();
-  } finally { BotTower.setBossFrom(null); }
+  } finally { BotTower.setBossFrom(BotTower.BOSS_FROM); }
 });
 
 test('badges: a win names the boss, three stars a second one, the court needs all boss floors at three stars', () => {

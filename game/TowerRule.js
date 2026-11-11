@@ -3,7 +3,7 @@
 'use strict';
 
 /** Bump when the rule or the candidate order changes: stored months record it. */
-const GEN_VERSION = 4; // 4: boss floors (BossFight.js) are picked by Hard's and Mittel's rate, on floor 10 too
+const GEN_VERSION = 5; // 5: easier boss deals (Hard 60-80 / 50-70 / 40-60 %); 4: boss floors picked by Hard's and Mittel's rate
 const MEDIUM_GAMES = 100; // games of the medium player per candidate (floors 11-20)
 const HARD_GAMES = 100; // ... and of Hard
 const MAX_TRIES = 20000; // candidates per floor before it is reported
@@ -18,13 +18,13 @@ const hardMin = (stage) => 50 - ((stage - 11) * 20) / 9;
 const mediumMin = (stage) => 40 - ((stage - 11) * 30) / 9;
 const mediumMax = (stage) => mediumMin(stage) + 40;
 
-/** Boss floors (10, 15, 20): Hard with 10 % slips wins 50-80 / 40-70 / 30-60 % of its fights. A deal
- *  decides most of a fight, so there is a ceiling too: without it the first picks were deals
- *  Hard wins in 9 of 10 fights. */
-const bossHardMin = (stage) => 50 - (stage - 10) * 2;
-const bossHardMax = (stage) => bossHardMin(stage) + 30;
-/** ... and Mittel 30-80 / 20-70 / 10-60 %: around Hard's gate, since both score alike in a duel. */
-const bossMediumWindow = (stage) => [bossHardMin(stage) - 20, bossHardMin(stage) + 30];
+/** Boss floors (10, 15, 20): Hard with 10 % slips wins 60-80 / 50-70 / 40-60 % of its fights.
+ *  A deal decides most of a fight (on random deals Hard wins 39 / 43 / 20 %, +-35 points from
+ *  deal to deal), so the band is the difficulty; the ceiling keeps out deals Hard wins 9 of 10 times. */
+const bossHardMin = (stage) => 60 - (stage - 10) * 2;
+const bossHardMax = (stage) => bossHardMin(stage) + 20;
+/** ... and Mittel 40-80 / 30-70 / 20-60 %: around Hard's band, since both score alike in a duel. */
+const bossMediumWindow = (stage) => [bossHardMin(stage) - 20, bossHardMax(stage)];
 
 /** Floors 1-10: Hard's star must not be a landslide (floor 10: 60 points). */
 const marginCap = (stage) => 260 - 20 * stage;
