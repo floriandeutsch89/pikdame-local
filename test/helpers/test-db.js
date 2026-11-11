@@ -19,9 +19,17 @@ function runSql(sql) {
   const script = `const { Client } = require('pg');
 const c = new Client({ connectionString: process.env.BASE });
 c.connect().then(() => c.query(process.env.SQL)).then(() => c.end(), (e) => { console.error(e.message); process.exit(1); });`;
-  execFileSync(process.execPath, ['-e', script], {
-    cwd: __dirname, env: { ...process.env, BASE: requireBaseUrl(), SQL: sql }, stdio: ['ignore', 'ignore', 'inherit'],
+  const run = () => execFileSync(process.execPath, ['-e', script], {
+    cwd: __dirname, env: { ...process.env, BASE: requireBaseUrl(), SQL: sql }, stdio: ['ignore', 'ignore', 'pipe'], encoding: 'utf8',
   });
+  // PostgreSQL's own message into the error: the runner showed only "Command failed" (CI, v2.132.2).
+  const why = (e) => String((e && e.stderr) || (e && e.message) || e).trim().split('\n').pop();
+  try {
+    run();
+  } catch (first) {
+    // Once more: a busy server refuses a connection for a moment (parallel test files).
+    try { run(); } catch (e) { throw new Error(`test database: ${why(e)} (first try: ${why(first)})`); }
+  }
 }
 
 /** Connection string whose search_path is a fresh, empty schema. */
