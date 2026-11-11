@@ -1209,16 +1209,37 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 /* Draw phase, but the server says the top card cannot be taken: no glow,
    card muted (the peek button stays fully visible). */
 #discardPile.noTake .pile-card { opacity: 0.55; }
-/* Draw phase: a soft pulse says you may draw now. */
-@keyframes drawPulse {
-  0%, 100% { filter: drop-shadow(0 0 3px var(--accent-soft)); }
-  50% { filter: drop-shadow(0 0 14px var(--accent)); }
+/* Draw phase: a soft pulse says you may draw now. A blurred card-sized light behind the
+   card that only fades (opacity runs on the compositor): the animated drop-shadow it
+   replaces restyled and repainted the pile 60 times a second for as long as you waited.
+   --pile-cap: the caption's row under the card (gap + one line). */
+@keyframes pileGlow {
+  0%, 100% { opacity: 0.22; }
+  50% { opacity: 0.95; }
 }
-.pile.glow { animation: drawPulse 1.8s ease-in-out infinite; }
+.pile { --pile-cap: 20px; }
+.pile.glow { isolation: isolate; }
+.pile.glow::before {
+  content: '';
+  position: absolute; z-index: -1;
+  top: -3px; left: 50%;
+  height: calc(100% - var(--pile-cap) + 6px); aspect-ratio: 5 / 7;
+  transform: translateX(-50%);
+  border-radius: 12px;
+  background: var(--accent);
+  filter: blur(10px);
+  pointer-events: none;
+  animation: pileGlow 1.8s ease-in-out infinite;
+}
 /* The glow lights the felt under the caption (muted fell to 2.5:1): full text. */
 .pile.glow .pileLabel { color: var(--text); }
 @media (prefers-reduced-motion: reduce) {
-  .pile.glow { animation: none; filter: drop-shadow(0 0 10px var(--accent)); }
+  .pile.glow::before { animation: none; opacity: 0.7; }
+}
+/* No aspect-ratio (iOS < 15): the light has no width there, so the old shadow stays. */
+@supports not (aspect-ratio: 1) {
+  .pile.glow::before { content: none; }
+  .pile.glow { filter: drop-shadow(0 0 10px var(--accent)); }
 }
 
 /* Action bar. Its buttons sit in FIXED slots: in the old wrapping row a
@@ -2655,6 +2676,7 @@ body.raidActive #toastContainer { margin-top: 132px; }
   }
   #centerPiles .pile-card { width: 40px; height: 56px; }
   .pileLabel { font-size: 0.52rem; }
+  .pile { --pile-cap: 16px; }
   #actionBar { grid-area: action; padding: 4px calc(10px + var(--safe-right)) 4px calc(10px + var(--safe-left)); }
   #handWrapper { grid-area: hand; padding: 6px calc(8px + var(--safe-right)) calc(6px + var(--safe-bottom)) calc(8px + var(--safe-left)); }
   .handToolbar { margin: 0 2px 3px; }
