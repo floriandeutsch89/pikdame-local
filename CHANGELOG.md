@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.132.4] - 2026-11-11
+
+### Changed
+- Vorbereitung für Boss-Kämpfe im Kartenhaus: Boss-Feld mit antippbaren Fähigkeiten, Lebensbalken, Auftritt und Treffer-Effekte (noch nicht aktiv)
+- Neue Option „Boss-Effekte“ unter „Spielhilfen“: schaltet Auftritt und Treffer-Effekte der Boss-Etagen ab
+
 ## [2.132.3] - 2026-11-11
 
 ### Changed
