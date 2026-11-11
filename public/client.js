@@ -169,6 +169,8 @@
     showToast(roundQuote(`${lastState.dealerId}-${lastState.roundNumber}`), { duration: 5000, priority: true });
   }
   let prevDiscardTopId;
+  let popFlip = false; // which of the two pop keyframes ran last
+  let handBuiltKey = null; // what the fan in the DOM was built from (renderTable)
   // Auslagen-Filter: null = alle anzeigen; sonst nur die Auslagen dieses
   // Spielers (Toggle per Klick auf den Namen).
   let meldFilterPlayerId = null;
@@ -2656,6 +2658,8 @@
   }
 
   function renderTable() {
+    // Read before the first write: any layout read after it re-lays-out the half-built table (measured: 60 % of a render).
+    const prevHandScroll = el('hand').scrollLeft;
     const SCORE_TARGET = targetOf();
     const myTotal = (lastState.totals && lastState.totals[playerId]) || 0;
     // Same "<b>n</b> Pkt" format as the opponent chips; a negative total
@@ -3031,8 +3035,9 @@
     // Pop-Animation, wenn eine neue Karte oben liegt (z.B. Gegner-Abwurf)
     const topId = lastState.discardTop ? lastState.discardTop.id || 'facedown' : null;
     if (topId && topId !== prevDiscardTopId && prevDiscardTopId !== undefined) {
-      discardTopDiv.classList.remove('pop');
-      void discardTopDiv.offsetWidth;
+      // A new animation name restarts the pop without forcing a layout (two equal keyframes in style.css).
+      popFlip = !popFlip;
+      discardTopDiv.style.setProperty('--pop-kf', popFlip ? 'discardPopB' : 'discardPop');
       discardTopDiv.classList.add('pop');
     }
     prevDiscardTopId = topId;
@@ -3058,8 +3063,10 @@
     // Hand
     const myPlayer = lastState.players.find((p) => p.id === playerId);
     const handDiv = el('hand');
-    handDiv.innerHTML = '';
-    if (myPlayer && myPlayer.hand) {
+    if (!(myPlayer && myPlayer.hand)) {
+      handDiv.innerHTML = '';
+      handBuiltKey = null;
+    } else {
       // Neue Karten seit dem letzten Render ermitteln (Ziehen/Stapelaufnahme).
       const currentIds = new Set(myPlayer.hand.map((c) => c.id));
       const isNewRound = prevHandRound !== lastState.roundNumber;
@@ -3116,9 +3123,19 @@
         if (a.suit !== b.suit) return a.suit.localeCompare(b.suit);
         return RANK_ORDER.indexOf(a.rank) - RANK_ORDER.indexOf(b.rank);
       });
-      sorted.forEach((card, idx) => {
+      // The fan is rebuilt only when what it shows changed. On the others' turns it stays as it is,
+      // and so does its layout (the rebuilt hand was most of a render's layout work).
+      const selectable = isMyTurn && lastState.turnPhase === 'meld';
+      const queenUp = sorted.some((card) => isPikdameUp(card)); // her turn is timed: always painted anew
+      const handKey = JSON.stringify([sorted.map((c) => c.id), selectable, [...selectedCardIds], [...freshCardIds],
+        !!towerSpotOn, handCollapsed, window.innerWidth, window.innerHeight]);
+      const keepHand = !queenUp && handKey === handBuiltKey && handDiv.querySelectorAll('.card').length === sorted.length;
+      handBuiltKey = queenUp ? null : handKey;
+      if (keepHand) pendingDealCards.push(...handDiv.querySelectorAll('.card'));
+      else handDiv.innerHTML = '';
+      if (!keepHand) sorted.forEach((card, idx) => {
         const cEl = cardEl(card, {
-          selectable: isMyTurn && lastState.turnPhase === 'meld',
+          selectable,
           selected: selectedCardIds.has(card.id),
           onClick: () => onHandCardClick(card),
         });
@@ -3158,13 +3175,12 @@
       // Bildschirmbreite - kein horizontales Scrollen. Je mehr Karten,
       // desto stärker überlappen sie; der Ecken-Index oben links bleibt
       // dabei stets sichtbar. Mindestens 14px sichtbarer Streifen.
-      const prevHandScroll = handDiv.scrollLeft; // Scroll-Position über Re-Render retten
       // Consume the one-shot here, not inside the frame: an early return
       // below (fewer than two cards) would otherwise leave it armed and
       // hijack a later, unrelated render.
       const scrollToFresh = freshScrollPending;
       freshScrollPending = false;
-      requestAnimationFrame(() => {
+      if (!keepHand) requestAnimationFrame(() => {
         // Undo a previous two-row pass first (the same cards can be laid out
         // twice when renders overlap) - cards go back to the flat fan.
         const cards = [...handDiv.querySelectorAll('.card')];

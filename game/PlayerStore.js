@@ -60,6 +60,33 @@ const PROFILE_COLUMNS = `p.*, p.player_key = $1 AS details,
        jsonb_build_object('tries', z.tries, 'solved', z.solved, 'revealed', z.revealed, 'stars', z.stars)))
      FROM player_puzzles z WHERE z.player_id = p.id AND z.game_day > $2::date - ${PUZZLE_DAYS}) END AS puzzles`;
 
+/**
+ * Another player's row in the profiles message: what the board, its record line
+ * and the favourite badges show - a fifth of a full profile (500 rows were 263 kB).
+ * Zeros and empty lists are left out (the client reads them as such); of the
+ * badges only the ones a favourite shows.
+ */
+function toBoardRow(r) {
+  const row = { name: r.player_name, xp: r.xp, gamesPlayed: r.games_played, gamesWon: r.games_won, totalScore: r.total_score };
+  if (r.best_round_score !== null) row.bestRoundScore = r.best_round_score;
+  if (r.queens_laid) row.totalQueensLaid = r.queens_laid;
+  if (r.queens_caught) row.totalQueensCaught = r.queens_caught;
+  if (r.jokers_laid) row.totalJokersLaid = r.jokers_laid;
+  if (r.hand_aus_wins) row.totalHandAus = r.hand_aus_wins;
+  const favorites = r.favorite_badges || [];
+  if (favorites.length) {
+    const owned = r.badges || {};
+    const shown = {};
+    for (const key of favorites) {
+      const family = BADGE_FAMILIES.find((f) => f.id === key);
+      for (const id of family ? family.tiers.map(([tier]) => tier) : [key]) if (owned[id]) shown[id] = owned[id];
+    }
+    row.favoriteBadges = favorites;
+    row.badges = shown;
+  }
+  return row;
+}
+
 /** A players row (PROFILE_COLUMNS) as the profile object the game and the client know. */
 function toProfile(r) {
   const p = {
@@ -394,7 +421,8 @@ function createPlayerStore(pool, { legacyFile = DEFAULT_DATA_FILE, now = () => D
 
   /**
    * The profiles message: the statistics board's best `limit` (wins, then
-   * score) plus the named players; `me` also gets its per-day details.
+   * score) plus the named players. Only `me` is a full profile with its per-day
+   * details; everyone else is a board row (toBoardRow).
    */
   async function listProfiles({ me = '', names = [], limit = PROFILES_LISTED } = {}) {
     const meKey = keyOf(me);
@@ -405,7 +433,7 @@ function createPlayerStore(pool, { legacyFile = DEFAULT_DATA_FILE, now = () => D
         (SELECT id FROM players WHERE games_played > 0 ORDER BY games_won DESC, total_score DESC, id LIMIT $4)
         UNION SELECT id FROM players WHERE player_key = ANY($3::text[])))
       ORDER BY p.games_won DESC, p.total_score DESC, p.id`, [meKey, gameDay(now()), keys, limit]);
-    return rows.map(toProfile);
+    return rows.map((r) => (r.details ? toProfile(r) : toBoardRow(r)));
   }
 
   /** Creates the profile on first contact. */

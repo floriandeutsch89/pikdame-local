@@ -237,7 +237,7 @@ const S2C_NOTES = {
   accountProgress: 'The account-bound progression on login (so a new device shows the right level), and after XP from outside a match (a solved puzzle, a Kartenhaus floor\'s first star or crown).',
   gameHistory: 'Answer to `getGameHistory`.',
   gameExport: 'The requested game export (JSON).',
-  profiles: 'Answer to `listProfiles`. `badgeRarity`: `{ rareBelow, percent: { badgeId: 0-100 } }`, the share of players holding each badge (`game/BadgeRarity.js`; 0 = under 1 %), cached; `null` below the minimum of players and in the public mode.',
+  profiles: 'Answer to `listProfiles`. `players`: the asking player as a full profile, everyone else as a board row (`name`, `xp`, `gamesPlayed`, `gamesWon`, `totalScore`, the record line\'s counters where not zero, `favoriteBadges` with the `badges` they show). `badgeRarity`: `{ rareBelow, percent: { badgeId: 0-100 } }`, the share of players holding each badge (`game/BadgeRarity.js`; 0 = under 1 %), cached; `null` below the minimum of players and in the public mode.',
   puzzle: 'Today\'s puzzle (answer to `getPuzzle`).',
   puzzleResult: 'Grading of a `solvePuzzle` attempt.',
   puzzleSolution: 'The solution, after `revealPuzzle` or a correct answer.',
