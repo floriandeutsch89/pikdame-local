@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.131.1] - 2026-11-11
+
+### Fixed
+- Eine Anmeldung mit Passwort hält laufende Partien nicht mehr für einen Moment an
+
 ## [2.131.0] - 2026-11-11
 
 ### Changed
