@@ -12,7 +12,7 @@ const WebSocket = require('ws');
 const GameManager = require('./game/GameManager');
 const { createPlayerStore } = require('./game/PlayerStore');
 const { createBadgeRarity } = require('./game/BadgeRarity');
-const { computeEarnedBadges, computeRoundBadges, familyBadges, ROUND_BADGES } = require('./game/Badges');
+const { computeEarnedBadges, computeRoundBadges, familyBadges, bossBadges, ROUND_BADGES } = require('./game/Badges');
 const BotTower = require('./game/BotTower');
 const { seasonalBacksFor } = require('./game/SeasonalBacks');
 const {
@@ -1977,7 +1977,11 @@ async function recordTowerStage(gameRecord, sendTo, session) {
     try {
       progress = await playerStore.recordTowerResult(human.name, outcome.month, outcome.stage, outcome.stars);
       xp = progress.xp;
-      badges = await playerStore.awardBadges(human.name, familyBadges((await playerStore.getPlayerByName(human.name)) || {}));
+      const bossStages = BotTower.TOWER_STAGES.map((s) => s.stage).filter((stage) => BotTower.bossFor(stage, outcome.month));
+      badges = await playerStore.awardBadges(human.name, [
+        ...familyBadges((await playerStore.getPlayerByName(human.name)) || {}),
+        ...bossBadges(outcome, (progress && progress.best) || {}, bossStages),
+      ]);
     } catch (err) {
       logCrash('tower', err, { player: human.name });
     }

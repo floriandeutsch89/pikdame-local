@@ -75,7 +75,22 @@ const BADGE_IDS = [
   'tower_crowned_1', // a crowned month: all 20 floors starred (tiers 3/12 below)
   'tower_crowned_3',
   'tower_crowned_12',
+  // --- Kartenhaus boss floors (BossFight.js): a win, and a win with three stars ---
+  'boss_jack',
+  'boss_jack_3',
+  'boss_king',
+  'boss_king_3',
+  'boss_queen',
+  'boss_queen_3',
+  'boss_court', // all boss floors of one month with three stars
 ];
+
+// Per boss id: [a win, a win with three stars].
+const BOSS_BADGES = {
+  jack: ['boss_jack', 'boss_jack_3'],
+  king: ['boss_king', 'boss_king_3'],
+  queen: ['boss_queen', 'boss_queen_3'],
+};
 
 // Badge families: the same counter at rising thresholds, shown as ONE tile
 // with tier dots instead of three unrelated trophies. `field` is the profile
@@ -236,4 +251,17 @@ function familyBadges(profile = {}, won = false) {
   return out;
 }
 
-module.exports = { BADGE_IDS, BADGE_FAMILIES, ROUND_BADGES, computeEarnedBadges, computeRoundBadges, familyBadges };
+/**
+ * A boss floor's badges. outcome: BotTower.outcomeFromRecord; best: the month's best stars
+ * by floor AFTER this result; bossStages: the month's boss floors.
+ */
+function bossBadges(outcome, best = {}, bossStages = []) {
+  const ids = outcome && outcome.won ? BOSS_BADGES[outcome.boss] : null;
+  if (!ids) return [];
+  const out = [ids[0]];
+  if (outcome.stars >= 3) out.push(ids[1]);
+  if (bossStages.length >= 3 && bossStages.every((stage) => (Number(best[stage]) || 0) >= 3)) out.push('boss_court');
+  return out;
+}
+
+module.exports = { BADGE_IDS, BADGE_FAMILIES, BOSS_BADGES, ROUND_BADGES, computeEarnedBadges, computeRoundBadges, familyBadges, bossBadges };
