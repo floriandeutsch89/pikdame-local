@@ -116,7 +116,7 @@ badges). The first star of a floor pays 10 experience once per month; a
 crowned month (all 20 floors with a star) pays 50 once. With an account both
 go into its lifetime and season XP without counting as a game; tower rounds
 count for no match statistics. Badges: 3/6/10 floors and 30 stars in the best
-month, and 1/3/12 crowned months (Lehrling, Polier/in, Baumeister/in).
+month, and 1/3/12 crowned months (Lehrling, Polier, Baumeister).
 
 **The sheet** (`renderTower` in `public/client.js`) is also the floor picker:
 every starred floor stands as its floor card from the table, two leaning

@@ -263,3 +263,17 @@ test('the boss\'s seat carries the boss\'s name, and the deal stays the one the 
     g.destroy();
   } finally { BotTower.setBossFrom(null); }
 });
+
+test('badges: a win names the boss, three stars a second one, the court needs all boss floors at three stars', () => {
+  const { bossBadges, BADGE_IDS, BOSS_BADGES } = require('../game/Badges');
+  assert.deepStrictEqual(Object.keys(BOSS_BADGES).sort(), Object.values(BOSSES).map((b) => b.id).sort(), 'every boss has its pair');
+  for (const id of [...Object.values(BOSS_BADGES).flat(), 'boss_court']) assert.ok(BADGE_IDS.includes(id), id);
+  const stages = [10, 15, 20];
+  assert.deepStrictEqual(bossBadges({ boss: 'jack', won: false, stars: 0 }, {}, stages), [], 'a loss earns nothing');
+  assert.deepStrictEqual(bossBadges({ boss: 'jack', won: true, stars: 1 }, { 10: 1 }, stages), ['boss_jack']);
+  assert.deepStrictEqual(bossBadges({ boss: 'king', won: true, stars: 3 }, { 10: 3, 15: 3, 20: 2 }, stages), ['boss_king', 'boss_king_3']);
+  assert.deepStrictEqual(bossBadges({ boss: 'queen', won: true, stars: 1 }, { 10: 3, 15: 3, 20: 3 }, stages), ['boss_queen', 'boss_court'],
+    'the month\'s best counts, not this try');
+  assert.deepStrictEqual(bossBadges({ boss: 'queen', won: true, stars: 3 }, { 10: 3, 15: 3, 20: 3 }, []), ['boss_queen', 'boss_queen_3'], 'no boss month, no court');
+  assert.deepStrictEqual(bossBadges({ stars: 3, won: true }, {}, stages), [], 'an ordinary floor');
+});
