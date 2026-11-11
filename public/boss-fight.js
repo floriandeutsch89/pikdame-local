@@ -17,9 +17,9 @@
   const INTRO_MS = 1750; // + the fade: under two seconds before the first card
 
   const BOSSES = {
-    jack: { rank: ['B', 'J'], suit: 'diamond', name: ['Der Karo-Bube', 'The Jack of Diamonds'] },
-    king: { rank: ['K', 'K'], suit: 'club', name: ['Der Kreuz-König', 'The King of Clubs'] },
-    queen: { rank: ['D', 'Q'], suit: 'spade', name: ['Die Pik Dame', 'The Queen of Spades'] },
+    jack: { rank: ['B', 'J'], suit: 'diamond', name: ['Karo-Bube', 'Jack of Diamonds'] },
+    king: { rank: ['K', 'K'], suit: 'club', name: ['Kreuz-König', 'King of Clubs'] },
+    queen: { rank: ['D', 'Q'], suit: 'spade', name: ['Pik Dame', 'Queen of Spades'] },
   };
   const CATS = [['Katze Mimi', 'Mimi'], ['Kater Mo', 'Mo']]; // short: each has half a phone's width
 
