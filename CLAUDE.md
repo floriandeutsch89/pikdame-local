@@ -12,6 +12,7 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   Repo-Doku (README, docs/; k8s/ und landing/ READMEs bei nächster Berührung).
   Deutsche Bestandskommentare beim Berühren migrieren.
 - **Deutsch:** alle nutzersichtbaren Texte (Quellsprache, über i18n).
+  Nicht gendern (kein „/in“, „:in“, „*in“): Titel und Namen in der kurzen Form.
   Changelog-Fragmente: Überschriften englisch (Added/Changed/Fixed/Removed),
   Inhalt deutsch.
 - **Kommentare 1–2 Zeilen**, nur Warum/Falle/Vertrag; Erklärungen in docs/,
@@ -100,6 +101,9 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
     Neue Tabellen/Spalten nach `docs/developer/schema.md` (TIMESTAMPTZ `*_at`, DATE `*_day`, keine Epoch-Zahlen).
   - `Mailer.js`: eigener SMTP-Client, Log-Fallback; Header RFC 2047, Body
     Quoted-Printable — nie rohes UTF-8 in Kopfzeilen.
+  - Neues Abzeichen = ID in `Badges.js`, Text in `badgeMeta` (DE/EN samt „how“), Eintrag in
+    `BADGE_FAMILIES`/`BADGE_SINGLES` des Clients, danach `npm run docs:gen` (sonst `docs:check` rot).
+    Boss-Abzeichen: `bossBadges` (Sieg, 3 Sterne, alle Bosse eines Monats).
   - `Badges.js` (Familien in `BADGE_FAMILIES`, Fakten aus `finishRound`),
     `Progression.js` (XP, Tagesaufgaben, Serie mit Joker-Tag; XP-Regeln
     spiegelt `XP_RULES` im Client, Vertragstest). UI: Stufe + Serie am

@@ -86,7 +86,7 @@ back instead of showing a broken streak.
 
 ## Badges
 
-**58** badges. 13 of them are *families*: one tile, rising
+**65** badges. 13 of them are *families*: one tile, rising
 thresholds on the same counter.
 
 | Family | Counter | Tiers |
@@ -105,7 +105,7 @@ thresholds on the same counter.
 | `towerStars` | `towerStars` | 🌠 Starry sky {bdg-secondary}`30` |
 | `towerCrowned` | `towerCrownedMonths` | 👷 Apprentice {bdg-secondary}`1` → 👷 Foreman {bdg-secondary}`3` → 👷 Master Builder {bdg-secondary}`12` |
 
-The other **25** are earned by a fact about one match (computed in
+The other **32** are earned by a fact about one match (computed in
 `computeEarnedBadges` from the finished game record):
 
 | | Badge | Earned by | Id |
@@ -135,6 +135,13 @@ The other **25** are earned by a fact about one match (computed in
 | 🧲 | **Queen magnet of the day** | Daily challenge: caught with the Queen of Spades the most | `queen_magnet_day` |
 | 💎 | **Royal flush** | Melded 10-J-Q-K-A of one suit, no jokers | `royal_flush` |
 | 👑 | **Spade royal** | Royal flush in spades - with the Queen of Spades | `pik_royal` |
+|  | **boss_jack** |  | `boss_jack` |
+| 😎 | **Ambush? What ambush?** | Defeated the Jack of Diamonds with 3 stars | `boss_jack_3` |
+| ⚔️ | **Kingslayer** | Defeated the King of Clubs | `boss_king` |
+| 🛡️ | **Armour breaker** | Defeated the King of Clubs with 3 stars | `boss_king_3` |
+| 🖤 | **Queen sacrifice** | Defeated the Queen of Spades | `boss_queen` |
+| 🔮 | **Curse breaker** | Defeated the Queen of Spades with 3 stars | `boss_queen_3` |
+| 🏰 | **Court overthrown** | Defeated all three bosses of a month with 3 stars | `boss_court` |
 
 ### Rarity
 
