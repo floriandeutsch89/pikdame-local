@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.132.0] - 2026-11-11
+
+### Changed
+- Die Spielerliste für Statistik und Tisch ist deutlich kleiner (bei 500 Spielern rund 70 statt 260 KB): schnellerer Start, weniger mobile Daten
+- Der Tisch zeichnet bei Zügen der Mitspieler die eigene Hand nicht mehr neu und rechnet das Layout pro Zug nur noch einmal: ruhigeres Bild auf älteren Handys
+
 ## [2.131.1] - 2026-11-11
 
 ### Fixed
