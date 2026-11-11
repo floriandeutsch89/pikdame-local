@@ -12,6 +12,7 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   Repo-Doku (README, docs/; k8s/ und landing/ READMEs bei nächster Berührung).
   Deutsche Bestandskommentare beim Berühren migrieren.
 - **Deutsch:** alle nutzersichtbaren Texte (Quellsprache, über i18n).
+  Nicht gendern (kein „/in“, „:in“, „*in“): Titel und Namen in der kurzen Form.
   Changelog-Fragmente: Überschriften englisch (Added/Changed/Fixed/Removed),
   Inhalt deutsch.
 - **Kommentare 1–2 Zeilen**, nur Warum/Falle/Vertrag; Erklärungen in docs/,
