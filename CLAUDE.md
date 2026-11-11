@@ -93,6 +93,9 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
     Neue Tabellen/Spalten nach `docs/developer/schema.md` (TIMESTAMPTZ `*_at`, DATE `*_day`, keine Epoch-Zahlen).
   - `Mailer.js`: eigener SMTP-Client, Log-Fallback; Header RFC 2047, Body
     Quoted-Printable — nie rohes UTF-8 in Kopfzeilen.
+  - Neues Abzeichen = ID in `Badges.js`, Text in `badgeMeta` (DE/EN samt „how“), Eintrag in
+    `BADGE_FAMILIES`/`BADGE_SINGLES` des Clients, danach `npm run docs:gen` (sonst `docs:check` rot).
+    Boss-Abzeichen: `bossBadges` (Sieg, 3 Sterne, alle Bosse eines Monats).
   - `Badges.js` (Familien in `BADGE_FAMILIES`, Fakten aus `finishRound`),
     `Progression.js` (XP, Tagesaufgaben, Serie mit Joker-Tag; XP-Regeln
     spiegelt `XP_RULES` im Client, Vertragstest). UI: Stufe + Serie am
