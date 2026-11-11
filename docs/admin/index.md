@@ -40,24 +40,24 @@ All persistent data lives in **one directory**, mounted into the container at
 
 | File | Contents |
 | --- | --- |
-| `years.json` | Per-name counters for the December year review |
 | `sessions-snapshot.json` | Running tables and open daily-puzzle attempts, written every minute and on shutdown so games survive a restart or crash |
 
 Accounts, player profiles (statistics, badges, progress; `players` and its
 `player_*` tables), the Stammtische (`stammtische` and its `stammtisch_*`
 tables), the daily challenge (leaderboard and the day's ranked attempts, 14-day
 retention) and the Kartenhaus, puzzle and tutorial attempts ({doc}`play-attempts`,
-90 days), the finished matches ("Meine Partien") and the anonymous server
-statistics live in PostgreSQL. A `players.json`, `stammtisch.json`, `games.json`
-or `stats.json` from an older version is imported on the first start and renamed
-to `….json.migrated` (`[db] players.json: imported … profiles …`,
+90 days), the finished matches ("Meine Partien"), the anonymous server
+statistics, the year review counters and the Kartenhaus months the server builds
+live in PostgreSQL. A `players.json`, `stammtisch.json`, `games.json`,
+`stats.json`, `years.json` or `tower-months.json` from an older version is
+imported on the first start and renamed to `….json.migrated` (`[db] players.json: imported … profiles …`,
 `[db] games.json: imported … games …` in the log).
 
 If that directory is not writable, **nothing is saved** and everything is lost on
 restart. Since v1.54.4 the server checks this at startup and says so loudly:
 
 ```
-Datenverzeichnis beschreibbar: /app/data [years.json 812B, sessions-snapshot.json 4821B]
+Datenverzeichnis beschreibbar: /app/data [sessions-snapshot.json 4821B, monitor-history.json 812B]
 ```
 
 or, if something is wrong:

@@ -160,10 +160,11 @@ always gets the same deals.
     their pace. Measured for 2027-01: 26 minutes, about 25 CPU minutes, about
     +75 MB RSS while it runs (a second V8 isolate and ONNX session), no change
     in event-loop delay or bot-turn time, also on a single core.
-  - `data/tower-months.json` (atomic writes like the other JSON stores) holds
-    per month the generator version and per floor the seed, Zen's proof
-    `[stars, margin, hash]`, Schwer's where it won, the medium rate. It is
-    written after every finished floor, so a restart resumes there.
+  - The table `tower_floors` (`game/TowerMonthStore.js`, one row per month and
+    floor) holds the generator version and per floor the seed, Zen's proof
+    `[stars, margin, hash]`, Schwer's where it won, the medium rate. A row is
+    written after every finished floor, so a restart resumes there. A
+    `data/tower-months.json` of an older version is imported once.
   - On start the Zen proofs of this and next month are replayed (seconds). A
     floor Zen no longer wins (bots or net changed) is picked again, plus the
     floor above if the staircase needs it; the rest stays (players have stars).
@@ -174,10 +175,10 @@ always gets the same deals.
     An unproven deal is never served (`BotTower.stageConfig` gives `seed: null`,
     `startTower` refuses).
   - Without onnxruntime nothing is built (Zen would play the heuristic: no
-    proof); a warning is logged and whatever `data/` holds is used. Months do
+    proof); a warning is logged and whatever the table holds is used. Months do
     not cycle any more.
   - `PIKDAME_TOWER_GEN` (default `1`): `0` makes an instance read-only. It
-    never builds; it re-reads `data/tower-months.json` on every hourly pass
+    never builds; it re-reads the table on every hourly pass
     (a dedicated generator instance from the same image may write it) and
     replays the proofs on start, only logging a floor Zen no longer wins. The
     tests run with `0`.

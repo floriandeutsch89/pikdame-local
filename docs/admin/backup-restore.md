@@ -9,8 +9,7 @@ bottom of this page once — it takes five minutes and is the only way to know.
 
 | What | Where | Lose it and… |
 | --- | --- | --- |
-| Year review counters | `years.json` in the data volume | …the December review of this year is gone. The game still works. |
-| Accounts, player profiles, Stammtische, daily challenge, game history | the PostgreSQL database (`users`, `login_sessions`, `players` with its `player_*` tables, `stammtische` with its `stammtisch_*` tables, `challenge_results`, `challenge_attempts`, `games`, `game_seats`, `global_stats`, …) | …people can't log in, everyone's statistics, badges and progress are gone, so are the groups' tables, the challenge board, today's attempts, "Meine Partien" and the server-wide numbers. Guests can still play. It lives outside the volume. |
+| Accounts, player profiles, Stammtische, daily challenge, game history | the PostgreSQL database (`users`, `login_sessions`, `players` with its `player_*` tables, `stammtische` with its `stammtisch_*` tables, `challenge_results`, `challenge_attempts`, `games`, `game_seats`, `global_stats`, `player_years`, `tower_floors`, …) | …people can't log in, everyone's statistics, badges and progress are gone, so are the groups' tables, the challenge board, today's attempts, "Meine Partien", the server-wide numbers and the year review; the Kartenhaus months from 2027 are picked again (the same deals). Guests can still play. It lives outside the volume. |
 | Running games | `sessions-snapshot.json` | …nothing, long-term. Rewritten every minute while tables change and on shutdown; deleted once restored. |
 
 Everything else — the image, the code, the config — is reproducible from Git and

@@ -61,8 +61,6 @@ const CHALLENGE_BOT_DIFFICULTY = 'medium';
 // Eigenstaendige Themenseiten (public/<slug>.html). Eine Seite kann nur fuer
 // EIN Hauptthema ranken - deshalb je eine Seite statt eines Sammelblocks.
 const SEO_PAGES = ['romme-regeln', 'pik-dame-regeln', 'kartenspiele-zu-zweit', 'pik-dame-strategie', 'pik-dame-oder-hearts'];
-// "Dein Pik-Dame-Jahr": per-year counters behind the December review.
-const yearStats = createYearStatsStore();
 // PostgreSQL is mandatory: without it nothing could be stored for good.
 const DATABASE_URL = connectionStringFromEnv(process.env);
 if (!DATABASE_URL) {
@@ -73,6 +71,9 @@ const db = createPool(DATABASE_URL);
 const challengeStore = createChallengeStore(db);
 // Player profiles by name (players.json of older versions is imported once).
 const playerStore = createPlayerStore(db);
+// "Dein Pik-Dame-Jahr": per-year counters behind the December review (years.json is imported once).
+const yearStats = createYearStatsStore(db);
+yearStats.ready().catch((e) => console.error('[db] year stats not ready yet:', e.message));
 // Share of players per badge for the trophy cabinet: one cached query, started with the server.
 const badgeRarity = createBadgeRarity(db);
 // PIKDAME_ACCOUNTS=0 switches the account feature off; the database stays required.
@@ -138,7 +139,7 @@ let DATA_DIR_WRITABLE = true; // for the config report
     const probe = path.join(DATA_DIR, '.write-test');
     fs.writeFileSync(probe, String(Date.now()));
     fs.unlinkSync(probe);
-    const info = ['years.json', 'sessions-snapshot.json']
+    const info = ['sessions-snapshot.json', 'monitor-history.json']
       .map((f) => {
         try {
           return `${f} ${fs.statSync(path.join(DATA_DIR, f)).size}B`;
@@ -162,9 +163,9 @@ let DATA_DIR_WRITABLE = true; // for the config report
 })();
 const CRASH_LOG_FILE = path.join(DATA_DIR, 'crash.log');
 // Kartenhaus months from 2027-01: the server picks their deals (a throttled worker).
-// PIKDAME_TOWER_GEN=0: this instance only reads data/tower-months.json and checks it (another one builds).
+// PIKDAME_TOWER_GEN=0: this instance only reads the stored months and checks them (another one builds).
 const towerMonths = require('./game/TowerMonths').createTowerMonths({
-  file: path.join(DATA_DIR, 'tower-months.json'),
+  store: require('./game/TowerMonthStore').createPgTowerStore(db, { legacyFile: path.join(DATA_DIR, 'tower-months.json') }),
   generate: process.env.PIKDAME_TOWER_GEN !== '0',
 });
 BotTower.setMonthSource(towerMonths.seedsFor);
@@ -187,7 +188,6 @@ function logCrash(context, err, extra = {}) {
 // der Fehler landet in crash.log.
 process.on('uncaughtException', (err) => {
   logCrash('uncaughtException', err);
-  flushStoresSafely();
   // A server that cannot bind its port is useless - exit non-zero so the
   // orchestrator (Docker/K8s) sees a failure and restarts it, instead of the
   // process drifting out with exit code 0 once nothing keeps it alive.
@@ -197,14 +197,7 @@ process.on('uncaughtException', (err) => {
 });
 process.on('unhandledRejection', (reason) => {
   logCrash('unhandledRejection', reason instanceof Error ? reason : new Error(String(reason)));
-  flushStoresSafely();
 });
-
-// Persist pending buffered writes when something goes wrong, so stats survive
-// even if the process is killed right after a crash (the debounce hasn't fired).
-function flushStoresSafely() {
-  try { yearStats.flushSync(); } catch (e) { /* best effort */ }
-}
 
 /**
  * Ermittelt alle lokalen IPv4-Adressen des Geräts (ohne 127.0.0.1). Der
@@ -2152,7 +2145,7 @@ function applyTablePrefs(game, prefs) {
 async function recordYearStats(session, results, gameRecord, date, streaks) {
   try {
     const t = session.stammtisch ? await stammtischStore.get(session.stammtisch) : null;
-    yearStats.recordFinishedGame(results, gameRecord.players, date, { table: t && t.name ? t.name : null, streaks, teams: gameRecord.teamMode ? gameRecord.teams : null });
+    await yearStats.recordFinishedGame(results, gameRecord.players, date, { table: t && t.name ? t.name : null, streaks, teams: gameRecord.teamMode ? gameRecord.teams : null });
   } catch (err) {
     logCrash('year-stats', err);
   }
@@ -2164,8 +2157,8 @@ async function yearReviewFor(name, year) {
   return buildReview({
     year,
     profile: await playerStore.getPlayerByName(name),
-    bucket: yearStats.yearFor(name, year),
-    trackingSince: yearStats.trackingSince(),
+    bucket: await yearStats.yearFor(name, year),
+    trackingSince: await yearStats.trackingSince(),
   });
 }
 
@@ -3136,7 +3129,6 @@ async function shutdown(signal) {
   // Flushes at once; the deal worker ends between two games (never inside an ONNX run).
   let towerStopped = Promise.resolve();
   try { towerStopped = towerMonths.stop({ graceMs: 4000 }); } catch (e) { /* never block shutdown */ }
-  try { yearStats.flushSync(); } catch (e) { /* the year review is best effort */ }
   try { if (adminMonitor) adminMonitor.flushSync(); } catch (e) { /* monitoring history is best effort */ }
   for (const client of wss.clients) {
     try {
@@ -3148,7 +3140,7 @@ async function shutdown(signal) {
   // No new connections; database writes under way (a finished match, a floor, play
   // attempts) commit before the pool closes - a lost write once broke the challenge (#458).
   const closed = new Promise((resolve) => server.close(resolve));
-  const settled = (async () => { while (pendingWrites.size) await Promise.all([...pendingWrites]); await playEvents.flush(); })();
+  const settled = (async () => { while (pendingWrites.size) await Promise.all([...pendingWrites]); await playEvents.flush(); await towerStopped.catch(() => {}); })();
   await Promise.race([settled, new Promise((resolve) => setTimeout(resolve, 3500).unref())]);
   badgeRarity.stop();
   await db.end().catch(() => {});
