@@ -464,6 +464,8 @@ window.I18N_SERVER_PATTERNS = [
   // Kartenhaus (BotTower.js)
   [/^Kartenhaus, Etage (\d+): Hol in dieser Runde mehr Punkte als jeder Bot - die Bots bekommen (\d+) Punkte Vorgabe\.$/, 'House of Cards, floor $1: score more points than every bot this round - the bots get a $2-point head start.'],
   [/^Kartenhaus, Etage (\d+): Hol in dieser Runde mehr Punkte als jeder Bot\.$/, 'House of Cards, floor $1: score more points than every bot this round.'],
+  [/^Kartenhaus, Etage (\d+): Boss-Kampf\. Was du auslegst, kostet den Boss Leben - was er auslegt, kostet dich Leben\.$/, 'House of Cards, floor $1: boss fight. What you meld costs the boss life - what it melds costs you life.'],
+  [/^Der Boss ist wütend: Seine Treffer zählen ab jetzt 25 % mehr\.$/, 'The boss is enraged: its hits count 25 % more from now on.'],
   [/^Risiko: Du startest mit der Pik Dame auf der Hand – ausgelegt \+100, auf der Hand −100\.$/, 'Risk: you start with the Queen of Spades in your hand – +100 melded, −100 in hand.'],
   [/^Erschwernis: Du darfst die Ablage nicht aufnehmen\.$/, 'Handicap: you may not take the discard pile.'],
   [/^Erschwernis: Sterne gibt es nur, wenn du selbst ausmachst\.$/, 'Handicap: stars only if you go out yourself.'],

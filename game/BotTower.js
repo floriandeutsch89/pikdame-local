@@ -42,7 +42,11 @@ const CLEAR_MARGIN = 100;
 // floors 1-10: same deals, and the profile's pre-monthly `tower` stars count
 // there (monthBest).
 const TOWER_SEEDS = require('./TowerSeeds');
+const BossFight = require('./BossFight');
 const LEGACY_MONTH = '2026-10';
+// Boss floors (BossFight.js): from this month on, floors 10, 15 and 20 are duels in life
+// points. null: no month yet - a month's deals must be picked under the boss rule first.
+let bossFrom = null;
 let monthSource = null; // month -> [20 seeds or null] (TowerMonths.js)
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
@@ -58,6 +62,16 @@ function setMonthSource(fn) {
   monthSource = typeof fn === 'function' ? fn : null;
 }
 
+/** From which month ('YYYY-MM') the boss floors apply; anything else switches them off. */
+function setBossFrom(month) {
+  bossFrom = MONTH_RE.test(String(month)) ? String(month) : null;
+}
+
+/** The boss of a floor in that month, or null (an ordinary floor). */
+function bossFor(stage, month) {
+  return bossFrom && String(month) >= bossFrom ? BossFight.bossOf(stage) : null;
+}
+
 /** The twenty seeds of a month; null for a floor without a proven deal (yet). */
 function monthSeeds(month) {
   if (TOWER_SEEDS[month]) return TOWER_SEEDS[month];
@@ -71,6 +85,9 @@ function stageConfig(stage, month = null) {
   const m = month == null ? LEGACY_MONTH : String(month);
   if (!base || !MONTH_RE.test(m)) return null;
   const seed = monthSeeds(m)[base.stage - 1];
+  const boss = bossFor(base.stage, m);
+  // A boss floor is a duel: one bot, no head start, no modifier - the boss's rules replace them.
+  if (boss) return { stage: base.stage, bots: [boss.bot], handicap: 0, boss, seed: Number.isInteger(seed) ? seed : null, month: m };
   return { ...base, seed: Number.isInteger(seed) ? seed : null, month: m };
 }
 
@@ -99,6 +116,17 @@ function stageWinner(totals, roundWinnerId, humanId, handicap = 0, goOut = false
 /** The floor outcome from a GameManager game record (one round, one human). */
 function outcomeFromRecord(record, humanId) {
   const cfg = stageConfig(record && record.towerStage, (record && record.towerMonth) || null);
+  if (cfg && cfg.boss) {
+    // A boss floor: the fight's verdict, not a score. `margin` is the life left (the generator's measure).
+    const fight = record.boss;
+    if (!fight || !fight.over) return null;
+    const me = Math.max(0, fight.me);
+    return {
+      stage: cfg.stage, month: cfg.month, stars: BossFight.starsFor(fight), boss: cfg.boss.id, won: !!fight.won,
+      myLife: me, myMaxLife: BossFight.PLAYER_HP, bossLife: Math.max(0, fight.boss), bossMaxLife: cfg.boss.hp, rounds: fight.round,
+      myScore: me, bestBot: Math.max(0, fight.boss), handicap: 0, margin: fight.won ? me : 0, wentOut: false,
+    };
+  }
   const round = record && record.rounds && record.rounds[0];
   if (!cfg || !round || !round.results || !round.results[humanId]) return null;
   const botIds = ((record.players) || []).filter((p) => p.isBot).map((p) => p.id);
@@ -172,12 +200,16 @@ function totalsOf(profile) {
 }
 
 /** What the client needs to draw the tower (no seeds: the deals stay a surprise). */
-function publicStages() {
-  return TOWER_STAGES.map(({ stage, bots, handicap, mods }) => ({ stage, bots: [...bots], handicap, ...(mods ? { mods: [...mods] } : {}) }));
+function publicStages(month = null) {
+  return TOWER_STAGES.map(({ stage, bots, handicap, mods }) => {
+    const boss = month ? bossFor(stage, month) : null;
+    if (boss) return { stage, bots: [boss.bot], handicap: 0, boss: boss.id };
+    return { stage, bots: [...bots], handicap, ...(mods ? { mods: [...mods] } : {}) };
+  });
 }
 
 module.exports = {
   TOWER_STAGES, TOWER_SIZE, MAX_STARS, CLEAR_MARGIN, MODS, LEGACY_MONTH,
-  hasMod, monthOf, monthSeeds, setMonthSource, stageConfig, starsFor, stageWinner, outcomeFromRecord,
+  hasMod, monthOf, monthSeeds, setMonthSource, setBossFrom, bossFor, stageConfig, starsFor, stageWinner, outcomeFromRecord,
   unlockedStage, summarize, monthBest, monthsOf, totalsOf, publicStages,
 };

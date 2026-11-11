@@ -2500,7 +2500,7 @@ wss.on('connection', (ws, req) => {
       const best = !PUBLIC_MODE && name ? await playerStore.towerBest(name, month) : {};
       const months = !PUBLIC_MODE && name ? await playerStore.towerMonths(name) : [];
       ws.send(JSON.stringify({
-        type: 'towerInfo', month, today, stages: BotTower.publicStages(), clearMargin: BotTower.CLEAR_MARGIN, best, ...BotTower.summarize(best),
+        type: 'towerInfo', month, today, stages: BotTower.publicStages(month), clearMargin: BotTower.CLEAR_MARGIN, best, ...BotTower.summarize(best),
         closed: towerMonths.closedFloors(month), // floors without a proven deal: 'building' | 'locked'
         totalStars: months.reduce((n, m) => n + m.stars, 0), archive: months.filter((m) => m.month !== month),
       }));
