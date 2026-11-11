@@ -106,6 +106,9 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   - Kartenhaus-Blätter ab 2027-01 baut der Server selbst (`TowerMonths.js`, Worker; Tabelle `tower_floors`):
     EINE Regel/Generator (`TowerRule.js`/`TowerGen.js`) für Server und Skript;
     nie ein unbewiesenes Blatt ausliefern (Zen-Beweis Pflicht).
+  - `BossFight.js`: Boss-Etagen 10/15/20 als Duell in Lebenspunkten, reine Schadensregeln (Kartenregeln
+    unverändert); aus, bis `BotTower.setBossFrom(Monat)` gesetzt ist. Etagen eines laufenden Monats nie
+    umstellen (Sterne). Zahlen nur aus Simulation ändern. Doku `docs/developer/boss-fight.md`.
   - Spielversuche nur über `PlayEvents.js` (`play_attempts`, Admin „Festhänger“;
     Kartenhaus, Rätsel über `PuzzleAttempts.js`, Tutorial): eine Zeile pro Versuch
     (`attempt_id`), 90 Tage, ohne await; Konto löschen löscht mit. Tutorial-Lektion

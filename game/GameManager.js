@@ -7,7 +7,7 @@ const { seededRandom, createDeck, shuffle, dealCards, performLuckyCut } = requir
 // darf den ganzen Tisch nicht blockieren.
 const CUT_TIMEOUT_MS = 45000;
 const { validateMeld, validateSet, runAssignmentByOrder, tryLayOff, tryJokerSwap, enumerateMeldOptions, enumerateLayOffOptions, canFormMeldWithCard } = require('./Rules');
-const { scoreRound, scoreLines, applyRoundScores, checkGameOver, checkTeamGameOver, gameEndThreshold, DEFAULT_HOUSE_RULES } = require('./ScoreBoard');
+const { scoreRound, scoreLines, applyRoundScores, checkGameOver, checkTeamGameOver, gameEndThreshold, sumValues, DEFAULT_HOUSE_RULES } = require('./ScoreBoard');
 const Teams = require('./Teams');
 const { sanitizeName } = require('./SessionRegistry');
 const { rankIndex, cardLabel, isPikDame, cardValue, RANKS } = require('./Card');
@@ -18,6 +18,7 @@ const { dayEnd } = require('./GameDay');
 const { isQuipMoment } = require('./BotQuips');
 const { isCelebration } = require('./Celebrations');
 const BotTower = require('./BotTower');
+const BossFight = require('./BossFight');
 const { TUTORIAL_VERSION, isTutorialStep } = require('./TutorialSteps');
 // Every try of a Kartenhaus floor plays the same deal under the same rules and bots.
 const TOWER_FIXED_ERROR = 'Im Kartenhaus sind Regeln und Bots fest - jeder Versuch einer Etage läuft gleich.';
@@ -73,6 +74,7 @@ class GameManager {
     this.towerStage = Number.isInteger(options.towerStage) ? options.towerStage : null;
     // The month whose deals this floor uses (null: a pre-monthly snapshot = the first month).
     this.towerMonth = this.towerStage && typeof options.towerMonth === 'string' ? options.towerMonth : null;
+    this.bossFight = null; // a boss floor's life points (BossFight.js), set by startTowerRound
     // Wird vom Server gesetzt: raeumt die Sitzung weg, wenn ein Solo-Spiel
     // abgebrochen wird (nicht wiederaufnehmbar, keine Wertung).
     this.onAbandon = typeof options.onAbandon === 'function' ? options.onAbandon : null;
@@ -837,9 +839,14 @@ class GameManager {
     this.players.sort((a, b) => Number(a.isBot) - Number(b.isBot));
     this.players.filter((p) => p.isBot).forEach((b, i) => { b.botDifficulty = cfg.bots[i]; });
     this.setExplicitDealer(this.players[this.players.length - 1].id);
-    this.addLog(cfg.handicap
-      ? `Kartenhaus, Etage ${cfg.stage}: Hol in dieser Runde mehr Punkte als jeder Bot - die Bots bekommen ${cfg.handicap} Punkte Vorgabe.`
-      : `Kartenhaus, Etage ${cfg.stage}: Hol in dieser Runde mehr Punkte als jeder Bot.`);
+    if (cfg.boss) {
+      this.bossFight = BossFight.start(cfg.boss);
+      this.addLog(`Kartenhaus, Etage ${cfg.stage}: Boss-Kampf. Was du auslegst, kostet den Boss Leben - was er auslegt, kostet dich Leben.`);
+    } else {
+      this.addLog(cfg.handicap
+        ? `Kartenhaus, Etage ${cfg.stage}: Hol in dieser Runde mehr Punkte als jeder Bot - die Bots bekommen ${cfg.handicap} Punkte Vorgabe.`
+        : `Kartenhaus, Etage ${cfg.stage}: Hol in dieser Runde mehr Punkte als jeder Bot.`);
+    }
     this.attemptId = crypto.randomUUID();
     this.startNewRound();
     const human = this.players.find((p) => !p.isBot);
@@ -866,10 +873,43 @@ class GameManager {
     }
   }
 
+  /** The boss of this floor (BossFight.BOSSES), or null. */
+  _boss() {
+    const cfg = this.towerStage ? BotTower.stageConfig(this.towerStage, this.towerMonth) : null;
+    return (cfg && cfg.boss) || null;
+  }
+
+  /**
+   * Boss floor: what `player` laid this turn hits the other side. Read as a difference of
+   * what lies on the table (an undo inside the turn cannot count twice). True: the fight is over.
+   */
+  _bossTurnEnd(player) {
+    const fight = this.bossFight;
+    const boss = this._boss();
+    if (!fight || !boss || fight.over) return false;
+    if (!fight.seen || fight.seen.round !== this.roundNumber) fight.seen = { round: this.roundNumber };
+    const before = fight.seen[player.id] || { laid: 0, melds: 0, queens: 0 };
+    const now = {
+      laid: sumValues(player.laidOutCards),
+      melds: this.tableMelds.filter((m) => m.ownerId === player.id).length,
+      queens: player.laidOutCards.filter((c) => isPikDame(c)).length,
+    };
+    fight.seen[player.id] = now;
+    const turn = {
+      points: now.laid - before.laid,
+      newMelds: Math.max(0, now.melds - before.melds),
+      queensLaid: Math.max(0, now.queens - before.queens),
+      holdsQueen: player.hand.some((c) => isPikDame(c)),
+    };
+    if (player.isBot) BossFight.bossTurn(fight, boss, turn);
+    else BossFight.playerTurn(fight, boss, turn);
+    return fight.over;
+  }
+
   /** Tower modifier "noDiscard": the human seat never takes the discard pile. */
   _discardBlockedFor(player) {
     return !!(this.towerStage && player && !player.isBot
-      && BotTower.hasMod(BotTower.stageConfig(this.towerStage), 'noDiscard'));
+      && BotTower.hasMod(BotTower.stageConfig(this.towerStage, this.towerMonth), 'noDiscard'));
   }
 
   /** Lobby control "Bot-Stärke": one level for every bot (the server checks the host). */
@@ -1980,12 +2020,18 @@ class GameManager {
       // Letzte Karte wird VERDECKT abgelegt und Runde endet sofort
       this.discardPile.unshift({ ...card, faceDown: true });
       this.addLog(`${player.name} legt die letzte Karte verdeckt ab und beendet die Runde!`);
+      this._bossTurnEnd(player);
       this.finishRound(player.id);
       return { ok: true, roundEnded: true };
     }
 
     this.discardPile.unshift(card);
     this.addLog(`${player.name} wirft ${cardLabel(card)} ab.`);
+    // Boss floor: a knockout ends the fight at once, in the middle of the round.
+    if (this._bossTurnEnd(player)) {
+      this.finishRound(null, { bossKo: true });
+      return { ok: true, roundEnded: true };
+    }
     this.advanceTurn();
     return { ok: true };
   }
@@ -2172,7 +2218,18 @@ class GameManager {
     // Kartenhaus: the match is its one round, won by the human only with a star.
     const towerCfg = this.towerStage ? BotTower.stageConfig(this.towerStage, this.towerMonth) : null;
     let over;
-    if (towerCfg) {
+    if (towerCfg && towerCfg.boss && this.bossFight) {
+      // A boss floor: rounds follow until one side is down (BossFight.js).
+      const fight = this.bossFight;
+      const human = this.players.find((p) => !p.isBot);
+      const bot = this.players.find((p) => p.isBot);
+      const wasEnraged = fight.enraged;
+      if (!fight.over) BossFight.roundEnd(fight, towerCfg.boss, { myHand: human ? sumValues(human.hand) : 0, bossHand: bot ? sumValues(bot.hand) : 0 });
+      over = fight.over
+        ? { gameOver: true, winnerId: fight.won ? human && human.id : bot && bot.id, finalTotals: totalsForGameOverCheck }
+        : { gameOver: false };
+      if (!fight.over && fight.enraged && !wasEnraged) this.addLog('Der Boss ist wütend: Seine Treffer zählen ab jetzt 25 % mehr.');
+    } else if (towerCfg) {
       over = {
         gameOver: true,
         winnerId: BotTower.stageWinner(totalsForGameOverCheck, winnerId, this.players.find((p) => !p.isBot)?.id, towerCfg.handicap, BotTower.hasMod(towerCfg, 'goOut')),
@@ -2247,6 +2304,8 @@ class GameManager {
         challengeDate: this.challengeDate || undefined,
         towerStage: this.towerStage || undefined,
         towerMonth: this.towerMonth || undefined,
+        // A boss floor's verdict (BotTower.outcomeFromRecord): life left, rounds, who won.
+        boss: this.bossFight ? { me: this.bossFight.me, boss: this.bossFight.boss, adds: this.bossFight.adds.slice(), round: this.bossFight.round, over: this.bossFight.over, won: this.bossFight.won } : undefined,
         // A seat given up mid-game counts as a bot from then on: no stats, XP or history for the leaver.
         players: this.players.map((p) => {
           const bot = p.isBot || !!p.leftGame;
@@ -3519,7 +3578,9 @@ class GameManager {
       towerStage: this.towerStage || null,
       towerMonth: this.towerMonth || null,
       // The floor's rules against the human (the table shows the blocked discard pile).
-      towerMods: (this.towerStage && (BotTower.stageConfig(this.towerStage) || {}).mods) || null,
+      towerMods: (this.towerStage && (BotTower.stageConfig(this.towerStage, this.towerMonth) || {}).mods) || null,
+      // A boss floor: life points, guards and what the last turn did (BossFight.publicView).
+      bossFight: this.bossFight && this._boss() ? BossFight.publicView(this.bossFight, this._boss()) : null,
       // Head start and the two-star margin of this floor, for the floor card and its rules (never the seed).
       towerHandicap: this.towerStage ? (BotTower.stageConfig(this.towerStage, this.towerMonth) || {}).handicap || 0 : null,
       towerClearMargin: this.towerStage ? BotTower.CLEAR_MARGIN : null,

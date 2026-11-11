@@ -53,6 +53,9 @@ async function playFloor({ seed, stage, month, proxy = 'hard', slip = 0, run = 0
     me.botDifficulty = proxy;
     const trace = crypto.createHash('sha256');
     let guard = 0;
+    // A boss floor runs over several rounds: the next one starts where a human would tap "Weiter".
+    do {
+    if (g.phase === 'roundEnd') g.startNewRound();
     while (g.phase === 'playing' && guard++ < 5000) {
       const cp = g.currentPlayer();
       const before = g.turnIndexInRound;
@@ -81,11 +84,13 @@ async function playFloor({ seed, stage, month, proxy = 'hard', slip = 0, run = 0
       if (steps) steps.push(step); // debugging a diverging replay
       if (g.phase === 'playing' && g.turnIndexInRound === before && g.currentPlayer().id === cp.id) g.finishRound(null);
     }
+    } while (g.phase === 'roundEnd' && guard < 5000);
     const record = g.lastGameRecord;
     if (!record) throw new Error(`floor ${stage}, seed ${seed}: no game over`);
     const o = BotTower.outcomeFromRecord(record, 'me');
     const r = record.rounds[0];
     trace.update(JSON.stringify(Object.keys(r.results).sort().map((id) => [id, r.results[id].roundScore])));
+    if (record.boss) trace.update(JSON.stringify([record.boss.me, record.boss.boss, record.boss.adds, record.boss.round, record.boss.won]));
     return { ...o, turns: guard, hash: trace.digest('hex').slice(0, 12) };
   } finally {
     g.destroy();

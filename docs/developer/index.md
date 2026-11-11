@@ -10,6 +10,7 @@ protocol
 game-constants
 progression
 team-mode
+boss-fight
 bots
 rl-training
 rl-setup
@@ -45,6 +46,7 @@ There is **no build step**. The client is plain HTML/CSS/JS served as-is: edit
 | `game/Rules.js` | Pure rules: what is a valid set/run, lay-off, joker swap |
 | `game/Bot.js` | Bot decision-making (draw, meld, discard) |
 | `game/ScoreBoard.js` | Scoring and game-over logic |
+| `game/BossFight.js` | Kartenhaus boss floors: a duel in life points, the bosses' rules (see {doc}`boss-fight`) |
 | `game/Teams.js` | "2 gegen 2": teams by seat, team sums, team records (see {doc}`team-mode`) |
 | `game/Deck.js` | Deck creation, the (Fisher-Yates) shuffle, dealing |
 | `game/*Store.js` | Persistence (profiles, stats, history, challenges, accounts) |
