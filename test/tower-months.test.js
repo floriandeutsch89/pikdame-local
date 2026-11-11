@@ -42,6 +42,7 @@ function assertRule(month, floors) {
       if (!f.relaxed) assert.ok(f.medium10 >= lo && f.medium10 <= hi, `${month} floor ${stage}: medium ${f.medium10} outside ${lo}-${hi}`);
       assert.ok(f.relaxed || (f.hard10 >= R.bossHardMin(stage) && f.hard10 <= R.bossHardMax(stage)), `${month} floor ${stage}: Hard ${f.hard10} % outside the boss band`);
       assert.ok(f.relaxed || f.hard2 >= R.BOSS_CLEAR_MIN, `${month} floor ${stage}: Hard's clear wins ${f.hard2} % below ${R.BOSS_CLEAR_MIN} %`);
+      assert.ok(f.relaxed || f.hard3 >= R.BOSS_PERFECT_MIN, `${month} floor ${stage}: Hard's three-star wins ${f.hard3} % below ${R.BOSS_PERFECT_MIN} %`);
       return;
     }
     if (stage <= 10) {

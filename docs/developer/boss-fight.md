@@ -119,8 +119,10 @@ In this order, each step turning most candidates down:
    deal decides most of a fight, and without it the first picks were deals Hard
    wins in 9 of 10 fights.
 3. Hard wins **clearly** (two stars) in at least 20 % of 100 fights
-   (`BOSS_CLEAR_MIN`, stored as `hard2`). Without it the picks were deals Hard
-   only ever won with 2 or 20 life left: no second star in them for anyone.
+   (`BOSS_CLEAR_MIN`, stored as `hard2`) and with **three stars** in at least 5 %
+   (`BOSS_PERFECT_MIN`, `hard3`). Without them the picks were deals Hard only ever
+   won with 2 or 20 life left, and December's first floor 15 was one it won in
+   64 % of its fights and never with half its life: no further star in them for anyone.
 4. Mittel wins 40-80 / 30-70 / 20-60 % (`bossMediumWindow`: around Hard's band,
    since both score alike in a duel).
 
@@ -145,7 +147,9 @@ against the boss's bot, November 2026):
   ~35 points. With at least 150 / 300 life left: jack 19 / 6 %, king 28 / 9 %,
   queen 8 / 1 % of all fights. With the first star rule (200 / 400): 14 / 3 %,
   19 / 3 %, 3 / 0 % - so the thresholds came down to a quarter and half.
-- **December 2026** (300 fights per deal): Hard wins 62 / 64 / 54 %, with two
-  stars 54 / 42 / 23 %, with three 54 / 0 / 10 %. Mittel: 67 / 46 / 45 %.
+- **December 2026** (300 fights per deal): Hard wins 62 / 73 / 54 %, with two
+  stars 54 / 58 / 23 %, with three 54 / 28 / 10 %. Mittel: 67 / 66 / 45 %.
+  Floor 15 is no harder than floor 10 here: the rule's own 100 fights put it at
+  64 %, inside its band, and a deal is one sample.
 - Mittel and Schwer score alike because the bots do not play for combos - a
   human who collects on purpose should do better; that is not measured.
