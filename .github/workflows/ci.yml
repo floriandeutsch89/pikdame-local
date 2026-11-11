@@ -335,6 +335,25 @@ jobs:
         run: |
           docker inspect pikdame --format 'ReadonlyRootfs={{.HostConfig.ReadonlyRootfs}} CapDrop={{.HostConfig.CapDrop}} Pids={{.HostConfig.PidsLimit}} SecurityOpt={{.HostConfig.SecurityOpt}}'
           docker inspect pikdame --format '{{.HostConfig.ReadonlyRootfs}}' | grep -q true
+      # The backup scripts against the real stack: a dump, the restore drill on it,
+      # a truncated dump must fail the drill, and a restore brings deleted rows back.
+      - name: Backup, restore drill and restore
+        run: |
+          set -eu
+          F=docker/docker-compose.yml
+          B="$RUNNER_TEMP/backups"
+          q() { docker compose -f "$F" exec -T postgres psql -At -U pikdame -d pikdame -c "$1"; }
+          q "INSERT INTO players (player_key, player_name) VALUES ('smoke', 'Smoke')" > /dev/null
+          ./scripts/backup.sh "$F" "$B"
+          ./scripts/restore-drill.sh "$B" "$F" | tee "$RUNNER_TEMP/drill.txt"
+          grep -q 'RESTORE DRILL OK' "$RUNNER_TEMP/drill.txt"
+          mkdir "$B/bad" && head -c 2000 "$B"/pikdame-db-*.dump > "$B/bad/pikdame-db-broken.dump"
+          if ./scripts/restore-drill.sh "$B/bad" "$F"; then echo "::error::a truncated dump passed the drill"; exit 1; fi
+          q "DELETE FROM players" > /dev/null
+          ./scripts/restore.sh "$(ls "$B"/pikdame-db-*.dump | head -1)" "$F" --yes
+          [ "$(q "SELECT count(*) FROM players WHERE player_key = 'smoke'")" = 1 ] || { echo "::error::the restore did not bring the row back"; exit 1; }
+          for i in $(seq 1 30); do curl -fsS http://localhost:8080/healthz > /dev/null && exit 0; sleep 2; done
+          echo "::error::the app did not come back after the restore"; docker logs pikdame; exit 1
       - name: Clean up
         if: always()
         run: docker compose -f docker/docker-compose.yml down -v

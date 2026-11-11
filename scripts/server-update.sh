@@ -19,7 +19,7 @@ for f in docker-compose.prod.yml .env.example shared-caddy/play.pikdame.caddy; d
   curl -fsSL "$BASE/docker/$f" -o "$f"
 done
 mkdir -p /opt/pikdame/scripts
-for s in backup.sh restore.sh server-update.sh server-bootstrap.sh; do
+for s in backup.sh restore.sh restore-drill.sh server-update.sh server-bootstrap.sh; do
   curl -fsSL "$BASE/scripts/$s" -o "/opt/pikdame/scripts/$s"
 done
 chmod +x /opt/pikdame/scripts/*.sh
