@@ -60,6 +60,15 @@ scratch any more. On a boss floor the old modifiers of that floor (`queen`,
 - `TowerPlay.playFloor` plays the rounds one after another, so one game by Zen
   proves a boss deal like any other.
 
+## Badges
+
+`Badges.bossBadges(outcome, best, bossStages)`: a win earns the boss's badge
+(`boss_jack`, `boss_king`, `boss_queen`), a win with three stars a second one
+(`…_3`), and `boss_court` once every boss floor of the month stands at three
+stars (the month's best, so the last one may fall on a later try).
+`recordTowerStage` awards them with the Kartenhaus family badges; names and
+texts live in the client (`badgeMeta`).
+
 ## Picking the deals
 
 A boss deal is picked like a deal of floors 11-20 (`TowerGen.js`), on floor 10 too:

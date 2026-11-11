@@ -602,6 +602,21 @@
         how: L('Kröne das Kartenhaus in 3 Monaten: jedes Mal alle 20 Etagen mit mindestens einem Stern.', 'Crown the House of Cards in 3 months: every time all 20 floors with at least one star.') },
       tower_crowned_12: { emoji: '👷', name: L('Bau\u00admeister/in', 'Master Builder'), desc: L('12 Monate das Kartenhaus gekrönt', 'Crowned the House of Cards in 12 months'),
         how: L('Kröne das Kartenhaus in 12 Monaten.', 'Crown the House of Cards in 12 months.') },
+      // Kartenhaus boss floors (game/BossFight.js): a win, and a win with three stars
+      boss_jack: { emoji: '🗡️', name: L('Buben\u00adschreck', "Jack's bane"), desc: L('Den Karo-Buben besiegt', 'Defeated the Jack of Diamonds'),
+        how: L('Besiege den Karo-Buben, den Boss auf Etage 10 des Kartenhauses.', 'Defeat the Jack of Diamonds, the boss on floor 10 of the House of Cards.') },
+      boss_jack_3: { emoji: '😎', name: L('Hinterhalt? Welcher Hinterhalt?', 'Ambush? What ambush?'), desc: L('Den Karo-Buben mit 3 Sternen besiegt', 'Defeated the Jack of Diamonds with 3 stars'),
+        how: L('Besiege den Karo-Buben und behalte dabei mindestens zwei Drittel deines Lebens - das gibt 3 Sterne.', 'Defeat the Jack of Diamonds with at least two thirds of your life left - that is 3 stars.') },
+      boss_king: { emoji: '⚔️', name: L('Königs\u00admörder/in', 'Kingslayer'), desc: L('Den Kreuz-König besiegt', 'Defeated the King of Clubs'),
+        how: L('Besiege den Kreuz-König, den Boss auf Etage 15 des Kartenhauses.', 'Defeat the King of Clubs, the boss on floor 15 of the House of Cards.') },
+      boss_king_3: { emoji: '🛡️', name: L('Rüstungs\u00adknacker/in', 'Armour breaker'), desc: L('Den Kreuz-König mit 3 Sternen besiegt', 'Defeated the King of Clubs with 3 stars'),
+        how: L('Besiege den Kreuz-König und behalte dabei mindestens zwei Drittel deines Lebens - das gibt 3 Sterne.', 'Defeat the King of Clubs with at least two thirds of your life left - that is 3 stars.') },
+      boss_queen: { emoji: '🖤', name: L('Damen\u00adopfer', 'Queen sacrifice'), desc: L('Die Pik Dame besiegt', 'Defeated the Queen of Spades'),
+        how: L('Besiege die Pik Dame, den Boss auf Etage 20 des Kartenhauses - erst ihre Katzen, dann sie.', 'Defeat the Queen of Spades, the boss on floor 20 of the House of Cards - her cats first, then her.') },
+      boss_queen_3: { emoji: '🔮', name: L('Fluch\u00adbrecher/in', 'Curse breaker'), desc: L('Die Pik Dame mit 3 Sternen besiegt', 'Defeated the Queen of Spades with 3 stars'),
+        how: L('Besiege die Pik Dame und behalte dabei mindestens zwei Drittel deines Lebens - das gibt 3 Sterne.', 'Defeat the Queen of Spades with at least two thirds of your life left - that is 3 stars.') },
+      boss_court: { emoji: '🏰', name: L('Hofstaat gestürzt', 'Court overthrown'), desc: L('Alle drei Bosse eines Monats mit 3 Sternen besiegt', 'Defeated all three bosses of a month with 3 stars'),
+        how: L('Besiege in einem Monat Karo-Bube, Kreuz-König und Pik Dame jeweils mit 3 Sternen.', 'Defeat the Jack of Diamonds, the King of Clubs and the Queen of Spades with 3 stars each in one month.') },
     };
     return M[id] || { emoji: '🎖️', name: id, desc: '', how: '' };
   }
@@ -627,6 +642,7 @@
     'comeback', 'zen_slayer', 'zen_trio', 'ring_run', 'run_13', 'pile_glutton', 'no_joker_win',
     'quick_start', 'joker_king', 'landslide', 'challenge_champ', 'queen_magnet_day', 'stammtisch_10', 'night_owl',
     'near_miss', 'cold_shower', 'rock_bottom', 'red_lantern', 'royal_flush', 'pik_royal',
+    'boss_jack', 'boss_jack_3', 'boss_king', 'boss_king_3', 'boss_queen', 'boss_queen_3', 'boss_court',
   ];
   let globalStatsData = null;
   // Share of players per badge with the server's rare line (game/BadgeRarity.js); null: none shown.
