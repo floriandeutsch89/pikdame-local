@@ -180,6 +180,17 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   form). Any order works:
   a start-screen scene after `table` or a result reloads the start screen
   first (its buttons are hidden there and the clicks used to time out).
+- **Boss floors:** a real fight from the engine, played to its end by the bots
+  (`--floor 10|15|20`, default 10; `--seed N` another deal): `boss-intro` (the
+  entrance, frozen at `--film` ms, default 900), `boss-play` (`--turns N` of my
+  turns), `boss-pop` (a chip tapped; `--tap '.bossTrait.curse'` or `.bossLife`
+  another), `boss-hit` / `boss-strike` / `boss-claws` / `boss-curse` (that
+  effect, frozen `--film` ms after its state; the boss's hit waits ~420 ms for
+  its cards, so `--film 560`; `--combo 1` a combo strike), `boss-rage` (the
+  first enraged state), `boss-cats` (a cat down), `boss-roundend`,
+  `boss-gameover`. `--no-fx` stores "Boss-Effekte" off. A fight without that
+  moment prints so and is skipped. `--boss` gives the Kartenhaus sheet
+  (`tower`, `tower-detail --stage 10`) its boss floors.
 - **December:** `--december` stands the client clock on 28 December and
   mocks the server's year review (the server keeps its real date; like the
   server, favourite opponent and Stammtisch only with `--signed-in`). Then

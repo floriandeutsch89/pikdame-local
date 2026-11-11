@@ -53,12 +53,49 @@ scratch any more. On a boss floor the old modifiers of that floor (`queen`,
   (the human confirms it with the ordinary round-end "Weiter").
 - `publicState().bossFight` is `BossFight.publicView`: life points, guards,
   round, `enraged`, the rules as numbers (`traits`; the client owns the wording)
-  and `events`, what the last turn did (`{ seq, to: 'boss'|'add'|'me', amount,
-  kind: 'hit'|'scratch'|'curse'|'hand', combo?, add? }`).
+  `ambushReady`, `starLife` (the life left for two and three stars) and `events`,
+  what the last turn did (`{ seq, to: 'boss'|'add'|'me', amount,
+  kind: 'hit'|'scratch'|'curse'|'hand', combo?, add?, ambush?, rage?, armor?, crit? }`;
+  the reasons ride along, so the table names them instead of guessing).
+- The boss's seat carries the boss's name (`BOSSES[n].name`): log, turn line and
+  result sheet name it. The rename comes after the bot's name draw, so the
+  deal's random stream is untouched.
 - The game record carries `boss` (life left, round, `won`);
   `BotTower.outcomeFromRecord` turns it into the floor's outcome and stars.
 - `TowerPlay.playFloor` plays the rounds one after another, so one game by Zen
   proves a boss deal like any other.
+
+## At the table
+
+`public/boss-fight.js` draws a boss floor from `state.bossFight` and decides no
+rule. `client.js` calls it from `renderTable` (`bossView()` is null on every
+other table and on a stale cached page without the module).
+
+- **Panel** instead of the opponents' chips (`renderPanel`): portrait, name,
+  the rules as chips, the life bar with the half mark, round and hand count; on
+  floor 20 the two cats (a fallen one stays, struck through). It stays in the DOM
+  between renders, so the bars can move and a popover stays open. Every chip and
+  the life bar are buttons: a tap opens what the number means (`traits`,
+  `lifeRule`). Landscape beside the cats: icons only, the tap still explains.
+- **My life** sits where the score sits (`renderMyLife` into `#myScore`); the
+  floor card and its start card are not shown on a boss floor.
+- **Entrance** (`playIntro`): before the first card, under two seconds
+  (`INTRO_MS` plus the fade), a tap skips it. It is the one deliberate exception
+  to "never stop the game for a show" (#513) and lies before the first move; the
+  cut reveal waits for it (`bossIntroAhead`).
+- **Hits** (`playEffects`): the events after the last seen `seq`, once. My
+  strike is one blade over the portrait (two on a combo), the boss's hit a blade
+  over my hand, a scratch three claws, the curse a wisp from the queen's card;
+  each with its number and reason. Under 0.4 s (`FX_MS`), never over a dialog
+  (`--z-table-fx`), the first state after a load is only a baseline. The boss's
+  hit waits for its cards to land (table-moves).
+- **"Boss-Effekte"** in "Optionen" (per device, default on) switches entrance
+  and hits off; then only the bars move. `prefers-reduced-motion`: no vortex, no
+  blade, no pulse - the number still shows and fades.
+- **Result sheet:** both lives instead of the points list (`.bossPane` hides
+  it), what the hand cards cost, the next round, "enraged". The floor's verdict
+  names the life left and the life the next star needs.
+- Screenshots: `ui-shots` scenes `boss-*` (the skill lists them).
 
 ## Picking the deals
 
