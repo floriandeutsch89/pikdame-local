@@ -71,6 +71,7 @@ const proofEntry = (f) => ({
   zen: f.zen,
   ...(f.medium10 != null ? { medium10: f.medium10 } : {}),
   ...(f.hard10 != null ? { hard10: f.hard10 } : {}),
+  ...(f.hard2 != null ? { hard2: f.hard2 } : {}),
   ...(f.boss ? { boss: 1 } : {}),
 });
 
@@ -136,10 +137,14 @@ async function proveAll() {
       // Hard's slip rate: measured once where missing (not for October, it predates the gate).
       let hard10 = same && !!prev.boss === boss ? prev.hard10 : undefined;
       if (hard10 == null && (stage > 10 || boss) && month !== LEGACY.month) hard10 = await slipRate({ seed, stage, month, n: R.HARD_GAMES, proxy: 'hard' });
+      // A boss floor: Hard's clear wins (two stars), measured once where missing.
+      let hard2 = boss && same && prev.boss ? prev.hard2 : undefined;
+      if (boss && hard2 == null) hard2 = await slipRate({ seed, stage, month, n: R.HARD_GAMES, proxy: 'hard', stars: 2 });
       proofs[month].push(proofEntry({
         seed, hard: legacy || hard.stars >= 1 ? proofOf(hard) : undefined, zen: proofOf(zen),
-        medium10: same && !!prev.boss === boss ? prev.medium10 : undefined, hard10, boss,
+        medium10: same && !!prev.boss === boss ? prev.medium10 : undefined, hard10, hard2, boss,
       }));
+      if (boss && hard2 < R.BOSS_CLEAR_MIN) lost.push(`${month} floor ${stage} (Hard wins clearly in ${hard2} % < ${R.BOSS_CLEAR_MIN} %)`);
       if (hard10 != null && month !== LEGACY.month && hard10 < gate) lost.push(`${month} floor ${stage} (Hard ${hard10} % < ${gate.toFixed(1)} %)`);
       if (boss && hard10 > R.bossHardMax(stage)) lost.push(`${month} floor ${stage} (Hard ${hard10} % > ${R.bossHardMax(stage)} %: too easy for a boss)`);
       // October is closed and was played on the old floors 11-20 (100-160 head start): hashes only.

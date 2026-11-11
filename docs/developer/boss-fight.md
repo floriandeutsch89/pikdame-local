@@ -1,16 +1,16 @@
 # Boss floors (Kartenhaus)
 
-Floors 10, 15 and 20 of a Kartenhaus month can be **boss floors**: a duel against
+From December 2026 on, floors 10, 15 and 20 of a Kartenhaus month are **boss floors**: a duel against
 one bot in life points instead of scores. The card rules stay exactly as they
 are; everything a boss does is a damage rule. `game/BossFight.js` holds the
 rules as pure functions on a plain state object, `GameManager` owns that object
 (`bossFight`, part of the snapshot).
 
 :::{note}
-Boss floors are **off** until a month is switched on with
-`BotTower.setBossFrom('YYYY-MM')`. A month's deals have to be picked and proven
-under the boss rule first; floors of a running month never change (players hold
-stars on them).
+`BotTower.BOSS_FROM` (`'2026-12'`) is a constant, not configuration: worker
+threads and scripts must see the same months, and floors of a month that has
+started never change (players hold stars on them). `setBossFrom` moves it for
+tests and tooling only.
 :::
 
 ## Rules
@@ -30,7 +30,9 @@ stars on them).
 - **Enraged:** a round that starts with the boss below half its life: its hits
   count +25 % (`ENRAGE`).
 - **Round 5 is the last** (`MAX_ROUNDS`): then the higher share of life wins.
-- **Stars:** a win; a win with at least a third of the life left; with two thirds.
+- **Stars:** a win; a win with at least a quarter of the life left (150); with half (300).
+  A third and two thirds were the first values: measured on the real engine, a fight runs
+  about 2.5 rounds at ~170 damage each way, and two thirds were left in 3 % of the fights.
 
 ## The bosses
 
@@ -108,32 +110,42 @@ texts live in the client (`badgeMeta`).
 
 ## Picking the deals
 
-A boss deal is picked like a deal of floors 11-20 (`TowerGen.js`), on floor 10 too:
-Zen's proof first, then Hard with 10 % slips must win 50-80 / 40-70 / 30-60 % of
-100 fights (`TowerRule.bossHardMin`/`bossHardMax`, floors 10 / 15 / 20; the
-ceiling matters: a deal decides most of a fight, and without it the first picks
-were deals Hard wins in 9 of 10 fights) and Mittel 30-80 /
-20-70 / 10-60 % (`bossMediumWindow`: around Hard's gate, since both score alike in
-a duel). The entry carries `boss: 1`. An entry without it on a boss floor (a month
-stored before the floors became boss floors) never fits and is picked again, in
-`rule` and in `missing` mode; its old deal is a candidate again, so a replica that
-picks afresh and one that re-picks agree.
+A boss deal is picked like a deal of floors 11-20 (`TowerGen.js`), on floor 10 too.
+In this order, each step turning most candidates down:
 
-For a static month: `node scripts/tower-seeds.js 2026-12 2026-12 --floors 10,15,20
---boss-from 2026-12` (the flag switches the boss floors on for that run until
-`BotTower` does it itself).
+1. Zen's proof: Zen wins the fight.
+2. Hard with 10 % slips wins 60-80 / 50-70 / 40-60 % of 100 fights (floors
+   10 / 15 / 20, `TowerRule.bossHardMin`/`bossHardMax`). The ceiling matters: a
+   deal decides most of a fight, and without it the first picks were deals Hard
+   wins in 9 of 10 fights.
+3. Hard wins **clearly** (two stars) in at least 20 % of 100 fights
+   (`BOSS_CLEAR_MIN`, stored as `hard2`). Without it the picks were deals Hard
+   only ever won with 2 or 20 life left: no second star in them for anyone.
+4. Mittel wins 40-80 / 30-70 / 20-60 % (`bossMediumWindow`: around Hard's band,
+   since both score alike in a duel).
+
+The entry carries `boss: 1`. An entry without it on a boss floor (a month stored
+before the floors became boss floors) never fits and is picked again, in `rule`
+and in `missing` mode; its old deal is a candidate again, so a replica that picks
+afresh and one that re-picks agree.
+
+For a static month: `node scripts/tower-seeds.js 2026-12 2026-12 --floors 10,15,20`
+(`--boss-from YYYY-MM` moves the first boss month for that run).
 
 ## Where the numbers come from
 
-Measured on the real engine with the real bots: 300 fights of up to five rounds
-per pairing (a human proxy with 10 % slips against the boss's bot).
+Measured on the real engine with the real bots (a human proxy with 10 % slips
+against the boss's bot, November 2026):
 
 - In a duel both sides deal almost the same damage per round (160-190), and the
-  bot level hardly changes it (Mittel 164, Schwer 163, Zen 188 as the boss). So
-  difficulty comes from life points and rules, and "enraged" is a damage bonus.
-- Wins of Schwer with slips: jack 47 %, king 42 %, queen 30 %; 2.1-2.4 rounds on
-  average; three stars in 3-8 % of the fights. Mittel and Schwer score alike
-  because the bots do not play for combos - a human who collects on purpose
-  should do better; that is not measured.
-- These are starting values. The deals of a month are still picked one by one
-  (Zen must win, as on every floor).
+  bot level hardly changes it. So difficulty comes from life points, rules and
+  above all the deal; "enraged" is a damage bonus.
+- **Random deals** (80 deals x 10 fights per boss): Hard wins jack 39 %, king
+  43 %, queen 20 % (standard error ~4); from deal to deal the rate moves by
+  ~35 points. With at least 150 / 300 life left: jack 19 / 6 %, king 28 / 9 %,
+  queen 8 / 1 % of all fights. With the first star rule (200 / 400): 14 / 3 %,
+  19 / 3 %, 3 / 0 % - so the thresholds came down to a quarter and half.
+- **December 2026** (300 fights per deal): Hard wins 62 / 64 / 54 %, with two
+  stars 54 / 42 / 23 %, with three 54 / 0 / 10 %. Mittel: 67 / 46 / 45 %.
+- Mittel and Schwer score alike because the bots do not play for combos - a
+  human who collects on purpose should do better; that is not measured.

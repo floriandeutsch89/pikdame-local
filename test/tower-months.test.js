@@ -35,6 +35,15 @@ function assertRule(month, floors) {
   floors.forEach((f, i) => {
     const stage = i + 1;
     assert.ok(TowerGen.proven(f), `${month} floor ${stage}: a proven deal`);
+    // A boss floor (10, 15, 20 from BotTower.BOSS_FROM) has its own gates and says so.
+    if (BotTower.bossFor(stage, month)) {
+      const [lo, hi] = R.bossMediumWindow(stage);
+      assert.strictEqual(f.boss, 1, `${month} floor ${stage}: tagged as a boss deal`);
+      if (!f.relaxed) assert.ok(f.medium10 >= lo && f.medium10 <= hi, `${month} floor ${stage}: medium ${f.medium10} outside ${lo}-${hi}`);
+      assert.ok(f.relaxed || (f.hard10 >= R.bossHardMin(stage) && f.hard10 <= R.bossHardMax(stage)), `${month} floor ${stage}: Hard ${f.hard10} % outside the boss band`);
+      assert.ok(f.relaxed || f.hard2 >= R.BOSS_CLEAR_MIN, `${month} floor ${stage}: Hard's clear wins ${f.hard2} % below ${R.BOSS_CLEAR_MIN} %`);
+      return;
+    }
     if (stage <= 10) {
       assert.ok(f.hard && f.hard[0] >= 1 && f.hard[1] <= R.marginCap(stage), `${month} floor ${stage}: Hard's tight star`);
       return;
@@ -126,8 +135,8 @@ test('generator, boss floors: picked by Hard\'s and Mittel\'s rate on floors 10,
     assert.ok(f.hard10 >= R.bossHardMin(stage) && f.hard10 <= R.bossHardMax(stage) && f.medium10 >= lo && f.medium10 <= hi, `floor ${stage}: inside the boss gates (${f.hard10}, ${f.medium10})`);
   }
   res.floors.forEach((f, i) => { if (!boss(i + 1)) { assert.strictEqual(f.boss, undefined); assert.deepStrictEqual(f, plain.floors[i], `floor ${i + 1}: an ordinary floor as ever`); } });
-  assert.deepStrictEqual([R.bossHardMin(10), R.bossHardMin(15), R.bossHardMin(20), R.bossHardMax(20)], [50, 40, 30, 60]);
-  assert.deepStrictEqual(R.bossMediumWindow(20), [10, 60]);
+  assert.deepStrictEqual([R.bossHardMin(10), R.bossHardMin(15), R.bossHardMin(20), R.bossHardMax(20)], [60, 50, 40, 60]);
+  assert.deepStrictEqual(R.bossMediumWindow(20), [20, 60]);
 
   // A month stored before its floors became boss floors: exactly those three are picked again.
   for (const mode of ['rule', 'missing']) {

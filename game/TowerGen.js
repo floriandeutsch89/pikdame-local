@@ -74,6 +74,10 @@ async function generateMonth({
   const gateOf = (stage) => (boss(stage) ? R.bossHardMin(stage) : R.hardMin(stage));
   const capOf = (stage) => (boss(stage) ? R.bossHardMax(stage) : 100);
   const tagOf = (stage) => (boss(stage) ? { boss: 1 } : {});
+  /** Boss floors: Hard's share of clear wins (two stars), null below the rule; an ordinary floor has none. */
+  const clearOf = async (seed, stage) => (boss(stage)
+    ? rate({ seed, stage, month, n: R.HARD_GAMES, proxy: 'hard', stars: 2, within: [R.BOSS_CLEAR_MIN, 100] })
+    : undefined);
   /** Floors 11-20 and boss floors: Zen's star, Hard's rate >= its gate and the medium rate in [lo, hi]. */
   const high = (stage, [lo, hi]) => async (seed) => {
     const zen = await zenProof(seed, stage);
@@ -81,9 +85,11 @@ async function generateMonth({
     // Hard's gate first: it turns most candidates down, and stops early doing so.
     const hard10 = await rate({ seed, stage, month, n: R.HARD_GAMES, proxy: 'hard', within: [gateOf(stage), capOf(stage)] });
     if (hard10 == null) return null;
+    const hard2 = await clearOf(seed, stage);
+    if (hard2 === null) return null;
     const medium10 = await rate({ seed, stage, month, n: R.MEDIUM_GAMES, within: [lo, hi] });
     if (medium10 == null) return null;
-    return { seed, zen, hard: await hardIfWon(seed, stage), medium10, hard10, ...tagOf(stage) };
+    return { seed, zen, hard: await hardIfWon(seed, stage), medium10, hard10, hard2, ...tagOf(stage) };
   };
   const tries = emergency ? Math.min(maxTries, 2000) : maxTries;
   /** Floors 11-20, no deal fits gate and window: Zen's proof and Hard's gate stay, the
@@ -96,8 +102,10 @@ async function generateMonth({
       if (!zen) return null;
       const hard10 = await rate({ seed, stage, month, n: R.HARD_GAMES, proxy: 'hard', within: [gateOf(stage), capOf(stage)] });
       if (hard10 == null) return null;
+      const hard2 = await clearOf(seed, stage);
+      if (hard2 === null) return null;
       const medium10 = await rate({ seed, stage, month, n: R.MEDIUM_GAMES });
-      const entry = { seed, zen, hard: await hardIfWon(seed, stage), medium10, hard10, ...tagOf(stage) };
+      const entry = { seed, zen, hard: await hardIfWon(seed, stage), medium10, hard10, hard2, ...tagOf(stage) };
       if (off(medium10) === 0) return entry;
       if (!best || off(medium10) < off(best.medium10)) best = { ...entry, relaxed: true };
       return null;
@@ -147,7 +155,8 @@ async function generateMonth({
     }
     const win = boss(stage) ? R.bossMediumWindow(stage) : R.mediumWindow(stage);
     // An entry from before the floor became a boss floor (or the other way round) never fits.
-    const fits = (f) => proven(f) && !f.relaxed && !!f.boss === boss(stage) && f.medium10 >= win[0] && f.medium10 <= win[1] && f.hard10 >= gateOf(stage) && f.hard10 <= capOf(stage);
+    const fits = (f) => proven(f) && !f.relaxed && !!f.boss === boss(stage) && f.medium10 >= win[0] && f.medium10 <= win[1] && f.hard10 >= gateOf(stage) && f.hard10 <= capOf(stage)
+      && (!boss(stage) || f.hard2 >= R.BOSS_CLEAR_MIN);
     if (only && !only.includes(stage)) {
       if (!fits(kept)) { failed.push({ month, stage, window: win, kept: true }); log(`${month} floor ${stage}: kept, but off the rule`); }
       continue;

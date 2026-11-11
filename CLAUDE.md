@@ -118,7 +118,7 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
     EINE Regel/Generator (`TowerRule.js`/`TowerGen.js`) für Server und Skript;
     nie ein unbewiesenes Blatt ausliefern (Zen-Beweis Pflicht).
   - `BossFight.js`: Boss-Etagen 10/15/20 als Duell in Lebenspunkten, reine Schadensregeln (Kartenregeln
-    unverändert); aus, bis `BotTower.setBossFrom(Monat)` gesetzt ist. Etagen eines laufenden Monats nie
+    unverändert); ab `BotTower.BOSS_FROM` (2026-12, Konstante: auch Worker sehen sie). Etagen eines laufenden Monats nie
     umstellen (Sterne). Zahlen nur aus Simulation ändern. Doku `docs/developer/boss-fight.md`.
     Am Tisch: `public/boss-fight.js` zeichnet nur `state.bossFight` (Feld statt Gegner-Chips, Leben statt
     Punkte, Auftritt, Treffer) und entscheidet keine Regel; Gründe eines Treffers kommen im Event mit, nie

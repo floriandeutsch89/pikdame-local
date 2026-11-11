@@ -68,7 +68,7 @@ async function shoot(dir) {
   fs.writeFileSync(stateFile, JSON.stringify(tableState()));
   // --safe-area: laid out like the installed app on an iPhone, the status bar left free for the island.
   execFileSync(process.execPath, [UI_SHOTS, '--out', dir, '--port', String(await freePort()), '--views', 'phone',
-    '--scale', '3', '--safe-area', '--name', NAME, '--tower', 'crowned', '--scenes', 'lobby,tower,table', '--state', stateFile],
+    '--scale', '3', '--safe-area', '--name', NAME, '--tower', 'crowned', '--boss', '--scenes', 'lobby,tower,table', '--state', stateFile],
   { cwd: ROOT, stdio: 'inherit' });
 }
 
