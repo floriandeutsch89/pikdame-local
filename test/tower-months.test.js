@@ -114,6 +114,38 @@ test('generator, missing: a running month keeps its floors from before the Hard 
   assertRule('2027-03', ruled.floors); // next month (nobody plays it yet) gets the gate
 });
 
+test('generator, boss floors: picked by Hard\'s and Mittel\'s rate on floors 10, 15 and 20, tagged, never mixed with an old entry', async () => {
+  const boss = (stage) => [10, 15, 20].includes(stage);
+  const plain = await TowerGen.generateMonth({ month: '2027-03', play, rate, maxTries: 300, pause: async () => {}, boss: () => false });
+  const res = await TowerGen.generateMonth({ month: '2027-03', play, rate, maxTries: 300, pause: async () => {}, boss });
+  assert.deepStrictEqual(res.failed, []);
+  for (const stage of [10, 15, 20]) {
+    const f = res.floors[stage - 1];
+    const [lo, hi] = R.bossMediumWindow(stage);
+    assert.ok(TowerGen.proven(f) && f.boss === 1, `floor ${stage}: a proven deal, tagged as a boss deal`);
+    assert.ok(f.hard10 >= R.bossHardMin(stage) && f.hard10 <= R.bossHardMax(stage) && f.medium10 >= lo && f.medium10 <= hi, `floor ${stage}: inside the boss gates (${f.hard10}, ${f.medium10})`);
+  }
+  res.floors.forEach((f, i) => { if (!boss(i + 1)) { assert.strictEqual(f.boss, undefined); assert.deepStrictEqual(f, plain.floors[i], `floor ${i + 1}: an ordinary floor as ever`); } });
+  assert.deepStrictEqual([R.bossHardMin(10), R.bossHardMin(15), R.bossHardMin(20), R.bossHardMax(20)], [50, 40, 30, 60]);
+  assert.deepStrictEqual(R.bossMediumWindow(20), [10, 60]);
+
+  // A month stored before its floors became boss floors: exactly those three are picked again.
+  for (const mode of ['rule', 'missing']) {
+    const again = await TowerGen.generateMonth({ month: '2027-03', floors: plain.floors, mode, play, rate, maxTries: 300, pause: async () => {}, boss });
+    again.floors.forEach((f, i) => {
+      if (boss(i + 1)) assert.strictEqual(f.boss, 1, `${mode}, floor ${i + 1}: picked under the boss rule`);
+      else assert.deepStrictEqual(f, plain.floors[i], `${mode}, floor ${i + 1}: kept`);
+    });
+    assert.deepStrictEqual(again.floors, res.floors, `${mode}: the same deals as a fresh boss month`);
+  }
+  // A static month players already climb: --floors 10,15,20 touches nothing else.
+  const only = await TowerGen.generateMonth({ month: '2027-03', floors: plain.floors, only: [10, 15, 20], play, rate, maxTries: 300, pause: async () => {}, boss });
+  assert.deepStrictEqual(only.floors, res.floors);
+  // And the way back: a boss entry on a floor that is none any more does not fit either.
+  const back = await TowerGen.generateMonth({ month: '2027-03', floors: res.floors, play, rate, maxTries: 300, pause: async () => {}, boss: () => false });
+  assert.strictEqual(back.floors[14].boss, undefined);
+});
+
 test('service: builds next month from the 15th in its worker, persists per floor, a new instance reads it', async () => {
   const file = tmpFile();
   const s = service(file, '2027-02-15');

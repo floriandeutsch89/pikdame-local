@@ -15,7 +15,7 @@ const OnnxPolicy = require('../game/OnnxPolicy');
 const TowerSeeds = require('../game/TowerSeeds');
 const proofs = require('./fixtures/tower-proofs.json');
 const { playFloor, needsNet } = require('../game/TowerPlay');
-const { mediumWindow, hardMin } = require('../game/TowerRule');
+const { mediumWindow, hardMin, bossMediumWindow, bossHardMin, bossHardMax } = require('../game/TowerRule');
 
 const net = OnnxPolicy.enabled() && OnnxPolicy.available();
 const legacy = (month, stage) => month === BotTower.LEGACY_MONTH && stage <= 10;
@@ -31,12 +31,17 @@ test('every committed month has its proof games', () => {
       if (!closed(month)) assert.ok(f.zen[0] >= 1, `${month} floor ${stage}: picked with a star for Zen`);
       if (f.hard) assert.ok(f.hard[0] >= 1, `${month} floor ${stage}: a Hard proof is a won game`);
       if (stage <= 2) assert.ok(f.hard, `${month} floor ${stage}: Hard proves the easy bots' dice`);
-      if (stage > 10) {
+      // A boss floor (BossFight.js) is picked under its own gates, and its entry says so.
+      const boss = !!BotTower.bossFor(stage, month);
+      assert.strictEqual(!!f.boss, boss, `${month} floor ${stage}: ${boss ? 'a boss floor needs a deal picked as one' : 'no boss floor'}`);
+      if (stage > 10 || boss) {
         // October was played before the Hard gate and this medium window (GEN_VERSION 2/3).
         if (month === BotTower.LEGACY_MONTH) return;
-        const [lo, hi] = mediumWindow(stage);
+        const [lo, hi] = boss ? bossMediumWindow(stage) : mediumWindow(stage);
+        const gate = boss ? bossHardMin(stage) : hardMin(stage);
         assert.ok(f.medium10 >= lo && f.medium10 <= hi, `${month} floor ${stage}: medium ${f.medium10} % outside ${lo.toFixed(1)}-${hi.toFixed(1)}`);
-        assert.ok(f.hard10 >= hardMin(stage), `${month} floor ${stage}: Hard wins ${f.hard10} % (< ${hardMin(stage).toFixed(1)} %)`);
+        assert.ok(f.hard10 >= gate, `${month} floor ${stage}: Hard wins ${f.hard10} % (< ${gate.toFixed(1)} %)`);
+        if (boss) assert.ok(f.hard10 <= bossHardMax(stage), `${month} floor ${stage}: Hard wins ${f.hard10} %, too easy for a boss`);
       }
     });
   }

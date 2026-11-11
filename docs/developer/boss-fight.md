@@ -60,6 +60,23 @@ scratch any more. On a boss floor the old modifiers of that floor (`queen`,
 - `TowerPlay.playFloor` plays the rounds one after another, so one game by Zen
   proves a boss deal like any other.
 
+## Picking the deals
+
+A boss deal is picked like a deal of floors 11-20 (`TowerGen.js`), on floor 10 too:
+Zen's proof first, then Hard with 10 % slips must win 50-80 / 40-70 / 30-60 % of
+100 fights (`TowerRule.bossHardMin`/`bossHardMax`, floors 10 / 15 / 20; the
+ceiling matters: a deal decides most of a fight, and without it the first picks
+were deals Hard wins in 9 of 10 fights) and Mittel 30-80 /
+20-70 / 10-60 % (`bossMediumWindow`: around Hard's gate, since both score alike in
+a duel). The entry carries `boss: 1`. An entry without it on a boss floor (a month
+stored before the floors became boss floors) never fits and is picked again, in
+`rule` and in `missing` mode; its old deal is a candidate again, so a replica that
+picks afresh and one that re-picks agree.
+
+For a static month: `node scripts/tower-seeds.js 2026-12 2026-12 --floors 10,15,20
+--boss-from 2026-12` (the flag switches the boss floors on for that run until
+`BotTower` does it itself).
+
 ## Where the numbers come from
 
 Measured on the real engine with the real bots: 300 fights of up to five rounds

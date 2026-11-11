@@ -3,10 +3,12 @@
 // scripts/tower-seeds.js. Playing is injected (`play`, `rate`: TowerPlay.js in
 // production, a stub in tests), so this file has no game I/O of its own.
 //
-// A floor entry: { seed, zen: [stars, margin, hash], hard?, medium10?, hard10?, relaxed?, locked? }
+// A floor entry: { seed, zen: [stars, margin, hash], hard?, medium10?, hard10?, boss?, relaxed?, locked? }
 // - zen: the proof game (Zen in the human seat, undisturbed) - always required.
 // - hard: Hard's game where it wins (floors 1-10 need it, see marginCap).
-// - medium10, hard10: star rates (%) of Medium / Hard with 10 % slips (floors 11-20).
+// - medium10, hard10: star rates (%) of Medium / Hard with 10 % slips (floors 11-20, boss floors).
+// - boss: 1 on a boss floor (BossFight.js): picked under the boss gates, never mixed up with
+//   an entry of the same floor from before it was one.
 // - relaxed: no deal met the medium window: the nearest one with Hard's gate, or in an
 //   emergency without it (never without the Zen proof).
 // - locked: no proven deal found; the floor stays closed (never an unproven deal).
@@ -33,10 +35,12 @@ const proven = (f) => !!(f && !f.locked && Number.isInteger(f.seed) && Array.isA
  * @param {object} [o.fixed] stage -> seed kept as is (October 2026's old floors)
  * @param {number[]} [o.only] 'rule' mode: re-pick only these stages, keep the rest
  *   (a static month players already climb); a kept floor off the rule is reported
+ * @param {function} [o.boss] (stage) => is it a boss floor in this month (BotTower.bossFor by default)
  */
 async function generateMonth({
   month, floors = [], mode = 'rule', emergency = false, play, rate,
   maxTries = R.MAX_TRIES, fixed = {}, only = null, pause = tick, onFloor = () => {}, log = () => {},
+  boss = (stage) => !!require('./BotTower').bossFor(stage, month),
 }) {
   const out = Array.from({ length: 20 }, (_, i) => floors[i] || null);
   const failed = [];
@@ -46,6 +50,9 @@ async function generateMonth({
   /** The first candidate of `lane` that `accept` takes (null after `tries`). */
   async function search(stage, lane, tries, accept) {
     const used = taken();
+    // A floor that just became a boss floor (or stopped being one): its old deal is a candidate
+    // again, so a replica that picks afresh and one that re-picks a stored month agree.
+    if (out[stage - 1] && !!out[stage - 1].boss !== boss(stage)) used.delete(out[stage - 1].seed);
     for (let i = 0; i < tries; i++) {
       const seed = R.candidateSeed(month, stage, i, lane);
       if (used.has(seed)) continue;
@@ -63,16 +70,20 @@ async function generateMonth({
     const hard = await play({ seed, stage, month, proxy: 'hard' });
     return hard.stars >= 1 ? proofOf(hard) : undefined;
   };
-  /** Floors 11-20: Zen's star, Hard's rate >= hardMin and the medium rate in [lo, hi]. */
+  // Hard's gate and the tag of an entry: a boss floor has its own (TowerRule.bossHardMin).
+  const gateOf = (stage) => (boss(stage) ? R.bossHardMin(stage) : R.hardMin(stage));
+  const capOf = (stage) => (boss(stage) ? R.bossHardMax(stage) : 100);
+  const tagOf = (stage) => (boss(stage) ? { boss: 1 } : {});
+  /** Floors 11-20 and boss floors: Zen's star, Hard's rate >= its gate and the medium rate in [lo, hi]. */
   const high = (stage, [lo, hi]) => async (seed) => {
     const zen = await zenProof(seed, stage);
     if (!zen) return null;
     // Hard's gate first: it turns most candidates down, and stops early doing so.
-    const hard10 = await rate({ seed, stage, month, n: R.HARD_GAMES, proxy: 'hard', within: [R.hardMin(stage), 100] });
+    const hard10 = await rate({ seed, stage, month, n: R.HARD_GAMES, proxy: 'hard', within: [gateOf(stage), capOf(stage)] });
     if (hard10 == null) return null;
     const medium10 = await rate({ seed, stage, month, n: R.MEDIUM_GAMES, within: [lo, hi] });
     if (medium10 == null) return null;
-    return { seed, zen, hard: await hardIfWon(seed, stage), medium10, hard10 };
+    return { seed, zen, hard: await hardIfWon(seed, stage), medium10, hard10, ...tagOf(stage) };
   };
   const tries = emergency ? Math.min(maxTries, 2000) : maxTries;
   /** Floors 11-20, no deal fits gate and window: Zen's proof and Hard's gate stay, the
@@ -83,10 +94,10 @@ async function generateMonth({
     const fit = await search(stage, 'r', Math.min(tries, R.NEAREST_TRIES), async (seed) => {
       const zen = await zenProof(seed, stage);
       if (!zen) return null;
-      const hard10 = await rate({ seed, stage, month, n: R.HARD_GAMES, proxy: 'hard', within: [R.hardMin(stage), 100] });
+      const hard10 = await rate({ seed, stage, month, n: R.HARD_GAMES, proxy: 'hard', within: [gateOf(stage), capOf(stage)] });
       if (hard10 == null) return null;
       const medium10 = await rate({ seed, stage, month, n: R.MEDIUM_GAMES });
-      const entry = { seed, zen, hard: await hardIfWon(seed, stage), medium10, hard10 };
+      const entry = { seed, zen, hard: await hardIfWon(seed, stage), medium10, hard10, ...tagOf(stage) };
       if (off(medium10) === 0) return entry;
       if (!best || off(medium10) < off(best.medium10)) best = { ...entry, relaxed: true };
       return null;
@@ -102,8 +113,8 @@ async function generateMonth({
     const pick = await search(stage, 'r', tries, async (seed) => {
       const zen = await zenProof(seed, stage);
       if (!zen) return null;
-      const medium10 = stage > 10 ? await rate({ seed, stage, month, n: R.MEDIUM_GAMES }) : undefined;
-      return { seed, zen, hard: await hardIfWon(seed, stage), ...(medium10 != null ? { medium10 } : {}), relaxed: true };
+      const medium10 = stage > 10 || boss(stage) ? await rate({ seed, stage, month, n: R.MEDIUM_GAMES }) : undefined;
+      return { seed, zen, hard: await hardIfWon(seed, stage), ...(medium10 != null ? { medium10 } : {}), ...tagOf(stage), relaxed: true };
     });
     if (pick) log(`${month} floor ${stage}: emergency pick ${pick.seed} (window relaxed)`);
     else log(`${month} floor ${stage}: LOCKED - no deal Zen wins within ${tries} candidates`);
@@ -120,7 +131,7 @@ async function generateMonth({
       }
       continue;
     }
-    if (stage <= 10) {
+    if (stage <= 10 && !boss(stage)) {
       if (proven(kept)) continue;
       let pick = await search(stage, 'a', tries, async (seed) => {
         const hard = await play({ seed, stage, month, proxy: 'hard' });
@@ -134,14 +145,15 @@ async function generateMonth({
       if (pick) set(stage, strip(pick));
       continue;
     }
-    const win = R.mediumWindow(stage);
-    const fits = (f) => proven(f) && !f.relaxed && f.medium10 >= win[0] && f.medium10 <= win[1] && f.hard10 >= R.hardMin(stage);
+    const win = boss(stage) ? R.bossMediumWindow(stage) : R.mediumWindow(stage);
+    // An entry from before the floor became a boss floor (or the other way round) never fits.
+    const fits = (f) => proven(f) && !f.relaxed && !!f.boss === boss(stage) && f.medium10 >= win[0] && f.medium10 <= win[1] && f.hard10 >= gateOf(stage) && f.hard10 <= capOf(stage);
     if (only && !only.includes(stage)) {
       if (!fits(kept)) { failed.push({ month, stage, window: win, kept: true }); log(`${month} floor ${stage}: kept, but off the rule`); }
       continue;
     }
     // 'missing' keeps what players may already have stars on.
-    if (mode === 'missing' ? proven(kept) : fits(kept)) continue;
+    if (mode === 'missing' ? proven(kept) && !!kept.boss === boss(stage) : fits(kept)) continue;
     const pick = await search(stage, 'a', tries, high(stage, win));
     if (pick) {
       log(`${month} floor ${stage}: seed ${pick.seed} after ${pick.tries} candidates, medium ${pick.medium10} %, Hard ${pick.hard10} %`);
@@ -154,7 +166,7 @@ async function generateMonth({
       continue;
     }
     failed.push({ month, stage, window: win });
-    log(`${month} floor ${stage}: NO deal with medium in [${win[0].toFixed(1)}, ${win[1].toFixed(1)}] % and Hard >= ${R.hardMin(stage).toFixed(1)} % after ${tries} candidates`);
+    log(`${month} floor ${stage}: NO deal with medium in [${win[0].toFixed(1)}, ${win[1].toFixed(1)}] % and Hard >= ${gateOf(stage).toFixed(1)} % after ${tries} candidates`);
   }
   return { floors: out, failed };
 }
