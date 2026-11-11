@@ -606,15 +606,15 @@
       boss_jack: { emoji: '🗡️', name: L('Buben\u00adschreck', "Jack's bane"), desc: L('Den Karo-Buben besiegt', 'Defeated the Jack of Diamonds'),
         how: L('Besiege den Karo-Buben, den Boss auf Etage 10 des Kartenhauses.', 'Defeat the Jack of Diamonds, the boss on floor 10 of the House of Cards.') },
       boss_jack_3: { emoji: '😎', name: L('Hinterhalt? Welcher Hinterhalt?', 'Ambush? What ambush?'), desc: L('Den Karo-Buben mit 3 Sternen besiegt', 'Defeated the Jack of Diamonds with 3 stars'),
-        how: L('Besiege den Karo-Buben und behalte dabei mindestens zwei Drittel deines Lebens - das gibt 3 Sterne.', 'Defeat the Jack of Diamonds with at least two thirds of your life left - that is 3 stars.') },
+        how: L('Besiege den Karo-Buben und behalte dabei mindestens die Hälfte deines Lebens - das gibt 3 Sterne.', 'Defeat the Jack of Diamonds with at least half of your life left - that is 3 stars.') },
       boss_king: { emoji: '⚔️', name: L('Königs\u00admörder', 'Kingslayer'), desc: L('Den Kreuz-König besiegt', 'Defeated the King of Clubs'),
         how: L('Besiege den Kreuz-König, den Boss auf Etage 15 des Kartenhauses.', 'Defeat the King of Clubs, the boss on floor 15 of the House of Cards.') },
       boss_king_3: { emoji: '🛡️', name: L('Rüstungs\u00adknacker', 'Armour breaker'), desc: L('Den Kreuz-König mit 3 Sternen besiegt', 'Defeated the King of Clubs with 3 stars'),
-        how: L('Besiege den Kreuz-König und behalte dabei mindestens zwei Drittel deines Lebens - das gibt 3 Sterne.', 'Defeat the King of Clubs with at least two thirds of your life left - that is 3 stars.') },
+        how: L('Besiege den Kreuz-König und behalte dabei mindestens die Hälfte deines Lebens - das gibt 3 Sterne.', 'Defeat the King of Clubs with at least half of your life left - that is 3 stars.') },
       boss_queen: { emoji: '🖤', name: L('Damen\u00adopfer', 'Queen sacrifice'), desc: L('Die Pik Dame besiegt', 'Defeated the Queen of Spades'),
         how: L('Besiege die Pik Dame, den Boss auf Etage 20 des Kartenhauses - erst ihre Katzen, dann sie.', 'Defeat the Queen of Spades, the boss on floor 20 of the House of Cards - her cats first, then her.') },
       boss_queen_3: { emoji: '🔮', name: L('Fluch\u00adbrecher', 'Curse breaker'), desc: L('Die Pik Dame mit 3 Sternen besiegt', 'Defeated the Queen of Spades with 3 stars'),
-        how: L('Besiege die Pik Dame und behalte dabei mindestens zwei Drittel deines Lebens - das gibt 3 Sterne.', 'Defeat the Queen of Spades with at least two thirds of your life left - that is 3 stars.') },
+        how: L('Besiege die Pik Dame und behalte dabei mindestens die Hälfte deines Lebens - das gibt 3 Sterne.', 'Defeat the Queen of Spades with at least half of your life left - that is 3 stars.') },
       boss_court: { emoji: '🏰', name: L('Hofstaat gestürzt', 'Court overthrown'), desc: L('Alle drei Bosse eines Monats mit 3 Sternen besiegt', 'Defeated all three bosses of a month with 3 stars'),
         how: L('Besiege in einem Monat Karo-Bube, Kreuz-König und Pik Dame jeweils mit 3 Sternen.', 'Defeat the Jack of Diamonds, the King of Clubs and the Queen of Spades with 3 stars each in one month.') },
     };
@@ -10413,6 +10413,11 @@
       '<ul class="khRuleList">' +
       Object.keys(TOWER_MODS).map((m) => '<li class="dot"><span>' + escapeHtml(towerModRuleLine(m)) + '</span></li>').join('') +
       '</ul>' +
+      // Only in a month that has them (the server marks the floors).
+      (info.stages.some((st) => st.boss)
+        ? p(`Die Etagen ${info.stages.filter((st) => st.boss).map((st) => st.stage).join(', ')} sind Boss-Kämpfe: ein Duell um Lebenspunkte. Sterne gibt es für den Sieg und für viel Leben am Ende.`,
+          `Floors ${info.stages.filter((st) => st.boss).map((st) => st.stage).join(', ')} are boss fights: a duel in life points. Stars for the win and for much life left.`)
+        : '') +
       p(`Der erste Stern jeder Etage bringt pro Monat einmal ${XP_RULES.towerFirstStar} EP; alle ${n} Etagen krönen dein Kartenhaus (+${XP_RULES.towerCrown} EP).`,
         `The first star of each floor pays ${XP_RULES.towerFirstStar} XP once a month; all ${n} floors crown your House of Cards (+${XP_RULES.towerCrown} XP).`);
   }

@@ -76,13 +76,17 @@ test('a knockout ends it at once; both down: the higher share of life; the stars
   assert.strictEqual(s.me, PLAYER_HP, 'nothing after the end');
 
   s = BossFight.start(boss);
-  BossFight.bossTurn(s, boss, { points: 420, newMelds: 1 });
+  BossFight.bossTurn(s, boss, { points: 460, newMelds: 1 });
   BossFight.playerTurn(s, boss, { points: 100, newMelds: 1 });
-  assert.strictEqual(BossFight.starsFor(s), 1, '180 of 600 left: under a third');
+  assert.strictEqual(BossFight.starsFor(s), 1, '140 of 600 left: under a quarter');
   s = BossFight.start(boss);
-  BossFight.bossTurn(s, boss, { points: 400, newMelds: 1 });
+  BossFight.bossTurn(s, boss, { points: 450, newMelds: 1 });
   BossFight.playerTurn(s, boss, { points: 100, newMelds: 1 });
-  assert.strictEqual(BossFight.starsFor(s), 2, 'exactly a third');
+  assert.strictEqual(BossFight.starsFor(s), 2, 'exactly a quarter');
+  s = BossFight.start(boss);
+  BossFight.bossTurn(s, boss, { points: 300, newMelds: 1 });
+  BossFight.playerTurn(s, boss, { points: 100, newMelds: 1 });
+  assert.strictEqual(BossFight.starsFor(s), 3, 'exactly half');
   s = BossFight.start(boss);
   BossFight.bossTurn(s, boss, { points: 600, newMelds: 1 });
   assert.deepStrictEqual([s.over, s.won, BossFight.starsFor(s)], [true, false, 0]);
@@ -263,7 +267,7 @@ test('the boss\'s seat carries the boss\'s name, and the deal stays the one the 
     const g = floor(15);
     assert.strictEqual(g.players.find((p) => p.isBot).name, 'Kreuz-König');
     assert.strictEqual(g.publicState('me').bossFight.ambushReady, false, 'the king has no ambush');
-    assert.deepStrictEqual(g.publicState('me').bossFight.starLife, [200, 400]);
+    assert.deepStrictEqual(g.publicState('me').bossFight.starLife, [150, 300]);
     g.destroy();
   } finally { BotTower.setBossFrom(BotTower.BOSS_FROM); }
 });

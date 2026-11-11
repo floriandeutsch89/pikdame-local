@@ -3,7 +3,7 @@
 'use strict';
 
 /** Bump when the rule or the candidate order changes: stored months record it. */
-const GEN_VERSION = 5; // 5: easier boss deals (Hard 60-80 / 50-70 / 40-60 %); 4: boss floors picked by Hard's and Mittel's rate
+const GEN_VERSION = 5; // 5: easier boss deals (Hard 60-80 / 50-70 / 40-60 %, two stars in reach); 4: boss floors picked by Hard's and Mittel's rate
 const MEDIUM_GAMES = 100; // games of the medium player per candidate (floors 11-20)
 const HARD_GAMES = 100; // ... and of Hard
 const MAX_TRIES = 20000; // candidates per floor before it is reported
@@ -26,6 +26,10 @@ const bossHardMax = (stage) => bossHardMin(stage) + 20;
 /** ... and Mittel 40-80 / 30-70 / 20-60 %: around Hard's band, since both score alike in a duel. */
 const bossMediumWindow = (stage) => [bossHardMin(stage) - 20, bossHardMax(stage)];
 
+/** ... and Hard wins with two stars in at least this share (%) of its fights: a deal Hard only
+ *  ever wins with 2 life left has no second star in it for anyone. */
+const BOSS_CLEAR_MIN = 20;
+
 /** Floors 1-10: Hard's star must not be a landslide (floor 10: 60 points). */
 const marginCap = (stage) => 260 - 20 * stage;
 
@@ -45,5 +49,5 @@ const candidateSeed = (month, stage, i, lane = 'a') => fnv(`${month}|${stage}|${
 
 module.exports = {
   GEN_VERSION, MEDIUM_GAMES, HARD_GAMES, MAX_TRIES, NEAREST_TRIES,
-  hardMin, mediumMin, mediumMax, mediumWindow, bossHardMin, bossHardMax, bossMediumWindow, marginCap, fnv, candidateSeed,
+  hardMin, mediumMin, mediumMax, mediumWindow, bossHardMin, bossHardMax, bossMediumWindow, BOSS_CLEAR_MIN, marginCap, fnv, candidateSeed,
 };

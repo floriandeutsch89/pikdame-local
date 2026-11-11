@@ -23,11 +23,11 @@ async function playFloor({ seed, stage, proxy = 'hard' }) {
   return ({ stars, margin: stars ? (h >>> 4) % 200 : -((h >>> 4) % 90), hash: h.toString(16).padStart(12, '0').slice(0, 12), turns: 30 });
 }
 
-async function slipRate({ seed, stage, proxy = 'medium', within = null, beforeGame = null }) {
+async function slipRate({ seed, stage, proxy = 'medium', within = null, beforeGame = null, stars = 1 }) {
   calls += 1;
   if (beforeGame) beforeGame();
   if (process.env.TOWER_STUB_DELAY_MS) await delay();
-  let r = (fnv(`${seed}|${proxy}`) >>> 3) % 71; // 0-70 %
+  let r = (fnv(`${seed}|${proxy}${stars > 1 ? `|${stars}` : ''}`) >>> 3) % 71; // 0-70 %
   if (proxy === 'medium' && list('TOWER_STUB_MEDIUM_NEVER').includes(stage)) r = 99;
   if (proxy === 'hard' && list('TOWER_STUB_HARD_NEVER').includes(stage)) r = 5;
   if (within && (r < within[0] || r > within[1])) return null;

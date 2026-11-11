@@ -11,8 +11,9 @@ const COMBO = [1.5, 2];
 const ENRAGE = 1.25;
 const MAX_ROUNDS = 5; // then the higher share of life wins; never reached in 4500 simulated fights
 const QUEEN_POINTS = 100;
-// Stars: a win, a win with a third of the life left, with two thirds.
-const STAR_SHARES = [0, 1 / 3, 2 / 3];
+// Stars: a win, a win with a quarter of the life left, with half. Measured: a fight runs ~2.5
+// rounds at ~170 damage each way, so a third and two thirds were out of reach (3 % of fights).
+const STAR_SHARES = [0, 1 / 4, 1 / 2];
 
 /**
  * hp/bot: the boss. ambush: its first hit of a round counts xN. armor: each of the player's

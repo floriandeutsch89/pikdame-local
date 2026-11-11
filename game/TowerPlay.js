@@ -98,13 +98,14 @@ async function playFloor({ seed, stage, month, proxy = 'hard', slip = 0, run = 0
   }
 }
 
-/** Star rate (0-100) of `proxy` (medium by default) with `slip` human-like mistakes over n games.
- *  With `within: [lo, hi]` it stops early and returns null once the rate cannot land inside. */
-async function slipRate({ seed, stage, month, n = 100, slip = 0.1, proxy = 'medium', within = null, beforeGame = null }) {
+/** Star rate (0-100) of `proxy` (medium by default) with `slip` human-like mistakes over n games;
+ *  `stars`: how many a game needs to count (2: a clear win). With `within: [lo, hi]` it stops
+ *  early and returns null once the rate cannot land inside. */
+async function slipRate({ seed, stage, month, n = 100, slip = 0.1, proxy = 'medium', within = null, beforeGame = null, stars: need = 1 }) {
   let stars = 0;
   for (let run = 0; run < n; run++) {
     if (beforeGame) beforeGame(); // the deal worker's stop check: never inside a game
-    if ((await playFloor({ seed, stage, month, proxy, slip, run: 2000 + run })).stars >= 1) stars += 1;
+    if ((await playFloor({ seed, stage, month, proxy, slip, run: 2000 + run })).stars >= need) stars += 1;
     if (within && ((100 * stars) / n > within[1] || (100 * (stars + n - run - 1)) / n < within[0])) return null;
   }
   return (100 * stars) / n;
