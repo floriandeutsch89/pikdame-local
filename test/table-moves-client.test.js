@@ -766,3 +766,34 @@ test('CSS contract: the ghosts are fixed, click-through, on the fly layer, and g
   assert.doesNotMatch(fly, /var\(--accent/, 'no selection colour on a card in the air');
   assert.match(SRC[2], new RegExp(`const OPP_HOLD_SLACK_MS = ${SLACK};`), 'the test and the client agree on the hold');
 });
+
+test('the turn marker waits for the cards: while Klaus\'s cards fly he stays marked, then Horst', async (t) => {
+  const c = boot();
+  t.after(() => c.window.close());
+  await ready();
+  c.join();
+  c.state(before({ pace: 'fast' }));
+  const marked = () => [...c.doc.querySelectorAll('#opponents .opponent.active')].map((n) => n.dataset.playerId);
+  assert.deepStrictEqual(marked(), ['b1']);
+  c.clock.t += 50;
+  c.state(after({ pace: 'fast' }));
+  assert.ok(ghosts(c.doc).length > 0, 'his cards are in the air');
+  assert.deepStrictEqual(marked(), ['b1'], 'the ring stays with the player whose cards still fly');
+  assert.match(c.doc.getElementById('turnStatus').textContent, /Klaus/);
+  // They land (the flights' own end timer): the marker moves on, nothing else re-renders for it.
+  await wait(420);
+  assert.deepStrictEqual(marked(), ['b2']);
+  assert.match(c.doc.getElementById('turnStatus').textContent, /Horst/);
+  assert.deepEqual(c.errors, []);
+});
+
+test('the marker never holds my turn back when nothing flies: switched off, it moves with the state', async (t) => {
+  const c = boot({ stored: { pikdame_opp_moves: 'off' } });
+  t.after(() => c.window.close());
+  await ready();
+  c.join();
+  c.state(before());
+  c.state(after());
+  assert.deepStrictEqual([...c.doc.querySelectorAll('#opponents .opponent.active')].map((n) => n.dataset.playerId), ['b2']);
+  assert.deepEqual(c.errors, []);
+});
