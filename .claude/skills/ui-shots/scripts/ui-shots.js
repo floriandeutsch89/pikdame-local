@@ -450,7 +450,12 @@ function towerState(stage, turns, take = '') {
 }
 // A boss floor from the engine (--floor 10|15|20), played to its end by the bots: every state
 // on the way, serialised as the wire would (publicState shares live arrays).
+const bossFights = {}; // one fight per floor and run: every boss scene picks its moment from it
 function bossFight(stage) {
+  if (!bossFights[stage]) bossFights[stage] = playBossFight(stage);
+  return bossFights[stage];
+}
+function playBossFight(stage) {
   const BT = require(path.join(ROOT, 'game', 'BotTower'));
   const GM = require(path.join(ROOT, 'game', 'GameManager'));
   const month = BT.monthOf(TODAY);
