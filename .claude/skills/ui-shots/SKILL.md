@@ -17,6 +17,15 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   --scenes lobby,stats,history,roundend,gameover
 ```
 
+- **Fast:** a run costs ~5 s to start (server, migrations, browser) and ~2 s a
+  shot. So: put every scene that shares its flags into ONE run; several views
+  run side by side on their own (one child per view, each its own server; a
+  view's lines print together when it is done; `--serial` keeps them in one
+  process, `--audit`/`--measure` always do). Runs with different flags
+  (`--theme`, `--lang`, `--floor` ...) each take a free port: start them in one
+  shell command with `&` and `wait`, never one after another. `--scale 1` for
+  shots only you look at (a 2x desktop capture alone takes ~1.6 s); 2x is for
+  pictures a person sees. Measured: nine shots in three views 23 s -> 14 s.
 - **Views:** `phone` 393×852 (the yardstick), `land` 874×402 (only ~400 px
   high), `desk` 1440×900, `se` 375×667 (small phones), `max` 440×956
   (Pro Max: 15 cards fit ONE fanned row there, at 393 they split into two;
@@ -200,8 +209,8 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   element must not shrink `#melds` or `#handWrapper`. `--eval <file>` prints
   a page expression per tower or `game-settings` scene (computed styles, grid
   tracks) when a layout puzzles you; the table scenes have none - there a `--js`
-  file can write the numbers into the shot (a fixed `<pre>`). `--port <n>` runs a
-  second shot run beside one on the default port 3477.
+  file can write the numbers into the shot (a fixed `<pre>`). `--port <n>` pins
+  the server's port (default: a free one).
 
 The script starts its own server on a **temp `PIKDAME_DATA_DIR`** and kills it
 afterwards. PostgreSQL is required: with `PIKDAME_TEST_PG_URL` set it uses a
