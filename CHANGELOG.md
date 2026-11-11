@@ -3,6 +3,13 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.134.0] - 2026-11-11
+
+### Added
+- Boss-Kämpfe im Kartenhaus: Ab Dezember sind die Etagen 10, 15 und 20 Duelle um Lebenspunkte gegen Karo-Bube, Kreuz-König und Pik Dame.
+  Was du auslegst, kostet den Boss Leben; Kombos aus mehreren Auslagen in einem Zug treffen härter
+- Sterne auf Boss-Etagen: ein Sieg, ein Sieg mit mindestens 150 Leben, ein Sieg mit mindestens 300 Leben
+
 ## [2.133.0] - 2026-11-11
 
 ### Added
