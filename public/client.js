@@ -7988,10 +7988,15 @@
     }
   }
   let toastTimer = null;
+  let toastAfterIntro = null; // held back while a boss entrance plays
   let toastLockUntil = 0; // priority toasts lock the container
   // A priority toast (round quote, ⚠️ warning, error) keeps its full time: normal ones arriving
   // meanwhile are dropped, not shown over it. opts.icon: sprite id of a state mark (lock, check).
   function showToast(text, opts = {}) {
+    // A boss floor's entrance first: the round's line waits and follows it (the last one wins).
+    let waits = false;
+    try { waits = bossIntroAhead(); } catch (e) { /* boot: the boss part is not set up yet */ }
+    if (waits) { toastAfterIntro = [text, opts]; return; }
     const now = Date.now();
     if (!opts.priority && now < toastLockUntil) return;
     const duration = opts.duration || 4000;
@@ -10036,7 +10041,7 @@
       const look = st.state === 'built' ? 'built' : st.closed ? 'closed' : st.state === 'next' ? 'next' : 'plan';
       const li = land.indexOf(slot.stage);
       const cls = ['khFloor', look, st.state === 'next' ? 'isNext' : '', towerSelected === slot.stage ? 'sel' : '',
-        li > -1 ? 'khDealt' : '', fx.wobble === slot.stage ? 'khWobble' : ''].filter(Boolean).join(' ');
+        li > -1 ? 'khDealt' : '', fx.wobble === slot.stage ? 'khWobble' : '', towerBossName(s) ? 'boss' : ''].filter(Boolean).join(' ');
       const pop = fx.pop && fx.pop[slot.stage] !== undefined ? fx.pop[slot.stage] : 3;
       const body = look === 'plan'
         ? `<text class="khPlan" x="${khNum(slot.cx)}" y="${khNum(slot.cy + 4)}">${slot.stage}</text>`
@@ -10496,7 +10501,12 @@
   const bossTable = bossApi
     ? bossApi.createTable({
       L, esc: escapeHtml, motion: () => towerMotionOk(), fx: () => bossFxOn, vibrate: (ms) => vibrate(ms),
-      onIntroEnd: () => { try { maybeShowCutReveal(); } catch (e) { /* cosmetic */ } },
+      onIntroEnd: () => {
+        try { maybeShowCutReveal(); } catch (e) { /* cosmetic */ }
+        const held = toastAfterIntro;
+        toastAfterIntro = null;
+        if (held) { try { showToast(held[0], held[1]); } catch (e) { /* cosmetic */ } }
+      },
     })
     : null;
   /** The fight as the server shows it, or null (also without the module: a stale cached page). */
