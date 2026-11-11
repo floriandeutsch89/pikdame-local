@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.132.5] - 2026-11-11
+
+### Added
+- Sieben neue Abzeichen für die Boss-Kämpfe im Kartenhaus (noch nicht aktiv): „Bubenschreck“, „Königsmörder“ und „Damenopfer“ für den Sieg,
+  „Hinterhalt? Welcher Hinterhalt?“, „Rüstungsknacker“ und „Fluchbrecher“ für drei Sterne, „Hofstaat gestürzt“ für alle drei Bosse eines Monats mit drei Sternen
+
+### Changed
+- Abzeichen-Namen ohne „/in“: Kartenstapler, Kartenkünstler, Hochstapler, Polier, Baumeister
+
 ## [2.132.4] - 2026-11-11
 
 ### Changed
