@@ -2238,7 +2238,12 @@ body.raidActive #toastContainer { margin-top: 132px; }
   0% { transform: scale(1.18) translateY(-6px); }
   100% { transform: scale(1) translateY(0); }
 }
-.pile-card.pop { animation: discardPop 0.28s var(--ease); }
+/* The same pop under a second name: client.js alternates --pop-kf, which restarts it without a forced layout. */
+@keyframes discardPopB {
+  0% { transform: scale(1.18) translateY(-6px); }
+  100% { transform: scale(1) translateY(0); }
+}
+.pile-card.pop { animation: var(--pop-kf, discardPop) 0.28s var(--ease); }
 @media (prefers-reduced-motion: reduce) { .pile-card.pop { animation: none; } }
 
 /* Sortier-Umschalter über der Hand. WICHTIG: im normalen Flow statt

@@ -59,6 +59,9 @@ test('profiles list: the board\'s best by wins and score, the asking player with
   assert.deepEqual(cy.quests, { '2026-10-23': { win_game: 1 } }, 'my own quests ride along');
   assert.deepEqual([cy.seasonalBacks, cy.puzzles], [{}, {}]);
   assert.ok(!('quests' in mine.find((p) => p.name === 'Eve')), 'only mine');
+  // Everyone but me is a board row: what the list shows, zeros left out.
+  assert.deepEqual(mine.find((p) => p.name === 'Ben'), { name: 'Ben', xp: mine.find((p) => p.name === 'Ben').xp, gamesPlayed: 3, gamesWon: 3, totalScore: 1200 });
+  assert.ok('winStreak' in cy && 'badges' in cy, 'my own profile stays whole');
   assert.deepEqual((await store.listProfiles()).map((p) => p.name), ['Ben', 'Ada', 'Cy', 'Dee'], 'no match, not on the board');
 });
 
@@ -238,4 +241,27 @@ test('import: a file that is no player store throws and is retried, an empty one
   await assert.rejects(importLegacyFile(pool, tmpFile(t, '[1, 2]')), /not a player store/);
   assert.equal(await importLegacyFile(pool, tmpFile(t)), false, 'no file, nothing to do');
   assert.equal(await importLegacyFile(pool, tmpFile(t, { players: [] })), true);
+});
+
+test('profiles list: a board row carries the favourite badges and only the badges they show', async (t) => {
+  const { store, pool } = testPlayerStore(t);
+  await store.recordGameResult([{ name: 'Ada', score: 500, won: true, facts: { bestRound: 210, pdLaid: 2, jokersLaid: 1 } }, { name: 'Ben', score: 100, won: false }]);
+  const { BADGE_FAMILIES, BADGE_IDS } = require('../game/Badges');
+  const family = BADGE_FAMILIES[0];
+  const tierIds = BADGE_FAMILIES.flatMap((f) => f.tiers.map(([id]) => id));
+  const [low, high] = family.tiers.map(([id]) => id);
+  const single = BADGE_IDS.find((id) => !tierIds.includes(id));
+  const other = BADGE_IDS.find((id) => id !== single && !tierIds.includes(id));
+  await pool.query(`INSERT INTO player_badges (player_id, badge_id, earned_at)
+    SELECT p.id, b, now() FROM players p, unnest($1::text[]) b WHERE p.player_key = 'ada'`, [[low, high, single, other]]);
+  await pool.query("UPDATE players SET favorite_badges = $1 WHERE player_key = 'ada'", [[family.id, single]]);
+  const rows = await store.listProfiles({ me: 'Ben' });
+  const ada = rows.find((p) => p.name === 'Ada');
+  assert.deepEqual(Object.keys(ada).sort(), ['badges', 'bestRoundScore', 'favoriteBadges', 'gamesPlayed', 'gamesWon', 'name', 'totalJokersLaid', 'totalQueensLaid', 'totalScore', 'xp']);
+  assert.deepEqual(ada.favoriteBadges, [family.id, single]);
+  assert.deepEqual(Object.keys(ada.badges).sort(), [low, high, single].sort(), 'every owned tier of the family, not the badge no favourite shows');
+  assert.deepEqual([ada.bestRoundScore, ada.totalQueensLaid, ada.totalJokersLaid], [210, 2, 1]);
+  // Asked as Ada, the same player is whole again.
+  const whole = (await store.listProfiles({ me: 'ada' })).find((p) => p.name === 'Ada');
+  assert.ok(Object.keys(whole.badges).includes(other) && 'totalChallenges' in whole);
 });

@@ -677,3 +677,55 @@ test('CSS contract: a shade on the paper in --suit-black, never a ring or the go
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.card\.qStill \{ transform: var\(--fan, rotate\(0deg\)\)[^}]*rotateY\(-24deg\)/);
   assert.match(css, /\.qStill \.qProfile \{ display: block; \}/);
 });
+
+// --- render cost: no forced layout in a table render, an unchanged fan stays ----------------
+test('the others\' turns keep my fan as it is; my turn, a new card and a selection rebuild it', async (t) => {
+  const c = boot();
+  t.after(() => c.window.close());
+  await ready();
+  c.join();
+  c.state(st({ cur: 'b1', turn: 8 }));
+  const before = [...c.doc.querySelectorAll('#hand .card')];
+  assert.strictEqual(before.length, HAND.length);
+  // Opponents play: pile, melds, counts and the log change, my hand does not.
+  c.state(st({ cur: 'b2', turn: 9, pile: ['H9-0', 'D4-0'], melds: [['b1', ['C3-0', 'D3-0', 'H3-0']]], log: [{ text: 'x' }] }));
+  c.state(st({ cur: 'b2', turn: 9, phase: 'meld', pile: ['H9-0', 'D4-0'], draw: 39 }));
+  const kept = [...c.doc.querySelectorAll('#hand .card')];
+  assert.ok(kept.length === before.length && kept.every((n, i) => n === before[i]), 'the same nodes: nothing to lay out again');
+  // My turn makes the cards tappable: a new fan, and a tap selects.
+  c.state(st({ cur: 'p1', turn: 10, phase: 'meld', pile: ['H9-0', 'D4-0'], draw: 39 }));
+  const mine = [...c.doc.querySelectorAll('#hand .card')];
+  assert.ok(mine.every((n, i) => n !== before[i]), 'rebuilt for my turn');
+  mine[0].dispatchEvent(new c.window.MouseEvent('click', { bubbles: true }));
+  assert.strictEqual(c.doc.querySelectorAll('#hand .card.selected').length, 1, 'the tap landed');
+  // A drawn card joins the fan.
+  c.state(st({ cur: 'p1', turn: 10, phase: 'meld', hand: [...HAND, 'S7-0'], pile: ['H9-0', 'D4-0'], draw: 38 }));
+  assert.strictEqual(c.doc.querySelectorAll('#hand .card').length, HAND.length + 1);
+  assert.deepEqual(c.errors, []);
+});
+
+test('the pile\'s pop restarts by a new animation name, never by a forced layout', async (t) => {
+  const c = boot();
+  t.after(() => c.window.close());
+  await ready();
+  c.join();
+  c.state(st({ cur: 'b1', turn: 8 }));
+  c.state(st({ cur: 'b2', turn: 9, pile: ['H9-0', 'D4-0', 'C7-1'] }));
+  const top = pileTop(c.doc);
+  assert.ok(top.classList.contains('pop'));
+  const first = top.style.getPropertyValue('--pop-kf');
+  c.state(st({ cur: 'p1', turn: 10, pile: ['S2-0', 'H9-0', 'D4-0', 'C7-1'] }));
+  assert.ok(top.classList.contains('pop'));
+  assert.notStrictEqual(top.style.getPropertyValue('--pop-kf'), first, 'another name: the browser starts it again');
+  assert.deepEqual([first, top.style.getPropertyValue('--pop-kf')].sort(), ['discardPop', 'discardPopB']);
+  // Both names are the same keyframes, and the rule takes the name from the variable.
+  const css = fs.readFileSync(path.join(pub, 'style.css'), 'utf8');
+  const body = (name) => css.slice(css.indexOf(`@keyframes ${name} {`)).split('\n}')[0].replace(`@keyframes ${name} {`, '').replace(/\s+/g, ' ');
+  assert.strictEqual(body('discardPopB'), body('discardPop'));
+  assert.match(css, /\.pile-card\.pop \{ animation: var\(--pop-kf, discardPop\)/);
+  // The table render reads layout once, before its first write.
+  const src = fs.readFileSync(path.join(pub, 'client.js'), 'utf8');
+  const render = src.slice(src.indexOf('  function renderTable() {'), src.indexOf("el('sortToggleBtn').textContent"));
+  assert.ok(!/void \w+\.offset(Width|Height)/.test(render), 'no forced reflow inside renderTable');
+  assert.strictEqual((render.match(/\.scrollLeft(?! =)/g) || []).length, 1, 'the hand scroll is read once, at the top');
+});
