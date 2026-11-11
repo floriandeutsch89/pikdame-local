@@ -2744,7 +2744,9 @@
     updateTurnTitleNotice(isMyTurn && lastState.phase === 'playing');
     // One breath per render: the chip's face and the header's face stay in step.
     const breath = botBreath(lastState);
-    el('turnStatus').innerHTML = turnStatusHtml(lastState, playerId, breath);
+    // While another player's cards are still in the air the marker stays with them (shownTurnId).
+    const turnId = shownTurnId();
+    renderTurnStatus(turnId, breath);
 
     // Gegner
     const opponentsDiv = el('opponents');
@@ -2773,7 +2775,7 @@
           // During play the green ring marks whose TURN it is; once the
           // round is over it marks the player who WENT OUT instead - the
           // stale turn ring used to confuse people.
-          (!roundOver && p.id === lastState.currentPlayerId ? ' active' : '') +
+          (!roundOver && p.id === turnId ? ' active' : '') +
           (roundOver && p.id === lastState.lastRoundWinnerId ? ' roundWinner' : '') +
           (p.id === meldFilterPlayerId ? ' meldFilterActive' : '');
         d.dataset.playerId = p.id;
@@ -8024,11 +8026,32 @@
     turn.endTimer = setTimeout(() => { if (oppTurn === turn) endTableMoves(); }, Math.max(0, end - elapsed) + 80);
   }
 
+  /** Whose turn the table marks: while another player's cards are still flying, theirs. The
+   *  marker used to jump to the next player with the state, ahead of the cards ("Schnell": the
+   *  cards of the turn before flew under the next name). Nothing waits for it: I may move at once. */
+  function shownTurnId() {
+    return oppTurn && oppTurn.live && lastState.phase === 'playing' ? oppTurn.who : lastState.currentPlayerId;
+  }
+  /** The header's turn line for `turnId` (renderTable, and again when flown cards have landed). */
+  function renderTurnStatus(turnId, breath) {
+    el('turnStatus').innerHTML = turnStatusHtml(turnId === lastState.currentPlayerId ? lastState : { ...lastState, currentPlayerId: turnId }, playerId, breath);
+  }
+  /** The cards have landed: the header and the ring move on to whose turn it is. */
+  function refreshTurnMarker() {
+    if (!lastState || !lastState.players || el('table').classList.contains('hidden')) return;
+    renderTurnStatus(lastState.currentPlayerId, botBreath(lastState));
+    const playing = lastState.phase === 'playing';
+    for (const chip of el('opponents').children) {
+      if (chip.dataset.playerId) chip.classList.toggle('active', playing && chip.dataset.playerId === lastState.currentPlayerId);
+    }
+  }
+
   /** Ends the turn in flight at once: ghosts gone, every card where the state has it. */
   function endTableMoves() {
     const turn = oppTurn;
     oppTurn = null;
     if (!turn) return;
+    if (turn.live) { try { refreshTurnMarker(); } catch (e) { /* cosmetic */ } }
     clearTimeout(turn.endTimer);
     for (const t of turn.timers) clearTimeout(t);
     const now = performance.now();
@@ -10642,7 +10665,7 @@
     const seat = lastState.players.find((p) => p.id !== playerId) || {};
     const panel = bossTable.renderPanel(host, view, {
       stage: lastState.towerStage, playerId: seat.id, handCount: seat.handCount, lang,
-      active: lastState.phase === 'playing' && lastState.currentPlayerId === seat.id,
+      active: lastState.phase === 'playing' && shownTurnId() === seat.id,
     });
     // The boss's cards are still in flight (table-moves): its hit lands with them.
     bossTable.playEffects(view, panel, el('myScore'), { key: sessionCode || '', delay: oppMovesOn && towerMotionOk() ? 420 : 0 });
