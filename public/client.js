@@ -369,7 +369,7 @@
     try { renderPuzzle(); } catch (e) { /* dito */ }
     try { renderStammtisch(); renderStammtischRecent(); renderSessionBanner(); } catch (e) { /* dito */ }
     try { renderAchievements(); } catch (e) { /* dito */ }
-    try { renderStatsMe(); } catch (e) { /* dito */ }
+    try { renderStatsMe(); renderStatsStammtisch(); } catch (e) { /* dito */ }
     try { renderToday(); } catch (e) { /* dito */ }
     try { renderYearSlide(); } catch (e) { /* dito */ }
     try { renderProgressSheet(); } catch (e) { /* dito */ }
@@ -6511,6 +6511,34 @@
     if (ranked[1].wins === top.wins) return L(`Gleichstand · je ${winsText(top.wins)}`, `Tied · ${winsText(top.wins)} each`);
     return L(`${top.name} führt · ${winsText(top.wins)}`, `${top.name} leads · ${winsText(top.wins)}`);
   }
+  /** My standing at a Stammtisch in one line ("Platz 2 · 2 Siege in 7 Partien"); without a game of mine, who leads. */
+  function stammtischMyText(info) {
+    const me = currentName().toLowerCase();
+    const played = (info.members || []).filter((m) => m.games > 0);
+    const mine = played.find((m) => String(m.name).toLowerCase() === me);
+    if (!mine) return stammtischLeadText(info);
+    const rank = 1 + played.filter((m) => m.wins > mine.wins).length;
+    return L(`Platz ${rank} · ${winsText(mine.wins)} in ${gamesText(mine.games)}`, `Place ${rank} · ${winsText(mine.wins)} in ${gamesText(mine.games)}`);
+  }
+  /** "Statistik": one row per Stammtisch this device knows; the whole record is one tap away. */
+  function renderStatsStammtisch() {
+    const box = el('statsStammtischBox');
+    if (!box) return;
+    const list = recentStammtische();
+    box.classList.toggle('hidden', list.length === 0);
+    if (!list.length) { box.innerHTML = ''; return; }
+    box.innerHTML = `<h3 class="statsSectionTitle">${escapeHtml(L('Stammtisch', 'Stammtisch'))}</h3>` + list.map((t) => {
+      const known = stammtischChipInfo[t.code];
+      return `<button type="button" class="stStatRow" data-code="${escapeHtml(t.code)}" aria-haspopup="dialog">` +
+        `<svg class="icon" aria-hidden="true"><use href="#i-group"/></svg>` +
+        `<span class="stStatText"><span class="stStatName">${escapeHtml(t.name)}</span><span class="stStatMine">${escapeHtml(known ? stammtischMyText(known) : L('Bilanz ansehen', 'View the record'))}</span></span>` +
+        `<svg class="icon stStatGo" aria-hidden="true"><use href="#i-chevron"/></svg></button>`;
+    }).join('');
+    box.querySelectorAll('button[data-code]').forEach((btn) => btn.addEventListener('click', () => {
+      el('statsOverlay').classList.add('hidden'); // one sheet at a time
+      openStammtischSheet(btn.dataset.code);
+    }));
+  }
   function updateStammtischChip(info) {
     const btn = document.querySelector(`#stammtischRecent button[data-code="${CSS.escape(info.code)}"]`);
     if (!info.exists) {
@@ -6524,6 +6552,7 @@
       return;
     }
     stammtischChipInfo[info.code] = info;
+    try { renderStatsStammtisch(); } catch (e) { /* cosmetic */ }
     if (btn) btn.querySelector('.stChipInfo').textContent = stammtischLeadText(info);
     if (stammtischSheetCode === info.code) renderStammtischSheet();
   }
@@ -12235,6 +12264,7 @@
   function renderStats() {
     renderAchievements();
     renderStatsMe();
+    renderStatsStammtisch();
     const box = el('statsContent');
     // Server-wide counters: a footer with one punchline, not five bare rows.
     const gsBox = el('globalStatsBox');

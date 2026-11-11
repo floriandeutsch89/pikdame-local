@@ -73,6 +73,7 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
    überspringt). Was sonst zum Rundenstart erscheint (Abhebe-Einblendung,
    Rundenspruch), wartet auf ihn. Effekte am Tisch liegen unter jedem Dialog
    (`--z-table-fx`), nie wackelt der ganze Tisch.
+   Neue CSS-Klasse: vorher `grep` in `style.css` (ein `.ssName` traf den Vorspann: Text unsichtbar).
    **Inhalt in Blättern (Overlays) nutzt die Blatt-Farben**, nie eine eigene
    dunkle Fläche (einmal so gebaut: passte zu keinem Theme). Zahlen, die über
    den Tisch fliegen, stehen auf eigener Plakette, nie Text auf Text.

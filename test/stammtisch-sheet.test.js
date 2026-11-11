@@ -270,3 +270,27 @@ test('a match that reaches the weekly goal or a new level says so in one toast, 
   assert.deepStrictEqual(t.errors, []);
   t.window.close();
 });
+
+test('"Statistik" names my standing at each Stammtisch; a tap opens its record sheet', () => {
+  const t = boot({ pikdame_player_name: 'Anna' });
+  const rows = () => [...t.doc.querySelectorAll('#statsStammtischBox .stStatRow')];
+  t.doc.getElementById('statsBtn').click();
+  assert.strictEqual(rows().length, 1, 'one row per Stammtisch this device knows');
+  assert.match(rows()[0].textContent, /Familie/);
+  t.info();
+  assert.match(rows()[0].querySelector('.stStatMine').textContent, /^Platz 2 · 8 Siege in 20 Partien$/, 'my own line, not the leader\'s');
+  // Not in the record yet: the leader line stands in.
+  t.info({ members: [{ name: 'Flo', wins: 12, games: 20, avg: 310 }, { name: 'Uwe', wins: 8, games: 20, avg: 260 }] });
+  assert.strictEqual(rows()[0].querySelector('.stStatMine').textContent, 'Flo führt · 12 Siege');
+  rows()[0].click();
+  assert.ok(!t.shown('statsOverlay') && t.shown('stammtischSheetOverlay'), 'one sheet at a time');
+  assert.deepStrictEqual(t.errors, []);
+  t.window.close();
+});
+
+test('"Statistik" has no Stammtisch block on a device that knows none', () => {
+  const t = boot({ pikdame_stammtische: '[]' });
+  t.doc.getElementById('statsBtn').click();
+  assert.ok(t.doc.getElementById('statsStammtischBox').classList.contains('hidden'));
+  t.window.close();
+});
