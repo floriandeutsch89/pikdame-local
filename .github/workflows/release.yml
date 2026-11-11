@@ -13,6 +13,12 @@ on:
   push:
     branches: [main]
 
+# One run at a time: two merges seconds apart both saw "no tag yet" and the second
+# failed creating it (v2.132.2). Queued, the second run finds the tag and skips.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 permissions:
   contents: write # create tag + release
   packages: write # GHCR push
