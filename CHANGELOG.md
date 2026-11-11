@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.131.0] - 2026-11-11
+
+### Changed
+- Jahresrückblick-Zähler und die vom Server gebauten Kartenhaus-Monate liegen jetzt in der Datenbank; vorhandene Daten werden beim ersten Start übernommen
+
 ## [2.130.0] - 2026-11-10
 
 ### Changed
