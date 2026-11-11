@@ -2578,6 +2578,8 @@ wss.on('connection', (ws, req) => {
         ws.send(JSON.stringify({
           type: 'puzzle', ...publicPuzzle(puzzle), archive, today, epoch: PUZZLE_EPOCH,
           status,
+          // Over for today (solved or revealed): the sheet may show the melds again after a reload.
+          ...((status.solved || status.revealed) && puzzle.best ? { doneMelds: puzzle.best.melds || [puzzle.best.cardIds] } : {}),
           ...(await starInfo()),
         }));
         return;
