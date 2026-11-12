@@ -196,7 +196,7 @@
    *  to where it covers none of `boxes`: over a dimmed pile a card reads as a flicker. Leaving
    *  a pile it starts once clear for good, else it ends before its first touch (`cut`: that
    *  share of the way); null: too short. `pad` keeps it off a pile's stacked layers too (box
-   *  shadows, 6.5 px: style.css stacked-2). */
+   *  shadows: the stock's stacked-2, the discard pile's edges - style.css --pile-edge). */
   function clearFlight(from, to, w, h, boxes, leaving, { pad = 8, steps = 40, min = 0.3 } = {}) {
     const at = (p) => ({
       x: from.x + (to.x - from.x) * p,
