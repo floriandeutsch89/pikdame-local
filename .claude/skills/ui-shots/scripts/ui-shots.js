@@ -30,7 +30,8 @@
 // opp-moves / opp-moves-take: another player's turn in flight (engine states: a stock draw, a meld
 // and the discard / a pile take instead of the draw), frames frozen at --film ms, then the end,
 // game-settings (the gear at a live engine table: the sheet on top, then scrolled to its end),
-// game-settings-debug (that sheet with the debug view on), home (the home dialog at the table, then
+// game-settings-debug (that sheet with the debug view on), table-debug (the debug view at a live
+// table: its pages layout/net/render/game, then folded), home (the home dialog at the table, then
 // its forfeit button armed by a first tap),
 // sheet-reopen (settings sheet scrolled, closed, reopened), cardback (the card-back gallery, then a locked back tapped: its toast),
 // tablemark (the table motif gallery, then a locked motif tapped: its toast; --mark <id> stores and unlocks that motif,
@@ -139,6 +140,8 @@ const ADMIN = process.argv.includes('--admin');
 const STILL = process.argv.includes('--reduced-motion'); // prefers-reduced-motion: reduce
 const DECEMBER = process.argv.includes('--december');
 const MEASURE = process.argv.includes('--measure');
+// --report: the client's debug report (window.pikdameDebug.report()) per shot, as <shot>.debug.json.
+const REPORT = process.argv.includes('--report');
 const TOWER_MOCK = arg('tower', 'mid');
 const CELEBRATION = arg('celebration', '');
 const celebrating = CELEBRATION ? { celebration: CELEBRATION } : {};
@@ -886,6 +889,14 @@ async function fanOut() {
         written.push(file);
         if (AUDIT) audits.push({ view: vn, scene: name, ...(await page.evaluate(auditPage, TAP_MIN)) });
         if (MEASURE) measures[`${vn}-${name}`] = await page.evaluate(measurePage);
+        if (REPORT) {
+          const report = await page.evaluate(() => (window.pikdameDebug ? window.pikdameDebug.report() : null));
+          if (report) {
+            const json = path.join(OUT, `${vn}-${name}.debug.json`);
+            fs.writeFileSync(json, JSON.stringify(report, null, 1));
+            written.push(json);
+          }
+        }
       };
       const inject = (obj) => sock.send(JSON.stringify(BIRTHDAY && obj.type === 'state' ? { ...obj, state: { ...obj.state, birthdayToday: true } } : obj));
       // --celebration: a seeded Math.random (mulberry32) right before the band is drawn: the same rain every run.
@@ -1228,6 +1239,27 @@ async function fanOut() {
             await page.evaluate((s) => { const o = document.querySelector(s).closest('.overlay'); o.classList.add('hidden'); }, sel);
             await page.waitForTimeout(200);
           }
+        }
+        if (sc === 'table-debug') {
+          // The debug view at a live engine table: one shot per page, then folded to its button.
+          await toTable(arg('state', '') ? JSON.parse(fs.readFileSync(arg('state', ''), 'utf8')) : tableState());
+          await page.evaluate(() => document.getElementById('debugCheckbox').click());
+          for (const name of await page.evaluate(() => window.PikdameDebugView.PAGES)) {
+            await page.evaluate((n) => window.pikdameDebug.page(n), name);
+            await page.waitForTimeout(700); // frames and the first round trip
+            await shot(`table-debug-${name}`);
+          }
+          // Live values and the copy button, printed: a still picture shows neither.
+          await page.evaluate(() => window.pikdameDebug.page('net'));
+          const before = await page.textContent('#dbgBody');
+          await page.waitForTimeout(700);
+          const live = before !== await page.textContent('#dbgBody');
+          await page.click('#dbgCopyBtn'); await page.waitForTimeout(300);
+          console.log(`${vn}-table-debug: values live ${live}, copy says "${(await page.textContent('#toastContainer')).trim()}"`);
+          await page.click('#dbgFoldBtn'); await page.waitForTimeout(200);
+          await shot('table-debug-folded');
+          await page.click('#dbgFoldBtn');
+          await page.evaluate(() => document.getElementById('debugCheckbox').click());
         }
         if (sc === 'sheet-reopen') {
           // Scroll the settings sheet down, close, reopen: it must be at the top again.

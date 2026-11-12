@@ -69,6 +69,10 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
    (Pausen/Stempel vor dem Rundenblatt abgelehnt, #513). Ton sparsam, die
    meisten spielen stumm (mehr Kartengeräusche abgelehnt, #512) → Charakter
    muss sichtbar wirken. Neue Animationen per Option abschaltbar.
+   **Effekte kosten kaum Akku/Leistung:** nur `transform`/`opacity` animieren,
+   keine Endlos-Schleifen, nichts im Leerlauf oder verstecktem Tab, keine
+   Layout-Lesungen in Schleifen; im PR `main` gegen Branch messen
+   (CDP `Performance.getMetrics`: Layout-, Stil-, Skript-, Taskzeit).
    Einzige Ausnahme: der Boss-Auftritt (< 2 s, vor der ersten Karte, Tipp
    überspringt). Was sonst zum Rundenstart erscheint (Abhebe-Einblendung,
    Rundenspruch), wartet auf ihn. Effekte am Tisch liegen unter jedem Dialog
@@ -162,6 +166,9 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   Tischlicht nach Tageszeit: `table-light.js` schreibt nur `--tod-*`, Farben im
   CSS-Abschnitt TABLE LIGHT aus dem Filz des Themes; Mittag = Bestand, kein Text
   unter seinen Mittags-Tiefstwert (`test/table-light-css.test.js`).
+  Debug-Ansicht: Zahlen, Seiten und Bericht in `debug-view.js` (ohne DOM); `window.pikdameDebug.report()`
+  liefert ihn auch bei ausgeschalteter Ansicht (ui-shots `--report`). Nie Token, Spieler-ID oder
+  Stammtisch-Code im Bericht (Test). Doku `docs/developer/debug-view.md`.
 - `landing/` (pikdame.online), `terraform/` (Hetzner), `docker/`, `k8s/`.
 - `mcp/` — MCP-Server: LLM sitzt als normaler WS-Spieler am Tisch (eigenes
   Paket mit MCP-SDK, nicht im Image). Legale Züge prüft ein Schatten-

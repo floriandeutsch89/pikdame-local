@@ -5283,7 +5283,9 @@ input:disabled { opacity: 0.65; }
 }
 .challengeHistDay span:first-child { opacity: 0.75; font-variant-numeric: tabular-nums; }
 
-/* --- Debug-Overlay (optional, Einstellungen) -------------------------------- */
+/* --- Debug view (optional, "Optionen") --------------------------------------
+   A measuring tool: fixed px type (never the UI scale), its own dark plate in
+   every theme. */
 #debugGrid {
   position: fixed; inset: 0; z-index: var(--z-debug); pointer-events: none;
   background:
@@ -5293,15 +5295,37 @@ input:disabled { opacity: 0.65; }
     repeating-linear-gradient(90deg, rgba(0,255,180,0.10) 0 1px, transparent 1px 10px);
 }
 #debugPanel {
-  position: fixed; top: calc(var(--safe-top) + 4px); right: 4px; z-index: calc(var(--z-debug) + 1);
-  pointer-events: auto; cursor: pointer; margin: 0; padding: 6px 8px;
+  position: fixed; top: calc(var(--safe-top) + 4px); right: calc(var(--safe-right) + 4px);
+  z-index: calc(var(--z-debug) + 1);
+  pointer-events: auto; margin: 0; padding: 0;
   font: 10px/1.45 ui-monospace, Menlo, monospace;
-  color: #aef; background: rgba(0, 10, 25, 0.82);
+  color: #aef; background: rgba(0, 10, 25, 0.94);
   border: 1px solid rgba(0,255,180,0.5); border-radius: 6px;
-  white-space: pre; text-align: left;
+  text-align: left;
 }
-/* Schlüssel-Container umranden (Farben stehen im Panel) */
-#debugPanel.dockBottom { top: auto; bottom: calc(var(--safe-bottom) + 4px); }
+/* Corners (a tap on the values moves it on): tr is the default above. */
+#debugPanel[data-dock="br"], #debugPanel[data-dock="bl"] { top: auto; bottom: calc(var(--safe-bottom) + 4px); }
+#debugPanel[data-dock="bl"], #debugPanel[data-dock="tl"] { right: auto; left: calc(var(--safe-left) + 4px); }
+#debugPanel .dbgBar { display: flex; align-items: stretch; }
+#debugPanel .dbgBtn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  min-width: var(--tap-min); min-height: var(--tap-min); margin: 0; padding: 0;
+  font: inherit; font-weight: 700; color: inherit;
+  background: none; border: 0; border-radius: 0; box-shadow: none; cursor: pointer;
+}
+#debugPanel .dbgBtn + .dbgBtn { border-left: 1px solid rgba(0,255,180,0.3); }
+#debugPanel .dbgBtn .icon { width: 18px; height: 18px; }
+#debugPanel .dbgPage { flex: 1; justify-content: space-between; padding: 0 8px; font-size: 12px; }
+#debugPanel .dbgPage .icon { transform: rotate(-90deg); }
+/* Fixed width: live values must not make the panel jump. */
+#dbgBody {
+  margin: 0; padding: 6px 8px; width: 33ch; box-sizing: content-box;
+  font: inherit; font-variant-numeric: tabular-nums; white-space: pre; overflow: hidden;
+  border-top: 1px solid rgba(0,255,180,0.3); cursor: pointer;
+}
+#debugPanel.folded .dbgPage, #debugPanel.folded #dbgCopyBtn, #debugPanel.folded #dbgBody { display: none; }
+#debugPanel.folded .dbgBtn + .dbgBtn { border-left: 0; }
+/* Outline the key containers (the layout page names the colours) */
 html.debugMode #app { outline: 2px solid #ff5252; outline-offset: -2px; }
 html.debugMode .screen { outline: 1px dashed #ffb300; outline-offset: -1px; }
 html.debugMode #handWrapper { outline: 2px solid #00e5ff; outline-offset: -2px; }

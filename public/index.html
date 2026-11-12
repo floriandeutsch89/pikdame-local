@@ -131,6 +131,7 @@
   <script src="/table-light.js" defer></script>
   <script src="/table-moves.js" defer></script>
   <script src="/boss-fight.js" defer></script>
+  <script src="/debug-view.js" defer></script>
   <script src="/pet.js" defer></script>
   <script src="/client.js" defer></script>
   <script>
@@ -245,6 +246,7 @@
     <symbol id="i-magnet" viewBox="0 0 24 24"><path d="M5 3.5h4V12a3 3 0 0 0 6 0V3.5h4V12a7 7 0 0 1-14 0z"/><path d="M5 8h4M15 8h4"/></symbol>
     <symbol id="i-film" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9.5h18M3 14.5h18M8 5v14M16 5v14"/></symbol>
     <symbol id="i-export" viewBox="0 0 24 24"><path d="M12 15V3.5"/><path d="m8 7 4-3.5L16 7"/><path d="M4.5 14v5.5a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1V14"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="1.5"/><path d="M15.5 5.5v-1a1 1 0 0 0-1-1h-10a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h1"/></symbol>
     <symbol id="i-share" viewBox="0 0 24 24"><circle cx="17.5" cy="6" r="2.6"/><circle cx="6.5" cy="12" r="2.6"/><circle cx="17.5" cy="18" r="2.6"/><path d="m8.9 10.8 6.3-3.4M8.9 13.2l6.3 3.4"/></symbol>
     <symbol id="i-qr" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1"/><rect x="13.5" y="3.5" width="7" height="7" rx="1"/><rect x="3.5" y="13.5" width="7" height="7" rx="1"/><path d="M13.5 13.5h3v3M20.5 16.5v4h-4M17 20.5h-.01"/></symbol>
     <symbol id="i-resume" viewBox="0 0 24 24"><path d="M20 11.5a8 8 0 1 1-2.6-5.9"/><path d="M20.5 3.5v5h-5"/></symbol>
@@ -1734,8 +1736,15 @@
 
   </div>
 
-<!-- Debug overlay (optional, "Optionen"): grid + live metrics -->
+<!-- Debug view (optional, "Optionen"): grid + live pages (public/debug-view.js) -->
 <div id="debugGrid" class="hidden" aria-hidden="true"></div>
-<pre id="debugPanel" class="hidden" aria-hidden="true"></pre>
+<div id="debugPanel" class="hidden">
+  <div class="dbgBar">
+    <button type="button" class="dbgBtn dbgPage" id="dbgPageBtn" aria-label="Nächste Debug-Seite"><span id="dbgPageName"></span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></button>
+    <button type="button" class="dbgBtn" id="dbgCopyBtn" aria-label="Debug-Bericht kopieren"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg></button>
+    <button type="button" class="dbgBtn" id="dbgFoldBtn" aria-label="Debug-Werte ein- oder ausklappen"><svg class="icon" aria-hidden="true"><use href="#i-bug"/></svg></button>
+  </div>
+  <pre id="dbgBody"></pre>
+</div>
 </body>
 </html>
