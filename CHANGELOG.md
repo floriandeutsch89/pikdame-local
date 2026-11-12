@@ -3,6 +3,19 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.141.0] - 2026-11-13
+
+### Added
+- Spielende: Der Punkteverlauf zeichnet sich selbst. Die Linien laufen in gut
+  einer Sekunde von Runde zu Runde, bei jedem Führungswechsel blitzt kurz eine
+  Markierung in der Farbe des neuen Führenden auf, Namen und Endstände erscheinen
+  am Ziel. Alle Knöpfe sind sofort bedienbar
+- Optionen → Darstellung: „Punkteverlauf zeichnen“ schaltet das ab
+  (bei „Bewegung reduzieren“ im System steht das Diagramm ohnehin sofort fertig da)
+
+### Changed
+- Abhängigkeiten aktualisiert (automatischer Dependabot-Check): hono 4.13.13→4.13.18
+
 ## [2.140.0] - 2026-11-13
 
 ### Added
