@@ -231,6 +231,27 @@ test('statistics: level as a link, three tiles once, recent games as S/N boxes, 
   assert.deepEqual(errors, []);
 });
 
+test('statistics: three tabs - "Ich" opens first, one pane at a time, "Alle Partien" jumps to the games', async (t) => {
+  const games = [[true, 1040], [false, 880]].map(([won, myScore], i) => ({ id: `g${i}`, won, myScore, players: [] }));
+  const { window, errors, doc } = await openStats([PROFILE, { name: 'Oma Gerda', gamesPlayed: 120, gamesWon: 61, xp: 18000 }], games);
+  t.after(() => window.close());
+  const click = (node) => node.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  const shown = () => ['statsPaneMe', 'statsPaneBoard', 'statsPaneHistory'].filter((id) => !doc.getElementById(id).classList.contains('hidden'));
+  const active = () => [...doc.querySelectorAll('.statsTabs .resultTabBtn.active')].map((b) => b.id);
+  assert.deepEqual(shown(), ['statsPaneMe']);
+  assert.deepEqual(active(), ['statsTabMeBtn']);
+  assert.ok(doc.getElementById('statsPaneMe').contains(doc.getElementById('achievementsBox')), 'my badges live under "Ich"');
+  click(doc.getElementById('statsTabBoardBtn'));
+  assert.deepEqual(shown(), ['statsPaneBoard']);
+  assert.ok(doc.getElementById('statsPaneBoard').contains(doc.getElementById('statsContent')));
+  click(doc.getElementById('statsTabMeBtn'));
+  click(doc.querySelector('#statsMeBox .meFormAll'));
+  assert.deepEqual(shown(), ['statsPaneHistory']);
+  assert.deepEqual(active(), ['statsTabHistoryBtn']);
+  assert.match(doc.querySelector('#historyContent .histLead').textContent, /letzten 2 Partien/);
+  assert.deepEqual(errors, []);
+});
+
 test('statistics, new name: empty state explains and starts a bot game', async (t) => {
   const { window, errors, doc } = await openStats([{ name: 'Oma Gerda', gamesPlayed: 120, gamesWon: 61, xp: 18000 }], []);
   t.after(() => window.close());
