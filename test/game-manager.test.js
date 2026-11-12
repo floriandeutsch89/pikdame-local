@@ -980,6 +980,37 @@ test('swapJoker: with two hand cards the swap works and one card is left to disc
   assert.equal(game.phase, 'playing');
 });
 
+test('round facts for the badge counters: own turns, pile takes, joker swaps, full sets and aces', () => {
+  const { game } = makeGame(2);
+  game.maybeRunBotTurn = () => {};
+  game.startNewRound();
+  const [me, other] = [game.currentPlayer(), game.players.find((p) => p !== game.currentPlayer())];
+  assert.equal(me._turns, 1, 'the first turn of the round counts');
+  assert.equal(other._turns, 0);
+  // Facts the engine counts while playing ...
+  me._pileTakes = 2;
+  game.turnPhase = 'meld';
+  const joker = makeJoker(0);
+  const eight = (suit, deck) => ({ real: makeStandardCard(suit, '8', deck), playerId: me.id });
+  game.tableMelds = [
+    { id: 'm', ownerId: me.id, type: 'set', rank: 'Q', suit: null, slots: [
+      { real: makeStandardCard('H', 'Q', 0), playerId: me.id }, { real: makeStandardCard('C', 'Q', 0), playerId: me.id },
+      { joker, representsRank: 'Q', representsSuit: 'D', playerId: me.id }] },
+    { id: 'full', ownerId: me.id, type: 'set', rank: '8', suit: null, slots: ['H', 'D', 'C', 'S'].flatMap((su) => [eight(su, 0), eight(su, 1)]) },
+  ];
+  const dQ = makeStandardCard('D', 'Q', 0);
+  me.hand = [dQ, makeStandardCard('H', '2', 0)];
+  assert.ok(game.swapJoker(me.id, 'm', dQ.id).ok);
+  assert.equal(me._jokerSwaps, 1);
+  me.laidOutCards = [...me.laidOutCards, ...['H', 'D', 'C', 'S', 'H', 'D'].map((su, i) => makeStandardCard(su, 'A', i > 3 ? 1 : 0))];
+  // ... and what the round's record carries for Badges.js.
+  game.finishRound(me.id);
+  const b = game.roundHistory[game.roundHistory.length - 1].results[me.id].breakdown;
+  assert.deepEqual([b.turns, b.pileTakes, b.jokerSwaps, b.fullSets, b.acesLaid], [1, 2, 1, 1, 6]);
+  const o = game.roundHistory[game.roundHistory.length - 1].results[other.id].breakdown;
+  assert.deepEqual([o.turns, o.pileTakes, o.jokerSwaps, o.fullSets, o.acesLaid], [0, 0, 0, 0, 0]);
+});
+
 test('Patt-Regel: Runde endet automatisch, wenn niemand mehr ziehen kann (Deadlock-Regression)', () => {
   const { game } = makeGame(2);
   game.phase = 'playing';

@@ -83,7 +83,24 @@ const BADGE_IDS = [
   'boss_queen',
   'boss_queen_3',
   'boss_court', // all boss floors of one month with three stars
+  // --- v2.136: ten counter families, three tiers each --------------------------
+  'full_set_1', 'full_set_3', 'full_set_10', // melded a set of all eight cards of one rank
+  'aces_1', 'aces_5', 'aces_20', // rounds with six or more aces melded
+  'swap_3', 'swap_15', 'swap_50', // jokers swapped out of melds
+  'blitz_5', 'blitz_25', 'blitz_100', // rounds won within five own turns
+  'sweep_1', 'sweep_5', 'sweep_20', // matches won in five rounds or fewer
+  'exact_1', 'exact_3', 'exact_10', // matches finished on exactly the target score
+  'pile_25', 'pile_100', 'pile_500', // discard piles picked up
+  'team_1', 'team_10', 'team_50', // "2 gegen 2" matches won
+  'stammtisch_50', 'stammtisch_100', // tiers above stammtisch_10
+  'early_1', 'early_10', 'early_30', // matches finished between 5:00 and 6:59 German time
 ];
+
+// Thresholds of the round and match facts behind the families above.
+const ACES_ROUND = 6;
+const BLITZ_TURNS = 5;
+const SHORT_WIN_ROUNDS = 5;
+const EARLY_HOURS = [5, 6];
 
 // Per boss id: [a win, a win with three stars].
 const BOSS_BADGES = {
@@ -109,7 +126,37 @@ const BADGE_FAMILIES = [
   { id: 'tower', field: 'towerCleared', tiers: [['tower_3', 3], ['tower_6', 6], ['tower_10', 10]] },
   { id: 'towerStars', field: 'towerStars', tiers: [['tower_stars_30', 30]] },
   { id: 'towerCrowned', field: 'towerCrownedMonths', tiers: [['tower_crowned_1', 1], ['tower_crowned_3', 3], ['tower_crowned_12', 12]] },
+  { id: 'fullSet', field: 'totalFullSets', tiers: [['full_set_1', 1], ['full_set_3', 3], ['full_set_10', 10]] },
+  { id: 'aces', field: 'totalAceRounds', tiers: [['aces_1', 1], ['aces_5', 5], ['aces_20', 20]] },
+  { id: 'swaps', field: 'totalJokerSwaps', tiers: [['swap_3', 3], ['swap_15', 15], ['swap_50', 50]] },
+  { id: 'blitz', field: 'totalBlitzRounds', tiers: [['blitz_5', 5], ['blitz_25', 25], ['blitz_100', 100]] },
+  { id: 'sweep', field: 'totalShortWins', tiers: [['sweep_1', 1], ['sweep_5', 5], ['sweep_20', 20]] },
+  { id: 'exact', field: 'totalExactFinishes', tiers: [['exact_1', 1], ['exact_3', 3], ['exact_10', 10]] },
+  { id: 'piles', field: 'totalPileTakes', tiers: [['pile_25', 25], ['pile_100', 100], ['pile_500', 500]] },
+  { id: 'team', field: 'totalTeamWins', tiers: [['team_1', 1], ['team_10', 10], ['team_50', 50]] },
+  { id: 'stammtisch', field: 'totalStammtischGames', tiers: [['stammtisch_10', 10], ['stammtisch_50', 50], ['stammtisch_100', 100]] },
+  { id: 'early', field: 'totalEarlyGames', tiers: [['early_1', 1], ['early_10', 10], ['early_30', 30]] },
 ];
+
+/**
+ * What a finished match adds to the counters above, decided by the record alone
+ * (the per-round ones are summed where the rounds live, GameManager).
+ * @returns {{shortWin:boolean, exactFinish:boolean, teamWin:boolean, early:boolean}}
+ */
+function matchFacts(gameRecord, playerId) {
+  const rec = gameRecord || {};
+  const rounds = rec.rounds || [];
+  const won = isRecordWinner(rec, playerId);
+  const team = rec.teamMode ? teamIndexOf(rec.teams, playerId) : -1;
+  const mine = team >= 0 && Array.isArray(rec.teamTotals) ? rec.teamTotals[team] : (rec.finalTotals || {})[playerId];
+  const target = rec.targetScore || gameEndThreshold(team >= 0);
+  return {
+    shortWin: won && rounds.length > 0 && rounds.length <= SHORT_WIN_ROUNDS,
+    exactFinish: rounds.length > 0 && mine === target,
+    teamWin: won && team >= 0,
+    early: rounds.length > 0 && !!rec.finishedAt && EARLY_HOURS.includes(gameHour(rec.finishedAt)),
+  };
+}
 
 /**
  * Computes which badges a player earned in THIS match.
@@ -215,7 +262,6 @@ function computeEarnedBadges(gameRecord, playerId, profile = {}, context = {}) {
   }
   if (rounds.length > 0 && gameRecord.finishedAt && gameHour(gameRecord.finishedAt) < 4) earned.push('night_owl');
   if ((profile.lastPlaceStreak || 0) >= 3) earned.push('red_lantern');
-  if ((profile.totalStammtischGames || 0) >= 10) earned.push('stammtisch_10');
   if (context.challengeChamp) earned.push('challenge_champ');
   if (context.queenMagnet) earned.push('queen_magnet_day');
 
@@ -264,4 +310,7 @@ function bossBadges(outcome, best = {}, bossStages = []) {
   return out;
 }
 
-module.exports = { BADGE_IDS, BADGE_FAMILIES, BOSS_BADGES, ROUND_BADGES, computeEarnedBadges, computeRoundBadges, familyBadges, bossBadges };
+module.exports = {
+  BADGE_IDS, BADGE_FAMILIES, BOSS_BADGES, ROUND_BADGES, ACES_ROUND, BLITZ_TURNS, SHORT_WIN_ROUNDS,
+  computeEarnedBadges, computeRoundBadges, familyBadges, bossBadges, matchFacts,
+};

@@ -86,7 +86,7 @@ back instead of showing a broken streak.
 
 ## Badges
 
-**65** badges. 13 of them are *families*: one tile, rising
+**94** badges. 23 of them are *families*: one tile, rising
 thresholds on the same counter.
 
 | Family | Counter | Tiers |
@@ -104,8 +104,18 @@ thresholds on the same counter.
 | `tower` | `towerCleared` | 🏠 Card stacker {bdg-secondary}`3` → 🏠 Card artist {bdg-secondary}`6` → 🏠 High stacker {bdg-secondary}`10` |
 | `towerStars` | `towerStars` | 🌠 Starry sky {bdg-secondary}`30` |
 | `towerCrowned` | `towerCrownedMonths` | 👷 Apprentice {bdg-secondary}`1` → 👷 Foreman {bdg-secondary}`3` → 👷 Master Builder {bdg-secondary}`12` |
+| `fullSet` | `totalFullSets` | 🏠 Full house {bdg-secondary}`1` → 🏠 Eight-pack {bdg-secondary}`3` → 🏠 Eight at one blow {bdg-secondary}`10` |
+| `aces` | `totalAceRounds` | 🅰️ Aces high {bdg-secondary}`1` → 🅰️ Ace up the sleeve {bdg-secondary}`5` → 🅰️ Flying ace {bdg-secondary}`20` |
+| `swaps` | `totalJokerSwaps` | 🔁 Exchange booth {bdg-secondary}`3` → 🔁 Swap meet {bdg-secondary}`15` → 🔁 Joker bank {bdg-secondary}`50` |
+| `blitz` | `totalBlitzRounds` | ⚡ Lightning round {bdg-secondary}`5` → ⚡ Short work {bdg-secondary}`25` → ⚡ Express train {bdg-secondary}`100` |
+| `sweep` | `totalShortWins` | 🧹 Clean sweep {bdg-secondary}`1` → 🧹 Sweep-out {bdg-secondary}`5` → 🧹 Swept clean {bdg-secondary}`20` |
+| `exact` | `totalExactFinishes` | 🎯 Spot landing {bdg-secondary}`1` → 🎯 Made to measure {bdg-secondary}`3` → 🎯 Precision work {bdg-secondary}`10` |
+| `piles` | `totalPileTakes` | 🦝 Pile raider {bdg-secondary}`25` → 🦝 Paper collector {bdg-secondary}`100` → 🦝 Omnivore {bdg-secondary}`500` |
+| `team` | `totalTeamWins` | 🤝 Team spirit {bdg-secondary}`1` → 🤝 In sync {bdg-secondary}`10` → 🤝 Dream team {bdg-secondary}`50` |
+| `stammtisch` | `totalStammtischGames` | 🍻 Table regular {bdg-secondary}`10` → 🍻 House regular {bdg-secondary}`50` → 🍻 Part of the furniture {bdg-secondary}`100` |
+| `early` | `totalEarlyGames` | 🐓 Early bird {bdg-secondary}`1` → 🐓 Morning hour {bdg-secondary}`10` → 🐓 Up with the lark {bdg-secondary}`30` |
 
-The other **32** are earned by a fact about one match (computed in
+The other **31** are earned by a fact about one match (computed in
 `computeEarnedBadges` from the finished game record):
 
 | | Badge | Earned by | Id |
@@ -130,7 +140,6 @@ The other **32** are earned by a fact about one match (computed in
 | 😅 | **So close** | Lost by less than 20 points | `near_miss` |
 | 🏔️ | **Landslide** | Won by 500+ points | `landslide` |
 | 🦉 | **Night owl** | Finished a game between midnight and 4 am | `night_owl` |
-| 🍻 | **Table regular** | 10 games at a regulars table | `stammtisch_10` |
 | 🥇 | **Champion of the day** | First place in a daily challenge | `challenge_champ` |
 | 🧲 | **Queen magnet of the day** | Daily challenge: caught with the Queen of Spades the most | `queen_magnet_day` |
 | 💎 | **Royal flush** | Melded 10-J-Q-K-A of one suit, no jokers | `royal_flush` |

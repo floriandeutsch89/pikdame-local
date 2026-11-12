@@ -17,6 +17,7 @@ const MoveLogger = require('./MoveLogger');
 const { dayEnd } = require('./GameDay');
 const { isQuipMoment } = require('./BotQuips');
 const { isCelebration } = require('./Celebrations');
+const Badges = require('./Badges');
 const BotTower = require('./BotTower');
 const BossFight = require('./BossFight');
 const { TUTORIAL_VERSION, isTutorialStep } = require('./TutorialSteps');
@@ -1179,6 +1180,10 @@ class GameManager {
       p._everLaidThisRound = false;
       p._laidAtTurnStart = false; // for the scoring at round end
       p._bigPileTake = false; // badge fact: picked up a 10+ card pile this round
+      // Badge counters of the round: own turns begun, pile takes, joker swaps.
+      p._turns = 0;
+      p._pileTakes = 0;
+      p._jokerSwaps = 0;
     }
     if (cutter && luckyCards.length > 0) {
       cutter.hand.push(...luckyCards);
@@ -1192,7 +1197,7 @@ class GameManager {
     this.turnPhase = 'draw';
     {
       const np = this.currentPlayer();
-      if (np) np._laidAtTurnStart = !!np._everLaidThisRound;
+      if (np) { np._laidAtTurnStart = !!np._everLaidThisRound; np._turns = (np._turns || 0) + 1; }
     }
     this.turnIndexInRound = 0;
     this.mustLayOffCardId = null;
@@ -1265,7 +1270,7 @@ class GameManager {
     }
     {
       const np = this.currentPlayer();
-      if (np) np._laidAtTurnStart = !!np._everLaidThisRound;
+      if (np) { np._laidAtTurnStart = !!np._everLaidThisRound; np._turns = (np._turns || 0) + 1; }
     }
     this.mustLayOffCardId = null;
     this.pendingDiscardRest = false;
@@ -1580,6 +1585,7 @@ class GameManager {
       // 10+ cards counting the top card already taken: the 'pile glutton'
       // badge needs this fact at round end.
       if (rest.length + 1 >= 10) player._bigPileTake = true;
+      player._pileTakes = (player._pileTakes || 0) + 1;
       this.addLog(`${player.name} nimmt die restlichen ${rest.length} Karten des Ablagestapels auf.`);
       // Einen dicken Stapel zu schlucken, entlockt selbst dem Bot ein Seufzen.
       if (rest.length >= 4) this.maybeBotEmote(player.id, '😅', 0.55);
@@ -2013,6 +2019,7 @@ class GameManager {
     // Runde aus dem Spiel.
     this.retiredJokers.push(result.freedJoker);
     player.laidOutCards.push(handCard);
+    player._jokerSwaps = (player._jokerSwaps || 0) + 1;
 
     // KEIN mustLayOffCardId-Reset hier (anders als bei layoutMeld/layOffCard):
     // Die Pflichtkarte kann diesen Punkt gar nicht erreichen - der Guard am
@@ -2189,6 +2196,12 @@ class GameManager {
       b.ringRuns = ringRuns;
       b.longestRun = longestRun;
       b.bigPileTake = !!p._bigPileTake;
+      // A full set: all eight cards of one rank (both decks) in one meld.
+      b.fullSets = this.tableMelds.filter((m) => m.ownerId === p.id && m.type === 'set' && m.slots.length >= 8).length;
+      b.acesLaid = (p.laidOutCards || []).filter((cd) => !cd.isJoker && cd.rank === 'A').length;
+      b.jokerSwaps = p._jokerSwaps || 0;
+      b.pileTakes = p._pileTakes || 0;
+      b.turns = p._turns || 0;
       b.royalFlush = royalSuit; // suit letter, 'S' wins over others; null = none
     }
     this.totals = applyRoundScores(this.totals, roundResult);
@@ -2357,7 +2370,8 @@ class GameManager {
           .map((p) => {
             // Per-player facts for records & cumulative badge counters -
             // computed here because roundHistory lives in the manager.
-            const facts = { bestRound: 0, pdLaid: 0, pdCaught: 0, jokersLaid: 0, handAusWins: 0 };
+            const facts = { bestRound: 0, pdLaid: 0, pdCaught: 0, jokersLaid: 0, handAusWins: 0,
+              fullSets: 0, aceRounds: 0, jokerSwaps: 0, blitzRounds: 0, pileTakes: 0 };
             for (const round of this.roundHistory) {
               const r = round.results && round.results[p.id];
               const b = r && r.breakdown;
@@ -2366,6 +2380,11 @@ class GameManager {
                 facts.pdLaid += b.pikDameLaidOut || 0;
                 facts.pdCaught += b.pikDameCount || 0;
                 facts.jokersLaid += b.jokersLaidOut || 0;
+                facts.fullSets += b.fullSets || 0;
+                if ((b.acesLaid || 0) >= Badges.ACES_ROUND) facts.aceRounds += 1;
+                facts.jokerSwaps += b.jokerSwaps || 0;
+                facts.pileTakes += b.pileTakes || 0;
+                if (round.winnerId === p.id && b.turns > 0 && b.turns <= Badges.BLITZ_TURNS) facts.blitzRounds += 1;
               }
               if (round.isHandAus && round.winnerId === p.id) facts.handAusWins += 1;
             }
@@ -2375,6 +2394,7 @@ class GameManager {
             // with two teams the losing team is last.
             const lowest = Math.min(...this.players.map((pl) => this.totals[pl.id] || 0));
             facts.lastPlace = over.teamMode ? !won : p.id !== over.winnerId && (this.totals[p.id] || 0) <= lowest;
+            Object.assign(facts, Badges.matchFacts(this.lastGameRecord, p.id));
             return { id: p.id, name: p.name, score: this.totals[p.id] || 0, won, facts };
           });
         try {

@@ -106,6 +106,15 @@ function toProfile(r) {
     totalHandAus: r.hand_aus_wins,
     totalChallenges: r.challenges_played,
     totalStammtischGames: r.stammtisch_games,
+    totalFullSets: r.full_sets,
+    totalAceRounds: r.ace_rounds,
+    totalJokerSwaps: r.joker_swaps,
+    totalBlitzRounds: r.blitz_rounds,
+    totalShortWins: r.short_wins,
+    totalExactFinishes: r.exact_finishes,
+    totalPileTakes: r.pile_takes,
+    totalTeamWins: r.team_wins,
+    totalEarlyGames: r.early_games,
     dailyStreak: r.daily_streak,
     totalPuzzlesSolved: r.puzzles_solved,
     totalPerfectPuzzles: r.perfect_puzzles,
@@ -159,8 +168,10 @@ async function upsertPlayerId(q, name, at, createdAt = at) {
 
 const RECORD_GAME = `INSERT INTO players AS p (player_key, player_name, created_at, updated_at, last_seen_at,
     games_played, games_won, total_score, best_game_score, best_round_score, win_streak, last_place_streak,
-    queens_laid, queens_caught, jokers_laid, hand_aus_wins, challenges_played, stammtisch_games)
-  VALUES ($1, $2, $13, $13, $13, 1, $3, $4, $4, $5, $3, $6, $7, $8, $9, $10, $11, $12)
+    queens_laid, queens_caught, jokers_laid, hand_aus_wins, challenges_played, stammtisch_games,
+    full_sets, ace_rounds, joker_swaps, blitz_rounds, short_wins, exact_finishes, pile_takes, team_wins, early_games)
+  VALUES ($1, $2, $13, $13, $13, 1, $3, $4, $4, $5, $3, $6, $7, $8, $9, $10, $11, $12,
+    $14, $15, $16, $17, $18, $19, $20, $21, $22)
   ON CONFLICT (player_key) DO UPDATE SET
     games_played = p.games_played + 1,
     games_won = p.games_won + EXCLUDED.games_won,
@@ -175,6 +186,15 @@ const RECORD_GAME = `INSERT INTO players AS p (player_key, player_name, created_
     hand_aus_wins = p.hand_aus_wins + EXCLUDED.hand_aus_wins,
     challenges_played = p.challenges_played + EXCLUDED.challenges_played,
     stammtisch_games = p.stammtisch_games + EXCLUDED.stammtisch_games,
+    full_sets = p.full_sets + EXCLUDED.full_sets,
+    ace_rounds = p.ace_rounds + EXCLUDED.ace_rounds,
+    joker_swaps = p.joker_swaps + EXCLUDED.joker_swaps,
+    blitz_rounds = p.blitz_rounds + EXCLUDED.blitz_rounds,
+    short_wins = p.short_wins + EXCLUDED.short_wins,
+    exact_finishes = p.exact_finishes + EXCLUDED.exact_finishes,
+    pile_takes = p.pile_takes + EXCLUDED.pile_takes,
+    team_wins = p.team_wins + EXCLUDED.team_wins,
+    early_games = p.early_games + EXCLUDED.early_games,
     updated_at = EXCLUDED.updated_at,
     last_seen_at = GREATEST(p.last_seen_at, EXCLUDED.last_seen_at)
   RETURNING games_played, games_won`;
@@ -461,7 +481,9 @@ function createPlayerStore(pool, { legacyFile = DEFAULT_DATA_FILE, now = () => D
         const f = r.facts || {};
         const { rows } = await c.query(RECORD_GAME, [keyOf(r.name), nameOf(r.name), r.won ? 1 : 0, int(r.score),
           int(f.bestRound) > 0 ? int(f.bestRound) : null, f.lastPlace ? 1 : 0, count(f.pdLaid), count(f.pdCaught),
-          count(f.jokersLaid), count(f.handAusWins), f.challenge ? 1 : 0, f.stammtisch ? 1 : 0, at]);
+          count(f.jokersLaid), count(f.handAusWins), f.challenge ? 1 : 0, f.stammtisch ? 1 : 0, at,
+          count(f.fullSets), count(f.aceRounds), count(f.jokerSwaps), count(f.blitzRounds), f.shortWin ? 1 : 0,
+          f.exactFinish ? 1 : 0, count(f.pileTakes), f.teamWin ? 1 : 0, f.early ? 1 : 0]);
         records[keyOf(r.name)] = { played: rows[0].games_played, won: rows[0].games_won };
       }
       return records;
