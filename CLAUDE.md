@@ -157,6 +157,9 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   Tischlicht nach Tageszeit: `table-light.js` schreibt nur `--tod-*`, Farben im
   CSS-Abschnitt TABLE LIGHT aus dem Filz des Themes; Mittag = Bestand, kein Text
   unter seinen Mittags-Tiefstwert (`test/table-light-css.test.js`).
+  Debug-Ansicht: Zahlen, Seiten und Bericht in `debug-view.js` (ohne DOM); `window.pikdameDebug.report()`
+  liefert ihn auch bei ausgeschalteter Ansicht (ui-shots `--report`). Nie Token, Spieler-ID oder
+  Stammtisch-Code im Bericht (Test). Doku `docs/developer/debug-view.md`.
 - `landing/` (pikdame.online), `terraform/` (Hetzner), `docker/`, `k8s/`.
 - `mcp/` — MCP-Server: LLM sitzt als normaler WS-Spieler am Tisch (eigenes
   Paket mit MCP-SDK, nicht im Image). Legale Züge prüft ein Schatten-
