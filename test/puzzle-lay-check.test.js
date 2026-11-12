@@ -215,7 +215,8 @@ test('client: rebuilding is free - lay off onto a meld, take one back, and what 
   $('puzzleLayBtn').click();
   c.emit({ type: 'puzzleMeldCheck', date, valid: true });
   assert.strictEqual(c.doc.querySelectorAll('#puzzleMelds .puzzleMeld').length, 1);
-  assert.ok(!$('puzzleProgress').classList.contains('hidden'), 'the sheet says how far I am');
+  assert.ok(!$('puzzleProgress').classList.contains('hidden'), 'an "out" day says how many cards are left');
+  assert.strictEqual(c.doc.querySelectorAll('#puzzleMelds .pmPts').length, 0, 'but no worth per meld: adding up is the puzzle');
 
   // A tap on the meld without a pick only explains; with a pick it asks the rules about the grown meld.
   c.doc.querySelector('#puzzleMelds .pmCards').click();
@@ -242,6 +243,24 @@ test('client: rebuilding is free - lay off onto a meld, take one back, and what 
   assert.strictEqual(c.doc.querySelectorAll('#puzzleMelds .puzzleMeld').length, 0);
   assert.strictEqual(hand.children.length, puzzle.hand.length);
   assert.deepStrictEqual(JSON.parse(c.window.localStorage.getItem('pikdame_puzzle_laid')).groups, []);
+  assert.deepStrictEqual(c.errors, []);
+  c.window.close();
+});
+
+test('client: a points day shows no running total while it is open - neither for the pick nor for a meld', () => {
+  const { date, puzzle } = multiMeldDay('turn');
+  const c = bootClient(date, puzzle);
+  c.emit({ type: 'puzzle', date, kind: puzzle.kind, hand: puzzle.hand, targetPoints: puzzle.best.points, archive: false, today: date, epoch: date,
+    status: { tries: 0, solved: false, revealed: false } });
+  const $ = (id) => c.doc.getElementById(id);
+  const first = puzzle.best.melds[0];
+  first.forEach((id) => $('puzzleHand').querySelector(`[data-card-id="${id}"]`).click());
+  assert.ok($('puzzleProgress').classList.contains('hidden'), 'the pick is not added up');
+  $('puzzleLayBtn').click();
+  c.emit({ type: 'puzzleMeldCheck', date, valid: true });
+  assert.strictEqual(c.doc.querySelectorAll('#puzzleMelds .puzzleMeld').length, 1);
+  assert.ok($('puzzleProgress').classList.contains('hidden'), 'nor what lies');
+  assert.strictEqual(c.doc.querySelectorAll('#puzzleMelds .pmPts').length, 0);
   assert.deepStrictEqual(c.errors, []);
   c.window.close();
 });
