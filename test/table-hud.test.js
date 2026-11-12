@@ -285,7 +285,7 @@ test('settings sheet: four groups (plus "Dieser Tisch" at the table), language i
   assert.deepEqual(groups, [
     ['Dieser Tisch', ['towerPanelBtn', 'tableRulesBtn', 'tableLogBtn']],
     ['Ton', ['soundCheckbox', 'musicLevelSelect', 'musicTrackSelect']],
-    ['Darstellung', ['uiScaleSelect', 'cardbackBtn', 'tableMarkBtn', 'fullscreenCheckbox', 'celebrationSelect', 'petSelect']],
+    ['Darstellung', ['uiScaleSelect', 'cardbackBtn', 'tableMarkBtn', 'fullscreenCheckbox', 'chartRevealCheckbox', 'celebrationSelect', 'petSelect']],
     ['Spielhilfen', ['tutorialHintsCheckbox', 'aidTipsCheckbox', 'aidDiscardCheckbox', 'aidLayOffCheckbox', 'oppMovesCheckbox', 'bossFxCheckbox', 'petsCheckbox', 'botQuipsCheckbox']],
     ['Allgemein', ['versionBtn', 'studioLogoSelect', 'debugCheckbox']],
   ]);

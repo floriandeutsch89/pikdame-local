@@ -131,6 +131,7 @@
   <script src="/table-light.js" defer></script>
   <script src="/table-moves.js" defer></script>
   <script src="/boss-fight.js" defer></script>
+  <script src="/score-chart.js" defer></script>
   <script src="/debug-view.js" defer></script>
   <script src="/pet.js" defer></script>
   <script src="/client.js" defer></script>
@@ -1335,6 +1336,12 @@
                 <svg class="icon prefIcon" aria-hidden="true"><use href="#i-fullscreen"/></svg>
                 <span class="prefText"><span class="prefLabel">Vollbild</span></span>
                 <input type="checkbox" id="fullscreenCheckbox" class="settingsCheckbox" />
+              </label>
+              <!-- Off: the game-over chart stands there finished (client.js setChartReveal). -->
+              <label class="prefRow" for="chartRevealCheckbox">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-trend"/></svg>
+                <span class="prefText"><span class="prefLabel">Punkteverlauf zeichnen</span><span class="prefSub">Die Linien bauen sich am Spielende auf</span></span>
+                <input type="checkbox" id="chartRevealCheckbox" class="settingsCheckbox" />
               </label>
               <!-- On the profile, not the device: the whole table sees it (client.js updateCelebrationSetting). -->
               <div id="celebrationItem" class="prefPart">
