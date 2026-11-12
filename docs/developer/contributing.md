@@ -60,7 +60,7 @@ flowchart LR
   PR([pull request]) --> S["secret-scan"]
   PR --> C["changelog-fragment<br/>check-changes.js"]
   PR --> T["test<br/>node --test · docs:check"]
-  PR --> D["dependency-check<br/>npm audit · npm outdated"]
+  PR --> D["dependency-check<br/>npm audit"]
   PR --> I["image<br/>one build per run"]
   I --> DS["docker-security<br/>hadolint · Trivy"]
   I --> DK["docker-smoke<br/>hardened compose boots"]
@@ -89,9 +89,9 @@ things Dependabot cannot:
   (a new Node base image, a Postgres major) get a label, a reviewer and a
   comment listing what has to move with them; they never merge on their own.
 
-npm updates are deliberately **grouped**: the CI job `dependency-check` runs
-`npm outdated` and fails while any package is behind, so one pull request per
-package would keep every pull request red.
+npm updates are **grouped** into one pull request a week. A package that is
+merely behind fails nothing: `dependency-check` only runs `npm audit` and goes
+red on a known vulnerability of severity high or above.
 
 :::{dropdown} One-time setup of the Dependabot GitHub App
 :icon: gear

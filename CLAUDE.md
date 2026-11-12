@@ -262,8 +262,8 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
    ein GitHub-App-Token (`DEPS_BOT_APP_ID`/`DEPS_BOT_PRIVATE_KEY` im
    **Dependabot**-Speicher; `release-pr.yml` braucht sie zusätzlich als
    Actions-Secrets), weil `GITHUB_TOKEN`-Pushes keine CI/Release auslösen.
-   main braucht Pflicht-Checks, keine Pflicht-Reviews. npm ist gruppiert, weil
-   `dependency-check` bei jedem veralteten Paket rot wird.
+   main braucht Pflicht-Checks, keine Pflicht-Reviews. `dependency-check` prüft nur
+   `npm audit` (hoch+); veraltete Pakete machen nichts rot, Dependabot bringt sie gruppiert.
 8b. **Workflows:** Actions nur per Commit-SHA mit Versions-Kommentar (`@<sha> # v1.2.3`,
    Dependabot pflegt beides), jeder Job mit `timeout-minutes` (Vertragstest).
    Neuer CI-Job → in `needs` von `ci-ok` (einziger Pflicht-Check, Vertragstest). Beta rollt nur

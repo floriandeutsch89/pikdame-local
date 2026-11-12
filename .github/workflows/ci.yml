@@ -226,11 +226,9 @@ jobs:
           node-version: 26.x
           cache: 'npm'
       - run: npm ci
-      # Outdated packages fail the job (the project deliberately has only
-      # 'ws' - updating is a one-line chore instead of a surprise)
-      - name: Outdated packages
-        run: npm outdated
-      # Known vulnerabilities (severity high and above)
+      # No `npm outdated` gate: a release upstream turned main and every open
+      # PR red at a random moment. Dependabot brings updates; a known
+      # vulnerability (severity high and above) still fails here.
       - name: Security audit
         run: npm audit --audit-level=high
 
