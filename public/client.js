@@ -6977,7 +6977,7 @@
     return ['10', 'J', 'Q', 'K'].includes(card.rank) ? 10 : 5;
   }
   const puzzleValueOf = (ids) => ids.reduce((sum, id) => sum + puzzleCardValue(puzzleData.hand.find((c) => c.id === id)), 0);
-  /** How far I am: points laid of the goal, cards left, or the worth of my pick. */
+  /** Cards left on an "out" day; points only once the day is over - adding them up is the puzzle. */
   function renderPuzzleProgress(kind, groups, done) {
     const box = el('puzzleProgress');
     const laid = groups.flat();
@@ -6996,7 +6996,7 @@
       text = L(`Auswahl <b>${pts}</b> von ${puzzleData.targetPoints}`, `Picked <b>${pts}</b> of ${puzzleData.targetPoints}`);
       share = puzzleData.targetPoints ? pts / puzzleData.targetPoints : 0;
     }
-    box.classList.toggle('hidden', !text || (done && (kind === 'meld' || !laid.length)));
+    box.classList.toggle('hidden', !text || (kind !== 'out' && !done) || (done && (kind === 'meld' || !laid.length)));
     el('puzzleProgressText').innerHTML = text;
     el('puzzleProgressBar').style.width = `${Math.max(0, Math.min(100, share * 100))}%`;
     box.classList.toggle('full', share >= 1);
@@ -7077,7 +7077,7 @@
       cards.className = 'pmCards';
       if (!done) {
         cards.type = 'button';
-        cards.setAttribute('aria-label', L(`Auslage ${gi + 1}, ${pts} Punkte: gewählte Karten anlegen`, `Meld ${gi + 1}, ${pts} points: lay the picked cards off`));
+        cards.setAttribute('aria-label', L(`Auslage ${gi + 1}: gewählte Karten anlegen`, `Meld ${gi + 1}: lay the picked cards off`));
         cards.addEventListener('click', () => layOffPuzzle(gi));
       }
       for (const id of ids) {
@@ -7085,7 +7085,7 @@
         if (card) cards.appendChild(cardEl(card, {}));
       }
       g.appendChild(cards);
-      g.insertAdjacentHTML('beforeend', `<span class="pmPts" aria-hidden="true">${pts}</span>`);
+      if (done) g.insertAdjacentHTML('beforeend', `<span class="pmPts" aria-hidden="true">${pts}</span>`);
       if (!done) {
         const back = document.createElement('button');
         back.type = 'button';
