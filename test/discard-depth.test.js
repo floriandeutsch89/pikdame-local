@@ -1,6 +1,6 @@
 // The discard pile shows its thickness: card edges under the top card, one per two cards,
-// seven at most. client.js sets --pd on the top card, style.css draws that many edges as box
-// shadows. jsdom loads no style.css, so the drawing is checked as a source contract.
+// seven at most. client.js sets --pd on the top card, style.css draws that many edges as static
+// box shadows. jsdom loads no style.css, so the drawing is checked as a source contract.
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
@@ -111,7 +111,9 @@ function rule(selector) {
 test('style.css draws the depth as shadows of the top card: no box, no layout, theme colours', () => {
   const body = rule('#discardTopCard');
   const props = [...body.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/(?:^|;)\s*([\w-]+)\s*:/g)].map((m) => m[1]);
-  for (const p of props) assert.ok(p.startsWith('--') || p === 'box-shadow', `${p}: the depth may only be custom properties and box-shadow`);
+  for (const p of props) assert.ok(p.startsWith('--') || p === 'box-shadow' || p === 'transition', `${p}: the depth is custom properties and box-shadow only (no box, no animation, no layer hint)`);
+  // Static: .pile-card's box-shadow transition would repaint 17 shadows per frame on every discard.
+  assert.match(body, /^\s*transition: none;/, 'a new depth is set at once, in every motion setting');
   // One paper layer and one parting line per edge, each clamped to the pile's depth.
   assert.strictEqual((body.match(/var\(--card-bg\)/g) || []).length, MAX, 'a paper layer per edge');
   assert.strictEqual((body.match(/0 0 var\(--pile-line\)/g) || []).length, MAX, 'a line per edge');
@@ -126,9 +128,8 @@ test('style.css draws the depth as shadows of the top card: no box, no layout, t
   assert.match(CSS, /@supports \(color: color-mix\(in srgb, red, blue\)\) \{\s*#discardTopCard \{ --pile-line: color-mix\(in srgb, var\(--card-ink\) \d+%, var\(--card-bg\)\); \}/);
   // The pile's own shadows stay, so the card casts as before.
   assert.match(body, /var\(--shadow-2\), var\(--cast-far\), inset 0 1px 0 rgba\(255,255,255,0\.7\);/);
-  // An empty pile has no shadow (the id rule would beat .pile-card.empty); reduced motion: no slide.
+  // An empty pile has no shadow (the id rule would beat .pile-card.empty).
   assert.match(CSS, /\n#discardTopCard\.empty \{ box-shadow: none; \}/);
-  assert.match(CSS, /@media \(prefers-reduced-motion: reduce\) \{ #discardTopCard \{ transition: none; \} \}/);
 });
 
 test('the edges stay off the caption and inside what a flying card keeps clear of, in every layout', () => {

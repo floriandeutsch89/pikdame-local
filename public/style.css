@@ -1067,9 +1067,10 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   transition: box-shadow 0.3s ease;
 }
 /* Discard pile depth: --pd card edges under the top card (client.js discardDepth), shadows only, so
-   the box never grows. An unused edge hides under the last one: a new depth slides, never jumps. */
+   the box never grows. An unused edge hides under the last one. Static: a shadow is never animated. */
 .pile { --pile-edge: 1.25px; } /* one edge's step; per layout, off the caption (test/discard-depth) */
 #discardTopCard {
+  transition: none;
   --pd: 0;
   --pile-line: var(--card-border);
   --pl: calc(var(--pile-edge) * 0.4); /* the line that parts two edges */
@@ -1101,7 +1102,6 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   #discardTopCard { --pile-line: color-mix(in srgb, var(--card-ink) 32%, var(--card-bg)); }
 }
 #discardTopCard.empty { box-shadow: none; }
-@media (prefers-reduced-motion: reduce) { #discardTopCard { transition: none; } }
 .pile-card.red { color: var(--suit-red); }
 .pile-card.black { color: var(--suit-black); }
 .pile-card.joker { color: var(--joker); }
