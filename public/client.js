@@ -8396,7 +8396,7 @@
     achShowAll = item.kind !== 'season'; // the folded cabinet may not list it
     openAchId = key; // kept open when the fresh profile list re-renders
     el('statsBtn').click();
-    selectStatsTab('board');
+    selectStatsTab('me');
     // After the sheet's own scroll reset (overlayToastWatcher, a microtask later).
     setTimeout(() => {
       try {
@@ -12091,21 +12091,25 @@
     // The "you" sparkline needs the history too; refresh it on every open.
     send({ type: 'getGameHistory', name: currentName() });
     renderStats();
+    selectStatsTab('me');
     el('statsOverlay').classList.remove('hidden');
   });
   function selectStatsTab(which) {
-    const board = which === 'board';
-    el('statsTabBoardBtn').classList.toggle('active', board);
-    el('statsTabHistoryBtn').classList.toggle('active', !board);
-    el('statsPaneBoard').classList.toggle('hidden', !board);
-    el('statsPaneHistory').classList.toggle('hidden', board);
-    if (!board) {
-      // Erst beim ersten Wechsel anfragen - kein unnoetiger Rundgang beim
-      // blossen Oeffnen der Bestenliste.
+    // Public mode has no personal numbers: an empty "Ich" tab is not offered.
+    const noMe = ['statsMeBox', 'statsStammtischBox', 'achievementsBox'].every((id) => el(id).classList.contains('hidden'));
+    el('statsTabMeBtn').classList.toggle('hidden', noMe);
+    const tab = which === 'me' && noMe ? 'board' : which;
+    for (const [name, btn, pane] of [['me', 'statsTabMeBtn', 'statsPaneMe'], ['board', 'statsTabBoardBtn', 'statsPaneBoard'], ['history', 'statsTabHistoryBtn', 'statsPaneHistory']]) {
+      el(btn).classList.toggle('active', name === tab);
+      el(btn).setAttribute('aria-pressed', String(name === tab));
+      el(pane).classList.toggle('hidden', name !== tab);
+    }
+    if (tab === 'history') {
       if (myGameHistory === null) send({ type: 'getGameHistory', name: currentName() });
       renderGameHistory();
     }
   }
+  el('statsTabMeBtn').addEventListener('click', () => selectStatsTab('me'));
   el('statsTabBoardBtn').addEventListener('click', () => selectStatsTab('board'));
   el('statsTabHistoryBtn').addEventListener('click', () => selectStatsTab('history'));
   // Record details: tapping a profile row expands its personal records
@@ -12227,6 +12231,10 @@
       ? `<h4 class="histGroup">${escapeHtml(title)}</h4><div class="historyList">${list.map(card).join('')}</div>`
       : '');
     box.innerHTML =
+      `<p class="lobby-hint histLead">${games.length === 1
+        ? L('Deine letzte Partie unter diesem Spielernamen. Ein Tipp zeigt den Verlauf.', 'Your last game under this player name. Tap it for the score chart.')
+        : L(`Deine letzten ${games.length} Partien unter diesem Spielernamen. Ein Tipp zeigt den Verlauf, die Balken den Endstand aller Spieler.`,
+          `Your last ${games.length} games under this player name. Tap one for the score chart; the bars show everyone's final score.`)}</p>` +
       `<div class="histSummary">` +
       `<div><b>${fmtNum(games.length)}</b><span>${unitWord(games.length, 'game').replace(/^./, (c) => c.toUpperCase())}</span></div>` +
       `<div><b>${fmtNum(wins)}</b><span>${unitWord(wins, 'win').replace(/^./, (c) => c.toUpperCase())}</span></div>` +
@@ -12326,6 +12334,7 @@
   // "You" first: three numbers once, the level as a link, the last games as W/L boxes.
   el('statsMeBox').addEventListener('click', (ev) => {
     if (ev.target.closest('[data-open="progress"]')) openProgressSheet();
+    if (ev.target.closest('[data-open="history"]')) selectStatsTab('history');
     if (ev.target.closest('[data-start="bots"]')) {
       // Same path as "Gegen Bots spielen" after the tutorial: new game, started with bots.
       el('statsOverlay').classList.add('hidden');
@@ -12360,7 +12369,8 @@
     // Oldest left, newest right (reads like a timeline); the letter carries win/loss, the fill only repeats it.
     const games = (myGameHistory || []).slice(0, 10).reverse();
     const form = games.length
-      ? `<div class="meForm"><div class="meFormHead"><span>${L('Letzte Partien', 'Recent games')}</span><span>${L('neueste rechts', 'newest last')}</span></div>` +
+      ? `<div class="meForm"><div class="meFormHead"><span>${L('Letzte Partien', 'Recent games')}</span>` +
+        `<button type="button" class="meFormAll" data-open="history"><span>${L('Alle Partien', 'All games')}</span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></button></div>` +
         `<ol class="meFormRow" aria-label="${escapeHtml(L('Letzte Partien, neueste zuletzt', 'Recent games, newest last'))}">` +
         games.map((g) => {
           const score = String(g.myScore || 0); // no separator: ten boxes share 350 px
