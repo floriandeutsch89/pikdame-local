@@ -2453,6 +2453,19 @@ body.raidActive #toastContainer { margin-top: 132px; }
   background: rgba(0, 0, 0, 0.06);
 }
 .statsPane { min-height: 40px; }
+.statsTabs .resultTabBtn.hidden { display: none; }
+/* The tabs differ in length: a fixed height keeps them and "Schließen" in place when switching. */
+@media (orientation: portrait) and (max-width: 640px) {
+  #statsOverlay .overlay-card { display: flex; flex-direction: column; min-height: min(78dvh, 100%); }
+  #statsOverlay .overlay-card > * { flex: none; }
+  #statsOverlay #statsCloseBtn { margin-top: auto; }
+}
+.histLead { margin: 0 0 8px; text-align: left; }
+.meFormAll {
+  display: inline-flex; align-items: center; gap: 2px; min-height: var(--tap-min); margin: -12px 0;
+  border: 0; background: transparent; font: inherit; font-weight: 700; color: inherit; cursor: pointer;
+}
+.meFormAll .icon { width: 1em; height: 1em; opacity: 0.6; transform: rotate(-90deg); }
 
 /* "Meine Partien": summary, grouped cards, tap opens the game's chart. */
 .histSummary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 4px; }
@@ -3609,7 +3622,8 @@ html[data-uiscale="xlarge"] .card-compact { width: 40px; height: 57px; min-width
 #statsPaneBoard > .lobby-hint { margin: 2px 0 8px; text-align: left; }
 .boardHead, .boardRow {
   display: grid; align-items: center; gap: 8px;
-  grid-template-columns: 1.6em minmax(0, 1fr) 4.2em 3.4em 2.8em;
+  grid-template-columns: 1.6em minmax(0, 1fr) 4.4em 3.6em 3em;
+  column-gap: 12px;
   padding: 0 8px;
 }
 .boardHead {
@@ -6802,6 +6816,11 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
    The melds got 63px, and 0px once the action bar showed up. This block sits
    at the very end on purpose, so it outranks those later rules. */
 @media (orientation: landscape) and (max-height: 540px) {
+  /* Statistik: the width is there, the height is not - "Ich" in two columns. */
+  #statsOverlay .overlay-card { max-width: 780px; }
+  #statsPaneMe:not(.hidden) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 20px; align-items: start; }
+  #statsPaneMe > #statsMeBox { grid-column: 1; grid-row: 1 / span 2; }
+  #statsPaneMe > :not(#statsMeBox) { grid-column: 2; }
   .jokerChoiceOptions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 8px 0; }
   .jcOption { padding: 6px 10px; }
   #jokerChoiceOverlay .overlay-card { max-width: 660px; }

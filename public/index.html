@@ -1522,29 +1522,25 @@
     <section id="statsOverlay" class="overlay hidden" data-sheet-close="statsCloseBtn">
       <div class="overlay-card">
         <h2><svg class="icon" aria-hidden="true"><use href="#i-chart"/></svg><span>Statistik</span></h2>
-        <!-- Zwei Ansichten: Bestenliste (alle Spieler) und die eigene
-             Partien-Historie. Getrennt statt vermischt, weil unterschiedliche
-             Fragen dahinterstehen ("wie stehe ich im Vergleich" vs. "was habe
-             ICH zuletzt gespielt") - Feature-Wunsch nach der eigenen
-             Spielhistorie. -->
+        <!-- Three questions, three tabs: how am I doing, how do I compare,
+             what did I play. Each fits about one phone screen. -->
         <div class="statsTabs">
-          <button id="statsTabBoardBtn" type="button" class="resultTabBtn active">Übersicht</button>
-          <button id="statsTabHistoryBtn" type="button" class="resultTabBtn">Meine Partien</button>
+          <button id="statsTabMeBtn" type="button" class="resultTabBtn active">Ich</button>
+          <button id="statsTabBoardBtn" type="button" class="resultTabBtn">Bestenliste</button>
+          <button id="statsTabHistoryBtn" type="button" class="resultTabBtn">Partien</button>
         </div>
-        <div id="statsPaneBoard" class="statsPane">
-          <!-- Personal first, server last: the player's own numbers answer the
-               question people open this for. -->
+        <div id="statsPaneMe" class="statsPane">
           <div id="statsMeBox" class="statsMeBox hidden"></div>
           <!-- My standing at each Stammtisch this device knows; a tap opens its record sheet. -->
           <div id="statsStammtischBox" class="statsStammtisch hidden"></div>
           <div id="achievementsBox" class="achievementsBox hidden"></div>
-          <h3 class="statsSectionTitle">Bestenliste</h3>
+        </div>
+        <div id="statsPaneBoard" class="statsPane hidden">
           <p class="lobby-hint">Über alle Partien auf diesem Server (nach Spielernamen).</p>
           <div id="statsContent" class="statsContent"></div>
           <div id="globalStatsBox" class="globalStatsBox hidden"></div>
         </div>
         <div id="statsPaneHistory" class="statsPane hidden">
-          <p class="lobby-hint">Deine letzten abgeschlossenen Partien (bis 1000 Punkte, im Team bis 2000) - nur auf diesem Gerät/mit diesem Spielernamen.</p>
           <div id="historyContent" class="statsContent"></div>
         </div>
         <button id="statsCloseBtn" class="btn-secondary">Schließen</button>

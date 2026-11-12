@@ -1311,10 +1311,11 @@ async function fanOut() {
           await shot('account-admin');
           await page.click('#accountCloseBtn');
         }
-        if (sc === 'stats' || sc === 'history' || sc === 'history-team') {
+        if (sc === 'stats' || sc === 'stats-board' || sc === 'history' || sc === 'history-team') {
           teamHistory = sc === 'history-team';
           await page.click('#statsBtn'); await page.waitForTimeout(500);
-          if (sc !== 'stats') { await page.click('#statsTabHistoryBtn'); await page.waitForTimeout(600); }
+          if (sc === 'stats-board') { await page.click('#statsTabBoardBtn'); await page.waitForTimeout(300); }
+          else if (sc !== 'stats') { await page.click('#statsTabHistoryBtn'); await page.waitForTimeout(600); }
           // history-team: the team game's card opened (its chart has a line per team).
           if (teamHistory) { await page.click('.histCard[data-id="gteam"]'); await page.waitForTimeout(400); }
           await shot(sc);
@@ -1328,7 +1329,6 @@ async function fanOut() {
           await shot(sc);
           await page.click('#statsTabHistoryBtn'); await page.waitForTimeout(600);
           await shot('history-empty');
-          await page.click('#statsTabBoardBtn'); await page.waitForTimeout(200);
           await page.click('#statsCloseBtn');
           emptyMe = false;
         }
