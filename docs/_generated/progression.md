@@ -188,6 +188,7 @@ on the client:
 | Emote | Unlocked |
 | --- | --- |
 | 👍 | always |
+| 👎 | always |
 | 😂 | always |
 | 😱 | always |
 | 😤 | always |
