@@ -1317,15 +1317,15 @@
   //     counting them yourself is part of the game, so the tutorial leaves it alone.
   const AID_DISCARD_KEY = 'pikdame_aid_discard';
   const AID_LAYOFF_KEY = 'pikdame_aid_layoff';
-  const AID_LOWCARDS_KEY = 'pikdame_aid_lowcards';
   let aidDiscard = storageGet(AID_DISCARD_KEY) === 'on';
   let aidLayOff = storageGet(AID_LAYOFF_KEY) !== 'off';
-  let aidLowCards = storageGet(AID_LOWCARDS_KEY) === 'on';
+  // The old low-card warning is gone (it did the watching for you): forget a stored switch.
+  storageRemove('pikdame_aid_lowcards');
   const inTutorial = () => !!(lastState && lastState.tutorialMode);
   const discardAidOn = () => aidDiscard || inTutorial();
   const layOffAidOn = () => aidLayOff || inTutorial();
   function renderAidControls() {
-    for (const [boxId, on] of [['aidDiscardCheckbox', aidDiscard], ['aidLayOffCheckbox', aidLayOff], ['aidLowCardsCheckbox', aidLowCards]]) {
+    for (const [boxId, on] of [['aidDiscardCheckbox', aidDiscard], ['aidLayOffCheckbox', aidLayOff]]) {
       const box = document.getElementById(boxId);
       if (box) box.checked = on;
     }
@@ -1336,9 +1336,6 @@
     if (which === 'discard') {
       aidDiscard = enabled;
       storageSet(AID_DISCARD_KEY, enabled ? 'on' : 'off');
-    } else if (which === 'lowcards') {
-      aidLowCards = enabled;
-      storageSet(AID_LOWCARDS_KEY, enabled ? 'on' : 'off');
     } else {
       aidLayOff = enabled;
       storageSet(AID_LAYOFF_KEY, enabled ? 'on' : 'off');
@@ -2923,19 +2920,13 @@
         d.title = L(`${cardsText} · ${opTotal} Punkte`, `${cardsText} · ${opTotal} points`);
         const opProgress = Math.max(0, Math.min(100, (opTotal / 1000) * 100));
         if (reconnecting || leftGame) d.classList.add('disconnected');
-        // Play aid "low-card warning" (default off): a tag on the chip's edge,
-        // so the chip keeps its height and the melds below do not jump.
-        const lowCards = aidLowCards && !leftGame && lastState.phase === 'playing' && p.handCount > 0 && p.handCount <= 2;
-        if (lowCards) d.classList.add('lowCards');
-        // The same edge slot says who gave the game up or dropped out (the name row would
-        // truncate it); the warning wins, the dimmed face still says "offline".
-        const lowTag = leftGame
-          ? `<span class="opLowTag opLeftTag"><span>${L('hat verlassen', 'left')}</span></span>`
-          : lowCards
-            ? `<span class="opLowTag"><svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg><span>${p.handCount === 1 ? L('Letzte Karte!', 'Last card!') : L('Noch 2 Karten!', '2 cards left!')}</span></span>`
-            : reconnecting
-              ? `<span class="opLowTag opLeftTag reconnectTag"><span>${L('getrennt', 'offline')}</span></span>`
-              : '';
+        // The chip's bottom edge says who gave the game up or dropped out (the name row would
+        // truncate it), so the chip keeps its height; the dimmed face says "offline" too.
+        const edgeTag = leftGame
+          ? `<span class="opEdgeTag"><span>${L('hat verlassen', 'left')}</span></span>`
+          : reconnecting
+            ? `<span class="opEdgeTag reconnectTag"><span>${L('getrennt', 'offline')}</span></span>`
+            : '';
         const faceBreath = breath && breath.id === p.id ? breath : null;
         // "2 gegen 2": the partner's chip ringed in the team colour with a filled "Team" tab, a rival's
         // a quiet stripe (named: an outlined tab). The bar is the team's, the number the seat's own.
@@ -2956,7 +2947,7 @@
           ? teamBarHtml(team, p.id)
           : `<div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>`;
         // The dealer star sits on the face (a dealer button), so the name keeps the whole row.
-        d.innerHTML = `<div class="opName"><span class="opSeat">${avatarFor(p.name, p.isBot, faceBreath)}${dealerStar}</span><span class="opNameText">${nameWithHeart(p.name)}</span></div><div class="opCount"><span class="opCards" title="${cardsText}"><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><b>${p.handCount}</b></span><b class="opPts" title="${L(`${opTotal} Punkte`, `${opTotal} points`)}">${opTotal}</b></div>${bar}${teamTag}${lowTag}`;
+        d.innerHTML = `<div class="opName"><span class="opSeat">${avatarFor(p.name, p.isBot, faceBreath)}${dealerStar}</span><span class="opNameText">${nameWithHeart(p.name)}</span></div><div class="opCount"><span class="opCards" title="${cardsText}"><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><b>${p.handCount}</b></span><b class="opPts" title="${L(`${opTotal} Punkte`, `${opTotal} points`)}">${opTotal}</b></div>${bar}${teamTag}${edgeTag}`;
         // Every seat sees the level (only the host can change it): guests at a Stammtisch
         // saw none while all bots were equal. Daily challenge: fixed and deliberately unsaid.
         // Badge lives OUTSIDE the name div: inside it, the name ellipsis on
@@ -5189,7 +5180,6 @@
   });
   el('aidDiscardCheckbox').addEventListener('change', () => setAid('discard', el('aidDiscardCheckbox').checked));
   el('aidLayOffCheckbox').addEventListener('change', () => setAid('layoff', el('aidLayOffCheckbox').checked));
-  el('aidLowCardsCheckbox').addEventListener('change', () => setAid('lowcards', el('aidLowCardsCheckbox').checked));
   el('soundCheckbox').addEventListener('change', () => setSoundEnabled(el('soundCheckbox').checked));
   el('musicLevelSelect').addEventListener('change', () => setMusicLevel(el('musicLevelSelect').value));
   el('musicTrackSelect').addEventListener('change', () => setMusicChoice(el('musicTrackSelect').value));

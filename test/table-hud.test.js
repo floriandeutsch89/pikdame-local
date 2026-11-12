@@ -121,35 +121,16 @@ test('opponent chips: cards as icon + number, the total without "Kt · Pkt"', as
   assert.equal(chip.title, '1 Karte · 640 Punkte', 'the full words stay in the tooltip');
 });
 
-test('low-card warning: default OFF; the switch tags 1 and 2 cards and is stored per device', async (t) => {
-  const { doc, feed, click, window } = await setup(t);
-  feed(table());
-  assert.equal(doc.querySelectorAll('#opponents .lowCards, #opponents .opLowTag').length, 0, 'a fresh device shows no warning');
-  assert.equal(doc.getElementById('aidLowCardsCheckbox').checked, false);
-  click(doc.getElementById('aidLowCardsCheckbox'));
-  assert.equal(window.localStorage.getItem('pikdame_aid_lowcards'), 'on');
-  assert.equal(doc.getElementById('aidLowCardsCheckbox').checked, true, 'the switch shows the new state');
-  const tag = (id) => doc.querySelector(`#opponents .opponent[data-player-id="${id}"] .opLowTag`);
-  assert.equal(tag('b1').textContent, 'Letzte Karte!');
-  assert.equal(tag('b2').textContent, 'Noch 2 Karten!');
-  assert.equal(tag('b3'), null, 'nine cards: nothing to warn about');
-  assert.ok(doc.querySelector('#opponents .opponent[data-player-id="b1"]').classList.contains('lowCards'));
-  feed(table({ phase: 'roundEnd' }));
-  assert.equal(doc.querySelectorAll('#opponents .opLowTag').length, 0, 'only while the round is played');
-});
-
-test('low-card warning: a stored ON is honoured on start, the settings switch turns it off', async (t) => {
+test('no low-card warning: one or two cards on a hand are for the players to notice; an old stored switch is forgotten', async (t) => {
   const { doc, feed, window } = await setup(t, { pikdame_aid_lowcards: 'on' });
-  feed(table());
-  assert.equal(doc.querySelectorAll('#opponents .opLowTag').length, 2);
-  const box = doc.getElementById('aidLowCardsCheckbox');
-  box.checked = false;
-  box.dispatchEvent(new window.Event('change', { bubbles: true }));
-  assert.equal(doc.querySelectorAll('#opponents .opLowTag').length, 0);
-  assert.equal(window.localStorage.getItem('pikdame_aid_lowcards'), 'off');
+  feed(table()); // b1 holds one card, b2 two
+  assert.equal(doc.getElementById('aidLowCardsCheckbox'), null, 'the option is gone');
+  assert.equal(doc.querySelectorAll('#opponents .opEdgeTag, #opponents .lowCards').length, 0, 'no tag, no red edge');
+  assert.doesNotMatch(doc.getElementById('opponents').textContent, /Letzte Karte|Noch 2 Karten/);
+  assert.equal(window.localStorage.getItem('pikdame_aid_lowcards'), null);
 });
 
-test('a dropped human: "getrennt" hangs on the bottom edge, the name keeps its row; the low-card warning goes first', async (t) => {
+test('a dropped human: "getrennt" hangs on the bottom edge, the name keeps its row - also with a short hand', async (t) => {
   const { doc, feed, click } = await setup(t);
   const dropped = (handCount = 9) => {
     const s = table();
@@ -160,11 +141,10 @@ test('a dropped human: "getrennt" hangs on the bottom edge, the name keeps its r
   feed(dropped());
   assert.ok(chip().classList.contains('disconnected'));
   assert.deepEqual([...chip().querySelector('.opName').children].map((c) => c.className), ['opSeat', 'opNameText'], 'nothing beside the name');
-  assert.equal(chip().querySelector('.opLowTag.reconnectTag').textContent, 'getrennt');
-  click(doc.getElementById('aidLowCardsCheckbox'));
+  assert.equal(chip().querySelector('.opEdgeTag.reconnectTag').textContent, 'getrennt');
   feed(dropped(2));
-  assert.equal(chip().querySelectorAll('.opLowTag').length, 1, 'one edge slot');
-  assert.equal(chip().querySelector('.opLowTag').textContent, 'Noch 2 Karten!');
+  assert.equal(chip().querySelectorAll('.opEdgeTag').length, 1, 'one edge slot');
+  assert.equal(chip().querySelector('.opEdgeTag').textContent, 'getrennt', 'two cards left change nothing');
   assert.ok(chip().classList.contains('disconnected'), 'the dimmed face still says offline');
   click(doc.getElementById('langBtn'));
   feed(dropped());
@@ -306,7 +286,7 @@ test('settings sheet: four groups (plus "Dieser Tisch" at the table), language i
     ['Dieser Tisch', ['towerPanelBtn', 'tableRulesBtn', 'tableLogBtn']],
     ['Ton', ['soundCheckbox', 'musicLevelSelect', 'musicTrackSelect']],
     ['Darstellung', ['uiScaleSelect', 'cardbackBtn', 'tableMarkBtn', 'fullscreenCheckbox', 'celebrationSelect', 'petSelect']],
-    ['Spielhilfen', ['tutorialHintsCheckbox', 'aidTipsCheckbox', 'aidDiscardCheckbox', 'aidLayOffCheckbox', 'aidLowCardsCheckbox', 'oppMovesCheckbox', 'bossFxCheckbox', 'petsCheckbox', 'botQuipsCheckbox']],
+    ['Spielhilfen', ['tutorialHintsCheckbox', 'aidTipsCheckbox', 'aidDiscardCheckbox', 'aidLayOffCheckbox', 'oppMovesCheckbox', 'bossFxCheckbox', 'petsCheckbox', 'botQuipsCheckbox']],
     ['Allgemein', ['versionBtn', 'studioLogoSelect', 'debugCheckbox']],
   ]);
   assert.ok(doc.getElementById('tableOptions').classList.contains('hidden'), '"Dieser Tisch" only at the table');

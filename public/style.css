@@ -981,19 +981,15 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .opponent .opPts { margin-left: auto; }
 .opCards { display: inline-flex; align-items: center; gap: 3px; }
 .opCards .icon { width: 1.15em; height: 1.15em; opacity: 0.75; vertical-align: 0; }
-/* Play aid "low-card warning": a tag on the bottom edge, so the chip keeps
-   its height and the melds below never jump; the text carries the meaning. */
-.opponent.lowCards { border-color: var(--danger); }
-.opLowTag {
+/* A tag on the chip's bottom edge: a player who gave the game up (a bot plays on) or
+   dropped out. On the edge, so the chip keeps its height and the melds below never jump. */
+.opEdgeTag {
   position: absolute; left: 50%; bottom: -9px; z-index: 2; transform: translateX(-50%);
   display: inline-flex; align-items: center; gap: 3px;
-  padding: 1px 7px 1px 5px; border-radius: var(--r-pill);
-  background: var(--danger); color: #2a0a0a; box-shadow: var(--shadow-1);
+  padding: 0 7px; border-radius: var(--r-pill);
+  background: var(--glass-strong); color: var(--text); border: 1px solid var(--glass-border); box-shadow: var(--shadow-1);
   font-size: var(--fs-micro); font-weight: 800; line-height: 1.35; white-space: nowrap;
 }
-.opLowTag .icon { width: 1.1em; height: 1.1em; vertical-align: 0; }
-/* Same slot, calm colours: a player who gave the game up (a bot plays on). */
-.opLowTag.opLeftTag { background: var(--glass-strong); color: var(--text); border: 1px solid var(--glass-border); padding: 0 7px; }
 
 /* Auslagen */
 
@@ -6534,7 +6530,6 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
 .opponent.isPartner { outline: 2px solid var(--team-ring); outline-offset: -3px; }
 .meldOwnerGroup.teamOwn { box-shadow: inset 0 0 0 2px var(--team-ring); }
 .opponent.isPartner.active { border-color: var(--accent); }
-.opponent.isPartner.lowCards { border-color: var(--danger); }
 .opPartnerTag {
   position: absolute; top: -8px; left: 8px; z-index: 2;
   max-width: calc(100% - 16px);
