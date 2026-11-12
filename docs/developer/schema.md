@@ -70,7 +70,7 @@ How a profile is stored (`game/PlayerStore.js`):
 
 | Data | Where | Why there |
 | --- | --- | --- |
-| Counters, records, the daily and the perfect-puzzle streak, the celebration | columns of `players` | one value each; a match is booked with `games_played = games_played + 1` in one upsert |
+| Counters, records, the daily and the perfect-puzzle streak, the celebration | columns of `players` | one value each; a match is booked with `games_played = games_played + 1` in one upsert; the nine counters behind the newer badge families (`015`: `full_sets` … `early_games`) are booked in the same upsert |
 | Favourite badges (up to 3, ordered) | `players.favorite_badges TEXT[]` | a small list always read and written whole, never queried inside |
 | Badges | `player_badges (player_id, badge_id, earned_at, notified_at)` | the primary key makes "only new badges" one `INSERT … ON CONFLICT DO NOTHING RETURNING`; `notified_at` (NULL: not shown yet) makes "each unlock card once" one `UPDATE … WHERE notified_at IS NULL RETURNING` |
 | Seasonal card backs | `player_card_backs (player_id, card_back_id, unlocked_day)` | the same: the first unlock day stays |
