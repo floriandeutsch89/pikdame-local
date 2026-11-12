@@ -25,6 +25,7 @@ const EMOTE_DEFS = [
   { id: '🤔', level: 4, cat: 'smileys' },
   { id: '🍀', level: 5, cat: 'nature' },
   { id: '😎', level: 6, cat: 'smileys' },
+  { id: '😲', level: 7, cat: 'smileys' },
   { id: '🔥', level: 8, cat: 'nature' },
   { id: '😴', level: 10, cat: 'smileys' },
   { id: '🙏', level: 12, cat: 'smileys' },
@@ -51,7 +52,7 @@ const EMOTE_DEFS = [
 // this order (iOS merges smileys and people), within each the order below.
 const EMOTE_CATEGORIES = ['smileys', 'nature', 'food', 'activity', 'objects', 'symbols'];
 const KEYBOARD_ORDER = [
-  '😅', '😂', '🙃', '😇', '🤩', '🤔', '😬', '🙄', '😴', '🥳', '😎', '😱', '😤', '🙈',
+  '😅', '😂', '🙃', '😇', '🤩', '🤔', '😬', '🙄', '😲', '😴', '🥳', '😎', '😱', '😤', '🙈',
   '🤞', '👍', '👎', '👏', '🤝', '🙏', '💪', '👀',
   '🐢', '🍀', '🔥',
   '☕', '🍻',

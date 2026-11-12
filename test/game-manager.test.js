@@ -2330,6 +2330,26 @@ test('a human emote gets at most ONE bot reply; bots and cooldown stay silent', 
   g.destroy();
 });
 
+test('a human emote right after a table moment is answered by the bot it concerns', async () => {
+  const tick = () => new Promise((r) => setTimeout(r, 5));
+  const { game: g } = makeGame(1);
+  const human = g.players.find((p) => !p.isBot);
+  g.fillWithBots();
+  g._emoteDelayForTest = 0;
+  const sent = [];
+  g.onBotEmote = (botId, emoji) => sent.push({ botId, emoji });
+  const caught = g.players.filter((p) => p.isBot)[1];
+  g._noteTableEvent('queen_caught', caught.id);
+  const r = Math.random; Math.random = () => 0.01;
+  try { g.respondToHumanEmote(human.id, '😂'); } finally { Math.random = r; }
+  await tick();
+  assert.deepStrictEqual(sent.map((s) => s.botId), [caught.id], 'the caught bot answers');
+  assert.ok(['😤', '🙈', '😬'].includes(sent[0].emoji));
+  const snap = JSON.parse(JSON.stringify(g.serialize()));
+  assert.strictEqual(snap._tableEvents, undefined, 'table moments are transient');
+  g.destroy();
+});
+
 test('hourglass while a bot is to move pokes exactly that bot', async () => {
   const { game: g } = makeGame(1);
   const human = g.players.find((p) => !p.isBot);
