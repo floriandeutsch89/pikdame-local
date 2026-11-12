@@ -69,6 +69,10 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
    (Pausen/Stempel vor dem Rundenblatt abgelehnt, #513). Ton sparsam, die
    meisten spielen stumm (mehr Kartengeräusche abgelehnt, #512) → Charakter
    muss sichtbar wirken. Neue Animationen per Option abschaltbar.
+   **Effekte kosten kaum Akku/Leistung:** nur `transform`/`opacity` animieren,
+   keine Endlos-Schleifen, nichts im Leerlauf oder verstecktem Tab, keine
+   Layout-Lesungen in Schleifen; im PR `main` gegen Branch messen
+   (CDP `Performance.getMetrics`: Layout-, Stil-, Skript-, Taskzeit).
    Einzige Ausnahme: der Boss-Auftritt (< 2 s, vor der ersten Karte, Tipp
    überspringt). Was sonst zum Rundenstart erscheint (Abhebe-Einblendung,
    Rundenspruch), wartet auf ihn. Effekte am Tisch liegen unter jedem Dialog
