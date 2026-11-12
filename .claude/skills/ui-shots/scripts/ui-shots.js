@@ -60,6 +60,7 @@
 // --tap <selector>: tapped before the shot ('a;b' taps in order); --tag names the variant in the file name;
 // --tap-freeze <ms> holds every animation at that moment (a frame of a fold mid-glide).
 // --measure writes <out>/measure.json: the table regions (melds, hand, piles ...) per shot.
+// unlock-pet (--signed-in): the one-time "a cat is waiting" card on the start screen, then tapped.
 // unlock / unlock-lobby / unlock-roundend / unlock-gameover / unlock-queue: the badge unlock card
 // on a running table (--badge <id>), the start screen, the result sheets, and its "+N" fold.
 // gameover-win (I win the match, a new badge), stats-empty (a brand-new name: statistics
@@ -816,7 +817,7 @@ async function fanOut() {
       if (!vp) throw new Error(`unknown view ${vn}`);
       const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, userAgent: UA, deviceScaleFactor: Number(arg('scale', 2)), isMobile: vp.mobile, hasTouch: vp.mobile,
         ...(STILL ? { reducedMotion: 'reduce' } : {}) });
-      await ctx.addInitScript(([me, theme, musicHint, stammtische, uiLang, uiScale, mark]) => {
+      await ctx.addInitScript(([me, theme, musicHint, stammtische, uiLang, uiScale, mark, petNews]) => {
         try {
           localStorage.setItem('pikdame_player_name', me);
           if (uiLang) localStorage.setItem('pikdame_lang', uiLang); // --lang en
@@ -829,9 +830,11 @@ async function fanOut() {
           localStorage.setItem('pikdame_stammtische', JSON.stringify(tables.slice(0, stammtische)));
           // The first click starts the music; its one-time hint would sit on every later shot.
           if (!musicHint) localStorage.setItem('pikdame_music_hint', '1');
+          // "A cat is waiting for you" pops once per device on a signed-in start screen; only its own scene shows it.
+          if (!petNews) localStorage.setItem('pikdame_pet_news', '1');
           if (mark) localStorage.setItem('pikdame_table_mark', mark); // --mark <id>
         } catch (e) { /* storage blocked */ }
-      }, [ME, arg('theme', ''), scenes.includes('music-hint'), Math.max(0, Math.min(3, Number(arg('stammtische', 1)))), arg('lang', ''), arg('ui-scale', ''), MARK]);
+      }, [ME, arg('theme', ''), scenes.includes('music-hint'), Math.max(0, Math.min(3, Number(arg('stammtische', 1)))), arg('lang', ''), arg('ui-scale', ''), MARK, scenes.includes('unlock-pet')]);
       const pageCss = [LIGHT_CSS, vp.mobile ? SAFE_AREA_CSS : ''].filter(Boolean).join('\n');
       if (pageCss) {
         await ctx.addInitScript((cssText) => {
@@ -1401,7 +1404,7 @@ async function fanOut() {
           await page.waitForTimeout(200);
           await shot(sc);
         }
-        // Table pets (public/pet.js): my cat beside the piles, then the card a tap on it opens.
+        // Table pets (public/pet.js): my cat beside the piles, then stroked (a real pointer on it: it purrs where it is).
         // --pets-case crowd: a full table of humans with long names, one of them dropped out; --pets-mood asleep|turn.
         // Every run measures: the pet must lie on nothing and stay inside the piles strip / the tray (prints "pets: ...").
         if (sc === 'pets') {
@@ -1463,9 +1466,16 @@ async function fanOut() {
           console.log(`pets [${vn}${arg('ui-scale', '') ? ` ${arg('ui-scale', '')}` : ''}, ${arg('pets-case', 'team')}${arg('pets-mood', '') ? ` ${arg('pets-mood', '')}` : ''}]: ${report.pets} shown, ${bad.length ? 'OVERLAP' : 'no overlap'}\n  ${report.lines.join('\n  ')}`);
           await shot(`pets${arg('pets-case', 'team') === 'crowd' ? '-crowd' : ''}${arg('pets-mood', '') ? `-${arg('pets-mood', '')}` : ''}`);
           if (!arg('pets-mood', '') && arg('pets-case', 'team') !== 'crowd') {
+            const at = await page.evaluate(() => { const c = document.querySelector('#tablePet .pet, #myPet .pet'); const b = c && c.getBoundingClientRect(); return b ? [b.left + b.width / 2, b.top + b.height / 2] : null; });
+            if (at) { await page.mouse.move(at[0], at[1]); await page.mouse.down(); await page.mouse.move(at[0] + 6, at[1]); await page.mouse.up(); }
+            await page.waitForTimeout(700);
+            await shot('pets-stroked');
+          }
+          // --pets-stroke: every case and mood can be shot stroked too.
+          if (process.argv.includes('--pets-stroke')) {
             await page.evaluate(() => { const c = document.querySelector('#tablePet .pet, #myPet .pet'); if (c) c.click(); });
-            await page.waitForTimeout(500);
-            await shot('pets-card');
+            await page.waitForTimeout(700);
+            await shot(`pets${arg('pets-case', 'team') === 'crowd' ? '-crowd' : ''}${arg('pets-mood', '') ? `-${arg('pets-mood', '')}` : ''}-stroked`);
           }
         }
         // Joker choice dialog over a table: "set or run?" or, with --joker layoff, which end.
@@ -1624,6 +1634,22 @@ async function fanOut() {
           if (arg('css', '')) await page.addStyleTag({ content: fs.readFileSync(arg('css', ''), 'utf8') });
           if (arg('eval', '')) console.log(`${vn}-${sc}:`, JSON.stringify(await page.evaluate(fs.readFileSync(arg('eval', ''), 'utf8'))));
           await shot(`${sc}-${stage}${arg('tag', '') ? `-${arg('tag', '')}` : ''}`);
+        }
+        // unlock-pet (with --signed-in): the level is there, no pet yet - the one-time card on the start screen,
+        // then (unlock-pet-open) a tap on it: the options at the pet choice.
+        if (sc === 'unlock-pet') {
+          await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
+          await page.waitForTimeout(2600);
+          // Other cards of the mock (a season award) go first: close them until the pet's card is up.
+          for (let i = 0; i < 4 && !(await page.$('#unlockLayer .unlockCard:not(.leaving) .unlockArt .pet')); i++) {
+            const x = await page.$('#unlockLayer .unlockCard:not(.leaving) .unlockClose');
+            if (x) await x.click();
+            await page.waitForTimeout(1500);
+          }
+          await shot(sc);
+          const main = await page.$('#unlockLayer .unlockCard:not(.leaving) .unlockArt .pet') && await page.$('#unlockLayer .unlockCard:not(.leaving) .unlockMain');
+          if (main) { await main.click(); await page.waitForTimeout(700); await shot(`${sc}-open`); }
+          else console.log(`unlock-pet [${vn}]: NO CARD (needs --signed-in)`);
         }
         if (/^unlock(-lobby|-queue|-roundend|-gameover)?$/.test(sc)) {
           // Badge unlock cards: a fresh page each (it pops a badge only once). unlock: on a running

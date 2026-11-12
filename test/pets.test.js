@@ -55,6 +55,15 @@ test('pet.js: markup only from the list, a safe collar colour and mood, the age 
   }
 });
 
+test('pet.js stroked: it purrs in the pose it has, whatever the mood', () => {
+  for (const mood of Pet.MOODS) {
+    const out = Pet.html('cat', { mood, petted: true });
+    assert.match(out, new RegExp(`class="pet pet-cat pose-${Pet.poseOf(mood)} mood-${mood} petPetted"`));
+    assert.doesNotMatch(Pet.html('cat', { mood }), /petPetted/);
+  }
+  assert.ok(Pet.PET_MS >= 1500 && Pet.PET_MS <= 4000);
+});
+
 test('pet.js pose: at rest and asleep it lies, everything else gets it up; getting up is marked once', () => {
   assert.deepEqual(Pet.MOODS.map((m) => [m, Pet.poseOf(m)]), [['idle', 'lie'], ['alert', 'sit'], ['sleep', 'lie'], ['happy', 'sit'], ['cheer', 'sit'], ['scared', 'sit'], ['yawn', 'sit']]);
   assert.match(Pet.html('cat', { mood: 'sleep' }), /class="pet pet-cat pose-lie mood-sleep"/);
@@ -139,7 +148,7 @@ test('engine: a seat\'s pet reaches every viewer, only from the list, survives a
 
 // --- Client (jsdom) -----------------------------------------------------------
 
-function boot(storage = {}) {
+function boot(storage = {}, { account = '' } = {}) {
   const html = fs.readFileSync(path.join(PUB, 'index.html'), 'utf8');
   const { window } = new JSDOM(html, { url: 'https://play.example/', runScripts: 'outside-only', pretendToBeVisual: true });
   const errors = [];
@@ -148,7 +157,7 @@ function boot(storage = {}) {
   window.scrollTo = () => {};
   window.Element.prototype.scrollIntoView = function scrollIntoView() {};
   window.requestAnimationFrame = () => 0;
-  window.fetch = () => Promise.resolve({ ok: true, json: () => Promise.resolve({ version: '0.0.0-test' }), text: () => Promise.resolve('') });
+  window.fetch = () => Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: !!account, username: account || undefined, accountsEnabled: !!account, version: '0.0.0-test' }), text: () => Promise.resolve('') });
   window.AudioContext = function () {
     return {
       createOscillator: () => ({ connect: (x) => x, start() {}, stop() {}, type: 'sine', frequency: { setValueAtTime() {}, value: 0 } }),
@@ -186,7 +195,7 @@ function table({ pets = {}, melds = [], turn = 'p1' } = {}) {
   };
 }
 
-test('client: only my own pet is drawn - lying at rest, up on my turn; a tap explains it; the switch hides it', async (t) => {
+test('client: only my own pet is drawn - lying at rest, up on my turn; a tap or a stroke makes it purr; the switch hides it', async (t) => {
   const app = boot();
   t.after(() => app.window.close());
   await new Promise((r) => setTimeout(r, 10));
@@ -201,16 +210,33 @@ test('client: only my own pet is drawn - lying at rest, up on my turn; a tap exp
   assert.ok(mine().classList.contains('pose-lie') && mine().classList.contains('mood-idle'));
   assert.ok(!mine().classList.contains('petRose'));
 
+  // Stroked while it lies: it purrs and stays lying. No toast, nothing is re-drawn under the finger.
+  const lying = mine();
+  lying.dispatchEvent(new app.window.Event('pointerdown', { bubbles: true }));
+  assert.ok(mine() === lying && lying.classList.contains('petPetted') && lying.classList.contains('pose-lie'));
+  assert.doesNotMatch(doc.getElementById('toastContainer').textContent, /Katze/);
+
   // My turn: it gets up, once with the little stretch.
   app.emit({ type: 'state', state: table({ pets: { p1: 'cat', p2: 'cat' }, turn: 'p1' }) });
   assert.ok(mine().classList.contains('pose-sit') && mine().classList.contains('mood-alert') && mine().classList.contains('petRose'));
 
-  // A tap: the figure large on the toast.
+  // Still purring after the re-draw; a finger running over it (pressed) keeps it going, a hovering mouse does not.
+  assert.ok(mine().classList.contains('petPetted'), 'the purr survives a new mood');
+  const realNow = app.window.Date.now;
+  let ahead = Pet.PET_MS + 50;
+  app.window.Date.now = () => realNow() + ahead;
+  app.emit({ type: 'state', state: table({ pets: { p1: 'cat' }, turn: 'p1' }) });
+  assert.ok(!mine().classList.contains('petPetted'), 'it runs out after the last stroke');
+  const move = (init) => { const ev = new app.window.Event('pointermove', { bubbles: true }); Object.assign(ev, init); mine().dispatchEvent(ev); };
+  move({ pointerType: 'mouse', buttons: 0 });
+  assert.ok(!mine().classList.contains('petPetted'));
+  move({ pointerType: 'touch', buttons: 0 });
+  assert.ok(mine().classList.contains('petPetted'));
+  ahead = (Pet.PET_MS + 50) * 2;
+  app.emit({ type: 'state', state: table({ pets: { p1: 'cat' }, turn: 'p1' }) });
   mine().dispatchEvent(new app.window.MouseEvent('click', { bubbles: true }));
-  const toast = doc.getElementById('toastContainer');
-  assert.ok(toast.classList.contains('petCard') && toast.classList.contains('visible'));
-  assert.match(toast.textContent, /Deine Katze/);
-  assert.ok(toast.querySelector('.pet.pet-cat'));
+  assert.ok(mine().classList.contains('petPetted'), 'a plain click strokes too');
+  app.window.Date.now = realNow;
 
   // I meld the Queen of Spades: hearts.
   const queens = [{ id: 'm1', ownerId: 'p1', type: 'set', rank: 'Q', slots: [{ real: { id: 1, rank: 'Q', suit: 'S' } }, { real: { id: 2, rank: 'Q', suit: 'H' } }, { real: { id: 3, rank: 'Q', suit: 'D' } }] }];
@@ -248,4 +274,52 @@ test('client: the options show the pet choice with its level and a preview; pets
   app.emit({ type: 'state', state: table({ pets: { p1: 'cat' } }) });
   assert.equal(doc.querySelector('#table .pet'), null);
   assert.deepEqual(app.errors, []);
+});
+
+test('client: who already has the level and no pet hears of it once - a card that leads to the choice', async (t) => {
+  const flo = (over = {}) => ({ name: 'Flo', gamesPlayed: 80, gamesWon: 30, xp: 4000, ...over });
+  const start = (storage, profile, account = 'Flo') => {
+    const app = boot({ pikdame_player_name: 'Flo', pikdame_account_token: 'tok', ...storage }, { account });
+    t.after(() => app.window.close());
+    return app;
+  };
+  const cards = (app) => [...app.doc.querySelectorAll('#unlockLayer .unlockCard:not(.leaving)')];
+  const settle = () => new Promise((r) => setTimeout(r, 30));
+
+  const app = start({});
+  await settle();
+  app.doc.getElementById('studioSplash')?.remove(); // a card waits out the intro
+  app.emit({ type: 'profiles', players: [flo()] });
+  await settle();
+  assert.equal(cards(app).length, 1);
+  const card = cards(app)[0];
+  assert.ok(card.querySelector('.unlockArt .pet.pet-cat'), 'the cat itself is on the card');
+  assert.match(card.textContent, /Neu ab Stufe 12/);
+  assert.match(card.textContent, /Eine Katze wartet auf dich/);
+  assert.equal(app.window.localStorage.getItem('pikdame_pet_news'), '1');
+  // A tap leads to the choice.
+  card.querySelector('.unlockMain').click();
+  assert.ok(!app.doc.getElementById('settingsOverlay').classList.contains('hidden'));
+  assert.equal(cards(app).length, 0);
+  // Never twice, not on this page ...
+  app.emit({ type: 'profiles', players: [flo()] });
+  await settle();
+  assert.equal(cards(app).length, 0);
+  assert.deepEqual(app.errors, []);
+
+  // ... nor after a reload; not below the level, not with a pet, not without the account that may choose.
+  for (const [storage, profile, account] of [
+    [{ pikdame_pet_news: '1' }, flo(), 'Flo'],
+    [{}, flo({ xp: 3000 }), 'Flo'],
+    [{}, flo({ pet: 'cat' }), 'Flo'],
+    [{}, flo(), ''],
+  ]) {
+    const other = start(storage, profile, account);
+    await settle();
+    other.doc.getElementById('studioSplash')?.remove();
+    other.emit({ type: 'profiles', players: [profile] });
+    await settle();
+    assert.equal(cards(other).length, 0, JSON.stringify([storage, profile.xp, profile.pet, account]));
+    assert.deepEqual(other.errors, []);
+  }
 });

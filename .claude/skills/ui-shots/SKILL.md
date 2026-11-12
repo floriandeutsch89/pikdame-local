@@ -36,7 +36,8 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
 - **Table scene:** `--scenes table --state <file>` injects a live game. Build
   the state from the real engine (`GameManager` + `fillWithBots` +
   `runBotTurn`, then `publicState('p1')`), not by hand.
-- **Table pets:** `pets` (my cat beside the piles, then the card a tap on it opens; `--pets-case crowd` = a full
+- **Table pets:** `pets` (my cat beside the piles, then stroked by a real pointer; `--pets-stroke` shoots any case/mood stroked;
+  `unlock-pet` with `--signed-in` = the one-time "a cat is waiting" card, then tapped; `--pets-case crowd` = a full
   table of humans with long names; `--pets-mood turn|rest|asleep` = sitting up, lying, sleeping). Every run prints
   `pets [...]: N shown, no overlap` or what the pet lies on: it must never cover anything. And
   `settings-pet` (the pet choice with its preview in "Optionen").

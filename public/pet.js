@@ -18,6 +18,7 @@
   const HAPPY_MS = 3200; // hearts after its owner melded the Queen of Spades
   const YAWN_EVERY_MS = 25000; // a long turn: it yawns once per stretch ...
   const YAWN_MS = 2600; // ... for this long
+  const PET_MS = 2600; // stroked: it purrs this long after the last stroke
 
   // At rest and asleep it lies down; everything else gets it up on its haunches.
   const poseOf = (mood) => (mood === 'idle' || mood === 'sleep' ? 'lie' : 'sit');
@@ -101,9 +102,11 @@
    * The pet as markup. `collar`: the owner's seat colour; `born`: when this pet
    * first showed (ms) - a re-drawn pet keeps its rhythm instead of starting over.
    */
-  function html(id, { mood = 'idle', collar = '#e8454f', born = 0, now = Date.now(), size = '', extra = '', rose = false } = {}) {
+  function html(id, { mood = 'idle', collar = '#e8454f', born = 0, now = Date.now(), size = '', extra = '', rose = false, petted = false } = {}) {
     if (!SVGS[id]) return '';
     const safeMood = MOODS.includes(mood) ? mood : 'idle';
+    // `petted`: being stroked - it purrs in the pose it has, the mood stays what it is.
+    if (petted) extra = `${extra} petPetted`.trim();
     // `rose`: it was lying a moment ago - the one time it gets up with a little stretch.
     if (rose && poseOf(safeMood) === 'sit') extra = `${extra} petRose`.trim();
     const t = Math.max(0, (now - (born || now)) / 1000).toFixed(2);
@@ -159,5 +162,5 @@
     return turnMs >= YAWN_EVERY_MS && into < YAWN_MS ? 'yawn' : 'alert';
   }
 
-  return { PETS, MOODS, HAPPY_MS, YAWN_EVERY_MS, YAWN_MS, isPet, petDef, poseOf, html, mood, eventsBetween, queensMelded, CAT_SVG };
+  return { PETS, MOODS, HAPPY_MS, YAWN_EVERY_MS, YAWN_MS, PET_MS, isPet, petDef, poseOf, html, mood, eventsBetween, queensMelded, CAT_SVG };
 }));

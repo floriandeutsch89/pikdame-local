@@ -2026,6 +2026,7 @@
       el('statsBtn').classList.toggle('hidden', publicMode);
       try { updateCelebrationSetting(); } catch (e) { /* cosmetic */ }
       try { updatePetSetting(); } catch (e) { /* cosmetic */ }
+      try { maybeAnnouncePet(); } catch (e) { /* cosmetic */ }
       if (!publicMode && !towerInfo) requestTower();
       try { renderTowerTile(); } catch (e) { /* cosmetic */ }
       if (msg.quests) dailyQuests = msg.quests;
@@ -8361,8 +8362,7 @@
     if (opts.priority) toastLockUntil = now + duration;
     const container = el('toastContainer');
     // opts.html: a short list on the toast's own surface (the recap after looking away).
-    container.classList.toggle('recap', !!opts.html && !opts.cls);
-    container.classList.toggle('petCard', opts.cls === 'petCard');
+    container.classList.toggle('recap', !!opts.html);
     if (opts.html) container.innerHTML = opts.html;
     else setIconText(container, text, opts.icon);
     container.classList.add('visible');
@@ -8387,7 +8387,7 @@
   const UNLOCK_GAP_MS = 320;
   const UNLOCK_LEAVE_MS = 260;
   const UNLOCK_SINGLES = 3;
-  const unlockQueue = []; // { kind: 'badge', id } | { kind: 'season', award, season, place, ranked } | { kind: 'more', items }
+  const unlockQueue = []; // { kind: 'badge', id } | { kind: 'season', award, season, place, ranked } | { kind: 'pet', id } | { kind: 'more', items }
   const unlockSeen = new Set(); // this page never pops one twice
   let unlockCard = null; // { item, node, endsAt, remaining, timer, holds: Set }
   let unlockBurst = 0; // single cards since the queue was last empty
@@ -8426,7 +8426,7 @@
   }
 
   function unlockKey(item) {
-    return item.kind === 'season' ? `season:${item.season}` : `badge:${item.id}`;
+    return item.kind === 'season' ? `season:${item.season}` : `${item.kind === 'pet' ? 'pet' : 'badge'}:${item.id}`;
   }
   function enqueueUnlocks(items) {
     for (const item of items) {
@@ -8453,8 +8453,11 @@
     const wait = Math.max(delay, unlockWait());
     if (wait > 0) { unlockTimer = setTimeout(() => pumpUnlocks(), wait); return; }
     // The burst's fourth card on: everything left in one, unless one alone is left.
-    const fold = unlockBurst >= UNLOCK_SINGLES && unlockQueue.length > 1;
-    const item = fold ? { kind: 'more', items: unlockQueue.splice(0) } : unlockQueue.shift();
+    // A pet's card never folds into the badges: it says something else.
+    const badges = unlockQueue.filter((it) => it.kind !== 'pet');
+    const fold = unlockBurst >= UNLOCK_SINGLES && badges.length > 1 && unlockQueue[0].kind !== 'pet';
+    if (fold) unlockQueue.splice(0, unlockQueue.length, ...unlockQueue.filter((it) => it.kind === 'pet'));
+    const item = fold ? { kind: 'more', items: badges } : unlockQueue.shift();
     if (!fold) unlockBurst += 1;
     showUnlock(item);
   }
@@ -8469,6 +8472,15 @@
         art: `+${n}`, count: true, eyebrow: L('Abzeichen freigeschaltet', 'Badges unlocked'),
         name: n === 1 ? L('1 weiteres Abzeichen', '1 more badge') : L(`${n} weitere Abzeichen`, `${n} more badges`),
         sub: names.join(' · '),
+      };
+    }
+    if (item.kind === 'pet') {
+      const pt = PET_LIST.find((x) => x.id === item.id) || { de: '', en: '', level: 1 };
+      return {
+        artHtml: petApi ? petApi.html(item.id, { mood: 'happy', collar: PLAYER_COLORS[0], born: petBornOf('news') }) : '',
+        eyebrow: L(`Neu ab Stufe ${pt.level}`, `New from level ${pt.level}`),
+        name: L(`Eine ${pt.de} wartet auf dich`, `A ${pt.en.toLowerCase()} is waiting for you`),
+        sub: L('Wähle sie in den Optionen', 'Choose it in the options'), // one line in landscape
       };
     }
     if (item.kind === 'season') {
@@ -8492,7 +8504,7 @@
     const v = unlockView(item);
     // The emoji IS the badge (content, as in the trophy cabinet), not an icon.
     return `<button type="button" class="unlockMain">` +
-      `<span class="unlockArt${v.count ? ' isCount' : ''}" aria-hidden="true">${escapeHtml(v.art)}</span>` +
+      `<span class="unlockArt${v.count ? ' isCount' : ''}" aria-hidden="true">${v.artHtml || escapeHtml(v.art)}</span>` +
       `<span class="unlockText"><span class="unlockEyebrow">${escapeHtml(v.eyebrow)}</span>` +
       `<span class="unlockName">${escapeHtml(v.name)}</span>` +
       (v.sub ? `<span class="unlockSub">${escapeHtml(v.sub)}</span>` : '') + '</span></button>' +
@@ -8525,6 +8537,7 @@
     placeUnlockLayer(true);
     el('unlockLayer').appendChild(node);
     unlockCard = { item, node, endsAt: 0, remaining: UNLOCK_SHOW_MS, timer: null, holds: new Set() };
+    if (item.kind === 'pet') storageSet(PET_NEWS_KEY, '1'); // said once per device
     runUnlockClock();
     if (document.visibilityState === 'hidden') holdUnlock('hidden');
     sound.unlock();
@@ -8584,13 +8597,19 @@
   }
   // A tap opens the badge in the trophy cabinet - only off the table and when no
   // sheet above the statistics would hide it; otherwise it just goes.
-  function unlockCanOpen() {
+  function unlockCanOpen(item) {
     if (publicMode || !el('table').classList.contains('hidden')) return false;
     const overlays = [...document.querySelectorAll('.overlay')];
+    if (item && item.kind === 'pet') return !overlays.some((o) => !o.classList.contains('hidden'));
     const stats = overlays.indexOf(el('statsOverlay'));
     return stats >= 0 && !overlays.slice(stats + 1).some((o) => !o.classList.contains('hidden'));
   }
   function openUnlockTarget(item) {
+    if (item.kind === 'pet') {
+      openOptions();
+      setTimeout(() => { try { el('petItem').scrollIntoView({ block: 'center' }); } catch (e) { /* the sheet is open anyway */ } }, 80);
+      return;
+    }
     const key = item.kind === 'badge' ? favoriteTileKey(item.id) : null;
     achShowAll = item.kind !== 'season'; // the folded cabinet may not list it
     openAchId = key; // kept open when the fresh profile list re-renders
@@ -8613,7 +8632,7 @@
       if (ev.target.closest('.unlockClose')) { closeUnlock(); return; }
       if (!ev.target.closest('.unlockMain')) return;
       if (unlockSwiped) { unlockSwiped = false; return; }
-      const open = unlockCanOpen();
+      const open = unlockCanOpen(card.item);
       closeUnlock();
       if (open) openUnlockTarget(card.item);
     });
@@ -13214,8 +13233,9 @@
   // --- Table pets (game/Pets.js, public/pet.js) -------------------------------
   // The choice lives on the profile, the switch "Haustiere am Tisch" on the device.
   // pet.js draws and names the mood; here MY pet gets its place (the other seats' pets
-  // stay away for now, the seats still carry them), keeps its rhythm and answers a tap.
+  // stay away for now, the seats still carry them), keeps its rhythm and likes being stroked.
   const PETS_KEY = 'pikdame_pets';
+  const PET_NEWS_KEY = 'pikdame_pet_news'; // "a pet is waiting for you" was said on this device
   // Where it may sit, best first: [size px, how the spot is found]. It keeps this much air to the next thing.
   const PET_AIR_PX = 8;
   const PET_SIZE_BESIDE_PX = 56; // right of the discard pile
@@ -13226,6 +13246,8 @@
   let petTurn = { id: null, since: 0 }; // who is on turn, since when (for the yawn)
   let petTimer = null;
   let petPose = ''; // the pose last drawn: getting up from lying is shown once
+  let petPettedUntil = 0; // stroked: it purrs until then
+  let petBuzzAt = 0;
   function myPetChoice() {
     const me = myProfile();
     return (me && me.pet) || 'none';
@@ -13284,16 +13306,22 @@
     const now = Date.now();
     return petApi.mood(lastState, seatId, { fx: petFx[seatId], turnMs: petTurn.id === seatId ? now - petTurn.since : 0, now });
   }
-  /** A tap on my pet: the figure large, and a word about it. */
-  function showPetCard(seat) {
-    const pt = PET_LIST.find((x) => x.id === seat.pet);
-    if (!pt || !petApi) return;
-    showToast('', {
-      duration: 4200, cls: 'petCard', priority: true, // asked for by a tap: it shows, whatever else is up
-      html: `${petApi.html(seat.pet, { mood: 'happy', collar: playerColor(seat.id), born: petBornOf(seat.id) })}` +
-        `<span class="petCardText"><b>${escapeHtml(L(`Deine ${pt.de}`, `Your ${pt.en.toLowerCase()}`))}</b>` +
-        `<span>${escapeHtml(L('Unter „Optionen“ wählst du, ob sie mit an den Tisch kommt.', 'Under "Options" you choose whether it comes to the table.'))}</span></span>`,
-    });
+  /** A tap on my pet or a finger running over it: it purrs for a while, in the pose it has. */
+  function strokePet() {
+    if (!petApi) return;
+    const now = Date.now();
+    petPettedUntil = now + petApi.PET_MS;
+    if (now - petBuzzAt > 450) { petBuzzAt = now; vibrate(8); }
+    // Only the class: a finger running over it calls this many times a second (no layout, no re-draw).
+    for (const home of [el('tablePet'), el('myPet')]) if (home && home.firstChild) home.firstChild.classList.add('petPetted');
+  }
+  /** Whoever may have a pet and has none hears of it once: the level was reached before pets came. */
+  function maybeAnnouncePet() {
+    if (!petApi || publicMode || !canPickFavorites() || myPetChoice() !== 'none' || storageGet(PET_NEWS_KEY)) return;
+    if (!el('table').classList.contains('hidden')) return; // at the table it waits for the lobby
+    const level = myLevel();
+    const pt = PET_LIST.find((x) => x.id !== 'none' && level >= x.level);
+    if (pt) enqueueUnlocks([{ kind: 'pet', id: pt.id }]);
   }
   /**
    * A free place for my pet beside the piles, or null: right of the discard pile (portrait),
@@ -13351,8 +13379,8 @@
         box.innerHTML = petApi.html(me.pet, { mood, collar: playerColor(me.id), born: petBornOf(me.id), rose: petPose === 'lie' && pose === 'sit' });
         petPose = pose;
         box.dataset.mood = mood;
-        box.onclick = () => showPetCard(me);
       }
+      box.firstChild.classList.toggle('petPetted', Date.now() < petPettedUntil);
     }
     if (!me) petPose = '';
     if (spot && pileBox.firstChild) {
@@ -13379,8 +13407,19 @@
   try {
     el('petSelect').addEventListener('change', () => {
       if (!canPickFavorites()) { updatePetSetting(); return; }
+      storageSet(PET_NEWS_KEY, '1'); // found it: no need to point there again
       send({ type: 'setPet', name: myName, pet: el('petSelect').value, accountToken: accountToken() || undefined });
     });
+    // Stroking: a tap, or a finger (or pressed mouse) running over it. The boxes stay, the figure in them is re-drawn.
+    for (const home of [el('tablePet'), el('myPet')]) {
+      if (!home) continue;
+      home.addEventListener('pointerdown', (ev) => {
+        try { home.setPointerCapture(ev.pointerId); } catch (e) { /* the stroke counts anyway */ }
+        strokePet();
+      });
+      home.addEventListener('pointermove', (ev) => { if (ev.pointerType === 'touch' || ev.buttons) strokePet(); });
+      home.addEventListener('click', strokePet); // keyboard and anything without pointer events
+    }
     const box = el('petsCheckbox');
     box.checked = petsOn;
     box.addEventListener('change', () => setPetsOn(box.checked));

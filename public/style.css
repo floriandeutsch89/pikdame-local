@@ -1995,6 +1995,7 @@ a.btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset
 .pet .petLieTail { transform-box: view-box; transform-origin: 51px 52px; }
 .pet .petLieBody { transform-box: view-box; transform-origin: 33px 58px; }
 .pet.pose-lie .petZAt { transform: translate(-15px, 13px); }
+.pet.pose-lie .petHeart { translate: -10px 14px; }
 /* What only a mood shows. */
 .pet .petEyesShut, .pet .petEyesHappy, .pet .petYawn, .pet .petHeart, .pet .petZ, .pet .petSpark, .pet .petDrop { opacity: 0; }
 .pet .petEyes, .pet .petMouth { opacity: 1; }
@@ -2041,6 +2042,23 @@ a.btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset
 @keyframes petPurr { from { transform: rotate(-4deg); } to { transform: rotate(4deg); } }
 @keyframes petHeart { 0% { opacity: 0; translate: 0 6px; } 20% { opacity: 1; } 100% { opacity: 0; translate: 0 -9px; } }
 
+/* Stroked (a tap, a finger running over it): it purrs in the pose it has - eyes shut in bliss,
+   the head leaning into the hand, hearts from where the head is. Being stroked calms a scared one. */
+.pet.petPetted .petEyes { opacity: 0; }
+.pet.petPetted .petEyesHappy { opacity: 1; }
+.pet.petPetted.mood-sleep .petEyesHappy, .pet.petPetted.mood-yawn .petEyesHappy { opacity: 0; }
+.pet.petPetted .petHead { animation: petPurr 0.9s ease-in-out infinite alternate; }
+.pet.petPetted .petHeart { animation: petHeart 1.6s ease-out infinite; }
+.pet.petPetted .petHeartB { animation-delay: 0.5s; }
+.pet.petPetted .petHeartC { animation-delay: 1s; }
+.pet.petPetted.pose-lie .petHeart { animation-name: petHeartLie; }
+.pet.petPetted.pose-lie .petLieTail { animation-duration: 1.5s; }
+.pet.petPetted.mood-sleep .petZ { animation: none; opacity: 0; }
+.pet.petPetted.mood-scared .petBounce { animation: none; }
+.pet.petPetted.mood-scared .petDrop { opacity: 0; }
+.pet.petPetted.mood-scared .petEar { transform: none; }
+@keyframes petHeartLie { 0% { opacity: 0; translate: -10px 20px; } 20% { opacity: 1; } 100% { opacity: 0; translate: -10px 5px; } }
+
 /* Its owner won the round: it hops, sparks fly. */
 .pet.mood-cheer .petBounce { animation: petHop 0.62s cubic-bezier(0.3, 0, 0.3, 1) var(--pet-t, 0s) infinite; }
 .pet.mood-cheer .petShadow { animation: petHopShadow 0.62s ease-in-out var(--pet-t, 0s) infinite; transform-box: fill-box; transform-origin: center; }
@@ -2068,7 +2086,7 @@ a.btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset
 
 @media (prefers-reduced-motion: reduce) {
   .pet *, .pet.mood-cheer .petBounce, .pet.mood-scared .petBounce { animation: none !important; }
-  .pet.mood-happy .petHeartA, .pet.mood-sleep .petZ, .pet.mood-cheer .petSpark { opacity: 1; }
+  .pet.mood-happy .petHeartA, .pet.petPetted .petHeartA, .pet.mood-sleep .petZ, .pet.mood-cheer .petSpark { opacity: 1; }
 }
 
 /* My pet has a place of its own; it never lies on anything. client.js finds it: right of the
@@ -2081,15 +2099,13 @@ a.btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset
 .handLead { display: inline-flex; align-items: center; gap: 6px; }
 /* With a pet the outer tracks take only what they need: equal ones would cost the middle its width twice. */
 .handToolbar.hasPet { grid-template-columns: auto minmax(0, 1fr) auto; }
-#myPet { display: inline-flex; align-self: flex-end; }
+#myPet { display: inline-flex; align-self: flex-end; position: relative; }
+/* Small in the tray's row, yet a full tap target: the hit area grows upward inside the row, never onto the hand. */
+#myPet:not(:empty)::before { content: ''; position: absolute; inset: calc(22px - var(--tap-min)) -6px 0; }
 #myPet .pet { --pet-size: 22px; }
 #myPet:empty { display: none; }
-/* Tapped: the figure large, with a word about it. */
-#toastContainer.petCard { display: flex; align-items: center; gap: 12px; width: max-content; max-width: min(340px, 90vw); text-align: left; }
-#toastContainer.petCard .pet { --pet-size: 84px; cursor: default; }
-#toastContainer.petCard .petCardText { display: grid; gap: 3px; min-width: 0; }
-#toastContainer.petCard .petCardText b { font-size: var(--fs-body); }
-#toastContainer.petCard .petCardText span { font-size: var(--fs-label); color: var(--text-muted); }
+/* A finger on it strokes it instead of scrolling or selecting anything. */
+#tablePet, #myPet { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 /* In the options: the one you would take to the table. */
 .petPreview { display: flex; align-items: center; gap: 12px; margin: 6px 0 2px; min-height: 76px; }
 .petPreview:empty { display: none; }
@@ -2373,6 +2389,7 @@ body.raidActive #toastContainer { margin-top: 132px; }
   animation: unlockPop 0.5s 0.12s var(--ease) both;
 }
 .unlockArt.isCount { font-family: var(--font-display); font-size: var(--fs-lead); font-weight: 800; color: var(--text); }
+.unlockArt .pet { --pet-size: 40px; cursor: inherit; }
 .unlockText { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .unlockEyebrow {
   font-size: var(--fs-micro); font-weight: 800; line-height: 1.2;
@@ -2402,6 +2419,7 @@ body.raidActive #toastContainer { margin-top: 132px; }
   .unlockCard { width: min(100%, 360px); }
   .unlockMain { min-height: 56px; gap: 10px; padding: 6px 2px 6px 10px; }
   .unlockArt { width: 40px; height: 40px; font-size: var(--fs-title); }
+  .unlockArt .pet { --pet-size: 32px; }
   .unlockSub { -webkit-line-clamp: 1; }
 }
 /* Reduced motion: no slide, no sweep, no pop - it fades in and out. */
