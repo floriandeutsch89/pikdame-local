@@ -94,14 +94,24 @@ jobs:
           echo "$GH_TOKEN" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
           helm push "pikdame-${VERSION}.tgz" "oci://ghcr.io/${{ github.repository_owner }}/charts"
 
+  # One job per architecture on a NATIVE runner (no QEMU), pushed by digest;
+  # docker-manifest joins them under the version tags.
   docker:
     needs: [meta, release]
     if: needs.meta.outputs.is_new == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+            cache: type=gha # the scope CI and beta fill for this commit
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            cache: type=gha,scope=arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: GHCR login
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
@@ -109,27 +119,81 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build & push (amd64 + arm64)
+      - name: Build & push by digest (${{ matrix.arch }})
+        id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: docker/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:v${{ needs.meta.outputs.version }}
+          platforms: linux/${{ matrix.arch }}
+          outputs: type=image,name=ghcr.io/${{ github.repository }},push-by-digest=true,name-canonical=true,push=true
           # OCI labels: make version + commit traceable on the registry
           labels: |
             org.opencontainers.image.version=${{ needs.meta.outputs.version }}
             org.opencontainers.image.revision=${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Supply chain: SLSA provenance and an SBOM travel with the image.
+          provenance: mode=max
+          sbom: true
+          cache-from: ${{ matrix.cache }}
+          cache-to: ${{ matrix.cache }},mode=max
+      - name: Hand the digest to docker-manifest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: digest-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  docker-manifest:
+    needs: [meta, docker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write # tag the manifest list, push the attestation
+      id-token: write # sign the attestation (Sigstore, no stored key)
+      attestations: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}
+      VERSION: ${{ needs.meta.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: digest-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/digests
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: GHCR login
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tag amd64 + arm64 as one image
+        id: manifest
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          [ "$(ls | wc -l)" = "2" ] || { echo "::error::expected two digests, got: $(ls)"; exit 1; }
+          # shellcheck disable=SC2046
+          docker buildx imagetools create -t "$IMAGE:latest" -t "$IMAGE:v$VERSION" $(printf "$IMAGE@sha256:%s " *)
+          echo "digest=$(docker buildx imagetools inspect "$IMAGE:v$VERSION" --format '{{json .Manifest}}' | jq -r .digest)" >> "$GITHUB_OUTPUT"
+      # Verifiable with: gh attestation verify oci://ghcr.io/<repo>:vX.Y.Z --repo <repo>
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.manifest.outputs.digest }}
+          push-to-registry: true
 
   # Roll the new image out right away instead of waiting for Watchtower's
   # nightly run. No-op until DEPLOY_HOST is configured (docs/admin/auto-deploy.md).
   deploy:
-    needs: [meta, docker]
+    needs: [meta, docker-manifest]
     if: needs.meta.outputs.is_new == 'true'
     # A called workflow never gets more permissions than its caller grants.
     permissions:

@@ -60,11 +60,13 @@ flowchart LR
   PR([pull request]) --> S["secret-scan"]
   PR --> C["changelog-fragment<br/>check-changes.js"]
   PR --> T["test<br/>node --test · docs:check"]
-  PR --> D["dependency-check<br/>npm audit · npm outdated"]
-  PR --> DS["docker-security<br/>hadolint · Trivy"]
-  PR --> DK["docker-smoke<br/>hardened compose boots"]
+  PR --> D["dependency-check<br/>npm audit"]
+  PR --> I["image<br/>one build per run"]
+  I --> DS["docker-security<br/>hadolint · Trivy"]
+  I --> DK["docker-smoke<br/>hardened compose boots"]
   PR --> H["helm-validate"]
-  S & C & T & D & DS & DK & H --> M{{"all required → squash-merge"}}
+  S & C & T & D & DS & DK & H --> OK["ci-ok<br/>the one required check"]
+  OK --> M{{"squash-merge"}}
 ```
 
 `test` includes `npm run docs:check`: the generated documentation pages must
@@ -87,9 +89,9 @@ things Dependabot cannot:
   (a new Node base image, a Postgres major) get a label, a reviewer and a
   comment listing what has to move with them; they never merge on their own.
 
-npm updates are deliberately **grouped**: the CI job `dependency-check` runs
-`npm outdated` and fails while any package is behind, so one pull request per
-package would keep every pull request red.
+npm updates are **grouped** into one pull request a week. A package that is
+merely behind fails nothing: `dependency-check` only runs `npm audit` and goes
+red on a known vulnerability of severity high or above.
 
 :::{dropdown} One-time setup of the Dependabot GitHub App
 :icon: gear
@@ -147,8 +149,8 @@ access token used before.
 
 6. **Repository settings**: enable *Allow auto-merge* (*Settings → General →
    Pull Requests*), and protect `main` with **required status checks**
-   (`test`, `dependency-check`, `docker-security`, `docker-smoke`, optionally
-   `changelog-fragment`) with **Require branches to be up to date before
+   (`ci-ok` alone is enough: it passes only when every CI job passed or was
+   skipped, so a new or renamed job needs no settings change) with **Require branches to be up to date before
    merging**, but **no required approvals** — without required checks GitHub
    merges an auto-merge pull request immediately, and required approvals
    would put the manual step back in.

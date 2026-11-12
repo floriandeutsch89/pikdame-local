@@ -8,10 +8,8 @@
 #     enables auto-merge for minor/patch updates. MAJOR updates (e.g. a new
 #     Node base image) never auto-merge: they get a reviewer and wait for a human.
 #
-# npm is GROUPED on purpose: the CI job `dependency-check` runs `npm outdated`
-# and fails while ANY package is behind. One PR per package would therefore
-# leave every PR red until the last one landed - a group updates them all at
-# once, so the job can go green.
+# npm is GROUPED: one pull request a week instead of one per package. Being
+# behind fails no check (`dependency-check` only runs `npm audit`).
 version: 2
 updates:
   # --- Application dependencies (ws, pg, esbuild, jsdom) ------------------

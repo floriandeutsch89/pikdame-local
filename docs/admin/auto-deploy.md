@@ -64,8 +64,8 @@ The workflow uses the GitHub App from the Dependabot setup
 2. **Allow auto-merge** — *Settings → General → Pull Requests*.
 3. **Branch rule for `main`** — *Settings → Rules* (or *Branches*) → the rule
    for `main` → *Require status checks to pass* with *Require branches to be
-   up to date before merging*. Optionally add the check
-   `changelog-fragment` to the required checks.
+   up to date before merging*. Require the check `ci-ok`: it passes only when
+   every CI job passed or was skipped (`changelog-fragment` included).
 
 Without the secrets the workflow only prints a warning and stays green; the
 fragments then wait on `main` and nothing is released. To pause releases,

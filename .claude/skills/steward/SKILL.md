@@ -127,11 +127,8 @@ Refresh them when a follow-up commit changes what they show.
    `package-lock.json`, commit it into the current PR with a `### Fixed`
    line in the PR's fragment, since every other branch is blocked until it
    lands. A fix that needs a major bump: ask, majors are never automatic
-   (CLAUDE.md §8). `npm outdated` red: bump the lockfile (`npm update
-   <pkg>`), a `### Changed` line like in `changes/deps-*.md`. Locally, its
-   "Latest" column only lists versions whose `engines.node` fits YOUR Node
-   (jsdom 30 needs >= 22.22.2), so an old local Node shows a stale
-   "Latest" - trust CI's.
+   (CLAUDE.md §8). A package that is only behind fails nothing (no
+   `npm outdated` gate since #594); Dependabot brings it on Monday.
 3. **`changelog-fragment` red**: the message says which of three - a game
    change without a fragment, a malformed fragment (`file:line`), or an
    edit to the version / `CHANGELOG.md` sections (move it into the fragment).

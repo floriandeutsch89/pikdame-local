@@ -1,8 +1,10 @@
 # Beta preview for pull requests
 
-Every push to a pull request is live on **beta.play.pikdame.online** a few minutes
-later, on a server of its own. You can try the change on the iPhone before it
-is merged. No extra branch is needed: the pull request *is* the beta.
+Give a pull request the label **`beta`** and every push to it is live on
+**beta.play.pikdame.online** a few minutes later, on a server of its own. You
+can try the change on the iPhone before it is merged. No extra branch is
+needed: the labelled pull request *is* the beta. Adding the label rolls the
+current commit out at once; pull requests without it build nothing.
 
 1. The **Beta** workflow builds the app image from the pull request's head
    commit (amd64 only) and pushes it to GHCR as `pikdame-local:beta`.
@@ -13,7 +15,8 @@ is merged. No extra branch is needed: the pull request *is* the beta.
 4. The job waits until `https://beta…/statusz` answers. The pull request shows
    **View deployment** next to the `beta` environment.
 
-There is **one** slot: the most recent push to any pull request wins. A
+There is **one** slot: the most recent push to a labelled pull request wins
+(label one at a time to keep it). A
 running rollout is never cut off. Pushes that arrive meanwhile collapse into
 one follow-up run for the newest commit.
 

@@ -1,6 +1,7 @@
 name: Beta
 
-# Every PR push -> :beta images -> beta host (one slot, latest wins).
+# A PR with the label "beta": every push -> :beta images -> beta host (one slot,
+# the latest push to a labelled PR wins). Without the label nothing is built.
 # Own server, never the prod host. Skipped until BETA_HOST and BETA_URL are
 # set; set BETA_URL last, a job naming a missing environment creates it
 # empty. Setup: docs/admin/beta.md
@@ -10,7 +11,7 @@ name: Beta
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, labeled]
 
 permissions:
   contents: read
@@ -26,6 +27,8 @@ jobs:
   beta:
     if: >-
       vars.BETA_HOST != '' && vars.BETA_URL != '' &&
+      contains(github.event.pull_request.labels.*.name, 'beta') &&
+      (github.event.action != 'labeled' || github.event.label.name == 'beta') &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       !startsWith(github.head_ref, 'dependabot/') &&
       github.head_ref != 'release/next'
