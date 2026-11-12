@@ -2132,6 +2132,12 @@ a.btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset
   text-align: center;
 }
 #toastContainer.visible { opacity: 1; transform: translate(-50%, -50%); }
+/* The recap after looking away: a short list instead of one line. */
+#toastContainer.recap { max-width: min(380px, 90vw); text-align: left; }
+#toastContainer .recapHead { display: block; margin-bottom: 4px; font-size: var(--fs-micro); letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+#toastContainer .recapLine { display: block; font-size: var(--fs-label); font-weight: 500; line-height: 1.35; }
+#toastContainer .recapLine + .recapLine { margin-top: 3px; }
+#toastContainer .recapMore { color: var(--text-muted); }
 /* .raidWarning (top:42%) and the toast (top:50%) both live in the middle of
    the screen and overprinted each other - the log line "... legt eine neue
    Satz-Auslage aus." ran straight through "Du sicherst dir 100 Punkte".
