@@ -102,6 +102,12 @@ test('beta workflow: forks, Dependabot and the release PR never deploy', () => {
   assert.match(workflow, /name:\s*beta\b/, 'secrets must come from the beta environment, not production');
 });
 
+test('beta workflow: only pull requests labelled "beta" take the one slot', () => {
+  assert.match(workflow, /types:\s*\[[^\]]*\blabeled\b/, 'adding the label must roll out at once');
+  assert.match(workflow, /contains\(github\.event\.pull_request\.labels\.\*\.name, 'beta'\)/);
+  assert.match(workflow, /github\.event\.action != 'labeled' \|\| github\.event\.label\.name == 'beta'/, 'another label must not redeploy');
+});
+
 test('beta workflow: labels the image with the head commit it hands the server', () => {
   assert.match(workflow, /HEAD_SHA:\s*\$\{\{\s*github\.event\.pull_request\.head\.sha\s*\}\}/);
   assert.match(workflow, /org\.opencontainers\.image\.revision=\$\{\{\s*env\.HEAD_SHA\s*\}\}/);

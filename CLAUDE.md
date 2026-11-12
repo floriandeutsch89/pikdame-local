@@ -266,6 +266,8 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
    `dependency-check` bei jedem veralteten Paket rot wird.
 8b. **Workflows:** Actions nur per Commit-SHA mit Versions-Kommentar (`@<sha> # v1.2.3`,
    Dependabot pflegt beides), jeder Job mit `timeout-minutes` (Vertragstest).
+   Neuer CI-Job → in `needs` von `ci-ok` (einziger Pflicht-Check, Vertragstest). Beta rollt nur
+   PRs mit Label `beta` aus.
 9. **Compose:** alle drei Dateien in `docker/` (yml, ghcr.yml, prod.yml)
    synchron; OWASP-Härtung (cap_drop ALL, read_only, AppArmor, pids_limit)
    ist Pflicht (`docker-smoke` fährt sie hoch). Neue Schreibpfade nur nach

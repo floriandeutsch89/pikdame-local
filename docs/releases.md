@@ -14,9 +14,10 @@ flowchart TB
   P --> M["meta<br/>version from package.json<br/>tag exists already?"]
   M -- "new version" --> R["release<br/>git tag · GitHub release<br/>notes from CHANGELOG.md"]
   M -- "known version" --> X([nothing to do])
-  R --> D["docker<br/>amd64 + arm64 → GHCR"]
+  R --> D["docker<br/>amd64 and arm64, each on a native runner"]
+  D --> DM["docker-manifest<br/>one image, version tags,<br/>signed provenance → GHCR"]
   R --> H["helm-chart<br/>OCI artifact → GHCR"]
-  D --> Y["deploy<br/>SSH to the host, pull, up -d"]
+  DM --> Y["deploy<br/>SSH to the host, pull, up -d"]
 ```
 
 **➡️ [All releases on GitHub](https://github.com/floriandeutsch89/pikdame-local/releases)**
@@ -26,6 +27,14 @@ release, for **amd64 and arm64** (so a Raspberry Pi with a 64-bit OS works too):
 
 ```bash
 docker pull ghcr.io/floriandeutsch89/pikdame-local:latest
+```
+
+Every release image carries an SBOM and SLSA build provenance, and a signed
+attestation says which workflow run built it:
+
+```bash
+gh attestation verify oci://ghcr.io/floriandeutsch89/pikdame-local:latest \
+  --repo floriandeutsch89/pikdame-local
 ```
 
 It has the trained ONNX bots built in; `PIKDAME_ONNX=0` switches to the
