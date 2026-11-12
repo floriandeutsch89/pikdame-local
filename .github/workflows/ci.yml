@@ -445,9 +445,10 @@ jobs:
   # new or renamed job never needs a settings change. Skipped jobs (e.g.
   # changelog-fragment outside pull requests) count as passed.
   ci-ok:
-    # Runs after failures too, but not for a run a newer push cancelled:
-    # that would only paint a red check on a commit nobody merges.
-    if: ${{ !cancelled() }}
+    # always(), not !cancelled(): GitHub counts a SKIPPED required check as
+    # passed, so a cancelled run must fail here instead of skipping. The red
+    # check on a commit a newer push replaced is the price.
+    if: always()
     needs: [secret-scan, changelog-fragment, test, tower-proofs, tower-generate, dependency-check, image, docker-security, docker-smoke, helm-validate]
     runs-on: ubuntu-latest
     timeout-minutes: 5
