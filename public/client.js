@@ -9769,7 +9769,7 @@
   // device), the rest behind a toggle in keyboard sections. Mirrors
   // KEYBOARD_ORDER/EMOTE_CATEGORIES in game/Emotes.js (contract test).
   const EMOTE_KEYBOARD = [
-    ['smileys', ['😅', '😂', '🙃', '😇', '🤩', '🤔', '😬', '🙄', '😴', '🥳', '😎', '😱', '😤', '🙈', '🤞', '👍', '👏', '🤝', '🙏', '💪', '👀']],
+    ['smileys', ['😅', '😂', '🙃', '😇', '🤩', '🤔', '😬', '🙄', '😲', '😴', '🥳', '😎', '😱', '😤', '🙈', '🤞', '👍', '👎', '👏', '🤝', '🙏', '💪', '👀']],
     ['nature', ['🐢', '🍀', '🔥']],
     ['food', ['☕', '🍻']],
     ['activity', ['🎉', '🃏', 'pikdame']],
@@ -12667,7 +12667,7 @@
   // Mirrors game/Emotes.js - the server is the authority, this only draws
   // the locks. Public servers keep no profiles, so nothing is locked there.
   const EMOTE_UNLOCK = {
-    '👏': 2, '🙈': 3, '🤔': 4, '🍀': 5, '😎': 6, '🔥': 8, '😴': 10, '🙏': 12, '🤩': 14, '🥳': 16, '💪': 18,
+    '👏': 2, '🙈': 3, '🤔': 4, '🍀': 5, '😎': 6, '😲': 7, '🔥': 8, '😴': 10, '🙏': 12, '🤩': 14, '🥳': 16, '💪': 18,
     '🃏': 20, '😅': 21, '🤞': 22, '👀': 23, '🙄': 24, '😬': 26, '🙃': 28, '🤝': 30, '😇': 32, '☕': 34, '🐢': 36, '🍻': 38, '❤️': 40,
   };
   // Mirrors game/Celebrations.js (contract test); the names live here.
