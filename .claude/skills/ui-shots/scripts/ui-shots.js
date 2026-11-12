@@ -1368,6 +1368,27 @@ async function fanOut() {
           await page.waitForTimeout(200);
           await shot(sc);
         }
+        // Joker choice dialog over a table: "set or run?" or, with --joker layoff, which end.
+        if (sc === 'joker-choice') {
+          await toTable(oppTurnStates('draw').before);
+          const J = (rank, suit) => ({ joker: true, rank, suit, fresh: true });
+          const Q = { rank: 'Q', suit: 'H' };
+          inject(arg('joker', 'meld') === 'layoff'
+            ? { type: 'layOffAmbiguous', meldId: 'm1', cardId: 'j1', options: [
+              { id: 'extend-low', type: 'run', label: 'unten anlegen als 8', side: 'low',
+                preview: [J('8', 'S'), { rank: '9', suit: 'S' }, { rank: '10', suit: 'S' }, { rank: 'J', suit: 'S' }, { rank: 'Q', suit: 'S' }] },
+              { id: 'extend-high', type: 'run', label: 'oben anlegen als König', side: 'high',
+                preview: [{ rank: '9', suit: 'S' }, { rank: '10', suit: 'S' }, { rank: 'J', suit: 'S' }, { rank: 'Q', suit: 'S' }, J('K', 'S')] },
+            ] }
+            : { type: 'meldAmbiguous', cardIds: [], options: [
+              { id: 'run-8-3', type: 'run', label: 'Folge: 10-Dame (Herz)', preview: [J('10', 'H'), J('J', 'H'), Q] },
+              { id: 'run-9-3', type: 'run', label: 'Folge: Bube-König (Herz)', preview: [J('J', 'H'), Q, J('K', 'H')] },
+              { id: 'set-Q', type: 'set', label: 'Satz: 3x Dame', preview: [Q, J('Q', 'D'), J('Q', 'C')] },
+              { id: 'run-10-3', type: 'run', label: 'Folge: Dame-Ass (Herz)', preview: [Q, J('K', 'H'), J('A', 'H')] },
+            ] });
+          await page.waitForTimeout(400);
+          await shot(`joker-choice-${arg('joker', 'meld')}`);
+        }
         // Another player's turn in flight (public/table-moves.js): the table before it, frames frozen
         // at --film ms after its state arrives (every animation paused there), then the end. Each frame
         // from a fresh "before"; the page's timers wait meanwhile, so a slow shot never ends the flight.

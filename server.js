@@ -2999,7 +2999,7 @@ wss.on('connection', (ws, req) => {
       case 'layoutMeld': {
         const r = game.layoutMeld(playerId, msg.cardIds, msg.jokerAssignments || {});
         if (r && r.error) refuse(r.error);
-        if (r && r.ambiguous) ws.send(JSON.stringify({ type: 'meldAmbiguous', cardIds: msg.cardIds, options: r.options }));
+        if (r && r.ambiguous) ws.send(JSON.stringify({ type: 'meldAmbiguous', cardIds: msg.cardIds, options: GameManager.byJokerRank(r.options) }));
         break;
       }
       case 'layOffMulti': {
@@ -3011,7 +3011,7 @@ wss.on('connection', (ws, req) => {
         const r = game.layOffCard(playerId, msg.meldId, msg.cardId, msg.asSuit, msg.side);
         if (r && r.error) refuse(r.error);
         if (r && r.ambiguous) {
-          ws.send(JSON.stringify({ type: 'layOffAmbiguous', meldId: msg.meldId, cardId: msg.cardId, options: r.options }));
+          ws.send(JSON.stringify({ type: 'layOffAmbiguous', meldId: msg.meldId, cardId: msg.cardId, options: GameManager.byJokerRank(r.options) }));
         }
         break;
       }
