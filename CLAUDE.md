@@ -311,6 +311,8 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
   Lokale Datenbank aufsetzen: Skill `steward`. CI/Prod: PostgreSQL 18, lokal
   oft älter — Katalog-Asserts auf `pg_constraint` nach `contype` filtern
   (18 führt NOT NULL als benannte Constraints; einmal rot gepusht).
+  Viele Schemas/Tabellen nie in EINER Transaktion droppen (Mehrfach-Statement = eine Transaktion):
+  Sperren je Objekt füllen die geteilte Lock-Tabelle, parallele Testdateien scheitern mit „out of shared memory“.
 - RL: `OBS_SIZE_V1`/`OBS_SIZE_V2`/`ACTION_SIZE` sind Verträge —
   `test/state-encoder.test.js` (samt eingefrorener v1-Kodierung) UND
   `scripts/rl-env-server.js` (`CONTRACT`) prüfen.
