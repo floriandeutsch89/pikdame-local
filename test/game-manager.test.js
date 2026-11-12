@@ -513,11 +513,24 @@ test('layoutMeld: mehrdeutige Joker-Kombination liefert Optionen statt zu raten'
   const all = game.layoutMeld('p1', [queen.id, j1.id, j2.id], {}, { byOrder: false });
   assert.equal(all.ambiguous, true);
   assert.equal(all.options.length, 4); // Satz + 3 Folge-Fenster
+  // The dialog asks lowest card first: 10-J-Q, J-Q-K, the set (two queens), Q-K-A;
+  // the result itself keeps the canonical order bots rely on.
+  assert.equal(all.options[0].id, 'set-Q');
+  assert.deepEqual(GameManager.byJokerRank(all.options).map((o) => o.id), ['run-8-3', 'run-9-3', 'set-Q', 'run-10-3']);
   // With it (humans): the order Q, J, J spells Q-K-A - only "set or run?" is left.
   const result = game.layoutMeld('p1', [queen.id, j1.id, j2.id]);
   assert.equal(result.ambiguous, true);
   assert.equal(result.options.length, 2);
   assert.deepEqual(result.options.map((o) => o.type).sort(), ['run', 'set']);
+  // Each option carries the meld it would lay, jokers with the card they stand for.
+  const run = result.options.find((o) => o.type === 'run');
+  assert.deepEqual(run.preview, [
+    { rank: 'Q', suit: 'H' },
+    { joker: true, rank: 'K', suit: 'H', fresh: true },
+    { joker: true, rank: 'A', suit: 'H', fresh: true },
+  ]);
+  const set = result.options.find((o) => o.type === 'set');
+  assert.deepEqual(set.preview.map((p) => [!!p.joker, p.rank]), [[false, 'Q'], [true, 'Q'], [true, 'Q']]);
   // Hand darf bei Mehrdeutigkeit NICHT verändert worden sein
   assert.equal(game.players[0].hand.length, 3);
   assert.equal(game.tableMelds.length, 0);
@@ -642,6 +655,10 @@ test('layOffCard: nach Auswahl einer Seite wird genau diese angelegt', () => {
 
   const first = game.layOffCard('p1', 'meld-1', joker.id);
   const lowOption = first.options.find((o) => o.side === 'low');
+  // The preview marks only the joker being added, at the end it lands on.
+  assert.equal(lowOption.preview[0].joker, true);
+  assert.equal(lowOption.preview[0].fresh, true);
+  assert.equal(lowOption.preview.filter((p) => p.fresh).length, 1);
   const second = game.layOffCard('p1', 'meld-1', joker.id, lowOption.asSuit, lowOption.side);
   assert.equal(second.ok, true);
   assert.equal(game.tableMelds[0].slots.length, 4);
