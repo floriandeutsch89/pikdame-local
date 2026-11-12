@@ -513,6 +513,10 @@ test('layoutMeld: mehrdeutige Joker-Kombination liefert Optionen statt zu raten'
   const all = game.layoutMeld('p1', [queen.id, j1.id, j2.id], {}, { byOrder: false });
   assert.equal(all.ambiguous, true);
   assert.equal(all.options.length, 4); // Satz + 3 Folge-Fenster
+  // The dialog asks lowest card first: 10-J-Q, J-Q-K, the set (two queens), Q-K-A;
+  // the result itself keeps the canonical order bots rely on.
+  assert.equal(all.options[0].id, 'set-Q');
+  assert.deepEqual(GameManager.byJokerRank(all.options).map((o) => o.id), ['run-8-3', 'run-9-3', 'set-Q', 'run-10-3']);
   // With it (humans): the order Q, J, J spells Q-K-A - only "set or run?" is left.
   const result = game.layoutMeld('p1', [queen.id, j1.id, j2.id]);
   assert.equal(result.ambiguous, true);

@@ -62,6 +62,20 @@ function previewSlots(slots, freshId) {
     : { joker: true, rank: s.representsRank, suit: s.representsSuit, fresh: freshId == null || s.joker.id === freshId }));
 }
 
+// Joker choices in the order they are asked: the lowest card the joker would
+// stand for first (2 ... 10, J, Q, K, A). Only on the wire: bots take the
+// canonical first option, and proven Kartenhaus deals depend on it.
+function byJokerRank(options) {
+  const key = (o) => o.preview.filter((p) => p.joker && p.fresh).map((p) => rankIndex(p.rank)).sort((a, b) => a - b);
+  return options.map((o) => ({ o, k: key(o) })).sort((x, y) => {
+    for (let i = 0; i < Math.max(x.k.length, y.k.length); i++) {
+      const d = (x.k[i] ?? -1) - (y.k[i] ?? -1);
+      if (d) return d;
+    }
+    return 0;
+  }).map((e) => e.o);
+}
+
 function nextMeldId() {
   meldCounter += 1;
   return `meld-${meldCounter}`;
@@ -3775,5 +3789,6 @@ GameManager.TEAM_NAME_WINDOW_MS = 60 * 1000;
 GameManager.MIN_SEATS = MIN_SEATS;
 GameManager.MAX_SEATS_LIMIT = MAX_SEATS_LIMIT;
 GameManager.DEFAULT_MAX_SEATS = DEFAULT_MAX_SEATS;
+GameManager.byJokerRank = byJokerRank;
 
 module.exports = GameManager;
