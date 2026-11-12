@@ -18,6 +18,11 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same PR replaces its run; runs on main are never cut off.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   # Secrets: by FILE NAME (a tracked .env, key, tfvars or runtime data file)
   # and by CONTENT across the FULL history (gitleaks) - a secret removed in a
@@ -26,8 +31,9 @@ jobs:
   # this job is the net for whatever gets past it.
   secret-scan:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # full history for gitleaks
       - name: No secret-like files tracked
@@ -46,8 +52,9 @@ jobs:
   changelog-fragment:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 2 # the PR merge commit and its first parent, the base
       - name: Fragment present, version and CHANGELOG untouched
@@ -80,11 +87,11 @@ jobs:
     env:
       PIKDAME_TEST_PG_URL: postgres://pikdame:testpass@127.0.0.1:5432/pikdame_test
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Single Node line (26) - identical to the Docker image.
       # 26 is the CURRENT line, not LTS: it becomes Active LTS in October 2026.
       - name: Use Node.js 26
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26.x
           cache: 'npm'
@@ -119,9 +126,10 @@ jobs:
   # (about a minute) rather than nightly: the PR that breaks a deal goes red.
   tower-proofs:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26.x
           cache: 'npm'
@@ -148,7 +156,7 @@ jobs:
       # Everything the month build depends on (scope check and fingerprint).
       TOWER_INPUTS: '^(game/(Tower|Bot|OnnxPolicy|StateEncoder|GameManager|Rules|ScoreBoard)[^/]*\.js|models/|docker/Dockerfile|test/tower-[^/]*\.js|test/helpers/|\.github/workflows/ci\.yml)'
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 2 # the PR merge commit and its first parent, the base
       - name: Does this change touch the deal generator?
@@ -169,7 +177,7 @@ jobs:
         id: fp
         if: steps.scope.outputs.build == 'true' && github.event_name == 'pull_request'
         run: echo "key=tower-gen-ok-$(git ls-files | grep -E "$TOWER_INPUTS" | xargs sha256sum | sha256sum | cut -c1-40)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache/restore@v6
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: proven
         if: steps.fp.outputs.key != ''
         with:
@@ -179,7 +187,7 @@ jobs:
       - name: Already proven
         if: steps.proven.outputs.cache-hit == 'true'
         run: echo "::notice::Same generator inputs already built green on this PR; skipping the month build."
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: steps.scope.outputs.build == 'true' && steps.proven.outputs.cache-hit != 'true'
         with:
           node-version: 26.x
@@ -202,7 +210,7 @@ jobs:
       - name: Remember the proven inputs
         if: steps.fp.outputs.key != '' && steps.proven.outputs.cache-hit != 'true'
         run: echo "${{ steps.fp.outputs.key }}" > .tower-gen-ok
-      - uses: actions/cache/save@v6
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: steps.fp.outputs.key != '' && steps.proven.outputs.cache-hit != 'true'
         with:
           path: .tower-gen-ok
@@ -210,9 +218,10 @@ jobs:
 
   dependency-check:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26.x
           cache: 'npm'
@@ -227,8 +236,9 @@ jobs:
 
   docker-security:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # OWASP RULE #11: lint the Dockerfile.
       # DL3008 (apt version pins) and DL3029 (--platform in FROM) are ignored
       # inline in the Dockerfile: tini tracks the Debian base instead of one
@@ -247,7 +257,7 @@ jobs:
       #   ${PORT} and relies on "|| exit 1". JSON notation runs without a
       #   shell, so both would silently break.
       - name: Lint Dockerfile (hadolint)
-        uses: hadolint/hadolint-action@v3.5.0
+        uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
         with:
           dockerfile: docker/Dockerfile
           ignore: DL3066,DL3025
@@ -256,7 +266,7 @@ jobs:
       # OWASP RULE #8: scan the image for known vulnerabilities.
       # ignore-unfixed: base-image CVEs without an available fix do not block.
       - name: Trivy vulnerability scan
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: pikdame:scan
           format: json
@@ -273,8 +283,9 @@ jobs:
 
   docker-smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Proves the server runs under the FULL OWASP hardening:
       # cap_drop ALL, read_only, AppArmor profile (Ubuntu runners have
       # AppArmor enabled), pids limit, tmpfs - up, healthy, responding.
@@ -360,8 +371,9 @@ jobs:
 
   helm-validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # helm is preinstalled on ubuntu runners
       - name: Helm lint
         run: helm lint helm/pikdame
