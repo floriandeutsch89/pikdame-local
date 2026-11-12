@@ -9700,7 +9700,7 @@
   // device), the rest behind a toggle in keyboard sections. Mirrors
   // KEYBOARD_ORDER/EMOTE_CATEGORIES in game/Emotes.js (contract test).
   const EMOTE_KEYBOARD = [
-    ['smileys', ['😅', '😂', '🙃', '😇', '🤩', '🤔', '😬', '🙄', '😴', '🥳', '😎', '😱', '😤', '🙈', '🤞', '👍', '👏', '🤝', '🙏', '💪', '👀']],
+    ['smileys', ['😅', '😂', '🙃', '😇', '🤩', '🤔', '😬', '🙄', '😴', '🥳', '😎', '😱', '😤', '🙈', '🤞', '👍', '👎', '👏', '🤝', '🙏', '💪', '👀']],
     ['nature', ['🐢', '🍀', '🔥']],
     ['food', ['☕', '🍻']],
     ['activity', ['🎉', '🃏', 'pikdame']],
