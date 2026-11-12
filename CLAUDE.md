@@ -227,7 +227,7 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
    Design-Review nach unseren Regeln: Skill `ui-review`.
    **Sub-Agenten:** Konzept, Design-Review, Auftrags-Prompt und jede
    Design-Arbeit (sichtbare UI, auch die Umsetzung) mit Opus auf maximalem
-   Aufwand (**bis 31.12.2026: Fable 5.2 auf hohem Aufwand**, danach Zeile
+   Aufwand (**bis 30.11.2026: Fable 5.2 auf hohem Aufwand**, ab 01.12. Zeile
    entfernen); reine Umsetzung ohne Design auf mittlerem (kleine, abgegrenzte
    Aufträge: Sonnet mittel; Kosten).
 2. **Changelog-Fragment, wenn sich das Spiel ändert** (`public/`, `server.js`,
