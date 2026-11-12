@@ -1,7 +1,8 @@
 // public/score-chart.js
-// The score chart draws itself on the game-over sheet: who took the lead in
-// which round, and the keyframes that move every line's head through the rounds
-// at the same pace. Loaded before client.js (which builds the chart); the tests require() it.
+// The score chart draws itself on the game-over sheet: who took the lead in which
+// round, and the reveal - a cover that shrinks off the finished lines while their
+// heads move through the rounds at its pace. Only transform and opacity are animated.
+// Loaded before client.js (which builds the chart); the tests require() it.
 (function (root, factory) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
@@ -15,6 +16,7 @@
   const LABEL_STAGGER_MS = 50;
   const POP_MS = 640;
   const POP_R = 6.5; // viewBox units: stays left of the end labels (8 units right of the last round)
+  const CAP = 4; // viewBox units right of the last round that a line's round cap may reach
   const TOTAL_MS = DELAY_MS + DRAW_MS + POP_MS;
   const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -46,26 +48,34 @@
     return DELAY_MS + DRAW_MS * (rounds > 1 ? index / (rounds - 1) : 1);
   }
 
-  /** One line's keyframes, one per round: the dash that hides its rest, and its head's way there. */
-  function lineFrames(points) {
+  /** A head's keyframes, one per round, evenly spaced: every head passes a round at the same moment. */
+  function headFrames(points) {
     const n = points.length;
-    const cum = [0];
-    for (let i = 1; i < n; i++) cum.push(cum[i - 1] + Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1]));
-    const len = cum[n - 1];
     const [endX, endY] = points[n - 1];
     const r = (v) => Math.round(v * 100) / 100;
-    // The gap is longer than the line: no second dash ever starts on it.
-    const dash = `${r(len)} ${r(len + 10)}`;
-    return {
-      length: len,
-      line: points.map((p, i) => ({ offset: n > 1 ? i / (n - 1) : 1, strokeDasharray: dash, strokeDashoffset: String(r(len - cum[i])) })),
-      head: points.map((p, i) => ({ offset: n > 1 ? i / (n - 1) : 1, transform: `translate(${r(p[0] - endX)}px, ${r(p[1] - endY)}px)` })),
-    };
+    return points.map((p, i) => ({ offset: n > 1 ? i / (n - 1) : 1, transform: `translate(${r(p[0] - endX)}px, ${r(p[1] - endY)}px)` }));
   }
 
   /**
-   * Plays the reveal on a built chart. spec = { lines: [{ id, color, points }], changes }
-   * in the DOM order of the chart's polylines and end dots. `elapsed`: a re-render of the
+   * The cover over the finished lines, in the sheet's colour: its body shrinks to the right
+   * edge, its left edge on the heads' pace. It carries the grid lines it hides (a horizontal
+   * line squeezed sideways stays where it is); the dashed goal line lies still on top, in
+   * place of the chart's own. plot = { x0, x1, top, bottom } in viewBox units. Sits under the end dots.
+   */
+  function coverMarkup(plot, gridYs, goalY) {
+    const w = plot.x1 - plot.x0;
+    const h = plot.bottom - plot.top;
+    const line = (cls, y) => `<line class="${cls}" x1="${-w}" y1="${y}" x2="0" y2="${y}"/>`;
+    return `<g class="revealCoverBody"><rect x="${-w}" y="${plot.top}" width="${w}" height="${h}"/>${gridYs.map((y) => line('gridLine', y)).join('')}</g>` +
+      // The round caps of the lines' last points, until their dots stand on them. It overlaps
+      // the body: two edges meeting on one pixel column let the lines' ends shine through.
+      `<rect x="-1" y="${plot.top}" width="${CAP + 1}" height="${h}"/>` +
+      (goalY === null ? '' : line('goalLine', goalY));
+  }
+
+  /**
+   * Plays the reveal on a built chart. spec = { lines: [{ id, color, points }], changes, plot }
+   * in the DOM order of the chart's end dots, which follow all polylines. `elapsed`: a re-render of the
    * sheet joins the running reveal instead of starting over. `paused`: held at its first
    * frame until the caller plays the returned animations (a chart below the fold). Returns
    * none without Web Animations: the chart then simply stands there, finished.
@@ -84,12 +94,25 @@
       anims.push(a);
       return a;
     };
-    const lines = svg.querySelectorAll('polyline');
     const dots = svg.querySelectorAll('.endDot');
+    if (dots[0] && spec.plot && elapsed < DELAY_MS + DRAW_MS) {
+      const cover = document.createElementNS(SVG_NS, 'g');
+      cover.setAttribute('class', 'revealCover');
+      cover.setAttribute('transform', `translate(${spec.plot.x1} 0)`);
+      cover.setAttribute('aria-hidden', 'true');
+      const goal = svg.querySelector('.goalLine');
+      cover.innerHTML = coverMarkup(spec.plot, [...svg.querySelectorAll('.gridLine')].map((l) => l.getAttribute('y1')), goal ? goal.getAttribute('y1') : null);
+      svg.insertBefore(cover, dots[0]);
+      try {
+        // Kept at its end until it is taken off: a cover falling back to full size would hide the chart.
+        run(cover.firstChild, [{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }], { duration: DRAW_MS, delay: DELAY_MS, fill: 'both' })
+          .onfinish = () => cover.remove();
+        // The chart's own goal line would show twice where the lines are drawn already.
+        if (goal) run(goal, [{ opacity: 0 }, { opacity: 0 }], { duration: DRAW_MS, delay: DELAY_MS });
+      } catch (e) { cover.remove(); }
+    }
     spec.lines.forEach((l, i) => {
-      const f = lineFrames(l.points);
-      if (lines[i] && f.length > 0) run(lines[i], f.line, { duration: DRAW_MS, delay: DELAY_MS });
-      if (dots[i]) run(dots[i], f.head, { duration: DRAW_MS, delay: DELAY_MS });
+      if (dots[i]) run(dots[i], headFrames(l.points), { duration: DRAW_MS, delay: DELAY_MS });
     });
     // The names and totals show up when their lines arrive, top to bottom.
     svg.querySelectorAll('.endLabel').forEach((label, i) => {
@@ -123,5 +146,5 @@
     return anims;
   }
 
-  return { DELAY_MS, DRAW_MS, LABEL_MS, POP_MS, POP_R, TOTAL_MS, leadChanges, arrivalMs, lineFrames, play };
+  return { DELAY_MS, DRAW_MS, LABEL_MS, POP_MS, POP_R, TOTAL_MS, leadChanges, arrivalMs, headFrames, coverMarkup, play };
 }));

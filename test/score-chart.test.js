@@ -40,14 +40,18 @@ test('lead changes: a tie at the top leaves the lead where it was', () => {
   assert.deepEqual(Chart.leadChanges([h(1, { a: -40, b: -10 }), h(2, { a: -20, b: -90 })], ['a', 'b']), [{ index: 1, id: 'a' }]);
 });
 
-test('line frames: one keyframe per round, evenly spaced, the dash runs out as the head arrives', () => {
-  const f = Chart.lineFrames([[0, 0], [30, 40], [60, 40], [90, 0]]); // 50 + 30 + 50
-  assert.equal(f.length, 130);
-  assert.deepEqual(f.line.map((k) => k.offset), [0, 1 / 3, 2 / 3, 1]);
-  assert.deepEqual(f.line.map((k) => k.strokeDashoffset), ['130', '80', '50', '0']);
-  assert.ok(f.line.every((k) => k.strokeDasharray === '130 140'), 'one dash, its gap longer than the line');
-  assert.deepEqual(f.head.map((k) => k.transform), ['translate(-90px, 0px)', 'translate(-60px, 40px)', 'translate(-30px, 40px)', 'translate(0px, 0px)']);
-  assert.deepEqual(f.head.map((k) => k.offset), f.line.map((k) => k.offset), 'head and line share the clock');
+test('head frames: one keyframe per round, evenly spaced, ending where the dot stands', () => {
+  const f = Chart.headFrames([[0, 0], [30, 40], [60, 40], [90, 0]]);
+  assert.deepEqual(f.map((k) => k.offset), [0, 1 / 3, 2 / 3, 1]);
+  assert.deepEqual(f.map((k) => k.transform), ['translate(-90px, 0px)', 'translate(-60px, 40px)', 'translate(-30px, 40px)', 'translate(0px, 0px)']);
+});
+
+test('cover: as wide as the plot, anchored at its right edge, with the grid it hides', () => {
+  const html = Chart.coverMarkup({ x0: 34, x1: 228, top: 0, bottom: 132 }, ['130', '99.5'], '8');
+  assert.match(html, /^<g class="revealCoverBody"><rect x="-194" y="0" width="194" height="132"\/>/, 'the body reaches from the first round to the anchor');
+  assert.equal(html.match(/class="gridLine" x1="-194" [^>]*x2="0"/g).length, 2, 'the grid lines travel with the body');
+  assert.match(html, /<\/g><rect x="-1" y="0" width="5" height="132"\/><line class="goalLine" x1="-194" y1="8" x2="0" y2="8"\/>$/, 'cap strip (overlapping the body) and goal line lie still');
+  assert.doesNotMatch(Chart.coverMarkup({ x0: 34, x1: 228, top: 0, bottom: 132 }, [], null), /goalLine/);
 });
 
 test('timing: the lines take 1 to 1.5 s, a round is reached in proportion', () => {
@@ -154,7 +158,7 @@ function onSheet(c) {
   const live = c.anims.filter((a) => svg && svg.contains(a.el));
   return {
     svg, live,
-    lines: live.filter((a) => a.el.tagName === 'polyline'),
+    covers: live.filter((a) => a.el.classList.contains('revealCoverBody')),
     heads: live.filter((a) => a.el.classList.contains('endDot')),
     labels: live.filter((a) => a.el.classList.contains('endLabel')),
     pops: [...(svg ? svg.querySelectorAll('.leadPop') : [])],
@@ -165,10 +169,32 @@ test('game over: every line, head and label is animated, the lead changes pop in
   const c = await setup(t);
   c.feed(GAME_OVER);
   const s = onSheet(c);
-  assert.equal(s.lines.length, 3);
+  assert.equal(s.covers.length, 1);
   assert.equal(s.heads.length, 3);
   assert.equal(s.labels.length, 3);
-  assert.ok(s.lines.every((a) => a.opts.duration === Chart.DRAW_MS && a.opts.delay === Chart.DELAY_MS && a.frames.length === 4));
+  // One clock for the cover's edge and the heads: linear, same start, same length.
+  assert.ok([...s.covers, ...s.heads].every((a) => a.opts.duration === Chart.DRAW_MS && a.opts.delay === Chart.DELAY_MS && a.opts.easing === 'linear'));
+  assert.deepEqual(s.covers[0].frames.map((k) => k.transform), ['scaleX(1)', 'scaleX(0)']);
+  assert.equal(s.covers[0].opts.fill, 'both', 'the cover never falls back over the chart');
+  assert.ok(s.heads.every((a) => a.frames.length === 4));
+  // The cover lies over every line and under every dot, exactly as wide as the rounds.
+  const kids = [...s.svg.children];
+  const cover = s.svg.querySelector('.revealCover');
+  const lines = [...s.svg.querySelectorAll(':scope > polyline')];
+  assert.equal(lines.length, 3);
+  assert.ok(lines.every((l) => kids.indexOf(l) < kids.indexOf(cover)));
+  assert.ok([...s.svg.querySelectorAll('.endDot')].every((d) => kids.indexOf(d) > kids.indexOf(cover)));
+  const xs = lines[0].getAttribute('points').split(' ').map((pt) => Number(pt.split(',')[0]));
+  assert.equal(cover.getAttribute('transform'), `translate(${xs[3]} 0)`);
+  assert.equal(Number(cover.querySelector('.revealCoverBody rect').getAttribute('width')), xs[3] - xs[0]);
+  assert.equal(cover.querySelectorAll('.revealCoverBody .gridLine').length, s.svg.querySelectorAll(':scope > .gridLine').length);
+  // One goal line at a time: the cover's own shows while the chart's is hidden, for the same span.
+  const goal = s.live.find((a) => a.el.classList.contains('goalLine'));
+  assert.equal(goal.el.parentNode, s.svg);
+  assert.deepEqual([goal.frames.map((k) => k.opacity), goal.opts.duration, goal.opts.delay, goal.opts.fill], [[0, 0], Chart.DRAW_MS, Chart.DELAY_MS, 'backwards']);
+  assert.equal(cover.querySelectorAll(':scope > .goalLine').length, 1);
+  // Battery: nothing but transform and opacity is animated (CLAUDE.md 2c).
+  for (const a of s.live) for (const k of a.frames) assert.deepEqual(Object.keys(k).filter((key) => !['transform', 'opacity', 'offset'].includes(key)), []);
   assert.ok(s.labels.every((a) => a.opts.delay >= Chart.DELAY_MS + Chart.DRAW_MS), 'the labels wait for their lines');
   assert.ok(s.live.every((a) => a.currentTime === 0 && a.state === 'running'));
   // Seat colours: Flo (seat 0) blue, Klaus (seat 1) orange.
@@ -177,7 +203,7 @@ test('game over: every line, head and label is animated, the lead changes pop in
   const delays = s.live.filter((a) => a.el.classList.contains('leadPopDot')).map((a) => a.opts.delay);
   assert.deepEqual(delays, [1, 2, 3].map((i) => Chart.arrivalMs(i, 4)), 'each pops as the heads pass its round');
   // The pop sits on the new leader's line at that round: the same point the polyline has there.
-  const klaus = [...s.svg.querySelectorAll('polyline')].find((l) => l.getAttribute('stroke') === '#eb6834');
+  const klaus = lines.find((l) => l.getAttribute('stroke') === '#eb6834');
   assert.equal(s.pops[0].getAttribute('transform'), `translate(${klaus.getAttribute('points').split(' ')[1].replace(',', ' ')})`);
   // The chart itself is the finished one: nothing waits for the reveal.
   assert.equal(s.svg.querySelectorAll('.endLabel').length, 3);
@@ -191,7 +217,8 @@ test('once per sheet: a re-render joins by the clock, the tabs change nothing, a
   c.clock.t += 300;
   c.msg(PROGRESS); // re-renders the sheet
   let s = onSheet(c);
-  assert.equal(s.lines.length, 3, 'the new chart goes on drawing');
+  assert.equal(s.covers.length, 1, 'the new chart goes on drawing');
+  assert.equal(s.heads.length, 3);
   assert.ok(s.live.every((a) => a.currentTime === 300), 'at the moment the first one had reached');
   assert.equal(s.pops.length, 3);
 
@@ -206,6 +233,7 @@ test('once per sheet: a re-render joins by the clock, the tabs change nothing, a
   c.msg({ type: 'badges', earned: [] });
   s = onSheet(c);
   assert.equal(s.pops.length, 1, 'only the last round\'s pop is still due');
+  assert.equal(s.svg.querySelector('.revealCover'), null, 'the lines are drawn: no cover any more');
   assert.ok(s.live.every((a) => a.currentTime === 1600));
 
   c.clock.t += 5000;
@@ -213,11 +241,12 @@ test('once per sheet: a re-render joins by the clock, the tabs change nothing, a
   s = onSheet(c);
   assert.equal(s.live.length, 0, 'drawn once: later renders show the finished chart');
   assert.equal(s.pops.length, 0);
+  assert.equal(s.svg.querySelector('.revealCover'), null);
 
   // The next match ends in the same round: a new sheet, a new reveal.
   c.feed({ ...BASE, phase: 'playing' });
   c.feed(GAME_OVER);
-  assert.equal(onSheet(c).lines.length, 3);
+  assert.equal(onSheet(c).covers.length, 1);
   assert.deepEqual(c.errors, []);
 });
 
@@ -231,11 +260,14 @@ test('only at game over: no reveal at round end, in "Meine Partien", with reduce
   still.feed(GAME_OVER);
   assert.equal(onSheet(still).live.length, 0, 'reduced motion: the finished chart at once');
   assert.equal(onSheet(still).pops.length, 0);
+  assert.equal(onSheet(still).svg.querySelector('.revealCover'), null);
 
   const off = await setup(t, { storage: { pikdame_chart_reveal: 'off' } });
   assert.equal(off.doc.getElementById('chartRevealCheckbox').checked, false);
   off.feed(GAME_OVER);
   assert.equal(onSheet(off).live.length, 0, 'switched off in "Optionen"');
+  assert.equal(onSheet(off).svg.querySelector('.revealCover'), null);
+  assert.equal(c.doc.querySelector('#resultBody .revealCover'), null, 'no cover at round end');
 
   // The one caller sits behind the game-over branch; the stored game's chart is never played.
   const client = fs.readFileSync(path.join(pub, 'client.js'), 'utf8');
@@ -250,6 +282,7 @@ test('"Punkteverlauf zeichnen": the switch is stored, off finishes a running rev
   const box = c.doc.getElementById('chartRevealCheckbox');
   assert.equal(box.checked, true, 'on by default');
   assert.ok(box.closest('label.prefRow').querySelector('.prefSub'), 'label and what it does');
+  assert.equal(box.closest('.prefGroup').querySelector('.prefGroupTitle').textContent, 'Darstellung');
   c.feed(GAME_OVER);
   const before = onSheet(c);
   box.checked = false;
@@ -257,6 +290,7 @@ test('"Punkteverlauf zeichnen": the switch is stored, off finishes a running rev
   assert.equal(c.window.localStorage.getItem('pikdame_chart_reveal'), 'off');
   assert.ok(before.live.every((a) => a.state === 'finished'));
   assert.equal(before.svg.querySelectorAll('.leadPop').length, 0, 'the pops leave with their animation');
+  assert.equal(before.svg.querySelector('.revealCover'), null, 'and so does the cover');
   c.msg(PROGRESS);
   assert.equal(onSheet(c).live.length, 0, 'a re-render stays finished');
   box.checked = true;
@@ -297,12 +331,12 @@ test('"2 gegen 2": the lead changes come from the team totals, in the team colou
     totals: { p1: 1000, b1: 1100, p2: 910, b2: 980 }, lastRoundResult: { p1: mk(100), b1: mk(200, true), p2: mk(50), b2: mk(60) },
     gameOverInfo: { winnerId: null, teamMode: true, teams: TEAMS, winnerTeam: 1, winnerIds: TEAMS[1], teamTotals: rows[3], targetScore: 2000, totalTurns: 200, totalRounds: 4, highlights: [] } });
   const s = onSheet(c);
-  assert.equal(s.lines.length, 2, 'two lines, one per team');
+  assert.equal(s.heads.length, 2, 'two lines, one per team');
   assert.deepEqual(s.pops.map((g) => g.querySelector('.leadPopRing').getAttribute('stroke')), ['#eb6834', '#2a78d6', '#eb6834']);
   assert.deepEqual(c.errors, []);
 });
 
-test('contracts: loaded before client.js, pops invisible without their animation, no reveal styles on the lines', () => {
+test('contracts: loaded before client.js, cheap on battery, nothing shows without its animation', () => {
   const html = fs.readFileSync(path.join(pub, 'index.html'), 'utf8');
   const css = fs.readFileSync(path.join(pub, 'style.css'), 'utf8');
   const src = fs.readFileSync(path.join(pub, 'score-chart.js'), 'utf8');
@@ -310,10 +344,11 @@ test('contracts: loaded before client.js, pops invisible without their animation
   assert.ok(at > 0 && at < html.indexOf('<script src="/client.js" defer></script>'));
   assert.match(html, /id="chartRevealCheckbox"/, 'new animations can be switched off (CLAUDE.md 2c)');
   assert.match(css, /\.scoreChartSvg \.leadPop circle \{[^}]*opacity: 0/, 'a pop shows only while its animation runs');
-  assert.match(css, /\.scoreChartSvg \.leadPop \{[^}]*pointer-events: none/);
-  // The hidden start lives in the keyframes alone (fill backwards): a chart whose animation
-  // never runs is the finished chart, on every sheet that shows one.
-  assert.doesNotMatch(css, /\.scoreChartSvg polyline[^{]*\{[^}]*stroke-dash/);
-  assert.match(src, /fill: 'backwards'/);
-  assert.doesNotMatch(src, /setTimeout|requestAnimationFrame/, 'no timers: nothing waits for the reveal');
+  assert.match(css, /\.scoreChartSvg \.revealCover rect \{[^}]*fill: var\(--card-bg\)/, 'the cover is the sheet\'s own colour');
+  assert.match(css, /\.scoreChartSvg \.(leadPop|revealCover) \{[^}]*pointer-events: none/);
+  // The chart itself carries no reveal state: without the animation it is the finished chart,
+  // on every sheet that shows one. Only transform and opacity move, once, without a timer.
+  assert.doesNotMatch(css, /\.scoreChartSvg (polyline|\.endDot|\.endLabel)[^{]*\{[^}]*(opacity|transform|stroke-dash)/);
+  assert.doesNotMatch(src, /stroke-?dash|clip-?path|will-?change/i, 'transform and opacity only, no layer kept');
+  assert.doesNotMatch(src, /setTimeout|setInterval|requestAnimationFrame|iterations|getBoundingClientRect|getTotalLength/, 'one shot, no loop, no layout read');
 });
