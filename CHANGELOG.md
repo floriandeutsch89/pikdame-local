@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.136.0] - 2026-11-12
+
+### Added
+- Neue Reaktion am Tisch: Daumen nach unten 👎, von Anfang an verfügbar.
+
 ## [2.135.2] - 2026-11-12
 
 ### Changed
