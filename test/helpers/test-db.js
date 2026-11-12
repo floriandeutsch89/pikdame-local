@@ -15,12 +15,15 @@ function requireBaseUrl() {
   return BASE_URL;
 }
 
+// `sql` is one statement or a list; a list runs statement by statement, each in
+// its own transaction (one multi-statement string is ONE transaction).
 function runSql(sql) {
   const script = `const { Client } = require('pg');
 const c = new Client({ connectionString: process.env.BASE });
-c.connect().then(() => c.query(process.env.SQL)).then(() => c.end(), (e) => { console.error(e.message); process.exit(1); });`;
+c.connect().then(async () => { for (const q of JSON.parse(process.env.SQL)) await c.query(q); })
+  .then(() => c.end(), (e) => { console.error(e.message); process.exit(1); });`;
   const run = () => execFileSync(process.execPath, ['-e', script], {
-    cwd: __dirname, env: { ...process.env, BASE: requireBaseUrl(), SQL: sql }, stdio: ['ignore', 'ignore', 'pipe'], encoding: 'utf8',
+    cwd: __dirname, env: { ...process.env, BASE: requireBaseUrl(), SQL: JSON.stringify([].concat(sql)) }, stdio: ['ignore', 'ignore', 'pipe'], encoding: 'utf8',
   });
   // PostgreSQL's own message into the error: the runner showed only "Command failed" (CI, v2.132.2).
   const why = (e) => String((e && e.stderr) || (e && e.message) || e).trim().split('\n').pop();
@@ -44,7 +47,10 @@ function testDatabaseUrl(tag = 't') {
 
 function dropAll() {
   try {
-    runSql(created.map((s) => `DROP SCHEMA IF EXISTS ${s} CASCADE;`).join('\n'));
+    // One schema per transaction: dropping a file's twenty-odd schemas in one held a lock
+    // on every table and index in them until commit and exhausted PostgreSQL's shared lock
+    // table - other test files then failed with "out of shared memory" (CI, #591).
+    runSql(created.map((s) => `DROP SCHEMA IF EXISTS ${s} CASCADE`));
   } catch (e) { /* a leftover schema in a test database is harmless */ }
 }
 
