@@ -2015,12 +2015,64 @@
 
   // --- Joker-Mehrdeutigkeit: Nachfrage-Overlay ----------------------------
 
+  // "Satz: 3x Dame" -> kind + detail; a label without a kind stands alone.
+  function jokerChoiceText(opt) {
+    const text = trs(opt.label);
+    const cut = text.indexOf(': ');
+    if (cut > 0) return { kind: text.slice(0, cut), detail: text.slice(cut + 2).replace(/(\d)x /, '$1× ') };
+    const kind = opt.type === 'run' ? L('Folge', 'Run') : opt.type === 'set' ? L('Satz', 'Set') : '';
+    return { kind, detail: text.charAt(0).toUpperCase() + text.slice(1) };
+  }
+
+  // The option shows the meld it would lay: the joker's place is the answer.
+  function jokerChoicePreview(opt) {
+    const row = document.createElement('div');
+    let cards = opt.preview || [];
+    // Adding to a long run: only the end the joker lands on matters.
+    const fresh = cards.filter((p) => p.joker && p.fresh);
+    const atEnd = fresh.length === 1 && (cards[0] === fresh[0] ? 'low' : cards[cards.length - 1] === fresh[0] ? 'high' : '');
+    const more = document.createElement('span');
+    more.className = 'jcMore';
+    more.textContent = '…';
+    if (atEnd && cards.length > 3) {
+      cards = atEnd === 'low' ? cards.slice(0, 3) : cards.slice(-3);
+      if (atEnd === 'high') row.appendChild(more);
+    }
+    row.className = cards.length > 5 ? 'jcCards jcLong' : 'jcCards';
+    cards.forEach((p) => {
+      const c = cardEl(p.joker
+        ? { isJoker: true, rank: p.rank, suit: p.suit, _isJokerSlot: true, _jokerInRun: opt.type === 'run' }
+        : { rank: p.rank, suit: p.suit }, { compact: true });
+      if (p.joker && p.fresh) c.classList.add('jcPick');
+      row.appendChild(c);
+    });
+    if (atEnd === 'low' && more.parentNode !== row && (opt.preview || []).length > 3) row.appendChild(more);
+    return row;
+  }
+
   function showJokerChoice(kind, context, options) {
     const optionsDiv = el('jokerChoiceOptions');
     optionsDiv.innerHTML = '';
     options.forEach((opt) => {
       const btn = document.createElement('button');
-      btn.textContent = trs(opt.label);
+      btn.type = 'button';
+      btn.className = 'jcOption';
+      const t = jokerChoiceText(opt);
+      const text = document.createElement('span');
+      text.className = 'jcText';
+      if (t.kind) {
+        const k = document.createElement('span');
+        k.className = 'jcKind';
+        k.textContent = t.kind;
+        text.appendChild(k);
+      }
+      const d = document.createElement('span');
+      d.className = 'jcDetail';
+      d.textContent = t.detail;
+      text.appendChild(d);
+      btn.appendChild(text);
+      if (opt.preview && opt.preview.length) btn.appendChild(jokerChoicePreview(opt));
+      btn.setAttribute('aria-label', trs(opt.label));
       btn.addEventListener('click', () => {
         el('jokerChoiceOverlay').classList.add('hidden');
         sound.meld();
