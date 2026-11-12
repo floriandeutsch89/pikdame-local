@@ -3,6 +3,14 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.135.0] - 2026-11-12
+
+### Changed
+- Statistik: Drei Reiter statt einer langen Seite: „Ich“ (deine Zahlen, Stammtisch, Erfolge), „Bestenliste“ und „Partien“. Jeder passt am Handy etwa auf einen Bildschirm.
+- Statistik: „Alle Partien“ neben den letzten Partien führt direkt zum Reiter „Partien“; dort steht jetzt, wie viele Partien die Zahlen umfassen und was die Balken zeigen.
+- Statistik: Im Querformat nutzt das Blatt die Breite, „Ich“ steht in zwei Spalten. Die Spalten der Bestenliste stoßen nicht mehr aneinander.
+- Tagesrätsel: Die Punkte werden beim Lösen nicht mehr mitgezählt, weder für die Auswahl noch für ausgelegte Karten. Rechnen gehört zum Rätsel; die Punkte stehen erst da, wenn der Tag vorbei ist.
+
 ## [2.134.3] - 2026-11-12
 
 ### Changed
